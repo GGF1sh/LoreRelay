@@ -11,6 +11,17 @@
   - README screenshots/GIF, Ko-fi real URL
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
 
+## 2026-06-26 - Antigravity - Localize installer scripts in 4 languages
+
+### Summary
+- Localized the installer scripts (`install_vscode_extension.bat` and `install_antigravity_skill.bat`) into 4 languages (en, ja, zh-CN, zh-TW).
+- Migrated processing to Unicode-compliant PowerShell scripts (`scripts/install_vscode_extension.ps1` and `scripts/install_antigravity_skill.ps1`) to prevent CMD Mojibake/syntax crash issues on different locale code pages.
+- Created `locales/installer.json` to store localization strings.
+- Kept lightweight, ASCII-only `.bat` files in the root directory for easy double-clicking.
+
+### Verification
+- **Checked & Verified**: The user manually ran `install_antigravity_skill.bat` and `install_vscode_extension.bat` (after compiling the VSIX package via `vsce package`) locally in `c:\AI\text-adventure-vsce` on `2026-06-26 05:23 JST` and confirmed correct CJK console display and successful installation.
+
 ## 2026-06-26 - Grok - v0.2.11 review fixes (image regen / VSIX / LICENSE)
 
 ### Summary

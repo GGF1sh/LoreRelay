@@ -12,7 +12,15 @@
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
   - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
-  - v0.3.0–v0.3.1 変更の Git push（ローカル commit 済み、`main` ahead 1）
+  - v0.3.0–v0.3.1 変更の Git push (Complete - all committed changes pushed)
+
+## 2026-06-26 - Antigravity - Commit and Push Installer Scripts
+
+### Summary
+- Committed and pushed the 4 localized installer script files (`install_antigravity_skill.bat`, `install_vscode_extension.bat`, `scripts/install_antigravity_skill.ps1`, `scripts/install_vscode_extension.ps1`) to `origin/main` as requested by the user.
+
+### Verification
+- **Checked & Verified**: Ran `git status` locally in `c:\AI\text-adventure-vsce` on `2026-06-26 07:00 JST` (local timezone of the user's check environment) confirming a clean working directory and successful push to remote.
 
 ## 2026-06-26 - ChatGPT/Codex - Schema Strictness & Message Action Hardening
 

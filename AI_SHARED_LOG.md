@@ -14,7 +14,7 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
-  - Git push: **完了**（`810f34d` まで push 済み）
+  - Git push: **完了**（`d25f764` まで push 済み）
 
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
 
@@ -72,7 +72,7 @@
 
 | 時刻 (JST) | コミット | 対象 | 内容 |
 |:---|:---|:---|:---|
-| 07:23 | (this) | `webview/styles/*.css` | `style.css`（~1,423 行）を 9 モジュールへ分割。`build-webview.js` が JS+CSS 両方を結合 |
+| 07:23 | `d25f764` | `webview/styles/*.css` | `style.css`（~1,423 行）を 9 モジュールへ分割。`build-webview.js` が JS+CSS 両方を結合 |
 
 #### CSS モジュール構成
 - `00-base.css` — フォント import, 変数, body, 背景レイヤー

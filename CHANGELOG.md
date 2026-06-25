@@ -19,6 +19,11 @@
 - `excludedFromPrompt` now affects GM prompt context and Memory Bank history retrieval in addition to Webview display opacity.
 - Added validation coverage for schema-critical rules in `scripts/validate.js` and a new invalid metadata fixture.
 
+## [Unreleased]
+
+### Changed
+- **Refactor:** Webview `postMessage` ルーターを `src/webviewHandlers.ts` へ分離。`isValidEntryId` を `src/entryId.ts` へ共通化（`extension.ts` 分割第一歩）。
+
 ## [0.3.1] - 2026-06-26
 
 ### Added (Phase ST-A — Image Gen Settings & Workspace Config)

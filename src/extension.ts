@@ -55,6 +55,8 @@ import {
     sanitizeImageGenConfig,
     type ImageGenConfig
 } from './imageGenConfig';
+import { isValidEntryId } from './entryId';
+import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
 
 let panel: vscode.WebviewPanel | undefined;
 let fileWatcher: vscode.FileSystemWatcher | undefined;
@@ -139,140 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
         sendLocaleBundle();
 
         panel.webview.onDidReceiveMessage(
-            async (message) => {
-                switch (message.type) {
-                    case 'selectOption':
-                    case 'freeInput':
-                        await handlePlayerInput(
-                            message.text,
-                            typeof message.authorsNote === 'string' ? message.authorsNote : undefined
-                        );
-                        break;
-                    case 'generateImage':
-                        await runImageGeneration(
-                            message.prompt,
-                            message.mode,
-                            typeof message.entryId === 'string' ? message.entryId : undefined
-                        );
-                        break;
-                    case 'setLocale':
-                        await handleLocaleChange(message.locale);
-                        break;
-                    case 'requestState':
-                        sendLocaleBundle();
-                        sendCurrentState(0, true);
-                        sendBgmManifest();
-                        sendSfxManifest();
-                        sendCharacterList();
-                        sendCheckpointList();
-                        break;
-                    case 'loadCharacters':
-                        sendCharacterList();
-                        break;
-                    case 'saveCharacter':
-                        if (message.character?.id && isValidCharacterId(message.character.id)) {
-                            saveCharacter(message.character);
-                            if (message.inParty) {
-                                addToParty(message.character.id);
-                            }
-                        } else {
-                            vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
-                        }
-                        break;
-                    case 'setActiveCharacter':
-                        if (isValidCharacterId(message.id)) {
-                            setActiveCharacter(message.id);
-                        } else {
-                            vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
-                        }
-                        break;
-                    case 'uploadPortrait':
-                        if (isValidCharacterId(message.id)) {
-                            await uploadPortrait(message.id);
-                        } else {
-                            vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
-                        }
-                        break;
-                    case 'generatePortrait':
-                        if (isValidCharacterId(message.id)) {
-                            await generatePortrait(message.id);
-                        } else {
-                            vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
-                        }
-                        break;
-                    case 'addToParty':
-                        if (isValidCharacterId(message.id)) {
-                            addToParty(message.id);
-                        }
-                        break;
-                    case 'removeFromParty':
-                        if (isValidCharacterId(message.id)) {
-                            removeFromParty(message.id);
-                        }
-                        break;
-                    case 'summarizeHistory':
-                        await summarizeHistory();
-                        break;
-                    case 'archiveSaga':
-                        await archiveSaga();
-                        break;
-                    case 'undoLastTurn':
-                        await handleUndoLastTurn();
-                        break;
-                    case 'restoreToTurn':
-                        if (typeof message.entryId === 'string') {
-                            await handleRestoreToTurn(message.entryId);
-                        }
-                        break;
-                    case 'saveCheckpoint':
-                        await handleSaveCheckpoint(typeof message.label === 'string' ? message.label : undefined);
-                        break;
-                    case 'restoreCheckpoint':
-                        if (typeof message.checkpointId === 'string') {
-                            await handleRestoreCheckpoint(message.checkpointId);
-                        }
-                        break;
-                    case 'deleteCheckpoint':
-                        if (typeof message.checkpointId === 'string') {
-                            await handleDeleteCheckpoint(message.checkpointId);
-                        }
-                        break;
-                    case 'listCheckpoints':
-                        sendCheckpointList();
-                        break;
-                    case 'regenerateLastTurn':
-                        await handleRegenerateLastTurn();
-                        break;
-                    case 'updateSummary':
-                        updateSummary(message.summary);
-                        break;
-                    case 'editEntry':
-                        if (typeof message.id === 'string' && isValidEntryId(message.id) &&
-                            typeof message.content === 'string') {
-                            await handleEditEntry(message.id, message.content);
-                        }
-                        break;
-                    case 'toggleExcludeEntry':
-                        if (typeof message.id === 'string' && isValidEntryId(message.id)) {
-                            await handleToggleExcludeEntry(message.id);
-                        }
-                        break;
-                    case 'branchFromEntry':
-                        if (typeof message.entryId === 'string' && isValidEntryId(message.entryId)) {
-                            await handleRestoreToTurn(message.entryId);
-                        }
-                        break;
-                    case 'loadScenario':
-                        await loadScenarioPack();
-                        break;
-                    case 'requestImageGenConfig':
-                        sendImageGenConfig();
-                        break;
-                    case 'updateImageGenConfig':
-                        await handleUpdateImageGenConfig(message.config);
-                        break;
-                }
-            },
+            (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
             undefined,
             context.subscriptions
         );
@@ -1318,12 +1187,6 @@ function validatePlayerInput(text: unknown): string | undefined {
         return undefined;
     }
     return trimmed;
-}
-
-const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
-
-function isValidEntryId(entryId: unknown): entryId is string {
-    return typeof entryId === 'string' && ENTRY_ID_PATTERN.test(entryId);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -2831,6 +2694,41 @@ async function handleRegenerateLastTurn() {
     if (!ok) {
         await fallbackToClipboard(regenPrompt);
     }
+}
+
+/** Webview postMessage ルーターへ渡すハンドラ束ね。 */
+function createWebviewHandlerDeps(): WebviewHandlerDeps {
+    return {
+        handlePlayerInput,
+        runImageGeneration,
+        handleLocaleChange,
+        sendLocaleBundle,
+        sendCurrentState,
+        sendBgmManifest,
+        sendSfxManifest,
+        sendCharacterList,
+        sendCheckpointList,
+        saveCharacter,
+        setActiveCharacter,
+        uploadPortrait,
+        generatePortrait,
+        addToParty,
+        removeFromParty,
+        summarizeHistory,
+        archiveSaga,
+        handleUndoLastTurn,
+        handleRestoreToTurn,
+        handleSaveCheckpoint,
+        handleRestoreCheckpoint,
+        handleDeleteCheckpoint,
+        handleRegenerateLastTurn,
+        updateSummary,
+        handleEditEntry,
+        handleToggleExcludeEntry,
+        loadScenarioPack,
+        sendImageGenConfig,
+        handleUpdateImageGenConfig
+    };
 }
 
 export function deactivate() {

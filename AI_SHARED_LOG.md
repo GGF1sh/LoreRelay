@@ -64,6 +64,27 @@
 - `npm test` passed
 - `git diff --check` passed with only CRLF conversion warnings
 
+## 2026-06-26 - Grok - extension.ts 分割（第一歩: webviewHandlers）
+
+### Summary
+- `webviewHandlers.ts`: 全 postMessage ルーティング（30+ message types）を `extension.ts` から切り出し。
+- `entryId.ts`: `isValidEntryId` を共通化。
+- `extension.ts` ~2,865 → ~2,763 行。compile + test 通過。
+
+### Files touched
+- `src/webviewHandlers.ts` (new), `src/entryId.ts` (new), `src/extension.ts`, `CHANGELOG.md`, `C:\AI\GROK_CODE_REVIEW.md`, `AI_SHARED_LOG.md`
+
+### Verification
+- `npm run compile` / `npm test`
+
+## 2026-06-26 - Grok - 第二回コードレビュー文書更新
+
+### Summary
+- `C:\AI\GROK_CODE_REVIEW.md` に v0.3.1 時点の第二回全体レビューを追記。React/.bat 未整備などの誤記を訂正、#24〜30 の新指摘表・就活評価・優先順位を更新。
+
+### Files touched
+- `C:\AI\GROK_CODE_REVIEW.md`, `AI_SHARED_LOG.md`
+
 ## 2026-06-26 - Grok - v0.3.1 Phase ST-A (Image Gen Settings)
 
 ### Summary

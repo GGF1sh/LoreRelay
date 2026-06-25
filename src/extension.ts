@@ -176,7 +176,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         panel.webview.html = html;
 
-        startWatchingGameState(context);
+        startWatchingGameState();
         sendLocaleBundle();
 
         panel.webview.onDidReceiveMessage(
@@ -403,15 +403,15 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
     }
 }
 
-function startWatchingGameState(context: vscode.ExtensionContext) {
+function startWatchingGameState() {
     const statePath = getGameStatePath();
     if (!statePath) { return; }
 
-    startGameStateWatcher(context);
+    startGameStateWatcher();
 
     if (bgmWatcher) { bgmWatcher.dispose(); }
     if (sfxWatcher) { sfxWatcher.dispose(); }
-    const watchers = startMediaManifestWatchers(context);
+    const watchers = startMediaManifestWatchers();
     bgmWatcher = watchers.bgmWatcher;
     sfxWatcher = watchers.sfxWatcher;
 }

@@ -16,6 +16,16 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`d25f764` まで push 済み）
 
+## 2026-06-26 - Antigravity - o3 Code Review Improvements (Watcher Leak Fix, Unified Busy Check & Cross-Platform Grok Resolution)
+
+### Summary
+- **File Watcher Memory Leak Prevention**: Refactored `startGameStateWatcher()` (in `gameStateSync.ts`), `startMediaManifestWatchers()` (in `mediaManifest.ts`), and `startWatchingGameState()` (in `extension.ts`) to not push the transient file/manifest watchers to `context.subscriptions`. This prevents duplicate watcher objects from piling up in the VS Code context subscriptions list whenever the Webview panel is toggled.
+- **Centralized GM Bridge Busy Check**: Unified the busy/concurrency checks directly inside the entry-point `invokeGmBridge()` in `gmBridgeRunner.ts`. Removed duplicate `if (grokProcess || gmProcess)` checks from individual bridge functions (`invokeGrokBridge`, `invokeLocalLlmBridge`, `invokeCustomGmBridge`) to improve DX and prevent race conditions cleanly in one place.
+- **Cross-Platform Grok Command Resolution**: Upgraded `resolveGrokCommand()` to probe default executable paths dynamically depending on the active OS platform (`grok.exe` on Windows vs. `grok` on macOS/Linux), preventing configuration fallback failures on Unix-like environments.
+
+### Verification
+- **Checked & Verified**: Ran full compile (`npm run compile`) and validation test suite (`npm test`) on `2026-06-26 08:48 JST` confirming clean builds and successful verification tests.
+
 ## 2026-06-26 - Antigravity - Security Hardening & Robustness (Workspace Trust, Atomic Writes, Scenario Copying & Caps)
 
 ### Summary

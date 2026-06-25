@@ -56,9 +56,11 @@ function resolveGrokCommand(configured: string): string {
         return configured;
     }
     const home = process.env.USERPROFILE || process.env.HOME || '';
-    const winPath = path.join(home, '.grok', 'bin', 'grok.exe');
-    if (process.platform === 'win32' && fs.existsSync(winPath)) {
-        return winPath;
+    const defaultPath = process.platform === 'win32'
+        ? path.join(home, '.grok', 'bin', 'grok.exe')
+        : path.join(home, '.grok', 'bin', 'grok');
+    if (fs.existsSync(defaultPath)) {
+        return defaultPath;
     }
     return 'grok';
 }
@@ -93,11 +95,6 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     const cwd = getWorkspacePath();
     if (!cwd) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
-        return false;
-    }
-
-    if (grokProcess || gmProcess) {
-        vscode.window.showWarningMessage(t('extension.error.gmBusy'));
         return false;
     }
 
@@ -194,11 +191,6 @@ async function invokeLocalLlmBridge(
     const cwd = getWorkspacePath();
     if (!cwd) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
-        return false;
-    }
-
-    if (gmProcess || grokProcess) {
-        vscode.window.showWarningMessage(t('extension.error.gmBusy'));
         return false;
     }
 
@@ -315,11 +307,6 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
         return false;
     }
 
-    if (gmProcess || grokProcess) {
-        vscode.window.showWarningMessage(t('extension.error.gmBusy'));
-        return false;
-    }
-
     const argTemplate = config.get<string[]>('gmBridge.commandArgs', ['--prompt-file', '{actionFile}', '--cwd', '{cwd}', '--always-approve']);
     const usesActionFile = argTemplate.some((arg) => arg.includes('{actionFile}'));
     const actionFile = usesActionFile ? writePlayerActionFile(cwd, playerAction) : undefined;
@@ -376,6 +363,10 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
 }
 
 export async function invokeGmBridge(playerAction: string): Promise<boolean> {
+    if (isGmBridgeBusy()) {
+        vscode.window.showWarningMessage(t('extension.error.gmBusy'));
+        return false;
+    }
     const provider = getGmProvider();
     if (provider !== 'clipboard') {
         if (!vscode.workspace.isTrusted) {

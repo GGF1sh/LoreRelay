@@ -135,7 +135,7 @@ export function sendSfxManifest(): void {
     panel.webview.postMessage({ type: 'sfxManifest', sounds, defaultVolume, enabled });
 }
 
-export function startMediaManifestWatchers(context: vscode.ExtensionContext): {
+export function startMediaManifestWatchers(): {
     bgmWatcher: vscode.FileSystemWatcher;
     sfxWatcher: vscode.FileSystemWatcher;
 } {
@@ -144,14 +144,12 @@ export function startMediaManifestWatchers(context: vscode.ExtensionContext): {
     bgmWatcher.onDidChange(() => sendBgmManifest());
     bgmWatcher.onDidCreate(() => sendBgmManifest());
     bgmWatcher.onDidDelete(() => sendBgmManifest());
-    context.subscriptions.push(bgmWatcher);
 
     sendSfxManifest();
     const sfxWatcher = vscode.workspace.createFileSystemWatcher('**/sfx.json');
     sfxWatcher.onDidChange(() => sendSfxManifest());
     sfxWatcher.onDidCreate(() => sendSfxManifest());
     sfxWatcher.onDidDelete(() => sendSfxManifest());
-    context.subscriptions.push(sfxWatcher);
 
     return { bgmWatcher, sfxWatcher };
 }

@@ -335,7 +335,7 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
 }
 
 /** game_state.json の FileSystemWatcher を開始する（BGM/SE 監視は extension 側）。 */
-export function startGameStateWatcher(context: vscode.ExtensionContext): void {
+export function startGameStateWatcher(): void {
     loadHistoryFromDisk();
     void sendCurrentState(0, true);
 
@@ -356,8 +356,6 @@ export function startGameStateWatcher(context: vscode.ExtensionContext): void {
 
     fileWatcher.onDidChange(handleChange);
     fileWatcher.onDidCreate(handleChange);
-
-    context.subscriptions.push(fileWatcher);
 }
 
 export function disposeGameStateWatcher(): void {

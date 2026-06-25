@@ -6,11 +6,10 @@
 
 **Local-first AI Game Master UI**
 
-這是一個 VSCode 擴充套件，讓您使用現有的 AI 訂閱（ChatGPT Plus, Claude Pro, Gemini Advanced 等）或本機 LLM（Ollama / KoboldCPP）在豐富的 UI 中遊玩文字冒險遊戲。
-如果您使用可以在本機執行的代理 AI（如 Antigravity），遊戲狀態將自動反映。如果您使用標準的網頁版 AI，只需手動複製貼上生成的狀態（JSON）即可輕鬆遊玩。
-**基本上不需要額外的按量計費 API 金鑰。** Ollama / KoboldCPP / Grok CLI 可以在本機或現有的訂閱中運行，而 **OpenRouter 可以作為任意雲端連線使用**（需要設定 API 金鑰）。
+**將您的瀏覽器訂閱（Claude / Grok / Gemini）直接變成高品質的 AI-GM。無需按量計費的 API 金鑰，零額外成本。配合 ComfyUI 即可進行本地圖像生成。**
 
-這不是一個封閉的 AI RPG 服務。它是一個**完全開放且可改造的「Hacker Edition」 UI 層**，供您結合自己的 AI 助手、本機圖像生成、音源和劇本來遊玩。您可以自由地在自己的環境中進行 Hack，打造出像 Saga & Seeker 那樣硬核的 CRPG 體驗。
+這是一個最大化利用您現有 AI 訂閱的 VSCode 擴充套件，它結合了像 SillyTavern 一樣的後端自由度，以及像 Saga & Seeker 一樣硬核的 CRPG 體驗。
+透過手動複製貼上（或透過本地代理自動執行）傳遞 JSON，它提供了一個完全開放且可改造的「Hacker Edition」 UI 層，讓您可以自由地在自己的環境中進行 Hack。
 
 > 💡 **Notice:** 如果您喜歡這個擴充套件，請考慮請我喝杯咖啡！☕ (https://ko-fi.com/promptpalette)
 

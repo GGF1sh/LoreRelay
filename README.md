@@ -5,11 +5,10 @@
 
 **Local-first AI Game Master UI**
 
-既存のAIサブスクリプション（ChatGPT Plus, Claude Pro, Gemini Advancedなど）やローカルLLM（Ollama / KoboldCPP）をそのまま使って、テキストアドベンチャーをリッチUIで遊ぶためのVSCode拡張機能です。
-ローカル実行可能なエージェントAI（Antigravity等）なら全自動でゲーム状態が反映され、通常のブラウザ版AIなら生成された状態（JSON）を手動でコピペするだけで手軽に遊べます。
-**基本は追加の従量課金APIキー不要**です。Ollama / KoboldCPP / Grok CLI はローカルまたは既存サブスクで動き、**OpenRouter は任意のクラウド接続**（APIキー設定が必要）として使えます。
+**Claude / Grok / Gemini のブラウザ定額サブスクをそのまま最高品質のAI-GMに。従量課金のAPIキー不要・追加コストゼロ。ComfyUIと組み合わせてローカル画像生成も。**
 
-これはクローズドなAI RPGサービスではありません。あなた自身のAIアシスタント、ローカル画像生成、音源、シナリオを組み合わせて遊ぶための、**完全にオープンで改造可能な「Hacker Edition」のUIレイヤー**です。Saga & Seeker のような本格的なCRPG体験を、あなたが持つ環境で自由にハックして作り上げることができます。
+既存のAIサブスクリプションを最大限活用し、SillyTavernのようなバックエンドの自由度と、Saga & Seekerのような本格的なCRPG体験を統合したVSCode拡張機能です。
+手動のコピペ（またはローカルエージェントによる自動化）でJSONを受け渡し、あなた自身の環境を自由にハックして遊べる「Hacker Edition」のUIレイヤーを提供します。
 
 > 💡 **Notice:** もしこの拡張機能が気に入ったら、ぜひ[コーヒーを一杯奢ってください！☕](https://ko-fi.com/promptpalette)
 

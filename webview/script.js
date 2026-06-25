@@ -204,6 +204,10 @@ window.addEventListener('message', (event) => {
     if (currentCharacters.length > 0 || activeCharId) {
       updateCharacterList(currentCharacters, activeCharId, currentPartyIds);
     }
+    // Re-render dynamic UI that depends on translations
+    renderAllMessages();
+    renderGallery();
+    renderCheckpointUi();
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
       addSystemMessage(T('webview.welcome'));
@@ -337,17 +341,70 @@ function renderMessage(entry) {
 
   // 画像があれば表示 (セキュリティのためcreateElementを使用)
   if (entry.image) {
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'scene-img-container';
+    
     const imgEl = document.createElement('img');
     imgEl.className = 'scene-img';
     imgEl.src = entry.image;
     imgEl.alt = 'Scene';
     imgEl.dataset.msgId = entry.id;
-    div.appendChild(imgEl);
+    imgContainer.appendChild(imgEl);
+
+    // プロンプト編集・再生成UI
+    const promptEditor = document.createElement('div');
+    promptEditor.className = 'image-prompt-editor';
+
+    const label = document.createElement('div');
+    label.className = 'prompt-label';
+    label.textContent = T('webview.image.promptLabel');
+    promptEditor.appendChild(label);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'prompt-textarea';
+    textarea.placeholder = T('webview.image.promptPlaceholder');
+    textarea.value = entry.imagePrompt || '';
+    promptEditor.appendChild(textarea);
+
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'regen-img-btn';
+    regenBtn.innerHTML = `🔄 ${T('webview.image.regenerateBtn')}`;
+    regenBtn.onclick = () => {
+      // どのエントリの画像を再生成するかを渡す
+      const entryIndex = messageHistory.findIndex(m => m.id === entry.id);
+      vscode.postMessage({
+        type: 'generateImage',
+        prompt: textarea.value.trim(),
+        mode: 'illustrious', // TODO: 汎用化できるならする
+        entryIndex
+      });
+      addSystemMessage(T('webview.image.requested') || 'Requested image generation...');
+    };
+    promptEditor.appendChild(regenBtn);
+    imgContainer.appendChild(promptEditor);
+
+    div.appendChild(imgContainer);
   } else if (entry.imageBlocked) {
     const ph = document.createElement('div');
     ph.className = 'scene-img-placeholder';
     ph.textContent = T('webview.image.blocked');
     div.appendChild(ph);
+  } else if (entry.role === 'gm') {
+    // 画像がないGMターンでの手動生成ボタン
+    const manualGenBtn = document.createElement('button');
+    manualGenBtn.className = 'manual-gen-btn glass-btn';
+    manualGenBtn.textContent = T('webview.image.manualGenBtn');
+    manualGenBtn.onclick = () => {
+      const entryIndex = messageHistory.findIndex(m => m.id === entry.id);
+      vscode.postMessage({
+        type: 'generateImage',
+        prompt: entry.imagePrompt || entry.content.substring(0, 300),
+        mode: 'illustrious',
+        entryIndex
+      });
+      addSystemMessage(T('webview.image.requested') || 'Requested image generation...');
+    };
+    div.appendChild(manualGenBtn);
   }
 
   chatLog.appendChild(div);

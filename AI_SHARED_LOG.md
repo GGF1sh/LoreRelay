@@ -5,11 +5,20 @@
 
 ## Current Snapshot
 
-- Current package version: `0.2.10`
+- Current package version: `0.2.11`
 - Main source of truth: `CHANGELOG.md` + source code
 - Main remaining work:
   - README screenshots/GIF, Ko-fi real URL
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
+
+## 2026-06-26 - Grok - v0.2.11 review fixes (image regen / VSIX / LICENSE)
+
+### Summary
+- Image regen: `entryId` + `applyImageToEntryById` + Webview `updateEntry`（履歴と game_state の ID 一致）。
+- `.vscodeignore` 拡充、MIT `LICENSE`、`install_antigravity_skill.bat` フォールバック、`imagePrompt` 検証。
+
+### Files touched
+- `src/extension.ts`, `webview/script.js`, `src/validateGameState.ts`, `.vscodeignore`, `LICENSE`, `install_antigravity_skill.bat`, `CHANGELOG.md`
 
 ## 2026-06-26 - Codex - Pre-publication docs/package cleanup
 

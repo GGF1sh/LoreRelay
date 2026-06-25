@@ -4,7 +4,8 @@
       "id": "turn-1",
       "role": "gm",
       "sender": "Game Master",
-      "content": "The adventure begins."
+      "content": "The adventure begins.",
+      "imagePrompt": "fantasy tavern, warm lighting, detailed"
     }
   ],
   "status": {

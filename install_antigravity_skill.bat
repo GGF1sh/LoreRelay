@@ -6,23 +6,45 @@ echo   Antigravity GM Skill Installer (for LoreRelay)
 echo ===================================================
 echo.
 
-echo Antigravity 用の GM スキルをインストールしています...
-
-set "SKILL_SRC=.\skills\text-adventure-gm"
+set "SCRIPT_DIR=%~dp0"
 set "SKILL_DEST=%USERPROFILE%\.gemini\config\skills\text-adventure-gm"
+set "SKILL_SRC="
 
-if not exist "%SKILL_SRC%" (
-    echo [エラー] スキルフォルダ (%SKILL_SRC%) が見つかりません。インストーラの構成を確認してください。
-) else (
-    echo コピー先: %SKILL_DEST%
-    :: 既存のフォルダがあれば上書きするために /E /I /Y を使用
-    xcopy "%SKILL_SRC%" "%SKILL_DEST%" /E /I /Y >nul
-    if !errorlevel! neq 0 (
-        echo [エラー] スキルのコピーに失敗しました。
-    ) else (
-        echo [成功] GMスキルのインストールが完了しました！Antigravity (Gemini IDE) を再起動してください。
+if exist "%SCRIPT_DIR%skills\text-adventure-gm\SKILL.md" (
+    set "SKILL_SRC=%SCRIPT_DIR%skills\text-adventure-gm"
+)
+
+if not defined SKILL_SRC (
+    if exist "%SCRIPT_DIR%..\TextAdventureGMSkill\SKILL.md" (
+        set "SKILL_SRC=%SCRIPT_DIR%..\TextAdventureGMSkill"
     )
 )
 
+if not defined SKILL_SRC (
+    echo [エラー] GMスキルが見つかりません。
+    echo   次のいずれかを用意してください:
+    echo   - %SCRIPT_DIR%skills\text-adventure-gm\
+    echo   - %SCRIPT_DIR%..\TextAdventureGMSkill\
+    goto :done
+)
+
+echo コピー元: %SKILL_SRC%
+echo コピー先: %SKILL_DEST%
+
+if not exist "%SKILL_DEST%" mkdir "%SKILL_DEST%"
+if not exist "%SKILL_DEST%\scripts" mkdir "%SKILL_DEST%\scripts"
+
+copy /Y "%SKILL_SRC%\SKILL.md" "%SKILL_DEST%\" >nul
+if errorlevel 1 (
+    echo [エラー] SKILL.md のコピーに失敗しました。
+    goto :done
+)
+
+for %%f in ("%SKILL_SRC%\scripts\*.py") do copy /Y "%%f" "%SKILL_DEST%\scripts\" >nul
+for %%f in ("%SKILL_SRC%\scripts\*.json") do copy /Y "%%f" "%SKILL_DEST%\scripts\" >nul
+
+echo [成功] GMスキルのインストールが完了しました。Antigravity を再起動してください。
+
+:done
 echo.
 pause

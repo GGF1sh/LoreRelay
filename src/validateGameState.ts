@@ -29,6 +29,9 @@ export function validateGameState(obj: unknown): string[] {
             if (e.image !== undefined && typeof e.image !== 'string') {
                 errors.push(`entries[${i}].image must be a string`);
             }
+            if (e.imagePrompt !== undefined && typeof e.imagePrompt !== 'string') {
+                errors.push(`entries[${i}].imagePrompt must be a string`);
+            }
         });
     }
 

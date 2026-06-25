@@ -131,7 +131,11 @@ export function activate(context: vscode.ExtensionContext) {
                         );
                         break;
                     case 'generateImage':
-                        await runImageGeneration(message.prompt, message.mode, message.entryIndex);
+                        await runImageGeneration(
+                            message.prompt,
+                            message.mode,
+                            typeof message.entryId === 'string' ? message.entryId : undefined
+                        );
                         break;
                     case 'setLocale':
                         await handleLocaleChange(message.locale);
@@ -1155,6 +1159,66 @@ function validatePlayerInput(text: unknown): string | undefined {
     return trimmed;
 }
 
+const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function isValidEntryId(entryId: string): boolean {
+    return ENTRY_ID_PATTERN.test(entryId);
+}
+
+/** 履歴・game_state を entry.id で画像更新し、Webview に patch を送る。 */
+function applyImageToEntryById(wsPath: string, entryId: string, imagePath: string, prompt: string): boolean {
+    const histIdx = gameEntryHistory.findIndex((e) => e.id === entryId);
+    if (histIdx < 0) {
+        return false;
+    }
+
+    gameEntryHistory[histIdx] = {
+        ...gameEntryHistory[histIdx],
+        image: imagePath,
+        imagePrompt: prompt
+    };
+    saveHistoryToDisk();
+
+    const statePath = path.join(wsPath, 'game_state.json');
+    if (fs.existsSync(statePath)) {
+        try {
+            const stateData = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+            let stateUpdated = false;
+            const entries = stateData.entries;
+            if (Array.isArray(entries)) {
+                const ei = entries.findIndex(
+                    (e) => typeof e === 'object' && e !== null && (e as GameEntry).id === entryId
+                );
+                if (ei >= 0) {
+                    const row = entries[ei] as Record<string, unknown>;
+                    row.image = imagePath;
+                    row.imagePrompt = prompt;
+                    stateUpdated = true;
+                }
+            }
+            const lastGm = findLastGmEntry(gameEntryHistory);
+            if (lastGm?.id === entryId) {
+                stateData.latestImage = imagePath;
+                stateUpdated = true;
+            }
+            if (stateUpdated) {
+                fs.writeFileSync(statePath, JSON.stringify(stateData, null, 2), 'utf-8');
+            }
+        } catch {
+            // game_state 更新失敗は履歴更新だけでも続行
+        }
+    }
+
+    const uri = safeImageUri(imagePath);
+    if (panel && uri) {
+        panel.webview.postMessage({
+            type: 'updateEntry',
+            entry: { id: entryId, image: uri, imagePrompt: prompt }
+        });
+    }
+    return true;
+}
+
 async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     const config = vscode.workspace.getConfiguration('textAdventure');
     if (!config.get<boolean>('grokBridge.enabled', true)) {
@@ -1750,7 +1814,25 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
             let historyUpdated = false;
             if (state.entries && Array.isArray(state.entries)) {
                 state.entries.forEach((entry: GameEntry) => {
-                    if (entry.id && !seenEntryIds.has(entry.id)) {
+                    if (!entry.id) {
+                        return;
+                    }
+                    const histIdx = gameEntryHistory.findIndex((e) => e.id === entry.id);
+                    if (histIdx >= 0) {
+                        const prev = gameEntryHistory[histIdx];
+                        const imgChanged = entry.image && entry.image !== prev.image;
+                        const promptChanged = entry.imagePrompt !== undefined && entry.imagePrompt !== prev.imagePrompt;
+                        if (imgChanged || promptChanged) {
+                            gameEntryHistory[histIdx] = {
+                                ...prev,
+                                ...(imgChanged ? { image: entry.image } : {}),
+                                ...(promptChanged ? { imagePrompt: entry.imagePrompt } : {})
+                            };
+                            historyUpdated = true;
+                        }
+                        return;
+                    }
+                    if (!seenEntryIds.has(entry.id)) {
                         seenEntryIds.add(entry.id);
                         const entryWithState: any = { ...entry };
                         if (entry.role === 'gm') {
@@ -1817,7 +1899,7 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
     }
 }
 
-async function runImageGeneration(prompt: string, mode: string, entryIndex?: number) {
+async function runImageGeneration(prompt: string, mode: string, entryId?: string) {
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
@@ -1880,27 +1962,12 @@ async function runImageGeneration(prompt: string, mode: string, entryIndex?: num
         imageOutputChannel?.appendLine(`\nProcess exited with code ${code}`);
         panel?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
 
-        if (code === 0 && generatedImagePath && typeof entryIndex === 'number') {
-            try {
-                const statePath = path.join(wsPath, 'game_state.json');
-                const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(statePath));
-                const stateText = Buffer.from(raw).toString('utf-8');
-                const stateData = JSON.parse(stateText);
-
-                if (stateData.entries && stateData.entries[entryIndex]) {
-                    stateData.entries[entryIndex].image = generatedImagePath;
-                    stateData.entries[entryIndex].imagePrompt = prompt;
-                    stateData.latestImage = generatedImagePath;
-
-                    // ファイルを上書き保存する（ファイル監視機能がこれを検知して Webview を更新する）
-                    await vscode.workspace.fs.writeFile(
-                        vscode.Uri.file(statePath),
-                        Buffer.from(JSON.stringify(stateData, null, 2), 'utf-8')
-                    );
-                    imageOutputChannel?.appendLine(`Updated game_state.json with new image for entry index ${entryIndex}`);
-                }
-            } catch (err) {
-                imageOutputChannel?.appendLine(`Failed to update game_state.json: ${err}`);
+        if (code === 0 && generatedImagePath && entryId && isValidEntryId(entryId)) {
+            const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
+            if (ok) {
+                imageOutputChannel?.appendLine(`Updated entry ${entryId} with new image`);
+            } else {
+                imageOutputChannel?.appendLine(`Entry ${entryId} not found in game history`);
             }
         }
     });

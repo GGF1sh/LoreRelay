@@ -193,6 +193,8 @@ window.addEventListener('message', (event) => {
     checkpointMetas = msg.checkpoints || [];
     rewindTargets = msg.rewindTargets || [];
     renderCheckpointUi();
+  } else if (msg.type === 'updateEntry') {
+    applyEntryPatch(msg.entry);
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};
     currentLocale = msg.locale || 'en';
@@ -216,6 +218,24 @@ window.addEventListener('message', (event) => {
 });
 
 // ===== Game State の適用 =====
+function applyEntryPatch(patch) {
+  if (!patch?.id) return;
+  const idx = messageHistory.findIndex(m => m.id === patch.id);
+  if (idx < 0) return;
+  const prev = messageHistory[idx];
+  const next = { ...prev, ...patch };
+  messageHistory[idx] = next;
+  const el = document.getElementById(`msg-${patch.id}`);
+  if (el) {
+    el.remove();
+    renderMessage(next);
+  }
+  if (next.image) {
+    addImageToGallery(next.image);
+  }
+  saveState();
+}
+
 function applyGameState(state, fullHistory) {
   if (!state) return;
 
@@ -234,6 +254,20 @@ function applyGameState(state, fullHistory) {
         renderMessage(entry);
         if (entry.role === 'gm') {
           lastAddedEntry = entry;
+        }
+      } else {
+        const idx = messageHistory.findIndex(m => m.id === entry.id);
+        if (idx >= 0) {
+          const prev = messageHistory[idx];
+          const imageChanged = entry.image && entry.image !== prev.image;
+          const promptChanged = entry.imagePrompt !== undefined && entry.imagePrompt !== prev.imagePrompt;
+          if (imageChanged || promptChanged) {
+            applyEntryPatch({
+              id: entry.id,
+              ...(imageChanged ? { image: entry.image } : {}),
+              ...(promptChanged ? { imagePrompt: entry.imagePrompt } : {})
+            });
+          }
         }
       }
     }
@@ -370,13 +404,11 @@ function renderMessage(entry) {
     regenBtn.className = 'regen-img-btn';
     regenBtn.innerHTML = `🔄 ${T('webview.image.regenerateBtn')}`;
     regenBtn.onclick = () => {
-      // どのエントリの画像を再生成するかを渡す
-      const entryIndex = messageHistory.findIndex(m => m.id === entry.id);
       vscode.postMessage({
         type: 'generateImage',
         prompt: textarea.value.trim(),
         mode: 'illustrious', // TODO: 汎用化できるならする
-        entryIndex
+        entryId: entry.id
       });
       addSystemMessage(T('webview.image.requested') || 'Requested image generation...');
     };
@@ -395,12 +427,11 @@ function renderMessage(entry) {
     manualGenBtn.className = 'manual-gen-btn glass-btn';
     manualGenBtn.textContent = T('webview.image.manualGenBtn');
     manualGenBtn.onclick = () => {
-      const entryIndex = messageHistory.findIndex(m => m.id === entry.id);
       vscode.postMessage({
         type: 'generateImage',
         prompt: entry.imagePrompt || entry.content.substring(0, 300),
         mode: 'illustrious',
-        entryIndex
+        entryId: entry.id
       });
       addSystemMessage(T('webview.image.requested') || 'Requested image generation...');
     };

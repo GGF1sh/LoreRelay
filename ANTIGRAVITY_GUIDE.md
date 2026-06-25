@@ -23,7 +23,7 @@ WebSocketサーバーも、複雑なAPI連携も不要。**「AIがJSONを書き
 Antigravity 用の GM スキルは、同梱のバッチファイルでワンクリック導入できます。
 
 1. 配布パッケージ内の `install_antigravity_skill.bat` をダブルクリックします。
-2. 自動的に `%USERPROFILE%\.gemini\config\skills\text-adventure-gm` へスキルがコピーされます。
+2. `skills\text-adventure-gm` または隣接する `TextAdventureGMSkill` から、`%USERPROFILE%\.gemini\config\skills\text-adventure-gm` へ `SKILL.md` と `scripts\` がコピーされます。
 3. Antigravity を再起動すると、スキルが認識されます。
 
 ---

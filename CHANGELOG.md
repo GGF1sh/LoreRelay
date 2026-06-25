@@ -13,9 +13,13 @@
 ### Added
 - DREAMIO-style manual image regeneration: Added `imagePrompt` field to `game_state.json` and a UI button to edit and regenerate scene images via ComfyUI.
 - README に v0.3 候補として Remote Play Mode のロードマップを追加（LAN/Tailscale 前提、直接公開なし）。
+- `LICENSE`（MIT）を追加。
 
 ### Fixed
-- VSIX パッケージング時にコンパイル済み `out/` を除外しないよう `.vscodeignore` を修正。
+- 画像再生成が `entryIndex` ではなく **`entry.id`** で履歴・`game_state.json`・Webview を一貫更新するよう修正（`updateEntry` メッセージ）。
+- `install_antigravity_skill.bat` が `..\TextAdventureGMSkill` をフォールバックコピー元として解決。
+- VSIX から内部資料（`AI_*.md`、`src/`、`test/`、`*.map` 等）を除外するよう `.vscodeignore` を拡充（`out/` と `scripts/package_scenario.py` は同梱維持）。
+- `validateGameState` に `entries[].imagePrompt` 検証を追加。
 
 ### Changed
 - 共有ログ、AI協業文書、private scenario vault パッケージ補助スクリプトから、公開向けに不要なローカル具体パスを除去。

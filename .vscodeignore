@@ -1,3 +1,16 @@
-.vscode
-node_modules
-*.map
+.vscode/**
+.git/**
+.github/**
+node_modules/**
+
+# TypeScript sources (compiled output lives in out/)
+src/**
+test/**
+
+# Internal AI collaboration docs (not for end users)
+AI_*.md
+CLAUDE_REVIEW_PROMPT.md
+DEVELOPMENT_TIMELINE.md
+
+# Source maps
+**/*.map

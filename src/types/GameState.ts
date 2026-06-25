@@ -44,6 +44,7 @@ export interface GameEntry {
     sender: string;
     content: string;
     image?: string;
+    imagePrompt?: string;
     imageBlocked?: boolean;
 }
 

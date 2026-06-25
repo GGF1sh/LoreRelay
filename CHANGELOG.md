@@ -8,9 +8,10 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
-## [Unreleased]
+## [0.2.11] - 2026-06-26
 
 ### Added
+- DREAMIO-style manual image regeneration: Added `imagePrompt` field to `game_state.json` and a UI button to edit and regenerate scene images via ComfyUI.
 - README に v0.3 候補として Remote Play Mode のロードマップを追加（LAN/Tailscale 前提、直接公開なし）。
 
 ### Fixed

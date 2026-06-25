@@ -1140,3 +1140,74 @@ body {
   text-align: right;
   color: var(--text-dim);
 }
+
+/* ========= 画像プロンプト再生成UI ========= */
+.scene-img-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.image-prompt-editor {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.image-prompt-editor .prompt-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.image-prompt-editor .prompt-textarea {
+  width: 100%;
+  min-height: 40px;
+  max-height: 120px;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: inherit;
+}
+
+.image-prompt-editor .prompt-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.regen-img-btn, .manual-gen-btn {
+  align-self: flex-end;
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.4);
+  color: #dcb3ff;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.regen-img-btn:hover, .manual-gen-btn:hover {
+  background: rgba(179, 136, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.manual-gen-btn {
+  margin-top: 8px;
+}

@@ -131,7 +131,7 @@ export function activate(context: vscode.ExtensionContext) {
                         );
                         break;
                     case 'generateImage':
-                        await runImageGeneration(message.prompt, message.mode);
+                        await runImageGeneration(message.prompt, message.mode, message.entryIndex);
                         break;
                     case 'setLocale':
                         await handleLocaleChange(message.locale);
@@ -1817,7 +1817,7 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
     }
 }
 
-async function runImageGeneration(prompt: string, mode: string) {
+async function runImageGeneration(prompt: string, mode: string, entryIndex?: number) {
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
@@ -1856,17 +1856,53 @@ async function runImageGeneration(prompt: string, mode: string) {
         env
     });
 
+    let generatedImagePath = '';
+
     child.stdout.on('data', (data) => {
-        imageOutputChannel?.append(data.toString());
+        const out = data.toString();
+        imageOutputChannel?.append(out);
+        
+        // 最終的に出力される絶対パス（.png で終わる行）を探す
+        const lines = out.split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.endsWith('.png') && trimmed.length > 4) {
+                generatedImagePath = trimmed;
+            }
+        }
     });
 
     child.stderr.on('data', (data) => {
         imageOutputChannel?.append(data.toString());
     });
 
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
         imageOutputChannel?.appendLine(`\nProcess exited with code ${code}`);
         panel?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
+
+        if (code === 0 && generatedImagePath && typeof entryIndex === 'number') {
+            try {
+                const statePath = path.join(wsPath, 'game_state.json');
+                const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(statePath));
+                const stateText = Buffer.from(raw).toString('utf-8');
+                const stateData = JSON.parse(stateText);
+
+                if (stateData.entries && stateData.entries[entryIndex]) {
+                    stateData.entries[entryIndex].image = generatedImagePath;
+                    stateData.entries[entryIndex].imagePrompt = prompt;
+                    stateData.latestImage = generatedImagePath;
+
+                    // ファイルを上書き保存する（ファイル監視機能がこれを検知して Webview を更新する）
+                    await vscode.workspace.fs.writeFile(
+                        vscode.Uri.file(statePath),
+                        Buffer.from(JSON.stringify(stateData, null, 2), 'utf-8')
+                    );
+                    imageOutputChannel?.appendLine(`Updated game_state.json with new image for entry index ${entryIndex}`);
+                }
+            } catch (err) {
+                imageOutputChannel?.appendLine(`Failed to update game_state.json: ${err}`);
+            }
+        }
     });
 }
 async function runSkillScript(scriptName: string, args: string[]): Promise<number> {

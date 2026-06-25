@@ -2,12 +2,14 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "publisher": "keisuke",
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
     "onCommand:textadventure.openGame",
     "onCommand:textadventure.listImageModels",
@@ -59,7 +61,11 @@
         },
         "textAdventure.imageGen.backend": {
           "type": "string",
-          "enum": ["comfyui", "stabilitymatrix", "custom"],
+          "enum": [
+            "comfyui",
+            "stabilitymatrix",
+            "custom"
+          ],
           "enumDescriptions": [
             "Standalone ComfyUI (default 127.0.0.1:8188)",
             "ComfyUI bundled in Stability Matrix",
@@ -135,7 +141,12 @@
         },
         "textAdventure.locale": {
           "type": "string",
-          "enum": ["ja", "en", "zh-CN", "zh-TW"],
+          "enum": [
+            "ja",
+            "en",
+            "zh-CN",
+            "zh-TW"
+          ],
           "enumDescriptions": [
             "日本語",
             "English",
@@ -152,7 +163,14 @@
         },
         "textAdventure.gmBridge.provider": {
           "type": "string",
-          "enum": ["grok", "clipboard", "command", "ollama", "koboldcpp", "openrouter"],
+          "enum": [
+            "grok",
+            "clipboard",
+            "command",
+            "ollama",
+            "koboldcpp",
+            "openrouter"
+          ],
           "default": "grok",
           "enumDescriptions": [
             "Grok Build headless (grok -p)",
@@ -206,8 +224,16 @@
         },
         "textAdventure.gmBridge.commandArgs": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["--prompt-file", "{actionFile}", "--cwd", "{cwd}", "--always-approve"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "--prompt-file",
+            "{actionFile}",
+            "--cwd",
+            "{cwd}",
+            "--always-approve"
+          ],
           "description": "Arguments for custom GM command. Placeholders: {actionFile} (recommended), {action}, {cwd}."
         },
         "textAdventure.grokBridge.enabled": {
@@ -252,7 +278,11 @@
         },
         "textAdventure.memory.backend": {
           "type": "string",
-          "enum": ["auto", "tfidf", "chromadb"],
+          "enum": [
+            "auto",
+            "tfidf",
+            "chromadb"
+          ],
           "enumDescriptions": [
             "Use ChromaDB if pip install chromadb succeeded, else TF-IDF",
             "Always use lightweight TF-IDF (no extra deps)",

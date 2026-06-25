@@ -12,7 +12,8 @@
           "role": { "type": "string", "enum": ["gm", "user"] },
           "sender": { "type": "string" },
           "content": { "type": "string" },
-          "image": { "type": "string" }
+          "image": { "type": "string" },
+          "imagePrompt": { "type": "string" }
         },
         "required": ["id", "role", "sender", "content"]
       }

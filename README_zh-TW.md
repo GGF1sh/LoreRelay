@@ -6,7 +6,7 @@
 
 **Local-first AI Game Master UI**
 
-**將您的瀏覽器訂閱（Claude / Grok / Gemini）直接變成高品質的 AI-GM。無需按量計費的 API 金鑰，零額外成本。配合 ComfyUI 即可進行本地圖像生成。**
+**Antigravity (免費) × LoreRelay × ComfyUI —— 由前沿大模型擔任 GM 的全自動 RPG 環境，無需 API 金鑰，零額外成本。**
 
 這是一個最大化利用您現有 AI 訂閱的 VSCode 擴充套件，它結合了像 SillyTavern 一樣的後端自由度，以及像 Saga & Seeker 一樣硬核的 CRPG 體驗。
 透過手動複製貼上（或透過本地代理自動執行）傳遞 JSON，它提供了一個完全開放且可改造的「Hacker Edition」 UI 層，讓您可以自由地在自己的環境中進行 Hack。

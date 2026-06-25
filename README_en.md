@@ -6,7 +6,7 @@
 
 **Local-first AI Game Master UI**
 
-**Turn your browser subscriptions (Claude Pro / Grok / Gemini Advanced) directly into a high-quality AI-GM. No pay-as-you-go API keys or extra costs required. Pair with ComfyUI for local image generation.**
+**Antigravity (Free) × LoreRelay × ComfyUI —— A fully automated RPG environment hosted by frontier models, requiring no API keys or extra costs.**
 
 A VSCode extension that maximizes your existing AI subscriptions, combining backend freedom like SillyTavern with an authentic CRPG experience like Saga & Seeker.
 By passing JSON via manual copy-paste (or automating via local agents), it provides a completely open and hackable "Hacker Edition" UI layer to build your own adventure environment.

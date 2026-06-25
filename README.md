@@ -5,7 +5,7 @@
 
 **Local-first AI Game Master UI**
 
-**Claude / Grok / Gemini のブラウザ定額サブスクをそのまま最高品質のAI-GMに。従量課金のAPIキー不要・追加コストゼロ。ComfyUIと組み合わせてローカル画像生成も。**
+**Antigravity（無料）× LoreRelay × ComfyUI——APIキー不要・追加コストゼロで、フロンティアモデルがGMを務めるフルオートRPG環境。**
 
 既存のAIサブスクリプションを最大限活用し、SillyTavernのようなバックエンドの自由度と、Saga & Seekerのような本格的なCRPG体験を統合したVSCode拡張機能です。
 手動のコピペ（またはローカルエージェントによる自動化）でJSONを受け渡し、あなた自身の環境を自由にハックして遊べる「Hacker Edition」のUIレイヤーを提供します。

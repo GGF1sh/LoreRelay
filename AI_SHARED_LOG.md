@@ -12,7 +12,8 @@
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
   - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
-  - v0.3.0–v0.3.1 変更の Git push (Complete - all committed changes pushed)
+  - `extension.ts` 分割: **完了**（~660 行。詳細は下記 2026-06-26 07:19 JST ログ）
+  - v0.3.0–v0.3.1 + refactor commits の Git push（未 push コミットあり — 要 push）
 
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
 
@@ -63,6 +64,32 @@
 - `npm run compile` passed
 - `npm test` passed
 - `git diff --check` passed with only CRLF conversion warnings
+
+## 2026-06-26 07:19 JST - Grok - extension.ts 分割（第三〜十歩: 一括完了）
+
+### 分割ログ（時系列・行数 Before/After）
+
+| 時刻 (JST) | コミット | 抽出ファイル | 移した主な関数・責務 | extension.ts 行数 |
+|:---|:---|:---|:---|:---|
+| 07:19 | `20f33f8` | `workspacePaths.ts` | `getActiveWorkspaceFolder`, `getWorkspacePath`, `getGameStatePath`, `getHistoryPath`, `getGmProvider` | 2,251 → 2,197 |
+| 07:19 | `20f33f8` | `skillScriptRunner.ts` | `resolveGmBridgeScript`, `resolvePythonCommand`, `getMemoryBackendSetting`, `buildLocalGmEnv`, `runSkillScript`, `killActiveScriptProcess` | → 2,141 |
+| 07:19 | `20f33f8` | `gmBridgeRunner.ts` | `getGmBridgeOutputChannel`, `invokeGmBridge` 系（Grok/Ollama/Kobold/OpenRouter/カスタム）, `fallbackToClipboard`, `killGmBridgeProcesses` | → 1,799 |
+| 07:19 | `20f33f8` | `imageGenRunner.ts` | `resolveComfyScript`, `getSkillDir`, `buildImageGenEnv`, `runImageGeneration`, `applyImageToEntryById`, `runListImageModels`, Image Gen 設定パネル | → 1,516 |
+| 07:19 | `20f33f8` | `mediaManifest.ts` | `sendBgmManifest`, `sendSfxManifest`, `startMediaManifestWatchers` | → 1,379 |
+| 07:19 | `20f33f8` | `characterManager.ts` | キャラ CRUD, パーティ, `sendCharacterList`, `generatePortrait`, `uploadPortrait` | → 1,115 |
+| 07:19 | `20f33f8` | `gmPromptBuilder.ts` | `buildGmPromptContext`, `buildGrokPrompt`, `processProfileUpdates`, `maybeSuggestArchive`, lorebook/memory/party 文脈 | → 796 |
+| 07:19 | `20f33f8` | `checkpointHandlers.ts` | Undo/Rewind/Checkpoint/再生成, `handleEditEntry`, `handleToggleExcludeEntry`, `archiveSaga`, `summarizeHistory` | → **660** |
+
+### パターン
+- 各モジュールは `initXxx(deps)` で `getPanel` 等を依存注入（`gameStateSync` と同型）。
+- `extension.ts` に残すもの: `activate`/`deactivate`, シナリオ読込, OpenRouter キー管理, locale, `handlePlayerInput`, ST インポートコマンド, `createWebviewHandlerDeps`。
+
+### Files touched
+- `src/workspacePaths.ts`, `src/skillScriptRunner.ts`, `src/gmBridgeRunner.ts`, `src/imageGenRunner.ts`, `src/mediaManifest.ts`, `src/characterManager.ts`, `src/gmPromptBuilder.ts`, `src/checkpointHandlers.ts`, `src/extension.ts`, `CHANGELOG.md`, `AI_SHARED_LOG.md`, `C:\AI\GROK_CODE_REVIEW.md`
+
+### Verification
+- `npm run compile` — 2026-06-26 07:19 JST OK
+- `npm test` — 2026-06-26 07:19 JST OK
 
 ## 2026-06-26 - Grok - extension.ts 分割（第二歩: gameStateSync）
 

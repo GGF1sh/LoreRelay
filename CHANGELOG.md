@@ -24,6 +24,16 @@
 ### Changed
 - **Refactor:** Webview `postMessage` ルーターを `src/webviewHandlers.ts` へ分離。`isValidEntryId` を `src/entryId.ts` へ共通化。
 - **Refactor:** `game_state.json` 同期・履歴・画像 URI 変換を `src/gameStateSync.ts` へ分離（`sendCurrentState` / watcher / `safeImageUri` / `game_history.json` 永続化）。
+- **Refactor:** `extension.ts` から以下を段階的に切り出し（`initXxx(deps)` 依存注入パターン）:
+  - `workspacePaths.ts` — ワークスペースパス解決・`getGmProvider`
+  - `skillScriptRunner.ts` — GM スキル Python スクリプト実行
+  - `gmBridgeRunner.ts` — Grok / Ollama / Kobold / OpenRouter / カスタム GM ブリッジ
+  - `imageGenRunner.ts` — ComfyUI 画像生成・設定パネル連携
+  - `mediaManifest.ts` — BGM / SE マニフェスト
+  - `characterManager.ts` — キャラクター・パーティ CRUD
+  - `gmPromptBuilder.ts` — GM プロンプト構築・動的プロフィール・アーカイブ促し
+  - `checkpointHandlers.ts` — Undo / Rewind / Checkpoint / 再生成 / エントリ編集
+- `extension.ts` は ~2,251 行 → ~660 行（累計 ~2,200 行削減）。
 
 ## [0.3.1] - 2026-06-26
 

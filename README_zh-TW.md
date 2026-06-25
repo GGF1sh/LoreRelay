@@ -12,7 +12,7 @@
 
 這不是一個封閉的 AI RPG 服務。它是一個**完全開放且可改造的「Hacker Edition」 UI 層**，供您結合自己的 AI 助手、本機圖像生成、音源和劇本來遊玩。您可以自由地在自己的環境中進行 Hack，打造出像 Saga & Seeker 那樣硬核的 CRPG 體驗。
 
-> 💡 **Notice:** 如果您喜歡這個擴充套件，請考慮請我喝杯咖啡！☕ (https://ko-fi.com/YOUR_KOFI_LINK)
+> 💡 **Notice:** 如果您喜歡這個擴充套件，請考慮請我喝杯咖啡！☕ (https://ko-fi.com/promptpalette)
 
 ---
 
@@ -135,7 +135,7 @@ chmod +x scripts/setup.sh
 非常歡迎提交錯誤報告和請求（PR）！
 
 如果這個專案讓您感到興奮......
-👉 **[Buy me a coffee ☕](https://ko-fi.com/YOUR_KOFI_LINK)**
+👉 **[Buy me a coffee ☕](https://ko-fi.com/promptpalette)**
 
 ---
 **Enjoy your adventure!**

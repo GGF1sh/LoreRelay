@@ -12,7 +12,7 @@ If you use a locally executable agent AI (like Antigravity), the game state is r
 
 This is not a closed AI RPG service. It's a **completely open and hackable "Hacker Edition" UI layer** for combining your own AI assistant, local image generation, sound sources, and scenarios to play. You can freely hack your own environment to create an authentic CRPG experience like Saga & Seeker.
 
-> 💡 **Notice:** If you like this extension, please consider buying me a coffee! ☕ (https://ko-fi.com/YOUR_KOFI_LINK)
+> 💡 **Notice:** If you like this extension, please consider buying me a coffee! ☕ (https://ko-fi.com/promptpalette)
 
 ---
 
@@ -135,7 +135,7 @@ This project is an experimental OSS aiming to be a "new playground for text adve
 Bug reports and pull requests are highly welcome!
 
 If this project excites you...
-👉 **[Buy me a coffee ☕](https://ko-fi.com/YOUR_KOFI_LINK)**
+👉 **[Buy me a coffee ☕](https://ko-fi.com/promptpalette)**
 
 ---
 **Enjoy your adventure!**

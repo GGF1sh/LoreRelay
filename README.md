@@ -11,7 +11,7 @@
 
 これはクローズドなAI RPGサービスではありません。あなた自身のAIアシスタント、ローカル画像生成、音源、シナリオを組み合わせて遊ぶための、**完全にオープンで改造可能な「Hacker Edition」のUIレイヤー**です。Saga & Seeker のような本格的なCRPG体験を、あなたが持つ環境で自由にハックして作り上げることができます。
 
-> 💡 **Notice:** もしこの拡張機能が気に入ったら、ぜひ[コーヒーを一杯奢ってください！☕](https://ko-fi.com/YOUR_KOFI_LINK)
+> 💡 **Notice:** もしこの拡張機能が気に入ったら、ぜひ[コーヒーを一杯奢ってください！☕](https://ko-fi.com/promptpalette)
 
 ---
 
@@ -134,7 +134,7 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 バグ報告やプルリクエストは大歓迎です！
 
 もしこのプロジェクトにワクワクしてくれたなら……
-👉 **[Buy me a coffee ☕](https://ko-fi.com/YOUR_KOFI_LINK)**
+👉 **[Buy me a coffee ☕](https://ko-fi.com/promptpalette)**
 
 ---
 **Enjoy your adventure!**

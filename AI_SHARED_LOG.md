@@ -14,7 +14,7 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
   - `webview/script.js` 分割: **完了**（`webview/modules/` 8 ファイル + `build-webview.js`）
-  - Git push: **完了**（`40007e3` まで push 済み）
+  - Git push: **完了**（`810f34d` まで push 済み）
 
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
 
@@ -69,7 +69,7 @@
 ## 2026-06-26 07:22 JST - Grok - push + 追加分割（webview / scenarioPack）
 
 ### Push
-- `origin/main` へ push 完了: `ca00a2e..f279548`（webviewHandlers / gameStateSync / 8-module refactor / log fix）
+- `origin/main` へ push 完了: `f279548..810f34d`（webview モジュール分割 / scenarioPack / ログ）
 
 ### 分割ログ
 

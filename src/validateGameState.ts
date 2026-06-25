@@ -1,5 +1,7 @@
 import { CHARACTER_ID_PATTERN } from './characterId';
 
+const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
 /** game_state.json の構造を検証し、違反メッセージの配列を返す。空配列 = OK。 */
 export function validateGameState(obj: unknown): string[] {
     const errors: string[] = [];
@@ -23,6 +25,9 @@ export function validateGameState(obj: unknown): string[] {
                     errors.push(`entries[${i}].${field} must be a string`);
                 }
             }
+            if (typeof e.id === 'string' && !ENTRY_ID_PATTERN.test(e.id)) {
+                errors.push(`entries[${i}].id has invalid format`);
+            }
             if (typeof e.role === 'string' && e.role !== 'gm' && e.role !== 'user') {
                 errors.push(`entries[${i}].role must be "gm" or "user", got "${e.role}"`);
             }
@@ -31,6 +36,15 @@ export function validateGameState(obj: unknown): string[] {
             }
             if (e.imagePrompt !== undefined && typeof e.imagePrompt !== 'string') {
                 errors.push(`entries[${i}].imagePrompt must be a string`);
+            }
+            if (e.imageBlocked !== undefined && typeof e.imageBlocked !== 'boolean') {
+                errors.push(`entries[${i}].imageBlocked must be a boolean`);
+            }
+            if (e.excludedFromPrompt !== undefined && typeof e.excludedFromPrompt !== 'boolean') {
+                errors.push(`entries[${i}].excludedFromPrompt must be a boolean`);
+            }
+            if (e.editedAt !== undefined && typeof e.editedAt !== 'string') {
+                errors.push(`entries[${i}].editedAt must be a string`);
             }
         });
     }
@@ -66,6 +80,12 @@ export function validateGameState(obj: unknown): string[] {
                             errors.push(`status.${bar}.max must be a number`);
                         }
                     }
+                }
+            }
+            for (const strField of ['location', 'time', 'funds']) {
+                const value = status[strField];
+                if (value !== undefined && typeof value !== 'string') {
+                    errors.push(`status.${strField} must be a string`);
                 }
             }
             for (const arrField of ['condition', 'inventory', 'skills']) {

@@ -5,15 +5,21 @@
       "role": "gm",
       "sender": "Game Master",
       "content": "The adventure begins.",
-      "imagePrompt": "fantasy tavern, warm lighting, detailed"
+      "imagePrompt": "fantasy tavern, warm lighting, detailed",
+      "imageBlocked": false,
+      "excludedFromPrompt": false,
+      "editedAt": "2026-06-26T00:00:00.000Z"
     }
   ],
   "status": {
+    "location": "Tavern",
+    "time": "Night",
     "hp": { "current": 20, "max": 20 },
     "mp": { "current": 10, "max": 10 },
     "condition": ["healthy"],
     "inventory": ["sword"],
-    "skills": ["slash"]
+    "skills": ["slash"],
+    "funds": "12 gold"
   },
   "options": ["Look around", "Rest"],
   "theme": "fantasy",
@@ -22,5 +28,6 @@
   "hiddenDice": [{ "notation": "1d20", "purpose": "encounter" }],
   "diceRequest": { "notation": "1d20", "purpose": "strength check" },
   "profileUpdates": [{ "characterId": "hero_01", "dynamicProfile": "Met the innkeeper." }],
-  "summary": "A short synopsis."
+  "summary": "A short synopsis.",
+  "gameOver": { "active": false }
 }

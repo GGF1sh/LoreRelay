@@ -158,6 +158,9 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'));
     if (Array.isArray(hist)) {
         for (const entry of hist.slice(-30)) {
+            if (entry.excludedFromPrompt === true) {
+                continue;
+            }
             const content = String(entry.content || '').trim();
             if (content.length < 40) {
                 continue;

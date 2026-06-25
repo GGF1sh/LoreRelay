@@ -36,6 +36,24 @@ try {
   } else {
     ok('game_state_schema.json');
   }
+  const entryIdPattern = schema.properties?.entries?.items?.properties?.id?.pattern;
+  if (entryIdPattern !== '^[a-zA-Z0-9_-]{1,64}$') {
+    fail('game_state_schema.json entries[].id pattern mismatch');
+  } else {
+    ok('game_state_schema.json entries[].id pattern');
+  }
+  const profileIdPattern = schema.properties?.profileUpdates?.items?.properties?.characterId?.pattern;
+  if (profileIdPattern !== '^[a-zA-Z0-9_-]{1,64}$') {
+    fail('game_state_schema.json profileUpdates[].characterId pattern mismatch');
+  } else {
+    ok('game_state_schema.json profileUpdates[].characterId pattern');
+  }
+  const hiddenDiceResultBan = schema.properties?.hiddenDice?.items?.not?.required?.includes('result');
+  if (!hiddenDiceResultBan) {
+    fail('game_state_schema.json hiddenDice[].result is not explicitly banned');
+  } else {
+    ok('game_state_schema.json hiddenDice[].result ban');
+  }
 } catch (e) {
   fail(`game_state_schema.json: ${e.message}`);
 }
@@ -120,7 +138,11 @@ if (!fs.existsSync(validateGameStatePath)) {
     } else {
       ok('game_state_valid.json passes validateGameState');
     }
-    for (const name of ['game_state_invalid_entries.json', 'game_state_invalid_dice.json']) {
+    for (const name of [
+      'game_state_invalid_entries.json',
+      'game_state_invalid_dice.json',
+      'game_state_invalid_metadata.json'
+    ]) {
       const bad = JSON.parse(fs.readFileSync(path.join(fixtureDir, name), 'utf-8'));
       const badErrs = validateGameState(bad);
       if (badErrs.length === 0) {

@@ -8,6 +8,17 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [Unreleased]
+
+### Fixed
+- Tightened `game_state.json` validation for `entries[].id`, entry metadata fields, `status.location/time/funds`, `profileUpdates[].characterId`, and hidden dice result leakage.
+- Hardened message edit/exclude/branch handling so invalid entry IDs are ignored, malformed entries do not break history sync, and missing entries no longer emit false success updates.
+- Preserved message metadata (`imagePrompt`, `imageBlocked`, `excludedFromPrompt`, `editedAt`) when restoring state from checkpoint/rewind snapshots.
+
+### Changed
+- `excludedFromPrompt` now affects GM prompt context and Memory Bank history retrieval in addition to Webview display opacity.
+- Added validation coverage for schema-critical rules in `scripts/validate.js` and a new invalid metadata fixture.
+
 ## [0.3.1] - 2026-06-26
 
 ### Added (Phase ST-A — Image Gen Settings & Workspace Config)

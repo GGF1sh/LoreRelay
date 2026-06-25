@@ -257,7 +257,7 @@ export function activate(context: vscode.ExtensionContext) {
                         }
                         break;
                     case 'branchFromEntry':
-                        if (typeof message.entryId === 'string') {
+                        if (typeof message.entryId === 'string' && isValidEntryId(message.entryId)) {
                             await handleRestoreToTurn(message.entryId);
                         }
                         break;
@@ -744,7 +744,7 @@ function loadHistoryFromDisk() {
         const entries: GameEntry[] = JSON.parse(fs.readFileSync(histPath, 'utf-8'));
         if (Array.isArray(entries)) {
             for (const e of entries) {
-                if (e.id && !seenEntryIds.has(e.id)) {
+                if (isValidGameEntry(e) && !seenEntryIds.has(e.id)) {
                     seenEntryIds.add(e.id);
                     gameEntryHistory.push(e);
                 }
@@ -1208,7 +1208,11 @@ function buildGmPromptContext(playerAction: string): string {
     if (partyCtx) {
         chunks.push(partyCtx);
     }
-    const recent = gameEntryHistory.slice(-3).map((e) => e.content).join('\n');
+    const recent = gameEntryHistory
+        .filter((e) => !e.excludedFromPrompt)
+        .slice(-3)
+        .map((e) => e.content)
+        .join('\n');
     const hint = `${recent}\n${playerAction}`;
     // Memory Bank — TF-IDF または ChromaDB（設定による）
     if (ws) {
@@ -1232,9 +1236,17 @@ function processProfileUpdates(updates: ProfileUpdate[]): void {
     const dynPath = path.join(charDir, 'dynamic_profiles.json');
     let dynProfiles = loadDynamicProfiles();
     let changed = false;
-    for (const up of updates) {
-        if (up.characterId && up.dynamicProfile) {
-            dynProfiles[up.characterId] = up.dynamicProfile;
+    for (const up of updates as unknown[]) {
+        if (typeof up !== 'object' || up === null) {
+            continue;
+        }
+        const record = up as Partial<ProfileUpdate>;
+        if (isValidCharacterId(record.characterId) && typeof record.dynamicProfile === 'string') {
+            const dynamicProfile = record.dynamicProfile.trim().slice(0, 20000);
+            if (!dynamicProfile) {
+                continue;
+            }
+            dynProfiles[record.characterId] = dynamicProfile;
             changed = true;
         }
     }
@@ -1293,8 +1305,24 @@ function validatePlayerInput(text: unknown): string | undefined {
 
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
-function isValidEntryId(entryId: string): boolean {
-    return ENTRY_ID_PATTERN.test(entryId);
+function isValidEntryId(entryId: unknown): entryId is string {
+    return typeof entryId === 'string' && ENTRY_ID_PATTERN.test(entryId);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidGameEntry(value: unknown): value is GameEntry {
+    if (!isRecord(value)) {
+        return false;
+    }
+    return (
+        isValidEntryId(value.id) &&
+        (value.role === 'gm' || value.role === 'user') &&
+        typeof value.sender === 'string' &&
+        typeof value.content === 'string'
+    );
 }
 
 /** 履歴・game_state を entry.id で画像更新し、Webview に patch を送る。 */
@@ -1922,12 +1950,6 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
             const raw = fs.readFileSync(statePath, 'utf-8');
             const state = JSON.parse(raw);
 
-            if (Array.isArray(state.profileUpdates) && state.profileUpdates.length > 0) {
-                processProfileUpdates(state.profileUpdates as ProfileUpdate[]);
-                delete state.profileUpdates;
-                fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
-            }
-
             // Runtime schema validation (warn only — do not abort)
             const schemaErrors = validateGameState(state);
             if (schemaErrors.length > 0) {
@@ -1948,24 +1970,48 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
                 schemaWarningShown = false;
             }
 
+            if (Array.isArray(state.profileUpdates) && state.profileUpdates.length > 0) {
+                processProfileUpdates(state.profileUpdates as ProfileUpdate[]);
+                delete state.profileUpdates;
+                fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+            }
+
             // Accumulate new entries with raw file paths for history
             let historyUpdated = false;
             if (state.entries && Array.isArray(state.entries)) {
-                state.entries.forEach((entry: GameEntry) => {
-                    if (!entry.id) {
+                state.entries.forEach((rawEntry: unknown) => {
+                    if (!isValidGameEntry(rawEntry)) {
                         return;
                     }
+                    const entry = rawEntry;
                     const histIdx = gameEntryHistory.findIndex((e) => e.id === entry.id);
                     if (histIdx >= 0) {
                         const prev = gameEntryHistory[histIdx];
-                        const imgChanged = entry.image && entry.image !== prev.image;
-                        const promptChanged = entry.imagePrompt !== undefined && entry.imagePrompt !== prev.imagePrompt;
-                        if (imgChanged || promptChanged) {
-                            gameEntryHistory[histIdx] = {
-                                ...prev,
-                                ...(imgChanged ? { image: entry.image } : {}),
-                                ...(promptChanged ? { imagePrompt: entry.imagePrompt } : {})
-                            };
+                        const next: GameEntry = { ...prev };
+                        let changed = false;
+                        const setIfString = (key: keyof Pick<GameEntry, 'role' | 'sender' | 'content' | 'image' | 'imagePrompt' | 'editedAt'>) => {
+                            const value = entry[key];
+                            if (typeof value === 'string' && value !== next[key]) {
+                                (next as any)[key] = value;
+                                changed = true;
+                            }
+                        };
+                        setIfString('role');
+                        setIfString('sender');
+                        setIfString('content');
+                        setIfString('image');
+                        setIfString('imagePrompt');
+                        setIfString('editedAt');
+                        if (typeof entry.imageBlocked === 'boolean' && entry.imageBlocked !== next.imageBlocked) {
+                            next.imageBlocked = entry.imageBlocked;
+                            changed = true;
+                        }
+                        if (typeof entry.excludedFromPrompt === 'boolean' && entry.excludedFromPrompt !== next.excludedFromPrompt) {
+                            next.excludedFromPrompt = entry.excludedFromPrompt;
+                            changed = true;
+                        }
+                        if (changed) {
+                            gameEntryHistory[histIdx] = next;
                             historyUpdated = true;
                         }
                         return;
@@ -1998,7 +2044,10 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
 
             // fullHistory=true (panel reopen): send all accumulated entries with fresh URIs
             // fullHistory=false (normal update): send only current state's entries
-            const sourceEntries: GameEntry[] = fullHistory ? gameEntryHistory : (state.entries || []);
+            const currentEntries: GameEntry[] = Array.isArray(state.entries)
+                ? state.entries.filter(isValidGameEntry)
+                : [];
+            const sourceEntries: GameEntry[] = fullHistory ? gameEntryHistory : currentEntries;
             const entriesToSend = sourceEntries.map((entry: GameEntry) => {
                 const e = { ...entry };
                 if (e.image) {
@@ -2464,17 +2513,24 @@ async function handleEditEntry(id: string, content: string): Promise<void> {
     const editedAt = new Date().toISOString();
     try {
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        let changed = false;
         const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
         if (entry) {
             entry.content = safeCon;
             (entry as any).editedAt = editedAt;
             fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+            changed = true;
         }
         const hist = gameEntryHistory.find((e) => e.id === id);
         if (hist) {
             hist.content = safeCon;
             (hist as any).editedAt = editedAt;
             saveHistoryToDisk();
+            changed = true;
+        }
+        if (!changed) {
+            sendCurrentState(0, true);
+            return;
         }
         panel?.webview.postMessage({ type: 'entryEdited', id, content: safeCon });
     } catch (e) {
@@ -2488,13 +2544,16 @@ async function handleToggleExcludeEntry(id: string): Promise<void> {
     try {
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
-        let excluded = false;
+        const hist = gameEntryHistory.find((e) => e.id === id);
+        if (!entry && !hist) {
+            sendCurrentState(0, true);
+            return;
+        }
+        const excluded = !Boolean(entry?.excludedFromPrompt ?? hist?.excludedFromPrompt);
         if (entry) {
-            excluded = !entry.excludedFromPrompt;
             entry.excludedFromPrompt = excluded;
             fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
         }
-        const hist = gameEntryHistory.find((e) => e.id === id);
         if (hist) {
             (hist as any).excludedFromPrompt = excluded;
             saveHistoryToDisk();
@@ -2633,6 +2692,10 @@ async function handleRestoreToTurn(entryId: string) {
     const ws = getWorkspacePath();
     if (!ws) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    if (!isValidEntryId(entryId)) {
+        vscode.window.showWarningMessage(t('extension.warning.rewindNotFound'));
         return;
     }
     const result = truncateHistoryToGmEntry(gameEntryHistory, entryId);

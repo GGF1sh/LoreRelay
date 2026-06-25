@@ -14,6 +14,38 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - v0.3.0–v0.3.1 変更の Git push（ローカル commit 済み、`main` ahead 1）
 
+## 2026-06-26 - ChatGPT/Codex - Schema Strictness & Message Action Hardening
+
+### Summary
+- Reviewed the post-Claude/Grok/Gemini SillyTavern-related implementation with focus on schema consistency and edge cases around edit/exclude/branch actions.
+- Tightened `game_state.json` validation and runtime guards so malformed entries warn cleanly instead of breaking history sync or Webview updates.
+- Ensured prompt exclusion is respected by recent-history context and Memory Bank history chunks.
+
+### Files touched
+- `game_state_schema.json`
+- `src/validateGameState.ts`
+- `src/extension.ts`
+- `src/checkpoint.ts`
+- `src/memoryBank.ts`
+- `scripts/validate.js`
+- `test/fixtures/game_state_valid.json`
+- `test/fixtures/game_state_invalid_metadata.json` (new)
+
+### Decisions
+- `entries[].id` and `profileUpdates[].characterId` now use the same safe ID pattern as runtime handlers.
+- `hiddenDice[].result` is explicitly rejected in both validator behavior and JSON Schema intent.
+- Invalid `entries` are warned by `validateGameState` and skipped by runtime history/UI processing.
+- `excludedFromPrompt` now suppresses recent prompt context and Memory Bank history retrieval, not just Webview opacity.
+
+### Remaining / Next
+- Existing unrelated installer-script changes were already present before this pass and were not touched.
+- A future pass can add real unit tests around `checkpoint.ts` and edit/exclude handlers if the project moves beyond the current lightweight `scripts/validate.js`.
+
+### Verification
+- `npm run compile` passed
+- `npm test` passed
+- `git diff --check` passed with only CRLF conversion warnings
+
 ## 2026-06-26 - Grok - v0.3.1 Phase ST-A (Image Gen Settings)
 
 ### Summary

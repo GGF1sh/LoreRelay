@@ -48,7 +48,11 @@ export function buildStateFromGmEntry(entry: GameEntry & Record<string, unknown>
             role: entry.role,
             sender: entry.sender,
             content: entry.content,
-            ...(entry.image ? { image: entry.image as string } : {})
+            ...(entry.image ? { image: entry.image as string } : {}),
+            ...(entry.imagePrompt ? { imagePrompt: entry.imagePrompt as string } : {}),
+            ...(typeof entry.imageBlocked === 'boolean' ? { imageBlocked: entry.imageBlocked as boolean } : {}),
+            ...(typeof entry.excludedFromPrompt === 'boolean' ? { excludedFromPrompt: entry.excludedFromPrompt as boolean } : {}),
+            ...(entry.editedAt ? { editedAt: entry.editedAt as string } : {})
         }],
         status: (entry.status as Record<string, unknown>) || {},
         options: Array.isArray(entry.options) ? [...(entry.options as string[])] : [],

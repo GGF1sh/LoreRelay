@@ -1,3 +1,8 @@
+/* AUTO-GENERATED from webview/styles/*.css — run: npm run build:webview */
+/* LoreRelay - UI (Glassmorphism Dark Theme) */
+
+
+/* --- 00-base.css --- */
 /* ============================
    LoreRelay - UI
    Glassmorphism Dark Theme
@@ -86,6 +91,7 @@ body {
   z-index: 1;
 }
 
+/* --- 10-layout-chat.css --- */
 /* メインレイアウト */
 #app {
   position: relative;
@@ -396,6 +402,7 @@ body {
   color: var(--text-dim);
 }
 
+/* --- 20-quickreply-messages.css --- */
 /* ===== Quick Reply Bar ===== */
 #quick-reply-bar {
   display: flex;
@@ -528,6 +535,7 @@ body {
 #img-btn { background: rgba(255,255,255,0.1); }
 #img-btn:hover { background: rgba(255,255,255,0.2); }
 
+/* --- 30-status-gallery.css --- */
 /* ========= ステータスエリア ========= */
 #status-area {
   width: 320px;
@@ -709,6 +717,7 @@ body {
   color: #fff;
 }
 
+/* --- 40-bgm-audio.css --- */
 /* ========= BGM プレイヤー ========= */
 #bgm-header {
   padding: 12px 20px;
@@ -859,6 +868,7 @@ body {
   background: rgba(255, 200, 87, 0.3);
 }
 
+/* --- 50-scrollbar-themes.css --- */
 /* ========= スクロールバー ========= */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -873,6 +883,7 @@ body {
 .theme-postapoc  { background: linear-gradient(135deg, #1a1a0e 0%, #2d1f0e 50%, #3d2b1f 100%) !important; }
 .theme-modern    { background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%) !important; }
 
+/* --- 60-dice-calc.css --- */
 /* ========= ダイスローラー ========= */
 #dice-header, #calc-header {
   padding: 12px 20px;
@@ -1057,6 +1068,7 @@ body {
   min-height: 30px;
 }
 
+/* --- 70-archive-stt-tts.css --- */
 /* アーカイブ促しバナー（履歴が長いとき） */
 .archive-suggest-banner {
   display: flex;
@@ -1231,6 +1243,7 @@ body {
   color: var(--text-dim);
 }
 
+/* --- 80-image-gen.css --- */
 /* ========= 画像プロンプト再生成UI ========= */
 .scene-img-container {
   position: relative;

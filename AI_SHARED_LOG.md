@@ -13,7 +13,7 @@
   - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
-  - `webview/script.js` 分割: **完了**（`webview/modules/` 8 ファイル + `build-webview.js`）
+  - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`810f34d` まで push 済み）
 
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
@@ -66,6 +66,28 @@
 - `npm test` passed
 - `git diff --check` passed with only CRLF conversion warnings
 
+## 2026-06-26 07:23 JST - Grok - webview/style.css 分割
+
+### 分割ログ
+
+| 時刻 (JST) | コミット | 対象 | 内容 |
+|:---|:---|:---|:---|
+| 07:23 | (this) | `webview/styles/*.css` | `style.css`（~1,423 行）を 9 モジュールへ分割。`build-webview.js` が JS+CSS 両方を結合 |
+
+#### CSS モジュール構成
+- `00-base.css` — フォント import, 変数, body, 背景レイヤー
+- `10-layout-chat.css` — レイアウト, チャット, 入力
+- `20-quickreply-messages.css` — Quick Reply, Message Action Bar, インライン編集
+- `30-status-gallery.css` — ステータス, ギャラリー, テーマ
+- `40-bgm-audio.css` — BGM / SE
+- `50-scrollbar-themes.css` — スクロールバー, テーマ別グラデーション
+- `60-dice-calc.css` — ダイス, 電卓
+- `70-archive-stt-tts.css` — アーカイブ促し, STT, TTS
+- `80-image-gen.css` — 画像再生成 UI, Image Gen 設定パネル
+
+### Verification
+- `npm run compile` / `npm test` — 2026-06-26 07:23 JST OK
+
 ## 2026-06-26 07:22 JST - Grok - push + 追加分割（webview / scenarioPack）
 
 ### Push
@@ -89,7 +111,6 @@
 - `90-bootstrap.js` — DOMContentLoaded 初期化・postMessage ルーター
 
 ### 残りの長いファイル（次回候補）
-- `webview/style.css` (~1,251 行) — コンポーネント別 CSS 分割は任意
 - `TextAdventureGMSkill/scripts/gm_bridge_common.py` (~467 行, Git 外)
 
 ### Verification

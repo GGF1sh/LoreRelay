@@ -1,10 +1,10 @@
 /**
- * Concatenates webview/modules/*.js → webview/script.js
+ * Concatenates webview modules → webview/script.js and webview/style.css
  */
 const fs = require('fs');
 const path = require('path');
 
-const MODULE_ORDER = [
+const JS_MODULE_ORDER = [
     '00-core.js',
     '10-game-state.js',
     '20-input-audio-prep.js',
@@ -15,26 +15,58 @@ const MODULE_ORDER = [
     '90-bootstrap.js'
 ];
 
-const modulesDir = path.join(__dirname, '..', 'webview', 'modules');
-const outPath = path.join(__dirname, '..', 'webview', 'script.js');
+const CSS_MODULE_ORDER = [
+    '00-base.css',
+    '10-layout-chat.css',
+    '20-quickreply-messages.css',
+    '30-status-gallery.css',
+    '40-bgm-audio.css',
+    '50-scrollbar-themes.css',
+    '60-dice-calc.css',
+    '70-archive-stt-tts.css',
+    '80-image-gen.css'
+];
 
-let out = [
-    '// AUTO-GENERATED from webview/modules/*.js — run: npm run build:webview',
-    '// @ts-nocheck',
-    '// LoreRelay - Webview Script',
-    ''
-].join('\n');
+const webviewDir = path.join(__dirname, '..', 'webview');
+const jsModulesDir = path.join(webviewDir, 'modules');
+const cssModulesDir = path.join(webviewDir, 'styles');
 
-for (const file of MODULE_ORDER) {
-    const p = path.join(modulesDir, file);
-    if (!fs.existsSync(p)) {
-        console.error('Missing module:', p);
-        process.exit(1);
+function buildBundle(moduleOrder, modulesDir, outPath, headerLines, ext) {
+    let out = headerLines.join('\n') + '\n';
+    for (const file of moduleOrder) {
+        const p = path.join(modulesDir, file);
+        if (!fs.existsSync(p)) {
+            console.error(`Missing ${ext} module:`, p);
+            process.exit(1);
+        }
+        out += `\n/* --- ${file} --- */\n`;
+        out += fs.readFileSync(p, 'utf-8').trimEnd() + '\n';
     }
-    out += `\n// --- ${file} ---\n`;
-    out += fs.readFileSync(p, 'utf-8').trimEnd() + '\n';
+    fs.writeFileSync(outPath, out, 'utf-8');
+    console.log(`Built ${path.basename(outPath)} (${out.split('\n').length} lines) from ${moduleOrder.length} modules`);
 }
 
-fs.writeFileSync(outPath, out, 'utf-8');
-const lineCount = out.split('\n').length;
-console.log(`Built webview/script.js (${lineCount} lines) from ${MODULE_ORDER.length} modules`);
+buildBundle(
+    JS_MODULE_ORDER,
+    jsModulesDir,
+    path.join(webviewDir, 'script.js'),
+    [
+        '// AUTO-GENERATED from webview/modules/*.js — run: npm run build:webview',
+        '// @ts-nocheck',
+        '// LoreRelay - Webview Script',
+        ''
+    ],
+    'js'
+);
+
+buildBundle(
+    CSS_MODULE_ORDER,
+    cssModulesDir,
+    path.join(webviewDir, 'style.css'),
+    [
+        '/* AUTO-GENERATED from webview/styles/*.css — run: npm run build:webview */',
+        '/* LoreRelay - UI (Glassmorphism Dark Theme) */',
+        ''
+    ],
+    'css'
+);

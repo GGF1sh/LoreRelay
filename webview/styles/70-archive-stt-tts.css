@@ -1,0 +1,173 @@
+/* アーカイブ促しバナー（履歴が長いとき） */
+.archive-suggest-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 180, 50, 0.12);
+  border: 1px solid rgba(255, 180, 50, 0.35);
+  font-size: 12px;
+  color: #ffe8b0;
+}
+
+.archive-suggest-banner button {
+  background: rgba(255, 180, 50, 0.22);
+  border: 1px solid rgba(255, 180, 50, 0.45);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.archive-suggest-banner button:hover {
+  background: rgba(255, 180, 50, 0.35);
+}
+
+#archive-suggest-dismiss {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+#calc-history {
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  max-height: 60px;
+  overflow-y: auto;
+  text-align: right;
+}
+
+/* 音声入力 (STT) マイクボタン */
+#mic-btn {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+#mic-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--accent);
+}
+
+#mic-btn.listening {
+  background: rgba(220, 60, 60, 0.35);
+  border-color: #e05050;
+  color: #fff;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 60, 60, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 60, 60, 0); }
+}
+
+/* AI音声ナレーション (TTS) コントロール */
+#tts-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+#tts-toggle-btn {
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  transition: all 0.15s;
+}
+
+#tts-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--accent);
+}
+
+#tts-toggle-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(80, 160, 255, 0.35);
+}
+
+.tts-menu-popup {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  width: 250px;
+  background: rgba(15, 15, 25, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tts-menu-popup.hidden {
+  display: none;
+}
+
+.tts-menu-popup h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+  margin: 0;
+}
+
+.tts-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.tts-menu-row label {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.tts-menu-row input[type="range"] {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.tts-menu-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tts-menu-row span {
+  font-family: monospace;
+  width: 38px;
+  text-align: right;
+  color: var(--text-dim);
+}

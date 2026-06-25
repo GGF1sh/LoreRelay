@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-webview-resource: https: data: blob:; media-src vscode-webview-resource: https: data: blob:; style-src vscode-webview-resource: 'unsafe-inline' https: fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src vscode-webview-resource: 'unsafe-inline';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{styleUri}}" />
+  <title>Text Adventure Engine</title>
+</head>
+<body>
+  <div id="bg-layer"></div>
+  <div id="sprite-layer"></div>
+  <div id="bg-overlay"></div>
+
+  <div id="app">
+    <div id="chat-area">
+      <div id="chat-header">
+        <span class="header-icon">⚔️</span>
+        <span data-i18n="webview.chat.header">Adventure Log</span>
+        <div id="locale-wrap">
+          <label for="locale-select" data-i18n="webview.locale.label">🌐 Language</label>
+          <select id="locale-select" title="Language">
+            <option value="ja">日本語</option>
+            <option value="en">English</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁體中文</option>
+          </select>
+        </div>
+        <div id="tts-wrap">
+          <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
+          <div id="tts-menu" class="tts-menu-popup hidden">
+            <h4 data-i18n="webview.tts.title">Voice Narration</h4>
+            <div class="tts-menu-row">
+              <label for="tts-enabled-cb" data-i18n="webview.tts.enabled">Enabled</label>
+              <input type="checkbox" id="tts-enabled-cb" />
+            </div>
+            <div class="tts-menu-row">
+              <label for="tts-speed-slider" data-i18n="webview.tts.speed">Speed</label>
+              <input type="range" id="tts-speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" />
+              <span id="tts-speed-val">1.0x</span>
+            </div>
+            <div class="tts-menu-row">
+              <label for="tts-volume-slider" data-i18n="webview.tts.volume">Volume</label>
+              <input type="range" id="tts-volume-slider" min="0" max="1" step="0.1" value="0.8" />
+              <span id="tts-volume-val">80%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="chat-log"></div>
+      <div id="game-over-overlay" class="game-over-overlay hidden">
+        <div class="game-over-card">
+          <h3 id="game-over-title"></h3>
+          <p id="game-over-message"></p>
+          <p class="game-over-hint" data-i18n="webview.gameOver.restartHint">Load a scenario pack or edit game_state.json to start a new adventure.</p>
+        </div>
+      </div>
+      <div id="options-bar"></div>
+      <div id="authors-note-row">
+        <input type="text" id="authors-note-input" data-i18n-placeholder="webview.authorsNote.placeholder" placeholder="Author's Note (steers next GM turn only)" />
+      </div>
+      <div id="input-area">
+        <input type="text" id="free-input" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Enter to send to GM)" />
+        <button id="mic-btn" class="glass-btn" data-i18n-title="webview.stt.title" title="Voice input">🎤</button>
+        <button id="send-btn" data-i18n="webview.input.send">Send</button>
+        <button id="undo-btn" data-i18n="webview.input.undo" title="Undo last turn">⏪ Undo</button>
+        <button id="regen-btn" data-i18n="webview.input.regenerate" title="Regenerate last GM response">🔄</button>
+        <button id="img-btn" data-i18n-title="webview.input.imageTitle" title="Generate image for this scene">🎨</button>
+      </div>
+    </div>
+
+    <!-- 右：ステータスパネル -->
+    <div id="status-area">
+      <!-- タブヘッダー -->
+      <div id="status-tabs" class="tabs-header">
+        <button class="tab-btn active" data-target="pane-status" data-i18n="webview.tab.status">Adventure Status</button>
+        <button class="tab-btn" data-target="pane-character" data-i18n="webview.tab.character">Character Profile</button>
+      </div>
+
+      <!-- ペイン 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
+      <div id="pane-status" class="tab-pane active">
+        <!-- ステータス表示 -->
+        <div id="status-content">
+        <div class="status-row">
+          <span class="status-label" data-i18n="webview.status.location">📍 Location</span>
+          <span id="status-location" class="status-value">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label" data-i18n="webview.status.time">🕐 Time</span>
+          <span id="status-time" class="status-value">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label" data-i18n="webview.status.funds">💰 Funds</span>
+          <span id="status-funds" class="status-value">---</span>
+        </div>
+
+        <div class="status-block">
+          <div class="status-row">
+            <span class="status-label" data-i18n="webview.status.hp">❤️ HP</span>
+          </div>
+          <div class="resource-bar-container">
+            <div id="status-hp-bar" class="resource-bar-fill hp" style="width: 100%;"></div>
+            <div id="status-hp-text" class="resource-text">--- / ---</div>
+          </div>
+        </div>
+
+        <div class="status-block">
+          <div class="status-row">
+            <span class="status-label" data-i18n="webview.status.mp">🔷 MP</span>
+          </div>
+          <div class="resource-bar-container">
+            <div id="status-mp-bar" class="resource-bar-fill mp" style="width: 100%;"></div>
+            <div id="status-mp-text" class="resource-text">--- / ---</div>
+          </div>
+        </div>
+
+        <div class="status-block">
+          <span class="status-label" data-i18n="webview.status.condition">✨ Condition</span>
+          <div id="status-condition-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+
+        <div class="status-block">
+          <span class="status-label" data-i18n="webview.status.inventory">🎒 Inventory</span>
+          <div id="status-inventory-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+
+        <div class="status-block">
+          <span class="status-label" data-i18n="webview.status.skills">⚔️ Skills</span>
+          <div id="status-skills-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="checkpoint-header">
+        <span data-i18n="webview.checkpoint.header">📍 Checkpoints &amp; Rewind</span>
+      </div>
+      <div id="checkpoint-area">
+        <div class="checkpoint-actions">
+          <button id="checkpoint-save-btn" data-i18n="webview.checkpoint.save">💾 Save</button>
+          <select id="rewind-select">
+            <option value="" data-i18n="webview.checkpoint.rewind">⏪ Rewind to turn…</option>
+          </select>
+          <button id="rewind-btn" data-i18n="webview.checkpoint.restore">Restore</button>
+        </div>
+        <ul id="checkpoint-list"></ul>
+        <div id="checkpoint-empty" class="checkpoint-empty" data-i18n="webview.checkpoint.empty">No saved checkpoints yet.</div>
+      </div>
+
+      <div id="dice-header">
+        <span data-i18n="webview.dice.header">🎲 Dice Roller</span>
+      </div>
+      <div id="dice-area">
+        <div id="dice-presets">
+          <button class="dice-btn" data-sides="4">d4</button>
+          <button class="dice-btn" data-sides="6">d6</button>
+          <button class="dice-btn" data-sides="8">d8</button>
+          <button class="dice-btn" data-sides="10">d10</button>
+          <button class="dice-btn" data-sides="12">d12</button>
+          <button class="dice-btn" data-sides="20">d20</button>
+          <button class="dice-btn" data-sides="100">d100</button>
+        </div>
+        <div id="dice-custom-row">
+          <input type="number" id="dice-count" value="1" min="1" max="99" />
+          <span>d</span>
+          <input type="number" id="dice-sides" value="6" min="2" max="9999" />
+          <button id="dice-custom-btn" data-i18n="webview.dice.roll">Roll</button>
+        </div>
+        <div id="dice-result">---</div>
+        <button id="dice-send-gm" type="button" data-i18n="webview.dice.sendGm" data-i18n-title="webview.dice.sendGmTitle">📤 Send to GM</button>
+        <div id="dice-log"></div>
+      </div>
+
+      <div id="calc-header">
+        <span data-i18n="webview.calc.header">🔢 Calculator</span>
+      </div>
+      <div id="calc-area">
+        <input type="text" id="calc-input" data-i18n-placeholder="webview.calc.placeholder" placeholder="e.g. 15 * 3 + 8" />
+        <button id="calc-btn" data-i18n="webview.calc.button">Calc</button>
+        <div id="calc-result">---</div>
+        <div id="calc-history"></div>
+      </div>
+
+      <div id="bgm-header">
+        <span data-i18n="webview.bgm.header">🎵 BGM &amp; SE</span>
+        <span id="bgm-mode" data-i18n-title="webview.bgm.autoTitle" title="GM switches BGM automatically">AUTO</span>
+      </div>
+      <div id="bgm-area">
+        <div id="bgm-now">♪ ---</div>
+        <div id="bgm-controls">
+          <button id="bgm-toggle" data-i18n-title="webview.bgm.playPause" title="Play / Pause">▶</button>
+          <input type="range" id="bgm-volume" min="0" max="100" value="50" data-i18n-title="webview.bgm.volume" title="BGM volume" />
+          <button id="bgm-mute" data-i18n-title="webview.bgm.mute" title="Toggle BGM mute">🔊</button>
+        </div>
+        <div id="bgm-list"></div>
+        <div id="bgm-empty" data-i18n="webview.bgm.empty">No bgm.json or no tracks registered</div>
+        <div id="sfx-row">
+          <span id="sfx-label" data-i18n="webview.sfx.label">🔔 SE</span>
+          <input type="range" id="sfx-volume" min="0" max="100" value="70" data-i18n-title="webview.sfx.volume" title="SFX volume" />
+          <button id="sfx-mute" data-i18n-title="webview.sfx.mute" title="Toggle SFX mute">🔔</button>
+        </div>
+      </div>
+
+      <div id="gallery-header">
+        <span data-i18n="webview.gallery.header">🖼️ Scene Gallery</span>
+      </div>
+      <div id="gallery"></div>
+
+      <div id="theme-header">
+        <span data-i18n="webview.theme.header">🌍 World Theme</span>
+        <div class="theme-selector">
+          <label data-i18n="webview.status.theme">Theme:</label>
+          <button class="theme-btn active" data-theme="fantasy">Fantasy</button>
+          <button class="theme-btn" data-theme="cyberpunk">Cyberpunk</button>
+          <button class="theme-btn" data-theme="scifi">Sci-Fi</button>
+          <button class="theme-btn" data-theme="ff14">FF14</button>
+          <button class="theme-btn" data-theme="postapoc">Post-Apocalypse</button>
+          <button class="theme-btn" data-theme="modern">Modern</button>
+        </div>
+
+        <!-- アーカイブ促しバナー（履歴が閾値超え時） -->
+        <div id="archive-suggest-banner" class="archive-suggest-banner" style="display: none;">
+          <span id="archive-suggest-text"></span>
+          <button id="archive-suggest-btn" type="button" data-i18n="webview.saga.archiveNow">Archive now</button>
+          <button id="archive-suggest-dismiss" type="button" title="Dismiss">×</button>
+        </div>
+
+        <!-- あらすじ (Summary) -->
+        <div id="summary-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">📜 Story Summary</label>
+            <div style="display: flex; gap: 6px;">
+              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">♻️ Generate Summary</button>
+              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 Archive Chapter</button>
+            </div>
+          </div>
+          <textarea id="story-summary" rows="4" data-i18n-placeholder="webview.summary.placeholder" placeholder="Story synopsis appears here. You can edit it manually." style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: var(--text); padding: 8px; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+
+      </div> <!-- /pane-status -->
+
+      <!-- ペイン 2: Character Profile -->
+      <div id="pane-character" class="tab-pane" style="display: none;">
+        <div class="char-toolbar">
+          <select id="char-select">
+            <option value="new" data-i18n="webview.character.newOption">-- New Character --</option>
+          </select>
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: var(--text);">
+            <input type="checkbox" id="char-party-cb" />
+            <span data-i18n="webview.character.partyJoin">Join party</span>
+          </label>
+          <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
+        </div>
+
+        <div class="char-portrait-container">
+          <img id="char-portrait-img" class="char-portrait" src="" alt="Portrait" style="display: none;" />
+          <div id="char-portrait-placeholder" class="char-portrait placeholder" data-i18n="webview.character.noPortrait">No Portrait</div>
+          <div class="char-portrait-actions">
+            <button id="char-upload-btn" data-i18n="webview.character.upload">📁 Upload</button>
+            <button id="char-generate-btn" data-i18n="webview.character.generate">🎨 Generate Portrait</button>
+          </div>
+        </div>
+
+        <div class="char-form">
+          <label data-i18n="webview.character.nameLabel">Name</label>
+          <input type="text" id="char-name" data-i18n-placeholder="webview.character.namePlaceholder" placeholder="Character name" />
+
+          <label data-i18n="webview.character.descLabel">Appearance &amp; Background</label>
+          <textarea id="char-desc" rows="4" data-i18n-placeholder="webview.character.descPlaceholder" placeholder="Description used in GM prompts..."></textarea>
+
+          <label data-i18n="webview.character.personalityLabel">Personality</label>
+          <textarea id="char-personality" rows="2" data-i18n-placeholder="webview.character.personalityPlaceholder" placeholder="Personality and speech style..."></textarea>
+        </div>
+      </div> <!-- /pane-character -->
+
+    </div>
+  </div>
+
+  <script src="{{scriptUri}}"></script>
+</body>
+</html>

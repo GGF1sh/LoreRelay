@@ -1,0 +1,278 @@
+{
+  "name": "text-adventure-engine",
+  "displayName": "Text Adventure Engine",
+  "description": "A rich UI viewer for AI-powered text adventure games. Works with any AI assistant (Antigravity, Copilot, Claude, etc.).",
+  "version": "0.2.10",
+  "publisher": "keisuke",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:textadventure.openGame",
+    "onCommand:textadventure.listImageModels",
+    "onCommand:textadventure.loadScenario",
+    "onCommand:textadventure.importStCharacter",
+    "onCommand:textadventure.importStLorebook",
+    "onCommand:textadventure.exportScenario",
+    "onCommand:textadventure.validateScenario"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "textadventure.openGame",
+        "title": "Text Adventure: Open Game UI"
+      },
+      {
+        "command": "textadventure.listImageModels",
+        "title": "Text Adventure: List Image Models"
+      },
+      {
+        "command": "textadventure.loadScenario",
+        "title": "Text Adventure: Load Scenario Pack"
+      },
+      {
+        "command": "textadventure.importStCharacter",
+        "title": "Text Adventure: Import SillyTavern Character Card"
+      },
+      {
+        "command": "textadventure.importStLorebook",
+        "title": "Text Adventure: Import SillyTavern Lorebook"
+      },
+      {
+        "command": "textadventure.exportScenario",
+        "title": "Text Adventure: Export Scenario Pack (Workshop ZIP)"
+      },
+      {
+        "command": "textadventure.validateScenario",
+        "title": "Text Adventure: Validate Scenario Pack"
+      }
+    ],
+    "configuration": {
+      "title": "Text Adventure Engine",
+      "properties": {
+        "textAdventure.skillPath": {
+          "type": "string",
+          "default": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py",
+          "description": "Absolute path to the comfyui_generate.py script"
+        },
+        "textAdventure.imageGen.backend": {
+          "type": "string",
+          "enum": ["comfyui", "stabilitymatrix", "custom"],
+          "enumDescriptions": [
+            "Standalone ComfyUI (default 127.0.0.1:8188)",
+            "ComfyUI bundled in Stability Matrix",
+            "Any ComfyUI-compatible server (set the URL manually)"
+          ],
+          "default": "comfyui",
+          "description": "Image generation backend. All options speak the ComfyUI API; this is mostly a label — the actual endpoint is set by imageGen.comfyuiUrl."
+        },
+        "textAdventure.imageGen.comfyuiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8188",
+          "description": "ComfyUI / Stability Matrix server URL. Change the port here if your server is not on 8188."
+        },
+        "textAdventure.imageGen.checkpoint": {
+          "type": "string",
+          "default": "",
+          "description": "Checkpoint (.safetensors) name to use, exactly as shown by 'Text Adventure: List Image Models' — it may include a subfolder prefix, e.g. 'IL\\prefectIllustriousXL_v8.safetensors'. Leave empty to use the workflow default."
+        },
+        "textAdventure.imageGen.workflowPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to a custom ComfyUI API-format workflow JSON. Leave empty to use the bundled workflow_api.json."
+        },
+        "textAdventure.imageGen.steps": {
+          "type": "number",
+          "default": 0,
+          "description": "Sampling steps override (0 = use workflow default, typically 20)."
+        },
+        "textAdventure.imageGen.cfg": {
+          "type": "number",
+          "default": 0,
+          "description": "CFG scale override (0 = use workflow default, typically 7)."
+        },
+        "textAdventure.imageGen.width": {
+          "type": "number",
+          "default": 0,
+          "description": "Image width override in pixels (0 = use workflow default, typically 512)."
+        },
+        "textAdventure.imageGen.height": {
+          "type": "number",
+          "default": 0,
+          "description": "Image height override in pixels (0 = use workflow default, typically 512)."
+        },
+        "textAdventure.bgm.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic background music. The GM picks a track via the 'bgm' or 'mood' field in game_state.json."
+        },
+        "textAdventure.bgm.manifestPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the BGM manifest JSON. Leave empty to use 'bgm.json' in the workspace root. Audio files are resolved relative to the manifest folder (and its 'bgm/' subfolder)."
+        },
+        "textAdventure.bgm.volume": {
+          "type": "number",
+          "default": 50,
+          "description": "Default BGM volume (0-100). Can be adjusted live with the slider in the UI."
+        },
+        "textAdventure.sfx.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable one-shot sound effects. The GM triggers them via the 'sfx' field in game_state.json. Bundled license-free SFX work out of the box."
+        },
+        "textAdventure.sfx.manifestPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the SFX manifest JSON. Leave empty to use 'sfx.json' in the workspace, falling back to the bundled skill sfx.json. Audio files resolve relative to the manifest folder (and its 'sfx/' subfolder)."
+        },
+        "textAdventure.sfx.volume": {
+          "type": "number",
+          "default": 70,
+          "description": "Default sound-effect volume (0-100)."
+        },
+        "textAdventure.locale": {
+          "type": "string",
+          "enum": ["ja", "en", "zh-CN", "zh-TW"],
+          "enumDescriptions": [
+            "日本語",
+            "English",
+            "简体中文 (Simplified Chinese)",
+            "繁體中文 (Traditional Chinese / Taiwan)"
+          ],
+          "default": "en",
+          "description": "UI language for Webview, extension messages, and GM narrative prompts. Also changeable from the Webview header dropdown."
+        },
+        "textAdventure.workspaceFolder": {
+          "type": "string",
+          "default": "",
+          "description": "When multiple workspace folders are open, use this folder name or path for game_state.json. Empty = first folder."
+        },
+        "textAdventure.gmBridge.provider": {
+          "type": "string",
+          "enum": ["grok", "clipboard", "command", "ollama", "koboldcpp", "openrouter"],
+          "default": "grok",
+          "enumDescriptions": [
+            "Grok Build headless (grok -p)",
+            "Copy player input to clipboard only",
+            "Custom executable via gmBridge.command",
+            "Local Ollama via ollama_gm.py (ollama serve required)",
+            "Local KoboldCPP via koboldcpp_gm.py (koboldcpp.exe API required)",
+            "OpenRouter via openrouter_gm.py (Cloud-based API, requires API Key)"
+          ],
+          "description": "How player input from the Webview is sent to the GM."
+        },
+        "textAdventure.gmBridge.python": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable for ollama/koboldcpp GM bridge scripts."
+        },
+        "textAdventure.gmBridge.scriptPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to any GM bridge script (e.g. ollama_gm.py). Sibling scripts in the same folder are resolved automatically."
+        },
+        "textAdventure.gmBridge.ollama.url": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Ollama API base URL (used when gmBridge.provider=ollama)."
+        },
+        "textAdventure.gmBridge.ollama.model": {
+          "type": "string",
+          "default": "llama3.2",
+          "description": "Ollama model name (e.g. llama3.2, gemma3, qwen2.5)."
+        },
+        "textAdventure.gmBridge.koboldcpp.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:5001",
+          "description": "KoboldCPP API base URL (used when gmBridge.provider=koboldcpp)."
+        },
+        "textAdventure.gmBridge.openRouter.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenRouter API Key. Required when gmBridge.provider=openrouter."
+        },
+        "textAdventure.gmBridge.openRouter.model": {
+          "type": "string",
+          "default": "anthropic/claude-3.5-sonnet",
+          "description": "OpenRouter model name to use (e.g. anthropic/claude-3.5-sonnet, google/gemini-1.5-pro, openai/gpt-4o)."
+        },
+        "textAdventure.gmBridge.command": {
+          "type": "string",
+          "default": "",
+          "description": "When gmBridge.provider=command, path to the executable (e.g. grok, or another CLI)."
+        },
+        "textAdventure.gmBridge.commandArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["--prompt-file", "{actionFile}", "--cwd", "{cwd}", "--always-approve"],
+          "description": "Arguments for custom GM command. Placeholders: {actionFile} (recommended), {action}, {cwd}."
+        },
+        "textAdventure.grokBridge.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically send player input from Webview to Grok Build (headless mode)"
+        },
+        "textAdventure.grokBridge.command": {
+          "type": "string",
+          "default": "grok",
+          "description": "Path to grok CLI (auto-detects ~/.grok/bin/grok.exe on Windows when set to 'grok')"
+        },
+        "textAdventure.grokBridge.autoApprove": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pass --always-approve to grok for non-interactive tool approval"
+        },
+        "textAdventure.grokBridge.fallbackToClipboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "Copy player input to clipboard when Grok bridge is disabled or fails"
+        },
+        "textAdventure.archive.autoPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest archiving old history turns into saga chapters when the log grows long."
+        },
+        "textAdventure.archive.thresholdSmallContext": {
+          "type": "number",
+          "default": 30,
+          "description": "History turn count to suggest archive for Ollama / KoboldCPP / small OpenRouter models."
+        },
+        "textAdventure.archive.thresholdLargeContext": {
+          "type": "number",
+          "default": 80,
+          "description": "History turn count to suggest archive for Grok / Gemini-class large-context models."
+        },
+        "textAdventure.archive.remindEvery": {
+          "type": "number",
+          "default": 15,
+          "description": "After the threshold, remind every N additional turns."
+        },
+        "textAdventure.memory.backend": {
+          "type": "string",
+          "enum": ["auto", "tfidf", "chromadb"],
+          "enumDescriptions": [
+            "Use ChromaDB if pip install chromadb succeeded, else TF-IDF",
+            "Always use lightweight TF-IDF (no extra deps)",
+            "Require ChromaDB embedding search (falls back if not installed)"
+          ],
+          "default": "auto",
+          "description": "Memory Bank search backend for GM prompt injection."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node scripts/validate.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

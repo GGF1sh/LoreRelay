@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Text Adventure Game State",
+  "type": "object",
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "role": { "type": "string", "enum": ["gm", "user"] },
+          "sender": { "type": "string" },
+          "content": { "type": "string" },
+          "image": { "type": "string" }
+        },
+        "required": ["id", "role", "sender", "content"]
+      }
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "location": { "type": "string" },
+        "time": { "type": "string" },
+        "hp": {
+          "type": "object",
+          "properties": {
+            "current": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "required": ["current", "max"]
+        },
+        "mp": {
+          "type": "object",
+          "properties": {
+            "current": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "required": ["current", "max"]
+        },
+        "condition": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "inventory": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "funds": { "type": "string" }
+      }
+    },
+    "options": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "theme": { "type": "string" },
+    "bgm": { "type": "string" },
+    "mood": { "type": "string" },
+    "sfx": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "latestImage": { "type": "string" },
+    "background": { "type": "string", "description": "VN-style scene background image path" },
+    "sprite": {
+      "description": "Standing character sprite (path string or object)",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "image": { "type": "string" },
+            "expression": { "type": "string" },
+            "position": { "type": "string", "enum": ["left", "center", "right"] }
+          }
+        }
+      ]
+    },
+    "diceRequest": {
+      "type": "object",
+      "description": "GMがユーザーに振らせたいダイス。Webviewが自動ロールし、ユーザーが「GMに送る」で結果を送信する。",
+      "properties": {
+        "notation": { "type": "string" },
+        "purpose":  { "type": "string" },
+        "id":       { "type": "string" }
+      },
+      "required": ["notation"]
+    },
+    "hiddenDice": {
+      "type": "array",
+      "description": "GMが振った隠しダイス。出目はUIに表示しない。resultフィールドを含めないこと。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "notation": { "type": "string" },
+          "purpose":  { "type": "string" }
+        },
+        "required": ["notation"]
+      }
+    },
+    "profileUpdates": {
+      "type": "array",
+      "description": "GM can instruct the system to dynamically update the profile of a character (e.g. relationship, new known facts).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "characterId": { "type": "string" },
+          "dynamicProfile": { "type": "string" }
+        },
+        "required": ["characterId", "dynamicProfile"]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Compressed story synopsis injected into GM prompts. Editable in Webview or generated via Context Summarizer."
+    },
+    "gameOver": {
+      "type": "object",
+      "description": "When active=true, Webview shows ending overlay and locks player input.",
+      "properties": {
+        "active": { "type": "boolean" },
+        "message": { "type": "string" },
+        "victory": { "type": "boolean" }
+      },
+      "required": ["active"]
+    }
+  },
+  "required": ["entries"]
+}

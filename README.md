@@ -1,5 +1,6 @@
 # LoreRelay - Local-first AI Game Master UI 🎲
 
+[English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Local-first AI Game Master UI**

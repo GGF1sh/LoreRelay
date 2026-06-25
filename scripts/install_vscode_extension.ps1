@@ -5,62 +5,81 @@ param(
 # Force console output encoding to UTF-8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# Determine language code
+# Get system language
 $culture = [System.Globalization.CultureInfo]::CurrentUICulture.Name
 $lang = "en"
-if ($culture -like "ja*") { $lang = "ja" }
-elseif ($culture -eq "zh-CN" -or $culture -like "zh-Hans*") { $lang = "zh-CN" }
-elseif ($culture -eq "zh-TW" -or $culture -like "zh-Hant*" -or $culture -eq "zh-HK" -or $culture -eq "zh-MO") { $lang = "zh-TW" }
+if ($culture -match "^ja") { $lang = "ja" }
+elseif ($culture -match "^zh-CN" -or $culture -match "^zh-Hans") { $lang = "zh-CN" }
+elseif ($culture -match "^zh-TW" -or $culture -match "^zh-Hant") { $lang = "zh-TW" }
 
-# Path to installer locales
-$jsonPath = Join-Path $ProjectDir "locales\installer.json"
-$msg = $null
-
+# Load localization resource
+$jsonPath = Join-Path $ProjectDir "..\locales\installer.json"
+$loc = @{}
 if (Test-Path $jsonPath) {
     try {
-        $jsonContent = [System.IO.File]::ReadAllText($jsonPath, [System.Text.Encoding]::UTF8)
-        $locales = ConvertFrom-Json $jsonContent
-        $msg = $locales.$lang
+        $utf8 = [System.Text.Encoding]::UTF8
+        $jsonContent = [System.IO.File]::ReadAllText($jsonPath, $utf8)
+        $parsed = $jsonContent | ConvertFrom-Json
+        if ($parsed.$lang) {
+            $loc = $parsed.$lang
+        } else {
+            $loc = $parsed.en
+        }
     } catch {
-        # Ignore and fallback
+        Write-Warning "Failed to parse locales/installer.json."
     }
 }
 
-# Fallback to English if json loading fails or key is missing
-if ($null -eq $msg) {
-    $msg = @{
-        vscode_title = "  LoreRelay VSCode Extension Installer"
-        vscode_installing = "Installing VSCode extension (LoreRelay)..."
-        vscode_installing_file = "Installing: {0}"
-        vscode_err_no_vsix = "[Error] .vsix file not found in current directory."
-        vscode_err_failed = "[Error] Failed to install VSCode extension. Please make sure the 'code' command is in your PATH."
-        vscode_success = "[Success] VSCode extension installed successfully! Please restart VSCode."
-    }
+# Helper for messages
+function Get-Loc([string]$key, [string]$default) {
+    if ($loc.$key) { return $loc.$key }
+    return $default
 }
 
-Write-Host "==================================================="
-Write-Host $msg.vscode_title
-Write-Host "==================================================="
+Write-Host "=================================================" -ForegroundColor Cyan
+Write-Host (Get-Loc "vscode_title" "  LoreRelay VSCode Extension Installer") -ForegroundColor Cyan
+Write-Host "=================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host $msg.vscode_installing
 
-# Find .vsix
-$vsixFiles = Get-ChildItem -Path $ProjectDir -Filter "*.vsix"
+Write-Host (Get-Loc "vscode_installing" "Installing VSCode extension (LoreRelay)...")
+
+# Find .vsix file
+$vsixFiles = Get-ChildItem -Path (Join-Path $ProjectDir "..") -Filter "lorerelay-*.vsix" | Sort-Object LastWriteTime -Descending
 if ($vsixFiles.Count -eq 0) {
-    Write-Host $msg.vscode_err_no_vsix -ForegroundColor Red
+    Write-Host (Get-Loc "vscode_err_no_vsix" "[Error] .vsix file not found. Please package the extension first.") -ForegroundColor Red
     exit 1
 }
 
-# Use the latest vsix file if multiple exist (sort descending by name or write date)
-$vsixFileObj = $vsixFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$vsixFile = $vsixFileObj.FullName
-Write-Host ($msg.vscode_installing_file -f $vsixFileObj.Name)
+$vsixFile = $vsixFiles[0].FullName
+Write-Host ((Get-Loc "vscode_installing_file" "Installing: {0}") -f $vsixFiles[0].Name)
 
-# Execute code --install-extension
-& code --install-extension "$vsixFile" --force
-if ($LASTEXITCODE -ne 0) {
-    Write-Host $msg.vscode_err_failed -ForegroundColor Red
+# Check if code command is available
+$codeCmd = Get-Command "code" -ErrorAction SilentlyContinue
+if (-not $codeCmd) {
+    # Try common paths
+    $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
+    $defaultCodePath = Join-Path $localAppData "Programs\Microsoft VS Code\bin\code.cmd"
+    if (Test-Path $defaultCodePath) {
+        $codeCmd = $defaultCodePath
+    } else {
+        Write-Host (Get-Loc "vscode_err_no_code" "[Error] VSCode 'code' command not found. Ensure VSCode is installed and added to PATH.") -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Install
+try {
+    $process = Start-Process -FilePath $codeCmd -ArgumentList "--install-extension", "`"$vsixFile`"", "--force" -Wait -NoNewWindow -PassThru
+    if ($process.ExitCode -ne 0) {
+        Write-Host (Get-Loc "vscode_err_failed" "[Error] Extension installation failed.") -ForegroundColor Red
+        exit $process.ExitCode
+    }
+    Write-Host ""
+    Write-Host (Get-Loc "vscode_success" "Installation completed successfully!") -ForegroundColor Green
+} catch {
+    Write-Host (Get-Loc "vscode_err_failed" "[Error] Extension installation failed.") -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
 }
 
-Write-Host $msg.vscode_success -ForegroundColor Green
+exit 0

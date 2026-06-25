@@ -95,6 +95,7 @@
 
   "extension.status.gmProcessing": "$(sync~spin) GM is processing turn...",
   "extension.error.workspaceRequired": "Open a workspace folder first.",
+  "extension.error.untrustedWorkspace": "This action runs local commands and is disabled in untrusted workspaces.",
   "extension.error.gmBusy": "GM is still processing the previous turn. Please wait.",
   "extension.error.invalidInput": "Invalid player input.",
   "extension.error.invalidPrompt": "Invalid prompt.",
@@ -126,6 +127,9 @@
   "extension.scenario.openLabel": "Load this scenario",
   "extension.scenario.defaultTitle": "Scenario",
   "extension.scenario.openingFallback": "Starting \"{title}\".",
+  "extension.scenario.resetConfirm": "Loading a new scenario pack will reset your current game progress and history. Do you want to proceed?",
+  "extension.scenario.resetYes": "Yes",
+  "extension.scenario.resetNo": "No",
   "extension.scenario.notesBgm": "BGM",
   "extension.scenario.notesSe": "SE",
   "extension.st.importCharacterTitle": "Select SillyTavern character card (.png or .json)",

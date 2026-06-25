@@ -377,6 +377,12 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
 
 export async function invokeGmBridge(playerAction: string): Promise<boolean> {
     const provider = getGmProvider();
+    if (provider !== 'clipboard') {
+        if (!vscode.workspace.isTrusted) {
+            vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+            return false;
+        }
+    }
     switch (provider) {
         case 'clipboard':
             return false;

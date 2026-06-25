@@ -8,7 +8,7 @@ import {
     resolveCharacterJsonPath,
     resolvePortraitPath
 } from './characterId';
-import { getWorkspacePath, getGameStatePath } from './workspacePaths';
+import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspacePaths';
 import { safeImageUri } from './gameStateSync';
 import {
     buildImageGenEnv,
@@ -77,7 +77,7 @@ function savePartyIds(ids: string[]): void {
     if (!charDir) { return; }
     const partyFile = path.join(charDir, 'party.json');
     try {
-        fs.writeFileSync(partyFile, JSON.stringify(filterValidCharacterIds(ids), null, 2), 'utf-8');
+        writeJsonAtomic(partyFile, filterValidCharacterIds(ids));
     } catch (e) {
         console.error('Error saving party:', e);
     }
@@ -171,7 +171,7 @@ export function saveCharacter(character: CharacterProfile): void {
     const filePath = resolveCharacterJsonPath(charDir, character.id);
     if (!filePath) { return; }
     try {
-        fs.writeFileSync(filePath, JSON.stringify(character, null, 2), 'utf-8');
+        writeJsonAtomic(filePath, character);
         sendCharacterList();
     } catch (e) {
         console.error('Error saving character:', e);
@@ -183,7 +183,9 @@ export function setActiveCharacter(id: string): void {
     if (!charDir || !isValidCharacterId(id)) { return; }
     try {
         const activeFile = path.join(charDir, 'active_character.txt');
-        fs.writeFileSync(activeFile, id, 'utf-8');
+        const tmp = `${activeFile}.${process.pid}.${Date.now()}.tmp`;
+        fs.writeFileSync(tmp, id, 'utf-8');
+        fs.renameSync(tmp, activeFile);
         sendCharacterList();
     } catch (e) {
         console.error('Error setting active character:', e);
@@ -236,6 +238,11 @@ export async function uploadPortrait(id: string): Promise<void> {
 }
 
 export async function generatePortrait(id: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
     const { getPanel } = requireDeps();
     const charDir = getCharactersDir();
     if (!charDir || !isValidCharacterId(id)) { return; }

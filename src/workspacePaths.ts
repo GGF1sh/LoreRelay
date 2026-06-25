@@ -1,6 +1,24 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import * as path from 'path';
 import type { GmProvider } from './archivePrompt';
+
+export function writeJsonAtomic(filePath: string, data: unknown, createBackup = false): void {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    if (createBackup && fs.existsSync(filePath)) {
+        try {
+            fs.copyFileSync(filePath, `${filePath}.bak`);
+        } catch {
+            // ignore backup failure to not block write
+        }
+    }
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tmp, filePath);
+}
 
 /** マルチルート時は textAdventure.workspaceFolder で名前指定、未設定なら先頭フォルダ。 */
 export function getActiveWorkspaceFolder(): vscode.WorkspaceFolder | undefined {

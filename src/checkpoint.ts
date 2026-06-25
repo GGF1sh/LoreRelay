@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeJsonAtomic } from './workspacePaths';
 import type { GameEntry } from './types/GameState';
 
 export interface CheckpointMeta {
@@ -159,7 +160,7 @@ export function saveCheckpointFile(
     };
     const dir = getCheckpointsDir(ws);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(payload, null, 2), 'utf-8');
+    writeJsonAtomic(path.join(dir, `${id}.json`), payload);
     return meta;
 }
 

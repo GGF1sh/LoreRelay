@@ -63,6 +63,7 @@ let currentTheme = 'fantasy';
 let messageHistory = [];
 let galleryImages = [];
 let lastDiceRequestId = null;
+let seenHiddenDiceIds = new Set();
 let ttsEnabled = false;
 let ttsSpeed = 1.0;
 let ttsVolume = 0.8;
@@ -99,6 +100,7 @@ function applyGameState(state, fullHistory) {
       // パネル再表示時: 全履歴を新しい WebviewURI で置き換え
       messageHistory = [];
       chatLog.innerHTML = '';
+      seenHiddenDiceIds.clear();
     }
     const existingIds = new Set(messageHistory.map(m => m.id));
     let lastAddedEntry = null;
@@ -188,10 +190,14 @@ function applyGameState(state, fullHistory) {
   // 隠しダイス通知（GM が hiddenDice に振ったダイスを記録）
   if (Array.isArray(state.hiddenDice)) {
     state.hiddenDice.forEach(entry => {
-      const label = entry.notation || '?d?';
-      const purposeText = entry.purpose ? `（${entry.purpose}）` : '';
-      addSystemMessage(T('webview.dice.hiddenRoll', { notation: label }) + purposeText);
-      playSfx('dice');
+      const entryId = entry.id || `hd-${entry.notation}-${entry.purpose || ''}`;
+      if (!seenHiddenDiceIds.has(entryId)) {
+        seenHiddenDiceIds.add(entryId);
+        const label = entry.notation || '?d?';
+        const purposeText = entry.purpose ? `（${entry.purpose}）` : '';
+        addSystemMessage(T('webview.dice.hiddenRoll', { notation: label }) + purposeText);
+        playSfx('dice');
+      }
     });
   }
 
@@ -1229,8 +1235,8 @@ document.querySelectorAll('.dice-btn').forEach(btn => {
 
 // カスタムロール
 document.getElementById('dice-custom-btn').addEventListener('click', () => {
-  const count = Math.max(1, parseInt(document.getElementById('dice-count').value, 10) || 1);
-  const sides = Math.max(2, parseInt(document.getElementById('dice-sides').value, 10) || 6);
+  const count = Math.max(1, Math.min(100, parseInt(document.getElementById('dice-count').value, 10) || 1));
+  const sides = Math.max(2, Math.min(10000, parseInt(document.getElementById('dice-sides').value, 10) || 6));
   rollDice(count, sides);
 });
 

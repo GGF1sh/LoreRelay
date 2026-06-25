@@ -57,6 +57,7 @@ let currentTheme = 'fantasy';
 let messageHistory = [];
 let galleryImages = [];
 let lastDiceRequestId = null;
+let seenHiddenDiceIds = new Set();
 let ttsEnabled = false;
 let ttsSpeed = 1.0;
 let ttsVolume = 0.8;

@@ -88,8 +88,8 @@ document.querySelectorAll('.dice-btn').forEach(btn => {
 
 // カスタムロール
 document.getElementById('dice-custom-btn').addEventListener('click', () => {
-  const count = Math.max(1, parseInt(document.getElementById('dice-count').value, 10) || 1);
-  const sides = Math.max(2, parseInt(document.getElementById('dice-sides').value, 10) || 6);
+  const count = Math.max(1, Math.min(100, parseInt(document.getElementById('dice-count').value, 10) || 1));
+  const sides = Math.max(2, Math.min(10000, parseInt(document.getElementById('dice-sides').value, 10) || 6));
   rollDice(count, sides);
 });
 

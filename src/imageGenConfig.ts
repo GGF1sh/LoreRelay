@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeJsonAtomic } from './workspacePaths';
 
 export interface ImageGenTemplates {
     scene: string;
@@ -135,6 +136,6 @@ export function saveImageGenConfig(wsPath: string, partial: Partial<ImageGenConf
     const current = loadImageGenConfig(wsPath);
     const merged = sanitizeImageGenConfig({ ...current, ...partial, templates: { ...current.templates, ...(partial.templates || {}) } });
     const configPath = getImageGenConfigPath(wsPath);
-    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), 'utf-8');
+    writeJsonAtomic(configPath, merged);
     return merged;
 }

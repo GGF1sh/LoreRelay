@@ -89,6 +89,11 @@ export async function runSkillScript(
     args: string[],
     resolveOpenRouterKey?: () => Promise<string>
 ): Promise<number> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return 1;
+    }
+
     const wsPath = getWorkspacePath() || process.cwd();
     const scriptPath = resolveGmBridgeScript(scriptName);
     if (!scriptPath) {
@@ -113,13 +118,20 @@ export async function runSkillScript(
         activeScriptProcess = child;
         child.stdout?.on('data', (d: Buffer) => getGmBridgeOutputChannel().append(d.toString()));
         child.stderr?.on('data', (d: Buffer) => getGmBridgeOutputChannel().append(d.toString()));
-        child.on('close', (code) => {
+
+        let finished = false;
+        const finishScript = (code: number) => {
+            if (finished) { return; }
+            finished = true;
             activeScriptProcess = undefined;
-            resolve(code ?? 1);
+            resolve(code);
+        };
+
+        child.on('close', (code) => {
+            finishScript(code ?? 1);
         });
         child.on('error', () => {
-            activeScriptProcess = undefined;
-            resolve(1);
+            finishScript(1);
         });
     });
 }

@@ -95,6 +95,7 @@
 
   "extension.status.gmProcessing": "$(sync~spin) GM がターンを処理中...",
   "extension.error.workspaceRequired": "ワークスペースが開かれていません。",
+  "extension.error.untrustedWorkspace": "このアクションはローカルコマンドを実行するため、信頼されていないワークスペースでは無効化されています。",
   "extension.error.gmBusy": "GM が前のターンを処理中です。完了までお待ちください。",
   "extension.error.invalidInput": "無効なプレイヤー入力です。",
   "extension.error.invalidPrompt": "無効なプロンプトです。",
@@ -126,6 +127,9 @@
   "extension.scenario.openLabel": "このシナリオを読み込む",
   "extension.scenario.defaultTitle": "シナリオ",
   "extension.scenario.openingFallback": "「{title}」を開始します。",
+  "extension.scenario.resetConfirm": "新しいシナリオパックを読み込むと、現在のゲーム進行状況と履歴がリセットされます。よろしいですか？",
+  "extension.scenario.resetYes": "はい",
+  "extension.scenario.resetNo": "いいえ",
   "extension.scenario.notesBgm": "BGM",
   "extension.scenario.notesSe": "SE",
   "extension.st.importCharacterTitle": "SillyTavern キャラクターカードを選択 (.png / .json)",

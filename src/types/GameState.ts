@@ -22,6 +22,7 @@ export interface DiceRequest {
 }
 
 export interface HiddenDiceEntry {
+    id?: string;
     notation: string;   // e.g. "1d20", "2d6"
     purpose?: string;   // e.g. "遭遇判定" — shown to user as label
 }

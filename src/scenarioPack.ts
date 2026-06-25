@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { t } from './i18n';
-import { getWorkspacePath, getGameStatePath } from './workspacePaths';
-import { sendCurrentState } from './gameStateSync';
+import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspacePaths';
+import { sendCurrentState, setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
 import { sendBgmManifest, sendSfxManifest } from './mediaManifest';
 import { resolvePythonCommand } from './skillScriptRunner';
 
@@ -37,11 +37,42 @@ function validateScenarioData(scenario: Record<string, unknown>): string[] {
     return errors;
 }
 
+function copyFolderSync(from: string, to: string) {
+    if (!fs.existsSync(from)) {
+        return;
+    }
+    fs.mkdirSync(to, { recursive: true });
+    fs.readdirSync(from).forEach(element => {
+        const fromPath = path.join(from, element);
+        const toPath = path.join(to, element);
+        if (fs.lstatSync(fromPath).isDirectory()) {
+            copyFolderSync(fromPath, toPath);
+        } else {
+            fs.copyFileSync(fromPath, toPath);
+        }
+    });
+}
+
 /** シナリオパック（scenario.json を含むフォルダ）を読み込み、開始シーンをUIに表示する。 */
 export async function loadScenarioPack(): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+
+    const resetConfirm = await vscode.window.showWarningMessage(
+        t('extension.scenario.resetConfirm') || 'Loading a new scenario pack will reset your current game progress and history. Do you want to proceed?',
+        { modal: true },
+        t('extension.scenario.resetYes') || 'Yes',
+        t('extension.scenario.resetNo') || 'No'
+    );
+    if (resetConfirm !== (t('extension.scenario.resetYes') || 'Yes')) {
         return;
     }
 
@@ -92,8 +123,12 @@ export async function loadScenarioPack(): Promise<void> {
     const statePath = getGameStatePath();
     if (!statePath) { return; }
 
+    // Clear game history before writing the state
+    setGameEntryHistoryWithSeenIds([]);
+    saveHistoryToDisk();
+
     try {
-        fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+        writeJsonAtomic(statePath, state);
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
             fs.copyFileSync(scenarioPath, wsScenario);
@@ -104,16 +139,36 @@ export async function loadScenarioPack(): Promise<void> {
     }
 
     const config = vscode.workspace.getConfiguration('textAdventure');
+    const assetsDir = path.join(wsPath, 'scenario_assets');
     const packBgm = path.join(dir, 'bgm.json');
     const packSfx = path.join(dir, 'sfx.json');
+    const packBgmDir = path.join(dir, 'bgm');
+    const packSfxDir = path.join(dir, 'sfx');
     const notes: string[] = [];
+
+    // Create scenario_assets directory in workspace if media files exist
+    if (fs.existsSync(packBgm) || fs.existsSync(packSfx) || fs.existsSync(packBgmDir) || fs.existsSync(packSfxDir)) {
+        fs.mkdirSync(assetsDir, { recursive: true });
+    }
+
     if (fs.existsSync(packBgm)) {
-        await config.update('bgm.manifestPath', packBgm, vscode.ConfigurationTarget.Workspace);
+        const destBgm = path.join(assetsDir, 'bgm.json');
+        fs.copyFileSync(packBgm, destBgm);
+        await config.update('bgm.manifestPath', destBgm, vscode.ConfigurationTarget.Workspace);
         notes.push(t('extension.scenario.notesBgm'));
     }
+    if (fs.existsSync(packBgmDir)) {
+        copyFolderSync(packBgmDir, path.join(assetsDir, 'bgm'));
+    }
+
     if (fs.existsSync(packSfx)) {
-        await config.update('sfx.manifestPath', packSfx, vscode.ConfigurationTarget.Workspace);
+        const destSfx = path.join(assetsDir, 'sfx.json');
+        fs.copyFileSync(packSfx, destSfx);
+        await config.update('sfx.manifestPath', destSfx, vscode.ConfigurationTarget.Workspace);
         notes.push(t('extension.scenario.notesSe'));
+    }
+    if (fs.existsSync(packSfxDir)) {
+        copyFolderSync(packSfxDir, path.join(assetsDir, 'sfx'));
     }
 
     await vscode.commands.executeCommand('textadventure.openGame');
@@ -135,6 +190,11 @@ export async function loadScenarioPack(): Promise<void> {
 }
 
 export async function validateScenarioPack(): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
     const picked = await vscode.window.showOpenDialog({
         canSelectFolders: true,
         canSelectFiles: false,
@@ -170,6 +230,11 @@ export async function validateScenarioPack(): Promise<void> {
 }
 
 export async function exportScenarioPack(): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
     const picked = await vscode.window.showOpenDialog({
         canSelectFolders: true,
         canSelectFiles: false,

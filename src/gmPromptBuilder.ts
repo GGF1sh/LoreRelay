@@ -18,7 +18,7 @@ import {
     supportsArchivePrompt
 } from './archivePrompt';
 import { isValidCharacterId } from './characterId';
-import { getWorkspacePath, getGameStatePath, getGmProvider } from './workspacePaths';
+import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
 import { getGameEntryHistory } from './gameStateSync';
 import { getGmBridgeOutputChannel } from './gmBridgeRunner';
 import {
@@ -282,7 +282,7 @@ export function processProfileUpdates(updates: ProfileUpdate[]): void {
         }
     }
     if (changed) {
-        fs.writeFileSync(dynPath, JSON.stringify(dynProfiles, null, 2), 'utf-8');
+        writeJsonAtomic(dynPath, dynProfiles);
         getGmBridgeOutputChannel().appendLine(
             `[Dynamic Profiles] Updated memory for ${updates.length} character(s).`
         );

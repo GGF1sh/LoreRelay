@@ -11,7 +11,7 @@ import {
     type ImageGenConfig
 } from './imageGenConfig';
 import { isValidEntryId } from './entryId';
-import { getWorkspacePath, getGameStatePath } from './workspacePaths';
+import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspacePaths';
 import { findLastGmEntry } from './checkpoint';
 import type { GameEntry } from './types/GameState';
 import {
@@ -196,7 +196,7 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
                 stateUpdated = true;
             }
             if (stateUpdated) {
-                fs.writeFileSync(statePath, JSON.stringify(stateData, null, 2), 'utf-8');
+                writeJsonAtomic(statePath, stateData);
             }
         } catch {
             // game_state 更新失敗は履歴更新だけでも続行
@@ -215,6 +215,11 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
 }
 
 export async function runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
     const { getPanel } = requireDeps();
     const wsPath = getWorkspacePath();
     if (!wsPath) {
@@ -310,6 +315,11 @@ export async function runImageGeneration(prompt: string, mode: string, entryId?:
 }
 
 export function runListImageModels(): void {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
     const wsPath = getWorkspacePath() || process.cwd();
     const scriptPath = resolveComfyScript(wsPath);
     if (!scriptPath) {

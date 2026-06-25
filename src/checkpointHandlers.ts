@@ -15,7 +15,7 @@ import {
 import { t } from './i18n';
 import { getArchiveRemindStep, getArchiveThreshold } from './archivePrompt';
 import { isValidEntryId } from './entryId';
-import { getWorkspacePath, getGameStatePath, getGmProvider } from './workspacePaths';
+import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
 import {
     getGameEntryHistory,
     replaceHistoryFromDisk,
@@ -59,7 +59,7 @@ export async function handleEditEntry(id: string, content: string): Promise<void
         if (entry) {
             entry.content = safeCon;
             (entry as GameEntry & { editedAt?: string }).editedAt = editedAt;
-            fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+            writeJsonAtomic(statePath, state);
             changed = true;
         }
         const hist = getGameEntryHistory().find((e) => e.id === id);
@@ -94,7 +94,7 @@ export async function handleToggleExcludeEntry(id: string): Promise<void> {
         const excluded = !Boolean(entry?.excludedFromPrompt ?? hist?.excludedFromPrompt);
         if (entry) {
             entry.excludedFromPrompt = excluded;
-            fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+            writeJsonAtomic(statePath, state);
         }
         if (hist) {
             (hist as GameEntry & { excludedFromPrompt?: boolean }).excludedFromPrompt = excluded;
@@ -116,7 +116,7 @@ export function updateSummary(summary: unknown): void {
         try {
             const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
             state.summary = safeSummary;
-            fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+            writeJsonAtomic(statePath, state);
         } catch (e) {
             console.error('Error updating summary:', e);
         }
@@ -183,7 +183,7 @@ async function writeRestoredGameState(
         theme: 'fantasy'
     };
     try {
-        fs.writeFileSync(statePath, JSON.stringify(newState, null, 2), 'utf-8');
+        writeJsonAtomic(statePath, newState);
         replaceHistoryFromDisk();
         sendCurrentState(0, true);
         sendCheckpointList();

@@ -11,6 +11,19 @@
 ## [Unreleased]
 
 ### Added
+- **Workspace Trust guards**: Integrated `vscode.workspace.isTrusted` checks into all command-execution, script-running, and write-sensitive modules, prompting warnings/blocking execution when untrusted workspace is loaded.
+- **Scenario Pack assets local-copying**: Automatically copies scenario assets (SFX/BGM) recursively into workspace under `scenario_assets/` to satisfy strict Webview `localResourceRoots` sandbox restrictions.
+- **Atomic File Writer helper**: Created `writeJsonAtomic(filePath, data, createBackup)` in `workspacePaths.ts` using tmp-write and rename pattern to prevent file truncation/corruption on Windows crash.
+- **Confirmations & Game History wipe on Scenario load**: Prompts a confirmation dialog when loading a new scenario pack, wiping the history and `seenEntryIds` if accepted.
+
+### Fixed
+- **State validation hardening**: Aborts state synchronization (`sendCurrentState`) if critical JSON schema errors are found, avoiding corrupted state pushes.
+- **Duplicate HiddenDice logging**: Mapped unique `id` to each `HiddenDiceEntry` and tracked them in Webview to prevent duplicate rendering.
+- **Dice roller caps**: Capped custom roll counts to 100 and sides to 10,000 in the dice calculator tab.
+- **Atomic JSON Writes refactoring**: Replaced all direct `fs.writeFileSync` calls across `gameStateSync`, `scenarioPack`, `imageGenRunner`, `imageGenConfig`, `gmPromptBuilder`, `checkpointHandlers`, `checkpoint`, and `characterManager` with `writeJsonAtomic` helper, and atomic writing for active character ID.
+
+### Changed
+- **Default AutoApprove configuration**: Changed `textAdventure.grokBridge.autoApprove` default value to `false` in `package.json` for enhanced security.
 - **OpenRouter legacy API key auto-migration**: Automatically migrates plain-text keys in `settings.json` to secure VS Code `SecretStorage` and deletes the plaintext keys from settings to prevent Git leaks.
 - **Input & Author's Note validation**: Added explicit error/warning popups for empty inputs, inputs exceeding 2000 characters, and Author's Notes exceeding 500 characters (ignoring the note if limit exceeded).
 

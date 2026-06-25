@@ -4,6 +4,7 @@ import * as path from 'path';
 import type { GameEntry, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
 import { isValidEntryId } from './entryId';
 import { validateGameState } from './validateGameState';
+import { writeJsonAtomic } from './workspacePaths';
 
 export interface GameStateSyncDeps {
     getPanel(): vscode.WebviewPanel | undefined;
@@ -113,7 +114,7 @@ export function saveHistoryToDisk(): void {
         return;
     }
     try {
-        fs.writeFileSync(histPath, JSON.stringify(gameEntryHistory, null, 2), 'utf-8');
+        writeJsonAtomic(histPath, gameEntryHistory, true);
     } catch (e) {
         console.error('Error saving game_history.json:', e);
     }
@@ -206,6 +207,7 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                         'Text Adventure: game_state.json has schema errors — check "Text Adventure: GM Bridge" output for details.'
                     );
                 }
+                return;
             } else {
                 schemaWarningShown = false;
             }
@@ -213,7 +215,7 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             if (Array.isArray(state.profileUpdates) && state.profileUpdates.length > 0) {
                 d.processProfileUpdates(state.profileUpdates as ProfileUpdate[]);
                 delete state.profileUpdates;
-                fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+                writeJsonAtomic(statePath, state);
             }
 
             let historyUpdated = false;
@@ -310,9 +312,10 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             const hiddenDice: HiddenDiceEntry[] | undefined =
                 Array.isArray(state.hiddenDice)
                     ? (state.hiddenDice as Array<Record<string, unknown>>).map(
-                        ({ notation, purpose }) => ({
-                            notation: String(notation ?? ''),
-                            ...(purpose !== undefined ? { purpose: String(purpose) } : {})
+                        (dice, idx) => ({
+                            id: String(dice.id || `hd-${idx}-${dice.notation ?? ''}-${dice.purpose || ''}`),
+                            notation: String(dice.notation ?? ''),
+                            ...(dice.purpose !== undefined ? { purpose: String(dice.purpose) } : {})
                         })
                     )
                     : undefined;

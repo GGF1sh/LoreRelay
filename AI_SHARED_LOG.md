@@ -16,6 +16,19 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`d25f764` まで push 済み）
 
+## 2026-06-26 - Antigravity - Security Hardening & Robustness (Workspace Trust, Atomic Writes, Scenario Copying & Caps)
+
+### Summary
+- **Workspace Trust Guards**: Checked `vscode.workspace.isTrusted` across all script/process running functions (`invokeGmBridge`, `runSkillScript`, `runImageGeneration`, `runListImageModels`, `generatePortrait`, `loadScenarioPack`, `validateScenarioPack`, `exportScenarioPack`), aborting with warning message to prevent execution of untrusted workspace files.
+- **Scenario Loading & Assets Local-Copying**: Recursive scenario assets (SFX/BGM) folder copying into the workspace directory under `scenario_assets/` to bypass Webview sandbox restrictions, prompting modal confirmation dialog and wiping seen entry IDs / history from disk on scenario load.
+- **Atomic File Writing**: Replaced direct synchronous file writes with `writeJsonAtomic` using a temporary file and rename method across `gameStateSync`, `scenarioPack`, `imageGenRunner`, `imageGenConfig`, `gmPromptBuilder`, `checkpointHandlers`, `checkpoint`, and `characterManager` to prevent file corruption on Windows crash, and atomic writing for active character ID.
+- **State Validation Hardening**: Prevented state synchronization from pushing schema-invalid states to the Webview.
+- **Dice Roller Cap**: Restricted manual dice rolls in the Webview to 100 count and 10000 sides.
+- **HiddenDice Deduplication**: Handled unique mapping IDs for `HiddenDiceEntry` and tracked seen IDs in Webview to avoid duplicate lines in logs.
+
+### Verification
+- **Checked & Verified**: Ran `npm run compile` and `npm test` successfully on `2026-06-26 07:54 JST` to verify extension builds correctly and no validations or tests are broken.
+
 ## 2026-06-26 - Antigravity - Code Review Fixes (Double-Fire, Python Resolution, SecretStorage Migration & Validations)
 
 ### Summary

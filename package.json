@@ -258,8 +258,8 @@
         },
         "textAdventure.grokBridge.autoApprove": {
           "type": "boolean",
-          "default": true,
-          "description": "Pass --always-approve to grok for non-interactive tool approval"
+          "default": false,
+          "description": "Pass --always-approve to grok for non-interactive tool approval. Warning: enabling this allows automated execution without prompt verification."
         },
         "textAdventure.grokBridge.fallbackToClipboard": {
           "type": "boolean",

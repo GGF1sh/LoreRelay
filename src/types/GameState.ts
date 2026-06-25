@@ -12,7 +12,7 @@ export interface GameStatus {
     inventory?: string[];
     skills?: string[];
     funds?: string;
-    [key: string]: any; // 将来の拡張用
+    [key: string]: unknown; // 将来の拡張用
 }
 
 export interface DiceRequest {

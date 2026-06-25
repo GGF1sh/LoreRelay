@@ -19,12 +19,15 @@ import {
     safeImageUri,
     saveHistoryToDisk
 } from './gameStateSync';
+import { resolvePythonCommand } from './skillScriptRunner';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
+let listModelsProcess: ChildProcess | undefined;
 
 export interface ImageGenRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
+    subscriptions: vscode.Disposable[];
 }
 
 let deps: ImageGenRunnerDeps | undefined;
@@ -43,6 +46,7 @@ function requireDeps(): ImageGenRunnerDeps {
 export function getImageOutputChannel(): vscode.OutputChannel {
     if (!imageOutputChannel) {
         imageOutputChannel = vscode.window.createOutputChannel('Text Adventure: Image Gen');
+        deps?.subscriptions.push(imageOutputChannel);
     }
     return imageOutputChannel;
 }
@@ -51,6 +55,10 @@ export function killImageGenerationProcess(): void {
     if (imageGenerationProcess) {
         imageGenerationProcess.kill();
         imageGenerationProcess = undefined;
+    }
+    if (listModelsProcess) {
+        listModelsProcess.kill();
+        listModelsProcess = undefined;
     }
 }
 
@@ -246,7 +254,8 @@ export async function runImageGeneration(prompt: string, mode: string, entryId?:
     channel.appendLine(`Prompt: ${prompt}`);
     getPanel()?.webview.postMessage({ type: 'imageGenStart' });
 
-    const child = spawn('python', [scriptPath, prompt, outputDir, safeMode], {
+    const python = resolvePythonCommand();
+    const child = spawn(python, [scriptPath, prompt, outputDir, safeMode], {
         shell: false,
         env
     });
@@ -313,14 +322,27 @@ export function runListImageModels(): void {
     channel.show(true);
     channel.appendLine(`\n=== List Image Models (${env.COMFYUI_URL || 'http://127.0.0.1:8188'}) ===`);
 
-    const child = spawn('python', [scriptPath, '--list-models'], { shell: false, env });
+    const python = resolvePythonCommand();
+    const child = spawn(python, [scriptPath, '--list-models'], { shell: false, env });
+    listModelsProcess = child;
+
+    let finished = false;
+    const finishListModels = (code: number | null) => {
+        if (finished) { return; }
+        finished = true;
+        listModelsProcess = undefined;
+        channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
+    };
+
     child.stdout.on('data', (data) => channel.append(data.toString()));
     child.stderr.on('data', (data) => channel.append(data.toString()));
     child.on('error', (err) => {
+        if (finished) { return; }
         channel.appendLine(`\n[Error: ${err.message}]`);
         vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
+        finishListModels(null);
     });
     child.on('close', (code) => {
-        channel.appendLine(`\n[exited with code ${code}]`);
+        finishListModels(code);
     });
 }

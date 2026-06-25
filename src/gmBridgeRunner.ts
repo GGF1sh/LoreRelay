@@ -27,6 +27,7 @@ export interface GmBridgeRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
     buildGrokPrompt: (playerAction: string, isContinuation: boolean) => string;
     getOpenRouterApiKey: () => Promise<string>;
+    subscriptions: vscode.Disposable[];
 }
 
 let deps: GmBridgeRunnerDeps | undefined;
@@ -45,6 +46,7 @@ function requireDeps(): GmBridgeRunnerDeps {
 export function getGmBridgeOutputChannel(): vscode.OutputChannel {
     if (!grokOutputChannel) {
         grokOutputChannel = vscode.window.createOutputChannel('Text Adventure: GM Bridge');
+        deps?.subscriptions.push(grokOutputChannel);
     }
     return grokOutputChannel;
 }
@@ -123,6 +125,17 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     return new Promise((resolve) => {
+        let finished = false;
+        const finishGrok = (success: boolean) => {
+            if (finished) { return; }
+            finished = true;
+            grokProcess = undefined;
+            safeUnlinkPlayerActionFile(promptFile);
+            vscode.window.setStatusBarMessage('');
+            getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+            resolve(success);
+        };
+
         grokProcess = spawn(grokCmd, args, {
             cwd,
             shell: false,
@@ -139,31 +152,23 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
         });
 
         grokProcess.on('error', (err) => {
-            grokProcess = undefined;
-            safeUnlinkPlayerActionFile(promptFile);
-            vscode.window.setStatusBarMessage('');
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
             channel.appendLine(`\n[Error: ${err.message}]`);
             vscode.window.showErrorMessage(t('extension.error.grokFailed', { message: err.message }));
-            resolve(false);
+            finishGrok(false);
         });
 
         grokProcess.on('close', (code) => {
-            grokProcess = undefined;
-            safeUnlinkPlayerActionFile(promptFile);
-            vscode.window.setStatusBarMessage('');
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success: code === 0 });
             channel.appendLine(`\n[grok exited with code ${code ?? 'unknown'}]`);
 
             if (code === 0) {
                 grokSessionActive = true;
                 vscode.window.showInformationMessage(t('extension.info.grokDone'));
-                resolve(true);
+                finishGrok(true);
             } else {
                 vscode.window.showWarningMessage(
                     t('extension.warning.grokExit', { code: String(code ?? 'unknown') })
                 );
-                resolve(false);
+                finishGrok(false);
             }
         });
     });
@@ -251,7 +256,10 @@ async function invokeLocalLlmBridge(
         gmProcess.stdout?.on('data', (data: Buffer) => channel.append(data.toString()));
         gmProcess.stderr?.on('data', (data: Buffer) => channel.append(data.toString()));
 
+        let finished = false;
         const finishGm = (code: number | null) => {
+            if (finished) { return; }
+            finished = true;
             safeUnlinkPlayerActionFile(actionFile);
             gmProcess = undefined;
             vscode.window.setStatusBarMessage('');
@@ -327,6 +335,17 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     return new Promise((resolve) => {
+        let finished = false;
+        const finishGm = (success: boolean) => {
+            if (finished) { return; }
+            finished = true;
+            gmProcess = undefined;
+            safeUnlinkPlayerActionFile(actionFile);
+            vscode.window.setStatusBarMessage('');
+            getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+            resolve(success);
+        };
+
         gmProcess = spawn(executable, args, {
             cwd,
             shell: false,
@@ -338,27 +357,19 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
         gmProcess.stderr?.on('data', (data: Buffer) => channel.append(data.toString()));
 
         gmProcess.on('error', (err) => {
-            gmProcess = undefined;
-            safeUnlinkPlayerActionFile(actionFile);
-            vscode.window.setStatusBarMessage('');
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
             channel.appendLine(`\n[Error: ${err.message}]`);
             vscode.window.showErrorMessage(t('extension.error.gmCommandFailed', { message: err.message }));
-            resolve(false);
+            finishGm(false);
         });
 
         gmProcess.on('close', (code) => {
-            gmProcess = undefined;
-            safeUnlinkPlayerActionFile(actionFile);
-            vscode.window.setStatusBarMessage('');
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success: code === 0 });
             channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
             if (code === 0) {
                 vscode.window.showInformationMessage(t('extension.info.gmDone'));
-                resolve(true);
+                finishGm(true);
             } else {
                 vscode.window.showWarningMessage(t('extension.warning.gmCommandExit', { code: String(code ?? 'unknown') }));
-                resolve(false);
+                finishGm(false);
             }
         });
     });

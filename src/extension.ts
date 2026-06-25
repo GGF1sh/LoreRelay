@@ -63,7 +63,8 @@ import {
     uploadPortrait,
     generatePortrait,
     addToParty,
-    removeFromParty
+    removeFromParty,
+    killPortraitProcess
 } from './characterManager';
 import {
     initGmPromptBuilder,
@@ -104,7 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
     initI18n(context.extensionPath);
 
-    initImageGenRunner({ getPanel });
+    initImageGenRunner({ getPanel, subscriptions: context.subscriptions });
     initMediaManifest({ getPanel });
     initCharacterManager({ getPanel });
     initGmPromptBuilder({ getPanel, onArchiveNow: archiveSaga });
@@ -112,7 +113,8 @@ export function activate(context: vscode.ExtensionContext) {
     initGmBridgeRunner({
         getPanel,
         buildGrokPrompt,
-        getOpenRouterApiKey
+        getOpenRouterApiKey,
+        subscriptions: context.subscriptions
     });
 
     initGameStateSync({
@@ -197,6 +199,7 @@ export function activate(context: vscode.ExtensionContext) {
             killGmBridgeProcesses();
             killImageGenerationProcess();
             killActiveScriptProcess();
+            killPortraitProcess();
         });
     });
 
@@ -291,11 +294,17 @@ async function getOpenRouterApiKey(): Promise<string> {
 
     const config = vscode.workspace.getConfiguration('textAdventure');
     const legacy = config.get<string>('gmBridge.openRouter.apiKey', '').trim();
-    if (legacy && !openRouterSettingsWarningShown) {
-        openRouterSettingsWarningShown = true;
-        vscode.window.showWarningMessage(t('extension.warning.openRouterLegacyKey'));
+    if (legacy && extensionContext) {
+        await extensionContext.secrets.store(OPENROUTER_SECRET_KEY, legacy);
+        
+        // Remove key from global and workspace settings
+        await config.update('gmBridge.openRouter.apiKey', undefined, vscode.ConfigurationTarget.Global);
+        await config.update('gmBridge.openRouter.apiKey', undefined, vscode.ConfigurationTarget.Workspace);
+        
+        vscode.window.showInformationMessage(t('extension.info.openRouterKeyMigrated'));
+        return legacy;
     }
-    return legacy;
+    return '';
 }
 
 async function setOpenRouterApiKey(context: vscode.ExtensionContext): Promise<void> {
@@ -327,20 +336,9 @@ async function clearOpenRouterApiKey(context: vscode.ExtensionContext): Promise<
 
 
 
-function validatePlayerInput(text: unknown): string | undefined {
-    if (typeof text !== 'string') {
-        return undefined;
-    }
-    const trimmed = text.trim();
-    if (!trimmed || trimmed.length > MAX_PLAYER_INPUT_LENGTH) {
-        return undefined;
-    }
-    return trimmed;
-}
-
 function formatPlayerActionWithNote(playerAction: string, authorsNote?: string): string {
     const note = (authorsNote || '').trim();
-    if (!note || note.length > 500) {
+    if (!note) {
         return playerAction;
     }
     return `[Author's Note: ${note}]\n${playerAction}`;
@@ -360,9 +358,19 @@ function isGameOverActive(): boolean {
 }
 
 async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<void> {
-    const playerAction = validatePlayerInput(text);
-    if (!playerAction) {
+    if (typeof text !== 'string') {
         vscode.window.showErrorMessage(t('extension.error.invalidInput'));
+        return;
+    }
+
+    const trimmed = text.trim();
+    if (!trimmed) {
+        vscode.window.showErrorMessage(t('extension.error.inputEmpty'));
+        return;
+    }
+
+    if (trimmed.length > MAX_PLAYER_INPUT_LENGTH) {
+        vscode.window.showErrorMessage(t('extension.error.inputTooLong', { max: String(MAX_PLAYER_INPUT_LENGTH) }));
         return;
     }
 
@@ -371,7 +379,17 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
         return;
     }
 
-    const actionForGm = formatPlayerActionWithNote(playerAction, authorsNote);
+    let processedAuthorsNote: string | undefined = undefined;
+    if (authorsNote) {
+        const trimmedNote = authorsNote.trim();
+        if (trimmedNote.length > 500) {
+            vscode.window.showWarningMessage(t('extension.warning.authorsNoteTooLong', { max: '500' }));
+        } else if (trimmedNote.length > 0) {
+            processedAuthorsNote = trimmedNote;
+        }
+    }
+
+    const actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
 
     const provider = getGmProvider();
     if (provider === 'clipboard') {
@@ -507,4 +525,5 @@ export function deactivate() {
     killGmBridgeProcesses();
     killImageGenerationProcess();
     killActiveScriptProcess();
+    killPortraitProcess();
 }

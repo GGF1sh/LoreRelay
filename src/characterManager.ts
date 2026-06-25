@@ -17,7 +17,17 @@ import {
 } from './imageGenRunner';
 import { loadImageGenConfig } from './imageGenConfig';
 import { t } from './i18n';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
+import { resolvePythonCommand } from './skillScriptRunner';
+
+let portraitProcess: ChildProcess | undefined;
+
+export function killPortraitProcess(): void {
+    if (portraitProcess) {
+        portraitProcess.kill();
+        portraitProcess = undefined;
+    }
+}
 
 const CHARACTER_META_FILES = new Set(['party.json', 'dynamic_profiles.json']);
 
@@ -253,6 +263,11 @@ export async function generatePortrait(id: string): Promise<void> {
         return;
     }
 
+    if (portraitProcess) {
+        vscode.window.showWarningMessage(t('extension.warning.imageBusy'));
+        return;
+    }
+
     const channel = getImageOutputChannel();
     const env = buildImageGenEnv(wsPath);
     const portraitConfig = loadImageGenConfig(wsPath);
@@ -264,16 +279,19 @@ export async function generatePortrait(id: string): Promise<void> {
     channel.appendLine(`Generating portrait for ${char.name} in theme ${currentTheme}...`);
     getPanel()?.webview.postMessage({ type: 'imageGenStart' });
 
-    const child = spawn('python', [scriptPath, prompt, charDir, portraitMode], {
+    const python = resolvePythonCommand();
+    const child = spawn(python, [scriptPath, prompt, charDir, portraitMode], {
         shell: false,
         env
     });
+    portraitProcess = child;
 
-    child.stdout.on('data', (data) => channel.append(data.toString()));
-    child.stderr.on('data', (data) => channel.append(data.toString()));
-
-    child.on('close', (code) => {
-        channel.appendLine(`\nProcess exited with code ${code}`);
+    let finished = false;
+    const finishPortrait = (code: number | null) => {
+        if (finished) { return; }
+        finished = true;
+        portraitProcess = undefined;
+        channel.appendLine(`\nProcess exited with code ${code ?? 'unknown'}`);
         getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
 
         if (code === 0) {
@@ -297,5 +315,19 @@ export async function generatePortrait(id: string): Promise<void> {
                 console.error('Failed to link generated portrait:', e);
             }
         }
+    };
+
+    child.stdout.on('data', (data) => channel.append(data.toString()));
+    child.stderr.on('data', (data) => channel.append(data.toString()));
+
+    child.on('error', (err) => {
+        if (finished) { return; }
+        channel.appendLine(`\n[Error: ${err.message}]`);
+        vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
+        finishPortrait(null);
+    });
+
+    child.on('close', (code) => {
+        finishPortrait(code);
     });
 }

@@ -16,6 +16,19 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`d25f764` まで push 済み）
 
+## 2026-06-26 - Antigravity - Code Review Fixes (Double-Fire, Python Resolution, SecretStorage Migration & Validations)
+
+### Summary
+- Replaced hardcoded `'python'` command with dynamic `resolvePythonCommand()` in ComfyUI list models and character portrait generation.
+- Added `finished` flag guards in child process handlers (Grok, Local LLM, Custom GM, portrait generation, and list models) to prevent double-firing of error/close events.
+- Implemented OpenRouter API key auto-migration from plain-text `settings.json` to secure VS Code `SecretStorage`, automatically removing the plaintext key to prevent Git leaks.
+- Registered `grokOutputChannel` and `imageOutputChannel` to `context.subscriptions` during extension activation to avoid resource/memory leaks.
+- Restrained `GameStatus` index signature type safety (`any` -> `unknown`).
+- Added explicit user warning dialogs for empty inputs, input length exceeding 2000 characters, and Author's Notes exceeding 500 characters.
+
+### Verification
+- **Checked & Verified**: Ran compile (`npm run compile`) and validation suite (`npm test`) on `2026-06-26 07:35 JST` confirming successful build and no regressions.
+
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
 
 ### Summary

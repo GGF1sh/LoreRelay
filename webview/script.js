@@ -2,7 +2,8 @@
 // @ts-nocheck
 // LoreRelay - Webview Script
 
-// --- 00-core.js ---
+
+/* --- 00-core.js --- */
 // @ts-nocheck
 // LoreRelay - Webview Script
 // Handles UI interactions and postMessage communication with extension host
@@ -69,7 +70,7 @@ let gameOverActive = false;
 let rewindTargets = [];
 let checkpointMetas = [];
 
-// --- 10-game-state.js ---
+/* --- 10-game-state.js --- */
 // ===== Game State の適用 =====
 function applyEntryPatch(patch) {
   if (!patch?.id) return;
@@ -565,7 +566,7 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
   btn.addEventListener('click', () => setTheme(btn.dataset.theme));
 });
 
-// --- 20-input-audio-prep.js ---
+/* --- 20-input-audio-prep.js --- */
 // ===== 自由入力 =====
 sendBtn.addEventListener('click', sendFreeInput);
 freeInput.addEventListener('keydown', (e) => {
@@ -914,7 +915,7 @@ function hideGmLoading(success) {
   }
 }
 
-// --- 30-bgm-sfx.js ---
+/* --- 30-bgm-sfx.js --- */
 // ===== BGM プレイヤー =====
 // マニフェスト（extension が bgm.json を解決して webview URI 付きで送ってくる）
 // 各 track: { id, uri, mood, description, loop, volume }
@@ -1137,7 +1138,7 @@ if (sfxMuteBtn) {
   });
 }
 
-// --- 40-dice-calc-tabs.js ---
+/* --- 40-dice-calc-tabs.js --- */
 // ===== ダイスローラー =====
 const diceResultEl = document.getElementById('dice-result');
 const diceLogEl = document.getElementById('dice-log');
@@ -1347,7 +1348,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// --- 50-character-saga.js ---
+/* --- 50-character-saga.js --- */
 // ===== Character Profile ロジック =====
 let currentCharacters = [];
 let activeCharId = null;
@@ -1593,7 +1594,7 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   }
 }
 
-// --- 60-tts-quickreply-imagegen.js ---
+/* --- 60-tts-quickreply-imagegen.js --- */
 // ===== AI音声ナレーション (TTS) コアロジック =====
 function getBestVoiceForLocale(locale) {
   if (!window.speechSynthesis) return null;
@@ -1819,7 +1820,7 @@ function speakText(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-// --- 90-bootstrap.js ---
+/* --- 90-bootstrap.js --- */
 // ===== Initialization =====
 window.addEventListener('DOMContentLoaded', () => {
   // 保存された状態を復元

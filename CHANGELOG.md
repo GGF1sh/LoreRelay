@@ -10,12 +10,20 @@
 
 ## [Unreleased]
 
+### Added
+- **OpenRouter legacy API key auto-migration**: Automatically migrates plain-text keys in `settings.json` to secure VS Code `SecretStorage` and deletes the plaintext keys from settings to prevent Git leaks.
+- **Input & Author's Note validation**: Added explicit error/warning popups for empty inputs, inputs exceeding 2000 characters, and Author's Notes exceeding 500 characters (ignoring the note if limit exceeded).
+
 ### Fixed
+- **Process event double-firing prevention**: Added guard flags in child process event handlers for Grok, local LLM, custom GM, and portrait generation to prevent double execution on `error` and `close` events.
+- **Python command dynamic resolution**: Replaced hardcoded `'python'` commands with dynamic OS-agnostic `resolvePythonCommand()` in ComfyUI list models and portrait generation.
+- **OutputChannel cleanups**: Registered output channels (`grokOutputChannel` and `imageOutputChannel`) into `context.subscriptions` during initialization to prevent resource/memory leaks.
 - Tightened `game_state.json` validation for `entries[].id`, entry metadata fields, `status.location/time/funds`, `profileUpdates[].characterId`, and hidden dice result leakage.
 - Hardened message edit/exclude/branch handling so invalid entry IDs are ignored, malformed entries do not break history sync, and missing entries no longer emit false success updates.
 - Preserved message metadata (`imagePrompt`, `imageBlocked`, `excludedFromPrompt`, `editedAt`) when restoring state from checkpoint/rewind snapshots.
 
 ### Changed
+- **GameStatus type restriction**: Replaced wildcard index signature `[key: string]: any` with `[key: string]: unknown` in `GameState.ts` for strict TypeScript type safety.
 - `excludedFromPrompt` now affects GM prompt context and Memory Bank history retrieval in addition to Webview display opacity.
 - Added validation coverage for schema-critical rules in `scripts/validate.js` and a new invalid metadata fixture.
 

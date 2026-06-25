@@ -46,6 +46,8 @@ export interface GameEntry {
     image?: string;
     imagePrompt?: string;
     imageBlocked?: boolean;
+    excludedFromPrompt?: boolean;
+    editedAt?: string;
 }
 
 export interface GameOverState {

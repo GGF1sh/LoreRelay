@@ -13,7 +13,10 @@
           "sender": { "type": "string" },
           "content": { "type": "string" },
           "image": { "type": "string" },
-          "imagePrompt": { "type": "string" }
+          "imagePrompt": { "type": "string" },
+          "imageBlocked": { "type": "boolean" },
+          "excludedFromPrompt": { "type": "boolean" },
+          "editedAt": { "type": "string" }
         },
         "required": ["id", "role", "sender", "content"]
       }

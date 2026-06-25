@@ -5,11 +5,56 @@
 
 ## Current Snapshot
 
-- Current package version: `0.2.11`
+- Current package version: `0.3.1`
 - Main source of truth: `CHANGELOG.md` + source code
 - Main remaining work:
   - README screenshots/GIF, Ko-fi real URL
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
+  - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
+  - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
+  - v0.3.0–v0.3.1 変更の Git push（ローカル commit 済み、`main` ahead 1）
+
+## 2026-06-26 - Grok - v0.3.1 Phase ST-A (Image Gen Settings)
+
+### Summary
+Gemini/Codex プランに沿い Phase ST-A を実装。ワークスペース `image_gen_config.json` + Webview 🎨 設定パネル + `comfyui_generate.py` 連携。v0.3.0 で欠けていた locales（quickReply / msg / imageGen）も 4 言語追加。
+
+### Files touched
+- `src/imageGenConfig.ts` (new)
+- `src/extension.ts`
+- `TextAdventureGMSkill/scripts/comfyui_generate.py`
+- `webview/index.html`, `webview/script.js`, `webview/style.css`
+- `locales/*.json`, `package.json`, `CHANGELOG.md`, `AI_SHARED_LOG.md`
+
+### Verification
+- `npm run compile`
+- `npm test`
+- `python -m py_compile comfyui_generate.py`
+
+## 2026-06-26 - Claude Sonnet 4.6 - v0.3.0 ST Phase ST-B + ST-D 実装
+
+### Summary
+SillyTavern 参考画像 (#9, #16, #17, #18) の UI パターンを LoreRelay に取り込んだ。
+
+- Quick Reply バー (`#quick-reply-bar`): 入力欄直上に横スクロール対応のショートカットボタンバーを追加（7ボタン）
+- Message Action Bar (`.msg-actions`): 各メッセージホバーでアイコンボタンバーを表示（7ボタン）
+- インライン編集: ✏️ → textarea 切替 → 保存 → `game_state.json` 即時更新
+- バックエンド新ハンドラ: `editEntry` / `toggleExcludeEntry` / `branchFromEntry` / `loadScenario`
+- `GameEntry` 型に `excludedFromPrompt?` / `editedAt?` を追加・スキーマ反映
+
+参考資料: `C:\AI\SillyTavern参考画像\PLAN.md`, `C:\AI\SillyTavern参考画像\INDEX.md`, `C:\AI\text-adventure-vsce\implementation_plan.md`
+
+### Files touched
+- `src/types/GameState.ts`
+- `game_state_schema.json`
+- `src/extension.ts`
+- `webview/index.html`
+- `webview/script.js`
+- `webview/style.css`
+- `CHANGELOG.md`, `AI_SHARED_LOG.md`, `AI_HANDOVER.md`, `DEVELOPMENT_TIMELINE.md`, `SILLYTAVERN_COMPAT.md`
+
+### Verification
+- `npm run compile` 通過 (TypeScript エラーなし)
 
 ## 2026-06-26 - Antigravity - Localize installer scripts in 4 languages
 

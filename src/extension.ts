@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
+import { randomBytes } from 'crypto';
 import type { GameEntry, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
 import {
     buildStateFromGmEntry,
@@ -47,6 +48,13 @@ import {
     writePromptFile
 } from './playerAction';
 import { validateGameState } from './validateGameState';
+import {
+    getImageGenConfigPath,
+    loadImageGenConfig,
+    saveImageGenConfig,
+    sanitizeImageGenConfig,
+    type ImageGenConfig
+} from './imageGenConfig';
 
 let panel: vscode.WebviewPanel | undefined;
 let fileWatcher: vscode.FileSystemWatcher | undefined;
@@ -55,6 +63,8 @@ let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
+let imageGenerationProcess: ChildProcess | undefined;
+let extensionContext: vscode.ExtensionContext | undefined;
 let grokSessionActive = false;
 let localGmSessionActive = false;
 let debounceTimer: NodeJS.Timeout | undefined;
@@ -62,8 +72,10 @@ let debounceTimer: NodeJS.Timeout | undefined;
 let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
+let openRouterSettingsWarningShown = false;
 
 const CHARACTER_META_FILES = new Set(['party.json', 'dynamic_profiles.json']);
+const OPENROUTER_SECRET_KEY = 'lorerelay.openrouter.apiKey';
 
 /** 最後にアーカイブ促しを出したマイルストーン（重複防止） */
 let lastArchivePromptMilestone = 0;
@@ -71,6 +83,7 @@ let lastArchivePromptMilestone = 0;
 const MAX_PLAYER_INPUT_LENGTH = 2000;
 
 export function activate(context: vscode.ExtensionContext) {
+    extensionContext = context;
     initI18n(context.extensionPath);
 
     const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', () => {
@@ -111,9 +124,13 @@ export function activate(context: vscode.ExtensionContext) {
         const scriptUri = panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(webviewPath, 'script.js'))
         );
+        const nonce = getNonce();
 
-        html = html.replace('{{styleUri}}', styleUri.toString());
-        html = html.replace('{{scriptUri}}', scriptUri.toString());
+        html = html
+            .replace(/\{\{styleUri\}\}/g, styleUri.toString())
+            .replace(/\{\{scriptUri\}\}/g, scriptUri.toString())
+            .replace(/\{\{cspSource\}\}/g, panel.webview.cspSource)
+            .replace(/\{\{nonce\}\}/g, nonce);
 
         panel.webview.html = html;
 
@@ -228,6 +245,31 @@ export function activate(context: vscode.ExtensionContext) {
                     case 'updateSummary':
                         updateSummary(message.summary);
                         break;
+                    case 'editEntry':
+                        if (typeof message.id === 'string' && isValidEntryId(message.id) &&
+                            typeof message.content === 'string') {
+                            await handleEditEntry(message.id, message.content);
+                        }
+                        break;
+                    case 'toggleExcludeEntry':
+                        if (typeof message.id === 'string' && isValidEntryId(message.id)) {
+                            await handleToggleExcludeEntry(message.id);
+                        }
+                        break;
+                    case 'branchFromEntry':
+                        if (typeof message.entryId === 'string') {
+                            await handleRestoreToTurn(message.entryId);
+                        }
+                        break;
+                    case 'loadScenario':
+                        await loadScenarioPack();
+                        break;
+                    case 'requestImageGenConfig':
+                        sendImageGenConfig();
+                        break;
+                    case 'updateImageGenConfig':
+                        await handleUpdateImageGenConfig(message.config);
+                        break;
                 }
             },
             undefined,
@@ -279,6 +321,14 @@ export function activate(context: vscode.ExtensionContext) {
         validateScenarioPack();
     });
 
+    const setOpenRouterKeyCmd = vscode.commands.registerCommand('textadventure.setOpenRouterApiKey', () => {
+        void setOpenRouterApiKey(context);
+    });
+
+    const clearOpenRouterKeyCmd = vscode.commands.registerCommand('textadventure.clearOpenRouterApiKey', () => {
+        void clearOpenRouterApiKey(context);
+    });
+
     context.subscriptions.push(
         openGameCmd,
         listModelsCmd,
@@ -286,7 +336,9 @@ export function activate(context: vscode.ExtensionContext) {
         importStCharCmd,
         importStLoreCmd,
         exportScenarioCmd,
-        validateScenarioCmd
+        validateScenarioCmd,
+        setOpenRouterKeyCmd,
+        clearOpenRouterKeyCmd
     );
 
     context.subscriptions.push(
@@ -296,6 +348,10 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+}
+
+function getNonce(): string {
+    return randomBytes(16).toString('hex');
 }
 
 function sendLocaleBundle(): void {
@@ -322,6 +378,47 @@ async function handleLocaleChange(rawLocale: unknown): Promise<void> {
         : vscode.ConfigurationTarget.Global;
     await config.update('locale', locale, target);
     sendLocaleBundle();
+}
+
+async function getOpenRouterApiKey(): Promise<string> {
+    const secret = (await extensionContext?.secrets.get(OPENROUTER_SECRET_KEY))?.trim();
+    if (secret) {
+        return secret;
+    }
+
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const legacy = config.get<string>('gmBridge.openRouter.apiKey', '').trim();
+    if (legacy && !openRouterSettingsWarningShown) {
+        openRouterSettingsWarningShown = true;
+        vscode.window.showWarningMessage(t('extension.warning.openRouterLegacyKey'));
+    }
+    return legacy;
+}
+
+async function setOpenRouterApiKey(context: vscode.ExtensionContext): Promise<void> {
+    const key = await vscode.window.showInputBox({
+        prompt: t('extension.openRouter.keyPrompt'),
+        placeHolder: t('extension.openRouter.keyPlaceholder'),
+        password: true,
+        ignoreFocusOut: true
+    });
+    if (key === undefined) {
+        return;
+    }
+
+    const trimmed = key.trim();
+    if (!trimmed) {
+        vscode.window.showWarningMessage(t('extension.warning.openRouterEmptyKey'));
+        return;
+    }
+
+    await context.secrets.store(OPENROUTER_SECRET_KEY, trimmed);
+    vscode.window.showInformationMessage(t('extension.info.openRouterKeySaved'));
+}
+
+async function clearOpenRouterApiKey(context: vscode.ExtensionContext): Promise<void> {
+    await context.secrets.delete(OPENROUTER_SECRET_KEY);
+    vscode.window.showInformationMessage(t('extension.info.openRouterKeyCleared'));
 }
 
 function gmLanguageName(locale?: SupportedLocale): string {
@@ -567,7 +664,7 @@ function runListImageModels() {
     if (!imageOutputChannel) {
         imageOutputChannel = vscode.window.createOutputChannel('Text Adventure: Image Gen');
     }
-    const env = buildImageGenEnv();
+    const env = buildImageGenEnv(wsPath);
     imageOutputChannel.show(true);
     imageOutputChannel.appendLine(`\n=== List Image Models (${env.COMFYUI_URL || 'http://127.0.0.1:8188'}) ===`);
 
@@ -695,30 +792,67 @@ function resolveComfyScript(wsPath: string): string | undefined {
 }
 
 /** 画像生成バックエンド設定を comfyui_generate.py へ渡す環境変数として構築する。 */
-function buildImageGenEnv(): NodeJS.ProcessEnv {
-    const config = vscode.workspace.getConfiguration('textAdventure');
+function buildImageGenEnv(wsPath?: string): NodeJS.ProcessEnv {
+    const vsConfig = vscode.workspace.getConfiguration('textAdventure');
     const env: NodeJS.ProcessEnv = { ...process.env };
+    const wsConfig = wsPath ? loadImageGenConfig(wsPath) : undefined;
 
-    const url = config.get<string>('imageGen.comfyuiUrl', '').trim();
+    if (wsPath) {
+        env.TA_IMAGE_CONFIG = getImageGenConfigPath(wsPath);
+    }
+
+    const url = vsConfig.get<string>('imageGen.comfyuiUrl', '').trim();
     if (url) { env.COMFYUI_URL = url; }
 
-    const checkpoint = config.get<string>('imageGen.checkpoint', '').trim();
+    const checkpoint = wsConfig?.checkpoint || vsConfig.get<string>('imageGen.checkpoint', '').trim();
     if (checkpoint) { env.TA_CHECKPOINT = checkpoint; }
 
-    const workflowPath = config.get<string>('imageGen.workflowPath', '').trim();
+    const workflowPath = wsConfig?.workflowPath || vsConfig.get<string>('imageGen.workflowPath', '').trim();
     if (workflowPath) { env.TA_WORKFLOW = workflowPath; }
 
-    // 0 は「ワークフロー既定値を使う」を意味するので環境変数を設定しない
-    const steps = config.get<number>('imageGen.steps', 0);
+    const steps = (wsConfig && wsConfig.steps > 0) ? wsConfig.steps : vsConfig.get<number>('imageGen.steps', 0);
     if (steps > 0) { env.TA_STEPS = String(steps); }
-    const cfg = config.get<number>('imageGen.cfg', 0);
-    if (cfg > 0) { env.TA_CFG = String(cfg); }
-    const width = config.get<number>('imageGen.width', 0);
+    const cfgVal = (wsConfig && wsConfig.cfg > 0) ? wsConfig.cfg : vsConfig.get<number>('imageGen.cfg', 0);
+    if (cfgVal > 0) { env.TA_CFG = String(cfgVal); }
+    const width = (wsConfig && wsConfig.width > 0) ? wsConfig.width : vsConfig.get<number>('imageGen.width', 0);
     if (width > 0) { env.TA_WIDTH = String(width); }
-    const height = config.get<number>('imageGen.height', 0);
+    const height = (wsConfig && wsConfig.height > 0) ? wsConfig.height : vsConfig.get<number>('imageGen.height', 0);
     if (height > 0) { env.TA_HEIGHT = String(height); }
 
+    if (wsConfig?.samplerName) { env.TA_SAMPLER = wsConfig.samplerName; }
+    if (wsConfig?.scheduler) { env.TA_SCHEDULER = wsConfig.scheduler; }
+    if (wsConfig?.positivePrefix) { env.TA_POSITIVE_PREFIX = wsConfig.positivePrefix; }
+    if (wsConfig?.positiveSuffix) { env.TA_POSITIVE_SUFFIX = wsConfig.positiveSuffix; }
+    if (wsConfig?.negativePrompt) { env.TA_NEGATIVE_PROMPT = wsConfig.negativePrompt; }
+    if (wsConfig?.mode) { env.TA_MODE = wsConfig.mode; }
+
     return env;
+}
+
+function sendImageGenConfig(): void {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        panel?.webview.postMessage({ type: 'imageGenConfig', config: sanitizeImageGenConfig({}) });
+        return;
+    }
+    panel?.webview.postMessage({ type: 'imageGenConfig', config: loadImageGenConfig(wsPath) });
+}
+
+async function handleUpdateImageGenConfig(raw: unknown): Promise<void> {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    try {
+        const current = loadImageGenConfig(wsPath);
+        const partial = (raw && typeof raw === 'object') ? raw as Partial<ImageGenConfig> : {};
+        const saved = saveImageGenConfig(wsPath, { ...current, ...partial, templates: { ...current.templates, ...(partial.templates || {}) } });
+        panel?.webview.postMessage({ type: 'imageGenConfig', config: saved });
+    } catch (e) {
+        console.error('Failed to save image_gen_config.json:', e);
+        vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
+    }
 }
 
 function getGrokOutputChannel(): vscode.OutputChannel {
@@ -788,9 +922,7 @@ function buildLocalGmEnv(provider: 'ollama' | 'koboldcpp' | 'openrouter'): NodeJ
         const url = config.get<string>('gmBridge.koboldcpp.url', '').trim();
         if (url) { env.KOBOLDCPP_URL = url; }
     } else if (provider === 'openrouter') {
-        const apiKey = config.get<string>('gmBridge.openRouter.apiKey', '').trim();
         const model = config.get<string>('gmBridge.openRouter.model', '').trim();
-        if (apiKey) { env.OPENROUTER_API_KEY = apiKey; }
         if (model) { env.OPENROUTER_MODEL = model; }
     }
     return env;
@@ -1339,6 +1471,7 @@ async function invokeLocalLlmBridge(
     const config = vscode.workspace.getConfiguration('textAdventure');
     const actionFile = writePlayerActionFile(cwd, playerAction);
     const args = [scriptPath, '--cwd', cwd, '--action-file', actionFile, '--locale', getConfiguredLocale()];
+    let openRouterApiKey = '';
     if (localGmSessionActive || grokSessionActive) {
         args.push('--continue-game');
     }
@@ -1352,11 +1485,11 @@ async function invokeLocalLlmBridge(
         const url = config.get<string>('gmBridge.koboldcpp.url', '').trim();
         if (url) { args.push('--url', url); }
     } else if (provider === 'openrouter') {
-        const apiKey = config.get<string>('gmBridge.openRouter.apiKey', '').trim();
+        openRouterApiKey = await getOpenRouterApiKey();
         const model = config.get<string>('gmBridge.openRouter.model', '').trim();
-        if (!apiKey) {
+        if (!openRouterApiKey) {
             safeUnlinkPlayerActionFile(actionFile);
-            vscode.window.showErrorMessage('OpenRouter API Key is not set in settings.');
+            vscode.window.showErrorMessage(t('extension.error.openRouterKeyMissing'));
             return false;
         }
         if (model) { args.push('--model', model); }
@@ -1373,6 +1506,9 @@ async function invokeLocalLlmBridge(
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     const env = buildLocalGmEnv(provider);
+    if (provider === 'openrouter') {
+        env.OPENROUTER_API_KEY = openRouterApiKey;
+    }
 
     return new Promise((resolve) => {
         gmProcess = spawn(python, args, {
@@ -1808,6 +1944,8 @@ async function sendCurrentState(retryCount = 0, fullHistory = false) {
                         `Text Adventure: game_state.json has schema errors — check "Text Adventure: GM Bridge" output for details.`
                     );
                 }
+            } else {
+                schemaWarningShown = false;
             }
 
             // Accumulate new entries with raw file paths for history
@@ -1912,7 +2050,14 @@ async function runImageGeneration(prompt: string, mode: string, entryId?: string
     }
 
     const allowedModes = ['pony', 'illustrious', 'natural', 'standard'];
-    const safeMode = typeof mode === 'string' && allowedModes.includes(mode) ? mode : 'illustrious';
+    const wsConfig = loadImageGenConfig(wsPath);
+    const defaultMode = allowedModes.includes(wsConfig.mode) ? wsConfig.mode : 'illustrious';
+    const safeMode = typeof mode === 'string' && allowedModes.includes(mode) ? mode : defaultMode;
+
+    if (imageGenerationProcess) {
+        vscode.window.showWarningMessage(t('extension.warning.imageBusy'));
+        return;
+    }
 
     const scriptPath = resolveComfyScript(wsPath);
     const outputDir = path.join(wsPath, 'output');
@@ -1925,7 +2070,7 @@ async function runImageGeneration(prompt: string, mode: string, entryId?: string
     if (!imageOutputChannel) {
         imageOutputChannel = vscode.window.createOutputChannel('Text Adventure: Image Gen');
     }
-    const env = buildImageGenEnv();
+    const env = buildImageGenEnv(wsPath);
     imageOutputChannel.show(true);
     imageOutputChannel.appendLine(`Backend: ${env.COMFYUI_URL || 'http://127.0.0.1:8188 (default)'}`);
     imageOutputChannel.appendLine(`Checkpoint: ${env.TA_CHECKPOINT || '(workflow default)'}`);
@@ -1937,8 +2082,10 @@ async function runImageGeneration(prompt: string, mode: string, entryId?: string
         shell: false,
         env
     });
+    imageGenerationProcess = child;
 
     let generatedImagePath = '';
+    let imageGenFinished = false;
 
     child.stdout.on('data', (data) => {
         const out = data.toString();
@@ -1958,7 +2105,12 @@ async function runImageGeneration(prompt: string, mode: string, entryId?: string
         imageOutputChannel?.append(data.toString());
     });
 
-    child.on('close', async (code) => {
+    const finishImageGeneration = (code: number | null) => {
+        if (imageGenFinished) {
+            return;
+        }
+        imageGenFinished = true;
+        imageGenerationProcess = undefined;
         imageOutputChannel?.appendLine(`\nProcess exited with code ${code}`);
         panel?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
 
@@ -1970,7 +2122,15 @@ async function runImageGeneration(prompt: string, mode: string, entryId?: string
                 imageOutputChannel?.appendLine(`Entry ${entryId} not found in game history`);
             }
         }
+    };
+
+    child.on('error', (err) => {
+        imageOutputChannel?.appendLine(`\n[Error: ${err.message}]`);
+        vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
+        finishImageGeneration(null);
     });
+
+    child.on('close', (code) => finishImageGeneration(code));
 }
 async function runSkillScript(scriptName: string, args: string[]): Promise<number> {
     const wsPath = getWorkspacePath() || process.cwd();
@@ -1985,6 +2145,13 @@ async function runSkillScript(scriptName: string, args: string[]): Promise<numbe
         TA_MEMORY_BACKEND: getMemoryBackendSetting(),
         TA_LOCALE: getConfiguredLocale()
     };
+    const needsOpenRouterKey = args.includes('openrouter');
+    if (needsOpenRouterKey) {
+        const openRouterApiKey = await getOpenRouterApiKey();
+        if (openRouterApiKey) {
+            env.OPENROUTER_API_KEY = openRouterApiKey;
+        }
+    }
     return new Promise((resolve) => {
         const child = spawn(python, [scriptPath, ...args], { cwd: wsPath, shell: false, env });
         child.stdout?.on('data', (d: Buffer) => getGrokOutputChannel().append(d.toString()));
@@ -2240,14 +2407,18 @@ async function generatePortrait(id: string) {
     if (!imageOutputChannel) {
         imageOutputChannel = vscode.window.createOutputChannel('Text Adventure: Image Gen');
     }
-    const env = buildImageGenEnv();
-    
+    const env = buildImageGenEnv(wsPath);
+    const portraitConfig = loadImageGenConfig(wsPath);
+    const portraitMode = ['pony', 'illustrious', 'natural', 'standard'].includes(portraitConfig.mode)
+        ? portraitConfig.mode
+        : 'illustrious';
+
     imageOutputChannel.show(true);
     imageOutputChannel.appendLine(`Generating portrait for ${char.name} in theme ${currentTheme}...`);
     panel?.webview.postMessage({ type: 'imageGenStart' });
 
     // output を charDir に直接保存する
-    const child = spawn('python', [scriptPath, prompt, charDir, 'illustrious'], {
+    const child = spawn('python', [scriptPath, prompt, charDir, portraitMode], {
         shell: false,
         env
     });
@@ -2285,12 +2456,65 @@ async function generatePortrait(id: string) {
     });
 }
 
-function updateSummary(summary: string) {
+async function handleEditEntry(id: string, content: string): Promise<void> {
+    const safeCon = content.trim().slice(0, 20000);
+    if (!safeCon) { return; }
+    const statePath = getGameStatePath();
+    if (!statePath || !fs.existsSync(statePath)) { return; }
+    const editedAt = new Date().toISOString();
+    try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
+        if (entry) {
+            entry.content = safeCon;
+            (entry as any).editedAt = editedAt;
+            fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+        }
+        const hist = gameEntryHistory.find((e) => e.id === id);
+        if (hist) {
+            hist.content = safeCon;
+            (hist as any).editedAt = editedAt;
+            saveHistoryToDisk();
+        }
+        panel?.webview.postMessage({ type: 'entryEdited', id, content: safeCon });
+    } catch (e) {
+        console.error('Error editing entry:', e);
+    }
+}
+
+async function handleToggleExcludeEntry(id: string): Promise<void> {
+    const statePath = getGameStatePath();
+    if (!statePath || !fs.existsSync(statePath)) { return; }
+    try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
+        let excluded = false;
+        if (entry) {
+            excluded = !entry.excludedFromPrompt;
+            entry.excludedFromPrompt = excluded;
+            fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+        }
+        const hist = gameEntryHistory.find((e) => e.id === id);
+        if (hist) {
+            (hist as any).excludedFromPrompt = excluded;
+            saveHistoryToDisk();
+        }
+        panel?.webview.postMessage({ type: 'entryExcludeToggled', id, excluded });
+    } catch (e) {
+        console.error('Error toggling exclude:', e);
+    }
+}
+
+function updateSummary(summary: unknown) {
+    if (typeof summary !== 'string') {
+        return;
+    }
+    const safeSummary = summary.trim().slice(0, 20000);
     const statePath = getGameStatePath();
     if (statePath && fs.existsSync(statePath)) {
         try {
             const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-            state.summary = summary;
+            state.summary = safeSummary;
             fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
             // sendCurrentState() will be triggered by fileWatcher
         } catch (e) {

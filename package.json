@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "0.2.11",
+  "version": "0.3.1",
   "publisher": "keisuke",
   "engines": {
     "vscode": "^1.85.0"
@@ -17,7 +17,9 @@
     "onCommand:textadventure.importStCharacter",
     "onCommand:textadventure.importStLorebook",
     "onCommand:textadventure.exportScenario",
-    "onCommand:textadventure.validateScenario"
+    "onCommand:textadventure.validateScenario",
+    "onCommand:textadventure.setOpenRouterApiKey",
+    "onCommand:textadventure.clearOpenRouterApiKey"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -49,6 +51,14 @@
       {
         "command": "textadventure.validateScenario",
         "title": "Text Adventure: Validate Scenario Pack"
+      },
+      {
+        "command": "textadventure.setOpenRouterApiKey",
+        "title": "Text Adventure: Set OpenRouter API Key"
+      },
+      {
+        "command": "textadventure.clearOpenRouterApiKey",
+        "title": "Text Adventure: Clear OpenRouter API Key"
       }
     ],
     "configuration": {
@@ -210,7 +220,7 @@
         "textAdventure.gmBridge.openRouter.apiKey": {
           "type": "string",
           "default": "",
-          "description": "OpenRouter API Key. Required when gmBridge.provider=openrouter."
+          "description": "Deprecated fallback OpenRouter API key. Prefer the Text Adventure: Set OpenRouter API Key command, which stores the key in VS Code SecretStorage."
         },
         "textAdventure.gmBridge.openRouter.model": {
           "type": "string",

@@ -195,6 +195,27 @@ window.addEventListener('message', (event) => {
     renderCheckpointUi();
   } else if (msg.type === 'updateEntry') {
     applyEntryPatch(msg.entry);
+  } else if (msg.type === 'entryEdited') {
+    const msgDiv = document.getElementById(`msg-${msg.id}`);
+    if (msgDiv) {
+      const bodyEl = msgDiv.querySelector('.msg-body');
+      if (bodyEl) { bodyEl.textContent = msg.content; }
+    }
+    const entry = messageHistory.find((m) => m.id === msg.id);
+    if (entry) { entry.content = msg.content; }
+    saveState();
+  } else if (msg.type === 'entryExcludeToggled') {
+    const msgDiv = document.getElementById(`msg-${msg.id}`);
+    if (msgDiv) {
+      msgDiv.classList.toggle('excluded', !!msg.excluded);
+      const excludeBtn = msgDiv.querySelector('.msg-action-btn[data-action="exclude"]');
+      if (excludeBtn) { excludeBtn.classList.toggle('active', !!msg.excluded); }
+    }
+    const entry = messageHistory.find((m) => m.id === msg.id);
+    if (entry) { entry.excludedFromPrompt = !!msg.excluded; }
+    saveState();
+  } else if (msg.type === 'imageGenConfig') {
+    applyImageGenConfigForm(msg.config || {});
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};
     currentLocale = msg.locale || 'en';
@@ -362,6 +383,7 @@ function applyGameState(state, fullHistory) {
 function renderMessage(entry) {
   const div = document.createElement('div');
   div.className = `msg ${entry.role || 'gm'}`;
+  if (entry.excludedFromPrompt) { div.classList.add('excluded'); }
   div.id = `msg-${entry.id}`;
 
   // キャラ名の色分け
@@ -372,6 +394,87 @@ function renderMessage(entry) {
   html += `<div class="msg-body">${escapeHtml(entry.content)}</div>`;
 
   div.innerHTML = html;
+
+  // ===== メッセージアクションバー =====
+  if (entry.role !== 'system') {
+    const actionsBar = document.createElement('div');
+    actionsBar.className = 'msg-actions';
+
+    // 📄 コピー
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'msg-action-btn';
+    copyBtn.title = T('webview.msg.copy') || 'Copy';
+    copyBtn.textContent = '📄';
+    copyBtn.onclick = () => {
+      navigator.clipboard?.writeText(entry.content).catch(() => {});
+      copyBtn.textContent = '✅';
+      setTimeout(() => { copyBtn.textContent = '📄'; }, 1200);
+    };
+    actionsBar.appendChild(copyBtn);
+
+    // 📢 読み上げ (TTS)
+    const speakBtn = document.createElement('button');
+    speakBtn.className = 'msg-action-btn';
+    speakBtn.title = T('webview.msg.speak') || 'Speak';
+    speakBtn.textContent = '📢';
+    speakBtn.onclick = () => speakText(entry.content);
+    actionsBar.appendChild(speakBtn);
+
+    // 🎨 画像生成
+    const genImgBtn = document.createElement('button');
+    genImgBtn.className = 'msg-action-btn';
+    genImgBtn.title = T('webview.msg.genImage') || 'Generate Image';
+    genImgBtn.textContent = '🎨';
+    genImgBtn.onclick = () => {
+      vscode.postMessage({
+        type: 'generateImage',
+        prompt: entry.imagePrompt || entry.content.substring(0, 300),
+        mode: 'illustrious',
+        entryId: entry.id
+      });
+      addSystemMessage(T('webview.image.requested'));
+    };
+    actionsBar.appendChild(genImgBtn);
+
+    // 🚩 チェックポイント
+    const cpBtn = document.createElement('button');
+    cpBtn.className = 'msg-action-btn';
+    cpBtn.title = T('webview.msg.checkpoint') || 'Save Checkpoint';
+    cpBtn.textContent = '🚩';
+    cpBtn.onclick = () => vscode.postMessage({ type: 'saveCheckpoint', label: `Turn-${entry.id}` });
+    actionsBar.appendChild(cpBtn);
+
+    // 👁️ プロンプト除外トグル
+    const excludeBtn = document.createElement('button');
+    excludeBtn.className = 'msg-action-btn' + (entry.excludedFromPrompt ? ' active' : '');
+    excludeBtn.dataset.action = 'exclude';
+    excludeBtn.title = T('webview.msg.exclude') || 'Toggle prompt exclusion';
+    excludeBtn.textContent = '👁️';
+    excludeBtn.onclick = () => vscode.postMessage({ type: 'toggleExcludeEntry', id: entry.id });
+    actionsBar.appendChild(excludeBtn);
+
+    // 🔱 ブランチ（このターンから分岐）
+    const branchBtn = document.createElement('button');
+    branchBtn.className = 'msg-action-btn';
+    branchBtn.title = T('webview.msg.branch') || 'Branch from here';
+    branchBtn.textContent = '🔱';
+    branchBtn.onclick = () => {
+      if (confirm(T('webview.msg.branchConfirm') || 'Rewind history to this turn and branch?')) {
+        vscode.postMessage({ type: 'branchFromEntry', entryId: entry.id });
+      }
+    };
+    actionsBar.appendChild(branchBtn);
+
+    // ✏️ 編集
+    const editBtn = document.createElement('button');
+    editBtn.className = 'msg-action-btn';
+    editBtn.title = T('webview.msg.edit') || 'Edit';
+    editBtn.textContent = '✏️';
+    editBtn.onclick = () => startInlineEdit(div, entry, editBtn);
+    actionsBar.appendChild(editBtn);
+
+    div.appendChild(actionsBar);
+  }
 
   // 画像があれば表示 (セキュリティのためcreateElementを使用)
   if (entry.image) {
@@ -508,6 +611,7 @@ function setInputLocked(locked) {
   const els = [freeInput, sendBtn, imgBtn, micBtn, undoBtn, document.getElementById('regen-btn')];
   els.forEach((el) => { if (el) el.disabled = locked; });
   document.querySelectorAll('.option-btn').forEach((btn) => { btn.disabled = locked; });
+  document.querySelectorAll('.qr-btn').forEach((btn) => { btn.disabled = locked; });
 }
 
 function setGameOverOverlay(gameOver) {
@@ -855,7 +959,19 @@ function sendFreeInput() {
 
 // ===== 画像生成ボタン =====
 imgBtn.addEventListener('click', () => {
-  vscode.postMessage({ type: 'generateImage', prompt: 'current scene', mode: 'illustrious' });
+  const lastGmEntry = [...messageHistory].reverse().find(m => m && m.role === 'gm' && m.id);
+  if (!lastGmEntry) {
+    addSystemMessage(T('webview.image.noTurn'));
+    return;
+  }
+  const promptSource = lastGmEntry.imagePrompt || lastGmEntry.content || 'current scene';
+  const prompt = String(promptSource).trim().slice(0, 300) || 'current scene';
+  vscode.postMessage({
+    type: 'generateImage',
+    prompt,
+    mode: 'illustrious',
+    entryId: lastGmEntry.id
+  });
   addSystemMessage(T('webview.image.requested'));
 });
 
@@ -1589,6 +1705,55 @@ document.getElementById('char-generate-btn').addEventListener('click', () => {
   vscode.postMessage({ type: 'generatePortrait', id });
 });
 
+// ===== メッセージインライン編集 =====
+function startInlineEdit(msgDiv, entry, editBtn) {
+  const bodyEl = msgDiv.querySelector('.msg-body');
+  if (!bodyEl || msgDiv.dataset.editing) { return; }
+  msgDiv.dataset.editing = '1';
+  editBtn.disabled = true;
+
+  const original = entry.content;
+  const ta = document.createElement('textarea');
+  ta.className = 'msg-edit-textarea';
+  ta.value = original;
+  ta.rows = Math.max(3, original.split('\n').length + 1);
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'msg-edit-btnrow';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = T('webview.msg.editSave') || '💾 Save';
+  saveBtn.onclick = () => {
+    const newContent = ta.value.trim();
+    if (newContent && newContent !== original) {
+      entry.content = newContent;
+      bodyEl.textContent = newContent;
+      vscode.postMessage({ type: 'editEntry', id: entry.id, content: newContent });
+    }
+    finishEdit();
+  };
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = T('webview.msg.editCancel') || '✕ Cancel';
+  cancelBtn.onclick = finishEdit;
+
+  btnRow.appendChild(saveBtn);
+  btnRow.appendChild(cancelBtn);
+
+  bodyEl.style.display = 'none';
+  bodyEl.insertAdjacentElement('afterend', ta);
+  ta.insertAdjacentElement('afterend', btnRow);
+  ta.focus();
+
+  function finishEdit() {
+    ta.remove();
+    btnRow.remove();
+    bodyEl.style.display = '';
+    editBtn.disabled = false;
+    delete msgDiv.dataset.editing;
+  }
+}
+
 // ===== AI音声ナレーション (TTS) コアロジック =====
 function getBestVoiceForLocale(locale) {
   if (!window.speechSynthesis) return null;
@@ -1618,18 +1783,181 @@ function getBestVoiceForLocale(locale) {
   return null;
 }
 
+// ===== Quick Reply バー =====
+(function initQuickReplyBar() {
+  const qrUndo = document.getElementById('qr-undo');
+  if (qrUndo) {
+    qrUndo.addEventListener('click', () => {
+      window.speechSynthesis?.cancel();
+      vscode.postMessage({ type: 'undoLastTurn' });
+    });
+  }
+
+  const qrRetry = document.getElementById('qr-retry');
+  if (qrRetry) {
+    qrRetry.addEventListener('click', () => {
+      if (isInputLocked()) { return; }
+      window.speechSynthesis?.cancel();
+      vscode.postMessage({ type: 'regenerateLastTurn' });
+    });
+  }
+
+  const qrCheckpoint = document.getElementById('qr-checkpoint');
+  if (qrCheckpoint) {
+    qrCheckpoint.addEventListener('click', () => {
+      const label = prompt(T('webview.checkpoint.savePrompt') || 'Checkpoint label:', '') ?? '';
+      vscode.postMessage({ type: 'saveCheckpoint', label });
+    });
+  }
+
+  const qrSummary = document.getElementById('qr-summary');
+  if (qrSummary) {
+    qrSummary.addEventListener('click', () => {
+      vscode.postMessage({ type: 'summarizeHistory' });
+      const btn = document.getElementById('summarize-btn');
+      if (btn) { btn.textContent = T('webview.summary.generating'); btn.disabled = true; }
+    });
+  }
+
+  const qrGenImage = document.getElementById('qr-genimage');
+  if (qrGenImage) {
+    qrGenImage.addEventListener('click', () => {
+      const lastGm = [...messageHistory].reverse().find((m) => m && m.role === 'gm' && m.id);
+      if (!lastGm) { addSystemMessage(T('webview.image.noTurn')); return; }
+      const prompt = String(lastGm.imagePrompt || lastGm.content || 'current scene').trim().slice(0, 300) || 'current scene';
+      vscode.postMessage({ type: 'generateImage', prompt, entryId: lastGm.id });
+      addSystemMessage(T('webview.image.requested'));
+    });
+  }
+
+  const qrLoadPack = document.getElementById('qr-loadpack');
+  if (qrLoadPack) {
+    qrLoadPack.addEventListener('click', () => {
+      vscode.postMessage({ type: 'loadScenario' });
+    });
+  }
+
+  const qrArchive = document.getElementById('qr-archive');
+  if (qrArchive) {
+    qrArchive.addEventListener('click', () => {
+      vscode.postMessage({ type: 'archiveSaga' });
+      const btn = document.getElementById('archive-saga-btn');
+      if (btn) { btn.textContent = T('webview.saga.archiving'); btn.disabled = true; }
+    });
+  }
+})();
+
+// ===== Image Gen Settings パネル =====
+let imageGenConfigDraft = null;
+let imageGenSaveTimer = null;
+
+function applyImageGenConfigForm(config) {
+  imageGenConfigDraft = config;
+  const setVal = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = value ?? ''; }
+  };
+  setVal('ig-checkpoint', config.checkpoint || '');
+  setVal('ig-mode', config.mode || 'illustrious');
+  setVal('ig-steps', config.steps ?? 0);
+  setVal('ig-cfg', config.cfg ?? 0);
+  setVal('ig-width', config.width ?? 0);
+  setVal('ig-height', config.height ?? 0);
+  setVal('ig-sampler', config.samplerName || '');
+  setVal('ig-scheduler', config.scheduler || '');
+  setVal('ig-pos-prefix', config.positivePrefix || '');
+  setVal('ig-pos-suffix', config.positiveSuffix || '');
+  setVal('ig-negative', config.negativePrompt || '');
+  const tpl = config.templates || {};
+  setVal('ig-tpl-scene', tpl.scene || '');
+  setVal('ig-tpl-portrait', tpl.portrait || '');
+  setVal('ig-tpl-background', tpl.background || '');
+  setVal('ig-tpl-freeform', tpl.freeform || '');
+}
+
+function collectImageGenConfigFromForm() {
+  const num = (id) => {
+    const el = document.getElementById(id);
+    const v = el ? Number(el.value) : 0;
+    return Number.isFinite(v) ? v : 0;
+  };
+  const str = (id) => {
+    const el = document.getElementById(id);
+    return el ? String(el.value).trim() : '';
+  };
+  return {
+    checkpoint: str('ig-checkpoint'),
+    mode: str('ig-mode') || 'illustrious',
+    steps: num('ig-steps'),
+    cfg: num('ig-cfg'),
+    width: num('ig-width'),
+    height: num('ig-height'),
+    samplerName: str('ig-sampler'),
+    scheduler: str('ig-scheduler'),
+    positivePrefix: str('ig-pos-prefix'),
+    positiveSuffix: str('ig-pos-suffix'),
+    negativePrompt: str('ig-negative'),
+    templates: {
+      scene: str('ig-tpl-scene'),
+      portrait: str('ig-tpl-portrait'),
+      background: str('ig-tpl-background'),
+      freeform: str('ig-tpl-freeform')
+    }
+  };
+}
+
+function scheduleImageGenConfigSave() {
+  if (imageGenSaveTimer) { clearTimeout(imageGenSaveTimer); }
+  imageGenSaveTimer = setTimeout(() => {
+    imageGenSaveTimer = null;
+    const config = collectImageGenConfigFromForm();
+    vscode.postMessage({ type: 'updateImageGenConfig', config });
+    const savedEl = document.getElementById('img-gen-saved');
+    if (savedEl) {
+      savedEl.classList.remove('hidden');
+      setTimeout(() => savedEl.classList.add('hidden'), 1500);
+    }
+  }, 400);
+}
+
+function setImageGenPanelOpen(open) {
+  const panel = document.getElementById('img-gen-panel');
+  const backdrop = document.getElementById('img-gen-backdrop');
+  if (!panel || !backdrop) { return; }
+  panel.classList.toggle('hidden', !open);
+  backdrop.classList.toggle('hidden', !open);
+  panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+  if (open) {
+    vscode.postMessage({ type: 'requestImageGenConfig' });
+  }
+}
+
+(function initImageGenSettingsPanel() {
+  const openBtn = document.getElementById('img-gen-settings-btn');
+  const closeBtn = document.getElementById('img-gen-panel-close');
+  const backdrop = document.getElementById('img-gen-backdrop');
+  const panel = document.getElementById('img-gen-panel');
+
+  openBtn?.addEventListener('click', () => setImageGenPanelOpen(true));
+  closeBtn?.addEventListener('click', () => setImageGenPanelOpen(false));
+  backdrop?.addEventListener('click', () => setImageGenPanelOpen(false));
+
+  panel?.querySelectorAll('.img-gen-input, .img-gen-textarea').forEach((el) => {
+    el.addEventListener('change', scheduleImageGenConfigSave);
+    el.addEventListener('blur', scheduleImageGenConfigSave);
+  });
+})();
+
 function speakText(text) {
   if (!ttsEnabled || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   
   window.speechSynthesis.cancel();
   
-  if (!text || text.trim() === '') return;
+  if (typeof text !== 'string') return;
   
-  // プレーンテキストにする（XSS対策/HTMLタグの除去）
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = text;
-  const plainText = tempDiv.textContent || tempDiv.innerText || '';
-  if (plainText.trim() === '') return;
+  // Treat GM text as plain speech input; do not parse it as HTML.
+  const plainText = text.replace(/\s+/g, ' ').trim().slice(0, 4000);
+  if (plainText === '') return;
 
   const utterance = new SpeechSynthesisUtterance(plainText);
   utterance.rate = ttsSpeed;

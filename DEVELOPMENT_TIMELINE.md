@@ -20,10 +20,11 @@
 *   **インテリジェント・メモリ管理**: TF-IDF / ChromaDBを用いた記憶の自動抽出（Memory Bank）、Saga Archiverによる長期記憶の自動圧縮機能を実装。(v0.2.5 - v0.2.6)
 *   **DREAMIOインスパイア機能**: 1ターンの巻き戻し（Undo / Retry）、Web Speech APIを用いた音声入力（STT）、音声ナレーション（TTS）など、モダンなテキストアドベンチャーUXをわずか1日で追加実装。(v0.2.8 - v0.2.9)
 
-### Day 3: 2026-06-26 (v0.2.10 - Public Release)
-**「リブランドとオープンソース公開」**
+### Day 3: 2026-06-26 (v0.2.10 - v0.3.0)
+**「リブランドとオープンソース公開、SillyTavern UX 統合」**
 *   **公開準備**: プロジェクト名を「Text Adventure Engine」から「LoreRelay」へリネーム。
 *   **ドキュメント整備**: 3言語（英語、簡体字、繁体字）のREADME翻訳を生成し、GitHubへリポジトリをパブリック公開。
+*   **SillyTavern 参考 UI 統合 (v0.3.0)**: Claude Sonnet 4.6 が SillyTavern のスクリーンショット18枚を参照資料として、Phase ST-B（Quick Reply バー）と Phase ST-D（Message Action Bar）を1セッションで実装。インライン編集・プロンプト除外・ブランチ分岐など、ゲームプレイ中のメッセージ操作体験を大幅に強化。
 
 ---
 

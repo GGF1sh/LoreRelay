@@ -8,15 +8,60 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [0.3.1] - 2026-06-26
+
+### Added (Phase ST-A — Image Gen Settings & Workspace Config)
+
+- **`image_gen_config.json`**: ワークスペース直下にセッション別の ComfyUI 設定を保存。checkpoint / mode / steps / cfg / width / height / sampler / scheduler / positive prefix・suffix / negative prompt / prompt templates を保持。
+- **Image Gen Settings パネル** (Webview ヘッダー 🎨): Glassmorphism スライドインパネルからライブ編集。フォーカスアウト時に自動保存 (`updateImageGenConfig`)。
+- **`src/imageGenConfig.ts`**: 設定の読み書き・サニタイズ（数値範囲・文字列長制限）。
+- **`comfyui_generate.py`**: `TA_IMAGE_CONFIG` または cwd の `image_gen_config.json` を最優先適用。`TA_POSITIVE_PREFIX` / `TA_NEGATIVE_PROMPT` 等の環境変数にも対応。
+- **i18n**: `webview.quickReply.*` / `webview.msg.*` / `webview.imageGen.*` を 4 言語に追加（v0.3.0 UI の未訳キー補完を含む）。
+
+### Changed
+- `buildImageGenEnv()` がワークスペース設定を VSCode `textAdventure.imageGen.*` より優先して `comfyui_generate.py` へ渡す。
+- 画像生成のデフォルトモードが `image_gen_config.json` の `mode` を参照するよう変更。
+
+## [0.3.0] - 2026-06-26
+
+### Added (Phase ST-B + ST-D — Quick Reply Bar & Message Action Bar)
+
+- **Quick Reply バー** (`#quick-reply-bar`): チャット入力欄の直上に横スクロール可能なショートカットボタンバーを新設。標準ボタン: ⏪ Undo / 🔄 Retry / 💾 Checkpoint / 📝 Summary / 🎨 Gen Image / 📂 Load Pack / 📖 Archive。ゲームオーバー時は他の入力欄と同様に一括ロック。
+- **Message Action Bar** (`.msg-actions`): 各メッセージをホバーした際にインライン表示されるアイコンボタンバーを新設 (SillyTavern Phase ST-D)。ボタン: 📄 Copy / 📢 Speak (TTS) / 🎨 Gen Image / 🚩 Checkpoint / 👁️ Exclude / 🔱 Branch / ✏️ Edit。
+- **インライン編集** (`startInlineEdit`): ✏️ ボタン押下でメッセージ本文が `<textarea>` に切り替わり、保存後に `editEntry` メッセージを送信して `game_state.json` を即時更新。
+- **プロンプト除外トグル** (`toggleExcludeEntry`): 👁️ ボタンで `excludedFromPrompt: true/false` をトグル。Webview 側は対象メッセージを半透明 (`opacity: 0.4`) に。
+- **ブランチ作成** (`branchFromEntry`): 🔱 ボタンで確認後、指定ターンを基点として `handleRestoreToTurn` を再利用し歴史を分岐。
+- **`editEntry` ハンドラ** (extension.ts): 指定 ID の `content` を `game_state.json` と `gameEntryHistory` の両方に書き込み、`editedAt` タイムスタンプを付与。
+- **`toggleExcludeEntry` ハンドラ** (extension.ts): `excludedFromPrompt` をトグル保存し、`entryExcludeToggled` で Webview を即時同期。
+- **`loadScenario` ハンドラ** (extension.ts): Quick Reply の「Load Pack」ボタンから既存の `loadScenarioPack()` を呼び出し。
+
+### Changed
+- `GameEntry` 型に `excludedFromPrompt?: boolean` と `editedAt?: string` を追加 (`src/types/GameState.ts`)。
+- `game_state_schema.json` に `imageBlocked` / `excludedFromPrompt` / `editedAt` フィールドを追加。
+- `setInputLocked()` が `.qr-btn` も一括で `disabled` にするよう拡張。
+- `applyI18n()` が Quick Reply バーのボタンラベルも `data-i18n` で切り替え可能 (キー `webview.quickReply.*`)。
+
 ## [0.2.11] - 2026-06-26
 
 ### Added
 - DREAMIO-style manual image regeneration: Added `imagePrompt` field to `game_state.json` and a UI button to edit and regenerate scene images via ComfyUI.
 - README に v0.3 候補として Remote Play Mode のロードマップを追加（LAN/Tailscale 前提、直接公開なし）。
 - `LICENSE`（MIT）を追加。
+- `SILLYTAVERN_COMPAT.md` に Connection Profile / Text Completion Preset / Quick Reply / Background Gallery など、今後取り込む ST 由来機能候補を整理。
+
+### Security / Privacy
+- Claudeレビュー対応: Webview CSP を nonce + `webview.cspSource` 方式へ更新し、`script-src 'unsafe-inline'` と旧 `vscode-webview-resource:` を除去。
+- Claudeレビュー対応: TTS の `innerHTML` パースを廃止し、GMテキストをプレーンテキストとして扱うよう変更。
+- Claudeレビュー対応: OpenRouter APIキーを VS Code SecretStorage に保存するコマンドを追加。既存 settings の `apiKey` は互換フォールバック扱いに変更。
+- Claudeレビュー対応: `TextAdventureGMSkill/scripts/comfyui_generate.py` に HTTP timeout と出力先ブロック判定の正規化を追加。
 
 ### Fixed
 - 画像再生成が `entryIndex` ではなく **`entry.id`** で履歴・`game_state.json`・Webview を一貫更新するよう修正（`updateEntry` メッセージ）。
+- ツールバーの画像生成ボタンが直近 GM ターンの `entry.id` を渡すよう修正し、孤立画像にならないようにした。
+- 画像生成の多重起動ガードを追加し、spawn エラー時も Webview の loading 状態が閉じるよう修正。
+- `updateSummary` の入力型・最大長を検証。
+- `game_state.json` のスキーマ警告フラグを、正常化後にリセットするよう修正。
+- `TextAdventureGMSkill/scripts/openrouter_gm.py` の `max_tokens` を 3000 既定 + `--max-tokens` / `OPENROUTER_MAX_TOKENS` で調整可能に変更。
 - `install_antigravity_skill.bat` が `..\TextAdventureGMSkill` をフォールバックコピー元として解決。
 - VSIX から内部資料（`AI_*.md`、`src/`、`test/`、`*.map` 等）を除外するよう `.vscodeignore` を拡充（`out/` と `scripts/package_scenario.py` は同梱維持）。
 - `validateGameState` に `entries[].imagePrompt` 検証を追加。

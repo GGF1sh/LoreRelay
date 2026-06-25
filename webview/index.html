@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-webview-resource: https: data: blob:; media-src vscode-webview-resource: https: data: blob:; style-src vscode-webview-resource: 'unsafe-inline' https: fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src vscode-webview-resource: 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="{{styleUri}}" />
   <title>LoreRelay</title>
@@ -25,6 +25,9 @@
             <option value="zh-CN">简体中文</option>
             <option value="zh-TW">繁體中文</option>
           </select>
+        </div>
+        <div id="img-gen-wrap">
+          <button id="img-gen-settings-btn" class="glass-btn" data-i18n-title="webview.imageGen.open" title="Image Gen Settings">🎨</button>
         </div>
         <div id="tts-wrap">
           <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
@@ -58,6 +61,15 @@
       <div id="options-bar"></div>
       <div id="authors-note-row">
         <input type="text" id="authors-note-input" data-i18n-placeholder="webview.authorsNote.placeholder" placeholder="Author's Note (steers next GM turn only)" />
+      </div>
+      <div id="quick-reply-bar">
+        <button class="qr-btn" id="qr-undo"       data-i18n="webview.quickReply.undo">⏪ Undo</button>
+        <button class="qr-btn" id="qr-retry"      data-i18n="webview.quickReply.retry">🔄 Retry</button>
+        <button class="qr-btn" id="qr-checkpoint" data-i18n="webview.quickReply.checkpoint">💾 Checkpoint</button>
+        <button class="qr-btn" id="qr-summary"    data-i18n="webview.quickReply.summary">📝 Summary</button>
+        <button class="qr-btn" id="qr-genimage"   data-i18n="webview.quickReply.genImage">🎨 Gen Image</button>
+        <button class="qr-btn" id="qr-loadpack"   data-i18n="webview.quickReply.loadPack">📂 Load Pack</button>
+        <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">📖 Archive</button>
       </div>
       <div id="input-area">
         <input type="text" id="free-input" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Enter to send to GM)" />
@@ -280,6 +292,68 @@
     </div>
   </div>
 
-  <script src="{{scriptUri}}"></script>
+  <div id="img-gen-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="img-gen-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.imageGen.title">Image Gen Settings</h3>
+      <button type="button" id="img-gen-panel-close" class="glass-btn" data-i18n-title="webview.imageGen.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <p class="img-gen-hint" data-i18n="webview.imageGen.hint">Saved to image_gen_config.json in your workspace. 0 = workflow default.</p>
+      <label data-i18n="webview.imageGen.checkpoint">Checkpoint</label>
+      <input type="text" id="ig-checkpoint" class="img-gen-input" data-field="checkpoint" />
+      <label data-i18n="webview.imageGen.mode">Mode</label>
+      <select id="ig-mode" class="img-gen-input" data-field="mode">
+        <option value="illustrious">illustrious</option>
+        <option value="pony">pony</option>
+        <option value="natural">natural</option>
+        <option value="standard">standard</option>
+      </select>
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.imageGen.steps">Steps</label>
+          <input type="number" id="ig-steps" class="img-gen-input" data-field="steps" min="0" max="150" />
+        </div>
+        <div>
+          <label data-i18n="webview.imageGen.cfg">CFG</label>
+          <input type="number" id="ig-cfg" class="img-gen-input" data-field="cfg" min="0" max="30" step="0.5" />
+        </div>
+      </div>
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.imageGen.width">Width</label>
+          <input type="number" id="ig-width" class="img-gen-input" data-field="width" min="0" max="2048" step="64" />
+        </div>
+        <div>
+          <label data-i18n="webview.imageGen.height">Height</label>
+          <input type="number" id="ig-height" class="img-gen-input" data-field="height" min="0" max="2048" step="64" />
+        </div>
+      </div>
+      <label data-i18n="webview.imageGen.sampler">Sampler</label>
+      <input type="text" id="ig-sampler" class="img-gen-input" data-field="samplerName" />
+      <label data-i18n="webview.imageGen.scheduler">Scheduler</label>
+      <input type="text" id="ig-scheduler" class="img-gen-input" data-field="scheduler" />
+      <label data-i18n="webview.imageGen.positivePrefix">Positive prefix</label>
+      <textarea id="ig-pos-prefix" class="img-gen-textarea" data-field="positivePrefix" rows="2"></textarea>
+      <label data-i18n="webview.imageGen.positiveSuffix">Positive suffix</label>
+      <textarea id="ig-pos-suffix" class="img-gen-textarea" data-field="positiveSuffix" rows="2"></textarea>
+      <label data-i18n="webview.imageGen.negative">Negative prompt</label>
+      <textarea id="ig-negative" class="img-gen-textarea" data-field="negativePrompt" rows="3"></textarea>
+      <details class="img-gen-templates">
+        <summary data-i18n="webview.imageGen.templates">Prompt templates</summary>
+        <label data-i18n="webview.imageGen.tplScene">Scene</label>
+        <textarea id="ig-tpl-scene" class="img-gen-textarea" data-tpl="scene" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplPortrait">Portrait</label>
+        <textarea id="ig-tpl-portrait" class="img-gen-textarea" data-tpl="portrait" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplBackground">Background</label>
+        <textarea id="ig-tpl-background" class="img-gen-textarea" data-tpl="background" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplFreeform">Freeform</label>
+        <textarea id="ig-tpl-freeform" class="img-gen-textarea" data-tpl="freeform" rows="2"></textarea>
+      </details>
+      <div id="img-gen-saved" class="img-gen-saved hidden" data-i18n="webview.imageGen.saved">Saved</div>
+    </div>
+  </aside>
+
+  <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
 </body>
 </html>

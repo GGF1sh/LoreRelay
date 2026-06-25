@@ -2,6 +2,23 @@
 
 LoreRelay は SillyTavern（ST）の **キャラクターカード** と **World Info / Lorebook** を取り込んで、構造化テキストアドベンチャーとして遊べます。
 
+---
+
+## 🚀 Quick Start for SillyTavern Users
+
+SillyTavern を導入済みの方なら、以下の3ステップで環境を構築できます。
+
+1. **拡張機能のインストール**
+   配布パッケージ内の `install_vscode_extension.bat` をダブルクリックして、VSCode に LoreRelay をインストールします。
+2. **キャラカード / ロアブックのインポート**
+   VSCode で空のゲーム用フォルダを開き、`Ctrl+Shift+P` → **`Text Adventure: Import SillyTavern Character`** を実行します。お手持ちの ST 用 `.png` や `.json` を選択するだけで、即座に取り込まれます。
+   （同様に **`Import SillyTavern Lorebook`** で世界観も取り込めます）
+3. **ゲーム開始**
+   コマンド **`Text Adventure: Open UI`** でゲーム画面を開き、あとは Antigravity 等の GM に指示を出すだけ。
+   ※ 既存の API キー（OpenRouter等）を使う場合は、設定画面からキーを入力して手動コピペで遊ぶことも可能です。
+
+---
+
 ## 取り込めるもの
 
 | ST 資産 | 当プロジェクトでの扱い |

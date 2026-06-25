@@ -2,18 +2,33 @@
 
 Antigravity（ローカル実行可能なエージェント AI）を GM として使うための設定ガイドです。
 
-Antigravity はファイル書き込みと Python コマンド実行が可能なため、**ゲームの全処理（ダイス・画像生成・game_state.json 更新）を自動化できます。**
+Antigravity はファイル書き込みと Python コマンド実行が可能なため、**ゲームの全処理（ダイス・画像生成・game_state.json 更新）を完全に自動化**できます。
+
+---
+
+## ⚡ 1分でわかるフルオート連携の仕組み（The Magic）
+
+LoreRelay は、Antigravity（Gemini）とVSCodeのWebviewを **`game_state.json` のファイル監視（FileSystemWatcher）** だけで疎結合に繋いでいます。
+
+1. **Antigravityの思考・行動**: GMスキルを読み込んだAntigravityが、状況を判定して `write_to_file` ツールで `game_state.json` をアトミックに上書き保存します。
+2. **VSCodeの即時反映**: VSCode拡張が変更を0.3秒で検知し、Webview（リッチUI）に `postMessage` で即座に変更を流し込みます。
+3. **画像と音の自動生成**: Antigravityが状況に合わせて ComfyUI の生成コマンドを叩くと、生成された画像パスがJSONに追加され、UI上に美麗な情景画像がポップアップします。
+
+WebSocketサーバーも、複雑なAPI連携も不要。**「AIがJSONを書き込むだけで、ネイティブゲームのようなUIが動く」** というのがこのアーキテクチャの強みです。
+
+---
+
+## 🚀 インストール手順
+
+Antigravity 用の GM スキルは、同梱のバッチファイルでワンクリック導入できます。
+
+1. 配布パッケージ内の `install_antigravity_skill.bat` をダブルクリックします。
+2. 自動的に `%USERPROFILE%\.gemini\config\skills\text-adventure-gm` へスキルがコピーされます。
+3. Antigravity を再起動すると、スキルが認識されます。
 
 ---
 
 ## どの連携モードを使うか
-
-| 状況 | 推奨 provider |
-|:---|:---|
-| Antigravity のチャット欄に手動でペーストして操作 | `clipboard` |
-| Antigravity に CLI / ヘッドレスモードがある | `command` |
-
-どちらのモードでも、**Antigravity が `game_state.json` を書き込んだ瞬間に Webview が自動更新されます。**
 
 ---
 

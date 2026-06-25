@@ -71,14 +71,14 @@
 
 | 時刻 (JST) | コミット | 抽出ファイル | 移した主な関数・責務 | extension.ts 行数 |
 |:---|:---|:---|:---|:---|
-| 07:19 | `20f33f8` | `workspacePaths.ts` | `getActiveWorkspaceFolder`, `getWorkspacePath`, `getGameStatePath`, `getHistoryPath`, `getGmProvider` | 2,251 → 2,197 |
-| 07:19 | `20f33f8` | `skillScriptRunner.ts` | `resolveGmBridgeScript`, `resolvePythonCommand`, `getMemoryBackendSetting`, `buildLocalGmEnv`, `runSkillScript`, `killActiveScriptProcess` | → 2,141 |
-| 07:19 | `20f33f8` | `gmBridgeRunner.ts` | `getGmBridgeOutputChannel`, `invokeGmBridge` 系（Grok/Ollama/Kobold/OpenRouter/カスタム）, `fallbackToClipboard`, `killGmBridgeProcesses` | → 1,799 |
-| 07:19 | `20f33f8` | `imageGenRunner.ts` | `resolveComfyScript`, `getSkillDir`, `buildImageGenEnv`, `runImageGeneration`, `applyImageToEntryById`, `runListImageModels`, Image Gen 設定パネル | → 1,516 |
-| 07:19 | `20f33f8` | `mediaManifest.ts` | `sendBgmManifest`, `sendSfxManifest`, `startMediaManifestWatchers` | → 1,379 |
-| 07:19 | `20f33f8` | `characterManager.ts` | キャラ CRUD, パーティ, `sendCharacterList`, `generatePortrait`, `uploadPortrait` | → 1,115 |
-| 07:19 | `20f33f8` | `gmPromptBuilder.ts` | `buildGmPromptContext`, `buildGrokPrompt`, `processProfileUpdates`, `maybeSuggestArchive`, lorebook/memory/party 文脈 | → 796 |
-| 07:19 | `20f33f8` | `checkpointHandlers.ts` | Undo/Rewind/Checkpoint/再生成, `handleEditEntry`, `handleToggleExcludeEntry`, `archiveSaga`, `summarizeHistory` | → **660** |
+| 07:19 | `2fe4e10` | `workspacePaths.ts` | `getActiveWorkspaceFolder`, `getWorkspacePath`, `getGameStatePath`, `getHistoryPath`, `getGmProvider` | 2,251 → 2,197 |
+| 07:19 | `2fe4e10` | `skillScriptRunner.ts` | `resolveGmBridgeScript`, `resolvePythonCommand`, `getMemoryBackendSetting`, `buildLocalGmEnv`, `runSkillScript`, `killActiveScriptProcess` | → 2,141 |
+| 07:19 | `2fe4e10` | `gmBridgeRunner.ts` | `getGmBridgeOutputChannel`, `invokeGmBridge` 系（Grok/Ollama/Kobold/OpenRouter/カスタム）, `fallbackToClipboard`, `killGmBridgeProcesses` | → 1,799 |
+| 07:19 | `2fe4e10` | `imageGenRunner.ts` | `resolveComfyScript`, `getSkillDir`, `buildImageGenEnv`, `runImageGeneration`, `applyImageToEntryById`, `runListImageModels`, Image Gen 設定パネル | → 1,516 |
+| 07:19 | `2fe4e10` | `mediaManifest.ts` | `sendBgmManifest`, `sendSfxManifest`, `startMediaManifestWatchers` | → 1,379 |
+| 07:19 | `2fe4e10` | `characterManager.ts` | キャラ CRUD, パーティ, `sendCharacterList`, `generatePortrait`, `uploadPortrait` | → 1,115 |
+| 07:19 | `2fe4e10` | `gmPromptBuilder.ts` | `buildGmPromptContext`, `buildGrokPrompt`, `processProfileUpdates`, `maybeSuggestArchive`, lorebook/memory/party 文脈 | → 796 |
+| 07:19 | `2fe4e10` | `checkpointHandlers.ts` | Undo/Rewind/Checkpoint/再生成, `handleEditEntry`, `handleToggleExcludeEntry`, `archiveSaga`, `summarizeHistory` | → **660** |
 
 ### パターン
 - 各モジュールは `initXxx(deps)` で `getPanel` 等を依存注入（`gameStateSync` と同型）。

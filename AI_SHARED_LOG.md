@@ -14,7 +14,7 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
   - `webview/script.js` 分割: **完了**（`webview/modules/` 8 ファイル + `build-webview.js`）
-  - Git push: **完了**（`f279548` まで push 済み）
+  - Git push: **完了**（`40007e3` まで push 済み）
 
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
 
@@ -75,8 +75,8 @@
 
 | 時刻 (JST) | コミット | 対象 | 内容 | 行数 |
 |:---|:---|:---|:---|:---|
-| 07:22 | (this) | `webview/modules/*.js` | `script.js` を 8 モジュールへ分割。`scripts/build-webview.js` で結合、`compile` に統合 | 単体最大 495 行（`10-game-state.js`） |
-| 07:22 | (this) | `src/scenarioPack.ts` | `loadScenarioPack` / `validateScenarioPack` / `exportScenarioPack` | `extension.ts` 660→454 |
+| 07:22 | `40007e3` | `webview/modules/*.js` | `script.js` を 8 モジュールへ分割。`scripts/build-webview.js` で結合、`compile` に統合 | 単体最大 495 行（`10-game-state.js`） |
+| 07:22 | `40007e3` | `src/scenarioPack.ts` | `loadScenarioPack` / `validateScenarioPack` / `exportScenarioPack` | `extension.ts` 660→454 |
 
 #### webview モジュール構成
 - `00-core.js` — vscode API, i18n, 状態変数

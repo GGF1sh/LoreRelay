@@ -12,8 +12,9 @@
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
   - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
-  - `extension.ts` 分割: **完了**（~660 行。詳細は下記 2026-06-26 07:19 JST ログ）
-  - v0.3.0–v0.3.1 + refactor commits の Git push（未 push コミットあり — 要 push）
+  - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
+  - `webview/script.js` 分割: **完了**（`webview/modules/` 8 ファイル + `build-webview.js`）
+  - Git push: **完了**（`f279548` まで push 済み）
 
 ## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
 
@@ -64,6 +65,35 @@
 - `npm run compile` passed
 - `npm test` passed
 - `git diff --check` passed with only CRLF conversion warnings
+
+## 2026-06-26 07:22 JST - Grok - push + 追加分割（webview / scenarioPack）
+
+### Push
+- `origin/main` へ push 完了: `ca00a2e..f279548`（webviewHandlers / gameStateSync / 8-module refactor / log fix）
+
+### 分割ログ
+
+| 時刻 (JST) | コミット | 対象 | 内容 | 行数 |
+|:---|:---|:---|:---|:---|
+| 07:22 | (this) | `webview/modules/*.js` | `script.js` を 8 モジュールへ分割。`scripts/build-webview.js` で結合、`compile` に統合 | 単体最大 495 行（`10-game-state.js`） |
+| 07:22 | (this) | `src/scenarioPack.ts` | `loadScenarioPack` / `validateScenarioPack` / `exportScenarioPack` | `extension.ts` 660→454 |
+
+#### webview モジュール構成
+- `00-core.js` — vscode API, i18n, 状態変数
+- `10-game-state.js` — ゲーム状態適用・メッセージ描画・UI
+- `20-input-audio-prep.js` — 入力・STT・チェックポイント・ローディング
+- `30-bgm-sfx.js` — BGM / SE
+- `40-dice-calc-tabs.js` — ダイス・電卓・タブ
+- `50-character-saga.js` — キャラ・アーカイブ・インライン編集
+- `60-tts-quickreply-imagegen.js` — TTS・Quick Reply・Image Gen 設定
+- `90-bootstrap.js` — DOMContentLoaded 初期化・postMessage ルーター
+
+### 残りの長いファイル（次回候補）
+- `webview/style.css` (~1,251 行) — コンポーネント別 CSS 分割は任意
+- `TextAdventureGMSkill/scripts/gm_bridge_common.py` (~467 行, Git 外)
+
+### Verification
+- `npm run compile` / `npm test` — 2026-06-26 07:22 JST OK
 
 ## 2026-06-26 07:19 JST - Grok - extension.ts 分割（第三〜十歩: 一括完了）
 

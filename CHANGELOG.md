@@ -34,6 +34,8 @@
   - `gmPromptBuilder.ts` — GM プロンプト構築・動的プロフィール・アーカイブ促し
   - `checkpointHandlers.ts` — Undo / Rewind / Checkpoint / 再生成 / エントリ編集
 - `extension.ts` は ~2,251 行 → ~660 行（累計 ~2,200 行削減）。
+- **Refactor:** `scenarioPack.ts` へシナリオ読込・検証・エクスポートを分離（`extension.ts` ~454 行）。
+- **Refactor:** `webview/script.js`（~1,800 行）を `webview/modules/*.js` 8 ファイルへ分割。`npm run build:webview` で結合（`compile` に統合）。
 
 ## [0.3.1] - 2026-06-26
 

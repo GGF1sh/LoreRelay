@@ -1,7 +1,7 @@
 {
-  "name": "text-adventure-engine",
-  "displayName": "Text Adventure Engine",
-  "description": "A rich UI viewer for AI-powered text adventure games. Works with any AI assistant (Antigravity, Copilot, Claude, etc.).",
+  "name": "lorerelay",
+  "displayName": "LoreRelay",
+  "description": "Local-first AI Game Master UI. Works with any AI assistant.",
   "version": "0.2.10",
   "publisher": "keisuke",
   "engines": {
@@ -50,7 +50,7 @@
       }
     ],
     "configuration": {
-      "title": "Text Adventure Engine",
+      "title": "LoreRelay",
       "properties": {
         "textAdventure.skillPath": {
           "type": "string",

@@ -7,7 +7,7 @@ Claude（ブラウザ / Claude Code / Antigravity 等）にコードレビュー
 ## 貼り付け用（ここから）
 
 ```
-あなたは「Text Adventure Engine」プロジェクトのシニアコードレビュアーです。
+あなたは「LoreRelay」プロジェクトのシニアコードレビュアーです。
 私は開発者（Keisuke）で、複数 AI（Grok / ChatGPT / Gemini / Claude）と協業しています。
 
 ## プロジェクト概要

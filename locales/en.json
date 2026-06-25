@@ -71,7 +71,7 @@
   "webview.stt.listening": "Listening…",
   "webview.stt.unsupported": "Voice input is not supported in this environment",
   "webview.stt.error": "Speech recognition error",
-  "webview.welcome": "⚔️ Welcome to Text Adventure Engine!\nStart a game in your AI chat — adventure logs will appear here.",
+  "webview.welcome": "⚔️ Welcome to LoreRelay!\nStart a game in your AI chat — adventure logs will appear here.",
   "webview.image.requested": "🎨 Image generation requested...",
   "webview.image.loading": "🎨 AI is painting the scene...",
   "webview.image.failed": "⚠️ Image generation failed. Check that ComfyUI is running.",

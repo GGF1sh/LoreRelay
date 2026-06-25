@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Text Adventure Engine — quick setup (macOS / Linux)
+# LoreRelay — quick setup (macOS / Linux)
 # Usage:
 #   ./scripts/setup.sh
 #   ./scripts/setup.sh --locale en --gm grok
@@ -38,7 +38,7 @@ ok()   { echo " OK: $*"; }
 warn() { echo " WARN: $*"; }
 fail() { echo " FAIL: $*"; exit 1; }
 
-step "Text Adventure Engine setup"
+step "LoreRelay setup"
 echo "Extension root: $VSCE_ROOT"
 
 find_skill() {
@@ -98,7 +98,7 @@ VSIX_PATH=""
 if [[ "$SKIP_VSIX" -eq 0 ]]; then
   step "Packaging VSIX (optional)"
   if npx --yes @vscode/vsce package --out "$VSCE_ROOT" 2>/dev/null; then
-    VSIX_PATH="$(ls -t "$VSCE_ROOT"/text-adventure-engine-*.vsix 2>/dev/null | head -1 || true)"
+    VSIX_PATH="$(ls -t "$VSCE_ROOT"/lorerelay-*.vsix 2>/dev/null | head -1 || true)"
     [[ -n "$VSIX_PATH" ]] && ok "VSIX: $VSIX_PATH" || warn "VSIX not produced"
   else
     warn "VSIX packaging skipped"

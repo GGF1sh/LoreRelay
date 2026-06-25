@@ -1,4 +1,4 @@
-# AI Handover Document (Text Adventure Engine)
+# AI Handover Document (LoreRelay)
 
 他のAI（Claude, ChatGPT, Grok, Geminiなど）にこのプロジェクトを引き継ぐための共通ドキュメントです。
 新しいAIにこのプロジェクトを理解させる場合は、以下の順で読み込ませてください。

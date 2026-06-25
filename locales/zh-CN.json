@@ -71,7 +71,7 @@
   "webview.stt.listening": "正在聆听…",
   "webview.stt.unsupported": "此环境不支持语音输入",
   "webview.stt.error": "语音识别错误",
-  "webview.welcome": "⚔️ 欢迎使用 Text Adventure Engine！\n在 AI 聊天中开始游戏，冒险日志将显示在这里。",
+  "webview.welcome": "⚔️ 欢迎使用 LoreRelay！\n在 AI 聊天中开始游戏，冒险日志将显示在这里。",
   "webview.image.requested": "🎨 已请求生成图像...",
   "webview.image.loading": "🎨 AI 正在绘制场景...",
   "webview.image.failed": "⚠️ 图像生成失败。请确认 ComfyUI 是否已启动。",

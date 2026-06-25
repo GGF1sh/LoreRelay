@@ -1,4 +1,4 @@
-# Text Adventure Engine — quick setup (Windows)
+# LoreRelay — quick setup (Windows)
 # Usage:
 #   .\scripts\setup.ps1
 #   .\scripts\setup.ps1 -Locale ja -GmProvider grok
@@ -24,7 +24,7 @@ function Write-Fail([string]$msg) { Write-Host " FAIL: $msg" -ForegroundColor Re
 
 $VsceRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $VsceRoot
-Write-Step "Text Adventure Engine setup"
+Write-Step "LoreRelay setup"
 Write-Host "Extension root: $VsceRoot"
 
 # --- Find GM skill ---
@@ -110,7 +110,7 @@ if (-not $SkipVsix) {
     Write-Step "Packaging VSIX (optional)"
     try {
         npx --yes @vscode/vsce package --out $VsceRoot 2>&1 | Out-Host
-        $vsix = Get-ChildItem -Path $VsceRoot -Filter 'text-adventure-engine-*.vsix' |
+        $vsix = Get-ChildItem -Path $VsceRoot -Filter 'lorerelay-*.vsix' |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
         if ($vsix) {

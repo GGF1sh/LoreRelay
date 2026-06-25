@@ -1,8 +1,8 @@
-# Text Adventure Engine - AI Game Master UI for VSCode 🎲
+# LoreRelay - Local-first AI Game Master UI 🎲
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Local-first AI Text Adventure Engine**
+**Local-first AI Game Master UI**
 
 既存のAIサブスクリプション（ChatGPT Plus, Claude Pro, Gemini Advancedなど）やローカルLLM（Ollama / KoboldCPP）をそのまま使って、テキストアドベンチャーをリッチUIで遊ぶためのVSCode拡張機能です。
 ローカル実行可能なエージェントAI（Antigravity等）なら全自動でゲーム状態が反映され、通常のブラウザ版AIなら生成された状態（JSON）を手動でコピペするだけで手軽に遊べます。

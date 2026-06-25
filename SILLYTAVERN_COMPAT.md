@@ -1,6 +1,6 @@
 # SillyTavern 互換ガイド
 
-Text Adventure Engine は SillyTavern（ST）の **キャラクターカード** と **World Info / Lorebook** を取り込んで、構造化テキストアドベンチャーとして遊べます。
+LoreRelay は SillyTavern（ST）の **キャラクターカード** と **World Info / Lorebook** を取り込んで、構造化テキストアドベンチャーとして遊べます。
 
 ## 取り込めるもの
 

@@ -1,5 +1,5 @@
 // @ts-nocheck
-// Text Adventure Engine - Webview Script
+// LoreRelay - Webview Script
 // Handles UI interactions and postMessage communication with extension host
 
 const vscode = acquireVsCodeApi();

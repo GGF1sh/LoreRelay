@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
-import type { GameEntry, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
+import type { GameEntry, ProfileUpdate } from './types/GameState';
 import {
     buildStateFromGmEntry,
     deleteCheckpointFile,
@@ -47,7 +47,6 @@ import {
     writePlayerActionFile,
     writePromptFile
 } from './playerAction';
-import { validateGameState } from './validateGameState';
 import {
     getImageGenConfigPath,
     loadImageGenConfig,
@@ -57,9 +56,19 @@ import {
 } from './imageGenConfig';
 import { isValidEntryId } from './entryId';
 import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
+import {
+    disposeGameStateWatcher,
+    getGameEntryHistory,
+    initGameStateSync,
+    replaceHistoryFromDisk,
+    safeImageUri,
+    saveHistoryToDisk,
+    sendCurrentState,
+    setGameEntryHistoryWithSeenIds,
+    startGameStateWatcher
+} from './gameStateSync';
 
 let panel: vscode.WebviewPanel | undefined;
-let fileWatcher: vscode.FileSystemWatcher | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let imageOutputChannel: vscode.OutputChannel | undefined;
@@ -70,11 +79,6 @@ let activeScriptProcess: ChildProcess | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let grokSessionActive = false;
 let localGmSessionActive = false;
-let debounceTimer: NodeJS.Timeout | undefined;
-
-let gameEntryHistory: GameEntry[] = [];
-const seenEntryIds = new Set<string>();
-let schemaWarningShown = false;
 let openRouterSettingsWarningShown = false;
 
 const CHARACTER_META_FILES = new Set(['party.json', 'dynamic_profiles.json']);
@@ -88,6 +92,16 @@ const MAX_PLAYER_INPUT_LENGTH = 2000;
 export function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
     initI18n(context.extensionPath);
+    initGameStateSync({
+        getPanel: () => panel,
+        getGameStatePath,
+        getWorkspacePath,
+        getSkillDir,
+        getHistoryPath,
+        processProfileUpdates,
+        maybeSuggestArchive,
+        appendGmBridgeLog: (line) => getGrokOutputChannel().appendLine(line)
+    });
 
     const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', () => {
         if (panel) {
@@ -148,10 +162,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         panel.onDidDispose(() => {
             panel = undefined;
-            if (fileWatcher) {
-                fileWatcher.dispose();
-                fileWatcher = undefined;
-            }
+            disposeGameStateWatcher();
             if (bgmWatcher) {
                 bgmWatcher.dispose();
                 bgmWatcher = undefined;
@@ -159,10 +170,6 @@ export function activate(context: vscode.ExtensionContext) {
             if (sfxWatcher) {
                 sfxWatcher.dispose();
                 sfxWatcher = undefined;
-            }
-            if (debounceTimer) {
-                clearTimeout(debounceTimer);
-                debounceTimer = undefined;
             }
             if (grokProcess) {
                 grokProcess.kill();
@@ -622,42 +629,6 @@ function getHistoryPath(): string | undefined {
     return ws ? path.join(ws, 'game_history.json') : undefined;
 }
 
-/** 再起動後も履歴を保持するため game_history.json から読み込む。 */
-function loadHistoryFromDisk() {
-    const histPath = getHistoryPath();
-    if (!histPath || !fs.existsSync(histPath)) { return; }
-    try {
-        const entries: GameEntry[] = JSON.parse(fs.readFileSync(histPath, 'utf-8'));
-        if (Array.isArray(entries)) {
-            for (const e of entries) {
-                if (isValidGameEntry(e) && !seenEntryIds.has(e.id)) {
-                    seenEntryIds.add(e.id);
-                    gameEntryHistory.push(e);
-                }
-            }
-        }
-    } catch (e) {
-        console.error('Error loading game_history.json:', e);
-    }
-}
-
-function saveHistoryToDisk() {
-    const histPath = getHistoryPath();
-    if (!histPath) { return; }
-    try {
-        fs.writeFileSync(histPath, JSON.stringify(gameEntryHistory, null, 2), 'utf-8');
-    } catch (e) {
-        console.error('Error saving game_history.json:', e);
-    }
-}
-
-/** Saga アーカイブ後に game_history.json の変更をメモリ上の履歴へ反映する */
-function replaceHistoryFromDisk(): void {
-    gameEntryHistory = [];
-    seenEntryIds.clear();
-    loadHistoryFromDisk();
-}
-
 /** comfyui_generate.py の場所を設定・既知パスから解決する。 */
 function resolveComfyScript(wsPath: string): string | undefined {
     const config = vscode.workspace.getConfiguration('textAdventure');
@@ -1039,7 +1010,7 @@ function maybeSuggestArchive(): void {
     const orModel = config.get<string>('gmBridge.openRouter.model', '');
     const threshold = getArchiveThreshold(provider, orModel);
     const remindStep = getArchiveRemindStep();
-    const count = gameEntryHistory.length;
+    const count = getGameEntryHistory().length;
     const milestone = computeArchiveMilestone(count, threshold, remindStep);
     if (milestone === undefined || milestone <= lastArchivePromptMilestone) {
         return;
@@ -1094,7 +1065,7 @@ function buildGmPromptContext(playerAction: string): string {
     if (partyCtx) {
         chunks.push(partyCtx);
     }
-    const recent = gameEntryHistory
+    const recent = getGameEntryHistory()
         .filter((e) => !e.excludedFromPrompt)
         .slice(-3)
         .map((e) => e.content)
@@ -1159,25 +1130,6 @@ function buildGrokPrompt(playerAction: string, isContinuation: boolean): string 
     return t('gm.prompt.start', { base, languageName: gmLanguageName(locale) }, locale) + context;
 }
 
-function resolveSpriteForWebview(sprite: SceneSprite | string | undefined): SceneSprite | undefined {
-    if (!sprite) {
-        return undefined;
-    }
-    if (typeof sprite === 'string') {
-        const uri = safeImageUri(sprite);
-        return uri ? { image: uri, position: 'center' } : undefined;
-    }
-    const out: SceneSprite = { ...sprite };
-    if (out.image) {
-        const uri = safeImageUri(out.image);
-        if (!uri) {
-            return undefined;
-        }
-        out.image = uri;
-    }
-    return out;
-}
-
 function validatePlayerInput(text: unknown): string | undefined {
     if (typeof text !== 'string') {
         return undefined;
@@ -1189,31 +1141,16 @@ function validatePlayerInput(text: unknown): string | undefined {
     return trimmed;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isValidGameEntry(value: unknown): value is GameEntry {
-    if (!isRecord(value)) {
-        return false;
-    }
-    return (
-        isValidEntryId(value.id) &&
-        (value.role === 'gm' || value.role === 'user') &&
-        typeof value.sender === 'string' &&
-        typeof value.content === 'string'
-    );
-}
-
 /** 履歴・game_state を entry.id で画像更新し、Webview に patch を送る。 */
 function applyImageToEntryById(wsPath: string, entryId: string, imagePath: string, prompt: string): boolean {
-    const histIdx = gameEntryHistory.findIndex((e) => e.id === entryId);
+    const history = getGameEntryHistory();
+    const histIdx = history.findIndex((e) => e.id === entryId);
     if (histIdx < 0) {
         return false;
     }
 
-    gameEntryHistory[histIdx] = {
-        ...gameEntryHistory[histIdx],
+    history[histIdx] = {
+        ...history[histIdx],
         image: imagePath,
         imagePrompt: prompt
     };
@@ -1236,7 +1173,7 @@ function applyImageToEntryById(wsPath: string, entryId: string, imagePath: strin
                     stateUpdated = true;
                 }
             }
-            const lastGm = findLastGmEntry(gameEntryHistory);
+            const lastGm = findLastGmEntry(history);
             if (lastGm?.id === entryId) {
                 stateData.latestImage = imagePath;
                 stateUpdated = true;
@@ -1620,28 +1557,7 @@ function startWatchingGameState(context: vscode.ExtensionContext) {
     const statePath = getGameStatePath();
     if (!statePath) { return; }
 
-    loadHistoryFromDisk();
-    sendCurrentState(0, true);
-
-    if (fileWatcher) {
-        fileWatcher.dispose();
-    }
-
-    fileWatcher = vscode.workspace.createFileSystemWatcher('**/game_state.json');
-
-    const handleChange = () => {
-        if (debounceTimer) {
-            clearTimeout(debounceTimer);
-        }
-        debounceTimer = setTimeout(() => {
-            sendCurrentState();
-        }, 300);
-    };
-
-    fileWatcher.onDidChange(handleChange);
-    fileWatcher.onDidCreate(handleChange);
-
-    context.subscriptions.push(fileWatcher);
+    startGameStateWatcher(context);
 
     // BGM マニフェストの監視
     sendBgmManifest();
@@ -1660,40 +1576,6 @@ function startWatchingGameState(context: vscode.ExtensionContext) {
     sfxWatcher.onDidCreate(() => sendSfxManifest());
     sfxWatcher.onDidDelete(() => sendSfxManifest());
     context.subscriptions.push(sfxWatcher);
-}
-
-/** 画像パスがワークスペースまたは GM スキル配下か検証する。 */
-function isAllowedImagePath(imagePath: string): boolean {
-    const normalized = path.normalize(imagePath);
-    if (!fs.existsSync(normalized)) {
-        return false;
-    }
-
-    const ws = getWorkspacePath();
-    if (ws) {
-        const wsNorm = path.normalize(ws);
-        if (normalized === wsNorm || normalized.startsWith(wsNorm + path.sep)) {
-            return true;
-        }
-    }
-
-    const skillDir = getSkillDir();
-    if (skillDir) {
-        const skillNorm = path.normalize(skillDir);
-        if (normalized === skillNorm || normalized.startsWith(skillNorm + path.sep)) {
-            return true;
-        }
-    }
-
-    console.warn(`[Text Adventure] Image path outside workspace/skill, skipped: ${imagePath}`);
-    return false;
-}
-
-function safeImageUri(imagePath: string): string | undefined {
-    if (!imagePath || !isAllowedImagePath(imagePath)) {
-        return undefined;
-    }
-    return panel!.webview.asWebviewUri(vscode.Uri.file(path.normalize(imagePath))).toString();
 }
 
 // ===== BGM マニフェスト =====
@@ -1819,151 +1701,6 @@ function sendSfxManifest() {
     }
 
     panel.webview.postMessage({ type: 'sfxManifest', sounds, defaultVolume, enabled });
-}
-
-async function sendCurrentState(retryCount = 0, fullHistory = false) {
-    const statePath = getGameStatePath();
-    if (!statePath || !panel) { return; }
-
-    try {
-        if (fs.existsSync(statePath)) {
-            const raw = fs.readFileSync(statePath, 'utf-8');
-            const state = JSON.parse(raw);
-
-            // Runtime schema validation (warn only — do not abort)
-            const schemaErrors = validateGameState(state);
-            if (schemaErrors.length > 0) {
-                const summary = schemaErrors.join('; ');
-                const logLine = `[Text Adventure] game_state.json schema violation: ${summary}`;
-                console.warn(logLine);
-                if (!grokOutputChannel) {
-                    grokOutputChannel = vscode.window.createOutputChannel('Text Adventure: GM Bridge');
-                }
-                grokOutputChannel.appendLine(logLine);
-                if (!schemaWarningShown) {
-                    schemaWarningShown = true;
-                    vscode.window.showWarningMessage(
-                        `Text Adventure: game_state.json has schema errors — check "Text Adventure: GM Bridge" output for details.`
-                    );
-                }
-            } else {
-                schemaWarningShown = false;
-            }
-
-            if (Array.isArray(state.profileUpdates) && state.profileUpdates.length > 0) {
-                processProfileUpdates(state.profileUpdates as ProfileUpdate[]);
-                delete state.profileUpdates;
-                fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
-            }
-
-            // Accumulate new entries with raw file paths for history
-            let historyUpdated = false;
-            if (state.entries && Array.isArray(state.entries)) {
-                state.entries.forEach((rawEntry: unknown) => {
-                    if (!isValidGameEntry(rawEntry)) {
-                        return;
-                    }
-                    const entry = rawEntry;
-                    const histIdx = gameEntryHistory.findIndex((e) => e.id === entry.id);
-                    if (histIdx >= 0) {
-                        const prev = gameEntryHistory[histIdx];
-                        const next: GameEntry = { ...prev };
-                        let changed = false;
-                        const setIfString = (key: keyof Pick<GameEntry, 'role' | 'sender' | 'content' | 'image' | 'imagePrompt' | 'editedAt'>) => {
-                            const value = entry[key];
-                            if (typeof value === 'string' && value !== next[key]) {
-                                (next as any)[key] = value;
-                                changed = true;
-                            }
-                        };
-                        setIfString('role');
-                        setIfString('sender');
-                        setIfString('content');
-                        setIfString('image');
-                        setIfString('imagePrompt');
-                        setIfString('editedAt');
-                        if (typeof entry.imageBlocked === 'boolean' && entry.imageBlocked !== next.imageBlocked) {
-                            next.imageBlocked = entry.imageBlocked;
-                            changed = true;
-                        }
-                        if (typeof entry.excludedFromPrompt === 'boolean' && entry.excludedFromPrompt !== next.excludedFromPrompt) {
-                            next.excludedFromPrompt = entry.excludedFromPrompt;
-                            changed = true;
-                        }
-                        if (changed) {
-                            gameEntryHistory[histIdx] = next;
-                            historyUpdated = true;
-                        }
-                        return;
-                    }
-                    if (!seenEntryIds.has(entry.id)) {
-                        seenEntryIds.add(entry.id);
-                        const entryWithState: any = { ...entry };
-                        if (entry.role === 'gm') {
-                            if (state.status) { entryWithState.status = JSON.parse(JSON.stringify(state.status)); }
-                            if (state.options) { entryWithState.options = [...state.options]; }
-                            if (state.theme) { entryWithState.theme = state.theme; }
-                            if (state.bgm) { entryWithState.bgm = state.bgm; }
-                            if (state.mood) { entryWithState.mood = state.mood; }
-                            if (state.sfx) { entryWithState.sfx = Array.isArray(state.sfx) ? [...state.sfx] : state.sfx; }
-                            if (state.latestImage) { entryWithState.latestImage = state.latestImage; }
-                            if (state.background) { entryWithState.background = state.background; }
-                            if (state.sprite) { entryWithState.sprite = typeof state.sprite === 'string' ? state.sprite : JSON.parse(JSON.stringify(state.sprite)); }
-                            if (state.summary) { entryWithState.summary = state.summary; }
-                            if (state.gameOver) { entryWithState.gameOver = JSON.parse(JSON.stringify(state.gameOver)); }
-                        }
-                        gameEntryHistory.push(entryWithState);
-                        historyUpdated = true;
-                    }
-                });
-            }
-            if (historyUpdated) {
-                saveHistoryToDisk();
-                maybeSuggestArchive();
-            }
-
-            // fullHistory=true (panel reopen): send all accumulated entries with fresh URIs
-            // fullHistory=false (normal update): send only current state's entries
-            const currentEntries: GameEntry[] = Array.isArray(state.entries)
-                ? state.entries.filter(isValidGameEntry)
-                : [];
-            const sourceEntries: GameEntry[] = fullHistory ? gameEntryHistory : currentEntries;
-            const entriesToSend = sourceEntries.map((entry: GameEntry) => {
-                const e = { ...entry };
-                if (e.image) {
-                    const uri = safeImageUri(e.image);
-                    if (uri) { e.image = uri; } else { delete e.image; e.imageBlocked = true; }
-                }
-                return e;
-            });
-
-            const latestImage = state.latestImage ? safeImageUri(state.latestImage) : undefined;
-            const background = state.background ? safeImageUri(state.background) : undefined;
-            const sprite = resolveSpriteForWebview(state.sprite);
-
-            // Strip any accidental `result` field from hiddenDice before sending to Webview
-            const hiddenDice: HiddenDiceEntry[] | undefined =
-                Array.isArray(state.hiddenDice)
-                    ? (state.hiddenDice as Array<Record<string, unknown>>).map(
-                        ({ notation, purpose }) => ({
-                            notation: String(notation ?? ''),
-                            ...(purpose !== undefined ? { purpose: String(purpose) } : {})
-                        })
-                    )
-                    : undefined;
-
-            panel.webview.postMessage({
-                type: 'gameStateUpdate',
-                fullHistory,
-                state: { ...state, entries: entriesToSend, latestImage, background, sprite, hiddenDice }
-            });
-        }
-    } catch (e) {
-        console.error(`Error reading game state (attempt ${retryCount + 1}):`, e);
-        if (retryCount < 3) {
-            setTimeout(() => sendCurrentState(retryCount + 1, fullHistory), 200);
-        }
-    }
 }
 
 async function runImageGeneration(prompt: string, mode: string, entryId?: string) {
@@ -2409,7 +2146,7 @@ async function handleEditEntry(id: string, content: string): Promise<void> {
             fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
             changed = true;
         }
-        const hist = gameEntryHistory.find((e) => e.id === id);
+        const hist = getGameEntryHistory().find((e) => e.id === id);
         if (hist) {
             hist.content = safeCon;
             (hist as any).editedAt = editedAt;
@@ -2432,7 +2169,7 @@ async function handleToggleExcludeEntry(id: string): Promise<void> {
     try {
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
-        const hist = gameEntryHistory.find((e) => e.id === id);
+        const hist = getGameEntryHistory().find((e) => e.id === id);
         if (!entry && !hist) {
             sendCurrentState(0, true);
             return;
@@ -2488,7 +2225,7 @@ async function archiveSaga() {
         const threshold = getArchiveThreshold(provider, orModel);
         const remindStep = getArchiveRemindStep();
         lastArchivePromptMilestone =
-            computeArchiveMilestone(gameEntryHistory.length, threshold, remindStep) ?? 0;
+            computeArchiveMilestone(getGameEntryHistory().length, threshold, remindStep) ?? 0;
         vscode.window.showInformationMessage(t('extension.info.sagaDone'));
         panel?.webview.postMessage({ type: 'sagaArchived' });
     } else {
@@ -2553,7 +2290,7 @@ function sendCheckpointList(): void {
     panel.webview.postMessage({
         type: 'checkpointList',
         checkpoints: listCheckpointMetas(ws),
-        rewindTargets: listRewindTargets(gameEntryHistory)
+        rewindTargets: listRewindTargets(getGameEntryHistory())
     });
 }
 
@@ -2563,17 +2300,14 @@ async function handleUndoLastTurn() {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
-    if (gameEntryHistory.length === 0) {
+    const history = getGameEntryHistory();
+    if (history.length === 0) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToUndo'));
         return;
     }
-    gameEntryHistory = truncateHistoryOneTurn(gameEntryHistory);
-    seenEntryIds.clear();
-    for (const e of gameEntryHistory) {
-        if (e.id) { seenEntryIds.add(e.id); }
-    }
+    setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
     saveHistoryToDisk();
-    await writeRestoredGameState(findLastGmEntry(gameEntryHistory), t('extension.info.undoSuccess'));
+    await writeRestoredGameState(findLastGmEntry(getGameEntryHistory()), t('extension.info.undoSuccess'));
 }
 
 async function handleRestoreToTurn(entryId: string) {
@@ -2586,18 +2320,14 @@ async function handleRestoreToTurn(entryId: string) {
         vscode.window.showWarningMessage(t('extension.warning.rewindNotFound'));
         return;
     }
-    const result = truncateHistoryToGmEntry(gameEntryHistory, entryId);
+    const result = truncateHistoryToGmEntry(getGameEntryHistory(), entryId);
     if (!result) {
         vscode.window.showWarningMessage(t('extension.warning.rewindNotFound'));
         return;
     }
-    gameEntryHistory = result.history;
-    seenEntryIds.clear();
-    for (const id of result.seenIds) {
-        seenEntryIds.add(id);
-    }
+    setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
     saveHistoryToDisk();
-    const gm = findLastGmEntry(gameEntryHistory);
+    const gm = findLastGmEntry(getGameEntryHistory());
     await writeRestoredGameState(gm, t('extension.info.rewindSuccess'));
 }
 
@@ -2607,11 +2337,12 @@ async function handleSaveCheckpoint(label?: string) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
-    if (gameEntryHistory.length === 0) {
+    const history = getGameEntryHistory();
+    if (history.length === 0) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
     }
-    const meta = saveCheckpointFile(ws, gameEntryHistory, label);
+    const meta = saveCheckpointFile(ws, history, label);
     if (!meta) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
@@ -2631,13 +2362,9 @@ async function handleRestoreCheckpoint(checkpointId: string) {
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
         return;
     }
-    gameEntryHistory = cp.history;
-    seenEntryIds.clear();
-    for (const e of gameEntryHistory) {
-        if (e.id) { seenEntryIds.add(e.id); }
-    }
+    setGameEntryHistoryWithSeenIds(cp.history);
     saveHistoryToDisk();
-    const gm = findLastGmEntry(gameEntryHistory);
+    const gm = findLastGmEntry(getGameEntryHistory());
     await writeRestoredGameState(gm, t('extension.info.checkpointRestored', { label: cp.meta.label }));
 }
 
@@ -2663,7 +2390,7 @@ async function handleRegenerateLastTurn() {
         return;
     }
     let lastUserAction: string | undefined;
-    const trimmed = truncateHistoryOneTurn([...gameEntryHistory]);
+    const trimmed = truncateHistoryOneTurn([...getGameEntryHistory()]);
     for (let i = trimmed.length - 1; i >= 0; i--) {
         if (trimmed[i].role === 'user') {
             lastUserAction = trimmed[i].content;
@@ -2674,13 +2401,9 @@ async function handleRegenerateLastTurn() {
         vscode.window.showWarningMessage(t('extension.warning.noTurnToRegenerate'));
         return;
     }
-    gameEntryHistory = trimmed;
-    seenEntryIds.clear();
-    for (const e of gameEntryHistory) {
-        if (e.id) { seenEntryIds.add(e.id); }
-    }
+    setGameEntryHistoryWithSeenIds(trimmed);
     saveHistoryToDisk();
-    const gm = findLastGmEntry(gameEntryHistory);
+    const gm = findLastGmEntry(getGameEntryHistory());
     if (!(await writeRestoredGameState(gm, t('extension.info.regenerateStarted')))) {
         return;
     }
@@ -2732,17 +2455,12 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
 }
 
 export function deactivate() {
-    if (fileWatcher) {
-        fileWatcher.dispose();
-    }
+    disposeGameStateWatcher();
     if (bgmWatcher) {
         bgmWatcher.dispose();
     }
     if (sfxWatcher) {
         sfxWatcher.dispose();
-    }
-    if (debounceTimer) {
-        clearTimeout(debounceTimer);
     }
     if (grokProcess) {
         grokProcess.kill();

@@ -64,6 +64,18 @@
 - `npm test` passed
 - `git diff --check` passed with only CRLF conversion warnings
 
+## 2026-06-26 - Grok - extension.ts 分割（第二歩: gameStateSync）
+
+### Summary
+- `gameStateSync.ts`: `sendCurrentState`、FileSystemWatcher、`game_history.json` 読み書き、`safeImageUri`、履歴蓄積ロジックを分離。`initGameStateSync(deps)` で依存注入。
+- `extension.ts` ~2,763 → ~2,481 行。累計 ~380 行削減。
+
+### Files touched
+- `src/gameStateSync.ts` (new), `src/extension.ts`, `CHANGELOG.md`, `AI_SHARED_LOG.md`, `C:\AI\GROK_CODE_REVIEW.md`
+
+### Verification
+- `npm run compile` / `npm test`
+
 ## 2026-06-26 - Grok - extension.ts 分割（第一歩: webviewHandlers）
 
 ### Summary

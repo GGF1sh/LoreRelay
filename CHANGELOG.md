@@ -22,7 +22,8 @@
 ## [Unreleased]
 
 ### Changed
-- **Refactor:** Webview `postMessage` ルーターを `src/webviewHandlers.ts` へ分離。`isValidEntryId` を `src/entryId.ts` へ共通化（`extension.ts` 分割第一歩）。
+- **Refactor:** Webview `postMessage` ルーターを `src/webviewHandlers.ts` へ分離。`isValidEntryId` を `src/entryId.ts` へ共通化。
+- **Refactor:** `game_state.json` 同期・履歴・画像 URI 変換を `src/gameStateSync.ts` へ分離（`sendCurrentState` / watcher / `safeImageUri` / `game_history.json` 永続化）。
 
 ## [0.3.1] - 2026-06-26
 

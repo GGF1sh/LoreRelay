@@ -1,0 +1,62 @@
+{
+  "en": {
+    "vscode_title": "  LoreRelay VSCode Extension Installer",
+    "vscode_installing": "Installing VSCode extension (LoreRelay)...",
+    "vscode_installing_file": "Installing: {0}",
+    "vscode_err_no_vsix": "[Error] .vsix file not found in current directory.",
+    "vscode_err_failed": "[Error] Failed to install VSCode extension. Please make sure the 'code' command is in your PATH.",
+    "vscode_success": "[Success] VSCode extension installed successfully! Please restart VSCode.",
+    "antigravity_title": "  Antigravity GM Skill Installer (for LoreRelay)",
+    "antigravity_installing": "Installing Antigravity GM Skill...",
+    "antigravity_src": "Source: {0}",
+    "antigravity_dest": "Destination: {0}",
+    "antigravity_err_no_skill": "[Error] GM Skill source folder not found.\nPlease make sure one of the following directories exists:\n  - {0}\n  - {1}",
+    "antigravity_err_copy_failed": "[Error] Failed to copy SKILL.md.",
+    "antigravity_success": "[Success] GM Skill installed successfully! Please restart Antigravity."
+  },
+  "ja": {
+    "vscode_title": "  LoreRelay VSCode 拡張機能 インストーラー",
+    "vscode_installing": "VSCode 拡張機能 (LoreRelay) をインストールしています...",
+    "vscode_installing_file": "インストール中: {0}",
+    "vscode_err_no_vsix": "[エラー] .vsix ファイルが見つかりません。",
+    "vscode_err_failed": "[エラー] VSCode拡張のインストールに失敗しました。'code' コマンドにパスが通っているか確認してください。",
+    "vscode_success": "[成功] VSCode拡張機能のインストールが完了しました！VSCodeを再起動してください。",
+    "antigravity_title": "  Antigravity GMスキル インストーラー (LoreRelay用)",
+    "antigravity_installing": "Antigravity GMスキルをインストールしています...",
+    "antigravity_src": "コピー元: {0}",
+    "antigravity_dest": "コピー先: {0}",
+    "antigravity_err_no_skill": "[エラー] GMスキルが見つかりません。\n次のいずれかのディレクトリが存在することを確認してください:\n  - {0}\n  - {1}",
+    "antigravity_err_copy_failed": "[エラー] SKILL.md のコピーに失敗しました。",
+    "antigravity_success": "[成功] GMスキルのインストールが完了しました。Antigravity を再起動してください。"
+  },
+  "zh-CN": {
+    "vscode_title": "  LoreRelay VSCode 扩展安装程序",
+    "vscode_installing": "正在安装 VSCode 扩展 (LoreRelay)...",
+    "vscode_installing_file": "正在安装: {0}",
+    "vscode_err_no_vsix": "[错误] 未找到 .vsix 文件。",
+    "vscode_err_failed": "[错误] 安装 VSCode 扩展失败。请确保 'code' 命令已添加到系统环境变量 (PATH) 中。",
+    "vscode_success": "[成功] VSCode 扩展安装成功！请重启 VSCode。",
+    "antigravity_title": "  Antigravity GM 技能安装程序 (用于 LoreRelay)",
+    "antigravity_installing": "正在安装 Antigravity GM 技能...",
+    "antigravity_src": "复制源: {0}",
+    "antigravity_dest": "目标位置: {0}",
+    "antigravity_err_no_skill": "[错误] 未找到 GM 技能。\n请确保以下目录之一存在:\n  - {0}\n  - {1}",
+    "antigravity_err_copy_failed": "[错误] 复制 SKILL.md 失败。",
+    "antigravity_success": "[成功] GM 技能安装完成！请重启 Antigravity。"
+  },
+  "zh-TW": {
+    "vscode_title": "  LoreRelay VSCode 擴充功能安裝程式",
+    "vscode_installing": "正在安裝 VSCode 擴充功能 (LoreRelay)...",
+    "vscode_installing_file": "正在安裝: {0}",
+    "vscode_err_no_vsix": "[錯誤] 未找到 .vsix 檔案。",
+    "vscode_err_failed": "[錯誤] 安裝 VSCode 擴充功能失敗。請確保 'code' 指令已添加到系統環境變數 (PATH) 中。",
+    "vscode_success": "[成功] VSCode 擴充功能安裝成功！請重新啟動 VSCode。",
+    "antigravity_title": "  Antigravity GM 技能安裝程式 (用於 LoreRelay)",
+    "antigravity_installing": "正在安裝 Antigravity GM 技能...",
+    "antigravity_src": "複製來源: {0}",
+    "antigravity_dest": "目的位置: {0}",
+    "antigravity_err_no_skill": "[錯誤] 未找到 GM 技能。\n請確保以下目錄之一存在:\n  - {0}\n  - {1}",
+    "antigravity_err_copy_failed": "[錯誤] 複製 SKILL.md 失敗。",
+    "antigravity_success": "[成功] GM 技能安裝完成！請重新啟動 Antigravity。"
+  }
+}

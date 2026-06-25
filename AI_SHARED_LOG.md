@@ -14,6 +14,16 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - v0.3.0–v0.3.1 変更の Git push (Complete - all committed changes pushed)
 
+## 2026-06-26 - Antigravity - Code Review Improvements (Security, Stability & Persistence)
+
+### Summary
+- Refined Content-Security-Policy (CSP) in `webview/index.html` by adding `connect-src 'none';` explicitly.
+- Hardened resource disposal in `src/extension.ts` by ensuring all active background processes (`grokProcess`, `gmProcess`, `imageGenerationProcess`, and `activeScriptProcess`) are killed on Webview panel disposal (`onDidDispose`) and extension deactivation (`deactivate()`).
+- Added draft state persistence (`getState` / `setState`) in `webview/script.js` for `#free-input` and `#authors-note-input` to prevent users losing their drafts when the webview is hidden, reloaded, or recreated.
+
+### Verification
+- **Checked & Verified**: Run compile (`npm run compile`) and validation suite (`npm test`) on `2026-06-26 07:10 JST` confirming successful build and no regressions.
+
 ## 2026-06-26 - Antigravity - Commit and Push Installer Scripts
 
 ### Summary

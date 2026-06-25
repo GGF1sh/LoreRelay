@@ -75,10 +75,26 @@ window.addEventListener('DOMContentLoaded', () => {
     renderAllMessages();
     renderGallery();
     setTheme(currentTheme);
+    if (savedState.draftText && freeInput) {
+      freeInput.value = savedState.draftText;
+    }
+    const noteEl = document.getElementById('authors-note-input');
+    if (savedState.authorsNoteText && noteEl) {
+      noteEl.value = savedState.authorsNoteText;
+    }
   }
 
   // extension に状態リクエスト
   vscode.postMessage({ type: 'requestState' });
+
+  // 入力の変更時に状態を自動保存
+  if (freeInput) {
+    freeInput.addEventListener('input', saveState);
+  }
+  const noteEl = document.getElementById('authors-note-input');
+  if (noteEl) {
+    noteEl.addEventListener('input', saveState);
+  }
 
   const sel = localeSelect();
   if (sel) {
@@ -1014,7 +1030,10 @@ function getCharacterColor(name) {
 }
 
 function saveState() {
-  vscode.setState({ messageHistory, galleryImages, currentTheme, ttsEnabled, ttsSpeed, ttsVolume });
+  const draftText = freeInput ? freeInput.value : '';
+  const noteEl = document.getElementById('authors-note-input');
+  const authorsNoteText = noteEl ? noteEl.value : '';
+  vscode.setState({ messageHistory, galleryImages, currentTheme, ttsEnabled, ttsSpeed, ttsVolume, draftText, authorsNoteText });
 }
 
 // ===== 画像生成ローディング =====

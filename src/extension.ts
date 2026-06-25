@@ -64,6 +64,7 @@ let imageOutputChannel: vscode.OutputChannel | undefined;
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
+let activeScriptProcess: ChildProcess | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let grokSessionActive = false;
 let localGmSessionActive = false;
@@ -293,6 +294,22 @@ export function activate(context: vscode.ExtensionContext) {
             if (debounceTimer) {
                 clearTimeout(debounceTimer);
                 debounceTimer = undefined;
+            }
+            if (grokProcess) {
+                grokProcess.kill();
+                grokProcess = undefined;
+            }
+            if (gmProcess) {
+                gmProcess.kill();
+                gmProcess = undefined;
+            }
+            if (imageGenerationProcess) {
+                imageGenerationProcess.kill();
+                imageGenerationProcess = undefined;
+            }
+            if (activeScriptProcess) {
+                activeScriptProcess.kill();
+                activeScriptProcess = undefined;
             }
         });
     });
@@ -2203,9 +2220,17 @@ async function runSkillScript(scriptName: string, args: string[]): Promise<numbe
     }
     return new Promise((resolve) => {
         const child = spawn(python, [scriptPath, ...args], { cwd: wsPath, shell: false, env });
+        activeScriptProcess = child;
         child.stdout?.on('data', (d: Buffer) => getGrokOutputChannel().append(d.toString()));
         child.stderr?.on('data', (d: Buffer) => getGrokOutputChannel().append(d.toString()));
-        child.on('close', (code) => resolve(code ?? 1));
+        child.on('close', (code) => {
+            activeScriptProcess = undefined;
+            resolve(code ?? 1);
+        });
+        child.on('error', (err) => {
+            activeScriptProcess = undefined;
+            resolve(1);
+        });
     });
 }
 
@@ -2828,5 +2853,13 @@ export function deactivate() {
     if (gmProcess) {
         gmProcess.kill();
         gmProcess = undefined;
+    }
+    if (imageGenerationProcess) {
+        imageGenerationProcess.kill();
+        imageGenerationProcess = undefined;
+    }
+    if (activeScriptProcess) {
+        activeScriptProcess.kill();
+        activeScriptProcess = undefined;
     }
 }

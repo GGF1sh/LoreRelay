@@ -35,7 +35,7 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ### Phase 2B: SillyTavern 資産移行の完成
 - [ ] **TavernCard V1/V2**: PNG/JSON インポートの完全対応（`extensions` フィールド等を捨てずに保持）。
-- [ ] **ST ロアブックエンジン**: Regex Keys, Secondary Keys, Depth などの細かい発火条件をLoreRelayのエンジンでサポートする。
+- [x] **ST ロアブックエンジン**: Regex Keys, Secondary Keys, insertion_order ソートを実装（`src/lorebookMatcher.ts` + `scripts/test_lorebook.js`）。Scan Depth は呼び出し側（直近3エントリ）で制御済み。
 
 ---
 

@@ -171,6 +171,21 @@ if (fs.existsSync(testStatePatchPath)) {
   fail('scripts/test_state_patch.js missing');
 }
 
+const testLorebookPath = path.join(root, 'scripts', 'test_lorebook.js');
+if (fs.existsSync(testLorebookPath)) {
+  try {
+    require('child_process').execFileSync(process.execPath, [testLorebookPath], {
+      cwd: root,
+      stdio: 'inherit'
+    });
+    ok('test_lorebook.js');
+  } catch (e) {
+    fail('test_lorebook.js failed');
+  }
+} else {
+  fail('scripts/test_lorebook.js missing');
+}
+
 if (failed > 0) {
   process.exit(1);
 }

@@ -36,15 +36,7 @@ import {
     loadDynamicProfiles,
     getPartyMemberIds
 } from './characterManager';
-
-interface LorebookEntry {
-    id?: string;
-    keys?: string[];
-    content?: string;
-    comment?: string;
-    priority?: number;
-    enabled?: boolean;
-}
+import { type LorebookEntry, matchEntriesAgainstText } from './lorebookMatcher';
 
 export interface GmPromptBuilderDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -115,20 +107,7 @@ function loadLorebookEntries(): LorebookEntry[] {
 }
 
 function matchLorebookEntries(text: string, maxEntries = 5): LorebookEntry[] {
-    const hay = text.toLowerCase();
-    const hits: Array<{ priority: number; entry: LorebookEntry }> = [];
-    for (const entry of loadLorebookEntries()) {
-        const keys = entry.keys || [];
-        const matched = keys.some((k) => {
-            const key = String(k).trim().toLowerCase();
-            return key.length > 0 && hay.includes(key);
-        });
-        if (matched) {
-            hits.push({ priority: entry.priority ?? 0, entry });
-        }
-    }
-    hits.sort((a, b) => b.priority - a.priority);
-    return hits.slice(0, maxEntries).map((h) => h.entry);
+    return matchEntriesAgainstText(loadLorebookEntries(), text, maxEntries);
 }
 
 function resolveMemoriesViaPython(ws: string, hintText: string, backend: string): MemoryChunk[] {

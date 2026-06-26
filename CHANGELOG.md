@@ -10,7 +10,17 @@
 
 ## [Unreleased]
 
-（次のマイルストーン: Phase 2B — ST ロアブックエンジン拡張 / TavernCard 完全対応）
+（次のマイルストーン: Phase 2B TavernCard V1/V2 完全対応 / Phase 4A VLM 統合）
+
+### Added — Phase 2B: ST ロアブックマッチングエンジン
+
+- **`src/lorebookMatcher.ts`** (新規): vscode 依存なしの純粋マッチング関数 `matchEntriesAgainstText` を分離。`LorebookEntry` インターフェースに ST 互換フィールドを追加:
+  - `use_regex?: boolean` — キーを正規表現として評価（`/pattern/flags` 形式と裸のパターン両対応。不正な正規表現はサブストリングフォールバック）
+  - `secondary_keys?: string[]` — AND 条件: primary key ヒット後に secondary key のいずれかも一致する必要あり
+  - `insertion_order?: number` — ST の挿入順位。`priority` が未設定の場合に参照（降順ソート）
+- **`src/gmPromptBuilder.ts`**: `matchLorebookEntries` を `matchEntriesAgainstText` の薄いラッパーに置き換え。`LorebookEntry` を `lorebookMatcher` から import。
+- **`scripts/test_lorebook.js`** (新規): ロアブックマッチングエンジンの単体テスト（11ケース: サブストリング/OR/大小文字/Regex/不正Regex/Secondary Keys/ソート/maxEntries/空入力）。
+- **`scripts/validate.js`**: `test_lorebook.js` を `npm test` に統合。
 
 ### Added
 - **`AI_HANDOVER_PROMPTS.md`**: ChatGPT / Gemini / Claude / Grok 向けコピペプロンプト、共通必読ファイルの順序、推奨実行フェーズ（0〜3）を固定化。

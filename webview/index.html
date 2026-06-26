@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}' https://cdn.jsdelivr.net; connect-src 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}'; connect-src 'none';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="{{styleUri}}" />
   <title>LoreRelay</title>
@@ -486,13 +486,11 @@
       <div class="remote-play-qr-row">
         <div class="remote-play-qr-block">
           <h4 data-i18n="webview.remotePlay.playerJoin">Player join</h4>
-          <img id="remote-play-qr" class="remote-play-qr" alt="Player QR" width="180" height="180" />
           <p id="remote-play-player-url" class="remote-play-url"></p>
           <button type="button" id="remote-play-copy-player" class="small-btn" data-i18n="webview.remotePlay.copyPlayer">Copy player URL</button>
         </div>
         <div class="remote-play-qr-block">
           <h4 data-i18n="webview.remotePlay.spectatorJoin">Spectator join</h4>
-          <img id="remote-play-spectator-qr" class="remote-play-qr" alt="Spectator QR" width="180" height="180" />
           <p id="remote-play-spectator-url" class="remote-play-url"></p>
           <button type="button" id="remote-play-copy-spectator" class="small-btn" data-i18n="webview.remotePlay.copySpectator">Copy spectator URL</button>
         </div>
@@ -623,7 +621,7 @@
   </aside>
 
   <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.8.0/dist/mermaid.min.js"></script>
+  <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>
   <script nonce="{{nonce}}">
     if (window.mermaid) {
       mermaid.initialize({ startOnLoad: false, theme: 'dark' });

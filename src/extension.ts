@@ -219,11 +219,15 @@ export function activate(context: vscode.ExtensionContext) {
         const scriptUri = panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(webviewPath, 'script.js'))
         );
+        const mermaidUri = panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(webviewPath, 'vendor', 'mermaid.min.js'))
+        );
         const nonce = getNonce();
 
         html = html
             .replace(/\{\{styleUri\}\}/g, styleUri.toString())
             .replace(/\{\{scriptUri\}\}/g, scriptUri.toString())
+            .replace(/\{\{mermaidUri\}\}/g, mermaidUri.toString())
             .replace(/\{\{cspSource\}\}/g, panel.webview.cspSource)
             .replace(/\{\{nonce\}\}/g, nonce);
 

@@ -32,8 +32,6 @@ export interface RemotePlayStatus {
     token: string;
     urls: string[];
     spectatorUrls: string[];
-    qrUrls: string[];
-    spectatorQrUrls: string[];
     clientCount: number;
     clients: RemotePlayClientInfo[];
 }
@@ -120,10 +118,6 @@ function getConfig() {
 
 function normalizeRole(value: unknown, fallback: RemotePlayRole): RemotePlayRole {
     return value === 'spectator' ? 'spectator' : value === 'player' ? 'player' : fallback;
-}
-
-function buildQrUrl(text: string): string {
-    return `https://quickchart.io/qr?text=${encodeURIComponent(text)}&size=180&margin=1`;
 }
 
 function isLocalhostBind(host: string): boolean {
@@ -578,8 +572,6 @@ export function getRemotePlayStatus(): RemotePlayStatus {
         token: sessionToken,
         urls: playerUrls,
         spectatorUrls,
-        qrUrls: playerUrls.length > 0 ? [buildQrUrl(playerUrls[0])] : [],
-        spectatorQrUrls: spectatorUrls.length > 0 ? [buildQrUrl(spectatorUrls[0])] : [],
         clientCount: clients.length,
         clients
     };

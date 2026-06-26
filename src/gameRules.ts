@@ -63,7 +63,7 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.diceDifficulty !== undefined && typeof rules.diceDifficulty === 'string') {
             const difficulty = rules.diceDifficulty.trim();
-            if (difficulty === 'Normal' || difficulty === 'Hard') {
+            if (difficulty === 'Easy' || difficulty === 'Normal' || difficulty === 'Hard') {
                 sanitized.diceDifficulty = difficulty;
             }
         }

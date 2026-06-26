@@ -25,20 +25,10 @@ function renderRemotePlayPanel(status) {
 
   const playerUrl = (status.urls && status.urls[0]) || '';
   const spectatorUrl = (status.spectatorUrls && status.spectatorUrls[0]) || '';
-  const qrImg = document.getElementById('remote-play-qr');
-  const specQrImg = document.getElementById('remote-play-spectator-qr');
   const playerUrlEl = document.getElementById('remote-play-player-url');
   const spectatorUrlEl = document.getElementById('remote-play-spectator-url');
   const clientsEl = document.getElementById('remote-play-clients');
 
-  if (qrImg && status.qrUrls && status.qrUrls[0]) {
-    qrImg.src = status.qrUrls[0];
-    qrImg.alt = T('webview.remotePlay.qrPlayer');
-  }
-  if (specQrImg && status.spectatorQrUrls && status.spectatorQrUrls[0]) {
-    specQrImg.src = status.spectatorQrUrls[0];
-    specQrImg.alt = T('webview.remotePlay.qrSpectator');
-  }
   if (playerUrlEl) { playerUrlEl.textContent = playerUrl; }
   if (spectatorUrlEl) { spectatorUrlEl.textContent = spectatorUrl; }
 

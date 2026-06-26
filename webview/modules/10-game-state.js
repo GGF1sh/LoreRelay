@@ -154,7 +154,28 @@ function renderMessage(entry) {
 
   const defaultSender = entry.role === 'user' ? T('webview.sender.player') : T('webview.sender.gm');
   let html = `<div class="msg-sender" style="color: ${senderColor}">${escapeHtml(entry.sender || defaultSender)}</div>`;
-  html += `<div class="msg-body">${escapeHtml(entry.content)}</div>`;
+
+  let bodyHtml = escapeHtml(entry.content);
+  if (bodyHtml.includes('```mermaid')) {
+    bodyHtml = bodyHtml.replace(/```mermaid\n([\s\S]*?)```/g, (match, p1) => {
+      // Unescape since mermaid needs raw characters, but we just escaped them
+      const raw = p1
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+      return `<div class="mermaid">${raw}</div>`;
+    });
+    // Trigger mermaid run after DOM update
+    setTimeout(() => {
+      if (window.mermaid) {
+        window.mermaid.run({ querySelector: '.mermaid' }).catch(e => console.error('Mermaid render error:', e));
+      }
+    }, 100);
+  }
+
+  html += `<div class="msg-body">${bodyHtml}</div>`;
 
   div.innerHTML = html;
 
@@ -421,6 +442,7 @@ function updateStatus(status) {
             <div id="status-${key}-text" class="resource-text">${current} / ${max}</div>
           </div>
         `;
+        dynamicContainer.appendChild(block);
         
       } else if (typeof value === 'number' && key !== 'funds') {
         // affection や reputation のような単一の数値 (0-100を想定) の場合

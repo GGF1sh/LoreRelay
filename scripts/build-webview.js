@@ -79,3 +79,18 @@ buildBundle(
     ],
     'css'
 );
+
+// Copy vendor scripts
+const vendorDir = path.join(webviewDir, 'vendor');
+if (!fs.existsSync(vendorDir)) {
+    fs.mkdirSync(vendorDir);
+}
+
+const mermaidSrc = path.join(__dirname, '..', 'node_modules', 'mermaid', 'dist', 'mermaid.min.js');
+const mermaidDest = path.join(vendorDir, 'mermaid.min.js');
+if (fs.existsSync(mermaidSrc)) {
+    fs.copyFileSync(mermaidSrc, mermaidDest);
+    console.log(`Copied mermaid.min.js to webview/vendor/`);
+} else {
+    console.warn(`WARNING: mermaid.min.js not found at ${mermaidSrc}. Did you run npm install?`);
+}

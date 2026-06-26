@@ -18,6 +18,29 @@ const SKILL_ZIP_ASSET_RE = /^text-adventure-gm[-v\d.]*\.zip$/i;
 const REQUEST_TIMEOUT_MS = 15_000;  // 15 s for GitHub API & downloads
 const PROCESS_TIMEOUT_MS = 60_000;  // 60 s for code --install-extension / unzip
 
+const ALLOWED_DOWNLOAD_HOSTS = new Set([
+    'api.github.com',
+    'github.com',
+    'objects.githubusercontent.com',
+    'codeload.github.com'
+]);
+
+function isAllowedDownloadUrl(url: string): boolean {
+    try {
+        const u = new URL(url);
+        if (u.protocol !== 'https:') {
+            return false;
+        }
+        const host = u.hostname.toLowerCase();
+        if (ALLOWED_DOWNLOAD_HOSTS.has(host)) {
+            return true;
+        }
+        return host.endsWith('.githubusercontent.com');
+    } catch {
+        return false;
+    }
+}
+
 // ── Subprocess helper ────────────────────────────────────────────────────────
 
 function spawnWithTimeout(
@@ -158,7 +181,12 @@ function downloadFile(url: string, destPath: string, redirectCount = 0): Promise
         const options = { headers: { 'User-Agent': 'LoreRelay-Updater/1.0' } };
         const req = https.get(url, options, (res) => {
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                downloadFile(res.headers.location, destPath, redirectCount + 1)
+                const nextUrl = res.headers.location;
+                if (!isAllowedDownloadUrl(nextUrl)) {
+                    reject(new Error(`Blocked redirect to untrusted host: ${nextUrl}`));
+                    return;
+                }
+                downloadFile(nextUrl, destPath, redirectCount + 1)
                     .then(resolve).catch(reject);
                 return;
             }
@@ -326,6 +354,9 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
             try {
                 // 1. Install VS Code Extension
                 if (vsixAsset) {
+                    if (!isAllowedDownloadUrl(vsixAsset.browser_download_url)) {
+                        throw new Error('Blocked untrusted VSIX download URL');
+                    }
                     progress.report({ message: t('updater.installingVsix') });
                     const vsixPath = path.join(tempDir, vsixAsset.name);
                     await downloadFile(vsixAsset.browser_download_url, vsixPath);
@@ -335,6 +366,9 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
 
                 // 2. Install GM Skill (atomic)
                 if (zipAsset) {
+                    if (!isAllowedDownloadUrl(zipAsset.browser_download_url)) {
+                        throw new Error('Blocked untrusted skill zip download URL');
+                    }
                     progress.report({ message: t('updater.installingSkill') });
                     const zipPath    = path.join(tempDir, zipAsset.name);
                     const extractDir = path.join(tempDir, 'skill_extract');

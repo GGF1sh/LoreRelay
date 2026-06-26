@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
 :: Determine the directory of this batch file
 set "SCRIPT_DIR=%~dp0"

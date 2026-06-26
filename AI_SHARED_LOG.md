@@ -5,7 +5,7 @@
 
 ## Current Snapshot
 
-- Current package version: `0.3.1`
+- Current package version: `0.3.1`（[Unreleased] に updater / installer セキュリティ修正あり）
 - Main source of truth: `CHANGELOG.md` + source code
 - Main remaining work:
   - README screenshots/GIF, Ko-fi real URL
@@ -14,7 +14,28 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
-  - Git push: **完了**（`d25f764` まで push 済み）
+  - Git push: 要 push（installer/updater セキュリティ修正コミット後）
+  - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
+
+## 2026-06-26 10:05 JST - Grok - インストーラー / アップデーター セキュリティレビュー & 修正
+
+### レビュー結果（修正済み）
+
+| 深刻度 | 問題 | 修正 |
+|:---|:---|:---|
+| High | `install_antigravity_skill.ps1` が削除後コピー（失敗時スキル消失） | `Install-SkillFolderAtomic` |
+| High | `Expand-Archive` のパス直埋め（インジェクション） | `Expand-ArchiveSafe`（`-File` + 名前付き引数） |
+| Medium | `install_vscode_extension.ps1` の `Start-Process` 引数クォート | `& code --install-extension` + VSIX 名 regex |
+| Medium | `updateManager.ts` のリダイレクト先未検証 | GitHub HTTPS ホスト allowlist |
+| Low | 手動更新経路が VS Code コマンドのみ | `update_lorerelay.bat` + `update_lorerelay.ps1` 追加 |
+
+### Files touched
+- `scripts/install_common.ps1` (new), `scripts/install_*.ps1`, `scripts/update_lorerelay.ps1` (new)
+- `update_lorerelay.bat` (new), `install_*.bat`, `src/updateManager.ts`
+- `locales/installer.json`, `CHANGELOG.md`, `AI_SHARED_LOG.md`, `C:\AI\GROK_CODE_REVIEW.md`
+
+### Verification
+- `npm run compile` / `npm test` — 2026-06-26 10:05 JST OK
 
 ## 2026-06-26 - Claude Sonnet 4.6 - updateManager.ts セキュリティ修正 (o3レビュー対応)
 

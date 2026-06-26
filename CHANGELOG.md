@@ -11,7 +11,9 @@
 ## [Unreleased]
 
 ### Added
-- **Version Checker & Auto-Updater system**: Added `updateManager.ts` to fetch releases from GitHub, display version details/release notes, and automatically update both the VS Code extension and the Antigravity GM skill folder. Includes a daily background check and manual `Text Adventure: Check for Updates` command.
+- **Version Checker & Auto-Updater system**: `updateManager.ts` fetches GitHub releases, shows release notes, and installs `.vsix` + GM skill `.zip`. Daily background check + `Text Adventure: Check for Updates` command.
+- **`update_lorerelay.bat` / `scripts/update_lorerelay.ps1`**: Double-click updater for users outside the VS Code command palette. Shares hardened install helpers with the `.bat` installers.
+- **`scripts/install_common.ps1`**: Shared atomic skill install, injection-safe unzip, VSIX name validation, and GitHub download URL allowlist for installer/updater scripts.
 - **File Watcher memory leak prevention**: Removed redundant `context.subscriptions.push` calls for file/manifest watchers, resolving a memory leak where disposed watchers piled up in VS Code context subscriptions.
 - **Centralized GM Bridge busy checking**: Unified the GM process busy checks directly at the entry point of `invokeGmBridge()`, eliminating duplicate busy checks in individual bridge functions.
 - **OS-agnostic Grok CLI path resolution**: Upgraded `resolveGrokCommand()` to probe default Grok executable paths dynamically for macOS/Linux (e.g. `~/.grok/bin/grok`) as well as Windows.
@@ -24,7 +26,12 @@
 - **updateManager.ts — Silent background check error handling (Medium)**: `lastUpdateCheck` is now saved *after* a successful API call or install, not before. `silent=true` failures are logged to an OutputChannel only; error dialogs are suppressed. Only manual `checkForUpdates(false, …)` invocations show an error dialog.
 - **updateManager.ts — HTTP and subprocess timeouts (Medium)**: Added `REQUEST_TIMEOUT_MS` (15 s) to `https.get` calls and `PROCESS_TIMEOUT_MS` (60 s) to all child processes via new `spawnWithTimeout()` helper. Timed-out processes are `.kill()`ed and their promises reject cleanly.
 - **updateManager.ts — Unused import removed (Low)**: Removed unused `getWorkspacePath` import.
+- **updateManager.ts — Redirect / download URL allowlist (Medium)**: `downloadFile()` now rejects HTTPS redirects to non-GitHub hosts. Asset `browser_download_url` values are validated before download.
+- **Installer `.ps1` — Atomic GM skill copy (High)**: `install_antigravity_skill.ps1` no longer `Remove-Item` then `Copy-Item` (skill loss on copy failure). Uses `Install-SkillFolderAtomic` (.tmp → .backup → promote → rollback).
+- **Installer `.ps1` — VSIX install hardening (Medium)**: `install_vscode_extension.ps1` validates `lorerelay-*.vsix` names via regex, uses `& code --install-extension` (no `Start-Process` string quoting), shared `Install-VsixFile`.
+- **Installer `.ps1` — Injection-safe unzip (High)**: `Expand-ArchiveSafe` uses temp `.ps1` + `-File` parameters (same pattern as `updateManager.ts`).
 - **PowerShell installer localization key alignments**: Corrected the mismatched localization keys in `locales/installer.json` to match the exact keys requested by the PowerShell scripts, ensuring installation logs display correctly in the user's local language (e.g., Japanese).
+- **`locales/installer.json`**: Added `update_*` keys (4 languages) for `update_lorerelay.ps1`.
 - **Scenario Pack assets local-copying**: Automatically copies scenario assets (SFX/BGM) recursively into workspace under `scenario_assets/` to satisfy strict Webview `localResourceRoots` sandbox restrictions.
 - **Atomic File Writer helper**: Created `writeJsonAtomic(filePath, data, createBackup)` in `workspacePaths.ts` using tmp-write and rename pattern to prevent file truncation/corruption on Windows crash.
 - **Confirmations & Game History wipe on Scenario load**: Prompts a confirmation dialog when loading a new scenario pack, wiping the history and `seenEntryIds` if accepted.
@@ -52,25 +59,10 @@
 - **GameStatus type restriction**: Replaced wildcard index signature `[key: string]: any` with `[key: string]: unknown` in `GameState.ts` for strict TypeScript type safety.
 - `excludedFromPrompt` now affects GM prompt context and Memory Bank history retrieval in addition to Webview display opacity.
 - Added validation coverage for schema-critical rules in `scripts/validate.js` and a new invalid metadata fixture.
-
-## [Unreleased]
-
-### Changed
-- **Refactor:** Webview `postMessage` ルーターを `src/webviewHandlers.ts` へ分離。`isValidEntryId` を `src/entryId.ts` へ共通化。
-- **Refactor:** `game_state.json` 同期・履歴・画像 URI 変換を `src/gameStateSync.ts` へ分離（`sendCurrentState` / watcher / `safeImageUri` / `game_history.json` 永続化）。
-- **Refactor:** `extension.ts` から以下を段階的に切り出し（`initXxx(deps)` 依存注入パターン）:
-  - `workspacePaths.ts` — ワークスペースパス解決・`getGmProvider`
-  - `skillScriptRunner.ts` — GM スキル Python スクリプト実行
-  - `gmBridgeRunner.ts` — Grok / Ollama / Kobold / OpenRouter / カスタム GM ブリッジ
-  - `imageGenRunner.ts` — ComfyUI 画像生成・設定パネル連携
-  - `mediaManifest.ts` — BGM / SE マニフェスト
-  - `characterManager.ts` — キャラクター・パーティ CRUD
-  - `gmPromptBuilder.ts` — GM プロンプト構築・動的プロフィール・アーカイブ促し
-  - `checkpointHandlers.ts` — Undo / Rewind / Checkpoint / 再生成 / エントリ編集
-- `extension.ts` は ~2,251 行 → ~660 行（累計 ~2,200 行削減）。
-- **Refactor:** `scenarioPack.ts` へシナリオ読込・検証・エクスポートを分離（`extension.ts` ~454 行）。
-- **Refactor:** `webview/script.js`（~1,800 行）を `webview/modules/*.js` 8 ファイルへ分割。`npm run build:webview` で結合（`compile` に統合）。
-- **Refactor:** `webview/style.css`（~1,423 行）を `webview/styles/*.css` 9 ファイルへ分割。`build-webview.js` が JS/CSS 両方を結合。
+- **Refactor:** Webview `postMessage` ルーター → `webviewHandlers.ts`。`isValidEntryId` → `entryId.ts`。
+- **Refactor:** `game_state.json` 同期・履歴 → `gameStateSync.ts`。
+- **Refactor:** `extension.ts` から 10 モジュールへ段階分割（`workspacePaths`, `skillScriptRunner`, `gmBridgeRunner`, `imageGenRunner`, `mediaManifest`, `characterManager`, `gmPromptBuilder`, `checkpointHandlers`, `scenarioPack`）。~2,251 行 → ~454 行。
+- **Refactor:** `webview/script.js` → `webview/modules/*.js`（8）、`webview/style.css` → `webview/styles/*.css`（9）。`npm run build:webview` で結合。
 
 ## [0.3.1] - 2026-06-26
 

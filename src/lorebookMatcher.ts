@@ -12,6 +12,8 @@ export interface LorebookEntry {
     enabled?: boolean;
     /** When true, keys are interpreted as JavaScript regular expressions. */
     use_regex?: boolean;
+    /** When true, entry is always injected into GM context (v0.5e). */
+    pinned?: boolean;
 }
 
 /**

@@ -2,13 +2,24 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "0.3.3",
+  "version": "1.0.0",
   "publisher": "keisuke",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "game-master",
+    "roleplay",
+    "trpg",
+    "visual-novel",
+    "sillytavern",
+    "grok",
+    "llm"
   ],
   "activationEvents": [
     "onCommand:textadventure.openGame",
@@ -22,63 +33,80 @@
     "onCommand:textadventure.clearOpenRouterApiKey",
     "onCommand:textadventure.checkForUpdates",
     "onCommand:textadventure.startRemotePlay",
-    "onCommand:textadventure.stopRemotePlay"
+    "onCommand:textadventure.stopRemotePlay",
+    "onCommand:textadventure.rotateRemotePlayToken"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "textadventure.openGame",
-        "title": "Text Adventure: Open Game UI"
+        "title": "LoreRelay: Open Game UI"
       },
       {
         "command": "textadventure.listImageModels",
-        "title": "Text Adventure: List Image Models"
+        "title": "LoreRelay: List Image Models"
       },
       {
         "command": "textadventure.loadScenario",
-        "title": "Text Adventure: Load Scenario Pack"
+        "title": "LoreRelay: Load Scenario Pack"
       },
       {
         "command": "textadventure.importStCharacter",
-        "title": "Text Adventure: Import SillyTavern Character Card"
+        "title": "LoreRelay: Import SillyTavern Character Card"
       },
       {
         "command": "textadventure.importStLorebook",
-        "title": "Text Adventure: Import SillyTavern Lorebook"
+        "title": "LoreRelay: Import SillyTavern Lorebook"
       },
       {
         "command": "textadventure.exportScenario",
-        "title": "Text Adventure: Export Scenario Pack (Workshop ZIP)"
+        "title": "LoreRelay: Export Scenario Pack (Workshop ZIP)"
       },
       {
         "command": "textadventure.validateScenario",
-        "title": "Text Adventure: Validate Scenario Pack"
+        "title": "LoreRelay: Validate Scenario Pack"
       },
       {
         "command": "textadventure.setOpenRouterApiKey",
-        "title": "Text Adventure: Set OpenRouter API Key"
+        "title": "LoreRelay: Set OpenRouter API Key"
       },
       {
         "command": "textadventure.clearOpenRouterApiKey",
-        "title": "Text Adventure: Clear OpenRouter API Key"
+        "title": "LoreRelay: Clear OpenRouter API Key"
       },
       {
         "command": "textadventure.checkForUpdates",
-        "title": "Text Adventure: Check for Updates"
+        "title": "LoreRelay: Check for Updates"
       },
       {
         "command": "textadventure.startRemotePlay",
-        "title": "Text Adventure: Start Remote Play (LAN)"
+        "title": "LoreRelay: Start Remote Play (LAN)"
       },
       {
         "command": "textadventure.stopRemotePlay",
-        "title": "Text Adventure: Stop Remote Play"
+        "title": "LoreRelay: Stop Remote Play"
+      },
+      {
+        "command": "textadventure.rotateRemotePlayToken",
+        "title": "LoreRelay: Rotate Remote Play Token"
       }
     ],
     "configuration": {
       "title": "LoreRelay",
       "properties": {
+        "textAdventure.locale": {
+          "type": "string",
+          "enum": ["en", "ja", "zh-cn", "zh-tw"],
+          "enumDescriptions": [
+            "English",
+            "Japanese (日本語)",
+            "Simplified Chinese (简体中文)",
+            "Traditional Chinese (繁體中文)"
+          ],
+          "default": "en",
+          "description": "UI Language"
+        },
         "textAdventure.skillPath": {
           "type": "string",
           "default": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py",
@@ -107,7 +135,7 @@
         "textAdventure.imageGen.checkpoint": {
           "type": "string",
           "default": "",
-          "description": "Checkpoint (.safetensors) name to use, exactly as shown by 'Text Adventure: List Image Models' — it may include a subfolder prefix, e.g. 'IL\\prefectIllustriousXL_v8.safetensors'. Leave empty to use the workflow default."
+          "description": "Checkpoint (.safetensors) name to use, exactly as shown by 'LoreRelay: List Image Models' — it may include a subfolder prefix, e.g. 'IL\\prefectIllustriousXL_v8.safetensors'. Leave empty to use the workflow default."
         },
         "textAdventure.imageGen.workflowPath": {
           "type": "string",
@@ -207,6 +235,15 @@
           "maximum": 10000,
           "description": "Minimum milliseconds between remote player inputs per client."
         },
+        "textAdventure.remotePlay.defaultRole": {
+          "type": "string",
+          "enum": [
+            "player",
+            "spectator"
+          ],
+          "default": "player",
+          "description": "Default role for remote clients that omit ?role= or auth.role."
+        },
         "textAdventure.locale": {
           "type": "string",
           "enum": [
@@ -228,6 +265,11 @@
           "type": "string",
           "default": "",
           "description": "When multiple workspace folders are open, use this folder name or path for game_state.json. Empty = first folder."
+        },
+        "textAdventure.gitAutoCommitInterval": {
+          "type": "number",
+          "default": 1,
+          "description": "Interval of turns to auto-commit history to Git. Set to 0 to disable automatic Git commits."
         },
         "textAdventure.gmBridge.provider": {
           "type": "string",
@@ -278,7 +320,7 @@
         "textAdventure.gmBridge.openRouter.apiKey": {
           "type": "string",
           "default": "",
-          "description": "Deprecated fallback OpenRouter API key. Prefer the Text Adventure: Set OpenRouter API Key command, which stores the key in VS Code SecretStorage."
+          "description": "Deprecated fallback OpenRouter API key. Prefer the LoreRelay: Set OpenRouter API Key command, which stores the key in VS Code SecretStorage."
         },
         "textAdventure.gmBridge.openRouter.model": {
           "type": "string",
@@ -367,7 +409,7 @@
     "build:webview": "node scripts/build-webview.js",
     "compile": "npm run build:webview && tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "node scripts/validate.js"
+    "test": "node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_play_server.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

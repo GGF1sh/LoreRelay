@@ -1,30 +1,34 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { getWorkspacePath } from './workspacePaths';
 import { getSkillDir } from './imageGenRunner';
+import {
+    ALLOWED_IMAGE_EXTENSIONS,
+    IMAGE_MIME,
+    getImageMimeType,
+    isAllowedImagePath as isAllowedImagePathCore,
+    resolveAllowedImagePath as resolveAllowedImagePathCore
+} from './mediaPathCore';
 
-/** 画像パスがワークスペースまたは GM スキル配下か検証する（共有ユーティリティ）。 */
-export function isAllowedImagePath(imagePath: string): boolean {
-    const normalized = path.normalize(imagePath);
-    if (!fs.existsSync(normalized)) {
-        return false;
-    }
+export { ALLOWED_IMAGE_EXTENSIONS, IMAGE_MIME, getImageMimeType };
 
+function getAllowedRoots(): string[] {
+    const roots: string[] = [];
     const ws = getWorkspacePath();
     if (ws) {
-        const wsNorm = path.normalize(ws);
-        if (normalized === wsNorm || normalized.startsWith(wsNorm + path.sep)) {
-            return true;
-        }
+        roots.push(ws);
     }
-
     const skillDir = getSkillDir();
     if (skillDir) {
-        const skillNorm = path.normalize(skillDir);
-        if (normalized === skillNorm || normalized.startsWith(skillNorm + path.sep)) {
-            return true;
-        }
+        roots.push(skillDir);
     }
+    return roots;
+}
 
-    return false;
+/** 画像パスがワークスペースまたは GM スキル配下の許可画像か検証する。 */
+export function isAllowedImagePath(imagePath: string): boolean {
+    return isAllowedImagePathCore(imagePath, getAllowedRoots());
+}
+
+/** 許可された画像の realpath を返す。拒否時は undefined。 */
+export function resolveAllowedImagePath(imagePath: string): string | undefined {
+    return resolveAllowedImagePathCore(imagePath, getAllowedRoots());
 }

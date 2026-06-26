@@ -135,6 +135,20 @@ window.addEventListener('message', (event) => {
     showGmLoading();
   } else if (msg.type === 'gmEnd' || msg.type === 'grokEnd') {
     hideGmLoading(msg.success);
+  } else if (msg.type === 'oocMessage') {
+    const oocLog = document.getElementById('ooc-log');
+    if (oocLog) {
+      const emptyEl = oocLog.querySelector('.empty-text');
+      if (emptyEl) emptyEl.style.display = 'none';
+      const div = document.createElement('div');
+      div.className = 'ooc-entry';
+      div.style.marginBottom = '8px';
+      div.style.paddingBottom = '8px';
+      div.style.borderBottom = '1px solid var(--vscode-panel-border)';
+      div.textContent = msg.text;
+      oocLog.appendChild(div);
+      oocLog.scrollTop = oocLog.scrollHeight;
+    }
   } else if (msg.type === 'characterList') {
     updateCharacterList(msg.characters, msg.activeCharacterId, msg.partyIds);
   } else if (msg.type === 'summaryUpdated') {
@@ -209,4 +223,51 @@ window.addEventListener('message', (event) => {
       addSystemMessage(T('webview.welcome'));
     }
   }
+});
+
+// ===== Resizer =====
+window.addEventListener('DOMContentLoaded', () => {
+  const resizer = document.getElementById('resizer');
+  const statusArea = document.getElementById('status-area');
+  if (!resizer || !statusArea) return;
+
+  const savedWidth = localStorage.getItem('lorerelay.statusWidth');
+  if (savedWidth) {
+    statusArea.style.setProperty('--status-width', `${savedWidth}px`);
+  }
+
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  resizer.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = statusArea.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const diff = startX - e.clientX;
+    let newWidth = startWidth + diff;
+    if (newWidth < 60) newWidth = 60;
+    if (newWidth > 800) newWidth = 800;
+
+    statusArea.style.setProperty('--status-width', `${newWidth}px`);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      
+      const finalWidth = statusArea.getBoundingClientRect().width;
+      localStorage.setItem('lorerelay.statusWidth', finalWidth);
+    }
+  });
 });

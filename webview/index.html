@@ -76,6 +76,8 @@
         <button class="qr-btn" id="qr-genimage"   data-i18n="webview.quickReply.genImage">🎨 Gen Image</button>
         <button class="qr-btn" id="qr-loadpack"   data-i18n="webview.quickReply.loadPack">📂 Load Pack</button>
         <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">📖 Archive</button>
+        <button class="qr-btn" id="qr-export"     data-i18n="webview.quickReply.export">🌐 Export HTML</button>
+        <button class="qr-btn" id="qr-forcespeak" data-i18n="webview.quickReply.forceSpeak">🪄 Speak as...</button>
       </div>
       <div id="input-area">
         <input type="text" id="free-input" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Enter to send to GM)" />
@@ -87,13 +89,20 @@
       </div>
     </div>
 
+    <div id="resizer" title="Drag to resize"></div>
+
     <!-- 右：ステータスパネル -->
     <div id="status-area">
       <!-- タブヘッダー -->
       <div id="status-tabs" class="tabs-header">
-        <button class="tab-btn active" data-target="pane-status" data-i18n="webview.tab.status">Adventure Status</button>
-        <button class="tab-btn" data-target="pane-character" data-i18n="webview.tab.character">Character Profile</button>
-        <button class="tab-btn" data-target="pane-inspector" data-i18n="webview.tab.inspector">🔍 Inspector</button>
+        <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
+        <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
+        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">🔍 Inspector</span></button>
+        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">📖 Lorebook</span></button>
+        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">🧠 Memory</span></button>
+        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">🎬 Director</span></button>
+        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">👥 Party</span></button>
+        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">💬 OOC</span></button>
       </div>
 
       <!-- ペイン 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
@@ -261,6 +270,7 @@
           <img id="char-portrait-img" class="char-portrait" src="" alt="Portrait" style="display: none;" />
           <div id="char-portrait-placeholder" class="char-portrait placeholder" data-i18n="webview.character.noPortrait">No Portrait</div>
           <div class="char-portrait-actions">
+            <button id="char-import-st-btn" data-i18n="webview.character.importSt">📦 Import ST Card</button>
             <button id="char-upload-btn" data-i18n="webview.character.upload">📁 Upload</button>
             <button id="char-generate-btn" data-i18n="webview.character.generate">🎨 Generate Portrait</button>
           </div>
@@ -269,6 +279,34 @@
         <div class="char-form">
           <label data-i18n="webview.character.nameLabel">Name</label>
           <input type="text" id="char-name" data-i18n-placeholder="webview.character.namePlaceholder" placeholder="Character name" />
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; margin-bottom: 4px;">
+            <label data-i18n="webview.character.equipmentLabel" style="margin: 0;">Equipped Items</label>
+            <button id="char-equip-notify-btn" class="small-btn primary" data-i18n="webview.character.notifyGm">📤 Equip &amp; Notify GM</button>
+          </div>
+          <div class="img-gen-row" style="margin-bottom: 8px;">
+            <input type="text" id="char-equip-weapon" class="img-gen-input" data-i18n-placeholder="webview.character.equipWeapon" placeholder="Weapon" />
+            <input type="text" id="char-equip-armor" class="img-gen-input" data-i18n-placeholder="webview.character.equipArmor" placeholder="Armor" />
+            <input type="text" id="char-equip-accessory" class="img-gen-input" data-i18n-placeholder="webview.character.equipAcc" placeholder="Accessory" />
+          </div>
+
+          <label data-i18n="webview.character.controlledByLabel">Controlled By</label>
+          <select id="char-controlled-by">
+            <option value="gm" data-i18n="webview.character.controlledByGm">GM</option>
+            <option value="ai" data-i18n="webview.character.controlledByAi">AI Companion</option>
+            <option value="player" data-i18n="webview.character.controlledByPlayer">Player</option>
+          </select>
+
+          <label data-i18n="webview.character.llmProvider">LLM Provider (Optional)</label>
+          <select id="char-llm-provider">
+            <option value="">(Default)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="ollama">Ollama</option>
+            <option value="koboldcpp">KoboldCPP</option>
+          </select>
+
+          <label data-i18n="webview.character.llmModel">LLM Model (Optional)</label>
+          <input type="text" id="char-llm-model" placeholder="e.g. anthropic/claude-3-haiku" />
 
           <label data-i18n="webview.character.descLabel">Appearance &amp; Background</label>
           <textarea id="char-desc" rows="4" data-i18n-placeholder="webview.character.descPlaceholder" placeholder="Description used in GM prompts..."></textarea>
@@ -302,11 +340,168 @@
             <h4 data-i18n="webview.inspector.lorebook">Triggered lore</h4>
             <div id="inspector-lorebook" class="inspector-list"></div>
           </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.promptContext">Prompt context (last GM call)</h4>
+            <div id="inspector-prompt-summary" class="inspector-item empty-text"></div>
+            <div id="inspector-prompt-sections" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.memoryMatches">Memory matches</h4>
+            <div id="inspector-memory-matches" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.loreMatches">Lorebook matches (this turn)</h4>
+            <div id="inspector-lore-matches" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.schemaErrors">Schema errors</h4>
+            <div id="inspector-schema-errors" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.hiddenState">Hidden State (GM Only)</h4>
+            <pre id="inspector-hidden-state" class="inspector-item" style="white-space: pre-wrap; font-size: 12px;"></pre>
+          </div>
         </div>
       </div> <!-- /pane-inspector -->
 
+      <!-- ペイン: Lorebook Editor -->
+      <div id="pane-lorebook" class="tab-pane" style="display: none;">
+        <div class="lorebook-toolbar">
+          <button id="lorebook-add-btn" type="button" class="small-btn" data-i18n="webview.lorebook.addEntry">+ Add entry</button>
+          <button id="lorebook-save-btn" type="button" class="small-btn primary" data-i18n="webview.lorebook.saveAll">Save lorebook</button>
+          <span id="lorebook-dirty" class="lorebook-dirty hidden" data-i18n="webview.lorebook.unsaved">Unsaved changes</span>
+        </div>
+        <p id="lorebook-meta" class="empty-text" data-i18n="webview.lorebook.emptyFile">No lorebook.json in workspace</p>
+        <div id="lorebook-list" class="lorebook-list"></div>
+      </div> <!-- /pane-lorebook -->
+
+      <!-- ペイン: Memory Bank -->
+      <div id="pane-memory" class="tab-pane" style="display: none;">
+        <div class="memory-toolbar">
+          <label for="memory-backend-select" data-i18n="webview.memory.backendLabel">Backend</label>
+          <select id="memory-backend-select">
+            <option value="auto">auto</option>
+            <option value="tfidf">tfidf</option>
+            <option value="chromadb">chromadb</option>
+          </select>
+          <button id="memory-rebuild-btn" type="button" class="small-btn" data-i18n="webview.memory.rebuild">Rebuild index</button>
+        </div>
+        <p id="memory-status-meta" class="empty-text"></p>
+        <div class="memory-search-row">
+          <input id="memory-hint-input" type="text" data-i18n-placeholder="webview.memory.hintPlaceholder" placeholder="Search hint (recent narrative + action)..." />
+          <button id="memory-search-btn" type="button" class="small-btn primary" data-i18n="webview.memory.search">Search</button>
+        </div>
+        <p id="memory-token-budget" class="empty-text"></p>
+        <div id="memory-search-results" class="memory-search-results"></div>
+      </div> <!-- /pane-memory -->
+
+      <!-- ペイン: Scenario Director -->
+      <div id="pane-director" class="tab-pane" style="display: none;">
+        <p id="director-empty" class="empty-text" data-i18n="webview.director.empty">Load a scenario pack with a director block in scenario.json.</p>
+        <div id="director-content" class="hidden">
+          <p id="director-live-badge" class="lorebook-dirty hidden" data-i18n="webview.director.liveOverrides">Live progression (game_state.director)</p>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.title">Scenario</h4>
+            <div id="director-title" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.act">Act / Chapter</h4>
+            <div id="director-act" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.scene">Scene</h4>
+            <div id="director-scene" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.objective">Current objective</h4>
+            <div id="director-objective" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.guidance">Guidance</h4>
+            <div id="director-guidance" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.success">Success conditions</h4>
+            <div id="director-success" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.fail">Fail conditions</h4>
+            <div id="director-fail" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.endings">Ending flags</h4>
+            <div id="director-endings" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.achieved">Achieved endings</h4>
+            <div id="director-achieved" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.encounters">Optional encounters</h4>
+            <div id="director-encounters" class="inspector-list"></div>
+          </div>
+        </div>
+      </div> <!-- /pane-director -->
+
+      <!-- ペイン: Party Director -->
+      <div id="pane-party" class="tab-pane" style="display: none;">
+        <p id="party-empty" class="empty-text" data-i18n="webview.party.empty">Add characters to the party to configure speech and relationships.</p>
+        <div id="party-content" class="hidden">
+          <p id="party-live-badge" class="lorebook-dirty hidden" data-i18n="webview.party.liveOverrides">Live overrides (game_state.partyDirector)</p>
+          <p id="party-dirty-badge" class="lorebook-dirty hidden" data-i18n="webview.party.unsaved">Unsaved changes</p>
+          <div class="party-global-row">
+            <label class="party-flag-label">
+              <input type="checkbox" id="party-banter-cb" checked />
+              <span data-i18n="webview.party.banter">NPC banter enabled</span>
+            </label>
+            <label class="party-flag-label">
+              <input type="checkbox" id="party-quiet-cb" />
+              <span data-i18n="webview.party.quietCombat">Combat quiet mode</span>
+            </label>
+          </div>
+          <div id="party-members-list" class="party-members-list"></div>
+          <button id="party-save-btn" type="button" class="small-btn primary" data-i18n="webview.party.save">Save party_director.json</button>
+        </div>
+      </div> <!-- /pane-party -->
+
+      <!-- ペイン 4: OOC Sidekick -->
+      <div id="pane-ooc" class="tab-pane" style="display: none;">
+        <div id="ooc-log" class="ooc-log" style="flex: 1; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 0.5rem; background: var(--vscode-editor-background);">
+          <div class="empty-text" data-i18n="webview.ooc.empty">OOC commentary will appear here after GM turns...</div>
+        </div>
+      </div>
+
     </div>
   </div>
+
+  <div id="remote-play-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="remote-play-panel" class="remote-play-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.remotePlay.panelTitle">Remote Play</h3>
+      <button type="button" id="remote-play-close" class="glass-btn" title="Close">✕</button>
+    </div>
+    <div class="remote-play-body">
+      <div class="remote-play-qr-row">
+        <div class="remote-play-qr-block">
+          <h4 data-i18n="webview.remotePlay.playerJoin">Player join</h4>
+          <img id="remote-play-qr" class="remote-play-qr" alt="Player QR" width="180" height="180" />
+          <p id="remote-play-player-url" class="remote-play-url"></p>
+          <button type="button" id="remote-play-copy-player" class="small-btn" data-i18n="webview.remotePlay.copyPlayer">Copy player URL</button>
+        </div>
+        <div class="remote-play-qr-block">
+          <h4 data-i18n="webview.remotePlay.spectatorJoin">Spectator join</h4>
+          <img id="remote-play-spectator-qr" class="remote-play-qr" alt="Spectator QR" width="180" height="180" />
+          <p id="remote-play-spectator-url" class="remote-play-url"></p>
+          <button type="button" id="remote-play-copy-spectator" class="small-btn" data-i18n="webview.remotePlay.copySpectator">Copy spectator URL</button>
+        </div>
+      </div>
+      <div class="remote-play-clients-wrap">
+        <h4 data-i18n="webview.remotePlay.connected">Connected clients</h4>
+        <div id="remote-play-clients" class="remote-play-clients"></div>
+      </div>
+      <button type="button" id="remote-play-stop-btn" class="small-btn" data-i18n="webview.remotePlay.stop">Stop server</button>
+    </div>
+  </aside>
 
   <div id="img-gen-backdrop" class="img-gen-backdrop hidden"></div>
   <aside id="img-gen-panel" class="img-gen-panel hidden" aria-hidden="true">

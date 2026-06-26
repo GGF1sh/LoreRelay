@@ -26,20 +26,28 @@
 - 📦 **Scenario Packs:** 只需加载包含 `scenario.json` 的文件夹，即可一次性应用初始场景、主题和专用 BGM/音效。
 - 🎲 **Built-in Dice Roller & Calculator:** 内置 TRPG 判定必不可少的掷骰子（NdX）和数学计算器。
 - 💾 **Persistent Adventure Log:** 将冒险日志保存到 `game_history.json`，即使重启 VSCode 也能恢复历史记录。
+- 🔍 **Turn Inspector:** 每回合骰子台账、状态补丁、触发 lore 可视化。
+- 📖 **Lorebook & Memory UI:** ST 兼容 lorebook 编辑、记忆搜索预览、置顶 lore 注入。
+- 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` 与 `game_state` 运行时联动。
+- 📱 **Remote Play:** LAN 加入 QR、玩家 / 观战角色。
 
 ---
 
 ## 📸 Screenshots & Demo
 
-<!-- 
-💡 开发者提示：
-在发布之前，请在此处放置传达以下元素的屏幕截图（或演示 GIF）：
-1. 类似 CRPG 的角色卡（HP/MP 条，技能徽章）
-2. 拟物化毛玻璃风格的聊天 UI 和掷骰子器
-3. 通过 ComfyUI 在本地自动生成的精美场景图像库
--->
+<p align="center">
+  <img src="docs/assets/hero-ui.svg" alt="LoreRelay main UI" width="720" />
+</p>
 
-*(Screenshot placeholder - please add media here before release)*
+| Inspector | Remote Play | Party Director |
+|:---:|:---:|:---:|
+| <img src="docs/assets/screenshot-inspector.svg" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.svg" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.svg" width="240" alt="Party Director" /> |
+
+| Lorebook | ComfyUI |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-lorebook.svg" width="360" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="360" alt="ComfyUI scene generation" /> |
+
+替换为真实截图或 GIF 的步骤见 [`DEMO.md`](DEMO.md)。
 
 ---
 
@@ -117,15 +125,27 @@ chmod +x scripts/setup.sh
 - `textAdventure.sfx.*` — SFX 配置文件和音量
 
 ### 5. Scenario Packs
-从命令面板运行 `Text Adventure: Load Scenario Pack` 并选择包含 `scenario.json` 的文件夹，以一次性加载初始状态、主题和专用的 BGM/SFX。
+从命令面板运行 `LoreRelay: Load Scenario Pack` 并选择包含 `scenario.json` 的文件夹。
 
-可以在 GM 技能端的 `TextAdventureGMSkill/scenarios/lost-catacombs/` 中找到示例。
+**同捆示例（3 本）** — `sample-scenarios/`：
+
+| 文件夹 | 类型 | 主题 |
+|--------|------|------|
+| `lost-catacombs` | 经典地牢探索 | fantasy |
+| `neon-rain` | 赛博朋克黑色电影 | cyberpunk |
+| `harbor-mist` | 港口悬疑 | modern |
+
+GM 技能端：`TextAdventureGMSkill/scenarios/`。
+
+### 6. 模型与 ComfyUI 预设 (v1.0)
+- [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — 从 `presets/` 复制 JSON
+- [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — `comfyui/` 内工作流
 
 ---
 
 ## 🗺️ Roadmap
 
-- **Remote Play Mode:** 我们正在考虑一种模式：将您的家用电脑用作 GM 服务器，通过 LAN 或 Tailscale 从智能手机浏览器进行游玩。初始范围将限制为显示 `game_state.json`、发送玩家动作以及查看生成的图像。不打算直接暴露在互联网中。
+v1.0 核心功能（Inspector、Lorebook/Memory、Director、Party Director、Remote Play）已发布。后续可能加强 Workshop 分发与 VLM 集成。
 
 ---
 

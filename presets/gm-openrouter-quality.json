@@ -1,0 +1,8 @@
+{
+  "_comment": "Cloud GM via OpenRouter. Set API key with LoreRelay: Set OpenRouter API Key",
+  "textAdventure.gmBridge.provider": "openrouter",
+  "textAdventure.gmBridge.openrouter.model": "anthropic/claude-sonnet-4",
+  "textAdventure.locale": "en",
+  "textAdventure.skillPath": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py",
+  "textAdventure.imageGen.comfyuiUrl": "http://127.0.0.1:8188"
+}

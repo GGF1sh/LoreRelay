@@ -1,184 +1,170 @@
-# Claude コードレビュー用 — 初期プロンプト
+# Claude 用 — プロダクトレビュー文書の改良プロンプト（v1.0.0）
 
-Claude（ブラウザ / Claude Code / Antigravity 等）にコードレビューを依頼するとき、**最初のメッセージにそのまま貼り付ける**プロンプトです。
+Grok が書いた **LoreRelay の総合レビュー＋機能提案** を、Claude に **v1.0 時点で書き直し・改良** してもらうときのプロンプトです。  
+（コードの行単位監査ではなく、**読み物としてのレビュー文書** を仕上げる依頼）
+
+読むファイルの順番は [`CLAUDE_REVIEW_FILES.md`](CLAUDE_REVIEW_FILES.md) を参照。
 
 ---
 
-## 貼り付け用（ここから）
+## 貼り付け用（ここからコピー）
 
+````
+あなたは LoreRelay のプロダクト・アーキテクチャアドバイザーです。
+依頼者（Keisuke）から、**Grok が書いたレビュー文書の改良版** を作成してほしいと言われています。
+
+## やってほしいこと（これが本題）
+
+**コードのバグ探しではなく、レビュー文書そのものを書き直す・改良する。**
+
+1. 下記「元文（Grok）」と同じ **トーン・読みやすさ・構成** を維持しつつ、内容を **v1.0.0 時点で正確** に更新する
+2. Grok が「未実装」と書いている機能のうち、**既に入っているものは「実装済み」に差し替え**、残りだけを提案に残す
+3. 良い点・改善点・機能提案を **具体化**（ファイル名・バージョン・既存 UI 名を入れる）
+4. 2026 年 AI RP トレンドは維持しつつ、LoreRelay の **差別化**（ローカル ComfyUI、game_state 疎結合、VSCode、statePatch）を軸に優先度を付け直す
+5. 最後に「次の 1〜3 セッションでやること」を、Grok より **今の状態に即した** 内容にする
+
+**出力は日本語の Markdown 1 本**（そのまま README 横断資料やブログに貼れる品質）。コードブロックは最小限でよい。
+
+## 元文（Grok）— これを改良する
+
+`GROK_REVIEW_v1_BASELINE.md` または依頼者が貼った全文を正とする。要旨:
+
+- LoreRelay = VSCode 拡張のローカルファースト AI GM UI
+- game_state.json / turn_result.json によるファイル橋渡し
+- v0.3.3 時点で完成度高い、モジュール設計良い
+- 良い点: gameStateSync, lorebookMatcher, memoryBank, mediaAgent, remotePlay, セキュリティ, i18n 等
+- 改善点: panel グローバル、memoryBank 日本語、schemaVersion なし、ログ散在、postMessage 緩い、テスト少、長時間 history
+- 機能提案: Lorebook UI、Memory 日本語、TTS、NPC 管理、履歴検索 等（★表付き）
+- まとめ: Lorebook + Memory 強化が最優先
+
+→ **v1.0 では v0.5〜v1.0 で大量に進んでいる**ので、元文をそのまま延長しないこと。
+
+## 読むファイルの順番（正確性のため・この順）
+
+詳細は `CLAUDE_REVIEW_FILES.md`。レビュー文書作成用の **短縮ルート**:
+
+### Step 1 — 何ができたか把握（必須）
+1. `CHANGELOG.md` — **[1.0.0] → [0.7.0] → [0.6.x] → [0.5.x]**（実装の正本）
+2. `AI_ROADMAP.md` — 完了 / 未完了チェックボックス
+3. `README.md` — v1.0 機能一覧・サンプル 3 本
+4. `package.json` — version `1.0.0`
+
+### Step 2 — Grok 元文との対照（必須）
+5. `GROK_REVIEW_v1_BASELINE.md` — Grok の論点一覧（再掲用の下書き）
+
+### Step 3 — 文書の主張を裏付ける代表ソース（推奨）
+6. `AI_HANDOVER.md` — アーキテクチャ一言説明用
+7. `src/gameStateSync.ts` — 状態同期の堅牢さの記述用
+8. `src/lorebookMatcher.ts` + `webview/modules/81-lorebook.js` — Lorebook（Grok は UI 無しと書いている）
+9. `src/memoryBank.ts` + `webview/modules/82-memory.js` — Memory / 日本語論点
+10. `src/scenarioDirectorCore.ts` + `webview/modules/83-director.js` — v0.6 Director
+11. `src/partyDirectorCore.ts` + `webview/modules/84-party.js` — v0.7 Party（Grok の NPC 提案と対照）
+12. `src/remotePlayServer.ts` + `webview/modules/55-remote-play.js` — QR / spectator（Grok は観戦「検討」と書いている）
+13. `webview/modules/80-inspector.js` — Turn Inspector（Grok 未記載）
+14. `src/extension.ts` — panel グローバル論点の現状確認
+15. `game_state_schema.json` — schemaVersion の有無
+16. `scripts/validate.js` + `package.json` の `npm test` — テストの現状（Grok は少ないと書いている）
+
+### Step 4 — 機能提案の根拠（任意）
+17. `MODEL_PRESETS.md` / `COMFYUI_WORKFLOWS.md` / `sample-scenarios/` — v1.0 同梱物
+18. `AI_ROADMAP.md` の Phase 2B（TavernCard 未完了）— 残提案用
+
+読了したら「Step 1〜○ 読了。Grok 元文の改良を開始」と一言宣言してから執筆すること。
+
+## 出力フォーマット（Grok 改良版 — この見出し構成で）
+
+```markdown
+# LoreRelay レビューと機能提案（Claude 改良版 / v1.0.0）
+
+（1 段落のプロジェクト要約 — Grok 元文を更新）
+
+## 1. 総合評価（v1.0.0）
+
+（v0.3.3 → v1.0 で何が変わったか。3〜5 行）
+
+## 2. コード・アーキテクチャレビュー
+
+### 2.1 良い点（継続して評価できること）
+（箇条書き。Grok の良い点を残しつつ v1.0 の新規モジュールを追加）
+
+### 2.2 改善点・注意点（依然として有効なもの）
+（Grok の G1〜G7 を更新。「対応済み」「一部」「未」のラベル付き）
+
+### 2.3 v0.3.3 から解消・大幅進展した項目
+（Grok が課題としたが v1.0 で入ったもの — Lorebook UI, Inspector, Director, Party, Remote Play QR 等）
+
+## 3. 機能提案（2026 AI RP トレンド × v1.0 以降）
+
+### 3.1 トレンド要約（短く）
+
+### 3.2 高優先（表形式）
+| 優先 | 機能 | 理由 | v1.0 の状態 | 次の一手 |
+（★は 1〜5。Grok 表を書き直す。「Lorebook UI」は実装済みなら別行に）
+
+### 3.3 中優先（箇条書きまたは短表）
+
+## 4. 差別化とポジション
+
+（SillyTavern / Saga & Seeker / 純チャット RP との違い。2〜4 行）
+
+## 5. おすすめの次のステップ（1〜3 セッション）
+
+（Grok の「Lorebook + Memory 最優先」を v1.0 前提で **書き換え**。具体タスク名）
+
+## 6. 深掘りオファー（任意）
+
+（読者向けに「次に詳しく書けるテーマ」を 3〜5 個）
 ```
-あなたは「LoreRelay」プロジェクトのシニアコードレビュアーです。
-私は開発者（Keisuke）で、複数 AI（Grok / ChatGPT / Gemini / Claude）と協業しています。
 
-## プロジェクト概要
+## 書くときのルール
 
-- **何を作っているか:** VSCode 拡張 + GM スキルで、LLM をゲームマスターにしたテキストアドベンチャー
-- **アーキテクチャの核心:** `game_state.json` による疎結合。GM（AI）が JSON を書き、拡張の Webview が表示する
-- **リポジトリの場所（ローカル）:**
-  - 拡張: `C:\AI\text-adventure-vsce\`
-  - GM スキル: `C:\AI\TextAdventureGMSkill\`
-- **現在バージョン:** package.json / CHANGELOG を確認（おおよそ v0.2.x）
-
-## レビュー前に読むもの（この順）
-
-1. `C:\AI\text-adventure-vsce\AI_HANDOVER.md` — 全体像
-2. `C:\AI\text-adventure-vsce\AI_COLLABORATION.md` — 複数 AI 作業ルール
-3. `C:\AI\text-adventure-vsce\AI_SHARED_LOG.md` — 直近の作業（先頭 30 行程度）
-4. `C:\AI\text-adventure-vsce\CHANGELOG.md` — 最新セクション（**実装の正本**）
-5. `C:\AI\GROK_CODE_REVIEW.md` — 既知の技術指摘と対応状況（重複指摘を避ける）
-6. `C:\AI\CLAUDE_REVIEW.md` — あなた（Claude）の過去レビュー・ロードマップ
-
-> 重要: レビュー文書に「未対応」と書いてあっても、CHANGELOG とソースが優先。必ず実装済みか確認してから指摘すること。
-
-## 今回のレビュー範囲
-
-【以下を書き換えて使う】
-
-- モード: フルレビュー / 差分レビュー / 特定機能のみ
-- 対象: （例: `src/extension.ts` 全体 / v0.2.9 の変更 / GM ブリッジ / Webview セキュリティ）
-- 背景: （例: リリース前チェック / 新機能追加後 / バグ調査）
-
-未指定なら **フルレビュー（セキュリティ・正しさ・保守性・UX）** で進めてよい。
-
-## 重点チェック項目
-
-### 1. セキュリティ（最優先）
-- Webview ↔ extension の `postMessage` 検証（型・許可リスト）
-- 画像パス: ワークスペース / GM スキル配下のみ（`isAllowedImagePath`）
-- シェル実行: `spawn` + 引数配列（シェルインジェクション回避）
-- GM ブリッジ: プロンプト・プレイヤー入力のログ漏洩（`--prompt-file` / `--action-file` / redact）
-- Webview: XSS（`innerHTML` / `escapeHtml`）、CSP、外部フォント
-- Python: `comfyui_generate.py` の出力先バリデーション
-
-### 2. 契約・データ整合性
-- `game_state.json` スキーマ（`game_state_schema.json`）と `GameState` 型の一致
-- `validateGameState.ts` のカバレッジ
-- GM ブリッジ（`gm_bridge_common.py`, `ollama_gm.py`, `openrouter_gm.py` 等）のマージロジック
-- `game_history.json` / チェックポイント / Undo の整合性
-
-### 3. マルチルート・パス解決
-- `getWorkspacePath()` の一貫使用（画像生成・GM ブリッジ・履歴保存）
-- ハードコードパス（`C:\AI\...` デフォルト）の影響
-
-### 4. GM ブリッジ各プロバイダー
-- `grok` / `ollama` / `koboldcpp` / `openrouter` / `clipboard` / `command`
-- 失敗時フォールバック、ローディング UI（`grokStart`/`grokEnd` 等）
-- ローカル LLM は ComfyUI 自動実行なし（仕様として妥当か）
-
-### 5. UX・プロダクト
-- 画像生成待ち（`imageGenStart`/`imageGenEnd`）
-- i18n（`locales/*.json`）
-- エラーメッセージがユーザーに伝わるか
-- README / セットアップの抜け
-
-### 6. テスト・品質
-- `npm test` の有無と不足ケース
-- TypeScript 型の穴
-- リグレッションしやすい箇所
-
-## 出力形式（必ずこの構成で）
-
-### A. エグゼクティブサマリー（5〜10 行）
-- 総合評価（リリース可否の目安）
-- 新規指摘の件数（Critical / High / Medium / Low）
-- 既存レビュー（GROK / 過去 Claude）との関係
-
-### B. 指摘一覧テーブル
-
-| ID | 深刻度 | ファイル | 概要 | 推奨対応 | 新規/既知 |
-|----|--------|----------|------|----------|-----------|
-
-深刻度: Critical（即修正） / High / Medium / Low / Info
-
-「既知」は GROK_CODE_REVIEW.md や CLAUDE_REVIEW.md の # と対応付け。対応済みなら **再指摘しない**（確認結果だけ書く）。
-
-### C. 詳細（Critical と High のみ全文、他は要点）
-各項目:
-- 問題の説明
-- 再現条件 or 該当コード（ファイル:行 目安）
-- 具体的な修正方針（コード例は最小限）
-- 影響範囲
-
-### D. 競合・プロダクト視点（任意・短く）
-- Saga & Seeker / AI Dungeon / DREAMIO 等との差分で「今直すべきか」
-- マネタイズは GEMINI_REVIEW.md を参照し、重複しなければ 1〜3 行
-
-### E. ロードマップ更新案
-- 次の 1〜3 セッションでやるべきこと（優先順位付き）
-- 既存ロードマップ（CLAUDE_REVIEW.md §5）の完了/obsolete 更新
-
-### F. ドキュメント更新指示
-レビュー後、私がファイルに反映するので、次を明示:
-- `C:\AI\CLAUDE_REVIEW.md` に追記する章の見出し案
-- `AI_SHARED_LOG.md` に書く 1〜3 行の要約
-- `CHANGELOG.md` に載せるべき項目（実装提案がある場合）
+- **元文より長くしすぎない**（目安: Grok 原文の 1〜1.3 倍）。冗長な一般論は削る
+- 推測で「未実装」と書く前に CHANGELOG / ROADMAP / ソースを確認
+- コード監査レポート（Critical/High 表）は **出さない**（別依頼）
+- ポジティブだが甘くない。個人 OSS としての完成度は認めつつ、次の投資先は明確に
+- 日本語。技術用語（statePatch, Lorebook, ComfyUI）はそのまま可
 
 ## やらないこと
 
-- レビュー文書だけ読んでソースを見ずに指摘しない
-- 対応済みの指摘を「新規バグ」として繰り返さない
-- 大規模リファクタを「ついでに」提案しない（スコープ外）
-- `game_state.json` 疎結合アーキテクチャ自体を否定しない（この前提で改善提案する）
+- 行番号付きバグリスト
+- game_state 疎結合アーキテクチャの否定
+- Grok 原文をほぼコピペしただけの更新（必ず v1.0 の差分を織り込む）
 
-## 作業の進め方
-
-1. 上記ドキュメントを読む
-2. レビュー範囲のソースを読む（最低: `extension.ts`, `webview/script.js`, `gm_bridge_common.py`, `SKILL.md`）
-3. 必要なら `npm test` や grep 相当の調査を行う
-4. 上記出力形式でレビューを返す
-
-準備ができたら「読了。レビュー範囲は ○○。まず ○○ から確認します」と宣言してから着手してください。
-```
+準備できたら、上記フォーマットで **Grok レビュー改良版** を 1 本出力してください。
+````
 
 ---
 
-## 使い方の例
+## 使い方
 
-### フルレビュー（リリース前）
+1. Claude に **貼り付け用** をコピー
+2. 同時に添付（推奨）:
+   - `GROK_REVIEW_v1_BASELINE.md`（Grok 元文）
+   - `CHANGELOG.md`
+   - `AI_ROADMAP.md`
+   - `CLAUDE_REVIEW_FILES.md`（読む順の参照用）
+3. 出力された Markdown を `LORE_RELAY_REVIEW.md` などに保存して共有
 
-貼り付け用の「今回のレビュー範囲」を次のように書き換える:
-
-```
-- モード: フルレビュー
-- 対象: text-adventure-vsce v0.2.9 全体 + TextAdventureGMSkill の Python ブリッジ
-- 背景: VSIX 公開前の最終チェック
-```
-
-### 差分だけ見てほしいとき
+### 最小添付
 
 ```
-- モード: 差分レビュー
-- 対象: CHANGELOG [0.2.9] に記載の変更ファイルのみ
-- 背景: マージ前のセカンドオピニオン
+GROK_REVIEW_v1_BASELINE.md
+CHANGELOG.md（[1.0.0] まで）
+AI_ROADMAP.md
 ```
 
-### 機能単位
+### 品質を上げたいときの追加添付
 
-```
-- モード: 特定機能のみ
-- 対象: OpenRouter GM ブリッジ（openrouter_gm.py, extension.ts の provider 分岐）
-- 背景: 新 provider 追加後の安全性確認
-```
+`AI_HANDOVER.md` + Step 3 の代表ソース 5〜10 ファイル
 
 ---
 
-## ファイル添付の推奨セット（Claude Projects / 長文コンテキスト向け）
+## 関連ファイル
 
-最小:
-- `AI_HANDOVER.md`
-- `CHANGELOG.md`（最新 2 バージョン）
-- `GROK_CODE_REVIEW.md`（サマリー表まで）
-- レビュー対象のソース
+| ファイル | 用途 |
+|----------|------|
+| `GROK_REVIEW_v1_BASELINE.md` | Grok 元文（改良の入力） |
+| `CLAUDE_REVIEW_FILES.md` | 正確性のための読む順リスト |
+| `C:\AI\CLAUDE_REVIEW.md` | 過去の Claude レビュー（参照用・任意） |
 
-フル:
-- 上記 + `CLAUDE_REVIEW.md` + `AI_SHARED_LOG.md` + `game_state_schema.json`
-- 対象が Webview なら `webview/script.js` + `locales/ja.json`
-- 対象が GM なら `SKILL.md` + `scripts/gm_bridge_common.py`
-
----
-
-## メンテナンス
-
-- バージョンが大きく上がったら「現在バージョン」行を更新
-- 新しい重大インシデントがあれば「重点チェック項目」に 1 行追加
-- レビュー結果は `C:\AI\CLAUDE_REVIEW.md` に追記し、`AI_SHARED_LOG.md` に要約を残す（`AI_COLLABORATION.md` 準拠）
+コード監査が欲しいときは、別途「セキュリティ監査モード」と明記して依頼すること（本プロンプトの対象外）。

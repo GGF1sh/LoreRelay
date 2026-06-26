@@ -1,4 +1,7 @@
 import { CHARACTER_ID_PATTERN } from './characterId';
+import { validateGameStateDirector } from './scenarioDirectorCore';
+import { validateGameStatePartyDirector } from './partyDirectorCore';
+import { isValidSchemaVersion } from './migrateGameState';
 
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -10,6 +13,10 @@ export function validateGameState(obj: unknown): string[] {
         return errors;
     }
     const state = obj as Record<string, unknown>;
+
+    if (!isValidSchemaVersion(state.schemaVersion)) {
+        errors.push(`"schemaVersion" must be a positive integer (got ${JSON.stringify(state.schemaVersion)})`);
+    }
 
     if (!Array.isArray(state.entries)) {
         errors.push('"entries" must be an array');
@@ -201,6 +208,14 @@ export function validateGameState(obj: unknown): string[] {
                 errors.push('gameOver.victory must be a boolean');
             }
         }
+    }
+
+    if (state.director !== undefined) {
+        errors.push(...validateGameStateDirector(state.director));
+    }
+
+    if (state.partyDirector !== undefined) {
+        errors.push(...validateGameStatePartyDirector(state.partyDirector));
     }
 
     if (state.profileUpdates !== undefined) {

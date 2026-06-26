@@ -1,0 +1,15 @@
+{
+  "_comment": "Copy to workspace image_gen_config.json or merge via Webview Image Gen panel",
+  "mode": "illustrious",
+  "checkpoint": "",
+  "workflowPath": "",
+  "steps": 28,
+  "cfg": 7,
+  "width": 1024,
+  "height": 1024,
+  "sampler": "euler",
+  "scheduler": "normal",
+  "positivePrefix": "",
+  "positiveSuffix": ", masterpiece, best quality, very aesthetic, highly detailed",
+  "negativePrompt": "lowres, worst quality, low quality, bad anatomy, blurry, watermark, text"
+}

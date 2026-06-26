@@ -1,0 +1,9 @@
+{
+  "_comment": "Paste into .vscode/settings.json (workspace or user)",
+  "textAdventure.gmBridge.provider": "grok",
+  "textAdventure.grokBridge.enabled": true,
+  "textAdventure.grokBridge.autoApprove": false,
+  "textAdventure.locale": "ja",
+  "textAdventure.skillPath": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py",
+  "textAdventure.imageGen.comfyuiUrl": "http://127.0.0.1:8188"
+}

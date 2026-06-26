@@ -58,6 +58,17 @@ export interface GameOverState {
     victory?: boolean;
 }
 
+/** ランタイムのシナリオ進行（scenario.json director の上書き）。v0.6c */
+export interface GameStateDirector {
+    act?: string;
+    chapter?: string;
+    scene?: string;
+    objective?: string;
+    guidanceMode?: 'sandbox' | 'guided' | 'railroad';
+    achievedEndings?: string[];
+    notes?: string;
+}
+
 export interface GameState {
     entries: GameEntry[];
     status?: GameStatus;
@@ -74,6 +85,10 @@ export interface GameState {
     profileUpdates?: ProfileUpdate[];
     /** Compressed story synopsis (Context Summarizer / manual edit). */
     summary?: string;
+    /** GM's secret notes and parameters not shown to the player. */
+    hiddenState?: Record<string, unknown>;
     /** When active, Webview locks input and shows ending overlay (DREAMIO-style game over). */
     gameOver?: GameOverState;
+    /** Live scenario progression overlay (merged with scenario.json director). */
+    director?: GameStateDirector;
 }

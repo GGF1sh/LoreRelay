@@ -12,6 +12,26 @@
 
 （次のマイルストーン: Phase 2B TavernCard V1/V2 完全対応 / Phase 4A VLM 統合）
 
+## [1.0.0] - 2026-06-26
+
+**LoreRelay v1.0 — public release polish.**
+
+### Added
+
+- **Sample scenarios (3)** — `lost-catacombs`, `neon-rain`, `harbor-mist` in `sample-scenarios/` and `TextAdventureGMSkill/scenarios/`.
+- **`MODEL_PRESETS.md`** + `presets/` — recommended GM bridge and `image_gen_config.json` snippets (Grok, Ollama, OpenRouter, illustrious/pony/natural).
+- **`COMFYUI_WORKFLOWS.md`** + `comfyui/` — bundled `workflow_api.json` (512) and `workflow_sdxl_1024.json`.
+- **README visuals** — `docs/assets/*.svg` UI mockups; [`DEMO.md`](DEMO.md) recording guide.
+- **`scripts/test_sample_scenarios.js`** — validates bundled scenario packs in `npm test`.
+
+### Changed
+
+- README (ja/en/zh) — screenshots section, v1.0 feature list, scenario table, preset links; roadmap updated (Remote Play shipped in v0.7).
+
+## [0.7.0] - 2026-06-26
+
+Party Director & Remote Play enhancements (see v0.7 roadmap).
+
 ## [0.3.3] - 2026-06-26
 
 Phase 2B 完了（`a693892`）とフェーズ 3 ゲート（SKILL 同期・Python 整合・E2E スモーク）。

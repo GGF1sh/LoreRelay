@@ -26,20 +26,28 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 📦 **Scenario Packs:** Load a folder containing `scenario.json` to apply the starting scene, theme, and dedicated BGM/SFX all at once.
 - 🎲 **Built-in Dice Roller & Calculator:** Includes a dice roller (NdX) and math calculator essential for TRPG-like checks.
 - 💾 **Persistent Adventure Log:** Saves adventure logs to `game_history.json`, allowing you to restore your history even after restarting VSCode.
+- 🔍 **Turn Inspector:** Per-turn dice ledger, state patches, and triggered lore.
+- 📖 **Lorebook & Memory UI:** ST-compatible lorebook editor, memory search preview, pinned lore injection.
+- 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` with `game_state` runtime overrides.
+- 📱 **Remote Play:** LAN join QR codes, player / spectator roles.
 
 ---
 
 ## 📸 Screenshots & Demo
 
-<!-- 
-💡 Hint for developers:
-Before release, place screenshots (or a demo GIF) here that convey the following:
-1. CRPG-like character sheet (HP/MP bars, skill badges)
-2. Glassmorphism design chat UI and dice roller
-3. Beautiful scene image gallery generated locally via ComfyUI
--->
+<p align="center">
+  <img src="docs/assets/hero-ui.svg" alt="LoreRelay main UI" width="720" />
+</p>
 
-*(Screenshot placeholder - please add media here before release)*
+| Inspector | Remote Play | Party Director |
+|:---:|:---:|:---:|
+| <img src="docs/assets/screenshot-inspector.svg" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.svg" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.svg" width="240" alt="Party Director" /> |
+
+| Lorebook | ComfyUI |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-lorebook.svg" width="360" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="360" alt="ComfyUI scene generation" /> |
+
+See [`DEMO.md`](DEMO.md) to replace mockups with real screenshots or a demo GIF.
 
 ---
 
@@ -117,15 +125,27 @@ Main settings:
 - `textAdventure.sfx.*` — SFX manifest and volume
 
 ### 5. Scenario Packs
-Run `Text Adventure: Load Scenario Pack` from the Command Palette and select a folder containing `scenario.json` to load the starting state, theme, and dedicated BGM/SFX.
+Run `LoreRelay: Load Scenario Pack` from the Command Palette and select a folder containing `scenario.json`.
 
-Samples can be found in `TextAdventureGMSkill/scenarios/lost-catacombs/` on the GM skill side.
+**Bundled samples (3)** in `sample-scenarios/`:
+
+| Folder | Genre | Theme |
+|--------|-------|-------|
+| `lost-catacombs` | Classic dungeon crawl | fantasy |
+| `neon-rain` | Cyberpunk noir | cyberpunk |
+| `harbor-mist` | Cozy harbor mystery | modern |
+
+Also under `TextAdventureGMSkill/scenarios/`.
+
+### 6. Model & ComfyUI presets (v1.0)
+- [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — copy JSON from `presets/`
+- [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — bundled workflows in `comfyui/`
 
 ---
 
 ## 🗺️ Roadmap
 
-- **Remote Play Mode:** We are considering a mode where you use your home PC as a GM server and play from a smartphone browser via LAN or Tailscale. The initial scope will be limited to displaying `game_state.json`, sending player actions, and viewing generated images. Direct exposure to the internet is not planned.
+Core v1.0 features (Inspector, Lorebook/Memory, Director, Party Director, Remote Play) are shipped. Future work may include Workshop distribution and VLM polish.
 
 ---
 

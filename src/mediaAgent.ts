@@ -46,7 +46,7 @@ function requireDeps(): MediaAgentDeps {
 
 export function getMediaAgentOutputChannel(): vscode.OutputChannel {
     if (!outputChannel) {
-        outputChannel = vscode.window.createOutputChannel('Text Adventure: Media Agent');
+        outputChannel = vscode.window.createOutputChannel('LoreRelay: Media Agent');
         deps?.subscriptions.push(outputChannel);
     }
     return outputChannel;

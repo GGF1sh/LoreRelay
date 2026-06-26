@@ -13,11 +13,29 @@ import {
     normalizeLocale
 } from './i18n';
 import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
+import { importTavernCard } from './tavernCardImporter';
+import { loadLorebookForUi, saveLorebookFromUi } from './lorebookLoader';
+import { initScenarioDirector, pushScenarioDirectorToWebview } from './scenarioDirector';
+import {
+    initPartyDirector,
+    pushPartyDirectorToWebview,
+    savePartyDirectorFromUi
+} from './partyDirector';
+import {
+    getMemoryStatus,
+    rebuildMemoryIndex,
+    searchMemoryPreview,
+    setMemoryBackend
+} from './memoryService';
+import { interceptPlayerAction } from './companionAgent';
+import { initOocSidekick, generateOocCommentary } from './oocSidekick';
+import { commitTurn, branchFromTurn } from './gitManager';
 import {
     disposeGameStateWatcher,
     initGameStateSync,
     sendCurrentState,
-    startGameStateWatcher
+    startGameStateWatcher,
+    getGameEntryHistory
 } from './gameStateSync';
 import {
     getWorkspacePath,
@@ -37,12 +55,14 @@ import {
     initRemotePlayServer,
     startRemotePlayServer,
     stopRemotePlayServer,
+    rotateRemotePlayToken,
     getRemotePlayStatus,
     disposeRemotePlayServer
 } from './remotePlayServer';
 import {
     runSkillScript,
-    killActiveScriptProcess
+    killActiveScriptProcess,
+    getMemoryBackendSetting
 } from './skillScriptRunner';
 import {
     loadScenarioPack,
@@ -78,8 +98,10 @@ import {
     generatePortrait,
     addToParty,
     removeFromParty,
-    killPortraitProcess
+    killPortraitProcess,
+    getCharacters
 } from './characterManager';
+import { exportSagaToHtml } from './exportHtml';
 import {
     initGmPromptBuilder,
     buildGrokPrompt,
@@ -123,8 +145,12 @@ export function activate(context: vscode.ExtensionContext) {
     initImageGenRunner({ getPanel, subscriptions: context.subscriptions });
     initMediaAgent({ getPanel, subscriptions: context.subscriptions });
     initMediaManifest({ getPanel });
-    initCharacterManager({ getPanel });
-    initGmPromptBuilder({ getPanel, onArchiveNow: archiveSaga });
+    initCharacterManager({ getPanel, onPartyChanged: pushPartyDirectorToWebview });
+    initGmPromptBuilder({
+        getPanel: () => panel,
+        onArchiveNow: archiveSaga
+    });
+    initOocSidekick(() => panel);
     initCheckpointHandlers({ getPanel, isGameOverActive });
     initGmBridgeRunner({
         getPanel,
@@ -152,6 +178,8 @@ export function activate(context: vscode.ExtensionContext) {
         maybeSuggestArchive,
         appendGmBridgeLog: (line) => getGmBridgeOutputChannel().appendLine(line)
     });
+    initScenarioDirector({ getPanel: () => panel });
+    initPartyDirector({ getPanel: () => panel });
 
     const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', () => {
         if (panel) {
@@ -239,7 +267,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const importStCharCmd = vscode.commands.registerCommand('textadventure.importStCharacter', () => {
-        importStCharacter();
+        importTavernCard();
     });
 
     const importStLoreCmd = vscode.commands.registerCommand('textadventure.importStLorebook', () => {
@@ -274,6 +302,10 @@ export function activate(context: vscode.ExtensionContext) {
         void toggleRemotePlay(false);
     });
 
+    const rotateRemotePlayTokenCmd = vscode.commands.registerCommand('textadventure.rotateRemotePlayToken', () => {
+        void handleRotateRemotePlayToken();
+    });
+
     context.subscriptions.push(
         openGameCmd,
         listModelsCmd,
@@ -286,7 +318,8 @@ export function activate(context: vscode.ExtensionContext) {
         clearOpenRouterKeyCmd,
         checkForUpdatesCmd,
         startRemotePlayCmd,
-        stopRemotePlayCmd
+        stopRemotePlayCmd,
+        rotateRemotePlayTokenCmd
     );
 
     context.subscriptions.push(
@@ -317,6 +350,36 @@ function sendRemotePlayStatus(): void {
         return;
     }
     panel.webview.postMessage({ type: 'remotePlayStatus', status: getRemotePlayStatus() });
+}
+
+async function handleRotateRemotePlayToken(): Promise<void> {
+    const status = getRemotePlayStatus();
+    if (!status.running) {
+        vscode.window.showWarningMessage(t('extension.error.remotePlayNotRunning'));
+        return;
+    }
+    try {
+        rotateRemotePlayToken();
+        sendRemotePlayStatus();
+        const primaryUrl = getRemotePlayStatus().urls[0];
+        if (primaryUrl) {
+            const picked = await vscode.window.showInformationMessage(
+                t('extension.info.remotePlayTokenRotated'),
+                t('extension.remotePlay.copyUrl'),
+                t('extension.remotePlay.openBrowser')
+            );
+            if (picked === t('extension.remotePlay.copyUrl')) {
+                await vscode.env.clipboard.writeText(primaryUrl);
+                vscode.window.showInformationMessage(t('extension.info.remotePlayUrlCopied'));
+            } else if (picked === t('extension.remotePlay.openBrowser')) {
+                await vscode.env.openExternal(vscode.Uri.parse(primaryUrl));
+            }
+        }
+        void sendCurrentState(0, true);
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(t('extension.error.remotePlayFailed', { message }));
+    }
 }
 
 async function toggleRemotePlay(start?: boolean): Promise<void> {
@@ -380,7 +443,7 @@ async function handleLocaleChange(rawLocale: unknown): Promise<void> {
     sendLocaleBundle();
 }
 
-async function getOpenRouterApiKey(): Promise<string> {
+export async function getOpenRouterApiKey(): Promise<string> {
     const secret = (await extensionContext?.secrets.get(OPENROUTER_SECRET_KEY))?.trim();
     if (secret) {
         return secret;
@@ -490,7 +553,8 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
         }
     }
 
-    const actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
+    let actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
+    actionForGm = await interceptPlayerAction(actionForGm);
 
     const provider = getGmProvider();
     if (provider === 'clipboard') {
@@ -501,6 +565,57 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
     const ok = await invokeGmBridge(actionForGm, diceResult.ledger);
     if (!ok) {
         await fallbackToClipboard(actionForGm);
+    } else {
+        const history = getGameEntryHistory();
+        const turnIndex = history.filter(e => e.role === 'gm').length;
+        
+        const config = vscode.workspace.getConfiguration('textAdventure');
+        const commitInterval = config.get<number>('gitAutoCommitInterval') ?? 1;
+        if (commitInterval > 0 && turnIndex > 0 && (turnIndex % commitInterval === 0)) {
+            await commitTurn(turnIndex);
+        }
+
+        // Trigger OOC Sidekick asynchronously without blocking the UI
+        generateOocCommentary().catch(console.error);
+    }
+}
+
+async function handleRequestForceSpeak(): Promise<void> {
+    const chars = getCharacters();
+    if (chars.length === 0) {
+        vscode.window.showWarningMessage('No characters available to speak.');
+        return;
+    }
+    const names = chars.map(c => c.name).filter(Boolean);
+    const picked = await vscode.window.showQuickPick(names, {
+        placeHolder: 'Select a character to force them to speak next'
+    });
+    if (picked) {
+        await handlePlayerInput(`System: Force ${picked} to speak next.`, undefined);
+    }
+}
+
+async function handleExportHtml(): Promise<void> {
+    const uri = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file('saga_archive.html'),
+        filters: { 'HTML Files': ['html'] }
+    });
+    if (uri) {
+        await exportSagaToHtml(uri);
+    }
+}
+
+async function handleBranchTimeline(turnId: string): Promise<void> {
+    if (!turnId) return;
+    const ok = await branchFromTurn(turnId);
+    if (ok) {
+        const picked = await vscode.window.showInformationMessage(
+            t('extension.info.branchCreated', { turnId }) || `Branched timeline at turn. Reloading workspace to apply.`,
+            'Reload Window'
+        );
+        if (picked === 'Reload Window') {
+            await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        }
     }
 }
 
@@ -517,36 +632,7 @@ function startWatchingGameState() {
     sfxWatcher = watchers.sfxWatcher;
 }
 
-async function importStCharacter() {
-    const ws = getWorkspacePath();
-    if (!ws) {
-        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
-        return;
-    }
-    const picked = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        filters: { 'SillyTavern Card': ['png', 'json'] },
-        title: t('extension.st.importCharacterTitle')
-    });
-    if (!picked?.length) {
-        return;
-    }
-    const charDir = getCharactersDir();
-    if (!charDir) {
-        return;
-    }
-    const code = await runSkillScript('import_st_card.py', [
-        picked[0].fsPath,
-        '--out-dir', charDir,
-        '--set-active'
-    ]);
-    if (code === 0) {
-        sendCharacterList();
-        vscode.window.showInformationMessage(t('extension.st.importCharacterDone'));
-    } else {
-        vscode.window.showErrorMessage(t('extension.st.importCharacterFailed'));
-    }
-}
+
 
 async function importStLorebook() {
     const ws = getWorkspacePath();
@@ -569,6 +655,7 @@ async function importStLorebook() {
     }
     const code = await runSkillScript('import_st_lorebook.py', [picked[0].fsPath, '--out', outPath]);
     if (code === 0) {
+        sendLorebookList();
         if (outPath !== lorebookPath) {
             vscode.window.showInformationMessage(t('extension.st.importLorebookPreserved', { path: outPath }));
         } else {
@@ -577,6 +664,106 @@ async function importStLorebook() {
     } else {
         vscode.window.showErrorMessage(t('extension.st.importLorebookFailed'));
     }
+}
+
+function sendLorebookList(): void {
+    if (!panel) {
+        return;
+    }
+    const data = loadLorebookForUi();
+    panel.webview.postMessage({
+        type: 'lorebookList',
+        sourceFile: data.sourceFile,
+        writeFile: data.writeFile,
+        entries: data.entries
+    });
+}
+
+function sendMemoryStatus(): void {
+    if (!panel) {
+        return;
+    }
+    panel.webview.postMessage({ type: 'memoryStatus', status: getMemoryStatus() });
+}
+
+function sendScenarioDirector(): void {
+    pushScenarioDirectorToWebview();
+}
+
+function sendPartyDirector(): void {
+    pushPartyDirectorToWebview();
+}
+
+async function handleSavePartyDirector(raw: unknown): Promise<void> {
+    const result = savePartyDirectorFromUi(raw);
+    if (!panel) {
+        return;
+    }
+    if (result.ok) {
+        panel.webview.postMessage({ type: 'partyDirectorSaved', path: result.path });
+        vscode.window.showInformationMessage(
+            t('extension.info.partyDirectorSaved', { path: result.path || 'party_director.json' })
+        );
+    } else {
+        vscode.window.showErrorMessage(
+            t('extension.error.partyDirectorSaveFailed', { detail: result.error || 'unknown' })
+        );
+    }
+}
+
+async function handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void> {
+    const text = typeof url === 'string' ? url.trim() : '';
+    if (!text) {
+        return;
+    }
+    await vscode.env.clipboard.writeText(text);
+    const key = role === 'spectator'
+        ? 'extension.info.remotePlaySpectatorUrlCopied'
+        : 'extension.info.remotePlayUrlCopied';
+    vscode.window.showInformationMessage(t(key));
+}
+
+async function handleSearchMemory(hint: unknown): Promise<void> {
+    const text = typeof hint === 'string' ? hint.trim() : '';
+    const matches = searchMemoryPreview(text, 10);
+    panel?.webview.postMessage({ type: 'memorySearchResult', matches, hint: text });
+}
+
+async function handleSetMemoryBackend(backend: unknown): Promise<void> {
+    try {
+        await setMemoryBackend(String(backend || 'auto'));
+        sendMemoryStatus();
+        vscode.window.showInformationMessage(t('extension.info.memoryBackendSet', { backend: String(backend) }));
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(t('extension.error.memoryBackendFailed', { message }));
+    }
+}
+
+async function handleRebuildMemoryIndex(): Promise<void> {
+    try {
+        await rebuildMemoryIndex();
+        sendMemoryStatus();
+        vscode.window.showInformationMessage(t('extension.info.memoryRebuilt'));
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(t('extension.error.memoryRebuildFailed', { message }));
+    }
+}
+
+async function handleSaveLorebook(rawEntries: unknown): Promise<void> {
+    const entries = Array.isArray(rawEntries) ? rawEntries : [];
+    const result = saveLorebookFromUi(entries);
+    if (!result.ok) {
+        const detail = (result.errors || []).join('; ');
+        vscode.window.showErrorMessage(t('extension.error.lorebookSaveFailed', { detail }));
+        panel?.webview.postMessage({ type: 'lorebookSaveResult', ok: false, errors: result.errors || [] });
+        return;
+    }
+    void runSkillScript('memory_bank.py', ['--rebuild', '--backend', getMemoryBackendSetting()]);
+    sendLorebookList();
+    panel?.webview.postMessage({ type: 'lorebookSaveResult', ok: true, path: result.path });
+    vscode.window.showInformationMessage(t('extension.info.lorebookSaved', { path: result.path || 'lorebook.json' }));
 }
 
 function sendGameRules(): void {
@@ -603,10 +790,21 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendSfxManifest,
         sendCharacterList,
         sendCheckpointList,
+        sendLorebookList,
+        handleSaveLorebook,
+        handleSearchMemory,
+        handleSetMemoryBackend,
+        handleRebuildMemoryIndex,
+        sendMemoryStatus,
+        sendScenarioDirector,
+        sendPartyDirector,
+        handleSavePartyDirector,
+        handleCopyRemotePlayUrl,
         saveCharacter,
         setActiveCharacter,
         uploadPortrait,
         generatePortrait,
+        importTavernCard,
         addToParty,
         removeFromParty,
         summarizeHistory,
@@ -626,7 +824,10 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendGameRules,
         handleUpdateGameRules,
         toggleRemotePlay,
-        sendRemotePlayStatus
+        sendRemotePlayStatus,
+        handleBranchTimeline,
+        handleRequestForceSpeak,
+        handleExportHtml
     };
 }
 

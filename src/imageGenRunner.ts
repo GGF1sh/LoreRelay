@@ -55,7 +55,7 @@ function requireDeps(): ImageGenRunnerDeps {
 
 export function getImageOutputChannel(): vscode.OutputChannel {
     if (!imageOutputChannel) {
-        imageOutputChannel = vscode.window.createOutputChannel('Text Adventure: Image Gen');
+        imageOutputChannel = vscode.window.createOutputChannel('LoreRelay: Image Gen');
         deps?.subscriptions.push(imageOutputChannel);
     }
     return imageOutputChannel;

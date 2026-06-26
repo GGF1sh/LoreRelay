@@ -1,0 +1,15 @@
+{
+  "_comment": "Realistic / modern mystery scenes (e.g. harbor-mist sample).",
+  "mode": "natural",
+  "checkpoint": "",
+  "workflowPath": "",
+  "steps": 24,
+  "cfg": 6.5,
+  "width": 768,
+  "height": 512,
+  "sampler": "euler",
+  "scheduler": "normal",
+  "positivePrefix": "photorealistic, cinematic lighting, ",
+  "positiveSuffix": "",
+  "negativePrompt": "low quality, worst quality, bad anatomy, cartoon, anime"
+}

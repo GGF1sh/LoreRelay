@@ -74,29 +74,33 @@ Webview から直接 ComfyUI パラメータやプロンプトテンプレート
   * **📢 語る (TTS)**: すでに実装済みの Web Speech API `speakText(entry.content)` を直接発火（このメッセージ単体の読み上げ）。
   * **👁️ プロンプト除外**: クリックで `excludedFromPrompt` をトグルし、VSCode バックエンドへ通知。UI上は該当メッセージを半透明化。
   * **📎 ファイル/画像添付**: （ボタンUIのみ配置、将来拡張）
-  * **🚩 チェックポイント**: このターン（`entry.id`）時点での状態をセーブスロットに保存するよう VSCode へ要求。
-  * **🔱 ブランク作成**: このターンの直後で歴史を分岐（`branchFromEntry`）するメッセージを送信。
-  * **📄 コピー**: `navigator.clipboard.writeText(entry.content)` で本文をクリップボードへコピー。
-  * **✏️ 編集**: メッセージ表示エリアを `<textarea>` と `[保存] [キャンセル]` ボタンにインラインで切り替え。保存時に `editEntry` メッセージを送信。
-
-#### [MODIFY] [extension.ts](file:///c:/AI/text-adventure-vsce/src/extension.ts)
-* バックエンド側の新規コマンドハンドラを追加:
-  * `editEntry`: 対象IDの `content` を上書きし、`editedAt` を付与して `game_state.json` と履歴を書き換え保存。
-  * `toggleExcludeEntry`: 対象IDの `excludedFromPrompt` をトグルして保存。
-  * `branchFromEntry`: 指定されたIDのターンまで状態を巻き戻し、新規ブランチとして状態を保存。
+### src/extension.ts
+- ターン処理（GMの応答等）が完了し、`game_state.json` が更新された直後に、非同期で `gitManager.commitTurn(turnIndex)` を呼び出す処理を追加します。
+- Webviewからの `branchTimeline` メッセージを処理するハンドラを追加します。
+- `branchTimeline` が実行され、ブランチの作成に成功した場合は、VSCodeの `workbench.action.reloadWindow` を呼び出して状態を読み込み直します。
 
 ---
+
+### src/gitManager.ts
+#### [MODIFY] [gitManager.ts](file:///c:/AI/text-adventure-vsce/src/gitManager.ts)
+- `branchFromTurn` 関数の安定性を向上させ、ブランチ作成成功時に `true` を返すように調整します。
+- タイムラインブランチ名の命名規則を `timeline/turn_{turnIndex}_{timestamp}` のように分かりやすく変更します。
+
+---
+
+### webview/modules & styles
+#### [MODIFY] [00-core.js](file:///c:/AI/text-adventure-vsce/webview/modules/00-core.js) (またはメッセージ描画箇所)
+- メッセージごとのアクションバー（`.msg-actions`）に、「⎇ ここから分岐 (Branch)」ボタンを追加します。
+- クリック時に、そのターンの `id` を含めて `branchTimeline` メッセージをVSCode拡張機能へ送信するイベントリスナーを追加します。
+
+#### [MODIFY] [ja.json](file:///c:/AI/text-adventure-vsce/locales/ja.json)
+- 追加するボタンのテキスト（例: `"webview.msg.branch": "⎇ 分岐"`）の翻訳定義を確認・追加します（一部定義済みかもしれません）。
 
 ## Verification Plan
 
 ### Automated Tests
-* `npm run compile` および `npm test` がエラーなく通ることを確認します。
-* `excludedFromPrompt` 等が追加された新しいスキーマ定義で検証テストがパスすることを確認します。
+- 既存の `npm test` を実行し、既存のセーブデータや状態管理に影響が出ていないことを確認します。
 
 ### Manual Verification
-1. **画像生成ライブ設定**:
-   * Webview で「Image Gen Settings」を開き、画像サイズ（例: 512x512 → 896x1152）やネガティブプロンプトを変更して保存します。
-   * その後、画像再生成（Retry）を実行し、ComfyUI 側に更新後のパラメータ（解像度等）が正しく送られて生成されることを確認します。
-2. **Quick Reply バー**:
    * ボタンが崩れることなくテキスト入力欄の上部に綺麗に整列しているか、レスポンシブデザイン（横幅）を確認します。
    * `⏪ Undo` や `🔄 Retry` をクリックした際、正しく1ターン巻き戻りや再生成処理が走ることを確認します。

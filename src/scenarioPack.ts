@@ -7,6 +7,12 @@ import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspace
 import { sendCurrentState, setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
 import { sendBgmManifest, sendSfxManifest } from './mediaManifest';
 import { resolvePythonCommand } from './skillScriptRunner';
+import {
+    parseScenarioDirectorTemplate,
+    pushScenarioDirectorToWebview,
+    seedDirectorFromTemplate,
+    validateScenarioDirectorBlock
+} from './scenarioDirector';
 
 function resolvePackageScenarioScript(): string | undefined {
     const candidates = [
@@ -33,6 +39,9 @@ function validateScenarioData(scenario: Record<string, unknown>): string[] {
     const opening = scenario.opening as Record<string, unknown> | undefined;
     if (!opening?.narrative) {
         errors.push('opening.narrative is required');
+    }
+    if (scenario.director !== undefined) {
+        errors.push(...validateScenarioDirectorBlock(scenario.director));
     }
     return errors;
 }
@@ -120,6 +129,14 @@ export async function loadScenarioPack(): Promise<void> {
     if (opening.bgm) { state.bgm = opening.bgm; }
     if (opening.sfx) { state.sfx = opening.sfx; }
 
+    const directorTemplate = parseScenarioDirectorTemplate(
+        scenario.director as Record<string, unknown> | undefined,
+        meta
+    );
+    if (directorTemplate) {
+        state.director = seedDirectorFromTemplate(directorTemplate);
+    }
+
     const statePath = getGameStatePath();
     if (!statePath) { return; }
 
@@ -176,6 +193,7 @@ export async function loadScenarioPack(): Promise<void> {
         sendCurrentState(0, true);
         sendBgmManifest();
         sendSfxManifest();
+        pushScenarioDirectorToWebview();
     }, 400);
 
     const extra = notes.length

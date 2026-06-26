@@ -89,6 +89,20 @@ function getBestVoiceForLocale(locale) {
       if (btn) { btn.textContent = T('webview.saga.archiving'); btn.disabled = true; }
     });
   }
+
+  const qrExport = document.getElementById('qr-export');
+  if (qrExport) {
+    qrExport.addEventListener('click', () => {
+      vscode.postMessage({ type: 'exportHtml' });
+    });
+  }
+
+  const qrForceSpeak = document.getElementById('qr-forcespeak');
+  if (qrForceSpeak) {
+    qrForceSpeak.addEventListener('click', () => {
+      vscode.postMessage({ type: 'requestForceSpeak' });
+    });
+  }
 })();
 
 // ===== Image Gen Settings パネル =====

@@ -1,6 +1,7 @@
 /* ========= ステータスエリア ========= */
 #status-area {
-  width: 320px;
+  width: var(--status-width, 320px);
+  container-type: inline-size;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -189,3 +190,34 @@
   border-color: var(--accent);
   color: #fff;
 }
+
+/* =========================================
+   レスポンシブ対応 (コンテナクエリ)
+   ========================================= */
+@container (max-width: 280px) {
+  /* 幅が狭いときはアイコンのみにする */
+  .tab-text {
+    display: none;
+  }
+  .tab-btn {
+    padding: 8px 4px;
+    justify-content: center;
+  }
+  .tab-icon {
+    font-size: 16px;
+    margin: 0;
+  }
+  /* ステータス行も縦並びにして潰れを防ぐ */
+  .status-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .status-value {
+    text-align: left;
+  }
+  #gallery {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -61,3 +61,53 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 - [x] **Phase 4A (Herika型)**: ComfyUIで生成した画像をVLM（視覚言語モデル）に読み込ませる。（AntigravityがTS側で `latestImage` をプロンプトに送る基盤を実装済。GeminiによるGM側の対応待ち）
 - [x] **Phase 4B (ルールセットプラグイン)**: `generic-fantasy` や `coc7e-lite` など、ステータス項目や判定式を定義したJSONルールセットを外部から動的に読み込む。（Antigravityが動的ステータスバーUIを実装済）
+
+---
+
+## 🔵 v0.4 公開前ハードニング (完了)
+*ステータス: v0.4.0 リリース済*
+
+- [x] media path realpath / 拡張子 / symlink 拒否
+- [x] WebSocket unmasked frame 拒否
+- [x] `grokBridge.autoApprove` fallback false
+- [x] `last_good_game_state.json` + Inspector schema errors
+- [x] watcher を `workspaceFolder` に限定
+- [x] コマンド名 `LoreRelay:` 統一 + token rotation コマンド
+
+---
+
+## 🟡 v0.5 Lorebook & Memory UI（分割実装）
+
+| スライス | 内容 | 状態 |
+|---------|------|------|
+| **v0.5a** | Prompt Context Inspector（注入 summary/memory/lore、token 概算） | [x] |
+| **v0.5b** | Lorebook 読み取りビューアタブ（一覧・キーワード表示） | [x] |
+| **v0.5c** | Lorebook エディタ + `lorebook.json` 保存 | [x] |
+| **v0.5d** | Memory 検索プレビュー + backend 切替 UI | [x] |
+| **v0.5e** | ピン留め lore（常時 GM 注入） | [x] |
+
+---
+
+## 🟡 v0.6 Scenario Director（着手）
+
+- [x] **v0.6a** `scenario.json` の `director` ブロック読み込み + 🎬 Director タブ表示
+- [x] サンプル: `lost-catacombs/scenario.json` に director 追加
+- [x] **v0.6b** guided / sandbox / railroad の GM プロンプト注入
+- [x] **v0.6c** Act/Scene 進行の `game_state.director` 連動・マージ表示・バリデーション・statePatch 許可
+- [ ] サンプルシナリオ同梱・Workshop ZIP 強化
+
+---
+
+## 🟢 v0.7 Party Director & Remote Play（完了）
+
+- [x] NPC 発言制御・関係値（`party_director.json` + 👥 Party タブ）
+- [x] パーティ会話ディレクター（GM プロンプト注入、`game_state.partyDirector` ランタイム連動）
+- [x] Remote Play: QR（QuickChart）・spectator / player ロール（`?role=spectator`、観戦は入力拒否）
+
+---
+
+## 🟢 v1.0 公開仕上げ（完了）
+
+- [x] README スクショ（`docs/assets/*.svg`）・デモ撮影ガイド（`DEMO.md`）
+- [x] サンプルシナリオ3本（`lost-catacombs` / `neon-rain` / `harbor-mist`）・`MODEL_PRESETS.md`
+- [x] ComfyUI ワークフロー同梱（`comfyui/workflow_api.json` / `workflow_sdxl_1024.json`）

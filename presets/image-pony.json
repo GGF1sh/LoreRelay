@@ -1,0 +1,15 @@
+{
+  "_comment": "Anime / Pony XL style. Set checkpoint to your Pony-compatible model.",
+  "mode": "pony",
+  "checkpoint": "",
+  "workflowPath": "",
+  "steps": 28,
+  "cfg": 7,
+  "width": 1024,
+  "height": 1024,
+  "sampler": "euler",
+  "scheduler": "normal",
+  "positivePrefix": "score_9, score_8_up, score_7_up, source_anime, rating_safe, ",
+  "positiveSuffix": "",
+  "negativePrompt": "low quality, worst quality, text, watermark"
+}

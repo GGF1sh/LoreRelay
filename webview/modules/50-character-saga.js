@@ -6,10 +6,18 @@ let currentPartyIds = [];
 const charSelect = document.getElementById('char-select');
 const charPartyCb = document.getElementById('char-party-cb');
 const charNameInput = document.getElementById('char-name');
+const charControlledBySelect = document.getElementById('char-controlled-by');
+const charLlmProviderSelect = document.getElementById('char-llm-provider');
+const charLlmModelInput = document.getElementById('char-llm-model');
 const charDescInput = document.getElementById('char-desc');
 const charPersonalityInput = document.getElementById('char-personality');
 const charPortraitImg = document.getElementById('char-portrait-img');
 const charPortraitPlaceholder = document.getElementById('char-portrait-placeholder');
+
+const charEquipWeapon = document.getElementById('char-equip-weapon');
+const charEquipArmor = document.getElementById('char-equip-armor');
+const charEquipAccessory = document.getElementById('char-equip-accessory');
+const charEquipNotifyBtn = document.getElementById('char-equip-notify-btn');
 
 // ===== あらすじ / Saga アーカイブ =====
 
@@ -46,6 +54,7 @@ function resetArchiveButton() {
 
 function updateCharacterList(characters, activeId, partyIds) {
   currentCharacters = characters || [];
+  window.currentCharacters = currentCharacters;
   activeCharId = activeId;
   currentPartyIds = partyIds || [];
   
@@ -78,11 +87,17 @@ function loadSelectedCharacter() {
   const id = charSelect.value;
   if (id === 'new') {
     charNameInput.value = '';
+    charControlledBySelect.value = 'gm';
+    charLlmProviderSelect.value = '';
+    charLlmModelInput.value = '';
     charDescInput.value = '';
     charPersonalityInput.value = '';
     charPortraitImg.src = '';
     charPortraitImg.style.display = 'none';
     charPortraitPlaceholder.style.display = 'flex';
+    if (charEquipWeapon) charEquipWeapon.value = '';
+    if (charEquipArmor) charEquipArmor.value = '';
+    if (charEquipAccessory) charEquipAccessory.value = '';
     if (charPartyCb) {
       charPartyCb.checked = false;
       charPartyCb.disabled = true;
@@ -95,8 +110,14 @@ function loadSelectedCharacter() {
     const char = currentCharacters.find(c => c.id === id);
     if (char) {
       charNameInput.value = char.name || '';
+      charControlledBySelect.value = char.controlledBy || 'gm';
+      charLlmProviderSelect.value = char.llmProvider || '';
+      charLlmModelInput.value = char.llmModel || '';
       charDescInput.value = char.description || '';
       charPersonalityInput.value = char.personality || '';
+      if (charEquipWeapon) charEquipWeapon.value = char.equipment?.weapon || '';
+      if (charEquipArmor) charEquipArmor.value = char.equipment?.armor || '';
+      if (charEquipAccessory) charEquipAccessory.value = char.equipment?.accessory || '';
       if (char.portrait) {
         charPortraitImg.src = char.portrait;
         charPortraitImg.style.display = 'block';
@@ -125,8 +146,16 @@ document.getElementById('char-save-btn').addEventListener('click', () => {
   const character = {
     id: id,
     name: charNameInput.value.trim(),
+    controlledBy: charControlledBySelect.value,
+    llmProvider: charLlmProviderSelect.value,
+    llmModel: charLlmModelInput.value.trim(),
     description: charDescInput.value.trim(),
-    personality: charPersonalityInput.value.trim()
+    personality: charPersonalityInput.value.trim(),
+    equipment: {
+      weapon: charEquipWeapon ? charEquipWeapon.value.trim() : '',
+      armor: charEquipArmor ? charEquipArmor.value.trim() : '',
+      accessory: charEquipAccessory ? charEquipAccessory.value.trim() : ''
+    }
   };
   
   // 既存のportrait等を保持
@@ -146,6 +175,22 @@ charPartyCb.addEventListener('change', () => {
   if (id === 'new') return;
   vscode.postMessage({ type: charPartyCb.checked ? 'addToParty' : 'removeFromParty', id });
 });
+
+if (charEquipNotifyBtn) {
+  charEquipNotifyBtn.addEventListener('click', () => {
+    const weapon = charEquipWeapon ? charEquipWeapon.value.trim() : '';
+    const armor = charEquipArmor ? charEquipArmor.value.trim() : '';
+    const accessory = charEquipAccessory ? charEquipAccessory.value.trim() : '';
+    vscode.postMessage({
+      type: 'notifyEquipment',
+      id: charSelect.value,
+      name: charNameInput.value.trim(),
+      weapon,
+      armor,
+      accessory
+    });
+  });
+}
 
 document.getElementById('summarize-btn').addEventListener('click', () => {
   vscode.postMessage({ type: 'summarizeHistory' });
@@ -177,6 +222,10 @@ document.getElementById('archive-suggest-dismiss')?.addEventListener('click', ()
 
 document.getElementById('story-summary').addEventListener('blur', (e) => {
   vscode.postMessage({ type: 'updateSummary', summary: e.target.value });
+});
+
+document.getElementById('char-import-st-btn').addEventListener('click', () => {
+  vscode.postMessage({ type: 'importTavernCard' });
 });
 
 document.getElementById('char-upload-btn').addEventListener('click', () => {

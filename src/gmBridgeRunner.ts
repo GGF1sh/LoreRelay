@@ -21,6 +21,7 @@ import { DiceLedgerEntry } from './types/TurnResult';
 import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } from './mediaAgent';
 import { notifyRemoteGmBusy } from './remotePlayServer';
 import { beginGmRun, finishGmRun } from './turnResultFallback';
+import { postPromptContextToWebview } from './gmPromptBuilder';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -50,7 +51,7 @@ function requireDeps(): GmBridgeRunnerDeps {
 
 export function getGmBridgeOutputChannel(): vscode.OutputChannel {
     if (!grokOutputChannel) {
-        grokOutputChannel = vscode.window.createOutputChannel('Text Adventure: GM Bridge');
+        grokOutputChannel = vscode.window.createOutputChannel('LoreRelay: GM Bridge');
         deps?.subscriptions.push(grokOutputChannel);
     }
     return grokOutputChannel;
@@ -128,7 +129,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     }
 
     const grokCmd = resolveGrokCommand(config.get<string>('grokBridge.command', 'grok') || 'grok');
-    const autoApprove = config.get<boolean>('grokBridge.autoApprove', true);
+    const autoApprove = config.get<boolean>('grokBridge.autoApprove', false);
     const isContinuation = grokSessionActive;
     const prompt = buildGrokPrompt(playerAction, isContinuation);
     const promptFile = writePromptFile(cwd, prompt);
@@ -148,6 +149,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
+    postPromptContextToWebview(playerAction);
     notifyRemoteGmBusy(true);
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
@@ -270,6 +272,7 @@ async function invokeLocalLlmBridge(
     channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
+    postPromptContextToWebview(playerAction);
     notifyRemoteGmBusy(true);
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
@@ -372,6 +375,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
+    postPromptContextToWebview(playerAction);
     notifyRemoteGmBusy(true);
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 

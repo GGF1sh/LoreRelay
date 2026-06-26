@@ -29,10 +29,11 @@ export function killPortraitProcess(): void {
     }
 }
 
-const CHARACTER_META_FILES = new Set(['party.json', 'dynamic_profiles.json']);
+const CHARACTER_META_FILES = new Set(['party.json', 'dynamic_profiles.json', 'party_director.json']);
 
 export interface CharacterManagerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
+    onPartyChanged?: () => void;
 }
 
 let deps: CharacterManagerDeps | undefined;
@@ -132,12 +133,9 @@ export function getPartyMemberIds(): string[] {
     return ids;
 }
 
-export function sendCharacterList(): void {
-    const panel = requireDeps().getPanel();
-    if (!panel) { return; }
+export function getCharacters(): CharacterProfile[] {
     const charDir = getCharactersDir();
-    if (!charDir) { return; }
-
+    if (!charDir) { return []; }
     const characters: CharacterProfile[] = [];
     try {
         const files = fs.readdirSync(charDir);
@@ -156,10 +154,16 @@ export function sendCharacterList(): void {
     } catch (e) {
         console.error('Error reading characters directory:', e);
     }
+    return characters;
+}
 
+export function sendCharacterList(): void {
+    const panel = requireDeps().getPanel();
+    if (!panel) { return; }
+    
     panel.webview.postMessage({
         type: 'characterList',
-        characters,
+        characters: getCharacters(),
         activeCharacterId: getActiveCharacterId(),
         partyIds: getPartyIds()
     });
@@ -192,12 +196,17 @@ export function setActiveCharacter(id: string): void {
     }
 }
 
+function notifyPartyChanged(): void {
+    deps?.onPartyChanged?.();
+}
+
 export function addToParty(id: string): void {
     const ids = getPartyIds();
     if (!ids.includes(id)) {
         ids.push(id);
         savePartyIds(ids);
         sendCharacterList();
+        notifyPartyChanged();
     }
 }
 
@@ -207,6 +216,7 @@ export function removeFromParty(id: string): void {
     if (ids.length !== newIds.length) {
         savePartyIds(newIds);
         sendCharacterList();
+        notifyPartyChanged();
     }
 }
 

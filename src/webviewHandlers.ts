@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { CharacterProfile } from './types/Character';
 import { isValidCharacterId } from './characterId';
 import { isValidEntryId } from './entryId';
+import { branchFromTurn } from './gitManager';
 import { t } from './i18n';
 
 /** Webview → Extension の postMessage ペイロード（緩い型）。 */
@@ -28,6 +29,7 @@ export interface WebviewHandlerDeps {
     setActiveCharacter(id: string): void;
     uploadPortrait(id: string): Promise<void>;
     generatePortrait(id: string): Promise<void>;
+    importTavernCard(): Promise<void>;
     addToParty(id: string): void;
     removeFromParty(id: string): void;
     summarizeHistory(): Promise<void>;
@@ -48,6 +50,19 @@ export interface WebviewHandlerDeps {
     handleUpdateGameRules(raw: unknown): Promise<void>;
     toggleRemotePlay(start?: boolean): Promise<void>;
     sendRemotePlayStatus(): void;
+    sendLorebookList(): void;
+    handleSaveLorebook(entries: unknown): Promise<void>;
+    handleSearchMemory(hint: unknown): Promise<void>;
+    handleSetMemoryBackend(backend: unknown): Promise<void>;
+    handleRebuildMemoryIndex(): Promise<void>;
+    sendMemoryStatus(): void;
+    sendScenarioDirector(): void;
+    sendPartyDirector(): void;
+    handleSavePartyDirector(director: unknown): Promise<void>;
+    handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
+    handleBranchTimeline(turnId: string): Promise<void>;
+    handleRequestForceSpeak(): Promise<void>;
+    handleExportHtml(): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -77,8 +92,42 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendSfxManifest();
             deps.sendCharacterList();
             deps.sendCheckpointList();
+            deps.sendLorebookList();
+            deps.sendMemoryStatus();
+            deps.sendScenarioDirector();
+            deps.sendPartyDirector();
             deps.sendGameRules();
             deps.sendRemotePlayStatus();
+            break;
+        case 'loadLorebook':
+            deps.sendLorebookList();
+            break;
+        case 'saveLorebook':
+            await deps.handleSaveLorebook(message.entries);
+            break;
+        case 'searchMemory':
+            await deps.handleSearchMemory(message.hint);
+            break;
+        case 'setMemoryBackend':
+            await deps.handleSetMemoryBackend(message.backend);
+            break;
+        case 'rebuildMemoryIndex':
+            await deps.handleRebuildMemoryIndex();
+            break;
+        case 'loadMemory':
+            deps.sendMemoryStatus();
+            break;
+        case 'loadDirector':
+            deps.sendScenarioDirector();
+            break;
+        case 'loadParty':
+            deps.sendPartyDirector();
+            break;
+        case 'savePartyDirector':
+            await deps.handleSavePartyDirector(message.director);
+            break;
+        case 'copyRemotePlayUrl':
+            await deps.handleCopyRemotePlayUrl(message.url, message.role);
             break;
         case 'getGameRules':
             deps.sendGameRules();
@@ -89,6 +138,15 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'loadCharacters':
             deps.sendCharacterList();
             break;
+        case 'notifyEquipment': {
+            const w = message.weapon ? `Weapon[${message.weapon}]` : '';
+            const a = message.armor ? `Armor[${message.armor}]` : '';
+            const acc = message.accessory ? `Accessory[${message.accessory}]` : '';
+            const eqStr = [w, a, acc].filter(Boolean).join(' ') || 'Nothing';
+            const text = `System: [Equipment changed] ${message.name} equipped: ${eqStr}`;
+            await deps.handlePlayerInput(text, undefined);
+            break;
+        }
         case 'saveCharacter': {
             const character = message.character as CharacterProfile | undefined;
             if (character?.id && isValidCharacterId(character.id)) {
@@ -121,6 +179,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             } else {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
             }
+            break;
+        case 'importTavernCard':
+            await deps.importTavernCard();
             break;
         case 'addToParty':
             if (isValidCharacterId(message.id)) {
@@ -184,6 +245,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 await deps.handleRestoreToTurn(message.entryId);
             }
             break;
+        case 'branchTimeline':
+            if (typeof message.turnId === 'string' && isValidEntryId(message.turnId)) {
+                await deps.handleBranchTimeline(message.turnId);
+            }
+            break;
         case 'loadScenario':
             await deps.loadScenarioPack();
             break;
@@ -198,6 +264,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'getRemotePlayStatus':
             deps.sendRemotePlayStatus();
+            break;
+        case 'requestForceSpeak':
+            await deps.handleRequestForceSpeak();
+            break;
+        case 'exportHtml':
+            await deps.handleExportHtml();
             break;
         default:
             break;

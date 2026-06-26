@@ -8,7 +8,7 @@ import { createHash, randomBytes } from 'crypto';
 import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
 import { getWorkspacePath } from './workspacePaths';
 import { getConfiguredLocale, getWebviewStrings, t } from './i18n';
-import { isAllowedImagePath } from './mediaPaths';
+import { IMAGE_MIME, isAllowedImagePath, resolveAllowedImagePath } from './mediaPaths';
 
 export interface RemotePlayServerDeps {
     extensionPath: string;
@@ -19,12 +19,23 @@ export interface RemotePlayServerDeps {
     subscriptions: vscode.Disposable[];
 }
 
+export type RemotePlayRole = 'player' | 'spectator';
+
+export interface RemotePlayClientInfo {
+    id: string;
+    role: RemotePlayRole;
+}
+
 export interface RemotePlayStatus {
     running: boolean;
     port: number;
     token: string;
     urls: string[];
+    spectatorUrls: string[];
+    qrUrls: string[];
+    spectatorQrUrls: string[];
     clientCount: number;
+    clients: RemotePlayClientInfo[];
 }
 
 interface WsConnection {
@@ -33,6 +44,7 @@ interface WsConnection {
     buffer: Buffer;
     lastInputAt: number;
     authenticated: boolean;
+    role: RemotePlayRole;
     authTimer?: NodeJS.Timeout;
 }
 
@@ -83,7 +95,7 @@ function requireDeps(): RemotePlayServerDeps {
 
 function getOutputChannel(): vscode.OutputChannel {
     if (!outputChannel) {
-        outputChannel = vscode.window.createOutputChannel('Text Adventure: Remote Play');
+        outputChannel = vscode.window.createOutputChannel('LoreRelay: Remote Play');
         deps?.subscriptions.push(outputChannel);
     }
     return outputChannel;
@@ -95,12 +107,23 @@ function log(line: string): void {
 
 function getConfig() {
     const config = vscode.workspace.getConfiguration('textAdventure');
+    const rawRole = config.get<string>('remotePlay.defaultRole', 'player').trim().toLowerCase();
+    const defaultRole: RemotePlayRole = rawRole === 'spectator' ? 'spectator' : 'player';
     return {
         port: config.get<number>('remotePlay.port', 9473),
         bindAddress: config.get<string>('remotePlay.bindAddress', '127.0.0.1').trim() || '127.0.0.1',
         maxClients: Math.max(1, Math.min(32, config.get<number>('remotePlay.maxClients', 8))),
-        inputCooldownMs: Math.max(500, config.get<number>('remotePlay.inputCooldownMs', 1500))
+        inputCooldownMs: Math.max(500, config.get<number>('remotePlay.inputCooldownMs', 1500)),
+        defaultRole
     };
+}
+
+function normalizeRole(value: unknown, fallback: RemotePlayRole): RemotePlayRole {
+    return value === 'spectator' ? 'spectator' : value === 'player' ? 'player' : fallback;
+}
+
+function buildQrUrl(text: string): string {
+    return `https://quickchart.io/qr?text=${encodeURIComponent(text)}&size=180&margin=1`;
 }
 
 function isLocalhostBind(host: string): boolean {
@@ -133,9 +156,13 @@ function maskToken(token: string): string {
     return `${token.slice(0, 4)}…${token.slice(-4)}`;
 }
 
-function buildAccessUrl(base: string): string {
+function buildAccessUrl(base: string, role?: RemotePlayRole): string {
     const sep = base.includes('?') ? '&' : '?';
-    return `${base}${sep}token=${encodeURIComponent(sessionToken)}`;
+    let url = `${base}${sep}token=${encodeURIComponent(sessionToken)}`;
+    if (role === 'spectator') {
+        url += '&role=spectator';
+    }
+    return url;
 }
 
 function resolveMediaHttpUrl(imagePath: string | undefined): string | undefined {
@@ -229,6 +256,7 @@ function sendToClient(client: WsConnection, message: Record<string, unknown>): v
 }
 
 function closeClient(client: WsConnection, code = 1000, reason = ''): void {
+    const wasAuthed = client.authenticated;
     wsClients.delete(client.id);
     if (client.authTimer) {
         clearTimeout(client.authTimer);
@@ -238,7 +266,18 @@ function closeClient(client: WsConnection, code = 1000, reason = ''): void {
         client.socket.destroy();
     }
     log(`Client disconnected (${client.id}). Active: ${wsClients.size}. ${reason ? reason : ''}`.trim());
+    if (wasAuthed) {
+        notifyHostRemotePlayStatus();
+    }
     void code;
+}
+
+function notifyHostRemotePlayStatus(): void {
+    const panel = deps?.getPanel();
+    if (!panel) {
+        return;
+    }
+    panel.webview.postMessage({ type: 'remotePlayStatus', status: getRemotePlayStatus() });
 }
 
 function handleWsData(client: WsConnection, chunk: Buffer): void {
@@ -253,6 +292,10 @@ function handleWsData(client: WsConnection, chunk: Buffer): void {
         const b1 = client.buffer[1];
         const opcode = b0 & 0x0f;
         const masked = (b1 & 0x80) !== 0;
+        if (!masked) {
+            closeClient(client, 1002, 'Client frames must be masked');
+            return;
+        }
         let payloadLen = b1 & 0x7f;
         let offset = 2;
 
@@ -325,6 +368,8 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
 
     if (!client.authenticated) {
         if (msg.type === 'auth' && msg.token === sessionToken) {
+            const cfg = getConfig();
+            client.role = normalizeRole(msg.role, cfg.defaultRole);
             client.authenticated = true;
             if (client.authTimer) {
                 clearTimeout(client.authTimer);
@@ -334,12 +379,14 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
                 type: 'welcome',
                 locale: getConfiguredLocale(),
                 strings: getWebviewStrings(getConfiguredLocale()),
-                gmBusy: gmBusyFlag
+                gmBusy: gmBusyFlag,
+                role: client.role
             });
             if (lastBroadcastState) {
                 sendToClient(client, { type: 'state', state: lastBroadcastState, gmBusy: gmBusyFlag });
             }
-            log(`Client authenticated (${client.id}). Active: ${wsClients.size}`);
+            log(`Client authenticated (${client.id}, role=${client.role}). Active: ${wsClients.size}`);
+            notifyHostRemotePlayStatus();
         } else {
             sendToClient(client, { type: 'error', message: 'Unauthorized' });
             closeClient(client, 1008, 'Bad token');
@@ -356,6 +403,10 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             break;
         case 'selectOption':
         case 'freeInput': {
+            if (client.role === 'spectator') {
+                sendToClient(client, { type: 'error', message: 'Spectator mode (read-only)' });
+                return;
+            }
             if (remoteInputLocked || d.isGmBusy()) {
                 sendToClient(client, { type: 'error', message: 'GM is busy' });
                 return;
@@ -429,6 +480,7 @@ function acceptWebSocket(req: http.IncomingMessage, socket: net.Socket, head: Bu
         buffer: Buffer.alloc(0),
         lastInputAt: 0,
         authenticated: false,
+        role: getConfig().defaultRole,
         authTimer: setTimeout(() => {
             if (!client.authenticated) {
                 closeClient(client, 1008, 'Auth timeout');
@@ -473,23 +525,63 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
         return;
     }
     const normalized = path.normalize(decodeURIComponent(file));
-    if (!isAllowedImagePath(normalized)) {
+    const realPath = resolveAllowedImagePath(normalized);
+    if (!realPath) {
         res.writeHead(403);
         res.end('Forbidden');
         return;
     }
-    const ext = path.extname(normalized).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'private, max-age=300' });
-    fs.createReadStream(normalized).pipe(res);
+    const ext = path.extname(realPath).toLowerCase();
+    const mime = IMAGE_MIME[ext];
+    if (!mime) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+    }
+    res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'private, max-age=300' });
+    const stream = fs.createReadStream(realPath);
+    stream.on('error', () => {
+        if (!res.headersSent) {
+            res.writeHead(500);
+        }
+        res.end();
+    });
+    stream.pipe(res);
+}
+
+export function rotateRemotePlayToken(): string {
+    if (!httpServer) {
+        throw new Error('Remote play is not running');
+    }
+    const previous = sessionToken;
+    sessionToken = randomBytes(16).toString('hex');
+    for (const client of [...wsClients.values()]) {
+        closeClient(client, 1008, 'Token rotated');
+    }
+    log(`Remote play token rotated (${maskToken(previous)} → ${maskToken(sessionToken)})`);
+    return sessionToken;
 }
 
 export function getRemotePlayStatus(): RemotePlayStatus {
+    const bases = httpServer ? getAccessBaseUrls(listenPort, listenHost) : [];
+    const playerUrls = bases.map((b) => buildAccessUrl(b, 'player'));
+    const spectatorUrls = bases.map((b) => buildAccessUrl(b, 'spectator'));
+    const clients: RemotePlayClientInfo[] = [];
+    for (const client of wsClients.values()) {
+        if (client.authenticated) {
+            clients.push({ id: client.id, role: client.role });
+        }
+    }
     return {
         running: Boolean(httpServer),
         port: listenPort,
         token: sessionToken,
-        urls: httpServer ? getAccessBaseUrls(listenPort, listenHost).map(buildAccessUrl) : [],
-        clientCount: wsClients.size
+        urls: playerUrls,
+        spectatorUrls,
+        qrUrls: playerUrls.length > 0 ? [buildQrUrl(playerUrls[0])] : [],
+        spectatorQrUrls: spectatorUrls.length > 0 ? [buildQrUrl(spectatorUrls[0])] : [],
+        clientCount: clients.length,
+        clients
     };
 }
 

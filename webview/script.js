@@ -290,17 +290,29 @@ function renderMessage(entry) {
     excludeBtn.onclick = () => vscode.postMessage({ type: 'toggleExcludeEntry', id: entry.id });
     actionsBar.appendChild(excludeBtn);
 
-    // 🔱 ブランチ（このターンから分岐）
+    // 🔱 巻き戻し（このターンまで戻る・簡易版）
     const branchBtn = document.createElement('button');
     branchBtn.className = 'msg-action-btn';
-    branchBtn.title = T('webview.msg.branch') || 'Branch from here';
+    branchBtn.title = T('webview.msg.rewind') || 'Rewind to this turn';
     branchBtn.textContent = '🔱';
     branchBtn.onclick = () => {
-      if (confirm(T('webview.msg.branchConfirm') || 'Rewind history to this turn and branch?')) {
+      if (confirm(T('webview.msg.rewindConfirm') || 'Rewind history to this turn? (Future turns will be lost)')) {
         vscode.postMessage({ type: 'branchFromEntry', entryId: entry.id });
       }
     };
     actionsBar.appendChild(branchBtn);
+
+    // ⎇ Gitブランチ（このターンから別世界線を作る）
+    const gitBranchBtn = document.createElement('button');
+    gitBranchBtn.className = 'msg-action-btn';
+    gitBranchBtn.title = T('webview.msg.gitBranch') || 'Create alternate timeline (Git Branch) from this turn';
+    gitBranchBtn.textContent = '⎇';
+    gitBranchBtn.onclick = () => {
+      if (confirm(T('webview.msg.gitBranchConfirm') || 'Create a new alternate timeline branch from this turn?')) {
+        vscode.postMessage({ type: 'branchTimeline', turnId: entry.id });
+      }
+    };
+    actionsBar.appendChild(gitBranchBtn);
 
     // ✏️ 編集
     const editBtn = document.createElement('button');
@@ -637,7 +649,25 @@ function setSceneSprite(sprite) {
   if (!spriteLayer) return;
   spriteLayer.classList.remove('visible', 'pos-left', 'pos-right', 'pos-center');
   spriteLayer.innerHTML = '';
-  const imgPath = typeof sprite === 'string' ? sprite : sprite?.image;
+  
+  let imgPath = '';
+  if (typeof sprite === 'string') {
+    imgPath = sprite;
+  } else if (sprite && sprite.name) {
+    const char = window.currentCharacters?.find(c => c.name === sprite.name);
+    if (char) {
+      if (sprite.expression && char.expressions && char.expressions[sprite.expression]) {
+        imgPath = char.expressions[sprite.expression];
+      } else {
+        imgPath = char.portrait || sprite.image || '';
+      }
+    } else {
+      imgPath = sprite.image || '';
+    }
+  } else {
+    imgPath = sprite?.image || '';
+  }
+
   if (!imgPath) return;
   const img = document.createElement('img');
   img.src = imgPath;
@@ -1457,10 +1487,18 @@ let currentPartyIds = [];
 const charSelect = document.getElementById('char-select');
 const charPartyCb = document.getElementById('char-party-cb');
 const charNameInput = document.getElementById('char-name');
+const charControlledBySelect = document.getElementById('char-controlled-by');
+const charLlmProviderSelect = document.getElementById('char-llm-provider');
+const charLlmModelInput = document.getElementById('char-llm-model');
 const charDescInput = document.getElementById('char-desc');
 const charPersonalityInput = document.getElementById('char-personality');
 const charPortraitImg = document.getElementById('char-portrait-img');
 const charPortraitPlaceholder = document.getElementById('char-portrait-placeholder');
+
+const charEquipWeapon = document.getElementById('char-equip-weapon');
+const charEquipArmor = document.getElementById('char-equip-armor');
+const charEquipAccessory = document.getElementById('char-equip-accessory');
+const charEquipNotifyBtn = document.getElementById('char-equip-notify-btn');
 
 // ===== あらすじ / Saga アーカイブ =====
 
@@ -1497,6 +1535,7 @@ function resetArchiveButton() {
 
 function updateCharacterList(characters, activeId, partyIds) {
   currentCharacters = characters || [];
+  window.currentCharacters = currentCharacters;
   activeCharId = activeId;
   currentPartyIds = partyIds || [];
   
@@ -1529,11 +1568,17 @@ function loadSelectedCharacter() {
   const id = charSelect.value;
   if (id === 'new') {
     charNameInput.value = '';
+    charControlledBySelect.value = 'gm';
+    charLlmProviderSelect.value = '';
+    charLlmModelInput.value = '';
     charDescInput.value = '';
     charPersonalityInput.value = '';
     charPortraitImg.src = '';
     charPortraitImg.style.display = 'none';
     charPortraitPlaceholder.style.display = 'flex';
+    if (charEquipWeapon) charEquipWeapon.value = '';
+    if (charEquipArmor) charEquipArmor.value = '';
+    if (charEquipAccessory) charEquipAccessory.value = '';
     if (charPartyCb) {
       charPartyCb.checked = false;
       charPartyCb.disabled = true;
@@ -1546,8 +1591,14 @@ function loadSelectedCharacter() {
     const char = currentCharacters.find(c => c.id === id);
     if (char) {
       charNameInput.value = char.name || '';
+      charControlledBySelect.value = char.controlledBy || 'gm';
+      charLlmProviderSelect.value = char.llmProvider || '';
+      charLlmModelInput.value = char.llmModel || '';
       charDescInput.value = char.description || '';
       charPersonalityInput.value = char.personality || '';
+      if (charEquipWeapon) charEquipWeapon.value = char.equipment?.weapon || '';
+      if (charEquipArmor) charEquipArmor.value = char.equipment?.armor || '';
+      if (charEquipAccessory) charEquipAccessory.value = char.equipment?.accessory || '';
       if (char.portrait) {
         charPortraitImg.src = char.portrait;
         charPortraitImg.style.display = 'block';
@@ -1576,8 +1627,16 @@ document.getElementById('char-save-btn').addEventListener('click', () => {
   const character = {
     id: id,
     name: charNameInput.value.trim(),
+    controlledBy: charControlledBySelect.value,
+    llmProvider: charLlmProviderSelect.value,
+    llmModel: charLlmModelInput.value.trim(),
     description: charDescInput.value.trim(),
-    personality: charPersonalityInput.value.trim()
+    personality: charPersonalityInput.value.trim(),
+    equipment: {
+      weapon: charEquipWeapon ? charEquipWeapon.value.trim() : '',
+      armor: charEquipArmor ? charEquipArmor.value.trim() : '',
+      accessory: charEquipAccessory ? charEquipAccessory.value.trim() : ''
+    }
   };
   
   // 既存のportrait等を保持
@@ -1597,6 +1656,22 @@ charPartyCb.addEventListener('change', () => {
   if (id === 'new') return;
   vscode.postMessage({ type: charPartyCb.checked ? 'addToParty' : 'removeFromParty', id });
 });
+
+if (charEquipNotifyBtn) {
+  charEquipNotifyBtn.addEventListener('click', () => {
+    const weapon = charEquipWeapon ? charEquipWeapon.value.trim() : '';
+    const armor = charEquipArmor ? charEquipArmor.value.trim() : '';
+    const accessory = charEquipAccessory ? charEquipAccessory.value.trim() : '';
+    vscode.postMessage({
+      type: 'notifyEquipment',
+      id: charSelect.value,
+      name: charNameInput.value.trim(),
+      weapon,
+      armor,
+      accessory
+    });
+  });
+}
 
 document.getElementById('summarize-btn').addEventListener('click', () => {
   vscode.postMessage({ type: 'summarizeHistory' });
@@ -1628,6 +1703,10 @@ document.getElementById('archive-suggest-dismiss')?.addEventListener('click', ()
 
 document.getElementById('story-summary').addEventListener('blur', (e) => {
   vscode.postMessage({ type: 'updateSummary', summary: e.target.value });
+});
+
+document.getElementById('char-import-st-btn').addEventListener('click', () => {
+  vscode.postMessage({ type: 'importTavernCard' });
 });
 
 document.getElementById('char-upload-btn').addEventListener('click', () => {
@@ -1707,14 +1786,102 @@ function updateRemotePlayButton(status) {
   btn.title = remotePlayActive
     ? `${T('webview.remotePlay.active')} (${clients})`
     : T('webview.remotePlay.toggle');
+  renderRemotePlayPanel(status);
+}
+
+function renderRemotePlayPanel(status) {
+  const panel = document.getElementById('remote-play-panel');
+  if (!panel) { return; }
+
+  const running = Boolean(status && status.running);
+  panel.classList.toggle('hidden', !running);
+  if (!running) {
+    return;
+  }
+
+  const playerUrl = (status.urls && status.urls[0]) || '';
+  const spectatorUrl = (status.spectatorUrls && status.spectatorUrls[0]) || '';
+  const qrImg = document.getElementById('remote-play-qr');
+  const specQrImg = document.getElementById('remote-play-spectator-qr');
+  const playerUrlEl = document.getElementById('remote-play-player-url');
+  const spectatorUrlEl = document.getElementById('remote-play-spectator-url');
+  const clientsEl = document.getElementById('remote-play-clients');
+
+  if (qrImg && status.qrUrls && status.qrUrls[0]) {
+    qrImg.src = status.qrUrls[0];
+    qrImg.alt = T('webview.remotePlay.qrPlayer');
+  }
+  if (specQrImg && status.spectatorQrUrls && status.spectatorQrUrls[0]) {
+    specQrImg.src = status.spectatorQrUrls[0];
+    specQrImg.alt = T('webview.remotePlay.qrSpectator');
+  }
+  if (playerUrlEl) { playerUrlEl.textContent = playerUrl; }
+  if (spectatorUrlEl) { spectatorUrlEl.textContent = spectatorUrl; }
+
+  if (clientsEl) {
+    clientsEl.innerHTML = '';
+    const clients = status.clients || [];
+    if (!clients.length) {
+      clientsEl.innerHTML = `<span class="empty-text">${T('webview.remotePlay.noClients')}</span>`;
+    } else {
+      clients.forEach((c) => {
+        const row = document.createElement('div');
+        row.className = 'remote-client-row';
+        const roleLabel = c.role === 'spectator'
+          ? T('webview.remotePlay.roleSpectator')
+          : T('webview.remotePlay.rolePlayer');
+        row.textContent = `${c.id} · ${roleLabel}`;
+        clientsEl.appendChild(row);
+      });
+    }
+  }
+
+  panel.dataset.playerUrl = playerUrl;
+  panel.dataset.spectatorUrl = spectatorUrl;
 }
 
 (function initRemotePlayUi() {
   const btn = document.getElementById('remote-play-btn');
+  const panel = document.getElementById('remote-play-panel');
+  const closeBtn = document.getElementById('remote-play-close');
+  const stopBtn = document.getElementById('remote-play-stop-btn');
+  const copyPlayerBtn = document.getElementById('remote-play-copy-player');
+  const copySpectatorBtn = document.getElementById('remote-play-copy-spectator');
+
   if (!btn) { return; }
+
   btn.addEventListener('click', () => {
+    if (remotePlayActive && panel) {
+      panel.classList.toggle('hidden');
+      return;
+    }
     vscode.postMessage({ type: 'toggleRemotePlay' });
   });
+
+  if (closeBtn && panel) {
+    closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+  }
+  if (stopBtn) {
+    stopBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'toggleRemotePlay' });
+    });
+  }
+  if (copyPlayerBtn) {
+    copyPlayerBtn.addEventListener('click', () => {
+      const url = panel ? panel.dataset.playerUrl : '';
+      if (url) {
+        vscode.postMessage({ type: 'copyRemotePlayUrl', url, role: 'player' });
+      }
+    });
+  }
+  if (copySpectatorBtn) {
+    copySpectatorBtn.addEventListener('click', () => {
+      const url = panel ? panel.dataset.spectatorUrl : '';
+      if (url) {
+        vscode.postMessage({ type: 'copyRemotePlayUrl', url, role: 'spectator' });
+      }
+    });
+  }
 })();
 
 /* --- 60-tts-quickreply-imagegen.js --- */
@@ -1807,6 +1974,20 @@ function getBestVoiceForLocale(locale) {
       vscode.postMessage({ type: 'archiveSaga' });
       const btn = document.getElementById('archive-saga-btn');
       if (btn) { btn.textContent = T('webview.saga.archiving'); btn.disabled = true; }
+    });
+  }
+
+  const qrExport = document.getElementById('qr-export');
+  if (qrExport) {
+    qrExport.addEventListener('click', () => {
+      vscode.postMessage({ type: 'exportHtml' });
+    });
+  }
+
+  const qrForceSpeak = document.getElementById('qr-forcespeak');
+  if (qrForceSpeak) {
+    qrForceSpeak.addEventListener('click', () => {
+      vscode.postMessage({ type: 'requestForceSpeak' });
     });
   }
 })();
@@ -2031,11 +2212,141 @@ function speakText(text) {
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
         const message = event.data;
-        if (message.type === 'gameStateUpdate' && message.turnResult) {
-            renderTurnResult(message.turnResult);
+        if (message.type === 'promptContext') {
+            renderPromptContext(message.breakdown);
+        }
+        if (message.type === 'gameStateUpdate') {
+            if (message.turnResult) {
+                renderTurnResult(message.turnResult);
+            }
+            if (message.schemaErrors) {
+                renderSchemaErrors(message.schemaErrors);
+            } else if (message.state) {
+                renderSchemaErrors([]);
+            }
+            if (message.state) {
+                renderHiddenState(message.state.hiddenState);
+            }
         }
     });
 });
+
+function renderPromptContext(breakdown) {
+    const emptyText = document.getElementById('inspector-empty-text');
+    const content = document.getElementById('inspector-content');
+    const summaryDiv = document.getElementById('inspector-prompt-summary');
+    const sectionsDiv = document.getElementById('inspector-prompt-sections');
+    const memoryDiv = document.getElementById('inspector-memory-matches');
+    const loreDiv = document.getElementById('inspector-lore-matches');
+
+    if (!breakdown || !summaryDiv || !sectionsDiv) {
+        return;
+    }
+
+    if (emptyText) {
+        emptyText.classList.add('hidden');
+    }
+    if (content) {
+        content.classList.remove('hidden');
+    }
+
+    const backend = breakdown.memoryBackend || 'auto';
+    const tokens = breakdown.totalTokensEstimate ?? 0;
+    const chars = breakdown.totalChars ?? 0;
+    summaryDiv.textContent = typeof T === 'function'
+        ? T('webview.inspector.promptSummary', {
+            backend,
+            tokens: String(tokens),
+            chars: String(chars)
+        })
+        : `Backend: ${backend} · ~${tokens} tokens · ${chars} chars`;
+
+    sectionsDiv.innerHTML = '';
+    (breakdown.sections || []).forEach((section) => {
+        const row = document.createElement('details');
+        row.className = 'inspector-item prompt-section';
+        row.innerHTML = `
+            <summary><strong>${escapeHtml(section.label)}</strong>
+              <span class="tag-item">~${section.tokenEstimate} tok</span>
+            </summary>
+            <pre class="prompt-preview">${escapeHtml(section.text)}</pre>
+        `;
+        sectionsDiv.appendChild(row);
+    });
+    if (!breakdown.sections || breakdown.sections.length === 0) {
+        sectionsDiv.innerHTML = `<span class="empty-text">${escapeHtml(T('webview.inspector.noPromptSections'))}</span>`;
+    }
+
+    if (memoryDiv) {
+        memoryDiv.innerHTML = '';
+        const matches = breakdown.memoryMatches || [];
+        if (matches.length === 0) {
+            memoryDiv.innerHTML = `<span class="empty-text">${escapeHtml(T('webview.inspector.noMemory'))}</span>`;
+        } else {
+            matches.forEach((m) => {
+                const row = document.createElement('div');
+                row.className = 'inspector-item';
+                row.innerHTML = `<strong>${escapeHtml(m.label)}</strong> <span class="tag-item">${escapeHtml(m.source)}</span><br><span class="patch-value">${escapeHtml(m.preview)}</span>`;
+                memoryDiv.appendChild(row);
+            });
+        }
+    }
+
+    if (loreDiv) {
+        loreDiv.innerHTML = '';
+        const lore = breakdown.matchedLore || [];
+        if (lore.length === 0) {
+            loreDiv.innerHTML = `<span class="empty-text">${escapeHtml(T('webview.inspector.noLore'))}</span>`;
+        } else {
+            lore.forEach((entry) => {
+                const row = document.createElement('div');
+                row.className = 'inspector-item';
+                const keys = (entry.keys || []).join(', ');
+                row.innerHTML = `<strong>📖 ${escapeHtml(entry.label)}</strong>${keys ? ` <span class="tag-item">${escapeHtml(keys)}</span>` : ''}<br><span class="patch-value">${escapeHtml(entry.preview)}</span>`;
+                loreDiv.appendChild(row);
+            });
+        }
+    }
+}
+
+function renderSchemaErrors(errors) {
+    const schemaDiv = document.getElementById('inspector-schema-errors');
+    const emptyText = document.getElementById('inspector-empty-text');
+    const content = document.getElementById('inspector-content');
+    if (!schemaDiv) {
+        return;
+    }
+
+    if (errors && errors.length > 0) {
+        if (emptyText) {
+            emptyText.classList.add('hidden');
+        }
+        if (content) {
+            content.classList.remove('hidden');
+        }
+        schemaDiv.innerHTML = '';
+        errors.forEach((err) => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            row.style.color = 'var(--text-danger)';
+            row.textContent = String(err);
+            schemaDiv.appendChild(row);
+        });
+    } else {
+        schemaDiv.innerHTML = `<span class="empty-text">${escapeHtml(typeof T === 'function' && T('webview.inspector.noSchemaErrors') ? T('webview.inspector.noSchemaErrors') : 'No schema errors')}</span>`;
+    }
+}
+
+function renderHiddenState(hiddenState) {
+    const hiddenStateDiv = document.getElementById('inspector-hidden-state');
+    if (!hiddenStateDiv) return;
+    
+    if (hiddenState && Object.keys(hiddenState).length > 0) {
+        hiddenStateDiv.textContent = JSON.stringify(hiddenState, null, 2);
+    } else {
+        hiddenStateDiv.innerHTML = `<span class="empty-text">${escapeHtml(typeof T === 'function' && T('webview.inspector.noHiddenState') ? T('webview.inspector.noHiddenState') : 'No hidden state')}</span>`;
+    }
+}
 
 function renderTurnResult(turnResult) {
     const emptyText = document.getElementById('inspector-empty-text');
@@ -2054,7 +2365,26 @@ function renderTurnResult(turnResult) {
     content.classList.remove('hidden');
 
     if (turnIdDiv) {
-        turnIdDiv.textContent = turnResult.turnId || '—';
+        turnIdDiv.innerHTML = '';
+        const idSpan = document.createElement('span');
+        idSpan.textContent = turnResult.turnId || '?';
+        turnIdDiv.appendChild(idSpan);
+
+        if (turnResult.turnId) {
+            const branchBtn = document.createElement('button');
+            branchBtn.className = 'glass-btn';
+            branchBtn.style.marginLeft = '1rem';
+            branchBtn.style.padding = '2px 6px';
+            branchBtn.style.fontSize = '12px';
+            branchBtn.textContent = '⎇ Branch Timeline';
+            branchBtn.title = 'Branch timeline from this turn';
+            branchBtn.onclick = () => {
+                if (confirm('Create a new timeline branch starting from this turn?')) {
+                    vscode.postMessage({ type: 'branchTimeline', turnId: turnResult.turnId });
+                }
+            };
+            turnIdDiv.appendChild(branchBtn);
+        }
     }
 
     if (integrityDiv) {
@@ -2172,6 +2502,744 @@ function escapeHtml(str) {
             "'": '&#039;'
         }[m];
     });
+}
+
+/* --- 81-lorebook.js --- */
+/* global window, document, T, vscode */
+
+let lorebookEntries = [];
+let lorebookWriteFile = 'lorebook.json';
+let lorebookDirty = false;
+let lorebookEditingId = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+    const addBtn = document.getElementById('lorebook-add-btn');
+    const saveBtn = document.getElementById('lorebook-save-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => addLorebookEntry());
+    }
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => saveLorebook());
+    }
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'lorebookList') {
+            lorebookWriteFile = message.writeFile || 'lorebook.json';
+            lorebookEntries = (message.entries || []).map(cloneEntry);
+            lorebookDirty = false;
+            lorebookEditingId = null;
+            updateDirtyBadge();
+            renderLorebookList(message);
+        }
+        if (message.type === 'lorebookSaveResult') {
+            if (message.ok) {
+                lorebookDirty = false;
+                updateDirtyBadge();
+            } else if (message.errors && message.errors.length) {
+                alert(message.errors.join('\n'));
+            }
+        }
+    });
+});
+
+function cloneEntry(entry) {
+    return {
+        id: entry.id,
+        label: entry.label || '',
+        content: entry.content || entry.contentPreview || '',
+        keys: Array.isArray(entry.keys) ? [...entry.keys] : [],
+        secondary_keys: Array.isArray(entry.secondary_keys) ? [...entry.secondary_keys] : [],
+        contentPreview: entry.contentPreview || '',
+        enabled: entry.enabled !== false,
+        use_regex: entry.use_regex === true,
+        priority: entry.priority ?? 0,
+        insertion_order: entry.insertion_order ?? 0,
+        pinned: entry.pinned === true
+    };
+}
+
+function markDirty() {
+    lorebookDirty = true;
+    updateDirtyBadge();
+}
+
+function updateDirtyBadge() {
+    const badge = document.getElementById('lorebook-dirty');
+    if (!badge) {
+        return;
+    }
+    badge.classList.toggle('hidden', !lorebookDirty);
+}
+
+function splitKeys(text) {
+    return String(text || '')
+        .split(/[,;\n]/)
+        .map((k) => k.trim())
+        .filter(Boolean);
+}
+
+function addLorebookEntry() {
+    const id = `entry-${Date.now().toString(36)}`;
+    const entry = {
+        id,
+        label: typeof T === 'function' ? T('webview.lorebook.newEntryLabel') : 'New entry',
+        content: '',
+        keys: [],
+        secondary_keys: [],
+        contentPreview: '',
+        enabled: true,
+        use_regex: false,
+        priority: 100,
+        insertion_order: 100,
+        pinned: false
+    };
+    lorebookEntries.unshift(entry);
+    lorebookEditingId = id;
+    markDirty();
+    renderLorebookList({ entries: lorebookEntries, writeFile: lorebookWriteFile });
+}
+
+function deleteLorebookEntry(id) {
+    const confirmMsg = typeof T === 'function' ? T('webview.lorebook.deleteConfirm') : 'Delete this entry?';
+    if (!window.confirm(confirmMsg)) {
+        return;
+    }
+    lorebookEntries = lorebookEntries.filter((e) => e.id !== id);
+    if (lorebookEditingId === id) {
+        lorebookEditingId = null;
+    }
+    markDirty();
+    renderLorebookList({ entries: lorebookEntries, writeFile: lorebookWriteFile });
+}
+
+function toggleLorebookEntry(id, enabled) {
+    const entry = lorebookEntries.find((e) => e.id === id);
+    if (!entry) {
+        return;
+    }
+    entry.enabled = enabled;
+    markDirty();
+    renderLorebookList({ entries: lorebookEntries, writeFile: lorebookWriteFile });
+}
+
+function setEditingId(id) {
+    lorebookEditingId = lorebookEditingId === id ? null : id;
+    renderLorebookList({ entries: lorebookEntries, writeFile: lorebookWriteFile });
+}
+
+function readFormIntoEntry(id) {
+    const entry = lorebookEntries.find((e) => e.id === id);
+    if (!entry) {
+        return;
+    }
+    const labelEl = document.getElementById(`lore-label-${id}`);
+    const keysEl = document.getElementById(`lore-keys-${id}`);
+    const secEl = document.getElementById(`lore-sec-${id}`);
+    const contentEl = document.getElementById(`lore-content-${id}`);
+    const pinnedEl = document.getElementById(`lore-pinned-${id}`);
+    const regexEl = document.getElementById(`lore-regex-${id}`);
+    const prioEl = document.getElementById(`lore-prio-${id}`);
+    const orderEl = document.getElementById(`lore-order-${id}`);
+
+    if (labelEl) { entry.label = labelEl.value.trim(); }
+    if (keysEl) { entry.keys = splitKeys(keysEl.value); }
+    if (secEl) { entry.secondary_keys = splitKeys(secEl.value); }
+    if (contentEl) {
+        entry.content = contentEl.value;
+        entry.contentPreview = entry.content.slice(0, 200);
+    }
+    if (pinnedEl) { entry.pinned = pinnedEl.checked; }
+    if (regexEl) { entry.use_regex = regexEl.checked; }
+    if (prioEl) { entry.priority = Number(prioEl.value) || 0; }
+    if (orderEl) { entry.insertion_order = Number(orderEl.value) || 0; }
+}
+
+function saveLorebook() {
+    lorebookEntries.forEach((e) => {
+        if (lorebookEditingId === e.id) {
+            readFormIntoEntry(e.id);
+        }
+    });
+    vscode.postMessage({ type: 'saveLorebook', entries: lorebookEntries });
+}
+
+function renderLorebookList(payload) {
+    const list = document.getElementById('lorebook-list');
+    const meta = document.getElementById('lorebook-meta');
+    if (!list) {
+        return;
+    }
+
+    const entries = payload.entries || lorebookEntries;
+    const writeFile = payload.writeFile || lorebookWriteFile;
+
+    if (meta) {
+        const count = entries.length;
+        meta.textContent = typeof T === 'function'
+            ? T('webview.lorebook.editorMeta', { file: writeFile, count: String(count) })
+            : `${writeFile} — ${count} entries (edits save here)`;
+    }
+
+    list.innerHTML = '';
+    if (entries.length === 0) {
+        list.innerHTML = `<div class="empty-text">${escapeHtml(typeof T === 'function' ? T('webview.lorebook.noEntries') : 'No entries')}</div>`;
+        return;
+    }
+
+    const sorted = [...entries].sort((a, b) => (b.insertion_order || 0) - (a.insertion_order || 0));
+    sorted.forEach((entry) => {
+        const isEditing = lorebookEditingId === entry.id;
+        const card = document.createElement('div');
+        card.className = 'lorebook-card inspector-item';
+        card.dataset.entryId = entry.id;
+
+        const status = entry.enabled
+            ? (typeof T === 'function' ? T('webview.lorebook.enabled') : 'enabled')
+            : (typeof T === 'function' ? T('webview.lorebook.disabled') : 'disabled');
+
+        if (isEditing) {
+            card.innerHTML = `
+                <div class="lorebook-form">
+                  <label>${escapeHtml(T('webview.lorebook.fieldLabel'))}</label>
+                  <input id="lore-label-${escapeHtml(entry.id)}" type="text" value="${escapeAttr(entry.label)}" />
+                  <label>${escapeHtml(T('webview.lorebook.fieldKeys'))}</label>
+                  <input id="lore-keys-${escapeHtml(entry.id)}" type="text" value="${escapeAttr((entry.keys || []).join(', '))}" placeholder="keyword1, keyword2" />
+                  <label>${escapeHtml(T('webview.lorebook.fieldSecondary'))}</label>
+                  <input id="lore-sec-${escapeHtml(entry.id)}" type="text" value="${escapeAttr((entry.secondary_keys || []).join(', '))}" />
+                  <label>${escapeHtml(T('webview.lorebook.fieldContent'))}</label>
+                  <textarea id="lore-content-${escapeHtml(entry.id)}" rows="4">${escapeHtml(entry.content || '')}</textarea>
+                  <div class="lorebook-form-row">
+                    <label><input id="lore-pinned-${escapeHtml(entry.id)}" type="checkbox" ${entry.pinned ? 'checked' : ''} /> ${escapeHtml(typeof T === 'function' ? T('webview.lorebook.fieldPinned') : 'Pin to GM')}</label>
+                    <label><input id="lore-regex-${escapeHtml(entry.id)}" type="checkbox" ${entry.use_regex ? 'checked' : ''} /> ${escapeHtml(T('webview.lorebook.fieldRegex'))}</label>
+                    <label>${escapeHtml(T('webview.lorebook.fieldPriority'))} <input id="lore-prio-${escapeHtml(entry.id)}" type="number" value="${entry.priority ?? 0}" style="width:4rem" /></label>
+                    <label>${escapeHtml(T('webview.lorebook.fieldOrder'))} <input id="lore-order-${escapeHtml(entry.id)}" type="number" value="${entry.insertion_order ?? 0}" style="width:4rem" /></label>
+                  </div>
+                  <div class="lorebook-card-actions">
+                    <button type="button" class="small-btn primary lore-done-btn" data-id="${escapeAttr(entry.id)}">${escapeHtml(T('webview.lorebook.done'))}</button>
+                    <button type="button" class="small-btn lore-delete-btn" data-id="${escapeAttr(entry.id)}">${escapeHtml(T('webview.lorebook.delete'))}</button>
+                  </div>
+                </div>
+            `;
+        } else {
+            const keys = (entry.keys || []).join(', ');
+            card.innerHTML = `
+                <div class="lorebook-card-head">
+                  <strong>${escapeHtml(entry.label)}</strong>
+                  <span class="tag-item">${escapeHtml(status)}</span>
+                  ${entry.pinned ? '<span class="tag-item">📌 pin</span>' : ''}
+                  ${entry.use_regex ? '<span class="tag-item">regex</span>' : ''}
+                </div>
+                <div class="patch-value">${keys ? escapeHtml(keys) : '—'}</div>
+                <div class="lorebook-preview">${escapeHtml(entry.contentPreview || entry.content || '')}</div>
+                <div class="lorebook-card-actions">
+                  <button type="button" class="small-btn lore-edit-btn" data-id="${escapeAttr(entry.id)}">${escapeHtml(T('webview.lorebook.edit'))}</button>
+                  <button type="button" class="small-btn lore-toggle-btn" data-id="${escapeAttr(entry.id)}" data-enabled="${entry.enabled ? '0' : '1'}">${escapeHtml(entry.enabled ? (typeof T === 'function' ? T('webview.lorebook.disable') : 'Disable') : (typeof T === 'function' ? T('webview.lorebook.enable') : 'Enable'))}</button>
+                  <button type="button" class="small-btn lore-delete-btn" data-id="${escapeAttr(entry.id)}">${escapeHtml(T('webview.lorebook.delete'))}</button>
+                </div>
+            `;
+        }
+
+        list.appendChild(card);
+    });
+
+    list.querySelectorAll('.lore-edit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => setEditingId(btn.dataset.id));
+    });
+    list.querySelectorAll('.lore-done-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            readFormIntoEntry(btn.dataset.id);
+            markDirty();
+            setEditingId(null);
+        });
+    });
+    list.querySelectorAll('.lore-delete-btn').forEach((btn) => {
+        btn.addEventListener('click', () => deleteLorebookEntry(btn.dataset.id));
+    });
+    list.querySelectorAll('.lore-toggle-btn').forEach((btn) => {
+        btn.addEventListener('click', () => toggleLorebookEntry(btn.dataset.id, btn.dataset.enabled === '1'));
+    });
+    list.querySelectorAll('input, textarea').forEach((el) => {
+        el.addEventListener('input', markDirty);
+        el.addEventListener('change', markDirty);
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function (m) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[m];
+    });
+}
+
+function escapeAttr(str) {
+    return escapeHtml(str).replace(/`/g, '&#096;');
+}
+
+/* --- 82-memory.js --- */
+/* global window, document, T, vscode */
+
+window.addEventListener('DOMContentLoaded', () => {
+    const searchBtn = document.getElementById('memory-search-btn');
+    const rebuildBtn = document.getElementById('memory-rebuild-btn');
+    const backendSel = document.getElementById('memory-backend-select');
+    const hintInput = document.getElementById('memory-hint-input');
+
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+            const hint = hintInput ? hintInput.value.trim() : '';
+            vscode.postMessage({ type: 'searchMemory', hint });
+        });
+    }
+    if (rebuildBtn) {
+        rebuildBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'rebuildMemoryIndex' });
+        });
+    }
+    if (backendSel) {
+        backendSel.addEventListener('change', () => {
+            vscode.postMessage({ type: 'setMemoryBackend', backend: backendSel.value });
+        });
+    }
+    if (hintInput) {
+        hintInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                vscode.postMessage({ type: 'searchMemory', hint: hintInput.value.trim() });
+            }
+        });
+    }
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'memoryStatus') {
+            renderMemoryStatus(message.status);
+        }
+        if (message.type === 'memorySearchResult') {
+            renderMemorySearch(message);
+        }
+    });
+});
+
+function renderMemoryStatus(status) {
+    const meta = document.getElementById('memory-status-meta');
+    const backendSel = document.getElementById('memory-backend-select');
+    if (!status) {
+        return;
+    }
+    if (backendSel && status.backend) {
+        backendSel.value = status.backend;
+    }
+    if (meta) {
+        const updated = status.indexUpdated
+            ? new Date(status.indexUpdated).toLocaleString()
+            : (typeof T === 'function' ? T('webview.memory.noIndex') : 'no index');
+        meta.textContent = typeof T === 'function'
+            ? T('webview.memory.statusMeta', {
+                count: String(status.chunkCount ?? 0),
+                backend: status.backend || 'auto',
+                updated
+            })
+            : `${status.chunkCount} chunks · ${status.backend} · ${updated}`;
+    }
+}
+
+function renderMemorySearch(payload) {
+    const list = document.getElementById('memory-search-results');
+    const budget = document.getElementById('memory-token-budget');
+    if (!list) {
+        return;
+    }
+    const matches = payload.matches || [];
+    const totalTokens = matches.reduce((sum, m) => sum + (m.tokenEstimate || 0), 0);
+
+    if (budget) {
+        budget.textContent = typeof T === 'function'
+            ? T('webview.memory.tokenBudget', { tokens: String(totalTokens), count: String(matches.length) })
+            : `~${totalTokens} tokens (${matches.length} matches)`;
+    }
+
+    list.innerHTML = '';
+    if (matches.length === 0) {
+        list.innerHTML = `<div class="empty-text">${escapeHtml(typeof T === 'function' ? T('webview.memory.noMatches') : 'No matches')}</div>`;
+        return;
+    }
+
+    matches.forEach((m) => {
+        const row = document.createElement('div');
+        row.className = 'inspector-item';
+        const score = m.score !== undefined ? `score ${m.score}` : '';
+        row.innerHTML = `
+            <strong>${escapeHtml(m.label)}</strong>
+            <span class="tag-item">${escapeHtml(m.source)}</span>
+            ${score ? `<span class="tag-item">${escapeHtml(score)}</span>` : ''}
+            <span class="tag-item">~${m.tokenEstimate || 0} tok</span>
+            <div class="lorebook-preview">${escapeHtml(m.preview || '')}</div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function (m) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[m];
+    });
+}
+
+/* --- 83-director.js --- */
+/* global window, document, T */
+
+window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'scenarioDirector') {
+            renderScenarioDirector(message.director);
+        }
+    });
+});
+
+function renderScenarioDirector(director) {
+    const empty = document.getElementById('director-empty');
+    const content = document.getElementById('director-content');
+    const liveBadge = document.getElementById('director-live-badge');
+    if (!content) {
+        return;
+    }
+
+    if (!director) {
+        if (empty) { empty.classList.remove('hidden'); }
+        content.classList.add('hidden');
+        return;
+    }
+
+    if (empty) { empty.classList.add('hidden'); }
+    content.classList.remove('hidden');
+
+    if (liveBadge) {
+        liveBadge.classList.toggle('hidden', !director.hasRuntimeOverrides);
+    }
+
+    setText('director-title', director.scenarioTitle || '—');
+    const actLive = [director.act, director.chapter].filter(Boolean).join(' / ');
+    const actTemplate = director.templateSnapshot
+        ? [director.templateSnapshot.act, director.templateSnapshot.chapter].filter(Boolean).join(' / ')
+        : undefined;
+    setFieldWithTemplate('director-act', actLive, actTemplate);
+    setFieldWithTemplate('director-scene', director.scene, director.templateSnapshot?.scene);
+    setFieldWithTemplate('director-objective', director.objective, director.templateSnapshot?.objective);
+    setFieldWithTemplate('director-guidance', director.guidanceMode, director.templateSnapshot?.guidanceMode);
+
+    renderList('director-success', director.successConditions);
+    renderList('director-fail', director.failConditions);
+    renderEndingFlags('director-endings', director.endingFlags, director.achievedEndings || []);
+    renderList('director-achieved', director.achievedEndings);
+    renderList('director-encounters', director.optionalEncounters);
+}
+
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.textContent = value || '—';
+    }
+}
+
+function setFieldWithTemplate(id, live, template) {
+    const el = document.getElementById(id);
+    if (!el) {
+        return;
+    }
+    const text = live || '—';
+    const changed = template !== undefined && live !== undefined && live !== template;
+    if (changed && template) {
+        el.innerHTML = `${escapeHtml(text)} <span class="tag-item">${escapeHtml(typeof T === 'function' ? T('webview.director.was') : 'was')}: ${escapeHtml(template)}</span>`;
+    } else {
+        el.textContent = text;
+    }
+}
+
+function renderList(id, items) {
+    const el = document.getElementById(id);
+    if (!el) {
+        return;
+    }
+    el.innerHTML = '';
+    if (!items || items.length === 0) {
+        el.innerHTML = `<span class="empty-text">—</span>`;
+        return;
+    }
+    items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'inspector-item';
+        row.textContent = item;
+        el.appendChild(row);
+    });
+}
+
+function renderEndingFlags(id, allFlags, achieved) {
+    const el = document.getElementById(id);
+    if (!el) {
+        return;
+    }
+    el.innerHTML = '';
+    if (!allFlags || allFlags.length === 0) {
+        el.innerHTML = `<span class="empty-text">—</span>`;
+        return;
+    }
+    const achievedSet = new Set(achieved || []);
+    allFlags.forEach((flag) => {
+        const row = document.createElement('div');
+        row.className = 'inspector-item';
+        const done = achievedSet.has(flag);
+        row.innerHTML = done
+            ? `✅ ${escapeHtml(flag)}`
+            : `○ ${escapeHtml(flag)}`;
+        if (done) {
+            row.style.color = 'var(--text-success)';
+        }
+        el.appendChild(row);
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function (m) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[m];
+    });
+}
+
+/* --- 84-party.js --- */
+/* global window, document, T, vscode */
+
+let partyDirectorDraft = null;
+let partyMemberNames = {};
+
+window.addEventListener('DOMContentLoaded', () => {
+    const saveBtn = document.getElementById('party-save-btn');
+    const banterCb = document.getElementById('party-banter-cb');
+    const quietCb = document.getElementById('party-quiet-cb');
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            if (!partyDirectorDraft) {
+                return;
+            }
+            vscode.postMessage({ type: 'savePartyDirector', director: partyDirectorDraft });
+        });
+    }
+    if (banterCb) {
+        banterCb.addEventListener('change', () => {
+            if (partyDirectorDraft) {
+                partyDirectorDraft.global.npcBanterEnabled = banterCb.checked;
+                markPartyDirty(true);
+            }
+        });
+    }
+    if (quietCb) {
+        quietCb.addEventListener('change', () => {
+            if (partyDirectorDraft) {
+                partyDirectorDraft.global.combatQuietMode = quietCb.checked;
+                markPartyDirty(true);
+            }
+        });
+    }
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'partyDirector') {
+            renderPartyDirector(message.director);
+        }
+        if (message.type === 'characterList') {
+            const chars = message.characters || [];
+            partyMemberNames = {};
+            chars.forEach((c) => {
+                if (c && c.id) {
+                    partyMemberNames[c.id] = c.name || c.id;
+                }
+            });
+            if (partyDirectorDraft) {
+                renderPartyMembers(partyDirectorDraft);
+            }
+        }
+        if (message.type === 'partyDirectorSaved') {
+            markPartyDirty(false);
+        }
+    });
+});
+
+function renderPartyDirector(director) {
+    const empty = document.getElementById('party-empty');
+    const content = document.getElementById('party-content');
+    const liveBadge = document.getElementById('party-live-badge');
+    if (!content) {
+        return;
+    }
+
+    if (!director || Object.keys(director.members || {}).length === 0) {
+        partyDirectorDraft = null;
+        if (empty) { empty.classList.remove('hidden'); }
+        content.classList.add('hidden');
+        return;
+    }
+
+    partyDirectorDraft = {
+        format: 'lorerelay-party-director/1.0',
+        global: {
+            npcBanterEnabled: director.global.npcBanterEnabled !== false,
+            combatQuietMode: director.global.combatQuietMode === true
+        },
+        members: {}
+    };
+    for (const [id, m] of Object.entries(director.members)) {
+        partyDirectorDraft.members[id] = {
+            verbosity: m.verbosity ?? 50,
+            muted: !!m.muted,
+            forceSpeak: !!m.forceSpeak,
+            relationships: { ...(m.relationships || {}) }
+        };
+    }
+
+    if (empty) { empty.classList.add('hidden'); }
+    content.classList.remove('hidden');
+    if (liveBadge) {
+        liveBadge.classList.toggle('hidden', !director.hasRuntimeOverrides);
+    }
+
+    const banterCb = document.getElementById('party-banter-cb');
+    const quietCb = document.getElementById('party-quiet-cb');
+    if (banterCb) { banterCb.checked = partyDirectorDraft.global.npcBanterEnabled; }
+    if (quietCb) { quietCb.checked = partyDirectorDraft.global.combatQuietMode; }
+
+    renderPartyMembers(director);
+    markPartyDirty(false);
+}
+
+function renderPartyMembers(director) {
+    const container = document.getElementById('party-members-list');
+    if (!container || !partyDirectorDraft) {
+        return;
+    }
+    container.innerHTML = '';
+    const memberIds = Object.keys(director.members || {});
+    const relOptions = ['neutral', 'ally', 'friend', 'rival', 'enemy', 'romance'];
+
+    memberIds.forEach((id) => {
+        const cfg = partyDirectorDraft.members[id];
+        const card = document.createElement('div');
+        card.className = 'party-member-card';
+
+        const title = document.createElement('h5');
+        title.textContent = partyMemberNames[id] ? `${partyMemberNames[id]} (${id})` : id;
+        card.appendChild(title);
+
+        const verbRow = document.createElement('div');
+        verbRow.className = 'party-control-row';
+        const verbLabel = document.createElement('label');
+        verbLabel.textContent = typeof T === 'function' ? T('webview.party.verbosity') : 'Verbosity';
+        const verbSlider = document.createElement('input');
+        verbSlider.type = 'range';
+        verbSlider.min = '0';
+        verbSlider.max = '100';
+        verbSlider.value = String(cfg.verbosity);
+        const verbVal = document.createElement('span');
+        verbVal.className = 'party-verb-val';
+        verbVal.textContent = String(cfg.verbosity);
+        verbSlider.addEventListener('input', () => {
+            cfg.verbosity = Number(verbSlider.value);
+            verbVal.textContent = verbSlider.value;
+            markPartyDirty(true);
+        });
+        verbRow.appendChild(verbLabel);
+        verbRow.appendChild(verbSlider);
+        verbRow.appendChild(verbVal);
+        card.appendChild(verbRow);
+
+        const flagsRow = document.createElement('div');
+        flagsRow.className = 'party-flags-row';
+        flagsRow.appendChild(makePartyCheckbox(
+            typeof T === 'function' ? T('webview.party.muted') : 'Muted',
+            cfg.muted,
+            (v) => { cfg.muted = v; markPartyDirty(true); }
+        ));
+        flagsRow.appendChild(makePartyCheckbox(
+            typeof T === 'function' ? T('webview.party.forceSpeak') : 'Force speak',
+            cfg.forceSpeak,
+            (v) => { cfg.forceSpeak = v; markPartyDirty(true); }
+        ));
+        card.appendChild(flagsRow);
+
+        const others = memberIds.filter((oid) => oid !== id);
+        if (others.length > 0) {
+            const relTitle = document.createElement('div');
+            relTitle.className = 'party-rel-title';
+            relTitle.textContent = typeof T === 'function' ? T('webview.party.relationships') : 'Relationships';
+            card.appendChild(relTitle);
+            others.forEach((otherId) => {
+                const row = document.createElement('div');
+                row.className = 'party-rel-row';
+                const label = document.createElement('span');
+                label.textContent = partyMemberNames[otherId] || otherId;
+                const sel = document.createElement('select');
+                relOptions.forEach((opt) => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    sel.appendChild(o);
+                });
+                sel.value = cfg.relationships[otherId] || 'neutral';
+                sel.addEventListener('change', () => {
+                    if (sel.value === 'neutral') {
+                        delete cfg.relationships[otherId];
+                    } else {
+                        cfg.relationships[otherId] = sel.value;
+                    }
+                    markPartyDirty(true);
+                });
+                row.appendChild(label);
+                row.appendChild(sel);
+                card.appendChild(row);
+            });
+        }
+
+        container.appendChild(card);
+    });
+}
+
+function makePartyCheckbox(labelText, checked, onChange) {
+    const wrap = document.createElement('label');
+    wrap.className = 'party-flag-label';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    cb.addEventListener('change', () => onChange(cb.checked));
+    wrap.appendChild(cb);
+    wrap.appendChild(document.createTextNode(' ' + labelText));
+    return wrap;
+}
+
+function markPartyDirty(dirty) {
+    const badge = document.getElementById('party-dirty-badge');
+    if (badge) {
+        badge.classList.toggle('hidden', !dirty);
+    }
 }
 
 /* --- 90-bootstrap.js --- */
@@ -2312,6 +3380,20 @@ window.addEventListener('message', (event) => {
     showGmLoading();
   } else if (msg.type === 'gmEnd' || msg.type === 'grokEnd') {
     hideGmLoading(msg.success);
+  } else if (msg.type === 'oocMessage') {
+    const oocLog = document.getElementById('ooc-log');
+    if (oocLog) {
+      const emptyEl = oocLog.querySelector('.empty-text');
+      if (emptyEl) emptyEl.style.display = 'none';
+      const div = document.createElement('div');
+      div.className = 'ooc-entry';
+      div.style.marginBottom = '8px';
+      div.style.paddingBottom = '8px';
+      div.style.borderBottom = '1px solid var(--vscode-panel-border)';
+      div.textContent = msg.text;
+      oocLog.appendChild(div);
+      oocLog.scrollTop = oocLog.scrollHeight;
+    }
   } else if (msg.type === 'characterList') {
     updateCharacterList(msg.characters, msg.activeCharacterId, msg.partyIds);
   } else if (msg.type === 'summaryUpdated') {
@@ -2386,4 +3468,51 @@ window.addEventListener('message', (event) => {
       addSystemMessage(T('webview.welcome'));
     }
   }
+});
+
+// ===== Resizer =====
+window.addEventListener('DOMContentLoaded', () => {
+  const resizer = document.getElementById('resizer');
+  const statusArea = document.getElementById('status-area');
+  if (!resizer || !statusArea) return;
+
+  const savedWidth = localStorage.getItem('lorerelay.statusWidth');
+  if (savedWidth) {
+    statusArea.style.setProperty('--status-width', `${savedWidth}px`);
+  }
+
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  resizer.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = statusArea.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const diff = startX - e.clientX;
+    let newWidth = startWidth + diff;
+    if (newWidth < 60) newWidth = 60;
+    if (newWidth > 800) newWidth = 800;
+
+    statusArea.style.setProperty('--status-width', `${newWidth}px`);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      
+      const finalWidth = statusArea.getBoundingClientRect().width;
+      localStorage.setItem('lorerelay.statusWidth', finalWidth);
+    }
+  });
 });

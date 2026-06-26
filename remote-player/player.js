@@ -6,6 +6,11 @@
   if (token) {
     localStorage.setItem('lr_token', token);
   }
+  const roleParam = params.get('role');
+  if (roleParam === 'spectator' || roleParam === 'player') {
+    localStorage.setItem('lr_role', roleParam);
+  }
+  let clientRole = localStorage.getItem('lr_role') || 'player';
 
   const chatLog = document.getElementById('chat-log');
   const statusPanel = document.getElementById('status-panel');
@@ -21,6 +26,7 @@
   let ws = null;
   let gmBusy = false;
   let gameOver = false;
+  let isSpectator = clientRole === 'spectator';
   let reconnectTimer = null;
   let pingTimer = null;
   const seenIds = new Set();
@@ -37,11 +43,15 @@
   }
 
   function setInputLocked(locked) {
-    const disabled = locked || gmBusy || gameOver;
+    const disabled = locked || gmBusy || gameOver || isSpectator;
     playerInput.disabled = disabled;
     sendBtn.disabled = disabled;
     busyBanner.classList.toggle('hidden', !gmBusy || gameOver);
     document.querySelectorAll('.opt-btn').forEach((b) => { b.disabled = disabled; });
+    const inputPanel = document.getElementById('input-panel');
+    if (inputPanel) {
+      inputPanel.classList.toggle('spectator-mode', isSpectator);
+    }
   }
 
   function escapeHtml(text) {
@@ -159,7 +169,7 @@
     ws = new WebSocket(wsUrl());
     ws.onopen = () => {
       setConnected(true);
-      sendWs({ type: 'auth', token });
+      sendWs({ type: 'auth', token, role: clientRole });
       if (pingTimer) { clearInterval(pingTimer); }
       pingTimer = setInterval(() => sendWs({ type: 'ping' }), 25000);
     };
@@ -175,6 +185,12 @@
       try { msg = JSON.parse(ev.data); } catch { return; }
       switch (msg.type) {
         case 'welcome':
+          if (msg.role === 'spectator' || msg.role === 'player') {
+            clientRole = msg.role;
+            isSpectator = clientRole === 'spectator';
+            localStorage.setItem('lr_role', clientRole);
+          }
+          updateRoleBadge();
           setInputLocked(false);
           break;
         case 'state':
@@ -210,6 +226,23 @@
     };
   }
 
+  function updateRoleBadge() {
+    let badge = document.getElementById('role-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'role-badge';
+      const topBar = document.getElementById('top-bar');
+      if (topBar) {
+        topBar.appendChild(badge);
+      }
+    }
+    badge.textContent = isSpectator ? '👁 Spectator' : '🎮 Player';
+    badge.className = isSpectator ? 'role-badge spectator' : 'role-badge player';
+    if (isSpectator && playerInput) {
+      playerInput.placeholder = 'Spectator mode — read only';
+    }
+  }
+
   function addSystem(text) {
     const p = document.createElement('p');
     p.className = 'system-msg';
@@ -225,5 +258,6 @@
     sendAction('freeInput', text);
   });
 
+  updateRoleBadge();
   connect();
 })();

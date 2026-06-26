@@ -2,10 +2,11 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import type { GameEntry, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
+import type { GameEntry, GameState, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
 import { isValidEntryId } from './entryId';
 import { validateGameState } from './validateGameState';
-import { writeJsonAtomic } from './workspacePaths';
+import { migrateGameState, CURRENT_SCHEMA_VERSION } from './migrateGameState';
+import { getActiveWorkspaceFolder, writeJsonAtomic } from './workspacePaths';
 
 export interface GameStateSyncDeps {
     getPanel(): vscode.WebviewPanel | undefined;
@@ -23,10 +24,13 @@ let deps: GameStateSyncDeps | undefined;
 let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
+let lastGoodGameState: Record<string, unknown> | undefined;
 import { processTurnResult } from './statePatch';
 import { markTurnResultHandled } from './turnResultFallback';
 import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
 import { pushGameStateToRemoteClients } from './remotePlayServer';
+import { pushScenarioDirectorToWebview } from './scenarioDirector';
+import { pushPartyDirectorToWebview } from './partyDirector';
 import { isAllowedImagePath } from './mediaPaths';
 import type { TurnResult } from './types/TurnResult';
 
@@ -179,33 +183,71 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
     try {
         if (fs.existsSync(statePath)) {
             const raw = fs.readFileSync(statePath, 'utf-8');
-            const state = JSON.parse(raw);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            let state = JSON.parse(raw);
+
+            // Auto-migrate legacy game_state.json (v1: no schemaVersion field)
+            const { state: migratedState, migrated, fromVersion } = migrateGameState(state);
+            if (migrated) {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                state = migratedState;
+                try {
+                    writeJsonAtomic(statePath, state);
+                    console.log(
+                        `[LoreRelay] game_state.json auto-migrated v${fromVersion} → v${CURRENT_SCHEMA_VERSION}`
+                    );
+                } catch (e) {
+                    console.error('[LoreRelay] Failed to save migrated game_state.json:', e);
+                }
+            }
 
             const schemaErrors = validateGameState(state);
+            let activeState = state as Record<string, unknown>;
+            let hadSchemaErrors = false;
+
             if (schemaErrors.length > 0) {
+                hadSchemaErrors = true;
                 const summary = schemaErrors.join('; ');
-                const logLine = `[Text Adventure] game_state.json schema violation: ${summary}`;
+                const logLine = `[LoreRelay] game_state.json schema violation: ${summary}`;
                 console.warn(logLine);
                 d.appendGmBridgeLog(logLine);
+                try {
+                    const invalidPath = path.join(path.dirname(statePath), 'game_state.invalid.latest.json');
+                    writeJsonAtomic(invalidPath, state);
+                } catch (e) {
+                    console.error('Failed to save game_state.invalid.latest.json:', e);
+                }
                 if (!schemaWarningShown) {
                     schemaWarningShown = true;
                     vscode.window.showWarningMessage(
-                        'Text Adventure: game_state.json has schema errors — check "Text Adventure: GM Bridge" output for details.'
+                        'LoreRelay: game_state.json has schema errors — showing last good state. Check "LoreRelay: GM Bridge" output for details.'
                     );
                 }
-                return;
+                if (lastGoodGameState) {
+                    activeState = lastGoodGameState;
+                } else {
+                    panel.webview.postMessage({ type: 'gameStateUpdate', schemaErrors });
+                    return;
+                }
             } else {
                 schemaWarningShown = false;
+                lastGoodGameState = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+                try {
+                    const goodPath = path.join(path.dirname(statePath), 'last_good_game_state.json');
+                    writeJsonAtomic(goodPath, state);
+                } catch (e) {
+                    console.error('Failed to save last_good_game_state.json:', e);
+                }
             }
 
-            if (Array.isArray(state.profileUpdates) && state.profileUpdates.length > 0) {
+            if (!hadSchemaErrors && Array.isArray(state.profileUpdates) && state.profileUpdates.length > 0) {
                 d.processProfileUpdates(state.profileUpdates as ProfileUpdate[]);
                 delete state.profileUpdates;
                 writeJsonAtomic(statePath, state);
             }
 
             let historyUpdated = false;
-            if (state.entries && Array.isArray(state.entries)) {
+            if (!hadSchemaErrors && state.entries && Array.isArray(state.entries)) {
                 state.entries.forEach((rawEntry: unknown) => {
                     if (!isValidGameEntry(rawEntry)) {
                         return;
@@ -273,8 +315,8 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                 d.maybeSuggestArchive();
             }
 
-            const currentEntries: GameEntry[] = Array.isArray(state.entries)
-                ? state.entries.filter(isValidGameEntry)
+            const currentEntries: GameEntry[] = Array.isArray(activeState.entries)
+                ? (activeState.entries as unknown[]).filter(isValidGameEntry)
                 : [];
             const sourceEntries: GameEntry[] = fullHistory ? gameEntryHistory : currentEntries;
             const entriesToSend = sourceEntries.map((entry: GameEntry) => {
@@ -291,13 +333,13 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                 return e;
             });
 
-            const latestImage = state.latestImage ? safeImageUri(state.latestImage) : undefined;
-            const background = state.background ? safeImageUri(state.background) : undefined;
-            const sprite = resolveSpriteForWebview(state.sprite);
+            const latestImage = activeState.latestImage ? safeImageUri(String(activeState.latestImage)) : undefined;
+            const background = activeState.background ? safeImageUri(String(activeState.background)) : undefined;
+            const sprite = resolveSpriteForWebview(activeState.sprite as SceneSprite | string | undefined);
 
             const hiddenDice: HiddenDiceEntry[] | undefined =
-                Array.isArray(state.hiddenDice)
-                    ? (state.hiddenDice as Array<Record<string, unknown>>).map(
+                Array.isArray(activeState.hiddenDice)
+                    ? (activeState.hiddenDice as Array<Record<string, unknown>>).map(
                         (dice, idx) => ({
                             id: String(dice.id || `hd-${idx}-${dice.notation ?? ''}-${dice.purpose || ''}`),
                             notation: String(dice.notation ?? ''),
@@ -306,24 +348,25 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                     )
                     : undefined;
 
-            const stateForWebview = { ...state, entries: entriesToSend, latestImage, background, sprite, hiddenDice };
+            const stateForWebview = { ...activeState, entries: entriesToSend, latestImage, background, sprite, hiddenDice };
             panel.webview.postMessage({
                 type: 'gameStateUpdate',
                 fullHistory,
-                state: stateForWebview
+                state: stateForWebview,
+                ...(hadSchemaErrors ? { schemaErrors } : {})
             });
 
             if (fullHistory) {
                 knownStateEntryIds.clear();
-                if (Array.isArray(state.entries)) {
-                    for (const raw of state.entries) {
+                if (Array.isArray(activeState.entries)) {
+                    for (const raw of activeState.entries) {
                         if (isValidGameEntry(raw)) {
                             knownStateEntryIds.add(raw.id);
                         }
                     }
                 }
-            } else {
-                handleGameStateMedia(state, (entry) => {
+            } else if (!hadSchemaErrors) {
+                handleGameStateMedia(state as GameState, (entry) => {
                     if (!entry.id || knownStateEntryIds.has(entry.id)) {
                         return false;
                     }
@@ -332,7 +375,9 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                 });
             }
 
-            pushGameStateToRemoteClients(state, gameEntryHistory);
+            pushGameStateToRemoteClients(activeState as unknown as GameState, gameEntryHistory);
+            pushScenarioDirectorToWebview();
+            pushPartyDirectorToWebview();
         }
     } catch (e) {
         console.error(`Error reading game state (attempt ${retryCount + 1}):`, e);
@@ -351,7 +396,14 @@ export function startGameStateWatcher(): void {
         fileWatcher.dispose();
     }
 
-    fileWatcher = vscode.workspace.createFileSystemWatcher('**/game_state.json');
+    const folder = getActiveWorkspaceFolder();
+    if (!folder) {
+        return;
+    }
+
+    fileWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(folder, 'game_state.json')
+    );
 
     const handleChange = () => {
         if (debounceTimer) {
@@ -368,7 +420,9 @@ export function startGameStateWatcher(): void {
     if (turnResultWatcher) {
         turnResultWatcher.dispose();
     }
-    turnResultWatcher = vscode.workspace.createFileSystemWatcher('**/turn_result.json');
+    turnResultWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(folder, 'turn_result.json')
+    );
     const handleTurnResult = (uri: vscode.Uri) => {
         const readAndProcess = (retryCount = 0) => {
             try {

@@ -15,6 +15,10 @@ const JS_MODULE_ORDER = [
     '60-tts-quickreply-imagegen.js',
     '70-game-rules.js',
     '80-inspector.js',
+    '81-lorebook.js',
+    '82-memory.js',
+    '83-director.js',
+    '84-party.js',
     '90-bootstrap.js'
 ];
 

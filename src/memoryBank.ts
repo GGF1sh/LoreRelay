@@ -1,6 +1,6 @@
 /**
- * 軽量 Memory Bank（TF-IDF）— Grok プロンプト用。
- * Python 側 memory_common.py と同じアルゴリズム。ChromaDB 不要。
+ * 軽量 Memory Bank（TF-IDF）— GM プロンプト用。
+ * 日本語 RAG 強化: 文字種別トークナイザ（カタカナ語 / 漢字 n-gram / ひらがな）+ IDF 重み付け。
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -13,66 +13,149 @@ export interface MemoryChunk {
     text: string;
 }
 
-/** 英単語 + 日本語・中国語の2文字バイグラムでトークン化 */
+// ── ひらがなストップワード ──────────────────────────────────────
+// 助詞・助動詞・接続詞など、意味を持たない単体・2文字ひらがなを除外
+const HIRAGANA_STOPS = new Set([
+    // 一字助詞
+    'は', 'が', 'を', 'に', 'へ', 'で', 'も', 'と', 'の', 'や', 'か', 'な',
+    'て', 'ば', 'し', 'ね', 'よ', 'わ', 'ぞ', 'ぜ', 'さ', 'た', 'だ',
+    'い', 'う', 'え', 'お', 'あ', 'ら', 'り', 'れ', 'ろ', 'ん',
+    // 2〜4字の助詞・助動詞・高頻度語
+    'から', 'まで', 'より', 'など', 'けど', 'ので', 'のに', 'ても',
+    'には', 'では', 'でも', 'とも', 'への', 'ます', 'です',
+    'した', 'する', 'いる', 'ある', 'ない', 'いた', 'あった',
+    'こと', 'もの', 'とき', 'ため', 'ところ',
+    'この', 'その', 'あの', 'どの', 'これ', 'それ', 'あれ',
+    'ここ', 'そこ', 'あそこ',
+]);
+
+/**
+ * 日本語 RAG 強化トークナイザ（外部依存なし）。
+ *
+ * 戦略:
+ *  - 英数字: 単語そのまま（小文字化）
+ *  - カタカナ連続: 全体を1トークン（固有名詞・外来語） + バイグラム（部分一致用）
+ *  - 漢字連続: バイグラム + トライグラム（複合語対応）
+ *  - ひらがな連続: ストップワード除外後、2〜4文字は全体トークン + バイグラム
+ */
 function tokenize(text: string): string[] {
     const lower = (text || '').toLowerCase();
     const tokens: string[] = [];
-    const words = lower.match(/[a-z0-9]+/g);
-    if (words) {
-        tokens.push(...words);
+
+    // 1. ASCII / 半角英数
+    const latin = lower.match(/[a-z0-9]+/g);
+    if (latin) { tokens.push(...latin); }
+
+    // 2. カタカナ（ー含む）— 外来語・固有名詞
+    //    「アリス」→ token["アリス", "アリ", "リス"]
+    const kataSeqs = lower.match(/[゠-ヿ]+/g);
+    if (kataSeqs) {
+        for (const seq of kataSeqs) {
+            tokens.push(seq); // 全体（アリス, ドラゴン等）
+            for (let i = 0; i < seq.length - 1; i++) {
+                tokens.push(seq.slice(i, i + 2));
+            }
+        }
     }
-    const cjkSeqs = lower.match(/[\u3000-\u9fff\uff00-\uffef]+/g);
-    if (cjkSeqs) {
-        for (const seq of cjkSeqs) {
+
+    // 3. 漢字（CJK統合漢字 + 拡張A）— バイグラム + トライグラム
+    //    「竜の洞窟」→ 漢字ブロック「竜」「洞窟」を個別処理
+    const kanjiSeqs = lower.match(/[一-鿿㐀-䶿]+/g);
+    if (kanjiSeqs) {
+        for (const seq of kanjiSeqs) {
             if (seq.length === 1) {
                 tokens.push(seq);
             } else {
+                // バイグラム
                 for (let i = 0; i < seq.length - 1; i++) {
                     tokens.push(seq.slice(i, i + 2));
+                }
+                // トライグラム（3文字以上の複合語カバー）
+                for (let i = 0; i < seq.length - 2; i++) {
+                    tokens.push(seq.slice(i, i + 3));
                 }
             }
         }
     }
+
+    // 4. ひらがな — ストップワード除外、内容語のみ
+    //    「かがやく」→ ["かがやく", "かが", "がや", "やく"]
+    const hiraSeqs = lower.match(/[ぁ-ゖ゛-ゞ]+/g);
+    if (hiraSeqs) {
+        for (const seq of hiraSeqs) {
+            if (HIRAGANA_STOPS.has(seq)) { continue; }
+            if (seq.length < 2) { continue; }
+            // 短い内容語（2〜4文字）は全体もトークン化
+            if (seq.length <= 4) { tokens.push(seq); }
+            // バイグラム
+            for (let i = 0; i < seq.length - 1; i++) {
+                const bi = seq.slice(i, i + 2);
+                if (!HIRAGANA_STOPS.has(bi)) { tokens.push(bi); }
+            }
+        }
+    }
+
     return tokens;
 }
 
+// ── TF / TF-IDF ───────────────────────────────────────────────
+
 function tf(tokens: string[]): Map<string, number> {
     const out = new Map<string, number>();
-    if (tokens.length === 0) {
-        return out;
-    }
-    for (const t of tokens) {
-        out.set(t, (out.get(t) || 0) + 1);
-    }
-    for (const [k, v] of out) {
-        out.set(k, v / tokens.length);
-    }
+    if (tokens.length === 0) { return out; }
+    for (const t of tokens) { out.set(t, (out.get(t) || 0) + 1); }
+    for (const [k, v] of out) { out.set(k, v / tokens.length); }
     return out;
 }
 
+/**
+ * コーパス全体から IDF を計算する。
+ * 平滑化: log((N + 1) / (df + 1)) + 1  ← sklearn デフォルトと同等
+ */
+function buildIdf(chunks: MemoryChunk[]): Map<string, number> {
+    const N = chunks.length;
+    if (N === 0) { return new Map(); }
+    const df = new Map<string, number>();
+    for (const chunk of chunks) {
+        for (const term of new Set(tokenize(chunk.text))) {
+            df.set(term, (df.get(term) || 0) + 1);
+        }
+    }
+    const idf = new Map<string, number>();
+    for (const [term, docFreq] of df) {
+        idf.set(term, Math.log((N + 1) / (docFreq + 1)) + 1);
+    }
+    return idf;
+}
+
+function tfidfVec(tokens: string[], idf: Map<string, number>): Map<string, number> {
+    const tfMap = tf(tokens);
+    const result = new Map<string, number>();
+    for (const [term, tfVal] of tfMap) {
+        // コーパスに出現しなかった語（クエリ固有）は小さめの IDF を与える
+        const idfVal = idf.get(term) ?? Math.log(2) + 1;
+        result.set(term, tfVal * idfVal);
+    }
+    return result;
+}
+
 function cosine(a: Map<string, number>, b: Map<string, number>): number {
-    if (a.size === 0 || b.size === 0) {
-        return 0;
-    }
+    if (a.size === 0 || b.size === 0) { return 0; }
     let dot = 0;
-    const keys = new Set([...a.keys(), ...b.keys()]);
-    for (const k of keys) {
-        dot += (a.get(k) || 0) * (b.get(k) || 0);
+    for (const [k, av] of a) {
+        const bv = b.get(k);
+        if (bv) { dot += av * bv; }
     }
-    let na = 0;
-    let nb = 0;
-    for (const v of a.values()) { na += v * v; }
-    for (const v of b.values()) { nb += v * v; }
-    if (na === 0 || nb === 0) {
-        return 0;
-    }
+    let na = 0; for (const v of a.values()) { na += v * v; }
+    let nb = 0; for (const v of b.values()) { nb += v * v; }
+    if (na === 0 || nb === 0) { return 0; }
     return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
+// ── ファイル読み込みユーティリティ ────────────────────────────
+
 function readJsonFile<T>(filePath: string): T | undefined {
-    if (!fs.existsSync(filePath)) {
-        return undefined;
-    }
+    if (!fs.existsSync(filePath)) { return undefined; }
     try {
         return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
     } catch {
@@ -84,20 +167,18 @@ function readJsonFile<T>(filePath: string): T | undefined {
 function listSagaChapters(ws: string): Array<{ id?: string; title?: string; content?: string }> {
     const indexPath = path.join(ws, 'sagas', 'index.json');
     const index = readJsonFile<{ chapters?: string[] }>(indexPath);
-    if (!index?.chapters?.length) {
-        return [];
-    }
+    if (!index?.chapters?.length) { return []; }
     const out: Array<{ id?: string; title?: string; content?: string }> = [];
     for (const cid of index.chapters) {
         const ch = readJsonFile<{ id?: string; title?: string; content?: string }>(
             path.join(ws, 'sagas', `${cid}.json`)
         );
-        if (ch?.content) {
-            out.push(ch);
-        }
+        if (ch?.content) { out.push(ch); }
     }
     return out;
 }
+
+// ── 公開 API ──────────────────────────────────────────────────
 
 /** memories/index.json があればそれを使い、なければ各ソースから都度収集 */
 export function loadMemoryChunks(ws: string): MemoryChunk[] {
@@ -120,17 +201,11 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
 
     for (const name of ['lorebook.json', 'world_info.json']) {
         const raw = readJsonFile<{ entries?: Array<Record<string, unknown>> }>(path.join(ws, name));
-        if (!Array.isArray(raw?.entries)) {
-            continue;
-        }
+        if (!Array.isArray(raw?.entries)) { continue; }
         for (const e of raw.entries) {
-            if (e.enabled === false) {
-                continue;
-            }
+            if (e.enabled === false) { continue; }
             const content = String(e.content || '').trim();
-            if (!content) {
-                continue;
-            }
+            if (!content) { continue; }
             chunks.push({
                 id: `lore:${e.id || e.comment || 'entry'}`,
                 source: 'lorebook',
@@ -158,13 +233,9 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'));
     if (Array.isArray(hist)) {
         for (const entry of hist.slice(-30)) {
-            if (entry.excludedFromPrompt === true) {
-                continue;
-            }
+            if (entry.excludedFromPrompt === true) { continue; }
             const content = String(entry.content || '').trim();
-            if (content.length < 40) {
-                continue;
-            }
+            if (content.length < 40) { continue; }
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
@@ -177,26 +248,31 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     return chunks;
 }
 
-/** ヒント文（直近ナラティブ + プレイヤー行動）に関連するメモリをスコア順で返す */
+/**
+ * ヒント文に関連するメモリをスコア順で返す。
+ * TF-IDF コサイン類似度（IDF はコーパス全体から算出）。
+ */
 export function matchMemories(ws: string, hintText: string, maxResults = 3): MemoryChunk[] {
     const chunks = loadMemoryChunks(ws);
-    const qVec = tf(tokenize(hintText));
-    if (qVec.size === 0) {
-        return [];
-    }
+    if (chunks.length === 0) { return []; }
+
+    const idf = buildIdf(chunks);
+    const qTokens = tokenize(hintText);
+    const qVec = tfidfVec(qTokens, idf);
+    if (qVec.size === 0) { return []; }
+
     const scored = chunks
-        .map((ch) => ({ ch, score: cosine(qVec, tf(tokenize(ch.text))) }))
-        .filter((x) => x.score > 0.01)
+        .map((ch) => ({ ch, score: cosine(qVec, tfidfVec(tokenize(ch.text), idf)) }))
+        .filter((x) => x.score > 0.005)
         .sort((a, b) => b.score - a.score);
+
     return scored.slice(0, maxResults).map((x) => x.ch);
 }
 
 /** GM プロンプト用 — 直近 N 章の Saga テキスト */
 export function buildSagaPromptContext(ws: string, maxChapters = 2): string {
     const chapters = listSagaChapters(ws);
-    if (chapters.length === 0) {
-        return '';
-    }
+    if (chapters.length === 0) { return ''; }
     const recent = chapters.slice(-maxChapters);
     const parts = ['[Saga Archive — recent chapters]'];
     for (const ch of recent) {
@@ -209,13 +285,16 @@ export function buildSagaPromptContext(ws: string, maxChapters = 2): string {
 /** GM プロンプト用 — Memory Bank マッチ結果を整形 */
 export function buildMemoryPromptContext(ws: string, hintText: string, maxResults = 3): string {
     const matches = matchMemories(ws, hintText, maxResults);
-    if (matches.length === 0) {
-        return '';
-    }
+    if (matches.length === 0) { return ''; }
     const parts = ['[Memory Bank — relevant memories]'];
     for (const m of matches) {
         parts.push(`--- ${m.label} (${m.source}) ---`);
         parts.push(m.text.trim());
     }
     return parts.join('\n');
+}
+
+/** テスト・デバッグ用: トークン列を直接返す（本番コードでは使用しない） */
+export function tokenizeForDebug(text: string): string[] {
+    return tokenize(text);
 }

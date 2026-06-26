@@ -51,6 +51,19 @@ html, body {
 .status-dot.online { background: #4ade80; }
 .status-dot.offline { background: var(--danger); }
 
+.role-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 8px;
+}
+.role-badge.player { background: rgba(91, 159, 212, 0.25); color: var(--accent); }
+.role-badge.spectator { background: rgba(255, 255, 255, 0.08); color: var(--muted); }
+
+#input-panel.spectator-mode #input-form {
+  opacity: 0.55;
+}
+
 #status-panel {
   padding: 8px 16px;
   font-size: 0.8rem;

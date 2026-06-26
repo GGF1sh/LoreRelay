@@ -1,0 +1,9 @@
+{
+  "_comment": "Local LLM via Ollama. Pull model first: ollama pull llama3.2",
+  "textAdventure.gmBridge.provider": "ollama",
+  "textAdventure.gmBridge.ollama.url": "http://localhost:11434",
+  "textAdventure.gmBridge.ollama.model": "llama3.2",
+  "textAdventure.gmBridge.python": "python",
+  "textAdventure.locale": "ja",
+  "textAdventure.skillPath": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py"
+}

@@ -293,6 +293,21 @@ const entries = [
 }
 
 // ──────────────────────────────────────────────
+// 12. Pinned lore (v0.5e — always inject)
+// ──────────────────────────────────────────────
+{
+    const pool = [
+        { id: 'pin1', keys: ['never'], content: 'Pinned', comment: 'Pinned', pinned: true, enabled: true },
+        { id: 'kw1', keys: ['dragon'], content: 'Dragon', comment: 'Dragon', enabled: true }
+    ];
+    const enabled = pool.filter((e) => e.enabled !== false);
+    const pinned = enabled.filter((e) => e.pinned === true);
+    const matched = matchEntriesAgainstText(enabled.filter((e) => !e.pinned), 'quiet evening', 5);
+    const combined = [...pinned, ...matched];
+    assertEqual(combined.length >= 1 && combined[0].id === 'pin1', true, 'pinned injects without keyword match');
+}
+
+// ──────────────────────────────────────────────
 if (failed > 0) {
     process.exit(1);
 }

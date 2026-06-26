@@ -101,6 +101,11 @@ const diffPatches = buildStatePatchFromDiff(baseState, nextState);
 const paths = diffPatches.map((p) => p.path).sort();
 assertEqual(paths, ['/bgm', '/status'], 'buildStatePatchFromDiff paths');
 
+const directorPatched = applyStatePatch(baseState, [
+  { op: 'add', path: '/director', value: { scene: 'Boss Room', achievedEndings: ['boss_defeated'] } }
+]);
+assertEqual(directorPatched.director?.scene, 'Boss Room', 'applyStatePatch allows director');
+
 if (failed > 0) {
   process.exit(1);
 }

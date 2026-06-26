@@ -8,7 +8,7 @@ import {
     getConfiguredLocale,
     type SupportedLocale
 } from './i18n';
-import { buildMemoryPromptContext, buildSagaPromptContext, type MemoryChunk } from './memoryBank';
+import { buildMemoryPromptContext, buildSagaPromptContext, matchMemories, type MemoryChunk } from './memoryBank';
 import {
     computeArchiveMilestone,
     getArchiveRemindStep,
@@ -37,6 +37,17 @@ import {
     getPartyMemberIds
 } from './characterManager';
 import { type LorebookEntry, matchEntriesAgainstText } from './lorebookMatcher';
+import { loadScenarioDirector } from './scenarioDirector';
+import { loadPartyDirector } from './partyDirector';
+import type { RelationshipType } from './partyDirectorCore';
+import {
+    buildSection,
+    finalizeBreakdown,
+    previewText,
+    type PromptContextBreakdown,
+    type PromptLoreMatch,
+    type PromptMemoryMatch
+} from './promptContext';
 
 export interface GmPromptBuilderDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -84,7 +95,7 @@ function loadStorySummary(): string {
     }
 }
 
-function loadLorebookEntries(): LorebookEntry[] {
+function loadAllLorebookEntriesRaw(): LorebookEntry[] {
     const ws = getWorkspacePath();
     if (!ws) {
         return [];
@@ -97,7 +108,7 @@ function loadLorebookEntries(): LorebookEntry[] {
         try {
             const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
             if (Array.isArray(raw.entries)) {
-                return raw.entries.filter((e: LorebookEntry) => e.enabled !== false);
+                return raw.entries as LorebookEntry[];
             }
         } catch {
             /* try next */
@@ -106,8 +117,20 @@ function loadLorebookEntries(): LorebookEntry[] {
     return [];
 }
 
+function resolveLorebookForPrompt(hintText: string, maxEntries = 5): LorebookEntry[] {
+    const enabled = loadAllLorebookEntriesRaw().filter((e) => e.enabled !== false);
+    const pinned = enabled.filter((e) => e.pinned === true);
+    const pinnedIds = new Set(pinned.map((e) => e.id).filter(Boolean));
+    const keywordPool = enabled.filter((e) => !e.pinned);
+    const matched = matchEntriesAgainstText(keywordPool, hintText, maxEntries);
+    return [
+        ...pinned,
+        ...matched.filter((m) => !m.id || !pinnedIds.has(m.id))
+    ];
+}
+
 function matchLorebookEntries(text: string, maxEntries = 5): LorebookEntry[] {
-    return matchEntriesAgainstText(loadLorebookEntries(), text, maxEntries);
+    return resolveLorebookForPrompt(text, maxEntries);
 }
 
 function resolveMemoriesViaPython(ws: string, hintText: string, backend: string): MemoryChunk[] {
@@ -164,6 +187,10 @@ function buildMemoryContextForPrompt(ws: string, hintText: string): string {
     return buildMemoryPromptContext(ws, hintText, 3);
 }
 
+function relationshipLabel(rel: RelationshipType): string {
+    return rel;
+}
+
 function buildPartyPromptContext(): string {
     const dynProfiles = loadDynamicProfiles();
     const ids = getPartyMemberIds();
@@ -179,14 +206,122 @@ function buildPartyPromptContext(): string {
         lines.push(`--- ${char.name} (ID: ${id}) ---`);
         lines.push(`Description: ${char.description}`);
         lines.push(`Personality: ${char.personality}`);
-        if (char.stSource?.first_mes) {
-            lines.push(`Opening line hint: ${char.stSource.first_mes}`);
+        const src = char.stSource;
+        if (src?.scenario) {
+            lines.push(`Scenario: ${src.scenario}`);
+        }
+        if (src?.system_prompt) {
+            lines.push(`Character rules: ${src.system_prompt}`);
+        }
+        if (src?.first_mes) {
+            lines.push(`Opening line hint: ${src.first_mes}`);
+        }
+        if (src?.mes_example) {
+            lines.push(`Example dialogue:\n${src.mes_example}`);
         }
         if (dynProfiles[id]) {
             lines.push(`Dynamic memory: ${dynProfiles[id]}`);
         }
     }
     lines.push('Have party members react in character, converse with each other, and adapt gear to the current world theme.');
+    return lines.join('\n');
+}
+
+function buildPartyDirectorPromptContext(): string {
+    const director = loadPartyDirector();
+    if (!director) {
+        return '';
+    }
+    const lines = ['[Party Director — NPC speech & relationships]'];
+    const g = director.global;
+    if (!g.npcBanterEnabled) {
+        lines.push('NPC banter: OFF — party NPCs speak only when addressed or plot-critical.');
+    } else {
+        lines.push('NPC banter: ON — allow natural party dialogue when pacing fits.');
+    }
+    if (g.combatQuietMode) {
+        lines.push('Combat quiet mode: ON — minimize cross-talk during tense combat turns.');
+    }
+    if (director.notes) {
+        lines.push(`Director notes: ${director.notes}`);
+    }
+
+    const idToName = new Map<string, string>();
+    for (const id of Object.keys(director.members)) {
+        const char = loadCharacterById(id);
+        idToName.set(id, char?.name || id);
+    }
+
+    for (const [id, cfg] of Object.entries(director.members)) {
+        const name = idToName.get(id) || id;
+        const tags: string[] = [];
+        if (cfg.muted) {
+            tags.push('MUTED — do not give this character dialogue unless the player addresses them');
+        }
+        if (cfg.forceSpeak) {
+            tags.push('FORCE SPEAK — include a brief in-character line this turn if possible');
+        }
+        if (!cfg.muted && !cfg.forceSpeak) {
+            if (cfg.verbosity <= 20) {
+                tags.push('verbosity: low — rare optional lines only');
+            } else if (cfg.verbosity >= 80) {
+                tags.push('verbosity: high — frequent reactions and banter');
+            } else {
+                tags.push(`verbosity: ${cfg.verbosity}/100`);
+            }
+        }
+        lines.push(`--- ${name} (${id}) ---`);
+        if (tags.length > 0) {
+            lines.push(tags.join('; '));
+        }
+        const relParts = Object.entries(cfg.relationships)
+            .filter(([otherId]) => otherId !== id)
+            .map(([otherId, rel]) => `${idToName.get(otherId) || otherId}: ${relationshipLabel(rel)}`);
+        if (relParts.length > 0) {
+            lines.push(`Relationships: ${relParts.join('; ')}`);
+        }
+    }
+    lines.push('Respect muted/verbosity flags. Use relationship tone when NPCs address each other.');
+    return lines.join('\n');
+}
+
+function buildScenarioDirectorPromptContext(): string {
+    const director = loadScenarioDirector();
+    if (!director) {
+        return '';
+    }
+    const lines = ['[Scenario Director]'];
+    if (director.scenarioTitle) {
+        lines.push(`Scenario: ${director.scenarioTitle}`);
+    }
+    if (director.act || director.chapter) {
+        lines.push(`Act/Chapter: ${[director.act, director.chapter].filter(Boolean).join(' / ')}`);
+    }
+    if (director.scene) {
+        lines.push(`Scene: ${director.scene}`);
+    }
+    if (director.objective) {
+        lines.push(`Objective: ${director.objective}`);
+    }
+    if (director.successConditions.length > 0) {
+        lines.push(`Success: ${director.successConditions.join('; ')}`);
+    }
+    if (director.failConditions.length > 0) {
+        lines.push(`Fail if: ${director.failConditions.join('; ')}`);
+    }
+    if (director.guidanceMode === 'sandbox') {
+        lines.push('Guidance: sandbox — prioritize player agency; use director beats as optional color only.');
+    } else if (director.guidanceMode === 'guided') {
+        lines.push('Guidance: guided — follow the objective and scene structure while allowing minor detours.');
+    } else if (director.guidanceMode === 'railroad') {
+        lines.push('Guidance: railroad — keep the plot on the listed objective and success path.');
+    }
+    if (director.optionalEncounters.length > 0) {
+        lines.push(`Optional encounters: ${director.optionalEncounters.join('; ')}`);
+    }
+    if (director.achievedEndings && director.achievedEndings.length > 0) {
+        lines.push(`Achieved ending flags: ${director.achievedEndings.join(', ')}`);
+    }
     return lines.join('\n');
 }
 
@@ -199,13 +334,14 @@ function buildGameRulesPromptContext(): string {
 }
 
 function buildLorebookPromptContext(hintText: string): string {
-    const matches = matchLorebookEntries(hintText);
+    const matches = resolveLorebookForPrompt(hintText);
     if (matches.length === 0) {
         return '';
     }
-    const parts = ['[Lorebook — matched entries]'];
+    const parts = ['[Lorebook — matched + pinned entries]'];
     for (const e of matches) {
-        parts.push(`--- ${e.comment || e.id || 'entry'} ---`);
+        const tag = e.pinned ? '📌 ' : '';
+        parts.push(`--- ${tag}${e.comment || e.id || 'entry'} ---`);
         parts.push(String(e.content || '').trim());
     }
     return parts.join('\n');
@@ -213,14 +349,79 @@ function buildLorebookPromptContext(hintText: string): string {
 
 /** Turn Inspector / turn_result 用に発火したロアブックのラベルを返す。 */
 export function getTriggeredLoreLabels(hintText: string, maxEntries = 5): string[] {
-    return matchLorebookEntries(hintText, maxEntries).map(
-        (e) => String(e.comment || e.id || 'entry').trim()
-    ).filter((label) => label.length > 0);
+    return resolveLorebookForPrompt(hintText, maxEntries).map((e) => {
+        const label = String(e.comment || e.id || 'entry').trim();
+        return e.pinned ? `📌 ${label}` : label;
+    }).filter((label) => label.length > 0);
+}
+
+function buildHintText(playerAction: string): string {
+    const recent = getGameEntryHistory()
+        .filter((e) => !e.excludedFromPrompt)
+        .slice(-3)
+        .map((e) => e.content)
+        .join('\n');
+    return `${recent}\n${playerAction}`;
+}
+
+function resolveMemoryMatches(ws: string, hint: string): MemoryChunk[] {
+    const backend = getMemoryBackendSetting();
+    if (backend === 'tfidf') {
+        return matchMemories(ws, hint, 3);
+    }
+    return resolveMemoriesViaPython(ws, hint, backend);
+}
+
+export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
+    const ws = getWorkspacePath();
+    const hint = buildHintText(playerAction);
+    const memoryBackend = getMemoryBackendSetting();
+
+    const loreMatches = matchLorebookEntries(hint);
+    const matchedLore: PromptLoreMatch[] = loreMatches.map((e) => ({
+        id: String(e.id || e.comment || 'entry'),
+        label: String(e.comment || e.id || 'entry'),
+        preview: previewText(String(e.content || '')),
+        keys: Array.isArray(e.keys) ? e.keys.map(String) : []
+    }));
+
+    const memoryChunks = ws ? resolveMemoryMatches(ws, hint) : [];
+    const memoryMatches: PromptMemoryMatch[] = memoryChunks.map((m) => ({
+        id: m.id,
+        label: m.label,
+        source: m.source,
+        preview: previewText(m.text)
+    }));
+
+    const sections = [
+        buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
+        buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
+        buildSection('summary', 'Story Synopsis', loadStorySummary() ? `[Story Synopsis]\n${loadStorySummary()}` : ''),
+        ws ? buildSection('saga', 'Saga Archive', buildSagaPromptContext(ws, 2)) : undefined,
+        buildSection('party', 'Party', buildPartyPromptContext()),
+        buildSection('partyDirector', 'Party Director', buildPartyDirectorPromptContext()),
+        ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint)) : undefined,
+        buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint)),
+        buildSection('vision', 'Vision', buildVisionContext())
+    ];
+
+    return finalizeBreakdown(
+        sections,
+        memoryBackend,
+        matchedLore,
+        memoryMatches,
+        previewText(hint, 240)
+    );
 }
 
 export function buildGmPromptContext(playerAction: string): string {
-    const chunks: string[] = [buildGameRulesPromptContext()];
+    const hint = buildHintText(playerAction);
     const ws = getWorkspacePath();
+    const chunks: string[] = [buildGameRulesPromptContext()];
+    const directorCtx = buildScenarioDirectorPromptContext();
+    if (directorCtx) {
+        chunks.push(directorCtx);
+    }
     const summary = loadStorySummary();
     if (summary) {
         chunks.push(`[Story Synopsis]\n${summary}`);
@@ -235,12 +436,10 @@ export function buildGmPromptContext(playerAction: string): string {
     if (partyCtx) {
         chunks.push(partyCtx);
     }
-    const recent = getGameEntryHistory()
-        .filter((e) => !e.excludedFromPrompt)
-        .slice(-3)
-        .map((e) => e.content)
-        .join('\n');
-    const hint = `${recent}\n${playerAction}`;
+    const partyDirectorCtx = buildPartyDirectorPromptContext();
+    if (partyDirectorCtx) {
+        chunks.push(partyDirectorCtx);
+    }
     if (ws) {
         const memoryCtx = buildMemoryContextForPrompt(ws, hint);
         if (memoryCtx) {
@@ -256,6 +455,17 @@ export function buildGmPromptContext(playerAction: string): string {
         chunks.push(visionCtx);
     }
     return chunks.length ? `\n\n${chunks.join('\n\n')}` : '';
+}
+
+export function postPromptContextToWebview(playerAction: string): void {
+    const panel = requireDeps().getPanel();
+    if (!panel) {
+        return;
+    }
+    panel.webview.postMessage({
+        type: 'promptContext',
+        breakdown: buildGmPromptBreakdown(playerAction)
+    });
 }
 
 function buildVisionContext(): string {

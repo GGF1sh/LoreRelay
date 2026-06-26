@@ -13,7 +13,7 @@ import { t } from './i18n';
 const ALLOWED_ROOTS = new Set([
     'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
     'latestImage', 'background', 'sprite', 'hiddenDice',
-    'gameOver', 'summary', 'diceRequest'
+    'gameOver', 'summary', 'diceRequest', 'hiddenState', 'director', 'partyDirector'
 ]);
 
 const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -21,7 +21,7 @@ const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const PATCHABLE_ROOT_KEYS = [
     'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
     'latestImage', 'background', 'sprite', 'hiddenDice',
-    'gameOver', 'summary', 'diceRequest'
+    'gameOver', 'summary', 'diceRequest', 'hiddenState', 'director', 'partyDirector'
 ] as const;
 
 /** game_state 差分から JSON Patch を生成（Grok 直書きフォールバック用）。 */

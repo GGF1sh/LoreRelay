@@ -71,6 +71,12 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 if (Get-Command python -ErrorAction SilentlyContinue) {
     $pv = python --version 2>&1
     Write-Ok "Python $pv"
+    $reqFile = Join-Path $skillRoot 'scripts\requirements.txt'
+    if (Test-Path $reqFile) {
+        Write-Step "Installing Python dependencies (ChromaDB, etc.)"
+        python -m pip install -r $reqFile 2>&1 | Out-Host
+        Write-Ok "Python dependencies installed"
+    }
 } else {
     $checks += 'Python (for dice.py / ComfyUI scripts)'
 }

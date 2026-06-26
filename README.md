@@ -25,20 +25,28 @@
 - 📦 **Scenario Packs:** `scenario.json` を含むフォルダを読み込むだけで、開始シーン・テーマ・専用BGM/SEをまとめて適用できます。
 - 🎲 **Built-in Dice Roller & Calculator:** TRPGライクな判定に必須のダイスロール（NdX）と数式電卓を内蔵。
 - 💾 **Persistent Adventure Log:** `game_history.json` に冒険ログを保存し、VSCode再起動後も履歴を復元できます。
+- 🔍 **Turn Inspector (v0.5+):** ダイス台帳・statePatch・発火ロアをターンごとに可視化。
+- 📖 **Lorebook & Memory UI:** ST互換ロアブックの閲覧/編集、Memory 検索プレビュー、ピン留め常時注入。
+- 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` と `game_state` ランタイム連動。
+- 📱 **Remote Play (v0.7):** LAN 参加用 QR、player / spectator ロール。
 
 ---
 
 ## 📸 Screenshots & Demo
 
-<!-- 
-💡 開発者へのヒント:
-公開時は、ここに以下の要素が伝わるスクリーンショット（またはデモGIF）を配置してください。
-1. CRPGライクなキャラクターシート（HP/MPバー、スキルバッジ）
-2. Glassmorphism デザインのチャットUIとダイスローラー
-3. ComfyUIでローカル自動生成された美麗な情景画像ギャラリー
--->
+<p align="center">
+  <img src="docs/assets/hero-ui.svg" alt="LoreRelay main UI" width="720" />
+</p>
 
-*(Screenshot placeholder - please add media here before release)*
+| Inspector | Remote Play | Party Director |
+|:---:|:---:|:---:|
+| <img src="docs/assets/screenshot-inspector.svg" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.svg" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.svg" width="240" alt="Party Director" /> |
+
+| Lorebook | ComfyUI |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-lorebook.svg" width="360" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="360" alt="ComfyUI scene generation" /> |
+
+実機のスクショやデモ GIF に差し替える手順は [`DEMO.md`](DEMO.md) を参照してください。
 
 ---
 
@@ -116,15 +124,27 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 - `textAdventure.sfx.*` — SEマニフェストと音量
 
 ### 5. Scenario Packs
-コマンドパレットから `Text Adventure: Load Scenario Pack` を実行し、`scenario.json` を含むフォルダを選択すると、開始状態・テーマ・専用BGM/SEを読み込めます。
+コマンドパレットから `LoreRelay: Load Scenario Pack` を実行し、`scenario.json` を含むフォルダを選択すると、開始状態・テーマ・専用BGM/SEを読み込めます。
 
-サンプルは GM スキル側の `TextAdventureGMSkill/scenarios/lost-catacombs/` にあります。
+**同梱サンプル（3本）** — 拡張リポジトリの `sample-scenarios/`:
+
+| フォルダ | ジャンル | テーマ |
+|---------|---------|--------|
+| `lost-catacombs` | 王道ダンジョン探索 | fantasy |
+| `neon-rain` | サイバーパンク・ノワール | cyberpunk |
+| `harbor-mist` | 港町ミステリー | modern |
+
+GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scenarios/`。
+
+### 6. Model & ComfyUI presets (v1.0)
+- 推奨 GM / 画像設定: [`MODEL_PRESETS.md`](MODEL_PRESETS.md)（`presets/` の JSON をコピー）
+- ComfyUI ワークフロー: [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md)（`comfyui/workflow_api.json` / `workflow_sdxl_1024.json`）
 
 ---
 
 ## 🗺️ Roadmap
 
-- **Remote Play Mode:** 自宅PCをGMサーバーとして使い、LANまたはTailscale経由でスマホブラウザからプレイするモードを検討中です。初期スコープは `game_state.json` の表示、プレイヤー行動の送信、生成画像の閲覧に絞ります。インターネットへの直接公開は想定していません。
+v1.0 までの主要機能（Inspector、Lorebook/Memory UI、Director、Party Director、Remote Play）は実装済みです。今後は Workshop 配布強化・VLM 連携の磨き込みなどを検討しています。
 
 ---
 

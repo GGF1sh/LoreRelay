@@ -141,6 +141,21 @@ body {
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
+/* リサイザー */
+#resizer {
+  width: 8px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 10;
+  margin: 0 -4px; /* 見た目の隙間を減らす */
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+#resizer:hover, #resizer.dragging {
+  background: rgba(79, 142, 247, 0.4);
+}
+
 #chat-header {
   height: 48px;
   display: flex;
@@ -538,7 +553,8 @@ body {
 /* --- 30-status-gallery.css --- */
 /* ========= ステータスエリア ========= */
 #status-area {
-  width: 320px;
+  width: var(--status-width, 320px);
+  container-type: inline-size;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -726,6 +742,36 @@ body {
   background: var(--accent-dim);
   border-color: var(--accent);
   color: #fff;
+}
+
+/* =========================================
+   レスポンシブ対応 (コンテナクエリ)
+   ========================================= */
+@container (max-width: 280px) {
+  /* 幅が狭いときはアイコンのみにする */
+  .tab-text {
+    display: none;
+  }
+  .tab-btn {
+    padding: 8px 4px;
+    justify-content: center;
+  }
+  .tab-icon {
+    font-size: 16px;
+    margin: 0;
+  }
+  /* ステータス行も縦並びにして潰れを防ぐ */
+  .status-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .status-value {
+    text-align: left;
+  }
+  #gallery {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* --- 40-bgm-audio.css --- */
@@ -1480,6 +1526,131 @@ body {
     font-family: var(--vscode-editor-font-family, Consolas, monospace);
 }
 
+.lorebook-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.lorebook-dirty {
+    font-size: 11px;
+    color: var(--text-warning, #c9a227);
+}
+
+.lorebook-dirty.hidden {
+    display: none;
+}
+
+.lorebook-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.lorebook-form label {
+    display: block;
+    font-size: 11px;
+    margin-top: 6px;
+    color: var(--text-muted, #888);
+}
+
+.lorebook-form input[type="text"],
+.lorebook-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 2px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #ccc);
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 3px;
+    padding: 4px 6px;
+}
+
+.lorebook-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 11px;
+}
+
+.small-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border: 1px solid var(--vscode-button-border, #555);
+    border-radius: 3px;
+    background: var(--vscode-button-secondaryBackground, #3c3c3c);
+    color: var(--vscode-button-secondaryForeground, #ccc);
+}
+
+.small-btn.primary {
+    font-weight: 600;
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #fff);
+}
+
+.memory-toolbar,
+.memory-search-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.memory-search-row input[type="text"] {
+    flex: 1;
+    min-width: 120px;
+    font-size: 12px;
+    padding: 4px 6px;
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 3px;
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #ccc);
+}
+
+.memory-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lorebook-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.lorebook-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.lorebook-preview {
+    margin-top: 4px;
+    color: var(--text-muted, #888);
+    font-size: 11px;
+    white-space: pre-wrap;
+}
+
+.prompt-preview {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    font-size: 11px;
+    max-height: 200px;
+    overflow: auto;
+}
+
 .diff-item {
     display: flex;
     align-items: center;
@@ -1492,4 +1663,170 @@ body {
 .patch-value {
     color: var(--text-color);
     font-weight: bold;
+}
+
+.party-global-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+}
+
+.party-flag-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.party-members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.party-member-card {
+    padding: 10px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.party-member-card h5 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+}
+
+.party-control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.party-control-row input[type="range"] {
+    flex: 1;
+}
+
+.party-verb-val {
+    min-width: 28px;
+    text-align: right;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+.party-flags-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.party-rel-title {
+    font-size: 11px;
+    color: var(--text-muted, #888);
+    margin-top: 6px;
+}
+
+.party-rel-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.party-rel-row select {
+    font-size: 11px;
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #ccc);
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
+.remote-play-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1200;
+    width: min(92vw, 520px);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--glass-bg, rgba(30, 30, 40, 0.95));
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.remote-play-panel.hidden {
+    display: none;
+}
+
+.remote-play-body {
+    padding: 12px 16px 16px;
+}
+
+.remote-play-qr-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+}
+
+.remote-play-qr-block {
+    text-align: center;
+    flex: 1;
+    min-width: 180px;
+}
+
+.remote-play-qr-block h4 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+}
+
+.remote-play-qr {
+    display: block;
+    margin: 0 auto 8px;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.remote-play-url {
+    font-size: 10px;
+    word-break: break-all;
+    color: var(--text-muted, #888);
+    margin: 0 0 8px 0;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+.remote-play-clients-wrap {
+    margin-top: 12px;
+}
+
+.remote-play-clients-wrap h4 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+}
+
+.remote-play-clients {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.remote-client-row {
+    font-size: 11px;
+    padding: 4px 8px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
 }

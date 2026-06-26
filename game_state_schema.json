@@ -3,6 +3,11 @@
   "title": "Text Adventure Game State",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version for forward/backward compatibility. Omit in v1 (legacy). Current version: 2."
+    },
     "entries": {
       "type": "array",
       "items": {
@@ -126,6 +131,11 @@
       "type": "string",
       "description": "Compressed story synopsis injected into GM prompts. Editable in Webview or generated via Context Summarizer."
     },
+    "hiddenState": {
+      "type": "object",
+      "description": "GM's secret notes and parameters not shown to the player.",
+      "additionalProperties": true
+    },
     "gameOver": {
       "type": "object",
       "description": "When active=true, Webview shows ending overlay and locks player input.",
@@ -135,6 +145,47 @@
         "victory": { "type": "boolean" }
       },
       "required": ["active"]
+    },
+    "director": {
+      "type": "object",
+      "description": "Live scenario progression overlay. Merged with scenario.json director template. GM updates via statePatch.",
+      "properties": {
+        "act": { "type": "string" },
+        "chapter": { "type": "string" },
+        "scene": { "type": "string" },
+        "objective": { "type": "string" },
+        "guidanceMode": { "type": "string", "enum": ["sandbox", "guided", "railroad"] },
+        "achievedEndings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string", "description": "GM-only director notes (not shown in player UI)" }
+      }
+    },
+    "partyDirector": {
+      "type": "object",
+      "description": "Live party speech/relationship overlay. Merged with characters/party_director.json template. GM updates via statePatch.",
+      "properties": {
+        "notes": { "type": "string" },
+        "members": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "verbosity": { "type": "number", "minimum": 0, "maximum": 100 },
+              "muted": { "type": "boolean" },
+              "forceSpeak": { "type": "boolean" },
+              "relationships": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": ["ally", "friend", "rival", "enemy", "romance", "neutral"]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "required": ["entries"]

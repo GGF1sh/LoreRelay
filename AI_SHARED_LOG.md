@@ -5,20 +5,32 @@
 
 ## Current Snapshot
 
-- Current package version: `0.3.1`（[Unreleased] に updater / installer セキュリティ修正あり）
+- Current package version: **`0.3.2`**（`CHANGELOG.md` [0.3.2] 参照。`b9c7916` push 済み）
 - Main source of truth: `CHANGELOG.md` + source code
 - **Task Management Blackboard**: `AI_ROADMAP.md` (作業開始前に必ずこのファイルを見てタスクのチェックリストを更新すること)
 - Main remaining work:
   - README screenshots/GIF, Ko-fi real URL
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
+  - **Phase 2B**: ST ロアブックエンジン拡張（Regex/Secondary Keys/Depth）、TavernCard V1/V2 完全対応
   - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
-  - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
-  - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
-  - Git push: **完了**（`7576998` まで push 済み）
-  - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
-  - **Phase 3A**: MediaAgent 並列パイプライン — **完了**（`mediaAgent.ts`、画像キュー、GM stdout 早期 BGM/SFX）
-  - **Phase 3B**: ZRIC型リモートプレイ — **完了**（`remotePlayServer.ts`、`remote-player/`、WebSocket 同期）
+  - **TextAdventureGMSkill**: git 管理外 — `gm_bridge_common.py` 改修は skill zip 再配布が必要な場合あり
+  - `extension.ts` 分割: **完了**（~454 行）
+  - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 11 + `styles/` 11 + `build-webview.js`）
+  - **Phase 1 / 1.5 / 2A / 2C / 3A / 3B**: **完了**（堅牢化含む）
+
+## 2026-06-26 (Grok) - Phase 2A 堅牢化 & v0.3.2 ドキュメント整備
+
+### 概要
+- **コードレビュー対応**（`7576998`〜HEAD、DeepResearch 2 本照合）: Persist-Before-Narrate E2E、Inspector 欠落 HTML、Grok フォールバック、循環依存解消、Remote Play セキュリティ。
+- **コミット**: `b9c7916` — `turnResultFallback.ts`, `mediaPaths.ts`, `test_state_patch.js`, Inspector i18n, GM プロンプト改訂。
+- **Python** (`TextAdventureGMSkill/scripts/gm_bridge_common.py`): `turn_result.json` アトミック出力、`triggeredLore`, `game_rules` 注入（skill 側は別途 zip 配布要確認）。
+- **CHANGELOG**: [Unreleased] を整理し **[0.3.2]** として Phase 1〜3 + 堅牢化を一括記録。
+- **検証**: `npm run compile && npm test` 全通過。
+
+### 次 AI への引き継ぎ
+- Phase 2B（ST ロアブック深度対応）か、実機 E2E（Ollama → `turn_result` → Webview + Inspector）の手動確認。
+- Grok 実プレイで `turn_result.json` が書かれるか、フォールバック合成が動くかを 1 ターン検証すると安心。
 
 ## 2026-06-26 (Grok) - Phase 3B: ZRIC型リモートプレイ
 

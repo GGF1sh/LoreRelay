@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "keisuke",
   "engines": {
     "vscode": "^1.85.0"

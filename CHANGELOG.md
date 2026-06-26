@@ -10,77 +10,65 @@
 
 ## [Unreleased]
 
-### Added
-- **Phase 2A 堅牢化 (Persist-Before-Narrate E2E)**: Python GM bridges write `turn_result.json` atomically; TS `processTurnResult` merges `narration`/`gmEntry`, applies expanded allowlist patches (`bgm`, `mood`, `sfx`, `theme`, `sprite`, `diceRequest`, etc.), validates, and journals `beforeHash`/`afterHash`/`appliedAt`.
-- **`src/turnResultFallback.ts`**: When Grok/custom GM writes `game_state.json` directly, synthesizes `turn_result.json` from the pre-turn snapshot so Inspector, journal, and MediaAgent stay on the patch pipeline.
-- **`src/mediaPaths.ts`**: Shared `isAllowedImagePath` (breaks `gameStateSync` ↔ `remotePlayServer` circular dependency).
-- **Turn Inspector pane**: Missing `pane-inspector` HTML added; shows turn ID, integrity hashes, dice ledger, state patches, and `triggeredLore`.
-- **`scripts/test_state_patch.js`**: Unit tests for `applyStatePatch`, `mergeGmEntryFromTurn`, and `buildStatePatchFromDiff`.
+（次のマイルストーン: Phase 2B — ST ロアブックエンジン拡張 / TavernCard 完全対応）
+
+## [0.3.2] - 2026-06-26
+
+コードレビュー（`7576998`〜HEAD）指摘に基づく堅牢化リリース。Phase 1〜3 の未記載分もこの版にまとめて記録。
+
+### Added — Phase 2A: Persist-Before-Narrate E2E
+
+- **`turn_result.json` パイプライン**: Python GM bridges（Ollama / KoboldCPP / OpenRouter）が `turn_result.json` をアトミック書き込み。TS `processTurnResult` が `statePatch` を検証・適用し、`narration` / `gmEntry` を `entries` にマージ、`state_journal.ndjson` に `beforeHash` / `afterHash` / `appliedAt` を追記。
+- **`src/turnResultFallback.ts`**: Grok / カスタム GM が `game_state.json` を直接更新した場合、GM 開始前スナップショットから `turn_result.json` を合成（Inspector・ジャーナル・MediaAgent をパッチ経路に統一）。
+- **`src/mediaPaths.ts`**: `isAllowedImagePath` を共通化（`gameStateSync` ↔ `remotePlayServer` の循環依存を解消）。
+- **`scripts/test_state_patch.js`**: `applyStatePatch` / `mergeGmEntryFromTurn` / `buildStatePatchFromDiff` の単体テスト（`npm test` に統合）。
+- **Python `gm_bridge_common.py`**: `build_state_patch()` / `write_turn_result()` / `game_rules.json` プロンプト注入 / `triggeredLore` 出力。`TA_LEGACY_WRITE_GAME_STATE=1` で旧 `game_state.json` 直書きにフォールバック可能。
+
+### Added — Phase 2C: Turn Inspector
+
+- **🔍 Inspector タブ**: ターン ID、整合性ハッシュ、ダイス台帳、状態パッチ、`triggeredLore` を表示（欠落していた `pane-inspector` HTML を追加、4 言語 i18n 15 キー）。
+- **動的リソースバー**: `status` 内の任意キーを動的表示（Phase 4B 骨格）。
+
+### Added — Phase 1 / 1.5
+
+- **Phase 1.0**: `src/diceRoller.ts` — 入力中の `{{roll 1d20+2}}` 等をローカル確定し、LLM へ `[System Roll: …]` として注入。
+- **Phase 1.5**: `game_rules.json` + Webview ⚙️ Game Rules パネル（RPG 要素 ON/OFF、最大 HP/MP、ダイス難易度）。`gmPromptBuilder` / Python システムプロンプトへ反映。
+
+### Added — Phase 3A / 3B
+
+- **Phase 3A (MediaAgent)**: `src/mediaAgent.ts` — GM stdout 早期 BGM/SFX、画像キュー、`turn_result` フック。設定 `textAdventure.mediaAgent.*`。
+- **Phase 3B (Remote Play)**: `src/remotePlayServer.ts` + `remote-player/` — LAN WebSocket 同期、📱 トグル、コマンド `startRemotePlay` / `stopRemotePlay`。
+
+### Added — インフラ・その他
+
+- **Auto-Updater**: `updateManager.ts`、`update_lorerelay.bat` / `scripts/update_lorerelay.ps1`、`scripts/install_common.ps1`。
+- **ステータス動的非表示**: `status` 欠落フィールド・`status` 全体の Webview 非表示（VN / 会話重視向け）。
+- **Workspace Trust ガード**、**GM Bridge busy チェック統合**、**Grok CLI パス OS 非依存解決**。
 
 ### Changed
-- **GM prompts (Grok/locale)**: Instruct writing `turn_result.json` instead of overwriting `game_state.json` directly.
-- **`remotePlay.bindAddress` default**: `127.0.0.1` (LAN requires explicit `0.0.0.0`).
-- **Remote Play input lock**: Single-flight remote input while GM processes a turn.
-- **MediaAgent**: JSON-fence-only stream parsing; `clearMediaAgentCaches()` on GM session reset.
-- **`dice_ledger.json`**: Atomic write via `writeJsonAtomic` in `gmBridgeRunner`.
-- **Python `gm_bridge_common.py`**: `game_rules.json` prompt injection, `triggeredLore` in `turn_result`, legacy `TA_LEGACY_WRITE_GAME_STATE=1` fallback.
 
-### Added
-- **Phase 1.5: Game Rules & RPG Toggles UI**: Added `game_rules.json` and a Webview settings panel (⚙️) to allow users to toggle RPG mechanics (HP/MP) ON/OFF and adjust default parameters (e.g. Max HP, Dice Difficulty). This configuration is saved per workspace and will be used to dynamically alter the GM AI's system prompt (Phase 2).
-- **Phase 1: Deterministic Macro & RNG Injection**: Added `src/diceRoller.ts` to parse dice macros like `{{roll 1d20+2}}` or `{{roll 100}}` directly from the user's input. The Webview/Bridge calculates the results locally and injects deterministic results (e.g., `[System Roll: 1d20+2 ➔ 15]`) into the prompt before sending it to the LLM, eliminating AI calculation errors or hallucinated dice results.
-- **Dynamic visibility for status elements**: HP, MP, Location, Time, Funds, Condition, Inventory, and Skills blocks/rows are now dynamically hidden in the Webview if they are omitted from the `game_state.json` status object. Omission of the entire `status` object hides the status section altogether, allowing for visual novel or lightweight chat-centric gameplay.
-- **Version Checker & Auto-Updater system**: `updateManager.ts` fetches GitHub releases, shows release notes, and installs `.vsix` + GM skill `.zip`. Daily background check + `Text Adventure: Check for Updates` command.
-- **`update_lorerelay.bat` / `scripts/update_lorerelay.ps1`**: Double-click updater for users outside the VS Code command palette. Shares hardened install helpers with the `.bat` installers.
-- **`scripts/install_common.ps1`**: Shared atomic skill install, injection-safe unzip, VSIX name validation, and GitHub download URL allowlist for installer/updater scripts.
-- **File Watcher memory leak prevention**: Removed redundant `context.subscriptions.push` calls for file/manifest watchers, resolving a memory leak where disposed watchers piled up in VS Code context subscriptions.
-- **Centralized GM Bridge busy checking**: Unified the GM process busy checks directly at the entry point of `invokeGmBridge()`, eliminating duplicate busy checks in individual bridge functions.
-- **OS-agnostic Grok CLI path resolution**: Upgraded `resolveGrokCommand()` to probe default Grok executable paths dynamically for macOS/Linux (e.g. `~/.grok/bin/grok`) as well as Windows.
-- **Workspace Trust guards**: Integrated `vscode.workspace.isTrusted` checks into all command-execution, script-running, and write-sensitive modules, prompting warnings/blocking execution when untrusted workspace is loaded.
+- **GM プロンプト（4 言語）**: `game_state.json` 直書きではなく `turn_result.json`（Persist-Before-Narrate）を指示。
+- **`remotePlay.bindAddress` デフォルト**: `127.0.0.1`（LAN は `0.0.0.0` を明示設定）。
+- **Remote Play**: GM 処理中のリモート入力 single-flight ロック（`remoteInputLocked`）。
+- **MediaAgent**: JSON コードフェンス内のみストリーム解析、`clearMediaAgentCaches()` を GM セッション開始時に呼び出し。
+- **`dice_ledger.json`**: `writeJsonAtomic` でアトミック書き込み。
+- **`statePatch` allowlist 拡張**: `bgm` / `mood` / `sfx` / `theme` / `sprite` / `diceRequest` 等を schema 整合で許可。
+- **`grokBridge.autoApprove` デフォルト**: `false`（セキュリティ強化）。
+- **OpenRouter API キー**: 平文 settings から SecretStorage へ自動移行。
+- **Refactor**: `extension.ts` モジュール分割、`webview/modules` + `build-webview.js`、`gameStateSync.ts`、`webviewHandlers.ts` 等。
 
 ### Fixed
-- **updateManager.ts — PowerShell command injection hardening (High)**: Replaced `-Command "Expand-Archive -Path '${zipPath}'…"` with a temp `.ps1` script invoked via `-File` + named parameters (`-Zip`, `-Dest`). Paths are now passed as data values, never interpolated into the PowerShell command string, eliminating the single-quote injection vector.
-- **updateManager.ts — Atomic GM skill installation (High)**: Replaced `fs.rmSync` + `copyFolderRecursive` with `installSkillAtomic()` (copy→`.tmp`, rename existing→`.backup`, rename `.tmp`→target, rollback on failure, cleanup `.backup` on success). Existing skill is no longer deleted before the new version is verified on disk.
-- **updateManager.ts — Asset name pattern validation (Medium)**: `vsixAsset` / `zipAsset` now matched by regex (`VSIX_ASSET_RE` / `SKILL_ZIP_ASSET_RE`) instead of a bare `.endsWith`. If neither asset matches, the update aborts before prompting the user.
-- **updateManager.ts — Silent background check error handling (Medium)**: `lastUpdateCheck` is now saved *after* a successful API call or install, not before. `silent=true` failures are logged to an OutputChannel only; error dialogs are suppressed. Only manual `checkForUpdates(false, …)` invocations show an error dialog.
-- **updateManager.ts — HTTP and subprocess timeouts (Medium)**: Added `REQUEST_TIMEOUT_MS` (15 s) to `https.get` calls and `PROCESS_TIMEOUT_MS` (60 s) to all child processes via new `spawnWithTimeout()` helper. Timed-out processes are `.kill()`ed and their promises reject cleanly.
-- **updateManager.ts — Unused import removed (Low)**: Removed unused `getWorkspacePath` import.
-- **updateManager.ts — Redirect / download URL allowlist (Medium)**: `downloadFile()` now rejects HTTPS redirects to non-GitHub hosts. Asset `browser_download_url` values are validated before download.
-- **Installer `.ps1` — Atomic GM skill copy (High)**: `install_antigravity_skill.ps1` no longer `Remove-Item` then `Copy-Item` (skill loss on copy failure). Uses `Install-SkillFolderAtomic` (.tmp → .backup → promote → rollback).
-- **Installer `.ps1` — VSIX install hardening (Medium)**: `install_vscode_extension.ps1` validates `lorerelay-*.vsix` names via regex, uses `& code --install-extension` (no `Start-Process` string quoting), shared `Install-VsixFile`.
-- **Installer `.ps1` — Injection-safe unzip (High)**: `Expand-ArchiveSafe` uses temp `.ps1` + `-File` parameters (same pattern as `updateManager.ts`).
-- **PowerShell installer localization key alignments**: Corrected the mismatched localization keys in `locales/installer.json` to match the exact keys requested by the PowerShell scripts, ensuring installation logs display correctly in the user's local language (e.g., Japanese).
-- **`locales/installer.json`**: Added `update_*` keys (4 languages) for `update_lorerelay.ps1`.
-- **Scenario Pack assets local-copying**: Automatically copies scenario assets (SFX/BGM) recursively into workspace under `scenario_assets/` to satisfy strict Webview `localResourceRoots` sandbox restrictions.
-- **Atomic File Writer helper**: Created `writeJsonAtomic(filePath, data, createBackup)` in `workspacePaths.ts` using tmp-write and rename pattern to prevent file truncation/corruption on Windows crash.
-- **Confirmations & Game History wipe on Scenario load**: Prompts a confirmation dialog when loading a new scenario pack, wiping the history and `seenEntryIds` if accepted.
 
-### Fixed
-- **State validation hardening**: Aborts state synchronization (`sendCurrentState`) if critical JSON schema errors are found, avoiding corrupted state pushes.
-- **Duplicate HiddenDice logging**: Mapped unique `id` to each `HiddenDiceEntry` and tracked them in Webview to prevent duplicate rendering.
-- **Dice roller caps**: Capped custom roll counts to 100 and sides to 10,000 in the dice calculator tab.
-- **Atomic JSON Writes refactoring**: Replaced all direct `fs.writeFileSync` calls across `gameStateSync`, `scenarioPack`, `imageGenRunner`, `imageGenConfig`, `gmPromptBuilder`, `checkpointHandlers`, `checkpoint`, and `characterManager` with `writeJsonAtomic` helper, and atomic writing for active character ID.
+- **Turn Inspector**: タブのみ存在しペイン HTML が欠落していた不具合。
+- **Phase 2A E2E**: Python が `game_state.json` のみ直書きし `turn_result` / `narration` マージが未接続だった経路を修正。
+- **状態検証**: スキーマ違反時は `sendCurrentState` を中止。チェックポイント復元時のメタデータ保持。
+- **HiddenDice 重複表示**、**ダイス計算機上限**（100 面 / 10000 面）、**子プロセス二重発火**、**FileWatcher メモリリーク**。
+- **メッセージ edit / exclude / branch** の不正 ID 無視、**入力・Author's Note 長さ検証**。
 
-### Changed
-- **Default AutoApprove configuration**: Changed `textAdventure.grokBridge.autoApprove` default value to `false` in `package.json` for enhanced security.
-- **OpenRouter legacy API key auto-migration**: Automatically migrates plain-text keys in `settings.json` to secure VS Code `SecretStorage` and deletes the plaintext keys from settings to prevent Git leaks.
-- **Input & Author's Note validation**: Added explicit error/warning popups for empty inputs, inputs exceeding 2000 characters, and Author's Notes exceeding 500 characters (ignoring the note if limit exceeded).
+### Security
 
-### Fixed
-- **Process event double-firing prevention**: Added guard flags in child process event handlers for Grok, local LLM, custom GM, and portrait generation to prevent double execution on `error` and `close` events.
-- **Python command dynamic resolution**: Replaced hardcoded `'python'` commands with dynamic OS-agnostic `resolvePythonCommand()` in ComfyUI list models and portrait generation.
-- **OutputChannel cleanups**: Registered output channels (`grokOutputChannel` and `imageOutputChannel`) into `context.subscriptions` during initialization to prevent resource/memory leaks.
-- Tightened `game_state.json` validation for `entries[].id`, entry metadata fields, `status.location/time/funds`, `profileUpdates[].characterId`, and hidden dice result leakage.
-- Hardened message edit/exclude/branch handling so invalid entry IDs are ignored, malformed entries do not break history sync, and missing entries no longer emit false success updates.
-- Preserved message metadata (`imagePrompt`, `imageBlocked`, `excludedFromPrompt`, `editedAt`) when restoring state from checkpoint/rewind snapshots.
-
-### Changed
-- **GameStatus type restriction**: Replaced wildcard index signature `[key: string]: any` with `[key: string]: unknown` in `GameState.ts` for strict TypeScript type safety.
-- `excludedFromPrompt` now affects GM prompt context and Memory Bank history retrieval in addition to Webview display opacity.
-- Added validation coverage for schema-critical rules in `scripts/validate.js` and a new invalid metadata fixture.
-- **Refactor:** Webview `postMessage` ルーター → `webviewHandlers.ts`。`isValidEntryId` → `entryId.ts`。
-- **Refactor:** `game_state.json` 同期・履歴 → `gameStateSync.ts`。
-- **Refactor:** `extension.ts` から 10 モジュールへ段階分割（`workspacePaths`, `skillScriptRunner`, `gmBridgeRunner`, `imageGenRunner`, `mediaManifest`, `characterManager`, `gmPromptBuilder`, `checkpointHandlers`, `scenarioPack`）。~2,251 行 → ~454 行。
-- **Refactor:** `webview/script.js` → `webview/modules/*.js`（8）、`webview/style.css` → `webview/styles/*.css`（9）。`npm run build:webview` で結合。
+- **updateManager / インストーラー `.ps1`**: PowerShell コマンドインジェクション対策（`-File` + 名前付き引数）、GM skill アトミックインストール、VSIX 名正規表現検証、GitHub URL allowlist、HTTP/子プロセスタイムアウト。
+- **シナリオ Pack**: `scenario_assets/` へアセットをローカルコピー（Webview `localResourceRoots` 制約対応）。
 
 ## [0.3.1] - 2026-06-26
 

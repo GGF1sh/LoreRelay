@@ -22,15 +22,16 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ### Phase 2A: 壊れない状態管理 (State Patch & Dice Ledger)
 - [x] **State Patch**: LLMにJSON全体を書かせるのをやめ、状態の変更差分（`statePatch`）のみを出力させ、拡張機能側で検証・適用する仕組み（Persist-Before-Narrate）。
-  - TS側: `src/statePatch.ts`, `src/gameStateSync.ts` (Antigravity 実装済み)
-  - Python側: `gm_bridge_common.py` の `_JSON_SCHEMA` と `process_llm_response()` を改修 (Claude 実装済み)
+  - TS側: `src/statePatch.ts`, `src/gameStateSync.ts`, `src/turnResultFallback.ts`（Grok 直書きフォールバック）
+  - Python側: `gm_bridge_common.py` の `_JSON_SCHEMA` と `process_llm_response()`（`b9c7916` 堅牢化済み）
 - [x] **Turn Result**: 毎ターンの結果を `turn_result.json` および追記型の `state_journal.ndjson` に保存する。
-  - `turn_result.json` は Python が書き出し、TS 拡張のウォッチャーがパッチを適用して `game_state.json` と `state_journal.ndjson` を更新。
+  - Python が `turn_result.json` を書き出し、TS ウォッチャーがパッチ適用。Grok は `turnResultFallback` で合成可能。
 - [x] **Dice Ledger**: サイコロの結果をテキスト置換だけでなく、個別出目や理由を記録した監査ログ (`diceLedger`) として構造化し保存する。
-  - TS側が `dice_ledger.json` を書き出し、Python が `turn_result.json` の `diceLedger` フィールドに同梱。
+  - TS側が `dice_ledger.json` をアトミック書き込み、Python が `turn_result.diceLedger` に同梱。
+- [x] **堅牢化 (v0.3.2)**: allowlist 拡張、`narration` マージ、`beforeHash`/`afterHash` ジャーナル、`mediaPaths.ts` 循環依存解消、`scripts/test_state_patch.js`。
 
 ### Phase 2C: GM Debug Console (Turn Inspector)
-- [x] **Turn Inspector UI**: Webview内にデバッグパネルを追加し、ターンの入力、パッチ適用前後の差分、ダイス台帳、発火したロアを閲覧可能にする。
+- [x] **Turn Inspector UI**: Webview内にデバッグパネルを追加し、ターン ID、整合性ハッシュ、パッチ、ダイス台帳、発火ロア（`triggeredLore`）を閲覧可能にする（`pane-inspector` HTML 欠落を修正、`b9c7916`）。
 
 ### Phase 2B: SillyTavern 資産移行の完成
 - [ ] **TavernCard V1/V2**: PNG/JSON インポートの完全対応（`extensions` フィールド等を捨てずに保持）。

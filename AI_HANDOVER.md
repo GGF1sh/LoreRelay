@@ -4,16 +4,17 @@
 新しいAIにこのプロジェクトを理解させる場合は、以下の順で読み込ませてください。
 
 1. 本ファイル（`AI_HANDOVER.md`）— プロジェクト概要
-2. `AI_COLLABORATION.md` — 複数AIで作業するときの書き込みルール
-3. `AI_SHARED_LOG.md` — 全AIが共通で読む/追記する最新作業ログ
-4. `CHANGELOG.md` — 実装済み変更の履歴
-5. **`C:\AI\GROK_CODE_REVIEW.md`** — Grok によるコードレビュー指摘・対応状況
-6. **`C:\AI\GEMINI_REVIEW.md`** — Gemini 3.5 Flash による全体評価・ビジネスモデル提案
-7. **`C:\AI\CLAUDE_REVIEW.md`** — Claude Sonnet 4.6 による実装改善・競合分析（Saga & Seeker 比較）
+2. **`AI_HANDOVER_PROMPTS.md`** — どの AI に何を読ませ、どのプロンプトを出すか（作業手順書）
+3. `AI_COLLABORATION.md` — 複数AIで作業するときの書き込みルール
+4. `AI_SHARED_LOG.md` — 全AIが共通で読む/追記する最新作業ログ
+5. `CHANGELOG.md` — 実装済み変更の履歴
+6. **`C:\AI\GROK_CODE_REVIEW.md`** — Grok によるコードレビュー指摘・対応状況
+7. **`C:\AI\GEMINI_REVIEW.md`** — Gemini 3.5 Flash による全体評価・ビジネスモデル提案
+8. **`C:\AI\CLAUDE_REVIEW.md`** — Claude Sonnet 4.6 による実装改善・競合分析（Saga & Seeker 比較）
 
 > [!IMPORTANT]
 > **現在の実装の正本は `CHANGELOG.md` とソースコードです。**
-> レビュー文書は議論の記録を含むため、古い「未対応」記述が残っている場合があります。新しいAIは `AI_COLLABORATION.md` のルールに従い、`AI_SHARED_LOG.md` で直近作業を確認してから、`CHANGELOG.md` の最新バージョン（現在 **v0.3.1**）とソースコードを確認してください。
+> レビュー文書は議論の記録を含むため、古い「未対応」記述が残っている場合があります。新しいAIは `AI_COLLABORATION.md` のルールに従い、`AI_SHARED_LOG.md` で直近作業を確認してから、`CHANGELOG.md` の最新バージョン（現在 **v0.3.2**）とソースコードを確認してください。作業の切り出しは **`AI_HANDOVER_PROMPTS.md`** を参照。
 
 ## 1. プロジェクトの目的
 AI（LLM）をゲームマスター（GM）として利用し、リッチなUIでテキストアドベンチャーゲームをプレイするためのシステムです。

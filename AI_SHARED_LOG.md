@@ -19,6 +19,12 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 11 + `styles/` 11 + `build-webview.js`）
   - **Phase 1 / 1.5 / 2A / 2C / 3A / 3B**: **完了**（堅牢化含む）
 
+## 2026-06-26 (Grok) - AI_HANDOVER_PROMPTS.md 作成
+
+### 概要
+- **新規**: `AI_HANDOVER_PROMPTS.md` — ChatGPT / Gemini / Claude / Grok 向けコピペプロンプト、共通必読 8 ファイルの順序、推奨実行フェーズ 0〜3 を固定化。
+- **次の操作**: ユーザーは同ファイルの「6. ユーザー操作チートシート」に従い、Phase 1 から ChatGPT + Gemini を並列投入。
+
 ## 2026-06-26 (Grok) - Phase 2A 堅牢化 & v0.3.2 ドキュメント整備
 
 ### 概要

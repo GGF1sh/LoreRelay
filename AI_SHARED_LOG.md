@@ -16,6 +16,24 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`d25f764` まで push 済み）
 
+## 2026-06-26 - Claude Sonnet 4.6 - updateManager.ts セキュリティ修正 (o3レビュー対応)
+
+### Summary
+- **[High] PowerShell インジェクション対策**: `Expand-Archive -Path '${zipPath}'` の直埋め（`-Command` 方式）を廃止。一時 `.ps1` スクリプトに `param([string]$Zip, [string]$Dest)` を書き出し、`-File scriptPath -Zip zipPath -Dest destDir` で呼び出す方式に変更。パスは引数値として扱われ、PowerShell コードとして解釈されない。
+- **[High] GMスキル更新のAtomic化**: `fs.rmSync` + `copyFolderRecursive` の非アトミックな置き換えを `installSkillAtomic()` に置換。`target.tmp` にコピー → 既存を `target.backup` に退避 → rename → 失敗時ロールバック → 成功時 `.backup` 削除 の流れで、削除後コピー失敗によるスキル消失事故を防止。
+- **[Medium] Asset名パターン固定**: `a.name.endsWith('.vsix')` / `a.name.endsWith('.zip')` を正規表現 `VSIX_ASSET_RE` / `SKILL_ZIP_ASSET_RE` に変更。どちらもマッチしない場合はユーザーへの確認ダイアログを出す前にエラーにして中断。
+- **[Medium] silent失敗時の挙動修正**: `lastUpdateCheck` を実行前ではなく API 呼び出し成功後・インストール成功後に保存するよう変更。`silent=true` 時の失敗は OutputChannel にのみ記録し、エラーダイアログは非表示。手動呼び出し時のみダイアログ表示。
+- **[Medium] タイムアウト追加**: `REQUEST_TIMEOUT_MS`(15s) を GitHub API / download の `https.get` に、`PROCESS_TIMEOUT_MS`(60s) を全 `spawn` 呼び出しに `spawnWithTimeout()` ヘルパー経由で適用。タイムアウト時はプロセスを `.kill()` して Promise を reject。
+- **[Low] 未使用 import 削除**: `getWorkspacePath` の import を削除。
+
+### Files touched
+- `src/updateManager.ts`
+- `src/extension.ts` (lastUpdateCheck 保存タイミング修正)
+- `CHANGELOG.md`, `AI_SHARED_LOG.md`
+
+### Verification
+- **Checked & Verified**: `npm run compile` および `npm test` を `2026-06-26 09:37 JST` に実行。コンパイルエラー・テスト失敗なし。
+
 ## 2026-06-26 - Antigravity - Version Checker, Auto-Updater & Installer Localization Fix
 
 ### Summary

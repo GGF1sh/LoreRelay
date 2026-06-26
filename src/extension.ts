@@ -261,12 +261,13 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Auto check updates once a day
+    // Auto check updates once a day (silent)
     const lastCheck = context.globalState.get<number>('lorerelay.lastUpdateCheck', 0);
     const now = Date.now();
     const checkInterval = 24 * 60 * 60 * 1000; // 24 hours
     if (now - lastCheck > checkInterval) {
-        context.globalState.update('lorerelay.lastUpdateCheck', now);
+        // NOTE: lastUpdateCheck is saved *inside* checkForUpdates on success,
+        // so a network failure will retry on the next VS Code startup.
         void checkForUpdates(true, context);
     }
 }

@@ -5,7 +5,101 @@ import * as path from 'path';
 import * as os from 'os';
 import { spawn } from 'child_process';
 import { t } from './i18n';
-import { getWorkspacePath } from './workspacePaths';
+
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+/** Matches lorerelay-0.3.1.vsix, lorerelay-v0.3.1.vsix, etc. */
+const VSIX_ASSET_RE = /^lorerelay-v?[\d.]+\.vsix$/i;
+
+/** Matches text-adventure-gm-0.3.1.zip, text-adventure-gm.zip, etc. */
+const SKILL_ZIP_ASSET_RE = /^text-adventure-gm[-v\d.]*\.zip$/i;
+
+const REQUEST_TIMEOUT_MS = 15_000;  // 15 s for GitHub API & downloads
+const PROCESS_TIMEOUT_MS = 60_000;  // 60 s for code --install-extension / unzip
+
+// ── Subprocess helper ────────────────────────────────────────────────────────
+
+function spawnWithTimeout(
+    cmd: string,
+    args: string[],
+    options: object,
+    timeoutMs: number
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(cmd, args, options);
+        let finished = false;
+
+        const timer = setTimeout(() => {
+            if (!finished) {
+                finished = true;
+                proc.kill();
+                reject(new Error(`Process timed out after ${timeoutMs / 1000}s: ${cmd}`));
+            }
+        }, timeoutMs);
+
+        proc.on('close', (code) => {
+            if (finished) { return; }
+            finished = true;
+            clearTimeout(timer);
+            if (code === 0) { resolve(); }
+            else { reject(new Error(`Process exited with code ${code}: ${cmd}`)); }
+        });
+
+        proc.on('error', (err) => {
+            if (finished) { return; }
+            finished = true;
+            clearTimeout(timer);
+            reject(err);
+        });
+    });
+}
+
+// ── Unzip (injection-safe) ───────────────────────────────────────────────────
+
+/**
+ * Extracts a zip file to destDir.
+ *
+ * On Windows we use PowerShell Expand-Archive but NEVER interpolate
+ * user-controlled strings into the -Command string.  Instead we write a tiny
+ * .ps1 script that receives paths as named parameters, then invoke it with
+ * -File so PowerShell treats the args as plain data, not executable code.
+ */
+async function unzipFile(zipPath: string, destDir: string): Promise<void> {
+    if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    if (process.platform === 'win32') {
+        const scriptContent = [
+            'param([string]$Zip, [string]$Dest)',
+            'Expand-Archive -LiteralPath $Zip -DestinationPath $Dest -Force',
+        ].join('\r\n');
+
+        const scriptPath = path.join(os.tmpdir(), `lorerelay-unzip-${Date.now()}.ps1`);
+        fs.writeFileSync(scriptPath, scriptContent, 'utf8');
+        try {
+            await spawnWithTimeout(
+                'powershell.exe',
+                ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, '-Zip', zipPath, '-Dest', destDir],
+                { shell: false },
+                PROCESS_TIMEOUT_MS
+            );
+        } finally {
+            fs.unlink(scriptPath, () => {});
+        }
+    } else {
+        await spawnWithTimeout(
+            'unzip',
+            ['-o', zipPath, '-d', destDir],
+            { shell: false },
+            PROCESS_TIMEOUT_MS
+        );
+    }
+}
+
+
+// ── Interfaces + version helpers ──────────────────────────────────────────────
 
 interface ReleaseAsset {
     name: string;
@@ -33,22 +127,39 @@ function isVersionNewer(current: string, latest: string): boolean {
     return false;
 }
 
+function fetchLatestRelease(): Promise<ReleaseInfo> {
+    return new Promise((resolve, reject) => {
+        const url = 'https://api.github.com/repos/GGF1sh/LoreRelay/releases/latest';
+        const options = { headers: { 'User-Agent': 'LoreRelay-Updater/1.0' } };
+        const req = https.get(url, options, (res) => {
+            if (res.statusCode !== 200) {
+                reject(new Error(`GitHub API returned HTTP ${res.statusCode}`));
+                return;
+            }
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try { resolve(JSON.parse(data) as ReleaseInfo); }
+                catch (e) { reject(e); }
+            });
+        });
+        req.on('error', reject);
+        req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+            req.destroy(new Error('GitHub API request timed out'));
+        });
+    });
+}
+
 function downloadFile(url: string, destPath: string, redirectCount = 0): Promise<void> {
     if (redirectCount > 5) {
         return Promise.reject(new Error('Too many redirects'));
     }
     return new Promise((resolve, reject) => {
-        const options = {
-            headers: {
-                'User-Agent': 'LoreRelay-Updater/0.3.1'
-            }
-        };
-        https.get(url, options, (res) => {
+        const options = { headers: { 'User-Agent': 'LoreRelay-Updater/1.0' } };
+        const req = https.get(url, options, (res) => {
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                // Follow redirect
                 downloadFile(res.headers.location, destPath, redirectCount + 1)
-                    .then(resolve)
-                    .catch(reject);
+                    .then(resolve).catch(reject);
                 return;
             }
             if (res.statusCode !== 200) {
@@ -57,66 +168,17 @@ function downloadFile(url: string, destPath: string, redirectCount = 0): Promise
             }
             const fileStream = fs.createWriteStream(destPath);
             res.pipe(fileStream);
-            fileStream.on('finish', () => {
-                fileStream.close();
-                resolve();
-            });
-            fileStream.on('error', (err) => {
-                fs.unlink(destPath, () => {});
-                reject(err);
-            });
-        }).on('error', reject);
-    });
-}
-
-function fetchLatestRelease(): Promise<ReleaseInfo> {
-    return new Promise((resolve, reject) => {
-        const url = 'https://api.github.com/repos/GGF1sh/LoreRelay/releases/latest';
-        const options = {
-            headers: {
-                'User-Agent': 'LoreRelay-Updater/0.3.1'
-            }
-        };
-        https.get(url, options, (res) => {
-            if (res.statusCode !== 200) {
-                reject(new Error(`GitHub API returned HTTP ${res.statusCode}`));
-                return;
-            }
-            let data = '';
-            res.on('data', (chunk) => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    resolve(JSON.parse(data) as ReleaseInfo);
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        }).on('error', reject);
-    });
-}
-
-function unzipFile(zipPath: string, destDir: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        if (!fs.existsSync(destDir)) {
-            fs.mkdirSync(destDir, { recursive: true });
-        }
-        let cmd = 'unzip';
-        let args = ['-o', zipPath, '-d', destDir];
-        if (process.platform === 'win32') {
-            cmd = 'powershell.exe';
-            args = ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`];
-        }
-        const proc = spawn(cmd, args, { shell: false });
-        proc.on('close', (code) => {
-            if (code === 0) {
-                resolve();
-            } else {
-                reject(new Error(`Unzip failed with exit code ${code}`));
-            }
+            fileStream.on('finish', () => { fileStream.close(); resolve(); });
+            fileStream.on('error', (err) => { fs.unlink(destPath, () => {}); reject(err); });
         });
-        proc.on('error', (err) => reject(err));
+        req.on('error', reject);
+        req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+            req.destroy(new Error('Download request timed out'));
+        });
     });
 }
+
+// ── File utilities ────────────────────────────────────────────────────────────
 
 function findSkillFolder(dir: string): string | undefined {
     const items = fs.readdirSync(dir);
@@ -149,6 +211,46 @@ function copyFolderRecursive(source: string, target: string) {
     }
 }
 
+/**
+ * Atomically installs skillFolder → targetSkillDir.
+ *
+ * Strategy:
+ *   1. Copy new content to <target>.tmp
+ *   2. Rename existing <target> → <target>.backup  (if present)
+ *   3. Rename <target>.tmp → <target>
+ *   4. On failure after step 2: restore backup
+ *   5. Remove .backup on success
+ */
+function installSkillAtomic(skillFolder: string, targetSkillDir: string): void {
+    const tmpDir    = `${targetSkillDir}.tmp`;
+    const backupDir = `${targetSkillDir}.backup`;
+
+    // Clean up any previous failed attempt
+    if (fs.existsSync(tmpDir))    { fs.rmSync(tmpDir,    { recursive: true, force: true }); }
+    if (fs.existsSync(backupDir)) { fs.rmSync(backupDir, { recursive: true, force: true }); }
+
+    // Step 1: copy to .tmp
+    copyFolderRecursive(skillFolder, tmpDir);
+
+    const hadExisting = fs.existsSync(targetSkillDir);
+    try {
+        // Step 2: retire existing → .backup
+        if (hadExisting) { fs.renameSync(targetSkillDir, backupDir); }
+        // Step 3: promote .tmp → target
+        fs.renameSync(tmpDir, targetSkillDir);
+    } catch (err) {
+        // Rollback: restore backup if we moved it
+        if (hadExisting && !fs.existsSync(targetSkillDir) && fs.existsSync(backupDir)) {
+            try { fs.renameSync(backupDir, targetSkillDir); } catch { /* best-effort */ }
+        }
+        if (fs.existsSync(tmpDir)) { fs.rmSync(tmpDir, { recursive: true, force: true }); }
+        throw err;
+    }
+
+    // Step 5: remove leftover backup on success
+    if (fs.existsSync(backupDir)) { fs.rmSync(backupDir, { recursive: true, force: true }); }
+}
+
 async function installVsix(vsixPath: string): Promise<void> {
     let codeCmd = 'code';
     if (process.platform === 'win32') {
@@ -158,30 +260,40 @@ async function installVsix(vsixPath: string): Promise<void> {
             codeCmd = defaultCodePath;
         }
     }
-
-    return new Promise((resolve, reject) => {
-        const proc = spawn(codeCmd, ['--install-extension', vsixPath, '--force'], { shell: false });
-        proc.on('close', (code) => {
-            if (code === 0) {
-                resolve();
-            } else {
-                reject(new Error(`VS Code extension installation failed with exit code ${code}`));
-            }
-        });
-        proc.on('error', (err) => reject(err));
-    });
+    await spawnWithTimeout(codeCmd, ['--install-extension', vsixPath, '--force'], { shell: false }, PROCESS_TIMEOUT_MS);
 }
 
 export async function checkForUpdates(silent: boolean, context: vscode.ExtensionContext): Promise<void> {
+    const outputChannel = vscode.window.createOutputChannel('LoreRelay Updater');
+
+    const reportError = (msg: string) => {
+        outputChannel.appendLine(`[Update] ERROR: ${msg}`);
+        if (!silent) {
+            // Only show error dialog for manual invocations; background checks stay quiet
+            vscode.window.showErrorMessage(t('updater.error', { message: msg }));
+        }
+    };
+
     try {
-        const currentVersion = context.extension.packageJSON.version;
+        const currentVersion = context.extension.packageJSON.version as string;
         const release = await fetchLatestRelease();
         const latestVersion = release.tag_name;
 
         if (!isVersionNewer(currentVersion, latestVersion)) {
+            // Save timestamp only after a successful API call
+            await context.globalState.update('lorerelay.lastUpdateCheck', Date.now());
             if (!silent) {
                 vscode.window.showInformationMessage(t('updater.upToDate', { version: currentVersion }));
             }
+            return;
+        }
+
+        // ── Validate required assets are present before prompting ──────────
+        const vsixAsset = release.assets.find(a => VSIX_ASSET_RE.test(a.name));
+        const zipAsset  = release.assets.find(a => SKILL_ZIP_ASSET_RE.test(a.name));
+
+        if (!vsixAsset && !zipAsset) {
+            reportError(`Release ${latestVersion} has no installable assets (no matching .vsix or .zip found).`);
             return;
         }
 
@@ -197,7 +309,7 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
             return;
         }
 
-        // Verify Workspace Trust before downloading/installing
+        // Workspace Trust guard
         if (!vscode.workspace.isTrusted) {
             vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
             return;
@@ -211,53 +323,52 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
             const tempDir = path.join(os.tmpdir(), `lorerelay-update-${Date.now()}`);
             fs.mkdirSync(tempDir, { recursive: true });
 
-            const vsixAsset = release.assets.find(a => a.name.endsWith('.vsix'));
-            const zipAsset = release.assets.find(a => a.name.endsWith('.zip'));
+            try {
+                // 1. Install VS Code Extension
+                if (vsixAsset) {
+                    progress.report({ message: t('updater.installingVsix') });
+                    const vsixPath = path.join(tempDir, vsixAsset.name);
+                    await downloadFile(vsixAsset.browser_download_url, vsixPath);
+                    await installVsix(vsixPath);
+                    outputChannel.appendLine(`[Update] VSIX installed: ${vsixAsset.name}`);
+                }
 
-            // 1. Install VS Code Extension
-            if (vsixAsset) {
-                progress.report({ message: t('updater.installingVsix') });
-                const vsixPath = path.join(tempDir, vsixAsset.name);
-                await downloadFile(vsixAsset.browser_download_url, vsixPath);
-                await installVsix(vsixPath);
-            }
+                // 2. Install GM Skill (atomic)
+                if (zipAsset) {
+                    progress.report({ message: t('updater.installingSkill') });
+                    const zipPath    = path.join(tempDir, zipAsset.name);
+                    const extractDir = path.join(tempDir, 'skill_extract');
+                    await downloadFile(zipAsset.browser_download_url, zipPath);
+                    await unzipFile(zipPath, extractDir);
 
-            // 2. Install GM Skill
-            if (zipAsset) {
-                progress.report({ message: t('updater.installingSkill') });
-                const zipPath = path.join(tempDir, zipAsset.name);
-                const extractDir = path.join(tempDir, 'skill_extract');
-                await downloadFile(zipAsset.browser_download_url, zipPath);
-                await unzipFile(zipPath, extractDir);
+                    const skillFolder = findSkillFolder(extractDir);
+                    if (!skillFolder) {
+                        throw new Error('Could not find SKILL.md inside the downloaded zip.');
+                    }
 
-                const skillFolder = findSkillFolder(extractDir);
-                if (skillFolder) {
                     const home = process.env.USERPROFILE || process.env.HOME || '';
                     const targetSkillDir = path.join(home, '.gemini', 'config', 'skills', 'text-adventure-gm');
-                    if (fs.existsSync(targetSkillDir)) {
-                        fs.rmSync(targetSkillDir, { recursive: true, force: true });
-                    }
-                    copyFolderRecursive(skillFolder, targetSkillDir);
-                } else {
-                    console.error('Could not find SKILL.md in downloaded zip file.');
+                    installSkillAtomic(skillFolder, targetSkillDir);
+                    outputChannel.appendLine(`[Update] GM skill installed to: ${targetSkillDir}`);
                 }
+            } finally {
+                // Always clean up temp dir
+                try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
             }
-
-            // Cleanup temp dir
-            fs.rmSync(tempDir, { recursive: true, force: true });
         });
+
+        // Save timestamp only after successful install
+        await context.globalState.update('lorerelay.lastUpdateCheck', Date.now());
 
         const reloadChoice = await vscode.window.showInformationMessage(
             t('updater.success'),
             t('updater.btnReload')
         );
-
         if (reloadChoice === t('updater.btnReload')) {
             vscode.commands.executeCommand('workbench.action.reloadWindow');
         }
 
     } catch (e: any) {
-        console.error('Update failed:', e);
-        vscode.window.showErrorMessage(t('updater.error', { message: e.message || String(e) }));
+        reportError(e.message || String(e));
     }
 }

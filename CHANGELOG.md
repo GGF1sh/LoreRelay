@@ -11,10 +11,14 @@
 ## [Unreleased]
 
 ### Added
+- **Version Checker & Auto-Updater system**: Added `updateManager.ts` to fetch releases from GitHub, display version details/release notes, and automatically update both the VS Code extension and the Antigravity GM skill folder. Includes a daily background check and manual `Text Adventure: Check for Updates` command.
 - **File Watcher memory leak prevention**: Removed redundant `context.subscriptions.push` calls for file/manifest watchers, resolving a memory leak where disposed watchers piled up in VS Code context subscriptions.
 - **Centralized GM Bridge busy checking**: Unified the GM process busy checks directly at the entry point of `invokeGmBridge()`, eliminating duplicate busy checks in individual bridge functions.
 - **OS-agnostic Grok CLI path resolution**: Upgraded `resolveGrokCommand()` to probe default Grok executable paths dynamically for macOS/Linux (e.g. `~/.grok/bin/grok`) as well as Windows.
 - **Workspace Trust guards**: Integrated `vscode.workspace.isTrusted` checks into all command-execution, script-running, and write-sensitive modules, prompting warnings/blocking execution when untrusted workspace is loaded.
+
+### Fixed
+- **PowerShell installer localization key alignments**: Corrected the mismatched localization keys in `locales/installer.json` to match the exact keys requested by the PowerShell scripts, ensuring installation logs display correctly in the user's local language (e.g., Japanese).
 - **Scenario Pack assets local-copying**: Automatically copies scenario assets (SFX/BGM) recursively into workspace under `scenario_assets/` to satisfy strict Webview `localResourceRoots` sandbox restrictions.
 - **Atomic File Writer helper**: Created `writeJsonAtomic(filePath, data, createBackup)` in `workspacePaths.ts` using tmp-write and rename pattern to prevent file truncation/corruption on Windows crash.
 - **Confirmations & Game History wipe on Scenario load**: Prompts a confirmation dialog when loading a new scenario pack, wiping the history and `seenEntryIds` if accepted.

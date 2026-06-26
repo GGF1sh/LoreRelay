@@ -16,6 +16,16 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`d25f764` まで push 済み）
 
+## 2026-06-26 - Antigravity - Version Checker, Auto-Updater & Installer Localization Fix
+
+### Summary
+- **Version Checker & Auto-Updater**: Created `src/updateManager.ts` that compares the current version in `package.json` with the latest release published on GitHub (`GGF1sh/LoreRelay`). If a newer version is found, displays a VS Code Modal showing release notes and allows automatically downloading and installing the new VS Code extension (`.vsix`) and the Antigravity GM skill folder (`.zip`).
+- **Command & Daily Check**: Registered command `textadventure.checkForUpdates` and added daily check automation in `activate()` to prevent exceeding GitHub API rate limits.
+- **PowerShell Installer Localization Key Alignments**: Fixed a key mismatch in `locales/installer.json` where keys requested by the PowerShell scripts were prefixed with `gm_` but the JSON file defined them under `antigravity_`. Corrected and added missing strings in Japanese, English, and Chinese.
+
+### Verification
+- **Checked & Verified**: Ran compile (`npm run compile`) and validation tests (`npm test`) on `2026-06-26 09:21 JST` to verify no syntactic or semantic regressions.
+
 ## 2026-06-26 - Antigravity - o3 Code Review Improvements (Watcher Leak Fix, Unified Busy Check & Cross-Platform Grok Resolution)
 
 ### Summary

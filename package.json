@@ -19,7 +19,8 @@
     "onCommand:textadventure.exportScenario",
     "onCommand:textadventure.validateScenario",
     "onCommand:textadventure.setOpenRouterApiKey",
-    "onCommand:textadventure.clearOpenRouterApiKey"
+    "onCommand:textadventure.clearOpenRouterApiKey",
+    "onCommand:textadventure.checkForUpdates"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -59,6 +60,10 @@
       {
         "command": "textadventure.clearOpenRouterApiKey",
         "title": "Text Adventure: Clear OpenRouter API Key"
+      },
+      {
+        "command": "textadventure.checkForUpdates",
+        "title": "Text Adventure: Check for Updates"
       }
     ],
     "configuration": {

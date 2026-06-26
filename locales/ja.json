@@ -243,5 +243,15 @@
   "gm.languageName.ja": "日本語",
   "gm.languageName.en": "英語",
   "gm.languageName.zh-CN": "简体中文",
-  "gm.languageName.zh-TW": "繁體中文"
+  "gm.languageName.zh-TW": "繁體中文",
+  "updater.upToDate": "LoreRelay は最新バージョンです (v{version})。",
+  "updater.newVersionAvailable": "新しいバージョンが利用可能です！\n現在のバージョン: v{current}\n最新のバージョン: v{latest}\n\nアップデートしますか？",
+  "updater.btnUpdateNow": "今すぐ更新",
+  "updater.btnLater": "後で",
+  "updater.downloading": "更新ファイルをダウンロードしています...",
+  "updater.installingVsix": "VSCode 拡張機能をインストールしています...",
+  "updater.installingSkill": "Antigravity GMスキルをインストールしています...",
+  "updater.success": "LoreRelay のアップデートが正常に完了しました！",
+  "updater.btnReload": "ウィンドウを再読み込み",
+  "updater.error": "アップデートに失敗しました: {message}"
 }

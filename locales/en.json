@@ -243,5 +243,15 @@
   "gm.languageName.ja": "Japanese",
   "gm.languageName.en": "English",
   "gm.languageName.zh-CN": "Simplified Chinese",
-  "gm.languageName.zh-TW": "Traditional Chinese"
+  "gm.languageName.zh-TW": "Traditional Chinese",
+  "updater.upToDate": "LoreRelay is up-to-date (v{version}).",
+  "updater.newVersionAvailable": "A new version of LoreRelay is available!\nCurrent version: v{current}\nLatest version: v{latest}\n\nDo you want to update now?",
+  "updater.btnUpdateNow": "Update Now",
+  "updater.btnLater": "Later",
+  "updater.downloading": "Downloading update files...",
+  "updater.installingVsix": "Installing VSCode extension...",
+  "updater.installingSkill": "Installing Antigravity GM skill...",
+  "updater.success": "LoreRelay updated successfully!",
+  "updater.btnReload": "Reload Window",
+  "updater.error": "Update failed: {message}"
 }

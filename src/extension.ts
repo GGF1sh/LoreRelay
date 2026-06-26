@@ -87,6 +87,7 @@ import {
     handleDeleteCheckpoint,
     handleRegenerateLastTurn
 } from './checkpointHandlers';
+import { checkForUpdates } from './updateManager';
 
 let panel: vscode.WebviewPanel | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
@@ -235,6 +236,10 @@ export function activate(context: vscode.ExtensionContext) {
         void clearOpenRouterApiKey(context);
     });
 
+    const checkForUpdatesCmd = vscode.commands.registerCommand('textadventure.checkForUpdates', () => {
+        void checkForUpdates(false, context);
+    });
+
     context.subscriptions.push(
         openGameCmd,
         listModelsCmd,
@@ -244,7 +249,8 @@ export function activate(context: vscode.ExtensionContext) {
         exportScenarioCmd,
         validateScenarioCmd,
         setOpenRouterKeyCmd,
-        clearOpenRouterKeyCmd
+        clearOpenRouterKeyCmd,
+        checkForUpdatesCmd
     );
 
     context.subscriptions.push(
@@ -254,6 +260,15 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    // Auto check updates once a day
+    const lastCheck = context.globalState.get<number>('lorerelay.lastUpdateCheck', 0);
+    const now = Date.now();
+    const checkInterval = 24 * 60 * 60 * 1000; // 24 hours
+    if (now - lastCheck > checkInterval) {
+        context.globalState.update('lorerelay.lastUpdateCheck', now);
+        void checkForUpdates(true, context);
+    }
 }
 
 function getNonce(): string {

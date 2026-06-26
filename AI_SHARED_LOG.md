@@ -14,7 +14,7 @@
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - `extension.ts` 分割: **完了**（~454 行。詳細は下記ログ）
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
-  - Git push: 要 push（installer/updater セキュリティ修正コミット後）
+  - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
 
 ## 2026-06-26 10:05 JST - Grok - インストーラー / アップデーター セキュリティレビュー & 修正

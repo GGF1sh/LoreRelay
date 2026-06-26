@@ -5,19 +5,32 @@
 
 ## Current Snapshot
 
-- Current package version: **`0.3.2`**（`CHANGELOG.md` [0.3.2] 参照。`b9c7916` push 済み）
+- Current package version: **`0.3.3`**（Phase 2B `a693892` + フェーズ3ゲート。`CHANGELOG.md` [0.3.3]）
 - Main source of truth: `CHANGELOG.md` + source code
 - **Task Management Blackboard**: `AI_ROADMAP.md` (作業開始前に必ずこのファイルを見てタスクのチェックリストを更新すること)
 - Main remaining work:
   - README screenshots/GIF, Ko-fi real URL
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
-  - **Phase 2B**: ST ロアブックエンジン拡張（Regex/Secondary Keys/Depth）、TavernCard V1/V2 完全対応
+  - **Phase 2B ロアブック**: **完了**（regex / secondary_keys / insertion_order）。TavernCard V1/V2 完全対応は未着手
   - Phase ST-A 残: `imagePromptTemplates` の GM/SKILL 連携、テンプレ適用 UI と再生成の統合
   - Phase ST-B2/B3: Connection + Generation プリセット（名前付き JSON）
   - **TextAdventureGMSkill**: git 管理外 — `gm_bridge_common.py` 改修は skill zip 再配布が必要な場合あり
   - `extension.ts` 分割: **完了**（~454 行）
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 11 + `styles/` 11 + `build-webview.js`）
   - **Phase 1 / 1.5 / 2A / 2C / 3A / 3B**: **完了**（堅牢化含む）
+
+## 2026-06-26 (Grok) - フェーズ 3 ゲート完了（Phase 2B 後）
+
+### 概要
+- **Claude Phase 2B**: `a693892` — `lorebookMatcher.ts`, `test_lorebook.js`（11ケース）。
+- **Grok フェーズ3**: SKILL.md を `turn_result.json` 正規契約に更新。Python `match_lorebook` を TS と整合。
+- **E2E スモーク**: `test_turn_result_pipeline.js` + `test_lorebook_python.py` を `npm test` に統合。全通過。
+- **Ollama 実機**: API 未起動（`localhost:11434` 到達不可）のため 1 ターン E2E はスキップ — 手動要。
+- **Remote Play**: S-07 対応（localhost バインド時 LAN URL 非表示）、トークンログマスク。
+- **GM skill 配布**: `TextAdventureGMSkill` は git 外 — 更新時は skill zip を手動再パック（`update_lorerelay.bat` または GitHub release の zip）。
+
+### 参照
+- `C:\AI\CHATGPT_SECURITY_AND_SKILL.md` — セキュリティ監査 + SKILL ドラフト原文
 
 ## 2026-06-26 (Grok) - AI_HANDOVER_PROMPTS.md 作成
 

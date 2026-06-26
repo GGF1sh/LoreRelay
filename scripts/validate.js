@@ -156,6 +156,31 @@ if (!fs.existsSync(validateGameStatePath)) {
   }
 }
 
+const testPipelinePath = path.join(root, 'scripts', 'test_turn_result_pipeline.js');
+if (fs.existsSync(testPipelinePath)) {
+  try {
+    require('child_process').execFileSync(process.execPath, [testPipelinePath], {
+      cwd: root,
+      stdio: 'inherit'
+    });
+    ok('test_turn_result_pipeline.js');
+  } catch (e) {
+    fail('test_turn_result_pipeline.js failed');
+  }
+}
+
+const pyLoreTest = path.join(root, 'scripts', 'test_lorebook_python.py');
+const pyLoreSkill = path.join(root, '..', 'TextAdventureGMSkill', 'scripts', 'gm_bridge_common.py');
+if (fs.existsSync(pyLoreTest) && fs.existsSync(pyLoreSkill)) {
+  try {
+    const py = process.env.TA_GM_PYTHON || 'python';
+    require('child_process').execFileSync(py, [pyLoreTest], { cwd: root, stdio: 'inherit' });
+    ok('test_lorebook_python.py');
+  } catch (e) {
+    fail('test_lorebook_python.py failed');
+  }
+}
+
 const testStatePatchPath = path.join(root, 'scripts', 'test_state_patch.js');
 if (fs.existsSync(testStatePatchPath)) {
   try {

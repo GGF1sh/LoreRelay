@@ -103,21 +103,34 @@ function getConfig() {
     };
 }
 
-function getLanAddresses(port: number): string[] {
+function isLocalhostBind(host: string): boolean {
+    return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+function getAccessBaseUrls(port: number, bindHost: string): string[] {
     const urls: string[] = [`http://127.0.0.1:${port}/`];
-    const ifaces = os.networkInterfaces();
-    for (const entries of Object.values(ifaces)) {
-        if (!entries) {
-            continue;
-        }
-        for (const iface of entries) {
-            if (iface.family !== 'IPv4' || iface.internal) {
+    if (!isLocalhostBind(bindHost)) {
+        const ifaces = os.networkInterfaces();
+        for (const entries of Object.values(ifaces)) {
+            if (!entries) {
                 continue;
             }
-            urls.push(`http://${iface.address}:${port}/`);
+            for (const iface of entries) {
+                if (iface.family !== 'IPv4' || iface.internal) {
+                    continue;
+                }
+                urls.push(`http://${iface.address}:${port}/`);
+            }
         }
     }
     return [...new Set(urls)];
+}
+
+function maskToken(token: string): string {
+    if (!token || token.length < 8) {
+        return '****';
+    }
+    return `${token.slice(0, 4)}…${token.slice(-4)}`;
 }
 
 function buildAccessUrl(base: string): string {
@@ -475,7 +488,7 @@ export function getRemotePlayStatus(): RemotePlayStatus {
         running: Boolean(httpServer),
         port: listenPort,
         token: sessionToken,
-        urls: httpServer ? getLanAddresses(listenPort).map(buildAccessUrl) : [],
+        urls: httpServer ? getAccessBaseUrls(listenPort, listenHost).map(buildAccessUrl) : [],
         clientCount: wsClients.size
     };
 }
@@ -546,12 +559,12 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
         httpServer!.on('error', reject);
     });
 
-    const urls = getLanAddresses(listenPort).map(buildAccessUrl);
-    log(`Remote play started on ${listenHost}:${listenPort}`);
-    for (const url of urls) {
-        log(`  → ${url}`);
+    const bases = getAccessBaseUrls(listenPort, listenHost);
+    log(`Remote play started on ${listenHost}:${listenPort} (token=${maskToken(sessionToken)})`);
+    for (const base of bases) {
+        log(`  → ${base}`);
     }
-    log(`  WebSocket: ws://127.0.0.1:${listenPort}/ws?token=${sessionToken}`);
+    log(`  WebSocket: ws://127.0.0.1:${listenPort}/ws`);
 
     return getRemotePlayStatus();
 }

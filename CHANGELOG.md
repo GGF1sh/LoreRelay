@@ -12,6 +12,10 @@
 
 （次のマイルストーン: Phase 2B TavernCard V1/V2 完全対応 / Phase 4A VLM 統合）
 
+## [0.3.3] - 2026-06-26
+
+Phase 2B 完了（`a693892`）とフェーズ 3 ゲート（SKILL 同期・Python 整合・E2E スモーク）。
+
 ### Added — Phase 2B: ST ロアブックマッチングエンジン
 
 - **`src/lorebookMatcher.ts`** (新規): vscode 依存なしの純粋マッチング関数 `matchEntriesAgainstText` を分離。`LorebookEntry` インターフェースに ST 互換フィールドを追加:
@@ -22,8 +26,24 @@
 - **`scripts/test_lorebook.js`** (新規): ロアブックマッチングエンジンの単体テスト（11ケース: サブストリング/OR/大小文字/Regex/不正Regex/Secondary Keys/ソート/maxEntries/空入力）。
 - **`scripts/validate.js`**: `test_lorebook.js` を `npm test` に統合。
 
-### Added
-- **`AI_HANDOVER_PROMPTS.md`**: ChatGPT / Gemini / Claude / Grok 向けコピペプロンプト、共通必読ファイルの順序、推奨実行フェーズ（0〜3）を固定化。
+### Added — フェーズ 3 ゲート（Grok）
+
+- **`scripts/test_turn_result_pipeline.js`**: `statePatch` + `mergeGmEntryFromTurn` + `lorebookMatcher` 統合スモークテスト。
+- **`scripts/test_lorebook_python.py`**: Python `match_lorebook` と TS エンジンの整合スモークテスト。
+- **`TextAdventureGMSkill/SKILL.md`**: 正規契約を `turn_result.json`（Persist-Before-Narrate）に更新。`game_state.json` 直書きは緊急フォールバックに格下げ。ロアブック `triggeredLore` / ST 互換フィールドを追記。
+- **`gm_bridge_common.py`**: `match_lorebook()` を TS `lorebookMatcher` と同等の regex / secondary_keys / insertion_order ロジックに更新。
+
+### Changed
+
+- **`remotePlayServer.ts`**: `127.0.0.1` バインド時は LAN URL を表示しない（ChatGPT S-07）。Output Channel のトークン全文ログをマスク。
+
+### Security
+
+- ChatGPT 監査 (`C:\AI\CHATGPT_SECURITY_AND_SKILL.md`) を参照。S-07 部分対応。S-02〜S-06 は将来対応。
+
+### Added（ドキュメント）
+
+- **`AI_HANDOVER_PROMPTS.md`**（`c93ee26`）: マルチ AI 引き継ぎ手順書。
 
 ## [0.3.2] - 2026-06-26
 

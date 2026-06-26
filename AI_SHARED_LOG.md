@@ -17,6 +17,12 @@
   - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
 
+## 2026-06-26 12:29 JST - User / Gemini Deep Research - 類似システムの調査
+
+### 概要
+- **多言語検索を用いた類似システム調査**: ユーザーがGemini Deep Researchを利用して、LoreRelayに類似するゲームマスターフロントエンドやMOD、SillyTavern等のグローバル競合アーキテクチャについて包括的な調査を実施。
+- **結果レポート**: 調査結果は `C:\AI\多言語検索を用いたLoreRelay類似システムの調査.md` として出力・保存された。今後のアーキテクチャ設計や、VS Code拡張機能ならではの強み（IDEペイン分割、JSON疎結合、Gitタイムトラベル等）を伸ばすためのリファレンスとして活用可能。
+
 ## 2026-06-26 12:25 JST - Antigravity - ステータス表示の動的非表示オプション対応
 
 ### 概要

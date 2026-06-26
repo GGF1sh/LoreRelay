@@ -11,6 +11,7 @@ const JS_MODULE_ORDER = [
     '30-bgm-sfx.js',
     '40-dice-calc-tabs.js',
     '50-character-saga.js',
+    '55-remote-play.js',
     '60-tts-quickreply-imagegen.js',
     '70-game-rules.js',
     '90-bootstrap.js'

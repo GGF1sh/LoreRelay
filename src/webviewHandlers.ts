@@ -46,6 +46,8 @@ export interface WebviewHandlerDeps {
     handleUpdateImageGenConfig(raw: unknown): Promise<void>;
     sendGameRules(): void;
     handleUpdateGameRules(raw: unknown): Promise<void>;
+    toggleRemotePlay(start?: boolean): Promise<void>;
+    sendRemotePlayStatus(): void;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -76,6 +78,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendCharacterList();
             deps.sendCheckpointList();
             deps.sendGameRules();
+            deps.sendRemotePlayStatus();
             break;
         case 'getGameRules':
             deps.sendGameRules();
@@ -189,6 +192,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'updateImageGenConfig':
             await deps.handleUpdateImageGenConfig(message.config);
+            break;
+        case 'toggleRemotePlay':
+            await deps.toggleRemotePlay();
+            break;
+        case 'getRemotePlayStatus':
+            deps.sendRemotePlayStatus();
             break;
         default:
             break;

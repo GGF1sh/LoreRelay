@@ -24,6 +24,7 @@ const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 import { processTurnResult } from './statePatch';
 import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
+import { pushGameStateToRemoteClients } from './remotePlayServer';
 import type { TurnResult } from './types/TurnResult';
 
 let fileWatcher: vscode.FileSystemWatcher | undefined;
@@ -352,6 +353,8 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                     return true;
                 });
             }
+
+            pushGameStateToRemoteClients(state, gameEntryHistory);
         }
     } catch (e) {
         console.error(`Error reading game state (attempt ${retryCount + 1}):`, e);

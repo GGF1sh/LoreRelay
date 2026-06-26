@@ -18,6 +18,18 @@
   - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
   - **Phase 3A**: MediaAgent 並列パイプライン — **完了**（`mediaAgent.ts`、画像キュー、GM stdout 早期 BGM/SFX）
+  - **Phase 3B**: ZRIC型リモートプレイ — **完了**（`remotePlayServer.ts`、`remote-player/`、WebSocket 同期）
+
+## 2026-06-26 (Grok) - Phase 3B: ZRIC型リモートプレイ
+
+### 概要
+- **Remote Play Server** (`src/remotePlayServer.ts`): LAN/Tailscale 向け HTTP + WebSocket サーバー（既定 port 9473）
+  - トークン認証、プレイヤー専用 UI 配信、ワークスペース画像の `/media` プロキシ
+  - `game_state.json` 更新を WebSocket で全クライアントへブロードキャスト
+  - リモートからの行動入力 → 既存 `handlePlayerInput` パイプラインへ（メイン Webview と同期）
+- **Player UI** (`remote-player/`): モバイル向け読み取り/入力画面（チャット・ステータス・選択肢）
+- **統合**: `gameStateSync` ブロードキャスト、`gmBridgeRunner` の GM busy 通知、Webview 📱 トグル
+- **黒板**: `AI_ROADMAP.md` Phase 3B → `[x]`、Phase 3 完了
 
 ## 2026-06-26 (Grok) - Phase 3A: MediaAgent 並列パイプライン
 

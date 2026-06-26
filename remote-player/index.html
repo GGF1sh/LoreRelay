@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>LoreRelay Player</title>
+  <link rel="stylesheet" href="player.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="top-bar">
+      <div class="brand">⚔️ LoreRelay</div>
+      <div id="conn-status" class="status-dot offline" title="Connection"></div>
+    </header>
+
+    <section id="status-panel" class="hidden"></section>
+
+    <main id="chat-log" aria-live="polite"></main>
+
+    <section id="game-over" class="hidden">
+      <p id="game-over-msg"></p>
+    </section>
+
+    <section id="options-panel" class="hidden"></section>
+
+    <footer id="input-panel">
+      <div id="busy-banner" class="hidden">GM is thinking…</div>
+      <form id="input-form">
+        <input id="player-input" type="text" autocomplete="off" placeholder="Your action…" maxlength="2000" />
+        <button id="send-btn" type="submit">Send</button>
+      </form>
+    </footer>
+  </div>
+  <script src="player.js"></script>
+</body>
+</html>

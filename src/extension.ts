@@ -30,8 +30,16 @@ import {
     invokeGmBridge,
     fallbackToClipboard,
     killGmBridgeProcesses,
-    getGmBridgeOutputChannel
+    getGmBridgeOutputChannel,
+    isGmBridgeBusy
 } from './gmBridgeRunner';
+import {
+    initRemotePlayServer,
+    startRemotePlayServer,
+    stopRemotePlayServer,
+    getRemotePlayStatus,
+    disposeRemotePlayServer
+} from './remotePlayServer';
 import {
     runSkillScript,
     killActiveScriptProcess
@@ -125,6 +133,15 @@ export function activate(context: vscode.ExtensionContext) {
         subscriptions: context.subscriptions
     });
 
+    initRemotePlayServer({
+        extensionPath: context.extensionPath,
+        getPanel,
+        onPlayerInput: handlePlayerInput,
+        isGameOverActive,
+        isGmBusy: isGmBridgeBusy,
+        subscriptions: context.subscriptions
+    });
+
     initGameStateSync({
         getPanel,
         getGameStatePath,
@@ -207,6 +224,7 @@ export function activate(context: vscode.ExtensionContext) {
             killGmBridgeProcesses();
             killImageGenerationProcess();
             clearMediaAgentState();
+            disposeRemotePlayServer();
             killActiveScriptProcess();
             killPortraitProcess();
         });
@@ -248,6 +266,14 @@ export function activate(context: vscode.ExtensionContext) {
         void checkForUpdates(false, context);
     });
 
+    const startRemotePlayCmd = vscode.commands.registerCommand('textadventure.startRemotePlay', () => {
+        void toggleRemotePlay(true);
+    });
+
+    const stopRemotePlayCmd = vscode.commands.registerCommand('textadventure.stopRemotePlay', () => {
+        void toggleRemotePlay(false);
+    });
+
     context.subscriptions.push(
         openGameCmd,
         listModelsCmd,
@@ -258,7 +284,9 @@ export function activate(context: vscode.ExtensionContext) {
         validateScenarioCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
-        checkForUpdatesCmd
+        checkForUpdatesCmd,
+        startRemotePlayCmd,
+        stopRemotePlayCmd
     );
 
     context.subscriptions.push(
@@ -282,6 +310,48 @@ export function activate(context: vscode.ExtensionContext) {
 
 function getNonce(): string {
     return randomBytes(16).toString('hex');
+}
+
+function sendRemotePlayStatus(): void {
+    if (!panel) {
+        return;
+    }
+    panel.webview.postMessage({ type: 'remotePlayStatus', status: getRemotePlayStatus() });
+}
+
+async function toggleRemotePlay(start?: boolean): Promise<void> {
+    const running = getRemotePlayStatus().running;
+    const shouldStart = start === undefined ? !running : start;
+
+    try {
+        if (shouldStart) {
+            if (!panel) {
+                await vscode.commands.executeCommand('textadventure.openGame');
+            }
+            const status = await startRemotePlayServer();
+            sendRemotePlayStatus();
+            const primaryUrl = status.urls[0] || `http://127.0.0.1:${status.port}/?token=${status.token}`;
+            const picked = await vscode.window.showInformationMessage(
+                t('extension.info.remotePlayStarted'),
+                t('extension.remotePlay.copyUrl'),
+                t('extension.remotePlay.openBrowser')
+            );
+            if (picked === t('extension.remotePlay.copyUrl')) {
+                await vscode.env.clipboard.writeText(primaryUrl);
+                vscode.window.showInformationMessage(t('extension.info.remotePlayUrlCopied'));
+            } else if (picked === t('extension.remotePlay.openBrowser')) {
+                await vscode.env.openExternal(vscode.Uri.parse(primaryUrl));
+            }
+            void sendCurrentState(0, true);
+        } else if (running) {
+            stopRemotePlayServer();
+            sendRemotePlayStatus();
+            vscode.window.showInformationMessage(t('extension.info.remotePlayStopped'));
+        }
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(t('extension.error.remotePlayFailed', { message }));
+    }
 }
 
 function sendLocaleBundle(): void {
@@ -549,7 +619,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendImageGenConfig,
         handleUpdateImageGenConfig,
         sendGameRules,
-        handleUpdateGameRules
+        handleUpdateGameRules,
+        toggleRemotePlay,
+        sendRemotePlayStatus
     };
 }
 
@@ -564,6 +636,7 @@ export function deactivate() {
     killGmBridgeProcesses();
     killImageGenerationProcess();
     clearMediaAgentState();
+    disposeRemotePlayServer();
     killActiveScriptProcess();
     killPortraitProcess();
 }

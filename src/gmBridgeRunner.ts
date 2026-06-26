@@ -18,6 +18,7 @@ import {
 } from './skillScriptRunner';
 import { DiceLedgerEntry } from './types/TurnResult';
 import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } from './mediaAgent';
+import { notifyRemoteGmBusy } from './remotePlayServer';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -144,6 +145,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
+    notifyRemoteGmBusy(true);
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     const mediaTap = createGmStreamMediaTap();
@@ -157,6 +159,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
             grokProcess = undefined;
             safeUnlinkPlayerActionFile(promptFile);
             vscode.window.setStatusBarMessage('');
+            notifyRemoteGmBusy(false);
             getPanel()?.webview.postMessage({ type: 'gmEnd', success });
             resolve(success);
         };
@@ -260,6 +263,7 @@ async function invokeLocalLlmBridge(
     channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
+    notifyRemoteGmBusy(true);
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     const env = buildLocalGmEnv(provider);
@@ -292,6 +296,7 @@ async function invokeLocalLlmBridge(
             safeUnlinkPlayerActionFile(actionFile);
             gmProcess = undefined;
             vscode.window.setStatusBarMessage('');
+            notifyRemoteGmBusy(false);
             getPanel()?.webview.postMessage({ type: 'gmEnd', success: code === 0 });
             channel.appendLine(`\n[${provider} exited with code ${code ?? 'unknown'}]`);
 
@@ -356,6 +361,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
+    notifyRemoteGmBusy(true);
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     const mediaTap = createGmStreamMediaTap();
@@ -369,6 +375,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
             gmProcess = undefined;
             safeUnlinkPlayerActionFile(actionFile);
             vscode.window.setStatusBarMessage('');
+            notifyRemoteGmBusy(false);
             getPanel()?.webview.postMessage({ type: 'gmEnd', success });
             resolve(success);
         };

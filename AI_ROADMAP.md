@@ -38,15 +38,18 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ---
 
-## 🟡 Phase 3: 並列エージェントパイプラインとリモートプレイ (担当: Grok)
-*ステータス: Phase 3A 完了*
+## 🟢 Phase 3: 並列エージェントパイプラインとリモートプレイ (担当: Grok)
+*ステータス: 完了*
 
 ゲーム進行を止めない非同期処理と、LAN内で遊べるマルチデバイス対応。
 
 - [x] **Phase 3A (Marinara Engine型)**: メインの文章生成を止めずに、バックグラウンドでBGM選曲・SE発火・ComfyUI画像生成を非同期に走らせる。
   - TS側: `src/mediaAgent.ts`（GM stdout ストリーム解析・`turn_result.json` フック・画像キュー）、`imageGenRunner.ts` キュー drain、`gmBridgeRunner.ts` 早期メディア dispatch
   - 設定: `textAdventure.mediaAgent.enabled` / `autoImage` / `maxImageQueue`
-- [ ] **Phase 3B (ZRIC型)**: LAN内（またはTailscale経由）からスマホ等でアクセスできる「プレイヤー専用の読み取り/入力画面 (localhost)」を立ち上げ、WebSocketでメイン画面と同期させる。
+- [x] **Phase 3B (ZRIC型)**: LAN内（またはTailscale経由）からスマホ等でアクセスできる「プレイヤー専用の読み取り/入力画面 (localhost)」を立ち上げ、WebSocketでメイン画面と同期させる。
+  - TS側: `src/remotePlayServer.ts`（HTTP + WebSocket + メディアプロキシ）、`remote-player/` モバイル UI
+  - コマンド: `Text Adventure: Start/Stop Remote Play`、Webview 📱 ボタン
+  - 設定: `textAdventure.remotePlay.port` / `bindAddress` / `maxClients` / `inputCooldownMs`
 
 ---
 

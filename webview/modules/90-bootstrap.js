@@ -20,6 +20,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // extension に状態リクエスト
   vscode.postMessage({ type: 'requestState' });
+  vscode.postMessage({ type: 'getRemotePlayStatus' });
 
   // 入力の変更時に状態を自動保存
   if (freeInput) {
@@ -173,6 +174,21 @@ window.addEventListener('message', (event) => {
     saveState();
   } else if (msg.type === 'imageGenConfig') {
     applyImageGenConfigForm(msg.config || {});
+  } else if (msg.type === 'remotePlayStatus') {
+    updateRemotePlayButton(msg.status);
+  } else if (msg.type === 'remoteInput') {
+    if (typeof msg.text === 'string' && msg.text.trim()) {
+      const entry = {
+        id: `user-remote-${Date.now()}`,
+        role: 'user',
+        content: msg.text.trim(),
+        sender: T('webview.sender.player')
+      };
+      messageHistory.push(entry);
+      renderMessage(entry);
+      scrollToBottom();
+      saveState();
+    }
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};
     currentLocale = msg.locale || 'en';

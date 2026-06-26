@@ -20,7 +20,9 @@
     "onCommand:textadventure.validateScenario",
     "onCommand:textadventure.setOpenRouterApiKey",
     "onCommand:textadventure.clearOpenRouterApiKey",
-    "onCommand:textadventure.checkForUpdates"
+    "onCommand:textadventure.checkForUpdates",
+    "onCommand:textadventure.startRemotePlay",
+    "onCommand:textadventure.stopRemotePlay"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -64,6 +66,14 @@
       {
         "command": "textadventure.checkForUpdates",
         "title": "Text Adventure: Check for Updates"
+      },
+      {
+        "command": "textadventure.startRemotePlay",
+        "title": "Text Adventure: Start Remote Play (LAN)"
+      },
+      {
+        "command": "textadventure.stopRemotePlay",
+        "title": "Text Adventure: Stop Remote Play"
       }
     ],
     "configuration": {
@@ -170,6 +180,32 @@
           "minimum": 1,
           "maximum": 20,
           "description": "Maximum queued ComfyUI image jobs. Oldest jobs are dropped when full."
+        },
+        "textAdventure.remotePlay.port": {
+          "type": "number",
+          "default": 9473,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "TCP port for the LAN remote player HTTP/WebSocket server."
+        },
+        "textAdventure.remotePlay.bindAddress": {
+          "type": "string",
+          "default": "0.0.0.0",
+          "description": "Bind address for remote play. Use 0.0.0.0 for LAN/Tailscale access, or 127.0.0.1 for local-only."
+        },
+        "textAdventure.remotePlay.maxClients": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 32,
+          "description": "Maximum simultaneous WebSocket player connections."
+        },
+        "textAdventure.remotePlay.inputCooldownMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "maximum": 10000,
+          "description": "Minimum milliseconds between remote player inputs per client."
         },
         "textAdventure.locale": {
           "type": "string",

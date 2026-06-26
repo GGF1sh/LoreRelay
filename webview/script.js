@@ -1658,6 +1658,29 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   }
 }
 
+/* --- 55-remote-play.js --- */
+// ===== Remote Play (LAN player screen) =====
+let remotePlayActive = false;
+
+function updateRemotePlayButton(status) {
+  const btn = document.getElementById('remote-play-btn');
+  if (!btn) { return; }
+  remotePlayActive = Boolean(status && status.running);
+  btn.classList.toggle('active', remotePlayActive);
+  const clients = status && typeof status.clientCount === 'number' ? status.clientCount : 0;
+  btn.title = remotePlayActive
+    ? `${T('webview.remotePlay.active')} (${clients})`
+    : T('webview.remotePlay.toggle');
+}
+
+(function initRemotePlayUi() {
+  const btn = document.getElementById('remote-play-btn');
+  if (!btn) { return; }
+  btn.addEventListener('click', () => {
+    vscode.postMessage({ type: 'toggleRemotePlay' });
+  });
+})();
+
 /* --- 60-tts-quickreply-imagegen.js --- */
 // ===== AI音声ナレーション (TTS) コアロジック =====
 function getBestVoiceForLocale(locale) {
@@ -1989,6 +2012,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // extension に状態リクエスト
   vscode.postMessage({ type: 'requestState' });
+  vscode.postMessage({ type: 'getRemotePlayStatus' });
 
   // 入力の変更時に状態を自動保存
   if (freeInput) {
@@ -2142,6 +2166,21 @@ window.addEventListener('message', (event) => {
     saveState();
   } else if (msg.type === 'imageGenConfig') {
     applyImageGenConfigForm(msg.config || {});
+  } else if (msg.type === 'remotePlayStatus') {
+    updateRemotePlayButton(msg.status);
+  } else if (msg.type === 'remoteInput') {
+    if (typeof msg.text === 'string' && msg.text.trim()) {
+      const entry = {
+        id: `user-remote-${Date.now()}`,
+        role: 'user',
+        content: msg.text.trim(),
+        sender: T('webview.sender.player')
+      };
+      messageHistory.push(entry);
+      renderMessage(entry);
+      scrollToBottom();
+      saveState();
+    }
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};
     currentLocale = msg.locale || 'en';

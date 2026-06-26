@@ -1,31 +1,94 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { StatePatchOp, TurnResult } from './types/TurnResult';
-import { getGameStatePath, getWorkspacePath } from './workspacePaths';
+import type { GameEntry } from './types/GameState';
+import { isValidEntryId } from './entryId';
+import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { validateGameState } from './validateGameState';
 import { t } from './i18n';
+
+/** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
+const ALLOWED_ROOTS = new Set([
+    'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
+    'latestImage', 'background', 'sprite', 'hiddenDice',
+    'gameOver', 'summary', 'diceRequest'
+]);
+
+const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const PATCHABLE_ROOT_KEYS = [
+    'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
+    'latestImage', 'background', 'sprite', 'hiddenDice',
+    'gameOver', 'summary', 'diceRequest'
+] as const;
+
+/** game_state 差分から JSON Patch を生成（Grok 直書きフォールバック用）。 */
+export function buildStatePatchFromDiff(
+    prev: Record<string, unknown>,
+    next: Record<string, unknown>
+): StatePatchOp[] {
+    const patches: StatePatchOp[] = [];
+    for (const key of PATCHABLE_ROOT_KEYS) {
+        if (!(key in next)) {
+            continue;
+        }
+        const newVal = next[key];
+        const oldVal = prev[key];
+        if (JSON.stringify(newVal) === JSON.stringify(oldVal)) {
+            continue;
+        }
+        patches.push({
+            op: key in prev ? 'replace' : 'add',
+            path: `/${key}`,
+            value: newVal
+        });
+    }
+    return patches;
+}
+
+export function hashGameState(state: unknown): string {
+    return crypto.createHash('sha256').update(JSON.stringify(state)).digest('hex');
+}
+
+function isSafePatchPath(patchPath: string): boolean {
+    const keys = patchPath.split('/').filter((k) => k.length > 0);
+    if (keys.length === 0) {
+        return false;
+    }
+    if (keys.some((k) => BLOCKED_KEYS.has(k))) {
+        return false;
+    }
+    return ALLOWED_ROOTS.has(keys[0]);
+}
 
 /**
  * Apply JSON Patch operations to a state object.
  */
-export function applyStatePatch(state: any, patches: StatePatchOp[]): any {
-    const newState = JSON.parse(JSON.stringify(state)); // Deep copy
-    
+export function applyStatePatch(state: Record<string, unknown>, patches: StatePatchOp[]): Record<string, unknown> {
+    const newState = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+
     for (const patch of patches) {
         try {
-            const keys = patch.path.split('/').filter(k => k.length > 0);
-            if (keys.length === 0) continue;
-            
-            let target = newState;
-            for (let i = 0; i < keys.length - 1; i++) {
-                if (target[keys[i]] === undefined) {
-                    target[keys[i]] = {};
+            if (!patch || typeof patch.path !== 'string' || !isSafePatchPath(patch.path)) {
+                if (patch?.path) {
+                    console.warn(`[statePatch] Blocked patch path: ${patch.path}`);
                 }
-                target = target[keys[i]];
+                continue;
             }
-            
+
+            const keys = patch.path.split('/').filter((k) => k.length > 0);
+            let target: Record<string, unknown> = newState;
+            for (let i = 0; i < keys.length - 1; i++) {
+                const key = keys[i];
+                if (target[key] === undefined || typeof target[key] !== 'object' || target[key] === null) {
+                    target[key] = {};
+                }
+                target = target[key] as Record<string, unknown>;
+            }
+
             const lastKey = keys[keys.length - 1];
-            
             switch (patch.op) {
                 case 'replace':
                 case 'add':
@@ -39,37 +102,103 @@ export function applyStatePatch(state: any, patches: StatePatchOp[]): any {
             console.error(`Failed to apply patch: ${JSON.stringify(patch)}`, e);
         }
     }
-    
+
     return newState;
 }
 
+/** turn_result の narration / gmEntry を game_state.entries にマージする。 */
+export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult: TurnResult): Record<string, unknown> {
+    const narration = typeof turnResult.narration === 'string' ? turnResult.narration.trim() : '';
+    if (!narration || !isValidEntryId(turnResult.turnId)) {
+        return state;
+    }
+
+    const entry: GameEntry = {
+        id: turnResult.turnId,
+        role: 'gm',
+        sender: 'Game Master',
+        content: narration
+    };
+
+    const gmMeta = turnResult.gmEntry;
+    if (gmMeta?.imagePrompt && typeof gmMeta.imagePrompt === 'string') {
+        entry.imagePrompt = gmMeta.imagePrompt.slice(0, 2000);
+    }
+    if (gmMeta?.image && typeof gmMeta.image === 'string') {
+        entry.image = gmMeta.image;
+    }
+
+    const entries = Array.isArray(state.entries) ? [...state.entries] : [];
+    const idx = entries.findIndex((e) => typeof e === 'object' && e !== null && (e as GameEntry).id === turnResult.turnId);
+    if (idx >= 0) {
+        entries[idx] = { ...(entries[idx] as GameEntry), ...entry };
+    } else {
+        entries.push(entry);
+    }
+
+    return { ...state, entries };
+}
+
 /**
- * Process a new turn_result.json, apply its patches, and update game_state.json.
+ * Process turn_result.json: apply patches, merge GM entry, validate, persist.
  */
-export function processTurnResult(turnResult: TurnResult): boolean {
+export function processTurnResult(turnResult: TurnResult): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
         return false;
     }
-    
+
     try {
         const stateStr = fs.readFileSync(statePath, 'utf-8');
-        let state = JSON.parse(stateStr);
-        
+        let state = JSON.parse(stateStr) as Record<string, unknown>;
+        const beforeHash = hashGameState(state);
+
         if (turnResult.statePatch && turnResult.statePatch.length > 0) {
             state = applyStatePatch(state, turnResult.statePatch);
         }
-        
-        fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
-        
-        // Append to state_journal.ndjson
+
+        state = mergeGmEntryFromTurn(state, turnResult);
+
+        const schemaErrors = validateGameState(state);
+        if (schemaErrors.length > 0) {
+            console.error(`[statePatch] Validation failed after turn: ${schemaErrors.join('; ')}`);
+            vscode.window.showErrorMessage(t('extension.error.gameStateLoad') + ' (Schema Violation)');
+            return false;
+        }
+
+        const afterHash = hashGameState(state);
+        writeJsonAtomic(statePath, state);
+
+        const appliedAt = new Date().toISOString();
+        const enriched: TurnResult = {
+            ...turnResult,
+            beforeHash,
+            afterHash,
+            appliedAt
+        };
+
         const wsPath = getWorkspacePath();
         if (wsPath) {
             const journalPath = path.join(wsPath, 'state_journal.ndjson');
-            fs.appendFileSync(journalPath, JSON.stringify(turnResult) + '\n', 'utf-8');
+            try {
+                if (fs.existsSync(journalPath)) {
+                    const stats = fs.statSync(journalPath);
+                    if (stats.size > 10 * 1024 * 1024) {
+                        const backupPath = `${journalPath}.bak`;
+                        if (fs.existsSync(backupPath)) {
+                            fs.unlinkSync(backupPath);
+                        }
+                        fs.renameSync(journalPath, backupPath);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to rotate state_journal.ndjson', e);
+            }
+
+            fs.appendFileSync(journalPath, JSON.stringify(enriched) + '\n', 'utf-8');
         }
-        
-        return true;
+
+        return enriched;
     } catch (e) {
         console.error('Error processing turn result', e);
         vscode.window.showErrorMessage(t('extension.error.gameStateLoad'));

@@ -278,6 +278,33 @@
         </div>
       </div> <!-- /pane-character -->
 
+      <!-- ペイン 3: Turn Inspector -->
+      <div id="pane-inspector" class="tab-pane" style="display: none;">
+        <p id="inspector-empty-text" class="empty-text" data-i18n="webview.inspector.empty">Complete a GM turn to inspect dice, patches, and lore triggers.</p>
+        <div id="inspector-content" class="hidden">
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.turnId">Turn</h4>
+            <div id="inspector-turn-id" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.integrity">State integrity</h4>
+            <div id="inspector-integrity" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.diceLedger">Dice ledger</h4>
+            <div id="inspector-dice-ledger" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.statePatch">State patches</h4>
+            <div id="inspector-state-patch" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.lorebook">Triggered lore</h4>
+            <div id="inspector-lorebook" class="inspector-list"></div>
+          </div>
+        </div>
+      </div> <!-- /pane-inspector -->
+
     </div>
   </div>
 

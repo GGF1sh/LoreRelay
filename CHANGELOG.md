@@ -11,6 +11,21 @@
 ## [Unreleased]
 
 ### Added
+- **Phase 2A 堅牢化 (Persist-Before-Narrate E2E)**: Python GM bridges write `turn_result.json` atomically; TS `processTurnResult` merges `narration`/`gmEntry`, applies expanded allowlist patches (`bgm`, `mood`, `sfx`, `theme`, `sprite`, `diceRequest`, etc.), validates, and journals `beforeHash`/`afterHash`/`appliedAt`.
+- **`src/turnResultFallback.ts`**: When Grok/custom GM writes `game_state.json` directly, synthesizes `turn_result.json` from the pre-turn snapshot so Inspector, journal, and MediaAgent stay on the patch pipeline.
+- **`src/mediaPaths.ts`**: Shared `isAllowedImagePath` (breaks `gameStateSync` ↔ `remotePlayServer` circular dependency).
+- **Turn Inspector pane**: Missing `pane-inspector` HTML added; shows turn ID, integrity hashes, dice ledger, state patches, and `triggeredLore`.
+- **`scripts/test_state_patch.js`**: Unit tests for `applyStatePatch`, `mergeGmEntryFromTurn`, and `buildStatePatchFromDiff`.
+
+### Changed
+- **GM prompts (Grok/locale)**: Instruct writing `turn_result.json` instead of overwriting `game_state.json` directly.
+- **`remotePlay.bindAddress` default**: `127.0.0.1` (LAN requires explicit `0.0.0.0`).
+- **Remote Play input lock**: Single-flight remote input while GM processes a turn.
+- **MediaAgent**: JSON-fence-only stream parsing; `clearMediaAgentCaches()` on GM session reset.
+- **`dice_ledger.json`**: Atomic write via `writeJsonAtomic` in `gmBridgeRunner`.
+- **Python `gm_bridge_common.py`**: `game_rules.json` prompt injection, `triggeredLore` in `turn_result`, legacy `TA_LEGACY_WRITE_GAME_STATE=1` fallback.
+
+### Added
 - **Phase 1.5: Game Rules & RPG Toggles UI**: Added `game_rules.json` and a Webview settings panel (⚙️) to allow users to toggle RPG mechanics (HP/MP) ON/OFF and adjust default parameters (e.g. Max HP, Dice Difficulty). This configuration is saved per workspace and will be used to dynamically alter the GM AI's system prompt (Phase 2).
 - **Phase 1: Deterministic Macro & RNG Injection**: Added `src/diceRoller.ts` to parse dice macros like `{{roll 1d20+2}}` or `{{roll 100}}` directly from the user's input. The Webview/Bridge calculates the results locally and injects deterministic results (e.g., `[System Roll: 1d20+2 ➔ 15]`) into the prompt before sending it to the LLM, eliminating AI calculation errors or hallucinated dice results.
 - **Dynamic visibility for status elements**: HP, MP, Location, Time, Funds, Condition, Inventory, and Skills blocks/rows are now dynamically hidden in the Webview if they are omitted from the `game_state.json` status object. Omission of the entire `status` object hides the status section altogether, allowing for visual novel or lightweight chat-centric gameplay.

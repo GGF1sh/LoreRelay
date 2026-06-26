@@ -156,6 +156,21 @@ if (!fs.existsSync(validateGameStatePath)) {
   }
 }
 
+const testStatePatchPath = path.join(root, 'scripts', 'test_state_patch.js');
+if (fs.existsSync(testStatePatchPath)) {
+  try {
+    require('child_process').execFileSync(process.execPath, [testStatePatchPath], {
+      cwd: root,
+      stdio: 'inherit'
+    });
+    ok('test_state_patch.js');
+  } catch (e) {
+    fail('test_state_patch.js failed');
+  }
+} else {
+  fail('scripts/test_state_patch.js missing');
+}
+
 if (failed > 0) {
   process.exit(1);
 }

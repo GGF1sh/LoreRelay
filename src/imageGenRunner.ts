@@ -69,6 +69,11 @@ export function getImageQueueLength(): number {
     return imageGenQueue.length;
 }
 
+/** 新ターン開始時に entry 重複抑止をリセット（同一 entry の再生成を許可）。 */
+export function resetImageQueueDedup(): void {
+    queuedEntryIds.clear();
+}
+
 export function killImageGenerationProcess(): void {
     if (imageGenerationProcess) {
         imageGenerationProcess.kill();

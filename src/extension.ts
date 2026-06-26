@@ -458,8 +458,6 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
     }
 
     let trimmed = text.trim();
-    const diceResult = processDiceMacros(trimmed);
-    trimmed = diceResult.text;
     if (!trimmed) {
         vscode.window.showErrorMessage(t('extension.error.inputEmpty'));
         return;
@@ -467,6 +465,13 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
 
     if (trimmed.length > MAX_PLAYER_INPUT_LENGTH) {
         vscode.window.showErrorMessage(t('extension.error.inputTooLong', { max: String(MAX_PLAYER_INPUT_LENGTH) }));
+        return;
+    }
+
+    const diceResult = processDiceMacros(trimmed);
+    trimmed = diceResult.text;
+    if (!trimmed) {
+        vscode.window.showErrorMessage(t('extension.error.inputEmpty'));
         return;
     }
 

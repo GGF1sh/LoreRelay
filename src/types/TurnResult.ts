@@ -22,6 +22,11 @@ export interface TurnMediaRequest {
     imageMode?: string;
 }
 
+export interface TurnGmEntryMeta {
+    imagePrompt?: string;
+    image?: string;
+}
+
 export interface TurnResult {
     turnId: string;
     playerAction?: string;
@@ -30,4 +35,11 @@ export interface TurnResult {
     narration: string;
     /** Optional explicit media requests (parallel to statePatch media paths). */
     media?: TurnMediaRequest;
+    /** GM entry metadata (imagePrompt etc.) merged into entries by extension. */
+    gmEntry?: TurnGmEntryMeta;
+    /** Integrity hashes (extension may add on journal write). */
+    beforeHash?: string;
+    afterHash?: string;
+    appliedAt?: string;
+    triggeredLore?: string[];
 }

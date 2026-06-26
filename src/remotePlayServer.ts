@@ -7,30 +7,8 @@ import * as path from 'path';
 import { createHash, randomBytes } from 'crypto';
 import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
 import { getWorkspacePath } from './workspacePaths';
-import { getSkillDir } from './imageGenRunner';
 import { getConfiguredLocale, getWebviewStrings, t } from './i18n';
-
-function isAllowedImagePath(imagePath: string): boolean {
-    const normalized = path.normalize(imagePath);
-    if (!fs.existsSync(normalized)) {
-        return false;
-    }
-    const ws = getWorkspacePath();
-    if (ws) {
-        const wsNorm = path.normalize(ws);
-        if (normalized === wsNorm || normalized.startsWith(wsNorm + path.sep)) {
-            return true;
-        }
-    }
-    const skillDir = getSkillDir();
-    if (skillDir) {
-        const skillNorm = path.normalize(skillDir);
-        if (normalized === skillNorm || normalized.startsWith(skillNorm + path.sep)) {
-            return true;
-        }
-    }
-    return false;
-}
+import { isAllowedImagePath } from './mediaPaths';
 
 export interface RemotePlayServerDeps {
     extensionPath: string;
@@ -55,6 +33,7 @@ interface WsConnection {
     buffer: Buffer;
     lastInputAt: number;
     authenticated: boolean;
+    authTimer?: NodeJS.Timeout;
 }
 
 interface RemotePlayerState {
@@ -78,6 +57,7 @@ let outputChannel: vscode.OutputChannel | undefined;
 const wsClients = new Map<string, WsConnection>();
 let lastBroadcastState: RemotePlayerState | undefined;
 let gmBusyFlag = false;
+let remoteInputLocked = false;
 
 const MIME: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
@@ -117,7 +97,7 @@ function getConfig() {
     const config = vscode.workspace.getConfiguration('textAdventure');
     return {
         port: config.get<number>('remotePlay.port', 9473),
-        bindAddress: config.get<string>('remotePlay.bindAddress', '0.0.0.0').trim() || '0.0.0.0',
+        bindAddress: config.get<string>('remotePlay.bindAddress', '127.0.0.1').trim() || '127.0.0.1',
         maxClients: Math.max(1, Math.min(32, config.get<number>('remotePlay.maxClients', 8))),
         inputCooldownMs: Math.max(500, config.get<number>('remotePlay.inputCooldownMs', 1500))
     };
@@ -237,6 +217,10 @@ function sendToClient(client: WsConnection, message: Record<string, unknown>): v
 
 function closeClient(client: WsConnection, code = 1000, reason = ''): void {
     wsClients.delete(client.id);
+    if (client.authTimer) {
+        clearTimeout(client.authTimer);
+        client.authTimer = undefined;
+    }
     if (!client.socket.destroyed) {
         client.socket.destroy();
     }
@@ -245,6 +229,10 @@ function closeClient(client: WsConnection, code = 1000, reason = ''): void {
 }
 
 function handleWsData(client: WsConnection, chunk: Buffer): void {
+    if (client.buffer.length + chunk.length > 65536) {
+        closeClient(client, 1009, 'Buffer overflow (max 64KB)');
+        return;
+    }
     client.buffer = Buffer.concat([client.buffer, chunk]);
 
     while (client.buffer.length >= 2) {
@@ -309,6 +297,11 @@ function handleWsData(client: WsConnection, chunk: Buffer): void {
 }
 
 async function handleWsMessage(client: WsConnection, raw: string): Promise<void> {
+    if (raw.length > 4000) {
+        sendToClient(client, { type: 'error', message: 'Message too large' });
+        closeClient(client, 1009, 'Message size limit exceeded (max 4000 chars)');
+        return;
+    }
     let msg: Record<string, unknown>;
     try {
         msg = JSON.parse(raw);
@@ -320,6 +313,10 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
     if (!client.authenticated) {
         if (msg.type === 'auth' && msg.token === sessionToken) {
             client.authenticated = true;
+            if (client.authTimer) {
+                clearTimeout(client.authTimer);
+                client.authTimer = undefined;
+            }
             sendToClient(client, {
                 type: 'welcome',
                 locale: getConfiguredLocale(),
@@ -346,7 +343,7 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             break;
         case 'selectOption':
         case 'freeInput': {
-            if (d.isGmBusy()) {
+            if (remoteInputLocked || d.isGmBusy()) {
                 sendToClient(client, { type: 'error', message: 'GM is busy' });
                 return;
             }
@@ -366,10 +363,16 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             }
             client.lastInputAt = now;
             const authorsNote = typeof msg.authorsNote === 'string' ? msg.authorsNote : undefined;
+            remoteInputLocked = true;
             sendToClient(client, { type: 'inputAccepted', text });
             broadcast({ type: 'remoteInput', text, clientId: client.id });
             d.getPanel()?.webview.postMessage({ type: 'remoteInput', text });
-            await d.onPlayerInput(text, authorsNote);
+            try {
+                await d.onPlayerInput(text, authorsNote);
+            } catch (e) {
+                remoteInputLocked = false;
+                log(`Remote input failed: ${e instanceof Error ? e.message : String(e)}`);
+            }
             break;
         }
         default:
@@ -412,7 +415,12 @@ function acceptWebSocket(req: http.IncomingMessage, socket: net.Socket, head: Bu
         socket,
         buffer: Buffer.alloc(0),
         lastInputAt: 0,
-        authenticated: false
+        authenticated: false,
+        authTimer: setTimeout(() => {
+            if (!client.authenticated) {
+                closeClient(client, 1008, 'Auth timeout');
+            }
+        }, 5000)
     };
     wsClients.set(client.id, client);
 
@@ -490,6 +498,12 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
     listenPort = cfg.port;
     listenHost = cfg.bindAddress;
 
+    if (listenHost === '0.0.0.0') {
+        const warnMsg = t('extension.warning.remotePlayLanExposed') || 
+            'Remote Play is exposed to the local network (0.0.0.0). Anyone on your LAN can access it if they have the token. Ensure you trust this network.';
+        void vscode.window.showWarningMessage(warnMsg);
+    }
+
     httpServer = http.createServer((req, res) => {
         try {
             const reqUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -554,6 +568,7 @@ export function stopRemotePlayServer(): void {
     listenPort = 0;
     lastBroadcastState = undefined;
     gmBusyFlag = false;
+    remoteInputLocked = false;
     log('Remote play stopped.');
 }
 
@@ -568,6 +583,9 @@ export function pushGameStateToRemoteClients(state: GameState, entries: GameEntr
 
 export function notifyRemoteGmBusy(busy: boolean): void {
     gmBusyFlag = busy;
+    if (!busy) {
+        remoteInputLocked = false;
+    }
     if (!httpServer) {
         return;
     }

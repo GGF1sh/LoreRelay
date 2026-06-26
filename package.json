@@ -190,8 +190,8 @@
         },
         "textAdventure.remotePlay.bindAddress": {
           "type": "string",
-          "default": "0.0.0.0",
-          "description": "Bind address for remote play. Use 0.0.0.0 for LAN/Tailscale access, or 127.0.0.1 for local-only."
+          "default": "127.0.0.1",
+          "description": "Bind address for remote play. Use 0.0.0.0 for LAN/Tailscale access (warning: exposes server to network), or 127.0.0.1 for local-only."
         },
         "textAdventure.remotePlay.maxClients": {
           "type": "number",

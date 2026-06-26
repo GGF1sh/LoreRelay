@@ -65,6 +65,11 @@ export function processDiceMacros(text: string): ProcessedDiceResult {
 function evaluateDiceFormula(formula: string): { total: number, rolls: number[], modifier: number } {
     const cleanFormula = formula.replace(/\s+/g, '').toLowerCase();
     
+    // 全体的なフォーマット確認（許容される文字のみ。数、d, +, -）
+    if (!/^[0-9d+-]+$/.test(cleanFormula)) {
+        throw new Error("Invalid characters in formula");
+    }
+    
     const tokens = cleanFormula.match(/([+-]?[^+-]+)/g);
     if (!tokens) {
         throw new Error("Invalid formula");
@@ -79,6 +84,15 @@ function evaluateDiceFormula(formula: string): { total: number, rolls: number[],
             const sign = token.startsWith('-') ? -1 : 1;
             const unsignedToken = token.replace(/^[+-]/, '');
             const [countStr, sidesStr] = unsignedToken.split('d');
+            
+            // パース前に完全な数字であるか検証
+            if (countStr !== '' && !/^\d+$/.test(countStr)) {
+                throw new Error("Invalid dice count");
+            }
+            if (!/^\d+$/.test(sidesStr)) {
+                throw new Error("Invalid dice sides");
+            }
+
             const count = countStr === '' ? 1 : parseInt(countStr, 10);
             const sides = parseInt(sidesStr, 10);
             
@@ -92,7 +106,13 @@ function evaluateDiceFormula(formula: string): { total: number, rolls: number[],
                 total += sign * roll;
             }
         } else {
-            const val = parseInt(token, 10);
+            const sign = token.startsWith('-') ? -1 : 1;
+            const unsignedToken = token.replace(/^[+-]/, '');
+            if (!/^\d+$/.test(unsignedToken)) {
+                throw new Error("Invalid modifier number");
+            }
+            
+            const val = parseInt(unsignedToken, 10) * sign;
             if (isNaN(val)) {
                 throw new Error("Invalid number");
             }

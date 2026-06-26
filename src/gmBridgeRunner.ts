@@ -10,7 +10,8 @@ import {
     writePlayerActionFile,
     writePromptFile
 } from './playerAction';
-import { getWorkspacePath, getGmProvider } from './workspacePaths';
+import { getWorkspacePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
+import { clearMediaAgentCaches } from './mediaAgent';
 import {
     buildLocalGmEnv,
     resolveGmBridgeScript,
@@ -19,6 +20,7 @@ import {
 import { DiceLedgerEntry } from './types/TurnResult';
 import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } from './mediaAgent';
 import { notifyRemoteGmBusy } from './remotePlayServer';
+import { beginGmRun, finishGmRun } from './turnResultFallback';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -97,6 +99,7 @@ function createGmStreamMediaTap(): { append(chunk: string): void; reset(): void 
         reset() {
             buffer = '';
             resetMediaStreamCache();
+            clearMediaAgentCaches();
         },
         append(chunk: string) {
             buffer += chunk;
@@ -150,6 +153,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
+    const prevGmState = beginGmRun();
 
     return new Promise((resolve) => {
         let finished = false;
@@ -183,6 +187,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
 
         grokProcess.on('error', (err) => {
             channel.appendLine(`\n[Error: ${err.message}]`);
+            finishGmRun(prevGmState, playerAction, false);
             vscode.window.showErrorMessage(t('extension.error.grokFailed', { message: err.message }));
             finishGrok(false);
         });
@@ -192,9 +197,11 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
 
             if (code === 0) {
                 grokSessionActive = true;
+                finishGmRun(prevGmState, playerAction, true);
                 vscode.window.showInformationMessage(t('extension.info.grokDone'));
                 finishGrok(true);
             } else {
+                finishGmRun(prevGmState, playerAction, false);
                 vscode.window.showWarningMessage(
                     t('extension.warning.grokExit', { code: String(code ?? 'unknown') })
                 );
@@ -273,6 +280,7 @@ async function invokeLocalLlmBridge(
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
+    const prevGmState = beginGmRun();
 
     return new Promise((resolve) => {
         gmProcess = spawn(python, args, {
@@ -302,12 +310,14 @@ async function invokeLocalLlmBridge(
 
             if (code === 0) {
                 localGmSessionActive = true;
+                finishGmRun(prevGmState, playerAction, true);
                 let msgKey = 'extension.info.gmDone';
                 if (provider === 'ollama') { msgKey = 'extension.info.ollamaDone'; }
                 if (provider === 'koboldcpp') { msgKey = 'extension.info.koboldDone'; }
                 vscode.window.showInformationMessage(t(msgKey));
                 resolve(true);
             } else {
+                finishGmRun(prevGmState, playerAction, false);
                 vscode.window.showWarningMessage(
                     t('extension.warning.localExit', { provider, code: String(code ?? 'unknown') })
                 );
@@ -317,6 +327,7 @@ async function invokeLocalLlmBridge(
 
         gmProcess.on('error', (err) => {
             channel.appendLine(`\n[Error: ${err.message}]`);
+            finishGmRun(prevGmState, playerAction, false);
             vscode.window.showErrorMessage(t('extension.error.gmBridgeFailed', { provider, message: err.message }));
             finishGm(null);
         });
@@ -366,6 +377,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
+    const prevGmState = beginGmRun();
 
     return new Promise((resolve) => {
         let finished = false;
@@ -396,6 +408,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
 
         gmProcess.on('error', (err) => {
             channel.appendLine(`\n[Error: ${err.message}]`);
+            finishGmRun(prevGmState, playerAction, false);
             vscode.window.showErrorMessage(t('extension.error.gmCommandFailed', { message: err.message }));
             finishGm(false);
         });
@@ -403,9 +416,11 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
         gmProcess.on('close', (code) => {
             channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
             if (code === 0) {
+                finishGmRun(prevGmState, playerAction, true);
                 vscode.window.showInformationMessage(t('extension.info.gmDone'));
                 finishGm(true);
             } else {
+                finishGmRun(prevGmState, playerAction, false);
                 vscode.window.showWarningMessage(t('extension.warning.gmCommandExit', { code: String(code ?? 'unknown') }));
                 finishGm(false);
             }
@@ -427,9 +442,7 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     const provider = getGmProvider();
 
     if (diceLedger && diceLedger.length > 0) {
-        const fs = require('fs');
-        const path = require('path');
-        fs.writeFileSync(path.join(workspacePath, 'dice_ledger.json'), JSON.stringify(diceLedger, null, 2), 'utf8');
+        writeJsonAtomic(path.join(workspacePath, 'dice_ledger.json'), diceLedger);
     }
 
     if (provider !== 'clipboard') {

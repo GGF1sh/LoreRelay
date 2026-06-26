@@ -27,6 +27,7 @@ import {
     resolvePythonCommand,
     runSkillScript
 } from './skillScriptRunner';
+import { loadGameRules } from './gameRules';
 import {
     getCharactersDir,
     getPartyIds,
@@ -210,6 +211,14 @@ function buildPartyPromptContext(): string {
     return lines.join('\n');
 }
 
+function buildGameRulesPromptContext(): string {
+    const rules = loadGameRules();
+    if (!rules.enableRpgMechanics) {
+        return '[Game Rules]\nRPG mechanics (HP/MP numeric tracking) are DISABLED. Focus on narrative flow; omit combat stats unless the player explicitly requests them.';
+    }
+    return `[Game Rules]\nRPG mechanics ENABLED. Default max HP: ${rules.defaultMaxHp}, max MP: ${rules.defaultMaxMp}. Dice difficulty tone: ${rules.diceDifficulty}. Track HP/MP changes via status patches only when mechanics are relevant.`;
+}
+
 function buildLorebookPromptContext(hintText: string): string {
     const matches = matchLorebookEntries(hintText);
     if (matches.length === 0) {
@@ -223,8 +232,15 @@ function buildLorebookPromptContext(hintText: string): string {
     return parts.join('\n');
 }
 
+/** Turn Inspector / turn_result 用に発火したロアブックのラベルを返す。 */
+export function getTriggeredLoreLabels(hintText: string, maxEntries = 5): string[] {
+    return matchLorebookEntries(hintText, maxEntries).map(
+        (e) => String(e.comment || e.id || 'entry').trim()
+    ).filter((label) => label.length > 0);
+}
+
 export function buildGmPromptContext(playerAction: string): string {
-    const chunks: string[] = [];
+    const chunks: string[] = [buildGameRulesPromptContext()];
     const ws = getWorkspacePath();
     const summary = loadStorySummary();
     if (summary) {

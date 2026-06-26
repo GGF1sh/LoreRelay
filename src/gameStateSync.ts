@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import type { GameEntry, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
 import { isValidEntryId } from './entryId';
 import { validateGameState } from './validateGameState';
@@ -23,13 +24,18 @@ let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 import { processTurnResult } from './statePatch';
+import { markTurnResultHandled } from './turnResultFallback';
 import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
 import { pushGameStateToRemoteClients } from './remotePlayServer';
+import { isAllowedImagePath } from './mediaPaths';
 import type { TurnResult } from './types/TurnResult';
+
+export { isAllowedImagePath };
 
 let fileWatcher: vscode.FileSystemWatcher | undefined;
 let turnResultWatcher: vscode.FileSystemWatcher | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
+let lastProcessedTurnHash = '';
 /** Entry IDs already seen when applying game_state (for MediaAgent new-entry detection). */
 const knownStateEntryIds = new Set<string>();
 
@@ -133,34 +139,6 @@ export function replaceHistoryFromDisk(): void {
     gameEntryHistory = [];
     seenEntryIds.clear();
     loadHistoryFromDisk();
-}
-
-/** 画像パスがワークスペースまたは GM スキル配下か検証する。 */
-export function isAllowedImagePath(imagePath: string): boolean {
-    const d = requireDeps();
-    const normalized = path.normalize(imagePath);
-    if (!fs.existsSync(normalized)) {
-        return false;
-    }
-
-    const ws = d.getWorkspacePath();
-    if (ws) {
-        const wsNorm = path.normalize(ws);
-        if (normalized === wsNorm || normalized.startsWith(wsNorm + path.sep)) {
-            return true;
-        }
-    }
-
-    const skillDir = d.getSkillDir();
-    if (skillDir) {
-        const skillNorm = path.normalize(skillDir);
-        if (normalized === skillNorm || normalized.startsWith(skillNorm + path.sep)) {
-            return true;
-        }
-    }
-
-    console.warn(`[Text Adventure] Image path outside workspace/skill, skipped: ${imagePath}`);
-    return false;
 }
 
 export function safeImageUri(imagePath: string): string | undefined {
@@ -392,26 +370,45 @@ export function startGameStateWatcher(): void {
     }
     turnResultWatcher = vscode.workspace.createFileSystemWatcher('**/turn_result.json');
     const handleTurnResult = (uri: vscode.Uri) => {
-        try {
-            const content = fs.readFileSync(uri.fsPath, 'utf-8');
-            const turnResult = JSON.parse(content) as TurnResult;
-            handleTurnResultMedia(turnResult);
-            const applied = processTurnResult(turnResult);
-            
-            const panel = deps?.getPanel();
-            if (panel) {
-                panel.webview.postMessage({
-                    type: 'gameStateUpdate',
-                    turnResult: turnResult
-                });
-            }
+        const readAndProcess = (retryCount = 0) => {
+            try {
+                if (!fs.existsSync(uri.fsPath)) {
+                    return;
+                }
+                const content = fs.readFileSync(uri.fsPath, 'utf-8');
+                if (!content.trim()) {
+                    throw new Error('Empty file content');
+                }
+                
+                const hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
+                if (hash === lastProcessedTurnHash) {
+                    return;
+                }
+                
+                const turnResult = JSON.parse(content) as TurnResult;
+                lastProcessedTurnHash = hash;
+                markTurnResultHandled();
 
-            if (applied) {
-                // game_state.json will be updated, triggering handleChange
+                handleTurnResultMedia(turnResult);
+                const enriched = processTurnResult(turnResult);
+
+                const panel = deps?.getPanel();
+                if (panel) {
+                    panel.webview.postMessage({
+                        type: 'gameStateUpdate',
+                        turnResult: enriched || turnResult
+                    });
+                }
+            } catch (e) {
+                if (retryCount < 3) {
+                    console.warn(`Retry reading turn_result.json (attempt ${retryCount + 1}): ${e instanceof Error ? e.message : String(e)}`);
+                    setTimeout(() => readAndProcess(retryCount + 1), 100);
+                } else {
+                    console.error('Failed to parse turn_result.json after retries', e);
+                }
             }
-        } catch (e) {
-            console.error('Failed to parse turn_result.json', e);
-        }
+        };
+        setTimeout(() => readAndProcess(0), 50);
     };
     turnResultWatcher.onDidChange(handleTurnResult);
     turnResultWatcher.onDidCreate(handleTurnResult);

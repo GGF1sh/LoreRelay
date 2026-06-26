@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry, GameState } from './types/GameState';
 import { isValidEntryId } from './entryId';
-import { enqueueImageGeneration } from './imageGenRunner';
+import { enqueueImageGeneration, resetImageQueueDedup } from './imageGenRunner';
 
 export interface MediaAgentDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -71,6 +71,12 @@ function cacheKey(field: string, value: string): string {
 /** Reset stream dedup cache when a new GM turn starts. */
 export function resetMediaStreamCache(): void {
     streamDispatchCache.clear();
+}
+
+export function clearMediaAgentCaches(): void {
+    streamDispatchCache.clear();
+    autoImageEntryIds.clear();
+    resetImageQueueDedup();
 }
 
 /** Post BGM/SFX triggers directly to Webview (does not block GM). */
@@ -161,15 +167,29 @@ export function extractMediaFromPatches(patches: StatePatchOp[]): MediaHints {
     return hints;
 }
 
+/** Only parse media hints from the JSON code fence region (avoids narrative false positives). */
+function extractJsonFenceRegion(buffer: string): string {
+    const jsonFence = buffer.indexOf('```json');
+    if (jsonFence >= 0) {
+        return buffer.slice(jsonFence);
+    }
+    const genericFence = buffer.lastIndexOf('```');
+    if (genericFence >= 0 && buffer.indexOf('{', genericFence) >= 0) {
+        return buffer.slice(genericFence);
+    }
+    return '';
+}
+
 /** Scan accumulated GM stdout for media JSON fields and fire early triggers. */
 export function parseGmStreamChunk(buffer: string): MediaHints {
     const hints: MediaHints = {};
-    if (!buffer || buffer.length < 8) {
+    const jsonRegion = extractJsonFenceRegion(buffer);
+    if (!jsonRegion || jsonRegion.length < 8) {
         return hints;
     }
 
     for (const [field, pattern] of Object.entries(STREAM_PATTERNS) as [keyof typeof STREAM_PATTERNS, RegExp][]) {
-        const match = buffer.match(pattern);
+        const match = jsonRegion.match(pattern);
         if (!match) {
             continue;
         }
@@ -195,7 +215,7 @@ export function parseGmStreamChunk(buffer: string): MediaHints {
         }
     }
 
-    const idMatch = buffer.match(/"id"\s*:\s*"(turn-[^"]+)"/);
+    const idMatch = jsonRegion.match(/"id"\s*:\s*"(turn-[^"]+)"/);
     if (idMatch) {
         hints.entryId = idMatch[1];
     }
@@ -293,6 +313,5 @@ export function handleGameStateMedia(state: GameState, isNewGmEntry: (entry: Gam
 }
 
 export function clearMediaAgentState(): void {
-    streamDispatchCache.clear();
-    autoImageEntryIds.clear();
+    clearMediaAgentCaches();
 }

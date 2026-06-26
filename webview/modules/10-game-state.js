@@ -371,8 +371,21 @@ function updateStatus(status) {
       shield: { icon: '🛡️', label: 'Shield', class: 'shield' }
     };
 
+    let renderedCount = 0;
     for (const [key, value] of Object.entries(status)) {
       if (value && typeof value === 'object' && 'current' in value && 'max' in value) {
+        // キー名のバリデーション（安全な英数字のみ）
+        if (!/^[a-zA-Z0-9_-]+$/.test(key)) {
+          console.warn(`[game-state] Ignored dynamic resource with suspicious key: ${key}`);
+          continue;
+        }
+
+        // 描画上限チェック
+        if (++renderedCount > 10) {
+          console.warn(`[game-state] Dynamic resource count exceeded limit (max 10). Omitted: ${key}`);
+          break;
+        }
+
         const current = Number(value.current) || 0;
         const max = Number(value.max) || 1;
         const pct = Math.max(0, Math.min(100, (current / max) * 100));

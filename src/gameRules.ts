@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getWorkspacePath } from './workspacePaths';
+import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 
 export interface GameRules {
     enableRpgMechanics: boolean;
@@ -43,10 +43,30 @@ export function saveGameRules(rules: Partial<GameRules>): void {
     if (!rulesPath) return;
 
     const current = loadGameRules();
-    const updated = { ...current, ...rules };
+    const sanitized: Partial<GameRules> = {};
+
+    if (rules && typeof rules === 'object') {
+        if (rules.enableRpgMechanics !== undefined && typeof rules.enableRpgMechanics === 'boolean') {
+            sanitized.enableRpgMechanics = rules.enableRpgMechanics;
+        }
+        if (rules.defaultMaxHp !== undefined && typeof rules.defaultMaxHp === 'number') {
+            sanitized.defaultMaxHp = Math.max(1, Math.min(99999, Math.floor(rules.defaultMaxHp)));
+        }
+        if (rules.defaultMaxMp !== undefined && typeof rules.defaultMaxMp === 'number') {
+            sanitized.defaultMaxMp = Math.max(1, Math.min(99999, Math.floor(rules.defaultMaxMp)));
+        }
+        if (rules.diceDifficulty !== undefined && typeof rules.diceDifficulty === 'string') {
+            const difficulty = rules.diceDifficulty.trim();
+            if (difficulty === 'Normal' || difficulty === 'Hard') {
+                sanitized.diceDifficulty = difficulty;
+            }
+        }
+    }
+
+    const updated = { ...current, ...sanitized };
 
     try {
-        fs.writeFileSync(rulesPath, JSON.stringify(updated, null, 4), 'utf8');
+        writeJsonAtomic(rulesPath, updated);
     } catch (err) {
         console.error("Failed to save game_rules.json", err);
     }

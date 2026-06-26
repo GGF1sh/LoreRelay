@@ -29,7 +29,16 @@ export function getGameRulesPath(): string | undefined {
     return path.join(ws, 'game_rules.json');
 }
 
+let cachedRules: GameRules | undefined = undefined;
+
+export function clearGameRulesCache(): void {
+    cachedRules = undefined;
+}
+
 export function loadGameRules(): GameRules {
+    if (cachedRules) {
+        return cachedRules;
+    }
     const rulesPath = getGameRulesPath();
     if (!rulesPath || !fs.existsSync(rulesPath)) {
         return { ...DEFAULT_GAME_RULES };
@@ -37,7 +46,9 @@ export function loadGameRules(): GameRules {
     try {
         const data = fs.readFileSync(rulesPath, 'utf8');
         const parsed = JSON.parse(data);
-        return { ...DEFAULT_GAME_RULES, ...parsed };
+        const loaded = { ...DEFAULT_GAME_RULES, ...parsed };
+        cachedRules = loaded;
+        return loaded;
     } catch (err) {
         console.error("Failed to load game_rules.json", err);
         return { ...DEFAULT_GAME_RULES };
@@ -79,6 +90,7 @@ export function saveGameRules(rules: Partial<GameRules>): void {
     }
 
     const updated = { ...current, ...sanitized };
+    cachedRules = updated;
 
     try {
         writeJsonAtomic(rulesPath, updated);

@@ -8,6 +8,25 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.1.2] - 2026-06-27
+
+### Fixed — Security & Stability (Post-v1.1.2 Code Review)
+- **Command Double Registration**: Fixed critical command registration crash by removing the duplicate `checkForUpdates` command registration from `extension.ts`.
+- **WebSocket Connection Limits**: Implemented connection limit (`maxClients`) verification upon connection, rejecting clients beyond the limit with close code `1008`.
+- **Pre-Authentication Message Delivery**: Fixed a bug where `authRequired` and `Unauthorized` messages were dropped due to a state verification check on `sendToClient()`. Implemented a `force` delivery mechanism.
+- **WebSocket Closure Safety**: Added a `50ms` delay on client disconnect following error messages, allowing client sockets to parse error messages before connection termination.
+- **Input Locking Safety**: Wrapped player action executions in `try...catch...finally` blocks to guarantee `remoteInputLocked` is always released, preventing permanent lockout of remote clients in case of GM failure.
+- **Sync I/O Minimization**: Implemented a memory cache for Game Rules to avoid repeated synchronous `fs.readFileSync` checks per turn.
+
+### Added
+- **WebSocket Integration Tests**: Added `scripts/test_ws_functionality.js` verifying maxClients, pre-auth messages, delayed closures, and input lock safety.
+
+## [1.1.1] - 2026-06-26
+
+### Fixed — Hotfixes
+- **Security Hardening**: Removed external QR code generation dependency and localized Mermaid.js rendering to run without CDN.
+- **Bug Fixes**: Fixed 'Easy' difficulty persistence issue, and fixed dynamic resource bar append issue in the UI.
+
 ## [1.1.0] - 2026-06-26
 
 ### Added — Phase 5: Advanced Simulation & Visualizations

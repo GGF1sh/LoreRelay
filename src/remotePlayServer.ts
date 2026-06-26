@@ -226,11 +226,19 @@ function broadcast(message: Record<string, unknown>): void {
     }
 }
 
-function sendToClient(client: WsConnection, message: Record<string, unknown>): void {
-    if (!client.authenticated || client.socket.readyState !== WebSocket.OPEN) {
+function sendToClient(
+    client: WsConnection,
+    message: Record<string, unknown>,
+    force = false,
+    callback?: (err?: Error) => void
+): void {
+    if ((!client.authenticated && !force) || client.socket.readyState !== WebSocket.OPEN) {
+        if (callback) {
+            callback(new Error('Socket not open or not authenticated'));
+        }
         return;
     }
-    client.socket.send(JSON.stringify(message));
+    client.socket.send(JSON.stringify(message), callback);
 }
 
 function closeClient(client: WsConnection, code = 1000, reason = ''): void {
@@ -260,15 +268,18 @@ function notifyHostRemotePlayStatus(): void {
 
 async function handleWsMessage(client: WsConnection, raw: string): Promise<void> {
     if (raw.length > 4000) {
-        sendToClient(client, { type: 'error', message: 'Message too large' });
-        closeClient(client, 1009, 'Message size limit exceeded (max 4000 chars)');
+        sendToClient(client, { type: 'error', message: 'Message too large' }, true, () => {
+            setTimeout(() => {
+                closeClient(client, 1009, 'Message size limit exceeded (max 4000 chars)');
+            }, 50);
+        });
         return;
     }
     let msg: Record<string, unknown>;
     try {
         msg = JSON.parse(raw);
     } catch {
-        sendToClient(client, { type: 'error', message: 'Invalid JSON' });
+        sendToClient(client, { type: 'error', message: 'Invalid JSON' }, true);
         return;
     }
 
@@ -287,15 +298,18 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
                 strings: getWebviewStrings(getConfiguredLocale()),
                 gmBusy: gmBusyFlag,
                 role: client.role
-            });
+            }, true);
             if (lastBroadcastState) {
-                sendToClient(client, { type: 'state', state: lastBroadcastState, gmBusy: gmBusyFlag });
+                sendToClient(client, { type: 'state', state: lastBroadcastState, gmBusy: gmBusyFlag }, true);
             }
             log(`Client authenticated (${client.id}, role=${client.role}). Active: ${wsClients.size}`);
             notifyHostRemotePlayStatus();
         } else {
-            sendToClient(client, { type: 'error', message: 'Unauthorized' });
-            closeClient(client, 1008, 'Bad token');
+            sendToClient(client, { type: 'error', message: 'Unauthorized' }, true, () => {
+                setTimeout(() => {
+                    closeClient(client, 1008, 'Bad token');
+                }, 50);
+            });
         }
         return;
     }
@@ -340,8 +354,9 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             try {
                 await d.onPlayerInput(text, authorsNote);
             } catch (e) {
-                remoteInputLocked = false;
                 log(`Remote input failed: ${e instanceof Error ? e.message : String(e)}`);
+            } finally {
+                remoteInputLocked = false;
             }
             break;
         }
@@ -467,12 +482,18 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
     wss = new WebSocketServer({ noServer: true });
     
     wss.on('connection', (socket, req) => {
+        const cfg = getConfig();
+        if (wsClients.size >= cfg.maxClients) {
+            socket.close(1008, 'Max clients exceeded');
+            return;
+        }
+
         const client: WsConnection = {
             id: randomBytes(4).toString('hex'),
             socket,
             lastInputAt: 0,
             authenticated: false,
-            role: getConfig().defaultRole,
+            role: cfg.defaultRole,
             authTimer: setTimeout(() => {
                 if (!client.authenticated) {
                     closeClient(client, 1008, 'Auth timeout');
@@ -487,7 +508,7 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
         socket.on('close', () => closeClient(client));
         socket.on('error', () => closeClient(client));
 
-        sendToClient(client, { type: 'authRequired' });
+        sendToClient(client, { type: 'authRequired' }, true);
     });
 
     httpServer = http.createServer((req, res) => {

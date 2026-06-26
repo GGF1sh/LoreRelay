@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
-import { loadGameRules, saveGameRules, type GameRules } from './gameRules';
+import { loadGameRules, saveGameRules, clearGameRulesCache, type GameRules } from './gameRules';
 import {
     initI18n,
     t,
@@ -141,6 +141,7 @@ function getPanel(): vscode.WebviewPanel | undefined {
 
 export function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
+    clearGameRulesCache();
     initI18n(context.extensionPath);
 
     initImageGenRunner({ getPanel, subscriptions: context.subscriptions });
@@ -271,10 +272,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     const clearOpenRouterKeyCmd = vscode.commands.registerCommand('textadventure.clearOpenRouterApiKey', () => {
         void clearOpenRouterApiKey(context);
-    });
-
-    const checkForUpdatesCmd = vscode.commands.registerCommand('textadventure.checkForUpdates', () => {
-        void checkForUpdates(false, context);
     });
 
     const startRemotePlayCmd = vscode.commands.registerCommand('textadventure.startRemotePlay', () => {

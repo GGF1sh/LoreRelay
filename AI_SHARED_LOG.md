@@ -5,7 +5,7 @@
 
 ## Current Snapshot
 
-- Current package version: **`1.1.0`**（Phase 4 & 5 追加。`CHANGELOG.md` [1.1.0]）
+- Current package version: **`1.1.2`**（Code Review指摘のバグ・リスク修正。`CHANGELOG.md` [1.1.2]）
 - Main source of truth: `CHANGELOG.md` + source code
 - **Task Management Blackboard**: `AI_ROADMAP.md` (作業開始前に必ずこのファイルを見てタスクのチェックリストを更新すること)
 - Main remaining work:
@@ -13,7 +13,7 @@
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
 
 ### ⚠️ AI連携時の動作確認ルール (Handover Rules)
-- 次代のAIへ引き継ぐ際、**「実装したものの、ユーザーがまだ画面上で動作確認していない機能」** は、必ず `testing_checklist.md` に一覧化して残してください。
+- 次代 of AIへ引き継ぐ際、**「実装したものの、ユーザーがまだ画面上で動作確認していない機能」** は、必ず `testing_checklist.md` に一覧化して残してください。
 - ユーザーから「とりあえず先進めて」と指示された場合でも、未確認機能が積み上がっていることをAI側で把握し、必要に応じて「そろそろ動作確認をお願いします」と促してください。
 - 各AIは作業開始前に `task.md` と `testing_checklist.md` の状態を確認し、未テストの領域を破壊しないよう注意してください。
 
@@ -24,6 +24,23 @@
   - `extension.ts` 分割: **完了**（~454 行）
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 11 + `styles/` 11 + `build-webview.js`）
   - **Phase 1 / 1.5 / 2A / 2C / 3A / 3B**: **完了**（堅牢化含む）
+
+## 2026-06-27 01:30 JST - Antigravity - Code Review Fixes (v1.1.2)
+
+### 概要
+- **コードレビュー指摘対応**: Claudeのレビュー指摘（`CLAUDE_CODE_REVIEW.md`）に基づき、バグ3件および安定性リスク2件を修正。
+  - **二重登録の修正**: `extension.ts` から `checkForUpdates` コマンドの重複登録を削除。
+  - **WebSocket接続数制限の有効化**: `remotePlayServer.ts` の `wss.on('connection')` に `maxClients` チェックを実装。
+  - **未認証メッセージの送信復旧**: `sendToClient` に `force` フラグを追加し、認証前のクライアントに `authRequired` などの警告・ハンドシェイクが届くように修正。切断前には 50ms ディレイを挿入。
+  - **リモート入力ロックの安全化**: `d.onPlayerInput` の完了後に `finally` で確実に `remoteInputLocked = false` へ戻すように修正し、GMエラー時の永続ロックを防止。
+  - **ゲームルールのキャッシュ化**: `gameRules.ts` にメモリキャッシュ変数を追加し、毎ターン同期的に `fs.readFileSync` されるのを回避。
+- **結合テスト追加**: `scripts/test_ws_functionality.js` を追加し、接続数制限、未認証メッセージの送達、finallyブロックによるロック解除機能が正常に動くことをWebSocketクライアントを用いて実証。
+
+## 2026-06-26 19:10 JST - (GGF1sh / Antigravity) - Security & Stability Hotfixes (v1.1.1)
+
+### 概要
+- **セキュリティ強化**: 外部 QR コード生成依存の排除、Mermaid.js レンダリングのローカライズ（非CDN化）。
+- **バグ修正**: 'Easy'難易度ルールの永続化問題の修正、動的なリソースバーの追加要素バグの修正。
 
 ## 2026-06-26 12:50 JST - Antigravity - Phase 5: Advanced Simulation & Mermaid Integration
 

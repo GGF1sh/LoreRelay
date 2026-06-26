@@ -94,6 +94,7 @@
   "webview.sender.gm": "Game Master",
 
   "extension.status.gmProcessing": "$(sync~spin) GM がターンを処理中...",
+  "extension.status.imageQueued": "$(clock) 画像生成をキューに追加しました — GM はブロックされません",
   "extension.error.workspaceRequired": "ワークスペースが開かれていません。",
   "extension.error.untrustedWorkspace": "このアクションはローカルコマンドを実行するため、信頼されていないワークスペースでは無効化されています。",
   "extension.error.gmBusy": "GM が前のターンを処理中です。完了までお待ちください。",

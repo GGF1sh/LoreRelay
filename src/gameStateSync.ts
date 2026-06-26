@@ -23,10 +23,14 @@ let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 import { processTurnResult } from './statePatch';
+import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
+import type { TurnResult } from './types/TurnResult';
 
 let fileWatcher: vscode.FileSystemWatcher | undefined;
 let turnResultWatcher: vscode.FileSystemWatcher | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
+/** Entry IDs already seen when applying game_state (for MediaAgent new-entry detection). */
+const knownStateEntryIds = new Set<string>();
 
 export function initGameStateSync(syncDeps: GameStateSyncDeps): void {
     deps = syncDeps;
@@ -323,11 +327,31 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                     )
                     : undefined;
 
+            const stateForWebview = { ...state, entries: entriesToSend, latestImage, background, sprite, hiddenDice };
             panel.webview.postMessage({
                 type: 'gameStateUpdate',
                 fullHistory,
-                state: { ...state, entries: entriesToSend, latestImage, background, sprite, hiddenDice }
+                state: stateForWebview
             });
+
+            if (fullHistory) {
+                knownStateEntryIds.clear();
+                if (Array.isArray(state.entries)) {
+                    for (const raw of state.entries) {
+                        if (isValidGameEntry(raw)) {
+                            knownStateEntryIds.add(raw.id);
+                        }
+                    }
+                }
+            } else {
+                handleGameStateMedia(state, (entry) => {
+                    if (!entry.id || knownStateEntryIds.has(entry.id)) {
+                        return false;
+                    }
+                    knownStateEntryIds.add(entry.id);
+                    return true;
+                });
+            }
         }
     } catch (e) {
         console.error(`Error reading game state (attempt ${retryCount + 1}):`, e);
@@ -367,7 +391,8 @@ export function startGameStateWatcher(): void {
     const handleTurnResult = (uri: vscode.Uri) => {
         try {
             const content = fs.readFileSync(uri.fsPath, 'utf-8');
-            const turnResult = JSON.parse(content);
+            const turnResult = JSON.parse(content) as TurnResult;
+            handleTurnResultMedia(turnResult);
             const applied = processTurnResult(turnResult);
             if (applied) {
                 // game_state.json will be updated, triggering handleChange
@@ -393,4 +418,5 @@ export function disposeGameStateWatcher(): void {
         clearTimeout(debounceTimer);
         debounceTimer = undefined;
     }
+    knownStateEntryIds.clear();
 }

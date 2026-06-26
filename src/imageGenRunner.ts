@@ -25,6 +25,16 @@ let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
 let listModelsProcess: ChildProcess | undefined;
 
+interface ImageGenJob {
+    prompt: string;
+    mode: string;
+    entryId?: string;
+}
+
+const imageGenQueue: ImageGenJob[] = [];
+let drainingImageQueue = false;
+const queuedEntryIds = new Set<string>();
+
 export interface ImageGenRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
     subscriptions: vscode.Disposable[];
@@ -51,6 +61,14 @@ export function getImageOutputChannel(): vscode.OutputChannel {
     return imageOutputChannel;
 }
 
+export function isImageGenerationBusy(): boolean {
+    return Boolean(imageGenerationProcess);
+}
+
+export function getImageQueueLength(): number {
+    return imageGenQueue.length;
+}
+
 export function killImageGenerationProcess(): void {
     if (imageGenerationProcess) {
         imageGenerationProcess.kill();
@@ -59,6 +77,52 @@ export function killImageGenerationProcess(): void {
     if (listModelsProcess) {
         listModelsProcess.kill();
         listModelsProcess = undefined;
+    }
+    imageGenQueue.length = 0;
+    queuedEntryIds.clear();
+    drainingImageQueue = false;
+}
+
+function getMaxImageQueueSize(): number {
+    const max = vscode.workspace.getConfiguration('textAdventure').get<number>('mediaAgent.maxImageQueue', 5);
+    return Math.max(1, Math.min(20, max));
+}
+
+/** Enqueue ComfyUI generation (MediaAgent / manual retry when busy). Returns false if duplicate or queue full. */
+export function enqueueImageGeneration(prompt: string, mode: string, entryId?: string): boolean {
+    if (entryId && queuedEntryIds.has(entryId)) {
+        return false;
+    }
+    if (imageGenQueue.length >= getMaxImageQueueSize()) {
+        getImageOutputChannel().appendLine(`[Queue] Dropped image job — queue full (${getMaxImageQueueSize()})`);
+        return false;
+    }
+    imageGenQueue.push({ prompt, mode, entryId });
+    if (entryId) {
+        queuedEntryIds.add(entryId);
+    }
+    void drainImageQueue();
+    return true;
+}
+
+async function drainImageQueue(): Promise<void> {
+    if (drainingImageQueue || imageGenerationProcess) {
+        return;
+    }
+    drainingImageQueue = true;
+    try {
+        while (imageGenQueue.length > 0 && !imageGenerationProcess) {
+            const job = imageGenQueue.shift();
+            if (!job) {
+                break;
+            }
+            await executeImageGeneration(job.prompt, job.mode, job.entryId, { fromQueue: true });
+            if (job.entryId) {
+                queuedEntryIds.delete(job.entryId);
+            }
+        }
+    } finally {
+        drainingImageQueue = false;
     }
 }
 
@@ -214,48 +278,45 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
     return true;
 }
 
-export async function runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void> {
-    if (!vscode.workspace.isTrusted) {
-        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
-        return;
-    }
-
-    const { getPanel } = requireDeps();
-    const wsPath = getWorkspacePath();
-    if (!wsPath) {
-        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
-        return;
-    }
-
-    if (typeof prompt !== 'string' || prompt.length > 2000) {
-        vscode.window.showErrorMessage(t('extension.error.invalidPrompt'));
-        return;
-    }
-
+function resolveImageMode(mode: string, wsPath: string): string {
     const allowedModes = ['pony', 'illustrious', 'natural', 'standard'];
     const wsConfig = loadImageGenConfig(wsPath);
     const defaultMode = allowedModes.includes(wsConfig.mode) ? wsConfig.mode : 'illustrious';
-    const safeMode = typeof mode === 'string' && allowedModes.includes(mode) ? mode : defaultMode;
+    return typeof mode === 'string' && allowedModes.includes(mode) ? mode : defaultMode;
+}
 
-    if (imageGenerationProcess) {
-        vscode.window.showWarningMessage(t('extension.warning.imageBusy'));
-        return;
+/** Core ComfyUI spawn — returns success. Used by queue drain and direct calls. */
+export async function executeImageGeneration(
+    prompt: string,
+    mode: string,
+    entryId?: string,
+    options?: { fromQueue?: boolean }
+): Promise<boolean> {
+    const { getPanel } = requireDeps();
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        return false;
     }
 
+    const safeMode = resolveImageMode(mode, wsPath);
     const scriptPath = resolveComfyScript(wsPath);
     const outputDir = path.join(wsPath, 'output');
 
     if (!scriptPath) {
-        vscode.window.showWarningMessage(t('extension.error.imageScriptNotFound'));
-        return;
+        if (!options?.fromQueue) {
+            vscode.window.showWarningMessage(t('extension.error.imageScriptNotFound'));
+        }
+        return false;
     }
 
     const channel = getImageOutputChannel();
     const env = buildImageGenEnv(wsPath);
-    channel.show(true);
+    if (!options?.fromQueue) {
+        channel.show(true);
+    }
     channel.appendLine(`Backend: ${env.COMFYUI_URL || 'http://127.0.0.1:8188 (default)'}`);
     channel.appendLine(`Checkpoint: ${env.TA_CHECKPOINT || '(workflow default)'}`);
-    channel.appendLine(`Generating image with mode: ${safeMode}`);
+    channel.appendLine(`${options?.fromQueue ? '[Queue] ' : ''}Generating image with mode: ${safeMode}`);
     channel.appendLine(`Prompt: ${prompt}`);
     getPanel()?.webview.postMessage({ type: 'imageGenStart' });
 
@@ -269,49 +330,88 @@ export async function runImageGeneration(prompt: string, mode: string, entryId?:
     let generatedImagePath = '';
     let imageGenFinished = false;
 
-    child.stdout.on('data', (data) => {
-        const out = data.toString();
-        channel.append(out);
+    return new Promise((resolve) => {
+        child.stdout.on('data', (data) => {
+            const out = data.toString();
+            channel.append(out);
 
-        const lines = out.split('\n');
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.endsWith('.png') && trimmed.length > 4) {
-                generatedImagePath = trimmed;
+            const lines = out.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.endsWith('.png') && trimmed.length > 4) {
+                    generatedImagePath = trimmed;
+                }
             }
-        }
-    });
+        });
 
-    child.stderr.on('data', (data) => {
-        channel.append(data.toString());
-    });
+        child.stderr.on('data', (data) => {
+            channel.append(data.toString());
+        });
 
-    const finishImageGeneration = (code: number | null) => {
-        if (imageGenFinished) {
-            return;
-        }
-        imageGenFinished = true;
-        imageGenerationProcess = undefined;
-        channel.appendLine(`\nProcess exited with code ${code}`);
-        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
-
-        if (code === 0 && generatedImagePath && entryId && isValidEntryId(entryId)) {
-            const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
-            if (ok) {
-                channel.appendLine(`Updated entry ${entryId} with new image`);
-            } else {
-                channel.appendLine(`Entry ${entryId} not found in game history`);
+        const finishImageGeneration = (code: number | null) => {
+            if (imageGenFinished) {
+                return;
             }
-        }
-    };
+            imageGenFinished = true;
+            imageGenerationProcess = undefined;
+            channel.appendLine(`\nProcess exited with code ${code}`);
+            getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
 
-    child.on('error', (err) => {
-        channel.appendLine(`\n[Error: ${err.message}]`);
-        vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
-        finishImageGeneration(null);
+            if (code === 0 && generatedImagePath && entryId && isValidEntryId(entryId)) {
+                const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
+                if (ok) {
+                    channel.appendLine(`Updated entry ${entryId} with new image`);
+                } else {
+                    channel.appendLine(`Entry ${entryId} not found in game history`);
+                }
+            }
+
+            void drainImageQueue();
+            resolve(code === 0);
+        };
+
+        child.on('error', (err) => {
+            channel.appendLine(`\n[Error: ${err.message}]`);
+            if (!options?.fromQueue) {
+                vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
+            }
+            finishImageGeneration(null);
+        });
+
+        child.on('close', (code) => finishImageGeneration(code));
     });
+}
 
-    child.on('close', (code) => finishImageGeneration(code));
+export async function runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+
+    if (typeof prompt !== 'string' || prompt.length > 2000) {
+        vscode.window.showErrorMessage(t('extension.error.invalidPrompt'));
+        return;
+    }
+
+    const safeMode = resolveImageMode(mode, wsPath);
+
+    if (imageGenerationProcess) {
+        const queued = enqueueImageGeneration(prompt, safeMode, entryId);
+        if (queued) {
+            vscode.window.setStatusBarMessage(t('extension.status.imageQueued'), 3000);
+        } else {
+            vscode.window.showWarningMessage(t('extension.warning.imageBusy'));
+        }
+        return;
+    }
+
+    await executeImageGeneration(prompt, safeMode, entryId);
 }
 
 export function runListImageModels(): void {

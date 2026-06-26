@@ -154,6 +154,23 @@
           "default": 70,
           "description": "Default sound-effect volume (0-100)."
         },
+        "textAdventure.mediaAgent.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the background MediaAgent pipeline (early BGM/SFX from GM stream, queued ComfyUI image generation)."
+        },
+        "textAdventure.mediaAgent.autoImage": {
+          "type": "boolean",
+          "default": true,
+          "description": "When a GM entry has imagePrompt but no image, queue ComfyUI generation in the background without blocking the next turn."
+        },
+        "textAdventure.mediaAgent.maxImageQueue": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Maximum queued ComfyUI image jobs. Oldest jobs are dropped when full."
+        },
         "textAdventure.locale": {
           "type": "string",
           "enum": [

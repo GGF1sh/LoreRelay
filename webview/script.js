@@ -2088,6 +2088,13 @@ window.addEventListener('message', (event) => {
     showImageLoading();
   } else if (msg.type === 'imageGenEnd') {
     hideImageLoading(msg.success);
+  } else if (msg.type === 'mediaTrigger') {
+    if (msg.bgm) { playBgmById(msg.bgm); }
+    else if (msg.mood) { playBgmByMood(msg.mood); }
+    if (msg.sfx) {
+      const ids = Array.isArray(msg.sfx) ? msg.sfx : [msg.sfx];
+      ids.forEach((id) => playSfx(id));
+    }
   } else if (msg.type === 'bgmManifest') {
     setBgmManifest(msg.tracks, msg.defaultVolume, msg.enabled);
   } else if (msg.type === 'sfxManifest') {

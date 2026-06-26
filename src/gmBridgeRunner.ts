@@ -17,6 +17,7 @@ import {
     resolvePythonCommand
 } from './skillScriptRunner';
 import { DiceLedgerEntry } from './types/TurnResult';
+import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } from './mediaAgent';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -86,6 +87,29 @@ export function resetGmBridgeSessions(): void {
     localGmSessionActive = false;
 }
 
+const GM_STREAM_BUFFER_MAX = 64 * 1024;
+
+/** Parse GM stdout for early BGM/SFX/imagePrompt and dispatch without blocking the GM process. */
+function createGmStreamMediaTap(): { append(chunk: string): void; reset(): void } {
+    let buffer = '';
+    return {
+        reset() {
+            buffer = '';
+            resetMediaStreamCache();
+        },
+        append(chunk: string) {
+            buffer += chunk;
+            if (buffer.length > GM_STREAM_BUFFER_MAX) {
+                buffer = buffer.slice(-GM_STREAM_BUFFER_MAX);
+            }
+            const hints = parseGmStreamChunk(buffer);
+            if (hints.bgm || hints.mood || hints.sfx || hints.imagePrompt) {
+                dispatchStreamMediaHints(hints);
+            }
+        }
+    };
+}
+
 async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     const { getPanel, buildGrokPrompt } = requireDeps();
     const config = vscode.workspace.getConfiguration('textAdventure');
@@ -122,6 +146,9 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     getPanel()?.webview.postMessage({ type: 'gmStart' });
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
+    const mediaTap = createGmStreamMediaTap();
+    mediaTap.reset();
+
     return new Promise((resolve) => {
         let finished = false;
         const finishGrok = (success: boolean) => {
@@ -142,7 +169,9 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
         });
 
         grokProcess.stdout?.on('data', (data: Buffer) => {
-            channel.append(data.toString());
+            const text = data.toString();
+            channel.append(text);
+            mediaTap.append(text);
         });
 
         grokProcess.stderr?.on('data', (data: Buffer) => {
@@ -238,6 +267,9 @@ async function invokeLocalLlmBridge(
         env.OPENROUTER_API_KEY = openRouterApiKey;
     }
 
+    const mediaTap = createGmStreamMediaTap();
+    mediaTap.reset();
+
     return new Promise((resolve) => {
         gmProcess = spawn(python, args, {
             cwd,
@@ -246,7 +278,11 @@ async function invokeLocalLlmBridge(
             env
         });
 
-        gmProcess.stdout?.on('data', (data: Buffer) => channel.append(data.toString()));
+        gmProcess.stdout?.on('data', (data: Buffer) => {
+            const text = data.toString();
+            channel.append(text);
+            mediaTap.append(text);
+        });
         gmProcess.stderr?.on('data', (data: Buffer) => channel.append(data.toString()));
 
         let finished = false;
@@ -322,6 +358,9 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     getPanel()?.webview.postMessage({ type: 'gmStart' });
     vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
+    const mediaTap = createGmStreamMediaTap();
+    mediaTap.reset();
+
     return new Promise((resolve) => {
         let finished = false;
         const finishGm = (success: boolean) => {
@@ -341,7 +380,11 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
             env: process.env
         });
 
-        gmProcess.stdout?.on('data', (data: Buffer) => channel.append(data.toString()));
+        gmProcess.stdout?.on('data', (data: Buffer) => {
+            const text = data.toString();
+            channel.append(text);
+            mediaTap.append(text);
+        });
         gmProcess.stderr?.on('data', (data: Buffer) => channel.append(data.toString()));
 
         gmProcess.on('error', (err) => {

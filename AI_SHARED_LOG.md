@@ -17,6 +17,18 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 8 + `styles/` 9 + `build-webview.js`）
   - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
+  - **Phase 3A**: MediaAgent 並列パイプライン — **完了**（`mediaAgent.ts`、画像キュー、GM stdout 早期 BGM/SFX）
+
+## 2026-06-26 (Grok) - Phase 3A: MediaAgent 並列パイプライン
+
+### 概要
+- **MediaAgent** (`src/mediaAgent.ts`): GM 処理と独立したバックグラウンドメディアワーカー
+  - GM stdout ストリームから `bgm` / `mood` / `sfx` / `imagePrompt` を早期検出 → Webview `mediaTrigger`
+  - `turn_result.json` / 新規 GM entry（`imagePrompt` あり・`image` なし）→ ComfyUI キューへ非同期投入
+- **imageGenRunner**: `enqueueImageGeneration` + `executeImageGeneration` + キュー drain（`maxImageQueue` 設定）
+- **gmBridgeRunner**: 全 GM プロバイダの stdout に MediaTap 接続
+- **設定**: `textAdventure.mediaAgent.enabled` / `autoImage` / `maxImageQueue`
+- **黒板**: `AI_ROADMAP.md` Phase 3A → `[x]`
 
 ## 2026-06-26 12:43 JST - Antigravity - Phase 1.5: カスタムルールUIとRPG要素トグル
 

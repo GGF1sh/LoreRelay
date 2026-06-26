@@ -15,15 +15,19 @@
 
 ---
 
-## 🟡 Phase 2: 厳格な状態管理とST互換性の完成 (担当: Claude / Antigravity)
-*ステータス: 進行中 (Phase 2A 着手予定)*
+## 🟢 Phase 2: 厳格な状態管理とST互換性の完成 (担当: Claude / Antigravity)
+*ステータス: Phase 2A 完了*
 
 LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基盤」と、資産をそのまま引き継げるインポーターの完成。
 
 ### Phase 2A: 壊れない状態管理 (State Patch & Dice Ledger)
-- [ ] **State Patch**: LLMにJSON全体を書かせるのをやめ、状態の変更差分（`statePatch`）のみを出力させ、拡張機能側で検証・適用する仕組み（Persist-Before-Narrate）。
-- [ ] **Turn Result**: 毎ターンの結果を `turn_result.json` および追記型の `state_journal.ndjson` に保存する。
-- [ ] **Dice Ledger**: サイコロの結果をテキスト置換だけでなく、個別出目や理由を記録した監査ログ (`diceLedger`) として構造化し保存する。
+- [x] **State Patch**: LLMにJSON全体を書かせるのをやめ、状態の変更差分（`statePatch`）のみを出力させ、拡張機能側で検証・適用する仕組み（Persist-Before-Narrate）。
+  - TS側: `src/statePatch.ts`, `src/gameStateSync.ts` (Antigravity 実装済み)
+  - Python側: `gm_bridge_common.py` の `_JSON_SCHEMA` と `process_llm_response()` を改修 (Claude 実装済み)
+- [x] **Turn Result**: 毎ターンの結果を `turn_result.json` および追記型の `state_journal.ndjson` に保存する。
+  - `turn_result.json` は Python が書き出し、TS 拡張のウォッチャーがパッチを適用して `game_state.json` と `state_journal.ndjson` を更新。
+- [x] **Dice Ledger**: サイコロの結果をテキスト置換だけでなく、個別出目や理由を記録した監査ログ (`diceLedger`) として構造化し保存する。
+  - TS側が `dice_ledger.json` を書き出し、Python が `turn_result.json` の `diceLedger` フィールドに同梱。
 
 ### Phase 2C: GM Debug Console (Turn Inspector)
 - [ ] **Turn Inspector UI**: Webview内にデバッグパネルを追加し、ターンの入力、パッチ適用前後の差分、ダイス台帳、発火したロアを閲覧可能にする。
@@ -34,12 +38,14 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ---
 
-## ⚪ Phase 3: 並列エージェントパイプラインとリモートプレイ (担当: Grok)
-*ステータス: 未着手*
+## 🟡 Phase 3: 並列エージェントパイプラインとリモートプレイ (担当: Grok)
+*ステータス: Phase 3A 完了*
 
 ゲーム進行を止めない非同期処理と、LAN内で遊べるマルチデバイス対応。
 
-- [ ] **Phase 3A (Marinara Engine型)**: メインの文章生成を止めずに、バックグラウンドでBGM選曲・SE発火・ComfyUI画像生成を非同期に走らせる。
+- [x] **Phase 3A (Marinara Engine型)**: メインの文章生成を止めずに、バックグラウンドでBGM選曲・SE発火・ComfyUI画像生成を非同期に走らせる。
+  - TS側: `src/mediaAgent.ts`（GM stdout ストリーム解析・`turn_result.json` フック・画像キュー）、`imageGenRunner.ts` キュー drain、`gmBridgeRunner.ts` 早期メディア dispatch
+  - 設定: `textAdventure.mediaAgent.enabled` / `autoImage` / `maxImageQueue`
 - [ ] **Phase 3B (ZRIC型)**: LAN内（またはTailscale経由）からスマホ等でアクセスできる「プレイヤー専用の読み取り/入力画面 (localhost)」を立ち上げ、WebSocketでメイン画面と同期させる。
 
 ---

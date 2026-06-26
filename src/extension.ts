@@ -57,6 +57,10 @@ import {
     startMediaManifestWatchers
 } from './mediaManifest';
 import {
+    initMediaAgent,
+    clearMediaAgentState
+} from './mediaAgent';
+import {
     initCharacterManager,
     getCharactersDir,
     sendCharacterList,
@@ -109,6 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
     initI18n(context.extensionPath);
 
     initImageGenRunner({ getPanel, subscriptions: context.subscriptions });
+    initMediaAgent({ getPanel, subscriptions: context.subscriptions });
     initMediaManifest({ getPanel });
     initCharacterManager({ getPanel });
     initGmPromptBuilder({ getPanel, onArchiveNow: archiveSaga });
@@ -201,6 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             killGmBridgeProcesses();
             killImageGenerationProcess();
+            clearMediaAgentState();
             killActiveScriptProcess();
             killPortraitProcess();
         });
@@ -557,6 +563,7 @@ export function deactivate() {
     }
     killGmBridgeProcesses();
     killImageGenerationProcess();
+    clearMediaAgentState();
     killActiveScriptProcess();
     killPortraitProcess();
 }

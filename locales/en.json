@@ -94,6 +94,7 @@
   "webview.sender.gm": "Game Master",
 
   "extension.status.gmProcessing": "$(sync~spin) GM is processing turn...",
+  "extension.status.imageQueued": "$(clock) Image generation queued — GM is not blocked",
   "extension.error.workspaceRequired": "Open a workspace folder first.",
   "extension.error.untrustedWorkspace": "This action runs local commands and is disabled in untrusted workspaces.",
   "extension.error.gmBusy": "GM is still processing the previous turn. Please wait.",

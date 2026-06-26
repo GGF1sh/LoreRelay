@@ -94,6 +94,7 @@
   "webview.sender.gm": "游戏主持人",
 
   "extension.status.gmProcessing": "$(sync~spin) GM 正在处理回合...",
+  "extension.status.imageQueued": "$(clock) 图像生成已加入队列 — 不会阻塞 GM",
   "extension.error.workspaceRequired": "请先打开工作区文件夹。",
   "extension.error.untrustedWorkspace": "此操作运行本地命令，在不受信任的工作区中已被禁用。",
   "extension.error.gmBusy": "GM 仍在处理上一回合，请稍候。",

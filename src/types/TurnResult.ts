@@ -14,10 +14,20 @@ export interface StatePatchOp {
     value?: any;
 }
 
+export interface TurnMediaRequest {
+    bgm?: string;
+    mood?: string;
+    sfx?: string | string[];
+    imagePrompt?: string;
+    imageMode?: string;
+}
+
 export interface TurnResult {
     turnId: string;
     playerAction?: string;
     diceLedger?: DiceLedgerEntry[];
     statePatch?: StatePatchOp[];
     narration: string;
+    /** Optional explicit media requests (parallel to statePatch media paths). */
+    media?: TurnMediaRequest;
 }

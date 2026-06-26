@@ -11,6 +11,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dynamic visibility for status elements**: HP, MP, Location, Time, Funds, Condition, Inventory, and Skills blocks/rows are now dynamically hidden in the Webview if they are omitted from the `game_state.json` status object. Omission of the entire `status` object hides the status section altogether, allowing for visual novel or lightweight chat-centric gameplay.
 - **Version Checker & Auto-Updater system**: `updateManager.ts` fetches GitHub releases, shows release notes, and installs `.vsix` + GM skill `.zip`. Daily background check + `Text Adventure: Check for Updates` command.
 - **`update_lorerelay.bat` / `scripts/update_lorerelay.ps1`**: Double-click updater for users outside the VS Code command palette. Shares hardened install helpers with the `.bat` installers.
 - **`scripts/install_common.ps1`**: Shared atomic skill install, injection-safe unzip, VSIX name validation, and GitHub download URL allowlist for installer/updater scripts.

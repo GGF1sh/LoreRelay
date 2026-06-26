@@ -59,9 +59,7 @@ function applyGameState(state, fullHistory) {
   }
 
   // ステータスの更新
-  if (state.status) {
-    updateStatus(state.status);
-  }
+  updateStatus(state.status);
 
   // 選択肢の更新
   if (state.options && Array.isArray(state.options)) {
@@ -325,22 +323,60 @@ function addSystemMessage(text) {
 
 // ===== ステータス更新 =====
 function updateStatus(status) {
-  if (status.location) document.getElementById('status-location').textContent = status.location;
-  if (status.time)     document.getElementById('status-time').textContent = status.time;
-  if (status.funds)    document.getElementById('status-funds').textContent = status.funds;
+  const statusContent = document.getElementById('status-content');
+  if (!status) {
+    if (statusContent) statusContent.style.display = 'none';
+    return;
+  }
+  if (statusContent) statusContent.style.display = '';
+
+  // Location
+  const locRow = document.getElementById('status-row-location');
+  if (status.location) {
+    document.getElementById('status-location').textContent = status.location;
+    if (locRow) locRow.style.display = '';
+  } else {
+    if (locRow) locRow.style.display = 'none';
+  }
+
+  // Time
+  const timeRow = document.getElementById('status-row-time');
+  if (status.time) {
+    document.getElementById('status-time').textContent = status.time;
+    if (timeRow) timeRow.style.display = '';
+  } else {
+    if (timeRow) timeRow.style.display = 'none';
+  }
+
+  // Funds
+  const fundsRow = document.getElementById('status-row-funds');
+  if (status.funds) {
+    document.getElementById('status-funds').textContent = status.funds;
+    if (fundsRow) fundsRow.style.display = '';
+  } else {
+    if (fundsRow) fundsRow.style.display = 'none';
+  }
 
   // HP バーの更新
+  const hpBlock = document.getElementById('status-block-hp');
   if (status.hp && typeof status.hp.current === 'number' && typeof status.hp.max === 'number') {
     const pct = Math.max(0, Math.min(100, (status.hp.current / status.hp.max) * 100));
     document.getElementById('status-hp-bar').style.width = `${pct}%`;
     document.getElementById('status-hp-text').textContent = `${status.hp.current} / ${status.hp.max}`;
+    if (hpBlock) hpBlock.style.display = '';
+  } else {
+    if (hpBlock) hpBlock.style.display = 'none';
   }
 
   // MP バーの更新
+  const mpBlock = document.getElementById('status-block-mp');
   if (status.mp && typeof status.mp.current === 'number' && typeof status.mp.max === 'number') {
     const pct = Math.max(0, Math.min(100, (status.mp.current / status.mp.max) * 100));
     document.getElementById('status-mp-bar').style.width = `${pct}%`;
     document.getElementById('status-mp-text').textContent = `${status.mp.current} / ${status.mp.max}`;
+    if (mpBlock) mpBlock.style.display = '';
+  } else {
+    if (mpBlock) mpBlock.style.display = 'none';
   }
 
   // リスト（タグ）の更新ヘルパー
@@ -360,12 +396,34 @@ function updateStatus(status) {
   };
 
   // 後方互換: 旧形式の文字列 condition も配列として扱う
-  const conditions = Array.isArray(status.condition)
-    ? status.condition
-    : (status.condition ? [String(status.condition)] : []);
-  renderList('status-condition-list', conditions);
-  renderList('status-inventory-list', status.inventory);
-  renderList('status-skills-list', status.skills);
+  const condBlock = document.getElementById('status-block-condition');
+  if (status.hasOwnProperty('condition') && status.condition !== null && status.condition !== undefined) {
+    const conditions = Array.isArray(status.condition)
+      ? status.condition
+      : (status.condition ? [String(status.condition)] : []);
+    renderList('status-condition-list', conditions);
+    if (condBlock) condBlock.style.display = '';
+  } else {
+    if (condBlock) condBlock.style.display = 'none';
+  }
+
+  // Inventory
+  const invBlock = document.getElementById('status-block-inventory');
+  if (status.inventory && Array.isArray(status.inventory)) {
+    renderList('status-inventory-list', status.inventory);
+    if (invBlock) invBlock.style.display = '';
+  } else {
+    if (invBlock) invBlock.style.display = 'none';
+  }
+
+  // Skills
+  const skillBlock = document.getElementById('status-block-skills');
+  if (status.skills && Array.isArray(status.skills)) {
+    renderList('status-skills-list', status.skills);
+    if (skillBlock) skillBlock.style.display = '';
+  } else {
+    if (skillBlock) skillBlock.style.display = 'none';
+  }
 }
 
 function isInputLocked() {

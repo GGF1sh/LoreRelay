@@ -17,6 +17,19 @@
   - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
 
+## 2026-06-26 12:25 JST - Antigravity - ステータス表示の動的非表示オプション対応
+
+### 概要
+- **HP/MP/各種ステータスの動的非表示化**: `game_state.json` の `status` 内に特定の要素（`hp`, `mp`, `location`, `time`, `funds`, `condition`, `inventory`, `skills`）が存在しない場合、Webview UI側で自動的にその表示ブロック（`display: none`）を非表示にするように修正。
+- **ステータス全体の非表示化**: `status` 自体が `game_state.json` に定義されていない、あるいは空の場合は、ステータスセクション全体（`#status-content`）を非表示にする。これにより、ステータス値を必要としないアドベンチャー（ビジュアルノベルや会話重視のシナリオ）も同じUIで快適に動作する。
+
+### 変更点
+- [index.html](file:///c:/AI/text-adventure-vsce/webview/index.html): 各ステータス行（`status-row`）およびブロック（`status-block`）に識別用の一意の `id` を追加。
+- [10-game-state.js](file:///c:/AI/text-adventure-vsce/webview/modules/10-game-state.js): `updateStatus` 内で、指定パラメータが欠落している要素を `display = 'none'` で非表示にし、提供されているもののみを表示するようにロジックを更新。
+
+### 検証
+- `npm run compile` および `npm test` が正常通過することを確認 (2026-06-26 12:25 JST)。
+
 ## 2026-06-26 10:05 JST - Grok - インストーラー / アップデーター セキュリティレビュー & 修正
 
 ### レビュー結果（修正済み）

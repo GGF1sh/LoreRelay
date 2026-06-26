@@ -93,20 +93,20 @@
       <div id="pane-status" class="tab-pane active">
         <!-- ステータス表示 -->
         <div id="status-content">
-        <div class="status-row">
+        <div class="status-row" id="status-row-location">
           <span class="status-label" data-i18n="webview.status.location">📍 Location</span>
           <span id="status-location" class="status-value">---</span>
         </div>
-        <div class="status-row">
+        <div class="status-row" id="status-row-time">
           <span class="status-label" data-i18n="webview.status.time">🕐 Time</span>
           <span id="status-time" class="status-value">---</span>
         </div>
-        <div class="status-row">
+        <div class="status-row" id="status-row-funds">
           <span class="status-label" data-i18n="webview.status.funds">💰 Funds</span>
           <span id="status-funds" class="status-value">---</span>
         </div>
 
-        <div class="status-block">
+        <div class="status-block" id="status-block-hp">
           <div class="status-row">
             <span class="status-label" data-i18n="webview.status.hp">❤️ HP</span>
           </div>
@@ -116,7 +116,7 @@
           </div>
         </div>
 
-        <div class="status-block">
+        <div class="status-block" id="status-block-mp">
           <div class="status-row">
             <span class="status-label" data-i18n="webview.status.mp">🔷 MP</span>
           </div>
@@ -126,21 +126,21 @@
           </div>
         </div>
 
-        <div class="status-block">
+        <div class="status-block" id="status-block-condition">
           <span class="status-label" data-i18n="webview.status.condition">✨ Condition</span>
           <div id="status-condition-list" class="tag-list">
             <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
           </div>
         </div>
 
-        <div class="status-block">
+        <div class="status-block" id="status-block-inventory">
           <span class="status-label" data-i18n="webview.status.inventory">🎒 Inventory</span>
           <div id="status-inventory-list" class="tag-list">
             <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
           </div>
         </div>
 
-        <div class="status-block">
+        <div class="status-block" id="status-block-skills">
           <span class="status-label" data-i18n="webview.status.skills">⚔️ Skills</span>
           <div id="status-skills-list" class="tag-list">
             <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>

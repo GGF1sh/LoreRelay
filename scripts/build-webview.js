@@ -14,6 +14,7 @@ const JS_MODULE_ORDER = [
     '55-remote-play.js',
     '60-tts-quickreply-imagegen.js',
     '70-game-rules.js',
+    '80-inspector.js',
     '90-bootstrap.js'
 ];
 
@@ -27,7 +28,8 @@ const CSS_MODULE_ORDER = [
     '60-dice-calc.css',
     '70-archive-stt-tts.css',
     '80-image-gen.css',
-    '90-game-rules.css'
+    '90-game-rules.css',
+    '90-inspector.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

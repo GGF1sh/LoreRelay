@@ -256,7 +256,27 @@ export function buildGmPromptContext(playerAction: string): string {
     if (loreCtx) {
         chunks.push(loreCtx);
     }
+    const visionCtx = buildVisionContext();
+    if (visionCtx) {
+        chunks.push(visionCtx);
+    }
     return chunks.length ? `\n\n${chunks.join('\n\n')}` : '';
+}
+
+function buildVisionContext(): string {
+    const statePath = getGameStatePath();
+    if (!statePath || !fs.existsSync(statePath)) {
+        return '';
+    }
+    try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        if (state.latestImage) {
+            return `[Vision Context: latestImage = ${state.latestImage}]\n*The VLM can use this image path to describe the current scene visually.*`;
+        }
+    } catch {
+        // ignore
+    }
+    return '';
 }
 
 export function processProfileUpdates(updates: ProfileUpdate[]): void {

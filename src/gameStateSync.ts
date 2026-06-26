@@ -397,6 +397,15 @@ export function startGameStateWatcher(): void {
             const turnResult = JSON.parse(content) as TurnResult;
             handleTurnResultMedia(turnResult);
             const applied = processTurnResult(turnResult);
+            
+            const panel = deps?.getPanel();
+            if (panel) {
+                panel.webview.postMessage({
+                    type: 'gameStateUpdate',
+                    turnResult: turnResult
+                });
+            }
+
             if (applied) {
                 // game_state.json will be updated, triggering handleChange
             }

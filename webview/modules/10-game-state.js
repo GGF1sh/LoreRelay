@@ -357,26 +357,49 @@ function updateStatus(status) {
     if (fundsRow) fundsRow.style.display = 'none';
   }
 
-  // HP バーの更新
-  const hpBlock = document.getElementById('status-block-hp');
-  if (status.hp && typeof status.hp.current === 'number' && typeof status.hp.max === 'number') {
-    const pct = Math.max(0, Math.min(100, (status.hp.current / status.hp.max) * 100));
-    document.getElementById('status-hp-bar').style.width = `${pct}%`;
-    document.getElementById('status-hp-text').textContent = `${status.hp.current} / ${status.hp.max}`;
-    if (hpBlock) hpBlock.style.display = '';
-  } else {
-    if (hpBlock) hpBlock.style.display = 'none';
-  }
+  // Dynamic Resources (HP, MP, Sanity, Shields, etc.)
+  const dynamicContainer = document.getElementById('dynamic-resources-container');
+  if (dynamicContainer) {
+    dynamicContainer.innerHTML = '';
+    
+    // Default icons/colors mapping
+    const resourceMeta = {
+      hp: { icon: '❤️', label: 'HP', class: 'hp' },
+      mp: { icon: '🔷', label: 'MP', class: 'mp' },
+      sanity: { icon: '🧠', label: 'Sanity', class: 'sanity' },
+      stamina: { icon: '⚡', label: 'Stamina', class: 'stamina' },
+      shield: { icon: '🛡️', label: 'Shield', class: 'shield' }
+    };
 
-  // MP バーの更新
-  const mpBlock = document.getElementById('status-block-mp');
-  if (status.mp && typeof status.mp.current === 'number' && typeof status.mp.max === 'number') {
-    const pct = Math.max(0, Math.min(100, (status.mp.current / status.mp.max) * 100));
-    document.getElementById('status-mp-bar').style.width = `${pct}%`;
-    document.getElementById('status-mp-text').textContent = `${status.mp.current} / ${status.mp.max}`;
-    if (mpBlock) mpBlock.style.display = '';
-  } else {
-    if (mpBlock) mpBlock.style.display = 'none';
+    for (const [key, value] of Object.entries(status)) {
+      if (value && typeof value === 'object' && 'current' in value && 'max' in value) {
+        const current = Number(value.current) || 0;
+        const max = Number(value.max) || 1;
+        const pct = Math.max(0, Math.min(100, (current / max) * 100));
+        
+        const meta = resourceMeta[key.toLowerCase()] || { 
+          icon: '📊', 
+          label: key.toUpperCase(), 
+          class: 'generic-resource' 
+        };
+
+        const block = document.createElement('div');
+        block.className = 'status-block';
+        block.id = `status-block-${key}`;
+        
+        block.innerHTML = `
+          <div class="status-row">
+            <span class="status-label">${meta.icon} ${escapeHtml(meta.label)}</span>
+          </div>
+          <div class="resource-bar-container">
+            <div id="status-${key}-bar" class="resource-bar-fill ${meta.class}" style="width: ${pct}%;"></div>
+            <div id="status-${key}-text" class="resource-text">${current} / ${max}</div>
+          </div>
+        `;
+        
+        dynamicContainer.appendChild(block);
+      }
+    }
   }
 
   // リスト（タグ）の更新ヘルパー

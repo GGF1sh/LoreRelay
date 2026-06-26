@@ -1,0 +1,39 @@
+.inspector-section {
+    margin-bottom: 16px;
+}
+
+.inspector-section h4 {
+    margin: 0 0 8px 0;
+    color: var(--text-color);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
+}
+
+.inspector-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.inspector-item {
+    padding: 6px 8px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+.diff-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.patch-value {
+    color: var(--text-color);
+    font-weight: bold;
+}

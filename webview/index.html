@@ -93,6 +93,7 @@
       <div id="status-tabs" class="tabs-header">
         <button class="tab-btn active" data-target="pane-status" data-i18n="webview.tab.status">Adventure Status</button>
         <button class="tab-btn" data-target="pane-character" data-i18n="webview.tab.character">Character Profile</button>
+        <button class="tab-btn" data-target="pane-inspector" data-i18n="webview.tab.inspector">🔍 Inspector</button>
       </div>
 
       <!-- ペイン 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
@@ -112,25 +113,7 @@
           <span id="status-funds" class="status-value">---</span>
         </div>
 
-        <div class="status-block" id="status-block-hp">
-          <div class="status-row">
-            <span class="status-label" data-i18n="webview.status.hp">❤️ HP</span>
-          </div>
-          <div class="resource-bar-container">
-            <div id="status-hp-bar" class="resource-bar-fill hp" style="width: 100%;"></div>
-            <div id="status-hp-text" class="resource-text">--- / ---</div>
-          </div>
-        </div>
-
-        <div class="status-block" id="status-block-mp">
-          <div class="status-row">
-            <span class="status-label" data-i18n="webview.status.mp">🔷 MP</span>
-          </div>
-          <div class="resource-bar-container">
-            <div id="status-mp-bar" class="resource-bar-fill mp" style="width: 100%;"></div>
-            <div id="status-mp-text" class="resource-text">--- / ---</div>
-          </div>
-        </div>
+        <div id="dynamic-resources-container"></div>
 
         <div class="status-block" id="status-block-condition">
           <span class="status-label" data-i18n="webview.status.condition">✨ Condition</span>

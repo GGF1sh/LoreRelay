@@ -68,11 +68,22 @@
 }
 
 .resource-bar-fill.hp {
-  background: linear-gradient(90deg, #b32d2d, #ff6b6b);
+  background: linear-gradient(90deg, #d32f2f, #f44336);
 }
-
 .resource-bar-fill.mp {
-  background: linear-gradient(90deg, #2d5db3, #4f8ef7);
+  background: linear-gradient(90deg, #1976d2, #2196f3);
+}
+.resource-bar-fill.sanity {
+  background: linear-gradient(90deg, #7b1fa2, #ab47bc);
+}
+.resource-bar-fill.stamina {
+  background: linear-gradient(90deg, #fbc02d, #ffeb3b);
+}
+.resource-bar-fill.shield {
+  background: linear-gradient(90deg, #0097a7, #00bcd4);
+}
+.resource-bar-fill.generic-resource {
+  background: linear-gradient(90deg, #616161, #9e9e9e);
 }
 
 .resource-text {

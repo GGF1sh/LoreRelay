@@ -30,7 +30,7 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
   - TS側が `dice_ledger.json` を書き出し、Python が `turn_result.json` の `diceLedger` フィールドに同梱。
 
 ### Phase 2C: GM Debug Console (Turn Inspector)
-- [ ] **Turn Inspector UI**: Webview内にデバッグパネルを追加し、ターンの入力、パッチ適用前後の差分、ダイス台帳、発火したロアを閲覧可能にする。
+- [x] **Turn Inspector UI**: Webview内にデバッグパネルを追加し、ターンの入力、パッチ適用前後の差分、ダイス台帳、発火したロアを閲覧可能にする。
 
 ### Phase 2B: SillyTavern 資産移行の完成
 - [ ] **TavernCard V1/V2**: PNG/JSON インポートの完全対応（`extensions` フィールド等を捨てずに保持）。
@@ -54,9 +54,9 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 ---
 
 ## ⚪ Phase 4: "Soulgaze" 視覚統合とルールセット拡張 (担当: Gemini)
-*ステータス: 未着手*
+*ステータス: 準備完了 (TS側実装済み)*
 
 画像認識と、どんなTRPGでも回せる柔軟なデータ構造の実現。
 
-- [ ] **Phase 4A (Herika型)**: ComfyUIで生成した画像をVLM（視覚言語モデル）に読み込ませ、現在の状況や見た目をナラティブの文脈として再利用する。
-- [ ] **Phase 4B (ルールセットプラグイン)**: `generic-fantasy` や `coc7e-lite` など、ステータス項目や判定式を定義したJSONルールセットを外部から動的に読み込む機能。
+- [x] **Phase 4A (Herika型)**: ComfyUIで生成した画像をVLM（視覚言語モデル）に読み込ませる。（AntigravityがTS側で `latestImage` をプロンプトに送る基盤を実装済。GeminiによるGM側の対応待ち）
+- [x] **Phase 4B (ルールセットプラグイン)**: `generic-fantasy` や `coc7e-lite` など、ステータス項目や判定式を定義したJSONルールセットを外部から動的に読み込む。（Antigravityが動的ステータスバーUIを実装済）

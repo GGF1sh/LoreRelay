@@ -431,26 +431,49 @@ function updateStatus(status) {
     if (fundsRow) fundsRow.style.display = 'none';
   }
 
-  // HP バーの更新
-  const hpBlock = document.getElementById('status-block-hp');
-  if (status.hp && typeof status.hp.current === 'number' && typeof status.hp.max === 'number') {
-    const pct = Math.max(0, Math.min(100, (status.hp.current / status.hp.max) * 100));
-    document.getElementById('status-hp-bar').style.width = `${pct}%`;
-    document.getElementById('status-hp-text').textContent = `${status.hp.current} / ${status.hp.max}`;
-    if (hpBlock) hpBlock.style.display = '';
-  } else {
-    if (hpBlock) hpBlock.style.display = 'none';
-  }
+  // Dynamic Resources (HP, MP, Sanity, Shields, etc.)
+  const dynamicContainer = document.getElementById('dynamic-resources-container');
+  if (dynamicContainer) {
+    dynamicContainer.innerHTML = '';
+    
+    // Default icons/colors mapping
+    const resourceMeta = {
+      hp: { icon: '❤️', label: 'HP', class: 'hp' },
+      mp: { icon: '🔷', label: 'MP', class: 'mp' },
+      sanity: { icon: '🧠', label: 'Sanity', class: 'sanity' },
+      stamina: { icon: '⚡', label: 'Stamina', class: 'stamina' },
+      shield: { icon: '🛡️', label: 'Shield', class: 'shield' }
+    };
 
-  // MP バーの更新
-  const mpBlock = document.getElementById('status-block-mp');
-  if (status.mp && typeof status.mp.current === 'number' && typeof status.mp.max === 'number') {
-    const pct = Math.max(0, Math.min(100, (status.mp.current / status.mp.max) * 100));
-    document.getElementById('status-mp-bar').style.width = `${pct}%`;
-    document.getElementById('status-mp-text').textContent = `${status.mp.current} / ${status.mp.max}`;
-    if (mpBlock) mpBlock.style.display = '';
-  } else {
-    if (mpBlock) mpBlock.style.display = 'none';
+    for (const [key, value] of Object.entries(status)) {
+      if (value && typeof value === 'object' && 'current' in value && 'max' in value) {
+        const current = Number(value.current) || 0;
+        const max = Number(value.max) || 1;
+        const pct = Math.max(0, Math.min(100, (current / max) * 100));
+        
+        const meta = resourceMeta[key.toLowerCase()] || { 
+          icon: '📊', 
+          label: key.toUpperCase(), 
+          class: 'generic-resource' 
+        };
+
+        const block = document.createElement('div');
+        block.className = 'status-block';
+        block.id = `status-block-${key}`;
+        
+        block.innerHTML = `
+          <div class="status-row">
+            <span class="status-label">${meta.icon} ${escapeHtml(meta.label)}</span>
+          </div>
+          <div class="resource-bar-container">
+            <div id="status-${key}-bar" class="resource-bar-fill ${meta.class}" style="width: ${pct}%;"></div>
+            <div id="status-${key}-text" class="resource-text">${current} / ${max}</div>
+          </div>
+        `;
+        
+        dynamicContainer.appendChild(block);
+      }
+    }
   }
 
   // リスト（タグ）の更新ヘルパー
@@ -1988,6 +2011,118 @@ function speakText(text) {
     vscode.postMessage({ type: 'getGameRules' });
 
 })();
+
+/* --- 80-inspector.js --- */
+/* global window, document */
+
+window.addEventListener('DOMContentLoaded', () => {
+    // 既存のモジュールから呼ばれるイベントリスナーなどを登録
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'gameStateUpdate') {
+            // If the message contains turnResult, update the inspector
+            // However, gameStateSync might not pass turn_result.json yet.
+            // We need to fetch or receive turn_result.json
+            if (message.turnResult) {
+                renderTurnResult(message.turnResult);
+            }
+        }
+    });
+
+    // Handle tab switching
+    const tabs = document.querySelectorAll('#status-tabs .tab-btn');
+    const panes = document.querySelectorAll('.tab-pane');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetId = tab.getAttribute('data-target');
+            if (targetId === 'pane-inspector') {
+                tabs.forEach(t => t.classList.remove('active'));
+                panes.forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('pane-inspector').classList.add('active');
+            }
+        });
+    });
+});
+
+function renderTurnResult(turnResult) {
+    const emptyText = document.getElementById('inspector-empty-text');
+    const content = document.getElementById('inspector-content');
+    const diceLedgerDiv = document.getElementById('inspector-dice-ledger');
+    const statePatchDiv = document.getElementById('inspector-state-patch');
+    const lorebookDiv = document.getElementById('inspector-lorebook');
+
+    if (!turnResult) {
+        emptyText.classList.remove('hidden');
+        content.classList.add('hidden');
+        return;
+    }
+
+    emptyText.classList.add('hidden');
+    content.classList.remove('hidden');
+
+    // Render Dice Ledger
+    diceLedgerDiv.innerHTML = '';
+    if (turnResult.diceLedger && turnResult.diceLedger.length > 0) {
+        turnResult.diceLedger.forEach(entry => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            let html = `<strong>${escapeHtml(entry.formula)}</strong> ➔ <span>${entry.total}</span>`;
+            if (entry.reason) {
+                html += ` <span class="tag-item">${escapeHtml(entry.reason)}</span>`;
+            }
+            if (entry.success !== undefined) {
+                html += entry.success ? ' <span style="color:var(--text-success)">[Success]</span>' : ' <span style="color:var(--text-danger)">[Failure]</span>';
+            }
+            row.innerHTML = html;
+            diceLedgerDiv.appendChild(row);
+        });
+    } else {
+        diceLedgerDiv.innerHTML = '<span class="empty-text">No dice rolls</span>';
+    }
+
+    // Render State Patches
+    statePatchDiv.innerHTML = '';
+    if (turnResult.statePatch && turnResult.statePatch.length > 0) {
+        turnResult.statePatch.forEach(patch => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item diff-item';
+            
+            let icon = '🔄';
+            let color = 'var(--text-color)';
+            if (patch.op === 'add') { icon = '➕'; color = 'var(--text-success)'; }
+            else if (patch.op === 'remove') { icon = '➖'; color = 'var(--text-danger)'; }
+            
+            row.innerHTML = `
+                <span title="${patch.op}">${icon}</span> 
+                <code style="color:${color}">${escapeHtml(patch.path)}</code>
+                ${patch.value !== undefined ? `➔ <span class="patch-value">${escapeHtml(JSON.stringify(patch.value))}</span>` : ''}
+            `;
+            statePatchDiv.appendChild(row);
+        });
+    } else {
+        statePatchDiv.innerHTML = '<span class="empty-text">No state changes</span>';
+    }
+
+    // Render Lorebook
+    lorebookDiv.innerHTML = '';
+    // Lorebook triggers might be in game_state.status or turnResult. We will need to pass them.
+    lorebookDiv.innerHTML = '<span class="empty-text">No lore triggered</span>';
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function(m) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[m];
+    });
+}
 
 /* --- 90-bootstrap.js --- */
 // ===== Initialization =====

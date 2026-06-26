@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { randomBytes } from 'crypto';
+import { processDiceMacros } from './diceRoller';
 import {
     initI18n,
     t,
@@ -379,7 +380,8 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
         return;
     }
 
-    const trimmed = text.trim();
+    let trimmed = text.trim();
+    trimmed = processDiceMacros(trimmed);
     if (!trimmed) {
         vscode.window.showErrorMessage(t('extension.error.inputEmpty'));
         return;

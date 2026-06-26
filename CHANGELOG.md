@@ -11,6 +11,7 @@
 ## [Unreleased]
 
 ### Added
+- **Phase 1: Deterministic Macro & RNG Injection**: Added `src/diceRoller.ts` to parse dice macros like `{{roll 1d20+2}}` or `{{roll 100}}` directly from the user's input. The Webview/Bridge calculates the results locally and injects deterministic results (e.g., `[System Roll: 1d20+2 ➔ 15]`) into the prompt before sending it to the LLM, eliminating AI calculation errors or hallucinated dice results.
 - **Dynamic visibility for status elements**: HP, MP, Location, Time, Funds, Condition, Inventory, and Skills blocks/rows are now dynamically hidden in the Webview if they are omitted from the `game_state.json` status object. Omission of the entire `status` object hides the status section altogether, allowing for visual novel or lightweight chat-centric gameplay.
 - **Version Checker & Auto-Updater system**: `updateManager.ts` fetches GitHub releases, shows release notes, and installs `.vsix` + GM skill `.zip`. Daily background check + `Text Adventure: Check for Updates` command.
 - **`update_lorerelay.bat` / `scripts/update_lorerelay.ps1`**: Double-click updater for users outside the VS Code command palette. Shares hardened install helpers with the `.bat` installers.

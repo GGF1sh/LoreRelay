@@ -17,6 +17,12 @@
   - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
 
+## 2026-06-26 12:35 JST - Antigravity - Phase 1: 確定的マクロ展開と事前RNGの実装
+
+### 概要
+- **マクロの実装**: ユーザー入力に含まれる `{{roll 1d20+2}}` などのダイスロール構文を正規表現で検知し、Webview/GM Bridge側で確定的な乱数計算を行う `src/diceRoller.ts` を追加しました。
+- **実行前注入**: `handlePlayerInput` 内でテキストを処理し、計算結果（例: `[System Roll: 1d20+2 ➔ 15]`）を埋め込んでから `game_state.json` へ保存し、LLMに渡すように変更。これにより、LLMの計算ミスやダイス結果の無視を完全に排除できます。
+- **Handover**: Phase 1が完了しました。次はClaudeに引き継ぎ、Phase 2（"Persist-Before-Narrate" アーキテクチャと動的RAG）の検討・実装を依頼します。
 ## 2026-06-26 12:29 JST - User / Gemini Deep Research - 類似システムの調査
 
 ### 概要

@@ -496,6 +496,31 @@ function updateStatus(status) {
           </div>
         `;
         
+      } else if (typeof value === 'number' && key !== 'funds') {
+        // affection や reputation のような単一の数値 (0-100を想定) の場合
+        if (!/^[a-zA-Z0-9_-]+$/.test(key)) continue;
+        if (++renderedCount > 15) break;
+
+        const current = Math.max(0, Math.min(100, Number(value)));
+        const meta = resourceMeta[key.toLowerCase()] || { 
+          icon: '💖', 
+          label: key.charAt(0).toUpperCase() + key.slice(1), 
+          class: 'affection' 
+        };
+
+        const block = document.createElement('div');
+        block.className = 'status-block';
+        block.id = `status-block-${key}`;
+        
+        block.innerHTML = `
+          <div class="status-row">
+            <span class="status-label">${meta.icon} ${escapeHtml(meta.label)}</span>
+          </div>
+          <div class="resource-bar-container">
+            <div id="status-${key}-bar" class="resource-bar-fill ${meta.class}" style="width: ${current}%;"></div>
+            <div id="status-${key}-text" class="resource-text">${current} / 100</div>
+          </div>
+        `;
         dynamicContainer.appendChild(block);
       }
     }
@@ -2138,7 +2163,10 @@ function speakText(text) {
         enableRpgMechanics: document.getElementById('gr-enable-rpg'),
         defaultMaxHp: document.getElementById('gr-default-hp'),
         defaultMaxMp: document.getElementById('gr-default-mp'),
-        diceDifficulty: document.getElementById('gr-dice-diff')
+        diceDifficulty: document.getElementById('gr-dice-diff'),
+        skillCommentary: document.getElementById('gr-skill-commentary'),
+        backgroundSimulation: document.getElementById('gr-bg-sim'),
+        autoLorebookGrowth: document.getElementById('gr-auto-lore')
     };
 
     let saveTimeout = null;
@@ -2172,7 +2200,10 @@ function speakText(text) {
             enableRpgMechanics: inputs.enableRpgMechanics.checked,
             defaultMaxHp: parseInt(inputs.defaultMaxHp.value, 10) || 100,
             defaultMaxMp: parseInt(inputs.defaultMaxMp.value, 10) || 50,
-            diceDifficulty: inputs.diceDifficulty.value || 'Normal'
+            diceDifficulty: inputs.diceDifficulty.value || 'Normal',
+            skillCommentary: inputs.skillCommentary.checked,
+            backgroundSimulation: inputs.backgroundSimulation.checked,
+            autoLorebookGrowth: inputs.autoLorebookGrowth.checked
         };
         vscode.postMessage({ type: 'updateGameRules', rules });
         notifySave();
@@ -2198,6 +2229,9 @@ function speakText(text) {
             if (rules.defaultMaxHp !== undefined) inputs.defaultMaxHp.value = rules.defaultMaxHp;
             if (rules.defaultMaxMp !== undefined) inputs.defaultMaxMp.value = rules.defaultMaxMp;
             if (rules.diceDifficulty !== undefined) inputs.diceDifficulty.value = rules.diceDifficulty;
+            if (rules.skillCommentary !== undefined) inputs.skillCommentary.checked = rules.skillCommentary;
+            if (rules.backgroundSimulation !== undefined) inputs.backgroundSimulation.checked = rules.backgroundSimulation;
+            if (rules.autoLorebookGrowth !== undefined) inputs.autoLorebookGrowth.checked = rules.autoLorebookGrowth;
         }
     });
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}'; connect-src 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}' https://cdn.jsdelivr.net; connect-src 'none';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="{{styleUri}}" />
   <title>LoreRelay</title>
@@ -78,6 +78,8 @@
         <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">📖 Archive</button>
         <button class="qr-btn" id="qr-export"     data-i18n="webview.quickReply.export">🌐 Export HTML</button>
         <button class="qr-btn" id="qr-forcespeak" data-i18n="webview.quickReply.forceSpeak">🪄 Speak as...</button>
+        <button class="qr-btn" id="qr-questflow"  data-i18n="webview.quickReply.questFlow">🗺️ Quest Flow</button>
+        <button class="qr-btn" id="qr-relations"  data-i18n="webview.quickReply.relations">🕸️ Relations</button>
       </div>
       <div id="input-area">
         <input type="text" id="free-input" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Enter to send to GM)" />
@@ -597,10 +599,35 @@
         <option value="Hard">Hard</option>
       </select>
 
+      <div class="img-gen-row" style="margin-top: 1rem; border-top: 1px solid var(--vscode-panel-border); padding-top: 0.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0;" data-i18n="webview.gameRules.advanced">Advanced AI Rules</h4>
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-skill-commentary" title="Skills have personalities and comment on checks (Disco Elysium style)" data-i18n="webview.gameRules.skillCommentary">Enable Skill Commentary</label>
+        <input type="checkbox" id="gr-skill-commentary" data-field="skillCommentary" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-bg-sim" title="World progresses even when players are idle" data-i18n="webview.gameRules.bgSim">Enable Background Simulation</label>
+        <input type="checkbox" id="gr-bg-sim" data-field="backgroundSimulation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-auto-lore" title="Automatically create Lorebook entries from new nouns" data-i18n="webview.gameRules.autoLore">Enable Auto Lorebook Growth</label>
+        <input type="checkbox" id="gr-auto-lore" data-field="autoLorebookGrowth" />
+      </div>
+
       <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>
     </div>
   </aside>
 
   <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.8.0/dist/mermaid.min.js"></script>
+  <script nonce="{{nonce}}">
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    }
+  </script>
 </body>
 </html>

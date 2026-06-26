@@ -97,15 +97,20 @@
       "properties": {
         "textAdventure.locale": {
           "type": "string",
-          "enum": ["en", "ja", "zh-cn", "zh-tw"],
+          "enum": [
+            "ja",
+            "en",
+            "zh-CN",
+            "zh-TW"
+          ],
           "enumDescriptions": [
+            "日本語",
             "English",
-            "Japanese (日本語)",
-            "Simplified Chinese (简体中文)",
-            "Traditional Chinese (繁體中文)"
+            "简体中文 (Simplified Chinese)",
+            "繁體中文 (Traditional Chinese / Taiwan)"
           ],
           "default": "en",
-          "description": "UI Language"
+          "description": "UI language for Webview, extension messages, and GM narrative prompts. Also changeable from the Webview header dropdown."
         },
         "textAdventure.skillPath": {
           "type": "string",
@@ -243,23 +248,6 @@
           ],
           "default": "player",
           "description": "Default role for remote clients that omit ?role= or auth.role."
-        },
-        "textAdventure.locale": {
-          "type": "string",
-          "enum": [
-            "ja",
-            "en",
-            "zh-CN",
-            "zh-TW"
-          ],
-          "enumDescriptions": [
-            "日本語",
-            "English",
-            "简体中文 (Simplified Chinese)",
-            "繁體中文 (Traditional Chinese / Taiwan)"
-          ],
-          "default": "en",
-          "description": "UI language for Webview, extension messages, and GM narrative prompts. Also changeable from the Webview header dropdown."
         },
         "textAdventure.workspaceFolder": {
           "type": "string",
@@ -412,8 +400,11 @@
     "test": "node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_play_server.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
     "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "mermaid": "^11.16.0"
   }
 }

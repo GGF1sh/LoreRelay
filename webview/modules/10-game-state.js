@@ -422,6 +422,31 @@ function updateStatus(status) {
           </div>
         `;
         
+      } else if (typeof value === 'number' && key !== 'funds') {
+        // affection や reputation のような単一の数値 (0-100を想定) の場合
+        if (!/^[a-zA-Z0-9_-]+$/.test(key)) continue;
+        if (++renderedCount > 15) break;
+
+        const current = Math.max(0, Math.min(100, Number(value)));
+        const meta = resourceMeta[key.toLowerCase()] || { 
+          icon: '💖', 
+          label: key.charAt(0).toUpperCase() + key.slice(1), 
+          class: 'affection' 
+        };
+
+        const block = document.createElement('div');
+        block.className = 'status-block';
+        block.id = `status-block-${key}`;
+        
+        block.innerHTML = `
+          <div class="status-row">
+            <span class="status-label">${meta.icon} ${escapeHtml(meta.label)}</span>
+          </div>
+          <div class="resource-bar-container">
+            <div id="status-${key}-bar" class="resource-bar-fill ${meta.class}" style="width: ${current}%;"></div>
+            <div id="status-${key}-text" class="resource-text">${current} / 100</div>
+          </div>
+        `;
         dynamicContainer.appendChild(block);
       }
     }

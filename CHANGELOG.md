@@ -10,7 +10,22 @@
 
 ## [Unreleased]
 
-（次のマイルストーン: Phase 2B TavernCard V1/V2 完全対応 / Phase 4A VLM 統合）
+### Added — Phase 5: Advanced Simulation & Visualizations
+- **Game Rules Toggles**: Added toggles for experimental features: "Skill Commentary", "Background Simulation", and "Auto Lorebook Growth" in the settings panel. These influence the GM's prompt behavior.
+- **Quest Flow & Relations Graphs**: Added `🗺️ Quest Flow` and `🕸️ Relations` buttons. They trigger Mermaid.js flowchart generation by the GM.
+- **Mermaid.js Rendering**: Embedded Mermaid.js into the webview. Any ` ```mermaid ` block returned by the LLM is automatically rendered as an interactive diagram.
+- **Affection/Reputation Trackers**: Added visual progress bars (0-100) for tracking dynamic stats like `affection` or `reputation` sent in the `status` payload.
+
+### Added — Phase 4: Extended Core & UI Tools (Antigravity)
+- **Git Time Travel**: Auto-commit interval setting and `⎇ (Branch)` button in messages to branch timelines.
+- **Equipment Slots**: Character Profile now supports Weapon, Armor, Accessory slots with one-click GM notification (`📤 Equip & Notify GM`).
+- **Force Speak (🪄 Speak as...)**: Quick Reply bar button to force a specific character/NPC to speak next.
+- **Export Saga to HTML (🌐 Export HTML)**: Quick Reply bar button to export the entire chat log with base64 embedded images as a rich HTML file.
+- **Responsive WebUI**: Drag-to-resize border (`#resizer`) between chat and status panes. Status tabs collapse to icons when space is limited.
+- **Locale Selection**: Added `textAdventure.locale` to VS Code settings (`package.json`) to select UI language (`en`, `ja`, `zh-cn`, `zh-tw`).
+- **Python Auto-Setup**: Extended `setup.ps1` to auto-install `chromadb` and `scikit-learn` from `requirements.txt` if Python is available.
+
+（次のマイルストーン: Phase 2B TavernCard V1/V2 完全対応 / Phase 4A VLM 統合 / 実験的機能の追加）
 
 ## [1.0.0] - 2026-06-26
 

@@ -11,7 +11,10 @@
         enableRpgMechanics: document.getElementById('gr-enable-rpg'),
         defaultMaxHp: document.getElementById('gr-default-hp'),
         defaultMaxMp: document.getElementById('gr-default-mp'),
-        diceDifficulty: document.getElementById('gr-dice-diff')
+        diceDifficulty: document.getElementById('gr-dice-diff'),
+        skillCommentary: document.getElementById('gr-skill-commentary'),
+        backgroundSimulation: document.getElementById('gr-bg-sim'),
+        autoLorebookGrowth: document.getElementById('gr-auto-lore')
     };
 
     let saveTimeout = null;
@@ -45,7 +48,10 @@
             enableRpgMechanics: inputs.enableRpgMechanics.checked,
             defaultMaxHp: parseInt(inputs.defaultMaxHp.value, 10) || 100,
             defaultMaxMp: parseInt(inputs.defaultMaxMp.value, 10) || 50,
-            diceDifficulty: inputs.diceDifficulty.value || 'Normal'
+            diceDifficulty: inputs.diceDifficulty.value || 'Normal',
+            skillCommentary: inputs.skillCommentary.checked,
+            backgroundSimulation: inputs.backgroundSimulation.checked,
+            autoLorebookGrowth: inputs.autoLorebookGrowth.checked
         };
         vscode.postMessage({ type: 'updateGameRules', rules });
         notifySave();
@@ -71,6 +77,9 @@
             if (rules.defaultMaxHp !== undefined) inputs.defaultMaxHp.value = rules.defaultMaxHp;
             if (rules.defaultMaxMp !== undefined) inputs.defaultMaxMp.value = rules.defaultMaxMp;
             if (rules.diceDifficulty !== undefined) inputs.diceDifficulty.value = rules.diceDifficulty;
+            if (rules.skillCommentary !== undefined) inputs.skillCommentary.checked = rules.skillCommentary;
+            if (rules.backgroundSimulation !== undefined) inputs.backgroundSimulation.checked = rules.backgroundSimulation;
+            if (rules.autoLorebookGrowth !== undefined) inputs.autoLorebookGrowth.checked = rules.autoLorebookGrowth;
         }
     });
 

@@ -63,6 +63,7 @@ export interface WebviewHandlerDeps {
     handleBranchTimeline(turnId: string): Promise<void>;
     handleRequestForceSpeak(): Promise<void>;
     handleExportHtml(): Promise<void>;
+    handleRequestMermaid(target: string): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -270,6 +271,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'exportHtml':
             await deps.handleExportHtml();
+            break;
+        case 'requestMermaid':
+            await deps.handleRequestMermaid(typeof message.target === 'string' ? message.target : 'questFlow');
             break;
         default:
             break;

@@ -25,6 +25,15 @@
   - `webview/script.js` / `style.css` 分割: **完了**（`modules/` 11 + `styles/` 11 + `build-webview.js`）
   - **Phase 1 / 1.5 / 2A / 2C / 3A / 3B**: **完了**（堅牢化含む）
 
+## 2026-06-26 12:50 JST - Antigravity - Phase 5: Advanced Simulation & Mermaid Integration
+
+### 概要
+- **Game Rules Toggles**: ⚙️ Game Rules パネルに「Skill Commentary」「Background Simulation」「Auto Lorebook Growth」のON/OFFを追加し、GMのプロンプトに反映されるよう `gameRules.ts` と `gmPromptBuilder.ts` を拡張。
+- **Mermaid.js**: Webview (`index.html`) に CDN 経由で Mermaid.js を追加。チャットログの ```mermaid ブロックを自動的に図としてレンダリングする機能を `webview/script.js` に実装。
+- **Quick Action**: 🗺️ Quest Flow、🕸️ Relations ボタンを追加し、クリックで Mermaid 形式の図解を生成するプロンプトをGMに送信。
+- **Affection/Reputation Bars**: `status` 内に 0〜100 の単一数値が渡された場合、ステータスパネルにカラーのプログレスバーとして描画する処理を `10-game-state.js` に追加。
+- **Handover**: 今回追加した実験的機能（Phase 5）の実装を完了しました。ユーザーの要望通りすべてON/OFF・任意呼び出し可能な形にしています。動作確認後、問題なければ次のタスクへ進んでください。
+
 ## 2026-06-26 (Grok) - フェーズ 3 ゲート完了（Phase 2B 後）
 
 ### 概要
@@ -164,7 +173,22 @@
 
 ### Verification
 - **Checked & Verified**: Ran compile (`npm run compile`) and validation tests (`npm test`) on `2026-06-26 09:21 JST` to verify no syntactic or semantic regressions.
+## 2026-06-26 18:05 JST - Antigravity - Phase 4: Extended Core & UI Tools
 
+### 概要
+- **Git タイムトラベル**: 自動コミット間隔の設定 (`textAdventure.gitAutoCommitInterval`) および、メッセージホバーからの `⎇ (Branch)` ボタンによる世界線分岐機能を実装。
+- **装備スロットUI**: Character Profile に Weapon, Armor, Accessory の入力欄を追加。保存と同時にワンクリックで `[Equipment changed]` のシステムアクションをGMに送信し、プロンプトに反映させる機能（`📤 Equip & Notify GM`）を実装。
+- **NPC発言強制機能**: Quick Reply バーに `🪄 Speak as...` を追加し、登録されているキャラクター名を選択して `System: Force [Name] to speak next.` を自動送信する機能を実装。
+- **ゲーム履歴のHTMLエクスポート**: Quick Reply バーに `🌐 Export HTML` を追加。Saga の履歴（画像はBase64エンコードして埋め込み）を1つのHTMLファイルとしてエクスポートする機能 (`src/exportHtml.ts`) を実装。
+- **UIレスポンシブ化・ロケール設定**: WebUIのチャットと右ペインの境界をドラッグリサイズ可能にし、狭い場合はアイコンのみの表示に切り替わるCSSコンテナクエリを導入。VS Code設定にUI言語（`en`, `ja`, `zh-cn`, `zh-tw`）の選択項目を追加。
+- **Python環境自動セットアップ**: `setup.ps1` を拡張し、Python インタープリターがある場合は `requirements.txt` (`chromadb`, `scikit-learn` など) を自動インストールするように改善。
+
+### 検証
+- `npm run compile` および `npm run build:webview` 正常終了。
+- コードベース全体を Git にコミットし `push` 完了。
+
+### 次のステップへの申し送り
+- ユーザーから **「これまだやってないのどれだっけ？」** と提示された Claude の過去提案（#2 関係図, #3 スキル実況, #4 バックグラウンドシミュ, #5 好感度バー, #7 World Info自動成長, #9 Mermaidクエスト図示）についての先行実装プランを策定し、ユーザーの承認を得るフェーズに入る。
 ## 2026-06-26 - Antigravity - o3 Code Review Improvements (Watcher Leak Fix, Unified Busy Check & Cross-Platform Grok Resolution)
 
 ### Summary

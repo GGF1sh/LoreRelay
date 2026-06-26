@@ -327,10 +327,24 @@ function buildScenarioDirectorPromptContext(): string {
 
 function buildGameRulesPromptContext(): string {
     const rules = loadGameRules();
+    const lines = ['[Game Rules]'];
     if (!rules.enableRpgMechanics) {
-        return '[Game Rules]\nRPG mechanics (HP/MP numeric tracking) are DISABLED. Focus on narrative flow; omit combat stats unless the player explicitly requests them.';
+        lines.push('RPG mechanics (HP/MP numeric tracking) are DISABLED. Focus on narrative flow; omit combat stats unless the player explicitly requests them.');
+    } else {
+        lines.push(`RPG mechanics ENABLED. Default max HP: ${rules.defaultMaxHp}, max MP: ${rules.defaultMaxMp}. Dice difficulty tone: ${rules.diceDifficulty}. Track HP/MP changes via status patches only when mechanics are relevant.`);
     }
-    return `[Game Rules]\nRPG mechanics ENABLED. Default max HP: ${rules.defaultMaxHp}, max MP: ${rules.defaultMaxMp}. Dice difficulty tone: ${rules.diceDifficulty}. Track HP/MP changes via status patches only when mechanics are relevant.`;
+
+    if (rules.skillCommentary) {
+        lines.push('SKILL COMMENTARY ENABLED: Give personalities to the player\'s skills/stats. When a skill check occurs or a skill is relevant, have the skill itself "speak" as a voice in the player\'s head (e.g. "LOGIC [Easy: Success] - That doesn\'t make sense.").');
+    }
+    if (rules.backgroundSimulation) {
+        lines.push('BACKGROUND SIMULATION ENABLED: The world is alive. Even if the player does nothing, time passes, NPCs act on their own agendas, and events occur in the background. Report these changes naturally in the narrative.');
+    }
+    if (rules.autoLorebookGrowth) {
+        lines.push('AUTO LOREBOOK GROWTH ENABLED: The world lore is expanding. If new important nouns (locations, factions, items) are introduced, naturally define them in the narrative so they can be extracted later.');
+    }
+
+    return lines.join('\n');
 }
 
 function buildLorebookPromptContext(hintText: string): string {

@@ -8,13 +8,19 @@ export interface GameRules {
     defaultMaxHp: number;
     defaultMaxMp: number;
     diceDifficulty: string; // e.g. "Normal", "Hard"
+    skillCommentary?: boolean;
+    backgroundSimulation?: boolean;
+    autoLorebookGrowth?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
     enableRpgMechanics: true,
     defaultMaxHp: 100,
     defaultMaxMp: 50,
-    diceDifficulty: "Normal"
+    diceDifficulty: "Normal",
+    skillCommentary: false,
+    backgroundSimulation: false,
+    autoLorebookGrowth: false
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -60,6 +66,15 @@ export function saveGameRules(rules: Partial<GameRules>): void {
             if (difficulty === 'Normal' || difficulty === 'Hard') {
                 sanitized.diceDifficulty = difficulty;
             }
+        }
+        if (rules.skillCommentary !== undefined && typeof rules.skillCommentary === 'boolean') {
+            sanitized.skillCommentary = rules.skillCommentary;
+        }
+        if (rules.backgroundSimulation !== undefined && typeof rules.backgroundSimulation === 'boolean') {
+            sanitized.backgroundSimulation = rules.backgroundSimulation;
+        }
+        if (rules.autoLorebookGrowth !== undefined && typeof rules.autoLorebookGrowth === 'boolean') {
+            sanitized.autoLorebookGrowth = rules.autoLorebookGrowth;
         }
     }
 

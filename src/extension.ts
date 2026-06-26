@@ -595,6 +595,15 @@ async function handleRequestForceSpeak(): Promise<void> {
     }
 }
 
+async function handleRequestMermaid(target: string): Promise<void> {
+    const promptMap: Record<string, string> = {
+        questFlow: 'System: Render the current main quest and sub-quests flow using a Mermaid flowchart (e.g. `graph TD`). Include states like active, completed, or failed.',
+        relations: 'System: Render the relationship graph of the protagonist and known NPCs using a Mermaid graph (e.g. `graph LR`). Include edge labels for relationship types.'
+    };
+    const req = promptMap[target] || `System: Render ${target} using Mermaid.js syntax.`;
+    await handlePlayerInput(req, undefined);
+}
+
 async function handleExportHtml(): Promise<void> {
     const uri = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file('saga_archive.html'),
@@ -827,7 +836,8 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendRemotePlayStatus,
         handleBranchTimeline,
         handleRequestForceSpeak,
-        handleExportHtml
+        handleExportHtml,
+        handleRequestMermaid,
     };
 }
 

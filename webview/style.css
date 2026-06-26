@@ -1433,3 +1433,11 @@ body {
 .img-gen-saved.hidden {
   display: none;
 }
+
+/* --- 90-game-rules.css --- */
+/* 90-game-rules.css */
+/* Reuses .img-gen-panel and .img-gen-input from 80-image-gen.css */
+
+#game-rules-wrap {
+    margin-right: 0.5rem;
+}

@@ -44,6 +44,8 @@ export interface WebviewHandlerDeps {
     loadScenarioPack(): Promise<void>;
     sendImageGenConfig(): void;
     handleUpdateImageGenConfig(raw: unknown): Promise<void>;
+    sendGameRules(): void;
+    handleUpdateGameRules(raw: unknown): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -73,6 +75,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendSfxManifest();
             deps.sendCharacterList();
             deps.sendCheckpointList();
+            deps.sendGameRules();
+            break;
+        case 'getGameRules':
+            deps.sendGameRules();
+            break;
+        case 'updateGameRules':
+            await deps.handleUpdateGameRules(message.rules);
             break;
         case 'loadCharacters':
             deps.sendCharacterList();

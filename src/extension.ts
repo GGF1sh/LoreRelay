@@ -4,6 +4,7 @@ import * as path from 'path';
 
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
+import { loadGameRules, saveGameRules, type GameRules } from './gameRules';
 import {
     initI18n,
     t,
@@ -496,6 +497,17 @@ async function importStLorebook() {
     }
 }
 
+function sendGameRules(): void {
+    if (!panel) return;
+    const rules = loadGameRules();
+    panel.webview.postMessage({ type: 'gameRules', rules });
+}
+
+async function handleUpdateGameRules(raw: unknown): Promise<void> {
+    if (!raw || typeof raw !== 'object') return;
+    saveGameRules(raw as Partial<GameRules>);
+    sendGameRules();
+}
 
 /** Webview postMessage ルーターへ渡すハンドラ束ね。 */
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
@@ -528,7 +540,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleToggleExcludeEntry,
         loadScenarioPack,
         sendImageGenConfig,
-        handleUpdateImageGenConfig
+        handleUpdateImageGenConfig,
+        sendGameRules,
+        handleUpdateGameRules
     };
 }
 

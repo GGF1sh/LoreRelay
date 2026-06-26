@@ -29,6 +29,9 @@
         <div id="img-gen-wrap">
           <button id="img-gen-settings-btn" class="glass-btn" data-i18n-title="webview.imageGen.open" title="Image Gen Settings">🎨</button>
         </div>
+        <div id="game-rules-wrap">
+          <button id="game-rules-settings-btn" class="glass-btn" title="Game Rules">⚙️</button>
+        </div>
         <div id="tts-wrap">
           <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
           <div id="tts-menu" class="tts-menu-popup hidden">
@@ -351,6 +354,42 @@
         <textarea id="ig-tpl-freeform" class="img-gen-textarea" data-tpl="freeform" rows="2"></textarea>
       </details>
       <div id="img-gen-saved" class="img-gen-saved hidden" data-i18n="webview.imageGen.saved">Saved</div>
+    </div>
+  </aside>
+
+  <div id="game-rules-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="game-rules-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.gameRules.title">Game Rules</h3>
+      <button type="button" id="game-rules-panel-close" class="glass-btn" data-i18n-title="webview.gameRules.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <p class="img-gen-hint" data-i18n="webview.gameRules.hint">Saved to game_rules.json in your workspace.</p>
+      
+      <div class="img-gen-row" style="align-items: center;">
+        <label for="gr-enable-rpg" data-i18n="webview.gameRules.enableRpg">Enable RPG Mechanics (HP/MP)</label>
+        <input type="checkbox" id="gr-enable-rpg" data-field="enableRpgMechanics" />
+      </div>
+
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.gameRules.defaultHp">Default Max HP</label>
+          <input type="number" id="gr-default-hp" class="img-gen-input" data-field="defaultMaxHp" min="1" max="9999" />
+        </div>
+        <div>
+          <label data-i18n="webview.gameRules.defaultMp">Default Max MP</label>
+          <input type="number" id="gr-default-mp" class="img-gen-input" data-field="defaultMaxMp" min="0" max="9999" />
+        </div>
+      </div>
+
+      <label data-i18n="webview.gameRules.diceDifficulty">Dice Difficulty</label>
+      <select id="gr-dice-diff" class="img-gen-input" data-field="diceDifficulty">
+        <option value="Easy">Easy</option>
+        <option value="Normal" selected>Normal</option>
+        <option value="Hard">Hard</option>
+      </select>
+
+      <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>
     </div>
   </aside>
 

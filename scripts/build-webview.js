@@ -12,6 +12,7 @@ const JS_MODULE_ORDER = [
     '40-dice-calc-tabs.js',
     '50-character-saga.js',
     '60-tts-quickreply-imagegen.js',
+    '70-game-rules.js',
     '90-bootstrap.js'
 ];
 
@@ -24,7 +25,8 @@ const CSS_MODULE_ORDER = [
     '50-scrollbar-themes.css',
     '60-dice-calc.css',
     '70-archive-stt-tts.css',
-    '80-image-gen.css'
+    '80-image-gen.css',
+    '90-game-rules.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

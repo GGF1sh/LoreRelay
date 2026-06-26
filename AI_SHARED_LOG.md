@@ -17,6 +17,12 @@
   - Git push: **完了**（`7576998` まで push 済み）
   - インストーラー / アップデーター: `install_common.ps1` + `update_lorerelay.bat` 追加、`.ps1` 原子化・URL allowlist 対応済
 
+## 2026-06-26 12:43 JST - Antigravity - Phase 1.5: カスタムルールUIとRPG要素トグル
+
+### 概要
+- **設定UIの実装**: ユーザーからの追加要望に基づき、Webview内に「Game Rules」パネル（⚙️アイコン）を追加。
+- **データ管理**: `src/gameRules.ts` を新設し、`game_rules.json`（ワークスペース内）に「RPG要素の有効化（HP/MP）」「初期最大HP/MP」「ダイス難易度」などを保存・読み込む仕組みを構築しました。
+- **Handover**: Phase 1.5（設定基盤）が完了しました。次はClaudeに引き継ぎ、Phase 2（"Persist-Before-Narrate" アーキテクチャと、この `game_rules.json` を使った動的RAG/プロンプト切り替え）の検討・実装を依頼します。
 ## 2026-06-26 12:35 JST - Antigravity - Phase 1: 確定的マクロ展開と事前RNGの実装
 
 ### 概要

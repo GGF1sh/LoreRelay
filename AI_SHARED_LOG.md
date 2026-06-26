@@ -25,6 +25,13 @@
 - **新規**: `AI_HANDOVER_PROMPTS.md` — ChatGPT / Gemini / Claude / Grok 向けコピペプロンプト、共通必読 8 ファイルの順序、推奨実行フェーズ 0〜3 を固定化。
 - **次の操作**: ユーザーは同ファイルの「6. ユーザー操作チートシート」に従い、Phase 1 から ChatGPT + Gemini を並列投入。
 
+## 2026-06-26 (ChatGPT/Codex) - Phase 1 セキュリティ監査 & SKILL.md改訂ドラフト
+
+### 概要
+- `AI_HANDOVER_PROMPTS.md` §2 に沿って、Remote Play / webview postMessage / GM bridge / SKILL.md を設計レビュー。
+- 成果物: `C:\AI\CHATGPT_SECURITY_AND_SKILL.md`（セキュリティ所見表、Persist-Before-Narrate対応 `SKILL.md` 全文ドラフト、テスト計画）。
+- コード変更なし。残件は `{action}` 非推奨化、Remote Play token/URL表示、`statePatch` サイズ上限、`profileUpdates` の turn_result 経路設計。
+
 ## 2026-06-26 (Grok) - Phase 2A 堅牢化 & v0.3.2 ドキュメント整備
 
 ### 概要

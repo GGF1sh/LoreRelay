@@ -8,7 +8,7 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
-## [Unreleased]
+## [1.1.0] - 2026-06-26
 
 ### Added — Phase 5: Advanced Simulation & Visualizations
 - **Game Rules Toggles**: Added toggles for experimental features: "Skill Commentary", "Background Simulation", and "Auto Lorebook Growth" in the settings panel. These influence the GM's prompt behavior.

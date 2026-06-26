@@ -5,7 +5,7 @@
 
 ## Current Snapshot
 
-- Current package version: **`0.3.3`**（Phase 2B `a693892` + フェーズ3ゲート。`CHANGELOG.md` [0.3.3]）
+- Current package version: **`1.1.0`**（Phase 4 & 5 追加。`CHANGELOG.md` [1.1.0]）
 - Main source of truth: `CHANGELOG.md` + source code
 - **Task Management Blackboard**: `AI_ROADMAP.md` (作業開始前に必ずこのファイルを見てタスクのチェックリストを更新すること)
 - Main remaining work:

@@ -16,6 +16,7 @@ import {
     resolveGmBridgeScript,
     resolvePythonCommand
 } from './skillScriptRunner';
+import { DiceLedgerEntry } from './types/TurnResult';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -362,12 +363,25 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     });
 }
 
-export async function invokeGmBridge(playerAction: string): Promise<boolean> {
+export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedgerEntry[]): Promise<boolean> {
     if (isGmBridgeBusy()) {
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
         return false;
     }
+    const workspacePath = getWorkspacePath();
+    if (!workspacePath) {
+        vscode.window.showErrorMessage('LoreRelay: Workspace not found.');
+        return false;
+    }
+
     const provider = getGmProvider();
+
+    if (diceLedger && diceLedger.length > 0) {
+        const fs = require('fs');
+        const path = require('path');
+        fs.writeFileSync(path.join(workspacePath, 'dice_ledger.json'), JSON.stringify(diceLedger, null, 2), 'utf8');
+    }
+
     if (provider !== 'clipboard') {
         if (!vscode.workspace.isTrusted) {
             vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));

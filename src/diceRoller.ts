@@ -1,27 +1,79 @@
-export function processDiceMacros(text: string): string {
-    // Matches {{roll 1d20}}, {{roll 2d6+3}}, {{roll 100}}, {{roll d10}}
-    const rollRegex = /\{\{\s*roll\s+([0-9dD+\-\s]+)\s*\}\}/g;
+import { DiceLedgerEntry } from './types/TurnResult';
+import * as crypto from 'crypto';
+
+export interface ProcessedDiceResult {
+    text: string;
+    ledger: DiceLedgerEntry[];
+}
+
+export function processDiceMacros(text: string): ProcessedDiceResult {
+    // Matches {{roll 1d20+2 reason="罠発見" dc=15}} etc.
+    const rollRegex = /\{\{\s*roll\s+([^}]+)\s*\}\}/g;
     
-    return text.replace(rollRegex, (match, formula) => {
+    const ledger: DiceLedgerEntry[] = [];
+    
+    const newText = text.replace(rollRegex, (match, content) => {
         try {
-            const result = evaluateDiceFormula(formula.trim());
-            return `[System Roll: ${formula.trim()} ➔ ${result}]`;
+            // Extract attributes like reason="abc" or dc=15
+            let formulaStr = content;
+            let reason: string | undefined;
+            let dc: number | undefined;
+
+            const reasonMatch = content.match(/reason=["']([^"']+)["']/i);
+            if (reasonMatch) {
+                reason = reasonMatch[1];
+                formulaStr = formulaStr.replace(reasonMatch[0], '');
+            }
+            
+            const dcMatch = content.match(/dc=(\d+)/i);
+            if (dcMatch) {
+                dc = parseInt(dcMatch[1], 10);
+                formulaStr = formulaStr.replace(dcMatch[0], '');
+            }
+
+            formulaStr = formulaStr.trim();
+            const result = evaluateDiceFormula(formulaStr);
+            
+            let success: boolean | undefined;
+            if (dc !== undefined) {
+                success = result.total >= dc;
+            }
+
+            ledger.push({
+                formula: formulaStr,
+                rolls: result.rolls,
+                modifier: result.modifier,
+                total: result.total,
+                reason,
+                dc,
+                success
+            });
+
+            let display = `[System Roll: ${formulaStr} ➔ ${result.total}]`;
+            if (success !== undefined) {
+                display = `[System Roll: ${formulaStr} ➔ ${result.total} (${success ? 'Success' : 'Failure'})]`;
+            }
+            return display;
         } catch {
             return match; // If parsing fails, leave it as is
         }
     });
+
+    return { text: newText, ledger };
 }
 
-function evaluateDiceFormula(formula: string): number {
+function evaluateDiceFormula(formula: string): { total: number, rolls: number[], modifier: number } {
     const cleanFormula = formula.replace(/\s+/g, '').toLowerCase();
     
-    // Tokenize terms like "2d6", "+3", "-1"
     const tokens = cleanFormula.match(/([+-]?[^+-]+)/g);
     if (!tokens) {
         throw new Error("Invalid formula");
     }
 
     let total = 0;
+    const rolls: number[] = [];
+    let modifier = 0;
+
     for (const token of tokens) {
         if (token.includes('d')) {
             const sign = token.startsWith('-') ? -1 : 1;
@@ -34,11 +86,11 @@ function evaluateDiceFormula(formula: string): number {
                 throw new Error("Invalid dice parameters");
             }
             
-            let rollSum = 0;
             for (let i = 0; i < count; i++) {
-                rollSum += Math.floor(Math.random() * sides) + 1;
+                const roll = crypto.randomInt(1, sides + 1);
+                rolls.push(roll);
+                total += sign * roll;
             }
-            total += sign * rollSum;
         } else {
             const val = parseInt(token, 10);
             if (isNaN(val)) {
@@ -47,11 +99,14 @@ function evaluateDiceFormula(formula: string): number {
             
             // If the formula is just e.g. "100" without 'd', treat as "1d100"
             if (tokens.length === 1 && val > 0) {
-                total += Math.floor(Math.random() * val) + 1;
+                const roll = crypto.randomInt(1, val + 1);
+                rolls.push(roll);
+                total += roll;
             } else {
+                modifier += val;
                 total += val;
             }
         }
     }
-    return total;
+    return { total, rolls, modifier };
 }

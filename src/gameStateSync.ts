@@ -22,7 +22,10 @@ let deps: GameStateSyncDeps | undefined;
 let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
+import { processTurnResult } from './statePatch';
+
 let fileWatcher: vscode.FileSystemWatcher | undefined;
+let turnResultWatcher: vscode.FileSystemWatcher | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
 
 export function initGameStateSync(syncDeps: GameStateSyncDeps): void {
@@ -356,12 +359,35 @@ export function startGameStateWatcher(): void {
 
     fileWatcher.onDidChange(handleChange);
     fileWatcher.onDidCreate(handleChange);
+
+    if (turnResultWatcher) {
+        turnResultWatcher.dispose();
+    }
+    turnResultWatcher = vscode.workspace.createFileSystemWatcher('**/turn_result.json');
+    const handleTurnResult = (uri: vscode.Uri) => {
+        try {
+            const content = fs.readFileSync(uri.fsPath, 'utf-8');
+            const turnResult = JSON.parse(content);
+            const applied = processTurnResult(turnResult);
+            if (applied) {
+                // game_state.json will be updated, triggering handleChange
+            }
+        } catch (e) {
+            console.error('Failed to parse turn_result.json', e);
+        }
+    };
+    turnResultWatcher.onDidChange(handleTurnResult);
+    turnResultWatcher.onDidCreate(handleTurnResult);
 }
 
 export function disposeGameStateWatcher(): void {
     if (fileWatcher) {
         fileWatcher.dispose();
         fileWatcher = undefined;
+    }
+    if (turnResultWatcher) {
+        turnResultWatcher.dispose();
+        turnResultWatcher = undefined;
     }
     if (debounceTimer) {
         clearTimeout(debounceTimer);

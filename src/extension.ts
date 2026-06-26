@@ -382,7 +382,8 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
     }
 
     let trimmed = text.trim();
-    trimmed = processDiceMacros(trimmed);
+    const diceResult = processDiceMacros(trimmed);
+    trimmed = diceResult.text;
     if (!trimmed) {
         vscode.window.showErrorMessage(t('extension.error.inputEmpty'));
         return;
@@ -416,7 +417,7 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
         return;
     }
 
-    const ok = await invokeGmBridge(actionForGm);
+    const ok = await invokeGmBridge(actionForGm, diceResult.ledger);
     if (!ok) {
         await fallbackToClipboard(actionForGm);
     }

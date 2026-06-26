@@ -4,6 +4,7 @@ import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
+import { WebSocketServer, WebSocket } from 'ws';
 import { createHash, randomBytes } from 'crypto';
 import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
 import { getWorkspacePath } from './workspacePaths';
@@ -38,8 +39,7 @@ export interface RemotePlayStatus {
 
 interface WsConnection {
     id: string;
-    socket: net.Socket;
-    buffer: Buffer;
+    socket: WebSocket;
     lastInputAt: number;
     authenticated: boolean;
     role: RemotePlayRole;
@@ -63,6 +63,7 @@ let httpServer: http.Server | undefined;
 let sessionToken = '';
 let listenPort = 0;
 let listenHost = '0.0.0.0';
+let wss: WebSocketServer | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 const wsClients = new Map<string, WsConnection>();
 let lastBroadcastState: RemotePlayerState | undefined;
@@ -212,29 +213,12 @@ function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemoteP
     };
 }
 
-function wsSend(socket: net.Socket, payload: string): void {
-    const data = Buffer.from(payload, 'utf-8');
-    const header = data.length < 126
-        ? Buffer.from([0x81, data.length])
-        : data.length < 65536
-            ? Buffer.from([0x81, 126, (data.length >> 8) & 0xff, data.length & 0xff])
-            : (() => {
-                const buf = Buffer.alloc(10);
-                buf[0] = 0x81;
-                buf[1] = 127;
-                buf.writeUInt32BE(0, 2);
-                buf.writeUInt32BE(data.length, 6);
-                return buf;
-            })();
-    socket.write(Buffer.concat([header, data]));
-}
-
 function broadcast(message: Record<string, unknown>): void {
     const payload = JSON.stringify(message);
     for (const client of wsClients.values()) {
-        if (client.authenticated && !client.socket.destroyed) {
+        if (client.authenticated && client.socket.readyState === WebSocket.OPEN) {
             try {
-                wsSend(client.socket, payload);
+                client.socket.send(payload);
             } catch {
                 // client will be cleaned up on close
             }
@@ -243,10 +227,10 @@ function broadcast(message: Record<string, unknown>): void {
 }
 
 function sendToClient(client: WsConnection, message: Record<string, unknown>): void {
-    if (!client.authenticated || client.socket.destroyed) {
+    if (!client.authenticated || client.socket.readyState !== WebSocket.OPEN) {
         return;
     }
-    wsSend(client.socket, JSON.stringify(message));
+    client.socket.send(JSON.stringify(message));
 }
 
 function closeClient(client: WsConnection, code = 1000, reason = ''): void {
@@ -256,8 +240,8 @@ function closeClient(client: WsConnection, code = 1000, reason = ''): void {
         clearTimeout(client.authTimer);
         client.authTimer = undefined;
     }
-    if (!client.socket.destroyed) {
-        client.socket.destroy();
+    if (client.socket.readyState === WebSocket.OPEN) {
+        client.socket.close(code, reason);
     }
     log(`Client disconnected (${client.id}). Active: ${wsClients.size}. ${reason ? reason : ''}`.trim());
     if (wasAuthed) {
@@ -272,78 +256,6 @@ function notifyHostRemotePlayStatus(): void {
         return;
     }
     panel.webview.postMessage({ type: 'remotePlayStatus', status: getRemotePlayStatus() });
-}
-
-function handleWsData(client: WsConnection, chunk: Buffer): void {
-    if (client.buffer.length + chunk.length > 65536) {
-        closeClient(client, 1009, 'Buffer overflow (max 64KB)');
-        return;
-    }
-    client.buffer = Buffer.concat([client.buffer, chunk]);
-
-    while (client.buffer.length >= 2) {
-        const b0 = client.buffer[0];
-        const b1 = client.buffer[1];
-        const opcode = b0 & 0x0f;
-        const masked = (b1 & 0x80) !== 0;
-        if (!masked) {
-            closeClient(client, 1002, 'Client frames must be masked');
-            return;
-        }
-        let payloadLen = b1 & 0x7f;
-        let offset = 2;
-
-        if (payloadLen === 126) {
-            if (client.buffer.length < 4) {
-                return;
-            }
-            payloadLen = client.buffer.readUInt16BE(2);
-            offset = 4;
-        } else if (payloadLen === 127) {
-            if (client.buffer.length < 10) {
-                return;
-            }
-            const high = client.buffer.readUInt32BE(2);
-            if (high !== 0) {
-                closeClient(client, 1009, 'Frame too large');
-                return;
-            }
-            payloadLen = client.buffer.readUInt32BE(6);
-            offset = 10;
-        }
-
-        const maskLen = masked ? 4 : 0;
-        const frameLen = offset + maskLen + payloadLen;
-        if (client.buffer.length < frameLen) {
-            return;
-        }
-
-        let payload = client.buffer.subarray(offset + maskLen, frameLen);
-        if (masked) {
-            const mask = client.buffer.subarray(offset, offset + 4);
-            payload = Buffer.from(payload);
-            for (let i = 0; i < payload.length; i++) {
-                payload[i] ^= mask[i % 4];
-            }
-        }
-
-        client.buffer = client.buffer.subarray(frameLen);
-
-        if (opcode === 0x8) {
-            closeClient(client);
-            return;
-        }
-        if (opcode === 0x9) {
-            const pongHeader = Buffer.from([0x8a, payload.length]);
-            client.socket.write(Buffer.concat([pongHeader, payload]));
-            continue;
-        }
-        if (opcode !== 0x1) {
-            continue;
-        }
-
-        void handleWsMessage(client, payload.toString('utf-8'));
-    }
 }
 
 async function handleWsMessage(client: WsConnection, raw: string): Promise<void> {
@@ -438,58 +350,6 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
     }
 }
 
-function acceptWebSocket(req: http.IncomingMessage, socket: net.Socket, head: Buffer): void {
-    const cfg = getConfig();
-    if (wsClients.size >= cfg.maxClients) {
-        socket.write('HTTP/1.1 503 Too Many Clients\r\n\r\n');
-        socket.destroy();
-        return;
-    }
-
-    const key = req.headers['sec-websocket-key'];
-    if (!key) {
-        socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-        socket.destroy();
-        return;
-    }
-
-    const digest = createHash('sha1')
-        .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
-        .digest('base64');
-
-    socket.write(
-        'HTTP/1.1 101 Switching Protocols\r\n' +
-        'Upgrade: websocket\r\n' +
-        'Connection: Upgrade\r\n' +
-        `Sec-WebSocket-Accept: ${digest}\r\n\r\n`
-    );
-
-    if (head.length > 0) {
-        socket.unshift(head);
-    }
-
-    const client: WsConnection = {
-        id: randomBytes(4).toString('hex'),
-        socket,
-        buffer: Buffer.alloc(0),
-        lastInputAt: 0,
-        authenticated: false,
-        role: getConfig().defaultRole,
-        authTimer: setTimeout(() => {
-            if (!client.authenticated) {
-                closeClient(client, 1008, 'Auth timeout');
-            }
-        }, 5000)
-    };
-    wsClients.set(client.id, client);
-
-    socket.on('data', (chunk) => handleWsData(client, chunk as Buffer));
-    socket.on('close', () => closeClient(client));
-    socket.on('error', () => closeClient(client));
-
-    sendToClient(client, { type: 'authRequired' });
-}
-
 function serveStatic(extensionPath: string, relPath: string, res: http.ServerResponse): boolean {
     const safe = path.normalize(relPath).replace(/^(\.\.[/\\])+/, '');
     const filePath = path.join(extensionPath, 'remote-player', safe);
@@ -506,6 +366,9 @@ function serveStatic(extensionPath: string, relPath: string, res: http.ServerRes
 }
 
 function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
+    // SECURITY LIMITATION: The 'token' query parameter relies on a session-long token.
+    // Future enhancement: Replace this with a short-TTL HMAC signature generated per-request
+    // to prevent potential leaks via referrers and harden against unauthorized access.
     const token = reqUrl.searchParams.get('token') || '';
     if (token !== sessionToken) {
         res.writeHead(401);
@@ -601,6 +464,32 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
         void vscode.window.showWarningMessage(warnMsg);
     }
 
+    wss = new WebSocketServer({ noServer: true });
+    
+    wss.on('connection', (socket, req) => {
+        const client: WsConnection = {
+            id: randomBytes(4).toString('hex'),
+            socket,
+            lastInputAt: 0,
+            authenticated: false,
+            role: getConfig().defaultRole,
+            authTimer: setTimeout(() => {
+                if (!client.authenticated) {
+                    closeClient(client, 1008, 'Auth timeout');
+                }
+            }, 5000)
+        };
+        wsClients.set(client.id, client);
+
+        socket.on('message', (data) => {
+            void handleWsMessage(client, data.toString());
+        });
+        socket.on('close', () => closeClient(client));
+        socket.on('error', () => closeClient(client));
+
+        sendToClient(client, { type: 'authRequired' });
+    });
+
     httpServer = http.createServer((req, res) => {
         try {
             const reqUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -635,7 +524,11 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
             socket.destroy();
             return;
         }
-        acceptWebSocket(req, socket as net.Socket, head);
+        if (wss) {
+            wss.handleUpgrade(req, socket, head, (ws) => {
+                wss!.emit('connection', ws, req);
+            });
+        }
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -656,6 +549,10 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
 export function stopRemotePlayServer(): void {
     for (const client of [...wsClients.values()]) {
         closeClient(client, 1001, 'Server stopping');
+    }
+    if (wss) {
+        wss.close();
+        wss = undefined;
     }
     if (httpServer) {
         httpServer.close();

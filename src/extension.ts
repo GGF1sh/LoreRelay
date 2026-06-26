@@ -124,6 +124,7 @@ import {
     handleRegenerateLastTurn
 } from './checkpointHandlers';
 import { checkForUpdates } from './updateManager';
+import { registerCoreCommands } from './extension/commands';
 
 let panel: vscode.WebviewPanel | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
@@ -181,7 +182,7 @@ export function activate(context: vscode.ExtensionContext) {
     initScenarioDirector({ getPanel: () => panel });
     initPartyDirector({ getPanel: () => panel });
 
-    const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', () => {
+    const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', async () => {
         if (panel) {
             panel.reveal(vscode.ViewColumn.One);
             return;
@@ -211,7 +212,7 @@ export function activate(context: vscode.ExtensionContext) {
         const webviewPath = path.join(context.extensionPath, 'webview');
         const htmlPath = path.join(webviewPath, 'index.html');
 
-        let html = fs.readFileSync(htmlPath, 'utf-8');
+        let html = await fs.promises.readFile(htmlPath, 'utf-8');
 
         const styleUri = panel.webview.asWebviewUri(
             vscode.Uri.file(path.join(webviewPath, 'style.css'))
@@ -262,29 +263,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
-    const listModelsCmd = vscode.commands.registerCommand('textadventure.listImageModels', () => {
-        runListImageModels();
-    });
-
-    const loadScenarioCmd = vscode.commands.registerCommand('textadventure.loadScenario', () => {
-        loadScenarioPack();
-    });
-
-    const importStCharCmd = vscode.commands.registerCommand('textadventure.importStCharacter', () => {
-        importTavernCard();
-    });
-
-    const importStLoreCmd = vscode.commands.registerCommand('textadventure.importStLorebook', () => {
-        importStLorebook();
-    });
-
-    const exportScenarioCmd = vscode.commands.registerCommand('textadventure.exportScenario', () => {
-        exportScenarioPack();
-    });
-
-    const validateScenarioCmd = vscode.commands.registerCommand('textadventure.validateScenario', () => {
-        validateScenarioPack();
-    });
+    registerCoreCommands(context, importStLorebook);
 
     const setOpenRouterKeyCmd = vscode.commands.registerCommand('textadventure.setOpenRouterApiKey', () => {
         void setOpenRouterApiKey(context);
@@ -312,15 +291,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         openGameCmd,
-        listModelsCmd,
-        loadScenarioCmd,
-        importStCharCmd,
-        importStLoreCmd,
-        exportScenarioCmd,
-        validateScenarioCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
-        checkForUpdatesCmd,
         startRemotePlayCmd,
         stopRemotePlayCmd,
         rotateRemotePlayTokenCmd

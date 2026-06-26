@@ -7,6 +7,7 @@
 
 - Current package version: `0.3.1`（[Unreleased] に updater / installer セキュリティ修正あり）
 - Main source of truth: `CHANGELOG.md` + source code
+- **Task Management Blackboard**: `AI_ROADMAP.md` (作業開始前に必ずこのファイルを見てタスクのチェックリストを更新すること)
 - Main remaining work:
   - README screenshots/GIF, Ko-fi real URL
   - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.

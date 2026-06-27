@@ -23,6 +23,7 @@ import { notifyRemoteGmBusy } from './remotePlayServer';
 import { beginGmRun, finishGmRun } from './turnResultFallback';
 import { postPromptContextToWebview } from './gmPromptBuilder';
 import { getCachedGameState } from './gameStateSync';
+import { enqueueVlmAnalysis, buildVlmMetaFromGameState } from './vlmQueue';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -459,23 +460,11 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
 
     const state = getCachedGameState();
     if (state && state.latestImage && !state.latestImageDescription) {
-        vscode.window.setStatusBarMessage('$(eye) Soulgaze: Analyzing scene...', 5000);
-        try {
-            const { analyzeImage } = await import('./vlmProvider');
-            const description = await analyzeImage(state.latestImage as string);
-            if (description) {
-                const statePath = path.join(workspacePath, 'game_state.json');
-                const current = fs.existsSync(statePath)
-                    ? JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>
-                    : {};
-                if (current.latestImage === state.latestImage && !current.latestImageDescription) {
-                    current.latestImageDescription = description;
-                    writeJsonAtomic(statePath, current);
-                }
-            }
-        } catch (e) {
-            console.error('Soulgaze VLM analysis failed', e);
-        }
+        // Enqueue VLM analysis — cache hit is sync (fast path), miss is async (non-blocking).
+        enqueueVlmAnalysis(
+            state.latestImage as string,
+            buildVlmMetaFromGameState()
+        ).catch((e) => console.error('Soulgaze VLM enqueue failed', e));
     }
 
     switch (provider) {

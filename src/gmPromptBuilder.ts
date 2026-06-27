@@ -44,6 +44,8 @@ import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { pruneExpiredEvents } from './worldEventLogCore';
+import { getVisualMemoryEntry } from './visualMemory';
+import { buildVisualContextSnippet } from './visualMemoryCore';
 import {
     buildSection,
     finalizeBreakdown,
@@ -758,6 +760,15 @@ function buildVisionContext(): string {
     if (!state || !state.latestImage) {
         return '';
     }
+
+    // Prefer visual_memory.json entry (has locationId + richer metadata).
+    const memEntry = getVisualMemoryEntry(state.latestImage as string);
+    if (memEntry) {
+        const snippet = buildVisualContextSnippet(memEntry);
+        return `[Visual Context (Current Scene Image)]\n${snippet}\nPlease ensure your next narration aligns with these visual elements (e.g., characters present, background details, mood, colors, and lighting).`;
+    }
+
+    // Fallback: plain latestImageDescription from game_state.json.
     const desc = (state as any).latestImageDescription;
     if (desc) {
         const safeDesc = String(desc).replace(/\s+/g, ' ').trim().slice(0, 1200);
@@ -766,6 +777,7 @@ The game has generated a visual representation of the current situation. Here is
 "${safeDesc}"
 Please ensure your next narration aligns with these visual elements (e.g., characters present, background details, mood, colors, and lighting).`;
     }
+
     return `[Vision Context]\n*The VLM analysis is currently running or disabled. A new scene image was generated.*`;
 }
 

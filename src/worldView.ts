@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { generateWorldMap } from './worldMapGenerator';
+import { extractHighlightRegionIds } from './npcBridgeCore';
 import type { Faction } from './worldForgeCore';
 import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldStateCore';
 
@@ -59,7 +60,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const globalEvents: GlobalEvent[] | undefined = worldState?.globalEvents;
     const worldTurn: number | undefined = worldState?.worldTurn;
 
-    const worldMap = generateWorldMap(forge, currentLocationId, regionStates, factionStates);
+    const highlightRegionIds = extractHighlightRegionIds(worldState?.recentChanges ?? []);
+    const worldMap = generateWorldMap(forge, currentLocationId, regionStates, factionStates, highlightRegionIds);
     const factions = forge.factions.map(serializeFaction);
 
     panel.webview.postMessage({
@@ -72,6 +74,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,
         globalEvents: globalEvents ?? [],
+        recentChanges: worldState?.recentChanges ?? [],
         worldTurn: worldTurn ?? null,
         simEnabled,
         currentLocationId: currentLocationId ?? null,

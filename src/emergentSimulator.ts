@@ -5,9 +5,18 @@ import {
     type RegionWorldState,
     type GlobalEvent
 } from './worldStateCore';
+import {
+    type WorldChangeEvent,
+    makeWorldChangeEvent,
+    mergeRecentChanges,
+    pruneExpiredEvents,
+    MAX_RECENT_CHANGES,
+} from './worldEventLogCore';
+import { applyEventsToNpcRegistry } from './npcBridgeCore';
 import { loadWorldForge } from './worldForge';
 import { loadGameRules } from './gameRules';
 import { saveWorldState, ensureWorldStateExists } from './worldState';
+import { loadNpcRegistry, saveNpcRegistry } from './npcRegistry';
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -31,6 +40,19 @@ export function maybeTickSimulation(gmTurnCount: number): void {
     const next = runSimulationStep(forge, state);
     next.lastSimulatedGmTurn = gmTurnCount;
     saveWorldState(next);
+
+    // Propagate simulation events to NPC needs when both systems are enabled
+    if (rules.enableNpcRegistry && (next.recentChanges?.length ?? 0) > 0) {
+        const registry = loadNpcRegistry();
+        const { registry: updated, updatedIds } = applyEventsToNpcRegistry(
+            next.recentChanges ?? [],
+            registry,
+            forge
+        );
+        if (updatedIds.length > 0) {
+            saveNpcRegistry(updated);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -51,16 +73,23 @@ export function runSimulationStep(forge: WorldForge, state: WorldState): WorldSt
         next.factions[id].recentEvents = [];
     }
 
+    // Collect structured events emitted during this step
+    const newEvents: WorldChangeEvent[] = [];
+
     // 各派閥の内部ティック
     for (const faction of forge.factions) {
-        tickFaction(faction, forge, next);
+        tickFaction(faction, forge, next, newEvents);
     }
 
     // グローバルイベントの進行
     tickGlobalEvents(next);
 
     // リージョン危険度の更新
-    updateRegionDanger(forge, next);
+    updateRegionDanger(forge, next, newEvents);
+
+    // Merge new events into recentChanges (prune expired first, then FIFO cap)
+    const existing = pruneExpiredEvents(next.recentChanges ?? [], next.worldTurn);
+    next.recentChanges = mergeRecentChanges(existing, newEvents, MAX_RECENT_CHANGES);
 
     return next;
 }
@@ -69,14 +98,19 @@ export function runSimulationStep(forge: WorldForge, state: WorldState): WorldSt
 // Faction tick
 // ---------------------------------------------------------------------------
 
-function tickFaction(faction: Faction, forge: WorldForge, state: WorldState): void {
+function tickFaction(
+    faction: Faction,
+    forge: WorldForge,
+    state: WorldState,
+    worldEvents: WorldChangeEvent[]
+): void {
     const fs = state.factions[faction.id];
     if (!fs) { return; }
 
     const events: string[] = [];
 
     // 資源消費・再生
-    tickResources(faction, fs, events);
+    tickResources(faction, fs, state.worldTurn, events, worldEvents);
 
     // 敵対派閥との摩擦
     tickEnemyFriction(faction, fs, forge, state, events);
@@ -93,7 +127,13 @@ function tickFaction(faction: Faction, forge: WorldForge, state: WorldState): vo
     fs.recentEvents = events.slice(0, 3); // 最大3件に制限
 }
 
-function tickResources(faction: Faction, fs: FactionWorldState, events: string[]): void {
+function tickResources(
+    faction: Faction,
+    fs: FactionWorldState,
+    worldTurn: number,
+    events: string[],
+    worldEvents: WorldChangeEvent[]
+): void {
     if (!fs.resources) { return; }
 
     // 食料消費（派閥規模に比例）
@@ -103,6 +143,16 @@ function tickResources(faction: Faction, fs: FactionWorldState, events: string[]
         if (fs.resources.food === 0) {
             events.push('食料が底をついた — 士気に影響');
             fs.morale = Math.max(0, (fs.morale ?? 50) - 10);
+            worldEvents.push(makeWorldChangeEvent({
+                worldTurn,
+                category: 'resource',
+                severity: 'warning',
+                factionId: faction.id,
+                message: `${faction.name}: 食料が底をついた`,
+                gmHint: `${faction.name} の食料が枯渇。NPC の動機・Needs に影響する可能性がある。`,
+                expiresAfterTurns: 5,
+                idSuffix: `${faction.id}_food`,
+            }));
         } else if (fs.resources.food < 10) {
             events.push('食料備蓄が危機的水準');
         }
@@ -203,7 +253,11 @@ function tickGlobalEvents(state: WorldState): void {
 // Region danger
 // ---------------------------------------------------------------------------
 
-function updateRegionDanger(forge: WorldForge, state: WorldState): void {
+function updateRegionDanger(
+    forge: WorldForge,
+    state: WorldState,
+    worldEvents: WorldChangeEvent[]
+): void {
     if (!state.regions) { return; }
 
     for (const region of forge.geography.regions) {
@@ -227,11 +281,28 @@ function updateRegionDanger(forge: WorldForge, state: WorldState): void {
         }
 
         const current = rs.dangerLevel ?? (region.dangerLevel ?? 1);
-        rs.dangerLevel = clamp(Math.round((current + delta) * 10) / 10, 0, 10);
+        const newDanger = clamp(Math.round((current + delta) * 10) / 10, 0, 10);
+        rs.dangerLevel = newDanger;
 
         // アクティブイベントが存在するリージョンは追加の危険度上昇
         if (rs.activeEvents && rs.activeEvents.length > 0) {
             rs.dangerLevel = Math.min(10, rs.dangerLevel + 0.2);
+        }
+
+        // Emit event when danger is actively rising due to a hostile faction
+        if (delta > 0) {
+            worldEvents.push(makeWorldChangeEvent({
+                worldTurn: state.worldTurn,
+                category: 'region',
+                severity: newDanger >= 7 ? 'critical' : 'warning',
+                regionId: region.id,
+                factionId: controlId,
+                mapHighlight: true,
+                message: `${region.name}: 危険度が上昇 (${newDanger}/10)`,
+                gmHint: `${region.name} は ${forgeFaction.name} (power:${Math.round(factionState.power)}) の支配下で不安定化しています。危険度:${newDanger}/10。`,
+                expiresAfterTurns: 3,
+                idSuffix: `${region.id}_danger`,
+            }));
         }
     }
 }

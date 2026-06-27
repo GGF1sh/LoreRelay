@@ -480,6 +480,15 @@ function buildWorldStatePromptContext(): string {
         lines.push(`⚠ [${ev.severity}] ${ev.description}${remaining}`);
     }
 
+    // 最近のシミュレーション変化（gmHint が設定された warning/critical のみ、最大3件）
+    const recentChanges = worldState.recentChanges ?? [];
+    const notableChanges = recentChanges
+        .filter((c) => c.severity !== 'info' && c.gmHint)
+        .slice(-3);
+    for (const c of notableChanges) {
+        lines.push(`⚡ [${c.category}] ${c.gmHint}`);
+    }
+
     lines.push('Weave faction dynamics and world threats into narration where naturally appropriate.');
     return lines.join('\n');
 }
@@ -487,13 +496,29 @@ function buildWorldStatePromptContext(): string {
 function buildNpcRegistryPromptContext(): string {
     if (!loadGameRules().enableNpcRegistry) { return ''; }
     const registry = loadNpcRegistry();
-    const entries = Object.entries(registry.npcs);
+    if (Object.keys(registry.npcs).length === 0) { return ''; }
+
+    // currentLocationId フィルタ: 同じ場所にいる NPC を優先、最大3人
+    const gameState = readGameStateForPrompt();
+    const worldState = gameState?.world as Record<string, unknown> | undefined;
+    const currentLocationId = typeof worldState?.currentLocationId === 'string'
+        ? worldState.currentLocationId : undefined;
+
+    let entries = Object.entries(registry.npcs);
+    if (currentLocationId) {
+        // at location first, then no-locationId NPCs, skip others
+        const atLocation = entries.filter(([, npc]) => npc.locationId === currentLocationId);
+        const noLocation = entries.filter(([, npc]) => !npc.locationId);
+        entries = [...atLocation, ...noLocation].slice(0, 3);
+    } else {
+        entries = entries.slice(0, 4);
+    }
     if (entries.length === 0) { return ''; }
 
     const lines = ['[NPC Awareness]'];
     let npcCount = 0;
     for (const [id, npc] of entries) {
-        if (npcCount >= 4) { break; }
+        if (npcCount >= (currentLocationId ? 3 : 4)) { break; }
         const d = npc.disposition;
         const urgentNeeds = npc.needs.filter((n) => n.urgency >= 31).sort((a, b) => b.urgency - a.urgency);
         const recentMemories = npc.memories.slice(-3);

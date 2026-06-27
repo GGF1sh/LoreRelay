@@ -55,6 +55,22 @@ export function hashGameState(state: unknown): string {
     return crypto.createHash('sha256').update(JSON.stringify(state)).digest('hex');
 }
 
+// Allowlist for specific sub-paths inside /world that the GM may write.
+// Pattern: [root, sub, ...] — '*' matches any single key segment.
+const WORLD_SUBPATH_ALLOWLIST: string[][] = [
+    ['world', 'currentLocationId'],
+    ['world', 'regions', '*', 'controllingFaction'],
+    ['world', 'regions', '*', 'dangerLevel'],
+];
+
+function matchesWorldAllowlist(keys: string[]): boolean {
+    for (const pattern of WORLD_SUBPATH_ALLOWLIST) {
+        if (pattern.length !== keys.length) { continue; }
+        if (pattern.every((seg, i) => seg === '*' || seg === keys[i])) { return true; }
+    }
+    return false;
+}
+
 function isSafePatchPath(patchPath: string): boolean {
     const keys = patchPath.split('/').filter((k) => k.length > 0);
     if (keys.length === 0) {
@@ -63,7 +79,15 @@ function isSafePatchPath(patchPath: string): boolean {
     if (keys.some((k) => BLOCKED_KEYS.has(k))) {
         return false;
     }
-    return ALLOWED_ROOTS.has(keys[0]);
+    if (!ALLOWED_ROOTS.has(keys[0])) {
+        return false;
+    }
+    // /world paths are gated by a fine-grained allowlist to prevent arbitrary
+    // overwrites of simulation state that the GM should not touch directly.
+    if (keys[0] === 'world' && keys.length > 1) {
+        return matchesWorldAllowlist(keys);
+    }
+    return true;
 }
 
 /**

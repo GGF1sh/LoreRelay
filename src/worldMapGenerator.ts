@@ -55,7 +55,8 @@ export function generateWorldMap(
     forge: WorldForge,
     currentLocationId?: string,
     regionStates?: Record<string, RegionWorldState>,
-    factionStates?: Record<string, FactionWorldState>
+    factionStates?: Record<string, FactionWorldState>,
+    highlightRegionIds?: ReadonlySet<string>
 ): string {
     const lines: string[] = ['graph TD'];
 
@@ -85,7 +86,8 @@ export function generateWorldMap(
         const liveDanger = regionStates?.[region.id]?.dangerLevel;
         const dangerVal = liveDanger ?? region.dangerLevel;
         const dangerSuffix = dangerVal !== undefined ? ` 危険:${dangerVal}/10` : '';
-        lines.push(`  subgraph ${escapeId(region.id)}["${escapeMmdLabel(region.name)}${dangerSuffix}"]`);
+        const fireTag = highlightRegionIds?.has(region.id) ? ' 🔥' : '';
+        lines.push(`  subgraph ${escapeId(region.id)}["${escapeMmdLabel(region.name)}${dangerSuffix}${fireTag}"]`);
         if (locs.length === 0) {
             lines.push(`    ${escapeId(region.id)}_empty[" "]:::phantom`);
         }

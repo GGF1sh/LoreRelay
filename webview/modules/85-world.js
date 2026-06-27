@@ -115,6 +115,9 @@ function renderWorldView(msg) {
     // グローバルイベント（シミュ有効時）
     renderGlobalEvents(msg.globalEvents || [], msg.simEnabled);
 
+    // Living World recent events
+    renderRecentChanges(msg.recentChanges || [], msg.simEnabled);
+
     // 派閥カード
     renderFactions(msg.factions || [], msg.factionStates || null);
 }
@@ -176,6 +179,92 @@ function renderGlobalEvents(events, simEnabled) {
         `;
         const remaining = ev.turnsRemaining !== undefined ? ` (${ev.turnsRemaining} turns)` : '';
         badge.innerHTML = `<span style="opacity:0.6;font-size:0.85em;">[${escapeHtml(ev.severity)}]</span> ${escapeHtml(ev.description)}<span style="opacity:0.5;">${escapeHtml(remaining)}</span>`;
+        section.appendChild(badge);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Living World — Recent Events (recentChanges)
+// ---------------------------------------------------------------------------
+
+const CHANGE_CATEGORY_ICON = {
+    faction: '⚔️',
+    region: '🗺️',
+    resource: '📦',
+    npc: '👤',
+    global: '🌐',
+};
+
+const CHANGE_SEVERITY_COLOR = {
+    info: 'var(--vscode-charts-blue, #4080c0)',
+    warning: 'var(--vscode-charts-yellow, #c0a040)',
+    critical: '#c04040',
+};
+
+function renderRecentChanges(events, simEnabled) {
+    let section = document.getElementById('world-recent-changes-section');
+    if (!section) {
+        const eventsSection = document.getElementById('world-events-section');
+        if (!eventsSection) { return; }
+        section = document.createElement('div');
+        section.id = 'world-recent-changes-section';
+        section.style.cssText = 'margin-bottom:0.6rem;';
+        eventsSection.parentNode.insertBefore(section, eventsSection.nextSibling);
+    }
+
+    const visible = simEnabled && events.length > 0;
+    section.style.display = visible ? '' : 'none';
+    if (!visible) { return; }
+
+    section.innerHTML = '';
+
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:0.78em;opacity:0.6;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;';
+    heading.textContent = 'World Changes';
+    section.appendChild(heading);
+
+    // Show newest first, up to 5 entries
+    const shown = events.slice(-5).reverse();
+    for (const ev of shown) {
+        const badge = document.createElement('div');
+        const color = CHANGE_SEVERITY_COLOR[ev.severity] || CHANGE_SEVERITY_COLOR.info;
+        const icon = CHANGE_CATEGORY_ICON[ev.category] || '📌';
+        badge.style.cssText = `
+            border-left: 3px solid ${color};
+            padding: 0.3rem 0.5rem;
+            margin-bottom: 0.25rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 2px;
+            font-size: 0.8em;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4rem;
+        `;
+
+        const iconSpan = document.createElement('span');
+        iconSpan.style.cssText = 'flex-shrink:0;';
+        iconSpan.textContent = icon;
+        badge.appendChild(iconSpan);
+
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = 'flex:1;min-width:0;';
+        const msgSpan = document.createElement('span');
+        msgSpan.textContent = ev.message;
+        textDiv.appendChild(msgSpan);
+
+        if (ev.mapHighlight) {
+            const flameSpan = document.createElement('span');
+            flameSpan.style.cssText = 'margin-left:0.3rem;opacity:0.8;';
+            flameSpan.textContent = '🔥';
+            textDiv.appendChild(flameSpan);
+        }
+
+        const turnSpan = document.createElement('div');
+        turnSpan.style.cssText = 'opacity:0.45;font-size:0.85em;margin-top:0.1rem;';
+        turnSpan.textContent = `T${ev.worldTurn}`;
+        textDiv.appendChild(turnSpan);
+
+        badge.appendChild(textDiv);
         section.appendChild(badge);
     }
 }

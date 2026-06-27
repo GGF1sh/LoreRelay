@@ -1033,3 +1033,13 @@ pm run compile and
 pm test, ensuring the deterministic behavior of World Forge generator and World State generation is preserved.
   - Updated 	ask.md and walkthrough.md to reflect the completion of Phase 5.
 - **Status**: Ready for the next phase (Phase 6: v1.2.0 Release Polish or other follow-ups).
+
+### [ChatGPT/Gemini] Planning v1.4 Living World Feedback & v1.5 Visual Memory
+- **Date**: 2026-06-28 01:14 JST
+- **Action**: 
+  - Reviewed ChatGPT\'s roadmap proposal for v1.4 and v1.5.
+  - Recreated AI_ROADMAP.md in UTF-8 to fix mojibake and updated the status up to v1.3.2.
+  - Updated README.md to highlight World x ComfyUI Integration and Robust State Management.
+  - Preparing to merge 
+efactor/ws-and-extension-split into main and branch out eat/v1.4-living-world-feedback to begin work on the World Event Log system.
+- **Next Steps**: Hand over to Claude for core pure-function implementation of worldEventLogCore.ts and related tests.

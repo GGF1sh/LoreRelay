@@ -20,7 +20,7 @@
 - 🧩 **Agent Bridge:** Grok Build などのローカル実行可能AIなら、Webviewの選択肢・自由入力をそのままGMに送信できます。
 - 🎨 **Glassmorphism UI:** 半透明のチャットUI、世界観テーマ切り替え、画像ギャラリーを備えたリッチな表示装置。
 - ⚔️ **CRPG Character Sheet:** Saga & Seeker 等にインスパイアされた、HP/MPプログレスバー、スキル、インベントリを視覚的に管理できるステータスパネル。
-- 🖼️ **Local Image Generation:** ComfyUIと連携し、AIが描写した情景をその場でローカル生成してギャラリーに表示。
+- 🖼️ **Local Image Generation & World Integration (v1.3+):** ComfyUIと連携し、AIが描写した情景をその場で生成。さらに World System と連動し、ロケーション移動時の自動背景生成にも対応。
 - 🎵 **Adaptive BGM & SFX:** `bgm.json` / `sfx.json` に登録した音源を、GMが自動制御し、クロスフェード再生します。
 - 📦 **Scenario Packs:** `scenario.json` を含むフォルダを読み込むだけで、開始シーン・テーマ・専用BGM/SEをまとめて適用できます。
 - 🎲 **Built-in Dice Roller & Calculator:** TRPGライクな判定に必須のダイスロール（NdX）と数式電卓を内蔵。
@@ -31,6 +31,7 @@
 - 📱 **Remote Play (v0.7):** LAN 参加用 QR、player / spectator ロール。
 - 🌍 **Living World System (v1.3+):** `world_forge.json` に基づく動的な地域・派閥・NPC自動生成機能（World Forge）。Mermaid.jsによる動的ネットワーク図を備えたWorldタブを搭載。
 - ⚙️ **Emergent Simulation:** 毎ターンの経過に伴い、資源消費・パワーバランス・NPCの好感度や恐怖が自動計算・進行する自律シミュレーターを内蔵。
+- 🛡️ **Robust State Management:** 巨大なデータによるUIクラッシュを防ぐ上限クランプ処理や、不正IDのパージ、安全な状態マイグレーションなど、堅牢なセーフティ機構を搭載。
 
 ---
 

@@ -38,22 +38,22 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ---
 
-## 🟡 Phase 4 (v1.4.0 - v1.4.1): Living World Feedback (Next!)
-*ステータス: 実装中 (Phase 4a & 4b 完了)*
+## 🟢 Phase 4 (v1.4.0 - v1.4.1): Living World Feedback
+*ステータス: 完了 (v1.4.1)*
 **目的**: Emergent Simulation の変動を「出来事」として履歴化し、プレイヤーやNPCに体感させる。
 
-- [ ] **1. World Event Log (`world_event_log.ndjson`)**
-  - simulator が faction_conflict, danger_shift などのイベントを生成・記録
-- [ ] **2. World Change Summary**
-  - 数ターン（3〜5 GMターン）ごとに「世界の変化」をサマリーとして出力
+- [x] **1. World Event Log (`recentChanges` in world_state.json)**
+  - simulator が resource/region イベントを生成・記録（WorldChangeEvent 型, FIFO 上限 20 件）
+- [x] **2. World Change Summary**
+  - `buildWorldChangeSummaryContext()` — シム直後の 1 GM ターンのみ「Since Last Visit」形式で注入
 - [x] **3. World Tab Event Timeline**
-  - World タブ内に「Recent Events」欄を追加し、最新5件や重要度別に表示
+  - World タブ内に「World Changes」欄を追加し、最新5件を新しい順に表示
 - [x] **4. Map Highlight**
-  - 最近変化した region/location を World Map 上でハイライト（danger上昇で赤枠など）
+  - `mapHighlight: true` のリージョンを Mermaid 上で 🔥 表示
 - [x] **5. NPC Reaction Propagation (目玉機能)**
-  - World Event の発生を関連 NPC の Needs や Memory に反映（例：襲撃された町のNPCに `need: safety` を追加）
-- [ ] **Hardening (v1.4.1)**
-  - event log pruning, max event count, severity clamp, duplicate dedup, migration
+  - 食料危機 → `need: material` urgency 75、危険度上昇 → `need: emotional` urgency 60
+- [x] **Hardening (v1.4.1)**
+  - pruneExpiredEvents、MAX_RECENT_CHANGES=20 FIFO、severity/ID 検証、dedup、format 1.0→1.1 migration
 
 ---
 

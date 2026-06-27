@@ -597,6 +597,35 @@ function buildHintText(playerAction: string): string {
     return `${recent}\n${playerAction}`;
 }
 
+/**
+ * シミュレーションが直前のステップで新規イベントを生成した場合に、
+ * 「Since last visit: ...」形式で世界の変化を ~100 トークンで要約する。
+ * warning/critical イベントがない場合は空文字を返す。
+ */
+function buildWorldChangeSummaryContext(): string {
+    if (!isWorldStateEnabled()) { return ''; }
+    const worldState = loadWorldState();
+    if (!worldState?.recentChanges?.length) { return ''; }
+
+    const pruned = pruneExpiredEvents(worldState.recentChanges, worldState.worldTurn);
+    if (pruned.length === 0) { return ''; }
+
+    // 直近の worldTurn のイベントのみ対象（1 シムステップ分）
+    const latestTurn = Math.max(...pruned.map((e) => e.worldTurn));
+    const stepEvents = pruned.filter(
+        (e) => e.worldTurn === latestTurn && e.severity !== 'info'
+    );
+    if (stepEvents.length === 0) { return ''; }
+
+    const lines = [`[Since Last Visit — World Turn ${latestTurn}]`];
+    for (const ev of stepEvents.slice(0, 4)) {
+        const prefix = ev.severity === 'critical' ? '🔴' : '🟡';
+        lines.push(`${prefix} ${ev.message}`);
+    }
+    lines.push('Reflect these developments naturally in the next narrative beat.');
+    return lines.join('\n');
+}
+
 function resolveMemoryMatches(ws: string, hint: string): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
     if (backend === 'tfidf') {
@@ -639,6 +668,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint)) : undefined,
         buildSection('worldForge', 'World', buildWorldForgePromptContext()),
         buildSection('worldState', 'World State', buildWorldStatePromptContext()),
+        buildSection('worldChangeSummary', 'World Changes', buildWorldChangeSummaryContext()),
         buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint)),
         buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext()),
         buildSection('vision', 'Vision', buildVisionContext())
@@ -692,6 +722,10 @@ export function buildGmPromptContext(playerAction: string): string {
     const worldStateCtx = buildWorldStatePromptContext();
     if (worldStateCtx) {
         chunks.push(worldStateCtx);
+    }
+    const worldChangeSummaryCtx = buildWorldChangeSummaryContext();
+    if (worldChangeSummaryCtx) {
+        chunks.push(worldChangeSummaryCtx);
     }
     const loreCtx = buildLorebookPromptContext(hint);
     if (loreCtx) {

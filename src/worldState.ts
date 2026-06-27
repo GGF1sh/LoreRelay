@@ -66,7 +66,12 @@ export function loadWorldState(): WorldState | undefined {
 export function saveWorldState(state: WorldState): void {
     const statePath = getWorldStatePath();
     if (!statePath) { return; }
-    const toSave = { ...state, lastUpdated: new Date().toISOString() };
+    const toSave = {
+        ...state,
+        // Migrate 1.0 files to current format on next save
+        format: 'lorerelay-world-state/1.1',
+        lastUpdated: new Date().toISOString(),
+    };
     writeJsonAtomic(statePath, toSave);
     cachedState = toSave;
     cachePath = statePath;

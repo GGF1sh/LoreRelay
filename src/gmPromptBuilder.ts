@@ -512,7 +512,14 @@ function buildVisionContext(): string {
     if (!state || !state.latestImage) {
         return '';
     }
-    return `[Vision Context: latestImage = ${state.latestImage}]\n*The VLM can use this image path to describe the current scene visually.*`;
+    const desc = (state as any).latestImageDescription;
+    if (desc) {
+        return `[Visual Context (Current Scene Image)]
+The game has generated a visual representation of the current situation. Here is the description of what is depicted in the image:
+"${desc}"
+Please ensure your next narration aligns with these visual elements (e.g., characters present, background details, mood, colors, and lighting).`;
+    }
+    return `[Vision Context: latestImage = ${state.latestImage}]\n*The VLM analysis is currently running or disabled. A new image was generated.*`;
 }
 
 export function processProfileUpdates(updates: ProfileUpdate[]): void {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# LoreRelay — quick setup (macOS / Linux)
+# LoreRelay  Equick setup (macOS / Linux)
 # Usage:
 #   ./scripts/setup.sh
 #   ./scripts/setup.sh --locale en --gm grok
@@ -82,7 +82,7 @@ if [[ "$GM_PROVIDER" == "grok" ]]; then
   if [[ -x "$HOME/.grok/bin/grok" ]] || command -v grok >/dev/null; then
     ok "Grok CLI"
   else
-    warn "Grok CLI not found — use --gm clipboard or install Grok Build"
+    warn "Grok CLI not found  Euse --gm clipboard or install Grok Build"
   fi
 fi
 
@@ -180,7 +180,7 @@ if command -v jq >/dev/null; then
       settings: $s[0]
     }' > "$WORKSPACE_FILE"
 else
-  warn "jq not found — workspace file not generated (install jq or use settings.json only)"
+  warn "jq not found  Eworkspace file not generated (install jq or use settings.json only)"
 fi
 [[ -f "$WORKSPACE_FILE" ]] && ok "Workspace file: $WORKSPACE_FILE"
 
@@ -196,7 +196,7 @@ cat <<EOF
      code "$WORKSPACE_FILE"
 
 2. Command Palette:
-     Text Adventure: Open Game UI
+     LoreRelay: Open Game UI
 
 3. GM skill:
      $SKILL_ROOT/SKILL.md

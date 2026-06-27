@@ -28,14 +28,14 @@ See also [`GM_BRIDGE_PRESETS.md`](GM_BRIDGE_PRESETS.md) for clipboard / KoboldCP
 |-------------|----------------|---------------|
 | `presets/image-illustrious.json` | Fantasy / anime (`lost-catacombs`, `neon-rain`) | `comfyui/workflow_sdxl_1024.json` |
 | `presets/image-pony.json` | Anime / character-heavy | SDXL Pony checkpoint |
-| `presets/image-natural.json` | Realistic (`harbor-mist`) | 768×512 or SDXL |
+| `presets/image-natural.json` | Realistic (`harbor-mist`) | 768ÁE12 or SDXL |
 
 After copying a preset:
 
 1. Set `checkpoint` to a name from **LoreRelay: List Image Models**.
 2. Set `workflowPath` to an absolute path under `comfyui/` (see [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md)).
 
-## Sample scenarios ↔ presets
+## Sample scenarios ↁEpresets
 
 | Pack | Theme | Image mode | GM suggestion |
 |------|-------|------------|---------------|

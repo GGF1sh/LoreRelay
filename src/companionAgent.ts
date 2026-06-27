@@ -21,8 +21,17 @@ export async function interceptPlayerAction(playerAction: string): Promise<strin
     vscode.window.setStatusBarMessage(t('extension.status.companionProcessing') || 'Companions are thinking...', 5000);
 
     const promises = aiCompanions.map(async (char) => {
+        const { getCachedGameState } = await import('./gameStateSync');
+        const state = getCachedGameState() as any;
+        let stateContext = '';
+        if (state && state.status) {
+            stateContext = `Current Location: ${state.status.location || 'Unknown'}. `;
+            if (state.status.hp) stateContext += `HP: ${state.status.hp.current}/${state.status.hp.max}. `;
+        }
+        
         const sys = `You are ${char.name}. ${char.personality}\n`
-            + `The player has just taken an action. React to it with a single short sentence of dialogue or action. `
+            + `The player has just taken an action. React to it with a single short sentence of dialogue or action.\n`
+            + `[Context] ${stateContext}\n`
             + `Do NOT narrate the outcome, just your character's immediate reaction. Output ONLY your dialogue/action.`;
         const user = `Player's action: ${playerAction}`;
         

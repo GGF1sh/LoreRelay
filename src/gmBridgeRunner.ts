@@ -22,6 +22,7 @@ import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } f
 import { notifyRemoteGmBusy } from './remotePlayServer';
 import { beginGmRun, finishGmRun } from './turnResultFallback';
 import { postPromptContextToWebview } from './gmPromptBuilder';
+import { getCachedGameState } from './gameStateSync';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -447,6 +448,21 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
 
     if (diceLedger && diceLedger.length > 0) {
         writeJsonAtomic(path.join(workspacePath, 'dice_ledger.json'), diceLedger);
+    }
+
+    const state = getCachedGameState();
+    if (state && state.latestImage && !state.latestImageDescription) {
+        vscode.window.setStatusBarMessage('$(eye) Soulgaze: Analyzing scene...', 5000);
+        try {
+            const { analyzeImage } = await import('./vlmProvider');
+            const description = await analyzeImage(state.latestImage as string);
+            if (description) {
+                state.latestImageDescription = description;
+                writeJsonAtomic(path.join(workspacePath, 'game_state.json'), state);
+            }
+        } catch (e) {
+            console.error('Soulgaze VLM analysis failed', e);
+        }
     }
 
     if (provider !== 'clipboard') {

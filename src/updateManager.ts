@@ -3,6 +3,7 @@ import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { spawn } from 'child_process';
 import { t } from './i18n';
 
@@ -206,6 +207,16 @@ function downloadFile(url: string, destPath: string, redirectCount = 0): Promise
     });
 }
 
+function calculateFileSha256(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(filePath);
+        stream.on('data', data => hash.update(data));
+        stream.on('end', () => resolve(hash.digest('hex')));
+        stream.on('error', err => reject(err));
+    });
+}
+
 // ── File utilities ────────────────────────────────────────────────────────────
 
 function findSkillFolder(dir: string): string | undefined {
@@ -319,6 +330,7 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
         // ── Validate required assets are present before prompting ──────────
         const vsixAsset = release.assets.find(a => VSIX_ASSET_RE.test(a.name));
         const zipAsset  = release.assets.find(a => SKILL_ZIP_ASSET_RE.test(a.name));
+        const sumsAsset = release.assets.find(a => a.name === 'SHA256SUMS.txt');
 
         if (!vsixAsset && !zipAsset) {
             reportError(`Release ${latestVersion} has no installable assets (no matching .vsix or .zip found).`);
@@ -352,6 +364,31 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
             fs.mkdirSync(tempDir, { recursive: true });
 
             try {
+                // Fetch SHA256SUMS.txt if available
+                let sumsContent = '';
+                if (sumsAsset) {
+                    if (!isAllowedDownloadUrl(sumsAsset.browser_download_url)) {
+                        throw new Error('Blocked untrusted SHA256SUMS.txt download URL');
+                    }
+                    const sumsPath = path.join(tempDir, sumsAsset.name);
+                    await downloadFile(sumsAsset.browser_download_url, sumsPath);
+                    sumsContent = fs.readFileSync(sumsPath, 'utf8');
+                }
+
+                const verifyChecksum = async (filePath: string, fileName: string) => {
+                    if (!sumsContent) return;
+                    // match "<hash> *filename" or "<hash> filename"
+                    const match = sumsContent.match(new RegExp(`([a-fA-F0-9]{64})\\s+\\*?${fileName.replace(/\./g, '\\.')}`));
+                    if (match) {
+                        const expectedHash = match[1].toLowerCase();
+                        const actualHash = await calculateFileSha256(filePath);
+                        if (expectedHash !== actualHash) {
+                            throw new Error(`Checksum mismatch for ${fileName}. Expected ${expectedHash}, got ${actualHash}.`);
+                        }
+                        outputChannel.appendLine(`[Update] SHA256 checksum verified for ${fileName}`);
+                    }
+                };
+
                 // 1. Install VS Code Extension
                 if (vsixAsset) {
                     if (!isAllowedDownloadUrl(vsixAsset.browser_download_url)) {
@@ -360,6 +397,7 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
                     progress.report({ message: t('updater.installingVsix') });
                     const vsixPath = path.join(tempDir, vsixAsset.name);
                     await downloadFile(vsixAsset.browser_download_url, vsixPath);
+                    await verifyChecksum(vsixPath, vsixAsset.name);
                     await installVsix(vsixPath);
                     outputChannel.appendLine(`[Update] VSIX installed: ${vsixAsset.name}`);
                 }
@@ -373,6 +411,7 @@ export async function checkForUpdates(silent: boolean, context: vscode.Extension
                     const zipPath    = path.join(tempDir, zipAsset.name);
                     const extractDir = path.join(tempDir, 'skill_extract');
                     await downloadFile(zipAsset.browser_download_url, zipPath);
+                    await verifyChecksum(zipPath, zipAsset.name);
                     await unzipFile(zipPath, extractDir);
 
                     const skillFolder = findSkillFolder(extractDir);

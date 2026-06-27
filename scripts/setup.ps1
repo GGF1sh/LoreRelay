@@ -1,4 +1,4 @@
-# LoreRelay — quick setup (Windows)
+# LoreRelay  Equick setup (Windows)
 # Usage:
 #   .\scripts\setup.ps1
 #   .\scripts\setup.ps1 -Locale ja -GmProvider grok
@@ -85,7 +85,7 @@ $codeCmd = Get-Command code -ErrorAction SilentlyContinue
 if ($codeCmd) {
     Write-Ok "VS Code CLI (code)"
 } else {
-    Write-Warn "VS Code CLI not in PATH — install extension manually or add code to PATH"
+    Write-Warn "VS Code CLI not in PATH  Einstall extension manually or add code to PATH"
 }
 
 $grokExe = Join-Path $env:USERPROFILE '.grok\bin\grok.exe'
@@ -94,7 +94,7 @@ if (Test-Path $grokExe) {
 } elseif (Get-Command grok -ErrorAction SilentlyContinue) {
     Write-Ok "Grok CLI in PATH"
 } elseif ($GmProvider -eq 'grok') {
-    Write-Warn "Grok CLI not found — use -GmProvider clipboard or install Grok Build"
+    Write-Warn "Grok CLI not found  Euse -GmProvider clipboard or install Grok Build"
 }
 
 # --- npm build ---
@@ -213,7 +213,7 @@ Write-Host @"
      code "$workspaceFile"
 
 2. Command Palette (Ctrl+Shift+P):
-     Text Adventure: Open Game UI
+     LoreRelay: Open Game UI
 
 3. Tell your GM to read SKILL.md and start the game:
      $($skillRoot)\SKILL.md
@@ -221,8 +221,8 @@ Write-Host @"
 4. GM bridge: $GmProvider | Locale: $Locale
 
 5. Docs:
-     GM_BRIDGE_PRESETS.md  — Ollama / Kobold / Grok presets
-     ANTIGRAVITY_GUIDE.md  — clipboard mode for Antigravity
+     GM_BRIDGE_PRESETS.md   EOllama / Kobold / Grok presets
+     ANTIGRAVITY_GUIDE.md   Eclipboard mode for Antigravity
 
 "@
 

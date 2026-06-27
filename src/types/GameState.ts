@@ -78,6 +78,7 @@ export interface GameState {
     mood?: string;
     sfx?: string | string[];
     latestImage?: string;
+    latestImageDescription?: string;
     background?: string;
     sprite?: SceneSprite | string;
     hiddenDice?: HiddenDiceEntry[];

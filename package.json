@@ -168,6 +168,22 @@
           "default": 0,
           "description": "Image height override in pixels (0 = use workflow default, typically 512)."
         },
+        "textAdventure.vlm.provider": {
+          "type": "string",
+          "enum": ["disabled", "ollama", "openai", "gemini", "anthropic"],
+          "default": "disabled",
+          "description": "Select the VLM provider to analyze generated images (Soulgaze)."
+        },
+        "textAdventure.vlm.model": {
+          "type": "string",
+          "default": "llava",
+          "description": "VLM Model name (e.g., 'llava' for Ollama, 'gpt-4o-mini' for OpenAI, 'gemini-1.5-flash' for Gemini, 'claude-3-5-sonnet-latest' for Anthropic)."
+        },
+        "textAdventure.vlm.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Endpoint URL for the VLM provider (used for Ollama or custom local endpoints)."
+        },
         "textAdventure.bgm.enabled": {
           "type": "boolean",
           "default": true,

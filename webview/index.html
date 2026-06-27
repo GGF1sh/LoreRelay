@@ -785,7 +785,7 @@
   <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>
   <script nonce="{{nonce}}">
     if (window.mermaid) {
-      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+      mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
     }
   </script>
 </body>

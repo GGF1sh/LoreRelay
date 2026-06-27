@@ -4,7 +4,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedState = vscode.getState();
   if (savedState) {
     messageHistory = savedState.messageHistory || [];
-    galleryImages = savedState.galleryImages || [];
+    // Migrate old string[] gallery format to GalleryEntry[] object format
+    galleryImages = (savedState.galleryImages || []).map(item =>
+      typeof item === 'string' ? { src: item } : item
+    );
     currentTheme = savedState.currentTheme || 'fantasy';
     renderAllMessages();
     renderGallery();
@@ -186,6 +189,16 @@ window.addEventListener('message', (event) => {
     const entry = messageHistory.find((m) => m.id === msg.id);
     if (entry) { entry.excludedFromPrompt = !!msg.excluded; }
     saveState();
+  } else if (msg.type === 'vlmAnalysisComplete') {
+    // Update gallery entry with description from VLM analysis
+    if (typeof msg.imagePath === 'string' && typeof msg.description === 'string') {
+      const idx = galleryImages.findIndex(e => e.rawPath === msg.imagePath);
+      if (idx >= 0) {
+        galleryImages[idx] = { ...galleryImages[idx], description: msg.description };
+        renderGallery();
+        saveState();
+      }
+    }
   } else if (msg.type === 'imageGenConfig') {
     applyImageGenConfigForm(msg.config || {});
   } else if (msg.type === 'remotePlayStatus') {

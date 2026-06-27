@@ -148,6 +148,14 @@
   padding: 20px;
 }
 
+/* Gallery item wrapper — positions overlay on top of thumb */
+.gallery-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .gallery-thumb {
   width: 100%;
   aspect-ratio: 1;
@@ -156,11 +164,81 @@
   border: 1px solid var(--glass-border);
   cursor: pointer;
   transition: transform 0.2s, border-color 0.2s;
+  display: block;
 }
 
 .gallery-thumb:hover {
-  transform: scale(1.05);
+  transform: scale(1.04);
   border-color: var(--accent);
+}
+
+/* Metadata badge row — float over top of image */
+.gallery-badge-row {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.gallery-badge {
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 3px;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-badge.gallery-location { color: #7ec8e3; }
+.gallery-badge.gallery-turn     { color: #b0e57c; }
+.gallery-badge.gallery-analyzed { color: #c3b1e1; }
+
+/* Analyze / analyzed button — below the thumb */
+.gallery-action-row {
+  display: flex;
+  gap: 3px;
+}
+
+.gallery-analyze-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-analyze-btn:hover {
+  background: var(--accent-dim);
+  color: #fff;
+}
+
+.gallery-analyze-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.gallery-analyze-btn.analyzed {
+  color: #c3b1e1;
+  border-color: #c3b1e1;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* テーマボタン */

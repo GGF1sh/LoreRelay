@@ -975,6 +975,10 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleExportHtml,
         handleRequestMermaid,
         exportCharacterCard,
+        handleRequestVlmAnalysis: async (imagePath: string) => {
+            const { enqueueVlmAnalysis, buildVlmMetaFromGameState } = await import('./vlmQueue');
+            await enqueueVlmAnalysis(imagePath, buildVlmMetaFromGameState());
+        },
     };
 }
 

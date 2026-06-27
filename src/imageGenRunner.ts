@@ -20,6 +20,7 @@ import {
     saveHistoryToDisk
 } from './gameStateSync';
 import { resolvePythonCommand } from './skillScriptRunner';
+import { buildVlmMetaFromGameState } from './vlmQueue';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
@@ -275,9 +276,17 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
     const uri = safeImageUri(imagePath);
     const panel = getPanel();
     if (panel && uri) {
+        const meta = buildVlmMetaFromGameState(prompt);
         panel.webview.postMessage({
             type: 'updateEntry',
-            entry: { id: entryId, image: uri, imagePrompt: prompt }
+            entry: {
+                id: entryId,
+                image: uri,
+                imagePrompt: prompt,
+                rawImagePath: imagePath,
+                locationId: meta.locationId,
+                worldTurn: meta.worldTurn,
+            }
         });
     }
     return true;

@@ -12,7 +12,12 @@ function applyEntryPatch(patch) {
     renderMessage(next);
   }
   if (next.image) {
-    addImageToGallery(next.image);
+    addImageToGallery(next.image, {
+      rawPath: next.rawImagePath,
+      prompt: next.imagePrompt,
+      locationId: next.locationId,
+      worldTurn: next.worldTurn,
+    });
   }
   saveState();
 }
@@ -579,28 +584,110 @@ function renderOptions(options) {
 }
 
 // ===== ギャラリー =====
-function addImageToGallery(imagePath) {
-  if (galleryImages.includes(imagePath)) return;
-  galleryImages.push(imagePath);
+/**
+ * Add or update a gallery entry.
+ * @param {string} src - WebviewURI of the image (used as unique key)
+ * @param {{ rawPath?: string, prompt?: string, locationId?: string, worldTurn?: number, description?: string }} [meta]
+ */
+function addImageToGallery(src, meta) {
+  const idx = galleryImages.findIndex(e => e.src === src);
+  if (idx >= 0) {
+    // Merge new metadata into existing entry (never overwrite description with undefined)
+    const existing = galleryImages[idx];
+    if (meta) {
+      galleryImages[idx] = {
+        ...existing,
+        ...(meta.rawPath !== undefined && { rawPath: meta.rawPath }),
+        ...(meta.prompt !== undefined && { prompt: meta.prompt }),
+        ...(meta.locationId !== undefined && { locationId: meta.locationId }),
+        ...(meta.worldTurn !== undefined && { worldTurn: meta.worldTurn }),
+        ...(meta.description !== undefined && { description: meta.description }),
+      };
+    }
+    renderGallery();
+    return;
+  }
+  galleryImages.push({
+    src,
+    rawPath: meta?.rawPath,
+    prompt: meta?.prompt,
+    locationId: meta?.locationId,
+    worldTurn: meta?.worldTurn,
+    description: meta?.description,
+  });
   renderGallery();
 }
 
 function renderGallery() {
   const gallery = document.getElementById('gallery');
+  if (!gallery) return;
   gallery.innerHTML = '';
-  for (const img of galleryImages) {
+
+  for (const entry of galleryImages) {
+    const item = document.createElement('div');
+    item.className = 'gallery-item';
+
+    // Thumbnail
     const thumb = document.createElement('img');
     thumb.className = 'gallery-thumb';
-    thumb.src = img;
+    thumb.src = entry.src;
+    if (entry.description) {
+      thumb.title = entry.description;
+    }
     thumb.addEventListener('click', () => {
-      // 画像に紐づくメッセージへスクロール
-      const msgWithImg = messageHistory.find(m => m.image === img);
+      const msgWithImg = messageHistory.find(m => m.image === entry.src);
       if (msgWithImg) {
         const el = document.getElementById(`msg-${msgWithImg.id}`);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     });
-    gallery.appendChild(thumb);
+    item.appendChild(thumb);
+
+    // Metadata badges (overlaid on top of image)
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'gallery-badge-row';
+    if (entry.locationId) {
+      const locBadge = document.createElement('span');
+      locBadge.className = 'gallery-badge gallery-location';
+      locBadge.textContent = '📍 ' + entry.locationId;
+      badgeRow.appendChild(locBadge);
+    }
+    if (entry.worldTurn !== undefined) {
+      const turnBadge = document.createElement('span');
+      turnBadge.className = 'gallery-badge gallery-turn';
+      turnBadge.textContent = 'T' + entry.worldTurn;
+      badgeRow.appendChild(turnBadge);
+    }
+    if (entry.description) {
+      const analyzedBadge = document.createElement('span');
+      analyzedBadge.className = 'gallery-badge gallery-analyzed';
+      analyzedBadge.textContent = '👁 Analyzed';
+      badgeRow.appendChild(analyzedBadge);
+    }
+    if (badgeRow.childElementCount > 0) {
+      item.appendChild(badgeRow);
+    }
+
+    // Action row: "Analyze" button or analyzed indicator
+    if (entry.rawPath) {
+      const actionRow = document.createElement('div');
+      actionRow.className = 'gallery-action-row';
+
+      const btn = document.createElement('button');
+      btn.className = 'gallery-analyze-btn' + (entry.description ? ' analyzed' : '');
+      btn.textContent = entry.description ? '👁 Analyzed' : '👁 Analyze';
+      if (!entry.description) {
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          btn.textContent = '⏳ Analyzing…';
+          vscode.postMessage({ type: 'requestVlmAnalysis', imagePath: entry.rawPath });
+        });
+      }
+      actionRow.appendChild(btn);
+      item.appendChild(actionRow);
+    }
+
+    gallery.appendChild(item);
   }
 }
 

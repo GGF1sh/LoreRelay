@@ -75,6 +75,7 @@ export interface WebviewHandlerDeps {
     handleRequestForceSpeak(): Promise<void>;
     handleExportHtml(): Promise<void>;
     handleRequestMermaid(target: string): Promise<void>;
+    handleRequestVlmAnalysis(imagePath: string): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -315,6 +316,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'requestMermaid':
             await deps.handleRequestMermaid(typeof message.target === 'string' ? message.target : 'questFlow');
+            break;
+        case 'requestVlmAnalysis':
+            if (typeof message.imagePath === 'string' && message.imagePath) {
+                await deps.handleRequestVlmAnalysis(message.imagePath);
+            }
             break;
         default:
             break;

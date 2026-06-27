@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -174,7 +174,14 @@
         },
         "textAdventure.vlm.provider": {
           "type": "string",
-          "enum": ["disabled", "ollama", "openrouter", "openai", "gemini", "anthropic"],
+          "enum": [
+            "disabled",
+            "ollama",
+            "openrouter",
+            "openai",
+            "gemini",
+            "anthropic"
+          ],
           "default": "disabled",
           "description": "Select the VLM provider to analyze generated images (Soulgaze)."
         },

@@ -34,7 +34,10 @@ window.addEventListener('DOMContentLoaded', () => {
             setWorldGenBusy(false);
             if (!msg.success) {
                 const btn = document.getElementById('world-gen-btn');
-                if (btn) { btn.textContent = 'Generate Failed — Retry'; }
+                if (btn) {
+                    btn.classList.add('failed');
+                    btn.innerHTML = '<span>❌ Generate Failed — Retry</span>';
+                }
             }
         }
     });
@@ -279,45 +282,161 @@ function buildWorldGenForm() {
     const empty = document.getElementById('world-empty');
     if (!empty) { return; }
 
-    // Replace the plain text with an interactive generate form
+    // Inject styles
+    const styleId = 'world-gen-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .world-gen-card {
+                padding: 1.5rem;
+                margin: 1.5rem auto;
+                max-width: 420px;
+                background: linear-gradient(145deg, rgba(30,30,35,0.8), rgba(20,20,25,0.95));
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+                backdrop-filter: blur(10px);
+                font-family: var(--vscode-font-family), sans-serif;
+            }
+            .world-gen-title {
+                font-size: 1.25em;
+                font-weight: 600;
+                color: #f0f0f0;
+                margin-bottom: 0.4rem;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+            .world-gen-desc {
+                font-size: 0.85em;
+                color: #a0a0a8;
+                line-height: 1.5;
+                margin-bottom: 1.2rem;
+                padding-bottom: 0.8rem;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+            }
+            .world-gen-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 0.8rem;
+            }
+            .world-gen-label {
+                font-size: 0.88em;
+                color: #d0d0d0;
+                font-weight: 500;
+                flex: 1;
+            }
+            .world-gen-input {
+                background: rgba(0,0,0,0.4);
+                color: #fff;
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 6px;
+                padding: 0.45rem 0.6rem;
+                font-size: 0.85em;
+                transition: all 0.2s ease;
+                width: 55%;
+                box-sizing: border-box;
+            }
+            .world-gen-input:focus {
+                outline: none;
+                border-color: #4a90e2;
+                box-shadow: 0 0 0 2px rgba(74,144,226,0.25);
+                background: rgba(0,0,0,0.6);
+            }
+            .world-gen-input[type="number"] {
+                width: 4.5rem;
+                text-align: center;
+            }
+            .world-gen-btn {
+                width: 100%;
+                margin-top: 1.2rem;
+                padding: 0.7rem;
+                background: linear-gradient(180deg, #4a90e2 0%, #357abd 100%);
+                color: #fff;
+                border: 1px solid #2a649d;
+                border-radius: 6px;
+                font-weight: 600;
+                font-size: 0.95em;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.4rem;
+            }
+            .world-gen-btn:hover:not(:disabled) {
+                background: linear-gradient(180deg, #5b9ce6 0%, #4085c7 100%);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+                transform: translateY(-1px);
+            }
+            .world-gen-btn:active:not(:disabled) {
+                transform: translateY(1px);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            }
+            .world-gen-btn:disabled {
+                background: #3a3a40;
+                color: #6a6a70;
+                border-color: #2a2a30;
+                cursor: not-allowed;
+                box-shadow: none;
+                text-shadow: none;
+            }
+            .world-gen-btn.generating {
+                background: linear-gradient(180deg, #b06520 0%, #8c4c13 100%);
+                border-color: #633308;
+                color: #f0f0f0;
+            }
+            .world-gen-btn.failed {
+                background: linear-gradient(180deg, #c04040 0%, #802020 100%);
+                border-color: #501010;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     empty.innerHTML = '';
-    empty.style.cssText = 'padding:1rem 0.5rem;';
+    
+    const card = document.createElement('div');
+    card.className = 'world-gen-card';
+    empty.appendChild(card);
 
-    const heading = document.createElement('div');
-    heading.style.cssText = 'font-size:0.95em;font-weight:600;margin-bottom:0.75rem;opacity:0.9;';
-    heading.textContent = 'No world_forge.json — Generate a World';
-    empty.appendChild(heading);
+    const title = document.createElement('div');
+    title.className = 'world-gen-title';
+    title.innerHTML = '✨ Forge a New World';
+    card.appendChild(title);
 
-    const hint = document.createElement('div');
-    hint.style.cssText = 'font-size:0.78em;opacity:0.55;margin-bottom:1rem;';
-    hint.textContent = 'Enable World Forge in Game Rules first, then generate or add world_forge.json manually.';
-    empty.appendChild(hint);
+    const desc = document.createElement('div');
+    desc.className = 'world-gen-desc';
+    desc.textContent = 'Initialize a dynamic simulation environment. Please ensure World Forge is enabled in Game Rules.';
+    card.appendChild(desc);
 
-    // Seed row
-    empty.appendChild(makeFormRow('Seed', makeTextInput('world-gen-seed', 'e.g. lost-catacombs')));
-
-    // Theme row
+    // Rows
+    card.appendChild(makeFormRow('Seed', makeTextInput('world-gen-seed', 'e.g. lost-catacombs')));
+    
     const themeSelect = document.createElement('select');
     themeSelect.id = 'world-gen-theme';
-    themeSelect.style.cssText = 'background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.82em;';
+    themeSelect.className = 'world-gen-input';
     for (const t of ['dungeon-crawler', 'dark-fantasy', 'cyberpunk', 'default']) {
         const opt = document.createElement('option');
         opt.value = t;
-        opt.textContent = t;
+        opt.textContent = t.charAt(0).toUpperCase() + t.slice(1).replace('-', ' ');
         themeSelect.appendChild(opt);
     }
-    empty.appendChild(makeFormRow('Theme', themeSelect));
+    card.appendChild(makeFormRow('Theme', themeSelect));
 
-    // Numeric params
-    empty.appendChild(makeFormRow('Regions', makeNumberInput('world-gen-regions', 3, 12, 5)));
-    empty.appendChild(makeFormRow('Factions', makeNumberInput('world-gen-factions', 2, 6, 3)));
-    empty.appendChild(makeFormRow('NPCs', makeNumberInput('world-gen-npcs', 2, 20, 6)));
+    card.appendChild(makeFormRow('Regions', makeNumberInput('world-gen-regions', 3, 12, 5)));
+    card.appendChild(makeFormRow('Factions', makeNumberInput('world-gen-factions', 2, 6, 3)));
+    card.appendChild(makeFormRow('NPCs', makeNumberInput('world-gen-npcs', 2, 20, 6)));
 
     // Generate button
     const btn = document.createElement('button');
     btn.id = 'world-gen-btn';
-    btn.textContent = 'Generate World';
-    btn.style.cssText = 'margin-top:0.75rem;padding:0.4rem 1rem;background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;border-radius:3px;cursor:pointer;font-size:0.85em;';
+    btn.className = 'world-gen-btn';
+    btn.innerHTML = '<span>Generate World</span>';
     btn.addEventListener('click', () => {
         const seed = document.getElementById('world-gen-seed')?.value?.trim();
         if (!seed) {
@@ -330,14 +449,14 @@ function buildWorldGenForm() {
         const npcCount = parseInt(document.getElementById('world-gen-npcs')?.value || '6', 10);
         vscode.postMessage({ type: 'generateWorldForge', seed, theme, regionCount, factionCount, npcCount });
     });
-    empty.appendChild(btn);
+    card.appendChild(btn);
 }
 
 function makeFormRow(label, input) {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;';
+    row.className = 'world-gen-row';
     const lbl = document.createElement('label');
-    lbl.style.cssText = 'font-size:0.78em;opacity:0.7;width:4.5rem;flex-shrink:0;';
+    lbl.className = 'world-gen-label';
     lbl.textContent = label;
     row.appendChild(lbl);
     row.appendChild(input);
@@ -349,7 +468,7 @@ function makeTextInput(id, placeholder) {
     el.id = id;
     el.type = 'text';
     el.placeholder = placeholder;
-    el.style.cssText = 'flex:1;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.82em;';
+    el.className = 'world-gen-input';
     return el;
 }
 
@@ -360,7 +479,7 @@ function makeNumberInput(id, min, max, defaultVal) {
     el.min = String(min);
     el.max = String(max);
     el.value = String(defaultVal);
-    el.style.cssText = 'width:4rem;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.82em;';
+    el.className = 'world-gen-input';
     return el;
 }
 
@@ -368,7 +487,14 @@ function setWorldGenBusy(busy) {
     const btn = document.getElementById('world-gen-btn');
     if (!btn) { return; }
     btn.disabled = busy;
-    btn.textContent = busy ? 'Generating…' : 'Generate World';
+    if (busy) {
+        btn.classList.add('generating');
+        btn.classList.remove('failed');
+        btn.innerHTML = '<span>⏳ Generating...</span>';
+    } else {
+        btn.classList.remove('generating');
+        btn.innerHTML = '<span>Generate World</span>';
+    }
 }
 
 function escapeHtml(str) {

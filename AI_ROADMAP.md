@@ -57,17 +57,19 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ---
 
-## ⚪ Phase 5 (v1.5.0 - v1.5.1): Visual Memory / Soulgaze
-*ステータス: 予定*
+## 🔵 Phase 5 (v1.5.0 - v1.5.1): Visual Memory / Soulgaze
+*ステータス: 進行中 (5a/5b 完了)*
 **目的**: 生成された画像や入力画像を、GMの記憶・世界状態・シーン管理に戻し、AIに「視覚」を持たせる。
 
-- [ ] **1. Visual Memory Cache (`visual_memory.json/ndjson`)**
-  - 画像の解析結果を hash キーでキャッシュ
-- [ ] **2. Non-blocking VLM Queue**
-  - ターン進行を止めず、バックグラウンドで Ollama/OpenRouter VLM による画像解析を実施
-- [ ] **3. Scene Context Builder**
-  - 抽出した視覚コンテキスト（Notable visual details, Mood 等）を次ターンの GM プロンプトに注入
-- [ ] **4. Gallery Metadata & UI**
+- [x] **1. Visual Memory Cache (`visual_memory.json`)**
+  - 画像の解析結果を hash キーでキャッシュ (visualMemoryCore.ts + visualMemory.ts)
+  - MAX_ENTRIES=500, LRU eviction, mtime-based cache, 58 tests
+- [x] **2. Non-blocking VLM Queue**
+  - ターン進行を止めず、バックグラウンドで Ollama/OpenRouter VLM による画像解析を実施 (vlmQueue.ts)
+  - キャッシュヒット時は同期即座返却、ミス時は fire-and-forget、単一スロットキュー
+- [x] **3. Scene Context Builder**
+  - buildVisionContext() が visual_memory.json を優先参照; buildVisualContextSnippet() で @locationId 付きスニペット注入
+- [ ] **4. Gallery Metadata & UI** *(Phase 5c — 後で実装)*
   - ギャラリー画像に locationId, prompt, worldTurn などのメタデータを付与
   - 手動 "Analyze Image" ボタンの追加（Gallery/World Tab）
 - [ ] **Visual World Polish (v1.5.1)**

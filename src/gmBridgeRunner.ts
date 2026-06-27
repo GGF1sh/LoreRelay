@@ -23,7 +23,7 @@ import { notifyRemoteGmBusy } from './remotePlayServer';
 import { beginGmRun, finishGmRun } from './turnResultFallback';
 import { postPromptContextToWebview } from './gmPromptBuilder';
 import { getCachedGameState } from './gameStateSync';
-import { enqueueVlmAnalysis, buildVlmMetaFromGameState } from './vlmQueue';
+import { enqueueVlmAnalysis, buildVlmMetaFromGameState, isVlmEnabled } from './vlmQueue';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -459,7 +459,7 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     }
 
     const state = getCachedGameState();
-    if (state && state.latestImage && !state.latestImageDescription) {
+    if (isVlmEnabled() && state && state.latestImage && !state.latestImageDescription) {
         // Enqueue VLM analysis — cache hit is sync (fast path), miss is async (non-blocking).
         enqueueVlmAnalysis(
             state.latestImage as string,

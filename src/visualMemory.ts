@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { resolveAllowedImagePath } from './mediaPaths';
 import {
     type VisualMemory,
     type VisualMemoryEntry,
@@ -76,11 +77,12 @@ function saveVisualMemory(mem: VisualMemory): void {
  */
 export function hashImageFile(imagePath: string): string | null {
     try {
-        if (!fs.existsSync(imagePath)) { return null; }
-        const stat = fs.statSync(imagePath);
+        const safePath = resolveAllowedImagePath(imagePath);
+        if (!safePath) { return null; }
+        const stat = fs.statSync(safePath);
         if (stat.size <= 0) { return null; }
 
-        const fd = fs.openSync(imagePath, 'r');
+        const fd = fs.openSync(safePath, 'r');
         const buf = Buffer.alloc(Math.min(stat.size, MAX_IMAGE_HASH_READ_BYTES));
         fs.readSync(fd, buf, 0, buf.length, 0);
         fs.closeSync(fd);

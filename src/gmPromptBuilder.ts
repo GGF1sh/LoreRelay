@@ -46,6 +46,8 @@ import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
 import { buildVisualContextSnippet } from './visualMemoryCore';
+import { isVlmEnabled } from './vlmQueue';
+import { sanitizeVlmDescription } from './vlmQueueCore';
 import {
     buildSection,
     finalizeBreakdown,
@@ -769,16 +771,19 @@ function buildVisionContext(): string {
     }
 
     // Fallback: plain latestImageDescription from game_state.json.
-    const desc = (state as any).latestImageDescription;
-    if (desc) {
-        const safeDesc = String(desc).replace(/\s+/g, ' ').trim().slice(0, 1200);
+    const safeDesc = sanitizeVlmDescription(state.latestImageDescription);
+    if (safeDesc) {
         return `[Visual Context (Current Scene Image)]
 The game has generated a visual representation of the current situation. Here is the description of what is depicted in the image:
 "${safeDesc}"
 Please ensure your next narration aligns with these visual elements (e.g., characters present, background details, mood, colors, and lighting).`;
     }
 
-    return `[Vision Context]\n*The VLM analysis is currently running or disabled. A new scene image was generated.*`;
+    if (!isVlmEnabled()) {
+        return '';
+    }
+
+    return `[Vision Context]\n*A scene image is present; VLM analysis is in progress and will be available on a later turn.*`;
 }
 
 export function processProfileUpdates(updates: ProfileUpdate[]): void {

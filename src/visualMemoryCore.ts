@@ -1,6 +1,8 @@
 // Pure types and utilities for visual_memory.json (Phase 5a).
 // No vscode or fs imports — safe for Node.js test environment.
 
+import { isValidEntryId } from './entryId';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -120,7 +122,7 @@ export function parseVisualMemoryEntry(raw: unknown): VisualMemoryEntry | undefi
     if (worldTurn !== undefined) { entry.worldTurn = Math.floor(worldTurn); }
 
     const locationId = asStr(r.locationId, 64);
-    if (locationId) { entry.locationId = locationId; }
+    if (locationId && isValidEntryId(locationId)) { entry.locationId = locationId; }
 
     const generationPrompt = asStr(r.generationPrompt, MAX_PROMPT_CHARS);
     if (generationPrompt) { entry.generationPrompt = generationPrompt; }
@@ -209,7 +211,9 @@ export function makeVisualMemoryEntry(opts: {
         analyzedAt: new Date().toISOString(),
     };
     if (opts.worldTurn !== undefined) { entry.worldTurn = Math.floor(opts.worldTurn); }
-    if (opts.locationId) { entry.locationId = opts.locationId.slice(0, 64); }
+    if (opts.locationId && isValidEntryId(opts.locationId)) {
+        entry.locationId = opts.locationId.slice(0, 64);
+    }
     if (opts.generationPrompt) { entry.generationPrompt = opts.generationPrompt.slice(0, MAX_PROMPT_CHARS); }
     if (opts.tags?.length) {
         entry.tags = opts.tags.filter((t) => VALID_TAGS.has(t)).slice(0, MAX_TAGS_PER_ENTRY);

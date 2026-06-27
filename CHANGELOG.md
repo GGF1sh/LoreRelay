@@ -7,6 +7,19 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.1] - 2026-06-28
+
+### Fixed — Visual Memory Phase 5a/5b コードレビュー
+- **game_state 書き戻し**: `latestImage` と解析対象パスの比較を `resolveAllowedImagePath` 経由の realpath 一致に変更（相対/絶対パス不一致で description が書けない問題を修正）。
+- **VLM 無効時**: `enqueueVlmAnalysis` / GM bridge が無駄にキュー投入しないよう `isVlmEnabled()` ガード。`buildVisionContext` も空返し（「解析中」誤表示を防止）。
+- **パス安全**: `hashImageFile` が許可ルート外のファイルを読まないよう `resolveAllowedImagePath` を通す。
+- **メタデータ**: `worldTurn` を `game_state.world` ではなく `world_state.json` から取得。`locationId` を `isValidEntryId` で検証。
+- **説明文**: `sanitizeVlmDescription` で game_state / visual_memory への書き込みを正規化・上限化。
+
+### Added
+- **`vlmQueueCore.ts`**: 純関数 `sanitizeVlmDescription` / `resolvedImagePathsMatch`。
+- **`scripts/test_vlm_queue_core.js`**: 上記の単体テスト。
+
 ## [1.4.1] - 2026-06-28
 
 ### Fixed — Living World Feedback hardening (Phase 4b 監査)

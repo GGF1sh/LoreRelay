@@ -1,17 +1,21 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
-import { getGameStatePath } from './workspacePaths';
+import { getGameStatePath, writeJsonAtomic } from './workspacePaths';
 import { getCachedGameState } from './gameStateSync';
-import { writeJsonAtomic } from './workspacePaths';
+import { resolveAllowedImagePath } from './mediaPaths';
+import { loadWorldState, isWorldStateEnabled } from './worldState';
 import {
     hashImageFile,
-    loadVisualMemory,
     storeVisualMemoryEntry,
     getCachedDescription,
 } from './visualMemory';
+import { isValidEntryId } from './entryId';
 import { makeVisualMemoryEntry } from './visualMemoryCore';
 import type { VisualMemoryTag } from './visualMemoryCore';
+import {
+    sanitizeVlmDescription,
+    resolvedImagePathsMatch,
+} from './vlmQueueCore';
 
 // ---------------------------------------------------------------------------
 // Deps / init
@@ -25,6 +29,11 @@ let queueDeps: VlmQueueDeps | undefined;
 
 export function initVlmQueue(deps: VlmQueueDeps): void {
     queueDeps = deps;
+}
+
+/** True when textAdventure.vlm.provider is not "disabled". */
+export function isVlmEnabled(): boolean {
+    return vscode.workspace.getConfiguration('textAdventure').get<string>('vlm.provider', 'disabled') !== 'disabled';
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +70,9 @@ export async function enqueueVlmAnalysis(
     imagePath: string,
     meta: VlmAnalysisMeta = {}
 ): Promise<void> {
+    if (!isVlmEnabled()) { return; }
+    if (!resolveAllowedImagePath(imagePath)) { return; }
+
     // Fast path: already in cache
     const cached = getCachedDescription(imagePath);
     if (cached) {
@@ -99,15 +111,19 @@ async function runAnalysis(imagePath: string, meta: VlmAnalysisMeta): Promise<vo
         const { analyzeImage } = await import('./vlmProvider');
         vscode.window.setStatusBarMessage('$(eye) Soulgaze: Analyzing scene...', 8000);
 
-        const description = await analyzeImage(imagePath);
+        const rawDescription = await analyzeImage(imagePath);
+        const description = sanitizeVlmDescription(rawDescription);
         if (!description) { return; }
 
+        const resolvedPath = resolveAllowedImagePath(imagePath);
+        if (!resolvedPath) { return; }
+
         // Persist to visual_memory.json
-        const hash = hashImageFile(imagePath);
+        const hash = hashImageFile(resolvedPath);
         if (hash) {
             const entry = makeVisualMemoryEntry({
                 imageHash: hash,
-                imagePath,
+                imagePath: resolvedPath,
                 description,
                 worldTurn: meta.worldTurn,
                 locationId: meta.locationId,
@@ -118,7 +134,7 @@ async function runAnalysis(imagePath: string, meta: VlmAnalysisMeta): Promise<vo
         }
 
         // Write back to game_state.json (only if latestImage still matches)
-        await writeDescriptionToGameState(imagePath, description);
+        await writeDescriptionToGameState(resolvedPath, description);
 
         // Notify the webview so Vision context refreshes on next render
         queueDeps?.getPanel()?.webview.postMessage({
@@ -135,14 +151,23 @@ async function writeDescriptionToGameState(
     imagePath: string,
     description: string
 ): Promise<void> {
+    const safeDescription = sanitizeVlmDescription(description);
+    if (!safeDescription) { return; }
+
+    const resolvedTarget = resolveAllowedImagePath(imagePath);
+    if (!resolvedTarget) { return; }
+
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) { return; }
     try {
         const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+        const resolvedLatest = typeof raw.latestImage === 'string'
+            ? resolveAllowedImagePath(raw.latestImage)
+            : undefined;
         // Only write if the current state still has this image (guard against stale write)
-        if (raw.latestImage !== imagePath) { return; }
-        if (raw.latestImageDescription === description) { return; }
-        raw.latestImageDescription = description;
+        if (!resolvedImagePathsMatch(resolvedLatest, resolvedTarget)) { return; }
+        if (raw.latestImageDescription === safeDescription) { return; }
+        raw.latestImageDescription = safeDescription;
         writeJsonAtomic(statePath, raw);
     } catch (e) {
         console.error('[vlmQueue] Failed to write description to game_state', e);
@@ -160,10 +185,12 @@ async function writeDescriptionToGameState(
 export function buildVlmMetaFromGameState(generationPrompt?: string): VlmAnalysisMeta {
     const state = getCachedGameState();
     const worldField = state?.world as Record<string, unknown> | undefined;
-    const locationId = typeof worldField?.currentLocationId === 'string'
+    const rawLocationId = typeof worldField?.currentLocationId === 'string'
         ? worldField.currentLocationId : undefined;
-    const worldTurn = typeof worldField?.worldTurn === 'number'
-        ? Math.floor(worldField.worldTurn) : undefined;
+    const locationId = rawLocationId && isValidEntryId(rawLocationId) ? rawLocationId : undefined;
+    const worldTurn = isWorldStateEnabled()
+        ? loadWorldState()?.worldTurn
+        : undefined;
     return {
         locationId,
         worldTurn,

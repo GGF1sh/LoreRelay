@@ -1002,6 +1002,28 @@ Phase 5（World × ComfyUI: `locationImageBuilder`, `autoOnLocationChange`, Worl
 ### Verification
 - `npm run compile && npm test` 全パス
 
+## 2026-06-28 JST - Grok - Phase 5a/5b Visual Memory Review (v1.5.1)
+
+### 背景
+Claude 実装の Visual Memory (5a データ層 + 5b VLM キュー) をコードレビュー。5c は未着手のまま。
+
+### 修正内容
+| 問題 | 対応 |
+|------|------|
+| `latestImage` 文字列比較で description 書き込み失敗 | realpath 一致 (`resolvedImagePathsMatch`) |
+| VLM 無効でも「解析中」表示・キュー投入 | `isVlmEnabled()` ガード |
+| `hashImageFile` が許可外パスを読める | `resolveAllowedImagePath` 必須 |
+| `worldTurn` を存在しない `game_state.world` から取得 | `loadWorldState()` に変更 |
+| `locationId` 未検証 | `isValidEntryId` |
+| 説明文の正規化が分散 | `vlmQueueCore.sanitizeVlmDescription` |
+
+### テスト
+- `scripts/test_vlm_queue_core.js` 追加
+- `test_visual_memory.js` locationId 検証追加
+
+### Verification
+- `npm run compile && npm test` 全パス — v1.5.1
+
 ## 2026-06-28 JST - Grok - Phase 4b Hardening Audit (v1.4.1)
 
 ### 背景

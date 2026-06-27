@@ -110,6 +110,9 @@ assert(parseVisualMemoryEntry({ ...baseEntry, imagePath: '' }) === undefined, 'e
 assert(parseVisualMemoryEntry({ ...baseEntry, description: '' }) === undefined, 'empty description → undefined');
 assert(parseVisualMemoryEntry({ ...baseEntry, analyzedAt: 123 }) === undefined, 'non-string analyzedAt → undefined');
 assert(parseVisualMemoryEntry({ ...baseEntry, analyzedAt: '' }) === undefined, 'empty analyzedAt → undefined');
+assert(parseVisualMemoryEntry({ ...baseEntry, locationId: 'bad id' }) === undefined
+    || parseVisualMemoryEntry({ ...baseEntry, locationId: 'bad id' })?.locationId === undefined,
+    'invalid locationId (space) not kept');
 
 section('parseVisualMemoryEntry — safety caps');
 
@@ -213,6 +216,12 @@ assert(made.imageHash === 'abcdef0123456789', 'imageHash set');
 assert(typeof made.analyzedAt === 'string' && made.analyzedAt.length > 0, 'analyzedAt auto-set');
 assert(made.worldTurn === 3, 'worldTurn set');
 assert(made.locationId === 'town_square', 'locationId set');
+
+const madeBadLoc = makeVisualMemoryEntry({
+    imageHash: 'abcdef0123456789', imagePath: '/img.png',
+    description: 'scene', locationId: 'invalid id',
+});
+assert(madeBadLoc.locationId === undefined, 'invalid locationId omitted by makeVisualMemoryEntry');
 assert(made.tags?.includes('generated'), 'tag generated kept');
 
 // description clamped

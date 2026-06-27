@@ -20,6 +20,7 @@ const JS_MODULE_ORDER = [
     '82-memory.js',
     '83-director.js',
     '84-party.js',
+    '85-world.js',
     '90-bootstrap.js'
 ];
 

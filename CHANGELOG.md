@@ -9,6 +9,11 @@
 
 ## [1.2.0] - 2026-06-27
 
+### Fixed
+- **WorldタブUIのバンドル漏れ修正**: `scripts/build-webview.js` の `JS_MODULE_ORDER` に `85-world.js` が含まれていなかったバグを修正し、正しくUIがロードされるように。
+- **バージョン表記の整合性確保**: `package.json` および `package-lock.json` のバージョン表記を `1.2.0` へ引き上げ。
+- **Webviewバンドル検証テストの新規導入**: `scripts/test_webview_bundle.js` を追加し、ビルド後のスクリプト内に `worldView` 等の主要シンボルが存在することを保証する自動テストを `npm test` に組み込み。
+
 ### Added
 - **生きている世界システム (World System)**:
   - `world_forge.json` に基づき地域、派閥、NPC初期配置、歴史などをシード定義・生成・検索する World Forge モジュール (`worldForge.ts`, `worldForgeCore.ts`) を実装。

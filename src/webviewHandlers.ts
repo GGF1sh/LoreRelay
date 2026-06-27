@@ -59,6 +59,7 @@ export interface WebviewHandlerDeps {
     sendMemoryStatus(): void;
     sendScenarioDirector(): void;
     sendPartyDirector(): void;
+    sendWorldView(): void;
     handleSavePartyDirector(director: unknown): Promise<void>;
     handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
     handleBranchTimeline(turnId: string): Promise<void>;
@@ -98,6 +99,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendMemoryStatus();
             deps.sendScenarioDirector();
             deps.sendPartyDirector();
+            deps.sendWorldView();
             deps.sendGameRules();
             deps.sendRemotePlayStatus();
             break;
@@ -124,6 +126,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'loadParty':
             deps.sendPartyDirector();
+            break;
+        case 'loadWorld':
+            deps.sendWorldView();
             break;
         case 'savePartyDirector':
             await deps.handleSavePartyDirector(message.director);
@@ -186,6 +191,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             } else {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
             }
+            break;
+        case 'generateExpression':
+            vscode.window.showInformationMessage('Expression generation is not implemented yet. Upload an expression image for now.');
             break;
         case 'importTavernCard':
             await deps.importTavernCard();

@@ -158,14 +158,7 @@ function renderMessage(entry) {
   let bodyHtml = escapeHtml(entry.content);
   if (bodyHtml.includes('```mermaid')) {
     bodyHtml = bodyHtml.replace(/```mermaid\n([\s\S]*?)```/g, (match, p1) => {
-      // Unescape since mermaid needs raw characters, but we just escaped them
-      const raw = p1
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-      return `<div class="mermaid">${raw}</div>`;
+      return `<div class="mermaid">${p1}</div>`;
     });
     // Trigger mermaid run after DOM update
     setTimeout(() => {

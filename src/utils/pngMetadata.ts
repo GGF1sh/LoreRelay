@@ -65,11 +65,14 @@ export function injectPngMetadata(pngBuffer: Buffer, keyword: string, text: stri
     const firstChunkLength = pngBuffer.readUInt32BE(offset);
     const firstChunkType = pngBuffer.subarray(offset + 4, offset + 8).toString('latin1');
     
-    if (firstChunkType !== 'IHDR') {
+    if (firstChunkType !== 'IHDR' || firstChunkLength !== 13) {
         throw new Error('Invalid PNG: First chunk is not IHDR.');
     }
     
     const ihdrEnd = offset + 8 + firstChunkLength + 4;
+    if (ihdrEnd > pngBuffer.length) {
+        throw new Error('Invalid PNG: IHDR chunk is truncated.');
+    }
     
     const before = pngBuffer.subarray(0, ihdrEnd);
     const after = pngBuffer.subarray(ihdrEnd);

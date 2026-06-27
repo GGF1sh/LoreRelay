@@ -32,6 +32,13 @@ export interface ProfileUpdate {
     dynamicProfile: string;
 }
 
+export interface NpcMemoryUpdate {
+    npcId: string;
+    dispositionDelta?: Record<string, unknown>;
+    newMemory?: Record<string, unknown>;
+    needUpdates?: unknown[];
+}
+
 export interface SceneSprite {
     name?: string;
     image?: string;
@@ -56,6 +63,14 @@ export interface GameOverState {
     message?: string;
     /** true = victory ending, false = defeat/death */
     victory?: boolean;
+}
+
+/** World Forge: プレイヤーの現在地・訪問済み場所をトラッキング。 */
+export interface GameStateWorld {
+    currentLocationId?: string;
+    visitedLocationIds?: string[];
+    knownFactionIds?: string[];
+    worldTurnAtLastSync?: number;
 }
 
 /** ランタイムのシナリオ進行（scenario.json director の上書き）。v0.6c */
@@ -84,6 +99,7 @@ export interface GameState {
     hiddenDice?: HiddenDiceEntry[];
     diceRequest?: DiceRequest;
     profileUpdates?: ProfileUpdate[];
+    npcMemoryUpdates?: NpcMemoryUpdate[];
     /** Compressed story synopsis (Context Summarizer / manual edit). */
     summary?: string;
     /** GM's secret notes and parameters not shown to the player. */
@@ -92,4 +108,6 @@ export interface GameState {
     gameOver?: GameOverState;
     /** Live scenario progression overlay (merged with scenario.json director). */
     director?: GameStateDirector;
+    /** World Forge: player location tracking within world_forge.json geography. */
+    world?: GameStateWorld;
 }

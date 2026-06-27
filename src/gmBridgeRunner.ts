@@ -450,6 +450,13 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
         writeJsonAtomic(path.join(workspacePath, 'dice_ledger.json'), diceLedger);
     }
 
+    if (provider !== 'clipboard') {
+        if (!vscode.workspace.isTrusted) {
+            vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+            return false;
+        }
+    }
+
     const state = getCachedGameState();
     if (state && state.latestImage && !state.latestImageDescription) {
         vscode.window.setStatusBarMessage('$(eye) Soulgaze: Analyzing scene...', 5000);
@@ -457,20 +464,20 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
             const { analyzeImage } = await import('./vlmProvider');
             const description = await analyzeImage(state.latestImage as string);
             if (description) {
-                state.latestImageDescription = description;
-                writeJsonAtomic(path.join(workspacePath, 'game_state.json'), state);
+                const statePath = path.join(workspacePath, 'game_state.json');
+                const current = fs.existsSync(statePath)
+                    ? JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>
+                    : {};
+                if (current.latestImage === state.latestImage && !current.latestImageDescription) {
+                    current.latestImageDescription = description;
+                    writeJsonAtomic(statePath, current);
+                }
             }
         } catch (e) {
             console.error('Soulgaze VLM analysis failed', e);
         }
     }
 
-    if (provider !== 'clipboard') {
-        if (!vscode.workspace.isTrusted) {
-            vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
-            return false;
-        }
-    }
     switch (provider) {
         case 'clipboard':
             return false;

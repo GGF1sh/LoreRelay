@@ -7,6 +7,8 @@ import type { CharacterProfile, CharacterBook, CharacterBookEntry } from './type
 import { getWorkspacePath } from './workspacePaths';
 import { t } from './i18n';
 
+const MAX_TAVERN_CARD_BYTES = 16 * 1024 * 1024;
+
 /**
  * Extracts Base64 embedded JSON from a Tavern PNG card.
  * Supports tEXt (V1/V2) and iTEXt (some newer tools) chunks.
@@ -28,9 +30,14 @@ export function extractJsonFromPng(buffer: Buffer): string | null {
         }
         const length = buffer.readUInt32BE(offset);
         const type = buffer.toString('ascii', offset + 4, offset + 8);
+        const chunkEnd = offset + 8 + length;
+        const nextOffset = chunkEnd + 4;
+        if (chunkEnd > buffer.length || nextOffset > buffer.length) {
+            break;
+        }
 
         if (type === 'tEXt') {
-            const data = buffer.subarray(offset + 8, offset + 8 + length);
+            const data = buffer.subarray(offset + 8, chunkEnd);
             const nullIdx = data.indexOf(0);
             if (nullIdx !== -1) {
                 const keyword = data.toString('latin1', 0, nullIdx);
@@ -45,7 +52,7 @@ export function extractJsonFromPng(buffer: Buffer): string | null {
             }
         } else if (type === 'iTEXt') {
             // iTEXt layout: keyword \0 compressionFlag(1) compressionMethod(1) languageTag \0 translatedKeyword \0 text
-            const data = buffer.subarray(offset + 8, offset + 8 + length);
+            const data = buffer.subarray(offset + 8, chunkEnd);
             const nullIdx = data.indexOf(0);
             if (nullIdx !== -1) {
                 const keyword = data.toString('utf8', 0, nullIdx);
@@ -70,7 +77,7 @@ export function extractJsonFromPng(buffer: Buffer): string | null {
             }
         }
 
-        offset += 8 + length + 4; // length(4) + type(4) + data(length) + CRC(4)
+        offset = nextOffset; // length(4) + type(4) + data(length) + CRC(4)
     }
     return null;
 }
@@ -143,6 +150,11 @@ export async function importTavernCard(): Promise<void> {
 
     const filePath = picked[0].fsPath;
     const ext = path.extname(filePath).toLowerCase();
+    const stats = fs.statSync(filePath);
+    if (stats.size > MAX_TAVERN_CARD_BYTES) {
+        void vscode.window.showErrorMessage('Tavern card is too large to import safely.');
+        return;
+    }
 
     let rawJson = '';
     let isPng = false;

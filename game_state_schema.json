@@ -76,6 +76,10 @@
       ]
     },
     "latestImage": { "type": "string" },
+    "latestImageDescription": {
+      "type": "string",
+      "description": "Short VLM-generated description of latestImage. Injected into GM prompt as visual context."
+    },
     "background": { "type": "string", "description": "VN-style scene background image path" },
     "sprite": {
       "description": "Standing character sprite (path string or object)",
@@ -125,6 +129,47 @@
           "dynamicProfile": { "type": "string" }
         },
         "required": ["characterId", "dynamicProfile"]
+      }
+    },
+    "npcMemoryUpdates": {
+      "type": "array",
+      "description": "GM-requested NPC memory/disposition updates consumed by LoreRelay and removed from game_state.json after processing.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "npcId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+          "dispositionDelta": {
+            "type": "object",
+            "properties": {
+              "playerTrust": { "type": "number" },
+              "playerRomance": { "type": "number" },
+              "playerFear": { "type": "number" },
+              "mood": { "type": "string", "enum": ["happy", "worried", "angry", "sad", "neutral", "excited", "fearful"] }
+            }
+          },
+          "newMemory": {
+            "type": "object",
+            "properties": {
+              "turn": { "type": "number" },
+              "content": { "type": "string" },
+              "emotionalWeight": { "type": "string", "enum": ["positive", "negative", "neutral", "suspicious"] },
+              "tags": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "needUpdates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "urgencyDelta": { "type": "number" },
+                "resolved": { "type": "boolean" }
+              },
+              "required": ["id"]
+            }
+          }
+        },
+        "required": ["npcId"]
       }
     },
     "summary": {
@@ -185,6 +230,22 @@
             }
           }
         }
+      }
+    },
+    "world": {
+      "type": "object",
+      "description": "World Forge runtime overlay: current location, visited places, known factions, and sync marker.",
+      "properties": {
+        "currentLocationId": { "type": "string" },
+        "visitedLocationIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "knownFactionIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "worldTurnAtLastSync": { "type": "number" }
       }
     }
   },

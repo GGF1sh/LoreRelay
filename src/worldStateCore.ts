@@ -1,0 +1,189 @@
+import type { WorldForge, FactionResources } from './worldForgeCore';
+
+export type WorldEventType = 'environmental' | 'political' | 'military' | 'social' | 'magical' | 'other';
+export type WorldEventSeverity = 'minor' | 'moderate' | 'major' | 'catastrophic';
+
+export interface FactionWorldState {
+    power: number;
+    resources?: FactionResources;
+    morale?: number;
+    recentEvents?: string[];
+}
+
+export interface RegionWorldState {
+    dangerLevel?: number;
+    controllingFaction?: string | null;
+    activeEvents?: string[];
+}
+
+export interface GlobalEvent {
+    id: string;
+    type: WorldEventType;
+    severity: WorldEventSeverity;
+    description: string;
+    turnsRemaining?: number;
+    triggerCondition?: string | null;
+}
+
+export interface WorldState {
+    format: string;
+    lastUpdated?: string;
+    worldTurn: number;
+    lastSimulatedGmTurn?: number;
+    factions: Record<string, FactionWorldState>;
+    regions?: Record<string, RegionWorldState>;
+    globalEvents?: GlobalEvent[];
+    pendingWorldEvents?: unknown[];
+}
+
+// --- パーサーユーティリティ ---
+
+function asString(v: unknown, fallback = ''): string {
+    return typeof v === 'string' ? v.trim() : fallback;
+}
+
+function asNumber(v: unknown, fallback: number): number {
+    return typeof v === 'number' && !Number.isNaN(v) ? v : fallback;
+}
+
+function asStringArray(v: unknown): string[] {
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+}
+
+const VALID_EVENT_TYPES = new Set<WorldEventType>([
+    'environmental', 'political', 'military', 'social', 'magical', 'other'
+]);
+const VALID_SEVERITIES = new Set<WorldEventSeverity>([
+    'minor', 'moderate', 'major', 'catastrophic'
+]);
+
+function parseFactionWorldState(raw: unknown): FactionWorldState | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const power = asNumber(r.power, 50);
+    const state: FactionWorldState = { power };
+    if (r.morale !== undefined) { state.morale = asNumber(r.morale, 50); }
+    if (r.recentEvents !== undefined) { state.recentEvents = asStringArray(r.recentEvents); }
+    if (r.resources && typeof r.resources === 'object' && !Array.isArray(r.resources)) {
+        const res: FactionResources = {};
+        for (const [k, v] of Object.entries(r.resources as Record<string, unknown>)) {
+            if (typeof v === 'number') { res[k] = v; }
+        }
+        state.resources = res;
+    }
+    return state;
+}
+
+function parseRegionWorldState(raw: unknown): RegionWorldState {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return {}; }
+    const r = raw as Record<string, unknown>;
+    const state: RegionWorldState = {};
+    if (r.dangerLevel !== undefined) { state.dangerLevel = asNumber(r.dangerLevel, 1); }
+    if ('controllingFaction' in r) {
+        state.controllingFaction = typeof r.controllingFaction === 'string' ? r.controllingFaction : null;
+    }
+    if (r.activeEvents !== undefined) { state.activeEvents = asStringArray(r.activeEvents); }
+    return state;
+}
+
+function parseGlobalEvent(raw: unknown): GlobalEvent | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asString(r.id);
+    const description = asString(r.description);
+    if (!id || !description) { return undefined; }
+    const event: GlobalEvent = {
+        id,
+        type: VALID_EVENT_TYPES.has(r.type as WorldEventType) ? (r.type as WorldEventType) : 'other',
+        severity: VALID_SEVERITIES.has(r.severity as WorldEventSeverity) ? (r.severity as WorldEventSeverity) : 'minor',
+        description
+    };
+    if (r.turnsRemaining !== undefined) { event.turnsRemaining = asNumber(r.turnsRemaining, 0); }
+    if ('triggerCondition' in r) {
+        event.triggerCondition = typeof r.triggerCondition === 'string' ? r.triggerCondition : null;
+    }
+    return event;
+}
+
+export function parseWorldState(raw: unknown): WorldState | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const doc = raw as Record<string, unknown>;
+
+    const factions: Record<string, FactionWorldState> = {};
+    if (doc.factions && typeof doc.factions === 'object' && !Array.isArray(doc.factions)) {
+        for (const [id, val] of Object.entries(doc.factions as Record<string, unknown>)) {
+            const parsed = parseFactionWorldState(val);
+            if (parsed) { factions[id] = parsed; }
+        }
+    }
+
+    const regions: Record<string, RegionWorldState> = {};
+    if (doc.regions && typeof doc.regions === 'object' && !Array.isArray(doc.regions)) {
+        for (const [id, val] of Object.entries(doc.regions as Record<string, unknown>)) {
+            regions[id] = parseRegionWorldState(val);
+        }
+    }
+
+    const globalEvents: GlobalEvent[] = Array.isArray(doc.globalEvents)
+        ? doc.globalEvents.map(parseGlobalEvent).filter((x): x is GlobalEvent => x !== undefined)
+        : [];
+
+    return {
+        format: asString(doc.format, 'lorerelay-world-state/1.0'),
+        lastUpdated: typeof doc.lastUpdated === 'string' ? doc.lastUpdated : undefined,
+        worldTurn: asNumber(doc.worldTurn, 0),
+        lastSimulatedGmTurn: doc.lastSimulatedGmTurn !== undefined ? asNumber(doc.lastSimulatedGmTurn, 0) : undefined,
+        factions,
+        regions,
+        globalEvents,
+        pendingWorldEvents: Array.isArray(doc.pendingWorldEvents) ? doc.pendingWorldEvents : []
+    };
+}
+
+/** world_forge.json の初期データから WorldState を生成する。 */
+export function buildInitialWorldState(forge: WorldForge): WorldState {
+    const factions: Record<string, FactionWorldState> = {};
+    for (const faction of forge.factions) {
+        const resources: FactionResources = {};
+        if (faction.resources) {
+            for (const [k, v] of Object.entries(faction.resources)) {
+                if (typeof v === 'number') { resources[k] = v; }
+            }
+        }
+        factions[faction.id] = {
+            power: faction.power ?? 50,
+            resources,
+            morale: 60,
+            recentEvents: []
+        };
+    }
+
+    const regions: Record<string, RegionWorldState> = {};
+    for (const region of forge.geography.regions) {
+        regions[region.id] = {
+            dangerLevel: region.dangerLevel ?? 1,
+            controllingFaction: null,
+            activeEvents: []
+        };
+    }
+
+    // ロケーションの派閥支配をリージョンに反映（最初に見つかったものを優先）
+    for (const loc of forge.geography.locations) {
+        if (loc.factionControl && loc.regionId && regions[loc.regionId]) {
+            if (!regions[loc.regionId].controllingFaction) {
+                regions[loc.regionId].controllingFaction = loc.factionControl;
+            }
+        }
+    }
+
+    return {
+        format: 'lorerelay-world-state/1.0',
+        lastUpdated: new Date().toISOString(),
+        worldTurn: 0,
+        lastSimulatedGmTurn: 0,
+        factions,
+        regions,
+        globalEvents: [],
+        pendingWorldEvents: []
+    };
+}

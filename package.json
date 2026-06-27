@@ -170,7 +170,7 @@
         },
         "textAdventure.vlm.provider": {
           "type": "string",
-          "enum": ["disabled", "ollama", "openai", "gemini", "anthropic"],
+          "enum": ["disabled", "ollama", "openrouter", "openai", "gemini", "anthropic"],
           "default": "disabled",
           "description": "Select the VLM provider to analyze generated images (Soulgaze)."
         },

@@ -240,5 +240,58 @@ export function validateGameState(obj: unknown): string[] {
         }
     }
 
+    if (state.latestImageDescription !== undefined) {
+        if (typeof state.latestImageDescription !== 'string') {
+            errors.push('"latestImageDescription" must be a string');
+        } else if (state.latestImageDescription.length > 1200) {
+            errors.push('"latestImageDescription" must be 1200 characters or less');
+        }
+    }
+
+    if (state.npcMemoryUpdates !== undefined) {
+        if (!Array.isArray(state.npcMemoryUpdates)) {
+            errors.push('"npcMemoryUpdates" must be an array');
+        } else {
+            (state.npcMemoryUpdates as unknown[]).forEach((item, i) => {
+                if (typeof item !== 'object' || item === null) {
+                    errors.push(`npcMemoryUpdates[${i}] must be an object`);
+                    return;
+                }
+                const nu = item as Record<string, unknown>;
+                if (typeof nu.npcId !== 'string' || !nu.npcId) {
+                    errors.push(`npcMemoryUpdates[${i}].npcId must be a non-empty string`);
+                }
+            });
+        }
+    }
+
+    if (state.world !== undefined) {
+        if (typeof state.world !== 'object' || state.world === null || Array.isArray(state.world)) {
+            errors.push('"world" must be an object');
+        } else {
+            const w = state.world as Record<string, unknown>;
+            if (w.currentLocationId !== undefined && typeof w.currentLocationId !== 'string') {
+                errors.push('world.currentLocationId must be a string');
+            }
+            if (w.visitedLocationIds !== undefined) {
+                if (!Array.isArray(w.visitedLocationIds)) {
+                    errors.push('world.visitedLocationIds must be an array');
+                } else {
+                    (w.visitedLocationIds as unknown[]).forEach((id, i) => {
+                        if (typeof id !== 'string') {
+                            errors.push(`world.visitedLocationIds[${i}] must be a string`);
+                        }
+                    });
+                }
+            }
+            if (w.knownFactionIds !== undefined && !Array.isArray(w.knownFactionIds)) {
+                errors.push('world.knownFactionIds must be an array');
+            }
+            if (w.worldTurnAtLastSync !== undefined && typeof w.worldTurnAtLastSync !== 'number') {
+                errors.push('world.worldTurnAtLastSync must be a number');
+            }
+        }
+    }
+
     return errors;
 }

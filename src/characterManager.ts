@@ -30,6 +30,8 @@ export function killPortraitProcess(): void {
 }
 
 const CHARACTER_META_FILES = new Set(['party.json', 'dynamic_profiles.json', 'party_director.json']);
+const MAX_CHARACTER_IMAGE_BYTES = 8 * 1024 * 1024;
+const DATA_IMAGE_RE = /^data:image\/(png|jpe?g|webp);base64,([a-zA-Z0-9+/=\r\n]+)$/;
 
 export interface CharacterManagerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -169,13 +171,93 @@ export function sendCharacterList(): void {
     });
 }
 
+function decodeDataImage(value: unknown): { ext: string; buffer: Buffer } | undefined {
+    if (typeof value !== 'string') { return undefined; }
+    const match = DATA_IMAGE_RE.exec(value);
+    if (!match) { return undefined; }
+    const type = match[1].toLowerCase();
+    const buffer = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+    if (buffer.length <= 0 || buffer.length > MAX_CHARACTER_IMAGE_BYTES) {
+        return undefined;
+    }
+    const ext = type === 'jpg' || type === 'jpeg' ? '.jpg' : `.${type}`;
+    return { ext, buffer };
+}
+
+function resolveExpressionPath(charDir: string, id: string, key: string, ext: string): string | undefined {
+    if (!isValidCharacterId(id)) { return undefined; }
+    const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32) || 'expression';
+    const safeExt = ['.png', '.jpg', '.jpeg', '.webp'].includes(ext.toLowerCase()) ? ext.toLowerCase() : '.png';
+    const base = path.resolve(charDir);
+    const resolved = path.resolve(base, `${id}_expr_${safeKey}${safeExt}`);
+    return resolved.startsWith(base + path.sep) ? resolved : undefined;
+}
+
+function persistCharacterImage(charDir: string, id: string, value: unknown, kind: 'portrait' | 'expression', key?: string): string | undefined {
+    if (typeof value === 'string' && !value.startsWith('data:image/')) {
+        return value;
+    }
+    const decoded = decodeDataImage(value);
+    if (!decoded) { return typeof value === 'string' ? undefined : undefined; }
+    const dest = kind === 'portrait'
+        ? resolvePortraitPath(charDir, id, decoded.ext)
+        : resolveExpressionPath(charDir, id, key ?? 'expression', decoded.ext);
+    if (!dest) { return undefined; }
+    fs.writeFileSync(dest, decoded.buffer);
+    return dest;
+}
+
+function sanitizeCharacterForSave(character: CharacterProfile): CharacterProfile | undefined {
+    const charDir = getCharactersDir();
+    if (!charDir || !isValidCharacterId(character.id)) { return undefined; }
+    const raw = character as CharacterProfile & Record<string, unknown>;
+    const sanitized: CharacterProfile = {
+        id: character.id,
+        name: typeof raw.name === 'string' ? raw.name.trim().slice(0, 120) : '',
+        description: typeof raw.description === 'string' ? raw.description.slice(0, 8000) : '',
+        personality: typeof raw.personality === 'string' ? raw.personality.slice(0, 4000) : '',
+        controlledBy: raw.controlledBy === 'player' || raw.controlledBy === 'ai' || raw.controlledBy === 'gm'
+            ? raw.controlledBy
+            : 'gm'
+    };
+    if (!sanitized.name) { return undefined; }
+    if (typeof raw.llmProvider === 'string') { sanitized.llmProvider = raw.llmProvider.slice(0, 80); }
+    if (typeof raw.llmModel === 'string') { sanitized.llmModel = raw.llmModel.slice(0, 120); }
+    if (raw.equipment && typeof raw.equipment === 'object' && !Array.isArray(raw.equipment)) {
+        const eq = raw.equipment as Record<string, unknown>;
+        sanitized.equipment = {};
+        if (typeof eq.weapon === 'string') { sanitized.equipment.weapon = eq.weapon.slice(0, 120); }
+        if (typeof eq.armor === 'string') { sanitized.equipment.armor = eq.armor.slice(0, 120); }
+        if (typeof eq.accessory === 'string') { sanitized.equipment.accessory = eq.accessory.slice(0, 120); }
+    }
+    const portrait = persistCharacterImage(charDir, character.id, raw.portrait, 'portrait');
+    if (portrait) { sanitized.portrait = portrait; }
+    if (raw.expressions && typeof raw.expressions === 'object' && !Array.isArray(raw.expressions)) {
+        const expressions: Record<string, string> = {};
+        for (const [key, value] of Object.entries(raw.expressions as Record<string, unknown>).slice(0, 32)) {
+            const uri = typeof value === 'object' && value !== null && 'uri' in value
+                ? (value as Record<string, unknown>).uri
+                : value;
+            const saved = persistCharacterImage(charDir, character.id, uri, 'expression', key);
+            if (saved) { expressions[key.slice(0, 64)] = saved; }
+        }
+        if (Object.keys(expressions).length > 0) { sanitized.expressions = expressions; }
+    }
+    if (raw.stSource && typeof raw.stSource === 'object' && !Array.isArray(raw.stSource)) {
+        sanitized.stSource = raw.stSource;
+    }
+    return sanitized;
+}
+
 export function saveCharacter(character: CharacterProfile): void {
     const charDir = getCharactersDir();
     if (!charDir || !isValidCharacterId(character.id)) { return; }
     const filePath = resolveCharacterJsonPath(charDir, character.id);
     if (!filePath) { return; }
+    const sanitized = sanitizeCharacterForSave(character);
+    if (!sanitized) { return; }
     try {
-        writeJsonAtomic(filePath, character);
+        writeJsonAtomic(filePath, sanitized);
         sendCharacterList();
     } catch (e) {
         console.error('Error saving character:', e);
@@ -326,6 +408,10 @@ export async function generatePortrait(id: string): Promise<void> {
 
                     char.portrait = dest;
                     saveCharacter(char);
+                    const uri = safeImageUri(dest);
+                    if (uri) {
+                        getPanel()?.webview.postMessage({ type: 'portraitGenerated', id, uri });
+                    }
                     vscode.window.showInformationMessage('Portrait generated successfully!');
                 }
             } catch (e) {

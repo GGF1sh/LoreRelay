@@ -232,14 +232,7 @@ function renderMessage(entry) {
   let bodyHtml = escapeHtml(entry.content);
   if (bodyHtml.includes('```mermaid')) {
     bodyHtml = bodyHtml.replace(/```mermaid\n([\s\S]*?)```/g, (match, p1) => {
-      // Unescape since mermaid needs raw characters, but we just escaped them
-      const raw = p1
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-      return `<div class="mermaid">${raw}</div>`;
+      return `<div class="mermaid">${p1}</div>`;
     });
     // Trigger mermaid run after DOM update
     setTimeout(() => {
@@ -2690,7 +2683,11 @@ function speakText(text) {
         diceDifficulty: document.getElementById('gr-dice-diff'),
         skillCommentary: document.getElementById('gr-skill-commentary'),
         backgroundSimulation: document.getElementById('gr-bg-sim'),
-        autoLorebookGrowth: document.getElementById('gr-auto-lore')
+        autoLorebookGrowth: document.getElementById('gr-auto-lore'),
+        enableNpcRegistry: document.getElementById('gr-npc-registry'),
+        enableWorldForge: document.getElementById('gr-world-forge'),
+        enableEmergentSimulation: document.getElementById('gr-emergent-sim'),
+        simIntervalTurns: document.getElementById('gr-sim-interval')
     };
 
     let saveTimeout = null;
@@ -2727,7 +2724,11 @@ function speakText(text) {
             diceDifficulty: inputs.diceDifficulty.value || 'Normal',
             skillCommentary: inputs.skillCommentary.checked,
             backgroundSimulation: inputs.backgroundSimulation.checked,
-            autoLorebookGrowth: inputs.autoLorebookGrowth.checked
+            autoLorebookGrowth: inputs.autoLorebookGrowth.checked,
+            enableNpcRegistry: inputs.enableNpcRegistry ? inputs.enableNpcRegistry.checked : false,
+            enableWorldForge: inputs.enableWorldForge ? inputs.enableWorldForge.checked : false,
+            enableEmergentSimulation: inputs.enableEmergentSimulation ? inputs.enableEmergentSimulation.checked : false,
+            simIntervalTurns: inputs.simIntervalTurns ? (parseInt(inputs.simIntervalTurns.value, 10) || 5) : 5
         };
         vscode.postMessage({ type: 'updateGameRules', rules });
         notifySave();
@@ -2756,6 +2757,10 @@ function speakText(text) {
             if (rules.skillCommentary !== undefined) inputs.skillCommentary.checked = rules.skillCommentary;
             if (rules.backgroundSimulation !== undefined) inputs.backgroundSimulation.checked = rules.backgroundSimulation;
             if (rules.autoLorebookGrowth !== undefined) inputs.autoLorebookGrowth.checked = rules.autoLorebookGrowth;
+            if (rules.enableNpcRegistry !== undefined && inputs.enableNpcRegistry) inputs.enableNpcRegistry.checked = rules.enableNpcRegistry;
+            if (rules.enableWorldForge !== undefined && inputs.enableWorldForge) inputs.enableWorldForge.checked = rules.enableWorldForge;
+            if (rules.enableEmergentSimulation !== undefined && inputs.enableEmergentSimulation) inputs.enableEmergentSimulation.checked = rules.enableEmergentSimulation;
+            if (rules.simIntervalTurns !== undefined && inputs.simIntervalTurns) inputs.simIntervalTurns.value = rules.simIntervalTurns;
         }
     });
 

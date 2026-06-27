@@ -104,6 +104,7 @@
         <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">🧠 Memory</span></button>
         <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">🎬 Director</span></button>
         <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">👥 Party</span></button>
+        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">🌍 World</span></button>
         <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">💬 OOC</span></button>
       </div>
 
@@ -468,6 +469,32 @@
         </div>
       </div> <!-- /pane-party -->
 
+      <!-- ペイン: World Map -->
+      <div id="pane-world" class="tab-pane" style="display: none;">
+        <p id="world-empty" class="empty-text" data-i18n="webview.world.empty">Enable World Forge in Game Rules and add world_forge.json to your workspace.</p>
+        <div id="world-content" class="hidden">
+          <div class="inspector-section" style="margin-bottom:0.75rem;">
+            <span id="world-title" style="font-weight:600;font-size:1.05em;"></span>
+            <span id="world-theme" style="margin-left:0.6rem;opacity:0.6;font-size:0.85em;"></span>
+            <span id="world-stats" style="float:right;opacity:0.5;font-size:0.8em;"></span>
+          </div>
+
+          <!-- Mermaid 地図 -->
+          <details id="world-map-details" open>
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.mapTitle">World Map</summary>
+            <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
+              <div id="world-mermaid" class="mermaid"></div>
+            </div>
+          </details>
+
+          <!-- 派閥ステータス -->
+          <details id="world-factions-details" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.factionsTitle">Factions</summary>
+            <div id="world-factions-list"></div>
+          </details>
+        </div>
+      </div> <!-- /pane-world -->
+
       <!-- ペイン 4: OOC Sidekick -->
       <div id="pane-ooc" class="tab-pane" style="display: none;">
         <div id="ooc-log" class="ooc-log" style="flex: 1; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 0.5rem; background: var(--vscode-editor-background);">
@@ -616,6 +643,26 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
         <label for="gr-auto-lore" title="Automatically create Lorebook entries from new nouns" data-i18n="webview.gameRules.autoLore">Enable Auto Lorebook Growth</label>
         <input type="checkbox" id="gr-auto-lore" data-field="autoLorebookGrowth" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-npc-registry" title="Track NPC memory, disposition and needs. Requires npc_registry.json in workspace." data-i18n="webview.gameRules.npcRegistry">Enable NPC Memory &amp; Disposition</label>
+        <input type="checkbox" id="gr-npc-registry" data-field="enableNpcRegistry" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-world-forge" title="Inject world geography, factions and lore into GM prompts. Requires world_forge.json in workspace." data-i18n="webview.gameRules.worldForge">Enable World Forge</label>
+        <input type="checkbox" id="gr-world-forge" data-field="enableWorldForge" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-emergent-sim" title="Run lightweight faction/resource simulation every N turns. Requires world_state.json." data-i18n="webview.gameRules.emergentSim">Enable Emergent Simulation</label>
+        <input type="checkbox" id="gr-emergent-sim" data-field="enableEmergentSimulation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-sim-interval" data-i18n="webview.gameRules.simInterval">Sim Interval (turns)</label>
+        <input type="number" id="gr-sim-interval" min="1" max="50" value="5" style="width:5rem;" />
       </div>
 
       <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>

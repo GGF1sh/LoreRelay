@@ -40,6 +40,9 @@ import { type LorebookEntry, matchEntriesAgainstText } from './lorebookMatcher';
 import { loadScenarioDirector } from './scenarioDirector';
 import { loadPartyDirector } from './partyDirector';
 import type { RelationshipType } from './partyDirectorCore';
+import { loadNpcRegistry } from './npcRegistry';
+import { loadWorldForge, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
+import { loadWorldState, isWorldStateEnabled } from './worldState';
 import {
     buildSection,
     finalizeBreakdown,
@@ -369,6 +372,174 @@ function buildGameRulesPromptContext(): string {
     return lines.join('\n');
 }
 
+function buildWorldForgePromptContext(): string {
+    if (!isWorldForgeEnabled()) { return ''; }
+    const forge = loadWorldForge();
+    if (!forge) { return ''; }
+
+    const state = readGameStateForPrompt();
+    const statusLocation = typeof state?.status === 'object' && state.status !== null
+        ? (state.status as Record<string, unknown>).location as string | undefined
+        : undefined;
+    const worldState = state?.world as Record<string, unknown> | undefined;
+    const currentLocationId = typeof worldState?.currentLocationId === 'string'
+        ? worldState.currentLocationId
+        : undefined;
+
+    const resolvedLoc = currentLocationId
+        ? forge.geography.locations.find((l) => l.id === currentLocationId)
+        : resolveCurrentLocation(statusLocation);
+
+    const lines = [`[World — ${forge.meta.worldName}]`];
+    if (forge.meta.theme) { lines.push(`Theme: ${forge.meta.theme}`); }
+
+    if (resolvedLoc) {
+        const region = resolvedLoc.regionId
+            ? forge.geography.regions.find((r) => r.id === resolvedLoc.regionId)
+            : undefined;
+        lines.push(`Player location: ${resolvedLoc.name}${region ? ` (${region.name})` : ''}`);
+        if (resolvedLoc.description) { lines.push(`  ${resolvedLoc.description}`); }
+        const locParts: string[] = [resolvedLoc.type];
+        if (resolvedLoc.population) { locParts.push(`pop.${resolvedLoc.population}`); }
+        if (resolvedLoc.factionControl) {
+            const fc = forge.factions.find((f) => f.id === resolvedLoc.factionControl);
+            locParts.push(`controlled by ${fc?.name ?? resolvedLoc.factionControl}`);
+        }
+        if (resolvedLoc.services && resolvedLoc.services.length > 0) {
+            locParts.push(`services: ${resolvedLoc.services.join(', ')}`);
+        }
+        lines.push(`  → ${locParts.join(', ')}`);
+        if (region?.dangerLevel !== undefined) {
+            lines.push(`  Danger: ${region.dangerLevel}/10${region.description ? ` — ${region.description}` : ''}`);
+        }
+    } else if (statusLocation) {
+        lines.push(`Player location: ${statusLocation} (not mapped in world_forge.json)`);
+    }
+
+    if (forge.factions.length > 0) {
+        lines.push('Factions:');
+        for (const faction of forge.factions.slice(0, 4)) {
+            const parts: string[] = [faction.type];
+            if (faction.power !== undefined) { parts.push(`power:${faction.power}`); }
+            let line = `  ${faction.name} (${parts.join(', ')})`;
+            if (faction.goals && faction.goals.length > 0) {
+                line += ` — ${faction.goals.slice(0, 2).join(', ')}`;
+            }
+            if (faction.enemies && faction.enemies.length > 0) {
+                const enemyNames = faction.enemies
+                    .map((eid) => forge.factions.find((f) => f.id === eid)?.name ?? eid)
+                    .slice(0, 2).join(', ');
+                line += ` [enemy of: ${enemyNames}]`;
+            }
+            lines.push(line);
+        }
+    }
+
+    if (forge.loreHistory.length > 0) {
+        lines.push('World lore:');
+        const recent = forge.loreHistory.slice(-2);
+        for (const entry of recent) {
+            const prefix = entry.era
+                ? `${entry.era}${entry.yearsBefore !== undefined ? ` (-${entry.yearsBefore}yr)` : ''}`
+                : entry.yearsBefore !== undefined ? `-${entry.yearsBefore}yr` : '';
+            lines.push(`  ${prefix ? `${prefix}: ` : ''}${entry.event}`);
+        }
+    }
+
+    lines.push('Shape narration, NPC reactions, and world events to reflect this world context.');
+    return lines.join('\n');
+}
+
+function buildWorldStatePromptContext(): string {
+    if (!isWorldStateEnabled()) { return ''; }
+    const worldState = loadWorldState();
+    if (!worldState) { return ''; }
+
+    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
+    const lines = [`[World State — Turn ${worldState.worldTurn}]`];
+
+    // 派閥パワー・モラル
+    const factionEntries = Object.entries(worldState.factions);
+    if (factionEntries.length > 0) {
+        const parts: string[] = [];
+        for (const [id, fs] of factionEntries) {
+            const name = forge?.factions.find((f) => f.id === id)?.name ?? id;
+            const power = Math.round(fs.power);
+            const moraleTag = (fs.morale ?? 50) >= 70 ? '↑morale'
+                : (fs.morale ?? 50) <= 30 ? '↓morale' : '';
+            const recentTag = fs.recentEvents?.[0] ? ` [${fs.recentEvents[0]}]` : '';
+            parts.push(`${name} power:${power}${moraleTag ? ` ${moraleTag}` : ''}${recentTag}`);
+        }
+        lines.push(`Factions: ${parts.join(' | ')}`);
+    }
+
+    // アクティブなグローバルイベント
+    const activeEvents = worldState.globalEvents ?? [];
+    for (const ev of activeEvents.slice(0, 3)) {
+        const remaining = ev.turnsRemaining !== undefined ? `, ${ev.turnsRemaining} turns left` : '';
+        lines.push(`⚠ [${ev.severity}] ${ev.description}${remaining}`);
+    }
+
+    lines.push('Weave faction dynamics and world threats into narration where naturally appropriate.');
+    return lines.join('\n');
+}
+
+function buildNpcRegistryPromptContext(): string {
+    if (!loadGameRules().enableNpcRegistry) { return ''; }
+    const registry = loadNpcRegistry();
+    const entries = Object.entries(registry.npcs);
+    if (entries.length === 0) { return ''; }
+
+    const lines = ['[NPC Awareness]'];
+    let npcCount = 0;
+    for (const [id, npc] of entries) {
+        if (npcCount >= 4) { break; }
+        const d = npc.disposition;
+        const urgentNeeds = npc.needs.filter((n) => n.urgency >= 31).sort((a, b) => b.urgency - a.urgency);
+        const recentMemories = npc.memories.slice(-3);
+
+        const trustLabel = d.playerTrust >= 70 ? 'high — willing to share intel'
+            : d.playerTrust <= 30 ? 'low — guarded and cautious'
+            : `${d.playerTrust}/100`;
+        const romanceNote = d.playerRomance >= 60 ? ` romance:${d.playerRomance}` : '';
+        const fearNote = d.playerFear >= 50 ? ` FEAR:${d.playerFear}` : '';
+
+        lines.push(`--- ${npc.name} (${id}) ---`);
+        lines.push(`Disposition: trust=${trustLabel}${romanceNote}${fearNote} mood=${d.mood}`);
+
+        if (urgentNeeds.length > 0) {
+            for (const need of urgentNeeds.slice(0, 2)) {
+                const urgencyLabel = need.urgency >= 81 ? 'URGENT' : need.urgency >= 61 ? 'HIGH' : 'MED';
+                lines.push(`Need [${urgencyLabel}]: ${need.description} (urgency:${need.urgency})`);
+            }
+        }
+
+        if (recentMemories.length > 0) {
+            const memLine = recentMemories
+                .map((m) => `"${m.content.slice(0, 80)}" [${m.emotionalWeight}]`)
+                .join(' / ');
+            lines.push(`Memory: ${memLine}`);
+        }
+
+        if (npc.dialogueHints) {
+            const hint = d.playerTrust >= 70 && npc.dialogueHints.highTrust ? npc.dialogueHints.highTrust
+                : d.playerTrust <= 30 && npc.dialogueHints.lowTrust ? npc.dialogueHints.lowTrust
+                : urgentNeeds.length > 0 && urgentNeeds[0].urgency >= 61 && npc.dialogueHints.highUrgency ? npc.dialogueHints.highUrgency
+                : d.playerFear >= 50 && npc.dialogueHints.highFear ? npc.dialogueHints.highFear
+                : d.playerRomance >= 60 && npc.dialogueHints.romance ? npc.dialogueHints.romance
+                : '';
+            if (hint) { lines.push(`Hint: ${hint}`); }
+        }
+
+        if (npc.personalityTraits && npc.personalityTraits.length > 0) {
+            lines.push(`Traits: ${npc.personalityTraits.join(', ')}`);
+        }
+        npcCount++;
+    }
+    lines.push('Use disposition/memory/needs to shape NPC tone and what they volunteer to the player.');
+    return lines.join('\n');
+}
+
 function buildLorebookPromptContext(hintText: string): string {
     const matches = resolveLorebookForPrompt(hintText);
     if (matches.length === 0) {
@@ -440,7 +611,10 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('party', 'Party', buildPartyPromptContext()),
         buildSection('partyDirector', 'Party Director', buildPartyDirectorPromptContext()),
         ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint)) : undefined,
+        buildSection('worldForge', 'World', buildWorldForgePromptContext()),
+        buildSection('worldState', 'World State', buildWorldStatePromptContext()),
         buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint)),
+        buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext()),
         buildSection('vision', 'Vision', buildVisionContext())
     ];
 
@@ -485,9 +659,21 @@ export function buildGmPromptContext(playerAction: string): string {
             chunks.push(memoryCtx);
         }
     }
+    const worldCtx = buildWorldForgePromptContext();
+    if (worldCtx) {
+        chunks.push(worldCtx);
+    }
+    const worldStateCtx = buildWorldStatePromptContext();
+    if (worldStateCtx) {
+        chunks.push(worldStateCtx);
+    }
     const loreCtx = buildLorebookPromptContext(hint);
     if (loreCtx) {
         chunks.push(loreCtx);
+    }
+    const npcCtx = buildNpcRegistryPromptContext();
+    if (npcCtx) {
+        chunks.push(npcCtx);
     }
     const visionCtx = buildVisionContext();
     if (visionCtx) {
@@ -514,12 +700,13 @@ function buildVisionContext(): string {
     }
     const desc = (state as any).latestImageDescription;
     if (desc) {
+        const safeDesc = String(desc).replace(/\s+/g, ' ').trim().slice(0, 1200);
         return `[Visual Context (Current Scene Image)]
 The game has generated a visual representation of the current situation. Here is the description of what is depicted in the image:
-"${desc}"
+"${safeDesc}"
 Please ensure your next narration aligns with these visual elements (e.g., characters present, background details, mood, colors, and lighting).`;
     }
-    return `[Vision Context: latestImage = ${state.latestImage}]\n*The VLM analysis is currently running or disabled. A new image was generated.*`;
+    return `[Vision Context]\n*The VLM analysis is currently running or disabled. A new scene image was generated.*`;
 }
 
 export function processProfileUpdates(updates: ProfileUpdate[]): void {

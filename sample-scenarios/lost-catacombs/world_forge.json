@@ -1,0 +1,114 @@
+{
+  "format": "lorerelay-world-forge/1.0",
+  "meta": {
+    "worldName": "古代地下墓地の世界",
+    "worldSeed": "catacombs-001",
+    "theme": "dungeon-crawler",
+    "generationMethod": "manual"
+  },
+  "geography": {
+    "regions": [
+      {
+        "id": "upper_catacombs",
+        "name": "上層墓地",
+        "type": "dungeon",
+        "dangerLevel": 3,
+        "description": "かつては貴族が眠る場所だったが、今は不死の巡回兵が徘徊する。",
+        "connectedTo": ["deep_vault"],
+        "imagePromptHint": "ancient stone corridor, flickering torches, carved sarcophagi"
+      },
+      {
+        "id": "deep_vault",
+        "name": "深層の封印室",
+        "type": "dungeon",
+        "dangerLevel": 8,
+        "description": "封印された古代の儀式場。強力なアンデッドが守護している。",
+        "connectedTo": ["upper_catacombs"],
+        "imagePromptHint": "massive underground chamber, ancient runes glowing red, undead army"
+      }
+    ],
+    "locations": [
+      {
+        "id": "entrance_hall",
+        "name": "墓地入口の間",
+        "regionId": "upper_catacombs",
+        "type": "landmark",
+        "factionControl": "grave_watchers",
+        "description": "墓守協会が検問を張る墓地の入り口。松明の煙が漂う。",
+        "services": ["rest", "information"]
+      },
+      {
+        "id": "archive_room",
+        "name": "記録の間",
+        "regionId": "upper_catacombs",
+        "type": "landmark",
+        "description": "古代の文書が保管された部屋。記録官の幽霊が守護する。"
+      },
+      {
+        "id": "ritual_chamber",
+        "name": "封印の儀式場",
+        "regionId": "deep_vault",
+        "type": "dungeon",
+        "factionControl": "undead_legion",
+        "description": "古代の召喚陣が今も残る部屋。不死の軍団の拠点。"
+      }
+    ]
+  },
+  "factions": [
+    {
+      "id": "undead_legion",
+      "name": "不死の軍団",
+      "type": "hostile",
+      "power": 80,
+      "resources": { "weapons": 70, "mana": 50 },
+      "goals": ["封印を解いて地上へ進軍する", "生者を排除する"],
+      "enemies": ["grave_watchers"],
+      "description": "古代の呪いで蘇った兵士たち。知性はないが組織的に行動する。"
+    },
+    {
+      "id": "grave_watchers",
+      "name": "墓守協会",
+      "type": "neutral",
+      "power": 40,
+      "resources": { "food": 20, "weapons": 30 },
+      "goals": ["封印を維持する", "外部者から墓地を守る"],
+      "enemies": ["undead_legion"],
+      "allies": [],
+      "description": "代々この墓地を管理してきた組織。プレイヤーへの対応は任務次第。"
+    }
+  ],
+  "loreHistory": [
+    {
+      "era": "帝国時代",
+      "yearsBefore": 400,
+      "event": "王族と貴族の埋葬地として墓地が建設される。精巧な罠と封印が施された。"
+    },
+    {
+      "era": "封印の時代",
+      "yearsBefore": 200,
+      "event": "禁術師が深層で召喚実験を行い失敗。アンデッドが発生し封印される。"
+    },
+    {
+      "era": "現代",
+      "yearsBefore": 0,
+      "event": "封印が弱まり始め、墓守協会が緊急招集。外部の冒険者が雇われる。"
+    }
+  ],
+  "initialNpcs": [
+    {
+      "id": "warden_dorak",
+      "name": "墓守長ドラク",
+      "role": "quest-giver",
+      "locationId": "entrance_hall",
+      "factionId": "grave_watchers",
+      "description": "60代の厳格な墓守長。封印の維持に命を懸けている。"
+    },
+    {
+      "id": "ghost_archivist",
+      "name": "記録官の幽霊",
+      "role": "information",
+      "locationId": "archive_room",
+      "description": "死後も記録室を守り続ける学者の幽霊。古代の知識を持つが接触は困難。"
+    }
+  ]
+}

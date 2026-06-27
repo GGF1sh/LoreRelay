@@ -21,6 +21,7 @@ import {
     pushPartyDirectorToWebview,
     savePartyDirectorFromUi
 } from './partyDirector';
+import { initWorldView, pushWorldViewToWebview } from './worldView';
 import {
     getMemoryStatus,
     rebuildMemoryIndex,
@@ -183,6 +184,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
     initScenarioDirector({ getPanel: () => panel });
     initPartyDirector({ getPanel: () => panel });
+    initWorldView({ getPanel: () => panel });
 
     const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', async () => {
         if (panel) {
@@ -677,6 +679,10 @@ function sendPartyDirector(): void {
     pushPartyDirectorToWebview();
 }
 
+function sendWorldView(): void {
+    pushWorldViewToWebview();
+}
+
 async function handleSavePartyDirector(raw: unknown): Promise<void> {
     const result = savePartyDirectorFromUi(raw);
     if (!panel) {
@@ -762,7 +768,7 @@ async function handleUpdateGameRules(raw: unknown): Promise<void> {
 }
 
 async function exportCharacterCard(payload: any): Promise<void> {
-    const defaultName = (payload.char_name || 'Character').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const defaultName = (payload.char_name || 'Character').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'Character';
     const uri = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file(`${defaultName}.png`),
         filters: { 'PNG Images': ['png'] },
@@ -772,9 +778,20 @@ async function exportCharacterCard(payload: any): Promise<void> {
 
     try {
         let pngBuffer: Buffer;
-        if (payload.portrait && payload.portrait.startsWith('data:image/png;base64,')) {
-            const base64Data = payload.portrait.split(',')[1];
+        const match = typeof payload.portrait === 'string'
+            ? /^data:image\/png;base64,([a-zA-Z0-9+/=\r\n]+)$/.exec(payload.portrait)
+            : null;
+        if (match) {
+            const base64Data = match[1].replace(/\s+/g, '');
+            if (base64Data.length > 12 * 1024 * 1024) {
+                vscode.window.showErrorMessage('Portrait PNG is too large for character card export.');
+                return;
+            }
             pngBuffer = Buffer.from(base64Data, 'base64');
+            if (pngBuffer.length <= 0 || pngBuffer.length > 8 * 1024 * 1024) {
+                vscode.window.showErrorMessage('Portrait PNG is too large for character card export.');
+                return;
+            }
         } else {
             vscode.window.showErrorMessage('No valid PNG portrait provided for export.');
             return;
@@ -816,6 +833,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendMemoryStatus,
         sendScenarioDirector,
         sendPartyDirector,
+        sendWorldView,
         handleSavePartyDirector,
         handleCopyRemotePlayUrl,
         saveCharacter,

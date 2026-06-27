@@ -11,6 +11,10 @@ export interface GameRules {
     skillCommentary?: boolean;
     backgroundSimulation?: boolean;
     autoLorebookGrowth?: boolean;
+    enableNpcRegistry?: boolean;
+    enableWorldForge?: boolean;
+    enableEmergentSimulation?: boolean;
+    simIntervalTurns?: number;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -20,7 +24,11 @@ export const DEFAULT_GAME_RULES: GameRules = {
     diceDifficulty: "Normal",
     skillCommentary: false,
     backgroundSimulation: false,
-    autoLorebookGrowth: false
+    autoLorebookGrowth: false,
+    enableNpcRegistry: false,
+    enableWorldForge: false,
+    enableEmergentSimulation: false,
+    simIntervalTurns: 5
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -86,6 +94,18 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.autoLorebookGrowth !== undefined && typeof rules.autoLorebookGrowth === 'boolean') {
             sanitized.autoLorebookGrowth = rules.autoLorebookGrowth;
+        }
+        if (rules.enableNpcRegistry !== undefined && typeof rules.enableNpcRegistry === 'boolean') {
+            sanitized.enableNpcRegistry = rules.enableNpcRegistry;
+        }
+        if (rules.enableWorldForge !== undefined && typeof rules.enableWorldForge === 'boolean') {
+            sanitized.enableWorldForge = rules.enableWorldForge;
+        }
+        if (rules.enableEmergentSimulation !== undefined && typeof rules.enableEmergentSimulation === 'boolean') {
+            sanitized.enableEmergentSimulation = rules.enableEmergentSimulation;
+        }
+        if (rules.simIntervalTurns !== undefined && typeof rules.simIntervalTurns === 'number') {
+            sanitized.simIntervalTurns = Math.max(1, Math.min(50, Math.floor(rules.simIntervalTurns)));
         }
     }
 

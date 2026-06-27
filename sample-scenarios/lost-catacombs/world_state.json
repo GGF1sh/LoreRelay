@@ -1,0 +1,42 @@
+{
+  "format": "lorerelay-world-state/1.0",
+  "lastUpdated": "2026-06-27T00:00:00Z",
+  "worldTurn": 0,
+  "factions": {
+    "undead_legion": {
+      "power": 80,
+      "resources": { "weapons": 70, "mana": 50 },
+      "morale": 75,
+      "recentEvents": []
+    },
+    "grave_watchers": {
+      "power": 40,
+      "resources": { "food": 20, "weapons": 30 },
+      "morale": 55,
+      "recentEvents": []
+    }
+  },
+  "regions": {
+    "upper_catacombs": {
+      "dangerLevel": 3,
+      "controllingFaction": "grave_watchers",
+      "activeEvents": []
+    },
+    "deep_vault": {
+      "dangerLevel": 8,
+      "controllingFaction": "undead_legion",
+      "activeEvents": ["seal_weakening"]
+    }
+  },
+  "globalEvents": [
+    {
+      "id": "seal_weakening",
+      "type": "magical",
+      "severity": "major",
+      "description": "深層封印が弱まっている。放置すれば不死の軍団が上層まで進出するかもしれない。",
+      "turnsRemaining": 20,
+      "triggerCondition": null
+    }
+  ],
+  "pendingWorldEvents": []
+}

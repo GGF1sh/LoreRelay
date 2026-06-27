@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { GameEntry, GameState, HiddenDiceEntry, ProfileUpdate, SceneSprite } from './types/GameState';
+import { applyNpcMemoryUpdates, parseNpcMemoryUpdatesFromGameState } from './npcRegistry';
+import { loadGameRules } from './gameRules';
 import { isValidEntryId } from './entryId';
 import { validateGameState } from './validateGameState';
 import { migrateGameState, CURRENT_SCHEMA_VERSION } from './migrateGameState';
@@ -31,6 +33,8 @@ import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
 import { pushGameStateToRemoteClients } from './remotePlayServer';
 import { pushScenarioDirectorToWebview } from './scenarioDirector';
 import { pushPartyDirectorToWebview } from './partyDirector';
+import { pushWorldViewToWebview } from './worldView';
+import { maybeTickSimulation } from './emergentSimulator';
 import { isAllowedImagePath } from './mediaPaths';
 import type { TurnResult } from './types/TurnResult';
 
@@ -259,6 +263,16 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                 writeJsonAtomic(statePath, state);
             }
 
+            if (!hadSchemaErrors && Array.isArray(state.npcMemoryUpdates) && state.npcMemoryUpdates.length > 0) {
+                if (loadGameRules().enableNpcRegistry) {
+                    const currentTurn = gameEntryHistory.length;
+                    const updates = parseNpcMemoryUpdatesFromGameState(state.npcMemoryUpdates);
+                    applyNpcMemoryUpdates(updates, currentTurn);
+                }
+                delete state.npcMemoryUpdates;
+                writeJsonAtomic(statePath, state);
+            }
+
             let historyUpdated = false;
             if (!hadSchemaErrors && state.entries && Array.isArray(state.entries)) {
                 state.entries.forEach((rawEntry: unknown) => {
@@ -326,6 +340,9 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             if (historyUpdated) {
                 saveHistoryToDisk();
                 d.maybeSuggestArchive();
+                // GM ターン数が simIntervalTurns の倍数に達したらシミュレーションを進める
+                const gmTurnCount = gameEntryHistory.filter((e) => e.role === 'gm').length;
+                maybeTickSimulation(gmTurnCount);
             }
 
             const currentEntries: GameEntry[] = Array.isArray(activeState.entries)
@@ -391,6 +408,8 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             pushGameStateToRemoteClients(activeState as unknown as GameState, gameEntryHistory);
             pushScenarioDirectorToWebview();
             pushPartyDirectorToWebview();
+            const worldBlock = (activeState as Record<string, unknown>).world as Record<string, unknown> | undefined;
+            pushWorldViewToWebview(typeof worldBlock?.currentLocationId === 'string' ? worldBlock.currentLocationId : undefined);
         }
     } catch (e) {
         console.error(`Error reading game state (attempt ${retryCount + 1}):`, e);

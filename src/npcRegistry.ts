@@ -73,6 +73,25 @@ export function getNpcEntry(npcId: string): NpcEntry | undefined {
     return loadNpcRegistry().npcs[npcId];
 }
 
+/**
+ * Sets (or clears) the portrait image path for an NPC.
+ * Pass `undefined` to remove the portrait link.
+ * Returns false if npcId is not found.
+ */
+export function setNpcPortrait(npcId: string, imagePath: string | undefined): boolean {
+    const registry = loadNpcRegistry();
+    const entry = registry.npcs[npcId];
+    if (!entry) { return false; }
+    if (imagePath) {
+        entry.portraitImagePath = imagePath;
+    } else {
+        delete entry.portraitImagePath;
+    }
+    registry.npcs[npcId] = entry;
+    saveNpcRegistry(registry);
+    return true;
+}
+
 /** urgency の高い順にソートされたNeedsを返す。 */
 export function resolveActiveNeeds(npcId: string, minUrgency = 0): NpcNeed[] {
     const entry = getNpcEntry(npcId);

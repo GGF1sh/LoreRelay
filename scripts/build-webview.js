@@ -34,6 +34,7 @@ const CSS_MODULE_ORDER = [
     '60-dice-calc.css',
     '70-archive-stt-tts.css',
     '80-image-gen.css',
+    '85-world.css',
     '90-game-rules.css',
     '90-inspector.css',
     '95-character-creator.css'

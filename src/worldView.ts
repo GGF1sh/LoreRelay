@@ -6,6 +6,9 @@ import { extractHighlightRegionIds } from './npcBridgeCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import type { Faction } from './worldForgeCore';
 import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldStateCore';
+import { loadNpcRegistry } from './npcRegistry';
+import { getEntriesByLocation } from './visualMemory';
+import { safeImageUri } from './gameStateSync';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
@@ -69,6 +72,38 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const worldMap = generateWorldMap(forge, currentLocationId, regionStates, factionStates, highlightRegionIds);
     const factions = forge.factions.map(serializeFaction);
 
+    // Location image history — up to 4 most-recent analyzed entries for current location
+    const locationImages = currentLocationId
+        ? getEntriesByLocation(currentLocationId)
+            .sort((a, b) => b.analyzedAt.localeCompare(a.analyzedAt))
+            .slice(0, 4)
+            .map((e) => ({
+                src: safeImageUri(e.imagePath) ?? '',
+                rawImagePath: e.imagePath,
+                description: e.description,
+                worldTurn: e.worldTurn,
+            }))
+            .filter((e) => e.src)
+        : [];
+
+    // NPCs at current location with portrait URIs
+    const registry = loadNpcRegistry();
+    const MAX_NPCS_AT_LOCATION = 10;
+    const npcsAtLocation = currentLocationId
+        ? Object.entries(registry.npcs)
+            .filter(([, npc]) => npc.locationId === currentLocationId)
+            .slice(0, MAX_NPCS_AT_LOCATION)
+            .map(([id, npc]) => ({
+                id,
+                name: npc.name,
+                mood: npc.disposition.mood,
+                playerTrust: npc.disposition.playerTrust,
+                portraitUri: npc.portraitImagePath ? (safeImageUri(npc.portraitImagePath) ?? undefined) : undefined,
+                hasPortrait: Boolean(npc.portraitImagePath),
+                urgentNeedCount: npc.needs.filter((n) => n.urgency >= 70).length,
+            }))
+        : [];
+
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
@@ -84,6 +119,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         simEnabled,
         currentLocationId: currentLocationId ?? null,
         locationCount: forge.geography.locations.length,
-        regionCount: forge.geography.regions.length
+        regionCount: forge.geography.regions.length,
+        locationImages,
+        npcsAtLocation,
     });
 }

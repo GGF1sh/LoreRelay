@@ -43,6 +43,8 @@ export interface NpcEntry {
     memories: NpcMemoryEntry[];
     personalityTraits?: string[];
     dialogueHints?: NpcDialogueHints;
+    /** Absolute path to the portrait image file linked from the gallery. */
+    portraitImagePath?: string;
 }
 
 export interface NpcRegistry {

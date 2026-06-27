@@ -112,6 +112,12 @@ function renderWorldView(msg) {
     // Mermaid マップ
     renderMermaidMap(msg.worldMap, msg.currentLocationId);
 
+    // Location image history (from visual_memory.json)
+    renderLocationImages(msg.locationImages || [], msg.currentLocationId);
+
+    // NPCs at current location
+    renderNpcsAtLocation(msg.npcsAtLocation || [], msg.currentLocationId);
+
     // グローバルイベント（シミュ有効時）
     renderGlobalEvents(msg.globalEvents || [], msg.simEnabled);
 
@@ -135,6 +141,149 @@ function renderMermaidMap(mmdCode, currentLocationId) {
             container.textContent = mmdCode;
         });
     }
+}
+
+// ---------------------------------------------------------------------------
+// ロケーション画像履歴
+// ---------------------------------------------------------------------------
+
+function renderLocationImages(images, currentLocationId) {
+    const SECTION_ID = 'world-location-images';
+    let section = document.getElementById(SECTION_ID);
+    if (!section) {
+        const mermaidEl = document.getElementById('world-mermaid');
+        if (!mermaidEl) { return; }
+        section = document.createElement('div');
+        section.id = SECTION_ID;
+        mermaidEl.parentNode.insertBefore(section, mermaidEl.nextSibling);
+    }
+
+    if (!currentLocationId || images.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    section.innerHTML = '';
+
+    const heading = document.createElement('div');
+    heading.className = 'world-section-heading';
+    heading.textContent = '📷 Scene History';
+    section.appendChild(heading);
+
+    const strip = document.createElement('div');
+    strip.className = 'world-image-strip';
+
+    for (const img of images) {
+        if (!img.src) { continue; }
+        const wrap = document.createElement('div');
+        wrap.className = 'world-image-thumb-wrap';
+
+        const el = document.createElement('img');
+        el.className = 'world-image-thumb';
+        el.src = img.src;
+        if (img.description) { el.title = img.description; }
+        wrap.appendChild(el);
+
+        if (img.worldTurn !== undefined) {
+            const badge = document.createElement('span');
+            badge.className = 'world-image-turn-badge';
+            badge.textContent = 'T' + img.worldTurn;
+            wrap.appendChild(badge);
+        }
+
+        strip.appendChild(wrap);
+    }
+
+    section.appendChild(strip);
+}
+
+// ---------------------------------------------------------------------------
+// 現在地のNPCパネル
+// ---------------------------------------------------------------------------
+
+function renderNpcsAtLocation(npcs, currentLocationId) {
+    const SECTION_ID = 'world-npcs-section';
+    let section = document.getElementById(SECTION_ID);
+    if (!section) {
+        const imageSection = document.getElementById('world-location-images');
+        const anchor = imageSection || document.getElementById('world-mermaid');
+        if (!anchor) { return; }
+        section = document.createElement('div');
+        section.id = SECTION_ID;
+        anchor.parentNode.insertBefore(section, anchor.nextSibling);
+    }
+
+    if (!currentLocationId || npcs.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    section.innerHTML = '';
+
+    const heading = document.createElement('div');
+    heading.className = 'world-section-heading';
+    heading.textContent = '👤 NPCs Here';
+    section.appendChild(heading);
+
+    const grid = document.createElement('div');
+    grid.className = 'world-npc-grid';
+
+    for (const npc of npcs) {
+        const card = document.createElement('div');
+        card.className = 'world-npc-card';
+
+        // Portrait or placeholder
+        const portrait = document.createElement('div');
+        portrait.className = 'world-npc-portrait';
+        if (npc.portraitUri) {
+            const img = document.createElement('img');
+            img.src = npc.portraitUri;
+            img.alt = npc.name;
+            portrait.appendChild(img);
+        } else {
+            portrait.textContent = '👤';
+            portrait.classList.add('placeholder');
+        }
+        card.appendChild(portrait);
+
+        // Info column
+        const info = document.createElement('div');
+        info.className = 'world-npc-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'world-npc-name';
+        nameEl.textContent = npc.name;
+        info.appendChild(nameEl);
+
+        const moodEl = document.createElement('div');
+        moodEl.className = 'world-npc-mood';
+        moodEl.textContent = npc.mood;
+        info.appendChild(moodEl);
+
+        if (npc.urgentNeedCount > 0) {
+            const needEl = document.createElement('div');
+            needEl.className = 'world-npc-needs';
+            needEl.textContent = `⚠ ${npc.urgentNeedCount} urgent`;
+            info.appendChild(needEl);
+        }
+
+        // "Set Portrait" — picks image via extension QuickPick
+        const setBtn = document.createElement('button');
+        setBtn.className = 'world-npc-portrait-btn';
+        setBtn.textContent = npc.hasPortrait ? '🖼 Change' : '🖼 Set Portrait';
+        setBtn.title = 'Choose a gallery image to use as this NPC\'s portrait';
+        setBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'requestNpcPortraitLink', npcId: npc.id });
+        });
+        info.appendChild(setBtn);
+
+        card.appendChild(info);
+        grid.appendChild(card);
+    }
+
+    section.appendChild(grid);
 }
 
 // ---------------------------------------------------------------------------

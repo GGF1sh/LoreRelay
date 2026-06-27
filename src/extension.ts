@@ -979,6 +979,65 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             const { enqueueVlmAnalysis, buildVlmMetaFromGameState } = await import('./vlmQueue');
             await enqueueVlmAnalysis(imagePath, buildVlmMetaFromGameState());
         },
+        handleRequestNpcPortraitLink: async (npcId: string) => {
+            const { loadVisualMemory } = await import('./visualMemory');
+            const mem = loadVisualMemory();
+            const entries = Object.values(mem.entries);
+            if (entries.length === 0) {
+                vscode.window.showWarningMessage('No analyzed images in visual memory. Analyze an image first via the Gallery.');
+                return;
+            }
+            const items = entries.map((e) => ({
+                label: path.basename(e.imagePath),
+                description: e.locationId ? `@${e.locationId}` : '',
+                detail: e.description?.slice(0, 80),
+                imagePath: e.imagePath,
+            }));
+            const picked = await vscode.window.showQuickPick(items, {
+                placeHolder: `Select portrait image for NPC "${npcId}"`,
+                matchOnDescription: true,
+                matchOnDetail: true,
+            });
+            if (!picked) { return; }
+            const { setNpcPortrait } = await import('./npcRegistry');
+            const ok = setNpcPortrait(npcId, picked.imagePath);
+            if (ok) {
+                vscode.window.setStatusBarMessage(`Portrait set for ${npcId}`, 3000);
+                const statePath = getGameStatePath();
+                let locationId: string | undefined;
+                if (statePath && fs.existsSync(statePath)) {
+                    try {
+                        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+                        const world = raw.world as Record<string, unknown> | undefined;
+                        if (typeof world?.currentLocationId === 'string') { locationId = world.currentLocationId; }
+                    } catch { /* ignore */ }
+                }
+                pushWorldViewToWebview(locationId);
+            } else {
+                vscode.window.showWarningMessage(`NPC "${npcId}" not found in registry.`);
+            }
+        },
+        handleSetNpcPortrait: async (npcId: string, imagePath: string) => {
+            const { setNpcPortrait } = await import('./npcRegistry');
+            const ok = setNpcPortrait(npcId, imagePath);
+            if (ok) {
+                // Read currentLocationId from game_state.json to refresh World tab
+                let locationId: string | undefined;
+                const statePath = getGameStatePath();
+                if (statePath && fs.existsSync(statePath)) {
+                    try {
+                        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+                        const world = raw.world as Record<string, unknown> | undefined;
+                        if (typeof world?.currentLocationId === 'string') {
+                            locationId = world.currentLocationId;
+                        }
+                    } catch { /* ignore */ }
+                }
+                pushWorldViewToWebview(locationId);
+            } else {
+                vscode.window.showWarningMessage(`NPC "${npcId}" not found in registry.`);
+            }
+        },
     };
 }
 

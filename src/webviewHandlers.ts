@@ -76,6 +76,8 @@ export interface WebviewHandlerDeps {
     handleExportHtml(): Promise<void>;
     handleRequestMermaid(target: string): Promise<void>;
     handleRequestVlmAnalysis(imagePath: string): Promise<void>;
+    handleSetNpcPortrait(npcId: string, imagePath: string): Promise<void>;
+    handleRequestNpcPortraitLink(npcId: string): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -320,6 +322,17 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'requestVlmAnalysis':
             if (typeof message.imagePath === 'string' && message.imagePath) {
                 await deps.handleRequestVlmAnalysis(message.imagePath);
+            }
+            break;
+        case 'setNpcPortrait':
+            if (typeof message.npcId === 'string' && message.npcId &&
+                typeof message.imagePath === 'string' && message.imagePath) {
+                await deps.handleSetNpcPortrait(message.npcId, message.imagePath);
+            }
+            break;
+        case 'requestNpcPortraitLink':
+            if (typeof message.npcId === 'string' && message.npcId) {
+                await deps.handleRequestNpcPortraitLink(message.npcId);
             }
             break;
         default:

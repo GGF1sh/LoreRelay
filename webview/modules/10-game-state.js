@@ -73,7 +73,10 @@ function applyGameState(state, fullHistory) {
 
   // 画像の更新
   if (state.latestImage) {
-    addImageToGallery(state.latestImage);
+    addImageToGallery(state.latestImage, {
+      rawPath: state.latestImageRawPath,
+      description: state.latestImageDescription,
+    });
   }
 
   // テーマの更新
@@ -590,7 +593,10 @@ function renderOptions(options) {
  * @param {{ rawPath?: string, prompt?: string, locationId?: string, worldTurn?: number, description?: string }} [meta]
  */
 function addImageToGallery(src, meta) {
-  const idx = galleryImages.findIndex(e => e.src === src);
+  const idx = galleryImages.findIndex(e =>
+    e.src === src ||
+    (meta?.rawPath && e.rawPath && imagePathsLooselyMatch(e.rawPath, meta.rawPath))
+  );
   if (idx >= 0) {
     // Merge new metadata into existing entry (never overwrite description with undefined)
     const existing = galleryImages[idx];

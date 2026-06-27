@@ -7,6 +7,15 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.3] - 2026-06-28
+
+### Fixed — Visual Memory Phase 5 follow-up review
+- **Gallery Analyze 復元漏れ**: `gameStateSync` が Webview 表示用URIへ変換する前の `rawImagePath` を履歴エントリと `latestImageRawPath` に保持し、フル履歴再送・Webview再表示後も Analyze ボタンが使えるよう修正。
+- **Gallery 重複抑制**: Webview URI だけでなく `rawPath` の正規化比較でも同一画像をマージし、再表示やURI再生成で同じ画像が重複しにくいよう修正。
+- **Visual Memory hash I/O**: `hashImageFile()` の読み込み処理を `try/finally` 化し、例外時もファイルディスクリプタを確実に閉じるよう修正。
+- **回帰テスト**: Webview bundle テストに `latestImageRawPath` / `imagePathsLooselyMatch` の存在確認を追加。
+- **テスト安定化**: World Forge Generator の決定性テストが実時間 `generatedAt` のミリ秒差でフレークしないよう、生成内容比較から timestamp のみ除外。
+
 ## [1.5.2] - 2026-06-28
 
 ### Fixed — Visual Memory Phase 5c/5d コードレビュー

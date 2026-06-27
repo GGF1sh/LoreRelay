@@ -84,12 +84,15 @@ export function hashImageFile(imagePath: string): string | null {
         if (stat.size <= 0) { return null; }
 
         const fd = fs.openSync(safePath, 'r');
-        const buf = Buffer.alloc(Math.min(stat.size, MAX_IMAGE_HASH_READ_BYTES));
-        fs.readSync(fd, buf, 0, buf.length, 0);
-        fs.closeSync(fd);
+        try {
+            const buf = Buffer.alloc(Math.min(stat.size, MAX_IMAGE_HASH_READ_BYTES));
+            fs.readSync(fd, buf, 0, buf.length, 0);
 
-        const hex = crypto.createHash('sha256').update(buf).digest('hex');
-        return makeImageHashKey(hex);
+            const hex = crypto.createHash('sha256').update(buf).digest('hex');
+            return makeImageHashKey(hex);
+        } finally {
+            fs.closeSync(fd);
+        }
     } catch {
         return null;
     }

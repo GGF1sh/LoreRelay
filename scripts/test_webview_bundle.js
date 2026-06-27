@@ -21,7 +21,9 @@ const content = fs.readFileSync(scriptPath, 'utf-8');
 // The bundle should contain 85-world.js code, containing the 'worldView' handler and UI rendering functions
 const expectedSymbols = [
     'worldView',
-    'renderWorldView'
+    'renderWorldView',
+    'latestImageRawPath',
+    'imagePathsLooselyMatch'
 ];
 
 for (const symbol of expectedSymbols) {

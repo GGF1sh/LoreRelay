@@ -388,6 +388,7 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             const entriesToSend = sourceEntries.map((entry: GameEntry) => {
                 const e = { ...entry };
                 if (e.image) {
+                    e.rawImagePath = e.image;
                     const uri = safeImageUri(e.image);
                     if (uri) {
                         e.image = uri;
@@ -414,7 +415,8 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                     )
                     : undefined;
 
-            const stateForWebview = { ...activeState, entries: entriesToSend, latestImage, background, sprite, hiddenDice };
+            const latestImageRawPath = activeState.latestImage ? String(activeState.latestImage) : undefined;
+            const stateForWebview = { ...activeState, entries: entriesToSend, latestImage, latestImageRawPath, background, sprite, hiddenDice };
             panel.webview.postMessage({
                 type: 'gameStateUpdate',
                 fullHistory,

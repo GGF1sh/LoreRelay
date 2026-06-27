@@ -19,7 +19,7 @@ import {
 } from './archivePrompt';
 import { isValidCharacterId } from './characterId';
 import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
-import { getGameEntryHistory } from './gameStateSync';
+import { getCachedGameState, getGameEntryHistory } from './gameStateSync';
 import { getGmBridgeOutputChannel } from './gmBridgeRunner';
 import {
     getMemoryBackendSetting,
@@ -82,18 +82,33 @@ function gmLanguageName(locale?: SupportedLocale): string {
     return t(`gm.languageName.${loc}`, undefined, loc);
 }
 
-function loadStorySummary(): string {
+function readGameStateForPrompt(): Record<string, unknown> | undefined {
+    const cached = getCachedGameState();
+    if (cached) {
+        return cached;
+    }
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
-        return '';
+        return undefined;
     }
     try {
-        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        return typeof state.summary === 'string' ? state.summary.trim() : '';
+        return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
     } catch {
-        return '';
+        return undefined;
     }
 }
+
+function loadStorySummary(): string {
+    const state = readGameStateForPrompt();
+    if (!state) {
+        return '';
+    }
+    return typeof state.summary === 'string' ? state.summary.trim() : '';
+}
+
+let lorebookCachePath = '';
+let lorebookCacheMtime = 0;
+let lorebookCacheEntries: LorebookEntry[] = [];
 
 function loadAllLorebookEntriesRaw(): LorebookEntry[] {
     const ws = getWorkspacePath();
@@ -106,9 +121,16 @@ function loadAllLorebookEntriesRaw(): LorebookEntry[] {
             continue;
         }
         try {
+            const mtime = fs.statSync(p).mtimeMs;
+            if (p === lorebookCachePath && mtime === lorebookCacheMtime) {
+                return lorebookCacheEntries;
+            }
             const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
             if (Array.isArray(raw.entries)) {
-                return raw.entries as LorebookEntry[];
+                lorebookCachePath = p;
+                lorebookCacheMtime = mtime;
+                lorebookCacheEntries = raw.entries as LorebookEntry[];
+                return lorebookCacheEntries;
             }
         } catch {
             /* try next */
@@ -410,7 +432,10 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     const sections = [
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
-        buildSection('summary', 'Story Synopsis', loadStorySummary() ? `[Story Synopsis]\n${loadStorySummary()}` : ''),
+        buildSection('summary', 'Story Synopsis', (() => {
+            const summary = loadStorySummary();
+            return summary ? `[Story Synopsis]\n${summary}` : '';
+        })()),
         ws ? buildSection('saga', 'Saga Archive', buildSagaPromptContext(ws, 2)) : undefined,
         buildSection('party', 'Party', buildPartyPromptContext()),
         buildSection('partyDirector', 'Party Director', buildPartyDirectorPromptContext()),
@@ -483,19 +508,11 @@ export function postPromptContextToWebview(playerAction: string): void {
 }
 
 function buildVisionContext(): string {
-    const statePath = getGameStatePath();
-    if (!statePath || !fs.existsSync(statePath)) {
+    const state = readGameStateForPrompt();
+    if (!state || !state.latestImage) {
         return '';
     }
-    try {
-        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        if (state.latestImage) {
-            return `[Vision Context: latestImage = ${state.latestImage}]\n*The VLM can use this image path to describe the current scene visually.*`;
-        }
-    } catch {
-        // ignore
-    }
-    return '';
+    return `[Vision Context: latestImage = ${state.latestImage}]\n*The VLM can use this image path to describe the current scene visually.*`;
 }
 
 export function processProfileUpdates(updates: ProfileUpdate[]): void {

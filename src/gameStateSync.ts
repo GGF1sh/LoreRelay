@@ -74,6 +74,19 @@ export function getGameEntryHistory(): GameEntry[] {
     return gameEntryHistory;
 }
 
+/** 最後に検証済みの game_state（ディスク再読み込み回避用）。 */
+export function getCachedGameState(): Record<string, unknown> | undefined {
+    return lastGoodGameState;
+}
+
+export function isGameOverActiveCached(): boolean {
+    const state = lastGoodGameState;
+    if (!state || typeof state.gameOver !== 'object' || state.gameOver === null) {
+        return false;
+    }
+    return Boolean((state.gameOver as Record<string, unknown>).active);
+}
+
 export function setGameEntryHistory(entries: GameEntry[]): void {
     gameEntryHistory = entries;
 }

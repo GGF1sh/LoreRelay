@@ -5,7 +5,7 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
 import { getWorkspacePath } from './workspacePaths';
 import { getConfiguredLocale, getWebviewStrings, t } from './i18n';
@@ -69,6 +69,42 @@ const wsClients = new Map<string, WsConnection>();
 let lastBroadcastState: RemotePlayerState | undefined;
 let gmBusyFlag = false;
 let remoteInputLocked = false;
+let remoteInputLockTimer: NodeJS.Timeout | undefined;
+const REMOTE_INPUT_LOCK_MS = 60_000;
+
+function releaseRemoteInputLock(reason?: string): void {
+    remoteInputLocked = false;
+    if (remoteInputLockTimer) {
+        clearTimeout(remoteInputLockTimer);
+        remoteInputLockTimer = undefined;
+    }
+    if (reason) {
+        log(reason);
+    }
+}
+
+function acquireRemoteInputLock(): void {
+    remoteInputLocked = true;
+    if (remoteInputLockTimer) {
+        clearTimeout(remoteInputLockTimer);
+    }
+    remoteInputLockTimer = setTimeout(() => {
+        if (remoteInputLocked) {
+            releaseRemoteInputLock('Remote input lock watchdog released lock after 60s');
+        }
+    }, REMOTE_INPUT_LOCK_MS);
+}
+
+function tokensMatch(provided: unknown, expected: string): boolean {
+    if (typeof provided !== 'string' || provided.length !== expected.length) {
+        return false;
+    }
+    try {
+        return timingSafeEqual(Buffer.from(provided, 'utf8'), Buffer.from(expected, 'utf8'));
+    } catch {
+        return false;
+    }
+}
 
 const MIME: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
@@ -241,7 +277,7 @@ function sendToClient(
     client.socket.send(JSON.stringify(message), callback);
 }
 
-function closeClient(client: WsConnection, code = 1000, reason = ''): void {
+function closeClient(client: WsConnection, _code = 1000, reason = ''): void {
     const wasAuthed = client.authenticated;
     wsClients.delete(client.id);
     if (client.authTimer) {
@@ -249,13 +285,13 @@ function closeClient(client: WsConnection, code = 1000, reason = ''): void {
         client.authTimer = undefined;
     }
     if (client.socket.readyState === WebSocket.OPEN) {
-        client.socket.close(code, reason);
+        client.socket.close(_code, reason);
     }
     log(`Client disconnected (${client.id}). Active: ${wsClients.size}. ${reason ? reason : ''}`.trim());
     if (wasAuthed) {
         notifyHostRemotePlayStatus();
     }
-    void code;
+    void _code;
 }
 
 function notifyHostRemotePlayStatus(): void {
@@ -284,7 +320,7 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
     }
 
     if (!client.authenticated) {
-        if (msg.type === 'auth' && msg.token === sessionToken) {
+        if (msg.type === 'auth' && tokensMatch(msg.token, sessionToken)) {
             const cfg = getConfig();
             client.role = normalizeRole(msg.role, cfg.defaultRole);
             client.authenticated = true;
@@ -347,7 +383,7 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             }
             client.lastInputAt = now;
             const authorsNote = typeof msg.authorsNote === 'string' ? msg.authorsNote : undefined;
-            remoteInputLocked = true;
+            acquireRemoteInputLock();
             sendToClient(client, { type: 'inputAccepted', text });
             broadcast({ type: 'remoteInput', text, clientId: client.id });
             d.getPanel()?.webview.postMessage({ type: 'remoteInput', text });
@@ -356,7 +392,7 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             } catch (e) {
                 log(`Remote input failed: ${e instanceof Error ? e.message : String(e)}`);
             } finally {
-                remoteInputLocked = false;
+                releaseRemoteInputLock();
             }
             break;
         }
@@ -385,7 +421,7 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
     // Future enhancement: Replace this with a short-TTL HMAC signature generated per-request
     // to prevent potential leaks via referrers and harden against unauthorized access.
     const token = reqUrl.searchParams.get('token') || '';
-    if (token !== sessionToken) {
+    if (!tokensMatch(token, sessionToken)) {
         res.writeHead(401);
         res.end('Unauthorized');
         return;
@@ -583,7 +619,7 @@ export function stopRemotePlayServer(): void {
     listenPort = 0;
     lastBroadcastState = undefined;
     gmBusyFlag = false;
-    remoteInputLocked = false;
+    releaseRemoteInputLock();
     log('Remote play stopped.');
 }
 
@@ -599,7 +635,7 @@ export function pushGameStateToRemoteClients(state: GameState, entries: GameEntr
 export function notifyRemoteGmBusy(busy: boolean): void {
     gmBusyFlag = busy;
     if (!busy) {
-        remoteInputLocked = false;
+        releaseRemoteInputLock();
     }
     if (!httpServer) {
         return;

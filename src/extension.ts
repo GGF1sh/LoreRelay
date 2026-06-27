@@ -125,6 +125,7 @@ import {
 } from './checkpointHandlers';
 import { checkForUpdates } from './updateManager';
 import { registerCoreCommands } from './extension/commands';
+import { injectPngMetadata } from './utils/pngMetadata';
 
 let panel: vscode.WebviewPanel | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
@@ -760,6 +761,38 @@ async function handleUpdateGameRules(raw: unknown): Promise<void> {
     sendGameRules();
 }
 
+async function exportCharacterCard(payload: any): Promise<void> {
+    const defaultName = (payload.char_name || 'Character').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const uri = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(`${defaultName}.png`),
+        filters: { 'PNG Images': ['png'] },
+        title: 'Export Character Card (V2/V3)'
+    });
+    if (!uri) return;
+
+    try {
+        let pngBuffer: Buffer;
+        if (payload.portrait && payload.portrait.startsWith('data:image/png;base64,')) {
+            const base64Data = payload.portrait.split(',')[1];
+            pngBuffer = Buffer.from(base64Data, 'base64');
+        } else {
+            vscode.window.showErrorMessage('No valid PNG portrait provided for export.');
+            return;
+        }
+
+        const jsonStr = JSON.stringify(payload);
+        const base64Json = Buffer.from(jsonStr, 'utf-8').toString('base64');
+        
+        const finalPngBuffer = injectPngMetadata(pngBuffer, 'chara', base64Json);
+        
+        await vscode.workspace.fs.writeFile(uri, new Uint8Array(finalPngBuffer));
+        vscode.window.showInformationMessage(`Character exported successfully to ${uri.fsPath}`);
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(`Failed to export character: ${message}`);
+    }
+}
+
 /** Webview postMessage ルーターへ渡すハンドラ束ね。 */
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
@@ -811,6 +844,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleRequestForceSpeak,
         handleExportHtml,
         handleRequestMermaid,
+        exportCharacterCard,
     };
 }
 

@@ -1,9 +1,2531 @@
-// AUTO-GENERATED from webview/modules/*.js — run: npm run build:webview
-// @ts-nocheck
-// LoreRelay - Webview Script
+# Context
+I am developing an AI-driven Text Adventure / Game Master UI as a VSCode Extension called "LoreRelay".
+The UI is a webview using HTML, Vanilla CSS, and Vanilla JavaScript.
+I want you to act as an Expert UI/UX Designer and Frontend Engineer (Claude 3.5 Sonnet / 3.7 Sonnet level).
+
+## Objective
+1. **Add a "Character Creator / Editor" UI**:
+   - Please design and implement a new modal or panel in the UI to create and edit characters.
+   - **Requirements:**
+     - Avatar image upload area & "Generate with ComfyUI" button.
+     - Character profile/setting text areas (Name, Description, Personality, Scenario, etc.).
+     - Dynamic Parameter inputs (Stats/Attributes that can be toggled by Game Rules).
+     - Ability to upload/manage sprite expressions (multiple images for different emotions).
+     - A "Save" button that outputs this character data. Provide the UI logic and hook `vscode.postMessage({ type: 'saveCharacter', data: payload })` so the backend can generate a SillyTavern-compatible V2/V3 Character Card (PNG with embedded JSON) or a pure JSON file.
+2. **Refactor and Polish Existing UI**:
+   - Review the existing UI code provided below.
+   - Feel free to improve the design to be more modern, hacker-like, beautiful, and intuitive.
+   - You don't need to rewrite the entire backend logic; focus on the HTML structure, CSS styling, and frontend UI interactions.
+
+---
+## Existing Codebase
+
+Below is the current frontend codebase (HTML, CSS, JS) for your reference.
+
+### webview/index.html
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}'; connect-src 'none';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{styleUri}}" />
+  <title>LoreRelay</title>
+</head>
+<body>
+  <div id="bg-layer"></div>
+  <div id="sprite-layer"></div>
+  <div id="bg-overlay"></div>
+
+  <div id="app">
+    <div id="chat-area">
+      <div id="chat-header">
+        <span class="header-icon">⚔️</span>
+        <span data-i18n="webview.chat.header">Adventure Log</span>
+        <div id="locale-wrap">
+          <label for="locale-select" data-i18n="webview.locale.label">🌐 Language</label>
+          <select id="locale-select" title="Language">
+            <option value="ja">日本語</option>
+            <option value="en">English</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁體中文</option>
+          </select>
+        </div>
+        <div id="img-gen-wrap">
+          <button id="img-gen-settings-btn" class="glass-btn" data-i18n-title="webview.imageGen.open" title="Image Gen Settings">🎨</button>
+        </div>
+        <div id="game-rules-wrap">
+          <button id="game-rules-settings-btn" class="glass-btn" title="Game Rules">⚙️</button>
+        </div>
+        <div id="remote-play-wrap">
+          <button id="remote-play-btn" class="glass-btn" data-i18n-title="webview.remotePlay.toggle" title="Remote Play">📱</button>
+        </div>
+        <div id="tts-wrap">
+          <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
+          <div id="tts-menu" class="tts-menu-popup hidden">
+            <h4 data-i18n="webview.tts.title">Voice Narration</h4>
+            <div class="tts-menu-row">
+              <label for="tts-enabled-cb" data-i18n="webview.tts.enabled">Enabled</label>
+              <input type="checkbox" id="tts-enabled-cb" />
+            </div>
+            <div class="tts-menu-row">
+              <label for="tts-speed-slider" data-i18n="webview.tts.speed">Speed</label>
+              <input type="range" id="tts-speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" />
+              <span id="tts-speed-val">1.0x</span>
+            </div>
+            <div class="tts-menu-row">
+              <label for="tts-volume-slider" data-i18n="webview.tts.volume">Volume</label>
+              <input type="range" id="tts-volume-slider" min="0" max="1" step="0.1" value="0.8" />
+              <span id="tts-volume-val">80%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="chat-log"></div>
+      <div id="game-over-overlay" class="game-over-overlay hidden">
+        <div class="game-over-card">
+          <h3 id="game-over-title"></h3>
+          <p id="game-over-message"></p>
+          <p class="game-over-hint" data-i18n="webview.gameOver.restartHint">Load a scenario pack or edit game_state.json to start a new adventure.</p>
+        </div>
+      </div>
+      <div id="options-bar"></div>
+      <div id="authors-note-row">
+        <input type="text" id="authors-note-input" data-i18n-placeholder="webview.authorsNote.placeholder" placeholder="Author's Note (steers next GM turn only)" />
+      </div>
+      <div id="quick-reply-bar">
+        <button class="qr-btn" id="qr-undo"       data-i18n="webview.quickReply.undo">⏪ Undo</button>
+        <button class="qr-btn" id="qr-retry"      data-i18n="webview.quickReply.retry">🔄 Retry</button>
+        <button class="qr-btn" id="qr-checkpoint" data-i18n="webview.quickReply.checkpoint">💾 Checkpoint</button>
+        <button class="qr-btn" id="qr-summary"    data-i18n="webview.quickReply.summary">📝 Summary</button>
+        <button class="qr-btn" id="qr-genimage"   data-i18n="webview.quickReply.genImage">🎨 Gen Image</button>
+        <button class="qr-btn" id="qr-loadpack"   data-i18n="webview.quickReply.loadPack">📂 Load Pack</button>
+        <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">📖 Archive</button>
+        <button class="qr-btn" id="qr-export"     data-i18n="webview.quickReply.export">🌐 Export HTML</button>
+        <button class="qr-btn" id="qr-forcespeak" data-i18n="webview.quickReply.forceSpeak">🪄 Speak as...</button>
+        <button class="qr-btn" id="qr-questflow"  data-i18n="webview.quickReply.questFlow">🗺️ Quest Flow</button>
+        <button class="qr-btn" id="qr-relations"  data-i18n="webview.quickReply.relations">🕸️ Relations</button>
+      </div>
+      <div id="input-area">
+        <input type="text" id="free-input" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Enter to send to GM)" />
+        <button id="mic-btn" class="glass-btn" data-i18n-title="webview.stt.title" title="Voice input">🎤</button>
+        <button id="send-btn" data-i18n="webview.input.send">Send</button>
+        <button id="undo-btn" data-i18n="webview.input.undo" title="Undo last turn">⏪ Undo</button>
+        <button id="regen-btn" data-i18n="webview.input.regenerate" title="Regenerate last GM response">🔄</button>
+        <button id="img-btn" data-i18n-title="webview.input.imageTitle" title="Generate image for this scene">🎨</button>
+      </div>
+    </div>
+
+    <div id="resizer" title="Drag to resize"></div>
+
+    <!-- 右：ステータスパネル -->
+    <div id="status-area">
+      <!-- タブヘッダー -->
+      <div id="status-tabs" class="tabs-header">
+        <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
+        <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
+        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">🔍 Inspector</span></button>
+        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">📖 Lorebook</span></button>
+        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">🧠 Memory</span></button>
+        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">🎬 Director</span></button>
+        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">👥 Party</span></button>
+        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">💬 OOC</span></button>
+      </div>
+
+      <!-- ペイン 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
+      <div id="pane-status" class="tab-pane active">
+        <!-- ステータス表示 -->
+        <div id="status-content">
+        <div class="status-row" id="status-row-location">
+          <span class="status-label" data-i18n="webview.status.location">📍 Location</span>
+          <span id="status-location" class="status-value">---</span>
+        </div>
+        <div class="status-row" id="status-row-time">
+          <span class="status-label" data-i18n="webview.status.time">🕐 Time</span>
+          <span id="status-time" class="status-value">---</span>
+        </div>
+        <div class="status-row" id="status-row-funds">
+          <span class="status-label" data-i18n="webview.status.funds">💰 Funds</span>
+          <span id="status-funds" class="status-value">---</span>
+        </div>
+
+        <div id="dynamic-resources-container"></div>
+
+        <div class="status-block" id="status-block-condition">
+          <span class="status-label" data-i18n="webview.status.condition">✨ Condition</span>
+          <div id="status-condition-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+
+        <div class="status-block" id="status-block-inventory">
+          <span class="status-label" data-i18n="webview.status.inventory">🎒 Inventory</span>
+          <div id="status-inventory-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+
+        <div class="status-block" id="status-block-skills">
+          <span class="status-label" data-i18n="webview.status.skills">⚔️ Skills</span>
+          <div id="status-skills-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="checkpoint-header">
+        <span data-i18n="webview.checkpoint.header">📍 Checkpoints &amp; Rewind</span>
+      </div>
+      <div id="checkpoint-area">
+        <div class="checkpoint-actions">
+          <button id="checkpoint-save-btn" data-i18n="webview.checkpoint.save">💾 Save</button>
+          <select id="rewind-select">
+            <option value="" data-i18n="webview.checkpoint.rewind">⏪ Rewind to turn…</option>
+          </select>
+          <button id="rewind-btn" data-i18n="webview.checkpoint.restore">Restore</button>
+        </div>
+        <ul id="checkpoint-list"></ul>
+        <div id="checkpoint-empty" class="checkpoint-empty" data-i18n="webview.checkpoint.empty">No saved checkpoints yet.</div>
+      </div>
+
+      <div id="dice-header">
+        <span data-i18n="webview.dice.header">🎲 Dice Roller</span>
+      </div>
+      <div id="dice-area">
+        <div id="dice-presets">
+          <button class="dice-btn" data-sides="4">d4</button>
+          <button class="dice-btn" data-sides="6">d6</button>
+          <button class="dice-btn" data-sides="8">d8</button>
+          <button class="dice-btn" data-sides="10">d10</button>
+          <button class="dice-btn" data-sides="12">d12</button>
+          <button class="dice-btn" data-sides="20">d20</button>
+          <button class="dice-btn" data-sides="100">d100</button>
+        </div>
+        <div id="dice-custom-row">
+          <input type="number" id="dice-count" value="1" min="1" max="99" />
+          <span>d</span>
+          <input type="number" id="dice-sides" value="6" min="2" max="9999" />
+          <button id="dice-custom-btn" data-i18n="webview.dice.roll">Roll</button>
+        </div>
+        <div id="dice-result">---</div>
+        <button id="dice-send-gm" type="button" data-i18n="webview.dice.sendGm" data-i18n-title="webview.dice.sendGmTitle">📤 Send to GM</button>
+        <div id="dice-log"></div>
+      </div>
+
+      <div id="calc-header">
+        <span data-i18n="webview.calc.header">🔢 Calculator</span>
+      </div>
+      <div id="calc-area">
+        <input type="text" id="calc-input" data-i18n-placeholder="webview.calc.placeholder" placeholder="e.g. 15 * 3 + 8" />
+        <button id="calc-btn" data-i18n="webview.calc.button">Calc</button>
+        <div id="calc-result">---</div>
+        <div id="calc-history"></div>
+      </div>
+
+      <div id="bgm-header">
+        <span data-i18n="webview.bgm.header">🎵 BGM &amp; SE</span>
+        <span id="bgm-mode" data-i18n-title="webview.bgm.autoTitle" title="GM switches BGM automatically">AUTO</span>
+      </div>
+      <div id="bgm-area">
+        <div id="bgm-now">♪ ---</div>
+        <div id="bgm-controls">
+          <button id="bgm-toggle" data-i18n-title="webview.bgm.playPause" title="Play / Pause">▶</button>
+          <input type="range" id="bgm-volume" min="0" max="100" value="50" data-i18n-title="webview.bgm.volume" title="BGM volume" />
+          <button id="bgm-mute" data-i18n-title="webview.bgm.mute" title="Toggle BGM mute">🔊</button>
+        </div>
+        <div id="bgm-list"></div>
+        <div id="bgm-empty" data-i18n="webview.bgm.empty">No bgm.json or no tracks registered</div>
+        <div id="sfx-row">
+          <span id="sfx-label" data-i18n="webview.sfx.label">🔔 SE</span>
+          <input type="range" id="sfx-volume" min="0" max="100" value="70" data-i18n-title="webview.sfx.volume" title="SFX volume" />
+          <button id="sfx-mute" data-i18n-title="webview.sfx.mute" title="Toggle SFX mute">🔔</button>
+        </div>
+      </div>
+
+      <div id="gallery-header">
+        <span data-i18n="webview.gallery.header">🖼️ Scene Gallery</span>
+      </div>
+      <div id="gallery"></div>
+
+      <div id="theme-header">
+        <span data-i18n="webview.theme.header">🌍 World Theme</span>
+        <div class="theme-selector">
+          <label data-i18n="webview.status.theme">Theme:</label>
+          <button class="theme-btn active" data-theme="fantasy">Fantasy</button>
+          <button class="theme-btn" data-theme="cyberpunk">Cyberpunk</button>
+          <button class="theme-btn" data-theme="scifi">Sci-Fi</button>
+          <button class="theme-btn" data-theme="ff14">FF14</button>
+          <button class="theme-btn" data-theme="postapoc">Post-Apocalypse</button>
+          <button class="theme-btn" data-theme="modern">Modern</button>
+        </div>
+
+        <!-- アーカイブ促しバナー（履歴が閾値超え時） -->
+        <div id="archive-suggest-banner" class="archive-suggest-banner" style="display: none;">
+          <span id="archive-suggest-text"></span>
+          <button id="archive-suggest-btn" type="button" data-i18n="webview.saga.archiveNow">Archive now</button>
+          <button id="archive-suggest-dismiss" type="button" title="Dismiss">×</button>
+        </div>
+
+        <!-- あらすじ (Summary) -->
+        <div id="summary-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">📜 Story Summary</label>
+            <div style="display: flex; gap: 6px;">
+              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">♻️ Generate Summary</button>
+              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 Archive Chapter</button>
+            </div>
+          </div>
+          <textarea id="story-summary" rows="4" data-i18n-placeholder="webview.summary.placeholder" placeholder="Story synopsis appears here. You can edit it manually." style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: var(--text); padding: 8px; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+
+      </div> <!-- /pane-status -->
+
+      <!-- ペイン 2: Character Profile -->
+      <div id="pane-character" class="tab-pane" style="display: none;">
+        <div class="char-toolbar">
+          <select id="char-select">
+            <option value="new" data-i18n="webview.character.newOption">-- New Character --</option>
+          </select>
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: var(--text);">
+            <input type="checkbox" id="char-party-cb" />
+            <span data-i18n="webview.character.partyJoin">Join party</span>
+          </label>
+          <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
+        </div>
+
+        <div class="char-portrait-container">
+          <img id="char-portrait-img" class="char-portrait" src="" alt="Portrait" style="display: none;" />
+          <div id="char-portrait-placeholder" class="char-portrait placeholder" data-i18n="webview.character.noPortrait">No Portrait</div>
+          <div class="char-portrait-actions">
+            <button id="char-import-st-btn" data-i18n="webview.character.importSt">📦 Import ST Card</button>
+            <button id="char-upload-btn" data-i18n="webview.character.upload">📁 Upload</button>
+            <button id="char-generate-btn" data-i18n="webview.character.generate">🎨 Generate Portrait</button>
+          </div>
+        </div>
+
+        <div class="char-form">
+          <label data-i18n="webview.character.nameLabel">Name</label>
+          <input type="text" id="char-name" data-i18n-placeholder="webview.character.namePlaceholder" placeholder="Character name" />
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; margin-bottom: 4px;">
+            <label data-i18n="webview.character.equipmentLabel" style="margin: 0;">Equipped Items</label>
+            <button id="char-equip-notify-btn" class="small-btn primary" data-i18n="webview.character.notifyGm">📤 Equip &amp; Notify GM</button>
+          </div>
+          <div class="img-gen-row" style="margin-bottom: 8px;">
+            <input type="text" id="char-equip-weapon" class="img-gen-input" data-i18n-placeholder="webview.character.equipWeapon" placeholder="Weapon" />
+            <input type="text" id="char-equip-armor" class="img-gen-input" data-i18n-placeholder="webview.character.equipArmor" placeholder="Armor" />
+            <input type="text" id="char-equip-accessory" class="img-gen-input" data-i18n-placeholder="webview.character.equipAcc" placeholder="Accessory" />
+          </div>
+
+          <label data-i18n="webview.character.controlledByLabel">Controlled By</label>
+          <select id="char-controlled-by">
+            <option value="gm" data-i18n="webview.character.controlledByGm">GM</option>
+            <option value="ai" data-i18n="webview.character.controlledByAi">AI Companion</option>
+            <option value="player" data-i18n="webview.character.controlledByPlayer">Player</option>
+          </select>
+
+          <label data-i18n="webview.character.llmProvider">LLM Provider (Optional)</label>
+          <select id="char-llm-provider">
+            <option value="">(Default)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="ollama">Ollama</option>
+            <option value="koboldcpp">KoboldCPP</option>
+          </select>
+
+          <label data-i18n="webview.character.llmModel">LLM Model (Optional)</label>
+          <input type="text" id="char-llm-model" placeholder="e.g. anthropic/claude-3-haiku" />
+
+          <label data-i18n="webview.character.descLabel">Appearance &amp; Background</label>
+          <textarea id="char-desc" rows="4" data-i18n-placeholder="webview.character.descPlaceholder" placeholder="Description used in GM prompts..."></textarea>
+
+          <label data-i18n="webview.character.personalityLabel">Personality</label>
+          <textarea id="char-personality" rows="2" data-i18n-placeholder="webview.character.personalityPlaceholder" placeholder="Personality and speech style..."></textarea>
+        </div>
+      </div> <!-- /pane-character -->
+
+      <!-- ペイン 3: Turn Inspector -->
+      <div id="pane-inspector" class="tab-pane" style="display: none;">
+        <p id="inspector-empty-text" class="empty-text" data-i18n="webview.inspector.empty">Complete a GM turn to inspect dice, patches, and lore triggers.</p>
+        <div id="inspector-content" class="hidden">
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.turnId">Turn</h4>
+            <div id="inspector-turn-id" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.integrity">State integrity</h4>
+            <div id="inspector-integrity" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.diceLedger">Dice ledger</h4>
+            <div id="inspector-dice-ledger" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.statePatch">State patches</h4>
+            <div id="inspector-state-patch" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.lorebook">Triggered lore</h4>
+            <div id="inspector-lorebook" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.promptContext">Prompt context (last GM call)</h4>
+            <div id="inspector-prompt-summary" class="inspector-item empty-text"></div>
+            <div id="inspector-prompt-sections" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.memoryMatches">Memory matches</h4>
+            <div id="inspector-memory-matches" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.loreMatches">Lorebook matches (this turn)</h4>
+            <div id="inspector-lore-matches" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.schemaErrors">Schema errors</h4>
+            <div id="inspector-schema-errors" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.hiddenState">Hidden State (GM Only)</h4>
+            <pre id="inspector-hidden-state" class="inspector-item" style="white-space: pre-wrap; font-size: 12px;"></pre>
+          </div>
+        </div>
+      </div> <!-- /pane-inspector -->
+
+      <!-- ペイン: Lorebook Editor -->
+      <div id="pane-lorebook" class="tab-pane" style="display: none;">
+        <div class="lorebook-toolbar">
+          <button id="lorebook-add-btn" type="button" class="small-btn" data-i18n="webview.lorebook.addEntry">+ Add entry</button>
+          <button id="lorebook-save-btn" type="button" class="small-btn primary" data-i18n="webview.lorebook.saveAll">Save lorebook</button>
+          <span id="lorebook-dirty" class="lorebook-dirty hidden" data-i18n="webview.lorebook.unsaved">Unsaved changes</span>
+        </div>
+        <p id="lorebook-meta" class="empty-text" data-i18n="webview.lorebook.emptyFile">No lorebook.json in workspace</p>
+        <div id="lorebook-list" class="lorebook-list"></div>
+      </div> <!-- /pane-lorebook -->
+
+      <!-- ペイン: Memory Bank -->
+      <div id="pane-memory" class="tab-pane" style="display: none;">
+        <div class="memory-toolbar">
+          <label for="memory-backend-select" data-i18n="webview.memory.backendLabel">Backend</label>
+          <select id="memory-backend-select">
+            <option value="auto">auto</option>
+            <option value="tfidf">tfidf</option>
+            <option value="chromadb">chromadb</option>
+          </select>
+          <button id="memory-rebuild-btn" type="button" class="small-btn" data-i18n="webview.memory.rebuild">Rebuild index</button>
+        </div>
+        <p id="memory-status-meta" class="empty-text"></p>
+        <div class="memory-search-row">
+          <input id="memory-hint-input" type="text" data-i18n-placeholder="webview.memory.hintPlaceholder" placeholder="Search hint (recent narrative + action)..." />
+          <button id="memory-search-btn" type="button" class="small-btn primary" data-i18n="webview.memory.search">Search</button>
+        </div>
+        <p id="memory-token-budget" class="empty-text"></p>
+        <div id="memory-search-results" class="memory-search-results"></div>
+      </div> <!-- /pane-memory -->
+
+      <!-- ペイン: Scenario Director -->
+      <div id="pane-director" class="tab-pane" style="display: none;">
+        <p id="director-empty" class="empty-text" data-i18n="webview.director.empty">Load a scenario pack with a director block in scenario.json.</p>
+        <div id="director-content" class="hidden">
+          <p id="director-live-badge" class="lorebook-dirty hidden" data-i18n="webview.director.liveOverrides">Live progression (game_state.director)</p>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.title">Scenario</h4>
+            <div id="director-title" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.act">Act / Chapter</h4>
+            <div id="director-act" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.scene">Scene</h4>
+            <div id="director-scene" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.objective">Current objective</h4>
+            <div id="director-objective" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.guidance">Guidance</h4>
+            <div id="director-guidance" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.success">Success conditions</h4>
+            <div id="director-success" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.fail">Fail conditions</h4>
+            <div id="director-fail" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.endings">Ending flags</h4>
+            <div id="director-endings" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.achieved">Achieved endings</h4>
+            <div id="director-achieved" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.encounters">Optional encounters</h4>
+            <div id="director-encounters" class="inspector-list"></div>
+          </div>
+        </div>
+      </div> <!-- /pane-director -->
+
+      <!-- ペイン: Party Director -->
+      <div id="pane-party" class="tab-pane" style="display: none;">
+        <p id="party-empty" class="empty-text" data-i18n="webview.party.empty">Add characters to the party to configure speech and relationships.</p>
+        <div id="party-content" class="hidden">
+          <p id="party-live-badge" class="lorebook-dirty hidden" data-i18n="webview.party.liveOverrides">Live overrides (game_state.partyDirector)</p>
+          <p id="party-dirty-badge" class="lorebook-dirty hidden" data-i18n="webview.party.unsaved">Unsaved changes</p>
+          <div class="party-global-row">
+            <label class="party-flag-label">
+              <input type="checkbox" id="party-banter-cb" checked />
+              <span data-i18n="webview.party.banter">NPC banter enabled</span>
+            </label>
+            <label class="party-flag-label">
+              <input type="checkbox" id="party-quiet-cb" />
+              <span data-i18n="webview.party.quietCombat">Combat quiet mode</span>
+            </label>
+          </div>
+          <div id="party-members-list" class="party-members-list"></div>
+          <button id="party-save-btn" type="button" class="small-btn primary" data-i18n="webview.party.save">Save party_director.json</button>
+        </div>
+      </div> <!-- /pane-party -->
+
+      <!-- ペイン 4: OOC Sidekick -->
+      <div id="pane-ooc" class="tab-pane" style="display: none;">
+        <div id="ooc-log" class="ooc-log" style="flex: 1; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 0.5rem; background: var(--vscode-editor-background);">
+          <div class="empty-text" data-i18n="webview.ooc.empty">OOC commentary will appear here after GM turns...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="remote-play-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="remote-play-panel" class="remote-play-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.remotePlay.panelTitle">Remote Play</h3>
+      <button type="button" id="remote-play-close" class="glass-btn" title="Close">✕</button>
+    </div>
+    <div class="remote-play-body">
+      <div class="remote-play-qr-row">
+        <div class="remote-play-qr-block">
+          <h4 data-i18n="webview.remotePlay.playerJoin">Player join</h4>
+          <p id="remote-play-player-url" class="remote-play-url"></p>
+          <button type="button" id="remote-play-copy-player" class="small-btn" data-i18n="webview.remotePlay.copyPlayer">Copy player URL</button>
+        </div>
+        <div class="remote-play-qr-block">
+          <h4 data-i18n="webview.remotePlay.spectatorJoin">Spectator join</h4>
+          <p id="remote-play-spectator-url" class="remote-play-url"></p>
+          <button type="button" id="remote-play-copy-spectator" class="small-btn" data-i18n="webview.remotePlay.copySpectator">Copy spectator URL</button>
+        </div>
+      </div>
+      <div class="remote-play-clients-wrap">
+        <h4 data-i18n="webview.remotePlay.connected">Connected clients</h4>
+        <div id="remote-play-clients" class="remote-play-clients"></div>
+      </div>
+      <button type="button" id="remote-play-stop-btn" class="small-btn" data-i18n="webview.remotePlay.stop">Stop server</button>
+    </div>
+  </aside>
+
+  <div id="img-gen-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="img-gen-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.imageGen.title">Image Gen Settings</h3>
+      <button type="button" id="img-gen-panel-close" class="glass-btn" data-i18n-title="webview.imageGen.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <p class="img-gen-hint" data-i18n="webview.imageGen.hint">Saved to image_gen_config.json in your workspace. 0 = workflow default.</p>
+      <label data-i18n="webview.imageGen.checkpoint">Checkpoint</label>
+      <input type="text" id="ig-checkpoint" class="img-gen-input" data-field="checkpoint" />
+      <label data-i18n="webview.imageGen.mode">Mode</label>
+      <select id="ig-mode" class="img-gen-input" data-field="mode">
+        <option value="illustrious">illustrious</option>
+        <option value="pony">pony</option>
+        <option value="natural">natural</option>
+        <option value="standard">standard</option>
+      </select>
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.imageGen.steps">Steps</label>
+          <input type="number" id="ig-steps" class="img-gen-input" data-field="steps" min="0" max="150" />
+        </div>
+        <div>
+          <label data-i18n="webview.imageGen.cfg">CFG</label>
+          <input type="number" id="ig-cfg" class="img-gen-input" data-field="cfg" min="0" max="30" step="0.5" />
+        </div>
+      </div>
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.imageGen.width">Width</label>
+          <input type="number" id="ig-width" class="img-gen-input" data-field="width" min="0" max="2048" step="64" />
+        </div>
+        <div>
+          <label data-i18n="webview.imageGen.height">Height</label>
+          <input type="number" id="ig-height" class="img-gen-input" data-field="height" min="0" max="2048" step="64" />
+        </div>
+      </div>
+      <label data-i18n="webview.imageGen.sampler">Sampler</label>
+      <input type="text" id="ig-sampler" class="img-gen-input" data-field="samplerName" />
+      <label data-i18n="webview.imageGen.scheduler">Scheduler</label>
+      <input type="text" id="ig-scheduler" class="img-gen-input" data-field="scheduler" />
+      <label data-i18n="webview.imageGen.positivePrefix">Positive prefix</label>
+      <textarea id="ig-pos-prefix" class="img-gen-textarea" data-field="positivePrefix" rows="2"></textarea>
+      <label data-i18n="webview.imageGen.positiveSuffix">Positive suffix</label>
+      <textarea id="ig-pos-suffix" class="img-gen-textarea" data-field="positiveSuffix" rows="2"></textarea>
+      <label data-i18n="webview.imageGen.negative">Negative prompt</label>
+      <textarea id="ig-negative" class="img-gen-textarea" data-field="negativePrompt" rows="3"></textarea>
+      <details class="img-gen-templates">
+        <summary data-i18n="webview.imageGen.templates">Prompt templates</summary>
+        <label data-i18n="webview.imageGen.tplScene">Scene</label>
+        <textarea id="ig-tpl-scene" class="img-gen-textarea" data-tpl="scene" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplPortrait">Portrait</label>
+        <textarea id="ig-tpl-portrait" class="img-gen-textarea" data-tpl="portrait" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplBackground">Background</label>
+        <textarea id="ig-tpl-background" class="img-gen-textarea" data-tpl="background" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplFreeform">Freeform</label>
+        <textarea id="ig-tpl-freeform" class="img-gen-textarea" data-tpl="freeform" rows="2"></textarea>
+      </details>
+      <div id="img-gen-saved" class="img-gen-saved hidden" data-i18n="webview.imageGen.saved">Saved</div>
+    </div>
+  </aside>
+
+  <div id="game-rules-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="game-rules-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.gameRules.title">Game Rules</h3>
+      <button type="button" id="game-rules-panel-close" class="glass-btn" data-i18n-title="webview.gameRules.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <p class="img-gen-hint" data-i18n="webview.gameRules.hint">Saved to game_rules.json in your workspace.</p>
+      
+      <div class="img-gen-row" style="align-items: center;">
+        <label for="gr-enable-rpg" data-i18n="webview.gameRules.enableRpg">Enable RPG Mechanics (HP/MP)</label>
+        <input type="checkbox" id="gr-enable-rpg" data-field="enableRpgMechanics" />
+      </div>
+
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.gameRules.defaultHp">Default Max HP</label>
+          <input type="number" id="gr-default-hp" class="img-gen-input" data-field="defaultMaxHp" min="1" max="9999" />
+        </div>
+        <div>
+          <label data-i18n="webview.gameRules.defaultMp">Default Max MP</label>
+          <input type="number" id="gr-default-mp" class="img-gen-input" data-field="defaultMaxMp" min="0" max="9999" />
+        </div>
+      </div>
+
+      <label data-i18n="webview.gameRules.diceDifficulty">Dice Difficulty</label>
+      <select id="gr-dice-diff" class="img-gen-input" data-field="diceDifficulty">
+        <option value="Easy">Easy</option>
+        <option value="Normal" selected>Normal</option>
+        <option value="Hard">Hard</option>
+      </select>
+
+      <div class="img-gen-row" style="margin-top: 1rem; border-top: 1px solid var(--vscode-panel-border); padding-top: 0.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0;" data-i18n="webview.gameRules.advanced">Advanced AI Rules</h4>
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-skill-commentary" title="Skills have personalities and comment on checks (Disco Elysium style)" data-i18n="webview.gameRules.skillCommentary">Enable Skill Commentary</label>
+        <input type="checkbox" id="gr-skill-commentary" data-field="skillCommentary" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-bg-sim" title="World progresses even when players are idle" data-i18n="webview.gameRules.bgSim">Enable Background Simulation</label>
+        <input type="checkbox" id="gr-bg-sim" data-field="backgroundSimulation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-auto-lore" title="Automatically create Lorebook entries from new nouns" data-i18n="webview.gameRules.autoLore">Enable Auto Lorebook Growth</label>
+        <input type="checkbox" id="gr-auto-lore" data-field="autoLorebookGrowth" />
+      </div>
+
+      <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>
+    </div>
+  </aside>
+
+  <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+  <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>
+  <script nonce="{{nonce}}">
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    }
+  </script>
+</body>
+</html>
+
+```
+
+### webview/styles\00-base.css
+```css
+/* ============================
+   LoreRelay - UI
+   Glassmorphism Dark Theme
+   ============================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --glass-bg: rgba(12, 12, 20, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-glow: rgba(80, 160, 255, 0.15);
+  --accent: #4f8ef7;
+  --accent-hover: #6da3ff;
+  --accent-dim: rgba(79, 142, 247, 0.3);
+  --text: #e8eaed;
+  --text-dim: #9aa0a6;
+  --gm-color: #7cb3ff;
+  --player-color: #a8d8a8;
+  --system-color: #ffd700;
+  --danger: #ff6b6b;
+  --radius: 14px;
+}
+
+body {
+  font-family: 'Inter', 'Noto Sans JP', system-ui, sans-serif;
+  background: #080810;
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 背景画像レイヤー */
+#bg-layer {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: background-image 2s ease-in-out, opacity 2s;
+  z-index: 0;
+}
+
+#sprite-layer {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  max-height: 72vh;
+  max-width: min(480px, 45vw);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+#sprite-layer.visible {
+  opacity: 0.92;
+}
+
+#sprite-layer img {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.55));
+}
+
+#sprite-layer.pos-left {
+  left: 18%;
+  transform: translateX(-50%);
+}
+
+#sprite-layer.pos-right {
+  left: 82%;
+  transform: translateX(-50%);
+}
+
+#bg-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8,8,16,0.7) 0%, rgba(8,8,16,0.85) 100%);
+  z-index: 1;
+}
+
+```
+
+### webview/styles\10-layout-chat.css
+```css
+/* メインレイアウト */
+#app {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  height: 100vh;
+  padding: 16px;
+  gap: 16px;
+}
+
+#chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#locale-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+#locale-select {
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-main);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+}
+
+/* ========= チャットエリア ========= */
+#chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* リサイザー */
+#resizer {
+  width: 8px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 10;
+  margin: 0 -4px; /* 見た目の隙間を減らす */
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+#resizer:hover, #resizer.dragging {
+  background: rgba(79, 142, 247, 0.4);
+}
+
+#chat-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--glass-border);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  background: rgba(0,0,0,0.3);
+}
+
+.header-icon {
+  font-size: 18px;
+}
+
+#chat-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* メッセージバブル */
+.msg {
+  max-width: 88%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  animation: fadeIn 0.4s ease;
+  white-space: pre-wrap;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.msg.gm {
+  align-self: flex-start;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(124, 179, 255, 0.2);
+  border-left: 3px solid var(--gm-color);
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: rgba(79, 142, 247, 0.2);
+  border: 1px solid rgba(79, 142, 247, 0.3);
+  border-right: 3px solid var(--accent);
+}
+
+.msg.system {
+  align-self: center;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  color: var(--system-color);
+  font-size: 13px;
+  text-align: center;
+  max-width: 70%;
+}
+
+.msg-sender {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.msg.gm .msg-sender { color: var(--gm-color); }
+.msg.user .msg-sender { color: var(--player-color); }
+
+/* メッセージ内の画像 */
+.msg img.scene-img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 12px;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.msg img.scene-img:hover {
+  transform: scale(1.02);
+}
+
+/* 画像ブロック時プレースホルダ */
+.scene-img-placeholder {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px dashed var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* 選択肢バー */
+#options-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.2);
+  min-height: 0;
+}
+
+#options-bar:empty {
+  display: none;
+}
+
+.option-btn {
+  background: var(--accent-dim);
+  border: 1px solid rgba(79, 142, 247, 0.4);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.option-btn:hover {
+  background: rgba(79, 142, 247, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 142, 247, 0.3);
+}
+
+.option-btn:active {
+  transform: translateY(0);
+}
+
+/* 入力エリア */
+#authors-note-row {
+  padding: 0 16px 6px;
+}
+
+#authors-note-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+#authors-note-input:focus {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.game-over-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 20;
+  padding: 24px;
+}
+
+.game-over-overlay.hidden {
+  display: none;
+}
+
+.game-over-card {
+  max-width: 420px;
+  background: rgba(20, 10, 10, 0.95);
+  border: 1px solid rgba(220, 80, 80, 0.45);
+  border-radius: 12px;
+  padding: 20px 24px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.game-over-card.victory {
+  border-color: rgba(80, 200, 120, 0.55);
+  background: rgba(10, 30, 20, 0.95);
+}
+
+.game-over-card.victory h3 {
+  color: #80ffb0;
+}
+
+.game-over-card h3 {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
+  color: #ff8080;
+}
+
+.game-over-card p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.game-over-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+#checkpoint-area {
+  padding: 8px 12px 12px;
+}
+
+.checkpoint-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.checkpoint-actions button,
+.checkpoint-actions select {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+#checkpoint-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checkpoint-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.checkpoint-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.checkpoint-delete {
+  opacity: 0.75;
+}
+
+.checkpoint-empty {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+```
+
+### webview/styles\20-quickreply-messages.css
+```css
+/* ===== Quick Reply Bar ===== */
+#quick-reply-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 6px 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#quick-reply-bar::-webkit-scrollbar { display: none; }
+
+.qr-btn {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+  backdrop-filter: blur(4px);
+}
+.qr-btn:hover { background: rgba(255, 255, 255, 0.18); border-color: var(--accent); }
+.qr-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+
+/* ===== Message Action Bar ===== */
+.msg-actions {
+  display: none;
+  gap: 2px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.msg:hover .msg-actions { display: flex; }
+
+.msg-action-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.3;
+}
+.msg-action-btn:hover { background: rgba(255, 255, 255, 0.18); }
+.msg-action-btn.active { background: rgba(255, 180, 0, 0.25); border-color: rgba(255, 180, 0, 0.5); }
+.msg-action-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* プロンプト除外メッセージ */
+.msg.excluded { opacity: 0.4; }
+.msg.excluded:hover { opacity: 0.65; }
+
+/* インライン編集 */
+.msg-edit-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  margin-top: 6px;
+  box-sizing: border-box;
+  outline: none;
+}
+.msg-edit-btnrow {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.msg-edit-btnrow button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.msg-edit-btnrow button:hover { background: rgba(255, 255, 255, 0.2); }
+
+#input-area {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.25);
+}
+
+#free-input {
+  flex: 1;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#free-input:focus {
+  border-color: var(--accent);
+}
+
+#send-btn, #img-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+
+#send-btn:hover { background: var(--accent-hover); }
+#img-btn { background: rgba(255,255,255,0.1); }
+#img-btn:hover { background: rgba(255,255,255,0.2); }
+
+```
+
+### webview/styles\30-status-gallery.css
+```css
+/* ========= ステータスエリア ========= */
+#status-area {
+  width: var(--status-width, 320px);
+  container-type: inline-size;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+#status-header, #gallery-header, #theme-header {
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3);
+}
+
+#status-content {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.status-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: right;
+}
+
+/* リソースバー (HP/MP) */
+.resource-bar-container {
+  width: 100%;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.resource-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.resource-bar-fill.hp {
+  background: linear-gradient(90deg, #d32f2f, #f44336);
+}
+.resource-bar-fill.mp {
+  background: linear-gradient(90deg, #1976d2, #2196f3);
+}
+.resource-bar-fill.sanity {
+  background: linear-gradient(90deg, #7b1fa2, #ab47bc);
+}
+.resource-bar-fill.stamina {
+  background: linear-gradient(90deg, #fbc02d, #ffeb3b);
+}
+.resource-bar-fill.shield {
+  background: linear-gradient(90deg, #0097a7, #00bcd4);
+}
+.resource-bar-fill.generic-resource {
+  background: linear-gradient(90deg, #616161, #9e9e9e);
+}
+.resource-bar-fill.affection {
+  background: linear-gradient(90deg, #e91e63, #f48fb1);
+}
+
+.resource-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+  pointer-events: none;
+}
+
+/* タグリスト (スキル、インベントリ) */
+.status-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255,255,255,0.08);
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-item {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* ギャラリー */
+#gallery {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+#gallery:empty::after {
+  content: attr(data-empty-text);
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 20px;
+}
+
+.gallery-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.gallery-thumb:hover {
+  transform: scale(1.05);
+  border-color: var(--accent);
+}
+
+/* テーマボタン */
+#theme-buttons {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.theme-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.theme-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text);
+}
+
+.theme-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* =========================================
+   レスポンシブ対応 (コンテナクエリ)
+   ========================================= */
+@container (max-width: 280px) {
+  /* 幅が狭いときはアイコンのみにする */
+  .tab-text {
+    display: none;
+  }
+  .tab-btn {
+    padding: 8px 4px;
+    justify-content: center;
+  }
+  .tab-icon {
+    font-size: 16px;
+    margin: 0;
+  }
+  /* ステータス行も縦並びにして潰れを防ぐ */
+  .status-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .status-value {
+    text-align: left;
+  }
+  #gallery {
+    grid-template-columns: 1fr;
+  }
+}
 
 
-/* --- 00-core.js --- */
+```
+
+### webview/styles\40-bgm-audio.css
+```css
+/* ========= BGM プレイヤー ========= */
+#bgm-header {
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#bgm-mode {
+  font-size: 9px;
+  font-weight: 700;
+  color: #b388ff;
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.35);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 1px;
+}
+
+#bgm-area {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#bgm-now {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c8a8ff;
+  text-align: center;
+  min-height: 18px;
+  text-shadow: 0 0 14px rgba(179, 136, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#bgm-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#bgm-toggle, #bgm-mute {
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.35);
+  color: #c8a8ff;
+  width: 34px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+#bgm-toggle:hover, #bgm-mute:hover {
+  background: rgba(179, 136, 255, 0.3);
+}
+
+#bgm-volume {
+  flex: 1;
+  min-width: 0;
+  accent-color: #b388ff;
+  cursor: pointer;
+}
+
+#bgm-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bgm-item {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.bgm-item:hover {
+  background: rgba(179, 136, 255, 0.18);
+  color: var(--text);
+}
+
+.bgm-item.active {
+  background: rgba(179, 136, 255, 0.3);
+  border-color: #b388ff;
+  color: #fff;
+}
+
+#bgm-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* SE コントロール行 */
+#sfx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-border);
+}
+
+#sfx-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffc857;
+  flex-shrink: 0;
+}
+
+#sfx-volume {
+  flex: 1;
+  min-width: 0;
+  accent-color: #ffc857;
+  cursor: pointer;
+}
+
+#sfx-mute {
+  background: rgba(255, 200, 87, 0.15);
+  border: 1px solid rgba(255, 200, 87, 0.35);
+  color: #ffc857;
+  width: 34px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+#sfx-mute:hover {
+  background: rgba(255, 200, 87, 0.3);
+}
+
+```
+
+### webview/styles\50-scrollbar-themes.css
+```css
+/* ========= スクロールバー ========= */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+/* ========= 世界観テーマ別のグラデーション背景（画像がない場合のフォールバック） ========= */
+.theme-fantasy   { background: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%) !important; }
+.theme-cyberpunk { background: linear-gradient(135deg, #0d0221 0%, #150050 40%, #3f0071 80%, #610094 100%) !important; }
+.theme-scifi     { background: linear-gradient(135deg, #000814 0%, #001d3d 50%, #003566 100%) !important; }
+.theme-ff14      { background: linear-gradient(135deg, #1b1a2e 0%, #2d1b69 50%, #11224d 100%) !important; }
+.theme-postapoc  { background: linear-gradient(135deg, #1a1a0e 0%, #2d1f0e 50%, #3d2b1f 100%) !important; }
+.theme-modern    { background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%) !important; }
+
+```
+
+### webview/styles\60-dice-calc.css
+```css
+/* ========= ダイスローラー ========= */
+#dice-header, #calc-header {
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3);
+}
+
+#dice-area, #calc-area {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ダイスのプリセットボタン群 */
+#dice-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dice-btn {
+  background: rgba(255, 180, 50, 0.12);
+  border: 1px solid rgba(255, 180, 50, 0.35);
+  color: #ffc857;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  min-width: 38px;
+  text-align: center;
+}
+
+.dice-btn:hover {
+  background: rgba(255, 180, 50, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(255, 180, 50, 0.2);
+}
+
+.dice-btn:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* カスタムロール行 */
+#dice-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#dice-count, #dice-sides {
+  width: 52px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  text-align: center;
+}
+
+#dice-custom-btn {
+  background: rgba(255, 180, 50, 0.2);
+  border: 1px solid rgba(255, 180, 50, 0.4);
+  color: #ffc857;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+#dice-custom-btn:hover {
+  background: rgba(255, 180, 50, 0.35);
+}
+
+/* 結果表示 */
+#dice-result {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffc857;
+  text-align: center;
+  padding: 6px 0 2px;
+  text-shadow: 0 0 20px rgba(255, 200, 87, 0.5);
+  letter-spacing: 1px;
+  min-height: 44px;
+  transition: all 0.2s;
+}
+
+#dice-send-gm {
+  display: block;
+  width: 100%;
+  margin: 4px 0 2px;
+  background: rgba(124, 179, 255, 0.15);
+  border: 1px solid rgba(124, 179, 255, 0.35);
+  color: #9ec5ff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+#dice-send-gm:hover:not(:disabled) {
+  background: rgba(124, 179, 255, 0.28);
+}
+
+#dice-send-gm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#dice-log {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 18px;
+}
+
+/* ========= 電卓 ========= */
+#calc-area {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#calc-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#calc-input:focus {
+  border-color: var(--accent);
+}
+
+#calc-btn {
+  background: var(--accent-dim);
+  border: 1px solid rgba(79, 142, 247, 0.4);
+  color: #fff;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+#calc-btn:hover {
+  background: rgba(79, 142, 247, 0.5);
+}
+
+#calc-result {
+  width: 100%;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-hover);
+  text-align: right;
+  padding: 2px 4px;
+  font-family: 'Courier New', monospace;
+  min-height: 30px;
+}
+
+```
+
+### webview/styles\70-archive-stt-tts.css
+```css
+/* アーカイブ促しバナー（履歴が長いとき） */
+.archive-suggest-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 180, 50, 0.12);
+  border: 1px solid rgba(255, 180, 50, 0.35);
+  font-size: 12px;
+  color: #ffe8b0;
+}
+
+.archive-suggest-banner button {
+  background: rgba(255, 180, 50, 0.22);
+  border: 1px solid rgba(255, 180, 50, 0.45);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.archive-suggest-banner button:hover {
+  background: rgba(255, 180, 50, 0.35);
+}
+
+#archive-suggest-dismiss {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+#calc-history {
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  max-height: 60px;
+  overflow-y: auto;
+  text-align: right;
+}
+
+/* 音声入力 (STT) マイクボタン */
+#mic-btn {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+#mic-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--accent);
+}
+
+#mic-btn.listening {
+  background: rgba(220, 60, 60, 0.35);
+  border-color: #e05050;
+  color: #fff;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 60, 60, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 60, 60, 0); }
+}
+
+/* AI音声ナレーション (TTS) コントロール */
+#tts-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+#tts-toggle-btn {
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  transition: all 0.15s;
+}
+
+#tts-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--accent);
+}
+
+#tts-toggle-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(80, 160, 255, 0.35);
+}
+
+.tts-menu-popup {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  width: 250px;
+  background: rgba(15, 15, 25, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tts-menu-popup.hidden {
+  display: none;
+}
+
+.tts-menu-popup h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+  margin: 0;
+}
+
+.tts-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.tts-menu-row label {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.tts-menu-row input[type="range"] {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.tts-menu-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tts-menu-row span {
+  font-family: monospace;
+  width: 38px;
+  text-align: right;
+  color: var(--text-dim);
+}
+
+```
+
+### webview/styles\80-image-gen.css
+```css
+/* ========= 画像プロンプト再生成UI ========= */
+.scene-img-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.image-prompt-editor {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.image-prompt-editor .prompt-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.image-prompt-editor .prompt-textarea {
+  width: 100%;
+  min-height: 40px;
+  max-height: 120px;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: inherit;
+}
+
+.image-prompt-editor .prompt-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.regen-img-btn, .manual-gen-btn {
+  align-self: flex-end;
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.4);
+  color: #dcb3ff;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.regen-img-btn:hover, .manual-gen-btn:hover {
+  background: rgba(179, 136, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.manual-gen-btn {
+  margin-top: 8px;
+}
+
+/* ========= Image Gen Settings パネル ========= */
+#img-gen-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.img-gen-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  backdrop-filter: blur(2px);
+}
+
+.img-gen-backdrop.hidden {
+  display: none;
+}
+
+.img-gen-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(360px, 92vw);
+  height: 100vh;
+  background: rgba(30, 30, 40, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid var(--glass-border);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0);
+  transition: transform 0.25s ease;
+}
+
+.img-gen-panel.hidden {
+  display: none;
+}
+
+.img-gen-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.img-gen-panel-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--accent-hover);
+}
+
+.img-gen-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.img-gen-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.img-gen-panel-body label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.img-gen-input,
+.img-gen-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.img-gen-textarea {
+  resize: vertical;
+  min-height: 48px;
+}
+
+.img-gen-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.img-gen-templates summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  margin: 8px 0 4px;
+}
+
+.img-gen-saved {
+  font-size: 11px;
+  color: #7dcea0;
+  text-align: right;
+  margin-top: 6px;
+}
+
+.img-gen-saved.hidden {
+  display: none;
+}
+
+```
+
+### webview/styles\90-game-rules.css
+```css
+/* 90-game-rules.css */
+/* Reuses .img-gen-panel and .img-gen-input from 80-image-gen.css */
+
+#game-rules-wrap {
+    margin-right: 0.5rem;
+}
+
+```
+
+### webview/styles\90-inspector.css
+```css
+.inspector-section {
+    margin-bottom: 16px;
+}
+
+.inspector-section h4 {
+    margin: 0 0 8px 0;
+    color: var(--text-color);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
+}
+
+.inspector-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.inspector-item {
+    padding: 6px 8px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+.lorebook-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.lorebook-dirty {
+    font-size: 11px;
+    color: var(--text-warning, #c9a227);
+}
+
+.lorebook-dirty.hidden {
+    display: none;
+}
+
+.lorebook-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.lorebook-form label {
+    display: block;
+    font-size: 11px;
+    margin-top: 6px;
+    color: var(--text-muted, #888);
+}
+
+.lorebook-form input[type="text"],
+.lorebook-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 2px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #ccc);
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 3px;
+    padding: 4px 6px;
+}
+
+.lorebook-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 11px;
+}
+
+.small-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border: 1px solid var(--vscode-button-border, #555);
+    border-radius: 3px;
+    background: var(--vscode-button-secondaryBackground, #3c3c3c);
+    color: var(--vscode-button-secondaryForeground, #ccc);
+}
+
+.small-btn.primary {
+    font-weight: 600;
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #fff);
+}
+
+.memory-toolbar,
+.memory-search-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.memory-search-row input[type="text"] {
+    flex: 1;
+    min-width: 120px;
+    font-size: 12px;
+    padding: 4px 6px;
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 3px;
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #ccc);
+}
+
+.memory-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lorebook-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.lorebook-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.lorebook-preview {
+    margin-top: 4px;
+    color: var(--text-muted, #888);
+    font-size: 11px;
+    white-space: pre-wrap;
+}
+
+.prompt-preview {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    font-size: 11px;
+    max-height: 200px;
+    overflow: auto;
+}
+
+.diff-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.patch-value {
+    color: var(--text-color);
+    font-weight: bold;
+}
+
+.party-global-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+}
+
+.party-flag-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.party-members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.party-member-card {
+    padding: 10px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.party-member-card h5 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+}
+
+.party-control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.party-control-row input[type="range"] {
+    flex: 1;
+}
+
+.party-verb-val {
+    min-width: 28px;
+    text-align: right;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+.party-flags-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.party-rel-title {
+    font-size: 11px;
+    color: var(--text-muted, #888);
+    margin-top: 6px;
+}
+
+.party-rel-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.party-rel-row select {
+    font-size: 11px;
+    background: var(--vscode-input-background, #3c3c3c);
+    color: var(--vscode-input-foreground, #ccc);
+    border: 1px solid var(--vscode-input-border, #555);
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
+.remote-play-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1200;
+    width: min(92vw, 520px);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--glass-bg, rgba(30, 30, 40, 0.95));
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.remote-play-panel.hidden {
+    display: none;
+}
+
+.remote-play-body {
+    padding: 12px 16px 16px;
+}
+
+.remote-play-qr-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+}
+
+.remote-play-qr-block {
+    text-align: center;
+    flex: 1;
+    min-width: 180px;
+}
+
+.remote-play-qr-block h4 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+}
+
+.remote-play-qr {
+    display: block;
+    margin: 0 auto 8px;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.remote-play-url {
+    font-size: 10px;
+    word-break: break-all;
+    color: var(--text-muted, #888);
+    margin: 0 0 8px 0;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+.remote-play-clients-wrap {
+    margin-top: 12px;
+}
+
+.remote-play-clients-wrap h4 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+}
+
+.remote-play-clients {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.remote-client-row {
+    font-size: 11px;
+    padding: 4px 8px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+
+```
+
+### webview/modules\00-core.js
+```javascript
 // @ts-nocheck
 // LoreRelay - Webview Script
 // Handles UI interactions and postMessage communication with extension host
@@ -71,7 +2593,10 @@ let gameOverActive = false;
 let rewindTargets = [];
 let checkpointMetas = [];
 
-/* --- 10-game-state.js --- */
+```
+
+### webview/modules\10-game-state.js
+```javascript
 // ===== Game State の適用 =====
 function applyEntryPatch(patch) {
   if (!patch?.id) return;
@@ -743,7 +3268,10 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
   btn.addEventListener('click', () => setTheme(btn.dataset.theme));
 });
 
-/* --- 20-input-audio-prep.js --- */
+```
+
+### webview/modules\20-input-audio-prep.js
+```javascript
 // ===== 自由入力 =====
 sendBtn.addEventListener('click', sendFreeInput);
 freeInput.addEventListener('keydown', (e) => {
@@ -1092,7 +3620,10 @@ function hideGmLoading(success) {
   }
 }
 
-/* --- 30-bgm-sfx.js --- */
+```
+
+### webview/modules\30-bgm-sfx.js
+```javascript
 // ===== BGM プレイヤー =====
 // マニフェスト（extension が bgm.json を解決して webview URI 付きで送ってくる）
 // 各 track: { id, uri, mood, description, loop, volume }
@@ -1315,7 +3846,10 @@ if (sfxMuteBtn) {
   });
 }
 
-/* --- 40-dice-calc-tabs.js --- */
+```
+
+### webview/modules\40-dice-calc-tabs.js
+```javascript
 // ===== ダイスローラー =====
 const diceResultEl = document.getElementById('dice-result');
 const diceLogEl = document.getElementById('dice-log');
@@ -1525,7 +4059,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-/* --- 50-character-saga.js --- */
+```
+
+### webview/modules\50-character-saga.js
+```javascript
 // ===== Character Profile ロジック =====
 let currentCharacters = [];
 let activeCharId = null;
@@ -1820,478 +4357,10 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   }
 }
 
-/* --- 52-character-creator.js --- */
-// ===== Character Creator / Editor Modal =====
-// Full SillyTavern V2/V3-compatible character creation UI
+```
 
-(function initCharacterCreator() {
-
-  // ── State ──────────────────────────────────────────────────────────────
-  let ccCharId = null;
-  let ccPortraitData = null;       // base64 data URI or webview URI
-  let ccExpressions = {};          // { expressionKey: { uri: string } }
-  let ccExportFormat = 'json';
-  let ccIsDirty = false;
-
-  const DEFAULT_EXPRESSIONS = [
-    { key: 'neutral',     label: 'Neutral',     icon: '😐' },
-    { key: 'happy',       label: 'Happy',       icon: '😊' },
-    { key: 'sad',         label: 'Sad',         icon: '😢' },
-    { key: 'angry',       label: 'Angry',       icon: '😠' },
-    { key: 'surprised',   label: 'Surprised',   icon: '😮' },
-    { key: 'scared',      label: 'Scared',      icon: '😨' },
-    { key: 'disgusted',   label: 'Disgusted',   icon: '🤢' },
-    { key: 'thinking',    label: 'Thinking',    icon: '🤔' },
-    { key: 'embarrassed', label: 'Embarrassed', icon: '😳' },
-    { key: 'smug',        label: 'Smug',        icon: '😏' },
-  ];
-
-  // ── DOM helpers ────────────────────────────────────────────────────────
-  const $ = (id) => document.getElementById(id);
-  const $v = (id) => ($(`cc-${id}`)?.value?.trim() ?? '');
-  const $set = (id, val) => { const el = $(`cc-${id}`); if (el) el.value = val ?? ''; };
-
-  // ── Open / Close ───────────────────────────────────────────────────────
-  function openCreator(charData) {
-    const modal = $('char-creator-modal');
-    const backdrop = $('char-creator-backdrop');
-    if (!modal || !backdrop) return;
-
-    ccCharId      = charData?.id ?? null;
-    ccPortraitData = charData?.portrait ?? null;
-    ccExpressions = {};
-    ccIsDirty     = false;
-
-    if (charData?.expressions) {
-      for (const [k, v] of Object.entries(charData.expressions)) {
-        ccExpressions[k] = { uri: v };
-      }
-    }
-
-    // Populate fields
-    $set('name',          charData?.name ?? charData?.char_name ?? '');
-    $set('creator',       charData?.creator ?? '');
-    $set('version',       charData?.char_version ?? '1.0');
-    $set('tags',          Array.isArray(charData?.tags)
-                            ? charData.tags.join(', ')
-                            : (charData?.tags ?? ''));
-    $set('controlled-by', charData?.controlledBy ?? 'gm');
-    $set('description',   charData?.description ?? charData?.char_desc ?? '');
-    $set('personality',   charData?.personality ?? '');
-    $set('scenario',      charData?.scenario ?? '');
-    $set('first-mes',     charData?.first_mes ?? '');
-    $set('mes-example',   charData?.mes_example ?? '');
-    $set('creator-notes', charData?.creator_notes ?? '');
-    $set('system-prompt', charData?.system_prompt ?? '');
-    $set('post-history',  charData?.post_history_instructions ?? '');
-    $set('llm-provider',  charData?.llmProvider ?? '');
-    $set('llm-model',     charData?.llmModel ?? '');
-    $set('equip-weapon',  charData?.equipment?.weapon ?? '');
-    $set('equip-armor',   charData?.equipment?.armor ?? '');
-    $set('equip-accessory', charData?.equipment?.accessory ?? '');
-
-    // Party checkbox
-    const partyCb = $('cc-party-cb');
-    if (partyCb) {
-      partyCb.checked = ccCharId ? (currentPartyIds || []).includes(ccCharId) : false;
-    }
-
-    // Subtitle
-    const subtitle = modal.querySelector('.cc-subtitle');
-    if (subtitle) subtitle.textContent = charData?.name ? `— ${charData.name}` : '— New Character';
-
-    // Saved toast reset
-    const toast = $('cc-saved-toast');
-    if (toast) toast.classList.add('hidden');
-
-    // Reset format buttons
-    document.querySelectorAll('.cc-fmt-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.fmt === ccExportFormat);
-    });
-
-    updatePortraitPreview(ccPortraitData);
-    renderExpressionsGrid();
-
-    modal.classList.remove('hidden');
-    backdrop.classList.remove('hidden');
-
-    // Focus name field
-    setTimeout(() => $('cc-name')?.focus(), 80);
-  }
-
-  function closeCreator() {
-    $('char-creator-modal')?.classList.add('hidden');
-    $('char-creator-backdrop')?.classList.add('hidden');
-  }
-
-  // ── Portrait ───────────────────────────────────────────────────────────
-  function updatePortraitPreview(src) {
-    const img     = $('cc-portrait-img-preview');
-    const pholder = $('cc-portrait-placeholder-inner');
-    if (!img || !pholder) return;
-
-    if (src) {
-      img.src = src;
-      img.style.display = 'block';
-      pholder.style.display = 'none';
-    } else {
-      img.src = '';
-      img.style.display = 'none';
-      pholder.style.display = 'flex';
-    }
-  }
-
-  function initPortraitDrop() {
-    const drop = $('cc-portrait-drop');
-    if (!drop) return;
-
-    drop.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      drop.classList.add('cc-dragging');
-    });
-    drop.addEventListener('dragleave', (e) => {
-      if (!drop.contains(e.relatedTarget)) {
-        drop.classList.remove('cc-dragging');
-      }
-    });
-    drop.addEventListener('drop', (e) => {
-      e.preventDefault();
-      drop.classList.remove('cc-dragging');
-      const file = e.dataTransfer?.files?.[0];
-      if (file && file.type.startsWith('image/')) {
-        readImageAsDataUrl(file, (dataUrl) => {
-          ccPortraitData = dataUrl;
-          ccIsDirty = true;
-          updatePortraitPreview(dataUrl);
-        });
-      }
-    });
-
-    // Click anywhere on drop zone (except buttons) triggers picker
-    drop.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      triggerPortraitPicker();
-    });
-  }
-
-  function triggerPortraitPicker() {
-    // Try native file input first (works in most VS Code webview contexts)
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/webp,image/gif';
-    input.style.display = 'none';
-    document.body.appendChild(input);
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file) {
-        readImageAsDataUrl(file, (dataUrl) => {
-          ccPortraitData = dataUrl;
-          ccIsDirty = true;
-          updatePortraitPreview(dataUrl);
-        });
-      }
-      input.remove();
-    };
-    input.click();
-  }
-
-  function readImageAsDataUrl(file, callback) {
-    const reader = new FileReader();
-    reader.onload = (e) => callback(/** @type {string} */ (e.target.result));
-    reader.readAsDataURL(file);
-  }
-
-  // ── Expressions grid ───────────────────────────────────────────────────
-  function renderExpressionsGrid() {
-    const grid = $('cc-sprites-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-
-    // Build ordered key list: defaults first, then any extras
-    const allKeys = [
-      ...DEFAULT_EXPRESSIONS.map(e => e.key),
-      ...Object.keys(ccExpressions).filter(k => !DEFAULT_EXPRESSIONS.find(e => e.key === k))
-    ];
-
-    for (const key of allKeys) {
-      const meta = DEFAULT_EXPRESSIONS.find(e => e.key === key);
-      const expr = ccExpressions[key];
-      grid.appendChild(
-        buildExpressionCard(key, meta?.label ?? key, meta?.icon ?? '🎭', expr?.uri ?? null)
-      );
-    }
-  }
-
-  function buildExpressionCard(key, label, icon, imageSrc) {
-    const card = document.createElement('div');
-    card.className = 'cc-sprite-card' + (imageSrc ? ' cc-sprite-has-img' : '');
-
-    // Thumb or placeholder
-    if (imageSrc) {
-      const img = document.createElement('img');
-      img.className = 'cc-sprite-thumb';
-      img.src = imageSrc;
-      img.alt = label;
-      card.appendChild(img);
-    } else {
-      const ph = document.createElement('div');
-      ph.className = 'cc-sprite-placeholder';
-      ph.textContent = icon;
-      card.appendChild(ph);
-    }
-
-    // Label
-    const lbl = document.createElement('div');
-    lbl.className = 'cc-sprite-label';
-    lbl.textContent = label;
-    card.appendChild(lbl);
-
-    // Hover-action overlay
-    const actions = document.createElement('div');
-    actions.className = 'cc-sprite-actions';
-
-    const uploadBtn = makeSpritActionBtn('📁', 'Upload image', false, () => triggerExpressionPicker(key));
-    const genBtn    = makeSpritActionBtn('✨', 'Generate with ComfyUI', false, () => {
-      vscode.postMessage({
-        type: 'generateExpression',
-        characterName: $v('name') || 'Character',
-        expression: key,
-        charId: ccCharId
-      });
-    });
-    actions.appendChild(uploadBtn);
-    actions.appendChild(genBtn);
-
-    if (imageSrc) {
-      const delBtn = makeSpritActionBtn('🗑', 'Remove', true, () => {
-        delete ccExpressions[key];
-        ccIsDirty = true;
-        renderExpressionsGrid();
-      });
-      actions.appendChild(delBtn);
-    }
-
-    card.appendChild(actions);
-    return card;
-  }
-
-  function makeSpritActionBtn(emoji, title, isDanger, onClick) {
-    const btn = document.createElement('button');
-    btn.className = 'cc-sprite-action-btn' + (isDanger ? ' cc-del' : '');
-    btn.title = title;
-    btn.textContent = emoji;
-    btn.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
-    return btn;
-  }
-
-  function triggerExpressionPicker(expressionKey) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/webp,image/gif';
-    input.style.display = 'none';
-    document.body.appendChild(input);
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file) {
-        readImageAsDataUrl(file, (dataUrl) => {
-          ccExpressions[expressionKey] = { uri: dataUrl };
-          ccIsDirty = true;
-          renderExpressionsGrid();
-        });
-      }
-      input.remove();
-    };
-    input.click();
-  }
-
-  function addCustomExpression() {
-    const name = (prompt('Expression name (e.g. "wink", "determined"):') || '').trim();
-    if (!name) return;
-    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    if (!key) return;
-    if (!ccExpressions[key]) ccExpressions[key] = null;
-    ccIsDirty = true;
-    renderExpressionsGrid();
-  }
-
-  // ── Collect & Save ─────────────────────────────────────────────────────
-  function collectPayload() {
-    const tags = $v('tags').split(',').map(t => t.trim()).filter(Boolean);
-
-    // Only include expressions that have an image
-    const expressions = {};
-    for (const [k, v] of Object.entries(ccExpressions)) {
-      if (v?.uri) expressions[k] = v.uri;
-    }
-
-    const id = ccCharId || `char_${Date.now()}`;
-
-    return {
-      // LoreRelay runtime fields
-      id,
-      name:        $v('name'),
-      controlledBy: $v('controlled-by') || 'gm',
-      llmProvider: $v('llm-provider'),
-      llmModel:    $v('llm-model'),
-      portrait:    ccPortraitData,
-      expressions,
-      equipment: {
-        weapon:    $v('equip-weapon'),
-        armor:     $v('equip-armor'),
-        accessory: $v('equip-accessory'),
-      },
-
-      // SillyTavern spec fields (V2/V3)
-      spec:         'chara_card_v2',
-      spec_version: ccExportFormat === 'st-v3' ? '3.0' : '2.0',
-      char_name:    $v('name'),
-      char_version: $v('version') || '1.0',
-      creator:      $v('creator'),
-      creator_notes: $v('creator-notes'),
-      tags,
-      description:  $v('description'),
-      char_desc:    $v('description'),
-      personality:  $v('personality'),
-      scenario:     $v('scenario'),
-      first_mes:    $v('first-mes'),
-      mes_example:  $v('mes-example'),
-      system_prompt: $v('system-prompt'),
-      post_history_instructions: $v('post-history'),
-
-      // Export hint for backend
-      exportFormat: ccExportFormat,
-    };
-  }
-
-  function saveCharacter() {
-    const data   = collectPayload();
-    const inParty = $('cc-party-cb')?.checked ?? false;
-
-    vscode.postMessage({ type: 'saveCharacter', data, character: data, inParty });
-
-    if (!ccCharId) {
-      vscode.postMessage({ type: 'setActiveCharacter', id: data.id });
-    }
-    ccCharId  = data.id;
-    ccIsDirty = false;
-
-    // Show toast
-    const toast = $('cc-saved-toast');
-    if (toast) {
-      toast.classList.remove('hidden');
-      setTimeout(() => toast.classList.add('hidden'), 2500);
-    }
-
-    // Refresh character list
-    vscode.postMessage({ type: 'loadCharacters' });
-
-    // Close after a short delay so user sees the toast
-    setTimeout(() => closeCreator(), 1800);
-  }
-
-  // ── Init ───────────────────────────────────────────────────────────────
-  function init() {
-    // Close
-    $('char-creator-close')?.addEventListener('click', closeCreator);
-    $('char-creator-backdrop')?.addEventListener('click', (e) => {
-      if (e.target === $('char-creator-backdrop')) closeCreator();
-    });
-
-    // ESC key
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !$('char-creator-modal')?.classList.contains('hidden')) {
-        closeCreator();
-      }
-    });
-
-    // "Open Full Editor" button in pane-character
-    $('char-open-creator-btn')?.addEventListener('click', () => {
-      const id = $('char-select')?.value;
-      if (id && id !== 'new') {
-        const char = (window.currentCharacters || []).find(c => c.id === id);
-        openCreator(char ?? null);
-      } else {
-        openCreator(null);
-      }
-    });
-
-    // "New" shortcut button
-    $('char-new-creator-btn')?.addEventListener('click', () => openCreator(null));
-
-    // Portrait drop + upload
-    initPortraitDrop();
-    $('cc-portrait-upload-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      triggerPortraitPicker();
-    });
-    $('cc-portrait-generate-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      vscode.postMessage({
-        type: 'generatePortrait',
-        id: ccCharId,
-        name: $v('name') || 'Character',
-        description: $v('description'),
-      });
-    });
-
-    // Expression: add custom
-    $('cc-add-expression-btn')?.addEventListener('click', addCustomExpression);
-
-    // Format toggle
-    document.querySelectorAll('.cc-fmt-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.cc-fmt-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        ccExportFormat = btn.dataset.fmt ?? 'json';
-      });
-    });
-
-    // Save
-    $('cc-save-btn')?.addEventListener('click', saveCharacter);
-
-    // Mark dirty on any field input inside the modal
-    $('char-creator-modal')?.addEventListener('input', () => { ccIsDirty = true; });
-  }
-
-  // ── Extension message handler ──────────────────────────────────────────
-  window.addEventListener('message', (event) => {
-    const msg = event.data;
-
-    // Portrait generation result
-    if (msg.type === 'portraitGenerated') {
-      const uri = msg.uri || msg.image;
-      if (uri && (msg.id === ccCharId || !ccCharId)) {
-        ccPortraitData = uri;
-        ccIsDirty      = true;
-        updatePortraitPreview(uri);
-      }
-    }
-
-    // Expression generation result
-    if (msg.type === 'expressionGenerated' && msg.expression) {
-      const uri = msg.uri || msg.image;
-      if (uri && msg.id === ccCharId) {
-        ccExpressions[msg.expression] = { uri };
-        ccIsDirty = true;
-        renderExpressionsGrid();
-      }
-    }
-  });
-
-  // ── Expose API ────────────────────────────────────────────────────────
-  window.openCharacterCreator = openCreator;
-  window.closeCharacterCreator = closeCreator;
-
-  // Delay init until DOMContentLoaded
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-
-})();
-
-/* --- 55-remote-play.js --- */
+### webview/modules\55-remote-play.js
+```javascript
 // ===== Remote Play (LAN player screen) =====
 let remotePlayActive = false;
 
@@ -2391,8 +4460,10 @@ function renderRemotePlayPanel(status) {
     });
   }
 })();
+```
 
-/* --- 60-tts-quickreply-imagegen.js --- */
+### webview/modules\60-tts-quickreply-imagegen.js
+```javascript
 // ===== AI音声ナレーション (TTS) コアロジック =====
 function getBestVoiceForLocale(locale) {
   if (!window.speechSynthesis) return null;
@@ -2632,7 +4703,10 @@ function speakText(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-/* --- 70-game-rules.js --- */
+```
+
+### webview/modules\70-game-rules.js
+```javascript
 // webview/modules/70-game-rules.js
 
 (function() {
@@ -2723,7 +4797,10 @@ function speakText(text) {
 
 })();
 
-/* --- 80-inspector.js --- */
+```
+
+### webview/modules\80-inspector.js
+```javascript
 /* global window, document, T */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -3020,8 +5097,10 @@ function escapeHtml(str) {
         }[m];
     });
 }
+```
 
-/* --- 81-lorebook.js --- */
+### webview/modules\81-lorebook.js
+```javascript
 /* global window, document, T, vscode */
 
 let lorebookEntries = [];
@@ -3298,8 +5377,10 @@ function escapeHtml(str) {
 function escapeAttr(str) {
     return escapeHtml(str).replace(/`/g, '&#096;');
 }
+```
 
-/* --- 82-memory.js --- */
+### webview/modules\82-memory.js
+```javascript
 /* global window, document, T, vscode */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -3415,8 +5496,10 @@ function escapeHtml(str) {
         }[m];
     });
 }
+```
 
-/* --- 83-director.js --- */
+### webview/modules\83-director.js
+```javascript
 /* global window, document, T */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -3542,8 +5625,10 @@ function escapeHtml(str) {
         }[m];
     });
 }
+```
 
-/* --- 84-party.js --- */
+### webview/modules\84-party.js
+```javascript
 /* global window, document, T, vscode */
 
 let partyDirectorDraft = null;
@@ -3758,8 +5843,10 @@ function markPartyDirty(dirty) {
         badge.classList.toggle('hidden', !dirty);
     }
 }
+```
 
-/* --- 90-bootstrap.js --- */
+### webview/modules\90-bootstrap.js
+```javascript
 // ===== Initialization =====
 window.addEventListener('DOMContentLoaded', () => {
   // 保存された状態を復元
@@ -4033,3 +6120,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+```
+

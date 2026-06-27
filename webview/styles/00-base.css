@@ -12,19 +12,30 @@
 }
 
 :root {
-  --glass-bg: rgba(12, 12, 20, 0.65);
+  --glass-bg: rgba(10, 10, 18, 0.72);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-glow: rgba(80, 160, 255, 0.15);
+  --glass-glow: rgba(80, 160, 255, 0.18);
   --accent: #4f8ef7;
   --accent-hover: #6da3ff;
   --accent-dim: rgba(79, 142, 247, 0.3);
-  --text: #e8eaed;
-  --text-dim: #9aa0a6;
+  --text: #e2e5ea;
+  --text-dim: #8c93a0;
   --gm-color: #7cb3ff;
   --player-color: #a8d8a8;
   --system-color: #ffd700;
   --danger: #ff6b6b;
   --radius: 14px;
+  /* Hacker palette extras */
+  --neon-blue: rgba(79, 142, 247, 0.85);
+  --neon-purple: rgba(179, 136, 255, 0.85);
+  --cyber-glow: 0 0 12px rgba(79, 142, 247, 0.35);
+  --surface-1: rgba(255, 255, 255, 0.03);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --text-success: #7dcea0;
+  --text-danger: #e07070;
+  --text-warning: #c9a227;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --bg-hover: rgba(255, 255, 255, 0.05);
 }
 
 body {
@@ -84,4 +95,53 @@ body {
   inset: 0;
   background: linear-gradient(180deg, rgba(8,8,16,0.7) 0%, rgba(8,8,16,0.85) 100%);
   z-index: 1;
+}
+
+/* ========= Glass button (header control buttons) ========= */
+.glass-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(79, 142, 247, 0.45);
+  color: var(--accent-hover);
+  box-shadow: 0 0 8px rgba(79, 142, 247, 0.18);
+}
+
+.glass-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(0.96);
+}
+
+.glass-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(79, 142, 247, 0.3);
+}
+
+/* ========= Utility ========= */
+.hidden { display: none !important; }
+
+.empty-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 12px 8px;
+  font-style: italic;
 }

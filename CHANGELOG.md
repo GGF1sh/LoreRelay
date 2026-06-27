@@ -8,6 +8,17 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.1.3] - 2026-06-27
+
+### Fixed — Claude Review Follow-up (v1.1.2 残件)
+- **`isGameOverActive()` キャッシュ化**: `gameStateSync.getCachedGameState()` 経由で `gameOver.active` を参照し、毎ターンの `readFileSync` を廃止。
+- **`timingSafeEqual` トークン比較**: WebSocket 認証と `/media` エンドポイントで `crypto.timingSafeEqual` による定数時間比較に変更。
+- **`remoteInputLocked` 60s ウォッチドッグ**: GM クラッシュ時の永続ロックを防ぐタイマーを追加。`acquireRemoteInputLock()` / `releaseRemoteInputLock()` で一元管理。
+- **GM プロンプト I/O 削減**: `gmPromptBuilder` が `getCachedGameState()` を優先利用。ロアブックは mtime キャッシュで再読み込みを抑制。
+
+### Note
+- **VLM (`buildVisionContext`)** は意図的スタブのまま（パス文字列のみ）。真の multimodal 統合は Phase 4A で対応予定。
+
 ## [1.1.2] - 2026-06-27
 
 ### Fixed — Security & Stability (Post-v1.1.2 Code Review)

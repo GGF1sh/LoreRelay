@@ -4,6 +4,22 @@
 > 対象コミット: HEAD (v1.1.2 直後スナップショット)  
 > レビュー担当: Claude Sonnet 4.6
 
+## 対応状況（v1.1.3 追記）
+
+| 指摘 | 状態 |
+|------|------|
+| コマンド二重登録 (`checkForUpdates`) | ✅ v1.1.2 |
+| `maxClients` 未実装 | ✅ v1.1.2 |
+| 未認証クライアントへのメッセージ破棄 | ✅ v1.1.2 (`sendToClient` force) |
+| `remoteInputLocked` finally 解除 | ✅ v1.1.2 |
+| `gameRules` 同期 I/O キャッシュ | ✅ v1.1.2 |
+| `isGameOverActive()` 毎回 readFileSync | ✅ v1.1.3 (`isGameOverActiveCached`) |
+| `timingSafeEqual` トークン比較 | ✅ v1.1.3 |
+| `remoteInputLocked` 60s ウォッチドッグ | ✅ v1.1.3 |
+| `gmPromptBuilder` 同期 I/O 連鎖 | ✅ v1.1.3（キャッシュ + lorebook mtime） |
+| VLM `buildVisionContext` スタブ | ⏸ 意図的保留（Phase 4A） |
+| `panelManager` 分割 / `createWebviewHandlerDeps` 肥大化 | 📋 低優先・未着手 |
+
 ---
 
 ## 1. 総合評価

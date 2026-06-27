@@ -265,6 +265,8 @@
             <input type="checkbox" id="char-party-cb" />
             <span data-i18n="webview.character.partyJoin">Join party</span>
           </label>
+          <button id="char-new-creator-btn" class="cc-open-full-btn" title="Create a new character">✦ New</button>
+          <button id="char-open-creator-btn" class="cc-open-full-btn" title="Open full character editor">✏️ Full Editor</button>
           <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
         </div>
 
@@ -619,6 +621,165 @@
       <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>
     </div>
   </aside>
+
+  <!-- ===== Character Creator Backdrop ===== -->
+  <div id="char-creator-backdrop" class="cc-backdrop hidden"></div>
+
+  <!-- ===== Character Creator Modal ===== -->
+  <div id="char-creator-modal" class="char-creator-modal hidden" role="dialog" aria-modal="true" aria-label="Character Creator">
+    <div class="char-creator-header">
+      <h2>✦ Character Creator <span class="cc-subtitle"></span></h2>
+      <button id="char-creator-close" class="glass-btn" title="Close">✕</button>
+    </div>
+
+    <div class="char-creator-body">
+
+      <!-- ── Section: Identity ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">Identity</div>
+        <div class="cc-identity-grid">
+          <!-- Portrait -->
+          <div class="cc-portrait-col">
+            <div id="cc-portrait-drop" class="cc-portrait-drop" title="Drop image or click to upload">
+              <img id="cc-portrait-img-preview" src="" alt="Portrait" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:8px;">
+              <div id="cc-portrait-placeholder-inner" class="cc-portrait-placeholder-inner">
+                <span class="cc-portrait-icon">🎭</span>
+                <span class="cc-portrait-hint">Drop image<br>or click</span>
+              </div>
+            </div>
+            <button id="cc-portrait-upload-btn" class="cc-portrait-btn" type="button">📁 Upload</button>
+            <button id="cc-portrait-generate-btn" class="cc-portrait-btn cc-btn-generate" type="button">✨ Generate</button>
+          </div>
+
+          <!-- Basic fields -->
+          <div class="cc-identity-fields">
+            <label class="cc-label">Name</label>
+            <input id="cc-name" class="cc-input" type="text" placeholder="Character name…" autocomplete="off">
+
+            <label class="cc-label">Creator</label>
+            <input id="cc-creator" class="cc-input" type="text" placeholder="Your name / handle…" autocomplete="off">
+
+            <label class="cc-label">Version</label>
+            <input id="cc-version" class="cc-input" type="text" placeholder="1.0" style="max-width:100px;" autocomplete="off">
+
+            <label class="cc-label">Tags</label>
+            <input id="cc-tags" class="cc-input" type="text" placeholder="fantasy, elf, healer…" autocomplete="off">
+
+            <label class="cc-label">Controlled by</label>
+            <select id="cc-controlled-by" class="cc-select">
+              <option value="gm">GM (NPC)</option>
+              <option value="player">Player</option>
+              <option value="ai">AI</option>
+            </select>
+
+            <label class="cc-label">Add to Party</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+              <input id="cc-party-cb" type="checkbox" style="width:16px; height:16px; accent-color:var(--accent); cursor:pointer;">
+              <span style="font-size:12px; color:var(--text-dim);">Include in active party</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Section: Personality & Profile ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">Personality &amp; Profile</div>
+
+        <label class="cc-label">Description</label>
+        <textarea id="cc-description" class="cc-textarea" rows="4" placeholder="Physical appearance, background, role in the story…"></textarea>
+
+        <label class="cc-label">Personality</label>
+        <textarea id="cc-personality" class="cc-textarea" rows="3" placeholder="Traits, quirks, speech patterns…"></textarea>
+
+        <label class="cc-label">Scenario</label>
+        <textarea id="cc-scenario" class="cc-textarea" rows="3" placeholder="The situation or world context where this character exists…"></textarea>
+      </section>
+
+      <!-- ── Section: Dialogue ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">Dialogue</div>
+
+        <label class="cc-label">First Message</label>
+        <textarea id="cc-first-mes" class="cc-textarea" rows="4" placeholder="The character's opening line when a conversation begins…"></textarea>
+
+        <label class="cc-label">Example Messages</label>
+        <textarea id="cc-mes-example" class="cc-textarea" rows="4" placeholder="&lt;START&gt;&#10;{{user}}: Hello!&#10;{{char}}: Greetings, traveler…"></textarea>
+
+        <label class="cc-label">Creator Notes</label>
+        <textarea id="cc-creator-notes" class="cc-textarea" rows="2" placeholder="Notes for other creators or players (not sent to AI)…"></textarea>
+      </section>
+
+      <!-- ── Section: System Prompt ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">System Prompt</div>
+
+        <label class="cc-label">System Prompt</label>
+        <textarea id="cc-system-prompt" class="cc-textarea" rows="4" placeholder="Instructions prepended to every conversation…"></textarea>
+
+        <label class="cc-label">Post-History Instructions</label>
+        <textarea id="cc-post-history" class="cc-textarea" rows="3" placeholder="Instructions appended after the chat history…"></textarea>
+      </section>
+
+      <!-- ── Section: LLM Binding ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">LLM Binding</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="cc-label">Provider</label>
+            <input id="cc-llm-provider" class="cc-input" type="text" placeholder="anthropic / openai…" autocomplete="off">
+          </div>
+          <div>
+            <label class="cc-label">Model</label>
+            <input id="cc-llm-model" class="cc-input" type="text" placeholder="claude-sonnet-4-6…" autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Section: Sprite Expressions ── -->
+      <section class="cc-section">
+        <div class="cc-section-title" style="display:flex; align-items:center; justify-content:space-between;">
+          <span>Sprite Expressions</span>
+          <button id="cc-add-expression-btn" class="glass-btn" type="button" style="font-size:11px;">+ Add Custom</button>
+        </div>
+        <div id="cc-sprites-grid" class="cc-sprites-grid">
+          <!-- Populated by JS renderExpressionsGrid() -->
+        </div>
+      </section>
+
+      <!-- ── Section: Equipment ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">Equipment</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+          <div>
+            <label class="cc-label">Weapon</label>
+            <input id="cc-equip-weapon" class="cc-input" type="text" placeholder="Sword…" autocomplete="off">
+          </div>
+          <div>
+            <label class="cc-label">Armor</label>
+            <input id="cc-equip-armor" class="cc-input" type="text" placeholder="Chain mail…" autocomplete="off">
+          </div>
+          <div>
+            <label class="cc-label">Accessory</label>
+            <input id="cc-equip-accessory" class="cc-input" type="text" placeholder="Ring…" autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Section: Export & Save ── -->
+      <section class="cc-section">
+        <div class="cc-section-title">Export &amp; Save</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+          <span style="font-size:12px; color:var(--text-dim);">Format:</span>
+          <button class="cc-fmt-btn active" data-fmt="json" type="button">JSON</button>
+          <button class="cc-fmt-btn" data-fmt="st-v2" type="button">ST v2 PNG</button>
+          <button class="cc-fmt-btn" data-fmt="st-v3" type="button">ST v3 PNG</button>
+        </div>
+        <button id="cc-save-btn" class="cc-save-primary" type="button">✦ Save Character</button>
+        <div id="cc-saved-toast" class="cc-saved-toast hidden">✓ Character saved!</div>
+      </section>
+
+    </div><!-- /.char-creator-body -->
+  </div><!-- /#char-creator-modal -->
 
   <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
   <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>

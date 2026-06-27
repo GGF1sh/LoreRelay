@@ -11,6 +11,7 @@ const JS_MODULE_ORDER = [
     '30-bgm-sfx.js',
     '40-dice-calc-tabs.js',
     '50-character-saga.js',
+    '52-character-creator.js',
     '55-remote-play.js',
     '60-tts-quickreply-imagegen.js',
     '70-game-rules.js',
@@ -33,7 +34,8 @@ const CSS_MODULE_ORDER = [
     '70-archive-stt-tts.css',
     '80-image-gen.css',
     '90-game-rules.css',
-    '90-inspector.css'
+    '90-inspector.css',
+    '95-character-creator.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

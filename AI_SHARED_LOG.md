@@ -1002,6 +1002,29 @@ Phase 5（World × ComfyUI: `locationImageBuilder`, `autoOnLocationChange`, Worl
 ### Verification
 - `npm run compile && npm test` 全パス
 
+## 2026-06-28 JST - Grok - Phase 4b Hardening Audit (v1.4.1)
+
+### 背景
+Claude 実装の Living World Feedback (Phase 4a/4b) を堅牢性監査。NPC Need 増殖・イベント洪水・statePatch 穴を修正。
+
+### 修正内容
+| 問題 | 対応 |
+|------|------|
+| `recentChanges` 全件を毎 tick NPC bridge 再適用 | `runSimulationStep` が `stepEvents` を返し、当該ステップ分のみ bridge |
+| 食料0・危険度上昇が毎 tick イベント発行 | 遷移時/整数ティア上昇時のみ発行 |
+| Need `relatedEventId` が毎 turn 変わり増殖 | `faction_*_food_crisis` / `region_*_danger` 安定キー |
+| `/world` 一括 replace 可能 | ルート拒否 + 値検証（ID形式、danger 0–10） |
+| 拒否パッチで空ネスト残存 | world 値検証を traverse 前に実行 |
+| 期限切れ mapHighlight 残存 | `worldView` で `pruneExpiredEvents` 後にハイライト |
+
+### テスト追加
+- `scripts/test_npc_bridge.js`
+- `test_emergent_simulator.js` recentChanges / anti-flood
+- `test_state_patch.js` world allowlist
+
+### Verification
+- `npm run compile && npm test` 全パス — v1.4.1
+
 ## 2026-06-28 JST - Grok - Phase 1–4 Safety Audit (v1.3.2)
 
 ### 背景
@@ -1043,3 +1066,18 @@ pm test, ensuring the deterministic behavior of World Forge generator and World 
   - Preparing to merge 
 efactor/ws-and-extension-split into main and branch out eat/v1.4-living-world-feedback to begin work on the World Event Log system.
 - **Next Steps**: Hand over to Claude for core pure-function implementation of worldEventLogCore.ts and related tests.
+
+### [Claude] Phase 4a & 4b (Living World Feedback) Completed
+- **Date**: 2026-06-28 01:29 JST
+- **Action**: 
+  - Implemented worldEventLogCore.ts (Phase 4a) for event definitions and pruning logic.
+  - Updated worldStateCore.ts to include 
+ecentChanges.
+  - Implemented 
+pcBridgeCore.ts (Phase 4b) to propagate events to NPC needs (e.g., region danger -> emotional need, food shortage -> material need).
+  - Updated emergentSimulator.ts to collect and merge WorldChangeEvents.
+  - Added Map Highlight (🔥) in worldMapGenerator.ts for regions with recent changes.
+  - Filtered NPC context by currentLocationId in gmPromptBuilder.ts.
+  - Added 'World Changes' UI section in 85-world.js.
+  - Updated statePatch.ts to properly handle world path allowlists.
+- **Status**: Phase 4 core completed. Tests passed and committed.

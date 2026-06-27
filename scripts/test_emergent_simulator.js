@@ -25,6 +25,10 @@ try {
     Module.prototype.require = origRequire;
 }
 
+function simStep(forge, state) {
+    return runSimulationStep(forge, state).state;
+}
+
 let failed = 0;
 
 function fail(msg) {
@@ -89,7 +93,7 @@ function makeState(overrides = {}) {
     const originalFood = state.factions.watchers.resources.food;
     const originalTurnsRemaining = state.globalEvents[0].turnsRemaining;
 
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
 
     if (state.worldTurn !== originalTurn) {
         fail('original state worldTurn mutated');
@@ -114,7 +118,7 @@ function makeState(overrides = {}) {
 
 {
     const state = makeState({ worldTurn: 7 });
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.worldTurn !== 8) {
         fail(`worldTurn should be 8, got ${next.worldTurn}`);
     } else {
@@ -129,7 +133,7 @@ function makeState(overrides = {}) {
 {
     const state = makeState();
     const before = Date.now();
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     const after = Date.now();
     const ts = next.lastUpdated ? new Date(next.lastUpdated).getTime() : 0;
     if (ts < before || ts > after + 100) {
@@ -146,7 +150,7 @@ function makeState(overrides = {}) {
 {
     const state = makeState();
     state.factions.watchers.resources.food = 100;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.factions.watchers.resources.food >= 100) {
         fail('food should decrease from 100');
     } else {
@@ -158,7 +162,7 @@ function makeState(overrides = {}) {
     // Food already 0 — should not go negative
     const state = makeState();
     state.factions.undead.resources.food = 0;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.factions.undead.resources.food < 0) {
         fail('food should not go negative');
     } else {
@@ -173,7 +177,7 @@ function makeState(overrides = {}) {
 {
     // undead(80) vs watchers(40) → diff=40 > 10 → undead gains, watchers lose
     const state = makeState();
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     const undeadPowerChange = next.factions.undead.power - state.factions.undead.power;
     const watchersPowerChange = next.factions.watchers.power - state.factions.watchers.power;
 
@@ -196,7 +200,7 @@ function makeState(overrides = {}) {
     const state = makeState();
     state.factions.undead.power = 50;
     state.factions.watchers.power = 45;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.factions.undead.power >= 50 && next.factions.watchers.power >= 45) {
         fail('balanced factions should both lose power (stalemate consumption)');
     } else {
@@ -212,7 +216,7 @@ function makeState(overrides = {}) {
     const state = makeState();
     state.factions.watchers.power = 0;
     state.factions.undead.power = 100;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.factions.watchers.power < 0) {
         fail('power should not go below 0');
     } else {
@@ -236,7 +240,7 @@ function makeState(overrides = {}) {
     state.factions.watchers.power = 20;
     state.factions.undead.morale = 50;
     state.factions.undead.resources.food = 50; // avoid zero-food morale penalty
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     // undead avg enemy power = 20, undead power 90 >> enemy → morale should increase
     if (next.factions.undead.morale <= 50) {
         fail(`dominant faction morale should increase above 50, got ${next.factions.undead.morale}`);
@@ -251,7 +255,7 @@ function makeState(overrides = {}) {
     state.factions.undead.power = 90;
     state.factions.watchers.power = 20;
     state.factions.watchers.morale = 50;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.factions.watchers.morale >= 50) {
         fail('inferior faction morale should decrease');
     } else {
@@ -265,7 +269,7 @@ function makeState(overrides = {}) {
 
 {
     const state = makeState();
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.globalEvents[0].turnsRemaining !== 9) {
         fail(`turnsRemaining should be 9, got ${next.globalEvents[0].turnsRemaining}`);
     } else {
@@ -277,7 +281,7 @@ function makeState(overrides = {}) {
     // Event at turnsRemaining=1 should expire after one step
     const state = makeState();
     state.globalEvents[0].turnsRemaining = 1;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.globalEvents.length !== 0) {
         fail('expired globalEvent (turnsRemaining=0) should be removed');
     } else {
@@ -293,7 +297,7 @@ function makeState(overrides = {}) {
     // deep is controlled by undead (hostile, power 80 > 60) → danger should rise
     const state = makeState();
     const deepBefore = state.regions.deep.dangerLevel;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.regions.deep.dangerLevel <= deepBefore) {
         fail(`deep region danger should increase (hostile control), before=${deepBefore}, after=${next.regions.deep.dangerLevel}`);
     } else {
@@ -305,7 +309,7 @@ function makeState(overrides = {}) {
     // upper is controlled by watchers (neutral) → danger should decrease or hold
     const state = makeState();
     const upperBefore = state.regions.upper.dangerLevel;
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     if (next.regions.upper.dangerLevel > upperBefore) {
         fail(`neutral faction control should not increase region danger, before=${upperBefore}, after=${next.regions.upper.dangerLevel}`);
     } else {
@@ -320,12 +324,73 @@ function makeState(overrides = {}) {
 {
     const state = makeState();
     state.factions.undead.recentEvents = ['old event'];
-    const next = runSimulationStep(FORGE, state);
+    const next = simStep(FORGE, state);
     // recentEvents should be rebuilt each step (old ones cleared)
     if (next.factions.undead.recentEvents.includes('old event')) {
         fail('recentEvents should be reset each step');
     } else {
         ok('recentEvents reset each step (stale events cleared)');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Living World — recentChanges (v1.4)
+// ---------------------------------------------------------------------------
+
+{
+    const state = makeState({ recentChanges: [] });
+    const { state: next, stepEvents } = runSimulationStep(FORGE, state);
+    if (!Array.isArray(next.recentChanges)) {
+        fail('recentChanges should be an array');
+    } else {
+        ok('recentChanges array present');
+    }
+    if (stepEvents.length > 0 && next.recentChanges.length === 0) {
+        fail('stepEvents should be merged into recentChanges');
+    } else {
+        ok('stepEvents merged into recentChanges');
+    }
+}
+
+{
+    // food already 0 — no repeated resource events each tick
+    const state = makeState();
+    state.factions.undead.resources.food = 0;
+    const { stepEvents } = runSimulationStep(FORGE, state);
+    const foodEvents = stepEvents.filter((e) => e.category === 'resource');
+    if (foodEvents.length > 0) {
+        fail('should not emit food crisis when food already at 0');
+    } else {
+        ok('no food crisis event when already depleted');
+    }
+}
+
+{
+    // food hits zero on transition only
+    const state = makeState();
+    state.factions.watchers.resources.food = 1;
+    const { stepEvents } = runSimulationStep(FORGE, state);
+    const foodEvents = stepEvents.filter((e) => e.category === 'resource' && e.factionId === 'watchers');
+    if (foodEvents.length !== 1) {
+        fail(`expected 1 food crisis event on depletion, got ${foodEvents.length}`);
+    } else {
+        ok('food crisis event on transition to zero');
+    }
+}
+
+{
+    // repeated steps should not flood recentChanges with duplicate danger tiers
+    let state = makeState({ recentChanges: [] });
+    let dangerEvents = 0;
+    for (let i = 0; i < 5; i++) {
+        const result = runSimulationStep(FORGE, state);
+        state = result.state;
+        dangerEvents += result.stepEvents.filter((e) => e.category === 'region').length;
+    }
+    if (dangerEvents > 2) {
+        fail(`region danger events should not flood (got ${dangerEvents} in 5 steps)`);
+    } else {
+        ok(`region danger events capped across steps (got ${dangerEvents})`);
     }
 }
 

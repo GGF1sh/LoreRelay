@@ -7,6 +7,19 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.4.1] - 2026-06-28
+
+### Fixed — Living World Feedback hardening (Phase 4b 監査)
+- **NPC bridge 二重適用**: `maybeTickSimulation` が `recentChanges` 全件を毎 tick 再処理していた問題を修正。`stepEvents`（当該ステップ分のみ）を NPC bridge に渡すよう変更。
+- **イベント洪水**: 食料枯渇は 0 への遷移時のみ発行。地域危険度は整数ティア上昇時のみ発行。
+- **Need upsert**: 食料/安全 Need の `relatedEventId` を安定キーにし、繰り返し tick で Need が増殖しないよう修正。
+- **statePatch /world**: ルート `/world` 一括置換を拒否。許可サブパスの値に ID 形式・dangerLevel 0–10 検証を追加。
+- **マップハイライト**: 期限切れ `recentChanges` を `pruneExpiredEvents` で除外してから 🔥 表示。
+
+### Added
+- **`scripts/test_npc_bridge.js`**: food crisis upsert・region safety・ハイライト抽出のテスト。
+- **emergentSimulator / statePatch テスト拡充**: recentChanges・world allowlist カバレッジ追加。
+
 ## [1.3.2] - 2026-06-28
 
 ### Fixed — Phase 1–4 安全監査

@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry } from './types/GameState';
 import { isValidEntryId } from './entryId';
+import { isValidEventId } from './worldEventLogCore';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { validateGameState } from './validateGameState';
 import { t } from './i18n';
@@ -71,6 +72,22 @@ function matchesWorldAllowlist(keys: string[]): boolean {
     return false;
 }
 
+function isSafeWorldPatchValue(keys: string[], value: unknown): boolean {
+    if (keys.length === 2 && keys[1] === 'currentLocationId') {
+        return typeof value === 'string' && (value === '' || isValidEventId(value));
+    }
+    if (keys.length === 4 && keys[1] === 'regions') {
+        if (!isValidEventId(keys[2])) { return false; }
+        if (keys[3] === 'controllingFaction') {
+            return value === null || (typeof value === 'string' && isValidEventId(value));
+        }
+        if (keys[3] === 'dangerLevel') {
+            return typeof value === 'number' && !Number.isNaN(value) && value >= 0 && value <= 10;
+        }
+    }
+    return false;
+}
+
 function isSafePatchPath(patchPath: string): boolean {
     const keys = patchPath.split('/').filter((k) => k.length > 0);
     if (keys.length === 0) {
@@ -84,7 +101,8 @@ function isSafePatchPath(patchPath: string): boolean {
     }
     // /world paths are gated by a fine-grained allowlist to prevent arbitrary
     // overwrites of simulation state that the GM should not touch directly.
-    if (keys[0] === 'world' && keys.length > 1) {
+    if (keys[0] === 'world') {
+        if (keys.length === 1) { return false; }
         return matchesWorldAllowlist(keys);
     }
     return true;
@@ -111,19 +129,24 @@ export function applyStatePatch(state: Record<string, unknown>, patches: StatePa
             }
 
             const keys = patch.path.split('/').filter((k) => k.length > 0);
-            let target: Record<string, unknown> = newState;
-            for (let i = 0; i < keys.length - 1; i++) {
-                const key = keys[i];
-                if (target[key] === undefined || typeof target[key] !== 'object' || target[key] === null) {
-                    target[key] = {};
-                }
-                target = target[key] as Record<string, unknown>;
-            }
 
             const lastKey = keys[keys.length - 1];
             switch (patch.op) {
                 case 'replace':
                 case 'add': {
+                    if (keys[0] === 'world' && !isSafeWorldPatchValue(keys, patch.value)) {
+                        console.warn(`[statePatch] Blocked world patch value: ${patch.path}`);
+                        break;
+                    }
+
+                    let target: Record<string, unknown> = newState;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        const key = keys[i];
+                        if (target[key] === undefined || typeof target[key] !== 'object' || target[key] === null) {
+                            target[key] = {};
+                        }
+                        target = target[key] as Record<string, unknown>;
+                    }
                     const serialized = JSON.stringify(patch.value);
                     if (serialized.length > MAX_PATCH_VALUE_BYTES) {
                         console.warn(`[statePatch] Value too large for ${patch.path} (${serialized.length} bytes), skipping`);
@@ -132,9 +155,18 @@ export function applyStatePatch(state: Record<string, unknown>, patches: StatePa
                     target[lastKey] = patch.value;
                     break;
                 }
-                case 'remove':
+                case 'remove': {
+                    let target: Record<string, unknown> = newState;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        const key = keys[i];
+                        if (target[key] === undefined || typeof target[key] !== 'object' || target[key] === null) {
+                            break;
+                        }
+                        target = target[key] as Record<string, unknown>;
+                    }
                     delete target[lastKey];
                     break;
+                }
             }
         } catch (e) {
             console.error(`Failed to apply patch: ${JSON.stringify(patch)}`, e);

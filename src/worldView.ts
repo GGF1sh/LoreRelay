@@ -3,6 +3,7 @@ import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { generateWorldMap } from './worldMapGenerator';
 import { extractHighlightRegionIds } from './npcBridgeCore';
+import { pruneExpiredEvents } from './worldEventLogCore';
 import type { Faction } from './worldForgeCore';
 import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldStateCore';
 
@@ -60,7 +61,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const globalEvents: GlobalEvent[] | undefined = worldState?.globalEvents;
     const worldTurn: number | undefined = worldState?.worldTurn;
 
-    const highlightRegionIds = extractHighlightRegionIds(worldState?.recentChanges ?? []);
+    const activeChanges = pruneExpiredEvents(
+        worldState?.recentChanges ?? [],
+        worldState?.worldTurn ?? 0
+    );
+    const highlightRegionIds = extractHighlightRegionIds(activeChanges);
     const worldMap = generateWorldMap(forge, currentLocationId, regionStates, factionStates, highlightRegionIds);
     const factions = forge.factions.map(serializeFaction);
 

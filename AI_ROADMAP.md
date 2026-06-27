@@ -39,18 +39,18 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 ---
 
 ## 🟡 Phase 4 (v1.4.0 - v1.4.1): Living World Feedback (Next!)
-*ステータス: 未着手*
+*ステータス: 実装中 (Phase 4a & 4b 完了)*
 **目的**: Emergent Simulation の変動を「出来事」として履歴化し、プレイヤーやNPCに体感させる。
 
 - [ ] **1. World Event Log (`world_event_log.ndjson`)**
   - simulator が faction_conflict, danger_shift などのイベントを生成・記録
 - [ ] **2. World Change Summary**
   - 数ターン（3〜5 GMターン）ごとに「世界の変化」をサマリーとして出力
-- [ ] **3. World Tab Event Timeline**
+- [x] **3. World Tab Event Timeline**
   - World タブ内に「Recent Events」欄を追加し、最新5件や重要度別に表示
-- [ ] **4. Map Highlight**
+- [x] **4. Map Highlight**
   - 最近変化した region/location を World Map 上でハイライト（danger上昇で赤枠など）
-- [ ] **5. NPC Reaction Propagation (目玉機能)**
+- [x] **5. NPC Reaction Propagation (目玉機能)**
   - World Event の発生を関連 NPC の Needs や Memory に反映（例：襲撃された町のNPCに `need: safety` を追加）
 - [ ] **Hardening (v1.4.1)**
   - event log pruning, max event count, severity clamp, duplicate dedup, migration

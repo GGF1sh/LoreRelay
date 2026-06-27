@@ -148,6 +148,70 @@ assertEqual(directorPatched.director?.scene, 'Boss Room', 'applyStatePatch allow
     }
 }
 
+// ---------------------------------------------------------------------------
+// v1.4: /world subpath allowlist + value validation
+// ---------------------------------------------------------------------------
+
+{
+    const withWorld = { ...baseState, world: { regions: { deep: { dangerLevel: 5 } } } };
+    const allowed = applyStatePatch(withWorld, [
+        { op: 'replace', path: '/world/currentLocationId', value: 'entrance_hall' },
+        { op: 'replace', path: '/world/regions/deep/controllingFaction', value: 'undead' },
+        { op: 'replace', path: '/world/regions/deep/dangerLevel', value: 7 },
+    ]);
+    if (allowed.world?.currentLocationId !== 'entrance_hall') {
+        fail('world currentLocationId patch should apply');
+    } else {
+        ok('world currentLocationId patch allowed');
+    }
+    if (allowed.world?.regions?.deep?.controllingFaction !== 'undead') {
+        fail('world controllingFaction patch should apply');
+    } else {
+        ok('world controllingFaction patch allowed');
+    }
+    if (allowed.world?.regions?.deep?.dangerLevel !== 7) {
+        fail('world dangerLevel patch should apply');
+    } else {
+        ok('world dangerLevel patch allowed');
+    }
+}
+
+{
+    const withWorld = { ...baseState, world: {} };
+    const blocked = applyStatePatch(withWorld, [
+        { op: 'replace', path: '/world', value: { evil: true } },
+        { op: 'replace', path: '/world/recentChanges', value: [] },
+        { op: 'replace', path: '/world/regions/bad id/dangerLevel', value: 5 },
+        { op: 'replace', path: '/world/regions/deep/dangerLevel', value: 99 },
+        { op: 'replace', path: '/world/currentLocationId', value: 'has space' },
+    ]);
+    if (blocked.world?.evil === true) {
+        fail('wholesale /world replace should be blocked');
+    } else {
+        ok('wholesale /world replace blocked');
+    }
+    if (blocked.world?.recentChanges) {
+        fail('unknown /world/recentChanges path should be blocked');
+    } else {
+        ok('unknown /world subpath blocked');
+    }
+    if (blocked.world?.regions?.['bad id']?.dangerLevel === 5) {
+        fail('invalid region id in path should be blocked');
+    } else {
+        ok('invalid region id in path blocked');
+    }
+    if (blocked.world?.regions?.deep?.dangerLevel === 99) {
+        fail('dangerLevel > 10 should be blocked');
+    } else {
+        ok('dangerLevel out of range blocked');
+    }
+    if (blocked.world?.currentLocationId === 'has space') {
+        fail('invalid currentLocationId should be blocked');
+    } else {
+        ok('invalid currentLocationId blocked');
+    }
+}
+
 if (failed > 0) {
   process.exit(1);
 }

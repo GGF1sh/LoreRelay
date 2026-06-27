@@ -10,6 +10,15 @@ import type { NpcRegistry, NpcNeed, NpcEntry } from './npcRegistryCore';
 // ---------------------------------------------------------------------------
 
 const MAX_NEEDS_PER_NPC = 10;
+const MAX_EVENTS_PER_BRIDGE = 30;
+
+function foodCrisisKey(factionId: string): string {
+    return `faction_${factionId}_food_crisis`;
+}
+
+function regionSafetyKey(regionId: string): string {
+    return `region_${regionId}_danger`;
+}
 const FOOD_CRISIS_URGENCY = 75;
 const FOOD_CRISIS_URGENCY_INCREMENT = 20;
 const SAFETY_URGENCY_BASE = 60;
@@ -94,22 +103,24 @@ export function applyEventsToNpcRegistry(
         }
     }
 
-    for (const event of events) {
+    for (const event of events.slice(0, MAX_EVENTS_PER_BRIDGE)) {
         // ── Scenario A: food crisis ──────────────────────────────────────────
         if (event.category === 'resource' && event.factionId && event.severity !== 'info') {
+            const factionId = event.factionId;
+            const crisisKey = foodCrisisKey(factionId);
             for (const [npcId, entry] of Object.entries(next.npcs)) {
-                if (entry.factionId !== event.factionId) { continue; }
+                if (entry.factionId !== factionId) { continue; }
 
                 upsertNeed(
                     entry,
-                    makeNeedId('need_food', npcId, event.id),
-                    event.id,
+                    makeNeedId('need_food', npcId, factionId),
+                    crisisKey,
                     () => ({
-                        id: makeNeedId('need_food', npcId, event.id),
+                        id: makeNeedId('need_food', npcId, factionId),
                         type: 'material',
                         description: '食料の確保が急務',
                         urgency: FOOD_CRISIS_URGENCY,
-                        relatedEventId: event.id,
+                        relatedEventId: crisisKey,
                     }),
                     (existing) => {
                         existing.urgency = clamp(
@@ -125,6 +136,7 @@ export function applyEventsToNpcRegistry(
         // ── Scenario B: region danger rising ────────────────────────────────
         if (event.category === 'region' && event.regionId && event.mapHighlight) {
             const regionId = event.regionId;
+            const safetyKey = regionSafetyKey(regionId);
             const locIds = regionLocationIds.get(regionId);
             if (!locIds) { continue; }
 
@@ -134,13 +146,13 @@ export function applyEventsToNpcRegistry(
                 upsertNeed(
                     entry,
                     makeNeedId('need_safety', npcId, regionId),
-                    event.id,
+                    safetyKey,
                     () => ({
                         id: makeNeedId('need_safety', npcId, regionId),
                         type: 'emotional',
                         description: `地域が不安定化している (${regionId})`,
                         urgency: SAFETY_URGENCY_BASE,
-                        relatedEventId: event.id,
+                        relatedEventId: safetyKey,
                     }),
                     (existing) => {
                         existing.urgency = clamp(existing.urgency + 10, 0, 90);

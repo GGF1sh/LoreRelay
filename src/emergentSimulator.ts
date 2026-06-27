@@ -37,15 +37,15 @@ export function maybeTickSimulation(gmTurnCount: number): void {
 
     const state = ensureWorldStateExists(forge);
     if ((state.lastSimulatedGmTurn ?? 0) >= gmTurnCount) { return; }
-    const next = runSimulationStep(forge, state);
+    const { state: next, stepEvents } = runSimulationStep(forge, state);
     next.lastSimulatedGmTurn = gmTurnCount;
     saveWorldState(next);
 
-    // Propagate simulation events to NPC needs when both systems are enabled
-    if (rules.enableNpcRegistry && (next.recentChanges?.length ?? 0) > 0) {
+    // Propagate only this step's events — re-processing recentChanges would inflate needs
+    if (rules.enableNpcRegistry && stepEvents.length > 0) {
         const registry = loadNpcRegistry();
         const { registry: updated, updatedIds } = applyEventsToNpcRegistry(
-            next.recentChanges ?? [],
+            stepEvents,
             registry,
             forge
         );
@@ -59,11 +59,17 @@ export function maybeTickSimulation(gmTurnCount: number): void {
 // Core simulation
 // ---------------------------------------------------------------------------
 
+export interface SimulationStepResult {
+    state: WorldState;
+    /** Events emitted during this step only (for NPC bridge — not the full log). */
+    stepEvents: WorldChangeEvent[];
+}
+
 /**
  * 1 シミュレーションステップを実行して新しい WorldState を返す。
  * 元の state は変更しない（ディープクローン）。
  */
-export function runSimulationStep(forge: WorldForge, state: WorldState): WorldState {
+export function runSimulationStep(forge: WorldForge, state: WorldState): SimulationStepResult {
     const next: WorldState = JSON.parse(JSON.stringify(state)) as WorldState;
     next.worldTurn = (state.worldTurn ?? 0) + 1;
     next.lastUpdated = new Date().toISOString();
@@ -91,7 +97,7 @@ export function runSimulationStep(forge: WorldForge, state: WorldState): WorldSt
     const existing = pruneExpiredEvents(next.recentChanges ?? [], next.worldTurn);
     next.recentChanges = mergeRecentChanges(existing, newEvents, MAX_RECENT_CHANGES);
 
-    return next;
+    return { state: next, stepEvents: newEvents };
 }
 
 // ---------------------------------------------------------------------------
@@ -138,9 +144,11 @@ function tickResources(
 
     // 食料消費（派閥規模に比例）
     if (typeof fs.resources.food === 'number') {
+        const foodBefore = fs.resources.food;
         const consumed = Math.max(1, Math.round(fs.resources.food * 0.06));
         fs.resources.food = Math.max(0, fs.resources.food - consumed);
-        if (fs.resources.food === 0) {
+        // Emit only on transition to zero — not every tick while depleted
+        if (fs.resources.food === 0 && foodBefore > 0) {
             events.push('食料が底をついた — 士気に影響');
             fs.morale = Math.max(0, (fs.morale ?? 50) - 10);
             worldEvents.push(makeWorldChangeEvent({
@@ -281,25 +289,27 @@ function updateRegionDanger(
         }
 
         const current = rs.dangerLevel ?? (region.dangerLevel ?? 1);
-        const newDanger = clamp(Math.round((current + delta) * 10) / 10, 0, 10);
-        rs.dangerLevel = newDanger;
+        const dangerFloorBefore = Math.floor(current);
+        rs.dangerLevel = clamp(Math.round((current + delta) * 10) / 10, 0, 10);
 
         // アクティブイベントが存在するリージョンは追加の危険度上昇
         if (rs.activeEvents && rs.activeEvents.length > 0) {
             rs.dangerLevel = Math.min(10, rs.dangerLevel + 0.2);
         }
 
-        // Emit event when danger is actively rising due to a hostile faction
-        if (delta > 0) {
+        const displayDanger = rs.dangerLevel;
+        const dangerFloorAfter = Math.floor(displayDanger);
+        // Emit when integer danger tier rises (avoids flooding every tick)
+        if (delta > 0 && dangerFloorAfter > dangerFloorBefore) {
             worldEvents.push(makeWorldChangeEvent({
                 worldTurn: state.worldTurn,
                 category: 'region',
-                severity: newDanger >= 7 ? 'critical' : 'warning',
+                severity: displayDanger >= 7 ? 'critical' : 'warning',
                 regionId: region.id,
                 factionId: controlId,
                 mapHighlight: true,
-                message: `${region.name}: 危険度が上昇 (${newDanger}/10)`,
-                gmHint: `${region.name} は ${forgeFaction.name} (power:${Math.round(factionState.power)}) の支配下で不安定化しています。危険度:${newDanger}/10。`,
+                message: `${region.name}: 危険度が上昇 (${displayDanger}/10)`,
+                gmHint: `${region.name} は ${forgeFaction.name} (power:${Math.round(factionState.power)}) の支配下で不安定化しています。危険度:${displayDanger}/10。`,
                 expiresAfterTurns: 3,
                 idSuffix: `${region.id}_danger`,
             }));

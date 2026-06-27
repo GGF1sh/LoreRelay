@@ -1,4 +1,10 @@
 import type { WorldForge, FactionResources } from './worldForgeCore';
+import {
+    type WorldChangeEvent,
+    parseRecentChanges,
+} from './worldEventLogCore';
+
+export type { WorldChangeEvent };
 
 export type WorldEventType = 'environmental' | 'political' | 'military' | 'social' | 'magical' | 'other';
 export type WorldEventSeverity = 'minor' | 'moderate' | 'major' | 'catastrophic';
@@ -33,6 +39,8 @@ export interface WorldState {
     factions: Record<string, FactionWorldState>;
     regions?: Record<string, RegionWorldState>;
     globalEvents?: GlobalEvent[];
+    /** Structured events emitted by the simulator (v1.4). Max MAX_RECENT_CHANGES entries, FIFO. */
+    recentChanges?: WorldChangeEvent[];
     pendingWorldEvents?: unknown[];
 }
 
@@ -140,6 +148,8 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         ? doc.globalEvents.slice(0, MAX_PARSE_GLOBAL_EVENTS).map(parseGlobalEvent).filter((x): x is GlobalEvent => x !== undefined)
         : [];
 
+    const recentChanges = parseRecentChanges(doc.recentChanges);
+
     return {
         format: asString(doc.format, 'lorerelay-world-state/1.0'),
         lastUpdated: typeof doc.lastUpdated === 'string' ? doc.lastUpdated : undefined,
@@ -148,6 +158,7 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         factions,
         regions,
         globalEvents,
+        recentChanges,
         pendingWorldEvents: Array.isArray(doc.pendingWorldEvents) ? doc.pendingWorldEvents : []
     };
 }
@@ -189,13 +200,14 @@ export function buildInitialWorldState(forge: WorldForge): WorldState {
     }
 
     return {
-        format: 'lorerelay-world-state/1.0',
+        format: 'lorerelay-world-state/1.1',
         lastUpdated: new Date().toISOString(),
         worldTurn: 0,
         lastSimulatedGmTurn: 0,
         factions,
         regions,
         globalEvents: [],
+        recentChanges: [],
         pendingWorldEvents: []
     };
 }

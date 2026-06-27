@@ -1002,6 +1002,24 @@ Phase 5（World × ComfyUI: `locationImageBuilder`, `autoOnLocationChange`, Worl
 ### Verification
 - `npm run compile && npm test` 全パス
 
+## 2026-06-28 JST - Grok - Phase 5c/5d Visual Memory Review (v1.5.2)
+
+### 背景
+Claude 実装の Gallery Metadata (5c) と World tab portraits (5d) をコードレビュー。
+
+### 修正内容
+| 問題 | 対応 |
+|------|------|
+| `parseNpcEntry` が `portraitImagePath` 未読込 | フィールド追加 + テスト |
+| `setNpcPortrait` / webview ハンドラ無検証 | ID + `resolveAllowedImagePath` |
+| Gallery `vlmAnalysisComplete` パス不一致 | resolved path 統一 + loose match |
+| キャッシュヒットで Gallery 未更新 | `notifyVlmAnalysisComplete` on cache hit |
+| Analyze ボタン固着 | `vlmAnalysisFailed` イベント |
+| QuickPick 500件 | 40件・許可パスのみ |
+
+### Verification
+- `npm run compile && npm test` 全パス — v1.5.2
+
 ## 2026-06-28 JST - Grok - Phase 5a/5b Visual Memory Review (v1.5.1)
 
 ### 背景

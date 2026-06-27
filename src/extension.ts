@@ -43,8 +43,11 @@ import {
     initGameStateSync,
     sendCurrentState,
     startGameStateWatcher,
-    getGameEntryHistory
+    getGameEntryHistory,
+    getCachedGameState,
 } from './gameStateSync';
+import { isValidEntryId } from './entryId';
+import { resolveAllowedImagePath } from './mediaPaths';
 import {
     getWorkspacePath,
     getGameStatePath,
@@ -920,6 +923,12 @@ async function exportCharacterCard(payload: any): Promise<void> {
     }
 }
 
+function getCurrentLocationIdForWorldView(): string | undefined {
+    const world = getCachedGameState()?.world as Record<string, unknown> | undefined;
+    const id = typeof world?.currentLocationId === 'string' ? world.currentLocationId : undefined;
+    return id && isValidEntryId(id) ? id : undefined;
+}
+
 /** Webview postMessage ルーターへ渡すハンドラ束ね。 */
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
@@ -976,13 +985,21 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleRequestMermaid,
         exportCharacterCard,
         handleRequestVlmAnalysis: async (imagePath: string) => {
+            if (!resolveAllowedImagePath(imagePath)) {
+                vscode.window.showWarningMessage('VLM: Image path is not allowed or missing.');
+                return;
+            }
             const { enqueueVlmAnalysis, buildVlmMetaFromGameState } = await import('./vlmQueue');
             await enqueueVlmAnalysis(imagePath, buildVlmMetaFromGameState());
         },
         handleRequestNpcPortraitLink: async (npcId: string) => {
+            if (!isValidEntryId(npcId)) { return; }
             const { loadVisualMemory } = await import('./visualMemory');
             const mem = loadVisualMemory();
-            const entries = Object.values(mem.entries);
+            const entries = Object.values(mem.entries)
+                .filter((e) => resolveAllowedImagePath(e.imagePath))
+                .sort((a, b) => b.analyzedAt.localeCompare(a.analyzedAt))
+                .slice(0, 40);
             if (entries.length === 0) {
                 vscode.window.showWarningMessage('No analyzed images in visual memory. Analyze an image first via the Gallery.');
                 return;
@@ -1003,39 +1020,18 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             const ok = setNpcPortrait(npcId, picked.imagePath);
             if (ok) {
                 vscode.window.setStatusBarMessage(`Portrait set for ${npcId}`, 3000);
-                const statePath = getGameStatePath();
-                let locationId: string | undefined;
-                if (statePath && fs.existsSync(statePath)) {
-                    try {
-                        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
-                        const world = raw.world as Record<string, unknown> | undefined;
-                        if (typeof world?.currentLocationId === 'string') { locationId = world.currentLocationId; }
-                    } catch { /* ignore */ }
-                }
-                pushWorldViewToWebview(locationId);
+                pushWorldViewToWebview(getCurrentLocationIdForWorldView());
             } else {
-                vscode.window.showWarningMessage(`NPC "${npcId}" not found in registry.`);
+                vscode.window.showWarningMessage(`NPC "${npcId}" not found or image path rejected.`);
             }
         },
         handleSetNpcPortrait: async (npcId: string, imagePath: string) => {
             const { setNpcPortrait } = await import('./npcRegistry');
             const ok = setNpcPortrait(npcId, imagePath);
             if (ok) {
-                // Read currentLocationId from game_state.json to refresh World tab
-                let locationId: string | undefined;
-                const statePath = getGameStatePath();
-                if (statePath && fs.existsSync(statePath)) {
-                    try {
-                        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
-                        const world = raw.world as Record<string, unknown> | undefined;
-                        if (typeof world?.currentLocationId === 'string') {
-                            locationId = world.currentLocationId;
-                        }
-                    } catch { /* ignore */ }
-                }
-                pushWorldViewToWebview(locationId);
+                pushWorldViewToWebview(getCurrentLocationIdForWorldView());
             } else {
-                vscode.window.showWarningMessage(`NPC "${npcId}" not found in registry.`);
+                vscode.window.showWarningMessage(`NPC "${npcId}" not found or image path rejected.`);
             }
         },
     };

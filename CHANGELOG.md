@@ -7,6 +7,16 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.2] - 2026-06-28
+
+### Fixed — Visual Memory Phase 5c/5d コードレビュー
+- **portraitImagePath パース漏れ**: `parseNpcEntry` が `portraitImagePath` を読み込んでおらず、再起動でポートレートが消える問題を修正。
+- **setNpcPortrait 無検証**: `npcId` / 画像パスを `isValidEntryId` + `resolveAllowedImagePath` で検証。
+- **Gallery ↔ VLM パス不一致**: `rawImagePath` を resolved path で統一。`vlmAnalysisComplete` をキャッシュヒット時も送信。パス比較を正規化マッチに変更。
+- **Analyze ボタン固着**: `vlmAnalysisFailed` イベントでギャラリー UI を復帰。
+- **QuickPick 無制限**: visual memory から最大40件・許可パスのみ表示。
+- **getEntriesByLocation**: 無効 `locationId` 拒否 + ソート/上限。
+
 ## [1.5.1] - 2026-06-28
 
 ### Fixed — Visual Memory Phase 5a/5b コードレビュー

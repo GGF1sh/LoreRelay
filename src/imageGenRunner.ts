@@ -21,6 +21,7 @@ import {
 } from './gameStateSync';
 import { resolvePythonCommand } from './skillScriptRunner';
 import { buildVlmMetaFromGameState } from './vlmQueue';
+import { resolveAllowedImagePath } from './mediaPaths';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
@@ -283,7 +284,7 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
                 id: entryId,
                 image: uri,
                 imagePrompt: prompt,
-                rawImagePath: imagePath,
+                rawImagePath: resolveAllowedImagePath(imagePath) ?? imagePath,
                 locationId: meta.locationId,
                 worldTurn: meta.worldTurn,
             }

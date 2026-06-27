@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { resolveAllowedImagePath } from './mediaPaths';
+import { isValidEntryId } from './entryId';
 import {
     type VisualMemory,
     type VisualMemoryEntry,
@@ -129,9 +130,15 @@ export function storeVisualMemoryEntry(entry: VisualMemoryEntry): void {
 /**
  * Returns all entries that match a given locationId.
  */
+const MAX_ENTRIES_BY_LOCATION = 20;
+
 export function getEntriesByLocation(locationId: string): VisualMemoryEntry[] {
+    if (!isValidEntryId(locationId)) { return []; }
     const mem = loadVisualMemory();
-    return Object.values(mem.entries).filter((e) => e.locationId === locationId);
+    return Object.values(mem.entries)
+        .filter((e) => e.locationId === locationId)
+        .sort((a, b) => b.analyzedAt.localeCompare(a.analyzedAt))
+        .slice(0, MAX_ENTRIES_BY_LOCATION);
 }
 
 /**

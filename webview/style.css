@@ -891,6 +891,14 @@ body {
   padding: 20px;
 }
 
+/* Gallery item wrapper — positions overlay on top of thumb */
+.gallery-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .gallery-thumb {
   width: 100%;
   aspect-ratio: 1;
@@ -899,11 +907,81 @@ body {
   border: 1px solid var(--glass-border);
   cursor: pointer;
   transition: transform 0.2s, border-color 0.2s;
+  display: block;
 }
 
 .gallery-thumb:hover {
-  transform: scale(1.05);
+  transform: scale(1.04);
   border-color: var(--accent);
+}
+
+/* Metadata badge row — float over top of image */
+.gallery-badge-row {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.gallery-badge {
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 3px;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-badge.gallery-location { color: #7ec8e3; }
+.gallery-badge.gallery-turn     { color: #b0e57c; }
+.gallery-badge.gallery-analyzed { color: #c3b1e1; }
+
+/* Analyze / analyzed button — below the thumb */
+.gallery-action-row {
+  display: flex;
+  gap: 3px;
+}
+
+.gallery-analyze-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-analyze-btn:hover {
+  background: var(--accent-dim);
+  color: #fff;
+}
+
+.gallery-analyze-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.gallery-analyze-btn.analyzed {
+  color: #c3b1e1;
+  border-color: #c3b1e1;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* テーマボタン */
@@ -1682,6 +1760,153 @@ body {
 
 .img-gen-saved.hidden {
   display: none;
+}
+
+/* --- 85-world.css --- */
+/* ========= World Tab — Location Images & NPC Panel ========= */
+
+.world-section-heading {
+  font-size: 0.75em;
+  opacity: 0.6;
+  margin-bottom: 0.4rem;
+  margin-top: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* -------- Location Scene History Strip -------- */
+#world-location-images {
+  padding: 0 0.5rem;
+}
+
+.world-image-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.world-image-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.world-image-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  display: block;
+  transition: border-color 0.15s;
+}
+
+.world-image-thumb:hover {
+  border-color: var(--accent);
+}
+
+.world-image-turn-badge {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: rgba(0,0,0,0.7);
+  color: #b0e57c;
+  font-size: 9px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* -------- NPC Panel -------- */
+#world-npcs-section {
+  padding: 0 0.5rem;
+}
+
+.world-npc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.world-npc-card {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.world-npc-portrait {
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: rgba(255,255,255,0.05);
+}
+
+.world-npc-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.world-npc-portrait.placeholder {
+  color: var(--text-dim);
+}
+
+.world-npc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.world-npc-name {
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.world-npc-mood {
+  font-size: 0.72em;
+  opacity: 0.6;
+}
+
+.world-npc-needs {
+  font-size: 0.72em;
+  color: #f4a261;
+}
+
+.world-npc-portrait-btn {
+  margin-top: 3px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.world-npc-portrait-btn:hover {
+  background: var(--accent-dim);
+  color: #fff;
 }
 
 /* --- 90-game-rules.css --- */

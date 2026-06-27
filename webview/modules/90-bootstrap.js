@@ -190,13 +190,19 @@ window.addEventListener('message', (event) => {
     if (entry) { entry.excludedFromPrompt = !!msg.excluded; }
     saveState();
   } else if (msg.type === 'vlmAnalysisComplete') {
-    // Update gallery entry with description from VLM analysis
     if (typeof msg.imagePath === 'string' && typeof msg.description === 'string') {
-      const idx = galleryImages.findIndex(e => e.rawPath === msg.imagePath);
+      const idx = findGalleryIndexByImagePath(msg.imagePath);
       if (idx >= 0) {
         galleryImages[idx] = { ...galleryImages[idx], description: msg.description };
         renderGallery();
         saveState();
+      }
+    }
+  } else if (msg.type === 'vlmAnalysisFailed') {
+    if (typeof msg.imagePath === 'string') {
+      const idx = findGalleryIndexByImagePath(msg.imagePath);
+      if (idx >= 0) {
+        renderGallery();
       }
     }
   } else if (msg.type === 'imageGenConfig') {

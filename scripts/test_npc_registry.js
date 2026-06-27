@@ -24,10 +24,10 @@ Module.prototype.require = function (id) {
     return origRequire.apply(this, arguments);
 };
 
-let npcRegistryCore, parseNpcMemoryUpdatesFromGameState;
+let npcRegistryCore, parseNpcMemoryUpdatesFromGameState, parseNpcRegistry;
 try {
     npcRegistryCore = require('../out/npcRegistryCore');
-    ({ parseNpcMemoryUpdatesFromGameState } = require('../out/npcRegistry'));
+    ({ parseNpcMemoryUpdatesFromGameState, parseNpcRegistry } = require('../out/npcRegistry'));
 } finally {
     Module.prototype.require = origRequire;
 }
@@ -158,6 +158,29 @@ if (!withNeeds[0].needUpdates || withNeeds[0].needUpdates.length !== 2) {
     fail('needUpdates array preserved');
 } else {
     ok('needUpdates array preserved');
+}
+
+// ---------------------------------------------------------------------------
+// parseNpcRegistry — portraitImagePath (Phase 5d)
+// ---------------------------------------------------------------------------
+
+{
+    const reg = parseNpcRegistry({
+        npcs: {
+            guard: {
+                name: 'Guard',
+                disposition: { playerTrust: 50, playerRomance: 0, playerFear: 0, mood: 'neutral', lastInteractionTurn: 0 },
+                needs: [],
+                memories: [],
+                portraitImagePath: 'C:\\ws\\portraits\\guard.png',
+            },
+        },
+    });
+    if (reg.npcs.guard?.portraitImagePath !== 'C:\\ws\\portraits\\guard.png') {
+        fail('portraitImagePath should parse from registry JSON');
+    } else {
+        ok('portraitImagePath parsed');
+    }
 }
 
 // ---------------------------------------------------------------------------

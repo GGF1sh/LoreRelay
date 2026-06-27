@@ -22,3 +22,15 @@ export function resolvedImagePathsMatch(
 ): boolean {
     return Boolean(resolvedLatest && resolvedTarget && resolvedLatest === resolvedTarget);
 }
+
+/** Loose path compare for webview gallery matching (normalized slashes + case). */
+export function normalizePathForCompare(p: string): string {
+    return p.replace(/\\/g, '/').toLowerCase();
+}
+
+export function imagePathsLooselyMatch(a: string | undefined, b: string | undefined): boolean {
+    if (!a || !b) { return false; }
+    const na = normalizePathForCompare(a);
+    const nb = normalizePathForCompare(b);
+    return na === nb;
+}

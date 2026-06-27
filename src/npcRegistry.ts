@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { isValidEntryId } from './entryId';
+import { resolveAllowedImagePath } from './mediaPaths';
 import {
     type NpcRegistry,
     type NpcEntry,
@@ -79,11 +81,14 @@ export function getNpcEntry(npcId: string): NpcEntry | undefined {
  * Returns false if npcId is not found.
  */
 export function setNpcPortrait(npcId: string, imagePath: string | undefined): boolean {
+    if (!isValidEntryId(npcId)) { return false; }
     const registry = loadNpcRegistry();
     const entry = registry.npcs[npcId];
     if (!entry) { return false; }
     if (imagePath) {
-        entry.portraitImagePath = imagePath;
+        const resolved = resolveAllowedImagePath(imagePath);
+        if (!resolved) { return false; }
+        entry.portraitImagePath = resolved;
     } else {
         delete entry.portraitImagePath;
     }
@@ -253,10 +258,14 @@ function parseNpcEntry(raw: unknown): NpcEntry | undefined {
             if (typeof dh[key] === 'string') { entry.dialogueHints[key] = dh[key] as string; }
         }
     }
+    if (typeof r.portraitImagePath === 'string') {
+        const portrait = r.portraitImagePath.trim().slice(0, 1000);
+        if (portrait) { entry.portraitImagePath = portrait; }
+    }
     return entry;
 }
 
-function parseNpcRegistry(raw: unknown): NpcRegistry {
+export function parseNpcRegistry(raw: unknown): NpcRegistry {
     const empty: NpcRegistry = { format: 'lorerelay-npc-registry/1.0', npcs: {} };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return empty; }
     const doc = raw as Record<string, unknown>;

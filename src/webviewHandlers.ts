@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { CharacterProfile } from './types/Character';
 import { isValidCharacterId } from './characterId';
 import { isValidEntryId } from './entryId';
+import { resolveAllowedImagePath } from './mediaPaths';
 import { branchFromTurn } from './gitManager';
 import { t } from './i18n';
 
@@ -320,19 +321,21 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             await deps.handleRequestMermaid(typeof message.target === 'string' ? message.target : 'questFlow');
             break;
         case 'requestVlmAnalysis':
-            if (typeof message.imagePath === 'string' && message.imagePath) {
+            if (typeof message.imagePath === 'string' && message.imagePath &&
+                resolveAllowedImagePath(message.imagePath)) {
                 await deps.handleRequestVlmAnalysis(message.imagePath);
             }
             break;
         case 'setNpcPortrait':
-            if (typeof message.npcId === 'string' && message.npcId &&
-                typeof message.imagePath === 'string' && message.imagePath) {
-                await deps.handleSetNpcPortrait(message.npcId, message.imagePath);
+            if (isValidEntryId(message.npcId) &&
+                typeof message.imagePath === 'string' && message.imagePath &&
+                resolveAllowedImagePath(message.imagePath)) {
+                await deps.handleSetNpcPortrait(message.npcId as string, message.imagePath);
             }
             break;
         case 'requestNpcPortraitLink':
-            if (typeof message.npcId === 'string' && message.npcId) {
-                await deps.handleRequestNpcPortraitLink(message.npcId);
+            if (isValidEntryId(message.npcId)) {
+                await deps.handleRequestNpcPortraitLink(message.npcId as string);
             }
             break;
         default:

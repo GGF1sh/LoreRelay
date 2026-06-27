@@ -71,6 +71,17 @@ let gameOverActive = false;
 let rewindTargets = [];
 let checkpointMetas = [];
 
+/** Normalized path compare for gallery ↔ extension VLM events. */
+function imagePathsLooselyMatch(a, b) {
+  if (!a || !b || typeof a !== 'string' || typeof b !== 'string') { return false; }
+  const norm = (p) => p.replace(/\\/g, '/').toLowerCase();
+  return norm(a) === norm(b);
+}
+
+function findGalleryIndexByImagePath(imagePath) {
+  return galleryImages.findIndex((e) => e.rawPath && imagePathsLooselyMatch(e.rawPath, imagePath));
+}
+
 /* --- 10-game-state.js --- */
 // ===== Game State の適用 =====
 function applyEntryPatch(patch) {
@@ -86,7 +97,12 @@ function applyEntryPatch(patch) {
     renderMessage(next);
   }
   if (next.image) {
-    addImageToGallery(next.image);
+    addImageToGallery(next.image, {
+      rawPath: next.rawImagePath,
+      prompt: next.imagePrompt,
+      locationId: next.locationId,
+      worldTurn: next.worldTurn,
+    });
   }
   saveState();
 }
@@ -653,28 +669,111 @@ function renderOptions(options) {
 }
 
 // ===== ギャラリー =====
-function addImageToGallery(imagePath) {
-  if (galleryImages.includes(imagePath)) return;
-  galleryImages.push(imagePath);
+/**
+ * Add or update a gallery entry.
+ * @param {string} src - WebviewURI of the image (used as unique key)
+ * @param {{ rawPath?: string, prompt?: string, locationId?: string, worldTurn?: number, description?: string }} [meta]
+ */
+function addImageToGallery(src, meta) {
+  const idx = galleryImages.findIndex(e => e.src === src);
+  if (idx >= 0) {
+    // Merge new metadata into existing entry (never overwrite description with undefined)
+    const existing = galleryImages[idx];
+    if (meta) {
+      galleryImages[idx] = {
+        ...existing,
+        ...(meta.rawPath !== undefined && { rawPath: meta.rawPath }),
+        ...(meta.prompt !== undefined && { prompt: meta.prompt }),
+        ...(meta.locationId !== undefined && { locationId: meta.locationId }),
+        ...(meta.worldTurn !== undefined && { worldTurn: meta.worldTurn }),
+        ...(meta.description !== undefined && { description: meta.description }),
+      };
+    }
+    renderGallery();
+    return;
+  }
+  galleryImages.push({
+    src,
+    rawPath: meta?.rawPath,
+    prompt: meta?.prompt,
+    locationId: meta?.locationId,
+    worldTurn: meta?.worldTurn,
+    description: meta?.description,
+  });
   renderGallery();
 }
 
 function renderGallery() {
   const gallery = document.getElementById('gallery');
+  if (!gallery) return;
   gallery.innerHTML = '';
-  for (const img of galleryImages) {
+
+  for (const entry of galleryImages) {
+    const item = document.createElement('div');
+    item.className = 'gallery-item';
+
+    // Thumbnail
     const thumb = document.createElement('img');
     thumb.className = 'gallery-thumb';
-    thumb.src = img;
+    thumb.src = entry.src;
+    if (entry.description) {
+      thumb.title = entry.description;
+    }
     thumb.addEventListener('click', () => {
-      // 画像に紐づくメッセージへスクロール
-      const msgWithImg = messageHistory.find(m => m.image === img);
+      const msgWithImg = messageHistory.find(m => m.image === entry.src);
       if (msgWithImg) {
         const el = document.getElementById(`msg-${msgWithImg.id}`);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     });
-    gallery.appendChild(thumb);
+    item.appendChild(thumb);
+
+    // Metadata badges (overlaid on top of image)
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'gallery-badge-row';
+    if (entry.locationId) {
+      const locBadge = document.createElement('span');
+      locBadge.className = 'gallery-badge gallery-location';
+      locBadge.textContent = '📍 ' + entry.locationId;
+      badgeRow.appendChild(locBadge);
+    }
+    if (entry.worldTurn !== undefined) {
+      const turnBadge = document.createElement('span');
+      turnBadge.className = 'gallery-badge gallery-turn';
+      turnBadge.textContent = 'T' + entry.worldTurn;
+      badgeRow.appendChild(turnBadge);
+    }
+    if (entry.description) {
+      const analyzedBadge = document.createElement('span');
+      analyzedBadge.className = 'gallery-badge gallery-analyzed';
+      analyzedBadge.textContent = '👁 Analyzed';
+      badgeRow.appendChild(analyzedBadge);
+    }
+    if (badgeRow.childElementCount > 0) {
+      item.appendChild(badgeRow);
+    }
+
+    // Action row: "Analyze" button or analyzed indicator
+    if (entry.rawPath) {
+      const actionRow = document.createElement('div');
+      actionRow.className = 'gallery-action-row';
+
+      const btn = document.createElement('button');
+      btn.className = 'gallery-analyze-btn' + (entry.description ? ' analyzed' : '');
+      btn.textContent = entry.description ? '👁 Analyzed' : '👁 Analyze';
+      if (!entry.description) {
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          btn.textContent = '⏳ Analyzing…';
+          btn.dataset.analyzingPath = entry.rawPath;
+          vscode.postMessage({ type: 'requestVlmAnalysis', imagePath: entry.rawPath });
+        });
+      }
+      actionRow.appendChild(btn);
+      item.appendChild(actionRow);
+    }
+
+    gallery.appendChild(item);
   }
 }
 
@@ -3920,6 +4019,12 @@ function renderWorldView(msg) {
     // Mermaid マップ
     renderMermaidMap(msg.worldMap, msg.currentLocationId);
 
+    // Location image history (from visual_memory.json)
+    renderLocationImages(msg.locationImages || [], msg.currentLocationId);
+
+    // NPCs at current location
+    renderNpcsAtLocation(msg.npcsAtLocation || [], msg.currentLocationId);
+
     // グローバルイベント（シミュ有効時）
     renderGlobalEvents(msg.globalEvents || [], msg.simEnabled);
 
@@ -3943,6 +4048,149 @@ function renderMermaidMap(mmdCode, currentLocationId) {
             container.textContent = mmdCode;
         });
     }
+}
+
+// ---------------------------------------------------------------------------
+// ロケーション画像履歴
+// ---------------------------------------------------------------------------
+
+function renderLocationImages(images, currentLocationId) {
+    const SECTION_ID = 'world-location-images';
+    let section = document.getElementById(SECTION_ID);
+    if (!section) {
+        const mermaidEl = document.getElementById('world-mermaid');
+        if (!mermaidEl) { return; }
+        section = document.createElement('div');
+        section.id = SECTION_ID;
+        mermaidEl.parentNode.insertBefore(section, mermaidEl.nextSibling);
+    }
+
+    if (!currentLocationId || images.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    section.innerHTML = '';
+
+    const heading = document.createElement('div');
+    heading.className = 'world-section-heading';
+    heading.textContent = '📷 Scene History';
+    section.appendChild(heading);
+
+    const strip = document.createElement('div');
+    strip.className = 'world-image-strip';
+
+    for (const img of images) {
+        if (!img.src) { continue; }
+        const wrap = document.createElement('div');
+        wrap.className = 'world-image-thumb-wrap';
+
+        const el = document.createElement('img');
+        el.className = 'world-image-thumb';
+        el.src = img.src;
+        if (img.description) { el.title = img.description; }
+        wrap.appendChild(el);
+
+        if (img.worldTurn !== undefined) {
+            const badge = document.createElement('span');
+            badge.className = 'world-image-turn-badge';
+            badge.textContent = 'T' + img.worldTurn;
+            wrap.appendChild(badge);
+        }
+
+        strip.appendChild(wrap);
+    }
+
+    section.appendChild(strip);
+}
+
+// ---------------------------------------------------------------------------
+// 現在地のNPCパネル
+// ---------------------------------------------------------------------------
+
+function renderNpcsAtLocation(npcs, currentLocationId) {
+    const SECTION_ID = 'world-npcs-section';
+    let section = document.getElementById(SECTION_ID);
+    if (!section) {
+        const imageSection = document.getElementById('world-location-images');
+        const anchor = imageSection || document.getElementById('world-mermaid');
+        if (!anchor) { return; }
+        section = document.createElement('div');
+        section.id = SECTION_ID;
+        anchor.parentNode.insertBefore(section, anchor.nextSibling);
+    }
+
+    if (!currentLocationId || npcs.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    section.innerHTML = '';
+
+    const heading = document.createElement('div');
+    heading.className = 'world-section-heading';
+    heading.textContent = '👤 NPCs Here';
+    section.appendChild(heading);
+
+    const grid = document.createElement('div');
+    grid.className = 'world-npc-grid';
+
+    for (const npc of npcs) {
+        const card = document.createElement('div');
+        card.className = 'world-npc-card';
+
+        // Portrait or placeholder
+        const portrait = document.createElement('div');
+        portrait.className = 'world-npc-portrait';
+        if (npc.portraitUri) {
+            const img = document.createElement('img');
+            img.src = npc.portraitUri;
+            img.alt = npc.name;
+            portrait.appendChild(img);
+        } else {
+            portrait.textContent = '👤';
+            portrait.classList.add('placeholder');
+        }
+        card.appendChild(portrait);
+
+        // Info column
+        const info = document.createElement('div');
+        info.className = 'world-npc-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'world-npc-name';
+        nameEl.textContent = npc.name;
+        info.appendChild(nameEl);
+
+        const moodEl = document.createElement('div');
+        moodEl.className = 'world-npc-mood';
+        moodEl.textContent = npc.mood;
+        info.appendChild(moodEl);
+
+        if (npc.urgentNeedCount > 0) {
+            const needEl = document.createElement('div');
+            needEl.className = 'world-npc-needs';
+            needEl.textContent = `⚠ ${npc.urgentNeedCount} urgent`;
+            info.appendChild(needEl);
+        }
+
+        // "Set Portrait" — picks image via extension QuickPick
+        const setBtn = document.createElement('button');
+        setBtn.className = 'world-npc-portrait-btn';
+        setBtn.textContent = npc.hasPortrait ? '🖼 Change' : '🖼 Set Portrait';
+        setBtn.title = 'Choose a gallery image to use as this NPC\'s portrait';
+        setBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'requestNpcPortraitLink', npcId: npc.id });
+        });
+        info.appendChild(setBtn);
+
+        card.appendChild(info);
+        grid.appendChild(card);
+    }
+
+    section.appendChild(grid);
 }
 
 // ---------------------------------------------------------------------------
@@ -4455,7 +4703,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedState = vscode.getState();
   if (savedState) {
     messageHistory = savedState.messageHistory || [];
-    galleryImages = savedState.galleryImages || [];
+    // Migrate old string[] gallery format to GalleryEntry[] object format
+    galleryImages = (savedState.galleryImages || []).map(item =>
+      typeof item === 'string' ? { src: item } : item
+    );
     currentTheme = savedState.currentTheme || 'fantasy';
     renderAllMessages();
     renderGallery();
@@ -4637,6 +4888,22 @@ window.addEventListener('message', (event) => {
     const entry = messageHistory.find((m) => m.id === msg.id);
     if (entry) { entry.excludedFromPrompt = !!msg.excluded; }
     saveState();
+  } else if (msg.type === 'vlmAnalysisComplete') {
+    if (typeof msg.imagePath === 'string' && typeof msg.description === 'string') {
+      const idx = findGalleryIndexByImagePath(msg.imagePath);
+      if (idx >= 0) {
+        galleryImages[idx] = { ...galleryImages[idx], description: msg.description };
+        renderGallery();
+        saveState();
+      }
+    }
+  } else if (msg.type === 'vlmAnalysisFailed') {
+    if (typeof msg.imagePath === 'string') {
+      const idx = findGalleryIndexByImagePath(msg.imagePath);
+      if (idx >= 0) {
+        renderGallery();
+      }
+    }
   } else if (msg.type === 'imageGenConfig') {
     applyImageGenConfigForm(msg.config || {});
   } else if (msg.type === 'remotePlayStatus') {

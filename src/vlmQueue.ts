@@ -71,12 +71,15 @@ export async function enqueueVlmAnalysis(
     meta: VlmAnalysisMeta = {}
 ): Promise<void> {
     if (!isVlmEnabled()) { return; }
-    if (!resolveAllowedImagePath(imagePath)) { return; }
+
+    const resolvedEnqueue = resolveAllowedImagePath(imagePath);
+    if (!resolvedEnqueue) { return; }
 
     // Fast path: already in cache
-    const cached = getCachedDescription(imagePath);
+    const cached = getCachedDescription(resolvedEnqueue);
     if (cached) {
-        await writeDescriptionToGameState(imagePath, cached);
+        await writeDescriptionToGameState(resolvedEnqueue, cached);
+        notifyVlmAnalysisComplete(resolvedEnqueue, cached);
         return;
     }
 
@@ -111,12 +114,15 @@ async function runAnalysis(imagePath: string, meta: VlmAnalysisMeta): Promise<vo
         const { analyzeImage } = await import('./vlmProvider');
         vscode.window.setStatusBarMessage('$(eye) Soulgaze: Analyzing scene...', 8000);
 
-        const rawDescription = await analyzeImage(imagePath);
-        const description = sanitizeVlmDescription(rawDescription);
-        if (!description) { return; }
-
         const resolvedPath = resolveAllowedImagePath(imagePath);
         if (!resolvedPath) { return; }
+
+        const rawDescription = await analyzeImage(resolvedPath);
+        const description = sanitizeVlmDescription(rawDescription);
+        if (!description) {
+            notifyVlmAnalysisFailed(resolvedPath);
+            return;
+        }
 
         // Persist to visual_memory.json
         const hash = hashImageFile(resolvedPath);
@@ -136,15 +142,27 @@ async function runAnalysis(imagePath: string, meta: VlmAnalysisMeta): Promise<vo
         // Write back to game_state.json (only if latestImage still matches)
         await writeDescriptionToGameState(resolvedPath, description);
 
-        // Notify the webview so Vision context refreshes on next render
-        queueDeps?.getPanel()?.webview.postMessage({
-            type: 'vlmAnalysisComplete',
-            imagePath,
-            description,
-        });
+        notifyVlmAnalysisComplete(resolvedPath, description);
     } catch (e) {
         console.error('[vlmQueue] VLM analysis failed', e);
+        const resolved = resolveAllowedImagePath(imagePath);
+        if (resolved) { notifyVlmAnalysisFailed(resolved); }
     }
+}
+
+function notifyVlmAnalysisComplete(imagePath: string, description: string): void {
+    queueDeps?.getPanel()?.webview.postMessage({
+        type: 'vlmAnalysisComplete',
+        imagePath,
+        description,
+    });
+}
+
+function notifyVlmAnalysisFailed(imagePath: string): void {
+    queueDeps?.getPanel()?.webview.postMessage({
+        type: 'vlmAnalysisFailed',
+        imagePath,
+    });
 }
 
 async function writeDescriptionToGameState(

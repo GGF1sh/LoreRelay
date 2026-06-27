@@ -75,7 +75,6 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     // Location image history — up to 4 most-recent analyzed entries for current location
     const locationImages = currentLocationId
         ? getEntriesByLocation(currentLocationId)
-            .sort((a, b) => b.analyzedAt.localeCompare(a.analyzedAt))
             .slice(0, 4)
             .map((e) => ({
                 src: safeImageUri(e.imagePath) ?? '',
@@ -92,6 +91,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const npcsAtLocation = currentLocationId
         ? Object.entries(registry.npcs)
             .filter(([, npc]) => npc.locationId === currentLocationId)
+            .sort(([, a], [, b]) => a.name.localeCompare(b.name))
             .slice(0, MAX_NPCS_AT_LOCATION)
             .map(([id, npc]) => ({
                 id,

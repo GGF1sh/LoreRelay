@@ -680,6 +680,7 @@ function renderGallery() {
         btn.addEventListener('click', () => {
           btn.disabled = true;
           btn.textContent = '⏳ Analyzing…';
+          btn.dataset.analyzingPath = entry.rawPath;
           vscode.postMessage({ type: 'requestVlmAnalysis', imagePath: entry.rawPath });
         });
       }

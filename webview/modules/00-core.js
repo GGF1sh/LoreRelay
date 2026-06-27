@@ -64,3 +64,14 @@ let ttsVolume = 0.8;
 let gameOverActive = false;
 let rewindTargets = [];
 let checkpointMetas = [];
+
+/** Normalized path compare for gallery ↔ extension VLM events. */
+function imagePathsLooselyMatch(a, b) {
+  if (!a || !b || typeof a !== 'string' || typeof b !== 'string') { return false; }
+  const norm = (p) => p.replace(/\\/g, '/').toLowerCase();
+  return norm(a) === norm(b);
+}
+
+function findGalleryIndexByImagePath(imagePath) {
+  return galleryImages.findIndex((e) => e.rawPath && imagePathsLooselyMatch(e.rawPath, imagePath));
+}

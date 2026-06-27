@@ -27,14 +27,19 @@
 *   **生きている世界マップ (Step 4)**: 読み込まれた世界設定と現在地を視覚化するため、Webviewに「World」タブを追加し、Mermaid.jsによる動的ネットワークマップおよび派閥ステータスカードの描画を統合。
 *   **エマージェントシミュレーション (Step 5a - 5c)**: LLMに依存しない軽量ルールベースシミュレータ `emergentSimulator.ts` を実装。GMターン進行と連動して派閥の資源消費や戦闘力、グローバルイベントが自動計算され、世界が動的に自律変化する機構を統合。また、これらのライブ状態（世界ターン、派閥のMorale/Powerバー、危険度）をMermaidマップおよびWorldタブのUIへリアルタイム反映し、GMプロンプトへのコンテキスト注入も完了。
 
-### Day 5: 2026-06-28 (v1.3.0 - World System Phase 1 - 3a)
-**「テスト強化、堅牢化、および自動世界生成（World Forge Generator）バックエンドの実装」**
-*   **Phase 1 (テストカバレッジ強化)**: World Forge, World State, Emergent Simulator, NPC Registry, World Map Generator 各モジュール向けに計116件の自動テストを追加し、堅牢性を担保。
+### Day 5: 2026-06-28 (v1.3.0 - World System Phase 1 - 3b Complete)
+**「テスト強化、堅牢化、および自動世界生成（World Forge Generator）のUI・バックエンド実装」**
+*   **Phase 1 (テストカバレッジ強化)**: World Forge, World State, Emergent Simulator, NPC Registry, World Map Generator 各モジュール向けに計116件の自動テストを追加。
 *   **Phase 2 (堅牢化・セキュリティ向上)**: 
-    - `gameRules.ts` に mtime ベースのキャッシュを導入し、外部直接編集を自動検知しつつI/Oを削減。
-    - `statePatch.ts` に最大パッチ操作数（50件）および最大値サイズ制限（100KB）を追加し、悪意ある過大パッチや無限ループを防止。
-    - `worldMapGenerator.ts` に Mermaid グラフ描画時の最大ノード制限を追加し、巨大世界でも描画オーバーヘッドを抑制。
-*   **Phase 3a (世界生成ジェネレータ・バックエンド)**: 決定的な擬似乱数（mulberry32 PRNG）を用いた、地域接続リング・ロケーション配置・派閥および敵対グラフ・NPC配置・歴史生成の手続き型自動世界生成コア (`worldForgeGeneratorCore.ts`, `worldForgeGenerator.ts`) を実装。初期NPCデータから `npc_registry.json` をブートストラップする機能も追加。
+    - `gameRules.ts` の mtime ベースキャッシュ導入。
+    - `statePatch.ts` にパッチ最大操作数（50ops）および最大容量制限（100KB）を導入。
+    - `worldMapGenerator.ts` に Mermaid 描画ノード数制限を追加。
+*   **Phase 3a (世界生成ジェネレータ・バックエンド)**: Mulberry32 PRNG を使った決定的な地域接続・ロケーション・派閥・NPC配置・歴史生成の手続き型世界生成コアの実装。NPC Registry のブートストラップ処理を統合。
+*   **Phase 3b (世界生成UI & 接続配線) (NEW!)**:
+    - `webview/modules/85-world.js`: Worldタブの空状態時に、シード、テーマ、サイズ（地域数・派閥数・NPC数）を入力して即座に世界生成できるインタラクティブな「Generate World」フォームUIを構築。
+    - `src/webviewHandlers.ts`: フロント-バック間の `generateWorldForge` 通信の仲介ハンドラを追加。
+    - `src/extension.ts`: コマンドパレットコマンド `textadventure.generateWorldForge` の登録と、上書き確認ダイアログ・生成処理・初期化・マップ更新までの一連の流れ（`handleGenerateWorldForge`）を配線。
+    - `package.json`: 設定4件（`defaultRegionCount` / `defaultFactionCount` / `defaultNpcCount` / `llmEnrich`）およびコマンド定義の追加。
 
 ---
 

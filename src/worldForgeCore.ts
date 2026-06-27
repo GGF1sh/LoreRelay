@@ -88,6 +88,11 @@ function asString(v: unknown, fallback = ''): string {
     return typeof v === 'string' ? v.trim() : fallback;
 }
 
+function asId(v: unknown): string {
+    const s = asString(v);
+    return /^[a-zA-Z0-9_-]{1,64}$/.test(s) ? s : '';
+}
+
 function asNumber(v: unknown): number | undefined {
     return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
 }
@@ -103,7 +108,7 @@ const VALID_FACTION_TYPES = new Set<FactionType>(['hostile', 'neutral', 'friendl
 function parseRegion(raw: unknown): Region | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
-    const id = asString(r.id);
+    const id = asId(r.id);
     const name = asString(r.name);
     if (!id || !name) { return undefined; }
     const region: Region = {
@@ -123,7 +128,7 @@ function parseRegion(raw: unknown): Region | undefined {
 function parseWorldLocation(raw: unknown): WorldLocation | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
-    const id = asString(r.id);
+    const id = asId(r.id);
     const name = asString(r.name);
     if (!id || !name) { return undefined; }
     const loc: WorldLocation = {
@@ -142,7 +147,7 @@ function parseWorldLocation(raw: unknown): WorldLocation | undefined {
 function parseFaction(raw: unknown): Faction | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
-    const id = asString(r.id);
+    const id = asId(r.id);
     const name = asString(r.name);
     if (!id || !name) { return undefined; }
     const faction: Faction = {
@@ -183,7 +188,7 @@ function parseLoreHistory(raw: unknown): LoreHistoryEntry[] {
 function parseInitialNpc(raw: unknown): InitialNpc | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
-    const id = asString(r.id);
+    const id = asId(r.id);
     const name = asString(r.name);
     if (!id || !name) { return undefined; }
     const npc: InitialNpc = { id, name };

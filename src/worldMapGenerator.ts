@@ -27,7 +27,11 @@ function escapeId(id: string): string {
 }
 
 function escapeMmdLabel(text: string): string {
-    return text.replace(/"/g, "'").replace(/\n/g, ' ').slice(0, 40);
+    return text
+        .replace(/["[\](){}|<>;#%\n\\]/g, ' ')
+        .replace(/--/g, '- ')
+        .trim()
+        .slice(0, 40);
 }
 
 function buildLocationLabel(loc: WorldLocation, forge: WorldForge, isCurrentLocation: boolean): string {

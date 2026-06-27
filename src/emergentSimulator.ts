@@ -153,9 +153,8 @@ function tickAllyBonus(faction: Faction, fs: FactionWorldState, state: WorldStat
     for (const allyId of (faction.allies ?? [])) {
         const allyState = state.factions[allyId];
         if (!allyState) { continue; }
-        // 同盟ボーナス：互いにモラル+1
+        // 同盟ボーナス：自派閥のモラル+1（相手も自身のターンで加算される）
         fs.morale = Math.min(100, (fs.morale ?? 50) + 1);
-        allyState.morale = Math.min(100, (allyState.morale ?? 50) + 1);
     }
 }
 

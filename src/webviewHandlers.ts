@@ -60,6 +60,7 @@ export interface WebviewHandlerDeps {
     sendScenarioDirector(): void;
     sendPartyDirector(): void;
     sendWorldView(): void;
+    handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
     handleSavePartyDirector(director: unknown): Promise<void>;
     handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
     handleBranchTimeline(turnId: string): Promise<void>;
@@ -130,6 +131,19 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'loadWorld':
             deps.sendWorldView();
             break;
+        case 'generateWorldForge': {
+            const seed = typeof message.seed === 'string' ? message.seed.trim() : '';
+            const theme = typeof message.theme === 'string' ? message.theme.trim() : 'default';
+            const regionCount = typeof message.regionCount === 'number' ? message.regionCount : 5;
+            const factionCount = typeof message.factionCount === 'number' ? message.factionCount : 3;
+            const npcCount = typeof message.npcCount === 'number' ? message.npcCount : 6;
+            if (seed) {
+                await deps.handleGenerateWorldForge(seed, theme, regionCount, factionCount, npcCount);
+            } else {
+                vscode.window.showWarningMessage('World Forge: Seed is required.');
+            }
+            break;
+        }
         case 'savePartyDirector':
             await deps.handleSavePartyDirector(message.director);
             break;

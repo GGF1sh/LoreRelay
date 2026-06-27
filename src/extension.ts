@@ -22,6 +22,10 @@ import {
     savePartyDirectorFromUi
 } from './partyDirector';
 import { initWorldView, pushWorldViewToWebview } from './worldView';
+import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
+import { bootstrapNpcRegistryFromForge } from './worldForge';
+import { loadWorldForge } from './worldForge';
+import { ensureWorldStateExists } from './worldState';
 import {
     getMemoryStatus,
     rebuildMemoryIndex,
@@ -289,13 +293,30 @@ export function activate(context: vscode.ExtensionContext) {
         void handleRotateRemotePlayToken();
     });
 
+    const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
+        const defaults = getDefaultGeneratorInput();
+        const seed = await vscode.window.showInputBox({
+            prompt: 'World seed (any string — determines the generated world)',
+            placeHolder: 'e.g. lost-catacombs',
+            validateInput: (v) => v.trim() ? undefined : 'Seed cannot be empty'
+        });
+        if (!seed) { return; }
+        const themeInput = await vscode.window.showQuickPick(
+            ['dungeon-crawler', 'dark-fantasy', 'cyberpunk', 'default'],
+            { placeHolder: 'Choose world theme' }
+        );
+        if (!themeInput) { return; }
+        await handleGenerateWorldForge(seed.trim(), themeInput, defaults.regionCount, defaults.factionCount, defaults.npcCount);
+    });
+
     context.subscriptions.push(
         openGameCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
         startRemotePlayCmd,
         stopRemotePlayCmd,
-        rotateRemotePlayTokenCmd
+        rotateRemotePlayTokenCmd,
+        generateWorldForgeCmd
     );
 
     context.subscriptions.push(
@@ -683,6 +704,56 @@ function sendWorldView(): void {
     pushWorldViewToWebview();
 }
 
+async function handleGenerateWorldForge(
+    seed: string,
+    theme: string,
+    regionCount: number,
+    factionCount: number,
+    npcCount: number
+): Promise<void> {
+    // Overwrite confirmation if file already exists
+    if (worldForgeFileExists()) {
+        const answer = await vscode.window.showWarningMessage(
+            'world_forge.json already exists. Overwrite it? (A .bak backup will be created.)',
+            { modal: true },
+            'Overwrite',
+            'Cancel'
+        );
+        if (answer !== 'Overwrite') { return; }
+    }
+
+    panel?.webview.postMessage({ type: 'worldGenStart' });
+
+    const result = await generateAndSaveWorldForge(
+        { worldSeed: seed, theme, regionCount, factionCount, npcCount },
+        { createBackup: true }
+    );
+
+    if (!result.success) {
+        panel?.webview.postMessage({ type: 'worldGenEnd', success: false });
+        vscode.window.showErrorMessage(`World Forge generation failed: ${result.error ?? 'unknown error'}`);
+        return;
+    }
+
+    if (result.warnings.length > 0) {
+        console.warn('[generateWorldForge] warnings:', result.warnings);
+    }
+
+    // Bootstrap NPC registry and world state from the new forge
+    const forge = loadWorldForge();
+    if (forge) {
+        bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: false });
+        ensureWorldStateExists(forge);
+    }
+
+    panel?.webview.postMessage({ type: 'worldGenEnd', success: true });
+    pushWorldViewToWebview();
+
+    vscode.window.showInformationMessage(
+        `World "${forge?.meta.worldName ?? seed}" generated! (${forge?.geography.regions.length ?? 0} regions, ${forge?.factions.length ?? 0} factions, ${forge?.initialNpcs.length ?? 0} NPCs)`
+    );
+}
+
 async function handleSavePartyDirector(raw: unknown): Promise<void> {
     const result = savePartyDirectorFromUi(raw);
     if (!panel) {
@@ -834,6 +905,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendScenarioDirector,
         sendPartyDirector,
         sendWorldView,
+        handleGenerateWorldForge,
         handleSavePartyDirector,
         handleCopyRemotePlayUrl,
         saveCharacter,

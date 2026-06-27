@@ -27,6 +27,16 @@ window.addEventListener('DOMContentLoaded', () => {
         if (msg.type === 'worldView') {
             renderWorldView(msg);
         }
+        if (msg.type === 'worldGenStart') {
+            setWorldGenBusy(true);
+        }
+        if (msg.type === 'worldGenEnd') {
+            setWorldGenBusy(false);
+            if (!msg.success) {
+                const btn = document.getElementById('world-gen-btn');
+                if (btn) { btn.textContent = 'Generate Failed — Retry'; }
+            }
+        }
     });
 
     const tabBtn = document.getElementById('tab-btn-world');
@@ -35,6 +45,8 @@ window.addEventListener('DOMContentLoaded', () => {
             vscode.postMessage({ type: 'loadWorld' });
         });
     }
+
+    buildWorldGenForm();
 });
 
 function renderWorldView(msg) {
@@ -257,6 +269,106 @@ function buildBar(label, value, max, fillColor) {
     row.appendChild(valEl);
 
     return row;
+}
+
+// ---------------------------------------------------------------------------
+// World Forge Generator UI
+// ---------------------------------------------------------------------------
+
+function buildWorldGenForm() {
+    const empty = document.getElementById('world-empty');
+    if (!empty) { return; }
+
+    // Replace the plain text with an interactive generate form
+    empty.innerHTML = '';
+    empty.style.cssText = 'padding:1rem 0.5rem;';
+
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:0.95em;font-weight:600;margin-bottom:0.75rem;opacity:0.9;';
+    heading.textContent = 'No world_forge.json — Generate a World';
+    empty.appendChild(heading);
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:0.78em;opacity:0.55;margin-bottom:1rem;';
+    hint.textContent = 'Enable World Forge in Game Rules first, then generate or add world_forge.json manually.';
+    empty.appendChild(hint);
+
+    // Seed row
+    empty.appendChild(makeFormRow('Seed', makeTextInput('world-gen-seed', 'e.g. lost-catacombs')));
+
+    // Theme row
+    const themeSelect = document.createElement('select');
+    themeSelect.id = 'world-gen-theme';
+    themeSelect.style.cssText = 'background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.82em;';
+    for (const t of ['dungeon-crawler', 'dark-fantasy', 'cyberpunk', 'default']) {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        themeSelect.appendChild(opt);
+    }
+    empty.appendChild(makeFormRow('Theme', themeSelect));
+
+    // Numeric params
+    empty.appendChild(makeFormRow('Regions', makeNumberInput('world-gen-regions', 3, 12, 5)));
+    empty.appendChild(makeFormRow('Factions', makeNumberInput('world-gen-factions', 2, 6, 3)));
+    empty.appendChild(makeFormRow('NPCs', makeNumberInput('world-gen-npcs', 2, 20, 6)));
+
+    // Generate button
+    const btn = document.createElement('button');
+    btn.id = 'world-gen-btn';
+    btn.textContent = 'Generate World';
+    btn.style.cssText = 'margin-top:0.75rem;padding:0.4rem 1rem;background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;border-radius:3px;cursor:pointer;font-size:0.85em;';
+    btn.addEventListener('click', () => {
+        const seed = document.getElementById('world-gen-seed')?.value?.trim();
+        if (!seed) {
+            document.getElementById('world-gen-seed')?.focus();
+            return;
+        }
+        const theme = document.getElementById('world-gen-theme')?.value || 'default';
+        const regionCount = parseInt(document.getElementById('world-gen-regions')?.value || '5', 10);
+        const factionCount = parseInt(document.getElementById('world-gen-factions')?.value || '3', 10);
+        const npcCount = parseInt(document.getElementById('world-gen-npcs')?.value || '6', 10);
+        vscode.postMessage({ type: 'generateWorldForge', seed, theme, regionCount, factionCount, npcCount });
+    });
+    empty.appendChild(btn);
+}
+
+function makeFormRow(label, input) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;';
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:0.78em;opacity:0.7;width:4.5rem;flex-shrink:0;';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+    row.appendChild(input);
+    return row;
+}
+
+function makeTextInput(id, placeholder) {
+    const el = document.createElement('input');
+    el.id = id;
+    el.type = 'text';
+    el.placeholder = placeholder;
+    el.style.cssText = 'flex:1;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.82em;';
+    return el;
+}
+
+function makeNumberInput(id, min, max, defaultVal) {
+    const el = document.createElement('input');
+    el.id = id;
+    el.type = 'number';
+    el.min = String(min);
+    el.max = String(max);
+    el.value = String(defaultVal);
+    el.style.cssText = 'width:4rem;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;padding:0.25rem 0.4rem;font-size:0.82em;';
+    return el;
+}
+
+function setWorldGenBusy(busy) {
+    const btn = document.getElementById('world-gen-btn');
+    if (!btn) { return; }
+    btn.disabled = busy;
+    btn.textContent = busy ? 'Generating…' : 'Generate World';
 }
 
 function escapeHtml(str) {

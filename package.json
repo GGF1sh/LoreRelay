@@ -91,6 +91,10 @@
       {
         "command": "textadventure.rotateRemotePlayToken",
         "title": "LoreRelay: Rotate Remote Play Token"
+      },
+      {
+        "command": "textadventure.generateWorldForge",
+        "title": "LoreRelay: Generate World Forge"
       }
     ],
     "configuration": {
@@ -390,6 +394,32 @@
           "type": "number",
           "default": 15,
           "description": "After the threshold, remind every N additional turns."
+        },
+        "textAdventure.worldForge.defaultRegionCount": {
+          "type": "number",
+          "default": 5,
+          "minimum": 3,
+          "maximum": 12,
+          "description": "Default number of regions when generating a new World Forge."
+        },
+        "textAdventure.worldForge.defaultFactionCount": {
+          "type": "number",
+          "default": 3,
+          "minimum": 2,
+          "maximum": 6,
+          "description": "Default number of factions when generating a new World Forge."
+        },
+        "textAdventure.worldForge.defaultNpcCount": {
+          "type": "number",
+          "default": 6,
+          "minimum": 2,
+          "maximum": 20,
+          "description": "Default number of initial NPCs when generating a new World Forge."
+        },
+        "textAdventure.worldForge.llmEnrich": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, LLM is used to enrich generated world descriptions (experimental)."
         },
         "textAdventure.memory.backend": {
           "type": "string",

@@ -11,7 +11,8 @@ const FACTION_TYPE_ICON: Record<string, string> = {
 const MAX_REGIONS = 20;
 const MAX_LOCS_PER_REGION = 10;
 const MAX_ORPHAN_LOCS = 10;
-const MAX_FACTIONS = 5; // already enforced below; kept as named constant
+const MAX_FACTIONS = 5;
+const MAX_FACTION_LOC_EDGES = 30;
 
 const LOCATION_TYPE_ICON: Record<string, string> = {
     settlement: '🏘️',
@@ -60,14 +61,21 @@ export function generateWorldMap(
 
     const locationsByRegion = new Map<string, WorldLocation[]>();
     const orphanLocations: WorldLocation[] = [];
+    const renderedLocationIds = new Set<string>();
 
     for (const loc of forge.geography.locations) {
         if (loc.regionId) {
             const arr = locationsByRegion.get(loc.regionId) ?? [];
-            if (arr.length < MAX_LOCS_PER_REGION) { arr.push(loc); }
+            if (arr.length < MAX_LOCS_PER_REGION) {
+                arr.push(loc);
+                renderedLocationIds.add(loc.id);
+            }
             locationsByRegion.set(loc.regionId, arr);
         } else {
-            if (orphanLocations.length < MAX_ORPHAN_LOCS) { orphanLocations.push(loc); }
+            if (orphanLocations.length < MAX_ORPHAN_LOCS) {
+                orphanLocations.push(loc);
+                renderedLocationIds.add(loc.id);
+            }
         }
     }
 
@@ -114,10 +122,16 @@ export function generateWorldMap(
         lines.push(`  ${fId}(("${icon}${escapeMmdLabel(faction.name)}${powerLabel}")):::faction`);
         renderedFactionIds.add(faction.id);
 
+        let factionLocEdges = 0;
         for (const loc of forge.geography.locations) {
-            if (loc.factionControl === faction.id) {
-                lines.push(`  ${fId} -.-> ${escapeId(loc.id)}`);
+            if (loc.factionControl !== faction.id || !renderedLocationIds.has(loc.id)) {
+                continue;
             }
+            if (factionLocEdges >= MAX_FACTION_LOC_EDGES) {
+                break;
+            }
+            lines.push(`  ${fId} -.-> ${escapeId(loc.id)}`);
+            factionLocEdges++;
         }
 
         if (faction.enemies) {

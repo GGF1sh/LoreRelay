@@ -283,11 +283,25 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
     return true;
 }
 
+const ALLOWED_IMAGE_MODES = ['pony', 'illustrious', 'natural', 'standard'] as const;
+
 function resolveImageMode(mode: string, wsPath: string): string {
-    const allowedModes = ['pony', 'illustrious', 'natural', 'standard'];
     const wsConfig = loadImageGenConfig(wsPath);
-    const defaultMode = allowedModes.includes(wsConfig.mode) ? wsConfig.mode : 'illustrious';
-    return typeof mode === 'string' && allowedModes.includes(mode) ? mode : defaultMode;
+    const defaultMode = ALLOWED_IMAGE_MODES.includes(wsConfig.mode as typeof ALLOWED_IMAGE_MODES[number])
+        ? wsConfig.mode
+        : 'illustrious';
+    return typeof mode === 'string' && ALLOWED_IMAGE_MODES.includes(mode as typeof ALLOWED_IMAGE_MODES[number])
+        ? mode
+        : defaultMode;
+}
+
+/** Workspace image_gen_config.json のモードを解決（空文字でデフォルト）。 */
+export function getResolvedImageMode(mode = ''): string {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        return 'illustrious';
+    }
+    return resolveImageMode(mode, wsPath);
 }
 
 /** Core ComfyUI spawn — returns success. Used by queue drain and direct calls. */
@@ -323,7 +337,7 @@ export async function executeImageGeneration(
     channel.appendLine(`Checkpoint: ${env.TA_CHECKPOINT || '(workflow default)'}`);
     channel.appendLine(`${options?.fromQueue ? '[Queue] ' : ''}Generating image with mode: ${safeMode}`);
     channel.appendLine(`Prompt: ${prompt}`);
-    getPanel()?.webview.postMessage({ type: 'imageGenStart' });
+    getPanel()?.webview.postMessage({ type: 'imageGenStart', source: options?.fromQueue ? 'queue' : 'direct' });
 
     const python = resolvePythonCommand();
     const child = spawn(python, [scriptPath, prompt, outputDir, safeMode], {

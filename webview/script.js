@@ -3829,6 +3829,9 @@ const SEVERITY_COLOR = {
     catastrophic: '#800020'
 };
 
+let currentWorldLocationId = null;
+let worldSceneImagePending = false;
+
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
         const msg = event.data;
@@ -3848,12 +3851,32 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        if (msg.type === 'locationImageGenStart') {
+            setWorldSceneImageBusy(true);
+        }
+        if (msg.type === 'locationImageGenEnd') {
+            setWorldSceneImageBusy(false, !msg.success);
+        }
+        if (msg.type === 'imageGenEnd' && worldSceneImagePending) {
+            setWorldSceneImageBusy(false, !msg.success);
+        }
     });
 
     const tabBtn = document.getElementById('tab-btn-world');
     if (tabBtn) {
         tabBtn.addEventListener('click', () => {
             vscode.postMessage({ type: 'loadWorld' });
+        });
+    }
+
+    const genImageBtn = document.getElementById('world-gen-image-btn');
+    if (genImageBtn) {
+        genImageBtn.addEventListener('click', () => {
+            if (currentWorldLocationId) {
+                worldSceneImagePending = true;
+                setWorldSceneImageBusy(true);
+                vscode.postMessage({ type: 'generateLocationImage', locationId: currentWorldLocationId });
+            }
         });
     }
 
@@ -3878,6 +3901,8 @@ function renderWorldView(msg) {
     const titleEl = document.getElementById('world-title');
     const themeEl = document.getElementById('world-theme');
     const statsEl = document.getElementById('world-stats');
+    const genImageBtn = document.getElementById('world-gen-image-btn');
+
     if (titleEl) { titleEl.textContent = msg.worldName || ''; }
     if (themeEl) { themeEl.textContent = msg.theme ? `[${msg.theme}]` : ''; }
     if (statsEl) {
@@ -3885,6 +3910,11 @@ function renderWorldView(msg) {
             ? ` · Turn ${msg.worldTurn}`
             : '';
         statsEl.textContent = `${msg.regionCount ?? 0} regions · ${msg.locationCount ?? 0} locations${turnStr}`;
+    }
+
+    currentWorldLocationId = msg.currentLocationId;
+    if (genImageBtn) {
+        genImageBtn.style.display = currentWorldLocationId ? '' : 'none';
     }
 
     // Mermaid マップ
@@ -4302,6 +4332,22 @@ function setWorldGenBusy(busy) {
     } else {
         btn.classList.remove('generating');
         btn.innerHTML = '<span>Generate World</span>';
+    }
+}
+
+function setWorldSceneImageBusy(busy, failed = false) {
+    const btn = document.getElementById('world-gen-image-btn');
+    if (!btn) { return; }
+    if (!busy) {
+        worldSceneImagePending = false;
+    }
+    btn.disabled = busy;
+    if (busy) {
+        btn.innerHTML = '<span>⏳ Generating...</span>';
+    } else if (failed) {
+        btn.innerHTML = '<span>❌ Failed — Retry</span>';
+    } else {
+        btn.innerHTML = '🎨 Scene Image';
     }
 }
 

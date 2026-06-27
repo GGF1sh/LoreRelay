@@ -32,6 +32,7 @@ export interface WorldLocation {
     factionControl?: string;
     description?: string;
     services?: string[];
+    imagePromptHint?: string;
 }
 
 export interface FactionResources {
@@ -101,6 +102,12 @@ function asStringArray(v: unknown): string[] {
     return Array.isArray(v) ? v.filter((x) => typeof x === 'string').map((x) => (x as string).trim()) : [];
 }
 
+const MAX_PARSE_REGIONS = 50;
+const MAX_PARSE_LOCATIONS = 200;
+const MAX_PARSE_FACTIONS = 20;
+const MAX_PARSE_NPCS = 100;
+const MAX_PARSE_LORE = 50;
+
 const VALID_REGION_TYPES = new Set<RegionType>(['wilderness', 'urban', 'dungeon', 'ruins', 'ocean', 'mountains', 'forest', 'other']);
 const VALID_LOCATION_TYPES = new Set<LocationType>(['settlement', 'dungeon', 'landmark', 'ruins', 'wilderness', 'other']);
 const VALID_FACTION_TYPES = new Set<FactionType>(['hostile', 'neutral', 'friendly', 'player-faction']);
@@ -136,11 +143,18 @@ function parseWorldLocation(raw: unknown): WorldLocation | undefined {
         name,
         type: VALID_LOCATION_TYPES.has(r.type as LocationType) ? (r.type as LocationType) : 'other'
     };
-    if (r.regionId) { loc.regionId = asString(r.regionId); }
+    if (r.regionId) {
+        const regionId = asId(r.regionId);
+        if (regionId) { loc.regionId = regionId; }
+    }
     if (r.population !== undefined) { loc.population = asNumber(r.population); }
-    if (r.factionControl) { loc.factionControl = asString(r.factionControl); }
+    if (r.factionControl) {
+        const factionId = asId(r.factionControl);
+        if (factionId) { loc.factionControl = factionId; }
+    }
     if (r.description) { loc.description = asString(r.description); }
     if (r.services) { loc.services = asStringArray(r.services); }
+    if (r.imagePromptHint) { loc.imagePromptHint = asString(r.imagePromptHint); }
     return loc;
 }
 
@@ -193,8 +207,14 @@ function parseInitialNpc(raw: unknown): InitialNpc | undefined {
     if (!id || !name) { return undefined; }
     const npc: InitialNpc = { id, name };
     if (r.role) { npc.role = asString(r.role); }
-    if (r.locationId) { npc.locationId = asString(r.locationId); }
-    if (r.factionId) { npc.factionId = asString(r.factionId); }
+    if (r.locationId) {
+        const locationId = asId(r.locationId);
+        if (locationId) { npc.locationId = locationId; }
+    }
+    if (r.factionId) {
+        const factionId = asId(r.factionId);
+        if (factionId) { npc.factionId = factionId; }
+    }
     if (r.description) { npc.description = asString(r.description); }
     return npc;
 }
@@ -220,25 +240,28 @@ export function parseWorldForge(raw: unknown): WorldForge | undefined {
     const geoRaw = doc.geography as Record<string, unknown> | undefined;
     const geography: WorldGeography = {
         regions: Array.isArray(geoRaw?.regions)
-            ? geoRaw!.regions.map(parseRegion).filter((x): x is Region => x !== undefined)
+            ? geoRaw!.regions.slice(0, MAX_PARSE_REGIONS).map(parseRegion).filter((x): x is Region => x !== undefined)
             : [],
         locations: Array.isArray(geoRaw?.locations)
-            ? geoRaw!.locations.map(parseWorldLocation).filter((x): x is WorldLocation => x !== undefined)
+            ? geoRaw!.locations.slice(0, MAX_PARSE_LOCATIONS).map(parseWorldLocation).filter((x): x is WorldLocation => x !== undefined)
             : []
     };
 
     const factions = Array.isArray(doc.factions)
-        ? doc.factions.map(parseFaction).filter((x): x is Faction => x !== undefined)
+        ? doc.factions.slice(0, MAX_PARSE_FACTIONS).map(parseFaction).filter((x): x is Faction => x !== undefined)
         : [];
+
+    const loreRaw = doc.loreHistory;
+    const loreHistory = parseLoreHistory(Array.isArray(loreRaw) ? loreRaw.slice(0, MAX_PARSE_LORE) : loreRaw);
 
     return {
         format: asString(doc.format, 'lorerelay-world-forge/1.0'),
         meta,
         geography,
         factions,
-        loreHistory: parseLoreHistory(doc.loreHistory),
+        loreHistory,
         initialNpcs: Array.isArray(doc.initialNpcs)
-            ? doc.initialNpcs.map(parseInitialNpc).filter((x): x is InitialNpc => x !== undefined)
+            ? doc.initialNpcs.slice(0, MAX_PARSE_NPCS).map(parseInitialNpc).filter((x): x is InitialNpc => x !== undefined)
             : []
     };
 }

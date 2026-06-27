@@ -188,13 +188,16 @@ function generateRegions(rng: () => number, theme: string, count: number): Regio
         const suffix = suffixes[i % suffixes.length];
         const name = `${prefix} ${suffix}`;
         const id = makeId(name, i + 1);
-        regions.push({
+        const type = pickWeighted(rng, REGION_TYPE_WEIGHTS);
+        const region: Region = {
             id,
             name,
-            type: pickWeighted(rng, REGION_TYPE_WEIGHTS),
+            type,
             dangerLevel: randInt(rng, 2, 8),
             connectedTo: [],
-        });
+            imagePromptHint: `A landscape view of ${name}, ${type} environment, ${theme} artstyle`,
+        };
+        regions.push(region);
     }
 
     // Ring topology: each region connects to the next
@@ -270,6 +273,7 @@ function generateLocations(
             const name = `${region.name.split(' ')[0]} ${suffix}`;
             const id = makeId(name, locSeq++);
             const loc: WorldLocation = { id, name, type, regionId: region.id };
+            loc.imagePromptHint = `A view of ${name}, ${type} structure, in ${region.name}, ${region.type} environment`;
             if (type === 'settlement') {
                 loc.population = randInt(rng, 50, 800);
             }

@@ -7,11 +7,54 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.3.2] - 2026-06-28
+
+### Fixed — Phase 1–4 安全監査
+- **Phase 4 上書きフロー復旧**: `handleGenerateWorldForge` が `ensureWorldStateExists` + `overwrite: false` のままだった問題を修正。生成成功時は常に `resetWorldStateFromForge`、上書き時は NPC registry も `overwrite: true` で同期。`enableWorldForge` / `enableNpcRegistry` を自動 ON。
+- **Webview 生成パラメータ**: `regionCount` / `factionCount` / `npcCount` を generator と同じ範囲にクランプ（悪意ある postMessage 対策）。
+- **worldMapGenerator**: 派閥→ロケーション辺を描画済みロケーションのみ・最大30本に制限（巨大 forge での Mermaid 爆発防止）。
+- **parseWorldForge / parseWorldState**: 配列・エントリ数の上限を追加。参照 ID（`regionId` / `factionControl` 等）を `asId` で検証。
+
+## [1.3.1] - 2026-06-28
+
+### Fixed — Phase 5 World × ComfyUI 連携（コードレビュー対応）
+- **初回ロード誤発火**: `autoOnLocationChange` がパネル初回 `sendCurrentState` で発火しないよう、`lastGoodGameState` 存在かつ `oldLocationId` 定義時のみフック実行。
+- **game_state 書き戻し廃止**: `lastGeneratedLocationId` の追跡を `locationImageTracker.ts`（拡張機能メモリ）に移行。`sendCurrentState` からの `writeJsonAtomic` 副作用を削除。
+- **ライブ worldState 反映**: 手動・自動とも `loadWorldState()` を `buildLocationImagePrompt` に渡し、シミュ後の danger / controllingFaction をプロンプトに反映。
+- **画像モード**: `'illustrious'` ハードコードを廃止し `getResolvedImageMode()`（`image_gen_config.json` 参照）に統一。
+- **60s クールダウン**: 同一 location の自動再生成を `locationImageTracker` で抑制。
+- **キュー dedup**: location 画像に `entryId: loc:<id>` を付与。
+
+### Added
+- **`locationImageBuilderCore.ts`**: vscode 非依存の純関数プロンプトビルダー。
+- **`locationImageTracker.ts`**: 自動生成のメモリ追跡・クールダウン。
+- **`scripts/test_location_image_builder.js`**: プロンプト合成・トラッカーの単体テスト。
+
+### Changed
+- **World タブ Scene Image ボタン**: 3秒タイマー廃止。`imageGenEnd` / `locationImageGenEnd` で UI 復帰。
+
 ## [1.3.0] - 2026-06-27
+
+### Added — World Forge Generator (Phase 4)
+- **`worldForgeGeneratorCore.ts`**: `worldSeed` / `theme` / 規模パラメータから決定的に `world_forge.json` を手続き型生成（region グラフ・派閥関係・NPC 配置・loreHistory）。
+- **`worldForgeGenerator.ts`**: 生成結果の `writeJsonAtomic` 保存・パース検証・キャッシュ無効化。
+- **`bootstrapNpcRegistryFromForge()`**: `initialNpcs` から `npc_registry.json` を自動シード（role ベースの personalityTraits 付与）。
+- **`resetWorldStateFromForge()`**: 生成・上書き時に `world_state.json` を forge から再構築（旧 state との不整合を防止）。
+- **World タブ Generate UI**: seed/theme/regions/factions/NPCs 入力フォーム + `worldGenStart/End` 進捗表示。
+- **コマンド**: `textadventure.generateWorldForge`（コマンドパレットからも実行可）。
+- **設定**: `textAdventure.worldForge.defaultRegionCount` / `defaultFactionCount` / `defaultNpcCount` / `llmEnrich`。
+- **テスト**: `scripts/test_world_forge_generator.js`（決定性・参照整合・テーマ差分）。
+
+### Fixed
+- **`getFactionName()`**: `emergentSimulator` の派閥イベント文が ID ではなく表示名を使用。
+- **生成後の Game Rules**: 成功時に `enableWorldForge` / `enableNpcRegistry` を自動 ON。
+- **上書き時の整合性**: 既存 `world_forge.json` 上書き時、NPC registry（overwrite）と world_state（再生成）も同期更新。
+
+## [1.2.0] - 2026-06-27
 
 ### Fixed
 - **WorldタブUIのバンドル漏れ修正**: `scripts/build-webview.js` の `JS_MODULE_ORDER` に `85-world.js` が含まれていなかったバグを修正し、正しくUIがロードされるように。
-- **バージョン表記の整合性確保**: `package.json` および `package-lock.json` のバージョン表記を `1.3.0` へ引き上げ。
+- **バージョン表記の整合性確保**: `package.json` および `package-lock.json` のバージョン表記を `1.2.0` へ引き上げ。
 - **Webviewバンドル検証テストの新規導入**: `scripts/test_webview_bundle.js` を追加し、ビルド後のスクリプト内に `worldView` 等の主要シンボルが存在することを保証する自動テストを `npm test` に組み込み。
 
 ### Added

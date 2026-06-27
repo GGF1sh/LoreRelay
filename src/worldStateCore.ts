@@ -50,6 +50,10 @@ function asStringArray(v: unknown): string[] {
     return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
 }
 
+const MAX_PARSE_FACTIONS = 50;
+const MAX_PARSE_REGIONS = 50;
+const MAX_PARSE_GLOBAL_EVENTS = 100;
+
 const VALID_EVENT_TYPES = new Set<WorldEventType>([
     'environmental', 'political', 'military', 'social', 'magical', 'other'
 ]);
@@ -111,21 +115,29 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
 
     const factions: Record<string, FactionWorldState> = {};
     if (doc.factions && typeof doc.factions === 'object' && !Array.isArray(doc.factions)) {
+        let factionCount = 0;
         for (const [id, val] of Object.entries(doc.factions as Record<string, unknown>)) {
+            if (factionCount >= MAX_PARSE_FACTIONS) { break; }
             const parsed = parseFactionWorldState(val);
-            if (parsed) { factions[id] = parsed; }
+            if (parsed) {
+                factions[id] = parsed;
+                factionCount++;
+            }
         }
     }
 
     const regions: Record<string, RegionWorldState> = {};
     if (doc.regions && typeof doc.regions === 'object' && !Array.isArray(doc.regions)) {
+        let regionCount = 0;
         for (const [id, val] of Object.entries(doc.regions as Record<string, unknown>)) {
+            if (regionCount >= MAX_PARSE_REGIONS) { break; }
             regions[id] = parseRegionWorldState(val);
+            regionCount++;
         }
     }
 
     const globalEvents: GlobalEvent[] = Array.isArray(doc.globalEvents)
-        ? doc.globalEvents.map(parseGlobalEvent).filter((x): x is GlobalEvent => x !== undefined)
+        ? doc.globalEvents.slice(0, MAX_PARSE_GLOBAL_EVENTS).map(parseGlobalEvent).filter((x): x is GlobalEvent => x !== undefined)
         : [];
 
     return {

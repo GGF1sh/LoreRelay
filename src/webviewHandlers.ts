@@ -5,6 +5,13 @@ import { isValidEntryId } from './entryId';
 import { branchFromTurn } from './gitManager';
 import { t } from './i18n';
 
+function clampWorldGenCount(value: unknown, min: number, max: number, fallback: number): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return fallback;
+    }
+    return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
 /** Webview → Extension の postMessage ペイロード（緩い型）。 */
 export interface WebviewMessage {
     type: string;
@@ -61,6 +68,7 @@ export interface WebviewHandlerDeps {
     sendPartyDirector(): void;
     sendWorldView(): void;
     handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
+    handleGenerateLocationImage(locationId: string): Promise<void>;
     handleSavePartyDirector(director: unknown): Promise<void>;
     handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
     handleBranchTimeline(turnId: string): Promise<void>;
@@ -134,9 +142,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'generateWorldForge': {
             const seed = typeof message.seed === 'string' ? message.seed.trim() : '';
             const theme = typeof message.theme === 'string' ? message.theme.trim() : 'default';
-            const regionCount = typeof message.regionCount === 'number' ? message.regionCount : 5;
-            const factionCount = typeof message.factionCount === 'number' ? message.factionCount : 3;
-            const npcCount = typeof message.npcCount === 'number' ? message.npcCount : 6;
+            const regionCount = clampWorldGenCount(message.regionCount, 3, 12, 5);
+            const factionCount = clampWorldGenCount(message.factionCount, 2, 6, 3);
+            const npcCount = clampWorldGenCount(message.npcCount, 2, 20, 6);
             if (seed) {
                 await deps.handleGenerateWorldForge(seed, theme, regionCount, factionCount, npcCount);
             } else {
@@ -144,6 +152,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         }
+        case 'generateLocationImage':
+            if (typeof message.locationId === 'string') {
+                await deps.handleGenerateLocationImage(message.locationId);
+            }
+            break;
         case 'savePartyDirector':
             await deps.handleSavePartyDirector(message.director);
             break;

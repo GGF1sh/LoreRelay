@@ -428,20 +428,20 @@ if (textAdventure.imageGen.autoOnLocationChange === true)
 
 ### 必須（すべて満たすこと）
 
-- [ ] `generateWorldForge({ worldSeed: 'test', theme: 'dungeon-crawler' })` が valid な `world_forge.json` を生成
-- [ ] 同一 seed で2回生成した結果が **バイト一致**（決定性）
-- [ ] 生成後 `npc_registry.json` に `initialNpcs` 全員分のエントリがある
-- [ ] 生成後 `world_state.json` が `buildInitialWorldState` で作成される
-- [ ] World タブに Mermaid マップが表示される（`85-world.js` bundle 済み）
-- [ ] `npm test` に `test_world_forge_generator.js` が含まれ全パス
-- [ ] `emergentSimulator` のイベント文に派閥**名**が出る（ID ではない）
-- [ ] 既存 `lost-catacombs` シナリオは手書き `world_forge.json` のまま動作（後方互換）
+- [x] `generateWorldForge({ worldSeed: 'test', theme: 'dungeon-crawler' })` が valid な `world_forge.json` を生成
+- [x] 同一 seed で2回生成した結果が **バイト一致**（決定性）
+- [x] 生成後 `npc_registry.json` に `initialNpcs` 全員分のエントリがある
+- [x] 生成後 `world_state.json` が `resetWorldStateFromForge` で作成される
+- [x] World タブに Mermaid マップが表示される（`85-world.js` bundle 済み）
+- [x] `npm test` に `test_world_forge_generator.js` が含まれ全パス
+- [x] `emergentSimulator` のイベント文に派閥**名**が出る（ID ではない）
+- [x] 既存 `lost-catacombs` シナリオは手書き `world_forge.json` のまま動作（後方互換）
 
 ### 推奨（v1.3.1 で可）
 
-- [ ] LLM enrich が ON でも parse 失敗時にクラッシュしない
-- [ ] Generate UI から overwrite キャンセルができる
-- [ ] `AI_SHARED_LOG.md` に生成フローが記録されている
+- [ ] LLM enrich が ON でも parse 失敗時にクラッシュしない（`llmEnrich` 設定のみ、実装は v1.3.1）
+- [x] Generate UI から overwrite キャンセルができる
+- [x] `AI_SHARED_LOG.md` に生成フローが記録されている
 
 ---
 

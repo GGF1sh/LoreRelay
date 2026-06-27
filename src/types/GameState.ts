@@ -71,6 +71,8 @@ export interface GameStateWorld {
     visitedLocationIds?: string[];
     knownFactionIds?: string[];
     worldTurnAtLastSync?: number;
+    lastGeneratedImage?: string;
+    lastGeneratedLocationId?: string;
 }
 
 /** ランタイムのシナリオ進行（scenario.json director の上書き）。v0.6c */

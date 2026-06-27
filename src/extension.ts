@@ -25,7 +25,9 @@ import { initWorldView, pushWorldViewToWebview } from './worldView';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
 import { bootstrapNpcRegistryFromForge } from './worldForge';
 import { loadWorldForge } from './worldForge';
-import { ensureWorldStateExists } from './worldState';
+import { resetWorldStateFromForge } from './worldState';
+import { buildLocationImagePrompt } from './locationImageBuilder';
+import { loadWorldState, isWorldStateEnabled } from './worldState';
 import {
     getMemoryStatus,
     rebuildMemoryIndex,
@@ -81,7 +83,9 @@ import {
     runListImageModels,
     sendImageGenConfig,
     handleUpdateImageGenConfig,
-    killImageGenerationProcess
+    killImageGenerationProcess,
+    enqueueImageGeneration,
+    getResolvedImageMode
 } from './imageGenRunner';
 import {
     initMediaManifest,
@@ -704,6 +708,7 @@ function sendWorldView(): void {
     pushWorldViewToWebview();
 }
 
+
 async function handleGenerateWorldForge(
     seed: string,
     theme: string,
@@ -711,8 +716,8 @@ async function handleGenerateWorldForge(
     factionCount: number,
     npcCount: number
 ): Promise<void> {
-    // Overwrite confirmation if file already exists
-    if (worldForgeFileExists()) {
+    const isOverwrite = worldForgeFileExists();
+    if (isOverwrite) {
         const answer = await vscode.window.showWarningMessage(
             'world_forge.json already exists. Overwrite it? (A .bak backup will be created.)',
             { modal: true },
@@ -739,11 +744,12 @@ async function handleGenerateWorldForge(
         console.warn('[generateWorldForge] warnings:', result.warnings);
     }
 
-    // Bootstrap NPC registry and world state from the new forge
     const forge = loadWorldForge();
     if (forge) {
-        bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: false });
-        ensureWorldStateExists(forge);
+        bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: isOverwrite });
+        resetWorldStateFromForge(forge, isOverwrite);
+        saveGameRules({ enableWorldForge: true, enableNpcRegistry: true });
+        sendGameRules();
     }
 
     panel?.webview.postMessage({ type: 'worldGenEnd', success: true });
@@ -752,6 +758,34 @@ async function handleGenerateWorldForge(
     vscode.window.showInformationMessage(
         `World "${forge?.meta.worldName ?? seed}" generated! (${forge?.geography.regions.length ?? 0} regions, ${forge?.factions.length ?? 0} factions, ${forge?.initialNpcs.length ?? 0} NPCs)`
     );
+}
+
+async function handleGenerateLocationImage(locationId: string): Promise<void> {
+    const trimmed = locationId.trim();
+    if (!trimmed) {
+        vscode.window.showWarningMessage('World Forge: location ID is required.');
+        return;
+    }
+    const forge = loadWorldForge();
+    if (!forge) {
+        vscode.window.showErrorMessage('World Forge not enabled or missing world_forge.json.');
+        return;
+    }
+    const worldState = isWorldStateEnabled() ? loadWorldState() : undefined;
+    const prompt = buildLocationImagePrompt(forge, trimmed, worldState);
+    if (!prompt) {
+        vscode.window.showErrorMessage(`Could not build image prompt for location: ${trimmed}`);
+        return;
+    }
+    panel?.webview.postMessage({ type: 'locationImageGenStart', locationId: trimmed });
+    const mode = getResolvedImageMode();
+    const queued = enqueueImageGeneration(prompt, mode, `loc:${trimmed}`);
+    if (queued) {
+        vscode.window.showInformationMessage(`Queued image generation for ${trimmed}.`);
+    } else {
+        panel?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: trimmed });
+        vscode.window.showWarningMessage('Image generation already queued or busy.');
+    }
 }
 
 async function handleSavePartyDirector(raw: unknown): Promise<void> {
@@ -906,6 +940,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendPartyDirector,
         sendWorldView,
         handleGenerateWorldForge,
+        handleGenerateLocationImage,
         handleSavePartyDirector,
         handleCopyRemotePlayUrl,
         saveCharacter,

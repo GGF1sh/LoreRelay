@@ -100,7 +100,24 @@ export function getActiveGlobalEvents(): GlobalEvent[] {
 export function ensureWorldStateExists(forge: WorldForge): WorldState {
     const existing = loadWorldState();
     if (existing) { return existing; }
+    return resetWorldStateFromForge(forge);
+}
+
+/** 新規生成・上書き時に world_state.json を forge から再構築する。 */
+export function resetWorldStateFromForge(forge: WorldForge, createBackup = false): WorldState {
     const initial = buildInitialWorldState(forge);
-    saveWorldState(initial);
-    return initial;
+    const statePath = getWorldStatePath();
+    if (!statePath) {
+        return initial;
+    }
+    const toSave = { ...initial, lastUpdated: new Date().toISOString() };
+    writeJsonAtomic(statePath, toSave, createBackup);
+    cachedState = toSave;
+    cachePath = statePath;
+    try {
+        cacheMtime = fs.statSync(statePath).mtimeMs;
+    } catch {
+        cacheMtime = 0;
+    }
+    return toSave;
 }

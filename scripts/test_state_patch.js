@@ -101,6 +101,16 @@ const diffPatches = buildStatePatchFromDiff(baseState, nextState);
 const paths = diffPatches.map((p) => p.path).sort();
 assertEqual(paths, ['/bgm', '/status'], 'buildStatePatchFromDiff paths');
 
+const worldDiffPatches = buildStatePatchFromDiff(
+    { ...baseState, world: { currentLocationId: 'old_room', regions: { deep: { dangerLevel: 4 } } } },
+    { ...baseState, world: { currentLocationId: 'new_room', regions: { deep: { dangerLevel: 6, controllingFaction: 'undead' } } } }
+);
+assertEqual(
+    worldDiffPatches.map((p) => p.path).sort(),
+    ['/world/currentLocationId', '/world/regions/deep/controllingFaction', '/world/regions/deep/dangerLevel'],
+    'buildStatePatchFromDiff expands world subpaths'
+);
+
 const directorPatched = applyStatePatch(baseState, [
   { op: 'add', path: '/director', value: { scene: 'Boss Room', achievedEndings: ['boss_defeated'] } }
 ]);
@@ -209,6 +219,24 @@ assertEqual(directorPatched.director?.scene, 'Boss Room', 'applyStatePatch allow
         fail('invalid currentLocationId should be blocked');
     } else {
         ok('invalid currentLocationId blocked');
+    }
+}
+
+{
+    const withWorld = { ...baseState, world: { currentLocationId: 'deep', regions: { deep: { dangerLevel: 5 } } } };
+    const blockedRemove = applyStatePatch(withWorld, [
+        { op: 'remove', path: '/world/currentLocationId' },
+        { op: 'remove', path: '/world/regions/deep/dangerLevel' },
+    ]);
+    if (blockedRemove.world?.currentLocationId !== 'deep') {
+        fail('world currentLocationId remove should be blocked');
+    } else {
+        ok('world currentLocationId remove blocked');
+    }
+    if (blockedRemove.world?.regions?.deep?.dangerLevel !== 5) {
+        fail('world region dangerLevel remove should be blocked');
+    } else {
+        ok('world region dangerLevel remove blocked');
     }
 }
 

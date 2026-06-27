@@ -245,6 +245,26 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "regions": {
+          "type": "object",
+          "description": "GM-patchable world region overlay. Simulation-owned world_state.json remains the source of truth for full world state.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "controllingFaction": {
+                "anyOf": [
+                  { "type": "string" },
+                  { "type": "null" }
+                ]
+              },
+              "dangerLevel": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              }
+            }
+          }
+        },
         "worldTurnAtLastSync": { "type": "number" }
       }
     }

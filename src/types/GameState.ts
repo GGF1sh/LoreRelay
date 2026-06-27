@@ -70,6 +70,10 @@ export interface GameStateWorld {
     currentLocationId?: string;
     visitedLocationIds?: string[];
     knownFactionIds?: string[];
+    regions?: Record<string, {
+        controllingFaction?: string | null;
+        dangerLevel?: number;
+    }>;
     worldTurnAtLastSync?: number;
     lastGeneratedImage?: string;
     lastGeneratedLocationId?: string;

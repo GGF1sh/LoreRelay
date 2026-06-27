@@ -53,6 +53,20 @@ const raw = {
         { id: 'ev1', type: 'magical', severity: 'major', description: 'Seal weakens', turnsRemaining: 10 },
         { description: 'No id' }
     ],
+    recentChanges: [
+        {
+            id: 'wce_5_region_deep',
+            worldTurn: 5,
+            source: 'simulation',
+            category: 'region',
+            severity: 'warning',
+            regionId: 'deep',
+            message: 'Deep grows dangerous',
+            mapHighlight: true,
+            expiresAfterTurns: 3
+        },
+        { id: 'bad id', message: 'invalid', category: 'region', severity: 'warning' }
+    ],
     pendingWorldEvents: []
 };
 
@@ -74,6 +88,8 @@ if (parsed.regions.upper.controllingFaction !== 'watchers') { fail('region contr
 if (!parsed.globalEvents || parsed.globalEvents.length !== 1) { fail('globalEvent without id dropped'); } else { ok('globalEvent without id dropped'); }
 if (parsed.globalEvents[0].turnsRemaining !== 10) { fail('globalEvent turnsRemaining'); } else { ok('globalEvent turnsRemaining'); }
 if (parsed.globalEvents[0].severity !== 'major') { fail('globalEvent severity'); } else { ok('globalEvent severity'); }
+if (!parsed.recentChanges || parsed.recentChanges.length !== 1) { fail('recentChanges invalid entries dropped'); } else { ok('recentChanges invalid entries dropped'); }
+if (parsed.recentChanges[0]?.regionId !== 'deep') { fail('recentChanges regionId preserved'); } else { ok('recentChanges regionId preserved'); }
 
 // ---------------------------------------------------------------------------
 // parseWorldState — invalid event severity falls back
@@ -176,6 +192,12 @@ if (!Array.isArray(initial.pendingWorldEvents) || initial.pendingWorldEvents.len
     fail('initial pendingWorldEvents = []');
 } else {
     ok('initial pendingWorldEvents = []');
+}
+
+if (!Array.isArray(initial.recentChanges) || initial.recentChanges.length !== 0) {
+    fail('initial recentChanges = []');
+} else {
+    ok('initial recentChanges = []');
 }
 
 // ---------------------------------------------------------------------------

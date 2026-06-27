@@ -43,6 +43,7 @@ import type { RelationshipType } from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
+import { pruneExpiredEvents } from './worldEventLogCore';
 import {
     buildSection,
     finalizeBreakdown,
@@ -481,7 +482,7 @@ function buildWorldStatePromptContext(): string {
     }
 
     // 最近のシミュレーション変化（gmHint が設定された warning/critical のみ、最大3件）
-    const recentChanges = worldState.recentChanges ?? [];
+    const recentChanges = pruneExpiredEvents(worldState.recentChanges ?? [], worldState.worldTurn);
     const notableChanges = recentChanges
         .filter((c) => c.severity !== 'info' && c.gmHint)
         .slice(-3);

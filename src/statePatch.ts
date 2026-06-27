@@ -28,6 +28,60 @@ const PATCHABLE_ROOT_KEYS = [
     'gameOver', 'summary', 'diceRequest', 'hiddenState', 'director', 'partyDirector', 'world'
 ] as const;
 
+function pushPatchIfChanged(
+    patches: StatePatchOp[],
+    prev: Record<string, unknown>,
+    next: Record<string, unknown>,
+    path: string
+): void {
+    const keys = path.split('/').filter(Boolean);
+    const getAt = (obj: Record<string, unknown>): unknown => {
+        let cur: unknown = obj;
+        for (const key of keys) {
+            if (!cur || typeof cur !== 'object' || Array.isArray(cur) || !(key in cur)) {
+                return undefined;
+            }
+            cur = (cur as Record<string, unknown>)[key];
+        }
+        return cur;
+    };
+    const newVal = getAt(next);
+    if (newVal === undefined) { return; }
+    const oldVal = getAt(prev);
+    if (JSON.stringify(newVal) === JSON.stringify(oldVal)) { return; }
+    patches.push({
+        op: oldVal === undefined ? 'add' : 'replace',
+        path,
+        value: newVal
+    });
+}
+
+function buildWorldPatchesFromDiff(
+    prev: Record<string, unknown>,
+    next: Record<string, unknown>
+): StatePatchOp[] {
+    const patches: StatePatchOp[] = [];
+    pushPatchIfChanged(patches, prev, next, '/world/currentLocationId');
+
+    const nextWorld = next.world;
+    if (!nextWorld || typeof nextWorld !== 'object' || Array.isArray(nextWorld)) {
+        return patches;
+    }
+    const regions = (nextWorld as Record<string, unknown>).regions;
+    if (!regions || typeof regions !== 'object' || Array.isArray(regions)) {
+        return patches;
+    }
+    for (const regionId of Object.keys(regions as Record<string, unknown>).slice(0, 50)) {
+        if (!isValidEventId(regionId)) { continue; }
+        pushPatchIfChanged(patches, prev, next, `/world/regions/${regionId}/controllingFaction`);
+        pushPatchIfChanged(patches, prev, next, `/world/regions/${regionId}/dangerLevel`);
+    }
+    return patches.filter((patch) => isSafePatchPath(patch.path) && isSafeWorldPatchValue(
+        patch.path.split('/').filter(Boolean),
+        patch.value
+    ));
+}
+
 /** game_state 差分から JSON Patch を生成（Grok 直書きフォールバック用）。 */
 export function buildStatePatchFromDiff(
     prev: Record<string, unknown>,
@@ -36,6 +90,10 @@ export function buildStatePatchFromDiff(
     const patches: StatePatchOp[] = [];
     for (const key of PATCHABLE_ROOT_KEYS) {
         if (!(key in next)) {
+            continue;
+        }
+        if (key === 'world') {
+            patches.push(...buildWorldPatchesFromDiff(prev, next));
             continue;
         }
         const newVal = next[key];
@@ -156,6 +214,10 @@ export function applyStatePatch(state: Record<string, unknown>, patches: StatePa
                     break;
                 }
                 case 'remove': {
+                    if (keys[0] === 'world') {
+                        console.warn(`[statePatch] Blocked world remove patch: ${patch.path}`);
+                        break;
+                    }
                     let target: Record<string, unknown> = newState;
                     for (let i = 0; i < keys.length - 1; i++) {
                         const key = keys[i];

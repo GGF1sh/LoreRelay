@@ -2,6 +2,7 @@ import { CHARACTER_ID_PATTERN } from './characterId';
 import { validateGameStateDirector } from './scenarioDirectorCore';
 import { validateGameStatePartyDirector } from './partyDirectorCore';
 import { isValidSchemaVersion } from './migrateGameState';
+import { isValidEventId } from './worldEventLogCore';
 
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -270,8 +271,12 @@ export function validateGameState(obj: unknown): string[] {
             errors.push('"world" must be an object');
         } else {
             const w = state.world as Record<string, unknown>;
-            if (w.currentLocationId !== undefined && typeof w.currentLocationId !== 'string') {
-                errors.push('world.currentLocationId must be a string');
+            if (w.currentLocationId !== undefined) {
+                if (typeof w.currentLocationId !== 'string') {
+                    errors.push('world.currentLocationId must be a string');
+                } else if (w.currentLocationId !== '' && !isValidEventId(w.currentLocationId)) {
+                    errors.push('world.currentLocationId has invalid format');
+                }
             }
             if (w.visitedLocationIds !== undefined) {
                 if (!Array.isArray(w.visitedLocationIds)) {
@@ -280,12 +285,55 @@ export function validateGameState(obj: unknown): string[] {
                     (w.visitedLocationIds as unknown[]).forEach((id, i) => {
                         if (typeof id !== 'string') {
                             errors.push(`world.visitedLocationIds[${i}] must be a string`);
+                        } else if (!isValidEventId(id)) {
+                            errors.push(`world.visitedLocationIds[${i}] has invalid format`);
                         }
                     });
                 }
             }
-            if (w.knownFactionIds !== undefined && !Array.isArray(w.knownFactionIds)) {
-                errors.push('world.knownFactionIds must be an array');
+            if (w.knownFactionIds !== undefined) {
+                if (!Array.isArray(w.knownFactionIds)) {
+                    errors.push('world.knownFactionIds must be an array');
+                } else {
+                    (w.knownFactionIds as unknown[]).forEach((id, i) => {
+                        if (typeof id !== 'string') {
+                            errors.push(`world.knownFactionIds[${i}] must be a string`);
+                        } else if (!isValidEventId(id)) {
+                            errors.push(`world.knownFactionIds[${i}] has invalid format`);
+                        }
+                    });
+                }
+            }
+            if (w.regions !== undefined) {
+                if (typeof w.regions !== 'object' || w.regions === null || Array.isArray(w.regions)) {
+                    errors.push('world.regions must be an object');
+                } else {
+                    for (const [regionId, value] of Object.entries(w.regions as Record<string, unknown>)) {
+                        if (!isValidEventId(regionId)) {
+                            errors.push(`world.regions key "${regionId}" has invalid format`);
+                            continue;
+                        }
+                        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+                            errors.push(`world.regions.${regionId} must be an object`);
+                            continue;
+                        }
+                        const region = value as Record<string, unknown>;
+                        if (region.controllingFaction !== undefined && region.controllingFaction !== null) {
+                            if (typeof region.controllingFaction !== 'string') {
+                                errors.push(`world.regions.${regionId}.controllingFaction must be a string or null`);
+                            } else if (!isValidEventId(region.controllingFaction)) {
+                                errors.push(`world.regions.${regionId}.controllingFaction has invalid format`);
+                            }
+                        }
+                        if (region.dangerLevel !== undefined) {
+                            if (typeof region.dangerLevel !== 'number') {
+                                errors.push(`world.regions.${regionId}.dangerLevel must be a number`);
+                            } else if (Number.isNaN(region.dangerLevel) || region.dangerLevel < 0 || region.dangerLevel > 10) {
+                                errors.push(`world.regions.${regionId}.dangerLevel must be between 0 and 10`);
+                            }
+                        }
+                    }
+                }
             }
             if (w.worldTurnAtLastSync !== undefined && typeof w.worldTurnAtLastSync !== 'number') {
                 errors.push('world.worldTurnAtLastSync must be a number');

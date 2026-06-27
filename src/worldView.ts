@@ -79,7 +79,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,
         globalEvents: globalEvents ?? [],
-        recentChanges: worldState?.recentChanges ?? [],
+        recentChanges: activeChanges,
         worldTurn: worldTurn ?? null,
         simEnabled,
         currentLocationId: currentLocationId ?? null,

@@ -947,3 +947,11 @@ v1.3.0 Polish Phase completed:
 - **README**: World System, Emergent Simulation, World Forge 機能を Features と Roadmap に追記。
 - **CHANGELOG**: v1.3.0 リリース情報を CHANGELOG.md と package.json (1.3.0) に反映。
 - `npm run build:webview` を実行しバンドル更新。
+
+## 2026-06-28 00:41 JST - Antigravity (Gemini 3.1 Pro) - Security & Bug Fixes for v1.3
+
+v1.3.0 リリース前の最終コードレビューと以下の修正を実施：
+- **SEC-2**: Mermaid.js のノードラベルによるXSS / パースエラー脆弱性を修正 (`worldMapGenerator.ts` の `escapeMmdLabel` 強化)
+- **BUG-1**: 同盟派閥のモラル値が毎ターン二重加算（A->B, B->A）されるバグを修正 (`emergentSimulator.ts` の `tickAllyBonus`)
+- **ROB-1**: World Forge 生成時の ID フォーマット検証漏れを修正 (`worldForgeCore.ts` に `asId` を導入し、不正文字を弾くように改善)
+- 全テスト（148件）通過確認後、`refactor/ws-and-extension-split` にコミット・プッシュ完了。

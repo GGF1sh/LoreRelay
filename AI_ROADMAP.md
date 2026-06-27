@@ -57,8 +57,8 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 
 ---
 
-## 🔵 Phase 5 (v1.5.0 - v1.5.1): Visual Memory / Soulgaze
-*ステータス: 進行中 (5a/5b/5c 完了)*
+## 🟢 Phase 5 (v1.5.0 - v1.5.1): Visual Memory / Soulgaze
+*ステータス: 完了 (v1.5.1)*
 **目的**: 生成された画像や入力画像を、GMの記憶・世界状態・シーン管理に戻し、AIに「視覚」を持たせる。
 
 - [x] **1. Visual Memory Cache (`visual_memory.json`)**
@@ -74,5 +74,8 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
   - サムネイル上に badges 表示 (📍 location、T{turn}、👁 Analyzed)
   - 手動 "👁 Analyze" ボタン、VLM 完了後に description をツールチップ表示
   - vlmAnalysisComplete で即時 gallery 更新、vscode.setState に永続化
-- [ ] **Visual World Polish (v1.5.1)**
-  - World タブから場所画像履歴の閲覧、NPC portrait との紐付け
+- [x] **Visual World Polish (v1.5.1)**
+  - World タブに「Scene History」ストリップ（visual_memory から最新4件、T{turn} バッジ付き）
+  - World タブに「NPCs Here」パネル（portrait 表示、urgentNeed 数、「Set Portrait」ボタン）
+  - NpcEntry に portraitImagePath? フィールド追加
+  - QuickPick フローで analyzed 画像一覧から portrait を選択して npc_registry.json へ紐付け

@@ -157,12 +157,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 if (message.inParty) {
                     deps.addToParty(character.id);
                 }
+                
+                if (data?.exportFormat === 'st-v2' || data?.exportFormat === 'st-v3') {
+                    await deps.exportCharacterCard(data);
+                }
             } else {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
-            }
-
-            if (data?.exportFormat === 'st-v3') {
-                await deps.exportCharacterCard(data);
             }
             break;
         }

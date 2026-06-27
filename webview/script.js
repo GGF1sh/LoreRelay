@@ -2105,13 +2105,54 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   }
 
   function addCustomExpression() {
-    const name = (prompt('Expression name (e.g. "wink", "determined"):') || '').trim();
-    if (!name) return;
-    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    if (!key) return;
-    if (!ccExpressions[key]) ccExpressions[key] = null;
-    ccIsDirty = true;
-    renderExpressionsGrid();
+    const container = $('cc-add-custom-expression-btn')?.parentElement;
+    if (!container) return;
+
+    if (container.querySelector('.cc-expression-input-wrapper')) return; // Already open
+
+    const inputWrapper = document.createElement('div');
+    inputWrapper.className = 'cc-expression-input-wrapper';
+    inputWrapper.style.display = 'flex';
+    inputWrapper.style.gap = '8px';
+    inputWrapper.style.marginTop = '8px';
+    inputWrapper.style.alignItems = 'center';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cc-input';
+    input.placeholder = 'Expression name (e.g. "wink")';
+    input.style.flex = '1';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'glass-btn';
+    addBtn.textContent = 'Add';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'glass-btn cc-del';
+    cancelBtn.textContent = 'Cancel';
+
+    const finish = (name) => {
+      inputWrapper.remove();
+      if (!name) return;
+      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      if (!key) return;
+      if (!ccExpressions[key]) ccExpressions[key] = null;
+      ccIsDirty = true;
+      renderExpressionsGrid();
+    };
+
+    addBtn.onclick = () => finish((input.value || '').trim());
+    cancelBtn.onclick = () => finish(null);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') finish((input.value || '').trim());
+      if (e.key === 'Escape') finish(null);
+    };
+
+    inputWrapper.appendChild(input);
+    inputWrapper.appendChild(addBtn);
+    inputWrapper.appendChild(cancelBtn);
+    container.appendChild(inputWrapper);
+    input.focus();
   }
 
   // ── Collect & Save ─────────────────────────────────────────────────────

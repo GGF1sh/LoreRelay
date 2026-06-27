@@ -780,7 +780,10 @@ async function exportCharacterCard(payload: any): Promise<void> {
             return;
         }
 
-        const jsonStr = JSON.stringify(payload);
+        const metadata = { ...payload };
+        delete metadata.portrait;
+        delete metadata.expressions; // Strip oversized base64 data from JSON metadata
+        const jsonStr = JSON.stringify(metadata);
         const base64Json = Buffer.from(jsonStr, 'utf-8').toString('base64');
         
         const finalPngBuffer = injectPngMetadata(pngBuffer, 'chara', base64Json);

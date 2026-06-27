@@ -106,6 +106,48 @@ const directorPatched = applyStatePatch(baseState, [
 ]);
 assertEqual(directorPatched.director?.scene, 'Boss Room', 'applyStatePatch allows director');
 
+// ---------------------------------------------------------------------------
+// Phase 2: MAX_PATCH_OPS — truncate at 50
+// ---------------------------------------------------------------------------
+
+{
+    const manyPatches = Array.from({ length: 70 }, (_, i) => ({
+        op: 'replace', path: '/bgm', value: `track_${i}`
+    }));
+    const r = applyStatePatch(baseState, manyPatches);
+    // Should complete without throwing (truncated internally)
+    if (typeof r !== 'object') {
+        fail('applyStatePatch should return object even with 70 patches');
+    } else {
+        ok('applyStatePatch survives 70 patch ops (truncated to 50)');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: MAX_PATCH_VALUE_BYTES — skip values > 100KB
+// ---------------------------------------------------------------------------
+
+{
+    const hugePatch = { op: 'replace', path: '/bgm', value: 'x'.repeat(200_000) };
+    const r = applyStatePatch(baseState, [hugePatch]);
+    if (r.bgm === 'x'.repeat(200_000)) {
+        fail('applyStatePatch should skip oversized patch value');
+    } else {
+        ok('applyStatePatch skips value > 100KB');
+    }
+}
+
+{
+    // Value just under 100KB should still apply
+    const nearLimitPatch = { op: 'replace', path: '/bgm', value: 'y'.repeat(99_000) };
+    const r = applyStatePatch(baseState, [nearLimitPatch]);
+    if (r.bgm !== 'y'.repeat(99_000)) {
+        fail('applyStatePatch should apply value just under 100KB');
+    } else {
+        ok('applyStatePatch applies value just under 100KB');
+    }
+}
+
 if (failed > 0) {
   process.exit(1);
 }

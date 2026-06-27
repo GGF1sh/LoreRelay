@@ -38,24 +38,31 @@ export function getGameRulesPath(): string | undefined {
 }
 
 let cachedRules: GameRules | undefined = undefined;
+let cacheRulesPath = '';
+let cacheRulesMtime = 0;
 
 export function clearGameRulesCache(): void {
     cachedRules = undefined;
+    cacheRulesPath = '';
+    cacheRulesMtime = 0;
 }
 
 export function loadGameRules(): GameRules {
-    if (cachedRules) {
-        return cachedRules;
-    }
     const rulesPath = getGameRulesPath();
     if (!rulesPath || !fs.existsSync(rulesPath)) {
         return { ...DEFAULT_GAME_RULES };
     }
     try {
+        const mtime = fs.statSync(rulesPath).mtimeMs;
+        if (cachedRules && cacheRulesPath === rulesPath && cacheRulesMtime === mtime) {
+            return cachedRules;
+        }
         const data = fs.readFileSync(rulesPath, 'utf8');
         const parsed = JSON.parse(data);
         const loaded = { ...DEFAULT_GAME_RULES, ...parsed };
         cachedRules = loaded;
+        cacheRulesPath = rulesPath;
+        cacheRulesMtime = mtime;
         return loaded;
     } catch (err) {
         console.error("Failed to load game_rules.json", err);
@@ -110,10 +117,12 @@ export function saveGameRules(rules: Partial<GameRules>): void {
     }
 
     const updated = { ...current, ...sanitized };
-    cachedRules = updated;
 
     try {
         writeJsonAtomic(rulesPath, updated);
+        cachedRules = updated;
+        cacheRulesPath = rulesPath;
+        try { cacheRulesMtime = fs.statSync(rulesPath).mtimeMs; } catch { cacheRulesMtime = 0; }
     } catch (err) {
         console.error("Failed to save game_rules.json", err);
     }

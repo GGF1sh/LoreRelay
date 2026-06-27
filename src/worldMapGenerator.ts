@@ -8,6 +8,11 @@ const FACTION_TYPE_ICON: Record<string, string> = {
     'player-faction': '⭐'
 };
 
+const MAX_REGIONS = 20;
+const MAX_LOCS_PER_REGION = 10;
+const MAX_ORPHAN_LOCS = 10;
+const MAX_FACTIONS = 5; // already enforced below; kept as named constant
+
 const LOCATION_TYPE_ICON: Record<string, string> = {
     settlement: '🏘️',
     dungeon: '🕳️',
@@ -55,14 +60,14 @@ export function generateWorldMap(
     for (const loc of forge.geography.locations) {
         if (loc.regionId) {
             const arr = locationsByRegion.get(loc.regionId) ?? [];
-            arr.push(loc);
+            if (arr.length < MAX_LOCS_PER_REGION) { arr.push(loc); }
             locationsByRegion.set(loc.regionId, arr);
         } else {
-            orphanLocations.push(loc);
+            if (orphanLocations.length < MAX_ORPHAN_LOCS) { orphanLocations.push(loc); }
         }
     }
 
-    for (const region of forge.geography.regions) {
+    for (const region of forge.geography.regions.slice(0, MAX_REGIONS)) {
         const locs = locationsByRegion.get(region.id) ?? [];
         // ライブ危険度があれば優先して表示
         const liveDanger = regionStates?.[region.id]?.dangerLevel;
@@ -84,11 +89,11 @@ export function generateWorldMap(
         lines.push(`  ${buildLocationLabel(loc, forge, isCurrent)}`);
     }
 
-    for (const region of forge.geography.regions) {
+    const renderedRegionIds = new Set(forge.geography.regions.slice(0, MAX_REGIONS).map((r) => r.id));
+    for (const region of forge.geography.regions.slice(0, MAX_REGIONS)) {
         if (region.connectedTo) {
             for (const targetId of region.connectedTo) {
-                const targetRegion = forge.geography.regions.find((r) => r.id === targetId);
-                if (targetRegion) {
+                if (renderedRegionIds.has(targetId)) {
                     lines.push(`  ${escapeId(region.id)} --> ${escapeId(targetId)}`);
                 }
             }
@@ -96,7 +101,7 @@ export function generateWorldMap(
     }
 
     const renderedFactionIds = new Set<string>();
-    for (const faction of forge.factions.slice(0, 5)) {
+    for (const faction of forge.factions.slice(0, MAX_FACTIONS)) {
         const icon = FACTION_TYPE_ICON[faction.type] ?? '❓';
         const livePower = factionStates?.[faction.id]?.power;
         const displayPower = livePower ?? faction.power;

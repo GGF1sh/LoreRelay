@@ -18,6 +18,9 @@ const ALLOWED_ROOTS = new Set([
 
 const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+const MAX_PATCH_OPS = 50;
+const MAX_PATCH_VALUE_BYTES = 100_000; // 100 KB per op value
+
 const PATCHABLE_ROOT_KEYS = [
     'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
     'latestImage', 'background', 'sprite', 'hiddenDice',
@@ -69,6 +72,11 @@ function isSafePatchPath(patchPath: string): boolean {
 export function applyStatePatch(state: Record<string, unknown>, patches: StatePatchOp[]): Record<string, unknown> {
     const newState = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
 
+    if (patches.length > MAX_PATCH_OPS) {
+        console.warn(`[statePatch] Too many patch ops (${patches.length}), truncating to ${MAX_PATCH_OPS}`);
+        patches = patches.slice(0, MAX_PATCH_OPS);
+    }
+
     for (const patch of patches) {
         try {
             if (!patch || typeof patch.path !== 'string' || !isSafePatchPath(patch.path)) {
@@ -91,9 +99,15 @@ export function applyStatePatch(state: Record<string, unknown>, patches: StatePa
             const lastKey = keys[keys.length - 1];
             switch (patch.op) {
                 case 'replace':
-                case 'add':
+                case 'add': {
+                    const serialized = JSON.stringify(patch.value);
+                    if (serialized.length > MAX_PATCH_VALUE_BYTES) {
+                        console.warn(`[statePatch] Value too large for ${patch.path} (${serialized.length} bytes), skipping`);
+                        break;
+                    }
                     target[lastKey] = patch.value;
                     break;
+                }
                 case 'remove':
                     delete target[lastKey];
                     break;

@@ -79,7 +79,7 @@ function tickFaction(faction: Faction, forge: WorldForge, state: WorldState): vo
     tickResources(faction, fs, events);
 
     // 敵対派閥との摩擦
-    tickEnemyFriction(faction, fs, state, events);
+    tickEnemyFriction(faction, fs, forge, state, events);
 
     // 友好派閥のボーナス
     tickAllyBonus(faction, fs, state);
@@ -122,6 +122,7 @@ function tickResources(faction: Faction, fs: FactionWorldState, events: string[]
 function tickEnemyFriction(
     faction: Faction,
     fs: FactionWorldState,
+    forge: WorldForge,
     state: WorldState,
     events: string[]
 ): void {
@@ -135,11 +136,11 @@ function tickEnemyFriction(
             // 明確な優勢：敵を1点削る、自分は+0.5
             enemyState.power = Math.max(0, enemyState.power - 1);
             fs.power = Math.min(100, fs.power + 0.5);
-            events.push(`${getFactionName(state, enemyId)}との対立で優位`);
+            events.push(`${getFactionName(forge, enemyId)}との対立で優位`);
         } else if (powerDiff < -10) {
             // 明確な劣勢：自分が-1
             fs.power = Math.max(0, fs.power - 1);
-            events.push(`${getFactionName(state, enemyId)}に押されている`);
+            events.push(`${getFactionName(forge, enemyId)}に押されている`);
         } else {
             // 拮抗：両者消耗
             fs.power = Math.max(0, fs.power - 0.5);
@@ -244,7 +245,7 @@ function clamp(v: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, v));
 }
 
-/** 派閥 ID から表示名を取得（フォールバックは ID そのまま）。 */
-function getFactionName(_state: WorldState, id: string): string {
-    return id;
+/** 派閥 ID から forge の表示名を取得（フォールバックは ID そのまま）。 */
+function getFactionName(forge: WorldForge, id: string): string {
+    return forge.factions.find((f) => f.id === id)?.name ?? id;
 }

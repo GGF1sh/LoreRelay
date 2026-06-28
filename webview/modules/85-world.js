@@ -23,6 +23,8 @@ const SEVERITY_COLOR = {
 
 let currentWorldLocationId = null;
 let worldSceneImagePending = false;
+let worldMapMode = 'mermaid';
+const WORLD_MAP_MODE_KEY = 'lorerelay.worldMapMode';
 
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
@@ -42,6 +44,12 @@ window.addEventListener('DOMContentLoaded', () => {
                     btn.innerHTML = '<span>❌ Generate Failed — Retry</span>';
                 }
             }
+        }
+        if (msg.type === 'worldMapGenStart') {
+            setWorldMapGenBusy(true);
+        }
+        if (msg.type === 'worldMapGenEnd') {
+            setWorldMapGenBusy(false, !msg.success);
         }
         if (msg.type === 'locationImageGenStart') {
             setWorldSceneImageBusy(true);
@@ -72,6 +80,32 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const genMapBtn = document.getElementById('world-gen-map-btn');
+    if (genMapBtn) {
+        genMapBtn.addEventListener('click', () => {
+            setWorldMapGenBusy(true);
+            vscode.postMessage({ type: 'generateWorldMapImage' });
+        });
+    }
+
+    const modeMermaid = document.getElementById('world-map-mode-mermaid');
+    const modeParchment = document.getElementById('world-map-mode-parchment');
+    if (modeMermaid) {
+        modeMermaid.addEventListener('click', () => setWorldMapMode('mermaid'));
+    }
+    if (modeParchment) {
+        modeParchment.addEventListener('click', () => setWorldMapMode('parchment'));
+    }
+
+    try {
+        const saved = localStorage.getItem(WORLD_MAP_MODE_KEY);
+        if (saved === 'mermaid' || saved === 'parchment') {
+            worldMapMode = saved;
+        }
+    } catch { /* private mode */ }
+
+    ensureCartographyStyles();
+    applyWorldMapModeVisibility();
     buildWorldGenForm();
 });
 
@@ -109,8 +143,15 @@ function renderWorldView(msg) {
         genImageBtn.style.display = currentWorldLocationId ? '' : 'none';
     }
 
-    // Mermaid マップ
+    // Mermaid + parchment maps
     renderMermaidMap(msg.worldMap, msg.currentLocationId);
+    renderCartographyMap(msg);
+
+    if (msg.cartographyHasImage && worldMapMode === 'parchment') {
+        setWorldMapMode('parchment', { persist: false });
+    } else {
+        applyWorldMapModeVisibility();
+    }
 
     // Location image history (from visual_memory.json)
     renderLocationImages(msg.locationImages || [], msg.currentLocationId);
@@ -126,6 +167,138 @@ function renderWorldView(msg) {
 
     // 派閥カード
     renderFactions(msg.factions || [], msg.factionStates || null);
+}
+
+function ensureCartographyStyles() {
+    if (document.getElementById('world-cartography-styles')) { return; }
+    const style = document.createElement('style');
+    style.id = 'world-cartography-styles';
+    style.textContent = `
+        .world-map-mode-bar {
+            display: flex;
+            gap: 0.35rem;
+            margin-bottom: 0.45rem;
+        }
+        .world-map-mode-btn {
+            font-size: 0.78em;
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(0,0,0,0.25);
+            color: var(--vscode-foreground, #ccc);
+            cursor: pointer;
+        }
+        .world-map-mode-btn.is-active {
+            border-color: var(--vscode-focusBorder, #4a90e2);
+            background: rgba(74,144,226,0.18);
+        }
+        .world-map-panel.hidden { display: none !important; }
+        .world-cartography-stage {
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.12);
+        }
+        .world-cartography-stage img {
+            width: 100%;
+            display: block;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .world-map-pin {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            border: none;
+            background: transparent;
+            font-size: 1.15em;
+            line-height: 1;
+            padding: 0;
+            cursor: default;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65));
+            opacity: 0.88;
+        }
+        .world-map-pin.is-current {
+            font-size: 1.45em;
+            opacity: 1;
+            filter: drop-shadow(0 0 6px rgba(255,210,80,0.9));
+            z-index: 2;
+        }
+        #world-gen-map-btn.generating {
+            opacity: 0.75;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function setWorldMapMode(mode, options = {}) {
+    const persist = options.persist !== false;
+    worldMapMode = mode === 'parchment' ? 'parchment' : 'mermaid';
+    if (persist) {
+        try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
+    }
+    applyWorldMapModeVisibility();
+}
+
+function applyWorldMapModeVisibility() {
+    const mermaidPanel = document.getElementById('world-mermaid');
+    const cartographyPanel = document.getElementById('world-cartography');
+    const btnMermaid = document.getElementById('world-map-mode-mermaid');
+    const btnParchment = document.getElementById('world-map-mode-parchment');
+    const showParchment = worldMapMode === 'parchment';
+
+    if (mermaidPanel) {
+        mermaidPanel.classList.toggle('hidden', showParchment);
+    }
+    if (cartographyPanel) {
+        cartographyPanel.classList.toggle('hidden', !showParchment);
+    }
+    if (btnMermaid) {
+        btnMermaid.classList.toggle('is-active', !showParchment);
+    }
+    if (btnParchment) {
+        btnParchment.classList.toggle('is-active', showParchment);
+    }
+}
+
+function renderCartographyMap(msg) {
+    const stage = document.getElementById('world-cartography-stage');
+    const img = document.getElementById('world-cartography-img');
+    const pinsEl = document.getElementById('world-cartography-pins');
+    const empty = document.getElementById('world-cartography-empty');
+    if (!stage || !img || !pinsEl) { return; }
+
+    const hasImage = Boolean(msg.cartographyImage);
+    if (empty) {
+        empty.classList.toggle('hidden', hasImage);
+    }
+    stage.style.display = hasImage ? '' : 'none';
+
+    if (!hasImage) {
+        img.removeAttribute('src');
+        pinsEl.innerHTML = '';
+        return;
+    }
+
+    img.src = msg.cartographyImage;
+    img.alt = msg.worldName ? `${msg.worldName} map` : 'World map';
+
+    pinsEl.innerHTML = '';
+    const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
+    for (const pin of pins) {
+        if (typeof pin.leftPct !== 'number' || typeof pin.topPct !== 'number') { continue; }
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'world-map-pin';
+        if (pin.locationId && pin.locationId === msg.currentLocationId) {
+            el.classList.add('is-current');
+        }
+        el.style.left = `${pin.leftPct}%`;
+        el.style.top = `${pin.topPct}%`;
+        el.title = pin.locationName || pin.locationId || '';
+        el.textContent = '📍';
+        el.setAttribute('aria-label', pin.locationName || pin.locationId || 'Location');
+        pinsEl.appendChild(el);
+    }
 }
 
 function renderMermaidMap(mmdCode, currentLocationId) {
@@ -887,6 +1060,20 @@ function setWorldGenBusy(busy) {
     } else {
         btn.classList.remove('generating');
         btn.innerHTML = '<span>Generate World</span>';
+    }
+}
+
+function setWorldMapGenBusy(busy, failed = false) {
+    const btn = document.getElementById('world-gen-map-btn');
+    if (!btn) { return; }
+    btn.disabled = busy;
+    btn.classList.toggle('generating', busy);
+    if (busy) {
+        btn.textContent = '⏳ Generating map...';
+    } else if (failed) {
+        btn.textContent = '❌ Map failed — Retry';
+    } else {
+        btn.textContent = '🗺 Map Image';
     }
 }
 

@@ -40,7 +40,8 @@
     "onCommand:textadventure.startRemotePlay",
     "onCommand:textadventure.stopRemotePlay",
     "onCommand:textadventure.rotateRemotePlayToken",
-    "onCommand:textadventure.generateWorldForge"
+    "onCommand:textadventure.generateWorldForge",
+    "onCommand:textadventure.generateWorldMapImage"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -100,6 +101,10 @@
       {
         "command": "textadventure.generateWorldForge",
         "title": "%command.generateWorldForge%"
+      },
+      {
+        "command": "textadventure.generateWorldMapImage",
+        "title": "%command.generateWorldMapImage%"
       }
     ],
     "configuration": {
@@ -156,6 +161,11 @@
           "type": "string",
           "default": "",
           "description": "%config.textAdventure.imageGen.workflowPath.description%"
+        },
+        "textAdventure.imageGen.controlNet": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.imageGen.controlNet.description%"
         },
         "textAdventure.imageGen.steps": {
           "type": "number",

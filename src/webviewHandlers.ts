@@ -75,6 +75,7 @@ export interface WebviewHandlerDeps {
     sendPartyDirector(): void;
     sendWorldView(): void;
     handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
+    handleGenerateWorldMapImage(): Promise<void>;
     handleGenerateLocationImage(locationId: string): Promise<void>;
     handleSavePartyDirector(director: unknown): Promise<void>;
     handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
@@ -171,6 +172,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         }
+        case 'generateWorldMapImage':
+            await deps.handleGenerateWorldMapImage();
+            break;
         case 'generateLocationImage':
             if (typeof message.locationId === 'string' && isValidEventId(message.locationId.trim())) {
                 await deps.handleGenerateLocationImage(message.locationId.trim());

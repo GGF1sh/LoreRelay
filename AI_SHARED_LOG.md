@@ -1180,7 +1180,19 @@ pm run build:webview 通過 (18 modules → script.js 5185 lines)
 - `docs/CARTOGRAPHY_COMFYUI.md`
 - `scripts/test_cartography_layout_core.js`
 
-### 次の作業
-- VSCode コマンドから地図生成
-- World タブ parchment 画像 + pin オーバーレイ UI
+### 次の作業（旧）
+- ~~VSCode コマンドから地図生成~~
+- ~~World タブ parchment 画像 + pin オーバーレイ UI~~
 - 実機 ComfyUI E2E（`TA_CONTROL_NET` 名合わせ）
+
+## 2026-06-28 JST - Grok - World tab Cartography UI (end-to-end)
+
+### 実装
+- `src/cartographyRunner.ts` — spawn `comfyui_generate_cartography.py`, save `world_map.png` + `world_map.layout.png`
+- コマンド `textadventure.generateWorldMapImage` / Webview `generateWorldMapImage` postMessage
+- `worldView.ts` — `cartographyImage`, `cartographyPins`, `cartographyHasImage`
+- `webview/modules/85-world.js` — Diagram/Parchment 切替、ピン overlay、Map Image ボタン
+- `textAdventure.imageGen.controlNet` 設定（任意）
+
+### 検証
+- `npm run compile` / `npm run build:webview` / `npm test`

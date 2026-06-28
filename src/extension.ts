@@ -24,8 +24,7 @@ import {
 import { initWorldView, pushWorldViewToWebview } from './worldView';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
-import { bootstrapNpcRegistryFromForge } from './worldForge';
-import { loadWorldForge } from './worldForge';
+import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { resetWorldStateFromForge } from './worldState';
 import { buildLocationImagePrompt } from './locationImageBuilder';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
@@ -99,6 +98,12 @@ import {
     getResolvedImageMode
 } from './imageGenRunner';
 import {
+    initCartographyRunner,
+    runCartographyGeneration,
+    killCartographyProcess,
+    isCartographyGenerationBusy
+} from './cartographyRunner';
+import {
     initMediaManifest,
     sendBgmManifest,
     sendSfxManifest,
@@ -166,6 +171,7 @@ export function activate(context: vscode.ExtensionContext) {
     initI18n(context.extensionPath);
 
     initImageGenRunner({ getPanel, subscriptions: context.subscriptions });
+    initCartographyRunner({ getPanel, extensionPath: context.extensionPath, subscriptions: context.subscriptions });
     initMediaAgent({ getPanel, subscriptions: context.subscriptions });
     initMediaManifest({ getPanel });
     initCharacterManager({ getPanel, onPartyChanged: pushPartyDirectorToWebview });
@@ -281,6 +287,7 @@ export function activate(context: vscode.ExtensionContext) {
             killGmBridgeProcesses();
             resetGmBridgeSessions();
             killImageGenerationProcess();
+            killCartographyProcess();
             clearMediaAgentState();
             disposeRemotePlayServer();
             killActiveScriptProcess();
@@ -308,6 +315,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     const rotateRemotePlayTokenCmd = vscode.commands.registerCommand('textadventure.rotateRemotePlayToken', () => {
         void handleRotateRemotePlayToken();
+    });
+
+    const generateWorldMapImageCmd = vscode.commands.registerCommand('textadventure.generateWorldMapImage', async () => {
+        await handleGenerateWorldMapImage();
     });
 
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
@@ -346,7 +357,8 @@ export function activate(context: vscode.ExtensionContext) {
         startRemotePlayCmd,
         stopRemotePlayCmd,
         rotateRemotePlayTokenCmd,
-        generateWorldForgeCmd
+        generateWorldForgeCmd,
+        generateWorldMapImageCmd
     );
 
     context.subscriptions.push(
@@ -731,7 +743,7 @@ function sendPartyDirector(): void {
 }
 
 function sendWorldView(): void {
-    pushWorldViewToWebview();
+    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
 }
 
 
@@ -800,6 +812,29 @@ async function handleGenerateWorldForge(
     vscode.window.showInformationMessage(
         `World "${forge?.meta.worldName ?? safeSeed}" generated! (${forge?.geography.regions.length ?? 0} regions, ${forge?.factions.length ?? 0} factions, ${forge?.initialNpcs.length ?? 0} NPCs)`
     );
+}
+
+async function handleGenerateWorldMapImage(): Promise<void> {
+    if (!isWorldForgeEnabled()) {
+        vscode.window.showErrorMessage('World Forge not enabled or missing world_forge.json.');
+        return;
+    }
+    const forgePath = path.join(getWorkspacePath() || '', 'world_forge.json');
+    if (!fs.existsSync(forgePath)) {
+        vscode.window.showErrorMessage('world_forge.json not found in workspace.');
+        return;
+    }
+    if (isCartographyGenerationBusy()) {
+        vscode.window.showWarningMessage('World map generation is already running.');
+        return;
+    }
+    const ok = await runCartographyGeneration(forgePath);
+    if (ok) {
+        pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+        vscode.window.showInformationMessage('World map image saved as world_map.png.');
+    } else {
+        vscode.window.showErrorMessage('World map generation failed. See LoreRelay: Cartography output.');
+    }
 }
 
 async function handleGenerateLocationImage(locationId: string): Promise<void> {
@@ -988,6 +1023,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendPartyDirector,
         sendWorldView,
         handleGenerateWorldForge,
+        handleGenerateWorldMapImage,
         handleGenerateLocationImage,
         handleSavePartyDirector,
         handleCopyRemotePlayUrl,
@@ -1117,6 +1153,7 @@ export function deactivate() {
     killGmBridgeProcesses();
     resetGmBridgeSessions();
     killImageGenerationProcess();
+    killCartographyProcess();
     clearMediaAgentState();
     disposeRemotePlayServer();
     killActiveScriptProcess();

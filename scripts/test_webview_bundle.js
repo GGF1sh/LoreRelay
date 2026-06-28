@@ -22,6 +22,9 @@ const content = fs.readFileSync(scriptPath, 'utf-8');
 const expectedSymbols = [
     'worldView',
     'renderWorldView',
+    'renderCartographyMap',
+    'world-cartography-stage',
+    'generateWorldMapImage',
     'latestImageRawPath',
     'imagePathsLooselyMatch'
 ];

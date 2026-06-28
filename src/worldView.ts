@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
@@ -9,6 +10,9 @@ import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldSt
 import { loadNpcRegistry } from './npcRegistry';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
+import { buildCartographyPinPositions } from './cartographyLayoutCore';
+import { resolveWorldMapImagePath } from './cartographyRunner';
+import { getWorkspacePath } from './workspacePaths';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
@@ -104,12 +108,22 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             }))
         : [];
 
+    const wsPath = getWorkspacePath();
+    const worldMapImagePath = resolveWorldMapImagePath(wsPath);
+    const cartographyImage = worldMapImagePath && fs.existsSync(worldMapImagePath)
+        ? safeImageUri(worldMapImagePath) ?? null
+        : null;
+    const cartographyPins = buildCartographyPinPositions(forge);
+
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
         worldName: forge.meta.worldName,
         theme: forge.meta.theme ?? '',
         worldMap,
+        cartographyImage,
+        cartographyPins,
+        cartographyHasImage: Boolean(cartographyImage),
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,

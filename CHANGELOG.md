@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Added — World tab Cartography UI integration
+
+- **`cartographyRunner.ts`**: VS Code コマンド / Webview から `comfyui_generate_cartography.py` を spawn。`world_map.png` と `world_map.layout.png` をワークスペースに保存。
+- **コマンド** `LoreRelay: Generate World Map Image`（`textadventure.generateWorldMapImage`）。
+- **`worldView.ts`**: `cartographyImage`・`cartographyPins`・`cartographyHasImage` を Webview へ postMessage。
+- **World タブ UI**: Mermaid 図解 / 羊皮紙画像の切替、📍 ピンオーバーレイ（現在地ハイライト）、「Map Image」ボタン。
+- **設定**: `textAdventure.imageGen.controlNet`（Cartography 用 SDXL Canny モデル名、任意）。
+
 ### Added — Cartography ComfyUI (Phase 7 Grok)
 
 - **`cartographyLayoutCore.ts`**: `world_forge.json` から ControlNet 用レイアウト spec・プロンプト・HTML ピン座標（%）を pure 生成。

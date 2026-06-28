@@ -481,15 +481,27 @@
               <span id="world-title" style="font-weight:600;font-size:1.05em;"></span>
               <span id="world-theme" style="margin-left:0.6rem;opacity:0.6;font-size:0.85em;"></span>
             </div>
+            <button id="world-gen-map-btn" class="small-btn" title="Generate parchment world map via ComfyUI">🗺 Map Image</button>
             <button id="world-gen-image-btn" class="small-btn primary" style="display: none;" title="Generate Scene Image for Current Location">🎨 Scene Image</button>
             <span id="world-stats" style="margin-left:auto;opacity:0.5;font-size:0.8em;"></span>
           </div>
 
-          <!-- Mermaid 地図 -->
+          <!-- World map: Mermaid diagram or parchment image -->
           <details id="world-map-details" open>
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.mapTitle">World Map</summary>
+            <div id="world-map-mode-bar" class="world-map-mode-bar" role="tablist" aria-label="Map view mode">
+              <button type="button" id="world-map-mode-mermaid" class="world-map-mode-btn is-active" data-mode="mermaid" data-i18n="webview.world.mapModeDiagram">Diagram</button>
+              <button type="button" id="world-map-mode-parchment" class="world-map-mode-btn" data-mode="parchment" data-i18n="webview.world.mapModeParchment">Parchment</button>
+            </div>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
-              <div id="world-mermaid" class="mermaid"></div>
+              <div id="world-mermaid" class="mermaid world-map-panel"></div>
+              <div id="world-cartography" class="world-map-panel hidden">
+                <div id="world-cartography-stage" class="world-cartography-stage">
+                  <img id="world-cartography-img" alt="World map" />
+                  <div id="world-cartography-pins"></div>
+                </div>
+                <p id="world-cartography-empty" class="empty-text hidden" data-i18n="webview.world.cartographyEmpty">No parchment map yet. Click “Map Image” to generate via ComfyUI.</p>
+              </div>
             </div>
           </details>
 

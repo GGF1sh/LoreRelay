@@ -79,6 +79,7 @@ export interface WebviewHandlerDeps {
     handleRequestVlmAnalysis(imagePath: string): Promise<void>;
     handleSetNpcPortrait(npcId: string, imagePath: string): Promise<void>;
     handleRequestNpcPortraitLink(npcId: string): Promise<void>;
+    handleRunQuickstart(prompt: string, overwrite: boolean): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -336,6 +337,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'requestNpcPortraitLink':
             if (isValidEntryId(message.npcId)) {
                 await deps.handleRequestNpcPortraitLink(message.npcId as string);
+            }
+            break;
+        case 'runQuickstart':
+            if (typeof message.prompt === 'string') {
+                const overwrite = !!message.overwrite;
+                await deps.handleRunQuickstart(message.prompt, overwrite);
             }
             break;
         default:

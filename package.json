@@ -8,6 +8,10 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GGF1sh/LoreRelay.git"
+  },
   "categories": [
     "Other"
   ],
@@ -42,59 +46,59 @@
     "commands": [
       {
         "command": "textadventure.openGame",
-        "title": "LoreRelay: Open Game UI"
+        "title": "%command.openGame%"
       },
       {
         "command": "textadventure.listImageModels",
-        "title": "LoreRelay: List Image Models"
+        "title": "%command.listImageModels%"
       },
       {
         "command": "textadventure.loadScenario",
-        "title": "LoreRelay: Load Scenario Pack"
+        "title": "%command.loadScenario%"
       },
       {
         "command": "textadventure.importStCharacter",
-        "title": "LoreRelay: Import SillyTavern Character Card"
+        "title": "%command.importStCharacter%"
       },
       {
         "command": "textadventure.importStLorebook",
-        "title": "LoreRelay: Import SillyTavern Lorebook"
+        "title": "%command.importStLorebook%"
       },
       {
         "command": "textadventure.exportScenario",
-        "title": "LoreRelay: Export Scenario Pack (Workshop ZIP)"
+        "title": "%command.exportScenario%"
       },
       {
         "command": "textadventure.validateScenario",
-        "title": "LoreRelay: Validate Scenario Pack"
+        "title": "%command.validateScenario%"
       },
       {
         "command": "textadventure.setOpenRouterApiKey",
-        "title": "LoreRelay: Set OpenRouter API Key"
+        "title": "%command.setOpenRouterApiKey%"
       },
       {
         "command": "textadventure.clearOpenRouterApiKey",
-        "title": "LoreRelay: Clear OpenRouter API Key"
+        "title": "%command.clearOpenRouterApiKey%"
       },
       {
         "command": "textadventure.checkForUpdates",
-        "title": "LoreRelay: Check for Updates"
+        "title": "%command.checkForUpdates%"
       },
       {
         "command": "textadventure.startRemotePlay",
-        "title": "LoreRelay: Start Remote Play (LAN)"
+        "title": "%command.startRemotePlay%"
       },
       {
         "command": "textadventure.stopRemotePlay",
-        "title": "LoreRelay: Stop Remote Play"
+        "title": "%command.stopRemotePlay%"
       },
       {
         "command": "textadventure.rotateRemotePlayToken",
-        "title": "LoreRelay: Rotate Remote Play Token"
+        "title": "%command.rotateRemotePlayToken%"
       },
       {
         "command": "textadventure.generateWorldForge",
-        "title": "LoreRelay: Generate World Forge"
+        "title": "%command.generateWorldForge%"
       }
     ],
     "configuration": {
@@ -115,12 +119,12 @@
             "繁體中文 (Traditional Chinese / Taiwan)"
           ],
           "default": "en",
-          "description": "UI language for Webview, extension messages, and GM narrative prompts. Also changeable from the Webview header dropdown."
+          "description": "%config.textAdventure.locale.description%"
         },
         "textAdventure.skillPath": {
           "type": "string",
           "default": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py",
-          "description": "Absolute path to the comfyui_generate.py script"
+          "description": "%config.textAdventure.skillPath.description%"
         },
         "textAdventure.imageGen.backend": {
           "type": "string",
@@ -135,57 +139,57 @@
             "Any ComfyUI-compatible server (set the URL manually)"
           ],
           "default": "comfyui",
-          "description": "Image generation backend. All options speak the ComfyUI API; this is mostly a label — the actual endpoint is set by imageGen.comfyuiUrl."
+          "description": "%config.textAdventure.imageGen.backend.description%"
         },
         "textAdventure.imageGen.comfyuiUrl": {
           "type": "string",
           "default": "http://127.0.0.1:8188",
-          "description": "ComfyUI / Stability Matrix server URL. Change the port here if your server is not on 8188."
+          "description": "%config.textAdventure.imageGen.comfyuiUrl.description%"
         },
         "textAdventure.imageGen.checkpoint": {
           "type": "string",
           "default": "",
-          "description": "Checkpoint (.safetensors) name to use, exactly as shown by 'LoreRelay: List Image Models' — it may include a subfolder prefix, e.g. 'IL\\prefectIllustriousXL_v8.safetensors'. Leave empty to use the workflow default."
+          "description": "%config.textAdventure.imageGen.checkpoint.description%"
         },
         "textAdventure.imageGen.workflowPath": {
           "type": "string",
           "default": "",
-          "description": "Optional path to a custom ComfyUI API-format workflow JSON. Leave empty to use the bundled workflow_api.json."
+          "description": "%config.textAdventure.imageGen.workflowPath.description%"
         },
         "textAdventure.imageGen.steps": {
           "type": "number",
           "default": 0,
-          "description": "Sampling steps override (0 = use workflow default, typically 20)."
+          "description": "%config.textAdventure.imageGen.steps.description%"
         },
         "textAdventure.imageGen.cfg": {
           "type": "number",
           "default": 0,
-          "description": "CFG scale override (0 = use workflow default, typically 7)."
+          "description": "%config.textAdventure.imageGen.cfg.description%"
         },
         "textAdventure.imageGen.width": {
           "type": "number",
           "default": 0,
-          "description": "Image width override in pixels (0 = use workflow default, typically 512)."
+          "description": "%config.textAdventure.imageGen.width.description%"
         },
         "textAdventure.imageGen.height": {
           "type": "number",
           "default": 0,
-          "description": "Image height override in pixels (0 = use workflow default, typically 512)."
+          "description": "%config.textAdventure.imageGen.height.description%"
         },
         "textAdventure.imageGen.autoOnLocationChange": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically generate a scene image when the player's location changes in the World Forge."
+          "description": "%config.textAdventure.imageGen.autoOnLocationChange.description%"
         },
         "textAdventure.imageGen.includeFactionInPrompt": {
           "type": "boolean",
           "default": true,
-          "description": "Include the controlling faction's atmosphere in the generated location image prompt."
+          "description": "%config.textAdventure.imageGen.includeFactionInPrompt.description%"
         },
         "textAdventure.imageGen.includeDangerInPrompt": {
           "type": "boolean",
           "default": true,
-          "description": "Include the region's danger level atmosphere in the generated location image prompt."
+          "description": "%config.textAdventure.imageGen.includeDangerInPrompt.description%"
         },
         "textAdventure.vlm.provider": {
           "type": "string",
@@ -198,90 +202,90 @@
             "anthropic"
           ],
           "default": "disabled",
-          "description": "Select the VLM provider to analyze generated images (Soulgaze)."
+          "description": "%config.textAdventure.vlm.provider.description%"
         },
         "textAdventure.vlm.model": {
           "type": "string",
           "default": "llava",
-          "description": "VLM Model name (e.g., 'llava' for Ollama, 'gpt-4o-mini' for OpenAI, 'gemini-1.5-flash' for Gemini, 'claude-3-5-sonnet-latest' for Anthropic)."
+          "description": "%config.textAdventure.vlm.model.description%"
         },
         "textAdventure.vlm.endpoint": {
           "type": "string",
           "default": "http://localhost:11434",
-          "description": "Endpoint URL for the VLM provider (used for Ollama or custom local endpoints)."
+          "description": "%config.textAdventure.vlm.endpoint.description%"
         },
         "textAdventure.bgm.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable automatic background music. The GM picks a track via the 'bgm' or 'mood' field in game_state.json."
+          "description": "%config.textAdventure.bgm.enabled.description%"
         },
         "textAdventure.bgm.manifestPath": {
           "type": "string",
           "default": "",
-          "description": "Path to the BGM manifest JSON. Leave empty to use 'bgm.json' in the workspace root. Audio files are resolved relative to the manifest folder (and its 'bgm/' subfolder)."
+          "description": "%config.textAdventure.bgm.manifestPath.description%"
         },
         "textAdventure.bgm.volume": {
           "type": "number",
           "default": 50,
-          "description": "Default BGM volume (0-100). Can be adjusted live with the slider in the UI."
+          "description": "%config.textAdventure.bgm.volume.description%"
         },
         "textAdventure.sfx.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable one-shot sound effects. The GM triggers them via the 'sfx' field in game_state.json. Bundled license-free SFX work out of the box."
+          "description": "%config.textAdventure.sfx.enabled.description%"
         },
         "textAdventure.sfx.manifestPath": {
           "type": "string",
           "default": "",
-          "description": "Path to the SFX manifest JSON. Leave empty to use 'sfx.json' in the workspace, falling back to the bundled skill sfx.json. Audio files resolve relative to the manifest folder (and its 'sfx/' subfolder)."
+          "description": "%config.textAdventure.sfx.manifestPath.description%"
         },
         "textAdventure.sfx.volume": {
           "type": "number",
           "default": 70,
-          "description": "Default sound-effect volume (0-100)."
+          "description": "%config.textAdventure.sfx.volume.description%"
         },
         "textAdventure.mediaAgent.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable the background MediaAgent pipeline (early BGM/SFX from GM stream, queued ComfyUI image generation)."
+          "description": "%config.textAdventure.mediaAgent.enabled.description%"
         },
         "textAdventure.mediaAgent.autoImage": {
           "type": "boolean",
           "default": true,
-          "description": "When a GM entry has imagePrompt but no image, queue ComfyUI generation in the background without blocking the next turn."
+          "description": "%config.textAdventure.mediaAgent.autoImage.description%"
         },
         "textAdventure.mediaAgent.maxImageQueue": {
           "type": "number",
           "default": 5,
           "minimum": 1,
           "maximum": 20,
-          "description": "Maximum queued ComfyUI image jobs. Oldest jobs are dropped when full."
+          "description": "%config.textAdventure.mediaAgent.maxImageQueue.description%"
         },
         "textAdventure.remotePlay.port": {
           "type": "number",
           "default": 9473,
           "minimum": 1024,
           "maximum": 65535,
-          "description": "TCP port for the LAN remote player HTTP/WebSocket server."
+          "description": "%config.textAdventure.remotePlay.port.description%"
         },
         "textAdventure.remotePlay.bindAddress": {
           "type": "string",
           "default": "127.0.0.1",
-          "description": "Bind address for remote play. Use 0.0.0.0 for LAN/Tailscale access (warning: exposes server to network), or 127.0.0.1 for local-only."
+          "description": "%config.textAdventure.remotePlay.bindAddress.description%"
         },
         "textAdventure.remotePlay.maxClients": {
           "type": "number",
           "default": 8,
           "minimum": 1,
           "maximum": 32,
-          "description": "Maximum simultaneous WebSocket player connections."
+          "description": "%config.textAdventure.remotePlay.maxClients.description%"
         },
         "textAdventure.remotePlay.inputCooldownMs": {
           "type": "number",
           "default": 1500,
           "minimum": 500,
           "maximum": 10000,
-          "description": "Minimum milliseconds between remote player inputs per client."
+          "description": "%config.textAdventure.remotePlay.inputCooldownMs.description%"
         },
         "textAdventure.remotePlay.defaultRole": {
           "type": "string",
@@ -290,17 +294,17 @@
             "spectator"
           ],
           "default": "player",
-          "description": "Default role for remote clients that omit ?role= or auth.role."
+          "description": "%config.textAdventure.remotePlay.defaultRole.description%"
         },
         "textAdventure.workspaceFolder": {
           "type": "string",
           "default": "",
-          "description": "When multiple workspace folders are open, use this folder name or path for game_state.json. Empty = first folder."
+          "description": "%config.textAdventure.workspaceFolder.description%"
         },
         "textAdventure.gitAutoCommitInterval": {
           "type": "number",
           "default": 1,
-          "description": "Interval of turns to auto-commit history to Git. Set to 0 to disable automatic Git commits."
+          "description": "%config.textAdventure.gitAutoCommitInterval.description%"
         },
         "textAdventure.gmBridge.provider": {
           "type": "string",
@@ -321,47 +325,47 @@
             "Local KoboldCPP via koboldcpp_gm.py (koboldcpp.exe API required)",
             "OpenRouter via openrouter_gm.py (Cloud-based API, requires API Key)"
           ],
-          "description": "How player input from the Webview is sent to the GM."
+          "description": "%config.textAdventure.gmBridge.provider.description%"
         },
         "textAdventure.gmBridge.python": {
           "type": "string",
           "default": "python",
-          "description": "Python executable for ollama/koboldcpp GM bridge scripts."
+          "description": "%config.textAdventure.gmBridge.python.description%"
         },
         "textAdventure.gmBridge.scriptPath": {
           "type": "string",
           "default": "",
-          "description": "Optional path to any GM bridge script (e.g. ollama_gm.py). Sibling scripts in the same folder are resolved automatically."
+          "description": "%config.textAdventure.gmBridge.scriptPath.description%"
         },
         "textAdventure.gmBridge.ollama.url": {
           "type": "string",
           "default": "http://localhost:11434",
-          "description": "Ollama API base URL (used when gmBridge.provider=ollama)."
+          "description": "%config.textAdventure.gmBridge.ollama.url.description%"
         },
         "textAdventure.gmBridge.ollama.model": {
           "type": "string",
           "default": "llama3.2",
-          "description": "Ollama model name (e.g. llama3.2, gemma3, qwen2.5)."
+          "description": "%config.textAdventure.gmBridge.ollama.model.description%"
         },
         "textAdventure.gmBridge.koboldcpp.url": {
           "type": "string",
           "default": "http://127.0.0.1:5001",
-          "description": "KoboldCPP API base URL (used when gmBridge.provider=koboldcpp)."
+          "description": "%config.textAdventure.gmBridge.koboldcpp.url.description%"
         },
         "textAdventure.gmBridge.openRouter.apiKey": {
           "type": "string",
           "default": "",
-          "description": "Deprecated fallback OpenRouter API key. Prefer the LoreRelay: Set OpenRouter API Key command, which stores the key in VS Code SecretStorage."
+          "description": "%config.textAdventure.gmBridge.openRouter.apiKey.description%"
         },
         "textAdventure.gmBridge.openRouter.model": {
           "type": "string",
           "default": "anthropic/claude-3.5-sonnet",
-          "description": "OpenRouter model name to use (e.g. anthropic/claude-3.5-sonnet, google/gemini-1.5-pro, openai/gpt-4o)."
+          "description": "%config.textAdventure.gmBridge.openRouter.model.description%"
         },
         "textAdventure.gmBridge.command": {
           "type": "string",
           "default": "",
-          "description": "When gmBridge.provider=command, path to the executable (e.g. grok, or another CLI)."
+          "description": "%config.textAdventure.gmBridge.command.description%"
         },
         "textAdventure.gmBridge.commandArgs": {
           "type": "array",
@@ -375,73 +379,73 @@
             "{cwd}",
             "--always-approve"
           ],
-          "description": "Arguments for custom GM command. Placeholders: {actionFile} (recommended), {action}, {cwd}."
+          "description": "%config.textAdventure.gmBridge.commandArgs.description%"
         },
         "textAdventure.grokBridge.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically send player input from Webview to Grok Build (headless mode)"
+          "description": "%config.textAdventure.grokBridge.enabled.description%"
         },
         "textAdventure.grokBridge.command": {
           "type": "string",
           "default": "grok",
-          "description": "Path to grok CLI (auto-detects ~/.grok/bin/grok.exe on Windows when set to 'grok')"
+          "description": "%config.textAdventure.grokBridge.command.description%"
         },
         "textAdventure.grokBridge.autoApprove": {
           "type": "boolean",
           "default": false,
-          "description": "Pass --always-approve to grok for non-interactive tool approval. Warning: enabling this allows automated execution without prompt verification."
+          "description": "%config.textAdventure.grokBridge.autoApprove.description%"
         },
         "textAdventure.grokBridge.fallbackToClipboard": {
           "type": "boolean",
           "default": true,
-          "description": "Copy player input to clipboard when Grok bridge is disabled or fails"
+          "description": "%config.textAdventure.grokBridge.fallbackToClipboard.description%"
         },
         "textAdventure.archive.autoPrompt": {
           "type": "boolean",
           "default": true,
-          "description": "Suggest archiving old history turns into saga chapters when the log grows long."
+          "description": "%config.textAdventure.archive.autoPrompt.description%"
         },
         "textAdventure.archive.thresholdSmallContext": {
           "type": "number",
           "default": 30,
-          "description": "History turn count to suggest archive for Ollama / KoboldCPP / small OpenRouter models."
+          "description": "%config.textAdventure.archive.thresholdSmallContext.description%"
         },
         "textAdventure.archive.thresholdLargeContext": {
           "type": "number",
           "default": 80,
-          "description": "History turn count to suggest archive for Grok / Gemini-class large-context models."
+          "description": "%config.textAdventure.archive.thresholdLargeContext.description%"
         },
         "textAdventure.archive.remindEvery": {
           "type": "number",
           "default": 15,
-          "description": "After the threshold, remind every N additional turns."
+          "description": "%config.textAdventure.archive.remindEvery.description%"
         },
         "textAdventure.worldForge.defaultRegionCount": {
           "type": "number",
           "default": 5,
           "minimum": 3,
           "maximum": 12,
-          "description": "Default number of regions when generating a new World Forge."
+          "description": "%config.textAdventure.worldForge.defaultRegionCount.description%"
         },
         "textAdventure.worldForge.defaultFactionCount": {
           "type": "number",
           "default": 3,
           "minimum": 2,
           "maximum": 6,
-          "description": "Default number of factions when generating a new World Forge."
+          "description": "%config.textAdventure.worldForge.defaultFactionCount.description%"
         },
         "textAdventure.worldForge.defaultNpcCount": {
           "type": "number",
           "default": 6,
           "minimum": 2,
           "maximum": 20,
-          "description": "Default number of initial NPCs when generating a new World Forge."
+          "description": "%config.textAdventure.worldForge.defaultNpcCount.description%"
         },
         "textAdventure.worldForge.llmEnrich": {
           "type": "boolean",
           "default": false,
-          "description": "When enabled, LLM is used to enrich generated world descriptions (experimental)."
+          "description": "%config.textAdventure.worldForge.llmEnrich.description%"
         },
         "textAdventure.memory.backend": {
           "type": "string",
@@ -456,7 +460,7 @@
             "Require ChromaDB embedding search (falls back if not installed)"
           ],
           "default": "auto",
-          "description": "Memory Bank search backend for GM prompt injection."
+          "description": "%config.textAdventure.memory.backend.description%"
         }
       }
     }

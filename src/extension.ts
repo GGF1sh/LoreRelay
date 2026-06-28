@@ -1029,11 +1029,40 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             const { setNpcPortrait } = await import('./npcRegistry');
             const ok = setNpcPortrait(npcId, imagePath);
             if (ok) {
+                vscode.window.setStatusBarMessage(`Portrait set for ${npcId}`, 3000);
                 pushWorldViewToWebview(getCurrentLocationIdForWorldView());
             } else {
                 vscode.window.showWarningMessage(`NPC "${npcId}" not found or image path rejected.`);
             }
         },
+        handleRunQuickstart: async (prompt: string, overwrite: boolean) => {
+            const { runQuickstart } = await import('./quickstartRunner');
+            const result = await runQuickstart(prompt, overwrite);
+            if (result.success) {
+                vscode.window.showInformationMessage('Quickstart generation complete! Reloading...');
+                sendCurrentState(1, false);
+                pushScenarioDirectorToWebview();
+                pushWorldViewToWebview();
+            } else if (result.error === 'ALREADY_EXISTS') {
+                const ans = await vscode.window.showWarningMessage(
+                    'Workspace already contains a world_forge.json or character.json. Overwrite?',
+                    'Yes', 'Cancel'
+                );
+                if (ans === 'Yes') {
+                    const res2 = await runQuickstart(prompt, true);
+                    if (res2.success) {
+                        vscode.window.showInformationMessage('Quickstart generation complete! Reloading...');
+                        sendCurrentState(1, false);
+                        pushScenarioDirectorToWebview();
+                        pushWorldViewToWebview();
+                    } else {
+                        vscode.window.showErrorMessage(`Quickstart failed: ${res2.error}`);
+                    }
+                }
+            } else {
+                vscode.window.showErrorMessage(`Quickstart failed: ${result.error}`);
+            }
+        }
     };
 }
 

@@ -14,3 +14,7 @@ DEVELOPMENT_TIMELINE.md
 
 # Source maps
 **/*.map
+
+# Webview source modules (we only need the built script.js / style.css)
+webview/modules/**
+webview/styles/**

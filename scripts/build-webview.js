@@ -6,6 +6,7 @@ const path = require('path');
 
 const JS_MODULE_ORDER = [
     '00-core.js',
+    '05-quickstart.js',
     '10-game-state.js',
     '20-input-audio-prep.js',
     '30-bgm-sfx.js',

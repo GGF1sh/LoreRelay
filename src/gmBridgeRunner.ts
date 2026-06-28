@@ -30,6 +30,7 @@ let grokProcess: ChildProcess | undefined;
 let gmProcess: ChildProcess | undefined;
 let grokSessionActive = false;
 let localGmSessionActive = false;
+let pendingDiceLedgerWritten = false;
 
 export interface GmBridgeRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -77,7 +78,33 @@ export function isGmBridgeBusy(): boolean {
     return Boolean(grokProcess || gmProcess);
 }
 
+function clearDiceLedgerIfPending(): void {
+    if (!pendingDiceLedgerWritten) {
+        return;
+    }
+    pendingDiceLedgerWritten = false;
+    const workspacePath = getWorkspacePath();
+    if (!workspacePath) {
+        return;
+    }
+    const ledgerPath = path.join(workspacePath, 'dice_ledger.json');
+    try {
+        if (fs.existsSync(ledgerPath)) {
+            fs.unlinkSync(ledgerPath);
+        }
+    } catch (e) {
+        console.warn('[gmBridge] Failed to clear dice_ledger after GM failure', e);
+    }
+}
+
+function handleGmBridgeFailure(): void {
+    clearDiceLedgerIfPending();
+    notifyRemoteGmBusy(false);
+    vscode.window.setStatusBarMessage('');
+}
+
 export function killGmBridgeProcesses(): void {
+    const wasBusy = Boolean(grokProcess || gmProcess);
     if (grokProcess) {
         grokProcess.kill();
         grokProcess = undefined;
@@ -85,6 +112,9 @@ export function killGmBridgeProcesses(): void {
     if (gmProcess) {
         gmProcess.kill();
         gmProcess = undefined;
+    }
+    if (wasBusy) {
+        handleGmBridgeFailure();
     }
 }
 
@@ -192,6 +222,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
         grokProcess.on('error', (err) => {
             channel.appendLine(`\n[Error: ${err.message}]`);
             finishGmRun(prevGmState, playerAction, false);
+            handleGmBridgeFailure();
             vscode.window.showErrorMessage(t('extension.error.grokFailed', { message: err.message }));
             finishGrok(false);
         });
@@ -200,12 +231,14 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
             channel.appendLine(`\n[grok exited with code ${code ?? 'unknown'}]`);
 
             if (code === 0) {
+                pendingDiceLedgerWritten = false;
                 grokSessionActive = true;
                 finishGmRun(prevGmState, playerAction, true);
                 vscode.window.showInformationMessage(t('extension.info.grokDone'));
                 finishGrok(true);
             } else {
                 finishGmRun(prevGmState, playerAction, false);
+                handleGmBridgeFailure();
                 vscode.window.showWarningMessage(
                     t('extension.warning.grokExit', { code: String(code ?? 'unknown') })
                 );
@@ -314,6 +347,7 @@ async function invokeLocalLlmBridge(
             channel.appendLine(`\n[${provider} exited with code ${code ?? 'unknown'}]`);
 
             if (code === 0) {
+                pendingDiceLedgerWritten = false;
                 localGmSessionActive = true;
                 finishGmRun(prevGmState, playerAction, true);
                 let msgKey = 'extension.info.gmDone';
@@ -323,6 +357,7 @@ async function invokeLocalLlmBridge(
                 resolve(true);
             } else {
                 finishGmRun(prevGmState, playerAction, false);
+                handleGmBridgeFailure();
                 vscode.window.showWarningMessage(
                     t('extension.warning.localExit', { provider, code: String(code ?? 'unknown') })
                 );
@@ -333,6 +368,7 @@ async function invokeLocalLlmBridge(
         gmProcess.on('error', (err) => {
             channel.appendLine(`\n[Error: ${err.message}]`);
             finishGmRun(prevGmState, playerAction, false);
+            handleGmBridgeFailure();
             vscode.window.showErrorMessage(t('extension.error.gmBridgeFailed', { provider, message: err.message }));
             finishGm(null);
         });
@@ -415,6 +451,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
         gmProcess.on('error', (err) => {
             channel.appendLine(`\n[Error: ${err.message}]`);
             finishGmRun(prevGmState, playerAction, false);
+            handleGmBridgeFailure();
             vscode.window.showErrorMessage(t('extension.error.gmCommandFailed', { message: err.message }));
             finishGm(false);
         });
@@ -422,11 +459,13 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
         gmProcess.on('close', (code) => {
             channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
             if (code === 0) {
+                pendingDiceLedgerWritten = false;
                 finishGmRun(prevGmState, playerAction, true);
                 vscode.window.showInformationMessage(t('extension.info.gmDone'));
                 finishGm(true);
             } else {
                 finishGmRun(prevGmState, playerAction, false);
+                handleGmBridgeFailure();
                 vscode.window.showWarningMessage(t('extension.warning.gmCommandExit', { code: String(code ?? 'unknown') }));
                 finishGm(false);
             }
@@ -447,8 +486,10 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
 
     const provider = getGmProvider();
 
+    pendingDiceLedgerWritten = false;
     if (diceLedger && diceLedger.length > 0) {
         writeJsonAtomic(path.join(workspacePath, 'dice_ledger.json'), diceLedger);
+        pendingDiceLedgerWritten = true;
     }
 
     if (provider !== 'clipboard') {

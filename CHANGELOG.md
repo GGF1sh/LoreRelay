@@ -7,6 +7,14 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.5] - 2026-06-28
+
+### Fixed — Audit Wave T2 (GM Bridge & Turn Pipeline)
+- **diceRoller**: マクロ数上限（20）、`reason` 長さクランプ、`dc` 範囲クランプ（1–10000）。
+- **gmPromptBuilderCore**: `buildHintTextFromContents`（6000文字上限）と `buildWorldChangeSummaryFromChanges` を pure モジュールに抽出。世界変化サマリは最新 sim ステップの non-info のみ注入。
+- **gmBridgeRunner**: GM 失敗・kill 時に `dice_ledger.json` をクリアし、次ターンへのロール持ち越しを防止。`killGmBridgeProcesses` で `remoteInputLocked` を確実に解除。
+- **テスト**: `test_dice_roller.js`、`test_gm_prompt_builder_core.js` を追加。
+
 ## [1.5.4] - 2026-06-28
 
 ### Fixed — Audit Wave T1/T7 (State & Remote)

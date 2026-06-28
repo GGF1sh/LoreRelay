@@ -7,6 +7,15 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.6] - 2026-06-28
+
+### Fixed — Audit Wave T3 (World + NPC + Living Feedback)
+
+- **worldForgeCore**: `parseRegion` で `dangerLevel` を 0–10 にクランプ。`parseFaction` で `power` を 0–100 にクランプ（手動編集 JSON からの範囲外値を阻止）。
+- **worldStateCore**: `parseFactionWorldState` で `power`/`morale` を 0–100 にクランプ。`parseGlobalEvent` で `id` を `isValidEventId` で検証（スペース・パス区切り等を含む不正 ID を破棄）。`WorldChangeEvent` との一貫性を確保。
+- **npcBridgeCore**: `upsertNeed` のデッドパラメータ `candidateId` を除去。呼び出し側で不要な `makeNeedId` 計算を排除。
+- **テスト**: `test_world_forge.js` に dangerLevel/power クランプの回帰テスト（6件）を追加。`test_world_state.js` に power/morale クランプ（5件）・GlobalEvent id バリデーション（2件）の回帰テストを追加。
+
 ## [1.5.5] - 2026-06-28
 
 ### Fixed — Audit Wave T2 (GM Bridge & Turn Pipeline)

@@ -2,6 +2,7 @@ import type { WorldForge, FactionResources } from './worldForgeCore';
 import {
     type WorldChangeEvent,
     parseRecentChanges,
+    isValidEventId,
 } from './worldEventLogCore';
 
 export type { WorldChangeEvent };
@@ -72,9 +73,9 @@ const VALID_SEVERITIES = new Set<WorldEventSeverity>([
 function parseFactionWorldState(raw: unknown): FactionWorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
-    const power = asNumber(r.power, 50);
+    const power = Math.max(0, Math.min(100, asNumber(r.power, 50)));
     const state: FactionWorldState = { power };
-    if (r.morale !== undefined) { state.morale = asNumber(r.morale, 50); }
+    if (r.morale !== undefined) { state.morale = Math.max(0, Math.min(100, asNumber(r.morale, 50))); }
     if (r.recentEvents !== undefined) { state.recentEvents = asStringArray(r.recentEvents); }
     if (r.resources && typeof r.resources === 'object' && !Array.isArray(r.resources)) {
         const res: FactionResources = {};
@@ -101,9 +102,10 @@ function parseRegionWorldState(raw: unknown): RegionWorldState {
 function parseGlobalEvent(raw: unknown): GlobalEvent | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
-    const id = asString(r.id);
+    if (!isValidEventId(r.id)) { return undefined; }
+    const id = r.id as string;
     const description = asString(r.description);
-    if (!id || !description) { return undefined; }
+    if (!description) { return undefined; }
     const event: GlobalEvent = {
         id,
         type: VALID_EVENT_TYPES.has(r.type as WorldEventType) ? (r.type as WorldEventType) : 'other',

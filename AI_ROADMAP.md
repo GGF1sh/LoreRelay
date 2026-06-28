@@ -89,7 +89,7 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 - [x] **T7 メタ**: `test_ws_functionality.js` を `npm test` に統合
 - [x] **T1**: Core State & Patch — `validateGameState` 拡張、`npcMemoryUpdates` 二重防御、`mergeGmEntry` image クランプ、`test_validate_game_state.js`
 - [x] **T2**: GM Bridge & Turn — `gmPromptBuilderCore`、`diceRoller` クランプ、GM失敗時 dice ledger クリア、remote unlock
-- [ ] **T3**: World + NPC + Living Feedback（再監査）
+- [x] **T3**: World + NPC + Living Feedback（再監査）
 - [ ] **T4**: ST Import / Character / Lorebook
 - [ ] **T5**: Visual Memory + Image Gen + VLM（回帰）
 - [ ] **T6**: Webview & postMessage Surface

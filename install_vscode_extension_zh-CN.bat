@@ -1,15 +1,12 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\install_vscode_extension.ps1" -Language "zh-CN"
 set "PS_EXIT_CODE=%ERRORLEVEL%"
-if %PS_EXIT_CODE% NEQ 0 (
-    echo.
-    echo °²×°Ê§°Ü¡£°´ÈÎÒâ¼üÍË³ö...
-    pause >nul
-) else (
-    echo.
-    echo °´ÈÎÒâ¼üÍË³ö...
-    pause >nul
+if %PS_EXIT_CODE% neq 0 (
+    echo [ERROR] å®‰è£…è„šæœ¬å¤±è´¥ï¼Œé€€å‡ºä»£ç ï¼š%PS_EXIT_CODE%ã€‚
 )
-exit /b %PS_EXIT_CODE%
+echo.
+echo æŒ‰ä»»æ„é”®é€€å‡º...
+pause >nul

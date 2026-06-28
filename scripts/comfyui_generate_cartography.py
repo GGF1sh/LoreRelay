@@ -30,6 +30,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from cartography_path_utils import validate_forge_path, validate_output_dir  # noqa: E402
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
 DEFAULT_WORKFLOW = REPO_ROOT / "comfyui" / "workflow_cartography_sdxl_canny.json"
 RENDER_SCRIPT = SCRIPT_DIR / "render_cartography_layout.py"
@@ -158,10 +160,14 @@ def main() -> int:
         print(__doc__.strip(), file=sys.stderr)
         return 1
 
-    forge_path = Path(sys.argv[1]).resolve()
-    output_dir = Path(sys.argv[2]).resolve() if len(sys.argv) >= 3 else Path.cwd() / "output"
-    if not forge_path.is_file():
-        print(f"Error: world_forge not found: {forge_path}", file=sys.stderr)
+    forge_arg = Path(sys.argv[1])
+    output_arg = Path(sys.argv[2]) if len(sys.argv) >= 3 else Path.cwd()
+    workspace_root = forge_arg.parent if forge_arg.name == "world_forge.json" else output_arg
+    try:
+        forge_path = validate_forge_path(forge_arg, workspace_root)
+        output_dir = validate_output_dir(output_arg, workspace_root)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     workflow_path = Path(os.environ.get("TA_WORKFLOW", str(DEFAULT_WORKFLOW)))

@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-06-28
+
+### Added — Cartography Hardening
+
+- **`cartographyPathCore.ts`**: workspace 配下の `world_forge.json` / 地図出力パス検証。
+- **`cartography_path_utils.py`**: Python CLI の forge / output ディレクトリ安全化。
+- **Tests**: `test_cartography_path_core.js`、`test_cartography_layout_smoke.js`、`validate_cartography_workflow.js`。
+- **Docs**: `docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`。
+- **Demo**: `sample-scenarios/lost-catacombs/world_map.layout.png`、`CARTOGRAPHY_DEMO.md`。
+- **README / DEMO**: 4言語 v1.7.1 反映、クイックスタート、Cartography を Optional 明記。
+
 ## [1.7.0] - 2026-06-28
 ### Added — World tab Cartography UI integration
 

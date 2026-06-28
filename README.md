@@ -29,8 +29,9 @@
 - 🔍 **Turn Inspector (v0.5+):** ダイス台帳・statePatch・発火ロアをターンごとに可視化。
 - 📖 **Lorebook & Memory UI:** ST互換ロアブックの閲覧/編集、Memory 検索プレビュー、ピン留め常時注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` と `game_state` ランタイム連動。
-- 📱 **Remote Play (v0.7+):** LAN 参加用 URL（コピー共有）、player / spectator ロール。token 認証・入力クランプ・パストラバーサル対策済み（v1.6）。
-- 🌍 **Living World System (v1.3+):** `world_forge.json` に基づく動的な地域・派閥・NPC自動生成機能（World Forge）、Mermaid.jsによる動的ネットワーク図を備えたWorldタブを搭載。
+- 📱 **Remote Play (v0.7+):** LAN 参加用 URL（コピー共有）、player / spectator ロール。WebSocket 認証・入力クランプ・**署名付き `/media` URL**（short-TTL HMAC、v1.6.2+）。
+- 🌍 **Living World System (v1.3+):** `world_forge.json` に基づく動的な地域・派閥・NPC自動生成（World Forge）、Emergent Simulation、World タブの Mermaid 図（biome 色・pan/zoom、v1.6.3+）。
+- 🗺️ **Cartography / Parchment Map (v1.7+、任意・上級者向け):** Region の `x/y/biome` からレイアウト PNG → ComfyUI ControlNet で羊皮紙古地図 → Webview に 📍 ピンオーバーレイ。ComfyUI + SDXL Canny が必要。レイアウトのみなら Python だけで可。
 - ⚙️ **Emergent Simulation:** 毎ターンの経過に伴う資源消費・パワーバランス・NPCの好感度や恐怖が自動計算・進行する自律シミュレーターを内蔵。
 - 🛡️ **Robust State Management:** 巨大なデータによるUIクラッシュを防ぐ上限クランプ処理、不正IDのパージ、安全な状態マイグレーションなど、堅牢なセーフティ機構を搭載。
 - 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM が生成画像を分析し `visual_memory.json` に蓄積。次ターン以降の GM プロンプトへ情景コンテキストを自動注入。
@@ -50,15 +51,24 @@
 |:---:|:---:|:---:|
 | <img src="docs/assets/screenshot-inspector.svg" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.svg" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.svg" width="240" alt="Party Director" /> |
 
-| Lorebook | ComfyUI |
-|:---:|:---:|
-| <img src="docs/assets/screenshot-lorebook.svg" width="360" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="360" alt="ComfyUI scene generation" /> |
+| Lorebook | ComfyUI | World Map |
+|:---:|:---:|:---:|
+| <img src="docs/assets/screenshot-lorebook.svg" width="240" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="240" alt="ComfyUI scene generation" /> | <img src="docs/assets/screenshot-world-map.svg" width="240" alt="Parchment world map with pins" /> |
 
 実機のスクリーンショットやデモ GIF に差し替える手順は [`DEMO.md`](DEMO.md) を参照してください。
 
 ---
 
 ## 🚀 How to Play
+
+### まず遊ぶなら（3分）
+
+1. `LoreRelay: Load Scenario Pack` → `sample-scenarios/lost-catacombs`
+2. `LoreRelay: Open Game UI` → Game Rules で **World Forge** を有効化
+3. **World** タブ → **Parchment** で同梱 `world_map.layout.png` とピンを確認（ComfyUI 不要）
+4. 選択肢を1ターン送って GM 応答を見る
+
+羊皮紙の**イラスト地図**まで試す場合のみ: ComfyUI 起動後 `LoreRelay: Generate World Map Image`。詳細は [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md)（**Optional / 上級**）。
 
 この拡張機能は、AIが書き出す `game_state.json` を監視してUIをレンダリングする疎結合な仕組みを採用しています。あなたの環境に合わせて2通りの遊び方があります。
 
@@ -116,7 +126,7 @@ chmod +x scripts/setup.sh
 1. このリポジトリをクローンまたはダウンロードします。
 2. VSCodeでフォルダを開き、ターミナルで `npm install` を実行します。
 3. `F5` キーを押して、拡張機能をデバッグ起動するか、`npx @vscode/vsce package` で VSIX をインストールします。
-4. コマンドパレット (`Ctrl+Shift+P`) から `Text Adventure: Open Game UI` を実行するとパネルが開きます。
+4. コマンドパレット (`Ctrl+Shift+P`) から `LoreRelay: Open Game UI` を実行するとパネルが開きます。
 
 ### 4. Configuration
 VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し、同梱の `comfyui_generate.py` スクリプトの絶対パスを指定してください。
@@ -136,32 +146,36 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 
 **同梱サンプル（3本）** — 拡張リポジトリの `sample-scenarios/`:
 
-| フォルダ | ジャンル | テーマ |
-|---------|---------|--------|
-| `lost-catacombs` | 王道ダンジョン探索 | fantasy |
-| `neon-rain` | サイバーパンク・ノワール | cyberpunk |
-| `harbor-mist` | 港町ミステリー | modern |
+| フォルダ | ジャンル | テーマ | 備考 |
+|---------|---------|--------|------|
+| `lost-catacombs` | 王道ダンジョン探索 | fantasy | **Cartography デモ**（`world_forge.json` + `world_map.layout.png`） |
+| `neon-rain` | サイバーパンク・ノワール | cyberpunk | |
+| `harbor-mist` | 港町ミステリー | modern | |
 
 GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scenarios/`。
 
 ### 6. Model & ComfyUI presets (v1.0)
 - 推奨 GM / 画像設定: [`MODEL_PRESETS.md`](MODEL_PRESETS.md)（`presets/` の JSON をコピー）
-- ComfyUI ワークフロー: [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md)（`comfyui/workflow_api.json` / `workflow_sdxl_1024.json`）
+- ComfyUI ワークフロー: [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md)（シーン用 + Cartography 用）
+- Cartography（任意）: [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md)
 
 ---
 
 ## 🗺️ Roadmap
 
-**実装済み（v1.6.1）**
+**実装済み（v1.7.1）**
 
 - v1.3: World Forge / Living World / Emergent Simulation / ComfyUI 連携
 - v1.5: Visual Memory / Soulgaze（VLM キュー、GM プロンプト注入、Gallery 連動）
-- v1.6: Audit Wave（T1〜T8）— `validateGameState`、`webviewHandlersCore`、Remote Play 再監査、ST Import 硬化
+- v1.6: Audit Wave（T1〜T8）— 検証モジュール・Remote Play 再監査・ST Import 硬化
+- v1.6.2: Remote Play **署名付きメディア URL**（HMAC short-TTL）
+- v1.6.3: Region **x / y / biome**、Mermaid biome スタイル・World Map pan/zoom
+- v1.7: Cartography ComfyUI パイプライン + World タブ **Diagram / Parchment** + ピン overlay
+- v1.7.1: Cartography path 検証、layout smoke test、workflow contract、README/DEMO 更新
 
-**今後の候補（v1.6.2+）**
+**今後の候補（v1.8+）**
 
-- リリース整備（README / DEMO / CI の継続更新）
-- Remote media の short-TTL HMAC 署名 URL
+- **Event-to-Quest** — `recentChanges` / 派閥・地域イベントからクエスト候補を生成
 - VLM / Visual Memory の運用品質向上
 - Workshop 配布やマーケットプレイス公開の検討
 

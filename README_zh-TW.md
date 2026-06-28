@@ -29,8 +29,9 @@
 - 🔍 **Turn Inspector (v0.5+):** 每回合骰子台帳、狀態修補、觸發 lore 可視化。
 - 📖 **Lorebook & Memory UI:** ST 相容 lorebook 編輯、記憶搜尋預覽、釘選 lore 注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` 與 `game_state` 執行時聯動。
-- 📱 **Remote Play (v0.7+):** LAN 加入 URL（複製分享）、玩家 / 觀戰角色。token 認證、輸入限制與路徑遍歷防護（v1.6）。
-- 🌍 **Living World System (v1.3+):** 基於 `world_forge.json` 的動態地區、派系與 NPC 自動生成（World Forge），World 分頁配備 Mermaid.js 動態網路圖。
+- 📱 **Remote Play (v0.7+):** LAN 加入 URL（複製分享）、玩家 / 觀戰角色。WebSocket 認證、輸入限制、**簽章 `/media` URL**（short-TTL HMAC，v1.6.2+）。
+- 🌍 **Living World System (v1.3+):** `world_forge.json`（World Forge）、湧現模擬、World 分頁 Mermaid 地圖（biome 配色與平移縮放，v1.6.3+）。
+- 🗺️ **Cartography / 羊皮紙地圖（v1.7+，可選進階功能）：** Region `x/y/biome` → 版面 PNG → ComfyUI ControlNet 羊皮紙地圖 → Webview 圖釘疊加。需 ComfyUI + SDXL Canny；僅版面可用 Python 單獨產生。
 - ⚙️ **Emergent Simulation:** 內建自律模擬器，隨每回合推進自動計算資源消耗、勢力平衡、NPC 好感度與恐懼等。
 - 🛡️ **Robust State Management:** 上限鉗制、非法 ID 清理、安全狀態遷移等機制，防止龐大資料導致 UI 崩潰。
 - 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM 分析生成圖像並寫入 `visual_memory.json`，在後續 GM 提示中自動注入視覺上下文。
@@ -50,15 +51,24 @@
 |:---:|:---:|:---:|
 | <img src="docs/assets/screenshot-inspector.svg" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.svg" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.svg" width="240" alt="Party Director" /> |
 
-| Lorebook | ComfyUI |
-|:---:|:---:|
-| <img src="docs/assets/screenshot-lorebook.svg" width="360" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="360" alt="ComfyUI scene generation" /> |
+| Lorebook | ComfyUI | World Map |
+|:---:|:---:|:---:|
+| <img src="docs/assets/screenshot-lorebook.svg" width="240" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="240" alt="ComfyUI scene generation" /> | <img src="docs/assets/screenshot-world-map.svg" width="240" alt="Parchment world map with pins" /> |
 
 替換為真實截圖或 GIF 的步驟見 [`DEMO.md`](DEMO.md)。
 
 ---
 
 ## 🚀 How to Play
+
+### 快速開始（約 3 分鐘）
+
+1. `LoreRelay: Load Scenario Pack` → `sample-scenarios/lost-catacombs`
+2. `LoreRelay: Open Game UI` → 在 Game Rules 中啟用 **World Forge**
+3. **World** 分頁 → **Parchment** 檢視同捆的 `world_map.layout.png` 與圖釘（無需 ComfyUI）
+4. 進行一回合，查看 GM 回應
+
+完整插畫羊皮紙地圖：啟動 ComfyUI 後執行 `LoreRelay: Generate World Map Image`。詳見 [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md)（**可選 / 進階**）。
 
 該擴充套件使用鬆散耦合機制，監聽 AI 匯出的 `game_state.json` 並渲染 UI。根據您的環境，有兩種遊玩方式。
 
@@ -116,7 +126,7 @@ chmod +x scripts/setup.sh
 1. 複製（Clone）或下載此程式庫。
 2. 在 VSCode 中打開資料夾，並在終端機中運行 `npm install`。
 3. 按 `F5` 鍵開始偵錯擴充套件，或使用 `npx @vscode/vsce package` 安裝 VSIX。
-4. 從命令面板 (`Ctrl+Shift+P`) 運行 `Text Adventure: Open Game UI` 以打開面板。
+4. 從命令面板 (`Ctrl+Shift+P`) 運行 `LoreRelay: Open Game UI` 以打開面板。
 
 ### 4. Configuration
 在 VSCode 設定中搜尋 `textAdventure.skillPath`，並指定隨附的 `comfyui_generate.py` 腳本的絕對路徑。
@@ -136,32 +146,36 @@ chmod +x scripts/setup.sh
 
 **同捆範例（3 本）** — `sample-scenarios/`：
 
-| 資料夾 | 類型 | 主題 |
-|--------|------|------|
-| `lost-catacombs` | 經典地牢探索 | fantasy |
-| `neon-rain` | 賽博龐克黑色電影 | cyberpunk |
-| `harbor-mist` | 港口懸疑 | modern |
+| 資料夾 | 類型 | 主題 | 備註 |
+|--------|------|------|------|
+| `lost-catacombs` | 經典地牢探索 | fantasy | **Cartography 示範**（`world_forge.json` + `world_map.layout.png`） |
+| `neon-rain` | 賽博龐克黑色電影 | cyberpunk | |
+| `harbor-mist` | 港口懸疑 | modern | |
 
 GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ### 6. 模型與 ComfyUI 預設 (v1.0)
 - [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — 從 `presets/` 複製 JSON
-- [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — `comfyui/` 內工作流程
+- [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — 場景與 Cartography 工作流程
+- Cartography（可選）：[`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md)
 
 ---
 
 ## 🗺️ Roadmap
 
-**已實作（v1.6.1）**
+**已實作（v1.7.1）**
 
 - v1.3：World Forge / Living World / Emergent Simulation / ComfyUI 整合
 - v1.5：Visual Memory / Soulgaze（VLM 佇列、GM 提示注入、畫廊聯動）
-- v1.6：Audit Wave（T1〜T8）— `validateGameState`、`webviewHandlersCore`、Remote Play 再稽核、ST Import 加固
+- v1.6：Audit Wave（T1〜T8）— 驗證模組、Remote Play 再稽核、ST Import 加固
+- v1.6.2：Remote Play **簽章媒體 URL**（HMAC short-TTL）
+- v1.6.3：Region **x / y / biome**、Mermaid biome 樣式、World Map 平移縮放
+- v1.7：Cartography ComfyUI 管線 + World 分頁 **Diagram / Parchment** + 圖釘疊加
+- v1.7.1：Cartography 路徑驗證、layout 冒煙測試、workflow 契約、README/DEMO 更新
 
-**計畫中（v1.6.2+）**
+**計畫中（v1.8+）**
 
-- 發布整備（README / DEMO / CI 持續更新）
-- Remote media 的 short-TTL HMAC 簽名 URL
+- **Event-to-Quest** — 將世界模擬事件轉為可玩任務鉤子
 - VLM / Visual Memory 運維品質提升
 - Workshop 分發與市集發布調研
 

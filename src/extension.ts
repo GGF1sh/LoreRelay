@@ -103,6 +103,7 @@ import {
     killCartographyProcess,
     isCartographyGenerationBusy
 } from './cartographyRunner';
+import { resolveValidatedForgePath } from './cartographyPathCore';
 import {
     initMediaManifest,
     sendBgmManifest,
@@ -819,9 +820,10 @@ async function handleGenerateWorldMapImage(): Promise<void> {
         vscode.window.showErrorMessage('World Forge not enabled or missing world_forge.json.');
         return;
     }
-    const forgePath = path.join(getWorkspacePath() || '', 'world_forge.json');
-    if (!fs.existsSync(forgePath)) {
-        vscode.window.showErrorMessage('world_forge.json not found in workspace.');
+    const wsPath = getWorkspacePath();
+    const forgePath = wsPath ? resolveValidatedForgePath(wsPath) : undefined;
+    if (!forgePath) {
+        vscode.window.showErrorMessage('world_forge.json not found in workspace root.');
         return;
     }
     if (isCartographyGenerationBusy()) {

@@ -17,6 +17,10 @@ import sys
 import zlib
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from cartography_path_utils import validate_forge_path  # noqa: E402
+
 MAP_SIZE = 1000
 DEFAULT_SIZE = 1024
 
@@ -228,8 +232,11 @@ def main() -> int:
         if idx + 1 < len(args):
             size = int(args[idx + 1])
 
-    if not forge_path.is_file():
-        print(f"Error: not found: {forge_path}", file=sys.stderr)
+    workspace_root = forge_path.parent if forge_path.name == "world_forge.json" else None
+    try:
+        forge_path = validate_forge_path(forge_path, workspace_root)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     spec = load_spec(forge_path, size)

@@ -6,9 +6,18 @@ import { t } from './i18n';
 import { buildImageGenEnv, getResolvedImageMode } from './imageGenRunner';
 import { getWorkspacePath } from './workspacePaths';
 import { resolvePythonCommand } from './skillScriptRunner';
+import {
+    WORLD_MAP_IMAGE_BASENAME,
+    WORLD_MAP_LAYOUT_BASENAME,
+    validateCartographyOutputDir,
+    validateCartographyOutputPath,
+    validateForgePathInWorkspace,
+    resolveWorldMapImagePath as resolveWorldMapImagePathCore,
+    resolveWorldMapLayoutPath as resolveWorldMapLayoutPathCore,
+} from './cartographyPathCore';
 
-export const WORLD_MAP_IMAGE_FILENAME = 'world_map.png';
-export const WORLD_MAP_LAYOUT_FILENAME = 'world_map.layout.png';
+export const WORLD_MAP_IMAGE_FILENAME = WORLD_MAP_IMAGE_BASENAME;
+export const WORLD_MAP_LAYOUT_FILENAME = WORLD_MAP_LAYOUT_BASENAME;
 
 let cartographyOutputChannel: vscode.OutputChannel | undefined;
 let cartographyProcess: ChildProcess | undefined;
@@ -55,12 +64,12 @@ export function killCartographyProcess(): void {
 
 export function resolveWorldMapImagePath(wsPath?: string): string | undefined {
     const root = wsPath ?? getWorkspacePath();
-    return root ? path.join(root, WORLD_MAP_IMAGE_FILENAME) : undefined;
+    return root ? resolveWorldMapImagePathCore(root) : undefined;
 }
 
 export function resolveWorldMapLayoutPath(wsPath?: string): string | undefined {
     const root = wsPath ?? getWorkspacePath();
-    return root ? path.join(root, WORLD_MAP_LAYOUT_FILENAME) : undefined;
+    return root ? resolveWorldMapLayoutPathCore(root) : undefined;
 }
 
 function resolveCartographyScript(extPath: string): string {
@@ -177,31 +186,46 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
         return false;
     }
 
-    if (!fs.existsSync(forgePath)) {
-        vscode.window.showErrorMessage('world_forge.json not found.');
+    const validatedForge = validateForgePathInWorkspace(forgePath, wsPath);
+    if (!validatedForge) {
+        vscode.window.showErrorMessage('world_forge.json must exist in the workspace root.');
+        return false;
+    }
+
+    const layoutPath = validateCartographyOutputPath(
+        path.join(wsPath, WORLD_MAP_LAYOUT_FILENAME),
+        wsPath,
+        WORLD_MAP_LAYOUT_FILENAME
+    );
+    const targetMapPath = validateCartographyOutputPath(
+        path.join(wsPath, WORLD_MAP_IMAGE_FILENAME),
+        wsPath,
+        WORLD_MAP_IMAGE_FILENAME
+    );
+    const validatedOutputDir = validateCartographyOutputDir(wsPath, wsPath);
+    if (!layoutPath || !targetMapPath || !validatedOutputDir) {
+        vscode.window.showErrorMessage('Invalid cartography output paths.');
         return false;
     }
 
     const channel = getCartographyOutputChannel();
     const env = buildCartographyEnv(wsPath, extPath);
-    const layoutPath = path.join(wsPath, WORLD_MAP_LAYOUT_FILENAME);
-    const targetMapPath = path.join(wsPath, WORLD_MAP_IMAGE_FILENAME);
 
     channel.show(true);
     channel.appendLine('=== Cartography world map generation ===');
-    channel.appendLine(`Forge: ${forgePath}`);
+    channel.appendLine(`Forge: ${validatedForge}`);
     channel.appendLine(`Backend: ${env.COMFYUI_URL || 'http://127.0.0.1:8188 (default)'}`);
     channel.appendLine(`Workflow: ${env.TA_WORKFLOW}`);
 
     getPanel()?.webview.postMessage({ type: 'worldMapGenStart' });
 
-    const layoutOk = await renderStableLayout(forgePath, layoutPath, extPath, env, channel);
+    const layoutOk = await renderStableLayout(validatedForge, layoutPath, extPath, env, channel);
     if (!layoutOk) {
         channel.appendLine('Layout preview failed — continuing with ComfyUI pipeline.');
     }
 
     const python = resolvePythonCommand();
-    const child = spawn(python, [scriptPath, forgePath, wsPath], { shell: false, env });
+    const child = spawn(python, [scriptPath, validatedForge, validatedOutputDir], { shell: false, env });
     cartographyProcess = child;
 
     let generatedImagePath = '';

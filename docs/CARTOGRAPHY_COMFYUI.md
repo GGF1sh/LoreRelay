@@ -169,9 +169,10 @@ Current player highlight: match `currentLocationId` and add `.is-current` class.
 
 ---
 
-## 7. Next integration steps (post-Grok)
+## 7. VS Code integration (v1.7+)
 
-1. Extension command `LoreRelay: Generate World Map Image` → spawn `comfyui_generate_cartography.py`
-2. Save `world_map.png` + `world_map.layout.png` beside `world_forge.json`
-3. `worldView.ts` post `cartographyImage` + `cartographyPins` to `85-world.js`
-4. Toggle in World tab: Mermaid (live) vs Parchment (generated)
+- Command **`LoreRelay: Generate World Map Image`** → `cartographyRunner.ts` → `comfyui_generate_cartography.py`
+- Outputs: `world_map.png` + `world_map.layout.png` in workspace root
+- World tab: **Diagram** (Mermaid) vs **Parchment** (image + pin overlay)
+- Workflow node contract: [`CARTOGRAPHY_WORKFLOW_CONTRACT.md`](CARTOGRAPHY_WORKFLOW_CONTRACT.md)
+- Quick demo without ComfyUI: `sample-scenarios/lost-catacombs` (bundled `world_map.layout.png`)

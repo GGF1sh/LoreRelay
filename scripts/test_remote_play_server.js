@@ -169,14 +169,39 @@ async function run() {
             else { ok('/nonexistent: 404 Not Found'); }
         }
 
-        // 9. /media 正しいトークン・存在しないファイル → 400 or 404
+        // 9. /media 正しいトークン・存在しないファイル → 403
         {
             const r = await get(`${base}/media?token=${encodeURIComponent(status.token)}&file=nofile.png`);
-            // 400=bad request, 403=path outside workspace, 404=not found — どれも正当な拒否
+            // 400=bad request, 403=path outside workspace or not found — どれも正当な拒否
             if (r.status !== 400 && r.status !== 403 && r.status !== 404) {
                 fail(`/media valid token invalid file: expected 400/403/404, got ${r.status}`);
             } else {
                 ok(`/media valid token invalid file: ${r.status} (file rejected)`);
+            }
+        }
+
+        // 9b. /media パストラバーサル試行 → 403 (traversal outside workspace)
+        {
+            // ../../evil.png: traversal attempt with valid image extension; file won't exist
+            // but resolveAllowedImagePath returns undefined for anything outside workspace → 403
+            const traversalFile = encodeURIComponent('../../evil.png');
+            const r = await get(`${base}/media?token=${encodeURIComponent(status.token)}&file=${traversalFile}`);
+            if (r.status !== 403 && r.status !== 404) {
+                fail(`/media path traversal: expected 403/404, got ${r.status}`);
+            } else {
+                ok(`/media path traversal (../../evil.png): ${r.status} (traversal blocked)`);
+            }
+        }
+
+        // 9c. /media ダブルエンコードトラバーサル → 403 (defense-in-depth)
+        {
+            // %252F decodes to %2F via searchParams.get, then path.normalize treats it literally
+            const doubleEncoded = '%252F..%252Fevil.png';
+            const r = await get(`${base}/media?token=${encodeURIComponent(status.token)}&file=${doubleEncoded}`);
+            if (r.status !== 403 && r.status !== 404 && r.status !== 400) {
+                fail(`/media double-encoded traversal: expected 400/403/404, got ${r.status}`);
+            } else {
+                ok(`/media double-encoded traversal: ${r.status} (blocked)`);
             }
         }
     }
@@ -215,6 +240,21 @@ async function run() {
         const s2 = rps.getRemotePlayStatus();
         if (s2.running) { fail('after stop: running should be false'); }
         else { ok('after stop: running=false'); }
+    }
+
+    // 13. disposeRemotePlayServer は起動中でも確実に停止する
+    try {
+        await rps.startRemotePlayServer();
+        if (!rps.getRemotePlayStatus().running) {
+            fail('13: server should be running before dispose');
+        } else {
+            rps.disposeRemotePlayServer();
+            const s3 = rps.getRemotePlayStatus();
+            if (s3.running) { fail('13: disposeRemotePlayServer: running should be false after dispose'); }
+            else { ok('13: disposeRemotePlayServer after start: running=false'); }
+        }
+    } catch (e) {
+        fail(`13: disposeRemotePlayServer test threw: ${e.message}`);
     }
 
     // クリーンアップ

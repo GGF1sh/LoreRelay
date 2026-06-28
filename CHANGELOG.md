@@ -7,6 +7,40 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.6.0] - 2026-06-28
+
+### Fixed — Audit Wave T7 (Remote Play セキュリティ再監査)
+
+#### `remotePlayServer.ts` — セキュリティ補強
+
+- **`serveMedia` 二重デコード除去 (P1)**: `URLSearchParams.get('file')` は既に URL デコード済みなのに `decodeURIComponent()` を再適用していた。`%252F..` 等のダブルエンコードトラバーサル試行が `resolveAllowedImagePath` より手前で意図せず展開される可能性を排除。`path.normalize(file)` に変更。
+- **`serveStatic` `startsWith` にパスセパレータ追加 (P1)**: `remote-player` プレフィックスのみの比較では `remote-player-evil/` 等のディレクトリが理論上マッチし得た。`path.sep` サフィックスを追加してプレフィックス混同を防止。
+
+#### テスト追加 — 9 件
+
+| テスト | スクリプト |
+|--------|-----------|
+| `/media` パストラバーサル (`../../evil.png`) → 403 | `test_remote_play_server.js` |
+| `/media` ダブルエンコードトラバーサル (`%252F..`) → 403 | `test_remote_play_server.js` |
+| `disposeRemotePlayServer` 後の `running=false` | `test_remote_play_server.js` |
+| Spectator からの `freeInput` → `Spectator mode (read-only)` | `test_ws_functionality.js` |
+| 4001 文字超 WS メッセージ → close 1009 | `test_ws_functionality.js` |
+| Pre-auth 非 auth メッセージ → Unauthorized + close 1008 | `test_ws_functionality.js` |
+| token ローテーション後の旧 token WS 拒否 | `test_ws_functionality.js` |
+| token ローテーション後の新 token WS 受理 | `test_ws_functionality.js` |
+| `isGmBusy=true` → `GM is busy` / `isGameOverActive=true` → `Game over` / `text>2000` → `Invalid input` | `test_ws_functionality.js` |
+
+#### 確認済み回帰テスト（変更なし）
+
+- `maxClients` 超過 → code 1008 即切断 ✅
+- Pre-auth で state 漏れなし (`sendToClient force` は handshake のみ) ✅
+- `remoteInputLocked` が `finally` で確実に解除（GM エラー・kill 時も） ✅
+- `/media` token 必須・`resolveAllowedImagePath` で二重防御 ✅
+- `rotateRemotePlayToken` が全クライアントを切断して新 token を生成 ✅
+- `notifyRemoteGmBusy(false)` が `releaseRemoteInputLock()` を呼ぶ ✅
+- `disposeRemotePlayServer` → `stopRemotePlayServer` の完全な状態リセット ✅
+- `buildRemotePlayerState` が `hiddenDice.result` を含まない（型レベルで存在しない） ✅
+
 ## [1.5.9] - 2026-06-28
 
 ### Fixed — Audit Wave T5/T6 (Visual + Webview)

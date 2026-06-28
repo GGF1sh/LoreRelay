@@ -93,5 +93,5 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 - [x] **T4**: ST Import / Character / Lorebook
 - [x] **T5**: Visual Memory + Image Gen + VLM（回帰）— vlmQueue pendingPath 修正
 - [x] **T6**: Webview & postMessage — webviewHandlersCore、ハンドラ検証強化、85-world クランプ
-- [ ] **T7**: Remote Play セキュリティ再監査
+- [x] **T7**: Remote Play セキュリティ再監査
 - [ ] **T8**: Extension Hub & Ancillary

@@ -72,7 +72,7 @@ def main():
         "textAdventure.imageGen.cfg": "CFGスケールの上書き設定（0 = ワークフローのデフォルトを使用）。",
         "textAdventure.imageGen.width": "生成画像の幅（ピクセル）（0 = ワークフローのデフォルトを使用）。",
         "textAdventure.imageGen.height": "生成画像の高さ（ピクセル）（0 = ワークフローのデフォルトを使用）。",
-        "textAdventure.imageGen.autoOnLocationChange": "World Forgeでプレイヤーの現在地（ロケーション）が変わったときに、自動的に風景画像を生成します。",
+        "textAdventure.imageGen.autoOnLocationChange": "World Forgeでプレイヤーの現在地（ロケーション）が変わったときに、自動的に風景画像を生​​成します。",
         "textAdventure.imageGen.includeFactionInPrompt": "生成する場所の画像プロンプトに、その場所を支配する「勢力（Faction）」の雰囲気を自動的に含めます。",
         "textAdventure.imageGen.includeDangerInPrompt": "生成する場所の画像プロンプトに、その地域の「危険度（Danger Level）」の雰囲気を自動的に含めます。",
         "textAdventure.vlm.provider": "生成された画像を分析するためのVLM（マルチモーダルモデル）プロバイダーを選択します（Soulgaze機能）。",
@@ -107,7 +107,16 @@ def main():
         "textAdventure.grokBridge.enabled": "プレイヤー入力を自動的に Grok Build (headless) に送信します。",
         "textAdventure.grokBridge.command": "grok CLIへのパス。",
         "textAdventure.grokBridge.autoApprove": "Grok Build実行時にツールの自動実行を承認する `--always-approve` フラグを渡します。",
-        "textAdventure.grokBridge.fallbackToClipboard": "Grok Buildの呼び出しに失敗した場合、プレイヤーの入力をクリップボードにコピーします。"
+        "textAdventure.grokBridge.fallbackToClipboard": "Grok Buildの呼び出しに失敗した場合、プレイヤーの入力をクリップボードにコピーします。",
+        "textAdventure.archive.autoPrompt": "ログが長くなったときに、古い履歴ターンをサガ（章）のチャプターにアーカイブすることを提案します。",
+        "textAdventure.archive.thresholdSmallContext": "Ollama / KoboldCPP などのコンテキストが小さいモデル用の、アーカイブ提案しきい値ターン数。",
+        "textAdventure.archive.thresholdLargeContext": "Grok / Gemini などのコンテキストが大きいモデル用の、アーカイブ提案しきい値ターン数。",
+        "textAdventure.archive.remindEvery": "しきい値を超えた後、何ターンごとに再提案するか。",
+        "textAdventure.worldForge.defaultRegionCount": "新しい World Forge を生成する際のデフォルトの地域（Region）数。",
+        "textAdventure.worldForge.defaultFactionCount": "新しい World Forge を生成する際のデフォルトの勢力（Faction）数。",
+        "textAdventure.worldForge.defaultNpcCount": "新しい World Forge を生成する際のデフォルトのNPC数。",
+        "textAdventure.worldForge.llmEnrich": "World Forgeの生成時、LLMを使用して各地域や勢力、NPCに詳細な設定やフレーバーテキストを自動付与して拡張します。",
+        "textAdventure.memory.backend": "NPC RegistryやWorld State用のセマンティックメモリのインデックス作成バックエンド。"
     }
 
     config_zh_cn = {
@@ -142,7 +151,7 @@ def main():
         "textAdventure.remotePlay.inputCooldownMs": "每个远程客户端的最小输入冷却时间（毫秒）。",
         "textAdventure.remotePlay.defaultRole": "默认客户端角色（player 或 spectator）。",
         "textAdventure.workspaceFolder": "多文件夹工作区中，game_state.json 所在文件夹名。留空为第一个文件夹。",
-        "textAdventure.gitAutoCommitInterval": "自动将游戏历史提交到 Git 的转折间隔。设为 0 禁用自动提交。",
+        "textAdventure.gitAutoCommitInterval": "自动将游戏历史提交到 Git 的转折间隔。设为 0 速度慢时建议禁用。",
         "textAdventure.gmBridge.provider": "Webview 的玩家输入如何发送给 GM (AI) 进行响应。",
         "textAdventure.gmBridge.python": "用于运行 Ollama/KoboldCPP 等 GM 桥接脚本的 Python 可执行文件路径。",
         "textAdventure.gmBridge.scriptPath": "GM 桥接脚本的自定义路径。",
@@ -156,7 +165,16 @@ def main():
         "textAdventure.grokBridge.enabled": "自动将 Webview 玩家输入发送给 Grok Build (headless 模式)。",
         "textAdventure.grokBridge.command": "Grok CLI 路径。",
         "textAdventure.grokBridge.autoApprove": "向 Grok Build 传递 `--always-approve` 以免除工具确认提示（警告：启用此项有安全隐患）。",
-        "textAdventure.grokBridge.fallbackToClipboard": "当 Grok 调用失败时，将输入复制到剪贴板作为备用。"
+        "textAdventure.grokBridge.fallbackToClipboard": "当 Grok 调用失败时，将输入复制到剪贴板作为备用。",
+        "textAdventure.archive.autoPrompt": "当日志变长时，建议将旧的历史回合归档为传奇（Saga）章节。",
+        "textAdventure.archive.thresholdSmallContext": "适用于 Ollama / KoboldCPP 等小上下文模型的归档建议阈值回合数。",
+        "textAdventure.archive.thresholdLargeContext": "适用于 Grok / Gemini 等大上下文模型的归档建议阈值回合数。",
+        "textAdventure.archive.remindEvery": "达到阈值后，每隔多少回合再次提醒归档。",
+        "textAdventure.worldForge.defaultRegionCount": "生成新 World Forge 时的默认区域（Region）数量。",
+        "textAdventure.worldForge.defaultFactionCount": "生成新 World Forge 时的默认势力（Faction）数量。",
+        "textAdventure.worldForge.defaultNpcCount": "生成新 World Forge 时的默认 NPC 数量。",
+        "textAdventure.worldForge.llmEnrich": "在生成 World Forge 时，使用 LLM 自动为各个区域、势力和 NPC 添加详细设定与背景故事进行扩展。",
+        "textAdventure.memory.backend": "NPC 注册表及世界状态的语义内存索引后端。"
     }
 
     config_zh_tw = {
@@ -176,7 +194,7 @@ def main():
         "textAdventure.vlm.provider": "選擇 VLM（多模態模型）提供商以分析生成的圖像（Soulgaze功能）。",
         "textAdventure.vlm.model": "VLM 模型名稱（例如 Ollama 的 'llava'，OpenAI 的 'gpt-4o-mini'，Gemini 的 'gemini-1.5-flash'）。",
         "textAdventure.vlm.endpoint": "VLM 提供商的端點 URL。",
-        "textAdventure.bgm.enabled": "啟用自動背景音樂。GM 將根據 game_state.json 中的 'bgm' 或 'mood' 欄位選擇曲目。",
+        "textAdventure.bgm.enabled": "自動背景音樂。GM 將根據 game_state.json 中的 'bgm' 或 'mood' 欄位選擇曲目。",
         "textAdventure.bgm.manifestPath": "BGM 清單 JSON 的路徑。留空使用工作區根目錄下的 'bgm.json'。",
         "textAdventure.bgm.volume": "預設 BGM 音量 (0-100)。",
         "textAdventure.sfx.enabled": "啟用單次音效。GM 透過 game_state.json 中的 'sfx' 欄位觸發音效。",
@@ -185,7 +203,7 @@ def main():
         "textAdventure.mediaAgent.enabled": "啟用後台 MediaAgent 管道（包含非同步 ComfyUI 生成）。",
         "textAdventure.mediaAgent.autoImage": "當 GM 條目包含 imagePrompt 且無圖像時，在後台非同步佇列中生成 ComfyUI 圖像。",
         "textAdventure.mediaAgent.maxImageQueue": "圖像生成作業的最大佇列數。",
-        "textAdventure.remotePlay.port": "本地遠端聯機 HTTP/WebSocket 伺服器連接埠。",
+        "textAdventure.remotePlay.port": "遠端聯機 HTTP/WebSocket 伺服器連接埠。",
         "textAdventure.remotePlay.bindAddress": "遠端聯機綁定的 IP 地址。允許 LAN 存取請設為 0.0.0.0（警告：將暴露給網路），本機限制設為 127.0.0.1。",
         "textAdventure.remotePlay.maxClients": "最大 WebSocket 聯機用戶端數量。",
         "textAdventure.remotePlay.inputCooldownMs": "每個遠端用戶端的最小輸入冷卻時間（毫秒）。",
@@ -205,7 +223,16 @@ def main():
         "textAdventure.grokBridge.enabled": "自動將 Webview 玩家輸入發送給 Grok Build (headless 模式)。",
         "textAdventure.grokBridge.command": "Grok CLI 路徑。",
         "textAdventure.grokBridge.autoApprove": "向 Grok Build 傳遞 `--always-approve` 以免除工具確認提示（警告：啟用此項有安全隱患）。",
-        "textAdventure.grokBridge.fallbackToClipboard": "當 Grok 呼叫失敗時，將輸入複製到剪貼簿作為備用。"
+        "textAdventure.grokBridge.fallbackToClipboard": "當 Grok 呼叫失敗時，將輸入複製到剪貼簿作為備用。",
+        "textAdventure.archive.autoPrompt": "當日誌變長時，建議將舊的歷史回合存檔為傳奇（Saga）章節。",
+        "textAdventure.archive.thresholdSmallContext": "適用於 Ollama / KoboldCPP 等小上下文模型的存檔建議閾值回合數。",
+        "textAdventure.archive.thresholdLargeContext": "適用於 Grok / Gemini 等大上下文模型的存檔建議閾值回合數。",
+        "textAdventure.archive.remindEvery": "達到閾值後，每隔多少回合再次提醒存檔。",
+        "textAdventure.worldForge.defaultRegionCount": "生成新 World Forge 時的預設區域（Region）數量。",
+        "textAdventure.worldForge.defaultFactionCount": "生成新 World Forge 時的預設勢力（Faction）數量。",
+        "textAdventure.worldForge.defaultNpcCount": "生成新 World Forge 時的預設 NPC 數量。",
+        "textAdventure.worldForge.llmEnrich": "在生成 World Forge 時，使用 LLM 自動為各個區域、勢力和 NPC 添加詳細設定與背景故事進行擴展。",
+        "textAdventure.memory.backend": "NPC 註冊表及世界狀態的語義記憶索引後端。"
     }
 
     # Process all keys
@@ -254,12 +281,11 @@ def main():
     with open('package.nls.zh-tw.json', 'w', encoding='utf-8') as f:
         json.dump(nls_zh_tw, f, indent=2, ensure_ascii=False)
 
-    # Save package.json (overwrite placeholders if necessary, though they should already have placeholder format)
-    # The placeholders were already written in the previous step, so it is safe to write back.
+    # Save package.json
     with open(package_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    print("All localization files (ja, zh-cn, zh-tw) generated successfully!")
+    print("All localization files (ja, zh-cn, zh-tw) regenerated and synchronized!")
 
 if __name__ == '__main__':
     main()

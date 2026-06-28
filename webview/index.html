@@ -26,6 +26,9 @@
             <option value="zh-TW">繁體中文</option>
           </select>
         </div>
+        <div id="quickstart-wrap">
+          <button id="quickstart-btn" class="glass-btn" title="AI Quickstart" onclick="window.LoreRelay.openQuickstart && window.LoreRelay.openQuickstart()">🚀</button>
+        </div>
         <div id="img-gen-wrap">
           <button id="img-gen-settings-btn" class="glass-btn" data-i18n-title="webview.imageGen.open" title="Image Gen Settings">🎨</button>
         </div>
@@ -99,13 +102,13 @@
       <div id="status-tabs" class="tabs-header">
         <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
         <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
-        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">🔍 Inspector</span></button>
-        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">📖 Lorebook</span></button>
-        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">🧠 Memory</span></button>
-        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">🎬 Director</span></button>
-        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">👥 Party</span></button>
-        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">🌍 World</span></button>
-        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">💬 OOC</span></button>
+        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">Inspector</span></button>
+        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">Lorebook</span></button>
+        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">Memory</span></button>
+        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">Director</span></button>
+        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">Party</span></button>
+        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">World</span></button>
+        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">OOC</span></button>
       </div>
 
       <!-- ペイン 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
@@ -675,7 +678,37 @@
   <!-- ===== Character Creator Backdrop ===== -->
   <div id="char-creator-backdrop" class="cc-backdrop hidden"></div>
 
-  <!-- ===== Character Creator Modal ===== -->
+  <!-- ========================================== -->
+  <!-- Zero-Config Quickstart Modal -->
+  <!-- ========================================== -->
+  <div id="quickstart-modal" class="char-creator-modal hidden">
+    <div class="char-creator-overlay" id="quickstart-overlay"></div>
+    <div class="char-creator-body" style="max-width: 600px; max-height: 400px; padding: 20px;">
+      <button class="cc-close-btn" id="quickstart-close" type="button" title="Close">×</button>
+      <div class="cc-header">
+        <h2 style="margin: 0; color: var(--text-base); text-shadow: 0 0 10px var(--accent-light);">✨ AI Zero-Config Quickstart</h2>
+      </div>
+      <p style="color: var(--text-dim); margin-top: 10px; font-size: 13px;">
+        Describe the world and character you want to play. AI will generate the world map, character sheet, and starting scenario automatically!
+      </p>
+      <div style="margin-top: 20px;">
+        <textarea id="quickstart-prompt" class="cc-input" style="height: 100px; resize: none;" placeholder="e.g. A ruined cyberpunk city where I play as a runaway synth hacker trying to survive..."></textarea>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 20px;">
+        <label style="color: var(--text-dim); font-size: 12px; display: flex; align-items: center; gap: 5px;">
+          <input type="checkbox" id="quickstart-overwrite-cb"> Overwrite existing data
+        </label>
+        <button id="quickstart-start-btn" class="cc-save-primary" type="button">🚀 Start Journey</button>
+      </div>
+      <div id="quickstart-loading" class="hidden" style="margin-top: 15px; color: var(--accent-light); font-size: 14px; text-align: center; animation: pulse 1.5s infinite;">
+        Generating World and Character... This may take a minute.
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- Character Creator / Editor Modal           -->
+  <!-- ========================================== -->
   <div id="char-creator-modal" class="char-creator-modal hidden" role="dialog" aria-modal="true" aria-label="Character Creator">
     <div class="char-creator-header">
       <h2>✦ Character Creator <span class="cc-subtitle"></span></h2>

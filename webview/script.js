@@ -4619,15 +4619,16 @@ function buildWorldGenForm() {
     btn.className = 'world-gen-btn';
     btn.innerHTML = '<span>Generate World</span>';
     btn.addEventListener('click', () => {
-        const seed = document.getElementById('world-gen-seed')?.value?.trim();
-        if (!seed) {
+        const rawSeed = document.getElementById('world-gen-seed')?.value?.trim() || '';
+        const seed = rawSeed.slice(0, 64);
+        if (!seed || !/^[a-zA-Z0-9_-]+$/.test(seed)) {
             document.getElementById('world-gen-seed')?.focus();
             return;
         }
         const theme = document.getElementById('world-gen-theme')?.value || 'default';
-        const regionCount = parseInt(document.getElementById('world-gen-regions')?.value || '5', 10);
-        const factionCount = parseInt(document.getElementById('world-gen-factions')?.value || '3', 10);
-        const npcCount = parseInt(document.getElementById('world-gen-npcs')?.value || '6', 10);
+        const regionCount = Math.max(3, Math.min(12, parseInt(document.getElementById('world-gen-regions')?.value || '5', 10) || 5));
+        const factionCount = Math.max(2, Math.min(6, parseInt(document.getElementById('world-gen-factions')?.value || '3', 10) || 3));
+        const npcCount = Math.max(2, Math.min(20, parseInt(document.getElementById('world-gen-npcs')?.value || '6', 10) || 6));
         vscode.postMessage({ type: 'generateWorldForge', seed, theme, regionCount, factionCount, npcCount });
     });
     card.appendChild(btn);

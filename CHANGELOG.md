@@ -43,6 +43,10 @@
 
 ## [1.6.1] - 2026-06-28
 
+### Merged to `main`
+- `refactor/ws-and-extension-split` / `feat/v1.5-visual-memory` を `main` にマージ（Phase 6 監査ウェーブ一式）。
+- マージ時に `zh-CN` / `zh-TW` へ World タブ・Game Rules 翻訳キー 18 件を補完（`validate.js` locale 同期）。
+
 ### Fixed — Audit Wave T8 (Extension Hub)
 
 - **handleGenerateWorldForge**: コマンドパレット経路でも seed/theme/カウントを `webviewHandlersCore` で正規化・クランプ。`isValidEventId` で seed 検証。

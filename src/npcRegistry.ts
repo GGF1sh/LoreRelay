@@ -287,7 +287,7 @@ export function parseNpcMemoryUpdatesFromGameState(raw: unknown): NpcMemoryUpdat
     for (const item of raw) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) { continue; }
         const r = item as Record<string, unknown>;
-        if (typeof r.npcId !== 'string' || !r.npcId) { continue; }
+        if (typeof r.npcId !== 'string' || !isValidEntryId(r.npcId)) { continue; }
         const update: NpcMemoryUpdate = { npcId: r.npcId };
         if (r.dispositionDelta && typeof r.dispositionDelta === 'object' && !Array.isArray(r.dispositionDelta)) {
             update.dispositionDelta = r.dispositionDelta as NpcMemoryUpdate['dispositionDelta'];

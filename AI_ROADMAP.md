@@ -79,3 +79,19 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
   - World タブに「NPCs Here」パネル（portrait 表示、urgentNeed 数、「Set Portrait」ボタン）
   - NpcEntry に portraitImagePath? フィールド追加
   - QuickPick フローで analyzed 画像一覧から portrait を選択して npc_registry.json へ紐付け
+
+---
+
+## 🟡 Phase 6 (v1.5.4 → v1.6.0): Audit Wave — 硬化ウェーブ
+*ステータス: 進行中*
+機能追加ではなく、巨大化したコードベースを7トラックに分割して補強・テスト穴埋めを行う。
+
+- [x] **T7 メタ**: `test_ws_functionality.js` を `npm test` に統合
+- [x] **T1**: Core State & Patch — `validateGameState` 拡張、`npcMemoryUpdates` 二重防御、`mergeGmEntry` image クランプ、`test_validate_game_state.js`
+- [ ] **T2**: GM Bridge & Turn Pipeline
+- [ ] **T3**: World + NPC + Living Feedback（再監査）
+- [ ] **T4**: ST Import / Character / Lorebook
+- [ ] **T5**: Visual Memory + Image Gen + VLM（回帰）
+- [ ] **T6**: Webview & postMessage Surface
+- [ ] **T7**: Remote Play セキュリティ再監査
+- [ ] **T8**: Extension Hub & Ancillary

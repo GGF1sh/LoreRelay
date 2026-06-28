@@ -257,7 +257,7 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
         entry.imagePrompt = gmMeta.imagePrompt.slice(0, 2000);
     }
     if (gmMeta?.image && typeof gmMeta.image === 'string') {
-        entry.image = gmMeta.image;
+        entry.image = gmMeta.image.slice(0, 500);
     }
 
     const entries = Array.isArray(state.entries) ? [...state.entries] : [];

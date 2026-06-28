@@ -3,6 +3,7 @@ import { validateGameStateDirector } from './scenarioDirectorCore';
 import { validateGameStatePartyDirector } from './partyDirectorCore';
 import { isValidSchemaVersion } from './migrateGameState';
 import { isValidEventId } from './worldEventLogCore';
+import { isValidEntryId } from './entryId';
 
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -249,6 +250,12 @@ export function validateGameState(obj: unknown): string[] {
         }
     }
 
+    if (state.hiddenState !== undefined) {
+        if (typeof state.hiddenState !== 'object' || state.hiddenState === null || Array.isArray(state.hiddenState)) {
+            errors.push('"hiddenState" must be an object');
+        }
+    }
+
     if (state.npcMemoryUpdates !== undefined) {
         if (!Array.isArray(state.npcMemoryUpdates)) {
             errors.push('"npcMemoryUpdates" must be an array');
@@ -261,6 +268,8 @@ export function validateGameState(obj: unknown): string[] {
                 const nu = item as Record<string, unknown>;
                 if (typeof nu.npcId !== 'string' || !nu.npcId) {
                     errors.push(`npcMemoryUpdates[${i}].npcId must be a non-empty string`);
+                } else if (!isValidEntryId(nu.npcId)) {
+                    errors.push(`npcMemoryUpdates[${i}].npcId has invalid format`);
                 }
             });
         }
@@ -337,6 +346,16 @@ export function validateGameState(obj: unknown): string[] {
             }
             if (w.worldTurnAtLastSync !== undefined && typeof w.worldTurnAtLastSync !== 'number') {
                 errors.push('world.worldTurnAtLastSync must be a number');
+            }
+            if (w.lastGeneratedImage !== undefined && typeof w.lastGeneratedImage !== 'string') {
+                errors.push('world.lastGeneratedImage must be a string');
+            }
+            if (w.lastGeneratedLocationId !== undefined) {
+                if (typeof w.lastGeneratedLocationId !== 'string') {
+                    errors.push('world.lastGeneratedLocationId must be a string');
+                } else if (w.lastGeneratedLocationId !== '' && !isValidEventId(w.lastGeneratedLocationId)) {
+                    errors.push('world.lastGeneratedLocationId has invalid format');
+                }
             }
         }
     }

@@ -7,6 +7,14 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.4] - 2026-06-28
+
+### Fixed — Audit Wave T1/T7 (State & Remote)
+- **validateGameState 拡張**: `hiddenState` 型検証、`world.lastGeneratedImage` / `lastGeneratedLocationId` / `worldTurnAtLastSync` の検証強化、`npcMemoryUpdates[].npcId` を `isValidEntryId` で検証。
+- **npcMemoryUpdates パース**: 不正 `npcId` を `parseNpcMemoryUpdatesFromGameState` でスキップ（二重防御）。
+- **mergeGmEntryFromTurn**: `gmEntry.image` パスを 500 文字にクランプ。
+- **テスト**: `scripts/test_validate_game_state.js` を新規追加。`test_ws_functionality.js` を `npm test` に統合。
+
 ## [1.5.3] - 2026-06-28
 
 ### Fixed — Visual Memory Phase 5 follow-up review

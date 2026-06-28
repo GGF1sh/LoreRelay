@@ -9,6 +9,7 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-28
 ### Added — World tab Cartography UI integration
 
 - **`cartographyRunner.ts`**: VS Code コマンド / Webview から `comfyui_generate_cartography.py` を spawn。`world_map.png` と `world_map.layout.png` をワークスペースに保存。

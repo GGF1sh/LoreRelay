@@ -8,6 +8,7 @@ import { resolveAllowedImagePath } from './mediaPaths';
 import { t } from './i18n';
 import {
     clampString,
+    clampWorldGenCount,
     MAX_CHECKPOINT_LABEL_LEN,
     MAX_EDIT_ENTRY_LEN,
     MAX_IMAGE_PROMPT_LEN,
@@ -17,13 +18,6 @@ import {
     normalizeWorldForgeTheme,
     sanitizeEquipmentNotifyFields
 } from './webviewHandlersCore';
-
-function clampWorldGenCount(value: unknown, min: number, max: number, fallback: number): number {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return fallback;
-    }
-    return Math.max(min, Math.min(max, Math.floor(value)));
-}
 
 /** Webview → Extension の postMessage ペイロード（緩い型）。 */
 export interface WebviewMessage {

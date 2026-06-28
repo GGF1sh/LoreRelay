@@ -6,6 +6,7 @@ out/
 game_state.json
 game_history.json
 scenario.json
+!sample-scenarios/**/scenario.json
 bgm.json
 
 # Player workspace data (ST compat, saga, memory)

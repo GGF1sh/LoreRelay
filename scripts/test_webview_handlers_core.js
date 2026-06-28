@@ -24,6 +24,7 @@ const {
     normalizeMemoryBackend,
     sanitizeEquipmentNotifyFields,
     clampString,
+    clampWorldGenCount,
     MAX_WORLD_FORGE_SEED_LEN
 } = require(corePath);
 
@@ -93,6 +94,18 @@ if (clampString(42, 10) !== '') {
     fail('clampString rejects non-string');
 } else {
     ok('clampString rejects non-string');
+}
+
+if (clampWorldGenCount(99, 3, 12, 5) !== 12) {
+    fail('clampWorldGenCount caps high');
+} else {
+    ok('clampWorldGenCount caps high');
+}
+
+if (clampWorldGenCount('x', 3, 12, 5) !== 5) {
+    fail('clampWorldGenCount falls back');
+} else {
+    ok('clampWorldGenCount falls back');
 }
 
 if (failed > 0) {

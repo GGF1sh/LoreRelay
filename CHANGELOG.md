@@ -41,6 +41,17 @@
 - `disposeRemotePlayServer` → `stopRemotePlayServer` の完全な状態リセット ✅
 - `buildRemotePlayerState` が `hiddenDice.result` を含まない（型レベルで存在しない） ✅
 
+## [1.6.1] - 2026-06-28
+
+### Fixed — Audit Wave T8 (Extension Hub)
+
+- **handleGenerateWorldForge**: コマンドパレット経路でも seed/theme/カウントを `webviewHandlersCore` で正規化・クランプ。`isValidEventId` で seed 検証。
+- **handleGenerateLocationImage**: `isValidEventId` ガードを hub 側にも追加。
+- **deactivate / panel dispose**: `resetGmBridgeSessions()` を呼び出し、Grok/LLM `--continue` フラグの残留を防止。`panel` / watcher 参照をクリア。
+- **oocSidekick**: Webview へ送る commentary を 500 文字にクランプ。
+- **clampWorldGenCount**: `webviewHandlersCore` に移動し hub/webview で共有。
+- **.gitignore**: `sample-scenarios/**/scenario.json` を追跡対象に（`test_sample_scenarios.js` の CI 失敗を解消）。
+
 ## [1.5.9] - 2026-06-28
 
 ### Fixed — Audit Wave T5/T6 (Visual + Webview)

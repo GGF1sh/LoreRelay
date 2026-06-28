@@ -44,6 +44,13 @@ export function normalizeMemoryBackend(value: unknown): string | undefined {
     return ALLOWED_MEMORY_BACKENDS.has(backend) ? backend : undefined;
 }
 
+export function clampWorldGenCount(value: unknown, min: number, max: number, fallback: number): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return fallback;
+    }
+    return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
 export function sanitizeEquipmentNotifyFields(message: Record<string, unknown>): {
     name: string;
     weapon: string;

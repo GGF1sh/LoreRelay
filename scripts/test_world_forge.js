@@ -112,6 +112,45 @@ if (!forgeWithRegions) {
 }
 
 // ---------------------------------------------------------------------------
+// Region cartography fields
+// ---------------------------------------------------------------------------
+
+{
+    const forgeCartography = parseWorldForge({
+        meta: { worldName: 'World' },
+        geography: {
+            regions: [
+                { id: 'r1', name: 'Mapped', type: 'forest', x: 123.6, y: 999.7, biome: 'forest' },
+                { id: 'r2', name: 'Clamped', type: 'ocean', x: -50, y: 1200, biome: 'unknown_biome' },
+                { id: 'r3', name: 'Bad Coords', type: 'urban', x: '500', y: null, biome: 'city' }
+            ]
+        }
+    });
+    if (!forgeCartography) {
+        fail('region cartography fields should parse');
+    } else {
+        const mapped = forgeCartography.geography.regions.find(r => r.id === 'r1');
+        const clamped = forgeCartography.geography.regions.find(r => r.id === 'r2');
+        const badCoords = forgeCartography.geography.regions.find(r => r.id === 'r3');
+        if (!mapped || mapped.x !== 124 || mapped.y !== 1000 || mapped.biome !== 'forest') {
+            fail(`region x/y/biome should preserve and normalize valid fields (got ${JSON.stringify(mapped)})`);
+        } else {
+            ok('region x/y/biome normalized');
+        }
+        if (!clamped || clamped.x !== 0 || clamped.y !== 1000 || clamped.biome !== 'sea') {
+            fail(`region out-of-range coords clamp and invalid biome falls back by type (got ${JSON.stringify(clamped)})`);
+        } else {
+            ok('region cartography fallback and clamp');
+        }
+        if (!badCoords || badCoords.x !== undefined || badCoords.y !== undefined || badCoords.biome !== 'city') {
+            fail(`non-number coords ignored while valid biome kept (got ${JSON.stringify(badCoords)})`);
+        } else {
+            ok('region invalid coords ignored');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Location type normalization
 // ---------------------------------------------------------------------------
 

@@ -1,3 +1,4 @@
+import { inferRegionBiomeFromType } from './worldForgeCore';
 import type {
     WorldForge,
     Region,
@@ -6,6 +7,7 @@ import type {
     InitialNpc,
     LoreHistoryEntry,
     RegionType,
+    RegionBiome,
     LocationType,
     FactionType,
 } from './worldForgeCore';
@@ -167,6 +169,47 @@ function makeId(base: string, seq: number): string {
     return `${slug}_${seq}`;
 }
 
+function clampMapCoord(v: number): number {
+    return Math.max(0, Math.min(1000, Math.round(v)));
+}
+
+function inferGeneratedBiome(theme: string, type: RegionType): RegionBiome {
+    if (theme === 'dungeon-crawler') {
+        if (type === 'dungeon') { return 'underground'; }
+        if (type === 'wilderness') { return 'wasteland'; }
+    }
+    if (theme === 'cyberpunk') {
+        if (type === 'urban') { return 'city'; }
+        if (type === 'other') { return 'wasteland'; }
+    }
+    return inferRegionBiomeFromType(type);
+}
+
+function placeRegionOnMap(
+    rng: () => number,
+    index: number,
+    count: number,
+    biome: RegionBiome
+): { x: number; y: number } {
+    const radius = count <= 3 ? 200 : count <= 4 ? 230 : count <= 6 ? 280 : 320;
+    const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
+    const jitter = count <= 4 ? 22 : 36;
+    let x = 500 + Math.cos(angle) * radius + randInt(rng, -jitter, jitter);
+    let y = 500 + Math.sin(angle) * radius + randInt(rng, -jitter, jitter);
+
+    // Coherent map hints: seas drift toward map edges, cities toward the center.
+    if (biome === 'sea') {
+        x = x < 500 ? Math.min(x, 160) : Math.max(x, 840);
+    } else if (biome === 'city') {
+        x = 500 + (x - 500) * 0.72;
+        y = 500 + (y - 500) * 0.72;
+    } else if (biome === 'mountain') {
+        y = Math.max(120, y - 30);
+    }
+
+    return { x: clampMapCoord(x), y: clampMapCoord(y) };
+}
+
 // ---------------------------------------------------------------------------
 // Step 1: Region graph (ring + chords)
 // ---------------------------------------------------------------------------
@@ -189,10 +232,15 @@ function generateRegions(rng: () => number, theme: string, count: number): Regio
         const name = `${prefix} ${suffix}`;
         const id = makeId(name, i + 1);
         const type = pickWeighted(rng, REGION_TYPE_WEIGHTS);
+        const biome = inferGeneratedBiome(theme, type);
+        const pos = placeRegionOnMap(rng, i, count, biome);
         const region: Region = {
             id,
             name,
             type,
+            biome,
+            x: pos.x,
+            y: pos.y,
             dangerLevel: randInt(rng, 2, 8),
             connectedTo: [],
             imagePromptHint: `A landscape view of ${name}, ${type} environment, ${theme} artstyle`,

@@ -1,5 +1,6 @@
 export type GenerationMethod = 'manual' | 'ai-generated';
 export type RegionType = 'wilderness' | 'urban' | 'dungeon' | 'ruins' | 'ocean' | 'mountains' | 'forest' | 'other';
+export type RegionBiome = 'forest' | 'desert' | 'mountain' | 'sea' | 'coast' | 'city' | 'plains' | 'swamp' | 'wasteland' | 'ruins' | 'dungeon' | 'underground' | 'snow' | 'volcanic' | 'other';
 export type LocationType = 'settlement' | 'dungeon' | 'landmark' | 'ruins' | 'wilderness' | 'other';
 export type FactionType = 'hostile' | 'neutral' | 'friendly' | 'player-faction';
 
@@ -21,6 +22,9 @@ export interface Region {
     connectedTo?: string[];
     resourceNodes?: string[];
     imagePromptHint?: string;
+    x?: number;
+    y?: number;
+    biome?: RegionBiome;
 }
 
 export interface WorldLocation {
@@ -98,6 +102,11 @@ function asNumber(v: unknown): number | undefined {
     return typeof v === 'number' && !Number.isNaN(v) ? v : undefined;
 }
 
+function asMapCoord(v: unknown): number | undefined {
+    if (typeof v !== 'number' || !Number.isFinite(v)) { return undefined; }
+    return Math.max(0, Math.min(1000, Math.round(v)));
+}
+
 function asStringArray(v: unknown): string[] {
     return Array.isArray(v) ? v.filter((x) => typeof x === 'string').map((x) => (x as string).trim()) : [];
 }
@@ -109,8 +118,25 @@ const MAX_PARSE_NPCS = 100;
 const MAX_PARSE_LORE = 50;
 
 const VALID_REGION_TYPES = new Set<RegionType>(['wilderness', 'urban', 'dungeon', 'ruins', 'ocean', 'mountains', 'forest', 'other']);
+const VALID_REGION_BIOMES = new Set<RegionBiome>([
+    'forest', 'desert', 'mountain', 'sea', 'coast', 'city', 'plains', 'swamp',
+    'wasteland', 'ruins', 'dungeon', 'underground', 'snow', 'volcanic', 'other',
+]);
 const VALID_LOCATION_TYPES = new Set<LocationType>(['settlement', 'dungeon', 'landmark', 'ruins', 'wilderness', 'other']);
 const VALID_FACTION_TYPES = new Set<FactionType>(['hostile', 'neutral', 'friendly', 'player-faction']);
+
+export function inferRegionBiomeFromType(type: RegionType): RegionBiome {
+    switch (type) {
+        case 'forest': return 'forest';
+        case 'mountains': return 'mountain';
+        case 'ocean': return 'sea';
+        case 'urban': return 'city';
+        case 'ruins': return 'ruins';
+        case 'dungeon': return 'dungeon';
+        case 'wilderness': return 'plains';
+        default: return 'other';
+    }
+}
 
 function parseRegion(raw: unknown): Region | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
@@ -132,6 +158,15 @@ function parseRegion(raw: unknown): Region | undefined {
     if (r.connectedTo) { region.connectedTo = asStringArray(r.connectedTo); }
     if (r.resourceNodes) { region.resourceNodes = asStringArray(r.resourceNodes); }
     if (r.imagePromptHint) { region.imagePromptHint = asString(r.imagePromptHint); }
+    const x = asMapCoord(r.x);
+    const y = asMapCoord(r.y);
+    if (x !== undefined) { region.x = x; }
+    if (y !== undefined) { region.y = y; }
+    if (r.biome !== undefined) {
+        region.biome = VALID_REGION_BIOMES.has(r.biome as RegionBiome)
+            ? (r.biome as RegionBiome)
+            : inferRegionBiomeFromType(region.type);
+    }
     return region;
 }
 

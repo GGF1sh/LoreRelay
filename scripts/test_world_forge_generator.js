@@ -16,6 +16,11 @@ function ok(msg) {
     console.log(`OK: ${msg}`);
 }
 
+const VALID_BIOMES = new Set([
+    'forest', 'desert', 'mountain', 'sea', 'coast', 'city', 'plains', 'swamp',
+    'wasteland', 'ruins', 'dungeon', 'underground', 'snow', 'volcanic', 'other',
+]);
+
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
@@ -192,6 +197,50 @@ function generate(overrides = {}) {
         }
     }
     ok('all regions have at least 1 connection');
+}
+
+// ---------------------------------------------------------------------------
+// Region cartography — every generated region has safe coordinates and biome
+// ---------------------------------------------------------------------------
+
+{
+    const { forge } = generate({ regionCount: 8 });
+    for (const region of forge.geography.regions) {
+        if (!Number.isInteger(region.x) || region.x < 0 || region.x > 1000) {
+            fail(`region ${region.id} x should be integer 0..1000, got ${region.x}`);
+        }
+        if (!Number.isInteger(region.y) || region.y < 0 || region.y > 1000) {
+            fail(`region ${region.id} y should be integer 0..1000, got ${region.y}`);
+        }
+        if (!VALID_BIOMES.has(region.biome)) {
+            fail(`region ${region.id} biome should be valid, got ${region.biome}`);
+        }
+    }
+    ok('all generated regions have valid x/y/biome');
+}
+
+{
+    const { forge } = generate({ regionCount: 8 });
+    const byId = new Map(forge.geography.regions.map((r) => [r.id, r]));
+    let checked = 0;
+    for (const region of forge.geography.regions) {
+        for (const neighborId of region.connectedTo ?? []) {
+            const neighbor = byId.get(neighborId);
+            if (!neighbor) { continue; }
+            const dx = region.x - neighbor.x;
+            const dy = region.y - neighbor.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > 760) {
+                fail(`connected regions should not be across the whole map: ${region.id} -> ${neighborId} = ${distance.toFixed(1)}`);
+            }
+            checked++;
+        }
+    }
+    if (checked === 0) {
+        fail('cartography distance test should check at least one edge');
+    } else {
+        ok('connected region coordinates are reasonably local');
+    }
 }
 
 // ---------------------------------------------------------------------------

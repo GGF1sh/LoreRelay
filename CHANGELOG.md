@@ -7,6 +7,17 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.6.3] - 2026-06-28
+
+### Added — Cartography data foundation
+
+- **Region cartography fields**: `world_forge.json` の `Region` に optional `x`, `y`, `biome` を追加。座標は `0..1000` の相対マップ座標。
+- **Biome typing**: `RegionBiome` union を追加し、`forest` / `sea` / `city` / `underground` などの地形分類を型定義。
+- **Parser hardening**: `parseWorldForge` が `x/y` を整数へ丸めて `0..1000` にクランプ。非数値座標は無視。未知 `biome` は `Region.type` 由来の安全な値にフォールバック。
+- **Generator support**: `generateWorldForge` が新規生成Regionへ deterministic な `x/y/biome` を付与。接続グラフに合う円配置ベースで、隣接Regionが極端に離れない初期配置にした。
+- **Docs**: `docs/CARTOGRAPHY_DESIGN.md` を追加し、LLM向け `world_forge.json` Cartography生成プロンプトを記録。
+- **Tests**: `test_world_forge.js` / `test_world_forge_generator.js` に座標・biome・接続距離の回帰テストを追加。
+
 ## [1.6.2] - 2026-06-28
 
 ### Security — Remote Play signed media URLs

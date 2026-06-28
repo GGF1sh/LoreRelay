@@ -11,7 +11,7 @@
 这是一个最大化利用您现有 AI 订阅的 VSCode 扩展，它结合了像 SillyTavern 一样的后端自由度，以及像 Saga & Seeker 一样硬核的 CRPG 体验。
 通过手动复制粘贴（或通过本地代理自动执行）传递 JSON，它提供了一个完全开放且可改造的“Hacker Edition” UI 层，让您可以自由地在自己的环境中进行 Hack。
 
-> 💡 **Notice:** 如果您喜欢这个扩展，请考虑请我喝杯咖啡！☕ (https://ko-fi.com/promptpalette)
+> 💡 **Notice:** 如果您喜欢这个扩展，请考虑[请我喝杯咖啡 ☕](https://ko-fi.com/promptpalette)
 
 ---
 
@@ -21,15 +21,18 @@
 - 🧩 **Agent Bridge:** 如果使用 Grok Build 等可在本地执行的 AI，您可以直接将 Webview 的选项和自由输入发送给 GM。
 - 🎨 **Glassmorphism UI:** 包含半透明聊天 UI、世界观主题切换和图像画廊的丰富显示界面。
 - ⚔️ **CRPG Character Sheet:** 受 Saga & Seeker 等启发的视觉状态面板，可管理 HP/MP 进度条、技能和物品栏。
-- 🖼️ **Local Image Generation:** 与 ComfyUI 配合，在本地即时生成并显示 AI 描绘的场景画面。
+- 🖼️ **Local Image Generation & World Integration (v1.3+):** 与 ComfyUI 配合，在本地即时生成 AI 描绘的场景画面；并与 World System 联动，支持地点移动时的自动背景生成。
 - 🎵 **Adaptive BGM & SFX:** 根据 GM 的指示，自动控制并交叉淡入淡出在 `bgm.json` / `sfx.json` 中注册的音源。
 - 📦 **Scenario Packs:** 只需加载包含 `scenario.json` 的文件夹，即可一次性应用初始场景、主题和专用 BGM/音效。
 - 🎲 **Built-in Dice Roller & Calculator:** 内置 TRPG 判定必不可少的掷骰子（NdX）和数学计算器。
 - 💾 **Persistent Adventure Log:** 将冒险日志保存到 `game_history.json`，即使重启 VSCode 也能恢复历史记录。
-- 🔍 **Turn Inspector:** 每回合骰子台账、状态补丁、触发 lore 可视化。
+- 🔍 **Turn Inspector (v0.5+):** 每回合骰子台账、状态补丁、触发 lore 可视化。
 - 📖 **Lorebook & Memory UI:** ST 兼容 lorebook 编辑、记忆搜索预览、置顶 lore 注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` 与 `game_state` 运行时联动。
-- 📱 **Remote Play:** LAN 加入 QR、玩家 / 观战角色。
+- 📱 **Remote Play (v0.7):** LAN 加入 QR、玩家 / 观战角色。
+- 🌍 **Living World System (v1.3+):** 基于 `world_forge.json` 的动态地区、派系与 NPC 自动生成（World Forge），World 标签页配备 Mermaid.js 动态网络图。
+- ⚙️ **Emergent Simulation:** 内置自律模拟器，随每回合推进自动计算资源消耗、势力平衡、NPC 好感度与恐惧等。
+- 🛡️ **Robust State Management:** 上限钳制、非法 ID 清理、安全状态迁移等机制，防止庞大数据导致 UI 崩溃。
 
 ---
 
@@ -145,7 +148,7 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-v1.0 核心功能（Inspector、Lorebook/Memory、Director、Party Director、Remote Play）已发布。后续可能加强 Workshop 分发与 VLM 集成。
+v1.3 主要功能（World System、NPC Registry、Emergent Simulation、VLM 集成准备等）已实现。后续将考虑 VLM 完全集成带来的自主情景识别，以及 NPC 内部进一步联动等。
 
 ---
 

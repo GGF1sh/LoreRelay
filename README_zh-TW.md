@@ -11,7 +11,7 @@
 這是一個最大化利用您現有 AI 訂閱的 VSCode 擴充套件，它結合了像 SillyTavern 一樣的後端自由度，以及像 Saga & Seeker 一樣硬核的 CRPG 體驗。
 透過手動複製貼上（或透過本地代理自動執行）傳遞 JSON，它提供了一個完全開放且可改造的「Hacker Edition」 UI 層，讓您可以自由地在自己的環境中進行 Hack。
 
-> 💡 **Notice:** 如果您喜歡這個擴充套件，請考慮請我喝杯咖啡！☕ (https://ko-fi.com/promptpalette)
+> 💡 **Notice:** 如果您喜歡這個擴充套件，請考慮[請我喝杯咖啡 ☕](https://ko-fi.com/promptpalette)
 
 ---
 
@@ -21,15 +21,18 @@
 - 🧩 **Agent Bridge:** 如果使用 Grok Build 等可在本機執行的 AI，您可以直接將 Webview 的選項和自由輸入發送給 GM。
 - 🎨 **Glassmorphism UI:** 包含半透明聊天 UI、世界觀主題切換和圖像畫廊的豐富顯示介面。
 - ⚔️ **CRPG Character Sheet:** 受 Saga & Seeker 等啟發的視覺狀態面板，可管理 HP/MP 進度條、技能和物品欄。
-- 🖼️ **Local Image Generation:** 與 ComfyUI 配合，在本機即時生成並顯示 AI 描繪的場景畫面。
+- 🖼️ **Local Image Generation & World Integration (v1.3+):** 與 ComfyUI 配合，在本機即時生成 AI 描繪的場景畫面；並與 World System 聯動，支援地點移動時的自動背景生成。
 - 🎵 **Adaptive BGM & SFX:** 根據 GM 的指示，自動控制並交叉淡入淡出在 `bgm.json` / `sfx.json` 中註冊的音源。
 - 📦 **Scenario Packs:** 只需載入包含 `scenario.json` 的資料夾，即可一次性套用初始場景、主題和專用的 BGM/音效。
 - 🎲 **Built-in Dice Roller & Calculator:** 內建 TRPG 判定必不可少的擲骰子（NdX）和數學計算器。
 - 💾 **Persistent Adventure Log:** 將冒險日誌儲存到 `game_history.json`，即使重啟 VSCode 也能恢復歷史紀錄。
-- 🔍 **Turn Inspector:** 每回合骰子台帳、狀態修補、觸發 lore 可視化。
+- 🔍 **Turn Inspector (v0.5+):** 每回合骰子台帳、狀態修補、觸發 lore 可視化。
 - 📖 **Lorebook & Memory UI:** ST 相容 lorebook 編輯、記憶搜尋預覽、釘選 lore 注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` 與 `game_state` 執行時聯動。
-- 📱 **Remote Play:** LAN 加入 QR、玩家 / 觀戰角色。
+- 📱 **Remote Play (v0.7):** LAN 加入 QR、玩家 / 觀戰角色。
+- 🌍 **Living World System (v1.3+):** 基於 `world_forge.json` 的動態地區、派系與 NPC 自動生成（World Forge），World 分頁配備 Mermaid.js 動態網路圖。
+- ⚙️ **Emergent Simulation:** 內建自律模擬器，隨每回合推進自動計算資源消耗、勢力平衡、NPC 好感度與恐懼等。
+- 🛡️ **Robust State Management:** 上限鉗制、非法 ID 清理、安全狀態遷移等機制，防止龐大資料導致 UI 崩潰。
 
 ---
 
@@ -145,7 +148,7 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-v1.0 核心功能（Inspector、Lorebook/Memory、Director、Party Director、Remote Play）已發布。後續可能加強 Workshop 分發與 VLM 整合。
+v1.3 主要功能（World System、NPC Registry、Emergent Simulation、VLM 整合準備等）已實作。後續將考慮 VLM 完全整合帶來的自律情景識別，以及 NPC 內部進一步聯動等。
 
 ---
 

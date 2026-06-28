@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.5.3",
+  "version": "1.6.1",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -470,7 +470,7 @@
     "build:webview": "node scripts/build-webview.js",
     "compile": "npm run build:webview && tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_play_server.js && node scripts/test_webview_bundle.js && node scripts/test_world_forge.js && node scripts/test_world_state.js && node scripts/test_emergent_simulator.js && node scripts/test_npc_registry.js && node scripts/test_world_map_generator.js && node scripts/test_world_forge_generator.js && node scripts/test_location_image_builder.js && node scripts/test_world_event_log.js && node scripts/test_npc_bridge.js && node scripts/test_visual_memory.js && node scripts/test_vlm_queue_core.js"
+    "test": "node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_play_server.js && node scripts/test_ws_functionality.js && node scripts/test_validate_game_state.js && node scripts/test_dice_roller.js && node scripts/test_gm_prompt_builder_core.js && node scripts/test_webview_handlers_core.js && node scripts/test_webview_bundle.js && node scripts/test_world_forge.js && node scripts/test_world_state.js && node scripts/test_emergent_simulator.js && node scripts/test_npc_registry.js && node scripts/test_world_map_generator.js && node scripts/test_world_forge_generator.js && node scripts/test_location_image_builder.js && node scripts/test_world_event_log.js && node scripts/test_npc_bridge.js && node scripts/test_visual_memory.js && node scripts/test_vlm_queue_core.js && node scripts/test_tavern_card_importer.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

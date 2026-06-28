@@ -1,0 +1,58 @@
+{
+  "format": "text-adventure-scenario/1.0",
+  "meta": {
+    "title": "港町の霧 — 灯台の手紙",
+    "author": "LoreRelay (sample)",
+    "version": "1.0.0",
+    "description": "霧に包まれた港町で、灯台守から届いた謎の手紙を手がかりに小さな秘密を解き明かす、穏やかなミステリー。",
+    "tags": ["modern", "mystery", "cozy", "solo", "starter"]
+  },
+  "setup": {
+    "world": "現代の小さな港町グレイハーバー。漁と観光が主で、朝霧と夕暮れの鐘が日常を刻む。",
+    "protagonist": "休暇中の編集者兼ライター。ノート、カメラ、雨合羽、地元の友人からの紹介状。灯台守オールド・マローから「灯台に来てほしい」と手紙が届いた。",
+    "tone": "穏やかで観察重視。急がず、人の話を聞くほど真実に近づく。",
+    "imageMode": "natural",
+    "theme": "modern",
+    "rules": "判定は1d20を基本とし、社交・観察・知識で補正。戦闘はほぼ発生しない。HPは最大16（事故時のみ）。",
+    "gameOver": {
+      "mode": "relaxed",
+      "onHpZero": false,
+      "allowImpossibleActions": true
+    }
+  },
+  "director": {
+    "act": "序章",
+    "chapter": "霧の朝",
+    "scene": "グレイハーバー・港の遊歩道",
+    "objective": "灯台守マローの手紙の真意を突き止め、港町に広がる小さな嘘を明らかにする。",
+    "successConditions": [
+      "灯台でマローと対話し、手紙の謎を解く",
+      "港町の人々の信頼を失わない"
+    ],
+    "failConditions": [
+      "主要NPCとの関係が決定的に悪化する",
+      "プレイヤーが調査を放棄する"
+    ],
+    "guidanceMode": "sandbox",
+    "endingFlags": ["truth_shared", "secret_kept", "left_town_early"],
+    "optionalEncounters": [
+      "朝市の噂話",
+      "廃倉庫の古い航海図"
+    ]
+  },
+  "opening": {
+    "bgm": "town",
+    "status": {
+      "location": "グレイハーバー / 港の遊歩道",
+      "time": "朝 6:40 / 濃い霧",
+      "condition": "良好（HP 16/16）",
+      "funds": "現金 8,500円 / 手紙 1通"
+    },
+    "options": [
+      "手紙に書かれた灯台へ向かう（霧の中を歩く）",
+      "港のカフェで地元の人にマローについて聞く",
+      "遊歩道の桟橋で霧の向こうを眺める"
+    ],
+    "narrative": "霧が港全体を白い毛布のように包んでいる。波の音だけが規則正しく響き、遠くの灯台がうっすらと赤い光を漏らす。\n\nポケットの手紙はインクの匂いがする。マローの字はいつもより震えていた——「来てくれ。誰にも言うな。灯台の第三段で待つ」。\n\n遊歩道には早朝の漁師が二人、小声で話している。霧の向こう、何かが動いたように見えた。あなたはまだ、それが人影なのか、ただの霧なのか、確かめていない。"
+  }
+}

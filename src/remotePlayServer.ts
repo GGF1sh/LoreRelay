@@ -404,7 +404,8 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
 function serveStatic(extensionPath: string, relPath: string, res: http.ServerResponse): boolean {
     const safe = path.normalize(relPath).replace(/^(\.\.[/\\])+/, '');
     const filePath = path.join(extensionPath, 'remote-player', safe);
-    if (!filePath.startsWith(path.join(extensionPath, 'remote-player'))) {
+    // Use path.sep suffix to prevent prefix confusion (e.g. remote-player-evil/ passing the check).
+    if (!filePath.startsWith(path.join(extensionPath, 'remote-player') + path.sep)) {
         return false;
     }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
@@ -432,7 +433,9 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
         res.end('Missing file');
         return;
     }
-    const normalized = path.normalize(decodeURIComponent(file));
+    // searchParams.get() already URL-decodes; calling decodeURIComponent again would
+    // enable double-encoded traversal sequences (%252F → %2F → /). Normalize directly.
+    const normalized = path.normalize(file);
     const realPath = resolveAllowedImagePath(normalized);
     if (!realPath) {
         res.writeHead(403);

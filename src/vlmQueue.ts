@@ -84,7 +84,7 @@ export async function enqueueVlmAnalysis(
     }
 
     // Async path: queue analysis (replace any pending job — latest wins)
-    pendingPath = imagePath;
+    pendingPath = resolvedEnqueue;
     pendingMeta = meta;
     if (!analysisInFlight) {
         drainQueue();

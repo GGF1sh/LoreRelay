@@ -43,6 +43,10 @@ import type { RelationshipType } from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
+import {
+    buildHintTextFromContents,
+    buildWorldChangeSummaryFromChanges
+} from './gmPromptBuilderCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
 import { buildVisualContextSnippet } from './visualMemoryCore';
@@ -596,9 +600,8 @@ function buildHintText(playerAction: string): string {
     const recent = getGameEntryHistory()
         .filter((e) => !e.excludedFromPrompt)
         .slice(-3)
-        .map((e) => e.content)
-        .join('\n');
-    return `${recent}\n${playerAction}`;
+        .map((e) => e.content);
+    return buildHintTextFromContents(recent, playerAction);
 }
 
 /**
@@ -610,24 +613,7 @@ function buildWorldChangeSummaryContext(): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
     if (!worldState?.recentChanges?.length) { return ''; }
-
-    const pruned = pruneExpiredEvents(worldState.recentChanges, worldState.worldTurn);
-    if (pruned.length === 0) { return ''; }
-
-    // 直近の worldTurn のイベントのみ対象（1 シムステップ分）
-    const latestTurn = Math.max(...pruned.map((e) => e.worldTurn));
-    const stepEvents = pruned.filter(
-        (e) => e.worldTurn === latestTurn && e.severity !== 'info'
-    );
-    if (stepEvents.length === 0) { return ''; }
-
-    const lines = [`[Since Last Visit — World Turn ${latestTurn}]`];
-    for (const ev of stepEvents.slice(0, 4)) {
-        const prefix = ev.severity === 'critical' ? '🔴' : '🟡';
-        lines.push(`${prefix} ${ev.message}`);
-    }
-    lines.push('Reflect these developments naturally in the next narrative beat.');
-    return lines.join('\n');
+    return buildWorldChangeSummaryFromChanges(worldState.recentChanges, worldState.worldTurn);
 }
 
 function resolveMemoryMatches(ws: string, hint: string): MemoryChunk[] {

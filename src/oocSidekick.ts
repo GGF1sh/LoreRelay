@@ -45,9 +45,11 @@ Do NOT narrate the story or act as the GM. Output only your commentary.`;
     const response = await generateText(sys, user, { temperature: 0.9, maxTokens: 80 });
     
     if (response) {
+        const text = response.trim().slice(0, 500);
+        if (!text) { return; }
         panel.webview.postMessage({
             type: 'oocMessage',
-            text: response.trim()
+            text
         });
     }
 }

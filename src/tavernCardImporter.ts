@@ -4,116 +4,22 @@ import * as path from 'path';
 import { getCharactersDir, saveCharacter } from './characterManager';
 import { resolvePortraitPath } from './characterId';
 import type { CharacterProfile, CharacterBook, CharacterBookEntry } from './types/Character';
-import { getWorkspacePath } from './workspacePaths';
+import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { t } from './i18n';
+import {
+    extractJsonFromPng as _extractJsonFromPng,
+    normalizeCharacterBook,
+} from './tavernCardImporterCore';
+
+// Re-export for tests and extension commands
+export { extractJsonFromPng } from './tavernCardImporterCore';
 
 const MAX_TAVERN_CARD_BYTES = 16 * 1024 * 1024;
 
 /**
- * Extracts Base64 embedded JSON from a Tavern PNG card.
- * Supports tEXt (V1/V2) and iTEXt (some newer tools) chunks.
- * Keywords: 'chara' (V1/V2) or 'ccv3' (V3).
- */
-export function extractJsonFromPng(buffer: Buffer): string | null {
-    if (buffer.length < 8) {
-        return null;
-    }
-    const signature = buffer.subarray(0, 8).toString('hex');
-    if (signature !== '89504e470d0a1a0a') {
-        return null;
-    }
-
-    let offset = 8;
-    while (offset < buffer.length) {
-        if (offset + 8 > buffer.length) {
-            break;
-        }
-        const length = buffer.readUInt32BE(offset);
-        const type = buffer.toString('ascii', offset + 4, offset + 8);
-        const chunkEnd = offset + 8 + length;
-        const nextOffset = chunkEnd + 4;
-        if (chunkEnd > buffer.length || nextOffset > buffer.length) {
-            break;
-        }
-
-        if (type === 'tEXt') {
-            const data = buffer.subarray(offset + 8, chunkEnd);
-            const nullIdx = data.indexOf(0);
-            if (nullIdx !== -1) {
-                const keyword = data.toString('latin1', 0, nullIdx);
-                if (keyword === 'chara' || keyword === 'ccv3') {
-                    try {
-                        const text = data.toString('latin1', nullIdx + 1);
-                        return Buffer.from(text, 'base64').toString('utf8');
-                    } catch {
-                        // try next chunk
-                    }
-                }
-            }
-        } else if (type === 'iTEXt') {
-            // iTEXt layout: keyword \0 compressionFlag(1) compressionMethod(1) languageTag \0 translatedKeyword \0 text
-            const data = buffer.subarray(offset + 8, chunkEnd);
-            const nullIdx = data.indexOf(0);
-            if (nullIdx !== -1) {
-                const keyword = data.toString('utf8', 0, nullIdx);
-                if (keyword === 'chara' || keyword === 'ccv3') {
-                    try {
-                        let textStart = nullIdx + 3; // skip \0 + compressionFlag + compressionMethod
-                        const lang0 = data.indexOf(0, textStart);
-                        if (lang0 === -1) { break; }
-                        textStart = lang0 + 1;
-                        const tk0 = data.indexOf(0, textStart);
-                        if (tk0 === -1) { break; }
-                        textStart = tk0 + 1;
-                        const text = data.toString('utf8', textStart);
-                        const decoded = Buffer.from(text, 'base64').toString('utf8');
-                        if (decoded.trimStart().startsWith('{')) {
-                            return decoded;
-                        }
-                    } catch {
-                        // try next chunk
-                    }
-                }
-            }
-        }
-
-        offset = nextOffset; // length(4) + type(4) + data(length) + CRC(4)
-    }
-    return null;
-}
-
-/**
- * Normalize character_book entries from ST V2 format to a flat LorebookEntry array.
- * ST stores entries as either an array or an object keyed by numeric string.
- */
-function normalizeCharacterBook(book: CharacterBook): CharacterBookEntry[] {
-    const raw = Array.isArray(book.entries)
-        ? book.entries
-        : Object.values(book.entries);
-
-    return (raw as unknown[])
-        .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
-        .map((e, idx): CharacterBookEntry => ({
-            id: typeof e.id === 'number' || typeof e.id === 'string' ? e.id : idx,
-            keys: Array.isArray(e.keys) ? (e.keys as unknown[]).filter((k): k is string => typeof k === 'string') : [],
-            secondary_keys: Array.isArray(e.secondary_keys)
-                ? (e.secondary_keys as unknown[]).filter((k): k is string => typeof k === 'string')
-                : [],
-            content: typeof e.content === 'string' ? e.content : '',
-            enabled: e.enabled !== false,
-            insertion_order: typeof e.insertion_order === 'number' ? e.insertion_order : 100,
-            ...(typeof e.priority === 'number' ? { priority: e.priority } : {}),
-            ...(typeof e.comment === 'string' && e.comment ? { comment: e.comment } : {}),
-            ...(e.use_regex === true ? { use_regex: true } : {}),
-            ...(e.extensions && typeof e.extensions === 'object'
-                ? { extensions: e.extensions as Record<string, unknown> }
-                : {}),
-        }));
-}
-
-/**
  * Save character_book entries as lorebook.imported.json.
  * If that file already exists, use lorebook.imported_<charName>.json instead.
+ * Saves in {format, source, entries} wrapper so readLorebookFile can load it correctly.
  */
 function saveCharacterBookAsLorebook(entries: CharacterBookEntry[], charName: string): boolean {
     const ws = getWorkspacePath();
@@ -125,7 +31,11 @@ function saveCharacterBookAsLorebook(entries: CharacterBookEntry[], charName: st
     const targetPath = fs.existsSync(primary) ? fallback : primary;
 
     try {
-        fs.writeFileSync(targetPath, JSON.stringify(entries, null, 2), 'utf-8');
+        writeJsonAtomic(targetPath, {
+            format: 'text-adventure-lorebook/1.0',
+            source: 'st-character-book',
+            entries,
+        });
         return true;
     } catch (e) {
         console.error('[TavernCard] Failed to save character_book as lorebook:', e);
@@ -162,7 +72,7 @@ export async function importTavernCard(): Promise<void> {
     if (ext === '.png') {
         try {
             const buffer = fs.readFileSync(filePath);
-            const extracted = extractJsonFromPng(buffer);
+            const extracted = _extractJsonFromPng(buffer);
             if (!extracted) {
                 void vscode.window.showErrorMessage(
                     t('extension.st.noChunkFound') || 'No Tavern character data (tEXt/iTEXt chunk) found in this PNG.'

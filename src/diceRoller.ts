@@ -6,13 +6,21 @@ export interface ProcessedDiceResult {
     ledger: DiceLedgerEntry[];
 }
 
+export const MAX_DICE_MACROS_PER_TEXT = 20;
+export const MAX_DICE_REASON_LEN = 200;
+export const MAX_DICE_DC = 10_000;
+
 export function processDiceMacros(text: string): ProcessedDiceResult {
     // Matches {{roll 1d20+2 reason="罠発見" dc=15}} etc.
     const rollRegex = /\{\{\s*roll\s+([^}]+)\s*\}\}/g;
     
     const ledger: DiceLedgerEntry[] = [];
+    let macroCount = 0;
     
     const newText = text.replace(rollRegex, (match, content) => {
+        if (macroCount >= MAX_DICE_MACROS_PER_TEXT) {
+            return match;
+        }
         try {
             // Extract attributes like reason="abc" or dc=15
             let formulaStr = content;
@@ -21,13 +29,16 @@ export function processDiceMacros(text: string): ProcessedDiceResult {
 
             const reasonMatch = content.match(/reason=["']([^"']+)["']/i);
             if (reasonMatch) {
-                reason = reasonMatch[1];
+                reason = reasonMatch[1].slice(0, MAX_DICE_REASON_LEN);
                 formulaStr = formulaStr.replace(reasonMatch[0], '');
             }
             
             const dcMatch = content.match(/dc=(\d+)/i);
             if (dcMatch) {
-                dc = parseInt(dcMatch[1], 10);
+                const parsedDc = parseInt(dcMatch[1], 10);
+                if (!Number.isNaN(parsedDc)) {
+                    dc = Math.min(Math.max(parsedDc, 1), MAX_DICE_DC);
+                }
                 formulaStr = formulaStr.replace(dcMatch[0], '');
             }
 
@@ -48,6 +59,7 @@ export function processDiceMacros(text: string): ProcessedDiceResult {
                 dc,
                 success
             });
+            macroCount++;
 
             let display = `[System Roll: ${formulaStr} ➔ ${result.total}]`;
             if (success !== undefined) {

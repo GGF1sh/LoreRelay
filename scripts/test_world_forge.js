@@ -243,6 +243,82 @@ if (!forgeWithLore) {
 }
 
 // ---------------------------------------------------------------------------
+// P1 regression: dangerLevel clamp (0–10)
+// ---------------------------------------------------------------------------
+
+{
+    const forgeClamp = parseWorldForge({
+        meta: { worldName: 'World' },
+        geography: {
+            regions: [
+                { id: 'r_hi', name: 'Too Hot', type: 'dungeon', dangerLevel: 999 },
+                { id: 'r_lo', name: 'Too Low', type: 'wilderness', dangerLevel: -5 },
+                { id: 'r_ok', name: 'Normal', type: 'forest', dangerLevel: 7 },
+            ]
+        }
+    });
+    if (!forgeClamp) {
+        fail('P1 dangerLevel clamp: forge should parse');
+    } else {
+        const hi = forgeClamp.geography.regions.find(r => r.id === 'r_hi');
+        const lo = forgeClamp.geography.regions.find(r => r.id === 'r_lo');
+        const ok_ = forgeClamp.geography.regions.find(r => r.id === 'r_ok');
+        if (!hi || hi.dangerLevel !== 10) {
+            fail(`P1 dangerLevel > 10 clamped to 10 (got ${hi?.dangerLevel})`);
+        } else {
+            ok('P1 dangerLevel > 10 clamped to 10');
+        }
+        if (!lo || lo.dangerLevel !== 0) {
+            fail(`P1 dangerLevel < 0 clamped to 0 (got ${lo?.dangerLevel})`);
+        } else {
+            ok('P1 dangerLevel < 0 clamped to 0');
+        }
+        if (!ok_ || ok_.dangerLevel !== 7) {
+            fail(`P1 dangerLevel in-range preserved (got ${ok_?.dangerLevel})`);
+        } else {
+            ok('P1 dangerLevel in-range preserved');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// P1 regression: faction power clamp (0–100)
+// ---------------------------------------------------------------------------
+
+{
+    const forgePower = parseWorldForge({
+        meta: { worldName: 'World' },
+        factions: [
+            { id: 'f_hi', name: 'Overpowered', type: 'hostile', power: 9999 },
+            { id: 'f_lo', name: 'Negative', type: 'neutral', power: -100 },
+            { id: 'f_ok', name: 'Normal', type: 'friendly', power: 60 },
+        ]
+    });
+    if (!forgePower) {
+        fail('P1 faction power clamp: forge should parse');
+    } else {
+        const hi = forgePower.factions.find(f => f.id === 'f_hi');
+        const lo = forgePower.factions.find(f => f.id === 'f_lo');
+        const ok_ = forgePower.factions.find(f => f.id === 'f_ok');
+        if (!hi || hi.power !== 100) {
+            fail(`P1 faction power > 100 clamped to 100 (got ${hi?.power})`);
+        } else {
+            ok('P1 faction power > 100 clamped to 100');
+        }
+        if (!lo || lo.power !== 0) {
+            fail(`P1 faction power < 0 clamped to 0 (got ${lo?.power})`);
+        } else {
+            ok('P1 faction power < 0 clamped to 0');
+        }
+        if (!ok_ || ok_.power !== 60) {
+            fail(`P1 faction power in-range preserved (got ${ok_?.power})`);
+        } else {
+            ok('P1 faction power in-range preserved');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Result
 // ---------------------------------------------------------------------------
 

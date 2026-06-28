@@ -2,16 +2,22 @@ import * as vscode from 'vscode';
 import type { CharacterProfile } from './types/Character';
 import { isValidCharacterId } from './characterId';
 import { isValidEntryId } from './entryId';
+import { isValidCheckpointId } from './checkpoint';
+import { isValidEventId } from './worldEventLogCore';
 import { resolveAllowedImagePath } from './mediaPaths';
-import { branchFromTurn } from './gitManager';
 import { t } from './i18n';
-
-function clampWorldGenCount(value: unknown, min: number, max: number, fallback: number): number {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return fallback;
-    }
-    return Math.max(min, Math.min(max, Math.floor(value)));
-}
+import {
+    clampString,
+    clampWorldGenCount,
+    MAX_CHECKPOINT_LABEL_LEN,
+    MAX_EDIT_ENTRY_LEN,
+    MAX_IMAGE_PROMPT_LEN,
+    normalizeMemoryBackend,
+    normalizeMermaidTarget,
+    normalizeWorldForgeSeed,
+    normalizeWorldForgeTheme,
+    sanitizeEquipmentNotifyFields
+} from './webviewHandlersCore';
 
 /** Webview → Extension の postMessage ペイロード（緩い型）。 */
 export interface WebviewMessage {
@@ -92,13 +98,17 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 typeof message.authorsNote === 'string' ? message.authorsNote : undefined
             );
             break;
-        case 'generateImage':
-            await deps.runImageGeneration(
-                message.prompt as string,
-                message.mode as string,
-                typeof message.entryId === 'string' ? message.entryId : undefined
-            );
+        case 'generateImage': {
+            const prompt = clampString(message.prompt, MAX_IMAGE_PROMPT_LEN);
+            const mode = clampString(message.mode, 64) || 'illustrious';
+            const entryId = typeof message.entryId === 'string' && isValidEntryId(message.entryId)
+                ? message.entryId
+                : undefined;
+            if (prompt) {
+                await deps.runImageGeneration(prompt, mode, entryId);
+            }
             break;
+        }
         case 'setLocale':
             await deps.handleLocaleChange(message.locale);
             break;
@@ -126,9 +136,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'searchMemory':
             await deps.handleSearchMemory(message.hint);
             break;
-        case 'setMemoryBackend':
-            await deps.handleSetMemoryBackend(message.backend);
+        case 'setMemoryBackend': {
+            const backend = normalizeMemoryBackend(message.backend);
+            if (backend) {
+                await deps.handleSetMemoryBackend(backend);
+            }
             break;
+        }
         case 'rebuildMemoryIndex':
             await deps.handleRebuildMemoryIndex();
             break;
@@ -145,21 +159,21 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendWorldView();
             break;
         case 'generateWorldForge': {
-            const seed = typeof message.seed === 'string' ? message.seed.trim() : '';
-            const theme = typeof message.theme === 'string' ? message.theme.trim() : 'default';
+            const seed = normalizeWorldForgeSeed(message.seed);
+            const theme = normalizeWorldForgeTheme(message.theme);
             const regionCount = clampWorldGenCount(message.regionCount, 3, 12, 5);
             const factionCount = clampWorldGenCount(message.factionCount, 2, 6, 3);
             const npcCount = clampWorldGenCount(message.npcCount, 2, 20, 6);
-            if (seed) {
+            if (seed && isValidEventId(seed)) {
                 await deps.handleGenerateWorldForge(seed, theme, regionCount, factionCount, npcCount);
             } else {
-                vscode.window.showWarningMessage('World Forge: Seed is required.');
+                vscode.window.showWarningMessage('World Forge: Valid seed is required.');
             }
             break;
         }
         case 'generateLocationImage':
-            if (typeof message.locationId === 'string') {
-                await deps.handleGenerateLocationImage(message.locationId);
+            if (typeof message.locationId === 'string' && isValidEventId(message.locationId.trim())) {
+                await deps.handleGenerateLocationImage(message.locationId.trim());
             }
             break;
         case 'savePartyDirector':
@@ -178,11 +192,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendCharacterList();
             break;
         case 'notifyEquipment': {
-            const w = message.weapon ? `Weapon[${message.weapon}]` : '';
-            const a = message.armor ? `Armor[${message.armor}]` : '';
-            const acc = message.accessory ? `Accessory[${message.accessory}]` : '';
+            const eq = sanitizeEquipmentNotifyFields(message);
+            const w = eq.weapon ? `Weapon[${eq.weapon}]` : '';
+            const a = eq.armor ? `Armor[${eq.armor}]` : '';
+            const acc = eq.accessory ? `Accessory[${eq.accessory}]` : '';
             const eqStr = [w, a, acc].filter(Boolean).join(' ') || 'Nothing';
-            const text = `System: [Equipment changed] ${message.name} equipped: ${eqStr}`;
+            const text = `System: [Equipment changed] ${eq.name} equipped: ${eqStr}`;
             await deps.handlePlayerInput(text, undefined);
             break;
         }
@@ -255,15 +270,17 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         case 'saveCheckpoint':
-            await deps.handleSaveCheckpoint(typeof message.label === 'string' ? message.label : undefined);
+            await deps.handleSaveCheckpoint(
+                clampString(message.label, MAX_CHECKPOINT_LABEL_LEN) || undefined
+            );
             break;
         case 'restoreCheckpoint':
-            if (typeof message.checkpointId === 'string') {
+            if (typeof message.checkpointId === 'string' && isValidCheckpointId(message.checkpointId)) {
                 await deps.handleRestoreCheckpoint(message.checkpointId);
             }
             break;
         case 'deleteCheckpoint':
-            if (typeof message.checkpointId === 'string') {
+            if (typeof message.checkpointId === 'string' && isValidCheckpointId(message.checkpointId)) {
                 await deps.handleDeleteCheckpoint(message.checkpointId);
             }
             break;
@@ -279,7 +296,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'editEntry':
             if (typeof message.id === 'string' && isValidEntryId(message.id) &&
                 typeof message.content === 'string') {
-                await deps.handleEditEntry(message.id, message.content);
+                await deps.handleEditEntry(message.id, clampString(message.content, MAX_EDIT_ENTRY_LEN));
             }
             break;
         case 'toggleExcludeEntry':
@@ -319,21 +336,26 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             await deps.handleExportHtml();
             break;
         case 'requestMermaid':
-            await deps.handleRequestMermaid(typeof message.target === 'string' ? message.target : 'questFlow');
+            await deps.handleRequestMermaid(normalizeMermaidTarget(message.target));
             break;
-        case 'requestVlmAnalysis':
-            if (typeof message.imagePath === 'string' && message.imagePath &&
-                resolveAllowedImagePath(message.imagePath)) {
-                await deps.handleRequestVlmAnalysis(message.imagePath);
+        case 'requestVlmAnalysis': {
+            const resolved = typeof message.imagePath === 'string'
+                ? resolveAllowedImagePath(message.imagePath)
+                : undefined;
+            if (resolved) {
+                await deps.handleRequestVlmAnalysis(resolved);
             }
             break;
-        case 'setNpcPortrait':
-            if (isValidEntryId(message.npcId) &&
-                typeof message.imagePath === 'string' && message.imagePath &&
-                resolveAllowedImagePath(message.imagePath)) {
-                await deps.handleSetNpcPortrait(message.npcId as string, message.imagePath);
+        }
+        case 'setNpcPortrait': {
+            const resolvedPortrait = typeof message.imagePath === 'string'
+                ? resolveAllowedImagePath(message.imagePath)
+                : undefined;
+            if (isValidEntryId(message.npcId) && resolvedPortrait) {
+                await deps.handleSetNpcPortrait(message.npcId as string, resolvedPortrait);
             }
             break;
+        }
         case 'requestNpcPortraitLink':
             if (isValidEntryId(message.npcId)) {
                 await deps.handleRequestNpcPortraitLink(message.npcId as string);

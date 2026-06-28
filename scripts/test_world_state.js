@@ -201,6 +201,86 @@ if (!Array.isArray(initial.recentChanges) || initial.recentChanges.length !== 0)
 }
 
 // ---------------------------------------------------------------------------
+// P1 regression: parseFactionWorldState power/morale clamp (0–100)
+// ---------------------------------------------------------------------------
+
+{
+    const stateClamp = parseWorldState({
+        worldTurn: 1,
+        factions: {
+            f_hi: { power: 9999, morale: 200 },
+            f_lo: { power: -50, morale: -10 },
+            f_ok: { power: 70, morale: 80 },
+        }
+    });
+    if (!stateClamp) {
+        fail('P1 power/morale clamp: state should parse');
+    } else {
+        const hi = stateClamp.factions['f_hi'];
+        const lo = stateClamp.factions['f_lo'];
+        const ok_ = stateClamp.factions['f_ok'];
+        if (!hi || hi.power !== 100) {
+            fail(`P1 faction power > 100 clamped to 100 (got ${hi?.power})`);
+        } else {
+            ok('P1 faction power > 100 clamped to 100 on parse');
+        }
+        if (!hi || hi.morale !== 100) {
+            fail(`P1 faction morale > 100 clamped to 100 (got ${hi?.morale})`);
+        } else {
+            ok('P1 faction morale > 100 clamped to 100 on parse');
+        }
+        if (!lo || lo.power !== 0) {
+            fail(`P1 faction power < 0 clamped to 0 (got ${lo?.power})`);
+        } else {
+            ok('P1 faction power < 0 clamped to 0 on parse');
+        }
+        if (!lo || lo.morale !== 0) {
+            fail(`P1 faction morale < 0 clamped to 0 (got ${lo?.morale})`);
+        } else {
+            ok('P1 faction morale < 0 clamped to 0 on parse');
+        }
+        if (!ok_ || ok_.power !== 70) {
+            fail(`P1 faction power in-range preserved (got ${ok_?.power})`);
+        } else {
+            ok('P1 faction power in-range preserved on parse');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// P1 regression: parseGlobalEvent id must be a valid slug
+// ---------------------------------------------------------------------------
+
+{
+    const stateWithEvents = parseWorldState({
+        worldTurn: 2,
+        factions: {},
+        globalEvents: [
+            { id: 'valid-event-1', description: 'The tide turns', type: 'political', severity: 'major' },
+            { id: 'invalid id with spaces', description: 'Bad id', type: 'other', severity: 'minor' },
+            { id: '../../../evil', description: 'Injection attempt', type: 'other', severity: 'minor' },
+            { id: '', description: 'Empty id', type: 'other', severity: 'minor' },
+            { description: 'No id at all', type: 'other', severity: 'minor' },
+        ]
+    });
+    if (!stateWithEvents) {
+        fail('P1 globalEvent id validation: state should parse');
+    } else {
+        const evts = stateWithEvents.globalEvents ?? [];
+        if (evts.length !== 1) {
+            fail(`P1 only valid-slug globalEvent should survive (got ${evts.length})`);
+        } else {
+            ok('P1 globalEvent with invalid id/space/injection/empty dropped');
+        }
+        if (evts[0] && evts[0].id !== 'valid-event-1') {
+            fail(`P1 valid globalEvent id preserved (got ${evts[0]?.id})`);
+        } else {
+            ok('P1 valid globalEvent id preserved');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Result
 // ---------------------------------------------------------------------------
 

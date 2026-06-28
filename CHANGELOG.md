@@ -7,6 +7,101 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.6.0] - 2026-06-28
+
+### Fixed — Audit Wave T7 (Remote Play セキュリティ再監査)
+
+#### `remotePlayServer.ts` — セキュリティ補強
+
+- **`serveMedia` 二重デコード除去 (P1)**: `URLSearchParams.get('file')` は既に URL デコード済みなのに `decodeURIComponent()` を再適用していた。`%252F..` 等のダブルエンコードトラバーサル試行が `resolveAllowedImagePath` より手前で意図せず展開される可能性を排除。`path.normalize(file)` に変更。
+- **`serveStatic` `startsWith` にパスセパレータ追加 (P1)**: `remote-player` プレフィックスのみの比較では `remote-player-evil/` 等のディレクトリが理論上マッチし得た。`path.sep` サフィックスを追加してプレフィックス混同を防止。
+
+#### テスト追加 — 9 件
+
+| テスト | スクリプト |
+|--------|-----------|
+| `/media` パストラバーサル (`../../evil.png`) → 403 | `test_remote_play_server.js` |
+| `/media` ダブルエンコードトラバーサル (`%252F..`) → 403 | `test_remote_play_server.js` |
+| `disposeRemotePlayServer` 後の `running=false` | `test_remote_play_server.js` |
+| Spectator からの `freeInput` → `Spectator mode (read-only)` | `test_ws_functionality.js` |
+| 4001 文字超 WS メッセージ → close 1009 | `test_ws_functionality.js` |
+| Pre-auth 非 auth メッセージ → Unauthorized + close 1008 | `test_ws_functionality.js` |
+| token ローテーション後の旧 token WS 拒否 | `test_ws_functionality.js` |
+| token ローテーション後の新 token WS 受理 | `test_ws_functionality.js` |
+| `isGmBusy=true` → `GM is busy` / `isGameOverActive=true` → `Game over` / `text>2000` → `Invalid input` | `test_ws_functionality.js` |
+
+#### 確認済み回帰テスト（変更なし）
+
+- `maxClients` 超過 → code 1008 即切断 ✅
+- Pre-auth で state 漏れなし (`sendToClient force` は handshake のみ) ✅
+- `remoteInputLocked` が `finally` で確実に解除（GM エラー・kill 時も） ✅
+- `/media` token 必須・`resolveAllowedImagePath` で二重防御 ✅
+- `rotateRemotePlayToken` が全クライアントを切断して新 token を生成 ✅
+- `notifyRemoteGmBusy(false)` が `releaseRemoteInputLock()` を呼ぶ ✅
+- `disposeRemotePlayServer` → `stopRemotePlayServer` の完全な状態リセット ✅
+- `buildRemotePlayerState` が `hiddenDice.result` を含まない（型レベルで存在しない） ✅
+
+## [1.6.1] - 2026-06-28
+
+### Fixed — Audit Wave T8 (Extension Hub)
+
+- **handleGenerateWorldForge**: コマンドパレット経路でも seed/theme/カウントを `webviewHandlersCore` で正規化・クランプ。`isValidEventId` で seed 検証。
+- **handleGenerateLocationImage**: `isValidEventId` ガードを hub 側にも追加。
+- **deactivate / panel dispose**: `resetGmBridgeSessions()` を呼び出し、Grok/LLM `--continue` フラグの残留を防止。`panel` / watcher 参照をクリア。
+- **oocSidekick**: Webview へ送る commentary を 500 文字にクランプ。
+- **clampWorldGenCount**: `webviewHandlersCore` に移動し hub/webview で共有。
+- **.gitignore**: `sample-scenarios/**/scenario.json` を追跡対象に（`test_sample_scenarios.js` の CI 失敗を解消）。
+
+## [1.5.9] - 2026-06-28
+
+### Fixed — Audit Wave T5/T6 (Visual + Webview)
+
+#### T6 — Webview & postMessage
+- **webviewHandlersCore** (新規): World Forge seed/theme、Mermaid target、memory backend、equipment notify、文字列クランプの pure 検証。
+- **webviewHandlers**: `generateImage` prompt/entryId 検証、`generateWorldForge` seed を `isValidEventId` で検証、`generateLocationImage` に locationId 検証、checkpoint ID 検証、Mermaid/memory backend allowlist、`requestVlmAnalysis`/`setNpcPortrait` で resolved path を渡すよう修正。
+- **85-world.js**: クライアント側でも seed 形式・数値クランプを二重適用。
+
+#### T5 — Visual / VLM 回帰
+- **vlmQueue**: 非同期キューの `pendingPath` を unresolved ではなく `resolveAllowedImagePath` 済みパスに統一。
+- **テスト**: `scripts/test_webview_handlers_core.js` を追加。
+
+## [1.5.7] - 2026-06-28
+
+### Fixed — Audit Wave T4 (ST Import / Character / Lorebook)
+
+- **characterId**: `resolveCharacterJsonPath` がメタファイル予約 ID（`party`, `dynamic_profiles`, `party_director`, `active_character`）をブロックするよう修正 — 「party」という名前の Tavern カードが `party.json` を上書きする P0 バグを修正。
+- **tavernCardImporterCore** (新規): `extractJsonFromPng` と `normalizeCharacterBook` を pure モジュールに抽出（vscode 非依存、Node テスト可能）。
+- **tavernCardImporter**: `saveCharacterBookAsLorebook` を `fs.writeFileSync` から `writeJsonAtomic` に変更（非アトミック書き込み解消）。保存形式を `{format, source, entries}` ラッパーに変更し `readLorebookFile` との互換性を修正（P0 バグ: 以前は常に空ロードになっていた）。
+- **tavernCardImporter**: `normalizeCharacterBook` にエントリ数 200 件・content 4000 文字・key 200 文字・key 数 20 件の上限を追加（DoS 防止）。
+- **characterManager**: `loadCharacterById` に `isValidCharacterId` ガードを追加（パストラバーサル防止）。`getPartyIds` が `filterValidCharacterIds` でフィルタリングするよう修正。
+- **lorebookMatcher**: 正規表現パターン長が 200 文字を超えた場合に部分文字列マッチにフォールバック（ReDoS ガード）。
+- **テスト**: `scripts/test_tavern_card_importer.js` を新規作成（35 件）、`npm test` に統合。
+
+## [1.5.6] - 2026-06-28
+
+### Fixed — Audit Wave T3 (World + NPC + Living Feedback)
+
+- **worldForgeCore**: `parseRegion` で `dangerLevel` を 0–10 にクランプ。`parseFaction` で `power` を 0–100 にクランプ（手動編集 JSON からの範囲外値を阻止）。
+- **worldStateCore**: `parseFactionWorldState` で `power`/`morale` を 0–100 にクランプ。`parseGlobalEvent` で `id` を `isValidEventId` で検証（スペース・パス区切り等を含む不正 ID を破棄）。`WorldChangeEvent` との一貫性を確保。
+- **npcBridgeCore**: `upsertNeed` のデッドパラメータ `candidateId` を除去。呼び出し側で不要な `makeNeedId` 計算を排除。
+- **テスト**: `test_world_forge.js` に dangerLevel/power クランプの回帰テスト（6件）を追加。`test_world_state.js` に power/morale クランプ（5件）・GlobalEvent id バリデーション（2件）の回帰テストを追加。
+
+## [1.5.5] - 2026-06-28
+
+### Fixed — Audit Wave T2 (GM Bridge & Turn Pipeline)
+- **diceRoller**: マクロ数上限（20）、`reason` 長さクランプ、`dc` 範囲クランプ（1–10000）。
+- **gmPromptBuilderCore**: `buildHintTextFromContents`（6000文字上限）と `buildWorldChangeSummaryFromChanges` を pure モジュールに抽出。世界変化サマリは最新 sim ステップの non-info のみ注入。
+- **gmBridgeRunner**: GM 失敗・kill 時に `dice_ledger.json` をクリアし、次ターンへのロール持ち越しを防止。`killGmBridgeProcesses` で `remoteInputLocked` を確実に解除。
+- **テスト**: `test_dice_roller.js`、`test_gm_prompt_builder_core.js` を追加。
+
+## [1.5.4] - 2026-06-28
+
+### Fixed — Audit Wave T1/T7 (State & Remote)
+- **validateGameState 拡張**: `hiddenState` 型検証、`world.lastGeneratedImage` / `lastGeneratedLocationId` / `worldTurnAtLastSync` の検証強化、`npcMemoryUpdates[].npcId` を `isValidEntryId` で検証。
+- **npcMemoryUpdates パース**: 不正 `npcId` を `parseNpcMemoryUpdatesFromGameState` でスキップ（二重防御）。
+- **mergeGmEntryFromTurn**: `gmEntry.image` パスを 500 文字にクランプ。
+- **テスト**: `scripts/test_validate_game_state.js` を新規追加。`test_ws_functionality.js` を `npm test` に統合。
+
 ## [1.5.3] - 2026-06-28
 
 ### Fixed — Visual Memory Phase 5 follow-up review

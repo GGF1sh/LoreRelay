@@ -1,5 +1,8 @@
 /** Pure lorebook matching logic — no vscode dependency; importable in Node tests. */
 
+/** Max regex pattern length before falling back to substring (ReDoS guard). */
+const MAX_REGEX_PATTERN_LEN = 200;
+
 export interface LorebookEntry {
     id?: string;
     keys?: string[];
@@ -28,6 +31,9 @@ function matchKey(key: string, text: string, textLower: string, useRegex: boolea
         return false;
     }
     if (useRegex) {
+        if (k.length > MAX_REGEX_PATTERN_LEN) {
+            return textLower.includes(k.toLowerCase());
+        }
         try {
             const m = k.match(/^\/(.+)\/([gimsuy]*)$/s);
             const re = m ? new RegExp(m[1], m[2] || 'i') : new RegExp(k, 'i');

@@ -40,7 +40,6 @@ function makeNeedId(prefix: string, npcId: string, eventId: string): string {
 /** Find or update an existing need by relatedEventId; if absent, push a new one. */
 function upsertNeed(
     entry: NpcEntry,
-    candidateId: string,
     relatedEventId: string,
     buildNew: () => NpcNeed,
     updateExisting: (n: NpcNeed) => void
@@ -113,7 +112,6 @@ export function applyEventsToNpcRegistry(
 
                 upsertNeed(
                     entry,
-                    makeNeedId('need_food', npcId, factionId),
                     crisisKey,
                     () => ({
                         id: makeNeedId('need_food', npcId, factionId),
@@ -145,7 +143,6 @@ export function applyEventsToNpcRegistry(
 
                 upsertNeed(
                     entry,
-                    makeNeedId('need_safety', npcId, regionId),
                     safetyKey,
                     () => ({
                         id: makeNeedId('need_safety', npcId, regionId),

@@ -47,6 +47,12 @@ import {
     getCachedGameState,
 } from './gameStateSync';
 import { isValidEntryId } from './entryId';
+import { isValidEventId } from './worldEventLogCore';
+import {
+    clampWorldGenCount,
+    normalizeWorldForgeSeed,
+    normalizeWorldForgeTheme
+} from './webviewHandlersCore';
 import { resolveAllowedImagePath } from './mediaPaths';
 import {
     getWorkspacePath,
@@ -59,6 +65,7 @@ import {
     invokeGmBridge,
     fallbackToClipboard,
     killGmBridgeProcesses,
+    resetGmBridgeSessions,
     getGmBridgeOutputChannel,
     isGmBridgeBusy
 } from './gmBridgeRunner';
@@ -272,6 +279,7 @@ export function activate(context: vscode.ExtensionContext) {
                 sfxWatcher = undefined;
             }
             killGmBridgeProcesses();
+            resetGmBridgeSessions();
             killImageGenerationProcess();
             clearMediaAgentState();
             disposeRemotePlayServer();
@@ -305,17 +313,30 @@ export function activate(context: vscode.ExtensionContext) {
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
-            prompt: 'World seed (any string — determines the generated world)',
+            prompt: 'World seed (letters, digits, hyphens, underscores — determines the generated world)',
             placeHolder: 'e.g. lost-catacombs',
-            validateInput: (v) => v.trim() ? undefined : 'Seed cannot be empty'
+            validateInput: (v) => {
+                const normalized = normalizeWorldForgeSeed(v);
+                if (!normalized) { return 'Seed cannot be empty'; }
+                if (!isValidEventId(normalized)) { return 'Seed must use letters, digits, hyphens, or underscores only'; }
+                return undefined;
+            }
         });
         if (!seed) { return; }
+        const normalizedSeed = normalizeWorldForgeSeed(seed);
+        if (!isValidEventId(normalizedSeed)) { return; }
         const themeInput = await vscode.window.showQuickPick(
             ['dungeon-crawler', 'dark-fantasy', 'cyberpunk', 'default'],
             { placeHolder: 'Choose world theme' }
         );
         if (!themeInput) { return; }
-        await handleGenerateWorldForge(seed.trim(), themeInput, defaults.regionCount, defaults.factionCount, defaults.npcCount);
+        await handleGenerateWorldForge(
+            normalizedSeed,
+            normalizeWorldForgeTheme(themeInput),
+            defaults.regionCount,
+            defaults.factionCount,
+            defaults.npcCount
+        );
     });
 
     context.subscriptions.push(
@@ -721,6 +742,16 @@ async function handleGenerateWorldForge(
     factionCount: number,
     npcCount: number
 ): Promise<void> {
+    const safeSeed = normalizeWorldForgeSeed(seed);
+    const safeTheme = normalizeWorldForgeTheme(theme);
+    if (!safeSeed || !isValidEventId(safeSeed)) {
+        vscode.window.showWarningMessage('World Forge: Valid seed is required.');
+        return;
+    }
+    const safeRegionCount = clampWorldGenCount(regionCount, 3, 12, 5);
+    const safeFactionCount = clampWorldGenCount(factionCount, 2, 6, 3);
+    const safeNpcCount = clampWorldGenCount(npcCount, 2, 20, 6);
+
     const isOverwrite = worldForgeFileExists();
     if (isOverwrite) {
         const answer = await vscode.window.showWarningMessage(
@@ -735,7 +766,13 @@ async function handleGenerateWorldForge(
     panel?.webview.postMessage({ type: 'worldGenStart' });
 
     const result = await generateAndSaveWorldForge(
-        { worldSeed: seed, theme, regionCount, factionCount, npcCount },
+        {
+            worldSeed: safeSeed,
+            theme: safeTheme,
+            regionCount: safeRegionCount,
+            factionCount: safeFactionCount,
+            npcCount: safeNpcCount
+        },
         { createBackup: true }
     );
 
@@ -761,14 +798,14 @@ async function handleGenerateWorldForge(
     pushWorldViewToWebview();
 
     vscode.window.showInformationMessage(
-        `World "${forge?.meta.worldName ?? seed}" generated! (${forge?.geography.regions.length ?? 0} regions, ${forge?.factions.length ?? 0} factions, ${forge?.initialNpcs.length ?? 0} NPCs)`
+        `World "${forge?.meta.worldName ?? safeSeed}" generated! (${forge?.geography.regions.length ?? 0} regions, ${forge?.factions.length ?? 0} factions, ${forge?.initialNpcs.length ?? 0} NPCs)`
     );
 }
 
 async function handleGenerateLocationImage(locationId: string): Promise<void> {
     const trimmed = locationId.trim();
-    if (!trimmed) {
-        vscode.window.showWarningMessage('World Forge: location ID is required.');
+    if (!trimmed || !isValidEventId(trimmed)) {
+        vscode.window.showWarningMessage('World Forge: Valid location ID is required.');
         return;
     }
     const forge = loadWorldForge();
@@ -1067,14 +1104,18 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
 }
 
 export function deactivate() {
+    panel = undefined;
     disposeGameStateWatcher();
     if (bgmWatcher) {
         bgmWatcher.dispose();
+        bgmWatcher = undefined;
     }
     if (sfxWatcher) {
         sfxWatcher.dispose();
+        sfxWatcher = undefined;
     }
     killGmBridgeProcesses();
+    resetGmBridgeSessions();
     killImageGenerationProcess();
     clearMediaAgentState();
     disposeRemotePlayServer();

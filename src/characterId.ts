@@ -3,6 +3,11 @@ import * as path from 'path';
 /** Webview 由来のキャラ ID をファイル名に使う前の検証 */
 export const CHARACTER_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
+/** characters/ 配下のメタファイルと衝突するため予約された ID */
+const CHARACTER_META_IDS = new Set([
+    'party', 'dynamic_profiles', 'party_director', 'active_character',
+]);
+
 const PORTRAIT_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
 export function isValidCharacterId(id: unknown): id is string {
@@ -11,7 +16,7 @@ export function isValidCharacterId(id: unknown): id is string {
 
 /** characters/{id}.json が characters/ 配下に収まるか確認して返す */
 export function resolveCharacterJsonPath(charDir: string, id: string): string | undefined {
-    if (!isValidCharacterId(id)) {
+    if (!isValidCharacterId(id) || CHARACTER_META_IDS.has(id)) {
         return undefined;
     }
     const base = path.resolve(charDir);

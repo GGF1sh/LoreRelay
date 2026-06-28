@@ -240,6 +240,31 @@ assertEqual(directorPatched.director?.scene, 'Boss Room', 'applyStatePatch allow
     }
 }
 
+{
+    const emptyWorld = { ...baseState, world: {} };
+    const blockedNewRegion = applyStatePatch(emptyWorld, [
+        { op: 'replace', path: '/world/regions/newplace/dangerLevel', value: 99 },
+    ]);
+    if (blockedNewRegion.world?.regions?.newplace) {
+        fail('blocked world value must not create empty region shell');
+    } else {
+        ok('blocked world value does not create empty region shell');
+    }
+}
+
+{
+    const mergedImage = mergeGmEntryFromTurn(baseState, {
+        turnId: 'turn-img',
+        narration: 'A scene unfolds.',
+        gmEntry: { image: 'x'.repeat(600) }
+    });
+    if (mergedImage.entries[0].image.length !== 500) {
+        fail('mergeGmEntryFromTurn should clamp image path to 500 chars');
+    } else {
+        ok('mergeGmEntryFromTurn clamps image path length');
+    }
+}
+
 if (failed > 0) {
   process.exit(1);
 }

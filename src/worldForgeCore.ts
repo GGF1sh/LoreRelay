@@ -124,7 +124,10 @@ function parseRegion(raw: unknown): Region | undefined {
         type: VALID_REGION_TYPES.has(r.type as RegionType) ? (r.type as RegionType) : 'other'
     };
     if (r.climate) { region.climate = asString(r.climate); }
-    if (r.dangerLevel !== undefined) { region.dangerLevel = asNumber(r.dangerLevel); }
+    if (r.dangerLevel !== undefined) {
+        const dl = asNumber(r.dangerLevel);
+        if (dl !== undefined) { region.dangerLevel = Math.max(0, Math.min(10, dl)); }
+    }
     if (r.description) { region.description = asString(r.description); }
     if (r.connectedTo) { region.connectedTo = asStringArray(r.connectedTo); }
     if (r.resourceNodes) { region.resourceNodes = asStringArray(r.resourceNodes); }
@@ -169,7 +172,10 @@ function parseFaction(raw: unknown): Faction | undefined {
         name,
         type: VALID_FACTION_TYPES.has(r.type as FactionType) ? (r.type as FactionType) : 'neutral'
     };
-    if (r.power !== undefined) { faction.power = asNumber(r.power); }
+    if (r.power !== undefined) {
+        const pw = asNumber(r.power);
+        if (pw !== undefined) { faction.power = Math.max(0, Math.min(100, pw)); }
+    }
     if (r.goals) { faction.goals = asStringArray(r.goals); }
     if (r.enemies) { faction.enemies = asStringArray(r.enemies); }
     if (r.allies) { faction.allies = asStringArray(r.allies); }

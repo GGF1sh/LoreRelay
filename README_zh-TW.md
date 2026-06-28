@@ -29,10 +29,14 @@
 - 🔍 **Turn Inspector (v0.5+):** 每回合骰子台帳、狀態修補、觸發 lore 可視化。
 - 📖 **Lorebook & Memory UI:** ST 相容 lorebook 編輯、記憶搜尋預覽、釘選 lore 注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` 與 `game_state` 執行時聯動。
-- 📱 **Remote Play (v0.7):** LAN 加入 QR、玩家 / 觀戰角色。
+- 📱 **Remote Play (v0.7+):** LAN 加入 URL（複製分享）、玩家 / 觀戰角色。token 認證、輸入限制與路徑遍歷防護（v1.6）。
 - 🌍 **Living World System (v1.3+):** 基於 `world_forge.json` 的動態地區、派系與 NPC 自動生成（World Forge），World 分頁配備 Mermaid.js 動態網路圖。
 - ⚙️ **Emergent Simulation:** 內建自律模擬器，隨每回合推進自動計算資源消耗、勢力平衡、NPC 好感度與恐懼等。
 - 🛡️ **Robust State Management:** 上限鉗制、非法 ID 清理、安全狀態遷移等機制，防止龐大資料導致 UI 崩潰。
+- 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM 分析生成圖像並寫入 `visual_memory.json`，在後續 GM 提示中自動注入視覺上下文。
+- 🔒 **Audit Wave Hardening (v1.6):** 對 State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub 進行 7 軌道稽核，新增 pure 驗證模組與大量回歸測試。
+
+架構詳解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ---
 
@@ -148,7 +152,18 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-v1.3 主要功能（World System、NPC Registry、Emergent Simulation、VLM 整合準備等）已實作。後續將考慮 VLM 完全整合帶來的自律情景識別，以及 NPC 內部進一步聯動等。
+**已實作（v1.6.1）**
+
+- v1.3：World Forge / Living World / Emergent Simulation / ComfyUI 整合
+- v1.5：Visual Memory / Soulgaze（VLM 佇列、GM 提示注入、畫廊聯動）
+- v1.6：Audit Wave（T1〜T8）— `validateGameState`、`webviewHandlersCore`、Remote Play 再稽核、ST Import 加固
+
+**計畫中（v1.6.2+）**
+
+- 發布整備（README / DEMO / CI 持續更新）
+- Remote media 的 short-TTL HMAC 簽名 URL
+- VLM / Visual Memory 運維品質提升
+- Workshop 分發與市集發布調研
 
 ---
 

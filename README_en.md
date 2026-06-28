@@ -11,7 +11,7 @@
 A VSCode extension that maximizes your existing AI subscriptions, combining backend freedom like SillyTavern with an authentic CRPG experience like Saga & Seeker.
 By passing JSON via manual copy-paste (or automating via local agents), it provides a completely open and hackable "Hacker Edition" UI layer to build your own adventure environment.
 
-> 💡 **Notice:** If you like this extension, please consider buying me a coffee! ☕ (https://ko-fi.com/promptpalette)
+> 💡 **Notice:** If you like this extension, please consider [buying me a coffee ☕](https://ko-fi.com/promptpalette)
 
 ---
 
@@ -21,7 +21,7 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🧩 **Agent Bridge:** If you use a locally executable AI like Grok Build, you can send Webview choices and free text input directly to the GM.
 - 🎨 **Glassmorphism UI:** A rich display featuring a translucent chat UI, worldview theme switching, and an image gallery.
 - ⚔️ **CRPG Character Sheet:** A visual status panel inspired by Saga & Seeker and others, managing HP/MP progress bars, skills, and inventory.
-- 🖼️ **Local Image Generation:** Integrates with ComfyUI to generate and display scenes described by the AI locally in the gallery on the spot.
+- 🖼️ **Local Image Generation & World Integration (v1.3+):** Integrates with ComfyUI for on-the-spot scene generation; World System can auto-generate backgrounds on location changes.
 - 🎵 **Adaptive BGM & SFX:** Automatically controls and crossfades sound sources registered in `bgm.json` / `sfx.json` based on the GM's instructions.
 - 📦 **Scenario Packs:** Load a folder containing `scenario.json` to apply the starting scene, theme, and dedicated BGM/SFX all at once.
 - 🎲 **Built-in Dice Roller & Calculator:** Includes a dice roller (NdX) and math calculator essential for TRPG-like checks.
@@ -29,7 +29,14 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🔍 **Turn Inspector:** Per-turn dice ledger, state patches, and triggered lore.
 - 📖 **Lorebook & Memory UI:** ST-compatible lorebook editor, memory search preview, pinned lore injection.
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` with `game_state` runtime overrides.
-- 📱 **Remote Play:** LAN join QR codes, player / spectator roles.
+- 📱 **Remote Play (v0.7+):** LAN join URLs (copy & share), player / spectator roles. Token auth, input clamps, and path traversal hardening (v1.6).
+- 🌍 **Living World System (v1.3+):** Dynamic regions, factions, and NPC generation via `world_forge.json` (World Forge), plus a World tab with Mermaid.js network diagrams.
+- ⚙️ **Emergent Simulation:** Per-turn resource consumption, power balance, and NPC affinity/fear auto-simulation.
+- 🛡️ **Robust State Management:** Size clamps, invalid ID purge, and safe state migrations to prevent UI crashes from oversized data.
+- 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM analyzes generated images into `visual_memory.json` and injects visual context into later GM prompts.
+- 🔒 **Audit Wave Hardening (v1.6):** Seven-track audit across State, GM Bridge, World, ST Import, Webview, Remote Play, and Extension Hub with pure validation modules and expanded regression tests.
+
+Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ---
 
@@ -145,7 +152,18 @@ Also under `TextAdventureGMSkill/scenarios/`.
 
 ## 🗺️ Roadmap
 
-Core v1.0 features (Inspector, Lorebook/Memory, Director, Party Director, Remote Play) are shipped. Future work may include Workshop distribution and VLM polish.
+**Shipped (v1.6.1)**
+
+- v1.3: World Forge / Living World / Emergent Simulation / ComfyUI integration
+- v1.5: Visual Memory / Soulgaze (VLM queue, GM prompt injection, gallery linkage)
+- v1.6: Audit Wave (T1–T8) — `validateGameState`, `webviewHandlersCore`, Remote Play re-audit, ST Import hardening
+
+**Planned (v1.6.2+)**
+
+- Release polish (README / DEMO / CI upkeep)
+- Short-TTL HMAC signed URLs for remote media
+- VLM / Visual Memory operational quality
+- Workshop distribution and marketplace publishing
 
 ---
 

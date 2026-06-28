@@ -63,7 +63,7 @@ export async function analyzeImage(imagePath: string): Promise<string | null> {
             return normalizeDescription(data.response);
         }
 
-        // Catch-all for multimodal standard (OpenRouter handles Gemini/OpenAI/Anthropic if they support image_url)
+        // OpenRouter path. Legacy settings values openai/gemini/anthropic still route here.
         if (provider === 'openrouter' || provider === 'openai' || provider === 'gemini' || provider === 'anthropic') {
             const apiKey = await getOpenRouterApiKey();
             if (!apiKey) return null;

@@ -39,7 +39,8 @@
     "onCommand:textadventure.checkForUpdates",
     "onCommand:textadventure.startRemotePlay",
     "onCommand:textadventure.stopRemotePlay",
-    "onCommand:textadventure.rotateRemotePlayToken"
+    "onCommand:textadventure.rotateRemotePlayToken",
+    "onCommand:textadventure.generateWorldForge"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -196,10 +197,7 @@
           "enum": [
             "disabled",
             "ollama",
-            "openrouter",
-            "openai",
-            "gemini",
-            "anthropic"
+            "openrouter"
           ],
           "default": "disabled",
           "description": "%config.textAdventure.vlm.provider.description%"

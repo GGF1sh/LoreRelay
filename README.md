@@ -29,10 +29,14 @@
 - 🔍 **Turn Inspector (v0.5+):** ダイス台帳・statePatch・発火ロアをターンごとに可視化。
 - 📖 **Lorebook & Memory UI:** ST互換ロアブックの閲覧/編集、Memory 検索プレビュー、ピン留め常時注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` と `game_state` ランタイム連動。
-- 📱 **Remote Play (v0.7):** LAN 参加用 QR、player / spectator ロール。
+- 📱 **Remote Play (v0.7+):** LAN 参加用 URL（コピー共有）、player / spectator ロール。token 認証・入力クランプ・パストラバーサル対策済み（v1.6）。
 - 🌍 **Living World System (v1.3+):** `world_forge.json` に基づく動的な地域・派閥・NPC自動生成機能（World Forge）、Mermaid.jsによる動的ネットワーク図を備えたWorldタブを搭載。
 - ⚙️ **Emergent Simulation:** 毎ターンの経過に伴う資源消費・パワーバランス・NPCの好感度や恐怖が自動計算・進行する自律シミュレーターを内蔵。
 - 🛡️ **Robust State Management:** 巨大なデータによるUIクラッシュを防ぐ上限クランプ処理、不正IDのパージ、安全な状態マイグレーションなど、堅牢なセーフティ機構を搭載。
+- 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM が生成画像を分析し `visual_memory.json` に蓄積。次ターン以降の GM プロンプトへ情景コンテキストを自動注入。
+- 🔒 **Audit Wave Hardening (v1.6):** State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub を7トラックで監査。pure 検証モジュールと回帰テストを大幅追加。
+
+詳細なアーキテクチャ解説: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ---
 
@@ -148,7 +152,18 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 
 ## 🗺️ Roadmap
 
-v1.3 までの主要機能（World System, NPC Registry, Emergent Simulation, VLM 統合準備など）は実装済みです。今後は VLM 完全統合による自律的な情景認識や、NPC内部のさらなる連動機能などを検討しています。
+**実装済み（v1.6.1）**
+
+- v1.3: World Forge / Living World / Emergent Simulation / ComfyUI 連携
+- v1.5: Visual Memory / Soulgaze（VLM キュー、GM プロンプト注入、Gallery 連動）
+- v1.6: Audit Wave（T1〜T8）— `validateGameState`、`webviewHandlersCore`、Remote Play 再監査、ST Import 硬化
+
+**今後の候補（v1.6.2+）**
+
+- リリース整備（README / DEMO / CI の継続更新）
+- Remote media の short-TTL HMAC 署名 URL
+- VLM / Visual Memory の運用品質向上
+- Workshop 配布やマーケットプレイス公開の検討
 
 ---
 

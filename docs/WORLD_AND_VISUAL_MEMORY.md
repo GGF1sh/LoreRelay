@@ -204,9 +204,19 @@ npm test   # test_world_forge_generator, test_visual_memory, test_vlm_queue 等
 
 ---
 
-## 7. 今後（v1.6.2+ 候補）
+## 7. Remote Play メディア署名（v1.6.2+）
 
-- Remote Play `/media` の short-TTL HMAC 署名 URL（session token 直貼りから一段強化）
+`/media` は session token をクエリに載せず、**HMAC-SHA256 署名 URL** のみ受理します。
+
+```
+/media?file=images%2Fscene.png&exp=1700000300&sig=<hex>
+```
+
+- `exp`: Unix 秒（既定 TTL 300 秒、`textAdventure.remotePlay.mediaUrlTtlSec` で変更可）
+- `sig`: `HMAC-SHA256(sessionToken, "${exp}:${normalizedFile}")`
+- レガシー `?token=` は **401 拒否**。token ローテーションで旧署名も無効化。
+
+## 8. 今後の候補
 - VLM モデルプリセットの README / 設定 UI 整理
 - World Change をデモ動画で見せやすい UI ハイライト
 

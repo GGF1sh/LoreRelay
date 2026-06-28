@@ -43,6 +43,7 @@
   "config.textAdventure.remotePlay.maxClients.description": "最大 WebSocket 联机客户端数量。",
   "config.textAdventure.remotePlay.inputCooldownMs.description": "每个远程客户端的最小输入冷却时间（毫秒）。",
   "config.textAdventure.remotePlay.defaultRole.description": "默认客户端角色（player 或 spectator）。",
+  "config.textAdventure.remotePlay.mediaUrlTtlSec.description": "推送给远程客户端的 /media HMAC 签名 URL 有效期（秒，60–3600）。越短越能降低 Referer 泄露风险。",
   "config.textAdventure.workspaceFolder.description": "多文件夹工作区中，game_state.json 所在文件夹名。留空为第一个文件夹。",
   "config.textAdventure.gitAutoCommitInterval.description": "自动将游戏历史提交到 Git 的转折间隔。设为 0 速度慢时建议禁用。",
   "config.textAdventure.gmBridge.provider.description": "Webview 的玩家输入如何发送给 GM (AI) 进行响应。",

@@ -53,6 +53,7 @@ Module._load = function (request, parent, isMain) {
 
 // モック注入後にサーバモジュールをロード
 const rps = require('../out/remotePlayServer');
+const { buildSignedMediaPath } = require('../out/remoteMediaSignatureCore');
 
 // ── テストユーティリティ ─────────────────────────────────────
 let failed = 0;
@@ -141,18 +142,18 @@ async function run() {
     } else {
         const base = `http://127.0.0.1:${actualPort}`;
 
-        // 5. /media トークンなし → 401
+        // 5. /media 署名なし → 401
         {
             const r = await get(`${base}/media`);
-            if (r.status !== 401) { fail(`/media no token: expected 401, got ${r.status}`); }
-            else { ok('/media without token: 401 Unauthorized'); }
+            if (r.status !== 401) { fail(`/media no signature: expected 401, got ${r.status}`); }
+            else { ok('/media without signature: 401 Unauthorized'); }
         }
 
-        // 6. /media 間違ったトークン → 401
+        // 6. /media レガシー session token → 401（拒否）
         {
             const r = await get(`${base}/media?token=wrongtoken&file=test.png`);
-            if (r.status !== 401) { fail(`/media wrong token: expected 401, got ${r.status}`); }
-            else { ok('/media wrong token: 401 Unauthorized'); }
+            if (r.status !== 401) { fail(`/media legacy token: expected 401, got ${r.status}`); }
+            else { ok('/media legacy session token: 401 rejected'); }
         }
 
         // 7. /ws を HTTP GET → 426 Upgrade Required
@@ -169,23 +170,40 @@ async function run() {
             else { ok('/nonexistent: 404 Not Found'); }
         }
 
-        // 9. /media 正しいトークン・存在しないファイル → 403
+        function signedMediaUrl(file, nowSec) {
+            const rel = buildSignedMediaPath(file, status.token, 300, nowSec);
+            return `${base}${rel}`;
+        }
+
+        // 6b. /media 不正な署名 → 401
         {
-            const r = await get(`${base}/media?token=${encodeURIComponent(status.token)}&file=nofile.png`);
-            // 400=bad request, 403=path outside workspace or not found — どれも正当な拒否
+            const now = Math.floor(Date.now() / 1000);
+            const r = await get(`${base}/media?file=nofile.png&exp=${now + 300}&sig=${'a'.repeat(64)}`);
+            if (r.status !== 401) { fail(`/media bad signature: expected 401, got ${r.status}`); }
+            else { ok('/media invalid HMAC signature: 401 Unauthorized'); }
+        }
+
+        // 6c. /media 期限切れ署名 → 403
+        {
+            const now = Math.floor(Date.now() / 1000);
+            const r = await get(signedMediaUrl('nofile.png', now - 400));
+            if (r.status !== 403) { fail(`/media expired signature: expected 403, got ${r.status}`); }
+            else { ok('/media expired HMAC signature: 403 Expired'); }
+        }
+
+        // 9. /media 有効署名・存在しないファイル → 403
+        {
+            const r = await get(signedMediaUrl('nofile.png'));
             if (r.status !== 400 && r.status !== 403 && r.status !== 404) {
-                fail(`/media valid token invalid file: expected 400/403/404, got ${r.status}`);
+                fail(`/media valid signature invalid file: expected 400/403/404, got ${r.status}`);
             } else {
-                ok(`/media valid token invalid file: ${r.status} (file rejected)`);
+                ok(`/media valid signature invalid file: ${r.status} (file rejected)`);
             }
         }
 
         // 9b. /media パストラバーサル試行 → 403 (traversal outside workspace)
         {
-            // ../../evil.png: traversal attempt with valid image extension; file won't exist
-            // but resolveAllowedImagePath returns undefined for anything outside workspace → 403
-            const traversalFile = encodeURIComponent('../../evil.png');
-            const r = await get(`${base}/media?token=${encodeURIComponent(status.token)}&file=${traversalFile}`);
+            const r = await get(signedMediaUrl('../../evil.png'));
             if (r.status !== 403 && r.status !== 404) {
                 fail(`/media path traversal: expected 403/404, got ${r.status}`);
             } else {
@@ -195,9 +213,8 @@ async function run() {
 
         // 9c. /media ダブルエンコードトラバーサル → 403 (defense-in-depth)
         {
-            // %252F decodes to %2F via searchParams.get, then path.normalize treats it literally
             const doubleEncoded = '%252F..%252Fevil.png';
-            const r = await get(`${base}/media?token=${encodeURIComponent(status.token)}&file=${doubleEncoded}`);
+            const r = await get(signedMediaUrl(doubleEncoded));
             if (r.status !== 403 && r.status !== 404 && r.status !== 400) {
                 fail(`/media double-encoded traversal: expected 400/403/404, got ${r.status}`);
             } else {

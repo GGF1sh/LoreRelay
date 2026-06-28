@@ -10,6 +10,11 @@ import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
 import { getWorkspacePath } from './workspacePaths';
 import { getConfiguredLocale, getWebviewStrings, t } from './i18n';
 import { IMAGE_MIME, isAllowedImagePath, resolveAllowedImagePath } from './mediaPaths';
+import {
+    buildSignedMediaPath,
+    clampMediaUrlTtlSec,
+    verifyMediaSignature,
+} from './remoteMediaSignatureCore';
 
 export interface RemotePlayServerDeps {
     extensionPath: string;
@@ -149,6 +154,7 @@ function getConfig() {
         bindAddress: config.get<string>('remotePlay.bindAddress', '127.0.0.1').trim() || '127.0.0.1',
         maxClients: Math.max(1, Math.min(32, config.get<number>('remotePlay.maxClients', 8))),
         inputCooldownMs: Math.max(500, config.get<number>('remotePlay.inputCooldownMs', 1500)),
+        mediaUrlTtlSec: clampMediaUrlTtlSec(config.get<number>('remotePlay.mediaUrlTtlSec', 300)),
         defaultRole
     };
 }
@@ -204,9 +210,9 @@ function resolveMediaHttpUrl(imagePath: string | undefined): string | undefined 
     if (!isAllowedImagePath(normalized)) {
         return undefined;
     }
-    // Relative URL so LAN phones resolve against their current host (not 127.0.0.1).
-    const rel = encodeURIComponent(normalized);
-    return `/media?token=${encodeURIComponent(sessionToken)}&file=${rel}`;
+    const cfg = getConfig();
+    // Short-TTL HMAC URL — session token is never embedded in image URLs.
+    return buildSignedMediaPath(normalized, sessionToken, cfg.mediaUrlTtlSec);
 }
 
 function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemotePlayerState {
@@ -418,16 +424,29 @@ function serveStatic(extensionPath: string, relPath: string, res: http.ServerRes
 }
 
 function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
-    // SECURITY LIMITATION: The 'token' query parameter relies on a session-long token.
-    // Future enhancement: Replace this with a short-TTL HMAC signature generated per-request
-    // to prevent potential leaks via referrers and harden against unauthorized access.
-    const token = reqUrl.searchParams.get('token') || '';
-    if (!tokensMatch(token, sessionToken)) {
-        res.writeHead(401);
-        res.end('Unauthorized');
+    if (!sessionToken) {
+        res.writeHead(503);
+        res.end('Remote play not active');
         return;
     }
+
+    const legacyToken = reqUrl.searchParams.get('token');
+    if (legacyToken) {
+        res.writeHead(401);
+        res.end('Unauthorized — use signed media URLs (exp + sig)');
+        return;
+    }
+
     const file = reqUrl.searchParams.get('file') || '';
+    const expRaw = reqUrl.searchParams.get('exp') || '';
+    const sig = reqUrl.searchParams.get('sig') || '';
+    const exp = Number.parseInt(expRaw, 10);
+    const auth = verifyMediaSignature(file, exp, sig, sessionToken);
+    if (!auth.ok) {
+        res.writeHead(auth.reason === 'expired' ? 403 : 401);
+        res.end(auth.reason === 'expired' ? 'Expired' : 'Unauthorized');
+        return;
+    }
     if (!file) {
         res.writeHead(400);
         res.end('Missing file');
@@ -449,7 +468,12 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
         res.end('Forbidden');
         return;
     }
-    res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'private, max-age=300' });
+    const now = Math.floor(Date.now() / 1000);
+    const maxAge = Math.max(0, Math.min(300, exp - now));
+    res.writeHead(200, {
+        'Content-Type': mime,
+        'Cache-Control': `private, max-age=${maxAge}`,
+    });
     const stream = fs.createReadStream(realPath);
     stream.on('error', () => {
         if (!res.headersSent) {

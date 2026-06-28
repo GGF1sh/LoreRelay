@@ -43,6 +43,7 @@
   "config.textAdventure.remotePlay.maxClients.description": "同時に接続できるクライアントの最大数。",
   "config.textAdventure.remotePlay.inputCooldownMs.description": "リモートプレイヤーのコマンド入力クールダウン時間（ミリ秒）。",
   "config.textAdventure.remotePlay.defaultRole.description": "デフォルトロール（player または spectator）。",
+  "config.textAdventure.remotePlay.mediaUrlTtlSec.description": "リモートクライアントへ配信する /media HMAC 署名 URL の有効秒数（60〜3600）。短いほどリファラ漏洩リスクを抑えます。",
   "config.textAdventure.workspaceFolder.description": "game_state.json を置くワークスペース内のフォルダ名。空の場合は最初のフォルダが使用されます。",
   "config.textAdventure.gitAutoCommitInterval.description": "ゲーム履歴を自動的にGitにコミットするターンの間隔。0で無効化。",
   "config.textAdventure.gmBridge.provider.description": "プレイヤー入力をどのようにGM（AI）に送信して応答を処理するかを設定します。",

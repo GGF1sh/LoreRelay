@@ -43,6 +43,7 @@
   "config.textAdventure.remotePlay.maxClients.description": "Maximum simultaneous WebSocket player connections.",
   "config.textAdventure.remotePlay.inputCooldownMs.description": "Minimum milliseconds between remote player inputs per client.",
   "config.textAdventure.remotePlay.defaultRole.description": "Default role for remote clients that omit ?role= or auth.role.",
+  "config.textAdventure.remotePlay.mediaUrlTtlSec.description": "Lifetime (seconds) of HMAC-signed /media URLs pushed to remote clients. Shorter values limit referrer/token leak exposure (60–3600).",
   "config.textAdventure.workspaceFolder.description": "When multiple workspace folders are open, use this folder name or path for game_state.json. Empty = first folder.",
   "config.textAdventure.gitAutoCommitInterval.description": "Interval of turns to auto-commit history to Git. Set to 0 to disable automatic Git commits.",
   "config.textAdventure.gmBridge.provider.description": "How player input from the Webview is sent to the GM.",

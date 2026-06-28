@@ -7,6 +7,15 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.6.2] - 2026-06-28
+
+### Security — Remote Play signed media URLs
+
+- **`remoteMediaSignatureCore`** (新規): `/media` 用 short-TTL HMAC 署名（`file` + `exp` + `sig`）。`crypto.timingSafeEqual` で検証。
+- **`remotePlayServer`**: 画像 URL から session token を除去。レガシー `?token=` は 401 で拒否。署名期限切れは 403。
+- **設定**: `textAdventure.remotePlay.mediaUrlTtlSec`（既定 300 秒、60–3600）。
+- **テスト**: `test_remote_media_signature_core.js` + `test_remote_play_server.js` 更新。
+
 ## [1.6.0] - 2026-06-28
 
 ### Fixed — Audit Wave T7 (Remote Play セキュリティ再監査)

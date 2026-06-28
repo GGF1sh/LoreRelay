@@ -7,6 +7,19 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.9] - 2026-06-28
+
+### Fixed — Audit Wave T5/T6 (Visual + Webview)
+
+#### T6 — Webview & postMessage
+- **webviewHandlersCore** (新規): World Forge seed/theme、Mermaid target、memory backend、equipment notify、文字列クランプの pure 検証。
+- **webviewHandlers**: `generateImage` prompt/entryId 検証、`generateWorldForge` seed を `isValidEventId` で検証、`generateLocationImage` に locationId 検証、checkpoint ID 検証、Mermaid/memory backend allowlist、`requestVlmAnalysis`/`setNpcPortrait` で resolved path を渡すよう修正。
+- **85-world.js**: クライアント側でも seed 形式・数値クランプを二重適用。
+
+#### T5 — Visual / VLM 回帰
+- **vlmQueue**: 非同期キューの `pendingPath` を unresolved ではなく `resolveAllowedImagePath` 済みパスに統一。
+- **テスト**: `scripts/test_webview_handlers_core.js` を追加。
+
 ## [1.5.7] - 2026-06-28
 
 ### Fixed — Audit Wave T4 (ST Import / Character / Lorebook)

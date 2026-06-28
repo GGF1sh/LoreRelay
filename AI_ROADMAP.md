@@ -91,7 +91,7 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 - [x] **T2**: GM Bridge & Turn — `gmPromptBuilderCore`、`diceRoller` クランプ、GM失敗時 dice ledger クリア、remote unlock
 - [x] **T3**: World + NPC + Living Feedback（再監査）
 - [x] **T4**: ST Import / Character / Lorebook
-- [ ] **T5**: Visual Memory + Image Gen + VLM（回帰）
-- [ ] **T6**: Webview & postMessage Surface
+- [x] **T5**: Visual Memory + Image Gen + VLM（回帰）— vlmQueue pendingPath 修正
+- [x] **T6**: Webview & postMessage — webviewHandlersCore、ハンドラ検証強化、85-world クランプ
 - [ ] **T7**: Remote Play セキュリティ再監査
 - [ ] **T8**: Extension Hub & Ancillary

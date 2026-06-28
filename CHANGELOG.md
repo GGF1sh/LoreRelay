@@ -7,6 +7,18 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [Unreleased]
+
+### Added — World Map Pan & Zoom + Biome Styling
+
+- **World Map Pan & Zoom** (`webview/modules/85-world.js`): Mermaid マップ上でマウスドラッグによる移動（Pan）とマウスホイールによる拡大縮小（Zoom 0.15x〜5x、カーソル中心）を実装。ダブルクリックでリセット。npm モジュール不使用のフルスクラッチ実装。`#world-mermaid` を `overflow:hidden` の viewport として CSS 注入し、内部 SVG に CSS `matrix()` transform を適用。
+- **Biome-based Mermaid Styling** (`src/worldMapGenerator.ts`):
+  - 15 種の biome (`forest` / `desert` / `mountain` / `sea` / `coast` / `city` / `plains` / `swamp` / `wasteland` / `ruins` / `dungeon` / `underground` / `snow` / `volcanic` / `other`) に対応した絵文字アイコン・subgraph 背景色・ノードカラーを定義。
+  - region の subgraph ラベルに biome アイコン（例: 🌲 Forest、⛰️ Mountain、🌊 Sea）を付与。
+  - `style <regionId> fill:...,stroke:...` で subgraph 背景を暗色テーマ向け色に着色。
+  - `classDef biome_<name>` でロケーションノードを biome カラーに染色（fill / stroke / text color）。
+  - `region.biome` が未設定の場合は `inferRegionBiomeFromType(region.type)` でフォールバック。
+
 ## [1.6.3] - 2026-06-28
 
 ### Added — Cartography data foundation

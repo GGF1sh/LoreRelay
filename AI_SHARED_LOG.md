@@ -1121,3 +1121,47 @@ pcBridgeCore.ts (Phase 4b) to propagate events to NPC needs (e.g., region danger
   - Added 'World Changes' UI section in 85-world.js.
   - Updated statePatch.ts to properly handle world path allowlists.
 - **Status**: Phase 4 core completed. Tests passed and committed.
+
+## 2026-06-28 JST - Claude Sonnet 4.6 - World Map Pan & Zoom + Biome Styling
+
+### 変更概要
+- **依頼元**: Gemini の計画プロンプトに基づく実装
+- **対象ファイル**: src/worldMapGenerator.ts, webview/modules/85-world.js
+
+### 実装内容
+
+#### 1. Pan & Zoom 実装 (85-world.js)
+- initMapPanZoomOnce(viewport): #world-mermaid に対してマウスイベントを1回のみ登録する初期化関数。フルスクラッチ・npm 依存なし。
+- pplyMapTransform(viewport): _mapPanState (scale / tx / ty) を Mermaid SVG に matrix(...) として適用。
+- esetMapPanState(): 再レンダリング時に scale=1, tx=0, ty=0 にリセット。
+- ensureMapPanZoomStyles(): #world-mermaid を viewport 化する CSS を動的注入（overflow:hidden !important, min-height:300px, max-height:65vh, cursor:grab 等）。
+- ddMapPanZoomHint(viewport): レンダリング後に操作ヒント（"Drag · Scroll to zoom · Dbl-click to reset"）をオーバーレイ表示。
+- enderMermaidMap に .then() チェーンを追加し、Mermaid 描画完了後に上記を呼び出す。
+- **操作**: マウスドラッグ → Pan / マウスホイール → Zoom (0.15x〜5x, カーソル中心) / ダブルクリック → リセット
+
+#### 2. Mermaid バイオームスタイリング (worldMapGenerator.ts)
+- inferRegionBiomeFromType を値 import に追加。
+- BIOME_ICON: biome ごとの絵文字 (🌲⛰️🏜️🌊🌾🌿💀🏚️🕳️⛏️❄️🌋🏙️🏖️📍)
+- BIOME_SUBGRAPH_STYLE: biome ごとの subgraph 背景色 / 枠色 (暗色テーマ向け)
+- BIOME_NODE_CLASSDEF: biome ごとのロケーションノード fill / stroke / text color
+- uildLocationLabel にオプション引数 iomeClass? を追加し、:::biome_XXX クラスを付与。
+- region ループで effectiveBiome = region.biome ?? inferRegionBiomeFromType(region.type) を計算し、subgraph ラベルにアイコン追加 + style ディレクティブ収集 + location ノードにクラス付与。
+- 生成文字列末尾に subgraph style / biome classDef を出力。
+
+### 未解決の課題
+- Mermaid の style ディレクティブによる subgraph 背景色は Mermaid バージョンによって効果が異なる場合がある。アイコン付与とノードカラーは常に動作する。
+- Pan & Zoom の max-height: 65vh は固定値。大型マップで縦スクロールが必要な場合は調整が必要。
+- タッチデバイス (touch / pinch) には未対応（VSCode Webview では通常不要）。
+
+### 次の AI が引き継ぐべき作業
+- **WorldLocation への iome フィールド追加**: 現在 biome は Region にしか存在しない。location 単位での biome 指定が必要な場合は worldForgeCore.ts の WorldLocation インターフェースと parser を拡張する。
+- **Pan & Zoom リセットボタン UI**: ヒントテキストはあるが、World タブのヘッダーに「↺ リセット」ボタンを追加すると発見しやすくなる。
+- **Mermaid subgraph 背景色の動作確認**: 実際の世界マップで style ディレクティブが機能しているか手動確認が必要。
+
+### 検証
+- 
+pm run compile 通過 (TypeScript エラーなし)
+- 
+pm test 通過 (全テスト通過)
+- 
+pm run build:webview 通過 (18 modules → script.js 5185 lines)

@@ -4111,11 +4111,135 @@ function renderMermaidMap(mmdCode, currentLocationId) {
     container.innerHTML = escapeHtml(mmdCode);
 
     if (window.mermaid) {
-        window.mermaid.run({ nodes: [container] }).catch((e) => {
-            console.error('World map Mermaid render error:', e);
-            container.textContent = mmdCode;
-        });
+        window.mermaid.run({ nodes: [container] })
+            .then(() => {
+                resetMapPanState();
+                initMapPanZoomOnce(container);
+                applyMapTransform(container);
+                addMapPanZoomHint(container);
+            })
+            .catch((e) => {
+                console.error('World map Mermaid render error:', e);
+                container.textContent = mmdCode;
+            });
     }
+}
+
+// ---------------------------------------------------------------------------
+// World Map Pan & Zoom (フルスクラッチ軽量実装 / npm モジュール不使用)
+// ---------------------------------------------------------------------------
+
+let _mapPanZoomReady = false;
+let _mapPanState = { scale: 1, tx: 0, ty: 0 };
+
+function ensureMapPanZoomStyles() {
+    if (document.getElementById('world-map-panzoom-styles')) { return; }
+    const style = document.createElement('style');
+    style.id = 'world-map-panzoom-styles';
+    style.textContent = `
+        #world-mermaid {
+            overflow: hidden !important;
+            min-height: 300px;
+            max-height: 65vh;
+            position: relative;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.1);
+        }
+        #world-mermaid.world-map-panning { cursor: grabbing !important; }
+        #world-mermaid > svg {
+            display: block;
+            transform-origin: 0 0;
+        }
+        .world-map-hint {
+            position: absolute;
+            bottom: 5px;
+            right: 8px;
+            font-size: 0.65em;
+            opacity: 0.38;
+            pointer-events: none;
+            color: var(--vscode-foreground, #ccc);
+            font-family: var(--vscode-font-family, sans-serif);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function resetMapPanState() {
+    _mapPanState = { scale: 1, tx: 0, ty: 0 };
+}
+
+function applyMapTransform(viewport) {
+    const svg = viewport.querySelector('svg');
+    if (!svg) { return; }
+    const { scale, tx, ty } = _mapPanState;
+    svg.style.transform = `matrix(${scale},0,0,${scale},${tx},${ty})`;
+    svg.style.transformOrigin = '0 0';
+}
+
+function addMapPanZoomHint(viewport) {
+    // innerHTML replacement cleared the old hint — always re-add after render
+    let hint = viewport.querySelector('.world-map-hint');
+    if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'world-map-hint';
+        hint.textContent = 'Drag · Scroll to zoom · Dbl-click to reset';
+        viewport.appendChild(hint);
+    }
+}
+
+function initMapPanZoomOnce(viewport) {
+    ensureMapPanZoomStyles();
+    if (_mapPanZoomReady) { return; }
+    _mapPanZoomReady = true;
+
+    let dragging = false;
+    let startX = 0, startY = 0, startTx = 0, startTy = 0;
+
+    viewport.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) { return; }
+        dragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startTx = _mapPanState.tx;
+        startTy = _mapPanState.ty;
+        viewport.classList.add('world-map-panning');
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) { return; }
+        _mapPanState.tx = startTx + (e.clientX - startX);
+        _mapPanState.ty = startTy + (e.clientY - startY);
+        applyMapTransform(viewport);
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (dragging) {
+            dragging = false;
+            viewport.classList.remove('world-map-panning');
+        }
+    });
+
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+        const next = Math.max(0.15, Math.min(5, _mapPanState.scale * factor));
+        const rect = viewport.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        _mapPanState.tx = mx - (mx - _mapPanState.tx) * (next / _mapPanState.scale);
+        _mapPanState.ty = my - (my - _mapPanState.ty) * (next / _mapPanState.scale);
+        _mapPanState.scale = next;
+        applyMapTransform(viewport);
+    }, { passive: false });
+
+    viewport.addEventListener('dblclick', () => {
+        resetMapPanState();
+        applyMapTransform(viewport);
+    });
 }
 
 // ---------------------------------------------------------------------------

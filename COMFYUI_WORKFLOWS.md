@@ -4,8 +4,18 @@ LoreRelay ships API-format ComfyUI workflows for local scene image generation.
 
 | File | Resolution | Typical use |
 |------|------------|-------------|
-| `comfyui/workflow_api.json` | 512ÁE12 | SD 1.5 checkpoints, fast previews |
-| `comfyui/workflow_sdxl_1024.json` | 1024ÁE024 | SDXL / Illustrious / Pony XL checkpoints |
+| `comfyui/workflow_api.json` | 512×512 | SD 1.5 checkpoints, fast previews |
+| `comfyui/workflow_sdxl_1024.json` | 1024×1024 | SDXL / Illustrious / Pony XL checkpoints |
+| `comfyui/workflow_cartography_sdxl_canny.json` | 1024×1024 | World map (Cartography Option A) — SDXL Canny ControlNet |
+
+## Cartography world map
+
+See [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md).
+
+```powershell
+python scripts/render_cartography_layout.py .\world_forge.json .\world_map.layout.png
+python scripts/comfyui_generate_cartography.py .\world_forge.json .\output
+```
 
 ## Quick setup
 

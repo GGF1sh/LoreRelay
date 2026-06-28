@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+### Added — Cartography ComfyUI (Phase 7 Grok)
+
+- **`cartographyLayoutCore.ts`**: `world_forge.json` から ControlNet 用レイアウト spec・プロンプト・HTML ピン座標（%）を pure 生成。
+- **`render_cartography_layout.py`**: biome 色ブロブ + 接続線のレイアウト PNG（stdlib のみ）。
+- **`comfyui_generate_cartography.py`**: レイアウト描画 → ComfyUI upload → SDXL Canny ControlNet ワークフロー実行。
+- **`comfyui/workflow_cartography_sdxl_canny.json`**: パーチメント古地図向け Cartography ワークフロー。
+- **Docs**: `docs/CARTOGRAPHY_COMFYUI.md`（Option A アーキテクチャ、モデル/LoRA 推奨、運用手順）。
+- **Tests**: `test_cartography_layout_core.js`。
+
 ### Added — World Map Pan & Zoom + Biome Styling
 
 - **World Map Pan & Zoom** (`webview/modules/85-world.js`): Mermaid マップ上でマウスドラッグによる移動（Pan）とマウスホイールによる拡大縮小（Zoom 0.15x〜5x、カーソル中心）を実装。ダブルクリックでリセット。npm モジュール不使用のフルスクラッチ実装。`#world-mermaid` を `overflow:hidden` の viewport として CSS 注入し、内部 SVG に CSS `matrix()` transform を適用。

@@ -1165,3 +1165,22 @@ pm run compile 通過 (TypeScript エラーなし)
 pm test 通過 (全テスト通過)
 - 
 pm run build:webview 通過 (18 modules → script.js 5185 lines)
+
+## 2026-06-28 JST - Grok - Phase 7 Cartography ComfyUI (Option A)
+
+### 変更概要
+- Gemini 計画 Phase 7 / Grok 担当（ComfyUI ワークフロー設計）
+- 前提: ChatGPT `CARTOGRAPHY_DESIGN.md` + Claude Pan/Zoom + biome Mermaid 完了済み
+
+### 実装
+- `src/cartographyLayoutCore.ts` — layout spec / prompts / HTML pin %
+- `scripts/render_cartography_layout.py` — biome layout PNG (stdlib)
+- `scripts/comfyui_generate_cartography.py` — ComfyUI ControlNet pipeline
+- `comfyui/workflow_cartography_sdxl_canny.json`
+- `docs/CARTOGRAPHY_COMFYUI.md`
+- `scripts/test_cartography_layout_core.js`
+
+### 次の作業
+- VSCode コマンドから地図生成
+- World タブ parchment 画像 + pin オーバーレイ UI
+- 実機 ComfyUI E2E（`TA_CONTROL_NET` 名合わせ）

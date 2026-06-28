@@ -1,0 +1,76 @@
+#!/usr/bin/env node
+'use strict';
+
+const {
+    buildCartographyLayoutSpec,
+    buildCartographyPositivePrompt,
+    buildCartographyNegativePrompt,
+    buildCartographyPinPositions,
+    mapCoordToPixel,
+    mapCoordToPercent,
+    BIOME_LAYOUT_RGB,
+} = require('../out/cartographyLayoutCore');
+
+let failed = 0;
+function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
+function ok(msg) { console.log(`OK: ${msg}`); }
+
+const forge = {
+    meta: { worldName: 'Test Realm', theme: 'dungeon-crawler' },
+    geography: {
+        regions: [
+            { id: 'sea_1', name: 'Deep Sea', type: 'ocean', biome: 'sea', x: 80, y: 500, connectedTo: ['coast_1'] },
+            { id: 'coast_1', name: 'Harbor', type: 'urban', biome: 'coast', x: 220, y: 480, connectedTo: ['sea_1', 'forest_1'] },
+            { id: 'forest_1', name: 'Greenwood', type: 'forest', biome: 'forest', x: 500, y: 400, connectedTo: ['coast_1', 'peak_1'] },
+            { id: 'peak_1', name: 'Iron Peaks', type: 'mountains', biome: 'mountain', x: 780, y: 260, connectedTo: ['forest_1'] },
+        ],
+        locations: [
+            { id: 'port_a', name: 'Port A', type: 'settlement', regionId: 'coast_1' },
+            { id: 'port_b', name: 'Port B', type: 'settlement', regionId: 'coast_1' },
+            { id: 'camp', name: 'Camp', type: 'wilderness', regionId: 'forest_1' },
+        ],
+    },
+    factions: [],
+    loreHistory: [],
+    initialNpcs: [],
+};
+
+const spec = buildCartographyLayoutSpec(forge, 1024);
+if (spec.regions.length !== 4) { fail(`expected 4 layout regions, got ${spec.regions.length}`); }
+else { ok('layout spec region count'); }
+
+if (spec.edges.length !== 3) { fail(`expected 3 edges, got ${spec.edges.length}`); }
+else { ok('layout spec edge dedup'); }
+
+if (mapCoordToPixel(500, 1024) !== 512) { fail(`mapCoordToPixel center: ${mapCoordToPixel(500, 1024)}`); }
+else { ok('mapCoordToPixel center'); }
+
+if (Math.abs(mapCoordToPercent(250) - 25) > 0.01) { fail('mapCoordToPercent'); }
+else { ok('mapCoordToPercent'); }
+
+const pos = buildCartographyPositivePrompt(spec);
+if (!pos.includes('Test Realm') || !pos.includes('parchment')) { fail('positive prompt missing keywords'); }
+else { ok('positive prompt'); }
+
+const neg = buildCartographyNegativePrompt();
+if (!neg.includes('watermark')) { fail('negative prompt'); }
+else { ok('negative prompt'); }
+
+const pins = buildCartographyPinPositions(forge);
+if (pins.length !== 3) { fail(`pin count ${pins.length}`); }
+else { ok('pin positions count'); }
+
+const portA = pins.find((p) => p.locationId === 'port_a');
+const portB = pins.find((p) => p.locationId === 'port_b');
+if (!portA || !portB) { fail('missing port pins'); }
+else if (portA.leftPct === portB.leftPct && portA.topPct === portB.topPct) {
+    fail('same-region pins should offset');
+} else {
+    ok('same-region pin offset');
+}
+
+if (!BIOME_LAYOUT_RGB.sea || BIOME_LAYOUT_RGB.sea.length !== 3) { fail('biome rgb'); }
+else { ok('biome layout colors'); }
+
+if (failed > 0) { process.exit(1); }
+console.log('All cartography layout core tests passed.');

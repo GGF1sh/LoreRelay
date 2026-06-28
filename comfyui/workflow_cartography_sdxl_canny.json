@@ -1,0 +1,102 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 0,
+      "steps": 28,
+      "cfg": 6.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": ["13", 0],
+      "positive": ["13", 1],
+      "negative": ["13", 2],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": { "title": "KSampler" }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": { "title": "Load Checkpoint (Illustrious XL / SDXL)" }
+  },
+  "5": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": { "title": "Empty Latent Image 1024" }
+  },
+  "6": {
+    "inputs": {
+      "text": "ancient parchment fantasy world map, masterpiece, best quality",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "CLIP Text Encode (Prompt)" }
+  },
+  "7": {
+    "inputs": {
+      "text": "lowres, worst quality, watermark, satellite photo, modern UI",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "CLIP Text Encode (Negative)" }
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    },
+    "class_type": "VAEDecode",
+    "_meta": { "title": "VAE Decode" }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "world_map",
+      "images": ["8", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": { "title": "Save Image" }
+  },
+  "10": {
+    "inputs": {
+      "control_net_name": "diffusion_pytorch_model_sdxl_canny.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": { "title": "ControlNet Loader (SDXL Canny — set exact name from ComfyUI)" }
+  },
+  "11": {
+    "inputs": {
+      "image": "cartography_layout.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": { "title": "Load Layout Mask" }
+  },
+  "12": {
+    "inputs": {
+      "image": ["11", 0],
+      "low_threshold": 80,
+      "high_threshold": 180
+    },
+    "class_type": "Canny",
+    "_meta": { "title": "Canny Edge From Layout" }
+  },
+  "13": {
+    "inputs": {
+      "strength": 0.82,
+      "start_percent": 0,
+      "end_percent": 0.95,
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "control_net": ["10", 0],
+      "image": ["12", 0]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": { "title": "Apply ControlNet" }
+  }
+}

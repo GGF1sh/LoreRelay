@@ -7,6 +7,18 @@
 - `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
 - `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
 
+## [1.5.7] - 2026-06-28
+
+### Fixed — Audit Wave T4 (ST Import / Character / Lorebook)
+
+- **characterId**: `resolveCharacterJsonPath` がメタファイル予約 ID（`party`, `dynamic_profiles`, `party_director`, `active_character`）をブロックするよう修正 — 「party」という名前の Tavern カードが `party.json` を上書きする P0 バグを修正。
+- **tavernCardImporterCore** (新規): `extractJsonFromPng` と `normalizeCharacterBook` を pure モジュールに抽出（vscode 非依存、Node テスト可能）。
+- **tavernCardImporter**: `saveCharacterBookAsLorebook` を `fs.writeFileSync` から `writeJsonAtomic` に変更（非アトミック書き込み解消）。保存形式を `{format, source, entries}` ラッパーに変更し `readLorebookFile` との互換性を修正（P0 バグ: 以前は常に空ロードになっていた）。
+- **tavernCardImporter**: `normalizeCharacterBook` にエントリ数 200 件・content 4000 文字・key 200 文字・key 数 20 件の上限を追加（DoS 防止）。
+- **characterManager**: `loadCharacterById` に `isValidCharacterId` ガードを追加（パストラバーサル防止）。`getPartyIds` が `filterValidCharacterIds` でフィルタリングするよう修正。
+- **lorebookMatcher**: 正規表現パターン長が 200 文字を超えた場合に部分文字列マッチにフォールバック（ReDoS ガード）。
+- **テスト**: `scripts/test_tavern_card_importer.js` を新規作成（35 件）、`npm test` に統合。
+
 ## [1.5.6] - 2026-06-28
 
 ### Fixed — Audit Wave T3 (World + NPC + Living Feedback)

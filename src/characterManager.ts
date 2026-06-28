@@ -67,7 +67,8 @@ export function getPartyIds(): string[] {
     const partyFile = path.join(charDir, 'party.json');
     if (fs.existsSync(partyFile)) {
         try {
-            return JSON.parse(fs.readFileSync(partyFile, 'utf-8'));
+            const raw = JSON.parse(fs.readFileSync(partyFile, 'utf-8'));
+            return Array.isArray(raw) ? filterValidCharacterIds(raw) : [];
         } catch {
             return [];
         }
@@ -97,10 +98,11 @@ export function getActiveCharacterId(): string | undefined {
 }
 
 export function loadCharacterById(id: string): CharacterProfile | undefined {
+    if (!isValidCharacterId(id)) { return undefined; }
     const charDir = getCharactersDir();
     if (!charDir) { return undefined; }
-    const filePath = path.join(charDir, `${id}.json`);
-    if (!fs.existsSync(filePath)) { return undefined; }
+    const filePath = resolveCharacterJsonPath(charDir, id);
+    if (!filePath || !fs.existsSync(filePath)) { return undefined; }
     try {
         return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as CharacterProfile;
     } catch {

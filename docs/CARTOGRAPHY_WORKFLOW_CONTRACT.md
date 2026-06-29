@@ -32,6 +32,18 @@ Run automatically in `npm test`.
 2. Preserve node IDs `3`–`13` or update `comfyui_generate_cartography.py` and this table together.
 3. Run `npm test` (includes workflow contract check).
 
+## Path safety (CLI + extension)
+
+TypeScript (`cartographyPathCore.ts`) and Python (`cartography_path_utils.py`) share the same rules:
+
+| Artifact | Allowed location |
+|----------|------------------|
+| `world_forge.json` | Anywhere under workspace root (regular file, no symlink) |
+| `world_map.png` / `world_map.layout.png` | Workspace root only (no subdirectories) |
+| ComfyUI output directory | Workspace root only |
+
+CLI scripts must call `validate_output_dir()` / `validate_layout_output_path()` even when spawned from the extension.
+
 ## Related files
 
 - Layout PNG (no ComfyUI): `scripts/render_cartography_layout.py`

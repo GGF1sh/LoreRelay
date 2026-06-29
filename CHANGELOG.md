@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-06-29
+
+### Fixed — Cartography path alignment (ChatGPT review)
+
+- **`cartography_path_utils.py`**: `validate_output_dir()` を TypeScript と同様に workspace root のみ許可（サブディレクトリ不可）。
+- **`validate_layout_output_path()`**: 出力先を workspace 直下に限定（親ディレクトリ一致）。
+- **`render_cartography_layout.py`**: `validate_layout_output_path()` を適用。引数省略時の既定出力を `world_map.layout.png` に統一。
+- **Tests**: `test_cartography_path_utils.py` / `.js`；layout smoke test を workspace root 出力に合わせて更新。
+- **Docs**: `CARTOGRAPHY_WORKFLOW_CONTRACT.md` にパス安全ルール表を追記。
+
 ## [1.7.1] - 2026-06-28
 
 ### Added — Cartography Hardening

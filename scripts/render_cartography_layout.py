@@ -19,7 +19,12 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from cartography_path_utils import validate_forge_path  # noqa: E402
+from cartography_path_utils import (  # noqa: E402
+    WORLD_FORGE_BASENAME,
+    WORLD_MAP_LAYOUT_BASENAME,
+    validate_forge_path,
+    validate_layout_output_path,
+)
 
 MAP_SIZE = 1000
 DEFAULT_SIZE = 1024
@@ -224,7 +229,6 @@ def main() -> int:
         return 1
 
     forge_path = Path(sys.argv[1])
-    out_path = Path(sys.argv[2]) if len(sys.argv) >= 3 and not sys.argv[2].startswith("--") else forge_path.with_suffix(".layout.png")
     size = DEFAULT_SIZE
     args = sys.argv[2:]
     if "--size" in args:
@@ -232,16 +236,26 @@ def main() -> int:
         if idx + 1 < len(args):
             size = int(args[idx + 1])
 
-    workspace_root = forge_path.parent if forge_path.name == "world_forge.json" else None
+    workspace_root = forge_path.parent if forge_path.name == WORLD_FORGE_BASENAME else None
     try:
         forge_path = validate_forge_path(forge_path, workspace_root)
+        if workspace_root is None:
+            workspace_root = forge_path.parent
+        else:
+            workspace_root = workspace_root.resolve()
+        if len(sys.argv) >= 3 and not sys.argv[2].startswith("--"):
+            out_path = validate_layout_output_path(Path(sys.argv[2]), workspace_root)
+        else:
+            out_path = validate_layout_output_path(
+                workspace_root / WORLD_MAP_LAYOUT_BASENAME,
+                workspace_root,
+            )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     spec = load_spec(forge_path, size)
     png = render_layout(spec)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(png)
     print(str(out_path.resolve()))
     return 0

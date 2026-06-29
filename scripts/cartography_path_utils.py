@@ -31,20 +31,22 @@ def validate_forge_path(forge_path: Path, workspace_root: Path | None = None) ->
 
 
 def validate_output_dir(output_dir: Path, workspace_root: Path | None = None) -> Path:
+    """Require output_dir to be exactly the workspace root (matches TypeScript validateCartographyOutputDir)."""
     resolved = output_dir.resolve()
     if workspace_root is not None:
         root = workspace_root.resolve()
-        if resolved != root and not _is_under_root(resolved, root):
+        if resolved != root:
             raise ValueError("output directory must be the workspace root")
     resolved.mkdir(parents=True, exist_ok=True)
     return resolved
 
 
 def validate_layout_output_path(output_path: Path, workspace_root: Path) -> Path:
+    """Require layout PNG at workspace root (matches TypeScript validateCartographyOutputPath)."""
     resolved = output_path.resolve()
     root = workspace_root.resolve()
     if resolved.name not in (WORLD_MAP_LAYOUT_BASENAME, "cartography_layout.png"):
         raise ValueError("layout output must be world_map.layout.png or cartography_layout.png")
-    if not _is_under_root(resolved.parent, root):
-        raise ValueError("layout output must be inside the workspace root")
+    if resolved.parent.resolve() != root:
+        raise ValueError("layout output must be written to the workspace root")
     return resolved

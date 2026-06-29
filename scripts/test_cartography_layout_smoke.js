@@ -35,9 +35,12 @@ if (withCoords.length !== regions.length) {
     ok('demo regions have x/y coordinates');
 }
 
-const tmpOut = path.join(os.tmpdir(), `lr-layout-smoke-${Date.now()}.png`);
+const tmpWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-layout-smoke-'));
+const tmpForge = path.join(tmpWs, 'world_forge.json');
+fs.copyFileSync(forgePath, tmpForge);
+const tmpOut = path.join(tmpWs, 'world_map.layout.png');
 const python = process.platform === 'win32' ? 'python' : 'python3';
-const proc = spawnSync(python, [renderScript, forgePath, tmpOut, '--size', '512'], {
+const proc = spawnSync(python, [renderScript, tmpForge, tmpOut, '--size', '512'], {
     encoding: 'utf-8',
     timeout: 60000,
 });
@@ -54,7 +57,7 @@ if (!fs.existsSync(tmpOut) || fs.statSync(tmpOut).size < 100) {
     ok('layout PNG generated');
 }
 
-try { fs.unlinkSync(tmpOut); } catch { /* ignore */ }
+try { fs.rmSync(tmpWs, { recursive: true, force: true }); } catch { /* ignore */ }
 
 if (!fs.existsSync(bundledLayout) || fs.statSync(bundledLayout).size < 100) {
     fail('bundled sample world_map.layout.png missing — regenerate with scripts/regenerate_cartography_demo_layout.js');

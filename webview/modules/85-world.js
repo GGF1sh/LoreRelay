@@ -1069,11 +1069,11 @@ function setWorldMapGenBusy(busy, failed = false) {
     btn.disabled = busy;
     btn.classList.toggle('generating', busy);
     if (busy) {
-        btn.textContent = '⏳ Generating map...';
+        btn.textContent = T('webview.world.mapGenerating');
     } else if (failed) {
-        btn.textContent = '❌ Map failed — Retry';
+        btn.textContent = T('webview.world.mapFailed');
     } else {
-        btn.textContent = '🗺 Map Image';
+        btn.textContent = T('webview.world.mapImage');
     }
 }
 

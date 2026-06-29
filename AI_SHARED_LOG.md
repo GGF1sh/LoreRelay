@@ -6,7 +6,7 @@
 
 ## Current Snapshot
 
-**更新: 2026-06-29 JST**
+**更新: 2026-06-30 JST**
 
 | 項目 | 値 |
 |------|-----|
@@ -36,6 +36,33 @@
 - 実装したがユーザー未確認の機能は `testing_checklist.md` に残す
 - 「とりあえず先に進めて」でも未確認の積み上げを把握し、適宜プレイ確認を促す
 - 作業開始前に `AI_ROADMAP.md` と本 Snapshot を確認し、完了済みフェーズを壊さない
+
+---
+
+## 2026-06-30 JST - Grok - AITest workspace review (i18n + Cartography)
+
+### Summary
+
+- `C:\AITest` で layout PNG 生成成功（`world_map.layout.png`）
+- ComfyUI 羊皮紙生成は layout バグ修正後にキューまで到達。ユーザ環境では `sd_xl_base_1.0.safetensors` が未インストールのため 400（`TA_CHECKPOINT` 要設定）
+- Quick Reply 等 19 キーの i18n 不足を 4 言語で補完。World「Map Image」ボタンも i18n 化
+
+### Files touched
+
+- `locales/*.json`, `webview/index.html`, `webview/modules/85-world.js`
+- `scripts/comfyui_generate_cartography.py`, `scripts/check_i18n_keys.js`, `package.json`
+- `CHANGELOG.md`, `AI_SHARED_LOG.md`
+
+### Verification
+
+- `npm run compile && npm test`
+- `python scripts/render_cartography_layout.py C:\AITest\world_forge.json C:\AITest\world_map.layout.png`
+
+### Remaining (manual in Extension Host)
+
+- World タブ実表示（Mermaid / 派閥 / Diagram↔Parchment）
+- ComfyUI で `world_map.png` 生成（checkpoint 設定後）
+- Extension Host リロードで i18n 修正を確認
 
 ---
 

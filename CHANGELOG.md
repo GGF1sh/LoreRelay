@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **i18n** — Quick Reply（`export` / `forceSpeak` / `questFlow` / `relations`）、Character 装備・操作主体、Inspector hidden state、OOC empty、World 地図ボタンなど 19+ キーを 4 言語に追加。`scripts/check_i18n_keys.js` を `npm test` に統合。
+- **Cartography ComfyUI** — `comfyui_generate_cartography.py` が許可外の一時 layout 名（`cartography_layout_{uuid}.png`）を使っていたため、既存の `world_map.layout.png` を再利用するか `cartography_layout.png` にフォールバックするよう修正（v1.7.3 パス検証と整合）。
+
 ### Changed
 
 - **AI handover docs** — `AI_HANDOVER.md` 全面更新（v1.7.3、`turn_result` フロー）、`AI_SHARED_LOG.md` Current Snapshot 刷新、`AI_ROADMAP.md` Phase 7/8 追記。

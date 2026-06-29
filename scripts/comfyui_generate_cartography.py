@@ -31,7 +31,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from cartography_path_utils import validate_forge_path, validate_output_dir  # noqa: E402
+from cartography_path_utils import (  # noqa: E402
+    WORLD_MAP_LAYOUT_BASENAME,
+    validate_forge_path,
+    validate_output_dir,
+)
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
 DEFAULT_WORKFLOW = REPO_ROOT / "comfyui" / "workflow_cartography_sdxl_canny.json"
 RENDER_SCRIPT = SCRIPT_DIR / "render_cartography_layout.py"
@@ -179,9 +183,11 @@ def main() -> int:
     width = int(os.environ.get("TA_WIDTH", "1024"))
     height = int(os.environ.get("TA_HEIGHT", "1024"))
 
-    layout_path = output_dir / f"cartography_layout_{uuid.uuid4().hex[:8]}.png"
     output_dir.mkdir(parents=True, exist_ok=True)
-    render_layout(forge_path, layout_path, max(width, height))
+    layout_path = output_dir / WORLD_MAP_LAYOUT_BASENAME
+    if not layout_path.is_file():
+        layout_path = output_dir / "cartography_layout.png"
+        render_layout(forge_path, layout_path, max(width, height))
 
     uploaded_name = upload_image(layout_path)
 

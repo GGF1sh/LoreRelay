@@ -1,58 +1,90 @@
 # AI Shared Log
 
-## 2026-06-28 JST - Antigravity - Phase 7 Cartography Verification & Release (v1.7.0)
+> **最新状態は先頭の Current Snapshot を正とする。** 以下は履歴。実装の正本は `CHANGELOG.md` + ソースコード。
 
-### 変更概要
-- ChatGPT、Claude、Grokによる Phase 7 Cartography (世界地図可視化・マップ生成機能) の協調実装を受け、全体統合テストおよび `v1.7.0` のリリース準備を実施。
-- `world_forge.json` への座標 (x, y) およびバイオーム情報の付与、MermaidマップのPan/Zoom機能、さらにComfyUIによるパーチメント古地図生成とHTMLピンオーバーレイを含む、Cartographyの全要件 (Option A & B ハイブリッド) が完了していることを確認。
-
-### 検証
-- `npm run compile` および `npm test` (全テスト: World Event, Visual Memory, Cartography Layout, NPC Registry 等) がエラーなく通過することを確認。
-- `CHANGELOG.md` を更新し、`package.json` のバージョンを `1.7.0` にバンプ。
-
-### 次のステップ
-- フェーズ7まで完了し、テキストアドベンチャーのコア基盤および世界・マップ生成基盤がほぼ全て完成。
-- 今後はユーザーのプレイスタイルに合わせたさらなる機能拡張や、細かいUX向上、不具合修正などを適宜実施するフェーズへ移行。
-
-Et@ĆAׂĂAIEʂœǂݏƃOłAEZAnŁAAIȂE񂾂EBEEEr[EEAɂ͗vEQEc܂AE
-
-
-Grok/ClaudeiuEEEVXevOEL^B
-
-### i
-- **Step 1 (Sv)**: `WORLD_SYSTEM_DESIGN.md` B
-- **Step 2 (NPC Memory + Disposition + Needs)**: ERpCB
-  - VK: `src/npcRegistry.ts`, `src/npcRegistryCore.ts`
-  - XV: `gameRules.ts`, `types/GameState.ts`, `gameStateSync.ts`, `gmPromptBuilder.ts`, `validateGameState.ts`
-- **Step 3 (yWorld ForgeW[)**: ERpCB
-  - VK: `src/worldForge.ts`, `src/worldForgeCore.ts`, `sample-scenarios/lost-catacombs/world_forge.json`
-  - XV: `gameRules.ts` (`enableWorldForge`), `types/GameState.ts` (`world`), `statePatch.ts`, `gmPromptBuilder.ts` (`buildWorldForgePromptContext()`), `validateGameState.ts`
-- **Step 4 (E}bv - Mermaid)**: ERpCB
-  - VK: `src/worldMapGenerator.ts`, `src/worldView.ts`, `webview/modules/85-world.js`
-  - XV: `gameStateSync.ts`, `extension.ts`, `webviewHandlers.ts`, `webview/index.html` (World^u)
-- **Step 5a (G}[WFgV~[V - WorldState f[^w)**: ERpCB
-  - VK: `src/worldState.ts`, `src/worldStateCore.ts`, `sample-scenarios/lost-catacombs/world_state.json`
-  - XV: `gameRules.ts` (`enableEmergentSimulation`, `simIntervalTurns`), `webview/index.html`, `70-game-rules.js`
-- **Step 5b (G}[WFgV~[V - WbN & tbN)**: ERpCB
-  - VK: `src/emergentSimulator.ts` (LLMsvy/CxgWbN)
-  - XV: `gameStateSync.ts` (V~[V tick tbN)
-
-### Xebv (Step 5c)
-- `gmPromptBuilder.ts`  WorldState B
-- WebviewWorld^uhXe[^X/CxgUI\B
+---
 
 ## Current Snapshot
 
-- Current package version: **`1.1.2`**EEode Review��E�̃o�O�E���X�N�C���B`CHANGELOG.md` [1.1.2]EE- Main source of truth: `CHANGELOG.md` + source code
-- **Task Management Blackboard**: `AI_ROADMAP.md` (��ƊJ�n�O��E��E�t�@�C�������ă^�X�N�̃`�F�`E���X�g���X�V���邱��)
-- Main remaining work:
-  - README screenshots/GIF, Ko-fi real URL
-  - Private scenario vault: keep out of public Git / release archives. Do not describe private contents in shared docs.
+**更新: 2026-06-29 JST**
 
-### EEAI�A�g��E����m�F���[�� (Handover Rules)
-- ���� of AI�ֈ����p���ہAE*�u����E�����̂́A���[�U�[���܂���ʏ�œ���m�F���Ă�E��EE�AE* �́AE `testing_checklist.md` �Ɉꗗ�����Ďc���Ă��������AE- ���[�U�[����u�Ƃ肠������i�߂āv�Ǝ�E���ꂽ�ꍇ�ł��A���m�F�@E���ςݏオ���Ă�E���Ƃ�AI���Ŕc�����AE�ɉ����āu���낻�듮��m�F�����肢���܂��v��E�Ă��������AE- �eAI�͍�ƊJ�n�O�� `task.md` �� `testing_checklist.md` �̏�Ԃ��m�F���A���`E�gE�̈��j�󂵂Ȃ�E��E�ӂ��Ă��������AE
-  - **Phase 2B ���A�u�b�N**: **��E*EEegex / secondary_keys / insertion_orderE�BTavernCard V1/V2 ��E�Ή�E�����GE  - Phase ST-A E `imagePromptTemplates` �� GM/SKILL �A�g�A�e���v���K�p UI �ƍĐ���E����E  - Phase ST-B2/B3: Connection + Generation �v���Z�`EE���O�t�� JSONEE  - **TextAdventureGMSkill**: git ��EEE`gm_bridge_common.py` ���C�� skill zip ��EEE�ȏꍇ����E  - `extension.ts` E: **��E*EE454 �s�IE  - `webview/script.js` / `style.css` E: **��E*EEmodules/` 11 + `styles/` 11 + `build-webview.js`EE  - **Phase 1 / 1.5 / 2A / 2C / 3A / 3B**: **��E*EE���܂�EE
-## 2026-06-27 01:30 JST - Antigravity - Code Review Fixes (v1.1.2)
+| 項目 | 値 |
+|------|-----|
+| Package version | **1.7.3** (`package.json`, `CHANGELOG.md` [1.7.3]) |
+| Source of truth | `CHANGELOG.md` + source code |
+| Task blackboard | `AI_ROADMAP.md` |
+| Handover doc | `AI_HANDOVER.md`（2026-06-29 刷新） |
+
+### v1.7.x で入ったこと（要約）
+
+- **v1.7.0** — Cartography UI（Diagram / Parchment、ComfyUI、ピン overlay）
+- **v1.7.1** — パス検証、workflow 契約、デモ layout、README 4言語
+- **v1.7.2** — Python/TS パス仕様統一（ChatGPT review）
+- **v1.7.3** — `copyFileSync` 前検証、layout 子プロセス追跡、Remote Play `/media` チェック順（Claude review）
+
+### Main remaining work
+
+- README **実スクショ / GIF**（`docs/assets/*.svg` はモック。手順は `DEMO.md`）
+- [`testing_checklist.md`](testing_checklist.md) の手動確認
+- Cartography UX polish（stale 表示、再生成促し）— 任意
+- **v1.8 Event-to-Quest** — 次の機能候補（`AI_ROADMAP.md` Phase 8）
+- Private scenario vault: 公開 Git / 共有ドキュメントの対象外
+
+### AI連携時の動作確認ルール
+
+- 実装したがユーザー未確認の機能は `testing_checklist.md` に残す
+- 「とりあえず先に進めて」でも未確認の積み上げを把握し、適宜プレイ確認を促す
+- 作業開始前に `AI_ROADMAP.md` と本 Snapshot を確認し、完了済みフェーズを壊さない
+
+---
+
+## 2026-06-29 JST - Grok - AI handover docs refresh
+
+### Summary
+
+- `AI_HANDOVER.md` を全面書き直し（文字化け解消、v1.7.3、`turn_result` フロー、残件更新）
+- `AI_SHARED_LOG.md` 先頭に Current Snapshot を再配置（旧 v1.1.2 / 文字化けブロック削除）
+- `AI_ROADMAP.md` に Phase 7（Cartography）完了と Phase 8 候補を追記
+
+### Files touched
+
+- `AI_HANDOVER.md`
+- `AI_SHARED_LOG.md`
+- `AI_ROADMAP.md`
+- `CHANGELOG.md`
+
+### Verification
+
+- ドキュメントのみ（コード変更なし）
+
+---
+
+## 2026-06-29 JST - Grok - Cartography hardening v1.7.2 / v1.7.3
+
+### Summary
+
+- v1.7.2: Python `validate_output_dir` / layout 出力を TS と統一、`test_cartography_path_utils.py`
+- v1.7.3: `validateCartographyGeneratedImagePath` + `resolveAllowedImagePath` before copy、layout subprocess tracking
+
+### Verification
+
+- `npm run compile && npm test` 通過（v1.7.3 リリース時）
+
+---
+
+## 2026-06-28 JST - Antigravity - Phase 7 Cartography Verification & Release (v1.7.0)
+
+### 変更概要
+
+- ChatGPT、Claude、Grok による Phase 7 Cartography の統合テストおよび v1.7.0 リリース準備
+- `world_forge.json` の x/y/biome、Mermaid pan/zoom、ComfyUI 羊皮紙地図、ピン overlay
+
+### 検証
+
+- `npm run compile` / `npm test` 通過
+- `package.json` → `1.7.0`
+
+---## 2026-06-27 01:30 JST - Antigravity - Code Review Fixes (v1.1.2)
 
 ### �T�vE- **�R�[�h���r���[��E��E*: Claude�̃��r���[��EEECLAUDE_CODE_REVIEW.md`E�Ɋ�Â��A�o�O3������ш��萫���X�N2�����C���AE  - **��d�o�^�̏C��**: `extension.ts` ���� `checkForUpdates` �R�}���hE�dE�^���폜�AE  - **WebSocket�ڑ�������E�L����E*: `remotePlayServer.ts` �� `wss.on('connection')` �� `maxClients` �`�F�`E������EE  - **���F�؃��`E�[�W�̑��M����**: `sendToClient` �� `force` �t���O��ǉ����A�F�ؑOE�N���C�A���g�� `authRequired` �Ȃǂ̌x��E�n���h�V�F�C�N���͂��悤�ɏC���BE�f�O�ɂ� 50ms �`E���C��}���AE  - **�����[�gE�̓��`E�̈�E��E*: `d.onPlayerInput` �̊�E�� `finally` �Ŋm���� `remoteInputLocked = false` �֖߂��悟E�C�����AGM�G���[��E�i�����`E��h�~�AE  - **�Q�[�����[���̃L���`E����E*: `gameRules.ts` �Ƀ������L���`E���ϐ���ǉ����A���^�[������E `fs.readFileSync` �����E������AE- **�����`E�g�ǉ�**: `scripts/test_ws_functionality.js` ��ǉ����A�ڑ��������A���F�؃��`E�[�W�̑�E�Afinally�u���`E�ɂ�郍�`E�����@E������ɓ������Ƃ�WebSocket�N���C�A���g��p��E���؁AE
 ## 2026-06-28 00:23 JST - Antigravity (Gemini 3.5 Flash) - World System Phase 3b Complete
@@ -1147,10 +1179,12 @@ pcBridgeCore.ts (Phase 4b) to propagate events to NPC needs (e.g., region danger
 #### 1. Pan & Zoom 実装 (85-world.js)
 - initMapPanZoomOnce(viewport): #world-mermaid に対してマウスイベントを1回のみ登録する初期化関数。フルスクラッチ・npm 依存なし。
 - pplyMapTransform(viewport): _mapPanState (scale / tx / ty) を Mermaid SVG に matrix(...) として適用。
-- esetMapPanState(): 再レンダリング時に scale=1, tx=0, ty=0 にリセット。
+- 
+esetMapPanState(): 再レンダリング時に scale=1, tx=0, ty=0 にリセット。
 - ensureMapPanZoomStyles(): #world-mermaid を viewport 化する CSS を動的注入（overflow:hidden !important, min-height:300px, max-height:65vh, cursor:grab 等）。
 - ddMapPanZoomHint(viewport): レンダリング後に操作ヒント（"Drag · Scroll to zoom · Dbl-click to reset"）をオーバーレイ表示。
-- enderMermaidMap に .then() チェーンを追加し、Mermaid 描画完了後に上記を呼び出す。
+- 
+enderMermaidMap に .then() チェーンを追加し、Mermaid 描画完了後に上記を呼び出す。
 - **操作**: マウスドラッグ → Pan / マウスホイール → Zoom (0.15x〜5x, カーソル中心) / ダブルクリック → リセット
 
 #### 2. Mermaid バイオームスタイリング (worldMapGenerator.ts)
@@ -1210,3 +1244,4 @@ pm run build:webview 通過 (18 modules → script.js 5185 lines)
 
 ### 検証
 - `npm run compile` / `npm run build:webview` / `npm test`
+

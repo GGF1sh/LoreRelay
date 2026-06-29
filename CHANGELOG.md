@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **AI handover docs** — `AI_HANDOVER.md` 全面更新（v1.7.3、`turn_result` フロー）、`AI_SHARED_LOG.md` Current Snapshot 刷新、`AI_ROADMAP.md` Phase 7/8 追記。
+
 ## [1.7.3] - 2026-06-29
 
 ### Fixed — Cartography & Remote Play (Claude review)

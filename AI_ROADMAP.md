@@ -95,3 +95,32 @@ LLMのハルシネーション（勝手な改変）を防ぐ「壊れないGM基
 - [x] **T6**: Webview & postMessage — webviewHandlersCore、ハンドラ検証強化、85-world クランプ
 - [x] **T7**: Remote Play セキュリティ再監査（v1.6.0 / `7147982`）
 - [x] **T8**: Extension Hub — World Forge hub、GM session reset、sample scenario git（`754c6ed`）
+
+---
+
+## 🟢 Phase 7 (v1.7.0 → v1.7.3): Cartography
+*ステータス: 完了*
+
+世界地図の可視化と ComfyUI 羊皮紙パイプライン。v1.7.1〜1.7.3 でパス安全・レビュー指摘対応まで硬化済み。
+
+- [x] Region `x` / `y` / `biome`、Mermaid biome スタイル・pan/zoom（v1.6.3 基盤）
+- [x] `cartographyLayoutCore.ts` + `render_cartography_layout.py`（レイアウト PNG）
+- [x] `comfyui_generate_cartography.py` + World タブ **Diagram / Parchment** + ピン overlay
+- [x] `cartographyPathCore.ts` / `cartography_path_utils.py` パス検証
+- [x] workflow 契約・smoke test・`lost-catacombs` デモ layout
+- [x] v1.7.2 Python/TS パス統一、v1.7.3 生成 PNG コピー前検証
+
+---
+
+## 🟡 Phase 8 (v1.8+): Event-to-Quest
+*ステータス: 計画中*
+
+世界シミュレーションの出来事をプレイ可能なクエストへ接続する。
+
+- [ ] `recentChanges` / 派閥・地域イベントから Quest Hook 候補を生成
+- [ ] NPC Need から依頼化
+- [ ] World タブに「Quest Hooks」表示
+- [ ] Scenario Director へ optional objective 追加
+- [ ] 解決後に `world_state` / `npc_registry` へ反映
+
+**並行候補（公開 polish）:** README 実スクショ/GIF、Cartography stale UX、`testing_checklist.md` 消化

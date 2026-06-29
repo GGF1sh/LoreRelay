@@ -3,6 +3,8 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
 
@@ -26,7 +28,7 @@
 - 📦 **Scenario Packs:** `scenario.json` を含むフォルダを読み込むだけで、開始シーン・テーマ・専用BGM/SEをまとめて適用できます。
 - 🎲 **Built-in Dice Roller & Calculator:** TRPGライクな判定に必要なダイスロール（NdX）と数式電卓を内蔵。
 - 💾 **Persistent Adventure Log:** `game_history.json` に冒険ログを保存し、VSCode再起動後も履歴を復元できます。
-- 🔍 **Turn Inspector (v0.5+):** ダイス台帳・statePatch・発火ロアをターンごとに可視化。
+- 🔍 **Turn Inspector:** ダイス台帳・statePatch・発火ロアをターンごとに可視化。
 - 📖 **Lorebook & Memory UI:** ST互換ロアブックの閲覧/編集、Memory 検索プレビュー、ピン留め常時注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` と `game_state` ランタイム連動。
 - 📱 **Remote Play (v0.7+):** LAN 参加用 URL（コピー共有）、player / spectator ロール。WebSocket 認証・入力クランプ・**署名付き `/media` URL**（short-TTL HMAC、v1.6.2+）。
@@ -38,6 +40,25 @@
 - 🔒 **Audit Wave Hardening (v1.6):** State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub を7トラックで監査。pure 検証モジュールと回帰テストを大幅追加。
 
 詳細なアーキテクチャ解説: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
+
+### 必要なものと任意機能
+
+| 区分 | 内容 |
+|------|------|
+| **必須（コアプレイ）** | VSCode 1.85+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
+| **推奨** | GM Bridge（Grok / Ollama / clipboard 等）または手動コピペ運用 |
+| **任意 — 画像** | ComfyUI（API モード）— シーン背景・羊皮紙地図の生成 |
+| **任意 — 視覚記憶** | VLM（Ollama `llava` や OpenRouter 多模態）— Soulgaze |
+| **任意 — マルチプレイ** | Remote Play（同一 LAN） |
+| **任意 — 地図** | Cartography — レイアウト PNG のみなら Python だけで可。イラスト地図は ComfyUI + SDXL Canny |
+
+### データフロー（Persist-Before-Narrate）
+
+GM は毎ターン **`turn_result.json`** を書き込むのが正規契約です（`statePatch` + `narration` + `gmEntry` + `turnId`）。拡張機能がパッチを検証・適用し **`game_state.json`** にマージし、`state_journal.ndjson` に監査ログを追記します。
+
+`game_state.json` の直書きは **緊急フォールバック**（手動コピペやレガシー GM）。この場合も `turnResultFallback` が `turn_result.json` を合成し、Inspector・ジャーナル・MediaAgent を同じ経路に揃えます。
+
+**Cartography パイプライン（任意）:** `world_forge.json`（Region の `x` / `y` / `biome`）→ レイアウト PNG（`world_map.layout.png`）→ （任意）ComfyUI ControlNet → `world_map.png` → World タブの 📍 ピン overlay
 
 ---
 
@@ -70,7 +91,7 @@
 
 羊皮紙の**イラスト地図**まで試す場合のみ: ComfyUI 起動後 `LoreRelay: Generate World Map Image`。詳細は [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md)（**Optional / 上級**）。
 
-この拡張機能は、AIが書き出す `game_state.json` を監視してUIをレンダリングする疎結合な仕組みを採用しています。あなたの環境に合わせて2通りの遊び方があります。
+この拡張機能は、AI が書き出す `turn_result.json`（正規）または `game_state.json`（フォールバック）を監視して UI をレンダリングする疎結合な仕組みを採用しています。あなたの環境に合わせて2通りの遊び方があります。
 
 ### Mode A: 自動連携モード (Recommended)
 **対象:** Antigravity, Grok CLI, VSCode Copilot (Cursor) などの**ローカルファイル書き込みが可能なエージェントAI**を使っている場合。
@@ -93,9 +114,11 @@
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+)
-- **Python** (画像生成・ダイス用スクリプトの実行に必要)
-- **ComfyUI** (ローカルで画像を生成する場合、APIモード起動が必要)
+- **VSCode** (v1.85+) — 必須
+- **Python** — 必須（ダイス・レイアウト地図・GM ブリッジ用スクリプト）
+- **TextAdventureGMSkill** — 必須（`SKILL.md` と `scripts/`。拡張リポジトリの隣に配置）
+- **ComfyUI** — *任意*（シーン画像・羊皮紙地図を生成する場合のみ。API モードで起動）
+- **VLM** — *任意*（Visual Memory / Soulgaze。Ollama または OpenRouter）
 
 ### 2. Quick setup (recommended)
 
@@ -137,11 +160,44 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 - `textAdventure.locale` — UI / エラー / GM プロンプトの言語（`ja` / `en` / `zh-CN` / `zh-TW`）。Webview ヘッダーの 🌐 からも変更可
 - `textAdventure.gmBridge.provider` — `grok` / `ollama` / `koboldcpp` / `clipboard` / `command`（詳細は `GM_BRIDGE_PRESETS.md`）
 - `textAdventure.grokBridge.*` — Grok Build 自動送信の有効化、CLIパス、フォールバック設定
-- `textAdventure.imageGen.*` — ComfyUI / Stability Matrix のURL、checkpoint、workflow、生成サイズ
+- `textAdventure.imageGen.*` — ComfyUI / Stability Matrix の URL、checkpoint、workflow、生成サイズ
+- `textAdventure.imageGen.controlNet` — Cartography 用 SDXL Canny モデル名（任意）
+- `textAdventure.vlm.*` — Soulgaze 用 VLM（`provider` / `model` / `endpoint`）
+- `textAdventure.mediaAgent.*` — バックグラウンド画像キュー、GM ストリームからの早期 BGM/SFX
+- `textAdventure.remotePlay.*` — ポート、`bindAddress`、`mediaUrlTtlSec`（署名メディア URL の TTL）ほか
 - `textAdventure.bgm.*` — BGMマニフェストと音量
 - `textAdventure.sfx.*` — SEマニフェストと音量
 
-### 5. Scenario Packs
+### 5. コマンドパレット（主要）
+
+| コマンド | 用途 |
+|---------|------|
+| `LoreRelay: Open Game UI` | メイン Webview を開く |
+| `LoreRelay: Load Scenario Pack` | `scenario.json` を含むフォルダを読み込み |
+| `LoreRelay: Generate World Forge` | `world_forge.json` を procedural 生成 |
+| `LoreRelay: Generate World Map Image` | 羊皮紙地図を ComfyUI で生成（任意） |
+| `LoreRelay: Start Remote Play (LAN)` | LAN 参加用 URL を発行 |
+| `LoreRelay: List Image Models` | ComfyUI の checkpoint 一覧 |
+| `LoreRelay: Import SillyTavern Character Card` | ST キャラカード取り込み |
+| `LoreRelay: Import SillyTavern Lorebook` | ST ロアブック取り込み |
+| `LoreRelay: Export Scenario Pack (Workshop ZIP)` | 配布用 ZIP を書き出し |
+| `LoreRelay: Validate Scenario Pack` | パック構造の検証 |
+
+### 6. ワークスペースの主要ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `game_state.json` | UI が描画する統合ゲーム状態 |
+| `turn_result.json` | 毎ターンの GM 出力（正規の永続化先） |
+| `state_journal.ndjson` | statePatch の監査ジャーナル |
+| `world_forge.json` | 静的ワールド設計（地域・派閥・NPC 種） |
+| `world_state.json` | 動的シミュレーション（訪問済み・派閥資源など） |
+| `visual_memory.json` | VLM が蓄積した情景記憶 |
+| `game_history.json` | 冒険ログ（再起動後も復元） |
+| `world_map.layout.png` / `world_map.png` | Cartography レイアウト / 羊皮紙画像 |
+| `npc_registry.json` | NPC 認識・関係性 |
+
+### 7. Scenario Packs
 コマンドパレットから `LoreRelay: Load Scenario Pack` を実行し、`scenario.json` を含むフォルダを選択すると、開始状態・テーマ・専用BGM/SEを読み込めます。
 
 **同梱サンプル（3本）** — 拡張リポジトリの `sample-scenarios/`:
@@ -154,10 +210,28 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 
 GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scenarios/`。
 
-### 6. Model & ComfyUI presets (v1.0)
+### 8. SillyTavern 互換 & Workshop
+
+- ST キャラ / ロアブックのインポートは上記コマンドまたは Webview から。詳細は [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md)
+- シナリオパックの書き出し・検証で Workshop 配布用 ZIP を作成可能（v1.8+ でマーケット公開は検討中）
+
+### 9. Model & ComfyUI presets
 - 推奨 GM / 画像設定: [`MODEL_PRESETS.md`](MODEL_PRESETS.md)（`presets/` の JSON をコピー）
 - ComfyUI ワークフロー: [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md)（シーン用 + Cartography 用）
-- Cartography（任意）: [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md)
+- Cartography（任意）: [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md) · [`docs/CARTOGRAPHY_DESIGN.md`](docs/CARTOGRAPHY_DESIGN.md)
+- デモ手順: [`sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md`](sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md)
+
+### 10. ドキュメント索引
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [`AI_HANDOVER.md`](AI_HANDOVER.md) | 他 AI への引き継ぎ・全体像 |
+| [`CHANGELOG.md`](CHANGELOG.md) | バージョン履歴 |
+| [`GM_BRIDGE_PRESETS.md`](GM_BRIDGE_PRESETS.md) | Ollama / KoboldCPP プリセット |
+| [`ANTIGRAVITY_GUIDE.md`](ANTIGRAVITY_GUIDE.md) | Antigravity 連携の手順 |
+| [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md) | SillyTavern 互換仕様 |
+| [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md) | World / Visual Memory アーキテクチャ |
+| [`DEMO.md`](DEMO.md) | スクリーンショット・デモ GIF の差し替え手順 |
 
 ---
 

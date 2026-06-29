@@ -3,6 +3,8 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
 
@@ -39,6 +41,25 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
+### Requirements at a glance
+
+| Tier | What you need |
+|------|---------------|
+| **Required (core play)** | VSCode 1.85+, Python, `TextAdventureGMSkill` (`SKILL.md`) |
+| **Recommended** | GM Bridge (Grok / Ollama / clipboard, etc.) or manual copy-paste |
+| **Optional — images** | ComfyUI (API mode) for scene backgrounds and parchment maps |
+| **Optional — vision** | VLM (Ollama `llava` or OpenRouter multimodal) for Soulgaze |
+| **Optional — multiplayer** | Remote Play (same LAN) |
+| **Optional — maps** | Cartography — layout PNG needs Python only; illustrated parchment needs ComfyUI + SDXL Canny |
+
+### Data flow (Persist-Before-Narrate)
+
+Each turn, the GM should write **`turn_result.json`** (`statePatch` + `narration` + `gmEntry` + `turnId`). The extension validates the patch, merges into **`game_state.json`**, and appends an audit entry to `state_journal.ndjson`.
+
+Direct **`game_state.json`** overwrites are an **emergency fallback** (manual paste or legacy GM). `turnResultFallback` then synthesizes `turn_result.json` so Inspector, journal, and MediaAgent stay on the same path.
+
+**Cartography pipeline (optional):** `world_forge.json` (region `x` / `y` / `biome`) → layout PNG (`world_map.layout.png`) → (optional) ComfyUI ControlNet → `world_map.png` → 📍 pin overlay in the World tab
+
 ---
 
 ## 📸 Screenshots & Demo
@@ -70,7 +91,7 @@ See [`DEMO.md`](DEMO.md) to replace mockups with real screenshots or a demo GIF.
 
 For illustrated parchment maps: start ComfyUI, then `LoreRelay: Generate World Map Image`. See [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) (**optional / advanced**).
 
-This extension uses a loosely coupled mechanism that watches the `game_state.json` exported by the AI and renders the UI. There are two ways to play depending on your environment.
+This extension uses a loosely coupled mechanism that watches `turn_result.json` (canonical) or `game_state.json` (fallback) from the AI and renders the UI. There are two ways to play depending on your environment.
 
 ### Mode A: Auto-Sync Mode (Recommended)
 **Target:** If you are using an **agent AI capable of writing to local files**, such as Antigravity, Grok CLI, or VSCode Copilot (Cursor).
@@ -93,9 +114,11 @@ This extension uses a loosely coupled mechanism that watches the `game_state.jso
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+)
-- **Python** (Required for executing image generation and dice scripts)
-- **ComfyUI** (For local image generation. Must be started in API mode)
+- **VSCode** (v1.85+) — required
+- **Python** — required (dice, layout maps, GM bridge scripts)
+- **TextAdventureGMSkill** — required (`SKILL.md` and `scripts/`; place next to this repo)
+- **ComfyUI** — *optional* (scene images and parchment maps only; start in API mode)
+- **VLM** — *optional* (Visual Memory / Soulgaze via Ollama or OpenRouter)
 
 ### 2. Quick setup (recommended)
 
@@ -138,10 +161,43 @@ Main settings:
 - `textAdventure.gmBridge.provider` — `grok` / `ollama` / `koboldcpp` / `clipboard` / `command` (Details in `GM_BRIDGE_PRESETS.md`)
 - `textAdventure.grokBridge.*` — Enable Grok Build auto-send, CLI path, fallback settings
 - `textAdventure.imageGen.*` — ComfyUI / Stability Matrix URL, checkpoint, workflow, generation size
+- `textAdventure.imageGen.controlNet` — SDXL Canny model name for Cartography (optional)
+- `textAdventure.vlm.*` — Soulgaze VLM (`provider` / `model` / `endpoint`)
+- `textAdventure.mediaAgent.*` — background image queue, early BGM/SFX from GM stream
+- `textAdventure.remotePlay.*` — port, `bindAddress`, `mediaUrlTtlSec` (signed media URL TTL), etc.
 - `textAdventure.bgm.*` — BGM manifest and volume
 - `textAdventure.sfx.*` — SFX manifest and volume
 
-### 5. Scenario Packs
+### 5. Command palette (key commands)
+
+| Command | Purpose |
+|---------|---------|
+| `LoreRelay: Open Game UI` | Open the main Webview |
+| `LoreRelay: Load Scenario Pack` | Load a folder containing `scenario.json` |
+| `LoreRelay: Generate World Forge` | Procedurally generate `world_forge.json` |
+| `LoreRelay: Generate World Map Image` | Parchment map via ComfyUI (optional) |
+| `LoreRelay: Start Remote Play (LAN)` | Issue a LAN join URL |
+| `LoreRelay: List Image Models` | List ComfyUI checkpoints |
+| `LoreRelay: Import SillyTavern Character Card` | Import ST character card |
+| `LoreRelay: Import SillyTavern Lorebook` | Import ST lorebook |
+| `LoreRelay: Export Scenario Pack (Workshop ZIP)` | Export a distribution ZIP |
+| `LoreRelay: Validate Scenario Pack` | Validate pack structure |
+
+### 6. Key workspace files
+
+| File | Role |
+|------|------|
+| `game_state.json` | Merged game state the UI renders |
+| `turn_result.json` | Per-turn GM output (canonical persistence) |
+| `state_journal.ndjson` | Audit journal of state patches |
+| `world_forge.json` | Static world design (regions, factions, NPC seeds) |
+| `world_state.json` | Dynamic simulation (visited, faction resources, etc.) |
+| `visual_memory.json` | VLM scene memory |
+| `game_history.json` | Adventure log (restored after restart) |
+| `world_map.layout.png` / `world_map.png` | Cartography layout / parchment image |
+| `npc_registry.json` | NPC awareness and relationships |
+
+### 7. Scenario Packs
 Run `LoreRelay: Load Scenario Pack` from the Command Palette and select a folder containing `scenario.json`.
 
 **Bundled samples (3)** in `sample-scenarios/`:
@@ -154,10 +210,28 @@ Run `LoreRelay: Load Scenario Pack` from the Command Palette and select a folder
 
 Also under `TextAdventureGMSkill/scenarios/`.
 
-### 6. Model & ComfyUI presets (v1.0)
+### 8. SillyTavern compatibility & Workshop
+
+- Import ST characters and lorebooks via the commands above or the Webview. See [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md)
+- Export and validate scenario packs to build Workshop-ready ZIPs (marketplace publishing is under consideration for v1.8+)
+
+### 9. Model & ComfyUI presets
 - [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — copy JSON from `presets/`
 - [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — scene + cartography workflows
-- Cartography (optional): [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md)
+- Cartography (optional): [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md) · [`docs/CARTOGRAPHY_DESIGN.md`](docs/CARTOGRAPHY_DESIGN.md)
+- Demo walkthrough: [`sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md`](sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md)
+
+### 10. Documentation index
+
+| Document | Topic |
+|----------|-------|
+| [`AI_HANDOVER.md`](AI_HANDOVER.md) | Handover guide for other AIs |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
+| [`GM_BRIDGE_PRESETS.md`](GM_BRIDGE_PRESETS.md) | Ollama / KoboldCPP presets |
+| [`ANTIGRAVITY_GUIDE.md`](ANTIGRAVITY_GUIDE.md) | Antigravity workflow |
+| [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md) | SillyTavern compatibility |
+| [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md) | World / Visual Memory architecture |
+| [`DEMO.md`](DEMO.md) | Replacing screenshots and demo GIFs |
 
 ---
 

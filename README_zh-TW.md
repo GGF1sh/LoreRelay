@@ -3,6 +3,8 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
 
@@ -26,7 +28,7 @@
 - 📦 **Scenario Packs:** 只需載入包含 `scenario.json` 的資料夾，即可一次性套用初始場景、主題和專用的 BGM/音效。
 - 🎲 **Built-in Dice Roller & Calculator:** 內建 TRPG 判定必不可少的擲骰子（NdX）和數學計算器。
 - 💾 **Persistent Adventure Log:** 將冒險日誌儲存到 `game_history.json`，即使重啟 VSCode 也能恢復歷史紀錄。
-- 🔍 **Turn Inspector (v0.5+):** 每回合骰子台帳、狀態修補、觸發 lore 可視化。
+- 🔍 **回合檢查器（Turn Inspector）：** 每回合骰子台帳、狀態修補、觸發 lore 可視化。
 - 📖 **Lorebook & Memory UI:** ST 相容 lorebook 編輯、記憶搜尋預覽、釘選 lore 注入。
 - 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` 與 `game_state` 執行時聯動。
 - 📱 **Remote Play (v0.7+):** LAN 加入 URL（複製分享）、玩家 / 觀戰角色。WebSocket 認證、輸入限制、**簽章 `/media` URL**（short-TTL HMAC，v1.6.2+）。
@@ -38,6 +40,25 @@
 - 🔒 **Audit Wave Hardening (v1.6):** 對 State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub 進行 7 軌道稽核，新增 pure 驗證模組與大量回歸測試。
 
 架構詳解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
+
+### 所需環境與可選功能
+
+| 層級 | 內容 |
+|------|------|
+| **必需（核心遊玩）** | VSCode 1.85+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
+| **推薦** | GM Bridge（Grok / Ollama / 剪貼簿等）或手動複製貼上 |
+| **可選 — 圖像** | ComfyUI（API 模式）— 場景背景與羊皮紙地圖 |
+| **可選 — 視覺記憶** | VLM（Ollama `llava` 或 OpenRouter 多模態）— Soulgaze |
+| **可選 — 多人** | Remote Play（同一區域網路） |
+| **可選 — 地圖** | Cartography — 僅版面 PNG 只需 Python；插畫羊皮紙需 ComfyUI + SDXL Canny |
+
+### 資料流（Persist-Before-Narrate）
+
+GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmEntry` + `turnId`）。擴充套件驗證修補後合併至 **`game_state.json`**，並向 `state_journal.ndjson` 追加稽核紀錄。
+
+直接覆寫 **`game_state.json`** 為**緊急回退**（手動貼上或舊版 GM）。此時 `turnResultFallback` 會合成 `turn_result.json`，使檢查器、日誌與 MediaAgent 走同一路徑。
+
+**Cartography 管線（可選）：** `world_forge.json`（Region 的 `x` / `y` / `biome`）→ 版面 PNG（`world_map.layout.png`）→（可選）ComfyUI ControlNet → `world_map.png` → World 分頁 📍 圖釘疊加
 
 ---
 
@@ -70,7 +91,7 @@
 
 完整插畫羊皮紙地圖：啟動 ComfyUI 後執行 `LoreRelay: Generate World Map Image`。詳見 [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md)（**可選 / 進階**）。
 
-該擴充套件使用鬆散耦合機制，監聽 AI 匯出的 `game_state.json` 並渲染 UI。根據您的環境，有兩種遊玩方式。
+該擴充套件使用鬆散耦合機制，監聽 AI 匯出的 `turn_result.json`（規範）或 `game_state.json`（回退）並渲染 UI。根據您的環境，有兩種遊玩方式。
 
 ### Mode A: 自動同步模式 (Recommended)
 **適用對象：** 使用**可寫入本機檔案的代理 AI**（如 Antigravity, Grok CLI, VSCode Copilot (Cursor)）的使用者。
@@ -93,9 +114,11 @@
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+)
-- **Python** (執行圖像生成和擲骰子腳本所需)
-- **ComfyUI** (用於本機圖像生成。必須在 API 模式下啟動)
+- **VSCode** (v1.85+) — 必需
+- **Python** — 必需（擲骰、版面地圖、GM 橋接腳本）
+- **TextAdventureGMSkill** — 必需（`SKILL.md` 與 `scripts/`，放在本儲存庫旁）
+- **ComfyUI** — *可選*（僅場景圖與羊皮紙地圖；需 API 模式啟動）
+- **VLM** — *可選*（Visual Memory / Soulgaze，Ollama 或 OpenRouter）
 
 ### 2. Quick setup (recommended)
 
@@ -137,11 +160,44 @@ chmod +x scripts/setup.sh
 - `textAdventure.locale` — UI / 錯誤 / GM 提示的語言（`ja` / `en` / `zh-CN` / `zh-TW`）。也可以從 Webview 標題列的 🌐 更改。
 - `textAdventure.gmBridge.provider` — `grok` / `ollama` / `koboldcpp` / `clipboard` / `command` (詳情見 `GM_BRIDGE_PRESETS.md`)
 - `textAdventure.grokBridge.*` — 啟用 Grok Build 自動發送、CLI 路徑、後備設定
-- `textAdventure.imageGen.*` — ComfyUI / Stability Matrix URL, checkpoint, workflow, 生成大小
+- `textAdventure.imageGen.*` — ComfyUI / Stability Matrix URL、checkpoint、workflow、生成尺寸
+- `textAdventure.imageGen.controlNet` — Cartography 用 SDXL Canny 模型名（可選）
+- `textAdventure.vlm.*` — Soulgaze 用 VLM（`provider` / `model` / `endpoint`）
+- `textAdventure.mediaAgent.*` — 背景圖像佇列、GM 串流早期 BGM/SFX
+- `textAdventure.remotePlay.*` — 連接埠、`bindAddress`、`mediaUrlTtlSec`（簽章媒體 URL 有效期）等
 - `textAdventure.bgm.*` — BGM 設定檔和音量
 - `textAdventure.sfx.*` — SFX 設定檔和音量
 
-### 5. Scenario Packs
+### 5. 命令面板（主要命令）
+
+| 命令 | 用途 |
+|------|------|
+| `LoreRelay: Open Game UI` | 開啟主 Webview |
+| `LoreRelay: Load Scenario Pack` | 載入含 `scenario.json` 的資料夾 |
+| `LoreRelay: Generate World Forge` | 程序化產生 `world_forge.json` |
+| `LoreRelay: Generate World Map Image` | 透過 ComfyUI 產生羊皮紙地圖（可選） |
+| `LoreRelay: Start Remote Play (LAN)` | 發布區域網路加入 URL |
+| `LoreRelay: List Image Models` | 列出 ComfyUI checkpoint |
+| `LoreRelay: Import SillyTavern Character Card` | 匯入 ST 角色卡 |
+| `LoreRelay: Import SillyTavern Lorebook` | 匯入 ST lorebook |
+| `LoreRelay: Export Scenario Pack (Workshop ZIP)` | 匯出分發用 ZIP |
+| `LoreRelay: Validate Scenario Pack` | 驗證包結構 |
+
+### 6. 工作區主要檔案
+
+| 檔案 | 作用 |
+|------|------|
+| `game_state.json` | UI 渲染的合併遊戲狀態 |
+| `turn_result.json` | 每回合 GM 輸出（規範持久化） |
+| `state_journal.ndjson` | statePatch 稽核日誌 |
+| `world_forge.json` | 靜態世界設計（區域、派系、NPC 種子） |
+| `world_state.json` | 動態模擬（已造訪、派系資源等） |
+| `visual_memory.json` | VLM 情景記憶 |
+| `game_history.json` | 冒險日誌（重啟後恢復） |
+| `world_map.layout.png` / `world_map.png` | Cartography 版面 / 羊皮紙圖 |
+| `npc_registry.json` | NPC 認知與關係 |
+
+### 7. Scenario Packs
 從命令面板執行 `LoreRelay: Load Scenario Pack` 並選擇包含 `scenario.json` 的資料夾。
 
 **同捆範例（3 本）** — `sample-scenarios/`：
@@ -154,10 +210,28 @@ chmod +x scripts/setup.sh
 
 GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
-### 6. 模型與 ComfyUI 預設 (v1.0)
+### 8. SillyTavern 相容與 Workshop
+
+- 透過上述命令或 Webview 匯入 ST 角色與 lorebook。詳見 [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md)
+- 匯出並驗證場景包可產生 Workshop 用 ZIP（v1.8+ 計畫調研市集上架）
+
+### 9. 模型與 ComfyUI 預設
 - [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — 從 `presets/` 複製 JSON
 - [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — 場景與 Cartography 工作流程
-- Cartography（可選）：[`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md)
+- Cartography（可選）：[`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md) · [`docs/CARTOGRAPHY_DESIGN.md`](docs/CARTOGRAPHY_DESIGN.md)
+- 示範步驟：[`sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md`](sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md)
+
+### 10. 文件索引
+
+| 文件 | 內容 |
+|------|------|
+| [`AI_HANDOVER.md`](AI_HANDOVER.md) | 面向其他 AI 的交接說明 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 版本歷史 |
+| [`GM_BRIDGE_PRESETS.md`](GM_BRIDGE_PRESETS.md) | Ollama / KoboldCPP 預設 |
+| [`ANTIGRAVITY_GUIDE.md`](ANTIGRAVITY_GUIDE.md) | Antigravity 工作流程 |
+| [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md) | SillyTavern 相容規格 |
+| [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md) | World / Visual Memory 架構 |
+| [`DEMO.md`](DEMO.md) | 替換截圖與示範 GIF |
 
 ---
 

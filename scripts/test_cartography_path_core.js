@@ -16,6 +16,7 @@ const {
     resolveValidatedForgePath,
     validateCartographyOutputPath,
     validateCartographyOutputDir,
+    validateCartographyGeneratedImagePath,
     WORLD_FORGE_BASENAME,
     WORLD_MAP_LAYOUT_BASENAME,
 } = require(corePath);
@@ -75,6 +76,29 @@ if (!validateCartographyOutputDir(path.join(tmp, 'output'), tmp)) {
     ok('rejects non-root output dir');
 } else {
     fail('should reject non-root output dir');
+}
+
+const tempMap = path.join(tmp, 'world_map_a1b2c3d4.png');
+fs.writeFileSync(tempMap, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+if (validateCartographyGeneratedImagePath(tempMap, tmp)) {
+    ok('accepts valid temp world_map PNG in workspace root');
+} else {
+    fail('should accept valid temp world_map PNG in workspace root');
+}
+
+if (!validateCartographyGeneratedImagePath(path.join(tmp, 'evil.png'), tmp)) {
+    ok('rejects non-temp map basename');
+} else {
+    fail('should reject non-temp map basename');
+}
+
+const nestedMap = path.join(tmp, 'output', 'world_map_a1b2c3d4.png');
+fs.mkdirSync(path.join(tmp, 'output'), { recursive: true });
+fs.writeFileSync(nestedMap, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+if (!validateCartographyGeneratedImagePath(nestedMap, tmp)) {
+    ok('rejects nested temp world_map PNG');
+} else {
+    fail('should reject nested temp world_map PNG');
 }
 
 try {

@@ -5,10 +5,12 @@ import { spawn, ChildProcess } from 'child_process';
 import { t } from './i18n';
 import { buildImageGenEnv, getResolvedImageMode } from './imageGenRunner';
 import { getWorkspacePath } from './workspacePaths';
+import { resolveAllowedImagePath } from './mediaPaths';
 import { resolvePythonCommand } from './skillScriptRunner';
 import {
     WORLD_MAP_IMAGE_BASENAME,
     WORLD_MAP_LAYOUT_BASENAME,
+    validateCartographyGeneratedImagePath,
     validateCartographyOutputDir,
     validateCartographyOutputPath,
     validateForgePathInWorkspace,
@@ -101,29 +103,22 @@ function spawnAndWait(
     command: string,
     args: string[],
     env: NodeJS.ProcessEnv,
-    channel: vscode.OutputChannel
-): Promise<{ code: number | null; lastPngLine: string }> {
+    channel: vscode.OutputChannel,
+    trackProcess?: (child: ChildProcess | undefined) => void
+): Promise<{ code: number | null }> {
     return new Promise((resolve) => {
         const child = spawn(command, args, { shell: false, env });
-        let lastPngLine = '';
+        trackProcess?.(child);
         let finished = false;
 
         const finish = (code: number | null) => {
             if (finished) { return; }
             finished = true;
-            resolve({ code, lastPngLine });
+            trackProcess?.(undefined);
+            resolve({ code });
         };
 
-        child.stdout.on('data', (data) => {
-            const out = data.toString();
-            channel.append(out);
-            for (const line of out.split('\n')) {
-                const trimmed = line.trim();
-                if (trimmed.endsWith('.png') && trimmed.length > 4) {
-                    lastPngLine = trimmed;
-                }
-            }
-        });
+        child.stdout.on('data', (data) => channel.append(data.toString()));
 
         child.stderr.on('data', (data) => channel.append(data.toString()));
 
@@ -155,7 +150,8 @@ async function renderStableLayout(
         python,
         [script, forgePath, layoutPath, '--size', String(Number.isFinite(size) && size > 0 ? size : 1024)],
         env,
-        channel
+        channel,
+        (child) => { cartographyProcess = child; }
     );
     return code === 0 && fs.existsSync(layoutPath);
 }
@@ -261,15 +257,22 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
 
         child.on('close', (code) => {
             channel.appendLine(`\nProcess exited with code ${code}`);
-            if (code !== 0 || !generatedImagePath || !fs.existsSync(generatedImagePath)) {
+            if (code !== 0 || !generatedImagePath) {
+                finish(false);
+                return;
+            }
+            const srcPath = validateCartographyGeneratedImagePath(generatedImagePath, wsPath);
+            const allowedPath = resolveAllowedImagePath(generatedImagePath);
+            if (!srcPath || !allowedPath || srcPath !== allowedPath) {
+                channel.appendLine(`Generated path rejected (outside workspace or invalid name): ${generatedImagePath}`);
                 finish(false);
                 return;
             }
             try {
-                fs.copyFileSync(generatedImagePath, targetMapPath);
+                fs.copyFileSync(srcPath, targetMapPath);
                 channel.appendLine(`Saved world map → ${targetMapPath}`);
-                if (generatedImagePath !== targetMapPath && path.basename(generatedImagePath).startsWith('world_map_')) {
-                    try { fs.unlinkSync(generatedImagePath); } catch { /* temp cleanup best-effort */ }
+                if (srcPath !== targetMapPath && path.basename(srcPath).startsWith('world_map_')) {
+                    try { fs.unlinkSync(srcPath); } catch { /* temp cleanup best-effort */ }
                 }
                 finish(true);
             } catch (e) {

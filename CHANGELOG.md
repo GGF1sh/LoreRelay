@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-06-29
+
+### Fixed — Cartography & Remote Play (Claude review)
+
+- **`cartographyRunner.ts`**: ComfyUI 生成 PNG を `validateCartographyGeneratedImagePath` + `resolveAllowedImagePath` で検証してから `copyFileSync`。
+- **`cartographyRunner.ts`**: layout subprocess を `cartographyProcess` に追跡（deactivate 時の孤児プロセス防止）。未使用の `lastPngLine` 追跡を削除。
+- **`remotePlayServer.ts`**: `/media` で `file` パラメータ欠落を署名検証より先にチェック。
+
 ## [1.7.2] - 2026-06-29
 
 ### Fixed — Cartography path alignment (ChatGPT review)

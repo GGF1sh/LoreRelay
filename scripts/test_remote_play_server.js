@@ -142,9 +142,16 @@ async function run() {
     } else {
         const base = `http://127.0.0.1:${actualPort}`;
 
-        // 5. /media 署名なし → 401
+        // 5a. /media file パラメータなし → 400
         {
             const r = await get(`${base}/media`);
+            if (r.status !== 400) { fail(`/media missing file: expected 400, got ${r.status}`); }
+            else { ok('/media without file param: 400 Missing file'); }
+        }
+
+        // 5b. /media 署名なし（file あり）→ 401
+        {
+            const r = await get(`${base}/media?file=test.png`);
             if (r.status !== 401) { fail(`/media no signature: expected 401, got ${r.status}`); }
             else { ok('/media without signature: 401 Unauthorized'); }
         }

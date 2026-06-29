@@ -438,6 +438,11 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
     }
 
     const file = reqUrl.searchParams.get('file') || '';
+    if (!file) {
+        res.writeHead(400);
+        res.end('Missing file');
+        return;
+    }
     const expRaw = reqUrl.searchParams.get('exp') || '';
     const sig = reqUrl.searchParams.get('sig') || '';
     const exp = Number.parseInt(expRaw, 10);
@@ -445,11 +450,6 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
     if (!auth.ok) {
         res.writeHead(auth.reason === 'expired' ? 403 : 401);
         res.end(auth.reason === 'expired' ? 'Expired' : 'Unauthorized');
-        return;
-    }
-    if (!file) {
-        res.writeHead(400);
-        res.end('Missing file');
         return;
     }
     // searchParams.get() already URL-decodes; calling decodeURIComponent again would

@@ -1,15 +1,15 @@
-@echo off
-setlocal EnableExtensions
-set "SCRIPT_DIR=%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\install_vscode_extension.ps1" -Language "ja"
-set "PS_EXIT_CODE=%ERRORLEVEL%"
-if %PS_EXIT_CODE% NEQ 0 (
-    echo.
-    echo ƒCƒ“ƒXƒg[ƒ‹‚ÉŽ¸”s‚µ‚Ü‚µ‚½B‰½‚©ƒL[‚ð‰Ÿ‚µ‚ÄI—¹‚µ‚Ä‚­‚¾‚³‚¢...
-    pause >nul
-) else (
-    echo.
-    echo ‰½‚©ƒL[‚ð‰Ÿ‚µ‚ÄI—¹‚µ‚Ä‚­‚¾‚³‚¢...
-    pause >nul
-)
-exit /b %PS_EXIT_CODE%
+@echo off
+setlocal EnableExtensions
+set "SCRIPT_DIR=%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\install_vscode_extension.ps1" -Language "ja"
+set "PS_EXIT_CODE=%ERRORLEVEL%"
+if %PS_EXIT_CODE% NEQ 0 (
+    echo.
+    echo ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã«å¤±æ•—ã—ã¾ã—ãŸã€‚ä½•ã‹ã‚­ãƒ¼ã‚’æŠ¼ã—ã¦çµ‚äº†ã—ã¦ãã ã•ã„...
+    pause >nul
+) else (
+    echo.
+    echo ä½•ã‹ã‚­ãƒ¼ã‚’æŠ¼ã—ã¦çµ‚äº†ã—ã¦ãã ã•ã„...
+    pause >nul
+)
+exit /b %PS_EXIT_CODE%

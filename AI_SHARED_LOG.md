@@ -39,6 +39,59 @@
 
 ---
 
+## 2026-06-30 JST - Claude - World tab i18n 残存漏れ修正 + check_i18n_keys.js 修正
+
+### Summary
+
+- `85-world.js` の 21 箇所ハードコード英語文字列を `T()` 化（World Forge UI フォーム全ラベル、セクション見出し4件、派閥空状態、シム Power/Morale バー、Scene Image ボタン状態、マップパンヒント）
+- 4 言語（ja / en / zh-CN / zh-TW）に 21 新キーを追加
+- `webview.inspector.noHiddenState` を 4 言語追加（check 時に発覚した漏れ）
+- `check_i18n_keys.js` — `T()` 大文字が正規表現に引っかからないバグを修正（`(?:t|i18n)` → `(?:T|t|i18n)`）
+- `C:\AITest\game_rules.json` の `enableWorldForge` / `enableEmergentSimulation` / `enableNpcRegistry` を `true` に変更（World タブ表示に必須）
+
+### Files touched
+
+- `locales/ja.json`, `locales/en.json`, `locales/zh-CN.json`, `locales/zh-TW.json`
+- `webview/modules/85-world.js`
+- `scripts/check_i18n_keys.js`
+- `C:\AITest\game_rules.json`
+- `CHANGELOG.md`, `AI_SHARED_LOG.md`
+
+### Verification
+
+- `npm run compile && npm test` — 全通過
+
+### Remaining (manual in Extension Host)
+
+- Extension Host リロード（Ctrl+Shift+P → Developer: Reload Window）で i18n 修正を確認
+- World タブを開いて Mermaid Diagram / Parchment 切替・Pan&Zoom を確認
+- game_rules.json が有効になり world_forge.json の 3 Region / 2 Faction が表示されるか確認
+
+---
+
+## 2026-06-30 JST - ChatGPT - Claude/Grok 統合ゲートレビュー
+
+### Summary
+
+- `CHATGPT_INTEGRATION_REVIEW.md` に沿って Current Snapshot / CHANGELOG [Unreleased] / v1.7.3 前提を確認
+- Claude/Grok 差分を統合レビュー。Critical / High のコード問題は検出なし
+- タブバー横ドラッグでスクロール後にクリックが発火し得るため、`webview/modules/40-dice-calc-tabs.js` に capture click suppression を追加
+- `C:\AITest` は `world_map.layout.png` あり、`world_map.png` なし。ComfyUI 羊皮紙未生成は checkpoint 未設定による環境要因扱い
+
+### Verification
+
+- `node scripts/check_i18n_keys.js` — 4 言語 missing 0
+- `npm run compile` — 通過
+- `npm test` — 全通過
+- `git diff --check` — whitespace error なし
+
+### Remaining (manual in Extension Host)
+
+- Extension Host リロード後、World タブのタブ位置・横スクロール・未翻訳キー解消を画面で確認
+- ComfyUI checkpoint 設定後に `world_map.png` 生成と Parchment 表示を確認
+
+---
+
 ## 2026-06-30 JST - Grok - AITest workspace review (i18n + Cartography)
 
 ### Summary

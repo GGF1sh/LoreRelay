@@ -16,7 +16,7 @@ const jsDir = path.join(ROOT, 'webview/modules');
 for (const f of fs.readdirSync(jsDir).filter((x) => x.endsWith('.js'))) {
   const t = fs.readFileSync(path.join(jsDir, f), 'utf8');
   for (const m of t.matchAll(/data-i18n(?:-placeholder|-title)?="([^"]+)"/g)) keys.add(m[1]);
-  for (const m of t.matchAll(/(?:t|i18n)\(['"](webview\.[^'"]+)['"]\)/g)) keys.add(m[1]);
+  for (const m of t.matchAll(/(?:T|t|i18n)\(['"](webview\.[^'"]+)['"]\)/g)) keys.add(m[1]);
 }
 
 const locales = ['ja', 'en', 'zh-CN', 'zh-TW'];

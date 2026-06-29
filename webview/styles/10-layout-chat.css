@@ -9,7 +9,12 @@
   flex-shrink: 0;
   gap: 0;
   padding: 0 4px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
 }
+
+.tabs-header:active { cursor: grabbing; }
 
 .tabs-header::-webkit-scrollbar { display: none; }
 

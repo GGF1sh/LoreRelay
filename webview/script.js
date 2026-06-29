@@ -1674,16 +1674,74 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
-    
+
     btn.classList.add('active');
     const targetId = btn.dataset.target;
     document.getElementById(targetId).style.display = 'flex';
-    
+
     if (targetId === 'pane-character') {
       vscode.postMessage({ type: 'loadCharacters' });
     }
   });
 });
+
+// ===== タブバー横スクロール =====
+// 通常マウスホイール（縦）をタブバーの横スクロールに変換
+(function initTabBarScroll() {
+  const tabsHeader = document.getElementById('status-tabs');
+  if (!tabsHeader) { return; }
+
+  // 縦ホイール → 横スクロール変換
+  tabsHeader.addEventListener('wheel', (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      tabsHeader.scrollLeft += e.deltaY * 0.8;
+    }
+  }, { passive: false });
+
+  // ポインタドラッグで横スクロール（タッチ操作 / タブ背景上のドラッグ）
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartScrollLeft = 0;
+  let dragMoved = false;
+  let suppressNextClick = false;
+
+  tabsHeader.addEventListener('click', (e) => {
+    if (!suppressNextClick) { return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    suppressNextClick = false;
+  }, true);
+
+  tabsHeader.addEventListener('pointerdown', (e) => {
+    const target = e.target instanceof Element ? e.target : null;
+    const isScrollableTarget = target === tabsHeader || Boolean(target?.closest('.tab-btn'));
+    if (isScrollableTarget) {
+      dragging = true;
+      dragMoved = false;
+      dragStartX = e.clientX;
+      dragStartScrollLeft = tabsHeader.scrollLeft;
+      tabsHeader.setPointerCapture(e.pointerId);
+    }
+  });
+
+  tabsHeader.addEventListener('pointermove', (e) => {
+    if (!dragging) { return; }
+    const dx = e.clientX - dragStartX;
+    if (Math.abs(dx) > 4) {
+      dragMoved = true;
+      tabsHeader.scrollLeft = dragStartScrollLeft - dx;
+    }
+  });
+
+  tabsHeader.addEventListener('pointerup', (e) => {
+    if (dragging && dragMoved) {
+      suppressNextClick = true;
+      setTimeout(() => { suppressNextClick = false; }, 0);
+    }
+    dragging = false;
+  });
+})();
 
 /* --- 50-character-saga.js --- */
 // ===== Character Profile ロジック =====
@@ -4016,7 +4074,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 const btn = document.getElementById('world-gen-btn');
                 if (btn) {
                     btn.classList.add('failed');
-                    btn.innerHTML = '<span>❌ Generate Failed — Retry</span>';
+                    btn.innerHTML = `<span>${T('webview.world.worldGenFailed')}</span>`;
                 }
             }
         }
@@ -4358,7 +4416,7 @@ function addMapPanZoomHint(viewport) {
     if (!hint) {
         hint = document.createElement('div');
         hint.className = 'world-map-hint';
-        hint.textContent = 'Drag · Scroll to zoom · Dbl-click to reset';
+        hint.textContent = T('webview.world.mapPanHint');
         viewport.appendChild(hint);
     }
 }
@@ -4440,7 +4498,7 @@ function renderLocationImages(images, currentLocationId) {
 
     const heading = document.createElement('div');
     heading.className = 'world-section-heading';
-    heading.textContent = '📷 Scene History';
+    heading.textContent = T('webview.world.sceneHistoryHeader');
     section.appendChild(heading);
 
     const strip = document.createElement('div');
@@ -4496,7 +4554,7 @@ function renderNpcsAtLocation(npcs, currentLocationId) {
 
     const heading = document.createElement('div');
     heading.className = 'world-section-heading';
-    heading.textContent = '👤 NPCs Here';
+    heading.textContent = T('webview.world.npcsHereHeader');
     section.appendChild(heading);
 
     const grid = document.createElement('div');
@@ -4584,7 +4642,7 @@ function renderGlobalEvents(events, simEnabled) {
 
     const heading = document.createElement('div');
     heading.style.cssText = 'font-size:0.78em;opacity:0.6;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;';
-    heading.textContent = 'Active Events';
+    heading.textContent = T('webview.world.activeEventsHeader');
     section.appendChild(heading);
 
     for (const ev of events) {
@@ -4641,7 +4699,7 @@ function renderRecentChanges(events, simEnabled) {
 
     const heading = document.createElement('div');
     heading.style.cssText = 'font-size:0.78em;opacity:0.6;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.05em;';
-    heading.textContent = 'World Changes';
+    heading.textContent = T('webview.world.recentChangesHeader');
     section.appendChild(heading);
 
     // Show newest first, up to 5 entries
@@ -4699,7 +4757,7 @@ function renderFactions(factions, factionStates) {
     if (!list) { return; }
 
     if (factions.length === 0) {
-        list.innerHTML = '<p class="empty-text" style="margin:0;">No factions defined.</p>';
+        list.innerHTML = `<p class="empty-text" style="margin:0;">${T('webview.world.factionsEmpty')}</p>`;
         return;
     }
 
@@ -4779,11 +4837,11 @@ function buildSimBars(liveState) {
     wrapper.style.cssText = 'margin-top:0.35rem;display:flex;flex-direction:column;gap:0.15rem;';
 
     // パワーバー
-    wrapper.appendChild(buildBar('Power', liveState.power, 100, 'var(--vscode-charts-red, #c04040)'));
+    wrapper.appendChild(buildBar(T('webview.world.simPower'), liveState.power, 100, 'var(--vscode-charts-red, #c04040)'));
 
     // モラルバー（ある場合のみ）
     if (liveState.morale !== undefined) {
-        wrapper.appendChild(buildBar('Morale', liveState.morale, 100, 'var(--vscode-charts-blue, #4080c0)'));
+        wrapper.appendChild(buildBar(T('webview.world.simMorale'), liveState.morale, 100, 'var(--vscode-charts-blue, #4080c0)'));
     }
 
     return wrapper;
@@ -4946,17 +5004,17 @@ function buildWorldGenForm() {
 
     const title = document.createElement('div');
     title.className = 'world-gen-title';
-    title.innerHTML = '✨ Forge a New World';
+    title.innerHTML = T('webview.world.forgeTitle');
     card.appendChild(title);
 
     const desc = document.createElement('div');
     desc.className = 'world-gen-desc';
-    desc.textContent = 'Initialize a dynamic simulation environment. Please ensure World Forge is enabled in Game Rules.';
+    desc.textContent = T('webview.world.forgeDesc');
     card.appendChild(desc);
 
     // Rows
-    card.appendChild(makeFormRow('Seed', makeTextInput('world-gen-seed', 'e.g. lost-catacombs')));
-    
+    card.appendChild(makeFormRow(T('webview.world.forgeSeed'), makeTextInput('world-gen-seed', 'e.g. lost-catacombs')));
+
     const themeSelect = document.createElement('select');
     themeSelect.id = 'world-gen-theme';
     themeSelect.className = 'world-gen-input';
@@ -4966,17 +5024,17 @@ function buildWorldGenForm() {
         opt.textContent = t.charAt(0).toUpperCase() + t.slice(1).replace('-', ' ');
         themeSelect.appendChild(opt);
     }
-    card.appendChild(makeFormRow('Theme', themeSelect));
+    card.appendChild(makeFormRow(T('webview.world.forgeTheme'), themeSelect));
 
-    card.appendChild(makeFormRow('Regions', makeNumberInput('world-gen-regions', 3, 12, 5)));
-    card.appendChild(makeFormRow('Factions', makeNumberInput('world-gen-factions', 2, 6, 3)));
-    card.appendChild(makeFormRow('NPCs', makeNumberInput('world-gen-npcs', 2, 20, 6)));
+    card.appendChild(makeFormRow(T('webview.world.forgeRegions'), makeNumberInput('world-gen-regions', 3, 12, 5)));
+    card.appendChild(makeFormRow(T('webview.world.forgeFactions'), makeNumberInput('world-gen-factions', 2, 6, 3)));
+    card.appendChild(makeFormRow(T('webview.world.forgeNpcs'), makeNumberInput('world-gen-npcs', 2, 20, 6)));
 
     // Generate button
     const btn = document.createElement('button');
     btn.id = 'world-gen-btn';
     btn.className = 'world-gen-btn';
-    btn.innerHTML = '<span>Generate World</span>';
+    btn.innerHTML = `<span>${T('webview.world.forgeBtn')}</span>`;
     btn.addEventListener('click', () => {
         const rawSeed = document.getElementById('world-gen-seed')?.value?.trim() || '';
         const seed = rawSeed.slice(0, 64);
@@ -5031,10 +5089,10 @@ function setWorldGenBusy(busy) {
     if (busy) {
         btn.classList.add('generating');
         btn.classList.remove('failed');
-        btn.innerHTML = '<span>⏳ Generating...</span>';
+        btn.innerHTML = `<span>${T('webview.world.worldGenBusy')}</span>`;
     } else {
         btn.classList.remove('generating');
-        btn.innerHTML = '<span>Generate World</span>';
+        btn.innerHTML = `<span>${T('webview.world.forgeBtn')}</span>`;
     }
 }
 
@@ -5060,11 +5118,11 @@ function setWorldSceneImageBusy(busy, failed = false) {
     }
     btn.disabled = busy;
     if (busy) {
-        btn.innerHTML = '<span>⏳ Generating...</span>';
+        btn.innerHTML = `<span>${T('webview.world.worldGenBusy')}</span>`;
     } else if (failed) {
-        btn.innerHTML = '<span>❌ Failed — Retry</span>';
+        btn.innerHTML = `<span>${T('webview.world.sceneImageFailed')}</span>`;
     } else {
-        btn.innerHTML = '🎨 Scene Image';
+        btn.innerHTML = T('webview.world.sceneImageBtn');
     }
 }
 

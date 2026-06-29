@@ -196,13 +196,71 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
-    
+
     btn.classList.add('active');
     const targetId = btn.dataset.target;
     document.getElementById(targetId).style.display = 'flex';
-    
+
     if (targetId === 'pane-character') {
       vscode.postMessage({ type: 'loadCharacters' });
     }
   });
 });
+
+// ===== タブバー横スクロール =====
+// 通常マウスホイール（縦）をタブバーの横スクロールに変換
+(function initTabBarScroll() {
+  const tabsHeader = document.getElementById('status-tabs');
+  if (!tabsHeader) { return; }
+
+  // 縦ホイール → 横スクロール変換
+  tabsHeader.addEventListener('wheel', (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      tabsHeader.scrollLeft += e.deltaY * 0.8;
+    }
+  }, { passive: false });
+
+  // ポインタドラッグで横スクロール（タッチ操作 / タブ背景上のドラッグ）
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartScrollLeft = 0;
+  let dragMoved = false;
+  let suppressNextClick = false;
+
+  tabsHeader.addEventListener('click', (e) => {
+    if (!suppressNextClick) { return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    suppressNextClick = false;
+  }, true);
+
+  tabsHeader.addEventListener('pointerdown', (e) => {
+    const target = e.target instanceof Element ? e.target : null;
+    const isScrollableTarget = target === tabsHeader || Boolean(target?.closest('.tab-btn'));
+    if (isScrollableTarget) {
+      dragging = true;
+      dragMoved = false;
+      dragStartX = e.clientX;
+      dragStartScrollLeft = tabsHeader.scrollLeft;
+      tabsHeader.setPointerCapture(e.pointerId);
+    }
+  });
+
+  tabsHeader.addEventListener('pointermove', (e) => {
+    if (!dragging) { return; }
+    const dx = e.clientX - dragStartX;
+    if (Math.abs(dx) > 4) {
+      dragMoved = true;
+      tabsHeader.scrollLeft = dragStartScrollLeft - dx;
+    }
+  });
+
+  tabsHeader.addEventListener('pointerup', (e) => {
+    if (dragging && dragMoved) {
+      suppressNextClick = true;
+      setTimeout(() => { suppressNextClick = false; }, 0);
+    }
+    dragging = false;
+  });
+})();

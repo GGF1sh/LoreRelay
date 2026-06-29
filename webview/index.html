@@ -103,11 +103,11 @@
         <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
         <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
         <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">Inspector</span></button>
+        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">World</span></button>
         <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">Lorebook</span></button>
         <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">Memory</span></button>
         <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">Director</span></button>
         <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">Party</span></button>
-        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">World</span></button>
         <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">OOC</span></button>
       </div>
 
@@ -649,32 +649,32 @@
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
-        <label for="gr-skill-commentary" title="Skills have personalities and comment on checks (Disco Elysium style)" data-i18n="webview.gameRules.skillCommentary">Enable Skill Commentary</label>
+        <label for="gr-skill-commentary" data-i18n="webview.gameRules.skillCommentary" data-i18n-title="webview.gameRules.tipSkillCommentary">Enable Skill Commentary</label>
         <input type="checkbox" id="gr-skill-commentary" data-field="skillCommentary" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
-        <label for="gr-bg-sim" title="World progresses even when players are idle" data-i18n="webview.gameRules.bgSim">Enable Background Simulation</label>
+        <label for="gr-bg-sim" data-i18n="webview.gameRules.bgSim" data-i18n-title="webview.gameRules.tipBgSim">Enable Background Simulation</label>
         <input type="checkbox" id="gr-bg-sim" data-field="backgroundSimulation" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
-        <label for="gr-auto-lore" title="Automatically create Lorebook entries from new nouns" data-i18n="webview.gameRules.autoLore">Enable Auto Lorebook Growth</label>
+        <label for="gr-auto-lore" data-i18n="webview.gameRules.autoLore" data-i18n-title="webview.gameRules.tipAutoLore">Enable Auto Lorebook Growth</label>
         <input type="checkbox" id="gr-auto-lore" data-field="autoLorebookGrowth" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
-        <label for="gr-npc-registry" title="Track NPC memory, disposition and needs. Requires npc_registry.json in workspace." data-i18n="webview.gameRules.npcRegistry">Enable NPC Memory &amp; Disposition</label>
+        <label for="gr-npc-registry" data-i18n="webview.gameRules.npcRegistry" data-i18n-title="webview.gameRules.tipNpcRegistry">Enable NPC Memory &amp; Disposition</label>
         <input type="checkbox" id="gr-npc-registry" data-field="enableNpcRegistry" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
-        <label for="gr-world-forge" title="Inject world geography, factions and lore into GM prompts. Requires world_forge.json in workspace." data-i18n="webview.gameRules.worldForge">Enable World Forge</label>
+        <label for="gr-world-forge" data-i18n="webview.gameRules.worldForge" data-i18n-title="webview.gameRules.tipWorldForge">Enable World Forge</label>
         <input type="checkbox" id="gr-world-forge" data-field="enableWorldForge" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
-        <label for="gr-emergent-sim" title="Run lightweight faction/resource simulation every N turns. Requires world_state.json." data-i18n="webview.gameRules.emergentSim">Enable Emergent Simulation</label>
+        <label for="gr-emergent-sim" data-i18n="webview.gameRules.emergentSim" data-i18n-title="webview.gameRules.tipEmergentSim">Enable Emergent Simulation</label>
         <input type="checkbox" id="gr-emergent-sim" data-field="enableEmergentSimulation" />
       </div>
 

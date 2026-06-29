@@ -13,12 +13,18 @@
 
 - **i18n** — Quick Reply（`export` / `forceSpeak` / `questFlow` / `relations`）、Character 装備・操作主体、Inspector hidden state、OOC empty、World 地図ボタンなど 19+ キーを 4 言語に追加。`scripts/check_i18n_keys.js` を `npm test` に統合。
 - **Cartography ComfyUI** — `comfyui_generate_cartography.py` が許可外の一時 layout 名（`cartography_layout_{uuid}.png`）を使っていたため、既存の `world_map.layout.png` を再利用するか `cartography_layout.png` にフォールバックするよう修正（v1.7.3 パス検証と整合）。
+- **i18n — World タブ残存漏れ** (Claude review) — `85-world.js` に 21 キーを T() 化（World Forge UI 全ラベル、シーン履歴/NPC/イベント/World Changes 見出し、派閥空状態、シム Power/Morale バー、Scene Image ボタン状態、マップパンヒント）。4 言語に 21 キーを追加。`webview.inspector.noHiddenState` も 4 言語追加。
+- **`check_i18n_keys.js`** — JS ファイル内の `T()` (大文字) を拾わないバグを修正（正規表現 `(?:t|i18n)` → `(?:T|t|i18n)`）。これにより Grok が追加した `T()` 呼び出しも検証対象に。
+- **i18n — ゲームルールダイアログ ツールチップ** — 「高度なAIルール」配下 6 チェックボックスの `title` 属性（英語ハードコード）を `data-i18n-title` に変換し、4 言語にツールチップキー（`tipSkillCommentary` 等 6 件）を追加。
+- **UX — World タブ位置** — 9 タブ中 8 番目で画面外に隠れていた「ワールド」タブを 4 番目（Inspector の直後）に移動。スクロール不要でアクセス可能に。
+- **UX — タブバー横スクロール** — 通常マウスホイール（縦）でタブバーを横スクロール可能に。ポインタドラッグ（クリック&左右スライド）にも対応。CSS に `cursor: grab` を追加してスクロール可能であることを示す。
 
 ### Changed
 
 - **AI handover docs** — `AI_HANDOVER.md` 全面更新（v1.7.3、`turn_result` フロー）、`AI_SHARED_LOG.md` Current Snapshot 刷新、`AI_ROADMAP.md` Phase 7/8 追記。
 - **UTF-8 統一** — 文字化けしていた 14+ Markdown を UTF-8 で書き直しまたはスタブ化。`.editorconfig`、`scripts/validate_utf8_docs.js` を追加。`AI_HANDOVER_PROMPTS.md` を v1.7.3 に更新。
 - **VS Code ChatGPT 用** — `VSCODE_CHATGPT_CATCHUP.md`（v1.6.3 止まり向けコンテキスト更新プロンプト）を追加。
+- **AITest レビュー流れ** — `CHATGPT_INTEGRATION_REVIEW.md`（Claude/Grok 後の統合ゲート用プロンプト）を追加。
 
 ## [1.7.3] - 2026-06-29
 

@@ -71,6 +71,16 @@
 
 会話履歴で古い版に固定されている場合は、作業指示の**前**に [`VSCODE_CHATGPT_CATCHUP.md`](VSCODE_CHATGPT_CATCHUP.md) を `@` 添付するか、同ファイルの「コピー用プロンプト」を貼る。読了確認が返るまで実装提案させない。
 
+### AITest レビュー後の統合ゲート（Claude → Grok → ChatGPT）
+
+| 順 | AI | 担当 |
+|----|-----|------|
+| 1 | Claude | Webview 実画面・UI/UX・World/Cartography 表示・i18n |
+| 2 | Grok | ComfyUI・Cartography パイプライン・`C:\AITest` 生成物 |
+| 3 | ChatGPT | 差分レビュー・`npm test`・CHANGELOG・commit 判断 |
+
+ChatGPT 用プロンプト: [`CHATGPT_INTEGRATION_REVIEW.md`](CHATGPT_INTEGRATION_REVIEW.md)（画面は見えない前提）
+
 ### いつ使うか
 
 - **フェーズ 1** — Claude と並列で最初に投げる

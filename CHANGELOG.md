@@ -13,6 +13,7 @@
 
 - **AI handover docs** — `AI_HANDOVER.md` 全面更新（v1.7.3、`turn_result` フロー）、`AI_SHARED_LOG.md` Current Snapshot 刷新、`AI_ROADMAP.md` Phase 7/8 追記。
 - **UTF-8 統一** — 文字化けしていた 14+ Markdown を UTF-8 で書き直しまたはスタブ化。`.editorconfig`、`scripts/validate_utf8_docs.js` を追加。`AI_HANDOVER_PROMPTS.md` を v1.7.3 に更新。
+- **VS Code ChatGPT 用** — `VSCODE_CHATGPT_CATCHUP.md`（v1.6.3 止まり向けコンテキスト更新プロンプト）を追加。
 
 ## [1.7.3] - 2026-06-29
 

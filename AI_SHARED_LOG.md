@@ -84,7 +84,9 @@
 - `npm run compile` / `npm test` 通過
 - `package.json` → `1.7.0`
 
----## 2026-06-27 01:30 JST - Antigravity - Code Review Fixes (v1.1.2)
+---
+
+## 2026-06-27 01:30 JST - Antigravity - Code Review Fixes (v1.1.2)
 
 ### �T�vE- **�R�[�h���r���[��E��E*: Claude�̃��r���[��EEECLAUDE_CODE_REVIEW.md`E�Ɋ�Â��A�o�O3������ш��萫���X�N2�����C���AE  - **��d�o�^�̏C��**: `extension.ts` ���� `checkForUpdates` �R�}���hE�dE�^���폜�AE  - **WebSocket�ڑ�������E�L����E*: `remotePlayServer.ts` �� `wss.on('connection')` �� `maxClients` �`�F�`E������EE  - **���F�؃��`E�[�W�̑��M����**: `sendToClient` �� `force` �t���O��ǉ����A�F�ؑOE�N���C�A���g�� `authRequired` �Ȃǂ̌x��E�n���h�V�F�C�N���͂��悤�ɏC���BE�f�O�ɂ� 50ms �`E���C��}���AE  - **�����[�gE�̓��`E�̈�E��E*: `d.onPlayerInput` �̊�E�� `finally` �Ŋm���� `remoteInputLocked = false` �֖߂��悟E�C�����AGM�G���[��E�i�����`E��h�~�AE  - **�Q�[�����[���̃L���`E����E*: `gameRules.ts` �Ƀ������L���`E���ϐ���ǉ����A���^�[������E `fs.readFileSync` �����E������AE- **�����`E�g�ǉ�**: `scripts/test_ws_functionality.js` ��ǉ����A�ڑ��������A���F�؃��`E�[�W�̑�E�Afinally�u���`E�ɂ�郍�`E�����@E������ɓ������Ƃ�WebSocket�N���C�A���g��p��E���؁AE
 ## 2026-06-28 00:23 JST - Antigravity (Gemini 3.5 Flash) - World System Phase 3b Complete

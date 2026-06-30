@@ -260,7 +260,7 @@
       </div> <!-- /pane-status -->
 
       <!-- ペイン 2: Character Profile -->
-      <div id="pane-character" class="tab-pane" style="display: none;">
+      <div id="pane-character" class="tab-pane">
         <div class="char-toolbar">
           <select id="char-select">
             <option value="new" data-i18n="webview.character.newOption">-- New Character --</option>
@@ -325,7 +325,7 @@
       </div> <!-- /pane-character -->
 
       <!-- ペイン 3: Turn Inspector -->
-      <div id="pane-inspector" class="tab-pane" style="display: none;">
+      <div id="pane-inspector" class="tab-pane">
         <p id="inspector-empty-text" class="empty-text" data-i18n="webview.inspector.empty">Complete a GM turn to inspect dice, patches, and lore triggers.</p>
         <div id="inspector-content" class="hidden">
           <div class="inspector-section">
@@ -373,7 +373,7 @@
       </div> <!-- /pane-inspector -->
 
       <!-- ペイン: Lorebook Editor -->
-      <div id="pane-lorebook" class="tab-pane" style="display: none;">
+      <div id="pane-lorebook" class="tab-pane">
         <div class="lorebook-toolbar">
           <button id="lorebook-add-btn" type="button" class="small-btn" data-i18n="webview.lorebook.addEntry">+ Add entry</button>
           <button id="lorebook-save-btn" type="button" class="small-btn primary" data-i18n="webview.lorebook.saveAll">Save lorebook</button>
@@ -384,7 +384,7 @@
       </div> <!-- /pane-lorebook -->
 
       <!-- ペイン: Memory Bank -->
-      <div id="pane-memory" class="tab-pane" style="display: none;">
+      <div id="pane-memory" class="tab-pane">
         <div class="memory-toolbar">
           <label for="memory-backend-select" data-i18n="webview.memory.backendLabel">Backend</label>
           <select id="memory-backend-select">
@@ -404,7 +404,7 @@
       </div> <!-- /pane-memory -->
 
       <!-- ペイン: Scenario Director -->
-      <div id="pane-director" class="tab-pane" style="display: none;">
+      <div id="pane-director" class="tab-pane">
         <p id="director-empty" class="empty-text" data-i18n="webview.director.empty">Load a scenario pack with a director block in scenario.json.</p>
         <div id="director-content" class="hidden">
           <p id="director-live-badge" class="lorebook-dirty hidden" data-i18n="webview.director.liveOverrides">Live progression (game_state.director)</p>
@@ -452,7 +452,7 @@
       </div> <!-- /pane-director -->
 
       <!-- ペイン: Party Director -->
-      <div id="pane-party" class="tab-pane" style="display: none;">
+      <div id="pane-party" class="tab-pane">
         <p id="party-empty" class="empty-text" data-i18n="webview.party.empty">Add characters to the party to configure speech and relationships.</p>
         <div id="party-content" class="hidden">
           <p id="party-live-badge" class="lorebook-dirty hidden" data-i18n="webview.party.liveOverrides">Live overrides (game_state.partyDirector)</p>
@@ -473,7 +473,7 @@
       </div> <!-- /pane-party -->
 
       <!-- ペイン: World Map -->
-      <div id="pane-world" class="tab-pane" style="display: none;">
+      <div id="pane-world" class="tab-pane">
         <p id="world-empty" class="empty-text" data-i18n="webview.world.empty">Enable World Forge in Game Rules and add world_forge.json to your workspace.</p>
         <div id="world-content" class="hidden">
           <div class="inspector-section" style="margin-bottom:0.75rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
@@ -514,7 +514,7 @@
       </div> <!-- /pane-world -->
 
       <!-- ペイン 4: OOC Sidekick -->
-      <div id="pane-ooc" class="tab-pane" style="display: none;">
+      <div id="pane-ooc" class="tab-pane">
         <div id="ooc-log" class="ooc-log" style="flex: 1; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 0.5rem; background: var(--vscode-editor-background);">
           <div class="empty-text" data-i18n="webview.ooc.empty">OOC commentary will appear here after GM turns...</div>
         </div>

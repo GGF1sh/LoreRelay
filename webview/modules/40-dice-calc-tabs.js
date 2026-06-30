@@ -203,10 +203,10 @@ function activateStatusPane(targetId) {
   document.querySelectorAll('#status-tabs .tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.target === targetId);
   });
-  document.querySelectorAll('#status-area .tab-pane').forEach(p => {
-    const active = p.id === targetId;
-    p.classList.toggle('active', active);
-    p.style.display = active ? 'flex' : 'none';
+  document.querySelectorAll('#status-area .tab-pane').forEach((p) => {
+    p.classList.toggle('active', p.id === targetId);
+    // display は .tab-pane.active の CSS に任せる（inline style と !important の競合を避ける）
+    p.style.removeProperty('display');
   });
 
   const statusArea = document.getElementById('status-area');

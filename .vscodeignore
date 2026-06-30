@@ -2,6 +2,8 @@
 .git/**
 .github/**
 node_modules/**
+!node_modules/ws/
+!node_modules/ws/**
 
 # TypeScript sources (compiled output lives in out/)
 src/**

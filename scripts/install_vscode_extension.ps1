@@ -24,7 +24,7 @@ try {
         throw "npm run compile failed with exit code $LASTEXITCODE"
     }
 
-    npx @vscode/vsce package --no-dependencies --baseContentUrl "https://github.com/dummy" --baseImagesUrl "https://github.com/dummy" --out $VsixPath
+    npx @vscode/vsce package --baseContentUrl "https://github.com/dummy" --baseImagesUrl "https://github.com/dummy" --out $VsixPath
     if ($LASTEXITCODE -ne 0) {
         throw "vsce package failed with exit code $LASTEXITCODE"
     }

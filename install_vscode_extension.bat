@@ -10,3 +10,4 @@ if %PS_EXIT_CODE% neq 0 (
 echo.
 echo Press any key to exit...
 pause >nul
+exit /b %PS_EXIT_CODE%

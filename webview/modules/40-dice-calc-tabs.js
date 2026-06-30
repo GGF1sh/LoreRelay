@@ -192,30 +192,46 @@ calcInput.addEventListener('keydown', (e) => {
 });
 
 // ===== タブ切り替え =====
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    // CSS の .tab-pane:not(.active){display:none!important} に合わせ、
-    // inline display と .active クラスの両方を切り替える（!important は inline に勝つため両方必要）
-    document.querySelectorAll('.tab-pane').forEach(p => {
-      p.classList.remove('active');
-      p.style.display = 'none';
-    });
+function activateStatusPane(targetId) {
+  if (!targetId) { return false; }
+  const targetPane = document.getElementById(targetId);
+  if (!targetPane) {
+    console.warn(`[LoreRelay] Status tab target not found: ${targetId}`);
+    return false;
+  }
 
-    btn.classList.add('active');
-    const targetId = btn.dataset.target;
-    const targetPane = document.getElementById(targetId);
-    targetPane.classList.add('active');
-    targetPane.style.display = 'flex';
-
-    if (targetId === 'pane-character') {
-      vscode.postMessage({ type: 'loadCharacters' });
-    }
-    if (targetId === 'pane-world') {
-      vscode.postMessage({ type: 'loadWorld' });
-    }
+  document.querySelectorAll('#status-tabs .tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.target === targetId);
   });
-});
+  document.querySelectorAll('#status-area .tab-pane').forEach(p => {
+    const active = p.id === targetId;
+    p.classList.toggle('active', active);
+    p.style.display = active ? 'flex' : 'none';
+  });
+
+  const statusArea = document.getElementById('status-area');
+  if (statusArea) {
+    statusArea.dataset.activePane = targetId;
+  }
+
+  if (targetId === 'pane-character') {
+    vscode.postMessage({ type: 'loadCharacters' });
+  }
+  if (targetId === 'pane-world') {
+    vscode.postMessage({ type: 'loadWorld' });
+  }
+  return true;
+}
+
+const statusTabs = document.getElementById('status-tabs');
+if (statusTabs) {
+  statusTabs.addEventListener('click', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest('.tab-btn') : null;
+    if (!btn || !statusTabs.contains(btn)) { return; }
+    e.preventDefault();
+    activateStatusPane(btn.dataset.target);
+  });
+}
 
 // ===== タブバー横スクロール =====
 // 通常マウスホイール（縦）をタブバーの横スクロールに変換

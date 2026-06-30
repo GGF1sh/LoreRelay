@@ -216,6 +216,7 @@ body {
 }
 
 .tab-pane:not(.active) { display: none !important; }
+.tab-pane.active { display: flex !important; }
 
 /* Section headers inside status panes */
 #checkpoint-header,

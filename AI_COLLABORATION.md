@@ -34,6 +34,7 @@
 | 新しい技術レビューや長い考察 | `C:\AI\<MODEL>_REVIEW.md` または専用レビュー文書 |
 | プロダクト方針・競合分析・マネタイズ案 | 既存レビュー文書、または `AI_SHARED_LOG.md` に短く要約して詳細文書へリンク |
 | ユーザー向け導入/使い方 | `README.md`, `DEMO.md` |
+| インシデント調査・再発防止（公開向け） | `docs/` 配下（例: `docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`） |
 | AI GM の振る舞い・出力契約 | `C:\AI\TextAdventureGMSkill\SKILL.md` |
 | シナリオパック仕様 | `C:\AI\TextAdventureGMSkill\SCENARIO_PACK.md` |
 

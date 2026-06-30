@@ -191,7 +191,7 @@ calcInput.addEventListener('keydown', (e) => {
   }
 });
 
-// ===== タブ切り替え =====
+// ===== Status tab switching =====
 function activateStatusPane(targetId) {
   if (!targetId) { return false; }
   const targetPane = document.getElementById(targetId);

@@ -50,6 +50,8 @@
 
 詳細: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md) · [`README.md`](README.md)
 
+**Webview タブ不具合の教訓（2026-06）:** 右タブが真っ黒になる症状は HTML の閉じタグ欠落で pane がネストされるケースがある。`index.html` 編集後は `npm test`（`validate_webview_html_structure.js`）と、必要なら Webview DevTools で親チェーンを確認。詳細は [`docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`](docs/WEBVIEW_TAB_DOM_POSTMORTEM.md)。
+
 ---
 
 ## 3. データフロー（Persist-Before-Narrate）

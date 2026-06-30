@@ -195,14 +195,24 @@ calcInput.addEventListener('keydown', (e) => {
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+    // CSS の .tab-pane:not(.active){display:none!important} に合わせ、
+    // inline display と .active クラスの両方を切り替える（!important は inline に勝つため両方必要）
+    document.querySelectorAll('.tab-pane').forEach(p => {
+      p.classList.remove('active');
+      p.style.display = 'none';
+    });
 
     btn.classList.add('active');
     const targetId = btn.dataset.target;
-    document.getElementById(targetId).style.display = 'flex';
+    const targetPane = document.getElementById(targetId);
+    targetPane.classList.add('active');
+    targetPane.style.display = 'flex';
 
     if (targetId === 'pane-character') {
       vscode.postMessage({ type: 'loadCharacters' });
+    }
+    if (targetId === 'pane-world') {
+      vscode.postMessage({ type: 'loadWorld' });
     }
   });
 });
@@ -237,17 +247,18 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
   tabsHeader.addEventListener('pointerdown', (e) => {
     const target = e.target instanceof Element ? e.target : null;
-    const isScrollableTarget = target === tabsHeader || Boolean(target?.closest('.tab-btn'));
-    if (isScrollableTarget) {
+    if (target === tabsHeader || target?.closest('.tab-btn')) {
       dragging = true;
       dragMoved = false;
       dragStartX = e.clientX;
       dragStartScrollLeft = tabsHeader.scrollLeft;
-      tabsHeader.setPointerCapture(e.pointerId);
+      // setPointerCapture を使わない — 使うと click が tabsHeader に再ターゲットされ
+      // .tab-btn の click ハンドラーが全滅するため
     }
   });
 
-  tabsHeader.addEventListener('pointermove', (e) => {
+  // document レベルで追跡することでタブバー外へドラッグしても追従する
+  document.addEventListener('pointermove', (e) => {
     if (!dragging) { return; }
     const dx = e.clientX - dragStartX;
     if (Math.abs(dx) > 4) {
@@ -256,7 +267,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     }
   });
 
-  tabsHeader.addEventListener('pointerup', (e) => {
+  document.addEventListener('pointerup', () => {
     if (dragging && dragMoved) {
       suppressNextClick = true;
       setTimeout(() => { suppressNextClick = false; }, 0);

@@ -18,6 +18,9 @@
 - **i18n — ゲームルールダイアログ ツールチップ** — 「高度なAIルール」配下 6 チェックボックスの `title` 属性（英語ハードコード）を `data-i18n-title` に変換し、4 言語にツールチップキー（`tipSkillCommentary` 等 6 件）を追加。
 - **UX — World タブ位置** — 9 タブ中 8 番目で画面外に隠れていた「ワールド」タブを 4 番目（Inspector の直後）に移動。スクロール不要でアクセス可能に。
 - **UX — タブバー横スクロール** — 通常マウスホイール（縦）でタブバーを横スクロール可能に。ポインタドラッグ（クリック&左右スライド）にも対応。ドラッグ後の誤クリック抑止を追加。CSS に `cursor: grab` を追加してスクロール可能であることを示す。
+- **重大 — タブ切り替えが冒険ステータス以外で機能しない** — CSS `.tab-pane:not(.active){display:none!important}` と JS の inline `style.display` 方式が矛盾し、`.active` クラスが tab-pane に付け替わらないため `!important` が inline スタイルに勝ち、冒険ステータス以外の全タブ（キャラクター/インスペクター/ワールド等）が真っ黒（非表示）になっていた。JS のタブ切り替えで `.active` クラスと inline display の両方を切り替えるよう修正。
+- **重大 — タブクリックが全滅** — タブバー横スクロールの `setPointerCapture` が click イベントを tabsHeader に再ターゲットし、全 `.tab-btn` の click ハンドラーを無効化していた。`setPointerCapture` を除去し document レベルの pointer 追跡に変更。
+- **World タブのデータ未取得** — タブを開いた際に `loadWorld` を送信してワールドデータをプッシュするよう修正。
 
 ### Changed
 

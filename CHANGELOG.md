@@ -21,6 +21,7 @@
 - **重大 — タブ切り替えが冒険ステータス以外で機能しない** — CSS `.tab-pane:not(.active){display:none!important}` と JS の inline `style.display` 方式が矛盾し、`.active` クラスが tab-pane に付け替わらないため `!important` が inline スタイルに勝ち、冒険ステータス以外の全タブ（キャラクター/インスペクター/ワールド等）が真っ黒（非表示）になっていた。JS のタブ切り替えで `.active` クラスと inline display の両方を切り替えるよう修正。
 - **重大 — タブクリックが全滅** — タブバー横スクロールの `setPointerCapture` が click イベントを tabsHeader に再ターゲットし、全 `.tab-btn` の click ハンドラーを無効化していた。`setPointerCapture` を除去し document レベルの pointer 追跡に変更。
 - **World タブのデータ未取得** — タブを開いた際に `loadWorld` を送信してワールドデータをプッシュするよう修正。
+- **重大 — Webview アセットのキャッシュで修正が反映されない** — `asWebviewUri` で生成する `script.js`/`style.css`/Mermaid vendor の URI にキャッシュバスター（各ビルド成果物の mtime を `?v=` で付与）が無く、Webview の Chromium が古い JS/CSS をディスクキャッシュして `Reload Window` でも反映されなかった。`extension.ts` でアセット URI にバージョンクエリを付与。以降はリロードで確実に最新が反映される（初回のみ Extension Host の完全再起動が必要）。
 
 ### Changed
 

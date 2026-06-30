@@ -245,15 +245,25 @@ export function activate(context: vscode.ExtensionContext) {
 
         let html = await fs.promises.readFile(htmlPath, 'utf-8');
 
-        const styleUri = panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(webviewPath, 'style.css'))
-        );
-        const scriptUri = panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(webviewPath, 'script.js'))
-        );
-        const mermaidUri = panel.webview.asWebviewUri(
-            vscode.Uri.file(path.join(webviewPath, 'vendor', 'mermaid.min.js'))
-        );
+        // Webview の Chromium が古い JS/CSS をディスクキャッシュし、
+        // Reload Window でも反映されない問題を防ぐ。
+        const webviewAssetUri = (fileName: string): string => {
+            const filePath = path.join(webviewPath, fileName);
+            const assetVersion = (() => {
+                try {
+                    return Math.floor(fs.statSync(filePath).mtimeMs).toString(36);
+                } catch {
+                    return Date.now().toString(36);
+                }
+            })();
+            return panel!.webview.asWebviewUri(
+                vscode.Uri.file(filePath).with({ query: `v=${assetVersion}` })
+            ).toString();
+        };
+
+        const styleUri = webviewAssetUri('style.css');
+        const scriptUri = webviewAssetUri('script.js');
+        const mermaidUri = webviewAssetUri(path.join('vendor', 'mermaid.min.js'));
         const nonce = getNonce();
 
         html = html

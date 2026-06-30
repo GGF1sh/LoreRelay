@@ -23,6 +23,7 @@
 - **World タブのデータ未取得** — タブを開いた際に `loadWorld` を送信してワールドデータをプッシュするよう修正。
 - **重大 — Webview アセットのキャッシュで修正が反映されない** — `asWebviewUri` で生成する `script.js`/`style.css`/Mermaid vendor の URI にキャッシュバスター（各ビルド成果物の mtime を `?v=` で付与）が無く、Webview の Chromium が古い JS/CSS をディスクキャッシュして `Reload Window` でも反映されなかった。`extension.ts` でアセット URI にバージョンクエリを付与。以降はリロードで確実に最新が反映される（初回のみ Extension Host の完全再起動が必要）。
 - **重大 — VSIX インストーラーが古い拡張を再インストールする** — README のSVG参照で VSIX 作成が失敗した後、インストーラーが残存していた `lorerelay-1.5.3.vsix` を拾ってインストールしていた。README画像をPNGへ変更し、インストーラーを「現在の `package.json` version の VSIXを明示生成・旧 `miya.lorerelay` をアンインストール・生成失敗時は停止」へ修正。
+- **Installer i18n** — `install_vscode_extension_zh-CN.bat` / `install_vscode_extension_zh-TW.bat` の成功・失敗メッセージと終了コード返却を日本語版と同じ構成に統一。`install_antigravity_skill.bat` にも UTF-8 codepage 指定を追加。
 
 ### Changed
 

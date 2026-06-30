@@ -212,7 +212,11 @@ function activateStatusPane(targetId) {
   const statusArea = document.getElementById('status-area');
   if (statusArea) {
     statusArea.dataset.activePane = targetId;
+    // 冒険ステータス等の長い pane で下までスクロールした後、別タブへ切替えると
+    // スクロール位置が残り「真っ黒」に見えるため先頭へ戻す。
+    statusArea.scrollTop = 0;
   }
+  targetPane.scrollTop = 0;
 
   if (targetId === 'pane-character') {
     vscode.postMessage({ type: 'loadCharacters' });
@@ -232,6 +236,14 @@ if (statusTabs) {
     activateStatusPane(btn.dataset.target);
   });
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+  const initial =
+    document.querySelector('#status-area .tab-pane.active')?.id ||
+    document.querySelector('#status-tabs .tab-btn.active')?.dataset.target ||
+    'pane-status';
+  activateStatusPane(initial);
+});
 
 // ===== タブバー横スクロール =====
 // 通常マウスホイール（縦）をタブバーの横スクロールに変換

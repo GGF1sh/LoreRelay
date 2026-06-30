@@ -249,6 +249,14 @@ body {
   height: 100vh;
   padding: 16px;
   gap: 16px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+#app > #chat-area,
+#app > #status-area {
+  min-height: 0;
+  max-height: 100%;
 }
 
 #chat-header {
@@ -752,6 +760,7 @@ body {
   width: var(--status-width, 320px);
   container-type: inline-size;
   flex-shrink: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -760,7 +769,7 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  overflow-y: auto;
+  overflow: hidden;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 

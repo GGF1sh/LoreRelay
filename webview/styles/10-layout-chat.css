@@ -95,6 +95,14 @@
   height: 100vh;
   padding: 16px;
   gap: 16px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+#app > #chat-area,
+#app > #status-area {
+  min-height: 0;
+  max-height: 100%;
 }
 
 #chat-header {

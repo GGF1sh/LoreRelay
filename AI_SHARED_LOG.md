@@ -6,7 +6,7 @@
 
 ## Current Snapshot
 
-**更新: 2026-06-30 JST**
+**更新: 2026-06-30 JST（タブ空白修正）**
 
 | 項目 | 値 |
 |------|-----|
@@ -89,6 +89,24 @@
 
 - Extension Host リロード後、World タブのタブ位置・横スクロール・未翻訳キー解消を画面で確認
 - ComfyUI checkpoint 設定後に `world_map.png` 生成と Parchment 表示を確認
+
+---
+
+## 2026-06-30 JST - Grok - Status tab black pane fix (scroll + flex)
+
+### Summary
+
+- 右側タブが active 表示だけされ中身が真っ黒 — `#status-area` の scrollTop がタブ切替後も残るのが原因と特定
+- タブ切替時に scroll リセット、`#status-area` を `overflow:hidden` + `min-height:0`、VSIX 再パッケージ・再インストール
+
+### Verification
+
+- `npm run compile && npm test`
+- `lorerelay-1.7.3.vsix` 再生成 + `code --install-extension --force`
+
+### User verify
+
+- `code --new-window C:\AITest` → ゲームUI → キャラクター/ワールドタブで中身が見えるか
 
 ---
 

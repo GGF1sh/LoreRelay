@@ -3,6 +3,7 @@
   width: var(--status-width, 320px);
   container-type: inline-size;
   flex-shrink: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -11,7 +12,7 @@
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  overflow-y: auto;
+  overflow: hidden;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 

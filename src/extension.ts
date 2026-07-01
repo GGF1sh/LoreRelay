@@ -44,7 +44,9 @@ import {
     startGameStateWatcher,
     getGameEntryHistory,
     getCachedGameState,
+    checkPendingTurnResultFile,
 } from './gameStateSync';
+import { initTurnResultFallback } from './turnResultFallback';
 import { isValidEntryId } from './entryId';
 import { isValidEventId } from './worldEventLogCore';
 import {
@@ -202,6 +204,7 @@ export function activate(context: vscode.ExtensionContext) {
         getOpenRouterApiKey,
         subscriptions: context.subscriptions
     });
+    initTurnResultFallback(checkPendingTurnResultFile);
 
     initTtsBridgeRunner({
         getPanel,

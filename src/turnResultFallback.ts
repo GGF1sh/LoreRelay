@@ -92,6 +92,19 @@ export function synthesizeTurnResultIfNeeded(
 
 let pendingTurnResultFromGm = false;
 
+/**
+ * Injected from extension.ts (avoids a static import cycle with
+ * gameStateSync.ts, which itself imports markTurnResultHandled from here).
+ * Should attempt to read+apply turn_result.json directly and return whether
+ * it processed a new turn, so finishGmRun() can skip the game_state.json-diff
+ * synthesis fallback when the real turn_result was already applied.
+ */
+let checkPendingTurnResultFile: (() => Promise<boolean>) | undefined;
+
+export function initTurnResultFallback(checkFn: () => Promise<boolean>): void {
+    checkPendingTurnResultFile = checkFn;
+}
+
 export function beginGmRun(): Record<string, unknown> | undefined {
     pendingTurnResultFromGm = true;
     const statePath = getGameStatePath();
@@ -109,7 +122,14 @@ export function markTurnResultHandled(): void {
     pendingTurnResultFromGm = false;
 }
 
-/** Python bridge が turn_result を書く猶予後、未処理なら合成する。 */
+/**
+ * Python/CLI bridge が turn_result.json を書く猶予後、未処理なら回収する。
+ *
+ * まず turn_result.json を直接読んで適用を試みる — FileSystemWatcher が
+ * onDidCreate を取りこぼす(新規ワークスペース最初のターン等)ケースの保険。
+ * それでも未処理なら、GM が game_state.json を直に書き換えた場合向けの
+ * 従来の合成フォールバックに回す。
+ */
 export function finishGmRun(
     prevState: Record<string, unknown> | undefined,
     playerAction: string,
@@ -120,11 +140,19 @@ export function finishGmRun(
         return;
     }
     setTimeout(() => {
-        if (!pendingTurnResultFromGm || !prevState) {
+        void (async () => {
+            if (!pendingTurnResultFromGm) {
+                return;
+            }
+            const handled = await checkPendingTurnResultFile?.();
+            if (handled || !pendingTurnResultFromGm) {
+                pendingTurnResultFromGm = false;
+                return;
+            }
+            if (prevState) {
+                synthesizeTurnResultIfNeeded(prevState, playerAction);
+            }
             pendingTurnResultFromGm = false;
-            return;
-        }
-        synthesizeTurnResultIfNeeded(prevState, playerAction);
-        pendingTurnResultFromGm = false;
+        })();
     }, 250);
 }

@@ -11,6 +11,8 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Checkpoint label**: Click "Save Checkpoint" (input bar and quick-reply). Verify a native input box asks for a label, and the typed label actually shows up in the checkpoint list (not just "Turn N").
 - [ ] **Lorebook delete**: Delete a lorebook entry and verify an in-page confirm popup appears (not a native dialog) before it's removed from the draft list.
 - [ ] **Quickstart empty prompt**: Open Quickstart, leave the prompt blank, click Start. Verify the textarea shows a visible invalid/red-border state instead of doing nothing.
+- [ ] **First turn in a brand-new empty workspace**: Open a fresh empty folder, send the very first player action. Verify the GM's reply actually appears as a chat message (not just in the "LoreRelay: GM Bridge" Output channel) without needing to resend. Repeat a few times across different fresh folders if possible, since the underlying bug (`onDidCreate` not always firing for a file's first-ever write) was intermittent.
+- [ ] **Stuck turn_result.json recovery**: If a turn ever again shows in the Output channel but not the chat, verify that "Developer: Reload Window" alone (no manual file deletion) recovers it — `startGameStateWatcher()` now sweeps for an unprocessed `turn_result.json` on startup.
 
 ## 2. Media & Image Generation
 - [ ] **ComfyUI Integration**: Verify that image generation connects to the local ComfyUI API, triggers generation, and correctly pipes the result back into the chat.

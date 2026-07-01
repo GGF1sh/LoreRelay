@@ -503,48 +503,81 @@ export function startGameStateWatcher(): void {
         new vscode.RelativePattern(folder, 'turn_result.json')
     );
     const handleTurnResult = (uri: vscode.Uri) => {
-        const readAndProcess = (retryCount = 0) => {
-            try {
-                if (!fs.existsSync(uri.fsPath)) {
-                    return;
-                }
-                const content = fs.readFileSync(uri.fsPath, 'utf-8');
-                if (!content.trim()) {
-                    throw new Error('Empty file content');
-                }
-                
-                const hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
-                if (hash === lastProcessedTurnHash) {
-                    return;
-                }
-                
-                const turnResult = JSON.parse(content) as TurnResult;
-                lastProcessedTurnHash = hash;
-                markTurnResultHandled();
-
-                handleTurnResultMedia(turnResult);
-                const enriched = processTurnResult(turnResult);
-
-                const panel = deps?.getPanel();
-                if (panel) {
-                    panel.webview.postMessage({
-                        type: 'gameStateUpdate',
-                        turnResult: enriched || turnResult
-                    });
-                }
-            } catch (e) {
-                if (retryCount < 3) {
-                    console.warn(`Retry reading turn_result.json (attempt ${retryCount + 1}): ${e instanceof Error ? e.message : String(e)}`);
-                    setTimeout(() => readAndProcess(retryCount + 1), 100);
-                } else {
-                    console.error('Failed to parse turn_result.json after retries', e);
-                }
-            }
-        };
-        setTimeout(() => readAndProcess(0), 50);
+        setTimeout(() => { void processTurnResultFileAt(uri.fsPath); }, 50);
     };
     turnResultWatcher.onDidChange(handleTurnResult);
     turnResultWatcher.onDidCreate(handleTurnResult);
+
+    // Sweep for a turn_result.json left over from before this watcher existed
+    // (e.g. the extension host restarted mid-turn, or a prior run's watcher
+    // missed the write) so a reload alone can recover a stuck turn.
+    void processTurnResultFileAt(path.join(folder.uri.fsPath, 'turn_result.json'));
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Reads turn_result.json at fsPath if present and not already processed
+ * (sha256-deduped via lastProcessedTurnHash), applies it, and notifies the
+ * webview. Returns true if a new turn was actually processed.
+ */
+async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<boolean> {
+    try {
+        if (!fs.existsSync(fsPath)) {
+            return false;
+        }
+        const content = fs.readFileSync(fsPath, 'utf-8');
+        if (!content.trim()) {
+            throw new Error('Empty file content');
+        }
+
+        const hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
+        if (hash === lastProcessedTurnHash) {
+            return false;
+        }
+
+        const turnResult = JSON.parse(content) as TurnResult;
+        lastProcessedTurnHash = hash;
+        markTurnResultHandled();
+
+        handleTurnResultMedia(turnResult);
+        const enriched = processTurnResult(turnResult);
+
+        const panel = deps?.getPanel();
+        if (panel) {
+            panel.webview.postMessage({
+                type: 'gameStateUpdate',
+                turnResult: enriched || turnResult
+            });
+        }
+        return true;
+    } catch (e) {
+        if (retryCount < 3) {
+            console.warn(`Retry reading turn_result.json (attempt ${retryCount + 1}): ${e instanceof Error ? e.message : String(e)}`);
+            await sleep(100);
+            return processTurnResultFileAt(fsPath, retryCount + 1);
+        }
+        console.error('Failed to parse turn_result.json after retries', e);
+        return false;
+    }
+}
+
+/**
+ * Fallback safety net for when the turn_result.json FileSystemWatcher doesn't
+ * fire in time (observed: first-ever turn_result.json write in a brand-new
+ * workspace can outrun the watcher's onDidCreate event). Wired into
+ * turnResultFallback.ts via initTurnResultFallback() and called a short delay
+ * after the GM bridge process exits. A no-op if the watcher already handled
+ * it (sha256 hash dedupe in processTurnResultFileAt above).
+ */
+export async function checkPendingTurnResultFile(): Promise<boolean> {
+    const folder = getActiveWorkspaceFolder();
+    if (!folder) {
+        return false;
+    }
+    return processTurnResultFileAt(path.join(folder.uri.fsPath, 'turn_result.json'));
 }
 
 export function disposeGameStateWatcher(): void {

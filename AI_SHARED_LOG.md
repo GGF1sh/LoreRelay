@@ -1,5 +1,36 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Fix: GM turn_result.json silently never applied (fresh workspace first turn)
+
+### Summary
+
+User reported (in `g:\AI\LoreRelayWorlds\PostApocalypse`, a brand-new empty world): sent the "Build via Q&A" interview kickoff message, the grok CLI GM bridge ran successfully (exit code 0, full narrative + clarifying questions visible in the "LoreRelay: GM Bridge" Output channel), but nothing appeared in the chat log — and the player's message ended up duplicated (almost certainly because the user resent it after seeing no response, not a separate bug: `sendFreeInput()`'s listeners are registered exactly once, confirmed via grep).
+
+This is exactly the scenario Codex flagged as unverified in its "Next" note two entries below ("Retest `G:\...\PostApocalypse` after reloading the Extension Host... delete stale `turn_result.json` if present"). Inspected the actual workspace files directly:
+- `turn_result.json` (3.4KB, valid JSON, `turnId: "turn-1"`, full `narration` matching the Output channel text, a 3-op `statePatch`) — mtime **after** `game_state.json`.
+- `game_state.json` / `game_history.json` / `last_good_game_state.json` all identical: just the single `user` role entry, no `gm` entry, `options: []` (not the patched values) — proving `turn_result.json` was written correctly but **never actually processed**.
+- No `game_state.invalid.latest.json` salvage file, ruling out a schema-validation rejection.
+
+Root cause: `gameStateSync.ts`'s `turn_result.json` `FileSystemWatcher` relies on `onDidCreate`, which doesn't reliably fire for a file's very first creation in a directory (more failure-prone than `onDidChange` on subsequent writes) — and this is precisely the first-ever `turn_result.json` write in a brand-new workspace. `turnResultFallback.ts`'s `finishGmRun()` already had a 250ms-after-close fallback, but it only handled "GM edited `game_state.json` directly instead of writing `turn_result.json`" (`synthesizeTurnResultIfNeeded`) — there was no fallback for "wrote `turn_result.json` correctly, watcher just didn't fire."
+
+Fix:
+- `gameStateSync.ts`: extracted the watcher's read-hash-dedupe-process-postMessage logic into `processTurnResultFileAt()` (async, returns whether it processed something new) and exported `checkPendingTurnResultFile()` on top of it.
+- `turnResultFallback.ts`: added `initTurnResultFallback(checkFn)` (dependency injection — avoids a circular import, since `gameStateSync.ts` already imports `markTurnResultHandled` from here). `finishGmRun()` now awaits `checkPendingTurnResultFile()` first; only falls back to the old `game_state.json`-diff synthesis if that found nothing.
+- `extension.ts`: wires `initTurnResultFallback(checkPendingTurnResultFile)` alongside the existing `initGmBridgeRunner` call.
+- `gameStateSync.ts`'s `startGameStateWatcher()` also now sweeps once for a leftover unprocessed `turn_result.json` on startup — so the user's *currently* stuck turn should self-heal on the next "Reload Window" once this fix is compiled in, no manual file surgery needed.
+
+### Verification
+
+- `npx tsc --noEmit` and full `npm test` both passed.
+- Could not reproduce live (no VS Code Extension Host access from here) — inspected the user's actual on-disk files directly instead to confirm the diagnosis empirically.
+
+### Next
+
+- User should recompile/reload and confirm: (1) the stuck turn now appears after a reload, (2) a *fresh* first turn in a new empty workspace now shows the GM response without needing a retry.
+- If this recurs even after the fix, next suspect would be `processTurnResult()` itself throwing past the retry's hash-dedupe guard (was ruled out here since `game_state.invalid.latest.json` didn't exist and `processTurnResult` already catches its own errors and returns `false` rather than throwing — but worth re-checking if a new failure mode shows up).
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Audit + fix remaining webview confirm()/prompt()/alert() calls
 
 ### Summary

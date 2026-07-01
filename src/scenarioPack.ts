@@ -7,6 +7,7 @@ import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspace
 import { sendCurrentState, setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
 import { sendBgmManifest, sendSfxManifest } from './mediaManifest';
 import { resolvePythonCommand } from './skillScriptRunner';
+import { commitGameState } from './stateManager';
 import {
     parseScenarioDirectorTemplate,
     pushScenarioDirectorToWebview,
@@ -145,7 +146,7 @@ export async function loadScenarioPack(): Promise<void> {
     saveHistoryToDisk();
 
     try {
-        writeJsonAtomic(statePath, state);
+        commitGameState(state);
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
             fs.copyFileSync(scenarioPath, wsScenario);

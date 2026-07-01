@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Antigravity - Architecture Refactor: Single Choke Point for Game State
+
+### 変更概要
+- Claude 3.5 Sonnet による設計レビューの指摘に基づき、`game_state.json` の書き込み経路を単一の安全な関数 (`commitGameState`) に集約する大規模なリファクタリングを実施。
+- `src/stateManager.ts` を新設し、`commitGameState` 内で必ず `validateGameState` と `sanitizeGameStateForPersist` を強制するアーキテクチャに変更。
+- 10個のコアファイル (`statePatch.ts`, `gameStateSync.ts`, `checkpointHandlers.ts`, `gmBridgeRunner.ts` 等) でバラバラに行われていた `writeJsonAtomic` の呼び出しを、Pythonスクリプトによる正規表現置換で一括で `commitGameState` に置き換え。
+
+### 検証
+- `npm run compile` がエラーなく通過することを確認。
+- `npm test` による全70件以上のテストスイートをノーエラーで通過。構造的な破壊が起きていないことを証明。
+
+### 経緯・申し送り事項
+- 今後、新しい機能を実装して `game_state.json` に状態を保存する際は、必ず `import { commitGameState } from './stateManager'` を使用してください。直接 `writeJsonAtomic` を使用することは、テストモックなど特殊な場合を除き非推奨となります。
+
 > **最新状態は先頭の Current Snapshot を正とする。** 以下は履歴。実装の正本は `CHANGELOG.md` + ソースコード。
 
 ---

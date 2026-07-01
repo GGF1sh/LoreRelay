@@ -28,6 +28,7 @@ import {
 import { invokeGmBridge, fallbackToClipboard } from './gmBridgeRunner';
 import { runSkillScript } from './skillScriptRunner';
 import { computeAndSetArchiveMilestone } from './gmPromptBuilder';
+import { commitGameState } from './stateManager';
 
 export interface CheckpointHandlerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -61,7 +62,7 @@ function readGameStateFromDisk(statePath: string): Record<string, unknown> | nul
 }
 
 function writeGameStateToDisk(statePath: string, state: Record<string, unknown>): void {
-    writeJsonAtomic(statePath, sanitizeGameStateForPersist(state));
+    commitGameState(state);
 }
 
 export async function handleEditEntry(id: string, content: string): Promise<void> {

@@ -23,6 +23,7 @@ import { resolvePythonCommand } from './skillScriptRunner';
 import { buildVlmMetaFromGameState } from './vlmQueue';
 import { resolveAllowedImagePath } from './mediaPaths';
 import { formatModelSize, scanLocalModelRoots, type LocalModelFile } from './modelScanner';
+import { commitGameState } from './stateManager';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
@@ -268,7 +269,7 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
                 stateUpdated = true;
             }
             if (stateUpdated) {
-                writeJsonAtomic(statePath, stateData);
+                commitGameState(stateData);
             }
         } catch {
             // game_state 更新失敗は履歴更新だけでも続行

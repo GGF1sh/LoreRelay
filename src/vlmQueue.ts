@@ -12,6 +12,7 @@ import {
 import { isValidEntryId } from './entryId';
 import { makeVisualMemoryEntry } from './visualMemoryCore';
 import type { VisualMemoryTag } from './visualMemoryCore';
+import { commitGameState } from './stateManager';
 import {
     sanitizeVlmDescription,
     resolvedImagePathsMatch,
@@ -186,7 +187,7 @@ async function writeDescriptionToGameState(
         if (!resolvedImagePathsMatch(resolvedLatest, resolvedTarget)) { return; }
         if (raw.latestImageDescription === safeDescription) { return; }
         raw.latestImageDescription = safeDescription;
-        writeJsonAtomic(statePath, raw);
+        commitGameState(raw);
     } catch (e) {
         console.error('[vlmQueue] Failed to write description to game_state', e);
     }

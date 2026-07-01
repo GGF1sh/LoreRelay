@@ -9,6 +9,7 @@ import { isValidEventId } from './worldEventLogCore';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { validateGameState } from './validateGameState';
 import { t } from './i18n';
+import { commitGameState } from './stateManager';
 
 /** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
 const ALLOWED_ROOTS = new Set([
@@ -299,7 +300,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         }
 
         const afterHash = hashGameState(state);
-        writeJsonAtomic(statePath, state);
+        commitGameState(state);
 
         const appliedAt = new Date().toISOString();
         const enriched: TurnResult = {

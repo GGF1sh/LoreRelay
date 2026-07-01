@@ -25,6 +25,7 @@ import { beginGmRun, finishGmRun } from './turnResultFallback';
 import { postPromptContextToWebview } from './gmPromptBuilder';
 import { getCachedGameState } from './gameStateSync';
 import { enqueueVlmAnalysis, buildVlmMetaFromGameState, isVlmEnabled } from './vlmQueue';
+import { commitGameState } from './stateManager';
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
@@ -600,7 +601,7 @@ function vscodeLmMergeAndWrite(wsPath: string, fullText: string, locale: string)
         merged.options = prev.options ?? defaults[locale] ?? defaults['en'];
     }
 
-    writeJsonAtomic(statePath, sanitizeGameStateForPersist(merged));
+    commitGameState(merged);
 }
 
 async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolean): Promise<boolean> {

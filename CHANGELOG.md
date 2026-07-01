@@ -9,16 +9,30 @@
 
 ## [Unreleased]
 
-### Fixed
+## [1.11.0] - 2026-07-01
 
-- **Phase 11B — ChatGPT review fixes** — Webview bridge TTS: keep `pendingBridgeTts` plan until playback starts so system TTS fallback works when MP3 decode/play fails. Local/external bridge timeouts (`tts.local.timeoutMs`, 30s OpenAI fetch) always post `ttsAudioFailed`. Temp `.text-adventure/tts/*.mp3` deleted after read. `sanitizeVoiceId` rejects all C0/DEL control chars. TTS Output Channel logs char count + voice only.
+**Adaptive TTS** — NPC ごとの voice profile、system TTS ルーティング、local edge-tts / OpenAI external bridge。ChatGPT レビュー指摘のフォールバック・タイムアウト・プライバシー硬化を同梱。
 
-### Added
+### Added — Phase 11A: NPC voice profiles
 
-- **Phase 11 design — Adaptive TTS / NPC voice profiles** — `PHASE11_ADAPTIVE_TTS_DESIGN.md` と `phase8_planning_and_prompts.md` の Claude/Grok/ChatGPT 向けプロンプト。Phase 11A（system TTS + registry voice + World Preview）と 11B（local/external）のスコープ分割。
-- **Phase 11A — NPC voice profiles + system TTS routing** — `npcVoiceCore.ts` / `ttsProviderCore.ts` で `npc_registry.json` の任意 `voice` フィールドをパース。Webview `61-tts-npc.js` が sender 名マッチ＋現在地で NPC 声を適用（同名曖昧時はグローバル TTS にフォールバック）。World タブ 🔊 Preview、`textAdventure.tts.external.enabled`（default false）、4 言語 i18n。`local` / `external` provider は 11A では system にフォールバック＋警告ログ。
-- **Code Comments ルール** — `AI_COLLABORATION.md` § Code Comments（Core 先頭・Webview ミラー同期・AI 引き継ぎ向け JSDoc）。Phase 11 ソースへコメント追記。
-- **Phase 11B — local/external TTS bridge** — `ttsBridgeCore.ts` / `ttsBridgeRunner.ts`、`TextAdventureGMSkill/scripts/tts_local.py`（edge-tts）。Webview が `requestNpcTts` で extension 経由の MP3 再生。OpenAI TTS（`tts.external.provider=openai` + SecretStorage API key）。`GameEntry.speakerNpcId` + `turn_result.gmEntry` 対応。設定 `tts.local.*` / `tts.external.*`、コマンド Test Local TTS / Set TTS API Key。
+- **設計・プロンプト** — `PHASE11_ADAPTIVE_TTS_DESIGN.md`、`phase8_planning_and_prompts.md`（Claude/Grok/ChatGPT 向け）。11A（system）と 11B（local/external）のスコープ分割。
+- **Core** — `npcVoiceCore.ts` / `ttsProviderCore.ts` で `npc_registry.json` の任意 `voice` フィールドをパース（caps + `sanitizeVoiceId`）。
+- **Webview** — `61-tts-npc.js` が sender 名マッチ＋現在地で NPC 声を適用（同名曖昧時はグローバル TTS）。World タブ 🔊 Preview、TTS パネル NPC voice count。4 言語 i18n。
+- **Code Comments ルール** — `AI_COLLABORATION.md` § Code Comments（Core ↔ Webview ミラー同期）。
+
+### Added — Phase 11B: local/external TTS bridge
+
+- **Bridge** — `ttsBridgeCore.ts` / `ttsBridgeRunner.ts`、`TextAdventureGMSkill/scripts/tts_local.py`（edge-tts）。Webview `requestNpcTts` → extension MP3 base64 再生。
+- **OpenAI TTS** — `tts.external.provider=openai` + SecretStorage API key（`tts.external.enabled` default off）。
+- **Attribution** — `GameEntry.speakerNpcId` + `turn_result.gmEntry` 対応。設定 `tts.local.*` / `tts.external.*`、コマンド Test Local TTS / Set TTS API Key。
+
+### Fixed — Phase 11B hardening (ChatGPT review)
+
+- **Webview fallback** — `ttsAudioReady` 時に `pendingBridgeTts` plan を再生開始まで保持。MP3 decode/play 失敗時も system TTS へフォールバック。
+- **Bridge timeout** — `tts.local.timeoutMs`（default 30s）で subprocess kill、OpenAI fetch は `AbortController`。必ず `ttsAudioFailed` を返す。
+- **Temp MP3 lifecycle** — `.text-adventure/tts/*.mp3` を読み込み後削除。
+- **VoiceId sanitization** — 全 C0/DEL 制御文字を拒否（改行/タブ含む）。
+- **Privacy logs** — TTS Output Channel は文字数 + voice のみ（台詞本文なし）。
 
 ## [1.10.0] - 2026-07-01
 

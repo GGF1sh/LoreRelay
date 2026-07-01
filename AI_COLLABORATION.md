@@ -21,7 +21,7 @@
 2. `AI_HANDOVER_PROMPTS.md`（役割に応じたセクション）
 3. `AI_COLLABORATION.md`（本ファイル）
 4. `AI_SHARED_LOG.md`（Current Snapshot + 直近ログ）
-5. `CHANGELOG.md` の最新セクション（現在 **v1.10.0**）
+5. `CHANGELOG.md` の最新セクション（現在 **v1.11.0**）
 6. `AI_ROADMAP.md`
 7. 必要に応じて `C:\AI\GROK_CODE_REVIEW.md`, `C:\AI\GEMINI_REVIEW.md`, `C:\AI\CLAUDE_REVIEW.md`
 

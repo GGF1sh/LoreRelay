@@ -1,5 +1,28 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Release v1.11.0 Adaptive TTS
+
+### Summary
+
+- `[Unreleased]` → **v1.11.0**（Phase 11A/11B + ChatGPT review fixes）。
+- `package.json` / `package-lock.json` / README バッジ → `1.11.0`。
+- `AI_ROADMAP.md` Phase 11 を v1.11.0 完了に更新。`AI_HANDOVER.md` / `AI_COLLABORATION.md` バージョン表記更新。
+- `install_vscode_extension.ps1` で `lorerelay-1.11.0.vsix` ビルド・インストール。
+- `edge-tts` 導入 + `tts_local.py` スモークテスト OK（16KB MP3 生成）。
+
+### Verification
+
+- `npm run compile` / `npm test` passed
+- Local TTS subprocess smoke: `tts_local.py` + edge-tts
+- §7–8 UI 項目（World Preview / 📢 / OpenAI）はエディタ実機で要確認
+
+### Next
+
+- git tag `v1.11.0` + GitHub Release（VSIX 添付）
+- ユーザー: `testing_checklist.md` §7–8 実機チェック
+
+---
+
 ## 2026-07-01 JST - Grok - ChatGPT Phase 11 review fixes
 
 ### Summary
@@ -107,10 +130,10 @@ No code changes — design doc only, per the prompt's "Do NOT implement yet" con
 
 | Item | Value |
 |------|-------|
-| Package version | **1.10.0** (`package.json`, `CHANGELOG.md` [1.10.0]) |
-| Latest release theme | **Campaign Engine** — Event-to-Quest, Agentic GM, Git Timeline |
-| Phase status | 1–10 コア実装完了。Phase 11（TTS）は計画中・後回し可 |
-| Next manual checks | Agentic E2E per provider, Git Timeline branch/switch, Start Hub flow |
+| Package version | **1.11.0** (`package.json`, `CHANGELOG.md` [1.11.0]) |
+| Latest release theme | **Adaptive TTS** — NPC voice profiles, edge-tts local bridge, OpenAI external |
+| Phase status | 1–11 コア実装完了 |
+| Next manual checks | `testing_checklist.md` §7–8（TTS 実機）、Agentic E2E、Git Timeline branch/switch |
 
 ---
 

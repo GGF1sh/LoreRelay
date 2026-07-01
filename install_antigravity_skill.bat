@@ -5,6 +5,10 @@ setlocal EnableExtensions
 :: Determine the directory of this batch file
 set "SCRIPT_DIR=%~dp0"
 
+echo [LoreRelay] チャットAI用 GM スキルを Antigravity/Gemini にインストールします（UI拡張機能ではありません）。
+echo [UI画面] マップやゲームUIが必要なら install_vscode_extension_ja.bat を実行してください。
+echo.
+
 :: Run the PowerShell installer script
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\install_antigravity_skill.ps1" -ProjectDir "%SCRIPT_DIR%scripts"
 set "PS_EXIT_CODE=%ERRORLEVEL%"

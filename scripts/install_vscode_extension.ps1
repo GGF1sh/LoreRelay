@@ -2,16 +2,84 @@ param(
     [string]$Language = "en"
 )
 
+. (Join-Path $PSScriptRoot 'install_common.ps1')
+
 $ErrorActionPreference = "Stop"
 
 $ProjectDir = (Resolve-Path "$PSScriptRoot\..").Path
 Push-Location $ProjectDir
 
+function Install-VsixToDirDirect {
+    param(
+        [Parameter(Mandatory = $true)][string]$VsixPath,
+        [Parameter(Mandatory = $true)][string]$TargetExtensionsDir,
+        [Parameter(Mandatory = $true)][string]$ExtensionId,
+        [Parameter(Mandatory = $true)][string]$Version
+    )
+
+    $targetDirName = "$ExtensionId-$Version"
+    $destDir = Join-Path $TargetExtensionsDir $targetDirName
+
+    if (Test-Path $TargetExtensionsDir) {
+        Get-ChildItem -Path $TargetExtensionsDir -Filter "$ExtensionId-*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("vsix-extract-" + [Guid]::NewGuid().ToString('N'))
+    try {
+        Expand-ArchiveSafe -ZipPath $VsixPath -DestDir $tmpDir
+        $extractedExtensionDir = Join-Path $tmpDir "extension"
+        if (-not (Test-Path $extractedExtensionDir)) {
+            throw "Invalid VSIX structure: 'extension' directory not found inside zip."
+        }
+        if (-not (Test-Path $TargetExtensionsDir)) {
+            New-Item -ItemType Directory -Path $TargetExtensionsDir -Force | Out-Null
+        }
+        Copy-Item -LiteralPath $extractedExtensionDir -Destination $destDir -Recurse -Force
+    } finally {
+        if (Test-Path $tmpDir) {
+            Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Install-VsixViaCli {
+    param(
+        [Parameter(Mandatory = $true)][string]$CliPath,
+        [Parameter(Mandatory = $true)][string]$VsixPath,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    Write-Host "  -> $Label ($CliPath)" -ForegroundColor DarkGray
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $installed = & $CliPath --list-extensions --show-versions 2>&1
+        if ($installed -match '^miya\.lorerelay@') {
+            & $CliPath --uninstall-extension miya.lorerelay 2>&1 | Out-Null
+        }
+        $output = & $CliPath --install-extension $VsixPath --force 2>&1
+        $output | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            throw "$Label CLI install failed with exit code $LASTEXITCODE"
+        }
+        if ($output -match 'successfully installed') {
+            return
+        }
+        if ($output -match 'already installed') {
+            return
+        }
+        throw "$Label CLI install did not report success"
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+}
+
 try {
     $PackageVersion = (node -p "require('./package.json').version").Trim()
     Write-Host ""
     Write-Host "Building LoreRelay v$PackageVersion from $ProjectDir" -ForegroundColor Cyan
-    Write-Host "This may take a moment." -ForegroundColor Cyan
     $VsixName = "lorerelay-$PackageVersion.vsix"
     $VsixPath = Join-Path $ProjectDir $VsixName
 
@@ -28,29 +96,73 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "vsce package failed with exit code $LASTEXITCODE"
     }
-
     if (-not (Test-Path $VsixPath)) {
         throw "Expected VSIX was not created: $VsixPath"
     }
 
-    Write-Host ""
-    Write-Host "Installing extension to Antigravity IDE (VSCode)..." -ForegroundColor Cyan
+    $anyInstall = $false
+    $errors = New-Object 'System.Collections.Generic.List[string]'
 
-    $Installed = & code --list-extensions --show-versions
-    if ($Installed -match '^miya\.lorerelay@') {
-        code --uninstall-extension miya.lorerelay
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to uninstall old LoreRelay extension."
+    # 1. Antigravity IDE (CLI — most reliable on Windows)
+    $agCmd = Resolve-AntigravityIdeCommand
+    if ($agCmd) {
+        Write-Host ""
+        Write-Host "Installing to Antigravity IDE..." -ForegroundColor Cyan
+        try {
+            Install-VsixViaCli -CliPath $agCmd -VsixPath $VsixPath -Label 'Antigravity IDE'
+            Write-Host "Antigravity IDE: OK" -ForegroundColor Green
+            $anyInstall = $true
+        } catch {
+            $errors.Add("Antigravity CLI: $_")
+            Write-Warning $_
+        }
+    } else {
+        Write-Host ""
+        Write-Host "Antigravity IDE CLI not found — will try direct folder copy." -ForegroundColor Yellow
+    }
+
+    # 2. Antigravity extension folders (fallback / dual-layout)
+    foreach ($extDir in Get-AntigravityExtensionsDirs) {
+        Write-Host ""
+        Write-Host "Installing to Antigravity extensions folder: $extDir" -ForegroundColor Cyan
+        try {
+            Install-VsixToDirDirect -VsixPath $VsixPath -TargetExtensionsDir $extDir -ExtensionId "miya.lorerelay" -Version $PackageVersion
+            Write-Host "Folder copy: OK ($extDir)" -ForegroundColor Green
+            $anyInstall = $true
+        } catch {
+            $errors.Add("Antigravity folder $extDir : $_")
+            Write-Warning $_
         }
     }
 
-    code --install-extension $VsixPath --force
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install the extension."
+    # 3. Standard VS Code
+    $codeCmd = Resolve-CodeCommand
+    if ($codeCmd) {
+        Write-Host ""
+        Write-Host "Installing to standard VS Code..." -ForegroundColor Cyan
+        try {
+            Install-VsixViaCli -CliPath $codeCmd -VsixPath $VsixPath -Label 'VS Code'
+            Write-Host "VS Code: OK" -ForegroundColor Green
+            $anyInstall = $true
+        } catch {
+            $errors.Add("VS Code: $_")
+            Write-Warning $_
+        }
+    } else {
+        Write-Host ""
+        Write-Host "VS Code CLI ('code') not found — skipped." -ForegroundColor Yellow
+    }
+
+    if (-not $anyInstall) {
+        throw "No IDE target succeeded. Errors:`n$($errors -join "`n")"
     }
 
     Write-Host ""
-    Write-Host "Installation complete! Installed $VsixName. Please reload the window or restart the editor." -ForegroundColor Green
+    Write-Host "Done. Reload Antigravity IDE and/or VS Code (Developer: Reload Window)." -ForegroundColor Green
+    if ($errors.Count -gt 0) {
+        Write-Host "Some targets failed (others may have succeeded):" -ForegroundColor Yellow
+        $errors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+    }
 } catch {
     Write-Host ""
     Write-Host $_ -ForegroundColor Red

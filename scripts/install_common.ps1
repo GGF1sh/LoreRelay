@@ -54,6 +54,19 @@ function Expand-ArchiveSafe {
         [Parameter(Mandatory = $true)][string]$DestDir
     )
 
+    if (-not (Test-Path $ZipPath)) {
+        throw "Archive not found: $ZipPath"
+    }
+
+    # Windows Expand-Archive only accepts .zip — VSIX files are zip containers.
+    $archivePath = $ZipPath
+    $tempZip = $null
+    if ([System.IO.Path]::GetExtension($ZipPath).ToLowerInvariant() -eq '.vsix') {
+        $tempZip = Join-Path ([System.IO.Path]::GetTempPath()) ("lorerelay-vsix-{0}.zip" -f [Guid]::NewGuid().ToString('N'))
+        Copy-Item -LiteralPath $ZipPath -Destination $tempZip -Force
+        $archivePath = $tempZip
+    }
+
     $scriptContent = @(
         'param([string]$Zip, [string]$Dest)',
         'Expand-Archive -LiteralPath $Zip -DestinationPath $Dest -Force'
@@ -62,12 +75,13 @@ function Expand-ArchiveSafe {
     $scriptPath = Join-Path ([System.IO.Path]::GetTempPath()) ("lorerelay-unzip-{0}.ps1" -f [Guid]::NewGuid().ToString('N'))
     try {
         [System.IO.File]::WriteAllText($scriptPath, $scriptContent, [System.Text.UTF8Encoding]::new($false))
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Zip $ZipPath -Dest $DestDir
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Zip $archivePath -Dest $DestDir
         if ($LASTEXITCODE -ne 0) {
             throw "Expand-Archive failed with exit code $LASTEXITCODE"
         }
     } finally {
         if (Test-Path $scriptPath) { Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue }
+        if ($tempZip -and (Test-Path $tempZip)) { Remove-Item -LiteralPath $tempZip -Force -ErrorAction SilentlyContinue }
     }
 }
 
@@ -92,6 +106,40 @@ function Resolve-CodeCommand {
     $defaultCodePath = Join-Path $localAppData 'Programs\Microsoft VS Code\bin\code.cmd'
     if (Test-Path $defaultCodePath) { return $defaultCodePath }
     return $null
+}
+
+function Resolve-AntigravityIdeCommand {
+    $cli = Get-Command 'antigravity-ide' -ErrorAction SilentlyContinue
+    if ($cli) { return $cli.Source }
+
+    $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
+    $candidates = @(
+        (Join-Path $localAppData 'Programs\Antigravity IDE\_\bin\antigravity-ide.cmd'),
+        (Join-Path $localAppData 'Programs\Antigravity IDE\bin\antigravity-ide.cmd'),
+        (Join-Path $localAppData 'Programs\antigravity\_\bin\antigravity-ide.cmd'),
+        (Join-Path $localAppData 'Programs\antigravity\bin\antigravity-ide.cmd')
+    )
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+    return $null
+}
+
+function Get-AntigravityExtensionsDirs {
+    $homeDir = [Environment]::GetFolderPath('UserProfile')
+    $dirs = @(
+        (Join-Path $homeDir '.antigravity\extensions'),
+        (Join-Path $homeDir '.gemini\antigravity-ide\extensions')
+    )
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+    $result = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($dir in $dirs) {
+        $normalized = [System.IO.Path]::GetFullPath($dir)
+        if ($seen.Add($normalized)) {
+            [void]$result.Add($normalized)
+        }
+    }
+    return $result
 }
 
 function Install-VsixFile {

@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-07-02
+
+### Fixed
+
+- **Installer: Antigravity IDE へ LoreRelay が入らない** — `install_vscode_extension.ps1` が存在しない `~/.gemini/antigravity-ide/extensions` のみを対象にしていた問題を修正。`antigravity-ide --install-extension`（CLI）を優先し、フォールバックで `~/.antigravity/extensions` と `~/.gemini/antigravity-ide/extensions` へ VSIX 直展開。VSIX は `.zip` コピー後に展開（Windows `Expand-Archive` 制限）。`install_common.ps1` を dot-source。Antigravity の stderr 警告で失敗扱いにならないよう CLI 呼び出しを硬化。
+- **バッチの役割表示** — `install_vscode_extension_ja.bat`（UI拡張）と `install_antigravity_skill.bat`（チャットスキル）の違いを実行時に明示。
+
 ## [1.12.0] - 2026-07-02
 
 ### Added

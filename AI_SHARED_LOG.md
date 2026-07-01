@@ -1,5 +1,49 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Phase 9A split-role GM prototype
+
+### Summary
+
+- Implemented Phase 9A per `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md`:
+  - `src/agenticGmCore.ts` — pure prompt builders, JSON parsers, `mergeAgenticTurnResult()`
+  - `src/agenticGmRunner.ts` — Grok-only two-stage runner (`.text-adventure/agentic/` intermediates)
+  - `src/gmBridgeRunner.ts` — optional gate before provider switch; `runGrokPromptFile()` for staged spawns
+  - Settings: `textAdventure.gmBridge.agentic.enabled` (default false), `fallbackToSingleStage`, `stageTimeoutMs`
+  - `scripts/test_agentic_gm_core.js` in `npm test`
+- Safety: narrator cannot override `statePatch`/`diceLedger`/`resolvedQuests`; only merged `turn_result.json` is written; `processTurnResult()` unchanged.
+
+### Verification
+
+- `npm run compile` + `npm test` — all green
+- `node scripts/validate_utf8_docs.js` — OK
+
+### Next
+
+- ChatGPT review Phase 9A for fallback double-call, process cleanup, and real Grok e2e manual test.
+- Phase 9B: extend beyond Grok-only if review passes.
+
+## 2026-07-01 JST - Codex - Phase 9 Agentic Campaign Engine design
+
+### Summary
+
+- Added `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md` as the source-of-truth design for Phase 9.
+- Defined Phase 9A as an optional Grok-only split-role GM prototype:
+  - State Referee writes mechanics-only candidate output.
+  - Narrator writes prose/media hints only.
+  - final `turn_result.json` remains the only accepted result.
+  - `processTurnResult()` remains the final validation/application point.
+- Updated `phase8_planning_and_prompts.md` with a copy-ready Grok prompt that points to the new design file.
+- Updated `AI_ROADMAP.md` to mark the ChatGPT/Codex design part complete and leave the Grok prototype as the next implementation task.
+
+### Verification
+
+- Documentation-only change. UTF-8 validation should be run after any follow-up edits.
+
+### Next
+
+- Give Grok the Phase 9A prompt from `phase8_planning_and_prompts.md` or `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md`.
+- After Grok implements, review for direct `game_state.json` writes, premature `turn_result.json` writes, narrator mechanic override, process cleanup, and fallback duplication.
+
 ## 2026-07-01 JST - Claude (Sonnet 5) - Phase 10 Git Timeline hardening + branch panel
 
 ### Summary

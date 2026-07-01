@@ -27,6 +27,7 @@ import { getCachedGameState } from './gameStateSync';
 import { enqueueVlmAnalysis, buildVlmMetaFromGameState, isVlmEnabled } from './vlmQueue';
 import { commitGameState } from './stateManager';
 
+
 let grokOutputChannel: vscode.OutputChannel | undefined;
 let grokProcess: ChildProcess | undefined;
 let gmProcess: ChildProcess | undefined;
@@ -123,6 +124,92 @@ export function killGmBridgeProcesses(): void {
 export function resetGmBridgeSessions(): void {
     grokSessionActive = false;
     localGmSessionActive = false;
+}
+
+export interface GrokPromptRunResult {
+    exitCode: number | null;
+    timedOut: boolean;
+    stdout: string;
+}
+
+/** Spawn Grok CLI for a single prompt file (used by Phase 9 agentic stages). */
+export async function runGrokPromptFile(options: {
+    cwd: string;
+    promptFile: string;
+    continueSession: boolean;
+    timeoutMs: number;
+    stageLabel: string;
+    playerAction?: string;
+}): Promise<GrokPromptRunResult> {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const grokCmd = resolveGrokCommand(config.get<string>('grokBridge.command', 'grok') || 'grok');
+    const autoApprove = config.get<boolean>('grokBridge.autoApprove', false);
+    const args = ['--prompt-file', options.promptFile, '--cwd', options.cwd];
+    if (autoApprove) {
+        args.push('--always-approve');
+    }
+    if (options.continueSession) {
+        args.push('--continue');
+    }
+
+    const channel = getGmBridgeOutputChannel();
+    channel.appendLine(
+        `\n[${options.stageLabel}] > ${grokCmd} --prompt-file <redacted-file> --cwd ${options.cwd}`
+    );
+    if (options.playerAction) {
+        channel.appendLine(`Player action: ${formatRedactedAction(options.playerAction)}\n`);
+    }
+
+    return new Promise((resolve) => {
+        let stdout = '';
+        let finished = false;
+        let timedOut = false;
+
+        const timer = setTimeout(() => {
+            timedOut = true;
+            if (grokProcess) {
+                grokProcess.kill();
+            }
+        }, options.timeoutMs);
+
+        const finish = (exitCode: number | null) => {
+            if (finished) { return; }
+            finished = true;
+            clearTimeout(timer);
+            grokProcess = undefined;
+            resolve({ exitCode, timedOut, stdout });
+        };
+
+        grokProcess = spawn(grokCmd, args, {
+            cwd: options.cwd,
+            shell: false,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: process.env,
+        });
+
+        grokProcess.stdout?.on('data', (data: Buffer) => {
+            const text = data.toString();
+            stdout += text;
+            if (stdout.length > GM_STREAM_BUFFER_MAX) {
+                stdout = stdout.slice(-GM_STREAM_BUFFER_MAX);
+            }
+            channel.append(text);
+        });
+
+        grokProcess.stderr?.on('data', (data: Buffer) => {
+            channel.append(data.toString());
+        });
+
+        grokProcess.on('error', (err) => {
+            channel.appendLine(`\n[${options.stageLabel} error: ${err.message}]`);
+            finish(null);
+        });
+
+        grokProcess.on('close', (code) => {
+            channel.appendLine(`\n[${options.stageLabel} exited with code ${code ?? 'unknown'}]`);
+            finish(code ?? null);
+        });
+    });
 }
 
 const GM_STREAM_BUFFER_MAX = 64 * 1024;
@@ -742,6 +829,23 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
             state.latestImage as string,
             buildVlmMetaFromGameState()
         ).catch((e) => console.error('Soulgaze VLM enqueue failed', e));
+    }
+
+    const { maybeInvokeAgenticBridge } = await import('./agenticGmRunner');
+    const agentic = await maybeInvokeAgenticBridge(
+        playerAction,
+        diceLedger,
+        requireDeps().getPanel
+    );
+    if (agentic.handled) {
+        if (agentic.success) {
+            pendingDiceLedgerWritten = false;
+            return true;
+        }
+        if (!agentic.fallbackToSingleStage) {
+            handleGmBridgeFailure();
+            return false;
+        }
     }
 
     switch (provider) {

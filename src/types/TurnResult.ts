@@ -27,6 +27,14 @@ export interface TurnGmEntryMeta {
     image?: string;
 }
 
+export interface TurnResultAgenticMeta {
+    mode: 'referee-narrator';
+    refereeOk: boolean;
+    narratorOk: boolean;
+    refereeProvider?: string;
+    narratorProvider?: string;
+}
+
 export interface TurnResult {
     turnId: string;
     playerAction?: string;
@@ -43,4 +51,6 @@ export interface TurnResult {
     afterHash?: string;
     appliedAt?: string;
     triggeredLore?: string[];
+    /** Optional metadata for Phase 9 agentic GM runs. Not required for legacy turn_result files. */
+    agentic?: TurnResultAgenticMeta;
 }

@@ -98,6 +98,8 @@ Output findings first, ordered by severity, with file/line references.
 
 Separate fast state handling from richer narrative generation. The first pass should produce safe structured state patches; the second pass can focus on prose.
 
+Design source of truth: `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md`
+
 ### Prompt for ChatGPT
 
 ```markdown
@@ -119,20 +121,53 @@ Deliver:
 - proposed files/modules
 - turn_result changes if any
 - risks and tests
+
+ChatGPT/Codex design result:
+- `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md`
+- Phase 9A should be Grok-only and optional.
+- `turn_result.json` remains the final contract.
+- `processTurnResult()` remains the final validation/application point.
 ```
 
 ### Prompt for Grok
 
 ```markdown
-Implement a small Phase 9 prototype for LoreRelay only after reading ChatGPT's architecture.
+LoreRelay Phase 9A implementation request.
 
-Focus:
-- gmBridgeRunner.ts routing for two-stage GM execution
-- no breaking change to existing single-stage providers
-- fallback to current behavior if second stage fails
-- tests for command construction and failure handling
+Read these files first:
+- PHASE9_AGENTIC_CAMPAIGN_DESIGN.md
+- phase8_planning_and_prompts.md
+- src/gmBridgeRunner.ts
+- src/statePatch.ts
+- src/types/TurnResult.ts
+- src/gmPromptBuilder.ts
+- src/playerAction.ts
+- package.json
 
-Do not implement broad refactors.
+Implement only Phase 9A: an optional Grok-only split-role GM prototype.
+
+Requirements:
+1. Add `src/agenticGmCore.ts` with pure types/helpers for State Referee + Narrator prompt building, JSON parsing, and final `TurnResult` merge.
+2. Add `scripts/test_agentic_gm_core.js` and wire it into `npm test`.
+3. Add settings:
+   - `textAdventure.gmBridge.agentic.enabled` default false
+   - `textAdventure.gmBridge.agentic.fallbackToSingleStage` default true
+   - `textAdventure.gmBridge.agentic.stageTimeoutMs` default 180000
+4. Add `src/agenticGmRunner.ts` that supports `gmBridge.provider = "grok"` only.
+5. In `gmBridgeRunner.ts`, call the agentic runner before the existing provider switch. If the runner returns `handled:false`, keep the old single-stage behavior.
+6. Use `.text-adventure/agentic/` for intermediate prompts/results.
+7. Never write stage candidates to `turn_result.json`. Only write final merged `TurnResult` after referee/narrator merge succeeds.
+8. Keep `processTurnResult()` as the only final application/validation point.
+9. If referee fails: no narrator; fallback to single-stage when configured.
+10. If narrator fails: merge referee candidate with local fallback narration and still write final `turn_result.json`.
+11. Do not refactor all providers. Do not implement vscode-lm/ollama/koboldcpp/openrouter agentic support in Phase 9A.
+12. Do not let narrator output override `statePatch`, `diceLedger`, or `resolvedQuests`.
+
+After implementation:
+- update CHANGELOG.md [Unreleased]
+- add a concise AI_SHARED_LOG.md entry
+- run `npm run compile`, `npm test`, and `node scripts/validate_utf8_docs.js`
+- do not commit/push unless the user explicitly asks
 ```
 
 ## Phase 10: VS Code/Git Native Timeline

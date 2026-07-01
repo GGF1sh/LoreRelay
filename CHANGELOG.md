@@ -13,6 +13,8 @@
 
 - **Phase 8A - Event-to-Quest / Quest Board** — `questGeneratorCore.ts` で `world_state.json.recentChanges` と urgent NPC needs から deterministic Quest Hooks を生成。`world_state.json.questHooks` の型・パーサー・上限、World タブ Quest Board、available → active 操作、active quest の GM prompt 注入、`turn_result.json.resolvedQuests` による完了反映を追加。
 - **Phase 8-11 planning handoff** — `phase8_planning_and_prompts.md` を追加し、Quest Hook、分業型GM、Git Timeline、NPC voice profile の担当AI別プロンプトを整理。
+- **Phase 9 design — Agentic Campaign Engine** — `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md` を追加。State Referee / Narrator の二段階GM設計、`turn_result.json` と `processTurnResult()` を正本に保つ安全境界、Grok-only Phase 9A 実装手順、fallback、テスト計画を整理。
+- **Phase 9A — Split-role GM prototype (Grok-only)** — `agenticGmCore.ts` / `agenticGmRunner.ts` で State Referee → Narrator の optional 二段階実行。`.text-adventure/agentic/` に中間成果物、マージ後のみ `turn_result.json` 書き込み。設定 `textAdventure.gmBridge.agentic.*`（default off）。Narrator 失敗時は referee を保持して fallback narration で完了。
 - **Phase 8 polish — Quest Board i18n** — World タブ Quest Board のラベル・空状態・Accept/ACTIVE・source バッジを 4 言語化。`testing_checklist.md` に Phase 8 手動確認手順を追加。
 - **Architecture — game_state.json 書き込みの単一関所（single choke point）** — `src/stateManager.ts` の `commitGameState()` に `validateGameState` + `sanitizeGameStateForPersist` を集約。`statePatch.ts` / `gameStateSync.ts` / `checkpointHandlers.ts` / `gmBridgeRunner.ts` / `imageGenRunner.ts` / `scenarioPack.ts` / `vlmQueue.ts` の直接 `writeJsonAtomic(game_state.json)` 呼び出しを全て `commitGameState` 経由に統一（Claude 設計レビュー指摘の解消）。
 - **GM Bridge — `vscode-lm` プロバイダ** — API キー不要で VS Code 内の Copilot / Claude Code / Codex 等が公開する `vscode.lm` モデルを GM に利用。`gmBridgeRunner.ts` にストリーム対応の `turn_result` 相当マージ書き込みを実装。`GM_BRIDGE_PRESETS.md` に選び方・制限を追記。

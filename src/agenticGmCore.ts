@@ -297,6 +297,13 @@ function parseGmEntry(raw: unknown): TurnGmEntryMeta | undefined {
     if (typeof g.image === 'string') {
         entry.image = g.image.slice(0, 500);
     }
+    if (typeof g.sender === 'string') {
+        const sender = g.sender.trim().slice(0, 120);
+        if (sender) { entry.sender = sender; }
+    }
+    if (typeof g.speakerNpcId === 'string' && isValidEntryId(g.speakerNpcId)) {
+        entry.speakerNpcId = g.speakerNpcId;
+    }
     return Object.keys(entry).length > 0 ? entry : undefined;
 }
 

@@ -1,18 +1,12 @@
-// ===== Phase 11: NPC-aware TTS (Web Speech API — system provider only in 11A) =====
+// ===== Phase 11: NPC-aware TTS (system + local/external bridge in 11B) =====
 //
 // Runtime mirror of src/ttsProviderCore.ts + src/npcVoiceCore.ts (no shared bundle).
-// Extension pushes npcTtsCatalog via worldView; this module resolves voices at speak time.
+// local/external plans post requestNpcTts → extension ttsBridgeRunner.ts → ttsAudioReady.
 //
-// Attribution (best-effort, not diarization):
-//   - Chat 📢 / auto-read uses entry.sender (+ optional speakerNpcId in 11B).
-//   - Duplicate NPC names: use currentLocationId; if still ambiguous → global speakText().
-//   - GM prose / inline quotes are NOT parsed for speaker names.
-//
-// Module load order: bundled after 60-tts-quickreply-imagegen.js (speakText → speakWithProfile).
+// Attribution: entry.sender + optional entry.speakerNpcId; duplicate names use currentLocationId.
 
 const TTS_MAX_TEXT_LEN = 4000;
 
-// Mood deltas — keep in sync with npcVoiceCore.ts MOOD_MODIFIERS.
 const TTS_MOOD_MODIFIERS = {
   excited: { rateDelta: 0.18, pitchDelta: 0.15 },
   angry: { rateDelta: 0.12, pitchDelta: 0.05 },
@@ -23,13 +17,15 @@ const TTS_MOOD_MODIFIERS = {
   sad: { rateDelta: -0.15, pitchDelta: -0.10 },
 };
 
-/** Catalog from extension (all voiced NPCs); refreshed on each worldView message. */
 let npcTtsCatalog = [];
 let ttsExternalEnabled = false;
+let ttsLocalAvailable = false;
+let ttsExternalProvider = '';
 let npcTtsCurrentLocationId = null;
 let npcVoiceCount = 0;
-/** Log local/external fallback once per session to avoid console spam. */
 let ttsFallbackLogged = { external: false, local: false };
+const pendingBridgeTts = new Map();
+let activeBridgeAudio = null;
 
 function clampVoiceRateJs(v, fallback = 1) {
   if (typeof v !== 'number' || !Number.isFinite(v)) { return fallback; }
@@ -59,7 +55,6 @@ function applyMoodModifiersJs(rate, pitch, mood) {
   };
 }
 
-/** Mirrors resolveTtsPlan(); uses global ttsSpeed/ttsVolume/currentLocale from module 60. */
 function resolveTtsPlanJs(text, voiceCtx) {
   const plain = typeof text === 'string'
     ? text.replace(/\s+/g, ' ').trim().slice(0, TTS_MAX_TEXT_LEN)
@@ -78,10 +73,17 @@ function resolveTtsPlanJs(text, voiceCtx) {
     }
     provider = 'system';
   }
-  if (provider === 'local') {
+  if (provider === 'local' && !ttsLocalAvailable) {
     if (!ttsFallbackLogged.local) {
-      console.warn('[LoreRelay TTS] local provider not available in 11A; using system TTS');
+      console.warn('[LoreRelay TTS] local provider unavailable; using system TTS');
       ttsFallbackLogged.local = true;
+    }
+    provider = 'system';
+  }
+  if (provider === 'external' && ttsExternalEnabled && ttsExternalProvider !== 'openai') {
+    if (!ttsFallbackLogged.external) {
+      console.warn('[LoreRelay TTS] external provider not configured; using system TTS');
+      ttsFallbackLogged.external = true;
     }
     provider = 'system';
   }
@@ -113,7 +115,6 @@ function resolveTtsPlanJs(text, voiceCtx) {
   };
 }
 
-/** Mirrors findNpcVoiceForSender(); returns null instead of undefined for JS ergonomics. */
 function findNpcVoiceForSenderJs(sender, speakerNpcId) {
   if (speakerNpcId) {
     const byId = npcTtsCatalog.find((e) => e.id === speakerNpcId);
@@ -125,7 +126,6 @@ function findNpcVoiceForSenderJs(sender, speakerNpcId) {
   const matches = npcTtsCatalog.filter((e) => e.name.toLowerCase() === lower);
   if (matches.length === 0) { return null; }
   if (matches.length === 1) { return matches[0]; }
-  // Ambiguous duplicate names — narrow by player location when possible.
   if (npcTtsCurrentLocationId) {
     const atLoc = matches.filter((e) => e.locationId === npcTtsCurrentLocationId);
     if (atLoc.length === 1) { return atLoc[0]; }
@@ -133,7 +133,6 @@ function findNpcVoiceForSenderJs(sender, speakerNpcId) {
   return null;
 }
 
-/** Match voiceId hint against speechSynthesis voices; fall back to locale best voice. */
 function pickVoiceByHint(voiceId, lang) {
   if (!window.speechSynthesis) { return null; }
   const voices = window.speechSynthesis.getVoices();
@@ -156,30 +155,71 @@ function pickVoiceByHint(voiceId, lang) {
   return getBestVoiceForLocale(currentLocale);
 }
 
-/** Primary TTS entry: optional voiceCtx { voice, mood } from NPC catalog or World preview. */
-function speakWithProfile(text, voiceCtx) {
-  if (!ttsEnabled || !window.speechSynthesis || !window.SpeechSynthesisUtterance) { return; }
-
-  const plan = resolveTtsPlanJs(text, voiceCtx);
-  if (!plan) { return; }
-
+function speakPlanWithSystem(plan) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { return; }
   window.speechSynthesis.cancel();
-
   const utterance = new SpeechSynthesisUtterance(plan.text);
   utterance.rate = plan.rate;
   utterance.volume = plan.volume;
   utterance.pitch = plan.pitch;
   utterance.lang = plan.lang;
-
   const voice = pickVoiceByHint(plan.voiceId, plan.lang);
   if (voice) {
     utterance.voice = voice;
   }
-
   window.speechSynthesis.speak(utterance);
 }
 
-/** Per-message 📢 and auto-read: NPC voice when sender matches catalog, else global speakText. */
+function requestBridgeTts(plan) {
+  const requestId = `tts-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  pendingBridgeTts.set(requestId, plan);
+  vscode.postMessage({
+    type: 'requestNpcTts',
+    requestId,
+    provider: plan.provider,
+    text: plan.text,
+    lang: plan.lang,
+    rate: plan.rate,
+    volume: plan.volume,
+    pitch: plan.pitch,
+    voiceId: plan.voiceId,
+  });
+}
+
+function playBridgeAudio(msg) {
+  window.speechSynthesis?.cancel();
+  if (activeBridgeAudio) {
+    activeBridgeAudio.pause();
+    activeBridgeAudio = null;
+  }
+  const mime = msg.mimeType || 'audio/mpeg';
+  const audio = new Audio(`data:${mime};base64,${msg.audioBase64}`);
+  audio.volume = typeof msg.volume === 'number' ? Math.max(0, Math.min(1, msg.volume)) : 1;
+  activeBridgeAudio = audio;
+  const fallbackPlan = pendingBridgeTts.get(msg.requestId);
+  audio.onerror = () => {
+    if (fallbackPlan) { speakPlanWithSystem(fallbackPlan); }
+  };
+  audio.play().catch(() => {
+    if (fallbackPlan) { speakPlanWithSystem(fallbackPlan); }
+  });
+}
+
+function speakWithProfile(text, voiceCtx) {
+  if (!ttsEnabled) { return; }
+
+  const plan = resolveTtsPlanJs(text, voiceCtx);
+  if (!plan) { return; }
+
+  if (plan.provider === 'local' || plan.provider === 'external') {
+    requestBridgeTts(plan);
+    return;
+  }
+
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { return; }
+  speakPlanWithSystem(plan);
+}
+
 function speakEntryText(entry) {
   if (!entry) { return; }
   const voiceCtx = findNpcVoiceForSenderJs(entry.sender, entry.speakerNpcId);
@@ -190,7 +230,6 @@ function speakEntryText(entry) {
   }
 }
 
-/** World tab 🔊 Preview — localized sample line from webview.world.npcVoiceSample. */
 function previewNpcVoice(npc) {
   if (!npc || !npc.voice) { return; }
   const sample = T('webview.world.npcVoiceSample', { name: npc.name }) ||
@@ -198,10 +237,23 @@ function previewNpcVoice(npc) {
   speakWithProfile(sample, { voice: npc.voice, mood: npc.mood || 'neutral' });
 }
 
-/** Called from 85-world.js on each worldView postMessage. */
+function updateTtsCapabilities(msg) {
+  ttsExternalEnabled = !!msg.externalEnabled;
+  ttsLocalAvailable = !!msg.localAvailable;
+  ttsExternalProvider = typeof msg.externalProvider === 'string' ? msg.externalProvider : '';
+}
+
 function updateNpcTtsFromWorldView(msg) {
   npcTtsCatalog = Array.isArray(msg.npcTtsCatalog) ? msg.npcTtsCatalog : [];
-  ttsExternalEnabled = !!msg.ttsExternalEnabled;
+  if (msg.ttsExternalEnabled !== undefined) {
+    ttsExternalEnabled = !!msg.ttsExternalEnabled;
+  }
+  if (msg.ttsLocalAvailable !== undefined) {
+    ttsLocalAvailable = !!msg.ttsLocalAvailable;
+  }
+  if (msg.ttsExternalProvider !== undefined) {
+    ttsExternalProvider = typeof msg.ttsExternalProvider === 'string' ? msg.ttsExternalProvider : '';
+  }
   npcTtsCurrentLocationId = msg.currentLocationId || null;
   npcVoiceCount = typeof msg.npcVoiceCount === 'number' ? msg.npcVoiceCount : 0;
   updateNpcVoiceCountLabel();
@@ -219,3 +271,20 @@ function updateNpcVoiceCountLabel() {
     el.classList.add('hidden');
   }
 }
+
+window.addEventListener('message', (event) => {
+  const msg = event.data;
+  if (!msg || typeof msg.type !== 'string') { return; }
+  if (msg.type === 'ttsCapabilities') {
+    updateTtsCapabilities(msg);
+  } else if (msg.type === 'ttsAudioReady' && msg.requestId) {
+    pendingBridgeTts.delete(msg.requestId);
+    playBridgeAudio(msg);
+  } else if (msg.type === 'ttsAudioFailed' && msg.requestId) {
+    const plan = pendingBridgeTts.get(msg.requestId);
+    pendingBridgeTts.delete(msg.requestId);
+    if (plan) {
+      speakPlanWithSystem(plan);
+    }
+  }
+});

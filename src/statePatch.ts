@@ -249,14 +249,21 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
         return state;
     }
 
+    const gmMeta = turnResult.gmEntry;
+    const sender = (gmMeta?.sender && typeof gmMeta.sender === 'string' && gmMeta.sender.trim())
+        ? gmMeta.sender.trim().slice(0, 120)
+        : 'Game Master';
+
     const entry: GameEntry = {
         id: turnResult.turnId,
         role: 'gm',
-        sender: 'Game Master',
+        sender,
         content: narration
     };
 
-    const gmMeta = turnResult.gmEntry;
+    if (gmMeta?.speakerNpcId && isValidEntryId(gmMeta.speakerNpcId)) {
+        entry.speakerNpcId = gmMeta.speakerNpcId;
+    }
     if (gmMeta?.imagePrompt && typeof gmMeta.imagePrompt === 'string') {
         entry.imagePrompt = gmMeta.imagePrompt.slice(0, 2000);
     }

@@ -51,6 +51,8 @@ export interface GameEntry {
     role: "gm" | "user";
     sender: string;
     content: string;
+    /** Optional npc_registry key when GM tags quoted NPC speech (Phase 11B). */
+    speakerNpcId?: string;
     image?: string;
     rawImagePath?: string;
     imagePrompt?: string;

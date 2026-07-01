@@ -343,6 +343,12 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                             next.excludedFromPrompt = entry.excludedFromPrompt;
                             changed = true;
                         }
+                        if (typeof entry.speakerNpcId === 'string' && isValidEntryId(entry.speakerNpcId)) {
+                            if (entry.speakerNpcId !== next.speakerNpcId) {
+                                next.speakerNpcId = entry.speakerNpcId;
+                                changed = true;
+                            }
+                        }
                         if (changed) {
                             gameEntryHistory[histIdx] = next;
                             historyUpdated = true;

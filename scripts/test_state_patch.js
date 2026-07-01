@@ -86,6 +86,14 @@ const updated = mergeGmEntryFromTurn(merged, {
 assertEqual(updated.entries.length, 1, 'mergeGmEntry updates in place');
 assertEqual(updated.entries[0].content, 'You enter the deeper cave.', 'mergeGmEntry overwrites content');
 
+const npcTagged = mergeGmEntryFromTurn(baseState, {
+  turnId: 'turn-npc',
+  narration: '"Wait!" she cries.',
+  gmEntry: { sender: 'Alice', speakerNpcId: 'npc_alice' }
+});
+assertEqual(npcTagged.entries[0].sender, 'Alice', 'mergeGmEntry gmEntry.sender');
+assertEqual(npcTagged.entries[0].speakerNpcId, 'npc_alice', 'mergeGmEntry gmEntry.speakerNpcId');
+
 // hashGameState stability
 const h1 = hashGameState(baseState);
 const h2 = hashGameState(JSON.parse(JSON.stringify(baseState)));

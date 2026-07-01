@@ -89,6 +89,11 @@ export function validateGameState(obj: unknown): string[] {
             if (e.editedAt !== undefined && typeof e.editedAt !== 'string') {
                 errors.push(`entries[${i}].editedAt must be a string`);
             }
+            if (e.speakerNpcId !== undefined) {
+                if (typeof e.speakerNpcId !== 'string' || !ENTRY_ID_PATTERN.test(e.speakerNpcId)) {
+                    errors.push(`entries[${i}].speakerNpcId has invalid format`);
+                }
+            }
         });
     }
 

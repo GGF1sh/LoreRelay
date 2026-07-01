@@ -51,7 +51,15 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **External/local fallback**: Set `voice.provider` to `external` or `local` with `textAdventure.tts.external.enabled = false`. Preview or 📢 — verify system TTS still speaks and devtools console shows one-time fallback warning.
 - [ ] **NPC voice count**: With at least one voiced NPC, verify the TTS panel shows `NPC voices: N` (or localized equivalent).
 
-## 8. System & Installation
+## 8. TTS Bridge (Phase 11B)
+- [ ] **Local edge-tts**: `pip install edge-tts`, ensure `TextAdventureGMSkill/scripts/tts_local.py` resolves. Set NPC `voice.provider` to `local`, World Preview or 📢 — verify MP3 plays (not Web Speech default).
+- [ ] **Test Local TTS command**: Run **LoreRelay: Test Local TTS** — Output Channel `LoreRelay: TTS` shows success; Webview plays sample audio.
+- [ ] **Local fallback**: Uninstall edge-tts or break `tts.local.command` — verify 📢 still speaks via system TTS.
+- [ ] **OpenAI external**: Set `textAdventure.tts.external.enabled=true`, `tts.external.provider=openai`, run **Set TTS API Key**. NPC `voice.provider=external` — verify network TTS plays.
+- [ ] **External privacy**: Confirm only speak text chunk is sent (not full game_state / npc memories). API key only in SecretStorage.
+- [ ] **speakerNpcId**: Put `speakerNpcId` + `sender` in `turn_result.json` `gmEntry`, apply turn — verify 📢 uses that NPC voice even when sender name is ambiguous.
+
+## 9. System & Installation
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.
 - [ ] **OpenRouter Key Migration**: Verify that the legacy plain-text API key is safely migrated into VS Code's `SecretStorage` mechanism on startup.

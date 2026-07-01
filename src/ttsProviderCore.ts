@@ -74,7 +74,7 @@ export function clampTtsText(text: string): string {
  */
 export function resolveTtsPlan(
     request: TtsSpeakRequest,
-    options: { externalEnabled?: boolean } = {}
+    options: { externalEnabled?: boolean; localAvailable?: boolean } = {}
 ): ResolvedTtsPlan {
     const text = clampTtsText(request.text);
     if (!text) {
@@ -97,7 +97,7 @@ export function resolveTtsPlan(
         fallbackFrom = 'external';
         provider = 'system';
     }
-    if (provider === 'local') {
+    if (provider === 'local' && !options.localAvailable) {
         fallbackFrom = 'local';
         provider = 'system';
     }

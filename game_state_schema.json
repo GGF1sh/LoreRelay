@@ -21,7 +21,8 @@
           "imagePrompt": { "type": "string" },
           "imageBlocked": { "type": "boolean" },
           "excludedFromPrompt": { "type": "boolean" },
-          "editedAt": { "type": "string" }
+          "editedAt": { "type": "string" },
+          "speakerNpcId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" }
         },
         "required": ["id", "role", "sender", "content"]
       }

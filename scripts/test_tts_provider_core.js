@@ -51,11 +51,26 @@ const catalog = [
         globalVolume: 1,
         voiceProfile: { moodAdaptive: true, provider: 'local' },
         dispositionMood: 'excited',
-    });
-    if (plan.lang !== 'ja-JP' || plan.rate <= 1) {
+    }, { localAvailable: true });
+    if (plan.lang !== 'ja-JP' || plan.rate <= 1 || plan.provider !== 'local') {
         fail('mood adaptive and locale lang');
     } else {
         ok('mood adaptive and locale lang');
+    }
+}
+
+{
+    const plan = resolveTtsPlan({
+        text: 'x',
+        locale: 'en',
+        globalSpeed: 1,
+        globalVolume: 1,
+        voiceProfile: { provider: 'local' },
+    });
+    if (plan.provider !== 'system' || plan.fallbackFrom !== 'local') {
+        fail('local falls back when bridge unavailable');
+    } else {
+        ok('local falls back when bridge unavailable');
     }
 }
 

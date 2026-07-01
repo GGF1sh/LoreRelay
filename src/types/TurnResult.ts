@@ -25,6 +25,10 @@ export interface TurnMediaRequest {
 export interface TurnGmEntryMeta {
     imagePrompt?: string;
     image?: string;
+    /** Override default "Game Master" sender for TTS attribution. */
+    sender?: string;
+    /** npc_registry key for explicit NPC voice (Phase 11B). */
+    speakerNpcId?: string;
 }
 
 export interface TurnResultAgenticMeta {

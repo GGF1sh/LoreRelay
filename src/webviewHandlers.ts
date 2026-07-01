@@ -92,6 +92,8 @@ export interface WebviewHandlerDeps {
     handleRequestNpcPortraitLink(npcId: string): Promise<void>;
     handleRunQuickstart(prompt: string, overwrite: boolean): Promise<void>;
     handleAcceptQuest(questId: string): Promise<void>;
+    handleRequestNpcTts(raw: unknown): Promise<void>;
+    pushTtsCapabilities(): void;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -130,6 +132,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendScenarioDirector();
             deps.sendPartyDirector();
             deps.sendWorldView();
+            deps.pushTtsCapabilities();
             deps.sendGameRules();
             deps.sendRemotePlayStatus();
             break;
@@ -406,6 +409,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 const overwrite = !!message.overwrite;
                 await deps.handleRunQuickstart(message.prompt, overwrite);
             }
+            break;
+        case 'requestNpcTts':
+            await deps.handleRequestNpcTts(message);
             break;
         default:
             break;

@@ -69,6 +69,13 @@ import {
     isGmBridgeBusy
 } from './gmBridgeRunner';
 import {
+    initTtsBridgeRunner,
+    handleRequestNpcTts,
+    pushTtsCapabilitiesToWebview,
+    testLocalTtsBridge,
+    killActiveTtsProcess,
+} from './ttsBridgeRunner';
+import {
     initRemotePlayServer,
     startRemotePlayServer,
     stopRemotePlayServer,
@@ -163,6 +170,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let openRouterSettingsWarningShown = false;
 
 const OPENROUTER_SECRET_KEY = 'lorerelay.openrouter.apiKey';
+const TTS_EXTERNAL_SECRET_KEY = 'lorerelay.tts.external.apiKey';
 const MAX_PLAYER_INPUT_LENGTH = 2000;
 
 function getPanel(): vscode.WebviewPanel | undefined {
@@ -190,6 +198,12 @@ export function activate(context: vscode.ExtensionContext) {
         buildGrokPrompt,
         getOpenRouterApiKey,
         subscriptions: context.subscriptions
+    });
+
+    initTtsBridgeRunner({
+        getPanel,
+        getTtsApiKey,
+        subscriptions: context.subscriptions,
     });
 
     initRemotePlayServer({
@@ -320,6 +334,18 @@ export function activate(context: vscode.ExtensionContext) {
         void clearOpenRouterApiKey(context);
     });
 
+    const setTtsApiKeyCmd = vscode.commands.registerCommand('textadventure.setTtsApiKey', () => {
+        void setTtsApiKey(context);
+    });
+
+    const clearTtsApiKeyCmd = vscode.commands.registerCommand('textadventure.clearTtsApiKey', () => {
+        void clearTtsApiKey(context);
+    });
+
+    const testLocalTtsCmd = vscode.commands.registerCommand('textadventure.testLocalTts', () => {
+        void testLocalTtsBridge();
+    });
+
     const startRemotePlayCmd = vscode.commands.registerCommand('textadventure.startRemotePlay', () => {
         void toggleRemotePlay(true);
     });
@@ -384,6 +410,9 @@ export function activate(context: vscode.ExtensionContext) {
         openGameCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
+        setTtsApiKeyCmd,
+        clearTtsApiKeyCmd,
+        testLocalTtsCmd,
         startRemotePlayCmd,
         stopRemotePlayCmd,
         rotateRemotePlayTokenCmd,
@@ -558,6 +587,32 @@ async function setOpenRouterApiKey(context: vscode.ExtensionContext): Promise<vo
 async function clearOpenRouterApiKey(context: vscode.ExtensionContext): Promise<void> {
     await context.secrets.delete(OPENROUTER_SECRET_KEY);
     vscode.window.showInformationMessage(t('extension.info.openRouterKeyCleared'));
+}
+
+export async function getTtsApiKey(): Promise<string> {
+    return (await extensionContext?.secrets.get(TTS_EXTERNAL_SECRET_KEY))?.trim() || '';
+}
+
+async function setTtsApiKey(context: vscode.ExtensionContext): Promise<void> {
+    const key = await vscode.window.showInputBox({
+        prompt: t('extension.tts.keyPrompt'),
+        placeHolder: t('extension.tts.keyPlaceholder'),
+        password: true,
+        ignoreFocusOut: true,
+    });
+    if (key === undefined) { return; }
+    const trimmed = key.trim();
+    if (!trimmed) {
+        vscode.window.showWarningMessage(t('extension.warning.ttsEmptyKey'));
+        return;
+    }
+    await context.secrets.store(TTS_EXTERNAL_SECRET_KEY, trimmed);
+    vscode.window.showInformationMessage(t('extension.info.ttsKeySaved'));
+}
+
+async function clearTtsApiKey(context: vscode.ExtensionContext): Promise<void> {
+    await context.secrets.delete(TTS_EXTERNAL_SECRET_KEY);
+    vscode.window.showInformationMessage(t('extension.info.ttsKeyCleared'));
 }
 
 
@@ -1217,7 +1272,13 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                     pushWorldViewToWebview();
                 }
             }
-        }
+        },
+        handleRequestNpcTts: async (raw: unknown) => {
+            await handleRequestNpcTts(raw);
+        },
+        pushTtsCapabilities: () => {
+            pushTtsCapabilitiesToWebview();
+        },
     };
 }
 
@@ -1239,6 +1300,7 @@ export function deactivate() {
     clearMediaAgentState();
     disposeRemotePlayServer();
     killActiveScriptProcess();
+    killActiveTtsProcess();
     killPortraitProcess();
     killExpressionProcess();
 }

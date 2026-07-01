@@ -9,6 +9,8 @@ import type { Faction } from './worldForgeCore';
 import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldStateCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { buildNpcTtsCatalog, countNpcVoices } from './ttsProviderCore';
+import { normalizeExternalProvider } from './ttsBridgeCore';
+import { isLocalTtsConfigured } from './ttsBridgeRunner';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
@@ -115,6 +117,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     // Phase 11 TTS: push voiced-NPC catalog for Webview sender attribution (61-tts-npc.js).
     const ttsConfig = vscode.workspace.getConfiguration('textAdventure');
     const ttsExternalEnabled = ttsConfig.get<boolean>('tts.external.enabled', false);
+    const ttsLocalAvailable = isLocalTtsConfigured();
+    const ttsExternalProvider = normalizeExternalProvider(ttsConfig.get('tts.external.provider', ''));
     const npcTtsCatalog = buildNpcTtsCatalog(registry);
     const npcVoiceCount = countNpcVoices(registry);
 
@@ -151,6 +155,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         npcsAtLocation,
         npcTtsCatalog,
         ttsExternalEnabled,
+        ttsLocalAvailable,
+        ttsExternalProvider,
         npcVoiceCount,
     });
 }

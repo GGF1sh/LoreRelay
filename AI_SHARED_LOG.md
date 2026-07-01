@@ -1,5 +1,23 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Phase 11B local/external TTS bridge
+
+### Summary
+
+- **Core:** `ttsBridgeCore.ts` (payload sanitize, path safety, OpenAI voice mapping).
+- **Runner:** `ttsBridgeRunner.ts` — spawn `tts_local.py` (edge-tts) or OpenAI `/v1/audio/speech`; Webview `requestNpcTts` → `ttsAudioReady` base64 MP3.
+- **Skill:** `TextAdventureGMSkill/scripts/tts_local.py`.
+- **Schema:** `GameEntry.speakerNpcId`, `TurnGmEntryMeta.sender/speakerNpcId`, merge in `statePatch.ts`.
+- **Settings/commands:** `tts.local.*`, `tts.external.provider/voice`, Set/Clear TTS API Key, Test Local TTS.
+- **Tests:** `test_tts_bridge_core.js`, provider local fallback, state_patch speakerNpcId.
+
+### Next
+
+- Manual `testing_checklist.md` §8 (edge-tts + OpenAI).
+- ChatGPT privacy review per design doc.
+
+---
+
 ## 2026-07-01 JST - Grok - Code Comments rule + Phase 11 doc pass
 
 ### Summary

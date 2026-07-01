@@ -307,9 +307,10 @@
             <input type="checkbox" id="char-party-cb" />
             <span data-i18n="webview.character.partyJoin">Join party</span>
           </label>
-          <button id="char-new-creator-btn" class="cc-open-full-btn" title="Create a new character">✦ New</button>
-          <button id="char-open-creator-btn" class="cc-open-full-btn" title="Open full character editor">✏️ Full Editor</button>
+          <button id="char-new-creator-btn" class="cc-open-full-btn" data-i18n-title="webview.character.newTitle" title="Create a new character">✦ New</button>
+          <button id="char-open-creator-btn" class="cc-open-full-btn" data-i18n-title="webview.character.fullEditorTitle" title="Open full character editor">✏️ Full Editor</button>
           <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
+          <button id="char-delete-btn" class="char-delete-btn" data-i18n="webview.character.delete" data-i18n-title="webview.character.deleteTitle" title="Delete this character">🗑 Delete</button>
         </div>
 
         <div class="char-portrait-container">
@@ -774,172 +775,172 @@
   <!-- ========================================== -->
   <div id="char-creator-modal" class="char-creator-modal hidden" role="dialog" aria-modal="true" aria-label="Character Creator">
     <div class="char-creator-header">
-      <h2>✦ Character Creator <span class="cc-subtitle"></span></h2>
-      <button id="char-creator-close" class="glass-btn" title="Close">✕</button>
+      <h2><span data-i18n="webview.characterCreator.title">✦ Character Creator</span> <span class="cc-subtitle"></span></h2>
+      <button id="char-creator-close" class="glass-btn" data-i18n-title="webview.characterCreator.close" title="Close">✕</button>
     </div>
 
     <div class="char-creator-body">
 
-      <!-- 笏笏 Section: Identity 笏笏 -->
+      <!-- 笏笏 Section: Identity 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">Identity</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionIdentity">Identity</div>
         <div class="cc-identity-grid">
           <!-- Portrait -->
           <div class="cc-portrait-col">
-            <div id="cc-portrait-drop" class="cc-portrait-drop" title="Drop image or click to upload">
+            <div id="cc-portrait-drop" class="cc-portrait-drop" data-i18n-title="webview.characterCreator.portraitDropTitle" title="Drop image or click to upload">
               <img id="cc-portrait-img-preview" src="" alt="Portrait" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:8px;">
               <div id="cc-portrait-placeholder-inner" class="cc-portrait-placeholder-inner">
-                <span class="cc-portrait-icon">🎭</span>
-                <span class="cc-portrait-hint">Drop image<br>or click</span>
+                <span class="cc-portrait-icon">🎭</span>
+                <span class="cc-portrait-hint" data-i18n="webview.characterCreator.portraitDropHint">Drop image or click</span>
               </div>
             </div>
-            <button id="cc-portrait-upload-btn" class="cc-portrait-btn" type="button">📁 Upload</button>
-            <button id="cc-portrait-generate-btn" class="cc-portrait-btn cc-btn-generate" type="button">✨ Generate</button>
+            <button id="cc-portrait-upload-btn" class="cc-portrait-btn" type="button" data-i18n="webview.characterCreator.uploadBtn">📁 Upload</button>
+            <button id="cc-portrait-generate-btn" class="cc-portrait-btn cc-btn-generate" type="button" data-i18n="webview.characterCreator.generateBtn">✨ Generate</button>
           </div>
 
           <!-- Basic fields -->
           <div class="cc-identity-fields">
-            <label class="cc-label">Name</label>
-            <input id="cc-name" class="cc-input" type="text" placeholder="Character name…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.name">Name</label>
+            <input id="cc-name" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.namePlaceholder" placeholder="Character name…" autocomplete="off">
 
-            <label class="cc-label">Creator</label>
-            <input id="cc-creator" class="cc-input" type="text" placeholder="Your name / handle…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.creator">Creator</label>
+            <input id="cc-creator" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.creatorPlaceholder" placeholder="Your name / handle…" autocomplete="off">
 
-            <label class="cc-label">Version</label>
+            <label class="cc-label" data-i18n="webview.characterCreator.version">Version</label>
             <input id="cc-version" class="cc-input" type="text" placeholder="1.0" style="max-width:100px;" autocomplete="off">
 
-            <label class="cc-label">Tags</label>
-            <input id="cc-tags" class="cc-input" type="text" placeholder="fantasy, elf, healer…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.tags">Tags</label>
+            <input id="cc-tags" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.tagsPlaceholder" placeholder="fantasy, elf, healer…" autocomplete="off">
 
-            <label class="cc-label">Controlled by</label>
+            <label class="cc-label" data-i18n="webview.characterCreator.controlledBy">Controlled by</label>
             <select id="cc-controlled-by" class="cc-select">
-              <option value="gm">GM (NPC)</option>
-              <option value="player">Player</option>
-              <option value="ai">AI</option>
+              <option value="gm" data-i18n="webview.characterCreator.controlledByGm">GM (NPC)</option>
+              <option value="player" data-i18n="webview.characterCreator.controlledByPlayer">Player</option>
+              <option value="ai" data-i18n="webview.characterCreator.controlledByAi">AI</option>
             </select>
 
-            <label class="cc-label">Add to Party</label>
+            <label class="cc-label" data-i18n="webview.characterCreator.addToParty">Add to Party</label>
             <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
               <input id="cc-party-cb" type="checkbox" style="width:16px; height:16px; accent-color:var(--accent); cursor:pointer;">
-              <span style="font-size:12px; color:var(--text-dim);">Include in active party</span>
+              <span style="font-size:12px; color:var(--text-dim);" data-i18n="webview.characterCreator.includeInParty">Include in active party</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 笏笏 Section: Personality & Profile 笏笏 -->
+      <!-- 笏笏 Section: Personality & Profile 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">Personality &amp; Profile</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionPersonality">Personality &amp; Profile</div>
 
-        <label class="cc-label">Description</label>
-        <textarea id="cc-description" class="cc-textarea" rows="4" placeholder="Physical appearance, background, role in the story…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.description">Description</label>
+        <textarea id="cc-description" class="cc-textarea" rows="4" data-i18n-placeholder="webview.characterCreator.descriptionPlaceholder" placeholder="Physical appearance, background, role in the story…"></textarea>
 
-        <label class="cc-label">Personality</label>
-        <textarea id="cc-personality" class="cc-textarea" rows="3" placeholder="Traits, quirks, speech patterns…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.personality">Personality</label>
+        <textarea id="cc-personality" class="cc-textarea" rows="3" data-i18n-placeholder="webview.characterCreator.personalityPlaceholder" placeholder="Traits, quirks, speech patterns…"></textarea>
 
-        <label class="cc-label">Scenario</label>
-        <textarea id="cc-scenario" class="cc-textarea" rows="3" placeholder="The situation or world context where this character exists…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.scenario">Scenario</label>
+        <textarea id="cc-scenario" class="cc-textarea" rows="3" data-i18n-placeholder="webview.characterCreator.scenarioPlaceholder" placeholder="The situation or world context where this character exists…"></textarea>
       </section>
 
       <section class="cc-section">
         <div class="cc-section-title" style="display:flex; align-items:center; justify-content:space-between;">
-          <span>World Adaptation</span>
-          <button id="cc-adapt-world-btn" class="glass-btn" type="button" style="font-size:11px;" disabled title="Set up a world first to enable this">Adapt to World Theme</button>
+          <span data-i18n="webview.characterCreator.sectionWorldAdaptation">World Adaptation</span>
+          <button id="cc-adapt-world-btn" class="glass-btn" type="button" style="font-size:11px;" disabled data-i18n-title="webview.characterCreator.adaptBtnTitle" title="Set up a world first to enable this" data-i18n="webview.characterCreator.adaptBtn">Adapt to World Theme</button>
         </div>
         <div id="cc-adapt-draft" class="cc-adapt-draft hidden">
-          <div class="cc-adapt-draft-label">AI draft — not applied yet:</div>
-          <div class="cc-adapt-draft-field"><strong>Description:</strong> <span id="cc-adapt-description"></span></div>
-          <div class="cc-adapt-draft-field"><strong>Personality:</strong> <span id="cc-adapt-personality"></span></div>
-          <div class="cc-adapt-draft-field"><strong>Equipment:</strong> <span id="cc-adapt-equipment"></span></div>
-          <div class="cc-adapt-draft-field"><strong>Arrival reason:</strong> <span id="cc-adapt-arrival"></span></div>
+          <div class="cc-adapt-draft-label" data-i18n="webview.characterCreator.adaptDraftLabel">AI draft — not applied yet:</div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftDescription">Description:</strong> <span id="cc-adapt-description"></span></div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftPersonality">Personality:</strong> <span id="cc-adapt-personality"></span></div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftEquipment">Equipment:</strong> <span id="cc-adapt-equipment"></span></div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftArrival">Arrival reason:</strong> <span id="cc-adapt-arrival"></span></div>
           <div class="cc-adapt-draft-actions">
-            <button id="cc-adapt-apply-btn" class="glass-btn" type="button">Apply Draft</button>
-            <button id="cc-adapt-discard-btn" class="glass-btn cc-del" type="button">Discard</button>
+            <button id="cc-adapt-apply-btn" class="glass-btn" type="button" data-i18n="webview.characterCreator.adaptApply">Apply Draft</button>
+            <button id="cc-adapt-discard-btn" class="glass-btn cc-del" type="button" data-i18n="webview.characterCreator.adaptDiscard">Discard</button>
           </div>
         </div>
       </section>
 
-      <!-- 笏笏 Section: Dialogue 笏笏 -->
+      <!-- 笏笏 Section: Dialogue 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">Dialogue</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionDialogue">Dialogue</div>
 
-        <label class="cc-label">First Message</label>
-        <textarea id="cc-first-mes" class="cc-textarea" rows="4" placeholder="The character's opening line when a conversation begins…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.firstMessage">First Message</label>
+        <textarea id="cc-first-mes" class="cc-textarea" rows="4" data-i18n-placeholder="webview.characterCreator.firstMessagePlaceholder" placeholder="The character's opening line when a conversation begins…"></textarea>
 
-        <label class="cc-label">Example Messages</label>
+        <label class="cc-label" data-i18n="webview.characterCreator.exampleMessages">Example Messages</label>
         <textarea id="cc-mes-example" class="cc-textarea" rows="4" placeholder="&lt;START&gt;&#10;{{user}}: Hello!&#10;{{char}}: Greetings, traveler…"></textarea>
 
-        <label class="cc-label">Creator Notes</label>
-        <textarea id="cc-creator-notes" class="cc-textarea" rows="2" placeholder="Notes for other creators or players (not sent to AI)…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.creatorNotes">Creator Notes</label>
+        <textarea id="cc-creator-notes" class="cc-textarea" rows="2" data-i18n-placeholder="webview.characterCreator.creatorNotesPlaceholder" placeholder="Notes for other creators or players (not sent to AI)…"></textarea>
       </section>
 
-      <!-- 笏笏 Section: System Prompt 笏笏 -->
+      <!-- 笏笏 Section: System Prompt 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">System Prompt</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionSystemPrompt">System Prompt</div>
 
-        <label class="cc-label">System Prompt</label>
-        <textarea id="cc-system-prompt" class="cc-textarea" rows="4" placeholder="Instructions prepended to every conversation…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.systemPrompt">System Prompt</label>
+        <textarea id="cc-system-prompt" class="cc-textarea" rows="4" data-i18n-placeholder="webview.characterCreator.systemPromptPlaceholder" placeholder="Instructions prepended to every conversation…"></textarea>
 
-        <label class="cc-label">Post-History Instructions</label>
-        <textarea id="cc-post-history" class="cc-textarea" rows="3" placeholder="Instructions appended after the chat history…"></textarea>
+        <label class="cc-label" data-i18n="webview.characterCreator.postHistory">Post-History Instructions</label>
+        <textarea id="cc-post-history" class="cc-textarea" rows="3" data-i18n-placeholder="webview.characterCreator.postHistoryPlaceholder" placeholder="Instructions appended after the chat history…"></textarea>
       </section>
 
-      <!-- 笏笏 Section: LLM Binding 笏笏 -->
+      <!-- 笏笏 Section: LLM Binding 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">LLM Binding</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionLlmBinding">LLM Binding</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <div>
-            <label class="cc-label">Provider</label>
-            <input id="cc-llm-provider" class="cc-input" type="text" placeholder="anthropic / openai…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.llmProvider">Provider</label>
+            <input id="cc-llm-provider" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.llmProviderPlaceholder" placeholder="anthropic / openai…" autocomplete="off">
           </div>
           <div>
-            <label class="cc-label">Model</label>
-            <input id="cc-llm-model" class="cc-input" type="text" placeholder="claude-sonnet-4-6…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.llmModel">Model</label>
+            <input id="cc-llm-model" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.llmModelPlaceholder" placeholder="claude-sonnet-4-6…" autocomplete="off">
           </div>
         </div>
       </section>
 
-      <!-- 笏笏 Section: Sprite Expressions 笏笏 -->
+      <!-- 笏笏 Section: Sprite Expressions 笏笏 -->
       <section class="cc-section">
         <div class="cc-section-title" style="display:flex; align-items:center; justify-content:space-between;">
-          <span>Sprite Expressions</span>
-          <button id="cc-add-expression-btn" class="glass-btn" type="button" style="font-size:11px;">+ Add Custom</button>
+          <span data-i18n="webview.characterCreator.sectionSpriteExpressions">Sprite Expressions</span>
+          <button id="cc-add-expression-btn" class="glass-btn" type="button" style="font-size:11px;" data-i18n="webview.characterCreator.addCustomExpression">+ Add Custom</button>
         </div>
         <div id="cc-sprites-grid" class="cc-sprites-grid">
           <!-- Populated by JS renderExpressionsGrid() -->
         </div>
       </section>
 
-      <!-- 笏笏 Section: Equipment 笏笏 -->
+      <!-- 笏笏 Section: Equipment 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">Equipment</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionEquipment">Equipment</div>
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
           <div>
-            <label class="cc-label">Weapon</label>
-            <input id="cc-equip-weapon" class="cc-input" type="text" placeholder="Sword…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.weapon">Weapon</label>
+            <input id="cc-equip-weapon" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.weaponPlaceholder" placeholder="Sword…" autocomplete="off">
           </div>
           <div>
-            <label class="cc-label">Armor</label>
-            <input id="cc-equip-armor" class="cc-input" type="text" placeholder="Chain mail…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.armor">Armor</label>
+            <input id="cc-equip-armor" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.armorPlaceholder" placeholder="Chain mail…" autocomplete="off">
           </div>
           <div>
-            <label class="cc-label">Accessory</label>
-            <input id="cc-equip-accessory" class="cc-input" type="text" placeholder="Ring…" autocomplete="off">
+            <label class="cc-label" data-i18n="webview.characterCreator.accessory">Accessory</label>
+            <input id="cc-equip-accessory" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.accessoryPlaceholder" placeholder="Ring…" autocomplete="off">
           </div>
         </div>
       </section>
 
-      <!-- 笏笏 Section: Export & Save 笏笏 -->
+      <!-- 笏笏 Section: Export & Save 笏笏 -->
       <section class="cc-section">
-        <div class="cc-section-title">Export &amp; Save</div>
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionExportSave">Export &amp; Save</div>
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
-          <span style="font-size:12px; color:var(--text-dim);">Format:</span>
-          <button class="cc-fmt-btn active" data-fmt="json" type="button">JSON</button>
-          <button class="cc-fmt-btn" data-fmt="st-v2" type="button">ST v2 PNG</button>
-          <button class="cc-fmt-btn" data-fmt="st-v3" type="button">ST v3 PNG</button>
+          <span style="font-size:12px; color:var(--text-dim);" data-i18n="webview.characterCreator.formatLabel">Format:</span>
+          <button class="cc-fmt-btn active" data-fmt="json" type="button" data-i18n="webview.characterCreator.formatJson">JSON</button>
+          <button class="cc-fmt-btn" data-fmt="st-v2" type="button" data-i18n="webview.characterCreator.formatStV2">ST v2 PNG</button>
+          <button class="cc-fmt-btn" data-fmt="st-v3" type="button" data-i18n="webview.characterCreator.formatStV3">ST v3 PNG</button>
         </div>
-        <button id="cc-save-btn" class="cc-save-primary" type="button">✦ Save Character</button>
-        <div id="cc-saved-toast" class="cc-saved-toast hidden">✓ Character saved!</div>
+        <button id="cc-save-btn" class="cc-save-primary" type="button" data-i18n="webview.characterCreator.saveBtn">✦ Save Character</button>
+        <div id="cc-saved-toast" class="cc-saved-toast hidden" data-i18n="webview.characterCreator.savedToast">✓ Character saved!</div>
       </section>
 
     </div><!-- /.char-creator-body -->

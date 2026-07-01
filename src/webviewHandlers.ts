@@ -42,6 +42,7 @@ export interface WebviewHandlerDeps {
     saveCharacter(character: CharacterProfile): void;
     exportCharacterCard(payload: unknown): Promise<void>;
     setActiveCharacter(id: string): void;
+    deleteCharacter(id: string): boolean;
     uploadPortrait(id: string): Promise<void>;
     generatePortrait(id: string): Promise<void>;
     generateExpression(id: string, expression: string): Promise<void>;
@@ -233,6 +234,17 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'setActiveCharacter':
             if (isValidCharacterId(message.id)) {
                 deps.setActiveCharacter(message.id);
+            } else {
+                vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+            }
+            break;
+        case 'deleteCharacter':
+            if (isValidCharacterId(message.id)) {
+                if (deps.deleteCharacter(message.id)) {
+                    vscode.window.showInformationMessage(t('extension.info.characterDeleted'));
+                } else {
+                    vscode.window.showWarningMessage(t('extension.error.characterNotFound'));
+                }
             } else {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
             }

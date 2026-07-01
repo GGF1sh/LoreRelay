@@ -1907,6 +1907,8 @@ function updateCharacterList(characters, activeId, partyIds) {
 
 function loadSelectedCharacter() {
   const id = charSelect.value;
+  const deleteBtn = document.getElementById('char-delete-btn');
+  if (deleteBtn) deleteBtn.disabled = (id === 'new');
   if (id === 'new') {
     charNameInput.value = '';
     charControlledBySelect.value = 'gm';
@@ -1990,6 +1992,15 @@ document.getElementById('char-save-btn').addEventListener('click', () => {
   if (charSelect.value === 'new') {
     vscode.postMessage({ type: 'setActiveCharacter', id });
   }
+});
+
+document.getElementById('char-delete-btn')?.addEventListener('click', () => {
+  const id = charSelect.value;
+  if (id === 'new') return;
+  const char = currentCharacters.find(c => c.id === id);
+  const name = char?.name || id;
+  if (!confirm(T('webview.character.deleteConfirm', { name }))) return;
+  vscode.postMessage({ type: 'deleteCharacter', id });
 });
 
 charPartyCb.addEventListener('change', () => {
@@ -2129,16 +2140,16 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   let ccAdaptDraft = null;
 
   const DEFAULT_EXPRESSIONS = [
-    { key: 'neutral',     label: 'Neutral',     icon: '😐' },
-    { key: 'happy',       label: 'Happy',       icon: '😊' },
-    { key: 'sad',         label: 'Sad',         icon: '😢' },
-    { key: 'angry',       label: 'Angry',       icon: '😠' },
-    { key: 'surprised',   label: 'Surprised',   icon: '😮' },
-    { key: 'scared',      label: 'Scared',      icon: '😨' },
-    { key: 'disgusted',   label: 'Disgusted',   icon: '🤢' },
-    { key: 'thinking',    label: 'Thinking',    icon: '🤔' },
-    { key: 'embarrassed', label: 'Embarrassed', icon: '😳' },
-    { key: 'smug',        label: 'Smug',        icon: '😏' },
+    { key: 'neutral',     i18nKey: 'webview.characterCreator.expr.neutral',     icon: '😐' },
+    { key: 'happy',       i18nKey: 'webview.characterCreator.expr.happy',       icon: '😊' },
+    { key: 'sad',         i18nKey: 'webview.characterCreator.expr.sad',         icon: '😢' },
+    { key: 'angry',       i18nKey: 'webview.characterCreator.expr.angry',       icon: '😠' },
+    { key: 'surprised',   i18nKey: 'webview.characterCreator.expr.surprised',   icon: '😮' },
+    { key: 'scared',      i18nKey: 'webview.characterCreator.expr.scared',      icon: '😨' },
+    { key: 'disgusted',   i18nKey: 'webview.characterCreator.expr.disgusted',   icon: '🤢' },
+    { key: 'thinking',    i18nKey: 'webview.characterCreator.expr.thinking',    icon: '🤔' },
+    { key: 'embarrassed', i18nKey: 'webview.characterCreator.expr.embarrassed', icon: '😳' },
+    { key: 'smug',        i18nKey: 'webview.characterCreator.expr.smug',        icon: '😏' },
   ];
 
   // ── DOM helpers ────────────────────────────────────────────────────────
@@ -2193,7 +2204,7 @@ function startInlineEdit(msgDiv, entry, editBtn) {
 
     // Subtitle
     const subtitle = modal.querySelector('.cc-subtitle');
-    if (subtitle) subtitle.textContent = charData?.name ? `— ${charData.name}` : '— New Character';
+    if (subtitle) subtitle.textContent = charData?.name ? `— ${charData.name}` : T('webview.characterCreator.newSubtitle');
 
     // Saved toast reset
     const toast = $('cc-saved-toast');
@@ -2317,8 +2328,9 @@ function startInlineEdit(msgDiv, entry, editBtn) {
     for (const key of allKeys) {
       const meta = DEFAULT_EXPRESSIONS.find(e => e.key === key);
       const expr = ccExpressions[key];
+      const label = meta?.i18nKey ? T(meta.i18nKey) : key;
       grid.appendChild(
-        buildExpressionCard(key, meta?.label ?? key, meta?.icon ?? '🎭', expr?.uri ?? null)
+        buildExpressionCard(key, label, meta?.icon ?? '🎭', expr?.uri ?? null)
       );
     }
   }
@@ -2351,8 +2363,8 @@ function startInlineEdit(msgDiv, entry, editBtn) {
     const actions = document.createElement('div');
     actions.className = 'cc-sprite-actions';
 
-    const uploadBtn = makeSpritActionBtn('📁', 'Upload image', false, () => triggerExpressionPicker(key));
-    const genBtn    = makeSpritActionBtn('✨', 'Generate with ComfyUI', false, () => {
+    const uploadBtn = makeSpritActionBtn('📁', T('webview.characterCreator.spriteUpload'), false, () => triggerExpressionPicker(key));
+    const genBtn    = makeSpritActionBtn('✨', T('webview.characterCreator.spriteGenerate'), false, () => {
       vscode.postMessage({
         type: 'generateExpression',
         characterName: $v('name') || 'Character',
@@ -2364,7 +2376,7 @@ function startInlineEdit(msgDiv, entry, editBtn) {
     actions.appendChild(genBtn);
 
     if (imageSrc) {
-      const delBtn = makeSpritActionBtn('🗑', 'Remove', true, () => {
+      const delBtn = makeSpritActionBtn('🗑', T('webview.characterCreator.spriteRemove'), true, () => {
         delete ccExpressions[key];
         ccIsDirty = true;
         renderExpressionsGrid();
@@ -2421,16 +2433,16 @@ function startInlineEdit(msgDiv, entry, editBtn) {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'cc-input';
-    input.placeholder = 'Expression name (e.g. "wink")';
+    input.placeholder = T('webview.characterCreator.expressionNamePlaceholder');
     input.style.flex = '1';
 
     const addBtn = document.createElement('button');
     addBtn.className = 'glass-btn';
-    addBtn.textContent = 'Add';
+    addBtn.textContent = T('webview.characterCreator.add');
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'glass-btn cc-del';
-    cancelBtn.textContent = 'Cancel';
+    cancelBtn.textContent = T('webview.characterCreator.cancel');
 
     const finish = (name) => {
       inputWrapper.remove();
@@ -2460,12 +2472,13 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   function renderAdaptDraft(draft) {
     const panel = $('cc-adapt-draft');
     if (!panel) return;
-    $('cc-adapt-description').textContent = draft.description || '(no change)';
-    $('cc-adapt-personality').textContent = draft.personality || '(no change)';
+    const noChange = T('webview.characterCreator.noChange');
+    $('cc-adapt-description').textContent = draft.description || noChange;
+    $('cc-adapt-personality').textContent = draft.personality || noChange;
     const eq = draft.equipment || {};
     $('cc-adapt-equipment').textContent =
-      [eq.weapon, eq.armor, eq.accessory].filter(Boolean).join(' / ') || '(no change)';
-    $('cc-adapt-arrival').textContent = draft.arrivalReason || '(no change)';
+      [eq.weapon, eq.armor, eq.accessory].filter(Boolean).join(' / ') || noChange;
+    $('cc-adapt-arrival').textContent = draft.arrivalReason || noChange;
     panel.classList.remove('hidden');
   }
 

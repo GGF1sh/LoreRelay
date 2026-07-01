@@ -59,6 +59,11 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **External privacy**: Confirm only speak text chunk is sent (not full game_state / npc memories). API key only in SecretStorage.
 - [ ] **speakerNpcId**: Put `speakerNpcId` + `sender` in `turn_result.json` `gmEntry`, apply turn — verify 📢 uses that NPC voice even when sender name is ambiguous.
 
+## 9a. Character Creator (Full Editor)
+- [ ] **Locale coverage**: Open the Full Editor (✏️ Full Editor), switch the app locale to 日本語/繁體中文/简体中文, reopen it, and verify every label/placeholder/button now renders translated (previously the whole modal stayed in English).
+- [ ] **Delete character**: Select an existing character in the Character Profile pane, click 🗑 Delete, confirm the dialog, and verify the character disappears from the dropdown, its `characters/{id}.json` (and any portrait/expression files) are gone from disk, and it's removed from the active party if it was a member.
+- [ ] **Delete active character**: Delete the currently-active character and verify `active_character.txt` is cleared (no stale reference left behind) and the dropdown falls back to `-- New Character --` or another character cleanly.
+
 ## 9. System & Installation
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.

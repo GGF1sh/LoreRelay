@@ -300,6 +300,44 @@ export function removeFromParty(id: string): void {
     }
 }
 
+/** キャラJSON・ポートレート・表情画像を削除し、party/active登録からも外す。 */
+export function deleteCharacter(id: string): boolean {
+    const charDir = getCharactersDir();
+    if (!charDir || !isValidCharacterId(id)) { return false; }
+    const jsonPath = resolveCharacterJsonPath(charDir, id);
+    if (!jsonPath || !fs.existsSync(jsonPath)) { return false; }
+
+    const base = path.resolve(charDir);
+    try {
+        const char: CharacterProfile = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+        const imagePaths = [char.portrait, ...Object.values(char.expressions ?? {})];
+        for (const imagePath of imagePaths) {
+            if (typeof imagePath !== 'string') { continue; }
+            const resolved = path.resolve(imagePath);
+            if (resolved.startsWith(base + path.sep) && fs.existsSync(resolved)) {
+                fs.unlinkSync(resolved);
+            }
+        }
+    } catch (e) {
+        console.error('Error cleaning up character images:', e);
+    }
+
+    try {
+        fs.unlinkSync(jsonPath);
+    } catch (e) {
+        console.error('Error deleting character file:', e);
+        return false;
+    }
+
+    if (getActiveCharacterId() === id) {
+        const activeFile = path.join(charDir, 'active_character.txt');
+        try { fs.unlinkSync(activeFile); } catch { /* already gone */ }
+    }
+    removeFromParty(id);
+    sendCharacterList();
+    return true;
+}
+
 export async function uploadPortrait(id: string): Promise<void> {
     const charDir = getCharactersDir();
     if (!charDir || !isValidCharacterId(id)) { return; }

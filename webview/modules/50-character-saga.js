@@ -85,6 +85,8 @@ function updateCharacterList(characters, activeId, partyIds) {
 
 function loadSelectedCharacter() {
   const id = charSelect.value;
+  const deleteBtn = document.getElementById('char-delete-btn');
+  if (deleteBtn) deleteBtn.disabled = (id === 'new');
   if (id === 'new') {
     charNameInput.value = '';
     charControlledBySelect.value = 'gm';
@@ -168,6 +170,15 @@ document.getElementById('char-save-btn').addEventListener('click', () => {
   if (charSelect.value === 'new') {
     vscode.postMessage({ type: 'setActiveCharacter', id });
   }
+});
+
+document.getElementById('char-delete-btn')?.addEventListener('click', () => {
+  const id = charSelect.value;
+  if (id === 'new') return;
+  const char = currentCharacters.find(c => c.id === id);
+  const name = char?.name || id;
+  if (!confirm(T('webview.character.deleteConfirm', { name }))) return;
+  vscode.postMessage({ type: 'deleteCharacter', id });
 });
 
 charPartyCb.addEventListener('change', () => {

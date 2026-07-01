@@ -1,5 +1,31 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Character Creator i18n + delete character
+
+### Summary
+
+User reported two issues in the Full Character Editor ("✏️ Full Editor" modal, opened from the Character Profile pane): switching the app locale to Japanese left the whole editor in English, and there was no way to delete a character at all.
+
+Investigated and confirmed both:
+- `webview/index.html`'s `#char-creator-modal` block (~170 lines) had zero `data-i18n`/`data-i18n-placeholder`/`data-i18n-title` attributes, and `webview/modules/52-character-creator.js` built several dynamic strings (default sprite-expression labels, sprite action tooltips, the "— New Character" subtitle, the add-custom-expression mini-form, the world-adaptation draft's "(no change)" fallback) as raw JS literals — none of it wired into the `T()` i18n system used everywhere else in the webview.
+- There was no delete-character code path anywhere: no button, no `deleteCharacter` postMessage type, no backend function. `characterManager.ts` only had create/save/set-active/party add-remove.
+
+Fixed:
+- Added ~90 new `webview.characterCreator.*` i18n keys (plus a few `webview.character.*` ones for the compact panel) across all 4 locale files (en/ja/zh-TW/zh-CN), matching the existing tone/style of each locale's other `webview.character.*` entries.
+- Retrofitted `index.html`'s full editor markup with `data-i18n`/`-placeholder`/`-title` attributes (simplified the portrait drop-zone hint from a `<br>`-containing string to one line, since `applyI18n()` sets `textContent` and can't render HTML tags) and switched `52-character-creator.js`'s dynamic strings to `T()` calls.
+- Added a 🗑 Delete button next to Save in the compact Character Profile pane (disabled when "-- New Character --" is selected), guarded by a `confirm()` dialog. Wired `deleteCharacter(id)` in `characterManager.ts` — removes the character JSON, any portrait/expression image files it references (path-validated to stay inside `characters/`), clears `active_character.txt` if it pointed at the deleted id, and calls the existing `removeFromParty()` — through `webviewHandlers.ts` (`deleteCharacter` case, mirrors the `deleteCheckpoint` pattern) and `extension.ts` wiring.
+
+### Verification
+
+- `npm run build:webview`, `npx tsc --noEmit`, `node scripts/check_i18n_keys.js` (0 missing across all 4 locales), `node scripts/validate_webview_html_structure.js`, and the full `npm test` all passed.
+- Not manually played in a live VS Code Extension Host session (no interactive environment here) — someone should confirm in-app that the Full Editor now renders in Japanese/zh-TW/zh-CN and that deleting a character actually removes its files and updates the character dropdown.
+
+### Next
+
+- Manual in-app verification of both fixes (locale switch + delete flow) in a real VS Code session.
+
+---
+
 ## 2026-07-02 JST - Codex - Empty world onboarding / active character leak fix
 
 ### Summary

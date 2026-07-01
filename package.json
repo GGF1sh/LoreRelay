@@ -552,6 +552,12 @@
           "default": "",
           "description": "Default edge-tts / local voice name when NPC profile has no voiceId."
         },
+        "textAdventure.tts.local.timeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "description": "Max wait for local TTS subprocess (edge-tts). On timeout, Webview falls back to system TTS."
+        },
         "textAdventure.memory.backend": {
           "type": "string",
           "enum": [

@@ -64,7 +64,7 @@ export function clampVoicePitch(v: unknown): number {
 export function sanitizeVoiceId(v: unknown): string | undefined {
     if (typeof v !== 'string') { return undefined; }
     const trimmed = v.trim().slice(0, 120);
-    if (!trimmed || /[\\/]|\x00|\x1f/.test(trimmed)) { return undefined; }
+    if (!trimmed || /[\\/]|[\x00-\x1f\x7f]/.test(trimmed)) { return undefined; }
     return trimmed;
 }
 

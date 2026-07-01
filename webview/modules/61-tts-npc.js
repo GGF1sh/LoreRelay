@@ -186,7 +186,7 @@ function requestBridgeTts(plan) {
   });
 }
 
-function playBridgeAudio(msg) {
+function playBridgeAudio(msg, fallbackPlan) {
   window.speechSynthesis?.cancel();
   if (activeBridgeAudio) {
     activeBridgeAudio.pause();
@@ -196,13 +196,15 @@ function playBridgeAudio(msg) {
   const audio = new Audio(`data:${mime};base64,${msg.audioBase64}`);
   audio.volume = typeof msg.volume === 'number' ? Math.max(0, Math.min(1, msg.volume)) : 1;
   activeBridgeAudio = audio;
-  const fallbackPlan = pendingBridgeTts.get(msg.requestId);
   audio.onerror = () => {
     if (fallbackPlan) { speakPlanWithSystem(fallbackPlan); }
   };
   audio.play().catch(() => {
     if (fallbackPlan) { speakPlanWithSystem(fallbackPlan); }
   });
+  if (msg.requestId) {
+    pendingBridgeTts.delete(msg.requestId);
+  }
 }
 
 function speakWithProfile(text, voiceCtx) {
@@ -278,8 +280,8 @@ window.addEventListener('message', (event) => {
   if (msg.type === 'ttsCapabilities') {
     updateTtsCapabilities(msg);
   } else if (msg.type === 'ttsAudioReady' && msg.requestId) {
-    pendingBridgeTts.delete(msg.requestId);
-    playBridgeAudio(msg);
+    const plan = pendingBridgeTts.get(msg.requestId);
+    playBridgeAudio(msg, plan);
   } else if (msg.type === 'ttsAudioFailed' && msg.requestId) {
     const plan = pendingBridgeTts.get(msg.requestId);
     pendingBridgeTts.delete(msg.requestId);

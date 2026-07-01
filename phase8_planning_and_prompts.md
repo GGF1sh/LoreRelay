@@ -297,7 +297,7 @@ Scope: **11A and 11B are both merged on `main` (v1.10.0 codebase).** Do not re-s
 
 **Review focus:**
 
-1. **Privacy** — `textAdventure.tts.external.enabled` default off; SecretStorage for API key; only speak text (≤4000 chars) sent to OpenAI; logs redact text (`redactTtsLogText`).
+1. **Privacy** — `textAdventure.tts.external.enabled` default off; SecretStorage for API key; only speak text (≤4000 chars) sent to OpenAI; Output Channel logs char count + voice only (no dialogue text).
 2. **Local bridge security** — `shell: false`, output only under `.text-adventure/tts/`, `isSafeTtsOutputPath`, stdin JSON to `tts_local.py`.
 3. **Attribution** — sender name match, duplicate names + `currentLocationId`, `speakerNpcId` on `GameEntry` / `gmEntry`; no substring parsing inside GM prose.
 4. **Fallback** — local/external unavailable → system TTS; bridge failure → `ttsAudioFailed` → Web Speech.

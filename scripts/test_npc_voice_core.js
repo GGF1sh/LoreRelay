@@ -73,6 +73,14 @@ const {
 }
 
 {
+    if (sanitizeVoiceId('voice\ninject') !== undefined || sanitizeVoiceId('tab\there') !== undefined) {
+        fail('reject control chars in voiceId');
+    } else {
+        ok('reject control chars in voiceId');
+    }
+}
+
+{
     const mod = applyMoodModifiers(1, 0, 'sad');
     if (mod.rate >= 1 || mod.pitch > 0) {
         fail('sad mood slows and lowers pitch');

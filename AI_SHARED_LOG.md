@@ -1,5 +1,20 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - ChatGPT Phase 11 review fixes
+
+### Summary
+
+- **High:** `61-tts-npc.js` — `playBridgeAudio(msg, plan)` retains fallback plan until handlers are wired; delete pending entry after setup.
+- **Medium:** `ttsBridgeRunner.ts` — `tts.local.timeoutMs` (default 30s) kills subprocess; OpenAI fetch `AbortController`; temp MP3 `safeUnlink` after read/failure.
+- **Medium:** `npcVoiceCore.ts` — `sanitizeVoiceId` regex `/[\\/]|[\x00-\x1f\x7f]/`; tests for newline/tab rejection.
+- **Low:** TTS logs → `chars=N voice=…` only; `phase8_planning_and_prompts.md` privacy bullet updated.
+
+### Next
+
+- Manual `testing_checklist.md` §7–8; v1.11.0 tag when checklist passes.
+
+---
+
 ## 2026-07-01 JST - Grok - Phase 11B local/external TTS bridge
 
 ### Summary

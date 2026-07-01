@@ -15,7 +15,6 @@ import {
     normalizeExternalProvider,
     parseTtsLocalStdout,
     rateToEdgeTtsPercent,
-    redactTtsLogText,
     resolveOpenAiVoice,
     sanitizeTtsBridgePayload,
     type TtsBridgeSpeakPayload,
@@ -36,6 +35,16 @@ export interface TtsCapabilities {
 let deps: TtsBridgeRunnerDeps | undefined;
 let ttsOutputChannel: vscode.OutputChannel | undefined;
 let activeTtsProcess: ChildProcess | undefined;
+
+const DEFAULT_TTS_TIMEOUT_MS = 30_000;
+
+function safeUnlink(filePath: string): void {
+    try {
+        fs.unlinkSync(filePath);
+    } catch {
+        // Best-effort temp cleanup.
+    }
+}
 
 export function initTtsBridgeRunner(runnerDeps: TtsBridgeRunnerDeps): void {
     deps = runnerDeps;
@@ -150,8 +159,9 @@ async function runLocalTts(payload: TtsBridgeSpeakPayload): Promise<void> {
         outputPath: outPath,
     });
 
+    const timeoutMs = Math.max(1000, config.get<number>('tts.local.timeoutMs', DEFAULT_TTS_TIMEOUT_MS));
     const channel = getTtsOutputChannel();
-    channel.appendLine(`[local] speak (${redactTtsLogText(payload.text)}) voice=${voice}`);
+    channel.appendLine(`[local] speak chars=${payload.text.length} voice=${voice}`);
 
     let executable: string;
     let args: string[];
@@ -171,12 +181,29 @@ async function runLocalTts(payload: TtsBridgeSpeakPayload): Promise<void> {
     }
 
     await new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = (): void => {
+            if (settled) { return; }
+            settled = true;
+            clearTimeout(timer);
+            resolve();
+        };
+
         const child = spawn(executable, args, {
             cwd: wsPath,
             shell: false,
             env: { ...process.env, TA_LOCALE: payload.lang },
         });
         activeTtsProcess = child;
+
+        const timer = setTimeout(() => {
+            channel.appendLine(`[local] timeout after ${timeoutMs}ms`);
+            child.kill();
+            activeTtsProcess = undefined;
+            safeUnlink(outPath);
+            postTtsFailure(payload.requestId, 'timeout');
+            finish();
+        }, timeoutMs);
 
         let stdout = '';
         let stderr = '';
@@ -191,49 +218,59 @@ async function runLocalTts(payload: TtsBridgeSpeakPayload): Promise<void> {
             channel.appendLine(`[local] spawn error: ${err.message}`);
             postTtsFailure(payload.requestId, 'spawn-error');
             activeTtsProcess = undefined;
-            resolve();
+            safeUnlink(outPath);
+            finish();
         });
 
         child.on('close', (code) => {
             activeTtsProcess = undefined;
             if (code !== 0) {
                 channel.appendLine(`[local] exit ${code}`);
+                safeUnlink(outPath);
                 postTtsFailure(payload.requestId, stderr.trim().slice(0, 120) || `exit-${code}`);
-                resolve();
+                finish();
                 return;
             }
 
             const parsed = parseTtsLocalStdout(stdout);
             if (!parsed.ok || !parsed.audioPath) {
+                safeUnlink(outPath);
                 postTtsFailure(payload.requestId, parsed.error || 'parse-failed');
-                resolve();
+                finish();
                 return;
             }
 
-            if (!isSafeTtsOutputPath(parsed.audioPath, wsPath) || !fs.existsSync(parsed.audioPath)) {
+            const audioPath = parsed.audioPath;
+            if (!isSafeTtsOutputPath(audioPath, wsPath) || !fs.existsSync(audioPath)) {
+                safeUnlink(outPath);
+                safeUnlink(audioPath);
                 postTtsFailure(payload.requestId, 'audio-path-rejected');
-                resolve();
+                finish();
                 return;
             }
 
             try {
-                const buf = fs.readFileSync(parsed.audioPath);
+                const buf = fs.readFileSync(audioPath);
                 if (buf.length > MAX_TTS_AUDIO_BYTES) {
                     postTtsFailure(payload.requestId, 'audio-too-large');
-                    resolve();
-                    return;
+                } else {
+                    postTtsAudio(
+                        payload.requestId,
+                        buf.toString('base64'),
+                        parsed.mimeType || 'audio/mpeg',
+                        payload.volume
+                    );
                 }
-                postTtsAudio(
-                    payload.requestId,
-                    buf.toString('base64'),
-                    parsed.mimeType || 'audio/mpeg',
-                    payload.volume
-                );
             } catch (e) {
                 channel.appendLine(`[local] read error: ${(e as Error).message}`);
                 postTtsFailure(payload.requestId, 'read-failed');
+            } finally {
+                safeUnlink(audioPath);
+                if (audioPath !== outPath) {
+                    safeUnlink(outPath);
+                }
+                finish();
             }
-            resolve();
         });
 
         if (child.stdin) {
@@ -265,7 +302,10 @@ async function runExternalTts(payload: TtsBridgeSpeakPayload): Promise<void> {
     const defaultVoice = config.get<string>('tts.external.voice', 'alloy').trim();
     const voice = resolveOpenAiVoice(payload.voiceId, defaultVoice);
     const channel = getTtsOutputChannel();
-    channel.appendLine(`[openai] speak (${redactTtsLogText(payload.text)}) voice=${voice}`);
+    channel.appendLine(`[openai] speak chars=${payload.text.length} voice=${voice}`);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DEFAULT_TTS_TIMEOUT_MS);
 
     try {
         const res = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -280,6 +320,7 @@ async function runExternalTts(payload: TtsBridgeSpeakPayload): Promise<void> {
                 voice,
                 response_format: 'mp3',
             }),
+            signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -298,8 +339,16 @@ async function runExternalTts(payload: TtsBridgeSpeakPayload): Promise<void> {
         const buf = Buffer.from(arrayBuf);
         postTtsAudio(payload.requestId, buf.toString('base64'), 'audio/mpeg', payload.volume);
     } catch (e) {
-        channel.appendLine(`[openai] error: ${(e as Error).message}`);
+        const err = e as Error;
+        if (err.name === 'AbortError') {
+            channel.appendLine(`[openai] timeout after ${DEFAULT_TTS_TIMEOUT_MS}ms`);
+            postTtsFailure(payload.requestId, 'timeout');
+            return;
+        }
+        channel.appendLine(`[openai] error: ${err.message}`);
         postTtsFailure(payload.requestId, 'network-error');
+    } finally {
+        clearTimeout(timer);
     }
 }
 

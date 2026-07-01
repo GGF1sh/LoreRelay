@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Phase 11B — ChatGPT review fixes** — Webview bridge TTS: keep `pendingBridgeTts` plan until playback starts so system TTS fallback works when MP3 decode/play fails. Local/external bridge timeouts (`tts.local.timeoutMs`, 30s OpenAI fetch) always post `ttsAudioFailed`. Temp `.text-adventure/tts/*.mp3` deleted after read. `sanitizeVoiceId` rejects all C0/DEL control chars. TTS Output Channel logs char count + voice only.
+
 ### Added
 
 - **Phase 11 design — Adaptive TTS / NPC voice profiles** — `PHASE11_ADAPTIVE_TTS_DESIGN.md` と `phase8_planning_and_prompts.md` の Claude/Grok/ChatGPT 向けプロンプト。Phase 11A（system TTS + registry voice + World Preview）と 11B（local/external）のスコープ分割。

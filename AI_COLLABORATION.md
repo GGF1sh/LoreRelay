@@ -21,7 +21,7 @@
 2. `AI_HANDOVER_PROMPTS.md`（役割に応じたセクション）
 3. `AI_COLLABORATION.md`（本ファイル）
 4. `AI_SHARED_LOG.md`（Current Snapshot + 直近ログ）
-5. `CHANGELOG.md` の最新セクション（現在 **v1.7.3**）
+5. `CHANGELOG.md` の最新セクション（現在 **v1.10.0**）
 6. `AI_ROADMAP.md`
 7. 必要に応じて `C:\AI\GROK_CODE_REVIEW.md`, `C:\AI\GEMINI_REVIEW.md`, `C:\AI\CLAUDE_REVIEW.md`
 
@@ -78,6 +78,48 @@
 ## Private Local Data
 
 Private scenario vaults, personal play logs, imported character cards, lorebooks, generated memories, and local media are outside the public repository scope. Do not read, edit, summarize, index, glob, or mention private contents in shared docs unless the user explicitly asks for that local-only work.
+
+## Code Comments
+
+複数 AI が引き継ぐため、**設計書を読まなくてもソースだけで境界が分かる**コメントを書く。自明な処理の行コメントや CHANGELOG の写し経は不要。
+
+### `*Core.ts`（純 TS・テスト可能）
+
+ファイル先頭に 1〜3 行:
+
+- 責務（何をパース/解決するか）
+- `no vscode/fs/DOM imports`（または例外理由）
+- 関連設計 doc があればファイル名（例: `PHASE11_ADAPTIVE_TTS_DESIGN.md`）
+
+長いファイルは `// ---------------------------------------------------------------------------` で Types / Constants / Helpers などに区切る。既存例: `npcBridgeCore.ts`, `visualMemoryCore.ts`.
+
+### export 型・フィールド
+
+単位・範囲・フェーズ境界（11A/11B など）が自明でないフィールドだけ `/** ... */`。全フィールド義務ではない。
+
+### export 関数
+
+次のいずれかがあるときだけ JSDoc または 1 行コメント:
+
+- 曖昧さの扱い（例: 同名 NPC → location で絞る、それでも曖昧なら undefined）
+- フォールバック条件（例: external 無効時は system）
+- 副作用・セキュリティ（例: `sanitizeVoiceId` はパス拒否）
+
+テストで固定されている単純な clamp はコメント不要。
+
+### Webview `modules/*.js`
+
+- 対応する Core モジュール名を先頭に書く（例: `Mirrors src/ttsProviderCore.ts`）
+- **数値テーブルや attribution ルールを Core と二重実装している場合は「同期必須」と明記**
+- セクションは `// ===== ... =====` または区切り線（`60-tts-quickreply-imagegen.js` に倣う）
+
+### 書かない
+
+- 自明な代入・ループの説明
+- 設計書全文の要約（リンクで足りる）
+- 「この関数は X する」だけの JSDoc（関数名で分かる場合）
+
+新規 `*Core.ts` や Webview ミラーモジュールを追加したら、上記を満たしているか diff で確認する。
 
 ## Do Not
 

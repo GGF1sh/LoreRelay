@@ -1,6 +1,18 @@
-// ===== Phase 11: NPC-aware TTS (system provider only in 11A) =====
+// ===== Phase 11: NPC-aware TTS (Web Speech API — system provider only in 11A) =====
+//
+// Runtime mirror of src/ttsProviderCore.ts + src/npcVoiceCore.ts (no shared bundle).
+// Extension pushes npcTtsCatalog via worldView; this module resolves voices at speak time.
+//
+// Attribution (best-effort, not diarization):
+//   - Chat 📢 / auto-read uses entry.sender (+ optional speakerNpcId in 11B).
+//   - Duplicate NPC names: use currentLocationId; if still ambiguous → global speakText().
+//   - GM prose / inline quotes are NOT parsed for speaker names.
+//
+// Module load order: bundled after 60-tts-quickreply-imagegen.js (speakText → speakWithProfile).
 
 const TTS_MAX_TEXT_LEN = 4000;
+
+// Mood deltas — keep in sync with npcVoiceCore.ts MOOD_MODIFIERS.
 const TTS_MOOD_MODIFIERS = {
   excited: { rateDelta: 0.18, pitchDelta: 0.15 },
   angry: { rateDelta: 0.12, pitchDelta: 0.05 },
@@ -11,10 +23,12 @@ const TTS_MOOD_MODIFIERS = {
   sad: { rateDelta: -0.15, pitchDelta: -0.10 },
 };
 
+/** Catalog from extension (all voiced NPCs); refreshed on each worldView message. */
 let npcTtsCatalog = [];
 let ttsExternalEnabled = false;
 let npcTtsCurrentLocationId = null;
 let npcVoiceCount = 0;
+/** Log local/external fallback once per session to avoid console spam. */
 let ttsFallbackLogged = { external: false, local: false };
 
 function clampVoiceRateJs(v, fallback = 1) {
@@ -45,6 +59,7 @@ function applyMoodModifiersJs(rate, pitch, mood) {
   };
 }
 
+/** Mirrors resolveTtsPlan(); uses global ttsSpeed/ttsVolume/currentLocale from module 60. */
 function resolveTtsPlanJs(text, voiceCtx) {
   const plain = typeof text === 'string'
     ? text.replace(/\s+/g, ' ').trim().slice(0, TTS_MAX_TEXT_LEN)
@@ -98,6 +113,7 @@ function resolveTtsPlanJs(text, voiceCtx) {
   };
 }
 
+/** Mirrors findNpcVoiceForSender(); returns null instead of undefined for JS ergonomics. */
 function findNpcVoiceForSenderJs(sender, speakerNpcId) {
   if (speakerNpcId) {
     const byId = npcTtsCatalog.find((e) => e.id === speakerNpcId);
@@ -109,6 +125,7 @@ function findNpcVoiceForSenderJs(sender, speakerNpcId) {
   const matches = npcTtsCatalog.filter((e) => e.name.toLowerCase() === lower);
   if (matches.length === 0) { return null; }
   if (matches.length === 1) { return matches[0]; }
+  // Ambiguous duplicate names — narrow by player location when possible.
   if (npcTtsCurrentLocationId) {
     const atLoc = matches.filter((e) => e.locationId === npcTtsCurrentLocationId);
     if (atLoc.length === 1) { return atLoc[0]; }
@@ -116,6 +133,7 @@ function findNpcVoiceForSenderJs(sender, speakerNpcId) {
   return null;
 }
 
+/** Match voiceId hint against speechSynthesis voices; fall back to locale best voice. */
 function pickVoiceByHint(voiceId, lang) {
   if (!window.speechSynthesis) { return null; }
   const voices = window.speechSynthesis.getVoices();
@@ -138,6 +156,7 @@ function pickVoiceByHint(voiceId, lang) {
   return getBestVoiceForLocale(currentLocale);
 }
 
+/** Primary TTS entry: optional voiceCtx { voice, mood } from NPC catalog or World preview. */
 function speakWithProfile(text, voiceCtx) {
   if (!ttsEnabled || !window.speechSynthesis || !window.SpeechSynthesisUtterance) { return; }
 
@@ -160,6 +179,7 @@ function speakWithProfile(text, voiceCtx) {
   window.speechSynthesis.speak(utterance);
 }
 
+/** Per-message 📢 and auto-read: NPC voice when sender matches catalog, else global speakText. */
 function speakEntryText(entry) {
   if (!entry) { return; }
   const voiceCtx = findNpcVoiceForSenderJs(entry.sender, entry.speakerNpcId);
@@ -170,6 +190,7 @@ function speakEntryText(entry) {
   }
 }
 
+/** World tab 🔊 Preview — localized sample line from webview.world.npcVoiceSample. */
 function previewNpcVoice(npc) {
   if (!npc || !npc.voice) { return; }
   const sample = T('webview.world.npcVoiceSample', { name: npc.name }) ||
@@ -177,6 +198,7 @@ function previewNpcVoice(npc) {
   speakWithProfile(sample, { voice: npc.voice, mood: npc.mood || 'neutral' });
 }
 
+/** Called from 85-world.js on each worldView postMessage. */
 function updateNpcTtsFromWorldView(msg) {
   npcTtsCatalog = Array.isArray(msg.npcTtsCatalog) ? msg.npcTtsCatalog : [];
   ttsExternalEnabled = !!msg.ttsExternalEnabled;

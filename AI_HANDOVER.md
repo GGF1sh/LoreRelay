@@ -98,6 +98,7 @@
 ## 4. AI への指示
 
 - **作業ルール:** `AI_COLLABORATION.md` を読み、作業後に `AI_SHARED_LOG.md` へ追記
+- **ソースコメント:** `AI_COLLABORATION.md` の **Code Comments**（Core 先頭・Webview ミラー・曖昧さ/フォールバックのみ JSDoc）
 - **最新状態:** `CHANGELOG.md` 最新セクション + `package.json` の version
 - **テスト:** `npm run compile && npm test`（Cartography / Remote Play / World 含む 30+ スクリプト）
 - **乱数:** AI は推論で乱数を作らず `dice.py` を実行

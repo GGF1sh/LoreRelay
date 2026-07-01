@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Code Comments rule + Phase 11 doc pass
+
+### Summary
+
+- Added **Code Comments** section to `AI_COLLABORATION.md` (Core headers, Webview mirror sync, JSDoc when ambiguous/fallback).
+- Linked from `AI_HANDOVER.md` §4.
+- Enriched Phase 11A sources: `npcVoiceCore.ts`, `ttsProviderCore.ts`, `61-tts-npc.js`, hooks in `npcRegistry.ts` / `worldView.ts`.
+
+### Next
+
+- New modules should follow `AI_COLLABORATION.md` § Code Comments on first commit.
+
+---
+
 ## 2026-07-01 JST - Grok - Phase 11A NPC voice profiles + system TTS
 
 ### Summary

@@ -112,6 +112,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             }))
         : [];
 
+    // Phase 11 TTS: push voiced-NPC catalog for Webview sender attribution (61-tts-npc.js).
     const ttsConfig = vscode.workspace.getConfiguration('textAdventure');
     const ttsExternalEnabled = ttsConfig.get<boolean>('tts.external.enabled', false);
     const npcTtsCatalog = buildNpcTtsCatalog(registry);

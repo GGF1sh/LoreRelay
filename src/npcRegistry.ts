@@ -276,6 +276,7 @@ function parseNpcEntry(raw: unknown): NpcEntry | undefined {
         const portrait = r.portraitImagePath.trim().slice(0, 1000);
         if (portrait) { entry.portraitImagePath = portrait; }
     }
+    // Phase 11: optional voice block — dropped when empty/invalid (see npcVoiceCore.parseNpcVoiceProfile).
     const voice = parseNpcVoiceProfile(r.voice);
     if (voice) { entry.voice = voice; }
     return entry;

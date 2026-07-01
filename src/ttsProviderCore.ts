@@ -1,3 +1,7 @@
+// Pure TTS plan resolution and NPC voice catalog — no vscode/fs/DOM imports.
+// Extension host builds the catalog; Webview mirrors resolveTtsPlan logic in 61-tts-npc.js.
+// Phase 11A: only `system` is executed; local/external set fallbackFrom for logging/tests.
+
 import type { NpcMood, NpcRegistry } from './npcRegistryCore';
 import {
     clampVoicePitch,
@@ -9,6 +13,7 @@ import {
     applyMoodModifiers,
 } from './npcVoiceCore';
 
+/** Max characters passed to speechSynthesis (matches Webview TTS_MAX_TEXT_LEN). */
 export const MAX_TTS_TEXT_LEN = 4000;
 
 const LOCALE_TO_BCP47: Record<string, string> = {
@@ -18,15 +23,18 @@ const LOCALE_TO_BCP47: Record<string, string> = {
     'zh-TW': 'zh-TW',
 };
 
+/** Inputs for resolveTtsPlan — global sliders come from Webview persisted state. */
 export interface TtsSpeakRequest {
     text: string;
     locale: string;
     globalSpeed: number;
     globalVolume: number;
     voiceProfile?: NpcVoiceProfile;
+    /** NPC disposition.mood when moodAdaptive is enabled on the profile. */
     dispositionMood?: NpcMood;
 }
 
+/** Normalized speak parameters consumed by Web Speech API (or future 11B bridges). */
 export interface ResolvedTtsPlan {
     provider: TtsProviderKind;
     text: string;
@@ -36,9 +44,11 @@ export interface ResolvedTtsPlan {
     pitch: number;
     voiceId?: string;
     blockedReason?: string;
+    /** Set when local/external was requested but 11A fell back to system. */
     fallbackFrom?: TtsProviderKind;
 }
 
+/** Slim catalog row pushed to Webview via worldView postMessage (npcTtsCatalog). */
 export interface NpcTtsCatalogEntry {
     id: string;
     name: string;
@@ -57,6 +67,11 @@ export function clampTtsText(text: string): string {
     return text.replace(/\s+/g, ' ').trim().slice(0, MAX_TTS_TEXT_LEN);
 }
 
+/**
+ * Merge global TTS settings, optional NPC voice profile, and provider policy.
+ * Rate/volume: global × profile multiplier. Pitch: profile offset only.
+ * external requires options.externalEnabled (textAdventure.tts.external.enabled).
+ */
 export function resolveTtsPlan(
     request: TtsSpeakRequest,
     options: { externalEnabled?: boolean } = {}
@@ -115,6 +130,7 @@ export function resolveTtsPlan(
     };
 }
 
+/** Registry NPCs that have a non-empty voice profile, sorted by display name. */
 export function buildNpcTtsCatalog(registry: NpcRegistry): NpcTtsCatalogEntry[] {
     const entries: NpcTtsCatalogEntry[] = [];
     for (const [id, npc] of Object.entries(registry.npcs)) {
@@ -131,8 +147,11 @@ export function buildNpcTtsCatalog(registry: NpcRegistry): NpcTtsCatalogEntry[] 
 }
 
 /**
- * Best-effort NPC voice lookup for chat entry attribution.
- * Returns undefined when ambiguous (duplicate names) or no match.
+ * Best-effort NPC voice lookup for chat entry attribution (Phase 11A).
+ *
+ * Order: speakerNpcId (11B) → exact name match → disambiguate by currentLocationId.
+ * Returns undefined when ambiguous (duplicate names, no location tie-break) or no match.
+ * Does NOT scan GM narration body for quoted dialogue — entry.sender only.
  */
 export function findNpcVoiceForSender(
     catalog: readonly NpcTtsCatalogEntry[],

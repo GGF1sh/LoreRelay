@@ -57,12 +57,27 @@
               <span id="tts-volume-val">80%</span>
             </div>
             <div id="tts-npc-voice-count" class="tts-menu-hint hidden"></div>
+            <p class="inline-help" data-i18n="webview.tts.helpHint">まずはこの🔊メニューで有効化するだけで十分（ブラウザの読み上げ）。edge-tts や OpenAI は任意の上級設定です。</p>
           </div>
         </div>
       </div>
       <div id="chat-log"></div>
       <div id="start-hub" class="start-hub hidden">
         <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.demoLabel">はじめての方:</div>
+        <div class="start-hub-options">
+          <button type="button" id="start-hub-demo-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon">🎮</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.demoTitle">お試しデモを始める</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.demoDesc">穏やかな港町ミステリー（約15分）。設定不要ですぐ遊べます。</span>
+          </button>
+          <button type="button" id="start-hub-map-demo-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🗺️</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.mapDemoTitle">地図デモ（上級）</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.mapDemoDesc">地下聖堂＋同梱レイアウト地図。World タブの Parchment を確認。</span>
+          </button>
+        </div>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
         <div class="start-hub-options">
           <button type="button" id="start-hub-quick-btn" class="start-hub-btn">
             <span class="start-hub-btn-icon">🚀</span>
@@ -312,6 +327,8 @@
           <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
           <button id="char-delete-btn" class="char-delete-btn" data-i18n="webview.character.delete" data-i18n-title="webview.character.deleteTitle" title="Delete this character">🗑 Delete</button>
         </div>
+        <p class="inline-help" data-i18n="webview.character.helpHint">「Join party」にチェックしたキャラだけが GM のパーティ文脈に入ります。アクティブキャラとパーティは別です。</p>
+        <p class="inline-help subtle" data-i18n="webview.character.deleteHint">削除すると characters/ 内の JSON と画像を消します。外部パス参照の画像は削除されません。</p>
 
         <div class="char-portrait-container">
           <img id="char-portrait-img" class="char-portrait" src="" alt="Portrait" style="display: none;" />

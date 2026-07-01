@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Grok - First session polish (A) + TTS/character help (B)
+
+### Summary
+
+- **Start Hub:** `🎮 お試しデモ` → bundled `harbor-mist`; `🗺️ 地図デモ` → `lost-catacombs`. `loadBundledSampleScenario()` + `scenarioPackCore.ts`.
+- **Docs:** `docs/FIRST_SESSION.md`, `docs/TTS_QUICKSTART.md`; README / DEMO.md updated.
+- **Inline help:** TTS menu + Character tab (party vs active, delete image scope).
+
+### Next
+
+- Manual `testing_checklist.md` §0; install + Reload; play harbor-mist demo end-to-end.
+
+---
+
 ## 2026-07-02 JST - Codex - Localized installer BAT wrapper fix
 
 ### Summary

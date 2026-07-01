@@ -8,6 +8,7 @@ const { validateScenarioDirectorBlock } = require('../out/scenarioDirectorCore')
 
 const root = path.join(__dirname, '..', 'sample-scenarios');
 const REQUIRED = ['lost-catacombs', 'neon-rain', 'harbor-mist'];
+const { resolveBundledSampleDir, BUNDLED_SAMPLE_IDS } = require('../out/scenarioPackCore');
 
 let failed = 0;
 
@@ -50,6 +51,15 @@ for (const id of REQUIRED) {
         }
     }
     ok(`sample scenario ${id}`);
+}
+
+for (const id of BUNDLED_SAMPLE_IDS) {
+    const dir = resolveBundledSampleDir(id);
+    if (!dir || !fs.existsSync(path.join(dir, 'scenario.json'))) {
+        fail(`resolveBundledSampleDir(${id})`);
+    } else {
+        ok(`resolveBundledSampleDir(${id})`);
+    }
 }
 
 if (failed > 0) {

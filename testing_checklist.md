@@ -2,6 +2,14 @@
 
 As the feature set of LoreRelay expands, automated tests cannot cover every UI and integration edge case. Use this checklist to manually verify core functionality before releases.
 
+## 0. First Session (Start Hub demo)
+- [ ] **Empty workspace**: Open Game UI on a blank folder — Start Hub appears with demo buttons.
+- [ ] **Guided demo**: Click **🎮 Try demo** — `harbor-mist` loads without a folder picker; opening narrative + 3 options appear.
+- [ ] **One turn**: Click an option (with GM bridge configured) — GM response appears; input locks immediately on send (no double-submit).
+- [ ] **Map demo**: Click **🗺️ Map demo** — `lost-catacombs` loads; World tab → Parchment shows layout map.
+- [ ] **TTS hint**: Open 🔊 menu — inline help text visible; enable TTS and 📢 on one line works (system speech).
+- [ ] **Character hint**: Character tab shows party vs active help + delete scope note.
+
 ## 1. Webview & UI Rendering
 - [ ] **Mermaid Rendering**: Verify that markdown code blocks with `mermaid` syntax correctly render into interactive diagrams without relying on external CDNs.
 - [ ] **Dynamic Resource Bars**: Verify that HP/MP (object type) and affection/reputation (numeric type) update properly and visually scale in the status gallery.

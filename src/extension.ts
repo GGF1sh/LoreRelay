@@ -92,6 +92,7 @@ import {
 } from './skillScriptRunner';
 import {
     loadScenarioPack,
+    loadBundledSampleScenario,
     validateScenarioPack,
     exportScenarioPack
 } from './scenarioPack';
@@ -1196,6 +1197,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleEditEntry,
         handleToggleExcludeEntry,
         loadScenarioPack,
+        loadBundledSampleScenario,
         sendImageGenConfig,
         handleUpdateImageGenConfig,
         sendGameRules,

@@ -1,11 +1,19 @@
-# LoreRelay v1.7 — Demo Recording Guide
+# LoreRelay v1.11 — Demo Recording Guide
 
 Use this checklist when capturing screenshots or a short demo video for README / marketplace.
 
 ## Quick start (first 3 minutes)
 
+**New player path (Start Hub):**
+
+1. **Open Game UI** on an empty workspace — Start Hub appears
+2. Click **🎮 Try the guided demo** (`harbor-mist`, no folder picker)
+3. Send one option — show GM response + Status panel
+
+**Map demo path:**
+
 1. **Open Game UI** — `LoreRelay: Open Game UI`
-2. **Load cartography demo** — `LoreRelay: Load Scenario Pack` → `sample-scenarios/lost-catacombs`
+2. **Load cartography demo** — Start Hub **🗺️ Map demo** or `Load Scenario Pack` → `sample-scenarios/lost-catacombs`
 3. **Enable World Forge** — Game Rules → World Forge ON
 4. **World tab** — **Parchment** view shows bundled `world_map.layout.png` + pins (no ComfyUI)
 5. **Play one turn** — pick an option; show status + Inspector

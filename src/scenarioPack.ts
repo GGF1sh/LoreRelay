@@ -14,6 +14,13 @@ import {
     seedDirectorFromTemplate,
     validateScenarioDirectorBlock
 } from './scenarioDirector';
+import {
+    BUNDLED_SAMPLE_IDS,
+    OPTIONAL_PACK_FILES,
+    resolveBundledSampleDir,
+} from './scenarioPackCore';
+
+export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
 
 function resolvePackageScenarioScript(): string | undefined {
     const candidates = [
@@ -63,39 +70,39 @@ function copyFolderSync(from: string, to: string) {
     });
 }
 
-/** シナリオパック（scenario.json を含むフォルダ）を読み込み、開始シーンをUIに表示する。 */
-export async function loadScenarioPack(): Promise<void> {
-    if (!vscode.workspace.isTrusted) {
-        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
-        return;
+async function confirmScenarioReset(wsPath: string): Promise<boolean> {
+    const statePath = path.join(wsPath, 'game_state.json');
+    let hasProgress = false;
+    if (fs.existsSync(statePath)) {
+        try {
+            const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+            const entries = raw.entries;
+            hasProgress = Array.isArray(entries) && entries.length > 0;
+        } catch {
+            hasProgress = true;
+        }
     }
+    if (!hasProgress) {
+        return true;
+    }
+    const yes = t('extension.scenario.resetYes') || 'Yes';
+    const resetConfirm = await vscode.window.showWarningMessage(
+        t('extension.scenario.resetConfirm') || 'Loading a new scenario pack will reset your current game progress and history. Do you want to proceed?',
+        { modal: true },
+        yes,
+        t('extension.scenario.resetNo') || 'No'
+    );
+    return resetConfirm === yes;
+}
 
+/** Load scenario.json (+ optional world/media files) from a pack directory into the workspace. */
+async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: boolean }): Promise<void> {
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
 
-    const resetConfirm = await vscode.window.showWarningMessage(
-        t('extension.scenario.resetConfirm') || 'Loading a new scenario pack will reset your current game progress and history. Do you want to proceed?',
-        { modal: true },
-        t('extension.scenario.resetYes') || 'Yes',
-        t('extension.scenario.resetNo') || 'No'
-    );
-    if (resetConfirm !== (t('extension.scenario.resetYes') || 'Yes')) {
-        return;
-    }
-
-    const picked = await vscode.window.showOpenDialog({
-        canSelectFolders: true,
-        canSelectFiles: false,
-        canSelectMany: false,
-        title: t('extension.scenario.openTitle'),
-        openLabel: t('extension.scenario.openLabel')
-    });
-    if (!picked || picked.length === 0) { return; }
-
-    const dir = picked[0].fsPath;
     const scenarioPath = path.join(dir, 'scenario.json');
     if (!fs.existsSync(scenarioPath)) {
         vscode.window.showErrorMessage(t('extension.error.scenarioMissing'));
@@ -141,7 +148,6 @@ export async function loadScenarioPack(): Promise<void> {
     const statePath = getGameStatePath();
     if (!statePath) { return; }
 
-    // Clear game history before writing the state
     setGameEntryHistoryWithSeenIds([]);
     saveHistoryToDisk();
 
@@ -150,6 +156,12 @@ export async function loadScenarioPack(): Promise<void> {
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
             fs.copyFileSync(scenarioPath, wsScenario);
+        }
+        for (const fileName of OPTIONAL_PACK_FILES) {
+            const src = path.join(dir, fileName);
+            if (fs.existsSync(src)) {
+                fs.copyFileSync(src, path.join(wsPath, fileName));
+            }
         }
     } catch (e) {
         vscode.window.showErrorMessage(t('extension.error.scenarioWriteFailed', { error: String(e) }));
@@ -164,7 +176,6 @@ export async function loadScenarioPack(): Promise<void> {
     const packSfxDir = path.join(dir, 'sfx');
     const notes: string[] = [];
 
-    // Create scenario_assets directory in workspace if media files exist
     if (fs.existsSync(packBgm) || fs.existsSync(packSfx) || fs.existsSync(packBgmDir) || fs.existsSync(packSfxDir)) {
         fs.mkdirSync(assetsDir, { recursive: true });
     }
@@ -200,12 +211,66 @@ export async function loadScenarioPack(): Promise<void> {
     const extra = notes.length
         ? t('extension.info.scenarioExtra', { notes: notes.join(' / ') })
         : '';
-    vscode.window.showInformationMessage(
-        t('extension.info.scenarioLoaded', {
-            title: String(meta.title || t('extension.scenario.defaultTitle')),
-            extra
-        })
-    );
+    const title = String(meta.title || t('extension.scenario.defaultTitle'));
+    const msgKey = opts?.firstSessionHint
+        ? 'extension.info.firstSessionDemoLoaded'
+        : 'extension.info.scenarioLoaded';
+    vscode.window.showInformationMessage(t(msgKey, { title, extra }));
+}
+
+/** Load a bundled sample scenario (Start Hub demo, no folder picker). */
+export async function loadBundledSampleScenario(sampleId: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+
+    const dir = resolveBundledSampleDir(sampleId);
+    if (!dir) {
+        vscode.window.showErrorMessage(t('extension.error.bundledSampleMissing', { id: sampleId }));
+        return;
+    }
+
+    if (!(await confirmScenarioReset(wsPath))) {
+        return;
+    }
+
+    await loadScenarioPackFromDir(dir, { firstSessionHint: true });
+}
+
+/** シナリオパック（scenario.json を含むフォルダ）を読み込み、開始シーンをUIに表示する。 */
+export async function loadScenarioPack(): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+
+    if (!(await confirmScenarioReset(wsPath))) {
+        return;
+    }
+
+    const picked = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        title: t('extension.scenario.openTitle'),
+        openLabel: t('extension.scenario.openLabel')
+    });
+    if (!picked || picked.length === 0) { return; }
+
+    await loadScenarioPackFromDir(picked[0].fsPath);
 }
 
 export async function validateScenarioPack(): Promise<void> {

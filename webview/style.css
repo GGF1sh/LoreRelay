@@ -495,6 +495,30 @@ body {
   color: var(--text);
 }
 
+.start-hub-btn-primary {
+  border-color: var(--accent, #4a9eff);
+  background: rgba(74, 158, 255, 0.08);
+}
+
+.inline-help {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim, #888);
+  margin: 6px 0 0;
+  padding: 0 4px;
+}
+
+.inline-help.subtle {
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.tts-menu-popup .inline-help {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-panel-border, #333);
+}
+
 .start-hub-preset-chip.active {
   background: rgba(79, 142, 247, 0.25);
   border-color: var(--accent);

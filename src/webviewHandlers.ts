@@ -62,6 +62,7 @@ export interface WebviewHandlerDeps {
     handleEditEntry(id: string, content: string): Promise<void>;
     handleToggleExcludeEntry(id: string): Promise<void>;
     loadScenarioPack(): Promise<void>;
+    loadBundledSampleScenario(sampleId: string): Promise<void>;
     sendImageGenConfig(): void;
     handleUpdateImageGenConfig(raw: unknown): Promise<void>;
     sendGameRules(): void;
@@ -401,6 +402,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'loadScenario':
             await deps.loadScenarioPack();
+            break;
+        case 'loadBundledScenario':
+            if (typeof message.sampleId === 'string') {
+                await deps.loadBundledSampleScenario(message.sampleId);
+            }
             break;
         case 'requestImageGenConfig':
             deps.sendImageGenConfig();

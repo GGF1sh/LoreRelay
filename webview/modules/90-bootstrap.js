@@ -137,11 +137,24 @@ function updateStartHubVisibility() {
 }
 
 function initStartHub() {
+  const demoBtn = document.getElementById('start-hub-demo-btn');
+  const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
   const quickBtn = document.getElementById('start-hub-quick-btn');
   const interviewBtn = document.getElementById('start-hub-interview-btn');
   const presetsWrap = document.getElementById('start-hub-presets');
   const charNewBtn = document.getElementById('start-hub-char-new-btn');
   const charImportBtn = document.getElementById('start-hub-char-import-btn');
+
+  if (demoBtn) {
+    demoBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'harbor-mist' });
+    });
+  }
+  if (mapDemoBtn) {
+    mapDemoBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'lost-catacombs' });
+    });
+  }
 
   if (presetsWrap) {
     presetsWrap.querySelectorAll('.start-hub-preset-chip').forEach((chip) => {

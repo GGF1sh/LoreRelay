@@ -633,23 +633,41 @@ function formatPlayerActionWithNote(playerAction: string, authorsNote?: string):
     return `[Author's Note: ${note}]\n${playerAction}`;
 }
 
-function ensureInitialGameStateForPlayerInput(playerAction: string): void {
+/**
+ * プレイヤーの発言を game_state.json に即座に追記する（GM実行前）。
+ * 以前は空ワークスペースの最初のターンだけ(ファイル新規作成時のみ)実行していたため、
+ * 2ターン目以降のプレイヤー発言はどこにも永続化されず、Webview のローカル state
+ * (vscode.setState)にしか残らない = ウィンドウ再読み込みで消える不具合になっていた。
+ * Persist-Before-Narrate の原則通り、GM の応答を待たず必ずここで書き込む。
+ */
+function persistPlayerInputEntry(playerAction: string): void {
     const statePath = getGameStatePath();
-    if (!statePath || fs.existsSync(statePath)) {
+    if (!statePath) {
         return;
     }
 
-    commitGameState({
-        schemaVersion: CURRENT_SCHEMA_VERSION,
-        entries: [{
-            id: `user-${Date.now()}`,
-            role: 'user',
-            sender: 'Player',
-            content: playerAction
-        }],
-        options: [],
-        status: {}
+    let state: Record<string, unknown>;
+    if (fs.existsSync(statePath)) {
+        try {
+            state = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+        } catch (e) {
+            console.error('Failed to read game_state.json before persisting player input', e);
+            return;
+        }
+    } else {
+        state = { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [], options: [], status: {} };
+    }
+
+    const entries = Array.isArray(state.entries) ? [...state.entries] : [];
+    entries.push({
+        id: `user-${Date.now()}`,
+        role: 'user',
+        sender: 'Player',
+        content: playerAction
     });
+    state.entries = entries;
+
+    commitGameState(state);
 }
 
 function isGameOverActive(): boolean {
@@ -706,7 +724,7 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
 
     let actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
     actionForGm = await interceptPlayerAction(actionForGm);
-    ensureInitialGameStateForPlayerInput(trimmed);
+    persistPlayerInputEntry(trimmed);
 
     const provider = getGmProvider();
     if (provider === 'clipboard') {

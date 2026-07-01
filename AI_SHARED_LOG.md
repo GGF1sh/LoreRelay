@@ -1,5 +1,35 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Fix: player messages after turn 1 never persisted to disk
+
+### Summary
+
+User caught this from a screenshot pair: their free-text reply ("メタルマックスやメタルサーガみたいな...") showed up correctly in the live chat right after sending, sandwiched between two GM turns — but after a reload, that same message was gone entirely from the log, while both surrounding GM turns were still there. Their own diagnosis was spot on: "自分の発言がどのタイミングで何処に書かれたかが記録されてないっぽい" (seems like my own message isn't recorded anywhere).
+
+Traced it to `extension.ts`'s `ensureInitialGameStateForPlayerInput()`:
+```ts
+function ensureInitialGameStateForPlayerInput(playerAction: string): void {
+    const statePath = getGameStatePath();
+    if (!statePath || fs.existsSync(statePath)) { return; }  // <-- only runs when the file doesn't exist yet!
+    commitGameState({ entries: [{ role: 'user', content: playerAction, ... }], ... });
+}
+```
+This was Codex's "bootstrap minimal `game_state.json`" fix from earlier today, scoped to *only* the very first turn of a brand-new workspace. But it's the *only* place in the codebase that ever writes a player's chat entry to `game_state.json` — `mergeGmEntryFromTurn()` (`statePatch.ts`) only ever appends the GM's `role: 'gm'` entry, never a `role: 'user'` one. So from turn 2 onward, the player's message was **never durably persisted anywhere** — only ever rendered client-side in the webview (`sendFreeInput()`'s `messageHistory.push()` + `renderMessage()`), backed only by `vscode.setState()`, which gets fully overwritten the moment the authoritative `game_state.json` gets re-applied (reload, or any other `sendCurrentState()` trigger). Confirmed the in-memory `gameEntryHistory` in `gameStateSync.ts` has the same gap — it's only ever populated by re-reading the file, never by a live player-input event.
+
+Fix: renamed to `persistPlayerInputEntry()`. It now *always* reads the current `game_state.json` (or starts a minimal one if it truly doesn't exist yet), appends the player's `role: 'user'` entry, and calls `commitGameState()` — every single turn, not just the first — before the GM bridge is invoked. Matches Persist-Before-Narrate for both halves of a turn.
+
+### Verification
+
+- `npx tsc --noEmit` and full `npm test` passed.
+- Not replayed live (no VS Code session here) — diagnosis was from the user's own screenshots plus reading the actual persistence code path, not a live repro.
+
+### Next
+
+- User to confirm: send several turns in a row, reload the window, and verify every player message survives (not just GM replies).
+- Separately, the user also reported Shift+Enter still sending instead of inserting a newline after installing the Ctrl+Enter fix (`f423a67`) — the keydown handler in the built `webview/script.js` was re-verified correct (`e.key === 'Enter' && (e.ctrlKey || e.metaKey)`, so Shift+Enter alone shouldn't match), and no other `keydown` listener touches `#free-input`. Most likely still testing a build from before `f423a67`, given the install script (`install_vscode_extension.ps1`) requires a fresh `npm run compile` + reinstall to pick up any of these changes. Flagged back to the user to confirm rather than guessed at further without being able to reproduce.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Multi-line free input + Ctrl+Enter to send
 
 ### Summary

@@ -24,6 +24,7 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **No duplicate send on fast submit**: Rapidly press Enter twice (or double-click Send / an Options button) right as a turn is submitted. Verify only one player message appears and input visibly locks immediately, not after a delay.
 - [ ] **Status field shape tolerance**: If the GM ever returns `status.condition`/`inventory`/`skills` as a plain string instead of an array, verify the turn still applies (no `(Schema Violation)` toast, no dropped turn) — check `game_state.json` shows it coerced into a single-element array rather than the whole turn being rejected.
 - [ ] **Multi-line input**: Type a message, press Enter (or Shift+Enter) — verify it inserts a newline and does NOT send. Press Ctrl+Enter (Cmd+Enter on Mac) — verify it sends. Type enough lines to exceed the max height and confirm the box scrolls instead of growing forever. Confirm the Send button still works with a single click regardless.
+- [ ] **Player message survives reload**: Send several turns in a row (past the very first one), then reload the window. Verify every player message is still in the chat log, not just the GM's replies.
 
 ## 2. Media & Image Generation
 - [ ] **ComfyUI Integration**: Verify that image generation connects to the local ComfyUI API, triggers generation, and correctly pipes the result back into the chat.

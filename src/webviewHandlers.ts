@@ -30,7 +30,7 @@ export interface WebviewMessage {
  * extension.ts の実装を注入し、God ファイルから switch を分離する。
  */
 export interface WebviewHandlerDeps {
-    handlePlayerInput(text: unknown, authorsNote?: string): Promise<void>;
+    handlePlayerInput(text: unknown, authorsNote?: string, entryId?: string): Promise<void>;
     runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void>;
     handleLocaleChange(rawLocale: unknown): Promise<void>;
     sendLocaleBundle(): void;
@@ -115,7 +115,8 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'freeInput':
             await deps.handlePlayerInput(
                 message.text,
-                typeof message.authorsNote === 'string' ? message.authorsNote : undefined
+                typeof message.authorsNote === 'string' ? message.authorsNote : undefined,
+                typeof message.entryId === 'string' && isValidEntryId(message.entryId) ? message.entryId : undefined
             );
             break;
         case 'generateImage': {

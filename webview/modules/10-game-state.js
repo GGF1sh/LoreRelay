@@ -592,14 +592,18 @@ function renderOptions(options) {
     btn.addEventListener('click', () => {
       if (isInputLocked() || btn.disabled) return;
       window.speechSynthesis?.cancel();
+      const entryId = `user-${Date.now()}`;
+      // Share this id with the extension so the persisted entry it later sends back
+      // in gameStateUpdate matches this optimistic one instead of rendering a duplicate.
       vscode.postMessage({
         type: 'selectOption',
         text: `${i + 1}. ${opt}`,
-        authorsNote: getAuthorsNote()
+        authorsNote: getAuthorsNote(),
+        entryId
       });
       clearAuthorsNote();
       // UIにもPlayerメッセージとして追加
-      const entry = { id: `user-${Date.now()}`, role: 'user', content: `${i + 1}. ${opt}`, sender: T('webview.sender.player') };
+      const entry = { id: entryId, role: 'user', content: `${i + 1}. ${opt}`, sender: T('webview.sender.player') };
       messageHistory.push(entry);
       renderMessage(entry);
       optionsBar.innerHTML = '';

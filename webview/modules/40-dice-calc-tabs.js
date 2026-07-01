@@ -65,8 +65,11 @@ async function handleDiceRequest(req) {
 function sendDiceResultToGm() {
   if (!lastDiceRoll) return;
   const text = `${T('webview.dice.sendPrefix')} ${lastDiceRoll}`;
-  vscode.postMessage({ type: 'freeInput', text });
-  const entry = { id: `user-${Date.now()}`, role: 'user', content: text, sender: T('webview.sender.player') };
+  const entryId = `user-${Date.now()}`;
+  // Share this id with the extension so the persisted entry it later sends back
+  // in gameStateUpdate matches this optimistic one instead of rendering a duplicate.
+  vscode.postMessage({ type: 'freeInput', text, entryId });
+  const entry = { id: entryId, role: 'user', content: text, sender: T('webview.sender.player') };
   messageHistory.push(entry);
   renderMessage(entry);
   scrollToBottom();

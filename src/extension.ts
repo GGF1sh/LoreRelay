@@ -639,8 +639,12 @@ function formatPlayerActionWithNote(playerAction: string, authorsNote?: string):
  * 2ターン目以降のプレイヤー発言はどこにも永続化されず、Webview のローカル state
  * (vscode.setState)にしか残らない = ウィンドウ再読み込みで消える不具合になっていた。
  * Persist-Before-Narrate の原則通り、GM の応答を待たず必ずここで書き込む。
+ *
+ * entryId が渡された場合はそれをそのまま使う — Webview が楽観的表示に使った ID と
+ * 一致させることで、後で gameStateUpdate が返ってきた際に applyGameState() の
+ * 既存ID重複チェックに引っかかり、同じ発言が二重に描画されるのを防ぐ。
  */
-function persistPlayerInputEntry(playerAction: string): void {
+function persistPlayerInputEntry(playerAction: string, entryId?: string): void {
     const statePath = getGameStatePath();
     if (!statePath) {
         return;
@@ -660,7 +664,7 @@ function persistPlayerInputEntry(playerAction: string): void {
 
     const entries = Array.isArray(state.entries) ? [...state.entries] : [];
     entries.push({
-        id: `user-${Date.now()}`,
+        id: (entryId && isValidEntryId(entryId)) ? entryId : `user-${Date.now()}`,
         role: 'user',
         sender: 'Player',
         content: playerAction
@@ -683,7 +687,7 @@ function isGameOverActive(): boolean {
     }
 }
 
-async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<void> {
+async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: string): Promise<void> {
     if (typeof text !== 'string') {
         vscode.window.showErrorMessage(t('extension.error.invalidInput'));
         return;
@@ -724,7 +728,7 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
 
     let actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
     actionForGm = await interceptPlayerAction(actionForGm);
-    persistPlayerInputEntry(trimmed);
+    persistPlayerInputEntry(trimmed, entryId);
 
     const provider = getGmProvider();
     if (provider === 'clipboard') {

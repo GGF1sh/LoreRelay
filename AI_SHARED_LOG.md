@@ -1,5 +1,29 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Fix: duplicate player message render caused by mismatched entry ids
+
+### Summary
+
+**Important context first**: the user's install script had been building from `C:\AI\LoreRelay` (a stale, disconnected clone, 12 commits behind, still at v1.11.0) instead of `C:\AI\text-adventure-vsce` (this repo, the actual canonical source per `AI_HANDOVER.md`) for most of today's session — confirmed independently by Grok and ChatGPT when the user asked them to check. That explains a lot of the earlier "I fixed it but it's still broken" back-and-forth in this log. User declined to delete the stale `C:\AI\LoreRelay` for now (rename was suggested as a safer alternative by ChatGPT) — nothing done there yet, awaiting the user's call.
+
+With the *actual* current build installed, the duplicate-player-message bug still reproduced, but with a new, precise detail from the user: after closing and restarting, the log always shows only *one* copy — so it's a live-session rendering duplicate, not an actual double-write to disk.
+
+Root cause: `sendFreeInput()` (and the Options-button handler, and `sendDiceResultToGm()`) optimistically render the player's message immediately with a client-generated `id: user-${Date.now()}`. Once `persistPlayerInputEntry()` (a few entries below) started actually writing that message to `game_state.json`, the extension was minting its *own separate* `user-${Date.now()}` id for the same logical entry. `applyGameState()`'s dedup logic in `10-game-state.js` (`const existingIds = new Set(messageHistory.map(m => m.id)); ... if (!existingIds.has(entry.id)) { push + render }`) checks by id — since the ids never matched, the incremental `gameStateUpdate` that later arrived with the persisted entry looked "new" to the client and got rendered a second time. This bug was *latent* until the persistence fix above started actually sending the player's entry back through this path at all.
+
+Fix: webview now generates the `entryId` up front and includes it on the `freeInput`/`selectOption` postMessage; `handlePlayerInput()`/`persistPlayerInputEntry()` (both `extension.ts`) now accept and reuse that id (validated via `isValidEntryId`) instead of generating a fresh one, so the later `gameStateUpdate` correctly recognizes it as already-rendered. Applied consistently across all three client-side optimistic-render call sites (`sendFreeInput`, the Options-button click handler, `sendDiceResultToGm`). The one non-webview call path (`notifyEquipment` → synthetic "System: [Equipment changed]..." text) has no matching optimistic render, so it was left generating its own id as before — nothing to deduplicate there.
+
+### Verification
+
+- `npm run build:webview`, `npx tsc --noEmit`, `node scripts/check_i18n_keys.js` (0 missing), `node scripts/validate_webview_html_structure.js`, full `npm test` — all passed.
+- Not replayed live — diagnosis followed directly from reading `applyGameState()`'s dedup logic once the user's "only one copy survives a restart" detail pointed at a client-side rendering issue rather than a persistence one.
+
+### Next
+
+- User to confirm, from the correct `C:\AI\text-adventure-vsce` build this time, that a normal send/select/dice-roll no longer double-renders even without restarting.
+- Decide what to do with the stale `C:\AI\LoreRelay` clone (rename vs. sync vs. leave alone) — not touched yet.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Fix: player messages after turn 1 never persisted to disk
 
 ### Summary

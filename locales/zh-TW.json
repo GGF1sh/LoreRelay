@@ -478,9 +478,9 @@
   "webview.gameRules.saved": "已儲存",
 
   "gm.prompt.playerAction": "玩家行動: {action}",
-  "gm.prompt.regenerate": "[重新產生] 在相同情況下提供不同的 GM 敘述。玩家行動: {action}\n保持狀態一致，除非新結果需要變更。寫入 turn_result.json（Persist-Before-Narrate），不要直接覆寫 game_state.json。",
-  "gm.prompt.continue": "{base}\n\n作為 GM，根據上述行動推進一個文字冒險回合。\n- 在工作區根目錄寫入 turn_result.json（statePatch + narration + turnId）。LoreRelay 會合併到 game_state.json。\n- 除非無法寫入 turn_result.json，否則不要直接覆寫 game_state.json。",
-  "gm.prompt.start": "{base}\n\n作為文字冒險 GM 推進一個回合。\n- 遵循 Text Adventure GM 技能（SKILL.md）\n- 需要隨機數時執行 dice.py\n- 寫入 turn_result.json（statePatch、narration、turnId）— LoreRelay 會合併到 game_state.json\n- 敘事與狀態文字使用{languageName}",
+  "gm.prompt.regenerate": "[重新產生] 在相同情況下提供不同的 GM 敘述。玩家行動: {action}\n保持狀態一致，除非新結果需要變更。將 turn_result.json 寫為 UTF-8 JSON（Persist-Before-Narrate），不要直接覆寫 game_state.json。",
+  "gm.prompt.continue": "{base}\n\n作為 GM，根據上述行動推進一個文字冒險回合。\n- 在工作區根目錄將 turn_result.json 寫為 UTF-8 JSON（statePatch + narration + turnId）。LoreRelay 會合併到 game_state.json。\n- 如果使用 Windows PowerShell，請指定 -Encoding utf8，不要寫入亂碼 JSON。\n- 除非無法寫入 turn_result.json，否則不要直接覆寫 game_state.json。",
+  "gm.prompt.start": "{base}\n\n作為文字冒險 GM 推進一個回合。\n- 遵循 Text Adventure GM 技能（SKILL.md）\n- 需要隨機數時執行 dice.py\n- 將 turn_result.json 寫為 UTF-8 JSON（statePatch、narration、turnId）— LoreRelay 會合併到 game_state.json\n- 如果使用 Windows PowerShell，請指定 -Encoding utf8，不要寫入亂碼 JSON\n- 敘事與狀態文字使用{languageName}",
   "gm.languageName.ja": "日語",
   "gm.languageName.en": "英語",
   "gm.languageName.zh-CN": "簡體中文",

@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Empty workspace onboarding: the first GM turn now bootstraps a minimal `game_state.json` before invoking the GM bridge, so a valid `turn_result.json` can be merged even when the world folder starts blank.
+- Character prompt context: imported/active character cards are no longer implicitly injected as party members. Only characters explicitly added to the party are included in GM party context.
+- GM bridge prompts now explicitly require `turn_result.json` to be written as UTF-8 JSON, with a Windows PowerShell `-Encoding utf8` reminder to reduce mojibake JSON failures.
+
 ## [1.11.0] - 2026-07-01
 
 **Adaptive TTS** — NPC ごとの voice profile、system TTS ルーティング、local edge-tts / OpenAI external bridge。ChatGPT レビュー指摘のフォールバック・タイムアウト・プライバシー硬化を同梱。

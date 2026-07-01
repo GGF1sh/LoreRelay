@@ -478,9 +478,9 @@
   "webview.imageGen.saved": "保存しました",
 
   "gm.prompt.playerAction": "プレイヤーの行動: {action}",
-  "gm.prompt.regenerate": "[再生成] 同じ状況で別のGMナラティブを出力してください。プレイヤー行動: {action}\nステータスは整合性を保ち、必要な場合のみ変更。turn_result.json を書き出し（Persist-Before-Narrate）、game_state.json を直接上書きしないこと。",
-  "gm.prompt.continue": "{base}\n\n上記の行動に対してテキストアドベンチャーのGMとして1ターン進めてください。\n- ワークスペースルートに turn_result.json（statePatch + narration + turnId）を書き出すこと。LoreRelay が game_state.json にマージします。\n- turn_result.json が書けない場合を除き、game_state.json を直接上書きしないこと。",
-  "gm.prompt.start": "{base}\n\nテキストアドベンチャーのゲームマスター（GM）として1ターン進めてください。\n- Text Adventure GM スキル（SKILL.md）に従うこと\n- 乱数が必要なら dice.py を実行すること\n- turn_result.json（statePatch, narration, turnId）を書き出すこと — LoreRelay が game_state.json に統合します\n- ナラティブとステータスは{languageName}で書くこと",
+  "gm.prompt.regenerate": "[再生成] 同じ状況で別のGMナラティブを出力してください。プレイヤー行動: {action}\nステータスは整合性を保ち、必要な場合のみ変更。turn_result.json を UTF-8 JSON として書き出し（Persist-Before-Narrate）、game_state.json を直接上書きしないこと。",
+  "gm.prompt.continue": "{base}\n\n上記の行動に対してテキストアドベンチャーのGMとして1ターン進めてください。\n- ワークスペースルートに turn_result.json（statePatch + narration + turnId）を UTF-8 JSON として書き出すこと。LoreRelay が game_state.json にマージします。\n- Windows PowerShell を使う場合は -Encoding utf8 を指定し、文字化けしたJSONを書かないこと。\n- turn_result.json が書けない場合を除き、game_state.json を直接上書きしないこと。",
+  "gm.prompt.start": "{base}\n\nテキストアドベンチャーのゲームマスター（GM）として1ターン進めてください。\n- Text Adventure GM スキル（SKILL.md）に従うこと\n- 乱数が必要なら dice.py を実行すること\n- turn_result.json（statePatch, narration, turnId）を UTF-8 JSON として書き出すこと — LoreRelay が game_state.json に統合します\n- Windows PowerShell を使う場合は -Encoding utf8 を指定し、文字化けしたJSONを書かないこと\n- ナラティブとステータスは{languageName}で書くこと",
   "gm.languageName.ja": "日本語",
   "gm.languageName.en": "英語",
   "gm.languageName.zh-CN": "简体中文",

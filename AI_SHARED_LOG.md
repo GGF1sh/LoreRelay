@@ -1,5 +1,26 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Empty world onboarding / active character leak fix
+
+### Summary
+
+- Fixed first-turn onboarding in an empty workspace: `handlePlayerInput()` now creates a minimal `game_state.json` before invoking the GM bridge when no state file exists yet.
+- `processTurnResult()` can now merge a `turn_result.json` even if `game_state.json` is absent, using a minimal schema-current state as the merge base.
+- Imported/active character cards no longer auto-enter GM party context. `getPartyMemberIds()` and `buildPartyPromptContext()` now use explicit party membership only, preventing test ST cards such as `クロノ` from being treated as the protagonist/companion.
+- GM prompt locale strings now explicitly require `turn_result.json` as UTF-8 JSON and warn Windows PowerShell users to use `-Encoding utf8`.
+- Local GM skill copy updated at `C:\AI\TextAdventureGMSkill\SKILL.md` with the same UTF-8 warning; this file is outside the VS Code extension Git repo.
+
+### Verification
+
+- `npm run compile` passed.
+- `npm test` passed.
+
+### Next
+
+- Retest `G:\AI\LoreRelayWorlds\PostApocalypse` after reloading the Extension Host. If an old mojibake `turn_result.json` remains, delete it once before retrying so the watcher does not keep seeing stale invalid output.
+
+---
+
 ## 2026-07-01 JST - Grok - Release v1.11.0 Adaptive TTS
 
 ### Summary

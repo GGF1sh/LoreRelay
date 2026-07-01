@@ -13,6 +13,7 @@ import { commitGameState } from './stateManager';
 import { loadWorldState, saveWorldState } from './worldState';
 import { applyNpcMemoryUpdates } from './npcRegistry';
 import type { NpcMemoryUpdate } from './npcRegistryCore';
+import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 
 /** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
 const ALLOWED_ROOTS = new Set([
@@ -328,13 +329,14 @@ function completeResolvedQuestHooks(resolvedQuests: unknown, currentTurn: number
  */
 export function processTurnResult(turnResult: TurnResult): TurnResult | false {
     const statePath = getGameStatePath();
-    if (!statePath || !fs.existsSync(statePath)) {
+    if (!statePath) {
         return false;
     }
 
     try {
-        const stateStr = fs.readFileSync(statePath, 'utf-8');
-        let state = JSON.parse(stateStr) as Record<string, unknown>;
+        let state = fs.existsSync(statePath)
+            ? JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>
+            : { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [] as unknown[] };
         const beforeHash = hashGameState(state);
 
         if (turnResult.statePatch && turnResult.statePatch.length > 0) {

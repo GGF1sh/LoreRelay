@@ -130,12 +130,7 @@ export function loadDynamicProfiles(): Record<string, string> {
 }
 
 export function getPartyMemberIds(): string[] {
-    const ids = [...getPartyIds()];
-    const activeId = getActiveCharacterId();
-    if (activeId && !ids.includes(activeId)) {
-        ids.unshift(activeId);
-    }
-    return ids;
+    return [...getPartyIds()];
 }
 
 export function getCharacters(): CharacterProfile[] {

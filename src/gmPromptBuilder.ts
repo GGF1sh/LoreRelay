@@ -31,10 +31,8 @@ import { loadGameRules } from './gameRules';
 import {
     getCharactersDir,
     getPartyIds,
-    getActiveCharacterId,
     loadCharacterById,
-    loadDynamicProfiles,
-    getPartyMemberIds
+    loadDynamicProfiles
 } from './characterManager';
 import { type LorebookEntry, matchEntriesAgainstText } from './lorebookMatcher';
 import { loadScenarioDirector } from './scenarioDirector';
@@ -229,11 +227,11 @@ function relationshipLabel(rel: RelationshipType): string {
 
 function buildPartyPromptContext(): string {
     const dynProfiles = loadDynamicProfiles();
-    const ids = getPartyMemberIds();
+    const ids = getPartyIds();
     if (ids.length === 0) {
         return '';
     }
-    const lines = ['[Party Members / Active Characters]'];
+    const lines = ['[Party Members]'];
     for (const id of ids) {
         const char = loadCharacterById(id);
         if (!char) {

@@ -144,6 +144,8 @@ import {
     processProfileUpdates,
     maybeSuggestArchive
 } from './gmPromptBuilder';
+import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
+import { commitGameState } from './stateManager';
 import {
     initCheckpointHandlers,
     handleEditEntry,
@@ -626,6 +628,25 @@ function formatPlayerActionWithNote(playerAction: string, authorsNote?: string):
     return `[Author's Note: ${note}]\n${playerAction}`;
 }
 
+function ensureInitialGameStateForPlayerInput(playerAction: string): void {
+    const statePath = getGameStatePath();
+    if (!statePath || fs.existsSync(statePath)) {
+        return;
+    }
+
+    commitGameState({
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        entries: [{
+            id: `user-${Date.now()}`,
+            role: 'user',
+            sender: 'Player',
+            content: playerAction
+        }],
+        options: [],
+        status: {}
+    });
+}
+
 function isGameOverActive(): boolean {
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
@@ -680,6 +701,7 @@ async function handlePlayerInput(text: unknown, authorsNote?: string): Promise<v
 
     let actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
     actionForGm = await interceptPlayerAction(actionForGm);
+    ensureInitialGameStateForPlayerInput(trimmed);
 
     const provider = getGmProvider();
     if (provider === 'clipboard') {

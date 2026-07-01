@@ -9,6 +9,7 @@
   let ccExpressions = {};          // { expressionKey: { uri: string } }
   let ccExportFormat = 'json';
   let ccIsDirty = false;
+  let ccAdaptDraft = null;
 
   const DEFAULT_EXPRESSIONS = [
     { key: 'neutral',     label: 'Neutral',     icon: '😐' },
@@ -88,6 +89,12 @@
 
     updatePortraitPreview(ccPortraitData);
     renderExpressionsGrid();
+
+    // World adaptation panel reset
+    ccAdaptDraft = null;
+    $('cc-adapt-draft')?.classList.add('hidden');
+    const adaptBtn = $('cc-adapt-world-btn');
+    if (adaptBtn) adaptBtn.disabled = !window.currentWorldTheme;
 
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
@@ -332,6 +339,42 @@
     input.focus();
   }
 
+  // ── World Adaptation ───────────────────────────────────────────────────
+  function renderAdaptDraft(draft) {
+    const panel = $('cc-adapt-draft');
+    if (!panel) return;
+    $('cc-adapt-description').textContent = draft.description || '(no change)';
+    $('cc-adapt-personality').textContent = draft.personality || '(no change)';
+    const eq = draft.equipment || {};
+    $('cc-adapt-equipment').textContent =
+      [eq.weapon, eq.armor, eq.accessory].filter(Boolean).join(' / ') || '(no change)';
+    $('cc-adapt-arrival').textContent = draft.arrivalReason || '(no change)';
+    panel.classList.remove('hidden');
+  }
+
+  function applyAdaptDraft() {
+    if (!ccAdaptDraft) return;
+    if (ccAdaptDraft.description) {
+      const merged = ccAdaptDraft.arrivalReason
+        ? `${ccAdaptDraft.description}\n\n${ccAdaptDraft.arrivalReason}`
+        : ccAdaptDraft.description;
+      $set('description', merged);
+    }
+    if (ccAdaptDraft.personality) $set('personality', ccAdaptDraft.personality);
+    const eq = ccAdaptDraft.equipment || {};
+    if (eq.weapon) $set('equip-weapon', eq.weapon);
+    if (eq.armor) $set('equip-armor', eq.armor);
+    if (eq.accessory) $set('equip-accessory', eq.accessory);
+    ccIsDirty = true;
+    ccAdaptDraft = null;
+    $('cc-adapt-draft')?.classList.add('hidden');
+  }
+
+  function discardAdaptDraft() {
+    ccAdaptDraft = null;
+    $('cc-adapt-draft')?.classList.add('hidden');
+  }
+
   // ── Collect & Save ─────────────────────────────────────────────────────
   function collectPayload() {
     const tags = $v('tags').split(',').map(t => t.trim()).filter(Boolean);
@@ -455,6 +498,17 @@
     // Expression: add custom
     $('cc-add-expression-btn')?.addEventListener('click', addCustomExpression);
 
+    // World adaptation
+    $('cc-adapt-world-btn')?.addEventListener('click', () => {
+      if (!window.currentWorldTheme) return;
+      vscode.postMessage({
+        type: 'adaptCharacterToWorld',
+        character: collectPayload(),
+      });
+    });
+    $('cc-adapt-apply-btn')?.addEventListener('click', applyAdaptDraft);
+    $('cc-adapt-discard-btn')?.addEventListener('click', discardAdaptDraft);
+
     // Format toggle
     document.querySelectorAll('.cc-fmt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -493,6 +547,12 @@
         ccIsDirty = true;
         renderExpressionsGrid();
       }
+    }
+
+    // World adaptation draft result
+    if (msg.type === 'characterWorldAdaptationDraft' && msg.draft) {
+      ccAdaptDraft = msg.draft;
+      renderAdaptDraft(msg.draft);
     }
   });
 

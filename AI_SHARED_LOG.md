@@ -1,5 +1,52 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Claude (Sonnet 5) - Start Hub for empty workspaces + index.html mojibake cleanup
+
+### Summary
+
+- User tested a fresh world folder (`G:\AI\LoreRelayWorlds\PostApocalypse`) and found the empty-state chat log gave no indication of what to do. Discussed with ChatGPT, who investigated the existing Quickstart feature (already fully implemented: `#quickstart-modal` + `quickstartRunner.ts`, just poorly discoverable behind an unlabeled 🚀 icon) and produced a hybrid spec: keep Quickstart as "generate roughly from one line," add a new (future) "GM interview" mode as "build via Q&A," and show both as a `Start Hub` choice screen whenever the workspace is empty, with theme presets feeding either path.
+- Implemented the UI/discoverability half per ChatGPT's spec (backend interview-mode logic intentionally deferred as future work, per spec):
+  - `webview/index.html` — new `#start-hub` block (sibling of `#chat-log`, not a child — `chatLog.innerHTML = ''` on re-render would otherwise wipe it) with a title, two big option buttons (Quick Generate / Build via Q&A), and 5 preset chips.
+  - `webview/styles/10-layout-chat.css` — `.start-hub` fills the same flex slot as `#chat-log`; `#chat-log.hidden`/`.start-hub.hidden` toggle between them.
+  - `webview/modules/90-bootstrap.js` — `updateStartHubVisibility()` (single source of truth: shows hub iff `messageHistory.length === 0`), preset chip single-select state, Quick Generate button opens the existing quickstart modal and pre-fills its prompt textarea with the selected preset's one-line description, Q&A button pre-fills `freeInput` with an interview-kickoff template (consistent with the earlier image-mismatch-flag button pattern) and focuses it rather than auto-sending.
+  - `webview/modules/10-game-state.js` — `renderMessage()` now calls `updateStartHubVisibility()` at its very end, so every code path that adds a message (welcome check, `applyGameState` loading real entries, remote input, system messages) automatically keeps the hub's visibility correct without needing to hook each call site individually.
+  - Replaced the old unconditional `addSystemMessage(T('webview.welcome'))` call with the hub (its title serves the same purpose); i18n key `webview.welcome` is now unused but left defined (harmless, not worth the risk of touching it).
+  - 13 new i18n keys × 4 locales.
+- **Unrelated finding, fixed while in the file**: `webview/index.html` had real mojibake — 11 quick-reply button fallback labels (garbled emoji + text), ~15 corrupted HTML comments, and an `…` (ellipsis) that had been mangled into `窶ｦ` repeated across ~13 character-creator placeholder strings. Verified against the corresponding `locales/*.json` values (which were clean) that this was low-severity — `applyI18n()` overwrites the fallback text immediately on load — but cleaned it up for source readability. Confirmed 0 remaining occurrences of the known corruption markers across `webview/`, `src/`, and `locales/` afterward.
+
+### Verification
+
+- `npm run compile` passed.
+- `node scripts/check_i18n_keys.js` — 0 missing in all 4 locales.
+- `node scripts/validate_webview_html_structure.js` passed.
+- `node scripts/validate_utf8_docs.js` — OK (267 files).
+- `npm test` passed (full suite green).
+
+### Next
+
+- GM interview mode itself (the "💬 Build via Q&A" backend) is not implemented — clicking it only pre-fills a kickoff message into the normal chat input, which then flows through whichever GM bridge provider is already configured. Per ChatGPT's spec, when that gets built: keep `setupComplete` as an advisory signal only, use an explicit always-visible "generate the world from this" button as the real trigger (not AI self-judgment), and route through `invokeGmBridge` (not `quickstartRunner.ts`'s `generateText()`, which only supports openrouter/ollama/koboldcpp) so it works with any configured provider.
+
+## 2026-07-01 JST - Claude (Sonnet 5) - Image/narrative mismatch feedback button
+
+### Summary
+
+- User + ChatGPT identified a UX gap during test play: a generated scene image (map spread on a table, per the narration) didn't match what was actually rendered (map on the ground, no table/characters). ChatGPT proposed a "flag this image" button that pre-fills a template complaint for the GM.
+- Implemented the simpler of ChatGPT's two proposals (template pre-fill into free input, sent through the existing GM turn flow) rather than the fuller accept/discard/retake variant, to avoid new message types or backend changes.
+- `webview/modules/10-game-state.js` — added a "🗯️ Flag Mismatch" button next to the existing regenerate button on every scene image; wrapped both in a new `.image-editor-actions` flex row. Clicking it sets `freeInput.value` to a template string and focuses/positions the cursor at the end so the user can type the specific complaint before sending normally.
+- `webview/styles/80-image-gen.css` — new `.image-editor-actions` row wrapper; `.image-flag-btn` gets a distinct amber accent from the existing purple regenerate/manual-gen buttons; restored `align-self: flex-end` on `.manual-gen-btn` specifically since it's still used standalone outside the new row.
+- i18n: 3 new keys (`webview.image.flagMismatchBtn/Title/Template`) in all 4 locales.
+
+### Verification
+
+- `npm run compile` passed.
+- `node scripts/check_i18n_keys.js` — 0 missing in all 4 locales.
+- `node scripts/validate_webview_html_structure.js` passed.
+- `npm test` passed (full suite green).
+
+### Next
+
+- Not yet built: the fuller "accept / discard / regenerate with corrected prompt" 4-button variant ChatGPT also proposed. Left as a follow-up if the simple version proves not enough — would need a new postMessage type and prompt-rewriting logic on the image-gen side.
+
 ## 2026-07-01 JST - Claude (Sonnet 5) - Phase 8A quest completion rewards + Phase 10 status check
 
 ### Summary

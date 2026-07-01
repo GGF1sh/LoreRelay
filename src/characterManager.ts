@@ -437,3 +437,120 @@ export async function generatePortrait(id: string): Promise<void> {
         finishPortrait(code);
     });
 }
+
+let expressionProcess: ChildProcess | undefined;
+
+export function killExpressionProcess(): void {
+    if (expressionProcess) {
+        expressionProcess.kill();
+        expressionProcess = undefined;
+    }
+}
+
+export async function generateExpression(id: string, expression: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
+    const { getPanel } = requireDeps();
+    const charDir = getCharactersDir();
+    if (!charDir || !isValidCharacterId(id)) { return; }
+
+    const jsonPath = resolveCharacterJsonPath(charDir, id);
+    if (!jsonPath || !fs.existsSync(jsonPath)) { return; }
+
+    const char: CharacterProfile = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+
+    const wsPath = getWorkspacePath() || process.cwd();
+    let currentTheme = 'fantasy';
+    const statePath = getGameStatePath();
+    if (statePath && fs.existsSync(statePath)) {
+        try {
+            const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+            if (state.theme) { currentTheme = state.theme; }
+        } catch { /* ignore */ }
+    }
+
+    const expressionLabel = expression.replace(/_/g, ' ');
+    const prompt = `A close-up portrait of ${char.name} with a ${expressionLabel} expression. ${char.description}. The setting is a ${currentTheme} world. The character's outfit and gear are adapted to fit the ${currentTheme} theme seamlessly.`;
+
+    const scriptPath = resolveComfyScript(wsPath);
+    if (!scriptPath) {
+        vscode.window.showWarningMessage(t('extension.error.imageScriptNotFound'));
+        return;
+    }
+
+    if (expressionProcess) {
+        vscode.window.showWarningMessage(t('extension.warning.imageBusy'));
+        return;
+    }
+
+    const channel = getImageOutputChannel();
+    const env = buildImageGenEnv(wsPath);
+    const portraitConfig = loadImageGenConfig(wsPath);
+    const portraitMode = ['pony', 'illustrious', 'natural', 'standard'].includes(portraitConfig.mode)
+        ? portraitConfig.mode
+        : 'illustrious';
+
+    channel.show(true);
+    channel.appendLine(`Generating "${expression}" expression for ${char.name} in theme ${currentTheme}...`);
+    getPanel()?.webview.postMessage({ type: 'imageGenStart' });
+
+    const python = resolvePythonCommand();
+    const child = spawn(python, [scriptPath, prompt, charDir, portraitMode], {
+        shell: false,
+        env
+    });
+    expressionProcess = child;
+
+    let finished = false;
+    const finishExpression = (code: number | null) => {
+        if (finished) { return; }
+        finished = true;
+        expressionProcess = undefined;
+        channel.appendLine(`\nProcess exited with code ${code ?? 'unknown'}`);
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
+
+        if (code === 0) {
+            try {
+                const files = fs.readdirSync(charDir)
+                    .filter(f => f.startsWith('scene_') && f.endsWith('.png'))
+                    .map(f => ({ name: f, time: fs.statSync(path.join(charDir, f)).mtime.getTime() }))
+                    .sort((a, b) => b.time - a.time);
+
+                if (files.length > 0) {
+                    const latest = files[0].name;
+                    const src = path.join(charDir, latest);
+                    const dest = path.join(charDir, `${id}_expr_${expression}.png`);
+                    fs.renameSync(src, dest);
+
+                    char.expressions = char.expressions || {};
+                    char.expressions[expression] = dest;
+                    saveCharacter(char);
+                    const uri = safeImageUri(dest);
+                    if (uri) {
+                        getPanel()?.webview.postMessage({ type: 'expressionGenerated', id, expression, uri });
+                    }
+                    vscode.window.showInformationMessage(`Expression "${expression}" generated successfully!`);
+                }
+            } catch (e) {
+                console.error('Failed to link generated expression:', e);
+            }
+        }
+    };
+
+    child.stdout.on('data', (data) => channel.append(data.toString()));
+    child.stderr.on('data', (data) => channel.append(data.toString()));
+
+    child.on('error', (err) => {
+        if (finished) { return; }
+        channel.appendLine(`\n[Error: ${err.message}]`);
+        vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
+        finishExpression(null);
+    });
+
+    child.on('close', (code) => {
+        finishExpression(code);
+    });
+}

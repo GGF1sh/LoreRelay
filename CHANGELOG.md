@@ -11,6 +11,14 @@
 
 ### Added
 
+- **Start Hub — 空ワークスペース初期導線(ChatGPT設計 / Claude実装)** — `messageHistory`が空の時だけ冒険ログ中央に「どんな冒険を始めますか？」ハブを表示し、代わりに`#chat-log`を隠す(`renderMessage`末尾の`updateStartHubVisibility()`で全経路を一元管理)。「🚀 ざっと作る」は既存の`window.LoreRelay.openQuickstart()`を呼ぶ。「💬 質問しながら作る」はGM面接キックオフの定型文を自由入力欄に差し込む(バックエンド変更なし、既存のGMブリッジ経由の対話フローを再利用)。プリセットチップ(初心者向けファンタジー/ポストアポカリプス/サイバーパンク/現代異能/自由入力)は選択すると「ざっと作る」のプロンプト欄または面接メッセージにその世界観の一文を反映。既存ゲームがある場合は自動的に非表示。4言語i18n対応。GM面接モード自体の実装(setupComplete判定、常時「この内容で世界を作る」ボタン等)は将来対応。
+
+### Fixed
+
+- **webview/index.html 文字化け** — クイックリプライバー11ボタンの初期表示テキスト、キャラクタークリエイターの各種placeholder(「…」が繰り返し化けていた)、Cartographyの空状態テキスト、および構造コメント多数が文字化けしていたのを修正。ほぼ`data-i18n`で即座に上書きされるため実害は小さいが、ソース上の可読性のため修正。
+
+- **画像ツッコミ機能(Claude)** — テストプレイ中に「本文の描写と生成画像が食い違っている」ケースが見つかったため、各シーン画像の下(再生成ボタンの隣)に「🗯️ ツッコむ」ボタンを追加。押すと自由入力欄に定型テンプレート(「[画像ツッコミ] さっきの画像が本文の描写と食い違っています。具体的には: 」)を差し込み、ユーザーが具体的な食い違いを書き足してGMにそのまま送信できるようにした。新しいpostMessage型やバックエンド変更は不要で、既存のプレイヤー入力→GMフローをそのまま再利用。4言語i18n対応。
+
 - **Phase 8A — Quest 完了報酬(Claude)** — NPC由来のクエストフック(`source: 'npc'`)完了時に、対応NPCの`playerTrust`を+10、関連する`need`を解決済みに、完了メモリを1件追加するよう実装。`QuestHook`に`npcId`/`needId`(npc由来のみ)を追加し、既存の`applyNpcMemoryUpdates()`(Phase 3で検証済み)を再利用。Quest Board UIに報酬テキストの表示を追加(4言語i18n対応)。イベント由来のクエストは報酬の対象NPCが存在しないため、報酬適用対象は現状NPC由来のみ。
 
 - **Phase 8A - Event-to-Quest / Quest Board** — `questGeneratorCore.ts` で `world_state.json.recentChanges` と urgent NPC needs から deterministic Quest Hooks を生成。`world_state.json.questHooks` の型・パーサー・上限、World タブ Quest Board、available → active 操作、active quest の GM prompt 注入、`turn_result.json.resolvedQuests` による完了反映を追加。

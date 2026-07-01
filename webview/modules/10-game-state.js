@@ -300,6 +300,26 @@ function renderMessage(entry) {
     textarea.value = entry.imagePrompt || '';
     promptEditor.appendChild(textarea);
 
+    const editorActions = document.createElement('div');
+    editorActions.className = 'image-editor-actions';
+
+    // 🗯️ 画像にツッコむ: 本文と画像が食い違っている時、定型文を入力欄に差し込んでGMに指摘できるようにする
+    const flagBtn = document.createElement('button');
+    flagBtn.className = 'regen-img-btn image-flag-btn';
+    flagBtn.innerHTML = `🗯️ ${T('webview.image.flagMismatchBtn')}`;
+    flagBtn.title = T('webview.image.flagMismatchTitle');
+    flagBtn.onclick = () => {
+      if (freeInput) {
+        freeInput.value = T('webview.image.flagMismatchTemplate');
+        freeInput.focus();
+        if (typeof freeInput.setSelectionRange === 'function') {
+          const end = freeInput.value.length;
+          freeInput.setSelectionRange(end, end);
+        }
+      }
+    };
+    editorActions.appendChild(flagBtn);
+
     const regenBtn = document.createElement('button');
     regenBtn.className = 'regen-img-btn';
     regenBtn.innerHTML = `🔄 ${T('webview.image.regenerateBtn')}`;
@@ -312,7 +332,9 @@ function renderMessage(entry) {
       });
       addSystemMessage(T('webview.image.requested') || 'Requested image generation...');
     };
-    promptEditor.appendChild(regenBtn);
+    editorActions.appendChild(regenBtn);
+
+    promptEditor.appendChild(editorActions);
     imgContainer.appendChild(promptEditor);
 
     div.appendChild(imgContainer);
@@ -339,6 +361,7 @@ function renderMessage(entry) {
   }
 
   chatLog.appendChild(div);
+  updateStartHubVisibility();
 }
 
 function renderAllMessages() {

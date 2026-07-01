@@ -44,6 +44,8 @@ export interface WebviewHandlerDeps {
     setActiveCharacter(id: string): void;
     uploadPortrait(id: string): Promise<void>;
     generatePortrait(id: string): Promise<void>;
+    generateExpression(id: string, expression: string): Promise<void>;
+    adaptCharacterToWorld(character: Pick<CharacterProfile, 'name' | 'description' | 'personality' | 'equipment'>): Promise<void>;
     importTavernCard(): Promise<void>;
     addToParty(id: string): void;
     removeFromParty(id: string): void;
@@ -247,8 +249,26 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         case 'generateExpression':
-            vscode.window.showInformationMessage('Expression generation is not implemented yet. Upload an expression image for now.');
+            if (isValidCharacterId(message.charId) && typeof message.expression === 'string' && message.expression.trim()) {
+                await deps.generateExpression(message.charId, message.expression.trim());
+            } else {
+                vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+            }
             break;
+        case 'adaptCharacterToWorld': {
+            const character = message.character as Record<string, unknown> | undefined;
+            if (character && typeof character.name === 'string' && character.name.trim()) {
+                await deps.adaptCharacterToWorld({
+                    name: character.name,
+                    description: typeof character.description === 'string' ? character.description : '',
+                    personality: typeof character.personality === 'string' ? character.personality : '',
+                    equipment: (character.equipment as CharacterProfile['equipment']) || {},
+                });
+            } else {
+                vscode.window.showWarningMessage('Character name is required to adapt to the world.');
+            }
+            break;
+        }
         case 'importTavernCard':
             await deps.importTavernCard();
             break;

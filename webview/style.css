@@ -345,6 +345,119 @@ body {
   gap: 16px;
 }
 
+#chat-log.hidden {
+  display: none;
+}
+
+/* ========= Start Hub (空ワークスペース時の導線) ========= */
+.start-hub {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+}
+
+.start-hub.hidden {
+  display: none;
+}
+
+.start-hub-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+.start-hub-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.start-hub-btn {
+  flex: 1 1 240px;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.start-hub-btn:hover {
+  border-color: var(--accent);
+  background: rgba(79, 142, 247, 0.1);
+  transform: translateY(-2px);
+}
+
+.start-hub-btn-icon {
+  font-size: 26px;
+}
+
+.start-hub-btn-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.start-hub-btn-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.start-hub-presets-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.start-hub-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.start-hub-preset-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.start-hub-preset-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.start-hub-preset-chip.active {
+  background: rgba(79, 142, 247, 0.25);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 /* メッセージバブル */
 .msg {
   max-width: 88%;
@@ -1636,8 +1749,14 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.image-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .regen-img-btn, .manual-gen-btn {
-  align-self: flex-end;
   background: rgba(179, 136, 255, 0.15);
   border: 1px solid rgba(179, 136, 255, 0.4);
   color: #dcb3ff;
@@ -1657,7 +1776,19 @@ body {
   transform: translateY(-1px);
 }
 
+.image-flag-btn {
+  background: rgba(255, 179, 71, 0.15);
+  border-color: rgba(255, 179, 71, 0.4);
+  color: #ffc98a;
+}
+
+.image-flag-btn:hover {
+  background: rgba(255, 179, 71, 0.3);
+  transform: translateY(-1px);
+}
+
 .manual-gen-btn {
+  align-self: flex-end;
   margin-top: 8px;
 }
 
@@ -2883,6 +3014,44 @@ body {
   pointer-events: none;
   height: 0;
   padding: 0;
+}
+
+/* === World adaptation draft panel === */
+.cc-adapt-draft {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(79, 142, 247, 0.3);
+  border-radius: 8px;
+  background: rgba(79, 142, 247, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cc-adapt-draft.hidden {
+  display: none;
+}
+
+.cc-adapt-draft-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cc-adapt-draft-field {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.cc-adapt-draft-field strong {
+  color: var(--text);
+}
+
+.cc-adapt-draft-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 /* === Trigger button in pane-character === */

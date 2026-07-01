@@ -112,7 +112,95 @@ window.addEventListener('DOMContentLoaded', () => {
       saveState();
     });
   }
+
+  // ===== Start Hub (空ワークスペース時の導線) =====
+  initStartHub();
 });
+
+const START_HUB_PRESETS = {
+  beginnerFantasy: '初心者向けの、危険度低めの牧歌的ファンタジー世界。',
+  postApocalypse: '文明が崩壊した後のポストアポカリプス世界。生存と探索が中心。',
+  cyberpunk: '巨大企業が支配するネオンきらめくサイバーパンク都市。',
+  urbanFantasy: '現代日本を舞台にした、隠された異能・怪異が存在する世界。',
+  freeform: ''
+};
+
+let selectedStartHubPreset = '';
+
+/** messageHistory が空のときだけ Start Hub を表示し、chat-log を隠す。 */
+function updateStartHubVisibility() {
+  const hub = document.getElementById('start-hub');
+  if (!hub || !chatLog) return;
+  const empty = messageHistory.length === 0;
+  hub.classList.toggle('hidden', !empty);
+  chatLog.classList.toggle('hidden', empty);
+}
+
+function initStartHub() {
+  const quickBtn = document.getElementById('start-hub-quick-btn');
+  const interviewBtn = document.getElementById('start-hub-interview-btn');
+  const presetsWrap = document.getElementById('start-hub-presets');
+  const charNewBtn = document.getElementById('start-hub-char-new-btn');
+  const charImportBtn = document.getElementById('start-hub-char-import-btn');
+
+  if (presetsWrap) {
+    presetsWrap.querySelectorAll('.start-hub-preset-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const key = chip.dataset.preset || '';
+        const alreadyActive = chip.classList.contains('active');
+        presetsWrap.querySelectorAll('.start-hub-preset-chip').forEach((c) => c.classList.remove('active'));
+        if (alreadyActive) {
+          selectedStartHubPreset = '';
+        } else {
+          chip.classList.add('active');
+          selectedStartHubPreset = key;
+        }
+      });
+    });
+  }
+
+  if (quickBtn) {
+    quickBtn.addEventListener('click', () => {
+      const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
+      const promptField = document.getElementById('quickstart-prompt');
+      if (promptField && presetText) {
+        promptField.value = presetText;
+      }
+      window.LoreRelay?.openQuickstart?.();
+    });
+  }
+
+  if (interviewBtn) {
+    interviewBtn.addEventListener('click', () => {
+      const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
+      const template = presetText
+        ? T('webview.startHub.interviewTemplateWithPreset', { preset: presetText })
+        : T('webview.startHub.interviewTemplate');
+      if (freeInput) {
+        freeInput.value = template;
+        freeInput.focus();
+        if (typeof freeInput.setSelectionRange === 'function') {
+          const end = freeInput.value.length;
+          freeInput.setSelectionRange(end, end);
+        }
+      }
+    });
+  }
+
+  if (charNewBtn) {
+    charNewBtn.addEventListener('click', () => {
+      window.openCharacterCreator?.(null);
+    });
+  }
+
+  if (charImportBtn) {
+    charImportBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'importTavernCard' });
+    });
+  }
+
+  updateStartHubVisibility();
+}
 
 // ===== Extension → Webview メッセージ受信 =====
 window.addEventListener('message', (event) => {
@@ -239,8 +327,8 @@ window.addEventListener('message', (event) => {
     renderCheckpointUi();
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
-      addSystemMessage(T('webview.welcome'));
     }
+    updateStartHubVisibility();
   }
 });
 

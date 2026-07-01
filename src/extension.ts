@@ -122,11 +122,14 @@ import {
     setActiveCharacter,
     uploadPortrait,
     generatePortrait,
+    generateExpression,
     addToParty,
     removeFromParty,
     killPortraitProcess,
+    killExpressionProcess,
     getCharacters
 } from './characterManager';
+import { adaptCharacterToWorld } from './characterWorldAdapter';
 import { exportSagaToHtml } from './exportHtml';
 import {
     initGmPromptBuilder,
@@ -303,6 +306,7 @@ export function activate(context: vscode.ExtensionContext) {
             disposeRemotePlayServer();
             killActiveScriptProcess();
             killPortraitProcess();
+            killExpressionProcess();
         });
     });
 
@@ -1071,6 +1075,30 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         setActiveCharacter,
         uploadPortrait,
         generatePortrait,
+        generateExpression,
+        adaptCharacterToWorld: async (character) => {
+            const forge = loadWorldForge();
+            let theme = forge?.meta?.theme;
+            if (!theme) {
+                const statePath = getGameStatePath();
+                if (statePath && fs.existsSync(statePath)) {
+                    try {
+                        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+                        if (typeof state.theme === 'string' && state.theme) { theme = state.theme; }
+                    } catch { /* ignore */ }
+                }
+            }
+            if (!theme) {
+                vscode.window.showWarningMessage('No world theme found yet. Set up the world first, then adapt the character.');
+                return;
+            }
+            const draft = await adaptCharacterToWorld(character, theme);
+            if (!draft) {
+                vscode.window.showErrorMessage('Failed to generate a world-adapted character draft.');
+                return;
+            }
+            panel?.webview.postMessage({ type: 'characterWorldAdaptationDraft', draft });
+        },
         importTavernCard,
         addToParty,
         removeFromParty,
@@ -1212,4 +1240,5 @@ export function deactivate() {
     disposeRemotePlayServer();
     killActiveScriptProcess();
     killPortraitProcess();
+    killExpressionProcess();
 }

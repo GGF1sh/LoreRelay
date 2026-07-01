@@ -15,10 +15,10 @@
   <div id="app">
     <div id="chat-area">
       <div id="chat-header">
-        <span class="header-icon">⚔</span>
+        <span class="header-icon">⚔️</span>
         <span data-i18n="webview.chat.header">Adventure Log</span>
         <div id="locale-wrap">
-          <label for="locale-select" data-i18n="webview.locale.label">Language</label>
+          <label for="locale-select" data-i18n="webview.locale.label">🌐 Language</label>
           <select id="locale-select" title="Language">
             <option value="ja">日本語</option>
             <option value="en">English</option>
@@ -33,10 +33,10 @@
           <button id="img-gen-settings-btn" class="glass-btn" data-i18n-title="webview.imageGen.open" title="Image Gen Settings">🎨</button>
         </div>
         <div id="game-rules-wrap">
-          <button id="game-rules-settings-btn" class="glass-btn" title="Game Rules">⚙</button>
+          <button id="game-rules-settings-btn" class="glass-btn" title="Game Rules">⚙️</button>
         </div>
         <div id="remote-play-wrap">
-          <button id="remote-play-btn" class="glass-btn" data-i18n-title="webview.remotePlay.toggle" title="Remote Play">🌐</button>
+          <button id="remote-play-btn" class="glass-btn" data-i18n-title="webview.remotePlay.toggle" title="Remote Play">📱</button>
         </div>
         <div id="tts-wrap">
           <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
@@ -60,6 +60,42 @@
         </div>
       </div>
       <div id="chat-log"></div>
+      <div id="start-hub" class="start-hub hidden">
+        <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
+        <div class="start-hub-options">
+          <button type="button" id="start-hub-quick-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🚀</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.quickTitle">ざっと作る</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.quickDesc">短い一文から世界・キャラ・初期シナリオを自動生成する。</span>
+          </button>
+          <button type="button" id="start-hub-interview-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">💬</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.interviewTitle">質問しながら作る</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.interviewDesc">GMがジャンル、主人公、雰囲気、危険度などを質問して、世界を一緒に組み立てる。</span>
+          </button>
+        </div>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.presetsLabel">プリセット:</div>
+        <div class="start-hub-presets" id="start-hub-presets">
+          <button type="button" class="start-hub-preset-chip" data-preset="beginnerFantasy" data-i18n="webview.startHub.presetBeginnerFantasy">初心者向けファンタジー</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="postApocalypse" data-i18n="webview.startHub.presetPostApocalypse">ポストアポカリプス</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="cyberpunk" data-i18n="webview.startHub.presetCyberpunk">サイバーパンク</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="urbanFantasy" data-i18n="webview.startHub.presetUrbanFantasy">現代異能</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="freeform" data-i18n="webview.startHub.presetFreeform">自由入力</button>
+        </div>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.characterLabel">主人公:</div>
+        <div class="start-hub-options">
+          <button type="button" id="start-hub-char-new-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🧑</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.characterNewTitle">主人公を新規作成</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterNewDesc">名前・容姿・性格などを入力して主人公を作成する。</span>
+          </button>
+          <button type="button" id="start-hub-char-import-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">📥</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.characterImportTitle">カードを読み込む</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterImportDesc">SillyTavernカード（PNG/JSON）や既存のcharacter.jsonを読み込む。</span>
+          </button>
+        </div>
+      </div>
       <div id="game-over-overlay" class="game-over-overlay hidden">
         <div class="game-over-card">
           <h3 id="game-over-title"></h3>
@@ -72,80 +108,80 @@
         <input type="text" id="authors-note-input" data-i18n-placeholder="webview.authorsNote.placeholder" placeholder="Author's Note (steers next GM turn only)" />
       </div>
       <div id="quick-reply-bar">
-        <button class="qr-btn" id="qr-undo"       data-i18n="webview.quickReply.undo">竢ｪ Undo</button>
-        <button class="qr-btn" id="qr-retry"      data-i18n="webview.quickReply.retry">売 Retry</button>
-        <button class="qr-btn" id="qr-checkpoint" data-i18n="webview.quickReply.checkpoint">沈 Checkpoint</button>
-        <button class="qr-btn" id="qr-summary"    data-i18n="webview.quickReply.summary">統 Summary</button>
-        <button class="qr-btn" id="qr-genimage"   data-i18n="webview.quickReply.genImage">耳 Gen Image</button>
-        <button class="qr-btn" id="qr-loadpack"   data-i18n="webview.quickReply.loadPack">唐 Load Pack</button>
-        <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">当 Archive</button>
-        <button class="qr-btn" id="qr-export"     data-i18n="webview.quickReply.export">倹 Export HTML</button>
-        <button class="qr-btn" id="qr-forcespeak" data-i18n="webview.quickReply.forceSpeak">ｪ・Speak as...</button>
-        <button class="qr-btn" id="qr-questflow"  data-i18n="webview.quickReply.questFlow">亮・・Quest Flow</button>
-        <button class="qr-btn" id="qr-relations"  data-i18n="webview.quickReply.relations">丙・・Relations</button>
+        <button class="qr-btn" id="qr-undo"       data-i18n="webview.quickReply.undo">⏪ Undo</button>
+        <button class="qr-btn" id="qr-retry"      data-i18n="webview.quickReply.retry">🔄 Retry</button>
+        <button class="qr-btn" id="qr-checkpoint" data-i18n="webview.quickReply.checkpoint">💾 Checkpoint</button>
+        <button class="qr-btn" id="qr-summary"    data-i18n="webview.quickReply.summary">📝 Summary</button>
+        <button class="qr-btn" id="qr-genimage"   data-i18n="webview.quickReply.genImage">🎨 Gen Image</button>
+        <button class="qr-btn" id="qr-loadpack"   data-i18n="webview.quickReply.loadPack">📂 Load Pack</button>
+        <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">📖 Archive</button>
+        <button class="qr-btn" id="qr-export"     data-i18n="webview.quickReply.export">🌐 Export HTML</button>
+        <button class="qr-btn" id="qr-forcespeak" data-i18n="webview.quickReply.forceSpeak">🪄 Speak as...</button>
+        <button class="qr-btn" id="qr-questflow"  data-i18n="webview.quickReply.questFlow">🗺️ Quest Flow</button>
+        <button class="qr-btn" id="qr-relations"  data-i18n="webview.quickReply.relations">🕸️ Relations</button>
       </div>
       <div id="input-area">
         <input type="text" id="free-input" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Enter to send to GM)" />
-        <button id="mic-btn" class="glass-btn" data-i18n-title="webview.stt.title" title="Voice input">痔</button>
+        <button id="mic-btn" class="glass-btn" data-i18n-title="webview.stt.title" title="Voice input">🎤</button>
         <button id="send-btn" data-i18n="webview.input.send">Send</button>
-        <button id="undo-btn" data-i18n="webview.input.undo" title="Undo last turn">竢ｪ Undo</button>
-        <button id="regen-btn" data-i18n="webview.input.regenerate" title="Regenerate last GM response">売</button>
-        <button id="img-btn" data-i18n-title="webview.input.imageTitle" title="Generate image for this scene">耳</button>
+        <button id="undo-btn" data-i18n="webview.input.undo" title="Undo last turn">⏪ Undo</button>
+        <button id="regen-btn" data-i18n="webview.input.regenerate" title="Regenerate last GM response">🔄</button>
+        <button id="img-btn" data-i18n-title="webview.input.imageTitle" title="Generate image for this scene">🎨</button>
       </div>
     </div>
 
     <div id="resizer" title="Drag to resize"></div>
 
-    <!-- 蜿ｳ・壹せ繝・・繧ｿ繧ｹ繝代ロ繝ｫ -->
+    <!-- 右側：ステータスパネル -->
     <div id="status-area">
-      <!-- 繧ｿ繝悶・繝・ム繝ｼ -->
+      <!-- タブヘッダー -->
       <div id="status-tabs" class="tabs-header">
-        <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">床</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
-        <button class="tab-btn" data-target="pane-character"><span class="tab-icon">側</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
-        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">剥</span><span class="tab-text" data-i18n="webview.tab.inspector">Inspector</span></button>
-        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">訣</span><span class="tab-text" data-i18n="webview.tab.world">World</span></button>
-        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">当</span><span class="tab-text" data-i18n="webview.tab.lorebook">Lorebook</span></button>
-        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">ｧ</span><span class="tab-text" data-i18n="webview.tab.memory">Memory</span></button>
-        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">汐</span><span class="tab-text" data-i18n="webview.tab.director">Director</span></button>
-        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">則</span><span class="tab-text" data-i18n="webview.tab.party">Party</span></button>
-        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">町</span><span class="tab-text" data-i18n="webview.tab.ooc">OOC</span></button>
+        <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
+        <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
+        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">Inspector</span></button>
+        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">World</span></button>
+        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">Lorebook</span></button>
+        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">Memory</span></button>
+        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">Director</span></button>
+        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">Party</span></button>
+        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">OOC</span></button>
       </div>
 
-      <!-- 繝壹う繝ｳ 1: Adventure Status (譌｢蟄倥・繧ｹ繝・・繧ｿ繧ｹ繝ｻ繝繧､繧ｹ繝ｻBGM遲・ -->
+      <!-- ページ 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
       <div id="pane-status" class="tab-pane active">
-        <!-- 繧ｹ繝・・繧ｿ繧ｹ陦ｨ遉ｺ -->
+        <!-- ステータス表示 -->
         <div id="status-content">
         <div class="status-row" id="status-row-location">
-          <span class="status-label" data-i18n="webview.status.location">桃 Location</span>
+          <span class="status-label" data-i18n="webview.status.location">📍 Location</span>
           <span id="status-location" class="status-value">---</span>
         </div>
         <div class="status-row" id="status-row-time">
-          <span class="status-label" data-i18n="webview.status.time">武 Time</span>
+          <span class="status-label" data-i18n="webview.status.time">🕐 Time</span>
           <span id="status-time" class="status-value">---</span>
         </div>
         <div class="status-row" id="status-row-funds">
-          <span class="status-label" data-i18n="webview.status.funds">腸 Funds</span>
+          <span class="status-label" data-i18n="webview.status.funds">💰 Funds</span>
           <span id="status-funds" class="status-value">---</span>
         </div>
 
         <div id="dynamic-resources-container"></div>
 
         <div class="status-block" id="status-block-condition">
-          <span class="status-label" data-i18n="webview.status.condition">笨ｨ Condition</span>
+          <span class="status-label" data-i18n="webview.status.condition">✨ Condition</span>
           <div id="status-condition-list" class="tag-list">
             <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
           </div>
         </div>
 
         <div class="status-block" id="status-block-inventory">
-          <span class="status-label" data-i18n="webview.status.inventory">賜 Inventory</span>
+          <span class="status-label" data-i18n="webview.status.inventory">🎒 Inventory</span>
           <div id="status-inventory-list" class="tag-list">
             <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
           </div>
         </div>
 
         <div class="status-block" id="status-block-skills">
-          <span class="status-label" data-i18n="webview.status.skills">笞費ｸ・Skills</span>
+          <span class="status-label" data-i18n="webview.status.skills">⚔️ Skills</span>
           <div id="status-skills-list" class="tag-list">
             <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
           </div>
@@ -153,13 +189,13 @@
       </div>
 
       <div id="checkpoint-header">
-        <span data-i18n="webview.checkpoint.header">桃 Checkpoints &amp; Rewind</span>
+        <span data-i18n="webview.checkpoint.header">📍 Checkpoints &amp; Rewind</span>
       </div>
       <div id="checkpoint-area">
         <div class="checkpoint-actions">
-          <button id="checkpoint-save-btn" data-i18n="webview.checkpoint.save">沈 Save</button>
+          <button id="checkpoint-save-btn" data-i18n="webview.checkpoint.save">💾 Save</button>
           <select id="rewind-select">
-            <option value="" data-i18n="webview.checkpoint.rewind">竢ｪ Rewind to turn窶ｦ</option>
+            <option value="" data-i18n="webview.checkpoint.rewind">⏪ Rewind to turn…</option>
           </select>
           <button id="rewind-btn" data-i18n="webview.checkpoint.restore">Restore</button>
         </div>
@@ -168,7 +204,7 @@
       </div>
 
       <div id="dice-header">
-        <span data-i18n="webview.dice.header">軸 Dice Roller</span>
+        <span data-i18n="webview.dice.header">🎲 Dice Roller</span>
       </div>
       <div id="dice-area">
         <div id="dice-presets">
@@ -187,12 +223,12 @@
           <button id="dice-custom-btn" data-i18n="webview.dice.roll">Roll</button>
         </div>
         <div id="dice-result">---</div>
-        <button id="dice-send-gm" type="button" data-i18n="webview.dice.sendGm" data-i18n-title="webview.dice.sendGmTitle">豆 Send to GM</button>
+        <button id="dice-send-gm" type="button" data-i18n="webview.dice.sendGm" data-i18n-title="webview.dice.sendGmTitle">📤 Send to GM</button>
         <div id="dice-log"></div>
       </div>
 
       <div id="calc-header">
-        <span data-i18n="webview.calc.header">箸 Calculator</span>
+        <span data-i18n="webview.calc.header">🔢 Calculator</span>
       </div>
       <div id="calc-area">
         <input type="text" id="calc-input" data-i18n-placeholder="webview.calc.placeholder" placeholder="e.g. 15 * 3 + 8" />
@@ -202,32 +238,32 @@
       </div>
 
       <div id="bgm-header">
-        <span data-i18n="webview.bgm.header">七 BGM &amp; SE</span>
+        <span data-i18n="webview.bgm.header">🎵 BGM &amp; SE</span>
         <span id="bgm-mode" data-i18n-title="webview.bgm.autoTitle" title="GM switches BGM automatically">AUTO</span>
       </div>
       <div id="bgm-area">
-        <div id="bgm-now">笙ｪ ---</div>
+        <div id="bgm-now">♪ ---</div>
         <div id="bgm-controls">
-          <button id="bgm-toggle" data-i18n-title="webview.bgm.playPause" title="Play / Pause">笆ｶ</button>
+          <button id="bgm-toggle" data-i18n-title="webview.bgm.playPause" title="Play / Pause">▶</button>
           <input type="range" id="bgm-volume" min="0" max="100" value="50" data-i18n-title="webview.bgm.volume" title="BGM volume" />
-          <button id="bgm-mute" data-i18n-title="webview.bgm.mute" title="Toggle BGM mute">矧</button>
+          <button id="bgm-mute" data-i18n-title="webview.bgm.mute" title="Toggle BGM mute">🔊</button>
         </div>
         <div id="bgm-list"></div>
         <div id="bgm-empty" data-i18n="webview.bgm.empty">No bgm.json or no tracks registered</div>
         <div id="sfx-row">
-          <span id="sfx-label" data-i18n="webview.sfx.label">粕 SE</span>
+          <span id="sfx-label" data-i18n="webview.sfx.label">🔔 SE</span>
           <input type="range" id="sfx-volume" min="0" max="100" value="70" data-i18n-title="webview.sfx.volume" title="SFX volume" />
-          <button id="sfx-mute" data-i18n-title="webview.sfx.mute" title="Toggle SFX mute">粕</button>
+          <button id="sfx-mute" data-i18n-title="webview.sfx.mute" title="Toggle SFX mute">🔔</button>
         </div>
       </div>
 
       <div id="gallery-header">
-        <span data-i18n="webview.gallery.header">名・・Scene Gallery</span>
+        <span data-i18n="webview.gallery.header">🖼️ Scene Gallery</span>
       </div>
       <div id="gallery"></div>
 
       <div id="theme-header">
-        <span data-i18n="webview.theme.header">訣 World Theme</span>
+        <span data-i18n="webview.theme.header">🌍 World Theme</span>
         <div class="theme-selector">
           <label data-i18n="webview.status.theme">Theme:</label>
           <button class="theme-btn active" data-theme="fantasy">Fantasy</button>
@@ -239,20 +275,20 @@
         </div>
       </div>
 
-        <!-- 繧｢繝ｼ繧ｫ繧､繝紋ｿ・＠繝舌リ繝ｼ・亥ｱ･豁ｴ縺碁明蛟､雜・∴譎ゑｼ・-->
+        <!-- アーカイブ促しバナー（履歴が閾値を超えた時） -->
         <div id="archive-suggest-banner" class="archive-suggest-banner" style="display: none;">
           <span id="archive-suggest-text"></span>
           <button id="archive-suggest-btn" type="button" data-i18n="webview.saga.archiveNow">Archive now</button>
-          <button id="archive-suggest-dismiss" type="button" title="Dismiss">ﾃ・/button>
+          <button id="archive-suggest-dismiss" type="button" title="Dismiss">×</button>
         </div>
 
-        <!-- 縺ゅｉ縺吶§ (Summary) -->
+        <!-- あらすじ (Summary) -->
         <div id="summary-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
-            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">糖 Story Summary</label>
+            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">📜 Story Summary</label>
             <div style="display: flex; gap: 6px;">
-              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">笙ｻ・・Generate Summary</button>
-              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">当 Archive Chapter</button>
+              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">♻️ Generate Summary</button>
+              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 Archive Chapter</button>
             </div>
           </div>
           <textarea id="story-summary" rows="4" data-i18n-placeholder="webview.summary.placeholder" placeholder="Story synopsis appears here. You can edit it manually." style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: var(--text); padding: 8px; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
@@ -260,7 +296,7 @@
 
       </div> <!-- /pane-status -->
 
-      <!-- 繝壹う繝ｳ 2: Character Profile -->
+      <!-- ページ 2: Character Profile -->
       <div id="pane-character" class="tab-pane">
         <div class="char-toolbar">
           <select id="char-select">
@@ -270,18 +306,18 @@
             <input type="checkbox" id="char-party-cb" />
             <span data-i18n="webview.character.partyJoin">Join party</span>
           </label>
-          <button id="char-new-creator-btn" class="cc-open-full-btn" title="Create a new character">笨ｦ New</button>
-          <button id="char-open-creator-btn" class="cc-open-full-btn" title="Open full character editor">笨擾ｸ・Full Editor</button>
-          <button id="char-save-btn" data-i18n="webview.character.save">沈 Save</button>
+          <button id="char-new-creator-btn" class="cc-open-full-btn" title="Create a new character">✦ New</button>
+          <button id="char-open-creator-btn" class="cc-open-full-btn" title="Open full character editor">✏️ Full Editor</button>
+          <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
         </div>
 
         <div class="char-portrait-container">
           <img id="char-portrait-img" class="char-portrait" src="" alt="Portrait" style="display: none;" />
           <div id="char-portrait-placeholder" class="char-portrait placeholder" data-i18n="webview.character.noPortrait">No Portrait</div>
           <div class="char-portrait-actions">
-            <button id="char-import-st-btn" data-i18n="webview.character.importSt">逃 Import ST Card</button>
-            <button id="char-upload-btn" data-i18n="webview.character.upload">刀 Upload</button>
-            <button id="char-generate-btn" data-i18n="webview.character.generate">耳 Generate Portrait</button>
+            <button id="char-import-st-btn" data-i18n="webview.character.importSt">📦 Import ST Card</button>
+            <button id="char-upload-btn" data-i18n="webview.character.upload">📁 Upload</button>
+            <button id="char-generate-btn" data-i18n="webview.character.generate">🎨 Generate Portrait</button>
           </div>
         </div>
 
@@ -291,7 +327,7 @@
 
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; margin-bottom: 4px;">
             <label data-i18n="webview.character.equipmentLabel" style="margin: 0;">Equipped Items</label>
-            <button id="char-equip-notify-btn" class="small-btn primary" data-i18n="webview.character.notifyGm">豆 Equip &amp; Notify GM</button>
+            <button id="char-equip-notify-btn" class="small-btn primary" data-i18n="webview.character.notifyGm">📤 Equip &amp; Notify GM</button>
           </div>
           <div class="img-gen-row" style="margin-bottom: 8px;">
             <input type="text" id="char-equip-weapon" class="img-gen-input" data-i18n-placeholder="webview.character.equipWeapon" placeholder="Weapon" />
@@ -309,7 +345,7 @@
           <label data-i18n="webview.character.llmProvider">LLM Provider (Optional)</label>
           <select id="char-llm-provider">
             <option value="">(Default)</option>
-            <option value="vscode-lm">VS Code LM (Claude/GPT/Gemini窶ｦ)</option>
+            <option value="vscode-lm">VS Code LM (Claude/GPT/Gemini…)</option>
             <option value="openrouter">OpenRouter</option>
             <option value="ollama">Ollama</option>
             <option value="koboldcpp">KoboldCPP</option>
@@ -326,7 +362,7 @@
         </div>
       </div> <!-- /pane-character -->
 
-      <!-- 繝壹う繝ｳ 3: Turn Inspector -->
+      <!-- ページ 3: Turn Inspector -->
       <div id="pane-inspector" class="tab-pane">
         <div class="inspector-section" id="inspector-git-timeline">
           <h4 data-i18n="webview.inspector.gitTimeline">Git Timeline</h4>
@@ -380,7 +416,7 @@
         </div>
       </div> <!-- /pane-inspector -->
 
-      <!-- 繝壹う繝ｳ: Lorebook Editor -->
+      <!-- ページ: Lorebook Editor -->
       <div id="pane-lorebook" class="tab-pane">
         <div class="lorebook-toolbar">
           <button id="lorebook-add-btn" type="button" class="small-btn" data-i18n="webview.lorebook.addEntry">+ Add entry</button>
@@ -391,7 +427,7 @@
         <div id="lorebook-list" class="lorebook-list"></div>
       </div> <!-- /pane-lorebook -->
 
-      <!-- 繝壹う繝ｳ: Memory Bank -->
+      <!-- ページ: Memory Bank -->
       <div id="pane-memory" class="tab-pane">
         <div class="memory-toolbar">
           <label for="memory-backend-select" data-i18n="webview.memory.backendLabel">Backend</label>
@@ -411,7 +447,7 @@
         <div id="memory-search-results" class="memory-search-results"></div>
       </div> <!-- /pane-memory -->
 
-      <!-- 繝壹う繝ｳ: Scenario Director -->
+      <!-- ページ: Scenario Director -->
       <div id="pane-director" class="tab-pane">
         <p id="director-empty" class="empty-text" data-i18n="webview.director.empty">Load a scenario pack with a director block in scenario.json.</p>
         <div id="director-content" class="hidden">
@@ -459,7 +495,7 @@
         </div>
       </div> <!-- /pane-director -->
 
-      <!-- 繝壹う繝ｳ: Party Director -->
+      <!-- ページ: Party Director -->
       <div id="pane-party" class="tab-pane">
         <p id="party-empty" class="empty-text" data-i18n="webview.party.empty">Add characters to the party to configure speech and relationships.</p>
         <div id="party-content" class="hidden">
@@ -480,7 +516,7 @@
         </div>
       </div> <!-- /pane-party -->
 
-      <!-- 繝壹う繝ｳ: World Map -->
+      <!-- ページ: World Map -->
       <div id="pane-world" class="tab-pane">
         <p id="world-empty" class="empty-text" data-i18n="webview.world.empty">Enable World Forge in Game Rules and add world_forge.json to your workspace.</p>
         <div id="world-content" class="hidden">
@@ -489,8 +525,8 @@
               <span id="world-title" style="font-weight:600;font-size:1.05em;"></span>
               <span id="world-theme" style="margin-left:0.6rem;opacity:0.6;font-size:0.85em;"></span>
             </div>
-            <button id="world-gen-map-btn" class="small-btn" data-i18n="webview.world.mapImage" data-i18n-title="webview.world.mapImageTitle">亮 Map Image</button>
-            <button id="world-gen-image-btn" class="small-btn primary" style="display: none;" title="Generate Scene Image for Current Location">耳 Scene Image</button>
+            <button id="world-gen-map-btn" class="small-btn" data-i18n="webview.world.mapImage" data-i18n-title="webview.world.mapImageTitle">🗺 Map Image</button>
+            <button id="world-gen-image-btn" class="small-btn primary" style="display: none;" title="Generate Scene Image for Current Location">🎨 Scene Image</button>
             <span id="world-stats" style="margin-left:auto;opacity:0.5;font-size:0.8em;"></span>
           </div>
 
@@ -508,12 +544,12 @@
                   <img id="world-cartography-img" alt="World map" />
                   <div id="world-cartography-pins"></div>
                 </div>
-                <p id="world-cartography-empty" class="empty-text hidden" data-i18n="webview.world.cartographyEmpty">No parchment map yet. Click 窶廴ap Image窶・to generate via ComfyUI.</p>
+                <p id="world-cartography-empty" class="empty-text hidden" data-i18n="webview.world.cartographyEmpty">No parchment map yet. Click “Map Image”to generate via ComfyUI.</p>
               </div>
             </div>
           </details>
 
-          <!-- 豢ｾ髢･繧ｹ繝・・繧ｿ繧ｹ -->
+          <!-- 派閥ステータス -->
           <details id="world-factions-details" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.factionsTitle">Factions</summary>
             <div id="world-factions-list"></div>
@@ -527,7 +563,7 @@
         </div>
       </div> <!-- /pane-world -->
 
-      <!-- 繝壹う繝ｳ 4: OOC Sidekick -->
+      <!-- ページ 4: OOC Sidekick -->
       <div id="pane-ooc" class="tab-pane">
         <div id="ooc-log" class="ooc-log" style="flex: 1; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 0.5rem; background: var(--vscode-editor-background);">
           <div class="empty-text" data-i18n="webview.ooc.empty">OOC commentary will appear here after GM turns...</div>
@@ -541,7 +577,7 @@
   <aside id="remote-play-panel" class="remote-play-panel hidden" aria-hidden="true">
     <div class="img-gen-panel-header">
       <h3 data-i18n="webview.remotePlay.panelTitle">Remote Play</h3>
-      <button type="button" id="remote-play-close" class="glass-btn" title="Close">笨・/button>
+      <button type="button" id="remote-play-close" class="glass-btn" title="Close">✕</button>
     </div>
     <div class="remote-play-body">
       <div class="remote-play-qr-row">
@@ -568,7 +604,7 @@
   <aside id="img-gen-panel" class="img-gen-panel hidden" aria-hidden="true">
     <div class="img-gen-panel-header">
       <h3 data-i18n="webview.imageGen.title">Image Gen Settings</h3>
-      <button type="button" id="img-gen-panel-close" class="glass-btn" data-i18n-title="webview.imageGen.close" title="Close">笨・/button>
+      <button type="button" id="img-gen-panel-close" class="glass-btn" data-i18n-title="webview.imageGen.close" title="Close">✕</button>
     </div>
     <div class="img-gen-panel-body">
       <p class="img-gen-hint" data-i18n="webview.imageGen.hint">Saved to image_gen_config.json in your workspace. 0 = workflow default.</p>
@@ -630,7 +666,7 @@
   <aside id="game-rules-panel" class="img-gen-panel hidden" aria-hidden="true">
     <div class="img-gen-panel-header">
       <h3 data-i18n="webview.gameRules.title">Game Rules</h3>
-      <button type="button" id="game-rules-panel-close" class="glass-btn" data-i18n-title="webview.gameRules.close" title="Close">笨・/button>
+      <button type="button" id="game-rules-panel-close" class="glass-btn" data-i18n-title="webview.gameRules.close" title="Close">✕</button>
     </div>
     <div class="img-gen-panel-body">
       <p class="img-gen-hint" data-i18n="webview.gameRules.hint">Saved to game_rules.json in your workspace.</p>
@@ -710,9 +746,9 @@
   <div id="quickstart-modal" class="char-creator-modal hidden">
     <div class="char-creator-overlay" id="quickstart-overlay"></div>
     <div class="char-creator-body" style="max-width: 600px; max-height: 400px; padding: 20px;">
-      <button class="cc-close-btn" id="quickstart-close" type="button" title="Close">ﾃ・/button>
+      <button class="cc-close-btn" id="quickstart-close" type="button" title="Close">×</button>
       <div class="cc-header">
-        <h2 style="margin: 0; color: var(--text-base); text-shadow: 0 0 10px var(--accent-light);">笨ｨ AI Zero-Config Quickstart</h2>
+        <h2 style="margin: 0; color: var(--text-base); text-shadow: 0 0 10px var(--accent-light);">✨ AI Zero-Config Quickstart</h2>
       </div>
       <p style="color: var(--text-dim); margin-top: 10px; font-size: 13px;">
         Describe the world and character you want to play. AI will generate the world map, character sheet, and starting scenario automatically!
@@ -724,7 +760,7 @@
         <label style="color: var(--text-dim); font-size: 12px; display: flex; align-items: center; gap: 5px;">
           <input type="checkbox" id="quickstart-overwrite-cb"> Overwrite existing data
         </label>
-        <button id="quickstart-start-btn" class="cc-save-primary" type="button">噫 Start Journey</button>
+        <button id="quickstart-start-btn" class="cc-save-primary" type="button">🚀 Start Journey</button>
       </div>
       <div id="quickstart-loading" class="hidden" style="margin-top: 15px; color: var(--accent-light); font-size: 14px; text-align: center; animation: pulse 1.5s infinite;">
         Generating World and Character... This may take a minute.
@@ -737,8 +773,8 @@
   <!-- ========================================== -->
   <div id="char-creator-modal" class="char-creator-modal hidden" role="dialog" aria-modal="true" aria-label="Character Creator">
     <div class="char-creator-header">
-      <h2>笨ｦ Character Creator <span class="cc-subtitle"></span></h2>
-      <button id="char-creator-close" class="glass-btn" title="Close">笨・/button>
+      <h2>✦ Character Creator <span class="cc-subtitle"></span></h2>
+      <button id="char-creator-close" class="glass-btn" title="Close">✕</button>
     </div>
 
     <div class="char-creator-body">
@@ -752,27 +788,27 @@
             <div id="cc-portrait-drop" class="cc-portrait-drop" title="Drop image or click to upload">
               <img id="cc-portrait-img-preview" src="" alt="Portrait" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:8px;">
               <div id="cc-portrait-placeholder-inner" class="cc-portrait-placeholder-inner">
-                <span class="cc-portrait-icon">鹿</span>
+                <span class="cc-portrait-icon">🎭</span>
                 <span class="cc-portrait-hint">Drop image<br>or click</span>
               </div>
             </div>
-            <button id="cc-portrait-upload-btn" class="cc-portrait-btn" type="button">刀 Upload</button>
-            <button id="cc-portrait-generate-btn" class="cc-portrait-btn cc-btn-generate" type="button">笨ｨ Generate</button>
+            <button id="cc-portrait-upload-btn" class="cc-portrait-btn" type="button">📁 Upload</button>
+            <button id="cc-portrait-generate-btn" class="cc-portrait-btn cc-btn-generate" type="button">✨ Generate</button>
           </div>
 
           <!-- Basic fields -->
           <div class="cc-identity-fields">
             <label class="cc-label">Name</label>
-            <input id="cc-name" class="cc-input" type="text" placeholder="Character name窶ｦ" autocomplete="off">
+            <input id="cc-name" class="cc-input" type="text" placeholder="Character name…" autocomplete="off">
 
             <label class="cc-label">Creator</label>
-            <input id="cc-creator" class="cc-input" type="text" placeholder="Your name / handle窶ｦ" autocomplete="off">
+            <input id="cc-creator" class="cc-input" type="text" placeholder="Your name / handle…" autocomplete="off">
 
             <label class="cc-label">Version</label>
             <input id="cc-version" class="cc-input" type="text" placeholder="1.0" style="max-width:100px;" autocomplete="off">
 
             <label class="cc-label">Tags</label>
-            <input id="cc-tags" class="cc-input" type="text" placeholder="fantasy, elf, healer窶ｦ" autocomplete="off">
+            <input id="cc-tags" class="cc-input" type="text" placeholder="fantasy, elf, healer…" autocomplete="off">
 
             <label class="cc-label">Controlled by</label>
             <select id="cc-controlled-by" class="cc-select">
@@ -795,13 +831,31 @@
         <div class="cc-section-title">Personality &amp; Profile</div>
 
         <label class="cc-label">Description</label>
-        <textarea id="cc-description" class="cc-textarea" rows="4" placeholder="Physical appearance, background, role in the story窶ｦ"></textarea>
+        <textarea id="cc-description" class="cc-textarea" rows="4" placeholder="Physical appearance, background, role in the story…"></textarea>
 
         <label class="cc-label">Personality</label>
-        <textarea id="cc-personality" class="cc-textarea" rows="3" placeholder="Traits, quirks, speech patterns窶ｦ"></textarea>
+        <textarea id="cc-personality" class="cc-textarea" rows="3" placeholder="Traits, quirks, speech patterns…"></textarea>
 
         <label class="cc-label">Scenario</label>
-        <textarea id="cc-scenario" class="cc-textarea" rows="3" placeholder="The situation or world context where this character exists窶ｦ"></textarea>
+        <textarea id="cc-scenario" class="cc-textarea" rows="3" placeholder="The situation or world context where this character exists…"></textarea>
+      </section>
+
+      <section class="cc-section">
+        <div class="cc-section-title" style="display:flex; align-items:center; justify-content:space-between;">
+          <span>World Adaptation</span>
+          <button id="cc-adapt-world-btn" class="glass-btn" type="button" style="font-size:11px;" disabled title="Set up a world first to enable this">Adapt to World Theme</button>
+        </div>
+        <div id="cc-adapt-draft" class="cc-adapt-draft hidden">
+          <div class="cc-adapt-draft-label">AI draft — not applied yet:</div>
+          <div class="cc-adapt-draft-field"><strong>Description:</strong> <span id="cc-adapt-description"></span></div>
+          <div class="cc-adapt-draft-field"><strong>Personality:</strong> <span id="cc-adapt-personality"></span></div>
+          <div class="cc-adapt-draft-field"><strong>Equipment:</strong> <span id="cc-adapt-equipment"></span></div>
+          <div class="cc-adapt-draft-field"><strong>Arrival reason:</strong> <span id="cc-adapt-arrival"></span></div>
+          <div class="cc-adapt-draft-actions">
+            <button id="cc-adapt-apply-btn" class="glass-btn" type="button">Apply Draft</button>
+            <button id="cc-adapt-discard-btn" class="glass-btn cc-del" type="button">Discard</button>
+          </div>
+        </div>
       </section>
 
       <!-- 笏笏 Section: Dialogue 笏笏 -->
@@ -809,13 +863,13 @@
         <div class="cc-section-title">Dialogue</div>
 
         <label class="cc-label">First Message</label>
-        <textarea id="cc-first-mes" class="cc-textarea" rows="4" placeholder="The character's opening line when a conversation begins窶ｦ"></textarea>
+        <textarea id="cc-first-mes" class="cc-textarea" rows="4" placeholder="The character's opening line when a conversation begins…"></textarea>
 
         <label class="cc-label">Example Messages</label>
-        <textarea id="cc-mes-example" class="cc-textarea" rows="4" placeholder="&lt;START&gt;&#10;{{user}}: Hello!&#10;{{char}}: Greetings, traveler窶ｦ"></textarea>
+        <textarea id="cc-mes-example" class="cc-textarea" rows="4" placeholder="&lt;START&gt;&#10;{{user}}: Hello!&#10;{{char}}: Greetings, traveler…"></textarea>
 
         <label class="cc-label">Creator Notes</label>
-        <textarea id="cc-creator-notes" class="cc-textarea" rows="2" placeholder="Notes for other creators or players (not sent to AI)窶ｦ"></textarea>
+        <textarea id="cc-creator-notes" class="cc-textarea" rows="2" placeholder="Notes for other creators or players (not sent to AI)…"></textarea>
       </section>
 
       <!-- 笏笏 Section: System Prompt 笏笏 -->
@@ -823,10 +877,10 @@
         <div class="cc-section-title">System Prompt</div>
 
         <label class="cc-label">System Prompt</label>
-        <textarea id="cc-system-prompt" class="cc-textarea" rows="4" placeholder="Instructions prepended to every conversation窶ｦ"></textarea>
+        <textarea id="cc-system-prompt" class="cc-textarea" rows="4" placeholder="Instructions prepended to every conversation…"></textarea>
 
         <label class="cc-label">Post-History Instructions</label>
-        <textarea id="cc-post-history" class="cc-textarea" rows="3" placeholder="Instructions appended after the chat history窶ｦ"></textarea>
+        <textarea id="cc-post-history" class="cc-textarea" rows="3" placeholder="Instructions appended after the chat history…"></textarea>
       </section>
 
       <!-- 笏笏 Section: LLM Binding 笏笏 -->
@@ -835,11 +889,11 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <div>
             <label class="cc-label">Provider</label>
-            <input id="cc-llm-provider" class="cc-input" type="text" placeholder="anthropic / openai窶ｦ" autocomplete="off">
+            <input id="cc-llm-provider" class="cc-input" type="text" placeholder="anthropic / openai…" autocomplete="off">
           </div>
           <div>
             <label class="cc-label">Model</label>
-            <input id="cc-llm-model" class="cc-input" type="text" placeholder="claude-sonnet-4-6窶ｦ" autocomplete="off">
+            <input id="cc-llm-model" class="cc-input" type="text" placeholder="claude-sonnet-4-6…" autocomplete="off">
           </div>
         </div>
       </section>
@@ -861,15 +915,15 @@
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
           <div>
             <label class="cc-label">Weapon</label>
-            <input id="cc-equip-weapon" class="cc-input" type="text" placeholder="Sword窶ｦ" autocomplete="off">
+            <input id="cc-equip-weapon" class="cc-input" type="text" placeholder="Sword…" autocomplete="off">
           </div>
           <div>
             <label class="cc-label">Armor</label>
-            <input id="cc-equip-armor" class="cc-input" type="text" placeholder="Chain mail窶ｦ" autocomplete="off">
+            <input id="cc-equip-armor" class="cc-input" type="text" placeholder="Chain mail…" autocomplete="off">
           </div>
           <div>
             <label class="cc-label">Accessory</label>
-            <input id="cc-equip-accessory" class="cc-input" type="text" placeholder="Ring窶ｦ" autocomplete="off">
+            <input id="cc-equip-accessory" class="cc-input" type="text" placeholder="Ring…" autocomplete="off">
           </div>
         </div>
       </section>
@@ -883,8 +937,8 @@
           <button class="cc-fmt-btn" data-fmt="st-v2" type="button">ST v2 PNG</button>
           <button class="cc-fmt-btn" data-fmt="st-v3" type="button">ST v3 PNG</button>
         </div>
-        <button id="cc-save-btn" class="cc-save-primary" type="button">笨ｦ Save Character</button>
-        <div id="cc-saved-toast" class="cc-saved-toast hidden">笨・Character saved!</div>
+        <button id="cc-save-btn" class="cc-save-primary" type="button">✦ Save Character</button>
+        <div id="cc-saved-toast" class="cc-saved-toast hidden">✓ Character saved!</div>
       </section>
 
     </div><!-- /.char-creator-body -->

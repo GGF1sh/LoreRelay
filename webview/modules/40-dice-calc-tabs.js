@@ -303,3 +303,17 @@ window.addEventListener('DOMContentLoaded', () => {
     dragging = false;
   });
 })();
+
+// ===== クイックリプライバー横スクロール =====
+// 通常マウスホイール（縦）をクイックリプライバーの横スクロールに変換
+(function initQuickReplyBarScroll() {
+  const bar = document.getElementById('quick-reply-bar');
+  if (!bar) { return; }
+
+  bar.addEventListener('wheel', (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      bar.scrollLeft += e.deltaY * 0.8;
+    }
+  }, { passive: false });
+})();

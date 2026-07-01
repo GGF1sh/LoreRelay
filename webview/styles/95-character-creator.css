@@ -565,6 +565,44 @@
   padding: 0;
 }
 
+/* === World adaptation draft panel === */
+.cc-adapt-draft {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(79, 142, 247, 0.3);
+  border-radius: 8px;
+  background: rgba(79, 142, 247, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cc-adapt-draft.hidden {
+  display: none;
+}
+
+.cc-adapt-draft-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cc-adapt-draft-field {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.cc-adapt-draft-field strong {
+  color: var(--text);
+}
+
+.cc-adapt-draft-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 /* === Trigger button in pane-character === */
 .cc-open-full-btn {
   display: inline-flex;

@@ -131,6 +131,7 @@ function renderWorldView(msg) {
 
     if (titleEl) { titleEl.textContent = msg.worldName || ''; }
     if (themeEl) { themeEl.textContent = msg.theme ? `[${msg.theme}]` : ''; }
+    window.currentWorldTheme = msg.theme || undefined;
     if (statsEl) {
         const turnStr = msg.simEnabled && msg.worldTurn !== null
             ? ` · Turn ${msg.worldTurn}`

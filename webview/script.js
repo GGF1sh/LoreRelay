@@ -447,6 +447,26 @@ function renderMessage(entry) {
     textarea.value = entry.imagePrompt || '';
     promptEditor.appendChild(textarea);
 
+    const editorActions = document.createElement('div');
+    editorActions.className = 'image-editor-actions';
+
+    // 🗯️ 画像にツッコむ: 本文と画像が食い違っている時、定型文を入力欄に差し込んでGMに指摘できるようにする
+    const flagBtn = document.createElement('button');
+    flagBtn.className = 'regen-img-btn image-flag-btn';
+    flagBtn.innerHTML = `🗯️ ${T('webview.image.flagMismatchBtn')}`;
+    flagBtn.title = T('webview.image.flagMismatchTitle');
+    flagBtn.onclick = () => {
+      if (freeInput) {
+        freeInput.value = T('webview.image.flagMismatchTemplate');
+        freeInput.focus();
+        if (typeof freeInput.setSelectionRange === 'function') {
+          const end = freeInput.value.length;
+          freeInput.setSelectionRange(end, end);
+        }
+      }
+    };
+    editorActions.appendChild(flagBtn);
+
     const regenBtn = document.createElement('button');
     regenBtn.className = 'regen-img-btn';
     regenBtn.innerHTML = `🔄 ${T('webview.image.regenerateBtn')}`;
@@ -459,7 +479,9 @@ function renderMessage(entry) {
       });
       addSystemMessage(T('webview.image.requested') || 'Requested image generation...');
     };
-    promptEditor.appendChild(regenBtn);
+    editorActions.appendChild(regenBtn);
+
+    promptEditor.appendChild(editorActions);
     imgContainer.appendChild(promptEditor);
 
     div.appendChild(imgContainer);
@@ -486,6 +508,7 @@ function renderMessage(entry) {
   }
 
   chatLog.appendChild(div);
+  updateStartHubVisibility();
 }
 
 function renderAllMessages() {
@@ -1782,6 +1805,20 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 })();
 
+// ===== クイックリプライバー横スクロール =====
+// 通常マウスホイール（縦）をクイックリプライバーの横スクロールに変換
+(function initQuickReplyBarScroll() {
+  const bar = document.getElementById('quick-reply-bar');
+  if (!bar) { return; }
+
+  bar.addEventListener('wheel', (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      bar.scrollLeft += e.deltaY * 0.8;
+    }
+  }, { passive: false });
+})();
+
 /* --- 50-character-saga.js --- */
 // ===== Character Profile ロジック =====
 let currentCharacters = [];
@@ -2089,6 +2126,7 @@ function startInlineEdit(msgDiv, entry, editBtn) {
   let ccExpressions = {};          // { expressionKey: { uri: string } }
   let ccExportFormat = 'json';
   let ccIsDirty = false;
+  let ccAdaptDraft = null;
 
   const DEFAULT_EXPRESSIONS = [
     { key: 'neutral',     label: 'Neutral',     icon: '😐' },
@@ -2168,6 +2206,12 @@ function startInlineEdit(msgDiv, entry, editBtn) {
 
     updatePortraitPreview(ccPortraitData);
     renderExpressionsGrid();
+
+    // World adaptation panel reset
+    ccAdaptDraft = null;
+    $('cc-adapt-draft')?.classList.add('hidden');
+    const adaptBtn = $('cc-adapt-world-btn');
+    if (adaptBtn) adaptBtn.disabled = !window.currentWorldTheme;
 
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
@@ -2412,6 +2456,42 @@ function startInlineEdit(msgDiv, entry, editBtn) {
     input.focus();
   }
 
+  // ── World Adaptation ───────────────────────────────────────────────────
+  function renderAdaptDraft(draft) {
+    const panel = $('cc-adapt-draft');
+    if (!panel) return;
+    $('cc-adapt-description').textContent = draft.description || '(no change)';
+    $('cc-adapt-personality').textContent = draft.personality || '(no change)';
+    const eq = draft.equipment || {};
+    $('cc-adapt-equipment').textContent =
+      [eq.weapon, eq.armor, eq.accessory].filter(Boolean).join(' / ') || '(no change)';
+    $('cc-adapt-arrival').textContent = draft.arrivalReason || '(no change)';
+    panel.classList.remove('hidden');
+  }
+
+  function applyAdaptDraft() {
+    if (!ccAdaptDraft) return;
+    if (ccAdaptDraft.description) {
+      const merged = ccAdaptDraft.arrivalReason
+        ? `${ccAdaptDraft.description}\n\n${ccAdaptDraft.arrivalReason}`
+        : ccAdaptDraft.description;
+      $set('description', merged);
+    }
+    if (ccAdaptDraft.personality) $set('personality', ccAdaptDraft.personality);
+    const eq = ccAdaptDraft.equipment || {};
+    if (eq.weapon) $set('equip-weapon', eq.weapon);
+    if (eq.armor) $set('equip-armor', eq.armor);
+    if (eq.accessory) $set('equip-accessory', eq.accessory);
+    ccIsDirty = true;
+    ccAdaptDraft = null;
+    $('cc-adapt-draft')?.classList.add('hidden');
+  }
+
+  function discardAdaptDraft() {
+    ccAdaptDraft = null;
+    $('cc-adapt-draft')?.classList.add('hidden');
+  }
+
   // ── Collect & Save ─────────────────────────────────────────────────────
   function collectPayload() {
     const tags = $v('tags').split(',').map(t => t.trim()).filter(Boolean);
@@ -2535,6 +2615,17 @@ function startInlineEdit(msgDiv, entry, editBtn) {
     // Expression: add custom
     $('cc-add-expression-btn')?.addEventListener('click', addCustomExpression);
 
+    // World adaptation
+    $('cc-adapt-world-btn')?.addEventListener('click', () => {
+      if (!window.currentWorldTheme) return;
+      vscode.postMessage({
+        type: 'adaptCharacterToWorld',
+        character: collectPayload(),
+      });
+    });
+    $('cc-adapt-apply-btn')?.addEventListener('click', applyAdaptDraft);
+    $('cc-adapt-discard-btn')?.addEventListener('click', discardAdaptDraft);
+
     // Format toggle
     document.querySelectorAll('.cc-fmt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2573,6 +2664,12 @@ function startInlineEdit(msgDiv, entry, editBtn) {
         ccIsDirty = true;
         renderExpressionsGrid();
       }
+    }
+
+    // World adaptation draft result
+    if (msg.type === 'characterWorldAdaptationDraft' && msg.draft) {
+      ccAdaptDraft = msg.draft;
+      renderAdaptDraft(msg.draft);
     }
   });
 
@@ -4271,6 +4368,7 @@ function renderWorldView(msg) {
 
     if (titleEl) { titleEl.textContent = msg.worldName || ''; }
     if (themeEl) { themeEl.textContent = msg.theme ? `[${msg.theme}]` : ''; }
+    window.currentWorldTheme = msg.theme || undefined;
     if (statsEl) {
         const turnStr = msg.simEnabled && msg.worldTurn !== null
             ? ` · Turn ${msg.worldTurn}`
@@ -5438,7 +5536,95 @@ window.addEventListener('DOMContentLoaded', () => {
       saveState();
     });
   }
+
+  // ===== Start Hub (空ワークスペース時の導線) =====
+  initStartHub();
 });
+
+const START_HUB_PRESETS = {
+  beginnerFantasy: '初心者向けの、危険度低めの牧歌的ファンタジー世界。',
+  postApocalypse: '文明が崩壊した後のポストアポカリプス世界。生存と探索が中心。',
+  cyberpunk: '巨大企業が支配するネオンきらめくサイバーパンク都市。',
+  urbanFantasy: '現代日本を舞台にした、隠された異能・怪異が存在する世界。',
+  freeform: ''
+};
+
+let selectedStartHubPreset = '';
+
+/** messageHistory が空のときだけ Start Hub を表示し、chat-log を隠す。 */
+function updateStartHubVisibility() {
+  const hub = document.getElementById('start-hub');
+  if (!hub || !chatLog) return;
+  const empty = messageHistory.length === 0;
+  hub.classList.toggle('hidden', !empty);
+  chatLog.classList.toggle('hidden', empty);
+}
+
+function initStartHub() {
+  const quickBtn = document.getElementById('start-hub-quick-btn');
+  const interviewBtn = document.getElementById('start-hub-interview-btn');
+  const presetsWrap = document.getElementById('start-hub-presets');
+  const charNewBtn = document.getElementById('start-hub-char-new-btn');
+  const charImportBtn = document.getElementById('start-hub-char-import-btn');
+
+  if (presetsWrap) {
+    presetsWrap.querySelectorAll('.start-hub-preset-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const key = chip.dataset.preset || '';
+        const alreadyActive = chip.classList.contains('active');
+        presetsWrap.querySelectorAll('.start-hub-preset-chip').forEach((c) => c.classList.remove('active'));
+        if (alreadyActive) {
+          selectedStartHubPreset = '';
+        } else {
+          chip.classList.add('active');
+          selectedStartHubPreset = key;
+        }
+      });
+    });
+  }
+
+  if (quickBtn) {
+    quickBtn.addEventListener('click', () => {
+      const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
+      const promptField = document.getElementById('quickstart-prompt');
+      if (promptField && presetText) {
+        promptField.value = presetText;
+      }
+      window.LoreRelay?.openQuickstart?.();
+    });
+  }
+
+  if (interviewBtn) {
+    interviewBtn.addEventListener('click', () => {
+      const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
+      const template = presetText
+        ? T('webview.startHub.interviewTemplateWithPreset', { preset: presetText })
+        : T('webview.startHub.interviewTemplate');
+      if (freeInput) {
+        freeInput.value = template;
+        freeInput.focus();
+        if (typeof freeInput.setSelectionRange === 'function') {
+          const end = freeInput.value.length;
+          freeInput.setSelectionRange(end, end);
+        }
+      }
+    });
+  }
+
+  if (charNewBtn) {
+    charNewBtn.addEventListener('click', () => {
+      window.openCharacterCreator?.(null);
+    });
+  }
+
+  if (charImportBtn) {
+    charImportBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'importTavernCard' });
+    });
+  }
+
+  updateStartHubVisibility();
+}
 
 // ===== Extension → Webview メッセージ受信 =====
 window.addEventListener('message', (event) => {
@@ -5565,8 +5751,8 @@ window.addEventListener('message', (event) => {
     renderCheckpointUi();
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
-      addSystemMessage(T('webview.welcome'));
     }
+    updateStartHubVisibility();
   }
 });
 

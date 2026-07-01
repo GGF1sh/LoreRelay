@@ -44,8 +44,14 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+.image-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .regen-img-btn, .manual-gen-btn {
-  align-self: flex-end;
   background: rgba(179, 136, 255, 0.15);
   border: 1px solid rgba(179, 136, 255, 0.4);
   color: #dcb3ff;
@@ -65,7 +71,19 @@
   transform: translateY(-1px);
 }
 
+.image-flag-btn {
+  background: rgba(255, 179, 71, 0.15);
+  border-color: rgba(255, 179, 71, 0.4);
+  color: #ffc98a;
+}
+
+.image-flag-btn:hover {
+  background: rgba(255, 179, 71, 0.3);
+  transform: translateY(-1px);
+}
+
 .manual-gen-btn {
+  align-self: flex-end;
   margin-top: 8px;
 }
 

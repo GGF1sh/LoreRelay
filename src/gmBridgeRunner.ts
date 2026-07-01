@@ -112,7 +112,7 @@ function handleGmBridgeFailure(): void {
 }
 
 export function killGmBridgeProcesses(): void {
-    const wasBusy = Boolean(grokProcess || gmProcess);
+    const wasBusy = Boolean(grokProcess || gmProcess || agenticBridgeBusy);
     if (grokProcess) {
         grokProcess.kill();
         grokProcess = undefined;
@@ -121,6 +121,7 @@ export function killGmBridgeProcesses(): void {
         gmProcess.kill();
         gmProcess = undefined;
     }
+    agenticBridgeBusy = false;
     if (wasBusy) {
         handleGmBridgeFailure();
     }
@@ -313,8 +314,11 @@ export async function runLocalAgenticStage(options: {
     } else if (options.provider === 'koboldcpp') {
         const url = config.get<string>('gmBridge.koboldcpp.url', '').trim();
         if (url) { args.push('--url', url); }
-    } else if (options.provider === 'openrouter') {
-        const apiKey = await options.getOpenRouterApiKey();
+    }
+    let openRouterApiKey = '';
+    if (options.provider === 'openrouter') {
+        openRouterApiKey = await options.getOpenRouterApiKey();
+        const apiKey = openRouterApiKey;
         if (!apiKey) {
             return { exitCode: 1, timedOut: false, stdout: '' };
         }
@@ -332,7 +336,7 @@ export async function runLocalAgenticStage(options: {
 
     const env = buildLocalGmEnv(options.provider);
     if (options.provider === 'openrouter') {
-        env.OPENROUTER_API_KEY = await options.getOpenRouterApiKey();
+        env.OPENROUTER_API_KEY = openRouterApiKey;
     }
 
     return new Promise((resolve) => {

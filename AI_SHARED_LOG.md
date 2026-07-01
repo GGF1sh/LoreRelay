@@ -1,5 +1,27 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Codex - Phase 9B code review hardening
+
+### Summary
+
+- Reviewed Grok commit `218ffe4` for Phase 9B multi-provider agentic GM.
+- Fixed prompt ambiguity for non-file runtimes: Referee/Narrator prompts now explicitly allow stdout JSON when the provider cannot write `.text-adventure/agentic/*_result.json` directly.
+- Fixed OpenRouter local agentic stage key handling so `getOpenRouterApiKey()` is called once per stage instead of twice.
+- Fixed `killGmBridgeProcesses()` so an agentic-only busy state is cleared even when no child process is active.
+- Added a unit assertion that agentic prompts include the stdout fallback instruction.
+
+### Verification
+
+- `npm run compile` passed.
+- `python -m py_compile C:\AI\TextAdventureGMSkill\scripts\agentic_stage_gm.py` passed.
+- `node scripts/test_agentic_gm_core.js` passed.
+- `npm test` passed.
+
+### Next
+
+- Run real E2E turns for `grok`, `vscode-lm`, and one local API provider.
+- Confirm only the merged final output writes workspace `turn_result.json`; provider stage output should be either stage JSON files or stdout parsed into those files.
+
 ## 2026-07-01 JST - Grok - Phase 9B agentic multi-provider
 
 ### Summary

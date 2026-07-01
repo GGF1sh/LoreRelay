@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- **Phase 9B review — multi-provider agentic stage robustness** — `vscode-lm` / local API providers がファイル書き込みできない場合に stdout JSON で返せるよう Referee/Narrator prompt を明確化。OpenRouter agentic stage の API キー取得を1回に統一し、agentic busy 中の kill/reset が busy flag を残さないよう修正。
 - **Phase 9A review — stale agentic stage results** — Agentic GM の各ステージ実行前に `.text-adventure/agentic/referee_result.json` / `narrator_result.json` / `final_turn_result.json` を削除し、前回ターンの Referee/Narrator 結果を誤採用するリスクを解消。Agentic 用 base prompt から単発GMの `turn_result.json` 書き込み指示を外し、各ステージ指示との衝突を避けるよう修正。
 - **Phase 6 — `world_state.json` recentChanges 読み込みキャップ** — 100件超の手編集ファイルで古い方を残していたのを、`worldTurn` 最新100件を残すよう修正（`capRecentChangesByWorldTurn`、Phase 5 の `capVisualMemoryEntries` と同方針）。
 - **Phase 6 — Remote Play `maxClients`（LAN限定）** — 未認証ソケットを枠に数えていたため、トークンなし接続で正規プレイヤーを締め出せた問題を修正。認証済みクライアントのみカウント（接続時・認証時の両方）。

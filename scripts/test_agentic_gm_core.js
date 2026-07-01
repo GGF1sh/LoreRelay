@@ -23,6 +23,8 @@ const {
     mergeAgenticTurnResult,
     mergeAgenticMedia,
     buildFallbackNarration,
+    buildRefereePrompt,
+    buildNarratorPrompt,
     isAgenticCapableProvider,
     AGENTIC_CAPABLE_PROVIDERS,
 } = require(corePath);
@@ -192,6 +194,25 @@ const narratorJson = {
         fail('merge records provider metadata');
     } else {
         ok('merge records provider metadata');
+    }
+}
+
+{
+    const refereePrompt = buildRefereePrompt({
+        basePrompt: 'base',
+        playerAction: 'act',
+        suggestedTurnId: 'turn-10',
+    });
+    const narratorPrompt = buildNarratorPrompt({
+        basePrompt: 'base',
+        playerAction: 'act',
+        referee: refereeJson,
+    });
+    if (!refereePrompt.includes('output the same JSON object to stdout') ||
+        !narratorPrompt.includes('output the same JSON object to stdout')) {
+        fail('agentic prompts include stdout fallback for non-file runtimes');
+    } else {
+        ok('agentic prompts include stdout fallback for non-file runtimes');
     }
 }
 

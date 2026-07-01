@@ -76,6 +76,9 @@ Do not write turn_result.json.
 Write JSON only to:
 .text-adventure/agentic/referee_result.json
 
+If your runtime cannot write files, output the same JSON object to stdout instead.
+Do not add prose before or after the JSON.
+
 Required JSON shape:
 {
   "turnId": "stable-turn-id",
@@ -107,6 +110,9 @@ Do not write turn_result.json.
 
 Write JSON only to:
 .text-adventure/agentic/narrator_result.json
+
+If your runtime cannot write files, output the same JSON object to stdout instead.
+Do not add prose before or after the JSON.
 
 Required JSON shape:
 {

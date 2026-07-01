@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- GM turns could be silently dropped whenever `status.condition`/`status.inventory`/`status.skills` came back from the GM as a plain string (e.g. `"—"`) instead of an array — `validateGameState()` correctly requires an array, but `processTurnResult()` rejected the *entire turn* rather than just that one field. Added a lenient `normalizeStatusArrayFields()` pass (wraps a lone string into a single-element array, or `[]` if blank) right before validation, so one field-shape hiccup from the LLM no longer eats a whole turn. Reproduced via the `extension.error.gameStateLoad (Schema Violation)` toast the user hit in `g:\AI\LoreRelayWorlds\PostApocalypse`.
+
 ## [1.11.1] - 2026-07-02
 
 ### Added

@@ -327,6 +327,29 @@ function completeResolvedQuestHooks(resolvedQuests: unknown, currentTurn: number
 /**
  * Process turn_result.json: apply patches, merge GM entry, validate, persist.
  */
+/**
+ * GM が status.condition/inventory/skills を(スキーマ通りの配列でなく)
+ * 単一文字列で返すことがあるため、検証前に寛容に配列へ正規化する。
+ * 1フィールドの形違いだけでターン全体を握りつぶさないための緩和策。
+ */
+function normalizeStatusArrayFields(state: Record<string, unknown>): Record<string, unknown> {
+    const status = state.status;
+    if (!status || typeof status !== 'object' || Array.isArray(status)) {
+        return state;
+    }
+    const s = status as Record<string, unknown>;
+    const next: Record<string, unknown> = { ...s };
+    let changed = false;
+    for (const field of ['condition', 'inventory', 'skills']) {
+        const value = next[field];
+        if (typeof value === 'string') {
+            next[field] = value.trim() ? [value] : [];
+            changed = true;
+        }
+    }
+    return changed ? { ...state, status: next } : state;
+}
+
 export function processTurnResult(turnResult: TurnResult): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath) {
@@ -349,6 +372,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         completeResolvedQuestHooks(turnResult.resolvedQuests, priorGmTurns + 1);
 
         state = mergeGmEntryFromTurn(state, turnResult);
+        state = normalizeStatusArrayFields(state);
 
         const schemaErrors = validateGameState(state);
         if (schemaErrors.length > 0) {

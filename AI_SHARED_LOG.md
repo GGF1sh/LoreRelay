@@ -1,5 +1,29 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Fix: schema violation silently dropping GM turns
+
+### Summary
+
+Continuing the same debugging thread as the two entries below (with the user, live, in `g:\AI\LoreRelayWorlds\PostApocalypse`). After the `turn_result.json` recovery fix, the GM turn started merging correctly — but the user then hit a new visible error toast: `extension.error.gameStateLoad (Schema Violation)`, and the duplicate-player-message symptom reappeared (same visual pattern as before: second message appears *after* the "GM がターンを処理中..." placeholder).
+
+Investigated the schema violation: compared the two `turn_result.json` files seen earlier in this thread. The first (failed) one had `statePatch` replacing `/status` wholesale with `condition: "—"` and `inventory: "—"` (plain strings). The second (succeeded) one had `status.condition: ["世界構築フェーズ"]` (array). `validateGameState.ts` requires `condition`/`inventory`/`skills` to be arrays when present (`errors.push('status.${arrField} must be an array')` if not) — and `processTurnResult()` rejects the *entire turn* on any schema violation (`return false` before `commitGameState`), so a single field-shape inconsistency from the LLM (string vs. array) silently ate the whole turn, matching exactly what the user hit.
+
+Fix: added `normalizeStatusArrayFields()` in `statePatch.ts`, called in `processTurnResult()` right after `mergeGmEntryFromTurn()` and before `validateGameState()`. Wraps a lone string in `status.condition`/`inventory`/`skills` into a single-element array (or `[]` if blank/whitespace), rather than rejecting the turn outright. This is a lenient-acceptance fix, not a prompt fix — the underlying Text Adventure GM Skill (outside this repo) could also be made more explicit about the array requirement, but wasn't touched here.
+
+Also noted: the duplicate-player-message symptom looked *exactly* like the pre-fix behavior from the entry two below (`43bd071`, immediate client-side lock on send) — asked the user directly whether they're testing via a rebuilt/reinstalled build or possibly still on a stale one, since `git log` shows they'd already cut a `release: v1.11.1` version-bump commit themselves at 01:39 (metadata-only: `CHANGELOG.md`/`package.json`/`README.md`, no `webview/script.js` or `src/*.ts` changes) around the same time as their testing — worth confirming whether their install/test loop is picking up source changes made *after* that release commit.
+
+### Verification
+
+- `npx tsc --noEmit` and full `npm test` passed.
+- Could not reproduce the exact live failure again — the workspace folder was empty by the time this was investigated (user likely wiped it to restart clean). Diagnosis based on comparing the two `turn_result.json` snapshots captured earlier in this same conversation.
+
+### Next
+
+- Confirm with the user whether their build/install loop was actually up to date when the duplicate-send symptom reappeared.
+- If schema violations recur with a different shape mismatch, extend `normalizeStatusArrayFields()` or consider making `validateGameState()`'s status-field checks more broadly lenient (coerce rather than reject) for LLM-authored content specifically.
+
+---
+
 ## 2026-07-02 JST - Codex - Release v1.11.1 Webview / onboarding fixes
 
 ### Summary

@@ -23,6 +23,8 @@
 
 ### Fixed
 
+- **Phase 6 — `world_state.json` recentChanges 読み込みキャップ** — 100件超の手編集ファイルで古い方を残していたのを、`worldTurn` 最新100件を残すよう修正（`capRecentChangesByWorldTurn`、Phase 5 の `capVisualMemoryEntries` と同方針）。
+- **Phase 6 — Remote Play `maxClients`（LAN）** — 未認証ソケットを枠に数えていたため、トークンなし接続で正規プレイヤーを締め出せた問題を修正。認証済みクライアントのみカウント（接続時・認証時の両方）。
 - **Phase 5 — visual_memory.json 読み込みキャップ** — 500件超の手編集ファイルで古い方を残していたのを、`analyzedAt` 最新500件を残すよう修正（`capVisualMemoryEntries`、upsert と同方針）。
 - **Phase 4 — 「Since Last Visit」毎ターン再注入** — `lastInjectedWorldChangeSummaryTurn` を `world_state.json` に記録。GM 送信時のみ consume（Turn Inspector の preview は peek のまま）。同一 simulation tick の要約が expire まで繰り返し GM に入る問題を修正。
 - **Phase 3 — 防御の一貫性** — Cartography ピン/ラベルに `MAX_CARTOGRAPHY_LAYOUT_REGIONS`(20) / `LOCATIONS`(100) を追加（`worldMapGenerator` と整合）。`worldStateCore` の faction `resources` を有限・非負・上限付きでパース。`npc_registry.json` ロード時に肖像画パスを `resolveAllowedImagePath` で検証。

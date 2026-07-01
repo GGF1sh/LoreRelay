@@ -43,7 +43,8 @@ export const MAX_EVENT_MESSAGE_LEN = 200;
 export const MAX_EVENT_GM_HINT_LEN = 400;
 export const MAX_NPC_IDS_PER_EVENT = 10;
 export const MAX_ID_LEN = 64;
-export const MAX_PARSE_RECENT_CHANGES = 100; // input cap before filtering
+export const MAX_PARSE_RECENT_CHANGES = 100; // output cap after filtering
+export const MAX_RAW_RECENT_CHANGES_ARRAY = 500; // DoS bound on raw array length
 
 // ---------------------------------------------------------------------------
 // Enum sets for fast validation
@@ -182,15 +183,36 @@ export function parseWorldChangeEvent(raw: unknown): WorldChangeEvent | undefine
 }
 
 /**
+ * Keeps the newest maxCount events by worldTurn (FIFO tail policy, matches mergeRecentChanges).
+ * Preserves chronological order among survivors.
+ */
+export function capRecentChangesByWorldTurn(
+    events: WorldChangeEvent[],
+    maxCount: number = MAX_PARSE_RECENT_CHANGES
+): WorldChangeEvent[] {
+    if (events.length <= maxCount) {
+        return events;
+    }
+    const sorted = [...events].sort((a, b) => {
+        if (a.worldTurn !== b.worldTurn) { return a.worldTurn - b.worldTurn; }
+        return a.id.localeCompare(b.id);
+    });
+    return sorted.slice(sorted.length - maxCount);
+}
+
+/**
  * Parses an array of raw objects into WorldChangeEvent[].
- * Caps input at MAX_PARSE_RECENT_CHANGES to prevent DoS from huge arrays.
+ * Caps at MAX_PARSE_RECENT_CHANGES (newest by worldTurn) to prevent unbounded memory.
  */
 export function parseRecentChanges(raw: unknown): WorldChangeEvent[] {
     if (!Array.isArray(raw)) { return []; }
-    return raw
-        .slice(0, MAX_PARSE_RECENT_CHANGES)
+    const bounded = raw.length > MAX_RAW_RECENT_CHANGES_ARRAY
+        ? raw.slice(-MAX_RAW_RECENT_CHANGES_ARRAY)
+        : raw;
+    const parsed = bounded
         .map(parseWorldChangeEvent)
         .filter((e): e is WorldChangeEvent => e !== undefined);
+    return capRecentChangesByWorldTurn(parsed, MAX_PARSE_RECENT_CHANGES);
 }
 
 // ---------------------------------------------------------------------------

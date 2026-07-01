@@ -48,6 +48,7 @@ const {
     mergeRecentChanges,
     makeWorldChangeEvent,
     MAX_RECENT_CHANGES,
+    MAX_PARSE_RECENT_CHANGES,
     MAX_EVENT_MESSAGE_LEN,
     MAX_EVENT_GM_HINT_LEN,
     MAX_NPC_IDS_PER_EVENT,
@@ -187,6 +188,22 @@ assert(parsed2.length === 2, 'non-object entries filtered');
 
 assert(parseRecentChanges(null).length === 0, 'null → empty array');
 assert(parseRecentChanges('string').length === 0, 'string → empty array');
+
+{
+    const overCap = [];
+    for (let i = 1; i <= MAX_PARSE_RECENT_CHANGES + 5; i++) {
+        overCap.push({
+            ...baseEvent,
+            id: `wce_${i}_region_r${i}`,
+            worldTurn: i,
+            message: `Event ${i}`,
+        });
+    }
+    const capped = parseRecentChanges(overCap);
+    assert(capped.length === MAX_PARSE_RECENT_CHANGES, 'parse keeps MAX_PARSE_RECENT_CHANGES');
+    assert(capped[0].worldTurn === 6, 'parse drops oldest events (turn 1–5 gone)');
+    assert(capped[capped.length - 1].worldTurn === MAX_PARSE_RECENT_CHANGES + 5, 'parse keeps newest events');
+}
 
 // ---------------------------------------------------------------------------
 // pruneExpiredEvents

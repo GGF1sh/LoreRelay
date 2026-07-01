@@ -77,6 +77,14 @@ let remoteInputLocked = false;
 let remoteInputLockTimer: NodeJS.Timeout | undefined;
 const REMOTE_INPUT_LOCK_MS = 60_000;
 
+function countAuthenticatedClients(): number {
+    let count = 0;
+    for (const client of wsClients.values()) {
+        if (client.authenticated) { count++; }
+    }
+    return count;
+}
+
 function releaseRemoteInputLock(reason?: string): void {
     remoteInputLocked = false;
     if (remoteInputLockTimer) {
@@ -330,6 +338,12 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
     if (!client.authenticated) {
         if (msg.type === 'auth' && tokensMatch(msg.token, sessionToken)) {
             const cfg = getConfig();
+            if (countAuthenticatedClients() >= cfg.maxClients) {
+                sendToClient(client, { type: 'error', message: 'Max clients exceeded' }, true, () => {
+                    closeClient(client, 1008, 'Max clients exceeded');
+                });
+                return;
+            }
             client.role = normalizeRole(msg.role, cfg.defaultRole);
             client.authenticated = true;
             if (client.authTimer) {
@@ -548,7 +562,7 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
     
     wss.on('connection', (socket, req) => {
         const cfg = getConfig();
-        if (wsClients.size >= cfg.maxClients) {
+        if (countAuthenticatedClients() >= cfg.maxClients) {
             socket.close(1008, 'Max clients exceeded');
             return;
         }

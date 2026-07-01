@@ -228,6 +228,56 @@ async function run() {
                 ok(`/media double-encoded traversal: ${r.status} (blocked)`);
             }
         }
+
+        // 9d. maxClients counts authenticated sockets only (unauth must not block slots)
+        {
+            const WebSocket = require('ws');
+            const origGetConfiguration = mockVscode.workspace.getConfiguration;
+            mockVscode.workspace.getConfiguration = () => ({
+                get: (key, def) => {
+                    if (key === 'remotePlay.maxClients') return 1;
+                    if (key === 'remotePlay.port') return 47291;
+                    if (key === 'remotePlay.bindAddress') return '127.0.0.1';
+                    if (key === 'remotePlay.defaultRole') return 'player';
+                    if (key === 'remotePlay.inputCooldownMs') return 1500;
+                    if (key === 'workspaceFolder') return '';
+                    return def;
+                },
+            });
+
+            const wsUrl = `ws://127.0.0.1:${actualPort}/ws`;
+            const openWsWithFirstMessage = () => new Promise((resolve, reject) => {
+                const ws = new WebSocket(wsUrl);
+                const timer = setTimeout(() => reject(new Error('WS message timeout')), 3000);
+                const onMessage = (data) => {
+                    clearTimeout(timer);
+                    ws.off('message', onMessage);
+                    resolve({ ws, msg: JSON.parse(data.toString()) });
+                };
+                ws.on('message', onMessage);
+                ws.once('error', (e) => { clearTimeout(timer); reject(e); });
+            });
+
+            let unauth1;
+            let unauth2;
+            try {
+                const first = await openWsWithFirstMessage();
+                const second = await openWsWithFirstMessage();
+                unauth1 = first.ws;
+                unauth2 = second.ws;
+                if (first.msg.type !== 'authRequired' || second.msg.type !== 'authRequired') {
+                    fail('maxClients unauth: expected authRequired on both sockets');
+                } else {
+                    ok('maxClients unauth: two pending sockets accepted when maxClients=1');
+                }
+            } catch (e) {
+                fail(`maxClients unauth test: ${e.message}`);
+            } finally {
+                if (unauth1) { unauth1.close(); }
+                if (unauth2) { unauth2.close(); }
+                mockVscode.workspace.getConfiguration = origGetConfiguration;
+            }
+        }
     }
 
     // 10. rotateRemotePlayToken でトークンが変わる

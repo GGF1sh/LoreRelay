@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getPartyMemberIds } from './characterManager';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
-import { commitGameState } from './stateManager';
+
 import {
     mergePartyDirector,
     parseGameStatePartyDirector,

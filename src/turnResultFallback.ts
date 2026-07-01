@@ -6,7 +6,7 @@ import { isValidEntryId } from './entryId';
 import { getTriggeredLoreLabels } from './gmPromptBuilder';
 import { buildStatePatchFromDiff } from './statePatch';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
-import { commitGameState } from './stateManager';
+
 
 function findLatestGmEntry(state: Record<string, unknown>): GameEntry | undefined {
     const entries = state.entries;

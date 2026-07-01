@@ -19,7 +19,7 @@ import { loadImageGenConfig } from './imageGenConfig';
 import { t } from './i18n';
 import { spawn, ChildProcess } from 'child_process';
 import { resolvePythonCommand } from './skillScriptRunner';
-import { commitGameState } from './stateManager';
+
 
 let portraitProcess: ChildProcess | undefined;
 

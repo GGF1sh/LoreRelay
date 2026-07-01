@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-07-02
+
+### Fixed
+
+- **Cartography: `cartographyThemeStyles.json` not found in packaged extension** — `.vscodeignore` excludes `src/**`, but `comfyui_generate_cartography.py` read theme styles from `src/`. Sync `src/cartographyThemeStyles.json` → `scripts/cartographyThemeStyles.json` on `npm run compile`; Python resolves `scripts/` first (VSIX-safe), then `src/` (dev repo).
+
 ## [1.12.1] - 2026-07-02
 
 ### Fixed

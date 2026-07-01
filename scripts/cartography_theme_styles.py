@@ -4,8 +4,23 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-THEME_STYLES_PATH = REPO_ROOT / "src" / "cartographyThemeStyles.json"
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+
+
+def _resolve_theme_styles_path() -> Path:
+    """Packaged VSIX ships scripts/ but excludes src/ (.vscodeignore)."""
+    candidates = [
+        SCRIPT_DIR / "cartographyThemeStyles.json",
+        REPO_ROOT / "src" / "cartographyThemeStyles.json",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    raise FileNotFoundError(
+        "cartographyThemeStyles.json not found. Expected scripts/ or src/ under extension root."
+    )
+
 
 _cached: dict | None = None
 
@@ -13,7 +28,7 @@ _cached: dict | None = None
 def _load() -> dict:
     global _cached
     if _cached is None:
-        _cached = json.loads(THEME_STYLES_PATH.read_text(encoding="utf-8"))
+        _cached = json.loads(_resolve_theme_styles_path().read_text(encoding="utf-8"))
     return _cached
 
 

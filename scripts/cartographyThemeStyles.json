@@ -1,0 +1,46 @@
+{
+  "rules": [
+    {
+      "matchAny": ["cyber"],
+      "mapType": "cyberpunk city sector tactical map",
+      "renderStyle": "flat orthographic top-down, neon-lit district blocks, grid streets, data-zone coloring, holographic perimeter accents, clean readable zone boundaries",
+      "extraNegative": "medieval, parchment, fantasy castle, pastoral, sepia ink wash"
+    },
+    {
+      "matchAny": ["scifi", "sci-fi"],
+      "mapType": "science fiction planetary sector map",
+      "renderStyle": "flat top-down, orbital survey style, biome sectors, transit corridors, colony zones, crisp technical illustration",
+      "extraNegative": "medieval, parchment, fantasy, rustic, hand-drawn ink"
+    },
+    {
+      "matchAny": ["postapoc", "post-apoc", "wasteland"],
+      "mapType": "post-apocalyptic regional survival map",
+      "renderStyle": "flat top-down, cracked highways, ruined settlements, contamination zones, muted ochre and ash tones, scavenger route markers",
+      "extraNegative": "pristine, colorful fantasy, neon cyberpunk, glossy utopia"
+    },
+    {
+      "matchAny": ["zombie", "undead", "horror"],
+      "mapType": "zombie outbreak quarantine zone map",
+      "renderStyle": "flat top-down, infected sectors, safe zones, barricade lines, abandoned districts, grim survival RPG cartography",
+      "extraNegative": "cheerful, pastoral fantasy, clean utopia, star chart"
+    },
+    {
+      "matchExact": ["modern"],
+      "matchAny": ["urban"],
+      "mapType": "modern urban district map",
+      "renderStyle": "flat top-down, city blocks, highways, parks, harbor zones, clean cartographic colors",
+      "extraNegative": "medieval, fantasy castle, magic, parchment, star chart"
+    },
+    {
+      "matchAny": ["ff14", "ff-14"],
+      "mapType": "JRPG overworld field map",
+      "renderStyle": "flat top-down, color-coded terrain regions, path network, classic RPG world map readability",
+      "extraNegative": "star chart, magic circle, floating paper, landscape panorama"
+    }
+  ],
+  "default": {
+    "mapType": "fantasy RPG overworld regional map",
+    "renderStyle": "flat top-down, distinct terrain provinces, roads between settlements, forests hills deserts, readable tabletop campaign cartography",
+    "extraNegative": "star chart, magic circle, floating paper, scenic landscape background"
+  }
+}

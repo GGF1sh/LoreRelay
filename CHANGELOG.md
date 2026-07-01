@@ -9,76 +9,70 @@
 
 ## [Unreleased]
 
-### Added
+（予定なし）
 
-- **Start Hub — 空ワークスペース初期導線(ChatGPT設計 / Claude実装)** — `messageHistory`が空の時だけ冒険ログ中央に「どんな冒険を始めますか？」ハブを表示し、代わりに`#chat-log`を隠す(`renderMessage`末尾の`updateStartHubVisibility()`で全経路を一元管理)。「🚀 ざっと作る」は既存の`window.LoreRelay.openQuickstart()`を呼ぶ。「💬 質問しながら作る」はGM面接キックオフの定型文を自由入力欄に差し込む(バックエンド変更なし、既存のGMブリッジ経由の対話フローを再利用)。プリセットチップ(初心者向けファンタジー/ポストアポカリプス/サイバーパンク/現代異能/自由入力)は選択すると「ざっと作る」のプロンプト欄または面接メッセージにその世界観の一文を反映。既存ゲームがある場合は自動的に非表示。4言語i18n対応。GM面接モード自体の実装(setupComplete判定、常時「この内容で世界を作る」ボタン等)は将来対応。
+## [1.10.0] - 2026-07-01
 
-### Fixed
+**Campaign Engine** — v1.7.3 以降の Phase 8〜10 と基盤硬化をまとめてリリース。世界イベントがクエストになり、GM が Referee/Narrator に分かれ、ターン履歴を Git Timeline で分岐できる。
 
-- **webview/index.html 文字化け** — クイックリプライバー11ボタンの初期表示テキスト、キャラクタークリエイターの各種placeholder(「…」が繰り返し化けていた)、Cartographyの空状態テキスト、および構造コメント多数が文字化けしていたのを修正。ほぼ`data-i18n`で即座に上書きされるため実害は小さいが、ソース上の可読性のため修正。
+### Added — Phase 8: Event-to-Quest
 
-- **画像ツッコミ機能(Claude)** — テストプレイ中に「本文の描写と生成画像が食い違っている」ケースが見つかったため、各シーン画像の下(再生成ボタンの隣)に「🗯️ ツッコむ」ボタンを追加。押すと自由入力欄に定型テンプレート(「[画像ツッコミ] さっきの画像が本文の描写と食い違っています。具体的には: 」)を差し込み、ユーザーが具体的な食い違いを書き足してGMにそのまま送信できるようにした。新しいpostMessage型やバックエンド変更は不要で、既存のプレイヤー入力→GMフローをそのまま再利用。4言語i18n対応。
+- **Quest Board** — `questGeneratorCore.ts` が `recentChanges` と urgent NPC needs から deterministic Quest Hooks を生成。World タブで available → active、active quest の GM prompt 注入、`turn_result.json.resolvedQuests` で完了反映。
+- **Quest 完了報酬** — NPC 由来クエスト完了時に `playerTrust +10`、関連 need 解決、完了メモリ追加。Quest Board に報酬テキスト表示（4 言語）。
+- **Quest Board i18n** — ラベル・空状態・Accept/ACTIVE・source バッジを 4 言語化。`testing_checklist.md` に手動確認手順。
 
-- **Phase 8A — Quest 完了報酬(Claude)** — NPC由来のクエストフック(`source: 'npc'`)完了時に、対応NPCの`playerTrust`を+10、関連する`need`を解決済みに、完了メモリを1件追加するよう実装。`QuestHook`に`npcId`/`needId`(npc由来のみ)を追加し、既存の`applyNpcMemoryUpdates()`(Phase 3で検証済み)を再利用。Quest Board UIに報酬テキストの表示を追加(4言語i18n対応)。イベント由来のクエストは報酬の対象NPCが存在しないため、報酬適用対象は現状NPC由来のみ。
+### Added — Phase 9: Agentic Campaign Engine
 
-- **Phase 8A - Event-to-Quest / Quest Board** — `questGeneratorCore.ts` で `world_state.json.recentChanges` と urgent NPC needs から deterministic Quest Hooks を生成。`world_state.json.questHooks` の型・パーサー・上限、World タブ Quest Board、available → active 操作、active quest の GM prompt 注入、`turn_result.json.resolvedQuests` による完了反映を追加。
-- **Phase 8-11 planning handoff** — `phase8_planning_and_prompts.md` を追加し、Quest Hook、分業型GM、Git Timeline、NPC voice profile の担当AI別プロンプトを整理。
-- **Phase 9 design — Agentic Campaign Engine** — `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md` を追加。State Referee / Narrator の二段階GM設計、`turn_result.json` と `processTurnResult()` を正本に保つ安全境界、Grok-only Phase 9A 実装手順、fallback、テスト計画を整理。
-- **Phase 9A — Split-role GM prototype (Grok-only)** — `agenticGmCore.ts` / `agenticGmRunner.ts` で State Referee → Narrator の optional 二段階実行。`.text-adventure/agentic/` に中間成果物、マージ後のみ `turn_result.json` 書き込み。設定 `textAdventure.gmBridge.agentic.*`（default off）。Narrator 失敗時は referee を保持して fallback narration で完了。
-- **Phase 9B — Agentic GM multi-provider** — Grok-only 制限を解除。`grok` / `vscode-lm` / `ollama` / `koboldcpp` / `openrouter` で二段階 GM を実行可能。`runVscodeLmAgenticStage()` と `agentic_stage_gm.py`（stdout のみ、game_state 非書き込み）を追加。`clipboard` / `command` は agentic 非対応のまま single-stage にフォールバック。
-- **Phase 9B manual E2E checklist** — `testing_checklist.md` に Grok / VS Code LM / local API provider の agentic 実機確認、final write boundary、fallback、busy cleanup の手動確認項目を追加。
-- **Phase 8 polish — Quest Board i18n** — World タブ Quest Board のラベル・空状態・Accept/ACTIVE・source バッジを 4 言語化。`testing_checklist.md` に Phase 8 手動確認手順を追加。
-- **Architecture — game_state.json 書き込みの単一関所（single choke point）** — `src/stateManager.ts` の `commitGameState()` に `validateGameState` + `sanitizeGameStateForPersist` を集約。`statePatch.ts` / `gameStateSync.ts` / `checkpointHandlers.ts` / `gmBridgeRunner.ts` / `imageGenRunner.ts` / `scenarioPack.ts` / `vlmQueue.ts` の直接 `writeJsonAtomic(game_state.json)` 呼び出しを全て `commitGameState` 経由に統一（Claude 設計レビュー指摘の解消）。
-- **GM Bridge — `vscode-lm` プロバイダ** — API キー不要で VS Code 内の Copilot / Claude Code / Codex 等が公開する `vscode.lm` モデルを GM に利用。`gmBridgeRunner.ts` にストリーム対応の `turn_result` 相当マージ書き込みを実装。`GM_BRIDGE_PRESETS.md` に選び方・制限を追記。
-- **Local model scan** — `modelScanner.ts` とコマンド「LoreRelay: Scan Local Model Files」。checkpoint / ControlNet / LoRA / GGUF 等をカテゴリ分類して ComfyUI 設定用のモデル名を出力。
-- **Cartography — Voronoi レイアウト** — `render_cartography_layout.py` のデフォルトを `voronoi` に。リージョン座標から Voronoi 区画・境界道路を描画（中心結線の旧図レイアウトを廃止）。`lineart` / `full` / `roads` モードも維持。`workflow_cartography_sdxl_direct.json` を追加。
-- **Cartography — テーマ別プロンプト** — `world_forge.json` の `meta.theme`（fantasy / cyberpunk / postapoc / zombie / scifi / modern 等）に応じた positive/negative を `cartographyThemeStyles.json` で一元管理（TS/Python 共用）。
-- **Cartography — HTML オーバーレイ** — 地名・リージョン名を生成画像ではなく Webview 上のラベル/ピンで表示（`buildCartographyRegionLabels` / `85-world.js`）。
-- **Cartography — 任意 LoRA（推奨プリセットのみ）** — `cartographyLoraPresets.ts` に Mapcraft / Sci-Fi / Fantasy Map Heavy の候補を定義。`TA_LORA` / `TA_LORA_WEIGHT` は手動設定時のみ ComfyUI `LoraLoader` に接続（自動適用なし）。Output Channel にテーマ別の提案を表示。
-- **Cartography docs** — `docs/CARTOGRAPHY_MAP_GENERATION_GUIDE.md`（活用・プロンプト・LoRA プリセット表）、`docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`。
-- **Phase 2 hardening — `gameStateSanitize.ts`** — 直書きの GM ブリッジ・チェックポイント編集向けに HP/MP・`hiddenDice`・inventory 等をクランプ。`validateGameState` に配列件数・文字列長・数値範囲検証を追加。
-- **Tests** — Cartography（Voronoi 空リージョン、theme JSON 同期、LoRA 配線、direct workflow）、`test_game_state_sanitize.js`、ReDoS lorebook、`test_model_scanner.js`、`validate_webview_html_structure.js`。
+- **二段階 GM（9A/9B）** — State Referee → Narrator。中間成果物は `.text-adventure/agentic/`、マージ後のみ `turn_result.json` 書き込み。設定 `textAdventure.gmBridge.agentic.*`（default off）。
+- **マルチプロバイダ（9B）** — `grok` / `vscode-lm` / `ollama` / `koboldcpp` / `openrouter`。`agentic_stage_gm.py`（stdout のみ）、`runVscodeLmAgenticStage()`。
+- **設計・テスト** — `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md`、`test_agentic_gm_core.js`、`testing_checklist.md` に agentic E2E 手順。
 
-### Fixed
+### Added — Phase 10: Git Timeline
 
-- **Phase 9B review — multi-provider agentic stage robustness** — `vscode-lm` / local API providers がファイル書き込みできない場合に stdout JSON で返せるよう Referee/Narrator prompt を明確化。OpenRouter agentic stage の API キー取得を1回に統一し、agentic busy 中の kill/reset が busy flag を残さないよう修正。
-- **Phase 9A review — stale agentic stage results** — Agentic GM の各ステージ実行前に `.text-adventure/agentic/referee_result.json` / `narrator_result.json` / `final_turn_result.json` を削除し、前回ターンの Referee/Narrator 結果を誤採用するリスクを解消。Agentic 用 base prompt から単発GMの `turn_result.json` 書き込み指示を外し、各ステージ指示との衝突を避けるよう修正。
-- **Phase 6 — `world_state.json` recentChanges 読み込みキャップ** — 100件超の手編集ファイルで古い方を残していたのを、`worldTurn` 最新100件を残すよう修正（`capRecentChangesByWorldTurn`、Phase 5 の `capVisualMemoryEntries` と同方針）。
-- **Phase 6 — Remote Play `maxClients`（LAN限定）** — 未認証ソケットを枠に数えていたため、トークンなし接続で正規プレイヤーを締め出せた問題を修正。認証済みクライアントのみカウント（接続時・認証時の両方）。
-- **Phase 5 — visual_memory.json 読み込みキャップ** — 500件超の手編集ファイルで古い方を残していたのを、`analyzedAt` 最新500件を残すよう修正（`capVisualMemoryEntries`、upsert と同方針）。
-- **Phase 4 — 「Since Last Visit」要約の再注入** — `lastInjectedWorldChangeSummaryTurn` を `world_state.json` に記録。GM 送信時のみ consume（Turn Inspector の preview は peek のまま）。同一 simulation tick の要素が expire するまで繰り返し GM に入る問題を修正。
-- **Phase 3 — 防御の一貫性** — Cartography のピン/ラベルに `MAX_CARTOGRAPHY_LAYOUT_REGIONS`(20) / `LOCATIONS`(100) を追加（`worldMapGenerator` と整合）。`worldStateCore` の faction `resources` を有限・非負・上限付きでパース。`npc_registry.json` ロード時に肖像画パスを `resolveAllowedImagePath` で検証。
-- **Phase 2 — ReDoS（lorebook）** — `lorebookMatcher.ts` に `isPotentiallyEvilRegex()` とスキャン文字数上限。危険な ST 正規表現キーは substring フォールバック。
-- **Phase 2 — HP/MP バリデーション** — `NaN` / `Infinity` / 負値 / `current > max` を `validateGameState` で拒否、`sanitizeGameStateForPersist` で直書き経路をクランプ。
-- **Phase 2 — `hiddenDice` null で Webview 同期クラッシュ** — `gameStateSync.ts` / `remotePlayServer.ts` で null 要素をフィルタ。`vscode-lm` 直書きも sanitize 経由に変更。
-- **Phase 2 — checkpointHandlers** — 読み込み時に `migrateGameState`、書き込み時に `sanitizeGameStateForPersist` を通すよう統一。
-- **Cartography — 空リージョンで Voronoi クラッシュ** — `geography.regions` が空でも layout PNG を返す（`IndexError` 防止）。
-- **Cartography ComfyUI workflow** — `KSampler.model` の ControlNet 誤接続修正。Canny 閾値を `0..1` に整合。`validate_cartography_workflow.js` にリンク整合チェックを追加。
-- **engines.vscode** — `vscode.lm` API 利用のため `^1.93.0` に引き上げ。
-- **i18n** — Quick Reply（`export` / `forceSpeak` / `questFlow` / `relations`）、Character 装備・操作主体、Inspector hidden state、OOC empty、World 地図ボタンなど 19+ キーを4言語に追加。`check_i18n_keys.js` を `npm test` に統合。
-- **Cartography ComfyUI** — `comfyui_generate_cartography.py` が許可外の一時 layout 名を使っていたため、既存の `world_map.layout.png` を再利用するか `cartography_layout.png` にフォールバックするよう修正。
-- **i18n — World タブ残存漏れ** — `85-world.js` に 21 キーを `T()` 化。4言語に 21 キー追加。`webview.inspector.noHiddenState` も追加。
-- **`check_i18n_keys.js`** — JS ファイル内の `T()`（大文字）を拾わないバグを修正。
-- **i18n — ゲームルールダイアログ ツールチップ** — 「高度なAIルール」配下6チェックボックスの `title` 属性を `data-i18n-title` に変換し、4言語にツールチップキーを追加。
-- **UX — World タブ位置** — 9タブ中8番目で画面外に隠れていたワールドタブを4番目に移動。
-- **UX — タブバー横スクロール** — マウスホイール縦スクロールで横スクロール可能に。ポインタドラッグにも対応。ドラッグ後の誤クリック抑止を追加。
-- **重大 — タブ切り替えが冒険ステータス以外で機能しない** — CSS と JS の display 制御の矛盾を修正。
-- **重大 — タブクリックが全滅** — `setPointerCapture` が click イベントを再ターゲットしていた問題を修正。
-- **World タブのデータ未取得** — タブを開いた際に `loadWorld` を送信するよう修正。
-- **重大 — 右側タブが空白になる** — ステータスタブ切替のハンドラ統一と null ガード追加。
-- **重大 — タブラベルだけ active で中身が真っ黒** — scrollTop リセットと overflow 整理。
-- **重大 — 右タブを切替えても中身が出ない（真因）** — `#theme-header` 閉じタグ欠落を修正。再発防止に `validate_webview_html_structure.js` を追加。
-- **重大 — Webview アセットのキャッシュで修正が反映されない** — アセット URI にバージョンクエリを付与。
-- **重大 — VSIX インストーラーが古い拡張を再インストールする** — 現在バージョンの VSIX を明示生成するよう修正。
-- **Installer i18n** — zh-CN/zh-TW インストーラーのメッセージ・終了コードを日本語版と統一。
-- **重大 — インストール版が `command not found` で起動しない** — `.vscodeignore` が `node_modules/**` を除外していたため Remote Play の依存 `ws` が欠落していた問題を修正。
+- **安全性** — 初回 `git init` 前にモーダル確認、拒否時は `gitAutoCommitInterval=0`、未コミット変更時は branch/switch をブロック、`shell: false`。
+- **Inspector パネル** — 現在ブランチと `timeline/*` 一覧、Switch ボタン。`getGitTimelineStatus()` / `switchToBranch()`。
+- **コミット対象拡張** — `world_forge.json` / `world_state.json` / `npc_registry.json` を含む。実在パスのみ `git add`。
 
-- **Phase 10 — Git Timeline の安全性(Claude review)** — `gitManager.ts` の `ensureGitInit`/`commitTurn`/`branchFromTurn` が既に実装・自動発動していたが、確認なしで `git init`/毎ターン自動コミット/未コミット変更を無視したブランチ作成をしていた問題を修正。初回のみ `git init` 前にモーダル確認を追加(拒否時は `textAdventure.gitAutoCommitInterval` を 0 に自動設定して以後スキップ)、ワークスペース向けに `.gitignore` デフォルトを改善(`*.tmp` / `game_state.invalid.latest.json` / `.vscode/` を追加)、`branchFromTurn` 実行前に `.git` 未初期化・未コミット変更の有無をチェックして分岐を安全にブロックするよう変更。`spawn` に `shell: false` を明示。
-- **Phase 10 — Git Timeline 一覧パネル(Claude)** — Inspector タブに現在のブランチと `timeline/*` ブランチ一覧を表示するミニマルUIを追加。`gitManager.ts` に `getGitTimelineStatus()`（読み取り専用、`timeline/` プレフィックスのみ許可）と `switchToBranch()`（既存ブランチへの `checkout` のみ許可、未コミット変更があればブロック、対象ブランチの実在を再検証してから切替）を追加。`requestGitTimeline` / `switchGitBranch` の postMessage を配線し、4言語に i18n キーを追加。
-- **CHANGELOG.md 文字化け修正（全体）** — `[Unreleased]` セクション冒頭は不正な二重変換で文字化けしていたため、コミットログとセッション記録を突き合わせてクリーンな UTF-8 で書き直し。さらに `[1.7.3]`〜`[0.1.0]` の過去セクション155箇所の文字化けは、コミット `9df8738`（`docs: fix mojibake and standardize UTF-8 across repository`）に残っていた完全にクリーンな版（バージョン見出し54件が現行ファイルと1対1で一致）から復元。
-- **Phase 10 — Git Timeline のコミット対象を拡張** — `commitTurn()` が `game_state.json` / `game_history.json` / `party.json` / `characters/` / `dice_ledger.json` しかコミットしておらず、`world_forge.json` / `world_state.json` / `npc_registry.json` を含めていなかったため、過去のターンにブランチしても世界・NPC状態が復元されない問題を修正。あわせて、`git add` は存在しないパススペックが1つでもあると全体が失敗して何もステージされない（`characters/` 未作成の序盤ターンで無言のコミット失敗を起こしうる既存のバグでもあった）ため、実在するファイルのみを動的にフィルタしてから `git add` するよう修正。
+### Added — UX & onboarding
 
-## [1.7.3] - 2026-06-29
+- **Start Hub** — 空ワークスペースで「どんな冒険を始めますか？」ハブ（ざっと作る / 質問しながら作る、プリセットチップ、4 言語）。
+- **画像ツッコミ** — シーン画像下の「ツッコむ」ボタンで描写ズレ修正依頼を入力欄へ差し込み。
+
+### Added — Infrastructure
+
+- **`commitGameState()` 単一関所** — 全 `game_state.json` 書き込みを `stateManager.ts` に集約。
+- **`vscode-lm` プロバイダ** — VS Code Language Model API 経由の GM。`engines.vscode` を `^1.93.0` に引き上げ。
+- **Local model scan** — `modelScanner.ts`、ComfyUI 向け checkpoint / LoRA / GGUF 分類。
+- **Cartography 進化** — Voronoi レイアウト、テーマ別プロンプト、HTML ラベル/ピン overlay、任意 LoRA プリセット、direct workflow、docs。
+- **Phase 8-11 planning** — `phase8_planning_and_prompts.md`。
+
+### Fixed — Agentic GM
+
+- ステージ前に古い `referee_result.json` / `narrator_result.json` を削除（stale 誤採用防止）。
+- Agentic base prompt から単発 GM の `turn_result.json` 指示を除外。
+- マルチプロバイダ: stdout JSON フォールバック、OpenRouter キー取得統一、busy flag クリーンアップ。
+
+### Fixed — World & state hardening (Phase 2–6)
+
+- `gameStateSanitize.ts`、HP/MP 検証、ReDoS lorebook、`hiddenDice` null フィルタ、checkpoint migrate/sanitize。
+- `capRecentChangesByWorldTurn`、`capVisualMemoryEntries`、Since Last Visit 再注入防止。
+- Remote Play `maxClients` 認証済みのみカウント。Cartography / NPC 防御の一貫性。
+
+### Fixed — Webview & i18n
+
+- タブ切替・クリック・空白表示の重大バグ群、`#theme-header` 閉じタグ欠落、Webview アセットキャッシュ、World タブ位置/スクロール。
+- 19+ i18n キー追加、`check_i18n_keys.js` 修正、`webview/index.html` 文字化け修正。
+
+### Fixed — Other
+
+- VSIX インストーラー・`ws` 依存・Installer i18n。Cartography ComfyUI workflow / 空リージョンクラッシュ。
+
+### Changed — v1.10.0 release polish
+
+- **`commitGameState` strict/salvage モード** — `stateManagerCore.ts` に純関数 `resolveGameStatePersistPlan()` を切り出し。`strict` は validate 失敗時に書かない。`salvage`（default）は sanitize → 再 validate、NG なら `game_state.invalid.latest.json` に退避して正本を守る。
+- **Agentic 設定説明** — `package.json` の `gmBridge.agentic.enabled` をマルチプロバイダ対応の説明に更新。
+- **`@types/vscode`** — `^1.93.0` に引き上げ（`engines.vscode` と整合）。
+- **CHANGELOG 整理** — `[Unreleased]` の Phase 8〜10 塊を本セクションへ移動。過去セクションの文字化けは `9df8738` から復元済み。## [1.7.3] - 2026-06-29
 
 ### Fixed — Cartography & Remote Play (Claude review)
 

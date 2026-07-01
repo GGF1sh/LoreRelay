@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.7.3",
+  "version": "1.10.0",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -453,7 +453,7 @@
         "textAdventure.gmBridge.agentic.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable experimental two-stage GM flow: State Referee then Narrator (Grok only)."
+          "description": "Enable experimental two-stage GM flow: State Referee then Narrator. Supported providers: grok, vscode-lm, ollama, koboldcpp, openrouter."
         },
         "textAdventure.gmBridge.agentic.fallbackToSingleStage": {
           "type": "boolean",
@@ -534,11 +534,11 @@
     "build:webview": "node scripts/build-webview.js",
     "compile": "npm run build:webview && tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "node scripts/validate_utf8_docs.js && node scripts/check_i18n_keys.js && node scripts/validate_webview_html_structure.js && node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_media_signature_core.js && node scripts/test_remote_play_server.js && node scripts/test_ws_functionality.js && node scripts/test_validate_game_state.js && node scripts/test_game_state_sanitize.js && node scripts/test_dice_roller.js && node scripts/test_gm_prompt_builder_core.js && node scripts/test_webview_handlers_core.js && node scripts/test_model_scanner.js && node scripts/test_webview_bundle.js && node scripts/test_world_forge.js && node scripts/test_world_state.js && node scripts/test_emergent_simulator.js && node scripts/test_npc_registry.js && node scripts/test_world_map_generator.js && node scripts/test_cartography_layout_core.js && node scripts/test_cartography_path_core.js && node scripts/test_cartography_path_utils.js && node scripts/test_cartography_layout_smoke.js && python scripts/test_comfyui_cartography_lora.py && python scripts/test_cartography_theme_styles_sync.py && python scripts/test_cartography_empty_regions.py && node scripts/validate_cartography_workflow.js && node scripts/validate_cartography_workflow_direct.js && node scripts/test_world_forge_generator.js && node scripts/test_location_image_builder.js && node scripts/test_world_event_log.js && node scripts/test_npc_bridge.js && node scripts/test_quest_generator.js && node scripts/test_agentic_gm_core.js && node scripts/test_visual_memory.js && node scripts/test_vlm_queue_core.js && node scripts/test_tavern_card_importer.js"
+    "test": "node scripts/validate_utf8_docs.js && node scripts/check_i18n_keys.js && node scripts/validate_webview_html_structure.js && node scripts/validate.js && node scripts/test_state_manager.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_media_signature_core.js && node scripts/test_remote_play_server.js && node scripts/test_ws_functionality.js && node scripts/test_validate_game_state.js && node scripts/test_game_state_sanitize.js && node scripts/test_dice_roller.js && node scripts/test_gm_prompt_builder_core.js && node scripts/test_webview_handlers_core.js && node scripts/test_model_scanner.js && node scripts/test_webview_bundle.js && node scripts/test_world_forge.js && node scripts/test_world_state.js && node scripts/test_emergent_simulator.js && node scripts/test_npc_registry.js && node scripts/test_world_map_generator.js && node scripts/test_cartography_layout_core.js && node scripts/test_cartography_path_core.js && node scripts/test_cartography_path_utils.js && node scripts/test_cartography_layout_smoke.js && python scripts/test_comfyui_cartography_lora.py && python scripts/test_cartography_theme_styles_sync.py && python scripts/test_cartography_empty_regions.py && node scripts/validate_cartography_workflow.js && node scripts/validate_cartography_workflow_direct.js && node scripts/test_world_forge_generator.js && node scripts/test_location_image_builder.js && node scripts/test_world_event_log.js && node scripts/test_npc_bridge.js && node scripts/test_quest_generator.js && node scripts/test_agentic_gm_core.js && node scripts/test_visual_memory.js && node scripts/test_vlm_queue_core.js && node scripts/test_tavern_card_importer.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.93.0",
     "@types/ws": "^8.18.1",
     "typescript": "^5.3.0"
   },

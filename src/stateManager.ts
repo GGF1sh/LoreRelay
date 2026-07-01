@@ -1,33 +1,69 @@
+import * as path from 'path';
+import type { GameState } from './types/GameState';
 import { getGameStatePath, writeJsonAtomic } from './workspacePaths';
 import { validateGameState } from './validateGameState';
-import { sanitizeGameStateForPersist } from './gameStateSanitize';
-import type { GameState } from './types/GameState';
+import {
+    resolveGameStatePersistPlan,
+    type CommitGameStateMode,
+} from './stateManagerCore';
+
+export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
+export { resolveGameStatePersistPlan } from './stateManagerCore';
+
+export interface CommitGameStateOptions {
+    createBackup?: boolean;
+    mode?: CommitGameStateMode;
+}
 
 /**
  * Persists the game state to `game_state.json`.
  * This is the SINGLE CHOKE POINT for all writes to the game state.
- * It enforces validation and sanitization before writing to disk.
- * 
- * @param state The GameState object (or Record) to persist.
- * @param createBackup Whether to create a backup file before writing.
  */
-export function commitGameState(state: Record<string, unknown> | GameState, createBackup = false): void {
+export function commitGameState(
+    state: Record<string, unknown> | GameState,
+    options: boolean | CommitGameStateOptions = {}
+): void {
+    const opts: CommitGameStateOptions = typeof options === 'boolean'
+        ? { createBackup: options }
+        : options;
+    const createBackup = opts.createBackup ?? false;
+    const mode = opts.mode ?? 'salvage';
+
     const statePath = getGameStatePath();
     if (!statePath) {
-        return; // Workspace is not loaded or game_state.json path is unavailable
+        return;
     }
 
-    // 1. Validate the state
-    const errors = validateGameState(state as Record<string, unknown>);
-    if (errors.length > 0) {
-        console.error('[commitGameState] Validation failed, but writing anyway to avoid data loss. Errors:', errors);
-        // We log the error but still proceed. In a stricter environment, we might throw or return.
-        // For now, logging allows developers to catch bypassing structural bugs.
+    const raw = state as Record<string, unknown>;
+    const plan = resolveGameStatePersistPlan(raw, mode);
+    if (plan.action === 'skip') {
+        console.error(
+            `[commitGameState] ${mode} mode: validation failed, not writing. Errors:`,
+            plan.reason
+        );
+        return;
+    }
+    if (plan.action === 'quarantine') {
+        console.error(
+            `[commitGameState] ${mode} mode: sanitized state still invalid; quarantining canonical file. Errors:`,
+            plan.reason
+        );
+        quarantineInvalidState(statePath, plan.payload);
+        return;
     }
 
-    // 2. Sanitize for persistence (e.g. clamping HP/MP, pruning expired events)
-    const sanitized = sanitizeGameStateForPersist(state as Record<string, unknown>);
+    if (mode === 'salvage' && validateGameState(raw).length > 0) {
+        console.warn('[commitGameState] salvage mode: wrote sanitized state after raw validation failed.');
+    }
 
-    // 3. Atomic write
-    writeJsonAtomic(statePath, sanitized, createBackup);
+    writeJsonAtomic(statePath, plan.payload, createBackup);
+}
+
+function quarantineInvalidState(statePath: string, payload: Record<string, unknown>): void {
+    const invalidPath = path.join(path.dirname(statePath), 'game_state.invalid.latest.json');
+    try {
+        writeJsonAtomic(invalidPath, payload);
+    } catch (e) {
+        console.error('[commitGameState] Failed to quarantine invalid state:', e);
+    }
 }

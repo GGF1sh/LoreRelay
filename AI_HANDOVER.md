@@ -12,7 +12,7 @@
 
 > [!IMPORTANT]
 > **実装の正本は `CHANGELOG.md` とソースコードです。**
-> レビュー文書は議論の記録を含むため、古い「未対応」記述が残る場合があります。作業開始前に `AI_SHARED_LOG.md` の **Current Snapshot** と `CHANGELOG.md` の最新セクション（現在 **v1.7.3**）を確認してください。作業の切り出しは **`AI_HANDOVER_PROMPTS.md`** を参照。
+> レビュー文書は議論の記録を含むため、古い「未対応」記述が残る場合があります。作業開始前に `AI_SHARED_LOG.md` の **Current Snapshot** と `CHANGELOG.md` の最新セクション（現在 **v1.10.0**）を確認してください。作業の切り出しは **`AI_HANDOVER_PROMPTS.md`** を参照。
 
 ---
 
@@ -39,8 +39,11 @@
 
 - **場所:** `C:\AI\text-adventure-vsce\`
 - **役割:** `turn_result.json` / `game_state.json` を監視し Webview を更新
-- **主要サブシステム（v1.7.3 時点）:**
-  - GM Bridge（Grok / Ollama / KoboldCPP / clipboard / command）
+- **主要サブシステム（v1.10.0 時点）:**
+  - GM Bridge（Grok / vscode-lm / Ollama / KoboldCPP / OpenRouter / clipboard / command）
+  - Agentic GM（State Referee → Narrator、optional）
+  - Quest Board（Event-to-Quest）
+  - Git Timeline（ターン分岐）
   - Turn Inspector / state journal
   - World Forge + Emergent Simulation + Event Log
   - Visual Memory / Soulgaze（VLM）
@@ -106,17 +109,17 @@
 
 Private/local scenario vaults are intentionally outside the public repository scope. Do not read, edit, summarize, index, or mention private scenario contents in shared docs unless the user explicitly asks for that local-only work.
 
-### 4.1 現在の主な残件（2026-06-29 / v1.7.3）
+### 4.1 現在の主な残件（2026-07-01 / v1.10.0）
 
 | 優先度 | 内容 |
 |--------|------|
+| 手動確認 | [`testing_checklist.md`](testing_checklist.md) — Agentic GM E2E、Git Timeline 分岐→復元 |
 | 公開・見せ方 | README の **実スクショ / GIF**（現状は `docs/assets/*.svg` モック） |
-| 手動確認 | [`testing_checklist.md`](testing_checklist.md) の未チェック項目 |
-| UX polish（任意） | 地図 stale 表示、`world_forge` 更新後の再生成促し、Cartography 失敗時 Webview エラー |
-| 次機能候補 | **v1.8 Event-to-Quest**（`recentChanges` → クエストフック） |
+| UX polish（任意） | Start Hub から Quest/World まで通るデモシナリオ、地図 stale 表示 |
+| 次機能候補 | **Phase 11** Adaptive TTS（後回し可）、イベント由来クエスト報酬 |
 | 将来 | Workshop / マーケット公開の検討 |
 
-**完了済み（参照用）:** Phase 1〜6（`AI_ROADMAP.md`）、Cartography v1.7.0〜1.7.3 硬化、README 4言語、Ko-fi URL、Remote Play HMAC、Audit Wave
+**完了済み（参照用）:** Phase 1〜10（`AI_ROADMAP.md`）、Campaign Engine v1.10.0（Quest Board / Agentic GM / Git Timeline）、Cartography v1.7.x、Audit Wave
 
 ---
 

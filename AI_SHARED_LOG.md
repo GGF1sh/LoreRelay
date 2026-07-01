@@ -1,5 +1,37 @@
 # AI Shared Log
 
+## Current Snapshot (2026-07-01)
+
+| Item | Value |
+|------|-------|
+| Package version | **1.10.0** (`package.json`, `CHANGELOG.md` [1.10.0]) |
+| Latest release theme | **Campaign Engine** — Event-to-Quest, Agentic GM, Git Timeline |
+| Phase status | 1–10 コア実装完了。Phase 11（TTS）は計画中・後回し可 |
+| Next manual checks | Agentic E2E per provider, Git Timeline branch/switch, Start Hub flow |
+
+---
+
+## 2026-07-01 JST - Grok - Release v1.10.0 Campaign Engine
+
+### Summary
+
+- ChatGPT/Grok レビュー反映: `[Unreleased]` の Phase 8〜10 塊を **v1.10.0** に正式リリース分割。
+- `package.json` / `package-lock.json` → `1.10.0`。README バッジ更新。
+- `commitGameState` に **strict/salvage** モード（default salvage）。invalid 時は `game_state.invalid.latest.json` に退避。
+- `test_state_manager.js` 追加。agentic 設定説明更新、`@types/vscode` → `^1.93.0`。
+- `AI_HANDOVER.md` / `AI_ROADMAP.md` を v1.10.0 状態に更新。
+
+### Verification
+
+- `npm run compile` passed
+- `npm test` passed (includes `test_state_manager.js`)
+
+### Next
+
+- git tag `v1.10.0` + push。実機 E2E（agentic / git timeline）。
+
+---
+
 ## 2026-07-01 JST - Claude (Sonnet 5) - Start Hub for empty workspaces + index.html mojibake cleanup
 
 ### Summary

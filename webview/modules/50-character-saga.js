@@ -177,8 +177,9 @@ document.getElementById('char-delete-btn')?.addEventListener('click', () => {
   if (id === 'new') return;
   const char = currentCharacters.find(c => c.id === id);
   const name = char?.name || id;
-  if (!confirm(T('webview.character.deleteConfirm', { name }))) return;
-  vscode.postMessage({ type: 'deleteCharacter', id });
+  // Confirmation happens extension-side (native modal); webview confirm()
+  // is silently blocked by the VS Code webview iframe sandbox.
+  vscode.postMessage({ type: 'deleteCharacter', id, name });
 });
 
 charPartyCb.addEventListener('change', () => {

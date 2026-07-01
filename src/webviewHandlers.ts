@@ -238,17 +238,31 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
             }
             break;
-        case 'deleteCharacter':
-            if (isValidCharacterId(message.id)) {
-                if (deps.deleteCharacter(message.id)) {
-                    vscode.window.showInformationMessage(t('extension.info.characterDeleted'));
-                } else {
-                    vscode.window.showWarningMessage(t('extension.error.characterNotFound'));
-                }
-            } else {
+        case 'deleteCharacter': {
+            if (!isValidCharacterId(message.id)) {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+                break;
+            }
+            // Webview window.confirm() is silently blocked by the VS Code webview
+            // iframe sandbox (no allow-modals), so the confirmation must happen
+            // here via a native modal instead of relying on webview JS.
+            const displayName = typeof message.name === 'string' && message.name.trim()
+                ? message.name.trim().slice(0, 120)
+                : message.id;
+            const confirmLabel = t('extension.confirm.deleteCharacterButton');
+            const choice = await vscode.window.showWarningMessage(
+                t('extension.confirm.deleteCharacter', { name: displayName }),
+                { modal: true },
+                confirmLabel
+            );
+            if (choice !== confirmLabel) { break; }
+            if (deps.deleteCharacter(message.id)) {
+                vscode.window.showInformationMessage(t('extension.info.characterDeleted'));
+            } else {
+                vscode.window.showWarningMessage(t('extension.error.characterNotFound'));
             }
             break;
+        }
         case 'uploadPortrait':
             if (isValidCharacterId(message.id)) {
                 await deps.uploadPortrait(message.id);

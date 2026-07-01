@@ -491,7 +491,6 @@
   "updater.error": "更新失败: {message}",
   "webview.character.delete": "🗑 删除",
   "webview.character.deleteTitle": "删除此角色",
-  "webview.character.deleteConfirm": "确定要删除「{name}」吗？此操作无法撤销。",
   "webview.character.fullEditorTitle": "打开完整编辑器",
   "webview.character.newTitle": "创建新角色",
   "webview.characterCreator.title": "✦ 角色创建器",
@@ -582,5 +581,7 @@
   "webview.characterCreator.expr.embarrassed": "害羞",
   "webview.characterCreator.expr.smug": "得意",
   "extension.error.characterNotFound": "找不到角色，或角色已被删除。",
-  "extension.info.characterDeleted": "角色已删除。"
+  "extension.info.characterDeleted": "角色已删除。",
+  "extension.confirm.deleteCharacter": "确定要删除「{name}」吗？将一并移除角色文件与立绘/表情图片，此操作无法撤销。",
+  "extension.confirm.deleteCharacterButton": "删除"
 }

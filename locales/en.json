@@ -491,7 +491,6 @@
   "updater.error": "Update failed: {message}",
   "webview.character.delete": "🗑 Delete",
   "webview.character.deleteTitle": "Delete this character",
-  "webview.character.deleteConfirm": "Delete \"{name}\"? This cannot be undone.",
   "webview.character.fullEditorTitle": "Open full character editor",
   "webview.character.newTitle": "Create a new character",
   "webview.characterCreator.title": "✦ Character Creator",
@@ -582,5 +581,7 @@
   "webview.characterCreator.expr.embarrassed": "Embarrassed",
   "webview.characterCreator.expr.smug": "Smug",
   "extension.error.characterNotFound": "Character not found or already deleted.",
-  "extension.info.characterDeleted": "Character deleted."
+  "extension.info.characterDeleted": "Character deleted.",
+  "extension.confirm.deleteCharacter": "Delete \"{name}\"? This removes the character file and its portrait/expression images. This cannot be undone.",
+  "extension.confirm.deleteCharacterButton": "Delete"
 }

@@ -1,5 +1,26 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Fix: delete-character confirm dialog never appeared
+
+### Summary
+
+Follow-up to the same-day Character Creator i18n + delete fix below. User reported: clicking 🗑 Delete in the Character Profile pane did nothing — no confirmation popup, no deletion.
+
+Root cause: the click handler used the webview's `window.confirm()`. VS Code webviews render content inside a sandboxed iframe that is **not** granted `allow-modals`, so `confirm()`/`alert()`/`prompt()` are silently no-ops there — the call returns falsy immediately with no UI shown, and `if (!confirm(...)) return;` bailed out every time. This is a general VS Code webview limitation, not specific to this feature; other `confirm()` calls already in this codebase (rewind-to-turn, git branch creation, lorebook delete in `webview/modules/*.js`) are likely affected the same way but hadn't been reported yet — worth checking during a future pass.
+
+Fix: moved the confirmation off the webview entirely. `webview/modules/50-character-saga.js`'s delete handler now just posts `{ type: 'deleteCharacter', id, name }` directly (no `confirm()`). `webviewHandlers.ts`'s `deleteCharacter` case now shows a native `vscode.window.showWarningMessage(msg, { modal: true }, 'Delete')` and only calls `deps.deleteCharacter(id)` if the user picks the Delete button — this matches the existing modal-confirm pattern already used in `gitManager.ts` (Git Timeline init consent), `extension.ts`, and `scenarioPack.ts`. Added `extension.confirm.deleteCharacter` / `extension.confirm.deleteCharacterButton` i18n keys (4 locales) and removed the now-unused `webview.character.deleteConfirm` key.
+
+### Verification
+
+- `npm run build:webview`, `npx tsc --noEmit`, `node scripts/check_i18n_keys.js` (0 missing), full `npm test` all passed.
+- Still not manually played in a live VS Code session — user should confirm the native modal now appears and deletion actually happens end-to-end.
+
+### Next
+
+- Consider auditing the other `confirm()` calls in webview modules (rewind, git branch, lorebook delete) for the same silent-no-op issue and moving them to extension-host modal dialogs too.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Character Creator i18n + delete character
 
 ### Summary

@@ -11,10 +11,11 @@
 
 ### Added
 
-- Character Profile pane: a 🗑 Delete button next to Save, gated behind a confirmation dialog. Deletes the character JSON plus its portrait/expression images, and clears it from `party.json` / `active_character.txt` if referenced (`characterManager.deleteCharacter`, new `deleteCharacter` webview message).
+- Character Profile pane: a 🗑 Delete button next to Save. Deletes the character JSON plus its portrait/expression images, and clears it from `party.json` / `active_character.txt` if referenced (`characterManager.deleteCharacter`, new `deleteCharacter` webview message).
 
 ### Fixed
 
+- Delete-character confirmation used the webview's `window.confirm()`, which VS Code silently no-ops (webview iframes aren't granted `allow-modals`) — clicking Delete did nothing and showed no prompt. Moved the confirmation to a native `vscode.window.showWarningMessage({ modal: true })` dialog on the extension-host side instead, matching the existing pattern used for Git Timeline init / scenario pack loading.
 - Full Character Editor ("✏️ Full Editor" modal) was entirely hard-coded in English with no `data-i18n` attributes — switching the UI locale had no effect on it. Added ~90 `webview.characterCreator.*` i18n keys across all 4 locales (en/ja/zh-TW/zh-CN) covering every label, placeholder, button, and the default sprite-expression names.
 - Empty workspace onboarding: the first GM turn now bootstraps a minimal `game_state.json` before invoking the GM bridge, so a valid `turn_result.json` can be merged even when the world folder starts blank.
 - Character prompt context: imported/active character cards are no longer implicitly injected as party members. Only characters explicitly added to the party are included in GM party context.

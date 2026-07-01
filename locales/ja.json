@@ -491,7 +491,6 @@
   "updater.error": "アップデートに失敗しました: {message}",
   "webview.character.delete": "🗑 削除",
   "webview.character.deleteTitle": "このキャラクターを削除",
-  "webview.character.deleteConfirm": "「{name}」を削除しますか？この操作は取り消せません。",
   "webview.character.fullEditorTitle": "フルエディタを開く",
   "webview.character.newTitle": "新しいキャラクターを作成",
   "webview.characterCreator.title": "✦ キャラクタークリエイター",
@@ -582,5 +581,7 @@
   "webview.characterCreator.expr.embarrassed": "照れ",
   "webview.characterCreator.expr.smug": "ドヤ顔",
   "extension.error.characterNotFound": "キャラクターが見つからないか、既に削除されています。",
-  "extension.info.characterDeleted": "キャラクターを削除しました。"
+  "extension.info.characterDeleted": "キャラクターを削除しました。",
+  "extension.confirm.deleteCharacter": "「{name}」を削除しますか？キャラクターファイルと立ち絵・表情差分の画像も削除されます。この操作は取り消せません。",
+  "extension.confirm.deleteCharacterButton": "削除"
 }

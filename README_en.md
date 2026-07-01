@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -65,16 +65,16 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
 ## 📸 Screenshots & Demo
 
 <p align="center">
-  <img src="docs/assets/hero-ui.svg" alt="LoreRelay main UI" width="720" />
+  <img src="docs/assets/hero-ui.png" alt="LoreRelay main UI" width="720" />
 </p>
 
 | Inspector | Remote Play | Party Director |
 |:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-inspector.svg" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.svg" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.svg" width="240" alt="Party Director" /> |
+| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
 
 | Lorebook | ComfyUI | World Map |
 |:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-lorebook.svg" width="240" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.svg" width="240" alt="ComfyUI scene generation" /> | <img src="docs/assets/screenshot-world-map.svg" width="240" alt="Parchment world map with pins" /> |
+| <img src="docs/assets/screenshot-lorebook.png" width="240" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.png" width="240" alt="ComfyUI scene generation" /> | <img src="docs/assets/screenshot-world-map.png" width="240" alt="Parchment world map with pins" /> |
 
 See [`DEMO.md`](DEMO.md) to replace mockups with real screenshots or a demo GIF.
 

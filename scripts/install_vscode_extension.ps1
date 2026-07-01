@@ -8,10 +8,10 @@ $ProjectDir = (Resolve-Path "$PSScriptRoot\..").Path
 Push-Location $ProjectDir
 
 try {
-    Write-Host ""
-    Write-Host "Building LoreRelay VSCode Extension... This may take a moment." -ForegroundColor Cyan
-
     $PackageVersion = (node -p "require('./package.json').version").Trim()
+    Write-Host ""
+    Write-Host "Building LoreRelay v$PackageVersion from $ProjectDir" -ForegroundColor Cyan
+    Write-Host "This may take a moment." -ForegroundColor Cyan
     $VsixName = "lorerelay-$PackageVersion.vsix"
     $VsixPath = Join-Path $ProjectDir $VsixName
 

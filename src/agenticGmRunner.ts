@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { t } from './i18n';
-import { buildGrokPrompt, postPromptContextToWebview } from './gmPromptBuilder';
+import { buildGmPromptContext, postPromptContextToWebview } from './gmPromptBuilder';
 import {
     buildFallbackNarration,
     buildNarratorPrompt,
@@ -63,6 +63,25 @@ function writeAgenticText(cwd: string, name: string, content: string): string {
     const filePath = path.join(dir, name);
     fs.writeFileSync(filePath, content, 'utf-8');
     return filePath;
+}
+
+function safeUnlinkAgenticFile(filePath: string): void {
+    try {
+        fs.unlinkSync(filePath);
+    } catch {
+        // Missing or locked stage files should not block a new GM run.
+    }
+}
+
+function buildAgenticBasePrompt(playerAction: string): string {
+    return [
+        '[LoreRelay Agentic GM Context]',
+        `Player action: ${playerAction}`,
+        '',
+        'Use the context below, but follow the current agentic stage instructions over any general GM behavior.',
+        'Do not write game_state.json directly.',
+        buildGmPromptContext(playerAction),
+    ].join('\n');
 }
 
 function loadSuggestedTurnId(cwd: string): string {
@@ -142,7 +161,7 @@ export async function maybeInvokeAgenticBridge(
 
     const channel = getGmBridgeOutputChannel();
     const suggestedTurnId = loadSuggestedTurnId(cwd);
-    const basePrompt = buildGrokPrompt(playerAction, false);
+    const basePrompt = buildAgenticBasePrompt(playerAction);
     const agenticDir = ensureAgenticDir(cwd);
 
     const refereePrompt = buildRefereePrompt({
@@ -154,6 +173,10 @@ export async function maybeInvokeAgenticBridge(
     writeAgenticText(cwd, 'referee_prompt.md', refereePrompt);
     const refereePromptFile = writePromptFile(cwd, refereePrompt);
     const refereeResultPath = path.join(agenticDir, 'referee_result.json');
+    const narratorResultPath = path.join(agenticDir, 'narrator_result.json');
+    safeUnlinkAgenticFile(refereeResultPath);
+    safeUnlinkAgenticFile(narratorResultPath);
+    safeUnlinkAgenticFile(path.join(agenticDir, 'final_turn_result.json'));
 
     channel.appendLine('\n[Agentic GM] State Referee stage starting...');
     getPanel()?.webview.postMessage({ type: 'gmStart' });
@@ -215,7 +238,7 @@ export async function maybeInvokeAgenticBridge(
         });
         writeAgenticText(cwd, 'narrator_prompt.md', narratorPrompt);
         const narratorPromptFile = writePromptFile(cwd, narratorPrompt);
-        const narratorResultPath = path.join(agenticDir, 'narrator_result.json');
+        safeUnlinkAgenticFile(narratorResultPath);
 
         const narratorRun = await runGrokPromptFile({
             cwd,

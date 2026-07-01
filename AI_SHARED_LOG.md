@@ -1,5 +1,26 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Codex - Phase 9A code review hardening
+
+### Summary
+
+- Reviewed Grok commit `76884e0` for Phase 9A split-role GM.
+- Found and fixed a high-risk stale file issue: `referee_result.json` / `narrator_result.json` could be reused from a previous turn if Grok exited successfully but did not write a fresh stage result.
+- Found and fixed an instruction conflict: agentic stages were using the normal single-stage Grok prompt as their base, which includes `turn_result.json` write instructions. Agentic stages now use GM context only plus explicit stage instructions.
+
+### Verification
+
+- `npm run compile` passed.
+- `node scripts/test_agentic_gm_core.js` passed.
+- `npm test` passed.
+
+### Next
+
+- Before Phase 9B, run one real Grok E2E turn with `textAdventure.gmBridge.agentic.enabled=true` and confirm:
+  - Referee writes only `.text-adventure/agentic/referee_result.json`.
+  - Narrator writes only `.text-adventure/agentic/narrator_result.json`.
+  - Only the merged final result writes workspace `turn_result.json`.
+
 ## 2026-07-01 JST - Grok - Phase 9A split-role GM prototype
 
 ### Summary

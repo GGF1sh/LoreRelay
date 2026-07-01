@@ -9,7 +9,9 @@
 
 ## [Unreleased]
 
-（予定なし）
+### Added
+
+- **Phase 11 design — Adaptive TTS / NPC voice profiles** — `PHASE11_ADAPTIVE_TTS_DESIGN.md` と `phase8_planning_and_prompts.md` の Claude/Grok/ChatGPT 向けプロンプト。Phase 11A（system TTS + registry voice + World Preview）と 11B（local/external）のスコープ分割。
 
 ## [1.10.0] - 2026-07-01
 

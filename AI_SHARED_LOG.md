@@ -1,5 +1,20 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Phase 11 Adaptive TTS design + AI prompts
+
+### Summary
+
+- Added `PHASE11_ADAPTIVE_TTS_DESIGN.md` — NPC voice profiles on `npc_registry.json`, `npcVoiceCore` / `ttsProviderCore`, system TTS first (Web Speech API), Phase 11A vs 11B split.
+- Expanded `phase8_planning_and_prompts.md` with Claude (schema review), Grok (11A impl), ChatGPT (post-review) prompts.
+- Updated `AI_ROADMAP.md` Phase 11 — design done, implementation pending.
+
+### Next
+
+- Claude: schema/mood modifier review per Phase 11 prompt (optional).
+- Grok: Phase 11A implementation when user is ready.
+
+---
+
 ## Current Snapshot (2026-07-01)
 
 | Item | Value |

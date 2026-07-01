@@ -116,7 +116,7 @@ Private/local scenario vaults are intentionally outside the public repository sc
 | 手動確認 | [`testing_checklist.md`](testing_checklist.md) — Agentic GM E2E、Git Timeline 分岐→復元 |
 | 公開・見せ方 | README の **実スクショ / GIF**（現状は `docs/assets/*.svg` モック） |
 | UX polish（任意） | Start Hub から Quest/World まで通るデモシナリオ、地図 stale 表示 |
-| 次機能候補 | **Phase 11** Adaptive TTS（後回し可）、イベント由来クエスト報酬 |
+| 次機能候補 | **Phase 11** Adaptive TTS（設計: `PHASE11_ADAPTIVE_TTS_DESIGN.md`、Claude→Grok）、イベント由来クエスト報酬 |
 | 将来 | Workshop / マーケット公開の検討 |
 
 **完了済み（参照用）:** Phase 1〜10（`AI_ROADMAP.md`）、Campaign Engine v1.10.0（Quest Board / Agentic GM / Git Timeline）、Cartography v1.7.x、Audit Wave

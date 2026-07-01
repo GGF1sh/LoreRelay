@@ -11,7 +11,7 @@ before starting implementation.
 | Phase 8 | Event-to-Quest / Quest Board | Gemini, review by ChatGPT | Phase 8A done; i18n + checklist added |
 | Phase 9 | Agentic Campaign Engine / split-role GM | ChatGPT + Grok | Planning |
 | Phase 10 | VS Code/Git Native Timeline | Claude | Planning |
-| Phase 11 | Adaptive TTS / NPC voices | Grok | Planning |
+| Phase 11 | Adaptive TTS / NPC voices | Claude → Grok | Design ready (`PHASE11_ADAPTIVE_TTS_DESIGN.md`) |
 
 ## Phase 8: Event-to-Quest / Quest Board
 
@@ -199,31 +199,95 @@ Start with:
 
 ### Goal
 
-Give NPCs persistent voice profiles that can route to system TTS, local TTS, or external providers later.
+Give NPCs persistent voice profiles that route to system TTS first (Web Speech API), with optional local/external providers later.
 
-### Prompt for Grok
+### Design doc (source of truth)
+
+`PHASE11_ADAPTIVE_TTS_DESIGN.md` — read before any implementation.
+
+### Suggested AI split
+
+| Step | AI | Deliverable |
+|------|-----|-------------|
+| 1 | **Claude** | Schema review, mood modifier table, World UI spec, parser caps |
+| 2 | **Grok** | Phase 11A implementation + tests |
+| 3 | **ChatGPT** | Privacy/security review after 11A |
+
+### Prompt for Claude (design / schema review)
 
 ```markdown
-LoreRelay Phase 11 planning request.
-Design Adaptive TTS / NPC voice profiles.
+LoreRelay Phase 11A design review (Claude).
 
-Read:
-- src/npcRegistryCore.ts
-- webview modules for TTS controls
+Read first:
+- PHASE11_ADAPTIVE_TTS_DESIGN.md
+- src/npcRegistryCore.ts, src/npcRegistry.ts
+- webview/modules/60-tts-quickreply-imagegen.js (speakText, getBestVoiceForLocale)
+- webview/modules/85-world.js (NPC cards)
 - AI_ROADMAP.md Phase 11
 
-Requirements:
-- Add voice profile metadata to npc_registry.json safely.
-- Keep provider-specific code optional.
-- Support local/system TTS first.
-- Do not hard-code paid external APIs as required.
+Tasks:
+1. Confirm or revise NpcVoiceProfile fields, clamps, and parser rules.
+2. Propose applyMoodModifiers() numeric table (mood → rate/pitch delta).
+3. Specify World tab NPC voice preview UI (minimal DOM + i18n keys list).
+4. Document sender→NPC attribution edge cases (duplicate names, GM narration).
+5. List any GameEntry.speakerNpcId concerns — recommend 11A vs 11B.
 
-Deliver:
-- data model
-- minimal UI plan
-- provider abstraction
-- privacy/security notes
-- tests
+Output:
+- Short review appended to PHASE11 or AI_SHARED_LOG
+- If schema changes needed, patch PHASE11_ADAPTIVE_TTS_DESIGN.md sections 5–7 only
+- Do NOT implement yet unless user asks
+```
+
+### Prompt for Grok (Phase 11A implementation)
+
+```markdown
+LoreRelay Phase 11A implementation (Grok).
+
+Read first:
+- PHASE11_ADAPTIVE_TTS_DESIGN.md (follow exactly)
+- src/npcRegistryCore.ts, src/npcRegistry.ts
+- webview/modules/60-tts-quickreply-imagegen.js
+- webview/modules/85-world.js, src/worldView.ts
+- package.json (add textAdventure.tts.external.enabled default false)
+
+Implement Phase 11A only:
+1. src/npcVoiceCore.ts — profile parse/clamp, mood modifiers
+2. src/ttsProviderCore.ts — resolveTtsPlan(), provider fallback
+3. Extend npc_registry parser for optional voice field
+4. Webview: speakWithProfile(), chat 📢 attribution by sender name
+5. World tab: NPC 🔊 Preview button
+6. scripts/test_npc_voice_core.js, scripts/test_tts_provider_core.js in npm test
+7. i18n × 4 locales, testing_checklist.md manual steps
+8. CHANGELOG [Unreleased], AI_SHARED_LOG, AI_ROADMAP checkboxes
+
+Constraints:
+- Execute system TTS only; local/external = plan + fallback log, no network
+- Do not change processTurnResult() or GM Bridge
+- Core/wrapper split: no vscode import in *Core.ts
+- Match existing code style; minimal diff
+
+Verify: npm run compile && npm test
+Commit message: feat(phase-11a): NPC voice profiles and system TTS routing
+```
+
+### Prompt for ChatGPT (post-11A review)
+
+```markdown
+LoreRelay Phase 11A code review (ChatGPT).
+
+Read:
+- PHASE11_ADAPTIVE_TTS_DESIGN.md
+- git diff for Phase 11A (npcVoiceCore, ttsProviderCore, webview TTS, world NPC preview)
+- CHANGELOG [Unreleased]
+
+Review focus:
+1. Privacy: external TTS gated, no accidental exfiltration
+2. Attribution: sender name match false positives
+3. Parser caps consistent with npc_registry patterns
+4. Webview plain-text speak path (no innerHTML regression)
+5. Missing tests or manual checklist gaps
+
+Return: severity-tagged findings only; suggest Phase 11B scope separately.
 ```
 
 ## Coordination Rules

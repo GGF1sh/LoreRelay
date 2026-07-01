@@ -9,6 +9,8 @@ const {
     resolveCartographyThemeStyle,
     buildCartographyPinPositions,
     buildCartographyRegionLabels,
+    MAX_CARTOGRAPHY_LAYOUT_REGIONS,
+    MAX_CARTOGRAPHY_LAYOUT_LOCATIONS,
     mapCoordToPixel,
     mapCoordToPercent,
     BIOME_LAYOUT_RGB,
@@ -94,6 +96,29 @@ else if (portA.leftPct === portB.leftPct && portA.topPct === portB.topPct) {
 
 if (!BIOME_LAYOUT_RGB.sea || BIOME_LAYOUT_RGB.sea.length !== 3) { fail('biome rgb'); }
 else { ok('biome layout colors'); }
+
+const manyRegionsForge = {
+    meta: { worldName: 'Big', theme: 'fantasy' },
+    geography: {
+        regions: Array.from({ length: 30 }, (_, i) => ({
+            id: `r${i}`, name: `R${i}`, type: 'plains', biome: 'plains', x: 100 + i * 10, y: 500, connectedTo: [],
+        })),
+        locations: Array.from({ length: 150 }, (_, i) => ({
+            id: `l${i}`, name: `L${i}`, type: 'settlement', regionId: 'r0',
+        })),
+    },
+    factions: [],
+    loreHistory: [],
+    initialNpcs: [],
+};
+const cappedSpec = buildCartographyLayoutSpec(manyRegionsForge);
+if (cappedSpec.regions.length !== MAX_CARTOGRAPHY_LAYOUT_REGIONS) {
+    fail(`layout regions capped at ${MAX_CARTOGRAPHY_LAYOUT_REGIONS}, got ${cappedSpec.regions.length}`);
+} else { ok('layout regions capped'); }
+const cappedPins = buildCartographyPinPositions(manyRegionsForge);
+if (cappedPins.length !== MAX_CARTOGRAPHY_LAYOUT_LOCATIONS) {
+    fail(`layout pins capped at ${MAX_CARTOGRAPHY_LAYOUT_LOCATIONS}, got ${cappedPins.length}`);
+} else { ok('layout location pins capped'); }
 
 if (failed > 0) { process.exit(1); }
 console.log('All cartography layout core tests passed.');

@@ -62,6 +62,8 @@ function asStringArray(v: unknown): string[] {
 const MAX_PARSE_FACTIONS = 50;
 const MAX_PARSE_REGIONS = 50;
 const MAX_PARSE_GLOBAL_EVENTS = 100;
+const MAX_FACTION_RESOURCE_KEYS = 20;
+const MAX_FACTION_RESOURCE_VALUE = 10_000;
 
 const VALID_EVENT_TYPES = new Set<WorldEventType>([
     'environmental', 'political', 'military', 'social', 'magical', 'other'
@@ -80,9 +82,15 @@ function parseFactionWorldState(raw: unknown): FactionWorldState | undefined {
     if (r.resources && typeof r.resources === 'object' && !Array.isArray(r.resources)) {
         const res: FactionResources = {};
         for (const [k, v] of Object.entries(r.resources as Record<string, unknown>)) {
-            if (typeof v === 'number') { res[k] = v; }
+            if (Object.keys(res).length >= MAX_FACTION_RESOURCE_KEYS) { break; }
+            if (typeof v !== 'number' || !Number.isFinite(v)) { continue; }
+            const key = k.slice(0, 64);
+            if (!key) { continue; }
+            res[key] = Math.max(0, Math.min(MAX_FACTION_RESOURCE_VALUE, v));
         }
-        state.resources = res;
+        if (Object.keys(res).length > 0) {
+            state.resources = res;
+        }
     }
     return state;
 }

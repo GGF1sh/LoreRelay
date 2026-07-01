@@ -6,6 +6,9 @@ import { resolveCartographyThemeStyle } from './cartographyThemeStyles';
 export const CARTOGRAPHY_MAP_SIZE = 1000;
 export const DEFAULT_LAYOUT_IMAGE_SIZE = 1024;
 export const DEFAULT_REGION_RADIUS_MAP = 72;
+/** Align with worldMapGenerator Mermaid caps — layout overlay must not scale unbounded. */
+export const MAX_CARTOGRAPHY_LAYOUT_REGIONS = 20;
+export const MAX_CARTOGRAPHY_LAYOUT_LOCATIONS = 100;
 
 export interface CartographyLayoutRegion {
     id: string;
@@ -107,7 +110,7 @@ export function buildCartographyLayoutSpec(
     forge: WorldForge,
     imageSize: number = DEFAULT_LAYOUT_IMAGE_SIZE
 ): CartographyLayoutSpec {
-    const regions = forge.geography.regions;
+    const regions = forge.geography.regions.slice(0, MAX_CARTOGRAPHY_LAYOUT_REGIONS);
     const byId = new Map(regions.map((r) => [r.id, r]));
     const layoutRegions: CartographyLayoutRegion[] = regions.map((region, index) => {
         const biome = resolveRegionBiome(region);
@@ -246,7 +249,7 @@ export function buildCartographyPinPositions(forge: WorldForge): CartographyPinP
     const regionById = new Map(spec.regions.map((r) => [r.id, r]));
     const pins: CartographyPinPosition[] = [];
 
-    for (const loc of forge.geography.locations) {
+    for (const loc of forge.geography.locations.slice(0, MAX_CARTOGRAPHY_LAYOUT_LOCATIONS)) {
         const region = loc.regionId ? regionById.get(loc.regionId) : undefined;
         const x = region?.x ?? 500;
         const y = region?.y ?? 500;

@@ -31,6 +31,19 @@ function getNpcRegistryPath(): string | undefined {
     return ws ? path.join(ws, NPC_REGISTRY_FILENAME) : undefined;
 }
 
+function sanitizeNpcPortraitPaths(registry: NpcRegistry): NpcRegistry {
+    for (const entry of Object.values(registry.npcs)) {
+        if (!entry.portraitImagePath) { continue; }
+        const resolved = resolveAllowedImagePath(entry.portraitImagePath);
+        if (resolved) {
+            entry.portraitImagePath = resolved;
+        } else {
+            delete entry.portraitImagePath;
+        }
+    }
+    return registry;
+}
+
 export function clearNpcRegistryCache(): void {
     cachedRegistry = undefined;
     cachePath = '';
@@ -48,7 +61,7 @@ export function loadNpcRegistry(): NpcRegistry {
             return cachedRegistry;
         }
         const raw = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
-        const parsed = parseNpcRegistry(raw);
+        const parsed = sanitizeNpcPortraitPaths(parseNpcRegistry(raw));
         cachePath = registryPath;
         cacheMtime = mtime;
         cachedRegistry = parsed;

@@ -82,6 +82,22 @@ if (parsed.lastSimulatedGmTurn !== 5) { fail('lastSimulatedGmTurn preserved'); }
 if (!parsed.factions.undead || parsed.factions.undead.power !== 80) { fail('faction power'); } else { ok('faction power'); }
 if (parsed.factions.undead.morale !== 70) { fail('faction morale'); } else { ok('faction morale'); }
 if (!parsed.factions.undead.resources || parsed.factions.undead.resources.mana !== 50) { fail('faction resources'); } else { ok('faction resources'); }
+
+const resourceClamp = parseWorldState({
+    worldTurn: 0,
+    factions: {
+        test: {
+            power: 50,
+            resources: { food: -10, mana: Infinity, bad: NaN, huge: 999_999 },
+        },
+    },
+});
+const testRes = resourceClamp?.factions?.test?.resources;
+if (!testRes || testRes.food !== 0 || testRes.huge !== 10000 || 'mana' in testRes || 'bad' in testRes) {
+    fail(`faction resources clamped: ${JSON.stringify(testRes)}`);
+} else {
+    ok('faction resources finite and clamped');
+}
 if (!parsed.factions.watchers) { fail('second faction parsed'); } else { ok('second faction parsed'); }
 if (!parsed.regions || parsed.regions.upper.dangerLevel !== 3) { fail('region dangerLevel'); } else { ok('region dangerLevel'); }
 if (parsed.regions.upper.controllingFaction !== 'watchers') { fail('region controllingFaction'); } else { ok('region controllingFaction'); }

@@ -43,6 +43,13 @@ function applyI18n() {
 
 const localeSelect = () => document.getElementById('locale-select');
 
+/** #free-input is a <textarea>; grow it to fit its content (up to the CSS max-height, then it scrolls). */
+function autoGrowFreeInput() {
+  if (!freeInput) return;
+  freeInput.style.height = 'auto';
+  freeInput.style.height = `${freeInput.scrollHeight}px`;
+}
+
 // DOM Elements
 const chatLog = document.getElementById('chat-log');
 const optionsBar = document.getElementById('options-bar');

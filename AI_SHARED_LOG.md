@@ -1,5 +1,28 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Multi-line free input + Ctrl+Enter to send
+
+### Summary
+
+User feedback while testing the fixes above: the free-text input is an `<input type="text">`, which can never hold a newline regardless of keydown handling (a single-line `<input>` just doesn't support `\n`), and Enter always sent immediately — no way to write a multi-line message at all. Initially planned "Enter sends, Shift+Enter newlines" (the common chat-app convention), but the user pushed back: they'd rather have **Ctrl+Enter send** and plain **Enter (or Shift+Enter) insert a newline**, reasoning that people who just hit Enter out of habit expecting a newline shouldn't accidentally send, and the Send button is right there for a one-click send anyway.
+
+Changes:
+- `webview/index.html`: `#free-input` changed from `<input type="text">` to `<textarea rows="1">`. Verified every other usage of the `freeInput` JS variable across modules (`.value`, `.focus()`, `.setSelectionRange()`, `.disabled`, `.placeholder`, `.addEventListener('input', ...)`) — all supported identically by `<textarea>`, safe drop-in swap.
+- `20-input-audio-prep.js`: keydown handler now checks `e.ctrlKey || e.metaKey` before sending (Cmd+Enter on Mac too); plain/Shift+Enter falls through to the textarea's normal newline insertion.
+- `00-core.js`: added `autoGrowFreeInput()` (resize height to `scrollHeight`, capped by CSS `max-height` which then scrolls). Wired to the `input` event, and called manually at every other place across `10-game-state.js`/`20-input-audio-prep.js`/`90-bootstrap.js` that sets `freeInput.value` directly (STT transcript, image-flag template, Start Hub interview template, restored draft state, clear-on-send) since programmatic `.value` assignment doesn't fire `input`.
+- `styles/20-quickreply-messages.css`: `#input-area` gets `align-items: flex-end` so the buttons stay bottom-aligned as the textarea grows; `#free-input` gets `resize: none; overflow-y: auto; max-height: 140px; line-height: 1.4`.
+- `webview.input.placeholder` updated in all 4 locales to mention Ctrl+Enter.
+
+### Verification
+
+- `npm run build:webview`, `npx tsc --noEmit`, `node scripts/check_i18n_keys.js` (0 missing), `node scripts/validate_webview_html_structure.js`, full `npm test` — all passed.
+
+### Next
+
+- User to confirm multi-line typing + auto-grow looks right, and Ctrl+Enter/Cmd+Enter sends as expected, in a real session.
+
+---
+
 ## 2026-07-02 JST - Grok - First session polish (A) + TTS/character help (B)
 
 ### Summary

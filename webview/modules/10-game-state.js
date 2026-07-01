@@ -311,6 +311,7 @@ function renderMessage(entry) {
     flagBtn.onclick = () => {
       if (freeInput) {
         freeInput.value = T('webview.image.flagMismatchTemplate');
+        autoGrowFreeInput();
         freeInput.focus();
         if (typeof freeInput.setSelectionRange === 'function') {
           const end = freeInput.value.length;

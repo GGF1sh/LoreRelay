@@ -1,7 +1,7 @@
 {
   "webview.panel.title": "⚔️ LoreRelay",
   "webview.chat.header": "Adventure Log",
-  "webview.input.placeholder": "Free input (Enter to send to GM)",
+  "webview.input.placeholder": "Free input (Ctrl+Enter to send, Enter for a new line)",
   "webview.input.send": "Send",
   "webview.input.imageTitle": "Generate image for this scene",
   "webview.status.header": "Character Status",

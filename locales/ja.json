@@ -1,7 +1,7 @@
 {
   "webview.panel.title": "⚔️ LoreRelay",
   "webview.chat.header": "冒険ログ",
-  "webview.input.placeholder": "自由入力 (EnterでGMに送信)",
+  "webview.input.placeholder": "自由入力 (Ctrl+Enterで送信、Enterで改行)",
   "webview.input.send": "送信",
   "webview.input.imageTitle": "この場面の画像を生成",
   "webview.status.header": "キャラクターステータス",

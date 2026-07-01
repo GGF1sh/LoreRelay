@@ -1,7 +1,7 @@
 {
   "webview.panel.title": "⚔️ LoreRelay",
   "webview.chat.header": "冒险日志",
-  "webview.input.placeholder": "自由输入（Enter 发送给 GM）",
+  "webview.input.placeholder": "自由输入（Ctrl+Enter 发送，Enter 换行）",
   "webview.input.send": "发送",
   "webview.input.imageTitle": "生成当前场景图像",
   "webview.status.header": "角色状态",

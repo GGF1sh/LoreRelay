@@ -13,6 +13,7 @@
 
 - **First session polish (A)** — Start Hub に **🎮 お試しデモ**（`harbor-mist`）と **🗺️ 地図デモ**（`lost-catacombs`）ボタン。`loadBundledSampleScenario()` でフォルダ選択なし読み込み。同梱 `world_forge.json` 等もワークスペースへコピー。`docs/FIRST_SESSION.md`。
 - **TTS / character help (B)** — `docs/TTS_QUICKSTART.md`（system → local → OpenAI 段階導線）。TTS メニューと Character タブにインラインヘルプ（パーティ vs アクティブ、削除時の画像範囲）。
+- Free-text input (`#free-input`) is now a proper multi-line `<textarea>` that auto-grows with content (up to a max height, then scrolls) instead of a single-line `<input>`. **Ctrl/Cmd+Enter now sends**; plain Enter (and Shift+Enter) just inserts a newline — the Send button still sends on a click either way. Placeholder text updated in all 4 locales to reflect the new shortcut.
 
 ### Fixed
 

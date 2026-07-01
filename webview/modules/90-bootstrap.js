@@ -14,6 +14,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setTheme(currentTheme);
     if (savedState.draftText && freeInput) {
       freeInput.value = savedState.draftText;
+      autoGrowFreeInput();
     }
     const noteEl = document.getElementById('authors-note-input');
     if (savedState.authorsNoteText && noteEl) {
@@ -191,6 +192,7 @@ function initStartHub() {
         : T('webview.startHub.interviewTemplate');
       if (freeInput) {
         freeInput.value = template;
+        autoGrowFreeInput();
         freeInput.focus();
         if (typeof freeInput.setSelectionRange === 'function') {
           const end = freeInput.value.length;

@@ -1,8 +1,15 @@
 // ===== 自由入力 =====
 sendBtn.addEventListener('click', sendFreeInput);
 freeInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendFreeInput();
+  // Ctrl/Cmd+Enter sends; plain Enter (and Shift+Enter) inserts a newline instead --
+  // avoids accidentally sending on a plain Enter meant to start a new line.
+  // The Send button next to the field still sends on a single click either way.
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    sendFreeInput();
+  }
 });
+freeInput.addEventListener('input', autoGrowFreeInput);
 
 const undoBtn = document.getElementById('undo-btn');
 if (undoBtn) {
@@ -161,6 +168,7 @@ function startListening() {
     }
     if (freeInput) {
       freeInput.value = transcript.trim();
+      autoGrowFreeInput();
     }
     const last = event.results[event.results.length - 1];
     if (last?.isFinal && transcript.trim()) {
@@ -221,6 +229,7 @@ function sendFreeInput() {
   messageHistory.push(entry);
   renderMessage(entry);
   freeInput.value = '';
+  autoGrowFreeInput();
   scrollToBottom();
   saveState();
   // Lock immediately, client-side -- don't wait for the extension's 'gmStart'

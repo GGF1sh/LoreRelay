@@ -5298,12 +5298,17 @@ function renderQuestHooks(quests) {
             actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-orange); font-weight:600;">${escapeHtml(T('webview.world.questActive'))}</span>`;
         }
 
+        const rewardHtml = q.reward
+            ? `<div class="quest-reward">${escapeHtml(T('webview.world.questReward'))}: ${escapeHtml(q.reward)}</div>`
+            : '';
+
         item.innerHTML = `
             <div class="quest-header">
                 <span class="quest-title">${escapeHtml(q.title)}</span>
                 <span class="quest-badge" style="border: 1px solid rgba(255,255,255,0.2)">${escapeHtml(sourceLabel)}</span>
             </div>
             <div class="quest-desc">${escapeHtml(q.description)}</div>
+            ${rewardHtml}
             <div class="quest-actions">
                 ${actionsHtml}
             </div>

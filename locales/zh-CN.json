@@ -126,6 +126,7 @@
   "webview.world.questActive": "进行中",
   "webview.world.questSourceEvent": "事件",
   "webview.world.questSourceNpc": "NPC",
+  "webview.world.questReward": "奖励",
   "webview.tab.ooc": "OOC",
   "webview.ooc.empty": "GM 回合后 OOC 评论将显示在这里...",
   "webview.party.empty": "将角色加入队伍后可配置发言控制与关系值。",

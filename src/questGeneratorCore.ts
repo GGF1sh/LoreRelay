@@ -124,7 +124,10 @@ function createNpcQuestHook(
         source: 'npc',
         relatedId,
         status: 'available',
-        turnGenerated: turn
+        turnGenerated: turn,
+        reward: clampText(`${name} will trust you more.`, 200),
+        npcId,
+        needId: need.id
     };
 }
 

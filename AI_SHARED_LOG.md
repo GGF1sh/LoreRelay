@@ -1,5 +1,29 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Claude (Sonnet 5) - Phase 8A quest completion rewards + Phase 10 status check
+
+### Summary
+
+- User relayed Grok's phase-assignment status table showing Phase 10 as "prototype only, real implementation still to come." Verified against the actual committed code: Grok's table was stale — my earlier Phase 10 work (gitManager.ts hardening, branch panel UI, commitTurn file-list fix, CHANGELOG mojibake fix) is already committed in `0dbcd63` and confirmed intact/passing after the Phase 9A/9B work landed on top of it. Phase 10 is functionally done; nothing further planned unless new gaps surface.
+- Assessed Phase 8A's flagged remaining work ("reward/disposition design") and judged it worth completing now (user gave standing permission to proceed autonomously while away): quest hooks previously had a `reward` field in the type/parser that nothing ever populated or applied — completing a quest only flipped `status` to `'completed'` with no mechanical effect.
+- Implemented reward application for NPC-sourced quest hooks only (event-sourced hooks have no natural reward recipient):
+  - `worldStateCore.ts` — added `npcId?`/`needId?` to `QuestHook`, parsed only when `source === 'npc'`.
+  - `questGeneratorCore.ts` — `createNpcQuestHook` now sets `npcId`, `needId`, and a `reward` description.
+  - `statePatch.ts` — `completeResolvedQuestHooks()` now takes a `currentTurn` param (derived from existing `state.entries` GM-role count, no new cross-module dependency) and, for each newly-completed npc-sourced hook, calls the existing `applyNpcMemoryUpdates()` (Phase 3-reviewed, already safe/clamped) with `+10 playerTrust`, resolves the matching need, and appends a memory entry.
+  - `webview/modules/85-world.js` + all 4 locales — Quest Board now shows the reward text when present.
+  - `scripts/test_quest_generator.js` — added assertions that npc hooks carry `npcId`/`needId`/`reward`, that event hooks never pick up stray `npcId`/`needId` from raw data, and that round-trip parsing preserves the new fields.
+
+### Verification
+
+- `npm run compile` passed.
+- `node scripts/test_quest_generator.js` passed (including new assertions).
+- `node scripts/check_i18n_keys.js` — 0 missing in all 4 locales.
+- `npm test` passed (full suite green).
+
+### Next
+
+- None from this entry. Original Phase 10 mojibake follow-up is already resolved (see below).
+
 ## 2026-07-01 JST - Codex - Phase 9B code review hardening
 
 ### Summary

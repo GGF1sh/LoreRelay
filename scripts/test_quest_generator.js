@@ -66,6 +66,11 @@ function makeRegistry() {
   assert(state.questHooks.some((q) => q.source === 'npc' && q.relatedId === 'need_captain_elowen_missing_supplies'));
   assert(!state.questHooks.some((q) => q.relatedId === 'wce_7_region_safe'), 'info events should not become quests');
 
+  const npcHook = state.questHooks.find((q) => q.source === 'npc');
+  assert.strictEqual(npcHook.npcId, 'captain_elowen', 'npc quest hook should carry npcId for reward application');
+  assert.strictEqual(npcHook.needId, 'missing_supplies', 'npc quest hook should carry needId for reward application');
+  assert(typeof npcHook.reward === 'string' && npcHook.reward.length > 0, 'npc quest hook should have a reward description');
+
   generateQuestHooks(state, makeRegistry());
   assert.strictEqual(state.questHooks.length, 2, 'running generation twice must not duplicate related quest hooks');
 }
@@ -118,6 +123,47 @@ function makeRegistry() {
   assert.strictEqual(parsed.questHooks[0].title.length, 120, 'quest title should be clamped');
   assert.strictEqual(parsed.questHooks[0].description.length, 600, 'quest description should be clamped');
   assert.strictEqual(parsed.questHooks[0].turnGenerated, 1, 'turnGenerated should be floored');
+}
+
+{
+  const raw = {
+    format: 'lorerelay-world-state/1.1',
+    worldTurn: 1,
+    factions: {},
+    questHooks: [
+      {
+        id: 'quest_npc_reward',
+        title: 'Help Elowen',
+        description: 'Bring supplies.',
+        source: 'npc',
+        relatedId: 'need_captain_elowen_missing_supplies',
+        status: 'active',
+        turnGenerated: 1,
+        reward: 'Captain Elowen will trust you more.',
+        npcId: 'captain_elowen',
+        needId: 'missing_supplies',
+      },
+      {
+        id: 'quest_event_no_npc_fields',
+        title: 'Investigate',
+        description: 'Something happened.',
+        source: 'event',
+        relatedId: 'wce_1_region_test',
+        status: 'available',
+        turnGenerated: 1,
+        // an event-sourced hook should never carry npcId/needId even if present in raw data
+        npcId: 'should_not_be_kept',
+        needId: 'should_not_be_kept',
+      },
+    ],
+  };
+  const parsed = parseWorldState(raw);
+  const npcHook = parsed.questHooks.find((q) => q.id === 'quest_npc_reward');
+  assert.strictEqual(npcHook.npcId, 'captain_elowen', 'npcId should round-trip for npc-sourced quest hooks');
+  assert.strictEqual(npcHook.needId, 'missing_supplies', 'needId should round-trip for npc-sourced quest hooks');
+  const eventHook = parsed.questHooks.find((q) => q.id === 'quest_event_no_npc_fields');
+  assert.strictEqual(eventHook.npcId, undefined, 'event-sourced quest hooks must not carry npcId');
+  assert.strictEqual(eventHook.needId, undefined, 'event-sourced quest hooks must not carry needId');
 }
 
 console.log('quest generator tests passed.');

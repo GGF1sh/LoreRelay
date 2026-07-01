@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Phase 8A — Quest 完了報酬(Claude)** — NPC由来のクエストフック(`source: 'npc'`)完了時に、対応NPCの`playerTrust`を+10、関連する`need`を解決済みに、完了メモリを1件追加するよう実装。`QuestHook`に`npcId`/`needId`(npc由来のみ)を追加し、既存の`applyNpcMemoryUpdates()`(Phase 3で検証済み)を再利用。Quest Board UIに報酬テキストの表示を追加(4言語i18n対応)。イベント由来のクエストは報酬の対象NPCが存在しないため、報酬適用対象は現状NPC由来のみ。
+
 - **Phase 8A - Event-to-Quest / Quest Board** — `questGeneratorCore.ts` で `world_state.json.recentChanges` と urgent NPC needs から deterministic Quest Hooks を生成。`world_state.json.questHooks` の型・パーサー・上限、World タブ Quest Board、available → active 操作、active quest の GM prompt 注入、`turn_result.json.resolvedQuests` による完了反映を追加。
 - **Phase 8-11 planning handoff** — `phase8_planning_and_prompts.md` を追加し、Quest Hook、分業型GM、Git Timeline、NPC voice profile の担当AI別プロンプトを整理。
 - **Phase 9 design — Agentic Campaign Engine** — `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md` を追加。State Referee / Narrator の二段階GM設計、`turn_result.json` と `processTurnResult()` を正本に保つ安全境界、Grok-only Phase 9A 実装手順、fallback、テスト計画を整理。

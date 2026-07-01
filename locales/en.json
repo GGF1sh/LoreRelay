@@ -126,6 +126,7 @@
   "webview.world.questActive": "ACTIVE",
   "webview.world.questSourceEvent": "event",
   "webview.world.questSourceNpc": "npc",
+  "webview.world.questReward": "Reward",
   "webview.tab.ooc": "OOC",
   "webview.ooc.empty": "OOC commentary will appear here after GM turns...",
   "webview.party.empty": "Add characters to the party to configure speech and relationships.",

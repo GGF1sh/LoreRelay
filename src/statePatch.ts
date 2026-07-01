@@ -11,6 +11,8 @@ import { validateGameState } from './validateGameState';
 import { t } from './i18n';
 import { commitGameState } from './stateManager';
 import { loadWorldState, saveWorldState } from './worldState';
+import { applyNpcMemoryUpdates } from './npcRegistry';
+import type { NpcMemoryUpdate } from './npcRegistryCore';
 
 /** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
 const ALLOWED_ROOTS = new Set([
@@ -273,7 +275,10 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
     return { ...state, entries };
 }
 
-function completeResolvedQuestHooks(resolvedQuests: unknown): void {
+/** Reward magnitude for completing an NPC-sourced quest hook (0-100 disposition scale). */
+const QUEST_COMPLETION_TRUST_REWARD = 10;
+
+function completeResolvedQuestHooks(resolvedQuests: unknown, currentTurn: number): void {
     if (!Array.isArray(resolvedQuests)) { return; }
     const resolvedIds = new Set(resolvedQuests.filter(isValidEventId));
     if (resolvedIds.size === 0) { return; }
@@ -282,14 +287,32 @@ function completeResolvedQuestHooks(resolvedQuests: unknown): void {
     if (!worldState?.questHooks?.length) { return; }
 
     let changed = false;
+    const npcUpdates: NpcMemoryUpdate[] = [];
     for (const hook of worldState.questHooks) {
         if (resolvedIds.has(hook.id) && hook.status === 'active') {
             hook.status = 'completed';
             changed = true;
+
+            if (hook.source === 'npc' && hook.npcId && hook.needId) {
+                npcUpdates.push({
+                    npcId: hook.npcId,
+                    dispositionDelta: { playerTrust: QUEST_COMPLETION_TRUST_REWARD },
+                    needUpdates: [{ id: hook.needId, resolved: true }],
+                    newMemory: {
+                        turn: currentTurn,
+                        content: `Player helped resolve: ${hook.title}`,
+                        emotionalWeight: 'positive',
+                        tags: ['quest-completed']
+                    }
+                });
+            }
         }
     }
     if (changed) {
         saveWorldState(worldState);
+    }
+    if (npcUpdates.length > 0) {
+        applyNpcMemoryUpdates(npcUpdates, currentTurn);
     }
 }
 
@@ -311,7 +334,10 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             state = applyStatePatch(state, turnResult.statePatch);
         }
 
-        completeResolvedQuestHooks(turnResult.resolvedQuests);
+        const priorGmTurns = Array.isArray(state.entries)
+            ? (state.entries as unknown[]).filter((e) => typeof e === 'object' && e !== null && (e as GameEntry).role === 'gm').length
+            : 0;
+        completeResolvedQuestHooks(turnResult.resolvedQuests, priorGmTurns + 1);
 
         state = mergeGmEntryFromTurn(state, turnResult);
 

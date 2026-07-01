@@ -126,6 +126,7 @@
   "webview.world.questActive": "進行中",
   "webview.world.questSourceEvent": "出来事",
   "webview.world.questSourceNpc": "NPC",
+  "webview.world.questReward": "報酬",
   "webview.tab.ooc": "OOC",
   "webview.ooc.empty": "GM ターン後に OOC コメントがここに表示されます...",
   "webview.party.empty": "パーティにキャラクターを追加すると、発言制御と関係値を設定できます。",

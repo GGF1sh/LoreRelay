@@ -22,6 +22,10 @@ export interface QuestHook {
     status: QuestStatus;
     turnGenerated: number;
     reward?: string;
+    /** Only set for source: 'npc' — identifies who to reward on completion. */
+    npcId?: string;
+    /** Only set for source: 'npc' — the specific need this hook resolves. */
+    needId?: string;
 }
 
 
@@ -176,6 +180,8 @@ function parseQuestHook(raw: unknown): QuestHook | undefined {
         turnGenerated: Math.max(0, Math.floor(asNumber(r.turnGenerated, 0)))
     };
     if (r.reward !== undefined) { hook.reward = asString(r.reward).slice(0, 200); }
+    if (source === 'npc' && isValidEventId(r.npcId)) { hook.npcId = r.npcId; }
+    if (source === 'npc' && isValidEventId(r.needId)) { hook.needId = r.needId; }
     return hook;
 }
 

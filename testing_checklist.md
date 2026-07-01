@@ -24,7 +24,16 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Quest completion**: Put the active quest id in `turn_result.json` `resolvedQuests`, apply the turn, and verify the hook status becomes `completed`.
 - [ ] **i18n**: Switch locale (ja / en / zh-CN / zh-TW) and verify Quest Board title, empty state, Accept button, and ACTIVE badge translate correctly.
 
-## 5. Advanced Game Master Features
+## 5. Agentic GM E2E (Phase 9)
+- [ ] **Grok provider**: Set `textAdventure.gmBridge.provider = grok` and `textAdventure.gmBridge.agentic.enabled = true`, send one player action, and verify Output Channel shows State Referee -> Narrator -> final write.
+- [ ] **VS Code LM provider**: Set `textAdventure.gmBridge.provider = vscode-lm`, choose an available model, enable agentic mode, send one player action, and verify stdout JSON fallback is parsed into `.text-adventure/agentic/referee_result.json` and `narrator_result.json`.
+- [ ] **Local API provider**: Run one of `ollama`, `koboldcpp`, or `openrouter` with `agentic_stage_gm.py` available via `textAdventure.skillPath` / `gmBridge.scriptPath`, then verify the same two-stage flow succeeds.
+- [ ] **Final write boundary**: For each tested provider, confirm stage files are written under `.text-adventure/agentic/`, but only the merged result writes workspace root `turn_result.json`.
+- [ ] **No direct state write**: Confirm `game_state.json` changes only after LoreRelay processes the final `turn_result.json`; stage execution must not directly mutate `game_state.json`.
+- [ ] **Fallback path**: Temporarily break the Narrator stage or force a timeout and verify the Referee result is preserved with fallback narration. Temporarily break Referee and verify it falls back to single-stage only when `textAdventure.gmBridge.agentic.fallbackToSingleStage = true`.
+- [ ] **Busy / cancel cleanup**: Start an agentic turn, cancel/kill the GM bridge, and verify the UI leaves the busy state and a second turn can be submitted.
+
+## 6. Advanced Game Master Features
 - [ ] **Quest Flow & Relations Generation**: Send requests like `/mermaid questFlow` and verify the GM outputs valid Mermaid syntax that renders correctly.
 - [ ] **OOC Sidekick**: Verify the out-of-character sidekick chimes in appropriately without spamming or "exploding" the chat context.
 - [ ] **Party Director / Force Speak**: Select a companion character and use "Force Speak" to ensure the GM properly roleplays that specific character's response.
@@ -32,7 +41,7 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Lorebook & Memory**: Save lorebook entries, verify they persist to disk, and trigger a memory index rebuild to ensure vector search works locally.
 - [ ] **Export HTML**: Export the saga to an HTML file and verify the offline layout renders correctly.
 
-## 6. System & Installation
+## 7. System & Installation
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.
 - [ ] **OpenRouter Key Migration**: Verify that the legacy plain-text API key is safely migrated into VS Code's `SecretStorage` mechanism on startup.

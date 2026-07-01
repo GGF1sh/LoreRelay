@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-07-02
+
+### Added
+
+- **Protagonist auto-bootstrap (First Session)** — Start Hub の「質問しながら作る」や Quickstart 完了後、会話・`turn_result.playerCharacter` から主人公を抽出し `characters/{id}.json` へ登録（インタビュー時は確認ダイアログ、Quickstart は自動）。`controlledBy: player`、アクティブキャラ設定、パーティ Join まで一括。`protagonistBootstrap.ts` / `protagonistBootstrapCore.ts`。`world_forge.json` watcher + `turn_result` 処理からデバウンス起動。
+- **`turn_result.playerCharacter`** — GM が世界生成ターンで主人公スナップショットを渡せる任意フィールド（`name` / `description` / `personality` / `equipment`）。
+- **Cartography LoRA（ユーザー設定）** — `textAdventure.cartography.lora` / `cartography.loraWeight`（リポジトリ default は空）。`TA_LORA` 環境変数が優先。Output に LoRA source 表示。
+- **ComfyUI 推奨 LoRA ドキュメント** — `docs/CARTOGRAPHY_RECOMMENDED_LORAS.md`（Mapcraft 第一推奨、テーマ別候補、User Settings 例）。`cartographyLoraPresets.ts` を実ファイル名 `mapcraft_il_v1` 等に更新、DnD Battlemaps / LargeFantasyCityMap 等を追加。
+
+### Changed
+
+- インタビューキックオフテンプレ（4言語）— 世界生成時に `world_forge.json` と `turn_result.playerCharacter` を GM に依頼する文言を追加。
+- `docs/FIRST_SESSION.md` — 主人公の自動プロフィール登録を追記。
+
 ## [1.11.2] - 2026-07-02
 
 ### Added

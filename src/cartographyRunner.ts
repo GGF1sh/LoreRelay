@@ -90,6 +90,30 @@ function resolveCartographyWorkflow(extPath: string): string {
     return path.join(extPath, 'comfyui', 'workflow_cartography_sdxl_canny.json');
 }
 
+function resolveCartographyLoraFromConfig(): { lora?: string; weight: string; source: 'env' | 'settings' | 'none' } {
+    const envLora = process.env.TA_LORA?.trim();
+    if (envLora) {
+        const envWeight = process.env.TA_LORA_WEIGHT?.trim();
+        return {
+            lora: envLora,
+            weight: envWeight && Number.isFinite(parseFloat(envWeight)) ? envWeight : '0.45',
+            source: 'env',
+        };
+    }
+
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const settingsLora = config.get<string>('cartography.lora', '').trim();
+    if (!settingsLora) {
+        return { weight: '0.45', source: 'none' };
+    }
+
+    const settingsWeight = config.get<number>('cartography.loraWeight', 0);
+    const weight = settingsWeight > 0 && Number.isFinite(settingsWeight)
+        ? String(settingsWeight)
+        : '0.45';
+    return { lora: settingsLora, weight, source: 'settings' };
+}
+
 function buildCartographyEnv(wsPath: string, extPath: string): NodeJS.ProcessEnv {
     const env = buildImageGenEnv(wsPath);
     env.TA_LAYOUT_MODE = process.env.TA_LAYOUT_MODE || 'voronoi';
@@ -105,11 +129,11 @@ function buildCartographyEnv(wsPath: string, extPath: string): NodeJS.ProcessEnv
     if (controlNet) {
         env.TA_CONTROL_NET = controlNet;
     }
-    const lora = process.env.TA_LORA?.trim();
-    if (lora) {
-        env.TA_LORA = lora;
-        const weight = process.env.TA_LORA_WEIGHT?.trim();
-        env.TA_LORA_WEIGHT = weight && Number.isFinite(parseFloat(weight)) ? weight : '0.45';
+    const loraConfig = resolveCartographyLoraFromConfig();
+    if (loraConfig.lora) {
+        env.TA_LORA = loraConfig.lora;
+        env.TA_LORA_WEIGHT = loraConfig.weight;
+        env.TA_LORA_SOURCE = loraConfig.source;
     }
     const controlStrength = process.env.TA_CONTROL_STRENGTH?.trim();
     if (controlStrength) {
@@ -234,12 +258,20 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
     channel.appendLine(`LoRA: ${env.TA_LORA || '(none — ControlNet + prompt only)'}`);
     if (env.TA_LORA) {
         channel.appendLine(`LoRA weight: ${env.TA_LORA_WEIGHT || '0.45'}`);
+        const loraSource = env.TA_LORA_SOURCE === 'env'
+            ? 'TA_LORA env'
+            : env.TA_LORA_SOURCE === 'settings'
+                ? 'textAdventure.cartography.lora'
+                : '';
+        if (loraSource) {
+            channel.appendLine(`LoRA source: ${loraSource}`);
+        }
     } else {
         try {
             const forge = JSON.parse(fs.readFileSync(validatedForge, 'utf-8')) as { meta?: { theme?: string } };
             const preset = suggestCartographyLoraPreset(forge.meta?.theme);
             channel.appendLine(formatCartographyLoraPresetHint(preset));
-            channel.appendLine('(Optional — set TA_LORA env to try; not applied automatically.)');
+            channel.appendLine('(Set textAdventure.cartography.lora in User Settings, or TA_LORA env.)');
         } catch {
             /* preset hint is best-effort */
         }

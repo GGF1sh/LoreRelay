@@ -34,7 +34,7 @@ def main() -> int:
     workflow_path = REPO_ROOT / "comfyui" / "workflow_cartography_sdxl_canny.json"
     workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
 
-    apply_lora(workflow, "Mapcraft_Illustrious_v1.safetensors", 0.45)
+    apply_lora(workflow, "mapcraft_il_v1.safetensors", 0.45)
     if workflow.get("14", {}).get("class_type") != "LoraLoader":
         fail("node 14 LoraLoader missing")
     else:

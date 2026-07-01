@@ -35,7 +35,7 @@
 オプション:
 
 - **🔊 TTS** を有効化 → 📢 で読み上げ（[TTS_QUICKSTART.md](TTS_QUICKSTART.md)）
-- **Character** タブで主人公を作成 → **Join party** にチェックしたキャラだけが GM 文脈に入る
+- **Character** タブ — Start Hub の「質問しながら作る」や Quickstart 後、主人公を **キャラクタープロフィールへ自動登録**（確認ダイアログあり）→ パーティに Join 済み
 
 ## 3. 世界を広げる（10分・任意）
 

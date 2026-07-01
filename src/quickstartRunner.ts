@@ -6,6 +6,7 @@ import { generateText } from './llmClient';
 import { generateAndSaveWorldForge, getDefaultGeneratorInput } from './worldForgeGenerator';
 import { loadWorldForge } from './worldForge';
 import { resetWorldStateFromForge } from './worldState';
+import { maybeBootstrapProtagonist, quickstartFieldsToDraft } from './protagonistBootstrap';
 
 interface QuickstartResult {
     success: boolean;
@@ -119,6 +120,19 @@ Output ONLY valid JSON. Do not include markdown formatting or extra text.`;
     const forge = loadWorldForge();
     if (forge) {
         resetWorldStateFromForge(forge, true);
+    }
+
+    const draft = quickstartFieldsToDraft({
+        characterName: parsed.characterName,
+        characterDescription: parsed.characterDescription,
+        scenarioObjective: parsed.scenarioObjective,
+    });
+    if (draft) {
+        await maybeBootstrapProtagonist({
+            quickstartDraft: draft,
+            requireWorldForge: true,
+            source: 'quickstart',
+        });
     }
 
     return { success: true };

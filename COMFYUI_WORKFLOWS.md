@@ -10,7 +10,7 @@ LoreRelay ships API-format ComfyUI workflows for local scene image generation.
 
 ## Cartography world map
 
-See [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md).
+See [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md). Optional map LoRAs: [`docs/CARTOGRAPHY_RECOMMENDED_LORAS.md`](docs/CARTOGRAPHY_RECOMMENDED_LORAS.md) (first pick: [Mapcraft on Civitai](https://civitai.com/models/799901/mapcraft-the-ultimate-ttrpg-mapmaker)).
 
 ```powershell
 python scripts/render_cartography_layout.py .\world_forge.json .\world_map.layout.png

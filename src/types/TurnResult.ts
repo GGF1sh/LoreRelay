@@ -31,6 +31,20 @@ export interface TurnGmEntryMeta {
     speakerNpcId?: string;
 }
 
+/** Optional protagonist snapshot from GM interview / world bootstrap (Phase 12). */
+export interface TurnResultPlayerCharacter {
+    name: string;
+    description: string;
+    personality?: string;
+    scenario?: string;
+    arrivalReason?: string;
+    equipment?: {
+        weapon?: string;
+        armor?: string;
+        accessory?: string;
+    };
+}
+
 export interface TurnResultAgenticMeta {
     mode: 'referee-narrator';
     refereeOk: boolean;
@@ -57,4 +71,6 @@ export interface TurnResult {
     triggeredLore?: string[];
     /** Optional metadata for Phase 9 agentic GM runs. Not required for legacy turn_result files. */
     agentic?: TurnResultAgenticMeta;
+    /** When set, LoreRelay can offer to create characters/{id}.json for the player protagonist. */
+    playerCharacter?: TurnResultPlayerCharacter;
 }

@@ -57,11 +57,11 @@ const pos = buildCartographyPositivePrompt(spec);
 if (!pos.includes('Test Realm') || !pos.includes('overworld') || !pos.includes('no labels')) { fail('positive prompt missing keywords'); }
 else { ok('positive prompt'); }
 
-const mapcraftPrefix = buildCartographyLoraPromptPrefix('Mapcraft_Illustrious_v1.safetensors', 'scifi');
+const mapcraftPrefix = buildCartographyLoraPromptPrefix('mapcraft_il_v1.safetensors', 'scifi');
 if (!mapcraftPrefix.includes('mapcraft') || !mapcraftPrefix.includes('sci-fi')) { fail('mapcraft lora prefix'); }
 else { ok('mapcraft lora prefix'); }
 
-const posLora = buildCartographyPositivePrompt(spec, 'Mapcraft_Illustrious_v1.safetensors');
+const posLora = buildCartographyPositivePrompt(spec, 'mapcraft_il_v1.safetensors');
 if (!posLora.startsWith('mapcraft')) { fail('positive prompt with lora'); }
 else { ok('positive prompt with lora'); }
 

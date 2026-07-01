@@ -94,6 +94,10 @@ Environment overrides: `TA_CONTROL_NET`, `TA_CONTROL_STRENGTH` (default 0.82), `
 
 ## 4. Model & LoRA recommendations
 
+**ComfyUI 向け推奨 LoRA 一覧（調査結果・Civitai リンク・コピペ設定）:** [`CARTOGRAPHY_RECOMMENDED_LORAS.md`](CARTOGRAPHY_RECOMMENDED_LORAS.md)
+
+第一推奨: **[Mapcraft: The Ultimate TTRPG Mapmaker](https://civitai.com/models/799901/mapcraft-the-ultimate-ttrpg-mapmaker)** — Illustrious 版 `mapcraft_il_v1.safetensors`、weight 0.4〜0.5。LoRA は自動適用されず、`TA_LORA` を手動設定したときだけ有効。
+
 ### Primary checkpoint (pick one you have)
 
 | Model | Strength | Notes |
@@ -106,16 +110,12 @@ Environment overrides: `TA_CONTROL_NET`, `TA_CONTROL_STRENGTH` (default 0.82), `
 
 | Asset | Use |
 |-------|-----|
-| **SDXL Canny** (`diffusion_pytorch_model_sdxl_canny.safetensors` or equivalent) | Bundled workflow default |
-| Strength `0.75–0.88` | Lower = more painterly freedom; higher = stricter geography |
+| **SDXL Canny** (`diffusers_xl_canny_full.safetensors` or equivalent) | Bundled workflow default |
+| Strength `0.85–0.92` | Lower = more painterly freedom; higher = stricter geography |
 
-### Optional LoRAs (stack 0.4–0.7)
+### Optional LoRA (manual `TA_LORA` only)
 
-| LoRA style | Search keywords | Effect |
-|------------|---------------|--------|
-| Parchment / antique map | `parchment map`, `antique cartography`, `fantasy map` | Paper tone + ink edge |
-| Ink border / compass | `compass rose`, `map border` | Decorative frame |
-| Sepia / aged paper | `aged paper`, `old manuscript` | Color grading |
+See [`CARTOGRAPHY_RECOMMENDED_LORAS.md`](CARTOGRAPHY_RECOMMENDED_LORAS.md) for theme-specific picks (Sci-Fi, Fantasy Heavy, DnD Battlemaps, etc.).
 
 Avoid character/anime LoRAs — they pull toward portraits, not top-down maps.
 

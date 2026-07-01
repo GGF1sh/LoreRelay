@@ -29,6 +29,8 @@
   "config.textAdventure.imageGen.autoOnLocationChange.description": "在 World Forge 中更改玩家位置时自动生成场景图像。",
   "config.textAdventure.imageGen.includeFactionInPrompt.description": "在生成的地点图像提示词中包含控制该地点的“势力（Faction）”氛围。",
   "config.textAdventure.imageGen.includeDangerInPrompt.description": "在生成的地点图像提示词中包含该区域的“危险度（Danger Level）”氛围。",
+  "config.textAdventure.cartography.lora.description": "世界地图生成用 LoRA 文件名（ComfyUI loras 名称，如 mapcraft_il_v1.safetensors）。供用户/工作区设置；仓库默认为空。若设置了 TA_LORA 环境变量则优先。",
+  "config.textAdventure.cartography.loraWeight.description": "地图 LoRA 强度（0 表示在设置 lora 时使用 0.45）。与 ControlNet 并用时建议 0.4–0.5。若设置了 TA_LORA_WEIGHT 环境变量则优先。",
   "config.textAdventure.modelScan.roots.description": "要扫描模型文件（.safetensors、.gguf、.ckpt、.pt、.bin）的本地文件夹。可指向 Stability Matrix 的 Packages 文件夹、ComfyUI 文件夹、ComfyUI/models 或具体模型文件夹。",
   "config.textAdventure.vlm.provider.description": "Soulgaze 图像分析的 VLM 提供商。Ollama 为本地模型；OpenRouter 为云端多模态（OpenAI/Gemini/Anthropic 均经 OpenRouter API）。",
   "config.textAdventure.vlm.model.description": "VLM 模型名称（例如 Ollama 用 'llava'，OpenRouter 用 'google/gemini-2.0-flash'）。",

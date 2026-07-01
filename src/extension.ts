@@ -114,6 +114,7 @@ import {
     isCartographyGenerationBusy
 } from './cartographyRunner';
 import { resolveValidatedForgePath } from './cartographyPathCore';
+import { initProtagonistBootstrap, startProtagonistBootstrapWatcher } from './protagonistBootstrap';
 import {
     initMediaManifest,
     sendBgmManifest,
@@ -221,6 +222,12 @@ export function activate(context: vscode.ExtensionContext) {
         isGmBusy: isGmBridgeBusy,
         subscriptions: context.subscriptions
     });
+
+    initProtagonistBootstrap(context);
+    const protagonistBootstrapWatcher = startProtagonistBootstrapWatcher();
+    if (protagonistBootstrapWatcher) {
+        context.subscriptions.push(protagonistBootstrapWatcher);
+    }
 
     initGameStateSync({
         getPanel,

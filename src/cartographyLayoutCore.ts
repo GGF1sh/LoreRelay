@@ -1,5 +1,6 @@
 import type { WorldForge, Region, RegionBiome } from './worldForgeCore';
 import { inferRegionBiomeFromType } from './worldForgeCore';
+import { resolveCartographyThemeStyle } from './cartographyThemeStyles';
 
 /** LoreRelay map coordinate space (matches world_forge Region x/y). */
 export const CARTOGRAPHY_MAP_SIZE = 1000;
@@ -36,6 +37,14 @@ export interface CartographyPinPosition {
     locationName: string;
     regionId?: string;
     /** Percent 0..100 for HTML overlay (left / top). */
+    leftPct: number;
+    topPct: number;
+}
+
+export interface CartographyRegionLabel {
+    regionId: string;
+    regionName: string;
+    /** Percent 0..100 — placed below region center for HTML overlay. */
     leftPct: number;
     topPct: number;
 }
@@ -135,27 +144,66 @@ export function buildCartographyLayoutSpec(
     };
 }
 
-export function buildCartographyPositivePrompt(spec: CartographyLayoutSpec): string {
-    const theme = spec.theme ? `${spec.theme} fantasy` : 'fantasy';
+export type { CartographyThemeStyle } from './cartographyThemeStyles';
+export { resolveCartographyThemeStyle };
+
+function resolveMapcraftStyleTag(theme?: string): string {
+    const key = (theme ?? 'fantasy').toLowerCase().replace(/[\s_]+/g, '-');
+    if (key.includes('cyber') || key.includes('scifi') || key.includes('sci-fi')) { return 'sci-fi'; }
+    if (key.includes('postapoc') || key.includes('post-apoc') || key.includes('wasteland')) { return 'post-apocalyptic'; }
+    if (key.includes('zombie') || key.includes('undead') || key.includes('horror')) { return 'post-apocalyptic'; }
+    if (key === 'modern' || key.includes('urban')) { return 'modern'; }
+    return '';
+}
+
+/** Trigger words for known map LoRAs (e.g. Mapcraft on Civitai). */
+export function buildCartographyLoraPromptPrefix(loraName?: string, theme?: string): string {
+    if (!loraName?.trim()) { return ''; }
+    const lower = loraName.toLowerCase();
+    if (lower.includes('mapcraft')) {
+        const styleTag = resolveMapcraftStyleTag(theme);
+        const tags = 'mapcraft, battle map, top-down view, from above, no humans, highly detailed, exterior, landscape';
+        return styleTag ? `${tags}, ${styleTag}, ` : `${tags}, `;
+    }
+    return '';
+}
+
+export function buildCartographyPositivePrompt(spec: CartographyLayoutSpec, loraName?: string): string {
+    const style = resolveCartographyThemeStyle(spec.theme);
     const biomeSummary = summarizeBiomes(spec.regions);
+    const themeLabel = spec.theme ?? 'fantasy';
+    const loraPrefix = buildCartographyLoraPromptPrefix(loraName, spec.theme);
     return [
-        `ancient parchment fantasy world map of ${spec.worldName}`,
-        `${theme} cartography`,
-        'top-down illustrated map on aged paper',
-        'hand-drawn coastlines, mountain chains, forests, deserts, rivers',
-        'ornate compass rose, decorative border, ink lines, warm sepia tones',
-        'no modern UI, no photorealistic satellite view',
+        `${loraPrefix}flat top-down ${style.mapType} of ${spec.worldName}`,
+        style.renderStyle,
+        'orthographic bird eye view, map fills entire square frame edge to edge',
+        'distinct zone borders, route network between locations, readable macro geography',
+        'no labels, no typography, no UI frame, no floating objects, no perspective tilt',
+        `${themeLabel} world setting`,
         biomeSummary,
-        'masterpiece, best quality, highly detailed map illustration',
+        'masterpiece, best quality, highly detailed regional map illustration',
     ].join(', ');
 }
 
-export function buildCartographyNegativePrompt(): string {
-    return [
-        'lowres, worst quality, blurry, watermark, signature, text overlay',
-        'modern map, GPS, satellite photo, 3d render, anime character',
-        'sci-fi HUD, UI elements, illegible gibberish text blocks',
-    ].join(', ');
+const CARTOGRAPHY_NEGATIVE_CORE = [
+    'star chart, astrolabe, zodiac wheel, celestial diagram, astronomical map, magic circle',
+    'summoning circle, ritual circle, radial symmetry, circular diagram, radial grid',
+    'compass rose centerpiece, ornate mandala, spherical globe, planet in space',
+    'abstract diagram, infographic, flowchart, node graph visualization',
+    'floating object, tilted paper, perspective view, landscape background, scenic valley',
+    'mountains behind map, broken glass, shattered pane, diamond shape, kite shape, torn paper',
+    'satellite photo, GPS smartphone app, character portrait, anime face, creature close-up',
+    '3d render, photorealistic photograph, text, letters, words, watermark, signature',
+    'lowres, worst quality, blurry',
+].join(', ');
+
+export function buildCartographyNegativePrompt(theme?: string): string {
+    const style = resolveCartographyThemeStyle(theme);
+    const parts = [CARTOGRAPHY_NEGATIVE_CORE];
+    if (style.extraNegative) {
+        parts.push(style.extraNegative);
+    }
+    return parts.join(', ');
 }
 
 function summarizeBiomes(regions: CartographyLayoutRegion[]): string {
@@ -181,6 +229,16 @@ function locationOffsetPercent(locationId: string): { dx: number; dy: number } {
     const dx = ((hash % 17) - 8) * 0.35;
     const dy = (((hash >> 4) % 17) - 8) * 0.35;
     return { dx, dy };
+}
+
+export function buildCartographyRegionLabels(forge: WorldForge): CartographyRegionLabel[] {
+    const spec = buildCartographyLayoutSpec(forge);
+    return spec.regions.map((region) => ({
+        regionId: region.id,
+        regionName: region.name,
+        leftPct: mapCoordToPercent(region.x),
+        topPct: Math.min(98, mapCoordToPercent(region.y) + 4),
+    }));
 }
 
 export function buildCartographyPinPositions(forge: WorldForge): CartographyPinPosition[] {

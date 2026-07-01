@@ -2,7 +2,7 @@
 
 Phase 7 Grok deliverable: generate a **parchment-style world map image** from `world_forge.json` cartography (`x`, `y`, `biome`), then overlay **player/location pins in HTML** (coordinates from `cartographyLayoutCore.ts`).
 
-Related: [`CARTOGRAPHY_DESIGN.md`](CARTOGRAPHY_DESIGN.md) (data schema + LLM prompt)
+Related: [`CARTOGRAPHY_DESIGN.md`](CARTOGRAPHY_DESIGN.md) (data schema + LLM prompt) · [`CARTOGRAPHY_MAP_GENERATION_GUIDE.md`](CARTOGRAPHY_MAP_GENERATION_GUIDE.md) (prompts, ControlNet tuning, anti–star-chart negatives)
 
 ---
 

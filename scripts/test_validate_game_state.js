@@ -102,6 +102,33 @@ expectErrors(
     'latestImageDescription max length'
 );
 
+expectErrors(
+    {
+        ...MINIMAL,
+        status: { hp: { current: NaN, max: Infinity } }
+    },
+    ['status.hp.current', 'status.hp.max'],
+    'status.hp rejects NaN and Infinity'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        status: { hp: { current: 50, max: 10 } }
+    },
+    ['status.hp.current must not exceed max'],
+    'status.hp current > max'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        hiddenDice: [null]
+    },
+    ['hiddenDice[0] must be an object'],
+    'hiddenDice rejects null elements'
+);
+
 if (failed > 0) {
     process.exit(1);
 }

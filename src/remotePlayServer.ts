@@ -233,13 +233,15 @@ function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemoteP
 
     const hiddenDice: HiddenDiceEntry[] | undefined =
         Array.isArray(state.hiddenDice)
-            ? state.hiddenDice.map((dice, idx) => ({
-                id: String((dice as HiddenDiceEntry).id || `hd-${idx}`),
-                notation: String((dice as HiddenDiceEntry).notation ?? ''),
-                ...((dice as HiddenDiceEntry).purpose !== undefined
-                    ? { purpose: String((dice as HiddenDiceEntry).purpose) }
-                    : {})
-            }))
+            ? state.hiddenDice
+                .filter((dice): dice is HiddenDiceEntry =>
+                    typeof dice === 'object' && dice !== null && typeof (dice as HiddenDiceEntry).notation === 'string'
+                )
+                .map((dice, idx) => ({
+                    id: String(dice.id || `hd-${idx}`),
+                    notation: String(dice.notation ?? ''),
+                    ...(dice.purpose !== undefined ? { purpose: String(dice.purpose) } : {}),
+                }))
             : undefined;
 
     return {

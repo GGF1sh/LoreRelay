@@ -406,13 +406,15 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
 
             const hiddenDice: HiddenDiceEntry[] | undefined =
                 Array.isArray(activeState.hiddenDice)
-                    ? (activeState.hiddenDice as Array<Record<string, unknown>>).map(
-                        (dice, idx) => ({
+                    ? (activeState.hiddenDice as unknown[])
+                        .filter((dice): dice is Record<string, unknown> =>
+                            typeof dice === 'object' && dice !== null && typeof (dice as Record<string, unknown>).notation === 'string'
+                        )
+                        .map((dice, idx) => ({
                             id: String(dice.id || `hd-${idx}-${dice.notation ?? ''}-${dice.purpose || ''}`),
                             notation: String(dice.notation ?? ''),
-                            ...(dice.purpose !== undefined ? { purpose: String(dice.purpose) } : {})
-                        })
-                    )
+                            ...(dice.purpose !== undefined ? { purpose: String(dice.purpose) } : {}),
+                        }))
                     : undefined;
 
             const latestImageRawPath = activeState.latestImage ? String(activeState.latestImage) : undefined;

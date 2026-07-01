@@ -4,8 +4,11 @@
 const {
     buildCartographyLayoutSpec,
     buildCartographyPositivePrompt,
+    buildCartographyLoraPromptPrefix,
     buildCartographyNegativePrompt,
+    resolveCartographyThemeStyle,
     buildCartographyPinPositions,
+    buildCartographyRegionLabels,
     mapCoordToPixel,
     mapCoordToPercent,
     BIOME_LAYOUT_RGB,
@@ -49,12 +52,32 @@ if (Math.abs(mapCoordToPercent(250) - 25) > 0.01) { fail('mapCoordToPercent'); }
 else { ok('mapCoordToPercent'); }
 
 const pos = buildCartographyPositivePrompt(spec);
-if (!pos.includes('Test Realm') || !pos.includes('parchment')) { fail('positive prompt missing keywords'); }
+if (!pos.includes('Test Realm') || !pos.includes('overworld') || !pos.includes('no labels')) { fail('positive prompt missing keywords'); }
 else { ok('positive prompt'); }
 
-const neg = buildCartographyNegativePrompt();
-if (!neg.includes('watermark')) { fail('negative prompt'); }
+const mapcraftPrefix = buildCartographyLoraPromptPrefix('Mapcraft_Illustrious_v1.safetensors', 'scifi');
+if (!mapcraftPrefix.includes('mapcraft') || !mapcraftPrefix.includes('sci-fi')) { fail('mapcraft lora prefix'); }
+else { ok('mapcraft lora prefix'); }
+
+const posLora = buildCartographyPositivePrompt(spec, 'Mapcraft_Illustrious_v1.safetensors');
+if (!posLora.startsWith('mapcraft')) { fail('positive prompt with lora'); }
+else { ok('positive prompt with lora'); }
+
+const neg = buildCartographyNegativePrompt('dungeon-crawler');
+if (!neg.includes('star chart') || !neg.includes('magic circle')) { fail('negative prompt'); }
 else { ok('negative prompt'); }
+
+const cyber = resolveCartographyThemeStyle('cyberpunk');
+if (!cyber.mapType.includes('cyberpunk')) { fail('cyberpunk theme style'); }
+else { ok('cyberpunk theme style'); }
+
+const postapoc = resolveCartographyThemeStyle('postapoc');
+if (!postapoc.mapType.includes('post-apocalyptic')) { fail('postapoc theme style'); }
+else { ok('postapoc theme style'); }
+
+const regionLabels = buildCartographyRegionLabels(forge);
+if (regionLabels.length !== 4) { fail(`region label count ${regionLabels.length}`); }
+else { ok('region labels count'); }
 
 const pins = buildCartographyPinPositions(forge);
 if (pins.length !== 3) { fail(`pin count ${pins.length}`); }

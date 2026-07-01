@@ -4295,6 +4295,24 @@ function ensureCartographyStyles() {
             filter: drop-shadow(0 0 6px rgba(255,210,80,0.9));
             z-index: 2;
         }
+        .world-map-region-label {
+            position: absolute;
+            transform: translate(-50%, 0);
+            font-size: 0.62em;
+            line-height: 1.15;
+            padding: 1px 4px;
+            border-radius: 3px;
+            background: rgba(20, 14, 8, 0.72);
+            color: #f5e6c8;
+            border: 1px solid rgba(255, 220, 160, 0.35);
+            pointer-events: none;
+            white-space: nowrap;
+            max-width: 28%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            z-index: 1;
+        }
         #world-gen-map-btn.generating {
             opacity: 0.75;
         }
@@ -4355,6 +4373,18 @@ function renderCartographyMap(msg) {
     img.alt = msg.worldName ? `${msg.worldName} map` : 'World map';
 
     pinsEl.innerHTML = '';
+    const labels = Array.isArray(msg.cartographyRegionLabels) ? msg.cartographyRegionLabels : [];
+    for (const label of labels) {
+        if (typeof label.leftPct !== 'number' || typeof label.topPct !== 'number') { continue; }
+        const el = document.createElement('span');
+        el.className = 'world-map-region-label';
+        el.style.left = `${label.leftPct}%`;
+        el.style.top = `${label.topPct}%`;
+        el.textContent = label.regionName || label.regionId || '';
+        el.title = label.regionName || label.regionId || '';
+        pinsEl.appendChild(el);
+    }
+
     const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
     for (const pin of pins) {
         if (typeof pin.leftPct !== 'number' || typeof pin.topPct !== 'number') { continue; }

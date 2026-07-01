@@ -2,12 +2,16 @@ import * as vscode from 'vscode';
 import { loadScenarioPack, validateScenarioPack, exportScenarioPack } from '../scenarioPack';
 import { importTavernCard } from '../tavernCardImporter';
 // importStLorebook will be moved or imported
-import { runListImageModels } from '../imageGenRunner';
+import { runListImageModels, runScanLocalModelFiles } from '../imageGenRunner';
 import { checkForUpdates } from '../updateManager';
 
 export function registerCoreCommands(context: vscode.ExtensionContext, importStLorebook: () => void) {
     const listModelsCmd = vscode.commands.registerCommand('textadventure.listImageModels', () => {
         runListImageModels();
+    });
+
+    const scanLocalModelsCmd = vscode.commands.registerCommand('textadventure.scanLocalModels', () => {
+        runScanLocalModelFiles();
     });
 
     const loadScenarioCmd = vscode.commands.registerCommand('textadventure.loadScenario', () => {
@@ -36,6 +40,7 @@ export function registerCoreCommands(context: vscode.ExtensionContext, importStL
 
     context.subscriptions.push(
         listModelsCmd,
+        scanLocalModelsCmd,
         loadScenarioCmd,
         importStCharCmd,
         importStLoreCmd,

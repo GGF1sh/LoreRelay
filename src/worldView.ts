@@ -10,7 +10,7 @@ import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldSt
 import { loadNpcRegistry } from './npcRegistry';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
-import { buildCartographyPinPositions } from './cartographyLayoutCore';
+import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
 import { getWorkspacePath } from './workspacePaths';
 
@@ -114,6 +114,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         ? safeImageUri(worldMapImagePath) ?? null
         : null;
     const cartographyPins = buildCartographyPinPositions(forge);
+    const cartographyRegionLabels = buildCartographyRegionLabels(forge);
 
     panel.webview.postMessage({
         type: 'worldView',
@@ -123,6 +124,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldMap,
         cartographyImage,
         cartographyPins,
+        cartographyRegionLabels,
         cartographyHasImage: Boolean(cartographyImage),
         factions,
         factionStates: factionStates ?? null,

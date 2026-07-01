@@ -1,6 +1,7 @@
 {
   "command.openGame": "LoreRelay: 開啟遊戲 UI",
   "command.listImageModels": "LoreRelay: 列出圖像模型",
+  "command.scanLocalModels": "LoreRelay: 掃描本機模型檔案",
   "command.loadScenario": "LoreRelay: 載入場景包",
   "command.importStCharacter": "LoreRelay: 匯入 SillyTavern 角色卡",
   "command.importStLorebook": "LoreRelay: 匯入 SillyTavern 世界設定集 (Lorebook)",
@@ -28,6 +29,7 @@
   "config.textAdventure.imageGen.autoOnLocationChange.description": "在 World Forge 中變更玩家位置時自動生成場景圖像。",
   "config.textAdventure.imageGen.includeFactionInPrompt.description": "在生成的地點圖像提示詞中包含控制該地點的「勢力（Faction）」氛圍。",
   "config.textAdventure.imageGen.includeDangerInPrompt.description": "在生成的地點圖像提示詞中包含該區域的「危險度（Danger Level）」氛圍。",
+  "config.textAdventure.modelScan.roots.description": "要掃描模型檔案（.safetensors、.gguf、.ckpt、.pt、.bin）的本機資料夾。可指向 Stability Matrix 的 Packages 資料夾、ComfyUI 資料夾、ComfyUI/models 或具體模型資料夾。",
   "config.textAdventure.vlm.provider.description": "Soulgaze 圖像分析的 VLM 提供商。Ollama 為本機模型；OpenRouter 為雲端多模態（OpenAI/Gemini/Anthropic 均經 OpenRouter API）。",
   "config.textAdventure.vlm.model.description": "VLM 模型名稱（例如 Ollama 用 'llava'，OpenRouter 用 'google/gemini-2.0-flash'）。",
   "config.textAdventure.vlm.endpoint.description": "VLM 提供商的端點 URL。",

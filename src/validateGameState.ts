@@ -4,8 +4,39 @@ import { validateGameStatePartyDirector } from './partyDirectorCore';
 import { isValidSchemaVersion } from './migrateGameState';
 import { isValidEventId } from './worldEventLogCore';
 import { isValidEntryId } from './entryId';
+import {
+    MAX_ENTRY_CONTENT_LEN,
+    MAX_HIDDEN_DICE_ITEMS,
+    MAX_OPTIONS_ITEMS,
+    MAX_OPTION_LEN,
+    MAX_STATUS_ARRAY_ITEMS,
+    MAX_STATUS_FIELD_STR,
+    MAX_STATUS_ITEM_LEN,
+} from './gameStateSanitize';
 
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function isFiniteNonNegativeNumber(n: unknown): boolean {
+    return typeof n === 'number' && Number.isFinite(n) && n >= 0;
+}
+
+function validateStatBar(bar: Record<string, unknown>, label: string, errors: string[]): void {
+    const current = bar.current;
+    const max = bar.max;
+    if (!isFiniteNonNegativeNumber(current)) {
+        errors.push(`${label}.current must be a finite non-negative number`);
+    }
+    if (!isFiniteNonNegativeNumber(max)) {
+        errors.push(`${label}.max must be a finite non-negative number`);
+    }
+    if (
+        isFiniteNonNegativeNumber(current)
+        && isFiniteNonNegativeNumber(max)
+        && (current as number) > (max as number)
+    ) {
+        errors.push(`${label}.current must not exceed max`);
+    }
+}
 
 /** game_state.json の構造を検証し、違反メッセージの配列を返す。空配列 = OK。 */
 export function validateGameState(obj: unknown): string[] {
@@ -37,6 +68,9 @@ export function validateGameState(obj: unknown): string[] {
             if (typeof e.id === 'string' && !ENTRY_ID_PATTERN.test(e.id)) {
                 errors.push(`entries[${i}].id has invalid format`);
             }
+            if (typeof e.content === 'string' && e.content.length > MAX_ENTRY_CONTENT_LEN) {
+                errors.push(`entries[${i}].content exceeds ${MAX_ENTRY_CONTENT_LEN} characters`);
+            }
             if (typeof e.role === 'string' && e.role !== 'gm' && e.role !== 'user') {
                 errors.push(`entries[${i}].role must be "gm" or "user", got "${e.role}"`);
             }
@@ -62,9 +96,14 @@ export function validateGameState(obj: unknown): string[] {
         if (!Array.isArray(state.options)) {
             errors.push('"options" must be an array');
         } else {
+            if ((state.options as unknown[]).length > MAX_OPTIONS_ITEMS) {
+                errors.push(`"options" must have at most ${MAX_OPTIONS_ITEMS} items`);
+            }
             (state.options as unknown[]).forEach((opt, i) => {
                 if (typeof opt !== 'string') {
                     errors.push(`options[${i}] must be a string`);
+                } else if (opt.length > MAX_OPTION_LEN) {
+                    errors.push(`options[${i}] exceeds ${MAX_OPTION_LEN} characters`);
                 }
             });
         }
@@ -81,20 +120,18 @@ export function validateGameState(obj: unknown): string[] {
                     if (typeof b !== 'object' || b === null) {
                         errors.push(`status.${bar} must be an object`);
                     } else {
-                        const bObj = b as Record<string, unknown>;
-                        if (typeof bObj.current !== 'number') {
-                            errors.push(`status.${bar}.current must be a number`);
-                        }
-                        if (typeof bObj.max !== 'number') {
-                            errors.push(`status.${bar}.max must be a number`);
-                        }
+                        validateStatBar(b as Record<string, unknown>, `status.${bar}`, errors);
                     }
                 }
             }
             for (const strField of ['location', 'time', 'funds']) {
                 const value = status[strField];
-                if (value !== undefined && typeof value !== 'string') {
-                    errors.push(`status.${strField} must be a string`);
+                if (value !== undefined) {
+                    if (typeof value !== 'string') {
+                        errors.push(`status.${strField} must be a string`);
+                    } else if (value.length > MAX_STATUS_FIELD_STR) {
+                        errors.push(`status.${strField} exceeds ${MAX_STATUS_FIELD_STR} characters`);
+                    }
                 }
             }
             for (const arrField of ['condition', 'inventory', 'skills']) {
@@ -103,9 +140,14 @@ export function validateGameState(obj: unknown): string[] {
                     if (!Array.isArray(arr)) {
                         errors.push(`status.${arrField} must be an array`);
                     } else {
+                        if ((arr as unknown[]).length > MAX_STATUS_ARRAY_ITEMS) {
+                            errors.push(`status.${arrField} must have at most ${MAX_STATUS_ARRAY_ITEMS} items`);
+                        }
                         (arr as unknown[]).forEach((item, i) => {
                             if (typeof item !== 'string') {
                                 errors.push(`status.${arrField}[${i}] must be a string`);
+                            } else if (item.length > MAX_STATUS_ITEM_LEN) {
+                                errors.push(`status.${arrField}[${i}] exceeds ${MAX_STATUS_ITEM_LEN} characters`);
                             }
                         });
                     }
@@ -176,6 +218,9 @@ export function validateGameState(obj: unknown): string[] {
         if (!Array.isArray(state.hiddenDice)) {
             errors.push('"hiddenDice" must be an array');
         } else {
+            if ((state.hiddenDice as unknown[]).length > MAX_HIDDEN_DICE_ITEMS) {
+                errors.push(`"hiddenDice" must have at most ${MAX_HIDDEN_DICE_ITEMS} items`);
+            }
             (state.hiddenDice as unknown[]).forEach((item, i) => {
                 if (typeof item !== 'object' || item === null) {
                     errors.push(`hiddenDice[${i}] must be an object`);

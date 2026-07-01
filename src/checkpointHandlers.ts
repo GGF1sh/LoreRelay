@@ -16,6 +16,8 @@ import { t } from './i18n';
 import { getArchiveRemindStep, getArchiveThreshold } from './archivePrompt';
 import { isValidEntryId } from './entryId';
 import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
+import { migrateGameState } from './migrateGameState';
+import { sanitizeGameStateForPersist } from './gameStateSanitize';
 import {
     getGameEntryHistory,
     replaceHistoryFromDisk,
@@ -45,6 +47,23 @@ function requireDeps(): CheckpointHandlerDeps {
     return deps;
 }
 
+function readGameStateFromDisk(statePath: string): Record<string, unknown> | null {
+    try {
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as unknown;
+        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+            return null;
+        }
+        const { state } = migrateGameState(raw);
+        return state as Record<string, unknown>;
+    } catch {
+        return null;
+    }
+}
+
+function writeGameStateToDisk(statePath: string, state: Record<string, unknown>): void {
+    writeJsonAtomic(statePath, sanitizeGameStateForPersist(state));
+}
+
 export async function handleEditEntry(id: string, content: string): Promise<void> {
     const panel = requireDeps().getPanel();
     const safeCon = content.trim().slice(0, 20000);
@@ -53,13 +72,14 @@ export async function handleEditEntry(id: string, content: string): Promise<void
     if (!statePath || !fs.existsSync(statePath)) { return; }
     const editedAt = new Date().toISOString();
     try {
-        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        const state = readGameStateFromDisk(statePath);
+        if (!state) { return; }
         let changed = false;
         const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
         if (entry) {
             entry.content = safeCon;
             (entry as GameEntry & { editedAt?: string }).editedAt = editedAt;
-            writeJsonAtomic(statePath, state);
+            writeGameStateToDisk(statePath, state);
             changed = true;
         }
         const hist = getGameEntryHistory().find((e) => e.id === id);
@@ -84,17 +104,17 @@ export async function handleToggleExcludeEntry(id: string): Promise<void> {
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) { return; }
     try {
-        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        const entry = (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id);
+        const state = readGameStateFromDisk(statePath);
+        const entry = state ? (state.entries as GameEntry[] | undefined)?.find((e) => e.id === id) : undefined;
         const hist = getGameEntryHistory().find((e) => e.id === id);
         if (!entry && !hist) {
             sendCurrentState(0, true);
             return;
         }
         const excluded = !Boolean(entry?.excludedFromPrompt ?? hist?.excludedFromPrompt);
-        if (entry) {
+        if (entry && state) {
             entry.excludedFromPrompt = excluded;
-            writeJsonAtomic(statePath, state);
+            writeGameStateToDisk(statePath, state);
         }
         if (hist) {
             (hist as GameEntry & { excludedFromPrompt?: boolean }).excludedFromPrompt = excluded;
@@ -114,9 +134,10 @@ export function updateSummary(summary: unknown): void {
     const statePath = getGameStatePath();
     if (statePath && fs.existsSync(statePath)) {
         try {
-            const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+            const state = readGameStateFromDisk(statePath);
+            if (!state) { return; }
             state.summary = safeSummary;
-            writeJsonAtomic(statePath, state);
+            writeGameStateToDisk(statePath, state);
         } catch (e) {
             console.error('Error updating summary:', e);
         }
@@ -183,7 +204,7 @@ async function writeRestoredGameState(
         theme: 'fantasy'
     };
     try {
-        writeJsonAtomic(statePath, newState);
+        writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>);
         replaceHistoryFromDisk();
         sendCurrentState(0, true);
         sendCheckpointList();

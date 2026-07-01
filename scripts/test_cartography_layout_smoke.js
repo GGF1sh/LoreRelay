@@ -40,7 +40,7 @@ const tmpForge = path.join(tmpWs, 'world_forge.json');
 fs.copyFileSync(forgePath, tmpForge);
 const tmpOut = path.join(tmpWs, 'world_map.layout.png');
 const python = process.platform === 'win32' ? 'python' : 'python3';
-const proc = spawnSync(python, [renderScript, tmpForge, tmpOut, '--size', '512'], {
+const proc = spawnSync(python, [renderScript, tmpForge, tmpOut, '--size', '512', '--layout-mode', 'voronoi'], {
     encoding: 'utf-8',
     timeout: 60000,
 });

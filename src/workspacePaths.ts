@@ -66,7 +66,8 @@ export function getGmProvider(): GmProvider {
         provider === 'command' ||
         provider === 'ollama' ||
         provider === 'koboldcpp' ||
-        provider === 'openrouter'
+        provider === 'openrouter' ||
+        provider === 'vscode-lm'
     ) {
         return provider;
     }

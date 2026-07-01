@@ -36,7 +36,7 @@ if (!fs.existsSync(matcherPath)) {
     process.exit(1);
 }
 
-const { matchEntriesAgainstText } = require(matcherPath);
+const { matchEntriesAgainstText, isPotentiallyEvilRegex } = require(matcherPath);
 
 // ──────────────────────────────────────────────
 // Fixtures
@@ -293,7 +293,34 @@ const entries = [
 }
 
 // ──────────────────────────────────────────────
-// 12. Pinned lore (v0.5e — always inject)
+// 12. ReDoS guard — evil regex falls back to substring, does not hang
+// ──────────────────────────────────────────────
+{
+    if (!isPotentiallyEvilRegex('(a+)+$')) {
+        fail('isPotentiallyEvilRegex should flag nested quantifiers');
+    } else {
+        ok('isPotentiallyEvilRegex flags nested quantifiers');
+    }
+    const evilEntry = [{
+        id: 'evil',
+        keys: ['(a|a)+$'],
+        content: 'evil',
+        use_regex: true,
+        enabled: true,
+    }];
+    const t0 = Date.now();
+    const result = matchEntriesAgainstText(evilEntry, 'aaaaaaaaaaaaaaaaaaaa', 5);
+    const elapsed = Date.now() - t0;
+    if (elapsed > 2000) {
+        fail(`evil regex match took too long: ${elapsed}ms`);
+    } else {
+        ok(`evil regex completes quickly (${elapsed}ms)`);
+    }
+    assertEqual(result.length, 0, 'evil regex no false substring match on repeated a');
+}
+
+// ──────────────────────────────────────────────
+// 13. Pinned lore (v0.5e — always inject)
 // ──────────────────────────────────────────────
 {
     const pool = [

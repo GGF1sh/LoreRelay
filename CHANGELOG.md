@@ -9,8 +9,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **GM Bridge — `vscode-lm` プロバイダ** — API キー不要で VS Code 内の Copilot / Claude Code / Codex 等が公開する `vscode.lm` モデルを GM に利用。`gmBridgeRunner.ts` にストリーム応答・`turn_result` 相当のマージ書き込みを実装。`GM_BRIDGE_PRESETS.md` に選び方・制限を追記。
+- **Local model scan** — `modelScanner.ts` とコマンド `LoreRelay: Scan Local Model Files`。checkpoint / ControlNet / LoRA / GGUF 等をカテゴリ分類して ComfyUI 設定用のモデル名を出力。
+- **Cartography — Voronoi レイアウト** — `render_cartography_layout.py` のデフォルトを `voronoi` に。リージョン座標から Voronoi 区画＋境界道路を描画（中心結線の星図レイアウトを廃止）。`lineart` / `full` / `roads` モードも維持。`workflow_cartography_sdxl_direct.json` を追加。
+- **Cartography — テーマ別プロンプト** — `world_forge.json` の `meta.theme`（fantasy / cyberpunk / postapoc / zombie / scifi / modern 等）に応じた positive/negative を `cartographyThemeStyles.json` で一元管理（TS/Python 共有）。
+- **Cartography — HTML オーバーレイ** — 地名・リージョン名を生成画像ではなく Webview 上のラベル/ピンで表示（`buildCartographyRegionLabels` / `85-world.js`）。
+- **Cartography — 任意 LoRA（推奨プリセットのみ）** — `cartographyLoraPresets.ts` に Mapcraft / Sci-Fi / Fantasy Map Heavy の候補を定義。`TA_LORA` / `TA_LORA_WEIGHT` は手動設定時のみ ComfyUI `LoraLoader` に接続（自動適用なし）。Output Channel にテーマ別の提案を表示。
+- **Cartography docs** — `docs/CARTOGRAPHY_MAP_GENERATION_GUIDE.md`（運用・プロンプト・LoRA プリセット表）、`docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`。
+- **Phase 2 hardening — `gameStateSanitize.ts`** — 直書き GM ブリッジ・チェックポイント編集向けに HP/MP・`hiddenDice`・inventory 等をクランプ。`validateGameState` に配列件数・文字列長・有限数値検証を追加。
+- **Tests** — Cartography（Voronoi 空リージョン、theme JSON 同期、LoRA 配線、direct workflow）、`test_game_state_sanitize.js`、ReDoS lorebook、`test_model_scanner.js`、`validate_webview_html_structure.js`。
+
 ### Fixed
 
+- **Phase 2 — ReDoS（lorebook）** — `lorebookMatcher.ts` に `isPotentiallyEvilRegex()` とスキャン文字数上限。危険な ST 正規表現キーは substring フォールバック。
+- **Phase 2 — HP/MP バリデーション** — `NaN` / `Infinity` / 負値 / `current > max` を `validateGameState` で拒否。`sanitizeGameStateForPersist` で直書き経路をクランプ。
+- **Phase 2 — `hiddenDice` null で Webview 同期クラッシュ** — `gameStateSync.ts` / `remotePlayServer.ts` で null 要素をフィルタ。`vscode-lm` 直書きは sanitize 経由に変更。
+- **Phase 2 — checkpointHandlers** — 読み込み時 `migrateGameState`、書き込み時 `sanitizeGameStateForPersist` を通すよう統一。
+- **Cartography — 空リージョンで Voronoi クラッシュ** — `geography.regions` が空でも layout PNG を返す（`IndexError` 防止）。
+- **Cartography ComfyUI workflow** — `KSampler.model` の ControlNet 誤接続修正、Canny 閾値を `0..1` に整合。
+- **engines.vscode** — `vscode.lm` API 利用のため `^1.93.0` に引き上げ。
 - **i18n** — Quick Reply（`export` / `forceSpeak` / `questFlow` / `relations`）、Character 装備・操作主体、Inspector hidden state、OOC empty、World 地図ボタンなど 19+ キーを 4 言語に追加。`scripts/check_i18n_keys.js` を `npm test` に統合。
 - **Cartography ComfyUI** — `comfyui_generate_cartography.py` が許可外の一時 layout 名（`cartography_layout_{uuid}.png`）を使っていたため、既存の `world_map.layout.png` を再利用するか `cartography_layout.png` にフォールバックするよう修正（v1.7.3 パス検証と整合）。
 - **i18n — World タブ残存漏れ** (Claude review) — `85-world.js` に 21 キーを T() 化（World Forge UI 全ラベル、シーン履歴/NPC/イベント/World Changes 見出し、派閥空状態、シム Power/Morale バー、Scene Image ボタン状態、マップパンヒント）。4 言語に 21 キーを追加。`webview.inspector.noHiddenState` も 4 言語追加。
@@ -28,12 +47,16 @@
 - **重大 — VSIX インストーラーが古い拡張を再インストールする** — README のSVG参照で VSIX 作成が失敗した後、インストーラーが残存していた `lorerelay-1.5.3.vsix` を拾ってインストールしていた。README画像をPNGへ変更し、インストーラーを「現在の `package.json` version の VSIXを明示生成・旧 `miya.lorerelay` をアンインストール・生成失敗時は停止」へ修正。
 - **Installer i18n** — `install_vscode_extension_zh-CN.bat` / `install_vscode_extension_zh-TW.bat` の成功・失敗メッセージと終了コード返却を日本語版と同じ構成に統一。`install_antigravity_skill.bat` にも UTF-8 codepage 指定を追加。
 - **重大 — インストール版が `command not found` で起動しない** — `.vscodeignore` が `node_modules/**` を除外していたため、Remote Play の実行時依存 `ws` が VSIX に含まれず、activation 時に `Cannot find module 'ws'` で拡張が落ちていた。VSIX に `node_modules/ws` のみ含める例外を追加。
-
+- **Cartography ComfyUI workflow** — `workflow_cartography_sdxl_canny.json` の `KSampler.model` が `ControlNetApplyAdvanced` に誤接続され、ComfyUI 0.26 で `tuple index out of range` の400エラーになる問題を修正。Canny閾値を現行ノード仕様の `0..1` に合わせ、`validate_cartography_workflow.js` にリンク整合チェックを追加。
 ### Changed
+
+- **Cartography デフォルト** — `TA_LAYOUT_MODE=voronoi`、`TA_FORCE_LAYOUT=1`。羊皮紙固定をやめテーマ別の通常 RPG ゾーンマップ向けプロンプトに刷新。
+- **Cartography ComfyUI** — `comfyui_generate_cartography.py` が `TA_CONTROL_STRENGTH` / 任意 `TA_LORA` を workflow に注入。Mapcraft 使用時は trigger 語を positive に自動付与。
 
 - **AI handover docs** — `AI_HANDOVER.md` 全面更新（v1.7.3、`turn_result` フロー）、`AI_SHARED_LOG.md` Current Snapshot 刷新、`AI_ROADMAP.md` Phase 7/8 追記。
 - **UTF-8 統一** — 文字化けしていた 14+ Markdown を UTF-8 で書き直しまたはスタブ化。`.editorconfig`、`scripts/validate_utf8_docs.js` を追加。`AI_HANDOVER_PROMPTS.md` を v1.7.3 に更新。
 - **VS Code ChatGPT 用** — `VSCODE_CHATGPT_CATCHUP.md`（v1.6.3 止まり向けコンテキスト更新プロンプト）を追加。
+- **Codex / ChatGPT 拡張の運用案内** — `vscode-lm` にモデルが出ない場合は、VSCode上の Codex/OpenAI ChatGPT 拡張をGMエージェントとして並走させ、`turn_result.json` を直接書かせる方式を README / `GM_BRIDGE_PRESETS.md` に追記。
 - **AITest レビュー流れ** — `CHATGPT_INTEGRATION_REVIEW.md`（Claude/Grok 後の統合ゲート用プロンプト）を追加。
 
 ## [1.7.3] - 2026-06-29

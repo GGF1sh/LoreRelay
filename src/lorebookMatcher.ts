@@ -2,6 +2,25 @@
 
 /** Max regex pattern length before falling back to substring (ReDoS guard). */
 const MAX_REGEX_PATTERN_LEN = 200;
+/** Cap context scanned by regex (limits catastrophic backtracking cost). */
+const MAX_REGEX_TEST_TEXT_LEN = 8000;
+
+/**
+ * Heuristic ReDoS guard — nested quantifiers / alternation-in-group patterns.
+ * Falls back to substring match when suspicious (ST-imported lorebooks).
+ */
+export function isPotentiallyEvilRegex(pattern: string): boolean {
+    if (/\([^\\)]*[+*][^\\)]*\)[+*{]/.test(pattern)) {
+        return true;
+    }
+    if (/\([^\\)]*\|[^\\)]*\)[+*]/.test(pattern)) {
+        return true;
+    }
+    if (/[+*]{2,}|\+\*|\*\+/.test(pattern)) {
+        return true;
+    }
+    return false;
+}
 
 export interface LorebookEntry {
     id?: string;
@@ -34,10 +53,15 @@ function matchKey(key: string, text: string, textLower: string, useRegex: boolea
         if (k.length > MAX_REGEX_PATTERN_LEN) {
             return textLower.includes(k.toLowerCase());
         }
+        const m = k.match(/^\/(.+)\/([gimsuy]*)$/s);
+        const patternBody = m ? m[1] : k;
+        if (isPotentiallyEvilRegex(patternBody)) {
+            return textLower.includes(k.toLowerCase());
+        }
+        const scanText = text.length > MAX_REGEX_TEST_TEXT_LEN ? text.slice(0, MAX_REGEX_TEST_TEXT_LEN) : text;
         try {
-            const m = k.match(/^\/(.+)\/([gimsuy]*)$/s);
             const re = m ? new RegExp(m[1], m[2] || 'i') : new RegExp(k, 'i');
-            return re.test(text);
+            return re.test(scanText);
         } catch {
             return textLower.includes(k.toLowerCase());
         }

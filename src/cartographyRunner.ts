@@ -8,6 +8,10 @@ import { getWorkspacePath } from './workspacePaths';
 import { resolveAllowedImagePath } from './mediaPaths';
 import { resolvePythonCommand } from './skillScriptRunner';
 import {
+    formatCartographyLoraPresetHint,
+    suggestCartographyLoraPreset,
+} from './cartographyLoraPresets';
+import {
     WORLD_MAP_IMAGE_BASENAME,
     WORLD_MAP_LAYOUT_BASENAME,
     validateCartographyGeneratedImagePath,
@@ -88,13 +92,28 @@ function resolveCartographyWorkflow(extPath: string): string {
 
 function buildCartographyEnv(wsPath: string, extPath: string): NodeJS.ProcessEnv {
     const env = buildImageGenEnv(wsPath);
-    env.TA_WORKFLOW = resolveCartographyWorkflow(extPath);
+    env.TA_LAYOUT_MODE = process.env.TA_LAYOUT_MODE || 'voronoi';
+    env.TA_FORCE_LAYOUT = '1';
     env.TA_MODE = getResolvedImageMode();
+    const layoutMode = env.TA_LAYOUT_MODE;
+    env.TA_WORKFLOW = layoutMode === 'lineart'
+        ? path.join(extPath, 'comfyui', 'workflow_cartography_sdxl_direct.json')
+        : resolveCartographyWorkflow(extPath);
     const controlNet = vscode.workspace.getConfiguration('textAdventure')
         .get<string>('imageGen.controlNet', '')
         .trim();
     if (controlNet) {
         env.TA_CONTROL_NET = controlNet;
+    }
+    const lora = process.env.TA_LORA?.trim();
+    if (lora) {
+        env.TA_LORA = lora;
+        const weight = process.env.TA_LORA_WEIGHT?.trim();
+        env.TA_LORA_WEIGHT = weight && Number.isFinite(parseFloat(weight)) ? weight : '0.45';
+    }
+    const controlStrength = process.env.TA_CONTROL_STRENGTH?.trim();
+    if (controlStrength) {
+        env.TA_CONTROL_STRENGTH = controlStrength;
     }
     return env;
 }
@@ -212,6 +231,19 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
     channel.appendLine(`Forge: ${validatedForge}`);
     channel.appendLine(`Backend: ${env.COMFYUI_URL || 'http://127.0.0.1:8188 (default)'}`);
     channel.appendLine(`Workflow: ${env.TA_WORKFLOW}`);
+    channel.appendLine(`LoRA: ${env.TA_LORA || '(none — ControlNet + prompt only)'}`);
+    if (env.TA_LORA) {
+        channel.appendLine(`LoRA weight: ${env.TA_LORA_WEIGHT || '0.45'}`);
+    } else {
+        try {
+            const forge = JSON.parse(fs.readFileSync(validatedForge, 'utf-8')) as { meta?: { theme?: string } };
+            const preset = suggestCartographyLoraPreset(forge.meta?.theme);
+            channel.appendLine(formatCartographyLoraPresetHint(preset));
+            channel.appendLine('(Optional — set TA_LORA env to try; not applied automatically.)');
+        } catch {
+            /* preset hint is best-effort */
+        }
+    }
 
     getPanel()?.webview.postMessage({ type: 'worldMapGenStart' });
 

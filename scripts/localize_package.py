@@ -13,6 +13,7 @@ def main():
     cmd_ja = {
         "textadventure.openGame": "LoreRelay: ゲームUIを開く",
         "textadventure.listImageModels": "LoreRelay: 画像生成モデル一覧を取得",
+        "textadventure.scanLocalModels": "LoreRelay: ローカルモデルファイルをスキャン",
         "textadventure.loadScenario": "LoreRelay: シナリオパックをロード",
         "textadventure.importStCharacter": "LoreRelay: SillyTavern キャラクターカードをインポート",
         "textadventure.importStLorebook": "LoreRelay: SillyTavern 補足設定(Lorebook)をインポート",
@@ -30,6 +31,7 @@ def main():
     cmd_zh_cn = {
         "textadventure.openGame": "LoreRelay: 打开游戏 UI",
         "textadventure.listImageModels": "LoreRelay: 列出图像模型",
+        "textadventure.scanLocalModels": "LoreRelay: 扫描本地模型文件",
         "textadventure.loadScenario": "LoreRelay: 加载场景包",
         "textadventure.importStCharacter": "LoreRelay: 导入 SillyTavern 角色卡",
         "textadventure.importStLorebook": "LoreRelay: 导入 SillyTavern 设定集 (Lorebook)",
@@ -47,6 +49,7 @@ def main():
     cmd_zh_tw = {
         "textadventure.openGame": "LoreRelay: 開啟遊戲 UI",
         "textadventure.listImageModels": "LoreRelay: 列出圖像模型",
+        "textadventure.scanLocalModels": "LoreRelay: 掃描本機模型檔案",
         "textadventure.loadScenario": "LoreRelay: 載入場景包",
         "textadventure.importStCharacter": "LoreRelay: 匯入 SillyTavern 角色卡",
         "textadventure.importStLorebook": "LoreRelay: 匯入 SillyTavern 世界設定集 (Lorebook)",
@@ -75,6 +78,7 @@ def main():
         "textAdventure.imageGen.autoOnLocationChange": "World Forgeでプレイヤーの現在地（ロケーション）が変わったときに、自動的に風景画像を生​​成します。",
         "textAdventure.imageGen.includeFactionInPrompt": "生成する場所の画像プロンプトに、その場所を支配する「勢力（Faction）」の雰囲気を自動的に含めます。",
         "textAdventure.imageGen.includeDangerInPrompt": "生成する場所の画像プロンプトに、その地域の「危険度（Danger Level）」の雰囲気を自動的に含めます。",
+        "textAdventure.modelScan.roots": "モデルファイル（.safetensors、.gguf、.ckpt、.pt、.bin）を探すローカルフォルダ。Stability Matrix の Packages フォルダ、ComfyUI フォルダ、ComfyUI/models、またはモデルフォルダを指定できます。",
         "textAdventure.vlm.provider": "生成された画像を分析するためのVLM（マルチモーダルモデル）プロバイダーを選択します（Soulgaze機能）。",
         "textAdventure.vlm.model": "VLMのモデル名（例: Ollamaなら 'llava'、OpenAIなら 'gpt-4o-mini'、Geminiなら 'gemini-1.5-flash'）。",
         "textAdventure.vlm.endpoint": "VLMプロバイダーのエンドポイントURL。",
@@ -133,6 +137,7 @@ def main():
         "textAdventure.imageGen.autoOnLocationChange": "在 World Forge 中更改玩家位置时自动生成场景图像。",
         "textAdventure.imageGen.includeFactionInPrompt": "在生成的地点图像提示词中包含控制该地点的“势力（Faction）”氛围。",
         "textAdventure.imageGen.includeDangerInPrompt": "在生成的地点图像提示词中包含该区域的“危险度（Danger Level）”氛围。",
+        "textAdventure.modelScan.roots": "要扫描模型文件（.safetensors、.gguf、.ckpt、.pt、.bin）的本地文件夹。可指向 Stability Matrix 的 Packages 文件夹、ComfyUI 文件夹、ComfyUI/models 或具体模型文件夹。",
         "textAdventure.vlm.provider": "选择 VLM（多模态模型）提供商以分析生成的图像（Soulgaze功能）。",
         "textAdventure.vlm.model": "VLM 模型名称（例如 Ollama 的 'llava'，OpenAI 的 'gpt-4o-mini'，Gemini 的 'gemini-1.5-flash'）。",
         "textAdventure.vlm.endpoint": "VLM 提供商的端点 URL。",
@@ -191,6 +196,7 @@ def main():
         "textAdventure.imageGen.autoOnLocationChange": "在 World Forge 中變更玩家位置時自動生成場景圖像。",
         "textAdventure.imageGen.includeFactionInPrompt": "在生成的地點圖像提示詞中包含控制該地點的「勢力（Faction）」氛圍。",
         "textAdventure.imageGen.includeDangerInPrompt": "在生成的地點圖像提示詞中包含該區域的「危險度（Danger Level）」氛圍。",
+        "textAdventure.modelScan.roots": "要掃描模型檔案（.safetensors、.gguf、.ckpt、.pt、.bin）的本機資料夾。可指向 Stability Matrix 的 Packages 資料夾、ComfyUI 資料夾、ComfyUI/models 或具體模型資料夾。",
         "textAdventure.vlm.provider": "選擇 VLM（多模態模型）提供商以分析生成的圖像（Soulgaze功能）。",
         "textAdventure.vlm.model": "VLM 模型名稱（例如 Ollama 的 'llava'，OpenAI 的 'gpt-4o-mini'，Gemini 的 'gemini-1.5-flash'）。",
         "textAdventure.vlm.endpoint": "VLM 提供商的端點 URL。",

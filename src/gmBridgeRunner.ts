@@ -11,6 +11,7 @@ import {
     writePromptFile
 } from './playerAction';
 import { getWorkspacePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
+import { sanitizeGameStateForPersist } from './gameStateSanitize';
 import { clearMediaAgentCaches } from './mediaAgent';
 import {
     buildLocalGmEnv,
@@ -473,6 +474,240 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     });
 }
 
+// ===== vscode-lm プロバイダ =====
+
+const VSCODE_LM_JSON_SCHEMA = `
+JSON schema (output CHANGES only — LoreRelay merges into existing state):
+{
+  "entries": [{"id":"turn-N","role":"gm","sender":"Game Master","content":"(narrative)","imagePrompt":"(optional English scene prompt)"}],
+  "status": {"location":"...","time":"...","hp":{"current":20,"max":20},"mp":{"current":10,"max":10},"condition":["..."],"inventory":["..."],"skills":["..."],"funds":"..."},
+  "options": ["option1","option2","option3"],
+  "theme": "fantasy",
+  "bgm": "track_id",
+  "mood": "tense",
+  "sfx": "door_open",
+  "profileUpdates": [{"characterId":"alice","dynamicProfile":"Updated memory..."}],
+  "gameOver": {"active":true,"message":"Ending...","victory":false}
+}
+theme values: fantasy / cyberpunk / scifi / ff14 / postapoc / modern`;
+
+const VSCODE_LM_SYSTEM_PROMPTS: Record<string, string> = {
+    ja: `あなたはテキストアドベンチャーのゲームマスター（GM）です。プレイヤーの行動に対してリアルな描写・NPC反応・環境変化を返してください。\n\n【乱数ルール】公平な乱数が必要な場面では {{DICE:1d20}} のようにマーカーを出力してください。システムが実際のダイスを振ります。\n\n【出力形式】\n1. 日本語のナラティブを書く\n2. 最後に \`\`\`json ブロックを1つ付ける\n3. NPCとプレイヤーの関係性が変わった場合は profileUpdates を含める\n${VSCODE_LM_JSON_SCHEMA}`,
+    en: `You are a text-adventure Game Master (GM). Respond to player actions with vivid narrative, NPC reactions, and environmental changes.\n\n[Dice] When fair randomness is needed, output markers like {{DICE:1d20}} — the system rolls real dice.\n\n[Output]\n1. Write narrative in the configured language\n2. End with one \`\`\`json block\n3. If NPC relationships change, include profileUpdates\n${VSCODE_LM_JSON_SCHEMA}`,
+};
+
+function vscodeLmSystemPrompt(locale: string): string {
+    return VSCODE_LM_SYSTEM_PROMPTS[locale] ?? VSCODE_LM_SYSTEM_PROMPTS['en'];
+}
+
+function substituteDiceMarkersSimple(text: string): string {
+    return text.replace(/\{\{DICE:(\d+)d(\d+)\}\}/gi, (_m, countStr, sidesStr) => {
+        const count = Math.max(1, Math.min(100, parseInt(countStr, 10)));
+        const sides = Math.max(2, Math.min(10000, parseInt(sidesStr, 10)));
+        let total = 0;
+        const rolls: number[] = [];
+        for (let i = 0; i < count; i++) {
+            const r = Math.floor(Math.random() * sides) + 1;
+            rolls.push(r);
+            total += r;
+        }
+        return count === 1 ? String(total) : `${total}[${rolls.join('+')}]`;
+    });
+}
+
+function vscodeLmNextTurnId(wsPath: string): string {
+    const statePath = path.join(wsPath, 'game_state.json');
+    if (!fs.existsSync(statePath)) { return 'turn-1'; }
+    try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        if (Array.isArray(state.entries) && state.entries.length > 0) {
+            const lastId: string = state.entries[state.entries.length - 1].id ?? 'turn-0';
+            const m = /turn-(\d+)$/.exec(lastId);
+            if (m) { return `turn-${parseInt(m[1], 10) + 1}`; }
+        }
+    } catch { /* ignore */ }
+    return 'turn-1';
+}
+
+interface VscodeLmGmJson {
+    entries?: Array<{ id?: string; role?: string; sender?: string; content?: string; imagePrompt?: string; image?: string }>;
+    status?: Record<string, unknown>;
+    options?: string[];
+    theme?: string; bgm?: string; mood?: string; sfx?: string; latestImage?: string; background?: string; sprite?: string;
+    profileUpdates?: Array<{ characterId: string; dynamicProfile: string }>;
+    gameOver?: { active: boolean; message?: string; victory?: boolean };
+}
+
+function vscodeLmExtractJson(text: string): VscodeLmGmJson | null {
+    const m = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/i.exec(text);
+    if (!m) { return null; }
+    try { return JSON.parse(m[1]); } catch { return null; }
+}
+
+function vscodeLmStripJson(text: string): string {
+    return text.replace(/```(?:json)?\s*\{[\s\S]*?\}\s*```/gi, '').trim();
+}
+
+function vscodeLmMergeAndWrite(wsPath: string, fullText: string, locale: string): void {
+    const statePath = path.join(wsPath, 'game_state.json');
+    let prev: Record<string, unknown> = {};
+    if (fs.existsSync(statePath)) {
+        try { prev = JSON.parse(fs.readFileSync(statePath, 'utf-8')); } catch { /* ignore */ }
+    }
+
+    const withDice = substituteDiceMarkersSimple(fullText);
+    const llmJson = vscodeLmExtractJson(withDice);
+    const narrative = vscodeLmStripJson(withDice);
+    const turnId = vscodeLmNextTurnId(wsPath);
+
+    const merged: Record<string, unknown> = {};
+    if (llmJson) {
+        const { entries: _e, profileUpdates, ...rest } = llmJson;
+        Object.assign(merged, rest);
+        if (profileUpdates && profileUpdates.length > 0) {
+            const dynPath = path.join(wsPath, 'characters', 'dynamic_profiles.json');
+            let profiles: Record<string, string> = {};
+            if (fs.existsSync(dynPath)) {
+                try { profiles = JSON.parse(fs.readFileSync(dynPath, 'utf-8')); } catch { /* ignore */ }
+            }
+            for (const up of profileUpdates) {
+                if (up.characterId && up.dynamicProfile) { profiles[up.characterId] = up.dynamicProfile; }
+            }
+            writeJsonAtomic(dynPath, profiles);
+        }
+    }
+
+    for (const key of ['theme', 'bgm', 'mood', 'sfx', 'latestImage', 'background', 'sprite'] as const) {
+        if (!(key in merged) && key in prev) { merged[key] = prev[key]; }
+    }
+    if (!('status' in merged) && prev.status) {
+        merged.status = prev.status;
+    } else if (merged.status && typeof merged.status === 'object' && prev.status && typeof prev.status === 'object') {
+        merged.status = { ...(prev.status as object), ...(merged.status as object) };
+    }
+
+    const content = llmJson?.entries?.[0]?.content || narrative;
+    const entry: Record<string, unknown> = { id: turnId, role: 'gm', sender: 'Game Master', content };
+    if (llmJson?.entries?.[0]?.imagePrompt) { entry.imagePrompt = llmJson.entries[0].imagePrompt; }
+    if (llmJson?.entries?.[0]?.image) { entry.image = llmJson.entries[0].image; }
+    merged.entries = [entry];
+
+    if (!merged.options) {
+        const defaults: Record<string, string[]> = {
+            ja: ['周囲を調べる', '慎重に進む', '別の行動を試す'],
+            en: ['Search the area', 'Proceed carefully', 'Try something else'],
+        };
+        merged.options = prev.options ?? defaults[locale] ?? defaults['en'];
+    }
+
+    writeJsonAtomic(statePath, sanitizeGameStateForPersist(merged));
+}
+
+async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolean): Promise<boolean> {
+    const { getPanel } = requireDeps();
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return false;
+    }
+
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const vendor = config.get<string>('gmBridge.vscodeLm.vendor', '').trim() || undefined;
+    const family = config.get<string>('gmBridge.vscodeLm.family', '').trim() || undefined;
+    const modelId = config.get<string>('gmBridge.vscodeLm.model', '').trim() || undefined;
+
+    const selector: vscode.LanguageModelChatSelector = {};
+    if (vendor) { selector.vendor = vendor; }
+    if (family) { selector.family = family; }
+    if (modelId) { selector.id = modelId; }
+
+    const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (!models.length) {
+        vscode.window.showErrorMessage(
+            'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code / Codex 等の拡張機能をインストールしてサインインしてください。'
+        );
+        return false;
+    }
+    const model = models[0];
+
+    const locale = getConfiguredLocale();
+    const systemPrompt = vscodeLmSystemPrompt(locale);
+    const { buildGmPromptContext } = await import('./gmPromptBuilder');
+    const context = buildGmPromptContext(playerAction);
+    const turnId = vscodeLmNextTurnId(wsPath);
+    const contTailJa = '上記の行動に対して1ターン進め、JSONブロックを出力してください。';
+    const startTailJa = 'テキストアドベンチャーを開始し、1ターン分のナラティブとJSONを出力してください。';
+    const contTailEn = 'Advance one turn for the action above and output the JSON block.';
+    const startTailEn = 'Start the text adventure — output one turn of narrative and JSON.';
+    const tail = locale === 'ja' ? (isContinuation ? contTailJa : startTailJa) : (isContinuation ? contTailEn : startTailEn);
+
+    const userPrompt = [
+        systemPrompt,
+        '',
+        locale === 'ja' ? `【今ターンの entries[0].id】 ${turnId}` : `[Expected turn ID] ${turnId}`,
+        locale === 'ja' ? `【プレイヤーの行動】\n${playerAction}` : `[Player Action]\n${playerAction}`,
+        context,
+        '',
+        tail,
+    ].join('\n');
+
+    const channel = getGmBridgeOutputChannel();
+    channel.clear();
+    channel.appendLine(`[vscode-lm] model=${model.name} (${model.vendor}/${model.family})`);
+    channel.appendLine(`Player action: ${playerAction.slice(0, 80)}`);
+    channel.show(true);
+
+    getPanel()?.webview.postMessage({ type: 'gmStart' });
+    postPromptContextToWebview(playerAction);
+    notifyRemoteGmBusy(true);
+    vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
+
+    const mediaTap = createGmStreamMediaTap();
+    mediaTap.reset();
+    const prevGmState = beginGmRun();
+    const cts = new vscode.CancellationTokenSource();
+    let fullText = '';
+
+    try {
+        const response = await model.sendRequest(
+            [vscode.LanguageModelChatMessage.User(userPrompt)],
+            {},
+            cts.token
+        );
+        for await (const chunk of response.stream) {
+            if (chunk instanceof vscode.LanguageModelTextPart) {
+                fullText += chunk.value;
+                channel.append(chunk.value);
+                mediaTap.append(chunk.value);
+            }
+        }
+        channel.appendLine('\n[vscode-lm: complete]');
+
+        vscodeLmMergeAndWrite(wsPath, fullText, locale);
+
+        pendingDiceLedgerWritten = false;
+        localGmSessionActive = true;
+        finishGmRun(prevGmState, playerAction, true);
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+        getPanel()?.webview.postMessage({ type: 'gmEnd', success: true });
+        vscode.window.showInformationMessage('GM (vscode-lm): Done');
+        return true;
+
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        channel.appendLine(`\n[Error: ${msg}]`);
+        finishGmRun(prevGmState, playerAction, false);
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+        getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
+        vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
+        return false;
+    } finally {
+        cts.dispose();
+    }
+}
+
 export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedgerEntry[]): Promise<boolean> {
     if (isGmBridgeBusy()) {
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
@@ -519,6 +754,8 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
             return invokeLocalLlmBridge('koboldcpp', playerAction);
         case 'openrouter':
             return invokeLocalLlmBridge('openrouter', playerAction);
+        case 'vscode-lm':
+            return invokeVscodeLmBridge(playerAction, localGmSessionActive || grokSessionActive);
         case 'grok':
         default:
             return invokeGrokBridge(playerAction);

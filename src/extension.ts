@@ -332,6 +332,21 @@ export function activate(context: vscode.ExtensionContext) {
         await handleGenerateWorldMapImage();
     });
 
+    const listLmModelsCmd = vscode.commands.registerCommand('textadventure.listLmModels', async () => {
+        const models = await vscode.lm.selectChatModels({});
+        if (!models.length) {
+            vscode.window.showWarningMessage('vscode-lm: 利用可能なモデルなし（AI拡張が未登録）');
+            return;
+        }
+        const lines = models.map(m => `${m.vendor}/${m.family} — ${m.name} (id: ${m.id})`);
+        const channel = vscode.window.createOutputChannel('LoreRelay: LM Models');
+        channel.clear();
+        channel.appendLine('=== vscode.lm 利用可能モデル ===');
+        lines.forEach(l => channel.appendLine(l));
+        channel.show(true);
+        vscode.window.showInformationMessage(`${models.length} モデル検出 → 出力チャンネル参照`);
+    });
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -368,6 +383,7 @@ export function activate(context: vscode.ExtensionContext) {
         startRemotePlayCmd,
         stopRemotePlayCmd,
         rotateRemotePlayTokenCmd,
+        listLmModelsCmd,
         generateWorldForgeCmd,
         generateWorldMapImageCmd
     );

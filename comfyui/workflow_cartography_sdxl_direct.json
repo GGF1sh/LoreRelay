@@ -3,7 +3,7 @@
     "inputs": {
       "seed": 0,
       "steps": 28,
-      "cfg": 6.0,
+      "cfg": 5.5,
       "sampler_name": "dpmpp_2m",
       "scheduler": "karras",
       "denoise": 1,
@@ -33,7 +33,7 @@
   },
   "6": {
     "inputs": {
-      "text": "ancient parchment fantasy world map, masterpiece, best quality",
+      "text": "top-down fantasy RPG world map, flat orthographic cartography",
       "clip": ["4", 1]
     },
     "class_type": "CLIPTextEncode",
@@ -41,7 +41,7 @@
   },
   "7": {
     "inputs": {
-      "text": "lowres, worst quality, watermark, satellite photo, modern UI",
+      "text": "floating object, landscape background, perspective, tilted",
       "clip": ["4", 1]
     },
     "class_type": "CLIPTextEncode",
@@ -68,35 +68,26 @@
       "control_net_name": "diffusion_pytorch_model_sdxl_canny.safetensors"
     },
     "class_type": "ControlNetLoader",
-    "_meta": { "title": "ControlNet Loader (SDXL Canny — set exact name from ComfyUI)" }
+    "_meta": { "title": "ControlNet Loader (SDXL Canny — layout lineart fed directly)" }
   },
   "11": {
     "inputs": {
       "image": "cartography_layout.png"
     },
     "class_type": "LoadImage",
-    "_meta": { "title": "Load Layout Mask" }
-  },
-  "12": {
-    "inputs": {
-      "image": ["11", 0],
-      "low_threshold": 0.28,
-      "high_threshold": 0.62
-    },
-    "class_type": "Canny",
-    "_meta": { "title": "Canny Edge From Layout" }
+    "_meta": { "title": "Load Layout Mask (pre-drawn lineart)" }
   },
   "13": {
     "inputs": {
-      "strength": 0.88,
+      "strength": 0.9,
       "start_percent": 0,
       "end_percent": 1.0,
       "positive": ["6", 0],
       "negative": ["7", 0],
       "control_net": ["10", 0],
-      "image": ["12", 0]
+      "image": ["11", 0]
     },
     "class_type": "ControlNetApplyAdvanced",
-    "_meta": { "title": "Apply ControlNet" }
+    "_meta": { "title": "Apply ControlNet (direct layout, no Canny node)" }
   }
 }

@@ -1,6 +1,7 @@
 {
   "command.openGame": "LoreRelay: Open Game UI",
   "command.listImageModels": "LoreRelay: List Image Models",
+  "command.scanLocalModels": "LoreRelay: Scan Local Model Files",
   "command.loadScenario": "LoreRelay: Load Scenario Pack",
   "command.importStCharacter": "LoreRelay: Import SillyTavern Character Card",
   "command.importStLorebook": "LoreRelay: Import SillyTavern Lorebook",
@@ -28,6 +29,7 @@
   "config.textAdventure.imageGen.autoOnLocationChange.description": "Automatically generate a scene image when the player's location changes in the World Forge.",
   "config.textAdventure.imageGen.includeFactionInPrompt.description": "Include the controlling faction's atmosphere in the generated location image prompt.",
   "config.textAdventure.imageGen.includeDangerInPrompt.description": "Include the region's danger level atmosphere in the generated location image prompt.",
+  "config.textAdventure.modelScan.roots.description": "Local folders to scan for model files (.safetensors, .gguf, .ckpt, .pt, .bin). Point this at your Stability Matrix Packages folder, ComfyUI folder, ComfyUI/models folder, or a direct model folder.",
   "config.textAdventure.vlm.provider.description": "VLM provider for Soulgaze image analysis. Use Ollama for local models, or OpenRouter for cloud multimodal models (OpenAI/Gemini/Anthropic routes via OpenRouter API).",
   "config.textAdventure.vlm.model.description": "VLM model name (e.g. 'llava' for Ollama, 'google/gemini-2.0-flash' for OpenRouter).",
   "config.textAdventure.vlm.endpoint.description": "Endpoint URL for the VLM provider (used for Ollama or custom local endpoints).",

@@ -22,6 +22,7 @@ import {
 import { resolvePythonCommand } from './skillScriptRunner';
 import { buildVlmMetaFromGameState } from './vlmQueue';
 import { resolveAllowedImagePath } from './mediaPaths';
+import { formatModelSize, scanLocalModelRoots, type LocalModelFile } from './modelScanner';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
@@ -483,5 +484,55 @@ export function runListImageModels(): void {
     });
     child.on('close', (code) => {
         finishListModels(code);
+        appendLocalModelScan(channel);
     });
+}
+
+function getConfiguredModelScanRoots(): string[] {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    return config.get<string[]>('modelScan.roots', [])
+        .filter((v) => typeof v === 'string' && v.trim().length > 0);
+}
+
+function appendLocalModelScan(channel: vscode.OutputChannel): LocalModelFile[] {
+    const roots = getConfiguredModelScanRoots();
+    if (!roots.length) {
+        channel.appendLine('\n=== Local Model Scan ===');
+        channel.appendLine('No roots configured. Set textAdventure.modelScan.roots to your Stability Matrix / ComfyUI / model folders.');
+        return [];
+    }
+    const models = scanLocalModelRoots(roots);
+    channel.appendLine('\n=== Local Model Scan (.safetensors / .gguf / .ckpt / .pt / .bin) ===');
+    channel.appendLine(`Roots: ${roots.join(' | ')}`);
+    if (!models.length) {
+        channel.appendLine('No local model files found.');
+        return models;
+    }
+
+    const byCategory = new Map<string, LocalModelFile[]>();
+    for (const model of models) {
+        const rows = byCategory.get(model.category) || [];
+        rows.push(model);
+        byCategory.set(model.category, rows);
+    }
+    for (const [category, rows] of byCategory) {
+        channel.appendLine(`\n[${category}] ${rows.length}`);
+        for (const row of rows) {
+            channel.appendLine(`- ${row.comfyName} (${formatModelSize(row.sizeBytes)})`);
+            channel.appendLine(`  ${row.absolutePath}`);
+        }
+    }
+    return models;
+}
+
+export function runScanLocalModelFiles(): void {
+    const channel = getImageOutputChannel();
+    channel.show(true);
+    channel.appendLine('\n=== Scan Local Model Files ===');
+    const models = appendLocalModelScan(channel);
+    if (models.length > 0) {
+        vscode.window.showInformationMessage(`LoreRelay: ${models.length} local model file(s) found. See "LoreRelay: Image Gen" output.`);
+    } else {
+        vscode.window.showWarningMessage('LoreRelay: No local model files found. Configure textAdventure.modelScan.roots.');
+    }
 }

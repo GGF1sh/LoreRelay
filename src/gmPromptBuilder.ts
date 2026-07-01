@@ -42,10 +42,11 @@ import { loadPartyDirector } from './partyDirector';
 import type { RelationshipType } from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
-import { loadWorldState, isWorldStateEnabled } from './worldState';
+import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected } from './worldState';
 import {
     buildHintTextFromContents,
-    buildWorldChangeSummaryFromChanges
+    buildWorldChangeSummaryFromChanges,
+    resolveWorldChangeSummaryTurn
 } from './gmPromptBuilderCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
@@ -605,15 +606,42 @@ function buildHintText(playerAction: string): string {
 }
 
 /**
- * シミュレーションが直前のステップで新規イベントを生成した場合に、
- * 「Since last visit: ...」形式で世界の変化を ~100 トークンで要約する。
- * warning/critical イベントがない場合は空文字を返す。
+ * Preview for Turn Inspector — does not mark a summary as consumed.
  */
-function buildWorldChangeSummaryContext(): string {
+function peekWorldChangeSummaryContext(): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
     if (!worldState?.recentChanges?.length) { return ''; }
-    return buildWorldChangeSummaryFromChanges(worldState.recentChanges, worldState.worldTurn);
+    return buildWorldChangeSummaryFromChanges(
+        worldState.recentChanges,
+        worldState.worldTurn,
+        worldState.lastInjectedWorldChangeSummaryTurn
+    );
+}
+
+/**
+ * Inject once per simulation worldTurn — marks consumed after building so later GM turns
+ * do not repeat the same "[Since Last Visit]" block until the next sim tick.
+ */
+function consumeWorldChangeSummaryContext(): string {
+    if (!isWorldStateEnabled()) { return ''; }
+    const worldState = loadWorldState();
+    if (!worldState?.recentChanges?.length) { return ''; }
+    const summary = buildWorldChangeSummaryFromChanges(
+        worldState.recentChanges,
+        worldState.worldTurn,
+        worldState.lastInjectedWorldChangeSummaryTurn
+    );
+    if (!summary) { return ''; }
+    const turn = resolveWorldChangeSummaryTurn(
+        worldState.recentChanges,
+        worldState.worldTurn,
+        worldState.lastInjectedWorldChangeSummaryTurn
+    );
+    if (turn !== undefined) {
+        markWorldChangeSummaryInjected(turn);
+    }
+    return summary;
 }
 
 function resolveMemoryMatches(ws: string, hint: string): MemoryChunk[] {
@@ -658,7 +686,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint)) : undefined,
         buildSection('worldForge', 'World', buildWorldForgePromptContext()),
         buildSection('worldState', 'World State', buildWorldStatePromptContext()),
-        buildSection('worldChangeSummary', 'World Changes', buildWorldChangeSummaryContext()),
+        buildSection('worldChangeSummary', 'World Changes', peekWorldChangeSummaryContext()),
         buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint)),
         buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext()),
         buildSection('vision', 'Vision', buildVisionContext())
@@ -713,7 +741,7 @@ export function buildGmPromptContext(playerAction: string): string {
     if (worldStateCtx) {
         chunks.push(worldStateCtx);
     }
-    const worldChangeSummaryCtx = buildWorldChangeSummaryContext();
+    const worldChangeSummaryCtx = consumeWorldChangeSummaryContext();
     if (worldChangeSummaryCtx) {
         chunks.push(worldChangeSummaryCtx);
     }

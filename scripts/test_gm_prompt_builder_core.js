@@ -20,6 +20,7 @@ if (!require('fs').existsSync(corePath)) {
 const {
     buildHintTextFromContents,
     buildWorldChangeSummaryFromChanges,
+    resolveWorldChangeSummaryTurn,
     MAX_HINT_TEXT_CHARS,
     MAX_WORLD_CHANGE_SUMMARY_LINES
 } = require(corePath);
@@ -110,6 +111,28 @@ const {
         fail(`summary should cap bullet lines to ${MAX_WORLD_CHANGE_SUMMARY_LINES}`);
     } else {
         ok('world change summary line cap');
+    }
+}
+
+{
+    const events = [{
+        id: 'wce_5_food',
+        worldTurn: 5,
+        source: 'simulation',
+        category: 'resource',
+        severity: 'warning',
+        message: 'Food low'
+    }];
+    const first = buildWorldChangeSummaryFromChanges(events, 8);
+    const repeat = buildWorldChangeSummaryFromChanges(events, 8, 5);
+    if (!first.includes('Food low')) {
+        fail('first summary should include event');
+    } else if (repeat !== '') {
+        fail('already-injected turn should return empty summary');
+    } else if (resolveWorldChangeSummaryTurn(events, 8, 5) !== undefined) {
+        fail('resolveWorldChangeSummaryTurn should respect lastInjected');
+    } else {
+        ok('world change summary inject-once guard');
     }
 }
 

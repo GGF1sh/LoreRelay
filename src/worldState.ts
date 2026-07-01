@@ -63,6 +63,15 @@ export function loadWorldState(): WorldState | undefined {
     }
 }
 
+/** Mark a world-turn "Since Last Visit" block as consumed so it is not re-injected every GM turn. */
+export function markWorldChangeSummaryInjected(worldTurn: number): void {
+    const state = loadWorldState();
+    if (!state) { return; }
+    const turn = Math.max(0, Math.floor(worldTurn));
+    if ((state.lastInjectedWorldChangeSummaryTurn ?? -1) >= turn) { return; }
+    saveWorldState({ ...state, lastInjectedWorldChangeSummaryTurn: turn });
+}
+
 export function saveWorldState(state: WorldState): void {
     const statePath = getWorldStatePath();
     if (!statePath) { return; }

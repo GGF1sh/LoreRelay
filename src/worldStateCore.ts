@@ -37,6 +37,8 @@ export interface WorldState {
     lastUpdated?: string;
     worldTurn: number;
     lastSimulatedGmTurn?: number;
+    /** World turn whose "Since Last Visit" block was already injected into a GM prompt. */
+    lastInjectedWorldChangeSummaryTurn?: number;
     factions: Record<string, FactionWorldState>;
     regions?: Record<string, RegionWorldState>;
     globalEvents?: GlobalEvent[];
@@ -165,6 +167,9 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         lastUpdated: typeof doc.lastUpdated === 'string' ? doc.lastUpdated : undefined,
         worldTurn: asNumber(doc.worldTurn, 0),
         lastSimulatedGmTurn: doc.lastSimulatedGmTurn !== undefined ? asNumber(doc.lastSimulatedGmTurn, 0) : undefined,
+        lastInjectedWorldChangeSummaryTurn: doc.lastInjectedWorldChangeSummaryTurn !== undefined
+            ? asNumber(doc.lastInjectedWorldChangeSummaryTurn, 0)
+            : undefined,
         factions,
         regions,
         globalEvents,

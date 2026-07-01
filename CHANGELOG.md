@@ -23,6 +23,7 @@
 
 ### Fixed
 
+- **Phase 4 — 「Since Last Visit」毎ターン再注入** — `lastInjectedWorldChangeSummaryTurn` を `world_state.json` に記録。GM 送信時のみ consume（Turn Inspector の preview は peek のまま）。同一 simulation tick の要約が expire まで繰り返し GM に入る問題を修正。
 - **Phase 3 — 防御の一貫性** — Cartography ピン/ラベルに `MAX_CARTOGRAPHY_LAYOUT_REGIONS`(20) / `LOCATIONS`(100) を追加（`worldMapGenerator` と整合）。`worldStateCore` の faction `resources` を有限・非負・上限付きでパース。`npc_registry.json` ロード時に肖像画パスを `resolveAllowedImagePath` で検証。
 - **Phase 2 — ReDoS（lorebook）** — `lorebookMatcher.ts` に `isPotentiallyEvilRegex()` とスキャン文字数上限。危険な ST 正規表現キーは substring フォールバック。
 - **Phase 2 — HP/MP バリデーション** — `NaN` / `Infinity` / 負値 / `current > max` を `validateGameState` で拒否。`sanitizeGameStateForPersist` で直書き経路をクランプ。

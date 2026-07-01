@@ -38,11 +38,13 @@ export function buildHintTextFromContents(
 
 /**
  * Summarize the latest simulation step's non-info world events for GM injection.
+ * Skips when that worldTurn summary was already injected (lastInjectedTurn).
  * Returns empty string when nothing noteworthy should be injected.
  */
 export function buildWorldChangeSummaryFromChanges(
     recentChanges: WorldChangeEvent[],
-    currentWorldTurn: number
+    currentWorldTurn: number,
+    lastInjectedTurn?: number
 ): string {
     const pruned = pruneExpiredEvents(recentChanges, currentWorldTurn);
     if (pruned.length === 0) {
@@ -50,6 +52,10 @@ export function buildWorldChangeSummaryFromChanges(
     }
 
     const latestTurn = Math.max(...pruned.map((e) => e.worldTurn));
+    if (lastInjectedTurn !== undefined && latestTurn <= lastInjectedTurn) {
+        return '';
+    }
+
     const stepEvents = pruned.filter(
         (e) => e.worldTurn === latestTurn && e.severity !== 'info'
     );
@@ -64,4 +70,22 @@ export function buildWorldChangeSummaryFromChanges(
     }
     lines.push('Reflect these developments naturally in the next narrative beat.');
     return lines.join('\n');
+}
+
+/** Latest world turn referenced by buildWorldChangeSummaryFromChanges (for ack after GM send). */
+export function resolveWorldChangeSummaryTurn(
+    recentChanges: WorldChangeEvent[],
+    currentWorldTurn: number,
+    lastInjectedTurn?: number
+): number | undefined {
+    const pruned = pruneExpiredEvents(recentChanges, currentWorldTurn);
+    if (pruned.length === 0) {
+        return undefined;
+    }
+    const latestTurn = Math.max(...pruned.map((e) => e.worldTurn));
+    if (lastInjectedTurn !== undefined && latestTurn <= lastInjectedTurn) {
+        return undefined;
+    }
+    const hasNotable = pruned.some((e) => e.worldTurn === latestTurn && e.severity !== 'info');
+    return hasNotable ? latestTurn : undefined;
 }

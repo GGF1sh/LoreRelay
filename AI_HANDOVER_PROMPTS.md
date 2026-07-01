@@ -71,6 +71,14 @@
 
 会話履歴で古い版に固定されている場合は、作業指示の**前**に [`VSCODE_CHATGPT_CATCHUP.md`](VSCODE_CHATGPT_CATCHUP.md) を `@` 添付するか、同ファイルの「コピー用プロンプト」を貼る。読了確認が返るまで実装提案させない。
 
+### Phase 11 Adaptive TTS レビュー（11A+11B 完了後・次の一手）
+
+実装は Grok 完了済み（v1.10.0 / `main`）。**プライバシー・セキュリティ・ attribution のコードレビューは ChatGPT 担当。**
+
+- 設計・プロンプト索引: [`phase8_planning_and_prompts.md`](phase8_planning_and_prompts.md) → **「Copy-paste prompt for ChatGPT (Phase 11A+11B review)」** をそのまま貼る
+- 設計正本: [`PHASE11_ADAPTIVE_TTS_DESIGN.md`](PHASE11_ADAPTIVE_TTS_DESIGN.md)
+- レビュー後: 指摘があれば Grok が修正 → 問題なければ v1.11.0 リリース整理
+
 ### AITest レビュー後の統合ゲート（Claude → Grok → ChatGPT）
 
 | 順 | AI | 担当 |

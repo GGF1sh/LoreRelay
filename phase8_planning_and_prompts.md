@@ -209,9 +209,10 @@ Give NPCs persistent voice profiles that route to system TTS first (Web Speech A
 
 | Step | AI | Deliverable |
 |------|-----|-------------|
-| 1 | **Claude** | Schema review, mood modifier table, World UI spec, parser caps |
-| 2 | **Grok** | Phase 11A implementation + tests |
-| 3 | **ChatGPT** | Privacy/security review after 11A |
+| 1 | **Claude** | Schema review, mood modifier table, World UI spec, parser caps — **done** |
+| 2 | **Grok** | Phase 11A implementation + tests — **done** (`dccc9e0`) |
+| 3 | **Grok** | Phase 11B local/external bridge + speakerNpcId — **done** (`84ce98d`) |
+| 4 | **ChatGPT** | Privacy/security/code review after 11A+11B — **next** |
 
 ### Prompt for Claude (design / schema review)
 
@@ -270,24 +271,121 @@ Verify: npm run compile && npm test
 Commit message: feat(phase-11a): NPC voice profiles and system TTS routing
 ```
 
-### Prompt for ChatGPT (post-11A review)
+### Prompt for ChatGPT (post-11A+11B review)
+
+Scope: **11A and 11B are both merged on `main` (v1.10.0 codebase).** Do not re-scope 11B as future work — review what shipped.
+
+**Commits (reference):**
+
+- `dccc9e0` — feat(phase-11a): NPC voice profiles and system TTS routing
+- `9c2c7b7` — docs: Code Comments rule + Phase 11 doc pass
+- `84ce98d` — feat(phase-11b): local and external TTS bridge
+
+**Primary files:**
+
+| Area | Paths |
+|------|--------|
+| Design | `PHASE11_ADAPTIVE_TTS_DESIGN.md` |
+| Core | `src/npcVoiceCore.ts`, `src/ttsProviderCore.ts`, `src/ttsBridgeCore.ts` |
+| Extension | `src/ttsBridgeRunner.ts`, `src/worldView.ts`, `src/statePatch.ts`, `src/extension.ts` |
+| Schema | `src/types/GameState.ts`, `src/types/TurnResult.ts`, `game_state_schema.json` |
+| Webview | `webview/modules/61-tts-npc.js`, `webview/modules/60-tts-quickreply-imagegen.js`, `webview/modules/85-world.js` |
+| Skill | `C:\AI\TextAdventureGMSkill\scripts\tts_local.py` (edge-tts local bridge) |
+| Tests | `scripts/test_npc_voice_core.js`, `scripts/test_tts_provider_core.js`, `scripts/test_tts_bridge_core.js` |
+| Manual | `testing_checklist.md` §7–8 |
+| Docs | `CHANGELOG.md` [Unreleased], `AI_COLLABORATION.md` § Code Comments |
+
+**Review focus:**
+
+1. **Privacy** — `textAdventure.tts.external.enabled` default off; SecretStorage for API key; only speak text (≤4000 chars) sent to OpenAI; logs redact text (`redactTtsLogText`).
+2. **Local bridge security** — `shell: false`, output only under `.text-adventure/tts/`, `isSafeTtsOutputPath`, stdin JSON to `tts_local.py`.
+3. **Attribution** — sender name match, duplicate names + `currentLocationId`, `speakerNpcId` on `GameEntry` / `gmEntry`; no substring parsing inside GM prose.
+4. **Fallback** — local/external unavailable → system TTS; bridge failure → `ttsAudioFailed` → Web Speech.
+5. **Parser / caps** — `npcVoiceCore` clamps, `sanitizeVoiceId` rejects paths; registry round-trip.
+6. **Webview** — `speakWithProfile` uses plain text / base64 audio only (no `innerHTML` on user content).
+7. **Tests & checklist** — gaps for 11B, edge-tts missing, API key missing, oversized audio.
+
+**Output format:** severity-tagged findings only (`Critical` / `High` / `Medium` / `Low`). No implementation — suggest fixes as bullet recommendations. If clean, say so explicitly.
+
+---
+
+### Copy-paste prompt for ChatGPT (Phase 11A+11B review)
+
+以下をそのまま ChatGPT に貼る。
 
 ```markdown
-LoreRelay Phase 11A code review (ChatGPT).
+# LoreRelay Phase 11A+11B code review (ChatGPT)
 
-Read:
-- PHASE11_ADAPTIVE_TTS_DESIGN.md
-- git diff for Phase 11A (npcVoiceCore, ttsProviderCore, webview TTS, world NPC preview)
-- CHANGELOG [Unreleased]
+You are reviewing **Adaptive TTS / NPC voice profiles** already implemented on `main` (package.json version 1.10.0). Claude designed; Grok implemented. **Do not implement** — findings and recommendations only.
 
-Review focus:
-1. Privacy: external TTS gated, no accidental exfiltration
-2. Attribution: sender name match false positives
-3. Parser caps consistent with npc_registry patterns
-4. Webview plain-text speak path (no innerHTML regression)
-5. Missing tests or manual checklist gaps
+## Read first (in order)
 
-Return: severity-tagged findings only; suggest Phase 11B scope separately.
+1. `PHASE11_ADAPTIVE_TTS_DESIGN.md` — especially §5–9 (schema, privacy, 11A vs 11B scope)
+2. `AI_COLLABORATION.md` — § Code Comments (mirror sync: Core ↔ `61-tts-npc.js`)
+3. `CHANGELOG.md` — [Unreleased] Phase 11A / 11B entries
+4. `testing_checklist.md` — §7 (11A), §8 (11B)
+
+## Git reference (if you have repo access)
+
+- `dccc9e0` — Phase 11A: npcVoiceCore, ttsProviderCore, Webview NPC TTS, World Preview
+- `84ce98d` — Phase 11B: ttsBridgeCore, ttsBridgeRunner, speakerNpcId, OpenAI + edge-tts bridge
+
+## Files to review
+
+**Core (pure TS, no vscode):**
+- `src/npcVoiceCore.ts`
+- `src/ttsProviderCore.ts`
+- `src/ttsBridgeCore.ts`
+
+**Extension host:**
+- `src/ttsBridgeRunner.ts` — spawn `tts_local.py`, OpenAI `/v1/audio/speech`, base64 to Webview
+- `src/npcRegistry.ts` / `src/npcRegistryCore.ts` — optional `voice` on NpcEntry
+- `src/worldView.ts` — pushes `npcTtsCatalog`, `ttsExternalEnabled`, `ttsLocalAvailable`
+- `src/statePatch.ts` — `mergeGmEntryFromTurn` applies `gmEntry.sender` / `gmEntry.speakerNpcId`
+- `src/extension.ts` — TTS API key SecretStorage, `requestNpcTts` handler
+- `src/types/GameState.ts`, `src/types/TurnResult.ts`, `game_state_schema.json`
+
+**Webview:**
+- `webview/modules/61-tts-npc.js` — speakWithProfile, bridge TTS, attribution
+- `webview/modules/60-tts-quickreply-imagegen.js`, `webview/modules/85-world.js`
+
+**External script (workspace sibling, not always in same repo folder):**
+- `TextAdventureGMSkill/scripts/tts_local.py` — edge-tts, stdin JSON → MP3
+
+**Tests:**
+- `scripts/test_npc_voice_core.js`
+- `scripts/test_tts_provider_core.js`
+- `scripts/test_tts_bridge_core.js`
+- `scripts/test_npc_registry.js` (voice round-trip)
+- `scripts/test_state_patch.js` (gmEntry speakerNpcId)
+
+## Review questions
+
+1. **Privacy / exfiltration:** Can NPC TTS accidentally send `game_state`, lore, or memories off-machine? Is OpenAI gated correctly? Are logs safe?
+2. **Local TTS security:** Subprocess hardening (`shell: false`), path traversal on `outputPath`, temp file lifecycle, untrusted `tts.local.command`.
+3. **Attribution correctness:** False positives when `sender` matches NPC name; duplicate names without `currentLocationId`; value of `speakerNpcId`; GM entries still default sender "Game Master".
+4. **Fallback behavior:** external disabled, local/edge-tts missing, bridge timeout/failure — does UX degrade safely to system TTS?
+5. **Data model:** `NpcVoiceProfile` caps, empty profile dropped, invalid provider coercion, `voiceId` not a filesystem path.
+6. **Webview safety:** Any XSS or HTML injection path in TTS text handling? Base64 audio playback risks?
+7. **Test gaps:** What should be added before a v1.11.0 release tag?
+8. **Manual checklist:** Anything missing in `testing_checklist.md` §7–8?
+
+## Output format
+
+Return **only**:
+
+### Summary (2–4 sentences)
+
+### Findings table
+
+| Severity | Area | File(s) | Issue | Recommendation |
+|----------|------|---------|-------|----------------|
+| Critical/High/Medium/Low | ... | ... | ... | ... |
+
+If no issues: state "No Critical/High findings" and list optional Low polish items.
+
+**Do not** write code patches unless a one-line pseudocode fix clarifies a Critical/High item.
+**Do not** suggest re-doing 11B — it is shipped; only fixes and release blockers.
 ```
 
 ## Coordination Rules

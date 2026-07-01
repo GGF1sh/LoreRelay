@@ -13,8 +13,8 @@
 
 ### Next
 
-- Manual `testing_checklist.md` §8 (edge-tts + OpenAI).
-- ChatGPT privacy review per design doc.
+- Manual `testing_checklist.md` §7–8 (edge-tts + OpenAI).
+- **ChatGPT:** copy-paste prompt in `phase8_planning_and_prompts.md` →「Copy-paste prompt for ChatGPT (Phase 11A+11B review)」
 
 ---
 

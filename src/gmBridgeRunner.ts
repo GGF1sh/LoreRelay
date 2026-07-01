@@ -33,6 +33,7 @@ let grokProcess: ChildProcess | undefined;
 let gmProcess: ChildProcess | undefined;
 let grokSessionActive = false;
 let localGmSessionActive = false;
+let agenticBridgeBusy = false;
 let pendingDiceLedgerWritten = false;
 
 export interface GmBridgeRunnerDeps {
@@ -78,7 +79,11 @@ function resolveGrokCommand(configured: string): string {
 }
 
 export function isGmBridgeBusy(): boolean {
-    return Boolean(grokProcess || gmProcess);
+    return Boolean(grokProcess || gmProcess || agenticBridgeBusy);
+}
+
+export function setAgenticBridgeBusy(busy: boolean): void {
+    agenticBridgeBusy = busy;
 }
 
 function clearDiceLedgerIfPending(): void {
@@ -206,6 +211,171 @@ export async function runGrokPromptFile(options: {
         });
 
         grokProcess.on('close', (code) => {
+            channel.appendLine(`\n[${options.stageLabel} exited with code ${code ?? 'unknown'}]`);
+            finish(code ?? null);
+        });
+    });
+}
+
+/** vscode-lm agentic stage: prompt in, stdout text out (no game_state writes). */
+export async function runVscodeLmAgenticStage(options: {
+    prompt: string;
+    stageLabel: string;
+    timeoutMs: number;
+    playerAction?: string;
+}): Promise<GrokPromptRunResult> {
+    const channel = getGmBridgeOutputChannel();
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const vendor = config.get<string>('gmBridge.vscodeLm.vendor', '').trim() || undefined;
+    const family = config.get<string>('gmBridge.vscodeLm.family', '').trim() || undefined;
+    const modelId = config.get<string>('gmBridge.vscodeLm.model', '').trim() || undefined;
+
+    const selector: vscode.LanguageModelChatSelector = {};
+    if (vendor) { selector.vendor = vendor; }
+    if (family) { selector.family = family; }
+    if (modelId) { selector.id = modelId; }
+
+    const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (!models.length) {
+        channel.appendLine(`[${options.stageLabel}] vscode-lm: no model available`);
+        return { exitCode: 1, timedOut: false, stdout: '' };
+    }
+    const model = models[0];
+    channel.appendLine(`\n[${options.stageLabel}] vscode-lm model=${model.name} (${model.vendor}/${model.family})`);
+    if (options.playerAction) {
+        channel.appendLine(`Player action: ${formatRedactedAction(options.playerAction)}\n`);
+    }
+
+    const cts = new vscode.CancellationTokenSource();
+    const timer = setTimeout(() => cts.cancel(), options.timeoutMs);
+    let stdout = '';
+    let timedOut = false;
+
+    try {
+        const response = await model.sendRequest(
+            [vscode.LanguageModelChatMessage.User(options.prompt)],
+            {},
+            cts.token
+        );
+        for await (const chunk of response.stream) {
+            if (chunk instanceof vscode.LanguageModelTextPart) {
+                stdout += chunk.value;
+                if (stdout.length > GM_STREAM_BUFFER_MAX) {
+                    stdout = stdout.slice(-GM_STREAM_BUFFER_MAX);
+                }
+                channel.append(chunk.value);
+            }
+        }
+        channel.appendLine(`\n[${options.stageLabel} vscode-lm: complete]`);
+        return { exitCode: 0, timedOut: false, stdout };
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        timedOut = cts.token.isCancellationRequested;
+        channel.appendLine(`\n[${options.stageLabel} vscode-lm error: ${msg}]`);
+        return { exitCode: 1, timedOut, stdout };
+    } finally {
+        clearTimeout(timer);
+        cts.dispose();
+    }
+}
+
+/** Local LLM agentic stage via agentic_stage_gm.py (stdout only, no game_state writes). */
+export async function runLocalAgenticStage(options: {
+    provider: 'ollama' | 'koboldcpp' | 'openrouter';
+    cwd: string;
+    promptFile: string;
+    timeoutMs: number;
+    stageLabel: string;
+    playerAction?: string;
+    getOpenRouterApiKey: () => Promise<string>;
+}): Promise<GrokPromptRunResult> {
+    const scriptPath = resolveGmBridgeScript('agentic_stage_gm.py');
+    if (!scriptPath) {
+        const channel = getGmBridgeOutputChannel();
+        channel.appendLine(`[${options.stageLabel}] agentic_stage_gm.py not found`);
+        return { exitCode: 1, timedOut: false, stdout: '' };
+    }
+
+    const python = resolvePythonCommand();
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const args = [
+        scriptPath,
+        '--cwd', options.cwd,
+        '--provider', options.provider,
+        '--prompt-file', options.promptFile,
+    ];
+
+    if (options.provider === 'ollama') {
+        const model = config.get<string>('gmBridge.ollama.model', '').trim();
+        const url = config.get<string>('gmBridge.ollama.url', '').trim();
+        if (model) { args.push('--model', model); }
+        if (url) { args.push('--url', url); }
+    } else if (options.provider === 'koboldcpp') {
+        const url = config.get<string>('gmBridge.koboldcpp.url', '').trim();
+        if (url) { args.push('--url', url); }
+    } else if (options.provider === 'openrouter') {
+        const apiKey = await options.getOpenRouterApiKey();
+        if (!apiKey) {
+            return { exitCode: 1, timedOut: false, stdout: '' };
+        }
+        const model = config.get<string>('gmBridge.openRouter.model', '').trim();
+        if (model) { args.push('--model', model); }
+    }
+
+    const channel = getGmBridgeOutputChannel();
+    channel.appendLine(
+        `\n[${options.stageLabel}] > ${python} ${maskSensitiveFileInArgs(args, options.promptFile).join(' ')}`
+    );
+    if (options.playerAction) {
+        channel.appendLine(`Player action: ${formatRedactedAction(options.playerAction)}\n`);
+    }
+
+    const env = buildLocalGmEnv(options.provider);
+    if (options.provider === 'openrouter') {
+        env.OPENROUTER_API_KEY = await options.getOpenRouterApiKey();
+    }
+
+    return new Promise((resolve) => {
+        let stdout = '';
+        let finished = false;
+        let timedOut = false;
+
+        const timer = setTimeout(() => {
+            timedOut = true;
+            if (gmProcess) {
+                gmProcess.kill();
+            }
+        }, options.timeoutMs);
+
+        const finish = (exitCode: number | null) => {
+            if (finished) { return; }
+            finished = true;
+            clearTimeout(timer);
+            gmProcess = undefined;
+            resolve({ exitCode, timedOut, stdout });
+        };
+
+        gmProcess = spawn(python, args, {
+            cwd: options.cwd,
+            shell: false,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env,
+        });
+
+        gmProcess.stdout?.on('data', (data: Buffer) => {
+            const text = data.toString();
+            stdout += text;
+            if (stdout.length > GM_STREAM_BUFFER_MAX) {
+                stdout = stdout.slice(-GM_STREAM_BUFFER_MAX);
+            }
+            channel.append(text);
+        });
+        gmProcess.stderr?.on('data', (data: Buffer) => channel.append(data.toString()));
+        gmProcess.on('error', (err) => {
+            channel.appendLine(`\n[${options.stageLabel} error: ${err.message}]`);
+            finish(null);
+        });
+        gmProcess.on('close', (code) => {
             channel.appendLine(`\n[${options.stageLabel} exited with code ${code ?? 'unknown'}]`);
             finish(code ?? null);
         });
@@ -835,7 +1005,8 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     const agentic = await maybeInvokeAgenticBridge(
         playerAction,
         diceLedger,
-        requireDeps().getPanel
+        requireDeps().getPanel,
+        requireDeps().getOpenRouterApiKey
     );
     if (agentic.handled) {
         if (agentic.success) {

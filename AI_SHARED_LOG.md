@@ -1,5 +1,26 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Phase 9B agentic multi-provider
+
+### Summary
+
+- Extended Phase 9A split-role GM beyond Grok-only per `PHASE9_AGENTIC_CAMPAIGN_DESIGN.md`:
+  - `agenticGmCore.ts` — `AgenticGmProvider`, `isAgenticCapableProvider()`, provider metadata in `mergeAgenticTurnResult()`
+  - `agenticGmRunner.ts` — provider dispatch (`grok` / `vscode-lm` / local LLM); stdout or stage JSON parsing; `clipboard`/`command` unchanged (handled: false)
+  - `gmBridgeRunner.ts` — `runVscodeLmAgenticStage()`, `runLocalAgenticStage()`, `setAgenticBridgeBusy()`; `getOpenRouterApiKey` wired into agentic gate
+  - `TextAdventureGMSkill/scripts/agentic_stage_gm.py` — ollama/koboldcpp/openrouter stage runner (stdout only, no game_state writes)
+- Tests: `isAgenticCapableProvider`, provider metadata merge in `test_agentic_gm_core.js`
+
+### Verification
+
+- `npm run compile` passed
+- `node scripts/test_agentic_gm_core.js` passed
+- `npm test` passed
+
+### Next
+
+- Real E2E with `textAdventure.gmBridge.agentic.enabled=true` on each target provider (especially vscode-lm and one local API).
+
 ## 2026-07-01 JST - Codex - Phase 9A code review hardening
 
 ### Summary

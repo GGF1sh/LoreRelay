@@ -13,11 +13,26 @@ import { isValidEventId } from './worldEventLogCore';
 
 export type AgenticStage = 'referee' | 'narrator';
 
+/** Providers that can run Phase 9 split-role GM when agentic mode is enabled. */
+export type AgenticGmProvider = 'grok' | 'vscode-lm' | 'ollama' | 'koboldcpp' | 'openrouter';
+
+export const AGENTIC_CAPABLE_PROVIDERS: readonly AgenticGmProvider[] = [
+    'grok',
+    'vscode-lm',
+    'ollama',
+    'koboldcpp',
+    'openrouter',
+];
+
+export function isAgenticCapableProvider(provider: string): provider is AgenticGmProvider {
+    return (AGENTIC_CAPABLE_PROVIDERS as readonly string[]).includes(provider);
+}
+
 export interface AgenticConfigSnapshot {
     enabled: boolean;
     fallbackToSingleStage: boolean;
-    refereeProvider: 'grok';
-    narratorProvider: 'grok';
+    refereeProvider: AgenticGmProvider;
+    narratorProvider: AgenticGmProvider;
     stageTimeoutMs: number;
 }
 
@@ -424,6 +439,7 @@ export function mergeAgenticTurnResult(input: {
     referee: RefereeResultCandidate;
     narrator?: NarratorResultCandidate | null;
     fallbackNarration: string;
+    provider: AgenticGmProvider;
 }): AgenticMergeResult {
     const { referee, narrator, fallbackNarration } = input;
     if (!isValidEntryId(referee.turnId)) {
@@ -445,8 +461,8 @@ export function mergeAgenticTurnResult(input: {
             mode: 'referee-narrator',
             refereeOk: true,
             narratorOk: Boolean(narrator?.narration),
-            refereeProvider: 'grok',
-            narratorProvider: 'grok',
+            refereeProvider: input.provider,
+            narratorProvider: input.provider,
         },
     };
 

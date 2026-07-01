@@ -23,6 +23,8 @@ const {
     mergeAgenticTurnResult,
     mergeAgenticMedia,
     buildFallbackNarration,
+    isAgenticCapableProvider,
+    AGENTIC_CAPABLE_PROVIDERS,
 } = require(corePath);
 
 const { MAX_ENTRY_CONTENT_LEN } = require(path.join(root, 'out', 'gameStateSanitize.js'));
@@ -156,6 +158,40 @@ const narratorJson = {
         fail('mergeAgenticMedia keeps referee media');
     } else {
         ok('mergeAgenticMedia keeps referee media');
+    }
+}
+
+{
+    for (const p of ['grok', 'vscode-lm', 'ollama', 'koboldcpp', 'openrouter']) {
+        if (!isAgenticCapableProvider(p)) {
+            fail(`isAgenticCapableProvider accepts ${p}`);
+        }
+    }
+    if (isAgenticCapableProvider('clipboard') || isAgenticCapableProvider('command')) {
+        fail('isAgenticCapableProvider rejects clipboard/command');
+    } else {
+        ok('isAgenticCapableProvider gates providers');
+    }
+    if (AGENTIC_CAPABLE_PROVIDERS.length !== 5) {
+        fail('AGENTIC_CAPABLE_PROVIDERS length');
+    } else {
+        ok('AGENTIC_CAPABLE_PROVIDERS length');
+    }
+}
+
+{
+    const referee = parseRefereeResultJson(JSON.stringify(refereeJson));
+    const merged = mergeAgenticTurnResult({
+        playerAction: 'Search the ruins',
+        referee,
+        narrator: null,
+        fallbackNarration: 'fallback',
+        provider: 'vscode-lm',
+    });
+    if (!merged.ok || merged.result?.agentic?.refereeProvider !== 'vscode-lm') {
+        fail('merge records provider metadata');
+    } else {
+        ok('merge records provider metadata');
     }
 }
 

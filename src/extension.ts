@@ -36,7 +36,7 @@ import {
 } from './memoryService';
 import { interceptPlayerAction } from './companionAgent';
 import { initOocSidekick, generateOocCommentary } from './oocSidekick';
-import { commitTurn, branchFromTurn } from './gitManager';
+import { commitTurn, branchFromTurn, getGitTimelineStatus, switchToBranch } from './gitManager';
 import {
     disposeGameStateWatcher,
     initGameStateSync,
@@ -694,6 +694,18 @@ async function handleBranchTimeline(turnId: string): Promise<void> {
     }
 }
 
+async function sendGitTimelineStatus(): Promise<void> {
+    if (!panel) {
+        return;
+    }
+    const status = await getGitTimelineStatus();
+    panel.webview.postMessage({ type: 'gitTimelineStatus', ...status });
+}
+
+async function handleSwitchGitBranch(branchName: string): Promise<void> {
+    await switchToBranch(branchName);
+}
+
 function startWatchingGameState() {
     const statePath = getGameStatePath();
     if (!statePath) { return; }
@@ -1081,6 +1093,8 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         toggleRemotePlay,
         sendRemotePlayStatus,
         handleBranchTimeline,
+        sendGitTimelineStatus,
+        handleSwitchGitBranch,
         handleRequestForceSpeak,
         handleExportHtml,
         handleRequestMermaid,
@@ -1162,6 +1176,18 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 }
             } else {
                 vscode.window.showErrorMessage(`Quickstart failed: ${result.error}`);
+            }
+        },
+        handleAcceptQuest: async (questId: string) => {
+            const { loadWorldState, saveWorldState } = await import('./worldState');
+            const state = loadWorldState();
+            if (state && state.questHooks) {
+                const q = state.questHooks.find(h => h.id === questId);
+                if (q && q.status === 'available') {
+                    q.status = 'active';
+                    saveWorldState(state);
+                    pushWorldViewToWebview();
+                }
             }
         }
     };

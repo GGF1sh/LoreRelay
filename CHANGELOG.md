@@ -11,58 +11,56 @@
 
 ### Added
 
-- **GM Bridge — `vscode-lm` プロバイダ** — API キー不要で VS Code 内の Copilot / Claude Code / Codex 等が公開する `vscode.lm` モデルを GM に利用。`gmBridgeRunner.ts` にストリーム応答・`turn_result` 相当のマージ書き込みを実装。`GM_BRIDGE_PRESETS.md` に選び方・制限を追記。
-- **Local model scan** — `modelScanner.ts` とコマンド `LoreRelay: Scan Local Model Files`。checkpoint / ControlNet / LoRA / GGUF 等をカテゴリ分類して ComfyUI 設定用のモデル名を出力。
-- **Cartography — Voronoi レイアウト** — `render_cartography_layout.py` のデフォルトを `voronoi` に。リージョン座標から Voronoi 区画＋境界道路を描画（中心結線の星図レイアウトを廃止）。`lineart` / `full` / `roads` モードも維持。`workflow_cartography_sdxl_direct.json` を追加。
-- **Cartography — テーマ別プロンプト** — `world_forge.json` の `meta.theme`（fantasy / cyberpunk / postapoc / zombie / scifi / modern 等）に応じた positive/negative を `cartographyThemeStyles.json` で一元管理（TS/Python 共有）。
+- **Phase 8A - Event-to-Quest / Quest Board** — `questGeneratorCore.ts` で `world_state.json.recentChanges` と urgent NPC needs から deterministic Quest Hooks を生成。`world_state.json.questHooks` の型・パーサー・上限、World タブ Quest Board、available → active 操作、active quest の GM prompt 注入、`turn_result.json.resolvedQuests` による完了反映を追加。
+- **Phase 8-11 planning handoff** — `phase8_planning_and_prompts.md` を追加し、Quest Hook、分業型GM、Git Timeline、NPC voice profile の担当AI別プロンプトを整理。
+- **Phase 8 polish — Quest Board i18n** — World タブ Quest Board のラベル・空状態・Accept/ACTIVE・source バッジを 4 言語化。`testing_checklist.md` に Phase 8 手動確認手順を追加。
+- **Architecture — game_state.json 書き込みの単一関所（single choke point）** — `src/stateManager.ts` の `commitGameState()` に `validateGameState` + `sanitizeGameStateForPersist` を集約。`statePatch.ts` / `gameStateSync.ts` / `checkpointHandlers.ts` / `gmBridgeRunner.ts` / `imageGenRunner.ts` / `scenarioPack.ts` / `vlmQueue.ts` の直接 `writeJsonAtomic(game_state.json)` 呼び出しを全て `commitGameState` 経由に統一（Claude 設計レビュー指摘の解消）。
+- **GM Bridge — `vscode-lm` プロバイダ** — API キー不要で VS Code 内の Copilot / Claude Code / Codex 等が公開する `vscode.lm` モデルを GM に利用。`gmBridgeRunner.ts` にストリーム対応の `turn_result` 相当マージ書き込みを実装。`GM_BRIDGE_PRESETS.md` に選び方・制限を追記。
+- **Local model scan** — `modelScanner.ts` とコマンド「LoreRelay: Scan Local Model Files」。checkpoint / ControlNet / LoRA / GGUF 等をカテゴリ分類して ComfyUI 設定用のモデル名を出力。
+- **Cartography — Voronoi レイアウト** — `render_cartography_layout.py` のデフォルトを `voronoi` に。リージョン座標から Voronoi 区画・境界道路を描画（中心結線の旧図レイアウトを廃止）。`lineart` / `full` / `roads` モードも維持。`workflow_cartography_sdxl_direct.json` を追加。
+- **Cartography — テーマ別プロンプト** — `world_forge.json` の `meta.theme`（fantasy / cyberpunk / postapoc / zombie / scifi / modern 等）に応じた positive/negative を `cartographyThemeStyles.json` で一元管理（TS/Python 共用）。
 - **Cartography — HTML オーバーレイ** — 地名・リージョン名を生成画像ではなく Webview 上のラベル/ピンで表示（`buildCartographyRegionLabels` / `85-world.js`）。
 - **Cartography — 任意 LoRA（推奨プリセットのみ）** — `cartographyLoraPresets.ts` に Mapcraft / Sci-Fi / Fantasy Map Heavy の候補を定義。`TA_LORA` / `TA_LORA_WEIGHT` は手動設定時のみ ComfyUI `LoraLoader` に接続（自動適用なし）。Output Channel にテーマ別の提案を表示。
-- **Cartography docs** — `docs/CARTOGRAPHY_MAP_GENERATION_GUIDE.md`（運用・プロンプト・LoRA プリセット表）、`docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`。
-- **Phase 2 hardening — `gameStateSanitize.ts`** — 直書き GM ブリッジ・チェックポイント編集向けに HP/MP・`hiddenDice`・inventory 等をクランプ。`validateGameState` に配列件数・文字列長・有限数値検証を追加。
+- **Cartography docs** — `docs/CARTOGRAPHY_MAP_GENERATION_GUIDE.md`（活用・プロンプト・LoRA プリセット表）、`docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`。
+- **Phase 2 hardening — `gameStateSanitize.ts`** — 直書きの GM ブリッジ・チェックポイント編集向けに HP/MP・`hiddenDice`・inventory 等をクランプ。`validateGameState` に配列件数・文字列長・数値範囲検証を追加。
 - **Tests** — Cartography（Voronoi 空リージョン、theme JSON 同期、LoRA 配線、direct workflow）、`test_game_state_sanitize.js`、ReDoS lorebook、`test_model_scanner.js`、`validate_webview_html_structure.js`。
 
 ### Fixed
 
 - **Phase 6 — `world_state.json` recentChanges 読み込みキャップ** — 100件超の手編集ファイルで古い方を残していたのを、`worldTurn` 最新100件を残すよう修正（`capRecentChangesByWorldTurn`、Phase 5 の `capVisualMemoryEntries` と同方針）。
-- **Phase 6 — Remote Play `maxClients`（LAN）** — 未認証ソケットを枠に数えていたため、トークンなし接続で正規プレイヤーを締め出せた問題を修正。認証済みクライアントのみカウント（接続時・認証時の両方）。
+- **Phase 6 — Remote Play `maxClients`（LAN限定）** — 未認証ソケットを枠に数えていたため、トークンなし接続で正規プレイヤーを締め出せた問題を修正。認証済みクライアントのみカウント（接続時・認証時の両方）。
 - **Phase 5 — visual_memory.json 読み込みキャップ** — 500件超の手編集ファイルで古い方を残していたのを、`analyzedAt` 最新500件を残すよう修正（`capVisualMemoryEntries`、upsert と同方針）。
-- **Phase 4 — 「Since Last Visit」毎ターン再注入** — `lastInjectedWorldChangeSummaryTurn` を `world_state.json` に記録。GM 送信時のみ consume（Turn Inspector の preview は peek のまま）。同一 simulation tick の要約が expire まで繰り返し GM に入る問題を修正。
-- **Phase 3 — 防御の一貫性** — Cartography ピン/ラベルに `MAX_CARTOGRAPHY_LAYOUT_REGIONS`(20) / `LOCATIONS`(100) を追加（`worldMapGenerator` と整合）。`worldStateCore` の faction `resources` を有限・非負・上限付きでパース。`npc_registry.json` ロード時に肖像画パスを `resolveAllowedImagePath` で検証。
+- **Phase 4 — 「Since Last Visit」要約の再注入** — `lastInjectedWorldChangeSummaryTurn` を `world_state.json` に記録。GM 送信時のみ consume（Turn Inspector の preview は peek のまま）。同一 simulation tick の要素が expire するまで繰り返し GM に入る問題を修正。
+- **Phase 3 — 防御の一貫性** — Cartography のピン/ラベルに `MAX_CARTOGRAPHY_LAYOUT_REGIONS`(20) / `LOCATIONS`(100) を追加（`worldMapGenerator` と整合）。`worldStateCore` の faction `resources` を有限・非負・上限付きでパース。`npc_registry.json` ロード時に肖像画パスを `resolveAllowedImagePath` で検証。
 - **Phase 2 — ReDoS（lorebook）** — `lorebookMatcher.ts` に `isPotentiallyEvilRegex()` とスキャン文字数上限。危険な ST 正規表現キーは substring フォールバック。
-- **Phase 2 — HP/MP バリデーション** — `NaN` / `Infinity` / 負値 / `current > max` を `validateGameState` で拒否。`sanitizeGameStateForPersist` で直書き経路をクランプ。
-- **Phase 2 — `hiddenDice` null で Webview 同期クラッシュ** — `gameStateSync.ts` / `remotePlayServer.ts` で null 要素をフィルタ。`vscode-lm` 直書きは sanitize 経由に変更。
-- **Phase 2 — checkpointHandlers** — 読み込み時 `migrateGameState`、書き込み時 `sanitizeGameStateForPersist` を通すよう統一。
+- **Phase 2 — HP/MP バリデーション** — `NaN` / `Infinity` / 負値 / `current > max` を `validateGameState` で拒否、`sanitizeGameStateForPersist` で直書き経路をクランプ。
+- **Phase 2 — `hiddenDice` null で Webview 同期クラッシュ** — `gameStateSync.ts` / `remotePlayServer.ts` で null 要素をフィルタ。`vscode-lm` 直書きも sanitize 経由に変更。
+- **Phase 2 — checkpointHandlers** — 読み込み時に `migrateGameState`、書き込み時に `sanitizeGameStateForPersist` を通すよう統一。
 - **Cartography — 空リージョンで Voronoi クラッシュ** — `geography.regions` が空でも layout PNG を返す（`IndexError` 防止）。
-- **Cartography ComfyUI workflow** — `KSampler.model` の ControlNet 誤接続修正、Canny 閾値を `0..1` に整合。
+- **Cartography ComfyUI workflow** — `KSampler.model` の ControlNet 誤接続修正。Canny 閾値を `0..1` に整合。`validate_cartography_workflow.js` にリンク整合チェックを追加。
 - **engines.vscode** — `vscode.lm` API 利用のため `^1.93.0` に引き上げ。
-- **i18n** — Quick Reply（`export` / `forceSpeak` / `questFlow` / `relations`）、Character 装備・操作主体、Inspector hidden state、OOC empty、World 地図ボタンなど 19+ キーを 4 言語に追加。`scripts/check_i18n_keys.js` を `npm test` に統合。
-- **Cartography ComfyUI** — `comfyui_generate_cartography.py` が許可外の一時 layout 名（`cartography_layout_{uuid}.png`）を使っていたため、既存の `world_map.layout.png` を再利用するか `cartography_layout.png` にフォールバックするよう修正（v1.7.3 パス検証と整合）。
-- **i18n — World タブ残存漏れ** (Claude review) — `85-world.js` に 21 キーを T() 化（World Forge UI 全ラベル、シーン履歴/NPC/イベント/World Changes 見出し、派閥空状態、シム Power/Morale バー、Scene Image ボタン状態、マップパンヒント）。4 言語に 21 キーを追加。`webview.inspector.noHiddenState` も 4 言語追加。
-- **`check_i18n_keys.js`** — JS ファイル内の `T()` (大文字) を拾わないバグを修正（正規表現 `(?:t|i18n)` → `(?:T|t|i18n)`）。これにより Grok が追加した `T()` 呼び出しも検証対象に。
-- **i18n — ゲームルールダイアログ ツールチップ** — 「高度なAIルール」配下 6 チェックボックスの `title` 属性（英語ハードコード）を `data-i18n-title` に変換し、4 言語にツールチップキー（`tipSkillCommentary` 等 6 件）を追加。
-- **UX — World タブ位置** — 9 タブ中 8 番目で画面外に隠れていた「ワールド」タブを 4 番目（Inspector の直後）に移動。スクロール不要でアクセス可能に。
-- **UX — タブバー横スクロール** — 通常マウスホイール（縦）でタブバーを横スクロール可能に。ポインタドラッグ（クリック&左右スライド）にも対応。ドラッグ後の誤クリック抑止を追加。CSS に `cursor: grab` を追加してスクロール可能であることを示す。
-- **重大 — タブ切り替えが冒険ステータス以外で機能しない** — CSS `.tab-pane:not(.active){display:none!important}` と JS の inline `style.display` 方式が矛盾し、`.active` クラスが tab-pane に付け替わらないため `!important` が inline スタイルに勝ち、冒険ステータス以外の全タブ（キャラクター/インスペクター/ワールド等）が真っ黒（非表示）になっていた。JS のタブ切り替えで `.active` クラスと inline display の両方を切り替えるよう修正。
-- **重大 — タブクリックが全滅** — タブバー横スクロールの `setPointerCapture` が click イベントを tabsHeader に再ターゲットし、全 `.tab-btn` の click ハンドラーを無効化していた。`setPointerCapture` を除去し document レベルの pointer 追跡に変更。
-- **World タブのデータ未取得** — タブを開いた際に `loadWorld` を送信してワールドデータをプッシュするよう修正。
-- **重大 — 右側タブが空白になる** — ステータスタブ切替を `#status-tabs` の委譲ハンドラへ統一し、対象 pane の null ガードと `.tab-pane.active { display:flex!important; }` を追加。ボタンの active 表示と pane 表示が食い違っても、キャラクター/ワールド等の pane が確実に再表示されるよう修正。
-- **重大 — タブラベルだけ active で中身が真っ黒** — `#status-area { overflow-y:auto }` が pane 全体のスクロールコンテナになっており、冒険ステータスで下までスクロール後に別タブへ切替えると scrollTop が残って空のガラス領域だけ表示されていた。タブ切替時に `statusArea` / 対象 pane の scrollTop を 0 にリセット。`#status-area` は `overflow:hidden` + `min-height:0` にし、各 `.tab-pane` 内でスクロールするよう整理。`DOMContentLoaded` で初期 active pane を再同期。
-- **重大 — 右タブを切替えても中身が出ない（真因）** — `index.html` の `#theme-header` 閉じタグ欠落により、ブラウザ上で `pane-character` / `pane-world` / `pane-memory` 等が `pane-status` の内側にネストされていた。冒険ステータス以外を active にしても非表示の親 pane 配下になるため `0x0` になっていた。`#theme-header` を正しく閉じ、`#status-area` は安定していた flex 縦レイアウトへ戻した。調査記録: [`docs/WEBVIEW_TAB_DOM_POSTMORTEM.md`](docs/WEBVIEW_TAB_DOM_POSTMORTEM.md)。再発防止: `scripts/validate_webview_html_structure.js` を `npm test` に統合。
-- **重大 — Webview アセットのキャッシュで修正が反映されない** — `asWebviewUri` で生成する `script.js`/`style.css`/Mermaid vendor の URI にキャッシュバスター（各ビルド成果物の mtime を `?v=` で付与）が無く、Webview の Chromium が古い JS/CSS をディスクキャッシュして `Reload Window` でも反映されなかった。`extension.ts` でアセット URI にバージョンクエリを付与。以降はリロードで確実に最新が反映される（初回のみ Extension Host の完全再起動が必要）。
-- **重大 — VSIX インストーラーが古い拡張を再インストールする** — README のSVG参照で VSIX 作成が失敗した後、インストーラーが残存していた `lorerelay-1.5.3.vsix` を拾ってインストールしていた。README画像をPNGへ変更し、インストーラーを「現在の `package.json` version の VSIXを明示生成・旧 `miya.lorerelay` をアンインストール・生成失敗時は停止」へ修正。
-- **Installer i18n** — `install_vscode_extension_zh-CN.bat` / `install_vscode_extension_zh-TW.bat` の成功・失敗メッセージと終了コード返却を日本語版と同じ構成に統一。`install_antigravity_skill.bat` にも UTF-8 codepage 指定を追加。
-- **重大 — インストール版が `command not found` で起動しない** — `.vscodeignore` が `node_modules/**` を除外していたため、Remote Play の実行時依存 `ws` が VSIX に含まれず、activation 時に `Cannot find module 'ws'` で拡張が落ちていた。VSIX に `node_modules/ws` のみ含める例外を追加。
-- **Cartography ComfyUI workflow** — `workflow_cartography_sdxl_canny.json` の `KSampler.model` が `ControlNetApplyAdvanced` に誤接続され、ComfyUI 0.26 で `tuple index out of range` の400エラーになる問題を修正。Canny閾値を現行ノード仕様の `0..1` に合わせ、`validate_cartography_workflow.js` にリンク整合チェックを追加。
-### Changed
+- **i18n** — Quick Reply（`export` / `forceSpeak` / `questFlow` / `relations`）、Character 装備・操作主体、Inspector hidden state、OOC empty、World 地図ボタンなど 19+ キーを4言語に追加。`check_i18n_keys.js` を `npm test` に統合。
+- **Cartography ComfyUI** — `comfyui_generate_cartography.py` が許可外の一時 layout 名を使っていたため、既存の `world_map.layout.png` を再利用するか `cartography_layout.png` にフォールバックするよう修正。
+- **i18n — World タブ残存漏れ** — `85-world.js` に 21 キーを `T()` 化。4言語に 21 キー追加。`webview.inspector.noHiddenState` も追加。
+- **`check_i18n_keys.js`** — JS ファイル内の `T()`（大文字）を拾わないバグを修正。
+- **i18n — ゲームルールダイアログ ツールチップ** — 「高度なAIルール」配下6チェックボックスの `title` 属性を `data-i18n-title` に変換し、4言語にツールチップキーを追加。
+- **UX — World タブ位置** — 9タブ中8番目で画面外に隠れていたワールドタブを4番目に移動。
+- **UX — タブバー横スクロール** — マウスホイール縦スクロールで横スクロール可能に。ポインタドラッグにも対応。ドラッグ後の誤クリック抑止を追加。
+- **重大 — タブ切り替えが冒険ステータス以外で機能しない** — CSS と JS の display 制御の矛盾を修正。
+- **重大 — タブクリックが全滅** — `setPointerCapture` が click イベントを再ターゲットしていた問題を修正。
+- **World タブのデータ未取得** — タブを開いた際に `loadWorld` を送信するよう修正。
+- **重大 — 右側タブが空白になる** — ステータスタブ切替のハンドラ統一と null ガード追加。
+- **重大 — タブラベルだけ active で中身が真っ黒** — scrollTop リセットと overflow 整理。
+- **重大 — 右タブを切替えても中身が出ない（真因）** — `#theme-header` 閉じタグ欠落を修正。再発防止に `validate_webview_html_structure.js` を追加。
+- **重大 — Webview アセットのキャッシュで修正が反映されない** — アセット URI にバージョンクエリを付与。
+- **重大 — VSIX インストーラーが古い拡張を再インストールする** — 現在バージョンの VSIX を明示生成するよう修正。
+- **Installer i18n** — zh-CN/zh-TW インストーラーのメッセージ・終了コードを日本語版と統一。
+- **重大 — インストール版が `command not found` で起動しない** — `.vscodeignore` が `node_modules/**` を除外していたため Remote Play の依存 `ws` が欠落していた問題を修正。
 
-- **Cartography デフォルト** — `TA_LAYOUT_MODE=voronoi`、`TA_FORCE_LAYOUT=1`。羊皮紙固定をやめテーマ別の通常 RPG ゾーンマップ向けプロンプトに刷新。
-- **Cartography ComfyUI** — `comfyui_generate_cartography.py` が `TA_CONTROL_STRENGTH` / 任意 `TA_LORA` を workflow に注入。Mapcraft 使用時は trigger 語を positive に自動付与。
-
-- **AI handover docs** — `AI_HANDOVER.md` 全面更新（v1.7.3、`turn_result` フロー）、`AI_SHARED_LOG.md` Current Snapshot 刷新、`AI_ROADMAP.md` Phase 7/8 追記。
-- **UTF-8 統一** — 文字化けしていた 14+ Markdown を UTF-8 で書き直しまたはスタブ化。`.editorconfig`、`scripts/validate_utf8_docs.js` を追加。`AI_HANDOVER_PROMPTS.md` を v1.7.3 に更新。
-- **VS Code ChatGPT 用** — `VSCODE_CHATGPT_CATCHUP.md`（v1.6.3 止まり向けコンテキスト更新プロンプト）を追加。
-- **Codex / ChatGPT 拡張の運用案内** — `vscode-lm` にモデルが出ない場合は、VSCode上の Codex/OpenAI ChatGPT 拡張をGMエージェントとして並走させ、`turn_result.json` を直接書かせる方式を README / `GM_BRIDGE_PRESETS.md` に追記。
-- **AITest レビュー流れ** — `CHATGPT_INTEGRATION_REVIEW.md`（Claude/Grok 後の統合ゲート用プロンプト）を追加。
+- **Phase 10 — Git Timeline の安全性(Claude review)** — `gitManager.ts` の `ensureGitInit`/`commitTurn`/`branchFromTurn` が既に実装・自動発動していたが、確認なしで `git init`/毎ターン自動コミット/未コミット変更を無視したブランチ作成をしていた問題を修正。初回のみ `git init` 前にモーダル確認を追加(拒否時は `textAdventure.gitAutoCommitInterval` を 0 に自動設定して以後スキップ)、ワークスペース向けに `.gitignore` デフォルトを改善(`*.tmp` / `game_state.invalid.latest.json` / `.vscode/` を追加)、`branchFromTurn` 実行前に `.git` 未初期化・未コミット変更の有無をチェックして分岐を安全にブロックするよう変更。`spawn` に `shell: false` を明示。
+- **Phase 10 — Git Timeline 一覧パネル(Claude)** — Inspector タブに現在のブランチと `timeline/*` ブランチ一覧を表示するミニマルUIを追加。`gitManager.ts` に `getGitTimelineStatus()`（読み取り専用、`timeline/` プレフィックスのみ許可）と `switchToBranch()`（既存ブランチへの `checkout` のみ許可、未コミット変更があればブロック、対象ブランチの実在を再検証してから切替）を追加。`requestGitTimeline` / `switchGitBranch` の postMessage を配線し、4言語に i18n キーを追加。
+- **CHANGELOG.md 文字化け修正（全体）** — `[Unreleased]` セクション冒頭は不正な二重変換で文字化けしていたため、コミットログとセッション記録を突き合わせてクリーンな UTF-8 で書き直し。さらに `[1.7.3]`〜`[0.1.0]` の過去セクション155箇所の文字化けは、コミット `9df8738`（`docs: fix mojibake and standardize UTF-8 across repository`）に残っていた完全にクリーンな版（バージョン見出し54件が現行ファイルと1対1で一致）から復元。
+- **Phase 10 — Git Timeline のコミット対象を拡張** — `commitTurn()` が `game_state.json` / `game_history.json` / `party.json` / `characters/` / `dice_ledger.json` しかコミットしておらず、`world_forge.json` / `world_state.json` / `npc_registry.json` を含めていなかったため、過去のターンにブランチしても世界・NPC状態が復元されない問題を修正。あわせて、`git add` は存在しないパススペックが1つでもあると全体が失敗して何もステージされない（`characters/` 未作成の序盤ターンで無言のコミット失敗を起こしうる既存のバグでもあった）ため、実在するファイルのみを動的にフィルタしてから `git add` するよう修正。
 
 ## [1.7.3] - 2026-06-29
 

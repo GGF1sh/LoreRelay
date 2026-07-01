@@ -10,6 +10,21 @@ export type { WorldChangeEvent };
 export type WorldEventType = 'environmental' | 'political' | 'military' | 'social' | 'magical' | 'other';
 export type WorldEventSeverity = 'minor' | 'moderate' | 'major' | 'catastrophic';
 
+export type QuestStatus = 'available' | 'active' | 'completed' | 'failed';
+export type QuestSource = 'event' | 'npc';
+
+export interface QuestHook {
+    id: string;
+    title: string;
+    description: string;
+    source: QuestSource;
+    relatedId: string;
+    status: QuestStatus;
+    turnGenerated: number;
+    reward?: string;
+}
+
+
 export interface FactionWorldState {
     power: number;
     resources?: FactionResources;
@@ -45,6 +60,8 @@ export interface WorldState {
     /** Structured events emitted by the simulator (v1.4). Max MAX_RECENT_CHANGES entries, FIFO. */
     recentChanges?: WorldChangeEvent[];
     pendingWorldEvents?: unknown[];
+    /** Phase 8: Automatically generated quests from events and NPC needs. */
+    questHooks?: QuestHook[];
 }
 
 // --- パーサーユーティリティ ---
@@ -64,6 +81,9 @@ function asStringArray(v: unknown): string[] {
 const MAX_PARSE_FACTIONS = 50;
 const MAX_PARSE_REGIONS = 50;
 const MAX_PARSE_GLOBAL_EVENTS = 100;
+const MAX_PARSE_QUEST_HOOKS = 100;
+const MAX_QUEST_TITLE_LEN = 120;
+const MAX_QUEST_DESCRIPTION_LEN = 600;
 const MAX_FACTION_RESOURCE_KEYS = 20;
 const MAX_FACTION_RESOURCE_VALUE = 10_000;
 
@@ -129,6 +149,36 @@ function parseGlobalEvent(raw: unknown): GlobalEvent | undefined {
     return event;
 }
 
+const VALID_QUEST_STATUSES = new Set<QuestStatus>(['available', 'active', 'completed', 'failed']);
+const VALID_QUEST_SOURCES = new Set<QuestSource>(['event', 'npc']);
+
+function parseQuestHook(raw: unknown): QuestHook | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+
+    if (!isValidEventId(r.id) || !isValidEventId(r.relatedId)) { return undefined; }
+    const title = asString(r.title).slice(0, MAX_QUEST_TITLE_LEN);
+    const description = asString(r.description).slice(0, MAX_QUEST_DESCRIPTION_LEN);
+    const relatedId = asString(r.relatedId);
+
+    if (!title || !description || !relatedId) { return undefined; }
+
+    const source = VALID_QUEST_SOURCES.has(r.source as QuestSource) ? (r.source as QuestSource) : 'event';
+    const status = VALID_QUEST_STATUSES.has(r.status as QuestStatus) ? (r.status as QuestStatus) : 'available';
+
+    const hook: QuestHook = {
+        id: r.id as string,
+        title,
+        description,
+        source,
+        relatedId,
+        status,
+        turnGenerated: Math.max(0, Math.floor(asNumber(r.turnGenerated, 0)))
+    };
+    if (r.reward !== undefined) { hook.reward = asString(r.reward).slice(0, 200); }
+    return hook;
+}
+
 export function parseWorldState(raw: unknown): WorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;
@@ -174,7 +224,10 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         regions,
         globalEvents,
         recentChanges,
-        pendingWorldEvents: Array.isArray(doc.pendingWorldEvents) ? doc.pendingWorldEvents : []
+        pendingWorldEvents: Array.isArray(doc.pendingWorldEvents) ? doc.pendingWorldEvents : [],
+        questHooks: Array.isArray(doc.questHooks)
+            ? doc.questHooks.slice(0, MAX_PARSE_QUEST_HOOKS).map(parseQuestHook).filter((x): x is QuestHook => x !== undefined)
+            : []
     };
 }
 
@@ -223,6 +276,7 @@ export function buildInitialWorldState(forge: WorldForge): WorldState {
         regions,
         globalEvents: [],
         recentChanges: [],
-        pendingWorldEvents: []
+        pendingWorldEvents: [],
+        questHooks: []
     };
 }

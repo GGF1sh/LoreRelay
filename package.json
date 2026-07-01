@@ -128,10 +128,10 @@
             "zh-TW"
           ],
           "enumDescriptions": [
-            "日本語",
+            "Japanese",
             "English",
-            "简体中文 (Simplified Chinese)",
-            "繁體中文 (Traditional Chinese / Taiwan)"
+            "Simplified Chinese",
+            "Traditional Chinese / Taiwan"
           ],
           "default": "en",
           "description": "%config.textAdventure.locale.description%"
@@ -351,8 +351,8 @@
           ],
           "default": "grok",
           "enumDescriptions": [
-            "Grok CLI (grok コマンド) — xAI サブスク月額プランで無料",
-            "VS Code Language Model API — Claude Code / GitHub Copilot / Codex 等の既存サブスクを使用 (APIキー不要)",
+            "Grok CLI (uses the grok command)",
+            "VS Code Language Model API (uses models exposed by installed VS Code AI extensions)",
             "Copy player input to clipboard only",
             "Custom executable via gmBridge.command",
             "Local Ollama via ollama_gm.py (ollama serve required)",
@@ -364,17 +364,17 @@
         "textAdventure.gmBridge.vscodeLm.vendor": {
           "type": "string",
           "default": "",
-          "description": "vscode-lm: モデルのベンダー名 (例: anthropic / openai / google / github / copilot)。空欄=自動選択"
+          "description": "vscode-lm: preferred model vendor, for example anthropic / openai / google / github / copilot. Leave empty for automatic selection."
         },
         "textAdventure.gmBridge.vscodeLm.family": {
           "type": "string",
           "default": "",
-          "description": "vscode-lm: モデルファミリー名 (例: claude-opus-4 / gpt-4o / gemini-2.0-flash)。空欄=自動選択"
+          "description": "vscode-lm: preferred model family, for example claude-opus-4 / gpt-4o / gemini-2.0-flash. Leave empty for automatic selection."
         },
         "textAdventure.gmBridge.vscodeLm.model": {
           "type": "string",
           "default": "",
-          "description": "vscode-lm: 特定モデルID (vendor/family で絞れない場合に使用)。空欄=自動選択"
+          "description": "vscode-lm: exact model id to use when vendor/family filters are not enough. Leave empty for automatic selection."
         },
         "textAdventure.gmBridge.python": {
           "type": "string",
@@ -519,7 +519,7 @@
     "build:webview": "node scripts/build-webview.js",
     "compile": "npm run build:webview && tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "node scripts/validate_utf8_docs.js && node scripts/check_i18n_keys.js && node scripts/validate_webview_html_structure.js && node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_media_signature_core.js && node scripts/test_remote_play_server.js && node scripts/test_ws_functionality.js && node scripts/test_validate_game_state.js && node scripts/test_game_state_sanitize.js && node scripts/test_dice_roller.js && node scripts/test_gm_prompt_builder_core.js && node scripts/test_webview_handlers_core.js && node scripts/test_model_scanner.js && node scripts/test_webview_bundle.js && node scripts/test_world_forge.js && node scripts/test_world_state.js && node scripts/test_emergent_simulator.js && node scripts/test_npc_registry.js && node scripts/test_world_map_generator.js && node scripts/test_cartography_layout_core.js && node scripts/test_cartography_path_core.js && node scripts/test_cartography_path_utils.js && node scripts/test_cartography_layout_smoke.js && python scripts/test_comfyui_cartography_lora.py && python scripts/test_cartography_theme_styles_sync.py && python scripts/test_cartography_empty_regions.py && node scripts/validate_cartography_workflow.js && node scripts/validate_cartography_workflow_direct.js && node scripts/test_world_forge_generator.js && node scripts/test_location_image_builder.js && node scripts/test_world_event_log.js && node scripts/test_npc_bridge.js && node scripts/test_visual_memory.js && node scripts/test_vlm_queue_core.js && node scripts/test_tavern_card_importer.js"
+    "test": "node scripts/validate_utf8_docs.js && node scripts/check_i18n_keys.js && node scripts/validate_webview_html_structure.js && node scripts/validate.js && node scripts/test_media_paths.js && node scripts/test_lorebook_save.js && node scripts/test_scenario_director.js && node scripts/test_party_director.js && node scripts/test_sample_scenarios.js && node scripts/test_memory_bank.js && node scripts/test_migrate_game_state.js && node scripts/test_remote_media_signature_core.js && node scripts/test_remote_play_server.js && node scripts/test_ws_functionality.js && node scripts/test_validate_game_state.js && node scripts/test_game_state_sanitize.js && node scripts/test_dice_roller.js && node scripts/test_gm_prompt_builder_core.js && node scripts/test_webview_handlers_core.js && node scripts/test_model_scanner.js && node scripts/test_webview_bundle.js && node scripts/test_world_forge.js && node scripts/test_world_state.js && node scripts/test_emergent_simulator.js && node scripts/test_npc_registry.js && node scripts/test_world_map_generator.js && node scripts/test_cartography_layout_core.js && node scripts/test_cartography_path_core.js && node scripts/test_cartography_path_utils.js && node scripts/test_cartography_layout_smoke.js && python scripts/test_comfyui_cartography_lora.py && python scripts/test_cartography_theme_styles_sync.py && python scripts/test_cartography_empty_regions.py && node scripts/validate_cartography_workflow.js && node scripts/validate_cartography_workflow_direct.js && node scripts/test_world_forge_generator.js && node scripts/test_location_image_builder.js && node scripts/test_world_event_log.js && node scripts/test_npc_bridge.js && node scripts/test_quest_generator.js && node scripts/test_visual_memory.js && node scripts/test_vlm_queue_core.js && node scripts/test_tavern_card_importer.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -532,3 +532,4 @@
     "ws": "^8.21.0"
   }
 }
+

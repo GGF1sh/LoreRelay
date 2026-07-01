@@ -1,19 +1,22 @@
-# Implementation Plan（アーカイブ）
+# Implementation Plan Archive
 
-> 過去の実装計画書。文字化けにより破損していたためスタブ化（2026-06-29）。
+This file is kept as a short pointer so older AI handoffs that mention
+`implementation_plan.md` do not become misleading.
 
-## 現在有効な計画の正本
+## Current Planning Sources
 
-| ファイル | 用途 |
-|----------|------|
-| [`AI_ROADMAP.md`](AI_ROADMAP.md) | フェーズ別タスク黒板（**正本**） |
-| [`AI_HANDOVER.md`](AI_HANDOVER.md) | アーキテクチャ・データフロー |
-| [`CHANGELOG.md`](CHANGELOG.md) | 完了済み変更の履歴 |
+Use these files as the active source of truth:
 
-## 次の実装候補（v1.7.3 時点）
+1. `AI_SHARED_LOG.md` - latest snapshot and recent handoff notes
+2. `CHANGELOG.md` - implemented changes
+3. `AI_ROADMAP.md` - phase-level task board
+4. `phase8_planning_and_prompts.md` - Phase 8-11 planning and copy-ready AI prompts
 
-1. **Phase 8 Event-to-Quest** — `AI_ROADMAP.md` Phase 8
-2. **README 実スクショ/GIF** — `docs/readme-screenshots-plan.md`
-3. **Cartography UX polish** — stale 表示、再生成促し（任意）
+## Current Focus
 
-詳細設計が必要な場合は `docs/` 配下に新規 Markdown を作成し、`AI_SHARED_LOG.md` からリンクしてください。
+1. **Phase 8 Event-to-Quest** - deterministic Quest Hooks, Quest Board, active objective injection
+2. **README screenshots/GIF** - public polish
+3. **Cartography UX polish** - stale map indicators and generation feedback
+
+Do not treat older text in review files as implementation truth unless it is
+confirmed by `CHANGELOG.md` and source code.

@@ -46,7 +46,8 @@ import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected } f
 import {
     buildHintTextFromContents,
     buildWorldChangeSummaryFromChanges,
-    resolveWorldChangeSummaryTurn
+    resolveWorldChangeSummaryTurn,
+    buildActiveQuestObjective
 } from './gmPromptBuilderCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
@@ -497,6 +498,13 @@ function buildWorldStatePromptContext(): string {
         .slice(-3);
     for (const c of notableChanges) {
         lines.push(`⚡ [${c.category}] ${c.gmHint}`);
+    }
+
+    // Active Quest Objective
+    const questObjective = buildActiveQuestObjective(worldState.questHooks);
+    if (questObjective) {
+        lines.push('');
+        lines.push(questObjective);
     }
 
     lines.push('Weave faction dynamics and world threats into narration where naturally appropriate.');

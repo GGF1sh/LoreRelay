@@ -80,6 +80,8 @@ export interface WebviewHandlerDeps {
     handleSavePartyDirector(director: unknown): Promise<void>;
     handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
     handleBranchTimeline(turnId: string): Promise<void>;
+    sendGitTimelineStatus(): Promise<void>;
+    handleSwitchGitBranch(branchName: string): Promise<void>;
     handleRequestForceSpeak(): Promise<void>;
     handleExportHtml(): Promise<void>;
     handleRequestMermaid(target: string): Promise<void>;
@@ -87,6 +89,7 @@ export interface WebviewHandlerDeps {
     handleSetNpcPortrait(npcId: string, imagePath: string): Promise<void>;
     handleRequestNpcPortraitLink(npcId: string): Promise<void>;
     handleRunQuickstart(prompt: string, overwrite: boolean): Promise<void>;
+    handleAcceptQuest(questId: string): Promise<void>;
 }
 
 /** Webview からの postMessage を type 別にルーティングする。 */
@@ -297,6 +300,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'updateSummary':
             deps.updateSummary(message.summary);
             break;
+        case 'acceptQuest':
+            if (typeof message.questId === 'string' && isValidEventId(message.questId)) {
+                await deps.handleAcceptQuest(message.questId);
+            }
+            break;
         case 'editEntry':
             if (typeof message.id === 'string' && isValidEntryId(message.id) &&
                 typeof message.content === 'string') {
@@ -316,6 +324,14 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'branchTimeline':
             if (typeof message.turnId === 'string' && isValidEntryId(message.turnId)) {
                 await deps.handleBranchTimeline(message.turnId);
+            }
+            break;
+        case 'requestGitTimeline':
+            await deps.sendGitTimelineStatus();
+            break;
+        case 'switchGitBranch':
+            if (typeof message.branchName === 'string') {
+                await deps.handleSwitchGitBranch(message.branchName);
             }
             break;
         case 'loadScenario':

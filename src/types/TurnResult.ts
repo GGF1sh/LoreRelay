@@ -32,6 +32,7 @@ export interface TurnResult {
     playerAction?: string;
     diceLedger?: DiceLedgerEntry[];
     statePatch?: StatePatchOp[];
+    resolvedQuests?: string[];
     narration: string;
     /** Optional explicit media requests (parallel to statePatch media paths). */
     media?: TurnMediaRequest;

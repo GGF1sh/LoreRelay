@@ -17,6 +17,7 @@ import { loadWorldForge } from './worldForge';
 import { loadGameRules } from './gameRules';
 import { saveWorldState, ensureWorldStateExists } from './worldState';
 import { loadNpcRegistry, saveNpcRegistry } from './npcRegistry';
+import { generateQuestHooks } from './questGeneratorCore';
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -39,20 +40,27 @@ export function maybeTickSimulation(gmTurnCount: number): void {
     if ((state.lastSimulatedGmTurn ?? 0) >= gmTurnCount) { return; }
     const { state: next, stepEvents } = runSimulationStep(forge, state);
     next.lastSimulatedGmTurn = gmTurnCount;
-    saveWorldState(next);
-
     // Propagate only this step's events — re-processing recentChanges would inflate needs
-    if (rules.enableNpcRegistry && stepEvents.length > 0) {
-        const registry = loadNpcRegistry();
-        const { registry: updated, updatedIds } = applyEventsToNpcRegistry(
-            stepEvents,
-            registry,
-            forge
-        );
-        if (updatedIds.length > 0) {
-            saveNpcRegistry(updated);
+    let currentRegistry = undefined;
+    if (rules.enableNpcRegistry) {
+        currentRegistry = loadNpcRegistry();
+        if (stepEvents.length > 0) {
+            const { registry: updated, updatedIds } = applyEventsToNpcRegistry(
+                stepEvents,
+                currentRegistry,
+                forge
+            );
+            if (updatedIds.length > 0) {
+                saveNpcRegistry(updated);
+            }
+            currentRegistry = updated;
         }
     }
+
+    // Phase 8: Generate Quest Hooks before saving world state
+    generateQuestHooks(next, currentRegistry, false);
+
+    saveWorldState(next);
 }
 
 // ---------------------------------------------------------------------------

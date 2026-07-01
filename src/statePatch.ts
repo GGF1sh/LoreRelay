@@ -10,6 +10,7 @@ import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspace
 import { validateGameState } from './validateGameState';
 import { t } from './i18n';
 import { commitGameState } from './stateManager';
+import { loadWorldState, saveWorldState } from './worldState';
 
 /** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
 const ALLOWED_ROOTS = new Set([
@@ -272,6 +273,26 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
     return { ...state, entries };
 }
 
+function completeResolvedQuestHooks(resolvedQuests: unknown): void {
+    if (!Array.isArray(resolvedQuests)) { return; }
+    const resolvedIds = new Set(resolvedQuests.filter(isValidEventId));
+    if (resolvedIds.size === 0) { return; }
+
+    const worldState = loadWorldState();
+    if (!worldState?.questHooks?.length) { return; }
+
+    let changed = false;
+    for (const hook of worldState.questHooks) {
+        if (resolvedIds.has(hook.id) && hook.status === 'active') {
+            hook.status = 'completed';
+            changed = true;
+        }
+    }
+    if (changed) {
+        saveWorldState(worldState);
+    }
+}
+
 /**
  * Process turn_result.json: apply patches, merge GM entry, validate, persist.
  */
@@ -289,6 +310,8 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         if (turnResult.statePatch && turnResult.statePatch.length > 0) {
             state = applyStatePatch(state, turnResult.statePatch);
         }
+
+        completeResolvedQuestHooks(turnResult.resolvedQuests);
 
         state = mergeGmEntryFromTurn(state, turnResult);
 

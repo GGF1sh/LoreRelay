@@ -1927,6 +1927,56 @@ body {
   color: #fff;
 }
 
+#world-quests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.quest-item {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.18);
+}
+
+.quest-item.status-active {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.quest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.quest-title {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.quest-badge {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.08);
+}
+
+.quest-desc {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.quest-actions {
+  margin-top: 0.5rem;
+}
+
 /* --- 90-game-rules.css --- */
 /* 90-game-rules.css */
 /* Reuses .img-gen-panel and .img-gen-input from 80-image-gen.css */

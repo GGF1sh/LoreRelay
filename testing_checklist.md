@@ -16,7 +16,15 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Player/Spectator Roles**: Open the spectator URL in a browser and verify that input is blocked. Open the player URL and verify full interaction.
 - [ ] **Token Rotation**: Rotate the token and verify that existing connections are correctly dropped.
 
-## 4. Advanced Game Master Features
+## 4. Quest Board (Phase 8)
+- [ ] **Quest Hook generation**: Run emergent simulation (advance world turn) with `recentChanges` containing a warning/critical event. Verify `world_state.json` gains a new `questHooks` entry with `source: "event"`.
+- [ ] **NPC urgent need hook**: Add an NPC need with `urgency >= 70` in `npc_registry.json`, run simulation, and verify a `source: "npc"` quest appears on the Quest Board.
+- [ ] **Accept quest**: Click **Accept Quest** on an available hook. Verify status becomes `active` in `world_state.json` and the World tab shows the active badge.
+- [ ] **GM prompt injection**: With an active quest, open Turn Inspector preview and confirm `[Active Quest]` appears in the assembled GM prompt.
+- [ ] **Quest completion**: Put the active quest id in `turn_result.json` `resolvedQuests`, apply the turn, and verify the hook status becomes `completed`.
+- [ ] **i18n**: Switch locale (ja / en / zh-CN / zh-TW) and verify Quest Board title, empty state, Accept button, and ACTIVE badge translate correctly.
+
+## 5. Advanced Game Master Features
 - [ ] **Quest Flow & Relations Generation**: Send requests like `/mermaid questFlow` and verify the GM outputs valid Mermaid syntax that renders correctly.
 - [ ] **OOC Sidekick**: Verify the out-of-character sidekick chimes in appropriately without spamming or "exploding" the chat context.
 - [ ] **Party Director / Force Speak**: Select a companion character and use "Force Speak" to ensure the GM properly roleplays that specific character's response.
@@ -24,7 +32,7 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Lorebook & Memory**: Save lorebook entries, verify they persist to disk, and trigger a memory index rebuild to ensure vector search works locally.
 - [ ] **Export HTML**: Export the saga to an HTML file and verify the offline layout renders correctly.
 
-## 5. System & Installation
+## 6. System & Installation
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.
 - [ ] **OpenRouter Key Migration**: Verify that the legacy plain-text API key is safely migrated into VS Code's `SecretStorage` mechanism on startup.

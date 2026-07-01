@@ -131,6 +131,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         regionStates: regionStates ?? null,
         globalEvents: globalEvents ?? [],
         recentChanges: activeChanges,
+        questHooks: worldState?.questHooks ?? [],
         worldTurn: worldTurn ?? null,
         simEnabled,
         currentLocationId: currentLocationId ?? null,

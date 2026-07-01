@@ -1,5 +1,6 @@
 import type { WorldChangeEvent } from './worldEventLogCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
+import type { QuestHook } from './worldStateCore';
 
 /** Cap lorebook / memory hint text injected into GM prompts. */
 export const MAX_HINT_TEXT_CHARS = 6000;
@@ -88,4 +89,16 @@ export function resolveWorldChangeSummaryTurn(
     }
     const hasNotable = pruned.some((e) => e.worldTurn === latestTurn && e.severity !== 'info');
     return hasNotable ? latestTurn : undefined;
+}
+
+/**
+ * Builds the quest objective string for the GM prompt if there is an active quest.
+ */
+export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
+    if (!questHooks) return '';
+    const active = questHooks.find(q => q.status === 'active');
+    if (!active) return '';
+    const title = active.title.slice(0, 120);
+    const objective = active.description.slice(0, 600);
+    return `[Active Quest]\nTitle: ${title}\nObjective: ${objective}\n(GM MUST advance or react to this quest if the player pursues it.)`;
 }

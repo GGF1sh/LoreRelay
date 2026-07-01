@@ -165,6 +165,9 @@ function renderWorldView(msg) {
     // Living World recent events
     renderRecentChanges(msg.recentChanges || [], msg.simEnabled);
 
+    // Quest Board
+    renderQuestHooks(msg.questHooks || []);
+
     // 派閥カード
     renderFactions(msg.factions || [], msg.factionStates || null);
 }
@@ -1129,4 +1132,48 @@ function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+function renderQuestHooks(quests) {
+    const listEl = document.getElementById('world-quests-list');
+    if (!listEl) return;
+
+    if (!quests || quests.length === 0) {
+        listEl.innerHTML = '<p class="empty-text">' + escapeHtml(T('webview.world.questEmpty')) + '</p>';
+        return;
+    }
+
+    listEl.innerHTML = '';
+    quests.forEach(q => {
+        const item = document.createElement('div');
+        item.className = 'quest-item status-' + escapeHtml(q.status);
+        const sourceLabel = q.source === 'npc'
+            ? T('webview.world.questSourceNpc')
+            : T('webview.world.questSourceEvent');
+        
+        let actionsHtml = '';
+        if (q.status === 'available') {
+            actionsHtml = '<button type="button" class="small-btn primary quest-accept-btn">' + escapeHtml(T('webview.world.questAccept')) + '</button>';
+        } else if (q.status === 'active') {
+            actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-orange); font-weight:600;">${escapeHtml(T('webview.world.questActive'))}</span>`;
+        }
+
+        item.innerHTML = `
+            <div class="quest-header">
+                <span class="quest-title">${escapeHtml(q.title)}</span>
+                <span class="quest-badge" style="border: 1px solid rgba(255,255,255,0.2)">${escapeHtml(sourceLabel)}</span>
+            </div>
+            <div class="quest-desc">${escapeHtml(q.description)}</div>
+            <div class="quest-actions">
+                ${actionsHtml}
+            </div>
+        `;
+        const acceptBtn = item.querySelector('.quest-accept-btn');
+        if (acceptBtn) {
+            acceptBtn.addEventListener('click', () => {
+                vscode.postMessage({ type: 'acceptQuest', questId: q.id });
+            });
+        }
+        listEl.appendChild(item);
+    });
 }

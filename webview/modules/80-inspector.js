@@ -19,8 +19,76 @@ window.addEventListener('DOMContentLoaded', () => {
                 renderHiddenState(message.state.hiddenState);
             }
         }
+        if (message.type === 'gitTimelineStatus') {
+            renderGitTimeline(message);
+        }
     });
+
+    const refreshBtn = document.getElementById('inspector-git-refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', requestGitTimeline);
+    }
+    requestGitTimeline();
 });
+
+function requestGitTimeline() {
+    vscode.postMessage({ type: 'requestGitTimeline' });
+}
+
+function renderGitTimeline(status) {
+    const currentEl = document.getElementById('inspector-git-current-branch');
+    const listEl = document.getElementById('inspector-git-branch-list');
+    if (!currentEl || !listEl) { return; }
+
+    if (!status.enabled) {
+        currentEl.textContent = typeof T === 'function'
+            ? T('webview.inspector.gitTimelineDisabled')
+            : 'Git Timeline is not enabled for this workspace yet. Play a turn to be prompted.';
+        currentEl.classList.add('empty-text');
+        listEl.innerHTML = '';
+        return;
+    }
+
+    currentEl.classList.remove('empty-text');
+    currentEl.textContent = typeof T === 'function'
+        ? T('webview.inspector.gitCurrentBranch', { branch: status.currentBranch || '(unknown)' })
+        : `Current branch: ${status.currentBranch || '(unknown)'}`;
+
+    listEl.innerHTML = '';
+    const branches = Array.isArray(status.branches) ? status.branches : [];
+    if (branches.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-text';
+        empty.textContent = typeof T === 'function'
+            ? T('webview.inspector.gitNoBranches')
+            : 'No timeline branches yet. Use "Branch from here" on a past turn to create one.';
+        listEl.appendChild(empty);
+        return;
+    }
+
+    for (const b of branches) {
+        if (!b || typeof b.name !== 'string') { continue; }
+        const row = document.createElement('div');
+        row.className = 'inspector-item';
+
+        const label = document.createElement('span');
+        label.textContent = b.name + (b.isCurrent ? ' (current)' : '');
+        row.appendChild(label);
+
+        if (!b.isCurrent) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'small-btn';
+            btn.textContent = typeof T === 'function' ? T('webview.inspector.gitSwitch') : 'Switch';
+            btn.addEventListener('click', () => {
+                vscode.postMessage({ type: 'switchGitBranch', branchName: b.name });
+            });
+            row.appendChild(btn);
+        }
+
+        listEl.appendChild(row);
+    }
+}
 
 function renderPromptContext(breakdown) {
     const emptyText = document.getElementById('inspector-empty-text');

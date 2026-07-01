@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-02
+
+### Added
+
+- **Tile Overmap（ローグライク風タイルマップ表示モード）** — World タブの地図に第3のモード「タイル」を追加（図解 / 羊皮紙 / タイル）。`world_forge.json` のリージョン配置（x/y/biome/connectedTo）から Dwarf Fortress / CDDA 風の 64×64 ASCII タイルグリッドを Canvas 描画する。`src/tileOvermapCore.ts` が worldSeed とリージョンレイアウトからノイズ付き Voronoi で**決定論的に**導出するため、タイルデータは一切永続化されず（`game_state.json` 肥大化なし）、GM プロンプトにも一切注入されない（表示専用レイヤー）。街道は `connectedTo` エッジから Bresenham で生成、sea/coast バイオームを持つ世界のみ外周に海岸線ノイズを追加。ロケーションピン（⌂ / 現在地 @）とリージョンラベルは羊皮紙マップと同じ percent 座標系（`cartographyPins` / `cartographyRegionLabels`）を再利用。15 種の単一文字バイオームコードを安定したタイル ID 語彙として定義してあり、将来 CDDA の `tile_config.json` 方式（コード → スプライトアトラス）の画像タイルセットへ `TILE_OVERMAP_ASCII_THEME` / `drawOvermapTile()` の差し替えだけで移行できる。`scripts/test_tile_overmap_core.js` を npm test に追加。
+
 ## [1.12.2] - 2026-07-02
 
 ### Fixed

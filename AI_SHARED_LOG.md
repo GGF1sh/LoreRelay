@@ -1,5 +1,30 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Fable 5) - Feature: Tile Overmap (roguelike map mode) — released as v1.13.0
+
+### Summary
+
+ユーザー要望「DF/CDDA 風のタイルマップを World タブに」を実装。設計原則は 2 つ: (1) **GM に読ませるデータを 1 バイトも増やさない** — タイルグリッドは `src/tileOvermapCore.ts` が worldSeed + `buildCartographyLayoutSpec()` のリージョンレイアウトからノイズ付き Voronoi で決定論的に導出する表示専用レイヤーで、`game_state.json` にも GM プロンプトにも一切入らない。(2) **将来の画像タイルセット対応**（ユーザー明示要望）— 15 種の単一文字バイオームコードを安定タイル ID 語彙として定義し、webview 側は `TILE_OVERMAP_ASCII_THEME` テーブル + `drawOvermapTile()` に描画を隔離してあるので、CDDA `tile_config.json` 方式（コード → スプライトアトラス）への移行はこの 2 箇所の差し替えで済む。
+
+変更点: `src/tileOvermapCore.ts`（新規・純関数・メモ化）、`worldView.ts`（`tileOvermap` を worldView message に追加）、`webview/index.html` + `webview/modules/85-world.js`（第3マップモード「タイル」、Canvas ASCII レンダラー、街道 = `connectedTo` エッジの Bresenham、ピン/現在地 @/リージョンラベルは羊皮紙マップの percent 座標を再利用、リサイズ対応）、i18n 4ロケール、`scripts/test_tile_overmap_core.js`（npm test 組み込み）、version 1.13.0。
+
+注意点: 海岸線ノイズは sea/coast リージョンを持つ世界のみ適用（ダンジョン世界に海が出ないように）。空リージョンでは 'o' 一色の fallback グリッドを返す（Cartography の Voronoi 空リージョン IndexError とは独立で、こちらはクラッシュしない）。
+
+### Verification
+
+- `npm run compile`（build:webview + tsc）passed。
+- `node scripts/test_tile_overmap_core.js`（12 assertions: 決定論・コード妥当性・sea カバレッジ・道路 dedup/bounds・内陸世界の海なし・空世界 fallback）passed。
+- `check_i18n_keys.js`（4 locales missing 0）/ `validate_webview_html_structure.js` / `test_webview_bundle.js` passed。
+- full `npm test` passed（exit 0）。
+- 未確認: 実機での見た目（Extension Host で World タブ → タイルモード切替）。
+
+### Next
+
+- 実機で見た目確認（グリフサイズ・ラベル重なり・現在地ピン）。
+- 将来候補（AI_ROADMAP.md Phase 12 に記載）: 画像タイルセットローダー、visited ベースの fog of war。ローカル戦術マップは GM 連携設計が必要なので着手前に設計相談を。
+
+---
+
 ## 2026-07-02 JST - Codex - Release v1.11.2 input persistence / first-session fixes
 
 ### Summary

@@ -25,6 +25,8 @@ let currentWorldLocationId = null;
 let worldSceneImagePending = false;
 let worldMapMode = 'mermaid';
 const WORLD_MAP_MODE_KEY = 'lorerelay.worldMapMode';
+let _tileOvermapMsg = null;
+let _overmapResizeTimer;
 
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
@@ -90,19 +92,29 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const modeMermaid = document.getElementById('world-map-mode-mermaid');
     const modeParchment = document.getElementById('world-map-mode-parchment');
+    const modeTile = document.getElementById('world-map-mode-tile');
     if (modeMermaid) {
         modeMermaid.addEventListener('click', () => setWorldMapMode('mermaid'));
     }
     if (modeParchment) {
         modeParchment.addEventListener('click', () => setWorldMapMode('parchment'));
     }
+    if (modeTile) {
+        modeTile.addEventListener('click', () => setWorldMapMode('tile'));
+    }
 
     try {
         const saved = localStorage.getItem(WORLD_MAP_MODE_KEY);
-        if (saved === 'mermaid' || saved === 'parchment') {
+        if (saved === 'mermaid' || saved === 'parchment' || saved === 'tile') {
             worldMapMode = saved;
         }
     } catch { /* private mode */ }
+
+    window.addEventListener('resize', () => {
+        if (worldMapMode !== 'tile') { return; }
+        clearTimeout(_overmapResizeTimer);
+        _overmapResizeTimer = setTimeout(() => drawTileOvermap(), 150);
+    });
 
     ensureCartographyStyles();
     applyWorldMapModeVisibility();
@@ -147,9 +159,10 @@ function renderWorldView(msg) {
         genImageBtn.style.display = currentWorldLocationId ? '' : 'none';
     }
 
-    // Mermaid + parchment maps
+    // Mermaid + parchment + tile maps
     renderMermaidMap(msg.worldMap, msg.currentLocationId);
     renderCartographyMap(msg);
+    _tileOvermapMsg = msg;
 
     if (msg.cartographyHasImage && worldMapMode === 'parchment') {
         setWorldMapMode('parchment', { persist: false });
@@ -257,7 +270,7 @@ function ensureCartographyStyles() {
 
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
-    worldMapMode = mode === 'parchment' ? 'parchment' : 'mermaid';
+    worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
     if (persist) {
         try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
     }
@@ -265,23 +278,27 @@ function setWorldMapMode(mode, options = {}) {
 }
 
 function applyWorldMapModeVisibility() {
-    const mermaidPanel = document.getElementById('world-mermaid');
-    const cartographyPanel = document.getElementById('world-cartography');
-    const btnMermaid = document.getElementById('world-map-mode-mermaid');
-    const btnParchment = document.getElementById('world-map-mode-parchment');
-    const showParchment = worldMapMode === 'parchment';
-
-    if (mermaidPanel) {
-        mermaidPanel.classList.toggle('hidden', showParchment);
+    const panels = {
+        mermaid: document.getElementById('world-mermaid'),
+        parchment: document.getElementById('world-cartography'),
+        tile: document.getElementById('world-overmap'),
+    };
+    const buttons = {
+        mermaid: document.getElementById('world-map-mode-mermaid'),
+        parchment: document.getElementById('world-map-mode-parchment'),
+        tile: document.getElementById('world-map-mode-tile'),
+    };
+    for (const mode of Object.keys(panels)) {
+        if (panels[mode]) {
+            panels[mode].classList.toggle('hidden', worldMapMode !== mode);
+        }
+        if (buttons[mode]) {
+            buttons[mode].classList.toggle('is-active', worldMapMode === mode);
+        }
     }
-    if (cartographyPanel) {
-        cartographyPanel.classList.toggle('hidden', !showParchment);
-    }
-    if (btnMermaid) {
-        btnMermaid.classList.toggle('is-active', !showParchment);
-    }
-    if (btnParchment) {
-        btnParchment.classList.toggle('is-active', showParchment);
+    if (worldMapMode === 'tile') {
+        // The canvas has zero width while its panel is hidden — draw after unhide.
+        requestAnimationFrame(() => drawTileOvermap());
     }
 }
 
@@ -335,6 +352,139 @@ function renderCartographyMap(msg) {
         el.textContent = '📍';
         el.setAttribute('aria-label', pin.locationName || pin.locationId || 'Location');
         pinsEl.appendChild(el);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tile Overmap (roguelike ASCII renderer)
+//
+// Tile data arrives pre-computed from tileOvermapCore.ts as single-char biome
+// codes. This theme table is the only place that maps codes to visuals — an
+// image tileset (CDDA tile_config.json style: code → sprite atlas index) can
+// replace it later by swapping drawOvermapTile() without touching the data.
+// ---------------------------------------------------------------------------
+
+const TILE_OVERMAP_ASCII_THEME = {
+    s: { bg: '#0a1420', fg: ['#2f5f92', '#3e78b2', '#356a9e'], glyphs: ['~', '≈', '~'] },
+    c: { bg: '#0d1a24', fg: ['#4a8ab2', '#5a9ac2', '#3f7aa2'], glyphs: ['~', '.', '≈'] },
+    p: { bg: '#11150b', fg: ['#7d9c4d', '#93b060', '#6d8a41'], glyphs: ['.', ',', "'"] },
+    f: { bg: '#0b120c', fg: ['#2e7d3e', '#3f9950', '#57aa5f'], glyphs: ['♠', '♣', '♠'] },
+    m: { bg: '#141210', fg: ['#9a9188', '#b0a89e', '#7d766e'], glyphs: ['^', '▲', '^'] },
+    d: { bg: '#171208', fg: ['#c8a85a', '#d8bc72', '#b09048'], glyphs: ['~', '.', '~'] },
+    w: { bg: '#0d120e', fg: ['#5d8060', '#4d6a50', '#6f9472'], glyphs: ['"', '%', ','] },
+    x: { bg: '#141108', fg: ['#a08a68', '#8a7658', '#b09a78'], glyphs: ['.', '~', ','] },
+    y: { bg: '#161311', fg: ['#c07a4a', '#d08a5a', '#a86a3e'], glyphs: ['#', '⌂', '#'] },
+    r: { bg: '#121012', fg: ['#8a8090', '#9a90a0', '#7a7080'], glyphs: ['Π', '.', ','] },
+    g: { bg: '#100c14', fg: ['#8a6aa8', '#7a5a98', '#9a7ab8'], glyphs: ['Ω', '∩', '.'] },
+    u: { bg: '#0e0c12', fg: ['#6a6a8a', '#7a7a9a', '#5a5a7a'], glyphs: ['∩', '.', 'o'] },
+    n: { bg: '#131720', fg: ['#cdd8e0', '#b8c4d0', '#dde8f0'], glyphs: ['*', '.', '·'] },
+    v: { bg: '#170c08', fg: ['#c05030', '#d06040', '#a04028'], glyphs: ['^', '▲', '~'] },
+    o: { bg: '#121212', fg: ['#888880', '#989890', '#787870'], glyphs: ['.', ',', '·'] },
+};
+const TILE_OVERMAP_WATER_CODES = new Set(['s', 'c']);
+
+/** Same integer hash as tileOvermapCore.hash2 — cosmetic per-tile variation only. */
+function overmapHash(x, y, s) {
+    let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1274126177);
+    h = Math.imul(h ^ (h >>> 13), 1103515245);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+
+function drawOvermapTile(ctx, tx, ty, cell, style, glyph, fg) {
+    ctx.fillStyle = style.bg;
+    ctx.fillRect(tx * cell, ty * cell, cell, cell);
+    ctx.fillStyle = fg;
+    ctx.fillText(glyph, tx * cell + cell / 2, ty * cell + cell / 2 + 1);
+}
+
+function drawOvermapOutlinedText(ctx, text, x, y, fill) {
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, y);
+}
+
+function drawTileOvermap() {
+    const canvas = document.getElementById('world-overmap-canvas');
+    const empty = document.getElementById('world-overmap-empty');
+    if (!canvas) { return; }
+
+    const msg = _tileOvermapMsg;
+    const om = msg && msg.tileOvermap;
+    const hasData = Boolean(om && Array.isArray(om.tileRows) && om.tileRows.length > 0 && (msg.regionCount ?? 0) > 0);
+    if (empty) { empty.classList.toggle('hidden', hasData); }
+    canvas.style.display = hasData ? 'block' : 'none';
+    if (!hasData) { return; }
+
+    const panel = canvas.parentElement;
+    const panelWidth = panel ? panel.clientWidth : 0;
+    if (!panelWidth) { return; }
+
+    const cell = Math.max(5, Math.floor(panelWidth / om.cols));
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = om.cols * cell;
+    const cssHeight = om.rows * cell;
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(cssHeight * dpr);
+    canvas.style.width = `${cssWidth}px`;
+    canvas.style.height = `${cssHeight}px`;
+    canvas.style.borderRadius = '4px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${Math.max(6, cell - 2)}px "Courier New", monospace`;
+
+    const seed = om.seed >>> 0;
+    const roadSet = new Set((om.roads || []).map(([x, y]) => `${x},${y}`));
+
+    for (let ty = 0; ty < om.rows; ty++) {
+        const row = om.tileRows[ty] || '';
+        for (let tx = 0; tx < om.cols; tx++) {
+            const code = row[tx] || 'o';
+            const style = TILE_OVERMAP_ASCII_THEME[code] || TILE_OVERMAP_ASCII_THEME.o;
+            const variant = overmapHash(tx, ty, seed + 99);
+            let glyph = style.glyphs[Math.floor(variant * style.glyphs.length)];
+            let fg = style.fg[Math.floor(overmapHash(tx, ty, seed + 55) * style.fg.length)];
+            if (roadSet.has(`${tx},${ty}`)) {
+                glyph = TILE_OVERMAP_WATER_CODES.has(code) ? '=' : '·';
+                fg = TILE_OVERMAP_WATER_CODES.has(code) ? '#8aa0b8' : '#c9b083';
+            }
+            drawOvermapTile(ctx, tx, ty, cell, style, glyph, fg);
+        }
+    }
+
+    // Location pins reuse the parchment map's percent coordinates.
+    const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
+    ctx.font = `600 ${Math.max(8, cell)}px "Courier New", monospace`;
+    let currentPin = null;
+    for (const pin of pins) {
+        if (typeof pin.leftPct !== 'number' || typeof pin.topPct !== 'number') { continue; }
+        const px = (pin.leftPct / 100) * cssWidth;
+        const py = (pin.topPct / 100) * cssHeight;
+        const isCurrent = pin.locationId && pin.locationId === msg.currentLocationId;
+        if (isCurrent) { currentPin = { pin, px, py }; continue; }
+        drawOvermapOutlinedText(ctx, '⌂', px, py, '#e8c87a');
+    }
+    if (currentPin) {
+        ctx.font = `600 ${Math.max(10, cell + 3)}px "Courier New", monospace`;
+        drawOvermapOutlinedText(ctx, '@', currentPin.px, currentPin.py, '#ffd75f');
+        ctx.font = '600 11px sans-serif';
+        const label = currentPin.pin.locationName || currentPin.pin.locationId || '';
+        const lx = Math.min(Math.max(currentPin.px, 30), cssWidth - 30);
+        drawOvermapOutlinedText(ctx, label, lx, Math.min(currentPin.py + cell + 8, cssHeight - 6), '#ffe9a8');
+    }
+
+    // Region labels.
+    ctx.font = '600 11px sans-serif';
+    const labels = Array.isArray(msg.cartographyRegionLabels) ? msg.cartographyRegionLabels : [];
+    for (const label of labels) {
+        if (typeof label.leftPct !== 'number' || typeof label.topPct !== 'number') { continue; }
+        const lx = Math.min(Math.max((label.leftPct / 100) * cssWidth, 36), cssWidth - 36);
+        const ly = Math.min(Math.max((label.topPct / 100) * cssHeight, 10), cssHeight - 6);
+        drawOvermapOutlinedText(ctx, label.regionName || label.regionId || '', lx, ly, '#b8c4d0');
     }
 }
 

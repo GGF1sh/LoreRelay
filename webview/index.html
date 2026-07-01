@@ -555,6 +555,7 @@
             <div id="world-map-mode-bar" class="world-map-mode-bar" role="tablist" aria-label="Map view mode">
               <button type="button" id="world-map-mode-mermaid" class="world-map-mode-btn is-active" data-mode="mermaid" data-i18n="webview.world.mapModeDiagram">Diagram</button>
               <button type="button" id="world-map-mode-parchment" class="world-map-mode-btn" data-mode="parchment" data-i18n="webview.world.mapModeParchment">Parchment</button>
+              <button type="button" id="world-map-mode-tile" class="world-map-mode-btn" data-mode="tile" data-i18n="webview.world.mapModeTile">Tile</button>
             </div>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
               <div id="world-mermaid" class="mermaid world-map-panel"></div>
@@ -564,6 +565,10 @@
                   <div id="world-cartography-pins"></div>
                 </div>
                 <p id="world-cartography-empty" class="empty-text hidden" data-i18n="webview.world.cartographyEmpty">No parchment map yet. Click “Map Image”to generate via ComfyUI.</p>
+              </div>
+              <div id="world-overmap" class="world-map-panel hidden">
+                <canvas id="world-overmap-canvas"></canvas>
+                <p id="world-overmap-empty" class="empty-text hidden" data-i18n="webview.world.overmapEmpty">No regions yet. Generate a world to see the tile overmap.</p>
               </div>
             </div>
           </details>

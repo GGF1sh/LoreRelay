@@ -95,6 +95,8 @@
   "webview.world.mapModeDiagram": "Diagram",
   "webview.world.mapModeParchment": "Parchment",
   "webview.world.cartographyEmpty": "No parchment map yet. Click “Map Image” to generate via ComfyUI.",
+  "webview.world.mapModeTile": "Tile",
+  "webview.world.overmapEmpty": "No regions yet. Generate a world to see the tile overmap.",
   "webview.world.mapImage": "🗺 Map Image",
   "webview.world.mapImageTitle": "Generate parchment world map via ComfyUI",
   "webview.world.mapGenerating": "⏳ Generating map...",

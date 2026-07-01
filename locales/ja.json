@@ -95,6 +95,8 @@
   "webview.world.mapModeDiagram": "図解",
   "webview.world.mapModeParchment": "羊皮紙",
   "webview.world.cartographyEmpty": "羊皮紙マップはまだありません。「地図画像」で ComfyUI 生成できます。",
+  "webview.world.mapModeTile": "タイル",
+  "webview.world.overmapEmpty": "リージョンがまだありません。世界を生成するとタイルマップが表示されます。",
   "webview.world.mapImage": "🗺 地図画像",
   "webview.world.mapImageTitle": "ComfyUI で羊皮紙ワールドマップを生成",
   "webview.world.mapGenerating": "⏳ 地図を生成中...",

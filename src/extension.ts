@@ -114,7 +114,11 @@ import {
     isCartographyGenerationBusy
 } from './cartographyRunner';
 import { resolveValidatedForgePath } from './cartographyPathCore';
-import { initProtagonistBootstrap, startProtagonistBootstrapWatcher } from './protagonistBootstrap';
+import {
+    initProtagonistBootstrap,
+    resetProtagonistBootstrapFlag,
+    startProtagonistBootstrapWatcher,
+} from './protagonistBootstrap';
 import {
     initMediaManifest,
     sendBgmManifest,
@@ -391,6 +395,11 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(`${models.length} モデル検出 → 出力チャンネル参照`);
     });
 
+    const resetProtagonistBootstrapCmd = vscode.commands.registerCommand(
+        'textadventure.resetProtagonistBootstrap',
+        () => { void resetProtagonistBootstrapFlag(); }
+    );
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -432,7 +441,8 @@ export function activate(context: vscode.ExtensionContext) {
         rotateRemotePlayTokenCmd,
         listLmModelsCmd,
         generateWorldForgeCmd,
-        generateWorldMapImageCmd
+        generateWorldMapImageCmd,
+        resetProtagonistBootstrapCmd
     );
 
     context.subscriptions.push(

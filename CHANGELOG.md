@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-07-02
+
+### Changed
+
+- **Tile Overmap テーマ解決を extension 側へ移動** — `resolveOvermapThemeKey()` を `tileOvermapCore.ts` に集約し、`worldView` メッセージで `overmapThemeKey` を Webview へ渡すように。Cartography と Webview でテーマ判定がズレるリスクを低減。
+- **World タブ JS の分割** — Tile Overmap 描画を `webview/modules/86-tile-overmap.js` に分離。`85-world.js` は World View の受け取りと各 render 呼び出しに専念。
+- **日本語主人公 ID の安定化** — 非 ASCII 名は `char_<hash>`（FNV-1a 6桁）を生成。`Date.now()` 依存の `char_日時` ID を廃止。
+
+### Added
+
+- **主人公自動登録のリセットコマンド** — `LoreRelay: Reset Protagonist Bootstrap`（`textadventure.resetProtagonistBootstrap`）。スキップ済みワークスペースで登録ダイアログを再表示できる。
+
 ## [1.14.0] - 2026-07-02
 
 ### Added

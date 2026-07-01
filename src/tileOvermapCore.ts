@@ -222,3 +222,50 @@ export function buildTileOvermap(forge: WorldForge, size: number = TILE_OVERMAP_
     memoValue = buildTileOvermapFromSpec(spec, seed, size);
     return memoValue;
 }
+
+/** Reskin keys for the webview tile-overmap ASCII theme tables. */
+export type OvermapThemeKey =
+    | 'cyberpunk'
+    | 'postapoc'
+    | 'zombie'
+    | 'scifi'
+    | 'steampunk'
+    | 'horror'
+    | 'oriental'
+    | 'modern'
+    | 'fantasy';
+
+/**
+ * Map free-text world_forge meta.theme → overmap reskin key.
+ * Keyword matching mirrors cartography theme resolution (separate implementation).
+ */
+export function resolveOvermapThemeKey(theme?: string): OvermapThemeKey {
+    const key = (theme ?? '').toLowerCase().replace(/[\s_]+/g, '-');
+    if (key.includes('cyber')) { return 'cyberpunk'; }
+    if (key.includes('zombie') || key.includes('undead') || key.includes('outbreak') || key.includes('infection')) {
+        return 'zombie';
+    }
+    if (key.includes('postapoc') || key.includes('post-apoc') || key.includes('wasteland')
+        || key.includes('fallout') || key.includes('nuclear')) {
+        return 'postapoc';
+    }
+    if (key.includes('scifi') || key.includes('sci-fi') || key.includes('space')
+        || key.includes('colony') || key.includes('star')) {
+        return 'scifi';
+    }
+    if (key.includes('steam') || key.includes('victorian') || key.includes('clockwork')) {
+        return 'steampunk';
+    }
+    if (key.includes('lovecraft') || key.includes('eldritch') || key.includes('cthulhu')
+        || key.includes('cosmic') || key.includes('horror')) {
+        return 'horror';
+    }
+    if (key.includes('oriental') || key.includes('wuxia') || key.includes('xianxia')
+        || key.includes('samurai') || key.includes('sengoku') || key.includes('edo')) {
+        return 'oriental';
+    }
+    if (key.includes('modern') || key.includes('contemporary') || key.includes('urban')) {
+        return 'modern';
+    }
+    return 'fantasy';
+}

@@ -36,16 +36,27 @@ const START_TRIGGERS = [
     'begin the adventure',
 ];
 
+/** FNV-1a style hash for stable non-ASCII character IDs (e.g. Japanese names). */
+function stableNameHash(name: string): string {
+    let h = 2166136261;
+    const normalized = name.trim().toLowerCase();
+    for (let i = 0; i < normalized.length; i++) {
+        h ^= normalized.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+}
+
 export function slugifyCharacterId(name: string): string {
     const base = name.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 48);
-    return base || `char_${Date.now()}`;
+    return base || `char_${stableNameHash(name)}`;
 }
 
 export function resolveUniqueCharacterId(name: string, existingIds: Iterable<string>): string {
     const taken = new Set(existingIds);
     let id = slugifyCharacterId(name);
     if (!isValidCharacterId(id)) {
-        id = `char_${Date.now()}`;
+        id = `char_${stableNameHash(name)}`;
     }
     if (!taken.has(id)) {
         return id;

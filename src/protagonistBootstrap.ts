@@ -258,6 +258,31 @@ export function startProtagonistBootstrapWatcher(): vscode.Disposable | undefine
     return watcher;
 }
 
+/** Clear the per-workspace "bootstrap done / skipped" flag so registration can run again. */
+export async function resetProtagonistBootstrapFlag(): Promise<boolean> {
+    const key = workspaceFlagKey();
+    if (!key || !extensionContext) {
+        void vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return false;
+    }
+    const yes = t('extension.confirm.resetProtagonistBootstrapYes');
+    const answer = await vscode.window.showInformationMessage(
+        t('extension.confirm.resetProtagonistBootstrap'),
+        { modal: true },
+        yes
+    );
+    if (answer !== yes) {
+        return false;
+    }
+    await extensionContext.workspaceState.update(key, false);
+    void vscode.window.showInformationMessage(t('extension.info.protagonistBootstrapReset'));
+    const result = await maybeBootstrapProtagonist({ requireWorldForge: false, source: 'interview' });
+    if (result === 'none') {
+        void vscode.window.showInformationMessage(t('extension.info.protagonistBootstrapResetNoDraft'));
+    }
+    return true;
+}
+
 /** Build a draft from Quickstart LLM fields. */
 export function quickstartFieldsToDraft(parsed: {
     characterName?: string;

@@ -4,6 +4,7 @@
 const {
     buildTileOvermap,
     hashStringToSeed,
+    resolveOvermapThemeKey,
     TILE_OVERMAP_SIZE,
     TILE_BIOME_CODES,
     TILE_CODE_SET,
@@ -138,6 +139,24 @@ if (radGroup) {
 const hazardOm2 = buildTileOvermap(JSON.parse(JSON.stringify(hazardForge)));
 if (JSON.stringify(hazardOm.hazards) !== JSON.stringify(hazardOm2.hazards)) { fail('hazard scatter should be deterministic'); }
 else { ok('hazard scatter deterministic'); }
+
+// --- theme key resolution (extension → webview) ---
+const themeCases = [
+    ['cyberpunk-neon', 'cyberpunk'],
+    ['zombie-apocalypse', 'zombie'],
+    ['post-apocalyptic wasteland', 'postapoc'],
+    ['sci-fi colony', 'scifi'],
+    ['steampunk victorian', 'steampunk'],
+    ['cosmic-horror', 'horror'],
+    ['oriental-fantasy', 'oriental'],
+    ['modern urban', 'modern'],
+    ['dark-fantasy', 'fantasy'],
+];
+for (const [input, expected] of themeCases) {
+    const got = resolveOvermapThemeKey(input);
+    if (got !== expected) { fail(`resolveOvermapThemeKey("${input}") → ${got}, expected ${expected}`); }
+    else { ok(`resolveOvermapThemeKey ${expected}`); }
+}
 
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed`);

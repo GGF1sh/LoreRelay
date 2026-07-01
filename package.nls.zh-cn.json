@@ -15,6 +15,7 @@
   "command.rotateRemotePlayToken": "LoreRelay: 轮换远程联机令牌",
   "command.generateWorldForge": "LoreRelay: 生成世界设定 (World Forge)",
   "command.generateWorldMapImage": "LoreRelay: 生成世界地图图像",
+  "command.resetProtagonistBootstrap": "LoreRelay: 重置主人公自动注册",
   "config.textAdventure.locale.description": "Webview、扩展消息和 GM 叙事提示词的 UI 语言。也可在 Webview 头部下拉菜单中修改。",
   "config.textAdventure.skillPath.description": "comfyui_generate.py 脚本的绝对路径。",
   "config.textAdventure.imageGen.backend.description": "图像生成后端。所有选项均使用 ComfyUI API（终点通过 imageGen.comfyuiUrl 设置）。",

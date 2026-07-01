@@ -14,7 +14,7 @@ import { isLocalTtsConfigured } from './ttsBridgeRunner';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
-import { buildTileOvermap } from './tileOvermapCore';
+import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
 import { getWorkspacePath } from './workspacePaths';
 
@@ -132,12 +132,14 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const cartographyRegionLabels = buildCartographyRegionLabels(forge);
     // Derived display data only — never persisted, never sent to the GM.
     const tileOvermap = buildTileOvermap(forge);
+    const overmapThemeKey = resolveOvermapThemeKey(forge.meta.theme);
 
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
         worldName: forge.meta.worldName,
         theme: forge.meta.theme ?? '',
+        overmapThemeKey,
         worldMap,
         cartographyImage,
         cartographyPins,

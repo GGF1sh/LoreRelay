@@ -29,6 +29,14 @@ const id2 = core.resolveUniqueCharacterId('Aria Test', new Set(['ariatest']));
 if (id2 === 'ariatest') { fail('resolveUniqueCharacterId dedup', id2); }
 else { ok('resolveUniqueCharacterId dedup'); }
 
+const jpId = core.slugifyCharacterId('アリア');
+if (!jpId.startsWith('char_') || jpId.length < 10) { fail('slugifyCharacterId japanese', jpId); }
+else { ok('slugifyCharacterId japanese'); }
+
+const jpId2 = core.slugifyCharacterId('アリア');
+if (jpId !== jpId2) { fail('slugifyCharacterId japanese stable', `${jpId} vs ${jpId2}`); }
+else { ok('slugifyCharacterId japanese stable'); }
+
 const profile = core.protagonistDraftToProfile(draft, 'aria');
 if (profile.controlledBy !== 'player' || profile.name !== 'アリア') { fail('protagonistDraftToProfile'); }
 else { ok('protagonistDraftToProfile'); }

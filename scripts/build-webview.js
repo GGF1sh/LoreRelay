@@ -23,6 +23,7 @@ const JS_MODULE_ORDER = [
     '83-director.js',
     '84-party.js',
     '85-world.js',
+    '86-tile-overmap.js',
     '90-bootstrap.js'
 ];
 

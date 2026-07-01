@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Audited every other `window.confirm()`/`prompt()`/`alert()` call in the webview for the same silent-no-op sandboxing issue and fixed each:
+  - **Rewind to turn** (🔱 chat action and the input-bar rewind button) and **Git Timeline branch creation** (⎇ chat action and Inspector panel) now confirm via a native extension-host modal (shared `confirmDestructive()` helper in `webviewHandlers.ts`) instead of a silently-ignored webview `confirm()`.
+  - **Checkpoint label** input (both the input-bar and quick-reply "save checkpoint" buttons) now uses `vscode.window.showInputBox()` on the extension host instead of a silently-ignored webview `prompt()` (which previously meant every checkpoint quietly saved with a blank/auto-generated label, custom names never actually worked).
+  - **Lorebook entry delete** is purely client-side (draft state, not yet persisted), so it now uses a small custom in-page confirm modal (`webviewConfirm()` in `00-core.js`) instead of `window.confirm()`.
+  - **Lorebook save-failure** and **Quickstart empty-prompt validation** used `alert()`, also silently ignored. The lorebook one was redundant anyway (the extension host already shows a native error message with the same detail) and was removed; Quickstart's empty-prompt check now shows an inline invalid-field state instead.
 - Delete-character confirmation used the webview's `window.confirm()`, which VS Code silently no-ops (webview iframes aren't granted `allow-modals`) — clicking Delete did nothing and showed no prompt. Moved the confirmation to a native `vscode.window.showWarningMessage({ modal: true })` dialog on the extension-host side instead, matching the existing pattern used for Git Timeline init / scenario pack loading.
 - Full Character Editor ("✏️ Full Editor" modal) was entirely hard-coded in English with no `data-i18n` attributes — switching the UI locale had no effect on it. Added ~90 `webview.characterCreator.*` i18n keys across all 4 locales (en/ja/zh-TW/zh-CN) covering every label, placeholder, button, and the default sprite-expression names.
 - Empty workspace onboarding: the first GM turn now bootstraps a minimal `game_state.json` before invoking the GM bridge, so a valid `turn_result.json` can be merged even when the world folder starts blank.

@@ -65,6 +65,61 @@ let gameOverActive = false;
 let rewindTargets = [];
 let checkpointMetas = [];
 
+/**
+ * Promise-based replacement for window.confirm() for purely client-side
+ * (not-yet-persisted) actions. Native confirm()/alert() are silently ignored
+ * by the VS Code webview iframe sandbox (no allow-modals), so this renders a
+ * small in-page modal instead. For destructive actions that go through a
+ * postMessage to the extension, prefer confirming there via
+ * vscode.window.showWarningMessage({ modal: true }) instead of this.
+ */
+function webviewConfirm(message, confirmLabel) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'wv-confirm-backdrop';
+
+    const box = document.createElement('div');
+    box.className = 'wv-confirm-box';
+
+    const msgEl = document.createElement('div');
+    msgEl.className = 'wv-confirm-message';
+    msgEl.textContent = message;
+    box.appendChild(msgEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'wv-confirm-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'glass-btn';
+    cancelBtn.textContent = T('webview.confirm.cancel');
+
+    const yesBtn = document.createElement('button');
+    yesBtn.className = 'glass-btn wv-confirm-yes';
+    yesBtn.textContent = confirmLabel || T('webview.confirm.ok');
+
+    const finish = (result) => {
+      backdrop.remove();
+      document.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    };
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') finish(false);
+    };
+
+    cancelBtn.addEventListener('click', () => finish(false));
+    yesBtn.addEventListener('click', () => finish(true));
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) finish(false); });
+    document.addEventListener('keydown', onKeydown);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(yesBtn);
+    box.appendChild(actions);
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    yesBtn.focus();
+  });
+}
+
 /** Normalized path compare for gallery ↔ extension VLM events. */
 function imagePathsLooselyMatch(a, b) {
   if (!a || !b || typeof a !== 'string' || typeof b !== 'string') { return false; }

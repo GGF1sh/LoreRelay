@@ -1,5 +1,31 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Audit + fix remaining webview confirm()/prompt()/alert() calls
+
+### Summary
+
+Follow-up to the delete-character confirm fix below (same root cause: VS Code webview iframes lack `allow-modals`, so `confirm()`/`prompt()`/`alert()` are silently ignored — they return falsy/undefined immediately with no UI, so code guarded by them just does nothing). Per the user's request, audited every remaining call site (`grep -rn "confirm(\|prompt(\|alert("` across `webview/modules/`) and fixed each:
+
+- **Rewind to turn** — 🔱 per-message action (`10-game-state.js`, sends `branchFromEntry`) and the input-bar rewind button (`20-input-audio-prep.js`, sends `restoreToTurn`) both reach `handleRestoreToTurn` in the extension. Both now gate on a shared `confirmDestructive()` helper added to `webviewHandlers.ts` (native `vscode.window.showWarningMessage({ modal: true })`), removing the broken webview `confirm()` from the first and adding the same guard to the second (which previously had no confirm attempt at all, silently inconsistent with the first).
+- **Git Timeline branch creation** — ⎇ button in both `10-game-state.js` and the Inspector panel (`80-inspector.js`) send `branchTimeline`; confirmation is now centralized in the `branchTimeline` case in `webviewHandlers.ts`, fixing both call sites at once.
+- **Checkpoint label** — both the input-bar and quick-reply "save checkpoint" buttons used `window.prompt()` for an optional label, always silently ignored (label always ended up blank/auto-generated `Turn N` — `saveCheckpointFile()` already had that fallback, so saves "worked" but custom naming silently never did). Replaced with `vscode.window.showInputBox()` in the `saveCheckpoint` case.
+- **Lorebook entry delete** — this one is purely client-side draft state (not persisted until the explicit Save button), so instead of a round trip to the extension host, added a small reusable `webviewConfirm(message, label): Promise<boolean>` in `00-core.js` (in-page modal, styled via new `.wv-confirm-*` classes in `00-base.css`) and used it here.
+- **Lorebook save-failure `alert()`** — removed; `handleSaveLorebook()` in `extension.ts` already calls `vscode.window.showErrorMessage()` with the same error detail, so the webview alert was both broken and redundant.
+- **Quickstart empty-prompt `alert()`** (`05-quickstart.js`) — replaced with an inline `.invalid` state on the textarea (red border + focus) instead of a popup; new `.cc-input.invalid`/`.cc-textarea.invalid` style in `95-character-creator.css`.
+
+New i18n keys added (4 locales): `webview.confirm.cancel`, `webview.confirm.ok`, `webview.lorebook.deleteConfirmBtn`, `extension.confirm.rewind(Button)`, `extension.confirm.gitBranch(Button)`, `extension.prompt.checkpointLabel(Placeholder)`. Removed now-unused `webview.msg.rewindConfirm`, `webview.msg.gitBranchConfirm`, `webview.checkpoint.savePrompt`.
+
+### Verification
+
+- `npm run build:webview`, `npx tsc --noEmit`, `node scripts/check_i18n_keys.js` (0 missing), `node scripts/validate_webview_html_structure.js`, full `npm test` — all passed.
+- Still not manually played in a live VS Code session. Someone should verify: rewind/branch/checkpoint-label modals actually appear and behave correctly, lorebook delete's in-page confirm works, and quickstart's empty-field state is visible.
+
+### Next
+
+- Manual in-app verification of all five fixes above in a real VS Code session.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Fix: delete-character confirm dialog never appeared
 
 ### Summary

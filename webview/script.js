@@ -71,6 +71,61 @@ let gameOverActive = false;
 let rewindTargets = [];
 let checkpointMetas = [];
 
+/**
+ * Promise-based replacement for window.confirm() for purely client-side
+ * (not-yet-persisted) actions. Native confirm()/alert() are silently ignored
+ * by the VS Code webview iframe sandbox (no allow-modals), so this renders a
+ * small in-page modal instead. For destructive actions that go through a
+ * postMessage to the extension, prefer confirming there via
+ * vscode.window.showWarningMessage({ modal: true }) instead of this.
+ */
+function webviewConfirm(message, confirmLabel) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'wv-confirm-backdrop';
+
+    const box = document.createElement('div');
+    box.className = 'wv-confirm-box';
+
+    const msgEl = document.createElement('div');
+    msgEl.className = 'wv-confirm-message';
+    msgEl.textContent = message;
+    box.appendChild(msgEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'wv-confirm-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'glass-btn';
+    cancelBtn.textContent = T('webview.confirm.cancel');
+
+    const yesBtn = document.createElement('button');
+    yesBtn.className = 'glass-btn wv-confirm-yes';
+    yesBtn.textContent = confirmLabel || T('webview.confirm.ok');
+
+    const finish = (result) => {
+      backdrop.remove();
+      document.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    };
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') finish(false);
+    };
+
+    cancelBtn.addEventListener('click', () => finish(false));
+    yesBtn.addEventListener('click', () => finish(true));
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) finish(false); });
+    document.addEventListener('keydown', onKeydown);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(yesBtn);
+    box.appendChild(actions);
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    yesBtn.focus();
+  });
+}
+
 /** Normalized path compare for gallery ↔ extension VLM events. */
 function imagePathsLooselyMatch(a, b) {
   if (!a || !b || typeof a !== 'string' || typeof b !== 'string') { return false; }
@@ -112,10 +167,15 @@ function findGalleryIndexByImagePath(imagePath) {
   closeBtn.addEventListener('click', closeQuickstart);
   overlay.addEventListener('click', closeQuickstart);
 
+  promptInput.addEventListener('input', () => promptInput.classList.remove('invalid'));
+
   startBtn.addEventListener('click', () => {
     const promptText = promptInput.value.trim();
     if (!promptText) {
-      alert('Please describe your adventure first!');
+      // alert() is silently blocked by the VS Code webview iframe sandbox;
+      // use an inline invalid state instead.
+      promptInput.classList.add('invalid');
+      promptInput.focus();
       return;
     }
 
@@ -391,9 +451,9 @@ function renderMessage(entry) {
     branchBtn.title = T('webview.msg.rewind') || 'Rewind to this turn';
     branchBtn.textContent = '🔱';
     branchBtn.onclick = () => {
-      if (confirm(T('webview.msg.rewindConfirm') || 'Rewind history to this turn? (Future turns will be lost)')) {
-        vscode.postMessage({ type: 'branchFromEntry', entryId: entry.id });
-      }
+      // Confirmation happens extension-side (native modal); webview confirm()
+      // is silently blocked by the VS Code webview iframe sandbox.
+      vscode.postMessage({ type: 'branchFromEntry', entryId: entry.id });
     };
     actionsBar.appendChild(branchBtn);
 
@@ -403,9 +463,9 @@ function renderMessage(entry) {
     gitBranchBtn.title = T('webview.msg.gitBranch') || 'Create alternate timeline (Git Branch) from this turn';
     gitBranchBtn.textContent = '⎇';
     gitBranchBtn.onclick = () => {
-      if (confirm(T('webview.msg.gitBranchConfirm') || 'Create a new alternate timeline branch from this turn?')) {
-        vscode.postMessage({ type: 'branchTimeline', turnId: entry.id });
-      }
+      // Confirmation happens extension-side (native modal); webview confirm()
+      // is silently blocked by the VS Code webview iframe sandbox.
+      vscode.postMessage({ type: 'branchTimeline', turnId: entry.id });
     };
     actionsBar.appendChild(gitBranchBtn);
 
@@ -953,8 +1013,9 @@ if (regenBtn) {
 const checkpointSaveBtn = document.getElementById('checkpoint-save-btn');
 if (checkpointSaveBtn) {
   checkpointSaveBtn.addEventListener('click', () => {
-    const label = prompt(T('webview.checkpoint.savePrompt'), '');
-    vscode.postMessage({ type: 'saveCheckpoint', label: label || '' });
+    // Label input happens extension-side (native input box); webview prompt()
+    // is silently blocked by the VS Code webview iframe sandbox.
+    vscode.postMessage({ type: 'saveCheckpoint' });
   });
 }
 
@@ -965,6 +1026,8 @@ if (rewindBtn && rewindSelect) {
     const entryId = rewindSelect.value;
     if (!entryId) return;
     window.speechSynthesis?.cancel();
+    // Confirmation happens extension-side (native modal); webview confirm()
+    // is silently blocked by the VS Code webview iframe sandbox.
     vscode.postMessage({ type: 'restoreToTurn', entryId });
   });
 }
@@ -2853,8 +2916,9 @@ function getBestVoiceForLocale(locale) {
   const qrCheckpoint = document.getElementById('qr-checkpoint');
   if (qrCheckpoint) {
     qrCheckpoint.addEventListener('click', () => {
-      const label = prompt(T('webview.checkpoint.savePrompt') || 'Checkpoint label:', '') ?? '';
-      vscode.postMessage({ type: 'saveCheckpoint', label });
+      // Label input happens extension-side (native input box); webview prompt()
+      // is silently blocked by the VS Code webview iframe sandbox.
+      vscode.postMessage({ type: 'saveCheckpoint' });
     });
   }
 
@@ -3652,9 +3716,9 @@ function renderTurnResult(turnResult) {
             branchBtn.textContent = '⎇ Branch Timeline';
             branchBtn.title = 'Branch timeline from this turn';
             branchBtn.onclick = () => {
-                if (confirm('Create a new timeline branch starting from this turn?')) {
-                    vscode.postMessage({ type: 'branchTimeline', turnId: turnResult.turnId });
-                }
+                // Confirmation happens extension-side (native modal); webview confirm()
+                // is silently blocked by the VS Code webview iframe sandbox.
+                vscode.postMessage({ type: 'branchTimeline', turnId: turnResult.turnId });
             };
             turnIdDiv.appendChild(branchBtn);
         }
@@ -3809,9 +3873,9 @@ window.addEventListener('DOMContentLoaded', () => {
             if (message.ok) {
                 lorebookDirty = false;
                 updateDirtyBadge();
-            } else if (message.errors && message.errors.length) {
-                alert(message.errors.join('\n'));
             }
+            // On failure the extension host already shows a native error message
+            // with the same detail (webview alert() is silently blocked here anyway).
         }
     });
 });
@@ -3873,9 +3937,12 @@ function addLorebookEntry() {
     renderLorebookList({ entries: lorebookEntries, writeFile: lorebookWriteFile });
 }
 
-function deleteLorebookEntry(id) {
+async function deleteLorebookEntry(id) {
     const confirmMsg = typeof T === 'function' ? T('webview.lorebook.deleteConfirm') : 'Delete this entry?';
-    if (!window.confirm(confirmMsg)) {
+    // window.confirm() is silently blocked by the VS Code webview iframe sandbox
+    // (no allow-modals); use the in-page confirm modal instead.
+    const ok = await webviewConfirm(confirmMsg, T('webview.lorebook.deleteConfirmBtn'));
+    if (!ok) {
         return;
     }
     lorebookEntries = lorebookEntries.filter((e) => e.id !== id);

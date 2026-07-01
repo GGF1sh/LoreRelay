@@ -27,10 +27,15 @@
   closeBtn.addEventListener('click', closeQuickstart);
   overlay.addEventListener('click', closeQuickstart);
 
+  promptInput.addEventListener('input', () => promptInput.classList.remove('invalid'));
+
   startBtn.addEventListener('click', () => {
     const promptText = promptInput.value.trim();
     if (!promptText) {
-      alert('Please describe your adventure first!');
+      // alert() is silently blocked by the VS Code webview iframe sandbox;
+      // use an inline invalid state instead.
+      promptInput.classList.add('invalid');
+      promptInput.focus();
       return;
     }
 

@@ -24,8 +24,9 @@ if (regenBtn) {
 const checkpointSaveBtn = document.getElementById('checkpoint-save-btn');
 if (checkpointSaveBtn) {
   checkpointSaveBtn.addEventListener('click', () => {
-    const label = prompt(T('webview.checkpoint.savePrompt'), '');
-    vscode.postMessage({ type: 'saveCheckpoint', label: label || '' });
+    // Label input happens extension-side (native input box); webview prompt()
+    // is silently blocked by the VS Code webview iframe sandbox.
+    vscode.postMessage({ type: 'saveCheckpoint' });
   });
 }
 
@@ -36,6 +37,8 @@ if (rewindBtn && rewindSelect) {
     const entryId = rewindSelect.value;
     if (!entryId) return;
     window.speechSynthesis?.cancel();
+    // Confirmation happens extension-side (native modal); webview confirm()
+    // is silently blocked by the VS Code webview iframe sandbox.
     vscode.postMessage({ type: 'restoreToTurn', entryId });
   });
 }

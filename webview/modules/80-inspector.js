@@ -238,9 +238,9 @@ function renderTurnResult(turnResult) {
             branchBtn.textContent = '⎇ Branch Timeline';
             branchBtn.title = 'Branch timeline from this turn';
             branchBtn.onclick = () => {
-                if (confirm('Create a new timeline branch starting from this turn?')) {
-                    vscode.postMessage({ type: 'branchTimeline', turnId: turnResult.turnId });
-                }
+                // Confirmation happens extension-side (native modal); webview confirm()
+                // is silently blocked by the VS Code webview iframe sandbox.
+                vscode.postMessage({ type: 'branchTimeline', turnId: turnResult.turnId });
             };
             turnIdDiv.appendChild(branchBtn);
         }

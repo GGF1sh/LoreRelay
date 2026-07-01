@@ -145,3 +145,46 @@ body {
   padding: 12px 8px;
   font-style: italic;
 }
+
+/* ========= Webview confirm modal =========
+   VS Code webviews run in a sandboxed iframe without allow-modals, so native
+   window.confirm() is silently ignored. Use webviewConfirm() (00-core.js)
+   instead of confirm() for any purely client-side destructive action. */
+.wv-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.wv-confirm-box {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 360px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.wv-confirm-message {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+}
+
+.wv-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wv-confirm-actions .glass-btn.wv-confirm-yes {
+  background: rgba(255, 107, 107, 0.18);
+  border-color: var(--danger);
+  color: var(--danger);
+}

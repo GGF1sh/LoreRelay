@@ -29,9 +29,9 @@ window.addEventListener('DOMContentLoaded', () => {
             if (message.ok) {
                 lorebookDirty = false;
                 updateDirtyBadge();
-            } else if (message.errors && message.errors.length) {
-                alert(message.errors.join('\n'));
             }
+            // On failure the extension host already shows a native error message
+            // with the same detail (webview alert() is silently blocked here anyway).
         }
     });
 });
@@ -93,9 +93,12 @@ function addLorebookEntry() {
     renderLorebookList({ entries: lorebookEntries, writeFile: lorebookWriteFile });
 }
 
-function deleteLorebookEntry(id) {
+async function deleteLorebookEntry(id) {
     const confirmMsg = typeof T === 'function' ? T('webview.lorebook.deleteConfirm') : 'Delete this entry?';
-    if (!window.confirm(confirmMsg)) {
+    // window.confirm() is silently blocked by the VS Code webview iframe sandbox
+    // (no allow-modals); use the in-page confirm modal instead.
+    const ok = await webviewConfirm(confirmMsg, T('webview.lorebook.deleteConfirmBtn'));
+    if (!ok) {
         return;
     }
     lorebookEntries = lorebookEntries.filter((e) => e.id !== id);

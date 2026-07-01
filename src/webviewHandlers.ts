@@ -97,6 +97,16 @@ export interface WebviewHandlerDeps {
     pushTtsCapabilities(): void;
 }
 
+/**
+ * 破壊的操作の確認は必ずここ(拡張ホスト側)で行う。
+ * webview の window.confirm()/alert() は VS Code webview の iframe サンドボックスで
+ * 無許可(allow-modals なし)のため無音で無視され、押しても何も起きないように見える。
+ */
+async function confirmDestructive(message: string, confirmLabel: string): Promise<boolean> {
+    const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
+    return choice === confirmLabel;
+}
+
 /** Webview からの postMessage を type 別にルーティングする。 */
 export async function handleWebviewMessage(message: WebviewMessage, deps: WebviewHandlerDeps): Promise<void> {
     switch (message.type) {
@@ -243,19 +253,14 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
                 break;
             }
-            // Webview window.confirm() is silently blocked by the VS Code webview
-            // iframe sandbox (no allow-modals), so the confirmation must happen
-            // here via a native modal instead of relying on webview JS.
             const displayName = typeof message.name === 'string' && message.name.trim()
                 ? message.name.trim().slice(0, 120)
                 : message.id;
-            const confirmLabel = t('extension.confirm.deleteCharacterButton');
-            const choice = await vscode.window.showWarningMessage(
+            const confirmed = await confirmDestructive(
                 t('extension.confirm.deleteCharacter', { name: displayName }),
-                { modal: true },
-                confirmLabel
+                t('extension.confirm.deleteCharacterButton')
             );
-            if (choice !== confirmLabel) { break; }
+            if (!confirmed) { break; }
             if (deps.deleteCharacter(message.id)) {
                 vscode.window.showInformationMessage(t('extension.info.characterDeleted'));
             } else {
@@ -322,14 +327,21 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'restoreToTurn':
             if (typeof message.entryId === 'string') {
-                await deps.handleRestoreToTurn(message.entryId);
+                if (await confirmDestructive(t('extension.confirm.rewind'), t('extension.confirm.rewindButton'))) {
+                    await deps.handleRestoreToTurn(message.entryId);
+                }
             }
             break;
-        case 'saveCheckpoint':
-            await deps.handleSaveCheckpoint(
-                clampString(message.label, MAX_CHECKPOINT_LABEL_LEN) || undefined
-            );
+        case 'saveCheckpoint': {
+            // Webview window.prompt() is silently blocked by the VS Code webview
+            // iframe sandbox, so the label must be gathered here instead.
+            const label = await vscode.window.showInputBox({
+                prompt: t('extension.prompt.checkpointLabel'),
+                placeHolder: t('extension.prompt.checkpointLabelPlaceholder')
+            });
+            await deps.handleSaveCheckpoint(clampString(label, MAX_CHECKPOINT_LABEL_LEN) || undefined);
             break;
+        }
         case 'restoreCheckpoint':
             if (typeof message.checkpointId === 'string' && isValidCheckpointId(message.checkpointId)) {
                 await deps.handleRestoreCheckpoint(message.checkpointId);
@@ -367,12 +379,16 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'branchFromEntry':
             if (typeof message.entryId === 'string' && isValidEntryId(message.entryId)) {
-                await deps.handleRestoreToTurn(message.entryId);
+                if (await confirmDestructive(t('extension.confirm.rewind'), t('extension.confirm.rewindButton'))) {
+                    await deps.handleRestoreToTurn(message.entryId);
+                }
             }
             break;
         case 'branchTimeline':
             if (typeof message.turnId === 'string' && isValidEntryId(message.turnId)) {
-                await deps.handleBranchTimeline(message.turnId);
+                if (await confirmDestructive(t('extension.confirm.gitBranch'), t('extension.confirm.gitBranchButton'))) {
+                    await deps.handleBranchTimeline(message.turnId);
+                }
             }
             break;
         case 'requestGitTimeline':

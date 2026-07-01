@@ -302,6 +302,12 @@
 .cc-input::placeholder,
 .cc-textarea::placeholder { color: rgba(154, 160, 166, 0.45); }
 
+.cc-input.invalid,
+.cc-textarea.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.15);
+}
+
 .cc-select { cursor: pointer; }
 
 /* === Grid helpers === */

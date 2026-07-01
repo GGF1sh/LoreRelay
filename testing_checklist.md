@@ -6,6 +6,11 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Mermaid Rendering**: Verify that markdown code blocks with `mermaid` syntax correctly render into interactive diagrams without relying on external CDNs.
 - [ ] **Dynamic Resource Bars**: Verify that HP/MP (object type) and affection/reputation (numeric type) update properly and visually scale in the status gallery.
 - [ ] **Game Rules Toggles**: Verify that saving Game Rules (Easy / Normal / Hard or custom presets) works and that the configuration is persisted.
+- [ ] **Rewind confirmation**: Click 🔱 on a past chat entry and, separately, use the input-bar rewind dropdown+button. Verify a native "Rewind history..." modal actually appears both times and Cancel truly cancels.
+- [ ] **Git branch confirmation**: Click ⎇ on a chat entry and, separately, "⎇ Branch Timeline" in the Inspector. Verify a native "Create an alternate timeline branch..." modal appears both times.
+- [ ] **Checkpoint label**: Click "Save Checkpoint" (input bar and quick-reply). Verify a native input box asks for a label, and the typed label actually shows up in the checkpoint list (not just "Turn N").
+- [ ] **Lorebook delete**: Delete a lorebook entry and verify an in-page confirm popup appears (not a native dialog) before it's removed from the draft list.
+- [ ] **Quickstart empty prompt**: Open Quickstart, leave the prompt blank, click Start. Verify the textarea shows a visible invalid/red-border state instead of doing nothing.
 
 ## 2. Media & Image Generation
 - [ ] **ComfyUI Integration**: Verify that image generation connects to the local ComfyUI API, triggers generation, and correctly pipes the result back into the chat.

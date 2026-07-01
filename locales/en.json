@@ -361,7 +361,6 @@
   "webview.checkpoint.restore": "Restore",
   "webview.checkpoint.delete": "Delete",
   "webview.checkpoint.empty": "No saved checkpoints yet.",
-  "webview.checkpoint.savePrompt": "Checkpoint name (optional)",
   "webview.gameOver.defeat": "GAME OVER",
   "webview.gameOver.victory": "VICTORY",
   "webview.gameOver.restartHint": "Load a scenario pack or edit game_state.json to start a new adventure.",
@@ -421,9 +420,7 @@
   "webview.msg.branch": "Branch from here",
   "webview.msg.branchConfirm": "Rewind history to this turn and branch?",
   "webview.msg.rewind": "Rewind to this turn",
-  "webview.msg.rewindConfirm": "Rewind history to this turn? (Future turns will be lost)",
   "webview.msg.gitBranch": "Git Branch from here",
-  "webview.msg.gitBranchConfirm": "Create an alternate timeline branch from this turn? Your game will automatically reload.",
   "extension.info.branchCreated": "Branched timeline to {turnId}. Reloading workspace...",
   "webview.msg.edit": "Edit message",
   "webview.msg.editSave": "💾 Save",
@@ -583,5 +580,14 @@
   "extension.error.characterNotFound": "Character not found or already deleted.",
   "extension.info.characterDeleted": "Character deleted.",
   "extension.confirm.deleteCharacter": "Delete \"{name}\"? This removes the character file and its portrait/expression images. This cannot be undone.",
-  "extension.confirm.deleteCharacterButton": "Delete"
+  "extension.confirm.deleteCharacterButton": "Delete",
+  "webview.confirm.cancel": "Cancel",
+  "webview.confirm.ok": "OK",
+  "webview.lorebook.deleteConfirmBtn": "Delete",
+  "extension.confirm.rewind": "Rewind history to this turn? Future turns will be lost. This cannot be undone.",
+  "extension.confirm.rewindButton": "Rewind",
+  "extension.confirm.gitBranch": "Create an alternate timeline branch from this turn? Your game will automatically reload.",
+  "extension.confirm.gitBranchButton": "Branch",
+  "extension.prompt.checkpointLabel": "Checkpoint name (optional)",
+  "extension.prompt.checkpointLabelPlaceholder": "e.g. Before the dragon fight"
 }

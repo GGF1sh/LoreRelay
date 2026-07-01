@@ -361,7 +361,6 @@
   "webview.checkpoint.restore": "復元",
   "webview.checkpoint.delete": "削除",
   "webview.checkpoint.empty": "保存されたチェックポイントはありません。",
-  "webview.checkpoint.savePrompt": "チェックポイント名（任意）",
   "webview.gameOver.defeat": "ゲームオーバー",
   "webview.gameOver.victory": "勝利",
   "webview.gameOver.restartHint": "シナリオパックを読み込むか game_state.json を編集して新しい冒険を始めてください。",
@@ -421,9 +420,7 @@
   "webview.msg.branch": "ここから分岐",
   "webview.msg.branchConfirm": "このターンまで巻き戻して分岐しますか？",
   "webview.msg.rewind": "ここまで巻き戻す",
-  "webview.msg.rewindConfirm": "このターンまで歴史を巻き戻しますか？（以降のターンは失われます）",
   "webview.msg.gitBranch": "Git分岐 (別世界線)",
-  "webview.msg.gitBranchConfirm": "このターンから別の世界線（Gitブランチ）を作成しますか？自動的にリロードされます。",
   "extension.info.branchCreated": "{turnId} から世界線を分岐させました。ワークスペースをリロードします...",
   "webview.msg.edit": "編集",
   "webview.msg.editSave": "💾 保存",
@@ -583,5 +580,14 @@
   "extension.error.characterNotFound": "キャラクターが見つからないか、既に削除されています。",
   "extension.info.characterDeleted": "キャラクターを削除しました。",
   "extension.confirm.deleteCharacter": "「{name}」を削除しますか？キャラクターファイルと立ち絵・表情差分の画像も削除されます。この操作は取り消せません。",
-  "extension.confirm.deleteCharacterButton": "削除"
+  "extension.confirm.deleteCharacterButton": "削除",
+  "webview.confirm.cancel": "キャンセル",
+  "webview.confirm.ok": "OK",
+  "webview.lorebook.deleteConfirmBtn": "削除",
+  "extension.confirm.rewind": "このターンまで巻き戻しますか？以降のターンは失われます。この操作は取り消せません。",
+  "extension.confirm.rewindButton": "巻き戻す",
+  "extension.confirm.gitBranch": "このターンから別の世界線（Gitブランチ）を作成しますか？ゲームは自動的に再読み込みされます。",
+  "extension.confirm.gitBranchButton": "ブランチ作成",
+  "extension.prompt.checkpointLabel": "チェックポイント名（任意）",
+  "extension.prompt.checkpointLabelPlaceholder": "例: ドラゴン戦の前"
 }

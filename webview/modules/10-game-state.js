@@ -244,9 +244,9 @@ function renderMessage(entry) {
     branchBtn.title = T('webview.msg.rewind') || 'Rewind to this turn';
     branchBtn.textContent = '🔱';
     branchBtn.onclick = () => {
-      if (confirm(T('webview.msg.rewindConfirm') || 'Rewind history to this turn? (Future turns will be lost)')) {
-        vscode.postMessage({ type: 'branchFromEntry', entryId: entry.id });
-      }
+      // Confirmation happens extension-side (native modal); webview confirm()
+      // is silently blocked by the VS Code webview iframe sandbox.
+      vscode.postMessage({ type: 'branchFromEntry', entryId: entry.id });
     };
     actionsBar.appendChild(branchBtn);
 
@@ -256,9 +256,9 @@ function renderMessage(entry) {
     gitBranchBtn.title = T('webview.msg.gitBranch') || 'Create alternate timeline (Git Branch) from this turn';
     gitBranchBtn.textContent = '⎇';
     gitBranchBtn.onclick = () => {
-      if (confirm(T('webview.msg.gitBranchConfirm') || 'Create a new alternate timeline branch from this turn?')) {
-        vscode.postMessage({ type: 'branchTimeline', turnId: entry.id });
-      }
+      // Confirmation happens extension-side (native modal); webview confirm()
+      // is silently blocked by the VS Code webview iframe sandbox.
+      vscode.postMessage({ type: 'branchTimeline', turnId: entry.id });
     };
     actionsBar.appendChild(gitBranchBtn);
 

@@ -49,8 +49,9 @@ function getBestVoiceForLocale(locale) {
   const qrCheckpoint = document.getElementById('qr-checkpoint');
   if (qrCheckpoint) {
     qrCheckpoint.addEventListener('click', () => {
-      const label = prompt(T('webview.checkpoint.savePrompt') || 'Checkpoint label:', '') ?? '';
-      vscode.postMessage({ type: 'saveCheckpoint', label });
+      // Label input happens extension-side (native input box); webview prompt()
+      // is silently blocked by the VS Code webview iframe sandbox.
+      vscode.postMessage({ type: 'saveCheckpoint' });
     });
   }
 

@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-07-02
+
 ### Added
 
 - Character Profile pane: a 🗑 Delete button next to Save. Deletes the character JSON plus its portrait/expression images, and clears it from `party.json` / `active_character.txt` if referenced (`characterManager.deleteCharacter`, new `deleteCharacter` webview message).

@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Release v1.11.1 Webview / onboarding fixes
+
+### Summary
+
+- Promoted `[Unreleased]` fixes to `v1.11.1`.
+- Updated `package.json` / `package-lock.json` / README badge to `1.11.1`.
+- Built `lorerelay-1.11.1.vsix`.
+
+### Verification
+
+- `npm run compile` passed.
+- `npm test` passed.
+- `npx vsce package --out lorerelay-1.11.1.vsix` succeeded.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Fix: duplicate player message race on send
 
 ### Summary

@@ -12,6 +12,7 @@
 ### Added
 
 - **Phase 11 design — Adaptive TTS / NPC voice profiles** — `PHASE11_ADAPTIVE_TTS_DESIGN.md` と `phase8_planning_and_prompts.md` の Claude/Grok/ChatGPT 向けプロンプト。Phase 11A（system TTS + registry voice + World Preview）と 11B（local/external）のスコープ分割。
+- **Phase 11A — NPC voice profiles + system TTS routing** — `npcVoiceCore.ts` / `ttsProviderCore.ts` で `npc_registry.json` の任意 `voice` フィールドをパース。Webview `61-tts-npc.js` が sender 名マッチ＋現在地で NPC 声を適用（同名曖昧時はグローバル TTS にフォールバック）。World タブ 🔊 Preview、`textAdventure.tts.external.enabled`（default false）、4 言語 i18n。`local` / `external` provider は 11A では system にフォールバック＋警告ログ。
 
 ## [1.10.0] - 2026-07-01
 

@@ -1,3 +1,5 @@
+import type { NpcVoiceProfile } from './npcVoiceCore';
+
 export type NpcMood = 'happy' | 'worried' | 'angry' | 'sad' | 'neutral' | 'excited' | 'fearful';
 export type EmotionalWeight = 'positive' | 'negative' | 'neutral' | 'suspicious';
 export type NpcNeedType = 'quest' | 'emotional' | 'material' | 'information';
@@ -45,6 +47,8 @@ export interface NpcEntry {
     dialogueHints?: NpcDialogueHints;
     /** Absolute path to the portrait image file linked from the gallery. */
     portraitImagePath?: string;
+    /** Optional TTS voice profile (Phase 11). */
+    voice?: NpcVoiceProfile;
 }
 
 export interface NpcRegistry {

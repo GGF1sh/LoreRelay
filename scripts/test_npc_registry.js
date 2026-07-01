@@ -183,6 +183,32 @@ if (!withNeeds[0].needUpdates || withNeeds[0].needUpdates.length !== 2) {
     }
 }
 
+{
+    const reg = parseNpcRegistry({
+        npcs: {
+            voice_npc: {
+                name: 'Mira',
+                disposition: defaultDisposition(),
+                needs: [],
+                memories: [],
+                voice: {
+                    provider: 'system',
+                    rate: 1.3,
+                    voiceId: 'Microsoft Haruka',
+                    moodAdaptive: true,
+                    label: 'Soft',
+                },
+            },
+        },
+    });
+    const entry = reg.npcs.voice_npc;
+    if (!entry || !entry.voice || entry.voice.rate !== 1.3 || !entry.voice.moodAdaptive) {
+        fail('npc_registry voice field round-trip');
+    } else {
+        ok('npc_registry voice field round-trip');
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Result
 // ---------------------------------------------------------------------------

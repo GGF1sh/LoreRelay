@@ -155,12 +155,12 @@ LLM の役割を「State Referee（状態・ダイス・patch）」と「Narrato
 ---
 
 ## 🟡 Phase 11: Adaptive TTS / NPC個別音声 (担当: Claude 設計 → Grok 実装)
-*ステータス: 設計完了（`PHASE11_ADAPTIVE_TTS_DESIGN.md`）*
+*ステータス: 11A 実装完了（system TTS + registry voice + World Preview）。11B（local/external bridge）は未着手*
 
 NPC ごとの声質・話速・感情トーンを `npc_registry.json` に保存し、system/local/external TTS provider へ接続できる基盤を作る。
 
 - [x] 設計書 — `PHASE11_ADAPTIVE_TTS_DESIGN.md` + `phase8_planning_and_prompts.md` プロンプト
-- [ ] Phase 11A: `npcVoiceCore.ts` / `ttsProviderCore.ts` + Web Speech ルーティング + World Preview
+- [x] Phase 11A: `npcVoiceCore.ts` / `ttsProviderCore.ts` + Web Speech ルーティング + World Preview
 - [ ] `npc_registry.json` に voice profile metadata を追加（parser + caps）
 - [ ] Webview 📢 と NPC profile の sender 名マッチング
 - [ ] Phase 11B: local/external provider bridge（任意）

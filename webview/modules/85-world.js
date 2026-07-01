@@ -110,6 +110,9 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function renderWorldView(msg) {
+    if (typeof updateNpcTtsFromWorldView === 'function') {
+        updateNpcTtsFromWorldView(msg);
+    }
     const empty = document.getElementById('world-empty');
     const content = document.getElementById('world-content');
     if (!content) { return; }
@@ -609,6 +612,22 @@ function renderNpcsAtLocation(npcs, currentLocationId) {
             vscode.postMessage({ type: 'requestNpcPortraitLink', npcId: npc.id });
         });
         info.appendChild(setBtn);
+
+        if (npc.hasVoice && npc.voice) {
+            if (npc.voiceLabel) {
+                const voiceLabelEl = document.createElement('div');
+                voiceLabelEl.className = 'world-npc-voice-label';
+                voiceLabelEl.textContent = npc.voiceLabel;
+                info.appendChild(voiceLabelEl);
+            }
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'world-npc-voice-btn';
+            previewBtn.textContent = T('webview.world.npcVoicePreviewBtn') || '🔊 Preview';
+            previewBtn.title = T('webview.world.npcVoicePreviewTitle') ||
+                "Speak a short sample using this NPC's voice";
+            previewBtn.addEventListener('click', () => previewNpcVoice(npc));
+            info.appendChild(previewBtn);
+        }
 
         card.appendChild(info);
         grid.appendChild(card);

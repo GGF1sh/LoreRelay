@@ -1,5 +1,46 @@
 # AI Shared Log
 
+## 2026-07-01 JST - Grok - Phase 11A NPC voice profiles + system TTS
+
+### Summary
+
+Implemented Phase 11A per Claude-reviewed `PHASE11_ADAPTIVE_TTS_DESIGN.md`:
+
+- **Core:** `npcVoiceCore.ts` (parse/clamp/sanitize, mood modifiers), `ttsProviderCore.ts` (resolveTtsPlan, buildNpcTtsCatalog, findNpcVoiceForSender).
+- **Registry:** optional `NpcEntry.voice`, parser hook in `npcRegistry.ts`, World view pushes `npcTtsCatalog` / `npcVoiceCount` / `ttsExternalEnabled`.
+- **Webview:** `61-tts-npc.js` — `speakWithProfile`, `speakEntryText`, World Preview; module 60/10 wired to NPC-aware TTS.
+- **Settings/i18n:** `textAdventure.tts.external.enabled` (default false), 4 locale keys for preview + voice count.
+- **Tests:** `test_npc_voice_core.js`, `test_tts_provider_core.js`, voice round-trip in `test_npc_registry.js`.
+
+11B (local Piper/edge-tts bridge, external API, `speakerNpcId`) remains deferred.
+
+### Next
+
+- Manual Phase 11A checklist in `testing_checklist.md` §7.
+- ChatGPT review of Phase 11A prototype per design doc.
+- Phase 11B when user wants local/external providers.
+
+---
+
+## 2026-07-01 JST - Claude (Sonnet 5) - Phase 11 schema/mood/UI review
+
+### Summary
+
+Completed the Claude review requested in `phase8_planning_and_prompts.md` (Phase 11 "Prompt for Claude"). Patched `PHASE11_ADAPTIVE_TTS_DESIGN.md` §5–7 only, no implementation:
+
+- **§5 (schema/clamps):** confirmed `NpcVoiceProfile` fields; added concrete `clampVoiceRate/Volume/Pitch` pseudocode using `Number.isFinite` (not just `!isNaN`, to also reject `Infinity` — same class of gap flagged for `validateGameState.ts` HP/MP fields) and a `sanitizeVoiceId()` that **rejects** (not truncates) strings containing path separators/control chars. Firmed up `speakerNpcId` recommendation to **defer to 11B** with explicit reasons (turn_result schema risk, unreliable across clipboard/manual providers, small marginal win over sender-name matching).
+- **§6 (mood table):** proposed a concrete `applyMoodModifiers()` numeric table for all 7 `NpcMood` values (excited/angry/fearful fastest+brightest, sad slowest+flattest, neutral no-op), additive deltas re-clamped after applying so `moodAdaptive` only nudges an explicit profile, never overrides it.
+- **§7 (attribution + UI):** documented 3 edge cases — duplicate NPC names (prefer location match, else skip override rather than guess), GM self-narration/quoted dialogue (attribution stays entry-granularity only, no substring guessing inside prose), NPC renamed mid-campaign (accepted best-effort miss). Specified the World tab 🔊 Preview button DOM placement (`world-npc-info`, after the portrait button in `webview/modules/85-world.js`) and 3 new `webview.world.*` i18n keys for the 4 locale files, confirmed `T(key, vars)` already supports `{name}`-style interpolation (`webview/modules/00-core.js`).
+
+No code changes — design doc only, per the prompt's "Do NOT implement yet" constraint. Phase 10 (also assigned to Claude in the same file) is already fully implemented per `AI_ROADMAP.md`; only the manual real-play branch-switch test remains outstanding there.
+
+### Next
+
+- Grok: Phase 11A implementation per updated `PHASE11_ADAPTIVE_TTS_DESIGN.md`.
+- Someone with an interactive VS Code session: manual Phase 10 Git Timeline branch/switch playtest (still unconfirmed per roadmap).
+
+---
+
 ## 2026-07-01 JST - Grok - Phase 11 Adaptive TTS design + AI prompts
 
 ### Summary

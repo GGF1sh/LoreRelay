@@ -207,32 +207,5 @@ function setImageGenPanelOpen(open) {
 })();
 
 function speakText(text) {
-  if (!ttsEnabled || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
-  
-  window.speechSynthesis.cancel();
-  
-  if (typeof text !== 'string') return;
-  
-  // Treat GM text as plain speech input; do not parse it as HTML.
-  const plainText = text.replace(/\s+/g, ' ').trim().slice(0, 4000);
-  if (plainText === '') return;
-
-  const utterance = new SpeechSynthesisUtterance(plainText);
-  utterance.rate = ttsSpeed;
-  utterance.volume = ttsVolume;
-  
-  const langMap = {
-    'ja': 'ja-JP',
-    'en': 'en-US',
-    'zh-CN': 'zh-CN',
-    'zh-TW': 'zh-TW'
-  };
-  utterance.lang = langMap[currentLocale] || 'en-US';
-  
-  const voice = getBestVoiceForLocale(currentLocale);
-  if (voice) {
-    utterance.voice = voice;
-  }
-  
-  window.speechSynthesis.speak(utterance);
+  speakWithProfile(text, null);
 }

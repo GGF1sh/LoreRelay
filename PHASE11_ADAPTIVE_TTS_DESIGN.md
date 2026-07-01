@@ -1,7 +1,7 @@
 # Phase 11: Adaptive TTS / NPC Voice Profiles Design
 
 Date: 2026-07-01 JST  
-Status: Design ready for Claude (schema/UI) → Grok (implementation)  
+Status: Claude schema/mood/UI review complete (see §5–7) → Grok (implementation)  
 Review focus: ChatGPT after Phase 11A prototype
 
 ## 1. Goal
@@ -111,9 +111,44 @@ export interface NpcEntry {
 - `voiceId` max 120 chars, `lang` max 16 chars, `label` max 40 chars.
 - `external` provider allowed in file but **ignored** until user explicitly enables external TTS in settings (11B).
 
+**Claude review note:** use `Number.isFinite`, not just `!Number.isNaN`, when clamping — `rate`/`volume`/`pitch` must reject `Infinity`/`-Infinity` too (this is a known gap in `validateGameState.ts` for HP/MP; don't repeat it here). Mirror the existing `clampDispositionValue()` shape in `npcRegistryCore.ts`:
+
+```ts
+export function clampVoiceRate(v: unknown): number {
+    if (typeof v !== 'number' || !Number.isFinite(v)) { return 1.0; }
+    return Math.max(0.5, Math.min(2.0, v));
+}
+export function clampVoiceVolume(v: unknown): number {
+    if (typeof v !== 'number' || !Number.isFinite(v)) { return 1.0; }
+    return Math.max(0, Math.min(1, v));
+}
+export function clampVoicePitch(v: unknown): number {
+    if (typeof v !== 'number' || !Number.isFinite(v)) { return 0; }
+    return Math.max(-1, Math.min(1, v));
+}
+```
+
+`voiceId` is a **hint string**, never a path or command — reject (not just truncate) values containing path separators or control characters, matching the "no executable paths" rule in §9:
+
+```ts
+function sanitizeVoiceId(v: unknown): string | undefined {
+    if (typeof v !== 'string') { return undefined; }
+    const trimmed = v.trim().slice(0, 120);
+    if (!trimmed || /[\\/\x00-\x1f]/.test(trimmed)) { return undefined; }
+    return trimmed;
+}
+```
+
+`label` (max 40) and `lang` (max 16) can use the existing plain `.trim().slice(0, N)` pattern already used for `dialogueHints`/`portraitImagePath` — no further sanitization needed since they're UI-display-only or fed straight to Web Speech's `lang` (which the browser itself validates).
+
 ### Optional future: `GameEntry.speakerNpcId`
 
-Defer to Phase 11B unless trivial. If added later:
+**Recommendation: defer to Phase 11B.** Reasons:
+1. It requires a `TurnResult`/`turn_result.json` schema addition plus validation in `processTurnResult()` — Phase 11A's non-goals explicitly exclude touching the GM Bridge contract.
+2. Every GM Bridge provider (including clipboard/manual) would need to reliably emit it; clipboard/manual workflows can't be trusted to add a new structured field consistently.
+3. Sender-name matching (§7) already covers the common case cheaply; `speakerNpcId` only helps when names collide or narration doesn't quote the NPC by name, which is a smaller marginal win for the schema risk it adds.
+
+If added later:
 
 ```ts
 speakerNpcId?: string; // must match npc_registry key pattern
@@ -164,6 +199,42 @@ export interface ResolvedTtsPlan {
 
 **Only `system` provider is executed.** `local` / `external` return a plan but Webview uses Web Speech API path only. Log fallback once per session.
 
+### `applyMoodModifiers()` table (Claude review)
+
+Deltas are **additive** on top of the already-resolved rate/pitch (profile × global), then re-clamped with `clampVoiceRate`/`clampVoicePitch`. Values are deliberately small so `moodAdaptive` never overrides an author's explicit `rate`/`pitch` choice, only nudges it. Mapped against the existing `NpcMood` union (`npcRegistryCore.ts`):
+
+| Mood | rate delta | pitch delta | Rationale |
+|------|-----------:|------------:|-----------|
+| `excited` | +0.18 | +0.15 | fastest, brightest |
+| `angry` | +0.12 | +0.05 | clipped, sharper |
+| `fearful` | +0.15 | +0.12 | rushed, higher-strung |
+| `happy` | +0.08 | +0.10 | slightly faster, warmer |
+| `neutral` | 0 | 0 | baseline |
+| `worried` | -0.05 | -0.05 | hesitant |
+| `sad` | -0.15 | -0.10 | slowest, flattest |
+
+```ts
+const MOOD_MODIFIERS: Record<NpcMood, { rateDelta: number; pitchDelta: number }> = {
+    excited: { rateDelta:  0.18, pitchDelta:  0.15 },
+    angry:   { rateDelta:  0.12, pitchDelta:  0.05 },
+    fearful: { rateDelta:  0.15, pitchDelta:  0.12 },
+    happy:   { rateDelta:  0.08, pitchDelta:  0.10 },
+    neutral: { rateDelta:  0,    pitchDelta:  0    },
+    worried: { rateDelta: -0.05, pitchDelta: -0.05 },
+    sad:     { rateDelta: -0.15, pitchDelta: -0.10 },
+};
+
+export function applyMoodModifiers(rate: number, pitch: number, mood: NpcMood): { rate: number; pitch: number } {
+    const mod = MOOD_MODIFIERS[mood] ?? MOOD_MODIFIERS.neutral;
+    return {
+        rate: clampVoiceRate(rate + mod.rateDelta),
+        pitch: clampVoicePitch(pitch + mod.pitchDelta),
+    };
+}
+```
+
+Only applied when `voiceProfile.moodAdaptive === true` (per §4/§6 resolution order step 4); `dispositionMood` absent or unrecognized falls back to `neutral` (no-op), never throws.
+
 ## 7. NPC Attribution (Phase 11A)
 
 Best-effort mapping when user clicks 📢 on a chat entry:
@@ -177,11 +248,22 @@ Best-effort mapping when user clicks 📢 on a chat entry:
 
 Do **not** auto-speak different voices within a single GM paragraph in 11A.
 
+### Attribution edge cases (Claude review)
+
+- **Duplicate NPC names.** Two `npc_registry` entries can share a display `name` (different `locationId`/`factionId`). Exact-name matching alone is ambiguous. Resolution: prefer an NPC whose `locationId` matches the player's current location (already available in the world payload sent to the Webview); if still ambiguous after that filter, **do not guess** — skip the voice-profile override and speak with the narrator default. A wrong voice is worse than no voice.
+- **GM self-narration / quoted dialogue inside prose.** Lines like `GM: "Go," she said` have no separate `sender` per quoted NPC — `entry.sender` is fixed per whole chat entry, not per-clause. Attribution only ever operates at entry granularity. Do **not** attempt substring name-matching inside GM narration text to guess who's "speaking" mid-paragraph; this is explicitly out of scope (§2 non-goals) and stays out of scope for the same reason in 11B unless a real diarization model is added.
+- **NPC renamed mid-campaign.** Old chat entries keep the `sender` string as it was written at the time; if the NPC is later renamed in the registry, old entries simply stop matching (best-effort miss, not a bug — no retroactive rewrite of chat history).
+
 ### World tab preview (11A UI)
 
-- Each NPC card with `voice` profile gets a **🔊 Preview** button.
-- Speaks a short sample line: `"Hello, I am {name}."` localized via i18n template.
-- Uses the same `resolveTtsPlan()` path as chat 📢.
+- Each NPC card with `voice` profile gets a **🔊 Preview** button, appended to the existing `world-npc-info` column in `webview/modules/85-world.js` right after the `world-npc-portrait-btn` (same pattern: plain `<button>`, `vscode.postMessage`-free — this one runs entirely client-side via `speakWithProfile()`, no extension-host round trip needed).
+- Speaks a short sample line via i18n template + `T(key, vars)` substitution (already supported by `webview/modules/00-core.js`): `T('webview.world.npcVoiceSample', { name: npc.name })`.
+- Uses the same `resolveTtsPlan()` path as chat 📢, with `dispositionMood` taken from `npc.mood` so the preview reflects `moodAdaptive` too.
+- New i18n keys (add to all 4 locale files, `webview.world.*` namespace to match existing convention):
+  - `webview.world.npcVoicePreviewBtn` — `"🔊 Preview"`
+  - `webview.world.npcVoicePreviewTitle` — tooltip, e.g. `"Speak a short sample using this NPC's voice"`
+  - `webview.world.npcVoiceSample` — `"Hello, I am {name}."`
+- Button only renders when `npc.hasVoice` (or equivalent boolean already present on the world payload NPC summary, mirroring the existing `npc.hasPortrait` flag) — no profile means no button, not a disabled one.
 
 ## 8. Settings (VS Code `package.json`)
 

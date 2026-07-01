@@ -15,6 +15,7 @@ const JS_MODULE_ORDER = [
     '52-character-creator.js',
     '55-remote-play.js',
     '60-tts-quickreply-imagegen.js',
+    '61-tts-npc.js',
     '70-game-rules.js',
     '80-inspector.js',
     '81-lorebook.js',

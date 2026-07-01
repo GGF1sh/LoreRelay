@@ -3,6 +3,7 @@ import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { isValidEntryId } from './entryId';
 import { resolveAllowedImagePath } from './mediaPaths';
+import { parseNpcVoiceProfile } from './npcVoiceCore';
 import {
     type NpcRegistry,
     type NpcEntry,
@@ -275,6 +276,8 @@ function parseNpcEntry(raw: unknown): NpcEntry | undefined {
         const portrait = r.portraitImagePath.trim().slice(0, 1000);
         if (portrait) { entry.portraitImagePath = portrait; }
     }
+    const voice = parseNpcVoiceProfile(r.voice);
+    if (voice) { entry.voice = voice; }
     return entry;
 }
 

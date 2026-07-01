@@ -41,7 +41,17 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Lorebook & Memory**: Save lorebook entries, verify they persist to disk, and trigger a memory index rebuild to ensure vector search works locally.
 - [ ] **Export HTML**: Export the saga to an HTML file and verify the offline layout renders correctly.
 
-## 7. System & Installation
+## 7. NPC Voice / Adaptive TTS (Phase 11A)
+- [ ] **Registry voice field**: Add a `voice` block to an NPC in `npc_registry.json` (e.g. `rate`, `pitch`, `label`, `moodAdaptive: true`). Reload World tab and verify the NPC card shows the voice label and **🔊 Preview** button.
+- [ ] **World Preview**: Click Preview on a voiced NPC. Verify Web Speech API speaks the localized sample line (`webview.world.npcVoiceSample`) with the profile rate/pitch.
+- [ ] **Mood adaptive**: Set `moodAdaptive: true` and change the NPC disposition mood (e.g. `sad` vs `excited`). Preview again and confirm rate/pitch shift subtly.
+- [ ] **Chat 📢 attribution**: Send a GM turn whose `turn_result.json` entry has `sender` matching a unique NPC name. Click 📢 and confirm NPC voice overrides global TTS.
+- [ ] **Duplicate name guard**: Create two NPCs with the same `name` at different `locationId`s without being at `currentLocationId`. Click 📢 on a message with that sender — verify global TTS is used (no wrong voice guess).
+- [ ] **Location disambiguation**: Stand at one location with duplicate names; verify 📢 uses the NPC at `currentLocationId` when sender matches.
+- [ ] **External/local fallback**: Set `voice.provider` to `external` or `local` with `textAdventure.tts.external.enabled = false`. Preview or 📢 — verify system TTS still speaks and devtools console shows one-time fallback warning.
+- [ ] **NPC voice count**: With at least one voiced NPC, verify the TTS panel shows `NPC voices: N` (or localized equivalent).
+
+## 8. System & Installation
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.
 - [ ] **OpenRouter Key Migration**: Verify that the legacy plain-text API key is safely migrated into VS Code's `SecretStorage` mechanism on startup.

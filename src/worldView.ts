@@ -8,6 +8,7 @@ import { pruneExpiredEvents } from './worldEventLogCore';
 import type { Faction } from './worldForgeCore';
 import type { FactionWorldState, RegionWorldState, GlobalEvent } from './worldStateCore';
 import { loadNpcRegistry } from './npcRegistry';
+import { buildNpcTtsCatalog, countNpcVoices } from './ttsProviderCore';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
@@ -104,9 +105,17 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
                 playerTrust: npc.disposition.playerTrust,
                 portraitUri: npc.portraitImagePath ? (safeImageUri(npc.portraitImagePath) ?? undefined) : undefined,
                 hasPortrait: Boolean(npc.portraitImagePath),
+                hasVoice: Boolean(npc.voice),
+                voiceLabel: npc.voice?.label,
+                voice: npc.voice,
                 urgentNeedCount: npc.needs.filter((n) => n.urgency >= 70).length,
             }))
         : [];
+
+    const ttsConfig = vscode.workspace.getConfiguration('textAdventure');
+    const ttsExternalEnabled = ttsConfig.get<boolean>('tts.external.enabled', false);
+    const npcTtsCatalog = buildNpcTtsCatalog(registry);
+    const npcVoiceCount = countNpcVoices(registry);
 
     const wsPath = getWorkspacePath();
     const worldMapImagePath = resolveWorldMapImagePath(wsPath);
@@ -139,5 +148,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         regionCount: forge.geography.regions.length,
         locationImages,
         npcsAtLocation,
+        npcTtsCatalog,
+        ttsExternalEnabled,
+        npcVoiceCount,
     });
 }

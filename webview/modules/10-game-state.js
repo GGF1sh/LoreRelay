@@ -59,7 +59,7 @@ function applyGameState(state, fullHistory) {
       }
     }
     if (lastAddedEntry && !fullHistory) {
-      speakText(lastAddedEntry.content);
+      speakEntryText(lastAddedEntry);
     }
   }
 
@@ -202,7 +202,7 @@ function renderMessage(entry) {
     speakBtn.className = 'msg-action-btn';
     speakBtn.title = T('webview.msg.speak') || 'Speak';
     speakBtn.textContent = '📢';
-    speakBtn.onclick = () => speakText(entry.content);
+    speakBtn.onclick = () => speakEntryText(entry);
     actionsBar.appendChild(speakBtn);
 
     // 🎨 画像生成

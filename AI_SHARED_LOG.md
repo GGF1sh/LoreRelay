@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Localized installer BAT wrapper fix
+
+### Summary
+
+- `install_vscode_extension_ja.bat` failed under `cmd.exe` with mojibake and stray commands such as `'-NoProfile' is not recognized`.
+- Root cause was localized wrapper `echo` text inside parenthesized batch blocks interacting badly with cmd encoding/parsing.
+- Replaced wrapper messages in `install_vscode_extension_ja.bat`, `install_vscode_extension_zh-CN.bat`, and `install_vscode_extension_zh-TW.bat` with ASCII-only text while preserving `-Language ja/zh-CN/zh-TW` for the PowerShell installer.
+
+### Verification
+
+- `cmd /c "install_vscode_extension_ja.bat < NUL"` completed successfully and installed `lorerelay-1.11.1.vsix`.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Fix: schema violation silently dropping GM turns
 
 ### Summary

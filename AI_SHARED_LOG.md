@@ -1,5 +1,28 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Sonnet 5) - Fix: duplicate player message race on send
+
+### Summary
+
+Follow-up after the `turn_result.json` recovery fix below — that one worked (the same reproduction now shows the GM turn correctly merged and rendered with option buttons), but the user still saw the player's message duplicated in the chat log, with the second copy appearing *after* the "GM がターンを処理中..." loading placeholder.
+
+Root cause: `showGmLoading()` (`20-input-audio-prep.js`) — which sets `freeInput.disabled = true` / `sendBtn.disabled = true` — only runs when the webview receives the extension's `gmStart` postMessage, which is a round trip (webview → extension → back) after `handlePlayerInput()` starts processing. `isInputLocked()` (`10-game-state.js`) only checks `gameOverActive`, not "GM currently processing." So there's a real window between "user sends" and "input visibly locks" where a fast second Enter-press or Send click (impatient retry, or literally just fast typing) goes through and resends, since by the time it's disabled the first send has already round-tripped partway.
+
+Fix: `sendFreeInput()` and the Options-button click handler (`renderOptions()` in `10-game-state.js`) now call `showGmLoading()` immediately, client-side, right after `vscode.postMessage(...)`, instead of waiting for `gmStart` to come back. `showGmLoading()` is idempotent (`if (document.getElementById('gm-loading')) return;`), so it's safe to still also be triggered by the later `gmStart` message. Also added a defensive `|| sendBtn.disabled` / `|| btn.disabled` to both guard checks as a second layer.
+
+Also answered two side questions from the user: (1) a `tool_error: tool_output_error` from grok's own internal "Read" tool call appeared in the Output channel on a truly empty first-turn folder but self-recovered (exit code 0, valid `turn_result.json` still produced) — this looks like it's inside the Text Adventure GM Skill's own tool-use loop (reading a file that doesn't exist yet in a brand-new folder), not the extension's TS code, so left uninvestigated for now; (2) the "Enable Git Timeline for this workspace?" modal is the existing one-time `gitManager.ts` consent prompt (Phase 10 feature) — explained what it does, that it's optional, and left the decision to the user.
+
+### Verification
+
+- `npm run build:webview`, `npx tsc --noEmit`, `node scripts/check_i18n_keys.js` (0 missing), `node scripts/validate_webview_html_structure.js`, full `npm test` — all passed.
+
+### Next
+
+- User to confirm sending quickly (fast Enter-mashing, rapid option clicks) no longer duplicates.
+- If the internal grok "Read" tool_output_error recurs or actually breaks something (rather than self-recovering), investigate the Text Adventure GM Skill's file-read assumptions for brand-new empty workspaces — that's outside this VS Code extension repo.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Fix: GM turn_result.json silently never applied (fresh workspace first turn)
 
 ### Summary

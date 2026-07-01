@@ -796,7 +796,7 @@ function renderOptions(options) {
     btn.className = 'option-btn';
     btn.textContent = `${i + 1}. ${opt}`;
     btn.addEventListener('click', () => {
-      if (isInputLocked()) return;
+      if (isInputLocked() || btn.disabled) return;
       window.speechSynthesis?.cancel();
       vscode.postMessage({
         type: 'selectOption',
@@ -811,6 +811,9 @@ function renderOptions(options) {
       optionsBar.innerHTML = '';
       scrollToBottom();
       saveState();
+      // Lock immediately, client-side -- don't wait for the extension's
+      // 'gmStart' round trip, or a fast second click before it arrives can resend.
+      showGmLoading();
     });
     optionsBar.appendChild(btn);
   });
@@ -1199,7 +1202,7 @@ function clearAuthorsNote() {
 }
 
 function sendFreeInput() {
-  if (isInputLocked()) return;
+  if (isInputLocked() || sendBtn.disabled) return;
   stopListening();
   const text = freeInput.value.trim();
   if (!text) return;
@@ -1212,6 +1215,9 @@ function sendFreeInput() {
   freeInput.value = '';
   scrollToBottom();
   saveState();
+  // Lock immediately, client-side -- don't wait for the extension's 'gmStart'
+  // round trip, or a fast second Enter/click before it arrives can resend.
+  showGmLoading();
 }
 
 // ===== 画像生成ボタン =====

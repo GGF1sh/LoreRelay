@@ -13,6 +13,7 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **Quickstart empty prompt**: Open Quickstart, leave the prompt blank, click Start. Verify the textarea shows a visible invalid/red-border state instead of doing nothing.
 - [ ] **First turn in a brand-new empty workspace**: Open a fresh empty folder, send the very first player action. Verify the GM's reply actually appears as a chat message (not just in the "LoreRelay: GM Bridge" Output channel) without needing to resend. Repeat a few times across different fresh folders if possible, since the underlying bug (`onDidCreate` not always firing for a file's first-ever write) was intermittent.
 - [ ] **Stuck turn_result.json recovery**: If a turn ever again shows in the Output channel but not the chat, verify that "Developer: Reload Window" alone (no manual file deletion) recovers it — `startGameStateWatcher()` now sweeps for an unprocessed `turn_result.json` on startup.
+- [ ] **No duplicate send on fast submit**: Rapidly press Enter twice (or double-click Send / an Options button) right as a turn is submitted. Verify only one player message appears and input visibly locks immediately, not after a delay.
 
 ## 2. Media & Image Generation
 - [ ] **ComfyUI Integration**: Verify that image generation connects to the local ComfyUI API, triggers generation, and correctly pipes the result back into the chat.

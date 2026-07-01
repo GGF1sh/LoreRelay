@@ -589,7 +589,7 @@ function renderOptions(options) {
     btn.className = 'option-btn';
     btn.textContent = `${i + 1}. ${opt}`;
     btn.addEventListener('click', () => {
-      if (isInputLocked()) return;
+      if (isInputLocked() || btn.disabled) return;
       window.speechSynthesis?.cancel();
       vscode.postMessage({
         type: 'selectOption',
@@ -604,6 +604,9 @@ function renderOptions(options) {
       optionsBar.innerHTML = '';
       scrollToBottom();
       saveState();
+      // Lock immediately, client-side -- don't wait for the extension's
+      // 'gmStart' round trip, or a fast second click before it arrives can resend.
+      showGmLoading();
     });
     optionsBar.appendChild(btn);
   });

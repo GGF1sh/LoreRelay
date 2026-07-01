@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {

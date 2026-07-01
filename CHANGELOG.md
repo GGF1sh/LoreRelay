@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-07-02
+
 ### Added
 
 - **First session polish (A)** — Start Hub に **🎮 お試しデモ**（`harbor-mist`）と **🗺️ 地図デモ**（`lost-catacombs`）ボタン。`loadBundledSampleScenario()` でフォルダ選択なし読み込み。同梱 `world_forge.json` 等もワークスペースへコピー。`docs/FIRST_SESSION.md`。

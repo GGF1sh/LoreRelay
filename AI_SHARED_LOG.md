@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Release v1.11.2 input persistence / first-session fixes
+
+### Summary
+
+- Promoted `[Unreleased]` fixes to `v1.11.2`.
+- Updated `package.json` / `package-lock.json` / README badge to `1.11.2`.
+- Release scope includes first-session demo/help polish, multiline input, player input persistence, matching optimistic/persisted player entry IDs, status array normalization, and localized installer BAT wrapper fixes.
+
+### Verification
+
+- `npm run compile` passed.
+- `npm test` passed.
+- `npx vsce package --out lorerelay-1.11.2.vsix` succeeded.
+
+---
+
 ## 2026-07-02 JST - Claude (Sonnet 5) - Fix: duplicate player message render caused by mismatched entry ids
 
 ### Summary

@@ -178,8 +178,13 @@ DF/CDDA 風のタイルオーバーマップ表示モード。「GM に読ませ
 - [x] `worldView.ts` — worldView message に `tileOvermap` フィールドを追加
 - [x] Webview 第3マップモード「タイル」— Canvas ASCII レンダラー（`TILE_OVERMAP_ASCII_THEME`）、ピン/現在地 @/リージョンラベル、リサイズ対応、localStorage 永続化
 - [x] i18n 4ロケール（`mapModeTile` / `overmapEmpty`）+ `scripts/test_tile_overmap_core.js`（npm test 組み込み）
+- [x] v1.14.0: ジャンル別テーマリスキン（cyberpunk / postapoc / zombie / scifi / steampunk / cosmic-horror / oriental / modern の8種、`TILE_OVERMAP_THEME_OVERRIDES`）
+- [x] v1.14.0: `Region.hazard`（radiation / toxic / infested / quarantine / anomaly / haunted / storm / corrupted の8種）+ タイル散布オーバーレイ + パーサ検証
+- [x] v1.14.0: World Forge Generator 新テーマ6種（post-apocalyptic / zombie-apocalypse / scifi / steampunk / cosmic-horror / oriental-fantasy）+ テーマ×バイオーム条件のハザード自動散布
+- [x] v1.14.0: 羊皮紙マップ用テーマスタイル追加（steampunk / cosmic-horror / oriental — cosmic は zombie ルールの `horror` マッチより前に配置すること）
 - [ ] 将来: 画像タイルセット対応 — CDDA `tile_config.json` 方式（biome コード → スプライトアトラス）。`drawOvermapTile()` の差し替えだけで移行できる構造にしてある
 - [ ] 将来: fog of war（visited locations ベース）。ローカル戦術マップ（建物内グリッド）は GM 連携設計が必要なため別 Phase とする
+- [ ] 将来: GM プロンプトへの hazard 1行注入（現在地リージョンに hazard がある時だけ「You are in a radiation zone」等を足す — 数トークンで済む）
 
 ---
 

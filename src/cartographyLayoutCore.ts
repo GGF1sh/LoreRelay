@@ -1,4 +1,4 @@
-import type { WorldForge, Region, RegionBiome } from './worldForgeCore';
+import type { WorldForge, Region, RegionBiome, RegionHazard } from './worldForgeCore';
 import { inferRegionBiomeFromType } from './worldForgeCore';
 import { resolveCartographyThemeStyle } from './cartographyThemeStyles';
 
@@ -19,6 +19,7 @@ export interface CartographyLayoutRegion {
     y: number;
     /** Map space radius for layout blobs */
     radius: number;
+    hazard?: RegionHazard;
 }
 
 export interface CartographyLayoutEdge {
@@ -115,7 +116,7 @@ export function buildCartographyLayoutSpec(
     const layoutRegions: CartographyLayoutRegion[] = regions.map((region, index) => {
         const biome = resolveRegionBiome(region);
         const pos = resolveRegionPosition(region, index, regions.length);
-        return {
+        const layoutRegion: CartographyLayoutRegion = {
             id: region.id,
             name: region.name,
             biome,
@@ -123,6 +124,8 @@ export function buildCartographyLayoutSpec(
             y: pos.y,
             radius: regionRadiusForBiome(biome),
         };
+        if (region.hazard) { layoutRegion.hazard = region.hazard; }
+        return layoutRegion;
     });
 
     const seen = new Set<string>();

@@ -115,6 +115,30 @@ if (emptyOm.tileRows.length !== emptyOm.rows || emptyOm.roads.length !== 0) {
     fail('empty world should yield a filled fallback grid with no roads');
 } else { ok('empty world fallback'); }
 
+// --- hazard scatter overlay ---
+const hazardForge = makeForge();
+hazardForge.meta = { worldName: 'Hazard Realm', worldSeed: 'hazard-realm' };
+hazardForge.geography.regions = [
+    { id: 'glow_1', name: 'Glow Flats', type: 'other', biome: 'wasteland', x: 300, y: 500, hazard: 'radiation', connectedTo: [] },
+    { id: 'safe_1', name: 'Safe Vale', type: 'wilderness', biome: 'plains', x: 700, y: 500, connectedTo: [] },
+];
+const hazardOm = buildTileOvermap(hazardForge);
+const radGroup = hazardOm.hazards.find((h) => h.hazard === 'radiation');
+if (!radGroup || radGroup.tiles.length === 0) { fail('hazard scatter should produce radiation tiles'); }
+else { ok(`hazard scatter produced ${radGroup.tiles.length} radiation tiles`); }
+if (hazardOm.hazards.length !== 1) { fail(`only the hazardous region should scatter (got ${hazardOm.hazards.length} groups)`); }
+else { ok('non-hazard regions produce no overlay'); }
+if (radGroup) {
+    const wCode = TILE_BIOME_CODES.wasteland;
+    const misplaced = radGroup.tiles.filter(([x, y]) =>
+        x < 0 || y < 0 || x >= hazardOm.cols || y >= hazardOm.rows || hazardOm.tileRows[y][x] !== wCode);
+    if (misplaced.length > 0) { fail(`hazard tiles must sit on their own region's tiles (${misplaced.length} misplaced)`); }
+    else { ok('hazard tiles stay on owner-region tiles'); }
+}
+const hazardOm2 = buildTileOvermap(JSON.parse(JSON.stringify(hazardForge)));
+if (JSON.stringify(hazardOm.hazards) !== JSON.stringify(hazardOm2.hazards)) { fail('hazard scatter should be deterministic'); }
+else { ok('hazard scatter deterministic'); }
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed`);
     process.exit(1);

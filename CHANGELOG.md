@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-02
+
+### Added
+
+- **ジャンル別テーマリスキン（Tile Overmap）** — タイルマップがワールドテーマに応じて見た目を変えるように。cyberpunk（ネオン都市・スプロール郊外）/ post-apocalyptic（灰の平原・廃墟都市）/ zombie（感染都市・繁茂した草地）/ scifi（コロニードーム・レゴリス平原）/ steampunk（煤けた煉瓦街）/ cosmic-horror（霧の湿原・黒い海）/ oriental（竹林・棚田）/ modern の8テーマオーバーライド。バイオームコード語彙は不変（差し替えるのはスタイルテーブルだけ = 将来の画像タイルセットと同じ seam）。テーマ解決は羊皮紙マップと同じキーワードマッチ方式（`resolveOvermapThemeKey`）。
+- **リージョンハザード（`Region.hazard`）** — 「放射能汚染地域」等のゲームプレイ的意味を持つ特殊地形をリージョン単位のオプショナル1単語で表現: `radiation` / `toxic` / `infested` / `quarantine` / `anomaly` / `haunted` / `storm` / `corrupted` の8種（パーサ検証つき、不正値は破棄）。タイルマップ上では該当リージョンのタイルに ☢☣☠╬◊†§▒ マーカーと色調シフトを決定論的に散布（`tileOvermapCore` が owner リージョンを追跡、海岸線上書きタイルには乗らない）。**GM が読むのはリージョンあたり1単語だけ**で、タイル散布自体は保存されない。
+- **World Forge Generator: 新テーマ6種 + ハザード自動散布** — `post-apocalyptic` / `zombie-apocalypse` / `scifi` / `steampunk` / `cosmic-horror` / `oriental-fantasy` を追加（リージョン/派閥名テーブル・NPC名・ロア年表・リージョン型ウェイト・バイオームマッピング各テーマ分）。テーマ×バイオーム条件でハザードを確率散布し（例: zombie の city は 50% で `infested`）、ハザード付きリージョンは dangerLevel も引き上げ。生成はシード決定論的。
+- **羊皮紙マップの新テーマスタイル** — `cartographyThemeStyles.json` に steampunk / cosmic-horror（`horror` が zombie ルールに食われないよう先行配置）/ oriental の ComfyUI プロンプトスタイルを追加。
+
 ## [1.13.0] - 2026-07-02
 
 ### Added

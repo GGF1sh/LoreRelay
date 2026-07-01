@@ -380,6 +380,36 @@ function generate(overrides = {}) {
 // Result
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// New genre themes generate valid worlds (+ hazards where expected)
+// ---------------------------------------------------------------------------
+
+const VALID_HAZARDS = new Set([
+    'radiation', 'toxic', 'infested', 'quarantine', 'anomaly', 'haunted', 'storm', 'corrupted',
+]);
+
+{
+    const themes = ['post-apocalyptic', 'zombie-apocalypse', 'scifi', 'steampunk', 'cosmic-horror', 'oriental-fantasy'];
+    for (const theme of themes) {
+        const { forge, valid } = generate({ worldSeed: `hazard-${theme}`, theme, regionCount: 8 });
+        if (!valid) { fail(`theme ${theme} generates valid forge`); } else { ok(`theme ${theme} valid`); }
+        const badHazard = forge.geography.regions.find((r) => r.hazard !== undefined && !VALID_HAZARDS.has(r.hazard));
+        if (badHazard) { fail(`theme ${theme} produced invalid hazard ${badHazard.hazard}`); } else { ok(`theme ${theme} hazards valid`); }
+        const badBiome = forge.geography.regions.find((r) => !VALID_BIOMES.has(r.biome));
+        if (badBiome) { fail(`theme ${theme} produced invalid biome ${badBiome.biome}`); } else { ok(`theme ${theme} biomes valid`); }
+    }
+
+    const { forge: zForge } = generate({ worldSeed: 'hazard-check-1', theme: 'zombie-apocalypse', regionCount: 12 });
+    const hazardCount = zForge.geography.regions.filter((r) => r.hazard).length;
+    if (hazardCount === 0) { fail('zombie-apocalypse x12 regions expected >=1 hazard'); } else { ok(`zombie theme sprinkles hazards (${hazardCount}/12)`); }
+
+    const a = generate({ worldSeed: 'hazard-det', theme: 'post-apocalyptic', regionCount: 10 });
+    const b = generate({ worldSeed: 'hazard-det', theme: 'post-apocalyptic', regionCount: 10 });
+    const ha = a.forge.geography.regions.map((r) => r.hazard ?? null).join(',');
+    const hb = b.forge.geography.regions.map((r) => r.hazard ?? null).join(',');
+    if (ha !== hb) { fail('hazard assignment not deterministic'); } else { ok('hazard assignment deterministic'); }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

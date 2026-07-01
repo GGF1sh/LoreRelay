@@ -31,9 +31,12 @@ def main() -> int:
         ("cyberpunk", data["rules"][0]),
         ("sci-fi-colony", data["rules"][1]),
         ("postapoc", data["rules"][2]),
-        ("zombie-horror", data["rules"][3]),
-        ("modern", data["rules"][4]),
-        ("ff14-style", data["rules"][5]),
+        ("cosmic-horror", data["rules"][3]),
+        ("zombie-horror", data["rules"][4]),
+        ("modern", data["rules"][5]),
+        ("steampunk-victorian", data["rules"][6]),
+        ("oriental-fantasy", data["rules"][7]),
+        ("ff14-style", data["rules"][8]),
         ("beginner-fantasy", data["default"]),
     ]
     for theme, expected in cases:

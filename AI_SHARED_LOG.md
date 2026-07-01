@@ -1,5 +1,29 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Claude (Fable 5) - Feature: Genre theme reskins + Region hazards — released as v1.14.0
+
+### Summary
+
+v1.13.0 Tile Overmap の続き。ユーザー要望「ジャンル別の特殊地形（放射能汚染地域・スラム等）が欲しい、他の世界観も追加してよい」に対し、「テーマ別リスキン（表示のみ）」と「ハザード属性（データはリージョンあたり1単語）」の2層で実装。
+
+1. **テーマリスキン（85-world.js）** — `TILE_OVERMAP_THEME_OVERRIDES`: cyberpunk / postapoc / zombie / scifi / steampunk / horror(cosmic) / oriental / modern の8キー。`resolveOvermapThemeKey()` が `meta.theme` 自由文字列をキーワードマッチで解決（羊皮紙の `resolveCartographyThemeStyle` と同方式・実装は別物なので両方触る時は注意）。部分オーバーライドで未定義バイオームはベーステーブルにフォールバック。
+2. **`Region.hazard`（worldForgeCore.ts）** — 8種（radiation/toxic/infested/quarantine/anomaly/haunted/storm/corrupted）、`VALID_REGION_HAZARDS` で検証し不正値は黙って破棄。cartographyLayoutCore が layout spec にパススルー、tileOvermapCore が owner リージョン追跡つきで散布密度 14% のマーカータイル（`hazards` 配列）を決定論生成。海岸線上書きタイル（owner=-1）には乗らない。
+3. **Generator 新テーマ6種（worldForgeGeneratorCore.ts）** — post-apocalyptic / zombie-apocalypse / scifi / steampunk / cosmic-horror / oriental-fantasy の名前テーブル・ロア・型ウェイト・バイオームマップ、`HAZARD_RULES_BY_THEME` によるテーマ×バイオーム条件の確率散布（rng 消費順が変わるので旧バージョンと同シードでも出力は変わる — 意図的）。ハザード付きリージョンは dangerLevel 底上げ。
+4. **羊皮紙テーマスタイル** — cartographyThemeStyles.json に steampunk / cosmic / oriental 追加。**重要**: ルールは先勝ちで、`cosmic-horror` は `horror`（zombie ルール）にもマッチするため cosmic ルールを zombie より前に配置してある。`test_cartography_theme_styles_sync.py` はルールをインデックスで参照しているので、ルール追加時は必ずこのテストのインデックスも更新すること（今回1敗してから直した）。
+
+### Verification
+
+- `npm run compile` passed。full `npm test` passed（exit 0。初回は theme_styles_sync のインデックスずれで3件fail → テスト更新後に全通過）。
+- 拡張テスト: tile overmap core（hazard 散布の決定論・owner整合・非ハザードリージョン無汚染）、world forge（hazard parse 正常/欠落/不正値）、generator（新テーマ6種の valid/biome/hazard 妥当性・決定論）。
+- 未確認: 実機での見た目（各テーマのタイル配色・ハザードマーカーの視認性）。
+
+### Next
+
+- 実機確認（特に cyberpunk のネオン配色と ☢/☠ マーカーの視認性、セルが小さい時の潰れ）。
+- 検討中アイデア（AI_ROADMAP.md Phase 12）: 現在地リージョンに hazard がある時だけ GM prompt に1行注入（数トークン）。着手前にユーザーへ相談推奨。
+
+---
+
 ## 2026-07-02 JST - Claude (Fable 5) - Feature: Tile Overmap (roguelike map mode) — released as v1.13.0
 
 ### Summary

@@ -8,6 +8,7 @@ import type {
     LoreHistoryEntry,
     RegionType,
     RegionBiome,
+    RegionHazard,
     LocationType,
     FactionType,
 } from './worldForgeCore';
@@ -99,6 +100,30 @@ const REGION_NAME_PARTS: Record<string, [string[], string[]]> = {
         ['Sector', 'Grid', 'Sub', 'Neo', 'Core', 'Outer', 'Deep', 'High'],
         ['Zero', 'Block', 'District', 'Hub', 'Zone', 'Network', 'Junction', 'Spire'],
     ],
+    'post-apocalyptic': [
+        ['Rusted', 'Cratered', 'Ashen', 'Glassed', 'Broken', 'Silent', 'Scorched', 'Buried'],
+        ['Expanse', 'Flats', 'Ruins', 'Corridor', 'Basin', 'Outskirts', 'Exclusion Zone', 'Barrens'],
+    ],
+    'zombie-apocalypse': [
+        ['Overrun', 'Quarantined', 'Abandoned', 'Barricaded', 'Silent', 'Burning', 'Walled', 'Lost'],
+        ['District', 'Suburbs', 'Downtown', 'Outskirts', 'Highway', 'Mall', 'Harbor', 'Refuge'],
+    ],
+    scifi: [
+        ['Kepler', 'Helios', 'Outer', 'Inner', 'Terra', 'Nova', 'Cryo', 'Zenith'],
+        ['Colony', 'Crater', 'Plateau', 'Rift', 'Dome', 'Fields', 'Sector', 'Landing'],
+    ],
+    steampunk: [
+        ['Brass', 'Cog', 'Soot', 'Iron', 'Steam', 'Gaslight', 'Copper', 'Clockwork'],
+        ['Quarter', 'Works', 'Yards', 'Terrace', 'Docks', 'Foundry', 'Sprawl', 'Heights'],
+    ],
+    'cosmic-horror': [
+        ['Drowned', 'Nameless', 'Whispering', 'Sunken', 'Pallid', 'Cyclopean', 'Forgotten', 'Mist-veiled'],
+        ['Shore', 'Hamlet', 'Moor', 'Depths', 'Hollow', 'Reef', 'Marsh', 'Vale'],
+    ],
+    'oriental-fantasy': [
+        ['Jade', 'Crane', 'Lotus', 'Bamboo', 'Moonlit', 'Azure', 'Thunder', 'Plum Blossom'],
+        ['Valley', 'Province', 'Peaks', 'Terraces', 'Coast', 'Forest', 'Pass', 'Marsh'],
+    ],
     default: [
         ['North', 'South', 'East', 'West', 'High', 'Low', 'Old', 'New'],
         ['Lands', 'Plains', 'Hills', 'Shore', 'Reaches', 'Wilds', 'Keep', 'Domain'],
@@ -118,6 +143,30 @@ const FACTION_NAME_PARTS: Record<string, [string[], string[]]> = {
         ['Neon', 'Ghost', 'Wire', 'Chrome', 'Null', 'Byte', 'Cipher', 'Static'],
         ['Run', 'Syndicate', 'Net', 'Corp', 'Collective', 'Grid', 'Protocol', 'Enclave'],
     ],
+    'post-apocalyptic': [
+        ['Rust', 'Scrap', 'Dust', 'Vault', 'Road', 'Ember', 'Crow', 'Salvage'],
+        ['Raiders', 'Caravan', 'Wardens', 'Tribe', 'Company', 'Remnant', 'Syndicate', 'Pact'],
+    ],
+    'zombie-apocalypse': [
+        ['Last', 'Iron', 'Safe', 'Northern', 'Free', 'Grey', 'Harbor', 'Ration'],
+        ['Survivors', 'Militia', 'Enclave', 'Runners', 'Watch', 'Convoy', 'Colony', 'Council'],
+    ],
+    scifi: [
+        ['Orbital', 'Stellar', 'Void', 'Helios', 'Frontier', 'Axiom', 'Quantum', 'Red Dust'],
+        ['Consortium', 'Directorate', 'Collective', 'Marines', 'Guild', 'Initiative', 'Assembly', 'Cartel'],
+    ],
+    steampunk: [
+        ['Brass', 'Aether', 'Cog', 'Royal', 'Smokestack', 'Copper', 'Gearwright', 'Boiler'],
+        ['League', 'Union', 'Consortium', 'Society', 'Guild', 'Combine', 'Lodge', 'Trust'],
+    ],
+    'cosmic-horror': [
+        ['Esoteric', 'Silver', 'Hollow', 'Abyssal', 'Veiled', 'Midnight', 'Tidal', 'Yellow'],
+        ['Order', 'Choir', 'Society', 'Cult', 'Lodge', 'Congregation', 'Circle', 'Tide'],
+    ],
+    'oriental-fantasy': [
+        ['Jade', 'White Crane', 'Iron Fan', 'Silent', 'Azure Dragon', 'Lotus', 'Thunder', 'Wandering'],
+        ['Clan', 'Sect', 'Dynasty', 'Brotherhood', 'School', 'Court', 'Guard', 'Company'],
+    ],
     default: [
         ['Red', 'Blue', 'Gold', 'Silver', 'Dark', 'Bright', 'Storm', 'Stone'],
         ['Alliance', 'Union', 'Guild', 'Order', 'Council', 'Company', 'Band', 'Circle'],
@@ -128,6 +177,12 @@ const NPC_NAMES: Record<string, string[]> = {
     'dungeon-crawler': ['Maren', 'Dusk', 'Verity', 'Aldric', 'Thorne', 'Sable', 'Osric', 'Wynn', 'Cael', 'Mira'],
     'dark-fantasy': ['Isolde', 'Gareth', 'Lira', 'Edric', 'Soren', 'Nessa', 'Bryn', 'Talon', 'Vesper', 'Corvin'],
     cyberpunk: ['Nova', 'Kira', 'Axel', 'Byte', 'Zara', 'Dex', 'Lyra', 'Cipher', 'Ryn', 'Flux'],
+    'post-apocalyptic': ['Rig', 'Mave', 'Dust', 'Harlan', 'Juno', 'Flint', 'Sable', 'Echo', 'Bram', 'Tessa'],
+    'zombie-apocalypse': ['Reese', 'Marla', 'Doc', 'Hutch', 'Ivy', 'Cole', 'Nadia', 'Briggs', 'Sam', 'Quinn'],
+    scifi: ['Vega', 'Orin', 'Sol', 'Kestrel', 'Nyx', 'Halden', 'Io', 'Reyes', 'Astra', 'Corvo'],
+    steampunk: ['Ada', 'Barnaby', 'Cordelia', 'Phineas', 'Elsie', 'Mortimer', 'Beatrix', 'Silas', 'Hattie', 'Ambrose'],
+    'cosmic-horror': ['Alder', 'Prudence', 'Ezekiel', 'Marion', 'Obed', 'Ophelia', 'Randolph', 'Cassilda', 'Ward', 'Lavinia'],
+    'oriental-fantasy': ['Mei', 'Jin', 'Haru', 'Lian', 'Kaede', 'Wei', 'Sora', 'Yun', 'Ren', 'Aki'],
     default: ['Aela', 'Bren', 'Clara', 'Dorn', 'Ela', 'Fenn', 'Gara', 'Holt', 'Irra', 'Jeld'],
 };
 
@@ -148,6 +203,36 @@ const LORE_TEMPLATES: Record<string, LoreHistoryEntry[]> = {
         { era: 'Pre-Collapse', yearsBefore: 120, event: 'Mega-corporations absorbed nation-states. The megacity was built on their ruins.' },
         { era: 'Blackout', yearsBefore: 40, event: 'A cascading network failure plunged the city into chaos for three weeks.' },
         { era: 'Now', yearsBefore: 0, event: 'Power is fractured between corps, gangs, and rogue AI clusters.' },
+    ],
+    'post-apocalyptic': [
+        { era: 'Before', yearsBefore: 60, event: 'The old world ended in a week of fire; nobody agrees on who launched first.' },
+        { era: 'Dust Years', yearsBefore: 30, event: 'Survivors crawled out of shelters into ash storms and fought over clean water.' },
+        { era: 'Now', yearsBefore: 0, event: 'Caravans stitch the settlements together while raiders prowl the glowing wastes.' },
+    ],
+    'zombie-apocalypse': [
+        { era: 'Outbreak', yearsBefore: 3, event: 'Patient zero hit the evening news; by morning the highways were parking lots.' },
+        { era: 'Collapse', yearsBefore: 2, event: 'The quarantine lines broke. The cities were abandoned to the dead.' },
+        { era: 'Now', yearsBefore: 0, event: 'Scattered enclaves trade, scavenge, and count every bite mark.' },
+    ],
+    scifi: [
+        { era: 'Landfall', yearsBefore: 90, event: 'The colony ships made planetfall and raised the first pressure domes.' },
+        { era: 'The Silence', yearsBefore: 25, event: 'Contact with the homeworld went dark. No one knows why.' },
+        { era: 'Now', yearsBefore: 0, event: 'Factions fight over terraformers, reactor fuel, and the meaning of the Silence.' },
+    ],
+    steampunk: [
+        { era: 'Ignition', yearsBefore: 150, event: 'The first aether engine roared to life and remade industry overnight.' },
+        { era: 'Smog Wars', yearsBefore: 40, event: 'Guilds and crown clashed over engine patents; the sky turned permanently grey.' },
+        { era: 'Now', yearsBefore: 0, event: 'Airships crowd the docks while inventors and spies race for the next breakthrough.' },
+    ],
+    'cosmic-horror': [
+        { era: 'The Founding', yearsBefore: 300, event: 'The port town grew rich on strange catches hauled from a sea that has no charts.' },
+        { era: 'The Vanishing', yearsBefore: 60, event: 'An entire congregation walked into the fog one night and never returned.' },
+        { era: 'Now', yearsBefore: 0, event: 'The tides whisper, the old families keep their secrets, and sleep brings shared dreams.' },
+    ],
+    'oriental-fantasy': [
+        { era: 'Golden Reign', yearsBefore: 400, event: 'A wise dynasty united the provinces under the Mandate of Heaven.' },
+        { era: 'The Sundering', yearsBefore: 80, event: 'The mandate broke; warlords and rogue sects carved up the land.' },
+        { era: 'Now', yearsBefore: 0, event: 'Wandering heroes, sect rivalries, and court intrigue decide the fate of the realm.' },
     ],
     default: [
         { era: 'Founding', yearsBefore: 500, event: 'The first settlers arrived and established the old kingdom.' },
@@ -173,16 +258,75 @@ function clampMapCoord(v: number): number {
     return Math.max(0, Math.min(1000, Math.round(v)));
 }
 
+const GENERATED_BIOME_OVERRIDES: Record<string, Partial<Record<RegionType, RegionBiome>>> = {
+    'dungeon-crawler': { dungeon: 'underground', wilderness: 'wasteland' },
+    cyberpunk: { urban: 'city', other: 'wasteland' },
+    'post-apocalyptic': { urban: 'city', wilderness: 'wasteland', other: 'desert' },
+    'zombie-apocalypse': { urban: 'city', wilderness: 'plains', other: 'wasteland' },
+    scifi: { wilderness: 'plains', other: 'wasteland' },
+    steampunk: { urban: 'city', other: 'wasteland' },
+    'cosmic-horror': { wilderness: 'swamp', other: 'coast' },
+    'oriental-fantasy': { wilderness: 'plains' },
+};
+
 function inferGeneratedBiome(theme: string, type: RegionType): RegionBiome {
-    if (theme === 'dungeon-crawler') {
-        if (type === 'dungeon') { return 'underground'; }
-        if (type === 'wilderness') { return 'wasteland'; }
+    const override = GENERATED_BIOME_OVERRIDES[theme]?.[type];
+    return override ?? inferRegionBiomeFromType(type);
+}
+
+/**
+ * Theme-conditioned hazard sprinkling. One optional word per region in
+ * world_forge.json — cheap for the GM to read, and the tile overmap renders
+ * it as a scattered marker overlay.
+ */
+const HAZARD_RULES_BY_THEME: Record<string, Array<{ hazard: RegionHazard; biomes: RegionBiome[]; chance: number }>> = {
+    'post-apocalyptic': [
+        { hazard: 'radiation', biomes: ['wasteland', 'ruins', 'city', 'desert'], chance: 0.35 },
+        { hazard: 'toxic', biomes: ['swamp', 'wasteland'], chance: 0.25 },
+    ],
+    'zombie-apocalypse': [
+        { hazard: 'infested', biomes: ['city', 'ruins'], chance: 0.5 },
+        { hazard: 'quarantine', biomes: ['city', 'plains', 'wasteland'], chance: 0.2 },
+    ],
+    cyberpunk: [
+        { hazard: 'toxic', biomes: ['wasteland'], chance: 0.35 },
+        { hazard: 'quarantine', biomes: ['city'], chance: 0.15 },
+    ],
+    'dark-fantasy': [
+        { hazard: 'haunted', biomes: ['ruins', 'swamp', 'forest'], chance: 0.25 },
+        { hazard: 'corrupted', biomes: ['forest', 'plains'], chance: 0.15 },
+    ],
+    'dungeon-crawler': [
+        { hazard: 'haunted', biomes: ['underground', 'ruins', 'dungeon'], chance: 0.25 },
+        { hazard: 'corrupted', biomes: ['wasteland'], chance: 0.2 },
+    ],
+    scifi: [
+        { hazard: 'anomaly', biomes: ['wasteland', 'mountain', 'plains'], chance: 0.2 },
+        { hazard: 'radiation', biomes: ['wasteland', 'ruins'], chance: 0.2 },
+        { hazard: 'storm', biomes: ['plains', 'desert', 'mountain'], chance: 0.15 },
+    ],
+    steampunk: [
+        { hazard: 'toxic', biomes: ['city', 'wasteland'], chance: 0.3 },
+    ],
+    'cosmic-horror': [
+        { hazard: 'anomaly', biomes: ['coast', 'sea', 'swamp'], chance: 0.3 },
+        { hazard: 'haunted', biomes: ['ruins', 'forest', 'swamp', 'city'], chance: 0.25 },
+    ],
+    'oriental-fantasy': [
+        { hazard: 'haunted', biomes: ['forest', 'ruins'], chance: 0.15 },
+        { hazard: 'storm', biomes: ['coast', 'sea', 'mountain'], chance: 0.2 },
+    ],
+    default: [
+        { hazard: 'haunted', biomes: ['ruins'], chance: 0.1 },
+    ],
+};
+
+function assignGeneratedHazard(rng: () => number, theme: string, biome: RegionBiome): RegionHazard | undefined {
+    const rules = HAZARD_RULES_BY_THEME[theme] ?? HAZARD_RULES_BY_THEME.default;
+    for (const rule of rules) {
+        if (rule.biomes.includes(biome) && rng() < rule.chance) { return rule.hazard; }
     }
-    if (theme === 'cyberpunk') {
-        if (type === 'urban') { return 'city'; }
-        if (type === 'other') { return 'wasteland'; }
-    }
-    return inferRegionBiomeFromType(type);
+    return undefined;
 }
 
 function placeRegionOnMap(
@@ -219,11 +363,18 @@ function generateRegions(rng: () => number, theme: string, count: number): Regio
     const prefixes = shuffle(rng, [...parts[0]]);
     const suffixes = shuffle(rng, [...parts[1]]);
 
-    const REGION_TYPE_WEIGHTS: Array<[RegionType, number]> = theme === 'dungeon-crawler'
-        ? [['dungeon', 5], ['ruins', 3], ['wilderness', 1], ['other', 1]]
-        : theme === 'cyberpunk'
-        ? [['urban', 5], ['other', 3], ['wilderness', 1], ['ruins', 1]]
-        : [['wilderness', 3], ['forest', 2], ['mountains', 2], ['dungeon', 1], ['urban', 1], ['ruins', 1]];
+    const REGION_TYPE_WEIGHTS_BY_THEME: Record<string, Array<[RegionType, number]>> = {
+        'dungeon-crawler': [['dungeon', 5], ['ruins', 3], ['wilderness', 1], ['other', 1]],
+        cyberpunk: [['urban', 5], ['other', 3], ['wilderness', 1], ['ruins', 1]],
+        'post-apocalyptic': [['ruins', 4], ['wilderness', 3], ['urban', 2], ['other', 1]],
+        'zombie-apocalypse': [['urban', 4], ['ruins', 3], ['wilderness', 2], ['other', 1]],
+        scifi: [['other', 3], ['wilderness', 3], ['urban', 2], ['mountains', 1], ['ruins', 1]],
+        steampunk: [['urban', 4], ['wilderness', 2], ['mountains', 2], ['ruins', 1], ['other', 1]],
+        'cosmic-horror': [['wilderness', 3], ['ocean', 2], ['ruins', 2], ['urban', 2], ['forest', 1]],
+        'oriental-fantasy': [['wilderness', 3], ['forest', 2], ['mountains', 3], ['urban', 2], ['ruins', 1]],
+        default: [['wilderness', 3], ['forest', 2], ['mountains', 2], ['dungeon', 1], ['urban', 1], ['ruins', 1]],
+    };
+    const REGION_TYPE_WEIGHTS = REGION_TYPE_WEIGHTS_BY_THEME[theme] ?? REGION_TYPE_WEIGHTS_BY_THEME.default;
 
     const regions: Region[] = [];
     for (let i = 0; i < count; i++) {
@@ -245,6 +396,11 @@ function generateRegions(rng: () => number, theme: string, count: number): Regio
             connectedTo: [],
             imagePromptHint: `A landscape view of ${name}, ${type} environment, ${theme} artstyle`,
         };
+        const hazard = assignGeneratedHazard(rng, theme, biome);
+        if (hazard) {
+            region.hazard = hazard;
+            region.dangerLevel = Math.max(region.dangerLevel ?? 0, randInt(rng, 5, 9));
+        }
         regions.push(region);
     }
 

@@ -5001,6 +5001,84 @@ const TILE_OVERMAP_ASCII_THEME = {
 };
 const TILE_OVERMAP_WATER_CODES = new Set(['s', 'c']);
 
+// Per-genre partial reskins: only biomes whose look meaningfully changes are
+// overridden; everything else falls back to the base table above. Same seam
+// as future image tilesets — a genre is just another style table.
+const TILE_OVERMAP_THEME_OVERRIDES = {
+    cyberpunk: {
+        y: { bg: '#0d0a16', fg: ['#00c8c8', '#e040c0', '#8060ff'], glyphs: ['#', '▓', '■'] },
+        p: { bg: '#0f1014', fg: ['#5a6a7a', '#6a7a8a', '#4a5a6a'], glyphs: ['.', ':', '·'] },
+        f: { bg: '#0b100d', fg: ['#2a5a3a', '#356a45', '#204a30'], glyphs: ['↑', '♣', '.'] },
+        x: { bg: '#12100c', fg: ['#7a6a50', '#8a7a5a', '#6a5a45'], glyphs: ['%', '≡', '.'] },
+        s: { bg: '#08141a', fg: ['#3a5a6a', '#2f4f5f', '#456a7a'], glyphs: ['~', '≈', '~'] },
+    },
+    postapoc: {
+        p: { bg: '#12100a', fg: ['#8a7a55', '#9a8a60', '#7a6a4a'], glyphs: ['.', ',', '"'] },
+        f: { bg: '#100f0b', fg: ['#6a5f4f', '#7a6f5a', '#5a5045'], glyphs: ['†', '↑', ','] },
+        y: { bg: '#121210', fg: ['#8a8a85', '#9a9a90', '#75756f'], glyphs: ['#', '≡', 'Π'] },
+        s: { bg: '#0a1512', fg: ['#4a6a5a', '#3f5f50', '#557a65'], glyphs: ['~', '≈', '~'] },
+        x: { bg: '#141108', fg: ['#b09a68', '#c0aa72', '#9a8658'], glyphs: ['~', '.', '∙'] },
+    },
+    zombie: {
+        y: { bg: '#140d0d', fg: ['#9a4040', '#8a5a5a', '#aa5045'], glyphs: ['#', '⌂', '†'] },
+        p: { bg: '#10130b', fg: ['#6a8a4a', '#7a9a55', '#5a7a40'], glyphs: ['"', ',', '.'] },
+        r: { bg: '#121010', fg: ['#8a7070', '#9a8080', '#7a6060'], glyphs: ['Π', '†', ','] },
+    },
+    scifi: {
+        p: { bg: '#101018', fg: ['#8a8a9a', '#9a9aaa', '#7a7a8a'], glyphs: ['.', '∙', '·'] },
+        y: { bg: '#0a1416', fg: ['#40c0c0', '#50d0d0', '#30a0a0'], glyphs: ['∩', '#', '■'] },
+        x: { bg: '#131008', fg: ['#9a7a6a', '#aa8a7a', '#8a6a5a'], glyphs: ['o', '.', '°'] },
+        s: { bg: '#0e0a1a', fg: ['#5a4a9a', '#6a5aaa', '#4a3f8a'], glyphs: ['~', '≈', '~'] },
+    },
+    steampunk: {
+        y: { bg: '#151009', fg: ['#b08050', '#c09060', '#906a40'], glyphs: ['#', '⌂', '■'] },
+        x: { bg: '#121110', fg: ['#7a7068', '#8a8078', '#6a6058'], glyphs: ['%', '≡', '.'] },
+        s: { bg: '#0a1216', fg: ['#4a6a7a', '#3f5f6f', '#557a8a'], glyphs: ['~', '≈', '~'] },
+    },
+    horror: {
+        s: { bg: '#070a12', fg: ['#3a4a6a', '#2f3f5f', '#455a7a'], glyphs: ['~', '≈', '~'] },
+        w: { bg: '#0d1010', fg: ['#5a6a6a', '#6a7a7a', '#4a5a5a'], glyphs: ['"', '~', ','] },
+        f: { bg: '#0a100d', fg: ['#3a5a4a', '#2f4f40', '#456a55'], glyphs: ['♠', '†', '♣'] },
+        r: { bg: '#0e1014', fg: ['#6a7a8a', '#7a8a9a', '#5a6a7a'], glyphs: ['Π', '◊', '.'] },
+        c: { bg: '#0a1116', fg: ['#4a6a7a', '#3f5f6f', '#557a8a'], glyphs: ['~', '.', '≈'] },
+    },
+    oriental: {
+        f: { bg: '#0b120c', fg: ['#4a9a50', '#5aaa5a', '#3f8a45'], glyphs: ['|', '↑', '♣'] },
+        m: { bg: '#12141a', fg: ['#8a95a5', '#9aa5b5', '#7a8595'], glyphs: ['^', '▲', '∧'] },
+        p: { bg: '#11150b', fg: ['#7aa050', '#8ab060', '#6a9045'], glyphs: ['.', '=', ','] },
+        y: { bg: '#151109', fg: ['#c08a50', '#d09a60', '#a87a45'], glyphs: ['⌂', '#', '⌂'] },
+    },
+    modern: {
+        y: { bg: '#101216', fg: ['#8a9aaa', '#9aaabb', '#7a8a9a'], glyphs: ['#', '▓', '⌂'] },
+        p: { bg: '#10140b', fg: ['#7a9a5a', '#8aaa65', '#6a8a50'], glyphs: ['.', ':', ','] },
+    },
+};
+
+const TILE_OVERMAP_HAZARD_STYLE = {
+    radiation: { glyph: '☢', fg: '#b0e030', tint: 'rgba(140,200,30,0.16)' },
+    toxic: { glyph: '☣', fg: '#80d060', tint: 'rgba(90,180,70,0.16)' },
+    infested: { glyph: '☠', fg: '#e06050', tint: 'rgba(200,60,50,0.16)' },
+    quarantine: { glyph: '╬', fg: '#e0b040', tint: 'rgba(220,170,50,0.14)' },
+    anomaly: { glyph: '◊', fg: '#b080f0', tint: 'rgba(150,100,240,0.16)' },
+    haunted: { glyph: '†', fg: '#a0b0d0', tint: 'rgba(130,150,210,0.14)' },
+    storm: { glyph: '§', fg: '#70c0e0', tint: 'rgba(90,180,230,0.14)' },
+    corrupted: { glyph: '▒', fg: '#c060a0', tint: 'rgba(190,80,160,0.14)' },
+};
+
+/** Free-text world theme → reskin key (mirrors cartography's keyword matching). */
+function resolveOvermapThemeKey(theme) {
+    const key = String(theme || '').toLowerCase().replace(/[\s_]+/g, '-');
+    if (key.includes('cyber')) { return 'cyberpunk'; }
+    if (key.includes('zombie') || key.includes('undead') || key.includes('outbreak') || key.includes('infection')) { return 'zombie'; }
+    if (key.includes('postapoc') || key.includes('post-apoc') || key.includes('wasteland') || key.includes('fallout') || key.includes('nuclear')) { return 'postapoc'; }
+    if (key.includes('scifi') || key.includes('sci-fi') || key.includes('space') || key.includes('colony') || key.includes('star')) { return 'scifi'; }
+    if (key.includes('steam') || key.includes('victorian') || key.includes('clockwork')) { return 'steampunk'; }
+    if (key.includes('lovecraft') || key.includes('eldritch') || key.includes('cthulhu') || key.includes('cosmic') || key.includes('horror')) { return 'horror'; }
+    if (key.includes('oriental') || key.includes('wuxia') || key.includes('xianxia') || key.includes('samurai') || key.includes('sengoku') || key.includes('edo')) { return 'oriental'; }
+    if (key.includes('modern') || key.includes('contemporary') || key.includes('urban')) { return 'modern'; }
+    return 'fantasy';
+}
+
 /** Same integer hash as tileOvermapCore.hash2 — cosmetic per-tile variation only. */
 function overmapHash(x, y, s) {
     let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1274126177);
@@ -5057,12 +5135,13 @@ function drawTileOvermap() {
 
     const seed = om.seed >>> 0;
     const roadSet = new Set((om.roads || []).map(([x, y]) => `${x},${y}`));
+    const themeOverrides = TILE_OVERMAP_THEME_OVERRIDES[resolveOvermapThemeKey(msg.theme)] || {};
 
     for (let ty = 0; ty < om.rows; ty++) {
         const row = om.tileRows[ty] || '';
         for (let tx = 0; tx < om.cols; tx++) {
             const code = row[tx] || 'o';
-            const style = TILE_OVERMAP_ASCII_THEME[code] || TILE_OVERMAP_ASCII_THEME.o;
+            const style = themeOverrides[code] || TILE_OVERMAP_ASCII_THEME[code] || TILE_OVERMAP_ASCII_THEME.o;
             const variant = overmapHash(tx, ty, seed + 99);
             let glyph = style.glyphs[Math.floor(variant * style.glyphs.length)];
             let fg = style.fg[Math.floor(overmapHash(tx, ty, seed + 55) * style.fg.length)];
@@ -5071,6 +5150,19 @@ function drawTileOvermap() {
                 fg = TILE_OVERMAP_WATER_CODES.has(code) ? '#8aa0b8' : '#c9b083';
             }
             drawOvermapTile(ctx, tx, ty, cell, style, glyph, fg);
+        }
+    }
+
+    // Hazard overlay: region-level hazards scattered as tinted marker tiles.
+    const hazardGroups = Array.isArray(om.hazards) ? om.hazards : [];
+    for (const group of hazardGroups) {
+        const hz = TILE_OVERMAP_HAZARD_STYLE[group.hazard];
+        if (!hz || !Array.isArray(group.tiles)) { continue; }
+        for (const [tx, ty] of group.tiles) {
+            ctx.fillStyle = hz.tint;
+            ctx.fillRect(tx * cell, ty * cell, cell, cell);
+            ctx.fillStyle = hz.fg;
+            ctx.fillText(hz.glyph, tx * cell + cell / 2, ty * cell + cell / 2 + 1);
         }
     }
 
@@ -5806,7 +5898,7 @@ function buildWorldGenForm() {
     const themeSelect = document.createElement('select');
     themeSelect.id = 'world-gen-theme';
     themeSelect.className = 'world-gen-input';
-    for (const t of ['dungeon-crawler', 'dark-fantasy', 'cyberpunk', 'default']) {
+    for (const t of ['dungeon-crawler', 'dark-fantasy', 'cyberpunk', 'post-apocalyptic', 'zombie-apocalypse', 'scifi', 'steampunk', 'cosmic-horror', 'oriental-fantasy', 'default']) {
         const opt = document.createElement('option');
         opt.value = t;
         opt.textContent = t.charAt(0).toUpperCase() + t.slice(1).replace('-', ' ');

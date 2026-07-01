@@ -19,6 +19,12 @@
       "extraNegative": "pristine, colorful fantasy, neon cyberpunk, glossy utopia"
     },
     {
+      "matchAny": ["lovecraft", "eldritch", "cthulhu", "cosmic"],
+      "mapType": "eldritch coastal region map",
+      "renderStyle": "flat top-down, fog-shrouded shores, drowned villages, cyclopean ruin sites, sickly green-grey palette, antique nautical survey style",
+      "extraNegative": "cheerful, bright colors, clean modern cartography, neon"
+    },
+    {
       "matchAny": ["zombie", "undead", "horror"],
       "mapType": "zombie outbreak quarantine zone map",
       "renderStyle": "flat top-down, infected sectors, safe zones, barricade lines, abandoned districts, grim survival RPG cartography",
@@ -30,6 +36,18 @@
       "mapType": "modern urban district map",
       "renderStyle": "flat top-down, city blocks, highways, parks, harbor zones, clean cartographic colors",
       "extraNegative": "medieval, fantasy castle, magic, parchment, star chart"
+    },
+    {
+      "matchAny": ["steam", "victorian", "clockwork"],
+      "mapType": "steampunk industrial city-region map",
+      "renderStyle": "flat top-down, brass and sepia tones, factory quarters, railway and airship routes, smog-stained districts, engraved Victorian atlas style",
+      "extraNegative": "neon cyberpunk, medieval fantasy castle, pristine nature, star chart"
+    },
+    {
+      "matchAny": ["oriental", "wuxia", "xianxia", "samurai", "sengoku", "edo"],
+      "mapType": "east asian fantasy province map",
+      "renderStyle": "flat top-down, ink wash and jade tones, terraced fields, bamboo forests, mountain passes, brush-painted scroll cartography",
+      "extraNegative": "western medieval castle, neon, modern city, star chart"
     },
     {
       "matchAny": ["ff14", "ff-14"],

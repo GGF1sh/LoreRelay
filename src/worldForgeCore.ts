@@ -1,6 +1,8 @@
 export type GenerationMethod = 'manual' | 'ai-generated';
 export type RegionType = 'wilderness' | 'urban' | 'dungeon' | 'ruins' | 'ocean' | 'mountains' | 'forest' | 'other';
 export type RegionBiome = 'forest' | 'desert' | 'mountain' | 'sea' | 'coast' | 'city' | 'plains' | 'swamp' | 'wasteland' | 'ruins' | 'dungeon' | 'underground' | 'snow' | 'volcanic' | 'other';
+/** Genre-flavored region hazards (radiation zones, infested districts, …). Display + GM flavor; optional. */
+export type RegionHazard = 'radiation' | 'toxic' | 'infested' | 'quarantine' | 'anomaly' | 'haunted' | 'storm' | 'corrupted';
 export type LocationType = 'settlement' | 'dungeon' | 'landmark' | 'ruins' | 'wilderness' | 'other';
 export type FactionType = 'hostile' | 'neutral' | 'friendly' | 'player-faction';
 
@@ -25,6 +27,7 @@ export interface Region {
     x?: number;
     y?: number;
     biome?: RegionBiome;
+    hazard?: RegionHazard;
 }
 
 export interface WorldLocation {
@@ -123,6 +126,9 @@ const VALID_REGION_BIOMES = new Set<RegionBiome>([
     'wasteland', 'ruins', 'dungeon', 'underground', 'snow', 'volcanic', 'other',
 ]);
 const VALID_LOCATION_TYPES = new Set<LocationType>(['settlement', 'dungeon', 'landmark', 'ruins', 'wilderness', 'other']);
+export const VALID_REGION_HAZARDS = new Set<RegionHazard>([
+    'radiation', 'toxic', 'infested', 'quarantine', 'anomaly', 'haunted', 'storm', 'corrupted',
+]);
 const VALID_FACTION_TYPES = new Set<FactionType>(['hostile', 'neutral', 'friendly', 'player-faction']);
 
 export function inferRegionBiomeFromType(type: RegionType): RegionBiome {
@@ -166,6 +172,9 @@ function parseRegion(raw: unknown): Region | undefined {
         region.biome = VALID_REGION_BIOMES.has(r.biome as RegionBiome)
             ? (r.biome as RegionBiome)
             : inferRegionBiomeFromType(region.type);
+    }
+    if (r.hazard !== undefined && VALID_REGION_HAZARDS.has(r.hazard as RegionHazard)) {
+        region.hazard = r.hazard as RegionHazard;
     }
     return region;
 }

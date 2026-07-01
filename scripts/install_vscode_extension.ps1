@@ -1,5 +1,7 @@
 param(
-    [string]$Language = "en"
+    [string]$Language = "en",
+    [ValidateSet("both", "vscode", "antigravity")]
+    [string]$Target = "both"
 )
 
 . (Join-Path $PSScriptRoot 'install_common.ps1')
@@ -104,53 +106,57 @@ try {
     $errors = New-Object 'System.Collections.Generic.List[string]'
 
     # 1. Antigravity IDE (CLI — most reliable on Windows)
-    $agCmd = Resolve-AntigravityIdeCommand
-    if ($agCmd) {
-        Write-Host ""
-        Write-Host "Installing to Antigravity IDE..." -ForegroundColor Cyan
-        try {
-            Install-VsixViaCli -CliPath $agCmd -VsixPath $VsixPath -Label 'Antigravity IDE'
-            Write-Host "Antigravity IDE: OK" -ForegroundColor Green
-            $anyInstall = $true
-        } catch {
-            $errors.Add("Antigravity CLI: $_")
-            Write-Warning $_
+    if ($Target -in @('both', 'antigravity')) {
+        $agCmd = Resolve-AntigravityIdeCommand
+        if ($agCmd) {
+            Write-Host ""
+            Write-Host "Installing to Antigravity IDE..." -ForegroundColor Cyan
+            try {
+                Install-VsixViaCli -CliPath $agCmd -VsixPath $VsixPath -Label 'Antigravity IDE'
+                Write-Host "Antigravity IDE: OK" -ForegroundColor Green
+                $anyInstall = $true
+            } catch {
+                $errors.Add("Antigravity CLI: $_")
+                Write-Warning $_
+            }
+        } else {
+            Write-Host ""
+            Write-Host "Antigravity IDE CLI not found — will try direct folder copy." -ForegroundColor Yellow
         }
-    } else {
-        Write-Host ""
-        Write-Host "Antigravity IDE CLI not found — will try direct folder copy." -ForegroundColor Yellow
-    }
 
-    # 2. Antigravity extension folders (fallback / dual-layout)
-    foreach ($extDir in Get-AntigravityExtensionsDirs) {
-        Write-Host ""
-        Write-Host "Installing to Antigravity extensions folder: $extDir" -ForegroundColor Cyan
-        try {
-            Install-VsixToDirDirect -VsixPath $VsixPath -TargetExtensionsDir $extDir -ExtensionId "miya.lorerelay" -Version $PackageVersion
-            Write-Host "Folder copy: OK ($extDir)" -ForegroundColor Green
-            $anyInstall = $true
-        } catch {
-            $errors.Add("Antigravity folder $extDir : $_")
-            Write-Warning $_
+        # 2. Antigravity extension folders (fallback / dual-layout)
+        foreach ($extDir in Get-AntigravityExtensionsDirs) {
+            Write-Host ""
+            Write-Host "Installing to Antigravity extensions folder: $extDir" -ForegroundColor Cyan
+            try {
+                Install-VsixToDirDirect -VsixPath $VsixPath -TargetExtensionsDir $extDir -ExtensionId "miya.lorerelay" -Version $PackageVersion
+                Write-Host "Folder copy: OK ($extDir)" -ForegroundColor Green
+                $anyInstall = $true
+            } catch {
+                $errors.Add("Antigravity folder $extDir : $_")
+                Write-Warning $_
+            }
         }
     }
 
     # 3. Standard VS Code
-    $codeCmd = Resolve-CodeCommand
-    if ($codeCmd) {
-        Write-Host ""
-        Write-Host "Installing to standard VS Code..." -ForegroundColor Cyan
-        try {
-            Install-VsixViaCli -CliPath $codeCmd -VsixPath $VsixPath -Label 'VS Code'
-            Write-Host "VS Code: OK" -ForegroundColor Green
-            $anyInstall = $true
-        } catch {
-            $errors.Add("VS Code: $_")
-            Write-Warning $_
+    if ($Target -in @('both', 'vscode')) {
+        $codeCmd = Resolve-CodeCommand
+        if ($codeCmd) {
+            Write-Host ""
+            Write-Host "Installing to standard VS Code..." -ForegroundColor Cyan
+            try {
+                Install-VsixViaCli -CliPath $codeCmd -VsixPath $VsixPath -Label 'VS Code'
+                Write-Host "VS Code: OK" -ForegroundColor Green
+                $anyInstall = $true
+            } catch {
+                $errors.Add("VS Code: $_")
+                Write-Warning $_
+            }
+        } else {
+            Write-Host ""
+            Write-Host "VS Code CLI ('code') not found — skipped." -ForegroundColor Yellow
         }
-    } else {
-        Write-Host ""
-        Write-Host "VS Code CLI ('code') not found — skipped." -ForegroundColor Yellow
     }
 
     if (-not $anyInstall) {
@@ -158,7 +164,7 @@ try {
     }
 
     Write-Host ""
-    Write-Host "Done. Reload Antigravity IDE and/or VS Code (Developer: Reload Window)." -ForegroundColor Green
+    Write-Host "Done. Reload the target editor (Developer: Reload Window)." -ForegroundColor Green
     if ($errors.Count -gt 0) {
         Write-Host "Some targets failed (others may have succeeded):" -ForegroundColor Yellow
         $errors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }

@@ -1,4 +1,4 @@
-import type { WorldForge, RegionBiome } from './worldForgeCore';
+import type { WorldForge, RegionBiome, RegionHazard } from './worldForgeCore';
 import { buildCartographyLayoutSpec, CARTOGRAPHY_MAP_SIZE } from './cartographyLayoutCore';
 import type { CartographyLayoutSpec } from './cartographyLayoutCore';
 
@@ -18,6 +18,8 @@ export const TILE_OVERMAP_SIZE = 64;
 const OCEAN_BORDER_TILES = 5;
 /** Noise amplitude applied to Voronoi distances (in normalized-radius units). */
 const BORDER_JITTER = 0.9;
+/** Fraction of a hazardous region's tiles that get a scattered hazard marker. */
+const HAZARD_SCATTER_DENSITY = 0.14;
 
 /** Stable single-char tile codes, keyed by biome. */
 export const TILE_BIOME_CODES: Record<RegionBiome, string> = {
@@ -48,6 +50,8 @@ export interface TileOvermap {
     tileRows: string[];
     /** Sparse road overlay as [x, y] tile coords (from region connectedTo edges). */
     roads: Array<[number, number]>;
+    /** Sparse hazard markers scattered over hazardous regions' own tiles. */
+    hazards: Array<{ hazard: RegionHazard; tiles: Array<[number, number]> }>;
 }
 
 /** FNV-1a style string → uint32, for deriving the grid seed from the world seed/name. */
@@ -114,7 +118,7 @@ function buildTileOvermapFromSpec(spec: CartographyLayoutSpec, seed: number, siz
     const rows = size;
 
     if (spec.regions.length === 0) {
-        return { cols, rows, seed, tileRows: Array(rows).fill('o'.repeat(cols)), roads: [] };
+        return { cols, rows, seed, tileRows: Array(rows).fill('o'.repeat(cols)), roads: [], hazards: [] };
     }
 
     const centers = spec.regions.map((r) => ({
@@ -128,10 +132,13 @@ function buildTileOvermapFromSpec(spec: CartographyLayoutSpec, seed: number, siz
     const hasWater = spec.regions.some((r) => r.biome === 'sea' || r.biome === 'coast');
 
     const tileRows: string[] = [];
+    /** ownerRows[y][x] = region index owning the tile, or -1 for ocean-border overrides. */
+    const ownerRows: number[][] = [];
     for (let ty = 0; ty < rows; ty++) {
         let row = '';
+        const ownerRow: number[] = [];
         for (let tx = 0; tx < cols; tx++) {
-            let bestCode = centers[0].code;
+            let bestIndex = 0;
             let bestScore = Infinity;
             for (let i = 0; i < centers.length; i++) {
                 const c = centers[i];
@@ -141,19 +148,42 @@ function buildTileOvermapFromSpec(spec: CartographyLayoutSpec, seed: number, siz
                 const score = Math.sqrt(dx * dx + dy * dy) / c.radiusTiles + jitter;
                 if (score < bestScore) {
                     bestScore = score;
-                    bestCode = c.code;
+                    bestIndex = i;
                 }
             }
+            let bestCode = centers[bestIndex].code;
+            let owner = bestIndex;
             if (hasWater) {
                 const edge = Math.min(tx, ty, cols - 1 - tx, rows - 1 - ty);
                 if (edge < OCEAN_BORDER_TILES && fbm(tx * 0.12, ty * 0.12, seed + 31) > 0.3 + edge * 0.11) {
                     bestCode = TILE_BIOME_CODES.sea;
+                    owner = -1;
                 }
             }
             row += bestCode;
+            ownerRow.push(owner);
         }
         tileRows.push(row);
+        ownerRows.push(ownerRow);
     }
+
+    const hazardTiles = new Map<RegionHazard, Array<[number, number]>>();
+    for (let ty = 0; ty < rows; ty++) {
+        for (let tx = 0; tx < cols; tx++) {
+            const owner = ownerRows[ty][tx];
+            if (owner < 0) { continue; }
+            const hazard = spec.regions[owner].hazard;
+            if (!hazard) { continue; }
+            if (hash2(tx, ty, seed + 177 + owner) >= HAZARD_SCATTER_DENSITY) { continue; }
+            let tiles = hazardTiles.get(hazard);
+            if (!tiles) {
+                tiles = [];
+                hazardTiles.set(hazard, tiles);
+            }
+            tiles.push([tx, ty]);
+        }
+    }
+    const hazards = [...hazardTiles.entries()].map(([hazard, tiles]) => ({ hazard, tiles }));
 
     const regionCenterById = new Map(spec.regions.map((r, i) => [r.id, centers[i]]));
     const roadSet = new Set<string>();
@@ -170,7 +200,7 @@ function buildTileOvermapFromSpec(spec: CartographyLayoutSpec, seed: number, siz
         }
     }
 
-    return { cols, rows, seed, tileRows, roads };
+    return { cols, rows, seed, tileRows, roads, hazards };
 }
 
 let memoKey = '';

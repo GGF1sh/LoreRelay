@@ -361,6 +361,30 @@ if (!forgeWithLore) {
 // Result
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Region hazard parse
+// ---------------------------------------------------------------------------
+
+{
+    const forgeHazard = parseWorldForge({
+        meta: { worldName: 'Hazard World' },
+        geography: {
+            regions: [
+                { id: 'r1', name: 'Glow Flats', type: 'other', biome: 'wasteland', hazard: 'radiation' },
+                { id: 'r2', name: 'Clean Vale', type: 'wilderness' },
+                { id: 'r3', name: 'Odd Zone', type: 'other', hazard: 'lava-sharks' },
+            ],
+            locations: [],
+        },
+    });
+    const r1 = forgeHazard.geography.regions.find((r) => r.id === 'r1');
+    const r2 = forgeHazard.geography.regions.find((r) => r.id === 'r2');
+    const r3 = forgeHazard.geography.regions.find((r) => r.id === 'r3');
+    if (!r1 || r1.hazard !== 'radiation') { fail('valid hazard parse preserved'); } else { ok('hazard parse: valid value preserved'); }
+    if (!r2 || r2.hazard !== undefined) { fail('absent hazard stays undefined'); } else { ok('hazard parse: absent stays undefined'); }
+    if (!r3 || r3.hazard !== undefined) { fail('invalid hazard dropped'); } else { ok('hazard parse: invalid value dropped'); }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

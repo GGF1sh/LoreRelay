@@ -23,6 +23,7 @@ const {
     makeImageHashKey,
     parseVisualMemoryEntry,
     parseVisualMemory,
+    capVisualMemoryEntries,
     upsertVisualMemoryEntry,
     makeVisualMemoryEntry,
     buildVisualContextSnippet,
@@ -158,6 +159,23 @@ assert(Object.keys(mem.entries).length === 2, '2 valid entries kept, 2 invalid s
 assert(parseVisualMemory(null).entries !== undefined, 'null → empty entries');
 assert(parseVisualMemory('string').entries !== undefined, 'string → empty entries');
 assert(Object.keys(parseVisualMemory({}).entries).length === 0, '{} → empty entries');
+
+{
+    const overCap = { format: VISUAL_MEMORY_FORMAT, entries: {} };
+    for (let i = 0; i < MAX_ENTRIES + 5; i++) {
+        const hash = i.toString(16).padStart(IMAGE_HASH_LENGTH, '0');
+        overCap.entries[hash] = {
+            imageHash: hash,
+            imagePath: `/img${i}.png`,
+            description: 'desc',
+            analyzedAt: `2026-06-01T12:00:${String(i % 60).padStart(2, '0')}.000Z`,
+        };
+    }
+    const capped = parseVisualMemory(overCap);
+    assert(Object.keys(capped.entries).length === MAX_ENTRIES, 'parse keeps MAX_ENTRIES');
+    assert(!capped.entries['0000000000000000'], 'parse drops oldest entries');
+    assert(capped.entries['00000000000001f8'], 'parse keeps newest entries');
+}
 
 // ---------------------------------------------------------------------------
 // upsertVisualMemoryEntry

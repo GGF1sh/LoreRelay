@@ -137,10 +137,28 @@ export function parseVisualMemoryEntry(raw: unknown): VisualMemoryEntry | undefi
 // Registry parser
 // ---------------------------------------------------------------------------
 
+/** Keep newest MAX_ENTRIES by analyzedAt (matches upsertVisualMemoryEntry eviction policy). */
+export function capVisualMemoryEntries(
+    entries: Record<string, VisualMemoryEntry>
+): Record<string, VisualMemoryEntry> {
+    const keys = Object.keys(entries);
+    if (keys.length <= MAX_ENTRIES) {
+        return entries;
+    }
+    const dropOldest = keys
+        .sort((a, b) => entries[a].analyzedAt.localeCompare(entries[b].analyzedAt))
+        .slice(0, keys.length - MAX_ENTRIES);
+    const capped = { ...entries };
+    for (const key of dropOldest) {
+        delete capped[key];
+    }
+    return capped;
+}
+
 /**
  * Parses a raw object into a VisualMemory registry.
  * Unknown or malformed entries are silently dropped.
- * Caps at MAX_ENTRIES to prevent unbounded memory.
+ * Caps at MAX_ENTRIES (newest by analyzedAt) to prevent unbounded memory.
  */
 export function parseVisualMemory(raw: unknown): VisualMemory {
     const empty: VisualMemory = { format: VISUAL_MEMORY_FORMAT, entries: {} };
@@ -150,19 +168,16 @@ export function parseVisualMemory(raw: unknown): VisualMemory {
     const entries: Record<string, VisualMemoryEntry> = {};
     const rawEntries = doc.entries;
     if (rawEntries && typeof rawEntries === 'object' && !Array.isArray(rawEntries)) {
-        let count = 0;
         for (const [key, val] of Object.entries(rawEntries as Record<string, unknown>)) {
-            if (count >= MAX_ENTRIES) { break; }
             if (!isValidImageHash(key)) { continue; }
             const entry = parseVisualMemoryEntry(val);
             if (entry) {
                 entries[key] = entry;
-                count++;
             }
         }
     }
 
-    return { format: VISUAL_MEMORY_FORMAT, entries };
+    return { format: VISUAL_MEMORY_FORMAT, entries: capVisualMemoryEntries(entries) };
 }
 
 // ---------------------------------------------------------------------------
@@ -180,16 +195,7 @@ export function upsertVisualMemoryEntry(
     const entries = { ...mem.entries };
     entries[entry.imageHash] = entry;
 
-    // Evict oldest when over capacity
-    const keys = Object.keys(entries);
-    if (keys.length > MAX_ENTRIES) {
-        const sorted = keys.sort(
-            (a, b) => entries[a].analyzedAt.localeCompare(entries[b].analyzedAt)
-        );
-        delete entries[sorted[0]];
-    }
-
-    return { ...mem, entries };
+    return { ...mem, entries: capVisualMemoryEntries(entries) };
 }
 
 /**

@@ -26,6 +26,7 @@ import {
     maskCartographyRegionLabelsForFog,
     normalizeFogWorldState,
 } from './fogOfWarCore';
+import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } from './mapFeedbackCore';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
@@ -172,12 +173,26 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         fog
     );
     const fogRegionLayout = buildFogRegionLayout(forge);
+    const regionHighlightMeta = buildRegionHighlightMeta(activeChanges);
+    const regionMapFeedback = buildRegionMapFeedback(
+        forge,
+        fog,
+        activeChanges,
+        regionStates,
+        worldBlock?.regions
+    );
     const locationPinCatalog = buildLocationPinCatalog(
         forge,
         currentLocationId ?? null,
         regionStates,
-        fog
-    );
+        fog,
+        regionHighlightMeta
+    ).map((pin) => ({
+        ...pin,
+        dangerTier: pin.fogVisibility === 'discovered' && pin.dangerLevel !== undefined
+            ? classifyDangerTier(pin.dangerLevel)
+            : pin.dangerTier,
+    }));
     // Derived display data only — never persisted, never sent to the GM.
     const tileOvermap = buildTileOvermap(forge);
     const overmapThemeKey = resolveOvermapThemeKey(forge.meta.theme);
@@ -196,6 +211,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         fog,
         fogRegionLayout,
         locationPinCatalog,
+        regionMapFeedback,
+        highlightRegionIds: [...highlightRegionIds],
         tileOvermap,
         factions,
         factionStates: factionStates ?? null,

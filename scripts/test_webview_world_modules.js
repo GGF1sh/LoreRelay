@@ -74,6 +74,23 @@ for (const symbol of pinSymbols) {
     );
 }
 console.log('ok: World pin interaction symbols are bundled');
+
+const feedbackSymbols = [
+    'regionMapFeedback',
+    'danger-tier-medium',
+    'danger-tier-high',
+    'world-map-event-badge',
+    'faction-tint-friendly',
+    'maybeFlashHighDangerEntry',
+    'drawDangerRing',
+];
+for (const symbol of feedbackSymbols) {
+    assert(
+        worldModule.includes(symbol) || tileModule.includes(symbol) || bundle.includes(symbol),
+        `map feedback symbol missing: ${symbol}`
+    );
+}
+console.log('ok: Dynamic map feedback symbols are bundled');
 for (const symbol of fogSymbols) {
     assert(worldModule.includes(symbol) || tileModule.includes(symbol), `fog symbol missing: ${symbol}`);
     assert(bundle.includes(symbol), `webview/script.js bundle is missing fog symbol ${symbol}`);

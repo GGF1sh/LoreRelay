@@ -120,6 +120,7 @@
   "webview.world.pinDetail.examineBtn": "👁 Look around (insert)",
   "webview.world.pinDetail.stayBtn": "👁 Observe surroundings (insert)",
   "webview.world.pinRumoredTooltip": "Unexplored — visit to reveal details",
+  "webview.world.mapEventBadge": "Active event in this region",
   "webview.world.sceneImageBtn": "🎨 Scene Image",
   "webview.world.sceneImageFailed": "❌ Failed — Retry",
   "webview.world.worldGenBusy": "⏳ Generating...",

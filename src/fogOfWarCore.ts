@@ -35,6 +35,9 @@ export interface WorldViewLocationPinMeta {
     regionName?: string;
     dangerLevel?: number;
     factionName?: string;
+    dangerTier?: 'none' | 'low' | 'medium' | 'high';
+    mapHighlight?: boolean;
+    highlightSeverity?: 'info' | 'warning' | 'critical';
     leftPct: number;
     topPct: number;
     fogVisibility: RegionFogVisibility;
@@ -176,7 +179,8 @@ export function buildLocationPinCatalog(
     forge: WorldForge,
     currentLocationId: string | undefined | null,
     regionStates: Record<string, RegionWorldState> | undefined,
-    fog: FogViewPayload
+    fog: FogViewPayload,
+    regionHighlightMeta?: Map<string, { mapHighlight: boolean; severity: 'info' | 'warning' | 'critical' }>
 ): WorldViewLocationPinMeta[] {
     const pins = buildCartographyPinPositions(forge);
     const discovered = new Set(fog.discoveredRegionIds);
@@ -196,14 +200,20 @@ export function buildLocationPinCatalog(
         const isCurrent = pin.locationId === currentLocationId;
         const showName = fogVisibility === 'discovered' || isCurrent;
 
+        const highlight = pin.regionId ? regionHighlightMeta?.get(pin.regionId) : undefined;
+        const dangerLevel = fogVisibility === 'discovered' ? (liveDanger ?? region?.dangerLevel) : undefined;
+
         return {
             locationId: pin.locationId,
             locationName: showName ? (loc?.name ?? pin.locationName) : '',
             locationType: loc?.type ?? 'other',
             regionId: pin.regionId,
             regionName: fogVisibility !== 'unknown' ? region?.name : undefined,
-            dangerLevel: fogVisibility === 'discovered' ? (liveDanger ?? region?.dangerLevel) : undefined,
+            dangerLevel,
+            dangerTier: undefined,
             factionName: fogVisibility === 'discovered' ? faction?.name : undefined,
+            mapHighlight: fogVisibility === 'discovered' && Boolean(highlight?.mapHighlight),
+            highlightSeverity: fogVisibility === 'discovered' ? highlight?.severity : undefined,
             leftPct: pin.leftPct,
             topPct: pin.topPct,
             fogVisibility,

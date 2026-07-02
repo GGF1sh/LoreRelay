@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-07-02
+
+### Added
+
+- **Cartography Phase 8 PR4 — 動的マップフィードバック** — `dangerLevel` に応じたピン色（琥珀/赤+⚠）、`controllingFaction` のリージョンラベル派閥アイコン+CSSティント、`recentChanges`（`mapHighlight`）の脈動バッジ。FoW 未探索は非表示。`src/mapFeedbackCore.ts` + 羊皮紙/タイル Webview 描画。高危険リージョン進入時の羊皮紙フラッシュ。
+
 ## [1.15.0] - 2026-07-02
 
 Cartography Phase 8（探索霧 + ピン操作）— マイナーではなくプレイ体験の機能追加のため **1.15** に繰り上げ。

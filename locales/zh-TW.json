@@ -120,6 +120,7 @@
   "webview.world.pinDetail.examineBtn": "👁 詳細調查（插入）",
   "webview.world.pinDetail.stayBtn": "👁 觀察周圍（插入）",
   "webview.world.pinRumoredTooltip": "未探索 — 到訪後顯示詳情",
+  "webview.world.mapEventBadge": "該地區有事件進行中",
   "webview.world.sceneImageBtn": "🎨 場景圖像",
   "webview.world.sceneImageFailed": "❌ 失敗 — 重試",
   "webview.world.worldGenBusy": "⏳ 生成中...",

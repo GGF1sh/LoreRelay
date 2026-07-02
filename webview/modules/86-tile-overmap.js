@@ -131,6 +131,41 @@ function getRegionFogVisibility(regionId, fog) {
     return 'unknown';
 }
 
+function buildPinMetaMap(msg) {
+    const map = new Map();
+    const catalog = Array.isArray(msg.locationPinCatalog) ? msg.locationPinCatalog : [];
+    for (const entry of catalog) {
+        if (entry?.locationId) { map.set(entry.locationId, entry); }
+    }
+    return map;
+}
+
+function buildRegionFeedbackMapFromMsg(msg) {
+    const map = new Map();
+    const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
+    for (const row of rows) {
+        if (row?.regionId) { map.set(row.regionId, row); }
+    }
+    return map;
+}
+
+function drawDangerRing(ctx, px, py, tier, cell) {
+    if (tier !== 'medium' && tier !== 'high') { return; }
+    ctx.save();
+    ctx.strokeStyle = tier === 'high' ? 'rgba(192,64,64,0.95)' : 'rgba(232,168,56,0.9)';
+    ctx.lineWidth = tier === 'high' ? 2.5 : 2;
+    ctx.beginPath();
+    ctx.arc(px, py, cell * (tier === 'high' ? 0.88 : 0.72), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawMapEventBadge(ctx, px, py, cell, severity) {
+    const glyph = severity === 'critical' ? '‼' : '🔥';
+    ctx.font = `600 ${Math.max(7, cell - 1)}px sans-serif`;
+    drawOvermapOutlinedText(ctx, glyph, px + cell * 0.65, py - cell * 0.45, '#ffb347');
+}
+
 function resolveTileRegionFog(tx, ty, cols, rows, layout, fog) {
     if (!fog || !Array.isArray(layout) || layout.length === 0) { return 'discovered'; }
     const leftPct = ((tx + 0.5) / cols) * 100;
@@ -237,16 +272,43 @@ function drawTileOvermap() {
         }
     }
 
+    const regionFeedbackMap = buildRegionFeedbackMapFromMsg(msg);
+    const pinMetaMap = buildPinMetaMap(msg);
+
     const hazardGroups = Array.isArray(om.hazards) ? om.hazards : [];
     for (const group of hazardGroups) {
         const hz = TILE_OVERMAP_HAZARD_STYLE[group.hazard];
         if (!hz || !Array.isArray(group.tiles)) { continue; }
         for (const [tx, ty] of group.tiles) {
-            ctx.fillStyle = hz.tint;
+            const tileFog = resolveTileRegionFog(tx, ty, om.cols, om.rows, fogLayout, fog);
+            if (tileFog !== 'discovered') { continue; }
+            const regionId = resolveTileRegionId(tx, ty, om.cols, om.rows, fogLayout);
+            const feedback = regionFeedbackMap.get(regionId);
+            const boost = feedback?.dangerTier === 'high';
+            ctx.fillStyle = boost ? hz.tint.replace('0.16', '0.28') : hz.tint;
             ctx.fillRect(tx * cell, ty * cell, cell, cell);
             ctx.fillStyle = hz.fg;
             ctx.fillText(hz.glyph, tx * cell + cell / 2, ty * cell + cell / 2 + 1);
         }
+    }
+
+    function resolveTileRegionId(tx, ty, cols, rows, layout) {
+        if (!layout.length) { return ''; }
+        const leftPct = ((tx + 0.5) / cols) * 100;
+        const topPct = ((ty + 0.5) / rows) * 100;
+        let bestId = layout[0].regionId;
+        let bestScore = Infinity;
+        for (const entry of layout) {
+            const dx = entry.leftPct - leftPct;
+            const dy = entry.topPct - topPct;
+            const radius = Math.max(2, entry.radiusPct || 7);
+            const score = Math.sqrt(dx * dx + dy * dy) / radius;
+            if (score < bestScore) {
+                bestScore = score;
+                bestId = entry.regionId;
+            }
+        }
+        return bestId;
     }
 
     const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
@@ -258,10 +320,19 @@ function drawTileOvermap() {
         if (pinFog === 'unknown') { continue; }
         const px = (pin.leftPct / 100) * cssWidth;
         const py = (pin.topPct / 100) * cssHeight;
+        const meta = pin.locationId ? pinMetaMap.get(pin.locationId) : null;
         const isCurrent = pin.locationId && pin.locationId === msg.currentLocationId;
-        if (isCurrent) { currentPin = { pin, px, py, pinFog }; continue; }
+        if (meta?.dangerTier) { drawDangerRing(ctx, px, py, meta.dangerTier, cell); }
+        if (meta?.mapHighlight) {
+            drawMapEventBadge(ctx, px, py, cell, meta.highlightSeverity || 'info');
+        }
+        if (isCurrent) { currentPin = { pin, px, py, pinFog, meta }; continue; }
         const glyph = pinFog === 'rumored' ? '?' : '⌂';
-        drawOvermapOutlinedText(ctx, glyph, px, py, pinFog === 'rumored' ? '#9aa8b8' : '#e8c87a');
+        const pinColor = pinFog === 'rumored' ? '#9aa8b8' : (meta?.dangerTier === 'high' ? '#f0a0a0' : '#e8c87a');
+        drawOvermapOutlinedText(ctx, glyph, px, py, pinColor);
+        if (meta?.dangerTier === 'high') {
+            drawOvermapOutlinedText(ctx, '⚠', px + cell * 0.55, py - cell * 0.35, '#ffb0a0');
+        }
     }
     if (currentPin) {
         ctx.font = `600 ${Math.max(10, cell + 3)}px "Courier New", monospace`;
@@ -282,7 +353,14 @@ function drawTileOvermap() {
         if (labelFog === 'unknown') { continue; }
         const lx = Math.min(Math.max((label.leftPct / 100) * cssWidth, 36), cssWidth - 36);
         const ly = Math.min(Math.max((label.topPct / 100) * cssHeight, 10), cssHeight - 6);
+        const feedback = regionFeedbackMap.get(label.regionId);
+        let labelText = label.regionName || label.regionId || '';
+        if (labelFog === 'discovered' && feedback?.factionType) {
+            const icons = { hostile: '💀', neutral: '⚖️', friendly: '🤝', 'player-faction': '⭐' };
+            const icon = icons[feedback.factionType] || '';
+            if (icon) { labelText = `${icon} ${labelText}`; }
+        }
         const color = labelFog === 'rumored' ? '#8a98a8' : '#b8c4d0';
-        drawOvermapOutlinedText(ctx, label.regionName || label.regionId || '', lx, ly, color);
+        drawOvermapOutlinedText(ctx, labelText, lx, ly, color);
     }
 }

@@ -30,6 +30,14 @@ let _selectedPinId = null;
 let _worldPinCatalog = new Map();
 const WORLD_PIN_HIT_RADIUS_PX = 22;
 let _worldPinDismissReady = false;
+let _regionFeedbackMap = new Map();
+let _lastDangerFlashLocationId = null;
+
+const MAP_EVENT_SEVERITY_GLYPH = {
+    info: '🔥',
+    warning: '🔥',
+    critical: '‼️',
+};
 
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
@@ -155,6 +163,8 @@ function renderWorldView(msg) {
     currentWorldLocationId = msg.currentLocationId;
     _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
+    rebuildRegionFeedbackMap(msg);
+    maybeFlashHighDangerEntry(msg);
     if (genImageBtn) {
         genImageBtn.style.display = currentWorldLocationId ? '' : 'none';
     }
@@ -357,6 +367,88 @@ function ensureCartographyStyles() {
         #world-overmap-canvas.world-pin-cursor {
             cursor: crosshair;
         }
+        .world-map-pin-wrap {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            z-index: 4;
+        }
+        .world-map-pin-wrap .world-map-pin {
+            position: relative;
+            transform: none;
+        }
+        .world-map-pin-wrap .world-map-pin.is-interactive:hover,
+        .world-map-pin-wrap .world-map-pin.is-selected {
+            transform: scale(1.12);
+        }
+        .world-map-pin-wrap.is-selected { z-index: 6; }
+        .world-map-pin.danger-tier-medium {
+            filter: drop-shadow(0 0 5px rgba(232, 168, 56, 0.95)) drop-shadow(0 1px 2px rgba(0,0,0,0.65));
+        }
+        .world-map-pin.danger-tier-high {
+            filter: drop-shadow(0 0 7px rgba(192, 64, 64, 0.98)) drop-shadow(0 1px 2px rgba(0,0,0,0.65));
+        }
+        .world-map-pin.danger-tier-high .world-pin-danger-mark {
+            position: absolute;
+            right: -0.35em;
+            top: -0.2em;
+            font-size: 0.72em;
+            line-height: 1;
+            pointer-events: none;
+        }
+        .world-map-region-label.faction-tint-friendly {
+            border-color: rgba(90, 150, 220, 0.45);
+            background: rgba(26, 58, 92, 0.72);
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .world-map-region-label.faction-tint-hostile {
+            border-color: rgba(180, 70, 70, 0.5);
+            background: rgba(60, 24, 24, 0.72);
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .world-map-region-label.faction-tint-neutral,
+        .world-map-region-label.faction-tint-player-faction {
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .world-map-region-label.faction-tint-neutral {
+            border-color: rgba(120, 150, 120, 0.4);
+            background: rgba(30, 50, 30, 0.7);
+        }
+        .world-map-region-label.faction-tint-player-faction {
+            border-color: rgba(210, 170, 60, 0.45);
+            background: rgba(74, 58, 0, 0.68);
+        }
+        .world-map-region-label .world-label-faction-icon {
+            margin-right: 0.2em;
+        }
+        .world-map-event-badge {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-left: 2px;
+            font-size: 0.78em;
+            line-height: 1;
+            pointer-events: none;
+            animation: world-map-event-pulse 2.2s ease-out 3;
+        }
+        .world-map-event-badge.is-critical {
+            animation: world-map-event-fade 3.5s ease-out forwards;
+        }
+        @keyframes world-map-event-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.18); opacity: 0.82; }
+        }
+        @keyframes world-map-event-fade {
+            0%, 70% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.9); }
+        }
+        .world-cartography-stage.danger-flash-once {
+            animation: world-danger-flash 0.85s ease-out 1;
+        }
+        @keyframes world-danger-flash {
+            0% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
+            35% { box-shadow: inset 0 0 120px rgba(192, 48, 48, 0.28); }
+            100% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
+        }
     `;
     document.head.appendChild(style);
 }
@@ -367,6 +459,80 @@ function rebuildWorldPinCatalog(msg) {
     for (const pin of catalog) {
         if (pin && pin.locationId) {
             _worldPinCatalog.set(pin.locationId, pin);
+        }
+    }
+}
+
+function rebuildRegionFeedbackMap(msg) {
+    _regionFeedbackMap = new Map();
+    const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
+    for (const row of rows) {
+        if (row && row.regionId) {
+            _regionFeedbackMap.set(row.regionId, row);
+        }
+    }
+}
+
+function getRegionFeedback(regionId) {
+    if (!regionId) { return null; }
+    return _regionFeedbackMap.get(regionId) || null;
+}
+
+function maybeFlashHighDangerEntry(msg) {
+    const locId = msg.currentLocationId;
+    if (!locId || locId === _lastDangerFlashLocationId) { return; }
+    const meta = findWorldPinMeta(locId);
+    if (!meta || meta.dangerTier !== 'high') { return; }
+    _lastDangerFlashLocationId = locId;
+    const stage = document.getElementById('world-cartography-stage');
+    if (!stage) { return; }
+    stage.classList.remove('danger-flash-once');
+    void stage.offsetWidth;
+    stage.classList.add('danger-flash-once');
+    stage.addEventListener('animationend', () => {
+        stage.classList.remove('danger-flash-once');
+    }, { once: true });
+}
+
+function applyDangerClassesToPin(el, pinMeta) {
+    if (!pinMeta || pinMeta.fogVisibility !== 'discovered') { return; }
+    if (pinMeta.dangerTier === 'medium') {
+        el.classList.add('danger-tier-medium');
+    } else if (pinMeta.dangerTier === 'high') {
+        el.classList.add('danger-tier-high');
+        const mark = document.createElement('span');
+        mark.className = 'world-pin-danger-mark';
+        mark.textContent = '⚠';
+        mark.setAttribute('aria-hidden', 'true');
+        el.appendChild(mark);
+    }
+}
+
+function appendMapEventBadge(wrap, pinMeta) {
+    if (!pinMeta?.mapHighlight) { return; }
+    const badge = document.createElement('span');
+    badge.className = 'world-map-event-badge';
+    const sev = pinMeta.highlightSeverity || 'info';
+    if (sev === 'critical') { badge.classList.add('is-critical'); }
+    badge.textContent = MAP_EVENT_SEVERITY_GLYPH[sev] || '🔥';
+    badge.title = T('webview.world.mapEventBadge');
+    wrap.appendChild(badge);
+}
+
+function decorateRegionLabelEl(el, label, visibility) {
+    if (visibility !== 'discovered') { return; }
+    const feedback = getRegionFeedback(label.regionId);
+    if (!feedback) { return; }
+    if (feedback.factionTint) {
+        el.classList.add(`faction-tint-${feedback.factionTint}`);
+    }
+    if (feedback.controllingFactionName && feedback.factionType) {
+        const icon = FACTION_TYPE_ICON[feedback.factionType] || '';
+        if (icon) {
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'world-label-faction-icon';
+            iconSpan.textContent = icon;
+            el.prepend(iconSpan);
         }
     }
 }
@@ -467,7 +633,10 @@ function renderWorldLocationDetailPanel() {
 function syncWorldPinSelectionUi() {
     document.querySelectorAll('.world-map-pin[data-location-id]').forEach((el) => {
         const id = el.getAttribute('data-location-id');
-        el.classList.toggle('is-selected', Boolean(id && id === _selectedPinId));
+        const selected = Boolean(id && id === _selectedPinId);
+        el.classList.toggle('is-selected', selected);
+        const wrap = el.closest('.world-map-pin-wrap');
+        if (wrap) { wrap.classList.toggle('is-selected', selected); }
     });
 }
 
@@ -676,6 +845,7 @@ function renderCartographyMap(msg) {
         el.style.top = `${label.topPct}%`;
         el.textContent = label.regionName || label.regionId || '';
         el.title = label.regionName || label.regionId || '';
+        decorateRegionLabelEl(el, label, visibility);
         pinsEl.appendChild(el);
     }
 
@@ -684,26 +854,42 @@ function renderCartographyMap(msg) {
         if (typeof pin.leftPct !== 'number' || typeof pin.topPct !== 'number') { continue; }
         const visibility = getRegionFogVisibility(pin.regionId, msg.fog);
         if (visibility === 'unknown') { continue; }
+        const pinMeta = findWorldPinMeta(pin.locationId);
+        const wrap = document.createElement('span');
+        wrap.className = 'world-map-pin-wrap';
+        wrap.style.left = `${pin.leftPct}%`;
+        wrap.style.top = `${pin.topPct}%`;
+        if (_selectedPinId && pin.locationId === _selectedPinId) {
+            wrap.classList.add('is-selected');
+        }
+
         const el = document.createElement('button');
         el.type = 'button';
         el.className = 'world-map-pin';
+        el.style.left = '';
+        el.style.top = '';
+        el.style.position = 'relative';
+        el.style.transform = 'none';
         if (pin.locationId && pin.locationId === msg.currentLocationId) {
             el.classList.add('is-current');
         }
         if (visibility === 'rumored') {
             el.classList.add('is-rumored');
         }
-        el.style.left = `${pin.leftPct}%`;
-        el.style.top = `${pin.topPct}%`;
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
-        el.title = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
+        el.title = visibility === 'rumored' ? T('webview.world.pinRumoredTooltip') : (pin.locationName || pin.locationId || '');
         el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : '📍');
         el.setAttribute('aria-label', pinLabel || 'Location');
         if (_selectedPinId && pin.locationId === _selectedPinId) {
             el.classList.add('is-selected');
         }
+        if (pinMeta) {
+            applyDangerClassesToPin(el, pinMeta);
+            appendMapEventBadge(wrap, pinMeta);
+        }
         wireParchmentWorldPin(el, pin, msg);
-        pinsEl.appendChild(el);
+        wrap.appendChild(el);
+        pinsEl.appendChild(wrap);
     }
 }
 

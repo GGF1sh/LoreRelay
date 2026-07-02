@@ -120,6 +120,7 @@
   "webview.world.pinDetail.examineBtn": "👁 詳しく調べる（挿入）",
   "webview.world.pinDetail.stayBtn": "👁 周囲をうかがう（挿入）",
   "webview.world.pinRumoredTooltip": "未踏 — 訪れると詳細が判明します",
+  "webview.world.mapEventBadge": "この地域で事件が発生中",
   "webview.world.sceneImageBtn": "🎨 シーン画像",
   "webview.world.sceneImageFailed": "❌ 失敗 — 再試行",
   "webview.world.worldGenBusy": "⏳ 生成中...",

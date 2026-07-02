@@ -4669,6 +4669,14 @@ let _selectedPinId = null;
 let _worldPinCatalog = new Map();
 const WORLD_PIN_HIT_RADIUS_PX = 22;
 let _worldPinDismissReady = false;
+let _regionFeedbackMap = new Map();
+let _lastDangerFlashLocationId = null;
+
+const MAP_EVENT_SEVERITY_GLYPH = {
+    info: '🔥',
+    warning: '🔥',
+    critical: '‼️',
+};
 
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
@@ -4794,6 +4802,8 @@ function renderWorldView(msg) {
     currentWorldLocationId = msg.currentLocationId;
     _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
+    rebuildRegionFeedbackMap(msg);
+    maybeFlashHighDangerEntry(msg);
     if (genImageBtn) {
         genImageBtn.style.display = currentWorldLocationId ? '' : 'none';
     }
@@ -4996,6 +5006,88 @@ function ensureCartographyStyles() {
         #world-overmap-canvas.world-pin-cursor {
             cursor: crosshair;
         }
+        .world-map-pin-wrap {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            z-index: 4;
+        }
+        .world-map-pin-wrap .world-map-pin {
+            position: relative;
+            transform: none;
+        }
+        .world-map-pin-wrap .world-map-pin.is-interactive:hover,
+        .world-map-pin-wrap .world-map-pin.is-selected {
+            transform: scale(1.12);
+        }
+        .world-map-pin-wrap.is-selected { z-index: 6; }
+        .world-map-pin.danger-tier-medium {
+            filter: drop-shadow(0 0 5px rgba(232, 168, 56, 0.95)) drop-shadow(0 1px 2px rgba(0,0,0,0.65));
+        }
+        .world-map-pin.danger-tier-high {
+            filter: drop-shadow(0 0 7px rgba(192, 64, 64, 0.98)) drop-shadow(0 1px 2px rgba(0,0,0,0.65));
+        }
+        .world-map-pin.danger-tier-high .world-pin-danger-mark {
+            position: absolute;
+            right: -0.35em;
+            top: -0.2em;
+            font-size: 0.72em;
+            line-height: 1;
+            pointer-events: none;
+        }
+        .world-map-region-label.faction-tint-friendly {
+            border-color: rgba(90, 150, 220, 0.45);
+            background: rgba(26, 58, 92, 0.72);
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .world-map-region-label.faction-tint-hostile {
+            border-color: rgba(180, 70, 70, 0.5);
+            background: rgba(60, 24, 24, 0.72);
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .world-map-region-label.faction-tint-neutral,
+        .world-map-region-label.faction-tint-player-faction {
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .world-map-region-label.faction-tint-neutral {
+            border-color: rgba(120, 150, 120, 0.4);
+            background: rgba(30, 50, 30, 0.7);
+        }
+        .world-map-region-label.faction-tint-player-faction {
+            border-color: rgba(210, 170, 60, 0.45);
+            background: rgba(74, 58, 0, 0.68);
+        }
+        .world-map-region-label .world-label-faction-icon {
+            margin-right: 0.2em;
+        }
+        .world-map-event-badge {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-left: 2px;
+            font-size: 0.78em;
+            line-height: 1;
+            pointer-events: none;
+            animation: world-map-event-pulse 2.2s ease-out 3;
+        }
+        .world-map-event-badge.is-critical {
+            animation: world-map-event-fade 3.5s ease-out forwards;
+        }
+        @keyframes world-map-event-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.18); opacity: 0.82; }
+        }
+        @keyframes world-map-event-fade {
+            0%, 70% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.9); }
+        }
+        .world-cartography-stage.danger-flash-once {
+            animation: world-danger-flash 0.85s ease-out 1;
+        }
+        @keyframes world-danger-flash {
+            0% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
+            35% { box-shadow: inset 0 0 120px rgba(192, 48, 48, 0.28); }
+            100% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
+        }
     `;
     document.head.appendChild(style);
 }
@@ -5006,6 +5098,80 @@ function rebuildWorldPinCatalog(msg) {
     for (const pin of catalog) {
         if (pin && pin.locationId) {
             _worldPinCatalog.set(pin.locationId, pin);
+        }
+    }
+}
+
+function rebuildRegionFeedbackMap(msg) {
+    _regionFeedbackMap = new Map();
+    const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
+    for (const row of rows) {
+        if (row && row.regionId) {
+            _regionFeedbackMap.set(row.regionId, row);
+        }
+    }
+}
+
+function getRegionFeedback(regionId) {
+    if (!regionId) { return null; }
+    return _regionFeedbackMap.get(regionId) || null;
+}
+
+function maybeFlashHighDangerEntry(msg) {
+    const locId = msg.currentLocationId;
+    if (!locId || locId === _lastDangerFlashLocationId) { return; }
+    const meta = findWorldPinMeta(locId);
+    if (!meta || meta.dangerTier !== 'high') { return; }
+    _lastDangerFlashLocationId = locId;
+    const stage = document.getElementById('world-cartography-stage');
+    if (!stage) { return; }
+    stage.classList.remove('danger-flash-once');
+    void stage.offsetWidth;
+    stage.classList.add('danger-flash-once');
+    stage.addEventListener('animationend', () => {
+        stage.classList.remove('danger-flash-once');
+    }, { once: true });
+}
+
+function applyDangerClassesToPin(el, pinMeta) {
+    if (!pinMeta || pinMeta.fogVisibility !== 'discovered') { return; }
+    if (pinMeta.dangerTier === 'medium') {
+        el.classList.add('danger-tier-medium');
+    } else if (pinMeta.dangerTier === 'high') {
+        el.classList.add('danger-tier-high');
+        const mark = document.createElement('span');
+        mark.className = 'world-pin-danger-mark';
+        mark.textContent = '⚠';
+        mark.setAttribute('aria-hidden', 'true');
+        el.appendChild(mark);
+    }
+}
+
+function appendMapEventBadge(wrap, pinMeta) {
+    if (!pinMeta?.mapHighlight) { return; }
+    const badge = document.createElement('span');
+    badge.className = 'world-map-event-badge';
+    const sev = pinMeta.highlightSeverity || 'info';
+    if (sev === 'critical') { badge.classList.add('is-critical'); }
+    badge.textContent = MAP_EVENT_SEVERITY_GLYPH[sev] || '🔥';
+    badge.title = T('webview.world.mapEventBadge');
+    wrap.appendChild(badge);
+}
+
+function decorateRegionLabelEl(el, label, visibility) {
+    if (visibility !== 'discovered') { return; }
+    const feedback = getRegionFeedback(label.regionId);
+    if (!feedback) { return; }
+    if (feedback.factionTint) {
+        el.classList.add(`faction-tint-${feedback.factionTint}`);
+    }
+    if (feedback.controllingFactionName && feedback.factionType) {
+        const icon = FACTION_TYPE_ICON[feedback.factionType] || '';
+        if (icon) {
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'world-label-faction-icon';
+            iconSpan.textContent = icon;
+            el.prepend(iconSpan);
         }
     }
 }
@@ -5106,7 +5272,10 @@ function renderWorldLocationDetailPanel() {
 function syncWorldPinSelectionUi() {
     document.querySelectorAll('.world-map-pin[data-location-id]').forEach((el) => {
         const id = el.getAttribute('data-location-id');
-        el.classList.toggle('is-selected', Boolean(id && id === _selectedPinId));
+        const selected = Boolean(id && id === _selectedPinId);
+        el.classList.toggle('is-selected', selected);
+        const wrap = el.closest('.world-map-pin-wrap');
+        if (wrap) { wrap.classList.toggle('is-selected', selected); }
     });
 }
 
@@ -5315,6 +5484,7 @@ function renderCartographyMap(msg) {
         el.style.top = `${label.topPct}%`;
         el.textContent = label.regionName || label.regionId || '';
         el.title = label.regionName || label.regionId || '';
+        decorateRegionLabelEl(el, label, visibility);
         pinsEl.appendChild(el);
     }
 
@@ -5323,26 +5493,42 @@ function renderCartographyMap(msg) {
         if (typeof pin.leftPct !== 'number' || typeof pin.topPct !== 'number') { continue; }
         const visibility = getRegionFogVisibility(pin.regionId, msg.fog);
         if (visibility === 'unknown') { continue; }
+        const pinMeta = findWorldPinMeta(pin.locationId);
+        const wrap = document.createElement('span');
+        wrap.className = 'world-map-pin-wrap';
+        wrap.style.left = `${pin.leftPct}%`;
+        wrap.style.top = `${pin.topPct}%`;
+        if (_selectedPinId && pin.locationId === _selectedPinId) {
+            wrap.classList.add('is-selected');
+        }
+
         const el = document.createElement('button');
         el.type = 'button';
         el.className = 'world-map-pin';
+        el.style.left = '';
+        el.style.top = '';
+        el.style.position = 'relative';
+        el.style.transform = 'none';
         if (pin.locationId && pin.locationId === msg.currentLocationId) {
             el.classList.add('is-current');
         }
         if (visibility === 'rumored') {
             el.classList.add('is-rumored');
         }
-        el.style.left = `${pin.leftPct}%`;
-        el.style.top = `${pin.topPct}%`;
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
-        el.title = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
+        el.title = visibility === 'rumored' ? T('webview.world.pinRumoredTooltip') : (pin.locationName || pin.locationId || '');
         el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : '📍');
         el.setAttribute('aria-label', pinLabel || 'Location');
         if (_selectedPinId && pin.locationId === _selectedPinId) {
             el.classList.add('is-selected');
         }
+        if (pinMeta) {
+            applyDangerClassesToPin(el, pinMeta);
+            appendMapEventBadge(wrap, pinMeta);
+        }
         wireParchmentWorldPin(el, pin, msg);
-        pinsEl.appendChild(el);
+        wrap.appendChild(el);
+        pinsEl.appendChild(wrap);
     }
 }
 
@@ -6347,6 +6533,41 @@ function getRegionFogVisibility(regionId, fog) {
     return 'unknown';
 }
 
+function buildPinMetaMap(msg) {
+    const map = new Map();
+    const catalog = Array.isArray(msg.locationPinCatalog) ? msg.locationPinCatalog : [];
+    for (const entry of catalog) {
+        if (entry?.locationId) { map.set(entry.locationId, entry); }
+    }
+    return map;
+}
+
+function buildRegionFeedbackMapFromMsg(msg) {
+    const map = new Map();
+    const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
+    for (const row of rows) {
+        if (row?.regionId) { map.set(row.regionId, row); }
+    }
+    return map;
+}
+
+function drawDangerRing(ctx, px, py, tier, cell) {
+    if (tier !== 'medium' && tier !== 'high') { return; }
+    ctx.save();
+    ctx.strokeStyle = tier === 'high' ? 'rgba(192,64,64,0.95)' : 'rgba(232,168,56,0.9)';
+    ctx.lineWidth = tier === 'high' ? 2.5 : 2;
+    ctx.beginPath();
+    ctx.arc(px, py, cell * (tier === 'high' ? 0.88 : 0.72), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawMapEventBadge(ctx, px, py, cell, severity) {
+    const glyph = severity === 'critical' ? '‼' : '🔥';
+    ctx.font = `600 ${Math.max(7, cell - 1)}px sans-serif`;
+    drawOvermapOutlinedText(ctx, glyph, px + cell * 0.65, py - cell * 0.45, '#ffb347');
+}
+
 function resolveTileRegionFog(tx, ty, cols, rows, layout, fog) {
     if (!fog || !Array.isArray(layout) || layout.length === 0) { return 'discovered'; }
     const leftPct = ((tx + 0.5) / cols) * 100;
@@ -6453,16 +6674,43 @@ function drawTileOvermap() {
         }
     }
 
+    const regionFeedbackMap = buildRegionFeedbackMapFromMsg(msg);
+    const pinMetaMap = buildPinMetaMap(msg);
+
     const hazardGroups = Array.isArray(om.hazards) ? om.hazards : [];
     for (const group of hazardGroups) {
         const hz = TILE_OVERMAP_HAZARD_STYLE[group.hazard];
         if (!hz || !Array.isArray(group.tiles)) { continue; }
         for (const [tx, ty] of group.tiles) {
-            ctx.fillStyle = hz.tint;
+            const tileFog = resolveTileRegionFog(tx, ty, om.cols, om.rows, fogLayout, fog);
+            if (tileFog !== 'discovered') { continue; }
+            const regionId = resolveTileRegionId(tx, ty, om.cols, om.rows, fogLayout);
+            const feedback = regionFeedbackMap.get(regionId);
+            const boost = feedback?.dangerTier === 'high';
+            ctx.fillStyle = boost ? hz.tint.replace('0.16', '0.28') : hz.tint;
             ctx.fillRect(tx * cell, ty * cell, cell, cell);
             ctx.fillStyle = hz.fg;
             ctx.fillText(hz.glyph, tx * cell + cell / 2, ty * cell + cell / 2 + 1);
         }
+    }
+
+    function resolveTileRegionId(tx, ty, cols, rows, layout) {
+        if (!layout.length) { return ''; }
+        const leftPct = ((tx + 0.5) / cols) * 100;
+        const topPct = ((ty + 0.5) / rows) * 100;
+        let bestId = layout[0].regionId;
+        let bestScore = Infinity;
+        for (const entry of layout) {
+            const dx = entry.leftPct - leftPct;
+            const dy = entry.topPct - topPct;
+            const radius = Math.max(2, entry.radiusPct || 7);
+            const score = Math.sqrt(dx * dx + dy * dy) / radius;
+            if (score < bestScore) {
+                bestScore = score;
+                bestId = entry.regionId;
+            }
+        }
+        return bestId;
     }
 
     const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
@@ -6474,10 +6722,19 @@ function drawTileOvermap() {
         if (pinFog === 'unknown') { continue; }
         const px = (pin.leftPct / 100) * cssWidth;
         const py = (pin.topPct / 100) * cssHeight;
+        const meta = pin.locationId ? pinMetaMap.get(pin.locationId) : null;
         const isCurrent = pin.locationId && pin.locationId === msg.currentLocationId;
-        if (isCurrent) { currentPin = { pin, px, py, pinFog }; continue; }
+        if (meta?.dangerTier) { drawDangerRing(ctx, px, py, meta.dangerTier, cell); }
+        if (meta?.mapHighlight) {
+            drawMapEventBadge(ctx, px, py, cell, meta.highlightSeverity || 'info');
+        }
+        if (isCurrent) { currentPin = { pin, px, py, pinFog, meta }; continue; }
         const glyph = pinFog === 'rumored' ? '?' : '⌂';
-        drawOvermapOutlinedText(ctx, glyph, px, py, pinFog === 'rumored' ? '#9aa8b8' : '#e8c87a');
+        const pinColor = pinFog === 'rumored' ? '#9aa8b8' : (meta?.dangerTier === 'high' ? '#f0a0a0' : '#e8c87a');
+        drawOvermapOutlinedText(ctx, glyph, px, py, pinColor);
+        if (meta?.dangerTier === 'high') {
+            drawOvermapOutlinedText(ctx, '⚠', px + cell * 0.55, py - cell * 0.35, '#ffb0a0');
+        }
     }
     if (currentPin) {
         ctx.font = `600 ${Math.max(10, cell + 3)}px "Courier New", monospace`;
@@ -6498,8 +6755,15 @@ function drawTileOvermap() {
         if (labelFog === 'unknown') { continue; }
         const lx = Math.min(Math.max((label.leftPct / 100) * cssWidth, 36), cssWidth - 36);
         const ly = Math.min(Math.max((label.topPct / 100) * cssHeight, 10), cssHeight - 6);
+        const feedback = regionFeedbackMap.get(label.regionId);
+        let labelText = label.regionName || label.regionId || '';
+        if (labelFog === 'discovered' && feedback?.factionType) {
+            const icons = { hostile: '💀', neutral: '⚖️', friendly: '🤝', 'player-faction': '⭐' };
+            const icon = icons[feedback.factionType] || '';
+            if (icon) { labelText = `${icon} ${labelText}`; }
+        }
         const color = labelFog === 'rumored' ? '#8a98a8' : '#b8c4d0';
-        drawOvermapOutlinedText(ctx, label.regionName || label.regionId || '', lx, ly, color);
+        drawOvermapOutlinedText(ctx, labelText, lx, ly, color);
     }
 }
 

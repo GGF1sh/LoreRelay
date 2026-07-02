@@ -22,10 +22,16 @@ import { DiceLedgerEntry } from './types/TurnResult';
 import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } from './mediaAgent';
 import { notifyRemoteGmBusy } from './remotePlayServer';
 import { beginGmRun, finishGmRun } from './turnResultFallback';
-import { postPromptContextToWebview } from './gmPromptBuilder';
+import { getTriggeredLoreLabels, postPromptContextToWebview } from './gmPromptBuilder';
 import { getCachedGameState } from './gameStateSync';
 import { enqueueVlmAnalysis, buildVlmMetaFromGameState, isVlmEnabled } from './vlmQueue';
-import { commitGameState } from './stateManager';
+import {
+    buildVscodeLmTurnResult,
+    extractVscodeLmJsonBlock,
+    stripVscodeLmJsonBlock,
+    substituteDiceMarkersSimple,
+    type VscodeLmGmJson,
+} from './vscodeLmTurnResultCore';
 
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
@@ -762,21 +768,6 @@ function vscodeLmSystemPrompt(locale: string): string {
     return VSCODE_LM_SYSTEM_PROMPTS[locale] ?? VSCODE_LM_SYSTEM_PROMPTS['en'];
 }
 
-function substituteDiceMarkersSimple(text: string): string {
-    return text.replace(/\{\{DICE:(\d+)d(\d+)\}\}/gi, (_m, countStr, sidesStr) => {
-        const count = Math.max(1, Math.min(100, parseInt(countStr, 10)));
-        const sides = Math.max(2, Math.min(10000, parseInt(sidesStr, 10)));
-        let total = 0;
-        const rolls: number[] = [];
-        for (let i = 0; i < count; i++) {
-            const r = Math.floor(Math.random() * sides) + 1;
-            rolls.push(r);
-            total += r;
-        }
-        return count === 1 ? String(total) : `${total}[${rolls.join('+')}]`;
-    });
-}
-
 function vscodeLmNextTurnId(wsPath: string): string {
     const statePath = path.join(wsPath, 'game_state.json');
     if (!fs.existsSync(statePath)) { return 'turn-1'; }
@@ -791,26 +782,44 @@ function vscodeLmNextTurnId(wsPath: string): string {
     return 'turn-1';
 }
 
-interface VscodeLmGmJson {
-    entries?: Array<{ id?: string; role?: string; sender?: string; content?: string; imagePrompt?: string; image?: string }>;
-    status?: Record<string, unknown>;
-    options?: string[];
-    theme?: string; bgm?: string; mood?: string; sfx?: string; latestImage?: string; background?: string; sprite?: string;
-    profileUpdates?: Array<{ characterId: string; dynamicProfile: string }>;
-    gameOver?: { active: boolean; message?: string; victory?: boolean };
+function vscodeLmLoadDiceLedger(wsPath: string): DiceLedgerEntry[] | undefined {
+    const ledgerPath = path.join(wsPath, 'dice_ledger.json');
+    if (!fs.existsSync(ledgerPath)) {
+        return undefined;
+    }
+    try {
+        const data = JSON.parse(fs.readFileSync(ledgerPath, 'utf-8'));
+        return Array.isArray(data) ? data as DiceLedgerEntry[] : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
-function vscodeLmExtractJson(text: string): VscodeLmGmJson | null {
-    const m = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/i.exec(text);
-    if (!m) { return null; }
-    try { return JSON.parse(m[1]); } catch { return null; }
+function vscodeLmProcessProfileUpdates(wsPath: string, llmJson: VscodeLmGmJson | null): void {
+    const profileUpdates = llmJson?.profileUpdates;
+    if (!profileUpdates || profileUpdates.length === 0) {
+        return;
+    }
+    const dynPath = path.join(wsPath, 'characters', 'dynamic_profiles.json');
+    let profiles: Record<string, string> = {};
+    if (fs.existsSync(dynPath)) {
+        try { profiles = JSON.parse(fs.readFileSync(dynPath, 'utf-8')); } catch { /* ignore */ }
+    }
+    for (const up of profileUpdates) {
+        if (up.characterId && up.dynamicProfile) {
+            profiles[up.characterId] = up.dynamicProfile;
+        }
+    }
+    writeJsonAtomic(dynPath, profiles);
 }
 
-function vscodeLmStripJson(text: string): string {
-    return text.replace(/```(?:json)?\s*\{[\s\S]*?\}\s*```/gi, '').trim();
-}
-
-function vscodeLmMergeAndWrite(wsPath: string, fullText: string, locale: string): void {
+/** Write turn_result.json for the extension pipeline (no direct game_state.json merge). */
+function vscodeLmWriteTurnResult(
+    wsPath: string,
+    fullText: string,
+    locale: string,
+    playerAction: string
+): void {
     const statePath = path.join(wsPath, 'game_state.json');
     let prev: Record<string, unknown> = {};
     if (fs.existsSync(statePath)) {
@@ -818,51 +827,26 @@ function vscodeLmMergeAndWrite(wsPath: string, fullText: string, locale: string)
     }
 
     const withDice = substituteDiceMarkersSimple(fullText);
-    const llmJson = vscodeLmExtractJson(withDice);
-    const narrative = vscodeLmStripJson(withDice);
+    const llmJson = extractVscodeLmJsonBlock(withDice);
+    const narrative = stripVscodeLmJsonBlock(withDice);
     const turnId = vscodeLmNextTurnId(wsPath);
 
-    const merged: Record<string, unknown> = {};
-    if (llmJson) {
-        const { entries: _e, profileUpdates, ...rest } = llmJson;
-        Object.assign(merged, rest);
-        if (profileUpdates && profileUpdates.length > 0) {
-            const dynPath = path.join(wsPath, 'characters', 'dynamic_profiles.json');
-            let profiles: Record<string, string> = {};
-            if (fs.existsSync(dynPath)) {
-                try { profiles = JSON.parse(fs.readFileSync(dynPath, 'utf-8')); } catch { /* ignore */ }
-            }
-            for (const up of profileUpdates) {
-                if (up.characterId && up.dynamicProfile) { profiles[up.characterId] = up.dynamicProfile; }
-            }
-            writeJsonAtomic(dynPath, profiles);
-        }
-    }
+    vscodeLmProcessProfileUpdates(wsPath, llmJson);
 
-    for (const key of ['theme', 'bgm', 'mood', 'sfx', 'latestImage', 'background', 'sprite'] as const) {
-        if (!(key in merged) && key in prev) { merged[key] = prev[key]; }
-    }
-    if (!('status' in merged) && prev.status) {
-        merged.status = prev.status;
-    } else if (merged.status && typeof merged.status === 'object' && prev.status && typeof prev.status === 'object') {
-        merged.status = { ...(prev.status as object), ...(merged.status as object) };
-    }
+    const hint = `${playerAction}\n${narrative}`;
+    const triggeredLore = getTriggeredLoreLabels(hint);
+    const turnResult = buildVscodeLmTurnResult({
+        prev,
+        llmJson,
+        narrative,
+        turnId,
+        locale,
+        playerAction,
+        diceLedger: vscodeLmLoadDiceLedger(wsPath),
+        triggeredLore,
+    });
 
-    const content = llmJson?.entries?.[0]?.content || narrative;
-    const entry: Record<string, unknown> = { id: turnId, role: 'gm', sender: 'Game Master', content };
-    if (llmJson?.entries?.[0]?.imagePrompt) { entry.imagePrompt = llmJson.entries[0].imagePrompt; }
-    if (llmJson?.entries?.[0]?.image) { entry.image = llmJson.entries[0].image; }
-    merged.entries = [entry];
-
-    if (!merged.options) {
-        const defaults: Record<string, string[]> = {
-            ja: ['周囲を調べる', '慎重に進む', '別の行動を試す'],
-            en: ['Search the area', 'Proceed carefully', 'Try something else'],
-        };
-        merged.options = prev.options ?? defaults[locale] ?? defaults['en'];
-    }
-
-    commitGameState(merged);
+    writeJsonAtomic(path.join(wsPath, 'turn_result.json'), turnResult);
 }
 
 async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolean): Promise<boolean> {
@@ -945,7 +929,7 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
         }
         channel.appendLine('\n[vscode-lm: complete]');
 
-        vscodeLmMergeAndWrite(wsPath, fullText, locale);
+        vscodeLmWriteTurnResult(wsPath, fullText, locale, playerAction);
 
         pendingDiceLedgerWritten = false;
         localGmSessionActive = true;

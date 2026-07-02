@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.14.6] - 2026-07-02
+
+### Fixed
+
+- **vscode-lm GM ブリッジ** — `game_state.json` への直接マージを廃止し、`turn_result.json`（`statePatch` + `narration`）経由で `processTurnResult` パイプラインに統一。Ollama / Grok 等と同じ `applyStatePatch`・スキーマ検証・ジャーナル記録が適用される。`vscodeLmTurnResultCore.ts` + `test_vscode_lm_turn_result_core.js` 追加。
+
 ## [1.14.5] - 2026-07-02
 
 ### Added

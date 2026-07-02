@@ -402,6 +402,19 @@
             <button type="button" id="inspector-bulk-sim-run" class="small-btn" data-i18n="webview.inspector.bulkSimRun">Advance</button>
           </div>
           <pre id="inspector-bulk-sim-result" class="inspector-item" style="white-space:pre-wrap; font-size:12px; margin-top:0.5rem;"></pre>
+          <div id="inspector-lw-market-debug" class="hidden" style="margin-top:0.75rem;">
+            <div class="img-gen-hint" data-i18n="webview.inspector.lwMarketDebugHint">Multiply priceIndex at a market (debug only).</div>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:0.35rem;">
+              <label for="inspector-lw-market-location" data-i18n="webview.inspector.lwMarketLocation">Location</label>
+              <select id="inspector-lw-market-location"></select>
+              <label for="inspector-lw-market-commodity" data-i18n="webview.inspector.lwMarketCommodity">Commodity</label>
+              <select id="inspector-lw-market-commodity"></select>
+              <label for="inspector-lw-market-mult" data-i18n="webview.inspector.lwMarketMultiplier">×</label>
+              <input type="number" id="inspector-lw-market-mult" min="0.25" max="4" step="0.25" value="2" style="width:4rem;" />
+              <button type="button" id="inspector-lw-market-apply" class="small-btn" data-i18n="webview.inspector.lwMarketApply">Apply</button>
+            </div>
+            <p id="inspector-lw-market-result" class="img-gen-hint" style="margin-top:0.35rem;"></p>
+          </div>
         </div>
         <div class="inspector-section" id="inspector-chronicle-section">
           <h4 data-i18n="webview.inspector.chronicleTitle">Chronicle</h4>

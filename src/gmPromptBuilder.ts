@@ -807,13 +807,34 @@ function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
         const playerLoc = typeof world?.currentLocationId === 'string'
             ? world.currentLocationId
             : undefined;
+        const commerceState = gameState?.commerce as {
+            credits?: number;
+            food?: number;
+            transportId?: string;
+            cargo?: Array<{ commodityId: string; qty: number }>;
+        } | undefined;
+        const playerCommerce = (
+            rules.enableCommerce
+            && commerceState
+            && typeof commerceState.credits === 'number'
+        )
+            ? {
+                credits: Math.floor(commerceState.credits),
+                food: typeof commerceState.food === 'number' ? Math.floor(commerceState.food) : 30,
+                transportId: typeof commerceState.transportId === 'string'
+                    ? commerceState.transportId
+                    : 'wagon',
+                cargo: Array.isArray(commerceState.cargo) ? commerceState.cargo : [],
+            }
+            : undefined;
         const livingLines = buildLivingWorldGmLines(
             forge,
             worldState,
             loadNpcRegistry(),
             rules,
             loadWorldForgeDocument(),
-            playerLoc
+            playerLoc,
+            playerCommerce
         );
         if (livingLines) {
             lines.push('');

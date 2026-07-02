@@ -7,6 +7,28 @@ import type { SinceLastVisitDelta } from './worldSimCommerceCore';
 
 export const MAX_COMMERCE_PROMPT_LINES = 12;
 export const MAX_NPC_PROMPT_LINES = 10;
+export const MAX_CARAVAN_PROMPT_LINES = 6;
+
+/** Human-readable labels for deterministic NPC agency reasons (LW2-PR2). */
+const NPC_REASON_LABELS: Record<string, string> = {
+    food_crisis_buy_wheat: 'seeking cheap wheat after a food crisis',
+    smith_restock_steel: 'restocking steel where demand is high',
+    in_transit: 'traveling',
+};
+
+export function formatNpcAgencyReason(reason: string | undefined): string {
+    if (!reason) { return ''; }
+    const trimmed = reason.trim();
+    if (!trimmed) { return ''; }
+    return NPC_REASON_LABELS[trimmed] ?? trimmed.replace(/_/g, ' ');
+}
+
+export interface CaravanPromptSnapshot {
+    credits: number;
+    food: number;
+    transportId: string;
+    cargo: Array<{ commodityId: string; qty: number }>;
+}
 
 export interface LivingWorldPromptInput {
     forge: CommerceForge;
@@ -20,6 +42,7 @@ export interface LivingWorldPromptInput {
     sinceLastVisit?: SinceLastVisitDelta;
     locationNames?: Record<string, string>;
     npcNames?: Record<string, string>;
+    playerCommerce?: CaravanPromptSnapshot;
 }
 
 function locLabel(id: string, names?: Record<string, string>): string {
@@ -76,19 +99,43 @@ export function buildNpcAgencyPromptLines(
     const lines: string[] = [];
     for (const p of presence) {
         const where = locLabel(p.locationId, locationNames);
+        const reasonText = formatNpcAgencyReason(p.reason);
+        const reasonSuffix = reasonText ? ` — ${reasonText}` : '';
         if (p.inTransit) {
-            lines.push(`${p.name}: en route to ${where} (arrives turn ${p.arrivesTurn})${p.reason ? ` — ${p.reason}` : ''}`);
+            lines.push(`${p.name}: en route to ${where} (arrives turn ${p.arrivesTurn})${reasonSuffix}`);
         } else {
-            lines.push(`${p.name}: at ${where}${p.agenda ? ` (${p.agenda})` : ''}`);
+            const agenda = p.agenda ? ` (${p.agenda})` : '';
+            lines.push(`${p.name}: at ${where}${agenda}${reasonSuffix}`);
         }
         if (lines.length >= MAX_NPC_PROMPT_LINES) { break; }
     }
     return lines;
 }
 
+export function buildCaravanPromptLines(
+    forge: CommerceForge,
+    snapshot: CaravanPromptSnapshot | undefined
+): string[] {
+    if (!snapshot) { return []; }
+    const lines: string[] = [
+        `Credits: ${snapshot.credits} | Food: ${snapshot.food} | Transport: ${snapshot.transportId}`,
+    ];
+    const cargo = snapshot.cargo ?? [];
+    if (cargo.length === 0) {
+        lines.push('Cargo: (empty)');
+    } else {
+        for (const entry of cargo.slice(0, MAX_CARAVAN_PROMPT_LINES - 1)) {
+            const name = forge.commodities.find((c) => c.id === entry.commodityId)?.name ?? entry.commodityId;
+            lines.push(`Cargo: ${name} ×${entry.qty}`);
+        }
+    }
+    return lines.slice(0, MAX_CARAVAN_PROMPT_LINES);
+}
+
 export interface LivingWorldPromptBlocks {
     commerce: string[];
     sinceLastVisit: string[];
+    caravan: string[];
     npcAgency: string[];
     combined: string[];
 }
@@ -99,6 +146,9 @@ export function buildLivingWorldPromptBlocks(input: LivingWorldPromptInput): Liv
         : [];
     const sinceLastVisit = input.commerceEnabled
         ? buildSinceLastVisitLines(input.sinceLastVisit)
+        : [];
+    const caravan = input.commerceEnabled
+        ? buildCaravanPromptLines(input.forge, input.playerCommerce)
         : [];
     const npcAgency = input.agencyEnabled
         ? buildNpcAgencyPromptLines(
@@ -115,6 +165,10 @@ export function buildLivingWorldPromptBlocks(input: LivingWorldPromptInput): Liv
         combined.push('[Living World — Since last visit]');
         combined.push(...sinceLastVisit);
     }
+    if (caravan.length) {
+        combined.push('[Living World — Caravan]');
+        combined.push(...caravan);
+    }
     if (commerce.length) {
         combined.push('[Living World — Markets]');
         combined.push(...commerce);
@@ -124,7 +178,7 @@ export function buildLivingWorldPromptBlocks(input: LivingWorldPromptInput): Liv
         combined.push(...npcAgency);
     }
 
-    return { commerce, sinceLastVisit, npcAgency, combined };
+    return { commerce, sinceLastVisit, caravan, npcAgency, combined };
 }
 
 export function formatLivingWorldGmInjection(blocks: LivingWorldPromptBlocks): string {

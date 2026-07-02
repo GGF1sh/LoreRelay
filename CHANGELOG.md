@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-07-02
+
+### Added
+
+- **LW2-PR2 GM prompt** — `[Living World — Caravan]` (credits/food/cargo); NPC whereabouts show human-readable `reason` on stationary and in-transit NPCs (`formatNpcAgencyReason`).
+- **Inspector market debug** — when Commerce ON + debug console visible: location/commodity/multiplier controls apply `priceIndex` bumps to `world_state.markets`.
+- **`livingWorldMarketDebugCore.ts`** — shared batch apply for sandbox phrases and Inspector.
+
 ## [1.24.0] - 2026-07-02
 
 ### Fixed

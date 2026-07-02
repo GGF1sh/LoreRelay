@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Grok - Living World v1.25.0 (LW2-PR2 + Inspector market debug)
+
+### Summary
+
+- **LW2-PR2** — `[Living World — Caravan]` in GM prompt; `formatNpcAgencyReason()` for NPC whereabouts lines (stationary + transit).
+- **Inspector** — market debug controls (location/commodity/multiplier) when Commerce ON + debug console visible.
+- **`livingWorldMarketDebugCore.ts`** — shared with sandbox 「小麦相場を2倍に」 path.
+
+### Verification
+
+- `lorerelay-world-kit npm test` (5/5)
+- `node scripts/build-webview.js`
+- `npm test` (73/73)
+
+---
+
 ## 2026-07-02 JST - Grok - Living World v1.24.0 (bulk sim tick + UI polish)
 
 ### Summary
@@ -14,7 +30,7 @@
 
 - `node scripts/build-webview.js`
 - `npm run compile`
-- `npm test` (73/73)
+- `npm test` (72/72)
 
 ---
 

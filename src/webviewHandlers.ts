@@ -101,6 +101,7 @@ export interface WebviewHandlerDeps {
     insertChatDraft(text: string): void;
     sendDebugCapabilities(): void;
     handleBulkAdvanceWorldSim(steps: number): Promise<void>;
+    handleLivingWorldMarketDebug(raw: unknown): Promise<void>;
 }
 
 /**
@@ -491,6 +492,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             await deps.handleBulkAdvanceWorldSim(steps);
             break;
         }
+        case 'livingWorldMarketDebug':
+            await deps.handleLivingWorldMarketDebug(message);
+            break;
         default:
             break;
     }

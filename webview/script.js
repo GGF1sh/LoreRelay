@@ -4171,6 +4171,86 @@ function escapeHtml(str) {
     vscode.postMessage({ type: 'getDebugCapabilities' });
 })();
 
+// Living World market debug (Inspector, commerce ON + debug console visible)
+(function () {
+    const wrap = document.getElementById('inspector-lw-market-debug');
+    const locSelect = document.getElementById('inspector-lw-market-location');
+    const commoditySelect = document.getElementById('inspector-lw-market-commodity');
+    const multInput = document.getElementById('inspector-lw-market-mult');
+    const applyBtn = document.getElementById('inspector-lw-market-apply');
+    const resultEl = document.getElementById('inspector-lw-market-result');
+    let busy = false;
+
+    function fillSelect(select, items, fallbackLabel) {
+        if (!select) { return; }
+        select.innerHTML = '';
+        (items || []).forEach((item) => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name || item.id;
+            select.appendChild(opt);
+        });
+        if (!select.options.length && fallbackLabel) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = fallbackLabel;
+            select.appendChild(opt);
+        }
+    }
+
+    function setVisible(show) {
+        if (wrap) {
+            wrap.classList.toggle('hidden', !show);
+        }
+    }
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            if (busy || !locSelect || !commoditySelect || !multInput) { return; }
+            const locationId = locSelect.value;
+            const commodityId = commoditySelect.value;
+            const multiplier = parseFloat(multInput.value);
+            if (!locationId || !commodityId || !Number.isFinite(multiplier) || multiplier <= 0) { return; }
+            busy = true;
+            applyBtn.disabled = true;
+            if (resultEl && typeof T === 'function') {
+                resultEl.textContent = T('webview.inspector.lwMarketRunning');
+            }
+            vscode.postMessage({
+                type: 'livingWorldMarketDebug',
+                locationId,
+                commodityId,
+                multiplier,
+            });
+        });
+    }
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'debugCapabilities') {
+            setVisible(!!message.livingWorldMarketDebug);
+            if (message.livingWorldMarketDebug) {
+                fillSelect(locSelect, message.marketLocations, '—');
+                fillSelect(commoditySelect, message.marketCommodities, '—');
+            }
+        }
+        if (message.type === 'livingWorldMarketDebugResult') {
+            busy = false;
+            if (applyBtn) { applyBtn.disabled = false; }
+            if (!resultEl || typeof T !== 'function') { return; }
+            if (message.ok) {
+                resultEl.textContent = T('webview.inspector.lwMarketDone', {
+                    applied: String(message.applied ?? 1),
+                });
+            } else {
+                resultEl.textContent = T('webview.inspector.lwMarketFailed', {
+                    reason: String(message.reason || 'unknown'),
+                });
+            }
+        }
+    });
+})();
+
 /* --- 81-lorebook.js --- */
 /* global window, document, T, vscode */
 

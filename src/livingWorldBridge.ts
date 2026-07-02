@@ -11,6 +11,7 @@ import type {
     NpcPositionsMap,
     NpcRegistryLike,
 } from './livingWorldTypes';
+import type { CaravanPromptSnapshot } from './livingWorldPromptCore';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { initializeMarketState } from './commerceCore';
 import { runLivingWorldTick } from './worldKitTickCore';
@@ -141,7 +142,8 @@ export function buildLivingWorldGmLines(
     registry: NpcRegistry | undefined,
     rules: GameRules,
     rawForgeDoc: unknown,
-    playerLocationId?: string
+    playerLocationId?: string,
+    playerCommerce?: CaravanPromptSnapshot
 ): string {
     if (!livingWorldEnabled(rules)) { return ''; }
 
@@ -189,6 +191,7 @@ export function buildLivingWorldGmLines(
         playerLocationId,
         sinceLastVisit: lastVisit && lastVisit.turnsAway > 0 ? lastVisit : undefined,
         locationNames,
+        playerCommerce: rules.enableCommerce === true ? playerCommerce : undefined,
     });
 
     return formatLivingWorldGmInjection(blocks);

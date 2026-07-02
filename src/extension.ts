@@ -32,7 +32,8 @@ import {
 import { isActiveDebugScenario } from './debugScenarioRunner';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
-import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge } from './worldForge';
+import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument } from './worldForge';
+import { resolveCommerceForge } from './livingWorldBridge';
 import { resetWorldStateFromForge } from './worldState';
 import { buildLocationImagePrompt } from './locationImageBuilder';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
@@ -1175,12 +1176,30 @@ function sendDebugCapabilities(): void {
     if (!panel) { return; }
     const wsPath = getWorkspacePath();
     const debugScenarioActive = wsPath ? isActiveDebugScenario(wsPath) : false;
+    const rules = loadGameRules();
+    const showDebugConsole = isBulkWorldSimDebugEnabled() || debugScenarioActive;
+    const forge = loadWorldForge();
+    const rawDoc = loadWorldForgeDocument();
+    const commerce = forge && rawDoc ? resolveCommerceForge(forge, rawDoc) : undefined;
+    const marketLocations = forge && commerce
+        ? commerce.markets.map((m) => {
+            const loc = forge.geography.locations.find((l) => l.id === m.locationId);
+            return { id: m.locationId, name: loc?.name ?? m.locationId };
+        })
+        : [];
+    const marketCommodities = commerce
+        ? commerce.commodities.map((c) => ({ id: c.id, name: c.name }))
+        : [];
     panel.webview.postMessage({
         type: 'debugCapabilities',
-        bulkWorldSim: isBulkWorldSimDebugEnabled() || debugScenarioActive,
+        bulkWorldSim: showDebugConsole,
         bulkWorldSimMaxSteps: getBulkWorldSimMaxSteps(),
         debugScenarioActive,
-        showDebugConsole: isBulkWorldSimDebugEnabled() || debugScenarioActive,
+        showDebugConsole,
+        enableCommerce: rules.enableCommerce === true,
+        livingWorldMarketDebug: showDebugConsole && rules.enableCommerce === true && marketLocations.length > 0,
+        marketLocations,
+        marketCommodities,
     });
 }
 
@@ -1468,6 +1487,40 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 })
             );
             panel?.webview.postMessage({ type: 'bulkWorldSimResult', ok: true, summary: s });
+        },
+        handleLivingWorldMarketDebug: async (raw: unknown) => {
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const locationId = typeof doc.locationId === 'string' ? doc.locationId : '';
+            const commodityId = typeof doc.commodityId === 'string' ? doc.commodityId : '';
+            const multiplier = typeof doc.multiplier === 'number' ? doc.multiplier : Number(doc.multiplier);
+            if (!locationId || !commodityId || !Number.isFinite(multiplier) || multiplier <= 0) {
+                panel?.webview.postMessage({
+                    type: 'livingWorldMarketDebugResult',
+                    ok: false,
+                    reason: 'INVALID',
+                });
+                return;
+            }
+            const { applyLivingWorldMarketDebugOps } = await import('./livingWorldMarketDebug');
+            const result = applyLivingWorldMarketDebugOps([{
+                locationId,
+                commodityId,
+                multiplier,
+            }]);
+            if (!result.ok) {
+                panel?.webview.postMessage({
+                    type: 'livingWorldMarketDebugResult',
+                    ok: false,
+                    reason: result.reason,
+                });
+                return;
+            }
+            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            panel?.webview.postMessage({
+                type: 'livingWorldMarketDebugResult',
+                ok: true,
+                applied: result.applied,
+            });
         },
     };
 }

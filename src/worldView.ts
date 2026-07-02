@@ -32,7 +32,7 @@ import { loadGameRules } from './gameRules';
 import { buildMarketPriceTable } from './commerceCore';
 import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
-import { listNotableRelationships } from './npcRelationshipCore';
+import { listNotableRelationships, applyIntroductionTrustBoost } from './npcRelationshipCore';
 import { listNpcPresence } from './npcAgencyCore';
 import {
     formatWhereaboutsForDisplay,
@@ -200,14 +200,16 @@ function buildNpcWhereaboutsPayload(
     forge: NonNullable<ReturnType<typeof loadWorldForge>>,
     registry: ReturnType<typeof loadNpcRegistry>,
     worldState: ReturnType<typeof loadWorldState> | undefined,
-    agencyEnabled: boolean
+    agencyEnabled: boolean,
+    relationshipsEnabled = false
 ): WorldViewNpcWhereabouts {
     const npcEntries = Object.entries(registry.npcs);
-    const registryLike: Record<string, {
+    let registryLike: Record<string, {
         name: string;
         locationId?: string;
         factionId?: string;
         playerTrust?: number;
+        introducedBy?: string;
     }> = {};
     for (const [id, npc] of npcEntries) {
         registryLike[id] = {
@@ -216,6 +218,13 @@ function buildNpcWhereaboutsPayload(
             factionId: npc.factionId,
             playerTrust: npc.disposition?.playerTrust,
         };
+    }
+    // LW3-W: 紹介効果 — 盟友の信頼がペナルティ付きで伝播(whereabouts 精度に効く)
+    if (relationshipsEnabled && worldState) {
+        const relationships = (worldState as { npcRelationships?: Record<string, number> }).npcRelationships;
+        if (relationships) {
+            registryLike = applyIntroductionTrustBoost(registryLike, relationships);
+        }
     }
 
     const locationNames: Record<string, string> = {};
@@ -360,7 +369,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         forge,
         registry,
         worldState,
-        gameRules.enableNpcAgency === true && gameRules.enableNpcRegistry === true
+        gameRules.enableNpcAgency === true && gameRules.enableNpcRegistry === true,
+        npcRelationshipsEnabled(gameRules)
     );
     // LW3: notable NPC-to-NPC bonds. Labels only — raw affinity numbers stay host-side (v1.27.1 leak policy).
     const npcBonds = buildNpcBondsPayload(

@@ -1,5 +1,26 @@
 # AI Shared Log
 
+## 2026-07-02 JST (深夜) - Claude Fable 5 - v1.30.0 LW3-W 絆の世界波及(双方向ループ完成)
+
+### Summary
+
+- **`npcBondEffectsCore.ts`** — 関係→世界のフィードバック(決定論・GM非関与): **盟友物流**(ally ペアが別市場に居ると共通商品の在庫 +1/tick 両市場, 上限60) / **敵対摩擦**(enemy ペアの市場 priceIndex +0.05/tick, 上限4)。移動中は不参加。recovery の**後**に適用。
+- **紹介効果(太閤の紹介状)** — `applyIntroductionTrustBoost()`(npcRelationshipCore): 盟友の playerTrust が -25 で伝播。低信頼 NPC も盟友経由で whereabouts が見える。GM プロンプト(bridge)と World タブ(worldView)の両経路に配線。
+- v1.29.0(直前エントリ)と合わせ、**世界→関係→世界 の双方向ループが閉じた**。
+- trade-routes README 手順9(盟友物流・敵対摩擦・紹介の体験手順)。
+
+### Verification
+
+- `npm run compile` · `npm test` (**79/79** — 新規 `test_npc_bond_effects_core.js` 19件 + host統合2件)
+
+### Next (v1+ 候補)
+
+- Bonds の World タブに introducedBy 表示(「(Eldaの紹介)」)
+- ally_trade / enemy_friction を噂イベント化(現状は相場の動きとしてのみ体感)
+- 恋愛・死などの重いライフイベント(affinity 基盤の上の future arc)
+
+---
+
 ## 2026-07-02 JST (深夜) - Claude Opus 4.8 - v1.29.0 LW3 NPC間関係(北極星/ガンパレ第一歩)
 
 ### Summary

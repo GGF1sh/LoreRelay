@@ -27,7 +27,9 @@ import {
     listNotableRelationships,
     buildRelationshipPromptLines,
     describeRelationship,
+    applyIntroductionTrustBoost,
 } from './npcRelationshipCore';
+import { applyBondMarketEffects } from './npcBondEffectsCore';
 import { makeWorldChangeEvent, mergeRecentChanges } from './worldEventLogCore';
 
 export interface LivingWorldWorldStateExt {
@@ -163,6 +165,20 @@ export function tickLivingWorldAfterSim(
         if (bondEvents.length > 0) {
             state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], bondEvents);
         }
+
+        // LW3-W: 絆が世界へ波及 — 盟友ペアは市場間に物流(+在庫)、敵対ペアは価格摩擦。
+        // recovery(Tier1)の後に適用するのでボーナスが回復に食われない。
+        if (rules.enableCommerce === true && commerce && ext.markets) {
+            const fx = applyBondMarketEffects({
+                relationships: ext.npcRelationships ?? {},
+                registry: agencyRegistry,
+                positions: ext.npcPositions ?? {},
+                worldTurn: state.worldTurn,
+                markets: commerce.markets,
+                marketState: ext.markets,
+            });
+            ext.markets = fx.marketState as typeof ext.markets;
+        }
     }
 
     return { state: ext };
@@ -267,10 +283,17 @@ export function buildLivingWorldGmLines(
         regionNames[reg.id] = reg.name;
     }
 
+    // LW3-W: 紹介効果 — 盟友の playerTrust がペナルティ付きで伝播し、
+    // whereabouts の精度(exact/approximate/unknown)が引き上がる(太閤の紹介状)。
+    const baseRegistryLike = registryToAgencyLike(registry);
+    const promptRegistryLike = npcRelationshipsEnabled(rules)
+        ? applyIntroductionTrustBoost(baseRegistryLike, ext.npcRelationships ?? {})
+        : baseRegistryLike;
+
     const blocks = buildLivingWorldPromptBlocks({
         forge: commerce ?? { commodities: [], markets: [], transportKinds: [] },
         markets,
-        registry: registryToAgencyLike(registry),
+        registry: promptRegistryLike,
         npcPositions: ext.npcPositions ?? {},
         worldTurn: state.worldTurn,
         commerceEnabled: rules.enableCommerce === true && !!commerce,

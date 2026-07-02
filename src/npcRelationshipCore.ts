@@ -338,6 +338,55 @@ export function listNotableRelationships(
     return out.slice(0, limit);
 }
 
+// --- 紹介効果(太閤の紹介状): 盟友の盟友には信頼が届く ---
+
+export const INTRODUCTION_TRUST_PENALTY = 25;   // 紹介経由は直接の信頼より割り引く
+export const INTRODUCTION_MIN_AFFINITY = AFFINITY_ALLY; // 紹介が成立する絆(盟友)の下限
+
+export interface IntroductionBoostEntry {
+    name: string;
+    locationId?: string;
+    factionId?: string;
+    playerTrust?: number;
+    /** 紹介者の npcId(ブーストが適用された場合のみ)。 */
+    introducedBy?: string;
+}
+
+/**
+ * 盟友(affinity ≥ INTRODUCTION_MIN_AFFINITY)の playerTrust から
+ * ペナルティ付きで信頼が伝播した registryLike を返す(元は変更しない)。
+ * 例: Elda(trust 80) と盟友の Marcus(trust 30) → Marcus は実効 55 に。
+ * whereabouts の精度計算にこの戻り値を渡すと「紹介で会いに行ける」が成立する。
+ */
+export function applyIntroductionTrustBoost<T extends IntroductionBoostEntry>(
+    registry: Record<string, T>,
+    relationships: NpcRelationshipMap
+): Record<string, T & { introducedBy?: string }> {
+    const ids = Object.keys(registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP);
+    const out: Record<string, T & { introducedBy?: string }> = {};
+    for (const [id, entry] of Object.entries(registry)) {
+        out[id] = { ...entry };
+    }
+    for (const id of ids) {
+        const base = typeof registry[id]?.playerTrust === 'number' ? registry[id]!.playerTrust! : undefined;
+        let best: { trust: number; via: string } | undefined;
+        for (const allyId of ids) {
+            if (allyId === id) { continue; }
+            if (getAffinity(relationships, id, allyId) < INTRODUCTION_MIN_AFFINITY) { continue; }
+            const allyTrust = registry[allyId]?.playerTrust;
+            if (typeof allyTrust !== 'number') { continue; }
+            const introduced = allyTrust - INTRODUCTION_TRUST_PENALTY;
+            if (introduced > (best?.trust ?? -Infinity)) {
+                best = { trust: introduced, via: allyId };
+            }
+        }
+        if (best && best.trust > (base ?? -Infinity)) {
+            out[id] = { ...out[id], playerTrust: Math.max(0, Math.min(100, Math.round(best.trust))), introducedBy: best.via };
+        }
+    }
+    return out;
+}
+
 const RELATIONSHIP_LABEL_JA: Record<NpcRelationshipLabel, string> = {
     ally: '盟友',
     friend: '友好',

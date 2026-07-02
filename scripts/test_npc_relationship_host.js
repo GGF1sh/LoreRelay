@@ -189,5 +189,54 @@ function freshState(extra) {
     else { fail(`unexpected hearsay events: ${bondEvents.length}`); }
 }
 
+// 10. LW3-W 紹介効果 — 低信頼(20=unknown)の Marcus が盟友 Elda(100) の紹介で GM whereabouts に現れる
+{
+    const introRegistry = {
+        npcs: {
+            npc_elda: { name: 'Elda', locationId: 'elda_shop', factionId: 'faction_merchants', disposition: { playerTrust: 100 } },
+            npc_marcus: { name: 'Marcus', locationId: 'elda_shop', factionId: 'faction_smiths', disposition: { playerTrust: 20 } },
+        },
+    };
+    const seedLow = {}; seedLow[pairKey('npc_elda', 'npc_marcus')] = 45; // 友好止まり → 紹介不成立
+    const s1 = freshState({ npcRelationships: seedLow });
+    const inj1 = buildLivingWorldGmLines(FORGE, s1, introRegistry, RULES_ON, undefined, 'elda_shop');
+    const seedAlly = {}; seedAlly[pairKey('npc_elda', 'npc_marcus')] = 75; // 盟友 → 紹介成立(100-25=75 ≥ 70 exact)
+    const s2 = freshState({ npcRelationships: seedAlly });
+    const inj2 = buildLivingWorldGmLines(FORGE, s2, introRegistry, RULES_ON, undefined, 'elda_shop');
+    if (inj1.includes('Marcus: whereabouts unknown')) { ok('friend-level bond: Marcus stays unknown'); }
+    else { fail(`expected unknown Marcus (got: ${JSON.stringify(inj1)})`); }
+    if (inj2.includes('Marcus: at')) { ok('ally introduction reveals Marcus whereabouts'); }
+    else { fail(`expected introduced Marcus (got: ${JSON.stringify(inj2)})`); }
+}
+
+// 11. LW3-W 盟友物流 — commerce ON の tick で共有商品の在庫が両市場で増える
+{
+    const RULES_COMMERCE = { ...RULES_ON, enableCommerce: true };
+    const rawForgeDoc = {
+        commerce: {
+            commodities: [{ id: 'wheat', name: '小麦', basePrice: 10, weight: 1 }],
+            markets: [
+                { locationId: 'elda_shop', commodityIds: ['wheat'], targetStock: 30 },
+                { locationId: 'south_port', commodityIds: ['wheat'], targetStock: 30 },
+            ],
+            transportKinds: [{ id: 'wagon', name: '馬車', capacity: 20, speed: 1 }],
+        },
+    };
+    const seed = {}; seed[pairKey('npc_elda', 'npc_marcus')] = 75; // 盟友
+    const state = freshState({
+        npcRelationships: seed,
+        npcPositions: { npc_marcus: { locationId: 'south_port', arrivesTurn: 5 } }, // 到着済み(worldTurn 10)
+        markets: {
+            elda_shop: { wheat: { stock: 30, priceIndex: 1.0 } },
+            south_port: { wheat: { stock: 30, priceIndex: 1.0 } },
+        },
+    });
+    tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_COMMERCE, rawForgeDoc);
+    const eldaStock = state.markets.elda_shop.wheat.stock;
+    const portStock = state.markets.south_port.wheat.stock;
+    if (eldaStock > 30 && portStock > 30) { ok(`ally trade route boosts both markets (${eldaStock}/${portStock})`); }
+    else { fail(`ally trade stock (got ${eldaStock}/${portStock})`); }
+}
+
 if (failed > 0) { console.error(`\n${failed} failing`); process.exit(1); }
 console.log('\nAll npc relationship host tests passed.');

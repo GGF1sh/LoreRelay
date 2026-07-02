@@ -71,6 +71,8 @@
   "config.textAdventure.archive.thresholdSmallContext.description": "適用於 Ollama / KoboldCPP 等小上下文模型的存檔建議閾值回合數。",
   "config.textAdventure.archive.thresholdLargeContext.description": "適用於 Grok / Gemini 等大上下文模型的存檔建議閾值回合數。",
   "config.textAdventure.archive.remindEvery.description": "達到閾值後，每隔多少回合再次提醒存檔。",
+  "config.textAdventure.promptBudget.mode.description": "Controls how much Lorebook, Memory, Saga, Party, NPC, and Vision context is injected into each GM prompt.",
+  "config.textAdventure.promptBudget.maxTokens.description": "Approximate target token budget for GM prompt context. 0 uses the selected mode default.",
   "config.textAdventure.worldForge.defaultRegionCount.description": "生成新 World Forge 時的預設區域（Region）數量。",
   "config.textAdventure.worldForge.defaultFactionCount.description": "生成新 World Forge 時的預設勢力（Faction）數量。",
   "config.textAdventure.worldForge.defaultNpcCount.description": "生成新 World Forge 時的預設 NPC 數量。",

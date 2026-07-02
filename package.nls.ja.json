@@ -71,6 +71,8 @@
   "config.textAdventure.archive.thresholdSmallContext.description": "Ollama / KoboldCPP などのコンテキストが小さいモデル用の、アーカイブ提案しきい値ターン数。",
   "config.textAdventure.archive.thresholdLargeContext.description": "Grok / Gemini などのコンテキストが大きいモデル用の、アーカイブ提案しきい値ターン数。",
   "config.textAdventure.archive.remindEvery.description": "しきい値を超えた後、何ターンごとに再提案するか。",
+  "config.textAdventure.promptBudget.mode.description": "Controls how much Lorebook, Memory, Saga, Party, NPC, and Vision context is injected into each GM prompt.",
+  "config.textAdventure.promptBudget.maxTokens.description": "Approximate target token budget for GM prompt context. 0 uses the selected mode default.",
   "config.textAdventure.worldForge.defaultRegionCount.description": "新しい World Forge を生成する際のデフォルトの地域（Region）数。",
   "config.textAdventure.worldForge.defaultFactionCount.description": "新しい World Forge を生成する際のデフォルトの勢力（Faction）数。",
   "config.textAdventure.worldForge.defaultNpcCount.description": "新しい World Forge を生成する際のデフォルトのNPC数。",

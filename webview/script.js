@@ -3623,13 +3623,23 @@ function renderPromptContext(breakdown) {
     const backend = breakdown.memoryBackend || 'auto';
     const tokens = breakdown.totalTokensEstimate ?? 0;
     const chars = breakdown.totalChars ?? 0;
-    summaryDiv.textContent = typeof T === 'function'
+    const baseSummary = typeof T === 'function'
         ? T('webview.inspector.promptSummary', {
             backend,
             tokens: String(tokens),
             chars: String(chars)
         })
-        : `Backend: ${backend} · ~${tokens} tokens · ${chars} chars`;
+        : `Backend: ${backend} ? ~${tokens} tokens ? ${chars} chars`;
+    const budget = breakdown.budget;
+    const budgetSummary = budget
+        ? (typeof T === 'function'
+            ? T('webview.inspector.promptBudget', {
+                mode: String(budget.mode || 'auto'),
+                tokens: String(budget.targetTokens || 0)
+            })
+            : `Budget: ${budget.mode || 'auto'} / ~${budget.targetTokens || 0} tokens`)
+        : '';
+    summaryDiv.textContent = budgetSummary ? `${baseSummary} ? ${budgetSummary}` : baseSummary;
 
     sectionsDiv.innerHTML = '';
     (breakdown.sections || []).forEach((section) => {

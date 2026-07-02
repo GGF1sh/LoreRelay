@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Prompt Budget controls: `textAdventure.promptBudget.mode` (`auto` / `compact` / `balanced` / `expanded`) and `textAdventure.promptBudget.maxTokens` now cap GM prompt context from Story Summary, Saga, Memory Bank, Lorebook, Party cards, NPC awareness, World State, and Vision snippets. Turn Inspector shows the active budget target next to the estimated injected tokens.
+- GM Skill prompt-budget guidance: normal play should read `game_state.json` and relevant domain files only; `state_journal.ndjson`, full `game_history.json`, and verbatim Saga archives are not GM context.
+
 ## [1.14.1] - 2026-07-02
 
 ### Changed

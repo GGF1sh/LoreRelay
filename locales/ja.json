@@ -182,6 +182,7 @@
   "webview.inspector.failure": "失敗",
   "webview.inspector.promptContext": "プロンプト文脈（直近GM呼び出し）",
   "webview.inspector.promptSummary": "Memory backend: {backend} · 約{tokens} tokens · {chars} 文字注入",
+  "webview.inspector.promptBudget": "Budget: {mode} / ~{tokens} tokens",
   "webview.inspector.noPromptSections": "注入された文脈セクションなし",
   "webview.inspector.memoryMatches": "Memory マッチ",
   "webview.inspector.noMemory": "マッチしたメモリなし",

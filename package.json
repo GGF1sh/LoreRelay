@@ -515,6 +515,29 @@
           "default": 15,
           "description": "%config.textAdventure.archive.remindEvery.description%"
         },
+        "textAdventure.promptBudget.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "compact",
+            "balanced",
+            "expanded"
+          ],
+          "enumDescriptions": [
+            "Pick compact for small-context providers and balanced for large-context providers",
+            "Aggressively cap lorebook, memory, party cards, saga, and vision context",
+            "Default long-play budget for Grok / large hosted models",
+            "Allow more context for very large-context models"
+          ],
+          "default": "auto",
+          "description": "%config.textAdventure.promptBudget.mode.description%"
+        },
+        "textAdventure.promptBudget.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "%config.textAdventure.promptBudget.maxTokens.description%"
+        },
         "textAdventure.worldForge.defaultRegionCount": {
           "type": "number",
           "default": 5,

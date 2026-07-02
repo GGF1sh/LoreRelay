@@ -21,6 +21,9 @@ const {
     buildHintTextFromContents,
     buildWorldChangeSummaryFromChanges,
     resolveWorldChangeSummaryTurn,
+    clampTextForPrompt,
+    normalizePromptBudgetMode,
+    resolvePromptBudgetPolicy,
     MAX_HINT_TEXT_CHARS,
     MAX_WORLD_CHANGE_SUMMARY_LINES
 } = require(corePath);
@@ -133,6 +136,31 @@ const {
         fail('resolveWorldChangeSummaryTurn should respect lastInjected');
     } else {
         ok('world change summary inject-once guard');
+    }
+}
+
+{
+    const clipped = clampTextForPrompt('abcdef', 5);
+    if (clipped !== 'ab...') {
+        fail(`clampTextForPrompt should append ASCII ellipsis marker: ${clipped}`);
+    } else if (clampTextForPrompt('abc', 5) !== 'abc') {
+        fail('clampTextForPrompt should not modify short text');
+    } else {
+        ok('prompt text clamp');
+    }
+}
+
+{
+    if (normalizePromptBudgetMode('nonsense') !== 'auto') {
+        fail('invalid prompt budget mode should normalize to auto');
+    } else if (resolvePromptBudgetPolicy('auto', 'small').mode !== 'compact') {
+        fail('auto prompt budget should use compact for small context');
+    } else if (resolvePromptBudgetPolicy('auto', 'large').mode !== 'balanced') {
+        fail('auto prompt budget should use balanced for large context');
+    } else if (resolvePromptBudgetPolicy('expanded', 'small', 2222).targetTokens !== 2222) {
+        fail('prompt budget target override should be respected');
+    } else {
+        ok('prompt budget policy resolution');
     }
 }
 

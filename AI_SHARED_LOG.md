@@ -1,5 +1,22 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Prompt Budget / token compression controls
+
+### Summary
+
+- Added configurable GM prompt budgeting via `textAdventure.promptBudget.mode` (`auto`, `compact`, `balanced`, `expanded`) and `textAdventure.promptBudget.maxTokens`.
+- The builder now caps Story Summary, Saga Archive, Memory Bank matches, Lorebook entries, Party/SillyTavern card fields, dynamic profiles, World State summaries, NPC awareness, and Vision context before injecting them into GM prompts.
+- Turn Inspector now reports the active budget mode and target token budget alongside estimated injected tokens.
+- Updated the external `C:\AI\TextAdventureGMSkill\SKILL.md` with file-reading discipline: do not read `state_journal.ndjson` or full verbatim archives during normal play.
+
+### Verification
+
+- `npm run compile` passed.
+- `node scripts/test_gm_prompt_builder_core.js` passed.
+- `node scripts/check_i18n_keys.js` passed.
+
+---
+
 ## 2026-07-02 JST - Claude (Fable 5) - Feature: Genre theme reskins + Region hazards — released as v1.14.0
 
 ### Summary

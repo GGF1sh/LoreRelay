@@ -8,7 +8,7 @@ import {
     getConfiguredLocale,
     type SupportedLocale
 } from './i18n';
-import { buildMemoryPromptContext, buildSagaPromptContext, matchMemories, type MemoryChunk } from './memoryBank';
+import { buildSagaPromptContext, matchMemories, type MemoryChunk } from './memoryBank';
 import {
     computeArchiveMilestone,
     getArchiveRemindStep,
@@ -45,7 +45,10 @@ import {
     buildHintTextFromContents,
     buildWorldChangeSummaryFromChanges,
     resolveWorldChangeSummaryTurn,
-    buildActiveQuestObjective
+    buildActiveQuestObjective,
+    clampTextForPrompt,
+    resolvePromptBudgetPolicy,
+    type PromptBudgetPolicy
 } from './gmPromptBuilderCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
@@ -118,6 +121,18 @@ function loadStorySummary(): string {
     return typeof state.summary === 'string' ? state.summary.trim() : '';
 }
 
+function getPromptBudgetPolicy(): PromptBudgetPolicy {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const provider = getGmProvider();
+    const orModel = config.get<string>('gmBridge.openRouter.model', '');
+    const tier = getContextTier(provider, orModel);
+    return resolvePromptBudgetPolicy(
+        config.get<string>('promptBudget.mode', 'auto'),
+        tier,
+        config.get<number>('promptBudget.maxTokens', 0)
+    );
+}
+
 let lorebookCachePath = '';
 let lorebookCacheMtime = 0;
 let lorebookCacheEntries: LorebookEntry[] = [];
@@ -157,17 +172,18 @@ function resolveLorebookForPrompt(hintText: string, maxEntries = 5): LorebookEnt
     const pinnedIds = new Set(pinned.map((e) => e.id).filter(Boolean));
     const keywordPool = enabled.filter((e) => !e.pinned);
     const matched = matchEntriesAgainstText(keywordPool, hintText, maxEntries);
-    return [
+    const merged = [
         ...pinned,
         ...matched.filter((m) => !m.id || !pinnedIds.has(m.id))
     ];
+    return merged.slice(0, Math.max(1, maxEntries));
 }
 
 function matchLorebookEntries(text: string, maxEntries = 5): LorebookEntry[] {
     return resolveLorebookForPrompt(text, maxEntries);
 }
 
-function resolveMemoriesViaPython(ws: string, hintText: string, backend: string): MemoryChunk[] {
+function resolveMemoriesViaPython(ws: string, hintText: string, backend: string, maxResults: number): MemoryChunk[] {
     const scriptPath = resolveGmBridgeScript('memory_bank.py');
     if (!scriptPath) {
         return [];
@@ -181,7 +197,7 @@ function resolveMemoriesViaPython(ws: string, hintText: string, backend: string)
             '--resolve',
             '--json',
             '--text', hintText,
-            '--max', '3',
+            '--max', String(Math.max(1, maxResults)),
             '--backend', backend
         ],
         { encoding: 'utf-8', timeout: 15000 }
@@ -197,64 +213,82 @@ function resolveMemoriesViaPython(ws: string, hintText: string, backend: string)
     }
 }
 
-function formatMemoryPromptFromChunks(matches: MemoryChunk[]): string {
+function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: number): string {
     if (matches.length === 0) {
         return '';
     }
     const parts = ['[Memory Bank — relevant memories]'];
     for (const m of matches) {
         parts.push(`--- ${m.label || m.id} (${m.source}) ---`);
-        parts.push(String(m.text || '').trim());
+        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch));
     }
     return parts.join('\n');
 }
 
-function buildMemoryContextForPrompt(ws: string, hintText: string): string {
+function buildMemoryContextForPrompt(ws: string, hintText: string, policy: PromptBudgetPolicy): string {
     const backend = getMemoryBackendSetting();
     if (backend === 'tfidf') {
-        return buildMemoryPromptContext(ws, hintText, 3);
+        return formatMemoryPromptFromChunks(
+            matchMemories(ws, hintText, policy.memoryMatches),
+            policy.memoryChars
+        );
     }
-    const viaPy = formatMemoryPromptFromChunks(resolveMemoriesViaPython(ws, hintText, backend));
+    const viaPy = formatMemoryPromptFromChunks(
+        resolveMemoriesViaPython(ws, hintText, backend, policy.memoryMatches),
+        policy.memoryChars
+    );
     if (viaPy) {
         return viaPy;
     }
-    return buildMemoryPromptContext(ws, hintText, 3);
+    return formatMemoryPromptFromChunks(
+        matchMemories(ws, hintText, policy.memoryMatches),
+        policy.memoryChars
+    );
 }
 
 function relationshipLabel(rel: RelationshipType): string {
     return rel;
 }
 
-function buildPartyPromptContext(): string {
+function buildPartyPromptContext(policy: PromptBudgetPolicy): string {
     const dynProfiles = loadDynamicProfiles();
     const ids = getPartyIds();
     if (ids.length === 0) {
         return '';
     }
     const lines = ['[Party Members]'];
+    const pushField = (label: string, value: unknown, maxChars: number): void => {
+        const clipped = clampTextForPrompt(value, maxChars);
+        if (clipped) {
+            lines.push(`${label}: ${clipped}`);
+        }
+    };
     for (const id of ids) {
         const char = loadCharacterById(id);
         if (!char) {
             continue;
         }
         lines.push(`--- ${char.name} (ID: ${id}) ---`);
-        lines.push(`Description: ${char.description}`);
-        lines.push(`Personality: ${char.personality}`);
+        pushField('Description', char.description, policy.partyFieldChars);
+        pushField('Personality', char.personality, policy.partyFieldChars);
         const src = char.stSource;
         if (src?.scenario) {
-            lines.push(`Scenario: ${src.scenario}`);
+            pushField('Scenario', src.scenario, policy.partyFieldChars);
         }
         if (src?.system_prompt) {
-            lines.push(`Character rules: ${src.system_prompt}`);
+            pushField('Character rules', src.system_prompt, policy.partyFieldChars);
         }
         if (src?.first_mes) {
-            lines.push(`Opening line hint: ${src.first_mes}`);
+            pushField('Opening line hint', src.first_mes, policy.partyFieldChars);
         }
         if (src?.mes_example) {
-            lines.push(`Example dialogue:\n${src.mes_example}`);
+            const clipped = clampTextForPrompt(src.mes_example, policy.partyExampleChars);
+            if (clipped) {
+                lines.push(`Example dialogue:\n${clipped}`);
+            }
         }
         if (dynProfiles[id]) {
-            lines.push(`Dynamic memory: ${dynProfiles[id]}`);
+            pushField('Dynamic memory', dynProfiles[id], policy.dynamicProfileChars);
         }
     }
     lines.push('Have party members react in character, converse with each other, and adapt gear to the current world theme.');
@@ -381,7 +415,7 @@ function buildGameRulesPromptContext(): string {
     return lines.join('\n');
 }
 
-function buildWorldForgePromptContext(): string {
+function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     if (!isWorldForgeEnabled()) { return ''; }
     const forge = loadWorldForge();
     if (!forge) { return ''; }
@@ -427,7 +461,7 @@ function buildWorldForgePromptContext(): string {
 
     if (forge.factions.length > 0) {
         lines.push('Factions:');
-        for (const faction of forge.factions.slice(0, 4)) {
+        for (const faction of forge.factions.slice(0, policy.worldFactionCount)) {
             const parts: string[] = [faction.type];
             if (faction.power !== undefined) { parts.push(`power:${faction.power}`); }
             let line = `  ${faction.name} (${parts.join(', ')})`;
@@ -446,7 +480,7 @@ function buildWorldForgePromptContext(): string {
 
     if (forge.loreHistory.length > 0) {
         lines.push('World lore:');
-        const recent = forge.loreHistory.slice(-2);
+        const recent = forge.loreHistory.slice(-policy.worldLoreCount);
         for (const entry of recent) {
             const prefix = entry.era
                 ? `${entry.era}${entry.yearsBefore !== undefined ? ` (-${entry.yearsBefore}yr)` : ''}`
@@ -459,7 +493,7 @@ function buildWorldForgePromptContext(): string {
     return lines.join('\n');
 }
 
-function buildWorldStatePromptContext(): string {
+function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
     if (!worldState) { return ''; }
@@ -471,7 +505,7 @@ function buildWorldStatePromptContext(): string {
     const factionEntries = Object.entries(worldState.factions);
     if (factionEntries.length > 0) {
         const parts: string[] = [];
-        for (const [id, fs] of factionEntries) {
+        for (const [id, fs] of factionEntries.slice(0, policy.worldStateFactionCount)) {
             const name = forge?.factions.find((f) => f.id === id)?.name ?? id;
             const power = Math.round(fs.power);
             const moraleTag = (fs.morale ?? 50) >= 70 ? '↑morale'
@@ -484,7 +518,7 @@ function buildWorldStatePromptContext(): string {
 
     // アクティブなグローバルイベント
     const activeEvents = worldState.globalEvents ?? [];
-    for (const ev of activeEvents.slice(0, 3)) {
+    for (const ev of activeEvents.slice(0, policy.worldEventCount)) {
         const remaining = ev.turnsRemaining !== undefined ? `, ${ev.turnsRemaining} turns left` : '';
         lines.push(`⚠ [${ev.severity}] ${ev.description}${remaining}`);
     }
@@ -493,7 +527,7 @@ function buildWorldStatePromptContext(): string {
     const recentChanges = pruneExpiredEvents(worldState.recentChanges ?? [], worldState.worldTurn);
     const notableChanges = recentChanges
         .filter((c) => c.severity !== 'info' && c.gmHint)
-        .slice(-3);
+        .slice(-policy.worldChangeCount);
     for (const c of notableChanges) {
         lines.push(`⚡ [${c.category}] ${c.gmHint}`);
     }
@@ -509,7 +543,7 @@ function buildWorldStatePromptContext(): string {
     return lines.join('\n');
 }
 
-function buildNpcRegistryPromptContext(): string {
+function buildNpcRegistryPromptContext(policy: PromptBudgetPolicy): string {
     if (!loadGameRules().enableNpcRegistry) { return ''; }
     const registry = loadNpcRegistry();
     if (Object.keys(registry.npcs).length === 0) { return ''; }
@@ -525,16 +559,16 @@ function buildNpcRegistryPromptContext(): string {
         // at location first, then no-locationId NPCs, skip others
         const atLocation = entries.filter(([, npc]) => npc.locationId === currentLocationId);
         const noLocation = entries.filter(([, npc]) => !npc.locationId);
-        entries = [...atLocation, ...noLocation].slice(0, 3);
+        entries = [...atLocation, ...noLocation].slice(0, policy.npcCountWithLocation);
     } else {
-        entries = entries.slice(0, 4);
+        entries = entries.slice(0, policy.npcCountWithoutLocation);
     }
     if (entries.length === 0) { return ''; }
 
     const lines = ['[NPC Awareness]'];
     let npcCount = 0;
     for (const [id, npc] of entries) {
-        if (npcCount >= (currentLocationId ? 3 : 4)) { break; }
+        if (npcCount >= (currentLocationId ? policy.npcCountWithLocation : policy.npcCountWithoutLocation)) { break; }
         const d = npc.disposition;
         const urgentNeeds = npc.needs.filter((n) => n.urgency >= 31).sort((a, b) => b.urgency - a.urgency);
         const recentMemories = npc.memories.slice(-3);
@@ -557,7 +591,7 @@ function buildNpcRegistryPromptContext(): string {
 
         if (recentMemories.length > 0) {
             const memLine = recentMemories
-                .map((m) => `"${m.content.slice(0, 80)}" [${m.emotionalWeight}]`)
+                .map((m) => `"${clampTextForPrompt(m.content, policy.npcMemoryChars)}" [${m.emotionalWeight}]`)
                 .join(' / ');
             lines.push(`Memory: ${memLine}`);
         }
@@ -569,7 +603,7 @@ function buildNpcRegistryPromptContext(): string {
                 : d.playerFear >= 50 && npc.dialogueHints.highFear ? npc.dialogueHints.highFear
                 : d.playerRomance >= 60 && npc.dialogueHints.romance ? npc.dialogueHints.romance
                 : '';
-            if (hint) { lines.push(`Hint: ${hint}`); }
+            if (hint) { lines.push(`Hint: ${clampTextForPrompt(hint, policy.npcHintChars)}`); }
         }
 
         if (npc.personalityTraits && npc.personalityTraits.length > 0) {
@@ -581,8 +615,8 @@ function buildNpcRegistryPromptContext(): string {
     return lines.join('\n');
 }
 
-function buildLorebookPromptContext(hintText: string): string {
-    const matches = resolveLorebookForPrompt(hintText);
+function buildLorebookPromptContext(hintText: string, policy: PromptBudgetPolicy): string {
+    const matches = resolveLorebookForPrompt(hintText, policy.loreMatches);
     if (matches.length === 0) {
         return '';
     }
@@ -590,7 +624,7 @@ function buildLorebookPromptContext(hintText: string): string {
     for (const e of matches) {
         const tag = e.pinned ? '📌 ' : '';
         parts.push(`--- ${tag}${e.comment || e.id || 'entry'} ---`);
-        parts.push(String(e.content || '').trim());
+        parts.push(clampTextForPrompt(e.content, policy.loreChars));
     }
     return parts.join('\n');
 }
@@ -603,12 +637,12 @@ export function getTriggeredLoreLabels(hintText: string, maxEntries = 5): string
     }).filter((label) => label.length > 0);
 }
 
-function buildHintText(playerAction: string): string {
+function buildHintText(playerAction: string, policy: PromptBudgetPolicy): string {
     const recent = getGameEntryHistory()
         .filter((e) => !e.excludedFromPrompt)
         .slice(-3)
         .map((e) => e.content);
-    return buildHintTextFromContents(recent, playerAction);
+    return buildHintTextFromContents(recent, playerAction, policy.hintChars);
 }
 
 /**
@@ -650,20 +684,21 @@ function consumeWorldChangeSummaryContext(): string {
     return summary;
 }
 
-function resolveMemoryMatches(ws: string, hint: string): MemoryChunk[] {
+function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
     if (backend === 'tfidf') {
-        return matchMemories(ws, hint, 3);
+        return matchMemories(ws, hint, policy.memoryMatches);
     }
-    return resolveMemoriesViaPython(ws, hint, backend);
+    return resolveMemoriesViaPython(ws, hint, backend, policy.memoryMatches);
 }
 
 export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
     const ws = getWorkspacePath();
-    const hint = buildHintText(playerAction);
+    const policy = getPromptBudgetPolicy();
+    const hint = buildHintText(playerAction, policy);
     const memoryBackend = getMemoryBackendSetting();
 
-    const loreMatches = matchLorebookEntries(hint);
+    const loreMatches = matchLorebookEntries(hint, policy.loreMatches);
     const matchedLore: PromptLoreMatch[] = loreMatches.map((e) => ({
         id: String(e.id || e.comment || 'entry'),
         label: String(e.comment || e.id || 'entry'),
@@ -671,7 +706,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         keys: Array.isArray(e.keys) ? e.keys.map(String) : []
     }));
 
-    const memoryChunks = ws ? resolveMemoryMatches(ws, hint) : [];
+    const memoryChunks = ws ? resolveMemoryMatches(ws, hint, policy) : [];
     const memoryMatches: PromptMemoryMatch[] = memoryChunks.map((m) => ({
         id: m.id,
         label: m.label,
@@ -684,18 +719,18 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
         buildSection('summary', 'Story Synopsis', (() => {
             const summary = loadStorySummary();
-            return summary ? `[Story Synopsis]\n${summary}` : '';
+            return summary ? `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}` : '';
         })()),
-        ws ? buildSection('saga', 'Saga Archive', buildSagaPromptContext(ws, 2)) : undefined,
-        buildSection('party', 'Party', buildPartyPromptContext()),
+        ws ? buildSection('saga', 'Saga Archive', clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars)) : undefined,
+        buildSection('party', 'Party', buildPartyPromptContext(policy)),
         buildSection('partyDirector', 'Party Director', buildPartyDirectorPromptContext()),
-        ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint)) : undefined,
-        buildSection('worldForge', 'World', buildWorldForgePromptContext()),
-        buildSection('worldState', 'World State', buildWorldStatePromptContext()),
+        ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint, policy)) : undefined,
+        buildSection('worldForge', 'World', buildWorldForgePromptContext(policy)),
+        buildSection('worldState', 'World State', buildWorldStatePromptContext(policy)),
         buildSection('worldChangeSummary', 'World Changes', peekWorldChangeSummaryContext()),
-        buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint)),
-        buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext()),
-        buildSection('vision', 'Vision', buildVisionContext())
+        buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint, policy)),
+        buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext(policy)),
+        buildSection('vision', 'Vision', buildVisionContext(policy))
     ];
 
     return finalizeBreakdown(
@@ -703,12 +738,18 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         memoryBackend,
         matchedLore,
         memoryMatches,
-        previewText(hint, 240)
+        previewText(hint, 240),
+        {
+            mode: policy.mode,
+            requestedMode: policy.requestedMode,
+            targetTokens: policy.targetTokens
+        }
     );
 }
 
 export function buildGmPromptContext(playerAction: string): string {
-    const hint = buildHintText(playerAction);
+    const policy = getPromptBudgetPolicy();
+    const hint = buildHintText(playerAction, policy);
     const ws = getWorkspacePath();
     const chunks: string[] = [buildGameRulesPromptContext()];
     const directorCtx = buildScenarioDirectorPromptContext();
@@ -717,15 +758,18 @@ export function buildGmPromptContext(playerAction: string): string {
     }
     const summary = loadStorySummary();
     if (summary) {
-        chunks.push(`[Story Synopsis]\n${summary}`);
+        chunks.push(`[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}`);
     }
     if (ws) {
-        const sagaCtx = buildSagaPromptContext(ws, 2);
+        const sagaCtx = clampTextForPrompt(
+            buildSagaPromptContext(ws, policy.sagaChapters),
+            policy.sagaChars
+        );
         if (sagaCtx) {
             chunks.push(sagaCtx);
         }
     }
-    const partyCtx = buildPartyPromptContext();
+    const partyCtx = buildPartyPromptContext(policy);
     if (partyCtx) {
         chunks.push(partyCtx);
     }
@@ -734,16 +778,16 @@ export function buildGmPromptContext(playerAction: string): string {
         chunks.push(partyDirectorCtx);
     }
     if (ws) {
-        const memoryCtx = buildMemoryContextForPrompt(ws, hint);
+        const memoryCtx = buildMemoryContextForPrompt(ws, hint, policy);
         if (memoryCtx) {
             chunks.push(memoryCtx);
         }
     }
-    const worldCtx = buildWorldForgePromptContext();
+    const worldCtx = buildWorldForgePromptContext(policy);
     if (worldCtx) {
         chunks.push(worldCtx);
     }
-    const worldStateCtx = buildWorldStatePromptContext();
+    const worldStateCtx = buildWorldStatePromptContext(policy);
     if (worldStateCtx) {
         chunks.push(worldStateCtx);
     }
@@ -751,15 +795,15 @@ export function buildGmPromptContext(playerAction: string): string {
     if (worldChangeSummaryCtx) {
         chunks.push(worldChangeSummaryCtx);
     }
-    const loreCtx = buildLorebookPromptContext(hint);
+    const loreCtx = buildLorebookPromptContext(hint, policy);
     if (loreCtx) {
         chunks.push(loreCtx);
     }
-    const npcCtx = buildNpcRegistryPromptContext();
+    const npcCtx = buildNpcRegistryPromptContext(policy);
     if (npcCtx) {
         chunks.push(npcCtx);
     }
-    const visionCtx = buildVisionContext();
+    const visionCtx = buildVisionContext(policy);
     if (visionCtx) {
         chunks.push(visionCtx);
     }
@@ -777,7 +821,7 @@ export function postPromptContextToWebview(playerAction: string): void {
     });
 }
 
-function buildVisionContext(): string {
+function buildVisionContext(policy: PromptBudgetPolicy): string {
     const state = readGameStateForPrompt();
     if (!state || !state.latestImage) {
         return '';
@@ -786,12 +830,12 @@ function buildVisionContext(): string {
     // Prefer visual_memory.json entry (has locationId + richer metadata).
     const memEntry = getVisualMemoryEntry(state.latestImage as string);
     if (memEntry) {
-        const snippet = buildVisualContextSnippet(memEntry);
+        const snippet = clampTextForPrompt(buildVisualContextSnippet(memEntry), policy.visionChars);
         return `[Visual Context (Current Scene Image)]\n${snippet}\nPlease ensure your next narration aligns with these visual elements (e.g., characters present, background details, mood, colors, and lighting).`;
     }
 
     // Fallback: plain latestImageDescription from game_state.json.
-    const safeDesc = sanitizeVlmDescription(state.latestImageDescription);
+    const safeDesc = clampTextForPrompt(sanitizeVlmDescription(state.latestImageDescription), policy.visionChars);
     if (safeDesc) {
         return `[Visual Context (Current Scene Image)]
 The game has generated a visual representation of the current situation. Here is the description of what is depicted in the image:

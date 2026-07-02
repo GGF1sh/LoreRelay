@@ -22,12 +22,19 @@ export interface PromptMemoryMatch {
     preview: string;
 }
 
+export interface PromptBudgetInfo {
+    mode: string;
+    requestedMode: string;
+    targetTokens: number;
+}
+
 export interface PromptContextBreakdown {
     sections: PromptContextSection[];
     memoryBackend: string;
     matchedLore: PromptLoreMatch[];
     memoryMatches: PromptMemoryMatch[];
     hintPreview: string;
+    budget?: PromptBudgetInfo;
     totalChars: number;
     totalTokensEstimate: number;
 }
@@ -64,7 +71,8 @@ export function finalizeBreakdown(
     memoryBackend: string,
     matchedLore: PromptLoreMatch[],
     memoryMatches: PromptMemoryMatch[],
-    hintPreview: string
+    hintPreview: string,
+    budget?: PromptBudgetInfo
 ): PromptContextBreakdown {
     const kept = sections.filter((s): s is PromptContextSection => Boolean(s));
     const totalChars = kept.reduce((sum, s) => sum + s.charCount, 0);
@@ -74,6 +82,7 @@ export function finalizeBreakdown(
         matchedLore,
         memoryMatches,
         hintPreview,
+        budget,
         totalChars,
         totalTokensEstimate: estimateTokens(kept.map((s) => s.text).join('\n'))
     };

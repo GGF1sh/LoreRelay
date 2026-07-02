@@ -173,6 +173,7 @@
   "webview.inspector.failure": "Failure",
   "webview.inspector.promptContext": "Prompt context (last GM call)",
   "webview.inspector.promptSummary": "Memory backend: {backend} · ~{tokens} tokens · {chars} chars injected",
+  "webview.inspector.promptBudget": "Budget: {mode} / ~{tokens} tokens",
   "webview.inspector.noPromptSections": "No context sections injected",
   "webview.inspector.memoryMatches": "Memory matches",
   "webview.inspector.noMemory": "No memory chunks matched",

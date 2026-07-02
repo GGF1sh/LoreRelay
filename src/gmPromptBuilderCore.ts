@@ -8,6 +8,158 @@ export const MAX_HINT_TEXT_CHARS = 6000;
 /** Max world-change lines injected after a simulation step. */
 export const MAX_WORLD_CHANGE_SUMMARY_LINES = 4;
 
+export type PromptBudgetMode = 'auto' | 'compact' | 'balanced' | 'expanded';
+export type ResolvedPromptBudgetMode = 'compact' | 'balanced' | 'expanded';
+export type PromptBudgetContextTier = 'small' | 'large';
+
+export interface PromptBudgetPolicy {
+    mode: ResolvedPromptBudgetMode;
+    requestedMode: PromptBudgetMode;
+    targetTokens: number;
+    hintChars: number;
+    summaryChars: number;
+    sagaChapters: number;
+    sagaChars: number;
+    memoryMatches: number;
+    memoryChars: number;
+    loreMatches: number;
+    loreChars: number;
+    partyFieldChars: number;
+    partyExampleChars: number;
+    dynamicProfileChars: number;
+    worldFactionCount: number;
+    worldLoreCount: number;
+    worldStateFactionCount: number;
+    worldEventCount: number;
+    worldChangeCount: number;
+    npcCountWithLocation: number;
+    npcCountWithoutLocation: number;
+    npcMemoryChars: number;
+    npcHintChars: number;
+    visionChars: number;
+}
+
+const PROMPT_BUDGET_PRESETS: Record<ResolvedPromptBudgetMode, Omit<PromptBudgetPolicy, 'mode' | 'requestedMode'>> = {
+    compact: {
+        targetTokens: 3500,
+        hintChars: 3000,
+        summaryChars: 1200,
+        sagaChapters: 1,
+        sagaChars: 1600,
+        memoryMatches: 2,
+        memoryChars: 900,
+        loreMatches: 3,
+        loreChars: 900,
+        partyFieldChars: 800,
+        partyExampleChars: 900,
+        dynamicProfileChars: 900,
+        worldFactionCount: 3,
+        worldLoreCount: 1,
+        worldStateFactionCount: 4,
+        worldEventCount: 2,
+        worldChangeCount: 2,
+        npcCountWithLocation: 3,
+        npcCountWithoutLocation: 3,
+        npcMemoryChars: 80,
+        npcHintChars: 220,
+        visionChars: 800
+    },
+    balanced: {
+        targetTokens: 7000,
+        hintChars: 6000,
+        summaryChars: 2500,
+        sagaChapters: 2,
+        sagaChars: 3200,
+        memoryMatches: 3,
+        memoryChars: 1600,
+        loreMatches: 5,
+        loreChars: 1600,
+        partyFieldChars: 1400,
+        partyExampleChars: 1600,
+        dynamicProfileChars: 1600,
+        worldFactionCount: 4,
+        worldLoreCount: 2,
+        worldStateFactionCount: 6,
+        worldEventCount: 3,
+        worldChangeCount: 3,
+        npcCountWithLocation: 3,
+        npcCountWithoutLocation: 4,
+        npcMemoryChars: 100,
+        npcHintChars: 320,
+        visionChars: 1200
+    },
+    expanded: {
+        targetTokens: 12000,
+        hintChars: 9000,
+        summaryChars: 5000,
+        sagaChapters: 3,
+        sagaChars: 6000,
+        memoryMatches: 5,
+        memoryChars: 2500,
+        loreMatches: 8,
+        loreChars: 2500,
+        partyFieldChars: 2400,
+        partyExampleChars: 3000,
+        dynamicProfileChars: 3000,
+        worldFactionCount: 8,
+        worldLoreCount: 4,
+        worldStateFactionCount: 10,
+        worldEventCount: 5,
+        worldChangeCount: 4,
+        npcCountWithLocation: 4,
+        npcCountWithoutLocation: 6,
+        npcMemoryChars: 140,
+        npcHintChars: 480,
+        visionChars: 2200
+    }
+};
+
+export function normalizePromptBudgetMode(value: unknown): PromptBudgetMode {
+    return value === 'compact' || value === 'balanced' || value === 'expanded' || value === 'auto'
+        ? value
+        : 'auto';
+}
+
+export function resolvePromptBudgetPolicy(
+    requestedMode: unknown,
+    contextTier: PromptBudgetContextTier,
+    targetTokensOverride = 0
+): PromptBudgetPolicy {
+    const normalized = normalizePromptBudgetMode(requestedMode);
+    const resolvedMode: ResolvedPromptBudgetMode =
+        normalized === 'auto'
+            ? contextTier === 'large' ? 'balanced' : 'compact'
+            : normalized;
+    const preset = PROMPT_BUDGET_PRESETS[resolvedMode];
+    const targetTokens = Number.isFinite(targetTokensOverride) && targetTokensOverride > 0
+        ? Math.max(1000, Math.min(100000, Math.floor(targetTokensOverride)))
+        : preset.targetTokens;
+    return {
+        ...preset,
+        mode: resolvedMode,
+        requestedMode: normalized,
+        targetTokens
+    };
+}
+
+export function clampTextForPrompt(value: unknown, maxChars: number): string {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        return '';
+    }
+    const limit = Math.max(0, Math.floor(maxChars));
+    if (limit === 0) {
+        return '';
+    }
+    if (text.length <= limit) {
+        return text;
+    }
+    if (limit <= 3) {
+        return text.slice(0, limit);
+    }
+    return `${text.slice(0, limit - 3)}...`;
+}
+
 /**
  * Build hint text from recent entry contents + current player action.
  * Truncates from the start of history when over budget; player action is preserved.
@@ -32,7 +184,7 @@ export function buildHintTextFromContents(
     }
     let recent = recentJoined;
     if (recent.length > budget) {
-        recent = `…${recent.slice(-(budget - 1))}`;
+        recent = budget <= 3 ? '.'.repeat(budget) : `...${recent.slice(-(budget - 3))}`;
     }
     return `${recent}\n${actionPart}`;
 }

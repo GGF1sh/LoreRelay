@@ -74,6 +74,8 @@
   "config.textAdventure.archive.thresholdSmallContext.description": "History turn count to suggest archive for Ollama / KoboldCPP / small OpenRouter models.",
   "config.textAdventure.archive.thresholdLargeContext.description": "History turn count to suggest archive for Grok / Gemini-class large-context models.",
   "config.textAdventure.archive.remindEvery.description": "After the threshold, remind every N additional turns.",
+  "config.textAdventure.promptBudget.mode.description": "Controls how much Lorebook, Memory, Saga, Party, NPC, and Vision context is injected into each GM prompt.",
+  "config.textAdventure.promptBudget.maxTokens.description": "Approximate target token budget for GM prompt context. 0 uses the selected mode default.",
   "config.textAdventure.worldForge.defaultRegionCount.description": "Default number of regions when generating a new World Forge.",
   "config.textAdventure.worldForge.defaultFactionCount.description": "Default number of factions when generating a new World Forge.",
   "config.textAdventure.worldForge.defaultNpcCount.description": "Default number of initial NPCs when generating a new World Forge.",

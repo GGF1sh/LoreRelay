@@ -182,6 +182,7 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 - `textAdventure.locale` — UI / エラー / GM プロンプトの言語（`ja` / `en` / `zh-CN` / `zh-TW`）。Webview ヘッダーの 🌐 からも変更可
 - `textAdventure.gmBridge.provider` — `grok` / `vscode-lm` / `ollama` / `koboldcpp` / `clipboard` / `command` / `openrouter`（詳細は `GM_BRIDGE_PRESETS.md`）
 - `textAdventure.grokBridge.*` — Grok Build 自動送信の有効化、CLIパス、フォールバック設定
+- `textAdventure.promptBudget.*` — GM プロンプトに注入する Lorebook / Memory / Saga / Party / Vision 文脈の量を `auto` / `compact` / `balanced` / `expanded` で調整
 - `textAdventure.imageGen.*` — ComfyUI / Stability Matrix の URL、checkpoint、workflow、生成サイズ
 - `textAdventure.imageGen.controlNet` — Cartography 用 SDXL Canny モデル名（任意）
 - `textAdventure.modelScan.roots` — Stability Matrix / ComfyUI / モデル置き場をスキャンして `.safetensors` / `.gguf` 等を一覧化するフォルダ

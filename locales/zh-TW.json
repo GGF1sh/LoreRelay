@@ -182,6 +182,7 @@
   "webview.inspector.failure": "失敗",
   "webview.inspector.promptContext": "提示詞上下文（最近一次 GM 呼叫）",
   "webview.inspector.promptSummary": "Memory backend: {backend} · 約 {tokens} tokens · 注入 {chars} 字元",
+  "webview.inspector.promptBudget": "Budget: {mode} / ~{tokens} tokens",
   "webview.inspector.noPromptSections": "無注入的上下文段落",
   "webview.inspector.memoryMatches": "Memory 匹配",
   "webview.inspector.noMemory": "無匹配的記憶區塊",

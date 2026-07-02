@@ -9,11 +9,21 @@
 
 ## [Unreleased]
 
+## [1.14.3] - 2026-07-02
+
+### Added
+
+- **Core カバレッジ（Phase 2）** — `c8` で `out/*Core.js` を計測。`npm run test:coverage`、`.c8rc.json` しきい値（lines/statements 55% / functions 50% / branches 60%）。CI で coverage 実行 + `lcov.info` artifact アップロード。
+
+### Changed
+
+- **validateGameState 数値範囲強化** — `world.regions.*.dangerLevel` は `Number.isFinite` + 0–10。`world.worldTurnAtLastSync` は有限・非負のみ許可。`test_validate_game_state.js` に回帰テスト追加。
+
+## [1.14.2] - 2026-07-02
+
 ### Changed
 
 - **テストランナー統合（Phase 1）** — `scripts/run_all_tests.js` で validate / unit / smoke をマニフェスト駆動実行。`npm test` / `test:unit` / `test:smoke` / `test:validate` に分割。`TESTING.md` 追加。README に CI バッジ。
-
-## [1.14.2] - 2026-07-02
 
 ### Added
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Lightweight validation for CI-less projects.
+ * Lightweight validation for CI and local dev.
  * - package.json version matches semver
  * - game_state_schema.json parses
  * - GameState.ts exists

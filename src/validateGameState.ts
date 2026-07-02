@@ -387,15 +387,19 @@ export function validateGameState(obj: unknown): string[] {
                         if (region.dangerLevel !== undefined) {
                             if (typeof region.dangerLevel !== 'number') {
                                 errors.push(`world.regions.${regionId}.dangerLevel must be a number`);
-                            } else if (Number.isNaN(region.dangerLevel) || region.dangerLevel < 0 || region.dangerLevel > 10) {
+                            } else if (!Number.isFinite(region.dangerLevel) || region.dangerLevel < 0 || region.dangerLevel > 10) {
                                 errors.push(`world.regions.${regionId}.dangerLevel must be between 0 and 10`);
                             }
                         }
                     }
                 }
             }
-            if (w.worldTurnAtLastSync !== undefined && typeof w.worldTurnAtLastSync !== 'number') {
-                errors.push('world.worldTurnAtLastSync must be a number');
+            if (w.worldTurnAtLastSync !== undefined) {
+                if (typeof w.worldTurnAtLastSync !== 'number') {
+                    errors.push('world.worldTurnAtLastSync must be a number');
+                } else if (!Number.isFinite(w.worldTurnAtLastSync) || w.worldTurnAtLastSync < 0) {
+                    errors.push('world.worldTurnAtLastSync must be a finite non-negative number');
+                }
             }
             if (w.lastGeneratedImage !== undefined && typeof w.lastGeneratedImage !== 'string') {
                 errors.push('world.lastGeneratedImage must be a string');

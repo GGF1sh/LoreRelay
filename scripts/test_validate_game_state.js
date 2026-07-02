@@ -129,6 +129,77 @@ expectErrors(
     'hiddenDice rejects null elements'
 );
 
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { regions: { deep_wastes: { dangerLevel: 11 } } }
+    },
+    ['dangerLevel must be between 0 and 10'],
+    'world.regions dangerLevel above max'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { regions: { deep_wastes: { dangerLevel: -1 } } }
+    },
+    ['dangerLevel must be between 0 and 10'],
+    'world.regions dangerLevel below min'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { regions: { deep_wastes: { dangerLevel: Infinity } } }
+    },
+    ['dangerLevel must be between 0 and 10'],
+    'world.regions dangerLevel rejects Infinity'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { regions: { deep_wastes: { dangerLevel: 'high' } } }
+    },
+    ['dangerLevel must be a number'],
+    'world.regions dangerLevel rejects string'
+);
+
+expectValid(
+    {
+        ...MINIMAL,
+        world: { regions: { deep_wastes: { dangerLevel: 7.5 } } }
+    },
+    'world.regions dangerLevel allows fractional values'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { worldTurnAtLastSync: NaN }
+    },
+    ['worldTurnAtLastSync must be a finite non-negative number'],
+    'world.worldTurnAtLastSync rejects NaN'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { worldTurnAtLastSync: Infinity }
+    },
+    ['worldTurnAtLastSync must be a finite non-negative number'],
+    'world.worldTurnAtLastSync rejects Infinity'
+);
+
+expectErrors(
+    {
+        ...MINIMAL,
+        world: { worldTurnAtLastSync: -3 }
+    },
+    ['worldTurnAtLastSync must be a finite non-negative number'],
+    'world.worldTurnAtLastSync rejects negative'
+);
+
 if (failed > 0) {
     process.exit(1);
 }

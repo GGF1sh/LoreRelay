@@ -10,6 +10,7 @@ npm test           # full suite
 npm run test:unit  # fast core logic tests
 npm run test:smoke # integration / layout / remote-play checks
 npm run test:validate  # schema, i18n, UTF-8, workflow contracts
+npm run test:coverage  # unit suite + c8 coverage on out/*Core.js
 ```
 
 List all scripts and categories:
@@ -28,6 +29,17 @@ node scripts/run_all_tests.js --list
 
 `validate.js` also runs nested suites inline: `test_turn_result_pipeline.js`, `test_state_patch.js`, `test_lorebook.js`, `test_lorebook_python.py`.
 
+## Coverage (Phase 2)
+
+Configuration: [`.c8rc.json`](.c8rc.json)
+
+- **Scope:** compiled `out/*Core.js` only (pure logic modules)
+- **Command:** `npm run test:coverage` (runs `test:unit` under c8)
+- **CI gate:** aggregate thresholds — lines/statements ≥55%, functions ≥50%, branches ≥60%
+- **Artifact:** `coverage/lcov.info` uploaded on each CI run (download from Actions → Artifacts)
+
+Current baseline (unit suite): ~91% lines on Core modules. Per-file gaps (e.g. `scenarioPackCore`) are tracked in the text report; raise thresholds gradually as tests are added.
+
 ## CI
 
 Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
@@ -35,6 +47,8 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 1. `npm ci`
 2. `npm run compile`
 3. `npm test` (full manifest)
+4. `npm run test:coverage` (Core coverage + threshold check)
+5. Upload `coverage/lcov.info`
 
 ## Writing new tests
 
@@ -43,8 +57,6 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 3. Core modules: keep logic in `src/*Core.ts`, test via `require('../out/...')` after compile.
 4. VSCode-dependent code: use the `vscode` stub pattern in existing tests (see `test_state_patch.js`).
 
-## Phase 2 (planned)
+## validateGameState hardening
 
-- `c8` coverage on `*Core.ts` modules
-- Coverage artifact upload in CI
-- Stricter `validateGameState` numeric range tests
+`scripts/test_validate_game_state.js` covers numeric ranges for `world.regions.*.dangerLevel` (0–10, finite) and `world.worldTurnAtLastSync` (finite, ≥0). Extend this file when adding new `game_state.json` numeric fields.

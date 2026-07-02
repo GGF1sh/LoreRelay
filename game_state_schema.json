@@ -242,6 +242,11 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "discoveredRegionIds": {
+          "type": "array",
+          "description": "Region IDs explored by the player (extension-derived; rumored neighbors are computed at runtime).",
+          "items": { "type": "string" }
+        },
         "knownFactionIds": {
           "type": "array",
           "items": { "type": "string" }

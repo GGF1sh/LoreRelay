@@ -72,6 +72,8 @@ export interface GameOverState {
 export interface GameStateWorld {
     currentLocationId?: string;
     visitedLocationIds?: string[];
+    /** Region IDs the player has explored (extension-derived from currentLocationId visits). */
+    discoveredRegionIds?: string[];
     knownFactionIds?: string[];
     regions?: Record<string, {
         controllingFaction?: string | null;

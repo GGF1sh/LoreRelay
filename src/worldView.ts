@@ -16,12 +16,31 @@ import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
-import { getWorkspacePath } from './workspacePaths';
+import { getGameStatePath, getWorkspacePath } from './workspacePaths';
+import type { GameStateWorld } from './types/GameState';
+import {
+    buildFogPayload,
+    buildFogRegionLayout,
+    maskCartographyPinsForFog,
+    maskCartographyRegionLabelsForFog,
+    normalizeFogWorldState,
+} from './fogOfWarCore';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
 export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | undefined }): void {
     getPanelRef = deps.getPanel;
+}
+
+function loadWorldBlockFromDisk(): GameStateWorld | undefined {
+    const statePath = getGameStatePath();
+    if (!statePath || !fs.existsSync(statePath)) { return undefined; }
+    try {
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as { world?: GameStateWorld };
+        return raw.world;
+    } catch {
+        return undefined;
+    }
 }
 
 export interface WorldViewFaction {
@@ -77,7 +96,21 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldState?.worldTurn ?? 0
     );
     const highlightRegionIds = extractHighlightRegionIds(activeChanges);
-    const worldMap = generateWorldMap(forge, currentLocationId, regionStates, factionStates, highlightRegionIds);
+
+    let worldBlock = loadWorldBlockFromDisk();
+    worldBlock = normalizeFogWorldState(worldBlock, forge, currentLocationId) ?? worldBlock;
+    const fog = buildFogPayload(worldBlock, forge);
+    const fogDiscovered = new Set(fog.discoveredRegionIds);
+    const fogRumored = new Set(fog.rumoredRegionIds);
+
+    const worldMap = generateWorldMap(
+        forge,
+        currentLocationId,
+        regionStates,
+        factionStates,
+        highlightRegionIds,
+        { discovered: fogDiscovered, rumored: fogRumored }
+    );
     const factions = forge.factions.map(serializeFaction);
 
     // Location image history — up to 4 most-recent analyzed entries for current location
@@ -128,8 +161,16 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const cartographyImage = worldMapImagePath && fs.existsSync(worldMapImagePath)
         ? safeImageUri(worldMapImagePath) ?? null
         : null;
-    const cartographyPins = buildCartographyPinPositions(forge);
-    const cartographyRegionLabels = buildCartographyRegionLabels(forge);
+    const cartographyPins = maskCartographyPinsForFog(
+        buildCartographyPinPositions(forge),
+        forge,
+        fog
+    );
+    const cartographyRegionLabels = maskCartographyRegionLabelsForFog(
+        buildCartographyRegionLabels(forge),
+        fog
+    );
+    const fogRegionLayout = buildFogRegionLayout(forge);
     // Derived display data only — never persisted, never sent to the GM.
     const tileOvermap = buildTileOvermap(forge);
     const overmapThemeKey = resolveOvermapThemeKey(forge.meta.theme);
@@ -145,6 +186,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         cartographyPins,
         cartographyRegionLabels,
         cartographyHasImage: Boolean(cartographyImage),
+        fog,
+        fogRegionLayout,
         tileOvermap,
         factions,
         factionStates: factionStates ?? null,

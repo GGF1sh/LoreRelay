@@ -3,7 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { StatePatchOp, TurnResult } from './types/TurnResult';
-import type { GameEntry } from './types/GameState';
+import type { GameEntry, GameStateWorld } from './types/GameState';
+import { isWorldForgeEnabled, loadWorldForge } from './worldForge';
+import { applyFogOnLocationVisit, normalizeFogWorldState } from './fogOfWarCore';
 import { isValidEntryId } from './entryId';
 import { isValidEventId } from './worldEventLogCore';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
@@ -362,8 +364,28 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             : { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [] as unknown[] };
         const beforeHash = hashGameState(state);
 
+        const prevWorld = state.world as GameStateWorld | undefined;
+        const prevLocationId = typeof prevWorld?.currentLocationId === 'string'
+            ? prevWorld.currentLocationId
+            : undefined;
+
         if (turnResult.statePatch && turnResult.statePatch.length > 0) {
             state = applyStatePatch(state, turnResult.statePatch);
+        }
+
+        if (isWorldForgeEnabled()) {
+            const forge = loadWorldForge();
+            if (forge) {
+                let world = (state.world as GameStateWorld | undefined) ?? {};
+                world = normalizeFogWorldState(world, forge) ?? world;
+                const nextLocationId = typeof world.currentLocationId === 'string'
+                    ? world.currentLocationId
+                    : undefined;
+                if (nextLocationId && nextLocationId !== prevLocationId) {
+                    world = applyFogOnLocationVisit(world, forge, nextLocationId);
+                }
+                state = { ...state, world };
+            }
         }
 
         const priorGmTurns = Array.isArray(state.entries)

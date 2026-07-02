@@ -48,6 +48,19 @@ for (const symbol of worldSymbols) {
 }
 console.log('ok: World map mode switch calls tile renderer');
 
+const fogSymbols = [
+    'world-fog-overlay',
+    'getRegionFogVisibility',
+    'renderFogOverlays',
+    'resolveTileRegionFog',
+    'fogRegionLayout',
+];
+for (const symbol of fogSymbols) {
+    assert(worldModule.includes(symbol) || tileModule.includes(symbol), `fog symbol missing: ${symbol}`);
+    assert(bundle.includes(symbol), `webview/script.js bundle is missing fog symbol ${symbol}`);
+}
+console.log('ok: Fog of War webview symbols are bundled');
+
 const tileSymbols = [
     'TILE_OVERMAP_ASCII_THEME',
     'TILE_OVERMAP_THEME_OVERRIDES',

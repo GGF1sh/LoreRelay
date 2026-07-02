@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.14.9] - 2026-07-02
+
+### Added
+
+- **Cartography Phase 8 — Fog of War（PR1+PR2）** — Region グラフ駆動の探索霧。`game_state.world.discoveredRegionIds` を拡張が `currentLocationId` 変化時に派生追記。`visitedLocationIds` も同タイミングで自動更新（allowlist 無改修）。`rumored` は `connectedTo` から毎回導出。World タブの羊皮紙・タイル・Mermaid 3モードに暗幕/シルエット/`classDef fog` を適用。`rumored/unknown` のロケーション名は worldView でマスク（Remote Play 対策）。`src/fogOfWarCore.ts` + `scripts/test_fog_of_war_core.js`。
+
 ## [1.14.8] - 2026-07-02
 
 ### Added

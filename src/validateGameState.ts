@@ -350,6 +350,19 @@ export function validateGameState(obj: unknown): string[] {
                     });
                 }
             }
+            if (w.discoveredRegionIds !== undefined) {
+                if (!Array.isArray(w.discoveredRegionIds)) {
+                    errors.push('world.discoveredRegionIds must be an array');
+                } else {
+                    (w.discoveredRegionIds as unknown[]).forEach((id, i) => {
+                        if (typeof id !== 'string') {
+                            errors.push(`world.discoveredRegionIds[${i}] must be a string`);
+                        } else if (!isValidEventId(id)) {
+                            errors.push(`world.discoveredRegionIds[${i}] has invalid format`);
+                        }
+                    });
+                }
+            }
             if (w.knownFactionIds !== undefined) {
                 if (!Array.isArray(w.knownFactionIds)) {
                     errors.push('world.knownFactionIds must be an array');

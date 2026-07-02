@@ -256,8 +256,66 @@ function ensureCartographyStyles() {
         #world-gen-map-btn.generating {
             opacity: 0.75;
         }
+        .world-fog-overlay {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 3;
+            transition: opacity 0.45s ease;
+        }
+        .world-fog-overlay.is-unknown {
+            background: radial-gradient(circle, rgba(8, 10, 18, 0.92) 0%, rgba(8, 10, 18, 0.78) 55%, rgba(8, 10, 18, 0.35) 100%);
+        }
+        .world-fog-overlay.is-rumored {
+            background: radial-gradient(circle, rgba(12, 16, 24, 0.55) 0%, rgba(12, 16, 24, 0.28) 60%, transparent 100%);
+        }
+        .world-map-pin.is-rumored {
+            opacity: 0.72;
+            font-size: 1.05em;
+        }
+        .world-map-pin.is-hidden-fog {
+            display: none;
+        }
+        .world-map-region-label.is-hidden-fog {
+            display: none;
+        }
+        .world-map-region-label.is-rumored {
+            opacity: 0.82;
+            font-style: italic;
+        }
     `;
     document.head.appendChild(style);
+}
+
+function getRegionFogVisibility(regionId, fog) {
+    if (!fog || !regionId) { return 'discovered'; }
+    const discovered = new Set(fog.discoveredRegionIds || []);
+    const rumored = new Set(fog.rumoredRegionIds || []);
+    if (discovered.has(regionId)) { return 'discovered'; }
+    if (rumored.has(regionId)) { return 'rumored'; }
+    return 'unknown';
+}
+
+function renderFogOverlays(container, msg) {
+    if (!container) { return; }
+    container.querySelectorAll('.world-fog-overlay').forEach((el) => el.remove());
+    const layout = Array.isArray(msg.fogRegionLayout) ? msg.fogRegionLayout : [];
+    const fog = msg.fog;
+    if (!fog || layout.length === 0) { return; }
+
+    for (const entry of layout) {
+        const visibility = getRegionFogVisibility(entry.regionId, fog);
+        if (visibility === 'discovered') { continue; }
+        const el = document.createElement('div');
+        el.className = `world-fog-overlay ${visibility === 'unknown' ? 'is-unknown' : 'is-rumored'}`;
+        const diameter = Math.max(8, (entry.radiusPct || 7) * 2);
+        el.style.left = `${entry.leftPct}%`;
+        el.style.top = `${entry.topPct}%`;
+        el.style.width = `${diameter}%`;
+        el.style.height = `${diameter}%`;
+        container.appendChild(el);
+    }
 }
 
 function setWorldMapMode(mode, options = {}) {
@@ -317,11 +375,16 @@ function renderCartographyMap(msg) {
     img.alt = msg.worldName ? `${msg.worldName} map` : 'World map';
 
     pinsEl.innerHTML = '';
+    renderFogOverlays(stage, msg);
+
     const labels = Array.isArray(msg.cartographyRegionLabels) ? msg.cartographyRegionLabels : [];
     for (const label of labels) {
         if (typeof label.leftPct !== 'number' || typeof label.topPct !== 'number') { continue; }
+        const visibility = getRegionFogVisibility(label.regionId, msg.fog);
+        if (visibility === 'unknown') { continue; }
         const el = document.createElement('span');
         el.className = 'world-map-region-label';
+        if (visibility === 'rumored') { el.classList.add('is-rumored'); }
         el.style.left = `${label.leftPct}%`;
         el.style.top = `${label.topPct}%`;
         el.textContent = label.regionName || label.regionId || '';
@@ -332,17 +395,23 @@ function renderCartographyMap(msg) {
     const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
     for (const pin of pins) {
         if (typeof pin.leftPct !== 'number' || typeof pin.topPct !== 'number') { continue; }
+        const visibility = getRegionFogVisibility(pin.regionId, msg.fog);
+        if (visibility === 'unknown') { continue; }
         const el = document.createElement('button');
         el.type = 'button';
         el.className = 'world-map-pin';
         if (pin.locationId && pin.locationId === msg.currentLocationId) {
             el.classList.add('is-current');
         }
+        if (visibility === 'rumored') {
+            el.classList.add('is-rumored');
+        }
         el.style.left = `${pin.leftPct}%`;
         el.style.top = `${pin.topPct}%`;
-        el.title = pin.locationName || pin.locationId || '';
-        el.textContent = '📍';
-        el.setAttribute('aria-label', pin.locationName || pin.locationId || 'Location');
+        const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
+        el.title = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
+        el.textContent = visibility === 'rumored' ? '?' : '📍';
+        el.setAttribute('aria-label', pinLabel || 'Location');
         pinsEl.appendChild(el);
     }
 }

@@ -1,6 +1,7 @@
 import type { WorldForge, WorldLocation } from './worldForgeCore';
 import { inferRegionBiomeFromType } from './worldForgeCore';
 import type { RegionWorldState, FactionWorldState } from './worldStateCore';
+import { getRegionFogVisibility } from './fogOfWarCore';
 
 const FACTION_TYPE_ICON: Record<string, string> = {
     hostile: '💀',
@@ -81,9 +82,16 @@ function escapeMmdLabel(text: string): string {
         .slice(0, 40);
 }
 
-function buildLocationLabel(loc: WorldLocation, forge: WorldForge, isCurrentLocation: boolean, biomeClass?: string): string {
+function buildLocationLabel(
+    loc: WorldLocation,
+    forge: WorldForge,
+    isCurrentLocation: boolean,
+    biomeClass?: string,
+    maskName?: boolean
+): string {
     const icon = LOCATION_TYPE_ICON[loc.type] ?? '📍';
-    let label = `${icon} ${escapeMmdLabel(loc.name)}`;
+    const displayName = maskName ? '???' : escapeMmdLabel(loc.name);
+    let label = `${icon} ${displayName}`;
     if (loc.factionControl) {
         const fc = forge.factions.find((f) => f.id === loc.factionControl);
         if (fc) { label += `\\n${escapeMmdLabel(fc.name)}`; }
@@ -97,13 +105,19 @@ function buildLocationLabel(loc: WorldLocation, forge: WorldForge, isCurrentLoca
     return `${id}["${label}"]${cls}`;
 }
 
+export interface WorldMapFogContext {
+    discovered: ReadonlySet<string>;
+    rumored: ReadonlySet<string>;
+}
+
 /** world_forge.json (+任意の worldState データ) から Mermaid graph TD を生成する。 */
 export function generateWorldMap(
     forge: WorldForge,
     currentLocationId?: string,
     regionStates?: Record<string, RegionWorldState>,
     factionStates?: Record<string, FactionWorldState>,
-    highlightRegionIds?: ReadonlySet<string>
+    highlightRegionIds?: ReadonlySet<string>,
+    fog?: WorldMapFogContext
 ): string {
     const lines: string[] = ['graph TD'];
 
@@ -131,26 +145,46 @@ export function generateWorldMap(
 
     for (const region of forge.geography.regions.slice(0, MAX_REGIONS)) {
         const locs = locationsByRegion.get(region.id) ?? [];
-        // ライブ危険度があれば優先して表示
-        const liveDanger = regionStates?.[region.id]?.dangerLevel;
-        const dangerVal = liveDanger ?? region.dangerLevel;
-        const dangerSuffix = dangerVal !== undefined ? ` 危険:${dangerVal}/10` : '';
-        const fireTag = highlightRegionIds?.has(region.id) ? ' 🔥' : '';
+        const fogVisibility = fog
+            ? getRegionFogVisibility(region.id, fog.discovered, fog.rumored)
+            : 'discovered';
+
         const biome = region.biome ?? inferRegionBiomeFromType(region.type);
         const biomeIcon = BIOME_ICON[biome] ?? '📍';
-        const biomeClass = `biome_${biome}`;
-        lines.push(`  subgraph ${escapeId(region.id)}["${biomeIcon} ${escapeMmdLabel(region.name)}${dangerSuffix}${fireTag}"]`);
+        const biomeClass = fogVisibility === 'discovered' ? `biome_${biome}` : `fog_${fogVisibility}`;
+
+        let regionLabel: string;
+        if (fogVisibility === 'unknown') {
+            regionLabel = `${biomeIcon} ???`;
+        } else if (fogVisibility === 'rumored') {
+            regionLabel = `${biomeIcon} ${escapeMmdLabel(region.name)}`;
+        } else {
+            const liveDanger = regionStates?.[region.id]?.dangerLevel;
+            const dangerVal = liveDanger ?? region.dangerLevel;
+            const dangerSuffix = dangerVal !== undefined ? ` 危険:${dangerVal}/10` : '';
+            const fireTag = highlightRegionIds?.has(region.id) ? ' 🔥' : '';
+            regionLabel = `${biomeIcon} ${escapeMmdLabel(region.name)}${dangerSuffix}${fireTag}`;
+        }
+
+        lines.push(`  subgraph ${escapeId(region.id)}["${regionLabel}"]`);
         if (locs.length === 0) {
             lines.push(`    ${escapeId(region.id)}_empty[" "]:::phantom`);
         }
         for (const loc of locs) {
             const isCurrent = loc.id === currentLocationId;
-            lines.push(`    ${buildLocationLabel(loc, forge, isCurrent, biomeClass)}`);
+            const maskName = fogVisibility !== 'discovered';
+            lines.push(`    ${buildLocationLabel(loc, forge, isCurrent, biomeClass, maskName)}`);
         }
         lines.push('  end');
-        const subgraphStyle = BIOME_SUBGRAPH_STYLE[biome];
-        if (subgraphStyle) {
-            subgraphStyleLines.push(`  style ${escapeId(region.id)} ${subgraphStyle}`);
+        if (fogVisibility === 'discovered') {
+            const subgraphStyle = BIOME_SUBGRAPH_STYLE[biome];
+            if (subgraphStyle) {
+                subgraphStyleLines.push(`  style ${escapeId(region.id)} ${subgraphStyle}`);
+            }
+        } else if (fogVisibility === 'rumored') {
+            subgraphStyleLines.push(`  style ${escapeId(region.id)} fill:#1a1a22,stroke:#4a4a5a,stroke-dasharray:4`);
+        } else {
+            subgraphStyleLines.push(`  style ${escapeId(region.id)} fill:#101010,stroke:#2a2a2a,stroke-dasharray:6`);
         }
     }
 
@@ -161,12 +195,18 @@ export function generateWorldMap(
 
     const renderedRegionIds = new Set(forge.geography.regions.slice(0, MAX_REGIONS).map((r) => r.id));
     for (const region of forge.geography.regions.slice(0, MAX_REGIONS)) {
-        if (region.connectedTo) {
-            for (const targetId of region.connectedTo) {
-                if (renderedRegionIds.has(targetId)) {
-                    lines.push(`  ${escapeId(region.id)} --> ${escapeId(targetId)}`);
-                }
-            }
+        if (!region.connectedTo) { continue; }
+        const srcFog = fog
+            ? getRegionFogVisibility(region.id, fog.discovered, fog.rumored)
+            : 'discovered';
+        for (const targetId of region.connectedTo) {
+            if (!renderedRegionIds.has(targetId)) { continue; }
+            const dstFog = fog
+                ? getRegionFogVisibility(targetId, fog.discovered, fog.rumored)
+                : 'discovered';
+            if (srcFog === 'unknown' || dstFog === 'unknown') { continue; }
+            const edgeStyle = (srcFog === 'rumored' || dstFog === 'rumored') ? '-.->' : '-->';
+            lines.push(`  ${escapeId(region.id)} ${edgeStyle} ${escapeId(targetId)}`);
         }
     }
 
@@ -184,6 +224,10 @@ export function generateWorldMap(
         for (const loc of forge.geography.locations) {
             if (loc.factionControl !== faction.id || !renderedLocationIds.has(loc.id)) {
                 continue;
+            }
+            if (loc.regionId && fog) {
+                const locFog = getRegionFogVisibility(loc.regionId, fog.discovered, fog.rumored);
+                if (locFog !== 'discovered') { continue; }
             }
             if (factionLocEdges >= MAX_FACTION_LOC_EDGES) {
                 break;
@@ -211,6 +255,8 @@ export function generateWorldMap(
     }
     lines.push('  classDef faction fill:#2d2d2d,stroke:#888,color:#ddd,font-size:11px');
     lines.push('  classDef phantom fill:none,stroke:none');
+    lines.push('  classDef fog_rumored fill:#2a2a32,stroke:#5a5a6a,color:#a0a0b0,stroke-dasharray:3');
+    lines.push('  classDef fog_unknown fill:#1a1a1a,stroke:#333,color:#666,stroke-dasharray:5');
 
     return lines.join('\n');
 }

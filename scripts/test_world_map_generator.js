@@ -359,6 +359,36 @@ const FORGE = {
 }
 
 // ---------------------------------------------------------------------------
+// Fog of War (optional 6th parameter — backward compatible)
+// ---------------------------------------------------------------------------
+
+{
+    const fog = {
+        discovered: new Set(['upper_catacombs']),
+        rumored: new Set(['deep_vault']),
+    };
+    const mmd = generateWorldMap(FORGE, undefined, undefined, undefined, undefined, fog);
+    if (!mmd.includes('classDef fog_rumored') || !mmd.includes('classDef fog_unknown')) {
+        fail('fog classDefs should be emitted');
+    } else { ok('fog classDefs present'); }
+
+    if (!mmd.includes('???')) {
+        fail('unknown/rumored location labels should be masked');
+    } else { ok('fog masks location names in rumored region'); }
+
+    if (!mmd.includes('upper_catacombs -.-> deep_vault') && !mmd.includes('upper_catacombs-.->deep_vault')) {
+        fail('rumored edge should use dotted style');
+    } else { ok('fog dotted edge to rumored region'); }
+}
+
+{
+    const mmdNoFog = generateWorldMap(FORGE);
+    if (!mmdNoFog.includes('Entrance Hall') || mmdNoFog.includes('???')) {
+        fail('generateWorldMap without fog should show real location names');
+    } else { ok('generateWorldMap backward compatible without fog'); }
+}
+
+// ---------------------------------------------------------------------------
 // Result
 // ---------------------------------------------------------------------------
 

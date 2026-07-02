@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-07-02
+
+### Added
+
+- **LW3 NPC間関係（北極星: ガンパレ共生システムの第一歩）** — 名ありNPC(≤10)同士が世界データ由来で関係を変える。`src/npcRelationshipCore.ts`（決定論・自己完結）: **同席** +3/tick・**共通の危機**（同 reason で同tickに移動）+8・**派閥動態**（紛争/critical時、異派閥 -10 / 同派閥 +4）。affinity ±100 clamp、ラベル閾値 ally 70 / friend 30 / rival -30 / enemy -70。
+- **ホスト配線** — `game_rules.enableNpcRelationships`（既定 OFF、Registry+Agency 前提）; `world_state.npcRelationships`（ペアキー検証つき永続化）; `tickLivingWorldAfterSim` が tick 後に `evolveRelationships`; GM プロンプト `[Living World — Bonds]`（顕著な関係 + 直近変化を伝聞素材として注入）; `turn_result.relationshipOps`（GM の例外的確定、registry検証・clamp）。
+- **Tests** — `test_npc_relationship_core.js`（26件・単独コンパイル型）、`test_npc_relationship_host.js`（13件: 永続化round-trip / gate / tick進化 / Bonds注入 / OFF時無干渉）。78/78。
+
+### Design
+
+- 黄金律維持: affinity は Core 決定論、GM は変化を**伝聞として narrate**（NPC同士の会話自動生成はしない）。`docs/LIVING_WORLD_LW3_RELATIONSHIPS.md` 参照。
+
 ## [1.28.0] - 2026-07-02
 
 ### Added

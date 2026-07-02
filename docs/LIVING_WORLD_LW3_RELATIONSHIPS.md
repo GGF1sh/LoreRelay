@@ -14,8 +14,19 @@
 | `src/npcRelationshipCore.ts` | ✅ **完全自己完結の純関数 Core**（vscode/他モジュール非依存）。プロジェクト全体で `npm run compile` 緑。 |
 | `scripts/test_npc_relationship_core.js` | ✅ 単独実行テスト 26 アサーション全通過（`node scripts/test_npc_relationship_core.js`）。この1ファイルだけを temp に自前コンパイルするので**リポジトリ全体のビルド状態に依存しない**。 |
 
-**⚠️ 未実施（並行編集中の共有ファイルを避けたため — 後続タスク）:**
-- `scripts/run_all_tests.js` の MANIFEST に `{ category: 'unit', file: 'test_npc_relationship_core.js' }` を追加（`npm test` に載せる）。※このファイルは 2026-07-02 20:20 時点で他AIが編集中だったため触っていない。冷えたら1行追加するだけ。
+**✅ ホスト配線 完了（v1.29.0, 2026-07-02 深夜, Opus 4.8）:**
+- `game_rules.enableNpcRelationships`（既定 OFF, `npcRelationshipsEnabled()` gate = Registry+Agency 前提）
+- `world_state.npcRelationships` 永続化（`parseWorldState` にペアキー検証 + ±100 clamp + 上限64件）
+- `tickLivingWorldAfterSim` → `evolveRelationships`（tick.npcMoves を shared_crisis 判定に使用）
+- `buildLivingWorldGmLines` → `[Living World — Bonds]`（livingWorldPromptCore は sync 対象のため文字列連結で低侵襲に）
+- `turn_result.relationshipOps` → `applyLivingWorldTurnOps` で適用（型は `types/TurnResult.ts` に追加済み）
+- テスト2本を MANIFEST 登録済み。**78/78 全緑。** 以下 §1〜2 は当時の設計指示（実装済みの記録として残す）。
+
+**残タスク（v1+ / 後続）:**
+- Game Rules パネル（webview ⚙️）にチェックボックス追加（`enableCommerceUi` と同パターン）
+- World タブに「知人同士の関係」表示（信頼連動の曖昧化は `npcWhereaboutsTrustCore` に倣う）
+- GM スキーマヒント（`RELATIONSHIP_OPS_PROMPT_LINE`）を world プロンプトに追加
+- trade-routes デモの README に「Elda と Marcus が友好になる」体験手順を追記
 
 ### Core の公開 API（そのまま呼べる）
 ```

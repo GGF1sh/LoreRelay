@@ -24,6 +24,8 @@ export interface GameRules {
     /** Default player role when commerce state is initialized. */
     playerRole?: 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
     enableNpcAgency?: boolean;
+    /** LW3: NPC間関係(同席/共通の危機/派閥対立で affinity が動く)。Registry+Agency 前提。 */
+    enableNpcRelationships?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -44,7 +46,8 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableCommerce: false,
     enableCommerceUi: false,
     playerRole: 'merchant',
-    enableNpcAgency: false
+    enableNpcAgency: false,
+    enableNpcRelationships: false
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -148,6 +151,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableNpcAgency !== undefined && typeof rules.enableNpcAgency === 'boolean') {
             sanitized.enableNpcAgency = rules.enableNpcAgency;
+        }
+        if (rules.enableNpcRelationships !== undefined && typeof rules.enableNpcRelationships === 'boolean') {
+            sanitized.enableNpcRelationships = rules.enableNpcRelationships;
         }
         if (rules.enableCommerceUi !== undefined && typeof rules.enableCommerceUi === 'boolean') {
             sanitized.enableCommerceUi = rules.enableCommerceUi;

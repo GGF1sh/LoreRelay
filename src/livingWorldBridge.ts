@@ -21,6 +21,12 @@ import {
 } from './livingWorldPromptCore';
 import { computeSinceLastVisitDelta } from './worldSimCommerceCore';
 import type { WorldChangeEvent } from './worldEventLogCore';
+import type { NpcRelationshipMap, NpcRelationshipChange } from './npcRelationshipCore';
+import {
+    evolveRelationships,
+    listNotableRelationships,
+    buildRelationshipPromptLines,
+} from './npcRelationshipCore';
 
 export interface LivingWorldWorldStateExt {
     markets?: MarketStateMap;
@@ -29,6 +35,8 @@ export interface LivingWorldWorldStateExt {
     lastVisitTurnByLocation?: Record<string, number>;
     /** Market stock snapshot when player last left each location. */
     marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
+    /** LW3: NPC間関係 — ペアキー "idA|idB" → affinity [-100,100]. */
+    npcRelationships?: NpcRelationshipMap;
 }
 
 function cloneLocationMarketSnapshot(
@@ -46,6 +54,13 @@ function cloneLocationMarketSnapshot(
 
 export function livingWorldEnabled(rules: GameRules): boolean {
     return rules.enableCommerce === true || rules.enableNpcAgency === true;
+}
+
+/** LW3: 関係進化は Registry + Agency の上に成り立つ(位置が動かないと関係も動かない)。 */
+export function npcRelationshipsEnabled(rules: GameRules): boolean {
+    return rules.enableNpcRelationships === true
+        && rules.enableNpcRegistry === true
+        && rules.enableNpcAgency === true;
 }
 
 export function resolveCommerceForge(forge: WorldForge, rawForge?: unknown): CommerceForge | undefined {
@@ -83,6 +98,9 @@ export interface LivingWorldTickOutcome {
     state: WorldState & LivingWorldWorldStateExt;
     injection?: string;
 }
+
+/** 直近 tick の関係変化(GM プロンプトの「(変化)」行用。プロセス内キャッシュで十分)。 */
+let lastRelationshipChanges: NpcRelationshipChange[] = [];
 
 /**
  * Run Tier-1/Tier-2 living world tick after emergent sim step.
@@ -122,6 +140,20 @@ export function tickLivingWorldAfterSim(
 
     ext.markets = tick.markets;
     ext.npcPositions = tick.npcPositions;
+
+    // LW3: 世界が動いた「結果」として NPC 同士の関係を進める(同席/共通の危機/派閥対立)。
+    if (npcRelationshipsEnabled(rules)) {
+        const evolved = evolveRelationships({
+            registry: registryToAgencyLike(registry),
+            positions: ext.npcPositions ?? {},
+            relationships: ext.npcRelationships ?? {},
+            worldTurn: state.worldTurn,
+            recentChanges: mapRecentChanges(state.recentChanges),
+            agencyMoves: tick.npcMoves,
+        });
+        ext.npcRelationships = evolved.relationships;
+        lastRelationshipChanges = evolved.changes;
+    }
 
     return { state: ext };
 }
@@ -205,7 +237,21 @@ export function buildLivingWorldGmLines(
         playerCommerce: rules.enableCommerce === true ? playerCommerce : undefined,
     });
 
-    return formatLivingWorldGmInjection(blocks);
+    let injection = formatLivingWorldGmInjection(blocks);
+
+    // LW3: [Living World — Bonds] — 顕著な関係と直近の変化を伝聞素材として GM に渡す。
+    // (livingWorldPromptCore は world-kit 同期対象のため、ここで低侵襲に連結する)
+    if (npcRelationshipsEnabled(rules)) {
+        const agencyRegistry = registryToAgencyLike(registry);
+        const notable = listNotableRelationships(ext.npcRelationships ?? {}, agencyRegistry);
+        const bondLines = buildRelationshipPromptLines(notable, lastRelationshipChanges, agencyRegistry);
+        if (bondLines.length > 0) {
+            const block = ['[Living World — Bonds]', ...bondLines.map((l) => `- ${l}`)].join('\n');
+            injection = injection ? `${injection}\n${block}` : block;
+        }
+    }
+
+    return injection;
 }
 
 /**

@@ -74,6 +74,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_npc_whereabouts_trust_core.js' },
     { category: 'unit', file: 'test_living_world_player_role_core.js' },
     { category: 'unit', file: 'test_since_last_visit_host.js' },
+    { category: 'unit', file: 'test_npc_relationship_core.js' },
+    { category: 'unit', file: 'test_npc_relationship_host.js' },
     { category: 'unit', file: 'test_npc_registry.js' },
     { category: 'unit', file: 'test_npc_voice_core.js' },
     { category: 'unit', file: 'test_tts_provider_core.js' },

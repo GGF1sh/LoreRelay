@@ -106,4 +106,6 @@ export interface TurnResult {
     tradeOps?: Array<{ op: 'buy' | 'sell'; marketLocationId: string; commodityId: string; qty: number }>;
     /** LW2: GM-confirmed NPC positions (Agency ON). */
     npcAgencyOps?: Array<{ npcId: string; locationId: string; arrivesTurn: number }>;
+    /** LW3: GM の例外的な関係確定 (Relationships ON)。通常は世界tickが決定論で動かす。 */
+    relationshipOps?: Array<{ a: string; b: string; delta: number; reason?: string }>;
 }

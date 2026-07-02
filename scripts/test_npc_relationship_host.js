@@ -1,0 +1,165 @@
+#!/usr/bin/env node
+'use strict';
+
+// LW3 host wiring test: worldState persistence + tick evolution + [Living World — Bonds].
+
+const path = require('path');
+const fs = require('fs');
+const root = path.join(__dirname, '..');
+
+let failed = 0;
+function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
+function ok(msg) { console.log(`OK: ${msg}`); }
+
+const paths = [
+    'out/worldStateCore.js',
+    'out/livingWorldBridge.js',
+    'out/npcRelationshipCore.js',
+];
+for (const p of paths) {
+    if (!fs.existsSync(path.join(root, p))) {
+        fail(`${p} missing — run npm run compile`);
+        process.exit(1);
+    }
+}
+
+const { parseWorldState } = require(path.join(root, 'out', 'worldStateCore.js'));
+const {
+    npcRelationshipsEnabled,
+    tickLivingWorldAfterSim,
+    buildLivingWorldGmLines,
+} = require(path.join(root, 'out', 'livingWorldBridge.js'));
+const { getAffinity, pairKey } = require(path.join(root, 'out', 'npcRelationshipCore.js'));
+
+// --- fixtures ---
+
+const RULES_ON = {
+    enableRpgMechanics: true, defaultMaxHp: 100, defaultMaxMp: 50, diceDifficulty: 'Normal',
+    enableNpcRegistry: true, enableWorldForge: true, enableEmergentSimulation: true,
+    enableNpcAgency: true, enableNpcRelationships: true, enableCommerce: false,
+};
+const RULES_OFF = { ...RULES_ON, enableNpcRelationships: false };
+
+const REGISTRY = {
+    npcs: {
+        npc_elda: { name: 'Elda', locationId: 'elda_shop', factionId: 'faction_merchants' },
+        npc_marcus: { name: 'Marcus', locationId: 'elda_shop', factionId: 'faction_smiths' },
+    },
+};
+
+const FORGE = {
+    geography: {
+        locations: [
+            { id: 'elda_shop', name: 'エルダの店', regionId: 'r_central' },
+            { id: 'south_port', name: '南港', regionId: 'r_south' },
+        ],
+        regions: [
+            { id: 'r_central', name: '中央地方' },
+            { id: 'r_south', name: '南部' },
+        ],
+    },
+    factions: [],
+};
+
+function freshState(extra) {
+    return Object.assign({
+        format: 'lorerelay-world-state/1.1',
+        worldTurn: 10,
+        factions: {},
+        regions: {},
+        globalEvents: [],
+        recentChanges: [],
+    }, extra || {});
+}
+
+// 1. parseWorldState round-trip: npcRelationships が保存・検証つきで残る
+{
+    const parsed = parseWorldState({
+        worldTurn: 5,
+        factions: {},
+        npcRelationships: {
+            'npc_elda|npc_marcus': 42,
+            'bad-key-no-sep': 10,       // 弾く
+            'a|b': 9999,                 // clamp → 100
+            'c|d': 'not-a-number',       // 弾く
+        },
+    });
+    if (!parsed || !parsed.npcRelationships) { fail('parseWorldState keeps npcRelationships'); }
+    else {
+        if (parsed.npcRelationships['npc_elda|npc_marcus'] === 42) { ok('parse keeps valid pair'); }
+        else { fail('parse keeps valid pair'); }
+        if (parsed.npcRelationships['bad-key-no-sep'] === undefined) { ok('parse drops bad key'); }
+        else { fail('parse drops bad key'); }
+        if (parsed.npcRelationships['a|b'] === 100) { ok('parse clamps to 100'); }
+        else { fail(`parse clamps (got ${parsed.npcRelationships['a|b']})`); }
+        if (parsed.npcRelationships['c|d'] === undefined) { ok('parse drops non-number'); }
+        else { fail('parse drops non-number'); }
+    }
+}
+
+// 2. gate: Registry+Agency 前提
+{
+    if (npcRelationshipsEnabled(RULES_ON) === true) { ok('gate ON when all flags'); }
+    else { fail('gate ON'); }
+    if (npcRelationshipsEnabled({ ...RULES_ON, enableNpcAgency: false }) === false) { ok('gate OFF without agency'); }
+    else { fail('gate OFF without agency'); }
+    if (npcRelationshipsEnabled(RULES_OFF) === false) { ok('gate OFF when flag false'); }
+    else { fail('gate OFF'); }
+}
+
+// 3. tick: Elda と Marcus 同席 → affinity が上がり world_state に載る
+{
+    const state = freshState();
+    const out = tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_ON, undefined);
+    const aff = getAffinity(out.state.npcRelationships || {}, 'npc_elda', 'npc_marcus');
+    if (aff > 0) { ok(`tick evolves co-located pair (affinity ${aff})`); }
+    else { fail(`tick evolves co-located pair (got ${aff})`); }
+}
+
+// 4. tick OFF: npcRelationships に触らない
+{
+    const state = freshState();
+    const out = tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_OFF, undefined);
+    if (out.state.npcRelationships === undefined) { ok('tick OFF leaves relationships untouched'); }
+    else { fail('tick OFF mutated relationships'); }
+}
+
+// 5. GM 注入: friend 閾値越えで [Living World — Bonds] が出る
+{
+    const seed = {};
+    seed[pairKey('npc_elda', 'npc_marcus')] = 45;
+    const state = freshState({ npcRelationships: seed });
+    const injection = buildLivingWorldGmLines(FORGE, state, REGISTRY, RULES_ON, undefined, 'elda_shop');
+    if (injection.includes('[Living World — Bonds]')) { ok('Bonds block present'); }
+    else { fail(`Bonds block missing (got: ${JSON.stringify(injection)})`); }
+    if (injection.includes('Elda') && injection.includes('Marcus') && injection.includes('友好')) {
+        ok('Bonds block shows friendly pair with label');
+    } else { fail('Bonds pair/label'); }
+}
+
+// 6. GM 注入 OFF: Bonds が出ない
+{
+    const seed = {};
+    seed[pairKey('npc_elda', 'npc_marcus')] = 45;
+    const state = freshState({ npcRelationships: seed });
+    const injection = buildLivingWorldGmLines(FORGE, state, REGISTRY, RULES_OFF, undefined, 'elda_shop');
+    if (!injection.includes('Bonds')) { ok('no Bonds when disabled'); }
+    else { fail('Bonds leaked when disabled'); }
+}
+
+// 7. neutral のみなら Bonds ブロック自体を出さない(ノイズ抑制)
+{
+    const seed = {};
+    seed[pairKey('npc_elda', 'npc_marcus')] = 5; // neutral
+    const state = freshState({ npcRelationships: seed, recentChanges: [] });
+    // 直近変化キャッシュを空にするため、OFF ルールで一度 tick(何もしない)を挟まず、
+    // 変化なし tick を回す: 同席ペアは +3 されるので neutral のまま変化行は出るかもしれない。
+    // ここでは「ラベル行(友好/盟友等)が出ない」ことだけを確認する。
+    const injection = buildLivingWorldGmLines(FORGE, state, REGISTRY, RULES_ON, undefined, 'elda_shop');
+    if (!injection.includes('盟友') && !injection.includes('敵対') && !injection.includes(': 友好')) {
+        ok('neutral pair emits no relationship label line');
+    } else { fail(`neutral leaked label (got: ${JSON.stringify(injection)})`); }
+}
+
+if (failed > 0) { console.error(`\n${failed} failing`); process.exit(1); }
+console.log('\nAll npc relationship host tests passed.');

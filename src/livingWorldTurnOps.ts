@@ -12,6 +12,7 @@ import { loadNpcRegistry } from './npcRegistry';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { parseTradeOps, applyTradeOps, initializeMarketState } from './commerceCore';
 import { parseNpcAgencyOps, applyNpcAgencyOps } from './npcAgencyCore';
+import { parseRelationshipOps, applyRelationshipOps } from './npcRelationshipCore';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import {
     getOrInitPlayerCommerce,
@@ -88,6 +89,23 @@ export function applyLivingWorldTurnOps(
                     registryToAgencyLike(registry)
                 );
                 saveWorldState({ ...ws, npcPositions: positions });
+            }
+        }
+    }
+
+    // LW3: GM の例外的な関係確定(通常は世界tickの evolveRelationships が決定論で動かす)。
+    if (rules.enableNpcRelationships && rules.enableNpcAgency && rules.enableNpcRegistry) {
+        const ops = parseRelationshipOps(turnResult.relationshipOps);
+        if (ops.length > 0) {
+            const ws = loadWorldState();
+            const registry = loadNpcRegistry();
+            if (ws) {
+                const relationships = applyRelationshipOps(
+                    ws.npcRelationships ?? {},
+                    ops,
+                    registryToAgencyLike(registry)
+                );
+                saveWorldState({ ...ws, npcRelationships: relationships });
             }
         }
     }

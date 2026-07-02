@@ -79,6 +79,8 @@ export interface WorldState {
     lastVisitTurnByLocation?: Record<string, number>;
     /** LW-W1: market stock snapshot when player last left each location. */
     marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
+    /** LW3: NPC間関係 — 正規化ペアキー "idA|idB" → affinity [-100,100] (Relationships ON). */
+    npcRelationships?: Record<string, number>;
 }
 
 // --- パーサーユーティリティ ---
@@ -282,6 +284,24 @@ function parseTurnByLocation(raw: unknown): Record<string, number> | undefined {
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+const MAX_PARSE_NPC_RELATIONSHIPS = 64; // 10人の全ペア45 + 余裕
+
+function parseNpcRelationships(raw: unknown): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_PARSE_NPC_RELATIONSHIPS) { break; }
+        // ペアキー "idA|idB"(両側非空)のみ受理
+        const sep = key.indexOf('|');
+        if (sep <= 0 || sep >= key.length - 1) { continue; }
+        if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
+        out[key] = Math.max(-100, Math.min(100, Math.round(val)));
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function parseWorldState(raw: unknown): WorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;
@@ -338,6 +358,7 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         npcPositions: parseNpcPositionsMap(doc.npcPositions),
         lastVisitTurnByLocation: parseTurnByLocation(doc.lastVisitTurnByLocation),
         marketSnapshotByLocation: parseLocationSnapshotMap(doc.marketSnapshotByLocation),
+        npcRelationships: parseNpcRelationships(doc.npcRelationships),
     };
 }
 

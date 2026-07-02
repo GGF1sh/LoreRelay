@@ -6,6 +6,14 @@ import { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry, GameStateWorld } from './types/GameState';
 import { isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { applyFogOnLocationVisit, normalizeFogWorldState } from './fogOfWarCore';
+import {
+    countGmTurns,
+    isComfyUiConfigured,
+    normalizeAutoImageCooldownTurns,
+    shouldTriggerAutoLocationImage,
+    type AutoLocationImageRequest,
+} from './autoLocationImageCore';
+import { loadImageGenConfig } from './imageGenConfig';
 import { isValidEntryId } from './entryId';
 import { isValidEventId } from './worldEventLogCore';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
@@ -25,6 +33,15 @@ const ALLOWED_ROOTS = new Set([
 ]);
 
 const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+let pendingAutoLocationImage: AutoLocationImageRequest | undefined;
+
+/** Consumed by gameStateSync after a successful turn apply. */
+export function takeAutoLocationImageRequest(): AutoLocationImageRequest | undefined {
+    const pending = pendingAutoLocationImage;
+    pendingAutoLocationImage = undefined;
+    return pending;
+}
 
 const MAX_PATCH_OPS = 50;
 const MAX_PATCH_VALUE_BYTES = 100_000; // 100 KB per op value
@@ -395,6 +412,38 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
 
         state = mergeGmEntryFromTurn(state, turnResult);
         state = normalizeStatusArrayFields(state);
+
+        pendingAutoLocationImage = undefined;
+        const worldAfterTurn = state.world as GameStateWorld | undefined;
+        const nextLocationId = typeof worldAfterTurn?.currentLocationId === 'string'
+            ? worldAfterTurn.currentLocationId
+            : undefined;
+        const gmTurnCount = countGmTurns(state.entries);
+        if (nextLocationId && nextLocationId !== prevLocationId && isWorldForgeEnabled()) {
+            const cartographyConfig = vscode.workspace.getConfiguration('textAdventure.cartography');
+            const enabled = cartographyConfig.get<boolean>('autoLocationImage', false);
+            const cooldownTurns = normalizeAutoImageCooldownTurns(
+                cartographyConfig.get('autoLocationImageCooldownTurns')
+            );
+            if (shouldTriggerAutoLocationImage({
+                enabled,
+                comfyConfigured: isComfyUiConfigured(
+                    vscode.workspace.getConfiguration('textAdventure').get<string>('imageGen.comfyuiUrl', ''),
+                    (() => {
+                        const ws = getWorkspacePath();
+                        return ws ? loadImageGenConfig(ws) : undefined;
+                    })()
+                ),
+                cooldownTurns,
+                prevLocationId,
+                newLocationId: nextLocationId,
+                lastGeneratedLocationId: worldAfterTurn?.lastGeneratedLocationId,
+                lastAutoImageGmTurn: worldAfterTurn?.lastAutoImageGmTurn,
+                currentGmTurn: gmTurnCount,
+            })) {
+                pendingAutoLocationImage = { locationId: nextLocationId, gmTurn: gmTurnCount };
+            }
+        }
 
         const schemaErrors = validateGameState(state);
         if (schemaErrors.length > 0) {

@@ -254,3 +254,42 @@ export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
     const objective = active.description.slice(0, 600);
     return `[Active Quest]\nTitle: ${title}\nObjective: ${objective}\n(GM MUST advance or react to this quest if the player pursues it.)`;
 }
+
+export const MAX_FOG_PROMPT_REGION_NAMES = 5;
+export const MAX_FOG_PROMPT_CHARS = 120;
+
+const FOG_PROMPT_SUFFIX = '. Do not narrate their interiors as known facts.';
+
+/**
+ * One-line GM FoW summary (Phase 8 PR6). Empty when all regions are discovered.
+ */
+export function buildFogUnexploredPromptLine(
+    regionNames: readonly string[],
+    maxNames = MAX_FOG_PROMPT_REGION_NAMES,
+    maxChars = MAX_FOG_PROMPT_CHARS
+): string {
+    if (regionNames.length === 0) { return ''; }
+
+    const prefix = 'Unexplored (player has not been): ';
+    const overflow = Math.max(0, regionNames.length - maxNames);
+    let names = [...regionNames.slice(0, maxNames)];
+
+    const buildLine = (): string => {
+        const list = names.join(', ');
+        const overflowSuffix = overflow > 0 ? `, …and ${overflow} more` : '';
+        return `${prefix}${list}${overflowSuffix}${FOG_PROMPT_SUFFIX}`;
+    };
+
+    let line = buildLine();
+    while (line.length > maxChars && names.length > 1) {
+        names = names.slice(0, -1);
+        line = buildLine();
+    }
+
+    if (line.length > maxChars) {
+        line = line.slice(0, maxChars).trimEnd();
+        if (!line.endsWith('.')) { line += '.'; }
+    }
+
+    return line;
+}

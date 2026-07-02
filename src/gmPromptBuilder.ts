@@ -48,8 +48,10 @@ import {
     buildActiveQuestObjective,
     clampTextForPrompt,
     resolvePromptBudgetPolicy,
-    type PromptBudgetPolicy
+    type PromptBudgetPolicy,
+    buildFogUnexploredPromptLine,
 } from './gmPromptBuilderCore';
+import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
 import { buildVisualContextSnippet } from './visualMemoryCore';
@@ -489,6 +491,17 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
         }
     } else if (statusLocation) {
         lines.push(`Player location: ${statusLocation} (not mapped in world_forge.json)`);
+    }
+
+    const fogInPrompt = vscode.workspace.getConfiguration('textAdventure.cartography')
+        .get<boolean>('fogInPrompt', false);
+    if (fogInPrompt) {
+        const discovered = Array.isArray(worldState?.discoveredRegionIds)
+            ? (worldState.discoveredRegionIds as string[])
+            : [];
+        const unexplored = listUnexploredRegionNames(forge, discovered);
+        const fogLine = buildFogUnexploredPromptLine(unexplored);
+        if (fogLine) { lines.push(fogLine); }
     }
 
     if (forge.factions.length > 0) {

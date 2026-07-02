@@ -222,6 +222,18 @@ export function buildLocationPinCatalog(
     });
 }
 
+/** Region names the player has not discovered (for GM FoW prompt line). */
+export function listUnexploredRegionNames(
+    forge: WorldForge,
+    discoveredRegionIds: readonly string[]
+): string[] {
+    const discovered = new Set(discoveredRegionIds);
+    return forge.geography.regions
+        .filter((r) => !discovered.has(r.id))
+        .map((r) => r.name)
+        .sort((a, b) => a.localeCompare(b));
+}
+
 export function maskCartographyRegionLabelsForFog(
     labels: CartographyRegionLabel[],
     fog: FogViewPayload

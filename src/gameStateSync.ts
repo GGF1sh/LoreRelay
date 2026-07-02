@@ -27,7 +27,8 @@ let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 let lastGoodGameState: Record<string, unknown> | undefined;
-import { processTurnResult } from './statePatch';
+import { processTurnResult, takeAutoLocationImageRequest } from './statePatch';
+import { queueAutoLocationImageSilent } from './autoLocationImageRunner';
 import { markTurnResultHandled } from './turnResultFallback';
 import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
 import { pushGameStateToRemoteClients } from './remotePlayServer';
@@ -256,8 +257,10 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             } else {
                 schemaWarningShown = false;
                 
-                // --- Location Change Image Generation Hook ---
-                if (lastGoodGameState) {
+                // --- Location Change Image Generation Hook (legacy imageGen.autoOnLocationChange) ---
+                const cartographyAuto = vscode.workspace.getConfiguration('textAdventure.cartography')
+                    .get<boolean>('autoLocationImage', false);
+                if (!cartographyAuto && lastGoodGameState) {
                     const oldLocationId = isRecord(lastGoodGameState.world)
                         && typeof lastGoodGameState.world.currentLocationId === 'string'
                         ? lastGoodGameState.world.currentLocationId
@@ -545,6 +548,11 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
 
         handleTurnResultMedia(turnResult);
         const enriched = processTurnResult(turnResult);
+
+        const autoImageRequest = takeAutoLocationImageRequest();
+        if (autoImageRequest) {
+            queueAutoLocationImageSilent(autoImageRequest.locationId, autoImageRequest.gmTurn);
+        }
 
         const panel = deps?.getPanel();
         if (panel) {

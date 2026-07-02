@@ -24,8 +24,10 @@ const {
     clampTextForPrompt,
     normalizePromptBudgetMode,
     resolvePromptBudgetPolicy,
+    buildFogUnexploredPromptLine,
     MAX_HINT_TEXT_CHARS,
-    MAX_WORLD_CHANGE_SUMMARY_LINES
+    MAX_WORLD_CHANGE_SUMMARY_LINES,
+    MAX_FOG_PROMPT_CHARS,
 } = require(corePath);
 
 {
@@ -162,6 +164,20 @@ const {
     } else {
         ok('prompt budget policy resolution');
     }
+}
+
+{
+    if (buildFogUnexploredPromptLine([]) !== '') { fail('empty fog line'); }
+    else { ok('empty fog line'); }
+
+    const line = buildFogUnexploredPromptLine(['Ashen Wastes', 'Sunless Deep']);
+    if (!line.includes('Unexplored') || !line.includes('Ashen Wastes')) { fail('fog line content'); }
+    else if (line.length > MAX_FOG_PROMPT_CHARS) { fail('fog line char cap'); }
+    else { ok('buildFogUnexploredPromptLine'); }
+
+    const many = buildFogUnexploredPromptLine(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    if (!many.includes('…and 2 more')) { fail('fog overflow suffix'); }
+    else { ok('fog overflow suffix'); }
 }
 
 if (failed > 0) {

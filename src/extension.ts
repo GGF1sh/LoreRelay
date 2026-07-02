@@ -22,6 +22,7 @@ import {
     savePartyDirectorFromUi
 } from './partyDirector';
 import { initWorldView, pushWorldViewToWebview } from './worldView';
+import { initAutoLocationImageRunner } from './autoLocationImageRunner';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
 import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge } from './worldForge';
@@ -246,6 +247,7 @@ export function activate(context: vscode.ExtensionContext) {
     initScenarioDirector({ getPanel: () => panel });
     initPartyDirector({ getPanel: () => panel });
     initWorldView({ getPanel: () => panel });
+    initAutoLocationImageRunner({ getPanel: () => panel });
     initVlmQueue({ getPanel: () => panel });
 
     const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', async () => {

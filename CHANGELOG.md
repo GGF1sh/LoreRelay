@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.15.2] - 2026-07-02
+
+### Added
+
+- **Cartography Phase 8 PR5 — Auto Location Image（gated）** — `textAdventure.cartography.autoLocationImage`（既定 OFF）と `autoLocationImageCooldownTurns`。`processTurnResult` で `currentLocationId` 変化時に ComfyUI 設定済みならサイレントキュー。`lastGeneratedLocationId` / `lastAutoImageGmTurn` で重複・クールダウン管理。レガシー `imageGen.autoOnLocationChange` は新設定 OFF 時のみ継続。
+- **Cartography Phase 8 PR6 — GM FoW 1行（gated）** — `textAdventure.cartography.fogInPrompt`（既定 OFF）で `[World]` 末尾に未探索リージョン名を最大5件・約120字で追加。`buildFogUnexploredPromptLine` + `listUnexploredRegionNames`。
+
 ## [1.15.1] - 2026-07-02
 
 ### Added

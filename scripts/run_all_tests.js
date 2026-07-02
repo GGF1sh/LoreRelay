@@ -64,6 +64,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_map_generator.js' },
     { category: 'unit', file: 'test_fog_of_war_core.js' },
     { category: 'unit', file: 'test_map_feedback_core.js' },
+    { category: 'unit', file: 'test_auto_location_image_core.js' },
     { category: 'unit', file: 'test_cartography_layout_core.js' },
     { category: 'unit', file: 'test_cartography_path_core.js' },
     { category: 'unit', file: 'test_cartography_path_utils.js' },

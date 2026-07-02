@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.15.1",
+  "version": "1.15.2",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -240,6 +240,23 @@
           "type": "number",
           "default": 0,
           "description": "%config.textAdventure.cartography.loraWeight.description%"
+        },
+        "textAdventure.cartography.autoLocationImage": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.cartography.autoLocationImage.description%"
+        },
+        "textAdventure.cartography.autoLocationImageCooldownTurns": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 20,
+          "description": "%config.textAdventure.cartography.autoLocationImageCooldownTurns.description%"
+        },
+        "textAdventure.cartography.fogInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.cartography.fogInPrompt.description%"
         },
         "textAdventure.modelScan.roots": {
           "type": "array",

@@ -82,6 +82,8 @@ export interface GameStateWorld {
     worldTurnAtLastSync?: number;
     lastGeneratedImage?: string;
     lastGeneratedLocationId?: string;
+    /** GM turn index when an auto location image was last queued (cartography.autoLocationImage). */
+    lastAutoImageGmTurn?: number;
 }
 
 /** ランタイムのシナリオ進行（scenario.json director の上書き）。v0.6c */

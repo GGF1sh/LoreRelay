@@ -424,6 +424,13 @@ export function validateGameState(obj: unknown): string[] {
                     errors.push('world.lastGeneratedLocationId has invalid format');
                 }
             }
+            if (w.lastAutoImageGmTurn !== undefined) {
+                if (typeof w.lastAutoImageGmTurn !== 'number') {
+                    errors.push('world.lastAutoImageGmTurn must be a number');
+                } else if (!Number.isFinite(w.lastAutoImageGmTurn) || w.lastAutoImageGmTurn < 0) {
+                    errors.push('world.lastAutoImageGmTurn must be a finite non-negative number');
+                }
+            }
         }
     }
 

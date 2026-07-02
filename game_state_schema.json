@@ -271,7 +271,13 @@
             }
           }
         },
-        "worldTurnAtLastSync": { "type": "number" }
+        "worldTurnAtLastSync": { "type": "number" },
+        "lastGeneratedImage": { "type": "string" },
+        "lastGeneratedLocationId": { "type": "string" },
+        "lastAutoImageGmTurn": {
+          "type": "number",
+          "description": "GM turn when cartography auto location image was last queued."
+        }
       }
     }
   },

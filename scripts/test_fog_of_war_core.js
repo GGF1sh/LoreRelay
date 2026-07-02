@@ -10,6 +10,7 @@ const {
     buildFogPayload,
     maskCartographyPinsForFog,
     maskCartographyRegionLabelsForFog,
+    listUnexploredRegionNames,
 } = require('../out/fogOfWarCore');
 
 let failed = 0;
@@ -135,6 +136,13 @@ const FORGE = {
     const rumored = deriveRumoredRegionIds(['r1'], sparseForge.geography.regions);
     if (rumored.length !== 0) { fail('sparse connectedTo should yield empty rumored'); }
     else { ok('connectedTo missing backward compat'); }
+}
+
+// listUnexploredRegionNames (PR6)
+{
+    const names = listUnexploredRegionNames(FORGE, ['coast_1']);
+    if (!names.includes('Greenwood') || names.includes('Harbor')) { fail('listUnexploredRegionNames'); }
+    else { ok('listUnexploredRegionNames'); }
 }
 
 // determinism

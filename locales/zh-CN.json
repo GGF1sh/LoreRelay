@@ -170,6 +170,8 @@
   "webview.world.playerRoleRuler": "君主",
   "webview.world.npcWhereaboutsTitle": "NPC 所在地",
   "webview.world.npcBondsTitle": "NPC 羁绊",
+  "webview.world.npcIntroducedBy": "经{name}引荐",
+  "webview.world.npcIntroducedTip": "通过盟友引荐得知行踪",
   "webview.world.npcBondsHint": "由活世界塑造的具名NPC之间的关系（传闻）。",
   "webview.world.npcBondAlly": "盟友",
   "webview.world.npcBondFriend": "友好",

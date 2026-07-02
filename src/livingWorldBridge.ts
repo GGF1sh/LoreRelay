@@ -201,9 +201,12 @@ function buildBondTransitionEvents(
         if (beforeLabel === afterLabel) { continue; }
         const nameA = registry[c.a]?.name ?? c.a;
         const nameB = registry[c.b]?.name ?? c.b;
-        const message = c.delta > 0
-            ? `${nameA}と${nameB}が${BOND_LABEL_JA[afterLabel]}の間柄になったと噂されている`
-            : `${nameA}と${nameB}の間に${BOND_LABEL_JA[afterLabel]}の空気が流れていると噂されている`;
+        // ally への昇格は物流(LW3-W)が動き出す合図なので、噂にもその気配を乗せる
+        const message = afterLabel === 'ally'
+            ? `${nameA}と${nameB}が盟友となった — 二人の間で商いが動き始めたらしい`
+            : c.delta > 0
+                ? `${nameA}と${nameB}が${BOND_LABEL_JA[afterLabel]}の間柄になったと噂されている`
+                : `${nameA}と${nameB}の間に${BOND_LABEL_JA[afterLabel]}の空気が流れていると噂されている`;
         events.push(makeWorldChangeEvent({
             worldTurn,
             category: 'npc',

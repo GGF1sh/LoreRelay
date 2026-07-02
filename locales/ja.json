@@ -170,6 +170,8 @@
   "webview.world.playerRoleRuler": "君主",
   "webview.world.npcWhereaboutsTitle": "NPC所在地",
   "webview.world.npcBondsTitle": "NPCの絆",
+  "webview.world.npcIntroducedBy": "{name}の紹介",
+  "webview.world.npcIntroducedTip": "盟友の紹介で居場所が分かっている",
   "webview.world.npcBondsHint": "世界の動きが形づくる名ありNPC同士の関係（伝聞）。",
   "webview.world.npcBondAlly": "盟友",
   "webview.world.npcBondFriend": "友好",

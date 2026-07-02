@@ -6810,10 +6810,14 @@ function renderNpcWhereabouts(payload) {
             : precision === 'unknown'
                 ? `<span class="tag-item">${escapeHtml(T('webview.world.npcWhereaboutsUnknown'))}</span>`
                 : `<span class="tag-item">${escapeHtml(T('webview.world.npcPresent'))}</span>`;
+        const introduced = npc.introducedByName
+            ? `<span class="tag-item" title="${escapeHtml(T('webview.world.npcIntroducedTip'))}">${escapeHtml(T('webview.world.npcIntroducedBy', { name: npc.introducedByName }))}</span>`
+            : '';
         row.innerHTML = `
             <strong>${escapeHtml(npc.name || npc.npcId || '?')}</strong>
             <span>${escapeHtml(locationText)}</span>
             ${transit}
+            ${introduced}
         `;
         if (npc.reason || npc.agenda) {
             row.title = [npc.agenda, npc.reason].filter(Boolean).join(' / ');

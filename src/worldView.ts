@@ -256,6 +256,7 @@ function buildNpcWhereaboutsPayload(
                 npc.inTransit,
                 { locationNames, regionNames, locationToRegion }
             );
+            const introducerId = registryLike[npc.npcId]?.introducedBy;
             return {
                 npcId: npc.npcId,
                 name: npc.name,
@@ -267,6 +268,10 @@ function buildNpcWhereaboutsPayload(
                 inTransit: formatted.precision === 'unknown' ? undefined : npc.inTransit,
                 agenda: formatted.showAgenda ? npc.agenda : undefined,
                 reason: formatted.showReason ? npc.reason : undefined,
+                // LW3-W: 紹介で見えている場合は紹介者名(unknown 時は出さない)
+                introducedByName: formatted.precision !== 'unknown' && introducerId
+                    ? registryLike[introducerId]?.name
+                    : undefined,
             };
         }),
         clamped: npcEntries.length > presence.length,

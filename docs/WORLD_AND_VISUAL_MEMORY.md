@@ -1,6 +1,8 @@
 # World System & Visual Memory — Architecture Deep Dive
 
-LoreRelay v1.6.1 時点の **Living World** と **Visual Memory / Soulgaze** の設計・データフロー・硬化ポイントをまとめたドキュメントです。
+LoreRelay の **Living World** と **Visual Memory / Soulgaze** の設計・データフロー・硬化ポイントをまとめたドキュメントです。
+
+> **版について:** 本文中の v1.3 / v1.5 / v1.6 等は **機能導入時のラベル** です。現行実装（Commerce UI v1.26+、trust whereabouts v1.27+ 等）は [`CHANGELOG.md`](../CHANGELOG.md) と [`VERSION_TRUTH.md`](VERSION_TRUTH.md) を正本にしてください。
 
 ---
 

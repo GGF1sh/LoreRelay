@@ -3,16 +3,17 @@
 他の AI（Claude, ChatGPT, Grok, Gemini, Antigravity など）にこのプロジェクトを引き継ぐための共通ドキュメントです。新しい AI に作業させる場合は、以下を順に読み込ませてください。
 
 1. 本ファイル（`AI_HANDOVER.md`）— プロジェクト概要
-2. **`AI_HANDOVER_PROMPTS.md`** — どの AI に何を読ませ、どのプロンプトを渡すか
-3. `AI_COLLABORATION.md` — 複数 AI で作業するときの書き込みルール
-4. `AI_SHARED_LOG.md` — 先頭の **Current Snapshot** と直近ログ
-5. `CHANGELOG.md` — 実装済み変更の履歴
-6. `AI_ROADMAP.md` — フェーズ完了状況と次タスクの黒板
-7. （必要に応じて）`C:\AI\GROK_CODE_REVIEW.md` / `GEMINI_REVIEW.md` / `CLAUDE_REVIEW.md`
+2. **`docs/VERSION_TRUTH.md`** — main / Release / ドキュメントの版ズレ防止
+3. **`AI_HANDOVER_PROMPTS.md`** — どの AI に何を読ませ、どのプロンプトを渡すか
+4. `AI_COLLABORATION.md` — 複数 AI で作業するときの書き込みルール
+5. `AI_SHARED_LOG.md` — 先頭の **Current Snapshot** と直近ログ
+6. `CHANGELOG.md` — 実装済み変更の履歴
+7. `AI_ROADMAP.md` — フェーズ完了状況と次タスクの黒板
+8. （必要に応じて）`C:\AI\GROK_CODE_REVIEW.md` / `GEMINI_REVIEW.md` / `CLAUDE_REVIEW.md`
 
 > [!IMPORTANT]
 > **実装の正本は `CHANGELOG.md` とソースコードです。**
-> レビュー文書は議論の記録を含むため、古い「未対応」記述が残る場合があります。作業開始前に `AI_SHARED_LOG.md` の **Current Snapshot** と `CHANGELOG.md` の最新セクション（現在 **v1.11.0**）を確認してください。作業の切り出しは **`AI_HANDOVER_PROMPTS.md`** を参照。
+> レビュー文書は議論の記録を含むため、古い「未対応」記述が残る場合があります。作業開始前に **`docs/VERSION_TRUTH.md`**、`AI_SHARED_LOG.md` の **Current Snapshot**、`package.json` の `version`、`CHANGELOG.md` の最新セクションを確認してください。作業の切り出しは **`AI_HANDOVER_PROMPTS.md`** を参照。
 
 ---
 
@@ -39,7 +40,7 @@
 
 - **場所:** `C:\AI\text-adventure-vsce\`
 - **役割:** `turn_result.json` / `game_state.json` を監視し Webview を更新
-- **主要サブシステム（v1.11.0 時点）:**
+- **主要サブシステム（現行 — 詳細版番号は `CHANGELOG.md`）:**
   - GM Bridge（Grok / vscode-lm / Ollama / KoboldCPP / OpenRouter / clipboard / command）
   - Agentic GM（State Referee → Narrator、optional）
   - Quest Board（Event-to-Quest）
@@ -110,17 +111,18 @@
 
 Private/local scenario vaults are intentionally outside the public repository scope. Do not read, edit, summarize, index, or mention private scenario contents in shared docs unless the user explicitly asks for that local-only work.
 
-### 4.1 現在の主な残件（2026-07-01 / v1.11.0）
+### 4.1 現在の主な残件（2026-07-02 — `package.json` で版確認）
 
 | 優先度 | 内容 |
 |--------|------|
-| 手動確認 | [`testing_checklist.md`](testing_checklist.md) — §7–8 TTS 実機、Agentic GM E2E、Git Timeline 分岐→復元 |
+| **配布** | GitHub Release を `package.json` に追いつかせる（タグ `v*` push → VSIX） |
+| 手動確認 | [`testing_checklist.md`](testing_checklist.md) — §9b–9c Living World（trade-routes）、§7–8 TTS、Agentic E2E |
 | 公開・見せ方 | README の **実スクショ / GIF**（現状は `docs/assets/*.svg` モック） |
-| UX polish（任意） | Start Hub から Quest/World まで通るデモシナリオ、地図 stale 表示 |
-| 次機能候補 | イベント由来クエスト報酬、Workshop 公開 |
+| UX polish（任意） | Start Hub オンボーディング、地図 stale 表示 |
+| 次機能候補 | F1 Chronicle / F2 Pacing、イベント由来クエスト報酬 |
 | 将来 | Workshop / マーケット公開の検討 |
 
-**完了済み（参照用）:** Phase 1〜11（`AI_ROADMAP.md`）、Adaptive TTS v1.11.0、Campaign Engine v1.10.0（Quest Board / Agentic GM / Git Timeline）、Cartography v1.7.x、Audit Wave
+**完了済み（参照用）:** Phase 1〜11、Cartography C8/C9、Living World v1.23–1.27.1（`CHANGELOG.md`）
 
 ---
 

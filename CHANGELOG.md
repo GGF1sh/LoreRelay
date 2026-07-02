@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.27.2] - 2026-07-02
+
+### Changed
+
+- **Version truth docs** — `docs/VERSION_TRUTH.md`; `AI_SHARED_LOG` Current Snapshot, `AI_HANDOVER`, `VSCODE_CHATGPT_CATCHUP` updated so AI agents read `package.json` instead of stale v1.6–v1.18 references.
+
 ## [1.27.1] - 2026-07-02
 
 ### Fixed

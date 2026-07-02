@@ -273,16 +273,20 @@
 
 ## Current Snapshot (2026-07-02)
 
+> **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)  
+> main と GitHub Release がズレているときは VERSION_TRUTH を読む（コードは main、VSIX は Release）。
+
 | Item | Value |
 |------|-------|
-| Package version | **1.18.0**（設計 doc のみ追加時は繰上なし） |
-| Latest release theme | **Debug v2 + Layer B**（出荷済み） |
-| Next implement (推奨) | **F1 Chronicle → F2 Pacing** → **1.19.0** |
-| Next world track | **LW-W1 → LW1 → LW2**（`COMMERCE_AND_AGENCY_BRIEF.md`） |
+| Package version (`main`) | **1.27.2**（doc sync; LW 機能は 1.27.1 相当） |
+| GitHub Release (VSIX) | **v1.14.5** — タグ `v1.27.x` 未打ち（配布遅れ） |
+| Canonical repo path | `C:\AI\text-adventure-vsce` |
+| Living World | **v1.23–1.27.1** — Commerce UI, trust whereabouts, playerRole GM（`testing_checklist.md` §9b–9c） |
+| Tests | `npm test` **76/76** |
+| Next implement (推奨) | Release tag **v1.27.1** · 手動 §9b–9c · F1 Chronicle / F2 Pacing（並行可） |
 | Design backlog | **F1–F6** `FABLE5_FEATURE_PROPOSALS_DESIGN.md` |
-| Cartography C9 | **完了** (v1.16.0) |
-| Debug sandbox | **v1.18.0** — `sample-scenarios/debug-sandbox` |
-| Phase naming | `docs/PHASE_NAMING.md` |
+| Cartography | C8/C9 **完了** (v1.15–1.16) |
+| Debug sandbox | `sample-scenarios/debug-sandbox` + `trade-routes` |
 
 ---
 

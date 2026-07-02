@@ -26,7 +26,9 @@ import {
     evolveRelationships,
     listNotableRelationships,
     buildRelationshipPromptLines,
+    describeRelationship,
 } from './npcRelationshipCore';
+import { makeWorldChangeEvent, mergeRecentChanges } from './worldEventLogCore';
 
 export interface LivingWorldWorldStateExt {
     markets?: MarketStateMap;
@@ -143,8 +145,9 @@ export function tickLivingWorldAfterSim(
 
     // LW3: 世界が動いた「結果」として NPC 同士の関係を進める(同席/共通の危機/派閥対立)。
     if (npcRelationshipsEnabled(rules)) {
+        const agencyRegistry = registryToAgencyLike(registry);
         const evolved = evolveRelationships({
-            registry: registryToAgencyLike(registry),
+            registry: agencyRegistry,
             positions: ext.npcPositions ?? {},
             relationships: ext.npcRelationships ?? {},
             worldTurn: state.worldTurn,
@@ -153,9 +156,52 @@ export function tickLivingWorldAfterSim(
         });
         ext.npcRelationships = evolved.relationships;
         lastRelationshipChanges = evolved.changes;
+
+        // ラベル遷移(中立→友好 等)だけを世界イベントに昇格 — 「留守中に二人が
+        // 親しくなっていた」が Since-last-visit / World Changes の伝聞に乗る。
+        const bondEvents = buildBondTransitionEvents(evolved.changes, agencyRegistry, state.worldTurn);
+        if (bondEvents.length > 0) {
+            state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], bondEvents);
+        }
     }
 
     return { state: ext };
+}
+
+const BOND_LABEL_JA: Record<string, string> = {
+    ally: '盟友', friend: '友好', neutral: '中立', rival: '不和', enemy: '敵対',
+};
+
+/** affinity のラベルが変わった変化のみ、噂イベントとして返す(スパム防止)。 */
+function buildBondTransitionEvents(
+    changes: NpcRelationshipChange[],
+    registry: NpcRegistryLike,
+    worldTurn: number
+) {
+    const events = [];
+    for (const c of changes) {
+        const beforeLabel = describeRelationship(c.affinity - c.delta);
+        const afterLabel = describeRelationship(c.affinity);
+        if (beforeLabel === afterLabel) { continue; }
+        const nameA = registry[c.a]?.name ?? c.a;
+        const nameB = registry[c.b]?.name ?? c.b;
+        const message = c.delta > 0
+            ? `${nameA}と${nameB}が${BOND_LABEL_JA[afterLabel]}の間柄になったと噂されている`
+            : `${nameA}と${nameB}の間に${BOND_LABEL_JA[afterLabel]}の空気が流れていると噂されている`;
+        events.push(makeWorldChangeEvent({
+            worldTurn,
+            category: 'npc',
+            severity: 'info',
+            source: 'simulation',
+            message,
+            gmHint: 'Narrate this bond as hearsay only; never state numeric affinity.',
+            npcIds: [c.a, c.b],
+            expiresAfterTurns: 10,
+            idSuffix: `bond_${c.a}_${c.b}_${afterLabel}`,
+        }));
+        if (events.length >= 4) { break; } // 1tick の噂は最大4件
+    }
+    return events;
 }
 
 function mapRecentChanges(events: WorldChangeEvent[] | undefined) {

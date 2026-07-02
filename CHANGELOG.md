@@ -27,6 +27,7 @@
 - **Game Rules パネル** — 「Enable NPC Bonds (LW3)」チェックボックス（`gr-npc-relationships`、4ロケール i18n 付き）。
 - **World タブ「NPC Bonds」セクション** — 顕著な関係をラベルのみ表示（🤝盟友 / 🙂友好 / ⚡不和 / ⚔️敵対）。**raw affinity は webview に送らない**（v1.27.1 の DevTools リーク方針を踏襲）。
 - **trade-routes デモ** — `enableNpcRelationships: true` + README に体験手順8（Elda × Marcus が同席で友好になる／紛争イベントで異派閥が離れる）。
+- **噂イベント（伝聞の核心）** — affinity の**ラベル遷移**（中立→友好 等）のみ `recentChanges` に `category: 'npc'` の世界イベントとして昇格（「EldaとMarcusが友好の間柄になったと噂されている」、gmHint 付き、最大4件/tick、10ターンで失効）。留守中の関係変化が Since-last-visit / World Changes の伝聞に乗る。
 
 ## [1.28.0] - 2026-07-02
 

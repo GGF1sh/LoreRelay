@@ -1,5 +1,28 @@
 # AI Shared Log
 
+## 2026-07-02 JST (深夜) - Claude Opus 4.8 - v1.29.0 LW3 NPC間関係(北極星/ガンパレ第一歩)
+
+### Summary
+
+- **`npcRelationshipCore.ts`** — 名ありNPC(≤10)同士の決定論的関係進化。同席 +3/tick・共通の危機 +8・派閥動態(紛争時 異派閥-10/同派閥+4)。affinity ±100、ラベル ally70/friend30/rival-30/enemy-70。会話自動生成なし(黄金律維持)。
+- **ホスト配線** — `game_rules.enableNpcRelationships`(既定OFF, Registry+Agency前提) / `world_state.npcRelationships` 永続化(parseWorldState検証付き) / `tickLivingWorldAfterSim`→`evolveRelationships`(tick.npcMoves で shared_crisis 判定) / GM `[Living World — Bonds]` / `turn_result.relationshipOps` / `RELATIONSHIP_OPS_PROMPT_LINE`。
+- **噂イベント** — affinity のラベル遷移(中立→友好 等)のみ `recentChanges` に `category:'npc'` の伝聞イベント昇格(最大4件/tick, expires 10)。「留守中に二人が親しくなっていた」が Since-last-visit に乗る。
+- **UI** — Game Rules「Enable NPC Bonds (LW3)」/ World タブ「NPC Bonds」(🤝🙂⚡⚔️ ラベルのみ、raw affinity は webview に送らない=v1.27.1方針) / 4ロケール i18n。
+- **デモ** — trade-routes `enableNpcRelationships:true` + README 手順8(Elda×Marcus 同席で友好、紛争で異派閥が離れる)。
+- Docs: `docs/LIVING_WORLD_LW3_RELATIONSHIPS.md`(設計+配線記録+残タスク)。
+
+### Verification
+
+- `npm run compile` · `npm test` (**78/78** — 新規 `test_npc_relationship_core.js` 26件 + `test_npc_relationship_host.js` 15件)
+
+### Next (v1+ 候補)
+
+- Bonds の信頼連動曖昧化(低 playerTrust では「親しいらしい」程度に) — `npcWhereaboutsTrustCore` パターン
+- 関係が世界へ波及(盟友の商人は融通、敵対は妨害) — LW3 が Commerce/whereabouts に影響する段階
+- 恋愛・死などの重いライフイベントは affinity 基盤の上に future arc(BRIEF §5.6)
+
+---
+
 ## 2026-07-02 JST - Grok - v1.28.0 ChatGPT/Gemini review follow-up
 
 ### Summary

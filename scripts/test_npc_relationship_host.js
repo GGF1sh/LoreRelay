@@ -161,5 +161,33 @@ function freshState(extra) {
     } else { fail(`neutral leaked label (got: ${JSON.stringify(injection)})`); }
 }
 
+// 8. ラベル遷移(中立→友好)で recentChanges に噂イベントが乗る
+{
+    const seed = {};
+    seed[pairKey('npc_elda', 'npc_marcus')] = 28; // +3 の同席で 31 → friend 閾値30を跨ぐ
+    const state = freshState({ npcRelationships: seed });
+    tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_ON, undefined);
+    const bondEvents = (state.recentChanges || []).filter((e) => e.category === 'npc' && /噂/.test(e.message));
+    if (bondEvents.length === 1 && bondEvents[0].message.includes('友好')) {
+        ok('label transition emits hearsay world event');
+    } else {
+        fail(`label transition event (got ${JSON.stringify(bondEvents)})`);
+    }
+    if (bondEvents.length === 1 && bondEvents[0].gmHint && bondEvents[0].npcIds && bondEvents[0].npcIds.length === 2) {
+        ok('hearsay event carries gmHint and npcIds');
+    } else { fail('hearsay event metadata'); }
+}
+
+// 9. ラベルが変わらない変化はイベントを出さない(スパム防止)
+{
+    const seed = {};
+    seed[pairKey('npc_elda', 'npc_marcus')] = 10; // +3 で 13、neutral のまま
+    const state = freshState({ npcRelationships: seed });
+    tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_ON, undefined);
+    const bondEvents = (state.recentChanges || []).filter((e) => e.category === 'npc' && /噂/.test(e.message));
+    if (bondEvents.length === 0) { ok('no hearsay event without label transition'); }
+    else { fail(`unexpected hearsay events: ${bondEvents.length}`); }
+}
+
 if (failed > 0) { console.error(`\n${failed} failing`); process.exit(1); }
 console.log('\nAll npc relationship host tests passed.');

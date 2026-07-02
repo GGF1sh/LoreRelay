@@ -35,6 +35,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_state_manager.js' },
     { category: 'unit', file: 'test_media_paths.js' },
     { category: 'unit', file: 'test_lorebook_save.js' },
+    { category: 'unit', file: 'test_lorebook_redos.js' },
     { category: 'unit', file: 'test_scenario_director.js' },
     { category: 'unit', file: 'test_party_director.js' },
     { category: 'smoke', file: 'test_sample_scenarios.js' },

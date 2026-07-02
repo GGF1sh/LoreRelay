@@ -5,19 +5,195 @@ const MAX_REGEX_PATTERN_LEN = 200;
 /** Cap context scanned by regex (limits catastrophic backtracking cost). */
 const MAX_REGEX_TEST_TEXT_LEN = 8000;
 
+function isQuantifierStart(pattern: string, index: number): number {
+    const ch = pattern[index];
+    if (ch === '*' || ch === '+' || ch === '?') {
+        return 1;
+    }
+    if (ch === '{') {
+        const close = pattern.indexOf('}', index);
+        if (close > index) {
+            return close - index + 1;
+        }
+    }
+    return 0;
+}
+
+function scanCharClass(pattern: string, index: number): number {
+    let i = index + 1;
+    if (i < pattern.length && pattern[i] === '^') {
+        i++;
+    }
+    while (i < pattern.length) {
+        if (pattern[i] === '\\') {
+            i += 2;
+            continue;
+        }
+        if (pattern[i] === ']') {
+            return i + 1;
+        }
+        i++;
+    }
+    return pattern.length;
+}
+
+function findGroupEnd(pattern: string, openIndex: number): number {
+    let depth = 1;
+    let i = openIndex + 1;
+    while (i < pattern.length && depth > 0) {
+        if (pattern[i] === '\\') {
+            i += 2;
+            continue;
+        }
+        if (pattern[i] === '[') {
+            i = scanCharClass(pattern, i);
+            continue;
+        }
+        if (pattern[i] === '(') {
+            depth++;
+            i++;
+            continue;
+        }
+        if (pattern[i] === ')') {
+            depth--;
+            i++;
+            continue;
+        }
+        i++;
+    }
+    return i;
+}
+
+function groupBodyFlags(pattern: string, start: number, end: number): { hasQuantifier: boolean; hasAlternation: boolean } {
+    let hasQuantifier = false;
+    let hasAlternation = false;
+    let i = start;
+    while (i < end) {
+        if (pattern[i] === '\\') {
+            i += 2;
+            const escapedQ = isQuantifierStart(pattern, i);
+            if (escapedQ > 0) {
+                hasQuantifier = true;
+                i += escapedQ;
+            }
+            continue;
+        }
+        if (pattern[i] === '|') {
+            hasAlternation = true;
+            i++;
+            continue;
+        }
+        if (pattern[i] === '[') {
+            i = scanCharClass(pattern, i);
+            const q = isQuantifierStart(pattern, i);
+            if (q > 0) {
+                hasQuantifier = true;
+                i += q;
+            }
+            continue;
+        }
+        if (pattern[i] === '(') {
+            const close = findGroupEnd(pattern, i);
+            const inner = groupBodyFlags(pattern, i + 1, close - 1);
+            hasQuantifier = hasQuantifier || inner.hasQuantifier;
+            hasAlternation = hasAlternation || inner.hasAlternation;
+            i = close;
+            const q = isQuantifierStart(pattern, i);
+            if (q > 0) {
+                hasQuantifier = true;
+                i += q;
+            }
+            continue;
+        }
+        i++;
+        const q = isQuantifierStart(pattern, i);
+        if (q > 0) {
+            hasQuantifier = true;
+            i += q;
+        }
+    }
+    return { hasQuantifier, hasAlternation };
+}
+
+function groupBodyStart(pattern: string, openIndex: number): number {
+    let start = openIndex + 1;
+    if (pattern[start] === '?' && start + 1 < pattern.length) {
+        const spec = pattern[start + 1];
+        if (spec === ':') {
+            return start + 2;
+        }
+        if (spec === '=' || spec === '!') {
+            return start + 2;
+        }
+        if (spec === '<' && start + 2 < pattern.length) {
+            const next = pattern[start + 2];
+            if (next === '=' || next === '!') {
+                return start + 3;
+            }
+        }
+    }
+    return start;
+}
+
 /**
- * Heuristic ReDoS guard — nested quantifiers / alternation-in-group patterns.
- * Falls back to substring match when suspicious (ST-imported lorebooks).
+ * Escape-aware ReDoS guard for ST-imported lorebook regex keys.
+ * Flags nested/grouped quantifiers and alternation groups with outer quantifiers.
  */
 export function isPotentiallyEvilRegex(pattern: string): boolean {
-    if (/\([^\\)]*[+*][^\\)]*\)[+*{]/.test(pattern)) {
+    if (/[+*?]\s*[+*?{]/.test(pattern)) {
         return true;
     }
-    if (/\([^\\)]*\|[^\\)]*\)[+*]/.test(pattern)) {
+    if (/(?:\.\s*[+*?]|\.\s*\{[^}]+\}){3,}/.test(pattern)) {
         return true;
     }
-    if (/[+*]{2,}|\+\*|\*\+/.test(pattern)) {
-        return true;
+
+    let i = 0;
+    while (i < pattern.length) {
+        if (pattern[i] === '\\') {
+            i += 2;
+            continue;
+        }
+        if (pattern[i] === '[') {
+            i = scanCharClass(pattern, i);
+            const q = isQuantifierStart(pattern, i);
+            if (q > 0) {
+                i += q;
+            }
+            continue;
+        }
+        if (pattern[i] === '(') {
+            const bodyStart = groupBodyStart(pattern, i);
+            const close = findGroupEnd(pattern, i);
+            const body = groupBodyFlags(pattern, bodyStart, close - 1);
+            if (body.hasQuantifier || body.hasAlternation) {
+                let j = close;
+                while (j < pattern.length && /\s/.test(pattern[j])) {
+                    j++;
+                }
+                if (isQuantifierStart(pattern, j) > 0) {
+                    return true;
+                }
+            }
+            i = close;
+            const q = isQuantifierStart(pattern, i);
+            if (q > 0) {
+                i += q;
+            }
+            continue;
+        }
+        if (pattern[i] === '.') {
+            i++;
+            const q = isQuantifierStart(pattern, i);
+            if (q > 0) {
+                i += q;
+            }
+            continue;
+        }
+        i++;
+        const q = isQuantifierStart(pattern, i);
+        if (q > 0) {
+            i += q;
+        }
     }
     return false;
 }
@@ -42,7 +218,7 @@ export interface LorebookEntry {
  * Test a single key string against context text.
  * - useRegex=false: case-insensitive substring match
  * - useRegex=true : compile as /pattern/flags or bare pattern with 'i' flag,
- *                   fall back to substring on malformed regex
+ *                   fall back to substring on malformed or suspicious regex
  */
 function matchKey(key: string, text: string, textLower: string, useRegex: boolean): boolean {
     const k = key.trim();

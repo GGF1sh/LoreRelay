@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.14.7] - 2026-07-02
+
+### Fixed
+
+- **lorebookMatcher ReDoS ガード強化** — `isPotentiallyEvilRegex` をエスケープ対応スキャナーに刷新。`(\w+)+` / `(\d+)+` / `(a|a){1,N}` / `.*{3,}` 連鎖など従来ヒューリスティックの抜け道を塞ぐ。`test_lorebook_redos.js` 追加。Python `TextAdventureGMSkill/scripts/gm_bridge_common.py` も同等ガードに同期。
+
 ## [1.14.6] - 2026-07-02
 
 ### Fixed

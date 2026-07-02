@@ -18,6 +18,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SCRIPTS = __dirname;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 /** @typedef {'validate' | 'unit' | 'smoke'} TestCategory */
 
@@ -41,15 +42,17 @@ const MANIFEST = [
     { category: 'unit', file: 'test_memory_bank.js' },
     { category: 'unit', file: 'test_migrate_game_state.js' },
     { category: 'unit', file: 'test_remote_media_signature_core.js' },
-    { category: 'smoke', file: 'test_remote_play_server.js' },
-    { category: 'smoke', file: 'test_ws_functionality.js' },
+    { category: 'smoke', file: 'test_remote_play_server.js', timeoutMs: 90000 },
+    { category: 'smoke', file: 'test_ws_functionality.js', timeoutMs: 90000 },
     { category: 'unit', file: 'test_validate_game_state.js' },
     { category: 'unit', file: 'test_game_state_sanitize.js' },
     { category: 'unit', file: 'test_dice_roller.js' },
     { category: 'unit', file: 'test_gm_prompt_builder_core.js' },
+    { category: 'unit', file: 'test_prompt_context_budget.js' },
     { category: 'unit', file: 'test_webview_handlers_core.js' },
     { category: 'unit', file: 'test_model_scanner.js' },
     { category: 'smoke', file: 'test_webview_bundle.js' },
+    { category: 'smoke', file: 'test_webview_world_modules.js' },
     { category: 'unit', file: 'test_world_forge.js' },
     { category: 'unit', file: 'test_world_state.js' },
     { category: 'unit', file: 'test_emergent_simulator.js' },
@@ -113,17 +116,26 @@ function runEntry(entry) {
 
     const runner = resolveRunner(entry);
     const args = entry.runner === 'python' ? [scriptPath] : [scriptPath];
+    const timeoutMs = Number.isFinite(entry.timeoutMs)
+        ? Math.max(1000, Math.floor(entry.timeoutMs))
+        : DEFAULT_TIMEOUT_MS;
     const started = Date.now();
     const result = spawnSync(runner, args, {
         cwd: ROOT,
         stdio: 'inherit',
         env: process.env,
+        timeout: timeoutMs,
     });
     const ms = Date.now() - started;
+    if (result.error) {
+        if (result.error.code === 'ETIMEDOUT') {
+            return { ok: false, ms, error: `timeout after ${timeoutMs}ms` };
+        }
+        return { ok: false, ms, error: result.error.message };
+    }
     const code = result.status ?? 1;
     if (code !== 0) {
-        const detail = result.error ? result.error.message : `exit ${code}`;
-        return { ok: false, ms, error: detail };
+        return { ok: false, ms, error: `exit ${code}` };
     }
     return { ok: true, ms };
 }
@@ -141,7 +153,8 @@ function printList() {
         console.log(`## ${cat} (${counts[cat]})`);
         for (const e of MANIFEST.filter((x) => x.category === cat)) {
             const runner = e.runner === 'python' ? 'python' : 'node';
-            console.log(`  - [${runner}] ${e.file}`);
+            const timeout = e.timeoutMs ? ` timeout=${e.timeoutMs}ms` : '';
+            console.log(`  - [${runner}] ${e.file}${timeout}`);
         }
         console.log('');
     }

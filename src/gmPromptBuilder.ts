@@ -61,7 +61,8 @@ import {
     previewText,
     type PromptContextBreakdown,
     type PromptLoreMatch,
-    type PromptMemoryMatch
+    type PromptMemoryMatch,
+    type PromptBudgetLimitSpec
 } from './promptContext';
 
 export interface GmPromptBuilderDeps {
@@ -131,6 +132,37 @@ function getPromptBudgetPolicy(): PromptBudgetPolicy {
         tier,
         config.get<number>('promptBudget.maxTokens', 0)
     );
+}
+
+function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLimitSpec[] {
+    const npcCount = Math.max(policy.npcCountWithLocation, policy.npcCountWithoutLocation);
+    return [
+        { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
+        { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
+        { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
+        { id: 'lorebook', label: 'Lorebook', limitChars: policy.loreMatches * policy.loreChars },
+        {
+            id: 'party',
+            label: 'Party',
+            limitChars: (policy.partyFieldChars * 5) + policy.partyExampleChars + policy.dynamicProfileChars
+        },
+        {
+            id: 'worldForge',
+            label: 'World',
+            limitChars: 1000 + (policy.worldFactionCount * 280) + (policy.worldLoreCount * 220)
+        },
+        {
+            id: 'worldState',
+            label: 'World State',
+            limitChars: 800 + (policy.worldStateFactionCount * 160) + (policy.worldEventCount * 220) + (policy.worldChangeCount * 220)
+        },
+        {
+            id: 'npcRegistry',
+            label: 'NPC Awareness',
+            limitChars: npcCount * ((policy.npcMemoryChars * 3) + policy.npcHintChars + 360)
+        },
+        { id: 'vision', label: 'Vision', limitChars: policy.visionChars }
+    ];
 }
 
 let lorebookCachePath = '';
@@ -743,7 +775,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
             mode: policy.mode,
             requestedMode: policy.requestedMode,
             targetTokens: policy.targetTokens
-        }
+        },
+        buildPromptBudgetLimitSpecs(policy)
     );
 }
 

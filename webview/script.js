@@ -3639,7 +3639,18 @@ function renderPromptContext(breakdown) {
             })
             : `Budget: ${budget.mode || 'auto'} / ~${budget.targetTokens || 0} tokens`)
         : '';
-    summaryDiv.textContent = budgetSummary ? `${baseSummary} ? ${budgetSummary}` : baseSummary;
+    summaryDiv.textContent = budgetSummary ? `${baseSummary} | ${budgetSummary}` : baseSummary;
+    const budgetDetails = Array.isArray(budget?.details)
+        ? budget.details.filter((d) => d && typeof d.label === 'string').slice(0, 9)
+        : [];
+    if (budgetDetails.length > 0) {
+        const details = document.createElement('div');
+        details.className = 'prompt-budget-details';
+        details.textContent = budgetDetails
+            .map((d) => `${d.label}: ${Number(d.usedChars || 0)}/${Number(d.limitChars || 0)} chars`)
+            .join(' | ');
+        summaryDiv.appendChild(details);
+    }
 
     sectionsDiv.innerHTML = '';
     (breakdown.sections || []).forEach((section) => {

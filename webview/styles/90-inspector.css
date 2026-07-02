@@ -149,6 +149,14 @@
     overflow: auto;
 }
 
+.prompt-budget-details {
+    margin-top: 4px;
+    color: var(--text-muted, #888);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: normal;
+}
+
 .diff-item {
     display: flex;
     align-items: center;

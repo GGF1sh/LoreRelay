@@ -1,5 +1,25 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Maintenance hardening v1.14.5
+
+### Summary
+
+- Added per-test timeouts to `scripts/run_all_tests.js` and marked remote-play smoke tests with longer limits.
+- Added `test_webview_world_modules.js` to catch World tab / Tile Overmap bundle and DOM regressions before manual UI testing.
+- Split CI into `validate-and-smoke` and `coverage` jobs so the unit suite is not run twice.
+- Added tag-based release workflow for packaging and attaching the VSIX.
+- Expanded Turn Inspector Prompt Budget output with per-section used/limit character details.
+
+### Verification
+
+- `npm run compile` passed.
+- `npm run test:validate` passed.
+- `npm run test:smoke` passed.
+- `npm run test:unit` passed.
+- `npm run test:coverage` passed (92.15% lines/statements, 74.54% branches, 97.77% functions).
+
+---
+
 ## 2026-07-02 JST - Codex - Prompt Budget / token compression controls
 
 ### Summary

@@ -26,6 +26,21 @@ export interface PromptBudgetInfo {
     mode: string;
     requestedMode: string;
     targetTokens: number;
+    details?: PromptBudgetDetail[];
+}
+
+export interface PromptBudgetDetail {
+    id: string;
+    label: string;
+    usedChars: number;
+    limitChars: number;
+    percent: number;
+}
+
+export interface PromptBudgetLimitSpec {
+    id: string;
+    label: string;
+    limitChars: number;
 }
 
 export interface PromptContextBreakdown {
@@ -66,23 +81,61 @@ export function buildSection(id: string, label: string, text: string): PromptCon
     };
 }
 
+export function buildPromptBudgetDetails(
+    sections: PromptContextSection[],
+    limits: PromptBudgetLimitSpec[]
+): PromptBudgetDetail[] {
+    const usedById = new Map<string, number>();
+    for (const section of sections) {
+        usedById.set(section.id, section.charCount);
+    }
+
+    const details: PromptBudgetDetail[] = [];
+    const seen = new Set<string>();
+    for (const spec of limits) {
+        if (!spec || seen.has(spec.id)) {
+            continue;
+        }
+        seen.add(spec.id);
+        const usedChars = Math.max(0, Math.floor(usedById.get(spec.id) ?? 0));
+        const limitChars = Math.max(0, Math.floor(Number(spec.limitChars) || 0));
+        if (usedChars === 0 && limitChars === 0) {
+            continue;
+        }
+        details.push({
+            id: spec.id,
+            label: spec.label || spec.id,
+            usedChars,
+            limitChars,
+            percent: limitChars > 0
+                ? Math.min(999, Math.round((usedChars / limitChars) * 100))
+                : 0
+        });
+    }
+    return details;
+}
+
 export function finalizeBreakdown(
     sections: Array<PromptContextSection | undefined>,
     memoryBackend: string,
     matchedLore: PromptLoreMatch[],
     memoryMatches: PromptMemoryMatch[],
     hintPreview: string,
-    budget?: PromptBudgetInfo
+    budget?: PromptBudgetInfo,
+    budgetLimits?: PromptBudgetLimitSpec[]
 ): PromptContextBreakdown {
     const kept = sections.filter((s): s is PromptContextSection => Boolean(s));
     const totalChars = kept.reduce((sum, s) => sum + s.charCount, 0);
+    const resolvedBudget = budget && budgetLimits
+        ? { ...budget, details: buildPromptBudgetDetails(kept, budgetLimits) }
+        : budget;
     return {
         sections: kept,
         memoryBackend,
         matchedLore,
         memoryMatches,
         hintPreview,
-        budget,
+        budget: resolvedBudget,
         totalChars,
         totalTokensEstimate: estimateTokens(kept.map((s) => s.text).join('\n'))
     };

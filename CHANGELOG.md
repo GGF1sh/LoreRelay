@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+## [1.14.5] - 2026-07-02
+
+### Added
+
+- Maintenance hardening: `scripts/run_all_tests.js` now applies a per-test timeout (default 60s, with longer remote-play smoke timeouts) so hung tests fail clearly instead of freezing CI.
+- Webview World/Tile Overmap smoke coverage: `test_webview_world_modules.js` verifies World map mode DOM, bundle order, tile renderer wiring, fallback theme symbols, and `pane-world` div balance.
+- Release automation: tag pushes (`v*`) now build and upload a VSIX artifact through `.github/workflows/release.yml`, and attach it to the GitHub Release.
+- Turn Inspector now expands Prompt Budget reporting with per-section used/limit character details for Summary, Saga, Memory, Lorebook, Party, World, NPC Awareness, and Vision context.
+
+### Changed
+
+- CI now runs `validate-and-smoke` separately from the `coverage` job, avoiding the previous full-suite run followed by another unit run under c8.
+- `package-lock.json` version metadata is synchronized with `package.json`.
+
 ## [1.14.4] - 2026-07-02
 
 ### Added

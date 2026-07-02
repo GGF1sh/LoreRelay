@@ -29,6 +29,8 @@ node scripts/run_all_tests.js --list
 
 `validate.js` also runs nested suites inline: `test_turn_result_pipeline.js`, `test_state_patch.js`, `test_lorebook.js`, `test_lorebook_python.py`.
 
+Each manifest entry has a per-process timeout (default: 60s). Long-running smoke tests can opt into a larger timeout in `scripts/run_all_tests.js`; a hung test now fails with a clear timeout instead of freezing CI.
+
 ## Coverage (Phase 2–3)
 
 Configuration: [`.c8rc.json`](.c8rc.json)
@@ -55,11 +57,13 @@ Shared VSCode stub: [`scripts/test_helpers/vscode_stub.js`](scripts/test_helpers
 
 Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
-1. `npm ci`
-2. `npm run compile`
-3. `npm test` (full manifest)
-4. `npm run test:coverage` (Core coverage + threshold check)
-5. Upload `coverage/lcov.info`
+CI is split so the unit suite is not run twice:
+
+- `validate-and-smoke`: `npm ci` -> `npm run compile` -> `npm run test:validate` -> `npm run test:smoke`
+- `coverage`: `npm ci` -> `npm run compile` -> `npm run test:coverage`
+- Coverage job uploads `coverage/lcov.info`
+
+Tag pushes (`v*`) run `.github/workflows/release.yml`, compile the extension, package a VSIX, upload it as an artifact, and attach it to the GitHub Release.
 
 ## Writing new tests
 

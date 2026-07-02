@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.14.8] - 2026-07-02
+
+### Added
+
+- **ユーザーガイド** — `docs/USER_GUIDE.md`（3分スタート、タブ一覧、World / Cartography / Visual Memory の使い方、つまずき対処）。
+- **Cartography Phase 8 ブリーフ** — `docs/CARTOGRAPHY_PHASE8_BRIEF.md`（Fog of War・ピン UX の設計依頼テンプレ、AI 分担の推奨）。
+
+### Changed
+
+- **i18n 検証強化** — `check_i18n_keys.js` が `src/**/*.ts` の `t('extension.*')` / `t('webview.*')` も走査。新機能追加時の zh-CN/zh-TW 漏れを CI で検出しやすく。
+
 ## [1.14.7] - 2026-07-02
 
 ### Fixed

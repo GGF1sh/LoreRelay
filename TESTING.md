@@ -23,7 +23,7 @@ node scripts/run_all_tests.js --list
 
 | Category | Purpose | Examples |
 |----------|---------|----------|
-| **validate** | Repo invariants, schemas, i18n parity, cartography workflow JSON | `validate.js`, `check_i18n_keys.js` |
+| **validate** | Repo invariants, schemas, i18n parity (webview + `src/**/*.ts`), cartography workflow JSON | `validate.js`, `check_i18n_keys.js` |
 | **unit** | Pure/core logic (TypeScript `*Core.ts` compiled to `out/`), state patch, world generation | `test_tile_overmap_core.js`, `test_state_manager.js` |
 | **smoke** | Heavier checks: Webview bundle, sample scenarios, remote play, cartography layout render | `test_webview_bundle.js`, `test_cartography_layout_smoke.js` |
 

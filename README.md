@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.14.7-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.14.8-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -40,6 +40,7 @@
 - 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM が生成画像を分析し `visual_memory.json` に蓄積。次ターン以降の GM プロンプトへ情景コンテキストを自動注入。
 - 🔒 **Audit Wave Hardening (v1.6):** State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub を7トラックで監査。pure 検証モジュールと回帰テストを大幅追加。
 
+**初めての方:** [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)（3分スタート・タブの見方・World / 地図 / Visual Memory）  
 詳細なアーキテクチャ解説: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ### 必要なものと任意機能

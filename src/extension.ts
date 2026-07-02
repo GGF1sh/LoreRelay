@@ -23,12 +23,20 @@ import {
 } from './partyDirector';
 import { initWorldView, pushWorldViewToWebview } from './worldView';
 import { initAutoLocationImageRunner } from './autoLocationImageRunner';
+import {
+    executeBulkWorldSimulation,
+    executeWorldSimulationAdvance,
+    getBulkWorldSimMaxSteps,
+    isBulkWorldSimDebugEnabled,
+} from './worldSimBulkRunner';
+import { isActiveDebugScenario } from './debugScenarioRunner';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
 import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { resetWorldStateFromForge } from './worldState';
 import { buildLocationImagePrompt } from './locationImageBuilder';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
+import { buildChronicleForWorkspace } from './chronicleLoader';
 import {
     getMemoryStatus,
     rebuildMemoryIndex,
@@ -36,6 +44,7 @@ import {
     setMemoryBackend
 } from './memoryService';
 import { interceptPlayerAction } from './companionAgent';
+import { tryExecuteDebugScenarioCommand } from './debugScenarioRunner';
 import { initOocSidekick, generateOocCommentary } from './oocSidekick';
 import { commitTurn, branchFromTurn, getGitTimelineStatus, switchToBranch } from './gitManager';
 import {
@@ -148,11 +157,13 @@ import {
 } from './characterManager';
 import { adaptCharacterToWorld } from './characterWorldAdapter';
 import { exportSagaToHtml } from './exportHtml';
+import { exportReplayToWorkspace, openReplayExport } from './replayExport';
 import {
     initGmPromptBuilder,
     buildGrokPrompt,
     processProfileUpdates,
-    maybeSuggestArchive
+    maybeSuggestArchive,
+    resetChronicleSessionPending
 } from './gmPromptBuilder';
 import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 import { commitGameState } from './stateManager';
@@ -203,6 +214,7 @@ export function activate(context: vscode.ExtensionContext) {
         getPanel: () => panel,
         onArchiveNow: archiveSaga
     });
+    resetChronicleSessionPending();
     initOocSidekick(() => panel);
     initCheckpointHandlers({ getPanel, isGameOverActive });
     initGmBridgeRunner({
@@ -314,6 +326,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         startWatchingGameState();
         sendLocaleBundle();
+        sendDebugCapabilities();
 
         panel.webview.onDidReceiveMessage(
             (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
@@ -402,6 +415,10 @@ export function activate(context: vscode.ExtensionContext) {
         () => { void resetProtagonistBootstrapFlag(); }
     );
 
+    const exportReplayCmd = vscode.commands.registerCommand('textadventure.exportReplay', () => {
+        void handleExportReplay({});
+    });
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -444,7 +461,8 @@ export function activate(context: vscode.ExtensionContext) {
         listLmModelsCmd,
         generateWorldForgeCmd,
         generateWorldMapImageCmd,
-        resetProtagonistBootstrapCmd
+        resetProtagonistBootstrapCmd,
+        exportReplayCmd
     );
 
     context.subscriptions.push(
@@ -749,6 +767,10 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
     actionForGm = await interceptPlayerAction(actionForGm);
     persistPlayerInputEntry(trimmed, entryId);
 
+    if (await tryExecuteDebugScenarioCommand(trimmed)) {
+        return;
+    }
+
     const provider = getGmProvider();
     if (provider === 'clipboard') {
         await fallbackToClipboard(actionForGm);
@@ -807,6 +829,32 @@ async function handleExportHtml(): Promise<void> {
     }
 }
 
+async function handleExportReplay(raw: unknown): Promise<void> {
+    const msg = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const format = msg.format === 'html' ? 'html' : 'markdown';
+    const result = await exportReplayToWorkspace({
+        format,
+        includeImages: msg.includeImages !== false,
+        includeGm: msg.includeGm !== false,
+        includeDice: msg.includeDice === true,
+        title: typeof msg.title === 'string' ? msg.title : undefined
+    });
+    if (panel) {
+        panel.webview.postMessage({ type: 'replayExportResult', ...result });
+    }
+    if (result.ok && result.path) {
+        const open = await vscode.window.showInformationMessage(
+            result.message ?? t('extension.info.replayExported', { path: result.path }),
+            t('extension.button.replayOpen')
+        );
+        if (open === t('extension.button.replayOpen')) {
+            await openReplayExport(result.path);
+        }
+    } else if (!result.ok && result.message) {
+        vscode.window.showWarningMessage(result.message);
+    }
+}
+
 async function handleBranchTimeline(turnId: string): Promise<void> {
     if (!turnId) return;
     const ok = await branchFromTurn(turnId);
@@ -827,6 +875,19 @@ async function sendGitTimelineStatus(): Promise<void> {
     }
     const status = await getGitTimelineStatus();
     panel.webview.postMessage({ type: 'gitTimelineStatus', ...status });
+}
+
+async function sendChronicle(): Promise<void> {
+    if (!panel) {
+        return;
+    }
+    const ws = getWorkspacePath();
+    if (!ws) {
+        panel.webview.postMessage({ type: 'chronicleData', chapters: [] });
+        return;
+    }
+    const chapters = buildChronicleForWorkspace(ws);
+    panel.webview.postMessage({ type: 'chronicleData', chapters });
 }
 
 async function handleSwitchGitBranch(branchName: string): Promise<void> {
@@ -1110,6 +1171,19 @@ function sendGameRules(): void {
     panel.webview.postMessage({ type: 'gameRules', rules });
 }
 
+function sendDebugCapabilities(): void {
+    if (!panel) { return; }
+    const wsPath = getWorkspacePath();
+    const debugScenarioActive = wsPath ? isActiveDebugScenario(wsPath) : false;
+    panel.webview.postMessage({
+        type: 'debugCapabilities',
+        bulkWorldSim: isBulkWorldSimDebugEnabled() || debugScenarioActive,
+        bulkWorldSimMaxSteps: getBulkWorldSimMaxSteps(),
+        debugScenarioActive,
+        showDebugConsole: isBulkWorldSimDebugEnabled() || debugScenarioActive,
+    });
+}
+
 async function handleUpdateGameRules(raw: unknown): Promise<void> {
     if (!raw || typeof raw !== 'object') return;
     saveGameRules(raw as Partial<GameRules>);
@@ -1242,14 +1316,17 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendImageGenConfig,
         handleUpdateImageGenConfig,
         sendGameRules,
+        sendDebugCapabilities,
         handleUpdateGameRules,
         toggleRemotePlay,
         sendRemotePlayStatus,
         handleBranchTimeline,
         sendGitTimelineStatus,
+        sendChronicle,
         handleSwitchGitBranch,
         handleRequestForceSpeak,
         handleExportHtml,
+        handleExportReplay,
         handleRequestMermaid,
         exportCharacterCard,
         handleRequestVlmAnalysis: async (imagePath: string) => {
@@ -1353,6 +1430,44 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             const draft = text.trim().slice(0, 20_000);
             if (!draft) { return; }
             panel?.webview.postMessage({ type: 'insertChatDraft', text: draft });
+        },
+        handleBulkAdvanceWorldSim: async (steps: number) => {
+            const wsPath = getWorkspacePath();
+            const inDebugScenario = wsPath ? isActiveDebugScenario(wsPath) : false;
+            const maxSteps = getBulkWorldSimMaxSteps();
+            const clamped = Math.max(1, Math.min(maxSteps, Math.floor(steps)));
+            const confirmLabel = t('extension.confirm.bulkWorldSimConfirm');
+            const ok = await vscode.window.showWarningMessage(
+                t('extension.confirm.bulkWorldSim', { steps: String(clamped) }),
+                { modal: true },
+                confirmLabel
+            );
+            if (ok !== confirmLabel) { return; }
+
+            const result = inDebugScenario
+                ? executeWorldSimulationAdvance(clamped, maxSteps)
+                : await executeBulkWorldSimulation(clamped);
+            if (!result.ok) {
+                const key =
+                    result.reason === 'DISABLED' ? 'extension.warn.bulkWorldSimDisabled'
+                        : result.reason === 'SIM_OFF' ? 'extension.warn.bulkWorldSimSimOff'
+                            : result.reason === 'NO_FORGE' ? 'extension.warn.bulkWorldSimNoForge'
+                                : 'extension.warn.bulkWorldSimInvalidSteps';
+                vscode.window.showWarningMessage(t(key));
+                panel?.webview.postMessage({ type: 'bulkWorldSimResult', ok: false, reason: result.reason });
+                return;
+            }
+
+            const s = result.summary;
+            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            vscode.window.showInformationMessage(
+                t('extension.info.bulkWorldSimDone', {
+                    start: String(s.startWorldTurn),
+                    end: String(s.endWorldTurn),
+                    events: String(s.totalEventsEmitted),
+                })
+            );
+            panel?.webview.postMessage({ type: 'bulkWorldSimResult', ok: true, summary: s });
         },
     };
 }

@@ -76,6 +76,11 @@
             <span class="start-hub-btn-label" data-i18n="webview.startHub.mapDemoTitle">地図デモ（上級）</span>
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.mapDemoDesc">地下聖堂＋同梱レイアウト地図。World タブの Parchment を確認。</span>
           </button>
+          <button type="button" id="start-hub-debug-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🔧</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.debugTitle">デバッグサンドボックス</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.debugDesc">好感度・地図の霧・世界ターンを言葉で即操作（開発者向け）。</span>
+          </button>
         </div>
         <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
         <div class="start-hub-options">
@@ -383,6 +388,54 @@
 
       <!-- ページ 3: Turn Inspector -->
       <div id="pane-inspector" class="tab-pane">
+        <div class="inspector-section hidden" id="inspector-debug-console-section">
+          <h4 data-i18n="webview.inspector.debugConsoleTitle">Debug Console</h4>
+          <p id="inspector-debug-sandbox-badge" class="img-gen-hint hidden" data-i18n="webview.inspector.debugSandboxBadge">Debug sandbox active — chat commands apply instantly.</p>
+          <p class="img-gen-hint" data-i18n="webview.inspector.bulkSimHint">Runs emergent simulation steps without advancing GM turns.</p>
+          <div id="inspector-debug-quick-wrap" class="hidden" style="margin-top:0.5rem;">
+            <div class="img-gen-hint" data-i18n="webview.inspector.debugQuickLabel">Quick insert (edit &amp; send):</div>
+            <div id="inspector-debug-quick-chips" class="start-hub-presets" style="margin-top:0.35rem;"></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+            <label for="inspector-bulk-sim-steps" data-i18n="webview.inspector.bulkSimSteps">Steps</label>
+            <input type="number" id="inspector-bulk-sim-steps" min="1" max="100" value="10" style="width:5rem;" />
+            <button type="button" id="inspector-bulk-sim-run" class="small-btn" data-i18n="webview.inspector.bulkSimRun">Advance</button>
+          </div>
+          <pre id="inspector-bulk-sim-result" class="inspector-item" style="white-space:pre-wrap; font-size:12px; margin-top:0.5rem;"></pre>
+        </div>
+        <div class="inspector-section" id="inspector-chronicle-section">
+          <h4 data-i18n="webview.inspector.chronicleTitle">Chronicle</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.chronicleHint">Deterministic timeline from the state journal (read-only).</p>
+          <div id="inspector-chronicle-list" class="inspector-list"></div>
+          <button type="button" id="inspector-chronicle-refresh-btn" class="small-btn" data-i18n="webview.inspector.chronicleRefresh">Refresh</button>
+        </div>
+        <div class="inspector-section" id="inspector-replay-section">
+          <h4 data-i18n="webview.inspector.replayTitle">Replay Export</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.replayHint">Export chat log + chronicle chapters + gallery images to Markdown or HTML under exports/.</p>
+          <div class="inspector-replay-options" style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center; margin:0.5rem 0;">
+            <label for="inspector-replay-format" style="display:flex; align-items:center; gap:0.35rem;">
+              <span data-i18n="webview.inspector.replayFormat">Format</span>
+              <select id="inspector-replay-format">
+                <option value="markdown" data-i18n="webview.inspector.replayFormatMarkdown">Markdown</option>
+                <option value="html" data-i18n="webview.inspector.replayFormatHtml">HTML</option>
+              </select>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-images" checked />
+              <span data-i18n="webview.inspector.replayIncludeImages">Include images</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-gm" checked />
+              <span data-i18n="webview.inspector.replayIncludeGm">Include GM</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-dice" />
+              <span data-i18n="webview.inspector.replayIncludeDice">Include dice</span>
+            </label>
+          </div>
+          <button type="button" id="inspector-replay-export-btn" class="small-btn" data-i18n="webview.inspector.replayExport">Export replay</button>
+          <p id="inspector-replay-status" class="img-gen-hint" style="margin-top:0.5rem;"></p>
+        </div>
         <div class="inspector-section" id="inspector-git-timeline">
           <h4 data-i18n="webview.inspector.gitTimeline">Git Timeline</h4>
           <div id="inspector-git-current-branch" class="inspector-item empty-text" data-i18n="webview.inspector.gitTimelineLoading">Checking Git status…</div>
@@ -410,6 +463,10 @@
           <div class="inspector-section">
             <h4 data-i18n="webview.inspector.lorebook">Triggered lore</h4>
             <div id="inspector-lorebook" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section hidden" id="inspector-living-world-ops-section">
+            <h4 data-i18n="webview.inspector.livingWorldOps">Living World ops</h4>
+            <div id="inspector-living-world-ops" class="inspector-list"></div>
           </div>
           <div class="inspector-section">
             <h4 data-i18n="webview.inspector.promptContext">Prompt context (last GM call)</h4>
@@ -572,9 +629,25 @@
               </div>
             </div>
             <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>
+            <details id="world-map-items-section" class="world-map-items-section hidden">
+              <summary data-i18n="webview.world.mapItemsTitle">Maps &amp; Intel</summary>
+              <div id="world-map-items-list" class="world-map-items-list"></div>
+            </details>
           </details>
 
           <!-- 派閥ステータス -->
+          <details id="world-markets-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.marketsTitle">Markets</summary>
+            <p class="img-gen-hint" data-i18n="webview.world.marketsHint">Read-only commodity prices from the living world simulation.</p>
+            <div id="world-markets-list"></div>
+          </details>
+
+          <details id="world-npc-whereabouts-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.npcWhereaboutsTitle">NPC Whereabouts</summary>
+            <p id="world-npc-whereabouts-clamped" class="img-gen-hint hidden" data-i18n="webview.world.npcWhereaboutsClamped">Showing the first 10 named NPCs.</p>
+            <div id="world-npc-whereabouts-list"></div>
+          </details>
+
           <details id="world-factions-details" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.factionsTitle">Factions</summary>
             <div id="world-factions-list"></div>
@@ -751,6 +824,35 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
         <label for="gr-emergent-sim" data-i18n="webview.gameRules.emergentSim" data-i18n-title="webview.gameRules.tipEmergentSim">Enable Emergent Simulation</label>
         <input type="checkbox" id="gr-emergent-sim" data-field="enableEmergentSimulation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-faction-reputation" data-i18n="webview.gameRules.factionReputation" data-i18n-title="webview.gameRules.tipFactionReputation">Enable Faction Reputation</label>
+        <input type="checkbox" id="gr-faction-reputation" data-field="enableFactionReputation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-commerce" data-i18n="webview.gameRules.commerce" data-i18n-title="webview.gameRules.tipCommerce">Enable Commerce (trade/cargo)</label>
+        <input type="checkbox" id="gr-commerce" data-field="enableCommerce" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-npc-agency" data-i18n="webview.gameRules.npcAgency" data-i18n-title="webview.gameRules.tipNpcAgency">Enable NPC Agency</label>
+        <input type="checkbox" id="gr-npc-agency" data-field="enableNpcAgency" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-travel-encounters" data-i18n="webview.gameRules.travelEncounters" data-i18n-title="webview.gameRules.tipTravelEncounters">Enable Travel Encounters</label>
+        <input type="checkbox" id="gr-travel-encounters" data-field="enableTravelEncounters" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-travel-density" data-i18n="webview.gameRules.travelDensity">Travel Encounter Density</label>
+        <select id="gr-travel-density" data-field="travelEncounterDensity">
+          <option value="low" data-i18n="webview.gameRules.travelDensityLow">Low</option>
+          <option value="medium" data-i18n="webview.gameRules.travelDensityMedium">Medium</option>
+          <option value="high" data-i18n="webview.gameRules.travelDensityHigh">High</option>
+        </select>
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">

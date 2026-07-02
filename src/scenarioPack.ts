@@ -19,6 +19,8 @@ import {
     OPTIONAL_PACK_FILES,
     resolveBundledSampleDir,
 } from './scenarioPackCore';
+import { isDebugScenarioPack } from './debugScenarioCore';
+import { seedDebugScenarioWorldFromForge } from './debugScenarioRunnerCore';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
 
@@ -143,6 +145,16 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     );
     if (directorTemplate) {
         state.director = seedDirectorFromTemplate(directorTemplate);
+    }
+
+    if (isDebugScenarioPack(meta)) {
+        const forgePath = path.join(dir, 'world_forge.json');
+        if (fs.existsSync(forgePath)) {
+            try {
+                const forgeRaw = JSON.parse(fs.readFileSync(forgePath, 'utf-8'));
+                Object.assign(state, seedDebugScenarioWorldFromForge(state, forgeRaw));
+            } catch { /* ignore */ }
+        }
     }
 
     const statePath = getGameStatePath();

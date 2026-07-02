@@ -68,6 +68,16 @@ export interface GameOverState {
     victory?: boolean;
 }
 
+export type MapItemKind = 'map' | 'rumor' | 'informant';
+
+/** Player-held map/rumor item for World tab "unfold" UX (Cartography C9). */
+export interface HeldMapItem {
+    id: string;
+    name: string;
+    kind: MapItemKind;
+    consumable?: boolean;
+}
+
 /** World Forge: プレイヤーの現在地・訪問済み場所をトラッキング。 */
 export interface GameStateWorld {
     currentLocationId?: string;
@@ -84,6 +94,12 @@ export interface GameStateWorld {
     lastGeneratedLocationId?: string;
     /** GM turn index when an auto location image was last queued (cartography.autoLocationImage). */
     lastAutoImageGmTurn?: number;
+    /** C9: weak remote reveals (hearsay). Merged into rumored display. */
+    rumorKnownRegionIds?: string[];
+    /** C9: held map/rumor items for World tab unfold actions. */
+    mapItems?: HeldMapItem[];
+    /** C9: consumed one-shot map item ids. */
+    mapItemsConsumed?: string[];
 }
 
 /** ランタイムのシナリオ進行（scenario.json director の上書き）。v0.6c */
@@ -123,4 +139,11 @@ export interface GameState {
     director?: GameStateDirector;
     /** World Forge: player location tracking within world_forge.json geography. */
     world?: GameStateWorld;
+    /** LW1: player credits/cargo when Commerce is ON. */
+    commerce?: {
+        credits: number;
+        cargo: Array<{ commodityId: string; qty: number }>;
+        transportId: string;
+        playerRole?: string;
+    };
 }

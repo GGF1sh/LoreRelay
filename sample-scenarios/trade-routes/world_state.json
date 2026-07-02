@@ -1,0 +1,87 @@
+{
+  "format": "lorerelay-world-state/1.0",
+  "lastUpdated": "2026-07-02T00:00:00Z",
+  "worldTurn": 10,
+  "lastSimulatedGmTurn": 0,
+  "factions": {
+    "faction_merchants": {
+      "power": 45,
+      "resources": { "wheat": 30, "credits": 80 },
+      "morale": 60,
+      "recentEvents": []
+    },
+    "faction_smiths": {
+      "power": 30,
+      "resources": { "steel": 3, "credits": 45 },
+      "morale": 55,
+      "recentEvents": []
+    },
+    "faction_port": {
+      "power": 40,
+      "resources": { "wheat": 8, "spice": 15 },
+      "morale": 58,
+      "recentEvents": []
+    }
+  },
+  "regions": {
+    "r_north": {
+      "dangerLevel": 1,
+      "controllingFaction": "faction_merchants",
+      "activeEvents": []
+    },
+    "r_central": {
+      "dangerLevel": 2,
+      "controllingFaction": "faction_merchants",
+      "activeEvents": []
+    },
+    "r_south": {
+      "dangerLevel": 3,
+      "controllingFaction": "faction_port",
+      "activeEvents": []
+    }
+  },
+  "globalEvents": [],
+  "pendingWorldEvents": [],
+  "recentChanges": [
+    {
+      "id": "event_trade_routes_food_10",
+      "worldTurn": 10,
+      "category": "resource",
+      "severity": "warning",
+      "message": "South Port wheat reserves are low; grain prices have climbed.",
+      "regionId": "r_south",
+      "expiresTurn": 16
+    }
+  ],
+  "questHooks": [],
+  "markets": {
+    "north_farm": {
+      "wheat": { "stock": 48, "priceIndex": 1.0 }
+    },
+    "elda_shop": {
+      "wheat": { "stock": 12, "priceIndex": 1.1 },
+      "steel": { "stock": 3, "priceIndex": 1.25 }
+    },
+    "south_port": {
+      "wheat": { "stock": 8, "priceIndex": 1.35 },
+      "steel": { "stock": 20, "priceIndex": 1.0 },
+      "spice": { "stock": 15, "priceIndex": 1.0 }
+    }
+  },
+  "npcPositions": {
+    "npc_elda": {
+      "locationId": "elda_shop",
+      "arrivesTurn": 10,
+      "agenda": "seek_buyer",
+      "reason": "watching_demo_prices"
+    },
+    "npc_marcus": {
+      "locationId": "elda_shop",
+      "arrivesTurn": 10,
+      "agenda": "restock_steel",
+      "reason": "steel_stock_low"
+    }
+  },
+  "lastVisitTurnByLocation": {},
+  "marketSnapshotByLocation": {}
+}

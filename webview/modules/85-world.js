@@ -193,11 +193,19 @@ function renderWorldView(msg) {
     // Living World recent events
     renderRecentChanges(msg.recentChanges || [], msg.simEnabled);
 
+    // Living World market prices
+    renderLivingWorldMarkets(msg.livingWorldMarkets || [], msg.enableCommerce === true);
+
+    // Living World NPC whereabouts
+    renderNpcWhereabouts(msg.npcWhereabouts || null);
+
     // Quest Board
     renderQuestHooks(msg.questHooks || []);
 
     // 派閥カード
-    renderFactions(msg.factions || [], msg.factionStates || null);
+    renderFactions(msg.factions || [], msg.factionStates || null, msg.enableFactionReputation === true);
+
+    renderWorldMapItems(msg.mapItems || []);
 }
 
 function ensureCartographyStyles() {
@@ -224,6 +232,60 @@ function ensureCartographyStyles() {
             background: rgba(74,144,226,0.18);
         }
         .world-map-panel.hidden { display: none !important; }
+        .world-map-items-section { margin-top: 0.65rem; font-size: 0.9em; }
+        .world-map-items-section.hidden { display: none !important; }
+        #world-markets-details.hidden { display: none !important; }
+        #world-npc-whereabouts-details.hidden { display: none !important; }
+        .world-market-card {
+            margin: 0.45rem 0;
+            padding: 0.5rem;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.025);
+        }
+        .world-market-title {
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+        .world-market-row {
+            display: grid;
+            grid-template-columns: minmax(7rem, 1fr) auto auto auto;
+            gap: 0.45rem;
+            align-items: center;
+            padding: 0.22rem 0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.86em;
+        }
+        .world-market-row:first-of-type { border-top: none; }
+        .world-market-num {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            opacity: 0.85;
+        }
+        .world-npc-whereabouts-row {
+            display: grid;
+            grid-template-columns: minmax(7rem, 1fr) minmax(7rem, 1fr) auto;
+            gap: 0.45rem;
+            align-items: center;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.88em;
+        }
+        .world-npc-whereabouts-row:last-child { border-bottom: none; }
+        .world-npc-transit {
+            color: var(--vscode-charts-yellow, #c0a040);
+            font-size: 0.84em;
+            white-space: nowrap;
+        }
+        .world-map-item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .world-map-item-label { flex: 1; min-width: 0; }
         .world-cartography-stage {
             position: relative;
             border-radius: 4px;
@@ -560,6 +622,39 @@ function selectWorldLocationPin(locationId) {
 function postWorldInsertChatText(text) {
     if (!text || typeof text !== 'string') { return; }
     vscode.postMessage({ type: 'insertChatText', text });
+}
+
+function renderWorldMapItems(items) {
+    const section = document.getElementById('world-map-items-section');
+    const list = document.getElementById('world-map-items-list');
+    if (!section || !list) { return; }
+    const held = Array.isArray(items) ? items.filter((i) => i && i.id && i.name) : [];
+    if (held.length === 0) {
+        section.classList.add('hidden');
+        list.innerHTML = '';
+        return;
+    }
+    section.classList.remove('hidden');
+    list.innerHTML = '';
+    for (const item of held) {
+        const row = document.createElement('div');
+        row.className = 'world-map-item-row';
+        const label = document.createElement('span');
+        label.className = 'world-map-item-label';
+        const kindIcon = item.kind === 'rumor' ? '💬' : item.kind === 'informant' ? '🗣' : '📜';
+        label.textContent = `${kindIcon} ${item.name}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'world-pin-action-btn';
+        btn.textContent = T('webview.world.mapItemUnfold');
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            postWorldInsertChatText(T('webview.world.mapItemUnfoldText', { name: item.name }));
+        });
+        row.appendChild(label);
+        row.appendChild(btn);
+        list.appendChild(row);
+    }
 }
 
 function buildWorldPinActionText(action, meta) {
@@ -1329,7 +1424,88 @@ function renderRecentChanges(events, simEnabled) {
 // 派閥カード
 // ---------------------------------------------------------------------------
 
-function renderFactions(factions, factionStates) {
+function formatMarketNumber(value, digits = 0) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) { return '-'; }
+    return n.toFixed(digits);
+}
+
+function renderLivingWorldMarkets(markets, commerceEnabled) {
+    const section = document.getElementById('world-markets-details');
+    const list = document.getElementById('world-markets-list');
+    if (!section || !list) { return; }
+
+    const visible = commerceEnabled && Array.isArray(markets) && markets.length > 0;
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        list.innerHTML = '';
+        return;
+    }
+
+    list.innerHTML = '';
+    markets.slice(0, 12).forEach((market) => {
+        const card = document.createElement('div');
+        card.className = 'world-market-card';
+
+        const title = document.createElement('div');
+        title.className = 'world-market-title';
+        title.textContent = market.locationName || market.locationId || 'Market';
+        card.appendChild(title);
+
+        const quotes = Array.isArray(market.quotes) ? market.quotes.slice(0, 8) : [];
+        quotes.forEach((quote) => {
+            const row = document.createElement('div');
+            row.className = 'world-market-row';
+            row.innerHTML = `
+                <span>${escapeHtml(quote.commodityName || quote.commodityId || '?')}</span>
+                <span class="world-market-num">${escapeHtml(formatMarketNumber(quote.unitPrice))}</span>
+                <span class="world-market-num">${escapeHtml(formatMarketNumber(quote.stock))}</span>
+                <span class="world-market-num">x${escapeHtml(formatMarketNumber(quote.priceIndex, 2))}</span>
+            `;
+            card.appendChild(row);
+        });
+
+        list.appendChild(card);
+    });
+}
+
+function renderNpcWhereabouts(payload) {
+    const section = document.getElementById('world-npc-whereabouts-details');
+    const list = document.getElementById('world-npc-whereabouts-list');
+    const clamped = document.getElementById('world-npc-whereabouts-clamped');
+    if (!section || !list) { return; }
+
+    const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+    const visible = entries.length > 0;
+    section.classList.toggle('hidden', !visible);
+    if (clamped) {
+        clamped.classList.toggle('hidden', !(visible && payload?.clamped));
+    }
+    if (!visible) {
+        list.innerHTML = '';
+        return;
+    }
+
+    list.innerHTML = '';
+    entries.slice(0, 10).forEach((npc) => {
+        const row = document.createElement('div');
+        row.className = 'world-npc-whereabouts-row';
+        const transit = npc.inTransit
+            ? `<span class="world-npc-transit">${escapeHtml(T('webview.world.npcInTransit'))} T${escapeHtml(npc.arrivesTurn ?? '?')}</span>`
+            : `<span class="tag-item">${escapeHtml(T('webview.world.npcPresent'))}</span>`;
+        row.innerHTML = `
+            <strong>${escapeHtml(npc.name || npc.npcId || '?')}</strong>
+            <span>${escapeHtml(npc.locationName || npc.locationId || '?')}</span>
+            ${transit}
+        `;
+        if (npc.reason || npc.agenda) {
+            row.title = [npc.agenda, npc.reason].filter(Boolean).join(' / ');
+        }
+        list.appendChild(row);
+    });
+}
+
+function renderFactions(factions, factionStates, showReputation) {
     const list = document.getElementById('world-factions-list');
     if (!list) { return; }
 
@@ -1368,7 +1544,7 @@ function renderFactions(factions, factionStates) {
 
         // ライブシムデータがあればバー表示
         if (liveState) {
-            card.appendChild(buildSimBars(liveState));
+            card.appendChild(buildSimBars(liveState, showReputation));
         }
 
         // 静的説明文
@@ -1409,7 +1585,7 @@ function renderFactions(factions, factionStates) {
     }
 }
 
-function buildSimBars(liveState) {
+function buildSimBars(liveState, showReputation) {
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'margin-top:0.35rem;display:flex;flex-direction:column;gap:0.15rem;';
 
@@ -1421,7 +1597,28 @@ function buildSimBars(liveState) {
         wrapper.appendChild(buildBar(T('webview.world.simMorale'), liveState.morale, 100, 'var(--vscode-charts-blue, #4080c0)'));
     }
 
+    if (showReputation) {
+        wrapper.appendChild(buildReputationBar(liveState.playerReputation ?? 0));
+    }
+
     return wrapper;
+}
+
+function buildReputationBar(rep) {
+    const value = Math.max(-100, Math.min(100, Math.round(rep)));
+    const display = value >= 0 ? `+${value}` : String(value);
+    const barValue = (value + 100) / 2;
+    const color = value >= 20
+        ? 'var(--vscode-charts-green, #40a060)'
+        : value <= -20
+            ? 'var(--vscode-charts-red, #c04040)'
+            : 'var(--vscode-descriptionForeground, #888)';
+    const row = buildBar(T('webview.world.playerReputation'), barValue, 100, color);
+    const valEl = row.querySelector('span:last-child');
+    if (valEl) {
+        valEl.textContent = display;
+    }
+    return row;
 }
 
 function buildBar(label, value, max, fillColor) {

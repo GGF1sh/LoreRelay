@@ -1,0 +1,43 @@
+{
+  "format": "lorerelay-npc-registry/1.0",
+  "npcs": {
+    "npc_elda": {
+      "name": "Elda",
+      "locationId": "elda_shop",
+      "factionId": "faction_merchants",
+      "disposition": {
+        "playerTrust": 50,
+        "playerRomance": 0,
+        "playerFear": 0,
+        "mood": "neutral",
+        "lastInteractionTurn": 0
+      },
+      "needs": [],
+      "memories": [],
+      "personalityTraits": ["merchant", "practical", "tutorial-friendly"],
+      "dialogueHints": {
+        "highTrust": "Explains price changes openly.",
+        "lowTrust": "Keeps the best buying tips vague."
+      }
+    },
+    "npc_marcus": {
+      "name": "Marcus",
+      "locationId": "elda_shop",
+      "factionId": "faction_smiths",
+      "disposition": {
+        "playerTrust": 40,
+        "playerRomance": 0,
+        "playerFear": 0,
+        "mood": "worried",
+        "lastInteractionTurn": 0
+      },
+      "needs": [],
+      "memories": [],
+      "personalityTraits": ["blacksmith", "stock-conscious", "blunt"],
+      "dialogueHints": {
+        "highTrust": "Mentions steel shortages before they become public.",
+        "lowTrust": "Only complains about late shipments."
+      }
+    }
+  }
+}

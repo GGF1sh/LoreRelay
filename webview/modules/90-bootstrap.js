@@ -140,6 +140,7 @@ function updateStartHubVisibility() {
 function initStartHub() {
   const demoBtn = document.getElementById('start-hub-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
+  const debugBtn = document.getElementById('start-hub-debug-btn');
   const quickBtn = document.getElementById('start-hub-quick-btn');
   const interviewBtn = document.getElementById('start-hub-interview-btn');
   const presetsWrap = document.getElementById('start-hub-presets');
@@ -154,6 +155,11 @@ function initStartHub() {
   if (mapDemoBtn) {
     mapDemoBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'lost-catacombs' });
+    });
+  }
+  if (debugBtn) {
+    debugBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'debug-sandbox' });
     });
   }
 

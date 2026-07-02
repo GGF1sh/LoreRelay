@@ -39,18 +39,51 @@ import { loadScenarioDirector } from './scenarioDirector';
 import { loadPartyDirector } from './partyDirector';
 import type { RelationshipType } from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
-import { loadWorldForge, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
-import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected } from './worldState';
+import { loadWorldForge, loadWorldForgeDocument, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
+import { buildLivingWorldGmLines, livingWorldEnabled, resolveCommerceForge } from './livingWorldBridge';
+import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected, markChronicleInjected } from './worldState';
 import {
     buildHintTextFromContents,
     buildWorldChangeSummaryFromChanges,
     resolveWorldChangeSummaryTurn,
     buildActiveQuestObjective,
+    buildChronicleRecapLine,
+    buildReputationPromptLine,
+    buildTravelEncounterPromptLines,
+    MAX_REPUTATION_PROMPT_FACTIONS,
+    MAX_TRAVEL_ENCOUNTER_LINES,
+    type TravelEncounter,
     clampTextForPrompt,
     resolvePromptBudgetPolicy,
     type PromptBudgetPolicy,
     buildFogUnexploredPromptLine,
+    CARTOGRAPHY_REVEAL_PROMPT_LINE,
+    ELAPSED_WORLD_TURNS_PROMPT_LINE,
 } from './gmPromptBuilderCore';
+import {
+    buildChronicle,
+    buildChronicleRecap,
+    shouldInjectChronicle,
+    resolveChronicleSourceTurn,
+    DEFAULT_CHRONICLE_RECAP_LINES,
+} from './chronicleCore';
+import { readJournalTurnsFromPath } from './chronicleLoader';
+import {
+    analyzeRecentPacing,
+    buildPacingHintLine,
+    DEFAULT_PACING_DOMINANCE_THRESHOLD,
+    DEFAULT_PACING_WINDOW_SIZE,
+    type Beat,
+} from './pacingCore';
+import { parseNarrativeTimePassage } from './narrativeTimePassageCore';
+import {
+    findRegionPath,
+    rollTravelEncounters,
+    type EncounterDensity,
+} from './travelEncounterCore';
+import { cargoWeight } from './commerceCore';
+import { planTravel, resolveTransportForTheme } from './transportCore';
+import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
@@ -387,10 +420,146 @@ function buildPartyDirectorPromptContext(): string {
     return lines.join('\n');
 }
 
+function formatTravelEncounterLine(enc: TravelEncounter): string {
+    const locale = getConfiguredLocale();
+    const key = `gm.travel.encounter.${enc.templateId}`;
+    const localized = t(key, { region: enc.regionName ?? enc.regionId }, locale);
+    if (localized && localized !== key) {
+        return localized;
+    }
+    return enc.text;
+}
+
+function buildTravelEncounterPromptContext(playerAction: string): string {
+    const rules = loadGameRules();
+    if (!rules.enableTravelEncounters || !isWorldForgeEnabled()) {
+        return '';
+    }
+    const forge = loadWorldForge();
+    if (!forge) { return ''; }
+
+    const locations = forge.geography.locations.map((loc) => ({
+        id: loc.id,
+        name: loc.name
+    }));
+    const passage = parseNarrativeTimePassage(playerAction, locations);
+    if (!passage || passage.kind !== 'travel' || !passage.locationId) {
+        return '';
+    }
+
+    const gameState = readGameStateForPrompt();
+    const world = gameState?.world as Record<string, unknown> | undefined;
+    const currentLocationId = typeof world?.currentLocationId === 'string'
+        ? world.currentLocationId
+        : undefined;
+    const fromLoc = forge.geography.locations.find((l) => l.id === currentLocationId);
+    const toLoc = forge.geography.locations.find((l) => l.id === passage.locationId);
+    const fromRegionId = fromLoc?.regionId;
+    const toRegionId = toLoc?.regionId;
+    if (!fromRegionId || !toRegionId) { return ''; }
+
+    const path = findRegionPath(forge.geography.regions, fromRegionId, toRegionId);
+    if (!path?.length) { return ''; }
+
+    const worldSeed = forge.meta.worldSeed ?? forge.meta.worldName ?? 'world';
+    const density = (rules.travelEncounterDensity ?? 'medium') as EncounterDensity;
+    const regionNames: Record<string, string> = {};
+    for (const region of forge.geography.regions) {
+        regionNames[region.id] = region.name;
+    }
+    const encounters = rollTravelEncounters({
+        worldSeed,
+        regions: forge.geography.regions,
+        fromRegionId,
+        toRegionId,
+        travelDays: passage.steps,
+        density,
+        regionNames
+    });
+    return buildTravelEncounterPromptLines(
+        encounters,
+        MAX_TRAVEL_ENCOUNTER_LINES,
+        formatTravelEncounterLine
+    );
+}
+
+function buildLivingWorldTravelPromptContext(playerAction: string): string {
+    const rules = loadGameRules();
+    if (!rules.enableCommerce || !isWorldForgeEnabled()) {
+        return '';
+    }
+    const forge = loadWorldForge();
+    const rawForge = loadWorldForgeDocument();
+    const commerce = forge && rawForge ? resolveCommerceForge(forge, rawForge) : undefined;
+    if (!forge || !commerce) { return ''; }
+
+    const locations = forge.geography.locations.map((loc) => ({
+        id: loc.id,
+        name: loc.name
+    }));
+    const passage = parseNarrativeTimePassage(playerAction, locations);
+    if (!passage || passage.kind !== 'travel' || !passage.locationId) {
+        return '';
+    }
+
+    const gameState = readGameStateForPrompt() as ({
+        commerce?: { cargo?: unknown[]; transportId?: string };
+        world?: { currentLocationId?: string };
+    } | undefined);
+    const fromLocationId = typeof gameState?.world?.currentLocationId === 'string'
+        ? gameState.world.currentLocationId
+        : undefined;
+    if (!fromLocationId || fromLocationId === passage.locationId) { return ''; }
+
+    const transport = resolveTransportForTheme(commerce, forge.meta.theme, gameState?.commerce?.transportId);
+    if (!transport) { return ''; }
+    const cargo = Array.isArray(gameState?.commerce?.cargo) ? gameState.commerce.cargo : [];
+    const weight = cargoWeight(commerce, cargo as CargoEntry[]);
+    const plan = planTravel({
+        fromLocationId,
+        toLocationId: passage.locationId,
+        locations: forge.geography.locations,
+        regions: forge.geography.regions,
+        transportId: transport.id,
+        forge: commerce,
+    }, weight);
+    if (!plan) { return ''; }
+
+    const fromName = forge.geography.locations.find((loc) => loc.id === fromLocationId)?.name ?? fromLocationId;
+    const toName = forge.geography.locations.find((loc) => loc.id === passage.locationId)?.name ?? passage.locationId;
+    const regionPath = plan.regionPath.length > 0 ? ` Region path: ${plan.regionPath.join(' -> ')}.` : '';
+
+    return `[Living World — Travel Plan]
+Detected travel intent: ${fromName} -> ${toName}.
+Transport: ${plan.transportName}. Estimated duration: ${plan.days} world turn(s). Estimated food cost: ${plan.foodCost}.${regionPath}
+If the travel proceeds, set turn_result.elapsedWorldTurns=${plan.days} and include a statePatch replacing /world/currentLocationId with "${passage.locationId}". If the travel is interrupted or cancelled, use the actual elapsedWorldTurns and do not move the final location.`;
+}
+
+function buildPacingHintPromptContext(): string {
+    const hintInPrompt = vscode.workspace.getConfiguration('textAdventure.pacing')
+        .get<boolean>('hintInPrompt', false);
+    if (!hintInPrompt) { return ''; }
+
+    const ws = getWorkspacePath();
+    if (!ws) { return ''; }
+
+    const windowSize = vscode.workspace.getConfiguration('textAdventure.pacing')
+        .get<number>('windowSize', DEFAULT_PACING_WINDOW_SIZE);
+    const threshold = vscode.workspace.getConfiguration('textAdventure.pacing')
+        .get<number>('dominanceThreshold', DEFAULT_PACING_DOMINANCE_THRESHOLD);
+    const journalTurns = readJournalTurnsFromPath(path.join(ws, 'state_journal.ndjson'));
+    const pacingWindow = analyzeRecentPacing(journalTurns, windowSize);
+    const locale = getConfiguredLocale();
+    return buildPacingHintLine(pacingWindow, threshold, (beat: Beat) =>
+        t(`gm.pacing.hint.${beat}`, undefined, locale)
+    );
+}
+
 function buildScenarioDirectorPromptContext(): string {
     const director = loadScenarioDirector();
+    const pacingHint = buildPacingHintPromptContext();
     if (!director) {
-        return '';
+        return pacingHint;
     }
     const lines = ['[Scenario Director]'];
     if (director.scenarioTitle) {
@@ -423,6 +592,9 @@ function buildScenarioDirectorPromptContext(): string {
     }
     if (director.achievedEndings && director.achievedEndings.length > 0) {
         lines.push(`Achieved ending flags: ${director.achievedEndings.join(', ')}`);
+    }
+    if (pacingHint) {
+        lines.push(pacingHint);
     }
     return lines.join('\n');
 }
@@ -504,6 +676,17 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
         if (fogLine) { lines.push(fogLine); }
     }
 
+    const revealInPrompt = vscode.workspace.getConfiguration('textAdventure.cartography')
+        .get<boolean>('revealInPrompt', false);
+    if (revealInPrompt) {
+        lines.push(CARTOGRAPHY_REVEAL_PROMPT_LINE);
+    }
+
+    const rules = loadGameRules();
+    if (rules.enableEmergentSimulation) {
+        lines.push(ELAPSED_WORLD_TURNS_PROMPT_LINE);
+    }
+
     if (forge.factions.length > 0) {
         lines.push('Factions:');
         for (const faction of forge.factions.slice(0, policy.worldFactionCount)) {
@@ -582,6 +765,44 @@ function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
     if (questObjective) {
         lines.push('');
         lines.push(questObjective);
+    }
+
+    const rules = loadGameRules();
+    const reputationInPrompt = vscode.workspace.getConfiguration('textAdventure.reputation')
+        .get<boolean>('inPrompt', false);
+    if (rules.enableFactionReputation && reputationInPrompt) {
+        const repFactions = factionEntries
+            .map(([id, fs]) => ({
+                id,
+                name: forge?.factions.find((f) => f.id === id)?.name ?? id,
+                rep: fs.playerReputation ?? 0
+            }))
+            .filter((f) => f.rep !== 0);
+        const repLine = buildReputationPromptLine(repFactions, MAX_REPUTATION_PROMPT_FACTIONS);
+        if (repLine) {
+            lines.push('');
+            lines.push(repLine);
+        }
+    }
+
+    if (livingWorldEnabled(rules) && forge) {
+        const gameState = readGameStateForPrompt();
+        const world = gameState?.world as { currentLocationId?: string } | undefined;
+        const playerLoc = typeof world?.currentLocationId === 'string'
+            ? world.currentLocationId
+            : undefined;
+        const livingLines = buildLivingWorldGmLines(
+            forge,
+            worldState,
+            loadNpcRegistry(),
+            rules,
+            loadWorldForgeDocument(),
+            playerLoc
+        );
+        if (livingLines) {
+            lines.push('');
+            lines.push(livingLines);
+        }
     }
 
     lines.push('Weave faction dynamics and world threats into narration where naturally appropriate.');
@@ -729,6 +950,66 @@ function consumeWorldChangeSummaryContext(): string {
     return summary;
 }
 
+let chronicleSessionPending = true;
+
+/** Reset on extension activate so the first GM turn after resume can inject recap. */
+export function resetChronicleSessionPending(): void {
+    chronicleSessionPending = true;
+}
+
+function peekChronicleSessionPending(): boolean {
+    return chronicleSessionPending;
+}
+
+function clearChronicleSessionPending(): void {
+    chronicleSessionPending = false;
+}
+
+function buildChronicleRecapContext(consume: boolean, policy: PromptBudgetPolicy): string {
+    const recapInPrompt = vscode.workspace.getConfiguration('textAdventure.chronicle')
+        .get<boolean>('recapInPrompt', false);
+    if (!recapInPrompt) { return ''; }
+
+    const ws = getWorkspacePath();
+    if (!ws) { return ''; }
+
+    const journalTurns = readJournalTurnsFromPath(path.join(ws, 'state_journal.ndjson'));
+    const sourceTurn = resolveChronicleSourceTurn(journalTurns.length);
+    if (sourceTurn <= 0) { return ''; }
+
+    const worldState = loadWorldState();
+    const lastInjected = worldState?.lastInjectedChronicleTurn;
+    const sessionPending = peekChronicleSessionPending();
+    if (!shouldInjectChronicle(sourceTurn, lastInjected, sessionPending)) {
+        return '';
+    }
+
+    const maxRecapLines = vscode.workspace.getConfiguration('textAdventure.chronicle')
+        .get<number>('maxRecapLines', DEFAULT_CHRONICLE_RECAP_LINES);
+    const chapters = buildChronicle({
+        journalTurns,
+        recentChanges: worldState?.recentChanges,
+        questHooks: worldState?.questHooks
+    });
+    const recap = buildChronicleRecap(chapters, maxRecapLines, policy.chronicleChars);
+    const line = buildChronicleRecapLine(recap);
+    if (!line) { return ''; }
+
+    if (consume) {
+        markChronicleInjected(sourceTurn);
+        clearChronicleSessionPending();
+    }
+    return line;
+}
+
+function peekChronicleRecapContext(policy: PromptBudgetPolicy): string {
+    return buildChronicleRecapContext(false, policy);
+}
+
+function consumeChronicleRecapContext(policy: PromptBudgetPolicy): string {
+    return buildChronicleRecapContext(true, policy);
+}
+
 function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
     if (backend === 'tfidf') {
@@ -762,6 +1043,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     const sections = [
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
+        buildSection('chronicle', 'Chronicle Recap', peekChronicleRecapContext(policy)),
         buildSection('summary', 'Story Synopsis', (() => {
             const summary = loadStorySummary();
             return summary ? `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}` : '';
@@ -770,6 +1052,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('party', 'Party', buildPartyPromptContext(policy)),
         buildSection('partyDirector', 'Party Director', buildPartyDirectorPromptContext()),
         ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint, policy)) : undefined,
+        buildSection('travelEncounters', 'Travel Encounters', buildTravelEncounterPromptContext(playerAction)),
+        buildSection('livingWorldTravel', 'Living World Travel', buildLivingWorldTravelPromptContext(playerAction)),
         buildSection('worldForge', 'World', buildWorldForgePromptContext(policy)),
         buildSection('worldState', 'World State', buildWorldStatePromptContext(policy)),
         buildSection('worldChangeSummary', 'World Changes', peekWorldChangeSummaryContext()),
@@ -802,6 +1086,10 @@ export function buildGmPromptContext(playerAction: string): string {
     if (directorCtx) {
         chunks.push(directorCtx);
     }
+    const chronicleCtx = consumeChronicleRecapContext(policy);
+    if (chronicleCtx) {
+        chunks.push(chronicleCtx);
+    }
     const summary = loadStorySummary();
     if (summary) {
         chunks.push(`[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}`);
@@ -828,6 +1116,14 @@ export function buildGmPromptContext(playerAction: string): string {
         if (memoryCtx) {
             chunks.push(memoryCtx);
         }
+    }
+    const travelEncounterCtx = buildTravelEncounterPromptContext(playerAction);
+    if (travelEncounterCtx) {
+        chunks.push(travelEncounterCtx);
+    }
+    const livingWorldTravelCtx = buildLivingWorldTravelPromptContext(playerAction);
+    if (livingWorldTravelCtx) {
+        chunks.push(livingWorldTravelCtx);
     }
     const worldCtx = buildWorldForgePromptContext(policy);
     if (worldCtx) {

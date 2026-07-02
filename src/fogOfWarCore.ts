@@ -136,9 +136,31 @@ export function applyFogOnLocationVisit(
 
 export function buildFogPayload(world: GameStateWorld | undefined, forge: WorldForge): FogViewPayload {
     const discoveredRegionIds = [...(world?.discoveredRegionIds ?? [])];
-    const rumoredRegionIds = deriveRumoredRegionIds(discoveredRegionIds, forge.geography.regions);
+    const rumoredRegionIds = mergeRumoredRegionIdsForFog(
+        discoveredRegionIds,
+        world?.rumorKnownRegionIds ?? [],
+        forge
+    );
     const visitedLocationIds = [...(world?.visitedLocationIds ?? [])];
     return { discoveredRegionIds, rumoredRegionIds, visitedLocationIds };
+}
+
+/** C9: graph-derived rumored ∪ rumorKnown − discovered. */
+export function mergeRumoredRegionIdsForFog(
+    discoveredRegionIds: readonly string[],
+    rumorKnownRegionIds: readonly string[],
+    forge: WorldForge
+): string[] {
+    const discovered = new Set(discoveredRegionIds);
+    const derived = deriveRumoredRegionIds(discoveredRegionIds, forge.geography.regions);
+    const merged = new Set<string>();
+    for (const id of derived) {
+        if (!discovered.has(id)) { merged.add(id); }
+    }
+    for (const id of rumorKnownRegionIds) {
+        if (!discovered.has(id)) { merged.add(id); }
+    }
+    return [...merged].sort();
 }
 
 /** Percent-space layout for client-side fog masks (parchment overlay + tile distance). */

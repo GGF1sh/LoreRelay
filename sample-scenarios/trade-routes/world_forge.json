@@ -1,0 +1,135 @@
+{
+  "format": "lorerelay-world-forge/1.0",
+  "meta": {
+    "worldName": "The Three-Market Road",
+    "theme": "fantasy",
+    "worldSeed": "trade-routes-demo",
+    "generatedAt": "2026-07-02T00:00:00Z",
+    "generationMethod": "bundled-sample"
+  },
+  "geography": {
+    "regions": [
+      {
+        "id": "r_north",
+        "name": "North Fields",
+        "description": "Low hills of wheat and barley where prices begin cheap.",
+        "type": "plains",
+        "dangerLevel": 1,
+        "x": 260,
+        "y": 250,
+        "biome": "forest",
+        "connectedTo": ["r_central"]
+      },
+      {
+        "id": "r_central",
+        "name": "Central Crossroads",
+        "description": "A crossroads shop and smithy where merchants compare ledgers.",
+        "type": "city",
+        "dangerLevel": 2,
+        "x": 500,
+        "y": 500,
+        "biome": "city",
+        "connectedTo": ["r_north", "r_south"]
+      },
+      {
+        "id": "r_south",
+        "name": "South Port",
+        "description": "A busy river port that pays more when grain runs short.",
+        "type": "coast",
+        "dangerLevel": 3,
+        "x": 740,
+        "y": 760,
+        "biome": "sea",
+        "connectedTo": ["r_central"]
+      }
+    ],
+    "locations": [
+      {
+        "id": "north_farm",
+        "name": "North Farm",
+        "regionId": "r_north",
+        "description": "A safe farmstead with full wheat barns.",
+        "type": "village",
+        "connectedTo": ["elda_shop"]
+      },
+      {
+        "id": "elda_shop",
+        "name": "Elda's Shop",
+        "regionId": "r_central",
+        "description": "A small shop at the crossroads and the demo starting point.",
+        "type": "market",
+        "factionControl": "faction_merchants",
+        "connectedTo": ["north_farm", "south_port"]
+      },
+      {
+        "id": "south_port",
+        "name": "South Port",
+        "regionId": "r_south",
+        "description": "A hungry river port with better prices and mild road risk.",
+        "type": "port",
+        "factionControl": "faction_port",
+        "connectedTo": ["elda_shop"]
+      }
+    ]
+  },
+  "factions": [
+    {
+      "id": "faction_merchants",
+      "name": "Crossroads Merchants",
+      "type": "guild",
+      "power": 45,
+      "description": "Small traders who keep the road supplied.",
+      "goals": ["keep grain flowing", "avoid bandit tolls"],
+      "enemies": [],
+      "allies": ["faction_port"]
+    },
+    {
+      "id": "faction_smiths",
+      "name": "Marcus' Smithy",
+      "type": "guild",
+      "power": 30,
+      "description": "A tiny smithing concern worried about steel stock.",
+      "goals": ["restock steel", "repair wagons"],
+      "enemies": [],
+      "allies": ["faction_merchants"]
+    },
+    {
+      "id": "faction_port",
+      "name": "Port Buyers",
+      "type": "neutral",
+      "power": 40,
+      "description": "Dockside buyers who pay a premium when grain is scarce.",
+      "goals": ["buy wheat", "keep boats moving"],
+      "enemies": [],
+      "allies": ["faction_merchants"]
+    }
+  ],
+  "lore": {
+    "history": [
+      {
+        "year": 0,
+        "event": "The old toll bridge reopened, making the north-south route profitable again."
+      }
+    ],
+    "rumors": [
+      "South Port pays better for wheat when barges are delayed.",
+      "Marcus buys steel early whenever his stock drops below five bars."
+    ]
+  },
+  "commerce": {
+    "commodities": [
+      { "id": "wheat", "name": "Wheat", "basePrice": 10, "weight": 1 },
+      { "id": "steel", "name": "Steel", "basePrice": 45, "weight": 2 },
+      { "id": "spice", "name": "Spice", "basePrice": 80, "weight": 1 }
+    ],
+    "markets": [
+      { "locationId": "north_farm", "regionId": "r_north", "commodityIds": ["wheat"], "supplyBias": 0.85, "targetStock": 50 },
+      { "locationId": "elda_shop", "regionId": "r_central", "commodityIds": ["wheat", "steel"], "supplyBias": 1.0, "targetStock": 35 },
+      { "locationId": "south_port", "regionId": "r_south", "commodityIds": ["wheat", "steel", "spice"], "supplyBias": 1.15, "targetStock": 40 }
+    ],
+    "transportKinds": [
+      { "id": "wagon", "name": "Wagon", "capacity": 20, "speed": 1, "foodPerDay": 2, "themes": ["fantasy"] },
+      { "id": "river_boat", "name": "River boat", "capacity": 35, "speed": 1.4, "foodPerDay": 3, "themes": ["fantasy"] }
+    ]
+  }
+}

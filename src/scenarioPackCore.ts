@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /** Bundled sample packs shipped inside the extension (sample-scenarios/). */
-export const BUNDLED_SAMPLE_IDS = ['harbor-mist', 'lost-catacombs', 'neon-rain'] as const;
+export const BUNDLED_SAMPLE_IDS = ['harbor-mist', 'lost-catacombs', 'neon-rain', 'debug-sandbox', 'trade-routes'] as const;
 export type BundledSampleId = (typeof BUNDLED_SAMPLE_IDS)[number];
 
 export const OPTIONAL_PACK_FILES = [
@@ -12,6 +12,7 @@ export const OPTIONAL_PACK_FILES = [
     'world_state.json',
     'npc_registry.json',
     'world_map.layout.png',
+    'game_rules.json',
 ] as const;
 
 /** Resolve a bundled sample directory (dev checkout or packaged extension root). */

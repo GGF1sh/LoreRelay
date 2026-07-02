@@ -1,4 +1,5 @@
 import type { WorldForge, FactionResources } from './worldForgeCore';
+import type { MarketStateMap, MarketStockEntry, NpcPositionsMap } from './livingWorldTypes';
 import {
     type WorldChangeEvent,
     parseRecentChanges,
@@ -34,6 +35,8 @@ export interface FactionWorldState {
     resources?: FactionResources;
     morale?: number;
     recentEvents?: string[];
+    /** F3: player standing toward this faction (-100..100, default 0). */
+    playerReputation?: number;
 }
 
 export interface RegionWorldState {
@@ -58,6 +61,8 @@ export interface WorldState {
     lastSimulatedGmTurn?: number;
     /** World turn whose "Since Last Visit" block was already injected into a GM prompt. */
     lastInjectedWorldChangeSummaryTurn?: number;
+    /** GM journal turn count when chronicle recap was last injected into a GM prompt. */
+    lastInjectedChronicleTurn?: number;
     factions: Record<string, FactionWorldState>;
     regions?: Record<string, RegionWorldState>;
     globalEvents?: GlobalEvent[];
@@ -66,6 +71,14 @@ export interface WorldState {
     pendingWorldEvents?: unknown[];
     /** Phase 8: Automatically generated quests from events and NPC needs. */
     questHooks?: QuestHook[];
+    /** LW1: per-market stock and price index (Commerce ON). */
+    markets?: MarketStateMap;
+    /** LW2: named NPC positions (Agency ON). */
+    npcPositions?: NpcPositionsMap;
+    /** LW-W1: worldTurn when player last left each location. */
+    lastVisitTurnByLocation?: Record<string, number>;
+    /** LW-W1: market stock snapshot when player last left each location. */
+    marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
 }
 
 // --- パーサーユーティリティ ---
@@ -104,6 +117,9 @@ function parseFactionWorldState(raw: unknown): FactionWorldState | undefined {
     const power = Math.max(0, Math.min(100, asNumber(r.power, 50)));
     const state: FactionWorldState = { power };
     if (r.morale !== undefined) { state.morale = Math.max(0, Math.min(100, asNumber(r.morale, 50))); }
+    if (r.playerReputation !== undefined) {
+        state.playerReputation = Math.max(-100, Math.min(100, Math.round(asNumber(r.playerReputation, 0))));
+    }
     if (r.recentEvents !== undefined) { state.recentEvents = asStringArray(r.recentEvents); }
     if (r.resources && typeof r.resources === 'object' && !Array.isArray(r.resources)) {
         const res: FactionResources = {};
@@ -185,6 +201,87 @@ function parseQuestHook(raw: unknown): QuestHook | undefined {
     return hook;
 }
 
+function parseMarketStockEntry(raw: unknown): MarketStockEntry | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+    if (typeof r.stock !== 'number' || typeof r.priceIndex !== 'number') { return undefined; }
+    if (!Number.isFinite(r.stock) || !Number.isFinite(r.priceIndex)) { return undefined; }
+    return { stock: r.stock, priceIndex: r.priceIndex };
+}
+
+function parseMarketStateMap(raw: unknown): MarketStateMap | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: MarketStateMap = {};
+    for (const [locId, stocks] of Object.entries(raw as Record<string, unknown>)) {
+        if (!isValidEventId(locId) || !stocks || typeof stocks !== 'object' || Array.isArray(stocks)) {
+            continue;
+        }
+        const locStocks: Record<string, MarketStockEntry> = {};
+        for (const [cid, entry] of Object.entries(stocks as Record<string, unknown>)) {
+            if (!isValidEventId(cid)) { continue; }
+            const parsed = parseMarketStockEntry(entry);
+            if (parsed) { locStocks[cid] = parsed; }
+        }
+        if (Object.keys(locStocks).length > 0) {
+            out[locId] = locStocks;
+        }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseLocationSnapshotMap(
+    raw: unknown
+): Record<string, Record<string, MarketStockEntry>> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, Record<string, MarketStockEntry>> = {};
+    for (const [locId, stocks] of Object.entries(raw as Record<string, unknown>)) {
+        if (!isValidEventId(locId) || !stocks || typeof stocks !== 'object' || Array.isArray(stocks)) {
+            continue;
+        }
+        const locStocks: Record<string, MarketStockEntry> = {};
+        for (const [cid, entry] of Object.entries(stocks as Record<string, unknown>)) {
+            if (!isValidEventId(cid)) { continue; }
+            const parsed = parseMarketStockEntry(entry);
+            if (parsed) { locStocks[cid] = parsed; }
+        }
+        if (Object.keys(locStocks).length > 0) {
+            out[locId] = locStocks;
+        }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseNpcPositionsMap(raw: unknown): NpcPositionsMap | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: NpcPositionsMap = {};
+    for (const [npcId, pos] of Object.entries(raw as Record<string, unknown>)) {
+        if (!isValidEventId(npcId) || !pos || typeof pos !== 'object' || Array.isArray(pos)) {
+            continue;
+        }
+        const p = pos as Record<string, unknown>;
+        const locationId = typeof p.locationId === 'string' ? p.locationId.trim() : '';
+        const arrivesTurn = typeof p.arrivesTurn === 'number' ? Math.floor(p.arrivesTurn) : 0;
+        if (!locationId) { continue; }
+        out[npcId] = {
+            locationId,
+            arrivesTurn,
+            agenda: typeof p.agenda === 'string' ? p.agenda as NpcPositionsMap[string]['agenda'] : undefined,
+            reason: typeof p.reason === 'string' ? p.reason : undefined,
+        };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseTurnByLocation(raw: unknown): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, number> = {};
+    for (const [locId, turn] of Object.entries(raw as Record<string, unknown>)) {
+        if (!isValidEventId(locId) || typeof turn !== 'number' || !Number.isFinite(turn)) { continue; }
+        out[locId] = Math.max(0, Math.floor(turn));
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function parseWorldState(raw: unknown): WorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;
@@ -226,6 +323,9 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         lastInjectedWorldChangeSummaryTurn: doc.lastInjectedWorldChangeSummaryTurn !== undefined
             ? asNumber(doc.lastInjectedWorldChangeSummaryTurn, 0)
             : undefined,
+        lastInjectedChronicleTurn: doc.lastInjectedChronicleTurn !== undefined
+            ? asNumber(doc.lastInjectedChronicleTurn, 0)
+            : undefined,
         factions,
         regions,
         globalEvents,
@@ -233,7 +333,11 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         pendingWorldEvents: Array.isArray(doc.pendingWorldEvents) ? doc.pendingWorldEvents : [],
         questHooks: Array.isArray(doc.questHooks)
             ? doc.questHooks.slice(0, MAX_PARSE_QUEST_HOOKS).map(parseQuestHook).filter((x): x is QuestHook => x !== undefined)
-            : []
+            : [],
+        markets: parseMarketStateMap(doc.markets),
+        npcPositions: parseNpcPositionsMap(doc.npcPositions),
+        lastVisitTurnByLocation: parseTurnByLocation(doc.lastVisitTurnByLocation),
+        marketSnapshotByLocation: parseLocationSnapshotMap(doc.marketSnapshotByLocation),
     };
 }
 

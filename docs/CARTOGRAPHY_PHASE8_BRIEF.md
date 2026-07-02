@@ -1,4 +1,6 @@
-# Cartography Phase 8 — 設計ブリーフ（探索感の強化）
+# Cartography C8 — 設計ブリーフ（探索感の強化）
+
+> **命名:** Cartography **C8**。次トラックは **C9**（`docs/CARTOGRAPHY_C9_BRIEF.md`）。`docs/PHASE_NAMING.md` 参照。
 
 > **目的:** 「プレイヤーが世界を探索している感覚」を一段上げる。実装前に **ゲームフィール / UX 仕様** を固めるためのブリーフ。  
 > **推奨:** このファイルを **Claude** に渡して仕様案を書かせ、確定後 **Grok（Cursor）** で実装する二段構え。

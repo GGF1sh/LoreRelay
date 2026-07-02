@@ -15,6 +15,11 @@ export interface GameRules {
     enableWorldForge?: boolean;
     enableEmergentSimulation?: boolean;
     simIntervalTurns?: number;
+    enableFactionReputation?: boolean;
+    enableTravelEncounters?: boolean;
+    travelEncounterDensity?: 'low' | 'medium' | 'high';
+    enableCommerce?: boolean;
+    enableNpcAgency?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -28,7 +33,12 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableNpcRegistry: false,
     enableWorldForge: false,
     enableEmergentSimulation: false,
-    simIntervalTurns: 5
+    simIntervalTurns: 5,
+    enableFactionReputation: false,
+    enableTravelEncounters: false,
+    travelEncounterDensity: 'medium',
+    enableCommerce: false,
+    enableNpcAgency: false
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -113,6 +123,25 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.simIntervalTurns !== undefined && typeof rules.simIntervalTurns === 'number') {
             sanitized.simIntervalTurns = Math.max(1, Math.min(50, Math.floor(rules.simIntervalTurns)));
+        }
+        if (rules.enableFactionReputation !== undefined && typeof rules.enableFactionReputation === 'boolean') {
+            sanitized.enableFactionReputation = rules.enableFactionReputation;
+        }
+        if (rules.enableTravelEncounters !== undefined && typeof rules.enableTravelEncounters === 'boolean') {
+            sanitized.enableTravelEncounters = rules.enableTravelEncounters;
+        }
+        if (
+            rules.travelEncounterDensity === 'low'
+            || rules.travelEncounterDensity === 'medium'
+            || rules.travelEncounterDensity === 'high'
+        ) {
+            sanitized.travelEncounterDensity = rules.travelEncounterDensity;
+        }
+        if (rules.enableCommerce !== undefined && typeof rules.enableCommerce === 'boolean') {
+            sanitized.enableCommerce = rules.enableCommerce;
+        }
+        if (rules.enableNpcAgency !== undefined && typeof rules.enableNpcAgency === 'boolean') {
+            sanitized.enableNpcAgency = rules.enableNpcAgency;
         }
     }
 

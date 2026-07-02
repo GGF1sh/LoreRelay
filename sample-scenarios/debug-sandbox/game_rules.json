@@ -1,0 +1,12 @@
+{
+  "enableRpgMechanics": true,
+  "defaultMaxHp": 20,
+  "defaultMaxMp": 10,
+  "diceDifficulty": "Normal",
+  "enableNpcRegistry": true,
+  "enableWorldForge": true,
+  "enableEmergentSimulation": true,
+  "simIntervalTurns": 3,
+  "backgroundSimulation": false,
+  "autoLorebookGrowth": false
+}

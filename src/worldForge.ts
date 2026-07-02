@@ -38,6 +38,20 @@ export function isWorldForgeEnabled(): boolean {
     return Boolean(forgePath && fs.existsSync(forgePath));
 }
 
+/** Raw parsed JSON document (includes optional commerce block not in WorldForge type). */
+export function loadWorldForgeDocument(): Record<string, unknown> | undefined {
+    const forgePath = getWorldForgePath();
+    if (!forgePath || !fs.existsSync(forgePath)) { return undefined; }
+    try {
+        const raw = JSON.parse(fs.readFileSync(forgePath, 'utf-8'));
+        return raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? raw as Record<string, unknown>
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 export function loadWorldForge(): WorldForge | undefined {
     const forgePath = getWorldForgePath();
     if (!forgePath) { return undefined; }

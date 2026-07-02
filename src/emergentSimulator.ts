@@ -13,11 +13,26 @@ import {
     MAX_RECENT_CHANGES,
 } from './worldEventLogCore';
 import { applyEventsToNpcRegistry } from './npcBridgeCore';
+import type { NpcRegistry } from './npcRegistryCore';
 import { loadWorldForge } from './worldForge';
 import { loadGameRules } from './gameRules';
 import { saveWorldState, ensureWorldStateExists } from './worldState';
 import { loadNpcRegistry, saveNpcRegistry } from './npcRegistry';
 import { generateQuestHooks } from './questGeneratorCore';
+import { livingWorldEnabled, tickLivingWorldAfterSim } from './livingWorldBridge';
+import { loadWorldForgeDocument } from './worldForge';
+
+/** Apply Tier-1/Tier-2 living world tick after a simulation step (host only — needs workspace). */
+export function applyLivingWorldAfterSimulationStep(
+    forge: WorldForge,
+    state: WorldState,
+    registry: NpcRegistry | undefined
+): WorldState {
+    const rules = loadGameRules();
+    if (!livingWorldEnabled(rules)) { return state; }
+    const rawDoc = loadWorldForgeDocument();
+    return tickLivingWorldAfterSim(forge, state, registry, rules, rawDoc).state;
+}
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -38,7 +53,7 @@ export function maybeTickSimulation(gmTurnCount: number): void {
 
     const state = ensureWorldStateExists(forge);
     if ((state.lastSimulatedGmTurn ?? 0) >= gmTurnCount) { return; }
-    const { state: next, stepEvents } = runSimulationStep(forge, state);
+    let { state: next, stepEvents } = runSimulationStep(forge, state);
     next.lastSimulatedGmTurn = gmTurnCount;
     // Propagate only this step's events — re-processing recentChanges would inflate needs
     let currentRegistry = undefined;
@@ -56,6 +71,8 @@ export function maybeTickSimulation(gmTurnCount: number): void {
             currentRegistry = updated;
         }
     }
+
+    next = applyLivingWorldAfterSimulationStep(forge, next, currentRegistry);
 
     // Phase 8: Generate Quest Hooks before saving world state
     generateQuestHooks(next, currentRegistry, false);

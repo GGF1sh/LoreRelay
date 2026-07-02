@@ -183,11 +183,62 @@ DF/CDDA 風のタイルオーバーマップ表示モード。「GM に読ませ
 - [x] v1.14.0: World Forge Generator 新テーマ6種（post-apocalyptic / zombie-apocalypse / scifi / steampunk / cosmic-horror / oriental-fantasy）+ テーマ×バイオーム条件のハザード自動散布
 - [x] v1.14.0: 羊皮紙マップ用テーマスタイル追加（steampunk / cosmic-horror / oriental — cosmic は zombie ルールの `horror` マッチより前に配置すること）
 - [ ] 将来: 画像タイルセット対応 — CDDA `tile_config.json` 方式（biome コード → スプライトアトラス）。`drawOvermapTile()` の差し替えだけで移行できる構造にしてある
-- [ ] 将来: fog of war（visited locations ベース）。ローカル戦術マップ（建物内グリッド）は GM 連携設計が必要なため別 Phase とする
+- [x] fog of war（visited locations ベース）— **Cartography C8** 完了（v1.15.x）。設計: `docs/CARTOGRAPHY_PHASE8_DESIGN.md` / レビュー PASS: `docs/CARTOGRAPHY_C8_REVIEW_GEMINI.md`（Gemini, 2026-07-02）
+- [x] **Cartography C9** — 地図/伝聞アイテム + 遠隔 FoW 開示（v1.16.0、`docs/CARTOGRAPHY_C9_DESIGN.md`）
+- [x] **Debug sandbox** — 自然言語デバッグコマンド + Inspector デバッグコンソール（v1.17–1.18）
+- [x] **World time passage B (v1)** — `elapsedWorldTurns` + サンドボックス休息・旅（v1.18.0、`docs/WORLD_TIME_PASSAGE_IDEA.md`）
+- [ ] 将来: ローカル戦術マップ（建物内グリッド）は GM 連携設計が必要なため別トラック
 - [ ] 将来: GM プロンプトへの hazard 1行注入（現在地リージョンに hazard がある時だけ「You are in a radiation zone」等を足す — 数トークンで済む）
 
 ---
 
-**Parallel polish:** README 実スクショ/GIF、Cartography stale UX、`testing_checklist.md` 消化。
+## 次期ロードマップ（v1.18 以降・設計済み）
+
+本体（GM 基盤 + Cartography C9 + Debug + Layer B）は **v1.18.0 で一段落**。以降は **3 トラック並行**（命名: `docs/PHASE_NAMING.md` §Living World / §Fable5）。
+
+### トラック A — Fable5（既存資産に安く乗る・**実装優先**）
+
+設計正本: `docs/FABLE5_FEATURE_PROPOSALS_DESIGN.md`
+
+| ID | 機能 | 推奨 Ver（実装時） | 依存 |
+|----|------|-------------------|------|
+| **F1** | Chronicle（あらすじ・年表） | **1.19.0** ✅ | journal / recentChanges |
+| **F2** | Pacing Director（1 行注入） | **1.19.1** ✅ | F1 分類器共有 |
+| **F3** | 派閥レピュテーション | **1.20.0** ✅ | `resolvedQuests` |
+| **F4** | 旅路エンカウント | **1.21.0** ✅ | Layer B + `Region.hazard` |
+| **F5** | リプレイ書き出し | **1.21.1** ✅ | entries + gallery |
+| **F6** | 手描き地図インポート | **1.22.x**（wow 枠） | `vlmQueue` |
+
+**推奨実装順:** F1 → F2 →（並行 polish F5）→ F3 は LW1 設計に合流 → F4 は LW1 移動と同時。
+
+### トラック B — Living World（世界ファースト・経済/自律）
+
+設計正本: `docs/COMMERCE_AND_AGENCY_BRIEF.md`（§0 世界ファースト）
+
+| ID | 機能 | 推奨 Ver（実装時） |
+|----|------|-------------------|
+| **LW-W1** | 動く世界の深化（シム→可視化・GM Since last visit） | **1.20.0** |
+| **LW1** | Commerce（貿易・輸送・相場） | **1.21.0** |
+| **LW2** | NPC Agency（世界/経済への**反応**として移動） | **1.22.0** |
+
+**推奨実装順:** LW-W1 → LW1 → LW2（F1/F2 が先にあると Chronicle が効く）。
+
+### トラック C — Parallel polish（Ver 単独では上げない）
+
+- README 実スクショ/GIF（**F5 が素材になる**）
+- Cartography stale UX、`testing_checklist.md` 消化
+- hazard 1 行注入（ロードマップ旧項目・F2/F4 と同 seam）
+
+### Ver 上げルール（次期）
+
+| 内容 | Ver |
+|------|-----|
+| **設計 doc / ブリーフのみ** | 上げない（`CHANGELOG [Unreleased]` に Docs 一行可） |
+| **F1 または F1+F2 出荷** | **1.19.0**（プレイ体験・GM 注入） |
+| **LW-W1 出荷** | **1.20.0** |
+| **LW1 + F3 同梱など** | **1.21.0** |
+| パッチ・i18n のみ | **1.x.y** パッチ |
+
+> 設計だけでは `package.json` は **1.18.0 のまま**。実装マージ時にマイナー繰上（Cartography C9→1.16、Debug→1.17–1.18 と同型）。
 
 **Planning handoff:** `phase8_planning_and_prompts.md`（Phase 8-11 の担当AI別プロンプト）

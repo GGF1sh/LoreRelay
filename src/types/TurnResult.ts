@@ -32,6 +32,29 @@ export interface TurnGmEntryMeta {
 }
 
 /** Optional protagonist snapshot from GM interview / world bootstrap (Phase 12). */
+export type CartographyRevealStrength = 'discovered' | 'rumored';
+export type CartographyRevealItemKind = 'map' | 'rumor' | 'informant';
+
+export interface CartographyRevealRegion {
+    regionId: string;
+    strength?: CartographyRevealStrength;
+    source?: string;
+}
+
+export interface CartographyRevealGrantItem {
+    id: string;
+    name: string;
+    kind?: CartographyRevealItemKind;
+    consumable?: boolean;
+}
+
+/** Cartography C9: validated remote FoW reveal channel (not statePatch /world). */
+export interface CartographyReveal {
+    regions?: CartographyRevealRegion[];
+    grantItems?: CartographyRevealGrantItem[];
+    consumedItemIds?: string[];
+}
+
 export interface TurnResultPlayerCharacter {
     name: string;
     description: string;
@@ -73,4 +96,14 @@ export interface TurnResult {
     agentic?: TurnResultAgenticMeta;
     /** When set, LoreRelay can offer to create characters/{id}.json for the player protagonist. */
     playerCharacter?: TurnResultPlayerCharacter;
+    /** Cartography C9: extension-validated map/rumor region reveals. */
+    cartographyReveal?: CartographyReveal;
+    /** Layer B: advance emergent world simulation by N steps (GM narration accompanies). */
+    elapsedWorldTurns?: number;
+    /** F3: extension-validated faction reputation deltas (optional). */
+    reputationOps?: Array<{ factionId: string; delta: number; reason?: string }>;
+    /** LW1: validated buy/sell ops (Commerce ON). */
+    tradeOps?: Array<{ op: 'buy' | 'sell'; marketLocationId: string; commodityId: string; qty: number }>;
+    /** LW2: GM-confirmed NPC positions (Agency ON). */
+    npcAgencyOps?: Array<{ npcId: string; locationId: string; arrivesTurn: number }>;
 }

@@ -1,0 +1,13 @@
+{
+  "format": "text-adventure-workshop/1.0",
+  "engineVersion": "1.17.0",
+  "packagedAt": "2026-07-02T00:00:00+00:00",
+  "scenarioFile": "scenario.json",
+  "title": "デバッグサンドボックス",
+  "author": "LoreRelay (debug)",
+  "version": "1.0.0",
+  "description": "好感度・地図の霧・世界シミュを自然言語で操作する開発者向けサンドボックス。",
+  "tags": ["debug", "sandbox", "developer"],
+  "license": "MIT",
+  "homepage": ""
+}

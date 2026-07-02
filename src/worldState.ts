@@ -72,6 +72,15 @@ export function markWorldChangeSummaryInjected(worldTurn: number): void {
     saveWorldState({ ...state, lastInjectedWorldChangeSummaryTurn: turn });
 }
 
+/** Mark chronicle recap as consumed for this journal turn count. */
+export function markChronicleInjected(journalTurnCount: number): void {
+    const state = loadWorldState();
+    if (!state) { return; }
+    const turn = Math.max(0, Math.floor(journalTurnCount));
+    if ((state.lastInjectedChronicleTurn ?? -1) >= turn) { return; }
+    saveWorldState({ ...state, lastInjectedChronicleTurn: turn });
+}
+
 export function saveWorldState(state: WorldState): void {
     const statePath = getWorldStatePath();
     if (!statePath) { return; }

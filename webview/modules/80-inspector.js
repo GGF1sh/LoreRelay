@@ -22,14 +22,119 @@ window.addEventListener('DOMContentLoaded', () => {
         if (message.type === 'gitTimelineStatus') {
             renderGitTimeline(message);
         }
+        if (message.type === 'chronicleData') {
+            renderChronicle(message.chapters);
+        }
+        if (message.type === 'replayExportResult') {
+            renderReplayExportResult(message);
+        }
     });
 
     const refreshBtn = document.getElementById('inspector-git-refresh-btn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', requestGitTimeline);
     }
+    const chronicleRefreshBtn = document.getElementById('inspector-chronicle-refresh-btn');
+    if (chronicleRefreshBtn) {
+        chronicleRefreshBtn.addEventListener('click', requestChronicle);
+    }
+    const replayExportBtn = document.getElementById('inspector-replay-export-btn');
+    if (replayExportBtn) {
+        replayExportBtn.addEventListener('click', requestReplayExport);
+    }
+
     requestGitTimeline();
+    requestChronicle();
 });
+
+function requestReplayExport() {
+    const formatEl = document.getElementById('inspector-replay-format');
+    const imagesEl = document.getElementById('inspector-replay-images');
+    const gmEl = document.getElementById('inspector-replay-gm');
+    const diceEl = document.getElementById('inspector-replay-dice');
+    const statusEl = document.getElementById('inspector-replay-status');
+    const btn = document.getElementById('inspector-replay-export-btn');
+    const format = formatEl && formatEl.value === 'html' ? 'html' : 'markdown';
+    if (statusEl && typeof T === 'function') {
+        statusEl.textContent = T('webview.inspector.replayExporting');
+    }
+    if (btn) {
+        btn.disabled = true;
+    }
+    vscode.postMessage({
+        type: 'exportReplay',
+        format,
+        includeImages: imagesEl ? imagesEl.checked : true,
+        includeGm: gmEl ? gmEl.checked : true,
+        includeDice: diceEl ? diceEl.checked : false
+    });
+}
+
+function renderReplayExportResult(result) {
+    const statusEl = document.getElementById('inspector-replay-status');
+    const btn = document.getElementById('inspector-replay-export-btn');
+    if (btn) {
+        btn.disabled = false;
+    }
+    if (!statusEl) { return; }
+    if (result && result.ok) {
+        statusEl.textContent = typeof T === 'function'
+            ? T('webview.inspector.replayResultOk', { path: String(result.path || '') })
+            : `Exported: ${result.path || ''}`;
+    } else {
+        statusEl.textContent = typeof T === 'function'
+            ? T('webview.inspector.replayResultFail', { message: String(result?.message || '') })
+            : String(result?.message || 'Export failed');
+    }
+}
+
+function requestChronicle() {
+    vscode.postMessage({ type: 'requestChronicle' });
+}
+
+function renderChronicle(chapters) {
+    const listEl = document.getElementById('inspector-chronicle-list');
+    if (!listEl) { return; }
+    listEl.innerHTML = '';
+    const items = Array.isArray(chapters) ? chapters : [];
+    if (items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-text';
+        empty.textContent = typeof T === 'function'
+            ? T('webview.inspector.chronicleEmpty')
+            : 'No chronicle entries yet. Complete GM turns to build the journal.';
+        listEl.appendChild(empty);
+        return;
+    }
+
+    for (const chapter of items) {
+        if (!chapter || typeof chapter.title !== 'string') { continue; }
+        const details = document.createElement('details');
+        details.className = 'inspector-item';
+        details.open = items.length <= 2;
+
+        const summary = document.createElement('summary');
+        const eventCount = Array.isArray(chapter.events) ? chapter.events.length : 0;
+        const countLabel = typeof T === 'function'
+            ? T('webview.inspector.chronicleEventCount', { count: String(eventCount) })
+            : `${eventCount} events`;
+        summary.textContent = `${chapter.title} — ${countLabel}`;
+        details.appendChild(summary);
+
+        const body = document.createElement('div');
+        body.className = 'inspector-list';
+        for (const ev of chapter.events || []) {
+            if (!ev || typeof ev.text !== 'string') { continue; }
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            const kind = ev.kind ? `[${ev.kind}] ` : '';
+            row.textContent = `${kind}${ev.text}`;
+            body.appendChild(row);
+        }
+        details.appendChild(body);
+        listEl.appendChild(details);
+    }
+}
 
 function requestGitTimeline() {
     vscode.postMessage({ type: 'requestGitTimeline' });
@@ -236,6 +341,8 @@ function renderTurnResult(turnResult) {
     const diceLedgerDiv = document.getElementById('inspector-dice-ledger');
     const statePatchDiv = document.getElementById('inspector-state-patch');
     const lorebookDiv = document.getElementById('inspector-lorebook');
+    const livingWorldOpsSection = document.getElementById('inspector-living-world-ops-section');
+    const livingWorldOpsDiv = document.getElementById('inspector-living-world-ops');
 
     if (!turnResult || !emptyText || !content) {
         return;
@@ -369,6 +476,54 @@ function renderTurnResult(turnResult) {
             lorebookDiv.innerHTML = `<span class="empty-text">${escapeHtml(T('webview.inspector.noLore'))}</span>`;
         }
     }
+
+    renderLivingWorldOps(turnResult, livingWorldOpsSection, livingWorldOpsDiv);
+}
+
+function renderLivingWorldOps(turnResult, section, listEl) {
+    if (!section || !listEl) { return; }
+
+    const tradeOps = Array.isArray(turnResult?.tradeOps) ? turnResult.tradeOps : [];
+    const npcAgencyOps = Array.isArray(turnResult?.npcAgencyOps) ? turnResult.npcAgencyOps : [];
+    const hasOps = tradeOps.length > 0 || npcAgencyOps.length > 0;
+    section.classList.toggle('hidden', !hasOps);
+    listEl.innerHTML = '';
+    if (!hasOps) { return; }
+
+    if (tradeOps.length > 0) {
+        const head = document.createElement('div');
+        head.className = 'inspector-item';
+        head.innerHTML = `<strong>${escapeHtml(T('webview.inspector.tradeOps'))}</strong> <span class="tag-item">${tradeOps.length}</span>`;
+        listEl.appendChild(head);
+        tradeOps.slice(0, 12).forEach((op) => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            row.innerHTML = `
+                <span class="tag-item">${escapeHtml(op.op || '?')}</span>
+                <span>${escapeHtml(op.qty ?? '?')} x ${escapeHtml(op.commodityId || '?')}</span>
+                <code class="patch-value">@${escapeHtml(op.marketLocationId || '?')}</code>
+            `;
+            listEl.appendChild(row);
+        });
+    }
+
+    if (npcAgencyOps.length > 0) {
+        const head = document.createElement('div');
+        head.className = 'inspector-item';
+        head.innerHTML = `<strong>${escapeHtml(T('webview.inspector.npcAgencyOps'))}</strong> <span class="tag-item">${npcAgencyOps.length}</span>`;
+        listEl.appendChild(head);
+        npcAgencyOps.slice(0, 12).forEach((op) => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            row.innerHTML = `
+                <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                <span>→ ${escapeHtml(op.locationId || '?')}</span>
+                <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
+                ${op.agenda ? `<span class="tag-item">${escapeHtml(op.agenda)}</span>` : ''}
+            `;
+            listEl.appendChild(row);
+        });
+    }
 }
 
 function escapeHtml(str) {
@@ -383,3 +538,109 @@ function escapeHtml(str) {
         }[m];
     });
 }
+
+// Debug Console: bulk world sim + sandbox quick commands
+(function () {
+    const section = document.getElementById('inspector-debug-console-section');
+    const stepsInput = document.getElementById('inspector-bulk-sim-steps');
+    const runBtn = document.getElementById('inspector-bulk-sim-run');
+    const resultEl = document.getElementById('inspector-bulk-sim-result');
+    const sandboxBadge = document.getElementById('inspector-debug-sandbox-badge');
+    const quickWrap = document.getElementById('inspector-debug-quick-wrap');
+    const quickChips = document.getElementById('inspector-debug-quick-chips');
+    const DEFAULT_QUICK = ['ヘルプ', '状態', '宿で休む', 'エルダの好感度を上げて', '地図の霧を晴らして', 'HPを全回復'];
+    let maxSteps = 50;
+    let running = false;
+
+    function setVisible(show) {
+        if (!section) { return; }
+        section.classList.toggle('hidden', !show);
+    }
+
+    function renderQuickChips(commands) {
+        if (!quickChips) { return; }
+        quickChips.innerHTML = '';
+        const list = Array.isArray(commands) && commands.length > 0 ? commands : DEFAULT_QUICK;
+        list.forEach((cmd) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'start-hub-preset-chip';
+            chip.textContent = cmd;
+            chip.addEventListener('click', () => {
+                vscode.postMessage({ type: 'insertChatText', text: cmd });
+            });
+            quickChips.appendChild(chip);
+        });
+    }
+
+    function setSandboxUi(active) {
+        if (sandboxBadge) {
+            sandboxBadge.classList.toggle('hidden', !active);
+        }
+        if (quickWrap) {
+            quickWrap.classList.toggle('hidden', !active);
+        }
+        if (active) {
+            renderQuickChips(DEFAULT_QUICK);
+        }
+    }
+
+    function renderSummary(summary) {
+        if (!resultEl || typeof T !== 'function') { return; }
+        resultEl.textContent = T('webview.inspector.bulkSimResult', {
+            start: String(summary.startWorldTurn),
+            end: String(summary.endWorldTurn),
+            events: String(summary.totalEventsEmitted),
+            available: String(summary.questHooksAvailable),
+        });
+        if (summary.notableEvents && summary.notableEvents.length > 0) {
+            const lines = summary.notableEvents.map((e) => `[${e.severity}] T${e.worldTurn}: ${e.message}`);
+            resultEl.textContent += '\n' + lines.join('\n');
+        }
+    }
+
+    if (runBtn && stepsInput) {
+        runBtn.addEventListener('click', () => {
+            if (running) { return; }
+            const steps = parseInt(stepsInput.value, 10) || 0;
+            if (steps < 1) { return; }
+            running = true;
+            runBtn.disabled = true;
+            if (resultEl && typeof T === 'function') {
+                resultEl.textContent = T('webview.inspector.bulkSimRunning');
+            }
+            vscode.postMessage({ type: 'bulkAdvanceWorldSim', steps: Math.min(steps, maxSteps) });
+        });
+    }
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'debugCapabilities') {
+            const show = !!(message.showDebugConsole || message.bulkWorldSim);
+            setVisible(show);
+            setSandboxUi(!!message.debugScenarioActive);
+            if (typeof message.bulkWorldSimMaxSteps === 'number' && message.bulkWorldSimMaxSteps > 0) {
+                maxSteps = message.bulkWorldSimMaxSteps;
+                if (stepsInput) {
+                    stepsInput.max = String(maxSteps);
+                    const cur = parseInt(stepsInput.value, 10) || 10;
+                    if (cur > maxSteps) { stepsInput.value = String(maxSteps); }
+                }
+            }
+        }
+        if (message.type === 'bulkWorldSimResult') {
+            running = false;
+            if (runBtn) { runBtn.disabled = false; }
+            if (!resultEl) { return; }
+            if (message.ok && message.summary) {
+                renderSummary(message.summary);
+            } else if (typeof T === 'function') {
+                resultEl.textContent = T('webview.inspector.bulkSimFailed', {
+                    reason: String(message.reason || 'unknown'),
+                });
+            }
+        }
+    });
+
+    vscode.postMessage({ type: 'getDebugCapabilities' });
+})();

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
+import { loadWorldForge, loadWorldForgeDocument, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { generateWorldMap } from './worldMapGenerator';
 import { extractHighlightRegionIds } from './npcBridgeCore';
@@ -26,7 +26,13 @@ import {
     maskCartographyRegionLabelsForFog,
     normalizeFogWorldState,
 } from './fogOfWarCore';
+import { listActiveMapItems } from './cartographyRevealCore';
 import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } from './mapFeedbackCore';
+import { loadGameRules } from './gameRules';
+import { buildMarketPriceTable } from './commerceCore';
+import { resolveCommerceForge, ensureLivingWorldMarkets } from './livingWorldBridge';
+import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
+import { listNpcPresence } from './npcAgencyCore';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
@@ -66,6 +72,100 @@ function serializeFaction(f: Faction): WorldViewFaction {
     return out;
 }
 
+interface WorldViewMarketQuote {
+    commodityId: string;
+    commodityName: string;
+    unitPrice: number;
+    stock: number;
+    priceIndex: number;
+}
+
+interface WorldViewMarketTable {
+    locationId: string;
+    locationName: string;
+    quotes: WorldViewMarketQuote[];
+}
+
+interface WorldViewNpcWhereaboutsEntry {
+    npcId: string;
+    name: string;
+    locationId: string;
+    locationName: string;
+    arrivesTurn: number;
+    inTransit: boolean;
+    agenda?: string;
+    reason?: string;
+}
+
+interface WorldViewNpcWhereabouts {
+    entries: WorldViewNpcWhereaboutsEntry[];
+    clamped: boolean;
+}
+
+function buildLivingWorldMarketPayload(
+    forge: NonNullable<ReturnType<typeof loadWorldForge>>,
+    commerce: CommerceForge | undefined,
+    markets: MarketStateMap | undefined
+): WorldViewMarketTable[] {
+    if (!commerce || !markets) { return []; }
+
+    const locationNames = new Map(forge.geography.locations.map((loc) => [loc.id, loc.name]));
+    const commodityNames = new Map(commerce.commodities.map((commodity) => [commodity.id, commodity.name]));
+
+    return buildMarketPriceTable(commerce, markets)
+        .map((market) => ({
+            locationId: market.locationId,
+            locationName: locationNames.get(market.locationId) ?? market.locationId,
+            quotes: market.quotes.map((quote) => ({
+                commodityId: quote.commodityId,
+                commodityName: commodityNames.get(quote.commodityId) ?? quote.commodityId,
+                unitPrice: quote.unitPrice,
+                stock: quote.stock,
+                priceIndex: quote.priceIndex,
+            })),
+        }))
+        .filter((market) => market.quotes.length > 0);
+}
+
+function buildNpcWhereaboutsPayload(
+    forge: NonNullable<ReturnType<typeof loadWorldForge>>,
+    registry: ReturnType<typeof loadNpcRegistry>,
+    worldState: ReturnType<typeof loadWorldState> | undefined,
+    agencyEnabled: boolean
+): WorldViewNpcWhereabouts {
+    const npcEntries = Object.entries(registry.npcs);
+    const registryLike: Record<string, { name: string; locationId?: string; factionId?: string }> = {};
+    for (const [id, npc] of npcEntries) {
+        registryLike[id] = {
+            name: npc.name,
+            locationId: npc.locationId,
+            factionId: npc.factionId,
+        };
+    }
+
+    const locationNames = new Map(forge.geography.locations.map((loc) => [loc.id, loc.name]));
+    const presence = listNpcPresence(
+        registryLike,
+        worldState?.npcPositions ?? {},
+        worldState?.worldTurn ?? 0,
+        agencyEnabled
+    );
+
+    return {
+        entries: presence.map((npc) => ({
+            npcId: npc.npcId,
+            name: npc.name,
+            locationId: npc.locationId,
+            locationName: locationNames.get(npc.locationId) ?? npc.locationId,
+            arrivesTurn: npc.arrivesTurn,
+            inTransit: npc.inTransit,
+            agenda: npc.agenda,
+            reason: npc.reason,
+        })),
+        clamped: npcEntries.length > presence.length,
+    };
+}
+
 /**
  * World Forge データを Webview の World タブへ送信する。
  * gameStateSync から呼ばれる（scenarioDirector の push パターンに倣う）。
@@ -88,6 +188,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     // シミュレーション状態（有効かつファイルが存在する場合のみ）
     const simEnabled = isWorldStateEnabled();
     const worldState = simEnabled ? loadWorldState() : undefined;
+    const gameRules = loadGameRules();
     const factionStates: Record<string, FactionWorldState> | undefined = worldState?.factions;
     const regionStates: Record<string, RegionWorldState> | undefined = worldState?.regions;
     const globalEvents: GlobalEvent[] | undefined = worldState?.globalEvents;
@@ -157,6 +258,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const ttsExternalProvider = normalizeExternalProvider(ttsConfig.get('tts.external.provider', ''));
     const npcTtsCatalog = buildNpcTtsCatalog(registry);
     const npcVoiceCount = countNpcVoices(registry);
+    const npcWhereabouts = buildNpcWhereaboutsPayload(
+        forge,
+        registry,
+        worldState,
+        gameRules.enableNpcAgency === true && gameRules.enableNpcRegistry === true
+    );
 
     const wsPath = getWorkspacePath();
     const worldMapImagePath = resolveWorldMapImagePath(wsPath);
@@ -196,6 +303,17 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     // Derived display data only — never persisted, never sent to the GM.
     const tileOvermap = buildTileOvermap(forge);
     const overmapThemeKey = resolveOvermapThemeKey(forge.meta.theme);
+    const rawForgeDoc = loadWorldForgeDocument();
+    const commerceForge = gameRules.enableCommerce === true && rawForgeDoc
+        ? resolveCommerceForge(forge, rawForgeDoc)
+        : undefined;
+    const livingWorldMarkets = commerceForge && worldState
+        ? buildLivingWorldMarketPayload(
+            forge,
+            commerceForge,
+            ensureLivingWorldMarkets(commerceForge, worldState as any)
+        )
+        : [];
 
     panel.webview.postMessage({
         type: 'worldView',
@@ -220,17 +338,27 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         globalEvents: globalEvents ?? [],
         recentChanges: activeChanges,
         questHooks: worldState?.questHooks ?? [],
+        livingWorldMarkets,
         worldTurn: worldTurn ?? null,
         simEnabled,
+        enableCommerce: gameRules.enableCommerce === true,
+        enableFactionReputation: gameRules.enableFactionReputation === true,
         currentLocationId: currentLocationId ?? null,
         locationCount: forge.geography.locations.length,
         regionCount: forge.geography.regions.length,
         locationImages,
         npcsAtLocation,
+        npcWhereabouts,
         npcTtsCatalog,
         ttsExternalEnabled,
         ttsLocalAvailable,
         ttsExternalProvider,
         npcVoiceCount,
+        mapItems: listActiveMapItems(worldBlock).map((item) => ({
+            id: item.id,
+            name: item.name,
+            kind: item.kind,
+            consumable: item.consumable === true,
+        })),
     });
 }

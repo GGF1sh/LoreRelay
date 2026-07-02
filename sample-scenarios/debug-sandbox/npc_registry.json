@@ -1,0 +1,42 @@
+{
+  "format": "lorerelay-npc-registry/1.0",
+  "npcs": {
+    "npc_elda": {
+      "name": "商人エルダ",
+      "locationId": "elda_shop",
+      "disposition": {
+        "playerTrust": 50,
+        "playerRomance": 0,
+        "playerFear": 0,
+        "mood": "neutral",
+        "lastInteractionTurn": 0
+      },
+      "needs": [],
+      "memories": [],
+      "personalityTraits": ["商売熱心", "おしゃべり"],
+      "dialogueHints": {
+        "highTrust": "秘密の噂を教えてくれる。",
+        "lowTrust": "値段を釣り上げる。"
+      }
+    },
+    "npc_aren": {
+      "name": "衛兵アレン",
+      "locationId": "plaza_center",
+      "factionId": "town_guard",
+      "disposition": {
+        "playerTrust": 40,
+        "playerRomance": 0,
+        "playerFear": 0,
+        "mood": "neutral",
+        "lastInteractionTurn": 0
+      },
+      "needs": [],
+      "memories": [],
+      "personalityTraits": ["真面目", "疑い深い"],
+      "dialogueHints": {
+        "highTrust": "港の裏ルートを教える。",
+        "lowTrust": "質問に答えない。"
+      }
+    }
+  }
+}

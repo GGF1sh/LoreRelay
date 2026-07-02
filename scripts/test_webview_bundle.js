@@ -29,7 +29,13 @@ const expectedSymbols = [
     'world-cartography-stage',
     'generateWorldMapImage',
     'latestImageRawPath',
-    'imagePathsLooselyMatch'
+    'imagePathsLooselyMatch',
+    'renderLivingWorldMarkets',
+    'renderLivingWorldOps',
+    'renderNpcWhereabouts',
+    'world-markets-details',
+    'world-npc-whereabouts-details',
+    'inspector-living-world-ops'
 ];
 
 for (const symbol of expectedSymbols) {

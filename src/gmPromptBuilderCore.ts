@@ -37,6 +37,7 @@ export interface PromptBudgetPolicy {
     npcMemoryChars: number;
     npcHintChars: number;
     visionChars: number;
+    chronicleChars: number;
 }
 
 const PROMPT_BUDGET_PRESETS: Record<ResolvedPromptBudgetMode, Omit<PromptBudgetPolicy, 'mode' | 'requestedMode'>> = {
@@ -62,7 +63,8 @@ const PROMPT_BUDGET_PRESETS: Record<ResolvedPromptBudgetMode, Omit<PromptBudgetP
         npcCountWithoutLocation: 3,
         npcMemoryChars: 80,
         npcHintChars: 220,
-        visionChars: 800
+        visionChars: 800,
+        chronicleChars: 400
     },
     balanced: {
         targetTokens: 7000,
@@ -86,7 +88,8 @@ const PROMPT_BUDGET_PRESETS: Record<ResolvedPromptBudgetMode, Omit<PromptBudgetP
         npcCountWithoutLocation: 4,
         npcMemoryChars: 100,
         npcHintChars: 320,
-        visionChars: 1200
+        visionChars: 1200,
+        chronicleChars: 800
     },
     expanded: {
         targetTokens: 12000,
@@ -110,7 +113,8 @@ const PROMPT_BUDGET_PRESETS: Record<ResolvedPromptBudgetMode, Omit<PromptBudgetP
         npcCountWithoutLocation: 6,
         npcMemoryChars: 140,
         npcHintChars: 480,
-        visionChars: 2200
+        visionChars: 2200,
+        chronicleChars: 1200
     }
 };
 
@@ -246,6 +250,20 @@ export function resolveWorldChangeSummaryTurn(
 /**
  * Builds the quest objective string for the GM prompt if there is an active quest.
  */
+/** F1 Chronicle: inject-once "[Previously]" block for session resume / new journal content. */
+export { buildReputationPromptLine, MAX_REPUTATION_PROMPT_FACTIONS } from './factionReputationCore';
+export {
+    buildTravelEncounterPromptLines,
+    MAX_TRAVEL_ENCOUNTER_LINES,
+    type TravelEncounter,
+} from './travelEncounterCore';
+
+export function buildChronicleRecapLine(recap: string): string {
+    const trimmed = String(recap ?? '').trim();
+    if (!trimmed) { return ''; }
+    return `[Previously]\n${trimmed}\n(Weave these facts into the opening beat; do not contradict them.)`;
+}
+
 export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
     if (!questHooks) return '';
     const active = questHooks.find(q => q.status === 'active');
@@ -257,6 +275,20 @@ export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
 
 export const MAX_FOG_PROMPT_REGION_NAMES = 5;
 export const MAX_FOG_PROMPT_CHARS = 120;
+
+/** Cartography C9: one-line GM instruction for cartographyReveal channel. */
+/** Layer B: GM may advance world simulation when player rests or travels. */
+export const ELAPSED_WORLD_TURNS_PROMPT_LINE =
+    'When the player explicitly rests overnight or travels for multiple days, '
+    + 'set turn_result.elapsedWorldTurns (1–100) for world simulation steps. '
+    + 'Narrate the passage in the same turn. FoW does not clear from time alone; '
+    + 'use cartographyReveal or location visits for map discovery.';
+
+export const CARTOGRAPHY_REVEAL_PROMPT_LINE =
+    'When the player obtains a map, hears a named distant region, or receives location intel, '
+    + 'you MAY reveal it via turn_result.cartographyReveal.regions '
+    + '(strength "discovered" for a real map, "rumored" for hearsay). Narrate in the same turn. '
+    + 'Max 3 regions per turn. Do NOT use statePatch /world for FoW.';
 
 const FOG_PROMPT_SUFFIX = '. Do not narrate their interiors as known facts.';
 

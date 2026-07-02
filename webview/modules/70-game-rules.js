@@ -18,6 +18,11 @@
         enableNpcRegistry: document.getElementById('gr-npc-registry'),
         enableWorldForge: document.getElementById('gr-world-forge'),
         enableEmergentSimulation: document.getElementById('gr-emergent-sim'),
+        enableFactionReputation: document.getElementById('gr-faction-reputation'),
+        enableCommerce: document.getElementById('gr-commerce'),
+        enableNpcAgency: document.getElementById('gr-npc-agency'),
+        enableTravelEncounters: document.getElementById('gr-travel-encounters'),
+        travelEncounterDensity: document.getElementById('gr-travel-density'),
         simIntervalTurns: document.getElementById('gr-sim-interval')
     };
 
@@ -59,6 +64,11 @@
             enableNpcRegistry: inputs.enableNpcRegistry ? inputs.enableNpcRegistry.checked : false,
             enableWorldForge: inputs.enableWorldForge ? inputs.enableWorldForge.checked : false,
             enableEmergentSimulation: inputs.enableEmergentSimulation ? inputs.enableEmergentSimulation.checked : false,
+            enableFactionReputation: inputs.enableFactionReputation ? inputs.enableFactionReputation.checked : false,
+            enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
+            enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
+            enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
+            travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
             simIntervalTurns: inputs.simIntervalTurns ? (parseInt(inputs.simIntervalTurns.value, 10) || 5) : 5
         };
         vscode.postMessage({ type: 'updateGameRules', rules });
@@ -91,6 +101,11 @@
             if (rules.enableNpcRegistry !== undefined && inputs.enableNpcRegistry) inputs.enableNpcRegistry.checked = rules.enableNpcRegistry;
             if (rules.enableWorldForge !== undefined && inputs.enableWorldForge) inputs.enableWorldForge.checked = rules.enableWorldForge;
             if (rules.enableEmergentSimulation !== undefined && inputs.enableEmergentSimulation) inputs.enableEmergentSimulation.checked = rules.enableEmergentSimulation;
+            if (rules.enableFactionReputation !== undefined && inputs.enableFactionReputation) inputs.enableFactionReputation.checked = rules.enableFactionReputation;
+            if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
+            if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
+            if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
+            if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
             if (rules.simIntervalTurns !== undefined && inputs.simIntervalTurns) inputs.simIntervalTurns.value = rules.simIntervalTurns;
         }
     });

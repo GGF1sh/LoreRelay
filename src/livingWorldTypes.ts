@@ -1,0 +1,119 @@
+// JSON contracts shared across Commerce / Transport / NPC Agency (host-agnostic).
+
+export type PlayerRole = 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
+
+export interface CommodityDef {
+    id: string;
+    name: string;
+    basePrice: number;
+    weight: number;
+}
+
+export interface MarketDef {
+    /** Location pin id (v0: location only). */
+    locationId: string;
+    regionId?: string;
+    commodityIds: string[];
+    /** Multiplier on base price when market is well supplied. */
+    supplyBias?: number;
+    /** Target stock level per commodity after Tier-1 recovery ticks. */
+    targetStock?: number;
+}
+
+export interface TransportKindDef {
+    id: string;
+    name: string;
+    capacity: number;
+    speed: number;
+    /** Food units consumed per travel day. */
+    foodPerDay?: number;
+    themes?: string[];
+}
+
+export interface CommerceForge {
+    commodities: CommodityDef[];
+    markets: MarketDef[];
+    transportKinds: TransportKindDef[];
+}
+
+export interface MarketStockEntry {
+    stock: number;
+    priceIndex: number;
+}
+
+export type MarketStateMap = Record<string, Record<string, MarketStockEntry>>;
+
+export interface CargoEntry {
+    commodityId: string;
+    qty: number;
+}
+
+export interface PlayerCommerceState {
+    credits: number;
+    cargo: CargoEntry[];
+    transportId: string;
+    playerRole?: PlayerRole;
+}
+
+export type TradeOpKind = 'buy' | 'sell';
+
+export interface TradeOp {
+    op: TradeOpKind;
+    marketLocationId: string;
+    commodityId: string;
+    qty: number;
+}
+
+export type NpcAgendaKind =
+    | 'restock_wheat'
+    | 'restock_steel'
+    | 'seek_buyer'
+    | 'flee_danger'
+    | 'visit_ally';
+
+export interface NpcPositionState {
+    locationId: string;
+    arrivesTurn: number;
+    agenda?: NpcAgendaKind;
+    reason?: string;
+}
+
+export type NpcPositionsMap = Record<string, NpcPositionState>;
+
+export interface NpcAgencyOp {
+    npcId: string;
+    locationId: string;
+    arrivesTurn: number;
+    agenda?: NpcAgendaKind;
+    reason?: string;
+}
+
+export interface RegionGraphNode {
+    id: string;
+    connectedTo?: string[];
+}
+
+export interface LocationGraphNode {
+    id: string;
+    regionId?: string;
+    connectedTo?: string[];
+}
+
+export type WorldChangeSeverity = 'info' | 'warning' | 'critical';
+
+export interface WorldChangeEventLike {
+    worldTurn: number;
+    category?: string;
+    severity?: WorldChangeSeverity;
+    message: string;
+    regionId?: string;
+    factionId?: string;
+}
+
+export interface NpcRegistryEntryLike {
+    name: string;
+    locationId?: string;
+    factionId?: string;
+}
+
+export type NpcRegistryLike = Record<string, NpcRegistryEntryLike>;

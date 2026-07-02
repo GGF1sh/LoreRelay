@@ -3426,6 +3426,11 @@ window.addEventListener('message', (event) => {
         enableNpcRegistry: document.getElementById('gr-npc-registry'),
         enableWorldForge: document.getElementById('gr-world-forge'),
         enableEmergentSimulation: document.getElementById('gr-emergent-sim'),
+        enableFactionReputation: document.getElementById('gr-faction-reputation'),
+        enableCommerce: document.getElementById('gr-commerce'),
+        enableNpcAgency: document.getElementById('gr-npc-agency'),
+        enableTravelEncounters: document.getElementById('gr-travel-encounters'),
+        travelEncounterDensity: document.getElementById('gr-travel-density'),
         simIntervalTurns: document.getElementById('gr-sim-interval')
     };
 
@@ -3467,6 +3472,11 @@ window.addEventListener('message', (event) => {
             enableNpcRegistry: inputs.enableNpcRegistry ? inputs.enableNpcRegistry.checked : false,
             enableWorldForge: inputs.enableWorldForge ? inputs.enableWorldForge.checked : false,
             enableEmergentSimulation: inputs.enableEmergentSimulation ? inputs.enableEmergentSimulation.checked : false,
+            enableFactionReputation: inputs.enableFactionReputation ? inputs.enableFactionReputation.checked : false,
+            enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
+            enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
+            enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
+            travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
             simIntervalTurns: inputs.simIntervalTurns ? (parseInt(inputs.simIntervalTurns.value, 10) || 5) : 5
         };
         vscode.postMessage({ type: 'updateGameRules', rules });
@@ -3499,6 +3509,11 @@ window.addEventListener('message', (event) => {
             if (rules.enableNpcRegistry !== undefined && inputs.enableNpcRegistry) inputs.enableNpcRegistry.checked = rules.enableNpcRegistry;
             if (rules.enableWorldForge !== undefined && inputs.enableWorldForge) inputs.enableWorldForge.checked = rules.enableWorldForge;
             if (rules.enableEmergentSimulation !== undefined && inputs.enableEmergentSimulation) inputs.enableEmergentSimulation.checked = rules.enableEmergentSimulation;
+            if (rules.enableFactionReputation !== undefined && inputs.enableFactionReputation) inputs.enableFactionReputation.checked = rules.enableFactionReputation;
+            if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
+            if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
+            if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
+            if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
             if (rules.simIntervalTurns !== undefined && inputs.simIntervalTurns) inputs.simIntervalTurns.value = rules.simIntervalTurns;
         }
     });
@@ -3533,14 +3548,119 @@ window.addEventListener('DOMContentLoaded', () => {
         if (message.type === 'gitTimelineStatus') {
             renderGitTimeline(message);
         }
+        if (message.type === 'chronicleData') {
+            renderChronicle(message.chapters);
+        }
+        if (message.type === 'replayExportResult') {
+            renderReplayExportResult(message);
+        }
     });
 
     const refreshBtn = document.getElementById('inspector-git-refresh-btn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', requestGitTimeline);
     }
+    const chronicleRefreshBtn = document.getElementById('inspector-chronicle-refresh-btn');
+    if (chronicleRefreshBtn) {
+        chronicleRefreshBtn.addEventListener('click', requestChronicle);
+    }
+    const replayExportBtn = document.getElementById('inspector-replay-export-btn');
+    if (replayExportBtn) {
+        replayExportBtn.addEventListener('click', requestReplayExport);
+    }
+
     requestGitTimeline();
+    requestChronicle();
 });
+
+function requestReplayExport() {
+    const formatEl = document.getElementById('inspector-replay-format');
+    const imagesEl = document.getElementById('inspector-replay-images');
+    const gmEl = document.getElementById('inspector-replay-gm');
+    const diceEl = document.getElementById('inspector-replay-dice');
+    const statusEl = document.getElementById('inspector-replay-status');
+    const btn = document.getElementById('inspector-replay-export-btn');
+    const format = formatEl && formatEl.value === 'html' ? 'html' : 'markdown';
+    if (statusEl && typeof T === 'function') {
+        statusEl.textContent = T('webview.inspector.replayExporting');
+    }
+    if (btn) {
+        btn.disabled = true;
+    }
+    vscode.postMessage({
+        type: 'exportReplay',
+        format,
+        includeImages: imagesEl ? imagesEl.checked : true,
+        includeGm: gmEl ? gmEl.checked : true,
+        includeDice: diceEl ? diceEl.checked : false
+    });
+}
+
+function renderReplayExportResult(result) {
+    const statusEl = document.getElementById('inspector-replay-status');
+    const btn = document.getElementById('inspector-replay-export-btn');
+    if (btn) {
+        btn.disabled = false;
+    }
+    if (!statusEl) { return; }
+    if (result && result.ok) {
+        statusEl.textContent = typeof T === 'function'
+            ? T('webview.inspector.replayResultOk', { path: String(result.path || '') })
+            : `Exported: ${result.path || ''}`;
+    } else {
+        statusEl.textContent = typeof T === 'function'
+            ? T('webview.inspector.replayResultFail', { message: String(result?.message || '') })
+            : String(result?.message || 'Export failed');
+    }
+}
+
+function requestChronicle() {
+    vscode.postMessage({ type: 'requestChronicle' });
+}
+
+function renderChronicle(chapters) {
+    const listEl = document.getElementById('inspector-chronicle-list');
+    if (!listEl) { return; }
+    listEl.innerHTML = '';
+    const items = Array.isArray(chapters) ? chapters : [];
+    if (items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-text';
+        empty.textContent = typeof T === 'function'
+            ? T('webview.inspector.chronicleEmpty')
+            : 'No chronicle entries yet. Complete GM turns to build the journal.';
+        listEl.appendChild(empty);
+        return;
+    }
+
+    for (const chapter of items) {
+        if (!chapter || typeof chapter.title !== 'string') { continue; }
+        const details = document.createElement('details');
+        details.className = 'inspector-item';
+        details.open = items.length <= 2;
+
+        const summary = document.createElement('summary');
+        const eventCount = Array.isArray(chapter.events) ? chapter.events.length : 0;
+        const countLabel = typeof T === 'function'
+            ? T('webview.inspector.chronicleEventCount', { count: String(eventCount) })
+            : `${eventCount} events`;
+        summary.textContent = `${chapter.title} — ${countLabel}`;
+        details.appendChild(summary);
+
+        const body = document.createElement('div');
+        body.className = 'inspector-list';
+        for (const ev of chapter.events || []) {
+            if (!ev || typeof ev.text !== 'string') { continue; }
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            const kind = ev.kind ? `[${ev.kind}] ` : '';
+            row.textContent = `${kind}${ev.text}`;
+            body.appendChild(row);
+        }
+        details.appendChild(body);
+        listEl.appendChild(details);
+    }
+}
 
 function requestGitTimeline() {
     vscode.postMessage({ type: 'requestGitTimeline' });
@@ -3747,6 +3867,8 @@ function renderTurnResult(turnResult) {
     const diceLedgerDiv = document.getElementById('inspector-dice-ledger');
     const statePatchDiv = document.getElementById('inspector-state-patch');
     const lorebookDiv = document.getElementById('inspector-lorebook');
+    const livingWorldOpsSection = document.getElementById('inspector-living-world-ops-section');
+    const livingWorldOpsDiv = document.getElementById('inspector-living-world-ops');
 
     if (!turnResult || !emptyText || !content) {
         return;
@@ -3880,6 +4002,54 @@ function renderTurnResult(turnResult) {
             lorebookDiv.innerHTML = `<span class="empty-text">${escapeHtml(T('webview.inspector.noLore'))}</span>`;
         }
     }
+
+    renderLivingWorldOps(turnResult, livingWorldOpsSection, livingWorldOpsDiv);
+}
+
+function renderLivingWorldOps(turnResult, section, listEl) {
+    if (!section || !listEl) { return; }
+
+    const tradeOps = Array.isArray(turnResult?.tradeOps) ? turnResult.tradeOps : [];
+    const npcAgencyOps = Array.isArray(turnResult?.npcAgencyOps) ? turnResult.npcAgencyOps : [];
+    const hasOps = tradeOps.length > 0 || npcAgencyOps.length > 0;
+    section.classList.toggle('hidden', !hasOps);
+    listEl.innerHTML = '';
+    if (!hasOps) { return; }
+
+    if (tradeOps.length > 0) {
+        const head = document.createElement('div');
+        head.className = 'inspector-item';
+        head.innerHTML = `<strong>${escapeHtml(T('webview.inspector.tradeOps'))}</strong> <span class="tag-item">${tradeOps.length}</span>`;
+        listEl.appendChild(head);
+        tradeOps.slice(0, 12).forEach((op) => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            row.innerHTML = `
+                <span class="tag-item">${escapeHtml(op.op || '?')}</span>
+                <span>${escapeHtml(op.qty ?? '?')} x ${escapeHtml(op.commodityId || '?')}</span>
+                <code class="patch-value">@${escapeHtml(op.marketLocationId || '?')}</code>
+            `;
+            listEl.appendChild(row);
+        });
+    }
+
+    if (npcAgencyOps.length > 0) {
+        const head = document.createElement('div');
+        head.className = 'inspector-item';
+        head.innerHTML = `<strong>${escapeHtml(T('webview.inspector.npcAgencyOps'))}</strong> <span class="tag-item">${npcAgencyOps.length}</span>`;
+        listEl.appendChild(head);
+        npcAgencyOps.slice(0, 12).forEach((op) => {
+            const row = document.createElement('div');
+            row.className = 'inspector-item';
+            row.innerHTML = `
+                <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                <span>→ ${escapeHtml(op.locationId || '?')}</span>
+                <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
+                ${op.agenda ? `<span class="tag-item">${escapeHtml(op.agenda)}</span>` : ''}
+            `;
+            listEl.appendChild(row);
+        });
+    }
 }
 
 function escapeHtml(str) {
@@ -3894,6 +4064,112 @@ function escapeHtml(str) {
         }[m];
     });
 }
+
+// Debug Console: bulk world sim + sandbox quick commands
+(function () {
+    const section = document.getElementById('inspector-debug-console-section');
+    const stepsInput = document.getElementById('inspector-bulk-sim-steps');
+    const runBtn = document.getElementById('inspector-bulk-sim-run');
+    const resultEl = document.getElementById('inspector-bulk-sim-result');
+    const sandboxBadge = document.getElementById('inspector-debug-sandbox-badge');
+    const quickWrap = document.getElementById('inspector-debug-quick-wrap');
+    const quickChips = document.getElementById('inspector-debug-quick-chips');
+    const DEFAULT_QUICK = ['ヘルプ', '状態', '宿で休む', 'エルダの好感度を上げて', '地図の霧を晴らして', 'HPを全回復'];
+    let maxSteps = 50;
+    let running = false;
+
+    function setVisible(show) {
+        if (!section) { return; }
+        section.classList.toggle('hidden', !show);
+    }
+
+    function renderQuickChips(commands) {
+        if (!quickChips) { return; }
+        quickChips.innerHTML = '';
+        const list = Array.isArray(commands) && commands.length > 0 ? commands : DEFAULT_QUICK;
+        list.forEach((cmd) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'start-hub-preset-chip';
+            chip.textContent = cmd;
+            chip.addEventListener('click', () => {
+                vscode.postMessage({ type: 'insertChatText', text: cmd });
+            });
+            quickChips.appendChild(chip);
+        });
+    }
+
+    function setSandboxUi(active) {
+        if (sandboxBadge) {
+            sandboxBadge.classList.toggle('hidden', !active);
+        }
+        if (quickWrap) {
+            quickWrap.classList.toggle('hidden', !active);
+        }
+        if (active) {
+            renderQuickChips(DEFAULT_QUICK);
+        }
+    }
+
+    function renderSummary(summary) {
+        if (!resultEl || typeof T !== 'function') { return; }
+        resultEl.textContent = T('webview.inspector.bulkSimResult', {
+            start: String(summary.startWorldTurn),
+            end: String(summary.endWorldTurn),
+            events: String(summary.totalEventsEmitted),
+            available: String(summary.questHooksAvailable),
+        });
+        if (summary.notableEvents && summary.notableEvents.length > 0) {
+            const lines = summary.notableEvents.map((e) => `[${e.severity}] T${e.worldTurn}: ${e.message}`);
+            resultEl.textContent += '\n' + lines.join('\n');
+        }
+    }
+
+    if (runBtn && stepsInput) {
+        runBtn.addEventListener('click', () => {
+            if (running) { return; }
+            const steps = parseInt(stepsInput.value, 10) || 0;
+            if (steps < 1) { return; }
+            running = true;
+            runBtn.disabled = true;
+            if (resultEl && typeof T === 'function') {
+                resultEl.textContent = T('webview.inspector.bulkSimRunning');
+            }
+            vscode.postMessage({ type: 'bulkAdvanceWorldSim', steps: Math.min(steps, maxSteps) });
+        });
+    }
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'debugCapabilities') {
+            const show = !!(message.showDebugConsole || message.bulkWorldSim);
+            setVisible(show);
+            setSandboxUi(!!message.debugScenarioActive);
+            if (typeof message.bulkWorldSimMaxSteps === 'number' && message.bulkWorldSimMaxSteps > 0) {
+                maxSteps = message.bulkWorldSimMaxSteps;
+                if (stepsInput) {
+                    stepsInput.max = String(maxSteps);
+                    const cur = parseInt(stepsInput.value, 10) || 10;
+                    if (cur > maxSteps) { stepsInput.value = String(maxSteps); }
+                }
+            }
+        }
+        if (message.type === 'bulkWorldSimResult') {
+            running = false;
+            if (runBtn) { runBtn.disabled = false; }
+            if (!resultEl) { return; }
+            if (message.ok && message.summary) {
+                renderSummary(message.summary);
+            } else if (typeof T === 'function') {
+                resultEl.textContent = T('webview.inspector.bulkSimFailed', {
+                    reason: String(message.reason || 'unknown'),
+                });
+            }
+        }
+    });
+
+    vscode.postMessage({ type: 'getDebugCapabilities' });
+})();
 
 /* --- 81-lorebook.js --- */
 /* global window, document, T, vscode */
@@ -4832,11 +5108,19 @@ function renderWorldView(msg) {
     // Living World recent events
     renderRecentChanges(msg.recentChanges || [], msg.simEnabled);
 
+    // Living World market prices
+    renderLivingWorldMarkets(msg.livingWorldMarkets || [], msg.enableCommerce === true);
+
+    // Living World NPC whereabouts
+    renderNpcWhereabouts(msg.npcWhereabouts || null);
+
     // Quest Board
     renderQuestHooks(msg.questHooks || []);
 
     // 派閥カード
-    renderFactions(msg.factions || [], msg.factionStates || null);
+    renderFactions(msg.factions || [], msg.factionStates || null, msg.enableFactionReputation === true);
+
+    renderWorldMapItems(msg.mapItems || []);
 }
 
 function ensureCartographyStyles() {
@@ -4863,6 +5147,60 @@ function ensureCartographyStyles() {
             background: rgba(74,144,226,0.18);
         }
         .world-map-panel.hidden { display: none !important; }
+        .world-map-items-section { margin-top: 0.65rem; font-size: 0.9em; }
+        .world-map-items-section.hidden { display: none !important; }
+        #world-markets-details.hidden { display: none !important; }
+        #world-npc-whereabouts-details.hidden { display: none !important; }
+        .world-market-card {
+            margin: 0.45rem 0;
+            padding: 0.5rem;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.025);
+        }
+        .world-market-title {
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+        .world-market-row {
+            display: grid;
+            grid-template-columns: minmax(7rem, 1fr) auto auto auto;
+            gap: 0.45rem;
+            align-items: center;
+            padding: 0.22rem 0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.86em;
+        }
+        .world-market-row:first-of-type { border-top: none; }
+        .world-market-num {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            opacity: 0.85;
+        }
+        .world-npc-whereabouts-row {
+            display: grid;
+            grid-template-columns: minmax(7rem, 1fr) minmax(7rem, 1fr) auto;
+            gap: 0.45rem;
+            align-items: center;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.88em;
+        }
+        .world-npc-whereabouts-row:last-child { border-bottom: none; }
+        .world-npc-transit {
+            color: var(--vscode-charts-yellow, #c0a040);
+            font-size: 0.84em;
+            white-space: nowrap;
+        }
+        .world-map-item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .world-map-item-label { flex: 1; min-width: 0; }
         .world-cartography-stage {
             position: relative;
             border-radius: 4px;
@@ -5199,6 +5537,39 @@ function selectWorldLocationPin(locationId) {
 function postWorldInsertChatText(text) {
     if (!text || typeof text !== 'string') { return; }
     vscode.postMessage({ type: 'insertChatText', text });
+}
+
+function renderWorldMapItems(items) {
+    const section = document.getElementById('world-map-items-section');
+    const list = document.getElementById('world-map-items-list');
+    if (!section || !list) { return; }
+    const held = Array.isArray(items) ? items.filter((i) => i && i.id && i.name) : [];
+    if (held.length === 0) {
+        section.classList.add('hidden');
+        list.innerHTML = '';
+        return;
+    }
+    section.classList.remove('hidden');
+    list.innerHTML = '';
+    for (const item of held) {
+        const row = document.createElement('div');
+        row.className = 'world-map-item-row';
+        const label = document.createElement('span');
+        label.className = 'world-map-item-label';
+        const kindIcon = item.kind === 'rumor' ? '💬' : item.kind === 'informant' ? '🗣' : '📜';
+        label.textContent = `${kindIcon} ${item.name}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'world-pin-action-btn';
+        btn.textContent = T('webview.world.mapItemUnfold');
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            postWorldInsertChatText(T('webview.world.mapItemUnfoldText', { name: item.name }));
+        });
+        row.appendChild(label);
+        row.appendChild(btn);
+        list.appendChild(row);
+    }
 }
 
 function buildWorldPinActionText(action, meta) {
@@ -5968,7 +6339,88 @@ function renderRecentChanges(events, simEnabled) {
 // 派閥カード
 // ---------------------------------------------------------------------------
 
-function renderFactions(factions, factionStates) {
+function formatMarketNumber(value, digits = 0) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) { return '-'; }
+    return n.toFixed(digits);
+}
+
+function renderLivingWorldMarkets(markets, commerceEnabled) {
+    const section = document.getElementById('world-markets-details');
+    const list = document.getElementById('world-markets-list');
+    if (!section || !list) { return; }
+
+    const visible = commerceEnabled && Array.isArray(markets) && markets.length > 0;
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        list.innerHTML = '';
+        return;
+    }
+
+    list.innerHTML = '';
+    markets.slice(0, 12).forEach((market) => {
+        const card = document.createElement('div');
+        card.className = 'world-market-card';
+
+        const title = document.createElement('div');
+        title.className = 'world-market-title';
+        title.textContent = market.locationName || market.locationId || 'Market';
+        card.appendChild(title);
+
+        const quotes = Array.isArray(market.quotes) ? market.quotes.slice(0, 8) : [];
+        quotes.forEach((quote) => {
+            const row = document.createElement('div');
+            row.className = 'world-market-row';
+            row.innerHTML = `
+                <span>${escapeHtml(quote.commodityName || quote.commodityId || '?')}</span>
+                <span class="world-market-num">${escapeHtml(formatMarketNumber(quote.unitPrice))}</span>
+                <span class="world-market-num">${escapeHtml(formatMarketNumber(quote.stock))}</span>
+                <span class="world-market-num">x${escapeHtml(formatMarketNumber(quote.priceIndex, 2))}</span>
+            `;
+            card.appendChild(row);
+        });
+
+        list.appendChild(card);
+    });
+}
+
+function renderNpcWhereabouts(payload) {
+    const section = document.getElementById('world-npc-whereabouts-details');
+    const list = document.getElementById('world-npc-whereabouts-list');
+    const clamped = document.getElementById('world-npc-whereabouts-clamped');
+    if (!section || !list) { return; }
+
+    const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+    const visible = entries.length > 0;
+    section.classList.toggle('hidden', !visible);
+    if (clamped) {
+        clamped.classList.toggle('hidden', !(visible && payload?.clamped));
+    }
+    if (!visible) {
+        list.innerHTML = '';
+        return;
+    }
+
+    list.innerHTML = '';
+    entries.slice(0, 10).forEach((npc) => {
+        const row = document.createElement('div');
+        row.className = 'world-npc-whereabouts-row';
+        const transit = npc.inTransit
+            ? `<span class="world-npc-transit">${escapeHtml(T('webview.world.npcInTransit'))} T${escapeHtml(npc.arrivesTurn ?? '?')}</span>`
+            : `<span class="tag-item">${escapeHtml(T('webview.world.npcPresent'))}</span>`;
+        row.innerHTML = `
+            <strong>${escapeHtml(npc.name || npc.npcId || '?')}</strong>
+            <span>${escapeHtml(npc.locationName || npc.locationId || '?')}</span>
+            ${transit}
+        `;
+        if (npc.reason || npc.agenda) {
+            row.title = [npc.agenda, npc.reason].filter(Boolean).join(' / ');
+        }
+        list.appendChild(row);
+    });
+}
+
+function renderFactions(factions, factionStates, showReputation) {
     const list = document.getElementById('world-factions-list');
     if (!list) { return; }
 
@@ -6007,7 +6459,7 @@ function renderFactions(factions, factionStates) {
 
         // ライブシムデータがあればバー表示
         if (liveState) {
-            card.appendChild(buildSimBars(liveState));
+            card.appendChild(buildSimBars(liveState, showReputation));
         }
 
         // 静的説明文
@@ -6048,7 +6500,7 @@ function renderFactions(factions, factionStates) {
     }
 }
 
-function buildSimBars(liveState) {
+function buildSimBars(liveState, showReputation) {
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'margin-top:0.35rem;display:flex;flex-direction:column;gap:0.15rem;';
 
@@ -6060,7 +6512,28 @@ function buildSimBars(liveState) {
         wrapper.appendChild(buildBar(T('webview.world.simMorale'), liveState.morale, 100, 'var(--vscode-charts-blue, #4080c0)'));
     }
 
+    if (showReputation) {
+        wrapper.appendChild(buildReputationBar(liveState.playerReputation ?? 0));
+    }
+
     return wrapper;
+}
+
+function buildReputationBar(rep) {
+    const value = Math.max(-100, Math.min(100, Math.round(rep)));
+    const display = value >= 0 ? `+${value}` : String(value);
+    const barValue = (value + 100) / 2;
+    const color = value >= 20
+        ? 'var(--vscode-charts-green, #40a060)'
+        : value <= -20
+            ? 'var(--vscode-charts-red, #c04040)'
+            : 'var(--vscode-descriptionForeground, #888)';
+    const row = buildBar(T('webview.world.playerReputation'), barValue, 100, color);
+    const valEl = row.querySelector('span:last-child');
+    if (valEl) {
+        valEl.textContent = display;
+    }
+    return row;
 }
 
 function buildBar(label, value, max, fillColor) {
@@ -6910,6 +7383,7 @@ function updateStartHubVisibility() {
 function initStartHub() {
   const demoBtn = document.getElementById('start-hub-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
+  const debugBtn = document.getElementById('start-hub-debug-btn');
   const quickBtn = document.getElementById('start-hub-quick-btn');
   const interviewBtn = document.getElementById('start-hub-interview-btn');
   const presetsWrap = document.getElementById('start-hub-presets');
@@ -6924,6 +7398,11 @@ function initStartHub() {
   if (mapDemoBtn) {
     mapDemoBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'lost-catacombs' });
+    });
+  }
+  if (debugBtn) {
+    debugBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'debug-sandbox' });
     });
   }
 

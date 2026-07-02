@@ -1,0 +1,59 @@
+{
+  "format": "text-adventure-scenario/1.0",
+  "meta": {
+    "title": "Trade Routes: Wheat and Steel",
+    "author": "LoreRelay (sample)",
+    "version": "1.0.0",
+    "description": "A compact living-world commerce demo: buy wheat at the farm, travel to the port, sell high, and watch NPC agency react.",
+    "tags": ["living-world", "commerce", "npc-agency", "demo", "starter"]
+  },
+  "setup": {
+    "world": "Three small locations form a trade route: North Farm, Elda's Shop, and South Port. Wheat, steel, and spice prices shift as the living world simulation advances.",
+    "protagonist": "A novice caravan hand with a wagon, a little credit, and a good eye for prices.",
+    "tone": "Practical, readable, and tutorial-like. Explain what changed in the world without hiding the numbers.",
+    "imageMode": "natural",
+    "theme": "fantasy",
+    "rules": "Use simple 1d20 checks for risky choices. Commerce and NPC agency are enabled. Trade operations should be written as turn_result.tradeOps, not statePatch.",
+    "gameOver": {
+      "mode": "relaxed",
+      "onHpZero": false,
+      "allowImpossibleActions": true
+    }
+  },
+  "director": {
+    "act": "Demo",
+    "chapter": "The Price of Wheat",
+    "scene": "Elda's Shop at the central crossroads",
+    "objective": "Teach the player to inspect prices, buy cheap wheat, travel, sell at South Port, and notice NPC movement.",
+    "successConditions": [
+      "The player buys wheat at North Farm or Elda's Shop.",
+      "The player travels to South Port and sells at a better price.",
+      "The World tab shows market and NPC whereabouts changes."
+    ],
+    "failConditions": [
+      "The GM directly edits markets through statePatch instead of tradeOps.",
+      "The route is described without showing the living-world consequences."
+    ],
+    "guidanceMode": "guided",
+    "endingFlags": ["profit_made", "elda_moves", "marcus_restocked"],
+    "optionalEncounters": [
+      "A broken cart blocks the central road.",
+      "Marcus asks whether steel prices have climbed at the port."
+    ]
+  },
+  "opening": {
+    "bgm": "town",
+    "status": {
+      "location": "Elda's Shop",
+      "time": "Morning / market day",
+      "condition": "HP 20/20, Ready",
+      "funds": "500 credits, empty wagon"
+    },
+    "options": [
+      "Inspect today's wheat and steel prices.",
+      "Travel north to North Farm to buy wheat.",
+      "Ask Elda why South Port is paying more for grain."
+    ],
+    "narrative": "The bell above Elda's shop door gives a tired little ring as you step inside. Three price slates hang behind the counter: wheat, steel, spice. The numbers are close enough to understand, but far enough apart to make a profit if you move goods before the road changes.\n\nElda taps the slate with a piece of chalk. \"Start simple. Wheat is light, the farm is safe, and South Port is hungry. Buy low, travel, sell high. If you wait too long, the world will keep moving without you.\"\n\nOutside, Marcus the smith studies a shipment manifest and mutters about steel stock. This tiny route is not a grand adventure yet, but it is alive."
+  }
+}

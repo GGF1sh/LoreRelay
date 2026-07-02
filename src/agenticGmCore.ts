@@ -3,12 +3,14 @@
 import { isValidEntryId } from './entryId';
 import { MAX_ENTRY_CONTENT_LEN } from './gameStateSanitize';
 import type {
+    CartographyReveal,
     DiceLedgerEntry,
     StatePatchOp,
     TurnGmEntryMeta,
     TurnMediaRequest,
     TurnResult,
 } from './types/TurnResult';
+import { parseCartographyReveal } from './cartographyRevealCore';
 import { isValidEventId } from './worldEventLogCore';
 
 export type AgenticStage = 'referee' | 'narrator';
@@ -44,6 +46,7 @@ export interface RefereeResultCandidate {
     resolvedQuests?: string[];
     media?: TurnMediaRequest;
     refereeNotes?: string;
+    cartographyReveal?: CartographyReveal;
 }
 
 export interface NarratorResultCandidate {
@@ -377,6 +380,10 @@ export function parseRefereeResultJson(text: string): RefereeResultCandidate | n
     if (refereeNotes) {
         candidate.refereeNotes = refereeNotes;
     }
+    const cartographyReveal = parseCartographyReveal(doc.cartographyReveal);
+    if (cartographyReveal) {
+        candidate.cartographyReveal = cartographyReveal;
+    }
     return candidate;
 }
 
@@ -490,6 +497,9 @@ export function mergeAgenticTurnResult(input: {
     }
     if (referee.resolvedQuests?.length) {
         result.resolvedQuests = referee.resolvedQuests;
+    }
+    if (referee.cartographyReveal) {
+        result.cartographyReveal = referee.cartographyReveal;
     }
     const media = mergeAgenticMedia(referee.media, narrator?.media);
     if (media) {

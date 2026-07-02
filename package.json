@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.15.2",
+  "version": "1.22.1",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -34,6 +34,7 @@
     "onCommand:textadventure.importStCharacter",
     "onCommand:textadventure.importStLorebook",
     "onCommand:textadventure.exportScenario",
+    "onCommand:textadventure.exportReplay",
     "onCommand:textadventure.validateScenario",
     "onCommand:textadventure.setOpenRouterApiKey",
     "onCommand:textadventure.clearOpenRouterApiKey",
@@ -78,6 +79,10 @@
       {
         "command": "textadventure.exportScenario",
         "title": "%command.exportScenario%"
+      },
+      {
+        "command": "textadventure.exportReplay",
+        "title": "%command.exportReplay%"
       },
       {
         "command": "textadventure.validateScenario",
@@ -257,6 +262,59 @@
           "type": "boolean",
           "default": false,
           "description": "%config.textAdventure.cartography.fogInPrompt.description%"
+        },
+        "textAdventure.cartography.revealInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.cartography.revealInPrompt.description%"
+        },
+        "textAdventure.chronicle.recapInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.chronicle.recapInPrompt.description%"
+        },
+        "textAdventure.chronicle.maxRecapLines": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "%config.textAdventure.chronicle.maxRecapLines.description%"
+        },
+        "textAdventure.pacing.hintInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.pacing.hintInPrompt.description%"
+        },
+        "textAdventure.pacing.windowSize": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 20,
+          "description": "%config.textAdventure.pacing.windowSize.description%"
+        },
+        "textAdventure.pacing.dominanceThreshold": {
+          "type": "number",
+          "default": 0.8,
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "%config.textAdventure.pacing.dominanceThreshold.description%"
+        },
+        "textAdventure.reputation.inPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.reputation.inPrompt.description%"
+        },
+        "textAdventure.debug.bulkWorldSim": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.debug.bulkWorldSim.description%"
+        },
+        "textAdventure.debug.bulkWorldSimMaxSteps": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "%config.textAdventure.debug.bulkWorldSimMaxSteps.description%"
         },
         "textAdventure.modelScan.roots": {
           "type": "array",

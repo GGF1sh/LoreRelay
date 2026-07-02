@@ -1,5 +1,244 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Codex - Living World overnight supervision
+
+### Summary
+
+- Verified the since-last-visit market snapshot fix already present in `livingWorldBridge.ts` / `statePatch.ts`.
+- Added World tab read-only market tables from `world_forge.json` commerce + `world_state.json` markets.
+- Added Inspector read-only display for `turn_result.tradeOps` and `turn_result.npcAgencyOps`.
+- Added World tab NPC whereabouts using `listNpcPresence()` with a 10-NPC clamp notice.
+- Added a Living World travel-plan prompt block that tells the GM estimated travel turns / food cost and how to emit `elapsedWorldTurns`.
+- Added bundled `sample-scenarios/trade-routes` demo pack for commerce + NPC agency.
+
+### Verification
+
+- `npm run compile`
+- `npm test` (69/69)
+- Qwen2.5-Coder via LM Studio was attempted twice but timed out on both a full TASK 2 prompt and a short review prompt.
+
+### Notes
+
+- Working tree already contained a large v1.22.x dirty implementation from previous agents. To make a clean checkout buildable, the Living World core files must be committed together with these UI/demo changes.
+- `test_write.txt` is local junk and should not be committed.
+
+---
+
+## 2026-07-02 JST - Grok - world-kit v0.1.0 (Living World cores)
+
+### Summary
+
+- New package **`C:\AI\lorerelay-world-kit`** — host-agnostic Living World cores:
+  - `commerceCore` (tradeOps, prices, cargo)
+  - `transportCore` (location/region paths, travel days)
+  - `worldSimCommerceCore` (Tier 1 market ticks, since-last-visit)
+  - `npcAgencyCore` (≤10 NPC reactions)
+  - `livingWorldPromptCore` + `worldKitTickCore`
+- Fixtures: `trade_routes_forge.json` (3 ports, 3 commodities, Elda/Marcus NPCs).
+- `npm test` → 5/5 pass.
+
+### Next
+
+- LoreRelay integration: LW-W1 wire `runLivingWorldTick` after emergent sim; LW1 `tradeOps` pipeline.
+
+---
+
+## 2026-07-02 JST - Grok - F5 Replay Export (v1.21.1)
+
+### Summary
+
+- `replayExportCore.ts` / `replayExportPathsCore.ts` / `replayExport.ts`: Markdown + self-contained HTML from chat entries, F1 chronicle chapter headings, `visual_memory.json` gallery; writes under `exports/`.
+- Inspector UI (format, images/GM/dice toggles) + `textadventure.exportReplay` command; HTML opens in browser, MD in editor.
+- Respects `excludedFromPrompt` and `imageBlocked`.
+
+### Verification
+
+- `npm run compile`
+- `npm test`
+
+---
+
+## 2026-07-02 JST - Grok - F4 Travel Encounter (v1.21.0)
+
+### Summary
+
+- `travelEncounterCore.ts`: BFS region path, deterministic hazard encounters, `[Travel — Encounters]` GM injection on travel commands.
+- Gated by `game_rules.enableTravelEncounters` + `travelEncounterDensity` (low/medium/high).
+
+### Verification
+
+- `npm run compile`
+- `npm test`
+
+---
+
+## 2026-07-02 JST - Grok - F3 Faction Reputation (v1.20.0)
+
+### Summary
+
+- `factionReputationCore.ts` + `FactionWorldState.playerReputation`; quest completion and `reputationOps` apply deltas.
+- Gated by `game_rules.enableFactionReputation`; GM line via `textAdventure.reputation.inPrompt`.
+- World tab reputation bar on faction cards.
+
+### Verification
+
+- `npm run compile`
+- `npm test`
+
+---
+
+## 2026-07-02 JST - Grok - F2 Pacing Director (v1.19.1)
+
+### Summary
+
+- `journalBeatCore.ts` shared beat classifier; `pacingCore.ts` for window skew + one-line `[Director — Pacing]` hint.
+- Gated by `textAdventure.pacing.hintInPrompt` (default off); i18n hint strings in 4 locales.
+- Appended to Scenario Director prompt block when enabled.
+
+### Verification
+
+- `npm run compile`
+- `npm test`
+
+---
+
+## 2026-07-02 JST - Grok - F1 Chronicle (v1.19.0)
+
+### Summary
+
+- Implemented deterministic Chronicle from `state_journal.ndjson` + `world_state.recentChanges` + `questHooks`.
+- `chronicleCore.ts`, `chronicleJournalCore.ts`, `chronicleLoader.ts`; inject-once `[Previously]` via `textAdventure.chronicle.recapInPrompt` (default off).
+- Inspector read-only chapter view; `lastInjectedChronicleTurn` in `world_state.json`.
+
+### Verification
+
+- `npm run compile`
+- `npm test`
+
+---
+
+## 2026-07-02 JST - Grok - Debug sandbox scenario (v1.17.0)
+
+### Summary
+
+- Bundled `sample-scenarios/debug-sandbox` with `meta.tags: ["debug"]`.
+- Natural-language commands bypass GM: NPC trust (`npc_registry`), map fog (`cartographyReveal`), world sim N steps (`world_state.json`).
+- Start Hub **🔧 デバッグサンドボックス**; `debugScenarioCore.ts` + `debugScenarioRunnerCore.ts`.
+- Guide: `sample-scenarios/debug-sandbox/DEBUG_SANDBOX.md`.
+
+### Verification
+
+- `npm run compile`
+- `npm test` (all pass)
+
+---
+
+## 2026-07-02 JST - Grok - Debug bulk world simulation (World Time Passage A)
+
+### Summary
+
+- Implemented debug bulk advance for Emergent Simulation: Inspector UI + `textAdventure.debug.bulkWorldSim` (default off).
+- `worldSimBulkCore.ts` loops `runSimulationStep` N times; GM turn count and FoW unchanged.
+- Documented narrative time-passage ideas (rest / travel / long skip) in `docs/WORLD_TIME_PASSAGE_IDEA.md` (layer B = not implemented).
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_world_sim_bulk_core.js`
+
+---
+
+## 2026-07-02 JST - Grok - Cartography C9 implementation (v1.16.0)
+
+### Summary
+
+- Implemented Claude design `docs/CARTOGRAPHY_C9_DESIGN.md` (PR1+2+3): `cartographyReveal` channel, rumorKnown merge, map items UX, gated GM prompt, agentic passthrough.
+- Version **1.16.0** (Cartography feature minor bump, same rationale as C8 → 1.15).
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_cartography_reveal_core.js`
+
+---
+
+## 2026-07-02 JST - Grok - Next roadmap (Fable5 + Living World + Ver policy)
+
+### Summary
+
+- `docs/FABLE5_FEATURE_PROPOSALS_DESIGN.md` (F1–F6) — design only, no version bump.
+- `AI_ROADMAP.md` — 3 tracks: Fable5 (implement first F1→F2), Living World (LW-W1→LW1→LW2), polish.
+- `docs/PHASE_NAMING.md` — LW + Fable5 axes; design ≠ version bump; F1+F2 ship → **1.19.0**.
+
+---
+
+## 2026-07-02 JST - Grok - Commerce & NPC Agency brief (LW1/LW2)
+
+### Summary
+
+- Added `docs/COMMERCE_AND_AGENCY_BRIEF.md` — trade/transport + ~10 named moving NPCs, `game_rules` ON/OFF, reusable `*Core.ts` + JSON contracts.
+- `AI_ROADMAP.md` — next major tract when LoreRelay core feels complete.
+
+---
+
+## 2026-07-02 JST - Grok - Debug v2 + Layer B time passage (v1.18.0)
+
+### Summary
+
+- Debug sandbox commands: HP, location, romance/fear, map items, narrative rest/travel.
+- Inspector **Debug Console** unifies bulk sim + sandbox quick-insert chips.
+- `turn_result.elapsedWorldTurns` for GM-driven world time passage (Layer B v1).
+
+### Verification
+
+- `npm run compile`
+- `npm test`
+
+---
+
+## Current Snapshot (2026-07-02)
+
+| Item | Value |
+|------|-------|
+| Package version | **1.18.0**（設計 doc のみ追加時は繰上なし） |
+| Latest release theme | **Debug v2 + Layer B**（出荷済み） |
+| Next implement (推奨) | **F1 Chronicle → F2 Pacing** → **1.19.0** |
+| Next world track | **LW-W1 → LW1 → LW2**（`COMMERCE_AND_AGENCY_BRIEF.md`） |
+| Design backlog | **F1–F6** `FABLE5_FEATURE_PROPOSALS_DESIGN.md` |
+| Cartography C9 | **完了** (v1.16.0) |
+| Debug sandbox | **v1.18.0** — `sample-scenarios/debug-sandbox` |
+| Phase naming | `docs/PHASE_NAMING.md` |
+
+---
+
+## 2026-07-02 JST - Gemini - Cartography C8 implementation review PASS
+
+### Summary
+
+- Cartography **C8**（FoW & Living Map, PR1〜6, v1.15.0–1.15.2）の実装レビューを完了。
+- 設計正本 `docs/CARTOGRAPHY_PHASE8_DESIGN.md` とコミット `c8432b8`〜`28463c3` を照合。
+- **総合判定: PASS** — 不変条件 6 項目すべてクリア。PR1〜6 チェックリストすべて合格。
+- 次フェーズ（C9 設計）へ進行して問題なし、と Gemini が結論。
+
+### Files touched
+
+- `docs/CARTOGRAPHY_C8_REVIEW_GEMINI.md`（本レビュー報告書・新規）
+
+### Decisions
+
+- C8 実装はマージ済み状態でクローズ。追加コード修正はレビュー起因では不要。
+
+### Remaining / Next
+
+- Claude に `docs/CARTOGRAPHY_C9_BRIEF.md` を渡して C9 設計 doc を起こす。
+- 案 B（allowlist 拡張）採用時は ChatGPT セキュリティレビューをゲートにする。
+
+### Verification
+
+- Gemini コードベース照合（設計 doc §3–§5, §7 PR Plan, 不変条件）。自動 `npm test` の再実行は本エントリでは未記載。
+
+---
+
 ## 2026-07-02 JST - Codex - Maintenance hardening v1.14.5
 
 ### Summary

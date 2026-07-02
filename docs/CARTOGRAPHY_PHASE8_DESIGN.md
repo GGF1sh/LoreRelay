@@ -1,4 +1,7 @@
-# Cartography Phase 8 — 設計ドキュメント（探索感の強化 / Fog of War & Living Map）
+# Cartography C8 — 設計ドキュメント（探索感の強化 / Fog of War & Living Map）
+
+> **命名:** Cartography **C8**（Roadmap Phase 8 = Quest Board とは別。`docs/PHASE_NAMING.md` 参照）  
+> **実装レビュー:** **PASS**（Gemini, 2026-07-02, v1.15.2）— `docs/CARTOGRAPHY_C8_REVIEW_GEMINI.md`
 
 > 対象読者: 実装者（Grok / Cursor）、レビュア（Keisuke）
 > 前提: Phase 7 完了分は変更しない。実装コードは書かない（interface / 疑似コードのみ）。
@@ -332,7 +335,7 @@ Unexplored (player has not been): Ashen Wastes, Sunless Deep, Iron Marches   ←
 - **A. 拡張派生のみ（推奨）**: `currentLocationId`＋隣接だけで霧を晴らす。allowlist 無改修・誤検知ゼロ・実装最小。
 - B. 追記専用パス `/world/discoveredRegionIds`(append-only) を allowlist に追加。GM が「地図を入手した」等を表現可。ただし allowlist 拡張＝不変条件3のスコープ拡大。
 - C. narration キーワード解析。→ Non-Goal（誤検知）。
-- **推奨: A。** B は Phase 9 で「地図/伝聞アイテム」機能と一緒に検討。
+- **推奨: A。** B は **Cartography C9**（地図/伝聞アイテム）で検討 → `docs/CARTOGRAPHY_C9_BRIEF.md`
 
 ### Q2. Tile モードの FoW 暗転をどう判定するか（タイルに owner を持たせない制約下で）
 

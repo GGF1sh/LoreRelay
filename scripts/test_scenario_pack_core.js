@@ -21,7 +21,7 @@ let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
 function ok(msg) { console.log(`OK: ${msg}`); }
 
-if (!Array.isArray(BUNDLED_SAMPLE_IDS) || BUNDLED_SAMPLE_IDS.length !== 3) {
+if (!Array.isArray(BUNDLED_SAMPLE_IDS) || BUNDLED_SAMPLE_IDS.length !== 5) {
     fail('BUNDLED_SAMPLE_IDS length');
 } else {
     ok('BUNDLED_SAMPLE_IDS length');

@@ -81,6 +81,19 @@ export interface WorldGeography {
     locations: WorldLocation[];
 }
 
+export type MapItemDefKind = 'map' | 'rumor' | 'informant';
+
+/** Optional scenario-defined map/rumor items (Cartography C9). */
+export interface MapItemDef {
+    id: string;
+    name: string;
+    kind: MapItemDefKind;
+    revealsRegionIds?: string[];
+    strength?: 'discovered' | 'rumored';
+    consumable?: boolean;
+    description?: string;
+}
+
 export interface WorldForge {
     format: string;
     meta: WorldForgeMeta;
@@ -88,6 +101,8 @@ export interface WorldForge {
     factions: Faction[];
     loreHistory: LoreHistoryEntry[];
     initialNpcs: InitialNpc[];
+    /** Optional static map item catalog for scenarios. */
+    mapItems?: MapItemDef[];
 }
 
 // --- パーサーユーティリティ ---
@@ -269,6 +284,27 @@ function parseInitialNpc(raw: unknown): InitialNpc | undefined {
     return npc;
 }
 
+function parseMapItemDef(raw: unknown): MapItemDef | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const name = asString(r.name);
+    if (!id || !name) { return undefined; }
+    const kind: MapItemDefKind = r.kind === 'rumor' || r.kind === 'informant' ? r.kind : 'map';
+    const item: MapItemDef = { id, name, kind };
+    if (Array.isArray(r.revealsRegionIds)) {
+        item.revealsRegionIds = r.revealsRegionIds
+            .filter((x): x is string => typeof x === 'string' && asId(x) === x)
+            .slice(0, 10);
+    }
+    if (r.strength === 'discovered' || r.strength === 'rumored') {
+        item.strength = r.strength;
+    }
+    if (r.consumable === true) { item.consumable = true; }
+    if (r.description) { item.description = asString(r.description).slice(0, 400); }
+    return item;
+}
+
 export function parseWorldForge(raw: unknown): WorldForge | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;
@@ -312,6 +348,9 @@ export function parseWorldForge(raw: unknown): WorldForge | undefined {
         loreHistory,
         initialNpcs: Array.isArray(doc.initialNpcs)
             ? doc.initialNpcs.slice(0, MAX_PARSE_NPCS).map(parseInitialNpc).filter((x): x is InitialNpc => x !== undefined)
-            : []
+            : [],
+        mapItems: Array.isArray(doc.mapItems)
+            ? doc.mapItems.slice(0, 20).map(parseMapItemDef).filter((x): x is MapItemDef => x !== undefined)
+            : undefined,
     };
 }

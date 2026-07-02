@@ -6,6 +6,7 @@ import { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry, GameStateWorld } from './types/GameState';
 import { isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { applyFogOnLocationVisit, normalizeFogWorldState } from './fogOfWarCore';
+import { applyCartographyReveal, parseCartographyReveal } from './cartographyRevealCore';
 import {
     countGmTurns,
     isComfyUiConfigured,
@@ -20,10 +21,21 @@ import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspace
 import { validateGameState } from './validateGameState';
 import { t } from './i18n';
 import { commitGameState } from './stateManager';
+import { loadGameRules } from './gameRules';
 import { loadWorldState, saveWorldState } from './worldState';
-import { applyNpcMemoryUpdates } from './npcRegistry';
+import { applyNpcMemoryUpdates, loadNpcRegistry } from './npcRegistry';
 import type { NpcMemoryUpdate } from './npcRegistryCore';
+import {
+    applyPlayerReputationToFactions,
+    deriveQuestCompletionDeltas,
+    parseReputationOps,
+} from './factionReputationCore';
 import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
+import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
+import { persistWorldSimulationSteps } from './worldSimPersist';
+import { applyLivingWorldTurnOps } from './livingWorldTurnOps';
+import { recordLocationVisit } from './livingWorldBridge';
+import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
 /** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
 const ALLOWED_ROOTS = new Set([
@@ -305,6 +317,35 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
 /** Reward magnitude for completing an NPC-sourced quest hook (0-100 disposition scale). */
 const QUEST_COMPLETION_TRUST_REWARD = 10;
 
+function applyFactionReputationUpdates(
+    resolvedQuests: unknown,
+    reputationOps: unknown,
+    forgeFactionIds: Set<string> | undefined
+): void {
+    if (!loadGameRules().enableFactionReputation) { return; }
+    const worldState = loadWorldState();
+    if (!worldState) { return; }
+
+    const deltas = parseReputationOps(reputationOps);
+    if (Array.isArray(resolvedQuests)) {
+        const resolvedIds = new Set(resolvedQuests.filter(isValidEventId));
+        if (resolvedIds.size > 0 && worldState.questHooks?.length) {
+            const registry = loadGameRules().enableNpcRegistry ? loadNpcRegistry() : undefined;
+            deltas.push(...deriveQuestCompletionDeltas(
+                worldState.questHooks,
+                resolvedIds,
+                worldState.recentChanges,
+                registry
+            ));
+        }
+    }
+    if (deltas.length === 0) { return; }
+
+    const validIds = forgeFactionIds ?? new Set(Object.keys(worldState.factions));
+    const factions = applyPlayerReputationToFactions(worldState.factions, deltas, validIds);
+    saveWorldState({ ...worldState, factions });
+}
+
 function completeResolvedQuestHooks(resolvedQuests: unknown, currentTurn: number): void {
     if (!Array.isArray(resolvedQuests)) { return; }
     const resolvedIds = new Set(resolvedQuests.filter(isValidEventId));
@@ -390,6 +431,17 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             state = applyStatePatch(state, turnResult.statePatch);
         }
 
+        const elapsedWorldTurns = clampElapsedWorldTurns(
+            turnResult.elapsedWorldTurns,
+            ABSOLUTE_MAX_BULK_WORLD_STEPS
+        );
+        if (elapsedWorldTurns > 0) {
+            const simResult = persistWorldSimulationSteps(elapsedWorldTurns, ABSOLUTE_MAX_BULK_WORLD_STEPS);
+            if (!simResult.ok) {
+                console.warn(`[statePatch] elapsedWorldTurns skipped: ${simResult.reason}`);
+            }
+        }
+
         if (isWorldForgeEnabled()) {
             const forge = loadWorldForge();
             if (forge) {
@@ -400,6 +452,19 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
                     : undefined;
                 if (nextLocationId && nextLocationId !== prevLocationId) {
                     world = applyFogOnLocationVisit(world, forge, nextLocationId);
+                    if (
+                        prevLocationId
+                        && (loadGameRules().enableCommerce || loadGameRules().enableNpcAgency)
+                    ) {
+                        const ws = loadWorldState();
+                        if (ws) {
+                            saveWorldState(recordLocationVisit(ws, prevLocationId, ws.markets));
+                        }
+                    }
+                }
+                const reveal = parseCartographyReveal(turnResult.cartographyReveal);
+                if (reveal) {
+                    world = applyCartographyReveal(world, forge, reveal).world;
                 }
                 state = { ...state, world };
             }
@@ -408,9 +473,21 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         const priorGmTurns = Array.isArray(state.entries)
             ? (state.entries as unknown[]).filter((e) => typeof e === 'object' && e !== null && (e as GameEntry).role === 'gm').length
             : 0;
+        const forgeFactionIds = isWorldForgeEnabled()
+            ? new Set(loadWorldForge()?.factions.map((f) => f.id) ?? [])
+            : undefined;
+        applyFactionReputationUpdates(
+            turnResult.resolvedQuests,
+            turnResult.reputationOps,
+            forgeFactionIds
+        );
         completeResolvedQuestHooks(turnResult.resolvedQuests, priorGmTurns + 1);
 
         state = mergeGmEntryFromTurn(state, turnResult);
+        state = applyLivingWorldTurnOps(
+            turnResult,
+            state as unknown as import('./types/GameState').GameState
+        ) as unknown as Record<string, unknown>;
         state = normalizeStatusArrayFields(state);
 
         pendingAutoLocationImage = undefined;

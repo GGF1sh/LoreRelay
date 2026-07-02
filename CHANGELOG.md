@@ -9,6 +9,115 @@
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-07-02
+
+### Fixed
+
+- **Since-last-visit** — `recordLocationVisit()` が退出地点の市場スナップショット（`marketSnapshotByLocation`）を保存するよう修正。`buildLivingWorldGmLines()` が同一 `markets` 参照で差分ゼロになっていた問題を解消。`statePatch` は到着時に `prevLocationId` で退出記録。
+
+## [1.22.0] - 2026-07-02
+
+### Added
+
+- **Living World LW-W1 (initial wire)** — `@lorerelay/world-kit` cores synced into extension: Commerce, Transport, Tier-1 market tick, NPC Agency, GM `[Living World — …]` blocks.
+- **`livingWorldBridge.ts`** — ticks after each `runSimulationStep`; `tradeOps` / `npcAgencyOps` on turn_result; `game_rules.enableCommerce` / `enableNpcAgency` (default OFF).
+- **`scripts/sync_world_kit.js`**, **`AGENTS.md`**, `scripts/test_living_world_bridge.js`.
+
+### Docs
+
+- `C:\AI\lorerelay-world-kit` v0.1.0 (standalone package, 5/5 tests).
+- `docs/OVERNIGHT_HANDOFF.md` — LLM/agent overnight workflow notes.
+
+## [1.21.1] - 2026-07-02
+
+### Added
+
+- **F5 Replay Export** — `replayExportCore.ts` / `replayExportPathsCore.ts` でチャット履歴 + F1 年表章見出し + `visual_memory.json` ギャラリーから Markdown / 自己完結 HTML を `exports/` へ書き出し。`excludedFromPrompt`・`imageBlocked` を尊重。
+- **Inspector** — 形式・画像/GM/ダイス ON-OFF と書き出しボタン。
+- **コマンド** — `LoreRelay: Export Replay (Markdown/HTML)`（`textadventure.exportReplay`）。HTML はブラウザ、MD はエディタで開く。
+- **`scripts/test_replay_export_core.js`** — 除外フラグ・空ログ・画像 ON/OFF・パス検証。
+
+## [1.21.0] - 2026-07-02
+
+### Added
+
+- **F4 Travel Encounter** — `travelEncounterCore.ts` で旅コマンド時に worldSeed + 経路リージョン + `Region.hazard` から決定論エンカウントを抽選し `[Travel — Encounters]` を GM プロンプトへ注入。
+- **Game Rules（gated）** — `enableTravelEncounters`（既定 OFF）、`travelEncounterDensity`（low / medium / high）。
+- **`scripts/test_travel_encounter_core.js`** — 同 seed 再現性・BFS 経路・密度。
+
+## [1.20.0] - 2026-07-02
+
+### Added
+
+- **F3 Faction Reputation** — `factionReputationCore.ts` で派閥単位のプレイヤー評判（-100..100）を `world_state.factions.*.playerReputation` に追跡。
+- **更新源** — クエスト完了時の自動 delta（NPC `factionId` / イベント `factionId`）+ 任意 `turn_result.reputationOps`。
+- **GM プロンプト（gated）** — `textAdventure.reputation.inPrompt` + `game_rules.enableFactionReputation` で `[Player Reputation]` 1 行注入。
+- **World タブ** — 派閥カードに評判バー（Game Rules ON 時）。
+- **`scripts/test_faction_reputation_core.js`**
+
+### Settings
+
+- `game_rules.json` → `enableFactionReputation`（default `false`）
+- `textAdventure.reputation.inPrompt`（default `false`）
+
+## [1.19.1] - 2026-07-02
+
+### Added
+
+- **F2 Pacing Director** — `journalBeatCore.ts` / `pacingCore.ts` で直近ジャーナルを beat 分類（戦闘/会話/探索/移動/静寂）。偏り検知時のみ `[Director — Pacing]` 1 行を GM プロンプトへ注入（LLM 不使用）。
+- **`scripts/test_pacing_core.js`** — beat 判定・偏り検知・閾値未満は空。
+
+### Settings
+
+- `textAdventure.pacing.hintInPrompt`（default `false`）
+- `textAdventure.pacing.windowSize`（default `5`）
+- `textAdventure.pacing.dominanceThreshold`（default `0.8`）
+
+## [1.19.0] - 2026-07-02
+
+### Added
+
+- **F1 Chronicle** — `chronicleCore.ts` / `chronicleJournalCore.ts` で `state_journal.ndjson` + `recentChanges` + `questHooks` から決定論的年表を生成。LLM 要約なし。
+- **GM プロンプト注入（gated）** — `textAdventure.chronicle.recapInPrompt`（既定 OFF）でセッション再開後の最初の GM ターンに `[Previously]` ブロックを inject-once 注入。`lastInjectedChronicleTurn` で二重注入防止。
+- **Inspector 年表ビュー** — 章ごと折りたたみの read-only Chronicle 表示 + Refresh。
+- **`scripts/test_chronicle_core.js`** — 章分割・recap 上限・壊れ行スキップ・inject 判定。
+
+### Settings
+
+- `textAdventure.chronicle.recapInPrompt`（default `false`）
+- `textAdventure.chronicle.maxRecapLines`（default `5`）
+
+## [1.18.0] - 2026-07-02
+
+### Added
+
+- **Debug sandbox v2** — 拡張コマンド: HP 操作、現在地移動、ロマンス/恐怖、地図アイテム付与、物語的休息・旅（`宿で休む` / `N日かけて◯◯へ旅する`）。
+- **Debug Console (Inspector)** — バルク世界シム + サンドボックスを統合。デバッグシナリオ中は設定なしでコンソール表示・クイック挿入チップ。
+- **Layer B (v1)** — `turn_result.elapsedWorldTurns` で GM ターンから世界シミュを N ステップ進行。`narrativeTimePassageCore.ts` / `worldSimPersist.ts`。Emergent Simulation ON 時 GM プロンプトに 1 行追加。
+
+### Changed
+
+- バルク世界シムの永続化を `worldSimPersist.ts` に集約（デバッグサンドボックス・Inspector・`elapsedWorldTurns` 共通）。
+
+## [1.17.0] - 2026-07-02
+
+### Added
+
+- **Debug sandbox scenario** — 同梱 `sample-scenarios/debug-sandbox`。`meta.tags: ["debug"]` のシナリオで、プレイヤーの自然言語を決定論的に解釈（GM不要・即時 `turn_result`）。好感度（`npc_registry`）、地図の霧（`cartographyReveal`）、世界シミュ N ステップ（`world_state.json`）。Start Hub **🔧 デバッグサンドボックス** ボタン。`src/debugScenarioCore.ts` / `debugScenarioRunnerCore.ts`。手順: `sample-scenarios/debug-sandbox/DEBUG_SANDBOX.md`。
+- **Scenario pack** — `game_rules.json` を `OPTIONAL_PACK_FILES` に追加（パック同梱時にワークスペースへコピー）。
+
+## [1.16.0] - 2026-07-02
+
+Cartography **C9**（地図/伝聞アイテム + 遠隔 FoW 開示）— プレイ体験の機能追加のためマイナー繰り上げ。設計: `docs/CARTOGRAPHY_C9_DESIGN.md`（Claude）。
+
+### Added
+
+- **Cartography C9 — 遠隔 FoW 開示（案 D）** — `turn_result.cartographyReveal` 検証チャネル。`/world` allowlist 無改修。`discovered` / `rumorKnownRegionIds`（弱い噂）を拡張が派生反映。`src/cartographyRevealCore.ts` + `fogOfWarCore` rumorKnown マージ。
+- **Cartography C9 — 地図アイテム UX** — `grantItems` → `game_state.world.mapItems`。World タブ「地図・情報」+「広げる」→ `insertChatText`。任意 `world_forge.mapItems` 定義。
+- **Cartography C9 — GM プロンプト（gated）** — `textAdventure.cartography.revealInPrompt`（既定 OFF）で `cartographyReveal` 指示行を `[World]` に追加。
+- **Agentic GM** — Referee が `cartographyReveal` を passthrough（`agenticGmCore.ts`）。
+- **Debug: bulk world simulation advance** — `textAdventure.debug.bulkWorldSim`（既定 OFF）で Inspector から Emergent Simulation を N ステップ一括実行。`docs/WORLD_TIME_PASSAGE_IDEA.md`。
+
 ## [1.15.2] - 2026-07-02
 
 ### Added

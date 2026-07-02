@@ -1,0 +1,17 @@
+{
+  "enableRpgMechanics": true,
+  "defaultMaxHp": 20,
+  "defaultMaxMp": 8,
+  "diceDifficulty": "Normal",
+  "enableNpcRegistry": true,
+  "enableWorldForge": true,
+  "enableEmergentSimulation": true,
+  "enableCommerce": true,
+  "enableNpcAgency": true,
+  "enableFactionReputation": false,
+  "enableTravelEncounters": true,
+  "travelEncounterDensity": "low",
+  "simIntervalTurns": 1,
+  "backgroundSimulation": false,
+  "autoLorebookGrowth": false
+}

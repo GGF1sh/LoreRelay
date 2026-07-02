@@ -363,6 +363,54 @@ export function validateGameState(obj: unknown): string[] {
                     });
                 }
             }
+            if (w.rumorKnownRegionIds !== undefined) {
+                if (!Array.isArray(w.rumorKnownRegionIds)) {
+                    errors.push('world.rumorKnownRegionIds must be an array');
+                } else {
+                    (w.rumorKnownRegionIds as unknown[]).forEach((id, i) => {
+                        if (typeof id !== 'string') {
+                            errors.push(`world.rumorKnownRegionIds[${i}] must be a string`);
+                        } else if (!isValidEventId(id)) {
+                            errors.push(`world.rumorKnownRegionIds[${i}] has invalid format`);
+                        }
+                    });
+                }
+            }
+            if (w.mapItems !== undefined) {
+                if (!Array.isArray(w.mapItems)) {
+                    errors.push('world.mapItems must be an array');
+                } else {
+                    (w.mapItems as unknown[]).forEach((item, i) => {
+                        if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+                            errors.push(`world.mapItems[${i}] must be an object`);
+                            return;
+                        }
+                        const m = item as Record<string, unknown>;
+                        if (typeof m.id !== 'string' || !isValidEventId(m.id)) {
+                            errors.push(`world.mapItems[${i}].id has invalid format`);
+                        }
+                        if (typeof m.name !== 'string' || !m.name.trim()) {
+                            errors.push(`world.mapItems[${i}].name must be a non-empty string`);
+                        }
+                        if (m.kind !== 'map' && m.kind !== 'rumor' && m.kind !== 'informant') {
+                            errors.push(`world.mapItems[${i}].kind must be map, rumor, or informant`);
+                        }
+                    });
+                }
+            }
+            if (w.mapItemsConsumed !== undefined) {
+                if (!Array.isArray(w.mapItemsConsumed)) {
+                    errors.push('world.mapItemsConsumed must be an array');
+                } else {
+                    (w.mapItemsConsumed as unknown[]).forEach((id, i) => {
+                        if (typeof id !== 'string') {
+                            errors.push(`world.mapItemsConsumed[${i}] must be a string`);
+                        } else if (!isValidEventId(id)) {
+                            errors.push(`world.mapItemsConsumed[${i}] has invalid format`);
+                        }
+                    });
+                }
+            }
             if (w.knownFactionIds !== undefined) {
                 if (!Array.isArray(w.knownFactionIds)) {
                     errors.push('world.knownFactionIds must be an array');

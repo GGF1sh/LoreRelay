@@ -85,9 +85,11 @@ export interface WebviewHandlerDeps {
     handleCopyRemotePlayUrl(url: unknown, role?: unknown): Promise<void>;
     handleBranchTimeline(turnId: string): Promise<void>;
     sendGitTimelineStatus(): Promise<void>;
+    sendChronicle(): Promise<void>;
     handleSwitchGitBranch(branchName: string): Promise<void>;
     handleRequestForceSpeak(): Promise<void>;
     handleExportHtml(): Promise<void>;
+    handleExportReplay(raw: unknown): Promise<void>;
     handleRequestMermaid(target: string): Promise<void>;
     handleRequestVlmAnalysis(imagePath: string): Promise<void>;
     handleSetNpcPortrait(npcId: string, imagePath: string): Promise<void>;
@@ -97,6 +99,8 @@ export interface WebviewHandlerDeps {
     handleRequestNpcTts(raw: unknown): Promise<void>;
     pushTtsCapabilities(): void;
     insertChatDraft(text: string): void;
+    sendDebugCapabilities(): void;
+    handleBulkAdvanceWorldSim(steps: number): Promise<void>;
 }
 
 /**
@@ -148,6 +152,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendWorldView();
             deps.pushTtsCapabilities();
             deps.sendGameRules();
+            deps.sendDebugCapabilities();
             deps.sendRemotePlayStatus();
             break;
         case 'loadLorebook':
@@ -404,6 +409,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'requestGitTimeline':
             await deps.sendGitTimelineStatus();
             break;
+        case 'requestChronicle':
+            await deps.sendChronicle();
+            break;
         case 'switchGitBranch':
             if (typeof message.branchName === 'string') {
                 await deps.handleSwitchGitBranch(message.branchName);
@@ -411,10 +419,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'loadScenario':
             await deps.loadScenarioPack();
+            deps.sendDebugCapabilities();
             break;
         case 'loadBundledScenario':
             if (typeof message.sampleId === 'string') {
                 await deps.loadBundledSampleScenario(message.sampleId);
+                deps.sendDebugCapabilities();
             }
             break;
         case 'requestImageGenConfig':
@@ -434,6 +444,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'exportHtml':
             await deps.handleExportHtml();
+            break;
+        case 'exportReplay':
+            await deps.handleExportReplay(message);
             break;
         case 'requestMermaid':
             await deps.handleRequestMermaid(normalizeMermaidTarget(message.target));
@@ -470,6 +483,14 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'requestNpcTts':
             await deps.handleRequestNpcTts(message);
             break;
+        case 'getDebugCapabilities':
+            deps.sendDebugCapabilities();
+            break;
+        case 'bulkAdvanceWorldSim': {
+            const steps = typeof message.steps === 'number' ? message.steps : Number(message.steps);
+            await deps.handleBulkAdvanceWorldSim(steps);
+            break;
+        }
         default:
             break;
     }

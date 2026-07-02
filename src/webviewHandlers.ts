@@ -96,6 +96,7 @@ export interface WebviewHandlerDeps {
     handleAcceptQuest(questId: string): Promise<void>;
     handleRequestNpcTts(raw: unknown): Promise<void>;
     pushTtsCapabilities(): void;
+    insertChatDraft(text: string): void;
 }
 
 /**
@@ -201,6 +202,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 await deps.handleGenerateLocationImage(message.locationId.trim());
             }
             break;
+        case 'insertChatText': {
+            const text = clampString(message.text, MAX_EDIT_ENTRY_LEN);
+            if (text) {
+                deps.insertChatDraft(text);
+            }
+            break;
+        }
         case 'savePartyDirector':
             await deps.handleSavePartyDirector(message.director);
             break;

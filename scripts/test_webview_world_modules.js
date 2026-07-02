@@ -55,6 +55,25 @@ const fogSymbols = [
     'resolveTileRegionFog',
     'fogRegionLayout',
 ];
+
+const pinSymbols = [
+    'world-location-detail',
+    'selectWorldLocationPin',
+    'renderWorldLocationDetailPanel',
+    'insertChatText',
+    'hitTestWorldPin',
+    'WORLD_PIN_HIT_RADIUS_PX',
+    'locationPinCatalog',
+    'wireParchmentWorldPin',
+    'initMermaidPinClicks',
+];
+for (const symbol of pinSymbols) {
+    assert(
+        indexHtml.includes(symbol) || worldModule.includes(symbol) || tileModule.includes(symbol) || bundle.includes(symbol),
+        `pin interaction symbol missing: ${symbol}`
+    );
+}
+console.log('ok: World pin interaction symbols are bundled');
 for (const symbol of fogSymbols) {
     assert(worldModule.includes(symbol) || tileModule.includes(symbol), `fog symbol missing: ${symbol}`);
     assert(bundle.includes(symbol), `webview/script.js bundle is missing fog symbol ${symbol}`);

@@ -9,11 +9,14 @@
 
 ## [Unreleased]
 
-## [1.14.9] - 2026-07-02
+## [1.15.0] - 2026-07-02
+
+Cartography Phase 8（探索霧 + ピン操作）— マイナーではなくプレイ体験の機能追加のため **1.15** に繰り上げ。
 
 ### Added
 
-- **Cartography Phase 8 — Fog of War（PR1+PR2）** — Region グラフ駆動の探索霧。`game_state.world.discoveredRegionIds` を拡張が `currentLocationId` 変化時に派生追記。`visitedLocationIds` も同タイミングで自動更新（allowlist 無改修）。`rumored` は `connectedTo` から毎回導出。World タブの羊皮紙・タイル・Mermaid 3モードに暗幕/シルエット/`classDef fog` を適用。`rumored/unknown` のロケーション名は worldView でマスク（Remote Play 対策）。`src/fogOfWarCore.ts` + `scripts/test_fog_of_war_core.js`。
+- **Fog of War（PR1+PR2）** — Region グラフ駆動の探索霧。`discoveredRegionIds` / `visitedLocationIds` を拡張が `currentLocationId` 変化時に派生。羊皮紙・タイル・Mermaid 3モードに暗幕/シルエット表示。`src/fogOfWarCore.ts`。
+- **ピン インタラクション（PR3）** — 探索済みピンのクリックで共通詳細パネル（種別・危険度・派閥）+ チャット入力へ行動文挿入（移動/調査/現在地うかがい）。羊皮紙 44px ヒット領域、タイル 22px 半径ヒットテスト、Mermaid ノードクリック。`insertChatText` → `insertChatDraft` 経路。i18n 10キー×4言語。
 
 ## [1.14.8] - 2026-07-02
 

@@ -21,6 +21,7 @@ import type { GameStateWorld } from './types/GameState';
 import {
     buildFogPayload,
     buildFogRegionLayout,
+    buildLocationPinCatalog,
     maskCartographyPinsForFog,
     maskCartographyRegionLabelsForFog,
     normalizeFogWorldState,
@@ -171,6 +172,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         fog
     );
     const fogRegionLayout = buildFogRegionLayout(forge);
+    const locationPinCatalog = buildLocationPinCatalog(
+        forge,
+        currentLocationId ?? null,
+        regionStates,
+        fog
+    );
     // Derived display data only — never persisted, never sent to the GM.
     const tileOvermap = buildTileOvermap(forge);
     const overmapThemeKey = resolveOvermapThemeKey(forge.meta.theme);
@@ -188,6 +195,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         cartographyHasImage: Boolean(cartographyImage),
         fog,
         fogRegionLayout,
+        locationPinCatalog,
         tileOvermap,
         factions,
         factionStates: factionStates ?? null,

@@ -18,6 +18,30 @@ window.addEventListener('resize', () => {
     _overmapResizeTimer = setTimeout(() => drawTileOvermap(), 150);
 });
 
+let _tileOvermapClickReady = false;
+
+function initTileOvermapPinClicks() {
+    if (_tileOvermapClickReady) { return; }
+    _tileOvermapClickReady = true;
+    const canvas = document.getElementById('world-overmap-canvas');
+    if (!canvas) { return; }
+    canvas.addEventListener('click', (e) => {
+        if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') { return; }
+        if (typeof hitTestWorldPin !== 'function' || typeof selectWorldLocationPin !== 'function') { return; }
+        const locationId = hitTestWorldPin(e.clientX, e.clientY, canvas);
+        if (locationId) {
+            e.stopPropagation();
+            selectWorldLocationPin(locationId);
+        } else if (typeof clearWorldLocationPinSelection === 'function') {
+            clearWorldLocationPinSelection();
+        }
+    });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    initTileOvermapPinClicks();
+});
+
 const TILE_OVERMAP_ASCII_THEME = {
     s: { bg: '#0a1420', fg: ['#2f5f92', '#3e78b2', '#356a9e'], glyphs: ['~', '≈', '~'] },
     c: { bg: '#0d1a24', fg: ['#4a8ab2', '#5a9ac2', '#3f7aa2'], glyphs: ['~', '.', '≈'] },

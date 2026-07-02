@@ -1347,6 +1347,11 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         pushTtsCapabilities: () => {
             pushTtsCapabilitiesToWebview();
         },
+        insertChatDraft: (text: string) => {
+            const draft = text.trim().slice(0, 20_000);
+            if (!draft) { return; }
+            panel?.webview.postMessage({ type: 'insertChatDraft', text: draft });
+        },
     };
 }
 

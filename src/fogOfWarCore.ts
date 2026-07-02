@@ -1,7 +1,9 @@
 import type { GameStateWorld } from './types/GameState';
 import type { WorldForge, Region } from './worldForgeCore';
+import type { RegionWorldState } from './worldStateCore';
 import {
     buildCartographyLayoutSpec,
+    buildCartographyPinPositions,
     mapCoordToPercent,
     CARTOGRAPHY_MAP_SIZE,
     type CartographyPinPosition,
@@ -21,6 +23,22 @@ export interface FogRegionLayoutEntry {
     leftPct: number;
     topPct: number;
     radiusPct: number;
+}
+
+/** Enriched pin metadata for World tab interaction (PR3 detail panel + hit tests). */
+export interface WorldViewLocationPinMeta {
+    locationId: string;
+    /** Real name when discovered; empty when hidden by FoW. */
+    locationName: string;
+    locationType: string;
+    regionId?: string;
+    regionName?: string;
+    dangerLevel?: number;
+    factionName?: string;
+    leftPct: number;
+    topPct: number;
+    fogVisibility: RegionFogVisibility;
+    isCurrent: boolean;
 }
 
 /** Resolve a location's owning region from world_forge geography. */
@@ -150,6 +168,46 @@ export function maskCartographyPinsForFog(
         return {
             ...pin,
             locationName: visibility === 'rumored' ? '?' : '',
+        };
+    });
+}
+
+export function buildLocationPinCatalog(
+    forge: WorldForge,
+    currentLocationId: string | undefined | null,
+    regionStates: Record<string, RegionWorldState> | undefined,
+    fog: FogViewPayload
+): WorldViewLocationPinMeta[] {
+    const pins = buildCartographyPinPositions(forge);
+    const discovered = new Set(fog.discoveredRegionIds);
+    const rumored = new Set(fog.rumoredRegionIds);
+    const regionById = new Map(forge.geography.regions.map((r) => [r.id, r]));
+    const locById = new Map(forge.geography.locations.map((l) => [l.id, l]));
+    const factionById = new Map(forge.factions.map((f) => [f.id, f]));
+
+    return pins.map((pin) => {
+        const loc = locById.get(pin.locationId);
+        const region = pin.regionId ? regionById.get(pin.regionId) : undefined;
+        const fogVisibility = pin.regionId
+            ? getRegionFogVisibility(pin.regionId, discovered, rumored)
+            : 'discovered';
+        const liveDanger = pin.regionId ? regionStates?.[pin.regionId]?.dangerLevel : undefined;
+        const faction = loc?.factionControl ? factionById.get(loc.factionControl) : undefined;
+        const isCurrent = pin.locationId === currentLocationId;
+        const showName = fogVisibility === 'discovered' || isCurrent;
+
+        return {
+            locationId: pin.locationId,
+            locationName: showName ? (loc?.name ?? pin.locationName) : '',
+            locationType: loc?.type ?? 'other',
+            regionId: pin.regionId,
+            regionName: fogVisibility !== 'unknown' ? region?.name : undefined,
+            dangerLevel: fogVisibility === 'discovered' ? (liveDanger ?? region?.dangerLevel) : undefined,
+            factionName: fogVisibility === 'discovered' ? faction?.name : undefined,
+            leftPct: pin.leftPct,
+            topPct: pin.topPct,
+            fogVisibility,
+            isCurrent,
         };
     });
 }

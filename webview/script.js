@@ -4664,6 +4664,11 @@ let currentWorldLocationId = null;
 let worldSceneImagePending = false;
 let worldMapMode = 'mermaid';
 const WORLD_MAP_MODE_KEY = 'lorerelay.worldMapMode';
+let _worldViewMsg = null;
+let _selectedPinId = null;
+let _worldPinCatalog = new Map();
+const WORLD_PIN_HIT_RADIUS_PX = 22;
+let _worldPinDismissReady = false;
 
 window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (event) => {
@@ -4750,6 +4755,7 @@ window.addEventListener('DOMContentLoaded', () => {
     ensureCartographyStyles();
     applyWorldMapModeVisibility();
     buildWorldGenForm();
+    initWorldPinDismiss();
 });
 
 function renderWorldView(msg) {
@@ -4786,14 +4792,17 @@ function renderWorldView(msg) {
     }
 
     currentWorldLocationId = msg.currentLocationId;
+    _worldViewMsg = msg;
+    rebuildWorldPinCatalog(msg);
     if (genImageBtn) {
         genImageBtn.style.display = currentWorldLocationId ? '' : 'none';
     }
 
     // Mermaid + parchment + tile maps
-    renderMermaidMap(msg.worldMap, msg.currentLocationId);
+    renderMermaidMap(msg.worldMap, msg);
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
+    syncWorldPinSelectionUi();
 
     if (msg.cartographyHasImage && worldMapMode === 'parchment') {
         setWorldMapMode('parchment', { persist: false });
@@ -4867,12 +4876,38 @@ function ensureCartographyStyles() {
             cursor: default;
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65));
             opacity: 0.88;
+            z-index: 4;
+        }
+        .world-map-pin::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            min-width: 44px;
+            min-height: 44px;
+        }
+        .world-map-pin.is-interactive {
+            cursor: pointer;
+        }
+        .world-map-pin.is-interactive:hover,
+        .world-map-pin.is-selected {
+            transform: translate(-50%, -100%) scale(1.12);
+            z-index: 6;
+        }
+        .world-map-pin.is-selected {
+            filter: drop-shadow(0 0 8px rgba(120, 180, 255, 0.95));
         }
         .world-map-pin.is-current {
             font-size: 1.45em;
             opacity: 1;
             filter: drop-shadow(0 0 6px rgba(255,210,80,0.9));
-            z-index: 2;
+            z-index: 5;
+            animation: world-pin-pulse 2.4s ease-in-out infinite;
+        }
+        @keyframes world-pin-pulse {
+            0%, 100% { filter: drop-shadow(0 0 4px rgba(255,210,80,0.75)); }
+            50% { filter: drop-shadow(0 0 10px rgba(255,220,120,1)); }
         }
         .world-map-region-label {
             position: absolute;
@@ -4923,9 +4958,261 @@ function ensureCartographyStyles() {
             opacity: 0.82;
             font-style: italic;
         }
+        .world-location-detail {
+            margin-top: 0.55rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(0,0,0,0.22);
+            font-size: 0.88em;
+        }
+        .world-location-detail.hidden { display: none !important; }
+        .world-location-detail h4 {
+            margin: 0 0 0.35rem;
+            font-size: 1.05em;
+        }
+        .world-location-detail .world-pin-meta {
+            opacity: 0.78;
+            font-size: 0.9em;
+            margin-bottom: 0.45rem;
+        }
+        .world-location-detail .world-pin-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+        .world-location-detail .world-pin-action-btn {
+            font-size: 0.82em;
+            padding: 0.25rem 0.55rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(74,144,226,0.15);
+            color: var(--vscode-foreground, #ddd);
+            cursor: pointer;
+        }
+        .world-location-detail .world-pin-action-btn:hover {
+            border-color: var(--vscode-focusBorder, #4a90e2);
+        }
+        #world-overmap-canvas.world-pin-cursor {
+            cursor: crosshair;
+        }
     `;
     document.head.appendChild(style);
 }
+
+function rebuildWorldPinCatalog(msg) {
+    _worldPinCatalog = new Map();
+    const catalog = Array.isArray(msg.locationPinCatalog) ? msg.locationPinCatalog : [];
+    for (const pin of catalog) {
+        if (pin && pin.locationId) {
+            _worldPinCatalog.set(pin.locationId, pin);
+        }
+    }
+}
+
+function findWorldPinMeta(locationId) {
+    if (!locationId) { return null; }
+    return _worldPinCatalog.get(locationId) || null;
+}
+
+function clearWorldPinSelection() {
+    _selectedPinId = null;
+    syncWorldPinSelectionUi();
+    renderWorldLocationDetailPanel();
+}
+
+function selectWorldLocationPin(locationId) {
+    const meta = findWorldPinMeta(locationId);
+    if (!meta) { return; }
+    if (meta.fogVisibility === 'rumored' || meta.fogVisibility === 'unknown') { return; }
+    _selectedPinId = (_selectedPinId === locationId) ? null : locationId;
+    syncWorldPinSelectionUi();
+    renderWorldLocationDetailPanel();
+}
+
+function postWorldInsertChatText(text) {
+    if (!text || typeof text !== 'string') { return; }
+    vscode.postMessage({ type: 'insertChatText', text });
+}
+
+function buildWorldPinActionText(action, meta) {
+    const name = meta.locationName || meta.locationId;
+    if (action === 'move') {
+        return T('webview.world.pinAction.move', { name });
+    }
+    if (action === 'examine') {
+        return T('webview.world.pinAction.examine', { name });
+    }
+    return T('webview.world.pinAction.stay', { name });
+}
+
+function renderWorldLocationDetailPanel() {
+    const panel = document.getElementById('world-location-detail');
+    if (!panel) { return; }
+    const meta = _selectedPinId ? findWorldPinMeta(_selectedPinId) : null;
+    if (!meta || meta.fogVisibility !== 'discovered') {
+        panel.classList.add('hidden');
+        panel.innerHTML = '';
+        return;
+    }
+
+    panel.classList.remove('hidden');
+    const title = meta.locationName || meta.locationId;
+    const typeLabel = meta.locationType || 'other';
+    const metaParts = [`${T('webview.world.pinDetail.type')}: ${typeLabel}`];
+    if (typeof meta.dangerLevel === 'number') {
+        metaParts.push(`${T('webview.world.pinDetail.danger')}: ${meta.dangerLevel}/10`);
+    }
+    if (meta.factionName) {
+        metaParts.push(`${T('webview.world.pinDetail.faction')}: ${meta.factionName}`);
+    }
+    if (meta.regionName) {
+        metaParts.push(meta.regionName);
+    }
+
+    const actions = meta.isCurrent
+        ? [{ action: 'stay', label: T('webview.world.pinDetail.stayBtn') }]
+        : [
+            { action: 'move', label: T('webview.world.pinDetail.moveBtn') },
+            { action: 'examine', label: T('webview.world.pinDetail.examineBtn') },
+        ];
+
+    panel.innerHTML = '';
+    const heading = document.createElement('h4');
+    heading.textContent = title;
+    panel.appendChild(heading);
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'world-pin-meta';
+    metaEl.textContent = metaParts.join(' · ');
+    panel.appendChild(metaEl);
+
+    const actionsEl = document.createElement('div');
+    actionsEl.className = 'world-pin-actions';
+    for (const item of actions) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'world-pin-action-btn';
+        btn.textContent = item.label;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            postWorldInsertChatText(buildWorldPinActionText(item.action, meta));
+        });
+        actionsEl.appendChild(btn);
+    }
+    panel.appendChild(actionsEl);
+}
+
+function syncWorldPinSelectionUi() {
+    document.querySelectorAll('.world-map-pin[data-location-id]').forEach((el) => {
+        const id = el.getAttribute('data-location-id');
+        el.classList.toggle('is-selected', Boolean(id && id === _selectedPinId));
+    });
+}
+
+function wireParchmentWorldPin(el, pin, msg) {
+    const visibility = getRegionFogVisibility(pin.regionId, msg.fog);
+    el.dataset.locationId = pin.locationId || '';
+    if (visibility === 'rumored') {
+        el.title = T('webview.world.pinRumoredTooltip');
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        return;
+    }
+    if (visibility !== 'discovered') { return; }
+    el.classList.add('is-interactive');
+    const meta = findWorldPinMeta(pin.locationId);
+    const tooltipParts = [pin.locationName || pin.locationId];
+    if (meta?.locationType) { tooltipParts.push(meta.locationType); }
+    if (typeof meta?.dangerLevel === 'number') {
+        tooltipParts.push(`${T('webview.world.pinDetail.danger')} ${meta.dangerLevel}/10`);
+    }
+    el.title = tooltipParts.join(' · ');
+    el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectWorldLocationPin(pin.locationId);
+    });
+}
+
+function escapeMermaidNodeId(id) {
+    return String(id).replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+function resolveLocationIdFromMermaidNode(nodeId) {
+    const match = String(nodeId).match(/flowchart-(.+?)(?:-\d+)?$/);
+    const escaped = match ? match[1] : String(nodeId).replace(/^flowchart-/, '').replace(/-\d+$/, '');
+    for (const [locId] of _worldPinCatalog) {
+        if (escapeMermaidNodeId(locId) === escaped) {
+            return locId;
+        }
+    }
+    return null;
+}
+
+function initMermaidPinClicks(container) {
+    if (!container) { return; }
+    const svg = container.querySelector('svg');
+    if (!svg) { return; }
+    const nodes = svg.querySelectorAll('g.node');
+    nodes.forEach((node) => {
+        const locationId = resolveLocationIdFromMermaidNode(node.id || '');
+        const meta = locationId ? findWorldPinMeta(locationId) : null;
+        if (!meta || meta.fogVisibility !== 'discovered') { return; }
+        node.style.cursor = 'pointer';
+        node.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectWorldLocationPin(meta.locationId);
+        });
+    });
+}
+
+function initWorldPinDismiss() {
+    if (_worldPinDismissReady) { return; }
+    _worldPinDismissReady = true;
+    document.addEventListener('click', (e) => {
+        if (!_selectedPinId) { return; }
+        const panel = document.getElementById('world-location-detail');
+        const target = e.target;
+        if (target && (
+            target.closest('.world-map-pin')
+            || target.closest('#world-location-detail')
+            || target.closest('#world-mermaid g.node')
+            || target.closest('#world-overmap-canvas')
+        )) {
+            return;
+        }
+        if (panel && !panel.classList.contains('hidden')) {
+            clearWorldPinSelection();
+        }
+    });
+}
+
+function hitTestWorldPin(clientX, clientY, canvas) {
+    if (!canvas || !_worldViewMsg) { return null; }
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const cssWidth = canvas.clientWidth;
+    const cssHeight = canvas.clientHeight;
+    let best = null;
+    let bestDist = WORLD_PIN_HIT_RADIUS_PX + 1;
+    for (const pin of _worldPinCatalog.values()) {
+        if (pin.fogVisibility !== 'discovered') { continue; }
+        const px = (pin.leftPct / 100) * cssWidth;
+        const py = (pin.topPct / 100) * cssHeight;
+        const dist = Math.hypot(px - x, py - y);
+        if (dist <= WORLD_PIN_HIT_RADIUS_PX && dist < bestDist) {
+            bestDist = dist;
+            best = pin.locationId;
+        }
+    }
+    return best;
+}
+
+window.selectWorldLocationPin = selectWorldLocationPin;
+window.clearWorldLocationPinSelection = clearWorldPinSelection;
+window.hitTestWorldPin = hitTestWorldPin;
 
 function getRegionFogVisibility(regionId, fog) {
     if (!fog || !regionId) { return 'discovered'; }
@@ -5049,13 +5336,17 @@ function renderCartographyMap(msg) {
         el.style.top = `${pin.topPct}%`;
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
         el.title = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
-        el.textContent = visibility === 'rumored' ? '?' : '📍';
+        el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : '📍');
         el.setAttribute('aria-label', pinLabel || 'Location');
+        if (_selectedPinId && pin.locationId === _selectedPinId) {
+            el.classList.add('is-selected');
+        }
+        wireParchmentWorldPin(el, pin, msg);
         pinsEl.appendChild(el);
     }
 }
 
-function renderMermaidMap(mmdCode, currentLocationId) {
+function renderMermaidMap(mmdCode, msg) {
     const container = document.getElementById('world-mermaid');
     if (!container || !mmdCode) { return; }
 
@@ -5069,6 +5360,8 @@ function renderMermaidMap(mmdCode, currentLocationId) {
                 initMapPanZoomOnce(container);
                 applyMapTransform(container);
                 addMapPanZoomHint(container);
+                initMermaidPinClicks(container);
+                renderWorldLocationDetailPanel();
             })
             .catch((e) => {
                 console.error('World map Mermaid render error:', e);
@@ -5939,6 +6232,30 @@ window.addEventListener('resize', () => {
     if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') { return; }
     clearTimeout(_overmapResizeTimer);
     _overmapResizeTimer = setTimeout(() => drawTileOvermap(), 150);
+});
+
+let _tileOvermapClickReady = false;
+
+function initTileOvermapPinClicks() {
+    if (_tileOvermapClickReady) { return; }
+    _tileOvermapClickReady = true;
+    const canvas = document.getElementById('world-overmap-canvas');
+    if (!canvas) { return; }
+    canvas.addEventListener('click', (e) => {
+        if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') { return; }
+        if (typeof hitTestWorldPin !== 'function' || typeof selectWorldLocationPin !== 'function') { return; }
+        const locationId = hitTestWorldPin(e.clientX, e.clientY, canvas);
+        if (locationId) {
+            e.stopPropagation();
+            selectWorldLocationPin(locationId);
+        } else if (typeof clearWorldLocationPinSelection === 'function') {
+            clearWorldLocationPinSelection();
+        }
+    });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    initTileOvermapPinClicks();
 });
 
 const TILE_OVERMAP_ASCII_THEME = {

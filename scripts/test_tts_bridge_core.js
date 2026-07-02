@@ -18,10 +18,12 @@ const {
     normalizeExternalProvider,
     resolveOpenAiVoice,
     rateToEdgeTtsPercent,
+    defaultEdgeVoiceForLang,
     parseTtsLocalStdout,
     isSafeTtsOutputPath,
     sanitizeTtsBridgePayload,
     isValidTtsRequestId,
+    redactTtsLogText,
 } = require(corePath);
 
 {
@@ -45,6 +47,23 @@ const {
         fail('rateToEdgeTtsPercent');
     } else {
         ok('rateToEdgeTtsPercent');
+    }
+    if (rateToEdgeTtsPercent(NaN) !== '+0%' || rateToEdgeTtsPercent(3) !== '+100%') {
+        fail('rateToEdgeTtsPercent edge cases');
+    } else {
+        ok('rateToEdgeTtsPercent edge cases');
+    }
+}
+
+{
+    if (
+        defaultEdgeVoiceForLang('ja-JP') !== 'ja-JP-NanamiNeural'
+        || defaultEdgeVoiceForLang('zh-CN') !== 'zh-CN-XiaoxiaoNeural'
+        || defaultEdgeVoiceForLang('en-GB') !== 'en-US-AriaNeural'
+    ) {
+        fail('defaultEdgeVoiceForLang');
+    } else {
+        ok('defaultEdgeVoiceForLang');
     }
 }
 
@@ -96,6 +115,21 @@ const {
         fail('isValidTtsRequestId');
     } else {
         ok('isValidTtsRequestId');
+    }
+}
+
+{
+    if (sanitizeTtsBridgePayload({ requestId: 'short', provider: 'local', text: 'hi' }) !== undefined) {
+        fail('sanitizeTtsBridgePayload rejects short requestId');
+    } else {
+        ok('sanitizeTtsBridgePayload rejects short requestId');
+    }
+    const long = 'x'.repeat(90);
+    const redacted = redactTtsLogText(long);
+    if (!redacted.endsWith('…') || redacted.length > 80) {
+        fail('redactTtsLogText');
+    } else {
+        ok('redactTtsLogText');
     }
 }
 

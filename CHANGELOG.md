@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.14.4] - 2026-07-02
+
+### Added
+
+- **Core カバレッジ（Phase 3）** — `test_scenario_pack_core.js` 新設。`mediaPathCore` / `cartographyPathCore` / `ttsBridgeCore` のユニットテスト拡充。共有 `scripts/test_helpers/vscode_stub.js` 追加。
+
+### Changed
+
+- **c8 しきい値引き上げ** — lines/statements 70% / functions 65% / branches 65%（Phase 2 の 55/50/60 から段階的に引き上げ）。現状ベースライン ~92% lines / ~75% branches。
+
 ## [1.14.3] - 2026-07-02
 
 ### Added

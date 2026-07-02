@@ -29,16 +29,27 @@ node scripts/run_all_tests.js --list
 
 `validate.js` also runs nested suites inline: `test_turn_result_pipeline.js`, `test_state_patch.js`, `test_lorebook.js`, `test_lorebook_python.py`.
 
-## Coverage (Phase 2)
+## Coverage (Phase 2–3)
 
 Configuration: [`.c8rc.json`](.c8rc.json)
 
 - **Scope:** compiled `out/*Core.js` only (pure logic modules)
 - **Command:** `npm run test:coverage` (runs `test:unit` under c8)
-- **CI gate:** aggregate thresholds — lines/statements ≥55%, functions ≥50%, branches ≥60%
+- **CI gate:** aggregate thresholds — lines/statements ≥70%, functions ≥65%, branches ≥65%
 - **Artifact:** `coverage/lcov.info` uploaded on each CI run (download from Actions → Artifacts)
 
-Current baseline (unit suite): ~91% lines on Core modules. Per-file gaps (e.g. `scenarioPackCore`) are tracked in the text report; raise thresholds gradually as tests are added.
+Current baseline (unit suite): ~92% lines / ~75% branches on Core modules. Phase 3 added targeted tests for `scenarioPackCore`, `mediaPathCore`, `cartographyPathCore`, and `ttsBridgeCore` branch gaps.
+
+### Phase 3 test additions
+
+| Script | Covers |
+|--------|--------|
+| `test_scenario_pack_core.js` | `resolveBundledSampleDir`, `BUNDLED_SAMPLE_IDS`, `OPTIONAL_PACK_FILES`, extRoot layout |
+| `test_media_paths.js` (extended) | `getImageMimeType`, missing file / directory rejection, `isAllowedImagePath` |
+| `test_cartography_path_core.js` (extended) | empty paths, invalid temp map hex |
+| `test_tts_bridge_core.js` (extended) | `defaultEdgeVoiceForLang`, `rateToEdgeTtsPercent`, `sanitizeTtsBridgePayload`, `redactTtsLogText` |
+
+Shared VSCode stub: [`scripts/test_helpers/vscode_stub.js`](scripts/test_helpers/vscode_stub.js) — use `installVscodeStub()` when loading extension code that imports `vscode`.
 
 ## CI
 
@@ -55,7 +66,7 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 1. Add `scripts/test_<feature>.js` (or `.py` for ComfyUI helpers).
 2. Register it in `MANIFEST` inside `scripts/run_all_tests.js` with the right category.
 3. Core modules: keep logic in `src/*Core.ts`, test via `require('../out/...')` after compile.
-4. VSCode-dependent code: use the `vscode` stub pattern in existing tests (see `test_state_patch.js`).
+4. VSCode-dependent code: use [`scripts/test_helpers/vscode_stub.js`](scripts/test_helpers/vscode_stub.js) (`installVscodeStub()`) or follow the inline pattern in `test_state_patch.js`.
 
 ## validateGameState hardening
 

@@ -6,7 +6,12 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { resolveAllowedImagePath, ALLOWED_IMAGE_EXTENSIONS } = require('../out/mediaPathCore');
+const {
+  resolveAllowedImagePath,
+  isAllowedImagePath,
+  getImageMimeType,
+  ALLOWED_IMAGE_EXTENSIONS,
+} = require('../out/mediaPathCore');
 
 let failed = 0;
 
@@ -91,6 +96,37 @@ if (ALLOWED_IMAGE_EXTENSIONS.size !== 5) {
 } else {
   ok('allowed extension set');
 }
+
+if (getImageMimeType('scene.png') !== 'image/png' || getImageMimeType('x.bmp') !== undefined) {
+  fail('getImageMimeType');
+} else {
+  ok('getImageMimeType');
+}
+
+withTempDir((root) => {
+  const missing = path.join(root, 'ghost.png');
+  if (resolveAllowedImagePath(missing, [root]) !== undefined) {
+    fail('rejects missing file');
+  } else {
+    ok('rejects missing file');
+  }
+
+  const dir = path.join(root, 'not-a-file.png');
+  fs.mkdirSync(dir);
+  if (resolveAllowedImagePath(dir, [root]) !== undefined) {
+    fail('rejects directory path');
+  } else {
+    ok('rejects directory path');
+  }
+
+  const png = path.join(root, 'ok.png');
+  fs.writeFileSync(png, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  if (!isAllowedImagePath(png, [root])) {
+    fail('isAllowedImagePath true for valid png');
+  } else {
+    ok('isAllowedImagePath true for valid png');
+  }
+});
 
 if (failed > 0) {
   process.exit(1);

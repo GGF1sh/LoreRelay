@@ -17,8 +17,11 @@ const {
     validateCartographyOutputPath,
     validateCartographyOutputDir,
     validateCartographyGeneratedImagePath,
+    resolveWorldMapImagePath,
+    resolveWorldMapLayoutPath,
     WORLD_FORGE_BASENAME,
     WORLD_MAP_LAYOUT_BASENAME,
+    WORLD_MAP_IMAGE_BASENAME,
 } = require(corePath);
 
 let failed = 0;
@@ -99,6 +102,36 @@ if (!validateCartographyGeneratedImagePath(nestedMap, tmp)) {
     ok('rejects nested temp world_map PNG');
 } else {
     fail('should reject nested temp world_map PNG');
+}
+
+if (!validateCartographyGeneratedImagePath(path.join(tmp, 'world_map_NOTHEX.png'), tmp)) {
+    ok('rejects invalid temp map hex pattern');
+} else {
+    fail('should reject invalid temp map hex pattern');
+}
+
+if (!validateForgePathInWorkspace(forgePath, '')) {
+    ok('rejects empty workspace path');
+} else {
+    fail('should reject empty workspace path');
+}
+
+if (!validateCartographyOutputDir('', tmp)) {
+    ok('rejects empty output dir');
+} else {
+    fail('should reject empty output dir');
+}
+
+if (resolveWorldMapImagePath(tmp) === path.join(tmp, WORLD_MAP_IMAGE_BASENAME)) {
+    ok('resolveWorldMapImagePath');
+} else {
+    fail('resolveWorldMapImagePath');
+}
+
+if (resolveWorldMapLayoutPath(tmp) === path.join(tmp, WORLD_MAP_LAYOUT_BASENAME)) {
+    ok('resolveWorldMapLayoutPath');
+} else {
+    fail('resolveWorldMapLayoutPath');
 }
 
 try {

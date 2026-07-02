@@ -1522,6 +1522,71 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 applied: result.applied,
             });
         },
+        handleLivingWorldDirectTrade: async (raw: unknown) => {
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const op = doc.op === 'buy' || doc.op === 'sell' ? doc.op : '';
+            const marketLocationId = typeof doc.marketLocationId === 'string' ? doc.marketLocationId : '';
+            const commodityId = typeof doc.commodityId === 'string' ? doc.commodityId : '';
+            const qty = typeof doc.qty === 'number' ? doc.qty : Number(doc.qty);
+            if (!op || !marketLocationId || !commodityId || !Number.isFinite(qty)) {
+                panel?.webview.postMessage({
+                    type: 'livingWorldDirectTradeResult',
+                    ok: false,
+                    reason: 'INVALID',
+                });
+                return;
+            }
+            const { executeLivingWorldDirectTrade } = await import('./livingWorldCommerceUi');
+            const result = executeLivingWorldDirectTrade({
+                op,
+                marketLocationId,
+                commodityId,
+                qty,
+            });
+            if (!result.ok) {
+                panel?.webview.postMessage({
+                    type: 'livingWorldDirectTradeResult',
+                    ok: false,
+                    reason: result.reason,
+                    code: result.code,
+                    message: result.message,
+                });
+                return;
+            }
+            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            panel?.webview.postMessage({
+                type: 'livingWorldDirectTradeResult',
+                ok: true,
+                trade: result.trade,
+            });
+        },
+        handleLivingWorldSetPlayerRole: async (raw: unknown) => {
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const role = typeof doc.role === 'string' ? doc.role : '';
+            if (!role) {
+                panel?.webview.postMessage({
+                    type: 'livingWorldSetPlayerRoleResult',
+                    ok: false,
+                    reason: 'INVALID_ROLE',
+                });
+                return;
+            }
+            const { setLivingWorldPlayerRole } = await import('./livingWorldCommerceUi');
+            const result = setLivingWorldPlayerRole(role as import('./livingWorldTypes').PlayerRole);
+            if (!result.ok) {
+                panel?.webview.postMessage({
+                    type: 'livingWorldSetPlayerRoleResult',
+                    ok: false,
+                    reason: result.reason,
+                });
+                return;
+            }
+            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            panel?.webview.postMessage({
+                type: 'livingWorldSetPlayerRoleResult',
+                ok: true,
+            });
+        },
     };
 }
 

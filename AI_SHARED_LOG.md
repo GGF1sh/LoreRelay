@@ -1,5 +1,28 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Grok + Gemini - Living World v1.26.0–v1.27.1
+
+### Summary
+
+- **v1.26.0** — BRIEF v1+ Commerce UI (`enableCommerceUi`, Buy/Sell, playerRole selector, `livingWorldCommerceUiCore`).
+- **v1.27.0** — trust-linked NPC whereabouts + playerRole GM motivation (`npcWhereaboutsTrustCore`, `livingWorldPlayerRoleCore`).
+- **v1.27.1** (Gemini patch) — unknown payload strips `locationId`/transit fields; GM approximate transit wording; trust constants shared with `gmPromptBuilder`.
+- Docs: `CODE_REVIEW_PROMPT_LIVING_WORLD.md`, `COMMERCE_UI_V1_26_0_REVIEW.md`, `LW2_TRUST_ROLE_V1_27_0_REVIEW.md`.
+- Manual: `testing_checklist.md` §9b–9c, trade-routes README updated.
+
+### Verification
+
+- `node scripts/build-webview.js`
+- `npm run compile`
+- `npm test` (76/76)
+
+### User manual (required before tag)
+
+- `testing_checklist.md` §9b–9c on trade-routes workspace
+- Optional: F5 extension host smoke on Commerce UI Buy/Sell
+
+---
+
 ## 2026-07-02 JST - Grok - Living World v1.25.0 (LW2-PR2 + Inspector market debug)
 
 ### Summary

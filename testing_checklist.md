@@ -79,6 +79,29 @@ As the feature set of LoreRelay expands, automated tests cannot cover every UI a
 - [ ] **External privacy**: Confirm only speak text chunk is sent (not full game_state / npc memories). API key only in SecretStorage.
 - [ ] **speakerNpcId**: Put `speakerNpcId` + `sender` in `turn_result.json` `gmEntry`, apply turn — verify 📢 uses that NPC voice even when sender name is ambiguous.
 
+## 9b. Living World Commerce UI (v1.26+) — trade-routes demo
+
+Prereq: open `sample-scenarios/trade-routes` as workspace; `game_rules.json` has Commerce + Commerce UI + NPC Agency ON; reload window.
+
+- [ ] **Caravan panel** — World tab shows credits / food / transport / cargo.
+- [ ] **playerRole selector** — Change role in Caravan; reload World tab — selection persists in `game_state.commerce.playerRole`.
+- [ ] **Buy at current location** — Stand at Elda's Shop; Markets shows Buy/Sell; buy wheat ×1 — credits drop, cargo updates (no GM turn required).
+- [ ] **Wrong location blocked** — UI only lists current market; attempting trade elsewhere via Inspector `tradeOps` still works for GM path.
+- [ ] **Sell** — Sell wheat at current market; credits increase.
+- [ ] **GM Caravan role line** — Turn Inspector / GM prompt preview shows `[Living World — Caravan]` with `Role: … —` motivation matching selected role.
+- [ ] **Game Rules toggle** — Turn OFF `Enable Commerce UI`; Buy/Sell buttons disappear; Caravan returns read-only.
+
+## 9c. Living World Trust Whereabouts (v1.27+) — trade-routes demo
+
+Prereq: same workspace; `enableNpcRegistry` + `enableNpcAgency` ON.
+
+- [ ] **High trust (≥70)** — Set Elda `disposition.playerTrust` to 80 in `npc_registry.json`. World tab NPC Whereabouts shows exact location + reason when agency moves her.
+- [ ] **Mid trust (31–69)** — Set trust to 50. World tab shows **region name only** (or 「〜方面へ」 when in transit), not exact shop name.
+- [ ] **Low trust (≤30)** — Set trust to 20. World tab shows **行方不明**; DevTools → `worldView` message has **no** `locationId` / `arrivesTurn` / `inTransit` on that NPC entry.
+- [ ] **GM prompt alignment** — Same trust values: `[Living World — NPC whereabouts]` line matches precision (unknown / region / exact).
+- [ ] **Approximate transit GM wording** — Mid trust + in-transit NPC: GM line must **not** contain `en route to heading toward` (v1.27.1).
+- [ ] **i18n** — Switch ja / en / zh-CN / zh-TW; verify `行方不明` / `whereabouts unknown` / heading-region strings.
+
 ## 9a. Character Creator (Full Editor)
 - [ ] **Locale coverage**: Open the Full Editor (✏️ Full Editor), switch the app locale to 日本語/繁體中文/简体中文, reopen it, and verify every label/placeholder/button now renders translated (previously the whole modal stayed in English).
 - [ ] **Delete character**: Select an existing character in the Character Profile pane, click 🗑 Delete, confirm the dialog, and verify the character disappears from the dropdown, its `characters/{id}.json` (and any portrait/expression files) are gone from disk, and it's removed from the active party if it was a member.

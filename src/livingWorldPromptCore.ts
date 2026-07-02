@@ -1,9 +1,21 @@
 // GM prompt blocks for Living World injection (no vscode/fs).
 
-import type { CommerceForge, MarketStateMap, NpcRegistryLike, NpcPositionsMap } from './livingWorldTypes';
+import type {
+    CommerceForge,
+    MarketStateMap,
+    NpcRegistryLike,
+    NpcPositionsMap,
+    PlayerRole,
+} from './livingWorldTypes';
 import { buildMarketPriceTable } from './commerceCore';
 import { listNpcPresence } from './npcAgencyCore';
 import type { SinceLastVisitDelta } from './worldSimCommerceCore';
+import {
+    formatWhereaboutsGmLine,
+    readNpcPlayerTrust,
+    type WhereaboutsFormatContext,
+} from './npcWhereaboutsTrustCore';
+import { buildPlayerRoleMotivationLine } from './livingWorldPlayerRoleCore';
 
 export const MAX_COMMERCE_PROMPT_LINES = 12;
 export const MAX_NPC_PROMPT_LINES = 10;
@@ -28,6 +40,7 @@ export interface CaravanPromptSnapshot {
     food: number;
     transportId: string;
     cargo: Array<{ commodityId: string; qty: number }>;
+    playerRole?: PlayerRole;
 }
 
 export interface LivingWorldPromptInput {
@@ -41,6 +54,8 @@ export interface LivingWorldPromptInput {
     playerLocationId?: string;
     sinceLastVisit?: SinceLastVisitDelta;
     locationNames?: Record<string, string>;
+    regionNames?: Record<string, string>;
+    locationToRegion?: Record<string, string>;
     npcNames?: Record<string, string>;
     playerCommerce?: CaravanPromptSnapshot;
 }
@@ -93,20 +108,19 @@ export function buildNpcAgencyPromptLines(
     positions: NpcPositionsMap,
     worldTurn: number,
     agencyEnabled: boolean,
-    locationNames?: Record<string, string>
+    locationNames?: Record<string, string>,
+    whereaboutsCtx?: WhereaboutsFormatContext
 ): string[] {
     const presence = listNpcPresence(registry, positions, worldTurn, agencyEnabled);
+    const ctx: WhereaboutsFormatContext = {
+        locationNames,
+        regionNames: whereaboutsCtx?.regionNames,
+        locationToRegion: whereaboutsCtx?.locationToRegion,
+    };
     const lines: string[] = [];
     for (const p of presence) {
-        const where = locLabel(p.locationId, locationNames);
-        const reasonText = formatNpcAgencyReason(p.reason);
-        const reasonSuffix = reasonText ? ` — ${reasonText}` : '';
-        if (p.inTransit) {
-            lines.push(`${p.name}: en route to ${where} (arrives turn ${p.arrivesTurn})${reasonSuffix}`);
-        } else {
-            const agenda = p.agenda ? ` (${p.agenda})` : '';
-            lines.push(`${p.name}: at ${where}${agenda}${reasonSuffix}`);
-        }
+        const trust = readNpcPlayerTrust(registry[p.npcId]?.playerTrust);
+        lines.push(formatWhereaboutsGmLine(p, trust, ctx, formatNpcAgencyReason));
         if (lines.length >= MAX_NPC_PROMPT_LINES) { break; }
     }
     return lines;
@@ -117,9 +131,13 @@ export function buildCaravanPromptLines(
     snapshot: CaravanPromptSnapshot | undefined
 ): string[] {
     if (!snapshot) { return []; }
-    const lines: string[] = [
-        `Credits: ${snapshot.credits} | Food: ${snapshot.food} | Transport: ${snapshot.transportId}`,
-    ];
+    const lines: string[] = [];
+    if (snapshot.playerRole) {
+        lines.push(buildPlayerRoleMotivationLine(snapshot.playerRole));
+    }
+    lines.push(
+        `Credits: ${snapshot.credits} | Food: ${snapshot.food} | Transport: ${snapshot.transportId}`
+    );
     const cargo = snapshot.cargo ?? [];
     if (cargo.length === 0) {
         lines.push('Cargo: (empty)');
@@ -156,7 +174,11 @@ export function buildLivingWorldPromptBlocks(input: LivingWorldPromptInput): Liv
             input.npcPositions,
             input.worldTurn,
             true,
-            input.locationNames
+            input.locationNames,
+            {
+                regionNames: input.regionNames,
+                locationToRegion: input.locationToRegion,
+            }
         )
         : [];
 

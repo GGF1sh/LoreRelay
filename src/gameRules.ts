@@ -19,6 +19,10 @@ export interface GameRules {
     enableTravelEncounters?: boolean;
     travelEncounterDensity?: 'low' | 'medium' | 'high';
     enableCommerce?: boolean;
+    /** LW1 v1+: World tab buy/sell buttons (Core applies trade; GM narrates separately). */
+    enableCommerceUi?: boolean;
+    /** Default player role when commerce state is initialized. */
+    playerRole?: 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
     enableNpcAgency?: boolean;
 }
 
@@ -38,6 +42,8 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableTravelEncounters: false,
     travelEncounterDensity: 'medium',
     enableCommerce: false,
+    enableCommerceUi: false,
+    playerRole: 'merchant',
     enableNpcAgency: false
 };
 
@@ -142,6 +148,19 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableNpcAgency !== undefined && typeof rules.enableNpcAgency === 'boolean') {
             sanitized.enableNpcAgency = rules.enableNpcAgency;
+        }
+        if (rules.enableCommerceUi !== undefined && typeof rules.enableCommerceUi === 'boolean') {
+            sanitized.enableCommerceUi = rules.enableCommerceUi;
+        }
+        const role = rules.playerRole;
+        if (
+            role === 'merchant'
+            || role === 'adventurer'
+            || role === 'retainer'
+            || role === 'smith'
+            || role === 'ruler'
+        ) {
+            sanitized.playerRole = role;
         }
     }
 

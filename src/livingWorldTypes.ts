@@ -116,6 +116,8 @@ export interface NpcRegistryEntryLike {
     name: string;
     locationId?: string;
     factionId?: string;
+    /** NPC disposition playerTrust (0–100) for whereabouts precision (v1+). */
+    playerTrust?: number;
 }
 
 export type NpcRegistryLike = Record<string, NpcRegistryEntryLike>;

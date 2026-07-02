@@ -20,6 +20,8 @@
         enableEmergentSimulation: document.getElementById('gr-emergent-sim'),
         enableFactionReputation: document.getElementById('gr-faction-reputation'),
         enableCommerce: document.getElementById('gr-commerce'),
+        enableCommerceUi: document.getElementById('gr-commerce-ui'),
+        playerRole: document.getElementById('gr-player-role'),
         enableNpcAgency: document.getElementById('gr-npc-agency'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
@@ -66,6 +68,8 @@
             enableEmergentSimulation: inputs.enableEmergentSimulation ? inputs.enableEmergentSimulation.checked : false,
             enableFactionReputation: inputs.enableFactionReputation ? inputs.enableFactionReputation.checked : false,
             enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
+            enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
+            playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
             enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
@@ -103,6 +107,8 @@
             if (rules.enableEmergentSimulation !== undefined && inputs.enableEmergentSimulation) inputs.enableEmergentSimulation.checked = rules.enableEmergentSimulation;
             if (rules.enableFactionReputation !== undefined && inputs.enableFactionReputation) inputs.enableFactionReputation.checked = rules.enableFactionReputation;
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
+            if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
+            if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;

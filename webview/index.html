@@ -651,13 +651,13 @@
           <!-- 派閥ステータス -->
           <details id="world-commerce-details" class="hidden" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.commerceTitle">Caravan</summary>
-            <p class="img-gen-hint" data-i18n="webview.world.commerceHint">Your credits, rations, and cargo (read-only).</p>
+            <p id="world-commerce-hint" class="img-gen-hint" data-i18n="webview.world.commerceHint">Your credits, rations, and cargo (read-only).</p>
             <div id="world-commerce-panel"></div>
           </details>
 
           <details id="world-markets-details" class="hidden" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.marketsTitle">Markets</summary>
-            <p class="img-gen-hint" data-i18n="webview.world.marketsHint">Read-only commodity prices from the living world simulation.</p>
+            <p id="world-markets-hint" class="img-gen-hint" data-i18n="webview.world.marketsHint">Read-only commodity prices from the living world simulation.</p>
             <div id="world-markets-list"></div>
           </details>
 
@@ -853,6 +853,22 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
         <label for="gr-commerce" data-i18n="webview.gameRules.commerce" data-i18n-title="webview.gameRules.tipCommerce">Enable Commerce (trade/cargo)</label>
         <input type="checkbox" id="gr-commerce" data-field="enableCommerce" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-commerce-ui" data-i18n="webview.gameRules.commerceUi" data-i18n-title="webview.gameRules.tipCommerceUi">Enable Commerce UI (buy/sell buttons)</label>
+        <input type="checkbox" id="gr-commerce-ui" data-field="enableCommerceUi" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-player-role" data-i18n="webview.gameRules.playerRole">Default Player Role</label>
+        <select id="gr-player-role" data-field="playerRole">
+          <option value="merchant" data-i18n="webview.gameRules.playerRoleMerchant">Merchant</option>
+          <option value="adventurer" data-i18n="webview.gameRules.playerRoleAdventurer">Adventurer</option>
+          <option value="retainer" data-i18n="webview.gameRules.playerRoleRetainer">Retainer</option>
+          <option value="smith" data-i18n="webview.gameRules.playerRoleSmith">Smith</option>
+          <option value="ruler" data-i18n="webview.gameRules.playerRoleRuler">Ruler</option>
+        </select>
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">

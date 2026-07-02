@@ -10,17 +10,21 @@ Purpose: exercise Living World commerce, travel turns, since-last-visit market s
 
 ## Playthrough (acceptance checklist)
 
-1. **Buy wheat** — At North Farm or Elda's Shop, ask the GM to buy wheat (e.g. "小麦を10買う"). Inspector should show `turn_result.tradeOps`.
-2. **Travel to South Port** — e.g. "南港へ3日かけて旅する". GM should set `elapsedWorldTurns`; your **Caravan** food drops; markets tick during travel.
+1. **Buy wheat (UI)** — v1.26+: at Elda's Shop, use World tab **Buy** on wheat (or GM `tradeOps` path). Caravan cargo/credits update.
+2. **Travel to South Port** — e.g. "南港へ3日かけて旅する". GM should set `elapsedWorldTurns`; **Caravan** food drops; markets tick during travel.
 3. **Since last visit** — Return to a location you left; GM prompt may include `[Living World — Since last visit]` with stock/price deltas.
-4. **Sell for profit** — Sell wheat at South Port; World tab **Caravan** credits should increase.
-5. **World keeps moving** — Run a few turns elsewhere, then return. Marcus may restock steel (Tier 1); Elda may move ports (Tier 2 NPC agency).
+4. **Sell for profit** — Sell wheat at South Port (UI Sell or GM); credits increase.
+5. **World keeps moving** — Run a few turns elsewhere, then return. Marcus may restock steel; Elda may move ports (NPC agency).
+6. **playerRole** — Change role in Caravan; GM `[Living World — Caravan]` should show role motivation (v1.27+).
+7. **Trust whereabouts** — Edit Elda `playerTrust` to 20 / 50 / 80; World tab + GM whereabouts precision changes (v1.27+). At ≤30, DevTools must not expose `locationId` (v1.27.1).
+
+Full manual steps: [`testing_checklist.md`](../../testing_checklist.md) §9b–9c.
 
 ## World tab signals
 
-- **Caravan** — credits, food, transport, cargo (read-only).
-- **Markets** — North Farm / Elda's Shop / South Port prices.
-- **NPC Whereabouts** — Elda and Marcus; reason text when agency moves them.
+- **Caravan** — credits, food, transport, cargo; **playerRole** select when Commerce UI ON.
+- **Markets** — current location prices; **Buy/Sell** when Commerce UI ON.
+- **NPC Whereabouts** — trust-based precision (exact / region / unknown); reason when high trust.
 
 ## Debug sandbox only
 

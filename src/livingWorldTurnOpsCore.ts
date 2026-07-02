@@ -1,17 +1,28 @@
 // Pure Living World turn-op helpers (no vscode/fs).
 
 import type { GameState } from './types/GameState';
-import type { CommerceForge, PlayerCommerceState } from './livingWorldTypes';
+import type { CommerceForge, PlayerCommerceState, PlayerRole } from './livingWorldTypes';
+import { resolveDefaultPlayerRole } from './livingWorldCommerceUiCore';
 import { cargoWeight } from './commerceCore';
 import { computeFoodConsumption, resolveTransportForTheme } from './transportCore';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 
-export function getOrInitPlayerCommerce(state: GameState): PlayerCommerceState {
+export function getOrInitPlayerCommerce(
+    state: GameState,
+    defaultRole: PlayerRole = 'merchant'
+): PlayerCommerceState {
     const existing = state.commerce;
     if (existing && typeof existing.credits === 'number') {
-        return existing as PlayerCommerceState;
+        const role = resolveDefaultPlayerRole(defaultRole, existing.playerRole);
+        return { ...(existing as PlayerCommerceState), playerRole: role };
     }
-    return { credits: 500, cargo: [], transportId: 'wagon', food: 30, playerRole: 'merchant' };
+    return {
+        credits: 500,
+        cargo: [],
+        transportId: 'wagon',
+        food: 30,
+        playerRole: defaultRole,
+    };
 }
 
 /** Deduct travel rations when elapsedWorldTurns advances (LW1-PR3). Never goes negative. */

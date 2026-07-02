@@ -41,6 +41,7 @@ import type { RelationshipType } from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, loadWorldForgeDocument, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
 import { buildLivingWorldGmLines, livingWorldEnabled, resolveCommerceForge } from './livingWorldBridge';
+import { TRUST_WHEREABOUTS_EXACT_MIN, TRUST_WHEREABOUTS_UNKNOWN_MAX } from './npcWhereaboutsTrustCore';
 import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected, markChronicleInjected } from './worldState';
 import {
     buildHintTextFromContents,
@@ -811,6 +812,7 @@ function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
             credits?: number;
             food?: number;
             transportId?: string;
+            playerRole?: string;
             cargo?: Array<{ commodityId: string; qty: number }>;
         } | undefined;
         const playerCommerce = (
@@ -824,6 +826,11 @@ function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
                 transportId: typeof commerceState.transportId === 'string'
                     ? commerceState.transportId
                     : 'wagon',
+                playerRole: (
+                    typeof commerceState.playerRole === 'string'
+                        ? commerceState.playerRole
+                        : rules.playerRole
+                ) as import('./livingWorldTypes').PlayerRole,
                 cargo: Array.isArray(commerceState.cargo) ? commerceState.cargo : [],
             }
             : undefined;
@@ -876,8 +883,8 @@ function buildNpcRegistryPromptContext(policy: PromptBudgetPolicy): string {
         const urgentNeeds = npc.needs.filter((n) => n.urgency >= 31).sort((a, b) => b.urgency - a.urgency);
         const recentMemories = npc.memories.slice(-3);
 
-        const trustLabel = d.playerTrust >= 70 ? 'high — willing to share intel'
-            : d.playerTrust <= 30 ? 'low — guarded and cautious'
+        const trustLabel = d.playerTrust >= TRUST_WHEREABOUTS_EXACT_MIN ? 'high — willing to share intel'
+            : d.playerTrust <= TRUST_WHEREABOUTS_UNKNOWN_MAX ? 'low — guarded and cautious'
             : `${d.playerTrust}/100`;
         const romanceNote = d.playerRomance >= 60 ? ` romance:${d.playerRomance}` : '';
         const fearNote = d.playerFear >= 50 ? ` FEAR:${d.playerFear}` : '';
@@ -900,8 +907,8 @@ function buildNpcRegistryPromptContext(policy: PromptBudgetPolicy): string {
         }
 
         if (npc.dialogueHints) {
-            const hint = d.playerTrust >= 70 && npc.dialogueHints.highTrust ? npc.dialogueHints.highTrust
-                : d.playerTrust <= 30 && npc.dialogueHints.lowTrust ? npc.dialogueHints.lowTrust
+            const hint = d.playerTrust >= TRUST_WHEREABOUTS_EXACT_MIN && npc.dialogueHints.highTrust ? npc.dialogueHints.highTrust
+                : d.playerTrust <= TRUST_WHEREABOUTS_UNKNOWN_MAX && npc.dialogueHints.lowTrust ? npc.dialogueHints.lowTrust
                 : urgentNeeds.length > 0 && urgentNeeds[0].urgency >= 61 && npc.dialogueHints.highUrgency ? npc.dialogueHints.highUrgency
                 : d.playerFear >= 50 && npc.dialogueHints.highFear ? npc.dialogueHints.highFear
                 : d.playerRomance >= 60 && npc.dialogueHints.romance ? npc.dialogueHints.romance

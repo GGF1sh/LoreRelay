@@ -27,6 +27,7 @@ function registryToAgencyLike(registry: NpcRegistry): NpcRegistryLike {
             name: entry.name,
             locationId: entry.locationId,
             factionId: entry.factionId,
+            playerTrust: entry.disposition?.playerTrust,
         };
     }
     return out;
@@ -55,7 +56,10 @@ export function applyLivingWorldTurnOps(
                 const markets = ws.markets && Object.keys(ws.markets).length > 0
                     ? ws.markets
                     : initializeMarketState(commerce);
-                const playerCommerce = getOrInitPlayerCommerce(nextGame);
+                const playerCommerce = getOrInitPlayerCommerce(
+                    nextGame,
+                    loadGameRules().playerRole ?? 'merchant'
+                );
                 const batch = applyTradeOps(commerce, markets, playerCommerce, ops);
                 if (batch.ok) {
                     const updatedWorld: WorldState = {

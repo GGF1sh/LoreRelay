@@ -73,6 +73,7 @@ function registryToAgencyLike(registry: NpcRegistry | undefined): NpcRegistryLik
             name: entry.name,
             locationId: entry.locationId,
             factionId: entry.factionId,
+            playerTrust: entry.disposition?.playerTrust,
         };
     }
     return out;
@@ -176,8 +177,16 @@ export function buildLivingWorldGmLines(
         : undefined;
 
     const locationNames: Record<string, string> = {};
+    const locationToRegion: Record<string, string> = {};
     for (const loc of forge.geography.locations) {
         locationNames[loc.id] = loc.name;
+        if (loc.regionId) {
+            locationToRegion[loc.id] = loc.regionId;
+        }
+    }
+    const regionNames: Record<string, string> = {};
+    for (const reg of forge.geography.regions) {
+        regionNames[reg.id] = reg.name;
     }
 
     const blocks = buildLivingWorldPromptBlocks({
@@ -191,6 +200,8 @@ export function buildLivingWorldGmLines(
         playerLocationId,
         sinceLastVisit: lastVisit && lastVisit.turnsAway > 0 ? lastVisit : undefined,
         locationNames,
+        regionNames,
+        locationToRegion,
         playerCommerce: rules.enableCommerce === true ? playerCommerce : undefined,
     });
 

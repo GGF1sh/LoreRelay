@@ -3428,6 +3428,8 @@ window.addEventListener('message', (event) => {
         enableEmergentSimulation: document.getElementById('gr-emergent-sim'),
         enableFactionReputation: document.getElementById('gr-faction-reputation'),
         enableCommerce: document.getElementById('gr-commerce'),
+        enableCommerceUi: document.getElementById('gr-commerce-ui'),
+        playerRole: document.getElementById('gr-player-role'),
         enableNpcAgency: document.getElementById('gr-npc-agency'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
@@ -3474,6 +3476,8 @@ window.addEventListener('message', (event) => {
             enableEmergentSimulation: inputs.enableEmergentSimulation ? inputs.enableEmergentSimulation.checked : false,
             enableFactionReputation: inputs.enableFactionReputation ? inputs.enableFactionReputation.checked : false,
             enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
+            enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
+            playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
             enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
@@ -3511,6 +3515,8 @@ window.addEventListener('message', (event) => {
             if (rules.enableEmergentSimulation !== undefined && inputs.enableEmergentSimulation) inputs.enableEmergentSimulation.checked = rules.enableEmergentSimulation;
             if (rules.enableFactionReputation !== undefined && inputs.enableFactionReputation) inputs.enableFactionReputation.checked = rules.enableFactionReputation;
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
+            if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
+            if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
@@ -5068,6 +5074,31 @@ window.addEventListener('DOMContentLoaded', () => {
         if (msg.type === 'imageGenEnd' && worldSceneImagePending) {
             setWorldSceneImageBusy(false, !msg.success);
         }
+        if (msg.type === 'livingWorldDirectTradeResult') {
+            if (msg.ok) {
+                const parts = [];
+                if (msg.trade?.totalCost > 0) {
+                    parts.push(`${T('webview.world.tradeCost')}: ${msg.trade.totalCost}`);
+                }
+                if (msg.trade?.totalRevenue > 0) {
+                    parts.push(`${T('webview.world.tradeRevenue')}: ${msg.trade.totalRevenue}`);
+                }
+                setCommerceTradeToast(
+                    parts.length > 0 ? parts.join(' · ') : T('webview.world.tradeOk'),
+                    'ok'
+                );
+            } else {
+                setCommerceTradeToast(
+                    msg.message || msg.reason || T('webview.world.tradeFailed'),
+                    'error'
+                );
+            }
+        }
+        if (msg.type === 'livingWorldSetPlayerRoleResult') {
+            if (!msg.ok) {
+                setCommerceTradeToast(msg.reason || T('webview.world.roleFailed'), 'error');
+            }
+        }
     });
 
     const tabBtn = document.getElementById('tab-btn-world');
@@ -5188,11 +5219,22 @@ function renderWorldView(msg) {
     // Living World recent events
     renderRecentChanges(msg.recentChanges || [], msg.simEnabled);
 
-    // Player commerce (credits / food / cargo)
-    renderPlayerCommerce(msg.playerCommerce || null, msg.enableCommerce === true);
+    // Player commerce (credits / food / cargo / role)
+    renderPlayerCommerce(
+        msg.playerCommerce || null,
+        msg.enableCommerce === true,
+        msg.enableCommerceUi === true,
+        msg.playerRoles || [],
+        msg.currentLocationId
+    );
 
-    // Living World market prices
-    renderLivingWorldMarkets(msg.livingWorldMarkets || [], msg.enableCommerce === true);
+    // Living World market prices (+ direct trade when UI enabled)
+    renderLivingWorldMarkets(
+        msg.livingWorldMarkets || [],
+        msg.enableCommerce === true,
+        msg.enableCommerceUi === true,
+        msg.currentLocationId
+    );
 
     // Living World NPC whereabouts
     renderNpcWhereabouts(msg.npcWhereabouts || null);
@@ -5275,6 +5317,60 @@ function ensureCartographyStyles() {
             font-variant-numeric: tabular-nums;
             text-align: right;
             opacity: 0.85;
+        }
+        .world-market-trade {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+            margin-top: 0.35rem;
+            padding-top: 0.35rem;
+            border-top: 1px dashed rgba(255,255,255,0.08);
+        }
+        .world-market-trade input[type="number"] {
+            width: 3.2rem;
+            font-size: 0.85em;
+            padding: 0.15rem 0.3rem;
+            background: var(--vscode-input-background, #2d2d2d);
+            color: var(--vscode-input-foreground, #ccc);
+            border: 1px solid var(--vscode-input-border, #555);
+            border-radius: 3px;
+        }
+        .world-market-trade-btn {
+            font-size: 0.78em;
+            padding: 0.18rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(0,0,0,0.25);
+            color: var(--vscode-foreground, #ccc);
+            cursor: pointer;
+        }
+        .world-market-trade-btn:hover:not(:disabled) {
+            border-color: var(--vscode-focusBorder, #4a90e2);
+        }
+        .world-market-trade-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .world-commerce-role-select {
+            font-size: 0.9em;
+            padding: 0.15rem 0.35rem;
+            background: var(--vscode-input-background, #2d2d2d);
+            color: var(--vscode-input-foreground, #ccc);
+            border: 1px solid var(--vscode-input-border, #555);
+            border-radius: 3px;
+            max-width: 12rem;
+        }
+        .world-commerce-trade-toast {
+            font-size: 0.82em;
+            margin-top: 0.35rem;
+            opacity: 0.85;
+        }
+        .world-commerce-trade-toast.is-error {
+            color: var(--vscode-errorForeground, #f48771);
+        }
+        .world-commerce-trade-toast.is-ok {
+            color: var(--vscode-charts-green, #89d185);
         }
         .world-npc-whereabouts-row {
             display: grid;
@@ -6444,13 +6540,57 @@ function formatMarketNumber(value, digits = 0) {
     return n.toFixed(digits);
 }
 
-function renderPlayerCommerce(commerce, commerceEnabled) {
+const PLAYER_ROLE_I18N = {
+    merchant: 'webview.world.playerRoleMerchant',
+    adventurer: 'webview.world.playerRoleAdventurer',
+    retainer: 'webview.world.playerRoleRetainer',
+    smith: 'webview.world.playerRoleSmith',
+    ruler: 'webview.world.playerRoleRuler',
+};
+
+let _commerceTradeToastTimer = null;
+
+function setCommerceTradeToast(text, kind) {
+    const panel = document.getElementById('world-commerce-panel');
+    if (!panel) { return; }
+    let toast = document.getElementById('world-commerce-trade-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'world-commerce-trade-toast';
+        toast.className = 'world-commerce-trade-toast';
+        panel.appendChild(toast);
+    }
+    toast.textContent = text || '';
+    toast.classList.toggle('is-error', kind === 'error');
+    toast.classList.toggle('is-ok', kind === 'ok');
+    toast.classList.toggle('hidden', !text);
+    if (_commerceTradeToastTimer) { clearTimeout(_commerceTradeToastTimer); }
+    if (text) {
+        _commerceTradeToastTimer = setTimeout(() => {
+            toast.classList.add('hidden');
+            toast.textContent = '';
+        }, 4000);
+    }
+}
+
+function playerRoleLabel(role) {
+    const key = PLAYER_ROLE_I18N[role];
+    return key ? T(key) : role;
+}
+
+function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, playerRoles, currentLocationId) {
     const section = document.getElementById('world-commerce-details');
     const panel = document.getElementById('world-commerce-panel');
+    const hint = document.getElementById('world-commerce-hint');
     if (!section || !panel) { return; }
 
     const visible = commerceEnabled && commerce && typeof commerce.credits === 'number';
     section.classList.toggle('hidden', !visible);
+    if (hint) {
+        hint.textContent = commerceUiEnabled
+            ? T('webview.world.commerceHintInteractive')
+            : T('webview.world.commerceHint');
+    }
     if (!visible) {
         panel.innerHTML = '';
         return;
@@ -6461,34 +6601,148 @@ function renderPlayerCommerce(commerce, commerceEnabled) {
         ? cargo.map((c) => `${escapeHtml(c.commodityId || '?')} × ${escapeHtml(c.qty ?? 0)}`).join(', ')
         : escapeHtml(T('webview.world.commerceCargoEmpty'));
 
+    const roles = Array.isArray(playerRoles) && playerRoles.length > 0
+        ? playerRoles
+        : ['merchant', 'adventurer', 'retainer', 'smith', 'ruler'];
+    const currentRole = commerce.playerRole || 'merchant';
+    const roleRow = commerceUiEnabled
+        ? `<div class="world-commerce-row">
+            <span>${escapeHtml(T('webview.world.commercePlayerRole'))}</span>
+            <select id="world-commerce-role-select" class="world-commerce-role-select" aria-label="${escapeHtml(T('webview.world.commercePlayerRole'))}">
+                ${roles.map((role) => `<option value="${escapeHtml(role)}"${role === currentRole ? ' selected' : ''}>${escapeHtml(playerRoleLabel(role))}</option>`).join('')}
+            </select>
+           </div>`
+        : '';
+
     panel.innerHTML = `
+        ${roleRow}
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceCredits'))}</span><strong>${escapeHtml(commerce.credits)}</strong></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceFood'))}</span><strong>${escapeHtml(commerce.food ?? 30)}</strong></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceTransport'))}</span><code class="patch-value">${escapeHtml(commerce.transportId || 'wagon')}</code></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceCargo'))}</span><span>${cargoLines}</span></div>
+        <div id="world-commerce-trade-toast" class="world-commerce-trade-toast hidden"></div>
     `;
+
+    if (commerceUiEnabled) {
+        const roleSelect = document.getElementById('world-commerce-role-select');
+        if (roleSelect) {
+            roleSelect.addEventListener('change', () => {
+                vscode.postMessage({
+                    type: 'livingWorldSetPlayerRole',
+                    role: roleSelect.value,
+                });
+            });
+        }
+    }
+
+    void currentLocationId;
 }
 
-function renderLivingWorldMarkets(markets, commerceEnabled) {
+function appendMarketTradeControls(row, market, quote, commerceUiEnabled, currentLocationId) {
+    if (!commerceUiEnabled || !currentLocationId || market.locationId !== currentLocationId) {
+        return;
+    }
+
+    const trade = document.createElement('div');
+    trade.className = 'world-market-trade';
+    trade.style.gridColumn = '1 / -1';
+
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.min = '1';
+    qtyInput.max = '999';
+    qtyInput.value = '1';
+    qtyInput.setAttribute('aria-label', T('webview.world.tradeQty'));
+
+    const buyBtn = document.createElement('button');
+    buyBtn.type = 'button';
+    buyBtn.className = 'world-market-trade-btn';
+    buyBtn.textContent = T('webview.world.tradeBuy');
+    buyBtn.addEventListener('click', () => {
+        const qty = parseInt(qtyInput.value, 10) || 1;
+        vscode.postMessage({
+            type: 'livingWorldDirectTrade',
+            op: 'buy',
+            marketLocationId: market.locationId,
+            commodityId: quote.commodityId,
+            qty,
+        });
+        buyBtn.disabled = true;
+        sellBtn.disabled = true;
+    });
+
+    const sellBtn = document.createElement('button');
+    sellBtn.type = 'button';
+    sellBtn.className = 'world-market-trade-btn';
+    sellBtn.textContent = T('webview.world.tradeSell');
+    sellBtn.addEventListener('click', () => {
+        const qty = parseInt(qtyInput.value, 10) || 1;
+        vscode.postMessage({
+            type: 'livingWorldDirectTrade',
+            op: 'sell',
+            marketLocationId: market.locationId,
+            commodityId: quote.commodityId,
+            qty,
+        });
+        buyBtn.disabled = true;
+        sellBtn.disabled = true;
+    });
+
+    trade.appendChild(qtyInput);
+    trade.appendChild(buyBtn);
+    trade.appendChild(sellBtn);
+    row.appendChild(trade);
+}
+
+function renderLivingWorldMarkets(markets, commerceEnabled, commerceUiEnabled, currentLocationId) {
     const section = document.getElementById('world-markets-details');
     const list = document.getElementById('world-markets-list');
+    const hint = document.getElementById('world-markets-hint');
     if (!section || !list) { return; }
 
     const visible = commerceEnabled && Array.isArray(markets) && markets.length > 0;
     section.classList.toggle('hidden', !visible);
+    if (hint) {
+        hint.textContent = commerceUiEnabled
+            ? T('webview.world.marketsHintInteractive')
+            : T('webview.world.marketsHint');
+    }
     if (!visible) {
         list.innerHTML = '';
         return;
     }
 
     list.innerHTML = '';
-    markets.slice(0, 12).forEach((market) => {
+    const displayMarkets = commerceUiEnabled && currentLocationId
+        ? markets.filter((m) => m.locationId === currentLocationId)
+        : markets;
+
+    if (displayMarkets.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-text';
+        empty.style.margin = '0';
+        empty.textContent = commerceUiEnabled
+            ? T('webview.world.marketsNotHere')
+            : T('webview.world.marketsEmpty');
+        list.appendChild(empty);
+        return;
+    }
+
+    displayMarkets.slice(0, 12).forEach((market) => {
         const card = document.createElement('div');
         card.className = 'world-market-card';
 
         const title = document.createElement('div');
         title.className = 'world-market-title';
         title.textContent = market.locationName || market.locationId || 'Market';
+        if (commerceUiEnabled && currentLocationId === market.locationId) {
+            const here = document.createElement('span');
+            here.style.fontWeight = 'normal';
+            here.style.opacity = '0.7';
+            here.style.marginLeft = '0.35rem';
+            here.textContent = `(${T('webview.world.marketsHere')})`;
+            title.appendChild(here);
+        }
         card.appendChild(title);
 
         const quotes = Array.isArray(market.quotes) ? market.quotes.slice(0, 8) : [];
@@ -6501,6 +6755,9 @@ function renderLivingWorldMarkets(markets, commerceEnabled) {
                 <span class="world-market-num">${escapeHtml(formatMarketNumber(quote.stock))}</span>
                 <span class="world-market-num">x${escapeHtml(formatMarketNumber(quote.priceIndex, 2))}</span>
             `;
+            if (commerceUiEnabled) {
+                appendMarketTradeControls(row, market, quote, commerceUiEnabled, currentLocationId);
+            }
             card.appendChild(row);
         });
 
@@ -6529,12 +6786,27 @@ function renderNpcWhereabouts(payload) {
     entries.slice(0, 10).forEach((npc) => {
         const row = document.createElement('div');
         row.className = 'world-npc-whereabouts-row';
-        const transit = npc.inTransit
+        const precision = npc.precision || 'exact';
+        let locationText;
+        if (precision === 'unknown') {
+            locationText = T('webview.world.npcWhereaboutsUnknown');
+        } else if (npc.inTransit && precision === 'approximate') {
+            locationText = npc.regionName
+                ? T('webview.world.npcHeadingRegion', { region: npc.regionName })
+                : T('webview.world.npcHeadingVague');
+        } else if (precision === 'approximate' && npc.regionName) {
+            locationText = npc.regionName;
+        } else {
+            locationText = npc.locationName || npc.locationId || '?';
+        }
+        const transit = npc.inTransit && precision !== 'unknown'
             ? `<span class="world-npc-transit">${escapeHtml(T('webview.world.npcInTransit'))} T${escapeHtml(npc.arrivesTurn ?? '?')}</span>`
-            : `<span class="tag-item">${escapeHtml(T('webview.world.npcPresent'))}</span>`;
+            : precision === 'unknown'
+                ? `<span class="tag-item">${escapeHtml(T('webview.world.npcWhereaboutsUnknown'))}</span>`
+                : `<span class="tag-item">${escapeHtml(T('webview.world.npcPresent'))}</span>`;
         row.innerHTML = `
             <strong>${escapeHtml(npc.name || npc.npcId || '?')}</strong>
-            <span>${escapeHtml(npc.locationName || npc.locationId || '?')}</span>
+            <span>${escapeHtml(locationText)}</span>
             ${transit}
         `;
         if (npc.reason || npc.agenda) {

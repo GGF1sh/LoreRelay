@@ -33,6 +33,12 @@ import { buildMarketPriceTable } from './commerceCore';
 import { resolveCommerceForge, ensureLivingWorldMarkets } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
 import { listNpcPresence } from './npcAgencyCore';
+import {
+    formatWhereaboutsForDisplay,
+    readNpcPlayerTrust,
+    resolveWhereaboutsPrecision,
+    type WhereaboutsPrecision,
+} from './npcWhereaboutsTrustCore';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
@@ -62,6 +68,7 @@ function buildPlayerCommercePayload(
     credits: number;
     food: number;
     transportId: string;
+    playerRole: string;
     cargo: Array<{ commodityId: string; qty: number }>;
 } | null {
     if (!commerceEnabled || !commerce || typeof commerce.credits !== 'number') {
@@ -76,10 +83,14 @@ function buildPlayerCommercePayload(
             }))
             .slice(0, 24)
         : [];
+    const role = typeof commerce.playerRole === 'string' && commerce.playerRole
+        ? commerce.playerRole
+        : 'merchant';
     return {
         credits: Math.max(0, Math.floor(commerce.credits)),
         food: typeof commerce.food === 'number' ? Math.max(0, Math.floor(commerce.food)) : 30,
         transportId: typeof commerce.transportId === 'string' ? commerce.transportId : 'wagon',
+        playerRole: role,
         cargo,
     };
 }
@@ -122,10 +133,12 @@ interface WorldViewMarketTable {
 interface WorldViewNpcWhereaboutsEntry {
     npcId: string;
     name: string;
-    locationId: string;
+    locationId?: string;
     locationName: string;
-    arrivesTurn: number;
-    inTransit: boolean;
+    regionName?: string;
+    precision: WhereaboutsPrecision;
+    arrivesTurn?: number;
+    inTransit?: boolean;
     agenda?: string;
     reason?: string;
 }
@@ -167,16 +180,34 @@ function buildNpcWhereaboutsPayload(
     agencyEnabled: boolean
 ): WorldViewNpcWhereabouts {
     const npcEntries = Object.entries(registry.npcs);
-    const registryLike: Record<string, { name: string; locationId?: string; factionId?: string }> = {};
+    const registryLike: Record<string, {
+        name: string;
+        locationId?: string;
+        factionId?: string;
+        playerTrust?: number;
+    }> = {};
     for (const [id, npc] of npcEntries) {
         registryLike[id] = {
             name: npc.name,
             locationId: npc.locationId,
             factionId: npc.factionId,
+            playerTrust: npc.disposition?.playerTrust,
         };
     }
 
-    const locationNames = new Map(forge.geography.locations.map((loc) => [loc.id, loc.name]));
+    const locationNames: Record<string, string> = {};
+    const locationToRegion: Record<string, string> = {};
+    for (const loc of forge.geography.locations) {
+        locationNames[loc.id] = loc.name;
+        if (loc.regionId) {
+            locationToRegion[loc.id] = loc.regionId;
+        }
+    }
+    const regionNames: Record<string, string> = {};
+    for (const reg of forge.geography.regions) {
+        regionNames[reg.id] = reg.name;
+    }
+
     const presence = listNpcPresence(
         registryLike,
         worldState?.npcPositions ?? {},
@@ -185,16 +216,27 @@ function buildNpcWhereaboutsPayload(
     );
 
     return {
-        entries: presence.map((npc) => ({
-            npcId: npc.npcId,
-            name: npc.name,
-            locationId: npc.locationId,
-            locationName: locationNames.get(npc.locationId) ?? npc.locationId,
-            arrivesTurn: npc.arrivesTurn,
-            inTransit: npc.inTransit,
-            agenda: npc.agenda,
-            reason: npc.reason,
-        })),
+        entries: presence.map((npc) => {
+            const trust = readNpcPlayerTrust(registryLike[npc.npcId]?.playerTrust);
+            const formatted = formatWhereaboutsForDisplay(
+                resolveWhereaboutsPrecision(trust),
+                npc.locationId,
+                npc.inTransit,
+                { locationNames, regionNames, locationToRegion }
+            );
+            return {
+                npcId: npc.npcId,
+                name: npc.name,
+                locationId: formatted.precision === 'unknown' ? undefined : npc.locationId,
+                locationName: formatted.locationLabel,
+                regionName: formatted.regionLabel,
+                precision: formatted.precision,
+                arrivesTurn: formatted.precision === 'unknown' ? undefined : npc.arrivesTurn,
+                inTransit: formatted.precision === 'unknown' ? undefined : npc.inTransit,
+                agenda: formatted.showAgenda ? npc.agenda : undefined,
+                reason: formatted.showReason ? npc.reason : undefined,
+            };
+        }),
         clamped: npcEntries.length > presence.length,
     };
 }
@@ -381,6 +423,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldTurn: worldTurn ?? null,
         simEnabled,
         enableCommerce: gameRules.enableCommerce === true,
+        enableCommerceUi: gameRules.enableCommerceUi === true,
+        playerRoles: ['merchant', 'adventurer', 'retainer', 'smith', 'ruler'],
         enableFactionReputation: gameRules.enableFactionReputation === true,
         currentLocationId: currentLocationId ?? null,
         locationCount: forge.geography.locations.length,

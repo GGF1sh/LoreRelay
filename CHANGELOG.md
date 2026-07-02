@@ -9,6 +9,34 @@
 
 ## [Unreleased]
 
+## [1.27.1] - 2026-07-02
+
+### Fixed
+
+- **NPC whereabouts DevTools leak** — `worldView` omits `locationId`, `arrivesTurn`, and `inTransit` from the webview payload when `precision === 'unknown'`.
+- **GM approximate transit wording** — no redundant `en route to heading toward …` in `[Living World — NPC whereabouts]`.
+- **Trust threshold drift** — `gmPromptBuilder` imports `TRUST_WHEREABOUTS_EXACT_MIN` / `TRUST_WHEREABOUTS_UNKNOWN_MAX` from `npcWhereaboutsTrustCore`.
+
+## [1.27.0] - 2026-07-02
+
+### Added
+
+- **LW2 v1+ trust-linked whereabouts** — `npcWhereaboutsTrustCore.ts`: playerTrust ≥70 exact location + reason; 31–69 region-level rumor; ≤30「行方不明」. GM `[Living World — NPC whereabouts]` and World tab both respect precision.
+- **playerRole GM motivation** — `livingWorldPlayerRoleCore.ts`; `[Living World — Caravan]` prepends role-specific trade motivation (merchant/adventurer/retainer/smith/ruler).
+- **Tests** — `test_npc_whereabouts_trust_core.js`, `test_living_world_player_role_core.js`.
+
+## [1.26.0] - 2026-07-02
+
+### Added
+
+- **BRIEF v1+ Commerce UI** — `enableCommerceUi` game rule (default `false`); World tab Buy/Sell buttons at current location only; Caravan `playerRole` selector (`merchant` / `adventurer` / `retainer` / `smith` / `ruler`).
+- **`livingWorldCommerceUiCore.ts`** — `executeDirectTrade()` via `applyTradeOps` (no narration parsing); location guard `WRONG_LOCATION`.
+- **`livingWorldCommerceUi.ts`** — host persistence for direct trade + role changes.
+- **Game Rules panel** — Commerce UI toggle + default player role.
+- **`sample-scenarios/trade-routes`** — `enableCommerceUi: true` for demo.
+- **Tests** — `test_living_world_commerce_ui_core.js`.
+- **Docs** — `docs/CODE_REVIEW_PROMPT_LIVING_WORLD.md` for external AI reviewers.
+
 ## [1.25.0] - 2026-07-02
 
 ### Added

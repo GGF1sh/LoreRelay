@@ -2,12 +2,25 @@
 
 このファイルは、プロジェクトの変更履歴を記録したものです。新しいAIがプロジェクトに参加する際、`AI_HANDOVER.md` と共にこのファイルを読むことで、過去の経緯や修正の理由を素早く把握できます。
 
-関連レビュードキュメント
-- `C:\AI\GROK_CODE_REVIEW.md` — Grok によるコードレビュー指摘と対応状況
-- `C:\AI\GEMINI_REVIEW.md` — Gemini による全体評価・ビジネスモデル提案
-- `C:\AI\CLAUDE_REVIEW.md` — Claude による実装改善・Saga & Seeker 競合分析
+関連レビュードキュメント（リポジトリ外のローカル資料がある場合はワークスペース親 `C:\AI\` を参照）
+
+- `docs/REVIEW_FOLLOWUP_v1_28.md` — ChatGPT / Gemini レビュー対応状況
+- `docs/COMMERCE_UI_V1_26_0_REVIEW.md` · `docs/LW2_TRUST_ROLE_V1_27_0_REVIEW.md` — 実装レビュー記録
 
 ## [Unreleased]
+
+## [1.28.0] - 2026-07-02
+
+### Added
+
+- **`docs/FEATURE_MATRIX.md`** — stable / beta / experimental 一覧。
+- **`docs/LIVING_WORLD_QUICKSTART.md`** — trade-routes 5 分チュートリアル。
+- **`docs/REVIEW_FOLLOWUP_v1_28.md`** — ChatGPT / Gemini レビュー follow-up。
+
+### Fixed
+
+- **Replay Export Markdown** — `formatMarkdownImageRef()` wraps paths with spaces/parens in angle brackets.
+- **Release workflow** — fail if git tag `vX.Y.Z` ≠ `package.json` version.
 
 ## [1.27.2] - 2026-07-02
 

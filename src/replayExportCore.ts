@@ -62,6 +62,14 @@ function escapeMarkdown(text: string): string {
     return String(text ?? '').replace(/\r\n/g, '\n');
 }
 
+/** Markdown image ref safe for paths with spaces or parentheses. */
+export function formatMarkdownImageRef(relativePath: string, alt = 'Scene'): string {
+    const p = String(relativePath ?? '').trim();
+    if (!p) { return ''; }
+    const dest = /[\s()]/.test(p) ? `<${p}>` : p;
+    return `![${alt}](${dest})`;
+}
+
 function shouldIncludeEntry(entry: GameEntryLike, options: ReplayOptions): boolean {
     if (entry.excludedFromPrompt) { return false; }
     if (entry.role === 'gm' && !options.includeGm) { return false; }
@@ -176,7 +184,7 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
 
         const imageRel = resolveEntryImage(entry, input.gallery ?? [], options, input.resolveRelativeImage);
         if (imageRel) {
-            lines.push(`![Scene](${imageRel})`, '');
+            lines.push(formatMarkdownImageRef(imageRel), '');
             if (entry.rawImagePath) { usedGallery.add(entry.rawImagePath); }
         }
 
@@ -188,7 +196,7 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
                 options,
                 input.resolveRelativeImage
             )) {
-                lines.push(`![Scene](${extra})`, '');
+                lines.push(formatMarkdownImageRef(extra), '');
             }
         }
     }

@@ -51,7 +51,7 @@ git log origin/main --oneline -1
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.27.2** |
-| main 先頭 | `docs: VERSION_TRUTH …`（機能本体は v1.27.1 相当） |
+| `package.json` | **1.28.0** |
+| main 先頭 | v1.28 doc/stability pass（LW 機能本体は v1.27.1 相当） |
 | GitHub Release latest | **v1.14.5**（`v1.27.x` タグ未打ち — 配布遅れ） |
 | Living World | v1.23〜1.27.1（Commerce UI, trust whereabouts, playerRole GM） |

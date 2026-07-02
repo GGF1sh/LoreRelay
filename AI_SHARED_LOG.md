@@ -1,5 +1,25 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Grok - v1.28.0 ChatGPT/Gemini review follow-up
+
+### Summary
+
+- **Docs:** `FEATURE_MATRIX.md`, `LIVING_WORLD_QUICKSTART.md`, `REVIEW_FOLLOWUP_v1_28.md`
+- **Release:** `release.yml` tag ↔ `package.json` version gate
+- **Replay:** `formatMarkdownImageRef()` for Markdown paths with spaces/parens
+- **CHANGELOG:** remove `C:\AI\` local paths from header
+
+### Verification
+
+- `npm run compile` · `npm test` (76/76)
+
+### User
+
+- `git tag v1.28.0 && git push origin v1.28.0` for VSIX Release
+- `testing_checklist.md` §9b–9c
+
+---
+
 ## 2026-07-02 JST - Grok + Gemini - Living World v1.26.0–v1.27.1
 
 ### Summary
@@ -278,7 +298,7 @@
 
 | Item | Value |
 |------|-------|
-| Package version (`main`) | **1.27.2**（doc sync; LW 機能は 1.27.1 相当） |
+| Package version (`main`) | **1.28.0**（doc & stability pass） |
 | GitHub Release (VSIX) | **v1.14.5** — タグ `v1.27.x` 未打ち（配布遅れ） |
 | Canonical repo path | `C:\AI\text-adventure-vsce` |
 | Living World | **v1.23–1.27.1** — Commerce UI, trust whereabouts, playerRole GM（`testing_checklist.md` §9b–9c） |

@@ -4,12 +4,13 @@
 
 1. 本ファイル（`AI_HANDOVER.md`）— プロジェクト概要
 2. **`docs/VERSION_TRUTH.md`** — main / Release / ドキュメントの版ズレ防止
-3. **`AI_HANDOVER_PROMPTS.md`** — どの AI に何を読ませ、どのプロンプトを渡すか
-4. `AI_COLLABORATION.md` — 複数 AI で作業するときの書き込みルール
-5. `AI_SHARED_LOG.md` — 先頭の **Current Snapshot** と直近ログ
-6. `CHANGELOG.md` — 実装済み変更の履歴
-7. `AI_ROADMAP.md` — フェーズ完了状況と次タスクの黒板
-8. （必要に応じて）`C:\AI\GROK_CODE_REVIEW.md` / `GEMINI_REVIEW.md` / `CLAUDE_REVIEW.md`
+3. **`docs/FEATURE_MATRIX.md`** · **`docs/LIVING_WORLD_QUICKSTART.md`** — 初見向け（安定度・LW 体験）
+4. **`AI_HANDOVER_PROMPTS.md`** — どの AI に何を読ませ、どのプロンプトを渡すか
+5. `AI_COLLABORATION.md` — 複数 AI で作業するときの書き込みルール
+6. `AI_SHARED_LOG.md` — 先頭の **Current Snapshot** と直近ログ
+7. `CHANGELOG.md` — 実装済み変更の履歴
+8. `AI_ROADMAP.md` — フェーズ完了状況と次タスクの黒板
+9. `docs/REVIEW_FOLLOWUP_v1_28.md` — 外部 AI レビュー対応状況
 
 > [!IMPORTANT]
 > **実装の正本は `CHANGELOG.md` とソースコードです。**

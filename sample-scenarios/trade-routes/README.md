@@ -18,7 +18,7 @@ Purpose: exercise Living World commerce, travel turns, since-last-visit market s
 6. **playerRole** — Change role in Caravan; GM `[Living World — Caravan]` should show role motivation (v1.27+).
 7. **Trust whereabouts** — Edit Elda `playerTrust` to 20 / 50 / 80; World tab + GM whereabouts precision changes (v1.27+). At ≤30, DevTools must not expose `locationId` (v1.27.1).
 
-Full manual steps: [`testing_checklist.md`](../../testing_checklist.md) §9b–9c.
+Quickstart: [`docs/LIVING_WORLD_QUICKSTART.md`](../../docs/LIVING_WORLD_QUICKSTART.md) · Full manual: [`testing_checklist.md`](../../testing_checklist.md) §9b–9c.
 
 ## World tab signals
 

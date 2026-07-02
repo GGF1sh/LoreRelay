@@ -21,6 +21,7 @@ const {
     buildReplayMarkdown,
     buildReplayHtml,
     buildReplayDocument,
+    formatMarkdownImageRef,
 } = require(corePath);
 const {
     sanitizeReplayExportFilename,
@@ -87,6 +88,15 @@ const baseOptions = {
         fail('user entries should remain when gm off');
     } else {
         ok('includeGm off');
+    }
+}
+
+{
+    const spaced = formatMarkdownImageRef('../images/my scene (1).png');
+    if (spaced !== '![Scene](<../images/my scene (1).png>)') {
+        fail(`formatMarkdownImageRef spaced: ${spaced}`);
+    } else {
+        ok('formatMarkdownImageRef angle brackets');
     }
 }
 

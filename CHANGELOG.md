@@ -21,6 +21,13 @@
 
 - 黄金律維持: affinity は Core 決定論、GM は変化を**伝聞として narrate**（NPC同士の会話自動生成はしない）。`docs/LIVING_WORLD_LW3_RELATIONSHIPS.md` 参照。
 
+### Added (UI / GM / Demo)
+
+- **GM スキーマヒント** — `RELATIONSHIP_OPS_PROMPT_LINE`（Bonds は伝聞として narrate・数値は発明しない・物語上の決定的変化のみ `relationshipOps` 最大2件/turn）。
+- **Game Rules パネル** — 「Enable NPC Bonds (LW3)」チェックボックス（`gr-npc-relationships`、4ロケール i18n 付き）。
+- **World タブ「NPC Bonds」セクション** — 顕著な関係をラベルのみ表示（🤝盟友 / 🙂友好 / ⚡不和 / ⚔️敵対）。**raw affinity は webview に送らない**（v1.27.1 の DevTools リーク方針を踏襲）。
+- **trade-routes デモ** — `enableNpcRelationships: true` + README に体験手順8（Elda × Marcus が同席で友好になる／紛争イベントで異派閥が離れる）。
+
 ## [1.28.0] - 2026-07-02
 
 ### Added

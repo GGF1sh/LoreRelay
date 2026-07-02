@@ -23,6 +23,7 @@
         enableCommerceUi: document.getElementById('gr-commerce-ui'),
         playerRole: document.getElementById('gr-player-role'),
         enableNpcAgency: document.getElementById('gr-npc-agency'),
+        enableNpcRelationships: document.getElementById('gr-npc-relationships'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
         simIntervalTurns: document.getElementById('gr-sim-interval')
@@ -71,6 +72,7 @@
             enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
             playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
             enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
+            enableNpcRelationships: inputs.enableNpcRelationships ? inputs.enableNpcRelationships.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
             simIntervalTurns: inputs.simIntervalTurns ? (parseInt(inputs.simIntervalTurns.value, 10) || 5) : 5
@@ -110,6 +112,7 @@
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
+            if (rules.enableNpcRelationships !== undefined && inputs.enableNpcRelationships) inputs.enableNpcRelationships.checked = rules.enableNpcRelationships;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
             if (rules.simIntervalTurns !== undefined && inputs.simIntervalTurns) inputs.simIntervalTurns.value = rules.simIntervalTurns;

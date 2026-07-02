@@ -30,8 +30,9 @@ import { listActiveMapItems } from './cartographyRevealCore';
 import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } from './mapFeedbackCore';
 import { loadGameRules } from './gameRules';
 import { buildMarketPriceTable } from './commerceCore';
-import { resolveCommerceForge, ensureLivingWorldMarkets } from './livingWorldBridge';
+import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
+import { listNotableRelationships } from './npcRelationshipCore';
 import { listNpcPresence } from './npcAgencyCore';
 import {
     formatWhereaboutsForDisplay,
@@ -171,6 +172,28 @@ function buildLivingWorldMarketPayload(
             })),
         }))
         .filter((market) => market.quotes.length > 0);
+}
+
+interface WorldViewNpcBond {
+    nameA: string;
+    nameB: string;
+    /** 'ally' | 'friend' | 'rival' | 'enemy' — raw affinity never leaves the host. */
+    label: string;
+}
+
+/** LW3: notable bonds between named NPCs (labels only, no numbers). */
+function buildNpcBondsPayload(
+    registry: ReturnType<typeof loadNpcRegistry>,
+    worldState: { npcRelationships?: Record<string, number> } | undefined,
+    relationshipsEnabled: boolean
+): WorldViewNpcBond[] {
+    if (!relationshipsEnabled || !worldState?.npcRelationships) { return []; }
+    const registryLike: Record<string, { name: string; locationId?: string; factionId?: string }> = {};
+    for (const [id, npc] of Object.entries(registry.npcs)) {
+        registryLike[id] = { name: npc.name, locationId: npc.locationId, factionId: npc.factionId };
+    }
+    return listNotableRelationships(worldState.npcRelationships, registryLike)
+        .map((n) => ({ nameA: n.nameA, nameB: n.nameB, label: n.label }));
 }
 
 function buildNpcWhereaboutsPayload(
@@ -339,6 +362,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldState,
         gameRules.enableNpcAgency === true && gameRules.enableNpcRegistry === true
     );
+    // LW3: notable NPC-to-NPC bonds. Labels only — raw affinity numbers stay host-side (v1.27.1 leak policy).
+    const npcBonds = buildNpcBondsPayload(
+        registry,
+        worldState as { npcRelationships?: Record<string, number> } | undefined,
+        npcRelationshipsEnabled(gameRules)
+    );
 
     const wsPath = getWorkspacePath();
     const worldMapImagePath = resolveWorldMapImagePath(wsPath);
@@ -432,6 +461,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         locationImages,
         npcsAtLocation,
         npcWhereabouts,
+        npcBonds,
         npcTtsCatalog,
         ttsExternalEnabled,
         ttsLocalAvailable,

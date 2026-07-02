@@ -667,6 +667,12 @@
             <div id="world-npc-whereabouts-list"></div>
           </details>
 
+          <details id="world-npc-bonds-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.npcBondsTitle">NPC Bonds</summary>
+            <p class="img-gen-hint" data-i18n="webview.world.npcBondsHint">Bonds between named NPCs, shaped by the living world (hearsay).</p>
+            <div id="world-npc-bonds-list"></div>
+          </details>
+
           <details id="world-factions-details" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.factionsTitle">Factions</summary>
             <div id="world-factions-list"></div>
@@ -874,6 +880,11 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
         <label for="gr-npc-agency" data-i18n="webview.gameRules.npcAgency" data-i18n-title="webview.gameRules.tipNpcAgency">Enable NPC Agency</label>
         <input type="checkbox" id="gr-npc-agency" data-field="enableNpcAgency" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-npc-relationships" data-i18n="webview.gameRules.npcRelationships" data-i18n-title="webview.gameRules.tipNpcRelationships">Enable NPC Bonds (LW3)</label>
+        <input type="checkbox" id="gr-npc-relationships" data-field="enableNpcRelationships" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">

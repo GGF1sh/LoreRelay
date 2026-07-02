@@ -17,6 +17,7 @@ Purpose: exercise Living World commerce, travel turns, since-last-visit market s
 5. **World keeps moving** — Run a few turns elsewhere, then return. Marcus may restock steel; Elda may move ports (NPC agency).
 6. **playerRole** — Change role in Caravan; GM `[Living World — Caravan]` should show role motivation (v1.27+).
 7. **Trust whereabouts** — Edit Elda `playerTrust` to 20 / 50 / 80; World tab + GM whereabouts precision changes (v1.27+). At ≤30, DevTools must not expose `locationId` (v1.27.1).
+8. **Bonds (LW3, v1.29+)** — Elda and Marcus both start at Elda's Shop. Let several world turns pass (travel, rest, `elapsedWorldTurns`); their affinity grows by co-location (+3/tick). Once it crosses 30, the GM prompt gains `[Living World — Bonds]` with 「Elda と Marcus: 友好」 — ask the GM about them and it should narrate the two as acquainted, as hearsay. A conflict event (`recentChanges` with `category: "conflict"` or severity `critical`) pushes cross-faction pairs apart instead (merchants vs smiths).
 
 Quickstart: [`docs/LIVING_WORLD_QUICKSTART.md`](../../docs/LIVING_WORLD_QUICKSTART.md) · Full manual: [`testing_checklist.md`](../../testing_checklist.md) §9b–9c.
 

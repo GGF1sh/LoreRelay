@@ -10,6 +10,7 @@
   "enableCommerceUi": true,
   "playerRole": "merchant",
   "enableNpcAgency": true,
+  "enableNpcRelationships": true,
   "enableFactionReputation": false,
   "enableTravelEncounters": true,
   "travelEncounterDensity": "low",

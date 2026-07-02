@@ -238,6 +238,9 @@ function renderWorldView(msg) {
     // Living World NPC whereabouts
     renderNpcWhereabouts(msg.npcWhereabouts || null);
 
+    // LW3: NPC-to-NPC bonds
+    renderNpcBonds(msg.npcBonds || null);
+
     // Quest Board
     renderQuestHooks(msg.questHooks || []);
 
@@ -1815,6 +1818,43 @@ function renderNpcWhereabouts(payload) {
             note.textContent = npc.reason || npc.agenda;
             row.appendChild(note);
         }
+        list.appendChild(row);
+    });
+}
+
+// LW3: notable bonds between named NPCs (labels only; hearsay for the player).
+const NPC_BOND_LABEL_KEY = {
+    ally: 'webview.world.npcBondAlly',
+    friend: 'webview.world.npcBondFriend',
+    rival: 'webview.world.npcBondRival',
+    enemy: 'webview.world.npcBondEnemy',
+};
+const NPC_BOND_ICON = { ally: '🤝', friend: '🙂', rival: '⚡', enemy: '⚔️' };
+
+function renderNpcBonds(bonds) {
+    const section = document.getElementById('world-npc-bonds-details');
+    const list = document.getElementById('world-npc-bonds-list');
+    if (!section || !list) { return; }
+
+    const entries = Array.isArray(bonds) ? bonds : [];
+    const visible = entries.length > 0;
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        list.innerHTML = '';
+        return;
+    }
+
+    list.innerHTML = '';
+    entries.slice(0, 8).forEach((bond) => {
+        const row = document.createElement('div');
+        row.className = 'world-npc-whereabouts-row';
+        const icon = NPC_BOND_ICON[bond.label] || '•';
+        const labelKey = NPC_BOND_LABEL_KEY[bond.label];
+        const labelText = labelKey ? T(labelKey) : (bond.label || '?');
+        row.innerHTML = `
+            <strong>${escapeHtml(bond.nameA || '?')} × ${escapeHtml(bond.nameB || '?')}</strong>
+            <span class="tag-item">${icon} ${escapeHtml(labelText)}</span>
+        `;
         list.appendChild(row);
     });
 }

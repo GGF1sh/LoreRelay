@@ -303,6 +303,14 @@ export const NPC_AGENCY_OPS_PROMPT_LINE =
     + '(max 10): [{ "npcId": "<id>", "locationId": "<locationId>", "arrivesTurn": <worldTurn> }]. '
     + 'Core reconciles with registry and world sim.';
 
+/** LW3: NPC-to-NPC bonds evolve deterministically; GM may nudge via relationshipOps. */
+export const RELATIONSHIP_OPS_PROMPT_LINE =
+    'NPC-to-NPC bonds ([Living World — Bonds]) evolve from world events (co-location, shared '
+    + 'crises, faction conflict) — treat them as hearsay to narrate, never invent numeric values. '
+    + 'Only when the story itself decisively changes a bond (betrayal, sworn oath), set '
+    + 'turn_result.relationshipOps: [{ "a": "<npcId>", "b": "<npcId>", "delta": <-100..100>, '
+    + '"reason": "manual" }]. Do not exceed 2 ops per turn.';
+
 const FOG_PROMPT_SUFFIX = '. Do not narrate their interiors as known facts.';
 
 /**

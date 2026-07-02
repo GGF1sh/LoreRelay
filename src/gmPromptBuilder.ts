@@ -62,6 +62,7 @@ import {
     ELAPSED_WORLD_TURNS_PROMPT_LINE,
     TRADE_OPS_PROMPT_LINE,
     NPC_AGENCY_OPS_PROMPT_LINE,
+    RELATIONSHIP_OPS_PROMPT_LINE,
 } from './gmPromptBuilderCore';
 import {
     buildChronicle,
@@ -702,6 +703,9 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     }
     if (rules.enableNpcAgency && rules.enableNpcRegistry) {
         lines.push(NPC_AGENCY_OPS_PROMPT_LINE);
+        if (rules.enableNpcRelationships) {
+            lines.push(RELATIONSHIP_OPS_PROMPT_LINE);
+        }
     }
 
     if (forge.factions.length > 0) {

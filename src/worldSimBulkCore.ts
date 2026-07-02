@@ -16,6 +16,8 @@ export interface BulkWorldSimOptions {
     steps: number;
     enableNpcRegistry: boolean;
     maxSteps?: number;
+    /** Optional hook after each simulation step (e.g. Living World market/NPC tick). */
+    afterStep?: (state: WorldState, stepEvents: WorldChangeEvent[]) => WorldState;
 }
 
 export interface BulkWorldSimNotableEvent {
@@ -108,7 +110,7 @@ export function runBulkWorldSimulation(
             const { registry: updated } = applyEventsToNpcRegistry(stepEvents, reg, forge);
             reg = updated;
         }
-        current = next;
+        current = options.afterStep ? options.afterStep(next, stepEvents) : next;
     }
 
     generateQuestHooks(current, reg, false);

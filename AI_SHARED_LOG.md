@@ -1,5 +1,23 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Grok - Living World v1.24.0 (bulk sim tick + UI polish)
+
+### Summary
+
+- **Critical fix:** `elapsedWorldTurns` / bulk sim now runs Living World market+NPC tick via `afterStep` hook in `worldSimBulkCore` → `worldSimPersist`.
+- **World tab Caravan panel** — credits / food / transport / cargo.
+- **NPC whereabouts** — reason/agenda inline in UI.
+- **Debug sandbox** — 「小麦相場を2倍に」 → `applyMarketPriceMultiplier()`.
+- trade-routes README playthrough checklist. Version **1.24.0**.
+
+### Verification
+
+- `node scripts/build-webview.js`
+- `npm run compile`
+- `npm test` (73/73)
+
+---
+
 ## 2026-07-02 JST - Grok - Living World v1.23.0 finish (post-Codex)
 
 ### Summary

@@ -5108,6 +5108,9 @@ function renderWorldView(msg) {
     // Living World recent events
     renderRecentChanges(msg.recentChanges || [], msg.simEnabled);
 
+    // Player commerce (credits / food / cargo)
+    renderPlayerCommerce(msg.playerCommerce || null, msg.enableCommerce === true);
+
     // Living World market prices
     renderLivingWorldMarkets(msg.livingWorldMarkets || [], msg.enableCommerce === true);
 
@@ -5149,8 +5152,24 @@ function ensureCartographyStyles() {
         .world-map-panel.hidden { display: none !important; }
         .world-map-items-section { margin-top: 0.65rem; font-size: 0.9em; }
         .world-map-items-section.hidden { display: none !important; }
+        #world-commerce-details.hidden { display: none !important; }
         #world-markets-details.hidden { display: none !important; }
         #world-npc-whereabouts-details.hidden { display: none !important; }
+        .world-commerce-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.28rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.9em;
+        }
+        .world-commerce-row:last-child { border-bottom: none; }
+        .world-npc-reason {
+            grid-column: 1 / -1;
+            font-size: 0.8em;
+            opacity: 0.72;
+            margin-top: 0.15rem;
+        }
         .world-market-card {
             margin: 0.45rem 0;
             padding: 0.5rem;
@@ -6345,6 +6364,31 @@ function formatMarketNumber(value, digits = 0) {
     return n.toFixed(digits);
 }
 
+function renderPlayerCommerce(commerce, commerceEnabled) {
+    const section = document.getElementById('world-commerce-details');
+    const panel = document.getElementById('world-commerce-panel');
+    if (!section || !panel) { return; }
+
+    const visible = commerceEnabled && commerce && typeof commerce.credits === 'number';
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    const cargo = Array.isArray(commerce.cargo) ? commerce.cargo : [];
+    const cargoLines = cargo.length > 0
+        ? cargo.map((c) => `${escapeHtml(c.commodityId || '?')} × ${escapeHtml(c.qty ?? 0)}`).join(', ')
+        : escapeHtml(T('webview.world.commerceCargoEmpty'));
+
+    panel.innerHTML = `
+        <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceCredits'))}</span><strong>${escapeHtml(commerce.credits)}</strong></div>
+        <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceFood'))}</span><strong>${escapeHtml(commerce.food ?? 30)}</strong></div>
+        <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceTransport'))}</span><code class="patch-value">${escapeHtml(commerce.transportId || 'wagon')}</code></div>
+        <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceCargo'))}</span><span>${cargoLines}</span></div>
+    `;
+}
+
 function renderLivingWorldMarkets(markets, commerceEnabled) {
     const section = document.getElementById('world-markets-details');
     const list = document.getElementById('world-markets-list');
@@ -6415,6 +6459,10 @@ function renderNpcWhereabouts(payload) {
         `;
         if (npc.reason || npc.agenda) {
             row.title = [npc.agenda, npc.reason].filter(Boolean).join(' / ');
+            const note = document.createElement('div');
+            note.className = 'world-npc-reason';
+            note.textContent = npc.reason || npc.agenda;
+            row.appendChild(note);
         }
         list.appendChild(row);
     });

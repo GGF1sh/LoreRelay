@@ -30,6 +30,7 @@ const expectedSymbols = [
     'generateWorldMapImage',
     'latestImageRawPath',
     'imagePathsLooselyMatch',
+    'renderPlayerCommerce',
     'renderLivingWorldMarkets',
     'renderLivingWorldOps',
     'renderNpcWhereabouts',

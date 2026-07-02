@@ -10,6 +10,7 @@ import {
     runBulkWorldSimulation,
     type BulkWorldSimSummary,
 } from './worldSimBulkCore';
+import { applyLivingWorldAfterSimulationStep } from './emergentSimulator';
 
 export type WorldSimPersistFailureReason = 'SIM_OFF' | 'NO_FORGE' | 'INVALID_STEPS';
 
@@ -53,6 +54,7 @@ export function persistWorldSimulationSteps(
         steps: clamped,
         enableNpcRegistry: enableNpc,
         maxSteps,
+        afterStep: (next) => applyLivingWorldAfterSimulationStep(forge, next, registry),
     });
 
     if (!result.ok) {

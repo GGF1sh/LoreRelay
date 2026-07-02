@@ -17,7 +17,7 @@ import { buildCartographyPinPositions, buildCartographyRegionLabels } from './ca
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
-import type { GameStateWorld } from './types/GameState';
+import type { GameState, GameStateWorld } from './types/GameState';
 import {
     buildFogPayload,
     buildFogRegionLayout,
@@ -40,15 +40,48 @@ export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | unde
     getPanelRef = deps.getPanel;
 }
 
-function loadWorldBlockFromDisk(): GameStateWorld | undefined {
+function loadGameStateSnapshotFromDisk(): Pick<GameState, 'world' | 'commerce'> | undefined {
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) { return undefined; }
     try {
-        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as { world?: GameStateWorld };
-        return raw.world;
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Pick<GameState, 'world' | 'commerce'>;
+        return raw;
     } catch {
         return undefined;
     }
+}
+
+function loadWorldBlockFromDisk(): GameStateWorld | undefined {
+    return loadGameStateSnapshotFromDisk()?.world;
+}
+
+function buildPlayerCommercePayload(
+    commerce: GameState['commerce'] | undefined,
+    commerceEnabled: boolean
+): {
+    credits: number;
+    food: number;
+    transportId: string;
+    cargo: Array<{ commodityId: string; qty: number }>;
+} | null {
+    if (!commerceEnabled || !commerce || typeof commerce.credits !== 'number') {
+        return null;
+    }
+    const cargo = Array.isArray(commerce.cargo)
+        ? commerce.cargo
+            .filter((c) => c && typeof c.commodityId === 'string' && typeof c.qty === 'number')
+            .map((c) => ({
+                commodityId: c.commodityId,
+                qty: Math.max(0, Math.floor(c.qty)),
+            }))
+            .slice(0, 24)
+        : [];
+    return {
+        credits: Math.max(0, Math.floor(commerce.credits)),
+        food: typeof commerce.food === 'number' ? Math.max(0, Math.floor(commerce.food)) : 30,
+        transportId: typeof commerce.transportId === 'string' ? commerce.transportId : 'wagon',
+        cargo,
+    };
 }
 
 export interface WorldViewFaction {
@@ -314,6 +347,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             ensureLivingWorldMarkets(commerceForge, worldState as any)
         )
         : [];
+    const gameSnapshot = loadGameStateSnapshotFromDisk();
+    const playerCommerce = buildPlayerCommercePayload(
+        gameSnapshot?.commerce,
+        gameRules.enableCommerce === true
+    );
 
     panel.webview.postMessage({
         type: 'worldView',
@@ -339,6 +377,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         recentChanges: activeChanges,
         questHooks: worldState?.questHooks ?? [],
         livingWorldMarkets,
+        playerCommerce,
         worldTurn: worldTurn ?? null,
         simEnabled,
         enableCommerce: gameRules.enableCommerce === true,

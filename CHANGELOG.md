@@ -9,6 +9,19 @@
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-07-02
+
+### Fixed
+
+- **Travel / bulk sim Living World tick** — `persistWorldSimulationSteps()` now runs `applyLivingWorldAfterSimulationStep()` after each emergent sim step so `elapsedWorldTurns` advances markets and NPC positions (was faction-only).
+
+### Added
+
+- **World tab Caravan panel** — read-only `credits` / `food` / `transport` / `cargo` from `game_state.commerce`.
+- **NPC whereabouts reason** — agenda/reason shown inline (not tooltip-only).
+- **Debug market command** — sandbox phrase e.g. 「小麦相場を2倍に」 applies `applyMarketPriceMultiplier()` to `world_state.markets`.
+- **Tests** — `test_world_sim_living_world.js`, `test_market_price_multiplier.js`; trade-routes README playthrough checklist.
+
 ## [1.23.0] - 2026-07-02
 
 ### Added

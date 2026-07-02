@@ -197,3 +197,27 @@ export function computeSinceLastVisitDelta(input: SinceLastVisitInput): SinceLas
 
     return { locationId: input.locationId, turnsAway, changes };
 }
+
+/** Debug / GM override: multiply priceIndex at one market commodity (clamped). */
+export function applyMarketPriceMultiplier(
+    markets: MarketStateMap,
+    locationId: string,
+    commodityId: string,
+    multiplier: number
+): { markets: MarketStateMap; applied: boolean } {
+    if (!Number.isFinite(multiplier) || multiplier <= 0) {
+        return { markets, applied: false };
+    }
+    const loc = markets[locationId];
+    const entry = loc?.[commodityId];
+    if (!entry) {
+        return { markets, applied: false };
+    }
+    const next = cloneMarkets(markets);
+    const target = next[locationId][commodityId];
+    target.priceIndex = Math.max(
+        MIN_PRICE_INDEX,
+        Math.min(MAX_PRICE_INDEX, target.priceIndex * multiplier)
+    );
+    return { markets: next, applied: true };
+}

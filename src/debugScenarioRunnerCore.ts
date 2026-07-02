@@ -11,7 +11,11 @@ import {
 import { DEFAULT_GAME_RULES, loadGameRules } from './gameRules';
 import { loadNpcRegistry, applyNpcMemoryUpdates } from './npcRegistry';
 import { loadWorldForge } from './worldForge';
-import { loadWorldState } from './worldState';
+import { loadWorldState, saveWorldState } from './worldState';
+import { applyMarketPriceMultiplier } from './worldSimCommerceCore';
+import { initializeMarketState } from './commerceCore';
+import { parseCommerceForge } from './livingWorldForgeCore';
+import { loadWorldForgeDocument } from './worldForge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 import { persistWorldSimulationSteps } from './worldSimPersist';
 import { parseWorldForge } from './worldForgeCore';
@@ -124,6 +128,39 @@ function ensureWorldBlock(wsPath: string): void {
     } catch { /* ignore */ }
 }
 
+function applyDebugMarketPriceOps(
+    ops: Array<{ locationId: string; commodityId: string; multiplier: number }>
+): { ok: true } | { ok: false; reason: string } {
+    const rawDoc = loadWorldForgeDocument();
+    const commerce = parseCommerceForge(rawDoc?.commerce);
+    if (!commerce) {
+        return { ok: false, reason: 'world_forge.json に commerce ブロックがありません' };
+    }
+    const ws = loadWorldState();
+    if (!ws) {
+        return { ok: false, reason: 'world_state.json がありません' };
+    }
+    let markets = ws.markets && Object.keys(ws.markets).length > 0
+        ? ws.markets
+        : initializeMarketState(commerce);
+    let appliedAny = false;
+    for (const op of ops) {
+        const result = applyMarketPriceMultiplier(
+            markets,
+            op.locationId,
+            op.commodityId,
+            op.multiplier
+        );
+        markets = result.markets;
+        if (result.applied) { appliedAny = true; }
+    }
+    if (!appliedAny) {
+        return { ok: false, reason: '対象の市場・商品が見つかりませんでした' };
+    }
+    saveWorldState({ ...ws, markets });
+    return { ok: true };
+}
+
 function runWorldSimSteps(steps: number): {
     ok: boolean;
     summaryText?: string;
@@ -160,6 +197,18 @@ export function executeDebugScenarioTurn(
     const outcome = executeDebugCommand(parsed, ctx);
     let infoMessage: string | undefined;
     let warningMessage: string | undefined;
+
+    if (outcome.marketPriceOps?.length) {
+        const rules = loadGameRules();
+        if (!rules.enableCommerce) {
+            outcome.narration += '\n\n（Commerce が OFF のため相場は変更されませんでした）';
+        } else {
+            const applied = applyDebugMarketPriceOps(outcome.marketPriceOps);
+            if (!applied.ok) {
+                outcome.narration += `\n\n（相場変更失敗: ${applied.reason}）`;
+            }
+        }
+    }
 
     if (outcome.worldSimSteps) {
         const sim = runWorldSimSteps(outcome.worldSimSteps);

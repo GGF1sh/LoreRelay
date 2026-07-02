@@ -61,7 +61,8 @@ export type DebugCommandKind =
     | 'reveal_region'
     | 'narrative_rest'
     | 'narrative_travel'
-    | 'world_sim';
+    | 'world_sim'
+    | 'market_price_multiplier';
 
 export interface DebugParsedCommand {
     kind: DebugCommandKind;
@@ -81,6 +82,9 @@ export interface DebugParsedCommand {
     revealStrength?: RevealStrength;
     worldSimSteps?: number;
     healHp?: boolean;
+    marketLocationId?: string;
+    marketCommodityId?: string;
+    priceMultiplier?: number;
 }
 
 export interface DebugCommandOutcome {
@@ -90,6 +94,7 @@ export interface DebugCommandOutcome {
     worldSimSteps?: number;
     statePatch?: StatePatchOp[];
     options?: string[];
+    marketPriceOps?: Array<{ locationId: string; commodityId: string; multiplier: number }>;
 }
 
 export function isDebugScenarioPack(meta: { tags?: unknown } | undefined): boolean {
@@ -358,6 +363,56 @@ function parseFogCommand(text: string, ctx: DebugCommandContext): DebugParsedCom
     return { kind: 'reveal_region', regionId, revealStrength: strength };
 }
 
+const COMMODITY_ALIASES: Record<string, string> = {
+    wheat: 'wheat',
+    小麦: 'wheat',
+    steel: 'steel',
+    鋼: 'steel',
+    鋼鉄: 'steel',
+    spice: 'spice',
+    香辛料: 'spice',
+    スパイス: 'spice',
+};
+
+function isMarketPriceRequest(text: string): boolean {
+    return /相場|price/i.test(text)
+        && (/倍|multiply|multiplier/i.test(text) || /\bx\s*\d/i.test(text) || /\d\s*x\b/i.test(text));
+}
+
+function resolveCommodityId(text: string): string | undefined {
+    const lower = text.toLowerCase();
+    for (const [alias, id] of Object.entries(COMMODITY_ALIASES)) {
+        if (lower.includes(alias.toLowerCase())) {
+            return id;
+        }
+    }
+    return undefined;
+}
+
+function parseMarketPriceCommand(text: string, ctx: DebugCommandContext): DebugParsedCommand | undefined {
+    if (!isMarketPriceRequest(text)) {
+        return undefined;
+    }
+    const multMatch = /(\d+(?:\.\d+)?)\s*倍/i.exec(text)
+        ?? /[x×]\s*(\d+(?:\.\d+)?)/i.exec(text)
+        ?? /(\d+(?:\.\d+)?)\s*[x×]/i.exec(text);
+    const multiplier = multMatch ? parseFloat(multMatch[1]) : undefined;
+    if (!multiplier || !Number.isFinite(multiplier) || multiplier <= 0) {
+        return undefined;
+    }
+    const commodityId = resolveCommodityId(text) ?? 'wheat';
+    const locationId = resolveLocationId(text, ctx) ?? ctx.currentLocationId ?? ctx.locations[0]?.id;
+    if (!locationId) {
+        return undefined;
+    }
+    return {
+        kind: 'market_price_multiplier',
+        marketLocationId: locationId,
+        marketCommodityId: commodityId,
+        priceMultiplier: multiplier,
+    };
+}
+
 function parseWorldSimCommand(text: string): DebugParsedCommand | undefined {
     if (!isWorldSimRequest(text)) {
         return undefined;
@@ -435,6 +490,11 @@ export function parseDebugCommand(input: string, ctx: DebugCommandContext): Debu
     const sim = parseWorldSimCommand(text);
     if (sim) {
         return sim;
+    }
+
+    const market = parseMarketPriceCommand(text, ctx);
+    if (market) {
+        return market;
     }
 
     return null;
@@ -524,6 +584,9 @@ export function buildHelpNarration(ctx: DebugCommandContext): string {
         '**時間経過（物語層）**',
         '・「宿で休む」（+1ターン・HP回復） / 「3日かけてエルダの店へ旅する」',
         '・「5ターン経過」（世界シミュのみ）',
+        '',
+        '**Living World 相場（デバッグ）**',
+        '・「小麦相場を2倍に」（現在地の市場 priceIndex を乗算）',
         '',
         `**地域例:** ${regionExamples}`,
         '・「状態」「ヘルプ」',
@@ -720,6 +783,16 @@ export function executeDebugCommand(
             return {
                 narration: `世界シミュを **${steps}** ステップ進めます（GM会話ターンは増えません）。`,
                 worldSimSteps: steps,
+                options: ['状態', 'ヘルプ'],
+            };
+        }
+        case 'market_price_multiplier': {
+            const loc = cmd.marketLocationId!;
+            const commodity = cmd.marketCommodityId!;
+            const mult = cmd.priceMultiplier ?? 1;
+            return {
+                narration: `相場デバッグ: **${locationLabel(ctx, loc)}** の **${commodity}** の priceIndex を **×${mult}** します。`,
+                marketPriceOps: [{ locationId: loc, commodityId: commodity, multiplier: mult }],
                 options: ['状態', 'ヘルプ'],
             };
         }

@@ -123,6 +123,17 @@ if (!buildHelpNarration(ctx).includes('デバッグサンドボックス')) {
     ok('help narration');
 }
 
+const marketCmd = parseDebugCommand('小麦相場を2倍に', {
+    ...ctx,
+    currentLocationId: 'north_farm',
+    locations: [{ id: 'north_farm', name: '北の農場' }],
+});
+if (!marketCmd || marketCmd.kind !== 'market_price_multiplier' || marketCmd.priceMultiplier !== 2) {
+    fail('parse market price multiplier', marketCmd);
+} else {
+    ok('parse market price multiplier');
+}
+
 if (failed > 0) {
     process.exit(1);
 }

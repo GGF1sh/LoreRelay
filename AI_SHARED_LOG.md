@@ -1,5 +1,23 @@
 # AI Shared Log
 
+## 2026-07-02 JST - Grok - Living World v1.23.0 finish (post-Codex)
+
+### Summary
+
+- Continued after ChatGPT/Codex overnight work (`fdfec2e`). Confirmed 69/69 baseline; added remaining LW1-PR3 + schema gaps.
+- **`commerce.food`** — travel rations on `game_state.commerce`; `applyTravelFoodConsumption()` on `elapsedWorldTurns` (pure core in `livingWorldTurnOpsCore.ts`).
+- **GM prompts** — `TRADE_OPS_PROMPT_LINE`, `NPC_AGENCY_OPS_PROMPT_LINE`, depleted-food warning when `food <= 0`.
+- **Agentic Referee** — parse/merge `tradeOps`, `npcAgencyOps`, `elapsedWorldTurns`; instructions updated.
+- Removed junk `test_write.txt`. Version **1.23.0**.
+
+### Verification
+
+- `cd lorerelay-world-kit && npm test` (5/5)
+- `npm run compile`
+- `npm test` (70/70)
+
+---
+
 ## 2026-07-02 JST - Codex - Living World overnight supervision
 
 ### Summary

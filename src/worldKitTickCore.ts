@@ -66,5 +66,5 @@ export function defaultPlayerCommerce(
     role: PlayerCommerceState['playerRole'] = 'merchant'
 ): PlayerCommerceState {
     const transportId = forge.transportKinds[0]?.id ?? 'wagon';
-    return { credits, cargo: [], transportId, playerRole: role };
+    return { credits, cargo: [], transportId, food: 30, playerRole: role };
 }

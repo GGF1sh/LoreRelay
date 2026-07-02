@@ -2,7 +2,7 @@
 
 import type { TurnResult } from './types/TurnResult';
 import type { GameState } from './types/GameState';
-import type { PlayerCommerceState, NpcRegistryLike } from './livingWorldTypes';
+import type { NpcRegistryLike } from './livingWorldTypes';
 import type { NpcRegistry } from './npcRegistryCore';
 import type { WorldState } from './worldStateCore';
 import { loadGameRules } from './gameRules';
@@ -12,6 +12,13 @@ import { loadNpcRegistry } from './npcRegistry';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { parseTradeOps, applyTradeOps, initializeMarketState } from './commerceCore';
 import { parseNpcAgencyOps, applyNpcAgencyOps } from './npcAgencyCore';
+import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
+import {
+    getOrInitPlayerCommerce,
+    applyTravelFoodConsumption,
+} from './livingWorldTurnOpsCore';
+
+export { getOrInitPlayerCommerce, applyTravelFoodConsumption } from './livingWorldTurnOpsCore';
 
 function registryToAgencyLike(registry: NpcRegistry): NpcRegistryLike {
     const out: NpcRegistryLike = {};
@@ -23,14 +30,6 @@ function registryToAgencyLike(registry: NpcRegistry): NpcRegistryLike {
         };
     }
     return out;
-}
-
-export function getOrInitPlayerCommerce(state: GameState): PlayerCommerceState {
-    const existing = (state as GameState & { commerce?: PlayerCommerceState }).commerce;
-    if (existing && typeof existing.credits === 'number') {
-        return existing;
-    }
-    return { credits: 500, cargo: [], transportId: 'wagon', playerRole: 'merchant' };
 }
 
 export function applyLivingWorldTurnOps(
@@ -45,6 +44,10 @@ export function applyLivingWorldTurnOps(
     const commerce = parseCommerceForge(rawDoc?.commerce);
 
     if (rules.enableCommerce && commerce) {
+        const elapsed = clampElapsedWorldTurns(turnResult.elapsedWorldTurns, 100);
+        if (elapsed > 0) {
+            nextGame = applyTravelFoodConsumption(nextGame, elapsed, commerce);
+        }
         const ops = parseTradeOps(turnResult.tradeOps);
         if (ops.length > 0) {
             const ws = loadWorldState();

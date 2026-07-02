@@ -52,6 +52,8 @@ export interface PlayerCommerceState {
     credits: number;
     cargo: CargoEntry[];
     transportId: string;
+    /** Travel rations (units). Clamped to 0 on consumption. */
+    food?: number;
     playerRole?: PlayerRole;
 }
 

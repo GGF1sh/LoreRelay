@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-07-02
+
+### Added
+
+- **Living World LW1-PR2/PR3/LW2/LW-DEMO (Codex overnight + Grok finish)** — World tab read-only market table; Inspector `tradeOps` / `npcAgencyOps`; NPC whereabouts (≤10 clamp); travel-plan GM block; `sample-scenarios/trade-routes` demo pack.
+- **`commerce.food`** — travel rations on `game_state.commerce`; deducted on `elapsedWorldTurns` (clamped at 0); depleted-food warning in GM prompt.
+- **GM schema hints** — `TRADE_OPS_PROMPT_LINE` / `NPC_AGENCY_OPS_PROMPT_LINE` in world prompt; agentic Referee JSON shape documents `tradeOps`, `npcAgencyOps`, `elapsedWorldTurns`.
+- **`scripts/test_living_world_turn_ops.js`** — food consumption unit tests.
+
 ## [1.22.1] - 2026-07-02
 
 ### Fixed

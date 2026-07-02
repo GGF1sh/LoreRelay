@@ -66,6 +66,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_travel_encounter_core.js' },
     { category: 'unit', file: 'test_replay_export_core.js' },
     { category: 'unit', file: 'test_living_world_bridge.js' },
+    { category: 'unit', file: 'test_living_world_turn_ops.js' },
     { category: 'unit', file: 'test_since_last_visit_host.js' },
     { category: 'unit', file: 'test_npc_registry.js' },
     { category: 'unit', file: 'test_npc_voice_core.js' },

@@ -144,6 +144,7 @@ export interface GameState {
         credits: number;
         cargo: Array<{ commodityId: string; qty: number }>;
         transportId: string;
+        food?: number;
         playerRole?: string;
     };
 }

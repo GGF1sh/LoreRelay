@@ -38,6 +38,13 @@ const refereeJson = {
     resolvedQuests: ['quest_event_wce_1_region_r1'],
     media: { bgm: 'dungeon_theme' },
     refereeNotes: 'The ruins feel unstable.',
+    elapsedWorldTurns: 3,
+    tradeOps: [
+        { op: 'buy', marketLocationId: 'north_farm', commodityId: 'wheat', qty: 5 },
+    ],
+    npcAgencyOps: [
+        { npcId: 'npc_elda', locationId: 'south_port', arrivesTurn: 12 },
+    ],
 };
 
 const narratorJson = {
@@ -100,6 +107,24 @@ const narratorJson = {
         fail('media merge preserves referee and overlays narrator');
     } else {
         ok('media merge preserves referee and overlays narrator');
+    }
+
+    if (result.elapsedWorldTurns !== 3) {
+        fail('elapsedWorldTurns comes from referee');
+    } else {
+        ok('elapsedWorldTurns comes from referee');
+    }
+
+    if (result.tradeOps?.[0]?.commodityId !== 'wheat') {
+        fail('tradeOps comes from referee');
+    } else {
+        ok('tradeOps comes from referee');
+    }
+
+    if (result.npcAgencyOps?.[0]?.npcId !== 'npc_elda') {
+        fail('npcAgencyOps comes from referee');
+    } else {
+        ok('npcAgencyOps comes from referee');
     }
 }
 
@@ -213,6 +238,12 @@ const narratorJson = {
         fail('agentic prompts include stdout fallback for non-file runtimes');
     } else {
         ok('agentic prompts include stdout fallback for non-file runtimes');
+    }
+
+    if (!refereePrompt.includes('tradeOps') || !refereePrompt.includes('npcAgencyOps')) {
+        fail('referee prompt documents Living World ops channels');
+    } else {
+        ok('referee prompt documents Living World ops channels');
     }
 }
 

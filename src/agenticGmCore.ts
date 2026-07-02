@@ -11,6 +11,9 @@ import type {
     TurnResult,
 } from './types/TurnResult';
 import { parseCartographyReveal } from './cartographyRevealCore';
+import { parseTradeOps } from './commerceCore';
+import { parseNpcAgencyOps } from './npcAgencyCore';
+import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import { isValidEventId } from './worldEventLogCore';
 
 export type AgenticStage = 'referee' | 'narrator';
@@ -47,6 +50,9 @@ export interface RefereeResultCandidate {
     media?: TurnMediaRequest;
     refereeNotes?: string;
     cartographyReveal?: CartographyReveal;
+    elapsedWorldTurns?: number;
+    tradeOps?: TurnResult['tradeOps'];
+    npcAgencyOps?: TurnResult['npcAgencyOps'];
 }
 
 export interface NarratorResultCandidate {
@@ -90,7 +96,11 @@ Required JSON shape:
   "statePatch": [],
   "resolvedQuests": [],
   "media": {},
-  "refereeNotes": "short summary for narrator"
+  "refereeNotes": "short summary for narrator",
+  "elapsedWorldTurns": 0,
+  "tradeOps": [],
+  "npcAgencyOps": [],
+  "cartographyReveal": {}
 }
 
 Rules:
@@ -99,6 +109,10 @@ Rules:
 - If no mechanical change is needed, statePatch may be [].
 - resolvedQuests must contain only completed Quest Hook ids.
 - refereeNotes must be short and must not include hidden chain-of-thought.
+- elapsedWorldTurns (0-100): world sim steps when player rests or travels multiple days.
+- tradeOps (max 16): buy/sell at markets — Core applies prices; narrate negotiation only.
+- npcAgencyOps (max 10): NPC relocations { npcId, locationId, arrivesTurn }.
+- cartographyReveal: optional map FoW reveal (regions array).
 `.trim();
 
 const NARRATOR_INSTRUCTIONS = `
@@ -384,6 +398,18 @@ export function parseRefereeResultJson(text: string): RefereeResultCandidate | n
     if (cartographyReveal) {
         candidate.cartographyReveal = cartographyReveal;
     }
+    const elapsedWorldTurns = clampElapsedWorldTurns(doc.elapsedWorldTurns, 100);
+    if (elapsedWorldTurns > 0) {
+        candidate.elapsedWorldTurns = elapsedWorldTurns;
+    }
+    const tradeOps = parseTradeOps(doc.tradeOps);
+    if (tradeOps.length > 0) {
+        candidate.tradeOps = tradeOps;
+    }
+    const npcAgencyOps = parseNpcAgencyOps(doc.npcAgencyOps);
+    if (npcAgencyOps.length > 0) {
+        candidate.npcAgencyOps = npcAgencyOps;
+    }
     return candidate;
 }
 
@@ -500,6 +526,15 @@ export function mergeAgenticTurnResult(input: {
     }
     if (referee.cartographyReveal) {
         result.cartographyReveal = referee.cartographyReveal;
+    }
+    if (referee.elapsedWorldTurns && referee.elapsedWorldTurns > 0) {
+        result.elapsedWorldTurns = referee.elapsedWorldTurns;
+    }
+    if (referee.tradeOps?.length) {
+        result.tradeOps = referee.tradeOps;
+    }
+    if (referee.npcAgencyOps?.length) {
+        result.npcAgencyOps = referee.npcAgencyOps;
     }
     const media = mergeAgenticMedia(referee.media, narrator?.media);
     if (media) {

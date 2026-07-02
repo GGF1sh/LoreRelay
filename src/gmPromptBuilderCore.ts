@@ -290,6 +290,19 @@ export const CARTOGRAPHY_REVEAL_PROMPT_LINE =
     + '(strength "discovered" for a real map, "rumored" for hearsay). Narrate in the same turn. '
     + 'Max 3 regions per turn. Do NOT use statePatch /world for FoW.';
 
+/** LW1: dedicated tradeOps channel (C9 cartographyReveal pattern). */
+export const TRADE_OPS_PROMPT_LINE =
+    'When the player buys or sells goods at a market, set turn_result.tradeOps '
+    + '(max 16): [{ "op": "buy"|"sell", "marketLocationId": "<locationId>", '
+    + '"commodityId": "<id>", "qty": <1-999> }]. Core applies prices, stock, credits, and cargo; '
+    + 'narrate negotiation only — do not invent final numbers.';
+
+/** LW2: GM-confirmed NPC relocations (world sim may also move NPCs). */
+export const NPC_AGENCY_OPS_PROMPT_LINE =
+    'When an NPC must relocate for story or mechanical reasons, set turn_result.npcAgencyOps '
+    + '(max 10): [{ "npcId": "<id>", "locationId": "<locationId>", "arrivesTurn": <worldTurn> }]. '
+    + 'Core reconciles with registry and world sim.';
+
 const FOG_PROMPT_SUFFIX = '. Do not narrate their interiors as known facts.';
 
 /**

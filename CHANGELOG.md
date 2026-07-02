@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **テストランナー統合（Phase 1）** — `scripts/run_all_tests.js` で validate / unit / smoke をマニフェスト駆動実行。`npm test` / `test:unit` / `test:smoke` / `test:validate` に分割。`TESTING.md` 追加。README に CI バッジ。
+
 ## [1.14.2] - 2026-07-02
 
 ### Added

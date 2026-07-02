@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+## [1.14.2] - 2026-07-02
+
 ### Added
 
 - Prompt Budget controls: `textAdventure.promptBudget.mode` (`auto` / `compact` / `balanced` / `expanded`) and `textAdventure.promptBudget.maxTokens` now cap GM prompt context from Story Summary, Saga, Memory Bank, Lorebook, Party cards, NPC awareness, World State, and Vision snippets. Turn Inspector shows the active budget target next to the estimated injected tokens.

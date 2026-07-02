@@ -33,6 +33,7 @@ import { buildMarketPriceTable } from './commerceCore';
 import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
 import { listNotableRelationships, applyIntroductionTrustBoost } from './npcRelationshipCore';
+import { deepestMilestone } from './npcLifeEventsCore';
 import { listNpcPresence } from './npcAgencyCore';
 import {
     formatWhereaboutsForDisplay,
@@ -179,12 +180,14 @@ interface WorldViewNpcBond {
     nameB: string;
     /** 'ally' | 'friend' | 'rival' | 'enemy' — raw affinity never leaves the host. */
     label: string;
+    /** LW3-L: 到達した決定的な転機(sworn_allies/inseparable/estranged 等)。無ければ省略。 */
+    milestone?: string;
 }
 
 /** LW3: notable bonds between named NPCs (labels only, no numbers). */
 function buildNpcBondsPayload(
     registry: ReturnType<typeof loadNpcRegistry>,
-    worldState: { npcRelationships?: Record<string, number> } | undefined,
+    worldState: { npcRelationships?: Record<string, number>; npcMilestones?: Record<string, string[]> } | undefined,
     relationshipsEnabled: boolean
 ): WorldViewNpcBond[] {
     if (!relationshipsEnabled || !worldState?.npcRelationships) { return []; }
@@ -192,8 +195,14 @@ function buildNpcBondsPayload(
     for (const [id, npc] of Object.entries(registry.npcs)) {
         registryLike[id] = { name: npc.name, locationId: npc.locationId, factionId: npc.factionId };
     }
+    const milestones = worldState.npcMilestones ?? {};
     return listNotableRelationships(worldState.npcRelationships, registryLike)
-        .map((n) => ({ nameA: n.nameA, nameB: n.nameB, label: n.label }));
+        .map((n) => ({
+            nameA: n.nameA,
+            nameB: n.nameB,
+            label: n.label,
+            milestone: deepestMilestone(milestones, n.a, n.b),
+        }));
 }
 
 function buildNpcWhereaboutsPayload(

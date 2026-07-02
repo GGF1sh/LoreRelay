@@ -30,6 +30,7 @@ import {
     applyIntroductionTrustBoost,
 } from './npcRelationshipCore';
 import { applyBondMarketEffects } from './npcBondEffectsCore';
+import { detectLifeEvents, buildLifeEventMessage, buildLifeEventGmHint } from './npcLifeEventsCore';
 import { makeWorldChangeEvent, mergeRecentChanges } from './worldEventLogCore';
 
 export interface LivingWorldWorldStateExt {
@@ -41,6 +42,8 @@ export interface LivingWorldWorldStateExt {
     marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
     /** LW3: NPC間関係 — ペアキー "idA|idB" → affinity [-100,100]. */
     npcRelationships?: NpcRelationshipMap;
+    /** LW3-L: 到達済みライフイベント — ペアキー → マイルストーン id 配列. */
+    npcMilestones?: Record<string, string[]>;
 }
 
 function cloneLocationMarketSnapshot(
@@ -164,6 +167,29 @@ export function tickLivingWorldAfterSim(
         const bondEvents = buildBondTransitionEvents(evolved.changes, agencyRegistry, state.worldTurn);
         if (bondEvents.length > 0) {
             state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], bondEvents);
+        }
+
+        // LW3-L: 決定的な転機(盟友の契り/離れがたい仲/宿敵/決別/和解)を一度だけ昇格。
+        const life = detectLifeEvents({
+            relationships: ext.npcRelationships ?? {},
+            milestones: ext.npcMilestones ?? {},
+            registry: agencyRegistry,
+            worldTurn: state.worldTurn,
+        });
+        ext.npcMilestones = life.milestones;
+        if (life.events.length > 0) {
+            const lifeChanges = life.events.map((ev) => makeWorldChangeEvent({
+                worldTurn: state.worldTurn,
+                category: 'npc',
+                severity: ev.kind === 'bitter_enemies' || ev.kind === 'estranged' ? 'warning' : 'info',
+                source: 'simulation',
+                message: buildLifeEventMessage(ev, agencyRegistry),
+                gmHint: buildLifeEventGmHint(ev.kind),
+                npcIds: [ev.a, ev.b],
+                expiresAfterTurns: 20,
+                idSuffix: `life_${ev.a}_${ev.b}_${ev.kind}`,
+            }));
+            state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], lifeChanges);
         }
 
         // LW3-W: 絆が世界へ波及 — 盟友ペアは市場間に物流(+在庫)、敵対ペアは価格摩擦。

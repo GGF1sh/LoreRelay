@@ -1834,6 +1834,16 @@ const NPC_BOND_LABEL_KEY = {
     enemy: 'webview.world.npcBondEnemy',
 };
 const NPC_BOND_ICON = { ally: '🤝', friend: '🙂', rival: '⚡', enemy: '⚔️' };
+const NPC_MILESTONE_KEY = {
+    sworn_allies: 'webview.world.milestoneSwornAllies',
+    inseparable: 'webview.world.milestoneInseparable',
+    bitter_enemies: 'webview.world.milestoneBitterEnemies',
+    estranged: 'webview.world.milestoneEstranged',
+    reconciled: 'webview.world.milestoneReconciled',
+};
+const NPC_MILESTONE_ICON = {
+    sworn_allies: '🛡️', inseparable: '💠', bitter_enemies: '🗡️', estranged: '💔', reconciled: '🕊️',
+};
 
 function renderNpcBonds(bonds) {
     const section = document.getElementById('world-npc-bonds-details');
@@ -1855,9 +1865,15 @@ function renderNpcBonds(bonds) {
         const icon = NPC_BOND_ICON[bond.label] || '•';
         const labelKey = NPC_BOND_LABEL_KEY[bond.label];
         const labelText = labelKey ? T(labelKey) : (bond.label || '?');
+        let milestoneTag = '';
+        if (bond.milestone && NPC_MILESTONE_KEY[bond.milestone]) {
+            const mIcon = NPC_MILESTONE_ICON[bond.milestone] || '✦';
+            milestoneTag = `<span class="tag-item" style="opacity:0.85;">${mIcon} ${escapeHtml(T(NPC_MILESTONE_KEY[bond.milestone]))}</span>`;
+        }
         row.innerHTML = `
             <strong>${escapeHtml(bond.nameA || '?')} × ${escapeHtml(bond.nameB || '?')}</strong>
             <span class="tag-item">${icon} ${escapeHtml(labelText)}</span>
+            ${milestoneTag}
         `;
         list.appendChild(row);
     });

@@ -81,6 +81,8 @@ export interface WorldState {
     marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
     /** LW3: NPC間関係 — 正規化ペアキー "idA|idB" → affinity [-100,100] (Relationships ON). */
     npcRelationships?: Record<string, number>;
+    /** LW3-L: 到達済みライフイベント — ペアキー → マイルストーン id 配列(一度きり発火の記録). */
+    npcMilestones?: Record<string, string[]>;
 }
 
 // --- パーサーユーティリティ ---
@@ -302,6 +304,29 @@ function parseNpcRelationships(raw: unknown): Record<string, number> | undefined
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+const VALID_MILESTONE_KINDS = new Set([
+    'sworn_allies', 'inseparable', 'bitter_enemies', 'estranged', 'reconciled',
+]);
+const MAX_PARSE_MILESTONE_PAIRS = 64;
+const MAX_PARSE_MILESTONES_PER_PAIR = 8;
+
+function parseNpcMilestones(raw: unknown): Record<string, string[]> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, string[]> = {};
+    let count = 0;
+    for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_PARSE_MILESTONE_PAIRS) { break; }
+        const sep = key.indexOf('|');
+        if (sep <= 0 || sep >= key.length - 1) { continue; }
+        if (!Array.isArray(val)) { continue; }
+        const kinds = val
+            .filter((k): k is string => typeof k === 'string' && VALID_MILESTONE_KINDS.has(k))
+            .slice(0, MAX_PARSE_MILESTONES_PER_PAIR);
+        if (kinds.length > 0) { out[key] = kinds; count++; }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function parseWorldState(raw: unknown): WorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;
@@ -359,6 +384,7 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         lastVisitTurnByLocation: parseTurnByLocation(doc.lastVisitTurnByLocation),
         marketSnapshotByLocation: parseLocationSnapshotMap(doc.marketSnapshotByLocation),
         npcRelationships: parseNpcRelationships(doc.npcRelationships),
+        npcMilestones: parseNpcMilestones(doc.npcMilestones),
     };
 }
 

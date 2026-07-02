@@ -1,5 +1,27 @@
 # AI Shared Log
 
+## 2026-07-02 JST (深夜) - Claude Opus 4.8 - v1.31.0 LW3-L 関係のライフイベント(北極星最深部)
+
+### Summary
+
+- **`npcLifeEventsCore.ts`** — affinity が極端閾値を跨いだ瞬間の「決定的転機」を一度だけ発火(決定論): 盟友の契り(≥85) / 離れがたい仲(≥95) / 宿敵(≤-85) / 決別(契り後に0未満) / 和解(宿敵後に+10)。`world_state.npcMilestones`(ペアキー→到達id)で再発火抑制。
+- **伝聞化** — 転機を `recentChanges`(category npc, expires 20)に昇格 → Since-last-visit で GM に届く。**theme-neutral**: "inseparable" は深い友情/恋/義兄弟のいずれにも読めると gmHint 明示。**破壊的削除なし**(意味づけは GM)。
+- **UI** — World タブ Bonds 行にマイルストーンバッジ(🛡️盟友の契り/💠離れがたい仲/🗡️宿敵/💔決別/🕊️和解, 4ロケール)。raw affinity 非送信のまま。
+- 双方向ループ(v1.29→v1.30)の上に「転機」層が乗り、ガンパレの emergent drama に最も近づいた。
+- trade-routes README 手順10。
+
+### Verification
+
+- `npm run compile` · `npm test` (**80/80** — 新規 `test_npc_life_events_core.js` 15件 + host統合3件)
+
+### Next (v1+ 候補)
+
+- ライフイベントの World タブ「共有史」タイムライン表示(listPairMilestones)
+- ally_trade / enemy_friction の噂イベント化(v1.30 の残タスク)
+- プレイヤー↔NPC の関係にも life events を拡張(現状は NPC↔NPC のみ)
+
+---
+
 ## 2026-07-02 JST (深夜) - Claude Fable 5 - v1.30.0 LW3-W 絆の世界波及(双方向ループ完成)
 
 ### Summary

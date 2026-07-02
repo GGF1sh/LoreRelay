@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-07-02
+
+### Added
+
+- **LW3-L: 関係のライフイベント（北極星の最深部・ガンパレの「転機」）** — `src/npcLifeEventsCore.ts`（決定論・自己完結）。affinity が極端な閾値を跨いだ瞬間だけ「決定的な転機」を**一度きり**発火:
+  - **盟友の契り**（sworn_allies, ≥85） / **離れがたい仲**（inseparable, ≥95） / **宿敵**（bitter_enemies, ≤-85）
+  - **決別**（estranged — 契りを交わした二人が 0 未満に割る） / **和解**（reconciled — 宿敵が +10 まで戻る）
+  - 各転機は `world_state.npcMilestones`（ペアキー→到達 id）に記録され再発火しない。世界の伝聞イベント（`recentChanges`, category `npc`, expires 20）に昇格し、Since-last-visit / World Changes で GM に届く。
+- **theme-neutral な解釈** — "inseparable" は世界観次第で**深い友情・恋・義兄弟**のいずれにも読める、と gmHint で明示（押し付けない）。数値は絶対に出さない。**破壊的な NPC 削除はしない**（転機は「出来事」として提示、意味づけは GM）。
+- **World タブ表示** — Bonds 行に到達したマイルストーンをバッジ表示（🛡️盟友の契り / 💠離れがたい仲 / 🗡️宿敵 / 💔決別 / 🕊️和解、4ロケール i18n）。raw affinity は非送信のまま。
+- **Tests** — `test_npc_life_events_core.js`（15件・単独コンパイル型）+ host 統合3件（inseparable 発火→milestone 永続化→再発火せず、npcMilestones の parse round-trip）。**80/80**。
+
 ## [1.30.0] - 2026-07-02
 
 ### Added

@@ -10,6 +10,9 @@ const root = path.join(__dirname, '..');
 let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
 function ok(msg) { console.log(`OK: ${msg}`); }
+function eq(actual, expected, msg) {
+    if (actual === expected) { ok(msg); } else { fail(`${msg} (got ${JSON.stringify(actual)}, want ${JSON.stringify(expected)})`); }
+}
 
 const paths = [
     'out/worldStateCore.js',
@@ -236,6 +239,45 @@ function freshState(extra) {
     const portStock = state.markets.south_port.wheat.stock;
     if (eldaStock > 30 && portStock > 30) { ok(`ally trade route boosts both markets (${eldaStock}/${portStock})`); }
     else { fail(`ally trade stock (got ${eldaStock}/${portStock})`); }
+}
+
+// 12. LW3-L ライフイベント — inseparable(95)到達で転機イベントが recentChanges に一度だけ乗り、
+//     npcMilestones に記録されて再発火しない
+{
+    const seed = {}; seed[pairKey('npc_elda', 'npc_marcus')] = 95;
+    const state = freshState({ npcRelationships: seed });
+    tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_ON, undefined);
+    const lifeEvents = (state.recentChanges || []).filter((e) => e.category === 'npc' && /離れがたい/.test(e.message));
+    if (lifeEvents.length === 1) { ok('life event fires on inseparable'); }
+    else { fail(`life event (got ${JSON.stringify((state.recentChanges||[]).map(e=>e.message))})`); }
+    if (state.npcMilestones && (state.npcMilestones[pairKey('npc_elda','npc_marcus')]||[]).includes('inseparable')) {
+        ok('milestone persisted on world_state');
+    } else { fail('milestone persisted'); }
+
+    // 2周目: 記録済みなので再発火しない
+    state.recentChanges = [];
+    tickLivingWorldAfterSim(FORGE, state, REGISTRY, RULES_ON, undefined);
+    const again = (state.recentChanges || []).filter((e) => /離れがたい/.test(e.message));
+    eq(again.length, 0, 'life event does not refire once reached');
+}
+
+// 13. parseWorldState が npcMilestones を検証付きで round-trip
+{
+    const parsed = parseWorldState({
+        worldTurn: 5, factions: {},
+        npcMilestones: {
+            'npc_elda|npc_marcus': ['sworn_allies', 'bogus_kind', 'inseparable'],
+            'bad-key': ['sworn_allies'],
+        },
+    });
+    if (parsed && parsed.npcMilestones && parsed.npcMilestones['npc_elda|npc_marcus']) {
+        const kinds = parsed.npcMilestones['npc_elda|npc_marcus'];
+        if (kinds.includes('sworn_allies') && kinds.includes('inseparable') && !kinds.includes('bogus_kind')) {
+            ok('parse keeps valid milestone kinds, drops bogus');
+        } else { fail(`milestone kinds (${JSON.stringify(kinds)})`); }
+        if (parsed.npcMilestones['bad-key'] === undefined) { ok('parse drops bad milestone key'); }
+        else { fail('parse drops bad milestone key'); }
+    } else { fail('parse keeps npcMilestones'); }
 }
 
 if (failed > 0) { console.error(`\n${failed} failing`); process.exit(1); }

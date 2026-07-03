@@ -40,7 +40,12 @@ import { loadPartyDirector } from './partyDirector';
 import type { RelationshipType } from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, loadWorldForgeDocument, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
-import { buildLivingWorldGmLines, livingWorldEnabled, resolveCommerceForge } from './livingWorldBridge';
+import {
+    buildLivingWorldBondPromptBlocks,
+    buildLivingWorldGmLines,
+    livingWorldEnabled,
+    resolveCommerceForge,
+} from './livingWorldBridge';
 import { TRUST_WHEREABOUTS_EXACT_MIN, TRUST_WHEREABOUTS_UNKNOWN_MAX } from './npcWhereaboutsTrustCore';
 import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected, markChronicleInjected } from './worldState';
 import {
@@ -745,6 +750,17 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     return lines.join('\n');
 }
 
+function buildLivingWorldBondPromptContexts(): { npcBonds: string; playerBonds: string } {
+    if (!isWorldStateEnabled() || !livingWorldEnabled(loadGameRules())) {
+        return { npcBonds: '', playerBonds: '' };
+    }
+    const worldState = loadWorldState();
+    if (!worldState) {
+        return { npcBonds: '', playerBonds: '' };
+    }
+    return buildLivingWorldBondPromptBlocks(worldState, loadNpcRegistry(), loadGameRules());
+}
+
 function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
@@ -1091,6 +1107,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         preview: previewText(m.text)
     }));
 
+    const lwBonds = buildLivingWorldBondPromptContexts();
+
     const sections = [
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
@@ -1107,6 +1125,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('livingWorldTravel', 'Living World Travel', buildLivingWorldTravelPromptContext(playerAction)),
         buildSection('worldForge', 'World', buildWorldForgePromptContext(policy)),
         buildSection('worldState', 'World State', buildWorldStatePromptContext(policy)),
+        buildSection('livingWorldNpcBonds', 'LW NPC Bonds', lwBonds.npcBonds),
+        buildSection('livingWorldPlayerBonds', 'LW Your Bonds', lwBonds.playerBonds),
         buildSection('worldChangeSummary', 'World Changes', peekWorldChangeSummaryContext()),
         buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint, policy)),
         buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext(policy)),
@@ -1181,6 +1201,9 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     pushPromptChunk(specs, 'livingWorldTravel', buildLivingWorldTravelPromptContext(playerAction));
     pushPromptChunk(specs, 'worldForge', buildWorldForgePromptContext(policy));
     pushPromptChunk(specs, 'worldState', buildWorldStatePromptContext(policy));
+    const lwBonds = buildLivingWorldBondPromptContexts();
+    pushPromptChunk(specs, 'livingWorldNpcBonds', lwBonds.npcBonds);
+    pushPromptChunk(specs, 'livingWorldPlayerBonds', lwBonds.playerBonds);
     pushPromptChunk(specs, 'worldChangeSummary', consumeWorldChangeSummaryContext());
     pushPromptChunk(specs, 'lorebook', buildLorebookPromptContext(hint, policy));
     pushPromptChunk(specs, 'npcRegistry', buildNpcRegistryPromptContext(policy));

@@ -1,5 +1,17 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign PR2 LW bond chunks + PR4 interleave tests (v1.37.6)
+
+### Summary
+
+- PR2: `livingWorldNpcBonds` / `livingWorldPlayerBonds` prompt chunks (priority 62/61), split from `worldState`.
+- PR4: `test_commerce_turn_interleave.js` — flush-before-turn, coalesce, late flush after revision advance.
+- Extended `test_prompt_budget_eviction.js` for bond chunk ordering.
+
+### Verification
+
+- `npm test` **97/97**
+
 ## 2026-07-03 JST - Grok - Campaign P0 PR1-lite commerce-ui merge (v1.37.5)
 
 ### Summary

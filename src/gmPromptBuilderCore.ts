@@ -365,6 +365,8 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     travelEncounters: 70,
     livingWorldTravel: 72,
     worldState: 68,
+    livingWorldNpcBonds: 62,
+    livingWorldPlayerBonds: 61,
     worldChangeSummary: 66,
     worldForge: 65,
     npcRegistry: 55,

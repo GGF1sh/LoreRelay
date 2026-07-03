@@ -31,6 +31,7 @@ const {
     npcRelationshipsEnabled,
     tickLivingWorldAfterSim,
     buildLivingWorldGmLines,
+    buildLivingWorldBondPromptBlocks,
 } = require(path.join(root, 'out', 'livingWorldBridge.js'));
 const { getAffinity, pairKey } = require(path.join(root, 'out', 'npcRelationshipCore.js'));
 
@@ -132,10 +133,10 @@ function freshState(extra) {
     const seed = {};
     seed[pairKey('npc_elda', 'npc_marcus')] = 45;
     const state = freshState({ npcRelationships: seed });
-    const injection = buildLivingWorldGmLines(FORGE, state, REGISTRY, RULES_ON, undefined, 'elda_shop');
-    if (injection.includes('[Living World — Bonds]')) { ok('Bonds block present'); }
-    else { fail(`Bonds block missing (got: ${JSON.stringify(injection)})`); }
-    if (injection.includes('Elda') && injection.includes('Marcus') && injection.includes('友好')) {
+    const bonds = buildLivingWorldBondPromptBlocks(state, REGISTRY, RULES_ON).npcBonds;
+    if (bonds.includes('[Living World — Bonds]')) { ok('Bonds block present'); }
+    else { fail(`Bonds block missing (got: ${JSON.stringify(bonds)})`); }
+    if (bonds.includes('Elda') && bonds.includes('Marcus') && bonds.includes('友好')) {
         ok('Bonds block shows friendly pair with label');
     } else { fail('Bonds pair/label'); }
 }
@@ -145,8 +146,8 @@ function freshState(extra) {
     const seed = {};
     seed[pairKey('npc_elda', 'npc_marcus')] = 45;
     const state = freshState({ npcRelationships: seed });
-    const injection = buildLivingWorldGmLines(FORGE, state, REGISTRY, RULES_OFF, undefined, 'elda_shop');
-    if (!injection.includes('Bonds')) { ok('no Bonds when disabled'); }
+    const bonds = buildLivingWorldBondPromptBlocks(state, REGISTRY, RULES_OFF).npcBonds;
+    if (!bonds.includes('Bonds')) { ok('no Bonds when disabled'); }
     else { fail('Bonds leaked when disabled'); }
 }
 
@@ -158,10 +159,10 @@ function freshState(extra) {
     // 直近変化キャッシュを空にするため、OFF ルールで一度 tick(何もしない)を挟まず、
     // 変化なし tick を回す: 同席ペアは +3 されるので neutral のまま変化行は出るかもしれない。
     // ここでは「ラベル行(友好/盟友等)が出ない」ことだけを確認する。
-    const injection = buildLivingWorldGmLines(FORGE, state, REGISTRY, RULES_ON, undefined, 'elda_shop');
-    if (!injection.includes('盟友') && !injection.includes('敵対') && !injection.includes(': 友好')) {
+    const bonds = buildLivingWorldBondPromptBlocks(state, REGISTRY, RULES_ON).npcBonds;
+    if (!bonds.includes('盟友') && !bonds.includes('敵対') && !bonds.includes(': 友好')) {
         ok('neutral pair emits no relationship label line');
-    } else { fail(`neutral leaked label (got: ${JSON.stringify(injection)})`); }
+    } else { fail(`neutral leaked label (got: ${JSON.stringify(bonds)})`); }
 }
 
 // 8. ラベル遷移(中立→友好)で recentChanges に噂イベントが乗る
@@ -303,10 +304,10 @@ function freshState(extra) {
     } else { fail('player milestone persisted'); }
 
     // GM 注入に [Your Bonds] + ★(このtickの転機)
-    const inj = buildLivingWorldGmLines(FORGE, state, pbRegistry, RULES_ON, undefined, 'elda_shop');
-    if (inj.includes('[Living World — Your Bonds]') && inj.includes('★ Elda: sworn ally')) {
+    const playerBonds = buildLivingWorldBondPromptBlocks(state, pbRegistry, RULES_ON).playerBonds;
+    if (playerBonds.includes('[Living World — Your Bonds]') && playerBonds.includes('★ Elda: sworn ally')) {
         ok('GM Your Bonds block with fresh star');
-    } else { fail(`Your Bonds injection (got: ${JSON.stringify(inj)})`); }
+    } else { fail(`Your Bonds injection (got: ${JSON.stringify(playerBonds)})`); }
 
     // 再tick: 発火しない
     state.recentChanges = [];

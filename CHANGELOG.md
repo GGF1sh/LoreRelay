@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.37.6] - 2026-07-03
+
+### Fixed
+
+- **Campaign PR2 — LW3 bond prompt chunks** — `[Living World — Bonds]` / `[Your Bonds]` を `worldState` chunk から分離。独立 priority（62/61）で budget eviction 時に先に落ちる。`buildLivingWorldBondPromptBlocks`。
+- **Campaign PR4 — commerce/turn interleave tests** — debounce coalesce + flush-before-turn + revision-advanced flush の統合 smoke（`test_commerce_turn_interleave.js`）。
+
+### Verification
+
+- `npm test` **97/97**
+
 ## [1.37.5] - 2026-07-03
 
 ### Fixed

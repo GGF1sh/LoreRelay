@@ -408,32 +408,42 @@ export function buildLivingWorldGmLines(
         playerCommerce: rules.enableCommerce === true ? playerCommerce : undefined,
     });
 
-    let injection = formatLivingWorldGmInjection(blocks);
+    return formatLivingWorldGmInjection(blocks);
+}
 
-    // LW3: [Living World — Bonds] — 顕著な関係と直近の変化を伝聞素材として GM に渡す。
-    // (livingWorldPromptCore は world-kit 同期対象のため、ここで低侵襲に連結する)
-    if (npcRelationshipsEnabled(rules)) {
-        const agencyRegistry = registryToAgencyLike(registry);
-        const notable = listNotableRelationships(ext.npcRelationships ?? {}, agencyRegistry);
-        const bondLines = buildRelationshipPromptLines(notable, lastRelationshipChanges, agencyRegistry);
-        if (bondLines.length > 0) {
-            const block = ['[Living World — Bonds]', ...bondLines.map((l) => `- ${l}`)].join('\n');
-            injection = injection ? `${injection}\n${block}` : block;
-        }
+export interface LivingWorldBondPromptBlocks {
+    npcBonds: string;
+    playerBonds: string;
+}
 
-        // LW3-P: [Living World — Your Bonds] — プレイヤー自身の立ち位置(★=このtickの転機)。
-        const yourLines = buildPlayerBondPromptLines(
-            registryToPlayerBondLike(registry),
-            ext.playerNpcMilestones ?? {},
-            lastPlayerBondEvents
-        );
-        if (yourLines.length > 0) {
-            const block = ['[Living World — Your Bonds]', ...yourLines.map((l) => `- ${l}`)].join('\n');
-            injection = injection ? `${injection}\n${block}` : block;
-        }
+/** LW3 bond blocks as separate GM prompt chunks (evictable independently from worldState). */
+export function buildLivingWorldBondPromptBlocks(
+    state: WorldState,
+    registry: NpcRegistry | undefined,
+    rules: GameRules
+): LivingWorldBondPromptBlocks {
+    if (!npcRelationshipsEnabled(rules)) {
+        return { npcBonds: '', playerBonds: '' };
     }
 
-    return injection;
+    const ext = state as WorldState & LivingWorldWorldStateExt;
+    const agencyRegistry = registryToAgencyLike(registry);
+    const notable = listNotableRelationships(ext.npcRelationships ?? {}, agencyRegistry);
+    const bondLines = buildRelationshipPromptLines(notable, lastRelationshipChanges, agencyRegistry);
+    const npcBonds = bondLines.length > 0
+        ? ['[Living World — Bonds]', ...bondLines.map((l) => `- ${l}`)].join('\n')
+        : '';
+
+    const yourLines = buildPlayerBondPromptLines(
+        registryToPlayerBondLike(registry),
+        ext.playerNpcMilestones ?? {},
+        lastPlayerBondEvents
+    );
+    const playerBonds = yourLines.length > 0
+        ? ['[Living World — Your Bonds]', ...yourLines.map((l) => `- ${l}`)].join('\n')
+        : '';
+
+    return { npcBonds, playerBonds };
 }
 
 /**

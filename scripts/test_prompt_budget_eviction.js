@@ -22,6 +22,14 @@ if (resolvePromptChunkPriority('gameRules') <= resolvePromptChunkPriority('visio
     ok('priority ordering');
 }
 
+if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livingWorldNpcBonds')) {
+    fail('worldState priority should exceed livingWorldNpcBonds');
+} else if (resolvePromptChunkPriority('livingWorldNpcBonds') <= resolvePromptChunkPriority('livingWorldPlayerBonds')) {
+    fail('livingWorldNpcBonds priority should exceed livingWorldPlayerBonds');
+} else {
+    ok('LW bond chunk priorities below worldState');
+}
+
 {
     const chunks = [
         { id: 'gameRules', text: 'rules', priority: 100 },
@@ -39,6 +47,25 @@ if (resolvePromptChunkPriority('gameRules') <= resolvePromptChunkPriority('visio
         fail('low-priority vision evicted or truncated first');
     } else {
         ok('low-priority vision evicted or truncated first');
+    }
+}
+
+{
+    const bondPad = 'b'.repeat(4000);
+    const chunks = [
+        { id: 'gameRules', text: 'rules', priority: 100 },
+        { id: 'worldState', text: 'world-core', priority: 68 },
+        { id: 'livingWorldNpcBonds', text: bondPad, priority: 62 },
+        { id: 'livingWorldPlayerBonds', text: bondPad, priority: 61 },
+    ];
+    const kept = evictPromptChunksByBudget(chunks, 200);
+    const joined = kept.join('\n');
+    if (!joined.includes('rules') || !joined.includes('world-core')) {
+        fail(`core chunks preserved under budget: ${joined.length}`);
+    } else if (joined.includes(bondPad)) {
+        fail('LW bond chunks should evict before worldState');
+    } else {
+        ok('LW bond chunks evicted before worldState under tight budget');
     }
 }
 

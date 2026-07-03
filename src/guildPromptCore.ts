@@ -6,6 +6,10 @@ import {
     GUILD_QUEST_OPS_PROMPT_LINE,
 } from './guildQuestCore';
 import {
+    buildSinceLastGuildVisitLines,
+    type SinceLastGuildVisitDelta,
+} from './guildDriftCore';
+import {
     getRequest,
     type GuildRequestId,
     type RequestRulingId,
@@ -110,4 +114,12 @@ export function buildGuildQuestPromptLines(guild: GuildState): string[] {
         lines.push(GUILD_QUEST_OPS_PROMPT_LINE);
     }
     return lines;
+}
+
+export function buildGuildSinceLastVisitPrompt(
+    delta: SinceLastGuildVisitDelta | undefined
+): string {
+    const lines = buildSinceLastGuildVisitLines(delta);
+    if (lines.length === 0) { return ''; }
+    return ['[Living World — Since last visit]', ...lines].join('\n');
 }

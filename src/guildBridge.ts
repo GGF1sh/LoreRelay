@@ -5,8 +5,10 @@ import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import {
     buildRequestBoardPromptLines,
     buildGuildQuestPromptLines,
+    buildGuildSinceLastVisitPrompt,
     resolveFocusRequestId,
 } from './guildPromptCore';
+import { readGuildHallDriftState } from './guildHallDriftCore';
 import {
     getRequest,
     MAX_GUILD_REQUEST_QUEUE,
@@ -51,6 +53,12 @@ export function buildGuildPromptContext(
 
     if (rules.enableGuildParties === true) {
         lines.push(...buildGuildQuestPromptLines(guild));
+    }
+
+    const { guildSinceLastVisit } = readGuildHallDriftState(gameState ?? {});
+    const sinceLastVisit = buildGuildSinceLastVisitPrompt(guildSinceLastVisit);
+    if (sinceLastVisit) {
+        lines.push(sinceLastVisit);
     }
 
     return lines.filter(Boolean).join('\n\n');

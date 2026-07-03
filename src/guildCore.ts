@@ -550,7 +550,7 @@ export function seasonLabel(season: GuildSeason): string {
     return season;
 }
 
-function applyDelta(state: GuildState, delta: GuildStatDelta): GuildState {
+export function applyDelta(state: GuildState, delta: GuildStatDelta): GuildState {
     const nextRenown = clampGuildStat(state.renown + (delta.renown ?? 0));
     return {
         ...state,

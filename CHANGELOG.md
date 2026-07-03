@@ -13,6 +13,18 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.44.0] - 2026-07-03
+
+### Added
+
+- **G4 Guild absence drift + Since-last-visit** — `src/guildDriftCore.ts` · `src/guildHallDriftCore.ts`: `simulateBoardWeek`（副長=最高 skill 冒険者、在席時 `maintain_hall`+`open_board`）、`computeSinceLastGuildVisitDelta`（cap 24週）、hall 離脱/帰還ドリフト。
+  - 配線: `statePatch.applyGuildTravelDrift` · `guildTurnOpsCore.refreshGuildSnapshotOnCommit` · GM プロンプト Since-last-visit · `recentChanges` に `category:'guild'` 伝聞昇格 · `enableRivalGuild` 宣言のみ（未配線）。
+
+### Verification
+
+- `npm test` **117/117**（`scripts/test_guild_drift_core.js` 新規）
+- `npm run compile` クリーン
+
 ## [1.43.0] - 2026-07-03
 
 ### Added

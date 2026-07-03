@@ -53,6 +53,8 @@ export interface GameRules {
     enableGuildRequests?: boolean;
     /** §G3: party dispatch + deterministic quest resolution (requires Guild Mode). */
     enableGuildParties?: boolean;
+    /** §G4 / §F8 warm-up: rival guild tick (declared only — un wired in v0). */
+    enableRivalGuild?: boolean;
     /** Weekly guild actions selectable per commit (1–4). */
     guildWeeklyActions?: number;
     /** Request queue size when open_board runs (1–4, G2+). */
@@ -93,6 +95,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableGuildMode: false,
     enableGuildRequests: false,
     enableGuildParties: false,
+    enableRivalGuild: false,
     guildWeeklyActions: 2,
     guildBoardSize: 3,
     guildMaxActiveQuests: 2
@@ -254,6 +257,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableGuildParties !== undefined && typeof rules.enableGuildParties === 'boolean') {
             sanitized.enableGuildParties = rules.enableGuildParties;
+        }
+        if (rules.enableRivalGuild !== undefined && typeof rules.enableRivalGuild === 'boolean') {
+            sanitized.enableRivalGuild = rules.enableRivalGuild;
         }
         if (rules.guildWeeklyActions !== undefined && typeof rules.guildWeeklyActions === 'number') {
             sanitized.guildWeeklyActions = Math.max(1, Math.min(4, Math.floor(rules.guildWeeklyActions)));

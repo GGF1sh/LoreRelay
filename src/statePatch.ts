@@ -44,6 +44,15 @@ import {
     isLocationInDomainRegion,
     recordDomainRegionDepart,
 } from './domainRegionDriftCore';
+import {
+    applyGuildHallReturnDrift,
+    clearGuildSinceLastVisitReport,
+    isLocationAtGuildHall,
+    mergeGuildVisitChangesIntoRecentChanges,
+    readGuildHallDriftState,
+    recordGuildHallDepart,
+} from './guildHallDriftCore';
+import { guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -443,6 +452,62 @@ function applyTurnPatchesAndFog(
     return next;
 }
 
+function applyGuildTravelDrift(
+    state: Record<string, unknown>,
+    prevLocationId: string | undefined,
+    worldTurn: number
+): Record<string, unknown> {
+    const rules = loadGameRules();
+    if (!guildModeEnabled(rules)) {
+        return state;
+    }
+
+    const guild = readGuildFromGameState(state);
+    if (!guild?.enabled) {
+        return state;
+    }
+
+    const world = state.world as GameStateWorld | undefined;
+    const nextLocationId = typeof world?.currentLocationId === 'string'
+        ? world.currentLocationId
+        : undefined;
+
+    const prevAt = isLocationAtGuildHall(prevLocationId, guild.hallLocationId);
+    const nextAt = isLocationAtGuildHall(nextLocationId, guild.hallLocationId);
+
+    if (prevAt && !nextAt) {
+        return recordGuildHallDepart(state, worldTurn);
+    }
+    if (!prevAt && nextAt) {
+        let next = applyGuildHallReturnDrift(state, worldTurn, {
+            weeklyActions: rules.guildWeeklyActions,
+            boardSize: rules.guildBoardSize,
+            maxActiveQuests: rules.guildMaxActiveQuests,
+            requestsEnabled: rules.enableGuildRequests === true,
+            partiesEnabled: rules.enableGuildParties === true,
+        });
+        const driftState = readGuildHallDriftState(next);
+        const delta = driftState.guildSinceLastVisit;
+        if (delta?.changes?.length) {
+            const worldState = loadWorldState();
+            if (worldState) {
+                worldState.recentChanges = mergeGuildVisitChangesIntoRecentChanges(
+                    worldState.recentChanges,
+                    delta.changes,
+                    worldTurn,
+                    guild.hallLocationId
+                );
+                saveWorldState(worldState);
+            }
+        }
+        return next;
+    }
+    if (prevAt && nextAt) {
+        return clearGuildSinceLastVisitReport(state);
+    }
+    return state;
+}
+
 function applyDomainTravelDrift(
     state: Record<string, unknown>,
     prevLocationId: string | undefined,
@@ -542,6 +607,7 @@ export function applyTurnResultToGameState(
     const ws = loadWorldState();
     if (ws) {
         patched = applyDomainTravelDrift(patched, prevLocationId, ws.worldTurn);
+        patched = applyGuildTravelDrift(patched, prevLocationId, ws.worldTurn);
     }
     return applyTurnGameStateFinalize(turnResult, patched, persistWorld);
 }
@@ -597,6 +663,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         const worldStateForDrift = loadWorldState();
         if (worldStateForDrift) {
             state = applyDomainTravelDrift(state, prevLocationId, worldStateForDrift.worldTurn);
+            state = applyGuildTravelDrift(state, prevLocationId, worldStateForDrift.worldTurn);
         }
 
         const priorGmTurns = Array.isArray(state.entries)

@@ -9,6 +9,7 @@ import {
     type GuildConfig,
     type GuildState,
 } from './guildCore';
+import { refreshGuildSnapshotOnCommit } from './guildHallDriftCore';
 
 export function readGuildFromState(gameState: Record<string, unknown>): GuildState | undefined {
     return validateGuild(gameState.guild);
@@ -51,8 +52,10 @@ export function applyGuildOpsToGameState(
     const normalized = normalizeGuildConfig(config);
     const { guild } = applyGuildOps(existing, ops, normalized, worldTurnSeed);
 
-    return {
+    let next: Record<string, unknown> = {
         ...gameState,
         guild,
     };
+    next = refreshGuildSnapshotOnCommit(next, worldTurnSeed);
+    return next;
 }

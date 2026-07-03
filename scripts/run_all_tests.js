@@ -108,6 +108,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_guild_core.js' },
     { category: 'unit', file: 'test_guild_request_core.js' },
     { category: 'unit', file: 'test_guild_quest_core.js' },
+    { category: 'unit', file: 'test_guild_drift_core.js' },
     { category: 'unit', file: 'test_connection_profile_core.js' },
     { category: 'unit', file: 'test_persona_core.js' },
     { category: 'unit', file: 'test_parlor_background_core.js' },

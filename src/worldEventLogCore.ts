@@ -5,7 +5,7 @@
 // Types
 // ---------------------------------------------------------------------------
 
-export type WorldChangeCategory = 'faction' | 'region' | 'resource' | 'npc' | 'global';
+export type WorldChangeCategory = 'faction' | 'region' | 'resource' | 'npc' | 'global' | 'guild';
 export type WorldChangeSeverity = 'info' | 'warning' | 'critical';
 export type WorldChangeSource = 'simulation' | 'player' | 'gm';
 
@@ -51,7 +51,7 @@ export const MAX_RAW_RECENT_CHANGES_ARRAY = 500; // DoS bound on raw array lengt
 // ---------------------------------------------------------------------------
 
 const VALID_CATEGORIES = new Set<WorldChangeCategory>([
-    'faction', 'region', 'resource', 'npc', 'global',
+    'faction', 'region', 'resource', 'npc', 'global', 'guild',
 ]);
 const VALID_SEVERITIES = new Set<WorldChangeSeverity>([
     'info', 'warning', 'critical',

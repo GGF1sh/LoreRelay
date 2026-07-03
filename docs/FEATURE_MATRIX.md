@@ -28,11 +28,11 @@
 | Inspector market debug | debug | **dev only** | Commerce ON + debug console |
 | **NPC Bonds (LW3)** | OFF | **experimental** | `enableNpcRelationships` |
 | **Player bonds / trade ripple** | with LW3 | **experimental** | v1.32–1.33 · `playerBondCore` |
-| **Domain Mode (lordship)** | OFF | **experimental** | v1.39.x · `enableDomainMode` · D3 UI 未 |
-| **Domain Audience (謁見)** | OFF | **experimental** | v1.39.10 · `enableDomainAudience` · engine のみ (UI は D3) |
-| **Domain Rivals (隣国ライバル)** | OFF | **experimental** | v1.39.11 · `enableDomainRivals` · engine のみ (UI は D3) |
-| **Domain Missions (主命・派遣)** | OFF | **experimental** | v1.39.12 · `enableDomainMissions` · engine のみ (UI は D3) |
-| **Domain Mass Battle (合戦)** | OFF | **experimental** | v1.39.13 · `enableMassBattle` · engine のみ (UI は D3) |
+| **Domain Mode (lordship)** | OFF | **experimental** | v1.39.x + D3 UI (v1.40.0) · `enableDomainMode` |
+| **Domain Audience (謁見)** | OFF | **experimental** | v1.40.0 · `enableDomainAudience` · World タブパネル済み |
+| **Domain Rivals (隣国ライバル)** | OFF | **experimental** | v1.40.0 · `enableDomainRivals` · World タブパネル済み |
+| **Domain Missions (主命・派遣)** | OFF | **experimental** | v1.40.0 · `enableDomainMissions` · World タブパネル済み |
+| **Domain Mass Battle (合戦)** | OFF | **experimental** | v1.40.0 · `enableMassBattle` · World タブパネル済み |
 
 ## Quick demo paths
 

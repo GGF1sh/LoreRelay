@@ -6,11 +6,29 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.39.13** |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見** / **F8 ライバル領主** / **F9 主命・派遣** / **F10 合戦リゾルバ** エンジン ✅（全て UI は D3 待ち） · **D3 UI 次** |
+| Package version | **1.40.0** |
+| Domain Mode | D1–D5 **完了** · **D3 UI 完了** · F7 謁見 / F8 ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ、全て **World タブ UI 込みで完了** |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **113/113** |
-| Next (推奨) | **D3 UI**（§20.2-A、F7/F8/F9/F10 の4パネル同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F12 家史エピローグ（箸休め）または F11 ギルドマスター設計 |
+| Tests | `npm test` **113/113**（webview は compile + i18n/HTML 検証のみ。**F5 実機確認は次セッション推奨**） |
+| Next (推奨) | **F5 手動確認**（挿入テキスト→GM解釈の実地検証）→ D4 残（市場ボーナス）→ `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F12 家史エピローグ（箸休め）または F11 ギルドマスター設計 |
+
+---
+
+## 2026-07-03 JST - Claude Sonnet 5 - D3 Domain UI + F7-F10 panels (v1.40.0)
+
+### Summary
+
+- **D3 Domain UI** を実装し、Wave2 の F7 謁見 / F8 隣国ライバル / F9 主命・派遣 / F10 合戦を World タブ「🏰 Domain」パネルとして統合。エンジンのみだった4機能が実際に触れる形になった。
+- `domainCore.DOMAIN_ACTION_CATALOG`（新規 export）· `domainBridge.pickDomainForWebview`（陳情の完全内容・region 名解決・action catalog を追加）· `worldView.ts`（`domain` payload を `worldView` message に追加）。
+- `webview/modules/85-world.js` に `renderDomainPanel` 他 12 個のレンダー関数を追加。全ての操作（月次行動チップ・陳情裁定・派遣・采配）は既存の `insertChatText` パターンでチャット入力欄にテキストを挿入するのみ — Commerce Buy/Sell のような直接適用とは異なり、GM が読んで `domainOps` を書く既存契約を維持。
+- Game Rules パネルに `enableDomainAudience`/`enableDomainRivals`/`enableDomainMissions`/`enableMassBattle` のチェックボックスを追加（`enableDomainMode` の子項目）。
+- i18n: 4 言語 74 キー追加（`webview.world.domain*` 66 + `webview.gameRules.*` 8）。
+
+### Verification
+
+- `npm test` **113/113**（`check_i18n_keys.js` 0 missing、`validate_webview_html_structure.js` div balance OK）
+- `npm run compile` クリーン、`node --check webview/script.js` 構文 OK
+- **Extension Development Host（F5）での手動確認は未実施** — 次セッションで推奨（本リポジトリの既存慣習どおり、webview UI は最終的に手動テストが必要）
 
 ---
 

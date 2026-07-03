@@ -29,6 +29,8 @@ import {
 import { listActiveMapItems } from './cartographyRevealCore';
 import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } from './mapFeedbackCore';
 import { loadGameRules } from './gameRules';
+import { pickDomainForWebview } from './domainBridge';
+import { readDomainFromGameState } from './domainTurnOps';
 import { buildMarketPriceTable } from './commerceCore';
 import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
@@ -49,11 +51,11 @@ export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | unde
     getPanelRef = deps.getPanel;
 }
 
-function loadGameStateSnapshotFromDisk(): Pick<GameState, 'world' | 'commerce'> | undefined {
+function loadGameStateSnapshotFromDisk(): (Pick<GameState, 'world' | 'commerce'> & { domain?: unknown }) | undefined {
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) { return undefined; }
     try {
-        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Pick<GameState, 'world' | 'commerce'>;
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Pick<GameState, 'world' | 'commerce'> & { domain?: unknown };
         return raw;
     } catch {
         return undefined;
@@ -467,6 +469,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         gameRules.enableCommerce === true
     );
 
+    // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).
+    const domainState = gameRules.enableDomainMode === true && gameSnapshot
+        ? readDomainFromGameState(gameSnapshot as unknown as Record<string, unknown>)
+        : undefined;
+    const domain = pickDomainForWebview(domainState);
+
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
@@ -511,6 +519,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         ttsLocalAvailable,
         ttsExternalProvider,
         npcVoiceCount,
+        enableDomainMode: gameRules.enableDomainMode === true,
+        enableDomainAudience: gameRules.enableDomainAudience === true,
+        enableDomainRivals: gameRules.enableDomainRivals === true,
+        enableDomainMissions: gameRules.enableDomainMissions === true,
+        enableMassBattle: gameRules.enableMassBattle === true,
+        domain: domain ?? null,
         mapItems: listActiveMapItems(worldBlock).map((item) => ({
             id: item.id,
             name: item.name,

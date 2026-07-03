@@ -76,8 +76,8 @@ export function resolvePetitionRuling(petition, rulingId): DomainDelta;
 - [x] `[Domain — Audience]` プロンプトブロック（pending 陳情がある限り tier 非依存で毎ターン注入）**✅**
 - [x] Chronicle `kind: 'domain'` に裁定行（`formatAudienceChronicleText`）**✅**
 - [x] `scripts/test_domain_audience_core.js`（キュー決定論・delta・不正 rulingId・validate フィルタ、17 assert）**✅**
-- [ ] i18n 4 言語（陳情/裁定ラベル）— **D3 UI と同時**（現状 UI 参照面が無い）
-- [ ] World タブ「謁見」パネル・裁定チップ — **D3 と同梱**
+- [x] i18n 4 言語（陳情/裁定ラベル）**✅ v1.40.0**
+- [x] World タブ「謁見」パネル・裁定チップ **✅ v1.40.0**
 
 > **実装メモ（v1.39.10）:** `audience` を月次行動カタログに追加し、コミットで `buildAudienceQueue` が `domain.pendingPetitions`（陳情 id の配列）を積む。裁定は `domainOps.audience_ruling` で1件ずつ消費。陳情の stakes はテンプレ id から純関数で再導出するため state に構造体を保存しない（`pendingPetitions` は id 文字列のみ）。`domainAudienceCore` は `domainCore` から**型のみ**を import（実行時依存は `domainCore → domainAudienceCore` の一方向）。
 
@@ -129,7 +129,7 @@ export function tickRivalLord(rival, playerDomain, worldState, seed): RivalActio
 - [x] `[Domain — Rival]` プロンプト行（**開示済み情報のみ**、compact 1 行）**✅**
 - [x] espionage / gather_rumors / diplomacy 行動の効果を rival に配線 **✅**
 - [x] `scripts/test_rival_lord_core.js`（tick 決定論・開示ゲート・stance 遷移・raid ゲート・validate、21 assert）**✅**
-- [ ] World タブ「隣国」表示（開示情報のみ）— **D3 と同梱**
+- [x] World タブ「隣国」表示（開示情報のみ）**✅ v1.40.0**
 - [ ] i18n 4 言語
 
 > **実装メモ（v1.39.11）:** v0 は**単一** rival（`domain.rival`、複数化は非スコープ）。`enableDomainRivals` ON + `domainRivalRegionId` 未指定時は World Forge の `Region.connectedTo` から自動選定（無ければ controlledRegionId 以外の最初の region）。`raid` は F10 合戦リゾルバ実装までの**暫定**解決（troops/defense比較の単純delta）— F10 出荷時に置き換え予定。
@@ -181,7 +181,7 @@ export function resolveMissionOutcome(mission, officer, bond, seed): MissionOutc
 - [x] `dispatch_officer` パース + 帰還 resolve の monthly_commit 配線 **✅**
 - [x] council / drift（steward 判定）からの派遣中除外 **✅**
 - [x] `scripts/test_domain_mission_core.js`（決定論・bond リスク・帰還月境界・上限・validate、23 assert）**✅**
-- [ ] World タブ「派遣」表示 — **D3 と同梱**
+- [x] World タブ「派遣」表示 **✅ v1.40.0**
 - [ ] i18n 4 言語
 
 > **実装メモ（v1.39.12）:** trust は `domainOfficerBondCore.buildOfficerTrustMap`（Registry disposition.playerTrust、既定50）で解決し `DomainConfig.officerTrustMap` として domainCore に渡す（rival の region 解決と同型のホスト側解決パターン）。月次コミット1回 = 1ヶ月経過。評定除外は `domainCore.applyMonthlyCommit` 内で完結、留守ドリフトの steward 判定除外は `domainDriftCore.ts` の `presentOfficers` フィルタ。帰還した月は評定に**復帰**する（「家族に迎えられ、その日のうちに助言する」という自然な扱い）。
@@ -227,7 +227,7 @@ export function concludeBattle(rounds: RoundResult[]): BattleOutcome; // victory
 - [x] `battle_round` 契約 + `domain.activeBattle`（戦闘中の状態そのもの。専用 flags は不要と判断） **✅**
 - [x] `[Domain — Battle]` プロンプト（現ラウンド戦況 + 選択肢3つ + 数値捏造禁止行、tier非依存で毎ターン注入）**✅**
 - [x] `scripts/test_mass_battle_core.js`（決定論・全滅ゲート・三すくみ有利判定・5分類・F8連携双方向、24 assert）**✅**
-- [ ] World タブ「合戦」表示 — **D3 と同梱**
+- [x] World タブ「合戦」表示 **✅ v1.40.0**
 - [ ] i18n 4 言語
 - [ ] Chronicle `kind: 'domain'` への戦闘結果記録（journal スキーマ拡張が必要、任意の追加作業として保留）
 
@@ -297,13 +297,15 @@ export function buildHouseEpilogue(input: {
 
 | Ver | 内容 | 備考 |
 |-----|------|------|
-| 1.40.0 | **D3 Domain UI**（既存 P0）+ E Replay domain pick | Wave 2 の前提 |
-| 1.41.0 | **F7 Audience** | actionCatalog `audience` 追加・D4 市場ボーナス同梱可 |
-| 1.42.0 | **F8 Rival Lords** | balance harness に rival 軌道 |
-| 1.43.0 | **F9 Missions**（guild 流用を意識した API で） | F8 後だと諜報が生きる |
-| 1.44.0 | **F10 Mass Battle** | F8 raid の解決手段として |
-| 1.4x.x | **F12 Epilogue** | 箸休め枠。どこに挟んでもよい |
+| 1.39.10 | **F7 Audience engine** | ✅ 出荷済み |
+| 1.39.11 | **F8 Rival Lords engine** | ✅ 出荷済み |
+| 1.39.12 | **F9 Missions engine** | ✅ 出荷済み（guild 流用を意識した API 設計は据え置き — F11 着手時に再検証） |
+| 1.39.13 | **F10 Mass Battle engine** | ✅ 出荷済み（F8 raid の解決手段として統合済み） |
+| 1.40.0 | **D3 Domain UI** + F7–F10 の World タブパネル一式 | ✅ 出荷済み（実際の計画より前倒しで F7–F10 も同梱） |
+| 1.4x.x | **F12 Epilogue** | 箸休め枠。次の空きに挟める |
 | 1.45+ | **F11 / G1 Guild Master** | 別 doc（`docs/GUILD_MODE_DESIGN.md`）を先に書く |
+
+**実績メモ:** 当初案は F7–F10 を個別 Ver（1.41–1.44）で UI 込み出荷する想定だったが、実際は「engine を先に個別出荷（1.39.10–13）→ D3 UI でまとめて配線（1.40.0）」という順序になった。結果は同じ（全機能 engine + UI 完備）。
 
 **ブリーフ追加のみでは Ver は上げない**（`PHASE_NAMING.md` の規約どおり）。
 
@@ -318,5 +320,5 @@ export function buildHouseEpilogue(input: {
 ## 15. AI 申し送り（1 行）
 
 ```
-Fable5 Wave 2（F7–F12）ブリーフ済み。着手順: D3 UI → F7 謁見 → F8 ライバル領主 → F9 派遣 → F10 合戦。F9 は guild 流用を意識した API 設計にすること。正本 docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md。
+Fable5 Wave 2: F7 謁見・F8 ライバル領主・F9 派遣・F10 合戦は engine+UI 完了（v1.39.10–1.40.0）。次は F12 家史エピローグ（箸休め）か F11 ギルドマスター設計（別doc先行）。D3 UI の F5 実機確認は未実施 — 次セッション推奨。正本 docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md、docs/DOMAIN_MODE_DESIGN.md §19-20。
 ```

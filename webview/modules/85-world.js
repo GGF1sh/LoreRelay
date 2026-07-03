@@ -147,6 +147,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch { /* private mode */ }
 
     ensureCartographyStyles();
+    ensureDomainStyles();
     applyWorldMapModeVisibility();
     buildWorldGenForm();
     initWorldPinDismiss();
@@ -226,6 +227,9 @@ function renderWorldView(msg) {
         msg.playerRoles || [],
         msg.currentLocationId
     );
+
+    // Domain Mode (D3): lordship stats, audience, rivals, missions, battle
+    renderDomainPanel(msg);
 
     // Living World market prices (+ direct trade when UI enabled)
     renderLivingWorldMarkets(
@@ -622,6 +626,110 @@ function ensureCartographyStyles() {
             0% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
             35% { box-shadow: inset 0 0 120px rgba(192, 48, 48, 0.28); }
             100% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function ensureDomainStyles() {
+    if (document.getElementById('world-domain-styles')) { return; }
+    const style = document.createElement('style');
+    style.id = 'world-domain-styles';
+    style.textContent = `
+        .domain-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+        .domain-header-title { font-weight: 600; font-size: 1.02em; }
+        .domain-rank-badge {
+            font-size: 0.72em;
+            padding: 0.08rem 0.4rem;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.18);
+            opacity: 0.85;
+            margin-left: 0.3rem;
+        }
+        .domain-header-date { font-size: 0.85em; opacity: 0.65; }
+        .domain-resource-row { display: flex; gap: 1rem; margin-bottom: 0.6rem; }
+        .domain-resource { display: flex; align-items: center; gap: 0.3rem; font-size: 0.95em; }
+        .domain-resource-icon { font-size: 1.05em; }
+        .domain-stats-grid { margin-bottom: 0.6rem; }
+        .domain-stat-row {
+            display: grid;
+            grid-template-columns: minmax(6rem, 8rem) 1fr 2.4rem;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.14rem 0;
+            font-size: 0.85em;
+        }
+        .domain-stat-label { opacity: 0.8; }
+        .domain-stat-bar {
+            height: 0.45rem;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+        }
+        .domain-stat-fill {
+            height: 100%;
+            background: var(--vscode-charts-blue, #4a90e2);
+            border-radius: 3px;
+        }
+        .domain-stat-value { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.85; }
+        .domain-actions-left { font-size: 0.8em; opacity: 0.6; margin-top: 0.2rem; }
+        .domain-officers-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.6rem; }
+        .domain-officer-chip {
+            font-size: 0.8em;
+            padding: 0.14rem 0.45rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.03);
+        }
+        .domain-officer-chip.is-away { opacity: 0.6; border-style: dashed; }
+        .domain-officer-away { font-style: italic; }
+        .domain-action-chips-wrap { margin-bottom: 0.7rem; padding-bottom: 0.6rem; border-bottom: 1px dashed rgba(255,255,255,0.08); }
+        .domain-action-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.4rem; }
+        .domain-action-chip {
+            font-size: 0.8em;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(0,0,0,0.2);
+            color: var(--vscode-foreground, #ccc);
+            cursor: pointer;
+        }
+        .domain-action-chip.is-selected {
+            border-color: var(--vscode-focusBorder, #4a90e2);
+            background: rgba(74,144,226,0.22);
+        }
+        .domain-section-heading { font-weight: 600; font-size: 0.92em; margin: 0.55rem 0 0.35rem; opacity: 0.9; }
+        .domain-petition-card {
+            margin-bottom: 0.45rem;
+            padding: 0.4rem 0.5rem;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 5px;
+            background: rgba(255,255,255,0.02);
+        }
+        .domain-petition-summary { font-size: 0.88em; margin-bottom: 0.3rem; }
+        .domain-petition-rulings { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+        .domain-ruling-btn, .domain-tactic-btn, .domain-dispatch-btn { font-size: 0.8em; }
+        .domain-rival-body p, .domain-battle-progress p { font-size: 0.88em; margin: 0.2rem 0; }
+        .domain-battle-troops { display: flex; gap: 1rem; font-size: 0.85em; opacity: 0.85; margin-bottom: 0.4rem; }
+        .domain-battle-tactics { display: flex; gap: 0.35rem; }
+        .domain-mission-list { margin-bottom: 0.3rem; }
+        .domain-mission-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.86em;
+            padding: 0.15rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .domain-mission-months { opacity: 0.6; }
+        .domain-mission-report { font-size: 0.85em; opacity: 0.85; margin: 0.2rem 0; }
+        .domain-dispatch-form { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-top: 0.4rem; }
+        .domain-dispatch-select {
+            font-size: 0.82em;
+            padding: 0.15rem 0.3rem;
+            background: var(--vscode-input-background, #2d2d2d);
+            color: var(--vscode-input-foreground, #ccc);
+            border: 1px solid var(--vscode-input-border, #555);
+            border-radius: 3px;
         }
     `;
     document.head.appendChild(style);
@@ -2303,6 +2411,362 @@ function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ===== Domain Mode (D3): F7 Audience / F8 Rivals / F9 Missions / F10 Battle =====
+
+const DOMAIN_STAT_KEYS = ['publicOrder', 'popularSupport', 'agriculture', 'commerce', 'defense', 'culture', 'prestige'];
+let _domainSelectedActions = [];
+
+function domainT(section, key) {
+    return T(`webview.world.domain${section}.${key}`) || key;
+}
+
+function renderDomainPanel(msg) {
+    const section = document.getElementById('world-domain-details');
+    const panel = document.getElementById('world-domain-panel');
+    if (!section || !panel) { return; }
+
+    const domain = msg.domain;
+    const visible = msg.enableDomainMode === true && domain;
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    panel.innerHTML = '';
+    panel.appendChild(buildDomainHeader(domain));
+    panel.appendChild(buildDomainResourceRow(domain));
+    panel.appendChild(buildDomainStatsGrid(domain));
+
+    if (domain.officers && domain.officers.length > 0) {
+        panel.appendChild(buildDomainOfficersList(domain));
+    }
+
+    if (domain.monthlyActionsRemaining > 0 && Array.isArray(domain.actionCatalog) && domain.actionCatalog.length > 0) {
+        panel.appendChild(buildDomainActionChips(domain));
+    }
+
+    if (msg.enableDomainAudience === true && Array.isArray(domain.pendingPetitions) && domain.pendingPetitions.length > 0) {
+        panel.appendChild(buildDomainAudienceSection(domain));
+    }
+
+    if (msg.enableDomainRivals === true && domain.rival) {
+        panel.appendChild(buildDomainRivalSection(domain.rival));
+    }
+
+    if (msg.enableDomainMissions === true) {
+        panel.appendChild(buildDomainMissionsSection(domain));
+    }
+
+    if (msg.enableMassBattle === true && (domain.activeBattle || domain.lastBattleReport)) {
+        panel.appendChild(buildDomainBattleSection(domain));
+    }
+}
+
+function buildDomainHeader(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-header';
+    const name = escapeHtml(domain.regionName || domain.controlledRegionId || '');
+    const rank = escapeHtml(domainT('Rank', domain.rank || 'minor_lord'));
+    const dateLabel = escapeHtml(T('webview.world.domainMonthYear', { month: domain.calendarMonth, year: domain.calendarYear }));
+    el.innerHTML = `
+        <div class="domain-header-title">${name} <span class="domain-rank-badge">${rank}</span></div>
+        <div class="domain-header-date">${dateLabel}</div>
+    `;
+    return el;
+}
+
+function buildDomainResourceRow(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-resource-row';
+    const items = [
+        ['💰', domain.treasury, T('webview.world.domainTreasury')],
+        ['🌾', domain.food, T('webview.world.domainFood')],
+        ['⚔️', domain.troops, T('webview.world.domainTroops')],
+    ];
+    el.innerHTML = items.map(([icon, value, label]) => `
+        <div class="domain-resource" title="${escapeHtml(label)}">
+            <span class="domain-resource-icon">${icon}</span><strong>${escapeHtml(value ?? 0)}</strong>
+        </div>
+    `).join('');
+    return el;
+}
+
+function buildDomainStatsGrid(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-stats-grid';
+    el.innerHTML = DOMAIN_STAT_KEYS.map((key) => {
+        const value = Math.max(0, Math.min(100, Number(domain[key]) || 0));
+        return `
+            <div class="domain-stat-row">
+                <span class="domain-stat-label">${escapeHtml(domainT('Stat', key))}</span>
+                <div class="domain-stat-bar"><div class="domain-stat-fill" style="width:${value}%"></div></div>
+                <span class="domain-stat-value">${value}</span>
+            </div>
+        `;
+    }).join('') + `<div class="domain-actions-left">${escapeHtml(T('webview.world.domainActionsLeft', { n: domain.monthlyActionsRemaining ?? 0 }))}</div>`;
+    return el;
+}
+
+function buildDomainOfficersList(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-officers-row';
+    const awayIds = new Set((domain.activeMissions || []).map((m) => m.officerNpcId));
+    el.innerHTML = domain.officers.map((o) => {
+        const away = awayIds.has(o.npcId);
+        const roleLabel = escapeHtml(domainT('OfficerRole', o.role));
+        const awayTag = away ? ` <span class="domain-officer-away">(${escapeHtml(T('webview.world.domainOfficerAway'))})</span>` : '';
+        return `<span class="domain-officer-chip${away ? ' is-away' : ''}">${escapeHtml(o.npcId)} · ${roleLabel}${awayTag}</span>`;
+    }).join('');
+    return el;
+}
+
+function buildDomainActionChips(domain) {
+    const wrap = document.createElement('div');
+    wrap.className = 'domain-action-chips-wrap';
+
+    const maxSelectable = domain.monthlyActionsRemaining ?? 2;
+    _domainSelectedActions = _domainSelectedActions.filter((a) => domain.actionCatalog.includes(a));
+
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'domain-action-chips';
+    domain.actionCatalog.forEach((actionId) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'domain-action-chip';
+        chip.textContent = domainT('Action', actionId);
+        chip.classList.toggle('is-selected', _domainSelectedActions.includes(actionId));
+        chip.addEventListener('click', () => {
+            const idx = _domainSelectedActions.indexOf(actionId);
+            if (idx >= 0) {
+                _domainSelectedActions.splice(idx, 1);
+            } else if (_domainSelectedActions.length < maxSelectable) {
+                _domainSelectedActions.push(actionId);
+            }
+            renderDomainPanel(_worldViewMsg);
+        });
+        chipsRow.appendChild(chip);
+    });
+    wrap.appendChild(chipsRow);
+
+    const commitBtn = document.createElement('button');
+    commitBtn.type = 'button';
+    commitBtn.className = 'small-btn primary domain-commit-btn';
+    commitBtn.textContent = T('webview.world.domainCommitBtn');
+    commitBtn.disabled = _domainSelectedActions.length === 0;
+    commitBtn.addEventListener('click', () => {
+        const labels = _domainSelectedActions.map((a) => domainT('Action', a)).join(', ');
+        postWorldInsertChatText(T('webview.world.domainCommitText', { actions: labels }));
+        _domainSelectedActions = [];
+        renderDomainPanel(_worldViewMsg);
+    });
+    wrap.appendChild(commitBtn);
+
+    return wrap;
+}
+
+function buildDomainAudienceSection(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-audience-section';
+    const heading = document.createElement('div');
+    heading.className = 'domain-section-heading';
+    heading.textContent = T('webview.world.domainAudienceTitle');
+    el.appendChild(heading);
+
+    domain.pendingPetitions.forEach((petition) => {
+        const card = document.createElement('div');
+        card.className = 'domain-petition-card';
+        card.innerHTML = `
+            <div class="domain-petition-summary">
+                <strong>${escapeHtml(petition.petitionerArchetype)}</strong> — ${escapeHtml(petition.summary)}
+            </div>
+        `;
+        const rulingsRow = document.createElement('div');
+        rulingsRow.className = 'domain-petition-rulings';
+        (petition.rulings || []).forEach((ruling) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'small-btn domain-ruling-btn';
+            btn.textContent = domainT('Ruling', ruling.rulingId);
+            btn.title = ruling.label;
+            btn.addEventListener('click', () => {
+                postWorldInsertChatText(T('webview.world.domainAudienceInsertText', {
+                    petitioner: petition.petitionerArchetype,
+                    summary: petition.summary,
+                    ruling: ruling.label,
+                }));
+            });
+            rulingsRow.appendChild(btn);
+        });
+        card.appendChild(rulingsRow);
+        el.appendChild(card);
+    });
+    return el;
+}
+
+function buildDomainRivalSection(rival) {
+    const el = document.createElement('div');
+    el.className = 'domain-rival-section';
+    const heading = document.createElement('div');
+    heading.className = 'domain-section-heading';
+    heading.textContent = T('webview.world.domainRivalTitle');
+    el.appendChild(heading);
+
+    const body = document.createElement('div');
+    body.className = 'domain-rival-body';
+    const name = escapeHtml(rival.regionName || rival.regionId || '');
+    if (rival.disclosedStrength === undefined || rival.disclosedStance === undefined) {
+        body.innerHTML = `<p class="empty-text">${escapeHtml(T('webview.world.domainRivalUnknown', { name }))}</p>`;
+    } else {
+        const stance = escapeHtml(domainT('RivalStance', rival.disclosedStance));
+        body.innerHTML = `<p>${escapeHtml(T('webview.world.domainRivalKnown', { name, strength: rival.disclosedStrength, stance }))}</p>`;
+    }
+    el.appendChild(body);
+    return el;
+}
+
+function buildDomainMissionsSection(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-missions-section';
+    const heading = document.createElement('div');
+    heading.className = 'domain-section-heading';
+    heading.textContent = T('webview.world.domainMissionsTitle');
+    el.appendChild(heading);
+
+    const active = domain.activeMissions || [];
+    if (active.length > 0) {
+        const list = document.createElement('div');
+        list.className = 'domain-mission-list';
+        list.innerHTML = active.map((m) => `
+            <div class="domain-mission-row">
+                <span>${escapeHtml(m.officerNpcId)} — ${escapeHtml(domainT('MissionKind', m.kind))}</span>
+                <span class="domain-mission-months">${escapeHtml(T('webview.world.domainMissionMonthsLeft', { n: m.monthsRemaining }))}</span>
+            </div>
+        `).join('');
+        el.appendChild(list);
+    }
+
+    const reports = domain.lastMissionReports || [];
+    if (reports.length > 0) {
+        const reportsWrap = document.createElement('div');
+        reportsWrap.className = 'domain-mission-reports';
+        reportsWrap.innerHTML = reports.map((r) => `<p class="domain-mission-report">${escapeHtml(r)}</p>`).join('');
+        el.appendChild(reportsWrap);
+    }
+
+    const awayIds = new Set(active.map((m) => m.officerNpcId));
+    const available = (domain.officers || []).filter((o) => !awayIds.has(o.npcId));
+    if (available.length > 0) {
+        el.appendChild(buildDomainDispatchForm(available));
+    }
+
+    return el;
+}
+
+const DOMAIN_MISSION_KINDS = ['espionage', 'trade_run', 'survey', 'parley'];
+
+function buildDomainDispatchForm(availableOfficers) {
+    const form = document.createElement('div');
+    form.className = 'domain-dispatch-form';
+
+    const officerSelect = document.createElement('select');
+    officerSelect.className = 'domain-dispatch-select';
+    officerSelect.setAttribute('aria-label', T('webview.world.domainDispatchOfficer'));
+    availableOfficers.forEach((o) => {
+        const opt = document.createElement('option');
+        opt.value = o.npcId;
+        opt.textContent = `${o.npcId} (${domainT('OfficerRole', o.role)})`;
+        officerSelect.appendChild(opt);
+    });
+
+    const kindSelect = document.createElement('select');
+    kindSelect.className = 'domain-dispatch-select';
+    kindSelect.setAttribute('aria-label', T('webview.world.domainDispatchKind'));
+    DOMAIN_MISSION_KINDS.forEach((kind) => {
+        const opt = document.createElement('option');
+        opt.value = kind;
+        opt.textContent = domainT('MissionKind', kind);
+        kindSelect.appendChild(opt);
+    });
+
+    const monthsSelect = document.createElement('select');
+    monthsSelect.className = 'domain-dispatch-select';
+    monthsSelect.setAttribute('aria-label', T('webview.world.domainDispatchMonths'));
+    [1, 2, 3].forEach((n) => {
+        const opt = document.createElement('option');
+        opt.value = String(n);
+        opt.textContent = T('webview.world.domainMissionMonthsLeft', { n });
+        monthsSelect.appendChild(opt);
+    });
+
+    const dispatchBtn = document.createElement('button');
+    dispatchBtn.type = 'button';
+    dispatchBtn.className = 'small-btn domain-dispatch-btn';
+    dispatchBtn.textContent = T('webview.world.domainDispatchBtn');
+    dispatchBtn.addEventListener('click', () => {
+        postWorldInsertChatText(T('webview.world.domainDispatchText', {
+            officer: officerSelect.value,
+            kind: domainT('MissionKind', kindSelect.value),
+            months: monthsSelect.value,
+        }));
+    });
+
+    form.appendChild(officerSelect);
+    form.appendChild(kindSelect);
+    form.appendChild(monthsSelect);
+    form.appendChild(dispatchBtn);
+    return form;
+}
+
+const DOMAIN_BATTLE_TACTICS = ['assault', 'hold', 'stratagem'];
+
+function buildDomainBattleSection(domain) {
+    const el = document.createElement('div');
+    el.className = 'domain-battle-section';
+    const heading = document.createElement('div');
+    heading.className = 'domain-section-heading';
+    heading.textContent = T('webview.world.domainBattleTitle');
+    el.appendChild(heading);
+
+    const battle = domain.activeBattle;
+    if (battle) {
+        const name = escapeHtml(battle.opponentName || battle.opponentLabel || '');
+        const progress = document.createElement('div');
+        progress.className = 'domain-battle-progress';
+        progress.innerHTML = `
+            <p>${escapeHtml(T('webview.world.domainBattleRound', { round: battle.round, max: battle.maxRounds, name }))}</p>
+            <div class="domain-battle-troops">
+                <span>${escapeHtml(T('webview.world.domainBattleOurTroops', { n: battle.playerTroopsRemaining }))}</span>
+                <span>${escapeHtml(T('webview.world.domainBattleEnemyTroops', { n: battle.enemyTroopsRemaining }))}</span>
+            </div>
+        `;
+        el.appendChild(progress);
+
+        const tacticsRow = document.createElement('div');
+        tacticsRow.className = 'domain-battle-tactics';
+        DOMAIN_BATTLE_TACTICS.forEach((tactic) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'small-btn domain-tactic-btn';
+            btn.textContent = domainT('BattleTactic', tactic);
+            btn.addEventListener('click', () => {
+                postWorldInsertChatText(T('webview.world.domainBattleTacticText', {
+                    tactic: domainT('BattleTactic', tactic),
+                }));
+            });
+            tacticsRow.appendChild(btn);
+        });
+        el.appendChild(tacticsRow);
+    } else if (domain.lastBattleReport) {
+        const report = document.createElement('p');
+        report.className = 'domain-battle-report';
+        report.textContent = domain.lastBattleReport;
+        el.appendChild(report);
+    }
+
+    return el;
 }
 
 function renderQuestHooks(quests) {

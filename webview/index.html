@@ -664,6 +664,12 @@
             </details>
           </details>
 
+          <!-- Domain Mode (D3): lordship stats, audience, rivals, missions, battle -->
+          <details id="world-domain-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.domainTitle">🏰 Domain</summary>
+            <div id="world-domain-panel"></div>
+          </details>
+
           <!-- 派閥ステータス -->
           <details id="world-commerce-details" class="hidden" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.commerceTitle">Caravan</summary>
@@ -933,6 +939,26 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
         <label for="gr-domain-mode" data-i18n="webview.gameRules.domainMode" data-i18n-title="webview.gameRules.tipDomainMode">Enable Domain Mode (lordship)</label>
         <input type="checkbox" id="gr-domain-mode" data-field="enableDomainMode" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-domain-audience" data-i18n="webview.gameRules.domainAudience" data-i18n-title="webview.gameRules.tipDomainAudience">Enable Audience Hall (F7)</label>
+        <input type="checkbox" id="gr-domain-audience" data-field="enableDomainAudience" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-domain-rivals" data-i18n="webview.gameRules.domainRivals" data-i18n-title="webview.gameRules.tipDomainRivals">Enable Rival Lords (F8)</label>
+        <input type="checkbox" id="gr-domain-rivals" data-field="enableDomainRivals" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-domain-missions" data-i18n="webview.gameRules.domainMissions" data-i18n-title="webview.gameRules.tipDomainMissions">Enable Officer Missions (F9)</label>
+        <input type="checkbox" id="gr-domain-missions" data-field="enableDomainMissions" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-mass-battle" data-i18n="webview.gameRules.massBattle" data-i18n-title="webview.gameRules.tipMassBattle">Enable Mass Battle (F10)</label>
+        <input type="checkbox" id="gr-mass-battle" data-field="enableMassBattle" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">

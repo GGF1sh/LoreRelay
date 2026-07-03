@@ -14,6 +14,7 @@ import {
     buildDomainEventGmHint,
     buildSeasonalDomainGmHint,
     resolveDomainPromptTier,
+    DOMAIN_ACTION_CATALOG,
     type DomainState,
 } from './domainCore';
 import {
@@ -29,7 +30,7 @@ import {
     resolveCouncilOfficersFromRegistry,
 } from './domainOfficerBondCore';
 import { buildDomainLedgerPromptLine } from './domainLedgerCore';
-import { buildAudiencePromptLines, MAX_AUDIENCE_QUEUE } from './domainAudienceCore';
+import { buildAudiencePromptLines, getPetition, MAX_AUDIENCE_QUEUE } from './domainAudienceCore';
 import { buildRivalPromptLine } from './rivalLordCore';
 import { buildActiveMissionPromptLine, type OfficerMission } from './domainMissionCore';
 import { buildBattlePromptLines } from './massBattleCore';
@@ -38,7 +39,7 @@ import { domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
 
 export { DOMAIN_OPS_PROMPT_LINE } from './domainPromptCore';
 
-function resolveRegionName(regionId: string): string | undefined {
+export function resolveRegionName(regionId: string): string | undefined {
     if (!isWorldForgeEnabled()) { return undefined; }
     const forge = loadWorldForge();
     if (!forge) { return undefined; }
@@ -177,8 +178,22 @@ export function buildDomainPromptContext(
 
 export function pickDomainForWebview(domain: DomainState | undefined): Record<string, unknown> | undefined {
     if (!domain || !domain.enabled) { return undefined; }
+    const petitions = (domain.pendingPetitions ?? [])
+        .slice(0, MAX_AUDIENCE_QUEUE)
+        .map((id) => getPetition(id))
+        .filter((p): p is NonNullable<typeof p> => Boolean(p))
+        .map((p) => ({
+            id: p.id,
+            petitionerArchetype: p.petitionerArchetype,
+            summary: p.summary,
+            rulings: (['grant', 'deny', 'compromise'] as const).map((rulingId) => ({
+                rulingId,
+                label: p.rulings[rulingId].label,
+            })),
+        }));
     return {
         controlledRegionId: domain.controlledRegionId,
+        regionName: resolveRegionName(domain.controlledRegionId),
         rank: domain.rank,
         calendarMonth: domain.calendarMonth,
         calendarYear: domain.calendarYear,
@@ -196,10 +211,12 @@ export function pickDomainForWebview(domain: DomainState | undefined): Record<st
         lastEventId: domain.lastEventId,
         officers: domain.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
         pendingEvents: domain.pendingEvents.slice(-5),
-        pendingPetitions: domain.pendingPetitions?.slice(0, MAX_AUDIENCE_QUEUE) ?? [],
+        pendingPetitions: petitions,
+        actionCatalog: [...DOMAIN_ACTION_CATALOG],
         rival: domain.rival
             ? {
                 regionId: domain.rival.regionId,
+                regionName: resolveRegionName(domain.rival.regionId),
                 // FoW parity: webview only ever sees disclosed info, never true strength/stance.
                 disclosedStrength: domain.rival.disclosedStrength,
                 disclosedStance: domain.rival.disclosedStance,
@@ -214,6 +231,7 @@ export function pickDomainForWebview(domain: DomainState | undefined): Record<st
         activeBattle: domain.activeBattle
             ? {
                 opponentLabel: domain.activeBattle.opponentLabel,
+                opponentName: resolveRegionName(domain.activeBattle.opponentLabel),
                 round: domain.activeBattle.rounds.length + 1,
                 maxRounds: domain.activeBattle.maxRounds,
                 playerTroopsRemaining: domain.activeBattle.playerTroopsRemaining,

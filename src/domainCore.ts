@@ -198,6 +198,9 @@ const DOMAIN_ACTIONS: readonly DomainActionId[] = [
     'diplomacy', 'recruit', 'inspect', 'festival', 'espionage', 'audience',
 ];
 
+/** §D3: full action catalog for the World tab action chips (order = display order). */
+export const DOMAIN_ACTION_CATALOG: readonly DomainActionId[] = DOMAIN_ACTIONS;
+
 const ACTION_DELTAS: Record<DomainActionId, DomainStatDelta> = {
     agriculture: { agriculture: 2, treasury: -40, food: 15 },
     commerce: { commerce: 2, treasury: -30 },

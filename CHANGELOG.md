@@ -13,6 +13,27 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.40.0] - 2026-07-03
+
+### Added
+
+- **D3 Domain UI（World タブ「🏰 Domain」パネル）** — `enableDomainMode` 時に表示。領地名・爵位・年月・財政/食料/兵力・7 ステータスバー（治安/民忠/農業/商業/防備/文化/威信）・家臣一覧（派遣中は明示）。
+  - **F7 謁見**（`enableDomainAudience`）: 陳情カード（陳情者・要旨）+ grant/deny/compromise 裁定ボタン → チャット挿入（GM が `domainOps.audience_ruling` に変換）。
+  - **F8 隣国ライバル**（`enableDomainRivals`）: 開示済み情報のみ表示（未開示時は「探れ」ヒント、FoW 規約を維持）。
+  - **F9 主命・派遣**（`enableDomainMissions`）: 派遣中一覧（家臣・任務種・残り月数）+ 帰還報告 + 派遣フォーム（家臣/任務/期間セレクト + ボタン）。
+  - **F10 合戦**（`enableMassBattle`）: 現ラウンド・両軍残存兵力 + 采配3ボタン（強攻/堅守/奇策）、または直近の合戦結果。
+  - **月次行動チップ**: `actionCatalog`（11 種）をトグル選択（`monthlyActionsRemaining` を上限にクランプ）→「今月の方針」テキストを一括挿入。
+  - **設計方針の踏襲**: 全ての操作は `insertChatText`（既存パターン）でチャット入力欄にテキストを挿入するのみ — Commerce Buy/Sell のような直接適用ではなく、GM が読んで `domainOps` を書く既存契約を維持。
+  - Game Rules パネルに `enableDomainAudience` / `enableDomainRivals` / `enableDomainMissions` / `enableMassBattle` のチェックボックスを追加（`enableDomainMode` の子項目として表示）。
+  - 配線: `domainCore.DOMAIN_ACTION_CATALOG`（新規 export）· `domainBridge.pickDomainForWebview`（陳情の完全な内容・region 名解決・action catalog を追加）· `worldView.ts`（`domain` peyload を `worldView` postMessage に追加）· `webview/modules/85-world.js`（`renderDomainPanel` 他 12 関数）· `webview/modules/70-game-rules.js` · `webview/index.html`。
+  - i18n: 4 言語 74 キー追加（`webview.world.domain*` 66 + `webview.gameRules.*` 8）。FoW/webview allowlist 規約どおり、rival の真の数値は一切送信しない（`disclosedStrength`/`disclosedStance` のみ）。
+
+### Verification
+
+- `npm test` **113/113**（`check_i18n_keys.js` 0 missing × 4 locale、`validate_webview_html_structure.js` div balance OK）
+- `npm run compile` クリーン、`node --check webview/script.js` 構文チェック OK
+- **手動 F5 テストは未実施** — VSCode Extension Development Host での実機確認は次セッションで推奨（本リポジトリの既存慣習どおり）
+
 ## [1.39.13] - 2026-07-03
 
 ### Added

@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.2] - 2026-07-03
+
+### Fixed
+
+- **Campaign P0 PR2 — webview ホワイトリスト** — `pickGameStateForWebview` / `pickTurnResultForWebview` で許可フィールドのみ構築。`statePatch` から `hiddenState` / `director.notes` 等を除外。未知キー（`__SECRET_TEST_DATA__` 等）は CI で検出。
+
+### Verification
+
+- `npm test` **94/94**
+
 ## [1.37.1] - 2026-07-03
 
 ### Fixed

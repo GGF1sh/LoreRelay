@@ -81,10 +81,12 @@ const ops = [{
     if (
         state.hiddenState
         || state.profileUpdates
-        || state.director?.notes
-        || state.director?.act !== '1'
+        || state.director
+        || '__SECRET__' in state
     ) {
         fail(`game state webview sanitize: ${JSON.stringify(state)}`);
+    } else if (!Array.isArray(state.entries)) {
+        fail('game state whitelist keeps entries array');
     } else {
         ok('game state webview sanitize');
     }

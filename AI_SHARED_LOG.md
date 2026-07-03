@@ -1,5 +1,17 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign P0 PR2 webview whitelist (v1.37.2)
+
+### Summary
+
+- `gameStateWebviewSanitizeCore` — whitelist-only `pickGameStateForWebview` / `pickTurnResultForWebview`.
+- `sanitizeStatePatchForWebview` drops `/hiddenState`, `/director/notes`, ephemeral update arrays.
+- `test_webview_payload_whitelist.js` guards unknown keys in CI.
+
+### Verification
+
+- `npm test` **94/94**
+
 ## 2026-07-03 JST - Grok - Campaign P0 PR1 merge semantics (v1.37.1)
 
 ### Summary

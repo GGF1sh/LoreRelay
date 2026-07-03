@@ -401,50 +401,56 @@ export function parseSettlementState(raw: unknown): SettlementStateV1 | undefine
     }
     const stocks: SettlementStock[] = [...stockMap.entries()].map(([id, amount]) => ({ id, amount }));
 
-    const structures: SettlementStructure[] = [];
+    const rawStructures: SettlementStructure[] = [];
     if (Array.isArray(r.structures)) {
         for (const item of r.structures) {
             const structure = parseStructure(item);
-            if (structure) { structures.push(structure); }
-            if (structures.length >= MAX_SETTLEMENT_STRUCTURES) { break; }
+            if (structure) { rawStructures.push(structure); }
+            if (rawStructures.length >= MAX_SETTLEMENT_STRUCTURES) { break; }
         }
     }
 
-    const residents: SettlementResident[] = [];
+    const rawResidents: SettlementResident[] = [];
     if (Array.isArray(r.residents)) {
         for (const item of r.residents) {
             const resident = parseResident(item);
-            if (resident) { residents.push(resident); }
-            if (residents.length >= MAX_SETTLEMENT_RESIDENTS) { break; }
+            if (resident) { rawResidents.push(resident); }
+            if (rawResidents.length >= MAX_SETTLEMENT_RESIDENTS) { break; }
         }
     }
 
-    const visitors: SettlementVisitor[] = [];
+    const rawVisitors: SettlementVisitor[] = [];
     if (Array.isArray(r.visitors)) {
         for (const item of r.visitors) {
             const visitor = parseVisitor(item);
-            if (visitor) { visitors.push(visitor); }
-            if (visitors.length >= MAX_SETTLEMENT_VISITORS) { break; }
+            if (visitor) { rawVisitors.push(visitor); }
+            if (rawVisitors.length >= MAX_SETTLEMENT_VISITORS) { break; }
         }
     }
 
-    const merchants: SettlementMerchant[] = [];
+    const rawMerchants: SettlementMerchant[] = [];
     if (Array.isArray(r.merchants)) {
         for (const item of r.merchants) {
             const merchant = parseMerchant(item);
-            if (merchant) { merchants.push(merchant); }
-            if (merchants.length >= MAX_SETTLEMENT_MERCHANTS) { break; }
+            if (merchant) { rawMerchants.push(merchant); }
+            if (rawMerchants.length >= MAX_SETTLEMENT_MERCHANTS) { break; }
         }
     }
 
-    const incidents: SettlementIncident[] = [];
+    const rawIncidents: SettlementIncident[] = [];
     if (Array.isArray(r.incidents)) {
         for (const item of r.incidents) {
             const incident = parseIncident(item);
-            if (incident) { incidents.push(incident); }
-            if (incidents.length >= MAX_SETTLEMENT_INCIDENTS) { break; }
+            if (incident) { rawIncidents.push(incident); }
+            if (rawIncidents.length >= MAX_SETTLEMENT_INCIDENTS) { break; }
         }
     }
+
+    const structures = dedupeByIdLastWins(rawStructures).slice(0, MAX_SETTLEMENT_STRUCTURES);
+    const residents = dedupeByNpcIdLastWins(rawResidents).slice(0, MAX_SETTLEMENT_RESIDENTS);
+    const visitors = dedupeByNpcIdLastWins(rawVisitors).slice(0, MAX_SETTLEMENT_VISITORS);
+    const merchants = dedupeByNpcIdLastWins(rawMerchants).slice(0, MAX_SETTLEMENT_MERCHANTS);
+    const incidents = dedupeByIdLastWins(rawIncidents).slice(0, MAX_SETTLEMENT_INCIDENTS);
 
     const notes: string[] = [];
     if (Array.isArray(r.notes)) {
@@ -510,6 +516,14 @@ function dedupeByIdLastWins<T extends { id: string }>(items: readonly T[]): T[] 
     const map = new Map<string, T>();
     for (const item of items) {
         map.set(item.id, item);
+    }
+    return [...map.values()];
+}
+
+function dedupeByNpcIdLastWins<T extends { npcId: string }>(items: readonly T[]): T[] {
+    const map = new Map<string, T>();
+    for (const item of items) {
+        map.set(item.npcId, item);
     }
     return [...map.values()];
 }

@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- **Settlement layout layer normalization (PR3)** — `parseSettlementLayout()` now dedupes zone/marker IDs (last-wins), unions declared `layers` with zone/marker `layerId` refs into effective layers, and sorts canonically. `deriveEffectiveSettlementLayers()` drives `buildLayerSummaries()` and `buildSettlementExpansionPreviews()` so orphan zones do not trigger false missing-layer CTAs. `scripts/test_settlement_layout_layer_normalization.js` added.
+
 - **Settlement Z-level marker semantics (PR5)** — `buildStateMarkers()` scopes residents/visitors/merchants and `stock_low` markers to `z0` only; unresolved incidents render on the layer of their associated structure (`incident.kind` → `structure.layerId`, else `z0`). Prevents the same NPC appearing on every Z layer. `scripts/test_settlement_marker_layer_semantics.js` added.
 
 - **Settlement expansion retry determinism (PR4)** — `deriveExpansionSeed()` no longer mixes `worldTurn` into the default hash (`settlementId:layerId:profile` only). Re-applying the same `expand_layer` op after reconcile at a different turn yields identical zone/marker coordinates; explicit `op.seed` / `context.seed` overrides unchanged. `scripts/test_settlement_expansion_retry_determinism.js` added.

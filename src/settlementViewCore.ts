@@ -1,6 +1,7 @@
 // Settlement Mode M3a: sanitized isometric view snapshot (pure, no vscode/fs/DOM).
 
 import {
+    deriveEffectiveSettlementLayers,
     MAX_SETTLEMENT_NAME_CHARS,
     VALID_SETTLEMENT_LAYER_IDS,
     type ExpandLayerOp,
@@ -408,11 +409,9 @@ function layoutMarkerToView(
 }
 
 function buildLayerSummaries(layout: SettlementLayoutV1 | undefined): SettlementLayerSummary[] {
-    const ordered: SettlementLayerId[] = layout?.layers?.length
-        ? layout.layers.filter((id) => (VALID_SETTLEMENT_LAYER_IDS as readonly string[]).includes(id))
+    const layers = layout
+        ? deriveEffectiveSettlementLayers(layout)
         : [...VALID_SETTLEMENT_LAYER_IDS];
-    const unique = [...new Set(ordered)];
-    const layers = unique.length ? unique : [...VALID_SETTLEMENT_LAYER_IDS];
     return layers.map((id) => ({ id, label: LAYER_LABELS[id] }));
 }
 
@@ -769,8 +768,8 @@ export function buildSettlementExpansionPreviews(
     if (!state) { return []; }
 
     const baseLayout = layout && layout.settlementId === state.settlementId ? layout : undefined;
-    const effectiveLayers: SettlementLayerId[] = baseLayout && baseLayout.layers.length
-        ? baseLayout.layers.filter((id) => (VALID_SETTLEMENT_LAYER_IDS as readonly string[]).includes(id))
+    const effectiveLayers = baseLayout
+        ? deriveEffectiveSettlementLayers(baseLayout)
         : ['z0'];
     const existing = new Set(effectiveLayers);
     const missing = (VALID_SETTLEMENT_LAYER_IDS as readonly SettlementLayerId[]).filter((id) => !existing.has(id));

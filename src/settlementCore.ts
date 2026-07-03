@@ -497,6 +497,41 @@ function parseMarker(raw: unknown): SettlementMarker | undefined {
     return parseZone(raw) as SettlementMarker | undefined;
 }
 
+function isValidLayerId(layerId: string): layerId is SettlementLayerId {
+    return (VALID_SETTLEMENT_LAYER_IDS as readonly string[]).includes(layerId);
+}
+
+function sortSettlementLayerIds(layerIds: Iterable<SettlementLayerId>): SettlementLayerId[] {
+    const set = new Set(layerIds);
+    return VALID_SETTLEMENT_LAYER_IDS.filter((id) => set.has(id));
+}
+
+function dedupeByIdLastWins<T extends { id: string }>(items: readonly T[]): T[] {
+    const map = new Map<string, T>();
+    for (const item of items) {
+        map.set(item.id, item);
+    }
+    return [...map.values()];
+}
+
+export function deriveEffectiveSettlementLayers(
+    layout: Pick<SettlementLayoutV1, 'layers' | 'zones' | 'markers'>
+): SettlementLayerId[] {
+    const set = new Set<SettlementLayerId>();
+    for (const layerId of layout.layers) {
+        if (isValidLayerId(layerId)) { set.add(layerId); }
+    }
+    for (const zone of layout.zones) {
+        if (isValidLayerId(zone.layerId)) { set.add(zone.layerId); }
+    }
+    for (const marker of layout.markers) {
+        if (isValidLayerId(marker.layerId)) { set.add(marker.layerId); }
+    }
+    const ordered = sortSettlementLayerIds(set);
+    if (!ordered.length) { return ['z0']; }
+    return ordered.slice(0, MAX_LAYOUT_LAYERS);
+}
+
 export function parseSettlementLayout(raw: unknown): SettlementLayoutV1 | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
@@ -513,25 +548,35 @@ export function parseSettlementLayout(raw: unknown): SettlementLayoutV1 | undefi
         }
     }
 
-    const zones: SettlementZone[] = [];
+    const rawZones: SettlementZone[] = [];
     if (Array.isArray(r.zones)) {
         for (const item of r.zones) {
             const zone = parseZone(item);
-            if (zone) { zones.push(zone); }
-            if (zones.length >= MAX_LAYOUT_ZONES) { break; }
+            if (zone) { rawZones.push(zone); }
+            if (rawZones.length >= MAX_LAYOUT_ZONES) { break; }
         }
     }
 
-    const markers: SettlementMarker[] = [];
+    const rawMarkers: SettlementMarker[] = [];
     if (Array.isArray(r.markers)) {
         for (const item of r.markers) {
             const marker = parseMarker(item);
-            if (marker) { markers.push(marker); }
-            if (markers.length >= MAX_LAYOUT_MARKERS) { break; }
+            if (marker) { rawMarkers.push(marker); }
+            if (rawMarkers.length >= MAX_LAYOUT_MARKERS) { break; }
         }
     }
 
-    return { version: SETTLEMENT_LAYOUT_VERSION, settlementId, layers, zones, markers };
+    const zones = dedupeByIdLastWins(rawZones).slice(0, MAX_LAYOUT_ZONES);
+    const markers = dedupeByIdLastWins(rawMarkers).slice(0, MAX_LAYOUT_MARKERS);
+    const effectiveLayers = deriveEffectiveSettlementLayers({ layers, zones, markers });
+
+    return {
+        version: SETTLEMENT_LAYOUT_VERSION,
+        settlementId,
+        layers: effectiveLayers,
+        zones,
+        markers,
+    };
 }
 
 function parseSetScoreOp(r: Record<string, unknown>): SetScoreOp | undefined {

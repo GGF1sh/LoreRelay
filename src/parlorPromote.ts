@@ -8,7 +8,8 @@ import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspace
 import { loadParlorSession } from './parlorSession';
 import { loadPlayerPersona } from './persona';
 import { runParlorPromoteCore } from './parlorPromoteCore';
-import { saveExperienceConfig } from './experience';
+import { loadExperienceConfig, saveExperienceConfig } from './experience';
+import { validateGameState } from './validateGameState';
 import { saveGameRules } from './gameRules';
 import { commitGameState } from './stateManager';
 import { setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
@@ -52,6 +53,30 @@ export async function promoteParlorToCampaign(): Promise<PromoteParlorResult> {
     if (!session || session.messages.length === 0) {
         vscode.window.showWarningMessage(t('extension.error.parlorPromoteEmpty'));
         return { ok: false, error: 'empty_session' };
+    }
+
+    const experience = loadExperienceConfig();
+    const statePath = getGameStatePath();
+    const hasFrozenCampaign = Boolean(
+        experience.campaign?.frozenAt && statePath && fs.existsSync(statePath)
+    );
+    if (hasFrozenCampaign) {
+        const resumePick = await vscode.window.showQuickPick(
+            [
+                { label: t('extension.parlorPromote.resumeFrozen'), id: 'resume' as const },
+                { label: t('extension.parlorPromote.freshPromote'), id: 'fresh' as const },
+            ],
+            { title: t('extension.parlorPromote.frozenTitle') }
+        );
+        if (!resumePick) {
+            return { ok: false, error: 'cancelled' };
+        }
+        if (resumePick.id === 'resume') {
+            saveExperienceConfig({ profile: 'campaign', campaign: { frozenAt: null } });
+            sendExperienceProfileToWebview();
+            vscode.window.showInformationMessage(t('extension.info.parlorPromoteResumed'));
+            return { ok: true };
+        }
     }
 
     const defaultTitle = `${character.name} — Campaign`;
@@ -122,6 +147,11 @@ export async function promoteParlorToCampaign(): Promise<PromoteParlorResult> {
             locale,
         },
     });
+
+    const validationErrors = validateGameState(output.gameState);
+    if (validationErrors.length > 0) {
+        console.error('[LoreRelay] Parlor promote validation:', validationErrors.slice(0, 5).join('; '));
+    }
 
     const entries = (output.gameState.entries as GameEntry[]) || [];
     setGameEntryHistoryWithSeenIds(entries);

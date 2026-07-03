@@ -33,6 +33,7 @@ const { createEmptyParlorSession, appendParlorMessage, MAX_PARLOR_MESSAGES } = s
 const {
     extractParlorArchiveBatch,
     mergeParlorSessionSummary,
+    compressParlorSessionSummary,
     parseParlorArchiveLine,
     serializeParlorArchiveRecord,
 } = archive;
@@ -72,6 +73,26 @@ function fail(m) { console.error(`FAIL: ${m}`); failed++; }
     const parsed = parseParlorArchiveLine(line);
     if (parsed && parsed.messages.length === 1) { ok('archive roundtrip'); }
     else { fail('archive roundtrip'); }
+}
+
+{
+    let summary = 'header';
+    for (let i = 0; i < 80; i++) {
+        summary = mergeParlorSessionSummary(summary, `delta-${i} ${'x'.repeat(120)}`);
+    }
+    if (summary && summary.includes('compressed') && summary.length <= 4000) { ok('summary compression'); }
+    else { fail(`summary compression (${summary?.length})`); }
+}
+
+{
+    const lines = Array.from({ length: 5 }, (_, i) => serializeParlorArchiveRecord({
+        archivedAt: '2026-07-03T00:00:00.000Z',
+        activeCharacterId: 'elda',
+        messages: [{ id: `m${i}`, role: 'user', content: 'hi', createdAt: 't' }],
+    }));
+    const parsed = lines.map((l) => parseParlorArchiveLine(l)).filter(Boolean);
+    if (parsed.length === 5) { ok('ndjson line integrity'); }
+    else { fail(`ndjson integrity (${parsed.length})`); }
 }
 
 if (failed > 0) {

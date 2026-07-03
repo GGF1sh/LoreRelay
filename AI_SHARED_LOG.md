@@ -1,5 +1,16 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Parlor Phase C Gemini review follow-up
+
+### Summary
+
+- `splitCampaignImportForParlor` — 500 active + overflow to ndjson (P0 demote memory).
+- Archive write queue serializes ndjson appends (P0 I/O).
+- Promote wizard: resume frozen Campaign vs fresh promote when `frozenAt` + game_state exist (P1).
+- `sanitizePromotedGameState` + validateGameState log (P1 schema).
+- `compressParlorSessionSummary` for long-running archives (P2).
+- Grok broader Campaign/LW review documented as out-of-scope appendix.
+
 ## 2026-07-03 JST - Grok - Phase 12 Parlor Mode Phase C (v1.36.0)
 
 ### Summary

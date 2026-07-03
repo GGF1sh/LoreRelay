@@ -10,6 +10,7 @@ const root = path.join(__dirname, '..');
 const srcFiles = [
     path.join(root, 'src', 'characterId.ts'),
     path.join(root, 'src', 'parlorSessionCore.ts'),
+    path.join(root, 'src', 'migrateGameState.ts'),
     path.join(root, 'src', 'parlorPromoteCore.ts'),
 ];
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parlor-promote-'));
@@ -37,7 +38,16 @@ const {
     runParlorPromoteCore,
     mapParlorMessagesToGameEntries,
     buildParlorSafeGameRules,
+    sanitizePromotedGameState,
 } = promote;
+
+let validateGameState;
+try {
+    const validatePath = path.join(root, 'out', 'validateGameState.js');
+    if (fs.existsSync(validatePath)) {
+        validateGameState = require(validatePath).validateGameState;
+    }
+} catch { /* optional */ }
 
 let failed = 0;
 function ok(m) { console.log(`OK: ${m}`); }
@@ -67,6 +77,17 @@ function fail(m) { console.error(`FAIL: ${m}`); failed++; }
     const rules = buildParlorSafeGameRules({ enableRpgMechanics: true, enableWorldForge: true });
     if (rules.enableRpgMechanics && rules.enableWorldForge && rules.enableCommerce === false) { ok('optional rules'); }
     else { fail('optional rules'); }
+}
+
+{
+    const minimal = sanitizePromotedGameState({ entries: [{ id: 'ok', role: 'gm', sender: 'GM', content: 'Hi' }] });
+    if (minimal.schemaVersion === 2 && Array.isArray(minimal.entries)) { ok('sanitize schemaVersion'); }
+    else { fail('sanitize schemaVersion'); }
+    if (typeof validateGameState === 'function') {
+        const errs = validateGameState(minimal);
+        if (errs.length === 0) { ok('validateGameState minimal'); }
+        else { fail(`validateGameState minimal (${errs.join('; ')})`); }
+    }
 }
 
 {

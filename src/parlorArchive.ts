@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { getWorkspacePath } from './workspacePaths';
 import type { ParlorSession } from './parlorSessionCore';
 import {
     PARLOR_ARCHIVE_FILENAME,
@@ -24,13 +24,43 @@ function resolveParlorArchivePath(): string | undefined {
     return resolved;
 }
 
-export function appendParlorArchiveRecords(records: ParlorArchiveRecord[]): void {
-    const filePath = resolveParlorArchivePath();
-    if (!filePath || records.length === 0) {
+/** In-process write queue — serializes ndjson appends (Gemini Phase C P0). */
+let archiveWriteQueue: ParlorArchiveRecord[][] = [];
+let archiveWriteBusy = false;
+
+function flushParlorArchiveQueue(): void {
+    if (archiveWriteBusy) {
         return;
     }
-    const lines = records.map((r) => serializeParlorArchiveRecord(r)).join('\n') + '\n';
-    fs.appendFileSync(filePath, lines, 'utf-8');
+    archiveWriteBusy = true;
+    try {
+        const filePath = resolveParlorArchivePath();
+        if (!filePath) {
+            archiveWriteQueue = [];
+            return;
+        }
+        while (archiveWriteQueue.length > 0) {
+            const batch = archiveWriteQueue.shift();
+            if (!batch || batch.length === 0) {
+                continue;
+            }
+            const lines = batch.map((r) => serializeParlorArchiveRecord(r)).join('\n') + '\n';
+            fs.appendFileSync(filePath, lines, 'utf-8');
+        }
+    } finally {
+        archiveWriteBusy = false;
+        if (archiveWriteQueue.length > 0) {
+            flushParlorArchiveQueue();
+        }
+    }
+}
+
+export function appendParlorArchiveRecords(records: ParlorArchiveRecord[]): void {
+    if (records.length === 0) {
+        return;
+    }
+    archiveWriteQueue.push(records);
+    flushParlorArchiveQueue();
 }
 
 export function compactParlorSessionWithArchive(

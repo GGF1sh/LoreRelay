@@ -7,6 +7,7 @@ import {
     clampParlorContent,
     recentParlorMessagesForPrompt,
 } from './parlorSessionCore';
+import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 
 export const MAX_PROMOTE_HISTORY_ENTRIES = 30;
 export const MAX_PROMOTE_OPENING_CHARS = 4_000;
@@ -227,6 +228,51 @@ export function buildParlorPromoteGameState(
     };
 }
 
+const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+/** Ensure promoted state passes validateGameState (Gemini Phase C P1). */
+export function sanitizePromotedGameState(raw: Record<string, unknown>): Record<string, unknown> {
+    const state: Record<string, unknown> = {
+        ...raw,
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+    };
+    if (Array.isArray(state.entries)) {
+        state.entries = (state.entries as unknown[]).map((item, index) => {
+            const e = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+            let id = typeof e.id === 'string' ? e.id.trim() : `parlor-promote-${index + 1}`;
+            if (!ENTRY_ID_PATTERN.test(id)) {
+                id = `parlor-promote-${index + 1}`;
+            }
+            const role = e.role === 'user' ? 'user' : 'gm';
+            const sender = typeof e.sender === 'string' && e.sender.trim()
+                ? e.sender.trim().slice(0, 120)
+                : (role === 'user' ? 'Player' : 'Game Master');
+            const content = typeof e.content === 'string' ? clampParlorContent(e.content, 32_000) : '';
+            return { id, role, sender, content };
+        });
+    } else {
+        state.entries = [];
+    }
+    if (!Array.isArray(state.options)) {
+        state.options = [];
+    } else {
+        state.options = (state.options as unknown[])
+            .filter((o) => typeof o === 'string')
+            .map((o) => String(o).slice(0, 500))
+            .slice(0, 12);
+    }
+    if (!state.status || typeof state.status !== 'object') {
+        state.status = { location: 'Unknown', time: 'After Parlor promotion' };
+    }
+    if (!state.theme || typeof state.theme !== 'string') {
+        state.theme = 'custom';
+    }
+    if (!state.director || typeof state.director !== 'object') {
+        state.director = { guidanceMode: 'sandbox' };
+    }
+    return state;
+}
+
 export function runParlorPromoteCore(input: {
     session: ParlorSession;
     character: ParlorPromoteCharacterInput;
@@ -242,8 +288,11 @@ export function runParlorPromoteCore(input: {
         playerDescription,
     };
     const summary = buildParlorSessionSummary(input.session, input.character.name, locale);
+    const gameState = sanitizePromotedGameState(
+        buildParlorPromoteGameState(input.session, input.character, options, summary)
+    );
     return {
-        gameState: buildParlorPromoteGameState(input.session, input.character, options, summary),
+        gameState,
         scenario: buildParlorScenarioDraft(input.session, input.character, options, summary),
         gameRules: buildParlorSafeGameRules(options),
         parlorSummary: summary,

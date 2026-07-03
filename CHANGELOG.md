@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parlor Phase C（Gemini レビュー follow-up）** — Campaign 履歴バルクインポートを 500 件アクティブ + 超過分 ndjson 直アーカイブ、`parlor_archive` 書き込みキュー、凍結 Campaign 再開 vs 新規昇格の分岐、`sanitizePromotedGameState` + `schemaVersion: 2`、サマリ多段圧縮。
+
+### Docs
+
+- `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` — Phase C triage + Grok 全体レビュー別紙
+
 ## [1.36.0] - 2026-07-03
 
 ### Added

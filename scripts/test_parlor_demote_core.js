@@ -28,7 +28,12 @@ if (spawnSync(cmd, args, { stdio: 'inherit', shell: useShell }).status !== 0) {
 }
 
 const demote = require(path.join(outDir, 'parlorDemoteCore.js'));
-const { mapCampaignEntriesToParlorMessages, mergeImportedParlorMessages } = demote;
+const {
+    mapCampaignEntriesToParlorMessages,
+    mergeImportedParlorMessages,
+    splitCampaignImportForParlor,
+    MAX_DEMOTE_ACTIVE_MESSAGES,
+} = demote;
 
 let failed = 0;
 function ok(m) { console.log(`OK: ${m}`); }
@@ -51,6 +56,18 @@ function fail(m) { console.error(`FAIL: ${m}`); failed++; }
     );
     if (merged.length === 2) { ok('merge dedupe'); }
     else { fail(`merge dedupe (${merged.length})`); }
+}
+
+{
+    const entries = [];
+    for (let i = 0; i < 1200; i++) {
+        entries.push({ id: `e${i}`, role: i % 2 ? 'gm' : 'user', content: `line-${i}` });
+    }
+    const split = splitCampaignImportForParlor(entries, { characterId: 'elda' });
+    if (split.activeMessages.length === MAX_DEMOTE_ACTIVE_MESSAGES && split.archivedCount === 700) { ok('bulk import splits to archive'); }
+    else { fail(`bulk split (active=${split.activeMessages.length}, archived=${split.archivedCount})`); }
+    if (split.archiveRecords.length >= 10) { ok('archive record batches'); }
+    else { fail(`archive batches (${split.archiveRecords.length})`); }
 }
 
 if (failed > 0) {

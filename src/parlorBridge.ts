@@ -11,7 +11,9 @@ import {
     saveParlorSession,
 } from './parlorSession';
 import { parlorMessagesToChatEntries } from './parlorSessionCore';
-import { mapCampaignEntriesToParlorMessages, mergeImportedParlorMessages } from './parlorDemoteCore';
+import { splitCampaignImportForParlor, mergeImportedParlorMessages } from './parlorDemoteCore';
+import { appendParlorArchiveRecords } from './parlorArchive';
+import { buildParlorArchiveSummaryDelta, mergeParlorSessionSummary } from './parlorArchiveCore';
 import { buildParlorUserPrompt } from './parlorPromptBuilder';
 import { sanitizeParlorAssistantReply } from './parlorPromptBuilderCore';
 import {
@@ -179,17 +181,29 @@ export async function demoteToParlorMode(
         return ok;
     }
 
-    const imported = mapCampaignEntriesToParlorMessages(entries, {
-        maxMessages: 40,
-        characterId: activeId,
-    });
+    const locale = getConfiguredLocale();
+    const split = splitCampaignImportForParlor(entries, { characterId: activeId });
+    if (split.archiveRecords.length > 0) {
+        appendParlorArchiveRecords(split.archiveRecords);
+    }
     let session = loadParlorSession(activeId) || getOrCreateParlorSession(activeId);
+    const mergedMessages = mergeImportedParlorMessages(session.messages, split.activeMessages);
+    let summary = session.summary;
+    if (split.archivedCount > 0) {
+        const delta = buildParlorArchiveSummaryDelta(
+            split.archiveRecords.flatMap((r) => r.messages),
+            character.name,
+            locale
+        );
+        summary = mergeParlorSessionSummary(summary, delta);
+    }
     session = {
         ...session,
-        messages: mergeImportedParlorMessages(session.messages, imported),
+        messages: mergedMessages,
+        summary,
         updatedAt: new Date().toISOString(),
     };
-    saveParlorSession(session, character.name, getConfiguredLocale());
+    saveParlorSession(session, character.name, locale);
     sendParlorSessionToWebview();
     return true;
 }

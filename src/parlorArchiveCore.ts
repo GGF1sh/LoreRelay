@@ -60,16 +60,36 @@ export function buildParlorArchiveSummaryDelta(
     return [label, ...snippets].join('\n');
 }
 
+/** Collapse an overlong summary: keep header + recent tail (Gemini Phase C P2). */
+export function compressParlorSessionSummary(
+    text: string,
+    maxChars = MAX_PARLOR_SUMMARY_CHARS
+): string {
+    if (text.length <= maxChars) {
+        return text;
+    }
+    const lines = text.split('\n');
+    const header = lines[0] || '';
+    const marker = '[...summary compressed by LoreRelay...]';
+    const tail = lines.slice(-6);
+    let candidate = [header, marker, ...tail].join('\n');
+    if (candidate.length > maxChars) {
+        candidate = candidate.slice(0, maxChars);
+    }
+    return candidate;
+}
+
 export function mergeParlorSessionSummary(
     existing: string | undefined,
     delta: string,
     maxChars = MAX_PARLOR_SUMMARY_CHARS
 ): string | undefined {
     if (!delta.trim()) {
-        return existing;
+        return existing ? compressParlorSessionSummary(existing, maxChars) : undefined;
     }
     const merged = existing ? `${existing}\n${delta}` : delta;
-    return clampParlorContent(merged, maxChars) || undefined;
+    const compressed = compressParlorSessionSummary(merged, maxChars);
+    return compressed.trim() ? compressed : undefined;
 }
 
 export function serializeParlorArchiveRecord(record: ParlorArchiveRecord): string {

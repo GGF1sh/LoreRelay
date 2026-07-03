@@ -346,3 +346,91 @@ export function buildFogUnexploredPromptLine(
 
     return line;
 }
+
+/** Prompt block with eviction priority (higher = keep longer when over global budget). */
+export interface PromptContextChunkSpec {
+    id: string;
+    text: string;
+    priority: number;
+}
+
+/** Lower numbers are evicted first when total context exceeds targetChars. */
+export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
+    gameRules: 100,
+    director: 95,
+    chronicle: 90,
+    summary: 85,
+    party: 80,
+    partyDirector: 75,
+    travelEncounters: 70,
+    livingWorldTravel: 72,
+    worldState: 68,
+    worldChangeSummary: 66,
+    worldForge: 65,
+    npcRegistry: 55,
+    saga: 50,
+    memory: 45,
+    lorebook: 40,
+    vision: 35,
+};
+
+export function resolvePromptChunkPriority(id: string): number {
+    return PROMPT_CHUNK_PRIORITIES[id] ?? 50;
+}
+
+/**
+ * Enforce a global char budget by dropping or truncating lowest-priority blocks first.
+ * Returns chunk texts in original assembly order (empty chunks omitted).
+ */
+export function evictPromptChunksByBudget(
+    chunks: PromptContextChunkSpec[],
+    targetChars: number
+): string[] {
+    const limit = Math.max(0, Math.floor(targetChars));
+    const working = chunks
+        .map((c) => ({
+            ...c,
+            text: String(c.text ?? '').trim(),
+            priority: Number.isFinite(c.priority) ? c.priority : resolvePromptChunkPriority(c.id),
+        }))
+        .filter((c) => c.text.length > 0);
+
+    if (working.length === 0) {
+        return [];
+    }
+
+    let total = working.reduce((sum, c) => sum + c.text.length, 0);
+    if (total <= limit) {
+        return working.map((c) => c.text);
+    }
+
+    const order = [...working].sort((a, b) => a.priority - b.priority);
+    for (const victim of order) {
+        if (total <= limit) {
+            break;
+        }
+        const idx = working.findIndex((c) => c.id === victim.id);
+        if (idx < 0) {
+            continue;
+        }
+        const current = working[idx];
+        const excess = total - limit;
+        if (current.text.length <= excess) {
+            total -= current.text.length;
+            working.splice(idx, 1);
+            continue;
+        }
+        const keep = Math.max(0, current.text.length - excess);
+        const trimmed = keep <= 3
+            ? ''
+            : `${current.text.slice(0, keep - 20)}...[truncated]`;
+        total -= current.text.length - trimmed.length;
+        if (!trimmed) {
+            working.splice(idx, 1);
+        } else {
+            working[idx] = { ...current, text: trimmed };
+        }
+    }
+
+    return working.map((c) => c.text);
+}

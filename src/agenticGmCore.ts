@@ -324,34 +324,87 @@ function parseGmEntry(raw: unknown): TurnGmEntryMeta | undefined {
     return Object.keys(entry).length > 0 ? entry : undefined;
 }
 
-export function extractJsonObject(text: string): unknown | null {
+export interface JsonParseAttemptResult {
+    value: unknown | null;
+    error?: string;
+    repaired: boolean;
+}
+
+/** Remove common LLM JSON defects before parse (trailing commas, etc.). */
+export function repairJsonForParse(text: string): string {
+    let s = String(text ?? '').trim();
+    if (!s) {
+        return s;
+    }
+    s = s.replace(/,\s*([}\]])/g, '$1');
+    return s;
+}
+
+function tryParseJsonCandidate(candidate: string): { value: unknown } | { error: string } {
+    try {
+        return { value: JSON.parse(candidate) };
+    } catch (e) {
+        const repaired = repairJsonForParse(candidate);
+        if (repaired !== candidate) {
+            try {
+                return { value: JSON.parse(repaired) };
+            } catch (repairedErr) {
+                return {
+                    error: repairedErr instanceof Error ? repairedErr.message : String(repairedErr),
+                };
+            }
+        }
+        return { error: e instanceof Error ? e.message : String(e) };
+    }
+}
+
+export function parseJsonObjectWithRecovery(text: string): JsonParseAttemptResult {
     const trimmed = text.trim();
     if (!trimmed) {
-        return null;
+        return { value: null, error: 'empty input', repaired: false };
     }
-    try {
-        return JSON.parse(trimmed);
-    } catch {
-        // continue
-    }
+
+    const candidates: Array<{ body: string; repaired: boolean }> = [
+        { body: trimmed, repaired: false },
+        { body: repairJsonForParse(trimmed), repaired: true },
+    ];
+
     const fenced = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/i.exec(trimmed);
     if (fenced) {
-        try {
-            return JSON.parse(fenced[1]);
-        } catch {
-            // continue
-        }
+        candidates.push({ body: fenced[1], repaired: false });
+        candidates.push({ body: repairJsonForParse(fenced[1]), repaired: true });
     }
+
     const start = trimmed.indexOf('{');
     const end = trimmed.lastIndexOf('}');
     if (start >= 0 && end > start) {
-        try {
-            return JSON.parse(trimmed.slice(start, end + 1));
-        } catch {
-            return null;
-        }
+        const slice = trimmed.slice(start, end + 1);
+        candidates.push({ body: slice, repaired: false });
+        candidates.push({ body: repairJsonForParse(slice), repaired: true });
     }
-    return null;
+
+    let lastError = 'no parse candidate succeeded';
+    const seen = new Set<string>();
+    for (const candidate of candidates) {
+        if (!candidate.body || seen.has(candidate.body)) {
+            continue;
+        }
+        seen.add(candidate.body);
+        const parsed = tryParseJsonCandidate(candidate.body);
+        if ('value' in parsed) {
+            return {
+                value: parsed.value,
+                repaired: candidate.repaired || candidate.body !== trimmed,
+            };
+        }
+        lastError = parsed.error;
+    }
+
+    return { value: null, error: lastError, repaired: false };
+}
+
+export function extractJsonObject(text: string): unknown | null {
+    return parseJsonObjectWithRecovery(text).value;
 }
 
 export function parseRefereeResultJson(text: string): RefereeResultCandidate | null {

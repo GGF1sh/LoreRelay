@@ -1,4 +1,23 @@
 // ===== Game State の適用 =====
+let lastGameStateSyncSeq = 0;
+
+function shouldApplyGameStateUpdate(msg) {
+  if (msg?.syncSeq === undefined || msg.syncSeq === null) {
+    return true;
+  }
+  const seq = Number(msg.syncSeq);
+  if (!Number.isFinite(seq)) {
+    return true;
+  }
+  if (seq < lastGameStateSyncSeq) {
+    return false;
+  }
+  if (seq > lastGameStateSyncSeq) {
+    lastGameStateSyncSeq = seq;
+  }
+  return true;
+}
+
 function applyEntryPatch(patch) {
   if (!patch?.id) return;
   const idx = messageHistory.findIndex(m => m.id === patch.id);

@@ -7,6 +7,7 @@ import { applyNpcMemoryUpdates, parseNpcMemoryUpdatesFromGameState } from './npc
 import { loadGameRules } from './gameRules';
 import { isValidEntryId } from './entryId';
 import { validateGameState } from './validateGameState';
+import { salvageGameStateFromUnknown } from './gameStateSanitize';
 import { migrateGameState, CURRENT_SCHEMA_VERSION } from './migrateGameState';
 import { getActiveWorkspaceFolder, writeJsonAtomic } from './workspacePaths';
 
@@ -27,6 +28,7 @@ let gameEntryHistory: GameEntry[] = [];
 const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 let lastGoodGameState: Record<string, unknown> | undefined;
+let gameStateSyncSeq = 0;
 import { processTurnResult, takeAutoLocationImageRequest } from './statePatch';
 import { queueAutoLocationImageSilent } from './autoLocationImageRunner';
 import { markTurnResultHandled } from './turnResultFallback';
@@ -231,28 +233,49 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             let hadSchemaErrors = false;
 
             if (schemaErrors.length > 0) {
-                hadSchemaErrors = true;
-                const summary = schemaErrors.join('; ');
-                const logLine = `[LoreRelay] game_state.json schema violation: ${summary}`;
-                console.warn(logLine);
-                d.appendGmBridgeLog(logLine);
-                try {
-                    const invalidPath = path.join(path.dirname(statePath), 'game_state.invalid.latest.json');
-                    writeJsonAtomic(invalidPath, state);
-                } catch (e) {
-                    console.error('Failed to save game_state.invalid.latest.json:', e);
-                }
-                if (!schemaWarningShown) {
-                    schemaWarningShown = true;
-                    vscode.window.showWarningMessage(
-                        'LoreRelay: game_state.json has schema errors — showing last good state. Check "LoreRelay: GM Bridge" output for details.'
-                    );
-                }
-                if (lastGoodGameState) {
-                    activeState = lastGoodGameState;
+                const salvaged = salvageGameStateFromUnknown(state);
+                const salvageErrors = salvaged ? validateGameState(salvaged) : ['salvage failed'];
+                if (salvaged && salvageErrors.length === 0) {
+                    activeState = salvaged;
+                    state = salvaged;
+                    hadSchemaErrors = false;
+                    schemaWarningShown = false;
+                    const recoveredLine = '[LoreRelay] game_state.json recovered via salvage';
+                    console.log(recoveredLine);
+                    d.appendGmBridgeLog(recoveredLine);
+                    try {
+                        commitGameState(salvaged);
+                    } catch (e) {
+                        console.error('[LoreRelay] Failed to persist salvaged game_state.json:', e);
+                    }
                 } else {
-                    panel.webview.postMessage({ type: 'gameStateUpdate', schemaErrors });
-                    return;
+                    hadSchemaErrors = true;
+                    const summary = schemaErrors.join('; ');
+                    const logLine = `[LoreRelay] game_state.json schema violation: ${summary}`;
+                    console.warn(logLine);
+                    d.appendGmBridgeLog(logLine);
+                    try {
+                        const invalidPath = path.join(path.dirname(statePath), 'game_state.invalid.latest.json');
+                        writeJsonAtomic(invalidPath, state);
+                    } catch (e) {
+                        console.error('Failed to save game_state.invalid.latest.json:', e);
+                    }
+                    if (!schemaWarningShown) {
+                        schemaWarningShown = true;
+                        vscode.window.showWarningMessage(
+                            'LoreRelay: game_state.json has schema errors — showing last good state. Check "LoreRelay: GM Bridge" output for details.'
+                        );
+                    }
+                    if (lastGoodGameState) {
+                        activeState = lastGoodGameState;
+                    } else {
+                        panel.webview.postMessage({
+                            type: 'gameStateUpdate',
+                            syncSeq: ++gameStateSyncSeq,
+                            schemaErrors
+                        });
+                        return;
+                    }
                 }
             } else {
                 schemaWarningShown = false;
@@ -432,6 +455,7 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             const stateForWebview = { ...activeState, entries: entriesToSend, latestImage, latestImageRawPath, background, sprite, hiddenDice };
             panel.webview.postMessage({
                 type: 'gameStateUpdate',
+                syncSeq: ++gameStateSyncSeq,
                 fullHistory,
                 state: stateForWebview,
                 ...(hadSchemaErrors ? { schemaErrors } : {})
@@ -558,6 +582,7 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
         if (panel) {
             panel.webview.postMessage({
                 type: 'gameStateUpdate',
+                syncSeq: ++gameStateSyncSeq,
                 turnResult: enriched || turnResult
             });
         }

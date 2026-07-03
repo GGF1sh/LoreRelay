@@ -227,7 +227,12 @@ function initStartHub() {
 window.addEventListener('message', (event) => {
   const msg = event.data;
   if (msg.type === 'gameStateUpdate') {
-    applyGameState(msg.state, msg.fullHistory);
+    if (!shouldApplyGameStateUpdate(msg)) {
+      return;
+    }
+    if (msg.state) {
+      applyGameState(msg.state, msg.fullHistory);
+    }
   } else if (msg.type === 'imageGenStart') {
     showImageLoading();
   } else if (msg.type === 'imageGenEnd') {

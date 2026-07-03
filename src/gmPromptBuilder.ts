@@ -63,6 +63,9 @@ import {
     TRADE_OPS_PROMPT_LINE,
     NPC_AGENCY_OPS_PROMPT_LINE,
     RELATIONSHIP_OPS_PROMPT_LINE,
+    evictPromptChunksByBudget,
+    resolvePromptChunkPriority,
+    type PromptContextChunkSpec,
 } from './gmPromptBuilderCore';
 import {
     buildChronicle,
@@ -1125,78 +1128,72 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     );
 }
 
-export function buildGmPromptContext(playerAction: string): string {
-    const policy = getPromptBudgetPolicy();
+function pushPromptChunk(
+    specs: PromptContextChunkSpec[],
+    id: string,
+    text: string | undefined
+): void {
+    const trimmed = (text || '').trim();
+    if (!trimmed) {
+        return;
+    }
+    specs.push({
+        id,
+        text: trimmed,
+        priority: resolvePromptChunkPriority(id),
+    });
+}
+
+function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolicy): PromptContextChunkSpec[] {
     const hint = buildHintText(playerAction, policy);
     const ws = getWorkspacePath();
-    const chunks: string[] = [buildGameRulesPromptContext()];
-    const directorCtx = buildScenarioDirectorPromptContext();
-    if (directorCtx) {
-        chunks.push(directorCtx);
-    }
-    const chronicleCtx = consumeChronicleRecapContext(policy);
-    if (chronicleCtx) {
-        chunks.push(chronicleCtx);
-    }
+    const specs: PromptContextChunkSpec[] = [];
+
+    pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
+    pushPromptChunk(specs, 'director', buildScenarioDirectorPromptContext());
+    pushPromptChunk(specs, 'chronicle', consumeChronicleRecapContext(policy));
+
     const summary = loadStorySummary();
     if (summary) {
-        chunks.push(`[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}`);
-    }
-    if (ws) {
-        const sagaCtx = clampTextForPrompt(
-            buildSagaPromptContext(ws, policy.sagaChapters),
-            policy.sagaChars
+        pushPromptChunk(
+            specs,
+            'summary',
+            `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}`
         );
-        if (sagaCtx) {
-            chunks.push(sagaCtx);
-        }
     }
-    const partyCtx = buildPartyPromptContext(policy);
-    if (partyCtx) {
-        chunks.push(partyCtx);
-    }
-    const partyDirectorCtx = buildPartyDirectorPromptContext();
-    if (partyDirectorCtx) {
-        chunks.push(partyDirectorCtx);
-    }
+
     if (ws) {
-        const memoryCtx = buildMemoryContextForPrompt(ws, hint, policy);
-        if (memoryCtx) {
-            chunks.push(memoryCtx);
-        }
+        pushPromptChunk(
+            specs,
+            'saga',
+            clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars)
+        );
     }
-    const travelEncounterCtx = buildTravelEncounterPromptContext(playerAction);
-    if (travelEncounterCtx) {
-        chunks.push(travelEncounterCtx);
+
+    pushPromptChunk(specs, 'party', buildPartyPromptContext(policy));
+    pushPromptChunk(specs, 'partyDirector', buildPartyDirectorPromptContext());
+
+    if (ws) {
+        pushPromptChunk(specs, 'memory', buildMemoryContextForPrompt(ws, hint, policy));
     }
-    const livingWorldTravelCtx = buildLivingWorldTravelPromptContext(playerAction);
-    if (livingWorldTravelCtx) {
-        chunks.push(livingWorldTravelCtx);
-    }
-    const worldCtx = buildWorldForgePromptContext(policy);
-    if (worldCtx) {
-        chunks.push(worldCtx);
-    }
-    const worldStateCtx = buildWorldStatePromptContext(policy);
-    if (worldStateCtx) {
-        chunks.push(worldStateCtx);
-    }
-    const worldChangeSummaryCtx = consumeWorldChangeSummaryContext();
-    if (worldChangeSummaryCtx) {
-        chunks.push(worldChangeSummaryCtx);
-    }
-    const loreCtx = buildLorebookPromptContext(hint, policy);
-    if (loreCtx) {
-        chunks.push(loreCtx);
-    }
-    const npcCtx = buildNpcRegistryPromptContext(policy);
-    if (npcCtx) {
-        chunks.push(npcCtx);
-    }
-    const visionCtx = buildVisionContext(policy);
-    if (visionCtx) {
-        chunks.push(visionCtx);
-    }
+
+    pushPromptChunk(specs, 'travelEncounters', buildTravelEncounterPromptContext(playerAction));
+    pushPromptChunk(specs, 'livingWorldTravel', buildLivingWorldTravelPromptContext(playerAction));
+    pushPromptChunk(specs, 'worldForge', buildWorldForgePromptContext(policy));
+    pushPromptChunk(specs, 'worldState', buildWorldStatePromptContext(policy));
+    pushPromptChunk(specs, 'worldChangeSummary', consumeWorldChangeSummaryContext());
+    pushPromptChunk(specs, 'lorebook', buildLorebookPromptContext(hint, policy));
+    pushPromptChunk(specs, 'npcRegistry', buildNpcRegistryPromptContext(policy));
+    pushPromptChunk(specs, 'vision', buildVisionContext(policy));
+
+    return specs;
+}
+
+export function buildGmPromptContext(playerAction: string): string {
+    const policy = getPromptBudgetPolicy();
+    const specs = buildGmPromptChunkSpecs(playerAction, policy);
+    const targetChars = policy.targetTokens * 4;
+    const chunks = evictPromptChunksByBudget(specs, targetChars);
     return chunks.length ? `\n\n${chunks.join('\n\n')}` : '';
 }
 

@@ -14,7 +14,8 @@ if (!require('fs').existsSync(sanitizePath)) {
     process.exit(1);
 }
 
-const { sanitizeGameStateForPersist } = require(sanitizePath);
+const { sanitizeGameStateForPersist, salvageGameStateFromUnknown } = require(sanitizePath);
+const { validateGameState } = require(path.join(root, 'out', 'validateGameState.js'));
 
 const hpFixed = sanitizeGameStateForPersist({
     schemaVersion: 2,
@@ -54,6 +55,44 @@ if (inv.status.location.length !== 500) {
     fail(`location string capped: ${inv.status.location.length}`);
 } else {
     ok('location string capped');
+}
+
+{
+    const salvaged = salvageGameStateFromUnknown({
+        schemaVersion: 2,
+        entries: [
+            { id: 'turn-1', role: 'gm', sender: 'GM', content: 'Hello' },
+            { id: 'bad id', role: 'gm', sender: 'GM', content: 'drop me' },
+            null,
+            { id: 'turn-2', role: 'user', sender: 'Player', content: 123 },
+        ],
+        status: {
+            hp: { current: '5', max: 10 },
+            inventory: ['a', 2, 'b'],
+            location: 'x'.repeat(900),
+        },
+        options: 'not-an-array',
+        theme: 42,
+    });
+
+    if (!salvaged || !Array.isArray(salvaged.entries) || salvaged.entries.length !== 2) {
+        fail(`salvage keeps valid entries: ${JSON.stringify(salvaged?.entries)}`);
+    } else {
+        ok('salvage keeps valid entries');
+    }
+
+    const errors = validateGameState(salvaged);
+    if (errors.length > 0) {
+        fail(`salvaged state validates: ${errors.join('; ')}`);
+    } else {
+        ok('salvaged state validates');
+    }
+
+    if (salvaged.entries[1].content !== '') {
+        fail('salvage coerces non-string content to empty string');
+    } else {
+        ok('salvage coerces non-string content to empty string');
+    }
 }
 
 if (failed > 0) {

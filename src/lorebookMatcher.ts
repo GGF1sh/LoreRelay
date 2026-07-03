@@ -4,6 +4,8 @@
 const MAX_REGEX_PATTERN_LEN = 200;
 /** Cap context scanned by regex (limits catastrophic backtracking cost). */
 const MAX_REGEX_TEST_TEXT_LEN = 8000;
+/** Cap lorebook entries scanned per turn (prevents O(n) blow-up on huge books). */
+export const MAX_LOREBOOK_ENTRIES_SCAN = 2000;
 
 function isQuantifierStart(pattern: string, index: number): number {
     const ch = pattern[index];
@@ -262,7 +264,7 @@ export function matchEntriesAgainstText(
     const textLower = text.toLowerCase();
     const hits: Array<{ sortKey: number; entry: LorebookEntry }> = [];
 
-    for (const entry of entries) {
+    for (const entry of entries.slice(0, MAX_LOREBOOK_ENTRIES_SCAN)) {
         const useRegex = entry.use_regex === true;
         const primaryKeys = entry.keys || [];
 

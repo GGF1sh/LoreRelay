@@ -213,6 +213,25 @@ function findGalleryIndexByImagePath(imagePath) {
 
 /* --- 10-game-state.js --- */
 // ===== Game State の適用 =====
+let lastGameStateSyncSeq = 0;
+
+function shouldApplyGameStateUpdate(msg) {
+  if (msg?.syncSeq === undefined || msg.syncSeq === null) {
+    return true;
+  }
+  const seq = Number(msg.syncSeq);
+  if (!Number.isFinite(seq)) {
+    return true;
+  }
+  if (seq < lastGameStateSyncSeq) {
+    return false;
+  }
+  if (seq > lastGameStateSyncSeq) {
+    lastGameStateSyncSeq = seq;
+  }
+  return true;
+}
+
 function applyEntryPatch(patch) {
   if (!patch?.id) return;
   const idx = messageHistory.findIndex(m => m.id === patch.id);
@@ -3542,6 +3561,9 @@ window.addEventListener('DOMContentLoaded', () => {
             renderPromptContext(message.breakdown);
         }
         if (message.type === 'gameStateUpdate') {
+            if (typeof shouldApplyGameStateUpdate === 'function' && !shouldApplyGameStateUpdate(message)) {
+                return;
+            }
             if (message.turnResult) {
                 renderTurnResult(message.turnResult);
             }
@@ -7956,7 +7978,12 @@ function initStartHub() {
 window.addEventListener('message', (event) => {
   const msg = event.data;
   if (msg.type === 'gameStateUpdate') {
-    applyGameState(msg.state, msg.fullHistory);
+    if (!shouldApplyGameStateUpdate(msg)) {
+      return;
+    }
+    if (msg.state) {
+      applyGameState(msg.state, msg.fullHistory);
+    }
   } else if (msg.type === 'imageGenStart') {
     showImageLoading();
   } else if (msg.type === 'imageGenEnd') {

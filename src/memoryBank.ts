@@ -13,6 +13,33 @@ export interface MemoryChunk {
     text: string;
 }
 
+/** Upper bound on indexed chunks to keep TF-IDF scans bounded. */
+export const MAX_MEMORY_BANK_CHUNKS = 2000;
+/** Per-chunk char cap before indexing (prevents one giant saga from dominating RAM). */
+export const MAX_MEMORY_CHUNK_CHARS = 12_000;
+
+const MEMORY_SOURCE_PRIORITY: Record<string, number> = {
+    saga: 3,
+    lorebook: 3,
+    dynamic_profile: 2,
+    history: 1,
+};
+
+function trimMemoryChunks(chunks: MemoryChunk[]): MemoryChunk[] {
+    const capped = chunks.map((ch) => ({
+        ...ch,
+        text: ch.text.length > MAX_MEMORY_CHUNK_CHARS
+            ? ch.text.slice(0, MAX_MEMORY_CHUNK_CHARS)
+            : ch.text,
+    }));
+    if (capped.length <= MAX_MEMORY_BANK_CHUNKS) {
+        return capped;
+    }
+    return capped
+        .sort((a, b) => (MEMORY_SOURCE_PRIORITY[b.source] ?? 0) - (MEMORY_SOURCE_PRIORITY[a.source] ?? 0))
+        .slice(0, MAX_MEMORY_BANK_CHUNKS);
+}
+
 // ── ひらがなストップワード ──────────────────────────────────────
 // 助詞・助動詞・接続詞など、意味を持たない単体・2文字ひらがなを除外
 const HIRAGANA_STOPS = new Set([
@@ -185,7 +212,7 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     const indexPath = path.join(ws, 'memories', 'index.json');
     const indexed = readJsonFile<{ chunks?: MemoryChunk[] }>(indexPath);
     if (indexed?.chunks?.length) {
-        return indexed.chunks.filter((c) => c?.text);
+        return trimMemoryChunks(indexed.chunks.filter((c) => c?.text));
     }
 
     const chunks: MemoryChunk[] = [];
@@ -245,7 +272,7 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
         }
     }
 
-    return chunks;
+    return trimMemoryChunks(chunks);
 }
 
 /**

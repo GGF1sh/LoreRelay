@@ -27,6 +27,8 @@ const {
     buildNarratorPrompt,
     isAgenticCapableProvider,
     AGENTIC_CAPABLE_PROVIDERS,
+    parseJsonObjectWithRecovery,
+    repairJsonForParse,
 } = require(corePath);
 
 const { MAX_ENTRY_CONTENT_LEN } = require(path.join(root, 'out', 'gameStateSanitize.js'));
@@ -244,6 +246,30 @@ const narratorJson = {
         fail('referee prompt documents Living World ops channels');
     } else {
         ok('referee prompt documents Living World ops channels');
+    }
+}
+
+{
+    const broken = '```json\n{"turnId":"turn-9","playerAction":"ok",}\n```';
+    const parsed = parseJsonObjectWithRecovery(broken);
+    if (!parsed.value || parsed.value.turnId !== 'turn-9') {
+        fail('repair trailing comma in fenced JSON');
+    } else {
+        ok('repair trailing comma in fenced JSON');
+    }
+
+    const referee = parseRefereeResultJson(broken);
+    if (!referee || referee.turnId !== 'turn-9') {
+        fail('parseRefereeResultJson uses JSON recovery');
+    } else {
+        ok('parseRefereeResultJson uses JSON recovery');
+    }
+
+    const repaired = repairJsonForParse('{"a":1,}');
+    if (repaired !== '{"a":1}') {
+        fail('repairJsonForParse strips trailing comma');
+    } else {
+        ok('repairJsonForParse strips trailing comma');
     }
 }
 

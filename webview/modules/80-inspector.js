@@ -7,6 +7,9 @@ window.addEventListener('DOMContentLoaded', () => {
             renderPromptContext(message.breakdown);
         }
         if (message.type === 'gameStateUpdate') {
+            if (typeof shouldApplyGameStateUpdate === 'function' && !shouldApplyGameStateUpdate(message)) {
+                return;
+            }
             if (message.turnResult) {
                 renderTurnResult(message.turnResult);
             }

@@ -1,5 +1,8 @@
 /** Clamp/normalize game_state before disk write (direct GM bridges, checkpoint edits). */
 
+import { isValidEntryId } from './entryId';
+import { CURRENT_SCHEMA_VERSION, migrateGameState } from './migrateGameState';
+
 export const MAX_STATUS_ARRAY_ITEMS = 100;
 export const MAX_STATUS_ITEM_LEN = 200;
 export const MAX_STATUS_FIELD_STR = 500;
@@ -143,4 +146,82 @@ export function sanitizeGameStateForPersist(state: Record<string, unknown>): Rec
     }
 
     return out;
+}
+
+const ALLOWED_ENTRY_ROLES = new Set(['gm', 'user']);
+
+function salvageEntry(raw: unknown): Record<string, unknown> | undefined {
+    if (typeof raw !== 'object' || raw === null) {
+        return undefined;
+    }
+    const e = raw as Record<string, unknown>;
+    if (!isValidEntryId(e.id)) {
+        return undefined;
+    }
+    const role = typeof e.role === 'string' && ALLOWED_ENTRY_ROLES.has(e.role) ? e.role : 'gm';
+    const out: Record<string, unknown> = {
+        id: e.id,
+        role,
+        sender: typeof e.sender === 'string' ? e.sender.slice(0, 120) : (role === 'user' ? 'Player' : 'GM'),
+        content: typeof e.content === 'string' ? e.content.slice(0, MAX_ENTRY_CONTENT_LEN) : '',
+    };
+    for (const field of ['image', 'imagePrompt', 'editedAt'] as const) {
+        const s = clampString(e[field], MAX_ENTRY_CONTENT_LEN);
+        if (s !== undefined) {
+            out[field] = s;
+        }
+    }
+    if (typeof e.imageBlocked === 'boolean') {
+        out.imageBlocked = e.imageBlocked;
+    }
+    if (typeof e.excludedFromPrompt === 'boolean') {
+        out.excludedFromPrompt = e.excludedFromPrompt;
+    }
+    if (isValidEntryId(e.speakerNpcId)) {
+        out.speakerNpcId = e.speakerNpcId;
+    }
+    return out;
+}
+
+/**
+ * Best-effort recovery for corrupt or legacy game_state.json on load.
+ * Drops invalid entries/fields, migrates schema, then clamps for persist.
+ */
+export function salvageGameStateFromUnknown(raw: unknown): Record<string, unknown> | null {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        return null;
+    }
+    const { state: migrated } = migrateGameState(raw as Record<string, unknown>);
+    const base: Record<string, unknown> = { ...migrated };
+
+    const salvagedEntries: Record<string, unknown>[] = [];
+    if (Array.isArray(base.entries)) {
+        for (const entry of base.entries as unknown[]) {
+            const salvaged = salvageEntry(entry);
+            if (salvaged) {
+                salvagedEntries.push(salvaged);
+            }
+        }
+    }
+    base.entries = salvagedEntries;
+
+    if (!Number.isInteger(base.schemaVersion)) {
+        base.schemaVersion = CURRENT_SCHEMA_VERSION;
+    }
+
+    if (base.options !== undefined && !Array.isArray(base.options)) {
+        delete base.options;
+    }
+
+    if (base.status !== undefined && (typeof base.status !== 'object' || base.status === null)) {
+        delete base.status;
+    }
+
+    for (const field of ['theme', 'bgm', 'mood', 'latestImage', 'background', 'summary'] as const) {
+        if (base[field] !== undefined && typeof base[field] !== 'string') {
+            delete base[field];
+        }
+    }
+
+    return sanitizeGameStateForPersist(base);
 }

@@ -54,9 +54,9 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.39.12** |
-| CHANGELOG 先頭 | **[1.39.12]** §F9 Officer Missions engine |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 完了（**D3 UI 未**）· **F7 謁見** / **F8 ライバル領主** / **F9 主命・派遣** エンジン ✅（v1.39.10–1.39.12、全て UI は D3 待ち） — `docs/DOMAIN_MODE_DESIGN.md` §12 · `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F7/§F8/§F9 |
+| `package.json` | **1.39.13** |
+| CHANGELOG 先頭 | **[1.39.13]** §F10 Mass Battle Resolver engine |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 完了（**D3 UI 未**）· **F7 謁見** / **F8 ライバル領主** / **F9 主命・派遣** / **F10 合戦リゾルバ** エンジン ✅（v1.39.10–1.39.13、全て UI は D3 待ち） — `docs/DOMAIN_MODE_DESIGN.md` §12 · `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F7–§F10 |
 | GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3 / Parlor）+ Domain v1.39.x |
-| テスト | `npm test` **112/112** |
+| テスト | `npm test` **113/113** |

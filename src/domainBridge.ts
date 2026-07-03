@@ -32,6 +32,7 @@ import { buildDomainLedgerPromptLine } from './domainLedgerCore';
 import { buildAudiencePromptLines, MAX_AUDIENCE_QUEUE } from './domainAudienceCore';
 import { buildRivalPromptLine } from './rivalLordCore';
 import { buildActiveMissionPromptLine, type OfficerMission } from './domainMissionCore';
+import { buildBattlePromptLines } from './massBattleCore';
 import { readDomainRegionDriftState } from './domainRegionDriftCore';
 import { domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
 
@@ -143,6 +144,15 @@ export function buildDomainPromptContext(
         }
     }
 
+    // §F10: an active battle is the turn's main beat regardless of tier; last outcome persists once, like lastEventId.
+    if (rules.enableMassBattle === true) {
+        if (domain.activeBattle) {
+            lines.push(buildBattlePromptLines(domain.activeBattle).join('\n'));
+        } else if (domain.lastBattleReport) {
+            lines.push(`[Domain — Battle] ${domain.lastBattleReport}`);
+        }
+    }
+
     const ledger = buildDomainLedgerPromptLine(rules.enableCommerce === true, true);
     if (ledger && tier === 'full') {
         lines.push(ledger);
@@ -201,5 +211,15 @@ export function pickDomainForWebview(domain: DomainState | undefined): Record<st
             monthsRemaining: m.monthsRemaining,
         })),
         lastMissionReports: domain.lastMissionReports?.slice(0, 3) ?? [],
+        activeBattle: domain.activeBattle
+            ? {
+                opponentLabel: domain.activeBattle.opponentLabel,
+                round: domain.activeBattle.rounds.length + 1,
+                maxRounds: domain.activeBattle.maxRounds,
+                playerTroopsRemaining: domain.activeBattle.playerTroopsRemaining,
+                enemyTroopsRemaining: domain.activeBattle.enemyTroopsRemaining,
+            }
+            : undefined,
+        lastBattleReport: domain.lastBattleReport,
     };
 }

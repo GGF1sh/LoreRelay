@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.39.13] - 2026-07-03
+
+### Added
+
+- **§F10 Mass Battle Resolver engine** — `src/massBattleCore.ts`: 3ラウンド固定・采配3択（assault/hold/stratagem の三すくみ、±15%重み）の決定論合戦解決。ラウンドごとに `domainOps { kind: "battle_round", tactic }` で采配を宣言、`resolveBattleRound` が troops/quality/marshal skill から損耗を決定論算出。3ラウンド到達 or 全滅で `concludeBattle` が victory/costly_victory/stalemate/retreat/rout を判定し troops/publicOrder/prestige/treasury に delta。
+  - **F8 との連携**: `enableMassBattle` ON 時、隣国ライバルの `raid` は即時delta（暫定解決）ではなく `domain.activeBattle` を開始するようになった（rivalLordCore 側の暫定 raid resolve は上書き・撤回）。決着時に rival.strength にも delta が反映される。OFF（既定）時は F8 出荷時の即時delta動作を完全維持（後方互換）。
+  - `[Domain — Battle]` は tier 非依存で毎ターン注入（進行中は現ラウンド + 采配説明、決着直後は結果1行を次の月次コミットまで表示）。GM への「数値捏造禁止」行を必須で含む。
+  - 配線: `domainCore`（state/config/ops/validate/applyMonthlyCommit の rival raid 分岐・applyBattleRound）· `gameRules`（`enableMassBattle` 既定 OFF）· `domainTurnOps.ts` · `domainBridge.ts`（進行中/結果プロンプト行 + `pickDomainForWebview` 公開サブセット）。
+  - `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F10。
+
+### Verification
+
+- `npm test` **113/113**（`test_mass_battle_core.js` 24 assert: ラウンド決定論・三すくみ有利判定・決着分類5種・F8/F10 連携両方向・validate フィルタ）
+
 ## [1.39.12] - 2026-07-03
 
 ### Added

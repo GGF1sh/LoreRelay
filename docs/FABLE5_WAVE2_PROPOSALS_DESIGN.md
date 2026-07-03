@@ -222,11 +222,16 @@ export function concludeBattle(rounds: RoundResult[]): BattleOutcome; // victory
 |--------|------|------|
 | `enableMassBattle` | `false` | 合戦リゾルバ（要 `enableDomainMode`。F8 なしでも盗賊戦で成立） |
 
-### v0 スコープ
-- [ ] `massBattleCore.ts`（ラウンド resolve・三すくみ・崩壊判定）+ 100 戦シミュの balance harness
-- [ ] `battle_round` 契約 + 戦闘中フラグ（`domain.flags.activeBattle`）
-- [ ] `[Domain — Battle]` プロンプト（現ラウンド戦況 + 選択肢 3 つ + 数値捏造禁止行）
-- [ ] `scripts/test_mass_battle_core.js`（決定論・全滅 clamp・fortification 補正）
+### v0 スコープ（**engine 部 ✅ v1.39.13** — UI は D3 待ち）
+- [x] `massBattleCore.ts`（ラウンド resolve・三すくみ・崩壊判定）**✅** — 100戦バランスharnessは任意（未）
+- [x] `battle_round` 契約 + `domain.activeBattle`（戦闘中の状態そのもの。専用 flags は不要と判断） **✅**
+- [x] `[Domain — Battle]` プロンプト（現ラウンド戦況 + 選択肢3つ + 数値捏造禁止行、tier非依存で毎ターン注入）**✅**
+- [x] `scripts/test_mass_battle_core.js`（決定論・全滅ゲート・三すくみ有利判定・5分類・F8連携双方向、24 assert）**✅**
+- [ ] World タブ「合戦」表示 — **D3 と同梱**
+- [ ] i18n 4 言語
+- [ ] Chronicle `kind: 'domain'` への戦闘結果記録（journal スキーマ拡張が必要、任意の追加作業として保留）
+
+> **実装メモ（v1.39.13）:** v0 のトリガーは **F8 隣国ライバルの `raid` のみ**（`enableMassBattle` ON 時、rivalLordCore の暫定 raid delta を上書き）。`bandit_activity` 等からの単独開戦は非スコープ（将来拡張点として温存）。`fortification` は `hold` 采配時のみ効くボーナスとして実装（防備行動 `defense` stat を援用）。`domain.troops` は戦闘中は変更されず、決着時に一度だけ確定 delta を適用（月次アクション `train_troops` 等と混線しない設計）。
 
 ### Non-Goals
 - ヘクス/グリッド戦術マップ・ユニット種別（歩兵/騎兵の内訳は narration の領分）

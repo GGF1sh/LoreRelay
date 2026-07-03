@@ -6,11 +6,27 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.39.12** |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見** / **F8 ライバル領主** / **F9 主命・派遣** エンジン ✅（全て UI は D3 待ち） · **D3 UI 次** |
+| Package version | **1.39.13** |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見** / **F8 ライバル領主** / **F9 主命・派遣** / **F10 合戦リゾルバ** エンジン ✅（全て UI は D3 待ち） · **D3 UI 次** |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **112/112** |
-| Next (推奨) | **D3 UI**（§20.2-A、F7/F8/F9 の3パネル同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F10 合戦リゾルバ |
+| Tests | `npm test` **113/113** |
+| Next (推奨) | **D3 UI**（§20.2-A、F7/F8/F9/F10 の4パネル同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F12 家史エピローグ（箸休め）または F11 ギルドマスター設計 |
+
+---
+
+## 2026-07-03 JST - Claude Sonnet 5 - §F10 Mass Battle Resolver engine (v1.39.13)
+
+### Summary
+
+- Fable5 Wave 2 の **F10 合戦リゾルバ** をエンジン部まで実装。troops/defense に初めて明確な「出口」が生まれた。
+- `src/massBattleCore.ts`（3ラウンド固定・assault/hold/stratagem 三すくみ・決定論損耗計算・victory/costly_victory/stalemate/retreat/rout の5分類）+ `domainCore`/`gameRules`/`domainTurnOps`/`domainBridge` 配線。
+- **F8 との統合が核心**: `enableMassBattle` ON 時、隣国ライバルの `raid` は F8 出荷時の即時delta（暫定解決、CHANGELOG 1.39.11 に明記済み）ではなく `domain.activeBattle` を開始するよう置き換え。決着時に rival.strength にも反映。OFF（既定）時は F8 の挙動を完全維持（後方互換をテストで保証）。
+- `battle_round` op は月次コミットに縛られない独立チャネル（audience_ruling と同型）— 数ターンかけて采配を宣言できる。
+
+### Verification
+
+- `npm test` **113/113**（`test_mass_battle_core.js` 24 assert、F8→F10 双方向の連携テスト含む）
+- `npm run compile` クリーン
 
 ---
 

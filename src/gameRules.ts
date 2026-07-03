@@ -45,6 +45,8 @@ export interface GameRules {
     enableDomainMissions?: boolean;
     /** Max simultaneously dispatched officers (1–3). */
     domainMaxActiveMissions?: number;
+    /** §F10: 3-round battle resolver — replaces a rival raid's instant delta (requires Domain Mode + Rivals). */
+    enableMassBattle?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -74,7 +76,8 @@ export const DEFAULT_GAME_RULES: GameRules = {
     domainAudienceSize: 3,
     enableDomainRivals: false,
     enableDomainMissions: false,
-    domainMaxActiveMissions: 2
+    domainMaxActiveMissions: 2,
+    enableMassBattle: false
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -221,6 +224,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.domainMaxActiveMissions !== undefined && typeof rules.domainMaxActiveMissions === 'number') {
             sanitized.domainMaxActiveMissions = Math.max(1, Math.min(3, Math.floor(rules.domainMaxActiveMissions)));
+        }
+        if (rules.enableMassBattle !== undefined && typeof rules.enableMassBattle === 'boolean') {
+            sanitized.enableMassBattle = rules.enableMassBattle;
         }
     }
 

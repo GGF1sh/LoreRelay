@@ -35,6 +35,20 @@ import {
     DEFAULT_OFFICER_TRUST,
     type OfficerMission,
 } from './domainMissionCore';
+import {
+    startBattle,
+    resolveEnemyTactic,
+    resolveBattleRound,
+    applyBattleRoundToState,
+    isBattleConcluded,
+    concludeBattle,
+    parseBattleState,
+    isValidBattleTactic,
+    formatBattleChronicleText,
+    type BattleState,
+    type BattleTactic,
+    type BattleOutcome,
+} from './massBattleCore';
 
 export const MAX_DOMAIN_OFFICERS = 5;
 export const MAX_DOMAIN_ACTIONS_PER_MONTH = 4;
@@ -46,6 +60,8 @@ export const DOMAIN_STAT_MIN = 0;
 export const DOMAIN_STAT_MAX = 100;
 export const DOMAIN_RESOURCE_MAX = 9999;
 export const MAX_DOMAIN_PENDING_EVENTS = 8;
+/** §F10: rival.strength (0–100) → equivalent enemy troop count for battle resolution. */
+export const ENEMY_TROOPS_PER_STRENGTH = 3;
 
 export type DomainRank = 'minor_lord' | 'baron' | 'count';
 export type OfficerRole = 'steward' | 'marshal' | 'diplomat' | 'merchant' | 'spy';
@@ -66,7 +82,8 @@ export type DomainOpsKind =
     | 'appoint_officer'
     | 'dismiss_officer'
     | 'audience_ruling'
-    | 'dispatch_officer';
+    | 'dispatch_officer'
+    | 'battle_round';
 export type DomainIntelligence = 'gather_rumors' | 'scout_border' | 'none';
 export type DomainSeason = 'spring' | 'summer' | 'autumn' | 'winter';
 
@@ -108,6 +125,10 @@ export interface DomainState {
     activeMissions?: OfficerMission[];
     /** §F9: report lines for missions that resolved on this commit (transient — GM prompt hint). */
     lastMissionReports?: string[];
+    /** §F10: an in-progress 3-round battle (v0 trigger: a rival's `raid` when enableMassBattle is ON). */
+    activeBattle?: BattleState;
+    /** §F10: report line for a battle that concluded on this op (transient — GM prompt/chronicle hint). */
+    lastBattleReport?: string;
     flags: Record<string, boolean>;
 }
 
@@ -124,6 +145,8 @@ export interface DomainConfig {
     maxActiveMissions?: number;
     /** §F9: host-resolved playerTrust per officer npcId (from Registry disposition), default 50. */
     officerTrustMap?: Record<string, number>;
+    /** §F10: when ON, a rival `raid` starts a 3-round battle instead of an instant delta. */
+    enableMassBattle?: boolean;
 }
 
 export interface DomainOps {
@@ -136,6 +159,8 @@ export interface DomainOps {
     rulingId?: PetitionRulingId;
     /** §F9 dispatch_officer: which appointed officer, on what kind of mission. */
     mission?: { npcId: string; kind: string; targetId?: string; months?: number };
+    /** §F10 battle_round: the player's tactic for the current round of an active battle. */
+    tactic?: BattleTactic;
 }
 
 export interface AudienceRulingResult {
@@ -318,9 +343,10 @@ export function normalizeDomainConfig(raw?: Partial<DomainConfig>): DomainConfig
     const officerTrustMap = raw?.officerTrustMap && typeof raw.officerTrustMap === 'object'
         ? raw.officerTrustMap
         : undefined;
+    const enableMassBattle = raw?.enableMassBattle === true;
     return {
         monthDays, monthlyActions, audienceSize, rivalsEnabled, rivalRegionId,
-        maxActiveMissions, officerTrustMap,
+        maxActiveMissions, officerTrustMap, enableMassBattle,
     };
 }
 
@@ -468,6 +494,10 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         rival: validateRivalLord(doc.rival),
         activeMissions: activeMissions.length > 0 ? activeMissions : undefined,
         lastMissionReports: lastMissionReports.length > 0 ? lastMissionReports : undefined,
+        activeBattle: parseBattleState(doc.activeBattle),
+        lastBattleReport: typeof doc.lastBattleReport === 'string'
+            ? doc.lastBattleReport.trim().replace(/[\r\n\t\x00-\x1f]/g, ' ').slice(0, 200)
+            : undefined,
         flags,
     };
 }
@@ -482,6 +512,7 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
         && kind !== 'dismiss_officer'
         && kind !== 'audience_ruling'
         && kind !== 'dispatch_officer'
+        && kind !== 'battle_round'
     ) {
         return undefined;
     }
@@ -495,6 +526,12 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
         }
         ops.petitionId = petitionId;
         ops.rulingId = doc.rulingId;
+        return ops;
+    }
+
+    if (kind === 'battle_round') {
+        if (!isValidBattleTactic(doc.tactic)) { return undefined; }
+        ops.tactic = doc.tactic;
         return ops;
     }
 
@@ -795,7 +832,7 @@ export function applyMonthlyCommit(
     worldTurnSeed = 0
 ): MonthlyCommitResult {
     const actions = (ops.actions ?? []).slice(0, config.monthlyActions);
-    let next = { ...domain };
+    let next: DomainState = { ...domain, lastBattleReport: undefined };
     next = applyDelta(next, resolveMonthlyActionDeltas(actions, next.calendarMonth));
 
     next = applyMonthlyDomainIncome(next);
@@ -834,9 +871,23 @@ export function applyMonthlyCommit(
         }
         const tickResult = tickRivalLord(rival, next, worldTurnSeed);
         rivalActionId = tickResult.action;
-        next = { ...next, rival: tickResult.rival };
-        if (tickResult.playerDelta) {
-            next = applyDelta(next, tickResult.playerDelta);
+
+        if (tickResult.action === 'raid' && config.enableMassBattle && !next.activeBattle) {
+            // §F10 owns raid outcomes now — undo rivalLordCore's own placeholder strength/delta resolution
+            // (rival.strength reverts to its pre-raid value; the battle applies its own outcome on conclusion).
+            next = { ...next, rival: { ...tickResult.rival, strength: rival.strength } };
+            const enemyTroops = Math.max(20, rival.strength * ENEMY_TROOPS_PER_STRENGTH);
+            const marshalSkill = next.officers.find((o) => o.role === 'marshal')?.skill ?? 50;
+            next.activeBattle = startBattle(
+                rival.regionId,
+                { troops: next.troops, quality: next.defense, commanderSkill: marshalSkill },
+                { troops: enemyTroops, quality: rival.aggression, commanderSkill: 50 }
+            );
+        } else {
+            next = { ...next, rival: tickResult.rival };
+            if (tickResult.playerDelta) {
+                next = applyDelta(next, tickResult.playerDelta);
+            }
         }
         next.flags = { ...next.flags, [RIVAL_RAID_PREP_FLAG]: tickResult.rival.raidPending === true };
     }
@@ -911,6 +962,43 @@ export function dispatchOfficer(
     return { ...domain, activeMissions: [...active, mission] };
 }
 
+export interface BattleRoundApplyResult {
+    domain: DomainState;
+    outcome?: BattleOutcome;
+}
+
+export function applyBattleRound(
+    domain: DomainState,
+    tactic: BattleTactic,
+    worldTurnSeed: number
+): BattleRoundApplyResult {
+    if (!domain.activeBattle) { return { domain }; }
+
+    const battle = domain.activeBattle;
+    const round = battle.rounds.length + 1;
+    const playerSide = {
+        troops: battle.playerTroopsRemaining,
+        quality: domain.defense,
+        commanderSkill: domain.officers.find((o) => o.role === 'marshal')?.skill ?? 50,
+    };
+    const enemySide = { ...battle.enemySide, troops: battle.enemyTroopsRemaining };
+    const enemyTactic = resolveEnemyTactic(enemySide, worldTurnSeed, round);
+    const roundResult = resolveBattleRound(playerSide, enemySide, tactic, enemyTactic, worldTurnSeed, round);
+    const advanced = applyBattleRoundToState(battle, roundResult);
+
+    if (!isBattleConcluded(advanced)) {
+        return { domain: { ...domain, activeBattle: advanced } };
+    }
+
+    const outcome = concludeBattle(advanced);
+    let next = applyDelta(domain, outcome.playerDelta);
+    next = { ...next, activeBattle: undefined, lastBattleReport: outcome.reportLine };
+    if (next.rival && next.rival.regionId === advanced.opponentLabel) {
+        next.rival = { ...next.rival, strength: clampDomainStat(next.rival.strength + outcome.enemyStrengthDelta) };
+    }
+    return { domain: next, outcome };
+}
+
 export function applyAudienceRuling(
     domain: DomainState,
     petitionId: string,
@@ -938,7 +1026,11 @@ export function applyDomainOps(
     ops: DomainOps,
     config: DomainConfig,
     worldTurnSeed = 0
-): { domain: DomainState; monthly?: MonthlyCommitResult; audience?: AudienceRulingResult } {
+): { domain: DomainState; monthly?: MonthlyCommitResult; audience?: AudienceRulingResult; battle?: BattleOutcome } {
+    if (ops.kind === 'battle_round' && ops.tactic) {
+        const result = applyBattleRound(domain, ops.tactic, worldTurnSeed);
+        return { domain: result.domain, battle: result.outcome };
+    }
     if (ops.kind === 'appoint_officer' && ops.officer) {
         return {
             domain: appointOfficer(domain, {

@@ -76,6 +76,7 @@ export function applyDomainTurnOps(
             rivalRegionId,
             maxActiveMissions: rules.domainMaxActiveMissions,
             officerTrustMap,
+            enableMassBattle: rules.enableMassBattle === true,
         },
         worldTurnSeed,
         { officerBond, registryNpcIds }

@@ -32,6 +32,7 @@
 | **Domain Audience (謁見)** | OFF | **experimental** | v1.39.10 · `enableDomainAudience` · engine のみ (UI は D3) |
 | **Domain Rivals (隣国ライバル)** | OFF | **experimental** | v1.39.11 · `enableDomainRivals` · engine のみ (UI は D3) |
 | **Domain Missions (主命・派遣)** | OFF | **experimental** | v1.39.12 · `enableDomainMissions` · engine のみ (UI は D3) |
+| **Domain Mass Battle (合戦)** | OFF | **experimental** | v1.39.13 · `enableMassBattle` · engine のみ (UI は D3) |
 
 ## Quick demo paths
 

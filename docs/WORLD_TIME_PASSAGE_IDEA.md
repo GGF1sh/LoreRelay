@@ -12,6 +12,68 @@
 |----|------|------|
 | **A. デバッグ・バルクシム** | **実装済み** | Inspector から `worldTurn` を N ステップ進める（GM ターン不変） |
 | **B. 物語的時間経過** | **v1 部分実装** | デバッグサンドボックスで休息・旅コマンド。通常プレイは `turn_result.elapsedWorldTurns`（GM 契約） |
+| **C. 三層時計モデル** | **プロンプト実装済み** | Exchange / Narrative Time / World Day の分離。GM プロンプト `[Narrative Time — Three Clocks]` |
+
+---
+
+## C. 三層時計モデル（設計原則）
+
+プレイヤー↔GM の **やり取り回数** と **ゲーム内で経った時間** は 1:1 ではない。これはバグではなく、TRPG/CRPG の可変時間圧縮（variable time compression）として設計する。
+
+### 三つの時計
+
+| 時計 | 何を測るか | 典型例 | 更新経路 |
+|------|-----------|--------|----------|
+| **Exchange（やり取り）** | 場面の解像度（プレイヤー↔GM 往復） | 酒場で30回しゃべる | GM ターン数（自動） |
+| **Narrative Time（物語時間）** | その場面内の経過（分・時・「夕方」） | 同じ夕方のうち45分 | `statePatch` → `/status/time`、必要なら `/director/scene` |
+| **World Day（世界日）** | 市場・NPC・情勢シミュ | 旅3日、一晩休む | `turn_result.elapsedWorldTurns` → `worldTurn` |
+
+**原則:** やり取りは「場面の細かさ」、時間は「GM がその手で確定する量」。
+
+### Beat 別の時間密度
+
+`journalBeatCore.ts` の beat 分類と同じ発想で、1 Exchange あたりの Narrative Time / World Day の期待値が変わる。
+
+| Beat | やり取り | Narrative Time | World Day (`elapsedWorldTurns`) |
+|------|---------|----------------|--------------------------------|
+| **social（会話）** | 多い | 少ない（分〜1時間） | **0**（同じ scene/location が続く限り） |
+| **exploration（調査）** | 中程度 | 数時間 | **0**（明示休息まで） |
+| **combat（戦闘）** | 少ない | ラウンド単位（秒〜分） | **0**（数日戦など明示時のみ） |
+| **travel（移動）** | 少ない | モンタージュ（日〜週） | **コミット時に N 日**（`planTravel` 等） |
+| **downtime（休息）** | 1〜数 | 一晩〜数日 | **コミット時に N 日** |
+
+### GM 運用ルール（4つ）
+
+1. **通常の会話・調査** — `elapsedWorldTurns = 0`。`director.scene` と location が変わらない限り、何十往復しても World Day は進めない。
+2. **Narrative Time のみ更新可** — 灯りが弱まる、夕暮れが深まる等は `/status/time` で表現してよい（シムは動かさない）。
+3. **World Day はコミットイベントのみ** — 明示の休息、明示の旅、GM が narration で確定した時間スキップ。`turn_result` で日数を確定する。
+4. **旅はモンタージュ** — 道中の少数 Exchange で多数の日数を表す。`[Living World — Travel Plan]` の `plan.days` を `elapsedWorldTurns` に載せる。
+
+### 例
+
+| シーン | Exchange | Narrative Time | World Day |
+|--------|----------|----------------|-----------|
+| 酒場で長話 | 30+ | 15分〜1時間 | 0 |
+| 町→町の旅 | 3〜5 | モンタージュ（1日目、雨の2日目、着港） | +3（例） |
+| 宿で一晩 | 1 | 翌朝 | +1 |
+
+### In-World Chat との関係
+
+**In-World Chat** は三層すべて **停止**（参照のみ）。Campaign 本編との切り分け。
+
+### コード
+
+| ファイル | 役割 |
+|----------|------|
+| `src/gmPromptBuilderCore.ts` | `buildNarrativeTimePromptBlock()` — GM 向け三層ルール |
+| `src/gmPromptBuilder.ts` | Campaign プロンプトに `narrativeTime` チャンクとして注入 |
+| `src/agenticGmCore.ts` | Referee JSON 契約の `elapsedWorldTurns` 説明 |
+| `src/journalBeatCore.ts` | beat 分類（social/travel 等） |
+
+### 将来（未実装）
+
+- `turn_result.elapsedNarrativeMinutes` — 表示・年表用の任意フィールド（シムは動かさない）
+- UI で `status.time`（物語時刻）と `worldTurn`（世界日）を分離表示
 
 ---
 
@@ -63,7 +125,7 @@
 |------|------|
 | **デバッグサンドボックス** | `宿で休む`（+1 worldTurn・HP全回復）、`N日かけて◯◯へ旅する`（+N worldTurn・移動） |
 | **通常 GM** | `turn_result.elapsedWorldTurns`（1–100）— `statePatch` 適用後に `persistWorldSimulationSteps` |
-| **GM プロンプト** | Emergent Simulation ON 時 `[World]` に `ELAPSED_WORLD_TURNS_PROMPT_LINE` |
+| **GM プロンプト** | `[Narrative Time — Three Clocks]`（常時）+ Emergent Simulation ON 時に World Day コミット手順 |
 
 ### 未実装（B 残り）
 
@@ -86,10 +148,10 @@ C8 ピン操作と同じパターン:
 
 ### 設計で決めること（C9 / 別トラック設計時）
 
-1. **時間の単位** — `worldTurn` そのもの vs `game_state.status.time`（表示用テキスト）vs 新フィールド `elapsedDays`
-2. **シムとの対応** — 1泊 = 1 `worldTurn`？ 旅 3 日 = 3 ステップ？
+1. ~~**時間の単位**~~ — **決定（§C）:** Exchange / `status.time` / `elapsedWorldTurns`（World Day）の三層。`elapsedNarrativeMinutes` は将来。
+2. ~~**シムとの対応**~~ — **決定:** 1泊 ≈ 1 `worldTurn`、旅 N 日 ≈ N ステップ（明示コミット時のみ）。
 3. **休息の効果** — HP/MP 回復は `statePatch` 既存経路か、専用 ops か
-4. **GM 契約** — `turn_result` に `elapsedWorldTurns` を足すか、narration のみか
+4. ~~**GM 契約**~~ — **決定:** 会話中は `elapsedWorldTurns=0`、休息・旅・スキップ時のみ `turn_result` で確定。
 5. **FoW** — 時間経過だけでは霧は晴れない（C8 維持）。移動は別途 `currentLocationId`
 6. **Remote Play** — バルクシム結果は全員同じ `world_state` を見る
 

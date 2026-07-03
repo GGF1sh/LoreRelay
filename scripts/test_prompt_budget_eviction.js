@@ -18,6 +18,8 @@ const { evictPromptChunksByBudget, resolvePromptChunkPriority } = require(corePa
 
 if (resolvePromptChunkPriority('gameRules') <= resolvePromptChunkPriority('vision')) {
     fail('gameRules priority should exceed vision');
+} else if (resolvePromptChunkPriority('narrativeTime') <= resolvePromptChunkPriority('director')) {
+    fail('narrativeTime priority should exceed director');
 } else {
     ok('priority ordering');
 }

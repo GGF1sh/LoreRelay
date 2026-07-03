@@ -64,7 +64,7 @@ import {
     type PromptBudgetPolicy,
     buildFogUnexploredPromptLine,
     CARTOGRAPHY_REVEAL_PROMPT_LINE,
-    ELAPSED_WORLD_TURNS_PROMPT_LINE,
+    buildNarrativeTimePromptBlock,
     TRADE_OPS_PROMPT_LINE,
     NPC_AGENCY_OPS_PROMPT_LINE,
     RELATIONSHIP_OPS_PROMPT_LINE,
@@ -611,6 +611,11 @@ function buildScenarioDirectorPromptContext(): string {
     return lines.join('\n');
 }
 
+function buildNarrativeTimePromptContext(): string {
+    const rules = loadGameRules();
+    return buildNarrativeTimePromptBlock({ emergentSimulation: rules.enableEmergentSimulation });
+}
+
 function buildGameRulesPromptContext(): string {
     const rules = loadGameRules();
     const lines = ['[Game Rules]'];
@@ -695,9 +700,6 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     }
 
     const rules = loadGameRules();
-    if (rules.enableEmergentSimulation) {
-        lines.push(ELAPSED_WORLD_TURNS_PROMPT_LINE);
-    }
     if (rules.enableCommerce) {
         lines.push(TRADE_OPS_PROMPT_LINE);
         const gameState = readGameStateForPrompt() as { commerce?: { food?: number } } | undefined;
@@ -1111,6 +1113,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
 
     const sections = [
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
+        buildSection('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext()),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
         buildSection('chronicle', 'Chronicle Recap', peekChronicleRecapContext(policy)),
         buildSection('summary', 'Story Synopsis', (() => {
@@ -1170,6 +1173,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     const specs: PromptContextChunkSpec[] = [];
 
     pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
+    pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
     pushPromptChunk(specs, 'director', buildScenarioDirectorPromptContext());
     pushPromptChunk(specs, 'chronicle', consumeChronicleRecapContext(policy));
 

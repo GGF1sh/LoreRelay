@@ -9,14 +9,17 @@
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-07-03
+
 ### Added
 
-- **In-World Chat mode** - added a third experience profile (`inworld`) for talking as residents inside the current campaign world without using `turn_result.json` or mutating campaign state. The mode has its own `inworld_session.json`, Start Hub entry, header toggle, prompt builder, and shared Parlor-style chat rendering while keeping the World/Inspector panes visible for reference.
+- **In-World Chat mode** — third experience profile (`inworld`) for talking as residents inside the current campaign world without `turn_result.json` or campaign state mutation. Separate `inworld_session.json`, Start Hub entry, header toggle, prompt builder, Parlor-style chat UI with World/Inspector panes visible for reference.
+- **Narrative Time — Three Clocks** — Campaign GM prompt block separating Exchange (scene detail), Narrative Time (`/status/time`), and World Day (`elapsedWorldTurns`). Beat-specific density rules (social = 0 days; travel/rest = explicit commit). Documented in `docs/WORLD_TIME_PASSAGE_IDEA.md` §C. Agentic Referee contract aligned.
 
 ### Fixed
 
-- **Campaign webview trust boundary follow-up** - `gameStateWebviewSanitizeCore` now sends only public `commerce` / `world` subsets to Webview, and `statePatch` export is allowlist-based instead of blacklist-based so unknown future paths cannot leak into Inspector.
-- **Campaign OCC regression coverage** - added `test_state_merge_inventory_race.js` for stale-turn `inventory` / `condition` / `skills` rollback prevention; extended commerce debounce tests to verify synchronous flush before deactivate.
+- **Campaign webview trust boundary follow-up** — `gameStateWebviewSanitizeCore` sends only public `commerce` / `world` subsets to Webview; `statePatch` export is allowlist-based.
+- **Campaign OCC regression coverage** — `test_state_merge_inventory_race.js`; commerce debounce flush-before-deactivate tests.
 
 ### Verification
 

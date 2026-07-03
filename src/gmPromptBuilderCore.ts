@@ -277,12 +277,46 @@ export const MAX_FOG_PROMPT_REGION_NAMES = 5;
 export const MAX_FOG_PROMPT_CHARS = 120;
 
 /** Cartography C9: one-line GM instruction for cartographyReveal channel. */
-/** Layer B: GM may advance world simulation when player rests or travels. */
+/** Layer B: GM commits World Day advancement on rest/travel/skip only. */
 export const ELAPSED_WORLD_TURNS_PROMPT_LINE =
-    'When the player explicitly rests overnight or travels for multiple days, '
-    + 'set turn_result.elapsedWorldTurns (1–100) for world simulation steps. '
-    + 'Narrate the passage in the same turn. FoW does not clear from time alone; '
-    + 'use cartographyReveal or location visits for map discovery.';
+    'World Day commits: when the player explicitly rests overnight, travels for multiple days, '
+    + 'or you narrate a confirmed time skip, set turn_result.elapsedWorldTurns (1–100). '
+    + 'Otherwise keep elapsedWorldTurns at 0 (default). Narrate the passage in the same turn. '
+    + 'FoW does not clear from time alone; use cartographyReveal or location visits for map discovery.';
+
+export interface NarrativeTimePromptOptions {
+    emergentSimulation?: boolean;
+}
+
+/**
+ * Three-clock narrative time model for Campaign GM prompts.
+ * Exchange ≠ elapsed time; World Day advances only on explicit commits.
+ */
+export function buildNarrativeTimePromptBlock(options: NarrativeTimePromptOptions = {}): string {
+    const lines = [
+        '[Narrative Time — Three Clocks]',
+        '1) Exchange: each player↔GM reply is scene detail, NOT a unit of elapsed time.',
+        '2) Narrative Time: in-fiction minutes/hours/seasons — update via statePatch /status/time '
+        + '(and /director/scene when the beat changes). Many exchanges in one place may pass <1 hour.',
+        '3) World Day: markets, NPC agency, factions — advance ONLY via turn_result.elapsedWorldTurns '
+        + 'on explicit commits (overnight rest, multi-day travel, montage skip). Default elapsedWorldTurns=0.',
+        '',
+        'Beat density (variable time compression):',
+        '- social/conversation: many exchanges → little narrative time (minutes–1 hour); '
+        + 'elapsedWorldTurns=0 while the same scene/location continues.',
+        '- exploration/investigation: moderate exchanges → hours; elapsedWorldTurns=0 unless the player rests.',
+        '- combat: few exchanges → rounds (seconds–minutes); elapsedWorldTurns=0 unless the fight spans days.',
+        '- travel/downtime: few exchanges may cover many days — montage narration; set elapsedWorldTurns '
+        + 'for the committed duration when travel/rest is confirmed.',
+        'While director.scene and location stay unchanged, do NOT advance elapsedWorldTurns for ordinary dialogue.',
+    ];
+
+    if (options.emergentSimulation) {
+        lines.push('', ELAPSED_WORLD_TURNS_PROMPT_LINE);
+    }
+
+    return lines.join('\n');
+}
 
 export const CARTOGRAPHY_REVEAL_PROMPT_LINE =
     'When the player obtains a map, hears a named distant region, or receives location intel, '
@@ -357,6 +391,7 @@ export interface PromptContextChunkSpec {
 /** Lower numbers are evicted first when total context exceeds targetChars. */
 export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     gameRules: 100,
+    narrativeTime: 98,
     director: 95,
     chronicle: 90,
     summary: 85,

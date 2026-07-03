@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Narrative Time three-clock model + release v1.38.0
+
+### Summary
+
+- Added `buildNarrativeTimePromptBlock()` to Campaign GM prompts (`narrativeTime` chunk, priority 98): Exchange / Narrative Time / World Day separation with beat-specific density rules.
+- Updated `ELAPSED_WORLD_TURNS_PROMPT_LINE` and Agentic Referee `elapsedWorldTurns` contract (default 0; commit on rest/travel/skip only).
+- Documented §C in `docs/WORLD_TIME_PASSAGE_IDEA.md`.
+- Release **v1.38.0** bundles In-World Chat (205416c), webview sanitizer follow-up, and this prompt work.
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_gm_prompt_builder_core.js`
+- `node scripts/test_prompt_budget_eviction.js`
+- `npm test` **100/100**
+
 ## 2026-07-03 JST - Codex - In-World Chat mode
 
 ### Summary

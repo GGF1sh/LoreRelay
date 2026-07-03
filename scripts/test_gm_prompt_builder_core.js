@@ -25,6 +25,8 @@ const {
     normalizePromptBudgetMode,
     resolvePromptBudgetPolicy,
     buildFogUnexploredPromptLine,
+    buildNarrativeTimePromptBlock,
+    ELAPSED_WORLD_TURNS_PROMPT_LINE,
     MAX_HINT_TEXT_CHARS,
     MAX_WORLD_CHANGE_SUMMARY_LINES,
     MAX_FOG_PROMPT_CHARS,
@@ -178,6 +180,28 @@ const {
     const many = buildFogUnexploredPromptLine(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
     if (!many.includes('…and 2 more')) { fail('fog overflow suffix'); }
     else { ok('fog overflow suffix'); }
+}
+
+{
+    const base = buildNarrativeTimePromptBlock();
+    if (!base.includes('[Narrative Time — Three Clocks]')) {
+        fail('narrative time block missing header');
+    } else if (!base.includes('elapsedWorldTurns=0')) {
+        fail('narrative time block should default elapsedWorldTurns to 0');
+    } else if (base.includes(ELAPSED_WORLD_TURNS_PROMPT_LINE)) {
+        fail('narrative time block without emergent sim should omit World Day commit line');
+    } else {
+        ok('buildNarrativeTimePromptBlock base');
+    }
+
+    const emergent = buildNarrativeTimePromptBlock({ emergentSimulation: true });
+    if (!emergent.includes(ELAPSED_WORLD_TURNS_PROMPT_LINE)) {
+        fail('narrative time block with emergent sim should include World Day commit line');
+    } else if (!emergent.includes('social/conversation')) {
+        fail('narrative time block should include beat density rules');
+    } else {
+        ok('buildNarrativeTimePromptBlock emergent');
+    }
 }
 
 if (failed > 0) {

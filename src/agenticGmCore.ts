@@ -109,7 +109,7 @@ Rules:
 - If no mechanical change is needed, statePatch may be [].
 - resolvedQuests must contain only completed Quest Hook ids.
 - refereeNotes must be short and must not include hidden chain-of-thought.
-- elapsedWorldTurns (0-100): world sim steps when player rests or travels multiple days.
+- elapsedWorldTurns (0-100, default 0): advance world sim ONLY on committed overnight rest, multi-day travel, or explicit time skip. Keep 0 during same-scene conversation, investigation, or combat rounds.
 - tradeOps (max 16): buy/sell at markets — Core applies prices; narrate negotiation only.
 - npcAgencyOps (max 10): NPC relocations { npcId, locationId, arrivesTurn }.
 - cartographyReveal: optional map FoW reveal (regions array).

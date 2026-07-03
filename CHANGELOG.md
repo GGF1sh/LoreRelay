@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-07-03
+
+### Added
+
+- **Parlor Mode Phase B** — ST 体験の完成
+  - `connection_profiles.json` UI（接続プロファイル切替）
+  - `persona.json` 編集（プレイヤー人格を Parlor プロンプトへ注入）
+  - `backgrounds/` ギャラリー（Parlor 背景選択）
+  - clipboard フォールバックに `PARLOR_SKILL.md` 参照ヘッダ
+  - Core: `connectionProfileCore` · `personaCore` · `parlorBackgroundCore`
+  - Webview: `87-parlor-settings.js` · ヘッダー 🎛️ パネル
+
 ### Fixed
 
 - **Parlor（Gemini レビュー follow-up）** — プロンプト安全マージン 1200 文字、履歴は行単位ドロップ、ロアはスニペット単位ドロップ、GM 待機中プロファイル切替ロック、LM 応答後の Parlor モード再確認。
@@ -16,6 +28,10 @@
 ### Docs
 
 - `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` — Gemini 5 項目の triage
+
+### Verification
+
+- `npm test` **87/87**（+3 Phase B core tests）
 
 ## [1.34.0] - 2026-07-03
 

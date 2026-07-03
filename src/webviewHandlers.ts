@@ -106,6 +106,10 @@ export interface WebviewHandlerDeps {
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
     handleStartParlor(characterId?: string): Promise<void>;
     handleSwitchExperienceProfile(profile: unknown): Promise<void>;
+    sendParlorSettingsToWebview(): void;
+    handleSetParlorConnectionProfile(profileId: string): void;
+    handleSaveParlorPersona(raw: unknown): void;
+    handleSetParlorBackground(backgroundId: string | null): void;
 }
 
 /**
@@ -517,6 +521,26 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 await deps.handleSwitchExperienceProfile(message.profile);
             }
             break;
+        case 'requestParlorSettings':
+            deps.sendParlorSettingsToWebview();
+            break;
+        case 'setParlorConnectionProfile':
+            if (typeof message.profileId === 'string') {
+                deps.handleSetParlorConnectionProfile(message.profileId);
+            }
+            break;
+        case 'saveParlorPersona':
+            deps.handleSaveParlorPersona(message.persona);
+            break;
+        case 'setParlorBackground': {
+            const bgId = message.backgroundId;
+            if (bgId === null || bgId === undefined) {
+                deps.handleSetParlorBackground(null);
+            } else if (typeof bgId === 'string') {
+                deps.handleSetParlorBackground(bgId);
+            }
+            break;
+        }
         default:
             break;
     }

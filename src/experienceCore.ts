@@ -5,6 +5,8 @@ export type ExperienceProfile = 'parlor' | 'campaign';
 export interface ExperienceParlorOptions {
     maxHistoryMessages?: number;
     lorebookEnabled?: boolean;
+    /** backgrounds/{filename} selection id */
+    backgroundId?: string;
 }
 
 export interface ExperienceCampaignOptions {
@@ -57,6 +59,9 @@ export function parseExperienceConfig(raw: unknown): ExperienceConfig {
         }
         if (typeof p.lorebookEnabled === 'boolean') {
             out.parlor.lorebookEnabled = p.lorebookEnabled;
+        }
+        if (typeof p.backgroundId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(p.backgroundId)) {
+            out.parlor.backgroundId = p.backgroundId;
         }
     }
     if (o.campaign && typeof o.campaign === 'object') {

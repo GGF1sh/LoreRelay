@@ -89,6 +89,10 @@ import {
     switchToCampaignMode,
     sendParlorSessionToWebview,
     sendExperienceProfileToWebview,
+    sendParlorSettingsToWebview,
+    handleSetParlorConnectionProfile,
+    handleSaveParlorPersona,
+    handleSetParlorBackground,
 } from './parlorBridge';
 import {
     initTtsBridgeRunner,
@@ -1281,6 +1285,7 @@ async function sendUiState(retryCount = 0, fullHistory = false): Promise<void> {
     sendExperienceProfileToWebview();
     if (isParlorMode()) {
         sendParlorSessionToWebview();
+        sendParlorSettingsToWebview();
         return;
     }
     await sendCurrentState(retryCount, fullHistory);
@@ -1308,6 +1313,10 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 await startParlorMode();
             }
         },
+        sendParlorSettingsToWebview,
+        handleSetParlorConnectionProfile,
+        handleSaveParlorPersona,
+        handleSetParlorBackground,
         sendBgmManifest,
         sendSfxManifest,
         sendCharacterList,

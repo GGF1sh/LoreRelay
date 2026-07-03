@@ -32,6 +32,7 @@ import {
     substituteDiceMarkersSimple,
     type VscodeLmGmJson,
 } from './vscodeLmTurnResultCore';
+import type { VscodeLmProfileOptions } from './connectionProfileCore';
 
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
@@ -861,7 +862,10 @@ export interface ParlorLmResult {
 }
 
 /** Parlor mode: plain-text vscode-lm reply — never writes turn_result.json. */
-export async function invokeParlorVscodeLm(userPrompt: string): Promise<ParlorLmResult> {
+export async function invokeParlorVscodeLm(
+    userPrompt: string,
+    lmOptions?: VscodeLmProfileOptions
+): Promise<ParlorLmResult> {
     const { getPanel } = requireDeps();
     const wsPath = getWorkspacePath();
     if (!wsPath) {
@@ -873,9 +877,9 @@ export async function invokeParlorVscodeLm(userPrompt: string): Promise<ParlorLm
     }
 
     const config = vscode.workspace.getConfiguration('textAdventure');
-    const vendor = config.get<string>('gmBridge.vscodeLm.vendor', '').trim() || undefined;
-    const family = config.get<string>('gmBridge.vscodeLm.family', '').trim() || undefined;
-    const modelId = config.get<string>('gmBridge.vscodeLm.model', '').trim() || undefined;
+    const vendor = (lmOptions?.vendor?.trim() || config.get<string>('gmBridge.vscodeLm.vendor', '').trim()) || undefined;
+    const family = (lmOptions?.family?.trim() || config.get<string>('gmBridge.vscodeLm.family', '').trim()) || undefined;
+    const modelId = (lmOptions?.model?.trim() || config.get<string>('gmBridge.vscodeLm.model', '').trim()) || undefined;
 
     const selector: vscode.LanguageModelChatSelector = {};
     if (vendor) { selector.vendor = vendor; }
@@ -1119,4 +1123,21 @@ export async function fallbackToClipboard(text: string): Promise<void> {
     }
     await vscode.env.clipboard.writeText(text);
     vscode.window.showInformationMessage(t('extension.info.clipboard', { text }));
+}
+
+/** Parlor clipboard: plain-text contract + PARLOR_SKILL pointer (no secrets/paths dump). */
+export async function fallbackToClipboardParlor(prompt: string): Promise<void> {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    if (!config.get<boolean>('grokBridge.fallbackToClipboard', true)) {
+        return;
+    }
+    const wrapped = [
+        '[LoreRelay Parlor Mode]',
+        'Reply in plain text only. Do not write turn_result.json or game_state.json.',
+        'If you are the GM agent, read TextAdventureGMSkill/PARLOR_SKILL.md in this workspace first.',
+        '---',
+        prompt,
+    ].join('\n');
+    await vscode.env.clipboard.writeText(wrapped);
+    vscode.window.showInformationMessage(t('extension.info.parlorClipboard'));
 }

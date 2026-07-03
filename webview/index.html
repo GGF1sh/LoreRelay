@@ -41,6 +41,9 @@
         <div id="experience-profile-wrap">
           <button id="experience-profile-btn" class="glass-btn" title="Parlor / Campaign">🎭</button>
         </div>
+        <div id="parlor-settings-wrap" class="profile-parlor-only">
+          <button id="parlor-settings-btn" class="glass-btn" data-i18n-title="webview.parlor.settingsTitle" title="Parlor Settings">🎛️</button>
+        </div>
         <div id="tts-wrap">
           <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
           <div id="tts-menu" class="tts-menu-popup hidden">
@@ -790,6 +793,34 @@
         <textarea id="ig-tpl-freeform" class="img-gen-textarea" data-tpl="freeform" rows="2"></textarea>
       </details>
       <div id="img-gen-saved" class="img-gen-saved hidden" data-i18n="webview.imageGen.saved">Saved</div>
+    </div>
+  </aside>
+
+  <div id="parlor-settings-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="parlor-settings-panel" class="img-gen-panel hidden profile-parlor-only" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.parlor.settingsTitle">Parlor Settings</h3>
+      <button type="button" id="parlor-settings-panel-close" class="glass-btn" data-i18n-title="webview.parlor.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <h4 data-i18n="webview.parlor.connectionTitle">Connection</h4>
+      <p class="img-gen-hint" data-i18n="webview.parlor.connectionHint">Saved to connection_profiles.json in your workspace.</p>
+      <select id="parlor-connection-select" class="img-gen-input"></select>
+
+      <h4 data-i18n="webview.parlor.personaTitle">Player Persona</h4>
+      <p class="img-gen-hint" data-i18n="webview.parlor.personaHint">Optional roleplay context injected into Parlor prompts. Saved to persona.json.</p>
+      <label for="parlor-persona-name" data-i18n="webview.parlor.personaName">Name</label>
+      <input type="text" id="parlor-persona-name" class="img-gen-input" maxlength="80" data-i18n-placeholder="webview.parlor.personaNamePlaceholder" placeholder="Your character name" />
+      <label for="parlor-persona-description" data-i18n="webview.parlor.personaDescription">Description</label>
+      <textarea id="parlor-persona-description" class="img-gen-textarea" rows="3" data-i18n-placeholder="webview.parlor.personaDescriptionPlaceholder" placeholder="Appearance, background, traits…"></textarea>
+      <label for="parlor-persona-style" data-i18n="webview.parlor.personaStyle">Speaking style</label>
+      <textarea id="parlor-persona-style" class="img-gen-textarea" rows="2" data-i18n-placeholder="webview.parlor.personaStylePlaceholder" placeholder="Tone, quirks, speech patterns…"></textarea>
+      <button type="button" id="parlor-persona-save-btn" class="glass-btn" data-i18n="webview.parlor.personaSave">Save persona</button>
+      <div id="parlor-persona-saved" class="parlor-persona-saved hidden" data-i18n="webview.parlor.personaSaved">Saved</div>
+
+      <h4 data-i18n="webview.parlor.backgroundTitle">Background</h4>
+      <p id="parlor-bg-hint" class="img-gen-hint hidden" data-i18n="webview.parlor.backgroundHint">Add images to the backgrounds/ folder in your workspace.</p>
+      <div id="parlor-bg-gallery" class="parlor-bg-gallery"></div>
     </div>
   </aside>
 

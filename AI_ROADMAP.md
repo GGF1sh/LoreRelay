@@ -263,11 +263,11 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 - [x] Start Hub「🎭 キャラと話す」
 - [x] Core テスト + Campaign 回帰 **84/84**
 
-### Phase B — ST 体験の完成
+### Phase B — ST 体験の完成（v1.35.0）
 
-- [ ] `connection_profiles.json` UI
-- [ ] `TextAdventureGMSkill/PARLOR_SKILL.md`
-- [ ] `persona.json` · 背景ギャラリー
+- [x] `connection_profiles.json` UI
+- [x] `TextAdventureGMSkill/PARLOR_SKILL.md`
+- [x] `persona.json` · 背景ギャラリー
 
 ### Phase C — 移行
 

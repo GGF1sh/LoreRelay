@@ -1,5 +1,20 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Phase 12 Parlor Mode Phase B (v1.35.0)
+
+### Summary
+
+- Implemented Phase B: `connection_profiles.json` UI, `persona.json` editor, `backgrounds/` gallery, clipboard `PARLOR_SKILL.md` header flow.
+- Core: `connectionProfileCore` · `personaCore` · `parlorBackgroundCore` + host adapters.
+- Webview: `87-parlor-settings.js`, header 🎛️ panel, `profile-parlor-only` CSS.
+- Extension wiring: `sendParlorSettingsToWebview`, connection/persona/background handlers in `webviewHandlers.ts`.
+
+### Verification
+
+- `npm run build:webview`
+- `npm run compile`
+- `npm test` (**87/87**)
+
 ## 2026-07-03 JST - Codex - Phase 12 Parlor Mode Phase 3 gate
 
 ### Summary

@@ -13,6 +13,7 @@ export const MAX_PARLOR_LORE_CHARS = 2_000;
 export interface ParlorPromptParts {
     systemRules: string;
     characterContext: string;
+    personaContext: string;
     loreContext: string;
     historyContext: string;
     userMessage: string;
@@ -23,6 +24,7 @@ export interface BuildParlorPromptInput {
     character: Pick<CharacterProfile, 'id' | 'name' | 'description' | 'personality' | 'stSource'>;
     session: ParlorSession;
     userMessage: string;
+    personaContext?: string;
     loreSnippets?: string[];
     maxPromptChars?: number;
     maxHistoryMessages?: number;
@@ -149,6 +151,7 @@ export function buildParlorPromptParts(input: BuildParlorPromptInput): ParlorPro
     return {
         systemRules: buildParlorSystemRules(input.locale),
         characterContext: buildParlorCharacterContext(input.character),
+        personaContext: typeof input.personaContext === 'string' ? input.personaContext : '',
         loreContext: buildParlorLoreContext(input.loreSnippets),
         historyContext: formatParlorHistory(history, input.character.name || 'Character'),
         userMessage: clampParlorContent(input.userMessage),
@@ -181,6 +184,9 @@ export function assembleParlorUserPrompt(parts: ParlorPromptParts, locale: strin
             fixedPrefix.trimEnd(),
             clampDelimitedContext(parts.characterContext, characterBudget),
         ];
+        if (parts.personaContext) {
+            blocks.push(clampDelimitedContext(parts.personaContext, Math.min(800, historyBudget)));
+        }
         if (parts.loreContext) {
             blocks.push(clampDelimitedContext(parts.loreContext, loreBudget));
         }

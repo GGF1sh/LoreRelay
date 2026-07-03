@@ -42,6 +42,7 @@ export function applyGuildTurnOps(
             weeklyActions: rules.guildWeeklyActions,
             boardSize: rules.guildBoardSize,
             maxActiveQuests: rules.guildMaxActiveQuests,
+            requestsEnabled: rules.enableGuildRequests === true,
         },
         worldTurnSeed,
         registryNpcIds

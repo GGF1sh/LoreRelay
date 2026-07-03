@@ -905,6 +905,8 @@
   "webview.gameRules.massBattle": "啟用大規模戰鬥（F10）",
   "webview.gameRules.tipMassBattle": "將鄰國的侵襲以3回合戰術戰鬥解決，而非即時結算（需啟用領地運營模式+鄰國勢力，預設關閉）",
   "webview.gameRules.guildMode": "啟用公會大師模式（F11）",
+  "webview.gameRules.guildRequests": "啟用委託公告板（G2）",
+  "webview.gameRules.tipGuildRequests": "委託人出現在公告板上；在對話中透過 resolve_request 裁定（需公會模式；預設關閉）",
   "webview.gameRules.tipGuildMode": "冒險者公會／任務公告板角色層（週次提交，G1為唯讀面板，預設關閉）",
   "webview.world.guildTitle": "⚔️ 公會",
   "webview.world.guildWeekYear": "第{year}年 · 第{week}週",
@@ -925,5 +927,12 @@
   "webview.world.guildClass.scout": "斥候",
   "webview.world.guildClass.mage": "法師",
   "webview.world.guildClass.healer": "治療師",
-  "webview.world.guildClass.rogue": "盜賊"
+  "webview.world.guildClass.rogue": "盜賊",
+  "webview.world.guildBoardTitle": "公告板 — 委託人",
+  "webview.world.guildParleyBtn": "面談",
+  "webview.world.guildParleyInsertText": "與委託人單獨面談（{requestId}）：{client} — {summary}。我想詳細了解。",
+  "webview.world.guildRulingInsertText": "關於委託 {requestId}（{client}，{summary}）：我選擇{ruling}。",
+  "webview.world.guildRuling.accept": "接受",
+  "webview.world.guildRuling.decline": "拒絕",
+  "webview.world.guildRuling.negotiate": "交涉"
 }

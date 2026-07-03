@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.42.0] - 2026-07-03
+
+### Added
+
+- **G2 Guild request board** — `src/guildRequestCore.ts` · `src/guildPromptCore.ts`: 10種依頼の決定論キュー、`resolve_request`（accept/decline/negotiate）、一括（bulk）/面談（full）GM プロンプト tier。
+  - `guildCore.ts`: `open_board` で `pendingRequests` 生成（`requestsEnabled` 時のみ）、`applyGuildRequest` で accept/negotiate → `GuildQuest` 昇格（negotiate は報酬 20% 減）。
+  - 配線: `guildBridge.buildGuildPromptContext` · `gmPromptBuilder` guild chunk · `game_rules.enableGuildRequests`（既定 OFF）· World タブ掲示板 UI（面談/裁定ボタン）· i18n 4言語。
+
+### Verification
+
+- `npm test` **115/115**（`scripts/test_guild_request_core.js` 新規）
+- `npm run compile` クリーン · `node scripts/build-webview.js` OK
+
 ## [1.41.0] - 2026-07-03
 
 ### Added

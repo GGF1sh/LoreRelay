@@ -905,6 +905,8 @@
   "webview.gameRules.massBattle": "合戦リゾルバを有効化（F10）",
   "webview.gameRules.tipMassBattle": "隣国の侵攻を3ラウンドの采配合戦で解決する（既定は即時delta）。領地運営モード+隣国ライバルが必要・既定OFF",
   "webview.gameRules.guildMode": "ギルドマスターモードを有効化（F11）",
+  "webview.gameRules.guildRequests": "依頼掲示板を有効化（G2）",
+  "webview.gameRules.tipGuildRequests": "依頼人が掲示板に並ぶ。会話で resolve_request により裁定（ギルドモード前提・既定OFF）",
   "webview.gameRules.tipGuildMode": "冒険者ギルド／クエスト掲示板ロール層（週次コミット・G1は読み取り専用パネル・既定OFF）",
   "webview.world.guildTitle": "⚔️ ギルド",
   "webview.world.guildWeekYear": "第{year}年 · 第{week}週",
@@ -925,5 +927,12 @@
   "webview.world.guildClass.scout": "斥候",
   "webview.world.guildClass.mage": "魔術師",
   "webview.world.guildClass.healer": "治療師",
-  "webview.world.guildClass.rogue": "盗賊"
+  "webview.world.guildClass.rogue": "盗賊",
+  "webview.world.guildBoardTitle": "掲示板 — 依頼人",
+  "webview.world.guildParleyBtn": "面談",
+  "webview.world.guildParleyInsertText": "依頼人との個別面談（{requestId}）: {client} — {summary}。詳しく話を聞きたい。",
+  "webview.world.guildRulingInsertText": "依頼 {requestId}（{client}、{summary}）について、{ruling}とする。",
+  "webview.world.guildRuling.accept": "受諾",
+  "webview.world.guildRuling.decline": "謝絶",
+  "webview.world.guildRuling.negotiate": "交渉"
 }

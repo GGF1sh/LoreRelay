@@ -96,6 +96,7 @@ import {
 import { cargoWeight } from './commerceCore';
 import { planTravel, resolveTransportForTheme } from './transportCore';
 import { buildDomainPromptContext } from './domainBridge';
+import { buildGuildPromptContext } from './guildBridge';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
@@ -622,6 +623,11 @@ function buildDomainPromptContextForGm(playerAction: string): string {
     return buildDomainPromptContext(state, playerAction);
 }
 
+function buildGuildPromptContextForGm(playerAction: string): string {
+    const state = readGameStateForPrompt();
+    return buildGuildPromptContext(state, playerAction);
+}
+
 function buildGameRulesPromptContext(): string {
     const rules = loadGameRules();
     const lines = ['[Game Rules]'];
@@ -1121,6 +1127,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
         buildSection('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext()),
         buildSection('domain', 'Domain', buildDomainPromptContextForGm(hint)),
+        buildSection('guild', 'Guild', buildGuildPromptContextForGm(hint)),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
         buildSection('chronicle', 'Chronicle Recap', peekChronicleRecapContext(policy)),
         buildSection('summary', 'Story Synopsis', (() => {
@@ -1182,6 +1189,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
     pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
     pushPromptChunk(specs, 'domain', buildDomainPromptContextForGm(playerAction));
+    pushPromptChunk(specs, 'guild', buildGuildPromptContextForGm(playerAction));
     pushPromptChunk(specs, 'director', buildScenarioDirectorPromptContext());
     pushPromptChunk(specs, 'chronicle', consumeChronicleRecapContext(policy));
 

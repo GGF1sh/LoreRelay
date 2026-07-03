@@ -906,6 +906,8 @@
   "webview.gameRules.tipMassBattle": "A rival raid resolves as a 3-round tactical battle instead of an instant delta (requires Domain Mode + Rival Lords; default OFF)",
   "webview.gameRules.guildMode": "Enable Guild Master Mode (F11)",
   "webview.gameRules.tipGuildMode": "Adventurer guild / quest board role layer (weekly commit, read-only panel in G1; default OFF)",
+  "webview.gameRules.guildRequests": "Enable Request Board (G2)",
+  "webview.gameRules.tipGuildRequests": "Clients crowd the quest board; rule via resolve_request in conversation (requires Guild Mode; default OFF)",
   "webview.world.guildTitle": "⚔️ Guild",
   "webview.world.guildWeekYear": "Year {year} · Week {week}",
   "webview.world.guildCoffers": "Coffers",
@@ -925,5 +927,12 @@
   "webview.world.guildClass.scout": "Scout",
   "webview.world.guildClass.mage": "Mage",
   "webview.world.guildClass.healer": "Healer",
-  "webview.world.guildClass.rogue": "Rogue"
+  "webview.world.guildClass.rogue": "Rogue",
+  "webview.world.guildBoardTitle": "Quest Board — Clients",
+  "webview.world.guildParleyBtn": "Parley",
+  "webview.world.guildParleyInsertText": "Private audience with the client ({requestId}): {client} — {summary}. I want to hear them out in detail.",
+  "webview.world.guildRulingInsertText": "Regarding request {requestId} from {client} ({summary}): I choose to {ruling}.",
+  "webview.world.guildRuling.accept": "Accept",
+  "webview.world.guildRuling.decline": "Decline",
+  "webview.world.guildRuling.negotiate": "Negotiate"
 }

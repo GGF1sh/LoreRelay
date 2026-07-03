@@ -1,6 +1,18 @@
-// Guild Master G1: quest-board role layer — weekly stats/events (no vscode/fs).
+// Guild Master G1–G2: quest-board role layer — weekly stats/events + request board (no vscode/fs).
 
 import { CHARACTER_ID_PATTERN } from './characterId';
+import {
+    buildRequestQueue,
+    getRequest,
+    resolveRequestRuling,
+    isValidGuildRequestId,
+    isValidRequestRulingId,
+    isValidQuestKind,
+    resolveQuestDifficulty,
+    resolveQuestReward,
+    formatRequestChronicleText,
+    type QuestKind,
+} from './guildRequestCore';
 
 export const MAX_GUILD_ADVENTURERS = 5;
 export const MAX_GUILD_ACTIONS_PER_WEEK = 4;
@@ -29,8 +41,20 @@ export type GuildActionId =
 export type GuildOpsKind =
     | 'weekly_commit'
     | 'recruit_adventurer'
-    | 'dismiss_adventurer';
+    | 'dismiss_adventurer'
+    | 'resolve_request';
 export type GuildSeason = 'spring' | 'summer' | 'autumn' | 'winter';
+
+export interface GuildQuest {
+    id: string;
+    requestId: string;
+    questKind: QuestKind;
+    difficulty: number;
+    rewardCoffers: number;
+    status: 'accepted' | 'active';
+    partyNpcIds?: string[];
+    weeksRemaining?: number;
+}
 
 export interface GuildAdventurer {
     npcId: string;
@@ -58,6 +82,8 @@ export interface GuildState {
     lastWeeklyActions?: GuildActionId[];
     adventurers: GuildAdventurer[];
     pendingRequests?: string[];
+    /** Accepted or active quests (G2 accept / G3 assign). */
+    quests?: GuildQuest[];
     pendingEvents: string[];
     flags: Record<string, boolean>;
 }
@@ -66,12 +92,22 @@ export interface GuildConfig {
     weeklyActions: number;
     boardSize: number;
     maxActiveQuests: number;
+    /** G2: open_board generates request queue + board prompts. */
+    requestsEnabled?: boolean;
 }
 
 export interface GuildOps {
     kind: GuildOpsKind;
     actions?: GuildActionId[];
     adventurer?: { npcId: string; klass: AdventurerClass; skill?: number };
+    requestId?: string;
+    rulingId?: 'accept' | 'decline' | 'negotiate';
+}
+
+export interface RequestRulingResult {
+    requestId: string;
+    rulingId: string;
+    chronicleText: string;
 }
 
 export interface GuildStatDelta {
@@ -220,7 +256,8 @@ export function normalizeGuildConfig(raw?: Partial<GuildConfig>): GuildConfig {
     const maxActiveQuests = typeof raw?.maxActiveQuests === 'number' && Number.isFinite(raw.maxActiveQuests)
         ? Math.max(1, Math.min(MAX_ACTIVE_QUESTS, Math.floor(raw.maxActiveQuests)))
         : DEFAULT_MAX_ACTIVE_QUESTS;
-    return { weeklyActions, boardSize, maxActiveQuests };
+    const requestsEnabled = raw?.requestsEnabled === true;
+    return { weeklyActions, boardSize, maxActiveQuests, requestsEnabled };
 }
 
 export function defaultGuildState(hallLocationId: string, config?: Partial<GuildConfig>): GuildState {
@@ -286,10 +323,18 @@ export function validateGuild(raw: unknown): GuildState | undefined {
     const pendingRequests: string[] = [];
     if (Array.isArray(doc.pendingRequests)) {
         for (const item of doc.pendingRequests.slice(0, MAX_GUILD_PENDING_REQUESTS)) {
-            const id = typeof item === 'string' ? item.trim().replace(/[\r\n\t\x00-\x1f]/g, ' ').slice(0, 64) : '';
-            if (id && /^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
+            const id = typeof item === 'string' ? item.trim() : '';
+            if (id && isValidGuildRequestId(id)) {
                 pendingRequests.push(id);
             }
+        }
+    }
+
+    const quests: GuildQuest[] = [];
+    if (Array.isArray(doc.quests)) {
+        for (const item of doc.quests.slice(0, MAX_ACTIVE_QUESTS)) {
+            const quest = parseGuildQuest(item);
+            if (quest) { quests.push(quest); }
         }
     }
 
@@ -341,20 +386,67 @@ export function validateGuild(raw: unknown): GuildState | undefined {
         lastWeeklyActions: parseLastWeeklyActions(doc.lastWeeklyActions),
         adventurers,
         pendingRequests: pendingRequests.length > 0 ? pendingRequests : undefined,
+        quests: quests.length > 0 ? quests : undefined,
         pendingEvents,
         flags,
     };
+}
+
+function parseGuildQuest(raw: unknown): GuildQuest | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const doc = raw as Record<string, unknown>;
+    const requestId = typeof doc.requestId === 'string' ? doc.requestId.trim() : '';
+    const id = typeof doc.id === 'string' ? doc.id.trim() : requestId;
+    if (!id || !requestId || !isValidGuildRequestId(requestId)) { return undefined; }
+    if (!isValidQuestKind(doc.questKind)) { return undefined; }
+    if (doc.status !== 'accepted' && doc.status !== 'active') { return undefined; }
+    const quest: GuildQuest = {
+        id,
+        requestId,
+        questKind: doc.questKind,
+        difficulty: clampGuildStat(doc.difficulty),
+        rewardCoffers: clampGuildResource(doc.rewardCoffers),
+        status: doc.status,
+    };
+    if (doc.status === 'active' && Array.isArray(doc.partyNpcIds)) {
+        const partyNpcIds = doc.partyNpcIds
+            .filter((n): n is string => typeof n === 'string' && CHARACTER_ID_PATTERN.test(n.trim()))
+            .map((n) => n.trim())
+            .slice(0, MAX_GUILD_ADVENTURERS);
+        if (partyNpcIds.length > 0) {
+            quest.partyNpcIds = partyNpcIds;
+        }
+    }
+    if (typeof doc.weeksRemaining === 'number' && Number.isFinite(doc.weeksRemaining)) {
+        quest.weeksRemaining = Math.max(0, Math.min(3, Math.floor(doc.weeksRemaining)));
+    }
+    return quest;
 }
 
 export function parseGuildOps(raw: unknown): GuildOps | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const doc = raw as Record<string, unknown>;
     const kind = doc.kind;
-    if (kind !== 'weekly_commit' && kind !== 'recruit_adventurer' && kind !== 'dismiss_adventurer') {
+    if (
+        kind !== 'weekly_commit'
+        && kind !== 'recruit_adventurer'
+        && kind !== 'dismiss_adventurer'
+        && kind !== 'resolve_request'
+    ) {
         return undefined;
     }
 
     const ops: GuildOps = { kind };
+
+    if (kind === 'resolve_request') {
+        const requestId = typeof doc.requestId === 'string' ? doc.requestId.trim() : '';
+        if (!isValidGuildRequestId(requestId) || !isValidRequestRulingId(doc.rulingId)) {
+            return undefined;
+        }
+        ops.requestId = requestId;
+        ops.rulingId = doc.rulingId;
+        return ops;
+    }
 
     if (Array.isArray(doc.actions)) {
         const actions = doc.actions
@@ -632,6 +724,11 @@ export function applyWeeklyCommit(
         lastWeeklyActions: actions.length > 0 ? [...actions] : next.lastWeeklyActions,
     };
 
+    if (config.requestsEnabled && actions.includes('open_board')) {
+        const queue = buildRequestQueue(next, worldTurnSeed, config.boardSize);
+        next = { ...next, pendingRequests: queue.map((r) => r.id) };
+    }
+
     const counterLines = buildGuildCounterLines(next);
 
     return {
@@ -660,12 +757,63 @@ export function dismissAdventurer(guild: GuildState, npcId: string): GuildState 
     };
 }
 
+export function applyGuildRequest(
+    guild: GuildState,
+    requestId: string,
+    rulingId: string
+): { guild: GuildState; request?: RequestRulingResult } {
+    if (!guild.pendingRequests?.includes(requestId)) {
+        return { guild };
+    }
+    const delta = resolveRequestRuling(requestId, rulingId);
+    let next = applyDelta(guild, delta);
+    const remaining = guild.pendingRequests.filter((id) => id !== requestId);
+    next = { ...next, pendingRequests: remaining.length > 0 ? remaining : undefined };
+
+    if (rulingId === 'accept' || rulingId === 'negotiate') {
+        const def = getRequest(requestId);
+        if (def) {
+            const negotiate = rulingId === 'negotiate';
+            const quest: GuildQuest = {
+                id: requestId,
+                requestId,
+                questKind: def.questKind,
+                difficulty: resolveQuestDifficulty(def.baseDifficulty, next.renown),
+                rewardCoffers: resolveQuestReward(def.baseReward, negotiate),
+                status: 'accepted',
+            };
+            const quests = [...(next.quests ?? []), quest].slice(-MAX_ACTIVE_QUESTS);
+            next = { ...next, quests };
+        }
+    }
+
+    return {
+        guild: next,
+        request: {
+            requestId,
+            rulingId,
+            chronicleText: formatRequestChronicleText(
+                requestId,
+                rulingId,
+                guild.calendarWeek,
+                guild.calendarYear
+            ),
+        },
+    };
+}
+
 export function applyGuildOps(
     guild: GuildState,
     ops: GuildOps,
     config: GuildConfig,
     worldTurnSeed = 0
-): { guild: GuildState; weekly?: WeeklyCommitResult } {
+): { guild: GuildState; weekly?: WeeklyCommitResult; request?: RequestRulingResult } {
+    if (ops.kind === 'resolve_request' && ops.requestId && ops.rulingId) {
+        if (!config.requestsEnabled) {
+            return { guild };
+        }
+        return applyGuildRequest(guild, ops.requestId, ops.rulingId);
+    }
     if (ops.kind === 'recruit_adventurer' && ops.adventurer) {
         return {
             guild: recruitAdventurer(guild, {

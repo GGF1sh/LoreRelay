@@ -122,10 +122,13 @@ export interface TurnResult {
         /** §F10 battle_round: the player's tactic for the current round of an active battle. */
         tactic?: 'assault' | 'hold' | 'stratagem';
     };
-    /** Guild Master Mode: weekly policy / adventurer roster (Guild ON). */
+    /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
-        kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer';
+        kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request';
         actions?: string[];
         adventurer?: { npcId: string; klass: string; skill?: number };
+        /** §G2 resolve_request: which open request and how it was ruled. */
+        requestId?: string;
+        rulingId?: 'accept' | 'decline' | 'negotiate';
     };
 }

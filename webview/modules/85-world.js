@@ -781,6 +781,17 @@ function ensureGuildStyles() {
         .guild-stat-value { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.85; }
         .guild-actions-left { font-size: 0.8em; opacity: 0.6; margin-top: 0.2rem; }
         .guild-adventurers-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.4rem; }
+        .guild-board-section { margin-top: 0.5rem; }
+        .guild-section-heading { font-size: 0.82em; font-weight: 600; opacity: 0.75; margin-bottom: 0.35rem; }
+        .guild-request-card {
+            padding: 0.45rem 0.5rem;
+            margin-bottom: 0.35rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.02);
+        }
+        .guild-request-summary { font-size: 0.88em; margin-bottom: 0.3rem; }
+        .guild-request-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
         .guild-adventurer-chip {
             font-size: 0.8em;
             padding: 0.14rem 0.45rem;
@@ -2527,6 +2538,65 @@ function renderGuildPanel(msg) {
             ).join('')}</div>`
             : `<p class="empty-text">${escapeHtml(T('webview.world.guildNoAdventurers'))}</p>`}
     `;
+
+    if (msg.enableGuildRequests === true && Array.isArray(guild.pendingRequests) && guild.pendingRequests.length > 0) {
+        panel.appendChild(buildGuildBoardSection(guild));
+    }
+}
+
+function buildGuildBoardSection(guild) {
+    const el = document.createElement('div');
+    el.className = 'guild-board-section';
+    const heading = document.createElement('div');
+    heading.className = 'guild-section-heading';
+    heading.textContent = T('webview.world.guildBoardTitle');
+    el.appendChild(heading);
+
+    guild.pendingRequests.forEach((request) => {
+        const card = document.createElement('div');
+        card.className = 'guild-request-card';
+        card.innerHTML = `
+            <div class="guild-request-summary">
+                <strong>${escapeHtml(request.clientArchetype)}</strong> — ${escapeHtml(request.summary)}
+            </div>
+        `;
+        const actionsRow = document.createElement('div');
+        actionsRow.className = 'guild-request-actions';
+
+        const parleyBtn = document.createElement('button');
+        parleyBtn.type = 'button';
+        parleyBtn.className = 'small-btn';
+        parleyBtn.textContent = T('webview.world.guildParleyBtn');
+        parleyBtn.addEventListener('click', () => {
+            postWorldInsertChatText(T('webview.world.guildParleyInsertText', {
+                requestId: request.id,
+                client: request.clientArchetype,
+                summary: request.summary,
+            }));
+        });
+        actionsRow.appendChild(parleyBtn);
+
+        (request.rulings || []).forEach((ruling) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'small-btn guild-ruling-btn';
+            btn.textContent = guildT('Ruling', ruling.rulingId);
+            btn.title = ruling.label;
+            btn.addEventListener('click', () => {
+                postWorldInsertChatText(T('webview.world.guildRulingInsertText', {
+                    requestId: request.id,
+                    client: request.clientArchetype,
+                    summary: request.summary,
+                    ruling: ruling.label,
+                }));
+            });
+            actionsRow.appendChild(btn);
+        });
+
+        card.appendChild(actionsRow);
+        el.appendChild(card);
+    });
+    return el;
 }
 
 // ===== Domain Mode (D3): F7 Audience / F8 Rivals / F9 Missions / F10 Battle =====

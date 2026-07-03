@@ -905,6 +905,8 @@
   "webview.gameRules.massBattle": "启用大规模战斗（F10）",
   "webview.gameRules.tipMassBattle": "将邻国的侵袭以3回合战术战斗解决，而非即时结算（需启用领地运营模式+邻国势力，默认关闭）",
   "webview.gameRules.guildMode": "启用公会大师模式（F11）",
+  "webview.gameRules.guildRequests": "启用委托公告板（G2）",
+  "webview.gameRules.tipGuildRequests": "委托人出现在公告板上；在对话中通过 resolve_request 裁定（需公会模式；默认关闭）",
   "webview.gameRules.tipGuildMode": "冒险者公会/任务公告板角色层（周次提交，G1为只读面板，默认关闭）",
   "webview.world.guildTitle": "⚔️ 公会",
   "webview.world.guildWeekYear": "第{year}年 · 第{week}周",
@@ -925,5 +927,12 @@
   "webview.world.guildClass.scout": "斥候",
   "webview.world.guildClass.mage": "法师",
   "webview.world.guildClass.healer": "治疗师",
-  "webview.world.guildClass.rogue": "盗贼"
+  "webview.world.guildClass.rogue": "盗贼",
+  "webview.world.guildBoardTitle": "公告板 — 委托人",
+  "webview.world.guildParleyBtn": "面谈",
+  "webview.world.guildParleyInsertText": "与委托人单独面谈（{requestId}）：{client} — {summary}。我想详细了解。",
+  "webview.world.guildRulingInsertText": "关于委托 {requestId}（{client}，{summary}）：我选择{ruling}。",
+  "webview.world.guildRuling.accept": "接受",
+  "webview.world.guildRuling.decline": "拒绝",
+  "webview.world.guildRuling.negotiate": "交涉"
 }

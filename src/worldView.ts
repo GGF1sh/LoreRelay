@@ -533,6 +533,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableMassBattle: gameRules.enableMassBattle === true,
         domain: domain ?? null,
         enableGuildMode: gameRules.enableGuildMode === true,
+        enableGuildRequests: gameRules.enableGuildRequests === true,
         guild: guild ?? null,
         mapItems: listActiveMapItems(worldBlock).map((item) => ({
             id: item.id,

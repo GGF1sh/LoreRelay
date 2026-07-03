@@ -60,6 +60,16 @@ const {
 }
 
 {
+    const ledgerJson = '```json\n{"discoveryOps":[],"valueHint":"x"}\n```';
+    const out = sanitizeExportText(ledgerJson);
+    if (out.includes('valueHint') || !out.includes('[redacted]')) {
+        fail(`ledger markers redacted: ${out}`);
+    } else {
+        ok('sanitizeExportText redacts ledger markers in JSON fences');
+    }
+}
+
+{
     const picked = pickReplayExportEntry({
         id: 'e1',
         role: 'gm',

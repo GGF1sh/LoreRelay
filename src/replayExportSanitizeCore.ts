@@ -34,6 +34,12 @@ const SENSITIVE_JSON_MARKERS = [
     '"domainSnapshotAtDepart"',
     '"playerNpcMilestones"',
     '"npcRelationships"',
+    '"discoveryOps"',
+    '"campaignResourceOps"',
+    '"valueHint"',
+    '"estValue"',
+    '"discoveries.json"',
+    '"campaign_resources.json"',
 ];
 
 function pickShallow(raw: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {

@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.61.0] - 2026-07-03
+
+### Fixed
+
+- **Ledger sanitization（PR-E）** — Campaign Kit 台帳フィールドの Webview / Replay export 追従。
+  - `campaignLedgerWebviewSanitizeCore.ts` — FoW-safe `pickDiscoveriesForWebviewCore` / `pickResourcesForWebviewCore`、whitelist 定数。
+  - `campaignKitBridge.ts` — pure core に委譲。
+  - `replayExportSanitizeCore.ts` — `discoveryOps` / `campaignResourceOps` / `valueHint` / `estValue` 等を export 赤札に追加。
+
+### Added
+
+- `test_ledger_sanitization.js` — Webview FoW・whitelist・export 赤札を検証。テスト **141/141**。
+
 ## [1.60.0] - 2026-07-03
 
 ### Fixed

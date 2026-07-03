@@ -5,7 +5,11 @@ import { resolveActiveCampaignKit } from './campaignKit';
 import { loadDiscoveryLedger } from './discoveryLedger';
 import { resolveCampaignResourcesForPrompt } from './campaignResources';
 import type { CampaignKitConfig } from './campaignKitCore';
-import { computeSuggestedSellValue, type DiscoveryCondition, type DiscoveryEntry, type DiscoveryLedgerDocument, type DiscoveryStatus } from './discoveryLedgerCore';
+import type { DiscoveryLedgerDocument } from './discoveryLedgerCore';
+import {
+    pickDiscoveriesForWebviewCore,
+    pickResourcesForWebviewCore,
+} from './campaignLedgerWebviewSanitizeCore';
 import { filterJobBoardByQuestHooks } from './campaignJobQuestCore';
 import {
     buildCampaignJobBoard,
@@ -16,12 +20,6 @@ import {
 import type { QuestHook } from './worldStateCore';
 import type { Region, WorldLocation } from './worldForgeCore';
 import type { CampaignJobBoardContext } from './campaignJobBoardCore';
-
-const WEBVIEW_DISCOVERY_STATUSES: readonly DiscoveryStatus[] = [
-    'unidentified',
-    'identified',
-    'appraised',
-];
 
 export interface CampaignKitWebviewPayload {
     kitId: string;
@@ -39,45 +37,15 @@ function resolveLocationName(locationId: string): string | undefined {
     return location?.name || locationId;
 }
 
-function displayLabel(entry: DiscoveryEntry): string {
-    if (entry.status === 'unidentified') {
-        return entry.label;
-    }
-    return entry.identifiedLabel || entry.label;
-}
-
-/** FoW-safe discovery list for World tab (no GM-only valueHint; value/condition hidden until identified). */
+/** FoW-safe discovery list for World tab (delegates to pure core). */
 export function pickDiscoveriesForWebview(
     ledger: DiscoveryLedgerDocument | undefined,
     maxEntries = 24
-): Array<{
-    id: string;
-    kind: DiscoveryEntry['kind'];
-    label: string;
-    status: DiscoveryStatus;
-    siteId?: string;
-    siteName?: string;
-    condition?: DiscoveryCondition;
-    suggestedValue?: number;
-}> | undefined {
-    if (!ledger?.entries.length) { return undefined; }
-    const active = ledger.entries
-        .filter((e) => WEBVIEW_DISCOVERY_STATUSES.includes(e.status))
-        .slice(0, maxEntries)
-        .map((e) => {
-            const revealed = e.status !== 'unidentified';
-            return {
-                id: e.id,
-                kind: e.kind,
-                label: displayLabel(e),
-                status: e.status,
-                siteId: e.siteId,
-                siteName: e.siteId ? resolveLocationName(e.siteId) : undefined,
-                condition: revealed && e.condition && e.condition !== 'standard' ? e.condition : undefined,
-                suggestedValue: revealed ? computeSuggestedSellValue(e) : undefined,
-            };
-        });
-    return active.length ? active : undefined;
+) {
+    return pickDiscoveriesForWebviewCore(ledger, {
+        maxEntries,
+        resolveSiteName: (siteId) => resolveLocationName(siteId),
+    });
 }
 
 export function pickJobBoardForWebview(
@@ -98,16 +66,9 @@ export function pickJobBoardForWebview(
 }
 
 /** kit.resources ordering preserved so the World tab shows a stable, genre-appropriate list. */
-export function pickResourcesForWebview(
-    kit: CampaignKitConfig
-): Array<{ id: string; name: string; qty: number }> | undefined {
-    if (!kit.resources.length) { return undefined; }
+export function pickResourcesForWebview(kit: CampaignKitConfig) {
     const doc = resolveCampaignResourcesForPrompt();
-    return kit.resources.slice(0, 8).map((r) => ({
-        id: r.id,
-        name: r.name,
-        qty: doc?.quantities[r.id] ?? 0,
-    }));
+    return pickResourcesForWebviewCore(kit.resources, doc?.quantities);
 }
 
 export function resolveCampaignBoardContext(

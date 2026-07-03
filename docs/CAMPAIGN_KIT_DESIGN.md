@@ -142,6 +142,13 @@ GM may set `turn_result.discoveryOps` (max 8) when Campaign Kit is active:
 
 Core persists to `discoveries.json` on turn apply.
 
+### Appraisal state machine (Phase D)
+
+Valid transitions: `unidentified` → `identified` → `appraised` → `sold` / `consumed`. Backward transitions are ignored by core.
+
+- Setting `identifiedLabel` on an `unidentified` entry auto-promotes to `identified`.
+- World tab **Request appraisal** / **Complete appraisal** inserts player intent into chat (GM responds with `discoveryOps`).
+
 ## Job/Rumor Board (Phase C)
 
 When Campaign Kit is active and World Forge has expedition sites, LoreRelay builds a deterministic hub board from kit genre + geography (seed: `worldSeed`, hub id, `worldTurn`). Entries are guidance prompts — accepting a posting does not auto-create quest hooks.
@@ -151,7 +158,7 @@ GM prompt chunk: `[Campaign {jobBoardLabel} @ Hub]` (priority 92, char cap 1400)
 World tab **Campaign** panel shows:
 
 - **Findings** — active `discoveries.json` entries (no GM-only `valueHint`)
-- **Job board** — generated postings with **Inquire** (inserts chat text)
+- **Job board** — generated postings with **Inquire** (chat) and **Accept job** (creates active `questHooks` entry, `source: campaign`)
 
 ## Implementation Phases
 
@@ -160,7 +167,7 @@ World tab **Campaign** panel shows:
 | **A** Schema + presets + GM prompt | **done** | `campaignKitCore.ts`, `campaign_kit.json` |
 | **B** Discovery ledger | **done** | `discoveries.json`, `discoveryLedgerCore.ts` |
 | **C** Job/Rumor board runtime | **done** | Deterministic hub board + GM prompt (`campaignJobBoardCore.ts`) |
-| **D** Appraisal state machine | **partial** | `turn_result.discoveryOps` → `discoveries.json` (add/update/remove) |
+| **D** Appraisal state machine | **done** | Status transitions + GM guidance; webview appraisal request; `discoveryOps` persist |
 | **E** Genre preset packs | partial | `scrapbound-settlement` sample |
 
 ## Sample Workspace

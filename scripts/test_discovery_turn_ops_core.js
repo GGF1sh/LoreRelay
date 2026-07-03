@@ -70,6 +70,30 @@ const {
     }
 }
 
+{
+    const next = applyDiscoveryOpsToLedger({
+        version: 1,
+        entries: [{ id: 'x', kind: 'material', label: 'A', status: 'appraised', identifiedLabel: 'Relic' }],
+    }, [{ op: 'update', id: 'x', status: 'unidentified' }]);
+    if (next.entries[0].status !== 'appraised') {
+        fail(`backward status transition should be ignored: ${next.entries[0].status}`);
+    } else {
+        ok('backward status transition ignored');
+    }
+}
+
+{
+    const next = applyDiscoveryOpsToLedger({
+        version: 1,
+        entries: [{ id: 'y', kind: 'material', label: 'Vague shard', status: 'unidentified' }],
+    }, [{ op: 'update', id: 'y', identifiedLabel: 'Relay housing' }]);
+    if (next.entries[0].status !== 'identified' || next.entries[0].identifiedLabel !== 'Relay housing') {
+        fail(`identifiedLabel should promote status: ${JSON.stringify(next.entries[0])}`);
+    } else {
+        ok('identifiedLabel auto-promotes status');
+    }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

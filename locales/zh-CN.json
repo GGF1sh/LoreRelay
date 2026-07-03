@@ -139,6 +139,7 @@
   "webview.world.questActive": "进行中",
   "webview.world.questSourceEvent": "事件",
   "webview.world.questSourceNpc": "NPC",
+  "webview.world.questSourceCampaign": "战役",
   "webview.world.questReward": "奖励",
   "webview.world.commerceTitle": "商队",
   "webview.world.commerceHint": "你的资金、口粮与货物（只读）。",
@@ -982,5 +983,11 @@
   "webview.world.campaignDiscoveryKind.threat": "威胁",
   "webview.world.campaignDiscoveryKind.quest": "任务线索",
   "webview.world.campaignJobKind.job": "工作",
-  "webview.world.campaignJobKind.rumor": "传闻"
+  "webview.world.campaignJobKind.rumor": "传闻",
+  "webview.world.campaignAppraisalFallback": "鉴定",
+  "webview.world.campaignAppraiseBtn": "请求鉴定",
+  "webview.world.campaignAppraiseFinalizeBtn": "完成鉴定",
+  "webview.world.campaignAppraiseInsertText": "我想对发现物「{label}」（{id}）进行{appraisal}——它到底是什么？",
+  "webview.world.campaignAppraiseFinalizeText": "我想对「{label}」（{id}）完成{appraisal}，确定其价值。",
+  "webview.world.campaignJobAcceptBtn": "接受工作"
 }

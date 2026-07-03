@@ -5,12 +5,16 @@ import { resolveActiveCampaignKit } from './campaignKit';
 import { loadDiscoveryLedger } from './discoveryLedger';
 import type { CampaignKitConfig } from './campaignKitCore';
 import type { DiscoveryEntry, DiscoveryLedgerDocument, DiscoveryStatus } from './discoveryLedgerCore';
+import { filterJobBoardByQuestHooks } from './campaignJobQuestCore';
 import {
     buildCampaignJobBoard,
     buildCampaignJobBoardPromptBlock,
     resolveCampaignHubLocation,
     type CampaignJobBoardEntry,
 } from './campaignJobBoardCore';
+import type { QuestHook } from './worldStateCore';
+import type { Region, WorldLocation } from './worldForgeCore';
+import type { CampaignJobBoardContext } from './campaignJobBoardCore';
 
 const WEBVIEW_DISCOVERY_STATUSES: readonly DiscoveryStatus[] = [
     'unidentified',
@@ -84,46 +88,56 @@ export function pickJobBoardForWebview(
     }));
 }
 
+export function resolveCampaignBoardContext(
+    currentLocationId: string | null | undefined,
+    worldTurn: number
+): CampaignJobBoardContext | undefined {
+    const kit = resolveActiveCampaignKit();
+    if (!kit) { return undefined; }
+    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
+    const locations: WorldLocation[] = forge?.geography.locations ?? [];
+    const regions: Region[] = forge?.geography.regions ?? [];
+    const hub = resolveCampaignHubLocation(locations, currentLocationId);
+    const hubLocationId = hub?.id ?? 'hub';
+    return {
+        kit,
+        hubLocationId,
+        hubLocationName: hub?.name ?? hubLocationId,
+        locations,
+        regions,
+        worldSeed: forge?.meta.worldSeed ?? kit.id,
+        worldTurn: Math.max(0, Math.floor(worldTurn)),
+    };
+}
+
 export function buildCampaignKitWebviewPayload(
     currentLocationId?: string | null,
-    worldTurn = 0
+    worldTurn = 0,
+    questHooks?: QuestHook[]
 ): {
     enabled: boolean;
     campaignKit?: CampaignKitWebviewPayload;
     discoveries?: ReturnType<typeof pickDiscoveriesForWebview>;
     jobBoard?: ReturnType<typeof pickJobBoardForWebview>;
 } {
-    const kit = resolveActiveCampaignKit();
-    if (!kit) {
+    const ctx = resolveCampaignBoardContext(currentLocationId, worldTurn);
+    if (!ctx) {
         return { enabled: false };
     }
 
-    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
-    const locations = forge?.geography.locations ?? [];
-    const regions = forge?.geography.regions ?? [];
-    const hub = resolveCampaignHubLocation(locations, currentLocationId);
-    const hubLocationId = hub?.id ?? 'hub';
-    const hubLocationName = hub?.name ?? hubLocationId;
-    const worldSeed = forge?.meta.worldSeed ?? kit.id;
-
-    const board = buildCampaignJobBoard({
-        kit,
-        hubLocationId,
-        hubLocationName,
-        locations,
-        regions,
-        worldSeed,
-        worldTurn: Math.max(0, Math.floor(worldTurn)),
-    });
+    const board = filterJobBoardByQuestHooks(
+        buildCampaignJobBoard(ctx),
+        questHooks
+    );
 
     return {
         enabled: true,
         campaignKit: {
-            kitId: kit.id,
-            kitName: kit.name,
-            loop: kit.loop,
-            hubLocationId,
-            hubLocationName,
+            kitId: ctx.kit.id,
+            kitName: ctx.kit.name,
+            loop: ctx.kit.loop,
+            hubLocationId: ctx.hubLocationId,
+            hubLocationName: ctx.hubLocationName,
         },
         discoveries: pickDiscoveriesForWebview(loadDiscoveryLedger()),
         jobBoard: pickJobBoardForWebview(board),
@@ -134,26 +148,9 @@ export function buildCampaignJobBoardPromptContext(
     currentLocationId?: string | null,
     worldTurn = 0
 ): string {
-    const kit = resolveActiveCampaignKit();
-    if (!kit) { return ''; }
+    const ctx = resolveCampaignBoardContext(currentLocationId, worldTurn);
+    if (!ctx) { return ''; }
 
-    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
-    const locations = forge?.geography.locations ?? [];
-    const regions = forge?.geography.regions ?? [];
-    const hub = resolveCampaignHubLocation(locations, currentLocationId);
-    const hubLocationId = hub?.id ?? 'hub';
-    const hubLocationName = hub?.name ?? hubLocationId;
-    const worldSeed = forge?.meta.worldSeed ?? kit.id;
-
-    const board = buildCampaignJobBoard({
-        kit,
-        hubLocationId,
-        hubLocationName,
-        locations,
-        regions,
-        worldSeed,
-        worldTurn: Math.max(0, Math.floor(worldTurn)),
-    });
-
-    return buildCampaignJobBoardPromptBlock(kit, board, hubLocationName);
+    const board = buildCampaignJobBoard(ctx);
+    return buildCampaignJobBoardPromptBlock(ctx.kit, board, ctx.hubLocationName);
 }

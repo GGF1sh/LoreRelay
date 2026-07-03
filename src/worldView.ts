@@ -485,7 +485,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
 
     const campaignKitPayload = buildCampaignKitWebviewPayload(
         currentLocationId ?? null,
-        worldTurn ?? 0
+        worldTurn ?? 0,
+        worldState?.questHooks
     );
 
     panel.webview.postMessage({

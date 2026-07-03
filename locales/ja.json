@@ -139,6 +139,7 @@
   "webview.world.questActive": "進行中",
   "webview.world.questSourceEvent": "出来事",
   "webview.world.questSourceNpc": "NPC",
+  "webview.world.questSourceCampaign": "キャンペーン",
   "webview.world.questReward": "報酬",
   "webview.world.commerceTitle": "商隊",
   "webview.world.commerceHint": "所持金・食料・積荷（読み取り専用）。",
@@ -982,5 +983,11 @@
   "webview.world.campaignDiscoveryKind.threat": "脅威",
   "webview.world.campaignDiscoveryKind.quest": "依頼の種",
   "webview.world.campaignJobKind.job": "仕事",
-  "webview.world.campaignJobKind.rumor": "噂"
+  "webview.world.campaignJobKind.rumor": "噂",
+  "webview.world.campaignAppraisalFallback": "鑑定",
+  "webview.world.campaignAppraiseBtn": "鑑定を依頼",
+  "webview.world.campaignAppraiseFinalizeBtn": "鑑定を完了",
+  "webview.world.campaignAppraiseInsertText": "発見物「{label}」（{id}）の{appraisal}をお願いしたい。正体と価値を教えてほしい。",
+  "webview.world.campaignAppraiseFinalizeText": "「{label}」（{id}）の{appraisal}を完了し、価値を確定させたい。",
+  "webview.world.campaignJobAcceptBtn": "仕事を受ける"
 }

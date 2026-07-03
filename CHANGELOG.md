@@ -13,6 +13,13 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.47.0] - 2026-07-03
+
+### Added
+
+- **Campaign Kit Phase D** — Appraisal status machine (`discoveryAppraisalCore.ts`): valid transitions, auto-promote on `identifiedLabel`, GM prompt guidance; webview **Request/Complete appraisal** chat inserts.
+- **Campaign job accept → questHooks** — World tab **Accept job** creates active `questHooks` (`source: campaign`); accepted postings hidden from board; `campaignJobQuestCore.ts` + `campaignJobAccept.ts`.
+
 ## [1.46.0] - 2026-07-03
 
 ### Added

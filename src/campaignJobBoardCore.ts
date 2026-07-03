@@ -334,7 +334,7 @@ export function buildCampaignJobBoardPromptBlock(
             const reward = e.rewardHint ? ` [${e.rewardHint}]` : '';
             return `- ${e.kind}: ${e.title} — ${e.summary}${site}${reward}`;
         }),
-        'These are optional hub prompts the player may notice. Accepting a posting does not auto-create quest hooks — narrate follow-through and persist facts via quest hooks, turn_result, or discoveryOps when appropriate.',
+        'These are optional hub prompts the player may notice. The player may accept a posting from the World tab (creates an active campaign quest hook) or pursue it narratively. Persist outcomes via quest hook completion, turn_result, or discoveryOps.',
     ];
     return lines.join('\n');
 }

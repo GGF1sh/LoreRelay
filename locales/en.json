@@ -143,6 +143,7 @@
   "webview.world.questActive": "ACTIVE",
   "webview.world.questSourceEvent": "event",
   "webview.world.questSourceNpc": "npc",
+  "webview.world.questSourceCampaign": "campaign",
   "webview.world.questReward": "Reward",
   "webview.world.commerceTitle": "Caravan",
   "webview.world.commerceHint": "Your credits, rations, and cargo (read-only).",
@@ -982,5 +983,11 @@
   "webview.world.campaignDiscoveryKind.threat": "Threat",
   "webview.world.campaignDiscoveryKind.quest": "Quest lead",
   "webview.world.campaignJobKind.job": "Job",
-  "webview.world.campaignJobKind.rumor": "Rumor"
+  "webview.world.campaignJobKind.rumor": "Rumor",
+  "webview.world.campaignAppraisalFallback": "Appraisal",
+  "webview.world.campaignAppraiseBtn": "Request appraisal",
+  "webview.world.campaignAppraiseFinalizeBtn": "Complete appraisal",
+  "webview.world.campaignAppraiseInsertText": "I want {appraisal} for my find \"{label}\" ({id}) — what is it really worth?",
+  "webview.world.campaignAppraiseFinalizeText": "I want a full {appraisal} on \"{label}\" ({id}) to finalize its value.",
+  "webview.world.campaignJobAcceptBtn": "Accept job"
 }

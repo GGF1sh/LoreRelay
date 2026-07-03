@@ -55,12 +55,12 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.46.0** |
-| CHANGELOG 先頭 | **[1.46.0]** Phase C job board + World tab discoveries panel |
-| Campaign Kit | Phase A+B + **Phase C** job board + **D-lite** `discoveryOps` · World tab panel · `scrapbound-settlement` sample |
+| `package.json` | **1.47.0** |
+| CHANGELOG 先頭 | **[1.47.0]** Phase D appraisal machine + job accept → questHooks |
+| Campaign Kit | Phase A–D + **D-lite** `discoveryOps` · World tab panel · `scrapbound-settlement` sample |
 | Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7–F10 engine + World タブ UI · v1.40.1 hardening |
 | Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3）+ Domain v1.39.x–1.40.x |
 | GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
-| テスト | `npm test` **127/127**（`check_version_consistency.js` 含む） |
+| テスト | `npm test` **129/129**（`check_version_consistency.js` 含む） |

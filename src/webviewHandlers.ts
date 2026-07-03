@@ -96,6 +96,7 @@ export interface WebviewHandlerDeps {
     handleRequestNpcPortraitLink(npcId: string): Promise<void>;
     handleRunQuickstart(prompt: string, overwrite: boolean): Promise<void>;
     handleAcceptQuest(questId: string): Promise<void>;
+    handleAcceptCampaignJob(boardEntryId: string): Promise<void>;
     handleRequestNpcTts(raw: unknown): Promise<void>;
     pushTtsCapabilities(): void;
     insertChatDraft(text: string): void;
@@ -390,6 +391,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'acceptQuest':
             if (typeof message.questId === 'string' && isValidEventId(message.questId)) {
                 await deps.handleAcceptQuest(message.questId);
+            }
+            break;
+        case 'acceptCampaignJob':
+            if (typeof message.boardEntryId === 'string') {
+                await deps.handleAcceptCampaignJob(message.boardEntryId);
             }
             break;
         case 'editEntry':

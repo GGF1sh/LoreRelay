@@ -56,5 +56,5 @@ export function buildDiscoveryLedgerPromptContext(): string {
     if (!resolveActiveCampaignKit()) {
         return '';
     }
-    return buildDiscoveryLedgerPromptBlock(loadDiscoveryLedger());
+    return buildDiscoveryLedgerPromptBlock(loadDiscoveryLedger(), 12, resolveActiveCampaignKit());
 }

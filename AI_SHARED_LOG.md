@@ -6,12 +6,18 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.46.0** |
-| Campaign Kit | **Phase A+B+C + D-lite** · World tab discoveries + hub job board |
+| Package version | **1.47.0** |
+| Campaign Kit | **Phase A–D** · appraisal state machine · job accept → questHooks |
 | Tests | `npm test` **126/126** |
 | Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
 
 ---
+
+## 2026-07-03 JST - Grok - Campaign Kit v1.47.0 Phase D + job→questHooks
+
+- **Phase D** `discoveryAppraisalCore.ts` — status transitions, auto-promote, GM guidance; webview appraisal chat inserts.
+- **Accept job** → `questHooks` (`source: campaign`, status active); board filters accepted rows.
+- Tests **129/129**.
 
 ## 2026-07-03 JST - Grok - Campaign Kit v1.46.0 Phase C + Webview panel
 

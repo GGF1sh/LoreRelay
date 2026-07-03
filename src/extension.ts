@@ -1548,6 +1548,16 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 }
             }
         },
+        handleAcceptCampaignJob: async (boardEntryId: string) => {
+            const { acceptCampaignJobBoardEntry } = await import('./campaignJobAccept');
+            const gameState = getCachedGameState() as { world?: { currentLocationId?: string } } | undefined;
+            const currentLocationId = typeof gameState?.world?.currentLocationId === 'string'
+                ? gameState.world.currentLocationId
+                : undefined;
+            if (acceptCampaignJobBoardEntry(boardEntryId, currentLocationId)) {
+                pushWorldViewToWebview();
+            }
+        },
         handleRequestNpcTts: async (raw: unknown) => {
             await handleRequestNpcTts(raw);
         },

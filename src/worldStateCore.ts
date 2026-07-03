@@ -12,7 +12,7 @@ export type WorldEventType = 'environmental' | 'political' | 'military' | 'socia
 export type WorldEventSeverity = 'minor' | 'moderate' | 'major' | 'catastrophic';
 
 export type QuestStatus = 'available' | 'active' | 'completed' | 'failed';
-export type QuestSource = 'event' | 'npc';
+export type QuestSource = 'event' | 'npc' | 'campaign';
 
 export interface QuestHook {
     id: string;
@@ -176,7 +176,7 @@ function parseGlobalEvent(raw: unknown): GlobalEvent | undefined {
 }
 
 const VALID_QUEST_STATUSES = new Set<QuestStatus>(['available', 'active', 'completed', 'failed']);
-const VALID_QUEST_SOURCES = new Set<QuestSource>(['event', 'npc']);
+const VALID_QUEST_SOURCES = new Set<QuestSource>(['event', 'npc', 'campaign']);
 
 function parseQuestHook(raw: unknown): QuestHook | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }

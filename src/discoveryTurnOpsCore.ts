@@ -6,6 +6,10 @@ import type {
     DiscoveryLedgerDocument,
     DiscoveryStatus,
 } from './discoveryLedgerCore';
+import {
+    finalizeDiscoveryEntry,
+    resolveDiscoveryStatusAfterPatch,
+} from './discoveryAppraisalCore';
 
 export const MAX_DISCOVERY_OPS = 8;
 
@@ -119,7 +123,7 @@ function mergeEntry(base: DiscoveryEntry | undefined, op: DiscoveryTurnOp, acqui
         if (op.valueHint) { entry.valueHint = op.valueHint; }
         if (op.identifiedLabel) { entry.identifiedLabel = op.identifiedLabel; }
         if (acquiredWorldTurn !== undefined) { entry.acquiredWorldTurn = acquiredWorldTurn; }
-        return entry;
+        return finalizeDiscoveryEntry(entry, 'unidentified');
     }
     if (!base) {
         return undefined;
@@ -127,12 +131,16 @@ function mergeEntry(base: DiscoveryEntry | undefined, op: DiscoveryTurnOp, acqui
     const next: DiscoveryEntry = { ...base };
     if (op.label) { next.label = op.label; }
     if (op.discoveryKind) { next.kind = op.discoveryKind; }
-    if (op.status) { next.status = op.status; }
     if (op.siteId) { next.siteId = op.siteId; }
     if (op.notes) { next.notes = op.notes; }
     if (op.valueHint) { next.valueHint = op.valueHint; }
     if (op.identifiedLabel) { next.identifiedLabel = op.identifiedLabel; }
-    return next;
+    next.status = resolveDiscoveryStatusAfterPatch(base, {
+        status: op.status,
+        label: op.label,
+        identifiedLabel: op.identifiedLabel,
+    });
+    return finalizeDiscoveryEntry(next, base.status);
 }
 
 export function applyDiscoveryOpsToLedger(

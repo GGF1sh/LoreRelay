@@ -1,6 +1,7 @@
 // Campaign Kit Phase B: discovery ledger schema (pure, no vscode/fs).
 
-import type { DiscoveryKind } from './campaignKitCore';
+import type { CampaignKitConfig, DiscoveryKind } from './campaignKitCore';
+import { buildDiscoveryAppraisalPromptLines } from './discoveryAppraisalCore';
 
 export type DiscoveryStatus = 'unidentified' | 'identified' | 'appraised' | 'sold' | 'consumed';
 
@@ -124,7 +125,8 @@ function formatEntryLine(entry: DiscoveryEntry): string {
 /** GM prompt block for active expedition findings (guidance; canonical updates via turn_result). */
 export function buildDiscoveryLedgerPromptBlock(
     ledger: DiscoveryLedgerDocument | undefined,
-    maxEntries = 12
+    maxEntries = 12,
+    kit?: CampaignKitConfig
 ): string {
     if (!ledger?.entries.length) { return ''; }
     const active = ledger.entries
@@ -134,7 +136,8 @@ export function buildDiscoveryLedgerPromptBlock(
     const lines = [
         '[Campaign Discoveries]',
         ...active.map(formatEntryLine),
-        'Unidentified entries should stay vague until appraisal/repair/decode. Update ledger facts through turn_result or explicit player actions — do not invent new discovery IDs silently.',
+        'Unidentified entries should stay vague until appraisal/repair/decode. Update ledger facts through turn_result.discoveryOps — do not invent new discovery IDs silently.',
+        ...buildDiscoveryAppraisalPromptLines(kit),
     ];
     return lines.join('\n');
 }

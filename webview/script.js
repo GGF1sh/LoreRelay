@@ -7621,7 +7621,7 @@ function ensureCampaignKitStyles() {
         .campaign-badge.kind-job { color: var(--vscode-charts-orange, #e8a838); }
         .campaign-badge.kind-rumor { color: var(--vscode-charts-purple, #b180d7); }
         .campaign-job-summary { font-size: 0.86em; opacity: 0.9; margin-bottom: 0.3rem; }
-        .campaign-job-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+        .campaign-job-actions, .campaign-discovery-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
     `;
     document.head.appendChild(style);
 }
@@ -7655,11 +7655,12 @@ function renderCampaignKitPanel(msg) {
         </div>
     `;
 
-    panel.appendChild(buildCampaignDiscoveriesSection(discoveries));
+    const appraisalLabel = kit.loop?.appraisalLabel || T('webview.world.campaignAppraisalFallback');
+    panel.appendChild(buildCampaignDiscoveriesSection(discoveries, appraisalLabel));
     panel.appendChild(buildCampaignJobBoardSection(jobBoard, boardLabel));
 }
 
-function buildCampaignDiscoveriesSection(discoveries) {
+function buildCampaignDiscoveriesSection(discoveries, appraisalLabel) {
     const el = document.createElement('div');
     el.className = 'campaign-kit-section';
     const heading = document.createElement('div');
@@ -7691,6 +7692,28 @@ function buildCampaignDiscoveriesSection(discoveries) {
                 ${siteLine}
             </div>
         `;
+        if (entry.status === 'unidentified' || entry.status === 'identified') {
+            const actions = document.createElement('div');
+            actions.className = 'campaign-discovery-actions';
+            const appraiseBtn = document.createElement('button');
+            appraiseBtn.type = 'button';
+            appraiseBtn.className = 'small-btn';
+            appraiseBtn.textContent = entry.status === 'unidentified'
+                ? T('webview.world.campaignAppraiseBtn')
+                : T('webview.world.campaignAppraiseFinalizeBtn');
+            appraiseBtn.addEventListener('click', () => {
+                const key = entry.status === 'unidentified'
+                    ? 'webview.world.campaignAppraiseInsertText'
+                    : 'webview.world.campaignAppraiseFinalizeText';
+                postWorldInsertChatText(T(key, {
+                    label: entry.label || entry.id,
+                    id: entry.id,
+                    appraisal: appraisalLabel,
+                }));
+            });
+            actions.appendChild(appraiseBtn);
+            card.appendChild(actions);
+        }
         el.appendChild(card);
     });
     return el;
@@ -7746,6 +7769,16 @@ function buildCampaignJobBoardSection(jobBoard, boardLabel) {
             }));
         });
         actions.appendChild(inquireBtn);
+        {
+            const acceptBtn = document.createElement('button');
+            acceptBtn.type = 'button';
+            acceptBtn.className = 'small-btn primary';
+            acceptBtn.textContent = T('webview.world.campaignJobAcceptBtn');
+            acceptBtn.addEventListener('click', () => {
+                vscode.postMessage({ type: 'acceptCampaignJob', boardEntryId: entry.id });
+            });
+            actions.appendChild(acceptBtn);
+        }
         card.appendChild(actions);
         el.appendChild(card);
     });
@@ -8376,7 +8409,9 @@ function renderQuestHooks(quests) {
         item.className = 'quest-item status-' + escapeHtml(q.status);
         const sourceLabel = q.source === 'npc'
             ? T('webview.world.questSourceNpc')
-            : T('webview.world.questSourceEvent');
+            : q.source === 'campaign'
+                ? T('webview.world.questSourceCampaign')
+                : T('webview.world.questSourceEvent');
         
         let actionsHtml = '';
         if (q.status === 'available') {

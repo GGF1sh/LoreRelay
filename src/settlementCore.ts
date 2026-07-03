@@ -120,6 +120,15 @@ export const MAX_LAYOUT_ZONES = 40;
 export const MAX_LAYOUT_MARKERS = 40;
 export const MAX_LAYOUT_LAYERS = 4;
 
+export type SettlementLayerExpansionProfile =
+    | 'cellar'
+    | 'waterworks'
+    | 'shelter'
+    | 'ruins'
+    | 'roof'
+    | 'watchtower'
+    | 'generic';
+
 export type SettlementOpType =
     | 'set_score'
     | 'adjust_stock'
@@ -129,7 +138,8 @@ export type SettlementOpType =
     | 'remove_visitor'
     | 'add_merchant'
     | 'remove_merchant'
-    | 'add_structure_note';
+    | 'add_structure_note'
+    | 'expand_layer';
 
 export interface SettlementOpBase {
     type: SettlementOpType;
@@ -194,6 +204,14 @@ export interface AddStructureNoteOp extends SettlementOpBase {
     note: string;
 }
 
+export interface ExpandLayerOp extends SettlementOpBase {
+    type: 'expand_layer';
+    layerId: SettlementLayerId;
+    reason?: string;
+    profile?: SettlementLayerExpansionProfile;
+    seed?: number;
+}
+
 export type SettlementOp =
     | SetScoreOp
     | AdjustStockOp
@@ -203,7 +221,14 @@ export type SettlementOp =
     | RemoveVisitorOp
     | AddMerchantOp
     | RemoveMerchantOp
-    | AddStructureNoteOp;
+    | AddStructureNoteOp
+    | ExpandLayerOp;
+
+export const VALID_EXPANSION_PROFILES: readonly SettlementLayerExpansionProfile[] = [
+    'cellar', 'waterworks', 'shelter', 'ruins', 'roof', 'watchtower', 'generic',
+];
+
+export const MAX_EXPANSION_REASON_CHARS = 120;
 
 export const SETTLEMENT_STOCKS_NOT_SYNCED_LINE =
     'Settlement stocks are site supplies; campaign_resources.json tracks party/campaign resources separately — no automatic sync.';
@@ -217,7 +242,10 @@ const VALID_INCIDENT_SEVERITIES = new Set<SettlementIncidentSeverity>([
 const VALID_OP_TYPES = new Set<SettlementOpType>([
     'set_score', 'adjust_stock', 'add_incident', 'resolve_incident',
     'add_visitor', 'remove_visitor', 'add_merchant', 'remove_merchant', 'add_structure_note',
+    'expand_layer',
 ]);
+
+const VALID_EXPANSION_PROFILE_SET = new Set<SettlementLayerExpansionProfile>(VALID_EXPANSION_PROFILES);
 
 function asId(raw: unknown): string {
     if (typeof raw !== 'string') { return ''; }
@@ -601,6 +629,23 @@ function parseAddStructureNoteOp(r: Record<string, unknown>): AddStructureNoteOp
     return { type: 'add_structure_note', structureId, note };
 }
 
+function parseExpandLayerOp(r: Record<string, unknown>): ExpandLayerOp | undefined {
+    if (r.type !== 'expand_layer') { return undefined; }
+    const layerId = asLayerId(r.layerId ?? r.layer);
+    if (!layerId) { return undefined; }
+    const out: ExpandLayerOp = { type: 'expand_layer', layerId };
+    const reason = clampText(r.reason, MAX_EXPANSION_REASON_CHARS);
+    if (reason) { out.reason = reason; }
+    const profileRaw = typeof r.profile === 'string' ? r.profile.trim() : '';
+    if (profileRaw && VALID_EXPANSION_PROFILE_SET.has(profileRaw as SettlementLayerExpansionProfile)) {
+        out.profile = profileRaw as SettlementLayerExpansionProfile;
+    }
+    if (typeof r.seed === 'number' && Number.isFinite(r.seed)) {
+        out.seed = Math.floor(r.seed);
+    }
+    return out;
+}
+
 function parseSettlementOp(raw: unknown): SettlementOp | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const r = raw as Record<string, unknown>;
@@ -615,6 +660,7 @@ function parseSettlementOp(raw: unknown): SettlementOp | undefined {
         case 'add_merchant': return parseAddMerchantOp(r);
         case 'remove_merchant': return parseRemoveMerchantOp(r);
         case 'add_structure_note': return parseAddStructureNoteOp(r);
+        case 'expand_layer': return parseExpandLayerOp(r);
         default: return undefined;
     }
 }

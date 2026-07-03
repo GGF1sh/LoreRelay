@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.71.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M4a limited layer expansion** — `settlementLayerExpansionCore.ts`: pure `applyExpandLayerToLayout()` with bounded `expand_layer` profiles (`cellar`/`waterworks`/`shelter`/`ruins`/`roof`/`watchtower`/`generic`), deterministic seed derivation, zone/marker templates only (no tile arrays), layer/zone/marker caps, input immutability. `settlementCore.ts` に `ExpandLayerOp` パーサー stub 追加。`scripts/test_settlement_layer_expansion_core.js` 追加。テスト **147/147**。disk persistence / turn_result apply は未実装（M4b 別ゲート）。
+
 ## [1.70.0] - 2026-07-04
 
 ### Added
@@ -35,6 +41,7 @@
 
 ### Docs
 
+- **Settlement Mode M4 design** — `docs/SETTLEMENT_MODE_M4_DESIGN.md` and `docs/SETTLEMENT_MODE_M4_CHATGPT_GATE.md`: designed limited Z-level expansion as M4a pure in-memory `expand_layer` core plus a separate M4b persistence apply-gate. Valid layers remain bounded to `z1`, `z0`, `z-1`, and `z-2`; no geology/mining/pathfinding/full tile arrays/direct Webview writes. Added M4 handoff prompts to `docs/SETTLEMENT_MODE_AI_PROMPTS.md`.
 - **Settlement Mode M3 design** — `docs/SETTLEMENT_MODE_M3_DESIGN.md` and `docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md`: designed the StoneSense-style isometric settlement view as a two-step read-only projection. M3a defines `settlementViewCore.ts` snapshot generation from `settlement_state.json` / optional `settlement_layout.json`; M3b defines Canvas rendering with layer selector, pan/zoom, ASCII-safe fallback, and no state writes. Added M3 handoff prompts to `docs/SETTLEMENT_MODE_AI_PROMPTS.md`.
 - **Settlement Mode M2 ChatGPT/Codex gate** — `docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md`: cleaned the M2 design contract and executed the sanitize/FoW gate in-session. M2a is approved as a `buildMapOverlaySnapshot` projection with strict marker allow-listing for Webview/replay/remote payloads; M2b is approved as a pure settlement event selector with no disk apply or `turn_result` wiring.
 

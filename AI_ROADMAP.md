@@ -329,8 +329,15 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 
 ### M4 — Limited Z-Level Operations
 
-- [ ] optional `settlementOps.expand_layer`
-- [ ] deterministic bounded layer generation
+*設計正本: [`docs/SETTLEMENT_MODE_M4_DESIGN.md`](docs/SETTLEMENT_MODE_M4_DESIGN.md)*  
+*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M4_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M4_CHATGPT_GATE.md)*
+
+- [x] M4a bounded in-memory `expand_layer` pure core（v1.71.0）
+- [x] deterministic layer generation for `z1`, `z0`, `z-1`, `z-2` only（M4a in-memory）
+- [x] `expand_layer` parser stub in `settlementCore.ts`（v1.71.0）
+- [ ] M4b `settlement_layout.json` persistence apply gate
+- [ ] no full tile arrays, no geology/mining/pathfinding
+- [ ] M4b persistence apply-gate before any `settlement_layout.json` write wiring
 
 ### M5 — Low-poly Diorama
 

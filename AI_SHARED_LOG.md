@@ -6,13 +6,21 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.70.0** |
+| Package version | **1.71.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **146/146** |
-| Settlement Mode M3 | M3a + **M3b isometric Canvas renderer** 完了 (v1.70.0) |
-| Next (推奨) | Settlement M2 replay/remote overlay wiring · M4 Z-layer expansion |
+| Tests | `npm test` **147/147** |
+| Settlement Mode M4 | M4a `expand_layer` pure core 完了 (v1.71.0)。M4b persistence は別ゲート |
+| Next (推奨) | M4b apply gate · Settlement M2 replay/remote overlay wiring |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M4a layer expansion pure core (v1.71.0)
+
+- `src/settlementLayerExpansionCore.ts` — `applyExpandLayerToLayout()` bounded in-memory layer expansion; 7 profile templates; no tile arrays; caps + determinism.
+- `settlementCore.ts` — `ExpandLayerOp` + `parseSettlementOps` stub for `expand_layer`.
+- Tests: `test_settlement_layer_expansion_core.js`. `npm test` **147/147**. No disk persistence.
 
 ---
 
@@ -107,6 +115,15 @@
 - `src/settlementCore.ts` — parser/caps/tick/prompt formatter/`settlementOps` stubs; `src/settlementState.ts` — `settlement_state.json` loader + GM prompt bridge.
 - `game_rules.json` flag `enableSettlementMode` (default OFF); GM prompt chunk `settlement` gated via `gmPromptBuilderCore.shouldIncludePromptChunk`.
 - `scripts/test_settlement_core.js`; `npm test` **143/143**.
+
+---
+
+## 2026-07-04 JST - Codex - Settlement Mode M4 design/gate
+
+- Added `docs/SETTLEMENT_MODE_M4_DESIGN.md`: limited Z-level expansion is split into M4a pure in-memory `expand_layer` layout expansion and M4b persistence wiring behind a later apply-gate.
+- Added `docs/SETTLEMENT_MODE_M4_CHATGPT_GATE.md`: M4a only is approved now; valid layers are bounded to `z1`, `z0`, `z-1`, `z-2`; no direct Webview writes, no full tile arrays, no geology/mining/pathfinding, no combined game/world/settlement writes.
+- Updated `docs/SETTLEMENT_MODE_AI_PROMPTS.md` with M4a Grok/Codex and M4b ChatGPT/Codex gate prompts.
+- Updated `AI_ROADMAP.md` and `CHANGELOG.md`. Design/gate update only; no code implementation and no version bump.
 
 ---
 

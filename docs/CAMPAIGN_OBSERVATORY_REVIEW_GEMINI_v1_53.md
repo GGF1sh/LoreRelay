@@ -158,7 +158,7 @@
 | UI `acceptCampaignJob` + GM turn | **低リスク** — `world_state` vs `game_state` はファイル分離 |
 | UI `acceptCampaignJob` + Observer tick | **v1.55.0 で緩和** — `mergeQuestHooks` + accept は `patchWorldStateQuestHooks` |
 | Observer `advance` + Commerce UI | **緩和済み** — revision 付き `scheduleCommercePersist` |
-| `game_state` / `world_state` Split Brain | **P2 横断** — Domain レビュー PR-C と同型 |
+| `game_state` / `world_state` Split Brain | **P2 横断** — Domain レビュー PR-C と同型。**v1.59.0** で edge case テスト先行（`test_split_brain_queue_edge_cases.js`） |
 
 ---
 
@@ -188,6 +188,7 @@
 | ~~**PR-6**~~ | Observatory 副作用契約 + compute/persist 分離 | P2 | **1.56.0 ✓** |
 | ~~**PR-7**~~ | discoveries / campaign_resources serialized mutation queue | P2 | **1.57.0 ✓** |
 | ~~**PR-8**~~ | プロンプト: inactive モジュール chunk 省略 | P2 | **1.58.0 ✓** |
+| ~~**PR-C（tests）**~~ | Split Brain edge case テスト拡充（横断） | P2 | **1.59.0 ✓** |
 | ~~PR（Gemini）~~ | ~~StateManager Event Sourcing 全面改修~~ | **却下** | — コスト対効果不適切 |
 | ~~PR（Gemini）~~ | ~~Webview 全モジュール mount/unmount 強制~~ | **延期** | — 現状再現なし |
 
@@ -212,5 +213,5 @@ Gemini **P0×2 却下**、ChatGPT **P1×3 は v1.54.0 で反映済み**。次の
 ## 参照
 
 - 同型トリアージ: [`DOMAIN_MODE_REVIEW_GEMINI_v1_39.md`](DOMAIN_MODE_REVIEW_GEMINI_v1_39.md)
-- 版の正本: [`VERSION_TRUTH.md`](VERSION_TRUTH.md)（**1.54.0**）
+- 版の正本: [`VERSION_TRUTH.md`](VERSION_TRUTH.md)（**1.59.0**）
 - Campaign 設計: [`CAMPAIGN_KIT_DESIGN.md`](CAMPAIGN_KIT_DESIGN.md)

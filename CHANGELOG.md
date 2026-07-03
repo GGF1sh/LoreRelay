@@ -13,6 +13,17 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.59.0] - 2026-07-03
+
+### Added
+
+- **Split Brain edge case テスト拡充（PR-C テスト先行）** — `game_state` / `world_state` 独立 FIFO キューの横断 edge case を文書化・検証。サーキットブレーカー実装前の現行 merge 契約を固定。
+  - ネストした game/world キュー直列化、commerce dual-write、observer tick × commerce flush インターリーブ、turn commit × observer、domain turn × world observer、片方のみ書き込み成功時の deferred merge。
+
+### Added (tests)
+
+- `test_split_brain_queue_edge_cases.js` — 上記シナリオを pure merge + queue runtime で検証。テスト **139/139**。
+
 ## [1.58.0] - 2026-07-03
 
 ### Fixed

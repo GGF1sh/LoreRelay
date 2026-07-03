@@ -916,6 +916,8 @@
   "webview.gameRules.campaignKitSpace": "Space frontier",
   "webview.gameRules.campaignKitEastern": "Eastern fantasy",
   "webview.gameRules.campaignKitCyber": "Cyberpunk courier",
+  "webview.gameRules.campaignKitOccult": "Modern occult investigators",
+  "webview.gameRules.campaignKitHorror": "Survival horror",
   "webview.gameRules.guildMode": "Enable Guild Master Mode (F11)",
   "webview.gameRules.tipGuildMode": "Adventurer guild / quest board role layer (weekly commit, read-only panel in G1; default OFF)",
   "webview.gameRules.guildRequests": "Enable Request Board (G2)",

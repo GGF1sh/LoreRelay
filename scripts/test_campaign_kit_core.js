@@ -33,6 +33,12 @@ const {
         fail('space theme should infer space kit');
     } else if (inferCampaignKitIdFromTheme('和風 武侠 sect') !== 'eastern_fantasy') {
         fail('eastern theme should infer eastern fantasy kit');
+    } else if (inferCampaignKitIdFromTheme('modern occult ritual cult haunted') !== 'modern_occult') {
+        fail('occult theme should infer modern occult kit');
+    } else if (inferCampaignKitIdFromTheme('survival horror infected outbreak') !== 'survival_horror') {
+        fail('horror theme should infer survival horror kit');
+    } else if (inferCampaignKitIdFromTheme('haunted ritual site') !== 'modern_occult') {
+        fail('haunted/ritual theme should prefer occult over bare-ruins post-apoc');
     } else {
         ok('theme inference');
     }
@@ -106,11 +112,33 @@ const {
 
 {
     const ids = listCampaignKitPresetIds();
-    const expected = ['postapoc_scavenger', 'classic_fantasy_guild', 'space_frontier', 'eastern_fantasy', 'cyberpunk_courier'];
-    if (ids.length !== 5 || !expected.every((id) => ids.includes(id))) {
+    const expected = ['postapoc_scavenger', 'classic_fantasy_guild', 'space_frontier', 'eastern_fantasy', 'cyberpunk_courier', 'modern_occult', 'survival_horror'];
+    if (ids.length !== expected.length || !expected.every((id) => ids.includes(id))) {
         fail(`preset ids mismatch: ${JSON.stringify(ids)}`);
     } else {
         ok('listCampaignKitPresetIds exposes all built-in presets');
+    }
+}
+
+{
+    // Every non-generic genre in the enum should have at least one preset,
+    // and every preset must expose the full six-kind discovery taxonomy.
+    const genres = new Set(listCampaignKitPresetIds().map((id) => getCampaignKitPreset(id).genre));
+    const requiredGenres = ['fantasy', 'postapocalypse', 'space', 'eastern_fantasy', 'cyberpunk', 'modern_occult', 'horror'];
+    const missingGenre = requiredGenres.find((g) => !genres.has(g));
+    const occult = getCampaignKitPreset('modern_occult');
+    const occultKinds = new Set(occult.discoveryTypes.map((d) => d.kind));
+    const requiredKinds = ['material', 'lore', 'social', 'route', 'threat', 'quest'];
+    const missingKind = requiredKinds.find((k) => !occultKinds.has(k));
+    const servicesBlock = buildCampaignKitPromptBlock(getCampaignKitPreset('survival_horror'));
+    if (missingGenre) {
+        fail(`no preset covers genre: ${missingGenre}`);
+    } else if (missingKind) {
+        fail(`modern_occult preset missing discovery kind: ${missingKind}`);
+    } else if (!servicesBlock.includes('Services loop')) {
+        fail('prompt block should document the services loop');
+    } else {
+        ok('all enum genres have presets, full discovery taxonomy, services loop guidance');
     }
 }
 

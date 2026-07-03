@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.49.0] - 2026-07-03
+
+### Added
+
+- **Campaign Kit Phase E — genre presets** — 組み込みプリセットに `modern_occult`（現代オカルト調査員）と `survival_horror`（サバイバルホラー）を追加。これで `CampaignKitGenre` enum の全ジャンル（fantasy / postapocalypse / space / eastern_fantasy / cyberpunk / modern_occult / horror）にプリセットが揃い、job board の `modern_occult` / `horror` テンプレート分岐が実プリセットで裏打ちされた。各プリセットは 6 種の発見物分類（material / lore / social / route / threat / quest）を完備。
+- **テーマ推定の拡張** — `inferCampaignKitIdFromTheme` が occult/心霊/儀式/除霊 → `modern_occult`、horror/感染/outbreak/恐怖 → `survival_horror` を推定。両者は post-apoc の bare-`ruins` フォールバックより前に評価され、「haunted ruins」がサルベージ扱いにならない。
+- **Services ループの GM 誘導** — `buildCampaignKitPromptBlock` に拠点サービス（修理・改造・補給・訓練）ガイダンス行を追加。**修理/改造で発見物の価値・用途が変わる**ことを明示し、価格/在庫変動は Commerce `tradeOps`、発見物の状態更新は `discoveryOps`（identifiedLabel/status）経由で正本化するよう GM に指示。
+- **Game Rules UI** — Campaign Kit プリセットのドロップダウンに Modern occult / Survival horror を追加（i18n: en/ja/zh-CN/zh-TW）。
+
+### Notes
+
+- 追加は既存 Core（Commerce / Quest Hooks / World Forge）に非破壊。`campaignKitCore.ts` 一本に集約してホット共有ファイルへの同時編集を回避。`test_campaign_kit_core.js` にプリセット網羅・全ジャンル被覆・discovery taxonomy・services ループ検証を追加。テスト **129/129**。
+
 ## [1.48.0] - 2026-07-03
 
 ### Added

@@ -916,6 +916,8 @@
   "webview.gameRules.campaignKitSpace": "宇宙フロンティア",
   "webview.gameRules.campaignKitEastern": "東洋ファンタジー",
   "webview.gameRules.campaignKitCyber": "サイバーパンク・クーリエ",
+  "webview.gameRules.campaignKitOccult": "現代オカルト調査員",
+  "webview.gameRules.campaignKitHorror": "サバイバルホラー",
   "webview.gameRules.guildMode": "ギルドマスターモードを有効化（F11）",
   "webview.gameRules.guildRequests": "依頼掲示板を有効化（G2）",
   "webview.gameRules.tipGuildRequests": "依頼人が掲示板に並ぶ。会話で resolve_request により裁定（ギルドモード前提・既定OFF）",

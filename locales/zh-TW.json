@@ -916,6 +916,8 @@
   "webview.gameRules.campaignKitSpace": "太空邊疆",
   "webview.gameRules.campaignKitEastern": "東方奇幻",
   "webview.gameRules.campaignKitCyber": "賽博龐克快遞",
+  "webview.gameRules.campaignKitOccult": "現代神秘調查員",
+  "webview.gameRules.campaignKitHorror": "生存恐怖",
   "webview.gameRules.guildMode": "啟用公會大師模式（F11）",
   "webview.gameRules.guildRequests": "啟用委託公告板（G2）",
   "webview.gameRules.tipGuildRequests": "委託人出現在公告板上；在對話中透過 resolve_request 裁定（需公會模式；預設關閉）",

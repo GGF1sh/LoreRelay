@@ -6,12 +6,21 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.48.0** |
-| Campaign Kit | **Phase A–D** · sell_discovery · campaign quest factionId + reputationOps prompt |
-| Tests | `npm test` **126/126** |
-| Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
+| Package version | **1.49.0** |
+| Campaign Kit | **Phase A–E** · 7 genre presets · sell_discovery · services loop guidance · campaign quest factionId + reputationOps prompt |
+| Tests | `npm test` **129/129** |
+| Next (推奨) | Services 状態機（repaired/upgraded status）· 動的 market demand（相場変動）· G5 ライバルギルド |
 
 ---
+
+## 2026-07-03 JST - Claude (Opus 4.8) - Campaign Kit Phase E v1.49.0 genre presets + services loop
+
+- **Phase E 完了** — `modern_occult`（現代オカルト調査員）+ `survival_horror`（サバイバルホラー）プリセット追加。`CampaignKitGenre` enum の全ジャンルにプリセットが揃い、job board の occult/horror テンプレート分岐が実プリセットで裏打ち。各プリセット 6-kind discovery taxonomy 完備。
+- **theme 推定拡張** — occult/心霊/儀式/除霊→occult、horror/感染/outbreak/恐怖→horror。post-apoc bare-`ruins` フォールバックより前に評価（「haunted ruins」誤判定回避）。
+- **Services ループ GM 誘導** — `buildCampaignKitPromptBlock` に修理/改造/補給/訓練ガイダンス。**修理で価値・用途が変わる**ことを明示、価格は tradeOps・状態は discoveryOps 経由で正本化。ChatGPT 設計の「Appraisal / Repair で価値変化」ギャップを prompt-only で補完（発見物 status 機への非破壊）。
+- **Game Rules UI** — プリセット dropdown に 2 件追加（i18n ×4）。
+- 全変更を `campaignKitCore.ts` 一本に集約しホット共有ファイル同時編集を回避。`test_campaign_kit_core.js` 拡張。`check_version_consistency.js` PASS · tests **129/129**。
+- **次候補（未着手）:** Services を状態機化（`repaired`/`upgraded` status で価値バフを Core 正本化）· 派閥/事件による動的 market demand（相場変動）· resupply 消費ループ。
 
 ## 2026-07-03 JST - Grok - Campaign Kit v1.48.0 sell_discovery + reputation
 

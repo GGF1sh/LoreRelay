@@ -40,6 +40,12 @@ file exists. Unknown `campaignKitId` values are ignored (no silent preset substi
 - `space_frontier`
 - `eastern_fantasy`
 - `cyberpunk_courier`
+- `modern_occult`
+- `survival_horror`
+
+Every non-generic genre in `CampaignKitGenre` now has at least one preset. Each preset
+exposes the full six-kind discovery taxonomy (`material`, `lore`, `social`, `route`,
+`threat`, `quest`).
 
 ## Custom File Example
 
@@ -168,7 +174,7 @@ World tab **Campaign** panel shows:
 | **B** Discovery ledger | **done** | `discoveries.json`, `discoveryLedgerCore.ts` |
 | **C** Job/Rumor board runtime | **done** | Deterministic hub board + GM prompt (`campaignJobBoardCore.ts`) |
 | **D** Appraisal state machine | **done** | Status transitions + GM guidance; webview appraisal request; `discoveryOps` persist |
-| **E** Genre preset packs | partial | `scrapbound-settlement` sample |
+| **E** Genre preset packs | **done** | 7 built-in genre presets (all `CampaignKitGenre` covered) + `scrapbound-settlement` sample |
 
 ## Sample Workspace
 

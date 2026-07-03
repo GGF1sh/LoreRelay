@@ -55,9 +55,9 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.48.0** |
-| CHANGELOG 先頭 | **[1.48.0]** sell_discovery + campaign quest reputation |
-| Campaign Kit | Phase A–D · sell_discovery · factionId on campaign quests · `scrapbound-settlement` sample |
+| `package.json` | **1.49.0** |
+| CHANGELOG 先頭 | **[1.49.0]** Campaign Kit Phase E genre presets (modern_occult / survival_horror) + services loop guidance |
+| Campaign Kit | Phase A–E · 7 genre presets · sell_discovery · services loop guidance · factionId on campaign quests · `scrapbound-settlement` sample |
 | Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7–F10 engine + World タブ UI · v1.40.1 hardening |
 | Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |

@@ -360,6 +360,74 @@ export const CAMPAIGN_KIT_PRESETS: Record<string, CampaignKitConfig> = {
             'Treat decryption and fencing as the appraisal/sale loop.',
         ],
     },
+    modern_occult: {
+        version: 1,
+        id: 'modern_occult',
+        name: 'Modern Occult Investigators',
+        genre: 'modern_occult',
+        loop: {
+            hubLabel: 'Safehouse / Occult Bookshop',
+            jobBoardLabel: 'Client Requests / Strange Reports',
+            siteLabel: 'Haunted Site / Ritual Ground / Cold Case',
+            lootLabel: 'Relics and Evidence',
+            appraisalLabel: 'Research / Ritual Analysis',
+            serviceLabel: 'Occult Broker / Doctor / Fixer',
+            worldReactionLabel: 'Cult, agency, and public response',
+        },
+        currencies: [term('cash', 'Cash'), term('favors', 'Favors')],
+        resources: [term('cash', 'Cash'), term('ammo', 'Ammo'), term('medicine', 'Medicine'), term('reagents', 'Ritual reagents'), term('film', 'Evidence media'), term('wards', 'Wards')],
+        siteTypes: [term('haunted_house', 'Haunted house'), term('asylum', 'Abandoned asylum'), term('ritual_site', 'Ritual site'), term('cemetery', 'Old cemetery'), term('subway', 'Subway tunnels')],
+        hazards: [term('haunting', 'Haunting'), term('cultists', 'Cultists'), term('madness', 'Creeping madness'), term('curse', 'Curse'), term('cover_up', 'Cover-up agents')],
+        services: [term('research', 'Research'), term('ritual', 'Ritual / warding'), term('healing', 'Medical care'), term('trade', 'Trade / fence'), term('intel', 'Buy intel')],
+        discoveryTypes: [
+            discovery('relic', 'Cursed relic', 'material'),
+            discovery('evidence', 'Physical evidence', 'material'),
+            discovery('tome', 'Occult text', 'lore'),
+            discovery('witness', 'Witness or contact', 'social'),
+            discovery('access', 'Way in', 'route'),
+            discovery('entity', 'Entity or curse', 'threat'),
+            discovery('case', 'Case lead', 'quest'),
+        ],
+        gmGuidance: [
+            'Ground the horror in a mundane modern world: cases begin as ordinary requests before the supernatural surfaces.',
+            'Use research, rituals, and expert NPCs as the appraisal loop — vague evidence becomes meaningful, and relics are dangerous to keep.',
+            'Escalate cult, agency, and public reaction based on how loudly the player acts.',
+        ],
+    },
+    survival_horror: {
+        version: 1,
+        id: 'survival_horror',
+        name: 'Survival Horror',
+        genre: 'horror',
+        loop: {
+            hubLabel: 'Shelter / Safe Room',
+            jobBoardLabel: 'Survivor Requests / Radio Chatter',
+            siteLabel: 'Infected Zone / Abandoned Building / Quarantine',
+            lootLabel: 'Supplies and Clues',
+            appraisalLabel: 'Inspect / Study',
+            serviceLabel: 'Trader / Medic / Mechanic',
+            worldReactionLabel: 'Threat spread and survivor response',
+        },
+        currencies: [term('barter', 'Barter goods'), term('trust', 'Trust')],
+        resources: [term('food', 'Food'), term('water', 'Water'), term('ammo', 'Ammo'), term('medicine', 'Medicine'), term('fuel', 'Fuel'), term('batteries', 'Batteries')],
+        siteTypes: [term('building', 'Abandoned building'), term('hospital', 'Ruined hospital'), term('woods', 'Dark woods'), term('town', 'Dead town'), term('underground', 'Underground')],
+        hazards: [term('infected', 'Infected'), term('predators', 'Predators'), term('survivors', 'Hostile survivors'), term('contamination', 'Contamination'), term('darkness', 'Darkness')],
+        services: [term('trade', 'Trade'), term('healing', 'First aid'), term('repair', 'Repair'), term('rumor', 'Rumor gathering'), term('shelter', 'Shelter')],
+        discoveryTypes: [
+            discovery('supplies', 'Supplies', 'material'),
+            discovery('gear', 'Salvaged gear', 'material'),
+            discovery('records', 'What happened here', 'lore'),
+            discovery('survivor', 'Survivor', 'social'),
+            discovery('safe_path', 'Safe path', 'route'),
+            discovery('nest', 'Nest or horde', 'threat'),
+            discovery('objective', 'Escape or rescue lead', 'quest'),
+        ],
+        gmGuidance: [
+            'Scarcity is the point: track supplies, keep resupply tense, and make every expedition a risk/reward decision.',
+            'Threats should spread and shift — a cleared site does not stay clear if the player is loud or slow.',
+            'Treat inspecting salvage and studying records as low-key appraisal that reveals use or backstory.',
+        ],
+    },
 };
 
 export const DEFAULT_CAMPAIGN_KIT_ID = 'classic_fantasy_guild';
@@ -382,6 +450,9 @@ export function inferCampaignKitIdFromTheme(theme: unknown): string {
     if (!t) { return DEFAULT_CAMPAIGN_KIT_ID; }
     // Space/sci before post-apoc — avoid "space ruins" matching bare `ruin`.
     if (/(space|sci|star|planet|ship|frontier|colony|galaxy)/.test(t)) { return 'space_frontier'; }
+    // Occult/horror before post-apoc — a "haunted ruin" is not a scavenger run.
+    if (/(occult|paranormal|ghost|haunt|seance|séance|demon|ritual|cult|supernatural|exorcis|オカルト|心霊|幽霊|悪魔|儀式|除霊)/.test(t)) { return 'modern_occult'; }
+    if (/(horror|infected|outbreak|nightmare|slasher|undead|survival horror|ホラー|恐怖|感染|パニック)/.test(t)) { return 'survival_horror'; }
     if (/(post|apoc|waste|scav|zombie|fallout)/.test(t) || /\bruins?\b/.test(t)) { return 'postapoc_scavenger'; }
     if (/(\u548c\u98a8|\u4e2d\u83ef|\u6b66\u4fa0|\u4ed9\u4fa0|\u4f8d|\u9670\u967d)/.test(t)) { return 'eastern_fantasy'; }
     if (/(wuxia|xianxia|eastern|oriental|japan|china|samurai|sect|onmyoji|和|中華|武侠)/.test(t)) { return 'eastern_fantasy'; }
@@ -458,6 +529,12 @@ export function buildCampaignKitPromptBlock(kit: CampaignKitConfig | undefined):
         .join(', ');
     if (discoveries) {
         lines.push(`Discovery ledger categories: ${discoveries}`);
+    }
+    if (kit.services.length) {
+        const serviceNames = kit.services.slice(0, 6).map((s) => s.name).join(', ');
+        lines.push(
+            `Services loop at ${l.hubLabel}: ${serviceNames}. Repair, upgrade, or refine a find to raise its value or unlock its use; resupply and training spend resources for capability. Reflect price/stock changes through Commerce tradeOps, and record a find's improved state via discoveryOps (identifiedLabel/status).`
+        );
     }
     for (const guide of kit.gmGuidance.slice(0, 5)) {
         lines.push(`- ${guide}`);

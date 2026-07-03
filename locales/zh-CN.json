@@ -916,6 +916,8 @@
   "webview.gameRules.campaignKitSpace": "太空边疆",
   "webview.gameRules.campaignKitEastern": "东方奇幻",
   "webview.gameRules.campaignKitCyber": "赛博朋克快递",
+  "webview.gameRules.campaignKitOccult": "现代神秘调查员",
+  "webview.gameRules.campaignKitHorror": "生存恐怖",
   "webview.gameRules.guildMode": "启用公会大师模式（F11）",
   "webview.gameRules.guildRequests": "启用委托公告板（G2）",
   "webview.gameRules.tipGuildRequests": "委托人出现在公告板上；在对话中通过 resolve_request 裁定（需公会模式；默认关闭）",

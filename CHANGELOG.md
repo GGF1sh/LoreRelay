@@ -13,6 +13,21 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.40.1] - 2026-07-03
+
+### Fixed
+
+- **Domain Wave 2 hardening（コードレビュー対応）** — F8/F9/F10 の入力検証を v1.39.7 と同水準に揃えた。
+  - `validateRivalLord`: `regionId` / `factionId` を `CHARACTER_ID_PATTERN` で検証（`controlledRegionId` と整合）。
+  - `parseDomainOps` `dispatch_officer`: `targetId` を `sanitizeMissionTargetId`、`months` を `clampMissionMonths` でパース時に正規化。
+  - `parseBattleState`: `opponentLabel` を `CHARACTER_ID_PATTERN` で検証。永続化ラウンドの `narrativeHintId` は安全な文字列のみ許可。
+  - `test_domain_turn_merge_conflict.js`: commerce-ui 競合時に `domain.rival` / `activeMissions` / `activeBattle` が落ちないことを明示テスト追加（`DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS` の `domain` ルートでカバー済みだが回帰防止）。
+
+### Verification
+
+- `npm test` **113/113**（rival/mission/battle/turn-merge の新規 assert 含む）
+- `npm run compile` クリーン
+
 ## [1.40.0] - 2026-07-03
 
 ### Added

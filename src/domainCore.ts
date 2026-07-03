@@ -29,6 +29,8 @@ import {
     tickMissionMonth,
     resolveMissionOutcome,
     isValidMissionKind,
+    clampMissionMonths,
+    sanitizeMissionTargetId,
     MAX_ACTIVE_MISSIONS,
     DEFAULT_MAX_ACTIVE_MISSIONS,
     DEFAULT_OFFICER_SKILL,
@@ -546,8 +548,8 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
         ops.mission = {
             npcId,
             kind: m.kind,
-            targetId: typeof m.targetId === 'string' ? m.targetId.trim() : undefined,
-            months: typeof m.months === 'number' ? m.months : undefined,
+            targetId: sanitizeMissionTargetId(m.targetId),
+            months: clampMissionMonths(m.months),
         };
         return ops;
     }

@@ -184,8 +184,33 @@ function ok(msg) { console.log(`OK: ${msg}`); }
     }
     if (parseBattleState(null) !== undefined) { fail('parseBattleState should reject null'); }
     else if (parseBattleState({ opponentLabel: '' }) !== undefined) { fail('parseBattleState should reject empty opponentLabel'); }
-    else if (parseBattleState({ opponentLabel: 'x', enemySide: {} }) !== undefined) { fail('parseBattleState should reject missing enemySide.troops'); }
+    else if (parseBattleState({ opponentLabel: 'bad region', enemySide: { troops: 10, quality: 1, commanderSkill: 1 } }) !== undefined) {
+        fail('parseBattleState should reject unsafe opponentLabel');
+    } else if (parseBattleState({ opponentLabel: 'x', enemySide: {} }) !== undefined) { fail('parseBattleState should reject missing enemySide.troops'); }
     else { ok('parseBattleState rejects invalid input'); }
+
+    const withBadHint = parseBattleState({
+        opponentLabel: 'borderland',
+        playerTroopsStart: 100,
+        enemyTroopsStart: 80,
+        playerTroopsRemaining: 90,
+        enemyTroopsRemaining: 70,
+        enemySide: { troops: 80, quality: 40, commanderSkill: 50 },
+        rounds: [{
+            round: 1,
+            playerTactic: 'assault',
+            enemyTactic: 'hold',
+            playerLosses: 10,
+            enemyLosses: 10,
+            playerWonRound: true,
+            narrativeHintId: 'evil\nhint',
+        }],
+    });
+    if (!withBadHint || withBadHint.rounds[0].narrativeHintId !== 'unknown') {
+        fail('parseBattleState should sanitize unsafe narrativeHintId');
+    } else {
+        ok('parseBattleState sanitizes narrativeHintId');
+    }
 }
 
 // --- domainCore integration: parse + apply battle_round, no-op without activeBattle ---

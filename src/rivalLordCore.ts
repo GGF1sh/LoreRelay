@@ -1,6 +1,7 @@
 // Domain §F8: rival lord — 3-variable neighbor, monthly deterministic tick (no vscode/fs).
 // Type-only import from domainCore keeps runtime dependency one-directional (domainCore → this).
 
+import { CHARACTER_ID_PATTERN } from './characterId';
 import type { DomainState, DomainStatDelta } from './domainCore';
 
 export const MAX_RIVAL_COUNT = 2;
@@ -85,7 +86,7 @@ export function validateRivalLord(raw: unknown): RivalLordState | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const doc = raw as Record<string, unknown>;
     const regionId = typeof doc.regionId === 'string' ? doc.regionId.trim() : '';
-    if (!regionId) { return undefined; }
+    if (!regionId || !CHARACTER_ID_PATTERN.test(regionId)) { return undefined; }
 
     const rival: RivalLordState = {
         regionId,
@@ -94,7 +95,10 @@ export function validateRivalLord(raw: unknown): RivalLordState | undefined {
         stance: isValidRivalStance(doc.stance) ? doc.stance : 'neutral',
     };
     if (typeof doc.factionId === 'string' && doc.factionId.trim()) {
-        rival.factionId = doc.factionId.trim();
+        const factionId = doc.factionId.trim();
+        if (CHARACTER_ID_PATTERN.test(factionId)) {
+            rival.factionId = factionId;
+        }
     }
     if (doc.raidPending === true) {
         rival.raidPending = true;

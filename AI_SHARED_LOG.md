@@ -6,11 +6,28 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.40.0** |
-| Domain Mode | D1–D5 **完了** · **D3 UI 完了** · F7 謁見 / F8 ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ、全て **World タブ UI 込みで完了** |
+| Package version | **1.40.1** |
+| Domain Mode | D1–D5 **完了** · **D3 UI 完了** · F7–F10 engine + World タブ UI 完了 · **v1.40.1 で入力検証 hardening** |
 | Parlor Mode | v1.34.0 出荷済 |
 | Tests | `npm test` **113/113**（webview は compile + i18n/HTML 検証のみ。**F5 実機確認は次セッション推奨**） |
-| Next (推奨) | **F5 手動確認**（挿入テキスト→GM解釈の実地検証）→ D4 残（市場ボーナス）→ `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F12 家史エピローグ（箸休め）または F11 ギルドマスター設計 |
+| Next (推奨) | **F5 手動確認**（挿入テキスト→GM解釈の実地検証）→ D4 残（市場ボーナス）→ F12 家史エピローグ（箸休め）または F11 ギルドマスター設計 |
+
+---
+
+## 2026-07-03 JST - Grok - Domain Wave 2 security review + hardening (v1.40.1)
+
+### Summary
+
+- Claude 実装（F8/F9/F10/D3 UI）のコードレビュー完了。重大な設計欠陥はなし。v1.39.7 と同型の **入力検証ギャップ** を修正。
+- `validateRivalLord` / `parseDomainOps` dispatch / `parseBattleState` に allowlist 検証を追加。
+- `DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS` は `domain` ルートで F8–F10 ネスト状態を既にカバー — 回帰テストを追加。
+- **FoW / webview 漏洩**: `gameStateWebviewSanitizeCore` に `domain` なし（意図的）。`worldView` は `pickDomainForWebview` 経由で `disclosed*` のみ rival に送信 — 問題なし。
+- **D3 UI XSS**: `renderDomainPanel` は `escapeHtml` / `textContent` 使用。静的陳情カタログ由来の `title` 属性は `.title` 代入で安全。
+
+### Verification
+
+- `npm test` **113/113**
+- `npm run compile` クリーン
 
 ---
 

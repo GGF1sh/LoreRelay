@@ -54,8 +54,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.40.0** |
-| CHANGELOG 先頭 | **[1.40.0]** D3 Domain UI（World タブ + F7–F10 パネル） |
+| `package.json` | **1.40.1** |
+| CHANGELOG 先頭 | **[1.40.1]** Domain Wave 2 hardening（レビュー対応） |
 | Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7 謁見 / F8 ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ、**全て engine + World タブ UI 済み** — `docs/DOMAIN_MODE_DESIGN.md` §12 · `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F7–§F10 |
 | GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3 / Parlor）+ Domain v1.39.x–1.40.0 |

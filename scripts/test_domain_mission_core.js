@@ -164,6 +164,16 @@ function ok(msg) { console.log(`OK: ${msg}`); }
     }
 
     // dispatching an unappointed officer should be a no-op
+    const badTarget = parseDomainOps({
+        kind: 'dispatch_officer',
+        mission: { npcId: 'sayo', kind: 'espionage', targetId: 'evil\ninject', months: 99 },
+    });
+    if (badTarget?.mission?.targetId !== undefined || badTarget?.mission?.months !== 3) {
+        fail('parseDomainOps should sanitize mission targetId/months');
+    } else {
+        ok('parseDomainOps sanitizes mission targetId/months');
+    }
+
     const badOps = parseDomainOps({
         kind: 'dispatch_officer',
         mission: { npcId: 'ghost', kind: 'espionage' },

@@ -154,6 +154,54 @@ const committedDomain = {
     }
 }
 
+{
+    const domainWithWave2 = {
+        ...committedDomain,
+        rival: {
+            regionId: 'borderland',
+            strength: 62,
+            aggression: 55,
+            stance: 'wary',
+            disclosedStrength: 60,
+            disclosedStance: 'wary',
+        },
+        activeMissions: [{ officerNpcId: 'sayo', kind: 'espionage', monthsRemaining: 1 }],
+        activeBattle: {
+            opponentLabel: 'borderland',
+            maxRounds: 3,
+            playerTroopsStart: 80,
+            enemyTroopsStart: 60,
+            playerTroopsRemaining: 70,
+            enemyTroopsRemaining: 50,
+            enemySide: { troops: 60, quality: 40, commanderSkill: 50 },
+            rounds: [],
+        },
+    };
+    const disk = {
+        schemaVersion: 2,
+        stateRevision: 11,
+        entries: [],
+        commerce: { credits: 200, food: 40, transportId: 'wagon', playerRole: 'merchant', cargo: [] },
+        domain: baseDomain,
+    };
+    const staleTurn = {
+        schemaVersion: 2,
+        stateRevision: 10,
+        entries: [{ id: 'gm2', role: 'gm', content: 'Battle continues.' }],
+        domain: domainWithWave2,
+    };
+    const merged = mergeGameStateForPersist(disk, staleTurn, { baseRevision: 10, profile: 'turn' });
+    if (merged.domain?.rival?.regionId !== 'borderland') {
+        fail(`turn conflict should preserve rival: ${JSON.stringify(merged.domain?.rival)}`);
+    } else if (!merged.domain?.activeMissions || merged.domain.activeMissions.length !== 1) {
+        fail(`turn conflict should preserve activeMissions: ${JSON.stringify(merged.domain?.activeMissions)}`);
+    } else if (merged.domain?.activeBattle?.opponentLabel !== 'borderland') {
+        fail(`turn conflict should preserve activeBattle: ${JSON.stringify(merged.domain?.activeBattle)}`);
+    } else {
+        ok('turn conflict preserves F8/F9/F10 nested domain state');
+    }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

@@ -51,7 +51,7 @@ function safeLabel(id: string): string {
     return cleaned || 'officer';
 }
 
-function sanitizeTargetId(value: unknown): string | undefined {
+export function sanitizeMissionTargetId(value: unknown): string | undefined {
     if (typeof value !== 'string') { return undefined; }
     const trimmed = value.trim();
     return TARGET_ID_PATTERN.test(trimmed) ? trimmed : undefined;
@@ -70,7 +70,7 @@ export function createOfficerMission(
     return {
         officerNpcId: id,
         kind,
-        targetId: sanitizeTargetId(targetId),
+        targetId: sanitizeMissionTargetId(targetId),
         monthsRemaining: clampMissionMonths(months ?? DEFAULT_MISSION_MONTHS),
     };
 }
@@ -86,7 +86,7 @@ export function parseOfficerMission(raw: unknown): OfficerMission | undefined {
     return {
         officerNpcId,
         kind: doc.kind,
-        targetId: sanitizeTargetId(doc.targetId),
+        targetId: sanitizeMissionTargetId(doc.targetId),
         monthsRemaining,
     };
 }

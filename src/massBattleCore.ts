@@ -1,6 +1,7 @@
 // Domain §F10: mass battle resolver — 3 fixed rounds, deterministic (no vscode/fs).
 // Type-only import from domainCore keeps runtime dependency one-directional (domainCore → this).
 
+import { CHARACTER_ID_PATTERN } from './characterId';
 import type { DomainStatDelta } from './domainCore';
 
 export const MAX_BATTLE_ROUNDS = 3;
@@ -183,7 +184,9 @@ function parseBattleRoundResult(raw: unknown): BattleRoundResult | undefined {
         playerLosses: Math.max(0, Math.floor(typeof doc.playerLosses === 'number' ? doc.playerLosses : 0)),
         enemyLosses: Math.max(0, Math.floor(typeof doc.enemyLosses === 'number' ? doc.enemyLosses : 0)),
         playerWonRound: doc.playerWonRound === true,
-        narrativeHintId: typeof doc.narrativeHintId === 'string' ? doc.narrativeHintId.slice(0, 64) : 'unknown',
+        narrativeHintId: typeof doc.narrativeHintId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(doc.narrativeHintId)
+            ? doc.narrativeHintId
+            : 'unknown',
     };
 }
 
@@ -191,8 +194,8 @@ function parseBattleRoundResult(raw: unknown): BattleRoundResult | undefined {
 export function parseBattleState(raw: unknown): BattleState | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const doc = raw as Record<string, unknown>;
-    const opponentLabel = typeof doc.opponentLabel === 'string' ? doc.opponentLabel.trim().slice(0, 64) : '';
-    if (!opponentLabel) { return undefined; }
+    const opponentLabel = typeof doc.opponentLabel === 'string' ? doc.opponentLabel.trim() : '';
+    if (!opponentLabel || !CHARACTER_ID_PATTERN.test(opponentLabel)) { return undefined; }
     const enemySide = parseBattleSide(doc.enemySide);
     if (!enemySide) { return undefined; }
     if (typeof doc.playerTroopsStart !== 'number' || typeof doc.enemyTroopsStart !== 'number') { return undefined; }

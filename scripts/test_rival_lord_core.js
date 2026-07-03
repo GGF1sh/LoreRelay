@@ -188,6 +188,10 @@ function ok(msg) { console.log(`OK: ${msg}`); }
         fail('validateRivalLord should reject empty regionId');
     } else if (validateRivalLord(null) !== undefined) {
         fail('validateRivalLord should reject null');
+    } else if (validateRivalLord({ regionId: 'bad region' }) !== undefined) {
+        fail('validateRivalLord should reject unsafe regionId');
+    } else if (validateRivalLord({ regionId: 'borderland', factionId: 'evil\nid' })?.factionId !== undefined) {
+        fail('validateRivalLord should drop unsafe factionId');
     } else {
         ok('validateRivalLord rejects invalid input');
     }

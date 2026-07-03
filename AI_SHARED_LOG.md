@@ -1,5 +1,17 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign PR3 export sanitization (v1.37.7)
+
+### Summary
+
+- `replayExportSanitizeCore` — path redaction, sensitive JSON fence stripping, entry field whitelist for replay/saga export.
+- `replayExportCore` / `exportHtml.ts` wired; saga images gated by `resolveAllowedImagePath`.
+- Tests: `test_replay_export_sanitize_core.js`, replay export integration case.
+
+### Verification
+
+- `npm test` **98/98**
+
 ## 2026-07-03 JST - Grok - Campaign PR2 LW bond chunks + PR4 interleave tests (v1.37.6)
 
 ### Summary

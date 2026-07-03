@@ -168,6 +168,28 @@ const baseOptions = {
 }
 
 {
+    const leaked = buildReplayMarkdown({
+        entries: [
+            {
+                id: 'x1',
+                role: 'gm',
+                sender: 'GM',
+                content: 'Leak C:\\Users\\me\\hiddenState.json',
+                hiddenState: { agenda: 'do not export' },
+            },
+        ],
+        options: baseOptions,
+    });
+    if (leaked.includes('C:\\Users') || leaked.includes('do not export')) {
+        fail('export pipeline should sanitize narrative content');
+    } else if (!leaked.includes('[path redacted]')) {
+        fail('export pipeline path redaction marker');
+    } else {
+        ok('buildReplayMarkdown sanitizes exported content');
+    }
+}
+
+{
     const html = buildReplayHtml({
         entries: sampleEntries.filter((e) => !e.excludedFromPrompt),
         chapters: sampleChapters,

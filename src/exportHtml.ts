@@ -2,17 +2,20 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getGameEntryHistory } from './gameStateSync';
+import { resolveAllowedImagePath } from './mediaPaths';
+import { pickReplayExportEntries } from './replayExportSanitizeCore';
 
 function encodeImageToBase64(imagePath: string): string | undefined {
     if (!imagePath) return undefined;
     try {
-        const fullPath = imagePath.replace('file:///', '').replace(/\//g, '\\');
-        if (fs.existsSync(fullPath)) {
-            const ext = path.extname(fullPath).toLowerCase();
-            const mimeType = ext === '.png' ? 'image/png' : (ext === '.jpeg' || ext === '.jpg' ? 'image/jpeg' : 'image/webp');
-            const data = fs.readFileSync(fullPath).toString('base64');
-            return `data:${mimeType};base64,${data}`;
+        const fullPath = resolveAllowedImagePath(imagePath);
+        if (!fullPath || !fs.existsSync(fullPath)) {
+            return undefined;
         }
+        const ext = path.extname(fullPath).toLowerCase();
+        const mimeType = ext === '.png' ? 'image/png' : (ext === '.jpeg' || ext === '.jpg' ? 'image/jpeg' : 'image/webp');
+        const data = fs.readFileSync(fullPath).toString('base64');
+        return `data:${mimeType};base64,${data}`;
     } catch (e) {
         console.error('Failed to encode image:', e);
     }
@@ -48,13 +51,15 @@ export async function exportSagaToHtml(targetUri: vscode.Uri): Promise<void> {
 <h1>Saga Archive</h1>
 `;
 
-    for (const e of entries) {
+    const safeEntries = pickReplayExportEntries(entries as unknown[]);
+    for (const e of safeEntries) {
         const cssClass = e.role;
         html += `<div class="entry ${cssClass}">\n`;
         html += `<div class="role">${e.role}</div>\n`;
         html += `<div class="content">${escapeHtml(e.content)}</div>\n`;
-        if (e.image) {
-            const b64 = encodeImageToBase64(e.image);
+        const imageCandidate = e.rawImagePath || e.image;
+        if (imageCandidate) {
+            const b64 = encodeImageToBase64(imageCandidate);
             if (b64) {
                 html += `<div class="image-container"><img src="${b64}" alt="Generated Image" /></div>\n`;
             }

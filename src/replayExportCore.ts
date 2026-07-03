@@ -1,6 +1,7 @@
 // F5 Replay Export: deterministic markdown/html from entries + chronicle (no vscode/fs).
 
 import type { ChronicleChapter } from './chronicleCore';
+import { pickReplayExportEntries } from './replayExportSanitizeCore';
 import type { DiceLedgerEntry } from './types/TurnResult';
 
 export interface GameEntryLike {
@@ -155,11 +156,12 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
     const chapterHeadings = buildChapterHeadings(input.chapters);
     const usedGallery = new Set<string>();
     const lines: string[] = [`# ${title}`, ''];
+    const entries = pickReplayExportEntries(input.entries as unknown[]);
 
     let gmTurn = 0;
     let journalIndex = 0;
 
-    for (const entry of input.entries) {
+    for (const entry of entries) {
         if (!shouldIncludeEntry(entry, options)) { continue; }
 
         if (entry.role === 'gm') {
@@ -213,11 +215,12 @@ export function buildReplayHtml(input: ReplayBuildInput): string {
     const chapterHeadings = buildChapterHeadings(input.chapters);
     const usedGallery = new Set<string>();
     const body: string[] = [];
+    const entries = pickReplayExportEntries(input.entries as unknown[]);
 
     let gmTurn = 0;
     let journalIndex = 0;
 
-    for (const entry of input.entries) {
+    for (const entry of entries) {
         if (!shouldIncludeEntry(entry, options)) { continue; }
 
         if (entry.role === 'gm') {

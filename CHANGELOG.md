@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.7] - 2026-07-03
+
+### Fixed
+
+- **Campaign PR3 — export sanitization** — `replayExportSanitizeCore`: replay/saga export で `entry.content` の絶対パス赤塗り、`hiddenState` 等を含む JSON フェンス除去、公開フィールドのみ pick。`exportHtml` の画像は `resolveAllowedImagePath` 経由のみ埋め込み。
+
+### Verification
+
+- `npm test` **98/98**
+
 ## [1.37.6] - 2026-07-03
 
 ### Fixed

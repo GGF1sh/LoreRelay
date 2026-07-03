@@ -7,7 +7,7 @@ const path = require('path');
 const { validateScenarioDirectorBlock } = require('../out/scenarioDirectorCore');
 
 const root = path.join(__dirname, '..', 'sample-scenarios');
-const REQUIRED = ['lost-catacombs', 'neon-rain', 'harbor-mist', 'debug-sandbox', 'trade-routes'];
+const REQUIRED = ['lost-catacombs', 'neon-rain', 'harbor-mist', 'debug-sandbox', 'trade-routes', 'scrapbound-settlement'];
 const { resolveBundledSampleDir, BUNDLED_SAMPLE_IDS } = require('../out/scenarioPackCore');
 
 let failed = 0;

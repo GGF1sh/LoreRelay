@@ -53,6 +53,7 @@ import {
     recordGuildHallDepart,
 } from './guildHallDriftCore';
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
+import { applyDiscoveryTurnOps } from './discoveryTurnOps';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -700,6 +701,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         }
 
         let commitState = applyTurnGameStateFinalize(turnResult, state, true);
+        applyDiscoveryTurnOps(turnResult);
 
         const freshDisk = readGameStateRecord(statePath);
         if (readStateRevision(freshDisk) > baseRevision) {

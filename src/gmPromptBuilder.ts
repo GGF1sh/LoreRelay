@@ -652,6 +652,12 @@ function buildGameRulesPromptContext(): string {
     if (rules.autoLorebookGrowth) {
         lines.push('AUTO LOREBOOK GROWTH ENABLED: The world lore is expanding. If new important nouns (locations, factions, items) are introduced, naturally define them in the narrative so they can be extracted later.');
     }
+    if (rules.enableCampaignKit) {
+        const kitId = typeof rules.campaignKitId === 'string' && rules.campaignKitId.trim()
+            ? rules.campaignKitId.trim()
+            : '(theme auto-detect or campaign_kit.json)';
+        lines.push(`CAMPAIGN KIT ENABLED (${kitId}): Frame play as hub → jobs/rumors → expedition site → findings → appraisal/services → world reaction. Use discoveryOps for ledger updates.`);
+    }
 
     return lines.join('\n');
 }

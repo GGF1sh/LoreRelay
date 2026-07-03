@@ -101,6 +101,7 @@ Required JSON shape:
   "refereeNotes": "short summary for narrator",
   "elapsedWorldTurns": 0,
   "tradeOps": [],
+  "discoveryOps": [],
   "npcAgencyOps": [],
   "domainOps": null,
   "cartographyReveal": {}
@@ -114,6 +115,7 @@ Rules:
 - refereeNotes must be short and must not include hidden chain-of-thought.
 - elapsedWorldTurns (0-100, default 0): advance world sim ONLY on committed overnight rest, multi-day travel, or explicit time skip. Keep 0 during same-scene conversation, investigation, or combat rounds.
 - tradeOps (max 16): buy/sell at markets — Core applies prices; narrate negotiation only.
+- discoveryOps (max 8): Campaign Kit findings { op: add|update|remove, id, label?, discoveryKind?, status?, siteId?, identifiedLabel? }.
 - npcAgencyOps (max 10): NPC relocations { npcId, locationId, arrivesTurn }.
 - domainOps: monthly_commit { kind, actions[], intelligence? } when player commits domain policy; set elapsedWorldTurns to domainMonthDays. appoint_officer / dismiss_officer optional.
 - cartographyReveal: optional map FoW reveal (regions array).

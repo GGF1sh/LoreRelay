@@ -127,6 +127,21 @@ Statuses: `unidentified` → `identified` → `appraised` → `sold` / `consumed
 
 When present, LoreRelay injects `[Campaign Discoveries]` into the GM prompt (priority 93, below Campaign Kit).
 
+### discoveryOps (Phase D-lite)
+
+GM may set `turn_result.discoveryOps` (max 8) when Campaign Kit is active:
+
+```json
+{
+  "discoveryOps": [
+    { "op": "add", "id": "find_metro_shard", "label": "Warm black shard", "discoveryKind": "material", "siteId": "north_metro", "status": "unidentified" },
+    { "op": "update", "id": "find_metro_shard", "status": "appraised", "identifiedLabel": "Pre-collapse relay housing" }
+  ]
+}
+```
+
+Core persists to `discoveries.json` on turn apply.
+
 ## Implementation Phases
 
 | Phase | Status | Deliverable |
@@ -134,7 +149,7 @@ When present, LoreRelay injects `[Campaign Discoveries]` into the GM prompt (pri
 | **A** Schema + presets + GM prompt | **done** | `campaignKitCore.ts`, `campaign_kit.json` |
 | **B** Discovery ledger | **done** | `discoveries.json`, `discoveryLedgerCore.ts` |
 | **C** Job/Rumor board runtime | planned | Quest Hook generation per hub |
-| **D** Appraisal state machine | planned | turn_result ops for identify/appraise |
+| **D** Appraisal state machine | **partial** | `turn_result.discoveryOps` → `discoveries.json` (add/update/remove) |
 | **E** Genre preset packs | partial | `scrapbound-settlement` sample |
 
 ## Sample Workspace

@@ -6,10 +6,25 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.45.1** |
-| Campaign Kit | **Phase A+B** + review fixes · `scrapbound-settlement` sample |
-| Tests | `npm test` **124/124** |
+| Package version | **1.45.2** |
+| Campaign Kit | **Phase A+B + D-lite** · discoveryOps · Start Hub demo · Game Rules UI |
+| Tests | `npm test` **125/125** |
 | Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
+
+---
+
+## 2026-07-03 JST - Grok - Campaign Kit Phase D-lite + UX (v1.45.2)
+
+### Summary
+
+- `discoveryOps` → `discoveries.json` 永続化（turn apply）。
+- Start Hub: `scrapbound-settlement` ボタン · BUNDLED_SAMPLE_IDS 登録。
+- Game Rules UI: `enableCampaignKit` + preset セレクト。
+- `buildGameRulesPromptContext` に Campaign Kit 行追加。
+
+### Verification
+
+- `npm test` **125/125**
 
 ---
 

@@ -122,6 +122,18 @@ export interface TurnResult {
         /** §F10 battle_round: the player's tactic for the current round of an active battle. */
         tactic?: 'assault' | 'hold' | 'stratagem';
     };
+    /** Campaign Kit: expedition findings ledger updates (discoveryOps, max 8). */
+    discoveryOps?: Array<{
+        op: 'add' | 'update' | 'remove';
+        id: string;
+        label?: string;
+        discoveryKind?: 'material' | 'lore' | 'social' | 'route' | 'threat' | 'quest';
+        status?: 'unidentified' | 'identified' | 'appraised' | 'sold' | 'consumed';
+        siteId?: string;
+        notes?: string;
+        valueHint?: string;
+        identifiedLabel?: string;
+    }>;
     /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
         kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request' | 'assign_party';

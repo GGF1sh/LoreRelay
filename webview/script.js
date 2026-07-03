@@ -3456,6 +3456,8 @@ window.addEventListener('message', (event) => {
         enableWorldForge: document.getElementById('gr-world-forge'),
         enableEmergentSimulation: document.getElementById('gr-emergent-sim'),
         enableFactionReputation: document.getElementById('gr-faction-reputation'),
+        enableCampaignKit: document.getElementById('gr-campaign-kit'),
+        campaignKitId: document.getElementById('gr-campaign-kit-id'),
         enableCommerce: document.getElementById('gr-commerce'),
         enableCommerceUi: document.getElementById('gr-commerce-ui'),
         playerRole: document.getElementById('gr-player-role'),
@@ -3513,6 +3515,8 @@ window.addEventListener('message', (event) => {
             enableWorldForge: inputs.enableWorldForge ? inputs.enableWorldForge.checked : false,
             enableEmergentSimulation: inputs.enableEmergentSimulation ? inputs.enableEmergentSimulation.checked : false,
             enableFactionReputation: inputs.enableFactionReputation ? inputs.enableFactionReputation.checked : false,
+            enableCampaignKit: inputs.enableCampaignKit ? inputs.enableCampaignKit.checked : false,
+            campaignKitId: inputs.campaignKitId ? inputs.campaignKitId.value : '',
             enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
             enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
             playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
@@ -3561,6 +3565,8 @@ window.addEventListener('message', (event) => {
             if (rules.enableWorldForge !== undefined && inputs.enableWorldForge) inputs.enableWorldForge.checked = rules.enableWorldForge;
             if (rules.enableEmergentSimulation !== undefined && inputs.enableEmergentSimulation) inputs.enableEmergentSimulation.checked = rules.enableEmergentSimulation;
             if (rules.enableFactionReputation !== undefined && inputs.enableFactionReputation) inputs.enableFactionReputation.checked = rules.enableFactionReputation;
+            if (rules.enableCampaignKit !== undefined && inputs.enableCampaignKit) inputs.enableCampaignKit.checked = rules.enableCampaignKit;
+            if (rules.campaignKitId !== undefined && inputs.campaignKitId) inputs.campaignKitId.value = rules.campaignKitId || '';
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
@@ -8958,6 +8964,7 @@ function initStartHub() {
   const demoBtn = document.getElementById('start-hub-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
   const debugBtn = document.getElementById('start-hub-debug-btn');
+  const scavengerDemoBtn = document.getElementById('start-hub-scavenger-demo-btn');
   const quickBtn = document.getElementById('start-hub-quick-btn');
   const interviewBtn = document.getElementById('start-hub-interview-btn');
   const presetsWrap = document.getElementById('start-hub-presets');
@@ -9014,6 +9021,11 @@ function initStartHub() {
   if (debugBtn) {
     debugBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'debug-sandbox' });
+    });
+  }
+  if (scavengerDemoBtn) {
+    scavengerDemoBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'scrapbound-settlement' });
     });
   }
 

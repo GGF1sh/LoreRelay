@@ -97,6 +97,11 @@
             <span class="start-hub-btn-label" data-i18n="webview.startHub.debugTitle">デバッグサンドボックス</span>
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.debugDesc">好感度・地図の霧・世界ターンを言葉で即操作（開発者向け）。</span>
           </button>
+          <button type="button" id="start-hub-scavenger-demo-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🧰</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.scavengerDemoTitle">スカベンジャーデモ</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.scavengerDemoDesc">廃墟探索・サルベージ・鑑定ループ（Campaign Kit + Commerce）。</span>
+          </button>
         </div>
         <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
         <div class="start-hub-options">
@@ -914,6 +919,23 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
         <label for="gr-faction-reputation" data-i18n="webview.gameRules.factionReputation" data-i18n-title="webview.gameRules.tipFactionReputation">Enable Faction Reputation</label>
         <input type="checkbox" id="gr-faction-reputation" data-field="enableFactionReputation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-campaign-kit" data-i18n="webview.gameRules.campaignKit" data-i18n-title="webview.gameRules.tipCampaignKit">Enable Campaign Kit (genre loop)</label>
+        <input type="checkbox" id="gr-campaign-kit" data-field="enableCampaignKit" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-campaign-kit-id" data-i18n="webview.gameRules.campaignKitId">Campaign Kit preset</label>
+        <select id="gr-campaign-kit-id" data-field="campaignKitId">
+          <option value="" data-i18n="webview.gameRules.campaignKitAuto">Auto (theme / campaign_kit.json)</option>
+          <option value="postapoc_scavenger" data-i18n="webview.gameRules.campaignKitPostApoc">Post-apocalyptic scavenger</option>
+          <option value="classic_fantasy_guild" data-i18n="webview.gameRules.campaignKitFantasy">Classic fantasy guild</option>
+          <option value="space_frontier" data-i18n="webview.gameRules.campaignKitSpace">Space frontier</option>
+          <option value="eastern_fantasy" data-i18n="webview.gameRules.campaignKitEastern">Eastern fantasy</option>
+          <option value="cyberpunk_courier" data-i18n="webview.gameRules.campaignKitCyber">Cyberpunk courier</option>
+        </select>
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">

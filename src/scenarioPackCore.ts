@@ -4,7 +4,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /** Bundled sample packs shipped inside the extension (sample-scenarios/). */
-export const BUNDLED_SAMPLE_IDS = ['harbor-mist', 'lost-catacombs', 'neon-rain', 'debug-sandbox', 'trade-routes'] as const;
+export const BUNDLED_SAMPLE_IDS = [
+    'harbor-mist',
+    'lost-catacombs',
+    'neon-rain',
+    'debug-sandbox',
+    'trade-routes',
+    'scrapbound-settlement',
+] as const;
 export type BundledSampleId = (typeof BUNDLED_SAMPLE_IDS)[number];
 
 export const OPTIONAL_PACK_FILES = [

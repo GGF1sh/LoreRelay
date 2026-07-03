@@ -21,6 +21,8 @@ import {
 } from './scenarioPackCore';
 import { isDebugScenarioPack } from './debugScenarioCore';
 import { seedDebugScenarioWorldFromForge } from './debugScenarioRunnerCore';
+import { clearCampaignKitCache } from './campaignKit';
+import { clearDiscoveryLedgerCache } from './discoveryLedger';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
 
@@ -175,6 +177,8 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
                 fs.copyFileSync(src, path.join(wsPath, fileName));
             }
         }
+        clearCampaignKitCache();
+        clearDiscoveryLedgerCache();
     } catch (e) {
         vscode.window.showErrorMessage(t('extension.error.scenarioWriteFailed', { error: String(e) }));
         return;

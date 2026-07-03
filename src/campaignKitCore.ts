@@ -463,6 +463,9 @@ export function buildCampaignKitPromptBlock(kit: CampaignKitConfig | undefined):
         lines.push(`- ${guide}`);
     }
     lines.push(
+        'When expedition findings change, set turn_result.discoveryOps (max 8): { op: "add"|"update"|"remove", id, label?, discoveryKind?, status?, siteId?, identifiedLabel? }. Core persists to discoveries.json when Campaign Kit is active.'
+    );
+    lines.push(
         'Use this as genre loop guidance only. Existing Core systems remain canonical: use tradeOps for market transactions, quest hooks for structured quests, and world_state/game_state fields for persistent facts.'
     );
     return lines.join('\n');

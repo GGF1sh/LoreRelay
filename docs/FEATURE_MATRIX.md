@@ -38,7 +38,7 @@
 | **Guild Parties (派遣)** | OFF | **experimental** | v1.43.0 · `enableGuildParties` · Bond 連動クエスト判定 |
 | **Guild Absence Drift** | with guild | **experimental** | v1.44.0 · hall 離脱/帰還 · Since-last-visit プロンプト |
 | **Campaign Kit** | OFF | **beta** | v1.45.0 · `enableCampaignKit` · genre loop presets |
-| **Discovery Ledger** | optional file | **beta** | v1.45.0 · `discoveries.json` · Phase B findings prompt |
+| **Discovery Ledger** | optional file | **beta** | v1.45.2 · `discoveries.json` + `discoveryOps` on turn apply |
 
 ## Quick demo paths
 

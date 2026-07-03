@@ -2,6 +2,16 @@
 
 import { CHARACTER_ID_PATTERN } from './characterId';
 import { buildDomainCouncilLines } from './domainCouncilCore';
+import {
+    buildAudienceQueue,
+    resolvePetitionRuling,
+    isValidPetitionId,
+    isValidPetitionRulingId,
+    formatAudienceChronicleText,
+    MAX_AUDIENCE_QUEUE,
+    DEFAULT_AUDIENCE_SIZE,
+} from './domainAudienceCore';
+import type { PetitionRulingId } from './domainAudienceCore';
 
 export const MAX_DOMAIN_OFFICERS = 5;
 export const MAX_DOMAIN_ACTIONS_PER_MONTH = 4;
@@ -26,8 +36,9 @@ export type DomainActionId =
     | 'recruit'
     | 'inspect'
     | 'festival'
-    | 'espionage';
-export type DomainOpsKind = 'monthly_commit' | 'appoint_officer' | 'dismiss_officer';
+    | 'espionage'
+    | 'audience';
+export type DomainOpsKind = 'monthly_commit' | 'appoint_officer' | 'dismiss_officer' | 'audience_ruling';
 export type DomainIntelligence = 'gather_rumors' | 'scout_border' | 'none';
 export type DomainSeason = 'spring' | 'summer' | 'autumn' | 'winter';
 
@@ -61,12 +72,16 @@ export interface DomainState {
     lastEventId?: string;
     /** Actions chosen on the previous monthly_commit (council context). */
     lastMonthlyActions?: DomainActionId[];
+    /** §F7: petition ids currently open for judgment (opened by an `audience` action). */
+    pendingPetitions?: string[];
     flags: Record<string, boolean>;
 }
 
 export interface DomainConfig {
     monthDays: number;
     monthlyActions: number;
+    /** §F7: petitioners surfaced when an `audience` action is committed. */
+    audienceSize: number;
 }
 
 export interface DomainOps {
@@ -74,6 +89,15 @@ export interface DomainOps {
     actions?: DomainActionId[];
     intelligence?: DomainIntelligence;
     officer?: { npcId: string; role: OfficerRole; skill?: number };
+    /** §F7 audience_ruling: which open petition, and how it was judged. */
+    petitionId?: string;
+    rulingId?: PetitionRulingId;
+}
+
+export interface AudienceRulingResult {
+    petitionId: string;
+    rulingId: string;
+    chronicleText: string;
 }
 
 export interface DomainStatDelta {
@@ -100,7 +124,7 @@ const DOMAIN_RANKS: readonly DomainRank[] = ['minor_lord', 'baron', 'count'];
 const OFFICER_ROLES: readonly OfficerRole[] = ['steward', 'marshal', 'diplomat', 'merchant', 'spy'];
 const DOMAIN_ACTIONS: readonly DomainActionId[] = [
     'agriculture', 'commerce', 'public_order', 'train_troops', 'fortify',
-    'diplomacy', 'recruit', 'inspect', 'festival', 'espionage',
+    'diplomacy', 'recruit', 'inspect', 'festival', 'espionage', 'audience',
 ];
 
 const ACTION_DELTAS: Record<DomainActionId, DomainStatDelta> = {
@@ -114,6 +138,8 @@ const ACTION_DELTAS: Record<DomainActionId, DomainStatDelta> = {
     inspect: { popularSupport: 1, treasury: -10 },
     festival: { popularSupport: 3, culture: 1, treasury: -35, food: -15 },
     espionage: { treasury: -25, prestige: 1 },
+    // §F7: opening the hall costs little; the petitions themselves carry the weight.
+    audience: { treasury: -10, popularSupport: 1 },
 };
 
 interface DomainEventDef {
@@ -233,7 +259,10 @@ export function normalizeDomainConfig(raw?: Partial<DomainConfig>): DomainConfig
     const monthlyActions = typeof raw?.monthlyActions === 'number' && Number.isFinite(raw.monthlyActions)
         ? Math.max(1, Math.min(MAX_DOMAIN_ACTIONS_PER_MONTH, Math.floor(raw.monthlyActions)))
         : DEFAULT_DOMAIN_MONTHLY_ACTIONS;
-    return { monthDays, monthlyActions };
+    const audienceSize = typeof raw?.audienceSize === 'number' && Number.isFinite(raw.audienceSize)
+        ? Math.max(1, Math.min(MAX_AUDIENCE_QUEUE, Math.floor(raw.audienceSize)))
+        : DEFAULT_AUDIENCE_SIZE;
+    return { monthDays, monthlyActions, audienceSize };
 }
 
 export function defaultDomainState(controlledRegionId: string, config?: Partial<DomainConfig>): DomainState {
@@ -300,6 +329,15 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         }
     }
 
+    const pendingPetitions: string[] = [];
+    if (Array.isArray(doc.pendingPetitions)) {
+        for (const item of doc.pendingPetitions.slice(0, MAX_AUDIENCE_QUEUE)) {
+            if (typeof item === 'string' && isValidPetitionId(item.trim())) {
+                pendingPetitions.push(item.trim());
+            }
+        }
+    }
+
     const flags: Record<string, boolean> = {};
     if (doc.flags && typeof doc.flags === 'object' && !Array.isArray(doc.flags)) {
         for (const [key, val] of Object.entries(doc.flags as Record<string, unknown>).slice(0, 32)) {
@@ -350,6 +388,7 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         lastMonthlyActions: parseLastMonthlyActions(doc.lastMonthlyActions),
         officers,
         pendingEvents,
+        pendingPetitions: pendingPetitions.length > 0 ? pendingPetitions : undefined,
         flags,
     };
 }
@@ -358,11 +397,26 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const doc = raw as Record<string, unknown>;
     const kind = doc.kind;
-    if (kind !== 'monthly_commit' && kind !== 'appoint_officer' && kind !== 'dismiss_officer') {
+    if (
+        kind !== 'monthly_commit'
+        && kind !== 'appoint_officer'
+        && kind !== 'dismiss_officer'
+        && kind !== 'audience_ruling'
+    ) {
         return undefined;
     }
 
     const ops: DomainOps = { kind };
+
+    if (kind === 'audience_ruling') {
+        const petitionId = typeof doc.petitionId === 'string' ? doc.petitionId.trim() : '';
+        if (!isValidPetitionId(petitionId) || !isValidPetitionRulingId(doc.rulingId)) {
+            return undefined;
+        }
+        ops.petitionId = petitionId;
+        ops.rulingId = doc.rulingId;
+        return ops;
+    }
 
     if (Array.isArray(doc.actions)) {
         const actions = doc.actions
@@ -671,6 +725,11 @@ export function applyMonthlyCommit(
         lastMonthlyActions: actions.length > 0 ? [...actions] : next.lastMonthlyActions,
     };
 
+    if (actions.includes('audience')) {
+        const queue = buildAudienceQueue(next, worldTurnSeed, config.audienceSize);
+        next = { ...next, pendingPetitions: queue.map((p) => p.id) };
+    }
+
     return {
         domain: next,
         rolledEventId: eventId,
@@ -697,12 +756,34 @@ export function dismissOfficer(domain: DomainState, npcId: string): DomainState 
     };
 }
 
+export function applyAudienceRuling(
+    domain: DomainState,
+    petitionId: string,
+    rulingId: string
+): { domain: DomainState; audience?: AudienceRulingResult } {
+    if (!domain.pendingPetitions?.includes(petitionId)) {
+        return { domain };
+    }
+    const delta = resolvePetitionRuling(petitionId, rulingId);
+    let next = applyDelta(domain, delta);
+    const remaining = domain.pendingPetitions.filter((id) => id !== petitionId);
+    next = { ...next, pendingPetitions: remaining.length > 0 ? remaining : undefined };
+    return {
+        domain: next,
+        audience: {
+            petitionId,
+            rulingId,
+            chronicleText: formatAudienceChronicleText(petitionId, rulingId, domain.calendarMonth, domain.calendarYear),
+        },
+    };
+}
+
 export function applyDomainOps(
     domain: DomainState,
     ops: DomainOps,
     config: DomainConfig,
     worldTurnSeed = 0
-): { domain: DomainState; monthly?: MonthlyCommitResult } {
+): { domain: DomainState; monthly?: MonthlyCommitResult; audience?: AudienceRulingResult } {
     if (ops.kind === 'appoint_officer' && ops.officer) {
         return {
             domain: appointOfficer(domain, {
@@ -714,6 +795,9 @@ export function applyDomainOps(
     }
     if (ops.kind === 'dismiss_officer' && ops.officer) {
         return { domain: dismissOfficer(domain, ops.officer.npcId) };
+    }
+    if (ops.kind === 'audience_ruling' && ops.petitionId && ops.rulingId) {
+        return applyAudienceRuling(domain, ops.petitionId, ops.rulingId);
     }
     if (ops.kind === 'monthly_commit') {
         const monthly = applyMonthlyCommit(domain, ops, config, worldTurnSeed);

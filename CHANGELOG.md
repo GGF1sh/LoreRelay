@@ -11,7 +11,19 @@
 
 ### Docs
 
-- **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。設計 doc のみのため Ver 据え置き（規約どおり）。
+- **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
+
+## [1.39.10] - 2026-07-03
+
+### Added
+
+- **§F7 Audience Hall（謁見の間）engine** — `src/domainAudienceCore.ts`: 10 種の陳情テンプレ（allowlist）+ 決定論の陳情キュー生成（`buildAudienceQueue`, 重み付き無作為抽選・重複なし・seed 決定論）+ 裁定 delta（`resolvePetitionRuling`, grant/deny/compromise）。月次コミットで `audience` 行動を選ぶと `domain.pendingPetitions` に陳情者が並び、GM が `[Domain — Audience]` ブロックで各陳情を演じ、プレイヤーが `domainOps { kind: "audience_ruling", petitionId, rulingId }` で裁く。Core が delta を適用しキューから消費、Chronicle に `kind: 'domain'` 裁定行。`game_rules.enableDomainAudience`（既定 OFF）+ `domainAudienceSize`（1–4, 既定 3）。
+  - 配線: `domainCore`（action/opKind/state/parse/apply）· `TurnResult.domainOps` · `chronicleCore` · `domainPromptCore`/`domainBridge`（tier 非依存で pending 陳情を毎ターン注入）· `gameRules` · `pickDomainForWebview`（D3 UI 用に pendingPetitions 公開）。
+  - **UI は D3（1.40.0）待ち** — 本 Ver は Core + GM プロンプト + ops のエンジン部のみ。`docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F7。
+
+### Verification
+
+- `npm test` **110/110**（`test_domain_audience_core.js` 17 assert: 決定論・clamp・重み・裁定 delta・parse/apply・キュー消費・validate フィルタ）
 
 ## [1.39.9] - 2026-07-03
 

@@ -32,6 +32,10 @@ export interface GameRules {
     domainMonthDays?: number;
     /** Monthly domain actions selectable per commit (1–4). */
     domainMonthlyActions?: number;
+    /** §F7: audience hall — petitioners judged in conversation (requires Domain Mode). */
+    enableDomainAudience?: boolean;
+    /** Petitioners surfaced per audience day (1–4). */
+    domainAudienceSize?: number;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -56,7 +60,9 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableNpcRelationships: false,
     enableDomainMode: false,
     domainMonthDays: 30,
-    domainMonthlyActions: 2
+    domainMonthlyActions: 2,
+    enableDomainAudience: false,
+    domainAudienceSize: 3
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -185,6 +191,12 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.domainMonthlyActions !== undefined && typeof rules.domainMonthlyActions === 'number') {
             sanitized.domainMonthlyActions = Math.max(1, Math.min(4, Math.floor(rules.domainMonthlyActions)));
+        }
+        if (rules.enableDomainAudience !== undefined && typeof rules.enableDomainAudience === 'boolean') {
+            sanitized.enableDomainAudience = rules.enableDomainAudience;
+        }
+        if (rules.domainAudienceSize !== undefined && typeof rules.domainAudienceSize === 'number') {
+            sanitized.domainAudienceSize = Math.max(1, Math.min(4, Math.floor(rules.domainAudienceSize)));
         }
     }
 

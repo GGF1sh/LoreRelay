@@ -48,6 +48,7 @@ export function applyDomainTurnOps(
         {
             monthDays: rules.domainMonthDays,
             monthlyActions: rules.domainMonthlyActions,
+            audienceSize: rules.domainAudienceSize,
         },
         worldTurnSeed,
         { officerBond, registryNpcIds }

@@ -2,6 +2,7 @@
 
 import type { JournalTurnLike } from './chronicleJournalCore';
 import { parseDomainOps, formatMonthlyChronicleText } from './domainCore';
+import { formatAudienceChronicleText } from './domainAudienceCore';
 import {
     findDirectorSceneChange,
     findLocationChange,
@@ -61,11 +62,17 @@ function regionLabel(regionId: string, regionNames?: Record<string, string>): st
 
 function extractDomainChronicleText(turn: JournalTurnLike): string | undefined {
     const ops = parseDomainOps(turn.domainOps);
-    if (!ops || ops.kind !== 'monthly_commit' || !ops.actions?.length) {
+    if (!ops) {
         return undefined;
     }
     const month = turn.domainCalendarMonth ?? 1;
     const year = turn.domainCalendarYear ?? 1;
+    if (ops.kind === 'audience_ruling' && ops.petitionId && ops.rulingId) {
+        return formatAudienceChronicleText(ops.petitionId, ops.rulingId, month, year);
+    }
+    if (ops.kind !== 'monthly_commit' || !ops.actions?.length) {
+        return undefined;
+    }
     const eventId = turn.domainEventId ?? 'domain_event';
     return formatMonthlyChronicleText(ops.actions, eventId, month, year);
 }

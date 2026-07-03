@@ -29,6 +29,7 @@ import {
     resolveCouncilOfficersFromRegistry,
 } from './domainOfficerBondCore';
 import { buildDomainLedgerPromptLine } from './domainLedgerCore';
+import { buildAudiencePromptLines, MAX_AUDIENCE_QUEUE } from './domainAudienceCore';
 import { readDomainRegionDriftState } from './domainRegionDriftCore';
 import { domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
 
@@ -106,6 +107,15 @@ export function buildDomainPromptContext(
 
     const lines = [block];
 
+    // §F7: petitioners awaiting judgment are surfaced on every turn until ruled
+    // (independent of prompt tier — the audience is the active beat).
+    if (rules.enableDomainAudience === true && domain.pendingPetitions && domain.pendingPetitions.length > 0) {
+        const audienceLines = buildAudiencePromptLines(domain.pendingPetitions);
+        if (audienceLines.length > 0) {
+            lines.push(audienceLines.join('\n'));
+        }
+    }
+
     const ledger = buildDomainLedgerPromptLine(rules.enableCommerce === true, true);
     if (ledger && tier === 'full') {
         lines.push(ledger);
@@ -149,5 +159,6 @@ export function pickDomainForWebview(domain: DomainState | undefined): Record<st
         lastEventId: domain.lastEventId,
         officers: domain.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
         pendingEvents: domain.pendingEvents.slice(-5),
+        pendingPetitions: domain.pendingPetitions?.slice(0, MAX_AUDIENCE_QUEUE) ?? [],
     };
 }

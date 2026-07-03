@@ -70,12 +70,16 @@ export function resolvePetitionRuling(petition, rulingId): DomainDelta;
 | `enableDomainAudience` | `false` | 謁見システム（要 `enableDomainMode`） |
 | `domainAudienceSize` | `3` | 1 謁見日の陳情数（1–4） |
 
-### v0 スコープ
-- [ ] `domainAudienceCore.ts` + 陳情テンプレ 10 種（allowlist、i18n 4 言語）
-- [ ] `domainOps.kind: 'audience_ruling'` パース + statePatch 配線
-- [ ] `[Domain — Audience]` プロンプトブロック（commit ターンのみ full）
-- [ ] Chronicle `kind: 'domain'` に裁定行
-- [ ] `scripts/test_domain_audience_core.js`（キュー決定論・delta clamp・不正 rulingId）
+### v0 スコープ（**engine 部 ✅ v1.39.10** — UI は D3 待ち）
+- [x] `domainAudienceCore.ts` + 陳情テンプレ 10 種（allowlist）**✅**
+- [x] `domainOps.kind: 'audience_ruling'` パース + `applyDomainOps` 適用（statePatch は既存 `applyDomainTurnOps` 経路で自動）**✅**
+- [x] `[Domain — Audience]` プロンプトブロック（pending 陳情がある限り tier 非依存で毎ターン注入）**✅**
+- [x] Chronicle `kind: 'domain'` に裁定行（`formatAudienceChronicleText`）**✅**
+- [x] `scripts/test_domain_audience_core.js`（キュー決定論・delta・不正 rulingId・validate フィルタ、17 assert）**✅**
+- [ ] i18n 4 言語（陳情/裁定ラベル）— **D3 UI と同時**（現状 UI 参照面が無い）
+- [ ] World タブ「謁見」パネル・裁定チップ — **D3 と同梱**
+
+> **実装メモ（v1.39.10）:** `audience` を月次行動カタログに追加し、コミットで `buildAudienceQueue` が `domain.pendingPetitions`（陳情 id の配列）を積む。裁定は `domainOps.audience_ruling` で1件ずつ消費。陳情の stakes はテンプレ id から純関数で再導出するため state に構造体を保存しない（`pendingPetitions` は id 文字列のみ）。`domainAudienceCore` は `domainCore` から**型のみ**を import（実行時依存は `domainCore → domainAudienceCore` の一方向）。
 
 ### Non-Goals
 - 法廷シミュ・証拠システム（会話と 3 択で十分）

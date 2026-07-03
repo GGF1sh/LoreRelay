@@ -6,11 +6,26 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.39.9** |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **D3 UI 次** |
+| Package version | **1.39.10** |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見エンジン ✅（UI は D3 待ち）** · **D3 UI 次** |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **109/109** |
-| Next (推奨) | **D3 UI**（§20.2-A）· `docs/DOMAIN_MODE_REVIEW_GEMINI_v1_39.md` |
+| Tests | `npm test` **110/110** |
+| Next (推奨) | **D3 UI**（§20.2-A、F7 謁見パネルも同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F8 ライバル領主 |
+
+---
+
+## 2026-07-03 JST - Claude Fable 5 / Opus 4.8 - §F7 Audience Hall engine (v1.39.10)
+
+### Summary
+
+- Fable5 Wave 2 ブリーフ（F7–F12）を `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` に追加後、**F7 謁見の間のエンジン部を実装**。
+- `src/domainAudienceCore.ts`（陳情10種 allowlist・決定論キュー・裁定 delta）+ `domainCore`/`TurnResult`/`chronicleCore`/`domainBridge`/`gameRules` 配線。`audience` 月次行動 → `pendingPetitions` → GM `[Domain — Audience]` → `domainOps.audience_ruling` で裁定。
+- `game_rules.enableDomainAudience`（既定 OFF）+ `domainAudienceSize`（既定 3）。**UI は D3 と同梱予定**。
+
+### Verification
+
+- `npm test` **110/110**（`test_domain_audience_core.js` 17 assert）
+- `npm run compile` クリーン
 
 ---
 

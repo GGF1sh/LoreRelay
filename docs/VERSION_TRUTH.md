@@ -54,9 +54,9 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.39.9** |
-| CHANGELOG 先頭 | **[1.39.9]** Domain PR-A turn merge |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 完了（**D3 UI 未**）— `docs/DOMAIN_MODE_DESIGN.md` §12 |
-| GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成（`v1.39.7` push 待ちの可能性あり） |
+| `package.json` | **1.39.10** |
+| CHANGELOG 先頭 | **[1.39.10]** §F7 Audience Hall engine |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 完了（**D3 UI 未**）· **F7 謁見エンジン ✅ v1.39.10（UI は D3 待ち）** — `docs/DOMAIN_MODE_DESIGN.md` §12 · `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F7 |
+| GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3 / Parlor）+ Domain v1.39.x |
-| テスト | `npm test` **108/108** |
+| テスト | `npm test` **110/110** |

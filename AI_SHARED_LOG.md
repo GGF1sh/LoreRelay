@@ -15,6 +15,25 @@
 
 ---
 
+## 2026-07-04 JST - Grok - Settlement Mode M1 (v1.63.0)
+
+- Implemented M1 pure core per `docs/SETTLEMENT_MODE_CHATGPT_GATE.md`.
+- `src/settlementCore.ts` — parser/caps/tick/prompt formatter/`settlementOps` stubs; `src/settlementState.ts` — `settlement_state.json` loader + GM prompt bridge.
+- `game_rules.json` flag `enableSettlementMode` (default OFF); GM prompt chunk `settlement` gated via `gmPromptBuilderCore.shouldIncludePromptChunk`.
+- `scripts/test_settlement_core.js`; `npm test` **143/143**.
+
+---
+
+## 2026-07-04 JST - Codex - Settlement Mode / StoneSense-style View design
+
+- Grok research + ChatGPT phase discussionを統合し、LoreRelay向けの Settlement Mode 設計正本を追加。
+- Added `docs/SETTLEMENT_MODE_DESIGN.md`: `settlement_state.json`, optional `settlement_layout.json`, future `settlementOps`, limited Z layers, display-only snapshot, M1-M5 phases.
+- Added `docs/SETTLEMENT_MODE_AI_PROMPTS.md`: Codex/ChatGPT contract/security gate, Grok M1 pure core prompt, Claude UI/isometric prompt, Gemini user-facing wording prompt.
+- Added `docs/SETTLEMENT_MODE_CHATGPT_GATE.md`: the contract/security gate result was executed directly in this ChatGPT/Codex session, so Grok can start M1 from a concrete gate file instead of a "paste this into ChatGPT" loop.
+- Design-only update. No code implementation and no version bump.
+
+---
+
 ## 2026-07-03 JST - Claude (Sonnet 5) - World Observatory v1.53.0
 
 - **「変わりゆく世界を見守る」観測ダッシュボードを実装**。設計ブリーフは前セッション(Opus 4.8)作成の `docs/WORLD_OBSERVATORY_WIRING_BRIEF.md`、見た目のモックは Fable5 が別途作成。`enableWorldObservatory`(既定OFF)。

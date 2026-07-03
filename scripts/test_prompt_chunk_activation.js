@@ -35,6 +35,7 @@ const allOff = {
     worldStateEnabled: false,
     worldForgeEnabled: false,
     enableTravelEncounters: false,
+    enableSettlementMode: false,
 };
 
 {
@@ -46,8 +47,19 @@ const allOff = {
         fail('guild should be skipped when enableGuildMode is false');
     } else if (shouldIncludePromptChunk('campaignKit', allOff)) {
         fail('campaignKit should be skipped when kit inactive');
+    } else if (shouldIncludePromptChunk('settlement', allOff)) {
+        fail('settlement should be skipped when enableSettlementMode is false');
     } else {
-        ok('inactive domain/guild/campaign chunks skipped');
+        ok('inactive domain/guild/campaign/settlement chunks skipped');
+    }
+}
+
+{
+    const ctx = { ...allOff, enableSettlementMode: true };
+    if (!shouldIncludePromptChunk('settlement', ctx)) {
+        fail('settlement should include when enableSettlementMode is true');
+    } else {
+        ok('settlement chunk activates with enableSettlementMode');
     }
 }
 

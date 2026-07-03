@@ -105,6 +105,7 @@ import { buildCampaignKitPromptContext, getCampaignKitPath } from './campaignKit
 import { buildCampaignJobBoardPromptContext } from './campaignKitBridge';
 import { buildDiscoveryLedgerPromptContext } from './discoveryLedger';
 import { buildCampaignResourcesPromptContext } from './campaignResources';
+import { buildSettlementPromptContext } from './settlementState';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
@@ -198,6 +199,7 @@ function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLi
         { id: 'discoveryLedger', label: 'Discoveries', limitChars: 1200 },
         { id: 'campaignJobBoard', label: 'Campaign Job Board', limitChars: 1400 },
         { id: 'campaignResources', label: 'Campaign Resources', limitChars: 900 },
+        { id: 'settlement', label: 'Settlement', limitChars: 1600 },
         { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
         { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
         { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
@@ -1163,6 +1165,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         maybeBuildSection('discoveryLedger', 'Discoveries', activation, buildDiscoveryLedgerPromptContext),
         maybeBuildSection('campaignJobBoard', 'Campaign Job Board', activation, buildCampaignJobBoardPromptContextForGm),
         maybeBuildSection('campaignResources', 'Campaign Resources', activation, buildCampaignResourcesPromptContext),
+        maybeBuildSection('settlement', 'Settlement', activation, buildSettlementPromptContext),
         maybeBuildSection('domain', 'Domain', activation, () => buildDomainPromptContextForGm(hint)),
         maybeBuildSection('guild', 'Guild', activation, () => buildGuildPromptContextForGm(hint)),
         maybeBuildSection('director', 'Scenario Director', activation, buildScenarioDirectorPromptContext),
@@ -1242,6 +1245,7 @@ function resolvePromptChunkActivationContext(): PromptChunkActivationContext {
         worldStateEnabled: isWorldStateEnabled(),
         worldForgeEnabled: isWorldForgeEnabled(),
         enableTravelEncounters: rules.enableTravelEncounters === true,
+        enableSettlementMode: rules.enableSettlementMode === true,
     };
 }
 
@@ -1281,6 +1285,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     maybePushPromptChunk(specs, 'discoveryLedger', activation, buildDiscoveryLedgerPromptContext);
     maybePushPromptChunk(specs, 'campaignJobBoard', activation, buildCampaignJobBoardPromptContextForGm);
     maybePushPromptChunk(specs, 'campaignResources', activation, buildCampaignResourcesPromptContext);
+    maybePushPromptChunk(specs, 'settlement', activation, buildSettlementPromptContext);
     maybePushPromptChunk(specs, 'domain', activation, () =>
         clampSimulationPromptModule(buildDomainPromptContextForGm(playerAction))
     );

@@ -9,8 +9,16 @@
 
 ## [Unreleased]
 
+## [1.63.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M1 (pure core)** — `settlementCore.ts` / `settlementState.ts`: independent `settlement_state.json` parser, caps, deterministic tick (stock consumption, visitor/merchant/incident expiry), prompt-safe `[Settlement]` chunk gated by `enableSettlementMode` (default OFF), `settlementOps` type/parser stubs only (no disk apply). Optional `settlement_layout.json` contract parser. `scripts/test_settlement_core.js` + prompt chunk activation tests. テスト **143/143**.
+
 ### Docs
 
+- **Settlement Mode ChatGPT/Codex gate** — `docs/SETTLEMENT_MODE_CHATGPT_GATE.md`: M1 contract/security gate executed in-session; `docs/SETTLEMENT_MODE_AI_PROMPTS.md` §1 is now an in-session gate (no cross-session paste loop).
+- **Settlement Mode / StoneSense-style View design** — `docs/SETTLEMENT_MODE_DESIGN.md` and `docs/SETTLEMENT_MODE_AI_PROMPTS.md`: DF/CDDA/StoneSense/RimTalk-inspired M1–M5 plan.
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
 ## [1.62.0] - 2026-07-03

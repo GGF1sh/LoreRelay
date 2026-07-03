@@ -414,6 +414,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     discoveryLedger: 93,
     campaignJobBoard: 92,
     campaignResources: 91,
+    settlement: 90,
     domain: 67,
     guild: 66,
     director: 95,
@@ -455,6 +456,7 @@ export interface PromptChunkActivationContext {
     worldStateEnabled: boolean;
     worldForgeEnabled: boolean;
     enableTravelEncounters: boolean;
+    enableSettlementMode: boolean;
 }
 
 export function isCampaignKitPromptActive(ctx: PromptChunkActivationContext): boolean {
@@ -475,6 +477,8 @@ export function shouldIncludePromptChunk(
         case 'campaignJobBoard':
         case 'campaignResources':
             return isCampaignKitPromptActive(ctx);
+        case 'settlement':
+            return ctx.enableSettlementMode;
         case 'domain':
             return ctx.enableDomainMode;
         case 'guild':

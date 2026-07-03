@@ -51,12 +51,12 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 4. **キャッチアッププロンプト** — `VSCODE_CHATGPT_CATCHUP.md`
 5. **履歴ドキュメント** — 版番号を「現行」と書き換えるのではなく、冒頭に「アーキテクチャ参考・現行は CHANGELOG」と注記
 
-## 現行（手動更新: 2026-07-03）
+## 現行（手動更新: 2026-07-04）
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.62.0** |
-| CHANGELOG 先頭 | **[1.62.0]** Split Brain サーキットブレーカー（PR-C impl） |
+| `package.json` | **1.63.0** |
+| CHANGELOG 先頭 | **[1.63.0]** Settlement Mode M1 (pure core) |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources**(campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World | LW1 Commerce に 2つ目の価格ドライバ追加(v1.51.0): 派閥/regionイベント連動 + **プレイヤー評判連動**(faction-controlled markets) |
 | World Observatory | 新規(v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・プレイヤーターンなしで世界を進める観測者ティック(watch=無コスト/advance=食料消費)。`enableWorldObservatory` 既定OFF |

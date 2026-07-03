@@ -67,6 +67,8 @@ export interface GameRules {
     campaignKitId?: string;
     /** World Observatory: watch-the-world dashboard (price sparklines / chronicle / NPC bonds) + observer tick (default OFF). */
     enableWorldObservatory?: boolean;
+    /** Settlement Mode: hub settlement ledger + prompt chunk (default OFF). */
+    enableSettlementMode?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -108,6 +110,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableCampaignKit: false,
     campaignKitId: '',
     enableWorldObservatory: false,
+    enableSettlementMode: false,
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -304,6 +307,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableWorldObservatory !== undefined && typeof rules.enableWorldObservatory === 'boolean') {
             sanitized.enableWorldObservatory = rules.enableWorldObservatory;
+        }
+        if (rules.enableSettlementMode !== undefined && typeof rules.enableSettlementMode === 'boolean') {
+            sanitized.enableSettlementMode = rules.enableSettlementMode;
         }
     }
 

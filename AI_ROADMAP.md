@@ -283,3 +283,44 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 | **ChatGPT** | セキュリティ監査 · PARLOR_SKILL.md · 昇格データ境界 · 実装ゲート |
 | **Grok** | Phase A 実装 · test · CHANGELOG · push |
 | Claude | 5h 制限中 — 復帰後に Phase B UI polish 候補 |
+
+---
+
+## 🟡 Phase 13 Candidate: Settlement Mode / StoneSense-style View
+
+*ステータス: M1 完了（v1.63.0）· M2–M5 未実装（2026-07-04）*
+
+設計正本: [`docs/SETTLEMENT_MODE_DESIGN.md`](docs/SETTLEMENT_MODE_DESIGN.md)  
+AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_PROMPTS.md)
+
+**目的:** Dwarf Fortress / CDDA / StoneSense / RimTalk から「設計パターンだけ」を抽出し、LoreRelay の既存アーキテクチャに合う **拠点台帳 + 表示専用ビュー + In-World Chat 接続**として実装する。建築ゲーム本体や本格3D化ではなく、物語が発生する拠点正本を先に作る。
+
+### M1 — Settlement Model Foundation
+
+- [x] `settlement_state.json` v1 契約
+- [x] optional `settlement_layout.json` v1 契約
+- [x] `settlementCore.ts` pure parser/tick
+- [x] `enableSettlementMode` default OFF
+- [x] tests: ID validation, caps, deterministic tick, visitor/merchant expiry
+
+### M2 — 2D Tile Overlay Strengthening
+
+- [ ] existing tile overmapに NPC / merchant / faction / quest / FoW overlays
+- [ ] display-only, no state writes from tile clicks
+
+### M3 — StoneSense-style Isometric View
+
+- [ ] display snapshot via `settlementViewCore.ts`
+- [ ] Canvas renderer, pan/zoom, fallback glyph/sprite
+- [ ] limited layer selector `Z+1 / Z0 / Z-1 / Z-2`
+
+### M4 — Limited Z-Level Operations
+
+- [ ] optional `settlementOps.expand_layer`
+- [ ] deterministic bounded layer generation
+
+### M5 — Low-poly Diorama
+
+- [ ] dream track only; read-only Three.js view if ever implemented
+
+**Non-goals:** full colony sim, pathfinding, freeform tile editor, full geological strata, sprite/code/schema copying from referenced games.

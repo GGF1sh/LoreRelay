@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parlor（Gemini レビュー follow-up）** — プロンプト安全マージン 1200 文字、履歴は行単位ドロップ、ロアはスニペット単位ドロップ、GM 待機中プロファイル切替ロック、LM 応答後の Parlor モード再確認。
+
+### Docs
+
+- `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` — Gemini 5 項目の triage
+
 ## [1.34.0] - 2026-07-03
 
 ### Added

@@ -5,6 +5,8 @@ import type { ParlorMessage, ParlorSession } from './parlorSessionCore';
 import { clampParlorContent, recentParlorMessagesForPrompt } from './parlorSessionCore';
 
 export const DEFAULT_PARLOR_MAX_PROMPT_CHARS = 12_000;
+/** Reserve headroom for provider-side tokenization vs char count (Gemini review P0). */
+export const PARLOR_PROMPT_SAFETY_MARGIN_CHARS = 1_200;
 export const MAX_PARLOR_FIELD_CHARS = 4_000;
 export const MAX_PARLOR_LORE_CHARS = 2_000;
 
@@ -74,14 +76,22 @@ export function buildParlorCharacterContext(character: BuildParlorPromptInput['c
     return lines.join('\n');
 }
 
-export function buildParlorLoreContext(snippets: string[] | undefined): string {
+export function buildParlorLoreContext(snippets: string[] | undefined, maxBodyChars = MAX_PARLOR_LORE_CHARS): string {
     if (!snippets || snippets.length === 0) {
         return '';
     }
-    let joined = snippets.map((s) => clampField(s, 800)).filter(Boolean).join('\n\n');
-    if (joined.length > MAX_PARLOR_LORE_CHARS) {
-        joined = joined.slice(0, MAX_PARLOR_LORE_CHARS);
+    const trimmed = snippets.map((s) => clampField(s, 800)).filter(Boolean);
+    const parts: string[] = [];
+    let used = 0;
+    for (const snippet of trimmed) {
+        const sep = parts.length > 0 ? 2 : 0;
+        if (used + sep + snippet.length > maxBodyChars) {
+            break;
+        }
+        parts.push(snippet);
+        used += sep + snippet.length;
     }
+    const joined = parts.join('\n\n');
     return [
         '--- BEGIN UNTRUSTED LOREBOOK SNIPPETS ---',
         joined,
@@ -114,6 +124,23 @@ export function formatParlorHistory(messages: ParlorMessage[], characterName: st
     return lines.join('\n');
 }
 
+/** Drop oldest chat lines first; never slice mid-line (Gemini review P2/P4). */
+export function truncateParlorHistoryLines(historyContext: string, maxChars: number): string {
+    if (!historyContext || historyContext.length <= maxChars) {
+        return historyContext;
+    }
+    const lines = historyContext.split('\n');
+    let kept = [...lines];
+    while (kept.join('\n').length > maxChars && kept.length > 1) {
+        kept.shift();
+    }
+    const joined = kept.join('\n');
+    if (joined.length <= maxChars) {
+        return joined;
+    }
+    return kept.length === 1 ? clampField(kept[0], maxChars) : joined.slice(-maxChars);
+}
+
 export function buildParlorPromptParts(input: BuildParlorPromptInput): ParlorPromptParts {
     const history = recentParlorMessagesForPrompt(
         input.session,
@@ -131,6 +158,7 @@ export function buildParlorPromptParts(input: BuildParlorPromptInput): ParlorPro
 /** Flatten parts into a single user prompt for vscode-lm / clipboard. */
 export function assembleParlorUserPrompt(parts: ParlorPromptParts, locale: string): string {
     const max = DEFAULT_PARLOR_MAX_PROMPT_CHARS;
+    const effectiveMax = Math.max(4_000, max - PARLOR_PROMPT_SAFETY_MARGIN_CHARS);
     const finalBlock = [
         '',
         locale === 'ja' ? '【プレイヤーの発言】' : '[Player message]',
@@ -140,40 +168,50 @@ export function assembleParlorUserPrompt(parts: ParlorPromptParts, locale: strin
             ? '上記に自然に返答してください。プレーンテキストのみ。'
             : 'Reply naturally in plain text only.'
     ].join('\n');
-    const fixedBudget = parts.systemRules.length + finalBlock.length + 8;
-    const contextBudget = Math.max(1_000, max - fixedBudget);
-    const characterBudget = Math.max(1_000, Math.floor(contextBudget * 0.45));
-    const loreBudget = parts.loreContext ? Math.max(600, Math.floor(contextBudget * 0.20)) : 0;
-    const historyBudget = Math.max(600, contextBudget - characterBudget - loreBudget);
+    const fixedPrefix = `${parts.systemRules}\n\n`;
+    const fixedSuffix = `\n${finalBlock}`;
+    const fixedLen = fixedPrefix.length + fixedSuffix.length;
+    let contextBudget = Math.max(800, effectiveMax - fixedLen);
+    let characterBudget = Math.max(400, Math.floor(contextBudget * 0.45));
+    let loreBudget = parts.loreContext ? Math.max(200, Math.floor(contextBudget * 0.20)) : 0;
+    let historyBudget = Math.max(200, contextBudget - characterBudget - loreBudget);
 
-    const blocks = [
-        parts.systemRules,
-        '',
-        clampDelimitedContext(parts.characterContext, characterBudget),
-    ];
-    if (parts.loreContext) {
-        blocks.push('', clampDelimitedContext(parts.loreContext, loreBudget));
-    }
-    if (parts.historyContext) {
-        const history = parts.historyContext.length <= historyBudget
-            ? parts.historyContext
-            : parts.historyContext.slice(-historyBudget);
-        blocks.push(
-            '',
-            locale === 'ja' ? '【直近の会話】' : '[Recent conversation]',
-            history
-        );
-    }
-    blocks.push(finalBlock);
-    let text = blocks.join('\n');
-    if (text.length > max) {
-        const overflow = text.length - max;
-        const historyIndex = text.indexOf(parts.historyContext);
-        if (historyIndex >= 0 && parts.historyContext.length > overflow) {
-            text = text.slice(0, historyIndex) + parts.historyContext.slice(overflow) + text.slice(historyIndex + parts.historyContext.length);
-        } else {
-            text = `${parts.systemRules}\n\n${finalBlock}`.slice(0, max);
+    const buildBody = (): string => {
+        const blocks: string[] = [
+            fixedPrefix.trimEnd(),
+            clampDelimitedContext(parts.characterContext, characterBudget),
+        ];
+        if (parts.loreContext) {
+            blocks.push(clampDelimitedContext(parts.loreContext, loreBudget));
         }
+        if (parts.historyContext) {
+            const history = truncateParlorHistoryLines(parts.historyContext, historyBudget);
+            blocks.push(
+                locale === 'ja' ? '【直近の会話】' : '[Recent conversation]',
+                history
+            );
+        }
+        return blocks.join('\n\n') + fixedSuffix;
+    };
+
+    let text = buildBody();
+    while (text.length > effectiveMax && (historyBudget > 0 || loreBudget > 0 || characterBudget > 400)) {
+        if (historyBudget > 200) {
+            historyBudget = Math.floor(historyBudget * 0.6);
+        } else if (loreBudget > 0) {
+            loreBudget = 0;
+        } else {
+            characterBudget = Math.max(400, Math.floor(characterBudget * 0.7));
+        }
+        contextBudget = characterBudget + loreBudget + historyBudget;
+        text = buildBody();
+    }
+
+    if (text.length > effectiveMax) {
+        text = fixedPrefix + clampDelimitedContext(parts.characterContext, Math.max(200, effectiveMax - fixedLen - 40)) + fixedSuffix;
+    }
+    if (text.length > max) {
+        return fixedPrefix + fixedSuffix;
     }
     return text;
 }

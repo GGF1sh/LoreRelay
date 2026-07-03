@@ -188,6 +188,9 @@ function initStartHub() {
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
     profileBtn.addEventListener('click', () => {
+      if (document.getElementById('gm-loading')) {
+        return;
+      }
       const next = experienceProfile === 'parlor' ? 'campaign' : 'parlor';
       if (next === 'parlor' && !parlorHasCharacter) {
         vscode.postMessage({ type: 'importTavernCard' });

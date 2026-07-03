@@ -351,6 +351,8 @@ function showGmLoading() {
   freeInput.disabled = true;
   sendBtn.disabled = true;
   document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+  const profileBtn = document.getElementById('experience-profile-btn');
+  if (profileBtn) profileBtn.disabled = true;
 }
 
 function hideGmLoading(success) {
@@ -359,6 +361,8 @@ function hideGmLoading(success) {
   freeInput.disabled = false;
   sendBtn.disabled = false;
   document.querySelectorAll('.option-btn').forEach(b => { b.disabled = false; });
+  const profileBtn = document.getElementById('experience-profile-btn');
+  if (profileBtn) profileBtn.disabled = false;
   if (success === false) {
     addSystemMessage(T('webview.gm.failed'));
   }

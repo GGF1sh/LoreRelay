@@ -135,6 +135,9 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
 
         const prompt = buildParlorUserPrompt(character, session, text);
         const result = await invokeParlorVscodeLm(prompt);
+        if (!isParlorMode()) {
+            return;
+        }
         if (result.ok && result.text) {
             const content = sanitizeParlorAssistantReply(result.text);
             session = appendAndSaveParlorMessage(session, {

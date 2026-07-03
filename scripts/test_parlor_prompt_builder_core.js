@@ -34,6 +34,8 @@ const {
     buildParlorPromptParts,
     assembleParlorUserPrompt,
     sanitizeParlorAssistantReply,
+    truncateParlorHistoryLines,
+    PARLOR_PROMPT_SAFETY_MARGIN_CHARS,
 } = core;
 const { createEmptyParlorSession, appendParlorMessage } = sessionCore;
 
@@ -95,10 +97,34 @@ function fail(m) { console.error(`FAIL: ${m}`); failed++; }
     const prompt = assembleParlorUserPrompt(parts, 'en');
     if (prompt.length <= 12_000) { ok('prompt budget cap'); }
     else { fail(`prompt budget cap (${prompt.length})`); }
+    if (prompt.length <= 12_000 - PARLOR_PROMPT_SAFETY_MARGIN_CHARS + 200) { ok('prompt uses safety margin'); }
+    else { fail(`prompt uses safety margin (${prompt.length})`); }
     if (prompt.includes('Reply in plain text only') && prompt.includes('[Player message]')) { ok('prompt keeps safety rules and user message'); }
     else { fail('prompt keeps safety rules and user message'); }
     if (prompt.includes('BEGIN UNTRUSTED CHARACTER CARD') && prompt.includes('END UNTRUSTED CHARACTER CARD')) { ok('prompt keeps character trust boundary'); }
     else { fail('prompt keeps character trust boundary'); }
+}
+
+{
+    const lines = ['Player: 短い', 'Elda: ' + '日本語🎭'.repeat(400), 'Player: 最後'];
+    const truncated = truncateParlorHistoryLines(lines.join('\n'), 120);
+    if (truncated.includes('最後') && !truncated.includes('短い')) { ok('history drops oldest whole lines'); }
+    else { fail(`history line drop (${truncated.slice(0, 80)})`); }
+}
+
+{
+    let session = createEmptyParlorSession('elda');
+    session = appendParlorMessage(session, { role: 'user', content: '絵文字テスト🎭'.repeat(300) });
+    const parts = buildParlorPromptParts({
+        locale: 'ja',
+        character: { id: 'elda', name: 'エルダ', description: '店員', personality: '穏やか', stSource: {} },
+        session,
+        userMessage: '契約を守って',
+        loreSnippets: ['ロア'.repeat(5000)],
+    });
+    const prompt = assembleParlorUserPrompt(parts, 'ja');
+    if (prompt.includes('プレーンテキストのみ') && prompt.includes('契約を守って')) { ok('ja/emoji budget keeps tail contract'); }
+    else { fail('ja/emoji budget keeps tail contract'); }
 }
 
 if (failed) {

@@ -195,16 +195,50 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
 {
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
-        campaignResourceOpsPresent: false,
+        campaignResourceOpsPresent: true,
         settlementLayoutOpsPresent: true,
-        applyDiscovery: () => true,
-        applyCampaignResources: () => true,
+        applyDiscovery: () => ({ ok: true, applied: false }),
+        applyCampaignResources: () => ({ ok: true, applied: false }),
         applySettlementLayout: () => ({ ok: true, applied: false }),
     });
-    if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0 || outcome.settlementLayoutApplied) {
-        fail(`settlement layout no-op should not be a failed target: ${JSON.stringify(outcome)}`);
+    if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0) {
+        fail(`all ledger valid no-ops should succeed: ${JSON.stringify(outcome)}`);
+    } else if (outcome.discoveryApplied || outcome.campaignResourcesApplied || outcome.settlementLayoutApplied) {
+        fail('valid no-ops should not mark applied true');
     } else {
-        ok('settlement layout no-op is treated as handled, not failed');
+        ok('discovery, campaign resources, and settlement layout no-ops are handled');
+    }
+}
+
+{
+    const outcome = persistTurnLedgersAfterCommit({
+        discoveryOpsPresent: true,
+        campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: false,
+        applyDiscovery: () => ({ ok: true, applied: false }),
+        applyCampaignResources: () => true,
+        applySettlementLayout: () => true,
+    });
+    if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0) {
+        fail(`discovery valid no-op alone: ${JSON.stringify(outcome)}`);
+    } else {
+        ok('discovery valid no-op is treated as handled, not failed');
+    }
+}
+
+{
+    const outcome = persistTurnLedgersAfterCommit({
+        discoveryOpsPresent: false,
+        campaignResourceOpsPresent: true,
+        settlementLayoutOpsPresent: false,
+        applyDiscovery: () => true,
+        applyCampaignResources: () => ({ ok: true, applied: false }),
+        applySettlementLayout: () => true,
+    });
+    if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0) {
+        fail(`campaign resources valid no-op alone: ${JSON.stringify(outcome)}`);
+    } else {
+        ok('campaign resources valid no-op is treated as handled, not failed');
     }
 }
 
@@ -263,7 +297,7 @@ const forge = {
         [{ op: 'update', id: 'relic_a', status: 'sold' }],
         5
     );
-    const simulatedPersist = () => false;
+    const simulatedPersist = () => ({ ok: false, applied: false });
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: false,

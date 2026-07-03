@@ -1,6 +1,7 @@
 // Campaign Kit Phase D-lite: persist discoveryOps to discoveries.json.
 
 import type { TurnResult } from './types/TurnResult';
+import type { TurnLedgerApplyResult } from './turnLedgerPersistCore';
 import { resolveActiveCampaignKit } from './campaignKit';
 import {
     clearDiscoveryLedgerCache,
@@ -15,20 +16,22 @@ import { loadWorldState } from './worldState';
 import { writeJsonAtomic } from './workspacePaths';
 import { runSerializedDiscoveryMutation } from './workspaceStateQueue';
 
-export function applyDiscoveryTurnOps(turnResult: Pick<TurnResult, 'discoveryOps'>): boolean {
+export function tryApplyDiscoveryTurnOps(
+    turnResult: Pick<TurnResult, 'discoveryOps'>
+): TurnLedgerApplyResult {
     if (!resolveActiveCampaignKit()) {
-        return false;
+        return { ok: false, applied: false };
     }
     const ops = parseDiscoveryOps(turnResult.discoveryOps);
     if (!ops.length) {
-        return false;
+        return { ok: true, applied: false };
     }
     const ledgerPath = getDiscoveriesPath();
     if (!ledgerPath) {
-        return false;
+        return { ok: false, applied: false };
     }
 
-    let applied = false;
+    const result: TurnLedgerApplyResult = { ok: true, applied: false };
     runSerializedDiscoveryMutation(() => {
         const worldTurn = loadWorldState()?.worldTurn;
         const current = readDiscoveryLedgerFromDisk(ledgerPath);
@@ -39,10 +42,15 @@ export function applyDiscoveryTurnOps(turnResult: Pick<TurnResult, 'discoveryOps
         try {
             writeJsonAtomic(ledgerPath, next);
             clearDiscoveryLedgerCache();
-            applied = true;
+            result.applied = true;
         } catch (e) {
+            result.ok = false;
             console.warn('[discoveryTurnOps] failed to save discoveries.json', e);
         }
     });
-    return applied;
+    return result;
+}
+
+export function applyDiscoveryTurnOps(turnResult: Pick<TurnResult, 'discoveryOps'>): boolean {
+    return tryApplyDiscoveryTurnOps(turnResult).applied;
 }

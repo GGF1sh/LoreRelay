@@ -12,6 +12,7 @@ import {
 import { loadWorldState } from './worldState';
 import { writeJsonAtomic } from './workspacePaths';
 import { runSerializedSettlementLayoutMutation } from './workspaceStateQueue';
+import type { TurnLedgerApplyResult } from './turnLedgerPersistCore';
 import {
     applySettlementLayoutTurnOpsWithDeps,
     shouldAttemptSettlementLayoutPersistCore,
@@ -50,6 +51,13 @@ export function applySettlementLayoutTurnOps(
 }
 
 export function tryApplySettlementLayoutTurnOps(
+    turnResult: Pick<TurnResult, 'settlementOps'>
+): TurnLedgerApplyResult {
+    const result = tryApplySettlementLayoutTurnOpsWithDeps(turnResult, defaultDeps);
+    return { ok: result.ok, applied: result.applied };
+}
+
+export function tryApplySettlementLayoutTurnOpsDetailed(
     turnResult: Pick<TurnResult, 'settlementOps'>
 ): SettlementLayoutTurnOpsResult {
     return tryApplySettlementLayoutTurnOpsWithDeps(turnResult, defaultDeps);

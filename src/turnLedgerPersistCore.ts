@@ -24,6 +24,11 @@ export const CROSS_LEDGER_COMPENSATION_POLICY = {
 
 export type TurnLedgerTarget = 'discovery' | 'campaignResources' | 'settlementLayout';
 
+export interface TurnLedgerApplyResult {
+    ok: boolean;
+    applied: boolean;
+}
+
 export interface TurnLedgerPersistOutcome {
     /** True when every attempted ledger write succeeded (or none attempted). */
     ok: boolean;
@@ -38,17 +43,12 @@ export interface TurnLedgerPersistOutcome {
     failedTargets: TurnLedgerTarget[];
 }
 
-export interface TurnLedgerApplyResult {
-    ok: boolean;
-    applied: boolean;
-}
-
 export interface TurnLedgerPersistInput {
     discoveryOpsPresent: boolean;
     campaignResourceOpsPresent: boolean;
     settlementLayoutOpsPresent: boolean;
-    applyDiscovery: () => boolean;
-    applyCampaignResources: () => boolean;
+    applyDiscovery: () => boolean | TurnLedgerApplyResult;
+    applyCampaignResources: () => boolean | TurnLedgerApplyResult;
     applySettlementLayout: () => boolean | TurnLedgerApplyResult;
 }
 
@@ -57,7 +57,8 @@ export function shouldPersistTurnLedgersAfterCommit(commitOk: boolean): boolean 
     return commitOk;
 }
 
-function normalizeLedgerApplyResult(result: boolean | TurnLedgerApplyResult): TurnLedgerApplyResult {
+/** Normalize legacy boolean apply results (false = failure) vs structured no-op (ok true, applied false). */
+export function normalizeLedgerApplyResult(result: boolean | TurnLedgerApplyResult): TurnLedgerApplyResult {
     if (typeof result === 'boolean') {
         return { ok: result, applied: result };
     }
@@ -81,15 +82,17 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
     const settlementLayoutAttempted = input.settlementLayoutOpsPresent;
 
     if (discoveryAttempted) {
-        discoveryApplied = input.applyDiscovery();
-        if (!discoveryApplied) {
+        const discoveryResult = normalizeLedgerApplyResult(input.applyDiscovery());
+        discoveryApplied = discoveryResult.applied;
+        if (!discoveryResult.ok) {
             failedTargets.push('discovery');
         }
     }
 
     if (campaignResourcesAttempted) {
-        campaignResourcesApplied = input.applyCampaignResources();
-        if (!campaignResourcesApplied) {
+        const resourcesResult = normalizeLedgerApplyResult(input.applyCampaignResources());
+        campaignResourcesApplied = resourcesResult.applied;
+        if (!resourcesResult.ok) {
             failedTargets.push('campaignResources');
         }
     }

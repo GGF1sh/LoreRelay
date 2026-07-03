@@ -53,8 +53,8 @@ import {
     recordGuildHallDepart,
 } from './guildHallDriftCore';
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
-import { applyDiscoveryTurnOps } from './discoveryTurnOps';
-import { applyCampaignResourceTurnOps } from './campaignResourceTurnOps';
+import { tryApplyDiscoveryTurnOps } from './discoveryTurnOps';
+import { tryApplyCampaignResourceTurnOps } from './campaignResourceTurnOps';
 import {
     shouldAttemptSettlementLayoutPersist,
     tryApplySettlementLayoutTurnOps,
@@ -770,8 +770,8 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
                 && turnResult.campaignResourceOps.length > 0,
             settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
-            applyDiscovery: () => applyDiscoveryTurnOps(turnResult),
-            applyCampaignResources: () => applyCampaignResourceTurnOps(turnResult),
+            applyDiscovery: () => tryApplyDiscoveryTurnOps(turnResult),
+            applyCampaignResources: () => tryApplyCampaignResourceTurnOps(turnResult),
             applySettlementLayout: () => tryApplySettlementLayoutTurnOps(turnResult),
         });
         if (!ledgerOutcome.ok) {

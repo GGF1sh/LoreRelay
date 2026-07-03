@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- **Cross-ledger valid no-op contract (PR2)** — `tryApplyDiscoveryTurnOps()` / `tryApplyCampaignResourceTurnOps()` return structured `{ ok, applied }`; `persistTurnLedgersAfterCommit()` treats `{ ok: true, applied: false }` as handled for all ledgers (matching M4b settlement layout). Eliminates false partial-failure logs for valid discovery/resource no-ops.
+
 - **Settlement zero-stock semantics (PR1)** — `adjustStockList` retains stock entries at `amount: 0` after consumption instead of removing them. Depleted supplies keep `(OUT)` prompt text, shortage event weights, and settlement pressure band signals. `scripts/test_settlement_stock_zero_semantics.js` added.
 
 - **Settlement Mode M4b review fix** - separated `settlement_layout` ledger no-op handling from write failure handling. Existing `applySettlementLayoutTurnOps()` still reports actual disk writes, while the post-commit ledger path now treats valid no-op `expand_layer` ops as handled instead of logging a false partial failure. Missing `settlement_state.json` during apply now returns structured failure (`ok: false`) rather than a silent no-op. Added cross-ledger regression coverage.

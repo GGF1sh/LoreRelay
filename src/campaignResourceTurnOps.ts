@@ -1,6 +1,7 @@
 // Campaign Kit Phase G: persist campaignResourceOps to campaign_resources.json.
 
 import type { TurnResult } from './types/TurnResult';
+import type { TurnLedgerApplyResult } from './turnLedgerPersistCore';
 import { resolveActiveCampaignKit } from './campaignKit';
 import {
     clearCampaignResourcesCache,
@@ -15,21 +16,23 @@ import {
 import { writeJsonAtomic } from './workspacePaths';
 import { runSerializedCampaignResourcesMutation } from './workspaceStateQueue';
 
-export function applyCampaignResourceTurnOps(turnResult: Pick<TurnResult, 'campaignResourceOps'>): boolean {
+export function tryApplyCampaignResourceTurnOps(
+    turnResult: Pick<TurnResult, 'campaignResourceOps'>
+): TurnLedgerApplyResult {
     const kit = resolveActiveCampaignKit();
     if (!kit) {
-        return false;
+        return { ok: false, applied: false };
     }
     const ops = parseCampaignResourceOps(turnResult.campaignResourceOps);
     if (!ops.length) {
-        return false;
+        return { ok: true, applied: false };
     }
     const resPath = getCampaignResourcesPath();
     if (!resPath) {
-        return false;
+        return { ok: false, applied: false };
     }
 
-    let applied = false;
+    const result: TurnLedgerApplyResult = { ok: true, applied: false };
     runSerializedCampaignResourcesMutation(() => {
         const current = readCampaignResourcesFromDisk(resPath)
             ?? { version: 1 as const, quantities: defaultCampaignResourceQuantities(kit) };
@@ -40,10 +43,15 @@ export function applyCampaignResourceTurnOps(turnResult: Pick<TurnResult, 'campa
         try {
             writeJsonAtomic(resPath, next);
             clearCampaignResourcesCache();
-            applied = true;
+            result.applied = true;
         } catch (e) {
+            result.ok = false;
             console.warn('[campaignResourceTurnOps] failed to save campaign_resources.json', e);
         }
     });
-    return applied;
+    return result;
+}
+
+export function applyCampaignResourceTurnOps(turnResult: Pick<TurnResult, 'campaignResourceOps'>): boolean {
+    return tryApplyCampaignResourceTurnOps(turnResult).applied;
 }

@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Campaign webview trust boundary follow-up** - `gameStateWebviewSanitizeCore` now sends only public `commerce` / `world` subsets to Webview, and `statePatch` export is allowlist-based instead of blacklist-based so unknown future paths cannot leak into Inspector.
+- **Campaign OCC regression coverage** - added `test_state_merge_inventory_race.js` for stale-turn `inventory` / `condition` / `skills` rollback prevention; extended commerce debounce tests to verify synchronous flush before deactivate.
+
+### Verification
+
+- `npm test` **99/99**
+
 ## [1.37.7] - 2026-07-03
 
 ### Fixed

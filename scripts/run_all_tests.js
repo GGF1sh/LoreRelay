@@ -80,6 +80,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_workspace_state_queue_core.js' },
     { category: 'unit', file: 'test_commerce_persist_debounce.js' },
     { category: 'unit', file: 'test_state_merge_commerce_race.js' },
+    { category: 'unit', file: 'test_state_merge_inventory_race.js' },
     { category: 'unit', file: 'test_commerce_turn_interleave.js' },
     { category: 'unit', file: 'test_living_world_player_role_core.js' },
     { category: 'unit', file: 'test_since_last_visit_host.js' },

@@ -56,6 +56,32 @@ const commerce = (credits) => ({ credits, cargo: [], transportId: 'wagon', playe
     }
 }
 
+{
+    const flushed = [];
+    let cleared = 0;
+    let scheduled = 0;
+    const scheduler = createCommercePersistScheduler(
+        (p) => flushed.push(p),
+        80,
+        () => {
+            scheduled++;
+            return scheduled;
+        },
+        () => { cleared++; }
+    );
+
+    scheduler.schedule({ commerce: commerce(42), baseRevision: 3 });
+    scheduler.flush();
+
+    if (flushed.length !== 1 || flushed[0].commerce.credits !== 42 || flushed[0].baseRevision !== 3) {
+        fail(`manual flush should persist pending payload immediately: ${JSON.stringify(flushed)}`);
+    } else if (cleared !== 1 || scheduler.peek() !== null) {
+        fail(`manual flush should clear timer and pending payload: cleared=${cleared} pending=${JSON.stringify(scheduler.peek())}`);
+    } else {
+        ok('manual flush drains pending commerce before deactivate');
+    }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

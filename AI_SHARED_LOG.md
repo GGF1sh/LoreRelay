@@ -1,5 +1,22 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Codex - Gemini review follow-up: Webview payload + OCC tests
+
+### Summary
+
+- Hardened `gameStateWebviewSanitizeCore`: Webview now receives sanitized public subsets for `commerce` / `world`, while private nested fields are stripped.
+- Replaced `statePatch` Webview filtering with an allowlist policy; unknown future roots and sensitive paths no longer pass through to Inspector.
+- Added `test_state_merge_inventory_race.js` for stale-turn inventory/condition/skills rollback prevention.
+- Extended `test_commerce_persist_debounce.js` to cover explicit synchronous flush before deactivate.
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_webview_payload_whitelist.js`
+- `node scripts/test_state_merge_inventory_race.js`
+- `node scripts/test_commerce_persist_debounce.js`
+- `npm test` **99/99**
+
 ## 2026-07-03 JST - Grok - Campaign PR3 export sanitization (v1.37.7)
 
 ### Summary

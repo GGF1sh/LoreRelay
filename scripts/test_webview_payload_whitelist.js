@@ -35,8 +35,8 @@ const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhe
         options: ['A'],
         hiddenState: { bossHp: 1 },
         director: { act: '1', notes: 'secret' },
-        commerce: { credits: 99 },
-        world: { currentLocationId: 'loc_a' },
+        commerce: { credits: 99, secretLedger: ['no'] },
+        world: { currentLocationId: 'loc_a', secretRoute: 'no' },
         profileUpdates: [{ npcId: 'x' }],
         __SECRET_TEST_DATA__: 'leak',
         stateRevision: 7,
@@ -45,8 +45,6 @@ const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhe
     if (
         picked.__SECRET_TEST_DATA__
         || picked.hiddenState
-        || picked.commerce
-        || picked.world
         || picked.profileUpdates
         || picked.stateRevision
         || picked.director
@@ -59,6 +57,13 @@ const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhe
         fail(`allowed fields preserved: ${JSON.stringify(picked)}`);
     } else {
         ok('game state whitelist keeps allowed fields');
+    }
+    if (picked.commerce?.credits !== 99 || picked.world?.currentLocationId !== 'loc_a') {
+        fail(`commerce/world public roots preserved: ${JSON.stringify(picked)}`);
+    } else if (picked.commerce.secretLedger || picked.world.secretRoute) {
+        fail(`commerce/world private fields stripped: ${JSON.stringify(picked)}`);
+    } else {
+        ok('game state whitelist keeps commerce/world public roots');
     }
 }
 
@@ -79,15 +84,20 @@ const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhe
     const patches = sanitizeStatePatchForWebview([
         { op: 'replace', path: '/status/hp/current', value: 3 },
         { op: 'add', path: '/hiddenState/secret', value: true },
+        { op: 'replace', path: '/futureSecret/x', value: 'nope' },
         { op: 'replace', path: '/director', value: { act: '2', notes: 'nope' } },
         { op: 'replace', path: '/director/notes', value: 'still secret' },
+        { op: 'replace', path: '/commerce', value: { credits: 5, hiddenMargin: 999 } },
+        { op: 'replace', path: '/world', value: { currentLocationId: 'loc_b', secretRoute: true } },
     ]);
-    if (patches.length !== 2) {
+    if (patches.length !== 4) {
         fail(`statePatch filter count: ${JSON.stringify(patches)}`);
     } else if (patches[1].value?.notes) {
         fail(`director patch should strip notes: ${JSON.stringify(patches[1])}`);
+    } else if (patches.some((p) => JSON.stringify(p).includes('hiddenMargin') || JSON.stringify(p).includes('secretRoute'))) {
+        fail(`commerce/world root patches should be sanitized: ${JSON.stringify(patches)}`);
     } else {
-        ok('statePatch whitelist filters sensitive paths');
+        ok('statePatch allowlist filters unknown/sensitive paths');
     }
 }
 

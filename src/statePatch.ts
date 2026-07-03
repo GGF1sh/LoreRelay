@@ -36,6 +36,7 @@ import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import { persistWorldSimulationSteps } from './worldSimPersist';
 import { applyLivingWorldTurnOps } from './livingWorldTurnOps';
+import { applyDomainTurnOps } from './domainTurnOps';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -441,10 +442,15 @@ function applyTurnGameStateFinalize(
     persistWorld: boolean
 ): Record<string, unknown> {
     let next = mergeGmEntryFromTurn(state, turnResult);
+    const asGame = next as unknown as import('./types/GameState').GameState;
     next = applyLivingWorldTurnOps(
         turnResult,
-        next as unknown as import('./types/GameState').GameState,
+        asGame,
         { persistWorld }
+    ) as unknown as Record<string, unknown>;
+    next = applyDomainTurnOps(
+        turnResult,
+        next as unknown as import('./types/GameState').GameState
     ) as unknown as Record<string, unknown>;
     return normalizeStatusArrayFields(next);
 }

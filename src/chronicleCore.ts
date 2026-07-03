@@ -1,6 +1,7 @@
 // F1 Chronicle: deterministic timeline from journal + world events (no vscode/fs).
 
 import type { JournalTurnLike } from './chronicleJournalCore';
+import { parseDomainOps, formatMonthlyChronicleText } from './domainCore';
 import {
     findDirectorSceneChange,
     findLocationChange,
@@ -17,7 +18,7 @@ export const CHAPTER_TURN_ACCUM = 10;
 export const MAX_CHRONICLE_CHAPTERS = 50;
 export const MAX_CHRONICLE_EVENTS = 500;
 
-export type ChronicleEventKind = 'quest' | 'world' | 'travel' | 'combat' | 'milestone';
+export type ChronicleEventKind = 'quest' | 'world' | 'travel' | 'combat' | 'milestone' | 'domain';
 
 export interface ChronicleEvent {
     worldTurn: number;
@@ -56,6 +57,17 @@ function questTitleById(questHooks: QuestHook[] | undefined, id: string): string
 
 function regionLabel(regionId: string, regionNames?: Record<string, string>): string {
     return regionNames?.[regionId]?.trim() || regionId;
+}
+
+function extractDomainChronicleText(turn: JournalTurnLike): string | undefined {
+    const ops = parseDomainOps(turn.domainOps);
+    if (!ops || ops.kind !== 'monthly_commit' || !ops.actions?.length) {
+        return undefined;
+    }
+    const month = turn.domainCalendarMonth ?? 1;
+    const year = turn.domainCalendarYear ?? 1;
+    const eventId = turn.domainEventId ?? 'domain_event';
+    return formatMonthlyChronicleText(ops.actions, eventId, month, year);
 }
 
 function extractJournalEvents(
@@ -115,6 +127,16 @@ function extractJournalEvents(
             gmTurn,
             kind: 'milestone',
             text: clampEventText(`Scene: ${scene}`)
+        });
+    }
+
+    const domainText = extractDomainChronicleText(turn);
+    if (domainText) {
+        events.push({
+            worldTurn,
+            gmTurn,
+            kind: 'domain',
+            text: clampEventText(domainText)
         });
     }
 

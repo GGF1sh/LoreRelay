@@ -95,6 +95,7 @@ import {
 } from './travelEncounterCore';
 import { cargoWeight } from './commerceCore';
 import { planTravel, resolveTransportForTheme } from './transportCore';
+import { buildDomainPromptContext } from './domainBridge';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
@@ -616,6 +617,11 @@ function buildNarrativeTimePromptContext(): string {
     return buildNarrativeTimePromptBlock({ emergentSimulation: rules.enableEmergentSimulation });
 }
 
+function buildDomainPromptContextForGm(playerAction: string): string {
+    const state = readGameStateForPrompt();
+    return buildDomainPromptContext(state, playerAction);
+}
+
 function buildGameRulesPromptContext(): string {
     const rules = loadGameRules();
     const lines = ['[Game Rules]'];
@@ -1114,6 +1120,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     const sections = [
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
         buildSection('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext()),
+        buildSection('domain', 'Domain', buildDomainPromptContextForGm(hint)),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
         buildSection('chronicle', 'Chronicle Recap', peekChronicleRecapContext(policy)),
         buildSection('summary', 'Story Synopsis', (() => {
@@ -1174,6 +1181,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
 
     pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
     pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
+    pushPromptChunk(specs, 'domain', buildDomainPromptContextForGm(playerAction));
     pushPromptChunk(specs, 'director', buildScenarioDirectorPromptContext());
     pushPromptChunk(specs, 'chronicle', consumeChronicleRecapContext(policy));
 

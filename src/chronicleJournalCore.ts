@@ -17,6 +17,10 @@ export interface JournalTurnLike {
     resolvedQuests?: string[];
     cartographyReveal?: CartographyReveal;
     elapsedWorldTurns?: number;
+    domainOps?: unknown;
+    domainEventId?: string;
+    domainCalendarMonth?: number;
+    domainCalendarYear?: number;
     diceLedger?: DiceLedgerEntry[];
     appliedAt?: string;
 }
@@ -132,6 +136,19 @@ export function parseJournalLine(line: string): JournalTurnLike | undefined {
     if (cartographyReveal) { turn.cartographyReveal = cartographyReveal; }
     const elapsed = asNumber(raw.elapsedWorldTurns);
     if (elapsed !== undefined && elapsed > 0) { turn.elapsedWorldTurns = Math.floor(elapsed); }
+    if (raw.domainOps !== undefined && raw.domainOps !== null && typeof raw.domainOps === 'object') {
+        turn.domainOps = raw.domainOps;
+    }
+    const domainEventId = asString(raw.domainEventId, 64);
+    if (domainEventId) { turn.domainEventId = domainEventId; }
+    const domainCalendarMonth = asNumber(raw.domainCalendarMonth);
+    if (domainCalendarMonth !== undefined && domainCalendarMonth >= 1 && domainCalendarMonth <= 12) {
+        turn.domainCalendarMonth = Math.floor(domainCalendarMonth);
+    }
+    const domainCalendarYear = asNumber(raw.domainCalendarYear);
+    if (domainCalendarYear !== undefined && domainCalendarYear >= 1) {
+        turn.domainCalendarYear = Math.floor(domainCalendarYear);
+    }
     const diceLedger = parseDiceLedger(raw.diceLedger);
     if (diceLedger) { turn.diceLedger = diceLedger; }
     const appliedAt = asString(raw.appliedAt, 64);
@@ -143,6 +160,7 @@ export function parseJournalLine(line: string): JournalTurnLike | undefined {
         && !turn.resolvedQuests
         && !turn.cartographyReveal
         && !turn.elapsedWorldTurns
+        && !turn.domainOps
         && !turn.diceLedger
     ) {
         return undefined;

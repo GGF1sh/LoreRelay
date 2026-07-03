@@ -23,6 +23,7 @@
         enableCommerceUi: document.getElementById('gr-commerce-ui'),
         playerRole: document.getElementById('gr-player-role'),
         enableNpcAgency: document.getElementById('gr-npc-agency'),
+        enableDomainMode: document.getElementById('gr-domain-mode'),
         enableNpcRelationships: document.getElementById('gr-npc-relationships'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
@@ -72,6 +73,7 @@
             enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
             playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
             enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
+            enableDomainMode: inputs.enableDomainMode ? inputs.enableDomainMode.checked : false,
             enableNpcRelationships: inputs.enableNpcRelationships ? inputs.enableNpcRelationships.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
@@ -112,6 +114,7 @@
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
+            if (rules.enableDomainMode !== undefined && inputs.enableDomainMode) inputs.enableDomainMode.checked = rules.enableDomainMode;
             if (rules.enableNpcRelationships !== undefined && inputs.enableNpcRelationships) inputs.enableNpcRelationships.checked = rules.enableNpcRelationships;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;

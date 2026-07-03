@@ -14,6 +14,7 @@ import { parseCartographyReveal } from './cartographyRevealCore';
 import { parseTradeOps } from './commerceCore';
 import { parseNpcAgencyOps } from './npcAgencyCore';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
+import { parseDomainOps } from './domainCore';
 import { isValidEventId } from './worldEventLogCore';
 
 export type AgenticStage = 'referee' | 'narrator';
@@ -53,6 +54,7 @@ export interface RefereeResultCandidate {
     elapsedWorldTurns?: number;
     tradeOps?: TurnResult['tradeOps'];
     npcAgencyOps?: TurnResult['npcAgencyOps'];
+    domainOps?: TurnResult['domainOps'];
 }
 
 export interface NarratorResultCandidate {
@@ -100,6 +102,7 @@ Required JSON shape:
   "elapsedWorldTurns": 0,
   "tradeOps": [],
   "npcAgencyOps": [],
+  "domainOps": null,
   "cartographyReveal": {}
 }
 
@@ -112,6 +115,7 @@ Rules:
 - elapsedWorldTurns (0-100, default 0): advance world sim ONLY on committed overnight rest, multi-day travel, or explicit time skip. Keep 0 during same-scene conversation, investigation, or combat rounds.
 - tradeOps (max 16): buy/sell at markets — Core applies prices; narrate negotiation only.
 - npcAgencyOps (max 10): NPC relocations { npcId, locationId, arrivesTurn }.
+- domainOps: monthly_commit { kind, actions[], intelligence? } when player commits domain policy; set elapsedWorldTurns to domainMonthDays. appoint_officer / dismiss_officer optional.
 - cartographyReveal: optional map FoW reveal (regions array).
 `.trim();
 
@@ -463,6 +467,10 @@ export function parseRefereeResultJson(text: string): RefereeResultCandidate | n
     if (npcAgencyOps.length > 0) {
         candidate.npcAgencyOps = npcAgencyOps;
     }
+    const domainOps = parseDomainOps(doc.domainOps);
+    if (domainOps) {
+        candidate.domainOps = domainOps;
+    }
     return candidate;
 }
 
@@ -588,6 +596,9 @@ export function mergeAgenticTurnResult(input: {
     }
     if (referee.npcAgencyOps?.length) {
         result.npcAgencyOps = referee.npcAgencyOps;
+    }
+    if (referee.domainOps) {
+        result.domainOps = referee.domainOps;
     }
     const media = mergeAgenticMedia(referee.media, narrator?.media);
     if (media) {

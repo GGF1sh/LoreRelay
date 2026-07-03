@@ -802,6 +802,8 @@
   "webview.gameRules.playerRoleRuler": "Ruler",
   "webview.gameRules.npcAgency": "Enable NPC Agency",
   "webview.gameRules.tipNpcAgency": "Named NPCs react to world/commerce events (≤10, requires NPC Registry)",
+  "webview.gameRules.domainMode": "啟用領地營運模式",
+  "webview.gameRules.tipDomainMode": "領地數值、月度方針（domainOps）與事件驅動的領主玩法（需 game_state.domain，預設關閉）",
   "webview.gameRules.npcRelationships": "啟用 NPC 羈絆 (LW3)",
   "webview.gameRules.tipNpcRelationships": "具名NPC因同處一地、共同危機、派系衝突而改變關係（需啟用NPC自主）",
   "webview.gameRules.travelEncounters": "Enable Travel Encounters",

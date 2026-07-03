@@ -392,6 +392,7 @@ export interface PromptContextChunkSpec {
 export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     gameRules: 100,
     narrativeTime: 98,
+    domain: 67,
     director: 95,
     chronicle: 90,
     summary: 85,

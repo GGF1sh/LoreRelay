@@ -1,5 +1,18 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Domain Mode D1–D2 (v1.39.0)
+
+### Summary
+
+- Implemented Domain Mode core: `domainCore.ts`, monthly `domainOps` channel, seasonal/event roll, `domainTurnOps` wired into `statePatch`, GM `[Domain — …]` prompt chunk, Agentic Referee `domainOps`, Chronicle `domain` events.
+- Game Rules: `enableDomainMode` (OFF default), `domainMonthDays`, `domainMonthlyActions`; webview checkbox + i18n 4 locales.
+- Balance harness: `scripts/domain_balance_harness.js`.
+
+### Verification
+
+- `npm run compile`
+- `npm test` **103/103**
+
 ## 2026-07-03 JST - Grok - Narrative Time three-clock model + release v1.38.0
 
 ### Summary

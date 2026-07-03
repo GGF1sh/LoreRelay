@@ -802,6 +802,8 @@
   "webview.gameRules.playerRoleRuler": "Ruler",
   "webview.gameRules.npcAgency": "Enable NPC Agency",
   "webview.gameRules.tipNpcAgency": "Named NPCs react to world/commerce events (≤10, requires NPC Registry)",
+  "webview.gameRules.domainMode": "領地運営モードを有効化",
+  "webview.gameRules.tipDomainMode": "領地ステータス・月次方針（domainOps）・イベント駆動の領主プレイ（game_state.domain が必要・既定OFF）",
   "webview.gameRules.npcRelationships": "NPC間の絆を有効化 (LW3)",
   "webview.gameRules.tipNpcRelationships": "名ありNPC同士が同席・共通の危機・派閥対立で関係を変える（NPC Agency必須）",
   "webview.gameRules.travelEncounters": "Enable Travel Encounters",

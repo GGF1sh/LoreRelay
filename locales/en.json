@@ -640,6 +640,8 @@
   "webview.gameRules.playerRoleRuler": "Ruler",
   "webview.gameRules.npcAgency": "Enable NPC Agency",
   "webview.gameRules.tipNpcAgency": "Named NPCs react to world/commerce events (≤10, requires NPC Registry)",
+  "webview.gameRules.domainMode": "Enable Domain Mode (lordship)",
+  "webview.gameRules.tipDomainMode": "Fief stats, monthly policy via domainOps, and event-driven lordship (requires game_state.domain; default OFF)",
   "webview.gameRules.npcRelationships": "Enable NPC Bonds (LW3)",
   "webview.gameRules.tipNpcRelationships": "Named NPCs form bonds via co-location, shared crises, and faction conflict (requires NPC Agency)",
   "webview.gameRules.travelEncounters": "Enable Travel Encounters",

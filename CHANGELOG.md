@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-07-03
+
+### Added
+
+- **Domain Mode D1–D2** — `domainCore.ts` (stats, monthly actions, seasonal effects, weighted events), `domainTurnOpsCore.ts` / `domainTurnOps.ts` (`turn_result.domainOps`), `domainPromptCore.ts` / `domainBridge.ts` (compact/full GM prompt + council lines), Chronicle `kind: 'domain'`. Game rule `enableDomainMode` (default OFF) + `domainMonthDays` / `domainMonthlyActions`.
+- **Tests & harness** — `test_domain_core.js`, `test_domain_prompt_core.js`, `test_domain_turn_ops.js`, `domain_balance_harness.js`.
+
+### Verification
+
+- `npm test` **103/103**
+
 ## [1.38.0] - 2026-07-03
 
 ### Added

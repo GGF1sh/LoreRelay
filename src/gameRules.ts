@@ -26,6 +26,12 @@ export interface GameRules {
     enableNpcAgency?: boolean;
     /** LW3: NPC間関係(同席/共通の危機/派閥対立で affinity が動く)。Registry+Agency 前提。 */
     enableNpcRelationships?: boolean;
+    /** Domain Mode: lordship / fief management layer (default OFF). */
+    enableDomainMode?: boolean;
+    /** World days advanced per monthly domain commit (1–100). */
+    domainMonthDays?: number;
+    /** Monthly domain actions selectable per commit (1–4). */
+    domainMonthlyActions?: number;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -47,7 +53,10 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableCommerceUi: false,
     playerRole: 'merchant',
     enableNpcAgency: false,
-    enableNpcRelationships: false
+    enableNpcRelationships: false,
+    enableDomainMode: false,
+    domainMonthDays: 30,
+    domainMonthlyActions: 2
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -167,6 +176,15 @@ export function saveGameRules(rules: Partial<GameRules>): void {
             || role === 'ruler'
         ) {
             sanitized.playerRole = role;
+        }
+        if (rules.enableDomainMode !== undefined && typeof rules.enableDomainMode === 'boolean') {
+            sanitized.enableDomainMode = rules.enableDomainMode;
+        }
+        if (rules.domainMonthDays !== undefined && typeof rules.domainMonthDays === 'number') {
+            sanitized.domainMonthDays = Math.max(1, Math.min(100, Math.floor(rules.domainMonthDays)));
+        }
+        if (rules.domainMonthlyActions !== undefined && typeof rules.domainMonthlyActions === 'number') {
+            sanitized.domainMonthlyActions = Math.max(1, Math.min(4, Math.floor(rules.domainMonthlyActions)));
         }
     }
 

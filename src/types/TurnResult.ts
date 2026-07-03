@@ -108,4 +108,11 @@ export interface TurnResult {
     npcAgencyOps?: Array<{ npcId: string; locationId: string; arrivesTurn: number }>;
     /** LW3: GM の例外的な関係確定 (Relationships ON)。通常は世界tickが決定論で動かす。 */
     relationshipOps?: Array<{ a: string; b: string; delta: number; reason?: string }>;
+    /** Domain Mode: monthly policy / officer appointments (Domain ON). */
+    domainOps?: {
+        kind: 'monthly_commit' | 'appoint_officer' | 'dismiss_officer';
+        actions?: string[];
+        intelligence?: 'gather_rumors' | 'scout_border' | 'none';
+        officer?: { npcId: string; role: string; skill?: number };
+    };
 }

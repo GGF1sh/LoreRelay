@@ -47,6 +47,7 @@ import {
     resolveWhereaboutsPrecision,
     type WhereaboutsPrecision,
 } from './npcWhereaboutsTrustCore';
+import { buildChronicleForWorkspace } from './chronicleLoader';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 
@@ -489,6 +490,16 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldState?.questHooks
     );
 
+    // World Observatory (§4): only compute when the feature is on — buildChronicleForWorkspace
+    // re-reads state_journal.ndjson, so gate it to avoid extra I/O on every worldView push.
+    const worldObservatoryEnabled = gameRules.enableWorldObservatory === true;
+    const MAX_OBSERVATORY_CHRONICLE_EVENTS = 30;
+    const observatoryChronicle = worldObservatoryEnabled && wsPath
+        ? buildChronicleForWorkspace(wsPath)
+            .flatMap((chapter) => chapter.events)
+            .slice(-MAX_OBSERVATORY_CHRONICLE_EVENTS)
+        : [];
+
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
@@ -554,5 +565,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             kind: item.kind,
             consumable: item.consumable === true,
         })),
+        enableWorldObservatory: worldObservatoryEnabled,
+        marketPriceHistory: worldObservatoryEnabled ? (worldState?.marketPriceHistory ?? null) : null,
+        chronicle: observatoryChronicle,
     });
 }

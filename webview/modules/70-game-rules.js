@@ -21,6 +21,7 @@
         enableFactionReputation: document.getElementById('gr-faction-reputation'),
         enableCampaignKit: document.getElementById('gr-campaign-kit'),
         campaignKitId: document.getElementById('gr-campaign-kit-id'),
+        enableWorldObservatory: document.getElementById('gr-world-observatory'),
         enableCommerce: document.getElementById('gr-commerce'),
         enableCommerceUi: document.getElementById('gr-commerce-ui'),
         playerRole: document.getElementById('gr-player-role'),
@@ -80,6 +81,7 @@
             enableFactionReputation: inputs.enableFactionReputation ? inputs.enableFactionReputation.checked : false,
             enableCampaignKit: inputs.enableCampaignKit ? inputs.enableCampaignKit.checked : false,
             campaignKitId: inputs.campaignKitId ? inputs.campaignKitId.value : '',
+            enableWorldObservatory: inputs.enableWorldObservatory ? inputs.enableWorldObservatory.checked : false,
             enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
             enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
             playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
@@ -130,6 +132,7 @@
             if (rules.enableFactionReputation !== undefined && inputs.enableFactionReputation) inputs.enableFactionReputation.checked = rules.enableFactionReputation;
             if (rules.enableCampaignKit !== undefined && inputs.enableCampaignKit) inputs.enableCampaignKit.checked = rules.enableCampaignKit;
             if (rules.campaignKitId !== undefined && inputs.campaignKitId) inputs.campaignKitId.value = rules.campaignKitId || '';
+            if (rules.enableWorldObservatory !== undefined && inputs.enableWorldObservatory) inputs.enableWorldObservatory.checked = rules.enableWorldObservatory;
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;

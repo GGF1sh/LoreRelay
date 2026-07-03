@@ -34,29 +34,22 @@ export function applyLivingWorldAfterSimulationStep(
     return tickLivingWorldAfterSim(forge, state, registry, rules, rawDoc).state;
 }
 
-// ---------------------------------------------------------------------------
-// Public entry point
-// ---------------------------------------------------------------------------
+export interface WorldStepOutcome {
+    state: WorldState;
+    registry: NpcRegistry | undefined;
+}
 
 /**
- * GM ターン数が simIntervalTurns の倍数に達したときに呼ぶ。
- * フラグが OFF 、または world_forge.json が存在しない場合は何もしない。
+ * 決定論の世界1ステップ(sim tick → registry反映 → Living World tick → quest hooks)を
+ * 実行するが、まだディスクへ保存しない。`maybeTickSimulation`(GM連動)と
+ * `runObserverWorldTick`(観測者モード、World Observatory)の両方から共有される。
  */
-export function maybeTickSimulation(gmTurnCount: number): void {
-    const rules = loadGameRules();
-    if (!rules.enableEmergentSimulation) { return; }
-    const simInterval = Math.max(1, rules.simIntervalTurns ?? 5);
-    if (gmTurnCount === 0 || gmTurnCount % simInterval !== 0) { return; }
+export function runOneWorldStep(forge: WorldForge, state: WorldState, rules = loadGameRules()): WorldStepOutcome {
+    const { state: stepped, stepEvents } = runSimulationStep(forge, state);
+    let next = stepped;
 
-    const forge = loadWorldForge();
-    if (!forge) { return; }
-
-    const state = ensureWorldStateExists(forge);
-    if ((state.lastSimulatedGmTurn ?? 0) >= gmTurnCount) { return; }
-    let { state: next, stepEvents } = runSimulationStep(forge, state);
-    next.lastSimulatedGmTurn = gmTurnCount;
     // Propagate only this step's events — re-processing recentChanges would inflate needs
-    let currentRegistry = undefined;
+    let currentRegistry: NpcRegistry | undefined = undefined;
     if (rules.enableNpcRegistry) {
         currentRegistry = loadNpcRegistry();
         if (stepEvents.length > 0) {
@@ -76,6 +69,32 @@ export function maybeTickSimulation(gmTurnCount: number): void {
 
     // Phase 8: Generate Quest Hooks before saving world state
     generateQuestHooks(next, currentRegistry, false);
+
+    return { state: next, registry: currentRegistry };
+}
+
+// ---------------------------------------------------------------------------
+// Public entry point
+// ---------------------------------------------------------------------------
+
+/**
+ * GM ターン数が simIntervalTurns の倍数に達したときに呼ぶ。
+ * フラグが OFF 、または world_forge.json が存在しない場合は何もしない。
+ */
+export function maybeTickSimulation(gmTurnCount: number): void {
+    const rules = loadGameRules();
+    if (!rules.enableEmergentSimulation) { return; }
+    const simInterval = Math.max(1, rules.simIntervalTurns ?? 5);
+    if (gmTurnCount === 0 || gmTurnCount % simInterval !== 0) { return; }
+
+    const forge = loadWorldForge();
+    if (!forge) { return; }
+
+    const state = ensureWorldStateExists(forge);
+    if ((state.lastSimulatedGmTurn ?? 0) >= gmTurnCount) { return; }
+
+    const { state: next } = runOneWorldStep(forge, state, rules);
+    next.lastSimulatedGmTurn = gmTurnCount;
 
     saveWorldState(next);
 }

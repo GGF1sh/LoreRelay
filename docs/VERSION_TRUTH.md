@@ -55,13 +55,14 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.52.0** |
-| CHANGELOG 先頭 | **[1.52.0]** Campaign Kit Phase G — campaign resources (water/ammo/medicine等の消費ループ) |
+| `package.json` | **1.53.0** |
+| CHANGELOG 先頭 | **[1.53.0]** World Observatory — 相場スパークライン/年代記/観測者モード(watch/advance) |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources**(campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World | LW1 Commerce に 2つ目の価格ドライバ追加(v1.51.0): 派閥/regionイベント連動 + **プレイヤー評判連動**(faction-controlled markets) |
+| World Observatory | 新規(v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・プレイヤーターンなしで世界を進める観測者ティック(watch=無コスト/advance=食料消費)。`enableWorldObservatory` 既定OFF |
 | Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7–F10 engine + World タブ UI · v1.40.1 hardening |
 | Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3）+ Domain v1.39.x–1.40.x |
 | GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
-| テスト | `npm test` **129/129**（`check_version_consistency.js` 含む） |
+| テスト | `npm test` **132/132**（`check_version_consistency.js` 含む） |

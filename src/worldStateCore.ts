@@ -87,6 +87,8 @@ export interface WorldState {
     npcMilestones?: Record<string, string[]>;
     /** LW3-P: プレイヤー↔NPC の到達済み絆マイルストーン — npcId → id 配列. */
     playerNpcMilestones?: Record<string, string[]>;
+    /** World Observatory: 相場スパークライン用の履歴(直近 MAX_MARKET_PRICE_HISTORY_POINTS 件, 古い順)。 */
+    marketPriceHistory?: Record<string, Record<string, number[]>>;
 }
 
 // --- パーサーユーティリティ ---
@@ -335,6 +337,41 @@ function parseNpcMilestones(raw: unknown): Record<string, string[]> | undefined 
 const VALID_PLAYER_BOND_KINDS = new Set([
     'trusted_companion', 'romance', 'nemesis', 'feared', 'estrangement',
 ]);
+/** World Observatory: 相場スパークラインの履歴長・許容ロケーション/商品数の上限。 */
+export const MAX_MARKET_PRICE_HISTORY_POINTS = 24;
+const MAX_PARSE_PRICE_HISTORY_LOCATIONS = 30;
+const MAX_PARSE_PRICE_HISTORY_COMMODITIES = 20;
+
+function parseMarketPriceHistory(raw: unknown): Record<string, Record<string, number[]>> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, Record<string, number[]>> = {};
+    let locCount = 0;
+    for (const [locId, byCommodity] of Object.entries(raw as Record<string, unknown>)) {
+        if (locCount >= MAX_PARSE_PRICE_HISTORY_LOCATIONS) { break; }
+        if (!isValidEventId(locId) || !byCommodity || typeof byCommodity !== 'object' || Array.isArray(byCommodity)) {
+            continue;
+        }
+        const locOut: Record<string, number[]> = {};
+        let cCount = 0;
+        for (const [cid, points] of Object.entries(byCommodity as Record<string, unknown>)) {
+            if (cCount >= MAX_PARSE_PRICE_HISTORY_COMMODITIES) { break; }
+            if (!isValidEventId(cid) || !Array.isArray(points)) { continue; }
+            const cleaned = points
+                .filter((p): p is number => typeof p === 'number' && Number.isFinite(p))
+                .slice(-MAX_MARKET_PRICE_HISTORY_POINTS);
+            if (cleaned.length > 0) {
+                locOut[cid] = cleaned;
+                cCount++;
+            }
+        }
+        if (Object.keys(locOut).length > 0) {
+            out[locId] = locOut;
+            locCount++;
+        }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 const MAX_PARSE_PLAYER_BONDS = 32;
 
 function parsePlayerNpcMilestones(raw: unknown): Record<string, string[]> | undefined {
@@ -411,6 +448,7 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         npcRelationships: parseNpcRelationships(doc.npcRelationships),
         npcMilestones: parseNpcMilestones(doc.npcMilestones),
         playerNpcMilestones: parsePlayerNpcMilestones(doc.playerNpcMilestones),
+        marketPriceHistory: parseMarketPriceHistory(doc.marketPriceHistory),
     };
 }
 

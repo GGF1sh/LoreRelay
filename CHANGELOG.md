@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.53.0] - 2026-07-03
+
+### Added
+
+- **World Observatory** — 「変わりゆく世界を見守る」観測ダッシュボード。設計ブリーフは `docs/WORLD_OBSERVATORY_WIRING_BRIEF.md`(Opus 4.8)。`enableWorldObservatory` 既定OFF。
+  - **相場スパークライン** — `marketPriceHistory`(`world_state.json`、locationId→commodityId→直近24件のpriceIndex、リングバッファ)を新規追加。純関数 `worldObservatoryCore.ts:appendMarketPriceHistory()` が加算的に履歴を積む。`worldStateCore.ts` に型・パーサー追加(既存の `markets`/`npcPositions` と同じ検証パターン)。
+  - **年代記タイムライン** — 既存の `chronicleCore.ts`/`chronicleLoader.ts`(F1 Chronicle)の出力を World タブへ横流し。`enableWorldObservatory` 時のみ計算(`state_journal.ndjson` 再読込のI/Oコストを通常時は避ける)、末尾30件を送信。
+  - **観測者モード(watch/advance)** — プレイヤーのターンなしで世界を1ティック進める。`watch`=無コストで世界のみ進行(markets/NPC関係/派閥)。`advance`=それに加え作中1日分の旅費食料を消費(既存 `applyTravelFoodConsumption` を再利用、Commerce有効時のみ)。
+- **観測ティックの配線(非破壊)** — `webview/modules/88-world-observatory.js`(新規、独立モジュール)が自前の `message` リスナーで描画し、ホットな `85-world.js` を一切変更しない。ホスト側は `webviewHandlers.ts` に `observerWorldTick` case 1件、`extension.ts` に `handleObserverWorldTick()` 1関数を追加するのみ。
+- **安全性の核心** — 観測ティックは既存 `emergentSimulator.ts:maybeTickSimulation` の中核ロジックを `runOneWorldStep()` として抽出・共有(挙動は不変、`test_emergent_simulator.js` で確認済み)。`watch` モードは `world_state.json` のみを変更し、`game_state.json`(Persist-Before-Narrate領域)には一切触れないため、観測を回してもプレイヤーのセーブは壊れない。`advance` モードの資源消費のみ、Commerce UI の直接取引(`executeLivingWorldDirectTrade`)と同じ安全な非同期・楽観的並行制御(`scheduleCommercePersist` + `readStateRevision`)を再利用して `game_state.json` へ反映する。
+- **自動観測の氾濫対策** — 自動観測はWebview側の `setInterval`(最短1.1秒間隔、連続200tickで自動停止)で駆動し、ホストは冪等な1ティックハンドラに徹する(dispose漏れ・多重起動を回避)。
+- `test_world_observatory_core.js` 新規(9ケース: 履歴の追記/上限/非破壊/不正値除去/`parseWorldState` ラウンドトリップとサニタイズ)。テスト **132/132**、`check_version_consistency.js` PASS。
+
 ## [1.52.0] - 2026-07-03
 
 ### Added

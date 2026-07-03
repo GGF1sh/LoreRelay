@@ -31,6 +31,7 @@ import {
     getBulkWorldSimMaxSteps,
     isBulkWorldSimDebugEnabled,
 } from './worldSimBulkRunner';
+import { runObserverWorldTick } from './worldObservatoryTick';
 import { isActiveDebugScenario } from './debugScenarioRunner';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
@@ -1019,6 +1020,12 @@ function sendWorldView(): void {
     pushWorldViewToWebview(getCurrentLocationIdForWorldView());
 }
 
+/** World Observatory: advance the world one tick without a player turn (watch/advance mode). */
+function handleObserverWorldTick(mode: 'watch' | 'advance'): void {
+    runObserverWorldTick(mode);
+    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+}
+
 
 async function handleGenerateWorldForge(
     seed: string,
@@ -1391,6 +1398,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendScenarioDirector,
         sendPartyDirector,
         sendWorldView,
+        handleObserverWorldTick,
         handleGenerateWorldForge,
         handleGenerateWorldMapImage,
         handleGenerateLocationImage,

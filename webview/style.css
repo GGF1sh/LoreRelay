@@ -3391,3 +3391,185 @@ body.profile-parlor .profile-parlor-only {
   color: #8fd49a;
   margin-top: 6px;
 }
+
+/* --- 88-world-observatory.css --- */
+/* ========= World Observatory — market sparklines / chronicle / NPC bonds ========= */
+
+#world-observatory {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.15);
+  font-size: 0.85em;
+}
+
+#world-observatory.hidden {
+  display: none !important;
+}
+
+.observatory-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.observatory-title {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.observatory-turn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--glass-border);
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.observatory-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b0e57c;
+}
+
+.observatory-live-dot.auto-on {
+  background: #f4a261;
+}
+
+.observatory-spacer {
+  flex: 1;
+}
+
+.observatory-mode-select {
+  font-size: 0.8em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.25);
+  color: var(--text-main);
+}
+
+.observatory-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  font-size: 0.8em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.observatory-btn:hover {
+  background: var(--accent-dim);
+  color: #fff;
+}
+
+.observatory-section-heading {
+  font-size: 0.75em;
+  opacity: 0.6;
+  margin: 0.7rem 0 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.observatory-market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+.observatory-market-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.observatory-market-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.observatory-market-name {
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.observatory-market-loc {
+  color: var(--text-dim);
+  font-size: 0.78em;
+  margin-bottom: 3px;
+}
+
+.observatory-market-idx {
+  font-size: 0.82em;
+  font-weight: 600;
+}
+
+.observatory-spark {
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+.observatory-chronicle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.observatory-chronicle-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid rgba(255,255,255,0.1);
+  font-size: 0.85em;
+}
+
+.observatory-chronicle-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.observatory-chronicle-dot.severity-warning {
+  background: #f4a261;
+}
+
+.observatory-chronicle-dot.severity-critical {
+  background: #e76f51;
+}
+
+.observatory-chronicle-text {
+  flex: 1;
+  color: var(--text-main);
+}
+
+.observatory-chronicle-turn {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.observatory-empty {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  padding: 0.4rem 0;
+}

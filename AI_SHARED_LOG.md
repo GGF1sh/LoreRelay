@@ -6,11 +6,26 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.52.0** |
+| Package version | **1.53.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
-| Tests | `npm test` **131/131** |
-| Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) |
+| World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
+| Tests | `npm test` **132/132** |
+| Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) · World Observatory の NPC相関図(見た目はFable5がモック済み、配線は未着手) |
+
+---
+
+## 2026-07-03 JST - Claude (Sonnet 5) - World Observatory v1.53.0
+
+- **「変わりゆく世界を見守る」観測ダッシュボードを実装**。設計ブリーフは前セッション(Opus 4.8)作成の `docs/WORLD_OBSERVATORY_WIRING_BRIEF.md`、見た目のモックは Fable5 が別途作成。`enableWorldObservatory`(既定OFF)。
+- **相場スパークライン** — `world_state.json` に `marketPriceHistory`(locationId→commodityId→直近24件のpriceIndex、リングバッファ)を新規追加。純関数 `worldObservatoryCore.ts:appendMarketPriceHistory()`。`worldStateCore.ts` に型・パーサーを既存の `markets`/`npcPositions` と同じ検証パターンで追加。
+- **年代記** — 既存の F1 Chronicle(`chronicleCore.ts`/`chronicleLoader.ts`)の出力をそのまま World タブへ横流し。新規計算ロジックなし。`enableWorldObservatory` 時のみ計算してI/Oコストを避ける(`state_journal.ndjson` の再読込が入るため)。
+- **観測者モード(watch/advance)** — プレイヤーのターンなしで世界を1ティック進める。`watch`=無コストで世界のみ進行。`advance`=それに加え作中1日ぶんの旅費食料を消費(既存 `applyTravelFoodConsumption` を再利用、Commerce有効時のみ)。
+- **器は非破壊** — `webview/modules/88-world-observatory.js`(新規、独立モジュール)が自前の `message` リスナーで描画し、ホットな `85-world.js` は1行も変更していない。
+- **安全性の核心** — `emergentSimulator.ts:maybeTickSimulation` の中核ロジックを `runOneWorldStep()` として抽出・共有(挙動は不変、`test_emergent_simulator.js` で確認済み)。`watch` モードは `world_state.json` のみ変更し `game_state.json`(Persist-Before-Narrate領域)には触れないため観測ティックがセーブを壊すことはない。`advance` の資源消費のみ、Commerce UI の直接取引(`executeLivingWorldDirectTrade`)と同じ安全な非同期・楽観的並行制御(`scheduleCommercePersist`)を再利用。
+- 自動観測はWebview側の `setInterval`(最短1.1秒・連続200tickで自動停止)で駆動、ホストは冪等ハンドラに徹する。
+- `test_world_observatory_core.js` 新規(9ケース)。テスト **132/132**、`check_version_consistency.js` PASS。
+- **次候補:** NPC相関図(Fable5がモック作成済み、配線は今回スコープ外)・観測モードの速度/上限のUXチューニング。
 
 ---
 

@@ -65,6 +65,8 @@ export interface GameRules {
     enableCampaignKit?: boolean;
     /** Optional built-in Campaign Kit preset id; ignored when campaign_kit.json exists. */
     campaignKitId?: string;
+    /** World Observatory: watch-the-world dashboard (price sparklines / chronicle / NPC bonds) + observer tick (default OFF). */
+    enableWorldObservatory?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -104,7 +106,8 @@ export const DEFAULT_GAME_RULES: GameRules = {
     guildBoardSize: 3,
     guildMaxActiveQuests: 2,
     enableCampaignKit: false,
-    campaignKitId: ''
+    campaignKitId: '',
+    enableWorldObservatory: false,
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -298,6 +301,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
             } else if (/^[a-zA-Z0-9_-]{1,64}$/.test(kitId)) {
                 sanitized.campaignKitId = kitId;
             }
+        }
+        if (rules.enableWorldObservatory !== undefined && typeof rules.enableWorldObservatory === 'boolean') {
+            sanitized.enableWorldObservatory = rules.enableWorldObservatory;
         }
     }
 

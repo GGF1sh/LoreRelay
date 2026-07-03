@@ -159,6 +159,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_tavern_card_importer.js' },
     { category: 'unit', file: 'test_protagonist_bootstrap_core.js' },
     { category: 'unit', file: 'test_vscode_lm_turn_result_core.js' },
+    { category: 'unit', file: 'test_world_observatory_core.js' },
 ];
 
 function parseMode(argv) {

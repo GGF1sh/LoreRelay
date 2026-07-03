@@ -25,6 +25,7 @@ const JS_MODULE_ORDER = [
     '85-world.js',
     '86-tile-overmap.js',
     '87-parlor-settings.js',
+    '88-world-observatory.js',
     '90-bootstrap.js'
 ];
 
@@ -42,7 +43,8 @@ const CSS_MODULE_ORDER = [
     '90-game-rules.css',
     '90-inspector.css',
     '95-character-creator.css',
-    '87-parlor-settings.css'
+    '87-parlor-settings.css',
+    '88-world-observatory.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

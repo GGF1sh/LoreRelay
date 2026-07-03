@@ -27,6 +27,23 @@
 `game_state.json`→`state_journal.ndjson`）とは物理的に別系統。GM も narrative も走らない。
 したがって観測ティックが暴走しても **プレイヤーのセーブは破壊されない**。この分離を崩す実装を書かないこと。
 
+### 副作用契約（v1.56.0 — `worldObservatoryCore.OBSERVER_TICK_CONTRACT`）
+
+**Watch は「読取専用」ではない。** プレイヤー/GM ターンなしで Living World を1ステップ進める。
+
+| モード | 書き込み | 書かない |
+|--------|----------|----------|
+| **watch** | `world_state.json`, `npc_registry.json` | `game_state.json` |
+| **advance** | 上記 + `game_state.commerce.food`（Commerce ON 時、`scheduleCommercePersist` 経由） | `game_state.entries` / ターンジャーナル |
+
+**`computeOneWorldStep` が進める world_state フィールド（共有パイプライン）:**  
+`worldTurn`, `markets`, `factions`, `regions`, `questHooks`, `npcPositions`, `npcRelationships`, `recentChanges`, `globalEvents`, `marketPriceHistory`（観測所のみ追記）
+
+**永続化順序（`persistWorldStepOutcome`）:** `npc_registry`（変更時のみ）→ `world_state`
+
+UI: World タブ観測所ヘッダ下に `webview.observatory.sideEffectsWatch/Advance` を表示。  
+テスト: `test_observer_tick_side_effect_contract.js`
+
 ---
 
 ## 1. 器（Webview）— 85-world.js を触らない

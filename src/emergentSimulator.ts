@@ -37,19 +37,20 @@ export function applyLivingWorldAfterSimulationStep(
 export interface WorldStepOutcome {
     state: WorldState;
     registry: NpcRegistry | undefined;
+    registryUpdated: boolean;
 }
 
 /**
  * 決定論の世界1ステップ(sim tick → registry反映 → Living World tick → quest hooks)を
- * 実行するが、まだディスクへ保存しない。`maybeTickSimulation`(GM連動)と
- * `runObserverWorldTick`(観測者モード、World Observatory)の両方から共有される。
+ * 計算するだけでディスクへは書かない。`persistWorldStepOutcome()` で保存する。
  */
-export function runOneWorldStep(forge: WorldForge, state: WorldState, rules = loadGameRules()): WorldStepOutcome {
+export function computeOneWorldStep(forge: WorldForge, state: WorldState, rules = loadGameRules()): WorldStepOutcome {
     const { state: stepped, stepEvents } = runSimulationStep(forge, state);
     let next = stepped;
 
     // Propagate only this step's events — re-processing recentChanges would inflate needs
     let currentRegistry: NpcRegistry | undefined = undefined;
+    let registryUpdated = false;
     if (rules.enableNpcRegistry) {
         currentRegistry = loadNpcRegistry();
         if (stepEvents.length > 0) {
@@ -59,18 +60,39 @@ export function runOneWorldStep(forge: WorldForge, state: WorldState, rules = lo
                 forge
             );
             if (updatedIds.length > 0) {
-                saveNpcRegistry(updated);
+                currentRegistry = updated;
+                registryUpdated = true;
             }
-            currentRegistry = updated;
         }
     }
 
     next = applyLivingWorldAfterSimulationStep(forge, next, currentRegistry);
 
-    // Phase 8: Generate Quest Hooks before saving world state
+    // Phase 8: Generate Quest Hooks before persisting world state
     generateQuestHooks(next, currentRegistry, false);
 
-    return { state: next, registry: currentRegistry };
+    return { state: next, registry: currentRegistry, registryUpdated };
+}
+
+/** Write npc_registry (when changed) then world_state — shared by GM sim tick and Observatory. */
+export function persistWorldStepOutcome(
+    outcome: WorldStepOutcome,
+    patch?: Partial<WorldState>
+): void {
+    if (outcome.registryUpdated && outcome.registry) {
+        saveNpcRegistry(outcome.registry);
+    }
+    const state = patch ? { ...outcome.state, ...patch } : outcome.state;
+    saveWorldState(state);
+}
+
+/**
+ * @deprecated Prefer `computeOneWorldStep` + `persistWorldStepOutcome` for explicit persist control.
+ */
+export function runOneWorldStep(forge: WorldForge, state: WorldState, rules = loadGameRules()): WorldStepOutcome {
+    const outcome = computeOneWorldStep(forge, state, rules);
+    persistWorldStepOutcome(outcome);
+    return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,10 +115,8 @@ export function maybeTickSimulation(gmTurnCount: number): void {
     const state = ensureWorldStateExists(forge);
     if ((state.lastSimulatedGmTurn ?? 0) >= gmTurnCount) { return; }
 
-    const { state: next } = runOneWorldStep(forge, state, rules);
-    next.lastSimulatedGmTurn = gmTurnCount;
-
-    saveWorldState(next);
+    const outcome = computeOneWorldStep(forge, state, rules);
+    persistWorldStepOutcome(outcome, { lastSimulatedGmTurn: gmTurnCount });
 }
 
 // ---------------------------------------------------------------------------

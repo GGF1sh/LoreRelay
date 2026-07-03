@@ -20,6 +20,15 @@
   flex-wrap: wrap;
 }
 
+.observatory-side-effects {
+  margin: 0.45rem 0 0.55rem;
+  padding: 0.35rem 0.5rem;
+  border-left: 2px solid rgba(176, 229, 124, 0.45);
+  color: var(--text-muted);
+  font-size: 0.78em;
+  line-height: 1.45;
+}
+
 .observatory-glyph {
   font-size: 1.05em;
   line-height: 1;

@@ -45,6 +45,74 @@ export function appendMarketPriceHistory(
 
 export type ObserverTickMode = 'watch' | 'advance';
 
+/** Workspace files an observer tick may touch (contract for UI/docs/tests). */
+export type ObserverPersistTarget = 'game_state' | 'world_state' | 'npc_registry';
+
+export interface ObserverModeContract {
+    mode: ObserverTickMode;
+    /** Files this mode may write. */
+    writes: readonly ObserverPersistTarget[];
+    /** Files this mode never writes. */
+    doesNotWrite: readonly ObserverPersistTarget[];
+    /** world_state fields advanced by the shared computeOneWorldStep pipeline. */
+    worldStepEffects: readonly string[];
+    /** Human-facing summary (English; UI uses i18n keys). */
+    summary: string;
+}
+
+/**
+ * Published side-effect boundary for World Observatory ticks.
+ * Watch is NOT read-only: it advances the living world without touching game_state.
+ */
+export const OBSERVER_TICK_CONTRACT: Record<ObserverTickMode, ObserverModeContract> = {
+    watch: {
+        mode: 'watch',
+        writes: ['world_state', 'npc_registry'],
+        doesNotWrite: ['game_state'],
+        worldStepEffects: [
+            'worldTurn',
+            'markets',
+            'marketPriceHistory',
+            'factions',
+            'regions',
+            'questHooks',
+            'npcPositions',
+            'npcRelationships',
+            'recentChanges',
+            'globalEvents',
+        ],
+        summary: 'Advances world_state and npc_registry only; game_state entries/commerce untouched.',
+    },
+    advance: {
+        mode: 'advance',
+        writes: ['world_state', 'npc_registry', 'game_state'],
+        doesNotWrite: [],
+        worldStepEffects: [
+            'worldTurn',
+            'markets',
+            'marketPriceHistory',
+            'factions',
+            'regions',
+            'questHooks',
+            'npcPositions',
+            'npcRelationships',
+            'recentChanges',
+            'globalEvents',
+        ],
+        summary: 'Same as watch, plus commerce.food travel cost (game_state) when Commerce is enabled.',
+    },
+};
+
+/** Persist order for a world step: registry before world_state when both change. */
+export function observerPersistSequence(registryUpdated: boolean): readonly ObserverPersistTarget[] {
+    const seq: ObserverPersistTarget[] = [];
+    if (registryUpdated) {
+        seq.push('npc_registry');
+    }
+    seq.push('world_state');
+    return seq;
+}
+
 export function normalizeObserverTickMode(raw: unknown): ObserverTickMode {
     return raw === 'advance' ? 'advance' : 'watch';
 }

@@ -28,7 +28,7 @@
 **最大リスク（v1.54.0 後）**
 
 1. ~~**P1:** `world_state.json` questHooks LWW（観測者 tick × accept job）~~ — **FIXED v1.55.0**
-2. **P2:** Observatory watch の副作用境界（NPC registry / quest hooks）の仕様明文化
+2. ~~**P2:** Observatory watch 副作用境界~~ — **FIXED v1.56.0**（`OBSERVER_TICK_CONTRACT` + UI + compute/persist 分離）
 3. **P2:** `campaign_resources.json` / `discoveries.json` 専用 write queue 未整備
 4. **P2（横断）:** プロンプト eviction チューニング・`game_state`/`world_state` Split Brain
 
@@ -63,10 +63,9 @@
 - 新: `commitGameState()` → `CommitGameStateResult`；`!commit.ok` なら ledger 書き込みスキップ + turn 失敗。
 - テスト: `test_turn_artifact_commit_atomicity.js`（`resolveGameStatePersistPlan` ゲート契約）。
 
-### C-P2: Observatory watch 副作用 — **OPEN**
+### C-P2: Observatory watch 副作用 — **FIXED v1.56.0**
 
-- `runOneWorldStep()` は NPC registry 保存・quest hook 生成を含む。watch は `game_state` 非接触だが「完全読取専用」ではない。
-- 修正案: UI/Docs 明記、または `computeOneWorldStep` / `persistWorldStepOutcome` 分離。
+- `computeOneWorldStep` / `persistWorldStepOutcome` に分離。`OBSERVER_TICK_CONTRACT` + UI 注記 + `WORLD_OBSERVATORY_WIRING_BRIEF.md` 契約表。
 
 ### C-P2: campaign_resources / discoveries write queue — **OPEN**
 
@@ -187,7 +186,7 @@
 | ~~**ChatGPT PR3**~~ | commitGameState result + ledger ゲート | P1 | **1.54.0 ✓** |
 | ~~**PR-4**~~ | `mergeQuestHooks` + `patchWorldStateQuestHooks` | P1 | **1.55.0 ✓** |
 | ~~**PR-5**~~ | `test_world_state_quest_accept_observer_race.js` | P1 | **1.55.0 ✓** |
-| **PR-6** | Observatory 副作用契約（Docs + 可能なら persist 分離） | P2 | 1.55.x |
+| ~~**PR-6**~~ | Observatory 副作用契約 + compute/persist 分離 | P2 | **1.56.0 ✓** |
 | **PR-7** | discoveries / campaign_resources serialized mutation queue | P2 | 1.55.x |
 | **PR-8** | プロンプト: inactive モジュール chunk 省略 | P2 | 1.55.x |
 | ~~PR（Gemini）~~ | ~~StateManager Event Sourcing 全面改修~~ | **却下** | — コスト対効果不適切 |

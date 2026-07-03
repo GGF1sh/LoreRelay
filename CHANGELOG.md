@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.56.0] - 2026-07-03
+
+### Fixed
+
+- **Observatory 副作用契約（PR-6）** — watch は `game_state` 非接触だが **読取専用ではない**（`world_state` + `npc_registry` + questHooks 等を進める）。契約をコード・UI・Docs で明文化。
+  - `OBSERVER_TICK_CONTRACT` / `observerPersistSequence()` を `worldObservatoryCore.ts` に追加。
+  - `computeOneWorldStep()` と `persistWorldStepOutcome()` に分離（registry は world_state 保存前にまとめて persist）。
+  - World タブに副作用注記（i18n ×4）、`WORLD_OBSERVATORY_WIRING_BRIEF.md` に契約表を追記。
+
+### Added
+
+- `test_observer_tick_side_effect_contract.js` — watch/advance 契約と persist 順序を検証。テスト **136/136**。
+
 ## [1.55.0] - 2026-07-03
 
 ### Fixed

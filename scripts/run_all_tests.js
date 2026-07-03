@@ -163,6 +163,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_protagonist_bootstrap_core.js' },
     { category: 'unit', file: 'test_vscode_lm_turn_result_core.js' },
     { category: 'unit', file: 'test_world_observatory_core.js' },
+    { category: 'unit', file: 'test_observer_tick_side_effect_contract.js' },
 ];
 
 function parseMode(argv) {

@@ -1,15 +1,17 @@
 // World Observatory — observer tick (host layer, needs workspace).
 // Advances the world without a player turn: driven by the webview's "watch"/"advance" toggle,
-// never by the GM. Writes only world_state.json (+ npc_registry.json) in 'watch' mode; 'advance'
-// mode additionally deducts travel food via the same debounced, revision-checked game_state write
-// path already used by the Commerce UI's direct-trade buttons (scheduleCommercePersist).
+// never by the GM.
+//
+// Side-effect contract (see worldObservatoryCore.OBSERVER_TICK_CONTRACT):
+//   watch   — world_state + npc_registry; NOT game_state
+//   advance — same + commerce.food via scheduleCommercePersist when Commerce is enabled
 
 import * as fs from 'fs';
 import type { GameRules } from './gameRules';
 import { loadGameRules } from './gameRules';
 import { loadWorldForge, loadWorldForgeDocument } from './worldForge';
-import { ensureWorldStateExists, saveWorldState } from './worldState';
-import { runOneWorldStep } from './emergentSimulator';
+import { ensureWorldStateExists } from './worldState';
+import { computeOneWorldStep, persistWorldStepOutcome } from './emergentSimulator';
 import { resolveCommerceForge } from './livingWorldBridge';
 import { applyTravelFoodConsumption } from './livingWorldTurnOpsCore';
 import { readStateRevision } from './workspaceStateQueueCore';
@@ -69,8 +71,8 @@ function applyObserverAdvanceCost(rules: GameRules): void {
 
 /**
  * 観測者モード: プレイヤーのターンなしで世界を1ティック進める。
- * mode==='watch' は world_state.json のみ変更(game_state.json には触れない)。
- * mode==='advance' はそれに加えて作中1日ぶんの資源消費を上記の安全な経路で反映する。
+ * mode==='watch' — world_state + npc_registry（game_state 非接触）。
+ * mode==='advance' — 上記に加え commerce.food を scheduleCommercePersist 経由で反映。
  */
 export function runObserverWorldTick(rawMode: unknown): void {
     const rules = loadGameRules();
@@ -82,11 +84,9 @@ export function runObserverWorldTick(rawMode: unknown): void {
     const state = ensureWorldStateExists(forge);
     const mode: ObserverTickMode = normalizeObserverTickMode(rawMode);
 
-    const { state: stepped } = runOneWorldStep(forge, state, rules);
-    const next = stepped;
-    next.marketPriceHistory = appendMarketPriceHistory(next.markets, next.marketPriceHistory);
-
-    saveWorldState(next);
+    const outcome = computeOneWorldStep(forge, state, rules);
+    const marketPriceHistory = appendMarketPriceHistory(outcome.state.markets, outcome.state.marketPriceHistory);
+    persistWorldStepOutcome(outcome, { marketPriceHistory });
 
     if (mode === 'advance') {
         applyObserverAdvanceCost(rules);

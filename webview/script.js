@@ -9105,6 +9105,7 @@ function drawTileOvermap() {
                 <button class="observatory-btn" id="observatory-tick-btn">${escapeHtml(T('webview.observatory.tickOnce'))}</button>
                 <button class="observatory-btn" id="observatory-auto-btn">${escapeHtml(T('webview.observatory.autoStart'))}</button>
             </div>
+            <p class="observatory-side-effects" id="observatory-side-effects" role="note"></p>
             <div class="observatory-section-heading">${escapeHtml(T('webview.observatory.marketsHeading'))}</div>
             <div class="observatory-market-grid" id="observatory-market-grid"></div>
             <div class="observatory-section-heading">${escapeHtml(T('webview.observatory.chronicleHeading'))}</div>
@@ -9124,7 +9125,20 @@ function drawTileOvermap() {
         if (autoBtn) {
             autoBtn.addEventListener('click', () => toggleAutoObserve(modeSelect ? modeSelect.value : 'watch'));
         }
+        if (modeSelect) {
+            modeSelect.addEventListener('change', () => updateSideEffectsNote(modeSelect.value));
+            updateSideEffectsNote(modeSelect.value);
+        }
         return el;
+    }
+
+    function updateSideEffectsNote(mode) {
+        const el = document.getElementById('observatory-side-effects');
+        if (!el) return;
+        const key = mode === 'advance'
+            ? 'webview.observatory.sideEffectsAdvance'
+            : 'webview.observatory.sideEffectsWatch';
+        el.textContent = T(key);
     }
 
     function sendObserverTick(mode) {

@@ -2,6 +2,7 @@
 
 Date: 2026-07-04 JST
 Reviewer: Codex / ChatGPT (run **after** Claude implements M4 UX)
+Status override after review: **Approved** - M4c UX preview/request flow may proceed to follow-up work
 Status: **Pending** — fill findings after Claude delivery
 
 Prerequisites:
@@ -38,7 +39,22 @@ authorize new persistence surfaces.
 
 | Severity | Finding | Decision |
 |---|---|---|
-| | | |
+| Info | Static review confirmed the Webview path only inserts chat text for `expand_layer` requests; it does not write `settlement_layout.json` or apply `settlementOps` directly. | Pass |
+| Info | `buildSettlementExpansionPreviews()` derives ghost previews in memory from M4a `applyExpandLayerToLayout()`, only for missing bounded layers/profiles, with allow-listed preview keys. | Pass |
+| Info | Existing layer buttons remain bounded to `z1`, `z0`, `z-1`, `z-2`; offered profiles are the closed M4a set. Existing layers do not receive preview CTA entries. | Pass |
+| Info | Verification run by Codex: `npm run compile`; `test_settlement_view_core.js`; `test_webview_world_modules.js`; `check_i18n_keys.js`; `validate_utf8_docs.js`. | Pass |
+
+## Gate Result (2026-07-04 JST)
+
+Approved. M4c stays within the UX-only boundary:
+
+- No Webview disk writes.
+- No direct `settlement_layout.json` mutation from UI.
+- User action posts `insertChatText` with a bounded `expand_layer` request.
+- Preview rendering is read-only and visually distinct.
+- M4b persistence remains the only write path after a GM turn emits `turn_result.settlementOps.expand_layer`.
+
+Follow-up may proceed to M2 replay/remote overlay wiring, unless manual UI testing finds a visual-only issue.
 
 ## Expected M4c Contract
 

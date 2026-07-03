@@ -169,8 +169,27 @@ const {
     }, { worldTurn: 4, stockConsumption: [] });
     if (outOfFood.morale !== 48) {
         fail(`morale should drop when food is OUT: ${outOfFood.morale}`);
+    } else if (!outOfFood.stocks.find((s) => s.id === 'food' && s.amount === 0)) {
+        fail('food entry should remain at 0 for OUT semantics');
     } else {
         ok('tick applies morale pressure when food is OUT');
+    }
+}
+
+{
+    const depleted = tickSettlementState({
+        ...emptySettlementState('hub', 'Hub'),
+        stocks: [{ id: 'food', amount: 1 }],
+        morale: 50,
+    }, {
+        worldTurn: 2,
+        stockConsumption: [{ stockId: 'food', amount: 1 }],
+    });
+    const food = depleted.stocks.find((s) => s.id === 'food');
+    if (!food || food.amount !== 0) {
+        fail(`food should remain at 0 after last unit consumed: ${JSON.stringify(depleted.stocks)}`);
+    } else {
+        ok('last stock unit consumed leaves zero entry');
     }
 }
 

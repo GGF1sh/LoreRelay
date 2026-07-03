@@ -688,9 +688,7 @@ function adjustStockList(stocks: SettlementStock[], stockId: string, delta: numb
     const map = new Map(stocks.map((s) => [s.id, s.amount]));
     const before = map.get(stockId) ?? 0;
     map.set(stockId, Math.max(0, Math.min(MAX_STOCK_AMOUNT, before + delta)));
-    return [...map.entries()]
-        .filter(([, amount]) => amount > 0)
-        .map(([id, amount]) => ({ id, amount }));
+    return [...map.entries()].map(([id, amount]) => ({ id, amount }));
 }
 
 export function tickSettlementState(

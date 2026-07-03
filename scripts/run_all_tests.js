@@ -53,6 +53,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_campaign_kit_core.js' },
     { category: 'unit', file: 'test_campaign_resources_core.js' },
     { category: 'unit', file: 'test_settlement_core.js' },
+    { category: 'unit', file: 'test_settlement_stock_zero_semantics.js' },
     { category: 'unit', file: 'test_map_overlay_core.js' },
     { category: 'unit', file: 'test_settlement_event_core.js' },
     { category: 'unit', file: 'test_settlement_view_core.js' },

@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.39.9-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.44.2-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -42,7 +42,8 @@
 - 📜 **Chronicle & Campaign Tools (v1.10+):** Quest Board、Git Timeline、Agentic GM（Referee/Narrator 2段階）、Adaptive TTS / NPC 個別音声。
 - 🧭 **Fable5 Layer (v1.19+):** Chronicle あらすじ注入、Pacing Director、派閥レピュテーション、旅路エンカウント、Replay Export。
 - 🛒 **Living World Economy (v1.23+、experimental):** 貿易・相場・輸送、Commerce UI（Buy/Sell）、NPC Agency、信頼連動の所在、NPC↔NPC / プレイヤー↔NPC の絆（LW3）、盟友の交易還元（v1.33+）。
-- 🏰 **Domain Mode (v1.39+、experimental):** 領地運営（太閤立志伝風月次方針）— `enableDomainMode` 既定 OFF · イベント駆動 · compact GM プロンプト · D3 UI は未実装。
+- 🏰 **Domain Mode (v1.39+、experimental):** 領地運営（太閤立志伝風月次方針）— `enableDomainMode` 既定 OFF · F7–F10 engine + World タブ UI（v1.40.0）· compact GM プロンプト。
+- ⚔️ **Guild Master (v1.41–1.44、experimental):** 冒険者ギルド / 依頼掲示板 — `enableGuildMode` 既定 OFF · G1 週次コミット · G2 依頼裁定 · G3 パーティ派遣 · G4 留守ドリフト + Since-last-visit。
 
 ### 🎭 Parlor モード（SillyTavern 風 1対1 RP）
 
@@ -279,9 +280,9 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 
 ## 🗺️ Roadmap
 
-> **版の正本:** `package.json`（現行 **1.34.0**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · タスク黒板は [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **版の正本:** `package.json`（現行 **1.44.2**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · タスク黒板は [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
-**実装済み（v1.33.0 時点・要約）**
+**実装済み（要約）**
 
 | 世代 | 主な内容 |
 |------|----------|
@@ -290,6 +291,9 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 | **v1.13–1.18** | Tile Overmap · Cartography C8/C9（地図アイテム）· Debug sandbox · 世界時間経過 |
 | **v1.19–1.21** | Chronicle · Pacing Director · 派閥レピュテーション · 旅路エンカウント · Replay Export |
 | **v1.23–1.33** | Living World 経済（Commerce / Agency）· Commerce UI · trust 所在 · **LW3 絆**（NPC↔NPC / プレイヤー↔NPC / 交易波及） |
+| **v1.34** | Parlor Mode（1対1 RP）· ST カード互換 |
+| **v1.39–1.40** | Domain Mode（D1–D5）· D3 World タブ UI · F7 謁見 / F8 隣国 / F9 派遣 / F10 合戦 |
+| **v1.41–1.44** | Guild Master G1–G4（週次コミット · 依頼板 · パーティ派遣 · 留守ドリフト） |
 
 体験の入口: [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)（stable / experimental）· `sample-scenarios/trade-routes`
 

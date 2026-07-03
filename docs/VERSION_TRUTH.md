@@ -20,7 +20,7 @@ LoreRelay には **3 種類の「版」** があり、混同すると Web Grok /
 | [GitHub Releases](https://github.com/GGF1sh/LoreRelay/releases) | **ユーザーが `Check for Updates` で取る版** |
 | タグ `v*` push | `.github/workflows/release.yml` が VSIX を添付（`package.json` と一致必須） |
 
-**注意:** main の `package.json` が **1.34.0** でも、GitHub Release が古いタグのままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布は遅れている**。
+**注意:** main の `package.json` が進んでいても、GitHub Release が古いタグのままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布は遅れている**。
 
 ## 3. 説明ドキュメント（履歴・スナップショット）
 
@@ -37,6 +37,7 @@ LoreRelay には **3 種類の「版」** があり、混同すると Web Grok /
 ```powershell
 cd C:\AI\text-adventure-vsce
 node -p "require('./package.json').version"
+node scripts/check_version_consistency.js
 git fetch origin
 git log origin/main --oneline -1
 git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object -Last 3
@@ -54,9 +55,11 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.41.0** |
-| CHANGELOG 先頭 | **[1.41.0]** G1 Guild Master engine |
-| Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7 謁見 / F8 ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ、**全て engine + World タブ UI 済み** — `docs/DOMAIN_MODE_DESIGN.md` §12 · `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F7–§F10 |
+| `package.json` | **1.44.2** |
+| CHANGELOG 先頭 | **[1.44.2]** docs / version truth sync |
+| Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7–F10 engine + World タブ UI · v1.40.1 hardening |
+| Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |
+| Parlor Mode | v1.34.0 出荷済 |
+| Living World | v1.23–1.34（Commerce / Agency / LW3）+ Domain v1.39.x–1.40.x |
 | GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
-| Living World | v1.23–1.34（Commerce / Agency / LW3 / Parlor）+ Domain v1.39.x–1.40.0 |
-| テスト | `npm test` **113/113**（webview UI は compile + i18n/HTML 検証のみ。**F5 実機確認は未実施**） |
+| テスト | `npm test` **118/118**（`check_version_consistency.js` 含む） |

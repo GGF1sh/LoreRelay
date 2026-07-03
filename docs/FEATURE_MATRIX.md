@@ -33,6 +33,10 @@
 | **Domain Rivals (隣国ライバル)** | OFF | **experimental** | v1.40.0 · `enableDomainRivals` · World タブパネル済み |
 | **Domain Missions (主命・派遣)** | OFF | **experimental** | v1.40.0 · `enableDomainMissions` · World タブパネル済み |
 | **Domain Mass Battle (合戦)** | OFF | **experimental** | v1.40.0 · `enableMassBattle` · World タブパネル済み |
+| **Guild Master Mode** | OFF | **experimental** | v1.41.0 · `enableGuildMode` · weekly commit + World タブ |
+| **Guild Requests (依頼板)** | OFF | **experimental** | v1.42.0 · `enableGuildRequests` · bulk / parley tier |
+| **Guild Parties (派遣)** | OFF | **experimental** | v1.43.0 · `enableGuildParties` · Bond 連動クエスト判定 |
+| **Guild Absence Drift** | with guild | **experimental** | v1.44.0 · hall 離脱/帰還 · Since-last-visit プロンプト |
 
 ## Quick demo paths
 

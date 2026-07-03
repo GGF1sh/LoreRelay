@@ -13,6 +13,18 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.44.2] - 2026-07-03
+
+### Docs
+
+- **Version truth sync** — `docs/VERSION_TRUTH.md` · README version badges（4 ロケール）· Roadmap 要約 · `docs/FEATURE_MATRIX.md` Guild 行 · `AI_SHARED_LOG` Current Snapshot → **1.44.2**（G1–G4 完了反映）。
+- **`scripts/check_version_consistency.js`** — `package.json` / `package-lock.json` / README バッジの整合チェック（`npm test` に登録）。
+
+### Verification
+
+- `npm test` **118/118**
+- `npm run compile` クリーン
+
 ## [1.44.1] - 2026-07-03
 
 ### Fixed

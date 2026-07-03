@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.39.9-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.44.2-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -38,6 +38,8 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🛡️ **Robust State Management:** Size clamps, invalid ID purge, and safe state migrations to prevent UI crashes from oversized data.
 - 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM analyzes generated images into `visual_memory.json` and injects visual context into later GM prompts.
 - 🔒 **Audit Wave Hardening (v1.6):** Seven-track audit across State, GM Bridge, World, ST Import, Webview, Remote Play, and Extension Hub with pure validation modules and expanded regression tests.
+- 🏰 **Domain Mode (v1.39+, experimental):** Lordship / fief management — `enableDomainMode` OFF by default · F7–F10 engine + World tab UI (v1.40.0).
+- ⚔️ **Guild Master (v1.41–1.44, experimental):** Adventurer guild / quest board — `enableGuildMode` OFF by default · weekly commit · request rulings · party dispatch · absence drift.
 
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -237,9 +239,9 @@ Also under `TextAdventureGMSkill/scenarios/`.
 
 ## 🗺️ Roadmap
 
-> **Source of truth:** `package.json` (currently **1.34.0**) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **Source of truth:** `package.json` (currently **1.44.2**) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
-**Shipped (summary at v1.33.0)**
+**Shipped (summary)**
 
 | Era | Highlights |
 |-----|------------|
@@ -248,6 +250,9 @@ Also under `TextAdventureGMSkill/scenarios/`.
 | **v1.13–1.18** | Tile Overmap · Cartography C8/C9 · Debug sandbox · world time passage |
 | **v1.19–1.21** | Chronicle · Pacing Director · faction reputation · travel encounters · Replay Export |
 | **v1.23–1.33** | Living World economy (Commerce / Agency) · Commerce UI · trust whereabouts · **LW3 bonds** (NPC↔NPC / player↔NPC / trade ripple) |
+| **v1.34** | Parlor Mode (1-on-1 RP) · ST card import |
+| **v1.39–1.40** | Domain Mode (D1–D5) · D3 World tab UI · F7 audience / F8 rivals / F9 missions / F10 mass battle |
+| **v1.41–1.44** | Guild Master G1–G4 (weekly commit · request board · party dispatch · absence drift) |
 
 See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.
 

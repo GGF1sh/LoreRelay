@@ -6,12 +6,38 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.41.0** |
-| Domain Mode | D1–D5 **完了** · D3 UI 完了 · F7–F10 完了 |
-| Guild Master (F11) | **G1 完了**（`guildCore` 週次コミット + World タブ読み取り専用）· G2 依頼人キューは次 |
+| Package version | **1.44.2** |
+| Domain Mode | D1–D5 + D3 UI + F7–F10 **完了**（v1.40.0–1.40.1） |
+| Guild Master (F11) | **G1–G4 完了**（v1.41.0–1.44.1）· v1.44.1 hardening · `enableRivalGuild` 宣言のみ |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **114/114** |
-| Next (推奨) | **G2** `guildRequestCore`（依頼人キュー + 一括/面談 tier）→ G3 派遣 → G4 留守ドリフト |
+| Tests | `npm test` **118/118** |
+| Next (推奨) | **G5** ライバルギルド tick 設計 or F12 家史エピローグ · `git push origin v1.44.2` で Release |
+
+---
+
+## 2026-07-03 JST - Grok - G1–G4 docs sync + version consistency (v1.44.2)
+
+### Summary
+
+- README バッジ・Roadmap（4 ロケール）· `VERSION_TRUTH` · `FEATURE_MATRIX` Guild 行 · Current Snapshot を **1.44.2** に同期。
+- `scripts/check_version_consistency.js` 新規（`package.json` / lock / README バッジ）。
+
+### Verification
+
+- `npm test` **118/118**
+- `npm run compile` クリーン
+
+---
+
+## 2026-07-03 JST - Grok - G1–G4 Guild hardening (v1.44.1)
+
+### Summary
+
+- コードレビュー指摘 7 bug + 5 suggestion を修正（drift 時計 · bond map · quest cap · party dedupe · parse hardening 等）。
+
+### Verification
+
+- `npm test` **117/117**
 
 ---
 

@@ -240,7 +240,7 @@ DF/CDDA 風のタイルオーバーマップ表示モード。「GM に読ませ
 | **LW1 + F3 同梱など** | **1.21.0** |
 | パッチ・i18n のみ | **1.x.y** パッチ |
 
-> **現行 `package.json`:** **1.34.0**（2026-07-03 — Parlor Phase A）。設計 doc のみでは Ver を上げないルールは継続。
+> **現行 `package.json`:** **1.44.2**（2026-07-03 — Guild G1–G4 + docs sync）。設計 doc のみでは Ver を上げないルールは継続。
 
 **Planning handoff:** `phase8_planning_and_prompts.md`（Phase 8-11 の担当AI別プロンプト）
 

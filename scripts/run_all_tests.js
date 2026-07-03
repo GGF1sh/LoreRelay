@@ -29,6 +29,7 @@ const DEFAULT_TIMEOUT_MS = 60000;
  */
 const MANIFEST = [
     { category: 'validate', file: 'validate_utf8_docs.js' },
+    { category: 'validate', file: 'check_version_consistency.js' },
     { category: 'validate', file: 'check_i18n_keys.js' },
     { category: 'validate', file: 'validate_webview_html_structure.js' },
     { category: 'validate', file: 'validate.js' },

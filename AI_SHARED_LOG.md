@@ -1,5 +1,18 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Codex - Phase 12 Parlor Mode ChatGPT review package
+
+### Summary
+
+- Added `docs/PARLOR_MODE_CHATGPT_REVIEW.md` with the design-stage security audit, Parlor -> Campaign promotion boundary, and post-Grok implementation gate checklist.
+- Added `TextAdventureGMSkill/PARLOR_SKILL.md` as the Parlor-specific plain-text GM contract for clipboard / Codex / ChatGPT-extension workflows.
+- No production TypeScript/Webview code was changed; this is the ChatGPT Phase 1 deliverable that Grok should read before Phase A implementation.
+
+### Next
+
+- Grok Phase A should treat Critical/High items in `docs/PARLOR_MODE_CHATGPT_REVIEW.md` as release blockers.
+- After Grok implementation, run the Phase 3 gate checklist from the same review doc before tagging v1.34.0.
+
 ## Current Snapshot (2026-07-03)
 
 > **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)

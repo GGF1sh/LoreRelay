@@ -11,6 +11,8 @@
 
 ### Docs
 
+- **Phase 12 Parlor Mode ChatGPT deliverables** — `docs/PARLOR_MODE_CHATGPT_REVIEW.md`（設計段階のセキュリティ監査表・昇格データ境界・実装後ゲート）と `TextAdventureGMSkill/PARLOR_SKILL.md`（Parlor専用のプレーンテキストGM契約ドラフト）を追加。
+
 - **Phase 12 Parlor Mode** — `docs/PARLOR_MODE_DESIGN.md`（Parlor ⟷ Campaign 体験プロファイル）· `docs/PARLOR_MODE_AI_PROMPTS.md`（Gemini/ChatGPT/Grok 振り分け、Claude 除外）
 
 ### Fixed（Gemini LW3-P2 レビュー対応）

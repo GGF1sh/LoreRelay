@@ -13,6 +13,8 @@ export const OPTIONAL_PACK_FILES = [
     'npc_registry.json',
     'world_map.layout.png',
     'game_rules.json',
+    'campaign_kit.json',
+    'discoveries.json',
 ] as const;
 
 /** Resolve a bundled sample directory (dev checkout or packaged extension root). */

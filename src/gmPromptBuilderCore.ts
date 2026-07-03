@@ -406,6 +406,8 @@ export function clampSimulationPromptModule(
 export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     gameRules: 100,
     narrativeTime: 98,
+    campaignKit: 94,
+    discoveryLedger: 93,
     domain: 67,
     guild: 66,
     director: 95,

@@ -1,0 +1,149 @@
+# Campaign Kit Foundation
+
+Campaign Kit is a lightweight genre-loop layer for LoreRelay.
+
+It does not replace Campaign, Living World, Commerce, Quest Hooks, or World Forge.
+It gives the GM a compact vocabulary for "what play is about" in a given world:
+hub, jobs, expedition sites, findings, appraisal/services, and world reaction.
+
+## Activation
+
+There are two supported activation paths.
+
+1. Workspace file:
+
+   `campaign_kit.json`
+
+   If this file exists in the workspace root, LoreRelay parses it and injects it into
+   the GM prompt as the active Campaign Kit.
+
+2. `game_rules.json` flags:
+
+```json
+{
+  "enableCampaignKit": true,
+  "campaignKitId": "postapoc_scavenger"
+}
+```
+
+If `campaignKitId` is omitted, LoreRelay infers a built-in preset from
+`world_forge.json` theme text.
+
+## Built-in Presets
+
+- `classic_fantasy_guild`
+- `postapoc_scavenger`
+- `space_frontier`
+- `eastern_fantasy`
+- `cyberpunk_courier`
+
+## Custom File Example
+
+```json
+{
+  "version": 1,
+  "id": "my_scavenger_loop",
+  "name": "My Scavenger Loop",
+  "genre": "postapocalypse",
+  "loop": {
+    "hubLabel": "Settlement",
+    "jobBoardLabel": "Notice Board",
+    "siteLabel": "Ruin",
+    "lootLabel": "Salvage",
+    "appraisalLabel": "Appraisal",
+    "serviceLabel": "Workshop",
+    "worldReactionLabel": "Faction and market response"
+  },
+  "currencies": ["Credits", "Barter goods"],
+  "resources": ["Food", "Water", "Fuel", "Ammo", "Medicine", "Parts"],
+  "siteTypes": ["Urban ruins", "Bunker", "Dead factory"],
+  "hazards": ["Radiation", "Raiders", "Collapse"],
+  "services": ["Appraisal", "Repair", "Trade", "Rumor gathering"],
+  "discoveryTypes": [
+    { "id": "scrap", "name": "Scrap", "kind": "material" },
+    { "id": "records", "name": "Old records", "kind": "lore" },
+    { "id": "route", "name": "Safe route", "kind": "route" },
+    { "id": "job_seed", "name": "Job lead", "kind": "quest" }
+  ],
+  "gmGuidance": [
+    "Prepare in town, enter a dangerous site, bring back findings, appraise or repair them, then let markets and factions react.",
+    "Unidentified finds should be described first, then clarified by appraisal, repair, research, or expert NPCs."
+  ]
+}
+```
+
+## Prompt Boundary
+
+Campaign Kit is guidance only.
+
+Persistent facts still belong to existing LoreRelay systems:
+
+- `turn_result.json` / `statePatch` for canonical turn updates
+- Quest Hooks for structured quests
+- Commerce `tradeOps` for transactions
+- World Forge / World State for map, factions, regions, and simulation
+
+This keeps genre flavor flexible without forking the engine per setting.
+
+## Integration Matrix
+
+| Campaign Kit concept | LoreRelay system | Notes |
+|---------------------|------------------|-------|
+| Hub / services | World Forge locations + In-World Chat | Social atmosphere, not state |
+| Job / rumor board | Quest Hooks + GM narration | Phase C: generated board |
+| Expedition site | World Forge geography + travel | Danger from region/location |
+| Findings | `discoveries.json` + inventory | Phase B: ledger prompt |
+| Appraisal / repair | GM + Commerce | Phase D: turn ops |
+| Market reaction | Commerce + Living World | `tradeOps` canonical |
+| World reaction | Faction rep + world_state | Simulation when enabled |
+
+## Discovery Ledger (Phase B)
+
+Optional workspace file: `discoveries.json`
+
+```json
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "find_001",
+      "kind": "material",
+      "label": "Black metal shard",
+      "status": "unidentified",
+      "siteId": "north_metro",
+      "valueHint": "old-world electronics housing"
+    }
+  ]
+}
+```
+
+Discovery kinds match Campaign Kit: `material`, `lore`, `social`, `route`, `threat`, `quest`.
+
+Statuses: `unidentified` → `identified` → `appraised` → `sold` / `consumed`.
+
+When present, LoreRelay injects `[Campaign Discoveries]` into the GM prompt (priority 93, below Campaign Kit).
+
+## Implementation Phases
+
+| Phase | Status | Deliverable |
+|-------|--------|-------------|
+| **A** Schema + presets + GM prompt | **done** | `campaignKitCore.ts`, `campaign_kit.json` |
+| **B** Discovery ledger | **done** | `discoveries.json`, `discoveryLedgerCore.ts` |
+| **C** Job/Rumor board runtime | planned | Quest Hook generation per hub |
+| **D** Appraisal state machine | planned | turn_result ops for identify/appraise |
+| **E** Genre preset packs | partial | `scrapbound-settlement` sample |
+
+## Sample Workspace
+
+[`sample-scenarios/scrapbound-settlement`](../sample-scenarios/scrapbound-settlement) — post-apocalyptic scavenger demo with Campaign Kit, discoveries seed, and Commerce.
+
+Quickstart: [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md)
+
+## Prompt Budget
+
+| Chunk | Priority | Char cap |
+|-------|----------|----------|
+| Campaign Kit | 94 | 1800 |
+| Discovery Ledger | 93 | 1200 |
+
+Both rank above Domain/Guild simulation helpers so genre loop guidance survives eviction.

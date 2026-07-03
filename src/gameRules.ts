@@ -61,6 +61,10 @@ export interface GameRules {
     guildBoardSize?: number;
     /** Max simultaneously active quests (1–3, G3+). */
     guildMaxActiveQuests?: number;
+    /** Genre-agnostic hub/job/expedition/discovery loop guidance. */
+    enableCampaignKit?: boolean;
+    /** Optional built-in Campaign Kit preset id; ignored when campaign_kit.json exists. */
+    campaignKitId?: string;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -98,7 +102,9 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableRivalGuild: false,
     guildWeeklyActions: 2,
     guildBoardSize: 3,
-    guildMaxActiveQuests: 2
+    guildMaxActiveQuests: 2,
+    enableCampaignKit: false,
+    campaignKitId: ''
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -281,6 +287,12 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.guildMaxActiveQuests !== undefined && typeof rules.guildMaxActiveQuests === 'number') {
             sanitized.guildMaxActiveQuests = Math.max(1, Math.min(3, Math.floor(rules.guildMaxActiveQuests)));
+        }
+        if (rules.enableCampaignKit !== undefined && typeof rules.enableCampaignKit === 'boolean') {
+            sanitized.enableCampaignKit = rules.enableCampaignKit;
+        }
+        if (typeof rules.campaignKitId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(rules.campaignKitId)) {
+            sanitized.campaignKitId = rules.campaignKitId;
         }
     }
 

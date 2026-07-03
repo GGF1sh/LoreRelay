@@ -1,0 +1,59 @@
+{
+  "format": "text-adventure-scenario/1.0",
+  "meta": {
+    "title": "Scrapbound Settlement",
+    "author": "LoreRelay (sample)",
+    "version": "1.0.0",
+    "description": "Post-apocalyptic scavenger loop demo: notice board rumors, ruin runs, unidentified salvage, appraisal, and market trade.",
+    "tags": ["campaign-kit", "postapocalypse", "scavenger", "commerce", "demo"]
+  },
+  "setup": {
+    "world": "Ash years after the collapse. Scrapbound is a walled settlement of traders, fixers, and ruin-runners. Old metro tunnels and dead factories still hide salvage — and worse.",
+    "protagonist": "A new scavenger with a light pack, a little credit, and no reputation yet.",
+    "tone": "Gritty but hopeful. Everyday survival, sharp banter, and the thrill of a good haul. Explain prices and risks clearly.",
+    "imageMode": "natural",
+    "theme": "post-apocalyptic scavenger ruins",
+    "rules": "Use 1d20 for risky ruin choices. Commerce and Campaign Kit are enabled. Trade via turn_result.tradeOps. Unidentified salvage stays vague until appraisal.",
+    "gameOver": {
+      "mode": "relaxed",
+      "onHpZero": false,
+      "allowImpossibleActions": true
+    }
+  },
+  "director": {
+    "act": "Demo",
+    "chapter": "First Haul",
+    "scene": "Scrapbound Market Row",
+    "objective": "Teach hub → rumor/job → ruin run → salvage → appraisal/sale → world reaction.",
+    "successConditions": [
+      "The player accepts a notice-board job or rumor lead.",
+      "The player enters a ruin and returns with at least one finding.",
+      "An unidentified item is appraised or sold through the settlement loop."
+    ],
+    "failConditions": [
+      "Salvage values are invented without tradeOps or appraisal flow.",
+      "Ruins are described without hazard or preparation choices."
+    ],
+    "guidanceMode": "guided",
+    "endingFlags": ["first_haul", "appraised_item", "market_reaction"],
+    "optionalEncounters": [
+      "A fixer offers to fence goods at a suspicious markup.",
+      "Raiders shadow the road to the metro entrance."
+    ]
+  },
+  "opening": {
+    "bgm": "town",
+    "status": {
+      "location": "Scrapbound Market Row",
+      "time": "Late afternoon / dust haze",
+      "condition": "HP 18/18, Hungry but steady",
+      "funds": "120 credits, empty pack"
+    },
+    "options": [
+      "Read the notice board for paid salvage jobs.",
+      "Ask the fixer what the north metro rumor is about.",
+      "Buy food and a filter mask before leaving town."
+    ],
+    "narrative": "Scrapbound smells like hot metal, fried oil, and rain on old concrete. Vendors shout over a generator chorus while a chalk board lists jobs: wire from the dead factory, med packs from the clinic bunker, \"anything that still boots\" from the north metro.\n\nMira the fixer leans on her counter beside a tray of unidentified scrap. \"You look new. Rule one: don't eat mystery cans. Rule two: bring me junk I can sell, or bring me stories I can sell. Rule three: the metro still has lights sometimes. That's never good news.\"\n\nYour pack is empty, your credits are thin, and the ruins are waiting."
+  }
+}

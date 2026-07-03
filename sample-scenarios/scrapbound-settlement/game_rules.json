@@ -1,0 +1,18 @@
+{
+  "enableRpgMechanics": true,
+  "defaultMaxHp": 18,
+  "defaultMaxMp": 6,
+  "diceDifficulty": "Normal",
+  "enableWorldForge": true,
+  "enableEmergentSimulation": true,
+  "enableCommerce": true,
+  "enableCommerceUi": true,
+  "playerRole": "scavenger",
+  "enableNpcRegistry": true,
+  "enableNpcAgency": false,
+  "enableCampaignKit": true,
+  "campaignKitId": "postapoc_scavenger",
+  "simIntervalTurns": 1,
+  "backgroundSimulation": false,
+  "autoLorebookGrowth": false
+}

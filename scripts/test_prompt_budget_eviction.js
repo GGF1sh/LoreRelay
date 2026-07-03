@@ -20,6 +20,10 @@ if (resolvePromptChunkPriority('gameRules') <= resolvePromptChunkPriority('visio
     fail('gameRules priority should exceed vision');
 } else if (resolvePromptChunkPriority('narrativeTime') <= resolvePromptChunkPriority('director')) {
     fail('narrativeTime priority should exceed director');
+} else if (resolvePromptChunkPriority('campaignKit') <= resolvePromptChunkPriority('domain')) {
+    fail('campaignKit priority should exceed domain/guild simulation helpers');
+} else if (resolvePromptChunkPriority('discoveryLedger') <= resolvePromptChunkPriority('domain')) {
+    fail('discoveryLedger priority should exceed domain/guild simulation helpers');
 } else {
     ok('priority ordering');
 }

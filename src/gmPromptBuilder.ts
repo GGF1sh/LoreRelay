@@ -99,6 +99,8 @@ import { cargoWeight } from './commerceCore';
 import { planTravel, resolveTransportForTheme } from './transportCore';
 import { buildDomainPromptContext } from './domainBridge';
 import { buildGuildPromptContext } from './guildBridge';
+import { buildCampaignKitPromptContext } from './campaignKit';
+import { buildDiscoveryLedgerPromptContext } from './discoveryLedger';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
@@ -188,6 +190,8 @@ function getPromptBudgetPolicy(): PromptBudgetPolicy {
 function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLimitSpec[] {
     const npcCount = Math.max(policy.npcCountWithLocation, policy.npcCountWithoutLocation);
     return [
+        { id: 'campaignKit', label: 'Campaign Kit', limitChars: 1800 },
+        { id: 'discoveryLedger', label: 'Discoveries', limitChars: 1200 },
         { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
         { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
         { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
@@ -1128,6 +1132,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     const sections = [
         buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
         buildSection('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext()),
+        buildSection('campaignKit', 'Campaign Kit', buildCampaignKitPromptContext()),
+        buildSection('discoveryLedger', 'Discoveries', buildDiscoveryLedgerPromptContext()),
         buildSection('domain', 'Domain', buildDomainPromptContextForGm(hint)),
         buildSection('guild', 'Guild', buildGuildPromptContextForGm(hint)),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
@@ -1190,6 +1196,8 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
 
     pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
     pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
+    pushPromptChunk(specs, 'campaignKit', buildCampaignKitPromptContext());
+    pushPromptChunk(specs, 'discoveryLedger', buildDiscoveryLedgerPromptContext());
     pushPromptChunk(
         specs,
         'domain',

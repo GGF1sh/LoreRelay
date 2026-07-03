@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.45.0] - 2026-07-03
+
+### Added
+
+- **Campaign Kit foundation** — `campaign_kit.json` / `game_rules.enableCampaignKit` for genre-agnostic hub-job-expedition-discovery loops; built-in presets (fantasy guild, post-apocalyptic scavenger, space frontier, eastern fantasy, cyberpunk courier).
+- **Discovery Ledger (Phase B)** — optional `discoveries.json` injects `[Campaign Discoveries]` into GM prompt (unidentified salvage, rumors, route intel).
+- **Scrapbound sample** — `sample-scenarios/scrapbound-settlement` post-apocalyptic scavenger demo (Campaign Kit + Commerce + discoveries seed).
+- **Docs** — `docs/CAMPAIGN_KIT_QUICKSTART.md`; `CAMPAIGN_KIT_DESIGN.md` integration matrix + phase roadmap.
+
+### Verification
+
+- `npm test` **123/123**
+- `npm run compile` クリーン
+
 ## [1.44.3] - 2026-07-03
 
 ### Fixed

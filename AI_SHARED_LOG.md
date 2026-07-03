@@ -6,12 +6,41 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.44.3** |
+| Package version | **1.45.0**（未 push） |
+| Campaign Kit | **Phase A+B** — presets + `discoveries.json` · `scrapbound-settlement` sample |
 | Domain Mode | D1–D5 + D3 UI + F7–F10 **完了**（v1.40.0–1.40.1） |
-| Guild Master (F11) | **G1–G4 完了**（v1.41.0–1.44.1）· v1.44.1 hardening · `enableRivalGuild` 宣言のみ |
-| Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **121/121** |
-| Next (推奨) | **G5** ライバルギルド tick 設計 or F12 家史エピローグ · `git push origin v1.44.3` で Release |
+| Guild Master (F11) | **G1–G4 完了**（v1.41.0–1.44.1） |
+| Tests | `npm test` **123/123**（目標） |
+| Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
+
+---
+
+## 2026-07-03 JST - Grok - Campaign Kit Phase A+B supplement
+
+### Summary
+
+- Phase B: `discoveryLedgerCore.ts` + `discoveries.json` → GM `[Campaign Discoveries]` chunk（priority 93）。
+- Sample: `sample-scenarios/scrapbound-settlement`（post-apoc scavenger + Commerce）。
+- Docs: `CAMPAIGN_KIT_QUICKSTART.md` · DESIGN 拡充 · FEATURE_MATRIX 行追加。
+- Tests: `test_discovery_ledger_core.js` · preset list · scenario pack optional files。
+
+---
+
+## 2026-07-03 JST - Codex - Campaign Kit foundation
+
+### Summary
+
+- Added a genre-agnostic Campaign Kit layer for hub/job/expedition/discovery loops.
+- New files: `src/campaignKitCore.ts`, `src/campaignKit.ts`, `docs/CAMPAIGN_KIT_DESIGN.md`, `scripts/test_campaign_kit_core.js`.
+- `campaign_kit.json` in the workspace overrides built-in presets; otherwise `game_rules.enableCampaignKit` + optional `campaignKitId` activates the layer.
+- Built-in presets: `classic_fantasy_guild`, `postapoc_scavenger`, `space_frontier`, `eastern_fantasy`, `cyberpunk_courier`.
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_campaign_kit_core.js`
+- `node scripts/test_prompt_budget_eviction.js`
+- `node scripts/test_scenario_pack_core.js`
 
 ---
 

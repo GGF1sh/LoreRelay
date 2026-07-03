@@ -29,6 +29,8 @@ if (!Array.isArray(BUNDLED_SAMPLE_IDS) || BUNDLED_SAMPLE_IDS.length !== 5) {
 
 if (!OPTIONAL_PACK_FILES.includes('world_forge.json') || !OPTIONAL_PACK_FILES.includes('world_map.layout.png')) {
     fail('OPTIONAL_PACK_FILES contents');
+} else if (!OPTIONAL_PACK_FILES.includes('campaign_kit.json') || !OPTIONAL_PACK_FILES.includes('discoveries.json')) {
+    fail('OPTIONAL_PACK_FILES should include campaign_kit.json and discoveries.json');
 } else {
     ok('OPTIONAL_PACK_FILES contents');
 }

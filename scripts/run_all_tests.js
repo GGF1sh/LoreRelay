@@ -50,6 +50,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_game_state_sanitize.js' },
     { category: 'unit', file: 'test_dice_roller.js' },
     { category: 'unit', file: 'test_gm_prompt_builder_core.js' },
+    { category: 'unit', file: 'test_campaign_kit_core.js' },
+    { category: 'unit', file: 'test_discovery_ledger_core.js' },
     { category: 'unit', file: 'test_prompt_context_budget.js' },
     { category: 'unit', file: 'test_prompt_budget_eviction.js' },
     { category: 'unit', file: 'test_webview_handlers_core.js' },

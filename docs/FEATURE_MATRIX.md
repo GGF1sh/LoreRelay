@@ -37,6 +37,8 @@
 | **Guild Requests (依頼板)** | OFF | **experimental** | v1.42.0 · `enableGuildRequests` · bulk / parley tier |
 | **Guild Parties (派遣)** | OFF | **experimental** | v1.43.0 · `enableGuildParties` · Bond 連動クエスト判定 |
 | **Guild Absence Drift** | with guild | **experimental** | v1.44.0 · hall 離脱/帰還 · Since-last-visit プロンプト |
+| **Campaign Kit** | OFF | **beta** | v1.45.0 · `enableCampaignKit` · genre loop presets |
+| **Discovery Ledger** | optional file | **beta** | v1.45.0 · `discoveries.json` · Phase B findings prompt |
 
 ## Quick demo paths
 
@@ -44,6 +46,7 @@
 |------|------|
 | First play | Start Hub → Try demo |
 | Living World | [`LIVING_WORLD_QUICKSTART.md`](LIVING_WORLD_QUICKSTART.md) + `sample-scenarios/trade-routes` |
+| Scavenger / Campaign Kit | [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md) + `sample-scenarios/scrapbound-settlement` |
 | Map / FoW | Cartography + `lost-catacombs` or generated world |
 | Long campaign | Chronicle + Git Timeline + Replay Export |
 

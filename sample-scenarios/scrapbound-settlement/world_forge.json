@@ -1,0 +1,97 @@
+{
+  "format": "lorerelay-world-forge/1.0",
+  "meta": {
+    "worldName": "Scrapbound Fringe",
+    "theme": "post-apocalyptic scavenger ruins",
+    "worldSeed": "scrapbound-demo",
+    "generatedAt": "2026-07-03T00:00:00Z",
+    "generationMethod": "bundled-sample"
+  },
+  "geography": {
+    "regions": [
+      {
+        "id": "r_settlement",
+        "name": "Scrapbound Enclave",
+        "description": "A walled trader settlement built from shipping containers and salvage.",
+        "type": "settlement",
+        "dangerLevel": 2,
+        "x": 400,
+        "y": 500,
+        "biome": "wasteland",
+        "connectedTo": ["r_industrial", "r_transit"]
+      },
+      {
+        "id": "r_industrial",
+        "name": "Dead Industrial Belt",
+        "description": "Collapsed factories and chemical yards. Good parts, bad air.",
+        "type": "industrial",
+        "dangerLevel": 4,
+        "x": 700,
+        "y": 420,
+        "biome": "wasteland",
+        "connectedTo": ["r_settlement"]
+      },
+      {
+        "id": "r_transit",
+        "name": "Old Transit Corridors",
+        "description": "Subway and service tunnels. Dark, unstable, sometimes still powered.",
+        "type": "underground",
+        "dangerLevel": 5,
+        "x": 250,
+        "y": 620,
+        "biome": "ruins",
+        "connectedTo": ["r_settlement"]
+      }
+    ],
+    "locations": [
+      {
+        "id": "scrapbound_market",
+        "name": "Scrapbound Market Row",
+        "regionId": "r_settlement",
+        "description": "The settlement hub: notice board, fixers, food stalls, and Mira's appraisal counter.",
+        "type": "market",
+        "connectedTo": ["dead_factory_yard", "north_metro"]
+      },
+      {
+        "id": "dead_factory_yard",
+        "name": "Dead Factory Yard",
+        "regionId": "r_industrial",
+        "description": "Rusted cranes and half-flooded basements. Raiders sometimes camp in the offices.",
+        "type": "ruins",
+        "dangerLevel": 4,
+        "connectedTo": ["scrapbound_market"]
+      },
+      {
+        "id": "north_metro",
+        "name": "North Metro Entrance",
+        "regionId": "r_transit",
+        "description": "A collapsed stairwell into old transit tunnels. Faint light pulses deeper in.",
+        "type": "ruins",
+        "dangerLevel": 5,
+        "connectedTo": ["scrapbound_market"]
+      }
+    ]
+  },
+  "factions": [
+    {
+      "id": "faction_traders",
+      "name": "Market Row Traders",
+      "type": "guild",
+      "power": 40,
+      "description": "Keep Scrapbound fed and solvent."
+    },
+    {
+      "id": "faction_raiders",
+      "name": "Ash Road Raiders",
+      "type": "bandits",
+      "power": 28,
+      "description": "Hit convoys between ruins and the settlement."
+    }
+  ],
+  "commodities": [
+    { "id": "food", "name": "Ration packs", "category": "consumable" },
+    { "id": "parts", "name": "Salvage parts", "category": "material" },
+    { "id": "medicine", "name": "Med packs", "category": "consumable" },
+    { "id": "ammo", "name": "Ammunition", "category": "consumable" }
+  ]
+}

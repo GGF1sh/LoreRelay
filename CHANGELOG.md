@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.39.1] - 2026-07-03
+
+### Added
+
+- **Domain §1.4 mitigations** — Event-first mechanical effects (`applyDomainEventEffect`), monthly tax/harvest income, `lastEventId` + GM event hints, prompt tiers (minimal/standard/full), `domainLedgerCore` treasury/credits wallet rules, `test_domain_balance_core.js` + `test_domain_ledger_core.js`.
+
+### Verification
+
+- `npm test` **105/105**
+
 ## [1.39.0] - 2026-07-03
 
 ### Added

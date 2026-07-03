@@ -1,5 +1,17 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Domain §1.4 risk mitigations (v1.39.1)
+
+### Summary
+
+- Event-first: `applyDomainEventEffect`, `applyMonthlyDomainIncome`, `buildDomainEventGmHint`, quieter `domain_quiet_month` weight.
+- Prompt tiers: `resolveDomainPromptTier` minimal/standard/full; ledger line via `domainLedgerCore` when Commerce+Domain ON.
+- Tests: `test_domain_balance_core.js`, `test_domain_ledger_core.js`.
+
+### Verification
+
+- `npm test` **105/105**
+
 ## 2026-07-03 JST - Grok - Domain Mode D1–D2 (v1.39.0)
 
 ### Summary

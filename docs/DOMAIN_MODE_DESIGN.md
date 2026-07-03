@@ -69,10 +69,10 @@
 
 | リスク | 内容 | 対策 |
 |--------|------|------|
-| **乾いた表計算** | 月2行動 × +2〜+3 だと stat 100 到達に 15〜25 ヶ月。1領地のみだと「薄い資源ティック」化 | **イベント連鎖を主役**に。stat は重みのみ。D4 を D1 直後に前倒し |
-| **バランス未検証** | UI 前に「数値が生きてるか」分からない | D1 で **`domain_balance_harness.js`**（固定戦略12ヶ月シミュ・軌道 print） |
-| **二重帳簿** | `treasury` vs `commerce.credits` | v1 は treasury 正本。**境界が試されるのは D4**（商人支払い）— §6.1 参照 |
-| **プロンプト肥大** | Domain + LW + Commerce + Bonds 同時注入 | D2 で **compact モード**（pending 0・officer 0 時は3行サマリのみ） |
+| **乾いた表計算** | 月2行動 × +2〜+3 だと stat 100 到達に 15〜25 ヶ月。1領地のみだと「薄い資源ティック」化 | **イベント連鎖を主役** — `applyDomainEventEffect` + 月次収入 + GM event hint **✅ v1.39.1** |
+| **バランス未検証** | UI 前に「数値が生きてるか」分からない | `domain_balance_harness.js` + **`test_domain_balance_core.js`** **✅ v1.39.1** |
+| **二重帳簿** | `treasury` vs `commerce.credits` | `domainLedgerCore.ts` + GM `DOMAIN_LEDGER_PROMPT_LINE` **✅ v1.39.1** |
+| **プロンプト肥大** | Domain + LW + Commerce + Bonds 同時注入 | D2 **3段 tier**（minimal/standard/full）+ ledger/event 行は commit 時のみ **✅ v1.39.1** |
 
 ---
 

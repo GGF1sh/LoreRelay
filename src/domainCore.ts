@@ -54,6 +54,8 @@ export interface DomainState {
     lastCommitWorldTurn?: number;
     officers: DomainOfficer[];
     pendingEvents: string[];
+    /** Last rolled domain event id (GM narration hint). */
+    lastEventId?: string;
     flags: Record<string, boolean>;
 }
 
@@ -132,8 +134,37 @@ const DOMAIN_EVENTS: readonly DomainEventDef[] = [
     { id: 'rumor_mill', baseWeight: 11, requiresIntelligence: 'gather_rumors' },
     { id: 'spy_arrival', baseWeight: 10, requiresAction: 'espionage' },
     { id: 'religious_friction', baseWeight: 7, popularSupportMax: 50 },
-    { id: 'domain_quiet_month', baseWeight: 6 },
+    { id: 'domain_quiet_month', baseWeight: 2 },
 ];
+
+/** Mechanical effects when an event fires (event-first — stats follow story). */
+const DOMAIN_EVENT_EFFECTS: Record<string, DomainStatDelta> = {
+    bad_harvest: { food: -35, popularSupport: -4, agriculture: -1 },
+    merchant_visit: { treasury: 30, commerce: 1, popularSupport: 1 },
+    bandit_activity: { publicOrder: -6, treasury: -20, troops: -5 },
+    neighbor_militarize: { defense: -2, prestige: 1, publicOrder: -2 },
+    petition: { popularSupport: -3, publicOrder: -2 },
+    trade_route_disruption: { treasury: -25, commerce: -1 },
+    rumor_mill: { prestige: 1 },
+    spy_arrival: { defense: 1, treasury: -10 },
+    religious_friction: { culture: -2, popularSupport: -2 },
+    domain_quiet_month: { popularSupport: 1 },
+};
+
+const DOMAIN_EVENT_GM_HINTS: Record<string, string> = {
+    bad_harvest: 'Crop yields failed; narrate hunger anxiety and rationing. Core already reduced food and support.',
+    merchant_visit: 'A traveling merchant arrived; narrate trade opportunity. Treasury already increased.',
+    bandit_activity: 'Bandits troubled the roads; narrate fear and patrols. Order and treasury already reduced.',
+    neighbor_militarize: 'Neighboring forces stirred; narrate border tension. Do not invent troop counts.',
+    petition: 'Subjects petition the lord; narrate grievances. Support and order already dipped.',
+    trade_route_disruption: 'A route faltered; narrate delayed goods. Treasury already took a hit.',
+    rumor_mill: 'Rumors spread from abroad; narrate hearsay only — no new map facts.',
+    spy_arrival: 'A covert messenger surfaced; narrate intrigue. Do not canonize new NPCs without GM ops.',
+    religious_friction: 'Faith or guild friction rose; narrate cultural tension.',
+    domain_quiet_month: 'A calm month; narrate small daily life in the domain.',
+};
+
+export type DomainPromptTier = 'minimal' | 'standard' | 'full';
 
 export function clampDomainStat(value: unknown): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -277,6 +308,9 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         lastCommitWorldTurn: typeof doc.lastCommitWorldTurn === 'number' && Number.isFinite(doc.lastCommitWorldTurn)
             && doc.lastCommitWorldTurn >= 0
             ? Math.floor(doc.lastCommitWorldTurn)
+            : undefined,
+        lastEventId: typeof doc.lastEventId === 'string' && doc.lastEventId.trim()
+            ? doc.lastEventId.trim().slice(0, 64)
             : undefined,
         officers,
         pendingEvents,
@@ -429,8 +463,38 @@ function eventWeight(def: DomainEventDef, domain: DomainState, intelligence?: Do
     if (def.requiresIntelligence && intelligence === def.requiresIntelligence) { w += 15; }
     if (def.requiresAction && actions?.includes(def.requiresAction)) { w += 12; }
     if (def.id === 'bad_harvest' && getDomainSeason(domain.calendarMonth) === 'autumn') { w = Math.max(1, w - 5); }
-    if (def.id === 'domain_quiet_month') { w += 4; }
+    if (def.id === 'domain_quiet_month') { w = Math.max(1, w - 2); }
     return w;
+}
+
+export function applyDomainEventEffect(domain: DomainState, eventId: string): DomainState {
+    const delta = DOMAIN_EVENT_EFFECTS[eventId];
+    if (!delta) {
+        return domain;
+    }
+    return applyDelta(domain, delta);
+}
+
+export function buildDomainEventGmHint(eventId: string): string {
+    const hint = DOMAIN_EVENT_GM_HINTS[eventId] ?? 'Narrate this domain development; stats are already canonical.';
+    return `[Domain — Event] ${eventId}: ${hint}`;
+}
+
+/** Passive tax / harvest so months feel alive without stat-grind (+2 forever). */
+export function applyMonthlyDomainIncome(domain: DomainState): DomainState {
+    const tax = Math.floor(domain.commerce / 8) + Math.floor(domain.agriculture / 10) + 8;
+    const foodYield = Math.floor(domain.agriculture / 12) + 5;
+    return applyDelta(domain, { treasury: tax, food: foodYield });
+}
+
+export function resolveDomainPromptTier(domain: DomainState, isCommitTurn: boolean): DomainPromptTier {
+    if (isCommitTurn) {
+        return 'full';
+    }
+    if (domain.pendingEvents.length > 0 || domain.officers.length > 0 || domain.lastEventId) {
+        return 'standard';
+    }
+    return 'minimal';
 }
 
 export function rollDomainEvent(
@@ -510,12 +574,15 @@ export function applyMonthlyCommit(
         next.agriculture = clampDomainStat(next.agriculture + 1);
     }
 
+    next = applyMonthlyDomainIncome(next);
     next = applySeasonalMonthlyEffects(next);
     next = advanceDomainCalendar(next);
     next.monthlyActionsRemaining = config.monthlyActions;
     next.lastCommitWorldTurn = worldTurnSeed;
 
     const eventId = rollDomainEvent(next, worldTurnSeed, ops.intelligence, actions);
+    next = applyDomainEventEffect(next, eventId);
+    next.lastEventId = eventId;
     const pending = [...next.pendingEvents, eventId].slice(-MAX_DOMAIN_PENDING_EVENTS);
     next.pendingEvents = pending;
 

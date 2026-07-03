@@ -95,6 +95,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_domain_core.js' },
     { category: 'unit', file: 'test_domain_prompt_core.js' },
     { category: 'unit', file: 'test_domain_turn_ops.js' },
+    { category: 'unit', file: 'test_domain_ledger_core.js' },
+    { category: 'unit', file: 'test_domain_balance_core.js' },
     { category: 'unit', file: 'test_connection_profile_core.js' },
     { category: 'unit', file: 'test_persona_core.js' },
     { category: 'unit', file: 'test_parlor_background_core.js' },

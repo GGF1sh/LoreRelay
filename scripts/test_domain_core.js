@@ -14,6 +14,10 @@ const {
     appointOfficer,
     normalizeDomainConfig,
     clampDomainStat,
+    applyDomainEventEffect,
+    applyMonthlyDomainIncome,
+    resolveDomainPromptTier,
+    buildDomainEventGmHint,
 } = require('../out/domainCore');
 
 let failed = 0;
@@ -131,6 +135,45 @@ function ok(msg) { console.log(`OK: ${msg}`); }
         fail('clampDomainStat');
     } else {
         ok('clampDomainStat');
+    }
+}
+
+{
+    const base = defaultDomainState('riverhold');
+    const hit = applyDomainEventEffect(base, 'bandit_activity');
+    if (hit.publicOrder >= base.publicOrder || hit.treasury >= base.treasury) {
+        fail('applyDomainEventEffect bandit_activity');
+    } else {
+        ok('applyDomainEventEffect');
+    }
+
+    const richer = applyMonthlyDomainIncome(base);
+    if (richer.treasury <= base.treasury || richer.food <= base.food) {
+        fail('applyMonthlyDomainIncome');
+    } else {
+        ok('applyMonthlyDomainIncome');
+    }
+
+    const hint = buildDomainEventGmHint('merchant_visit');
+    if (!hint.includes('merchant_visit')) {
+        fail('buildDomainEventGmHint');
+    } else {
+        ok('buildDomainEventGmHint');
+    }
+
+    const minimal = resolveDomainPromptTier(defaultDomainState('riverhold'), false);
+    const full = resolveDomainPromptTier(defaultDomainState('riverhold'), true);
+    if (minimal !== 'minimal' || full !== 'full') {
+        fail('resolveDomainPromptTier');
+    } else {
+        ok('resolveDomainPromptTier');
+    }
+
+    const withPending = { ...defaultDomainState('riverhold'), pendingEvents: ['bandit_activity'] };
+    if (resolveDomainPromptTier(withPending, false) !== 'standard') {
+        fail('standard tier with pending');
+    } else {
+        ok('standard tier with pending');
     }
 }
 

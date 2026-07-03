@@ -824,5 +824,8 @@
   "extension.confirm.gitBranch": "Create an alternate timeline branch from this turn? Your game will automatically reload.",
   "extension.confirm.gitBranchButton": "Branch",
   "extension.prompt.checkpointLabel": "Checkpoint name (optional)",
-  "extension.prompt.checkpointLabelPlaceholder": "e.g. Before the dragon fight"
+  "extension.prompt.checkpointLabelPlaceholder": "e.g. Before the dragon fight",
+  "webview.startHub.inWorldTitle": "In-World Chat",
+  "webview.startHub.inWorldDesc": "Chat as residents using the existing world, domains, and current affairs as context.",
+  "webview.inWorld.modeLabel": "In-World Chat"
 }

@@ -1,6 +1,6 @@
 /** Pure experience profile types — no vscode/fs dependency. */
 
-export type ExperienceProfile = 'parlor' | 'campaign';
+export type ExperienceProfile = 'parlor' | 'campaign' | 'inworld';
 
 export interface ExperienceParlorOptions {
     maxHistoryMessages?: number;
@@ -33,6 +33,7 @@ export interface ExperienceConfig {
 export const EXPERIENCE_CONFIG_VERSION = 1 as const;
 export const EXPERIENCE_FILENAME = 'experience.json';
 export const PARLOR_SESSION_FILENAME = 'parlor_session.json';
+export const INWORLD_SESSION_FILENAME = 'inworld_session.json';
 
 export const DEFAULT_EXPERIENCE: ExperienceConfig = {
     version: 1,
@@ -40,7 +41,7 @@ export const DEFAULT_EXPERIENCE: ExperienceConfig = {
 };
 
 export function isExperienceProfile(value: unknown): value is ExperienceProfile {
-    return value === 'parlor' || value === 'campaign';
+    return value === 'parlor' || value === 'campaign' || value === 'inworld';
 }
 
 export function parseExperienceConfig(raw: unknown): ExperienceConfig {

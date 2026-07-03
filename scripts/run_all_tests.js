@@ -91,6 +91,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_player_bond_core.js' },
     { category: 'unit', file: 'test_parlor_session_core.js' },
     { category: 'unit', file: 'test_parlor_prompt_builder_core.js' },
+    { category: 'unit', file: 'test_in_world_prompt_builder_core.js' },
     { category: 'unit', file: 'test_connection_profile_core.js' },
     { category: 'unit', file: 'test_persona_core.js' },
     { category: 'unit', file: 'test_parlor_background_core.js' },

@@ -105,6 +105,7 @@ export interface WebviewHandlerDeps {
     handleLivingWorldDirectTrade(raw: unknown): Promise<void>;
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
     handleStartParlor(characterId?: string): Promise<void>;
+    handleStartInWorld(characterId?: string): Promise<void>;
     handleSwitchExperienceProfile(profile: unknown): Promise<void>;
     sendParlorSettingsToWebview(): void;
     handleSetParlorConnectionProfile(profileId: string): void;
@@ -515,6 +516,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 ? message.characterId
                 : undefined;
             await deps.handleStartParlor(characterId);
+            break;
+        }
+        case 'startInWorld': {
+            const characterId = typeof message.characterId === 'string' && isValidCharacterId(message.characterId)
+                ? message.characterId
+                : undefined;
+            await deps.handleStartInWorld(characterId);
             break;
         }
         case 'switchExperienceProfile':

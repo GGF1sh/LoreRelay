@@ -8094,15 +8094,18 @@ function updateStartHubVisibility() {
 }
 
 function applyExperienceProfile(profile) {
-  experienceProfile = profile === 'parlor' ? 'parlor' : 'campaign';
+  experienceProfile = profile === 'parlor' || profile === 'inworld' ? profile : 'campaign';
   document.body.classList.toggle('profile-parlor', experienceProfile === 'parlor');
+  document.body.classList.toggle('profile-inworld', experienceProfile === 'inworld');
   document.body.classList.toggle('profile-campaign', experienceProfile === 'campaign');
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
-    profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : '⚔️';
+    profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : (experienceProfile === 'inworld' ? '🌐' : '⚔️');
     profileBtn.title = experienceProfile === 'parlor'
       ? (T('webview.parlor.modeLabel') || 'Parlor')
-      : (T('webview.campaign.modeLabel') || 'Campaign');
+      : (experienceProfile === 'inworld'
+        ? (T('webview.inWorld.modeLabel') || 'In-World Chat')
+        : (T('webview.campaign.modeLabel') || 'Campaign'));
   }
 }
 
@@ -8122,6 +8125,7 @@ function applyParlorSession(msg) {
 
 function initStartHub() {
   const parlorBtn = document.getElementById('start-hub-parlor-btn');
+  const inWorldBtn = document.getElementById('start-hub-inworld-btn');
   const demoBtn = document.getElementById('start-hub-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
   const debugBtn = document.getElementById('start-hub-debug-btn');
@@ -8141,14 +8145,26 @@ function initStartHub() {
     });
   }
 
+  if (inWorldBtn) {
+    inWorldBtn.addEventListener('click', () => {
+      if (!parlorHasCharacter) {
+        vscode.postMessage({ type: 'importTavernCard' });
+        return;
+      }
+      vscode.postMessage({ type: 'startInWorld' });
+    });
+  }
+
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
     profileBtn.addEventListener('click', () => {
       if (document.getElementById('gm-loading')) {
         return;
       }
-      const next = experienceProfile === 'parlor' ? 'campaign' : 'parlor';
-      if (next === 'parlor' && !parlorHasCharacter) {
+      const next = experienceProfile === 'campaign'
+        ? 'parlor'
+        : (experienceProfile === 'parlor' ? 'inworld' : 'campaign');
+      if ((next === 'parlor' || next === 'inworld') && !parlorHasCharacter) {
         vscode.postMessage({ type: 'importTavernCard' });
         return;
       }
@@ -8278,9 +8294,14 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'characterList') {
     parlorHasCharacter = Array.isArray(msg.characters) && msg.characters.length > 0;
     const parlorHubBtn = document.getElementById('start-hub-parlor-btn');
+    const inWorldHubBtn = document.getElementById('start-hub-inworld-btn');
     if (parlorHubBtn) {
       parlorHubBtn.disabled = !parlorHasCharacter;
       parlorHubBtn.classList.toggle('start-hub-btn-disabled', !parlorHasCharacter);
+    }
+    if (inWorldHubBtn) {
+      inWorldHubBtn.disabled = !parlorHasCharacter;
+      inWorldHubBtn.classList.toggle('start-hub-btn-disabled', !parlorHasCharacter);
     }
     updateCharacterList(msg.characters, msg.activeCharacterId, msg.partyIds);
   } else if (msg.type === 'summaryUpdated') {
@@ -8355,12 +8376,17 @@ window.addEventListener('message', (event) => {
     parlorHasCharacter = !!msg.hasCharacter;
     applyExperienceProfile(msg.profile || 'campaign');
     const parlorHubBtn = document.getElementById('start-hub-parlor-btn');
+    const inWorldHubBtn = document.getElementById('start-hub-inworld-btn');
     if (parlorHubBtn) {
       parlorHubBtn.disabled = !parlorHasCharacter;
       parlorHubBtn.classList.toggle('start-hub-btn-disabled', !parlorHasCharacter);
     }
+    if (inWorldHubBtn) {
+      inWorldHubBtn.disabled = !parlorHasCharacter;
+      inWorldHubBtn.classList.toggle('start-hub-btn-disabled', !parlorHasCharacter);
+    }
   } else if (msg.type === 'parlorSessionUpdate') {
-    applyExperienceProfile('parlor');
+    applyExperienceProfile(msg.profile || 'parlor');
     applyParlorSession(msg);
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};

@@ -3,7 +3,7 @@ import { t, getConfiguredLocale } from './i18n';
 import { getActiveCharacterId, getActiveCharacterProfile, getCharacters } from './characterManager';
 import { getGameEntryHistory } from './gameStateSync';
 import { isValidCharacterId } from './characterId';
-import { loadExperienceConfig, saveExperienceConfig, isParlorMode } from './experience';
+import { loadExperienceConfig, saveExperienceConfig, isParlorMode, isInWorldMode } from './experience';
 import {
     appendAndSaveParlorMessage,
     getOrCreateParlorSession,
@@ -15,7 +15,14 @@ import { splitCampaignImportForParlor, mergeImportedParlorMessages } from './par
 import { appendParlorArchiveRecords } from './parlorArchive';
 import { buildParlorArchiveSummaryDelta, mergeParlorSessionSummary } from './parlorArchiveCore';
 import { buildParlorUserPrompt } from './parlorPromptBuilder';
+import { buildInWorldChatPrompt } from './inWorldPromptBuilder';
 import { sanitizeParlorAssistantReply } from './parlorPromptBuilderCore';
+import {
+    appendAndSaveInWorldMessage,
+    getOrCreateInWorldSession,
+    loadInWorldSession,
+    saveInWorldSession,
+} from './inWorldSession';
 import {
     invokeParlorVscodeLm,
     isParlorBridgeBusy,
@@ -76,12 +83,39 @@ export function sendParlorSessionToWebview(): void {
     });
 }
 
+export function sendInWorldSessionToWebview(): void {
+    const panel = requirePanel();
+    if (!panel) {
+        return;
+    }
+    const character = getActiveCharacterProfile();
+    const characterId = character?.id || getActiveCharacterId();
+    if (!characterId || !isValidCharacterId(characterId)) {
+        panel.webview.postMessage({
+            type: 'parlorSessionUpdate',
+            profile: 'inworld',
+            entries: [],
+            characterName: '',
+        });
+        return;
+    }
+    const session = loadInWorldSession(characterId) || getOrCreateInWorldSession(characterId);
+    const entries = parlorMessagesToChatEntries(session, character?.name || 'Character');
+    panel.webview.postMessage({
+        type: 'parlorSessionUpdate',
+        profile: 'inworld',
+        entries,
+        characterName: character?.name || 'Character',
+        activeCharacterId: characterId,
+    });
+}
+
 export function sendExperienceProfileToWebview(): void {
     const panel = requirePanel();
     if (!panel) {
         return;
     }
-    const profile = isParlorMode() ? 'parlor' : 'campaign';
+    const profile = isInWorldMode() ? 'inworld' : (isParlorMode() ? 'parlor' : 'campaign');
     const chars = getCharacters();
     panel.webview.postMessage({
         type: 'experienceProfile',
@@ -117,7 +151,7 @@ export function sendParlorSettingsToWebview(): void {
 
 function applyParlorBackgroundToWebview(): void {
     const panel = requirePanel();
-    if (!panel || !isParlorMode()) {
+    if (!panel || (!isParlorMode() && !isInWorldMode())) {
         return;
     }
     const experience = loadExperienceConfig();
@@ -249,6 +283,35 @@ export async function startParlorMode(
     return true;
 }
 
+export async function startInWorldMode(
+    characterId?: string
+): Promise<boolean> {
+    const chars = getCharacters();
+    let activeId = characterId && isValidCharacterId(characterId) ? characterId : getActiveCharacterId();
+    if (!activeId && chars.length === 1) {
+        activeId = chars[0].id;
+    }
+    if (!activeId) {
+        vscode.window.showWarningMessage(t('extension.error.parlorNeedsCharacter'));
+        return false;
+    }
+    const conn = loadConnectionProfiles();
+    const experience = loadExperienceConfig();
+    saveExperienceConfig({
+        profile: 'inworld',
+        activeCharacterId: activeId,
+        connectionProfileId: conn.activeId,
+        campaign: { frozenAt: experience.campaign?.frozenAt || null },
+    });
+    const character = chars.find((c) => c.id === activeId) || getActiveCharacterProfile();
+    const session = loadInWorldSession(activeId) || getOrCreateInWorldSession(activeId);
+    saveInWorldSession(session, character?.name || 'Character', getConfiguredLocale());
+    sendExperienceProfileToWebview();
+    sendInWorldSessionToWebview();
+    sendParlorSettingsToWebview();
+    return true;
+}
+
 export async function switchToCampaignMode(): Promise<void> {
     saveExperienceConfig({ profile: 'campaign' });
     sendExperienceProfileToWebview();
@@ -279,7 +342,7 @@ export function handleSetParlorBackground(backgroundId: string | null): void {
     }
     saveExperienceConfig({ parlor });
     const panel = requirePanel();
-    if (panel && isParlorMode()) {
+    if (panel && (isParlorMode() || isInWorldMode())) {
         if (parlor.backgroundId) {
             applyParlorBackgroundToWebview();
         } else {
@@ -326,6 +389,49 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
                 model: result.model,
             }, character.name, getConfiguredLocale());
             sendParlorSessionToWebview();
+        }
+    } finally {
+        parlorInFlight = false;
+    }
+}
+
+export async function handleInWorldPlayerInput(text: string): Promise<void> {
+    if (parlorInFlight || isParlorBridgeBusy()) {
+        vscode.window.showWarningMessage(t('extension.error.gmBusy'));
+        return;
+    }
+    const character = getActiveCharacterProfile();
+    const characterId = character?.id || getActiveCharacterId();
+    if (!character || !characterId) {
+        vscode.window.showWarningMessage(t('extension.error.parlorNeedsCharacter'));
+        return;
+    }
+
+    parlorInFlight = true;
+    try {
+        let session = getOrCreateInWorldSession(characterId);
+        session = appendAndSaveInWorldMessage(session, {
+            role: 'user',
+            content: text,
+        }, character.name, getConfiguredLocale());
+        sendInWorldSessionToWebview();
+
+        const prompt = buildInWorldChatPrompt(character, session, text);
+        const connProfile = getActiveParlorConnectionProfile();
+        const result = await invokeParlorByProfile(prompt, connProfile);
+        if (!isInWorldMode()) {
+            return;
+        }
+        if (result.ok && result.text) {
+            const content = sanitizeParlorAssistantReply(result.text);
+            session = appendAndSaveInWorldMessage(session, {
+                role: 'assistant',
+                content,
+                characterId,
+                provider: connProfile.provider,
+                model: result.model,
+            }, character.name, getConfiguredLocale());
+            sendInWorldSessionToWebview();
         }
     } finally {
         parlorInFlight = false;

@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **In-World Chat mode** - added a third experience profile (`inworld`) for talking as residents inside the current campaign world without using `turn_result.json` or mutating campaign state. The mode has its own `inworld_session.json`, Start Hub entry, header toggle, prompt builder, and shared Parlor-style chat rendering while keeping the World/Inspector panes visible for reference.
+
 ### Fixed
 
 - **Campaign webview trust boundary follow-up** - `gameStateWebviewSanitizeCore` now sends only public `commerce` / `world` subsets to Webview, and `statePatch` export is allowlist-based instead of blacklist-based so unknown future paths cannot leak into Inspector.
@@ -16,7 +20,7 @@
 
 ### Verification
 
-- `npm test` **99/99**
+- `npm test` **100/100**
 
 ## [1.37.7] - 2026-07-03
 

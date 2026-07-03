@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Codex - In-World Chat mode
+
+### Summary
+
+- Added `inworld` as a third experience profile alongside `campaign` and `parlor`.
+- Added `inworld_session.json` persistence and an In-World prompt builder that injects public campaign/world context as reference-only, untrusted context.
+- Wired Start Hub "In-World Chat" entry, header profile toggle, Webview message handling, and backend chat routing through the Parlor-style non-`turn_result.json` path.
+- In-World Chat keeps World/Inspector panes visible and explicitly forbids world-state mutation, `statePatch`, `turn_result`, dice macros, and canonizing new facts.
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_in_world_prompt_builder_core.js`
+- `node scripts/check_i18n_keys.js`
+- `npm test` **100/100**
+
 ## 2026-07-03 JST - Codex - Gemini review follow-up: Webview payload + OCC tests
 
 ### Summary

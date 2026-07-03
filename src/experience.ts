@@ -72,10 +72,14 @@ export function saveExperienceConfig(patch: Partial<ExperienceConfig>): Experien
     return next;
 }
 
-export function getExperienceProfile(): 'parlor' | 'campaign' {
+export function getExperienceProfile(): 'parlor' | 'campaign' | 'inworld' {
     return loadExperienceConfig().profile;
 }
 
 export function isParlorMode(): boolean {
     return getExperienceProfile() === 'parlor';
+}
+
+export function isInWorldMode(): boolean {
+    return getExperienceProfile() === 'inworld';
 }

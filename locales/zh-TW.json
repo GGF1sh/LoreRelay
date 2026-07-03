@@ -824,5 +824,8 @@
   "extension.warn.bulkWorldSimDisabled": "Bulk world simulation is disabled. Enable textAdventure.debug.bulkWorldSim in settings.",
   "extension.warn.bulkWorldSimSimOff": "Enable Emergent Simulation in Game Rules first.",
   "extension.warn.bulkWorldSimNoForge": "world_forge.json is required for world simulation.",
-  "extension.warn.bulkWorldSimInvalidSteps": "Invalid step count."
+  "extension.warn.bulkWorldSimInvalidSteps": "Invalid step count.",
+  "webview.startHub.inWorldTitle": "\u4e16\u754c\u5167\u804a\u5929",
+  "webview.startHub.inWorldDesc": "\u4ee5\u5df2\u5efa\u7acb\u7684\u4e16\u754c\u3001\u9818\u5730\u548c\u6642\u5c40\u70ba\u80cc\u666f\uff0c\u4ee5\u5c45\u6c11\u8eab\u5206\u5c0d\u8a71\u3002",
+  "webview.inWorld.modeLabel": "\u4e16\u754c\u5167\u804a\u5929"
 }

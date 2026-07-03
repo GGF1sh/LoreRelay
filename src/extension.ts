@@ -81,12 +81,16 @@ import {
     getGmBridgeOutputChannel,
     isGmBridgeBusy
 } from './gmBridgeRunner';
-import { isParlorMode } from './experience';
+import { isParlorMode, isInWorldMode } from './experience';
 import {
     initParlorBridge,
     handleParlorPlayerInput,
+    handleInWorldPlayerInput,
     startParlorMode,
+    startInWorldMode,
+    switchToCampaignMode,
     sendParlorSessionToWebview,
+    sendInWorldSessionToWebview,
     sendExperienceProfileToWebview,
     sendParlorSettingsToWebview,
     handleSetParlorConnectionProfile,
@@ -776,6 +780,10 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
         await handleParlorPlayerInput(trimmed);
         return;
     }
+    if (isInWorldMode()) {
+        await handleInWorldPlayerInput(trimmed);
+        return;
+    }
 
     const diceResult = processDiceMacros(trimmed);
     trimmed = diceResult.text;
@@ -1303,6 +1311,11 @@ async function sendUiState(retryCount = 0, fullHistory = false): Promise<void> {
         sendParlorSettingsToWebview();
         return;
     }
+    if (isInWorldMode()) {
+        sendInWorldSessionToWebview();
+        sendParlorSettingsToWebview();
+        return;
+    }
     await sendCurrentState(retryCount, fullHistory);
 }
 
@@ -1320,8 +1333,20 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 await sendUiState(0, true);
             }
         },
+        handleStartInWorld: async (characterId?: string) => {
+            const ok = await startInWorldMode(characterId);
+            if (ok) {
+                await sendUiState(0, true);
+                pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            }
+        },
         handleSwitchExperienceProfile: async (profile: unknown) => {
             if (profile === 'campaign') {
+                if (isInWorldMode()) {
+                    await switchToCampaignMode();
+                    await sendUiState(0, true);
+                    return;
+                }
                 const result = await promoteParlorToCampaign();
                 if (result.ok) {
                     await sendUiState(0, true);
@@ -1330,6 +1355,12 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 const ok = await demoteCampaignToParlorWithPrompt();
                 if (ok) {
                     await sendUiState(0, true);
+                }
+            } else if (profile === 'inworld') {
+                const ok = await startInWorldMode();
+                if (ok) {
+                    await sendUiState(0, true);
+                    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
                 }
             }
         },

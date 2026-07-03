@@ -140,6 +140,20 @@ const kit = getCampaignKitPreset('postapoc_scavenger');
 }
 
 {
+    // Missing ledger file: turn ops seed from defaultCampaignResourceQuantities (same as prompt).
+    const defaults = defaultCampaignResourceQuantities(kit);
+    const seeded = { version: 1, quantities: defaults };
+    const next = applyCampaignResourceOps(seeded, [
+        { op: 'delta', resourceId: 'water', amount: -1 },
+    ], kit);
+    if (next.quantities.water !== 9) {
+        fail(`default-seeded water delta -1 should yield 9, got ${next.quantities.water}`);
+    } else {
+        ok('default-seeded ledger matches prompt initial value on first consume');
+    }
+}
+
+{
     // Quantities never go negative even with a large negative delta.
     const next = applyCampaignResourceOps({ version: 1, quantities: { food: 2 } }, [
         { op: 'delta', resourceId: 'food', amount: -MAX_RESOURCE_DELTA_PER_OP },

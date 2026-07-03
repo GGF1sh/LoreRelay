@@ -11,6 +11,8 @@ import type {
     TradeOp,
     TradeOpKind,
 } from './livingWorldTypes';
+import type { DiscoveryLedgerDocument } from './discoveryLedgerCore';
+import { validateSellDiscoveryTrade } from './discoveryLedgerCore';
 
 export const MAX_TRADE_OPS_PER_TURN = 16;
 export const MAX_TRADE_QTY = 999;
@@ -195,11 +197,16 @@ export function applyTradeOp(
     forge: CommerceForge,
     markets: MarketStateMap,
     commerce: PlayerCommerceState,
-    op: TradeOp
+    op: TradeOp,
+    discoveryLedger?: DiscoveryLedgerDocument
 ): SingleTradeResult {
     const nextCommerce = cloneCommerce(commerce);
 
     if (op.op === 'sell_discovery') {
+        const ledgerError = validateSellDiscoveryTrade(op.discoveryId, op.value, discoveryLedger);
+        if (ledgerError) {
+            return { ok: false, error: { code: 'INVALID_OP', message: ledgerError } };
+        }
         nextCommerce.credits += op.value;
         return {
             ok: true,
@@ -296,7 +303,8 @@ export function applyTradeOps(
     forge: CommerceForge,
     markets: MarketStateMap,
     commerce: PlayerCommerceState,
-    ops: TradeOp[]
+    ops: TradeOp[],
+    discoveryLedger?: DiscoveryLedgerDocument
 ): TradeBatchResult {
     let currentMarkets = markets;
     let currentCommerce = commerce;
@@ -305,7 +313,7 @@ export function applyTradeOps(
     let totalRevenue = 0;
 
     for (const op of ops.slice(0, MAX_TRADE_OPS_PER_TURN)) {
-        const result = applyTradeOp(forge, currentMarkets, currentCommerce, op);
+        const result = applyTradeOp(forge, currentMarkets, currentCommerce, op, discoveryLedger);
         if (!result.ok) {
             return { ok: false, error: result.error, applied };
         }
@@ -331,14 +339,15 @@ export function computePerLocationTradeCreditsDelta(
     forge: CommerceForge,
     markets: MarketStateMap,
     commerce: PlayerCommerceState,
-    ops: TradeOp[]
+    ops: TradeOp[],
+    discoveryLedger?: DiscoveryLedgerDocument
 ): Record<string, number> {
     const deltas: Record<string, number> = {};
     let currentMarkets = markets;
     let currentCommerce = commerce;
 
     for (const op of ops.slice(0, MAX_TRADE_OPS_PER_TURN)) {
-        const result = applyTradeOp(forge, currentMarkets, currentCommerce, op);
+        const result = applyTradeOp(forge, currentMarkets, currentCommerce, op, discoveryLedger);
         if (!result.ok) {
             break;
         }

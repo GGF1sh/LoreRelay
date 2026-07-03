@@ -922,6 +922,8 @@
   "webview.observatory.marketsEmpty": "No market history yet.",
   "webview.observatory.chronicleHeading": "Chronicle",
   "webview.observatory.chronicleEmpty": "Nothing has happened yet.",
+  "webview.observatory.bondsHeading": "Bonds between people",
+  "webview.observatory.bondsEmpty": "No notable bonds yet.",
   "webview.gameRules.campaignKitId": "Campaign Kit preset",
   "webview.gameRules.campaignKitAuto": "Auto (theme / campaign_kit.json)",
   "webview.gameRules.campaignKitPostApoc": "Post-apocalyptic scavenger",

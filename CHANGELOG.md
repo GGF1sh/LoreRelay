@@ -13,6 +13,22 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.54.0] - 2026-07-03
+
+### Fixed
+
+- **Campaign resources 初期値の整合** — `campaign_resources.json` 未作成時、`resolveCampaignResourcesForPrompt()` が表示するデフォルト10と `applyCampaignResourceTurnOps()` の適用起点がズレていた（初回 `delta: -1` が 10→9 ではなく 0→0 になり得る）。未作成時は `defaultCampaignResourceQuantities(kit)` から seed するよう修正。
+- **sell_discovery の台帳検証** — `commerceCore.applyTradeOp()` が発見物台帳を確認せず credits を加算していた。`discoveryLedgerCore.validateSellDiscoveryTrade()` を追加し、存在しない ID・sold/consumed・unidentified・推定額±50% 外の value を拒否。`livingWorldTurnOps` が ledger を渡すよう配線。
+- **独立台帳の原子性** — `commitGameState()` が `CommitGameStateResult` を返すよう変更。`statePatch.processTurnResult()` は `commit.ok` が false（skip/quarantine）のとき `discoveryOps` / `campaignResourceOps` を書かない（CHANGELOG v1.45.3 の意図をコードで強制）。
+
+### Added
+
+- `test_sell_discovery_trade_ops.js` · `test_turn_artifact_commit_atomicity.js` 新規。`test_campaign_resources_core.js` に default-seed ケース追加。テスト **134/134**。
+
+### Docs
+
+- `docs/CAMPAIGN_OBSERVATORY_REVIEW_GEMINI_v1_53.md` — ChatGPT v1.53.0 レビュー（複数台帳整合性 P1×3）を Gemini トリアージと統合。v1.54.0 で PR1–PR3 を反映済みと記録。
+
 ## [1.53.0] - 2026-07-03
 
 ### Added

@@ -9,6 +9,7 @@ import {
 } from './campaignResources';
 import {
     applyCampaignResourceOps,
+    defaultCampaignResourceQuantities,
     parseCampaignResourceOps,
 } from './campaignResourcesCore';
 import { writeJsonAtomic } from './workspacePaths';
@@ -26,7 +27,8 @@ export function applyCampaignResourceTurnOps(turnResult: Pick<TurnResult, 'campa
     if (!resPath) {
         return false;
     }
-    const current = loadCampaignResources();
+    const current = loadCampaignResources()
+        ?? { version: 1 as const, quantities: defaultCampaignResourceQuantities(kit) };
     const next = applyCampaignResourceOps(current, ops, kit);
     if (JSON.stringify(current) === JSON.stringify(next)) {
         return false;

@@ -9091,6 +9091,7 @@ function drawTileOvermap() {
         el.className = 'hidden';
         el.innerHTML = `
             <div class="observatory-header">
+                <span class="observatory-glyph" aria-hidden="true">🔭</span>
                 <span class="observatory-title">${escapeHtml(T('webview.observatory.title'))}</span>
                 <span class="observatory-turn-chip">
                     <span class="observatory-live-dot" id="observatory-live-dot"></span>
@@ -9108,6 +9109,9 @@ function drawTileOvermap() {
             <div class="observatory-market-grid" id="observatory-market-grid"></div>
             <div class="observatory-section-heading">${escapeHtml(T('webview.observatory.chronicleHeading'))}</div>
             <div class="observatory-chronicle-list" id="observatory-chronicle-list"></div>
+            <div class="observatory-section-heading">${escapeHtml(T('webview.observatory.bondsHeading'))}</div>
+            <div class="observatory-bonds-wrap" id="observatory-bonds-wrap"></div>
+            <div class="observatory-bonds-legend" id="observatory-bonds-legend"></div>
         `;
         parent.appendChild(el);
 
@@ -9243,6 +9247,111 @@ function drawTileOvermap() {
         list.innerHTML = rows.join('');
     }
 
+    // Shared vocab from 85-world.js (same bundle, loaded first — the 86-tile-overmap pattern).
+    // Guarded with local fallbacks so this module stays self-sufficient if 85 renames them.
+    const BOND_MILESTONE_ICON = typeof NPC_MILESTONE_ICON !== 'undefined'
+        ? NPC_MILESTONE_ICON
+        : { sworn_allies: '🛡️', inseparable: '💠', bitter_enemies: '🗡️', estranged: '💔', reconciled: '🕊️' };
+    const BOND_LABEL_KEY = typeof NPC_BOND_LABEL_KEY !== 'undefined'
+        ? NPC_BOND_LABEL_KEY
+        : {
+            ally: 'webview.world.npcBondAlly',
+            friend: 'webview.world.npcBondFriend',
+            rival: 'webview.world.npcBondRival',
+            enemy: 'webview.world.npcBondEnemy',
+        };
+    const BOND_EDGE_STYLE = {
+        ally: { stroke: 'var(--accent, #4f8ef7)', width: 3, opacity: 0.85, dash: '' },
+        friend: { stroke: 'var(--accent, #4f8ef7)', width: 1.3, opacity: 0.45, dash: '' },
+        rival: { stroke: '#f4a261', width: 1.5, opacity: 0.7, dash: '5 4' },
+        enemy: { stroke: '#e76f51', width: 2.4, opacity: 0.85, dash: '5 4' },
+    };
+    const MAX_BOND_GRAPH_NODES = 12;
+
+    function renderBondsGraph(bonds) {
+        const wrap = document.getElementById('observatory-bonds-wrap');
+        const legend = document.getElementById('observatory-bonds-legend');
+        if (!wrap || !legend) return;
+
+        const entries = (Array.isArray(bonds) ? bonds : [])
+            .filter((b) => b && b.nameA && b.nameB && BOND_EDGE_STYLE[b.label]);
+        if (entries.length === 0) {
+            wrap.innerHTML = `<div class="observatory-empty">${escapeHtml(T('webview.observatory.bondsEmpty'))}</div>`;
+            legend.innerHTML = '';
+            return;
+        }
+
+        // Deterministic node set: first-appearance order, capped.
+        const names = [];
+        for (const b of entries) {
+            if (!names.includes(b.nameA) && names.length < MAX_BOND_GRAPH_NODES) names.push(b.nameA);
+            if (!names.includes(b.nameB) && names.length < MAX_BOND_GRAPH_NODES) names.push(b.nameB);
+        }
+        const drawable = entries.filter((b) => names.includes(b.nameA) && names.includes(b.nameB));
+
+        // Ellipse layout — plenty for <=10 named NPCs, no physics needed.
+        const W = 320;
+        const H = names.length > 6 ? 210 : 180;
+        const cx = W / 2;
+        const cy = H / 2 - 8;
+        const rx = W / 2 - 44;
+        const ry = cy - 26;
+        const pos = {};
+        names.forEach((name, i) => {
+            const angle = -Math.PI / 2 + (i * 2 * Math.PI) / names.length;
+            pos[name] = { x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) };
+        });
+
+        const edgeParts = [];
+        const badgeParts = [];
+        for (const b of drawable) {
+            const a = pos[b.nameA];
+            const z = pos[b.nameB];
+            const s = BOND_EDGE_STYLE[b.label];
+            edgeParts.push(
+                `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${z.x.toFixed(1)}" y2="${z.y.toFixed(1)}"`
+                + ` stroke="${s.stroke}" stroke-width="${s.width}" opacity="${s.opacity}"`
+                + (s.dash ? ` stroke-dasharray="${s.dash}"` : '')
+                + ' />'
+            );
+            if (b.milestone && BOND_MILESTONE_ICON[b.milestone]) {
+                const mx = (a.x + z.x) / 2;
+                const my = (a.y + z.y) / 2;
+                badgeParts.push(
+                    `<text x="${mx.toFixed(1)}" y="${(my - 4).toFixed(1)}" text-anchor="middle" font-size="12">${BOND_MILESTONE_ICON[b.milestone]}</text>`
+                );
+            }
+        }
+
+        const nodeParts = names.map((name) => {
+            const p = pos[name];
+            const initial = escapeHtml(String(name).charAt(0));
+            return `
+                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" class="observatory-bond-node" />
+                <text x="${p.x.toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="middle" class="observatory-bond-initial">${initial}</text>
+                <text x="${p.x.toFixed(1)}" y="${(p.y + 26).toFixed(1)}" text-anchor="middle" class="observatory-bond-name">${escapeHtml(name)}</text>
+            `;
+        });
+
+        wrap.innerHTML = `
+            <svg class="observatory-bonds-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(T('webview.observatory.bondsHeading'))}">
+                ${edgeParts.join('')}
+                ${nodeParts.join('')}
+                ${badgeParts.join('')}
+            </svg>
+        `;
+
+        // Legend: only labels actually present, using the same i18n as the Bonds list.
+        const seenLabels = [...new Set(drawable.map((b) => b.label))];
+        legend.innerHTML = seenLabels
+            .map((label) => {
+                const s = BOND_EDGE_STYLE[label];
+                const line = `<span class="observatory-legend-line" style="background:${s.stroke};opacity:${s.opacity};${s.dash ? 'background:repeating-linear-gradient(90deg,' + s.stroke + ' 0 5px,transparent 5px 9px);' : ''}"></span>`;
+                return `<span class="observatory-legend-item">${line}${escapeHtml(T(BOND_LABEL_KEY[label]))}</span>`;
+            })
+            .join('');
+    }
+
     function renderObservatory(msg) {
         const el = ensureContainer();
         if (!el) return;
@@ -9261,6 +9370,7 @@ function drawTileOvermap() {
 
         renderMarkets(msg.marketPriceHistory);
         renderChronicle(msg.chronicle);
+        renderBondsGraph(msg.npcBonds);
     }
 
     window.addEventListener('message', (event) => {

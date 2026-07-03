@@ -1,8 +1,8 @@
 {
   "name": "lorerelay",
   "displayName": "LoreRelay",
-  "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.53.0",
+  "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
+  "version": "1.54.0",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {

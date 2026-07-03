@@ -748,11 +748,18 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         }
 
         const afterHash = hashGameState(commitState);
-        commitGameState(commitState, {
+        const commit = commitGameState(commitState, {
             mode: 'salvage',
             baseRevision,
             mergeProfile: 'turn',
         });
+        if (!commit.ok) {
+            console.error(
+                `[statePatch] commitGameState ${commit.action}; skipping discovery/resource ledger writes.`,
+                commit.reason
+            );
+            return false;
+        }
         applyDiscoveryTurnOps(turnResult);
         applyCampaignResourceTurnOps(turnResult);
 

@@ -922,6 +922,8 @@
   "webview.observatory.marketsEmpty": "暂无市场历史。",
   "webview.observatory.chronicleHeading": "编年史",
   "webview.observatory.chronicleEmpty": "尚未发生任何事。",
+  "webview.observatory.bondsHeading": "人们的羁绊",
+  "webview.observatory.bondsEmpty": "尚无值得注意的羁绊。",
   "webview.gameRules.campaignKitId": "Campaign Kit 预设",
   "webview.gameRules.campaignKitAuto": "自动（主题 / campaign_kit.json）",
   "webview.gameRules.campaignKitPostApoc": "末日后拾荒者",

@@ -11,6 +11,7 @@ import { loadWorldState, saveWorldState } from './worldState';
 import { loadNpcRegistry } from './npcRegistry';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { parseTradeOps, applyTradeOps, initializeMarketState } from './commerceCore';
+import { loadDiscoveryLedger } from './discoveryLedger';
 import { parseNpcAgencyOps, applyNpcAgencyOps, resolveNpcLocation } from './npcAgencyCore';
 import { parseRelationshipOps, applyRelationshipOps } from './npcRelationshipCore';
 import type { PlayerBondRegistryLike } from './playerBondCore';
@@ -89,7 +90,10 @@ function runCommercePhase(
         nextGame,
         loadGameRules().playerRole ?? 'merchant'
     );
-    const batch = applyTradeOps(commerce, markets, playerCommerce, ops);
+    const discoveryLedger = ops.some((o) => o.op === 'sell_discovery')
+        ? loadDiscoveryLedger()
+        : undefined;
+    const batch = applyTradeOps(commerce, markets, playerCommerce, ops, discoveryLedger);
     if (!batch.ok) {
         return { gameState: nextGame, ws, dirty: false };
     }

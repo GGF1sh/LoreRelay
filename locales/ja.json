@@ -922,6 +922,8 @@
   "webview.observatory.marketsEmpty": "まだ相場の履歴がありません。",
   "webview.observatory.chronicleHeading": "年代記",
   "webview.observatory.chronicleEmpty": "まだ何も起きていません。",
+  "webview.observatory.bondsHeading": "人々の絆",
+  "webview.observatory.bondsEmpty": "まだ目立った絆はありません。",
   "webview.gameRules.campaignKitId": "Campaign Kit プリセット",
   "webview.gameRules.campaignKitAuto": "自動（テーマ / campaign_kit.json）",
   "webview.gameRules.campaignKitPostApoc": "ポストアポカリプス・スカベンジャー",

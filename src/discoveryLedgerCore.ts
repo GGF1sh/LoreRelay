@@ -35,6 +35,9 @@ export const CONDITION_VALUE_MULTIPLIER: Record<DiscoveryCondition, number> = {
     damaged: 0.6,
 };
 
+export const MAX_SELL_DISCOVERY_VALUE = 999999;
+export const SELL_DISCOVERY_VALUE_TOLERANCE = 0.5;
+
 /** Canonical suggested sell price for an appraised/identified find; GM should anchor sell_discovery near this. */
 export function computeSuggestedSellValue(entry: Pick<DiscoveryEntry, 'estValue' | 'condition'>): number | undefined {
     if (typeof entry.estValue !== 'number' || !Number.isFinite(entry.estValue) || entry.estValue < 0) {
@@ -133,6 +136,47 @@ function parseEntry(raw: unknown): DiscoveryEntry | undefined {
     const estValue = asEstValue(r.estValue);
     if (estValue !== undefined) { entry.estValue = estValue; }
     return entry;
+}
+
+export function findDiscoveryEntry(
+    ledger: DiscoveryLedgerDocument | undefined,
+    discoveryId: string
+): DiscoveryEntry | undefined {
+    return ledger?.entries.find((e) => e.id === discoveryId);
+}
+
+export function isDiscoverySellableStatus(status: DiscoveryStatus): boolean {
+    return status === 'identified' || status === 'appraised';
+}
+
+/** Validates a sell_discovery trade op against the discovery ledger (pure). */
+export function validateSellDiscoveryTrade(
+    discoveryId: string,
+    value: number,
+    ledger: DiscoveryLedgerDocument | undefined
+): string | undefined {
+    const entry = findDiscoveryEntry(ledger, discoveryId);
+    if (!entry) {
+        return `Unknown discovery ${discoveryId}`;
+    }
+    if (entry.status === 'sold' || entry.status === 'consumed') {
+        return `Discovery ${discoveryId} already ${entry.status}`;
+    }
+    if (!isDiscoverySellableStatus(entry.status)) {
+        return `Discovery ${discoveryId} not sellable (status: ${entry.status})`;
+    }
+    if (!Number.isFinite(value) || value < 0 || value > MAX_SELL_DISCOVERY_VALUE) {
+        return 'Invalid sell value';
+    }
+    const suggested = computeSuggestedSellValue(entry);
+    if (suggested !== undefined) {
+        const min = Math.max(0, Math.floor(suggested * (1 - SELL_DISCOVERY_VALUE_TOLERANCE)));
+        const max = Math.min(MAX_SELL_DISCOVERY_VALUE, Math.ceil(suggested * (1 + SELL_DISCOVERY_VALUE_TOLERANCE)));
+        if (value < min || value > max) {
+            return `Sell value ${value} outside suggested range ${min}-${max}`;
+        }
+    }
+    return undefined;
 }
 
 export function parseDiscoveryLedger(raw: unknown): DiscoveryLedgerDocument | undefined {

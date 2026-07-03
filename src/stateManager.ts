@@ -16,6 +16,10 @@ import { runSerializedGameStateMutation } from './workspaceStateQueue';
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
 export { resolveGameStatePersistPlan } from './stateManagerCore';
 
+export type CommitGameStateResult =
+    | { ok: true; action: 'write' }
+    | { ok: false; action: 'skip' | 'quarantine'; reason: string[] };
+
 export interface CommitGameStateOptions {
     createBackup?: boolean;
     mode?: CommitGameStateMode;
@@ -43,7 +47,7 @@ function writeGameStatePlan(
     statePath: string,
     state: Record<string, unknown>,
     options: CommitGameStateOptions
-): void {
+): CommitGameStateResult {
     const createBackup = options.createBackup ?? false;
     const mode = options.mode ?? 'salvage';
     const disk = readGameStateFromDisk(statePath);
@@ -58,7 +62,7 @@ function writeGameStatePlan(
             `[commitGameState] ${mode} mode: validation failed, not writing. Errors:`,
             plan.reason
         );
-        return;
+        return { ok: false, action: 'skip', reason: [plan.reason] };
     }
     if (plan.action === 'quarantine') {
         console.error(
@@ -66,7 +70,7 @@ function writeGameStatePlan(
             plan.reason
         );
         quarantineInvalidState(statePath, plan.payload);
-        return;
+        return { ok: false, action: 'quarantine', reason: [plan.reason] };
     }
 
     if (mode === 'salvage' && validateGameState(merged).length > 0) {
@@ -74,25 +78,28 @@ function writeGameStatePlan(
     }
 
     writeJsonAtomic(statePath, plan.payload, createBackup);
+    return { ok: true, action: 'write' };
 }
 
 export function commitGameState(
     state: Record<string, unknown> | GameState,
     options: boolean | CommitGameStateOptions = {}
-): void {
+): CommitGameStateResult {
     const opts: CommitGameStateOptions = typeof options === 'boolean'
         ? { createBackup: options }
         : options;
 
     const statePath = getGameStatePath();
     if (!statePath) {
-        return;
+        return { ok: false, action: 'skip', reason: ['no workspace path'] };
     }
 
     const raw = state as Record<string, unknown>;
+    let result: CommitGameStateResult = { ok: false, action: 'skip', reason: ['queue aborted'] };
     runSerializedGameStateMutation(() => {
-        writeGameStatePlan(statePath, raw, opts);
+        result = writeGameStatePlan(statePath, raw, opts);
     });
+    return result;
 }
 
 function quarantineInvalidState(statePath: string, payload: Record<string, unknown>): void {

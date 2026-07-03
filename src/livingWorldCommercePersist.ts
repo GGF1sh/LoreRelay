@@ -8,6 +8,8 @@ import {
     createCommercePersistScheduler,
     type CommercePersistPayload,
 } from './livingWorldCommercePersistCore';
+import { executeCrossFileDualWrite } from './workspaceWriteCircuitBreakerCore';
+import { recordSplitBrainRisk } from './workspaceWriteHealth';
 
 interface PendingCommercePersist {
     gameState?: GameState;
@@ -26,21 +28,40 @@ const scheduler = createCommercePersistScheduler((payload: CommercePersistPayloa
         return;
     }
 
-    if (snap.gameState && snap.commerce !== undefined) {
-        const next = { ...snap.gameState, commerce: snap.commerce } as GameState;
-        commitGameState(next as unknown as Record<string, unknown>, {
-            mode: 'salvage',
-            baseRevision: snap.baseRevision ?? payload.baseRevision,
-            mergeProfile: 'commerce-ui',
-        });
-    }
+    const gameAttempted = Boolean(snap.gameState && snap.commerce !== undefined);
+    const worldAttempted = Boolean(snap.markets);
 
-    if (snap.markets) {
-        const freshWs = loadWorldState();
-        if (freshWs) {
-            saveWorldState({ ...freshWs, markets: snap.markets });
-        }
+    const outcome = executeCrossFileDualWrite({
+        gameAttempted,
+        worldAttempted,
+        writeGame: () => {
+            if (!gameAttempted || !snap.gameState || snap.commerce === undefined) {
+                return true;
+            }
+            const next = { ...snap.gameState, commerce: snap.commerce } as GameState;
+            const commit = commitGameState(next as unknown as Record<string, unknown>, {
+                mode: 'salvage',
+                baseRevision: snap.baseRevision ?? payload.baseRevision,
+                mergeProfile: 'commerce-ui',
+            });
+            return commit.ok;
+        },
+        writeWorld: () => {
+            if (!worldAttempted || !snap.markets) {
+                return true;
+            }
+            const freshWs = loadWorldState();
+            if (!freshWs) {
+                return false;
+            }
+            return saveWorldState({ ...freshWs, markets: snap.markets });
+        },
+    });
+
+    if (!outcome.ok) {
+        console.error('[livingWorldCommercePersist] cross-file persist incomplete:', outcome);
     }
+    recordSplitBrainRisk(outcome, 'livingWorldCommercePersist');
 });
 
 export function scheduleCommercePersist(update: PendingCommercePersist): void {

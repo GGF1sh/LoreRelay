@@ -115,7 +115,7 @@ export const TURN_AUTHORITATIVE_ROOT_KEYS = [
 |----|------|----------|
 | **PR-A** | `domain`（+ drift 補助キー）を `TURN_AUTHORITATIVE_ROOT_KEYS` に追加 + merge conflict テスト | **✅ 1.39.9** |
 | **PR-B** | D3 着手時: `UI_PROTECTED_ON_TURN_COMMIT` に `domain` + webview sanitize | **1.40.0** |
-| **PR-C** | キュー サーキットブレーカー（横断）— **v1.59.0 で edge case テスト先行**（`test_split_brain_queue_edge_cases.js`） | **1.40.x**（breaker 本体は未実装） |
+| **PR-C** | キュー サーキットブレーカー（横断）— **v1.62.0 impl 完了**（retry + circuit open + dual-write + health） | **1.62.0 ✓** |
 | **PR-D** | Replay export `structuredClone(entries)` | 任意 |
 
 ---

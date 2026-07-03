@@ -158,7 +158,7 @@
 | UI `acceptCampaignJob` + GM turn | **低リスク** — `world_state` vs `game_state` はファイル分離 |
 | UI `acceptCampaignJob` + Observer tick | **v1.55.0 で緩和** — `mergeQuestHooks` + accept は `patchWorldStateQuestHooks` |
 | Observer `advance` + Commerce UI | **緩和済み** — revision 付き `scheduleCommercePersist` |
-| `game_state` / `world_state` Split Brain | **P2 横断** — Domain レビュー PR-C と同型。**v1.59.0** で edge case テスト先行（`test_split_brain_queue_edge_cases.js`） |
+| `game_state` / `world_state` Split Brain | **緩和済み v1.62.0** — circuit breaker + dual-write orchestrator + split-brain health（PR-C impl） |
 
 ---
 
@@ -189,6 +189,7 @@
 | ~~**PR-7**~~ | discoveries / campaign_resources serialized mutation queue | P2 | **1.57.0 ✓** |
 | ~~**PR-8**~~ | プロンプト: inactive モジュール chunk 省略 | P2 | **1.58.0 ✓** |
 | ~~**PR-C（tests）**~~ | Split Brain edge case テスト拡充（横断） | P2 | **1.59.0 ✓** |
+| ~~**PR-C（impl）**~~ | サーキットブレーカー + dual-write + health | P2 | **1.62.0 ✓** |
 | ~~**PR-D**~~ | Cross-ledger 部分失敗テスト + 補償方針 | P2 | **1.60.0 ✓** |
 | ~~**PR-E**~~ | Ledger sanitization（Webview + export） | P2 | **1.61.0 ✓** |
 | ~~PR（Gemini）~~ | ~~StateManager Event Sourcing 全面改修~~ | **却下** | — コスト対効果不適切 |

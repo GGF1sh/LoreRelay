@@ -11,7 +11,7 @@ import {
     mergeGameStateForPersist,
     type GameStateMergeProfile,
 } from './workspaceStateQueueCore';
-import { runSerializedGameStateMutation } from './workspaceStateQueue';
+import { isGameStateWriteCircuitOpen, runSerializedGameStateMutation } from './workspaceStateQueue';
 
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
 export { resolveGameStatePersistPlan } from './stateManagerCore';
@@ -77,7 +77,12 @@ function writeGameStatePlan(
         console.warn('[commitGameState] salvage mode: wrote sanitized state after raw validation failed.');
     }
 
-    writeJsonAtomic(statePath, plan.payload, createBackup);
+    try {
+        writeJsonAtomic(statePath, plan.payload, createBackup);
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`game_state io write failed: ${msg}`);
+    }
     return { ok: true, action: 'write' };
 }
 
@@ -93,12 +98,20 @@ export function commitGameState(
     if (!statePath) {
         return { ok: false, action: 'skip', reason: ['no workspace path'] };
     }
+    if (isGameStateWriteCircuitOpen()) {
+        return { ok: false, action: 'skip', reason: ['circuit open: game_state'] };
+    }
 
     const raw = state as Record<string, unknown>;
     let result: CommitGameStateResult = { ok: false, action: 'skip', reason: ['queue aborted'] };
+    let completed = false;
     runSerializedGameStateMutation(() => {
         result = writeGameStatePlan(statePath, raw, opts);
+        completed = true;
     });
+    if (!completed) {
+        return { ok: false, action: 'skip', reason: ['game_state write failed'] };
+    }
     return result;
 }
 

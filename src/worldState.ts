@@ -12,7 +12,7 @@ import {
 } from './worldStateCore';
 import type { WorldForge } from './worldForgeCore';
 import { mergeWorldStateForPersist } from './workspaceStateQueueCore';
-import { runSerializedWorldStateMutation } from './workspaceStateQueue';
+import { isWorldStateWriteCircuitOpen, runSerializedWorldStateMutation } from './workspaceStateQueue';
 
 export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
@@ -111,17 +111,29 @@ function writeWorldStateToDisk(statePath: string, state: WorldState): void {
     }
 }
 
-export function saveWorldState(state: WorldState): void {
+export function saveWorldState(state: WorldState): boolean {
     const statePath = getWorldStatePath();
-    if (!statePath) { return; }
+    if (!statePath) { return false; }
+    if (isWorldStateWriteCircuitOpen()) {
+        console.error('[worldState] circuit open — skipping world_state write');
+        return false;
+    }
+    let ok = false;
     runSerializedWorldStateMutation(() => {
         const disk = readWorldStateFromDisk(statePath);
         const merged = mergeWorldStateForPersist(
             disk as Record<string, unknown> | undefined,
             state as unknown as Record<string, unknown>
         ) as unknown as WorldState;
-        writeWorldStateToDisk(statePath, merged);
+        try {
+            writeWorldStateToDisk(statePath, merged);
+            ok = true;
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(`world_state io write failed: ${msg}`);
+        }
     });
+    return ok;
 }
 
 /**

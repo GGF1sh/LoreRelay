@@ -13,6 +13,21 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.62.0] - 2026-07-03
+
+### Fixed
+
+- **Split Brain サーキットブレーカー（PR-C impl）** — 長時間セッション向け横断 hardening。
+  - `workspaceWriteCircuitBreakerCore.ts` — リトライ 1 回、連続失敗 3 回で circuit open、`executeCrossFileDualWrite`。
+  - `workspaceStateQueue.ts` — game_state / world_state キューに guarded enqueue + 独立 circuit。
+  - `workspaceWriteHealth.ts` — split-brain risk イベント記録（game_state ロールバックなし）。
+  - `livingWorldCommercePersist.ts` — commerce dual-write を cross-file orchestrator 経由に。
+  - `stateManager.ts` / `worldState.ts` — I/O 失敗を circuit に伝播、circuit open 時は書き込み拒否。
+
+### Added
+
+- `test_workspace_write_circuit_breaker.js` — circuit / retry / dual-write / queue 統合を検証。テスト **142/142**。
+
 ## [1.61.0] - 2026-07-03
 
 ### Fixed

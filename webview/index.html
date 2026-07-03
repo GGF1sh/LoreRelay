@@ -670,6 +670,12 @@
             <div id="world-domain-panel"></div>
           </details>
 
+          <!-- Guild Master (G1): quest board stats and roster (read-only) -->
+          <details id="world-guild-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.guildTitle">⚔️ Guild</summary>
+            <div id="world-guild-panel"></div>
+          </details>
+
           <!-- 派閥ステータス -->
           <details id="world-commerce-details" class="hidden" open style="margin-top:0.75rem;">
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.commerceTitle">Caravan</summary>
@@ -959,6 +965,11 @@
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
         <label for="gr-mass-battle" data-i18n="webview.gameRules.massBattle" data-i18n-title="webview.gameRules.tipMassBattle">Enable Mass Battle (F10)</label>
         <input type="checkbox" id="gr-mass-battle" data-field="enableMassBattle" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-guild-mode" data-i18n="webview.gameRules.guildMode" data-i18n-title="webview.gameRules.tipGuildMode">Enable Guild Master Mode (F11)</label>
+        <input type="checkbox" id="gr-guild-mode" data-field="enableGuildMode" />
       </div>
 
       <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">

@@ -122,4 +122,10 @@ export interface TurnResult {
         /** §F10 battle_round: the player's tactic for the current round of an active battle. */
         tactic?: 'assault' | 'hold' | 'stratagem';
     };
+    /** Guild Master Mode: weekly policy / adventurer roster (Guild ON). */
+    guildOps?: {
+        kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer';
+        actions?: string[];
+        adventurer?: { npcId: string; klass: string; skill?: number };
+    };
 }

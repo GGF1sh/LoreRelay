@@ -3465,6 +3465,7 @@ window.addEventListener('message', (event) => {
         enableDomainRivals: document.getElementById('gr-domain-rivals'),
         enableDomainMissions: document.getElementById('gr-domain-missions'),
         enableMassBattle: document.getElementById('gr-mass-battle'),
+        enableGuildMode: document.getElementById('gr-guild-mode'),
         enableNpcRelationships: document.getElementById('gr-npc-relationships'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
@@ -3519,6 +3520,7 @@ window.addEventListener('message', (event) => {
             enableDomainRivals: inputs.enableDomainRivals ? inputs.enableDomainRivals.checked : false,
             enableDomainMissions: inputs.enableDomainMissions ? inputs.enableDomainMissions.checked : false,
             enableMassBattle: inputs.enableMassBattle ? inputs.enableMassBattle.checked : false,
+            enableGuildMode: inputs.enableGuildMode ? inputs.enableGuildMode.checked : false,
             enableNpcRelationships: inputs.enableNpcRelationships ? inputs.enableNpcRelationships.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
@@ -3564,6 +3566,7 @@ window.addEventListener('message', (event) => {
             if (rules.enableDomainRivals !== undefined && inputs.enableDomainRivals) inputs.enableDomainRivals.checked = rules.enableDomainRivals;
             if (rules.enableDomainMissions !== undefined && inputs.enableDomainMissions) inputs.enableDomainMissions.checked = rules.enableDomainMissions;
             if (rules.enableMassBattle !== undefined && inputs.enableMassBattle) inputs.enableMassBattle.checked = rules.enableMassBattle;
+            if (rules.enableGuildMode !== undefined && inputs.enableGuildMode) inputs.enableGuildMode.checked = rules.enableGuildMode;
             if (rules.enableNpcRelationships !== undefined && inputs.enableNpcRelationships) inputs.enableNpcRelationships.checked = rules.enableNpcRelationships;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
@@ -5213,6 +5216,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     ensureCartographyStyles();
     ensureDomainStyles();
+    ensureGuildStyles();
     applyWorldMapModeVisibility();
     buildWorldGenForm();
     initWorldPinDismiss();
@@ -5295,6 +5299,9 @@ function renderWorldView(msg) {
 
     // Domain Mode (D3): lordship stats, audience, rivals, missions, battle
     renderDomainPanel(msg);
+
+    // Guild Master (G1): quest board stats and roster
+    renderGuildPanel(msg);
 
     // Living World market prices (+ direct trade when UI enabled)
     renderLivingWorldMarkets(
@@ -5795,6 +5802,59 @@ function ensureDomainStyles() {
             color: var(--vscode-input-foreground, #ccc);
             border: 1px solid var(--vscode-input-border, #555);
             border-radius: 3px;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function ensureGuildStyles() {
+    if (document.getElementById('world-guild-styles')) { return; }
+    const style = document.createElement('style');
+    style.id = 'world-guild-styles';
+    style.textContent = `
+        .guild-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+        .guild-header-title { font-weight: 600; font-size: 1.02em; }
+        .guild-rank-badge {
+            font-size: 0.72em;
+            padding: 0.08rem 0.4rem;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.18);
+            opacity: 0.85;
+            margin-left: 0.3rem;
+        }
+        .guild-header-date { font-size: 0.85em; opacity: 0.65; }
+        .guild-resource-row { display: flex; gap: 1rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+        .guild-resource { display: flex; align-items: center; gap: 0.3rem; font-size: 0.95em; }
+        .guild-stats-grid { margin-bottom: 0.6rem; }
+        .guild-stat-row {
+            display: grid;
+            grid-template-columns: minmax(6rem, 8rem) 1fr 2.4rem;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.14rem 0;
+            font-size: 0.85em;
+        }
+        .guild-stat-label { opacity: 0.8; }
+        .guild-stat-bar {
+            height: 0.45rem;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+        }
+        .guild-stat-fill {
+            height: 100%;
+            background: var(--vscode-charts-orange, #ce9178);
+            border-radius: 3px;
+        }
+        .guild-stat-value { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.85; }
+        .guild-actions-left { font-size: 0.8em; opacity: 0.6; margin-top: 0.2rem; }
+        .guild-adventurers-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.4rem; }
+        .guild-adventurer-chip {
+            font-size: 0.8em;
+            padding: 0.14rem 0.45rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.03);
         }
     `;
     document.head.appendChild(style);
@@ -7476,6 +7536,65 @@ function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ===== Guild Master (G1): quest board panel (read-only) =====
+
+const GUILD_STAT_KEYS = ['discipline', 'townFavor', 'facilities', 'safety', 'lore', 'renown'];
+
+function guildT(section, key) {
+    return T(`webview.world.guild${section}.${key}`) || key;
+}
+
+function renderGuildPanel(msg) {
+    const section = document.getElementById('world-guild-details');
+    const panel = document.getElementById('world-guild-panel');
+    if (!section || !panel) { return; }
+
+    const guild = msg.guild;
+    const visible = msg.enableGuildMode === true && guild;
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    const name = escapeHtml(guild.hallLocationName || guild.hallLocationId || '');
+    const rank = escapeHtml(guildT('Rank', guild.rank || 'chartered'));
+    const dateLabel = escapeHtml(T('webview.world.guildWeekYear', { week: guild.calendarWeek, year: guild.calendarYear }));
+
+    panel.innerHTML = `
+        <div class="guild-header">
+            <div class="guild-header-title">${name} <span class="guild-rank-badge">${rank}</span></div>
+            <div class="guild-header-date">${dateLabel}</div>
+        </div>
+        <div class="guild-resource-row">
+            <div class="guild-resource" title="${escapeHtml(T('webview.world.guildCoffers'))}">
+                <span>💰</span><strong>${escapeHtml(guild.coffers ?? 0)}</strong>
+            </div>
+            <div class="guild-resource" title="${escapeHtml(T('webview.world.guildSupplies'))}">
+                <span>📦</span><strong>${escapeHtml(guild.supplies ?? 0)}</strong>
+            </div>
+        </div>
+        <div class="guild-stats-grid">
+            ${GUILD_STAT_KEYS.map((key) => {
+                const value = Math.max(0, Math.min(100, Number(guild[key]) || 0));
+                return `
+                    <div class="guild-stat-row">
+                        <span class="guild-stat-label">${escapeHtml(guildT('Stat', key))}</span>
+                        <div class="guild-stat-bar"><div class="guild-stat-fill" style="width:${value}%"></div></div>
+                        <span class="guild-stat-value">${value}</span>
+                    </div>
+                `;
+            }).join('')}
+            <div class="guild-actions-left">${escapeHtml(T('webview.world.guildActionsLeft', { n: guild.weeklyActionsRemaining ?? 0 }))}</div>
+        </div>
+        ${guild.adventurers && guild.adventurers.length > 0
+            ? `<div class="guild-adventurers-row">${guild.adventurers.map((a) =>
+                `<span class="guild-adventurer-chip">${escapeHtml(a.npcId)} · ${escapeHtml(guildT('Class', a.klass))}</span>`
+            ).join('')}</div>`
+            : `<p class="empty-text">${escapeHtml(T('webview.world.guildNoAdventurers'))}</p>`}
+    `;
 }
 
 // ===== Domain Mode (D3): F7 Audience / F8 Rivals / F9 Missions / F10 Battle =====

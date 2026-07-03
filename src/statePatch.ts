@@ -37,6 +37,7 @@ import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import { persistWorldSimulationSteps } from './worldSimPersist';
 import { applyLivingWorldTurnOps } from './livingWorldTurnOps';
 import { applyDomainTurnOps, domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
+import { applyGuildTurnOps } from './guildTurnOps';
 import {
     applyDomainRegionReturnDrift,
     clearDomainSinceLastVisitReport,
@@ -505,6 +506,10 @@ function applyTurnGameStateFinalize(
         { persistWorld }
     ) as unknown as Record<string, unknown>;
     next = applyDomainTurnOps(
+        turnResult,
+        next as unknown as import('./types/GameState').GameState
+    ) as unknown as Record<string, unknown>;
+    next = applyGuildTurnOps(
         turnResult,
         next as unknown as import('./types/GameState').GameState
     ) as unknown as Record<string, unknown>;

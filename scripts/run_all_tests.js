@@ -105,6 +105,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_domain_mission_core.js' },
     { category: 'unit', file: 'test_mass_battle_core.js' },
     { category: 'unit', file: 'test_domain_turn_merge_conflict.js' },
+    { category: 'unit', file: 'test_guild_core.js' },
     { category: 'unit', file: 'test_connection_profile_core.js' },
     { category: 'unit', file: 'test_persona_core.js' },
     { category: 'unit', file: 'test_parlor_background_core.js' },

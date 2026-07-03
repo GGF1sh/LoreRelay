@@ -30,7 +30,9 @@ import { listActiveMapItems } from './cartographyRevealCore';
 import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } from './mapFeedbackCore';
 import { loadGameRules } from './gameRules';
 import { pickDomainForWebview } from './domainBridge';
+import { pickGuildForWebview } from './guildBridge';
 import { readDomainFromGameState } from './domainTurnOps';
+import { readGuildFromGameState } from './guildTurnOps';
 import { buildMarketPriceTable } from './commerceCore';
 import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
@@ -475,6 +477,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         : undefined;
     const domain = pickDomainForWebview(domainState);
 
+    const guildState = gameRules.enableGuildMode === true && gameSnapshot
+        ? readGuildFromGameState(gameSnapshot as unknown as Record<string, unknown>)
+        : undefined;
+    const guild = pickGuildForWebview(guildState);
+
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
@@ -525,6 +532,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableDomainMissions: gameRules.enableDomainMissions === true,
         enableMassBattle: gameRules.enableMassBattle === true,
         domain: domain ?? null,
+        enableGuildMode: gameRules.enableGuildMode === true,
+        guild: guild ?? null,
         mapItems: listActiveMapItems(worldBlock).map((item) => ({
             id: item.id,
             name: item.name,

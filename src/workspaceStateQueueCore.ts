@@ -18,6 +18,14 @@ export const DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS = [
     'domainSinceLastVisit',
 ] as const;
 
+/** Guild role layer — turn commit wins on revision conflict (same pattern as domain). */
+export const GUILD_TURN_AUTHORITATIVE_ROOT_KEYS = [
+    'guild',
+    'guildSnapshotAtDepart',
+    'lastGuildVisitWorldTurn',
+    'guildSinceLastVisit',
+] as const;
+
 /** GM turn_result commit may overwrite these even when disk revision advanced. */
 export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     'status',
@@ -39,6 +47,7 @@ export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     'world',
     'schemaVersion',
     ...DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS,
+    ...GUILD_TURN_AUTHORITATIVE_ROOT_KEYS,
 ] as const;
 
 export type GameStateMergeProfile = 'default' | 'turn' | 'commerce-ui' | 'entries-only';

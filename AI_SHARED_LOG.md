@@ -6,11 +6,12 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.40.1** |
-| Domain Mode | D1–D5 **完了** · **D3 UI 完了** · F7–F10 engine + World タブ UI 完了 · **v1.40.1 で入力検証 hardening** |
+| Package version | **1.41.0** |
+| Domain Mode | D1–D5 **完了** · D3 UI 完了 · F7–F10 完了 |
+| Guild Master (F11) | **G1 完了**（`guildCore` 週次コミット + World タブ読み取り専用）· G2 依頼人キューは次 |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **113/113**（webview は compile + i18n/HTML 検証のみ。**F5 実機確認は次セッション推奨**） |
-| Next (推奨) | **F5 手動確認**（挿入テキスト→GM解釈の実地検証）→ D4 残（市場ボーナス）→ F12 家史エピローグ（箸休め）または F11 ギルドマスター設計 |
+| Tests | `npm test` **114/114** |
+| Next (推奨) | **G2** `guildRequestCore`（依頼人キュー + 一括/面談 tier）→ G3 派遣 → G4 留守ドリフト |
 
 ---
 

@@ -47,6 +47,14 @@ export interface GameRules {
     domainMaxActiveMissions?: number;
     /** §F10: 3-round battle resolver — replaces a rival raid's instant delta (requires Domain Mode + Rivals). */
     enableMassBattle?: boolean;
+    /** Guild Master Mode (F11): adventurer guild / quest board layer (default OFF). */
+    enableGuildMode?: boolean;
+    /** Weekly guild actions selectable per commit (1–4). */
+    guildWeeklyActions?: number;
+    /** Request queue size when open_board runs (1–4, G2+). */
+    guildBoardSize?: number;
+    /** Max simultaneously active quests (1–3, G3+). */
+    guildMaxActiveQuests?: number;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -77,7 +85,11 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableDomainRivals: false,
     enableDomainMissions: false,
     domainMaxActiveMissions: 2,
-    enableMassBattle: false
+    enableMassBattle: false,
+    enableGuildMode: false,
+    guildWeeklyActions: 2,
+    guildBoardSize: 3,
+    guildMaxActiveQuests: 2
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -227,6 +239,18 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableMassBattle !== undefined && typeof rules.enableMassBattle === 'boolean') {
             sanitized.enableMassBattle = rules.enableMassBattle;
+        }
+        if (rules.enableGuildMode !== undefined && typeof rules.enableGuildMode === 'boolean') {
+            sanitized.enableGuildMode = rules.enableGuildMode;
+        }
+        if (rules.guildWeeklyActions !== undefined && typeof rules.guildWeeklyActions === 'number') {
+            sanitized.guildWeeklyActions = Math.max(1, Math.min(4, Math.floor(rules.guildWeeklyActions)));
+        }
+        if (rules.guildBoardSize !== undefined && typeof rules.guildBoardSize === 'number') {
+            sanitized.guildBoardSize = Math.max(1, Math.min(4, Math.floor(rules.guildBoardSize)));
+        }
+        if (rules.guildMaxActiveQuests !== undefined && typeof rules.guildMaxActiveQuests === 'number') {
+            sanitized.guildMaxActiveQuests = Math.max(1, Math.min(3, Math.floor(rules.guildMaxActiveQuests)));
         }
     }
 

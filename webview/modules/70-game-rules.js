@@ -28,6 +28,7 @@
         enableDomainRivals: document.getElementById('gr-domain-rivals'),
         enableDomainMissions: document.getElementById('gr-domain-missions'),
         enableMassBattle: document.getElementById('gr-mass-battle'),
+        enableGuildMode: document.getElementById('gr-guild-mode'),
         enableNpcRelationships: document.getElementById('gr-npc-relationships'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
@@ -82,6 +83,7 @@
             enableDomainRivals: inputs.enableDomainRivals ? inputs.enableDomainRivals.checked : false,
             enableDomainMissions: inputs.enableDomainMissions ? inputs.enableDomainMissions.checked : false,
             enableMassBattle: inputs.enableMassBattle ? inputs.enableMassBattle.checked : false,
+            enableGuildMode: inputs.enableGuildMode ? inputs.enableGuildMode.checked : false,
             enableNpcRelationships: inputs.enableNpcRelationships ? inputs.enableNpcRelationships.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
@@ -127,6 +129,7 @@
             if (rules.enableDomainRivals !== undefined && inputs.enableDomainRivals) inputs.enableDomainRivals.checked = rules.enableDomainRivals;
             if (rules.enableDomainMissions !== undefined && inputs.enableDomainMissions) inputs.enableDomainMissions.checked = rules.enableDomainMissions;
             if (rules.enableMassBattle !== undefined && inputs.enableMassBattle) inputs.enableMassBattle.checked = rules.enableMassBattle;
+            if (rules.enableGuildMode !== undefined && inputs.enableGuildMode) inputs.enableGuildMode.checked = rules.enableGuildMode;
             if (rules.enableNpcRelationships !== undefined && inputs.enableNpcRelationships) inputs.enableNpcRelationships.checked = rules.enableNpcRelationships;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;

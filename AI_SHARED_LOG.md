@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Parlor Gemini review follow-up #2
+
+### Summary
+
+- Expanded `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` with full P0–P3 triage (改定レビュー基準).
+- `effectivePromptCharBudget` in `promptContext.ts`; Parlor assembler uses ratio + fixed margin.
+- `clampDelimitedContext` drops whole inner lines (keeps BEGIN/END delimiters).
+- `invokeParlorVscodeLm`: `gmStart` before model select; `gmEnd` on all early exits.
+- Webview: disable `parlor-settings-btn` during GM loading.
+
+### Verification
+
+- `npm test` — parlor prompt tests extended (margin · lore delimiters · campaign isolation)
+
 ## 2026-07-03 JST - Grok - Phase 12 Parlor Mode Phase B (v1.35.0)
 
 ### Summary

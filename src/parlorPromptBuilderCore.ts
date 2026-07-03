@@ -3,6 +3,7 @@
 import type { CharacterProfile } from './types/Character';
 import type { ParlorMessage, ParlorSession } from './parlorSessionCore';
 import { clampParlorContent, recentParlorMessagesForPrompt } from './parlorSessionCore';
+import { effectivePromptCharBudget } from './promptContext';
 
 export const DEFAULT_PARLOR_MAX_PROMPT_CHARS = 12_000;
 /** Reserve headroom for provider-side tokenization vs char count (Gemini review P0). */
@@ -101,17 +102,28 @@ export function buildParlorLoreContext(snippets: string[] | undefined, maxBodyCh
     ].join('\n');
 }
 
+/** Drop whole inner lines first; keep BEGIN/END delimiters intact (Gemini P0 slice). */
 function clampDelimitedContext(block: string, maxChars: number): string {
     if (block.length <= maxChars) {
         return block;
     }
     const lines = block.split('\n');
+    if (lines.length <= 2) {
+        return block.slice(0, maxChars);
+    }
     const first = lines[0] || '';
-    const last = lines.length > 1 ? lines[lines.length - 1] : '';
-    const marker = '\n[...truncated by LoreRelay...]\n';
-    const budget = Math.max(0, maxChars - first.length - last.length - marker.length - 2);
-    const body = lines.slice(1, -1).join('\n').slice(0, budget);
-    return [first, body + marker.trimEnd(), last].filter(Boolean).join('\n');
+    const last = lines[lines.length - 1] || '';
+    const marker = '[...truncated by LoreRelay...]';
+    let bodyLines = lines.slice(1, -1);
+    while (bodyLines.length > 0) {
+        const candidate = [first, ...bodyLines, marker, last].join('\n');
+        if (candidate.length <= maxChars) {
+            return candidate;
+        }
+        bodyLines.shift();
+    }
+    const minimal = [first, marker, last].join('\n');
+    return minimal.length <= maxChars ? minimal : minimal.slice(0, maxChars);
 }
 
 export function formatParlorHistory(messages: ParlorMessage[], characterName: string): string {
@@ -161,7 +173,10 @@ export function buildParlorPromptParts(input: BuildParlorPromptInput): ParlorPro
 /** Flatten parts into a single user prompt for vscode-lm / clipboard. */
 export function assembleParlorUserPrompt(parts: ParlorPromptParts, locale: string): string {
     const max = DEFAULT_PARLOR_MAX_PROMPT_CHARS;
-    const effectiveMax = Math.max(4_000, max - PARLOR_PROMPT_SAFETY_MARGIN_CHARS);
+    const effectiveMax = effectivePromptCharBudget(max, {
+        fixedMarginChars: PARLOR_PROMPT_SAFETY_MARGIN_CHARS,
+        minResultChars: 4_000,
+    });
     const finalBlock = [
         '',
         locale === 'ja' ? '【プレイヤーの発言】' : '[Player message]',

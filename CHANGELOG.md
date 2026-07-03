@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parlor（Gemini レビュー follow-up #2）** — `promptContext.effectivePromptCharBudget` で 8% + 固定マージン、`clampDelimitedContext` を行単位ドロップに変更、Parlor `vscode-lm` で早期 `gmStart` / 全 early-return で `gmEnd`、ローディング中 `parlor-settings-btn` 無効化。
+
+### Docs
+
+- `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` — 改定基準の P0–P3 網羅 triage
+
 ## [1.35.0] - 2026-07-03
 
 ### Added

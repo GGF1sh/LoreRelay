@@ -1378,6 +1378,8 @@ function showGmLoading() {
   document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) profileBtn.disabled = true;
+  const parlorSettingsBtn = document.getElementById('parlor-settings-btn');
+  if (parlorSettingsBtn) parlorSettingsBtn.disabled = true;
 }
 
 function hideGmLoading(success) {
@@ -1388,6 +1390,8 @@ function hideGmLoading(success) {
   document.querySelectorAll('.option-btn').forEach(b => { b.disabled = false; });
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) profileBtn.disabled = false;
+  const parlorSettingsBtn = document.getElementById('parlor-settings-btn');
+  if (parlorSettingsBtn) parlorSettingsBtn.disabled = false;
   if (success === false) {
     addSystemMessage(T('webview.gm.failed'));
   }

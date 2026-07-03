@@ -862,17 +862,29 @@ export interface ParlorLmResult {
 }
 
 /** Parlor mode: plain-text vscode-lm reply — never writes turn_result.json. */
+function endParlorLmSpinner(success: boolean): void {
+    const { getPanel } = requireDeps();
+    vscode.window.setStatusBarMessage('');
+    notifyRemoteGmBusy(false);
+    getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+}
+
 export async function invokeParlorVscodeLm(
     userPrompt: string,
     lmOptions?: VscodeLmProfileOptions
 ): Promise<ParlorLmResult> {
     const { getPanel } = requireDeps();
     const wsPath = getWorkspacePath();
+    getPanel()?.webview.postMessage({ type: 'gmStart' });
+    notifyRemoteGmBusy(true);
+    vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        endParlorLmSpinner(false);
         return { ok: false, text: '' };
     }
     if (parlorLmBusy) {
+        endParlorLmSpinner(false);
         return { ok: false, text: '' };
     }
 
@@ -891,6 +903,7 @@ export async function invokeParlorVscodeLm(
         vscode.window.showErrorMessage(
             'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code 等の拡張機能をインストールしてサインインしてください。'
         );
+        endParlorLmSpinner(false);
         return { ok: false, text: '' };
     }
     const model = models[0];
@@ -899,10 +912,6 @@ export async function invokeParlorVscodeLm(
     channel.clear();
     channel.appendLine(`[parlor vscode-lm] model=${model.name} (${model.vendor}/${model.family})`);
     channel.show(true);
-
-    getPanel()?.webview.postMessage({ type: 'gmStart' });
-    notifyRemoteGmBusy(true);
-    vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
 
     parlorLmBusy = true;
     const cts = new vscode.CancellationTokenSource();
@@ -921,16 +930,12 @@ export async function invokeParlorVscodeLm(
             }
         }
         channel.appendLine('\n[parlor vscode-lm: complete]');
-        vscode.window.setStatusBarMessage('');
-        notifyRemoteGmBusy(false);
-        getPanel()?.webview.postMessage({ type: 'gmEnd', success: true });
+        endParlorLmSpinner(true);
         return { ok: true, text: fullText, model: model.name };
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         channel.appendLine(`\n[parlor vscode-lm error: ${msg}]`);
-        vscode.window.setStatusBarMessage('');
-        notifyRemoteGmBusy(false);
-        getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
+        endParlorLmSpinner(false);
         vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
         return { ok: false, text: '' };
     } finally {

@@ -59,6 +59,31 @@ export function estimateTokens(text: string): number {
     return Math.ceil((text || '').length / 4);
 }
 
+/** Provider tokenization often exceeds char/4 — reserve headroom before assembly (Gemini P0). */
+export const PROMPT_CHAR_SAFETY_MARGIN_RATIO = 0.08;
+export const PROMPT_CHAR_SAFETY_MARGIN_MIN_CHARS = 400;
+
+export interface EffectivePromptCharBudgetOptions {
+    /** Fixed char reserve (e.g. Parlor 1200). Combined with ratio via max(). */
+    fixedMarginChars?: number;
+    /** Floor for the usable budget after margin. */
+    minResultChars?: number;
+}
+
+/**
+ * Subtract a safety margin from a char budget so tail system rules survive API-side tokenization drift.
+ */
+export function effectivePromptCharBudget(
+    maxChars: number,
+    options: EffectivePromptCharBudgetOptions = {}
+): number {
+    const minResult = options.minResultChars ?? 4_000;
+    const ratioMargin = Math.ceil(maxChars * PROMPT_CHAR_SAFETY_MARGIN_RATIO);
+    const fixedMargin = Math.max(0, options.fixedMarginChars ?? 0);
+    const margin = Math.max(PROMPT_CHAR_SAFETY_MARGIN_MIN_CHARS, ratioMargin, fixedMargin);
+    return Math.max(minResult, maxChars - margin);
+}
+
 export function previewText(text: string, maxLen = 160): string {
     const t = (text || '').trim().replace(/\s+/g, ' ');
     if (t.length <= maxLen) {

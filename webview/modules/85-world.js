@@ -549,9 +549,30 @@ function ensureCartographyStyles() {
         .world-location-detail .world-pin-action-btn:hover {
             border-color: var(--vscode-focusBorder, #4a90e2);
         }
+        #world-overmap {
+            position: relative;
+        }
         #world-overmap-canvas.world-pin-cursor {
             cursor: crosshair;
         }
+        .world-map-overlay-tooltip {
+            position: absolute;
+            z-index: 8;
+            max-width: min(240px, 90%);
+            padding: 0.3rem 0.45rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(8, 12, 20, 0.92);
+            color: var(--vscode-foreground, #dde4ec);
+            font-size: 0.78em;
+            line-height: 1.35;
+            pointer-events: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+        }
+        .world-map-overlay-tooltip.hidden { display: none !important; }
         .world-map-pin-wrap {
             position: absolute;
             transform: translate(-50%, -100%);

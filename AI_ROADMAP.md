@@ -314,7 +314,7 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] Kenshi風 caravan / outpost pressure / faction world-state marker（display-only 導出）
 - [x] Qud風 discovery marker + Campaign Kit ledger 接続（FoW-safe）
 - [x] display-only, no state writes from tile clicks（core 層）
-- [ ] Webview 上の marker 描画（Claude M2 UI タスク）
+- [x] Webview 上の marker 描画（`86-tile-overmap.js` · v1.68.0）
 - [x] `settlementEventCore` — adaptive weighting + cooldown（[`docs/NARRATIVE_PATTERNS.md`](docs/NARRATIVE_PATTERNS.md) §3）
 - [x] `deriveLegacyNote()` — 解決済み incident の短い note 導出（同§4、スキーマ変更なし）
 

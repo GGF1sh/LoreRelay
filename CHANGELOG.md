@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.68.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M2a Webview map overlay** — `86-tile-overmap.js` が `worldView.mapOverlay` を既存タイル overmap Canvas 上に描画。7種マーカー（npc/merchant/caravan/faction_control/quest/discovery/settlement_pressure）を種別ごとの色・記号で表示。`fogVisibility: rumored` は半透明＋劣化グリフ。hover で `label`/`detail` を read-only ツールチップ表示。クリックによる state 書き込みなし（C9 不変条件）。`test_webview_world_modules.js` にシンボル検証追加。テスト **145/145**。
+
 ## [1.67.0] - 2026-07-04
 
 ### Added

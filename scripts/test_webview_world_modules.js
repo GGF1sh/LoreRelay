@@ -111,6 +111,23 @@ for (const symbol of tileSymbols) {
 }
 console.log('ok: Tile overmap renderer and fallback theme are bundled');
 
+const overlaySymbols = [
+    'MAP_OVERLAY_MARKER_STYLE',
+    'drawMapOverlayMarkers',
+    'initMapOverlayHover',
+    'hitTestMapOverlayMarker',
+    'msg.mapOverlay',
+    'world-map-overlay-tooltip',
+    'fogVisibility',
+];
+for (const symbol of overlaySymbols) {
+    assert(
+        tileModule.includes(symbol) || worldModule.includes(symbol) || bundle.includes(symbol),
+        `map overlay symbol missing: ${symbol}`
+    );
+}
+console.log('ok: Settlement map overlay symbols are bundled');
+
 const worldPaneStart = indexHtml.indexOf('<div id="pane-world"');
 const worldPaneEnd = indexHtml.indexOf('</div> <!-- /pane-world -->');
 assert(worldPaneStart >= 0 && worldPaneEnd > worldPaneStart, 'pane-world markers are invalid');

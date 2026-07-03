@@ -1,17 +1,27 @@
 # AI Shared Log
 
-## Current Snapshot (2026-07-03)
+## Current Snapshot (2026-07-04)
 
 > **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)
 
 | Item | Value |
 |------|-------|
-| Package version | **1.66.0** |
+| Package version | **1.68.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **132/132** |
-| Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) · World Observatory の NPC相関図(見た目はFable5がモック済み、配線は未着手) |
+| Tests | `npm test` **145/145** |
+| Settlement Mode M2 | M2a pure core + **Webview map overlay renderer** (v1.68.0) 完了。M2 残: replay/remote `mapOverlay` 配線 · M3 isometric |
+| Next (推奨) | Settlement M2 replay/remote overlay wiring · M3 `settlementViewCore` 設計 · G5 ライバルギルド |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M2a Webview map overlay (v1.68.0)
+
+- `webview/modules/86-tile-overmap.js` — `worldView.mapOverlay` を tile overmap Canvas 上に描画。7種マーカー（色/記号分離）、rumored 半透明劣化、hover ツールチップ（label/detail read-only）、クリック state 書き込みなし。
+- `webview/modules/85-world.js` — overlay tooltip CSS + `#world-overmap` position:relative。
+- `scripts/test_webview_world_modules.js` — overlay シンボル smoke 追加。
+- Tests: `npm test` **145/145**.
 
 ---
 

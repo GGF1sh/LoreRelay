@@ -40,7 +40,145 @@ function initTileOvermapPinClicks() {
 
 window.addEventListener('DOMContentLoaded', () => {
     initTileOvermapPinClicks();
+    initMapOverlayHover();
 });
+
+function ensureMapOverlayTooltip() {
+    if (_mapOverlayTooltipEl) { return _mapOverlayTooltipEl; }
+    const panel = document.getElementById('world-overmap');
+    if (!panel) { return null; }
+    const el = document.createElement('div');
+    el.id = 'world-map-overlay-tooltip';
+    el.className = 'world-map-overlay-tooltip hidden';
+    el.setAttribute('role', 'tooltip');
+    panel.appendChild(el);
+    _mapOverlayTooltipEl = el;
+    return el;
+}
+
+function hideMapOverlayTooltip() {
+    if (_mapOverlayTooltipEl) {
+        _mapOverlayTooltipEl.classList.add('hidden');
+        _mapOverlayTooltipEl.textContent = '';
+    }
+}
+
+function showMapOverlayTooltip(marker, clientX, clientY) {
+    const el = ensureMapOverlayTooltip();
+    if (!el || !marker) { return; }
+    const parts = [marker.label || ''];
+    if (marker.detail) { parts.push(marker.detail); }
+    el.textContent = parts.filter(Boolean).join(' · ');
+    el.classList.remove('hidden');
+    const panel = document.getElementById('world-overmap');
+    if (!panel) { return; }
+    const rect = panel.getBoundingClientRect();
+    const left = Math.min(Math.max(clientX - rect.left + 8, 4), rect.width - 4);
+    const top = Math.min(Math.max(clientY - rect.top - 28, 4), rect.height - 4);
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+}
+
+function hitTestMapOverlayMarker(clientX, clientY, canvas) {
+    if (!canvas || !_overlayMarkerHits.length) { return null; }
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    let best = null;
+    let bestDist = MAP_OVERLAY_HIT_RADIUS_PX + 1;
+    for (const hit of _overlayMarkerHits) {
+        const dist = Math.hypot(hit.px - x, hit.py - y);
+        if (dist <= MAP_OVERLAY_HIT_RADIUS_PX && dist < bestDist) {
+            bestDist = dist;
+            best = hit.marker;
+        }
+    }
+    return best;
+}
+
+function initMapOverlayHover() {
+    if (_mapOverlayHoverReady) { return; }
+    _mapOverlayHoverReady = true;
+    const canvas = document.getElementById('world-overmap-canvas');
+    if (!canvas) { return; }
+    canvas.addEventListener('mousemove', (e) => {
+        if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') {
+            hideMapOverlayTooltip();
+            return;
+        }
+        const marker = hitTestMapOverlayMarker(e.clientX, e.clientY, canvas);
+        if (marker) {
+            showMapOverlayTooltip(marker, e.clientX, e.clientY);
+        } else {
+            hideMapOverlayTooltip();
+        }
+    });
+    canvas.addEventListener('mouseleave', hideMapOverlayTooltip);
+}
+
+function resolveOverlayMarkerColor(marker) {
+    if (marker.kind === 'settlement_pressure' && marker.detail) {
+        const match = /Mood:\s*(calm|strained|unrest|crisis)/i.exec(marker.detail);
+        if (match) {
+            return MAP_OVERLAY_PRESSURE_COLORS[match[1].toLowerCase()] || MAP_OVERLAY_MARKER_STYLE.settlement_pressure.fg;
+        }
+    }
+    if (marker.tone && MAP_OVERLAY_TONE_COLORS[marker.tone]) {
+        return MAP_OVERLAY_TONE_COLORS[marker.tone];
+    }
+    const base = MAP_OVERLAY_MARKER_STYLE[marker.kind];
+    return base ? base.fg : MAP_OVERLAY_TONE_COLORS.neutral;
+}
+
+function resolveOverlayMarkerGlyph(marker) {
+    const base = MAP_OVERLAY_MARKER_STYLE[marker.kind];
+    if (!base) { return '·'; }
+    if (marker.fogVisibility === 'rumored' && marker.kind !== 'settlement_pressure') {
+        return '?';
+    }
+    return base.glyph;
+}
+
+function drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight) {
+    _overlayMarkerHits = [];
+    const overlay = msg && msg.mapOverlay;
+    const markers = overlay && Array.isArray(overlay.markers) ? overlay.markers : [];
+    if (!markers.length) { return; }
+
+    const om = msg.tileOvermap;
+    const cols = om && om.cols ? om.cols : 64;
+    const rows = om && om.rows ? om.rows : 64;
+
+    ctx.save();
+    ctx.font = `600 ${Math.max(7, cell - 1)}px "Courier New", monospace`;
+
+    for (const marker of markers) {
+        if (!marker || typeof marker.x !== 'number' || typeof marker.y !== 'number') { continue; }
+        if (marker.x < 0 || marker.y < 0 || marker.x >= cols || marker.y >= rows) { continue; }
+
+        const px = marker.x * cell + cell / 2;
+        const py = marker.y * cell + cell / 2;
+        const rumored = marker.fogVisibility === 'rumored';
+        const glyph = resolveOverlayMarkerGlyph(marker);
+        let color = resolveOverlayMarkerColor(marker);
+        if (rumored) {
+            color = MAP_OVERLAY_TONE_COLORS.unknown;
+        }
+
+        ctx.globalAlpha = rumored ? 0.52 : 1;
+        const radius = Math.max(3, cell * 0.38);
+        ctx.fillStyle = rumored ? 'rgba(12, 16, 24, 0.55)' : 'rgba(8, 12, 20, 0.72)';
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+        drawOvermapOutlinedText(ctx, glyph, px, py, color);
+        ctx.globalAlpha = 1;
+
+        _overlayMarkerHits.push({ marker, px, py });
+    }
+
+    ctx.restore();
+}
 
 const TILE_OVERMAP_ASCII_THEME = {
     s: { bg: '#0a1420', fg: ['#2f5f92', '#3e78b2', '#356a9e'], glyphs: ['~', '≈', '~'] },
@@ -121,6 +259,35 @@ const TILE_OVERMAP_HAZARD_STYLE = {
     storm: { glyph: '§', fg: '#70c0e0', tint: 'rgba(90,180,230,0.14)' },
     corrupted: { glyph: '▒', fg: '#c060a0', tint: 'rgba(190,80,160,0.14)' },
 };
+
+const MAP_OVERLAY_TONE_COLORS = {
+    friendly: '#6ecf8a',
+    neutral: '#b8c4d0',
+    hostile: '#e07070',
+    unknown: '#9aa8b8',
+};
+
+const MAP_OVERLAY_MARKER_STYLE = {
+    npc: { glyph: '●', fg: '#5ab0e8' },
+    merchant: { glyph: '$', fg: '#e8c87a' },
+    caravan: { glyph: '⇄', fg: '#d8a050' },
+    faction_control: { glyph: '⚑', fg: '#b8c4d0' },
+    quest: { glyph: '!', fg: '#b080f0' },
+    discovery: { glyph: '✦', fg: '#50c8b8' },
+    settlement_pressure: { glyph: '▲', fg: '#e8b050' },
+};
+
+const MAP_OVERLAY_PRESSURE_COLORS = {
+    calm: '#6ecf8a',
+    strained: '#e8c87a',
+    unrest: '#e09050',
+    crisis: '#e05050',
+};
+
+const MAP_OVERLAY_HIT_RADIUS_PX = 10;
+let _overlayMarkerHits = [];
+let _mapOverlayHoverReady = false;
+let _mapOverlayTooltipEl = null;
 
 function getRegionFogVisibility(regionId, fog) {
     if (!fog || !regionId) { return 'discovered'; }
@@ -363,4 +530,7 @@ function drawTileOvermap() {
         const color = labelFog === 'rumored' ? '#8a98a8' : '#b8c4d0';
         drawOvermapOutlinedText(ctx, labelText, lx, ly, color);
     }
+
+    drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight);
+    hideMapOverlayTooltip();
 }

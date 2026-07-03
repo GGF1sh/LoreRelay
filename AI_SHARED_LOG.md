@@ -12,9 +12,20 @@
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **156/156** |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) |
-| M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point |
+| M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
 | Next (推奨) | M4 実機 smoke（任意）· README/screenshot plan（Gemini #16） |
-| Git | `main` synced through `d8b45a4` |
+| Git | `main` synced through `a939594` |
+
+---
+
+## 2026-07-04 JST - Claude (Sonnet 5) - M2a remote player mini-map
+
+- 必読: `docs/SETTLEMENT_MODE_M2_DESIGN.md` §1.2/1.6、`docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md`、`src/mapOverlayCore.ts`、`src/mapOverlayBridge.ts`(host側、Grok実装、無変更)。
+- `remote-player/index.html` に `#map-panel`(折りたたみ式)を `#chat-log` の上に追加。`remote-player/player.css` にダークテーマのパネル/canvas/凡例/tooltipスタイルを追加。`remote-player/player.js` に `renderMapOverlay()`/`drawMapCanvas()`/`handleMapTap()`/`renderMapLegend()` を追加し、`applyState()` から `state.mapOverlay` を配線(既存の `state` WebSocketメッセージが `mapOverlay` を含むのは Grok の M2 配線で既に対応済み — 新規サーバー変更なし)。
+- 64x64グリッドをcanvasに描画し、`markers[]` を色付きドットで投影(`kind`別パレット、`tone`があれば優先、`86-tile-overmap.js` のカラーパレットに準拠)。`fogVisibility:'rumored'` は半透明+リング表示。タップで `label`/`detail` をツールチップ表示(4秒後自動非表示、`escapeHtml` で常時エスケープ)。`mapOverlay` 欠如または `markers` 空ならパネル自体を非表示。
+- 安全性: canvasクリックは `vscode.postMessage` や `insertChatText` を一切呼ばない(読み取り専用)。`mapOverlayBridge.ts`/`mapOverlayCore.ts` は無変更。remote-player は生の world/settlement JSONを取得しない — 既存の sanitized `state.mapOverlay` のみ消費。
+- 検証: `npm run compile` / `node scripts/test_remote_play_server.js` / `npm test` **156/156** / `node scripts/validate_utf8_docs.js` OK。手動確認は静的プレビューハーネスで WebSocket をモックし、`state` push 経由で7種のマーカー種別・rumored劣化・空マーカー・`mapOverlay`欠如の4パターンをモバイル幅(375px)で確認。
+- 次: 実機(VSCode Remote Play起動→携帯ブラウザ)でのエンドツーエンド確認は未実施(任意)。
 
 ---
 

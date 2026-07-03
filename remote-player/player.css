@@ -74,6 +74,109 @@ html, body {
 }
 #status-panel.hidden { display: none; }
 
+#map-panel {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+#map-panel.hidden { display: none; }
+
+#map-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#map-toggle:active { background: rgba(255,255,255,0.04); }
+
+#map-toggle-count {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+#map-toggle-chevron {
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+#map-panel[data-expanded="true"] #map-toggle-chevron { transform: rotate(90deg); }
+
+#map-body {
+  padding: 0 16px 14px;
+}
+#map-body.hidden { display: none; }
+
+#map-canvas-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0a0e14;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+#map-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: manipulation;
+}
+
+#map-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  max-width: 92%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15,20,25,0.92);
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+#map-tooltip.hidden { display: none; }
+#map-tooltip .map-tooltip-label { font-weight: 600; }
+#map-tooltip .map-tooltip-detail { color: var(--muted); }
+
+#map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  justify-content: center;
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.map-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 #chat-log {
   flex: 1;
   overflow-y: auto;

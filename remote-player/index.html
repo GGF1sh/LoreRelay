@@ -16,6 +16,21 @@
 
     <section id="status-panel" class="hidden"></section>
 
+    <section id="map-panel" class="hidden">
+      <button id="map-toggle" type="button" aria-expanded="false" aria-controls="map-body">
+        <span id="map-toggle-label">🗺️ Map</span>
+        <span id="map-toggle-count"></span>
+        <span id="map-toggle-chevron" aria-hidden="true">▸</span>
+      </button>
+      <div id="map-body" class="hidden">
+        <div id="map-canvas-wrap">
+          <canvas id="map-canvas"></canvas>
+          <div id="map-tooltip" class="hidden"></div>
+        </div>
+        <div id="map-legend"></div>
+      </div>
+    </section>
+
     <main id="chat-log" aria-live="polite"></main>
 
     <section id="game-over" class="hidden">

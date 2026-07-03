@@ -1,7 +1,7 @@
 // LW-W1 host bridge: world-kit tick + GM prompt wiring (vscode allowed).
 
 import type { WorldForge } from './worldForgeCore';
-import type { WorldState } from './worldStateCore';
+import type { FactionWorldState, WorldState } from './worldStateCore';
 import type { NpcRegistry } from './npcRegistryCore';
 import type { GameRules } from './gameRules';
 import type {
@@ -78,6 +78,32 @@ function cloneLocationMarketSnapshot(
 
 export function livingWorldEnabled(rules: GameRules): boolean {
     return rules.enableCommerce === true || rules.enableNpcAgency === true;
+}
+
+/** F3 + Commerce: only meaningful once both faction standing and markets are tracked. */
+export function factionMarketDemandEnabled(rules: GameRules): boolean {
+    return rules.enableCommerce === true && rules.enableFactionReputation === true;
+}
+
+/** Market locationId -> controlling factionId, resolved from World Forge geography. */
+function buildMarketFactionIds(
+    forge: WorldForge,
+    marketLocationIds: string[]
+): Record<string, string | undefined> {
+    const out: Record<string, string | undefined> = {};
+    for (const locationId of marketLocationIds) {
+        const location = forge.geography.locations.find((l) => l.id === locationId);
+        out[locationId] = location?.factionControl;
+    }
+    return out;
+}
+
+function buildFactionReputations(factions: Record<string, FactionWorldState>): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [id, fs] of Object.entries(factions)) {
+        if (fs.playerReputation !== undefined) { out[id] = fs.playerReputation; }
+    }
+    return out;
 }
 
 /** LW3: 関係進化は Registry + Agency の上に成り立つ(位置が動かないと関係も動かない)。 */
@@ -170,15 +196,25 @@ export function tickLivingWorldAfterSim(
         ? ensureLivingWorldMarkets(commerce, ext)
         : (ext.markets ?? {});
 
+    const commerceForge = commerce ?? { commodities: [], markets: [], transportKinds: [] };
+    const commerceEnabled = rules.enableCommerce === true && !!commerce;
+    const useFactionMarketDemand = commerceEnabled && factionMarketDemandEnabled(rules);
+
     const tick = runLivingWorldTick({
-        forge: commerce ?? { commodities: [], markets: [], transportKinds: [] },
+        forge: commerceForge,
         markets,
         registry: registryToAgencyLike(registry),
         npcPositions: ext.npcPositions ?? {},
         worldTurn: state.worldTurn,
         recentChanges: mapRecentChanges(state.recentChanges),
-        commerceEnabled: rules.enableCommerce === true && !!commerce,
+        commerceEnabled,
         agencyEnabled: rules.enableNpcAgency === true && rules.enableNpcRegistry === true,
+        marketFactionIds: useFactionMarketDemand
+            ? buildMarketFactionIds(forge, commerceForge.markets.map((m) => m.locationId))
+            : undefined,
+        factionReputations: useFactionMarketDemand
+            ? buildFactionReputations(state.factions ?? {})
+            : undefined,
     });
 
     ext.markets = tick.markets;

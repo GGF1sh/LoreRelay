@@ -8,7 +8,7 @@ import type {
     PlayerCommerceState,
     WorldChangeEventLike,
 } from './livingWorldTypes';
-import { tickMarketRecovery } from './worldSimCommerceCore';
+import { tickFactionReputationMarketDemand, tickMarketRecovery } from './worldSimCommerceCore';
 import { advanceNpcArrivals, reactNpcsToWorld } from './npcAgencyCore';
 
 export interface WorldKitTickInput {
@@ -20,6 +20,10 @@ export interface WorldKitTickInput {
     recentChanges?: WorldChangeEventLike[];
     commerceEnabled: boolean;
     agencyEnabled: boolean;
+    /** Market locationId -> controlling factionId (undefined = no faction demand drift there). */
+    marketFactionIds?: Record<string, string | undefined>;
+    /** factionId -> player reputation (-100..100); only used when marketFactionIds is set. */
+    factionReputations?: Record<string, number>;
 }
 
 export interface WorldKitTickResult {
@@ -42,6 +46,15 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
         });
         markets = tick.markets;
         marketSummary = tick.summary;
+
+        if (input.marketFactionIds && input.factionReputations) {
+            markets = tickFactionReputationMarketDemand(
+                input.forge,
+                markets,
+                input.marketFactionIds,
+                input.factionReputations
+            ).markets;
+        }
     }
 
     if (input.agencyEnabled) {

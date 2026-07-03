@@ -5,6 +5,7 @@ import type {
     MarketStateMap,
     WorldChangeEventLike,
 } from './livingWorldTypes';
+import { reputationTier, type ReputationTier } from './factionReputationCore';
 
 export const DEFAULT_MARKET_RECOVERY_PER_TICK = 2;
 export const MAX_PRICE_INDEX = 4;
@@ -196,6 +197,54 @@ export function computeSinceLastVisitDelta(input: SinceLastVisitInput): SinceLas
     }
 
     return { locationId: input.locationId, turnsAway, changes };
+}
+
+/** Per tick, priceIndex drifts toward a reputation-tier target by at most this much. */
+export const REPUTATION_PRICE_DRIFT_PER_TICK = 0.03;
+
+/** Controlling faction's opinion of the player biases their market prices (surcharge when hostile, discount when allied). */
+export const REPUTATION_PRICE_BIAS: Record<ReputationTier, number> = {
+    hostile: 0.25,
+    unfriendly: 0.1,
+    neutral: 0,
+    friendly: -0.1,
+    allied: -0.2,
+};
+
+/**
+ * Drift market priceIndex toward a reputation-tier target for markets under
+ * a faction's control. Locations without a controlling faction, or factions
+ * with no tracked reputation, are left untouched (neutral = no drift anyway).
+ */
+export function tickFactionReputationMarketDemand(
+    forge: CommerceForge,
+    markets: MarketStateMap,
+    marketFactionIds: Record<string, string | undefined>,
+    factionReputations: Record<string, number>
+): { markets: MarketStateMap; applied: number } {
+    const next = cloneMarkets(markets);
+    let applied = 0;
+
+    for (const market of forge.markets) {
+        const factionId = marketFactionIds[market.locationId];
+        if (!factionId) { continue; }
+        const bias = REPUTATION_PRICE_BIAS[reputationTier(factionReputations[factionId] ?? 0)];
+        const target = 1 + bias;
+        const locStocks = next[market.locationId];
+        if (!locStocks) { continue; }
+
+        for (const commodityId of market.commodityIds) {
+            const entry = locStocks[commodityId];
+            if (!entry) { continue; }
+            const diff = target - entry.priceIndex;
+            if (Math.abs(diff) < 0.005) { continue; }
+            const step = Math.sign(diff) * Math.min(Math.abs(diff), REPUTATION_PRICE_DRIFT_PER_TICK);
+            entry.priceIndex = bumpPriceIndex(entry.priceIndex, step);
+            applied++;
+        }
+    }
+
+    return { markets: next, applied };
 }
 
 /** Debug / GM override: multiply priceIndex at one market commodity (clamped). */

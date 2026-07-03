@@ -333,6 +333,7 @@ Webview ⚙️ Game Rules パネルにチェックボックス追加（既存パ
 | **LW0** | 本ブリーフ + `game_rules` フラグ（未実装スタブ）+ 命名 `PHASE_NAMING` 1 行 | — |
 | **LW-W1** | **動く世界の深化** — region 危険度 tick、イベント→市場/地図 FB の見える化、GM プロンプト「Since last visit」強化 | LW0 |
 | **LW1-PR1** | `commerceCore.ts` + 相場が **派閥/region イベント** に連動 | LW-W1 |
+| **LW1-PR1.5**（2026-07-03, v1.51.0） | `worldSimCommerceCore.ts` に `tickFactionReputationMarketDemand` — 支配派閥への **プレイヤー評判** が市場 priceIndex を tier 別に drift（hostile 高値〜allied 割引）。`enableCommerce`+`enableFactionReputation` 両方ONで自動配線（`livingWorldBridge.ts`）。既存の「派閥/regionイベント連動」（食料危機/鍛冶イベント）とは独立した第二の価格ドライバ | LW1-PR1, F3 Faction Reputation |
 | **LW1-PR2** | `tradeOps` + UI + デバッグ相場操作 | PR1 |
 | **LW1-PR3** | `transportCore` + Layer B 連動 + テーマ別 forge サンプル | PR2 |
 | **LW2-PR1** | `npcAgencyCore.ts` — **世界/Commerce イベントの反応** で `npcPositions` 更新 | LW1-PR1 推奨 |

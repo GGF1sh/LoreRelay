@@ -13,6 +13,18 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.51.0] - 2026-07-03
+
+### Added
+
+- **Faction reputation market demand** — 支配派閥へのプレイヤー評判が、その派閥が支配する市場の `priceIndex` を段階的にdriftさせる。`worldSimCommerceCore.ts` に `tickFactionReputationMarketDemand()` を追加: hostile(+25%)/unfriendly(+10%)/neutral(0%)/friendly(-10%)/allied(-20%)のtier別バイアスへ、1tickあたり最大0.03ずつ緩やかに近づく(既存の在庫回復/世界イベント連動とは独立した第二の価格ドライバ)。
+- **配線** — `enableCommerce` と `enableFactionReputation` の両方が有効な場合のみ自動適用(`livingWorldBridge.ts` の `factionMarketDemandEnabled()`)。市場の所在地を World Forge の `WorldLocation.factionControl` から解決し、`world_state.factions[].playerReputation` を参照。新規フラグの追加は不要(既存2フラグの組み合わせ)。
+- **Campaign Kit との連携** — `docs/CAMPAIGN_KIT_DESIGN.md` の Integration Matrix を更新。派閥支配下の探索地/拠点で「評判が悪いと足元を見られる、評判が良いと安く買い叩ける」という手触りが Campaign Kit のジャンルループ上でも自然に効くようになった。
+
+### Notes
+
+- `docs/COMMERCE_AND_AGENCY_BRIEF.md` の元設計(LW1-PR1「相場が派閥/regionイベントに連動」)を拡張する形で実装、既存の食料危機/鍛冶イベント連動とは重複しない。`test_faction_market_demand.js` 新規追加(tier別drift・1tickあたりcap・無関係派閥での無反応・`runLivingWorldTick`でのopt-in配線を検証)。テスト **130/130**、`check_version_consistency.js` PASS。
+
 ## [1.50.0] - 2026-07-03
 
 ### Added

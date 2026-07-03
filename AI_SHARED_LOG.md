@@ -6,10 +6,21 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.50.0** |
+| Package version | **1.51.0** |
 | Campaign Kit | **Phase A–F** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· campaign quest factionId + reputationOps prompt |
-| Tests | `npm test` **129/129** |
-| Next (推奨) | 動的 market demand（相場変動）· resupply 消費ループ · G5 ライバルギルド |
+| Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
+| Tests | `npm test` **130/130** |
+| Next (推奨) | Campaign Kit 資源(water/ammo/medicine等)の消費ループ化 · G5 ライバルギルド |
+
+---
+
+## 2026-07-03 JST - Claude (Opus 5) - Faction reputation market demand v1.51.0
+
+- **`worldSimCommerceCore.ts`** に `tickFactionReputationMarketDemand()` 追加 — 派閥支配下の市場で、プレイヤー評判tier(hostile/unfriendly/neutral/friendly/allied)に応じてpriceIndexが+25%〜-20%の目標値へ1tickあたり最大0.03ずつdrift。既存の食料危機/鍛冶イベント連動(`applyWorldEventsToMarkets`)とは独立した第二の価格ドライバ(元設計 `docs/COMMERCE_AND_AGENCY_BRIEF.md` LW1-PR1「派閥/regionイベント連動」の評判版拡張)。
+- **配線** — `worldKitTickCore.ts`(`WorldKitTickInput.marketFactionIds`/`factionReputations` 追加、両方指定時のみ適用)→`livingWorldBridge.ts`(`factionMarketDemandEnabled()` = `enableCommerce && enableFactionReputation`、市場locationIdをWorld Forgeの`factionControl`から解決)。新規game_rulesフラグなし、既存2フラグの組み合わせで自動有効化。
+- **前回メモリの訂正** — 「resupply消費ループ(食料/水/弾薬)」を次候補として書いたが、調査したところ **食料の旅行消費は`livingWorldTurnOpsCore.ts:applyTravelFoodConsumption`で既に実装・配線済み**(elapsedWorldTurns×輸送手段×積載量)だった。未実装なのはCampaign Kitのジャンル別資源(water/ammo/medicine等)を実際のプレイヤー状態として消費させる部分のみ — これは新規サブシステム相当の大きめの変更なので、今回は手を出さず次候補として残す。
+- `test_faction_market_demand.js` 新規(4ケース: tier別drift・1tickあたりcap・無関係派閥無反応・opt-in配線)。テスト130/130、version consistency PASS。
+- **次候補:** Campaign Kit資源の消費ループ(water/ammo/medicine — 新サブシステム、要設計相談)・G5ライバルギルド。
 
 ---
 

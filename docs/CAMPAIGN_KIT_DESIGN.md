@@ -104,7 +104,7 @@ This keeps genre flavor flexible without forking the engine per setting.
 | Expedition site | World Forge geography + travel | Danger from region/location |
 | Findings | `discoveries.json` + inventory | Phase B: ledger prompt |
 | Appraisal / repair | GM + Commerce | Phase D: turn ops; Phase F: condition/estValue canonicalize repair value |
-| Market reaction | Commerce + Living World | `tradeOps` canonical |
+| Market reaction | Commerce + Living World | `tradeOps` canonical; faction-controlled markets also drift with player reputation when `enableFactionReputation` is on |
 | World reaction | Faction rep + world_state | Simulation when enabled |
 
 ## Discovery Ledger (Phase B)

@@ -1011,6 +1011,9 @@ function setTheme(theme) {
   if (!bgLayer.style.backgroundImage) {
     bgLayer.className = `theme-${theme}`;
   }
+  // UIアクセント配色（97-visual-refresh.css の data-ui-theme パレット）は
+  // 背景画像の有無に関係なく常に切り替える
+  document.body.setAttribute('data-ui-theme', theme);
   // ボタンのアクティブ状態を更新
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === theme);

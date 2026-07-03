@@ -6,12 +6,32 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.65.0** |
+| Package version | **1.66.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **132/132** |
 | Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) · World Observatory の NPC相関図(見た目はFable5がモック済み、配線は未着手) |
+
+---
+
+## 2026-07-04 JST - Claude (Sonnet 5) - Narrative structure patterns doc
+
+- 新規 `docs/NARRATIVE_PATTERNS.md` — Settlement Mode向けの参照パターン群のうち、シム寄り（DF/CDDA/StoneSense/Kenshi/Qud、`SETTLEMENT_REFERENCE_PATTERNS.md`）とは別軸の「状態をどう場面に変換するか」を整理。
+- 抽出元: Fallen London/StoryNexus（Quality-Based Narrative）、RimWorld（adaptive event pacing / storyteller）、Wildermyth（legacy props / scars）、King of Dragon Pass・Six Ages（単一の意味ある選択で拠点運営を進める形）。
+- `docs/SETTLEMENT_REFERENCE_PATTERNS.md` 冒頭に相互参照を追加。`AI_ROADMAP.md` Phase 13にリンクとM2チェックリスト2項目（RimWorld風weighting/cooldown、Wildermyth風named note運用）を追加。
+- 設計のみ、コード変更なし。`node scripts\validate_utf8_docs.js` で確認予定。
+
+---
+
+## 2026-07-04 JST - Claude (Fable 5) - Theme-driven UI accent palettes (v1.66.0)
+
+- **世界観テーマボタンでUI全体の配色が切り替わるように** — `setTheme()`(10-game-state.js)が `body[data-ui-theme]` を常時セット（背景画像の有無に関係なく）。`97-visual-refresh.css` のアクセント色を RGBトリプレット変数（`--vr-accent-rgb`/`--vr-accent2-rgb`/`--vr-gm-rgb`）駆動に書き換え、テーマ別パレットを `body[data-ui-theme="..."]` で定義。
+- **⚠️CSS変数の罠（後続AI向け）**: カスタムプロパティ内の `var()` は「宣言した要素」で解決される。`:root { --accent: rgb(var(--vr-accent-rgb)) }` と書くと body 側のトリプレット上書きに追従しない。派生変数（--accent/--gm-color/--accent-dim等）は `body[data-ui-theme]` セレクタで宣言してある。
+- **FF14ボタン削除**（ユーザー要望: 名称が直接的すぎる）。旧セーブ `theme:"ff14"` は既定ブルー＋`.theme-ff14` 背景グラデ（50-scrollbar-themes.css に残置）で互換。
+- **新テーマ3種**: Eastern（茜×金）/ Horror（血赤）/ Steampunk（真鍮）。背景グラデは97ファイル内、`gmBridgeRunner.ts:766` の theme 語彙も `fantasy/cyberpunk/scifi/postapoc/modern/eastern/horror/steampunk` に更新。
+- 検証: 静的ハーネスで全8テーマの computed style を確認（送信ボタン/バブル/ドット等が追従）。※検証ブラウザのアニメクロック凍結により transition 付きプロパティが古い値で固まって見える現象があったが、クローン要素で正値を確認済み（実VSCodeでは正常）。
+- テスト 143/143・version consistency PASS。
 
 ---
 
@@ -42,6 +62,16 @@
 - `src/settlementCore.ts` — parser/caps/tick/prompt formatter/`settlementOps` stubs; `src/settlementState.ts` — `settlement_state.json` loader + GM prompt bridge.
 - `game_rules.json` flag `enableSettlementMode` (default OFF); GM prompt chunk `settlement` gated via `gmPromptBuilderCore.shouldIncludePromptChunk`.
 - `scripts/test_settlement_core.js`; `npm test` **143/143**.
+
+---
+
+## 2026-07-04 JST - Codex - Settlement reference patterns (Qud / Kenshi)
+
+- Added `docs/SETTLEMENT_REFERENCE_PATTERNS.md` as design-only notes for Caves of Qud and Kenshi inspirations.
+- Qud is scoped to procedural history, village hubs, unidentified discoveries, appraisal, and data-driven expansion.
+- Kenshi is scoped to outpost vulnerability, faction world-states, merchant/visitor pressure, away-time progression, and expedition-return loops.
+- Updated `docs/SETTLEMENT_MODE_DESIGN.md`, `docs/SETTLEMENT_MODE_AI_PROMPTS.md`, and `AI_ROADMAP.md` so M2+ agents can use these patterns without expanding M1 into a clone, combat sim, freeform builder, or real-time squad AI.
+- No code implementation and no version bump.
 
 ---
 

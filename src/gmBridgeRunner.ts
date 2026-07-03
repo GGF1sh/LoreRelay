@@ -763,7 +763,7 @@ JSON schema (output CHANGES only — LoreRelay merges into existing state):
   "profileUpdates": [{"characterId":"alice","dynamicProfile":"Updated memory..."}],
   "gameOver": {"active":true,"message":"Ending...","victory":false}
 }
-theme values: fantasy / cyberpunk / scifi / ff14 / postapoc / modern`;
+theme values: fantasy / cyberpunk / scifi / postapoc / modern / eastern / horror / steampunk`;
 
 const VSCODE_LM_SYSTEM_PROMPTS: Record<string, string> = {
     ja: `あなたはテキストアドベンチャーのゲームマスター（GM）です。プレイヤーの行動に対してリアルな描写・NPC反応・環境変化を返してください。\n\n【乱数ルール】公平な乱数が必要な場面では {{DICE:1d20}} のようにマーカーを出力してください。システムが実際のダイスを振ります。\n\n【出力形式】\n1. 日本語のナラティブを書く\n2. 最後に \`\`\`json ブロックを1つ付ける\n3. NPCとプレイヤーの関係性が変わった場合は profileUpdates を含める\n${VSCODE_LM_JSON_SCHEMA}`,

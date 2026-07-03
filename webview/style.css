@@ -3729,22 +3729,98 @@ body.profile-parlor .profile-parlor-only {
 }
 
 /* --- 97-visual-refresh.css --- */
-/* ========= Visual Refresh (v1.65.0) =========
+/* ========= Visual Refresh (v1.65.0〜) =========
    最後に読み込まれる「見た目の洗練」レイヤー。既存ファイルは書き換えず、
    タイポグラフィ・バブル・タブ・ボタン・入力欄の質感をここで統一して引き上げる。
-   ブランドは既存の dark glass + blue accent を維持。 */
+
+   v1.66.0: アクセント色を RGB 変数駆動にし、世界観テーマボタンで UI 全体の
+   配色が切り替わるようにした（body[data-ui-theme] パレット、10-game-state.js:setTheme）。 */
 
 :root {
-  --vr-surface-gm: linear-gradient(160deg, rgba(20, 26, 44, 0.72), rgba(9, 12, 24, 0.62));
-  --vr-surface-user: linear-gradient(160deg, rgba(79, 142, 247, 0.20), rgba(56, 96, 190, 0.10));
+  /* アクセント3色（RGBトリプレット。rgba(var(--vr-accent-rgb), a) で使う） */
+  --vr-accent-rgb: 79, 142, 247;    /* 主アクセント */
+  --vr-accent2-rgb: 100, 80, 230;   /* 送信ボタン等のグラデ相方 */
+  --vr-gm-rgb: 124, 179, 255;       /* GM発言・GM系装飾 */
+  --vr-accent: rgb(var(--vr-accent-rgb));
+  --vr-accent-bright: rgb(139, 183, 255);
   --vr-hairline: rgba(255, 255, 255, 0.07);
 }
+
+/* 既存変数（--accent 等）のテーマ追従。
+   注意: カスタムプロパティ内の var() は「宣言した要素」で解決されるため、
+   :root ではなく body 側で宣言しないとテーマ上書きが反映されない */
+body[data-ui-theme] {
+  --accent: rgb(var(--vr-accent-rgb));
+  --accent-hover: var(--vr-accent-bright);
+  --accent-dim: rgba(var(--vr-accent-rgb), 0.3);
+  --gm-color: rgb(var(--vr-gm-rgb));
+  --glass-glow: rgba(var(--vr-accent-rgb), 0.18);
+  --neon-blue: rgba(var(--vr-accent-rgb), 0.85);
+  --cyber-glow: 0 0 12px rgba(var(--vr-accent-rgb), 0.35);
+}
+
+/* ----- 世界観テーマ別パレット（テーマボタンで切替） ----- */
+body[data-ui-theme="cyberpunk"] {
+  --vr-accent-rgb: 255, 45, 149;    /* ネオンマゼンタ */
+  --vr-accent2-rgb: 120, 40, 220;
+  --vr-gm-rgb: 77, 225, 255;        /* シアン */
+  --vr-accent-bright: rgb(255, 105, 180);
+}
+
+body[data-ui-theme="scifi"] {
+  --vr-accent-rgb: 0, 190, 240;     /* コールドシアン */
+  --vr-accent2-rgb: 40, 110, 235;
+  --vr-gm-rgb: 127, 227, 255;
+  --vr-accent-bright: rgb(90, 220, 255);
+}
+
+body[data-ui-theme="postapoc"] {
+  --vr-accent-rgb: 226, 138, 60;    /* 錆びたオレンジ */
+  --vr-accent2-rgb: 180, 80, 40;
+  --vr-gm-rgb: 255, 184, 119;
+  --vr-accent-bright: rgb(255, 170, 100);
+}
+
+body[data-ui-theme="modern"] {
+  --vr-accent-rgb: 110, 168, 200;   /* スチールブルー（抑制的） */
+  --vr-accent2-rgb: 90, 120, 170;
+  --vr-gm-rgb: 160, 200, 225;
+  --vr-accent-bright: rgb(150, 200, 230);
+}
+
+body[data-ui-theme="eastern"] {
+  --vr-accent-rgb: 222, 84, 92;     /* 茜色 */
+  --vr-accent2-rgb: 190, 120, 40;   /* 金茶 */
+  --vr-gm-rgb: 255, 207, 138;       /* 灯りの金 */
+  --vr-accent-bright: rgb(255, 130, 130);
+}
+
+body[data-ui-theme="horror"] {
+  --vr-accent-rgb: 178, 34, 52;     /* 血赤 */
+  --vr-accent2-rgb: 90, 20, 40;
+  --vr-gm-rgb: 217, 138, 138;       /* 褪せた紅 */
+  --vr-accent-bright: rgb(230, 90, 100);
+}
+
+body[data-ui-theme="steampunk"] {
+  --vr-accent-rgb: 198, 152, 74;    /* 真鍮 */
+  --vr-accent2-rgb: 140, 90, 50;
+  --vr-gm-rgb: 230, 201, 138;
+  --vr-accent-bright: rgb(235, 190, 110);
+}
+
+/* fantasy / ff14(旧セーブ互換) は :root の既定ブルーのまま */
+
+/* ----- 新テーマの背景グラデ（背景画像がない時のフォールバック。50-scrollbar-themes.css と同形式） ----- */
+.theme-eastern   { background: linear-gradient(135deg, #1c0f14 0%, #33121a 50%, #14202e 100%) !important; }
+.theme-horror    { background: linear-gradient(135deg, #0a0508 0%, #1c0a10 55%, #240d0d 100%) !important; }
+.theme-steampunk { background: linear-gradient(135deg, #14100a 0%, #241a10 50%, #2e2014 100%) !important; }
 
 /* ----- 背景に奥行き（アクセント色の淡いラジアル + ビネット） ----- */
 #bg-overlay {
   background:
-    radial-gradient(120% 90% at 85% -10%, rgba(79, 142, 247, 0.10) 0%, transparent 55%),
-    radial-gradient(100% 80% at 0% 100%, rgba(120, 90, 230, 0.07) 0%, transparent 50%),
+    radial-gradient(120% 90% at 85% -10%, rgba(var(--vr-accent-rgb), 0.10) 0%, transparent 55%),
+    radial-gradient(100% 80% at 0% 100%, rgba(var(--vr-accent2-rgb), 0.08) 0%, transparent 50%),
     linear-gradient(180deg, rgba(8, 8, 16, 0.72) 0%, rgba(8, 8, 16, 0.88) 100%);
 }
 
@@ -3760,7 +3836,7 @@ body.profile-parlor .profile-parlor-only {
 }
 
 #chat-header > span[data-i18n="webview.chat.header"] {
-  background: linear-gradient(90deg, #dfe7ff 0%, #8fb6ff 100%);
+  background: linear-gradient(90deg, #e8edff 0%, rgb(var(--vr-gm-rgb)) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -3774,19 +3850,19 @@ body.profile-parlor .profile-parlor-only {
 }
 
 .msg.gm {
-  background: var(--vr-surface-gm);
-  border: 1px solid rgba(124, 179, 255, 0.14);
-  border-left: 2px solid rgba(124, 179, 255, 0.65);
+  background: linear-gradient(160deg, rgba(20, 26, 44, 0.72), rgba(9, 12, 24, 0.62));
+  border: 1px solid rgba(var(--vr-gm-rgb), 0.14);
+  border-left: 2px solid rgba(var(--vr-gm-rgb), 0.65);
   border-top-left-radius: 4px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .msg.user {
-  background: var(--vr-surface-user);
-  border: 1px solid rgba(79, 142, 247, 0.30);
-  border-right: 2px solid rgba(109, 163, 255, 0.75);
+  background: linear-gradient(160deg, rgba(var(--vr-accent-rgb), 0.20), rgba(var(--vr-accent2-rgb), 0.10));
+  border: 1px solid rgba(var(--vr-accent-rgb), 0.30);
+  border-right: 2px solid rgba(var(--vr-accent-rgb), 0.75);
   border-top-right-radius: 4px;
-  box-shadow: 0 4px 16px rgba(30, 60, 140, 0.18);
+  box-shadow: 0 4px 16px rgba(var(--vr-accent2-rgb), 0.18);
 }
 
 .msg.system {
@@ -3829,33 +3905,41 @@ body.profile-parlor .profile-parlor-only {
 }
 
 .tab-btn.active {
-  background: linear-gradient(180deg, rgba(79, 142, 247, 0.16), rgba(79, 142, 247, 0.07));
-  border-color: rgba(79, 142, 247, 0.35);
-  border-bottom-color: rgba(79, 142, 247, 0.35);
-  box-shadow: 0 0 10px rgba(79, 142, 247, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: #cfe0ff;
+  background: linear-gradient(180deg, rgba(var(--vr-accent-rgb), 0.16), rgba(var(--vr-accent-rgb), 0.07));
+  border-color: rgba(var(--vr-accent-rgb), 0.35);
+  border-bottom-color: rgba(var(--vr-accent-rgb), 0.35);
+  box-shadow: 0 0 10px rgba(var(--vr-accent-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e3ecff;
 }
 
 /* ----- セクションヘッダー: アクセントの縦チックで見出し感を統一 ----- */
 #checkpoint-header, #dice-header, #calc-header, #bgm-header,
 #gallery-header, #theme-header, #status-header {
-  border-left: 3px solid rgba(79, 142, 247, 0.55);
-  background: linear-gradient(90deg, rgba(79, 142, 247, 0.07), rgba(0, 0, 0, 0.22) 40%);
+  border-left: 3px solid rgba(var(--vr-accent-rgb), 0.55);
+  background: linear-gradient(90deg, rgba(var(--vr-accent-rgb), 0.07), rgba(0, 0, 0, 0.22) 40%);
   color: #aebad0;
+}
+
+/* ----- 世界観テーマボタン: 選択中をアクセント色で明示 ----- */
+.theme-btn.active {
+  background: rgba(var(--vr-accent-rgb), 0.22) !important;
+  border-color: rgba(var(--vr-accent-rgb), 0.65) !important;
+  color: #fff !important;
+  box-shadow: 0 0 10px rgba(var(--vr-accent-rgb), 0.25);
 }
 
 /* ----- 選択肢ボタン: 番号付きの行動をよりカード風に ----- */
 .option-btn {
-  background: linear-gradient(180deg, rgba(79, 142, 247, 0.24), rgba(60, 105, 200, 0.16));
-  border: 1px solid rgba(109, 163, 255, 0.40);
+  background: linear-gradient(180deg, rgba(var(--vr-accent-rgb), 0.24), rgba(var(--vr-accent2-rgb), 0.16));
+  border: 1px solid rgba(var(--vr-accent-rgb), 0.40);
   border-radius: 10px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .option-btn:hover {
-  background: linear-gradient(180deg, rgba(99, 156, 255, 0.42), rgba(79, 130, 230, 0.30));
-  border-color: rgba(139, 183, 255, 0.7);
-  box-shadow: 0 4px 16px rgba(79, 142, 247, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  background: linear-gradient(180deg, rgba(var(--vr-accent-rgb), 0.42), rgba(var(--vr-accent2-rgb), 0.30));
+  border-color: rgba(var(--vr-accent-rgb), 0.7);
+  box-shadow: 0 4px 16px rgba(var(--vr-accent-rgb), 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
 /* ----- クイックリプライ: 控えめなゴーストチップに ----- */
@@ -3868,8 +3952,8 @@ body.profile-parlor .profile-parlor-only {
 
 .qr-btn:hover {
   color: var(--text);
-  background: rgba(79, 142, 247, 0.14);
-  border-color: rgba(79, 142, 247, 0.45);
+  background: rgba(var(--vr-accent-rgb), 0.14);
+  border-color: rgba(var(--vr-accent-rgb), 0.45);
 }
 
 /* ----- 入力エリア ----- */
@@ -3886,16 +3970,36 @@ body.profile-parlor .profile-parlor-only {
 }
 
 #free-input:focus {
-  border-color: rgba(109, 163, 255, 0.65);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(79, 142, 247, 0.12);
+  border-color: rgba(var(--vr-accent-rgb), 0.65);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(var(--vr-accent-rgb), 0.12);
 }
 
 #send-btn {
   border-radius: 11px;
+  background: linear-gradient(135deg, rgb(var(--vr-accent-rgb)) 0%, rgba(var(--vr-accent2-rgb), 0.9) 100%);
+  box-shadow: 0 3px 12px rgba(var(--vr-accent-rgb), 0.3);
+}
+
+#send-btn:hover {
+  background: linear-gradient(135deg, var(--vr-accent-bright), rgba(var(--vr-accent2-rgb), 0.95));
+  box-shadow: 0 4px 18px rgba(var(--vr-accent-rgb), 0.45);
 }
 
 #undo-btn, #regen-btn, #img-btn, #mic-btn {
   border-radius: 11px;
+}
+
+/* glass-btn のホバー/アクティブもテーマ追従 */
+.glass-btn:hover {
+  border-color: rgba(var(--vr-accent-rgb), 0.45);
+  color: var(--vr-accent-bright);
+  box-shadow: 0 0 8px rgba(var(--vr-accent-rgb), 0.18);
+}
+
+.glass-btn.active {
+  background: rgba(var(--vr-accent-rgb), 0.30);
+  border-color: rgb(var(--vr-accent-rgb));
+  box-shadow: 0 0 10px rgba(var(--vr-accent-rgb), 0.3);
 }
 
 /* ----- Author's Note: 主張しすぎない下線スタイル ----- */
@@ -3908,8 +4012,8 @@ body.profile-parlor .profile-parlor-only {
 }
 
 #authors-note-input:focus {
-  border-bottom: 1px solid rgba(109, 163, 255, 0.6);
-  background: rgba(79, 142, 247, 0.04);
+  border-bottom: 1px solid rgba(var(--vr-accent-rgb), 0.6);
+  background: rgba(var(--vr-accent-rgb), 0.04);
 }
 
 /* ----- Start Hub: カードの質感を統一 ----- */
@@ -3919,7 +4023,7 @@ body.profile-parlor .profile-parlor-only {
 }
 
 .start-hub-btn:hover {
-  box-shadow: 0 8px 24px rgba(79, 142, 247, 0.16);
+  box-shadow: 0 8px 24px rgba(var(--vr-accent-rgb), 0.16);
 }
 
 .start-hub-btn-icon {
@@ -3940,4 +4044,4 @@ body.profile-parlor .profile-parlor-only {
 /* ----- スクロールバー: 細く、ホバーでアクセント ----- */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-thumb { background: rgba(140, 160, 200, 0.18); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(109, 163, 255, 0.45); }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--vr-accent-rgb), 0.45); }

@@ -9,6 +9,19 @@
 
 ## [Unreleased]
 
+### Docs
+
+- **Settlement reference patterns** — `docs/SETTLEMENT_REFERENCE_PATTERNS.md`: added Caves of Qud and Kenshi pattern extraction for M2+ design. Qud is scoped to procedural history, village hubs, discoveries, and appraisal loops; Kenshi is scoped to outpost vulnerability, faction world-states, caravans/merchants, and away-time pressure. Updated Settlement design, AI prompts, and roadmap links. Design only; no code changes.
+- **Narrative structure patterns** — new `docs/NARRATIVE_PATTERNS.md`: companion to Settlement reference patterns, scoped to *narrative-shaped* inspiration rather than simulation-shaped. Extracts Quality-Based Narrative (Fallen London/StoryNexus), RimWorld's adaptive event-pacing "storyteller," Wildermyth's legacy-props/scars pattern, and King of Dragon Pass/Six Ages-style single-decision framing. Cross-linked from `SETTLEMENT_REFERENCE_PATTERNS.md` and `AI_ROADMAP.md` M2 checklist. Design only; no code changes.
+
+## [1.66.0] - 2026-07-04
+
+### Changed
+
+- **世界観テーマでUI全体の配色が変わるように（Fable 5）** — これまでテーマボタンは背景グラデ（背景画像がない時のみ）しか変えなかったが、`body[data-ui-theme]` ＋ RGB変数（`--vr-accent-rgb` 等）駆動で、メッセージバブル・アクティブタブ・選択肢ボタン・送信ボタン・見出しチック・フォーカスリング・GMタイピングドット等のアクセント色が全テーマ追従するように。選択中のテーマボタンもアクセント色でハイライト。
+- **テーマ整理** — `FF14` ボタンを削除（名称が直接的すぎるため。旧セーブの `theme: "ff14"` は既定ブルー＋既存背景グラデで互換維持）。新テーマ **Eastern**（茜×金、和風）・**Horror**（血赤×闇）・**Steampunk**（真鍮×セピア）を追加（背景グラデ＋UIパレット、`gmBridgeRunner.ts` の theme 語彙も更新）。
+- 実装は `97-visual-refresh.css` に集約。注意点として、カスタムプロパティ内の `var()` は宣言要素で解決されるため、`--accent` 等の派生変数は `:root` ではなく `body[data-ui-theme]` 側で宣言している。
+
 ## [1.65.0] - 2026-07-04
 
 ### Changed

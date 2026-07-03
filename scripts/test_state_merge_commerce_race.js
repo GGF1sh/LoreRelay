@@ -50,12 +50,67 @@ const emptyCargo = [];
     if (merged.status?.hp?.current !== 8) {
         fail(`turn status should apply from incoming: ${JSON.stringify(merged.status)}`);
     } else {
-        ok('turn commit applies GM status on conflict');
+        ok('turn commit applies GM hp on conflict');
     }
     if (merged.entries.length !== 2) {
         fail(`entries merged by id: ${merged.entries.length}`);
     } else {
         ok('turn commit merges GM entry');
+    }
+}
+
+{
+    const disk = {
+        schemaVersion: 2,
+        stateRevision: 2,
+        entries: [{ id: 'u1', role: 'user', content: 'wait' }],
+        status: {
+            hp: { current: 10, max: 10 },
+            inventory: ['rope'],
+            condition: ['wet'],
+            skills: ['climb'],
+        },
+    };
+    const staleTurn = {
+        schemaVersion: 2,
+        stateRevision: 1,
+        entries: [
+            { id: 'u1', role: 'user', content: 'wait' },
+            { id: 'gm-1', role: 'gm', sender: 'GM', content: 'done' },
+        ],
+        status: {
+            hp: { current: 7, max: 10 },
+            inventory: ['rope', 'potion'],
+            condition: ['wet', 'poisoned'],
+            skills: ['climb', 'stealth'],
+        },
+    };
+    const merged = mergeGameStateForPersist(disk, staleTurn, {
+        baseRevision: 1,
+        profile: 'turn',
+    });
+    const inv = merged.status?.inventory ?? [];
+    const cond = merged.status?.condition ?? [];
+    const skills = merged.status?.skills ?? [];
+    if (inv.length !== 1 || inv[0] !== 'rope' || inv.includes('potion')) {
+        fail(`turn commit must not revive consumed inventory: ${JSON.stringify(inv)}`);
+    } else {
+        ok('turn commit keeps disk inventory after UI consume');
+    }
+    if (cond.length !== 1 || cond[0] !== 'wet') {
+        fail(`turn commit must keep disk condition: ${JSON.stringify(cond)}`);
+    } else {
+        ok('turn commit keeps disk condition on conflict');
+    }
+    if (skills.length !== 1 || skills[0] !== 'climb') {
+        fail(`turn commit must keep disk skills: ${JSON.stringify(skills)}`);
+    } else {
+        ok('turn commit keeps disk skills on conflict');
+    }
+    if (merged.status?.hp?.current !== 7) {
+        fail(`turn commit should still apply GM hp: ${JSON.stringify(merged.status?.hp)}`);
+    } else {
+        ok('turn commit applies GM hp alongside protected status arrays');
     }
 }
 

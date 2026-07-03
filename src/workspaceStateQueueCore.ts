@@ -3,6 +3,13 @@
 /** UI writes during GM turn — disk wins over stale turn snapshot on conflict. */
 export const UI_PROTECTED_ON_TURN_COMMIT = ['commerce'] as const;
 
+/** status sub-fields that may change while a GM turn is in flight — disk wins on conflict. */
+export const UI_PROTECTED_STATUS_FIELDS_ON_TURN_COMMIT = [
+    'inventory',
+    'condition',
+    'skills',
+] as const;
+
 /** GM turn_result commit may overwrite these even when disk revision advanced. */
 export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     'status',
@@ -79,6 +86,26 @@ export function mergeGameStateEntries(
     return order.map((id) => byId.get(id)).filter((e): e is unknown => e !== undefined);
 }
 
+function isStatusRecord(raw: unknown): raw is Record<string, unknown> {
+    return typeof raw === 'object' && raw !== null && !Array.isArray(raw);
+}
+
+/** GM turn status wins except UI-mutable array fields (inventory, condition, skills). */
+export function mergeTurnStatusOnConflict(
+    diskStatus: unknown,
+    incomingStatus: unknown
+): Record<string, unknown> {
+    const disk = isStatusRecord(diskStatus) ? diskStatus : {};
+    const incoming = isStatusRecord(incomingStatus) ? incomingStatus : {};
+    const merged: Record<string, unknown> = { ...incoming };
+    for (const field of UI_PROTECTED_STATUS_FIELDS_ON_TURN_COMMIT) {
+        if (field in disk) {
+            merged[field] = disk[field];
+        }
+    }
+    return merged;
+}
+
 /**
  * Reload-before-write merge for game_state.json.
  * entries are always merged by id; other roots depend on profile / revision conflict.
@@ -142,9 +169,15 @@ export function mergeGameStateForPersist(
             stateRevision: diskRevision + 1,
         };
         for (const key of TURN_AUTHORITATIVE_ROOT_KEYS) {
+            if (key === 'status') {
+                continue;
+            }
             if (key in incoming) {
                 result[key] = incoming[key];
             }
+        }
+        if ('status' in incoming || 'status' in disk) {
+            result.status = mergeTurnStatusOnConflict(disk.status, incoming.status);
         }
         for (const key of UI_PROTECTED_ON_TURN_COMMIT) {
             if (key in disk) {

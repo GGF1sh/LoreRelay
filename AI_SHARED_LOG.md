@@ -1,5 +1,17 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign P0 PR6-lite status array OCC (v1.37.4)
+
+### Summary
+
+- `mergeTurnStatusOnConflict` — on `turn` profile conflict, disk wins for `inventory` / `condition` / `skills`; GM fields (`hp`, etc.) from incoming.
+- `UI_PROTECTED_STATUS_FIELDS_ON_TURN_COMMIT` constant.
+- Test: inventory consume during stale turn merge in `test_state_merge_commerce_race.js`.
+
+### Verification
+
+- `npm test` **96/96**
+
 ## 2026-07-03 JST - Grok - Campaign P0 PR3 queue split + commerce debounce (v1.37.3)
 
 ### Summary

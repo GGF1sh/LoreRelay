@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.4] - 2026-07-03
+
+### Fixed
+
+- **Campaign P0 PR6-lite — status 配列 OCC** — `turn` プロファイルの revision 競合時、`status.inventory` / `condition` / `skills` は disk 優先（GM ターン待ち中の消費・削除が復活しない）。`hp` 等の GM 権威フィールドは incoming を適用。
+
+### Verification
+
+- `npm test` **96/96**（inventory 競合ケース追加）
+
 ## [1.37.3] - 2026-07-03
 
 ### Fixed

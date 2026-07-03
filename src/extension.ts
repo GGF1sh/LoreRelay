@@ -81,6 +81,15 @@ import {
     getGmBridgeOutputChannel,
     isGmBridgeBusy
 } from './gmBridgeRunner';
+import { isParlorMode } from './experience';
+import {
+    initParlorBridge,
+    handleParlorPlayerInput,
+    startParlorMode,
+    switchToCampaignMode,
+    sendParlorSessionToWebview,
+    sendExperienceProfileToWebview,
+} from './parlorBridge';
 import {
     initTtsBridgeRunner,
     handleRequestNpcTts,
@@ -224,6 +233,7 @@ export function activate(context: vscode.ExtensionContext) {
         getOpenRouterApiKey,
         subscriptions: context.subscriptions
     });
+    initParlorBridge({ getPanel });
     initTurnResultFallback(checkPendingTurnResultFile);
 
     initTtsBridgeRunner({
@@ -328,6 +338,7 @@ export function activate(context: vscode.ExtensionContext) {
         startWatchingGameState();
         sendLocaleBundle();
         sendDebugCapabilities();
+        sendExperienceProfileToWebview();
 
         panel.webview.onDidReceiveMessage(
             (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
@@ -739,6 +750,11 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
 
     if (trimmed.length > MAX_PLAYER_INPUT_LENGTH) {
         vscode.window.showErrorMessage(t('extension.error.inputTooLong', { max: String(MAX_PLAYER_INPUT_LENGTH) }));
+        return;
+    }
+
+    if (isParlorMode()) {
+        await handleParlorPlayerInput(trimmed);
         return;
     }
 
@@ -1261,6 +1277,15 @@ function getCurrentLocationIdForWorldView(): string | undefined {
     return id && isValidEntryId(id) ? id : undefined;
 }
 
+async function sendUiState(retryCount = 0, fullHistory = false): Promise<void> {
+    sendExperienceProfileToWebview();
+    if (isParlorMode()) {
+        sendParlorSessionToWebview();
+        return;
+    }
+    await sendCurrentState(retryCount, fullHistory);
+}
+
 /** Webview postMessage ルーターへ渡すハンドラ束ね。 */
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
@@ -1268,7 +1293,21 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         runImageGeneration,
         handleLocaleChange,
         sendLocaleBundle,
-        sendCurrentState,
+        sendCurrentState: sendUiState,
+        handleStartParlor: async (characterId?: string) => {
+            const ok = await startParlorMode(characterId);
+            if (ok) {
+                await sendUiState(0, true);
+            }
+        },
+        handleSwitchExperienceProfile: async (profile: unknown) => {
+            if (profile === 'campaign') {
+                await switchToCampaignMode();
+                await sendUiState(0, true);
+            } else if (profile === 'parlor') {
+                await startParlorMode();
+            }
+        },
         sendBgmManifest,
         sendSfxManifest,
         sendCharacterList,

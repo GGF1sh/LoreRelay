@@ -18,7 +18,7 @@ import {
     normalizeWorldForgeTheme,
     sanitizeEquipmentNotifyFields
 } from './webviewHandlersCore';
-
+import { isExperienceProfile } from './experienceCore';
 /** Webview → Extension の postMessage ペイロード（緩い型）。 */
 export interface WebviewMessage {
     type: string;
@@ -104,6 +104,8 @@ export interface WebviewHandlerDeps {
     handleLivingWorldMarketDebug(raw: unknown): Promise<void>;
     handleLivingWorldDirectTrade(raw: unknown): Promise<void>;
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
+    handleStartParlor(characterId?: string): Promise<void>;
+    handleSwitchExperienceProfile(profile: unknown): Promise<void>;
 }
 
 /**
@@ -502,6 +504,18 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'livingWorldSetPlayerRole':
             await deps.handleLivingWorldSetPlayerRole(message);
+            break;
+        case 'startParlor': {
+            const characterId = typeof message.characterId === 'string' && isValidCharacterId(message.characterId)
+                ? message.characterId
+                : undefined;
+            await deps.handleStartParlor(characterId);
+            break;
+        }
+        case 'switchExperienceProfile':
+            if (isExperienceProfile(message.profile)) {
+                await deps.handleSwitchExperienceProfile(message.profile);
+            }
             break;
         default:
             break;

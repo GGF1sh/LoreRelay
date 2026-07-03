@@ -23,9 +23,24 @@
 | GitHub Release (VSIX) | 最新タグは **v1.28.0** まで確認済み — `v1.33.0` タグ push で Release 更新 |
 | Canonical repo path | `C:\AI\text-adventure-vsce` |
 | Living World | **v1.23–1.33** — Commerce / Agency / LW3 絆 / プレイヤー絆 / 交易還元（batch） |
-| Tests | `npm test` **82/82** |
+| Tests | `npm test` **84/84** |
 | Docs hygiene | README 4言語 Roadmap・バッジを 1.33.0 に同期（本エントリ） |
-| Next (推奨) | Phase 12 Parlor Mode Phase A（Grok）· `git tag v1.33.0` は任意 |
+| Next (推奨) | ChatGPT Phase 3 ゲート · `v1.34.0` タグ |
+
+---
+
+## 2026-07-03 JST - Grok - Parlor Mode Phase A 実装
+
+### Summary
+
+- Gemini/ChatGPT ドラフト反映後、**Phase A MVP** 実装: `experience.json`, `parlor_session.json`, `invokeParlorVscodeLm`（JSON/turn_result 非書込）, Start Hub 🎭, Webview `profile-parlor` CSS。
+- ChatGPT **Critical/High** 対応: ワークスペース固定パス、Parlor/Campaign 分離、プロンプト未検証コンテキスト区切り、assistant JSON strip。
+- `npm test` **84/84**（+2 parlor core tests）。
+
+### Next
+
+- ChatGPT に `docs/PARLOR_MODE_CHATGPT_REVIEW.md` Phase 3 ゲート
+- Phase B: `connection_profiles` · README 4言語 Parlor 全文
 
 ---
 

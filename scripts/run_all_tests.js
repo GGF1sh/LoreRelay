@@ -80,6 +80,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_npc_bond_effects_core.js' },
     { category: 'unit', file: 'test_npc_life_events_core.js' },
     { category: 'unit', file: 'test_player_bond_core.js' },
+    { category: 'unit', file: 'test_parlor_session_core.js' },
+    { category: 'unit', file: 'test_parlor_prompt_builder_core.js' },
     { category: 'unit', file: 'test_npc_registry.js' },
     { category: 'unit', file: 'test_npc_voice_core.js' },
     { category: 'unit', file: 'test_tts_provider_core.js' },

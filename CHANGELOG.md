@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Parlor Mode Phase A** — `experience.json` + `parlor_session.json`、vscode-lm プレーンチャット（Campaign の `turn_result` 経路を使わない）、Start Hub「キャラと話す」、ヘッダー 🎭/⚔️ プロファイル切替、CRPG パネル非表示。Core: `experienceCore` / `parlorSessionCore` / `parlorPromptBuilderCore`。テスト **84/84**。
+
 ### Docs
 
 - **Phase 12 Parlor Mode ChatGPT deliverables** — `docs/PARLOR_MODE_CHATGPT_REVIEW.md`（設計段階のセキュリティ監査表・昇格データ境界・実装後ゲート）と `TextAdventureGMSkill/PARLOR_SKILL.md`（Parlor専用のプレーンテキストGM契約ドラフト）を追加。

@@ -40,6 +40,7 @@ let gmProcess: ChildProcess | undefined;
 let grokSessionActive = false;
 let localGmSessionActive = false;
 let agenticBridgeBusy = false;
+let parlorLmBusy = false;
 let pendingDiceLedgerWritten = false;
 
 export interface GmBridgeRunnerDeps {
@@ -85,7 +86,11 @@ function resolveGrokCommand(configured: string): string {
 }
 
 export function isGmBridgeBusy(): boolean {
-    return Boolean(grokProcess || gmProcess || agenticBridgeBusy);
+    return Boolean(grokProcess || gmProcess || agenticBridgeBusy || parlorLmBusy);
+}
+
+export function isParlorBridgeBusy(): boolean {
+    return parlorLmBusy;
 }
 
 export function setAgenticBridgeBusy(busy: boolean): void {
@@ -847,6 +852,87 @@ function vscodeLmWriteTurnResult(
     });
 
     writeJsonAtomic(path.join(wsPath, 'turn_result.json'), turnResult);
+}
+
+export interface ParlorLmResult {
+    ok: boolean;
+    text: string;
+    model?: string;
+}
+
+/** Parlor mode: plain-text vscode-lm reply — never writes turn_result.json. */
+export async function invokeParlorVscodeLm(userPrompt: string): Promise<ParlorLmResult> {
+    const { getPanel } = requireDeps();
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return { ok: false, text: '' };
+    }
+    if (parlorLmBusy) {
+        return { ok: false, text: '' };
+    }
+
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const vendor = config.get<string>('gmBridge.vscodeLm.vendor', '').trim() || undefined;
+    const family = config.get<string>('gmBridge.vscodeLm.family', '').trim() || undefined;
+    const modelId = config.get<string>('gmBridge.vscodeLm.model', '').trim() || undefined;
+
+    const selector: vscode.LanguageModelChatSelector = {};
+    if (vendor) { selector.vendor = vendor; }
+    if (family) { selector.family = family; }
+    if (modelId) { selector.id = modelId; }
+
+    const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (!models.length) {
+        vscode.window.showErrorMessage(
+            'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code 等の拡張機能をインストールしてサインインしてください。'
+        );
+        return { ok: false, text: '' };
+    }
+    const model = models[0];
+
+    const channel = getGmBridgeOutputChannel();
+    channel.clear();
+    channel.appendLine(`[parlor vscode-lm] model=${model.name} (${model.vendor}/${model.family})`);
+    channel.show(true);
+
+    getPanel()?.webview.postMessage({ type: 'gmStart' });
+    notifyRemoteGmBusy(true);
+    vscode.window.setStatusBarMessage(t('extension.status.gmProcessing'), 0);
+
+    parlorLmBusy = true;
+    const cts = new vscode.CancellationTokenSource();
+    let fullText = '';
+
+    try {
+        const response = await model.sendRequest(
+            [vscode.LanguageModelChatMessage.User(userPrompt)],
+            {},
+            cts.token
+        );
+        for await (const chunk of response.stream) {
+            if (chunk instanceof vscode.LanguageModelTextPart) {
+                fullText += chunk.value;
+                channel.append(chunk.value);
+            }
+        }
+        channel.appendLine('\n[parlor vscode-lm: complete]');
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+        getPanel()?.webview.postMessage({ type: 'gmEnd', success: true });
+        return { ok: true, text: fullText, model: model.name };
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        channel.appendLine(`\n[parlor vscode-lm error: ${msg}]`);
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+        getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
+        vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
+        return { ok: false, text: '' };
+    } finally {
+        parlorLmBusy = false;
+        cts.dispose();
+    }
 }
 
 async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolean): Promise<boolean> {

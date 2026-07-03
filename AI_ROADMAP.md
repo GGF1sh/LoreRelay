@@ -257,11 +257,11 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 
 ### Phase A — MVP（v1.34.0 候補）
 
-- [ ] `experience.json` + `parlor_session.json` 契約（`*Core.ts`）
-- [ ] `parlorPromptBuilderCore` + `gmBridgeRunner` Parlor 分岐（vscode-lm 優先）
-- [ ] Webview profile フィルタ（CRPG タブ非表示）
-- [ ] Start Hub「🎭 キャラと話す」
-- [ ] Core テスト + Campaign 回帰 82/82
+- [x] `experience.json` + `parlor_session.json` 契約（`*Core.ts`）
+- [x] `parlorPromptBuilderCore` + `gmBridgeRunner` Parlor 分岐（vscode-lm 優先）
+- [x] Webview profile フィルタ（CRPG タブ非表示）
+- [x] Start Hub「🎭 キャラと話す」
+- [x] Core テスト + Campaign 回帰 **84/84**
 
 ### Phase B — ST 体験の完成
 

@@ -195,6 +195,20 @@ body {
 }
 
 /* --- 10-layout-chat.css --- */
+/* ========= Parlor profile (hide CRPG chrome) ========= */
+body.profile-parlor #status-area,
+body.profile-parlor #game-rules-wrap,
+body.profile-parlor #remote-play-wrap,
+body.profile-parlor #quickstart-wrap,
+body.profile-parlor #img-gen-wrap {
+  display: none !important;
+}
+
+body.profile-parlor .start-hub-btn-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* ========= Tabs (status area) ========= */
 .tabs-header {
   display: flex;

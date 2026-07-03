@@ -62,6 +62,8 @@ const spriteLayer = document.getElementById('sprite-layer');
 // State
 let currentTheme = 'fantasy';
 let messageHistory = [];
+let experienceProfile = 'campaign';
+let parlorHasCharacter = false;
 let galleryImages = [];
 let lastDiceRequestId = null;
 let seenHiddenDiceIds = new Set();

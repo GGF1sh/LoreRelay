@@ -38,6 +38,9 @@
         <div id="remote-play-wrap">
           <button id="remote-play-btn" class="glass-btn" data-i18n-title="webview.remotePlay.toggle" title="Remote Play">📱</button>
         </div>
+        <div id="experience-profile-wrap">
+          <button id="experience-profile-btn" class="glass-btn" title="Parlor / Campaign">🎭</button>
+        </div>
         <div id="tts-wrap">
           <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
           <div id="tts-menu" class="tts-menu-popup hidden">
@@ -66,7 +69,12 @@
         <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
         <div class="start-hub-presets-label" data-i18n="webview.startHub.demoLabel">はじめての方:</div>
         <div class="start-hub-options">
-          <button type="button" id="start-hub-demo-btn" class="start-hub-btn start-hub-btn-primary">
+          <button type="button" id="start-hub-parlor-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon">🎭</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.parlorTitle">キャラと話す (Parlor)</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.parlorDesc">インポートしたキャラカードを使って、シンプルな1対1のチャットを始めます。</span>
+          </button>
+          <button type="button" id="start-hub-demo-btn" class="start-hub-btn">
             <span class="start-hub-btn-icon">🎮</span>
             <span class="start-hub-btn-label" data-i18n="webview.startHub.demoTitle">お試しデモを始める</span>
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.demoDesc">穏やかな港町ミステリー（約15分）。設定不要ですぐ遊べます。</span>

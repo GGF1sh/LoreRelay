@@ -107,6 +107,14 @@ Prereq: same workspace; `enableNpcRegistry` + `enableNpcAgency` ON.
 - [ ] **Delete character**: Select an existing character in the Character Profile pane, click 🗑 Delete, confirm the dialog, and verify the character disappears from the dropdown, its `characters/{id}.json` (and any portrait/expression files) are gone from disk, and it's removed from the active party if it was a member.
 - [ ] **Delete active character**: Delete the currently-active character and verify `active_character.txt` is cleared (no stale reference left behind) and the dropdown falls back to `-- New Character --` or another character cleanly.
 
+## 10. Parlor Mode (Phase A)
+- [ ] **Start Hub conditional** — Empty workspace without character cards: "🎭 キャラと話す" is disabled/greyed. After ST import, button becomes active.
+- [ ] **Session start** — Click Parlor: World/Inspector/status area hidden; `parlor_session.json` created; no new `turn_result.json` from Parlor send path.
+- [ ] **1-on-1 chat** — Send message with `vscode-lm` or clipboard: plain-text reply, no JSON executed; persists in `parlor_session.json`.
+- [ ] **Lorebook injection** — Trigger a lorebook keyword; GM Bridge log shows lore context in Parlor prompt (no Campaign state write).
+- [ ] **Profile toggle** — Header 🎭/⚔️ switches Parlor ⟷ Campaign; Campaign restores full UI.
+- [ ] **Campaign isolation** — In Parlor, confirm Living World tick does not append to `game_state.json`.
+
 ## 9. System & Installation
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.

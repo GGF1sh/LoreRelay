@@ -43,6 +43,17 @@
 - 🧭 **Fable5 Layer (v1.19+):** Chronicle あらすじ注入、Pacing Director、派閥レピュテーション、旅路エンカウント、Replay Export。
 - 🛒 **Living World Economy (v1.23+、experimental):** 貿易・相場・輸送、Commerce UI（Buy/Sell）、NPC Agency、信頼連動の所在、NPC↔NPC / プレイヤー↔NPC の絆（LW3）、盟友の交易還元（v1.33+）。
 
+### 🎭 Parlor モード（SillyTavern 風 1対1 RP）
+
+**シンプルな 1対1 チャット（Parlor）** と **本格 CRPG（Campaign）** をヘッダーの 🎭/⚔️ で切り替えられます。ST キャラカード・ロアブックをそのまま使えます（[完全互換クライアントではありません](docs/PARLOR_MODE_DESIGN.md)）。
+
+| バックエンド | 用途 |
+|:---|:---|
+| **vscode-lm**（推奨） | Copilot / Claude Code 等の月額 — API キー不要 |
+| **clipboard** | Antigravity Gemini 等 — 手動ペースト |
+
+**3ステップ:** キャラインポート → Start Hub「キャラと話す」→ 必要なら Campaign に昇格（Phase C 予定）。設計: [`docs/PARLOR_MODE_DESIGN.md`](docs/PARLOR_MODE_DESIGN.md)
+
 **初めての方:** [`docs/LIVING_WORLD_QUICKSTART.md`](docs/LIVING_WORLD_QUICKSTART.md)（5分）· [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)（3分スタート・タブの見方）  
 詳細なアーキテクチャ解説: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 

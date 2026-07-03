@@ -137,7 +137,35 @@ function updateStartHubVisibility() {
   chatLog.classList.toggle('hidden', empty);
 }
 
+function applyExperienceProfile(profile) {
+  experienceProfile = profile === 'parlor' ? 'parlor' : 'campaign';
+  document.body.classList.toggle('profile-parlor', experienceProfile === 'parlor');
+  document.body.classList.toggle('profile-campaign', experienceProfile === 'campaign');
+  const profileBtn = document.getElementById('experience-profile-btn');
+  if (profileBtn) {
+    profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : '⚔️';
+    profileBtn.title = experienceProfile === 'parlor'
+      ? (T('webview.parlor.modeLabel') || 'Parlor')
+      : (T('webview.campaign.modeLabel') || 'Campaign');
+  }
+}
+
+function applyParlorSession(msg) {
+  if (!Array.isArray(msg.entries)) return;
+  messageHistory = msg.entries.map((e) => ({
+    id: e.id,
+    role: e.role,
+    sender: e.sender,
+    content: e.content,
+  }));
+  chatLog.innerHTML = '';
+  messageHistory.forEach((entry) => renderMessage(entry));
+  updateStartHubVisibility();
+  saveState();
+}
+
 function initStartHub() {
+  const parlorBtn = document.getElementById('start-hub-parlor-btn');
   const demoBtn = document.getElementById('start-hub-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
   const debugBtn = document.getElementById('start-hub-debug-btn');
@@ -146,6 +174,28 @@ function initStartHub() {
   const presetsWrap = document.getElementById('start-hub-presets');
   const charNewBtn = document.getElementById('start-hub-char-new-btn');
   const charImportBtn = document.getElementById('start-hub-char-import-btn');
+
+  if (parlorBtn) {
+    parlorBtn.addEventListener('click', () => {
+      if (!parlorHasCharacter) {
+        vscode.postMessage({ type: 'importTavernCard' });
+        return;
+      }
+      vscode.postMessage({ type: 'startParlor' });
+    });
+  }
+
+  const profileBtn = document.getElementById('experience-profile-btn');
+  if (profileBtn) {
+    profileBtn.addEventListener('click', () => {
+      const next = experienceProfile === 'parlor' ? 'campaign' : 'parlor';
+      if (next === 'parlor' && !parlorHasCharacter) {
+        vscode.postMessage({ type: 'importTavernCard' });
+        return;
+      }
+      vscode.postMessage({ type: 'switchExperienceProfile', profile: next });
+    });
+  }
 
   if (demoBtn) {
     demoBtn.addEventListener('click', () => {
@@ -267,6 +317,12 @@ window.addEventListener('message', (event) => {
       oocLog.scrollTop = oocLog.scrollHeight;
     }
   } else if (msg.type === 'characterList') {
+    parlorHasCharacter = Array.isArray(msg.characters) && msg.characters.length > 0;
+    const parlorHubBtn = document.getElementById('start-hub-parlor-btn');
+    if (parlorHubBtn) {
+      parlorHubBtn.disabled = !parlorHasCharacter;
+      parlorHubBtn.classList.toggle('start-hub-btn-disabled', !parlorHasCharacter);
+    }
     updateCharacterList(msg.characters, msg.activeCharacterId, msg.partyIds);
   } else if (msg.type === 'summaryUpdated') {
     if (msg.summary !== undefined) {
@@ -336,6 +392,17 @@ window.addEventListener('message', (event) => {
       scrollToBottom();
       saveState();
     }
+  } else if (msg.type === 'experienceProfile') {
+    parlorHasCharacter = !!msg.hasCharacter;
+    applyExperienceProfile(msg.profile || 'campaign');
+    const parlorHubBtn = document.getElementById('start-hub-parlor-btn');
+    if (parlorHubBtn) {
+      parlorHubBtn.disabled = !parlorHasCharacter;
+      parlorHubBtn.classList.toggle('start-hub-btn-disabled', !parlorHasCharacter);
+    }
+  } else if (msg.type === 'parlorSessionUpdate') {
+    applyExperienceProfile('parlor');
+    applyParlorSession(msg);
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};
     currentLocale = msg.locale || 'en';

@@ -9,13 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-07-03
+
 ### Fixed
 
-- **Parlor Phase C（Gemini レビュー follow-up）** — Campaign 履歴バルクインポートを 500 件アクティブ + 超過分 ndjson 直アーカイブ、`parlor_archive` 書き込みキュー、凍結 Campaign 再開 vs 新規昇格の分岐、`sanitizePromotedGameState` + `schemaVersion: 2`、サマリ多段圧縮。
+- **Campaign P0 — state race** — `workspaceStateQueue` で `game_state.json` / `world_state.json` 書き込みを FIFO 直列化。`commitGameState` / `saveWorldState` は reload-before-write + entries/id・world map マージ。ターン処理と Living World は world_state をバッチ保存、直接取引は game + world を単一キュー操作に統合。
+- **Campaign P0 — trust leak** — Webview 向け `sanitizeNpcAgencyOpsForWebview` / `sanitizeGameStateForWebview`（`hiddenState`・`director.notes` 除去）。Inspector・World タブに防御表示。
 
-### Docs
+### Verification
 
-- `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` — Phase C triage + Grok 全体レビュー別紙
+- `npm test` **92/92**
 
 ## [1.36.0] - 2026-07-03
 

@@ -8,6 +8,7 @@ import { resolveCommerceForge, ensureLivingWorldMarkets } from './livingWorldBri
 import { getOrInitPlayerCommerce } from './livingWorldTurnOpsCore';
 import { commitGameState } from './stateManager';
 import { getGameStatePath } from './workspacePaths';
+import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
 import type { GameState } from './types/GameState';
 import type { PlayerRole } from './livingWorldTypes';
 import {
@@ -112,10 +113,18 @@ export function executeLivingWorldDirectTrade(
         };
     }
 
-    saveWorldState({ ...ws, markets: result.markets });
-    if (gameState) {
-        persistCommerce(gameState, result.commerce);
-    }
+    const nextCommerce = result.commerce;
+    const nextMarkets = result.markets;
+
+    runSerializedWorkspaceMutation(() => {
+        if (gameState) {
+            persistCommerce(gameState, nextCommerce);
+        }
+        const freshWs = loadWorldState();
+        if (freshWs) {
+            saveWorldState({ ...freshWs, markets: nextMarkets });
+        }
+    });
 
     return { ok: true, trade: result };
 }

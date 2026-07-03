@@ -1788,7 +1788,7 @@ function renderNpcWhereabouts(payload) {
     entries.slice(0, 10).forEach((npc) => {
         const row = document.createElement('div');
         row.className = 'world-npc-whereabouts-row';
-        const precision = npc.precision || 'exact';
+        const precision = npc.precision || 'unknown';
         let locationText;
         if (precision === 'unknown') {
             locationText = T('webview.world.npcWhereaboutsUnknown');
@@ -1815,7 +1815,7 @@ function renderNpcWhereabouts(payload) {
             ${transit}
             ${introduced}
         `;
-        if (npc.reason || npc.agenda) {
+        if (precision !== 'unknown' && (npc.reason || npc.agenda)) {
             row.title = [npc.agenda, npc.reason].filter(Boolean).join(' / ');
             const note = document.createElement('div');
             note.className = 'world-npc-reason';

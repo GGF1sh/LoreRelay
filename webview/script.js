@@ -4082,12 +4082,26 @@ function renderLivingWorldOps(turnResult, section, listEl) {
         npcAgencyOps.slice(0, 12).forEach((op) => {
             const row = document.createElement('div');
             row.className = 'inspector-item';
-            row.innerHTML = `
-                <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
-                <span>→ ${escapeHtml(op.locationId || '?')}</span>
-                <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
-                ${op.agenda ? `<span class="tag-item">${escapeHtml(op.agenda)}</span>` : ''}
-            `;
+            const precision = op.precision || 'unknown';
+            if (precision === 'unknown') {
+                row.innerHTML = `
+                    <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                    <span class="tag-item">${escapeHtml(T('webview.world.npcWhereaboutsUnknown'))}</span>
+                `;
+            } else if (precision === 'approximate') {
+                row.innerHTML = `
+                    <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                    <span>→ ${escapeHtml(T('webview.world.npcHeadingVague'))}</span>
+                    <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
+                `;
+            } else {
+                row.innerHTML = `
+                    <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                    <span>→ ${escapeHtml(op.locationId || '?')}</span>
+                    <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
+                    ${op.agenda ? `<span class="tag-item">${escapeHtml(op.agenda)}</span>` : ''}
+                `;
+            }
             listEl.appendChild(row);
         });
     }
@@ -6824,7 +6838,7 @@ function renderNpcWhereabouts(payload) {
     entries.slice(0, 10).forEach((npc) => {
         const row = document.createElement('div');
         row.className = 'world-npc-whereabouts-row';
-        const precision = npc.precision || 'exact';
+        const precision = npc.precision || 'unknown';
         let locationText;
         if (precision === 'unknown') {
             locationText = T('webview.world.npcWhereaboutsUnknown');
@@ -6851,7 +6865,7 @@ function renderNpcWhereabouts(payload) {
             ${transit}
             ${introduced}
         `;
-        if (npc.reason || npc.agenda) {
+        if (precision !== 'unknown' && (npc.reason || npc.agenda)) {
             row.title = [npc.agenda, npc.reason].filter(Boolean).join(' / ');
             const note = document.createElement('div');
             note.className = 'world-npc-reason';

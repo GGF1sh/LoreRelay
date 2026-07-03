@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import type { GameState } from './types/GameState';
 import { getGameStatePath, writeJsonAtomic } from './workspacePaths';
@@ -6,6 +7,8 @@ import {
     resolveGameStatePersistPlan,
     type CommitGameStateMode,
 } from './stateManagerCore';
+import { mergeGameStateForPersist } from './workspaceStateQueueCore';
+import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
 
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
 export { resolveGameStatePersistPlan } from './stateManagerCore';
@@ -19,23 +22,28 @@ export interface CommitGameStateOptions {
  * Persists the game state to `game_state.json`.
  * This is the SINGLE CHOKE POINT for all writes to the game state.
  */
-export function commitGameState(
-    state: Record<string, unknown> | GameState,
-    options: boolean | CommitGameStateOptions = {}
-): void {
-    const opts: CommitGameStateOptions = typeof options === 'boolean'
-        ? { createBackup: options }
-        : options;
-    const createBackup = opts.createBackup ?? false;
-    const mode = opts.mode ?? 'salvage';
-
-    const statePath = getGameStatePath();
-    if (!statePath) {
-        return;
+function readGameStateFromDisk(statePath: string): Record<string, unknown> | undefined {
+    if (!fs.existsSync(statePath)) {
+        return undefined;
     }
+    try {
+        return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+    } catch {
+        return undefined;
+    }
+}
 
-    const raw = state as Record<string, unknown>;
-    const plan = resolveGameStatePersistPlan(raw, mode);
+function writeGameStatePlan(
+    statePath: string,
+    state: Record<string, unknown>,
+    options: CommitGameStateOptions
+): void {
+    const createBackup = options.createBackup ?? false;
+    const mode = options.mode ?? 'salvage';
+    const disk = readGameStateFromDisk(statePath);
+    const merged = mergeGameStateForPersist(disk, state);
+
+    const plan = resolveGameStatePersistPlan(merged, mode);
     if (plan.action === 'skip') {
         console.error(
             `[commitGameState] ${mode} mode: validation failed, not writing. Errors:`,
@@ -52,11 +60,30 @@ export function commitGameState(
         return;
     }
 
-    if (mode === 'salvage' && validateGameState(raw).length > 0) {
+    if (mode === 'salvage' && validateGameState(merged).length > 0) {
         console.warn('[commitGameState] salvage mode: wrote sanitized state after raw validation failed.');
     }
 
     writeJsonAtomic(statePath, plan.payload, createBackup);
+}
+
+export function commitGameState(
+    state: Record<string, unknown> | GameState,
+    options: boolean | CommitGameStateOptions = {}
+): void {
+    const opts: CommitGameStateOptions = typeof options === 'boolean'
+        ? { createBackup: options }
+        : options;
+
+    const statePath = getGameStatePath();
+    if (!statePath) {
+        return;
+    }
+
+    const raw = state as Record<string, unknown>;
+    runSerializedWorkspaceMutation(() => {
+        writeGameStatePlan(statePath, raw, opts);
+    });
 }
 
 function quarantineInvalidState(statePath: string, payload: Record<string, unknown>): void {

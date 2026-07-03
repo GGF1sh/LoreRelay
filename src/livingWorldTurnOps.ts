@@ -66,8 +66,9 @@ function buildBondTradeContext(
 function runCommercePhase(
     turnResult: TurnResult,
     gameState: GameState,
-    commerce: NonNullable<ReturnType<typeof parseCommerceForge>>
-): GameState {
+    commerce: NonNullable<ReturnType<typeof parseCommerceForge>>,
+    ws: WorldState
+): { gameState: GameState; ws: WorldState; dirty: boolean } {
     const rules = loadGameRules();
     let nextGame = gameState;
 
@@ -78,12 +79,7 @@ function runCommercePhase(
 
     const ops = parseTradeOps(turnResult.tradeOps);
     if (ops.length === 0) {
-        return nextGame;
-    }
-
-    const ws = loadWorldState();
-    if (!ws) {
-        return nextGame;
+        return { gameState: nextGame, ws, dirty: false };
     }
 
     const markets = ws.markets && Object.keys(ws.markets).length > 0
@@ -95,7 +91,7 @@ function runCommercePhase(
     );
     const batch = applyTradeOps(commerce, markets, playerCommerce, ops);
     if (!batch.ok) {
-        return nextGame;
+        return { gameState: nextGame, ws, dirty: false };
     }
 
     let finalCommerce = batch.commerce;
@@ -120,47 +116,42 @@ function runCommercePhase(
         }
     }
 
-    saveWorldState({ ...ws, markets: batch.markets });
     return {
-        ...nextGame,
-        commerce: finalCommerce,
-    } as GameState;
+        gameState: {
+            ...nextGame,
+            commerce: finalCommerce,
+        } as GameState,
+        ws: { ...ws, markets: batch.markets },
+        dirty: true,
+    };
 }
 
-function runNpcAgencyPhase(turnResult: TurnResult): void {
+function runNpcAgencyPhase(turnResult: TurnResult, ws: WorldState): { ws: WorldState; dirty: boolean } {
     const ops = parseNpcAgencyOps(turnResult.npcAgencyOps);
     if (ops.length === 0) {
-        return;
+        return { ws, dirty: false };
     }
-    const ws = loadWorldState();
     const registry = loadNpcRegistry();
-    if (!ws) {
-        return;
-    }
     const positions = applyNpcAgencyOps(
         ws.npcPositions ?? {},
         ops,
         registryToAgencyLike(registry)
     );
-    saveWorldState({ ...ws, npcPositions: positions });
+    return { ws: { ...ws, npcPositions: positions }, dirty: true };
 }
 
-function runRelationshipPhase(turnResult: TurnResult): void {
+function runRelationshipPhase(turnResult: TurnResult, ws: WorldState): { ws: WorldState; dirty: boolean } {
     const ops = parseRelationshipOps(turnResult.relationshipOps);
     if (ops.length === 0) {
-        return;
+        return { ws, dirty: false };
     }
-    const ws = loadWorldState();
     const registry = loadNpcRegistry();
-    if (!ws) {
-        return;
-    }
     const relationships = applyRelationshipOps(
         ws.npcRelationships ?? {},
         ops,
         registryToAgencyLike(registry)
     );
-    saveWorldState({ ...ws, npcRelationships: relationships });
+    return { ws: { ...ws, npcRelationships: relationships }, dirty: true };
 }
 
 export function applyLivingWorldTurnOps(
@@ -175,20 +166,37 @@ export function applyLivingWorldTurnOps(
 
     const phases: LivingWorldTurnPhase[] = [...LIVING_WORLD_TURN_PHASES];
     let nextGame = gameState;
+    let ws = loadWorldState();
+    let wsDirty = false;
+
+    if (!ws) {
+        return nextGame;
+    }
 
     for (const phase of phases) {
         if (phase === 'commerce' && rules.enableCommerce && commerce) {
-            nextGame = runCommercePhase(turnResult, nextGame, commerce);
+            const result = runCommercePhase(turnResult, nextGame, commerce, ws);
+            nextGame = result.gameState;
+            ws = result.ws;
+            wsDirty = wsDirty || result.dirty;
         } else if (phase === 'npc_agency' && rules.enableNpcAgency && rules.enableNpcRegistry) {
-            runNpcAgencyPhase(turnResult);
+            const result = runNpcAgencyPhase(turnResult, ws);
+            ws = result.ws;
+            wsDirty = wsDirty || result.dirty;
         } else if (
             phase === 'relationship'
             && rules.enableNpcRelationships
             && rules.enableNpcAgency
             && rules.enableNpcRegistry
         ) {
-            runRelationshipPhase(turnResult);
+            const result = runRelationshipPhase(turnResult, ws);
+            ws = result.ws;
+            wsDirty = wsDirty || result.dirty;
         }
+    }
+
+    if (wsDirty) {
+        saveWorldState(ws);
     }
 
     return nextGame;

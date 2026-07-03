@@ -73,6 +73,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_living_world_market_debug_core.js' },
     { category: 'unit', file: 'test_living_world_commerce_ui_core.js' },
     { category: 'unit', file: 'test_npc_whereabouts_trust_core.js' },
+    { category: 'unit', file: 'test_npc_agency_webview_sanitize.js' },
+    { category: 'unit', file: 'test_workspace_state_queue_core.js' },
     { category: 'unit', file: 'test_living_world_player_role_core.js' },
     { category: 'unit', file: 'test_since_last_visit_host.js' },
     { category: 'unit', file: 'test_npc_relationship_core.js' },

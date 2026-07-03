@@ -11,6 +11,8 @@ import {
     buildInitialWorldState
 } from './worldStateCore';
 import type { WorldForge } from './worldForgeCore';
+import { mergeWorldStateForPersist } from './workspaceStateQueueCore';
+import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
 
 export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
@@ -81,12 +83,21 @@ export function markChronicleInjected(journalTurnCount: number): void {
     saveWorldState({ ...state, lastInjectedChronicleTurn: turn });
 }
 
-export function saveWorldState(state: WorldState): void {
-    const statePath = getWorldStatePath();
-    if (!statePath) { return; }
+function readWorldStateFromDisk(statePath: string): WorldState | undefined {
+    if (!fs.existsSync(statePath)) {
+        return undefined;
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        return parseWorldState(raw);
+    } catch {
+        return undefined;
+    }
+}
+
+function writeWorldStateToDisk(statePath: string, state: WorldState): void {
     const toSave = {
         ...state,
-        // Migrate 1.0 files to current format on next save
         format: 'lorerelay-world-state/1.1',
         lastUpdated: new Date().toISOString(),
     };
@@ -98,6 +109,19 @@ export function saveWorldState(state: WorldState): void {
     } catch {
         cacheMtime = 0;
     }
+}
+
+export function saveWorldState(state: WorldState): void {
+    const statePath = getWorldStatePath();
+    if (!statePath) { return; }
+    runSerializedWorkspaceMutation(() => {
+        const disk = readWorldStateFromDisk(statePath);
+        const merged = mergeWorldStateForPersist(
+            disk as Record<string, unknown> | undefined,
+            state as unknown as Record<string, unknown>
+        ) as unknown as WorldState;
+        writeWorldStateToDisk(statePath, merged);
+    });
 }
 
 export function getWorldTurn(): number {
@@ -133,14 +157,18 @@ export function resetWorldStateFromForge(forge: WorldForge, createBackup = false
     if (!statePath) {
         return initial;
     }
-    const toSave = { ...initial, lastUpdated: new Date().toISOString() };
-    writeJsonAtomic(statePath, toSave, createBackup);
-    cachedState = toSave;
-    cachePath = statePath;
-    try {
-        cacheMtime = fs.statSync(statePath).mtimeMs;
-    } catch {
-        cacheMtime = 0;
-    }
-    return toSave;
+    let saved = initial;
+    runSerializedWorkspaceMutation(() => {
+        const toSave = { ...initial, lastUpdated: new Date().toISOString() };
+        writeJsonAtomic(statePath, toSave, createBackup);
+        cachedState = toSave;
+        cachePath = statePath;
+        try {
+            cacheMtime = fs.statSync(statePath).mtimeMs;
+        } catch {
+            cacheMtime = 0;
+        }
+        saved = toSave;
+    });
+    return saved;
 }

@@ -518,12 +518,26 @@ function renderLivingWorldOps(turnResult, section, listEl) {
         npcAgencyOps.slice(0, 12).forEach((op) => {
             const row = document.createElement('div');
             row.className = 'inspector-item';
-            row.innerHTML = `
-                <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
-                <span>→ ${escapeHtml(op.locationId || '?')}</span>
-                <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
-                ${op.agenda ? `<span class="tag-item">${escapeHtml(op.agenda)}</span>` : ''}
-            `;
+            const precision = op.precision || 'unknown';
+            if (precision === 'unknown') {
+                row.innerHTML = `
+                    <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                    <span class="tag-item">${escapeHtml(T('webview.world.npcWhereaboutsUnknown'))}</span>
+                `;
+            } else if (precision === 'approximate') {
+                row.innerHTML = `
+                    <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                    <span>→ ${escapeHtml(T('webview.world.npcHeadingVague'))}</span>
+                    <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
+                `;
+            } else {
+                row.innerHTML = `
+                    <code class="patch-value">${escapeHtml(op.npcId || '?')}</code>
+                    <span>→ ${escapeHtml(op.locationId || '?')}</span>
+                    <span class="tag-item">T${escapeHtml(op.arrivesTurn ?? '?')}</span>
+                    ${op.agenda ? `<span class="tag-item">${escapeHtml(op.agenda)}</span>` : ''}
+                `;
+            }
             listEl.appendChild(row);
         });
     }

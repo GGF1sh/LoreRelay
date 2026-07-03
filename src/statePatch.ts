@@ -320,11 +320,10 @@ const QUEST_COMPLETION_TRUST_REWARD = 10;
 function applyFactionReputationUpdates(
     resolvedQuests: unknown,
     reputationOps: unknown,
-    forgeFactionIds: Set<string> | undefined
-): void {
-    if (!loadGameRules().enableFactionReputation) { return; }
-    const worldState = loadWorldState();
-    if (!worldState) { return; }
+    forgeFactionIds: Set<string> | undefined,
+    worldState: import('./worldStateCore').WorldState
+): boolean {
+    if (!loadGameRules().enableFactionReputation) { return false; }
 
     const deltas = parseReputationOps(reputationOps);
     if (Array.isArray(resolvedQuests)) {
@@ -339,20 +338,21 @@ function applyFactionReputationUpdates(
             ));
         }
     }
-    if (deltas.length === 0) { return; }
+    if (deltas.length === 0) { return false; }
 
     const validIds = forgeFactionIds ?? new Set(Object.keys(worldState.factions));
-    const factions = applyPlayerReputationToFactions(worldState.factions, deltas, validIds);
-    saveWorldState({ ...worldState, factions });
+    worldState.factions = applyPlayerReputationToFactions(worldState.factions, deltas, validIds);
+    return true;
 }
 
-function completeResolvedQuestHooks(resolvedQuests: unknown, currentTurn: number): void {
-    if (!Array.isArray(resolvedQuests)) { return; }
+function completeResolvedQuestHooks(
+    resolvedQuests: unknown,
+    currentTurn: number,
+    worldState: import('./worldStateCore').WorldState
+): boolean {
+    if (!Array.isArray(resolvedQuests)) { return false; }
     const resolvedIds = new Set(resolvedQuests.filter(isValidEventId));
-    if (resolvedIds.size === 0) { return; }
-
-    const worldState = loadWorldState();
-    if (!worldState?.questHooks?.length) { return; }
+    if (resolvedIds.size === 0 || !worldState.questHooks?.length) { return false; }
 
     let changed = false;
     const npcUpdates: NpcMemoryUpdate[] = [];
@@ -376,12 +376,10 @@ function completeResolvedQuestHooks(resolvedQuests: unknown, currentTurn: number
             }
         }
     }
-    if (changed) {
-        saveWorldState(worldState);
-    }
     if (npcUpdates.length > 0) {
         applyNpcMemoryUpdates(npcUpdates, currentTurn);
     }
+    return changed;
 }
 
 /**
@@ -452,15 +450,6 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
                     : undefined;
                 if (nextLocationId && nextLocationId !== prevLocationId) {
                     world = applyFogOnLocationVisit(world, forge, nextLocationId);
-                    if (
-                        prevLocationId
-                        && (loadGameRules().enableCommerce || loadGameRules().enableNpcAgency)
-                    ) {
-                        const ws = loadWorldState();
-                        if (ws) {
-                            saveWorldState(recordLocationVisit(ws, prevLocationId, ws.markets));
-                        }
-                    }
                 }
                 const reveal = parseCartographyReveal(turnResult.cartographyReveal);
                 if (reveal) {
@@ -476,12 +465,38 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         const forgeFactionIds = isWorldForgeEnabled()
             ? new Set(loadWorldForge()?.factions.map((f) => f.id) ?? [])
             : undefined;
-        applyFactionReputationUpdates(
-            turnResult.resolvedQuests,
-            turnResult.reputationOps,
-            forgeFactionIds
-        );
-        completeResolvedQuestHooks(turnResult.resolvedQuests, priorGmTurns + 1);
+
+        let worldStateDirty = false;
+        const worldState = loadWorldState();
+        const worldAfterFog = state.world as GameStateWorld | undefined;
+        const visitedLocationId = typeof worldAfterFog?.currentLocationId === 'string'
+            ? worldAfterFog.currentLocationId
+            : undefined;
+        if (worldState) {
+            if (applyFactionReputationUpdates(
+                turnResult.resolvedQuests,
+                turnResult.reputationOps,
+                forgeFactionIds,
+                worldState
+            )) {
+                worldStateDirty = true;
+            }
+            if (completeResolvedQuestHooks(turnResult.resolvedQuests, priorGmTurns + 1, worldState)) {
+                worldStateDirty = true;
+            }
+            if (
+                prevLocationId
+                && visitedLocationId
+                && visitedLocationId !== prevLocationId
+                && (loadGameRules().enableCommerce || loadGameRules().enableNpcAgency)
+            ) {
+                recordLocationVisit(worldState, prevLocationId, worldState.markets);
+                worldStateDirty = true;
+            }
+            if (worldStateDirty) {
+                saveWorldState(worldState);
+            }
+        }
 
         state = mergeGmEntryFromTurn(state, turnResult);
         state = applyLivingWorldTurnOps(

@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign P0 state race + trust leak (v1.37.0)
+
+### Summary
+
+- `workspaceStateQueue` serializes `game_state.json` / `world_state.json` writes (FIFO).
+- `commitGameState` / `saveWorldState`: reload-before-write + entry/map merge + revision counters.
+- Turn pipeline batches world_state mutations; direct commerce trade uses single queued op.
+- Webview sanitization: `npcAgencyOps` trust filter, strip `hiddenState` / `director.notes`.
+- Inspector + World tab defensive rendering for low-trust whereabouts.
+
+### Verification
+
+- `npm test` **92/92**
+
 ## 2026-07-03 JST - Grok - Parlor Phase C Gemini review follow-up
 
 ### Summary

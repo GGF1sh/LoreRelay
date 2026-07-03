@@ -95,6 +95,63 @@ export function formatWhereaboutsForDisplay(
     };
 }
 
+export interface NpcTrustLookup {
+    readTrust(npcId: string): number;
+}
+
+export interface SanitizedNpcAgencyOp {
+    npcId: string;
+    precision: WhereaboutsPrecision;
+    locationId?: string;
+    arrivesTurn?: number;
+    agenda?: string;
+    reason?: string;
+}
+
+export function sanitizeNpcAgencyOpForWebview(
+    op: {
+        npcId: string;
+        locationId: string;
+        arrivesTurn: number;
+        agenda?: string;
+        reason?: string;
+    },
+    playerTrust: number
+): SanitizedNpcAgencyOp {
+    const precision = resolveWhereaboutsPrecision(playerTrust);
+    if (precision === 'unknown') {
+        return { npcId: op.npcId, precision };
+    }
+    if (precision === 'approximate') {
+        return {
+            npcId: op.npcId,
+            precision,
+            arrivesTurn: op.arrivesTurn,
+        };
+    }
+    return {
+        npcId: op.npcId,
+        precision,
+        locationId: op.locationId,
+        arrivesTurn: op.arrivesTurn,
+        agenda: op.agenda,
+        reason: op.reason,
+    };
+}
+
+export function sanitizeNpcAgencyOpsForWebview(
+    ops: Array<{
+        npcId: string;
+        locationId: string;
+        arrivesTurn: number;
+        agenda?: string;
+        reason?: string;
+    }>,
+    trustLookup: NpcTrustLookup
+): SanitizedNpcAgencyOp[] {
+    return ops.map((op) => sanitizeNpcAgencyOpForWebview(op, trustLookup.readTrust(op.npcId)));
+}
+
 export function formatWhereaboutsGmLine(
     presence: Pick<NpcPresence, 'name' | 'locationId' | 'inTransit' | 'arrivesTurn' | 'agenda' | 'reason'>,
     playerTrust: number,

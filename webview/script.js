@@ -5242,8 +5242,8 @@ function renderWorldView(msg) {
     // Living World NPC whereabouts
     renderNpcWhereabouts(msg.npcWhereabouts || null);
 
-    // LW3: NPC-to-NPC bonds
-    renderNpcBonds(msg.npcBonds || null);
+    // LW3: NPC-to-NPC bonds + LW3-P: player bonds
+    renderNpcBonds(msg.npcBonds || null, msg.playerBonds || null);
 
     // Quest Board
     renderQuestHooks(msg.questHooks || []);
@@ -6849,13 +6849,26 @@ const NPC_MILESTONE_ICON = {
     sworn_allies: '🛡️', inseparable: '💠', bitter_enemies: '🗡️', estranged: '💔', reconciled: '🕊️',
 };
 
-function renderNpcBonds(bonds) {
+// LW3-P: プレイヤー自身の絆(kind ラベルのみ)
+const PLAYER_BOND_KEY = {
+    trusted_companion: 'webview.world.playerBondCompanion',
+    romance: 'webview.world.playerBondRomance',
+    nemesis: 'webview.world.playerBondNemesis',
+    feared: 'webview.world.playerBondFeared',
+    estrangement: 'webview.world.playerBondEstrangement',
+};
+const PLAYER_BOND_ICON = {
+    trusted_companion: '🤝', romance: '💗', nemesis: '⚔️', feared: '😨', estrangement: '💔',
+};
+
+function renderNpcBonds(bonds, playerBonds) {
     const section = document.getElementById('world-npc-bonds-details');
     const list = document.getElementById('world-npc-bonds-list');
     if (!section || !list) { return; }
 
     const entries = Array.isArray(bonds) ? bonds : [];
-    const visible = entries.length > 0;
+    const yours = Array.isArray(playerBonds) ? playerBonds : [];
+    const visible = entries.length > 0 || yours.length > 0;
     section.classList.toggle('hidden', !visible);
     if (!visible) {
         list.innerHTML = '';
@@ -6863,6 +6876,16 @@ function renderNpcBonds(bonds) {
     }
 
     list.innerHTML = '';
+    yours.slice(0, 8).forEach((pb) => {
+        if (!PLAYER_BOND_KEY[pb.kind]) { return; }
+        const row = document.createElement('div');
+        row.className = 'world-npc-whereabouts-row';
+        row.innerHTML = `
+            <strong>${escapeHtml(T('webview.world.playerBondYou'))} × ${escapeHtml(pb.name || '?')}</strong>
+            <span class="tag-item">${PLAYER_BOND_ICON[pb.kind] || '•'} ${escapeHtml(T(PLAYER_BOND_KEY[pb.kind]))}</span>
+        `;
+        list.appendChild(row);
+    });
     entries.slice(0, 8).forEach((bond) => {
         const row = document.createElement('div');
         row.className = 'world-npc-whereabouts-row';

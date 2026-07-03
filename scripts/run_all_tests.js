@@ -78,6 +78,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_npc_relationship_host.js' },
     { category: 'unit', file: 'test_npc_bond_effects_core.js' },
     { category: 'unit', file: 'test_npc_life_events_core.js' },
+    { category: 'unit', file: 'test_player_bond_core.js' },
     { category: 'unit', file: 'test_npc_registry.js' },
     { category: 'unit', file: 'test_npc_voice_core.js' },
     { category: 'unit', file: 'test_tts_provider_core.js' },

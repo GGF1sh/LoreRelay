@@ -280,5 +280,55 @@ function freshState(extra) {
     } else { fail('parse keeps npcMilestones'); }
 }
 
+// 14. LW3-P プレイヤー絆 — disposition 閾値越えで転機発火→永続化→再発火なし→GM [Your Bonds]
+{
+    const pbRegistry = {
+        npcs: {
+            npc_elda: {
+                name: 'Elda', locationId: 'elda_shop', factionId: 'faction_merchants',
+                disposition: { playerTrust: 90, playerRomance: 0, playerFear: 0 },
+            },
+            npc_marcus: {
+                name: 'Marcus', locationId: 'elda_shop', factionId: 'faction_smiths',
+                disposition: { playerTrust: 50, playerRomance: 0, playerFear: 0 },
+            },
+        },
+    };
+    const state = freshState();
+    tickLivingWorldAfterSim(FORGE, state, pbRegistry, RULES_ON, undefined);
+    const bondEvents = (state.recentChanges || []).filter((e) => /盟友と認めた/.test(e.message));
+    eq(bondEvents.length, 1, 'player bond milestone fires (trusted_companion)');
+    if (state.playerNpcMilestones && (state.playerNpcMilestones.npc_elda || []).includes('trusted_companion')) {
+        ok('player milestone persisted');
+    } else { fail('player milestone persisted'); }
+
+    // GM 注入に [Your Bonds] + ★(このtickの転機)
+    const inj = buildLivingWorldGmLines(FORGE, state, pbRegistry, RULES_ON, undefined, 'elda_shop');
+    if (inj.includes('[Living World — Your Bonds]') && inj.includes('★ Elda: sworn ally')) {
+        ok('GM Your Bonds block with fresh star');
+    } else { fail(`Your Bonds injection (got: ${JSON.stringify(inj)})`); }
+
+    // 再tick: 発火しない
+    state.recentChanges = [];
+    tickLivingWorldAfterSim(FORGE, state, pbRegistry, RULES_ON, undefined);
+    eq((state.recentChanges || []).filter((e) => /盟友と認めた/.test(e.message)).length, 0, 'player bond does not refire');
+}
+
+// 15. parseWorldState が playerNpcMilestones を検証付き round-trip
+{
+    const parsed = parseWorldState({
+        worldTurn: 5, factions: {},
+        playerNpcMilestones: {
+            npc_elda: ['trusted_companion', 'bogus', 'romance'],
+        },
+    });
+    if (parsed && parsed.playerNpcMilestones && parsed.playerNpcMilestones.npc_elda) {
+        const kinds = parsed.playerNpcMilestones.npc_elda;
+        if (kinds.includes('trusted_companion') && kinds.includes('romance') && !kinds.includes('bogus')) {
+            ok('parse keeps valid player bond kinds, drops bogus');
+        } else { fail(`player bond kinds (${JSON.stringify(kinds)})`); }
+    } else { fail('parse keeps playerNpcMilestones'); }
+}
+
 if (failed > 0) { console.error(`\n${failed} failing`); process.exit(1); }
 console.log('\nAll npc relationship host tests passed.');

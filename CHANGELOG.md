@@ -9,6 +9,21 @@
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-07-03
+
+### Added
+
+- **LW3-P: あなたの絆（主人公が関係の網に入る）** — `src/playerBondCore.ts`（決定論・自己完結）。既存 `disposition`（playerTrust/playerRomance/playerFear）の閾値越えで**プレイヤー↔NPC の決定的な転機**を一度きり発火:
+  - **固い盟友**（trust ≥85） / **特別な想い**（romance ≥80） / **敵対**（trust ≤15） / **畏怖**（fear ≥80） / **背信**（盟友/想いの後に trust ≤25）
+  - `world_state.playerNpcMilestones`（npcId→到達id）で再発火抑制。伝聞イベント（「Eldaはあなたを固い盟友と認めた」、expires 20）に昇格。
+- **GM `[Living World — Your Bonds]`** — プレイヤーの現在の立ち位置を毎ターン注入、このtickの転機には ★。GM が NPC の態度に反映（数値は出さない、romance の解釈は世界観に委ねる）。
+- **World タブ** — Bonds セクション先頭に「あなた × Elda 🤝固い盟友」行（kind ラベルのみ、4ロケール i18n）。
+- **Tests** — `test_player_bond_core.js`（16件・単独コンパイル型）+ host 統合2件（発火→永続→★注入→再発火なし、parse round-trip）。**81/81**。
+
+### Design
+
+- これで LW3 の関係網が完成: **NPC↔NPC**（v1.29-31）+ **プレイヤー↔NPC**（本版）。太閤の「顔の見える駆け引き」が主人公自身に適用される。
+
 ## [1.31.0] - 2026-07-02
 
 ### Added

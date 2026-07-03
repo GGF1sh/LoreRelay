@@ -31,6 +31,14 @@ import {
 } from './npcRelationshipCore';
 import { applyBondMarketEffects } from './npcBondEffectsCore';
 import { detectLifeEvents, buildLifeEventMessage, buildLifeEventGmHint } from './npcLifeEventsCore';
+import {
+    detectPlayerBondEvents,
+    buildPlayerBondMessage,
+    buildPlayerBondGmHint,
+    buildPlayerBondPromptLines,
+    type PlayerBondEvent,
+    type PlayerBondRegistryLike,
+} from './playerBondCore';
 import { makeWorldChangeEvent, mergeRecentChanges } from './worldEventLogCore';
 
 export interface LivingWorldWorldStateExt {
@@ -44,6 +52,8 @@ export interface LivingWorldWorldStateExt {
     npcRelationships?: NpcRelationshipMap;
     /** LW3-L: 到達済みライフイベント — ペアキー → マイルストーン id 配列. */
     npcMilestones?: Record<string, string[]>;
+    /** LW3-P: プレイヤー↔NPC の到達済み絆マイルストーン — npcId → id 配列. */
+    playerNpcMilestones?: Record<string, string[]>;
 }
 
 function cloneLocationMarketSnapshot(
@@ -108,6 +118,24 @@ export interface LivingWorldTickOutcome {
 
 /** 直近 tick の関係変化(GM プロンプトの「(変化)」行用。プロセス内キャッシュで十分)。 */
 let lastRelationshipChanges: NpcRelationshipChange[] = [];
+
+/** 直近 tick のプレイヤー絆の転機(★ マーク用)。 */
+let lastPlayerBondEvents: PlayerBondEvent[] = [];
+
+/** LW3-P: disposition(romance/fear 含む)を playerBondCore の形に写す。 */
+function registryToPlayerBondLike(registry: NpcRegistry | undefined): PlayerBondRegistryLike {
+    const out: PlayerBondRegistryLike = {};
+    if (!registry) { return out; }
+    for (const [id, entry] of Object.entries(registry.npcs)) {
+        out[id] = {
+            name: entry.name,
+            playerTrust: entry.disposition?.playerTrust,
+            playerRomance: entry.disposition?.playerRomance,
+            playerFear: entry.disposition?.playerFear,
+        };
+    }
+    return out;
+}
 
 /**
  * Run Tier-1/Tier-2 living world tick after emergent sim step.
@@ -190,6 +218,30 @@ export function tickLivingWorldAfterSim(
                 idSuffix: `life_${ev.a}_${ev.b}_${ev.kind}`,
             }));
             state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], lifeChanges);
+        }
+
+        // LW3-P: あなたの絆 — disposition の閾値越えでプレイヤー↔NPC の転機を一度だけ発火。
+        const playerBondReg = registryToPlayerBondLike(registry);
+        const playerBonds = detectPlayerBondEvents({
+            registry: playerBondReg,
+            milestones: ext.playerNpcMilestones ?? {},
+            worldTurn: state.worldTurn,
+        });
+        ext.playerNpcMilestones = playerBonds.milestones;
+        lastPlayerBondEvents = playerBonds.events;
+        if (playerBonds.events.length > 0) {
+            const playerChanges = playerBonds.events.map((ev) => makeWorldChangeEvent({
+                worldTurn: state.worldTurn,
+                category: 'npc',
+                severity: ev.kind === 'nemesis' || ev.kind === 'estrangement' ? 'warning' : 'info',
+                source: 'simulation',
+                message: buildPlayerBondMessage(ev),
+                gmHint: buildPlayerBondGmHint(ev.kind),
+                npcIds: [ev.npcId],
+                expiresAfterTurns: 20,
+                idSuffix: `pbond_${ev.npcId}_${ev.kind}`,
+            }));
+            state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], playerChanges);
         }
 
         // LW3-W: 絆が世界へ波及 — 盟友ペアは市場間に物流(+在庫)、敵対ペアは価格摩擦。
@@ -345,6 +397,17 @@ export function buildLivingWorldGmLines(
         const bondLines = buildRelationshipPromptLines(notable, lastRelationshipChanges, agencyRegistry);
         if (bondLines.length > 0) {
             const block = ['[Living World — Bonds]', ...bondLines.map((l) => `- ${l}`)].join('\n');
+            injection = injection ? `${injection}\n${block}` : block;
+        }
+
+        // LW3-P: [Living World — Your Bonds] — プレイヤー自身の立ち位置(★=このtickの転機)。
+        const yourLines = buildPlayerBondPromptLines(
+            registryToPlayerBondLike(registry),
+            ext.playerNpcMilestones ?? {},
+            lastPlayerBondEvents
+        );
+        if (yourLines.length > 0) {
+            const block = ['[Living World — Your Bonds]', ...yourLines.map((l) => `- ${l}`)].join('\n');
             injection = injection ? `${injection}\n${block}` : block;
         }
     }

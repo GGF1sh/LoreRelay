@@ -83,6 +83,8 @@ export interface WorldState {
     npcRelationships?: Record<string, number>;
     /** LW3-L: 到達済みライフイベント — ペアキー → マイルストーン id 配列(一度きり発火の記録). */
     npcMilestones?: Record<string, string[]>;
+    /** LW3-P: プレイヤー↔NPC の到達済み絆マイルストーン — npcId → id 配列. */
+    playerNpcMilestones?: Record<string, string[]>;
 }
 
 // --- パーサーユーティリティ ---
@@ -327,6 +329,26 @@ function parseNpcMilestones(raw: unknown): Record<string, string[]> | undefined 
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+const VALID_PLAYER_BOND_KINDS = new Set([
+    'trusted_companion', 'romance', 'nemesis', 'feared', 'estrangement',
+]);
+const MAX_PARSE_PLAYER_BONDS = 32;
+
+function parsePlayerNpcMilestones(raw: unknown): Record<string, string[]> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, string[]> = {};
+    let count = 0;
+    for (const [npcId, val] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_PARSE_PLAYER_BONDS) { break; }
+        if (!npcId || !Array.isArray(val)) { continue; }
+        const kinds = val
+            .filter((k): k is string => typeof k === 'string' && VALID_PLAYER_BOND_KINDS.has(k))
+            .slice(0, MAX_PARSE_MILESTONES_PER_PAIR);
+        if (kinds.length > 0) { out[npcId] = kinds; count++; }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function parseWorldState(raw: unknown): WorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;
@@ -385,6 +407,7 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         marketSnapshotByLocation: parseLocationSnapshotMap(doc.marketSnapshotByLocation),
         npcRelationships: parseNpcRelationships(doc.npcRelationships),
         npcMilestones: parseNpcMilestones(doc.npcMilestones),
+        playerNpcMilestones: parsePlayerNpcMilestones(doc.playerNpcMilestones),
     };
 }
 

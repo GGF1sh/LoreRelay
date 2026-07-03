@@ -34,6 +34,7 @@ import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
 import { listNotableRelationships, applyIntroductionTrustBoost } from './npcRelationshipCore';
 import { deepestMilestone } from './npcLifeEventsCore';
+import { listPlayerBondStandings } from './playerBondCore';
 import { listNpcPresence } from './npcAgencyCore';
 import {
     formatWhereaboutsForDisplay,
@@ -392,6 +393,18 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldState as { npcRelationships?: Record<string, number> } | undefined,
         npcRelationshipsEnabled(gameRules)
     );
+    // LW3-P: プレイヤー自身の絆(kind ラベルのみ。数値は送らない)。
+    const playerBonds = npcRelationshipsEnabled(gameRules) && worldState
+        ? listPlayerBondStandings(
+            Object.fromEntries(Object.entries(registry.npcs).map(([id, npc]) => [id, {
+                name: npc.name,
+                playerTrust: npc.disposition?.playerTrust,
+                playerRomance: npc.disposition?.playerRomance,
+                playerFear: npc.disposition?.playerFear,
+            }])),
+            (worldState as { playerNpcMilestones?: Record<string, string[]> }).playerNpcMilestones ?? {}
+        ).map((s) => ({ name: s.name, kind: s.kind }))
+        : [];
 
     const wsPath = getWorkspacePath();
     const worldMapImagePath = resolveWorldMapImagePath(wsPath);
@@ -486,6 +499,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         npcsAtLocation,
         npcWhereabouts,
         npcBonds,
+        playerBonds,
         npcTtsCatalog,
         ttsExternalEnabled,
         ttsLocalAvailable,

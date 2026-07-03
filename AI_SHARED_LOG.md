@@ -1,5 +1,28 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Claude Fable 5 - v1.32.0 LW3-P あなたの絆(主人公が関係の網に入る)
+
+### Summary
+
+- **`playerBondCore.ts`** — 既存 disposition(playerTrust/playerRomance/playerFear)の閾値越えで**プレイヤー↔NPC の転機**を一度きり発火: 固い盟友(trust≥85)/特別な想い(romance≥80)/敵対(trust≤15)/畏怖(fear≥80)/背信(盟友・想い後に trust≤25)。`world_state.playerNpcMilestones` で再発火抑制。
+- **GM `[Living World — Your Bonds]`** — 現在の立ち位置を毎ターン注入、このtickの転機は ★。数値は出さない。romance の解釈は世界観に委ねる。
+- **UI** — World タブ Bonds 先頭に「あなた × Elda 🤝固い盟友」行(kindラベルのみ、4ロケール)。
+- 転機は伝聞イベント(category npc, expires 20)にも昇格 → Since-last-visit 経由で GM へ。
+- これで LW3 関係網が完成: NPC↔NPC(v1.29-31) + プレイヤー↔NPC(本版)。
+- **途中でディスク100%満杯(ENOSPC)により中断→ユーザーが空けて再開**した経緯あり。作業ファイルは無傷で全て反映済み。
+
+### Verification
+
+- `npm run compile` · `npm test` (**81/81** — 新規 `test_player_bond_core.js` 16件 + host統合2件)
+
+### Next (v1+ 候補)
+
+- プレイヤー絆の世界波及(盟友NPCの店は割引/敵対NPCは拒否 — LW3-W の player 版)
+- 絆マイルストーンの共有史タイムライン(NPC↔NPC + player 統合ビュー)
+- ally_trade / enemy_friction の噂イベント化(v1.30 からの残タスク)
+
+---
+
 ## 2026-07-02 JST (深夜) - Claude Opus 4.8 - v1.31.0 LW3-L 関係のライフイベント(北極星最深部)
 
 ### Summary

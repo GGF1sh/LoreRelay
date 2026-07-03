@@ -224,6 +224,16 @@ function makeAcceptedQuest(id = 'wolf_cull', overrides = {}) {
         fail('empty party should no-op');
     }
 
+    const dupNpc = parseGuildOps({
+        kind: 'assign_party',
+        quest: { questId: 'wolf_cull', npcIds: ['hero_a', 'hero_a', 'hero_b'] },
+    });
+    if (!dupNpc?.quest || dupNpc.quest.npcIds.length !== 2 || dupNpc.quest.npcIds[0] !== 'hero_a') {
+        fail('parseGuildOps should dedupe party npcIds');
+    } else {
+        ok('parseGuildOps dedupes party npcIds');
+    }
+
     const tooMany = assignParty(guild, 'wolf_cull', ['hero_a', 'hero_b', 'hero_c', 'hero_a'], cfg.maxActiveQuests, 1);
     if ((tooMany.quests?.find((q) => q.id === 'wolf_cull')?.partyNpcIds || []).length > MAX_PARTY_SIZE) {
         fail('party should cap at MAX_PARTY_SIZE');

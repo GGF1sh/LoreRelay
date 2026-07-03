@@ -111,6 +111,18 @@ let cachedRules: GameRules | undefined = undefined;
 let cacheRulesPath = '';
 let cacheRulesMtime = 0;
 
+function normalizeGuildRuleFlags(rules: GameRules): GameRules {
+    if (rules.enableGuildMode === true) {
+        return rules;
+    }
+    return {
+        ...rules,
+        enableGuildRequests: false,
+        enableGuildParties: false,
+        enableRivalGuild: false,
+    };
+}
+
 export function clearGameRulesCache(): void {
     cachedRules = undefined;
     cacheRulesPath = '';
@@ -129,7 +141,7 @@ export function loadGameRules(): GameRules {
         }
         const data = fs.readFileSync(rulesPath, 'utf8');
         const parsed = JSON.parse(data);
-        const loaded = { ...DEFAULT_GAME_RULES, ...parsed };
+        const loaded = normalizeGuildRuleFlags({ ...DEFAULT_GAME_RULES, ...parsed });
         cachedRules = loaded;
         cacheRulesPath = rulesPath;
         cacheRulesMtime = mtime;
@@ -272,7 +284,7 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
     }
 
-    const updated = { ...current, ...sanitized };
+    const updated = normalizeGuildRuleFlags({ ...current, ...sanitized });
 
     try {
         writeJsonAtomic(rulesPath, updated);

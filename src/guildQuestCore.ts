@@ -1,6 +1,8 @@
 // Guild G3: party dispatch + deterministic quest resolution (Bond + difficulty; no vscode/fs).
 
 import type { GuildQuest, GuildStatDelta, GuildState } from './guildCore';
+import { sanitizeGuildPromptLabel } from './guildCore';
+import { isValidGuildRequestId } from './guildRequestCore';
 import { PLAYER_TRUST_RIVAL_MAX } from './domainOfficerBondCore';
 import type { QuestKind } from './guildRequestCore';
 
@@ -266,10 +268,11 @@ export function assignParty(
     const quest = quests.find((q) => q.id === questId || q.requestId === questId);
     if (!quest || quest.status !== 'accepted') { return guild; }
 
-    const party = npcIds
-        .map((id) => (typeof id === 'string' ? id.trim() : ''))
-        .filter((id) => id.length > 0)
-        .slice(0, MAX_PARTY_SIZE);
+    const party = [...new Set(
+        npcIds
+            .map((id) => (typeof id === 'string' ? id.trim() : ''))
+            .filter((id) => id.length > 0)
+    )].slice(0, MAX_PARTY_SIZE);
     if (party.length === 0 || party.length > MAX_PARTY_SIZE) { return guild; }
 
     const rosterIds = new Set(guild.adventurers.map((a) => a.npcId));
@@ -343,7 +346,10 @@ export function buildActiveQuestPromptLine(quests: readonly GuildQuest[]): strin
     const parts = active.map((q) => {
         const party = (q.partyNpcIds ?? []).map(safeLabel).join('+') || 'party';
         const weeks = q.weeksRemaining ?? DEFAULT_QUEST_WEEKS;
-        return `${q.id} (${q.questKind}, ${party}, ${weeks}w left)`;
+        const questId = isValidGuildRequestId(q.id)
+            ? q.id
+            : sanitizeGuildPromptLabel(q.id, 'quest');
+        return `${questId} (${q.questKind}, ${party}, ${weeks}w left)`;
     });
     return `[Guild — Quests] Away: ${parts.join(', ')}.`;
 }

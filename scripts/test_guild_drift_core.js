@@ -14,11 +14,13 @@ const {
 const {
     recordGuildHallDepart,
     applyGuildHallReturnDrift,
+    refreshGuildSnapshotOnCommit,
     isLocationAtGuildHall,
     readGuildHallDriftState,
     buildGuildVisitWorldEvents,
     mergeGuildVisitChangesIntoRecentChanges,
 } = require('../out/guildHallDriftCore');
+const { applyGuildOpsToGameState } = require('../out/guildTurnOpsCore');
 const {
     buildGuildSinceLastVisitPrompt,
 } = require('../out/guildPromptCore');
@@ -45,7 +47,7 @@ function ok(msg) { console.log(`OK: ${msg}`); }
 {
     let guild = defaultGuildState('tavern_hall');
     guild = recruitAdventurer(guild, { npcId: 'deputy_one', klass: 'scout', skill: 70 });
-    const delta = computeSinceLastGuildVisitDelta({
+    const result = computeSinceLastGuildVisitDelta({
         lastVisitWorldTurn: 10,
         currentWorldTurn: 100,
         hallLocationId: 'tavern_hall',
@@ -54,10 +56,13 @@ function ok(msg) { console.log(`OK: ${msg}`); }
         baseSeed: 42,
         config: normalizeGuildConfig({ requestsEnabled: true }),
     });
+    const delta = result?.delta;
     if (!delta || delta.turnsAway !== 90 || delta.changes.length === 0) {
         fail('computeSinceLastGuildVisitDelta');
     } else if (!delta.changes.every((c) => c.category === 'guild')) {
         fail('guild visit change category');
+    } else if (!result.guildAfter || result.guildAfter.calendarWeek === guild.calendarWeek) {
+        fail('computeSinceLastGuildVisitDelta should return guildAfter');
     } else {
         ok('computeSinceLastGuildVisitDelta');
     }
@@ -81,13 +86,14 @@ function ok(msg) { console.log(`OK: ${msg}`); }
 }
 
 {
-    const capped = computeSinceLastGuildVisitDelta({
+    const cappedResult = computeSinceLastGuildVisitDelta({
         lastVisitWorldTurn: 0,
         currentWorldTurn: 9999,
         hallLocationId: 'tavern_hall',
         guildBefore: defaultGuildState('tavern_hall'),
         baseSeed: 1,
     });
+    const capped = cappedResult?.delta;
     if (!capped || !capped.capped || capped.simulatedWeeks !== MAX_GUILD_DRIFT_WEEKS) {
         fail(`drift cap expected ${MAX_GUILD_DRIFT_WEEKS}, got ${capped?.simulatedWeeks}`);
     } else {
@@ -199,6 +205,64 @@ function ok(msg) { console.log(`OK: ${msg}`); }
         fail('mergeGuildVisitChangesIntoRecentChanges');
     } else {
         ok('mergeGuildVisitChangesIntoRecentChanges');
+    }
+
+    const dupChanges = [
+        { category: 'guild', eventId: 'tavern_rumor', message: 'Rumors spread', coffersDelta: 0, renownDelta: 1, townFavorDelta: 0 },
+        { category: 'guild', eventId: 'tavern_rumor', message: 'More rumors', coffersDelta: 0, renownDelta: 0, townFavorDelta: 1 },
+    ];
+    const dupMerged = mergeGuildVisitChangesIntoRecentChanges([], dupChanges, 50, 'tavern_hall');
+    if (dupMerged.length !== 2) {
+        fail(`duplicate drift event ids should not collapse recentChanges (got ${dupMerged.length})`);
+    } else {
+        ok('duplicate drift event ids get unique recentChanges ids');
+    }
+}
+
+{
+    const visitDelta = {
+        hallLocationId: 'tavern_hall',
+        turnsAway: 14,
+        simulatedWeeks: 2,
+        capped: false,
+        deputyLabel: 'Deputy clerk',
+        changes: [],
+        coffersDelta: 0,
+        renownDelta: 0,
+        townFavorDelta: 0,
+    };
+    let gs = {
+        guild: defaultGuildState('tavern_hall'),
+        guildSinceLastVisit: visitDelta,
+    };
+    gs = refreshGuildSnapshotOnCommit(gs, 40);
+    if (!gs.guildSinceLastVisit || gs.guildSinceLastVisit.turnsAway !== 14) {
+        fail('refreshGuildSnapshotOnCommit should preserve guildSinceLastVisit');
+    } else {
+        ok('refreshGuildSnapshotOnCommit preserves since-last-visit report');
+    }
+}
+
+{
+    let gs = {
+        guild: recruitAdventurer(defaultGuildState('tavern_hall'), { npcId: 'deputy_one', klass: 'scout' }),
+        world: { currentLocationId: 'abroad' },
+    };
+    gs = recordGuildHallDepart(gs, 20);
+    gs = applyGuildOpsToGameState(
+        { guildOps: { kind: 'recruit_adventurer', adventurer: { npcId: 'hero_b', klass: 'warrior' } } },
+        gs,
+        true,
+        normalizeGuildConfig(),
+        25,
+        undefined,
+        false
+    );
+    const driftState = readGuildHallDriftState(gs);
+    if (driftState.lastGuildVisitWorldTurn !== 20) {
+        fail('away guild op should not reset lastGuildVisitWorldTurn');
+    } else {
+        ok('away guild op does not reset drift clock');
     }
 }
 

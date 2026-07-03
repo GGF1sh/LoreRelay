@@ -50,6 +50,20 @@ function ok(msg) { console.log(`OK: ${msg}`); }
     } else {
         ok('validateGuild rejects unsafe hallLocationId');
     }
+
+    const dupAdv = validateGuild({
+        ...raw,
+        adventurers: [
+            { npcId: 'hero_a', klass: 'warrior' },
+            { npcId: 'hero_a', klass: 'scout' },
+            { npcId: 'hero_b', klass: 'mage' },
+        ],
+    });
+    if (!dupAdv || dupAdv.adventurers.length !== 2) {
+        fail('validateGuild should dedupe adventurers by npcId');
+    } else {
+        ok('validateGuild dedupes adventurers');
+    }
 }
 
 {

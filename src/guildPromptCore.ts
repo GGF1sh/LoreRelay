@@ -1,6 +1,8 @@
 // Guild G2: GM prompt lines — bulk board / parley tier (no vscode/fs).
 
 import type { GuildQuest, GuildState } from './guildCore';
+import { sanitizeGuildPromptLabel } from './guildCore';
+import { isValidGuildRequestId } from './guildRequestCore';
 import {
     buildActiveQuestPromptLine,
     GUILD_QUEST_OPS_PROMPT_LINE,
@@ -108,7 +110,12 @@ export function buildGuildQuestPromptLines(guild: GuildState): string[] {
     const accepted = quests.filter((q) => q.status === 'accepted');
     if (accepted.length > 0) {
         const pending = accepted
-            .map((q: GuildQuest) => `${q.id} (${q.questKind}, reward ${q.rewardCoffers})`)
+            .map((q: GuildQuest) => {
+                const questId = isValidGuildRequestId(q.id)
+                    ? q.id
+                    : sanitizeGuildPromptLabel(q.id, 'quest');
+                return `${questId} (${q.questKind}, reward ${q.rewardCoffers})`;
+            })
             .join('; ');
         lines.push(`[Guild — Accepted] Awaiting dispatch: ${pending}.`);
         lines.push(GUILD_QUEST_OPS_PROMPT_LINE);

@@ -52,7 +52,7 @@ import {
     readGuildHallDriftState,
     recordGuildHallDepart,
 } from './guildHallDriftCore';
-import { guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
+import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -479,13 +479,7 @@ function applyGuildTravelDrift(
         return recordGuildHallDepart(state, worldTurn);
     }
     if (!prevAt && nextAt) {
-        let next = applyGuildHallReturnDrift(state, worldTurn, {
-            weeklyActions: rules.guildWeeklyActions,
-            boardSize: rules.guildBoardSize,
-            maxActiveQuests: rules.guildMaxActiveQuests,
-            requestsEnabled: rules.enableGuildRequests === true,
-            partiesEnabled: rules.enableGuildParties === true,
-        });
+        let next = applyGuildHallReturnDrift(state, worldTurn, buildGuildDriftConfig(rules));
         const driftState = readGuildHallDriftState(next);
         const delta = driftState.guildSinceLastVisit;
         if (delta?.changes?.length) {

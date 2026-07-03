@@ -21,7 +21,8 @@ export function applyGuildOpsToGameState(
     enabled: boolean,
     config?: Partial<GuildConfig>,
     worldTurnSeed = 0,
-    registryNpcIds?: ReadonlySet<string>
+    registryNpcIds?: ReadonlySet<string>,
+    atHall = false
 ): Record<string, unknown> {
     if (!enabled) {
         return gameState;
@@ -56,6 +57,8 @@ export function applyGuildOpsToGameState(
         ...gameState,
         guild,
     };
-    next = refreshGuildSnapshotOnCommit(next, worldTurnSeed);
+    if (atHall && ops.kind === 'weekly_commit') {
+        next = refreshGuildSnapshotOnCommit(next, worldTurnSeed);
+    }
     return next;
 }

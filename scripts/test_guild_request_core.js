@@ -223,6 +223,33 @@ function ok(msg) { console.log(`OK: ${msg}`); }
     }
 }
 
+// --- accept at quest cap is no-op ---
+{
+    let guild = defaultGuildState('tavern_hall');
+    guild.quests = [
+        { id: 'wolf_cull', requestId: 'wolf_cull', questKind: 'hunt', difficulty: 30, rewardCoffers: 40, status: 'accepted' },
+        {
+            id: 'escort_caravan',
+            requestId: 'escort_caravan',
+            questKind: 'escort',
+            difficulty: 35,
+            rewardCoffers: 50,
+            status: 'active',
+            partyNpcIds: ['hero_a'],
+            weeksRemaining: 1,
+        },
+    ];
+    guild.pendingRequests = ['bandit_bounty'];
+    const { guild: after, request } = applyGuildRequest(guild, 'bandit_bounty', 'accept', 2);
+    if (request || (after.quests?.length ?? 0) !== 2 || after.quests?.some((q) => q.requestId === 'bandit_bounty')) {
+        fail('accept at quest cap should be no-op');
+    } else if (!after.pendingRequests?.includes('bandit_bounty')) {
+        fail('capped accept should not consume request');
+    } else {
+        ok('accept at quest cap is no-op');
+    }
+}
+
 // --- decline removes without quest ---
 {
     let guild = defaultGuildState('tavern_hall');

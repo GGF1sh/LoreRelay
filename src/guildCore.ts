@@ -323,10 +323,14 @@ export function validateGuild(raw: unknown): GuildState | undefined {
     if (!hallLocationId || !CHARACTER_ID_PATTERN.test(hallLocationId)) { return undefined; }
 
     const adventurers: GuildAdventurer[] = [];
+    const seenAdventurers = new Set<string>();
     if (Array.isArray(doc.adventurers)) {
         for (const item of doc.adventurers.slice(0, MAX_GUILD_ADVENTURERS)) {
             const adventurer = parseAdventurer(item);
-            if (adventurer) { adventurers.push(adventurer); }
+            if (adventurer && !seenAdventurers.has(adventurer.npcId)) {
+                seenAdventurers.add(adventurer.npcId);
+                adventurers.push(adventurer);
+            }
         }
     }
 
@@ -479,10 +483,11 @@ export function parseGuildOps(raw: unknown): GuildOps | undefined {
         if (!Array.isArray(q.npcIds) || q.npcIds.length === 0 || q.npcIds.length > MAX_GUILD_ADVENTURERS) {
             return undefined;
         }
-        const npcIds = q.npcIds
-            .filter((n): n is string => typeof n === 'string' && CHARACTER_ID_PATTERN.test(n.trim()))
-            .map((n) => n.trim())
-            .slice(0, 3);
+        const npcIds = [...new Set(
+            q.npcIds
+                .filter((n): n is string => typeof n === 'string' && CHARACTER_ID_PATTERN.test(n.trim()))
+                .map((n) => n.trim())
+        )].slice(0, 3);
         if (npcIds.length === 0 || npcIds.length > 3) { return undefined; }
         ops.quest = {
             questId,
@@ -748,7 +753,7 @@ export function buildGuildCounterLines(guild: GuildState): string[] {
         return ['[Guild — Counter] The hall is empty — all adventurers are away on quests.'];
     }
     const roster = present
-        .map((a) => `${a.npcId} (${a.klass})`)
+        .map((a) => `${sanitizeGuildPromptLabel(a.npcId, 'adventurer')} (${a.klass})`)
         .join(', ');
     return [`[Guild — Counter] Adventurers present: ${roster}.`];
 }
@@ -838,12 +843,23 @@ export function dismissAdventurer(guild: GuildState, npcId: string): GuildState 
     };
 }
 
+function countTrackedQuests(quests: readonly GuildQuest[]): number {
+    return quests.filter((q) => q.status === 'accepted' || q.status === 'active').length;
+}
+
 export function applyGuildRequest(
     guild: GuildState,
     requestId: string,
-    rulingId: string
+    rulingId: string,
+    maxActiveQuests = DEFAULT_MAX_ACTIVE_QUESTS
 ): { guild: GuildState; request?: RequestRulingResult } {
     if (!guild.pendingRequests?.includes(requestId)) {
+        return { guild };
+    }
+    if (
+        (rulingId === 'accept' || rulingId === 'negotiate')
+        && countTrackedQuests(guild.quests ?? []) >= maxActiveQuests
+    ) {
         return { guild };
     }
     const delta = resolveRequestRuling(requestId, rulingId);
@@ -863,8 +879,7 @@ export function applyGuildRequest(
                 rewardCoffers: resolveQuestReward(def.baseReward, negotiate),
                 status: 'accepted',
             };
-            const quests = [...(next.quests ?? []), quest].slice(-MAX_ACTIVE_QUESTS);
-            next = { ...next, quests };
+            next = { ...next, quests: [...(next.quests ?? []), quest] };
         }
     }
 
@@ -907,7 +922,7 @@ export function applyGuildOps(
         if (!config.requestsEnabled) {
             return { guild };
         }
-        return applyGuildRequest(guild, ops.requestId, ops.rulingId);
+        return applyGuildRequest(guild, ops.requestId, ops.rulingId, config.maxActiveQuests);
     }
     if (ops.kind === 'recruit_adventurer' && ops.adventurer) {
         return {

@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.44.1] - 2026-07-03
+
+### Fixed
+
+- **G1–G4 Guild hardening（コードレビュー対応）**
+  - G4: `refreshGuildSnapshotOnCommit` は hall 在席の `weekly_commit` のみ・`guildSinceLastVisit` を消さない；帰還ドリフトは単一シミュレーション；`adventurerBondMap` を travel drift に渡す；`recentChanges` の重複 eventId 衝突を index で回避；スナップショットから roster 復元。
+  - G2/G3: クエスト cap 超過の accept を拒否；パーティ `npcIds` 重複排除；カウンター/クエストプロンプトのラベルサニタイズ。
+  - 共通: `validateGuild` 冒険者 dedupe；`parseGuildSnapshot` / `parseSinceLastGuildVisitDelta` 検証強化；`enableGuildMode` OFF 時に sub-flags を強制 OFF。
+
+### Verification
+
+- `npm test` **117/117**（drift / quest / request 回帰テスト追加）
+- `npm run compile` クリーン
+
 ## [1.44.0] - 2026-07-03
 
 ### Added

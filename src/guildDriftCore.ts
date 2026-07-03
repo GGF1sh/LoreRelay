@@ -23,7 +23,8 @@ import {
     adventurersOnActiveQuests,
     DEFAULT_ADVENTURER_SKILL,
 } from './guildQuestCore';
-import { buildRequestQueue } from './guildRequestCore';
+import { buildRequestQueue, isValidGuildRequestId } from './guildRequestCore';
+import { CHARACTER_ID_PATTERN } from './characterId';
 
 export const MAX_GUILD_DRIFT_WEEKS = 24;
 export const DEFAULT_GUILD_TURNS_PER_WEEK = 7;
@@ -139,6 +140,7 @@ export function guildStateFromSnapshot(snapshot: GuildSnapshot, current: GuildSt
         discipline: snapshot.discipline,
         calendarWeek: snapshot.calendarWeek,
         calendarYear: snapshot.calendarYear,
+        adventurers: snapshot.adventurers.map((a) => ({ ...a })),
         pendingRequests: snapshot.pendingRequests,
     };
 }
@@ -235,9 +237,14 @@ function buildVisitChange(
     };
 }
 
+export interface SinceLastGuildVisitResult {
+    delta: SinceLastGuildVisitDelta;
+    guildAfter: GuildState;
+}
+
 export function computeSinceLastGuildVisitDelta(
     input: SinceLastGuildVisitInput
-): SinceLastGuildVisitDelta | undefined {
+): SinceLastGuildVisitResult | undefined {
     const turnsAway = Math.max(0, Math.floor(input.currentWorldTurn - input.lastVisitWorldTurn));
     if (turnsAway <= 0) { return undefined; }
 
@@ -258,15 +265,18 @@ export function computeSinceLastGuildVisitDelta(
     const end = cursor;
 
     return {
-        hallLocationId: input.hallLocationId,
-        turnsAway,
-        simulatedWeeks: virtualWeeks,
-        capped: rawVirtualWeeks > MAX_GUILD_DRIFT_WEEKS,
-        deputyLabel: pickDeputyLabel(presentAdventurers(input.guildBefore)),
-        changes: changes.slice(-4),
-        coffersDelta: end.coffers - start.coffers,
-        renownDelta: end.renown - start.renown,
-        townFavorDelta: end.townFavor - start.townFavor,
+        delta: {
+            hallLocationId: input.hallLocationId,
+            turnsAway,
+            simulatedWeeks: virtualWeeks,
+            capped: rawVirtualWeeks > MAX_GUILD_DRIFT_WEEKS,
+            deputyLabel: pickDeputyLabel(presentAdventurers(input.guildBefore)),
+            changes: changes.slice(-4),
+            coffersDelta: end.coffers - start.coffers,
+            renownDelta: end.renown - start.renown,
+            townFavorDelta: end.townFavor - start.townFavor,
+        },
+        guildAfter: end,
     };
 }
 
@@ -334,8 +344,8 @@ export function parseGuildSnapshot(raw: unknown): GuildSnapshot | undefined {
     const pendingRequests: string[] = [];
     if (Array.isArray(doc.pendingRequests)) {
         for (const item of doc.pendingRequests.slice(0, 4)) {
-            if (typeof item === 'string' && item.trim()) {
-                pendingRequests.push(item.trim().slice(0, 64));
+            if (typeof item === 'string' && isValidGuildRequestId(item.trim())) {
+                pendingRequests.push(item.trim());
             }
         }
     }
@@ -358,7 +368,7 @@ export function parseSinceLastGuildVisitDelta(raw: unknown): SinceLastGuildVisit
     if (!raw || typeof raw !== 'object') { return undefined; }
     const doc = raw as Record<string, unknown>;
     const hallLocationId = typeof doc.hallLocationId === 'string' ? doc.hallLocationId.trim() : '';
-    if (!hallLocationId) { return undefined; }
+    if (!hallLocationId || !CHARACTER_ID_PATTERN.test(hallLocationId)) { return undefined; }
     const turnsAway = typeof doc.turnsAway === 'number' && Number.isFinite(doc.turnsAway)
         ? Math.max(0, Math.floor(doc.turnsAway))
         : 0;

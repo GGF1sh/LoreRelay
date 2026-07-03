@@ -12,7 +12,6 @@ import {
     computeSinceLastGuildVisitDelta,
     parseGuildSnapshot,
     parseSinceLastGuildVisitDelta,
-    simulateGuildDrift,
     DEFAULT_GUILD_TURNS_PER_WEEK,
     type GuildSnapshot,
     type SinceLastGuildVisitDelta,
@@ -78,7 +77,6 @@ export function refreshGuildSnapshotOnCommit(
         ...gameState,
         guildSnapshotAtDepart: snapshot,
         lastGuildVisitWorldTurn: Math.max(0, Math.floor(worldTurn)),
-        guildSinceLastVisit: undefined,
     };
 }
 
@@ -90,7 +88,7 @@ export function buildGuildVisitWorldEvents(
 ): WorldChangeEvent[] {
     const turn = Math.max(0, Math.floor(worldTurn));
     const loc = hallLocationId.trim().slice(0, 64);
-    return changes.map((ch) => makeWorldChangeEvent({
+    return changes.map((ch, index) => makeWorldChangeEvent({
         worldTurn: turn,
         category: 'guild',
         severity: ch.eventId === 'adventurer_brawl' || ch.eventId === 'supply_shortage' ? 'warning' : 'info',
@@ -99,7 +97,7 @@ export function buildGuildVisitWorldEvents(
         locationId: loc || undefined,
         gmHint: `Guild hall drift: ${ch.eventId}. Narrate hearsay only — stats are already canonical.`,
         expiresAfterTurns: 20,
-        idSuffix: `guild_${ch.eventId}_${turn}`,
+        idSuffix: `guild_${ch.eventId}_${turn}_${index}`,
     }));
 }
 
@@ -140,7 +138,7 @@ export function applyGuildHallReturnDrift(
         };
     }
 
-    const delta = computeSinceLastGuildVisitDelta({
+    const result = computeSinceLastGuildVisitDelta({
         lastVisitWorldTurn: lastVisit,
         currentWorldTurn: worldTurn,
         hallLocationId: guild.hallLocationId,
@@ -149,21 +147,14 @@ export function applyGuildHallReturnDrift(
         baseSeed: snapshot.worldTurn + lastVisit,
         config: normalized,
     });
-    if (!delta) { return gameState; }
-
-    const drifted = simulateGuildDrift(
-        before,
-        virtualWeeks,
-        snapshot.worldTurn + lastVisit,
-        normalized
-    );
+    if (!result) { return gameState; }
 
     return {
         ...gameState,
-        guild: drifted.guild,
-        guildSinceLastVisit: delta,
+        guild: result.guildAfter,
+        guildSinceLastVisit: result.delta,
         lastGuildVisitWorldTurn: Math.max(0, Math.floor(worldTurn)),
-        guildSnapshotAtDepart: createGuildSnapshot(drifted.guild, worldTurn),
+        guildSnapshotAtDepart: createGuildSnapshot(result.guildAfter, worldTurn),
     };
 }
 

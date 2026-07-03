@@ -10,9 +10,25 @@ import {
     applyGuildOpsToGameState,
     readGuildFromState,
 } from './guildTurnOpsCore';
-import type { GuildState } from './guildCore';
+import type { GuildConfig, GuildState } from './guildCore';
+import { isLocationAtGuildHall } from './guildHallDriftCore';
 
 export { applyGuildOpsToGameState, readGuildFromState } from './guildTurnOpsCore';
+
+export function buildGuildDriftConfig(rules: ReturnType<typeof loadGameRules>): Partial<GuildConfig> {
+    const registry = rules.enableNpcRegistry === true ? loadNpcRegistry() : undefined;
+    const adventurerBondMap = rules.enableGuildParties === true && registry
+        ? buildOfficerTrustMap(registry.npcs)
+        : undefined;
+    return {
+        weeklyActions: rules.guildWeeklyActions,
+        boardSize: rules.guildBoardSize,
+        maxActiveQuests: rules.guildMaxActiveQuests,
+        requestsEnabled: rules.enableGuildRequests === true,
+        partiesEnabled: rules.enableGuildParties === true,
+        adventurerBondMap,
+    };
+}
 
 export function guildModeEnabled(rules: ReturnType<typeof loadGameRules>): boolean {
     return rules.enableGuildMode === true;
@@ -35,24 +51,20 @@ export function applyGuildTurnOps(
         ? new Set(Object.keys(registry.npcs))
         : undefined;
 
-    const adventurerBondMap = rules.enableGuildParties === true && registry
-        ? buildOfficerTrustMap(registry.npcs)
-        : undefined;
+    const driftConfig = buildGuildDriftConfig(rules);
+    const existingGuild = readGuildFromState(gameState as unknown as Record<string, unknown>);
+    const world = (gameState as unknown as Record<string, unknown>).world as { currentLocationId?: string } | undefined;
+    const atHall = existingGuild?.enabled === true
+        && isLocationAtGuildHall(world?.currentLocationId, existingGuild.hallLocationId);
 
     const next = applyGuildOpsToGameState(
         turnResult,
         gameState as unknown as Record<string, unknown>,
         guildModeEnabled(rules),
-        {
-            weeklyActions: rules.guildWeeklyActions,
-            boardSize: rules.guildBoardSize,
-            maxActiveQuests: rules.guildMaxActiveQuests,
-            requestsEnabled: rules.enableGuildRequests === true,
-            partiesEnabled: rules.enableGuildParties === true,
-            adventurerBondMap,
-        },
+        driftConfig,
         worldTurnSeed,
-        registryNpcIds
+        registryNpcIds,
+        atHall
     );
 
     return next as unknown as GameState;

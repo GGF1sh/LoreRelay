@@ -989,5 +989,8 @@
   "webview.world.campaignAppraiseFinalizeBtn": "Complete appraisal",
   "webview.world.campaignAppraiseInsertText": "I want {appraisal} for my find \"{label}\" ({id}) — what is it really worth?",
   "webview.world.campaignAppraiseFinalizeText": "I want a full {appraisal} on \"{label}\" ({id}) to finalize its value.",
-  "webview.world.campaignJobAcceptBtn": "Accept job"
+  "webview.world.campaignJobAcceptBtn": "Accept job",
+  "webview.world.campaignSellFindingBtn": "Sell finding",
+  "webview.world.campaignSellFindingText": "[Action: Sell finding '{label}' ({id})]",
+  "webview.world.campaignJobClient": "Client: {faction}"
 }

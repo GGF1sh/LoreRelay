@@ -158,7 +158,7 @@ function adjustCargo(cargo: CargoEntry[], commodityId: string, delta: number): C
 }
 
 function isValidTradeOpKind(op: unknown): op is TradeOpKind {
-    return op === 'buy' || op === 'sell';
+    return op === 'buy' || op === 'sell' || op === 'sell_discovery';
 }
 
 export function parseTradeOps(raw: unknown): TradeOp[] {
@@ -168,6 +168,15 @@ export function parseTradeOps(raw: unknown): TradeOp[] {
         if (!item || typeof item !== 'object') { continue; }
         const row = item as Record<string, unknown>;
         if (!isValidTradeOpKind(row.op)) { continue; }
+
+        if (row.op === 'sell_discovery') {
+            if (typeof row.discoveryId !== 'string' || !row.discoveryId) { continue; }
+            const value = typeof row.value === 'number' ? Math.floor(row.value) : 0;
+            if (value < 0) { continue; }
+            out.push({ op: 'sell_discovery', discoveryId: row.discoveryId, value });
+            continue;
+        }
+
         if (typeof row.marketLocationId !== 'string' || !row.marketLocationId) { continue; }
         if (typeof row.commodityId !== 'string' || !row.commodityId) { continue; }
         const qty = typeof row.qty === 'number' ? Math.floor(row.qty) : 0;
@@ -188,6 +197,19 @@ export function applyTradeOp(
     commerce: PlayerCommerceState,
     op: TradeOp
 ): SingleTradeResult {
+    const nextCommerce = cloneCommerce(commerce);
+
+    if (op.op === 'sell_discovery') {
+        nextCommerce.credits += op.value;
+        return {
+            ok: true,
+            commerce: nextCommerce,
+            markets: cloneMarkets(markets),
+            totalCost: 0,
+            totalRevenue: op.value,
+        };
+    }
+
     const market = marketByLocation(forge, op.marketLocationId);
     if (!market) {
         return { ok: false, error: { code: 'UNKNOWN_MARKET', message: `Unknown market ${op.marketLocationId}` } };
@@ -212,7 +234,6 @@ export function applyTradeOp(
     }
     const stockEntry = nextMarkets[op.marketLocationId][op.commodityId];
     const unitPrice = computeUnitPrice(commodity, market, stockEntry);
-    const nextCommerce = cloneCommerce(commerce);
 
     if (op.op === 'buy') {
         if (stockEntry.stock < op.qty) {
@@ -323,6 +344,9 @@ export function computePerLocationTradeCreditsDelta(
         }
         currentMarkets = result.markets;
         currentCommerce = result.commerce;
+        if (op.op === 'sell_discovery') {
+            continue;
+        }
         const net = result.totalRevenue - result.totalCost;
         deltas[op.marketLocationId] = (deltas[op.marketLocationId] ?? 0) + net;
     }

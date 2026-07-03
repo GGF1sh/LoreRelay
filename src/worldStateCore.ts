@@ -27,6 +27,8 @@ export interface QuestHook {
     npcId?: string;
     /** Only set for source: 'npc' — the specific need this hook resolves. */
     needId?: string;
+    /** Faction associated with the quest, used for reputation rewards. */
+    factionId?: string;
 }
 
 
@@ -204,6 +206,7 @@ function parseQuestHook(raw: unknown): QuestHook | undefined {
     if (r.reward !== undefined) { hook.reward = asString(r.reward).slice(0, 200); }
     if (source === 'npc' && isValidEventId(r.npcId)) { hook.npcId = r.npcId; }
     if (source === 'npc' && isValidEventId(r.needId)) { hook.needId = r.needId; }
+    if (source === 'campaign' && isValidEventId(r.factionId)) { hook.factionId = r.factionId; }
     return hook;
 }
 

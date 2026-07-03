@@ -78,6 +78,7 @@ export function buildDiscoveryAppraisalPromptLines(kit?: CampaignKitConfig): str
         `${appraisal} or expert NPCs should move material/lore finds along this chain via discoveryOps update.`,
         'Setting identifiedLabel promotes unidentified → identified. status "appraised" requires a clear identifiedLabel.',
         'Illegal backward transitions are ignored by core. Use sold/consumed when the player relinquishes the find.',
+        'To sell an appraised discovery, output tradeOps [{ op: "sell_discovery", discoveryId: "id", value: <negotiated_price> }] AND discoveryOps [{ op: "update", id: "id", status: "sold" }].',
     ];
 }
 

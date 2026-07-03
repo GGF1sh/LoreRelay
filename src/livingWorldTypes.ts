@@ -57,14 +57,11 @@ export interface PlayerCommerceState {
     playerRole?: PlayerRole;
 }
 
-export type TradeOpKind = 'buy' | 'sell';
+export type TradeOpKind = 'buy' | 'sell' | 'sell_discovery';
 
-export interface TradeOp {
-    op: TradeOpKind;
-    marketLocationId: string;
-    commodityId: string;
-    qty: number;
-}
+export type TradeOp = 
+    | { op: 'buy' | 'sell'; marketLocationId: string; commodityId: string; qty: number }
+    | { op: 'sell_discovery'; discoveryId: string; value: number };
 
 export type NpcAgendaKind =
     | 'restock_wheat'

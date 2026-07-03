@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.48.0] - 2026-07-03
+
+### Added
+
+- **sell_discovery trade op** — `tradeOps` に `sell_discovery` を追加；鑑定済み発見物の売却で credits 加算 + `discoveryOps` で `sold` 遷移を GM プロンプトで案内。
+- **Campaign quest reputation** — Job board / QuestHook に `factionId` を伝播；完了時 GM が `reputationOps` を出力するよう `[Active Quest]` プロンプトを拡張。
+- **Webview** — Findings に **Sell finding**、Job board に **Client: factionId** バッジ。
+
+### Fixed
+
+- `campaignJobBoardCore` — `factionId` を location `factionControl` から解決（Region 型エラー修正）。
+- `commerceCore` — `sell_discovery` を per-location trade delta 集計から除外。
+- `factionReputationCore` — campaign クエストの `hook.factionId` を reputation 解決に使用。
+
 ## [1.47.0] - 2026-07-03
 
 ### Added

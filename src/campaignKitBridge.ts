@@ -85,6 +85,7 @@ export function pickJobBoardForWebview(
         siteName: e.siteName,
         difficultyHint: e.difficultyHint,
         rewardHint: e.rewardHint,
+        factionId: e.factionId,
     }));
 }
 

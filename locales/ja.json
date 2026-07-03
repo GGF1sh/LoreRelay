@@ -989,5 +989,8 @@
   "webview.world.campaignAppraiseFinalizeBtn": "鑑定を完了",
   "webview.world.campaignAppraiseInsertText": "発見物「{label}」（{id}）の{appraisal}をお願いしたい。正体と価値を教えてほしい。",
   "webview.world.campaignAppraiseFinalizeText": "「{label}」（{id}）の{appraisal}を完了し、価値を確定させたい。",
-  "webview.world.campaignJobAcceptBtn": "仕事を受ける"
+  "webview.world.campaignJobAcceptBtn": "仕事を受ける",
+  "webview.world.campaignSellFindingBtn": "発見物を売却",
+  "webview.world.campaignSellFindingText": "[行動: 発見物「{label}」（{id}）を売却する]",
+  "webview.world.campaignJobClient": "依頼元: {faction}"
 }

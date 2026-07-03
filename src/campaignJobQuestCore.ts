@@ -43,7 +43,7 @@ export function createQuestHookFromBoardEntry(
     const siteLine = entry.siteName ? ` Target site: ${entry.siteName}.` : '';
     const rewardLine = entry.rewardHint ? ` Reward hint: ${entry.rewardHint}.` : '';
     const kindLine = entry.kind === 'rumor' ? ' (rumor — verify before committing).' : '';
-    return {
+    const hook: QuestHook = {
         id,
         title: clampText(entry.title, MAX_QUEST_TITLE_LEN),
         description: clampText(`${entry.summary}${siteLine}${rewardLine}${kindLine}`, MAX_QUEST_DESCRIPTION_LEN),
@@ -53,6 +53,10 @@ export function createQuestHookFromBoardEntry(
         turnGenerated: Math.max(0, Math.floor(worldTurn)),
         reward: entry.rewardHint ? clampText(entry.rewardHint, 200) : undefined,
     };
+    if (entry.factionId) {
+        hook.factionId = entry.factionId;
+    }
+    return hook;
 }
 
 /** Hide board rows already taken as active/completed campaign quest hooks. */

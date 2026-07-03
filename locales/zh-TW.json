@@ -989,5 +989,8 @@
   "webview.world.campaignAppraiseFinalizeBtn": "完成鑑定",
   "webview.world.campaignAppraiseInsertText": "我想對發現物「{label}」（{id}）進行{appraisal}——它到底是什麼？",
   "webview.world.campaignAppraiseFinalizeText": "我想對「{label}」（{id}）完成{appraisal}，確定其價值。",
-  "webview.world.campaignJobAcceptBtn": "接受工作"
+  "webview.world.campaignJobAcceptBtn": "接受工作",
+  "webview.world.campaignSellFindingBtn": "出售發現物",
+  "webview.world.campaignSellFindingText": "[行動：出售發現物「{label}」（{id}）]",
+  "webview.world.campaignJobClient": "委託方: {faction}"
 }

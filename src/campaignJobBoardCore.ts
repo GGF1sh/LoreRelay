@@ -14,6 +14,7 @@ export interface CampaignJobBoardEntry {
     siteName?: string;
     difficultyHint?: string;
     rewardHint?: string;
+    factionId?: string;
 }
 
 export interface CampaignJobBoardContext {
@@ -255,6 +256,8 @@ export function buildCampaignJobBoard(ctx: CampaignJobBoardContext, size = MAX_J
     const clampedSize = Math.max(1, Math.min(MAX_JOB_BOARD_SIZE, Math.floor(size)));
     const sites = ctx.locations.filter((l) => isExpeditionSite(l, ctx.hubLocationId));
     if (!sites.length) { return []; }
+    
+    const hubLocation = ctx.locations.find((l) => l.id === ctx.hubLocationId);
 
     const weighted = BOARD_TEMPLATES
         .map((t) => ({ template: t, w: templateWeight(t, ctx.kit.genre) }))
@@ -303,6 +306,8 @@ export function buildCampaignJobBoard(ctx: CampaignJobBoardContext, size = MAX_J
             seed,
         });
 
+        const factionId = site.factionControl || hubLocation?.factionControl || undefined;
+
         chosen.push({
             id: makeEntryId(template.id, site.id, chosen.length),
             kind: template.kind,
@@ -312,6 +317,7 @@ export function buildCampaignJobBoard(ctx: CampaignJobBoardContext, size = MAX_J
             siteName: site.name,
             difficultyHint: built.difficultyHint ? clampText(built.difficultyHint, 40) : undefined,
             rewardHint: built.rewardHint ? clampText(built.rewardHint, 60) : undefined,
+            factionId,
         });
 
         weighted.splice(pickIdx, 1);

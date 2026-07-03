@@ -270,7 +270,11 @@ export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
     if (!active) return '';
     const title = active.title.slice(0, 120);
     const objective = active.description.slice(0, 600);
-    return `[Active Quest]\nTitle: ${title}\nObjective: ${objective}\n(GM MUST advance or react to this quest if the player pursues it.)`;
+    let prompt = `[Active Quest]\nTitle: ${title}\nObjective: ${objective}\n(GM MUST advance or react to this quest if the player pursues it.)`;
+    if (active.source === 'campaign' && active.factionId) {
+        prompt += `\n(When player completes this quest, output reputationOps: [{ factionId: "${active.factionId}", delta: <value> }] to reward them based on performance.)`;
+    }
+    return prompt;
 }
 
 export const MAX_FOG_PROMPT_REGION_NAMES = 5;

@@ -101,6 +101,9 @@ export function resolveFactionIdForQuestHook(
     recentChanges: WorldChangeEvent[] | undefined,
     npcRegistry: NpcRegistry | undefined
 ): string | undefined {
+    if (hook.factionId && isValidEventId(hook.factionId)) {
+        return hook.factionId;
+    }
     if (hook.source === 'npc' && hook.npcId && npcRegistry?.npcs[hook.npcId]?.factionId) {
         const factionId = npcRegistry.npcs[hook.npcId].factionId;
         return factionId && isValidEventId(factionId) ? factionId : undefined;

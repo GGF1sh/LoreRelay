@@ -2633,6 +2633,21 @@ function buildCampaignDiscoveriesSection(discoveries, appraisalLabel) {
             });
             actions.appendChild(appraiseBtn);
             card.appendChild(actions);
+        } else if (entry.status === 'appraised') {
+            const actions = document.createElement('div');
+            actions.className = 'campaign-discovery-actions';
+            const sellBtn = document.createElement('button');
+            sellBtn.type = 'button';
+            sellBtn.className = 'small-btn primary';
+            sellBtn.textContent = T('webview.world.campaignSellFindingBtn');
+            sellBtn.addEventListener('click', () => {
+                postWorldInsertChatText(T('webview.world.campaignSellFindingText', {
+                    label: entry.label || entry.id,
+                    id: entry.id,
+                }));
+            });
+            actions.appendChild(sellBtn);
+            card.appendChild(actions);
         }
         el.appendChild(card);
     });
@@ -2665,6 +2680,9 @@ function buildCampaignJobBoardSection(jobBoard, boardLabel) {
         }
         if (entry.rewardHint) {
             metaParts.push(`<span>${escapeHtml(T('webview.world.campaignJobReward', { reward: entry.rewardHint }))}</span>`);
+        }
+        if (entry.factionId) {
+            metaParts.push(`<span class="campaign-badge">${escapeHtml(T('webview.world.campaignJobClient', { faction: entry.factionId }))}</span>`);
         }
         card.innerHTML = `
             <div class="campaign-job-title">${escapeHtml(entry.title || entry.id)}</div>

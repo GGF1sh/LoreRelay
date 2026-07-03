@@ -6,12 +6,18 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.47.0** |
-| Campaign Kit | **Phase A–D** · appraisal state machine · job accept → questHooks |
+| Package version | **1.48.0** |
+| Campaign Kit | **Phase A–D** · sell_discovery · campaign quest factionId + reputationOps prompt |
 | Tests | `npm test` **126/126** |
 | Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
 
 ---
+
+## 2026-07-03 JST - Grok - Campaign Kit v1.48.0 sell_discovery + reputation
+
+- **sell_discovery** `tradeOps` — credits 加算；GM プロンプトで `discoveryOps sold` 連携案内。
+- **Campaign reputation** — board/quest `factionId` 伝播；`buildActiveQuestObjective` が `reputationOps` を促す。
+- TS ビルド修正（factionControl / sell_discovery delta）· webview i18n · tests **129/129**。
 
 ## 2026-07-03 JST - Grok - Campaign Kit v1.47.0 Phase D + job→questHooks
 

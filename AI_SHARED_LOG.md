@@ -12,7 +12,8 @@
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **149/149** |
 | Settlement Mode M4 | M4a pure core (v1.71.0) + M4b `expand_layer` → `settlement_layout.json` persistence (v1.72.0) |
-| Next (推奨) | Settlement M4 UX preview/request flow · M2 replay/remote overlay wiring |
+| Next (推奨) | **M4c UX** (Claude) → M4c gate (Codex) → M2 replay/remote overlay |
+| Git | `main` pushed through `0b8bbb1` (M4b + ledger no-op fix) |
 
 ---
 

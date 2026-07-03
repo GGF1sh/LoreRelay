@@ -41,9 +41,11 @@ const core = require(path.join(outDir, 'npcRelationshipCore.js'));
 const {
     pairKey, getAffinity, describeRelationship, evolveRelationships,
     parseRelationshipOps, applyRelationshipOps, listNotableRelationships,
-    buildRelationshipPromptLines,
+    buildRelationshipPromptLines, applyIntroductionTrustBoost,
+    reconcileRelationshipGraph, cascadeNpcRemovalFromGraph,
     MAX_AFFINITY, MIN_AFFINITY, CO_LOCATION_STEP, SHARED_CRISIS_STEP,
-    FACTION_CONFLICT_STEP, AFFINITY_FRIEND,
+    FACTION_CONFLICT_STEP, AFFINITY_FRIEND, INTRODUCTION_MIN_AFFINITY,
+    FACTION_ALLIED_REP_MIN, FACTION_INTRO_TRUST_DAMPEN, MAX_EFFECTIVE_PLAYER_TRUST,
 } = core;
 
 let failed = 0;
@@ -201,6 +203,46 @@ eq(describeRelationship(-80), 'enemy', 'label enemy');
     const lines = buildRelationshipPromptLines(notable, [], registry, 8);
     if (lines.length === 1 && lines[0].includes('Elda') && lines[0].includes('Marcus')) { ok('buildRelationshipPromptLines'); }
     else { fail(`buildRelationshipPromptLines (${JSON.stringify(lines)})`); }
+}
+
+// 14. reconcileRelationshipGraph drops dangling NPC refs
+{
+    const pruned = reconcileRelationshipGraph({
+        'npc_elda|npc_marcus': 40,
+        'npc_elda|npc_ghost': 20,
+    }, registry);
+    eq(getAffinity(pruned, 'npc_elda', 'npc_marcus'), 40, 'reconcile keeps valid pair');
+    eq(getAffinity(pruned, 'npc_elda', 'npc_ghost'), 0, 'reconcile drops unknown NPC');
+}
+
+// 15. cascadeNpcRemovalFromGraph removes all edges for removed NPC
+{
+    const farKey = pairKey('npc_marcus', 'npc_far');
+    const pruned = cascadeNpcRemovalFromGraph({
+        [pairKey('npc_elda', 'npc_marcus')]: 40,
+        [farKey]: -10,
+    }, 'npc_elda');
+    eq(Object.keys(pruned).length, 1, 'cascade keeps unrelated pair');
+    eq(getAffinity(pruned, 'npc_marcus', 'npc_far'), -10, 'cascade preserves other edges');
+}
+
+// 16. faction rep dampens introduction trust stacking
+{
+    const rels = {};
+    rels[pairKey('npc_elda', 'npc_marcus')] = INTRODUCTION_MIN_AFFINITY;
+    const reg = {
+        npc_elda: { name: 'Elda', playerTrust: 85, factionId: 'faction_merchants' },
+        npc_marcus: { name: 'Marcus', playerTrust: 30, factionId: 'faction_smiths' },
+    };
+    const boosted = applyIntroductionTrustBoost(reg, rels, { faction_smiths: FACTION_ALLIED_REP_MIN });
+    const marcusTrust = boosted.npc_marcus.playerTrust;
+    const rawIntro = 85 - 25; // ally trust minus INTRODUCTION_TRUST_PENALTY
+    const expectedCap = 30 + Math.round((rawIntro - 30) * FACTION_INTRO_TRUST_DAMPEN);
+    if (marcusTrust === expectedCap && marcusTrust <= MAX_EFFECTIVE_PLAYER_TRUST) {
+        ok('faction allied rep dampens intro trust');
+    } else {
+        fail(`faction dampen (got ${marcusTrust}, want ${expectedCap})`);
+    }
 }
 
 // cleanup

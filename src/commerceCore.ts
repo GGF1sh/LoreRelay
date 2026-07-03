@@ -305,6 +305,31 @@ export function applyTradeOps(
     };
 }
 
+/** Net credits change per market location for a trade batch (for bond adjustment batching). */
+export function computePerLocationTradeCreditsDelta(
+    forge: CommerceForge,
+    markets: MarketStateMap,
+    commerce: PlayerCommerceState,
+    ops: TradeOp[]
+): Record<string, number> {
+    const deltas: Record<string, number> = {};
+    let currentMarkets = markets;
+    let currentCommerce = commerce;
+
+    for (const op of ops.slice(0, MAX_TRADE_OPS_PER_TURN)) {
+        const result = applyTradeOp(forge, currentMarkets, currentCommerce, op);
+        if (!result.ok) {
+            break;
+        }
+        currentMarkets = result.markets;
+        currentCommerce = result.commerce;
+        const net = result.totalRevenue - result.totalCost;
+        deltas[op.marketLocationId] = (deltas[op.marketLocationId] ?? 0) + net;
+    }
+
+    return deltas;
+}
+
 export function buildMarketPriceTable(
     forge: CommerceForge,
     markets: MarketStateMap,

@@ -13,14 +13,22 @@ import { parseCommerceForge } from './livingWorldForgeCore';
 import { parseTradeOps, applyTradeOps, initializeMarketState } from './commerceCore';
 import { parseNpcAgencyOps, applyNpcAgencyOps, resolveNpcLocation } from './npcAgencyCore';
 import { parseRelationshipOps, applyRelationshipOps } from './npcRelationshipCore';
-import { applyPlayerBondTradeAdjustment, type PlayerBondRegistryLike } from './playerBondCore';
+import type { PlayerBondRegistryLike } from './playerBondCore';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import {
     getOrInitPlayerCommerce,
     applyTravelFoodConsumption,
+    LIVING_WORLD_TURN_PHASES,
+    resolveBondTradeBatchAdjustment,
+    type LivingWorldTurnPhase,
 } from './livingWorldTurnOpsCore';
 
-export { getOrInitPlayerCommerce, applyTravelFoodConsumption } from './livingWorldTurnOpsCore';
+export {
+    getOrInitPlayerCommerce,
+    applyTravelFoodConsumption,
+    LIVING_WORLD_TURN_PHASES,
+    sortLivingWorldTurnPhases,
+} from './livingWorldTurnOpsCore';
 
 function registryToAgencyLike(registry: NpcRegistry): NpcRegistryLike {
     const out: NpcRegistryLike = {};
@@ -35,6 +43,126 @@ function registryToAgencyLike(registry: NpcRegistry): NpcRegistryLike {
     return out;
 }
 
+function buildBondTradeContext(
+    registry: NpcRegistry,
+    ws: WorldState
+): { bondReg: PlayerBondRegistryLike; npcAtLocation: Record<string, string | undefined> } {
+    const bondReg: PlayerBondRegistryLike = {};
+    const npcAtLocation: Record<string, string | undefined> = {};
+    const agencyLike = registryToAgencyLike(registry);
+    for (const [id, entry] of Object.entries(registry.npcs)) {
+        bondReg[id] = { name: entry.name };
+        npcAtLocation[id] = resolveNpcLocation(
+            id,
+            agencyLike,
+            ws.npcPositions ?? {},
+            ws.worldTurn,
+            true
+        )?.locationId;
+    }
+    return { bondReg, npcAtLocation };
+}
+
+function runCommercePhase(
+    turnResult: TurnResult,
+    gameState: GameState,
+    commerce: NonNullable<ReturnType<typeof parseCommerceForge>>
+): GameState {
+    const rules = loadGameRules();
+    let nextGame = gameState;
+
+    const elapsed = clampElapsedWorldTurns(turnResult.elapsedWorldTurns, 100);
+    if (elapsed > 0) {
+        nextGame = applyTravelFoodConsumption(nextGame, elapsed, commerce);
+    }
+
+    const ops = parseTradeOps(turnResult.tradeOps);
+    if (ops.length === 0) {
+        return nextGame;
+    }
+
+    const ws = loadWorldState();
+    if (!ws) {
+        return nextGame;
+    }
+
+    const markets = ws.markets && Object.keys(ws.markets).length > 0
+        ? ws.markets
+        : initializeMarketState(commerce);
+    const playerCommerce = getOrInitPlayerCommerce(
+        nextGame,
+        loadGameRules().playerRole ?? 'merchant'
+    );
+    const batch = applyTradeOps(commerce, markets, playerCommerce, ops);
+    if (!batch.ok) {
+        return nextGame;
+    }
+
+    let finalCommerce = batch.commerce;
+
+    if (rules.enableNpcRelationships && rules.enableNpcAgency && rules.enableNpcRegistry) {
+        const registry = loadNpcRegistry();
+        const { bondReg, npcAtLocation } = buildBondTradeContext(registry, ws);
+        const bondAdj = resolveBondTradeBatchAdjustment({
+            milestones: ws.playerNpcMilestones ?? {},
+            registry: bondReg,
+            npcAtLocation,
+            commerce,
+            markets,
+            playerCommerce,
+            tradeOps: ops,
+        });
+        if (bondAdj !== 0) {
+            finalCommerce = {
+                ...finalCommerce,
+                credits: Math.max(0, finalCommerce.credits + bondAdj),
+            };
+        }
+    }
+
+    saveWorldState({ ...ws, markets: batch.markets });
+    return {
+        ...nextGame,
+        commerce: finalCommerce,
+    } as GameState;
+}
+
+function runNpcAgencyPhase(turnResult: TurnResult): void {
+    const ops = parseNpcAgencyOps(turnResult.npcAgencyOps);
+    if (ops.length === 0) {
+        return;
+    }
+    const ws = loadWorldState();
+    const registry = loadNpcRegistry();
+    if (!ws) {
+        return;
+    }
+    const positions = applyNpcAgencyOps(
+        ws.npcPositions ?? {},
+        ops,
+        registryToAgencyLike(registry)
+    );
+    saveWorldState({ ...ws, npcPositions: positions });
+}
+
+function runRelationshipPhase(turnResult: TurnResult): void {
+    const ops = parseRelationshipOps(turnResult.relationshipOps);
+    if (ops.length === 0) {
+        return;
+    }
+    const ws = loadWorldState();
+    const registry = loadNpcRegistry();
+    if (!ws) {
+        return;
+    }
+    const relationships = applyRelationshipOps(
+        ws.npcRelationships ?? {},
+        ops,
+        registryToAgencyLike(registry)
+    );
+    saveWorldState({ ...ws, npcRelationships: relationships });
+}
+
 export function applyLivingWorldTurnOps(
     turnResult: TurnResult,
     gameState: GameState
@@ -42,109 +170,24 @@ export function applyLivingWorldTurnOps(
     const rules = loadGameRules();
     if (!isWorldForgeEnabled()) { return gameState; }
 
-    let nextGame = gameState;
     const rawDoc = loadWorldForgeDocument();
     const commerce = parseCommerceForge(rawDoc?.commerce);
 
-    if (rules.enableCommerce && commerce) {
-        const elapsed = clampElapsedWorldTurns(turnResult.elapsedWorldTurns, 100);
-        if (elapsed > 0) {
-            nextGame = applyTravelFoodConsumption(nextGame, elapsed, commerce);
-        }
-        const ops = parseTradeOps(turnResult.tradeOps);
-        if (ops.length > 0) {
-            const ws = loadWorldState();
-            if (ws) {
-                const markets = ws.markets && Object.keys(ws.markets).length > 0
-                    ? ws.markets
-                    : initializeMarketState(commerce);
-                const playerCommerce = getOrInitPlayerCommerce(
-                    nextGame,
-                    loadGameRules().playerRole ?? 'merchant'
-                );
-                const batch = applyTradeOps(commerce, markets, playerCommerce, ops);
-                if (batch.ok) {
-                    let finalCommerce = batch.commerce;
+    const phases: LivingWorldTurnPhase[] = [...LIVING_WORLD_TURN_PHASES];
+    let nextGame = gameState;
 
-                    // LW3-P2: 絆の交易波及 — 盟友NPCが同席する市場では商いに情が乗り(還元)、
-                    // 敵対NPCの市場では上乗せされる。全opが同一市場の場合のみ(通常のUI経路)。
-                    if (rules.enableNpcRelationships && rules.enableNpcAgency && rules.enableNpcRegistry) {
-                        const locations = new Set(ops.map((o) => o.marketLocationId));
-                        if (locations.size === 1) {
-                            const locationId = ops[0].marketLocationId;
-                            const registry = loadNpcRegistry();
-                            const bondReg: PlayerBondRegistryLike = {};
-                            const npcAtLocation: Record<string, string | undefined> = {};
-                            for (const [id, entry] of Object.entries(registry.npcs)) {
-                                bondReg[id] = { name: entry.name };
-                                npcAtLocation[id] = resolveNpcLocation(
-                                    id,
-                                    registryToAgencyLike(registry),
-                                    ws.npcPositions ?? {},
-                                    ws.worldTurn,
-                                    true
-                                )?.locationId;
-                            }
-                            const adj = applyPlayerBondTradeAdjustment({
-                                milestones: ws.playerNpcMilestones ?? {},
-                                registry: bondReg,
-                                npcAtLocation,
-                                locationId,
-                                creditsDelta: batch.commerce.credits - playerCommerce.credits,
-                            });
-                            if (adj.adjustment !== 0) {
-                                finalCommerce = {
-                                    ...finalCommerce,
-                                    credits: Math.max(0, finalCommerce.credits + adj.adjustment),
-                                };
-                            }
-                        }
-                    }
-
-                    const updatedWorld: WorldState = {
-                        ...ws,
-                        markets: batch.markets,
-                    };
-                    saveWorldState(updatedWorld);
-                    nextGame = {
-                        ...nextGame,
-                        commerce: finalCommerce,
-                    } as GameState;
-                }
-            }
-        }
-    }
-
-    if (rules.enableNpcAgency && rules.enableNpcRegistry) {
-        const ops = parseNpcAgencyOps(turnResult.npcAgencyOps);
-        if (ops.length > 0) {
-            const ws = loadWorldState();
-            const registry = loadNpcRegistry();
-            if (ws) {
-                const positions = applyNpcAgencyOps(
-                    ws.npcPositions ?? {},
-                    ops,
-                    registryToAgencyLike(registry)
-                );
-                saveWorldState({ ...ws, npcPositions: positions });
-            }
-        }
-    }
-
-    // LW3: GM の例外的な関係確定(通常は世界tickの evolveRelationships が決定論で動かす)。
-    if (rules.enableNpcRelationships && rules.enableNpcAgency && rules.enableNpcRegistry) {
-        const ops = parseRelationshipOps(turnResult.relationshipOps);
-        if (ops.length > 0) {
-            const ws = loadWorldState();
-            const registry = loadNpcRegistry();
-            if (ws) {
-                const relationships = applyRelationshipOps(
-                    ws.npcRelationships ?? {},
-                    ops,
-                    registryToAgencyLike(registry)
-                );
-                saveWorldState({ ...ws, npcRelationships: relationships });
-            }
+    for (const phase of phases) {
+        if (phase === 'commerce' && rules.enableCommerce && commerce) {
+            nextGame = runCommercePhase(turnResult, nextGame, commerce);
+        } else if (phase === 'npc_agency' && rules.enableNpcAgency && rules.enableNpcRegistry) {
+            runNpcAgencyPhase(turnResult);
+        } else if (
+            phase === 'relationship'
+            && rules.enableNpcRelationships
+            && rules.enableNpcAgency
+            && rules.enableNpcRegistry
+        ) {
+            runRelationshipPhase(turnResult);
         }
     }
 

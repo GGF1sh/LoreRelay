@@ -26,6 +26,8 @@
 | **NPC Agency** | OFF | **experimental** | `enableNpcAgency`, ≤10 NPCs |
 | Trust-linked whereabouts | with agency | **experimental** | v1.27+ |
 | Inspector market debug | debug | **dev only** | Commerce ON + debug console |
+| **NPC Bonds (LW3)** | OFF | **experimental** | `enableNpcRelationships` |
+| **Player bonds / trade ripple** | with LW3 | **experimental** | v1.32–1.33 · `playerBondCore` |
 
 ## Quick demo paths
 
@@ -44,4 +46,4 @@ Living World + Chronicle + NPC blocks grow GM context. Mitigations today:
 - Turn Inspector shows budget breakdown
 - `scripts/test_prompt_context_budget.js`
 
-Future: priority-based sliding window / vector memory offload (not v1.28 scope).
+Future: priority-based sliding window / vector memory offload (partial eviction in v1.33; full sliding TBD).

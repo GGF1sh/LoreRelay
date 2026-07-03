@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.33.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -213,7 +213,7 @@ Also under `TextAdventureGMSkill/scenarios/`.
 ### 8. SillyTavern compatibility & Workshop
 
 - Import ST characters and lorebooks via the commands above or the Webview. See [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md)
-- Export and validate scenario packs to build Workshop-ready ZIPs (marketplace publishing is under consideration for v1.8+)
+- Export and validate scenario packs to build Workshop-ready ZIPs (marketplace publishing is under consideration)
 
 ### 9. Model & ComfyUI presets
 - [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — copy JSON from `presets/`
@@ -237,21 +237,26 @@ Also under `TextAdventureGMSkill/scenarios/`.
 
 ## 🗺️ Roadmap
 
-**Shipped (v1.7.1)**
+> **Source of truth:** `package.json` (currently **1.33.0**) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
-- v1.3: World Forge / Living World / Emergent Simulation / ComfyUI integration
-- v1.5: Visual Memory / Soulgaze (VLM queue, GM prompt injection, gallery linkage)
-- v1.6: Audit Wave (T1–T8) — validation modules, Remote Play re-audit, ST Import hardening
-- v1.6.2: Remote Play **signed media URLs** (HMAC short-TTL)
-- v1.6.3: Region **x / y / biome**, Mermaid biome styling, World Map pan/zoom
-- v1.7: Cartography ComfyUI pipeline + World tab **Diagram / Parchment** + pin overlay
-- v1.7.1: Cartography path validation, layout smoke test, workflow contract, README/DEMO refresh
+**Shipped (summary at v1.33.0)**
 
-**Planned (v1.8+)**
+| Era | Highlights |
+|-----|------------|
+| **v1.3–1.7** | World Forge / Emergent Sim / Visual Memory / Audit Wave / Cartography |
+| **v1.10–1.11** | Quest Board (Event-to-Quest) · Agentic GM · Git Timeline · Adaptive TTS |
+| **v1.13–1.18** | Tile Overmap · Cartography C8/C9 · Debug sandbox · world time passage |
+| **v1.19–1.21** | Chronicle · Pacing Director · faction reputation · travel encounters · Replay Export |
+| **v1.23–1.33** | Living World economy (Commerce / Agency) · Commerce UI · trust whereabouts · **LW3 bonds** (NPC↔NPC / player↔NPC / trade ripple) |
 
-- **Event-to-Quest** — turn world simulation events into playable quest hooks
-- VLM / Visual Memory operational quality
-- Workshop distribution and marketplace publishing
+See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.
+
+**Planned**
+
+- README / DEMO screenshots and GIFs
+- Overmap image tilesets, hazard one-line GM injection
+- Prompt budget priority sliding (long sessions)
+- Workshop / marketplace publishing
 
 ---
 

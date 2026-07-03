@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## Current Snapshot (2026-07-03)
+
+> **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)
+
+| Item | Value |
+|------|-------|
+| Package version (`main`) | **1.33.0** |
+| GitHub Release (VSIX) | 最新タグは **v1.28.0** まで確認済み — `v1.33.0` タグ push で Release 更新 |
+| Canonical repo path | `C:\AI\text-adventure-vsce` |
+| Living World | **v1.23–1.33** — Commerce / Agency / LW3 絆 / プレイヤー絆 / 交易還元（batch） |
+| Tests | `npm test` **82/82** |
+| Docs hygiene | README 4言語 Roadmap・バッジを 1.33.0 に同期（本エントリ） |
+| Next (推奨) | `git tag v1.33.0 && git push origin v1.33.0` · `testing_checklist.md` §9b–9c |
+
+---
+
 ## 2026-07-03 JST - Claude Fable 5 - v1.32.0 LW3-P あなたの絆(主人公が関係の網に入る)
 
 ### Summary
@@ -386,22 +402,9 @@
 
 ---
 
-## Current Snapshot (2026-07-02)
+## Current Snapshot (2026-07-02) — 旧・参照用
 
-> **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)  
-> main と GitHub Release がズレているときは VERSION_TRUTH を読む（コードは main、VSIX は Release）。
-
-| Item | Value |
-|------|-------|
-| Package version (`main`) | **1.28.0**（doc & stability pass） |
-| GitHub Release (VSIX) | **v1.14.5** — タグ `v1.27.x` 未打ち（配布遅れ） |
-| Canonical repo path | `C:\AI\text-adventure-vsce` |
-| Living World | **v1.23–1.27.1** — Commerce UI, trust whereabouts, playerRole GM（`testing_checklist.md` §9b–9c） |
-| Tests | `npm test` **76/76** |
-| Next implement (推奨) | Release tag **v1.27.1** · 手動 §9b–9c · F1 Chronicle / F2 Pacing（並行可） |
-| Design backlog | **F1–F6** `FABLE5_FEATURE_PROPOSALS_DESIGN.md` |
-| Cartography | C8/C9 **完了** (v1.15–1.16) |
-| Debug sandbox | `sample-scenarios/debug-sandbox` + `trade-routes` |
+> 最新はファイル先頭の **Current Snapshot (2026-07-03)** を正とする。
 
 ---
 

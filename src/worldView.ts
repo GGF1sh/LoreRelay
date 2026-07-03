@@ -233,7 +233,13 @@ function buildNpcWhereaboutsPayload(
     if (relationshipsEnabled && worldState) {
         const relationships = (worldState as { npcRelationships?: Record<string, number> }).npcRelationships;
         if (relationships) {
-            registryLike = applyIntroductionTrustBoost(registryLike, relationships);
+            const factionReputation: Record<string, number> = {};
+            for (const [factionId, factionState] of Object.entries(worldState.factions ?? {})) {
+                if (typeof factionState.playerReputation === 'number') {
+                    factionReputation[factionId] = factionState.playerReputation;
+                }
+            }
+            registryLike = applyIntroductionTrustBoost(registryLike, relationships, factionReputation);
         }
     }
 

@@ -33,6 +33,7 @@ const life = require(path.join(outDir, 'npcLifeEventsCore.js'));
 const rel = require(path.join(outDir, 'npcRelationshipCore.js'));
 const {
     detectLifeEvents, buildLifeEventMessage, buildLifeEventGmHint, listPairMilestones,
+    reconcileNpcMilestones, cascadeNpcRemovalFromMilestones,
     MILESTONE_SWORN_ALLIES_MIN, MILESTONE_INSEPARABLE_MIN, MILESTONE_BITTER_ENEMIES_MAX,
 } = life;
 const { pairKey } = rel;
@@ -150,6 +151,32 @@ const K = pairKey('npc_elda', 'npc_marcus');
     const res = detectLifeEvents({ relationships: rels, milestones: {}, registry: reg, worldTurn: 5 });
     if (res.events.length <= 4) { ok('per-tick event cap respected'); }
     else { fail(`event cap (${res.events.length})`); }
+}
+
+// 12. reconcileNpcMilestones drops pairs with removed NPCs
+{
+    const ms = {};
+    ms[K] = ['sworn_allies'];
+    ms[pairKey('npc_elda', 'npc_removed')] = ['bitter_enemies'];
+    const reconciled = reconcileNpcMilestones(ms, registry);
+    if (reconciled[K] && !reconciled[pairKey('npc_elda', 'npc_removed')]) {
+        ok('reconcileNpcMilestones drops dangling pair');
+    } else {
+        fail(`reconcile milestones (${JSON.stringify(reconciled)})`);
+    }
+}
+
+// 13. cascadeNpcRemovalFromMilestones archives removed NPC involvement
+{
+    const ms = {};
+    ms[K] = ['sworn_allies'];
+    ms[pairKey('npc_marcus', 'npc_far')] = ['bitter_enemies'];
+    const cascaded = cascadeNpcRemovalFromMilestones(ms, 'npc_elda');
+    if (!cascaded[K] && cascaded[pairKey('npc_marcus', 'npc_far')]) {
+        ok('cascadeNpcRemovalFromMilestones removes npc_elda pairs only');
+    } else {
+        fail(`cascade milestones (${JSON.stringify(cascaded)})`);
+    }
 }
 
 try { fs.rmSync(outDir, { recursive: true, force: true }); } catch (_) { /* noop */ }

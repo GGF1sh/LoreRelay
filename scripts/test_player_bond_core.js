@@ -30,8 +30,9 @@ const core = require(path.join(outDir, 'playerBondCore.js'));
 const {
     detectPlayerBondEvents, listPlayerBondStandings, buildPlayerBondMessage,
     buildPlayerBondGmHint, buildPlayerBondPromptLines, applyPlayerBondTradeAdjustment,
+    batchPlayerBondTradeAdjustments, purgeStalePlayerBondMilestones,
     PLAYER_TRUST_COMPANION_MIN, PLAYER_ROMANCE_MIN, PLAYER_TRUST_NEMESIS_MAX, PLAYER_FEAR_MIN,
-    BOND_TRADE_ALLY_PCT, BOND_TRADE_MAX_ADJUSTMENT,
+    BOND_TRADE_ALLY_PCT, BOND_TRADE_MAX_ADJUSTMENT, PLAYER_BOND_GC_IDLE_TURNS,
 } = core;
 
 let failed = 0;
@@ -227,6 +228,56 @@ const TRADE_REG = { npc_elda: { name: 'Elda' }, npc_rurik: { name: 'Rurik' } };
         creditsDelta: -999999,
     });
     eq(capped.adjustment, BOND_TRADE_MAX_ADJUSTMENT, 'adjustment capped');
+}
+
+// 18. batch: multi-location deltas sum at turn end
+{
+    const batch = batchPlayerBondTradeAdjustments({
+        milestones: { npc_elda: ['trusted_companion'], npc_rurik: ['nemesis'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'shop_a', npc_rurik: 'shop_b' },
+        locationDeltas: [
+            { locationId: 'shop_a', creditsDelta: -100 },
+            { locationId: 'shop_b', creditsDelta: 200 },
+        ],
+    });
+    eq(batch.totalAdjustment, 10 + -20, 'batch sums per-location bond adjustments');
+    eq(batch.adjustments.length, 2, 'batch records both locations');
+}
+
+// 19. batch: opposing flows at same location net to zero -> no adjustment
+{
+    const batch = batchPlayerBondTradeAdjustments({
+        milestones: { npc_elda: ['trusted_companion'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'hub' },
+        locationDeltas: [{ locationId: 'hub', creditsDelta: 0 }],
+    });
+    eq(batch.totalAdjustment, 0, 'net-zero location delta yields no bond adjustment');
+}
+
+// 20. purgeStalePlayerBondMilestones drops removed NPC keys
+{
+    const ms = { npc_gone: ['trusted_companion'], npc_elda: ['trusted_companion'] };
+    const reg = { npc_elda: { name: 'Elda', playerTrust: 90 } };
+    const purged = purgeStalePlayerBondMilestones(ms, reg, 100);
+    if (!purged.npc_gone && purged.npc_elda) { ok('purge removes milestones for absent NPCs'); }
+    else { fail(`purge absent NPC (${JSON.stringify(purged)})`); }
+}
+
+// 21. purge idle neutral empty milestones
+{
+    const ms = { npc_idle: [] };
+    const reg = {
+        npc_idle: {
+            name: 'Idle',
+            playerTrust: 50,
+            lastInteractionTurn: 1,
+        },
+    };
+    const purged = purgeStalePlayerBondMilestones(ms, reg, 1 + PLAYER_BOND_GC_IDLE_TURNS + 1);
+    if (!purged.npc_idle) { ok('purge idle neutral empty milestone slot'); }
+    else { fail('purge idle neutral'); }
 }
 
 try { fs.rmSync(outDir, { recursive: true, force: true }); } catch (_) { /* noop */ }

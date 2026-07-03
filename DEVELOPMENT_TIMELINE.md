@@ -2,7 +2,8 @@
 
 このドキュメントは、LoreRelay（旧 Text Adventure Engine）の開発履歴の要約です。詳細は [`CHANGELOG.md`](CHANGELOG.md) が正本です。
 
-> **注:** 2026-06-24〜25 の「2 日間で構築」という記述は初期ブートストラップ期間を指します。v1.7.3 時点では Phase 1〜7 が完了しています。
+> **注:** 2026-06-24〜25 の「2 日間で構築」は初期ブートストラップ期間を指します。  
+> **現行版:** `package.json`（**1.33.0**）· 詳細は [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)
 
 ---
 
@@ -53,12 +54,23 @@
 - v1.7.0: Cartography UI（Diagram / Parchment、ComfyUI）
 - v1.7.1 - v1.7.3: パス検証、ChatGPT/Claude レビュー対応
 
+### 2026-07-01 — 07-03 (v1.10.0 — v1.33.0)
+
+**Campaign · Map · Fable5 · Living World**
+
+- v1.10–1.11: Quest Board、Agentic GM、Git Timeline、Adaptive TTS
+- v1.13–1.18: Tile Overmap、Cartography C8/C9、Debug sandbox、世界時間経過
+- v1.19–1.21: Chronicle、Pacing、派閥レピュテーション、旅路エンカウント、Replay Export
+- v1.23–1.27: Living World Commerce / Agency / Commerce UI / trust 所在
+- v1.29–1.33: LW3 NPC↔NPC 絆、世界波及、ライフイベント、プレイヤー絆、交易還元
+
 ---
 
 ## 次のマイルストーン
 
-- **Phase 8:** Event-to-Quest（`AI_ROADMAP.md`）
+- **配布:** `v1.33.0` タグ push → GitHub Release / VSIX
 - **公開 polish:** README 実スクショ/GIF（`docs/readme-screenshots-plan.md`）
+- **設計 backlog:** Overmap 画像タイル、hazard GM 1 行、prompt budget sliding（`AI_ROADMAP.md`）
 
 ---
 

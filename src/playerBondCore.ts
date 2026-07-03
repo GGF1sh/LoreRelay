@@ -32,6 +32,7 @@ export interface PlayerDispositionLike {
     playerTrust?: number;
     playerRomance?: number;
     playerFear?: number;
+    lastInteractionTurn?: number;
 }
 export type PlayerBondRegistryLike = Record<string, PlayerDispositionLike>;
 
@@ -221,6 +222,98 @@ export function applyPlayerBondTradeAdjustment(input: {
         return { adjustment: -adjustment, reason: 'nemesis_markup', npcId: nemesis, npcName: input.registry[nemesis]?.name };
     }
     return { adjustment: 0 };
+}
+
+export interface BondTradeLocationDelta {
+    locationId: string;
+    creditsDelta: number;
+}
+
+export interface BondTradeBatchResult {
+    totalAdjustment: number;
+    adjustments: BondTradeAdjustment[];
+}
+
+/** Global cap on summed bond trade adjustments per turn (per-location caps still apply). */
+export const BOND_TRADE_BATCH_TOTAL_CAP = BOND_TRADE_MAX_ADJUSTMENT * 3;
+
+/**
+ * Queue bond trade effects by location and apply once at batch end (avoids per-op races).
+ */
+export function batchPlayerBondTradeAdjustments(input: {
+    milestones: PlayerBondMilestoneMap;
+    registry: PlayerBondRegistryLike;
+    npcAtLocation: Record<string, string | undefined>;
+    locationDeltas: BondTradeLocationDelta[];
+}): BondTradeBatchResult {
+    const adjustments: BondTradeAdjustment[] = [];
+    let total = 0;
+
+    for (const entry of input.locationDeltas) {
+        if (!entry.locationId || !Number.isFinite(entry.creditsDelta) || entry.creditsDelta === 0) {
+            continue;
+        }
+        const adj = applyPlayerBondTradeAdjustment({
+            milestones: input.milestones,
+            registry: input.registry,
+            npcAtLocation: input.npcAtLocation,
+            locationId: entry.locationId,
+            creditsDelta: entry.creditsDelta,
+        });
+        if (adj.adjustment !== 0) {
+            adjustments.push(adj);
+            total += adj.adjustment;
+        }
+    }
+
+    if (total > BOND_TRADE_BATCH_TOTAL_CAP) {
+        total = BOND_TRADE_BATCH_TOTAL_CAP;
+    } else if (total < -BOND_TRADE_BATCH_TOTAL_CAP) {
+        total = -BOND_TRADE_BATCH_TOTAL_CAP;
+    }
+
+    return { totalAdjustment: total, adjustments };
+}
+
+export const PLAYER_BOND_GC_IDLE_TURNS = 50;
+export const PLAYER_BOND_NEUTRAL_TRUST_MIN = 40;
+export const PLAYER_BOND_NEUTRAL_TRUST_MAX = 60;
+
+/**
+ * Drop milestone records for removed NPCs and idle neutral relationships (save bloat GC).
+ */
+export function purgeStalePlayerBondMilestones(
+    milestones: PlayerBondMilestoneMap,
+    registry: Record<string, PlayerDispositionLike>,
+    worldTurn: number,
+    idleTurns = PLAYER_BOND_GC_IDLE_TURNS
+): PlayerBondMilestoneMap {
+    const next = cloneMilestones(milestones);
+    const allowed = new Set(Object.keys(registry).slice(0, MAX_PLAYER_BONDS));
+
+    for (const npcId of Object.keys(next)) {
+        if (!allowed.has(npcId)) {
+            delete next[npcId];
+            continue;
+        }
+        const reached = next[npcId] ?? [];
+        if (reached.length > 0) {
+            continue;
+        }
+        const npc = registry[npcId];
+        if (!npc) {
+            delete next[npcId];
+            continue;
+        }
+        const trust = num(npc.playerTrust, 50);
+        const neutral = trust >= PLAYER_BOND_NEUTRAL_TRUST_MIN && trust <= PLAYER_BOND_NEUTRAL_TRUST_MAX;
+        const lastTurn = typeof npc.lastInteractionTurn === 'number' ? npc.lastInteractionTurn : 0;
+        if (neutral && worldTurn - lastTurn >= idleTurns) {
+            delete next[npcId];
+        }
+    }
+
+    return next;
 }
 
 const STANDING_LABEL_EN: Record<PlayerBondKind, string> = {

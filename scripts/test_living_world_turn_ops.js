@@ -17,7 +17,11 @@ if (!require('fs').existsSync(modPath)) {
 const {
     getOrInitPlayerCommerce,
     applyTravelFoodConsumption,
+    sortLivingWorldTurnPhases,
+    LIVING_WORLD_TURN_PHASES,
+    resolveBondTradeBatchAdjustment,
 } = require(modPath);
+const { batchPlayerBondTradeAdjustments } = require(path.join(root, 'out', 'playerBondCore.js'));
 
 const commerce = {
     commodities: [
@@ -63,6 +67,46 @@ const commerce = {
         fail(`food should clamp to 0, got ${food}`);
     } else {
         ok('travel food clamps at zero');
+    }
+}
+
+{
+    const sorted = sortLivingWorldTurnPhases(['relationship', 'commerce', 'npc_agency']);
+    if (JSON.stringify(sorted) === JSON.stringify([...LIVING_WORLD_TURN_PHASES])) {
+        ok('turn phases sort to canonical pipeline order');
+    } else {
+        fail(`phase sort (${JSON.stringify(sorted)})`);
+    }
+}
+
+{
+    const commerceForge = {
+        commodities: [{ id: 'wheat', name: 'Wheat', basePrice: 10, weight: 1 }],
+        markets: [{
+            locationId: 'shop_a',
+            regionId: 'r1',
+            commodityIds: ['wheat'],
+            targetStock: 30,
+        }],
+        transportKinds: [
+            { id: 'wagon', name: 'Wagon', capacity: 20, speed: 1, foodPerDay: 2 },
+        ],
+    };
+    const markets = { shop_a: { wheat: { stock: 30, priceIndex: 1 } } };
+    const playerCommerce = { credits: 500, cargo: [], transportId: 'wagon', food: 30 };
+    const adj = resolveBondTradeBatchAdjustment({
+        milestones: { npc_elda: ['trusted_companion'] },
+        registry: { npc_elda: { name: 'Elda' } },
+        npcAtLocation: { npc_elda: 'shop_a' },
+        commerce: commerceForge,
+        markets,
+        playerCommerce,
+        tradeOps: [{ op: 'buy', marketLocationId: 'shop_a', commodityId: 'wheat', qty: 1 }],
+    });
+    if (adj === 1) {
+        ok('resolveBondTradeBatchAdjustment applies ally favor from trade batch');
+    } else {
+        fail(`bond batch adj expected 1, got ${adj}`);
     }
 }
 

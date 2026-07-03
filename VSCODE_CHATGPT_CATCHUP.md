@@ -44,6 +44,7 @@
 
 | 誤り | 正しい理解 |
 |------|------------|
-| 「公開 main は v1.6.1」 | main の `package.json` を見る（2026-07-02 時点 **1.27.1**） |
+| 「公開 main は v1.6.1」 | main の `package.json` を見る（2026-07-03 時点 **1.33.0**） |
 | 「Release = 最新コード」 | Release はタグ push 時のみ更新。コードだけ進んで Release が遅れることがある |
+| README Roadmap が v1.7.1 で止まる | **2026-07-03 更新済み** — 正本は `package.json` / `CHANGELOG` |
 | `WORLD_AND_VISUAL_MEMORY.md` の冒頭 | アーキテクチャ参考。版番号は CHANGELOG が正本 |

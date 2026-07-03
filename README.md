@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.14.8-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.33.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -39,8 +39,11 @@
 - 🛡️ **Robust State Management:** 巨大なデータによるUIクラッシュを防ぐ上限クランプ処理、不正IDのパージ、安全な状態マイグレーションなど、堅牢なセーフティ機構を搭載。
 - 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM が生成画像を分析し `visual_memory.json` に蓄積。次ターン以降の GM プロンプトへ情景コンテキストを自動注入。
 - 🔒 **Audit Wave Hardening (v1.6):** State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub を7トラックで監査。pure 検証モジュールと回帰テストを大幅追加。
+- 📜 **Chronicle & Campaign Tools (v1.10+):** Quest Board、Git Timeline、Agentic GM（Referee/Narrator 2段階）、Adaptive TTS / NPC 個別音声。
+- 🧭 **Fable5 Layer (v1.19+):** Chronicle あらすじ注入、Pacing Director、派閥レピュテーション、旅路エンカウント、Replay Export。
+- 🛒 **Living World Economy (v1.23+、experimental):** 貿易・相場・輸送、Commerce UI（Buy/Sell）、NPC Agency、信頼連動の所在、NPC↔NPC / プレイヤー↔NPC の絆（LW3）、盟友の交易還元（v1.33+）。
 
-**初めての方:** [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)（3分スタート・タブの見方・World / 地図 / Visual Memory）  
+**初めての方:** [`docs/LIVING_WORLD_QUICKSTART.md`](docs/LIVING_WORLD_QUICKSTART.md)（5分）· [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)（3分スタート・タブの見方）  
 詳細なアーキテクチャ解説: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ### 必要なものと任意機能
@@ -240,7 +243,7 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 ### 8. SillyTavern 互換 & Workshop
 
 - ST キャラ / ロアブックのインポートは上記コマンドまたは Webview から。詳細は [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md)
-- シナリオパックの書き出し・検証で Workshop 配布用 ZIP を作成可能（v1.8+ でマーケット公開は検討中）
+- シナリオパックの書き出し・検証で Workshop 配布用 ZIP を作成可能（マーケット公開は検討中）
 
 ### 9. Model & ComfyUI presets
 - 推奨 GM / 画像設定: [`MODEL_PRESETS.md`](MODEL_PRESETS.md)（`presets/` の JSON をコピー）
@@ -264,21 +267,26 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 
 ## 🗺️ Roadmap
 
-**実装済み（v1.7.1）**
+> **版の正本:** `package.json`（現行 **1.33.0**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · タスク黒板は [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
-- v1.3: World Forge / Living World / Emergent Simulation / ComfyUI 連携
-- v1.5: Visual Memory / Soulgaze（VLM キュー、GM プロンプト注入、Gallery 連動）
-- v1.6: Audit Wave（T1〜T8）— 検証モジュール・Remote Play 再監査・ST Import 硬化
-- v1.6.2: Remote Play **署名付きメディア URL**（HMAC short-TTL）
-- v1.6.3: Region **x / y / biome**、Mermaid biome スタイル・World Map pan/zoom
-- v1.7: Cartography ComfyUI パイプライン + World タブ **Diagram / Parchment** + ピン overlay
-- v1.7.1: Cartography path 検証、layout smoke test、workflow contract、README/DEMO 更新
+**実装済み（v1.33.0 時点・要約）**
 
-**今後の候補（v1.8+）**
+| 世代 | 主な内容 |
+|------|----------|
+| **v1.3–1.7** | World Forge / Emergent Sim / Visual Memory / Audit Wave / Cartography（羊皮紙地図・FoW 基盤） |
+| **v1.10–1.11** | Quest Board（Event-to-Quest）· Agentic GM · Git Timeline · Adaptive TTS |
+| **v1.13–1.18** | Tile Overmap · Cartography C8/C9（地図アイテム）· Debug sandbox · 世界時間経過 |
+| **v1.19–1.21** | Chronicle · Pacing Director · 派閥レピュテーション · 旅路エンカウント · Replay Export |
+| **v1.23–1.33** | Living World 経済（Commerce / Agency）· Commerce UI · trust 所在 · **LW3 絆**（NPC↔NPC / プレイヤー↔NPC / 交易波及） |
 
-- **Event-to-Quest** — `recentChanges` / 派閥・地域イベントからクエスト候補を生成
-- VLM / Visual Memory の運用品質向上
-- Workshop 配布やマーケットプレイス公開の検討
+体験の入口: [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)（stable / experimental）· `sample-scenarios/trade-routes`
+
+**今後の候補**
+
+- README / DEMO の実スクショ・GIF 更新
+- Overmap の画像タイルセット、 hazard 1 行 GM 注入
+- Prompt budget の優先度スライディング（長セッション向け）
+- Workshop / マーケットプレイス公開の検討
 
 ---
 

@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+### Fixed（Gemini LW3-P2 レビュー対応）
+
+- **多拠点 trade 絆調整のバッチ化** — `batchPlayerBondTradeAdjustments()` / `computePerLocationTradeCreditsDelta()` で市場単位に集約（`playerBondCore.ts`, `livingWorldTurnOps.ts`）。
+- **関係グラフの整合** — `reconcileRelationshipGraph()` / `cascadeNpcRemovalFromGraph()`（`npcRelationshipCore.ts`）。
+- **NPC マイルストーンの整合** — `reconcileNpcMilestones()` / `cascadeNpcRemovalFromMilestones()`（`npcLifeEventsCore.ts`）。
+- **プレイヤー絆マイルストーン GC** — `purgeStalePlayerBondMilestones()` で削除 NPC の残骸を除去（`playerBondCore.ts`）。
+- **派閥紹介信頼の減衰** — `applyIntroductionTrustBoost()` に faction rep ダンピング（`commerceCore.ts`）。
+- **Living World ターン段階化** — `LIVING_WORLD_TURN_PHASES` と `livingWorldTurnOps.ts` のフェーズパイプライン整理。
+
+### Docs
+
+- README 4言語: バッジ・Roadmap を **1.33.0** に同期（v1.7.1 止まり・Event-to-Quest 未実装表記を修正）
+- `docs/VERSION_TRUTH.md` · `AI_SHARED_LOG.md` Current Snapshot · `VSCODE_CHATGPT_CATCHUP.md` · `DEVELOPMENT_TIMELINE.md` · `AI_ROADMAP.md` LW3 完了表 · `docs/FEATURE_MATRIX.md` LW3 行追加
+
 ## [1.33.0] - 2026-07-03
 
 ### Added

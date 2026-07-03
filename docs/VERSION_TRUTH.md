@@ -18,18 +18,19 @@ LoreRelay には **3 種類の「版」** があり、混同すると Web Grok /
 | 確認先 | 意味 |
 |--------|------|
 | [GitHub Releases](https://github.com/GGF1sh/LoreRelay/releases) | **ユーザーが `Check for Updates` で取る版** |
-| タグ `v*` push | `.github/workflows/release.yml` が VSIX を添付 |
+| タグ `v*` push | `.github/workflows/release.yml` が VSIX を添付（`package.json` と一致必須） |
 
-**注意:** main の `package.json` が **1.27.1** でも、Release が **v1.14.5** のままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布は遅れている**。
+**注意:** main の `package.json` が **1.33.0** でも、GitHub Release が古いタグのままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布は遅れている**。
 
 ## 3. 説明ドキュメント（履歴・スナップショット）
 
-`README.md` の「v1.6.2 で追加」、`WORLD_AND_VISUAL_MEMORY.md` の「v1.6.1 時点」などは **機能導入時のラベル** または **古いスナップショット**。現行版の代わりに使わない。
+`README.md` Features 内の「(v1.3+)」、`WORLD_AND_VISUAL_MEMORY.md` の「v1.6.1 時点」、`README` 末尾 Roadmap の **世代表** などは **機能導入時のラベル** または **要約**。現行版の数字は `package.json` が正本。
 
-AI 向けの動的サマリ:
-
-- `AI_SHARED_LOG.md` 先頭 **Current Snapshot**
-- `AI_HANDOVER.md` §4（ただし版番号は本ファイルと `package.json` で上書き確認）
+| ドキュメント | 役割 |
+|--------------|------|
+| [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md) | stable / experimental の初見向け一覧 |
+| [`AI_ROADMAP.md`](../AI_ROADMAP.md) | タスク黒板（Phase 完了・次期トラック） |
+| [`AI_SHARED_LOG.md`](../AI_SHARED_LOG.md) 先頭 **Current Snapshot** | AI 向け動的サマリ |
 
 ## AI 作業前の 30 秒チェック
 
@@ -38,20 +39,24 @@ cd C:\AI\text-adventure-vsce
 node -p "require('./package.json').version"
 git fetch origin
 git log origin/main --oneline -1
+git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object -Last 3
 ```
 
 ## ズレを直すときの優先順位
 
 1. **タグ + Release** — `package.json` と一致する `vX.Y.Z` を push（配布を追いつかせる）
 2. **Current Snapshot 更新** — `AI_SHARED_LOG.md`
-3. **キャッチアッププロンプト** — `VSCODE_CHATGPT_CATCHUP.md`
-4. **履歴ドキュメント** — 版番号を「現行」と書き換えるのではなく、冒頭に「アーキテクチャ参考・現行は CHANGELOG」と注記
+3. **README バッジ + Roadmap** — `package.json` と同期
+4. **キャッチアッププロンプト** — `VSCODE_CHATGPT_CATCHUP.md`
+5. **履歴ドキュメント** — 版番号を「現行」と書き換えるのではなく、冒頭に「アーキテクチャ参考・現行は CHANGELOG」と注記
 
-## 現行（手動更新: 2026-07-02）
+## 現行（手動更新: 2026-07-03）
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.28.0** |
-| main 先頭 | v1.28 doc/stability pass（LW 機能本体は v1.27.1 相当） |
-| GitHub Release latest | **v1.14.5**（`v1.27.x` タグ未打ち — 配布遅れ） |
-| Living World | v1.23〜1.27.1（Commerce UI, trust whereabouts, playerRole GM） |
+| `package.json` | **1.33.0** |
+| main 先頭 | v1.33.0 — LW3-P2 絆の交易波及 + Gemini レビュー対応 |
+| 最新ローカルタグ（確認時） | **v1.28.0**（`v1.33.0` タグ push 待ちの可能性あり） |
+| GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
+| Living World | v1.23–1.33（Commerce / Agency / LW3 絆 / プレイヤー絆 / 交易還元） |
+| テスト | `npm test` **82/82** |

@@ -28,14 +28,21 @@ import {
     buildRelationshipPromptLines,
     describeRelationship,
     applyIntroductionTrustBoost,
+    reconcileRelationshipGraph,
 } from './npcRelationshipCore';
 import { applyBondMarketEffects } from './npcBondEffectsCore';
-import { detectLifeEvents, buildLifeEventMessage, buildLifeEventGmHint } from './npcLifeEventsCore';
+import {
+    detectLifeEvents,
+    buildLifeEventMessage,
+    buildLifeEventGmHint,
+    reconcileNpcMilestones,
+} from './npcLifeEventsCore';
 import {
     detectPlayerBondEvents,
     buildPlayerBondMessage,
     buildPlayerBondGmHint,
     buildPlayerBondPromptLines,
+    purgeStalePlayerBondMilestones,
     type PlayerBondEvent,
     type PlayerBondRegistryLike,
 } from './playerBondCore';
@@ -132,6 +139,7 @@ function registryToPlayerBondLike(registry: NpcRegistry | undefined): PlayerBond
             playerTrust: entry.disposition?.playerTrust,
             playerRomance: entry.disposition?.playerRomance,
             playerFear: entry.disposition?.playerFear,
+            lastInteractionTurn: entry.disposition?.lastInteractionTurn,
         };
     }
     return out;
@@ -179,6 +187,14 @@ export function tickLivingWorldAfterSim(
     // LW3: 世界が動いた「結果」として NPC 同士の関係を進める(同席/共通の危機/派閥対立)。
     if (npcRelationshipsEnabled(rules)) {
         const agencyRegistry = registryToAgencyLike(registry);
+        ext.npcRelationships = reconcileRelationshipGraph(ext.npcRelationships ?? {}, agencyRegistry);
+        ext.npcMilestones = reconcileNpcMilestones(ext.npcMilestones ?? {}, agencyRegistry);
+        const playerBondReg = registryToPlayerBondLike(registry);
+        ext.playerNpcMilestones = purgeStalePlayerBondMilestones(
+            ext.playerNpcMilestones ?? {},
+            playerBondReg,
+            state.worldTurn
+        );
         const evolved = evolveRelationships({
             registry: agencyRegistry,
             positions: ext.npcPositions ?? {},
@@ -221,7 +237,6 @@ export function tickLivingWorldAfterSim(
         }
 
         // LW3-P: あなたの絆 — disposition の閾値越えでプレイヤー↔NPC の転機を一度だけ発火。
-        const playerBondReg = registryToPlayerBondLike(registry);
         const playerBonds = detectPlayerBondEvents({
             registry: playerBondReg,
             milestones: ext.playerNpcMilestones ?? {},
@@ -367,8 +382,14 @@ export function buildLivingWorldGmLines(
     // LW3-W: 紹介効果 — 盟友の playerTrust がペナルティ付きで伝播し、
     // whereabouts の精度(exact/approximate/unknown)が引き上がる(太閤の紹介状)。
     const baseRegistryLike = registryToAgencyLike(registry);
+    const factionReputation: Record<string, number> = {};
+    for (const [factionId, factionState] of Object.entries(state.factions ?? {})) {
+        if (typeof factionState.playerReputation === 'number') {
+            factionReputation[factionId] = factionState.playerReputation;
+        }
+    }
     const promptRegistryLike = npcRelationshipsEnabled(rules)
-        ? applyIntroductionTrustBoost(baseRegistryLike, ext.npcRelationships ?? {})
+        ? applyIntroductionTrustBoost(baseRegistryLike, ext.npcRelationships ?? {}, factionReputation)
         : baseRegistryLike;
 
     const blocks = buildLivingWorldPromptBlocks({

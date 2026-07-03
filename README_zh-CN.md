@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.33.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -213,7 +213,7 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 ### 8. SillyTavern 兼容与 Workshop
 
 - 通过上述命令或 Webview 导入 ST 角色与 lorebook。详见 [`SILLYTAVERN_COMPAT.md`](SILLYTAVERN_COMPAT.md)
-- 导出并验证场景包可生成 Workshop 用 ZIP（v1.8+ 计划调研市场上架）
+- 导出并验证场景包可生成 Workshop 用 ZIP（市场发布调研中）
 
 ### 9. 模型与 ComfyUI 预设
 - [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — 从 `presets/` 复制 JSON
@@ -237,21 +237,26 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-**已实现（v1.7.1）**
+> **版本正本：** `package.json`（当前 **1.33.0**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任务看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
-- v1.3：World Forge / Living World / Emergent Simulation / ComfyUI 集成
-- v1.5：Visual Memory / Soulgaze（VLM 队列、GM 提示注入、画廊联动）
-- v1.6：Audit Wave（T1〜T8）— 验证模块、Remote Play 再审计、ST Import 加固
-- v1.6.2：Remote Play **签名媒体 URL**（HMAC short-TTL）
-- v1.6.3：Region **x / y / biome**、Mermaid biome 样式、World Map 平移缩放
-- v1.7：Cartography ComfyUI 流水线 + World 标签页 **Diagram / Parchment** + 图钉叠加
-- v1.7.1：Cartography 路径验证、layout 冒烟测试、workflow 契约、README/DEMO 更新
+**已实现（v1.33.0 摘要）**
 
-**计划中（v1.8+）**
+| 世代 | 主要内容 |
+|------|----------|
+| **v1.3–1.7** | World Forge / 涌现模拟 / Visual Memory / Audit Wave / Cartography |
+| **v1.10–1.11** | Quest Board（Event-to-Quest）· Agentic GM · Git Timeline · Adaptive TTS |
+| **v1.13–1.18** | Tile Overmap · Cartography C8/C9 · Debug sandbox · 世界时间推进 |
+| **v1.19–1.21** | Chronicle · Pacing Director · 派系声望 · 旅途遭遇 · Replay Export |
+| **v1.23–1.33** | Living World 经济（Commerce / Agency）· Commerce UI · 信任联动位置 · **LW3 羁绊** |
 
-- **Event-to-Quest** — 将世界模拟事件转为可玩任务钩子
-- VLM / Visual Memory 运维质量提升
-- Workshop 分发与市场发布调研
+详见 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) 与 `sample-scenarios/trade-routes`。
+
+**计划中**
+
+- README / DEMO 截图与 GIF 更新
+- Overmap 图像瓦片、hazard 单行 GM 注入
+- Prompt budget 优先级滑动（长会话）
+- Workshop / 市场发布调研
 
 ---
 

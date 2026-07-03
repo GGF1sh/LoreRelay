@@ -215,13 +215,14 @@ DF/CDDA 風のタイルオーバーマップ表示モード。「GM に読ませ
 
 設計正本: `docs/COMMERCE_AND_AGENCY_BRIEF.md`（§0 世界ファースト）
 
-| ID | 機能 | 推奨 Ver（実装時） |
-|----|------|-------------------|
-| **LW-W1** | 動く世界の深化（シム→可視化・GM Since last visit） | **1.20.0** |
-| **LW1** | Commerce（貿易・輸送・相場） | **1.21.0** |
-| **LW2** | NPC Agency（世界/経済への**反応**として移動） | **1.22.0** |
+| ID | 機能 | Ver | 状態 |
+|----|------|-----|------|
+| **LW-W1** | 動く世界の深化（シム→可視化・GM Since last visit） | 1.20.0 | ✅ |
+| **LW1** | Commerce（貿易・輸送・相場） | 1.21.0 | ✅ |
+| **LW2** | NPC Agency + trust 所在 + Commerce UI | 1.22–1.27 | ✅ |
+| **LW3** | NPC↔NPC / プレイヤー↔NPC 絆、世界波及、交易還元 | 1.29–1.33 | ✅ |
 
-**推奨実装順:** LW-W1 → LW1 → LW2（F1/F2 が先にあると Chronicle が効く）。
+**次（LW4+ 候補）:** 絆マイルストーン統合タイムライン · ally/friction 噂の強化 · Workshop デモ GIF
 
 ### トラック C — Parallel polish（Ver 単独では上げない）
 
@@ -239,6 +240,6 @@ DF/CDDA 風のタイルオーバーマップ表示モード。「GM に読ませ
 | **LW1 + F3 同梱など** | **1.21.0** |
 | パッチ・i18n のみ | **1.x.y** パッチ |
 
-> 設計だけでは `package.json` は **1.18.0 のまま**。実装マージ時にマイナー繰上（Cartography C9→1.16、Debug→1.17–1.18 と同型）。
+> **現行 `package.json`:** **1.33.0**（2026-07-03）。設計 doc のみでは Ver を上げないルールは継続。
 
 **Planning handoff:** `phase8_planning_and_prompts.md`（Phase 8-11 の担当AI別プロンプト）

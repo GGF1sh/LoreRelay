@@ -1,11 +1,26 @@
 // Pure Living World turn-op helpers (no vscode/fs).
 
 import type { GameState } from './types/GameState';
-import type { CommerceForge, PlayerCommerceState, PlayerRole } from './livingWorldTypes';
+import type { CommerceForge, MarketStateMap, PlayerCommerceState, PlayerRole, TradeOp } from './livingWorldTypes';
 import { resolveDefaultPlayerRole } from './livingWorldCommerceUiCore';
-import { cargoWeight } from './commerceCore';
+import { cargoWeight, computePerLocationTradeCreditsDelta } from './commerceCore';
 import { computeFoodConsumption, resolveTransportForTheme } from './transportCore';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
+import {
+    batchPlayerBondTradeAdjustments,
+    type PlayerBondRegistryLike,
+    type PlayerBondMilestoneMap,
+} from './playerBondCore';
+
+/** Canonical turn-op phase order (commerce → agency → relationships). */
+export const LIVING_WORLD_TURN_PHASES = ['commerce', 'npc_agency', 'relationship'] as const;
+export type LivingWorldTurnPhase = typeof LIVING_WORLD_TURN_PHASES[number];
+
+/** Sort arbitrary phase lists into canonical pipeline order. */
+export function sortLivingWorldTurnPhases(phases: LivingWorldTurnPhase[]): LivingWorldTurnPhase[] {
+    const order = new Map(LIVING_WORLD_TURN_PHASES.map((phase, index) => [phase, index]));
+    return [...phases].sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99));
+}
 
 export function getOrInitPlayerCommerce(
     state: GameState,
@@ -51,4 +66,35 @@ export function applyTravelFoodConsumption(
         ...gameState,
         commerce: { ...playerCommerce, food: foodAfter },
     };
+}
+
+/** LW3-P2: batch bond trade adjustments after all trade ops in a turn complete. */
+export function resolveBondTradeBatchAdjustment(input: {
+    milestones: PlayerBondMilestoneMap;
+    registry: PlayerBondRegistryLike;
+    npcAtLocation: Record<string, string | undefined>;
+    commerce: CommerceForge;
+    markets: MarketStateMap;
+    playerCommerce: PlayerCommerceState;
+    tradeOps: TradeOp[];
+}): number {
+    const locationDeltas = computePerLocationTradeCreditsDelta(
+        input.commerce,
+        input.markets,
+        input.playerCommerce,
+        input.tradeOps
+    );
+    const entries = Object.entries(locationDeltas).map(([locationId, creditsDelta]) => ({
+        locationId,
+        creditsDelta,
+    }));
+    if (entries.length === 0) {
+        return 0;
+    }
+    return batchPlayerBondTradeAdjustments({
+        milestones: input.milestones,
+        registry: input.registry,
+        npcAtLocation: input.npcAtLocation,
+        locationDeltas: entries,
+    }).totalAdjustment;
 }

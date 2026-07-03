@@ -185,3 +185,38 @@ export function deepestMilestone(
     }
     return undefined;
 }
+
+/** Drop milestone history for pairs that reference NPCs no longer in the registry. */
+export function reconcileNpcMilestones(
+    milestones: NpcMilestoneMap,
+    registry: RelationshipRegistryLike
+): NpcMilestoneMap {
+    const allowed = new Set(Object.keys(registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP));
+    const next = cloneMilestones(milestones);
+    for (const key of Object.keys(next)) {
+        const pair = splitPairKey(key);
+        if (!pair || !allowed.has(pair[0]) || !allowed.has(pair[1])) {
+            delete next[key];
+        }
+    }
+    return next;
+}
+
+/** Remove milestone records involving a specific removed NPC. */
+export function cascadeNpcRemovalFromMilestones(
+    milestones: NpcMilestoneMap,
+    removedNpcId: string
+): NpcMilestoneMap {
+    const next = cloneMilestones(milestones);
+    for (const key of Object.keys(next)) {
+        const pair = splitPairKey(key);
+        if (!pair) {
+            delete next[key];
+            continue;
+        }
+        if (pair[0] === removedNpcId || pair[1] === removedNpcId) {
+            delete next[key];
+        }
+    }
+    return next;
+}

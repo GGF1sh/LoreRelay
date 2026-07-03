@@ -358,9 +358,15 @@ export interface IntroductionBoostEntry {
  * 例: Elda(trust 80) と盟友の Marcus(trust 30) → Marcus は実効 55 に。
  * whereabouts の精度計算にこの戻り値を渡すと「紹介で会いに行ける」が成立する。
  */
+/** When faction rep is already allied, dampen introduction trust stacking. */
+export const FACTION_ALLIED_REP_MIN = 60;
+export const FACTION_INTRO_TRUST_DAMPEN = 0.5;
+export const MAX_EFFECTIVE_PLAYER_TRUST = 100;
+
 export function applyIntroductionTrustBoost<T extends IntroductionBoostEntry>(
     registry: Record<string, T>,
-    relationships: NpcRelationshipMap
+    relationships: NpcRelationshipMap,
+    factionReputation?: Record<string, number>
 ): Record<string, T & { introducedBy?: string }> {
     const ids = Object.keys(registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP);
     const out: Record<string, T & { introducedBy?: string }> = {};
@@ -381,10 +387,58 @@ export function applyIntroductionTrustBoost<T extends IntroductionBoostEntry>(
             }
         }
         if (best && best.trust > (base ?? -Infinity)) {
-            out[id] = { ...out[id], playerTrust: Math.max(0, Math.min(100, Math.round(best.trust))), introducedBy: best.via };
+            const baseTrust = base ?? 0;
+            let effective = Math.round(best.trust);
+            const factionId = registry[id]?.factionId;
+            const factionRep = factionId ? factionReputation?.[factionId] : undefined;
+            if (
+                typeof factionRep === 'number'
+                && factionRep >= FACTION_ALLIED_REP_MIN
+                && effective > baseTrust
+            ) {
+                const introOnly = effective - baseTrust;
+                effective = baseTrust + Math.round(introOnly * FACTION_INTRO_TRUST_DAMPEN);
+            }
+            effective = Math.max(0, Math.min(MAX_EFFECTIVE_PLAYER_TRUST, effective));
+            out[id] = { ...out[id], playerTrust: effective, introducedBy: best.via };
         }
     }
     return out;
+}
+
+/** Remove relationship edges that reference NPCs no longer in the registry. */
+export function reconcileRelationshipGraph(
+    relationships: NpcRelationshipMap,
+    registry: RelationshipRegistryLike
+): NpcRelationshipMap {
+    const allowed = new Set(namedIds(registry));
+    const next: NpcRelationshipMap = {};
+    for (const [key, affinity] of Object.entries(relationships)) {
+        const pair = splitPairKey(key);
+        if (!pair) { continue; }
+        if (!allowed.has(pair[0]) || !allowed.has(pair[1])) { continue; }
+        if (typeof affinity === 'number' && Number.isFinite(affinity)) {
+            next[key] = affinity;
+        }
+    }
+    return next;
+}
+
+/** Prune all relationship/milestone data involving a removed NPC (death, archive, etc.). */
+export function cascadeNpcRemovalFromGraph(
+    relationships: NpcRelationshipMap,
+    removedNpcId: string
+): NpcRelationshipMap {
+    const next: NpcRelationshipMap = {};
+    for (const [key, affinity] of Object.entries(relationships)) {
+        const pair = splitPairKey(key);
+        if (!pair) { continue; }
+        if (pair[0] === removedNpcId || pair[1] === removedNpcId) { continue; }
+        if (typeof affinity === 'number' && Number.isFinite(affinity)) {
+            next[key] = affinity;
+        }
+    }
+    return next;
 }
 
 const RELATIONSHIP_LABEL_JA: Record<NpcRelationshipLabel, string> = {

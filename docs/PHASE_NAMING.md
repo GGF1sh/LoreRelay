@@ -69,12 +69,13 @@ LoreRelay には **独立した番号体系** がある。
 
 | ID | 名称 | 状態 | 想定 Ver |
 |----|------|------|----------|
-| **D1** | Domain Core（stats・月次行動・validate） | 設計済・未実装 | 1.39.0 |
+| **D1** | Domain Core + balance harness | 設計済・未実装 | 1.39.0 |
+| **D1b** | Domain Events（前倒し） | 設計済・未実装 | 1.39.0 |
 | **D1.5** | Domain + Time + Chronicle | 設計済・未実装 | 1.39.0 |
 | **D2** | Domain Prompt + `domainOps` | 設計済・未実装 | 1.39.0 |
 | **D3** | Domain UI（World タブ） | 設計済・未実装 | 1.40.0 |
-| **D4** | Domain Events + Commerce 接続 | 設計済・未実装 | 1.41.x |
-| **D5** | Officers + NPC 任命 | 設計済・未実装 | 1.41.x |
+| **D4** | Commerce 境界 + 留守ドリフト | 設計済・未実装 | 1.41.x |
+| **D5** | Officers via Bond + Council | 設計済・未実装 | 1.41.x |
 
 前提: Campaign モード · `enableDomainMode` 既定 **OFF** · 三層時計（`WORLD_TIME_PASSAGE_IDEA.md` §C）準拠。
 

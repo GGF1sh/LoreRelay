@@ -1,7 +1,7 @@
 # Domain Mode — 領地運営レイヤー設計（Lordship / Fief Management）
 
 > **ID:** **D1–D5**（Domain サブトラック）— Living World（LW*）・Fable5（F*）・Cartography（C*）とは別軸。命名は `docs/PHASE_NAMING.md` を参照。  
-> **Status:** **設計ドラフト（実装前）** — v1.38.0 時点  
+> **Status:** **設計 v2（レビュー反映）** — v1.38.0 時点 · Claude レビュー 2026-07-03 反映
 > **対象読者:** 実装担当（Grok / Codex / Claude Code）· レビュー（ChatGPT / Gemini）· 次セッション AI  
 > **前提ドキュメント:** `docs/COMMERCE_AND_AGENCY_BRIEF.md` · `docs/WORLD_TIME_PASSAGE_IDEA.md` §C · `docs/PARLOR_MODE_DESIGN.md` · `WORLD_SYSTEM_DESIGN.md`  
 > **一行:** LoreRelay の既存ワールド資産の上に、**任意 ON の領主プレイ層**を載せる。数値は骨格・イベント確率、物語は AI GM。太閤立志伝 **II 程度**の軽さで始め、ガチ SLG にはしない。
@@ -17,7 +17,9 @@
 | World Forge | 国・`regions`・`locations`・`factions` | `controlledRegionId` の正本 |
 | World State | `worldTurn`・派閥・`recentChanges`・市場 | 隣国情勢・月次 tick の入力 |
 | NPC Registry | 名あり NPC ≤10 | 家臣・商人・使者の候補 |
+| LW3 Bonds | `npcRelationshipCore` · `playerBondCore` · `npcLifeEventsCore` | 家臣忠誠・離反マイルストーン（**D5 は別 loyalty テーブルにしない**） |
 | Faction Reputation | `factionReputationCore` | 隣国・商会・宗教との関係 |
+| Since-last-visit | `livingWorldBridge` · `buildSinceLastVisitLines` | 留守中の領地変化報告（§9.1） |
 | Commerce (LW1) | `commerce` / `tradeOps` | 領地 `commerce` stat → 月次収支・市場への軽い接続 |
 | Travel / Layer B | `elapsedWorldTurns` · `planTravel` | **月次コミット**の時間軸 |
 | Chronicle | `chronicleCore` | 「◯年春、領主は農地開発を命じた」 |
@@ -61,6 +63,16 @@
 1. **数値・在庫・イベント抽選は決定論 Core** — `domainCore.ts`（vscode/fs なし）
 2. **GM/LLM は narration 専任** — narration からの月次行動自動パースは Non-Goal（v1）
 3. **明示コミットで時間が進む** — 会話の Exchange 数 ≠ 経過月数（`WORLD_TIME_PASSAGE_IDEA.md` §C 準拠）
+4. **面白さの重心は stat 育成ではなくイベント連鎖** — 数値はイベント重み用。プレイヤーが体感するのは物語（§1.4）
+
+### 1.4 設計リスクと対策（Claude レビュー 2026-07-03）
+
+| リスク | 内容 | 対策 |
+|--------|------|------|
+| **乾いた表計算** | 月2行動 × +2〜+3 だと stat 100 到達に 15〜25 ヶ月。1領地のみだと「薄い資源ティック」化 | **イベント連鎖を主役**に。stat は重みのみ。D4 を D1 直後に前倒し |
+| **バランス未検証** | UI 前に「数値が生きてるか」分からない | D1 で **`domain_balance_harness.js`**（固定戦略12ヶ月シミュ・軌道 print） |
+| **二重帳簿** | `treasury` vs `commerce.credits` | v1 は treasury 正本。**境界が試されるのは D4**（商人支払い）— §6.1 参照 |
+| **プロンプト肥大** | Domain + LW + Commerce + Bonds 同時注入 | D2 で **compact モード**（pending 0・officer 0 時は3行サマリのみ） |
 
 ---
 
@@ -196,12 +208,7 @@ OFF 時: `domain` キーが `game_state` にあっても読まない・表示し
     "monthlyActionsRemaining": 2,
     "lastCommitWorldTurn": 90,
     "officers": [
-      {
-        "npcId": "sayo",
-        "role": "steward",
-        "loyalty": 72,
-        "skill": 58
-      }
+      { "npcId": "sayo", "role": "steward", "skill": 58 }
     ],
     "pendingEvents": [],
     "flags": {}
@@ -212,19 +219,20 @@ OFF 時: `domain` キーが `game_state` にあっても読まない・表示し
 | フィールド | 型 | 説明 |
 |------------|-----|------|
 | `controlledRegionId` | string | World Forge `geography.regions[].id` |
-| `rank` | enum | `minor_lord` \| `baron` \| `count`（v1 は表示・プロンプト用） |
+| `rank` | enum | `minor_lord` \| `baron` \| `count` — **進行軸**（§9.4）。`prestige` 閾値で叙任 |
 | `calendarMonth` / `calendarYear` | number | 領地暦（Chronicle 表示用。`worldTurn` とは別ラベル可） |
 | `treasury` / `food` / `troops` | number | 0–9999（clamp） |
 | `publicOrder` … `prestige` | number | 0–100（clamp） |
 | `monthlyActionsRemaining` | number | 今月残り行動枠。月次コミットでリセット |
-| `officers` | array | D5。最大 5 人 |
+| `officers` | array | D5。最大 5 人。**`npcId` + `role` のみ** — 忠誠は `playerBondCore` / disposition から読む |
 | `pendingEvents` | array | Core が積んだ次月持ち越しイベント id |
 | `flags` | object | ストーリー用ブール（例: `borderTension`） |
 
-**Commerce との関係（v1）:**
+**Commerce との関係（v1 / D4 境界）:**
 
-- 領地 `treasury` と `commerce.credits` は **別フィールド**（二重帳簿を避けるため v1 は `treasury` 正本）。
-- 月次収支で `treasury` ±N。Commerce ON 時は「領地商業 → 市場在庫回復ボーナス」程度の軽い接続のみ（D4 以降）。
+- 領地 `treasury` と `commerce.credits` は **別フィールド**（v1 は `treasury` 正本）。
+- 月次収支で `treasury` ±N。Commerce ON 時は「領地商業 → 市場在庫回復ボーナス」程度の軽い接続のみ。
+- **D4 で必ず決める:** 商人 NPC がプレイヤーに支払う場面は `tradeOps` → `commerce.credits` か、領庫入金 → `treasury` か。v1 推奨: **個人商取引 = credits、領地税・徴収・月次収入 = treasury**。GM プロンプトに1行明記。
 
 ### 6.2 `world_forge.json` 拡張（任意・D4）
 
@@ -285,9 +293,22 @@ interface DomainOps {
 
 ---
 
-## 8. イベント（v1 — 重み付き抽選）
+## 8. イベント（v1 — 主役レイヤー）
+
+**設計原則（イベント・ファースト）:** プレイヤーが月次コミット後に「何が起きたか」を narration で受け取るのが主体験。stat +2 は裏方。1領地・ライバル大名なしの v1 では、**毎月最低1件は domain イベント候補を GM に渡す**（重み0でも `domain_quiet_month` など雰囲気イベント可）。
 
 数値は **イベント確率と GM プロンプト** に効かせる。フルシミュにはしない。
+
+### 8.1 季節効果（`calendarMonth`）
+
+| 季節 | 月 | 効果 |
+|------|-----|------|
+| 春 | 3–5 | `agriculture` 行動ボーナス +1 |
+| 夏 | 6–8 | 基準 |
+| 秋 | 9–11 | 収穫: `food` +、`bad_harvest` 重み DOWN |
+| 冬 | 12, 1–2 | `food` 月次 -N（兵・民食）、`festival` 重み UP |
+
+ほぼタダで `food` stat に意味が生まれる。`domainCore` 内で決定論。
 
 | id | トリガー傾向 | GM への効き |
 |----|-------------|-------------|
@@ -295,7 +316,7 @@ interface DomainOps {
 | `merchant_visit` | `commerce` 高 | 交易機会・NPC 来訪 |
 | `bandit_activity` | `publicOrder` 低 | 盗賊イベント |
 | `neighbor_militarize` | `defense` 低 / 隣国 danger 高 | 国境不穏 |
-| `officer_discontent` | 家臣 `loyalty` 低 | 家臣イベント |
+| `officer_discontent` | 家臣の **player bond** が `rival` 以下 / `npcLifeEventsCore` 離反マイルストーン | 家臣イベント（別 loyalty 数値は使わない） |
 | `petition` | `popularSupport` 低 | 領民陳情 |
 | `trade_route_disruption` | `commerce` 中・世界イベント | 収入減 |
 | `rumor_mill` | `intelligence: gather_rumors` | 隣国噂（FoW は変えない） |
@@ -316,13 +337,71 @@ Chronicle 例:
 
 | 既存 | 統合方針 |
 |------|----------|
-| **Commerce** | 領地 `commerce` stat が高いと `tickMarketRecovery` ボーナス（D4）。v1 は収支のみ |
+| **Commerce** | 領地 `commerce` stat が高いと `tickMarketRecovery` ボーナス（D4）。個人/領庫の財布境界は §6.1 |
 | **NPC Agency** | 商人来訪・密使は `npcAgencyOps` と連動可（GM 確定後） |
 | **Faction Reputation** | `diplomacy` 行動 → `factionReputation` delta（既存 Core 再利用） |
 | **Chronicle** | `kind: 'domain'` イベント追加 |
 | **In-World Chat** | `buildInWorldContextBlock` に `[Domain summary]` 1 段落（参照のみ） |
 | **`playerRole: ruler`** | Domain ON 時は `[Living World — Ruler]` を `[Domain — …]` に置換または併記 |
 | **Replay Export** | `domain` は `pick*ForWebview` 同様、公開サブセットのみ |
+
+### 9.1 留守中ドリフト（Living World 北極星 — **本丸接続**）
+
+プレイヤーが冒険で領地を離れている間、任命済み **steward（代官）** が月次相当の軽い tick を回す（全 stat ではなく **イベント重み + treasury/food 微変動**）。
+
+帰還時は既存 **Since-last-visit** パイプに `category: 'domain'` を足す:
+
+```
+[Living World — Since last visit]
+Domain (90 turns away): While you were abroad, Steward Sayo collected taxes (+40 treasury).
+                        Bandit activity increased (public order -5). [domain:bandit_activity]
+```
+
+| 項目 | 仕様 |
+|------|------|
+| スナップショット | `domainSnapshotAtDepart`（location 退出時または月次コミット時） |
+| 差分計算 | `computeSinceLastDomainVisitDelta()` — `worldSimCommerceCore` 同型の純関数 |
+| GM 注入 | `buildLivingWorldGmLines` または `[Domain — …]` にマージ |
+| 黄金律 | 留守 tick も **決定論 Core**。GM は報告のみ |
+
+→ Domain が独立 SLG ではなく **「世界は君がいなくても動く」の領地版** になる。
+
+### 9.2 家臣 = Bond 接続（D5 設計変更）
+
+別テーブルの `loyalty` は **廃止**。家臣は Registry の `npcId` + `role` のみ保持。
+
+| 用途 | ソース |
+|------|--------|
+| 忠誠・好感 | `playerBondCore` / `world_state` player↔NPC disposition |
+| 家臣同士の関係 | `npcRelationshipCore`（評定の対立・連帯） |
+| 決定的転機 | `npcLifeEventsCore`（裏切り・誓いのマイルストーン） |
+| `officer_discontent` | bond が `rival` 以下、または life event `betrayal` 到達 |
+
+`appoint_officer` は Registry に存在する `npcId` のみ。評定 council 行（§10.3）は Registry の `personality` を1行要約。
+
+### 9.3 月次評定（Council）注入
+
+`monthly_commit` 確定ターンのみ、任命済み officer ごとに **立場から1行** を GM プロンプトへ（最大5行）:
+
+```
+[Domain — Council]
+Sayo (steward): Worried about treasury after fortify last month.
+Marcus (marshal): Recommends training troops before border rumors spread.
+```
+
+既存 NPC メタデータの再利用。LLM 生成ではない（テンプレ + stat 閾値）。
+
+### 9.4 Rank / Prestige 進行軸
+
+4X 化せず **細い1本の目的** を与える:
+
+| `prestige` | 効果 |
+|------------|------|
+| 0–29 | `minor_lord` |
+| 30–59 | `baron` 叙任イベント解禁 · `monthlyActions` +0（将来+1は D4 以降検討） |
+| 60+ | `count` · 隣国外交イベント重み UP |
+
+叙任時: GM が式典を narrate（数値は Core が `rank` を更新）。勝敗のない sandbox に「方向性」だけ足す。
 
 ---
 
@@ -337,7 +416,7 @@ Treasury 320 · Food 800 · Troops 120
 Public order 62 · Popular support 55
 Agriculture 48 · Commerce 41 · Defense 36
 Monthly actions remaining: 2
-Officers: Sayo (steward, loyalty 72)
+Officers: Sayo (steward, bond: trusted)
 Pending: border_tension_rumor
 Guidance: Stats are canonical. Narrate mood and NPC reactions only.
           Monthly policy changes require turn_result.domainOps (monthly_commit).
@@ -346,6 +425,16 @@ Guidance: Stats are canonical. Narrate mood and NPC reactions only.
 
 - チャンク id: `domain`、priority: **67**（`worldState` 68 の直下）
 - `enableDomainMode` OFF または `domain` 未初期化時は空
+
+### 10.3 Compact モードと評定
+
+| 条件 | 注入 |
+|------|------|
+| `pendingEvents.length === 0` かつ officers 0 | 3行サマリのみ（treasury/food/troops + month） |
+| `monthly_commit` ターン | フルブロック + `[Domain — Council]`（§9.3） |
+| 通常会話ターン | コンパクト + pending イベントあれば1行 |
+
+LW + Commerce + Bonds と併用時は **prompt budget eviction** で domain は worldState より先に落ちる設計（priority 67）。compact を既定にしフルはコミット時のみ。
 
 ### 10.2 プロンプト行（Core 定数）
 
@@ -380,22 +469,31 @@ export const DOMAIN_OPS_PROMPT_LINE =
 
 ---
 
-## 12. 実装フェーズ
+## 12. 実装フェーズ（v2 — イベント前倒し）
 
-### Phase D1: Domain Core
+**推奨順序（Claude 合意）:** D1 Core + harness → **D1b Events** → D1.5 Time → D2 Prompt → D3 UI → D4 Commerce 境界 → D5 Bond Officers
+
+### Phase D1: Domain Core + Balance Harness
 
 | 項目 | 内容 |
 |------|------|
-| ファイル | `src/domainCore.ts` · `scripts/test_domain_core.js` |
-| 関数 | `validateDomain` · `defaultDomainState` · `resolveMonthlyActions` · `applyDomainDelta` · `rollDomainEvents` · `parseDomainOps` |
-| 受け入れ | 月次2行動で決定論 delta · clamp · 負の treasury で food 消費ペナルティ等 · テスト 20+ |
+| ファイル | `src/domainCore.ts` · `scripts/test_domain_core.js` · **`scripts/domain_balance_harness.js`** |
+| 関数 | `validateDomain` · `defaultDomainState` · `resolveMonthlyActions` · `applyDomainDelta` · `parseDomainOps` · `seasonalModifiers` |
+| 受け入れ | 月次2行動で決定論 delta · clamp · テスト 20+ · harness が12ヶ月軌道を stdout |
+
+### Phase D1b: Domain Events（**前倒し** — 旧 D4 の核）
+
+| 項目 | 内容 |
+|------|------|
+| ファイル | `domainCore.ts` に `rollDomainEvents` · `applySeasonalEffects` |
+| 受け入れ | 毎月コミット後にイベント id 決定論抽出 · `agriculture` 低 → `bad_harvest` 重み UP · 冬の food ドレイン |
 
 ### Phase D1.5: Domain + Time + Chronicle
 
 | 項目 | 内容 |
 |------|------|
 | ファイル | `src/domainTurnOps.ts` · `chronicleCore.ts` 拡張 |
-| 内容 | `monthly_commit` → `elapsedWorldTurns` + `domain` 更新 + Chronicle 1 行 |
+| 内容 | `monthly_commit` → `elapsedWorldTurns` + `domain` 更新 + Chronicle 1 行 + **イベント結果** |
 | 受け入れ | 会話のみのターンで `domain` 不変 · 月次コミットで `calendarMonth` +1 |
 
 ### Phase D2: Domain Prompt + turn_result
@@ -403,8 +501,8 @@ export const DOMAIN_OPS_PROMPT_LINE =
 | 項目 | 内容 |
 |------|------|
 | ファイル | `src/domainBridge.ts` · `gmPromptBuilder.ts` · `agenticGmCore.ts` |
-| 内容 | `[Domain — …]` · `DOMAIN_OPS_PROMPT_LINE` · Referee 契約 |
-| 受け入れ | GM プロンプトに領地ブロック · `domainOps` パース・merge |
+| 内容 | `[Domain — …]` compact/フル · `DOMAIN_OPS_PROMPT_LINE` · **Council 行** · Referee 契約 |
+| 受け入れ | OFF 時空 · コミット時 Council · `domainOps` パース・merge |
 
 ### Phase D3: Domain UI
 
@@ -413,19 +511,19 @@ export const DOMAIN_OPS_PROMPT_LINE =
 | ファイル | `worldView.ts` · `webview/modules/85-world.js` · i18n 4 言語 |
 | 受け入れ | OFF 時パネル非表示 · 数値が `game_state` と一致 |
 
-### Phase D4: Domain Events + Commerce 接続
+### Phase D4: Commerce 境界 + 留守ドリフト
 
 | 項目 | 内容 |
 |------|------|
-| 内容 | `eventTable` · 市場ボーナス · `pendingEvents` |
-| 受け入れ | `agriculture` 低で `bad_harvest` 重み UP（決定論テスト） |
+| 内容 | treasury/credits ルール明文化 · 市場ボーナス · **`computeSinceLastDomainVisitDelta`**（§9.1） |
+| 受け入れ | 離脱→再訪で domain delta が GM プロンプトに出る · 商人支払いは credits |
 
-### Phase D5: Officers + NPC
+### Phase D5: Officers via Bond（設計変更）
 
 | 項目 | 内容 |
 |------|------|
-| 内容 | `appoint_officer` · Registry `npcId` 紐付け · 忠诚度 |
-| 受け入れ | 家臣5人上限 · 低 loyalty で `officer_discontent` |
+| 内容 | `appoint_officer` · **playerBond / lifeEvents** 連動 · 評定 council テンプレ |
+| 受け入れ | 家臣5人 · `officer_discontent` = bond マイルストーン · 別 loyalty フィールドなし |
 
 **想定 Ver:** D1–D2 → **1.39.0**、D3 → **1.40.0**、D4–D5 → **1.41.x**（出荷時に調整）
 
@@ -448,9 +546,11 @@ export const DOMAIN_OPS_PROMPT_LINE =
 
 | スクリプト | 検証 |
 |------------|------|
-| `test_domain_core.js` | 行動 resolve · イベント重み · clamp · parseDomainOps |
+| `test_domain_core.js` | 行動 resolve · イベント重み · 季節 · clamp · parseDomainOps |
+| `domain_balance_harness.js` | 固定戦略12ヶ月 · stat 軌道 · イベント頻度（チューニング用・CI 任意） |
 | `test_domain_turn_ops.js` | turn_result 適用 · elapsedWorldTurns 連動 |
-| `test_domain_prompt.js` | プロンプトブロック組立 · OFF 時空 |
+| `test_domain_since_last_visit.js` | 留守ドリフト delta |
+| `test_domain_prompt.js` | compact/フル · Council · OFF 時空 |
 | 既存 `test_chronicle_core.js` 拡張 | `kind: 'domain'` エントリ |
 
 ---
@@ -481,8 +581,25 @@ export const DOMAIN_OPS_PROMPT_LINE =
 
 ---
 
-## 18. AI 申し送り（1行）
+## 18. レビュー履歴
+
+| 日付 | レビュア | 反映 |
+|------|----------|------|
+| 2026-07-03 | Claude | §1.4 リスク · イベント前倒し · balance harness · Bond 家臣 · 留守ドリフト · rank 軸 · 季節 · compact prompt |
+
+---
+
+## 19. AI 申し送り（1行）
 
 ```
-Domain Mode（D1–D5）設計は docs/DOMAIN_MODE_DESIGN.md。v1 は太閤2級・enableDomainMode 既定 OFF・domainOps チャネル・月次=elapsedWorldTurns コミット。実装は domainCore.ts から。
+Domain Mode v2: docs/DOMAIN_MODE_DESIGN.md。D1 domainCore+balance harness → D1b events → D1.5 time。家臣=playerBond、留守=since-last-visit。実装 GO。
 ```
+
+---
+
+## 20. 次アクション
+
+| 選択 | 内容 |
+|------|------|
+| **(B) 推奨** | `domainCore.ts` + `test_domain_core.js` + `domain_balance_harness.js` の D1 spike |
+| (C) 任意 | §9.1 留守ドリフトのみ別メモ `docs/DOMAIN_AWAY_DRIFT_BRIEF.md` に切り出し（他 AI 委譲用） |

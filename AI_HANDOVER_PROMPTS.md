@@ -291,9 +291,40 @@ C:\AI\text-adventure-vsce\AI_HANDOVER_PROMPTS.md を開き、
 
 ---
 
-## 9. 変更履歴
+## 9. Parlor Mode（Phase 12）— Claude 除外・3AI 分担
+
+> **2026-07-03:** Claude が 5h 制限のため、Parlor Mode は **Gemini / ChatGPT / Grok** のみで進める。  
+> 設計正本: `docs/PARLOR_MODE_DESIGN.md` · プロンプト正本: `docs/PARLOR_MODE_AI_PROMPTS.md`
+
+### 推奨実行順序（Claude なし）
+
+```
+Gemini + ChatGPT（並列・文案/監査）
+    ↓
+Grok（Phase A 実装）
+    ↓
+ChatGPT（ゲート）+ Gemini（README 整合）
+    ↓
+Grok（修正・push）
+```
+
+### ユーザー操作
+
+| 手順 | AI | 貼るもの |
+|------|-----|---------|
+| 1 | **Gemini** | `docs/PARLOR_MODE_AI_PROMPTS.md` §1 必読 + §2 |
+| 2 | **ChatGPT** | 同 §1 必読 + §3 フェーズ1 |
+| 3 | **Grok** | 同 §1 必読 + §4 |
+| 4 | **ChatGPT** | §3 フェーズ3（Grok 完了後） |
+
+共通の最初の一文は `docs/PARLOR_MODE_AI_PROMPTS.md` §5 を参照。
+
+---
+
+## 10. 変更履歴
 
 | 日付 | 内容 |
 |------|------|
 | 2026-06-26 | 初版作成（v0.3.2 基準、Phase 2B 着手用） |
 | 2026-06-29 | v1.7.3 へ全面更新、UTF-8 文字化け解消、Phase 8 へ差し替え |
+| 2026-07-03 | Phase 12 Parlor Mode セクション追加（Claude 除外・3AI 分担） |

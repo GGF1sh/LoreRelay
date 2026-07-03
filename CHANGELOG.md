@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Docs
+
+- **Phase 12 Parlor Mode** — `docs/PARLOR_MODE_DESIGN.md`（Parlor ⟷ Campaign 体験プロファイル）· `docs/PARLOR_MODE_AI_PROMPTS.md`（Gemini/ChatGPT/Grok 振り分け、Claude 除外）
+
 ### Fixed（Gemini LW3-P2 レビュー対応）
 
 - **多拠点 trade 絆調整のバッチ化** — `batchPlayerBondTradeAdjustments()` / `computePerLocationTradeCreditsDelta()` で市場単位に集約（`playerBondCore.ts`, `livingWorldTurnOps.ts`）。

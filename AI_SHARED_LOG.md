@@ -12,7 +12,22 @@
 | Living World | **v1.23–1.33** — Commerce / Agency / LW3 絆 / プレイヤー絆 / 交易還元（batch） |
 | Tests | `npm test` **82/82** |
 | Docs hygiene | README 4言語 Roadmap・バッジを 1.33.0 に同期（本エントリ） |
-| Next (推奨) | `git tag v1.33.0 && git push origin v1.33.0` · `testing_checklist.md` §9b–9c |
+| Next (推奨) | Phase 12 Parlor Mode Phase A（Grok）· `git tag v1.33.0` は任意 |
+
+---
+
+## 2026-07-03 JST - Grok - Phase 12 Parlor Mode 設計 doc + 3AI 振り分け
+
+### Summary
+
+- **`docs/PARLOR_MODE_DESIGN.md`** — Parlor ⟷ Campaign 体験プロファイル設計（JSON 不要の 1対1 チャット、vscode-lm 月額 AI 優先、1クリック昇格/降格、Phase A–C）。
+- **`docs/PARLOR_MODE_AI_PROMPTS.md`** — Gemini（UX/README）· ChatGPT（セキュリティ/PARLOR_SKILL）· Grok（Phase A 実装）のコピー用プロンプト。Claude 5h 制限のため除外。
+- **`AI_ROADMAP.md`** Phase 12 追加 · **`AI_HANDOVER_PROMPTS.md`** §9 追加。
+
+### Next
+
+- ユーザーが Gemini / ChatGPT / Grok に `PARLOR_MODE_AI_PROMPTS.md` を貼って並列着手
+- Phase A 完了時 **v1.34.0** 候補
 
 ---
 

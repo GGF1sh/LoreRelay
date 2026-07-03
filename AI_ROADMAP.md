@@ -243,3 +243,43 @@ DF/CDDA 風のタイルオーバーマップ表示モード。「GM に読ませ
 > **現行 `package.json`:** **1.33.0**（2026-07-03）。設計 doc のみでは Ver を上げないルールは継続。
 
 **Planning handoff:** `phase8_planning_and_prompts.md`（Phase 8-11 の担当AI別プロンプト）
+
+---
+
+## 🟡 Phase 12: Parlor Experience Profile（SillyTavern 的シンプル ⟷ フル CRPG）
+
+*ステータス: 設計完了（2026-07-03）· 実装待ち（Claude 5h 制限 → Grok 担当）*
+
+設計正本: [`docs/PARLOR_MODE_DESIGN.md`](docs/PARLOR_MODE_DESIGN.md)  
+AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.md)（Gemini / ChatGPT / Grok — Claude 除外）
+
+**目的:** 同一拡張内で **Parlor（1対1 RP・JSON 不要）** と **Campaign（現行）** を切替。ST ユーザー入口 + パワーユーザーの「休憩モード」。1クリック昇格/降格。
+
+### Phase A — MVP（v1.34.0 候補）
+
+- [ ] `experience.json` + `parlor_session.json` 契約（`*Core.ts`）
+- [ ] `parlorPromptBuilderCore` + `gmBridgeRunner` Parlor 分岐（vscode-lm 優先）
+- [ ] Webview profile フィルタ（CRPG タブ非表示）
+- [ ] Start Hub「🎭 キャラと話す」
+- [ ] Core テスト + Campaign 回帰 82/82
+
+### Phase B — ST 体験の完成
+
+- [ ] `connection_profiles.json` UI
+- [ ] `TextAdventureGMSkill/PARLOR_SKILL.md`
+- [ ] `persona.json` · 背景ギャラリー
+
+### Phase C — 移行
+
+- [ ] `parlorPromoteCore`（Parlor → Campaign 昇格ウィザード）
+- [ ] Campaign → Parlor 降格 + history インポート
+- [ ] `parlor_archive.ndjson` · 長期 summary
+
+### AI 分担（2026-07-03）
+
+| AI | 担当 |
+|----|------|
+| **Gemini** | README 4言語 · Start Hub 文案 · スクショ計画 · testing_checklist |
+| **ChatGPT** | セキュリティ監査 · PARLOR_SKILL.md · 昇格データ境界 · 実装ゲート |
+| **Grok** | Phase A 実装 · test · CHANGELOG · push |
+| Claude | 5h 制限中 — 復帰後に Phase B UI polish 候補 |

@@ -35,13 +35,22 @@
 
 | Item | Value |
 |------|-------|
-| Package version (`main`) | **1.33.0** |
-| GitHub Release (VSIX) | 最新タグは **v1.28.0** まで確認済み — `v1.33.0` タグ push で Release 更新 |
+| Package version (`main`) | **1.34.0** |
+| GitHub Release (VSIX) | `git push origin v1.34.0` で Release 更新 |
 | Canonical repo path | `C:\AI\text-adventure-vsce` |
-| Living World | **v1.23–1.33** — Commerce / Agency / LW3 絆 / プレイヤー絆 / 交易還元（batch） |
+| Parlor Mode | **Phase A 出荷** — ChatGPT Phase 3 gate 通過（`906e5d4`） |
+| Living World | **v1.23–1.33** + LW3-P2 hardening（1.34.0 同梱） |
 | Tests | `npm test` **84/84** |
-| Docs hygiene | README 4言語 Roadmap・バッジを 1.33.0 に同期（本エントリ） |
-| Next (推奨) | ChatGPT Phase 3 ゲート · `v1.34.0` タグ |
+| Next (推奨) | Phase B: connection_profiles · Promote ウィザード · README Parlor 4言語全文 |
+
+---
+
+## 2026-07-03 JST - ChatGPT + Grok - v1.34.0 Parlor gate + release
+
+### Summary
+
+- ChatGPT Phase 3 gate: **1 High 修正** — `assembleParlorUserPrompt` が末尾切り詰めで safety rules を落とす問題 → 予算配分で system rules / UNTRUSTED / user message を固定保持（`906e5d4`）。
+- Critical/High ブロッカー **0** → **v1.34.0** リリース整理。
 
 ---
 

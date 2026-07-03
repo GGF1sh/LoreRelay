@@ -9,33 +9,29 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- **Parlor prompt budget safety** — 長大なキャラカード/ロア/履歴でプロンプトを切り詰める場合でも、Parlor system rules・プレーンテキスト契約・UNTRUSTED境界・現在のユーザー発言を保持するよう修正（ChatGPT Phase 3 gate）。
+## [1.34.0] - 2026-07-03
 
 ### Added
 
-- **Parlor Mode Phase A** — `experience.json` + `parlor_session.json`、vscode-lm プレーンチャット（Campaign の `turn_result` 経路を使わない）、Start Hub「キャラと話す」、ヘッダー 🎭/⚔️ プロファイル切替、CRPG パネル非表示。Core: `experienceCore` / `parlorSessionCore` / `parlorPromptBuilderCore`。テスト **84/84**。
+- **Parlor Mode Phase A（Phase 12）** — SillyTavern 風の **1対1 RP** とフル **Campaign** を同一拡張内で切替。
+  - `experience.json` + `parlor_session.json`（`turn_result` / `game_state` 非経路）
+  - `vscode-lm` プレーンテキスト応答（月額 AI・API キー不要）
+  - Start Hub「🎭 キャラと話す」、ヘッダー 🎭/⚔️ トグル、Parlor 時 CRPG パネル非表示
+  - Core: `experienceCore` · `parlorSessionCore` · `parlorPromptBuilderCore` · `parlorBridge`
+
+### Fixed
+
+- **Parlor プロンプト予算の安全性** — 巨大キャラ/ロア/履歴でも system rules・plain-text 契約・UNTRUSTED 境界・現在のユーザー発言を必ず保持（ChatGPT Phase 3 gate, `906e5d4`）。
+- **Gemini LW3-P2 レビュー（同梱）** — 交易絆バッチ化、関係グラフ/マイルストーン整合、プレイヤー絆 GC、派閥信頼減衰、LW ターン段階化。
 
 ### Docs
 
-- **Phase 12 Parlor Mode ChatGPT deliverables** — `docs/PARLOR_MODE_CHATGPT_REVIEW.md`（設計段階のセキュリティ監査表・昇格データ境界・実装後ゲート）と `TextAdventureGMSkill/PARLOR_SKILL.md`（Parlor専用のプレーンテキストGM契約ドラフト）を追加。
+- `docs/PARLOR_MODE_DESIGN.md` · `PARLOR_MODE_AI_PROMPTS.md` · `PARLOR_MODE_CHATGPT_REVIEW.md` · `PARLOR_MODE_GEMINI_DELIVERABLES.md`
+- `TextAdventureGMSkill/PARLOR_SKILL.md`
 
-- **Phase 12 Parlor Mode** — `docs/PARLOR_MODE_DESIGN.md`（Parlor ⟷ Campaign 体験プロファイル）· `docs/PARLOR_MODE_AI_PROMPTS.md`（Gemini/ChatGPT/Grok 振り分け、Claude 除外）
+### Verification
 
-### Fixed（Gemini LW3-P2 レビュー対応）
-
-- **多拠点 trade 絆調整のバッチ化** — `batchPlayerBondTradeAdjustments()` / `computePerLocationTradeCreditsDelta()` で市場単位に集約（`playerBondCore.ts`, `livingWorldTurnOps.ts`）。
-- **関係グラフの整合** — `reconcileRelationshipGraph()` / `cascadeNpcRemovalFromGraph()`（`npcRelationshipCore.ts`）。
-- **NPC マイルストーンの整合** — `reconcileNpcMilestones()` / `cascadeNpcRemovalFromMilestones()`（`npcLifeEventsCore.ts`）。
-- **プレイヤー絆マイルストーン GC** — `purgeStalePlayerBondMilestones()` で削除 NPC の残骸を除去（`playerBondCore.ts`）。
-- **派閥紹介信頼の減衰** — `applyIntroductionTrustBoost()` に faction rep ダンピング（`commerceCore.ts`）。
-- **Living World ターン段階化** — `LIVING_WORLD_TURN_PHASES` と `livingWorldTurnOps.ts` のフェーズパイプライン整理。
-
-### Docs
-
-- README 4言語: バッジ・Roadmap を **1.33.0** に同期（v1.7.1 止まり・Event-to-Quest 未実装表記を修正）
-- `docs/VERSION_TRUTH.md` · `AI_SHARED_LOG.md` Current Snapshot · `VSCODE_CHATGPT_CATCHUP.md` · `DEVELOPMENT_TIMELINE.md` · `AI_ROADMAP.md` LW3 完了表 · `docs/FEATURE_MATRIX.md` LW3 行追加
+- `npm run compile` · `npm test` — **84/84**
 
 ## [1.33.0] - 2026-07-03
 

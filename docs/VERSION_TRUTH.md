@@ -20,7 +20,7 @@ LoreRelay には **3 種類の「版」** があり、混同すると Web Grok /
 | [GitHub Releases](https://github.com/GGF1sh/LoreRelay/releases) | **ユーザーが `Check for Updates` で取る版** |
 | タグ `v*` push | `.github/workflows/release.yml` が VSIX を添付（`package.json` と一致必須） |
 
-**注意:** main の `package.json` が **1.33.0** でも、GitHub Release が古いタグのままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布は遅れている**。
+**注意:** main の `package.json` が **1.34.0** でも、GitHub Release が古いタグのままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布は遅れている**。
 
 ## 3. 説明ドキュメント（履歴・スナップショット）
 

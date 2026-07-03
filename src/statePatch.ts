@@ -55,6 +55,10 @@ import {
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { applyDiscoveryTurnOps } from './discoveryTurnOps';
 import { applyCampaignResourceTurnOps } from './campaignResourceTurnOps';
+import {
+    applySettlementLayoutTurnOps,
+    shouldAttemptSettlementLayoutPersist,
+} from './settlementLayoutTurnOps';
 import { persistTurnLedgersAfterCommit } from './turnLedgerPersistCore';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
@@ -765,8 +769,10 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             discoveryOpsPresent: Array.isArray(turnResult.discoveryOps) && turnResult.discoveryOps.length > 0,
             campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
                 && turnResult.campaignResourceOps.length > 0,
+            settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
             applyDiscovery: () => applyDiscoveryTurnOps(turnResult),
             applyCampaignResources: () => applyCampaignResourceTurnOps(turnResult),
+            applySettlementLayout: () => applySettlementLayoutTurnOps(turnResult),
         });
         if (!ledgerOutcome.ok) {
             console.error(
@@ -777,6 +783,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
                     failedTargets: ledgerOutcome.failedTargets,
                     discoveryApplied: ledgerOutcome.discoveryApplied,
                     campaignResourcesApplied: ledgerOutcome.campaignResourcesApplied,
+                    settlementLayoutApplied: ledgerOutcome.settlementLayoutApplied,
                 }
             );
         }

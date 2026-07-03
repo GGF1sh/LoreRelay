@@ -806,7 +806,7 @@ export function buildSettlementPromptBlock(
     }
 
     lines.push(SETTLEMENT_STOCKS_NOT_SYNCED_LINE);
-    lines.push('Persistent settlement changes require turn_result.settlementOps (stub in M1 — not yet applied automatically).');
+    lines.push('Persistent settlement layer expansion requires turn_result.settlementOps.expand_layer (applied to settlement_layout.json when Settlement Mode is ON). Other settlementOps remain parse-only stubs.');
 
     let block = lines.join('\n');
     if (block.length > MAX_SETTLEMENT_PROMPT_CHARS) {

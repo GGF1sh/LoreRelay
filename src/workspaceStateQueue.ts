@@ -17,6 +17,7 @@ const gameStateQueue = createSyncFileQueue();
 const worldStateQueue = createSyncFileQueue();
 const discoveryLedgerQueue = createSyncFileQueue();
 const campaignResourcesQueue = createSyncFileQueue();
+const settlementLayoutQueue = createSyncFileQueue();
 
 let gameCircuit: CircuitBreakerState = createCircuitBreakerState();
 let worldCircuit: CircuitBreakerState = createCircuitBreakerState();
@@ -65,6 +66,11 @@ export function runSerializedCampaignResourcesMutation(fn: () => void): void {
     campaignResourcesQueue.enqueue(fn);
 }
 
+/** Serialize mutations to settlement_layout.json only. */
+export function runSerializedSettlementLayoutMutation(fn: () => void): void {
+    settlementLayoutQueue.enqueue(fn);
+}
+
 /**
  * @deprecated Prefer commitGameState / saveWorldState (separate per-file queues).
  * Runs fn directly; nested writes route to game/world queues independently.
@@ -87,6 +93,7 @@ export function resetWorkspaceWriteQueueForTests(): void {
     worldStateQueue.reset();
     discoveryLedgerQueue.reset();
     campaignResourcesQueue.reset();
+    settlementLayoutQueue.reset();
     gameCircuit = createCircuitBreakerState();
     worldCircuit = createCircuitBreakerState();
 }
@@ -106,6 +113,10 @@ export function getDiscoveryWriteQueueDepthForTests(): number {
 
 export function getCampaignResourcesWriteQueueDepthForTests(): number {
     return campaignResourcesQueue.getPendingCount() + (campaignResourcesQueue.isBusy() ? 1 : 0);
+}
+
+export function getSettlementLayoutWriteQueueDepthForTests(): number {
+    return settlementLayoutQueue.getPendingCount() + (settlementLayoutQueue.isBusy() ? 1 : 0);
 }
 
 /** Test hooks — circuit breaker snapshots. */

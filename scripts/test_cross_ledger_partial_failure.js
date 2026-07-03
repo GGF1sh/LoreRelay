@@ -41,8 +41,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     if (!TURN_LEDGER_PERSIST_ORDER.includes('game_state')
         || TURN_LEDGER_PERSIST_ORDER[0] !== 'game_state') {
         fail(`persist order: ${TURN_LEDGER_PERSIST_ORDER.join(',')}`);
+    } else if (TURN_LEDGER_PERSIST_ORDER[TURN_LEDGER_PERSIST_ORDER.length - 1] !== 'settlement_layout') {
+        fail(`settlement_layout should be last in persist order: ${TURN_LEDGER_PERSIST_ORDER.join(',')}`);
     } else {
-        ok('game_state is first in turn ledger persist order');
+        ok('game_state is first and settlement_layout is last in turn ledger persist order');
     }
 }
 
@@ -82,8 +84,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: false,
         campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: () => { throw new Error('should not run'); },
         applyCampaignResources: () => { throw new Error('should not run'); },
+        applySettlementLayout: () => { throw new Error('should not run'); },
     });
     if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0) {
         fail(`no-op ledger persist: ${JSON.stringify(outcome)}`);
@@ -96,8 +100,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: true,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: () => true,
         applyCampaignResources: () => true,
+        applySettlementLayout: () => true,
     });
     if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0) {
         fail(`both ledgers succeed: ${JSON.stringify(outcome)}`);
@@ -110,8 +116,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: true,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: () => true,
         applyCampaignResources: () => false,
+        applySettlementLayout: () => true,
     });
     if (outcome.ok || !outcome.partial || outcome.failedTargets.join(',') !== 'campaignResources') {
         fail(`partial discovery ok / resources fail: ${JSON.stringify(outcome)}`);
@@ -124,8 +132,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: true,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: () => false,
         applyCampaignResources: () => true,
+        applySettlementLayout: () => true,
     });
     if (outcome.ok || !outcome.partial || outcome.failedTargets.join(',') !== 'discovery') {
         fail(`partial resources ok / discovery fail: ${JSON.stringify(outcome)}`);
@@ -138,8 +148,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: true,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: () => false,
         applyCampaignResources: () => false,
+        applySettlementLayout: () => true,
     });
     if (outcome.ok || outcome.partial || outcome.failedTargets.length !== 2) {
         fail(`total ledger failure: ${JSON.stringify(outcome)}`);
@@ -152,13 +164,31 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: () => false,
         applyCampaignResources: () => true,
+        applySettlementLayout: () => true,
     });
     if (outcome.ok || outcome.partial || outcome.failedTargets.join(',') !== 'discovery') {
         fail(`single discovery failure: ${JSON.stringify(outcome)}`);
     } else {
         ok('single-ledger failure is not classified as partial');
+    }
+}
+
+{
+    const outcome = persistTurnLedgersAfterCommit({
+        discoveryOpsPresent: true,
+        campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: true,
+        applyDiscovery: () => true,
+        applyCampaignResources: () => true,
+        applySettlementLayout: () => false,
+    });
+    if (outcome.ok || !outcome.partial || outcome.failedTargets.join(',') !== 'settlementLayout') {
+        fail(`partial discovery ok / settlement layout fail: ${JSON.stringify(outcome)}`);
+    } else {
+        ok('partial failure — discovery applied, settlement layout failed');
     }
 }
 
@@ -205,8 +235,10 @@ const forge = {
     const outcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: simulatedPersist,
         applyCampaignResources: () => true,
+        applySettlementLayout: () => true,
     });
 
     if (ledgerAfterFailedWrite.entries[0].status !== 'appraised') {
@@ -232,8 +264,10 @@ function simulateTurnPipeline(commitOk, discoveryWriter, resourceWriter) {
     const ledgerOutcome = persistTurnLedgersAfterCommit({
         discoveryOpsPresent: true,
         campaignResourceOpsPresent: true,
+        settlementLayoutOpsPresent: false,
         applyDiscovery: discoveryWriter,
         applyCampaignResources: resourceWriter,
+        applySettlementLayout: () => true,
     });
     return { phase: 'post-commit', gameStateCommitted, ledgerOutcome };
 }

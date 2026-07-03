@@ -29,13 +29,31 @@ export function getSettlementStatePath(): string | undefined {
     return ws ? path.join(ws, SETTLEMENT_STATE_FILENAME) : undefined;
 }
 
+export function clearSettlementLayoutCache(): void {
+    cachedLayoutPath = '';
+    cachedLayoutMtime = 0;
+    cachedLayoutDoc = undefined;
+}
+
 export function clearSettlementStateCache(): void {
     cachedPath = '';
     cachedMtime = 0;
     cachedDoc = undefined;
-    cachedLayoutPath = '';
-    cachedLayoutMtime = 0;
-    cachedLayoutDoc = undefined;
+    clearSettlementLayoutCache();
+}
+
+/** Fresh disk read for serialized mutations (bypasses loader cache). */
+export function readSettlementLayoutFromDisk(layoutPath?: string): SettlementLayoutV1 | undefined {
+    const resolved = layoutPath ?? getSettlementLayoutPath();
+    if (!resolved || !fs.existsSync(resolved)) {
+        return undefined;
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(resolved, 'utf-8'));
+        return parseSettlementLayout(raw);
+    } catch {
+        return undefined;
+    }
 }
 
 export function getSettlementLayoutPath(): string | undefined {
@@ -90,12 +108,9 @@ export function loadSettlementLayout(): SettlementLayoutV1 | undefined {
         if (cachedLayoutDoc && cachedLayoutPath === layoutPath && cachedLayoutMtime === stat.mtimeMs) {
             return cachedLayoutDoc;
         }
-        const raw = JSON.parse(fs.readFileSync(layoutPath, 'utf-8'));
-        const parsed = parseSettlementLayout(raw);
+        const parsed = readSettlementLayoutFromDisk(layoutPath);
         if (!parsed) {
-            cachedLayoutPath = '';
-            cachedLayoutMtime = 0;
-            cachedLayoutDoc = undefined;
+            clearSettlementLayoutCache();
             return undefined;
         }
         cachedLayoutPath = layoutPath;

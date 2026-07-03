@@ -144,6 +144,16 @@ export interface TurnResult {
         amount: number;
         reason?: string;
     }>;
+    /** Settlement Mode: layout/state ops (settlementOps, max 8). M4b applies expand_layer only. */
+    settlementOps?: Array<{
+        type: string;
+        layerId?: string;
+        layer?: string;
+        reason?: string;
+        profile?: string;
+        seed?: number;
+        [key: string]: unknown;
+    }>;
     /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
         kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request' | 'assign_party';

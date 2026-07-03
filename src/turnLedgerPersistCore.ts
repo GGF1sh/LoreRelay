@@ -4,7 +4,12 @@
  * Persist order for GM turn_result side effects.
  * game_state MUST commit before independent ledger files are written.
  */
-export const TURN_LEDGER_PERSIST_ORDER = ['game_state', 'discoveries', 'campaign_resources'] as const;
+export const TURN_LEDGER_PERSIST_ORDER = [
+    'game_state',
+    'discoveries',
+    'campaign_resources',
+    'settlement_layout',
+] as const;
 
 /**
  * Compensation when a ledger write fails after game_state commit succeeds:
@@ -17,7 +22,7 @@ export const CROSS_LEDGER_COMPENSATION_POLICY = {
     operatorReconcileRecommended: true,
 } as const;
 
-export type TurnLedgerTarget = 'discovery' | 'campaignResources';
+export type TurnLedgerTarget = 'discovery' | 'campaignResources' | 'settlementLayout';
 
 export interface TurnLedgerPersistOutcome {
     /** True when every attempted ledger write succeeded (or none attempted). */
@@ -28,14 +33,18 @@ export interface TurnLedgerPersistOutcome {
     discoveryApplied: boolean;
     campaignResourcesAttempted: boolean;
     campaignResourcesApplied: boolean;
+    settlementLayoutAttempted: boolean;
+    settlementLayoutApplied: boolean;
     failedTargets: TurnLedgerTarget[];
 }
 
 export interface TurnLedgerPersistInput {
     discoveryOpsPresent: boolean;
     campaignResourceOpsPresent: boolean;
+    settlementLayoutOpsPresent: boolean;
     applyDiscovery: () => boolean;
     applyCampaignResources: () => boolean;
+    applySettlementLayout: () => boolean;
 }
 
 /** Gate independent ledger writes on successful game_state commit. */
@@ -44,15 +53,17 @@ export function shouldPersistTurnLedgersAfterCommit(commitOk: boolean): boolean 
 }
 
 /**
- * Apply discovery + campaign_resources ledger ops after game_state commit.
+ * Apply discovery + campaign_resources + settlement_layout ledger ops after game_state commit.
  * Returns structured outcome for partial-failure compensation logging.
  */
 export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): TurnLedgerPersistOutcome {
     const failedTargets: TurnLedgerTarget[] = [];
     let discoveryApplied = false;
     let campaignResourcesApplied = false;
+    let settlementLayoutApplied = false;
     const discoveryAttempted = input.discoveryOpsPresent;
     const campaignResourcesAttempted = input.campaignResourceOpsPresent;
+    const settlementLayoutAttempted = input.settlementLayoutOpsPresent;
 
     if (discoveryAttempted) {
         discoveryApplied = input.applyDiscovery();
@@ -68,8 +79,16 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
         }
     }
 
+    if (settlementLayoutAttempted) {
+        settlementLayoutApplied = input.applySettlementLayout();
+        if (!settlementLayoutApplied) {
+            failedTargets.push('settlementLayout');
+        }
+    }
+
     const anySucceeded = (discoveryAttempted && discoveryApplied)
-        || (campaignResourcesAttempted && campaignResourcesApplied);
+        || (campaignResourcesAttempted && campaignResourcesApplied)
+        || (settlementLayoutAttempted && settlementLayoutApplied);
     const partial = failedTargets.length > 0 && anySucceeded;
 
     return {
@@ -79,6 +98,8 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
         discoveryApplied,
         campaignResourcesAttempted,
         campaignResourcesApplied,
+        settlementLayoutAttempted,
+        settlementLayoutApplied,
         failedTargets,
     };
 }

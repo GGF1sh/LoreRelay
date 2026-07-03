@@ -6,13 +6,22 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.71.0** |
+| Package version | **1.72.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **147/147** |
-| Settlement Mode M4 | M4a `expand_layer` pure core 完了 (v1.71.0)。M4b persistence は別ゲート |
-| Next (推奨) | M4b apply gate · Settlement M2 replay/remote overlay wiring |
+| Tests | `npm test` **149/149** |
+| Settlement Mode M4 | M4a pure core (v1.71.0) + M4b `expand_layer` → `settlement_layout.json` persistence (v1.72.0) |
+| Next (推奨) | Settlement M4 UX preview/request flow · M2 replay/remote overlay wiring |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M4b layout persistence (v1.72.0)
+
+- `settlementLayoutTurnOpsCore.ts` / `settlementLayoutTurnOps.ts` — `expand_layer` only post-commit apply to `settlement_layout.json` (FIFO queue, atomic write, feature gate).
+- `settlementState.ts` — `readSettlementLayoutFromDisk`, `clearSettlementLayoutCache`.
+- `turnLedgerPersistCore.ts` / `statePatch.ts` — `settlement_layout` ledger target + partial-failure logging.
+- Tests: `test_settlement_layout_turn_ops_core.js`, `test_settlement_layout_turn_ops.js`, cross-ledger extension. `npm test` **149/149**.
 
 ---
 

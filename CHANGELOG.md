@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.72.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M4b layout persistence** — `settlementLayoutTurnOpsCore.ts` / `settlementLayoutTurnOps.ts`: post-commit ledger apply for `turn_result.settlementOps.expand_layer` only; writes `settlement_layout.json` via `runSerializedSettlementLayoutMutation` + `writeJsonAtomic` when `enableSettlementMode` is ON. `settlement_state.json` read-only; no circuit breaker. `turnLedgerPersistCore` に `settlement_layout` target 追加、`statePatch` ledger phase 配線、`TurnResult.settlementOps` 型追加。`scripts/test_settlement_layout_turn_ops_core.js` / `test_settlement_layout_turn_ops.js` 追加、`test_cross_ledger_partial_failure.js` 拡張。テスト **149/149**。
+
 ## [1.71.0] - 2026-07-04
 
 ### Added

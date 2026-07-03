@@ -9,12 +9,13 @@ const Module = require('module');
 const root = path.join(__dirname, '..');
 const domainBridge = path.join(root, 'out', 'domainBridge.js');
 const guildBridge = path.join(root, 'out', 'guildBridge.js');
+const campaignKitBridge = path.join(root, 'out', 'campaignKitBridge.js');
 
 let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
 function ok(msg) { console.log(`OK: ${msg}`); }
 
-if (!fs.existsSync(domainBridge) || !fs.existsSync(guildBridge)) {
+if (!fs.existsSync(domainBridge) || !fs.existsSync(guildBridge) || !fs.existsSync(campaignKitBridge)) {
     fail('compiled bridge modules missing — run npm run compile');
     process.exit(1);
 }
@@ -48,6 +49,7 @@ Module._load = function (request, parent, isMain) {
 
 const { pickDomainForWebview } = require(domainBridge);
 const { pickGuildForWebview } = require(guildBridge);
+const { pickDiscoveriesForWebview, pickJobBoardForWebview } = require(campaignKitBridge);
 
 {
     const domain = pickDomainForWebview({
@@ -139,6 +141,40 @@ const { pickGuildForWebview } = require(guildBridge);
         fail('guild webview should not expose raw skill numbers');
     } else {
         ok('pickGuildForWebview public subset');
+    }
+}
+
+{
+    const discoveries = pickDiscoveriesForWebview({
+        version: 1,
+        entries: [{
+            id: 'seed_shard',
+            kind: 'material',
+            label: 'Black shard',
+            status: 'unidentified',
+            siteId: 'north_metro',
+            valueHint: 'secret gm hint',
+        }],
+    });
+    if (!discoveries?.[0]?.label || discoveries[0].valueHint !== undefined) {
+        fail('campaign discoveries webview must hide valueHint');
+    } else {
+        ok('pickDiscoveriesForWebview');
+    }
+}
+
+{
+    const board = pickJobBoardForWebview([{
+        id: 'board_test',
+        kind: 'rumor',
+        title: 'Lights in the tunnels',
+        summary: 'Travelers whisper about power.',
+        siteName: 'North Metro Entrance',
+    }]);
+    if (!board?.[0]?.summary || board[0].internal) {
+        fail('pickJobBoardForWebview subset');
+    } else {
+        ok('pickJobBoardForWebview');
     }
 }
 

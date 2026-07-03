@@ -31,6 +31,7 @@ import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } 
 import { loadGameRules } from './gameRules';
 import { pickDomainForWebview } from './domainBridge';
 import { pickGuildForWebview } from './guildBridge';
+import { buildCampaignKitWebviewPayload } from './campaignKitBridge';
 import { readDomainFromGameState } from './domainTurnOps';
 import { readGuildFromGameState } from './guildTurnOps';
 import { buildMarketPriceTable } from './commerceCore';
@@ -482,6 +483,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         : undefined;
     const guild = pickGuildForWebview(guildState);
 
+    const campaignKitPayload = buildCampaignKitWebviewPayload(
+        currentLocationId ?? null,
+        worldTurn ?? 0
+    );
+
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
@@ -536,6 +542,10 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableGuildRequests: gameRules.enableGuildRequests === true,
         enableGuildParties: gameRules.enableGuildParties === true,
         guild: guild ?? null,
+        enableCampaignKit: campaignKitPayload.enabled,
+        campaignKit: campaignKitPayload.campaignKit ?? null,
+        campaignDiscoveries: campaignKitPayload.discoveries ?? null,
+        campaignJobBoard: campaignKitPayload.jobBoard ?? null,
         mapItems: listActiveMapItems(worldBlock).map((item) => ({
             id: item.id,
             name: item.name,

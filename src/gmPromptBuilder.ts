@@ -100,6 +100,7 @@ import { planTravel, resolveTransportForTheme } from './transportCore';
 import { buildDomainPromptContext } from './domainBridge';
 import { buildGuildPromptContext } from './guildBridge';
 import { buildCampaignKitPromptContext } from './campaignKit';
+import { buildCampaignJobBoardPromptContext } from './campaignKitBridge';
 import { buildDiscoveryLedgerPromptContext } from './discoveryLedger';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
@@ -192,6 +193,7 @@ function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLi
     return [
         { id: 'campaignKit', label: 'Campaign Kit', limitChars: 1800 },
         { id: 'discoveryLedger', label: 'Discoveries', limitChars: 1200 },
+        { id: 'campaignJobBoard', label: 'Campaign Job Board', limitChars: 1400 },
         { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
         { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
         { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
@@ -632,6 +634,17 @@ function buildDomainPromptContextForGm(playerAction: string): string {
 function buildGuildPromptContextForGm(playerAction: string): string {
     const state = readGameStateForPrompt();
     return buildGuildPromptContext(state, playerAction);
+}
+
+function buildCampaignJobBoardPromptContextForGm(): string {
+    const state = readGameStateForPrompt();
+    const world = state?.world as { currentLocationId?: string } | undefined;
+    const currentLocationId = typeof world?.currentLocationId === 'string'
+        ? world.currentLocationId
+        : undefined;
+    const simWorld = isWorldStateEnabled() ? loadWorldState() : undefined;
+    const worldTurn = typeof simWorld?.worldTurn === 'number' ? simWorld.worldTurn : 0;
+    return buildCampaignJobBoardPromptContext(currentLocationId, worldTurn);
 }
 
 function buildGameRulesPromptContext(): string {
@@ -1140,6 +1153,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext()),
         buildSection('campaignKit', 'Campaign Kit', buildCampaignKitPromptContext()),
         buildSection('discoveryLedger', 'Discoveries', buildDiscoveryLedgerPromptContext()),
+        buildSection('campaignJobBoard', 'Campaign Job Board', buildCampaignJobBoardPromptContextForGm()),
         buildSection('domain', 'Domain', buildDomainPromptContextForGm(hint)),
         buildSection('guild', 'Guild', buildGuildPromptContextForGm(hint)),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
@@ -1204,6 +1218,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
     pushPromptChunk(specs, 'campaignKit', buildCampaignKitPromptContext());
     pushPromptChunk(specs, 'discoveryLedger', buildDiscoveryLedgerPromptContext());
+    pushPromptChunk(specs, 'campaignJobBoard', buildCampaignJobBoardPromptContextForGm());
     pushPromptChunk(
         specs,
         'domain',

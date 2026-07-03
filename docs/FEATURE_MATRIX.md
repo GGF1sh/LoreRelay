@@ -37,7 +37,7 @@
 | **Guild Requests (依頼板)** | OFF | **experimental** | v1.42.0 · `enableGuildRequests` · bulk / parley tier |
 | **Guild Parties (派遣)** | OFF | **experimental** | v1.43.0 · `enableGuildParties` · Bond 連動クエスト判定 |
 | **Guild Absence Drift** | with guild | **experimental** | v1.44.0 · hall 離脱/帰還 · Since-last-visit プロンプト |
-| **Campaign Kit** | OFF | **beta** | v1.45.0 · `enableCampaignKit` · genre loop presets |
+| **Campaign Kit** | OFF | **beta** | v1.46.0 · Phase C hub job board + World tab discoveries panel |
 | **Discovery Ledger** | optional file | **beta** | v1.45.2 · `discoveries.json` + `discoveryOps` on turn apply |
 
 ## Quick demo paths

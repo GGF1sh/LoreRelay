@@ -51,6 +51,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_dice_roller.js' },
     { category: 'unit', file: 'test_gm_prompt_builder_core.js' },
     { category: 'unit', file: 'test_campaign_kit_core.js' },
+    { category: 'unit', file: 'test_campaign_job_board_core.js' },
     { category: 'unit', file: 'test_discovery_ledger_core.js' },
     { category: 'unit', file: 'test_scrapbound_sample_integrity.js' },
     { category: 'unit', file: 'test_discovery_turn_ops_core.js' },

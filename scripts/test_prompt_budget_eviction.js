@@ -24,6 +24,10 @@ if (resolvePromptChunkPriority('gameRules') <= resolvePromptChunkPriority('visio
     fail('campaignKit priority should exceed domain/guild simulation helpers');
 } else if (resolvePromptChunkPriority('discoveryLedger') <= resolvePromptChunkPriority('domain')) {
     fail('discoveryLedger priority should exceed domain/guild simulation helpers');
+} else if (resolvePromptChunkPriority('campaignJobBoard') <= resolvePromptChunkPriority('domain')) {
+    fail('campaignJobBoard priority should exceed domain/guild simulation helpers');
+} else if (resolvePromptChunkPriority('discoveryLedger') <= resolvePromptChunkPriority('campaignJobBoard')) {
+    fail('discoveryLedger priority should exceed campaignJobBoard');
 } else {
     ok('priority ordering');
 }

@@ -13,6 +13,14 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.46.0] - 2026-07-03
+
+### Added
+
+- **Campaign Kit Phase C — Job/Rumor board** — `campaignJobBoardCore.ts`: deterministic hub postings from kit genre + World Forge expedition sites; GM prompt chunk `campaignJobBoard` (priority 92).
+- **Campaign Kit World tab panel** — Discoveries ledger (status/kind badges, no GM `valueHint`) + job board with **Inquire** chat insert; `campaignKitBridge.ts` + `worldView.ts` payload.
+- **Tests** — `test_campaign_job_board_core.js`; extended `test_world_view_simulation_payload.js` and prompt budget eviction checks.
+
 ## [1.45.3] - 2026-07-03
 
 ### Fixed

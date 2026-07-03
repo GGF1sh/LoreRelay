@@ -235,6 +235,9 @@ function renderWorldView(msg) {
     // Guild Master (G1): quest board stats and roster
     renderGuildPanel(msg);
 
+    // Campaign Kit: discoveries + hub job/rumor board
+    renderCampaignKitPanel(msg);
+
     // Living World market prices (+ direct trade when UI enabled)
     renderLivingWorldMarkets(
         msg.livingWorldMarkets || [],
@@ -2499,6 +2502,174 @@ function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ===== Campaign Kit: discoveries + hub job/rumor board (read-only) =====
+
+const CAMPAIGN_DISCOVERY_STATUS_KEYS = ['unidentified', 'identified', 'appraised'];
+const CAMPAIGN_DISCOVERY_KIND_KEYS = ['material', 'lore', 'social', 'route', 'threat', 'quest'];
+
+function ensureCampaignKitStyles() {
+    if (document.getElementById('world-campaign-kit-styles')) { return; }
+    const style = document.createElement('style');
+    style.id = 'world-campaign-kit-styles';
+    style.textContent = `
+        .campaign-kit-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.45rem; }
+        .campaign-kit-kit-name { font-weight: 600; font-size: 0.95em; }
+        .campaign-kit-hub { font-size: 0.82em; opacity: 0.7; }
+        .campaign-kit-section { margin-top: 0.55rem; }
+        .campaign-kit-section-heading { font-size: 0.82em; font-weight: 600; opacity: 0.75; margin-bottom: 0.35rem; }
+        .campaign-discovery-card, .campaign-job-card {
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 0.45rem 0.55rem;
+            margin-bottom: 0.4rem;
+            background: rgba(0,0,0,0.15);
+        }
+        .campaign-discovery-title, .campaign-job-title { font-size: 0.9em; font-weight: 600; margin-bottom: 0.2rem; }
+        .campaign-discovery-meta, .campaign-job-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.78em; opacity: 0.85; margin-bottom: 0.25rem; }
+        .campaign-badge {
+            display: inline-block;
+            padding: 0.05rem 0.35rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.15);
+            font-size: 0.92em;
+        }
+        .campaign-badge.status-unidentified { color: var(--vscode-charts-yellow, #e8c547); }
+        .campaign-badge.status-identified { color: var(--vscode-charts-blue, #6cb6ff); }
+        .campaign-badge.status-appraised { color: var(--vscode-charts-green, #73c991); }
+        .campaign-badge.kind-job { color: var(--vscode-charts-orange, #e8a838); }
+        .campaign-badge.kind-rumor { color: var(--vscode-charts-purple, #b180d7); }
+        .campaign-job-summary { font-size: 0.86em; opacity: 0.9; margin-bottom: 0.3rem; }
+        .campaign-job-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    `;
+    document.head.appendChild(style);
+}
+
+function campaignKitT(section, key) {
+    return T(`webview.world.campaign${section}.${key}`) || key;
+}
+
+function renderCampaignKitPanel(msg) {
+    ensureCampaignKitStyles();
+    const section = document.getElementById('world-campaign-kit-details');
+    const panel = document.getElementById('world-campaign-kit-panel');
+    if (!section || !panel) { return; }
+
+    const kit = msg.campaignKit;
+    const visible = msg.enableCampaignKit === true && kit;
+    section.classList.toggle('hidden', !visible);
+    if (!visible) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    const discoveries = Array.isArray(msg.campaignDiscoveries) ? msg.campaignDiscoveries : [];
+    const jobBoard = Array.isArray(msg.campaignJobBoard) ? msg.campaignJobBoard : [];
+    const boardLabel = kit.loop?.jobBoardLabel || T('webview.world.campaignJobBoardFallback');
+
+    panel.innerHTML = `
+        <div class="campaign-kit-header">
+            <div class="campaign-kit-kit-name">${escapeHtml(kit.kitName || kit.kitId || '')}</div>
+            <div class="campaign-kit-hub">${escapeHtml(T('webview.world.campaignKitHub', { hub: kit.hubLocationName || kit.hubLocationId || '' }))}</div>
+        </div>
+    `;
+
+    panel.appendChild(buildCampaignDiscoveriesSection(discoveries));
+    panel.appendChild(buildCampaignJobBoardSection(jobBoard, boardLabel));
+}
+
+function buildCampaignDiscoveriesSection(discoveries) {
+    const el = document.createElement('div');
+    el.className = 'campaign-kit-section';
+    const heading = document.createElement('div');
+    heading.className = 'campaign-kit-section-heading';
+    heading.textContent = T('webview.world.campaignDiscoveriesTitle');
+    el.appendChild(heading);
+
+    if (!discoveries.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-text';
+        empty.textContent = T('webview.world.campaignDiscoveriesEmpty');
+        el.appendChild(empty);
+        return el;
+    }
+
+    discoveries.forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'campaign-discovery-card';
+        const statusLabel = campaignKitT('DiscoveryStatus', entry.status || 'unidentified');
+        const kindLabel = campaignKitT('DiscoveryKind', entry.kind || 'material');
+        const siteLine = entry.siteName
+            ? `<span>${escapeHtml(T('webview.world.campaignDiscoverySite', { site: entry.siteName }))}</span>`
+            : '';
+        card.innerHTML = `
+            <div class="campaign-discovery-title">${escapeHtml(entry.label || entry.id)}</div>
+            <div class="campaign-discovery-meta">
+                <span class="campaign-badge status-${escapeHtml(entry.status || 'unidentified')}">${escapeHtml(statusLabel)}</span>
+                <span class="campaign-badge">${escapeHtml(kindLabel)}</span>
+                ${siteLine}
+            </div>
+        `;
+        el.appendChild(card);
+    });
+    return el;
+}
+
+function buildCampaignJobBoardSection(jobBoard, boardLabel) {
+    const el = document.createElement('div');
+    el.className = 'campaign-kit-section';
+    const heading = document.createElement('div');
+    heading.className = 'campaign-kit-section-heading';
+    heading.textContent = T('webview.world.campaignJobBoardTitle', { label: boardLabel });
+    el.appendChild(heading);
+
+    if (!jobBoard.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-text';
+        empty.textContent = T('webview.world.campaignJobBoardEmpty');
+        el.appendChild(empty);
+        return el;
+    }
+
+    jobBoard.forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'campaign-job-card';
+        const kindLabel = campaignKitT('JobKind', entry.kind || 'job');
+        const metaParts = [];
+        if (entry.siteName) {
+            metaParts.push(`<span>${escapeHtml(T('webview.world.campaignDiscoverySite', { site: entry.siteName }))}</span>`);
+        }
+        if (entry.rewardHint) {
+            metaParts.push(`<span>${escapeHtml(T('webview.world.campaignJobReward', { reward: entry.rewardHint }))}</span>`);
+        }
+        card.innerHTML = `
+            <div class="campaign-job-title">${escapeHtml(entry.title || entry.id)}</div>
+            <div class="campaign-job-meta">
+                <span class="campaign-badge kind-${escapeHtml(entry.kind || 'job')}">${escapeHtml(kindLabel)}</span>
+                ${metaParts.join('')}
+            </div>
+            <div class="campaign-job-summary">${escapeHtml(entry.summary || '')}</div>
+        `;
+        const actions = document.createElement('div');
+        actions.className = 'campaign-job-actions';
+        const inquireBtn = document.createElement('button');
+        inquireBtn.type = 'button';
+        inquireBtn.className = 'small-btn';
+        inquireBtn.textContent = T('webview.world.campaignJobInquireBtn');
+        inquireBtn.addEventListener('click', () => {
+            const siteSuffix = entry.siteName ? ` — target: ${entry.siteName}` : '';
+            postWorldInsertChatText(T('webview.world.campaignJobInquireText', {
+                title: entry.title || entry.id,
+                summary: entry.summary || '',
+                siteSuffix,
+            }));
+        });
+        actions.appendChild(inquireBtn);
+        card.appendChild(actions);
+        el.appendChild(card);
+    });
+    return el;
 }
 
 // ===== Guild Master (G1): quest board panel (read-only) =====

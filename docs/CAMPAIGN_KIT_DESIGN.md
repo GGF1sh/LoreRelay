@@ -94,7 +94,7 @@ This keeps genre flavor flexible without forking the engine per setting.
 | Campaign Kit concept | LoreRelay system | Notes |
 |---------------------|------------------|-------|
 | Hub / services | World Forge locations + In-World Chat | Social atmosphere, not state |
-| Job / rumor board | Quest Hooks + GM narration | Phase C: generated board |
+| Job / rumor board | Quest Hooks + GM narration | Phase C: deterministic hub board (prompt + World tab) |
 | Expedition site | World Forge geography + travel | Danger from region/location |
 | Findings | `discoveries.json` + inventory | Phase B: ledger prompt |
 | Appraisal / repair | GM + Commerce | Phase D: turn ops |
@@ -142,13 +142,24 @@ GM may set `turn_result.discoveryOps` (max 8) when Campaign Kit is active:
 
 Core persists to `discoveries.json` on turn apply.
 
+## Job/Rumor Board (Phase C)
+
+When Campaign Kit is active and World Forge has expedition sites, LoreRelay builds a deterministic hub board from kit genre + geography (seed: `worldSeed`, hub id, `worldTurn`). Entries are guidance prompts — accepting a posting does not auto-create quest hooks.
+
+GM prompt chunk: `[Campaign {jobBoardLabel} @ Hub]` (priority 92, char cap 1400).
+
+World tab **Campaign** panel shows:
+
+- **Findings** — active `discoveries.json` entries (no GM-only `valueHint`)
+- **Job board** — generated postings with **Inquire** (inserts chat text)
+
 ## Implementation Phases
 
 | Phase | Status | Deliverable |
 |-------|--------|-------------|
 | **A** Schema + presets + GM prompt | **done** | `campaignKitCore.ts`, `campaign_kit.json` |
 | **B** Discovery ledger | **done** | `discoveries.json`, `discoveryLedgerCore.ts` |
-| **C** Job/Rumor board runtime | planned | Quest Hook generation per hub |
+| **C** Job/Rumor board runtime | **done** | Deterministic hub board + GM prompt (`campaignJobBoardCore.ts`) |
 | **D** Appraisal state machine | **partial** | `turn_result.discoveryOps` → `discoveries.json` (add/update/remove) |
 | **E** Genre preset packs | partial | `scrapbound-settlement` sample |
 
@@ -164,5 +175,6 @@ Quickstart: [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md)
 |-------|----------|----------|
 | Campaign Kit | 94 | 1800 |
 | Discovery Ledger | 93 | 1200 |
+| Campaign Job Board | 92 | 1400 |
 
-Both rank above Domain/Guild simulation helpers so genre loop guidance survives eviction.
+All three rank above Domain/Guild simulation helpers so genre loop guidance survives eviction.

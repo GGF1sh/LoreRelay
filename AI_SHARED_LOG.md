@@ -6,12 +6,18 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.45.3** |
-| Campaign Kit | **Phase A+B + D-lite** · v1.45.3 commit-order + agentic parse fixes |
+| Package version | **1.46.0** |
+| Campaign Kit | **Phase A+B+C + D-lite** · World tab discoveries + hub job board |
 | Tests | `npm test` **126/126** |
 | Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
 
 ---
+
+## 2026-07-03 JST - Grok - Campaign Kit v1.46.0 Phase C + Webview panel
+
+- **Phase C** `campaignJobBoardCore.ts` — deterministic hub job/rumor board from kit + World Forge sites; GM prompt chunk `campaignJobBoard` (prio 92).
+- **Webview** World tab **Campaign** panel — discoveries ledger + job board with Inquire → chat insert.
+- `campaignKitBridge.ts` · `worldView.ts` · `85-world.js` · i18n ×4 · tests **127/127**.
 
 ## 2026-07-03 JST - Grok - Campaign Kit v1.45.3 review fixes
 

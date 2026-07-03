@@ -408,6 +408,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     narrativeTime: 98,
     campaignKit: 94,
     discoveryLedger: 93,
+    campaignJobBoard: 92,
     domain: 67,
     guild: 66,
     director: 95,

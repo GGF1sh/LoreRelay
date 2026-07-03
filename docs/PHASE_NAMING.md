@@ -65,17 +65,19 @@ LoreRelay には **独立した番号体系** がある。
 
 ---
 
-## Domain サブトラック（`docs/DOMAIN_MODE_DESIGN.md`）
+## Domain サブトラック（`docs/DOMAIN_MODE_DESIGN.md` §12）
 
-| ID | 名称 | 状態 | 想定 Ver |
+**実装順（v2 再編）:** D1 → **D1b Events（前倒し）** → D1.5 → D2 → D3 → D4 → D5
+
+| ID | 名称 | 状態 | 出荷 Ver |
 |----|------|------|----------|
-| **D1** | Domain Core + balance harness | 設計済・未実装 | 1.39.0 |
-| **D1b** | Domain Events（前倒し） | 設計済・未実装 | 1.39.0 |
-| **D1.5** | Domain + Time + Chronicle | 設計済・未実装 | 1.39.0 |
-| **D2** | Domain Prompt + `domainOps` | 設計済・未実装 | 1.39.0 |
-| **D3** | Domain UI（World タブ） | 設計済・未実装 | 1.40.0 |
-| **D4** | Commerce 境界 + 留守ドリフト | 設計済・未実装 | 1.41.x |
-| **D5** | Officers via Bond + Council | 設計済・未実装 | 1.41.x |
+| **D1** | Domain Core + balance harness | **完了** | 1.39.0–1.39.1 |
+| **D1b** | Domain Events（前倒し・旧 D4 核） | **完了** | 1.39.2 |
+| **D1.5** | Domain + Time + Chronicle | **完了** | 1.39.0 |
+| **D2** | Domain Prompt + `domainOps` + compact tier | **完了** | 1.39.0–1.39.6 |
+| **D3** | Domain UI（World タブ） | **未着手** | 1.40.0 想定 |
+| **D4** | Commerce 境界 + 留守ドリフト | **一部完了** | ledger 1.39.1 · drift 1.39.3 · 市場ボーナス未 |
+| **D5** | Officers via Bond + Council | **完了** | 1.39.4–1.39.5 |
 
 前提: Campaign モード · `enableDomainMode` 既定 **OFF** · 三層時計（`WORLD_TIME_PASSAGE_IDEA.md` §C）準拠。
 
@@ -85,12 +87,25 @@ LoreRelay には **独立した番号体系** がある。
 
 | ID | 名称 | 状態 | 想定 Ver |
 |----|------|------|----------|
-| **F1** | Chronicle（あらすじ） | 設計済・未実装 | 1.19.0 |
-| **F2** | Pacing Director | 設計済・未実装 | 1.19.0（F1 同梱可） |
-| **F3** | 派閥レピュテーション | 設計済・未実装 | 1.20.x / LW1 合流 |
-| **F4** | 旅路エンカウント | 設計済・未実装 | LW1 移動と同時 |
+| **F1** | Chronicle（あらすじ） | **完了**（stable） | 1.19.0 |
+| **F2** | Pacing Director | **完了**（beta） | 1.19.0（F1 同梱可） |
+| **F3** | 派閥レピュテーション | **完了**（experimental） | 1.20.x / LW1 合流 |
+| **F4** | 旅路エンカウント | **完了**（experimental） | LW1 移動と同時 |
 | **F5** | リプレイ書き出し | **1.21.1** ✅ | 箸休み |
 | **F6** | 地図インポート（逆 Cartography） | 設計済・未実装 | 1.22.x |
+
+### Fable5 Wave 2（`docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` · 2026-07-03 ブリーフ）
+
+| ID | 名称 | 状態 | 想定 Ver |
+|----|------|------|----------|
+| **F7** | 謁見の間（Audience Hall・陳情裁定） | ブリーフ済・未実装 | 1.41.0 |
+| **F8** | 隣国ライバル領主（Rival Lords tick） | ブリーフ済・未実装 | 1.42.0 |
+| **F9** | 主命・派遣（Officer Missions） | ブリーフ済・未実装 | 1.43.0 |
+| **F10** | 合戦リゾルバ（Mass Battle） | ブリーフ済・未実装 | 1.44.0 |
+| **F11** | ギルドマスターモード（→ G トラック候補） | 温め枠・別 doc 先行 | 1.45+ |
+| **F12** | 家史エピローグ書き出し | ブリーフ済・未実装 | 箸休め枠 |
+
+> 前提: **D3 Domain UI（1.40.0）を先に出荷**。F7–F10 は Domain 直系のため、実装時に **D6–D9** として Domain 表へ再登録してよい（F3 → LW1 合流と同じ前例）。
 
 ---
 

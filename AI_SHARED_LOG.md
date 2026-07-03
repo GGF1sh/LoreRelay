@@ -1,5 +1,128 @@
 # AI Shared Log
 
+## Current Snapshot (2026-07-03)
+
+> **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)
+
+| Item | Value |
+|------|-------|
+| Package version | **1.39.9** |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **D3 UI 次** |
+| Parlor Mode | v1.34.0 出荷済 |
+| Tests | `npm test` **109/109** |
+| Next (推奨) | **D3 UI**（§20.2-A）· `docs/DOMAIN_MODE_REVIEW_GEMINI_v1_39.md` |
+
+---
+
+## 2026-07-03 JST - Grok - Domain PR-A turn merge (v1.39.9)
+
+### Summary
+
+- `DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS` in `workspaceStateQueueCore.ts`; `test_domain_turn_merge_conflict.js` (commerce-ui interleave + domain monthly_commit).
+
+### Verification
+
+- `npm test` **109/109**
+
+## 2026-07-03 JST - Grok - Domain §14 balance harness (v1.39.8)
+
+### Summary
+
+- `domain_balance_harness_lib.js`: shared strategies + trajectory/event summaries.
+- Harness: min/max/delta per stat, event frequency, `npm run domain:balance`, `--json` / `--months`.
+- `test_domain_balance_core.js`: balanced / martial / trade assertions.
+
+### Verification
+
+- `npm test` **108/108**
+- `npm run domain:balance`
+
+## 2026-07-03 JST - Grok - Domain review + hardening (v1.39.7)
+
+### Summary
+
+- Security: `parseDomainOps` officer id sanitization; `validateDomain` region pattern + event allowlist; council personality newline strip.
+- Bug: `applyTurnResultToGameState` — `elapsedWorldTurns` before domain drift (conflict-reapply path).
+- Docs: `VERSION_TRUTH`, README badges ×4, `FEATURE_MATRIX`, Current Snapshot.
+
+### Verification
+
+- `npm test` **108/108**
+
+## 2026-07-03 JST - Grok - Domain §12 phase reorg (docs)
+
+### Summary
+
+- `DOMAIN_MODE_DESIGN.md` §12: status table D1→D1b→D1.5→D2→D3→D4→D5, shipped Ver 1.39.0–1.39.6, next = D3 UI.
+- `PHASE_NAMING.md` Domain subtrack synced; §14 test table · §19 handoff · §20 next actions updated.
+
+## 2026-07-03 JST - Grok - Domain §10.3 compact prompt (v1.39.6)
+
+### Summary
+
+- `domainPromptCore.ts`: 3-line compact base (`DOMAIN_COMPACT_BASE_LINES`), standard tier (+ officers count / single pending), `countDomainPromptLines`.
+- `domainCore.ts`: `resolveDomainPromptTier` — minimal when no officers/pending/lastEvent; full on `monthly_commit` only.
+- `domainBridge.ts`: event hint / seasonal / bond / ledger / council on full tier only; `DOMAIN_EVENT_FOCUS_LINE` on standard when event active.
+
+### Verification
+
+- `npm test` **108/108**
+
+## 2026-07-03 JST - Grok - Domain §9.3 monthly council (v1.39.5)
+
+### Summary
+
+- `domainCouncilCore.ts`: per-role stat templates, lastMonthlyActions, personality, bond suffix; commit-only injection.
+
+### Verification
+
+- `npm test` **108/108**
+
+## 2026-07-03 JST - Grok - Domain §9.2 officer bonds (v1.39.4)
+
+### Summary
+
+- `domainOfficerBondCore.ts`: assessOfficerBonds, syncOfficerDiscontentFlag, registry appoint gate, council + GM bond hints.
+- Wired via `domainTurnOps.ts` / `domainBridge.ts` (playerNpcMilestones + npc registry).
+
+### Verification
+
+- `npm test` **107/107**
+
+## 2026-07-03 JST - Grok - Domain code review + hardening (v1.39.3)
+
+### Summary
+
+- Review fixes: drift after `elapsedWorldTurns`, one-shot since-last-visit, depart without `nextLocationId`, snapshot refresh on all `domainOps`, `sanitizeDomainPromptLabel`, capped-month honesty, parser allowlists.
+
+### Verification
+
+- `npm test` **106/106**
+
+## 2026-07-03 JST - Grok - Domain §9.1 absence drift (v1.39.3)
+
+### Summary
+
+- `domainDriftCore.ts`: steward `simulateStewardMonth`, `computeSinceLastDomainVisitDelta`, GM lines with `[domain:eventId]`.
+- `domainRegionDriftCore.ts`: `domainSnapshotAtDepart`, return drift apply, monthly commit snapshot refresh.
+- `statePatch`: region leave/enter hooks; Domain prompt injects since-last-visit block.
+
+### Verification
+
+- `npm test` **106/106**
+
+## 2026-07-03 JST - Grok - Domain §8 event-first + seasonal (v1.39.2)
+
+### Summary
+
+- Seasonal action bonuses: spring `agriculture` +1, winter `festival` +1 support/culture via `resolveSeasonalActionBonus`.
+- Events: `festival_gathering` (winter weight UP), `officer_discontent` (officers + `flags.officerDiscontent`).
+- GM: `buildSeasonalDomainGmHint` on commit/full tier; `computeDomainEventWeight` for tests.
+
+### Verification
+
+- `npm test` **105/105**
+
 ## 2026-07-03 JST - Grok - Domain §1.4 risk mitigations (v1.39.1)
 
 ### Summary

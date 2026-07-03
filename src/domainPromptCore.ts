@@ -1,7 +1,9 @@
 // Domain Mode D2: GM prompt blocks (no vscode/fs).
 
 import type { DomainState, DomainPromptTier } from './domainCore';
-import { getDomainSeason } from './domainCore';
+import { getDomainSeason, sanitizeDomainPromptLabel } from './domainCore';
+import { buildSinceLastDomainVisitLines } from './domainDriftCore';
+import type { SinceLastDomainVisitDelta } from './domainDriftCore';
 
 export const DOMAIN_EVENT_FOCUS_LINE =
     'Domain play is event-first: narrate the pending/last domain event as the main beat. '
@@ -13,6 +15,9 @@ export const DOMAIN_OPS_PROMPT_LINE =
     + 'Set elapsedWorldTurns to domainMonthDays (default 30) on the same commit. '
     + 'Core applies stat changes; narrate outcomes only.';
 
+/** §10.3: bare summary when no officers and no pending events. */
+export const DOMAIN_COMPACT_BASE_LINES = 3;
+
 export interface DomainPromptOptions {
     regionName?: string;
     councilLines?: string[];
@@ -20,6 +25,8 @@ export interface DomainPromptOptions {
     compact?: boolean;
     tier?: DomainPromptTier;
     eventHint?: string;
+    seasonalHint?: string;
+    bondHint?: string;
 }
 
 function clampLine(text: string, max: number): string {
@@ -27,36 +34,40 @@ function clampLine(text: string, max: number): string {
     return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
 }
 
-export function buildDomainCompactPrompt(domain: DomainState, options: DomainPromptOptions = {}): string {
+export function buildDomainCompactBaseLines(
+    domain: DomainState,
+    options: DomainPromptOptions = {}
+): string[] {
     const name = options.regionName?.trim() || domain.controlledRegionId;
     const season = getDomainSeason(domain.calendarMonth);
     return [
         `[Domain — ${clampLine(name, 80)}]`,
         `M${domain.calendarMonth} Y${domain.calendarYear} (${season}) · treasury ${domain.treasury} · food ${domain.food} · troops ${domain.troops}`,
-        `Actions left: ${domain.monthlyActionsRemaining}${domain.pendingEvents.length ? ` · pending: ${domain.pendingEvents.slice(-2).join(', ')}` : ''}`,
-    ].join('\n');
+        `Actions left: ${domain.monthlyActionsRemaining}`,
+    ];
 }
 
+export function buildDomainCompactPrompt(domain: DomainState, options: DomainPromptOptions = {}): string {
+    return buildDomainCompactBaseLines(domain, options).join('\n');
+}
+
+/** §10.3: normal turns — compact base + at most one pending line (+ optional officers count). */
 export function buildDomainStandardPrompt(domain: DomainState, options: DomainPromptOptions = {}): string {
-    const name = options.regionName?.trim() || domain.controlledRegionId;
-    const lines = [
-        `[Domain — ${clampLine(name, 80)}]`,
-        `M${domain.calendarMonth} Y${domain.calendarYear} (${getDomainSeason(domain.calendarMonth)}) · treasury ${domain.treasury} · food ${domain.food}`,
-        `Order ${domain.publicOrder} · support ${domain.popularSupport} · prestige ${domain.prestige}`,
-    ];
+    const lines = [...buildDomainCompactBaseLines(domain, options)];
     if (domain.officers.length > 0) {
         lines.push(`Officers: ${domain.officers.length}`);
     }
-    if (domain.pendingEvents.length > 0) {
-        lines.push(`Pending: ${domain.pendingEvents.slice(-2).join(', ')}`);
-    }
-    if (domain.lastEventId) {
-        lines.push(`Last event: ${domain.lastEventId}`);
-    }
-    if (options.eventHint) {
-        lines.push(options.eventHint);
+    const pendingId = domain.pendingEvents.length > 0
+        ? domain.pendingEvents[domain.pendingEvents.length - 1]
+        : domain.lastEventId;
+    if (pendingId) {
+        lines.push(`Pending: ${pendingId}`);
     }
     return lines.join('\n');
+}
+
+export function countDomainPromptLines(block: string): number {
+    return block.split('\n').filter((line) => line.trim().length > 0).length;
 }
 
 export function buildDomainFullPrompt(domain: DomainState, options: DomainPromptOptions = {}): string {
@@ -72,7 +83,7 @@ export function buildDomainFullPrompt(domain: DomainState, options: DomainPrompt
 
     if (domain.officers.length > 0) {
         const officerSummary = domain.officers
-            .map((o) => `${o.npcId} (${o.role})`)
+            .map((o) => `${sanitizeDomainPromptLabel(o.npcId)} (${o.role})`)
             .join(', ');
         lines.push(`Officers: ${clampLine(officerSummary, 200)}`);
     }
@@ -82,6 +93,12 @@ export function buildDomainFullPrompt(domain: DomainState, options: DomainPrompt
     }
     if (domain.lastEventId) {
         lines.push(`Last event: ${domain.lastEventId}`);
+    }
+    if (options.seasonalHint) {
+        lines.push(options.seasonalHint);
+    }
+    if (options.bondHint) {
+        lines.push(options.bondHint);
     }
     if (options.eventHint) {
         lines.push(options.eventHint);
@@ -100,6 +117,14 @@ export function buildDomainFullPrompt(domain: DomainState, options: DomainPrompt
     }
 
     return lines.join('\n');
+}
+
+export function buildDomainSinceLastVisitPrompt(
+    delta: SinceLastDomainVisitDelta | undefined
+): string {
+    const lines = buildSinceLastDomainVisitLines(delta);
+    if (lines.length === 0) { return ''; }
+    return ['[Living World — Since last visit]', ...lines].join('\n');
 }
 
 export function buildDomainPromptBlock(

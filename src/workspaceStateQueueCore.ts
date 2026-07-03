@@ -10,6 +10,14 @@ export const UI_PROTECTED_STATUS_FIELDS_ON_TURN_COMMIT = [
     'skills',
 ] as const;
 
+/** Domain + drift roots — turn commit wins on revision conflict (commerce-ui interleave). */
+export const DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS = [
+    'domain',
+    'domainSnapshotAtDepart',
+    'lastDomainVisitWorldTurn',
+    'domainSinceLastVisit',
+] as const;
+
 /** GM turn_result commit may overwrite these even when disk revision advanced. */
 export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     'status',
@@ -30,6 +38,7 @@ export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     'partyDirector',
     'world',
     'schemaVersion',
+    ...DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS,
 ] as const;
 
 export type GameStateMergeProfile = 'default' | 'turn' | 'commerce-ui' | 'entries-only';

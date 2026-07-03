@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.39.1",
+  "version": "1.39.9",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -707,7 +707,8 @@
     "test:unit": "node scripts/run_all_tests.js --unit",
     "test:smoke": "node scripts/run_all_tests.js --smoke",
     "test:list": "node scripts/run_all_tests.js --list",
-    "test:coverage": "c8 node scripts/run_all_tests.js --unit"
+    "test:coverage": "c8 node scripts/run_all_tests.js --unit",
+    "domain:balance": "node scripts/domain_balance_harness.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

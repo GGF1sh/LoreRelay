@@ -2,54 +2,77 @@
 'use strict';
 
 const {
-    defaultDomainState,
-    applyMonthlyCommit,
-    normalizeDomainConfig,
-} = require('../out/domainCore');
+    DOMAIN_BALANCE_STRATEGIES,
+    DEFAULT_HARNESS_MONTHS,
+    runDomainBalanceStrategy,
+    summarizeRun,
+} = require('./domain_balance_harness_lib');
 
 let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
 function ok(msg) { console.log(`OK: ${msg}`); }
 
-function simulate(actions, months = 12) {
-    let domain = defaultDomainState('riverhold');
-    const cfg = normalizeDomainConfig({ monthlyActions: 2 });
-    const events = new Set();
-    let quietOnly = true;
-
-    for (let m = 0; m < months; m++) {
-        const result = applyMonthlyCommit(domain, {
-            kind: 'monthly_commit',
-            actions,
-            intelligence: m % 4 === 0 ? 'gather_rumors' : 'none',
-        }, cfg, 2000 + m);
-        domain = result.domain;
-        events.add(result.rolledEventId);
-        if (result.rolledEventId !== 'domain_quiet_month') {
-            quietOnly = false;
-        }
+function assertStrategy(name, expectations) {
+    const actions = DOMAIN_BALANCE_STRATEGIES[name];
+    if (!actions) {
+        fail(`unknown strategy ${name}`);
+        return;
     }
-    return { domain, events, quietOnly };
+    const run = runDomainBalanceStrategy(name, actions, { months: DEFAULT_HARNESS_MONTHS, seedBase: 2000 });
+    const summary = summarizeRun(run);
+    let localFailed = false;
+
+    if (run.log.length !== DEFAULT_HARNESS_MONTHS) {
+        fail(`${name}: expected ${DEFAULT_HARNESS_MONTHS} months, got ${run.log.length}`);
+        localFailed = true;
+    }
+
+    if (expectations.treasuryMoves && run.end.treasury === run.start.treasury) {
+        fail(`${name}: treasury should move over ${DEFAULT_HARNESS_MONTHS} months`);
+        localFailed = true;
+    }
+
+    if (expectations.minUniqueEvents !== undefined && summary.uniqueEvents < expectations.minUniqueEvents) {
+        fail(`${name}: expected >=${expectations.minUniqueEvents} unique events, got ${summary.uniqueEvents}`);
+        localFailed = true;
+    }
+
+    if (expectations.notQuietOnly && summary.quietMonths === run.log.length) {
+        fail(`${name}: should roll at least one non-quiet event`);
+        localFailed = true;
+    }
+
+    if (expectations.troopsGrow && run.end.troops <= run.start.troops) {
+        fail(`${name}: troops should grow (${run.start.troops} -> ${run.end.troops})`);
+        localFailed = true;
+    }
+
+    if (expectations.commerceGrow && run.end.commerce <= run.start.commerce) {
+        fail(`${name}: commerce should grow (${run.start.commerce} -> ${run.end.commerce})`);
+        localFailed = true;
+    }
+
+    if (!localFailed) {
+        ok(`balance harness ${name} strategy`);
+    }
 }
 
 {
-    const balanced = simulate(['agriculture', 'public_order']);
-    if (balanced.domain.treasury === 300) {
-        fail('balanced strategy should move treasury over 12 months');
-    } else if (balanced.quietOnly) {
-        fail('balanced strategy should roll at least one non-quiet event');
-    } else if (balanced.events.size < 2) {
-        fail('balanced strategy should see event variety');
-    } else {
-        ok('balance harness balanced strategy');
-    }
-
-    const martial = simulate(['train_troops', 'fortify']);
-    if (martial.domain.troops <= 80) {
-        fail('martial strategy should grow troops');
-    } else {
-        ok('balance harness martial strategy');
-    }
+    assertStrategy('balanced', {
+        treasuryMoves: true,
+        minUniqueEvents: 2,
+        notQuietOnly: true,
+    });
+    assertStrategy('martial', {
+        treasuryMoves: true,
+        troopsGrow: true,
+        minUniqueEvents: 1,
+    });
+    assertStrategy('trade', {
+        treasuryMoves: true,
+        commerceGrow: true,
+        minUniqueEvents: 1,
+    });
 }
 
 if (failed > 0) {

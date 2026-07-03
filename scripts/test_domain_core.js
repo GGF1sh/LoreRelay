@@ -18,6 +18,10 @@ const {
     applyMonthlyDomainIncome,
     resolveDomainPromptTier,
     buildDomainEventGmHint,
+    buildSeasonalDomainGmHint,
+    resolveSeasonalActionBonus,
+    computeDomainEventWeight,
+    applySeasonalMonthlyEffects,
 } = require('../out/domainCore');
 
 let failed = 0;
@@ -62,6 +66,39 @@ function ok(msg) { console.log(`OK: ${msg}`); }
     } else {
         ok('reject empty monthly_commit');
     }
+
+    const badOfficer = parseDomainOps({
+        kind: 'appoint_officer',
+        officer: { npcId: 'evil\ninject', role: 'steward' },
+    });
+    if (badOfficer !== undefined) {
+        fail('reject appoint_officer with unsafe npcId');
+    } else {
+        ok('reject appoint_officer with unsafe npcId');
+    }
+}
+
+{
+    const raw = defaultDomainState('riverhold');
+    raw.pendingEvents = ['bandit_activity', 'not_a_real_event', 'evil\nline'];
+    raw.lastEventId = 'fake_event';
+    const v = validateDomain(raw);
+    if (
+        !v
+        || v.pendingEvents.length !== 1
+        || v.pendingEvents[0] !== 'bandit_activity'
+        || v.lastEventId !== undefined
+    ) {
+        fail('validateDomain event allowlist');
+    } else {
+        ok('validateDomain event allowlist');
+    }
+
+    if (validateDomain({ ...raw, controlledRegionId: 'bad region' }) !== undefined) {
+        fail('validateDomain rejects unsafe region id');
+    } else {
+        ok('validateDomain rejects unsafe region id');
+    }
 }
 
 {
@@ -70,6 +107,27 @@ function ok(msg) { console.log(`OK: ${msg}`); }
         fail('resolveMonthlyActionDeltas', delta);
     } else {
         ok('resolveMonthlyActionDeltas');
+    }
+
+    const springAg = resolveMonthlyActionDeltas(['agriculture'], 4);
+    if ((springAg.agriculture ?? 0) !== 3) {
+        fail('spring agriculture seasonal bonus');
+    } else {
+        ok('spring agriculture seasonal bonus');
+    }
+
+    const winterFest = resolveMonthlyActionDeltas(['festival'], 1);
+    if ((winterFest.popularSupport ?? 0) !== 4 || (winterFest.culture ?? 0) !== 2) {
+        fail('winter festival seasonal bonus');
+    } else {
+        ok('winter festival seasonal bonus');
+    }
+
+    const springOnly = resolveSeasonalActionBonus(['agriculture'], 4);
+    if ((springOnly.agriculture ?? 0) !== 1) {
+        fail('resolveSeasonalActionBonus spring');
+    } else {
+        ok('resolveSeasonalActionBonus');
     }
 }
 
@@ -174,6 +232,74 @@ function ok(msg) { console.log(`OK: ${msg}`); }
         fail('standard tier with pending');
     } else {
         ok('standard tier with pending');
+    }
+
+    const withOfficers = {
+        ...defaultDomainState('riverhold'),
+        officers: [{ npcId: 'sayo', role: 'steward' }],
+    };
+    if (resolveDomainPromptTier(withOfficers, false) !== 'standard') {
+        fail('standard tier with officers');
+    } else {
+        ok('standard tier with officers');
+    }
+
+    const withLastEvent = { ...defaultDomainState('riverhold'), lastEventId: 'merchant_visit' };
+    if (resolveDomainPromptTier(withLastEvent, false) !== 'standard') {
+        fail('standard tier with lastEventId');
+    } else {
+        ok('standard tier with lastEventId');
+    }
+}
+
+{
+    const winter = { ...defaultDomainState('riverhold'), calendarMonth: 1 };
+    const summer = { ...defaultDomainState('riverhold'), calendarMonth: 7 };
+    const festWinter = computeDomainEventWeight('festival_gathering', winter, 'none', []);
+    const festSummer = computeDomainEventWeight('festival_gathering', summer, 'none', []);
+    if (festWinter <= festSummer) {
+        fail('festival_gathering winter weight boost');
+    } else {
+        ok('festival_gathering winter weight boost');
+    }
+
+    const autumn = { ...defaultDomainState('riverhold'), calendarMonth: 10, agriculture: 30 };
+    const badAutumn = computeDomainEventWeight('bad_harvest', autumn);
+    const badSpring = computeDomainEventWeight('bad_harvest', { ...autumn, calendarMonth: 4 });
+    if (badAutumn >= badSpring) {
+        fail('bad_harvest autumn weight reduction');
+    } else {
+        ok('bad_harvest autumn weight reduction');
+    }
+
+    const noOfficers = computeDomainEventWeight('officer_discontent', defaultDomainState('riverhold'));
+    const withOfficer = computeDomainEventWeight('officer_discontent', {
+        ...defaultDomainState('riverhold'),
+        officers: [{ npcId: 'sayo', role: 'steward' }],
+    });
+    const flagged = computeDomainEventWeight('officer_discontent', {
+        ...defaultDomainState('riverhold'),
+        officers: [{ npcId: 'sayo', role: 'steward' }],
+        flags: { officerDiscontent: true },
+    });
+    if (noOfficers !== 0 || withOfficer <= 0 || flagged <= withOfficer) {
+        fail('officer_discontent weight gating');
+    } else {
+        ok('officer_discontent weight gating');
+    }
+
+    const winterDrain = applySeasonalMonthlyEffects({ ...defaultDomainState('riverhold'), calendarMonth: 12 });
+    if (winterDrain.food >= defaultDomainState('riverhold').food) {
+        fail('winter food drain');
+    } else {
+        ok('winter food drain');
+    }
+
+    const seasonalHint = buildSeasonalDomainGmHint({ ...defaultDomainState('riverhold'), calendarMonth: 1 });
+    if (!seasonalHint.includes('[Domain — Season]') || !seasonalHint.includes('winter')) {
+        fail('buildSeasonalDomainGmHint');
+    } else {
+        ok('buildSeasonalDomainGmHint');
     }
 }
 

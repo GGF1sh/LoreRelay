@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.34.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.39.9-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -42,6 +42,7 @@
 - 📜 **Chronicle & Campaign Tools (v1.10+):** Quest Board、Git Timeline、Agentic GM（Referee/Narrator 2段階）、Adaptive TTS / NPC 個別音声。
 - 🧭 **Fable5 Layer (v1.19+):** Chronicle あらすじ注入、Pacing Director、派閥レピュテーション、旅路エンカウント、Replay Export。
 - 🛒 **Living World Economy (v1.23+、experimental):** 貿易・相場・輸送、Commerce UI（Buy/Sell）、NPC Agency、信頼連動の所在、NPC↔NPC / プレイヤー↔NPC の絆（LW3）、盟友の交易還元（v1.33+）。
+- 🏰 **Domain Mode (v1.39+、experimental):** 領地運営（太閤立志伝風月次方針）— `enableDomainMode` 既定 OFF · イベント駆動 · compact GM プロンプト · D3 UI は未実装。
 
 ### 🎭 Parlor モード（SillyTavern 風 1対1 RP）
 

@@ -9,6 +9,100 @@
 
 ## [Unreleased]
 
+### Docs
+
+- **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。設計 doc のみのため Ver 据え置き（規約どおり）。
+
+## [1.39.9] - 2026-07-03
+
+### Fixed
+
+- **Domain PR-A turn merge** — `DOMAIN_TURN_AUTHORITATIVE_ROOT_KEYS` (`domain` + drift roots) merged on `profile: 'turn'` revision conflict so `monthly_commit` is not dropped when commerce-ui advances `stateRevision`. `test_domain_turn_merge_conflict.js`.
+
+### Verification
+
+- `npm test` **109/109**
+
+## [1.39.8] - 2026-07-03
+
+### Added
+
+- **Domain §14 balance harness** — `domain_balance_harness_lib.js` (shared 12-month strategies), harness stdout: stat trajectories + event frequency + `--json` / `--months`; `npm run domain:balance`. `test_domain_balance_core.js` covers balanced/martial/trade.
+
+### Verification
+
+- `npm test` **108/108**
+- `npm run domain:balance`
+
+## [1.39.7] - 2026-07-03
+
+### Fixed
+
+- **Domain hardening** — `parseDomainOps` officer `npcId` via `sanitizeDomainPromptLabel`; `validateDomain` region id pattern + event allowlist (`isValidDomainEventId`); council personality newline strip.
+- **statePatch reapply ordering** — `applyTurnResultToGameState` runs `elapsedWorldTurns` before domain travel drift (matches `processTurnResult`).
+
+### Changed
+
+- **Docs consistency** — `VERSION_TRUTH.md`, README version badges (4 locales), `FEATURE_MATRIX.md` Domain row, `AI_SHARED_LOG` Current Snapshot → **1.39.7**.
+
+### Verification
+
+- `npm test` **108/108**
+
+## [1.39.6] - 2026-07-03
+
+### Added
+
+- **Domain §10.3 compact prompt** — `DOMAIN_COMPACT_BASE_LINES` (3), `buildDomainCompactBaseLines` / `buildDomainStandardPrompt` (officers count + single pending line), `resolveDomainPromptTier` wiring in `domainBridge` (full on commit only; `DOMAIN_EVENT_FOCUS_LINE` on standard when event pending). Tests tightened in `test_domain_prompt_core.js` / `test_domain_core.js`.
+
+### Verification
+
+- `npm test` **108/108**
+
+## [1.39.5] - 2026-07-03
+
+### Added
+
+- **Domain §9.3 monthly council** — `domainCouncilCore.ts`: role/stat-threshold templates, `lastMonthlyActions` context, personality trait lead, `[Domain — Council]` on `monthly_commit` only (max 5 lines). `test_domain_council_core.js`.
+
+### Verification
+
+- `npm test` **108/108**
+
+## [1.39.4] - 2026-07-03
+
+### Added
+
+- **Domain §9.2 / D5 officer bonds** — `domainOfficerBondCore.ts`: `assessOfficerBonds` (playerTrust rival-or-below, nemesis/estrangement milestones), `syncOfficerDiscontentFlag`, registry-gated `appoint_officer`, bond-aware council lines + GM hint. `test_domain_officer_bond_core.js`.
+
+### Fixed
+
+- **Domain drift hardening (v1.39.3)** — Drift runs after `elapsedWorldTurns`; one-shot since-last-visit report; depart without `nextLocationId`; snapshot refresh on all `domainOps`; GM prompt sanitization; capped-month honesty.
+
+### Verification
+
+- `npm test` **107/107**
+
+## [1.39.3] - 2026-07-03
+
+### Added
+
+- **Domain §9.1 absence drift** — `domainDriftCore.ts` (steward monthly tick, `computeSinceLastDomainVisitDelta`, `category: 'domain'`), `domainRegionDriftCore.ts` (depart snapshot / return apply), `statePatch` region travel hook, `[Living World — Since last visit]` domain lines in Domain prompt. `test_domain_since_last_visit.js`.
+
+### Verification
+
+- `npm test` **106/106**
+
+## [1.39.2] - 2026-07-03
+
+### Added
+
+- **Domain §8 event-first + seasonal effects** — `resolveSeasonalActionBonus` (spring agriculture, winter festival), `festival_gathering` + `officer_discontent` events, `computeDomainEventWeight`, `buildSeasonalDomainGmHint` injected on monthly commit (full tier).
+
+### Verification
+
+- `npm test` **105/105**
+
 ## [1.39.1] - 2026-07-03
 
 ### Added

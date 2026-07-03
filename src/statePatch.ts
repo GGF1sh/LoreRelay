@@ -36,7 +36,13 @@ import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import { persistWorldSimulationSteps } from './worldSimPersist';
 import { applyLivingWorldTurnOps } from './livingWorldTurnOps';
-import { applyDomainTurnOps } from './domainTurnOps';
+import { applyDomainTurnOps, domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
+import {
+    applyDomainRegionReturnDrift,
+    clearDomainSinceLastVisitReport,
+    isLocationInDomainRegion,
+    recordDomainRegionDepart,
+} from './domainRegionDriftCore';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -436,6 +442,56 @@ function applyTurnPatchesAndFog(
     return next;
 }
 
+function applyDomainTravelDrift(
+    state: Record<string, unknown>,
+    prevLocationId: string | undefined,
+    worldTurn: number
+): Record<string, unknown> {
+    const rules = loadGameRules();
+    if (!domainModeEnabled(rules) || !isWorldForgeEnabled()) {
+        return state;
+    }
+
+    const domain = readDomainFromGameState(state);
+    if (!domain?.enabled) {
+        return state;
+    }
+
+    const forge = loadWorldForge();
+    if (!forge) {
+        return state;
+    }
+
+    const world = state.world as GameStateWorld | undefined;
+    const nextLocationId = typeof world?.currentLocationId === 'string'
+        ? world.currentLocationId
+        : undefined;
+
+    const locationToRegion: Record<string, string> = {};
+    for (const loc of forge.geography.locations) {
+        if (loc.regionId) {
+            locationToRegion[loc.id] = loc.regionId;
+        }
+    }
+
+    const prevIn = isLocationInDomainRegion(prevLocationId, domain.controlledRegionId, locationToRegion);
+    const nextIn = isLocationInDomainRegion(nextLocationId, domain.controlledRegionId, locationToRegion);
+
+    if (prevIn && !nextIn) {
+        return recordDomainRegionDepart(state, worldTurn);
+    }
+    if (!prevIn && nextIn) {
+        return applyDomainRegionReturnDrift(state, worldTurn, {
+            monthDays: rules.domainMonthDays,
+            monthlyActions: rules.domainMonthlyActions,
+        });
+    }
+    if (prevIn && nextIn) {
+        return clearDomainSinceLastVisitReport(state);
+    }
+    return state;
+}
+
 function applyTurnGameStateFinalize(
     turnResult: TurnResult,
     state: Record<string, unknown>,
@@ -461,7 +517,27 @@ export function applyTurnResultToGameState(
     baseState: Record<string, unknown>,
     persistWorld = true
 ): Record<string, unknown> {
-    const patched = applyTurnPatchesAndFog(turnResult, baseState);
+    const prevWorld = baseState.world as GameStateWorld | undefined;
+    const prevLocationId = typeof prevWorld?.currentLocationId === 'string'
+        ? prevWorld.currentLocationId
+        : undefined;
+    let patched = applyTurnPatchesAndFog(turnResult, baseState);
+
+    const elapsedWorldTurns = clampElapsedWorldTurns(
+        turnResult.elapsedWorldTurns,
+        ABSOLUTE_MAX_BULK_WORLD_STEPS
+    );
+    if (elapsedWorldTurns > 0) {
+        const simResult = persistWorldSimulationSteps(elapsedWorldTurns, ABSOLUTE_MAX_BULK_WORLD_STEPS);
+        if (!simResult.ok) {
+            console.warn(`[statePatch] elapsedWorldTurns skipped (reapply): ${simResult.reason}`);
+        }
+    }
+
+    const ws = loadWorldState();
+    if (ws) {
+        patched = applyDomainTravelDrift(patched, prevLocationId, ws.worldTurn);
+    }
     return applyTurnGameStateFinalize(turnResult, patched, persistWorld);
 }
 
@@ -511,6 +587,11 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             if (!simResult.ok) {
                 console.warn(`[statePatch] elapsedWorldTurns skipped: ${simResult.reason}`);
             }
+        }
+
+        const worldStateForDrift = loadWorldState();
+        if (worldStateForDrift) {
+            state = applyDomainTravelDrift(state, prevLocationId, worldStateForDrift.worldTurn);
         }
 
         const priorGmTurns = Array.isArray(state.entries)

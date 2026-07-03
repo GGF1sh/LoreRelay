@@ -54,9 +54,9 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.33.0** |
-| main 先頭 | v1.33.0 — LW3-P2 絆の交易波及 + Gemini レビュー対応 |
-| 最新ローカルタグ（確認時） | **v1.28.0**（`v1.33.0` タグ push 待ちの可能性あり） |
-| GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
-| Living World | v1.23–1.33（Commerce / Agency / LW3 絆 / プレイヤー絆 / 交易還元） |
-| テスト | `npm test` **82/82** |
+| `package.json` | **1.39.9** |
+| CHANGELOG 先頭 | **[1.39.9]** Domain PR-A turn merge |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 完了（**D3 UI 未**）— `docs/DOMAIN_MODE_DESIGN.md` §12 |
+| GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成（`v1.39.7` push 待ちの可能性あり） |
+| Living World | v1.23–1.34（Commerce / Agency / LW3 / Parlor）+ Domain v1.39.x |
+| テスト | `npm test` **108/108** |

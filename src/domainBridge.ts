@@ -1,19 +1,35 @@
 // Domain Mode D2: host bridge — prompt injection and region name resolution.
 
 import { loadGameRules } from './gameRules';
+import { loadWorldState } from './worldState';
+import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import {
     buildDomainPromptBlock,
+    buildDomainSinceLastVisitPrompt,
     DOMAIN_OPS_PROMPT_LINE,
     DOMAIN_EVENT_FOCUS_LINE,
 } from './domainPromptCore';
 import {
-    buildCouncilLines,
     buildDomainEventGmHint,
+    buildSeasonalDomainGmHint,
     resolveDomainPromptTier,
     type DomainState,
 } from './domainCore';
+import {
+    buildDomainCouncilLines,
+    isDomainMonthlyCommitTurn,
+    shouldInjectDomainCouncil,
+} from './domainCouncilCore';
+import {
+    assessOfficerBonds,
+    buildOfficerBondGmHint,
+    officerBondToCouncilHint,
+    registryToOfficerBondContext,
+    resolveCouncilOfficersFromRegistry,
+} from './domainOfficerBondCore';
 import { buildDomainLedgerPromptLine } from './domainLedgerCore';
+import { readDomainRegionDriftState } from './domainRegionDriftCore';
 import { domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
 
 export { DOMAIN_OPS_PROMPT_LINE } from './domainPromptCore';
@@ -48,31 +64,50 @@ export function buildDomainPromptContext(
         return '';
     }
 
-    const isCommitTurn = Boolean(
-        playerAction && /今月|monthly|月次|方針|decree|domain.*commit/i.test(playerAction)
-    );
+    const isCommitTurn = isDomainMonthlyCommitTurn(playerAction);
     const tier = resolveDomainPromptTier(domain, isCommitTurn);
     const regionName = resolveRegionName(domain.controlledRegionId);
-    const eventHint = resolveEventHint(domain, tier);
+    const eventHint = tier === 'full' ? resolveEventHint(domain, tier) : undefined;
 
-    const councilLines = isCommitTurn
-        ? buildCouncilLines(
-            domain,
-            domain.officers.map((o) => ({ npcId: o.npcId, role: o.role }))
+    const rulesNpcRegistry = rules.enableNpcRegistry === true;
+    const registry = rulesNpcRegistry ? loadNpcRegistry() : undefined;
+    const ws = loadWorldState();
+    const officerBond = registry && ws
+        ? registryToOfficerBondContext(
+            registry.npcs,
+            (ws as { playerNpcMilestones?: Record<string, string[]> }).playerNpcMilestones ?? {}
         )
         : undefined;
+    const bondAssessment = officerBond
+        ? assessOfficerBonds(domain.officers, officerBond)
+        : undefined;
+    const bondHint = buildOfficerBondGmHint(bondAssessment);
+
+    const councilLines = shouldInjectDomainCouncil(domain, isCommitTurn)
+        ? buildDomainCouncilLines({
+            domain,
+            officers: officerBond
+                ? resolveCouncilOfficersFromRegistry(domain.officers, officerBond)
+                : domain.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
+            bondHint: officerBondToCouncilHint(bondAssessment),
+        })
+        : undefined;
+
+    const seasonalHint = tier === 'full' ? buildSeasonalDomainGmHint(domain) : undefined;
 
     const block = buildDomainPromptBlock(domain, {
         regionName,
         councilLines,
         tier,
         eventHint,
+        seasonalHint,
+        bondHint: tier === 'full' ? bondHint : undefined,
     });
 
     const lines = [block];
 
     const ledger = buildDomainLedgerPromptLine(rules.enableCommerce === true, true);
-    if (ledger && tier !== 'minimal') {
+    if (ledger && tier === 'full') {
         lines.push(ledger);
     }
 
@@ -80,6 +115,14 @@ export function buildDomainPromptContext(
         lines.push(DOMAIN_OPS_PROMPT_LINE.replace('up to N', `up to ${rules.domainMonthlyActions ?? 2}`));
     } else if (tier === 'standard' && (domain.pendingEvents.length > 0 || domain.lastEventId)) {
         lines.push(DOMAIN_EVENT_FOCUS_LINE);
+    }
+
+    if (!isCommitTurn) {
+        const { domainSinceLastVisit } = readDomainRegionDriftState(gameState ?? {});
+        const sinceLastVisit = buildDomainSinceLastVisitPrompt(domainSinceLastVisit);
+        if (sinceLastVisit) {
+            lines.push(sinceLastVisit);
+        }
     }
 
     return lines.filter(Boolean).join('\n\n');

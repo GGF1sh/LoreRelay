@@ -1,5 +1,8 @@
 // Domain Mode D1: lordship stats, monthly actions, events (no vscode/fs).
 
+import { CHARACTER_ID_PATTERN } from './characterId';
+import { buildDomainCouncilLines } from './domainCouncilCore';
+
 export const MAX_DOMAIN_OFFICERS = 5;
 export const MAX_DOMAIN_ACTIONS_PER_MONTH = 4;
 export const MAX_DOMAIN_MONTH_DAYS = 100;
@@ -56,6 +59,8 @@ export interface DomainState {
     pendingEvents: string[];
     /** Last rolled domain event id (GM narration hint). */
     lastEventId?: string;
+    /** Actions chosen on the previous monthly_commit (council context). */
+    lastMonthlyActions?: DomainActionId[];
     flags: Record<string, boolean>;
 }
 
@@ -122,6 +127,7 @@ interface DomainEventDef {
     defenseMax?: number;
     requiresIntelligence?: DomainIntelligence;
     requiresAction?: DomainActionId;
+    requiresOfficers?: boolean;
 }
 
 const DOMAIN_EVENTS: readonly DomainEventDef[] = [
@@ -134,8 +140,24 @@ const DOMAIN_EVENTS: readonly DomainEventDef[] = [
     { id: 'rumor_mill', baseWeight: 11, requiresIntelligence: 'gather_rumors' },
     { id: 'spy_arrival', baseWeight: 10, requiresAction: 'espionage' },
     { id: 'religious_friction', baseWeight: 7, popularSupportMax: 50 },
+    { id: 'festival_gathering', baseWeight: 6 },
+    { id: 'officer_discontent', baseWeight: 4, requiresOfficers: true },
     { id: 'domain_quiet_month', baseWeight: 2 },
 ];
+
+const DOMAIN_EVENT_IDS = new Set(DOMAIN_EVENTS.map((e) => e.id));
+
+export function isValidDomainEventId(value: unknown): value is string {
+    return typeof value === 'string' && DOMAIN_EVENT_IDS.has(value);
+}
+
+/** Single-line GM prompt token — blocks newline/control-char injection. */
+export function sanitizeDomainPromptLabel(value: unknown, fallback = 'officer', max = 64): string {
+    if (typeof value !== 'string') { return fallback; }
+    const trimmed = value.trim().replace(/[\r\n\t\x00-\x1f]/g, ' ').slice(0, max);
+    if (!trimmed || !CHARACTER_ID_PATTERN.test(trimmed)) { return fallback; }
+    return trimmed;
+}
 
 /** Mechanical effects when an event fires (event-first — stats follow story). */
 const DOMAIN_EVENT_EFFECTS: Record<string, DomainStatDelta> = {
@@ -148,6 +170,8 @@ const DOMAIN_EVENT_EFFECTS: Record<string, DomainStatDelta> = {
     rumor_mill: { prestige: 1 },
     spy_arrival: { defense: 1, treasury: -10 },
     religious_friction: { culture: -2, popularSupport: -2 },
+    festival_gathering: { popularSupport: 2, culture: 1, food: -10, treasury: -15 },
+    officer_discontent: { publicOrder: -3, prestige: -2, popularSupport: -1 },
     domain_quiet_month: { popularSupport: 1 },
 };
 
@@ -161,6 +185,8 @@ const DOMAIN_EVENT_GM_HINTS: Record<string, string> = {
     rumor_mill: 'Rumors spread from abroad; narrate hearsay only — no new map facts.',
     spy_arrival: 'A covert messenger surfaced; narrate intrigue. Do not canonize new NPCs without GM ops.',
     religious_friction: 'Faith or guild friction rose; narrate cultural tension.',
+    festival_gathering: 'A seasonal festival lifted spirits; narrate celebration and ration strain. Support already rose; food/treasury already spent.',
+    officer_discontent: 'An appointed officer shows discontent; narrate tension in council. Triggered by playerBond rival-or-below trust, nemesis, or estrangement milestone. Order and prestige already dipped.',
     domain_quiet_month: 'A calm month; narrate small daily life in the domain.',
 };
 
@@ -190,6 +216,14 @@ export function isValidOfficerRole(value: unknown): value is OfficerRole {
 
 export function isValidDomainActionId(value: unknown): value is DomainActionId {
     return typeof value === 'string' && (DOMAIN_ACTIONS as readonly string[]).includes(value);
+}
+
+function parseLastMonthlyActions(raw: unknown): DomainActionId[] | undefined {
+    if (!Array.isArray(raw)) { return undefined; }
+    const actions = raw
+        .filter((a): a is DomainActionId => isValidDomainActionId(a))
+        .slice(0, MAX_DOMAIN_ACTIONS_PER_MONTH);
+    return actions.length > 0 ? actions : undefined;
 }
 
 export function normalizeDomainConfig(raw?: Partial<DomainConfig>): DomainConfig {
@@ -230,8 +264,8 @@ export function defaultDomainState(controlledRegionId: string, config?: Partial<
 function parseOfficer(raw: unknown): DomainOfficer | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const doc = raw as Record<string, unknown>;
-    const npcId = typeof doc.npcId === 'string' ? doc.npcId.trim() : '';
-    if (!npcId || npcId.length > 64) { return undefined; }
+    const npcId = sanitizeDomainPromptLabel(doc.npcId, '', 64);
+    if (!npcId) { return undefined; }
     if (!isValidOfficerRole(doc.role)) { return undefined; }
     const officer: DomainOfficer = { npcId, role: doc.role };
     if (typeof doc.skill === 'number' && Number.isFinite(doc.skill)) {
@@ -246,7 +280,7 @@ export function validateDomain(raw: unknown): DomainState | undefined {
     const controlledRegionId = typeof doc.controlledRegionId === 'string'
         ? doc.controlledRegionId.trim()
         : '';
-    if (!controlledRegionId || controlledRegionId.length > 64) { return undefined; }
+    if (!controlledRegionId || !CHARACTER_ID_PATTERN.test(controlledRegionId)) { return undefined; }
 
     const officers: DomainOfficer[] = [];
     if (Array.isArray(doc.officers)) {
@@ -259,8 +293,9 @@ export function validateDomain(raw: unknown): DomainState | undefined {
     const pendingEvents: string[] = [];
     if (Array.isArray(doc.pendingEvents)) {
         for (const item of doc.pendingEvents.slice(0, MAX_DOMAIN_PENDING_EVENTS)) {
-            if (typeof item === 'string' && item.trim()) {
-                pendingEvents.push(item.trim().slice(0, 64));
+            const id = typeof item === 'string' ? item.trim() : '';
+            if (id && isValidDomainEventId(id)) {
+                pendingEvents.push(id);
             }
         }
     }
@@ -309,9 +344,10 @@ export function validateDomain(raw: unknown): DomainState | undefined {
             && doc.lastCommitWorldTurn >= 0
             ? Math.floor(doc.lastCommitWorldTurn)
             : undefined,
-        lastEventId: typeof doc.lastEventId === 'string' && doc.lastEventId.trim()
-            ? doc.lastEventId.trim().slice(0, 64)
+        lastEventId: typeof doc.lastEventId === 'string' && isValidDomainEventId(doc.lastEventId.trim())
+            ? doc.lastEventId.trim()
             : undefined,
+        lastMonthlyActions: parseLastMonthlyActions(doc.lastMonthlyActions),
         officers,
         pendingEvents,
         flags,
@@ -342,10 +378,10 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
 
     if (doc.officer && typeof doc.officer === 'object') {
         const off = doc.officer as Record<string, unknown>;
-        const npcId = typeof off.npcId === 'string' ? off.npcId.trim() : '';
+        const npcId = sanitizeDomainPromptLabel(off.npcId, '', 64);
         if (npcId && isValidOfficerRole(off.role)) {
             ops.officer = {
-                npcId: npcId.slice(0, 64),
+                npcId,
                 role: off.role,
                 skill: typeof off.skill === 'number' ? clampDomainStat(off.skill) : undefined,
             };
@@ -398,7 +434,26 @@ function applyDelta(state: DomainState, delta: DomainStatDelta): DomainState {
     };
 }
 
-export function resolveMonthlyActionDeltas(actions: readonly DomainActionId[]): DomainStatDelta {
+export function resolveSeasonalActionBonus(
+    actions: readonly DomainActionId[],
+    calendarMonth: number
+): DomainStatDelta {
+    const season = getDomainSeason(calendarMonth);
+    const bonus: DomainStatDelta = {};
+    if (season === 'spring' && actions.includes('agriculture')) {
+        bonus.agriculture = 1;
+    }
+    if (season === 'winter' && actions.includes('festival')) {
+        bonus.popularSupport = 1;
+        bonus.culture = 1;
+    }
+    return bonus;
+}
+
+export function resolveMonthlyActionDeltas(
+    actions: readonly DomainActionId[],
+    calendarMonth?: number
+): DomainStatDelta {
     const merged: DomainStatDelta = {};
     for (const action of actions) {
         const d = ACTION_DELTAS[action];
@@ -413,6 +468,19 @@ export function resolveMonthlyActionDeltas(actions: readonly DomainActionId[]): 
         merged.defense = (merged.defense ?? 0) + (d.defense ?? 0);
         merged.culture = (merged.culture ?? 0) + (d.culture ?? 0);
         merged.prestige = (merged.prestige ?? 0) + (d.prestige ?? 0);
+    }
+    if (typeof calendarMonth === 'number' && Number.isFinite(calendarMonth)) {
+        const seasonal = resolveSeasonalActionBonus(actions, calendarMonth);
+        merged.treasury = (merged.treasury ?? 0) + (seasonal.treasury ?? 0);
+        merged.food = (merged.food ?? 0) + (seasonal.food ?? 0);
+        merged.troops = (merged.troops ?? 0) + (seasonal.troops ?? 0);
+        merged.publicOrder = (merged.publicOrder ?? 0) + (seasonal.publicOrder ?? 0);
+        merged.popularSupport = (merged.popularSupport ?? 0) + (seasonal.popularSupport ?? 0);
+        merged.agriculture = (merged.agriculture ?? 0) + (seasonal.agriculture ?? 0);
+        merged.commerce = (merged.commerce ?? 0) + (seasonal.commerce ?? 0);
+        merged.defense = (merged.defense ?? 0) + (seasonal.defense ?? 0);
+        merged.culture = (merged.culture ?? 0) + (seasonal.culture ?? 0);
+        merged.prestige = (merged.prestige ?? 0) + (seasonal.prestige ?? 0);
     }
     return merged;
 }
@@ -453,6 +521,7 @@ function hashSeed(parts: readonly (string | number)[]): number {
 
 function eventWeight(def: DomainEventDef, domain: DomainState, intelligence?: DomainIntelligence, actions?: readonly DomainActionId[]): number {
     let w = def.baseWeight;
+    if (def.requiresOfficers && domain.officers.length === 0) { return 0; }
     if (def.agricultureMax !== undefined && domain.agriculture > def.agricultureMax) { return 0; }
     if (def.agricultureMin !== undefined && domain.agriculture < def.agricultureMin) { w += 8; }
     if (def.commerceMin !== undefined && domain.commerce >= def.commerceMin) { w += 6; }
@@ -462,9 +531,25 @@ function eventWeight(def: DomainEventDef, domain: DomainState, intelligence?: Do
     if (def.requiresIntelligence && intelligence !== def.requiresIntelligence) { return 0; }
     if (def.requiresIntelligence && intelligence === def.requiresIntelligence) { w += 15; }
     if (def.requiresAction && actions?.includes(def.requiresAction)) { w += 12; }
-    if (def.id === 'bad_harvest' && getDomainSeason(domain.calendarMonth) === 'autumn') { w = Math.max(1, w - 5); }
+    const season = getDomainSeason(domain.calendarMonth);
+    if (def.id === 'bad_harvest' && season === 'autumn') { w = Math.max(1, w - 5); }
+    if (def.id === 'festival_gathering' && season === 'winter') { w += 10; }
+    if (def.id === 'festival_gathering' && actions?.includes('festival')) { w += 8; }
+    if (def.id === 'officer_discontent' && domain.flags.officerDiscontent === true) { w += 14; }
     if (def.id === 'domain_quiet_month') { w = Math.max(1, w - 2); }
     return w;
+}
+
+/** Exposed for unit tests (seasonal / event-first weight tuning). */
+export function computeDomainEventWeight(
+    eventId: string,
+    domain: DomainState,
+    intelligence?: DomainIntelligence,
+    actions?: readonly DomainActionId[]
+): number {
+    const def = DOMAIN_EVENTS.find((e) => e.id === eventId);
+    if (!def) { return 0; }
+    return eventWeight(def, domain, intelligence, actions);
 }
 
 export function applyDomainEventEffect(domain: DomainState, eventId: string): DomainState {
@@ -480,6 +565,19 @@ export function buildDomainEventGmHint(eventId: string): string {
     return `[Domain — Event] ${eventId}: ${hint}`;
 }
 
+const SEASONAL_DOMAIN_GM_HINTS: Record<DomainSeason, string> = {
+    spring: 'Spring: planting season — agriculture actions gain +1; narrate renewal and field work.',
+    summer: 'Summer: baseline season — narrate heat, patrols, and trade as usual.',
+    autumn: 'Autumn: harvest month — food yield bonus applied; bad_harvest event weight reduced.',
+    winter: 'Winter: rations tighten (food drain applied); festival action and festival_gathering events are favored — narrate cold and morale.',
+};
+
+export function buildSeasonalDomainGmHint(domain: DomainState): string {
+    const season = getDomainSeason(domain.calendarMonth);
+    const hint = SEASONAL_DOMAIN_GM_HINTS[season];
+    return `[Domain — Season] ${seasonLabel(season)} (M${domain.calendarMonth}): ${hint}`;
+}
+
 /** Passive tax / harvest so months feel alive without stat-grind (+2 forever). */
 export function applyMonthlyDomainIncome(domain: DomainState): DomainState {
     const tax = Math.floor(domain.commerce / 8) + Math.floor(domain.agriculture / 10) + 8;
@@ -487,14 +585,19 @@ export function applyMonthlyDomainIncome(domain: DomainState): DomainState {
     return applyDelta(domain, { treasury: tax, food: foodYield });
 }
 
+/** §10.3: minimal = 3-line summary; full = monthly_commit; standard = compact + pending/officers. */
 export function resolveDomainPromptTier(domain: DomainState, isCommitTurn: boolean): DomainPromptTier {
     if (isCommitTurn) {
         return 'full';
     }
-    if (domain.pendingEvents.length > 0 || domain.officers.length > 0 || domain.lastEventId) {
-        return 'standard';
+    if (
+        domain.pendingEvents.length === 0
+        && domain.officers.length === 0
+        && !domain.lastEventId
+    ) {
+        return 'minimal';
     }
-    return 'minimal';
+    return 'standard';
 }
 
 export function rollDomainEvent(
@@ -525,29 +628,6 @@ export interface CouncilOfficerInput {
     name?: string;
 }
 
-export function buildCouncilLines(domain: DomainState, officers: readonly CouncilOfficerInput[]): string[] {
-    const lines: string[] = [];
-    for (const officer of officers.slice(0, MAX_DOMAIN_OFFICERS)) {
-        const label = officer.name?.trim() || officer.npcId;
-        let line = '';
-        if (officer.role === 'steward' && domain.treasury < 200) {
-            line = `${label} (steward): Treasury is strained; caution on spending.`;
-        } else if (officer.role === 'marshal' && domain.defense < 45) {
-            line = `${label} (marshal): Recommends training troops before border rumors spread.`;
-        } else if (officer.role === 'diplomat' && domain.prestige < 25) {
-            line = `${label} (diplomat): Prestige is low; diplomacy may wait.`;
-        } else if (officer.role === 'merchant' && domain.commerce >= 50) {
-            line = `${label} (merchant): Trade routes look favorable this season.`;
-        } else if (officer.role === 'spy') {
-            line = `${label} (spy): Hears unease in neighboring lands.`;
-        } else {
-            line = `${label} (${officer.role}): Awaits your monthly decree.`;
-        }
-        lines.push(line);
-    }
-    return lines;
-}
-
 export function formatMonthlyChronicleText(
     actions: readonly DomainActionId[],
     eventId: string,
@@ -567,12 +647,7 @@ export function applyMonthlyCommit(
 ): MonthlyCommitResult {
     const actions = (ops.actions ?? []).slice(0, config.monthlyActions);
     let next = { ...domain };
-    next = applyDelta(next, resolveMonthlyActionDeltas(actions));
-
-    const season = getDomainSeason(next.calendarMonth);
-    if (season === 'spring' && actions.includes('agriculture')) {
-        next.agriculture = clampDomainStat(next.agriculture + 1);
-    }
+    next = applyDelta(next, resolveMonthlyActionDeltas(actions, next.calendarMonth));
 
     next = applyMonthlyDomainIncome(next);
     next = applySeasonalMonthlyEffects(next);
@@ -586,10 +661,15 @@ export function applyMonthlyCommit(
     const pending = [...next.pendingEvents, eventId].slice(-MAX_DOMAIN_PENDING_EVENTS);
     next.pendingEvents = pending;
 
-    const councilLines = buildCouncilLines(
-        next,
-        next.officers.map((o) => ({ npcId: o.npcId, role: o.role }))
-    );
+    const councilLines = buildDomainCouncilLines({
+        domain: next,
+        officers: next.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
+    });
+
+    next = {
+        ...next,
+        lastMonthlyActions: actions.length > 0 ? [...actions] : next.lastMonthlyActions,
+    };
 
     return {
         domain: next,

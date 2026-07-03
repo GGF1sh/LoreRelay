@@ -3,60 +3,90 @@
 
 /**
  * Domain balance harness — fixed strategy 12-month simulation (stdout).
- * Usage: node scripts/domain_balance_harness.js
+ * §14: stat trajectory + event frequency for tuning (optional CI; not in npm test).
+ *
+ * Usage:
+ *   npm run domain:balance
+ *   node scripts/domain_balance_harness.js [--months N] [--json]
+ *
  * Requires: npm run compile
  */
 
 const {
-    defaultDomainState,
-    applyMonthlyCommit,
-    normalizeDomainConfig,
-} = require('../out/domainCore');
+    DOMAIN_BALANCE_STRATEGIES,
+    DEFAULT_HARNESS_MONTHS,
+    TRAJECTORY_STATS,
+    runDomainBalanceStrategy,
+    summarizeRun,
+    formatEventFrequency,
+    formatTrajectoryLine,
+} = require('./domain_balance_harness_lib');
 
-const STRATEGIES = {
-    balanced: ['agriculture', 'public_order'],
-    martial: ['train_troops', 'fortify'],
-    trade: ['commerce', 'diplomacy'],
-};
+function parseArgs(argv) {
+    let months = DEFAULT_HARNESS_MONTHS;
+    let json = false;
+    for (let i = 2; i < argv.length; i++) {
+        if (argv[i] === '--json') {
+            json = true;
+        } else if (argv[i] === '--months' && argv[i + 1]) {
+            months = Math.max(1, Math.min(36, parseInt(argv[++i], 10) || DEFAULT_HARNESS_MONTHS));
+        }
+    }
+    return { months, json };
+}
 
-function runStrategy(name, actions, months = 12) {
-    let domain = defaultDomainState('riverhold');
-    const cfg = normalizeDomainConfig({ monthlyActions: 2 });
-    const log = [];
+function main() {
+    const { months, json } = parseArgs(process.argv);
+    const runs = [];
 
-    for (let m = 0; m < months; m++) {
-        const ops = { kind: 'monthly_commit', actions, intelligence: m % 3 === 0 ? 'gather_rumors' : 'none' };
-        const result = applyMonthlyCommit(domain, ops, cfg, 1000 + m);
-        domain = result.domain;
-        log.push({
-            month: domain.calendarMonth,
-            year: domain.calendarYear,
-            treasury: domain.treasury,
-            food: domain.food,
-            troops: domain.troops,
-            agriculture: domain.agriculture,
-            publicOrder: domain.publicOrder,
-            prestige: domain.prestige,
-            event: result.rolledEventId,
-        });
+    for (const [name, actions] of Object.entries(DOMAIN_BALANCE_STRATEGIES)) {
+        const run = runDomainBalanceStrategy(name, actions, { months, seedBase: 1000 });
+        runs.push({ ...run, summary: summarizeRun(run) });
     }
 
-    return { name, start: defaultDomainState('riverhold'), end: domain, log };
+    if (json) {
+        const payload = runs.map(({ name, actions, start, end, log, summary }) => ({
+            name,
+            actions,
+            months: log.length,
+            start: {
+                treasury: start.treasury,
+                food: start.food,
+                troops: start.troops,
+                agriculture: start.agriculture,
+                publicOrder: start.publicOrder,
+                prestige: start.prestige,
+            },
+            end: {
+                treasury: end.treasury,
+                food: end.food,
+                troops: end.troops,
+                agriculture: end.agriculture,
+                publicOrder: end.publicOrder,
+                prestige: end.prestige,
+                rank: end.rank,
+            },
+            eventFrequency: summary.eventFrequency,
+            trajectories: summary.trajectories,
+            log,
+        }));
+        console.log(JSON.stringify(payload, null, 2));
+        return;
+    }
+
+    console.log(`=== Domain Balance Harness (${months} months) ===\n`);
+
+    for (const run of runs) {
+        const { summary } = run;
+        console.log(`--- ${run.name} [${run.actions.join(' + ')}] ---`);
+        for (const key of TRAJECTORY_STATS) {
+            console.log(formatTrajectoryLine(key, summary.trajectories[key]));
+        }
+        console.log(`rank: ${run.start.rank ?? 'minor_lord'} -> ${run.end.rank}`);
+        console.log(`event frequency (${summary.uniqueEvents} unique): ${formatEventFrequency(summary.eventFrequency)}`);
+        console.log(`quiet months: ${summary.quietMonths}/${run.log.length}`);
+        console.log('');
+    }
 }
 
-console.log('=== Domain Balance Harness (12 months) ===\n');
-
-for (const [name, actions] of Object.entries(STRATEGIES)) {
-    const run = runStrategy(name, actions);
-    const s = run.start;
-    const e = run.end;
-    console.log(`--- ${name} [${actions.join(' + ')}] ---`);
-    console.log(`treasury: ${s.treasury} -> ${e.treasury} (delta ${e.treasury - s.treasury})`);
-    console.log(`food: ${s.food} -> ${e.food}`);
-    console.log(`troops: ${s.troops} -> ${e.troops}`);
-    console.log(`agriculture: ${s.agriculture} -> ${e.agriculture}`);
-    console.log(`publicOrder: ${s.publicOrder} -> ${e.publicOrder}`);
-    console.log(`prestige: ${s.prestige} -> ${e.prestige} rank=${e.rank}`);
-    console.log(`events: ${run.log.map((l) => l.event).join(', ')}`);
-    console.log('');
-}
+main();

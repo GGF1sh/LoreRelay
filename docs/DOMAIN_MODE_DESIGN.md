@@ -293,20 +293,20 @@ interface DomainOps {
 
 ---
 
-## 8. イベント（v1 — 主役レイヤー）
+## 8. イベント（v1 — 主役レイヤー）**✅ v1.39.2**
 
 **設計原則（イベント・ファースト）:** プレイヤーが月次コミット後に「何が起きたか」を narration で受け取るのが主体験。stat +2 は裏方。1領地・ライバル大名なしの v1 では、**毎月最低1件は domain イベント候補を GM に渡す**（重み0でも `domain_quiet_month` など雰囲気イベント可）。
 
 数値は **イベント確率と GM プロンプト** に効かせる。フルシミュにはしない。
 
-### 8.1 季節効果（`calendarMonth`）
+### 8.1 季節効果（`calendarMonth`）**✅ v1.39.2**
 
 | 季節 | 月 | 効果 |
 |------|-----|------|
-| 春 | 3–5 | `agriculture` 行動ボーナス +1 |
+| 春 | 3–5 | `agriculture` 行動ボーナス +1（`resolveSeasonalActionBonus`） |
 | 夏 | 6–8 | 基準 |
 | 秋 | 9–11 | 収穫: `food` +、`bad_harvest` 重み DOWN |
-| 冬 | 12, 1–2 | `food` 月次 -N（兵・民食）、`festival` 重み UP |
+| 冬 | 12, 1–2 | `food` 月次 -N（兵・民食）、`festival` 行動ボーナス +1 support/culture、`festival_gathering` 重み UP |
 
 ほぼタダで `food` stat に意味が生まれる。`domainCore` 内で決定論。
 
@@ -316,7 +316,7 @@ interface DomainOps {
 | `merchant_visit` | `commerce` 高 | 交易機会・NPC 来訪 |
 | `bandit_activity` | `publicOrder` 低 | 盗賊イベント |
 | `neighbor_militarize` | `defense` 低 / 隣国 danger 高 | 国境不穏 |
-| `officer_discontent` | 家臣の **player bond** が `rival` 以下 / `npcLifeEventsCore` 離反マイルストーン | 家臣イベント（別 loyalty 数値は使わない） |
+| `officer_discontent` | 家臣在任 + `flags.officerDiscontent`（D5: bond `rival` 以下） | 家臣イベント（別 loyalty 数値は使わない）**✅ v1.39.2** |
 | `petition` | `popularSupport` 低 | 領民陳情 |
 | `trade_route_disruption` | `commerce` 中・世界イベント | 収入減 |
 | `rumor_mill` | `intelligence: gather_rumors` | 隣国噂（FoW は変えない） |
@@ -345,7 +345,7 @@ Chronicle 例:
 | **`playerRole: ruler`** | Domain ON 時は `[Living World — Ruler]` を `[Domain — …]` に置換または併記 |
 | **Replay Export** | `domain` は `pick*ForWebview` 同様、公開サブセットのみ |
 
-### 9.1 留守中ドリフト（Living World 北極星 — **本丸接続**）
+### 9.1 留守中ドリフト（Living World 北極星 — **本丸接続**）**✅ v1.39.3**
 
 プレイヤーが冒険で領地を離れている間、任命済み **steward（代官）** が月次相当の軽い tick を回す（全 stat ではなく **イベント重み + treasury/food 微変動**）。
 
@@ -366,7 +366,7 @@ Domain (90 turns away): While you were abroad, Steward Sayo collected taxes (+40
 
 → Domain が独立 SLG ではなく **「世界は君がいなくても動く」の領地版** になる。
 
-### 9.2 家臣 = Bond 接続（D5 設計変更）
+### 9.2 家臣 = Bond 接続（D5 設計変更）**✅ v1.39.4**
 
 別テーブルの `loyalty` は **廃止**。家臣は Registry の `npcId` + `role` のみ保持。
 
@@ -379,7 +379,7 @@ Domain (90 turns away): While you were abroad, Steward Sayo collected taxes (+40
 
 `appoint_officer` は Registry に存在する `npcId` のみ。評定 council 行（§10.3）は Registry の `personality` を1行要約。
 
-### 9.3 月次評定（Council）注入
+### 9.3 月次評定（Council）注入 **✅ v1.39.5**
 
 `monthly_commit` 確定ターンのみ、任命済み officer ごとに **立場から1行** を GM プロンプトへ（最大5行）:
 
@@ -426,7 +426,7 @@ Guidance: Stats are canonical. Narrate mood and NPC reactions only.
 - チャンク id: `domain`、priority: **67**（`worldState` 68 の直下）
 - `enableDomainMode` OFF または `domain` 未初期化時は空
 
-### 10.3 Compact モードと評定
+### 10.3 Compact モードと評定 **✅ v1.39.6**
 
 | 条件 | 注入 |
 |------|------|
@@ -471,61 +471,78 @@ export const DOMAIN_OPS_PROMPT_LINE =
 
 ## 12. 実装フェーズ（v2 — イベント前倒し）
 
-**推奨順序（Claude 合意）:** D1 Core + harness → **D1b Events** → D1.5 Time → D2 Prompt → D3 UI → D4 Commerce 境界 → D5 Bond Officers
+**推奨順序（Claude 合意・実装もこの順）:** D1 Core + harness → **D1b Events** → D1.5 Time → D2 Prompt → D3 UI → D4 Commerce 境界 → D5 Bond Officers
 
-### Phase D1: Domain Core + Balance Harness
+旧ロードマップではイベント表が D4 後ろだったが、**§1.4「乾いた表計算」リスク**のため **D1b で前倒し**（`docs/PHASE_NAMING.md` Domain 表と同期）。
 
-| 項目 | 内容 |
-|------|------|
-| ファイル | `src/domainCore.ts` · `scripts/test_domain_core.js` · **`scripts/domain_balance_harness.js`** |
-| 関数 | `validateDomain` · `defaultDomainState` · `resolveMonthlyActions` · `applyDomainDelta` · `parseDomainOps` · `seasonalModifiers` |
-| 受け入れ | 月次2行動で決定論 delta · clamp · テスト 20+ · harness が12ヶ月軌道を stdout |
+### 12.1 フェーズ一覧（出荷状況）
 
-### Phase D1b: Domain Events（**前倒し** — 旧 D4 の核）
+| Phase | 名称 | 状態 | 出荷 Ver |
+|-------|------|------|----------|
+| **D1** | Domain Core + balance harness | **完了** | **1.39.0–1.39.1** |
+| **D1b** | Domain Events（前倒し） | **完了** | **1.39.2** |
+| **D1.5** | Domain + Time + Chronicle | **完了** | **1.39.0** |
+| **D2** | Domain Prompt + `domainOps` | **完了** | **1.39.0–1.39.6**（§10.3 compact = 1.39.6） |
+| **D3** | Domain UI（World タブ） | **未着手** | **1.40.0** 想定 |
+| **D4** | Commerce 境界 + 留守ドリフト | **一部完了** | ledger **1.39.1** · drift **1.39.3** · 市場ボーナス **未** |
+| **D5** | Officers via Bond + Council | **完了** | bond **1.39.4** · council **1.39.5** |
 
-| 項目 | 内容 |
-|------|------|
-| ファイル | `domainCore.ts` に `rollDomainEvents` · `applySeasonalEffects` |
-| 受け入れ | 毎月コミット後にイベント id 決定論抽出 · `agriculture` 低 → `bad_harvest` 重み UP · 冬の food ドレイン |
+**次のマイルストーン:** **D3 UI**（`pickDomainForWebview` は D2 で用意済み・未配線）→ D4 残（`commerce` stat → `tickMarketRecovery` ボーナス）。
 
-### Phase D1.5: Domain + Time + Chronicle
-
-| 項目 | 内容 |
-|------|------|
-| ファイル | `src/domainTurnOps.ts` · `chronicleCore.ts` 拡張 |
-| 内容 | `monthly_commit` → `elapsedWorldTurns` + `domain` 更新 + Chronicle 1 行 + **イベント結果** |
-| 受け入れ | 会話のみのターンで `domain` 不変 · 月次コミットで `calendarMonth` +1 |
-
-### Phase D2: Domain Prompt + turn_result
+### Phase D1: Domain Core + Balance Harness **✅ v1.39.0–1.39.1**
 
 | 項目 | 内容 |
 |------|------|
-| ファイル | `src/domainBridge.ts` · `gmPromptBuilder.ts` · `agenticGmCore.ts` |
-| 内容 | `[Domain — …]` compact/フル · `DOMAIN_OPS_PROMPT_LINE` · **Council 行** · Referee 契約 |
-| 受け入れ | OFF 時空 · コミット時 Council · `domainOps` パース・merge |
+| ファイル | `src/domainCore.ts` · `scripts/test_domain_core.js` · **`scripts/domain_balance_harness.js`** · `test_domain_balance_core.js` |
+| 関数 | `validateDomain` · `defaultDomainState` · `resolveMonthlyActions` · `applyDomainDelta` · `parseDomainOps` · `applyDomainEventEffect` · `applyMonthlyDomainIncome` |
+| 受け入れ | 月次2行動で決定論 delta · clamp · テスト 20+ · harness が12ヶ月軌道を stdout **✅** |
 
-### Phase D3: Domain UI
+### Phase D1b: Domain Events（**前倒し** — 旧 D4 の核）**✅ v1.39.2**
 
 | 項目 | 内容 |
 |------|------|
-| ファイル | `worldView.ts` · `webview/modules/85-world.js` · i18n 4 言語 |
+| ファイル | `domainCore.ts` に `rollDomainEvent` · `computeDomainEventWeight` · `buildSeasonalDomainGmHint` · `resolveSeasonalActionBonus` |
+| 受け入れ | 毎月コミット後にイベント id 決定論抽出 · `agriculture` 低 → `bad_harvest` 重み UP · 冬の food ドレイン · 季節 GM ヒント（commit/full tier） **✅** |
+
+### Phase D1.5: Domain + Time + Chronicle **✅ v1.39.0**
+
+| 項目 | 内容 |
+|------|------|
+| ファイル | `src/domainTurnOps.ts` · `src/domainTurnOpsCore.ts` · `chronicleCore.ts` 拡張 · `statePatch.ts` 配線 |
+| 内容 | `monthly_commit` → `elapsedWorldTurns` + `domain` 更新 + Chronicle `kind: 'domain'` + **イベント結果** |
+| 受け入れ | 会話のみのターンで `domain` 不変 · 月次コミットで `calendarMonth` +1 **✅**（`test_domain_turn_ops.js`） |
+
+### Phase D2: Domain Prompt + turn_result **✅ v1.39.0–1.39.6**
+
+| 項目 | 内容 |
+|------|------|
+| ファイル | `src/domainBridge.ts` · `src/domainPromptCore.ts` · `gmPromptBuilderCore.ts` · `agenticGmCore.ts` |
+| 内容 | `[Domain — …]` 3段 tier（§10.3）· `DOMAIN_OPS_PROMPT_LINE` · **Council 行**（§9.3）· Referee 契約 · since-last-visit 注入 |
+| 受け入れ | OFF 時空 · コミット時 full + Council · `domainOps` パース・merge **✅**（`test_domain_prompt_core.js` 他） |
+
+### Phase D3: Domain UI **— 次フェーズ（1.40.0 想定）**
+
+| 項目 | 内容 |
+|------|------|
+| ファイル | `worldView.ts` · `webview/modules/85-world.js` · i18n 4 言語 · `pickDomainForWebview` 配線 |
 | 受け入れ | OFF 時パネル非表示 · 数値が `game_state` と一致 |
+| 現状 | Game Rules の `enableDomainMode` チェックボックスのみ（v1.39.0）。World タブ領地パネルは **未** |
 
-### Phase D4: Commerce 境界 + 留守ドリフト
-
-| 項目 | 内容 |
-|------|------|
-| 内容 | treasury/credits ルール明文化 · 市場ボーナス · **`computeSinceLastDomainVisitDelta`**（§9.1） |
-| 受け入れ | 離脱→再訪で domain delta が GM プロンプトに出る · 商人支払いは credits |
-
-### Phase D5: Officers via Bond（設計変更）
+### Phase D4: Commerce 境界 + 留守ドリフト **一部 ✅**
 
 | 項目 | 内容 |
 |------|------|
-| 内容 | `appoint_officer` · **playerBond / lifeEvents** 連動 · 評定 council テンプレ |
-| 受け入れ | 家臣5人 · `officer_discontent` = bond マイルストーン · 別 loyalty フィールドなし |
+| 内容 | treasury/credits ルール明文化 **✅ v1.39.1** · **`computeSinceLastDomainVisitDelta`**（§9.1）**✅ v1.39.3** · 市場ボーナス（`commerce` stat → `tickMarketRecovery`）**未** |
+| 受け入れ | 離脱→再訪で domain delta が GM プロンプトに出る **✅** · 商人支払いは credits **✅**（ledger 行） |
 
-**想定 Ver:** D1–D2 → **1.39.0**、D3 → **1.40.0**、D4–D5 → **1.41.x**（出荷時に調整）
+### Phase D5: Officers via Bond（設計変更）**✅ v1.39.4–1.39.5**
+
+| 項目 | 内容 |
+|------|------|
+| 内容 | `appoint_officer` · **playerBond / lifeEvents** 連動 **✅ v1.39.4** · 評定 council テンプレ **✅ v1.39.5** |
+| 受け入れ | 家臣5人 · `officer_discontent` = bond マイルストーン · 別 loyalty フィールドなし **✅** |
+
+**出荷 Ver（実績）:** D1–D2 + D1b + D1.5 + D4 核 + D5 → **1.39.0–1.39.8**（hardening 1.39.7 · harness 1.39.8）。**D3** → **1.40.0** 想定。D4 市場ボーナスは D3 後または同梱（§20.2-B）。
 
 ---
 
@@ -547,11 +564,14 @@ export const DOMAIN_OPS_PROMPT_LINE =
 | スクリプト | 検証 |
 |------------|------|
 | `test_domain_core.js` | 行動 resolve · イベント重み · 季節 · clamp · parseDomainOps |
-| `domain_balance_harness.js` | 固定戦略12ヶ月 · stat 軌道 · イベント頻度（チューニング用・CI 任意） |
+| `domain_balance_harness.js` + `domain_balance_harness_lib.js` | 固定戦略12ヶ月 · stat 軌道 · イベント頻度（`npm run domain:balance` · CI 任意）**✅ v1.39.8** |
 | `test_domain_turn_ops.js` | turn_result 適用 · elapsedWorldTurns 連動 |
 | `test_domain_since_last_visit.js` | 留守ドリフト delta |
-| `test_domain_prompt.js` | compact/フル · Council · OFF 時空 |
-| 既存 `test_chronicle_core.js` 拡張 | `kind: 'domain'` エントリ |
+| `test_domain_prompt_core.js` | compact/standard/full tier · Council · since-last-visit |
+| `test_domain_council_core.js` | Council 行 · commit-only 注入 |
+| `test_domain_officer_bond_core.js` | bond 評定 · appoint ゲート |
+| `test_domain_since_last_visit.js` | 留守ドリフト delta |
+| `test_chronicle_core.js` 拡張（任意） | `kind: 'domain'` エントリ専用 assert **未** |
 
 ---
 
@@ -578,6 +598,7 @@ export const DOMAIN_OPS_PROMPT_LINE =
 | `docs/PARLOR_MODE_DESIGN.md` | 体験プロファイル・入口の軽さ |
 | `src/inWorldPromptBuilderCore.ts` | 参照のみコンテキスト拡張ポイント |
 | `docs/PHASE_NAMING.md` | D1–D5 サブトラック |
+| `docs/DOMAIN_MODE_CODE_REVIEW_PROMPT.md` | 他 AI 向けコードレビュー依頼（コピペ用） |
 
 ---
 
@@ -586,20 +607,47 @@ export const DOMAIN_OPS_PROMPT_LINE =
 | 日付 | レビュア | 反映 |
 |------|----------|------|
 | 2026-07-03 | Claude | §1.4 リスク · イベント前倒し · balance harness · Bond 家臣 · 留守ドリフト · rank 軸 · 季節 · compact prompt |
+| 2026-07-03 | Grok | §12 フェーズ再編 · 出荷 Ver 実績表 · D3/D4 残タスク明記 · `PHASE_NAMING.md` 同期 |
+| 2026-07-03 | Grok | §20 次アクション表 v1.39.8 同期 · 完了済み/優先度 · §19 申し送り更新 |
+| 2026-07-03 | Gemini→Grok | 外部レビュー triage · `DOMAIN_MODE_REVIEW_GEMINI_v1_39.md` · PR-A domain merge |
 
 ---
 
 ## 19. AI 申し送り（1行）
 
 ```
-Domain Mode v2: docs/DOMAIN_MODE_DESIGN.md。D1 domainCore+balance harness → D1b events → D1.5 time。家臣=playerBond、留守=since-last-visit。実装 GO。
+Domain Mode v1.39.9: D1→D5 + hardening + harness + PR-A turn merge 完了。次 P0=D3 UI。正本 docs/DOMAIN_MODE_DESIGN.md §12・§20。
 ```
 
 ---
 
 ## 20. 次アクション
 
-| 選択 | 内容 |
-|------|------|
-| **(B) 推奨** | `domainCore.ts` + `test_domain_core.js` + `domain_balance_harness.js` の D1 spike |
-| (C) 任意 | §9.1 留守ドリフトのみ別メモ `docs/DOMAIN_AWAY_DRIFT_BRIEF.md` に切り出し（他 AI 委譲用） |
+**現状（v1.39.8）:** `enableDomainMode` + Core / Events / Time / Prompt（compact）/ Bond / Council / 留守ドリフト / allowlist hardening / `npm run domain:balance` **完了**。**未:** World タブ UI · D4 市場ボーナス · chronicle 専用 assert · replay/webview domain pick。
+
+### 20.1 完了済み（参考 — 再着手不要）
+
+| 項目 | 出荷 Ver | 確認 |
+|------|----------|------|
+| D1 Core + harness | 1.39.0–1.39.8 | `npm test` · `npm run domain:balance` |
+| D1b Events · D1.5 Time | 1.39.0–1.39.2 | `test_domain_core.js` · `test_domain_turn_ops.js` |
+| D2 Prompt + tiers | 1.39.0–1.39.6 | `test_domain_prompt_core.js` |
+| D4 留守ドリフト + ledger | 1.39.1–1.39.3 | `test_domain_since_last_visit.js` · `test_domain_ledger_core.js` |
+| D5 Bond + Council | 1.39.4–1.39.5 | `test_domain_officer_bond_core.js` · `test_domain_council_core.js` |
+| レビュー + hardening | 1.39.7 | region/event allowlist · reapply drift 順序 |
+| §12 フェーズ表 · §14 harness | 1.39.8 | `domain_balance_harness_lib.js` |
+
+### 20.2 次の作業
+
+| 優先 | ID | 内容 | 主なファイル | 受け入れ | 想定 Ver |
+|------|-----|------|--------------|----------|----------|
+| ~~**P0**~~ | **A0** | **turn merge: `domain` authoritative** — Commerce 併用時の monthly_commit 落ち防止 | `workspaceStateQueueCore.ts` · `test_domain_turn_merge_conflict.js` | revision 衝突でも turn の `domain` が保持 | **✅ 1.39.9** |
+| **P0** | **A** | **D3 Domain UI** — World タブ「領地」サブパネル | `worldView.ts` · `webview/modules/85-world.js` · i18n 4言語 | `enableDomainMode` OFF で非表示 · 数値が `game_state.domain` と一致 · 行動チップ→チャット挿入 | **1.40.0** |
+| P0 配線 | A1 | `pickDomainForWebview` → webview message · `gameStateWebviewSanitize` に domain 公開サブセット | `domainBridge.ts` · `gameStateWebviewSanitize.ts` | webview に `flags` 内部を漏らさない | 1.40.0 |
+| P1 | B | D4 残 — 領地 `commerce` stat → `tickMarketRecovery` ボーナス | `worldSimCommerceCore.ts` · `domainCore` 連携 | Commerce+Domain ON で高 commerce 領地の市場回復に加点 | 1.40.x |
+| P2 | C | Chronicle `kind: 'domain'` 専用 assert | `test_chronicle_core.js` | `monthly_commit` 後 journal 行に domain テキスト | 任意 |
+| P2 | D | バランスチューニング | `npm run domain:balance` · `domain_balance_harness.js` | 12ヶ月軌道・イベント頻度が設計意図内（乾いた表計算回避） | 随時 |
+| P3 | E | Replay export に domain pick | `replayExportSanitizeCore.ts` | エクスポートに領地サマリのみ | D3 同梱可 |
+| 配布 | — | GitHub Release | tag `v1.40.0`（D3 後） | `package.json` と一致 VSIX | D3 後 |
+
+**推奨着手順:** Gemini レビュー反映（`docs/DOMAIN_MODE_REVIEW_GEMINI_v1_39.md`）→ **PR-A**（`domain` を turn authoritative に）→ **A1 + A**（D3 UI）→ **B** → 横断 **PR-C**（キュー CB）→ **C** / **D** は並行可。

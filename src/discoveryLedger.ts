@@ -3,6 +3,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath } from './workspacePaths';
+import { resolveActiveCampaignKit } from './campaignKit';
 import {
     buildDiscoveryLedgerPromptBlock,
     parseDiscoveryLedger,
@@ -51,5 +52,8 @@ export function loadDiscoveryLedger(): DiscoveryLedgerDocument | undefined {
 }
 
 export function buildDiscoveryLedgerPromptContext(): string {
+    if (!resolveActiveCampaignKit()) {
+        return '';
+    }
     return buildDiscoveryLedgerPromptBlock(loadDiscoveryLedger());
 }

@@ -13,6 +13,22 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.45.1] - 2026-07-03
+
+### Fixed
+
+- **Campaign Kit review hardening**
+  - `campaign_kit.json` が存在する場合は invalid でも `game_rules` にフォールバックしない。
+  - 未知の `campaignKitId` はサイレント置換せず無効化。
+  - `version !== 1` の kit を拒否。
+  - テーマ推定: `space ruins` が post-apoc に誤マッチしないよう順序修正。
+  - Discovery Ledger は Campaign Kit 有効時のみ GM 注入。
+- **Scrapbound sample** — `playerRole: adventurer`、commerce ブロック修正、`enableNpcRegistry: false`。
+
+### Verification
+
+- `npm test` **124/124**
+
 ## [1.45.0] - 2026-07-03
 
 ### Added

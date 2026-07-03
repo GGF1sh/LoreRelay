@@ -29,6 +29,10 @@ There are two supported activation paths.
 If `campaignKitId` is omitted, LoreRelay infers a built-in preset from
 `world_forge.json` theme text.
 
+Invalid or unsupported `campaign_kit.json` (wrong `version`, malformed JSON) disables
+the kit for that workspace — LoreRelay does **not** fall back to `game_rules` when the
+file exists. Unknown `campaignKitId` values are ignored (no silent preset substitution).
+
 ## Built-in Presets
 
 - `classic_fantasy_guild`

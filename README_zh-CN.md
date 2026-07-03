@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.45.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.45.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -237,7 +237,7 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-> **版本正本：** `package.json`（当前 **1.45.0**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任务看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **版本正本：** `package.json`（当前 **1.45.1**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任务看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
 **已实现（v1.33.0 摘要）**
 

@@ -6,6 +6,7 @@ import { loadWorldForge, loadWorldForgeDocument } from './worldForge';
 import {
     buildCampaignKitPromptBlock,
     getCampaignKitPreset,
+    hasCampaignKitPreset,
     inferCampaignKitIdFromTheme,
     parseCampaignKitConfig,
     type CampaignKitConfig,
@@ -40,6 +41,10 @@ export function loadCampaignKitFile(): CampaignKitConfig | undefined {
         }
         const raw = JSON.parse(fs.readFileSync(kitPath, 'utf-8'));
         const parsed = parseCampaignKitConfig(raw);
+        if (!parsed) {
+            clearCampaignKitCache();
+            return undefined;
+        }
         cachedPath = kitPath;
         cachedMtime = stat.mtimeMs;
         cachedKit = parsed;
@@ -59,17 +64,18 @@ function resolveThemeHint(): string {
 }
 
 export function resolveActiveCampaignKit(): CampaignKitConfig | undefined {
-    const fromFile = loadCampaignKitFile();
-    if (fromFile) {
-        return fromFile;
+    const kitPath = getCampaignKitPath();
+    if (kitPath && fs.existsSync(kitPath)) {
+        // File is authoritative — do not fall back to game_rules when missing/invalid.
+        return loadCampaignKitFile();
     }
     const rules = loadGameRules();
     if (rules.enableCampaignKit !== true) {
         return undefined;
     }
-    const explicitId = typeof rules.campaignKitId === 'string' ? rules.campaignKitId : '';
+    const explicitId = typeof rules.campaignKitId === 'string' ? rules.campaignKitId.trim() : '';
     if (explicitId) {
-        return getCampaignKitPreset(explicitId);
+        return hasCampaignKitPreset(explicitId) ? getCampaignKitPreset(explicitId) : undefined;
     }
     return getCampaignKitPreset(inferCampaignKitIdFromTheme(resolveThemeHint()));
 }

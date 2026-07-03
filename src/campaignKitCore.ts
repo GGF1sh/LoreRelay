@@ -372,11 +372,17 @@ export function listCampaignKitPresetIds(): readonly string[] {
     return CAMPAIGN_KIT_PRESET_IDS;
 }
 
+export function hasCampaignKitPreset(id: unknown): boolean {
+    const key = asId(id);
+    return Boolean(key && CAMPAIGN_KIT_PRESETS[key]);
+}
+
 export function inferCampaignKitIdFromTheme(theme: unknown): string {
     const t = clampText(theme, 120).toLowerCase();
     if (!t) { return DEFAULT_CAMPAIGN_KIT_ID; }
-    if (/(post|apoc|waste|scav|zombie|ruin|fallout)/.test(t)) { return 'postapoc_scavenger'; }
+    // Space/sci before post-apoc — avoid "space ruins" matching bare `ruin`.
     if (/(space|sci|star|planet|ship|frontier|colony|galaxy)/.test(t)) { return 'space_frontier'; }
+    if (/(post|apoc|waste|scav|zombie|fallout)/.test(t) || /\bruins?\b/.test(t)) { return 'postapoc_scavenger'; }
     if (/(\u548c\u98a8|\u4e2d\u83ef|\u6b66\u4fa0|\u4ed9\u4fa0|\u4f8d|\u9670\u967d)/.test(t)) { return 'eastern_fantasy'; }
     if (/(wuxia|xianxia|eastern|oriental|japan|china|samurai|sect|onmyoji|和|中華|武侠)/.test(t)) { return 'eastern_fantasy'; }
     if (/(cyber|punk|neon|corp|hacker|dystopia)/.test(t)) { return 'cyberpunk_courier'; }
@@ -393,7 +399,10 @@ export function parseCampaignKitConfig(raw: unknown, fallback?: CampaignKitConfi
         return fallback ? { ...fallback } : undefined;
     }
     const r = raw as Record<string, unknown>;
-    const base = fallback ?? getCampaignKitPreset(r.id);
+    if (r.version !== undefined && r.version !== 1) {
+        return undefined;
+    }
+    const base = fallback ?? (hasCampaignKitPreset(r.id) ? getCampaignKitPreset(r.id) : getCampaignKitPreset(DEFAULT_CAMPAIGN_KIT_ID));
     const id = asId(r.id, base.id);
     const name = clampText(r.name, MAX_NAME) || base.name;
     const genre = asGenre(r.genre ?? base.genre);

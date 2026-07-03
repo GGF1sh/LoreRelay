@@ -6,12 +6,25 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.45.0**（未 push） |
-| Campaign Kit | **Phase A+B** — presets + `discoveries.json` · `scrapbound-settlement` sample |
-| Domain Mode | D1–D5 + D3 UI + F7–F10 **完了**（v1.40.0–1.40.1） |
-| Guild Master (F11) | **G1–G4 完了**（v1.41.0–1.44.1） |
-| Tests | `npm test` **123/123**（目標） |
+| Package version | **1.45.1** |
+| Campaign Kit | **Phase A+B** + review fixes · `scrapbound-settlement` sample |
+| Tests | `npm test` **124/124** |
 | Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
+
+---
+
+## 2026-07-03 JST - Grok - Campaign Kit code review fixes (v1.45.1)
+
+### Summary
+
+- kit ファイル存在時のフォールバック封じ、未知 preset ID 拒否、version 検証、テーマ推定順序修正。
+- Discovery Ledger を Campaign Kit 有効時に限定。
+- Scrapbound sample: commerce ブロック・playerRole 修正。
+- `test_scrapbound_sample_integrity.js` 追加。
+
+### Verification
+
+- `npm test` **124/124**
 
 ---
 

@@ -18,13 +18,16 @@ if (!fs.existsSync(corePath)) {
 const {
     buildCampaignKitPromptBlock,
     getCampaignKitPreset,
+    hasCampaignKitPreset,
     inferCampaignKitIdFromTheme,
     listCampaignKitPresetIds,
     parseCampaignKitConfig,
 } = require(corePath);
 
 {
-    if (inferCampaignKitIdFromTheme('post-apocalyptic scavenger ruins') !== 'postapoc_scavenger') {
+    if (inferCampaignKitIdFromTheme('space ruins derelict frontier') !== 'space_frontier') {
+        fail('space ruins theme should infer space kit before post-apoc ruin keyword');
+    } else if (inferCampaignKitIdFromTheme('post-apocalyptic scavenger ruins') !== 'postapoc_scavenger') {
         fail('post-apocalyptic theme should infer scavenger kit');
     } else if (inferCampaignKitIdFromTheme('space frontier starship') !== 'space_frontier') {
         fail('space theme should infer space kit');
@@ -88,6 +91,16 @@ const {
         fail('prompt block should preserve Core authority boundary');
     } else {
         ok('prompt block documents genre loop and Core boundary');
+    }
+}
+
+{
+    if (hasCampaignKitPreset('postapoc_scavenger') !== true || hasCampaignKitPreset('not_a_preset') !== false) {
+        fail('hasCampaignKitPreset should validate known ids');
+    } else if (parseCampaignKitConfig({ version: 2, id: 'x' }) !== undefined) {
+        fail('unsupported version should reject parse');
+    } else {
+        ok('preset guard and version validation');
     }
 }
 

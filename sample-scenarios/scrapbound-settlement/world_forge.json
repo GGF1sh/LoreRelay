@@ -13,7 +13,7 @@
         "id": "r_settlement",
         "name": "Scrapbound Enclave",
         "description": "A walled trader settlement built from shipping containers and salvage.",
-        "type": "settlement",
+        "type": "urban",
         "dangerLevel": 2,
         "x": 400,
         "y": 500,
@@ -24,22 +24,24 @@
         "id": "r_industrial",
         "name": "Dead Industrial Belt",
         "description": "Collapsed factories and chemical yards. Good parts, bad air.",
-        "type": "industrial",
+        "type": "ruins",
         "dangerLevel": 4,
         "x": 700,
         "y": 420,
         "biome": "wasteland",
+        "hazard": "toxic",
         "connectedTo": ["r_settlement"]
       },
       {
         "id": "r_transit",
         "name": "Old Transit Corridors",
         "description": "Subway and service tunnels. Dark, unstable, sometimes still powered.",
-        "type": "underground",
+        "type": "dungeon",
         "dangerLevel": 5,
         "x": 250,
         "y": 620,
-        "biome": "ruins",
+        "biome": "underground",
+        "hazard": "radiation",
         "connectedTo": ["r_settlement"]
       }
     ],
@@ -49,26 +51,22 @@
         "name": "Scrapbound Market Row",
         "regionId": "r_settlement",
         "description": "The settlement hub: notice board, fixers, food stalls, and Mira's appraisal counter.",
-        "type": "market",
-        "connectedTo": ["dead_factory_yard", "north_metro"]
+        "type": "settlement",
+        "factionControl": "faction_traders"
       },
       {
         "id": "dead_factory_yard",
         "name": "Dead Factory Yard",
         "regionId": "r_industrial",
         "description": "Rusted cranes and half-flooded basements. Raiders sometimes camp in the offices.",
-        "type": "ruins",
-        "dangerLevel": 4,
-        "connectedTo": ["scrapbound_market"]
+        "type": "ruins"
       },
       {
         "id": "north_metro",
         "name": "North Metro Entrance",
         "regionId": "r_transit",
         "description": "A collapsed stairwell into old transit tunnels. Faint light pulses deeper in.",
-        "type": "ruins",
-        "dangerLevel": 5,
-        "connectedTo": ["scrapbound_market"]
+        "type": "ruins"
       }
     ]
   },
@@ -76,22 +74,43 @@
     {
       "id": "faction_traders",
       "name": "Market Row Traders",
-      "type": "guild",
+      "type": "friendly",
       "power": 40,
-      "description": "Keep Scrapbound fed and solvent."
+      "description": "Keep Scrapbound fed and solvent.",
+      "goals": ["keep salvage flowing", "avoid raider tolls"]
     },
     {
       "id": "faction_raiders",
       "name": "Ash Road Raiders",
-      "type": "bandits",
+      "type": "hostile",
       "power": 28,
-      "description": "Hit convoys between ruins and the settlement."
+      "description": "Hit convoys between ruins and the settlement.",
+      "goals": ["ambush hauls", "control factory yard"]
     }
   ],
-  "commodities": [
-    { "id": "food", "name": "Ration packs", "category": "consumable" },
-    { "id": "parts", "name": "Salvage parts", "category": "material" },
-    { "id": "medicine", "name": "Med packs", "category": "consumable" },
-    { "id": "ammo", "name": "Ammunition", "category": "consumable" }
-  ]
+  "loreHistory": [
+    {
+      "event": "The north metro flickered alive again — traders pay well for proof of what still runs down there."
+    }
+  ],
+  "commerce": {
+    "commodities": [
+      { "id": "food", "name": "Ration packs", "basePrice": 12, "weight": 1 },
+      { "id": "parts", "name": "Salvage parts", "basePrice": 25, "weight": 2 },
+      { "id": "medicine", "name": "Med packs", "basePrice": 40, "weight": 1 },
+      { "id": "ammo", "name": "Ammunition", "basePrice": 18, "weight": 1 }
+    ],
+    "markets": [
+      {
+        "locationId": "scrapbound_market",
+        "regionId": "r_settlement",
+        "commodityIds": ["food", "parts", "medicine", "ammo"],
+        "supplyBias": 1.0,
+        "targetStock": 30
+      }
+    ],
+    "transportKinds": [
+      { "id": "pack", "name": "Scavenger pack", "capacity": 12, "speed": 1, "foodPerDay": 1, "themes": ["postapocalypse"] }
+    ]
+  }
 }

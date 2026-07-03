@@ -72,6 +72,8 @@ import {
     evictPromptChunksByBudget,
     clampSimulationPromptModule,
     resolvePromptChunkPriority,
+    shouldIncludePromptChunk,
+    type PromptChunkActivationContext,
     type PromptContextChunkSpec,
 } from './gmPromptBuilderCore';
 import {
@@ -99,7 +101,7 @@ import { cargoWeight } from './commerceCore';
 import { planTravel, resolveTransportForTheme } from './transportCore';
 import { buildDomainPromptContext } from './domainBridge';
 import { buildGuildPromptContext } from './guildBridge';
-import { buildCampaignKitPromptContext } from './campaignKit';
+import { buildCampaignKitPromptContext, getCampaignKitPath } from './campaignKit';
 import { buildCampaignJobBoardPromptContext } from './campaignKitBridge';
 import { buildDiscoveryLedgerPromptContext } from './discoveryLedger';
 import { buildCampaignResourcesPromptContext } from './campaignResources';
@@ -1148,37 +1150,45 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         preview: previewText(m.text)
     }));
 
-    const lwBonds = buildLivingWorldBondPromptContexts();
+    const activation = resolvePromptChunkActivationContext();
+    const lwBonds = shouldIncludePromptChunk('livingWorldNpcBonds', activation)
+        || shouldIncludePromptChunk('livingWorldPlayerBonds', activation)
+        ? buildLivingWorldBondPromptContexts()
+        : { npcBonds: '', playerBonds: '' };
 
     const sections = [
-        buildSection('gameRules', 'Game Rules', buildGameRulesPromptContext()),
-        buildSection('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext()),
-        buildSection('campaignKit', 'Campaign Kit', buildCampaignKitPromptContext()),
-        buildSection('discoveryLedger', 'Discoveries', buildDiscoveryLedgerPromptContext()),
-        buildSection('campaignJobBoard', 'Campaign Job Board', buildCampaignJobBoardPromptContextForGm()),
-        buildSection('campaignResources', 'Campaign Resources', buildCampaignResourcesPromptContext()),
-        buildSection('domain', 'Domain', buildDomainPromptContextForGm(hint)),
-        buildSection('guild', 'Guild', buildGuildPromptContextForGm(hint)),
-        buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
-        buildSection('chronicle', 'Chronicle Recap', peekChronicleRecapContext(policy)),
-        buildSection('summary', 'Story Synopsis', (() => {
+        maybeBuildSection('gameRules', 'Game Rules', activation, buildGameRulesPromptContext),
+        maybeBuildSection('narrativeTime', 'Narrative Time', activation, buildNarrativeTimePromptContext),
+        maybeBuildSection('campaignKit', 'Campaign Kit', activation, buildCampaignKitPromptContext),
+        maybeBuildSection('discoveryLedger', 'Discoveries', activation, buildDiscoveryLedgerPromptContext),
+        maybeBuildSection('campaignJobBoard', 'Campaign Job Board', activation, buildCampaignJobBoardPromptContextForGm),
+        maybeBuildSection('campaignResources', 'Campaign Resources', activation, buildCampaignResourcesPromptContext),
+        maybeBuildSection('domain', 'Domain', activation, () => buildDomainPromptContextForGm(hint)),
+        maybeBuildSection('guild', 'Guild', activation, () => buildGuildPromptContextForGm(hint)),
+        maybeBuildSection('director', 'Scenario Director', activation, buildScenarioDirectorPromptContext),
+        maybeBuildSection('chronicle', 'Chronicle Recap', activation, () => peekChronicleRecapContext(policy)),
+        maybeBuildSection('summary', 'Story Synopsis', activation, () => {
             const summary = loadStorySummary();
             return summary ? `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}` : '';
-        })()),
-        ws ? buildSection('saga', 'Saga Archive', clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars)) : undefined,
-        buildSection('party', 'Party', buildPartyPromptContext(policy)),
-        buildSection('partyDirector', 'Party Director', buildPartyDirectorPromptContext()),
-        ws ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint, policy)) : undefined,
-        buildSection('travelEncounters', 'Travel Encounters', buildTravelEncounterPromptContext(playerAction)),
-        buildSection('livingWorldTravel', 'Living World Travel', buildLivingWorldTravelPromptContext(playerAction)),
-        buildSection('worldForge', 'World', buildWorldForgePromptContext(policy)),
-        buildSection('worldState', 'World State', buildWorldStatePromptContext(policy)),
-        buildSection('livingWorldNpcBonds', 'LW NPC Bonds', lwBonds.npcBonds),
-        buildSection('livingWorldPlayerBonds', 'LW Your Bonds', lwBonds.playerBonds),
-        buildSection('worldChangeSummary', 'World Changes', peekWorldChangeSummaryContext()),
-        buildSection('lorebook', 'Lorebook', buildLorebookPromptContext(hint, policy)),
-        buildSection('npcRegistry', 'NPC Awareness', buildNpcRegistryPromptContext(policy)),
-        buildSection('vision', 'Vision', buildVisionContext(policy))
+        }),
+        ws && shouldIncludePromptChunk('saga', activation)
+            ? buildSection('saga', 'Saga Archive', clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars))
+            : undefined,
+        maybeBuildSection('party', 'Party', activation, () => buildPartyPromptContext(policy)),
+        maybeBuildSection('partyDirector', 'Party Director', activation, buildPartyDirectorPromptContext),
+        ws && shouldIncludePromptChunk('memory', activation)
+            ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint, policy))
+            : undefined,
+        maybeBuildSection('travelEncounters', 'Travel Encounters', activation, () => buildTravelEncounterPromptContext(playerAction)),
+        maybeBuildSection('livingWorldTravel', 'Living World Travel', activation, () => buildLivingWorldTravelPromptContext(playerAction)),
+        maybeBuildSection('worldForge', 'World', activation, () => buildWorldForgePromptContext(policy)),
+        maybeBuildSection('worldState', 'World State', activation, () => buildWorldStatePromptContext(policy)),
+        maybeBuildSection('livingWorldNpcBonds', 'LW NPC Bonds', activation, () => lwBonds.npcBonds),
+        maybeBuildSection('livingWorldPlayerBonds', 'LW Your Bonds', activation, () => lwBonds.playerBonds),
+        maybeBuildSection('worldChangeSummary', 'World Changes', activation, peekWorldChangeSummaryContext),
+        maybeBuildSection('lorebook', 'Lorebook', activation, () => buildLorebookPromptContext(hint, policy)),
+        maybeBuildSection('npcRegistry', 'NPC Awareness', activation, () => buildNpcRegistryPromptContext(policy)),
+        maybeBuildSection('vision', 'Vision', activation, () => buildVisionContext(policy)),
     ];
 
     return finalizeBreakdown(
@@ -1212,65 +1222,113 @@ function pushPromptChunk(
     });
 }
 
+function resolvePromptChunkActivationContext(): PromptChunkActivationContext {
+    const rules = loadGameRules();
+    const chronicleRecapInPrompt = vscode.workspace.getConfiguration('textAdventure.chronicle')
+        .get<boolean>('recapInPrompt', false);
+    const kitPath = getCampaignKitPath();
+    return {
+        enableCampaignKit: rules.enableCampaignKit === true,
+        hasCampaignKitFile: Boolean(kitPath && fs.existsSync(kitPath)),
+        enableDomainMode: rules.enableDomainMode === true,
+        enableGuildMode: rules.enableGuildMode === true,
+        enableEmergentSimulation: rules.enableEmergentSimulation === true,
+        enableWorldObservatory: rules.enableWorldObservatory === true,
+        chronicleRecapInPrompt,
+        enableCommerce: rules.enableCommerce === true,
+        enableNpcRegistry: rules.enableNpcRegistry === true,
+        enableNpcRelationships: rules.enableNpcRelationships === true,
+        livingWorldEnabled: livingWorldEnabled(rules),
+        worldStateEnabled: isWorldStateEnabled(),
+        worldForgeEnabled: isWorldForgeEnabled(),
+        enableTravelEncounters: rules.enableTravelEncounters === true,
+    };
+}
+
+function maybeBuildSection(
+    id: string,
+    label: string,
+    activation: PromptChunkActivationContext,
+    build: () => string
+): ReturnType<typeof buildSection> | undefined {
+    if (!shouldIncludePromptChunk(id, activation)) {
+        return undefined;
+    }
+    return buildSection(id, label, build());
+}
+
+function maybePushPromptChunk(
+    specs: PromptContextChunkSpec[],
+    id: string,
+    activation: PromptChunkActivationContext,
+    build: () => string | undefined
+): void {
+    if (!shouldIncludePromptChunk(id, activation)) {
+        return;
+    }
+    pushPromptChunk(specs, id, build());
+}
+
 function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolicy): PromptContextChunkSpec[] {
     const hint = buildHintText(playerAction, policy);
     const ws = getWorkspacePath();
+    const activation = resolvePromptChunkActivationContext();
     const specs: PromptContextChunkSpec[] = [];
 
-    pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
-    pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
-    pushPromptChunk(specs, 'campaignKit', buildCampaignKitPromptContext());
-    pushPromptChunk(specs, 'discoveryLedger', buildDiscoveryLedgerPromptContext());
-    pushPromptChunk(specs, 'campaignJobBoard', buildCampaignJobBoardPromptContextForGm());
-    pushPromptChunk(specs, 'campaignResources', buildCampaignResourcesPromptContext());
-    pushPromptChunk(
-        specs,
-        'domain',
+    maybePushPromptChunk(specs, 'gameRules', activation, buildGameRulesPromptContext);
+    maybePushPromptChunk(specs, 'narrativeTime', activation, buildNarrativeTimePromptContext);
+    maybePushPromptChunk(specs, 'campaignKit', activation, buildCampaignKitPromptContext);
+    maybePushPromptChunk(specs, 'discoveryLedger', activation, buildDiscoveryLedgerPromptContext);
+    maybePushPromptChunk(specs, 'campaignJobBoard', activation, buildCampaignJobBoardPromptContextForGm);
+    maybePushPromptChunk(specs, 'campaignResources', activation, buildCampaignResourcesPromptContext);
+    maybePushPromptChunk(specs, 'domain', activation, () =>
         clampSimulationPromptModule(buildDomainPromptContextForGm(playerAction))
     );
-    pushPromptChunk(
-        specs,
-        'guild',
+    maybePushPromptChunk(specs, 'guild', activation, () =>
         clampSimulationPromptModule(buildGuildPromptContextForGm(playerAction))
     );
-    pushPromptChunk(specs, 'director', buildScenarioDirectorPromptContext());
-    pushPromptChunk(specs, 'chronicle', consumeChronicleRecapContext(policy));
+    maybePushPromptChunk(specs, 'director', activation, buildScenarioDirectorPromptContext);
+    maybePushPromptChunk(specs, 'chronicle', activation, () => consumeChronicleRecapContext(policy));
 
     const summary = loadStorySummary();
     if (summary) {
-        pushPromptChunk(
-            specs,
-            'summary',
+        maybePushPromptChunk(specs, 'summary', activation, () =>
             `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}`
         );
     }
 
     if (ws) {
-        pushPromptChunk(
-            specs,
-            'saga',
+        maybePushPromptChunk(specs, 'saga', activation, () =>
             clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars)
         );
     }
 
-    pushPromptChunk(specs, 'party', buildPartyPromptContext(policy));
-    pushPromptChunk(specs, 'partyDirector', buildPartyDirectorPromptContext());
+    maybePushPromptChunk(specs, 'party', activation, () => buildPartyPromptContext(policy));
+    maybePushPromptChunk(specs, 'partyDirector', activation, buildPartyDirectorPromptContext);
 
     if (ws) {
-        pushPromptChunk(specs, 'memory', buildMemoryContextForPrompt(ws, hint, policy));
+        maybePushPromptChunk(specs, 'memory', activation, () => buildMemoryContextForPrompt(ws, hint, policy));
     }
 
-    pushPromptChunk(specs, 'travelEncounters', buildTravelEncounterPromptContext(playerAction));
-    pushPromptChunk(specs, 'livingWorldTravel', buildLivingWorldTravelPromptContext(playerAction));
-    pushPromptChunk(specs, 'worldForge', buildWorldForgePromptContext(policy));
-    pushPromptChunk(specs, 'worldState', buildWorldStatePromptContext(policy));
-    const lwBonds = buildLivingWorldBondPromptContexts();
-    pushPromptChunk(specs, 'livingWorldNpcBonds', lwBonds.npcBonds);
-    pushPromptChunk(specs, 'livingWorldPlayerBonds', lwBonds.playerBonds);
-    pushPromptChunk(specs, 'worldChangeSummary', consumeWorldChangeSummaryContext());
-    pushPromptChunk(specs, 'lorebook', buildLorebookPromptContext(hint, policy));
-    pushPromptChunk(specs, 'npcRegistry', buildNpcRegistryPromptContext(policy));
-    pushPromptChunk(specs, 'vision', buildVisionContext(policy));
+    maybePushPromptChunk(specs, 'travelEncounters', activation, () =>
+        buildTravelEncounterPromptContext(playerAction)
+    );
+    maybePushPromptChunk(specs, 'livingWorldTravel', activation, () =>
+        buildLivingWorldTravelPromptContext(playerAction)
+    );
+    maybePushPromptChunk(specs, 'worldForge', activation, () => buildWorldForgePromptContext(policy));
+    maybePushPromptChunk(specs, 'worldState', activation, () => buildWorldStatePromptContext(policy));
+
+    const lwBonds = shouldIncludePromptChunk('livingWorldNpcBonds', activation)
+        || shouldIncludePromptChunk('livingWorldPlayerBonds', activation)
+        ? buildLivingWorldBondPromptContexts()
+        : { npcBonds: '', playerBonds: '' };
+    maybePushPromptChunk(specs, 'livingWorldNpcBonds', activation, () => lwBonds.npcBonds);
+    maybePushPromptChunk(specs, 'livingWorldPlayerBonds', activation, () => lwBonds.playerBonds);
+    maybePushPromptChunk(specs, 'worldChangeSummary', activation, consumeWorldChangeSummaryContext);
+    maybePushPromptChunk(specs, 'lorebook', activation, () => buildLorebookPromptContext(hint, policy));
+    maybePushPromptChunk(specs, 'npcRegistry', activation, () => buildNpcRegistryPromptContext(policy));
+    maybePushPromptChunk(specs, 'vision', activation, () => buildVisionContext(policy));
 
     return specs;
 }

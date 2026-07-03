@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.58.0] - 2026-07-03
+
+### Fixed
+
+- **プロンプト inactive chunk 省略（PR-8）** — OFF モジュールの chunk を組み立て前にスキップし、eviction で lorebook/vision が落ちやすい問題を緩和。
+  - `shouldIncludePromptChunk()` / `PromptChunkActivationContext` を `gmPromptBuilderCore.ts` に追加。
+  - Campaign / Domain / Guild / Chronicle / LW / Commerce travel 等を game_rules フラグでゲート。
+  - **Observatory ON 時は chronicle GM chunk を省略**（Webview 年代記と重複・journal 再読込を避ける）。Observatory OFF + `recapInPrompt` 時のみ GM に年代記要約。
+
+### Added
+
+- `test_prompt_chunk_activation.js` — モジュール OFF / Observatory 切替のゲートを検証。テスト **138/138**。
+
 ## [1.57.0] - 2026-07-03
 
 ### Fixed

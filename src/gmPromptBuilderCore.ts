@@ -439,6 +439,72 @@ export function resolvePromptChunkPriority(id: string): number {
     return PROMPT_CHUNK_PRIORITIES[id] ?? 50;
 }
 
+/** Host-supplied module flags — used to skip inactive prompt chunks before expensive builders run. */
+export interface PromptChunkActivationContext {
+    enableCampaignKit: boolean;
+    hasCampaignKitFile: boolean;
+    enableDomainMode: boolean;
+    enableGuildMode: boolean;
+    enableEmergentSimulation: boolean;
+    enableWorldObservatory: boolean;
+    chronicleRecapInPrompt: boolean;
+    enableCommerce: boolean;
+    enableNpcRegistry: boolean;
+    enableNpcRelationships: boolean;
+    livingWorldEnabled: boolean;
+    worldStateEnabled: boolean;
+    worldForgeEnabled: boolean;
+    enableTravelEncounters: boolean;
+}
+
+export function isCampaignKitPromptActive(ctx: PromptChunkActivationContext): boolean {
+    return ctx.hasCampaignKitFile || ctx.enableCampaignKit;
+}
+
+/**
+ * Skip GM prompt chunks for modules that are OFF (or redundant with Observatory UI).
+ * Reduces eviction pressure on lorebook/vision when Domain/Guild/Campaign are disabled.
+ */
+export function shouldIncludePromptChunk(
+    id: string,
+    ctx: PromptChunkActivationContext
+): boolean {
+    switch (id) {
+        case 'campaignKit':
+        case 'discoveryLedger':
+        case 'campaignJobBoard':
+        case 'campaignResources':
+            return isCampaignKitPromptActive(ctx);
+        case 'domain':
+            return ctx.enableDomainMode;
+        case 'guild':
+            return ctx.enableGuildMode;
+        case 'chronicle':
+            // Observatory dashboard shows chronicle; avoid duplicate journal reads in GM prompt.
+            return ctx.chronicleRecapInPrompt
+                && ctx.enableEmergentSimulation
+                && !ctx.enableWorldObservatory;
+        case 'worldState':
+        case 'worldChangeSummary':
+            return ctx.worldStateEnabled && ctx.enableEmergentSimulation;
+        case 'livingWorldNpcBonds':
+        case 'livingWorldPlayerBonds':
+            return ctx.livingWorldEnabled
+                && ctx.worldStateEnabled
+                && ctx.enableNpcRelationships;
+        case 'travelEncounters':
+            return ctx.enableTravelEncounters && ctx.worldForgeEnabled;
+        case 'livingWorldTravel':
+            return ctx.enableCommerce && ctx.worldForgeEnabled;
+        case 'worldForge':
+            return ctx.worldForgeEnabled;
+        case 'npcRegistry':
+            return ctx.enableNpcRegistry;
+        default:
+            return true;
+    }
+}
+
 /**
  * Enforce a global char budget by dropping or truncating lowest-priority blocks first.
  * Returns chunk texts in original assembly order (empty chunks omitted).

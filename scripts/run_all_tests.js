@@ -63,6 +63,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_agentic_discovery_ops.js' },
     { category: 'unit', file: 'test_prompt_context_budget.js' },
     { category: 'unit', file: 'test_prompt_budget_eviction.js' },
+    { category: 'unit', file: 'test_prompt_chunk_activation.js' },
     { category: 'unit', file: 'test_webview_handlers_core.js' },
     { category: 'unit', file: 'test_model_scanner.js' },
     { category: 'smoke', file: 'test_webview_bundle.js' },

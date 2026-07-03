@@ -13,6 +13,18 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.60.0] - 2026-07-03
+
+### Fixed
+
+- **Cross-ledger 部分失敗の補償方針（PR-D）** — `game_state` commit 成功後に discoveries / campaign_resources の片方だけ書き込み失敗した場合の契約を明文化・構造化。
+  - `turnLedgerPersistCore.ts` — `CROSS_LEDGER_COMPENSATION_POLICY`（game_state ロールバックしない）、`persistTurnLedgersAfterCommit()`。
+  - `statePatch.ts` — ledger outcome を検査し partial failure を structured log で出力。
+
+### Added
+
+- `test_cross_ledger_partial_failure.js` — commit ゲート、partial/total failure 分類、sell_discovery × discoveryOps 不整合シナリオを検証。テスト **140/140**。
+
 ## [1.59.0] - 2026-07-03
 
 ### Added

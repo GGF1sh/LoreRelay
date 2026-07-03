@@ -55,8 +55,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.59.0** |
-| CHANGELOG 先頭 | **[1.59.0]** Split Brain edge case テスト拡充（game_state / world_state キュー横断） |
+| `package.json` | **1.60.0** |
+| CHANGELOG 先頭 | **[1.60.0]** Cross-ledger 部分失敗補償方針（PR-D） |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources**(campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World | LW1 Commerce に 2つ目の価格ドライバ追加(v1.51.0): 派閥/regionイベント連動 + **プレイヤー評判連動**(faction-controlled markets) |
 | World Observatory | 新規(v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・プレイヤーターンなしで世界を進める観測者ティック(watch=無コスト/advance=食料消費)。`enableWorldObservatory` 既定OFF |
@@ -64,5 +64,5 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3）+ Domain v1.39.x–1.40.x |
-| GitHub Release latest | **v1.59.0**（`lorerelay-1.59.0.vsix` 添付済み · [Release](https://github.com/GGF1sh/LoreRelay/releases/tag/v1.59.0)） |
-| テスト | `npm test` **139/139**（`check_version_consistency.js` 含む） |
+| GitHub Release latest | **v1.59.0**（`lorerelay-1.59.0.vsix` · タグ push で自動更新） |
+| テスト | `npm test` **140/140**（`check_version_consistency.js` 含む） |

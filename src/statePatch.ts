@@ -55,6 +55,7 @@ import {
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { applyDiscoveryTurnOps } from './discoveryTurnOps';
 import { applyCampaignResourceTurnOps } from './campaignResourceTurnOps';
+import { persistTurnLedgersAfterCommit } from './turnLedgerPersistCore';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -760,8 +761,25 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             );
             return false;
         }
-        applyDiscoveryTurnOps(turnResult);
-        applyCampaignResourceTurnOps(turnResult);
+        const ledgerOutcome = persistTurnLedgersAfterCommit({
+            discoveryOpsPresent: Array.isArray(turnResult.discoveryOps) && turnResult.discoveryOps.length > 0,
+            campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
+                && turnResult.campaignResourceOps.length > 0,
+            applyDiscovery: () => applyDiscoveryTurnOps(turnResult),
+            applyCampaignResources: () => applyCampaignResourceTurnOps(turnResult),
+        });
+        if (!ledgerOutcome.ok) {
+            console.error(
+                '[statePatch] partial cross-ledger persist after game_state commit;',
+                'game_state retained per compensation policy.',
+                {
+                    partial: ledgerOutcome.partial,
+                    failedTargets: ledgerOutcome.failedTargets,
+                    discoveryApplied: ledgerOutcome.discoveryApplied,
+                    campaignResourcesApplied: ledgerOutcome.campaignResourcesApplied,
+                }
+            );
+        }
 
         const appliedAt = new Date().toISOString();
         const enriched: TurnResult = {

@@ -54,6 +54,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_campaign_resources_core.js' },
     { category: 'unit', file: 'test_sell_discovery_trade_ops.js' },
     { category: 'unit', file: 'test_turn_artifact_commit_atomicity.js' },
+    { category: 'unit', file: 'test_cross_ledger_partial_failure.js' },
     { category: 'unit', file: 'test_campaign_job_board_core.js' },
     { category: 'unit', file: 'test_campaign_job_quest_core.js' },
     { category: 'unit', file: 'test_discovery_appraisal_core.js' },

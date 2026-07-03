@@ -189,6 +189,7 @@
 | ~~**PR-7**~~ | discoveries / campaign_resources serialized mutation queue | P2 | **1.57.0 ✓** |
 | ~~**PR-8**~~ | プロンプト: inactive モジュール chunk 省略 | P2 | **1.58.0 ✓** |
 | ~~**PR-C（tests）**~~ | Split Brain edge case テスト拡充（横断） | P2 | **1.59.0 ✓** |
+| ~~**PR-D**~~ | Cross-ledger 部分失敗テスト + 補償方針 | P2 | **1.60.0 ✓** |
 | ~~PR（Gemini）~~ | ~~StateManager Event Sourcing 全面改修~~ | **却下** | — コスト対効果不適切 |
 | ~~PR（Gemini）~~ | ~~Webview 全モジュール mount/unmount 強制~~ | **延期** | — 現状再現なし |
 

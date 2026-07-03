@@ -22,6 +22,19 @@ import {
     type RivalLordState,
     type RivalActionId,
 } from './rivalLordCore';
+import {
+    createOfficerMission,
+    parseOfficerMission,
+    isMissionDue,
+    tickMissionMonth,
+    resolveMissionOutcome,
+    isValidMissionKind,
+    MAX_ACTIVE_MISSIONS,
+    DEFAULT_MAX_ACTIVE_MISSIONS,
+    DEFAULT_OFFICER_SKILL,
+    DEFAULT_OFFICER_TRUST,
+    type OfficerMission,
+} from './domainMissionCore';
 
 export const MAX_DOMAIN_OFFICERS = 5;
 export const MAX_DOMAIN_ACTIONS_PER_MONTH = 4;
@@ -48,7 +61,12 @@ export type DomainActionId =
     | 'festival'
     | 'espionage'
     | 'audience';
-export type DomainOpsKind = 'monthly_commit' | 'appoint_officer' | 'dismiss_officer' | 'audience_ruling';
+export type DomainOpsKind =
+    | 'monthly_commit'
+    | 'appoint_officer'
+    | 'dismiss_officer'
+    | 'audience_ruling'
+    | 'dispatch_officer';
 export type DomainIntelligence = 'gather_rumors' | 'scout_border' | 'none';
 export type DomainSeason = 'spring' | 'summer' | 'autumn' | 'winter';
 
@@ -86,6 +104,10 @@ export interface DomainState {
     pendingPetitions?: string[];
     /** §F8: single neighboring rival lord (v0 recommends exactly one). */
     rival?: RivalLordState;
+    /** §F9: officers currently dispatched (absent from council + steward drift until they return). */
+    activeMissions?: OfficerMission[];
+    /** §F9: report lines for missions that resolved on this commit (transient — GM prompt hint). */
+    lastMissionReports?: string[];
     flags: Record<string, boolean>;
 }
 
@@ -98,6 +120,10 @@ export interface DomainConfig {
     rivalsEnabled?: boolean;
     /** §F8: neighbor region id used to lazily create `domain.rival` on first commit. */
     rivalRegionId?: string;
+    /** §F9: max simultaneously dispatched officers (1–3). */
+    maxActiveMissions?: number;
+    /** §F9: host-resolved playerTrust per officer npcId (from Registry disposition), default 50. */
+    officerTrustMap?: Record<string, number>;
 }
 
 export interface DomainOps {
@@ -108,6 +134,8 @@ export interface DomainOps {
     /** §F7 audience_ruling: which open petition, and how it was judged. */
     petitionId?: string;
     rulingId?: PetitionRulingId;
+    /** §F9 dispatch_officer: which appointed officer, on what kind of mission. */
+    mission?: { npcId: string; kind: string; targetId?: string; months?: number };
 }
 
 export interface AudienceRulingResult {
@@ -284,7 +312,16 @@ export function normalizeDomainConfig(raw?: Partial<DomainConfig>): DomainConfig
     const rivalRegionId = typeof raw?.rivalRegionId === 'string' && CHARACTER_ID_PATTERN.test(raw.rivalRegionId)
         ? raw.rivalRegionId
         : undefined;
-    return { monthDays, monthlyActions, audienceSize, rivalsEnabled, rivalRegionId };
+    const maxActiveMissions = typeof raw?.maxActiveMissions === 'number' && Number.isFinite(raw.maxActiveMissions)
+        ? Math.max(1, Math.min(MAX_ACTIVE_MISSIONS, Math.floor(raw.maxActiveMissions)))
+        : DEFAULT_MAX_ACTIVE_MISSIONS;
+    const officerTrustMap = raw?.officerTrustMap && typeof raw.officerTrustMap === 'object'
+        ? raw.officerTrustMap
+        : undefined;
+    return {
+        monthDays, monthlyActions, audienceSize, rivalsEnabled, rivalRegionId,
+        maxActiveMissions, officerTrustMap,
+    };
 }
 
 export function defaultDomainState(controlledRegionId: string, config?: Partial<DomainConfig>): DomainState {
@@ -360,6 +397,23 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         }
     }
 
+    const activeMissions: OfficerMission[] = [];
+    if (Array.isArray(doc.activeMissions)) {
+        for (const item of doc.activeMissions.slice(0, MAX_ACTIVE_MISSIONS)) {
+            const mission = parseOfficerMission(item);
+            if (mission) { activeMissions.push(mission); }
+        }
+    }
+
+    const lastMissionReports: string[] = [];
+    if (Array.isArray(doc.lastMissionReports)) {
+        for (const item of doc.lastMissionReports.slice(0, MAX_ACTIVE_MISSIONS)) {
+            if (typeof item === 'string' && item.trim()) {
+                lastMissionReports.push(item.trim().replace(/[\r\n\t\x00-\x1f]/g, ' ').slice(0, 200));
+            }
+        }
+    }
+
     const flags: Record<string, boolean> = {};
     if (doc.flags && typeof doc.flags === 'object' && !Array.isArray(doc.flags)) {
         for (const [key, val] of Object.entries(doc.flags as Record<string, unknown>).slice(0, 32)) {
@@ -412,6 +466,8 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         pendingEvents,
         pendingPetitions: pendingPetitions.length > 0 ? pendingPetitions : undefined,
         rival: validateRivalLord(doc.rival),
+        activeMissions: activeMissions.length > 0 ? activeMissions : undefined,
+        lastMissionReports: lastMissionReports.length > 0 ? lastMissionReports : undefined,
         flags,
     };
 }
@@ -425,6 +481,7 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
         && kind !== 'appoint_officer'
         && kind !== 'dismiss_officer'
         && kind !== 'audience_ruling'
+        && kind !== 'dispatch_officer'
     ) {
         return undefined;
     }
@@ -438,6 +495,20 @@ export function parseDomainOps(raw: unknown): DomainOps | undefined {
         }
         ops.petitionId = petitionId;
         ops.rulingId = doc.rulingId;
+        return ops;
+    }
+
+    if (kind === 'dispatch_officer') {
+        if (!doc.mission || typeof doc.mission !== 'object') { return undefined; }
+        const m = doc.mission as Record<string, unknown>;
+        const npcId = sanitizeDomainPromptLabel(m.npcId, '', 64);
+        if (!npcId || !isValidMissionKind(m.kind)) { return undefined; }
+        ops.mission = {
+            npcId,
+            kind: m.kind,
+            targetId: typeof m.targetId === 'string' ? m.targetId.trim() : undefined,
+            months: typeof m.months === 'number' ? m.months : undefined,
+        };
         return ops;
     }
 
@@ -739,11 +810,6 @@ export function applyMonthlyCommit(
     const pending = [...next.pendingEvents, eventId].slice(-MAX_DOMAIN_PENDING_EVENTS);
     next.pendingEvents = pending;
 
-    const councilLines = buildDomainCouncilLines({
-        domain: next,
-        officers: next.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
-    });
-
     next = {
         ...next,
         lastMonthlyActions: actions.length > 0 ? [...actions] : next.lastMonthlyActions,
@@ -775,6 +841,30 @@ export function applyMonthlyCommit(
         next.flags = { ...next.flags, [RIVAL_RAID_PREP_FLAG]: tickResult.rival.raidPending === true };
     }
 
+    // §F9: one month passes for every mission in flight; due missions resolve now.
+    const ticked = (next.activeMissions ?? []).map(tickMissionMonth);
+    const due = ticked.filter(isMissionDue);
+    const stillAway = ticked.filter((m) => !isMissionDue(m));
+    const missionReports: string[] = [];
+    for (const mission of due) {
+        const skill = next.officers.find((o) => o.npcId === mission.officerNpcId)?.skill ?? DEFAULT_OFFICER_SKILL;
+        const trust = config.officerTrustMap?.[mission.officerNpcId] ?? DEFAULT_OFFICER_TRUST;
+        const outcome = resolveMissionOutcome(mission, skill, trust, worldTurnSeed);
+        next = applyDelta(next, outcome.deltas);
+        missionReports.push(outcome.reportLine);
+    }
+    next.activeMissions = stillAway.length > 0 ? stillAway : undefined;
+    next.lastMissionReports = missionReports.length > 0 ? missionReports : undefined;
+
+    // Council excludes officers still away on a mission (D5 §9.3 stays bond-driven; F9 only filters presence).
+    const awayNpcIds = new Set(stillAway.map((m) => m.officerNpcId));
+    const councilLines = buildDomainCouncilLines({
+        domain: next,
+        officers: next.officers
+            .filter((o) => !awayNpcIds.has(o.npcId))
+            .map((o) => ({ npcId: o.npcId, role: o.role })),
+    });
+
     return {
         domain: next,
         rolledEventId: eventId,
@@ -800,6 +890,25 @@ export function dismissOfficer(domain: DomainState, npcId: string): DomainState 
         ...domain,
         officers: domain.officers.filter((o) => o.npcId !== npcId),
     };
+}
+
+export function dispatchOfficer(
+    domain: DomainState,
+    npcId: string,
+    kind: string,
+    maxActiveMissions: number,
+    targetId?: string,
+    months?: number
+): DomainState {
+    const isAppointed = domain.officers.some((o) => o.npcId === npcId);
+    const active = domain.activeMissions ?? [];
+    const alreadyAway = active.some((m) => m.officerNpcId === npcId);
+    if (!isAppointed || alreadyAway || active.length >= maxActiveMissions) {
+        return domain;
+    }
+    const mission = createOfficerMission(npcId, kind, months, targetId);
+    if (!mission) { return domain; }
+    return { ...domain, activeMissions: [...active, mission] };
 }
 
 export function applyAudienceRuling(
@@ -844,6 +953,18 @@ export function applyDomainOps(
     }
     if (ops.kind === 'audience_ruling' && ops.petitionId && ops.rulingId) {
         return applyAudienceRuling(domain, ops.petitionId, ops.rulingId);
+    }
+    if (ops.kind === 'dispatch_officer' && ops.mission) {
+        return {
+            domain: dispatchOfficer(
+                domain,
+                ops.mission.npcId,
+                ops.mission.kind,
+                config.maxActiveMissions ?? DEFAULT_MAX_ACTIVE_MISSIONS,
+                ops.mission.targetId,
+                ops.mission.months
+            ),
+        };
     }
     if (ops.kind === 'monthly_commit') {
         const monthly = applyMonthlyCommit(domain, ops, config, worldTurnSeed);

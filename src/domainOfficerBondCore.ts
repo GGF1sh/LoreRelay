@@ -95,6 +95,18 @@ export function isOfficerInRegistry(npcId: string, registryIds: ReadonlySet<stri
     return registryIds.has(npcId);
 }
 
+/** §F9: playerTrust per npcId for mission-risk resolution (default 50 when absent from registry). */
+export function buildOfficerTrustMap(
+    npcs: Record<string, { disposition?: { playerTrust?: number } }> | undefined
+): Record<string, number> {
+    const map: Record<string, number> = {};
+    if (!npcs) { return map; }
+    for (const [id, entry] of Object.entries(npcs)) {
+        map[id] = readTrust(entry.disposition?.playerTrust);
+    }
+    return map;
+}
+
 export function registryToOfficerBondContext(
     npcs: Record<string, {
         name?: string;

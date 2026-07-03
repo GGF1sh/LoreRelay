@@ -6,11 +6,26 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.39.11** |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見エンジン ✅** · **F8 ライバル領主エンジン ✅**（両方 UI は D3 待ち） · **D3 UI 次** |
+| Package version | **1.39.12** |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見** / **F8 ライバル領主** / **F9 主命・派遣** エンジン ✅（全て UI は D3 待ち） · **D3 UI 次** |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **111/111** |
-| Next (推奨) | **D3 UI**（§20.2-A、F7 謁見パネル + F8 ライバル表示も同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F9 主命・派遣 |
+| Tests | `npm test` **112/112** |
+| Next (推奨) | **D3 UI**（§20.2-A、F7/F8/F9 の3パネル同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F10 合戦リゾルバ |
+
+---
+
+## 2026-07-03 JST - Claude Sonnet 5 - §F9 Officer Missions engine (v1.39.12)
+
+### Summary
+
+- Fable5 Wave 2 の **F9 主命・派遣** をエンジン部まで実装。「任命したのに使い道がない」家臣問題への対応。
+- `src/domainMissionCore.ts`（4 kind × 4 grade の決定論解決、officer.skill + playerTrust + seed）+ `domainCore`/`domainOfficerBondCore`/`gameRules`/`domainTurnOps`/`domainBridge`/`domainDriftCore` 配線。
+- `dispatch_officer` で任命済み家臣を1–3ヶ月派遣。低 trust（D5 Bond の rival 以下）家臣を派遣すると `disaster` 重みが上昇し、D5 の Bond 設計がそのままリスク管理ゲームになる。派遣中は評定・留守ドリフトの steward 判定から除外。
+
+### Verification
+
+- `npm test` **112/112**（`test_domain_mission_core.js` 23 assert）
+- `npm run compile` クリーン
 
 ---
 

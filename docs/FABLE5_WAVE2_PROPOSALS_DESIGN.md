@@ -176,11 +176,15 @@ export function resolveMissionOutcome(mission, officer, bond, seed): MissionOutc
 | `enableDomainMissions` | `false` | 派遣システム（要 `enableDomainMode`） |
 | `domainMaxActiveMissions` | `2` | 同時派遣数（1–3） |
 
-### v0 スコープ
-- [ ] `domainMissionCore.ts` + 4 mission kind × 4 grade の結果テンプレ
-- [ ] `dispatch_officer` パース + 帰還 resolve の monthly_commit 配線
-- [ ] council / drift からの派遣中除外
-- [ ] `scripts/test_domain_mission_core.js`（決定論・bond リスク・帰還月境界）
+### v0 スコープ（**engine 部 ✅ v1.39.12** — UI は D3 待ち）
+- [x] `domainMissionCore.ts` + 4 mission kind × 4 grade の結果テンプレ **✅**
+- [x] `dispatch_officer` パース + 帰還 resolve の monthly_commit 配線 **✅**
+- [x] council / drift（steward 判定）からの派遣中除外 **✅**
+- [x] `scripts/test_domain_mission_core.js`（決定論・bond リスク・帰還月境界・上限・validate、23 assert）**✅**
+- [ ] World タブ「派遣」表示 — **D3 と同梱**
+- [ ] i18n 4 言語
+
+> **実装メモ（v1.39.12）:** trust は `domainOfficerBondCore.buildOfficerTrustMap`（Registry disposition.playerTrust、既定50）で解決し `DomainConfig.officerTrustMap` として domainCore に渡す（rival の region 解決と同型のホスト側解決パターン）。月次コミット1回 = 1ヶ月経過。評定除外は `domainCore.applyMonthlyCommit` 内で完結、留守ドリフトの steward 判定除外は `domainDriftCore.ts` の `presentOfficers` フィルタ。帰還した月は評定に**復帰**する（「家族に迎えられ、その日のうちに助言する」という自然な扱い）。
 
 ### Non-Goals
 - 派遣中の逐次イベント（帰還時一括報告のみ。途中経過は GM の脚色に任せる）

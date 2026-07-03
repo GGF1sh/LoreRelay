@@ -10,7 +10,7 @@ import {
     applyDomainOpsToGameState,
     readDomainFromState,
 } from './domainTurnOpsCore';
-import { registryToOfficerBondContext } from './domainOfficerBondCore';
+import { registryToOfficerBondContext, buildOfficerTrustMap } from './domainOfficerBondCore';
 import type { DomainState } from './domainCore';
 
 /** §F8: prefer an explicit config id, else the first Forge-adjacent region, else any other region. */
@@ -60,6 +60,9 @@ export function applyDomainTurnOps(
     const rivalRegionId = rivalsEnabled && existingDomain
         ? resolveRivalRegionId(existingDomain.controlledRegionId, rules.domainRivalRegionId)
         : undefined;
+    const officerTrustMap = rules.enableDomainMissions === true && registry
+        ? buildOfficerTrustMap(registry.npcs)
+        : undefined;
 
     const next = applyDomainOpsToGameState(
         turnResult,
@@ -71,6 +74,8 @@ export function applyDomainTurnOps(
             audienceSize: rules.domainAudienceSize,
             rivalsEnabled,
             rivalRegionId,
+            maxActiveMissions: rules.domainMaxActiveMissions,
+            officerTrustMap,
         },
         worldTurnSeed,
         { officerBond, registryNpcIds }

@@ -78,6 +78,12 @@ const DRIFT_EVENT_NARRATION: Record<string, string> = {
     domain_quiet_month: 'The steward collected routine taxes',
 };
 
+/** §F9: officers on an active mission are absent — they cannot also be running the domain as steward. */
+function presentOfficers(domain: DomainState): readonly DomainOfficer[] {
+    const away = new Set((domain.activeMissions ?? []).map((m) => m.officerNpcId));
+    return domain.officers.filter((o) => !away.has(o.npcId));
+}
+
 function pickStewardLabel(officers: readonly DomainOfficer[]): string {
     const steward = officers.find((o) => o.role === 'steward');
     if (steward) {
@@ -127,7 +133,7 @@ export function simulateStewardMonth(
     next = applySeasonalMonthlyEffects(next);
     next = advanceDomainCalendar(next);
 
-    const stewardActions = next.officers.some((o) => o.role === 'steward')
+    const stewardActions = presentOfficers(next).some((o) => o.role === 'steward')
         ? (['inspect', 'public_order'] as const)
         : (['inspect'] as const);
     const eventId = rollDomainEvent(next, seed, 'none', stewardActions);
@@ -216,7 +222,7 @@ export function computeSinceLastDomainVisitDelta(
         turnsAway,
         simulatedMonths: virtualMonths,
         capped: rawVirtualMonths > MAX_DOMAIN_DRIFT_MONTHS,
-        stewardLabel: pickStewardLabel(input.domainBefore.officers),
+        stewardLabel: pickStewardLabel(presentOfficers(input.domainBefore)),
         changes: changes.slice(-4),
         treasuryDelta: end.treasury - start.treasury,
         foodDelta: end.food - start.food,

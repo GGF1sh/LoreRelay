@@ -41,6 +41,10 @@ export interface GameRules {
     enableDomainRivals?: boolean;
     /** Optional explicit neighbor region id; auto-picked from World Forge adjacency if unset. */
     domainRivalRegionId?: string;
+    /** §F9: officer missions — dispatch appointed officers, resolve on return (requires Domain Mode). */
+    enableDomainMissions?: boolean;
+    /** Max simultaneously dispatched officers (1–3). */
+    domainMaxActiveMissions?: number;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -68,7 +72,9 @@ export const DEFAULT_GAME_RULES: GameRules = {
     domainMonthlyActions: 2,
     enableDomainAudience: false,
     domainAudienceSize: 3,
-    enableDomainRivals: false
+    enableDomainRivals: false,
+    enableDomainMissions: false,
+    domainMaxActiveMissions: 2
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -209,6 +215,12 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (typeof rules.domainRivalRegionId === 'string' && CHARACTER_ID_PATTERN.test(rules.domainRivalRegionId)) {
             sanitized.domainRivalRegionId = rules.domainRivalRegionId;
+        }
+        if (rules.enableDomainMissions !== undefined && typeof rules.enableDomainMissions === 'boolean') {
+            sanitized.enableDomainMissions = rules.enableDomainMissions;
+        }
+        if (rules.domainMaxActiveMissions !== undefined && typeof rules.domainMaxActiveMissions === 'number') {
+            sanitized.domainMaxActiveMissions = Math.max(1, Math.min(3, Math.floor(rules.domainMaxActiveMissions)));
         }
     }
 

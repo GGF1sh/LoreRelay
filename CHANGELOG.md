@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.39.12] - 2026-07-03
+
+### Added
+
+- **§F9 Officer Missions engine** — `src/domainMissionCore.ts`: 4 mission kind（espionage/trade_run/survey/parley）× 4 grade（triumph/success/setback/disaster）の決定論解決。`domainOps { kind: "dispatch_officer", mission: { npcId, kind, targetId?, months? } }` で任命済み家臣を1–3ヶ月派遣（`domain.activeMissions`、最大 `domainMaxActiveMissions` 既定2）。月次コミットごとに1ヶ月経過し、期限が来ると `resolveMissionOutcome` が officer.skill + playerTrust（Registry disposition、既定50）+ seed で決定論に grade を判定し delta を適用、`domain.lastMissionReports` に帰還報告を記録。
+  - **家臣に使い道を追加**: 低 trust（`playerBondCore` rival 以下）の家臣を派遣すると `disaster` 重みが上昇 — D5 の Bond 設計がそのままリスク管理ゲームになる（ブリーフどおり）。
+  - **派遣中は不在**: 評定（Council）から除外、留守ドリフトの steward 判定からも除外（`domainDriftCore.ts` の `presentOfficers` フィルタ）。
+  - 配線: `domainCore`（state/config/ops/validate/applyMonthlyCommit — 月次ティック・解決・council 除外を一体で処理）· `domainOfficerBondCore.buildOfficerTrustMap`（Registry → trust map）· `gameRules`（`enableDomainMissions` 既定 OFF・`domainMaxActiveMissions` 1–3）· `domainTurnOps.ts`（trust map 構築）· `domainBridge.ts`（`[Domain — Missions]` 派遣中一覧 + `[Domain — Missions Returned]` 帰還報告 + `pickDomainForWebview` 公開サブセット）。
+  - `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F9。
+
+### Verification
+
+- `npm test` **112/112**（`test_domain_mission_core.js` 23 assert: 決定論・派遣ゲート・上限・council/steward 除外・validate フィルタ・月またぎ解決）
+
 ## [1.39.11] - 2026-07-03
 
 ### Added

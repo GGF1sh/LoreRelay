@@ -31,6 +31,7 @@ import {
 import { buildDomainLedgerPromptLine } from './domainLedgerCore';
 import { buildAudiencePromptLines, MAX_AUDIENCE_QUEUE } from './domainAudienceCore';
 import { buildRivalPromptLine } from './rivalLordCore';
+import { buildActiveMissionPromptLine, type OfficerMission } from './domainMissionCore';
 import { readDomainRegionDriftState } from './domainRegionDriftCore';
 import { domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
 
@@ -85,12 +86,16 @@ export function buildDomainPromptContext(
         : undefined;
     const bondHint = buildOfficerBondGmHint(bondAssessment);
 
+    // §F9: officers currently dispatched on a mission are absent from council.
+    const awayNpcIds = new Set((domain.activeMissions ?? []).map((m: OfficerMission) => m.officerNpcId));
+    const presentOfficers = domain.officers.filter((o) => !awayNpcIds.has(o.npcId));
+
     const councilLines = shouldInjectDomainCouncil(domain, isCommitTurn)
         ? buildDomainCouncilLines({
             domain,
             officers: officerBond
-                ? resolveCouncilOfficersFromRegistry(domain.officers, officerBond)
-                : domain.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
+                ? resolveCouncilOfficersFromRegistry(presentOfficers, officerBond)
+                : presentOfficers.map((o) => ({ npcId: o.npcId, role: o.role })),
             bondHint: officerBondToCouncilHint(bondAssessment),
         })
         : undefined;
@@ -122,6 +127,19 @@ export function buildDomainPromptContext(
         const rivalLine = buildRivalPromptLine(domain.rival);
         if (rivalLine) {
             lines.push(rivalLine);
+        }
+    }
+
+    // §F9: dispatched officers surfaced every turn while away; return reports shown once, on the commit turn.
+    if (rules.enableDomainMissions === true) {
+        if (domain.activeMissions && domain.activeMissions.length > 0) {
+            const missionLine = buildActiveMissionPromptLine(domain.activeMissions);
+            if (missionLine) {
+                lines.push(missionLine);
+            }
+        }
+        if (isCommitTurn && domain.lastMissionReports && domain.lastMissionReports.length > 0) {
+            lines.push(['[Domain — Missions Returned]', ...domain.lastMissionReports].join('\n'));
         }
     }
 
@@ -177,5 +195,11 @@ export function pickDomainForWebview(domain: DomainState | undefined): Record<st
                 disclosedStance: domain.rival.disclosedStance,
             }
             : undefined,
+        activeMissions: (domain.activeMissions ?? []).map((m) => ({
+            officerNpcId: m.officerNpcId,
+            kind: m.kind,
+            monthsRemaining: m.monthsRemaining,
+        })),
+        lastMissionReports: domain.lastMissionReports?.slice(0, 3) ?? [],
     };
 }

@@ -6,12 +6,23 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.53.0** |
+| Package version | **1.64.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **132/132** |
 | Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) · World Observatory の NPC相関図(見た目はFable5がモック済み、配線は未着手) |
+
+---
+
+## 2026-07-04 JST - Claude (Fable 5) - Webview UX polish (v1.64.0)
+
+- **GMターン待ちの生存感** — `20-input-audio-prep.js` の `showGmLoading`/`hideGmLoading` のみ変更。「考え中…」にタイピングドット（CSSアニメ3点）＋経過秒カウンタ（3秒超で `Ns` 表示）。`hideGmLoading` で interval 確実クリア。
+- **二重操作防止** — GM実行中に Quick Reply の `#qr-undo`/`#qr-retry` もロック（従来は free-input/send/options のみ）。
+- **横スクロールの可視化** — `.tabs-header`（9タブ）と `#quick-reply-bar`（11ボタン）はスクロールバー非表示で続きが見えなかったため、`mask-image` の端フェードを追加。
+- **a11y** — `:focus-visible` フォーカスリング（マウスクリックには出ない）、`prefers-reduced-motion: reduce` で全アニメ停止。
+- 全スタイルは新規 `webview/styles/15-ux-polish.css`（`build-webview.js` の CSS_MODULE_ORDER に登録）。既存CSS・他モジュール非破壊。テスト **143/143**、version consistency PASS。
+- **次候補（UX）**: chat-log の「新着メッセージ↓」ジャンプボタン（下端から離れてスクロール中に新メッセージが来た時）・ヘッダーのアイコンボタン群（8個）の狭幅時オーバーフローメニュー化。
 
 ---
 

@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.64.0] - 2026-07-04
+
+### Changed
+
+- **Webview UX polish（Fable 5）** — GMターン待ちの「考え中…」に、アニメーションするタイピングドット＋経過秒カウンタ（3秒超で表示）を追加し、長考中の生存感を改善。GM実行中は Quick Reply の Undo/Retry もロックして二重操作を防止。タブ列とクイックリプライ列（スクロールバー非表示の横スクロール）に端フェードを追加し「続きがある」ことを可視化。キーボード操作向けに `:focus-visible` フォーカスリング、`prefers-reduced-motion` 対応を追加。新規 `webview/styles/15-ux-polish.css` ＋ `20-input-audio-prep.js` の showGmLoading/hideGmLoading のみの変更（他モジュール非破壊）。テスト **143/143**。
+
 ## [1.63.0] - 2026-07-04
 
 ### Added

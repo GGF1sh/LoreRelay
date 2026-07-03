@@ -331,6 +331,8 @@ function hideImageLoading(success) {
 }
 
 // ===== GM ターン待ちローディング =====
+let gmLoadingTimer = null;
+
 function showGmLoading() {
   if (document.getElementById('gm-loading')) { return; }
   const div = document.createElement('div');
@@ -342,15 +344,35 @@ function showGmLoading() {
   sender.textContent = T('webview.sender.gm');
   const body = document.createElement('div');
   body.className = 'msg-body';
-  body.textContent = T('webview.gm.loading');
+  const label = document.createElement('span');
+  label.textContent = T('webview.gm.loading');
+  const dots = document.createElement('span');
+  dots.className = 'gm-typing-dots';
+  for (let i = 0; i < 3; i++) { dots.appendChild(document.createElement('span')); }
+  const elapsedEl = document.createElement('span');
+  elapsedEl.className = 'gm-loading-elapsed';
+  body.appendChild(label);
+  body.appendChild(dots);
+  body.appendChild(elapsedEl);
   div.appendChild(sender);
   div.appendChild(body);
   chatLog.appendChild(div);
   scrollToBottom();
+  // 経過秒カウンタ（3秒を超えたら表示、長考時の生存感）
+  const startedAt = Date.now();
+  if (gmLoadingTimer) { clearInterval(gmLoadingTimer); }
+  gmLoadingTimer = setInterval(() => {
+    const sec = Math.floor((Date.now() - startedAt) / 1000);
+    if (sec >= 3) { elapsedEl.textContent = `${sec}s`; }
+  }, 1000);
   // 入力をロック（二重送信防止）
   freeInput.disabled = true;
   sendBtn.disabled = true;
   document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+  const qrUndoBtn = document.getElementById('qr-undo');
+  if (qrUndoBtn) qrUndoBtn.disabled = true;
+  const qrRetryBtn = document.getElementById('qr-retry');
+  if (qrRetryBtn) qrRetryBtn.disabled = true;
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) profileBtn.disabled = true;
   const parlorSettingsBtn = document.getElementById('parlor-settings-btn');
@@ -360,6 +382,11 @@ function showGmLoading() {
 function hideGmLoading(success) {
   const el = document.getElementById('gm-loading');
   if (el) { el.remove(); }
+  if (gmLoadingTimer) { clearInterval(gmLoadingTimer); gmLoadingTimer = null; }
+  const qrUndoBtn = document.getElementById('qr-undo');
+  if (qrUndoBtn) qrUndoBtn.disabled = false;
+  const qrRetryBtn = document.getElementById('qr-retry');
+  if (qrRetryBtn) qrRetryBtn.disabled = false;
   freeInput.disabled = false;
   sendBtn.disabled = false;
   document.querySelectorAll('.option-btn').forEach(b => { b.disabled = false; });

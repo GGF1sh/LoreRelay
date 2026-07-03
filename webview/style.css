@@ -777,6 +777,72 @@ body.profile-parlor .start-hub-btn-disabled {
   color: var(--text-dim);
 }
 
+/* --- 15-ux-polish.css --- */
+/* ========= UX polish (v1.64.0) =========
+   GM待ちインジケータ・横スクロールのエッジフェード・
+   キーボードフォーカス・reduced-motion 対応。既存ルールへの上書きは最小限。 */
+
+/* ----- GM turn loading: typing dots + elapsed seconds ----- */
+.gm-typing-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  align-items: baseline;
+}
+
+.gm-typing-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gm-color);
+  opacity: 0.3;
+  animation: gmDotPulse 1.2s ease-in-out infinite;
+}
+
+.gm-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.gm-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes gmDotPulse {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30%           { opacity: 1;    transform: translateY(-3px); }
+}
+
+.gm-loading-elapsed {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Horizontal scroll affordance (scrollbars are hidden on these) -----
+   タブ列とクイックリプライ列は overflow-x:auto かつスクロールバー非表示なので、
+   端をフェードさせて「続きがある」ことを視覚的に示す。 */
+.tabs-header,
+#quick-reply-bar {
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to right,
+    transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%);
+}
+
+/* ----- Keyboard focus ring (mouse clicks stay clean via :focus-visible) ----- */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ----- Respect reduced motion ----- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* --- 20-quickreply-messages.css --- */
 /* ===== Quick Reply Bar ===== */
 #quick-reply-bar {

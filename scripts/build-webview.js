@@ -32,6 +32,7 @@ const JS_MODULE_ORDER = [
 const CSS_MODULE_ORDER = [
     '00-base.css',
     '10-layout-chat.css',
+    '15-ux-polish.css',
     '20-quickreply-messages.css',
     '30-status-gallery.css',
     '40-bgm-audio.css',

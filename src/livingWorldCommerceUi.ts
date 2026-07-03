@@ -3,13 +3,12 @@
 import * as fs from 'fs';
 import { loadGameRules } from './gameRules';
 import { loadWorldForge, loadWorldForgeDocument, isWorldForgeEnabled } from './worldForge';
-import { loadWorldState, saveWorldState } from './worldState';
+import { loadWorldState } from './worldState';
 import { resolveCommerceForge, ensureLivingWorldMarkets } from './livingWorldBridge';
 import { getOrInitPlayerCommerce } from './livingWorldTurnOpsCore';
-import { commitGameState } from './stateManager';
 import { readStateRevision } from './workspaceStateQueueCore';
 import { getGameStatePath } from './workspacePaths';
-import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
+import { scheduleCommercePersist } from './livingWorldCommercePersist';
 import type { GameState } from './types/GameState';
 import type { PlayerRole } from './livingWorldTypes';
 import {
@@ -49,20 +48,6 @@ function readGameState(): GameState | undefined {
 function currentPlayerLocationId(state: GameState | undefined): string | undefined {
     const id = state?.world?.currentLocationId;
     return typeof id === 'string' && id ? id : undefined;
-}
-
-function persistCommerce(
-    state: GameState,
-    commerce: GameState['commerce'],
-    baseRevision: number
-): boolean {
-    const next = { ...state, commerce } as GameState;
-    commitGameState(next as unknown as Record<string, unknown>, {
-        mode: 'salvage',
-        baseRevision,
-        mergeProfile: 'commerce-ui',
-    });
-    return true;
 }
 
 export function executeLivingWorldDirectTrade(
@@ -123,18 +108,14 @@ export function executeLivingWorldDirectTrade(
         };
     }
 
-    const nextCommerce = result.commerce;
-    const nextMarkets = result.markets;
-
-    runSerializedWorkspaceMutation(() => {
-        if (gameState) {
-            persistCommerce(gameState, nextCommerce, baseRevision);
-        }
-        const freshWs = loadWorldState();
-        if (freshWs) {
-            saveWorldState({ ...freshWs, markets: nextMarkets });
-        }
-    });
+    if (gameState) {
+        scheduleCommercePersist({
+            gameState,
+            baseRevision,
+            commerce: result.commerce,
+            markets: result.markets,
+        });
+    }
 
     return { ok: true, trade: result };
 }
@@ -155,6 +136,12 @@ export function setLivingWorldPlayerRole(role: PlayerRole): LivingWorldCommerceU
 
     const baseRevision = readStateRevision(gameState as unknown as Record<string, unknown>);
     const commerce = getOrInitPlayerCommerce(gameState);
-    persistCommerce(gameState, { ...commerce, playerRole: role }, baseRevision);
+    scheduleCommercePersist({
+        gameState,
+        baseRevision,
+        commerce: { ...commerce, playerRole: role },
+    });
     return { ok: true };
 }
+
+export { flushScheduledCommercePersist } from './livingWorldCommercePersist';

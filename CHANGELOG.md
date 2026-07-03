@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.3] - 2026-07-03
+
+### Fixed
+
+- **Campaign P0 PR3 — キュー分割 + Commerce debounce** — `game_state` / `world_state` を別 FIFO キューに分離（head-of-line ブロック解消）。Commerce UI 書き込み 80ms debounce。`writeJsonAtomic` rename リトライ（Windows EPERM 対策）。GM ターン前に `flushScheduledCommercePersist`。
+
+### Verification
+
+- `npm test` **96/96**
+
 ## [1.37.2] - 2026-07-03
 
 ### Fixed

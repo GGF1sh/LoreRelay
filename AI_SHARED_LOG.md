@@ -1,5 +1,17 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign P0 PR3 queue split + commerce debounce (v1.37.3)
+
+### Summary
+
+- Separate `runSerializedGameStateMutation` / `runSerializedWorldStateMutation` FIFO queues.
+- `livingWorldCommercePersist` — 80ms debounced game+world commerce writes; flush before GM turn.
+- `writeJsonAtomic` / `writeJsonAtomicAsync` rename retry for Windows file locks.
+
+### Verification
+
+- `npm test` **96/96**
+
 ## 2026-07-03 JST - Grok - Campaign P0 PR2 webview whitelist (v1.37.2)
 
 ### Summary

@@ -3,6 +3,36 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { GmProvider } from './archivePrompt';
 
+const RENAME_RETRY_ATTEMPTS = 5;
+const RENAME_RETRY_BASE_MS = 12;
+
+function renameWithRetrySync(tmp: string, filePath: string): void {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < RENAME_RETRY_ATTEMPTS; attempt++) {
+        try {
+            fs.renameSync(tmp, filePath);
+            return;
+        } catch (e) {
+            lastError = e;
+            if (attempt + 1 >= RENAME_RETRY_ATTEMPTS) {
+                break;
+            }
+            const deadline = Date.now() + RENAME_RETRY_BASE_MS * (attempt + 1);
+            while (Date.now() < deadline) {
+                // brief spin for Windows EPERM / transient locks
+            }
+        }
+    }
+    try {
+        if (fs.existsSync(tmp)) {
+            fs.unlinkSync(tmp);
+        }
+    } catch {
+        // ignore cleanup failure
+    }
+    throw lastError;
+}
+
 export function writeJsonAtomic(filePath: string, data: unknown, createBackup = false): void {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -17,7 +47,46 @@ export function writeJsonAtomic(filePath: string, data: unknown, createBackup = 
     }
     const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
-    fs.renameSync(tmp, filePath);
+    renameWithRetrySync(tmp, filePath);
+}
+
+export async function writeJsonAtomicAsync(
+    filePath: string,
+    data: unknown,
+    createBackup = false
+): Promise<void> {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    if (createBackup && fs.existsSync(filePath)) {
+        try {
+            await fs.promises.copyFile(filePath, `${filePath}.bak`);
+        } catch {
+            // ignore backup failure
+        }
+    }
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    const json = JSON.stringify(data, null, 2);
+    await fs.promises.writeFile(tmp, json, 'utf-8');
+    let lastError: unknown;
+    for (let attempt = 0; attempt < RENAME_RETRY_ATTEMPTS; attempt++) {
+        try {
+            await fs.promises.rename(tmp, filePath);
+            return;
+        } catch (e) {
+            lastError = e;
+            if (attempt + 1 < RENAME_RETRY_ATTEMPTS) {
+                await new Promise((resolve) => setTimeout(resolve, RENAME_RETRY_BASE_MS * (attempt + 1)));
+            }
+        }
+    }
+    try {
+        await fs.promises.unlink(tmp);
+    } catch {
+        // ignore
+    }
+    throw lastError;
 }
 
 /** マルチルート時は textAdventure.workspaceFolder で名前指定、未設定なら先頭フォルダ。 */

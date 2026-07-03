@@ -1,37 +1,39 @@
-// Campaign P0 — FIFO mutex for game_state.json / world_state.json writers.
+// Campaign P0 PR3 — per-file FIFO mutex for game_state.json / world_state.json.
 
-type QueueJob = () => void;
+import { createSyncFileQueue } from './syncFileQueueCore';
 
-let writeQueue: QueueJob[] = [];
-let writeBusy = false;
+const gameStateQueue = createSyncFileQueue();
+const worldStateQueue = createSyncFileQueue();
 
-function drainWorkspaceWriteQueue(): void {
-    if (writeBusy) {
-        return;
-    }
-    writeBusy = true;
-    try {
-        while (writeQueue.length > 0) {
-            const job = writeQueue.shift();
-            if (!job) { continue; }
-            job();
-        }
-    } finally {
-        writeBusy = false;
-        if (writeQueue.length > 0) {
-            drainWorkspaceWriteQueue();
-        }
-    }
+/** Serialize mutations to game_state.json only. */
+export function runSerializedGameStateMutation(fn: () => void): void {
+    gameStateQueue.enqueue(fn);
 }
 
-/** Run fn after prior workspace mutations complete (in-process serialization). */
-export function runSerializedWorkspaceMutation(fn: QueueJob): void {
-    writeQueue.push(fn);
-    drainWorkspaceWriteQueue();
+/** Serialize mutations to world_state.json only. */
+export function runSerializedWorldStateMutation(fn: () => void): void {
+    worldStateQueue.enqueue(fn);
 }
 
-/** Test hook — reset queue between unit tests. */
+/**
+ * @deprecated Prefer commitGameState / saveWorldState (separate per-file queues).
+ * Runs fn directly; nested writes route to game/world queues independently.
+ */
+export function runSerializedWorkspaceMutation(fn: () => void): void {
+    fn();
+}
+
+/** Test hook — reset both queues. */
 export function resetWorkspaceWriteQueueForTests(): void {
-    writeQueue = [];
-    writeBusy = false;
+    gameStateQueue.reset();
+    worldStateQueue.reset();
+}
+
+/** Test hooks — inspect queue depth. */
+export function getGameStateWriteQueueDepthForTests(): number {
+    return gameStateQueue.getPendingCount() + (gameStateQueue.isBusy() ? 1 : 0);
+}
+
+export function getWorldStateWriteQueueDepthForTests(): number {
+    return worldStateQueue.getPendingCount() + (worldStateQueue.isBusy() ? 1 : 0);
 }

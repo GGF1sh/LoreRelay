@@ -182,6 +182,7 @@ import {
 import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 import { commitGameState } from './stateManager';
 import { readStateRevision } from './workspaceStateQueueCore';
+import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import {
     initCheckpointHandlers,
     handleEditEntry,
@@ -1665,6 +1666,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
 
 export function deactivate() {
     panel = undefined;
+    flushScheduledCommercePersist();
     disposeGameStateWatcher();
     if (bgmWatcher) {
         bgmWatcher.dispose();

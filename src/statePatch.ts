@@ -22,6 +22,7 @@ import { validateGameState } from './validateGameState';
 import { t } from './i18n';
 import { commitGameState } from './stateManager';
 import { readStateRevision } from './workspaceStateQueueCore';
+import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import { loadGameRules } from './gameRules';
 import { loadWorldState, saveWorldState } from './worldState';
 import { applyNpcMemoryUpdates, loadNpcRegistry } from './npcRegistry';
@@ -483,6 +484,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
     }
 
     try {
+        flushScheduledCommercePersist();
         let state = readGameStateRecord(statePath);
         const baseRevision = readStateRevision(state);
         const beforeHash = hashGameState(state);

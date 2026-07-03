@@ -11,7 +11,7 @@ import {
     mergeGameStateForPersist,
     type GameStateMergeProfile,
 } from './workspaceStateQueueCore';
-import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
+import { runSerializedGameStateMutation } from './workspaceStateQueue';
 
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
 export { resolveGameStatePersistPlan } from './stateManagerCore';
@@ -90,7 +90,7 @@ export function commitGameState(
     }
 
     const raw = state as Record<string, unknown>;
-    runSerializedWorkspaceMutation(() => {
+    runSerializedGameStateMutation(() => {
         writeGameStatePlan(statePath, raw, opts);
     });
 }

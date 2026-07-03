@@ -12,7 +12,7 @@ import {
 } from './worldStateCore';
 import type { WorldForge } from './worldForgeCore';
 import { mergeWorldStateForPersist } from './workspaceStateQueueCore';
-import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
+import { runSerializedWorldStateMutation } from './workspaceStateQueue';
 
 export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
@@ -114,7 +114,7 @@ function writeWorldStateToDisk(statePath: string, state: WorldState): void {
 export function saveWorldState(state: WorldState): void {
     const statePath = getWorldStatePath();
     if (!statePath) { return; }
-    runSerializedWorkspaceMutation(() => {
+    runSerializedWorldStateMutation(() => {
         const disk = readWorldStateFromDisk(statePath);
         const merged = mergeWorldStateForPersist(
             disk as Record<string, unknown> | undefined,
@@ -158,7 +158,7 @@ export function resetWorldStateFromForge(forge: WorldForge, createBackup = false
         return initial;
     }
     let saved = initial;
-    runSerializedWorkspaceMutation(() => {
+    runSerializedWorldStateMutation(() => {
         const toSave = { ...initial, lastUpdated: new Date().toISOString() };
         writeJsonAtomic(statePath, toSave, createBackup);
         cachedState = toSave;

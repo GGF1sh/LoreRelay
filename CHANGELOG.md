@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.69.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M3a settlement view snapshot** — `settlementViewCore.ts`: pure `buildSettlementViewSnapshot()` with layer filtering, deterministic fallback layout (`layout_fallback` warning), zone/marker projection from optional `settlement_layout.json`, sanitized tile/marker allow-lists, caps, and qualitative `stock_low` / incident markers (no secret text or raw stock quantities). `scripts/test_settlement_view_core.js` 追加。テスト **146/146**。
+
 ## [1.68.0] - 2026-07-04
 
 ### Added
@@ -23,6 +29,7 @@
 
 ### Docs
 
+- **Settlement Mode M3 design** — `docs/SETTLEMENT_MODE_M3_DESIGN.md` and `docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md`: designed the StoneSense-style isometric settlement view as a two-step read-only projection. M3a defines `settlementViewCore.ts` snapshot generation from `settlement_state.json` / optional `settlement_layout.json`; M3b defines Canvas rendering with layer selector, pan/zoom, ASCII-safe fallback, and no state writes. Added M3 handoff prompts to `docs/SETTLEMENT_MODE_AI_PROMPTS.md`.
 - **Settlement Mode M2 ChatGPT/Codex gate** — `docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md`: cleaned the M2 design contract and executed the sanitize/FoW gate in-session. M2a is approved as a `buildMapOverlaySnapshot` projection with strict marker allow-listing for Webview/replay/remote payloads; M2b is approved as a pure settlement event selector with no disk apply or `turn_result` wiring.
 
 - **Settlement reference patterns** — `docs/SETTLEMENT_REFERENCE_PATTERNS.md`: added Caves of Qud and Kenshi pattern extraction for M2+ design. Qud is scoped to procedural history, village hubs, discoveries, and appraisal loops; Kenshi is scoped to outpost vulnerability, faction world-states, caravans/merchants, and away-time pressure. Updated Settlement design, AI prompts, and roadmap links. Design only; no code changes.

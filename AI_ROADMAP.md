@@ -320,7 +320,10 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 
 ### M3 — StoneSense-style Isometric View
 
-- [ ] display snapshot via `settlementViewCore.ts`
+*設計正本: [`docs/SETTLEMENT_MODE_M3_DESIGN.md`](docs/SETTLEMENT_MODE_M3_DESIGN.md)*  
+*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md)*
+
+- [x] display snapshot via `settlementViewCore.ts`（M3a pure core · v1.69.0）
 - [ ] Canvas renderer, pan/zoom, fallback glyph/sprite
 - [ ] limited layer selector `Z+1 / Z0 / Z-1 / Z-2`
 

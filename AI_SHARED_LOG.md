@@ -6,13 +6,21 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.68.0** |
+| Package version | **1.69.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **145/145** |
-| Settlement Mode M2 | M2a pure core + **Webview map overlay renderer** (v1.68.0) 完了。M2 残: replay/remote `mapOverlay` 配線 · M3 isometric |
-| Next (推奨) | Settlement M2 replay/remote overlay wiring · M3 `settlementViewCore` 設計 · G5 ライバルギルド |
+| Tests | `npm test` **146/146** |
+| Settlement Mode M3 | M3a `settlementViewCore.ts` 完了 (v1.69.0)。M3b Canvas renderer 未着手 |
+| Next (推奨) | M3b isometric Webview renderer · Settlement M2 replay/remote overlay wiring |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M3a settlement view snapshot (v1.69.0)
+
+- `src/settlementViewCore.ts` — pure `buildSettlementViewSnapshot()`: layer-filtered tiles/markers, deterministic fallback layout, optional `settlement_layout.json` projection, allow-list sanitization, caps, qualitative stock/incident markers.
+- `scripts/test_settlement_view_core.js` — 12 test cases (undefined state, fallback, layer filter, caps, allow-lists, determinism, no mutation).
+- Tests: `npm test` **146/146**.
 
 ---
 
@@ -91,6 +99,15 @@
 - `src/settlementCore.ts` — parser/caps/tick/prompt formatter/`settlementOps` stubs; `src/settlementState.ts` — `settlement_state.json` loader + GM prompt bridge.
 - `game_rules.json` flag `enableSettlementMode` (default OFF); GM prompt chunk `settlement` gated via `gmPromptBuilderCore.shouldIncludePromptChunk`.
 - `scripts/test_settlement_core.js`; `npm test` **143/143**.
+
+---
+
+## 2026-07-04 JST - Codex - Settlement Mode M3 design/gate
+
+- Added `docs/SETTLEMENT_MODE_M3_DESIGN.md`: StoneSense-style isometric settlement view is split into M3a pure `settlementViewCore.ts` snapshot generation and M3b Canvas Webview renderer.
+- Added `docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md`: M3 must remain read-only and snapshot-driven; no state writes from clicks, no settlementOps apply, no Z-layer expansion, no Three.js.
+- Updated `docs/SETTLEMENT_MODE_AI_PROMPTS.md` with M3a Grok/Codex and M3b Claude handoff prompts.
+- Updated `AI_ROADMAP.md` and `CHANGELOG.md` links. Design/gate update only; no code implementation and no version bump.
 
 ---
 

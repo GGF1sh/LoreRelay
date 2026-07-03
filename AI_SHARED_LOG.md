@@ -15,11 +15,17 @@
 
 - `npm run compile` · `npm test` (**81/81** — 新規 `test_player_bond_core.js` 16件 + host統合2件)
 
+### Update (同日追記): LW3-P2 絆の交易波及 実装済み
+
+- `applyPlayerBondTradeAdjustment()`(playerBondCore, 純関数): tradeOps 後、同一市場バッチで
+  盟友同席=純増減の10%有利 / 敵対同席=10%不利(上限500, 盟友優先, 背信・不在は無効)。
+  `livingWorldTurnOps` に配線。core テスト+10件、81/81 緑。
+
 ### Next (v1+ 候補)
 
-- プレイヤー絆の世界波及(盟友NPCの店は割引/敵対NPCは拒否 — LW3-W の player 版)
 - 絆マイルストーンの共有史タイムライン(NPC↔NPC + player 統合ビュー)
 - ally_trade / enemy_friction の噂イベント化(v1.30 からの残タスク)
+- 絆調整の GM 通知(現状は無言の経済 — narration で「まけてくれた」を促す1行)
 
 ---
 

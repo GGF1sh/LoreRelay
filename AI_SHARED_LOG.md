@@ -13,7 +13,7 @@
 | Tests | `npm test` **153/153** |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) |
 | Next (推奨) | **M2 replay/remote overlay wiring** (`mapOverlayCore` choke point) · M4 実機 smoke は任意 |
-| Git | `main` synced through `dc940c2` |
+| Git | `main` synced through `60d51b2` |
 
 ---
 

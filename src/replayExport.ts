@@ -7,6 +7,7 @@ import { resolveAllowedImagePath } from './mediaPaths';
 import { buildChronicleForWorkspace } from './chronicleLoader';
 import { readJournalTurnsFromPath } from './chronicleLoader';
 import { loadVisualMemory } from './visualMemory';
+import { buildWorkspaceMapOverlay } from './mapOverlayBridge';
 import {
     buildReplayDocument,
     type ReplayFormat,
@@ -105,7 +106,8 @@ export async function exportReplayToWorkspace(request: ExportReplayRequest = {})
         options,
         title: request.title?.trim() || 'LoreRelay Replay',
         exportPath,
-        resolveRelativeImage
+        resolveRelativeImage,
+        mapOverlay: buildWorkspaceMapOverlay(),
     });
 
     try {

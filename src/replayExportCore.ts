@@ -1,6 +1,8 @@
 // F5 Replay Export: deterministic markdown/html from entries + chronicle (no vscode/fs).
 
 import type { ChronicleChapter } from './chronicleCore';
+import type { MapOverlaySnapshot } from './mapOverlayCore';
+import { pickOverlayMarkerKeys } from './mapOverlayCore';
 import { pickReplayExportEntries } from './replayExportSanitizeCore';
 import type { DiceLedgerEntry } from './types/TurnResult';
 
@@ -48,6 +50,8 @@ export interface ReplayBuildInput {
     /** Absolute export path — used to build relative image URLs. */
     exportPath?: string;
     resolveRelativeImage?: (imagePath: string) => string | undefined;
+    /** FoW-safe map overlay at export time (M2 choke point). */
+    mapOverlay?: MapOverlaySnapshot;
 }
 
 function escapeHtml(text: string): string {
@@ -61,6 +65,50 @@ function escapeHtml(text: string): string {
 
 function escapeMarkdown(text: string): string {
     return String(text ?? '').replace(/\r\n/g, '\n');
+}
+
+export function formatMapOverlayMarkdownAppendix(snapshot: MapOverlaySnapshot | undefined): string {
+    if (!snapshot?.markers?.length) { return ''; }
+    const lines = [
+        '',
+        '---',
+        '',
+        '## Map overlay (export snapshot)',
+        '',
+        'FoW-safe qualitative markers at export time.',
+        '',
+    ];
+    for (const marker of snapshot.markers) {
+        const picked = pickOverlayMarkerKeys(marker);
+        const kind = String(picked.kind ?? 'marker');
+        const label = escapeMarkdown(String(picked.label ?? ''));
+        const x = Number(picked.x ?? 0);
+        const y = Number(picked.y ?? 0);
+        const vis = picked.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
+        lines.push(`- [${kind}] ${label} @ (${x},${y}) — ${vis}`);
+    }
+    return `${lines.join('\n')}\n`;
+}
+
+export function formatMapOverlayHtmlAppendix(snapshot: MapOverlaySnapshot | undefined): string {
+    if (!snapshot?.markers?.length) { return ''; }
+    const items = snapshot.markers.map((marker) => {
+        const picked = pickOverlayMarkerKeys(marker);
+        const kind = escapeHtml(String(picked.kind ?? 'marker'));
+        const label = escapeHtml(String(picked.label ?? ''));
+        const x = Number(picked.x ?? 0);
+        const y = Number(picked.y ?? 0);
+        const vis = picked.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
+        return `<li><code>${kind}</code> ${label} @ (${x},${y}) — ${vis}</li>`;
+    }).join('\n');
+    return `
+<section class="map-overlay-appendix">
+<h2>Map overlay (export snapshot)</h2>
+<p><em>FoW-safe qualitative markers at export time.</em></p>
+<ul>
+${items}
+</ul>
+</section>`;
 }
 
 /** Markdown image ref safe for paths with spaces or parentheses. */
@@ -204,9 +252,10 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
     }
 
     if (lines.length <= 2) {
-        return `# ${title}\n\n_(No exportable entries.)_\n`;
+        const empty = `# ${title}\n\n_(No exportable entries.)_\n`;
+        return `${empty}${formatMapOverlayMarkdownAppendix(input.mapOverlay)}`;
     }
-    return `${lines.join('\n').trim()}\n`;
+    return `${lines.join('\n').trim()}\n${formatMapOverlayMarkdownAppendix(input.mapOverlay)}`;
 }
 
 export function buildReplayHtml(input: ReplayBuildInput): string {
@@ -269,6 +318,8 @@ export function buildReplayHtml(input: ReplayBuildInput): string {
         ? body.join('\n')
         : '<p><em>No exportable entries.</em></p>';
 
+    const overlayAppendix = formatMapOverlayHtmlAppendix(input.mapOverlay);
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -287,11 +338,14 @@ export function buildReplayHtml(input: ReplayBuildInput): string {
   .scene img { max-width: 100%; border-radius: 6px; margin-top: 0.75rem; }
   .dice { font-size: 0.85rem; opacity: 0.85; margin-top: 0.5rem; }
   .dice ul { margin: 0.35rem 0 0 1.1rem; padding: 0; }
+  .map-overlay-appendix { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #444; font-size: 0.92rem; }
+  .map-overlay-appendix ul { margin: 0.5rem 0 0 1.1rem; padding: 0; }
 </style>
 </head>
 <body>
 <h1>${title}</h1>
 ${inner}
+${overlayAppendix}
 </body>
 </html>
 `;

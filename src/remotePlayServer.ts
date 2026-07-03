@@ -6,6 +6,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import type { MapOverlaySnapshot } from './mapOverlayCore';
+import { buildWorkspaceMapOverlay } from './mapOverlayBridge';
 import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
 import { getWorkspacePath } from './workspacePaths';
 import { getConfiguredLocale, getWebviewStrings, t } from './i18n';
@@ -61,6 +63,8 @@ interface RemotePlayerState {
     background?: string;
     hiddenDice?: HiddenDiceEntry[];
     locale: string;
+    /** FoW-safe map overlay snapshot (M2 choke point). */
+    mapOverlay?: MapOverlaySnapshot;
 }
 
 let deps: RemotePlayServerDeps | undefined;
@@ -252,6 +256,10 @@ function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemoteP
                 }))
             : undefined;
 
+    const currentLocationId = typeof state.world?.currentLocationId === 'string'
+        ? state.world.currentLocationId
+        : undefined;
+
     return {
         entries: mappedEntries,
         status: state.status,
@@ -261,7 +269,8 @@ function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemoteP
         latestImage: resolveMediaHttpUrl(state.latestImage),
         background: resolveMediaHttpUrl(state.background),
         hiddenDice,
-        locale
+        locale,
+        mapOverlay: buildWorkspaceMapOverlay(currentLocationId),
     };
 }
 

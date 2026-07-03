@@ -55,6 +55,8 @@ export const OVERLAY_MARKER_KEYS = [
     'detail',
 ] as const;
 
+export const MAP_OVERLAY_SNAPSHOT_KEYS = ['version', 'markers'] as const;
+
 export const MAX_OVERLAY_NPC = 40;
 export const MAX_OVERLAY_MERCHANT = 20;
 export const MAX_OVERLAY_CARAVAN = 20;
@@ -485,6 +487,44 @@ export function deriveKnownNpcIds(
     return known;
 }
 
+function sanitizeOverlayMarkerKind(kind: string): OverlayMarkerKind {
+    const valid: OverlayMarkerKind[] = [
+        'npc', 'merchant', 'caravan', 'faction_control', 'quest', 'discovery', 'settlement_pressure',
+    ];
+    return valid.includes(kind as OverlayMarkerKind) ? (kind as OverlayMarkerKind) : 'npc';
+}
+
+function sanitizeOverlayTone(tone: string | undefined): OverlayTone | undefined {
+    if (tone === 'friendly' || tone === 'neutral' || tone === 'hostile' || tone === 'unknown') {
+        return tone;
+    }
+    return undefined;
+}
+
+/** Re-project markers through the allow-list (replay/remote choke point guard). */
+export function sanitizeMapOverlaySnapshot(snapshot: MapOverlaySnapshot): MapOverlaySnapshot {
+    const markers: OverlayMarker[] = [];
+    for (const marker of snapshot.markers) {
+        const picked = pickOverlayMarkerKeys(marker);
+        const fogVisibility = picked.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
+        const out: OverlayMarker = {
+            id: clampText(String(picked.id ?? ''), 64),
+            kind: sanitizeOverlayMarkerKind(String(picked.kind ?? 'npc')),
+            x: Math.max(0, Math.min(TILE_OVERMAP_SIZE - 1, Math.floor(Number(picked.x) || 0))),
+            y: Math.max(0, Math.min(TILE_OVERMAP_SIZE - 1, Math.floor(Number(picked.y) || 0))),
+            label: clampText(String(picked.label ?? ''), MAX_OVERLAY_LABEL),
+            fogVisibility,
+        };
+        const tone = sanitizeOverlayTone(typeof picked.tone === 'string' ? picked.tone : undefined);
+        if (tone) { out.tone = tone; }
+        if (typeof picked.detail === 'string' && picked.detail.trim()) {
+            out.detail = clampText(picked.detail, MAX_OVERLAY_DETAIL);
+        }
+        markers.push(out);
+    }
+    return { version: MAP_OVERLAY_VERSION, markers };
+}
+
 /** Returns only allow-listed keys present on a marker (for tests and export guards). */
 export function pickOverlayMarkerKeys(marker: OverlayMarker): Record<string, unknown> {
     const out: Record<string, unknown> = {};
@@ -494,4 +534,13 @@ export function pickOverlayMarkerKeys(marker: OverlayMarker): Record<string, unk
         }
     }
     return out;
+}
+
+/** Returns only allow-listed keys on a snapshot (replay/remote export guards). */
+export function pickMapOverlaySnapshotKeys(snapshot: MapOverlaySnapshot): Record<string, unknown> {
+    const sanitized = sanitizeMapOverlaySnapshot(snapshot);
+    return {
+        version: sanitized.version,
+        markers: sanitized.markers.map((marker) => pickOverlayMarkerKeys(marker)),
+    };
 }

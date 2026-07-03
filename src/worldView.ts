@@ -15,11 +15,11 @@ import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
-import { buildMapOverlaySnapshot, deriveKnownNpcIds } from './mapOverlayCore';
+import { buildWorkspaceMapOverlay } from './mapOverlayBridge';
 import { loadSettlementLayout, loadSettlementState } from './settlementState';
 import { buildSettlementExpansionPreviews, buildSettlementViewSnapshot } from './settlementViewCore';
 import type { SettlementLayerId } from './settlementCore';
-import { loadDiscoveryLedger } from './discoveryLedger';
+
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
@@ -507,27 +507,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         ? buildSettlementExpansionPreviews(settlementState, settlementLayout)
         : [];
 
-    const mapOverlay = buildMapOverlaySnapshot({
-        forge,
-        fog: {
-            discoveredRegionIds: fog.discoveredRegionIds,
-            rumoredRegionIds: fog.rumoredRegionIds,
-        },
-        enableNpcAgency: gameRules.enableNpcAgency === true,
-        enableNpcRegistry: gameRules.enableNpcRegistry === true,
-        enableSettlementMode: gameRules.enableSettlementMode === true,
-        enableCampaignKit: campaignKitActive,
-        enableFactionReputation: gameRules.enableFactionReputation === true,
-        worldTurn,
-        worldRegions: regionStates,
-        worldFactions: factionStates,
-        npcPositions: worldState?.npcPositions,
-        questHooks: worldState?.questHooks,
-        settlementState,
-        discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
-        npcRegistry: registry,
-        knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
-    });
+    const mapOverlay = buildWorkspaceMapOverlay(currentLocationId);
     const rawForgeDoc = loadWorldForgeDocument();
     const commerceForge = gameRules.enableCommerce === true && rawForgeDoc
         ? resolveCommerceForge(forge, rawForgeDoc)

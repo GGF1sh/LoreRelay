@@ -13,6 +13,7 @@ LoreRelay には **独立した番号体系** がある。
 | **Roadmap Phase** | `Phase N`（グローバル） | プロダクト全体のマイルストーン。`AI_ROADMAP.md` が正本 | Phase 9 = Agentic GM |
 | **Cartography** | `C7` / `C8` / `C9` … | 地図・探索 UX。`docs/CARTOGRAPHY_*` | C9 = 遠隔 FoW |
 | **Living World** | `LW` / `LW-W1` / `LW1` / `LW2` | 世界ファースト・貿易・NPC 反応。`docs/COMMERCE_AND_AGENCY_BRIEF.md` | LW1 = Commerce |
+| **Domain** | `D1` … `D5` | 領地運営・領主プレイ。`docs/DOMAIN_MODE_DESIGN.md` | D1 = Domain Core |
 | **Fable5** | `F1` … `F6` | journal/演出/評判/旅/書き出し/地図逆輸入。`docs/FABLE5_FEATURE_PROPOSALS_DESIGN.md` | F1 = Chronicle |
 
 **ルール:** Cartography の作業を **Roadmap Phase 番号だけで呼ばない**。LW と Fable5 は **Cartography C* とも別トラック**。
@@ -61,6 +62,21 @@ LoreRelay には **独立した番号体系** がある。
 | **LW2** | NPC Agency（世界への反応） | ブリーフ済・未実装 | 1.22.0 |
 
 優先: **世界が先に動く** → NPC はその結果（§0 世界ファースト）。
+
+---
+
+## Domain サブトラック（`docs/DOMAIN_MODE_DESIGN.md`）
+
+| ID | 名称 | 状態 | 想定 Ver |
+|----|------|------|----------|
+| **D1** | Domain Core（stats・月次行動・validate） | 設計済・未実装 | 1.39.0 |
+| **D1.5** | Domain + Time + Chronicle | 設計済・未実装 | 1.39.0 |
+| **D2** | Domain Prompt + `domainOps` | 設計済・未実装 | 1.39.0 |
+| **D3** | Domain UI（World タブ） | 設計済・未実装 | 1.40.0 |
+| **D4** | Domain Events + Commerce 接続 | 設計済・未実装 | 1.41.x |
+| **D5** | Officers + NPC 任命 | 設計済・未実装 | 1.41.x |
+
+前提: Campaign モード · `enableDomainMode` 既定 **OFF** · 三層時計（`WORLD_TIME_PASSAGE_IDEA.md` §C）準拠。
 
 ---
 

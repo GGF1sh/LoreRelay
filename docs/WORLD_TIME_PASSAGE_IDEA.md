@@ -182,4 +182,5 @@ C8 ピン操作と同じパターン:
 - `WORLD_SYSTEM_DESIGN.md` — Emergent Sim 全体
 - `docs/CARTOGRAPHY_PHASE8_DESIGN.md` — FoW（時間経過では霧は晴れない）
 - `docs/CARTOGRAPHY_C9_BRIEF.md` — 地図アイテム（旅・噂と組み合わせ可）
+- `docs/DOMAIN_MODE_DESIGN.md` — 領地運営の「月」= World Day 明示コミット（Domain D1.5）
 - `docs/PHASE_NAMING.md` — トラック命名

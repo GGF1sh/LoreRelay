@@ -579,6 +579,38 @@ function ensureCartographyStyles() {
             box-shadow: 0 2px 8px rgba(0,0,0,0.45);
         }
         .world-map-overlay-tooltip.hidden { display: none !important; }
+        .world-map-overlay-legend {
+            position: absolute;
+            left: 6px;
+            bottom: 6px;
+            z-index: 7;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            max-width: calc(100% - 12px);
+            padding: 0.28rem 0.45rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(8, 12, 20, 0.72);
+            font-size: 0.74em;
+            line-height: 1.3;
+            pointer-events: none;
+        }
+        .world-map-overlay-legend.hidden { display: none !important; }
+        .world-map-overlay-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28em;
+            color: var(--vscode-foreground, #cdd6e0);
+            white-space: nowrap;
+        }
+        .world-map-overlay-legend-glyph {
+            font-weight: 700;
+            font-family: "Courier New", monospace;
+        }
+        .world-map-overlay-legend-hint {
+            opacity: 0.75;
+        }
         .world-map-pin-wrap {
             position: absolute;
             transform: translate(-50%, -100%);

@@ -5692,6 +5692,38 @@ function ensureCartographyStyles() {
             box-shadow: 0 2px 8px rgba(0,0,0,0.45);
         }
         .world-map-overlay-tooltip.hidden { display: none !important; }
+        .world-map-overlay-legend {
+            position: absolute;
+            left: 6px;
+            bottom: 6px;
+            z-index: 7;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            max-width: calc(100% - 12px);
+            padding: 0.28rem 0.45rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(8, 12, 20, 0.72);
+            font-size: 0.74em;
+            line-height: 1.3;
+            pointer-events: none;
+        }
+        .world-map-overlay-legend.hidden { display: none !important; }
+        .world-map-overlay-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28em;
+            color: var(--vscode-foreground, #cdd6e0);
+            white-space: nowrap;
+        }
+        .world-map-overlay-legend-glyph {
+            font-weight: 700;
+            font-family: "Courier New", monospace;
+        }
+        .world-map-overlay-legend-hint {
+            opacity: 0.75;
+        }
         .world-map-pin-wrap {
             position: absolute;
             transform: translate(-50%, -100%);
@@ -8879,6 +8911,68 @@ let _overlayMarkerHits = [];
 let _mapOverlayHoverReady = false;
 let _mapOverlayTooltipEl = null;
 
+const MAP_OVERLAY_LEGEND_I18N_KEY = {
+    npc: 'webview.world.overlayLegendNpc',
+    merchant: 'webview.world.overlayLegendMerchant',
+    caravan: 'webview.world.overlayLegendCaravan',
+    faction_control: 'webview.world.overlayLegendFaction',
+    quest: 'webview.world.overlayLegendQuest',
+    discovery: 'webview.world.overlayLegendDiscovery',
+    settlement_pressure: 'webview.world.overlayLegendPressure',
+};
+const MAP_OVERLAY_LEGEND_FALLBACK = {
+    npc: 'NPC',
+    merchant: 'Merchant',
+    caravan: 'Caravan',
+    faction_control: 'Faction control',
+    quest: 'Quest lead',
+    discovery: 'Discovery',
+    settlement_pressure: 'Settlement pressure',
+    rumored: 'Rumored (unconfirmed)',
+};
+
+function overlayLegendLabel(kind) {
+    const key = MAP_OVERLAY_LEGEND_I18N_KEY[kind];
+    const translated = key && typeof T === 'function' ? T(key) : '';
+    return translated && translated !== key ? translated : MAP_OVERLAY_LEGEND_FALLBACK[kind] || kind;
+}
+
+/** Display-only legend: lists marker kinds present in the current sanitized snapshot. No state writes. */
+function renderMapOverlayLegend(msg) {
+    const el = document.getElementById('world-overmap-legend');
+    if (!el) { return; }
+    const markers = msg && msg.mapOverlay && Array.isArray(msg.mapOverlay.markers) ? msg.mapOverlay.markers : [];
+    if (!markers.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    const seenKinds = [];
+    let hasRumored = false;
+    for (const marker of markers) {
+        if (marker && marker.kind && MAP_OVERLAY_MARKER_STYLE[marker.kind] && !seenKinds.includes(marker.kind)) {
+            seenKinds.push(marker.kind);
+        }
+        if (marker && marker.fogVisibility === 'rumored') { hasRumored = true; }
+    }
+    if (!seenKinds.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    const items = seenKinds.map((kind) => {
+        const style = MAP_OVERLAY_MARKER_STYLE[kind];
+        const label = escapeHtml(overlayLegendLabel(kind));
+        return `<span class="world-map-overlay-legend-item"><span class="world-map-overlay-legend-glyph" style="color:${style.fg}">${style.glyph}</span>${label}</span>`;
+    });
+    if (hasRumored) {
+        const rumoredLabel = escapeHtml(overlayLegendLabel('rumored'));
+        items.push(`<span class="world-map-overlay-legend-item world-map-overlay-legend-hint"><span class="world-map-overlay-legend-glyph">?</span>${rumoredLabel}</span>`);
+    }
+    el.innerHTML = items.join('');
+    el.classList.remove('hidden');
+}
+
 function getRegionFogVisibility(regionId, fog) {
     if (!fog || !regionId) { return 'discovered'; }
     const discovered = new Set(fog.discoveredRegionIds || []);
@@ -8974,7 +9068,10 @@ function drawTileOvermap() {
     const hasData = Boolean(om && Array.isArray(om.tileRows) && om.tileRows.length > 0 && (msg.regionCount ?? 0) > 0);
     if (empty) { empty.classList.toggle('hidden', hasData); }
     canvas.style.display = hasData ? 'block' : 'none';
-    if (!hasData) { return; }
+    if (!hasData) {
+        renderMapOverlayLegend(null);
+        return;
+    }
 
     const panel = canvas.parentElement;
     const panelWidth = panel ? panel.clientWidth : 0;
@@ -9122,6 +9219,7 @@ function drawTileOvermap() {
     }
 
     drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight);
+    renderMapOverlayLegend(msg);
     hideMapOverlayTooltip();
 }
 
@@ -9141,6 +9239,27 @@ let _settlementHits = [];
 let _settlementSelected = null;
 let _lastSettlementId = null;
 let _settlementControlsReady = false;
+let _settlementExpandHoverPreview = null;
+let _lastSettlementExpandLayerId = null;
+
+const SETTLEMENT_EXPAND_PROFILE_I18N_KEY = {
+    cellar: 'webview.world.settlementExpandProfileCellar',
+    waterworks: 'webview.world.settlementExpandProfileWaterworks',
+    shelter: 'webview.world.settlementExpandProfileShelter',
+    ruins: 'webview.world.settlementExpandProfileRuins',
+    roof: 'webview.world.settlementExpandProfileRoof',
+    watchtower: 'webview.world.settlementExpandProfileWatchtower',
+    generic: 'webview.world.settlementExpandProfileGeneric',
+};
+const SETTLEMENT_EXPAND_PROFILE_FALLBACK = {
+    cellar: 'Request cellar',
+    waterworks: 'Request waterworks',
+    shelter: 'Request shelter',
+    ruins: 'Request ruins excavation',
+    roof: 'Request roof access',
+    watchtower: 'Request watch platform',
+    generic: 'Request expansion',
+};
 
 const SETTLEMENT_TILE_W = 32;
 const SETTLEMENT_TILE_H = 16;
@@ -9231,6 +9350,104 @@ function resetSettlementViewTransform() {
 function getSettlementSnapshot() {
     const msg = _settlementWorldMsg;
     return msg && msg.settlementView ? msg.settlementView : null;
+}
+
+/** M4c: read-only ghost previews computed by the host (applyExpandLayerToLayout). Never written by the Webview. */
+function getSettlementExpansionPreviews() {
+    const msg = _settlementWorldMsg;
+    return msg && Array.isArray(msg.settlementExpansionPreviews) ? msg.settlementExpansionPreviews : [];
+}
+
+function settlementExpandProfileLabel(profile) {
+    const key = SETTLEMENT_EXPAND_PROFILE_I18N_KEY[profile];
+    const translated = key && typeof T === 'function' ? T(key) : '';
+    return translated && translated !== key ? translated : (SETTLEMENT_EXPAND_PROFILE_FALLBACK[profile] || profile);
+}
+
+function buildSettlementExpandRequestText(layerId, profile) {
+    const reasonKey = 'webview.world.settlementExpandReasonDefault';
+    const reason = typeof T === 'function'
+        ? T(reasonKey, { profile: settlementExpandProfileLabel(profile) })
+        : `Player requested ${profile} expansion from Settlement view.`;
+    const textKey = 'webview.world.settlementExpandRequestText';
+    const vars = { layerId, profile, reason };
+    if (typeof T === 'function') {
+        const translated = T(textKey, vars);
+        if (translated !== textKey) { return translated; }
+    }
+    return `[Settlement expansion request]\nPlease consider emitting turn_result.settlementOps.expand_layer for this settlement.\nlayerId: ${layerId}\nprofile: ${profile}\nreason: ${reason}\nDo not add layers beyond z1/z0/z-1/z-2.`;
+}
+
+function renderSettlementExpandPanel(view, msg) {
+    const panel = document.getElementById('world-settlement-expand-panel');
+    const buttonsEl = document.getElementById('world-settlement-expand-buttons');
+    if (!panel || !buttonsEl) { return; }
+
+    const enabled = Boolean(msg && msg.enableSettlementMode === true);
+    const previews = enabled ? getSettlementExpansionPreviews() : [];
+    const layerId = view ? view.layerId : null;
+    const forLayer = layerId ? previews.filter((p) => p && p.layerId === layerId) : [];
+
+    if (!enabled || !view || !forLayer.length) {
+        panel.classList.add('hidden');
+        buttonsEl.innerHTML = '';
+        _settlementExpandHoverPreview = null;
+        return;
+    }
+
+    if (layerId !== _lastSettlementExpandLayerId) {
+        _lastSettlementExpandLayerId = layerId;
+        _settlementExpandHoverPreview = forLayer[0];
+    } else if (_settlementExpandHoverPreview && !forLayer.some((p) => p.profile === _settlementExpandHoverPreview.profile)) {
+        _settlementExpandHoverPreview = forLayer[0];
+    }
+
+    buttonsEl.innerHTML = forLayer.map((preview) => (
+        `<button type="button" class="world-settlement-expand-btn" data-expand-layer="${escapeSettlementHtml(preview.layerId)}" data-expand-profile="${escapeSettlementHtml(preview.profile)}">${escapeSettlementHtml(settlementExpandProfileLabel(preview.profile))}</button>`
+    )).join('');
+    panel.classList.remove('hidden');
+
+    buttonsEl.querySelectorAll('.world-settlement-expand-btn').forEach((btn) => {
+        const profile = btn.getAttribute('data-expand-profile');
+        const preview = forLayer.find((p) => p.profile === profile);
+        if (!preview) { return; }
+        const showGhost = () => {
+            _settlementExpandHoverPreview = preview;
+            drawSettlementIsometric();
+        };
+        btn.addEventListener('mouseenter', showGhost);
+        btn.addEventListener('focus', showGhost);
+        btn.addEventListener('click', () => {
+            if (typeof vscode !== 'undefined') {
+                vscode.postMessage({
+                    type: 'insertChatText',
+                    text: buildSettlementExpandRequestText(preview.layerId, preview.profile),
+                });
+            }
+        });
+    });
+}
+
+function drawSettlementGhostPreview(ctx, view, originX, originY) {
+    const preview = _settlementExpandHoverPreview;
+    if (!preview || !view || preview.layerId !== view.layerId) { return; }
+
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.setLineDash([4, 3]);
+    const tiles = Array.isArray(preview.tiles) ? preview.tiles : [];
+    for (const tile of tiles) {
+        const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
+        const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
+        drawIsoDiamond(ctx, sx, sy, colors, colors.glyph);
+    }
+    ctx.setLineDash([]);
+    const markers = Array.isArray(preview.markers) ? preview.markers : [];
+    for (const marker of markers) {
+        const { sx, sy } = isoProject(marker.x, marker.y, marker.z, originX, originY);
+        drawIsoMarker(ctx, sx, sy, marker.kind);
+    }
+    ctx.restore();
 }
 
 function isoProject(x, y, z, originX, originY) {
@@ -9411,6 +9628,7 @@ function drawSettlementIsometric() {
     const stage = document.getElementById('world-settlement-stage');
     if (!canvas || !stage) { return; }
 
+    const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
     if (empty) {
         const showEmpty = !view;
@@ -9430,6 +9648,7 @@ function drawSettlementIsometric() {
             list.innerHTML = '';
             list.classList.add('hidden');
         }
+        renderSettlementExpandPanel(null, msg);
         return;
     }
 
@@ -9438,10 +9657,13 @@ function drawSettlementIsometric() {
         resetSettlementViewTransform();
         loadSettlementViewPrefs(view.settlementId);
         _settlementSelected = null;
+        _settlementExpandHoverPreview = null;
+        _lastSettlementExpandLayerId = null;
     }
 
     syncSettlementLayerButtons(view);
     renderSettlementMarkerFallback(view);
+    renderSettlementExpandPanel(view, msg);
 
     const panelWidth = stage.clientWidth;
     if (!panelWidth) { return; }
@@ -9500,6 +9722,8 @@ function drawSettlementIsometric() {
             detail: marker.detail,
         });
     }
+
+    drawSettlementGhostPreview(ctx, view, originX, originY);
 
     ctx.restore();
 

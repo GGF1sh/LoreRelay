@@ -13,6 +13,27 @@ let _settlementHits = [];
 let _settlementSelected = null;
 let _lastSettlementId = null;
 let _settlementControlsReady = false;
+let _settlementExpandHoverPreview = null;
+let _lastSettlementExpandLayerId = null;
+
+const SETTLEMENT_EXPAND_PROFILE_I18N_KEY = {
+    cellar: 'webview.world.settlementExpandProfileCellar',
+    waterworks: 'webview.world.settlementExpandProfileWaterworks',
+    shelter: 'webview.world.settlementExpandProfileShelter',
+    ruins: 'webview.world.settlementExpandProfileRuins',
+    roof: 'webview.world.settlementExpandProfileRoof',
+    watchtower: 'webview.world.settlementExpandProfileWatchtower',
+    generic: 'webview.world.settlementExpandProfileGeneric',
+};
+const SETTLEMENT_EXPAND_PROFILE_FALLBACK = {
+    cellar: 'Request cellar',
+    waterworks: 'Request waterworks',
+    shelter: 'Request shelter',
+    ruins: 'Request ruins excavation',
+    roof: 'Request roof access',
+    watchtower: 'Request watch platform',
+    generic: 'Request expansion',
+};
 
 const SETTLEMENT_TILE_W = 32;
 const SETTLEMENT_TILE_H = 16;
@@ -103,6 +124,104 @@ function resetSettlementViewTransform() {
 function getSettlementSnapshot() {
     const msg = _settlementWorldMsg;
     return msg && msg.settlementView ? msg.settlementView : null;
+}
+
+/** M4c: read-only ghost previews computed by the host (applyExpandLayerToLayout). Never written by the Webview. */
+function getSettlementExpansionPreviews() {
+    const msg = _settlementWorldMsg;
+    return msg && Array.isArray(msg.settlementExpansionPreviews) ? msg.settlementExpansionPreviews : [];
+}
+
+function settlementExpandProfileLabel(profile) {
+    const key = SETTLEMENT_EXPAND_PROFILE_I18N_KEY[profile];
+    const translated = key && typeof T === 'function' ? T(key) : '';
+    return translated && translated !== key ? translated : (SETTLEMENT_EXPAND_PROFILE_FALLBACK[profile] || profile);
+}
+
+function buildSettlementExpandRequestText(layerId, profile) {
+    const reasonKey = 'webview.world.settlementExpandReasonDefault';
+    const reason = typeof T === 'function'
+        ? T(reasonKey, { profile: settlementExpandProfileLabel(profile) })
+        : `Player requested ${profile} expansion from Settlement view.`;
+    const textKey = 'webview.world.settlementExpandRequestText';
+    const vars = { layerId, profile, reason };
+    if (typeof T === 'function') {
+        const translated = T(textKey, vars);
+        if (translated !== textKey) { return translated; }
+    }
+    return `[Settlement expansion request]\nPlease consider emitting turn_result.settlementOps.expand_layer for this settlement.\nlayerId: ${layerId}\nprofile: ${profile}\nreason: ${reason}\nDo not add layers beyond z1/z0/z-1/z-2.`;
+}
+
+function renderSettlementExpandPanel(view, msg) {
+    const panel = document.getElementById('world-settlement-expand-panel');
+    const buttonsEl = document.getElementById('world-settlement-expand-buttons');
+    if (!panel || !buttonsEl) { return; }
+
+    const enabled = Boolean(msg && msg.enableSettlementMode === true);
+    const previews = enabled ? getSettlementExpansionPreviews() : [];
+    const layerId = view ? view.layerId : null;
+    const forLayer = layerId ? previews.filter((p) => p && p.layerId === layerId) : [];
+
+    if (!enabled || !view || !forLayer.length) {
+        panel.classList.add('hidden');
+        buttonsEl.innerHTML = '';
+        _settlementExpandHoverPreview = null;
+        return;
+    }
+
+    if (layerId !== _lastSettlementExpandLayerId) {
+        _lastSettlementExpandLayerId = layerId;
+        _settlementExpandHoverPreview = forLayer[0];
+    } else if (_settlementExpandHoverPreview && !forLayer.some((p) => p.profile === _settlementExpandHoverPreview.profile)) {
+        _settlementExpandHoverPreview = forLayer[0];
+    }
+
+    buttonsEl.innerHTML = forLayer.map((preview) => (
+        `<button type="button" class="world-settlement-expand-btn" data-expand-layer="${escapeSettlementHtml(preview.layerId)}" data-expand-profile="${escapeSettlementHtml(preview.profile)}">${escapeSettlementHtml(settlementExpandProfileLabel(preview.profile))}</button>`
+    )).join('');
+    panel.classList.remove('hidden');
+
+    buttonsEl.querySelectorAll('.world-settlement-expand-btn').forEach((btn) => {
+        const profile = btn.getAttribute('data-expand-profile');
+        const preview = forLayer.find((p) => p.profile === profile);
+        if (!preview) { return; }
+        const showGhost = () => {
+            _settlementExpandHoverPreview = preview;
+            drawSettlementIsometric();
+        };
+        btn.addEventListener('mouseenter', showGhost);
+        btn.addEventListener('focus', showGhost);
+        btn.addEventListener('click', () => {
+            if (typeof vscode !== 'undefined') {
+                vscode.postMessage({
+                    type: 'insertChatText',
+                    text: buildSettlementExpandRequestText(preview.layerId, preview.profile),
+                });
+            }
+        });
+    });
+}
+
+function drawSettlementGhostPreview(ctx, view, originX, originY) {
+    const preview = _settlementExpandHoverPreview;
+    if (!preview || !view || preview.layerId !== view.layerId) { return; }
+
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.setLineDash([4, 3]);
+    const tiles = Array.isArray(preview.tiles) ? preview.tiles : [];
+    for (const tile of tiles) {
+        const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
+        const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
+        drawIsoDiamond(ctx, sx, sy, colors, colors.glyph);
+    }
+    ctx.setLineDash([]);
+    const markers = Array.isArray(preview.markers) ? preview.markers : [];
+    for (const marker of markers) {
+        const { sx, sy } = isoProject(marker.x, marker.y, marker.z, originX, originY);
+        drawIsoMarker(ctx, sx, sy, marker.kind);
+    }
+    ctx.restore();
 }
 
 function isoProject(x, y, z, originX, originY) {
@@ -283,6 +402,7 @@ function drawSettlementIsometric() {
     const stage = document.getElementById('world-settlement-stage');
     if (!canvas || !stage) { return; }
 
+    const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
     if (empty) {
         const showEmpty = !view;
@@ -302,6 +422,7 @@ function drawSettlementIsometric() {
             list.innerHTML = '';
             list.classList.add('hidden');
         }
+        renderSettlementExpandPanel(null, msg);
         return;
     }
 
@@ -310,10 +431,13 @@ function drawSettlementIsometric() {
         resetSettlementViewTransform();
         loadSettlementViewPrefs(view.settlementId);
         _settlementSelected = null;
+        _settlementExpandHoverPreview = null;
+        _lastSettlementExpandLayerId = null;
     }
 
     syncSettlementLayerButtons(view);
     renderSettlementMarkerFallback(view);
+    renderSettlementExpandPanel(view, msg);
 
     const panelWidth = stage.clientWidth;
     if (!panelWidth) { return; }
@@ -372,6 +496,8 @@ function drawSettlementIsometric() {
             detail: marker.detail,
         });
     }
+
+    drawSettlementGhostPreview(ctx, view, originX, originY);
 
     ctx.restore();
 

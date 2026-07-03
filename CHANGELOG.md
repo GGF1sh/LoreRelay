@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Settlement Mode M4c UX preview/request flow** — Webview-only, no new persistence. `settlementViewCore.ts` adds `buildSettlementExpansionPreviews()`: a pure, read-only ghost preview per missing layer (`z1`/`z0`/`z-1`/`z-2`), computed in-memory via the existing M4a `applyExpandLayerToLayout()` and capped at `MAX_EXPANSION_PREVIEWS`. `worldView.ts` attaches the result as `settlementExpansionPreviews` on the `worldView` postMessage (sibling to `settlementView`, same pattern as `mapOverlay`/`tileOvermap`). `86b-settlement-isometric.js` renders a dashed/translucent ghost overlay for the hovered profile and a bounded "Request cellar / waterworks / shelter / ruins / roof / watch platform / expansion" button panel per currently-viewed missing layer (existing layers never show the panel); clicking a button only calls `vscode.postMessage({ type: 'insertChatText', ... })` with a structured `expand_layer` request for the GM to act on — the Webview never writes `settlement_layout.json` and never calls `settlementOps` apply directly. Persistence remains exclusively the M4b `turn_result.settlementOps.expand_layer` ledger path, untouched by this change. i18n added to all four locales. Tests: extended `test_settlement_view_core.js` (determinism, no-mutation, key allow-list, missing-layer/profile coverage) and `test_webview_world_modules.js` (new symbols + fs-free assertion on the settlement module). `npm test` **149/149**.
+
 ### Fixed
 
 - **Settlement Mode M4b review fix** - separated `settlement_layout` ledger no-op handling from write failure handling. Existing `applySettlementLayoutTurnOps()` still reports actual disk writes, while the post-commit ledger path now treats valid no-op `expand_layer` ops as handled instead of logging a false partial failure. Missing `settlement_state.json` during apply now returns structured failure (`ok: false`) rather than a silent no-op. Added cross-ledger regression coverage.

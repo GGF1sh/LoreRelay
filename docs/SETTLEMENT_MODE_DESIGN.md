@@ -2,9 +2,11 @@
 
 > Status: design only. No implementation in this document.
 >
-> Source inspirations: Dwarf Fortress play reports / DFHack and StoneSense architecture patterns / Cataclysm: Dark Days Ahead overmap-mapgen-event patterns / RimTalk-style in-world conversations.
+> Source inspirations: Dwarf Fortress play reports / DFHack and StoneSense architecture patterns / Cataclysm: Dark Days Ahead overmap-mapgen-event patterns / RimTalk-style in-world conversations / Caves of Qud procedural history and discovery density / Kenshi outpost pressure and faction world-states.
 >
 > License boundary: do not copy source code, schemas, sprite assets, JSON data, names, or game text from referenced projects. Extract only high-level design patterns.
+>
+> Expanded reference notes: [`docs/SETTLEMENT_REFERENCE_PATTERNS.md`](SETTLEMENT_REFERENCE_PATTERNS.md)
 
 ## 0. Goal
 
@@ -25,6 +27,25 @@ The non-goal is:
 - no deep geological strata simulation;
 - no 3D engine as the canonical state;
 - no GM prompt injection of full tile grids.
+
+## 0.1 Reference Pattern Summary
+
+Settlement Mode uses references in different layers:
+
+| Reference | Useful Pattern | LoreRelay Target |
+|---|---|---|
+| Dwarf Fortress / StoneSense | layered settlement, incident history, readable isometric projection | settlement ledger and display-only view |
+| Cataclysm: Dark Days Ahead | overmap/local abstraction, survival resources, delayed concrete detail | tile overmap, resources, bounded local layouts |
+| RimTalk-style mods | people speaking from inside a running world | In-World Chat and NPC Registry |
+| Caves of Qud | procedural history, village hubs, strange discoveries, appraisal loop | World Forge, discoveries, Chronicle, Lorebook |
+| Kenshi | outpost vulnerability, faction world-states, merchant/visitor pressure, away-time progression | Settlement Mode, Living World, Commerce, Observatory |
+
+The key split:
+
+- Qud-like patterns add **world meaning and discovery density**.
+- Kenshi-like patterns add **world pressure on settlements**.
+- Neither should expand M1 into a combat sim, real-time squad AI, freeform
+  building sim, or setting clone.
 
 ## 1. Mental Model
 

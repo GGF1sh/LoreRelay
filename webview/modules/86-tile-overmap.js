@@ -289,6 +289,68 @@ let _overlayMarkerHits = [];
 let _mapOverlayHoverReady = false;
 let _mapOverlayTooltipEl = null;
 
+const MAP_OVERLAY_LEGEND_I18N_KEY = {
+    npc: 'webview.world.overlayLegendNpc',
+    merchant: 'webview.world.overlayLegendMerchant',
+    caravan: 'webview.world.overlayLegendCaravan',
+    faction_control: 'webview.world.overlayLegendFaction',
+    quest: 'webview.world.overlayLegendQuest',
+    discovery: 'webview.world.overlayLegendDiscovery',
+    settlement_pressure: 'webview.world.overlayLegendPressure',
+};
+const MAP_OVERLAY_LEGEND_FALLBACK = {
+    npc: 'NPC',
+    merchant: 'Merchant',
+    caravan: 'Caravan',
+    faction_control: 'Faction control',
+    quest: 'Quest lead',
+    discovery: 'Discovery',
+    settlement_pressure: 'Settlement pressure',
+    rumored: 'Rumored (unconfirmed)',
+};
+
+function overlayLegendLabel(kind) {
+    const key = MAP_OVERLAY_LEGEND_I18N_KEY[kind];
+    const translated = key && typeof T === 'function' ? T(key) : '';
+    return translated && translated !== key ? translated : MAP_OVERLAY_LEGEND_FALLBACK[kind] || kind;
+}
+
+/** Display-only legend: lists marker kinds present in the current sanitized snapshot. No state writes. */
+function renderMapOverlayLegend(msg) {
+    const el = document.getElementById('world-overmap-legend');
+    if (!el) { return; }
+    const markers = msg && msg.mapOverlay && Array.isArray(msg.mapOverlay.markers) ? msg.mapOverlay.markers : [];
+    if (!markers.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    const seenKinds = [];
+    let hasRumored = false;
+    for (const marker of markers) {
+        if (marker && marker.kind && MAP_OVERLAY_MARKER_STYLE[marker.kind] && !seenKinds.includes(marker.kind)) {
+            seenKinds.push(marker.kind);
+        }
+        if (marker && marker.fogVisibility === 'rumored') { hasRumored = true; }
+    }
+    if (!seenKinds.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    const items = seenKinds.map((kind) => {
+        const style = MAP_OVERLAY_MARKER_STYLE[kind];
+        const label = escapeHtml(overlayLegendLabel(kind));
+        return `<span class="world-map-overlay-legend-item"><span class="world-map-overlay-legend-glyph" style="color:${style.fg}">${style.glyph}</span>${label}</span>`;
+    });
+    if (hasRumored) {
+        const rumoredLabel = escapeHtml(overlayLegendLabel('rumored'));
+        items.push(`<span class="world-map-overlay-legend-item world-map-overlay-legend-hint"><span class="world-map-overlay-legend-glyph">?</span>${rumoredLabel}</span>`);
+    }
+    el.innerHTML = items.join('');
+    el.classList.remove('hidden');
+}
+
 function getRegionFogVisibility(regionId, fog) {
     if (!fog || !regionId) { return 'discovered'; }
     const discovered = new Set(fog.discoveredRegionIds || []);
@@ -384,7 +446,10 @@ function drawTileOvermap() {
     const hasData = Boolean(om && Array.isArray(om.tileRows) && om.tileRows.length > 0 && (msg.regionCount ?? 0) > 0);
     if (empty) { empty.classList.toggle('hidden', hasData); }
     canvas.style.display = hasData ? 'block' : 'none';
-    if (!hasData) { return; }
+    if (!hasData) {
+        renderMapOverlayLegend(null);
+        return;
+    }
 
     const panel = canvas.parentElement;
     const panelWidth = panel ? panel.clientWidth : 0;
@@ -532,5 +597,6 @@ function drawTileOvermap() {
     }
 
     drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight);
+    renderMapOverlayLegend(msg);
     hideMapOverlayTooltip();
 }

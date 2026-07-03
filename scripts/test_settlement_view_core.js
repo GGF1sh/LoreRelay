@@ -25,13 +25,17 @@ const {
     pickSettlementViewTileKeys,
     pickSettlementViewMarkerKeys,
     pickSettlementViewSnapshotKeys,
+    buildSettlementExpansionPreviews,
+    pickSettlementExpansionPreviewKeys,
     SETTLEMENT_VIEW_TILE_KEYS,
     SETTLEMENT_VIEW_MARKER_KEYS,
     SETTLEMENT_VIEW_SNAPSHOT_KEYS,
+    SETTLEMENT_EXPANSION_PREVIEW_KEYS,
     MAX_VIEW_TILES,
     MAX_VIEW_MARKERS,
     MAX_VIEW_LABEL,
     MAX_VIEW_DETAIL,
+    MAX_EXPANSION_PREVIEWS,
 } = require(corePath);
 const { parseSettlementState, parseSettlementLayout } = require(settlementCorePath);
 
@@ -312,6 +316,108 @@ if (!baseState) {
         fail('input layout was mutated');
     } else {
         ok('input state and layout are not mutated');
+    }
+}
+
+// --- M4c: buildSettlementExpansionPreviews (ghost preview, no persistence) ---
+
+{
+    const previews = buildSettlementExpansionPreviews(undefined, undefined);
+    if (!Array.isArray(previews) || previews.length !== 0) {
+        fail('no state should yield no previews');
+    } else {
+        ok('no state yields no previews');
+    }
+}
+
+{
+    // No layout at all: only z0 is treated as existing, so z1/z-1/z-2 are missing.
+    const previews = buildSettlementExpansionPreviews(baseState, undefined);
+    const layerIds = new Set(previews.map((p) => p.layerId));
+    if (layerIds.has('z0')) {
+        fail('z0 should not get a preview when no layout exists');
+    } else if (!layerIds.has('z1') || !layerIds.has('z-1') || !layerIds.has('z-2')) {
+        fail('missing layers without a layout should all get previews');
+    } else {
+        ok('missing-layer detection treats absent layout as z0-only');
+    }
+    if (previews.length > MAX_EXPANSION_PREVIEWS) {
+        fail('expansion preview count exceeds cap');
+    } else {
+        ok('expansion preview count respects cap');
+    }
+}
+
+{
+    const fullLayout = parseSettlementLayout({
+        version: 1,
+        settlementId: 'scrapbound_hub',
+        layers: ['z1', 'z0', 'z-1', 'z-2'],
+        zones: [],
+        markers: [],
+    });
+    const previews = buildSettlementExpansionPreviews(baseState, fullLayout);
+    if (previews.length !== 0) {
+        fail('layout with all layers should yield zero previews (no ghost CTA on existing layers)');
+    } else {
+        ok('layout with all layers present yields zero previews');
+    }
+}
+
+{
+    const partialLayout = parseSettlementLayout({
+        version: 1,
+        settlementId: 'scrapbound_hub',
+        layers: ['z0'],
+        zones: [{ id: 'zone_a', layerId: 'z0', label: 'Market', x: 3, y: 3 }],
+        markers: [],
+    });
+    const previews = buildSettlementExpansionPreviews(baseState, partialLayout);
+    const z1Previews = previews.filter((p) => p.layerId === 'z1');
+    const zNeg1Previews = previews.filter((p) => p.layerId === 'z-1');
+    const zNeg2Previews = previews.filter((p) => p.layerId === 'z-2');
+    if (!z1Previews.some((p) => p.profile === 'roof') || !z1Previews.some((p) => p.profile === 'watchtower')) {
+        fail('z1 should offer roof and watchtower profiles');
+    } else if (!zNeg1Previews.some((p) => p.profile === 'cellar')) {
+        fail('z-1 should offer the cellar profile');
+    } else if (!zNeg2Previews.some((p) => p.profile === 'ruins')) {
+        fail('z-2 should offer the ruins profile');
+    } else {
+        ok('each missing layer offers its bounded profile set');
+    }
+
+    for (const preview of previews) {
+        const keys = Object.keys(preview);
+        const allowedKeys = new Set(SETTLEMENT_EXPANSION_PREVIEW_KEYS);
+        if (keys.some((k) => !allowedKeys.has(k))) {
+            fail(`extra expansion preview keys: ${keys.join(',')}`);
+        }
+        const picked = pickSettlementExpansionPreviewKeys(preview);
+        if (Object.keys(picked).some((k) => !allowedKeys.has(k))) {
+            fail('pickSettlementExpansionPreviewKeys leaked keys');
+        }
+        if (!Array.isArray(preview.tiles) || !preview.tiles.length) {
+            fail(`preview for ${preview.layerId}/${preview.profile} produced no ghost tiles`);
+        }
+    }
+    ok('expansion preview key allow-list enforced and ghost tiles present');
+
+    const stateClone = JSON.parse(JSON.stringify(baseState));
+    const layoutClone = JSON.parse(JSON.stringify(partialLayout));
+    buildSettlementExpansionPreviews(stateClone, layoutClone);
+    if (JSON.stringify(stateClone) !== JSON.stringify(baseState)) {
+        fail('buildSettlementExpansionPreviews mutated input state');
+    } else if (JSON.stringify(layoutClone) !== JSON.stringify(partialLayout)) {
+        fail('buildSettlementExpansionPreviews mutated input layout');
+    } else {
+        ok('buildSettlementExpansionPreviews does not mutate inputs');
+    }
+
+    const again = buildSettlementExpansionPreviews(baseState, partialLayout);
+    if (JSON.stringify(again) !== JSON.stringify(previews)) {
+        fail('buildSettlementExpansionPreviews is not deterministic for identical inputs');
+    } else {
+        ok('buildSettlementExpansionPreviews is deterministic');
     }
 }
 

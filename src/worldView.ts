@@ -17,7 +17,7 @@ import { buildCartographyPinPositions, buildCartographyRegionLabels } from './ca
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildMapOverlaySnapshot, deriveKnownNpcIds } from './mapOverlayCore';
 import { loadSettlementLayout, loadSettlementState } from './settlementState';
-import { buildSettlementViewSnapshot } from './settlementViewCore';
+import { buildSettlementExpansionPreviews, buildSettlementViewSnapshot } from './settlementViewCore';
 import type { SettlementLayerId } from './settlementCore';
 import { loadDiscoveryLedger } from './discoveryLedger';
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
@@ -501,6 +501,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             selectedLayerId: preferredSettlementLayerId,
         })
         : undefined;
+    // M4c: read-only ghost previews for layers missing from settlement_layout.json.
+    // Pure in-memory use of applyExpandLayerToLayout — never persisted here.
+    const settlementExpansionPreviews = settlementState
+        ? buildSettlementExpansionPreviews(settlementState, settlementLayout)
+        : [];
 
     const mapOverlay = buildMapOverlaySnapshot({
         forge,
@@ -587,6 +592,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         mapOverlay,
         enableSettlementMode: gameRules.enableSettlementMode === true,
         settlementView: settlementView ?? null,
+        settlementExpansionPreviews,
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,

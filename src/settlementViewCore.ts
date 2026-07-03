@@ -3,7 +3,9 @@
 import {
     MAX_SETTLEMENT_NAME_CHARS,
     VALID_SETTLEMENT_LAYER_IDS,
+    type ExpandLayerOp,
     type SettlementIncident,
+    type SettlementLayerExpansionProfile,
     type SettlementLayerId,
     type SettlementLayoutV1,
     type SettlementMarker,
@@ -11,6 +13,7 @@ import {
     type SettlementStructure,
     type SettlementZone,
 } from './settlementCore';
+import { applyExpandLayerToLayout } from './settlementLayerExpansionCore';
 import { hashStringToSeed } from './tileOvermapCore';
 
 export const SETTLEMENT_VIEW_VERSION = 1 as const;
@@ -94,6 +97,37 @@ export interface SettlementViewSnapshot {
     legend: SettlementViewLegendEntry[];
     warnings?: string[];
 }
+
+/**
+ * M4c: read-only ghost preview of a missing layer, derived from
+ * `applyExpandLayerToLayout` in memory. Never persisted; the host computes
+ * this once per worldView push and the Webview only draws it.
+ */
+export interface SettlementExpansionPreview {
+    layerId: SettlementLayerId;
+    profile: SettlementLayerExpansionProfile;
+    tiles: SettlementViewTile[];
+    markers: SettlementViewMarker[];
+    warnings?: string[];
+}
+
+export const SETTLEMENT_EXPANSION_PREVIEW_KEYS = [
+    'layerId',
+    'profile',
+    'tiles',
+    'markers',
+    'warnings',
+] as const;
+
+export const MAX_EXPANSION_PREVIEWS = 8;
+
+/** Only these profiles are offered per missing layer — mirrors PROFILE_DEFAULT_LAYER in settlementLayerExpansionCore. */
+const EXPANSION_PROFILES_BY_LAYER: Record<SettlementLayerId, SettlementLayerExpansionProfile[]> = {
+    z1: ['roof', 'watchtower'],
+    z0: ['generic'],
+    'z-1': ['cellar', 'waterworks', 'shelter'],
+    'z-2': ['ruins'],
+};
 
 export interface SettlementViewOptions {
     maxTiles?: number;
@@ -688,6 +722,71 @@ export function pickSettlementViewMarkerKeys(marker: SettlementViewMarker): Reco
         }
     }
     return out;
+}
+
+export function pickSettlementExpansionPreviewKeys(preview: SettlementExpansionPreview): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const key of SETTLEMENT_EXPANSION_PREVIEW_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(preview, key) && preview[key as keyof SettlementExpansionPreview] !== undefined) {
+            out[key] = preview[key as keyof SettlementExpansionPreview];
+        }
+    }
+    return out;
+}
+
+/**
+ * M4c: builds read-only ghost previews for layers missing from the layout.
+ * Pure in-memory use of `applyExpandLayerToLayout` — never writes
+ * `settlement_layout.json`. Existing layers never get a preview entry.
+ */
+export function buildSettlementExpansionPreviews(
+    state: SettlementStateV1 | undefined,
+    layout: SettlementLayoutV1 | undefined
+): SettlementExpansionPreview[] {
+    if (!state) { return []; }
+
+    const baseLayout = layout && layout.settlementId === state.settlementId ? layout : undefined;
+    const effectiveLayers: SettlementLayerId[] = baseLayout && baseLayout.layers.length
+        ? baseLayout.layers.filter((id) => (VALID_SETTLEMENT_LAYER_IDS as readonly string[]).includes(id))
+        : ['z0'];
+    const existing = new Set(effectiveLayers);
+    const missing = (VALID_SETTLEMENT_LAYER_IDS as readonly SettlementLayerId[]).filter((id) => !existing.has(id));
+    if (!missing.length) { return []; }
+
+    const width = clampViewSize(undefined, deriveFallbackSize(state));
+    const height = width;
+    const seed = hashStringToSeed(state.settlementId);
+
+    const previews: SettlementExpansionPreview[] = [];
+    for (const layerId of missing) {
+        const profiles = EXPANSION_PROFILES_BY_LAYER[layerId] ?? [];
+        for (const profile of profiles) {
+            if (previews.length >= MAX_EXPANSION_PREVIEWS) { break; }
+            const op: ExpandLayerOp = { type: 'expand_layer', layerId, profile };
+            const result = applyExpandLayerToLayout(baseLayout, state, op, { worldTurn: state.worldTurn });
+            if (!result.applied) { continue; }
+
+            const z = layerIdToZ(layerId);
+            const zones = result.layout.zones.filter((zone) => zone.layerId === layerId);
+            const rawMarkers = result.layout.markers.filter((marker) => marker.layerId === layerId);
+
+            const tiles: SettlementViewTile[] = [];
+            for (const zone of zones) {
+                tiles.push(...expandZoneTiles(zone, width, height, z, seed, false));
+            }
+            const markers = rawMarkers.map((marker) => layoutMarkerToView(marker, width, height, z, seed));
+
+            previews.push({
+                layerId,
+                profile,
+                tiles: tiles.map(sanitizeTile),
+                markers: markers.map(sanitizeMarker),
+                warnings: result.warnings.length ? result.warnings.slice(0, MAX_VIEW_WARNINGS) : undefined,
+            });
+        }
+        if (previews.length >= MAX_EXPANSION_PREVIEWS) { break; }
+    }
+    return previews;
 }
 
 export function pickSettlementViewSnapshotKeys(snapshot: SettlementViewSnapshot): Record<string, unknown> {

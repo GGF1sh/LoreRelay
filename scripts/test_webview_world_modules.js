@@ -155,6 +155,32 @@ for (const symbol of settlementSymbols) {
 }
 console.log('ok: Settlement isometric renderer symbols are bundled');
 
+// M4c: UX preview/request flow — ghost preview + GM request only, no disk writes.
+const settlementExpandSymbols = [
+    'function renderSettlementExpandPanel(',
+    'function drawSettlementGhostPreview(',
+    'getSettlementExpansionPreviews',
+    'settlementExpansionPreviews',
+    'buildSettlementExpandRequestText',
+    "type: 'insertChatText'",
+    'world-settlement-expand-panel',
+    'world-settlement-expand-buttons',
+    'data-expand-layer',
+    'data-expand-profile',
+];
+for (const symbol of settlementExpandSymbols) {
+    assert(
+        settlementModule.includes(symbol) || worldModule.includes(symbol) || bundle.includes(symbol),
+        `settlement M4c expand symbol missing: ${symbol}`
+    );
+}
+assert(
+    !settlementModule.includes('writeJsonAtomic') && !settlementModule.includes("require('fs')") && !settlementModule.includes('require("fs")'),
+    'settlement isometric module must not touch fs/disk (M4c UX stays preview/request only)'
+);
+assert(indexHtml.includes('id="world-settlement-expand-panel"'), 'world-settlement-expand-panel markup missing from index.html');
+console.log('ok: Settlement M4c expand preview/request symbols are bundled');
+
 const worldPaneStart = indexHtml.indexOf('<div id="pane-world"');
 const worldPaneEnd = indexHtml.indexOf('</div> <!-- /pane-world -->');
 assert(worldPaneStart >= 0 && worldPaneEnd > worldPaneStart, 'pane-world markers are invalid');

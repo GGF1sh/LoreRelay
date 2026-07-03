@@ -663,6 +663,7 @@
               <div id="world-overmap" class="world-map-panel hidden">
                 <canvas id="world-overmap-canvas"></canvas>
                 <p id="world-overmap-empty" class="empty-text hidden" data-i18n="webview.world.overmapEmpty">No regions yet. Generate a world to see the tile overmap.</p>
+                <div id="world-overmap-legend" class="world-map-overlay-legend hidden" role="note" aria-label="Map marker legend"></div>
               </div>
               <div id="world-settlement" class="world-map-panel hidden">
                 <div id="world-settlement-toolbar" class="world-settlement-toolbar">
@@ -686,6 +687,10 @@
                 <p id="world-settlement-empty" class="empty-text hidden" data-i18n="webview.world.settlementEmpty">No settlement view yet. Enable Settlement Mode and add settlement_state.json.</p>
                 <div id="world-settlement-detail" class="world-settlement-detail hidden" aria-live="polite"></div>
                 <div id="world-settlement-marker-fallback" class="world-settlement-marker-fallback hidden"></div>
+                <div id="world-settlement-expand-panel" class="world-settlement-expand-panel hidden">
+                  <p class="world-settlement-expand-hint" data-i18n="webview.world.settlementExpandHint">This layer does not exist yet. Preview a possible layout, then ask the GM to build it.</p>
+                  <div id="world-settlement-expand-buttons" class="world-settlement-expand-buttons"></div>
+                </div>
               </div>
             </div>
             <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>

@@ -21,6 +21,7 @@ import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspace
 import { validateGameState } from './validateGameState';
 import { t } from './i18n';
 import { commitGameState } from './stateManager';
+import { readStateRevision } from './workspaceStateQueueCore';
 import { loadGameRules } from './gameRules';
 import { loadWorldState, saveWorldState } from './worldState';
 import { applyNpcMemoryUpdates, loadNpcRegistry } from './npcRegistry';
@@ -390,6 +391,73 @@ function completeResolvedQuestHooks(
  * 単一文字列で返すことがあるため、検証前に寛容に配列へ正規化する。
  * 1フィールドの形違いだけでターン全体を握りつぶさないための緩和策。
  */
+function readGameStateRecord(statePath: string): Record<string, unknown> {
+    if (!fs.existsSync(statePath)) {
+        return { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [] as unknown[] };
+    }
+    return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+}
+
+function applyTurnPatchesAndFog(
+    turnResult: TurnResult,
+    state: Record<string, unknown>
+): Record<string, unknown> {
+    let next = state;
+    const prevWorld = next.world as GameStateWorld | undefined;
+    const prevLocationId = typeof prevWorld?.currentLocationId === 'string'
+        ? prevWorld.currentLocationId
+        : undefined;
+
+    if (turnResult.statePatch && turnResult.statePatch.length > 0) {
+        next = applyStatePatch(next, turnResult.statePatch);
+    }
+
+    if (isWorldForgeEnabled()) {
+        const forge = loadWorldForge();
+        if (forge) {
+            let world = (next.world as GameStateWorld | undefined) ?? {};
+            world = normalizeFogWorldState(world, forge) ?? world;
+            const nextLocationId = typeof world.currentLocationId === 'string'
+                ? world.currentLocationId
+                : undefined;
+            if (nextLocationId && nextLocationId !== prevLocationId) {
+                world = applyFogOnLocationVisit(world, forge, nextLocationId);
+            }
+            const reveal = parseCartographyReveal(turnResult.cartographyReveal);
+            if (reveal) {
+                world = applyCartographyReveal(world, forge, reveal).world;
+            }
+            next = { ...next, world };
+        }
+    }
+
+    return next;
+}
+
+function applyTurnGameStateFinalize(
+    turnResult: TurnResult,
+    state: Record<string, unknown>,
+    persistWorld: boolean
+): Record<string, unknown> {
+    let next = mergeGmEntryFromTurn(state, turnResult);
+    next = applyLivingWorldTurnOps(
+        turnResult,
+        next as unknown as import('./types/GameState').GameState,
+        { persistWorld }
+    ) as unknown as Record<string, unknown>;
+    return normalizeStatusArrayFields(next);
+}
+
+/** Re-apply turn_result onto base state (patches, GM entry, LW game_state fields). */
+export function applyTurnResultToGameState(
+    turnResult: TurnResult,
+    baseState: Record<string, unknown>,
+    persistWorld = true
+): Record<string, unknown> {
+    const patched = applyTurnPatchesAndFog(turnResult, baseState);
+    return applyTurnGameStateFinalize(turnResult, patched, persistWorld);
+}
+
 function normalizeStatusArrayFields(state: Record<string, unknown>): Record<string, unknown> {
     const status = state.status;
     if (!status || typeof status !== 'object' || Array.isArray(status)) {
@@ -415,9 +483,8 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
     }
 
     try {
-        let state = fs.existsSync(statePath)
-            ? JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>
-            : { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [] as unknown[] };
+        let state = readGameStateRecord(statePath);
+        const baseRevision = readStateRevision(state);
         const beforeHash = hashGameState(state);
 
         const prevWorld = state.world as GameStateWorld | undefined;
@@ -425,9 +492,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             ? prevWorld.currentLocationId
             : undefined;
 
-        if (turnResult.statePatch && turnResult.statePatch.length > 0) {
-            state = applyStatePatch(state, turnResult.statePatch);
-        }
+        state = applyTurnPatchesAndFog(turnResult, state);
 
         const elapsedWorldTurns = clampElapsedWorldTurns(
             turnResult.elapsedWorldTurns,
@@ -437,25 +502,6 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             const simResult = persistWorldSimulationSteps(elapsedWorldTurns, ABSOLUTE_MAX_BULK_WORLD_STEPS);
             if (!simResult.ok) {
                 console.warn(`[statePatch] elapsedWorldTurns skipped: ${simResult.reason}`);
-            }
-        }
-
-        if (isWorldForgeEnabled()) {
-            const forge = loadWorldForge();
-            if (forge) {
-                let world = (state.world as GameStateWorld | undefined) ?? {};
-                world = normalizeFogWorldState(world, forge) ?? world;
-                const nextLocationId = typeof world.currentLocationId === 'string'
-                    ? world.currentLocationId
-                    : undefined;
-                if (nextLocationId && nextLocationId !== prevLocationId) {
-                    world = applyFogOnLocationVisit(world, forge, nextLocationId);
-                }
-                const reveal = parseCartographyReveal(turnResult.cartographyReveal);
-                if (reveal) {
-                    world = applyCartographyReveal(world, forge, reveal).world;
-                }
-                state = { ...state, world };
             }
         }
 
@@ -498,19 +544,19 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             }
         }
 
-        state = mergeGmEntryFromTurn(state, turnResult);
-        state = applyLivingWorldTurnOps(
-            turnResult,
-            state as unknown as import('./types/GameState').GameState
-        ) as unknown as Record<string, unknown>;
-        state = normalizeStatusArrayFields(state);
+        let commitState = applyTurnGameStateFinalize(turnResult, state, true);
+
+        const freshDisk = readGameStateRecord(statePath);
+        if (readStateRevision(freshDisk) > baseRevision) {
+            commitState = applyTurnResultToGameState(turnResult, freshDisk, false);
+        }
 
         pendingAutoLocationImage = undefined;
-        const worldAfterTurn = state.world as GameStateWorld | undefined;
+        const worldAfterTurn = commitState.world as GameStateWorld | undefined;
         const nextLocationId = typeof worldAfterTurn?.currentLocationId === 'string'
             ? worldAfterTurn.currentLocationId
             : undefined;
-        const gmTurnCount = countGmTurns(state.entries);
+        const gmTurnCount = countGmTurns(commitState.entries);
         if (nextLocationId && nextLocationId !== prevLocationId && isWorldForgeEnabled()) {
             const cartographyConfig = vscode.workspace.getConfiguration('textAdventure.cartography');
             const enabled = cartographyConfig.get<boolean>('autoLocationImage', false);
@@ -537,15 +583,19 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             }
         }
 
-        const schemaErrors = validateGameState(state);
+        const schemaErrors = validateGameState(commitState);
         if (schemaErrors.length > 0) {
             console.error(`[statePatch] Validation failed after turn: ${schemaErrors.join('; ')}`);
             vscode.window.showErrorMessage(t('extension.error.gameStateLoad') + ' (Schema Violation)');
             return false;
         }
 
-        const afterHash = hashGameState(state);
-        commitGameState(state);
+        const afterHash = hashGameState(commitState);
+        commitGameState(commitState, {
+            mode: 'salvage',
+            baseRevision,
+            mergeProfile: 'turn',
+        });
 
         const appliedAt = new Date().toISOString();
         const enriched: TurnResult = {

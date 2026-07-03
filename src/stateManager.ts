@@ -7,7 +7,10 @@ import {
     resolveGameStatePersistPlan,
     type CommitGameStateMode,
 } from './stateManagerCore';
-import { mergeGameStateForPersist } from './workspaceStateQueueCore';
+import {
+    mergeGameStateForPersist,
+    type GameStateMergeProfile,
+} from './workspaceStateQueueCore';
 import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
 
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
@@ -16,6 +19,9 @@ export { resolveGameStatePersistPlan } from './stateManagerCore';
 export interface CommitGameStateOptions {
     createBackup?: boolean;
     mode?: CommitGameStateMode;
+    /** Revision when the caller read game_state.json (optimistic concurrency). */
+    baseRevision?: number;
+    mergeProfile?: GameStateMergeProfile;
 }
 
 /**
@@ -41,7 +47,10 @@ function writeGameStatePlan(
     const createBackup = options.createBackup ?? false;
     const mode = options.mode ?? 'salvage';
     const disk = readGameStateFromDisk(statePath);
-    const merged = mergeGameStateForPersist(disk, state);
+    const merged = mergeGameStateForPersist(disk, state, {
+        baseRevision: options.baseRevision,
+        profile: options.mergeProfile,
+    });
 
     const plan = resolveGameStatePersistPlan(merged, mode);
     if (plan.action === 'skip') {

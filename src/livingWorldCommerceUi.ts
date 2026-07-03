@@ -7,6 +7,7 @@ import { loadWorldState, saveWorldState } from './worldState';
 import { resolveCommerceForge, ensureLivingWorldMarkets } from './livingWorldBridge';
 import { getOrInitPlayerCommerce } from './livingWorldTurnOpsCore';
 import { commitGameState } from './stateManager';
+import { readStateRevision } from './workspaceStateQueueCore';
 import { getGameStatePath } from './workspacePaths';
 import { runSerializedWorkspaceMutation } from './workspaceStateQueue';
 import type { GameState } from './types/GameState';
@@ -50,9 +51,17 @@ function currentPlayerLocationId(state: GameState | undefined): string | undefin
     return typeof id === 'string' && id ? id : undefined;
 }
 
-function persistCommerce(state: GameState, commerce: GameState['commerce']): boolean {
+function persistCommerce(
+    state: GameState,
+    commerce: GameState['commerce'],
+    baseRevision: number
+): boolean {
     const next = { ...state, commerce } as GameState;
-    commitGameState(next as unknown as Record<string, unknown>, { mode: 'salvage' });
+    commitGameState(next as unknown as Record<string, unknown>, {
+        mode: 'salvage',
+        baseRevision,
+        mergeProfile: 'commerce-ui',
+    });
     return true;
 }
 
@@ -78,6 +87,7 @@ export function executeLivingWorldDirectTrade(
     }
 
     const gameState = readGameState();
+    const baseRevision = readStateRevision(gameState as unknown as Record<string, unknown>);
     const locationId = currentPlayerLocationId(gameState);
     if (!locationId) {
         return { ok: false, reason: 'NO_LOCATION' };
@@ -118,7 +128,7 @@ export function executeLivingWorldDirectTrade(
 
     runSerializedWorkspaceMutation(() => {
         if (gameState) {
-            persistCommerce(gameState, nextCommerce);
+            persistCommerce(gameState, nextCommerce, baseRevision);
         }
         const freshWs = loadWorldState();
         if (freshWs) {
@@ -143,7 +153,8 @@ export function setLivingWorldPlayerRole(role: PlayerRole): LivingWorldCommerceU
         return { ok: false, reason: 'NO_WORLD' };
     }
 
+    const baseRevision = readStateRevision(gameState as unknown as Record<string, unknown>);
     const commerce = getOrInitPlayerCommerce(gameState);
-    persistCommerce(gameState, { ...commerce, playerRole: role });
+    persistCommerce(gameState, { ...commerce, playerRole: role }, baseRevision);
     return { ok: true };
 }

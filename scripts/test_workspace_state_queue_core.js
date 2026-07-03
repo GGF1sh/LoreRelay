@@ -41,9 +41,31 @@ const {
     };
     const merged = mergeGameStateForPersist(disk, incoming);
     if (merged.entries.length !== 2 || merged.status.hp !== 2 || merged.stateRevision !== 1) {
-        fail(`game state merge: ${JSON.stringify(merged)}`);
+        fail(`default merge (no conflict): ${JSON.stringify(merged)}`);
     } else {
-        ok('game state merge preserves disk-only entries');
+        ok('default merge when no baseRevision conflict');
+    }
+}
+
+{
+    const disk = {
+        schemaVersion: 2,
+        stateRevision: 2,
+        entries: [],
+        commerce: { credits: 5, cargo: [] },
+        status: { hp: { current: 10, max: 10 } },
+    };
+    const incoming = {
+        schemaVersion: 2,
+        entries: [{ id: 'gm-1', role: 'gm', content: 'x' }],
+        commerce: { credits: 1, cargo: [{ commodityId: 'wheat', qty: 3 }] },
+        status: { hp: { current: 3, max: 10 } },
+    };
+    const merged = mergeGameStateForPersist(disk, incoming, { baseRevision: 1, profile: 'turn' });
+    if (merged.commerce?.cargo?.length !== 0 || merged.status.hp.current !== 3) {
+        fail(`turn profile conflict: ${JSON.stringify(merged)}`);
+    } else {
+        ok('turn profile keeps disk commerce on revision conflict');
     }
 }
 

@@ -1,5 +1,18 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign P0 PR1 merge semantics (v1.37.1)
+
+### Summary
+
+- `mergeGameStateForPersist` profiles: `turn` (disk commerce wins on conflict), `commerce-ui`, `entries-only`.
+- `processTurnResult`: re-read disk before commit; re-apply turn delta when `stateRevision` advanced.
+- `persistPlayerInputEntry` / Commerce UI pass `baseRevision` + profile.
+- Tests: `test_state_merge_commerce_race.js`, updated `test_workspace_state_queue_core.js`.
+
+### Verification
+
+- `npm test` **93/93**
+
 ## 2026-07-03 JST - Grok - Campaign P0 state race + trust leak (v1.37.0)
 
 ### Summary

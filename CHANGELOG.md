@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.1] - 2026-07-03
+
+### Fixed
+
+- **Campaign P0 PR1 — merge 意味論修正** — `mergeGameStateForPersist` に revision ベースの `turn` / `commerce-ui` / `entries-only` プロファイル。ターン commit 時に disk 再読込＋差分再適用。Commerce 売却後の cargo 復活を防止。
+
+### Verification
+
+- `npm test` **93/93**
+
 ## [1.37.0] - 2026-07-03
 
 ### Fixed

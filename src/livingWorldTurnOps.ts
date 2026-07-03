@@ -154,10 +154,17 @@ function runRelationshipPhase(turnResult: TurnResult, ws: WorldState): { ws: Wor
     return { ws: { ...ws, npcRelationships: relationships }, dirty: true };
 }
 
+export interface ApplyLivingWorldTurnOpsOptions {
+    /** When false, update in-memory game_state only (skip world_state.json save). */
+    persistWorld?: boolean;
+}
+
 export function applyLivingWorldTurnOps(
     turnResult: TurnResult,
-    gameState: GameState
+    gameState: GameState,
+    options: ApplyLivingWorldTurnOpsOptions = {}
 ): GameState {
+    const persistWorld = options.persistWorld !== false;
     const rules = loadGameRules();
     if (!isWorldForgeEnabled()) { return gameState; }
 
@@ -195,7 +202,7 @@ export function applyLivingWorldTurnOps(
         }
     }
 
-    if (wsDirty) {
+    if (wsDirty && persistWorld) {
         saveWorldState(ws);
     }
 

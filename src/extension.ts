@@ -181,6 +181,7 @@ import {
 } from './gmPromptBuilder';
 import { CURRENT_SCHEMA_VERSION } from './migrateGameState';
 import { commitGameState } from './stateManager';
+import { readStateRevision } from './workspaceStateQueueCore';
 import {
     initCheckpointHandlers,
     handleEditEntry,
@@ -724,6 +725,7 @@ function persistPlayerInputEntry(playerAction: string, entryId?: string): void {
         state = { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [], options: [], status: {} };
     }
 
+    const baseRevision = readStateRevision(state);
     const entries = Array.isArray(state.entries) ? [...state.entries] : [];
     entries.push({
         id: (entryId && isValidEntryId(entryId)) ? entryId : `user-${Date.now()}`,
@@ -733,7 +735,10 @@ function persistPlayerInputEntry(playerAction: string, entryId?: string): void {
     });
     state.entries = entries;
 
-    commitGameState(state);
+    commitGameState(state, {
+        baseRevision,
+        mergeProfile: 'entries-only',
+    });
 }
 
 function isGameOverActive(): boolean {

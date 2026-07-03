@@ -3727,3 +3727,217 @@ body.profile-parlor .profile-parlor-only {
   height: 3px;
   border-radius: 2px;
 }
+
+/* --- 97-visual-refresh.css --- */
+/* ========= Visual Refresh (v1.65.0) =========
+   最後に読み込まれる「見た目の洗練」レイヤー。既存ファイルは書き換えず、
+   タイポグラフィ・バブル・タブ・ボタン・入力欄の質感をここで統一して引き上げる。
+   ブランドは既存の dark glass + blue accent を維持。 */
+
+:root {
+  --vr-surface-gm: linear-gradient(160deg, rgba(20, 26, 44, 0.72), rgba(9, 12, 24, 0.62));
+  --vr-surface-user: linear-gradient(160deg, rgba(79, 142, 247, 0.20), rgba(56, 96, 190, 0.10));
+  --vr-hairline: rgba(255, 255, 255, 0.07);
+}
+
+/* ----- 背景に奥行き（アクセント色の淡いラジアル + ビネット） ----- */
+#bg-overlay {
+  background:
+    radial-gradient(120% 90% at 85% -10%, rgba(79, 142, 247, 0.10) 0%, transparent 55%),
+    radial-gradient(100% 80% at 0% 100%, rgba(120, 90, 230, 0.07) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(8, 8, 16, 0.72) 0%, rgba(8, 8, 16, 0.88) 100%);
+}
+
+/* ----- チャットヘッダー: タイトルにグラデーション、境界をヘアラインに -----
+   狭いVSCodeパネルでボタン群が折り返した時に切れないよう高さを可変に */
+#chat-header {
+  height: auto;
+  min-height: 50px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--vr-hairline);
+  background: linear-gradient(180deg, rgba(14, 16, 30, 0.55), rgba(8, 9, 18, 0.35));
+  letter-spacing: 1.6px;
+}
+
+#chat-header > span[data-i18n="webview.chat.header"] {
+  background: linear-gradient(90deg, #dfe7ff 0%, #8fb6ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+
+/* ----- メッセージバブル: 非対称ラウンド + グラデ面 + 洗練された影 ----- */
+.msg {
+  border-radius: 14px;
+  line-height: 1.75;
+}
+
+.msg.gm {
+  background: var(--vr-surface-gm);
+  border: 1px solid rgba(124, 179, 255, 0.14);
+  border-left: 2px solid rgba(124, 179, 255, 0.65);
+  border-top-left-radius: 4px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.msg.user {
+  background: var(--vr-surface-user);
+  border: 1px solid rgba(79, 142, 247, 0.30);
+  border-right: 2px solid rgba(109, 163, 255, 0.75);
+  border-top-right-radius: 4px;
+  box-shadow: 0 4px 16px rgba(30, 60, 140, 0.18);
+}
+
+.msg.system {
+  background: rgba(255, 215, 0, 0.05);
+  border: 1px solid rgba(255, 215, 0, 0.14);
+  backdrop-filter: blur(4px);
+}
+
+.msg-sender {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  opacity: 0.85;
+  margin-bottom: 7px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ----- タブ: アクティブをピル + 発光アンダーラインに ----- */
+.tabs-header {
+  padding: 4px 6px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.30);
+  border-bottom: 1px solid var(--vr-hairline);
+}
+
+.tab-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 11px;
+  margin: 2px 0;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  background: linear-gradient(180deg, rgba(79, 142, 247, 0.16), rgba(79, 142, 247, 0.07));
+  border-color: rgba(79, 142, 247, 0.35);
+  border-bottom-color: rgba(79, 142, 247, 0.35);
+  box-shadow: 0 0 10px rgba(79, 142, 247, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #cfe0ff;
+}
+
+/* ----- セクションヘッダー: アクセントの縦チックで見出し感を統一 ----- */
+#checkpoint-header, #dice-header, #calc-header, #bgm-header,
+#gallery-header, #theme-header, #status-header {
+  border-left: 3px solid rgba(79, 142, 247, 0.55);
+  background: linear-gradient(90deg, rgba(79, 142, 247, 0.07), rgba(0, 0, 0, 0.22) 40%);
+  color: #aebad0;
+}
+
+/* ----- 選択肢ボタン: 番号付きの行動をよりカード風に ----- */
+.option-btn {
+  background: linear-gradient(180deg, rgba(79, 142, 247, 0.24), rgba(60, 105, 200, 0.16));
+  border: 1px solid rgba(109, 163, 255, 0.40);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.option-btn:hover {
+  background: linear-gradient(180deg, rgba(99, 156, 255, 0.42), rgba(79, 130, 230, 0.30));
+  border-color: rgba(139, 183, 255, 0.7);
+  box-shadow: 0 4px 16px rgba(79, 142, 247, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* ----- クイックリプライ: 控えめなゴーストチップに ----- */
+.qr-btn {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--text-dim);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.qr-btn:hover {
+  color: var(--text);
+  background: rgba(79, 142, 247, 0.14);
+  border-color: rgba(79, 142, 247, 0.45);
+}
+
+/* ----- 入力エリア ----- */
+#input-area {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.34));
+  border-top: 1px solid var(--vr-hairline);
+}
+
+#free-input {
+  background: rgba(4, 6, 14, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 11px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+#free-input:focus {
+  border-color: rgba(109, 163, 255, 0.65);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(79, 142, 247, 0.12);
+}
+
+#send-btn {
+  border-radius: 11px;
+}
+
+#undo-btn, #regen-btn, #img-btn, #mic-btn {
+  border-radius: 11px;
+}
+
+/* ----- Author's Note: 主張しすぎない下線スタイル ----- */
+#authors-note-input {
+  border: none;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 4px;
+}
+
+#authors-note-input:focus {
+  border-bottom: 1px solid rgba(109, 163, 255, 0.6);
+  background: rgba(79, 142, 247, 0.04);
+}
+
+/* ----- Start Hub: カードの質感を統一 ----- */
+.start-hub-btn {
+  background: linear-gradient(165deg, rgba(18, 22, 38, 0.55), rgba(8, 10, 20, 0.45));
+  border-radius: 14px;
+}
+
+.start-hub-btn:hover {
+  box-shadow: 0 8px 24px rgba(79, 142, 247, 0.16);
+}
+
+.start-hub-btn-icon {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+
+/* ----- リソースバー: 内側ハイライトで立体感 ----- */
+.resource-bar-container {
+  height: 14px;
+  border-radius: 7px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.resource-bar-fill {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ----- スクロールバー: 細く、ホバーでアクセント ----- */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: rgba(140, 160, 200, 0.18); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(109, 163, 255, 0.45); }

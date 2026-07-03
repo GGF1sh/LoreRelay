@@ -6,12 +6,22 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.64.0** |
+| Package version | **1.65.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **132/132** |
 | Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) · World Observatory の NPC相関図(見た目はFable5がモック済み、配線は未着手) |
+
+---
+
+## 2026-07-04 JST - Claude (Fable 5) - Webview visual refresh (v1.65.0)
+
+- **見た目の洗練レイヤー** — 新規 `webview/styles/97-visual-refresh.css` を CSS_MODULE_ORDER の**最後**に追加（後勝ちで確実に上書き、既存CSSファイルは一切書き換えない）。ブランド（dark glass + blue accent）は維持したまま質感を統一。
+- 内容: 背景ラジアルグラデで奥行き / タイトルにグラデーションテキスト / バブル非対称ラウンド＋グラデ面（GM=左上4px角、user=右上4px角）/ senderマイクロキャップス / アクティブタブ＝ピル＋発光 / セクション見出しにアクセント縦チック / option-btnカード風 / qr-btnゴーストチップ / 入力欄インセットシャドウ / Author's Noteアンダーライン化 / リソースバー内側ハイライト / スクロールバー5px化。
+- **バグ修正**: `#chat-header` が固定50pxのため、狭いパネルでボタン群が折り返すと切れていた → 高さ可変（min-height:50px）。
+- **検証**: 静的ハーネス（style.css＋実DOM構造の複製）をローカルHTTPで描画し、1000px/750px幅でスクリーンショット確認。テスト 143/143・version consistency PASS。
+- 今後見た目を調整する場合はこの97ファイルに書くと衝突しにくい。
 
 ---
 

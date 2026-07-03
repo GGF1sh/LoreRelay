@@ -1,4 +1,4 @@
-﻿# 繝舌・繧ｸ繝ｧ繝ｳ縺ｮ豁｣譛ｬ・・I繝ｻ莠ｺ髢灘髄縺托ｼ・
+# 繝舌・繧ｸ繝ｧ繝ｳ縺ｮ豁｣譛ｬ・・I繝ｻ莠ｺ髢灘髄縺托ｼ・
 LoreRelay 縺ｫ縺ｯ **3 遞ｮ鬘槭・縲檎沿縲・* 縺後≠繧翫∵ｷｷ蜷後☆繧九→ Web Grok / ChatGPT 遲峨′縲稽ain 縺ｯ v1.6.1縲阪→隱､隱阪＠縺ｾ縺吶・
 ## 1. 繧ｽ繝ｼ繧ｹ縺ｮ豁｣譛ｬ・医＞縺｡縺ｰ繧謎ｿ｡鬆ｼ縺吶ｋ・・
 | 遒ｺ隱榊・ | 諢丞袖 |
@@ -43,7 +43,7 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 ## 迴ｾ陦鯉ｼ域焔蜍墓峩譁ｰ: 2026-07-04・・
 | 鬆・岼 | 蛟､ |
 |------|-----|
-| `package.json` | **1.64.0** |
+| `package.json` | **1.65.0** |
 | CHANGELOG 蜈磯ｭ | **[1.63.0]** Settlement Mode M1 (pure core) |
 | Campaign Kit | Phase A窶敵 ﾂｷ 7 genre presets ﾂｷ sell_discovery ﾂｷ services state machine (condition/estValue) ﾂｷ **campaign resources**(campaignResourceOps) ﾂｷ factionId on campaign quests ﾂｷ `scrapbound-settlement` sample |
 | Living World | LW1 Commerce 縺ｫ 2縺､逶ｮ縺ｮ萓｡譬ｼ繝峨Λ繧､繝占ｿｽ蜉(v1.51.0): 豢ｾ髢･/region繧､繝吶Φ繝磯｣蜍・+ **繝励Ξ繧､繝､繝ｼ隧募愛騾｣蜍・*(faction-controlled markets) |

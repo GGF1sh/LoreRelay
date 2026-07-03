@@ -45,7 +45,8 @@ const CSS_MODULE_ORDER = [
     '90-inspector.css',
     '95-character-creator.css',
     '87-parlor-settings.css',
-    '88-world-observatory.css'
+    '88-world-observatory.css',
+    '97-visual-refresh.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

@@ -57,6 +57,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_map_overlay_core.js' },
     { category: 'unit', file: 'test_settlement_event_core.js' },
     { category: 'unit', file: 'test_settlement_view_core.js' },
+    { category: 'unit', file: 'test_settlement_marker_layer_semantics.js' },
     { category: 'unit', file: 'test_settlement_layer_expansion_core.js' },
     { category: 'unit', file: 'test_settlement_expansion_retry_determinism.js' },
     { category: 'unit', file: 'test_settlement_layout_turn_ops_core.js' },

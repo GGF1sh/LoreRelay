@@ -477,6 +477,20 @@ function buildFromLayout(
     };
 }
 
+function findStructure(
+    structureId: string,
+    structures: readonly SettlementStructure[]
+): SettlementStructure | undefined {
+    return structures.find((s) => s.id === structureId);
+}
+
+function resolveStructureLayer(
+    structureId: string,
+    structures: readonly SettlementStructure[]
+): SettlementLayerId {
+    return findStructure(structureId, structures)?.layerId ?? 'z0';
+}
+
 function findStructureCoords(
     structureId: string,
     structures: readonly SettlementStructure[],
@@ -484,12 +498,15 @@ function findStructureCoords(
     height: number,
     seed: number
 ): { x: number; y: number } {
-    const structure = structures.find((s) => s.id === structureId);
+    const structure = findStructure(structureId, structures);
     if (structure) {
         return stableCoords(structure.id, width, height, seed, 2);
     }
     return { x: Math.floor(width / 2), y: Math.floor(height / 2) };
 }
+
+/** Surface-level markers until resident/visitor/merchant gain optional layerId. */
+const SURFACE_MARKER_LAYER: SettlementLayerId = 'z0';
 
 function buildStateMarkers(
     state: SettlementStateV1,
@@ -503,6 +520,7 @@ function buildStateMarkers(
     const markers: SettlementViewMarker[] = [];
 
     for (const resident of state.residents) {
+        if (layerId !== SURFACE_MARKER_LAYER) { continue; }
         const coords = stableCoords(resident.npcId, width, height, seed + 11, 2);
         markers.push({
             id: `resident_${resident.npcId}`,
@@ -517,6 +535,7 @@ function buildStateMarkers(
     }
 
     for (const visitor of state.visitors) {
+        if (layerId !== SURFACE_MARKER_LAYER) { continue; }
         const coords = stableCoords(visitor.npcId, width, height, seed + 17, 2);
         markers.push({
             id: `visitor_${visitor.npcId}`,
@@ -531,6 +550,7 @@ function buildStateMarkers(
     }
 
     for (const merchant of state.merchants) {
+        if (layerId !== SURFACE_MARKER_LAYER) { continue; }
         const coords = stableCoords(merchant.npcId, width, height, seed + 23, 2);
         const wares = merchant.wares.slice(0, 3).map((w) => clampText(w, 24)).filter(Boolean);
         markers.push({
@@ -547,6 +567,8 @@ function buildStateMarkers(
 
     for (const incident of state.incidents) {
         if (incident.resolved) { continue; }
+        const incidentLayer = resolveStructureLayer(incident.kind, state.structures);
+        if (incidentLayer !== layerId) { continue; }
         const coords = findStructureCoords(incident.kind, state.structures, width, height, seed + 29);
         markers.push({
             id: `incident_${incident.id}`,
@@ -578,6 +600,7 @@ function buildStateMarkers(
     }
 
     for (const stock of state.stocks) {
+        if (layerId !== SURFACE_MARKER_LAYER) { continue; }
         if (stock.amount > 2) { continue; }
         markers.push({
             id: `stock_${stock.id}`,

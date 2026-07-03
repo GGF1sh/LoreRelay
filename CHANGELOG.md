@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- **Settlement Z-level marker semantics (PR5)** — `buildStateMarkers()` scopes residents/visitors/merchants and `stock_low` markers to `z0` only; unresolved incidents render on the layer of their associated structure (`incident.kind` → `structure.layerId`, else `z0`). Prevents the same NPC appearing on every Z layer. `scripts/test_settlement_marker_layer_semantics.js` added.
+
 - **Settlement expansion retry determinism (PR4)** — `deriveExpansionSeed()` no longer mixes `worldTurn` into the default hash (`settlementId:layerId:profile` only). Re-applying the same `expand_layer` op after reconcile at a different turn yields identical zone/marker coordinates; explicit `op.seed` / `context.seed` overrides unchanged. `scripts/test_settlement_expansion_retry_determinism.js` added.
 
 - **Cross-ledger valid no-op contract (PR2)** — `tryApplyDiscoveryTurnOps()` / `tryApplyCampaignResourceTurnOps()` return structured `{ ok, applied }`; `persistTurnLedgersAfterCommit()` treats `{ ok: true, applied: false }` as handled for all ledgers (matching M4b settlement layout). Eliminates false partial-failure logs for valid discovery/resource no-ops.

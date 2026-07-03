@@ -16,6 +16,15 @@
 
 ---
 
+## 2026-07-04 JST - Codex - Settlement Mode M4b ledger no-op review fix
+
+- Reviewed M4b `expand_layer` persistence after Grok commit `af24e9e`.
+- Found a ledger integration edge case: `applySettlementLayoutTurnOps()` correctly returned `false` for valid no-op expansions, but `persistTurnLedgersAfterCommit()` interpreted every settlement layout `false` as a failed target.
+- Added structured settlement layout apply results (`ok` / `applied`) for the post-commit ledger path while preserving the old boolean API for direct callers.
+- Added regression tests for settlement layout no-op vs structured failure. Verification: `npm run compile`; targeted M4b tests; `npm test` **149/149**.
+
+---
+
 ## 2026-07-04 JST - Grok - Settlement Mode M4b layout persistence (v1.72.0)
 
 - `settlementLayoutTurnOpsCore.ts` / `settlementLayoutTurnOps.ts` — `expand_layer` only post-commit apply to `settlement_layout.json` (FIFO queue, atomic write, feature gate).

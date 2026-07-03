@@ -38,18 +38,33 @@ export interface TurnLedgerPersistOutcome {
     failedTargets: TurnLedgerTarget[];
 }
 
+export interface TurnLedgerApplyResult {
+    ok: boolean;
+    applied: boolean;
+}
+
 export interface TurnLedgerPersistInput {
     discoveryOpsPresent: boolean;
     campaignResourceOpsPresent: boolean;
     settlementLayoutOpsPresent: boolean;
     applyDiscovery: () => boolean;
     applyCampaignResources: () => boolean;
-    applySettlementLayout: () => boolean;
+    applySettlementLayout: () => boolean | TurnLedgerApplyResult;
 }
 
 /** Gate independent ledger writes on successful game_state commit. */
 export function shouldPersistTurnLedgersAfterCommit(commitOk: boolean): boolean {
     return commitOk;
+}
+
+function normalizeLedgerApplyResult(result: boolean | TurnLedgerApplyResult): TurnLedgerApplyResult {
+    if (typeof result === 'boolean') {
+        return { ok: result, applied: result };
+    }
+    return {
+        ok: result.ok === true,
+        applied: result.applied === true,
+    };
 }
 
 /**
@@ -80,8 +95,9 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
     }
 
     if (settlementLayoutAttempted) {
-        settlementLayoutApplied = input.applySettlementLayout();
-        if (!settlementLayoutApplied) {
+        const settlementResult = normalizeLedgerApplyResult(input.applySettlementLayout());
+        settlementLayoutApplied = settlementResult.applied;
+        if (!settlementResult.ok) {
             failedTargets.push('settlementLayout');
         }
     }

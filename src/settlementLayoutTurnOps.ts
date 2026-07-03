@@ -15,11 +15,13 @@ import { runSerializedSettlementLayoutMutation } from './workspaceStateQueue';
 import {
     applySettlementLayoutTurnOpsWithDeps,
     shouldAttemptSettlementLayoutPersistCore,
+    tryApplySettlementLayoutTurnOpsWithDeps,
     type SettlementLayoutTurnOpsDeps,
+    type SettlementLayoutTurnOpsResult,
 } from './settlementLayoutTurnOpsCore';
 
-export type { SettlementLayoutTurnOpsDeps } from './settlementLayoutTurnOpsCore';
-export { applySettlementLayoutTurnOpsWithDeps } from './settlementLayoutTurnOpsCore';
+export type { SettlementLayoutTurnOpsDeps, SettlementLayoutTurnOpsResult } from './settlementLayoutTurnOpsCore';
+export { applySettlementLayoutTurnOpsWithDeps, tryApplySettlementLayoutTurnOpsWithDeps } from './settlementLayoutTurnOpsCore';
 
 export function shouldAttemptSettlementLayoutPersist(
     turnResult: Pick<TurnResult, 'settlementOps'>
@@ -45,4 +47,10 @@ export function applySettlementLayoutTurnOps(
     turnResult: Pick<TurnResult, 'settlementOps'>
 ): boolean {
     return applySettlementLayoutTurnOpsWithDeps(turnResult, defaultDeps);
+}
+
+export function tryApplySettlementLayoutTurnOps(
+    turnResult: Pick<TurnResult, 'settlementOps'>
+): SettlementLayoutTurnOpsResult {
+    return tryApplySettlementLayoutTurnOpsWithDeps(turnResult, defaultDeps);
 }

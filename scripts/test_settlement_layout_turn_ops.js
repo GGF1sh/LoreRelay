@@ -23,6 +23,7 @@ for (const p of [corePath, settlementCorePath, queuePath]) {
 const {
     applySettlementLayoutTurnOpsWithDeps,
     shouldAttemptSettlementLayoutPersistCore,
+    tryApplySettlementLayoutTurnOpsWithDeps,
 } = require(corePath);
 const { emptySettlementState } = require(settlementCorePath);
 const {
@@ -183,8 +184,13 @@ function cleanup(dir) {
         const applied = applySettlementLayoutTurnOpsWithDeps({
             settlementOps: [{ type: 'expand_layer', layerId: 'z-1', profile: 'cellar', seed: 2 }],
         }, makeDeps(dir));
+        const structured = tryApplySettlementLayoutTurnOpsWithDeps({
+            settlementOps: [{ type: 'expand_layer', layerId: 'z-1', profile: 'cellar', seed: 2 }],
+        }, makeDeps(dir));
         if (applied || fs.existsSync(path.join(dir, SETTLEMENT_LAYOUT))) {
             fail('missing settlement_state.json should block layout write');
+        } else if (structured.ok || structured.applied || !structured.attempted) {
+            fail(`missing settlement_state.json should be structured failure: ${JSON.stringify(structured)}`);
         } else {
             ok('missing settlement_state.json returns false without layout write');
         }
@@ -208,9 +214,14 @@ function cleanup(dir) {
         const applied = applySettlementLayoutTurnOpsWithDeps({
             settlementOps: [{ type: 'expand_layer', layerId: 'z-1', profile: 'cellar' }],
         }, makeDeps(dir));
+        const result = tryApplySettlementLayoutTurnOpsWithDeps({
+            settlementOps: [{ type: 'expand_layer', layerId: 'z-1', profile: 'cellar' }],
+        }, makeDeps(dir));
         const after = fs.readFileSync(layoutPath);
         if (applied) {
             fail('no-op expansion should not report applied');
+        } else if (!result.ok || result.applied || !result.attempted) {
+            fail(`no-op expansion should be handled without failure: ${JSON.stringify(result)}`);
         } else if (Buffer.compare(before, after) !== 0) {
             fail('no-op expansion should not modify layout file');
         } else {

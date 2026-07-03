@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Settlement Mode M4b review fix** - separated `settlement_layout` ledger no-op handling from write failure handling. Existing `applySettlementLayoutTurnOps()` still reports actual disk writes, while the post-commit ledger path now treats valid no-op `expand_layer` ops as handled instead of logging a false partial failure. Missing `settlement_state.json` during apply now returns structured failure (`ok: false`) rather than a silent no-op. Added cross-ledger regression coverage.
+
 ## [1.72.0] - 2026-07-04
 
 ### Added

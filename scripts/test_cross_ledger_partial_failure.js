@@ -192,6 +192,38 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     }
 }
 
+{
+    const outcome = persistTurnLedgersAfterCommit({
+        discoveryOpsPresent: true,
+        campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: true,
+        applyDiscovery: () => true,
+        applyCampaignResources: () => true,
+        applySettlementLayout: () => ({ ok: true, applied: false }),
+    });
+    if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0 || outcome.settlementLayoutApplied) {
+        fail(`settlement layout no-op should not be a failed target: ${JSON.stringify(outcome)}`);
+    } else {
+        ok('settlement layout no-op is treated as handled, not failed');
+    }
+}
+
+{
+    const outcome = persistTurnLedgersAfterCommit({
+        discoveryOpsPresent: true,
+        campaignResourceOpsPresent: false,
+        settlementLayoutOpsPresent: true,
+        applyDiscovery: () => true,
+        applyCampaignResources: () => true,
+        applySettlementLayout: () => ({ ok: false, applied: false }),
+    });
+    if (outcome.ok || !outcome.partial || outcome.failedTargets.join(',') !== 'settlementLayout') {
+        fail(`structured settlement layout failure should be failed target: ${JSON.stringify(outcome)}`);
+    } else {
+        ok('structured settlement layout failure remains a failed target');
+    }
+}
+
 // --- sell_discovery + discoveryOps split-brain scenario (pure) ---
 
 const forge = {

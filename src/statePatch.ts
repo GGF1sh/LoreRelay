@@ -56,8 +56,8 @@ import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from 
 import { applyDiscoveryTurnOps } from './discoveryTurnOps';
 import { applyCampaignResourceTurnOps } from './campaignResourceTurnOps';
 import {
-    applySettlementLayoutTurnOps,
     shouldAttemptSettlementLayoutPersist,
+    tryApplySettlementLayoutTurnOps,
 } from './settlementLayoutTurnOps';
 import { persistTurnLedgersAfterCommit } from './turnLedgerPersistCore';
 import { recordLocationVisit } from './livingWorldBridge';
@@ -772,7 +772,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
             applyDiscovery: () => applyDiscoveryTurnOps(turnResult),
             applyCampaignResources: () => applyCampaignResourceTurnOps(turnResult),
-            applySettlementLayout: () => applySettlementLayoutTurnOps(turnResult),
+            applySettlementLayout: () => tryApplySettlementLayoutTurnOps(turnResult),
         });
         if (!ledgerOutcome.ok) {
             console.error(

@@ -56,6 +56,13 @@ export interface SettlementLayoutTurnOpsDeps {
     runSerializedMutation: (fn: () => void) => void;
 }
 
+export interface SettlementLayoutTurnOpsResult {
+    ok: boolean;
+    applied: boolean;
+    attempted: boolean;
+    failure?: 'write_failed' | 'mutation_failed';
+}
+
 export function shouldAttemptSettlementLayoutPersistCore(
     enableSettlementMode: boolean,
     settlementOps: unknown
@@ -66,49 +73,69 @@ export function shouldAttemptSettlementLayoutPersistCore(
     return hasExpandLayerOps(settlementOps);
 }
 
+export function tryApplySettlementLayoutTurnOpsWithDeps(
+    turnResult: { settlementOps?: unknown },
+    deps: SettlementLayoutTurnOpsDeps
+): SettlementLayoutTurnOpsResult {
+    if (!deps.isSettlementModeEnabled()) {
+        return { ok: true, applied: false, attempted: false };
+    }
+    const ops = filterExpandLayerOps(parseSettlementOps(turnResult.settlementOps));
+    if (!ops.length) {
+        return { ok: true, applied: false, attempted: false };
+    }
+    const layoutPath = deps.getLayoutPath();
+    if (!layoutPath) {
+        return { ok: true, applied: false, attempted: false };
+    }
+
+    const result: SettlementLayoutTurnOpsResult = { ok: true, applied: false, attempted: true };
+    try {
+        deps.runSerializedMutation(() => {
+            const state = deps.readStateFromDisk();
+            if (!state) {
+                result.ok = false;
+                result.failure = 'mutation_failed';
+                return;
+            }
+            const current = deps.readLayoutFromDisk(layoutPath);
+            const worldTurn = deps.loadWorldTurn();
+            const { layout: next, anyApplied } = applyExpandLayerOpsToLayout(
+                current,
+                state,
+                ops,
+                { worldTurn }
+            );
+            if (!anyApplied && JSON.stringify(current) === JSON.stringify(next)) {
+                return;
+            }
+            if (JSON.stringify(current) === JSON.stringify(next)) {
+                return;
+            }
+            try {
+                deps.writeLayoutAtomic(layoutPath, next);
+                deps.clearLayoutCache();
+                result.applied = true;
+            } catch (e) {
+                result.ok = false;
+                result.failure = 'write_failed';
+                console.warn('[settlementLayoutTurnOps] failed to save settlement_layout.json', e);
+            }
+        });
+    } catch (e) {
+        return {
+            ok: false,
+            applied: false,
+            attempted: true,
+            failure: 'mutation_failed',
+        };
+    }
+    return result;
+}
+
 export function applySettlementLayoutTurnOpsWithDeps(
     turnResult: { settlementOps?: unknown },
     deps: SettlementLayoutTurnOpsDeps
 ): boolean {
-    if (!deps.isSettlementModeEnabled()) {
-        return false;
-    }
-    const ops = filterExpandLayerOps(parseSettlementOps(turnResult.settlementOps));
-    if (!ops.length) {
-        return false;
-    }
-    const layoutPath = deps.getLayoutPath();
-    if (!layoutPath) {
-        return false;
-    }
-
-    let applied = false;
-    deps.runSerializedMutation(() => {
-        const state = deps.readStateFromDisk();
-        if (!state) {
-            return;
-        }
-        const current = deps.readLayoutFromDisk(layoutPath);
-        const worldTurn = deps.loadWorldTurn();
-        const { layout: next, anyApplied } = applyExpandLayerOpsToLayout(
-            current,
-            state,
-            ops,
-            { worldTurn }
-        );
-        if (!anyApplied && JSON.stringify(current) === JSON.stringify(next)) {
-            return;
-        }
-        if (JSON.stringify(current) === JSON.stringify(next)) {
-            return;
-        }
-        try {
-            deps.writeLayoutAtomic(layoutPath, next);
-            deps.clearLayoutCache();
-            applied = true;
-        } catch (e) {
-            console.warn('[settlementLayoutTurnOps] failed to save settlement_layout.json', e);
-        }
-    });
-    return applied;
+    return tryApplySettlementLayoutTurnOpsWithDeps(turnResult, deps).applied;
 }

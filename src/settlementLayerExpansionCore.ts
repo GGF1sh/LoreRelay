@@ -135,8 +135,7 @@ export function deriveExpansionSeed(
         return context.seed >>> 0;
     }
     const profile = resolveExpansionProfile(op);
-    const turn = context.worldTurn ?? state.worldTurn ?? 0;
-    return hashStringToSeed(`${state.settlementId}:${op.layerId}:${profile}:${turn}`);
+    return hashStringToSeed(`${state.settlementId}:${op.layerId}:${profile}`);
 }
 
 export function createMinimalLayoutShell(state: SettlementStateV1): SettlementLayoutV1 {

@@ -258,10 +258,10 @@ function expandOp(layerId, profile, extra = {}) {
     const seedA = deriveExpansionSeed(baseState, expandOp('z-1', 'cellar'), { worldTurn: 5 });
     const seedB = deriveExpansionSeed(baseState, expandOp('z-1', 'cellar'), { worldTurn: 5 });
     const seedC = deriveExpansionSeed(baseState, expandOp('z-1', 'cellar'), { worldTurn: 6 });
-    if (seedA !== seedB || seedA === seedC) {
-        fail('seed derivation should be deterministic and turn-sensitive');
+    if (seedA !== seedB || seedA !== seedC) {
+        fail('seed derivation should be deterministic and stable across worldTurn');
     } else {
-        ok('deterministic seed derivation');
+        ok('deterministic seed derivation (worldTurn-independent)');
     }
 }
 

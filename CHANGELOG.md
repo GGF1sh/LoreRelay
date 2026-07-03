@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- **Settlement expansion retry determinism (PR4)** — `deriveExpansionSeed()` no longer mixes `worldTurn` into the default hash (`settlementId:layerId:profile` only). Re-applying the same `expand_layer` op after reconcile at a different turn yields identical zone/marker coordinates; explicit `op.seed` / `context.seed` overrides unchanged. `scripts/test_settlement_expansion_retry_determinism.js` added.
+
 - **Cross-ledger valid no-op contract (PR2)** — `tryApplyDiscoveryTurnOps()` / `tryApplyCampaignResourceTurnOps()` return structured `{ ok, applied }`; `persistTurnLedgersAfterCommit()` treats `{ ok: true, applied: false }` as handled for all ledgers (matching M4b settlement layout). Eliminates false partial-failure logs for valid discovery/resource no-ops.
 
 - **Settlement zero-stock semantics (PR1)** — `adjustStockList` retains stock entries at `amount: 0` after consumption instead of removing them. Depleted supplies keep `(OUT)` prompt text, shortage event weights, and settlement pressure band signals. `scripts/test_settlement_stock_zero_semantics.js` added.

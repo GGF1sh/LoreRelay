@@ -58,6 +58,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_settlement_event_core.js' },
     { category: 'unit', file: 'test_settlement_view_core.js' },
     { category: 'unit', file: 'test_settlement_layer_expansion_core.js' },
+    { category: 'unit', file: 'test_settlement_expansion_retry_determinism.js' },
     { category: 'unit', file: 'test_settlement_layout_turn_ops_core.js' },
     { category: 'unit', file: 'test_settlement_layout_turn_ops.js' },
     { category: 'unit', file: 'test_sell_discovery_trade_ops.js' },

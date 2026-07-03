@@ -9,6 +9,27 @@
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-07-03
+
+### Added
+
+- **LW3-P2: 絆の交易波及** — `applyPlayerBondTradeAdjustment()`（純関数, `playerBondCore.ts`）。tradeOps 適用後、その市場に**固い盟友**（trusted_companion 到達済み・背信なし）が同席していれば純増減の **10% をプレイヤー有利**に、**敵対**（nemesis）が同席していれば **10% 不利**に credits を調整（上限 500/バッチ、両方居れば盟友優先）。`livingWorldTurnOps.ts` に配線、NPC の所在は `resolveNpcLocation`（agency 準拠、移動中は不在）。
+- Tests: `test_player_bond_core.js` に +10 件（還元/上乗せ/盟友優先/背信無効/不在無効/0無調整/上限）。
+
+### Fixed（Gemini コードレビュー対応, P0-P2）
+
+- **P0 game_state バリデーション漏れ** — `salvageGameStateFromUnknown()` を追加。ロード時・エラー時に不正な state データを自動サルベージ（`gameStateSanitize.ts`, `gameStateSync.ts`）。
+- **P1 プロンプトのコンテキスト超過** — `evictPromptChunksByBudget()` で優先度ベースの eviction（gameRules > chronicle > … > vision、`gmPromptBuilderCore.ts`, `gmPromptBuilder.ts`）。
+- **P1 LLM JSON パース失敗** — `repairJsonForParse()` / `parseJsonObjectWithRecovery()` で末尾カンマ・コードフェンス内 JSON を修復（`agenticGmCore.ts`）。
+- **P1 メモリ/ロアの肥大化** — `MAX_MEMORY_BANK_CHUNKS=2000`, `MAX_LOREBOOK_ENTRIES_SCAN=2000` の上限を追加（`memoryBank.ts`, `lorebookMatcher.ts`）。
+- **P2 Webview 非同期通信のレース** — `syncSeq` 付きメッセージで古い更新を破棄（`10-game-state.js`, `80-inspector.js`, `90-bootstrap.js`）。
+- 見送り: Zod 導入（既存の実行時バリデーション強化で対応）、vector memory offload / VLM 要約キュー（将来フェーズ）、CSP 全面厳格化（別 PR）。P2 経路探索無限ループ・マップ seed 再現性は既存機構（`MAX_PATH_HOPS`、forge seed）で対応済みのため変更なし。
+- Tests: `test_game_state_sanitize.js`, `test_agentic_gm_core.js`, `test_prompt_budget_eviction.js`（新規）。
+
+### Verification
+
+- `npm run compile` · `npm test` — **82/82**
+
 ## [1.32.0] - 2026-07-03
 
 ### Added

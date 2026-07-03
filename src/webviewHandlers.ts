@@ -78,6 +78,7 @@ export interface WebviewHandlerDeps {
     sendScenarioDirector(): void;
     sendPartyDirector(): void;
     sendWorldView(): void;
+    handleSetSettlementViewLayer(layerId: unknown): void;
     handleObserverWorldTick(mode: 'watch' | 'advance'): void;
     handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
     handleGenerateWorldMapImage(): Promise<void>;
@@ -198,6 +199,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'loadWorld':
             deps.sendWorldView();
+            break;
+        case 'setSettlementViewLayer':
+            deps.handleSetSettlementViewLayer(message.layerId);
             break;
         case 'observerWorldTick': {
             const mode = message.mode === 'advance' ? 'advance' : 'watch';

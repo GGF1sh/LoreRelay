@@ -649,6 +649,7 @@
               <button type="button" id="world-map-mode-mermaid" class="world-map-mode-btn is-active" data-mode="mermaid" data-i18n="webview.world.mapModeDiagram">Diagram</button>
               <button type="button" id="world-map-mode-parchment" class="world-map-mode-btn" data-mode="parchment" data-i18n="webview.world.mapModeParchment">Parchment</button>
               <button type="button" id="world-map-mode-tile" class="world-map-mode-btn" data-mode="tile" data-i18n="webview.world.mapModeTile">Tile</button>
+              <button type="button" id="world-map-mode-settlement" class="world-map-mode-btn hidden" data-mode="settlement" data-i18n="webview.world.mapModeSettlement">Settlement</button>
             </div>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
               <div id="world-mermaid" class="mermaid world-map-panel"></div>
@@ -662,6 +663,29 @@
               <div id="world-overmap" class="world-map-panel hidden">
                 <canvas id="world-overmap-canvas"></canvas>
                 <p id="world-overmap-empty" class="empty-text hidden" data-i18n="webview.world.overmapEmpty">No regions yet. Generate a world to see the tile overmap.</p>
+              </div>
+              <div id="world-settlement" class="world-map-panel hidden">
+                <div id="world-settlement-toolbar" class="world-settlement-toolbar">
+                  <div class="world-settlement-layer-bar" role="group" aria-label="Settlement layer">
+                    <button type="button" id="world-settlement-layer-z1" class="world-settlement-layer-btn" data-settlement-layer="z1" aria-pressed="false">Z+1</button>
+                    <button type="button" id="world-settlement-layer-z0" class="world-settlement-layer-btn is-active" data-settlement-layer="z0" aria-pressed="true">Z0</button>
+                    <button type="button" id="world-settlement-layer-zm1" class="world-settlement-layer-btn" data-settlement-layer="z-1" aria-pressed="false">Z-1</button>
+                    <button type="button" id="world-settlement-layer-zm2" class="world-settlement-layer-btn" data-settlement-layer="z-2" aria-pressed="false">Z-2</button>
+                  </div>
+                  <div class="world-settlement-zoom-bar">
+                    <button type="button" id="world-settlement-zoom-out" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomOut" title="Zoom out">-</button>
+                    <button type="button" id="world-settlement-zoom-reset" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomReset">Reset</button>
+                    <button type="button" id="world-settlement-zoom-fit" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomFit">Fit</button>
+                    <button type="button" id="world-settlement-zoom-in" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomIn" title="Zoom in">+</button>
+                  </div>
+                </div>
+                <div id="world-settlement-stage" class="world-settlement-stage hidden">
+                  <canvas id="world-settlement-canvas"></canvas>
+                  <div id="world-settlement-tooltip" class="world-settlement-tooltip hidden" role="tooltip"></div>
+                </div>
+                <p id="world-settlement-empty" class="empty-text hidden" data-i18n="webview.world.settlementEmpty">No settlement view yet. Enable Settlement Mode and add settlement_state.json.</p>
+                <div id="world-settlement-detail" class="world-settlement-detail hidden" aria-live="polite"></div>
+                <div id="world-settlement-marker-fallback" class="world-settlement-marker-fallback hidden"></div>
               </div>
             </div>
             <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>

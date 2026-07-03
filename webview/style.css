@@ -4045,3 +4045,148 @@ body[data-ui-theme="steampunk"] {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-thumb { background: rgba(140, 160, 200, 0.18); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(var(--vr-accent-rgb), 0.45); }
+
+/* --- 98-settlement-isometric.css --- */
+#world-settlement {
+    position: relative;
+}
+
+.world-settlement-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
+    margin-bottom: 0.45rem;
+}
+
+.world-settlement-layer-bar,
+.world-settlement-zoom-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.world-settlement-layer-btn,
+.world-settlement-zoom-btn {
+    font-size: 0.78em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--vscode-foreground, #ccc);
+    cursor: pointer;
+}
+
+.world-settlement-layer-btn.is-active,
+.world-settlement-zoom-btn:focus-visible {
+    border-color: var(--vscode-focusBorder, #4a90e2);
+    background: rgba(74, 144, 226, 0.18);
+}
+
+.world-settlement-layer-btn:focus-visible,
+.world-settlement-zoom-btn:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder, #4a90e2);
+    outline-offset: 1px;
+}
+
+#world-settlement-stage {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(6, 10, 18, 0.65);
+}
+
+#world-settlement-canvas {
+    display: block;
+    width: 100%;
+    cursor: grab;
+}
+
+#world-settlement-canvas:active {
+    cursor: grabbing;
+}
+
+.world-settlement-tooltip {
+    position: absolute;
+    z-index: 6;
+    max-width: min(240px, 90%);
+    padding: 0.3rem 0.45rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 12, 20, 0.92);
+    color: var(--vscode-foreground, #dde4ec);
+    font-size: 0.78em;
+    line-height: 1.35;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.world-settlement-tooltip.hidden {
+    display: none !important;
+}
+
+.world-settlement-detail {
+    margin-top: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.22);
+    font-size: 0.86em;
+}
+
+.world-settlement-detail.hidden {
+    display: none !important;
+}
+
+.world-settlement-detail h4 {
+    margin: 0 0 0.3rem;
+    font-size: 1em;
+}
+
+.world-settlement-detail-body {
+    margin: 0;
+    opacity: 0.82;
+}
+
+.world-settlement-marker-fallback {
+    margin-top: 0.45rem;
+    font-size: 0.82em;
+}
+
+.world-settlement-marker-fallback.hidden {
+    display: none !important;
+}
+
+.world-settlement-marker-fallback-title {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    opacity: 0.85;
+}
+
+.world-settlement-marker-fallback ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.world-settlement-marker-item {
+    background: none;
+    border: none;
+    color: var(--vscode-textLink-foreground, #6cb6ff);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+}
+
+.world-settlement-marker-item:hover,
+.world-settlement-marker-item:focus-visible {
+    text-decoration: underline;
+}
+
+#world-map-mode-settlement.hidden {
+    display: none !important;
+}

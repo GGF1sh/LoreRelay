@@ -19,10 +19,13 @@ const htmlSymbols = [
     'id="world-map-mode-mermaid"',
     'id="world-map-mode-parchment"',
     'id="world-map-mode-tile"',
+    'id="world-map-mode-settlement"',
     'id="world-mermaid"',
     'id="world-cartography"',
     'id="world-overmap"',
     'id="world-overmap-canvas"',
+    'id="world-settlement"',
+    'id="world-settlement-canvas"',
 ];
 for (const symbol of htmlSymbols) {
     assert(indexHtml.includes(symbol), `webview/index.html is missing ${symbol}`);
@@ -32,6 +35,10 @@ console.log('ok: World tab map mode DOM exists');
 assert(
     buildScript.indexOf("'85-world.js'") < buildScript.indexOf("'86-tile-overmap.js'"),
     '85-world.js must be bundled before 86-tile-overmap.js so shared globals are initialized before use'
+);
+assert(
+    buildScript.indexOf("'86-tile-overmap.js'") < buildScript.indexOf("'86b-settlement-isometric.js'"),
+    '86b-settlement-isometric.js must be bundled after tile overmap module'
 );
 console.log('ok: World modules are bundled in the expected order');
 
@@ -127,6 +134,26 @@ for (const symbol of overlaySymbols) {
     );
 }
 console.log('ok: Settlement map overlay symbols are bundled');
+
+const settlementSymbols = [
+    'function drawSettlementIsometric()',
+    'initSettlementIsometricControls',
+    'SETTLEMENT_TILE_COLORS',
+    "type: 'setSettlementViewLayer'",
+    'syncSettlementMapModeUi',
+    "worldMapMode === 'settlement'",
+    'world-settlement-detail',
+    'world-settlement-marker-fallback',
+    'data-settlement-layer',
+];
+const settlementModule = read('webview', 'modules', '86b-settlement-isometric.js');
+for (const symbol of settlementSymbols) {
+    assert(
+        settlementModule.includes(symbol) || worldModule.includes(symbol) || bundle.includes(symbol),
+        `settlement isometric symbol missing: ${symbol}`
+    );
+}
+console.log('ok: Settlement isometric renderer symbols are bundled');
 
 const worldPaneStart = indexHtml.indexOf('<div id="pane-world"');
 const worldPaneEnd = indexHtml.indexOf('</div> <!-- /pane-world -->');

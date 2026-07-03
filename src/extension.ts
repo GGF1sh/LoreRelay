@@ -23,7 +23,7 @@ import {
     pushPartyDirectorToWebview,
     savePartyDirectorFromUi
 } from './partyDirector';
-import { initWorldView, pushWorldViewToWebview } from './worldView';
+import { initWorldView, pushWorldViewToWebview, setPreferredSettlementLayer } from './worldView';
 import { initAutoLocationImageRunner } from './autoLocationImageRunner';
 import {
     executeBulkWorldSimulation,
@@ -1020,6 +1020,13 @@ function sendWorldView(): void {
     pushWorldViewToWebview(getCurrentLocationIdForWorldView());
 }
 
+function handleSetSettlementViewLayer(layerId: unknown): void {
+    if (typeof layerId === 'string') {
+        setPreferredSettlementLayer(layerId);
+    }
+    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+}
+
 /** World Observatory: advance the world one tick without a player turn (watch/advance mode). */
 function handleObserverWorldTick(mode: 'watch' | 'advance'): void {
     runObserverWorldTick(mode);
@@ -1398,6 +1405,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendScenarioDirector,
         sendPartyDirector,
         sendWorldView,
+        handleSetSettlementViewLayer,
         handleObserverWorldTick,
         handleGenerateWorldForge,
         handleGenerateWorldMapImage,

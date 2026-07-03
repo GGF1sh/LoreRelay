@@ -16,7 +16,9 @@ import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildMapOverlaySnapshot, deriveKnownNpcIds } from './mapOverlayCore';
-import { loadSettlementState } from './settlementState';
+import { loadSettlementLayout, loadSettlementState } from './settlementState';
+import { buildSettlementViewSnapshot } from './settlementViewCore';
+import type { SettlementLayerId } from './settlementCore';
 import { loadDiscoveryLedger } from './discoveryLedger';
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
@@ -56,9 +58,20 @@ import {
 import { buildChronicleForWorkspace } from './chronicleLoader';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
+let preferredSettlementLayerId: SettlementLayerId = 'z0';
 
 export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | undefined }): void {
     getPanelRef = deps.getPanel;
+}
+
+export function setPreferredSettlementLayer(layerId: string): SettlementLayerId {
+    const valid = new Set(['z1', 'z0', 'z-1', 'z-2']);
+    preferredSettlementLayerId = valid.has(layerId) ? (layerId as SettlementLayerId) : 'z0';
+    return preferredSettlementLayerId;
+}
+
+export function getPreferredSettlementLayer(): SettlementLayerId {
+    return preferredSettlementLayerId;
 }
 
 function loadGameStateSnapshotFromDisk(): (Pick<GameState, 'world' | 'commerce'> & { domain?: unknown }) | undefined {
@@ -479,6 +492,16 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableTravelEncounters: gameRules.enableTravelEncounters === true,
         enableSettlementMode: gameRules.enableSettlementMode === true,
     });
+    const settlementState = gameRules.enableSettlementMode === true ? loadSettlementState() : undefined;
+    const settlementLayout = settlementState ? loadSettlementLayout() : undefined;
+    const settlementView = settlementState
+        ? buildSettlementViewSnapshot({
+            state: settlementState,
+            layout: settlementLayout,
+            selectedLayerId: preferredSettlementLayerId,
+        })
+        : undefined;
+
     const mapOverlay = buildMapOverlaySnapshot({
         forge,
         fog: {
@@ -495,7 +518,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         worldFactions: factionStates,
         npcPositions: worldState?.npcPositions,
         questHooks: worldState?.questHooks,
-        settlementState: gameRules.enableSettlementMode === true ? loadSettlementState() : undefined,
+        settlementState,
         discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
         npcRegistry: registry,
         knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
@@ -562,6 +585,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         highlightRegionIds: [...highlightRegionIds],
         tileOvermap,
         mapOverlay,
+        enableSettlementMode: gameRules.enableSettlementMode === true,
+        settlementView: settlementView ?? null,
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,

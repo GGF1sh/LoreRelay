@@ -24,6 +24,7 @@ const JS_MODULE_ORDER = [
     '84-party.js',
     '85-world.js',
     '86-tile-overmap.js',
+    '86b-settlement-isometric.js',
     '87-parlor-settings.js',
     '88-world-observatory.js',
     '90-bootstrap.js'
@@ -46,7 +47,8 @@ const CSS_MODULE_ORDER = [
     '95-character-creator.css',
     '87-parlor-settings.css',
     '88-world-observatory.css',
-    '97-visual-refresh.css'
+    '97-visual-refresh.css',
+    '98-settlement-isometric.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

@@ -129,6 +129,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const modeMermaid = document.getElementById('world-map-mode-mermaid');
     const modeParchment = document.getElementById('world-map-mode-parchment');
     const modeTile = document.getElementById('world-map-mode-tile');
+    const modeSettlement = document.getElementById('world-map-mode-settlement');
     if (modeMermaid) {
         modeMermaid.addEventListener('click', () => setWorldMapMode('mermaid'));
     }
@@ -138,10 +139,13 @@ window.addEventListener('DOMContentLoaded', () => {
     if (modeTile) {
         modeTile.addEventListener('click', () => setWorldMapMode('tile'));
     }
+    if (modeSettlement) {
+        modeSettlement.addEventListener('click', () => setWorldMapMode('settlement'));
+    }
 
     try {
         const saved = localStorage.getItem(WORLD_MAP_MODE_KEY);
-        if (saved === 'mermaid' || saved === 'parchment' || saved === 'tile') {
+        if (saved === 'mermaid' || saved === 'parchment' || saved === 'tile' || saved === 'settlement') {
             worldMapMode = saved;
         }
     } catch { /* private mode */ }
@@ -200,6 +204,8 @@ function renderWorldView(msg) {
     renderMermaidMap(msg.worldMap, msg);
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
+    _settlementWorldMsg = msg;
+    syncSettlementMapModeUi(msg);
     syncWorldPinSelectionUi();
 
     if (msg.cartographyHasImage && worldMapMode === 'parchment') {
@@ -1201,9 +1207,28 @@ function renderFogOverlays(container, msg) {
     }
 }
 
+function syncSettlementMapModeUi(msg) {
+    const btn = document.getElementById('world-map-mode-settlement');
+    if (!btn) { return; }
+    const show = msg.enableSettlementMode === true;
+    btn.classList.toggle('hidden', !show);
+    if (!show && worldMapMode === 'settlement') {
+        setWorldMapMode('mermaid', { persist: true });
+    }
+}
+
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
-    worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
+    if (mode === 'settlement') {
+        const btn = document.getElementById('world-map-mode-settlement');
+        if (btn?.classList.contains('hidden')) {
+            worldMapMode = 'mermaid';
+        } else {
+            worldMapMode = 'settlement';
+        }
+    } else {
+        worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
+    }
     if (persist) {
         try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
     }
@@ -1215,11 +1240,13 @@ function applyWorldMapModeVisibility() {
         mermaid: document.getElementById('world-mermaid'),
         parchment: document.getElementById('world-cartography'),
         tile: document.getElementById('world-overmap'),
+        settlement: document.getElementById('world-settlement'),
     };
     const buttons = {
         mermaid: document.getElementById('world-map-mode-mermaid'),
         parchment: document.getElementById('world-map-mode-parchment'),
         tile: document.getElementById('world-map-mode-tile'),
+        settlement: document.getElementById('world-map-mode-settlement'),
     };
     for (const mode of Object.keys(panels)) {
         if (panels[mode]) {
@@ -1232,6 +1259,9 @@ function applyWorldMapModeVisibility() {
     if (worldMapMode === 'tile') {
         // The canvas has zero width while its panel is hidden — draw after unhide.
         requestAnimationFrame(() => drawTileOvermap());
+    }
+    if (worldMapMode === 'settlement' && typeof drawSettlementIsometric === 'function') {
+        requestAnimationFrame(() => drawSettlementIsometric());
     }
 }
 

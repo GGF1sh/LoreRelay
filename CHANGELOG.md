@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.70.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M3b isometric Webview renderer** — World タブに **Settlement** マップモードを追加。`86b-settlement-isometric.js` + `98-settlement-isometric.css` で `settlementView` を Canvas 等角投影描画（ASCII グリフ、pan/zoom/reset/fit、レイヤー Z+1/Z0/Z-1/Z-2、hover ツールチップ、read-only 詳細パネル、マーカー一覧フォールバック）。クリックによる state 書き込みなし。表示設定は localStorage のみ。`worldView.settlementView` 配線 + `settlement_layout.json` ローダー + `setSettlementViewLayer` ハンドラ。4 ロケール i18n。テスト **146/146**。
+
 ## [1.69.0] - 2026-07-04
 
 ### Added

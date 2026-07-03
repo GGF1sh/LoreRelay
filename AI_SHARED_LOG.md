@@ -6,13 +6,21 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.69.0** |
+| Package version | **1.70.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **146/146** |
-| Settlement Mode M3 | M3a `settlementViewCore.ts` 完了 (v1.69.0)。M3b Canvas renderer 未着手 |
-| Next (推奨) | M3b isometric Webview renderer · Settlement M2 replay/remote overlay wiring |
+| Settlement Mode M3 | M3a + **M3b isometric Canvas renderer** 完了 (v1.70.0) |
+| Next (推奨) | Settlement M2 replay/remote overlay wiring · M4 Z-layer expansion |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M3b isometric Webview renderer (v1.70.0)
+
+- `webview/modules/86b-settlement-isometric.js` — Canvas isometric renderer for `settlementView` (ASCII glyphs, pan/zoom, layer selector, hover/select read-only detail, marker list fallback).
+- `worldView.ts` — `settlementView` payload + `setPreferredSettlementLayer`; `settlementState.ts` — `settlement_layout.json` loader.
+- `setSettlementViewLayer` webview handler. 4-locale i18n. Tests **146/146**.
 
 ---
 

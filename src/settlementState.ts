@@ -6,16 +6,23 @@ import { getWorkspacePath } from './workspacePaths';
 import { loadGameRules } from './gameRules';
 import {
     buildSettlementPromptBlock,
+    parseSettlementLayout,
     parseSettlementState,
     settlementModeEnabled,
+    type SettlementLayoutV1,
     type SettlementStateV1,
 } from './settlementCore';
 
 export const SETTLEMENT_STATE_FILENAME = 'settlement_state.json';
+export const SETTLEMENT_LAYOUT_FILENAME = 'settlement_layout.json';
 
 let cachedPath = '';
 let cachedMtime = 0;
 let cachedDoc: SettlementStateV1 | undefined;
+
+let cachedLayoutPath = '';
+let cachedLayoutMtime = 0;
+let cachedLayoutDoc: SettlementLayoutV1 | undefined;
 
 export function getSettlementStatePath(): string | undefined {
     const ws = getWorkspacePath();
@@ -26,6 +33,14 @@ export function clearSettlementStateCache(): void {
     cachedPath = '';
     cachedMtime = 0;
     cachedDoc = undefined;
+    cachedLayoutPath = '';
+    cachedLayoutMtime = 0;
+    cachedLayoutDoc = undefined;
+}
+
+export function getSettlementLayoutPath(): string | undefined {
+    const ws = getWorkspacePath();
+    return ws ? path.join(ws, SETTLEMENT_LAYOUT_FILENAME) : undefined;
 }
 
 export function readSettlementStateFromDisk(statePath?: string): SettlementStateV1 | undefined {
@@ -59,6 +74,33 @@ export function loadSettlementState(): SettlementStateV1 | undefined {
         cachedPath = statePath;
         cachedMtime = stat.mtimeMs;
         cachedDoc = parsed;
+        return parsed;
+    } catch {
+        return undefined;
+    }
+}
+
+export function loadSettlementLayout(): SettlementLayoutV1 | undefined {
+    const layoutPath = getSettlementLayoutPath();
+    if (!layoutPath || !fs.existsSync(layoutPath)) {
+        return undefined;
+    }
+    try {
+        const stat = fs.statSync(layoutPath);
+        if (cachedLayoutDoc && cachedLayoutPath === layoutPath && cachedLayoutMtime === stat.mtimeMs) {
+            return cachedLayoutDoc;
+        }
+        const raw = JSON.parse(fs.readFileSync(layoutPath, 'utf-8'));
+        const parsed = parseSettlementLayout(raw);
+        if (!parsed) {
+            cachedLayoutPath = '';
+            cachedLayoutMtime = 0;
+            cachedLayoutDoc = undefined;
+            return undefined;
+        }
+        cachedLayoutPath = layoutPath;
+        cachedLayoutMtime = stat.mtimeMs;
+        cachedLayoutDoc = parsed;
         return parsed;
     } catch {
         return undefined;

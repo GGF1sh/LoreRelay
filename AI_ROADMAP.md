@@ -324,8 +324,8 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 *ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M3_CHATGPT_GATE.md)*
 
 - [x] display snapshot via `settlementViewCore.ts`（M3a pure core · v1.69.0）
-- [ ] Canvas renderer, pan/zoom, fallback glyph/sprite
-- [ ] limited layer selector `Z+1 / Z0 / Z-1 / Z-2`
+- [x] Canvas renderer, pan/zoom, ASCII fallback glyphs（M3b · v1.70.0）
+- [x] limited layer selector `Z+1 / Z0 / Z-1 / Z-2`（M3b · v1.70.0）
 
 ### M4 — Limited Z-Level Operations
 

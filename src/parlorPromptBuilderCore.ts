@@ -89,6 +89,19 @@ export function buildParlorLoreContext(snippets: string[] | undefined): string {
     ].join('\n');
 }
 
+function clampDelimitedContext(block: string, maxChars: number): string {
+    if (block.length <= maxChars) {
+        return block;
+    }
+    const lines = block.split('\n');
+    const first = lines[0] || '';
+    const last = lines.length > 1 ? lines[lines.length - 1] : '';
+    const marker = '\n[...truncated by LoreRelay...]\n';
+    const budget = Math.max(0, maxChars - first.length - last.length - marker.length - 2);
+    const body = lines.slice(1, -1).join('\n').slice(0, budget);
+    return [first, body + marker.trimEnd(), last].filter(Boolean).join('\n');
+}
+
 export function formatParlorHistory(messages: ParlorMessage[], characterName: string): string {
     const lines: string[] = [];
     for (const m of messages) {
@@ -117,22 +130,8 @@ export function buildParlorPromptParts(input: BuildParlorPromptInput): ParlorPro
 
 /** Flatten parts into a single user prompt for vscode-lm / clipboard. */
 export function assembleParlorUserPrompt(parts: ParlorPromptParts, locale: string): string {
-    const blocks = [
-        parts.systemRules,
-        '',
-        parts.characterContext,
-    ];
-    if (parts.loreContext) {
-        blocks.push('', parts.loreContext);
-    }
-    if (parts.historyContext) {
-        blocks.push(
-            '',
-            locale === 'ja' ? '【直近の会話】' : '[Recent conversation]',
-            parts.historyContext
-        );
-    }
-    blocks.push(
+    const max = DEFAULT_PARLOR_MAX_PROMPT_CHARS;
+    const finalBlock = [
         '',
         locale === 'ja' ? '【プレイヤーの発言】' : '[Player message]',
         parts.userMessage,
@@ -140,11 +139,41 @@ export function assembleParlorUserPrompt(parts: ParlorPromptParts, locale: strin
         locale === 'ja'
             ? '上記に自然に返答してください。プレーンテキストのみ。'
             : 'Reply naturally in plain text only.'
-    );
+    ].join('\n');
+    const fixedBudget = parts.systemRules.length + finalBlock.length + 8;
+    const contextBudget = Math.max(1_000, max - fixedBudget);
+    const characterBudget = Math.max(1_000, Math.floor(contextBudget * 0.45));
+    const loreBudget = parts.loreContext ? Math.max(600, Math.floor(contextBudget * 0.20)) : 0;
+    const historyBudget = Math.max(600, contextBudget - characterBudget - loreBudget);
+
+    const blocks = [
+        parts.systemRules,
+        '',
+        clampDelimitedContext(parts.characterContext, characterBudget),
+    ];
+    if (parts.loreContext) {
+        blocks.push('', clampDelimitedContext(parts.loreContext, loreBudget));
+    }
+    if (parts.historyContext) {
+        const history = parts.historyContext.length <= historyBudget
+            ? parts.historyContext
+            : parts.historyContext.slice(-historyBudget);
+        blocks.push(
+            '',
+            locale === 'ja' ? '【直近の会話】' : '[Recent conversation]',
+            history
+        );
+    }
+    blocks.push(finalBlock);
     let text = blocks.join('\n');
-    const max = DEFAULT_PARLOR_MAX_PROMPT_CHARS;
     if (text.length > max) {
-        text = text.slice(text.length - max);
+        const overflow = text.length - max;
+        const historyIndex = text.indexOf(parts.historyContext);
+        if (historyIndex >= 0 && parts.historyContext.length > overflow) {
+            text = text.slice(0, historyIndex) + parts.historyContext.slice(overflow) + text.slice(historyIndex + parts.historyContext.length);
+        } else {
+            text = `${parts.systemRules}\n\n${finalBlock}`.slice(0, max);
+        }
     }
     return text;
 }

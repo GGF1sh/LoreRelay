@@ -70,6 +70,37 @@ function fail(m) { console.error(`FAIL: ${m}`); failed++; }
     else { fail(`strip json fence (${JSON.stringify(clean)})`); }
 }
 
+{
+    let session = createEmptyParlorSession('elda');
+    for (let i = 0; i < 80; i++) {
+        session = appendParlorMessage(session, { role: i % 2 ? 'assistant' : 'user', content: `history-${i} ${'x'.repeat(500)}` });
+    }
+    const parts = buildParlorPromptParts({
+        locale: 'en',
+        character: {
+            id: 'elda',
+            name: 'Elda',
+            description: 'D'.repeat(20_000),
+            personality: 'P'.repeat(20_000),
+            stSource: {
+                scenario: 'S'.repeat(20_000),
+                first_mes: 'F'.repeat(20_000),
+                mes_example: 'M'.repeat(20_000),
+            },
+        },
+        session,
+        userMessage: 'Do not lose the safety contract.',
+        loreSnippets: ['L'.repeat(20_000)],
+    });
+    const prompt = assembleParlorUserPrompt(parts, 'en');
+    if (prompt.length <= 12_000) { ok('prompt budget cap'); }
+    else { fail(`prompt budget cap (${prompt.length})`); }
+    if (prompt.includes('Reply in plain text only') && prompt.includes('[Player message]')) { ok('prompt keeps safety rules and user message'); }
+    else { fail('prompt keeps safety rules and user message'); }
+    if (prompt.includes('BEGIN UNTRUSTED CHARACTER CARD') && prompt.includes('END UNTRUSTED CHARACTER CARD')) { ok('prompt keeps character trust boundary'); }
+    else { fail('prompt keeps character trust boundary'); }
+}
+
 if (failed) {
     process.exit(1);
 }

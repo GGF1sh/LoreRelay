@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parlor prompt budget safety** — 長大なキャラカード/ロア/履歴でプロンプトを切り詰める場合でも、Parlor system rules・プレーンテキスト契約・UNTRUSTED境界・現在のユーザー発言を保持するよう修正（ChatGPT Phase 3 gate）。
+
 ### Added
 
 - **Parlor Mode Phase A** — `experience.json` + `parlor_session.json`、vscode-lm プレーンチャット（Campaign の `turn_result` 経路を使わない）、Start Hub「キャラと話す」、ヘッダー 🎭/⚔️ プロファイル切替、CRPG パネル非表示。Core: `experienceCore` / `parlorSessionCore` / `parlorPromptBuilderCore`。テスト **84/84**。

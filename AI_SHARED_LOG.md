@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Codex - Phase 12 Parlor Mode Phase 3 gate
+
+### Summary
+
+- Reviewed Grok Phase A implementation (`159404e`) against `docs/PARLOR_MODE_CHATGPT_REVIEW.md`.
+- Found one High-class prompt-safety issue: `assembleParlorUserPrompt()` used tail slicing when over budget, so a huge character/lore/history payload could drop Parlor system rules and UNTRUSTED boundaries.
+- Fixed prompt budgeting to preserve system rules, current user message, and delimited character/lore boundaries; added regression coverage in `test_parlor_prompt_builder_core.js`.
+- No Critical/High blockers remain from the code paths reviewed for Phase A.
+
+### Verification
+
+- `npm run compile`
+- `node scripts/test_parlor_prompt_builder_core.js`
+- `node scripts/test_parlor_session_core.js`
+- `npm test` (**84/84**)
+
 ## 2026-07-03 JST - Codex - Phase 12 Parlor Mode ChatGPT review package
 
 ### Summary

@@ -17,6 +17,7 @@ if (!require('fs').existsSync(modPath)) {
 const {
     mergeGameStateEntries,
     mergeGameStateForPersist,
+    mergeQuestHooks,
     mergeWorldStateForPersist,
 } = require(modPath);
 
@@ -91,6 +92,28 @@ const {
         fail(`world state map merge: ${JSON.stringify(merged)}`);
     } else {
         ok('world state map merge');
+    }
+}
+
+{
+    const acceptHook = { id: 'quest_campaign_a', title: 'A', source: 'campaign', status: 'active' };
+    const observerHook = { id: 'quest_event_b', title: 'B', source: 'event', status: 'available' };
+    const mergedHooks = mergeQuestHooks([acceptHook], [observerHook]);
+    if (mergedHooks.length !== 2) {
+        fail(`mergeQuestHooks union: ${JSON.stringify(mergedHooks)}`);
+    } else {
+        ok('mergeQuestHooks unions disk and incoming hooks');
+    }
+}
+
+{
+    const disk = { revision: 1, questHooks: [{ id: 'qh_keep', title: 'Keep', status: 'active' }] };
+    const incoming = { worldTurn: 2, questHooks: [{ id: 'qh_new', title: 'New', status: 'available' }] };
+    const merged = mergeWorldStateForPersist(disk, incoming);
+    if (!merged.questHooks.some((h) => h.id === 'qh_keep')) {
+        fail(`mergeWorldStateForPersist should keep disk-only questHooks: ${JSON.stringify(merged.questHooks)}`);
+    } else {
+        ok('mergeWorldStateForPersist preserves disk-only questHooks');
     }
 }
 

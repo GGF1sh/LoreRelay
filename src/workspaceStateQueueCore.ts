@@ -250,6 +250,49 @@ function mergeRecordMaps<T extends Record<string, unknown>>(
     return { ...disk, ...incoming };
 }
 
+interface QuestHookLike {
+    id: string;
+    [key: string]: unknown;
+}
+
+function isQuestHookLike(hook: unknown): hook is QuestHookLike {
+    return typeof hook === 'object'
+        && hook !== null
+        && typeof (hook as QuestHookLike).id === 'string'
+        && (hook as QuestHookLike).id.length > 0;
+}
+
+/** Merge questHooks by id; incoming wins on collision; preserves disk-only hooks (observer vs accept race). */
+export function mergeQuestHooks(
+    diskHooks: unknown[] | undefined,
+    incomingHooks: unknown[] | undefined
+): unknown[] | undefined {
+    if (incomingHooks === undefined) {
+        return diskHooks;
+    }
+    if (!Array.isArray(incomingHooks)) {
+        return diskHooks;
+    }
+    const diskArr = Array.isArray(diskHooks) ? diskHooks : [];
+    const byId = new Map<string, unknown>();
+    const order: string[] = [];
+
+    for (const hook of diskArr) {
+        if (!isQuestHookLike(hook)) { continue; }
+        byId.set(hook.id, hook);
+        order.push(hook.id);
+    }
+    for (const hook of incomingHooks) {
+        if (!isQuestHookLike(hook)) { continue; }
+        if (!byId.has(hook.id)) {
+            order.push(hook.id);
+        }
+        byId.set(hook.id, hook);
+    }
+
+    return order.map((id) => byId.get(id)).filter((h): h is unknown => h !== undefined);
+}
+
 /** Deep-merge known world_state maps; scalar/array fields from incoming win when defined. */
 export function mergeWorldStateForPersist<T extends Record<string, unknown>>(
     disk: T | undefined,
@@ -259,6 +302,13 @@ export function mergeWorldStateForPersist<T extends Record<string, unknown>>(
         return { ...incoming };
     }
     const diskRevision = typeof disk.revision === 'number' ? disk.revision : 0;
+    const mergedQuestHooks = 'questHooks' in incoming
+        ? mergeQuestHooks(
+            disk.questHooks as unknown[] | undefined,
+            incoming.questHooks as unknown[] | undefined
+        )
+        : disk.questHooks;
+
     return {
         ...disk,
         ...incoming,
@@ -282,6 +332,7 @@ export function mergeWorldStateForPersist<T extends Record<string, unknown>>(
             disk.npcRelationships as Record<string, unknown> | undefined,
             incoming.npcRelationships as Record<string, unknown> | undefined
         ) ?? disk.npcRelationships,
+        questHooks: mergedQuestHooks,
         revision: diskRevision + 1,
     } as T;
 }

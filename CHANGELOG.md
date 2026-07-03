@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.55.0] - 2026-07-03
+
+### Fixed
+
+- **world_state questHooks 並行書き込み** — 観測者 tick と `acceptCampaignJob` が同時に `saveWorldState` すると、古いスナップショットの `questHooks` で上書きされ campaign 受諾フックが消える可能性があった。
+  - `mergeQuestHooks()` — id 単位で union merge（disk-only フックを保持、同一 id は incoming 優先）。
+  - `mergeWorldStateForPersist()` — `questHooks` をスプレッド上書きから merge に変更。
+  - `patchWorldStateQuestHooks()` — accept 経路はキュー内で最新 disk を読み、`questHooks` のみ patch（markets/worldTurn を巻き戻さない）。
+
+### Added
+
+- `test_world_state_quest_accept_observer_race.js` — observer 古い snapshot + accept patch の merge 契約を検証。`test_workspace_state_queue_core.js` に questHooks ケース追加。テスト **135/135**。
+
 ## [1.54.0] - 2026-07-03
 
 ### Fixed

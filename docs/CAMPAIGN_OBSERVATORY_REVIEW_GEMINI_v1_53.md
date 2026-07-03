@@ -27,7 +27,7 @@
 
 **最大リスク（v1.54.0 後）**
 
-1. **P1（未修正）:** `world_state.json` への **last-write-wins**（観測者 tick と campaign クエスト受諾の同時操作）— Gemini/Grok 共通
+1. ~~**P1:** `world_state.json` questHooks LWW（観測者 tick × accept job）~~ — **FIXED v1.55.0**
 2. **P2:** Observatory watch の副作用境界（NPC registry / quest hooks）の仕様明文化
 3. **P2:** `campaign_resources.json` / `discoveries.json` 専用 write queue 未整備
 4. **P2（横断）:** プロンプト eviction チューニング・`game_state`/`world_state` Split Brain
@@ -158,7 +158,7 @@
 |------|------|
 | GM turn + `discoveryOps` / `campaignResourceOps` | **v1.54.0 で安全** — `commit.ok` ゲートで skip/quarantine 時は ledger 非更新 |
 | UI `acceptCampaignJob` + GM turn | **低リスク** — `world_state` vs `game_state` はファイル分離 |
-| UI `acceptCampaignJob` + Observer tick | **P1** — 同一 `world_state.json` への並行 `saveWorldState` |
+| UI `acceptCampaignJob` + Observer tick | **v1.55.0 で緩和** — `mergeQuestHooks` + accept は `patchWorldStateQuestHooks` |
 | Observer `advance` + Commerce UI | **緩和済み** — revision 付き `scheduleCommercePersist` |
 | `game_state` / `world_state` Split Brain | **P2 横断** — Domain レビュー PR-C と同型 |
 
@@ -185,8 +185,8 @@
 | ~~**ChatGPT PR1**~~ | campaign_resources 初期値 seed | P1 | **1.54.0 ✓** |
 | ~~**ChatGPT PR2**~~ | sell_discovery ledger 検証 | P1 | **1.54.0 ✓** |
 | ~~**ChatGPT PR3**~~ | commitGameState result + ledger ゲート | P1 | **1.54.0 ✓** |
-| **PR-4** | `world_state` questHooks read-merge-write（観測者 tick 競合） | **P1** | 1.55.x |
-| **PR-5** | `test_world_state_quest_accept_observer_race.js` | P1 | 1.55.x |
+| ~~**PR-4**~~ | `mergeQuestHooks` + `patchWorldStateQuestHooks` | P1 | **1.55.0 ✓** |
+| ~~**PR-5**~~ | `test_world_state_quest_accept_observer_race.js` | P1 | **1.55.0 ✓** |
 | **PR-6** | Observatory 副作用契約（Docs + 可能なら persist 分離） | P2 | 1.55.x |
 | **PR-7** | discoveries / campaign_resources serialized mutation queue | P2 | 1.55.x |
 | **PR-8** | プロンプト: inactive モジュール chunk 省略 | P2 | 1.55.x |

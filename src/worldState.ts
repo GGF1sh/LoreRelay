@@ -124,6 +124,36 @@ export function saveWorldState(state: WorldState): void {
     });
 }
 
+/**
+ * Patch questHooks on the latest disk snapshot inside the world_state write queue.
+ * Avoids clobbering concurrent observer ticks (markets/worldTurn) with a stale full snapshot.
+ */
+export function patchWorldStateQuestHooks(
+    updater: (
+        hooks: NonNullable<WorldState['questHooks']>,
+        state: WorldState
+    ) => { hooks: NonNullable<WorldState['questHooks']>; changed: boolean }
+): boolean {
+    const statePath = getWorldStatePath();
+    if (!statePath) { return false; }
+
+    let applied = false;
+    runSerializedWorldStateMutation(() => {
+        const disk = readWorldStateFromDisk(statePath);
+        if (!disk) { return; }
+        const hooks = Array.isArray(disk.questHooks) ? [...disk.questHooks] : [];
+        const { hooks: nextHooks, changed } = updater(hooks, disk);
+        if (!changed) { return; }
+        const merged = mergeWorldStateForPersist(
+            disk as unknown as Record<string, unknown>,
+            { questHooks: nextHooks } as Record<string, unknown>
+        ) as unknown as WorldState;
+        writeWorldStateToDisk(statePath, merged);
+        applied = true;
+    });
+    return applied;
+}
+
 export function getWorldTurn(): number {
     return loadWorldState()?.worldTurn ?? 0;
 }

@@ -17,6 +17,7 @@ interface PendingCommercePersist {
 }
 
 let pendingHost: PendingCommercePersist | null = null;
+let commerceFlushInProgress = false;
 
 const scheduler = createCommercePersistScheduler((payload: CommercePersistPayload) => {
     const snap = pendingHost;
@@ -58,8 +59,21 @@ export function scheduleCommercePersist(update: PendingCommercePersist): void {
     });
 }
 
+export function isCommercePersistPending(): boolean {
+    return pendingHost !== null || scheduler.peek() !== null;
+}
+
+/** Synchronous flush — safe to call from GM turn pre-hook and processTurnResult. */
 export function flushScheduledCommercePersist(): void {
-    scheduler.flush();
+    if (commerceFlushInProgress) {
+        return;
+    }
+    commerceFlushInProgress = true;
+    try {
+        scheduler.flush();
+    } finally {
+        commerceFlushInProgress = false;
+    }
 }
 
 export function peekPendingCommercePersistForTests(): PendingCommercePersist | null {

@@ -28,6 +28,7 @@ import {
     runSkillScript
 } from './skillScriptRunner';
 import { loadGameRules } from './gameRules';
+import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import {
     getCharactersDir,
     getPartyIds,
@@ -69,6 +70,7 @@ import {
     NPC_AGENCY_OPS_PROMPT_LINE,
     RELATIONSHIP_OPS_PROMPT_LINE,
     evictPromptChunksByBudget,
+    clampSimulationPromptModule,
     resolvePromptChunkPriority,
     type PromptContextChunkSpec,
 } from './gmPromptBuilderCore';
@@ -1188,8 +1190,16 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
 
     pushPromptChunk(specs, 'gameRules', buildGameRulesPromptContext());
     pushPromptChunk(specs, 'narrativeTime', buildNarrativeTimePromptContext());
-    pushPromptChunk(specs, 'domain', buildDomainPromptContextForGm(playerAction));
-    pushPromptChunk(specs, 'guild', buildGuildPromptContextForGm(playerAction));
+    pushPromptChunk(
+        specs,
+        'domain',
+        clampSimulationPromptModule(buildDomainPromptContextForGm(playerAction))
+    );
+    pushPromptChunk(
+        specs,
+        'guild',
+        clampSimulationPromptModule(buildGuildPromptContextForGm(playerAction))
+    );
     pushPromptChunk(specs, 'director', buildScenarioDirectorPromptContext());
     pushPromptChunk(specs, 'chronicle', consumeChronicleRecapContext(policy));
 
@@ -1233,6 +1243,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
 }
 
 export function buildGmPromptContext(playerAction: string): string {
+    flushScheduledCommercePersist();
     const policy = getPromptBudgetPolicy();
     const specs = buildGmPromptChunkSpecs(playerAction, policy);
     const targetChars = policy.targetTokens * 4;

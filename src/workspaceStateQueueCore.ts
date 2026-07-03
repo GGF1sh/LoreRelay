@@ -108,6 +108,22 @@ function isStatusRecord(raw: unknown): raw is Record<string, unknown> {
     return typeof raw === 'object' && raw !== null && !Array.isArray(raw);
 }
 
+function normalizeStatusStringArray(raw: unknown): string[] | undefined {
+    if (!Array.isArray(raw)) {
+        return undefined;
+    }
+    const out: string[] = [];
+    for (const item of raw.slice(0, 64)) {
+        if (typeof item === 'string') {
+            const trimmed = item.trim().slice(0, 120);
+            if (trimmed) {
+                out.push(trimmed);
+            }
+        }
+    }
+    return out;
+}
+
 /** GM turn status wins except UI-mutable array fields (inventory, condition, skills). */
 export function mergeTurnStatusOnConflict(
     diskStatus: unknown,
@@ -117,9 +133,11 @@ export function mergeTurnStatusOnConflict(
     const incoming = isStatusRecord(incomingStatus) ? incomingStatus : {};
     const merged: Record<string, unknown> = { ...incoming };
     for (const field of UI_PROTECTED_STATUS_FIELDS_ON_TURN_COMMIT) {
-        if (field in disk) {
-            merged[field] = disk[field];
+        if (!(field in disk)) {
+            continue;
         }
+        const normalized = normalizeStatusStringArray(disk[field]);
+        merged[field] = normalized !== undefined ? normalized : disk[field];
     }
     return merged;
 }

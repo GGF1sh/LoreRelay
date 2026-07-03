@@ -24,6 +24,16 @@ const SENSITIVE_JSON_MARKERS = [
     '"director"',
     '/hiddenState',
     '/director/notes',
+    '"lastParlorSnapshot"',
+    '"parlorSessionPath"',
+    '"frozenAt"',
+    '"parlor_session"',
+    '"guildSinceLastVisit"',
+    '"domainSinceLastVisit"',
+    '"guildSnapshotAtDepart"',
+    '"domainSnapshotAtDepart"',
+    '"playerNpcMilestones"',
+    '"npcRelationships"',
 ];
 
 function pickShallow(raw: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {

@@ -6,12 +6,26 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.44.2** |
+| Package version | **1.44.3** |
 | Domain Mode | D1–D5 + D3 UI + F7–F10 **完了**（v1.40.0–1.40.1） |
 | Guild Master (F11) | **G1–G4 完了**（v1.41.0–1.44.1）· v1.44.1 hardening · `enableRivalGuild` 宣言のみ |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **118/118** |
-| Next (推奨) | **G5** ライバルギルド tick 設計 or F12 家史エピローグ · `git push origin v1.44.2` で Release |
+| Tests | `npm test` **121/121** |
+| Next (推奨) | **G5** ライバルギルド tick 設計 or F12 家史エピローグ · `git push origin v1.44.3` で Release |
+
+---
+
+## 2026-07-03 JST - Grok - Cross-review hardening (v1.44.3)
+
+### Summary
+
+- Grok/Gemini レビュー指摘: Commerce GM-turn flush 同期化、Domain/Guild prompt cap、export Parlor/LW3 redact、status merge 正規化、Webview FoW 回帰テスト。
+- テスト: `test_commerce_flush_gm_timing.js` · `test_replay_export_parlor_fields.js` · `test_world_view_simulation_payload.js` · `test_prompt_budget_eviction.js` 拡張。
+
+### Verification
+
+- `npm test` **121/121**
+- `npm run compile` クリーン
 
 ---
 

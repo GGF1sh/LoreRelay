@@ -13,6 +13,22 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.44.3] - 2026-07-03
+
+### Fixed
+
+- **Cross-review hardening（Grok 1.37.x + Gemini simulation）**
+  - Commerce: `flushScheduledCommercePersist` を GM プロンプト構築前 + `turn_result` 適用前に同期実行；pending 検出 + 再入ガード。
+  - Prompt: `clampSimulationPromptModule` で Domain/Guild ブロックを cap；競合時 eviction テスト追加。
+  - Export: Parlor/LW3/ドリフト JSON フェンスを `replayExportSanitizeCore` で redact。
+  - Merge: `mergeTurnStatusOnConflict` が UI 保護配列を正規化。
+  - Webview: `pickDomainForWebview` / `pickGuildForWebview` の FoW 回帰テスト追加。
+
+### Verification
+
+- `npm test` **121/121**
+- `npm run compile` クリーン
+
 ## [1.44.2] - 2026-07-03
 
 ### Docs

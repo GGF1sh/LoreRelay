@@ -41,6 +41,7 @@ const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 let lastGoodGameState: Record<string, unknown> | undefined;
 let gameStateSyncSeq = 0;
+import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import { processTurnResult, takeAutoLocationImageRequest } from './statePatch';
 import { queueAutoLocationImageSilent } from './autoLocationImageRunner';
 import { markTurnResultHandled } from './turnResultFallback';
@@ -597,6 +598,7 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
         markTurnResultHandled();
 
         handleTurnResultMedia(turnResult);
+        flushScheduledCommercePersist();
         const enriched = processTurnResult(turnResult);
 
         const autoImageRequest = takeAutoLocationImageRequest();

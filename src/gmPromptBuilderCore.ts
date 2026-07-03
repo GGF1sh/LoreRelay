@@ -388,6 +388,20 @@ export interface PromptContextChunkSpec {
     priority: number;
 }
 
+/** Per-module cap before global eviction (Domain + Guild + LW competing). */
+export const MAX_SIMULATION_MODULE_PROMPT_CHARS = 2800;
+
+export function clampSimulationPromptModule(
+    text: string,
+    maxChars = MAX_SIMULATION_MODULE_PROMPT_CHARS
+): string {
+    const trimmed = String(text ?? '').trim();
+    if (!trimmed || trimmed.length <= maxChars) {
+        return trimmed;
+    }
+    return `${trimmed.slice(0, Math.max(0, maxChars - 20))}...[truncated]`;
+}
+
 /** Lower numbers are evicted first when total context exceeds targetChars. */
 export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     gameRules: 100,

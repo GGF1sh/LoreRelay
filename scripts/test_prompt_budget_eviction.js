@@ -71,6 +71,40 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
     }
 }
 
+{
+    const domainPad = 'd'.repeat(5000);
+    const guildPad = 'g'.repeat(5000);
+    const bondPad = 'b'.repeat(4000);
+    const chunks = [
+        { id: 'gameRules', text: 'rules-must-stay', priority: 100 },
+        { id: 'narrativeTime', text: 'time-anchor', priority: 98 },
+        { id: 'domain', text: domainPad, priority: 67 },
+        { id: 'guild', text: guildPad, priority: 66 },
+        { id: 'livingWorldNpcBonds', text: bondPad, priority: 62 },
+        { id: 'vision', text: 'v'.repeat(3000), priority: 35 },
+    ];
+    const kept = evictPromptChunksByBudget(chunks, 400);
+    const joined = kept.join('\n');
+    if (!joined.includes('rules-must-stay') || !joined.includes('time-anchor')) {
+        fail(`simulation competition must keep core rules/time: ${joined.length}`);
+    } else if (joined.includes(domainPad) || joined.includes(guildPad) || joined.includes(bondPad)) {
+        fail('domain/guild/bonds should evict or truncate under tight budget');
+    } else {
+        ok('domain+guild+bonds evicted before gameRules under tight budget');
+    }
+}
+
+{
+    const { clampSimulationPromptModule, MAX_SIMULATION_MODULE_PROMPT_CHARS } = require(corePath);
+    const huge = 'x'.repeat(MAX_SIMULATION_MODULE_PROMPT_CHARS + 500);
+    const clamped = clampSimulationPromptModule(huge);
+    if (clamped.length > MAX_SIMULATION_MODULE_PROMPT_CHARS || !clamped.includes('[truncated]')) {
+        fail(`clampSimulationPromptModule: len=${clamped.length}`);
+    } else {
+        ok('clampSimulationPromptModule caps domain/guild blocks');
+    }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

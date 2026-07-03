@@ -13,6 +13,7 @@
     const personaSaved = document.getElementById('parlor-persona-saved');
     const bgGallery = document.getElementById('parlor-bg-gallery');
     const bgHint = document.getElementById('parlor-bg-hint');
+    const promoteBtn = document.getElementById('parlor-promote-btn');
 
     let activeConnectionId = '';
     let activeBackgroundId = null;
@@ -137,6 +138,15 @@
             if (id && id !== activeConnectionId) {
                 vscode.postMessage({ type: 'setParlorConnectionProfile', profileId: id });
             }
+        });
+    }
+
+    if (promoteBtn) {
+        promoteBtn.addEventListener('click', () => {
+            if (document.getElementById('gm-loading')) {
+                return;
+            }
+            vscode.postMessage({ type: 'promoteParlor' });
         });
     }
 

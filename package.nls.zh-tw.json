@@ -17,6 +17,7 @@
   "command.generateWorldForge": "LoreRelay: 生成世界設定 (World Forge)",
   "command.generateWorldMapImage": "LoreRelay: 生成世界地圖圖像",
   "command.resetProtagonistBootstrap": "LoreRelay: 重置主人公自動註冊",
+  "command.promoteParlorToCampaign": "LoreRelay: 將 Parlor 升格為 Campaign",
   "config.textAdventure.locale.description": "Webview、擴充功能訊息和 GM 敘事提示詞的 UI 語言。也可在 Webview 頭部下拉選單中修改。",
   "config.textAdventure.skillPath.description": "comfyui_generate.py 腳本的絕對路徑。",
   "config.textAdventure.imageGen.backend.description": "圖像生成後端。所有選項均使用 ComfyUI API（端點透過 imageGen.comfyuiUrl 設定）。",

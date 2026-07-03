@@ -9,6 +9,7 @@ import {
     createEmptyParlorSession,
     parseParlorSession,
 } from './parlorSessionCore';
+import { compactParlorSessionWithArchive } from './parlorArchive';
 
 function resolveParlorSessionPath(): string | undefined {
     const ws = getWorkspacePath();
@@ -37,12 +38,13 @@ export function loadParlorSession(fallbackCharacterId: string): ParlorSession | 
     }
 }
 
-export function saveParlorSession(session: ParlorSession): void {
+export function saveParlorSession(session: ParlorSession, characterName = 'Character', locale = 'en'): void {
     const filePath = resolveParlorSessionPath();
     if (!filePath) {
         throw new Error('Workspace required for parlor_session.json');
     }
-    writeJsonAtomic(filePath, session);
+    const compacted = compactParlorSessionWithArchive(session, characterName, locale);
+    writeJsonAtomic(filePath, compacted);
 }
 
 export function getOrCreateParlorSession(activeCharacterId: string): ParlorSession {
@@ -57,9 +59,11 @@ export function getOrCreateParlorSession(activeCharacterId: string): ParlorSessi
 
 export function appendAndSaveParlorMessage(
     session: ParlorSession,
-    message: Omit<ParlorMessage, 'id' | 'createdAt'> & { id?: string; createdAt?: string }
+    message: Omit<ParlorMessage, 'id' | 'createdAt'> & { id?: string; createdAt?: string },
+    characterName = 'Character',
+    locale = 'en'
 ): ParlorSession {
     const next = appendParlorMessage(session, message);
-    saveParlorSession(next);
+    saveParlorSession(next, characterName, locale);
     return next;
 }

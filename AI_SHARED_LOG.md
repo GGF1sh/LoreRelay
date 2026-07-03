@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Phase 12 Parlor Mode Phase C (v1.36.0)
+
+### Summary
+
+- `parlorPromoteCore` + host wizard: scenario.json, game_state.json, game_rules.json bootstrap from Parlor session.
+- Campaign → Parlor demote with optional `game_history` import; `campaign.frozenAt` on experience.json.
+- `parlor_archive.ndjson` compaction when messages exceed 500; summary delta on archive.
+- Command `textadventure.promoteParlorToCampaign`; Webview promote button in Parlor settings.
+- 🎭/⚔️ toggle: Parlor→Campaign runs promote wizard; Campaign→Parlor runs demote import prompt.
+
+### Verification
+
+- `npm test` **90/90**
+
 ## 2026-07-03 JST - Grok - Parlor Gemini review follow-up #2
 
 ### Summary

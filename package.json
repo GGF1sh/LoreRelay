@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI Game Master UI. Works with any AI assistant.",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -47,7 +47,8 @@
     "onCommand:textadventure.rotateRemotePlayToken",
     "onCommand:textadventure.generateWorldForge",
     "onCommand:textadventure.generateWorldMapImage",
-    "onCommand:textadventure.resetProtagonistBootstrap"
+    "onCommand:textadventure.resetProtagonistBootstrap",
+    "onCommand:textadventure.promoteParlorToCampaign"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -139,6 +140,10 @@
       {
         "command": "textadventure.resetProtagonistBootstrap",
         "title": "%command.resetProtagonistBootstrap%"
+      },
+      {
+        "command": "textadventure.promoteParlorToCampaign",
+        "title": "%command.promoteParlorToCampaign%"
       }
     ],
     "configuration": {

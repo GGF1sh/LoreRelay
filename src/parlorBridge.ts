@@ -1,14 +1,17 @@
 import * as vscode from 'vscode';
-import { t } from './i18n';
+import { t, getConfiguredLocale } from './i18n';
 import { getActiveCharacterId, getActiveCharacterProfile, getCharacters } from './characterManager';
+import { getGameEntryHistory } from './gameStateSync';
 import { isValidCharacterId } from './characterId';
 import { loadExperienceConfig, saveExperienceConfig, isParlorMode } from './experience';
 import {
     appendAndSaveParlorMessage,
     getOrCreateParlorSession,
     loadParlorSession,
+    saveParlorSession,
 } from './parlorSession';
 import { parlorMessagesToChatEntries } from './parlorSessionCore';
+import { mapCampaignEntriesToParlorMessages, mergeImportedParlorMessages } from './parlorDemoteCore';
 import { buildParlorUserPrompt } from './parlorPromptBuilder';
 import { sanitizeParlorAssistantReply } from './parlorPromptBuilderCore';
 import {
@@ -145,7 +148,56 @@ async function invokeParlorByProfile(prompt: string, profile: ConnectionProfile)
     return { ok: false, text: '' };
 }
 
-export async function startParlorMode(characterId?: string): Promise<boolean> {
+export async function demoteToParlorMode(
+    characterId?: string,
+    importHistory = false
+): Promise<boolean> {
+    const experience = loadExperienceConfig();
+    saveExperienceConfig({
+        profile: 'parlor',
+        campaign: { frozenAt: experience.campaign?.frozenAt || new Date().toISOString() },
+    });
+
+    const ok = await startParlorMode(characterId, { skipProfileSave: true });
+    if (!ok) {
+        saveExperienceConfig({ profile: 'campaign', campaign: experience.campaign });
+        return false;
+    }
+
+    if (!importHistory) {
+        return true;
+    }
+
+    const activeId = characterId || getActiveCharacterId();
+    const character = getCharacters().find((c) => c.id === activeId) || getActiveCharacterProfile();
+    if (!character || !activeId) {
+        return ok;
+    }
+
+    const entries = getGameEntryHistory();
+    if (entries.length === 0) {
+        return ok;
+    }
+
+    const imported = mapCampaignEntriesToParlorMessages(entries, {
+        maxMessages: 40,
+        characterId: activeId,
+    });
+    let session = loadParlorSession(activeId) || getOrCreateParlorSession(activeId);
+    session = {
+        ...session,
+        messages: mergeImportedParlorMessages(session.messages, imported),
+        updatedAt: new Date().toISOString(),
+    };
+    saveParlorSession(session, character.name, getConfiguredLocale());
+    sendParlorSessionToWebview();
+    return true;
+}
+
+export async function startParlorMode(
+    characterId?: string,
+    opts?: { skipProfileSave?: boolean }
+): Promise<boolean> {
     const chars = getCharacters();
     let activeId = characterId && isValidCharacterId(characterId) ? characterId : getActiveCharacterId();
     if (!activeId && chars.length === 1) {
@@ -156,11 +208,17 @@ export async function startParlorMode(characterId?: string): Promise<boolean> {
         return false;
     }
     const conn = loadConnectionProfiles();
-    saveExperienceConfig({
-        profile: 'parlor',
-        activeCharacterId: activeId,
-        connectionProfileId: conn.activeId,
-    });
+    if (!opts?.skipProfileSave) {
+        const experience = loadExperienceConfig();
+        saveExperienceConfig({
+            profile: 'parlor',
+            activeCharacterId: activeId,
+            connectionProfileId: conn.activeId,
+            campaign: { frozenAt: experience.campaign?.frozenAt || new Date().toISOString() },
+        });
+    } else {
+        saveExperienceConfig({ activeCharacterId: activeId, connectionProfileId: conn.activeId });
+    }
     const character = chars.find((c) => c.id === activeId) || getActiveCharacterProfile();
     let session = loadParlorSession(activeId) || getOrCreateParlorSession(activeId);
     const firstMes = character?.stSource?.first_mes?.trim();
@@ -169,7 +227,7 @@ export async function startParlorMode(characterId?: string): Promise<boolean> {
             role: 'assistant',
             content: firstMes,
             characterId: activeId,
-        });
+        }, character?.name || 'Character', getConfiguredLocale());
     }
     sendExperienceProfileToWebview();
     sendParlorSessionToWebview();
@@ -235,7 +293,7 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         session = appendAndSaveParlorMessage(session, {
             role: 'user',
             content: text,
-        });
+        }, character.name, getConfiguredLocale());
         sendParlorSessionToWebview();
 
         const prompt = buildParlorUserPrompt(character, session, text);
@@ -252,7 +310,7 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
                 characterId,
                 provider: connProfile.provider,
                 model: result.model,
-            });
+            }, character.name, getConfiguredLocale());
             sendParlorSessionToWebview();
         }
     } finally {

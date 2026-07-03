@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-07-03
+
+### Added
+
+- **Parlor Mode Phase C — 移行**
+  - `parlorPromoteCore` + 昇格ウィザード（`LoreRelay: Promote Parlor to Campaign`、🎛️ パネル）
+  - Campaign → Parlor 降格 + 任意の履歴インポート（`campaign.frozenAt`）
+  - `parlor_archive.ndjson` 自動アーカイブ + セッション `summary` 更新
+  - `experience.json` `lastParlorSnapshot`（昇格ロールバック用メタデータ）
+  - Core: `parlorPromoteCore` · `parlorArchiveCore` · `parlorDemoteCore`
+
 ### Fixed
 
 - **Parlor（Gemini レビュー follow-up #2）** — `promptContext.effectivePromptCharBudget` で 8% + 固定マージン、`clampDelimitedContext` を行単位ドロップに変更、Parlor `vscode-lm` で早期 `gmStart` / 全 early-return で `gmEnd`、ローディング中 `parlor-settings-btn` 無効化。
@@ -16,6 +27,10 @@
 ### Docs
 
 - `docs/PARLOR_MODE_GEMINI_CODE_REVIEW.md` — 改定基準の P0–P3 網羅 triage
+
+### Verification
+
+- `npm test` **90/90**（+3 Phase C core tests）
 
 ## [1.35.0] - 2026-07-03
 

@@ -13,6 +13,12 @@ export interface ExperienceCampaignOptions {
     frozenAt?: string | null;
 }
 
+export interface ExperienceParlorSnapshot {
+    promotedAt: string;
+    parlorSessionPath?: string;
+    characterId?: string;
+}
+
 export interface ExperienceConfig {
     version: 1;
     profile: ExperienceProfile;
@@ -20,6 +26,8 @@ export interface ExperienceConfig {
     activeCharacterId?: string;
     parlor?: ExperienceParlorOptions;
     campaign?: ExperienceCampaignOptions;
+    /** Set after Parlor → Campaign promote for optional rollback (Phase C). */
+    lastParlorSnapshot?: ExperienceParlorSnapshot;
 }
 
 export const EXPERIENCE_CONFIG_VERSION = 1 as const;
@@ -71,6 +79,19 @@ export function parseExperienceConfig(raw: unknown): ExperienceConfig {
             out.campaign.frozenAt = null;
         } else if (typeof c.frozenAt === 'string' && c.frozenAt.length <= 40) {
             out.campaign.frozenAt = c.frozenAt;
+        }
+    }
+    if (o.lastParlorSnapshot && typeof o.lastParlorSnapshot === 'object') {
+        const s = o.lastParlorSnapshot as Record<string, unknown>;
+        if (typeof s.promotedAt === 'string' && s.promotedAt.length <= 40) {
+            const snap: ExperienceParlorSnapshot = { promotedAt: s.promotedAt };
+            if (typeof s.parlorSessionPath === 'string' && s.parlorSessionPath.length <= 120) {
+                snap.parlorSessionPath = s.parlorSessionPath;
+            }
+            if (typeof s.characterId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(s.characterId)) {
+                snap.characterId = s.characterId;
+            }
+            out.lastParlorSnapshot = snap;
         }
     }
     return out;

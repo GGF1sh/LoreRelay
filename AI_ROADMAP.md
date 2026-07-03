@@ -269,11 +269,11 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 - [x] `TextAdventureGMSkill/PARLOR_SKILL.md`
 - [x] `persona.json` · 背景ギャラリー
 
-### Phase C — 移行
+### Phase C — 移行（v1.36.0）
 
-- [ ] `parlorPromoteCore`（Parlor → Campaign 昇格ウィザード）
-- [ ] Campaign → Parlor 降格 + history インポート
-- [ ] `parlor_archive.ndjson` · 長期 summary
+- [x] `parlorPromoteCore`（Parlor → Campaign 昇格ウィザード）
+- [x] Campaign → Parlor 降格 + history インポート
+- [x] `parlor_archive.ndjson` · 長期 summary
 
 ### AI 分担（2026-07-03）
 

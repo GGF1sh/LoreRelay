@@ -86,7 +86,6 @@ import {
     initParlorBridge,
     handleParlorPlayerInput,
     startParlorMode,
-    switchToCampaignMode,
     sendParlorSessionToWebview,
     sendExperienceProfileToWebview,
     sendParlorSettingsToWebview,
@@ -94,6 +93,7 @@ import {
     handleSaveParlorPersona,
     handleSetParlorBackground,
 } from './parlorBridge';
+import { promoteParlorToCampaign, demoteCampaignToParlorWithPrompt } from './parlorPromote';
 import {
     initTtsBridgeRunner,
     handleRequestNpcTts,
@@ -435,6 +435,14 @@ export function activate(context: vscode.ExtensionContext) {
         void handleExportReplay({});
     });
 
+    const promoteParlorCmd = vscode.commands.registerCommand('textadventure.promoteParlorToCampaign', () => {
+        void promoteParlorToCampaign().then((result) => {
+            if (result.ok) {
+                void sendUiState(0, true);
+            }
+        });
+    });
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -478,7 +486,8 @@ export function activate(context: vscode.ExtensionContext) {
         generateWorldForgeCmd,
         generateWorldMapImageCmd,
         resetProtagonistBootstrapCmd,
-        exportReplayCmd
+        exportReplayCmd,
+        promoteParlorCmd
     );
 
     context.subscriptions.push(
@@ -1307,10 +1316,21 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         },
         handleSwitchExperienceProfile: async (profile: unknown) => {
             if (profile === 'campaign') {
-                await switchToCampaignMode();
-                await sendUiState(0, true);
+                const result = await promoteParlorToCampaign();
+                if (result.ok) {
+                    await sendUiState(0, true);
+                }
             } else if (profile === 'parlor') {
-                await startParlorMode();
+                const ok = await demoteCampaignToParlorWithPrompt();
+                if (ok) {
+                    await sendUiState(0, true);
+                }
+            }
+        },
+        handlePromoteParlor: async () => {
+            const result = await promoteParlorToCampaign();
+            if (result.ok) {
+                await sendUiState(0, true);
             }
         },
         sendParlorSettingsToWebview,

@@ -1,8 +1,12 @@
-// Guild Master G1–G2: host bridge — prompt injection + webview payload.
+// Guild Master G1–G3: host bridge — prompt injection + webview payload.
 
 import { loadGameRules } from './gameRules';
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
-import { buildRequestBoardPromptLines, resolveFocusRequestId } from './guildPromptCore';
+import {
+    buildRequestBoardPromptLines,
+    buildGuildQuestPromptLines,
+    resolveFocusRequestId,
+} from './guildPromptCore';
 import {
     getRequest,
     MAX_GUILD_REQUEST_QUEUE,
@@ -29,21 +33,30 @@ export function buildGuildPromptContext(
     playerAction?: string
 ): string {
     const rules = loadGameRules();
-    if (!guildModeEnabled(rules) || rules.enableGuildRequests !== true) {
+    if (!guildModeEnabled(rules)) {
         return '';
     }
 
     const guild = gameState ? readGuildFromState(gameState) : undefined;
-    if (!guild || !guild.enabled || !guild.pendingRequests?.length) {
+    if (!guild || !guild.enabled) {
         return '';
     }
 
-    const focusRequestId = resolveFocusRequestId(guild, playerAction);
-    const lines = buildRequestBoardPromptLines(guild, focusRequestId);
-    return lines.length > 0 ? lines.join('\n') : '';
+    const lines: string[] = [];
+
+    if (rules.enableGuildRequests === true && guild.pendingRequests?.length) {
+        const focusRequestId = resolveFocusRequestId(guild, playerAction);
+        lines.push(...buildRequestBoardPromptLines(guild, focusRequestId));
+    }
+
+    if (rules.enableGuildParties === true) {
+        lines.push(...buildGuildQuestPromptLines(guild));
+    }
+
+    return lines.filter(Boolean).join('\n\n');
 }
 
-/** FoW-safe subset for World tab (G1 stats/roster; G2 request board when enabled). */
+/** FoW-safe subset for World tab (G1 stats/roster; G2 board; G3 quests when enabled). */
 export function pickGuildForWebview(guild: GuildState | undefined): Record<string, unknown> | undefined {
     if (!guild || !guild.enabled) { return undefined; }
 
@@ -87,6 +100,9 @@ export function pickGuildForWebview(guild: GuildState | undefined): Record<strin
             status: q.status,
             difficulty: q.difficulty,
             rewardCoffers: q.rewardCoffers,
+            partyNpcIds: q.partyNpcIds,
+            weeksRemaining: q.weeksRemaining,
         })),
+        lastQuestReports: guild.lastQuestReports?.slice(0, 3) ?? [],
     };
 }

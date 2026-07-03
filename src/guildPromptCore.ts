@@ -1,6 +1,10 @@
 // Guild G2: GM prompt lines — bulk board / parley tier (no vscode/fs).
 
-import type { GuildState } from './guildCore';
+import type { GuildQuest, GuildState } from './guildCore';
+import {
+    buildActiveQuestPromptLine,
+    GUILD_QUEST_OPS_PROMPT_LINE,
+} from './guildQuestCore';
 import {
     getRequest,
     type GuildRequestId,
@@ -14,7 +18,7 @@ const RULING_IDS: readonly RequestRulingId[] = ['accept', 'decline', 'negotiate'
 export const GUILD_BOARD_OPS_PROMPT_LINE =
     'Rule each request via turn_result.guildOps: '
     + '{ kind: "resolve_request", requestId: "<id>", rulingId: "accept"|"decline"|"negotiate" }. '
-    + 'Then dispatch via { kind: "assign_party", quest: { questId, npcIds: [...], weeks: 1-3 } } (G3+). '
+    + 'Then dispatch via { kind: "assign_party", quest: { questId, npcIds: [...], weeks: 1-3 } }. '
     + 'Core applies rewards and outcomes; narrate the client and the adventurers only. '
     + 'Do not invent coffers, renown, or quest results — Core is canonical.';
 
@@ -84,5 +88,26 @@ export function buildRequestBoardPromptLines(
     }
     lines.push(GUILD_BOARD_OPS_PROMPT_LINE);
     lines.push('Play each client in character; do not invent coffers or renown numbers.');
+    return lines;
+}
+
+export function buildGuildQuestPromptLines(guild: GuildState): string[] {
+    const lines: string[] = [];
+    const quests = guild.quests ?? [];
+    const activeLine = buildActiveQuestPromptLine(quests);
+    if (activeLine) {
+        lines.push(activeLine);
+    }
+    if (guild.lastQuestReports && guild.lastQuestReports.length > 0) {
+        lines.push(['[Guild — Quests Returned]', ...guild.lastQuestReports].join('\n'));
+    }
+    const accepted = quests.filter((q) => q.status === 'accepted');
+    if (accepted.length > 0) {
+        const pending = accepted
+            .map((q: GuildQuest) => `${q.id} (${q.questKind}, reward ${q.rewardCoffers})`)
+            .join('; ');
+        lines.push(`[Guild — Accepted] Awaiting dispatch: ${pending}.`);
+        lines.push(GUILD_QUEST_OPS_PROMPT_LINE);
+    }
     return lines;
 }

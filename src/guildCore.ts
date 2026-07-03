@@ -1,4 +1,4 @@
-// Guild Master G1–G2: quest-board role layer — weekly stats/events + request board (no vscode/fs).
+// Guild Master G1–G3: quest-board role layer — weekly stats/events + requests + parties (no vscode/fs).
 
 import { CHARACTER_ID_PATTERN } from './characterId';
 import {
@@ -13,6 +13,13 @@ import {
     formatRequestChronicleText,
     type QuestKind,
 } from './guildRequestCore';
+import {
+    assignParty,
+    advanceActiveQuests,
+    adventurersOnActiveQuests,
+    clampQuestWeeks,
+    DEFAULT_ADVENTURER_SKILL,
+} from './guildQuestCore';
 
 export const MAX_GUILD_ADVENTURERS = 5;
 export const MAX_GUILD_ACTIONS_PER_WEEK = 4;
@@ -42,7 +49,8 @@ export type GuildOpsKind =
     | 'weekly_commit'
     | 'recruit_adventurer'
     | 'dismiss_adventurer'
-    | 'resolve_request';
+    | 'resolve_request'
+    | 'assign_party';
 export type GuildSeason = 'spring' | 'summer' | 'autumn' | 'winter';
 
 export interface GuildQuest {
@@ -84,6 +92,8 @@ export interface GuildState {
     pendingRequests?: string[];
     /** Accepted or active quests (G2 accept / G3 assign). */
     quests?: GuildQuest[];
+    /** Transient return reports from the latest weekly commit (G3). */
+    lastQuestReports?: string[];
     pendingEvents: string[];
     flags: Record<string, boolean>;
 }
@@ -94,6 +104,10 @@ export interface GuildConfig {
     maxActiveQuests: number;
     /** G2: open_board generates request queue + board prompts. */
     requestsEnabled?: boolean;
+    /** G3: assign_party + quest tick on weekly commit. */
+    partiesEnabled?: boolean;
+    /** G3: npcId → playerTrust for quest risk resolution (default 50). */
+    adventurerBondMap?: Record<string, number>;
 }
 
 export interface GuildOps {
@@ -102,6 +116,8 @@ export interface GuildOps {
     adventurer?: { npcId: string; klass: AdventurerClass; skill?: number };
     requestId?: string;
     rulingId?: 'accept' | 'decline' | 'negotiate';
+    /** G3 assign_party: dispatch roster on an accepted quest. */
+    quest?: { questId: string; npcIds: string[]; weeks?: number };
 }
 
 export interface RequestRulingResult {
@@ -257,7 +273,11 @@ export function normalizeGuildConfig(raw?: Partial<GuildConfig>): GuildConfig {
         ? Math.max(1, Math.min(MAX_ACTIVE_QUESTS, Math.floor(raw.maxActiveQuests)))
         : DEFAULT_MAX_ACTIVE_QUESTS;
     const requestsEnabled = raw?.requestsEnabled === true;
-    return { weeklyActions, boardSize, maxActiveQuests, requestsEnabled };
+    const partiesEnabled = raw?.partiesEnabled === true;
+    const adventurerBondMap = raw?.adventurerBondMap && typeof raw.adventurerBondMap === 'object'
+        ? raw.adventurerBondMap
+        : undefined;
+    return { weeklyActions, boardSize, maxActiveQuests, requestsEnabled, partiesEnabled, adventurerBondMap };
 }
 
 export function defaultGuildState(hallLocationId: string, config?: Partial<GuildConfig>): GuildState {
@@ -338,6 +358,16 @@ export function validateGuild(raw: unknown): GuildState | undefined {
         }
     }
 
+    const lastQuestReports: string[] = [];
+    if (Array.isArray(doc.lastQuestReports)) {
+        for (const item of doc.lastQuestReports.slice(0, 4)) {
+            if (typeof item === 'string') {
+                const line = item.replace(/[\r\n\t\x00-\x1f]/g, ' ').trim().slice(0, 240);
+                if (line) { lastQuestReports.push(line); }
+            }
+        }
+    }
+
     const flags: Record<string, boolean> = {};
     if (doc.flags && typeof doc.flags === 'object' && !Array.isArray(doc.flags)) {
         for (const [key, val] of Object.entries(doc.flags as Record<string, unknown>).slice(0, 32)) {
@@ -387,6 +417,7 @@ export function validateGuild(raw: unknown): GuildState | undefined {
         adventurers,
         pendingRequests: pendingRequests.length > 0 ? pendingRequests : undefined,
         quests: quests.length > 0 ? quests : undefined,
+        lastQuestReports: lastQuestReports.length > 0 ? lastQuestReports : undefined,
         pendingEvents,
         flags,
     };
@@ -432,11 +463,34 @@ export function parseGuildOps(raw: unknown): GuildOps | undefined {
         && kind !== 'recruit_adventurer'
         && kind !== 'dismiss_adventurer'
         && kind !== 'resolve_request'
+        && kind !== 'assign_party'
     ) {
         return undefined;
     }
 
     const ops: GuildOps = { kind };
+
+    if (kind === 'assign_party') {
+        const questRaw = doc.quest;
+        if (!questRaw || typeof questRaw !== 'object') { return undefined; }
+        const q = questRaw as Record<string, unknown>;
+        const questId = typeof q.questId === 'string' ? q.questId.trim() : '';
+        if (!questId || !CHARACTER_ID_PATTERN.test(questId)) { return undefined; }
+        if (!Array.isArray(q.npcIds) || q.npcIds.length === 0 || q.npcIds.length > MAX_GUILD_ADVENTURERS) {
+            return undefined;
+        }
+        const npcIds = q.npcIds
+            .filter((n): n is string => typeof n === 'string' && CHARACTER_ID_PATTERN.test(n.trim()))
+            .map((n) => n.trim())
+            .slice(0, 3);
+        if (npcIds.length === 0 || npcIds.length > 3) { return undefined; }
+        ops.quest = {
+            questId,
+            npcIds,
+            weeks: q.weeks !== undefined ? clampQuestWeeks(q.weeks) : undefined,
+        };
+        return ops;
+    }
 
     if (kind === 'resolve_request') {
         const requestId = typeof doc.requestId === 'string' ? doc.requestId.trim() : '';
@@ -676,11 +730,24 @@ export function rollGuildEvent(
     return weights[weights.length - 1].id;
 }
 
+function buildAdventurerSkillMap(guild: GuildState): Record<string, number> {
+    const map: Record<string, number> = {};
+    for (const a of guild.adventurers) {
+        map[a.npcId] = typeof a.skill === 'number' ? clampGuildStat(a.skill) : DEFAULT_ADVENTURER_SKILL;
+    }
+    return map;
+}
+
 export function buildGuildCounterLines(guild: GuildState): string[] {
     if (guild.adventurers.length === 0) {
         return ['[Guild — Counter] The hall is quiet — no adventurers on the roster yet.'];
     }
-    const roster = guild.adventurers
+    const away = adventurersOnActiveQuests(guild.quests ?? []);
+    const present = guild.adventurers.filter((a) => !away.has(a.npcId));
+    if (present.length === 0) {
+        return ['[Guild — Counter] The hall is empty — all adventurers are away on quests.'];
+    }
+    const roster = present
         .map((a) => `${a.npcId} (${a.klass})`)
         .join(', ');
     return [`[Guild — Counter] Adventurers present: ${roster}.`];
@@ -727,6 +794,20 @@ export function applyWeeklyCommit(
     if (config.requestsEnabled && actions.includes('open_board')) {
         const queue = buildRequestQueue(next, worldTurnSeed, config.boardSize);
         next = { ...next, pendingRequests: queue.map((r) => r.id) };
+    }
+
+    if (config.partiesEnabled) {
+        const skillMap = buildAdventurerSkillMap(next);
+        const bondMap = config.adventurerBondMap ?? {};
+        const questAdvance = advanceActiveQuests(next, skillMap, bondMap, worldTurnSeed);
+        for (const delta of questAdvance.outcomeDeltas) {
+            next = applyDelta(next, delta);
+        }
+        next = {
+            ...next,
+            quests: questAdvance.quests,
+            lastQuestReports: questAdvance.lastQuestReports,
+        };
     }
 
     const counterLines = buildGuildCounterLines(next);
@@ -808,6 +889,20 @@ export function applyGuildOps(
     config: GuildConfig,
     worldTurnSeed = 0
 ): { guild: GuildState; weekly?: WeeklyCommitResult; request?: RequestRulingResult } {
+    if (ops.kind === 'assign_party' && ops.quest) {
+        if (!config.partiesEnabled) {
+            return { guild };
+        }
+        return {
+            guild: assignParty(
+                guild,
+                ops.quest.questId,
+                ops.quest.npcIds,
+                config.maxActiveQuests,
+                ops.quest.weeks
+            ),
+        };
+    }
     if (ops.kind === 'resolve_request' && ops.requestId && ops.rulingId) {
         if (!config.requestsEnabled) {
             return { guild };

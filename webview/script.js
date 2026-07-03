@@ -3467,6 +3467,7 @@ window.addEventListener('message', (event) => {
         enableMassBattle: document.getElementById('gr-mass-battle'),
         enableGuildMode: document.getElementById('gr-guild-mode'),
         enableGuildRequests: document.getElementById('gr-guild-requests'),
+        enableGuildParties: document.getElementById('gr-guild-parties'),
         enableNpcRelationships: document.getElementById('gr-npc-relationships'),
         enableTravelEncounters: document.getElementById('gr-travel-encounters'),
         travelEncounterDensity: document.getElementById('gr-travel-density'),
@@ -3523,6 +3524,7 @@ window.addEventListener('message', (event) => {
             enableMassBattle: inputs.enableMassBattle ? inputs.enableMassBattle.checked : false,
             enableGuildMode: inputs.enableGuildMode ? inputs.enableGuildMode.checked : false,
             enableGuildRequests: inputs.enableGuildRequests ? inputs.enableGuildRequests.checked : false,
+            enableGuildParties: inputs.enableGuildParties ? inputs.enableGuildParties.checked : false,
             enableNpcRelationships: inputs.enableNpcRelationships ? inputs.enableNpcRelationships.checked : false,
             enableTravelEncounters: inputs.enableTravelEncounters ? inputs.enableTravelEncounters.checked : false,
             travelEncounterDensity: inputs.travelEncounterDensity ? inputs.travelEncounterDensity.value : 'medium',
@@ -3570,6 +3572,7 @@ window.addEventListener('message', (event) => {
             if (rules.enableMassBattle !== undefined && inputs.enableMassBattle) inputs.enableMassBattle.checked = rules.enableMassBattle;
             if (rules.enableGuildMode !== undefined && inputs.enableGuildMode) inputs.enableGuildMode.checked = rules.enableGuildMode;
             if (rules.enableGuildRequests !== undefined && inputs.enableGuildRequests) inputs.enableGuildRequests.checked = rules.enableGuildRequests;
+            if (rules.enableGuildParties !== undefined && inputs.enableGuildParties) inputs.enableGuildParties.checked = rules.enableGuildParties;
             if (rules.enableNpcRelationships !== undefined && inputs.enableNpcRelationships) inputs.enableNpcRelationships.checked = rules.enableNpcRelationships;
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
@@ -5863,6 +5866,26 @@ function ensureGuildStyles() {
         }
         .guild-request-summary { font-size: 0.88em; margin-bottom: 0.3rem; }
         .guild-request-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+        .guild-quests-section { margin-top: 0.5rem; }
+        .guild-quest-card {
+            padding: 0.45rem 0.5rem;
+            margin-bottom: 0.35rem;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.02);
+        }
+        .guild-quest-summary { font-size: 0.88em; margin-bottom: 0.3rem; }
+        .guild-quest-active-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-size: 0.85em;
+            padding: 0.2rem 0;
+        }
+        .guild-party-form { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-top: 0.25rem; }
+        .guild-party-checks { display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.85em; }
+        .guild-party-check { display: flex; align-items: center; gap: 0.2rem; }
+        .guild-quest-reports { font-size: 0.82em; opacity: 0.85; margin-top: 0.25rem; }
         .guild-adventurer-chip {
             font-size: 0.8em;
             padding: 0.14rem 0.45rem;
@@ -7613,6 +7636,141 @@ function renderGuildPanel(msg) {
     if (msg.enableGuildRequests === true && Array.isArray(guild.pendingRequests) && guild.pendingRequests.length > 0) {
         panel.appendChild(buildGuildBoardSection(guild));
     }
+
+    if (msg.enableGuildParties === true && Array.isArray(guild.quests) && guild.quests.length > 0) {
+        panel.appendChild(buildGuildQuestsSection(guild));
+    } else if (msg.enableGuildParties === true && Array.isArray(guild.lastQuestReports) && guild.lastQuestReports.length > 0) {
+        panel.appendChild(buildGuildQuestReportsOnly(guild));
+    }
+}
+
+function buildGuildQuestReportsOnly(guild) {
+    const el = document.createElement('div');
+    el.className = 'guild-quests-section';
+    const heading = document.createElement('div');
+    heading.className = 'guild-section-heading';
+    heading.textContent = T('webview.world.guildQuestsTitle');
+    el.appendChild(heading);
+    const reports = document.createElement('div');
+    reports.className = 'guild-quest-reports';
+    reports.innerHTML = guild.lastQuestReports.map((r) => `<p>${escapeHtml(r)}</p>`).join('');
+    el.appendChild(reports);
+    return el;
+}
+
+function buildGuildQuestsSection(guild) {
+    const el = document.createElement('div');
+    el.className = 'guild-quests-section';
+    const heading = document.createElement('div');
+    heading.className = 'guild-section-heading';
+    heading.textContent = T('webview.world.guildQuestsTitle');
+    el.appendChild(heading);
+
+    const active = (guild.quests || []).filter((q) => q.status === 'active');
+    if (active.length > 0) {
+        const list = document.createElement('div');
+        list.innerHTML = active.map((q) => `
+            <div class="guild-quest-active-row">
+                <span>${escapeHtml(q.id)} · ${escapeHtml(guildT('QuestKind', q.questKind))}</span>
+                <span>${escapeHtml(T('webview.world.guildQuestWeeksLeft', { n: q.weeksRemaining ?? 0 }))}</span>
+            </div>
+        `).join('');
+        el.appendChild(list);
+    }
+
+    const reports = guild.lastQuestReports || [];
+    if (reports.length > 0) {
+        const reportsWrap = document.createElement('div');
+        reportsWrap.className = 'guild-quest-reports';
+        reportsWrap.innerHTML = reports.map((r) => `<p>${escapeHtml(r)}</p>`).join('');
+        el.appendChild(reportsWrap);
+    }
+
+    const awayIds = new Set(active.flatMap((q) => q.partyNpcIds || []));
+    const accepted = (guild.quests || []).filter((q) => q.status === 'accepted');
+    accepted.forEach((quest) => {
+        el.appendChild(buildGuildAssignForm(quest, guild.adventurers || [], awayIds));
+    });
+
+    return el;
+}
+
+function buildGuildAssignForm(quest, adventurers, awayIds) {
+    const card = document.createElement('div');
+    card.className = 'guild-quest-card';
+    card.innerHTML = `
+        <div class="guild-quest-summary">
+            <strong>${escapeHtml(quest.id)}</strong> — ${escapeHtml(guildT('QuestKind', quest.questKind))}
+            (${escapeHtml(T('webview.world.guildQuestReward', { n: quest.rewardCoffers ?? 0 }))})
+        </div>
+    `;
+
+    const available = adventurers.filter((a) => !awayIds.has(a.npcId));
+    if (available.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-text';
+        empty.textContent = T('webview.world.guildNoAdventurersAvailable');
+        card.appendChild(empty);
+        return card;
+    }
+
+    const form = document.createElement('div');
+    form.className = 'guild-party-form';
+
+    const checks = document.createElement('div');
+    checks.className = 'guild-party-checks';
+    const selected = new Set();
+    available.forEach((a) => {
+        const label = document.createElement('label');
+        label.className = 'guild-party-check';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = a.npcId;
+        cb.addEventListener('change', () => {
+            if (cb.checked) {
+                if (selected.size >= 3) {
+                    cb.checked = false;
+                    return;
+                }
+                selected.add(a.npcId);
+            } else {
+                selected.delete(a.npcId);
+            }
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(`${a.npcId} (${guildT('Class', a.klass)})`));
+        checks.appendChild(label);
+    });
+
+    const weeksSelect = document.createElement('select');
+    weeksSelect.className = 'guild-party-weeks';
+    weeksSelect.setAttribute('aria-label', T('webview.world.guildQuestWeeks'));
+    [1, 2, 3].forEach((n) => {
+        const opt = document.createElement('option');
+        opt.value = String(n);
+        opt.textContent = T('webview.world.guildQuestWeeksLeft', { n });
+        weeksSelect.appendChild(opt);
+    });
+
+    const dispatchBtn = document.createElement('button');
+    dispatchBtn.type = 'button';
+    dispatchBtn.className = 'small-btn';
+    dispatchBtn.textContent = T('webview.world.guildAssignBtn');
+    dispatchBtn.addEventListener('click', () => {
+        const npcIds = [...selected];
+        if (npcIds.length === 0) { return; }
+        postWorldInsertChatText(T('webview.world.guildAssignInsertText', {
+            questId: quest.id,
+            npcIds: npcIds.join(', '),
+            weeks: weeksSelect.value,
+        }));
+    });
+
+    form.appendChild(checks);
+    form.appendChild(weeksSelect);
+    form.appendChild(dispatchBtn);
+    card.appendChild(form);
+    return card;
 }
 
 function buildGuildBoardSection(guild) {

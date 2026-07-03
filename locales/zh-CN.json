@@ -907,6 +907,8 @@
   "webview.gameRules.guildMode": "启用公会大师模式（F11）",
   "webview.gameRules.guildRequests": "启用委托公告板（G2）",
   "webview.gameRules.tipGuildRequests": "委托人出现在公告板上；在对话中通过 resolve_request 裁定（需公会模式；默认关闭）",
+  "webview.gameRules.guildParties": "启用队伍派遣（G3）",
+  "webview.gameRules.tipGuildParties": "为已接受任务指派冒险者队伍；返回时由 Core 判定结果（需公会模式；默认关闭）",
   "webview.gameRules.tipGuildMode": "冒险者公会/任务公告板角色层（周次提交，G1为只读面板，默认关闭）",
   "webview.world.guildTitle": "⚔️ 公会",
   "webview.world.guildWeekYear": "第{year}年 · 第{week}周",
@@ -934,5 +936,17 @@
   "webview.world.guildRulingInsertText": "关于委托 {requestId}（{client}，{summary}）：我选择{ruling}。",
   "webview.world.guildRuling.accept": "接受",
   "webview.world.guildRuling.decline": "拒绝",
-  "webview.world.guildRuling.negotiate": "交涉"
+  "webview.world.guildRuling.negotiate": "交涉",
+  "webview.world.guildQuestsTitle": "任务 — 派遣",
+  "webview.world.guildQuestWeeksLeft": "剩余{n}周",
+  "webview.world.guildQuestWeeks": "持续时间（周）",
+  "webview.world.guildQuestReward": "报酬: 金库{n}",
+  "webview.world.guildAssignBtn": "派遣队伍",
+  "webview.world.guildAssignInsertText": "向任务 {questId} 派遣 {npcIds}，为期 {weeks} 周。",
+  "webview.world.guildNoAdventurersAvailable": "没有可派遣的冒险者。",
+  "webview.world.guildQuestKind.hunt": "狩猎",
+  "webview.world.guildQuestKind.escort": "护卫",
+  "webview.world.guildQuestKind.recover": "回收",
+  "webview.world.guildQuestKind.investigate": "调查",
+  "webview.world.guildQuestKind.clear": "清剿"
 }

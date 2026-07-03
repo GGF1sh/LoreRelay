@@ -42,6 +42,12 @@ export function applyGuildOpsToGameState(
         }
     }
 
+    if (ops.kind === 'assign_party' && ops.quest && registryNpcIds) {
+        if (!ops.quest.npcIds.every((id) => registryNpcIds.has(id))) {
+            return gameState;
+        }
+    }
+
     const normalized = normalizeGuildConfig(config);
     const { guild } = applyGuildOps(existing, ops, normalized, worldTurnSeed);
 

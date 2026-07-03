@@ -5,6 +5,7 @@ import type { GameState } from './types/GameState';
 import { loadGameRules } from './gameRules';
 import { loadWorldState } from './worldState';
 import { loadNpcRegistry } from './npcRegistry';
+import { buildOfficerTrustMap } from './domainOfficerBondCore';
 import {
     applyGuildOpsToGameState,
     readGuildFromState,
@@ -34,6 +35,10 @@ export function applyGuildTurnOps(
         ? new Set(Object.keys(registry.npcs))
         : undefined;
 
+    const adventurerBondMap = rules.enableGuildParties === true && registry
+        ? buildOfficerTrustMap(registry.npcs)
+        : undefined;
+
     const next = applyGuildOpsToGameState(
         turnResult,
         gameState as unknown as Record<string, unknown>,
@@ -43,6 +48,8 @@ export function applyGuildTurnOps(
             boardSize: rules.guildBoardSize,
             maxActiveQuests: rules.guildMaxActiveQuests,
             requestsEnabled: rules.enableGuildRequests === true,
+            partiesEnabled: rules.enableGuildParties === true,
+            adventurerBondMap,
         },
         worldTurnSeed,
         registryNpcIds

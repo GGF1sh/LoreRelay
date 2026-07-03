@@ -124,11 +124,13 @@ export interface TurnResult {
     };
     /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
-        kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request';
+        kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request' | 'assign_party';
         actions?: string[];
         adventurer?: { npcId: string; klass: string; skill?: number };
         /** §G2 resolve_request: which open request and how it was ruled. */
         requestId?: string;
         rulingId?: 'accept' | 'decline' | 'negotiate';
+        /** §G3 assign_party: dispatch roster on an accepted quest. */
+        quest?: { questId: string; npcIds: string[]; weeks?: number };
     };
 }

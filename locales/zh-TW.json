@@ -907,6 +907,8 @@
   "webview.gameRules.guildMode": "啟用公會大師模式（F11）",
   "webview.gameRules.guildRequests": "啟用委託公告板（G2）",
   "webview.gameRules.tipGuildRequests": "委託人出現在公告板上；在對話中透過 resolve_request 裁定（需公會模式；預設關閉）",
+  "webview.gameRules.guildParties": "啟用隊伍派遣（G3）",
+  "webview.gameRules.tipGuildParties": "為已接受任務指派冒險者隊伍；返回時由 Core 判定結果（需公會模式；預設關閉）",
   "webview.gameRules.tipGuildMode": "冒險者公會／任務公告板角色層（週次提交，G1為唯讀面板，預設關閉）",
   "webview.world.guildTitle": "⚔️ 公會",
   "webview.world.guildWeekYear": "第{year}年 · 第{week}週",
@@ -934,5 +936,17 @@
   "webview.world.guildRulingInsertText": "關於委託 {requestId}（{client}，{summary}）：我選擇{ruling}。",
   "webview.world.guildRuling.accept": "接受",
   "webview.world.guildRuling.decline": "拒絕",
-  "webview.world.guildRuling.negotiate": "交涉"
+  "webview.world.guildRuling.negotiate": "交涉",
+  "webview.world.guildQuestsTitle": "任務 — 派遣",
+  "webview.world.guildQuestWeeksLeft": "剩餘{n}週",
+  "webview.world.guildQuestWeeks": "持續時間（週）",
+  "webview.world.guildQuestReward": "報酬: 金庫{n}",
+  "webview.world.guildAssignBtn": "派遣隊伍",
+  "webview.world.guildAssignInsertText": "向任務 {questId} 派遣 {npcIds}，為期 {weeks} 週。",
+  "webview.world.guildNoAdventurersAvailable": "沒有可派遣的冒險者。",
+  "webview.world.guildQuestKind.hunt": "狩獵",
+  "webview.world.guildQuestKind.escort": "護衛",
+  "webview.world.guildQuestKind.recover": "回收",
+  "webview.world.guildQuestKind.investigate": "調查",
+  "webview.world.guildQuestKind.clear": "清剿"
 }

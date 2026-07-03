@@ -907,6 +907,8 @@
   "webview.gameRules.guildMode": "ギルドマスターモードを有効化（F11）",
   "webview.gameRules.guildRequests": "依頼掲示板を有効化（G2）",
   "webview.gameRules.tipGuildRequests": "依頼人が掲示板に並ぶ。会話で resolve_request により裁定（ギルドモード前提・既定OFF）",
+  "webview.gameRules.guildParties": "パーティ派遣を有効化（G3）",
+  "webview.gameRules.tipGuildParties": "受注クエストに冒険者パーティを派遣。帰還時にCoreが成否を決定（ギルドモード前提・既定OFF）",
   "webview.gameRules.tipGuildMode": "冒険者ギルド／クエスト掲示板ロール層（週次コミット・G1は読み取り専用パネル・既定OFF）",
   "webview.world.guildTitle": "⚔️ ギルド",
   "webview.world.guildWeekYear": "第{year}年 · 第{week}週",
@@ -934,5 +936,17 @@
   "webview.world.guildRulingInsertText": "依頼 {requestId}（{client}、{summary}）について、{ruling}とする。",
   "webview.world.guildRuling.accept": "受諾",
   "webview.world.guildRuling.decline": "謝絶",
-  "webview.world.guildRuling.negotiate": "交渉"
+  "webview.world.guildRuling.negotiate": "交渉",
+  "webview.world.guildQuestsTitle": "クエスト — 派遣",
+  "webview.world.guildQuestWeeksLeft": "残り{n}週",
+  "webview.world.guildQuestWeeks": "期間（週）",
+  "webview.world.guildQuestReward": "報酬: 金庫{n}",
+  "webview.world.guildAssignBtn": "パーティ派遣",
+  "webview.world.guildAssignInsertText": "クエスト {questId} に {npcIds} を {weeks} 週派遣する。",
+  "webview.world.guildNoAdventurersAvailable": "派遣可能な冒険者がいません。",
+  "webview.world.guildQuestKind.hunt": "討伐",
+  "webview.world.guildQuestKind.escort": "護衛",
+  "webview.world.guildQuestKind.recover": "探索回収",
+  "webview.world.guildQuestKind.investigate": "調査",
+  "webview.world.guildQuestKind.clear": "掃討"
 }

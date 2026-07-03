@@ -908,6 +908,8 @@
   "webview.gameRules.tipGuildMode": "Adventurer guild / quest board role layer (weekly commit, read-only panel in G1; default OFF)",
   "webview.gameRules.guildRequests": "Enable Request Board (G2)",
   "webview.gameRules.tipGuildRequests": "Clients crowd the quest board; rule via resolve_request in conversation (requires Guild Mode; default OFF)",
+  "webview.gameRules.guildParties": "Enable Party Dispatch (G3)",
+  "webview.gameRules.tipGuildParties": "Assign adventurer parties to accepted quests; Core resolves outcomes on return (requires Guild Mode; default OFF)",
   "webview.world.guildTitle": "⚔️ Guild",
   "webview.world.guildWeekYear": "Year {year} · Week {week}",
   "webview.world.guildCoffers": "Coffers",
@@ -934,5 +936,17 @@
   "webview.world.guildRulingInsertText": "Regarding request {requestId} from {client} ({summary}): I choose to {ruling}.",
   "webview.world.guildRuling.accept": "Accept",
   "webview.world.guildRuling.decline": "Decline",
-  "webview.world.guildRuling.negotiate": "Negotiate"
+  "webview.world.guildRuling.negotiate": "Negotiate",
+  "webview.world.guildQuestsTitle": "Quests — Parties",
+  "webview.world.guildQuestWeeksLeft": "{n} week(s) left",
+  "webview.world.guildQuestWeeks": "Duration (weeks)",
+  "webview.world.guildQuestReward": "Reward: {n} coffers",
+  "webview.world.guildAssignBtn": "Assign party",
+  "webview.world.guildAssignInsertText": "Dispatch party on quest {questId}: {npcIds} for {weeks} week(s).",
+  "webview.world.guildNoAdventurersAvailable": "No adventurers available to assign.",
+  "webview.world.guildQuestKind.hunt": "Hunt",
+  "webview.world.guildQuestKind.escort": "Escort",
+  "webview.world.guildQuestKind.recover": "Recover",
+  "webview.world.guildQuestKind.investigate": "Investigate",
+  "webview.world.guildQuestKind.clear": "Clear"
 }

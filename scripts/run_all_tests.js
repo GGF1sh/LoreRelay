@@ -101,6 +101,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_domain_officer_bond_core.js' },
     { category: 'unit', file: 'test_domain_council_core.js' },
     { category: 'unit', file: 'test_domain_audience_core.js' },
+    { category: 'unit', file: 'test_rival_lord_core.js' },
     { category: 'unit', file: 'test_domain_turn_merge_conflict.js' },
     { category: 'unit', file: 'test_connection_profile_core.js' },
     { category: 'unit', file: 'test_persona_core.js' },

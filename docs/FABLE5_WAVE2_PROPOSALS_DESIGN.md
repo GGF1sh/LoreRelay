@@ -123,12 +123,16 @@ export function tickRivalLord(rival, playerDomain, worldState, seed): RivalActio
 | `enableDomainRivals` | `false` | ライバル領主 tick（要 `enableDomainMode` + `enableEmergentSimulation` 推奨） |
 | `domainRivalCount` | `1` | 1 または 2 に clamp |
 
-### v0 スコープ
-- [ ] `rivalLordCore.ts`（導出・tick・stance 遷移・開示ゲート）+ balance harness に rival 軌道追加
-- [ ] Domain イベント重み接続（`computeDomainEventWeight` 拡張）
-- [ ] `[Domain — Rivals]` プロンプト行（**開示済み情報のみ**、compact 1 行）
-- [ ] espionage / diplomacy 行動の効果を rival に配線
-- [ ] `scripts/test_rival_lord_core.js`（tick 決定論・開示ゲート・stance 遷移）
+### v0 スコープ（**engine 部 ✅ v1.39.11** — UI は D3 待ち）
+- [x] `rivalLordCore.ts`（導出・tick・stance 遷移・開示ゲート）**✅** — balance harness への rival 軌道追加は任意（未）
+- [x] Domain イベント重み接続（`neighbor_militarize` +12 on `flags.rivalRaidPrep`）**✅**
+- [x] `[Domain — Rival]` プロンプト行（**開示済み情報のみ**、compact 1 行）**✅**
+- [x] espionage / gather_rumors / diplomacy 行動の効果を rival に配線 **✅**
+- [x] `scripts/test_rival_lord_core.js`（tick 決定論・開示ゲート・stance 遷移・raid ゲート・validate、21 assert）**✅**
+- [ ] World タブ「隣国」表示（開示情報のみ）— **D3 と同梱**
+- [ ] i18n 4 言語
+
+> **実装メモ（v1.39.11）:** v0 は**単一** rival（`domain.rival`、複数化は非スコープ）。`enableDomainRivals` ON + `domainRivalRegionId` 未指定時は World Forge の `Region.connectedTo` から自動選定（無ければ controlledRegionId 以外の最初の region）。`raid` は F10 合戦リゾルバ実装までの**暫定**解決（troops/defense比較の単純delta）— F10 出荷時に置き換え予定。
 
 ### Non-Goals
 - ライバル領地のフル Domain 化（変数は 3 つまで。**内政 AI は作らない**）

@@ -30,6 +30,7 @@ import {
 } from './domainOfficerBondCore';
 import { buildDomainLedgerPromptLine } from './domainLedgerCore';
 import { buildAudiencePromptLines, MAX_AUDIENCE_QUEUE } from './domainAudienceCore';
+import { buildRivalPromptLine } from './rivalLordCore';
 import { readDomainRegionDriftState } from './domainRegionDriftCore';
 import { domainModeEnabled, readDomainFromGameState } from './domainTurnOps';
 
@@ -116,6 +117,14 @@ export function buildDomainPromptContext(
         }
     }
 
+    // §F8: rival line only ever surfaces disclosed info (FoW parity); shown when a rival exists.
+    if (rules.enableDomainRivals === true && domain.rival) {
+        const rivalLine = buildRivalPromptLine(domain.rival);
+        if (rivalLine) {
+            lines.push(rivalLine);
+        }
+    }
+
     const ledger = buildDomainLedgerPromptLine(rules.enableCommerce === true, true);
     if (ledger && tier === 'full') {
         lines.push(ledger);
@@ -160,5 +169,13 @@ export function pickDomainForWebview(domain: DomainState | undefined): Record<st
         officers: domain.officers.map((o) => ({ npcId: o.npcId, role: o.role })),
         pendingEvents: domain.pendingEvents.slice(-5),
         pendingPetitions: domain.pendingPetitions?.slice(0, MAX_AUDIENCE_QUEUE) ?? [],
+        rival: domain.rival
+            ? {
+                regionId: domain.rival.regionId,
+                // FoW parity: webview only ever sees disclosed info, never true strength/stance.
+                disclosedStrength: domain.rival.disclosedStrength,
+                disclosedStance: domain.rival.disclosedStance,
+            }
+            : undefined,
     };
 }

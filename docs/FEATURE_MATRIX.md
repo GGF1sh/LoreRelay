@@ -30,6 +30,7 @@
 | **Player bonds / trade ripple** | with LW3 | **experimental** | v1.32–1.33 · `playerBondCore` |
 | **Domain Mode (lordship)** | OFF | **experimental** | v1.39.x · `enableDomainMode` · D3 UI 未 |
 | **Domain Audience (謁見)** | OFF | **experimental** | v1.39.10 · `enableDomainAudience` · engine のみ (UI は D3) |
+| **Domain Rivals (隣国ライバル)** | OFF | **experimental** | v1.39.11 · `enableDomainRivals` · engine のみ (UI は D3) |
 
 ## Quick demo paths
 

@@ -12,6 +12,16 @@ import {
     DEFAULT_AUDIENCE_SIZE,
 } from './domainAudienceCore';
 import type { PetitionRulingId } from './domainAudienceCore';
+import {
+    tickRivalLord,
+    resolveRivalDiplomacy,
+    discloseRivalInfo,
+    validateRivalLord,
+    deriveRivalLord,
+    RIVAL_RAID_PREP_FLAG,
+    type RivalLordState,
+    type RivalActionId,
+} from './rivalLordCore';
 
 export const MAX_DOMAIN_OFFICERS = 5;
 export const MAX_DOMAIN_ACTIONS_PER_MONTH = 4;
@@ -74,6 +84,8 @@ export interface DomainState {
     lastMonthlyActions?: DomainActionId[];
     /** §F7: petition ids currently open for judgment (opened by an `audience` action). */
     pendingPetitions?: string[];
+    /** §F8: single neighboring rival lord (v0 recommends exactly one). */
+    rival?: RivalLordState;
     flags: Record<string, boolean>;
 }
 
@@ -82,6 +94,10 @@ export interface DomainConfig {
     monthlyActions: number;
     /** §F7: petitioners surfaced when an `audience` action is committed. */
     audienceSize: number;
+    /** §F8: gate for rival lazy-init + monthly tick (host resolves from game_rules). */
+    rivalsEnabled?: boolean;
+    /** §F8: neighbor region id used to lazily create `domain.rival` on first commit. */
+    rivalRegionId?: string;
 }
 
 export interface DomainOps {
@@ -118,6 +134,8 @@ export interface MonthlyCommitResult {
     rolledEventId: string;
     chronicleText: string;
     councilLines: string[];
+    /** §F8: rival's move this month, if a rival exists (build/trade/raid_prep/envoy/raid). */
+    rivalActionId?: RivalActionId;
 }
 
 const DOMAIN_RANKS: readonly DomainRank[] = ['minor_lord', 'baron', 'count'];
@@ -262,7 +280,11 @@ export function normalizeDomainConfig(raw?: Partial<DomainConfig>): DomainConfig
     const audienceSize = typeof raw?.audienceSize === 'number' && Number.isFinite(raw.audienceSize)
         ? Math.max(1, Math.min(MAX_AUDIENCE_QUEUE, Math.floor(raw.audienceSize)))
         : DEFAULT_AUDIENCE_SIZE;
-    return { monthDays, monthlyActions, audienceSize };
+    const rivalsEnabled = raw?.rivalsEnabled === true;
+    const rivalRegionId = typeof raw?.rivalRegionId === 'string' && CHARACTER_ID_PATTERN.test(raw.rivalRegionId)
+        ? raw.rivalRegionId
+        : undefined;
+    return { monthDays, monthlyActions, audienceSize, rivalsEnabled, rivalRegionId };
 }
 
 export function defaultDomainState(controlledRegionId: string, config?: Partial<DomainConfig>): DomainState {
@@ -389,6 +411,7 @@ export function validateDomain(raw: unknown): DomainState | undefined {
         officers,
         pendingEvents,
         pendingPetitions: pendingPetitions.length > 0 ? pendingPetitions : undefined,
+        rival: validateRivalLord(doc.rival),
         flags,
     };
 }
@@ -590,6 +613,7 @@ function eventWeight(def: DomainEventDef, domain: DomainState, intelligence?: Do
     if (def.id === 'festival_gathering' && season === 'winter') { w += 10; }
     if (def.id === 'festival_gathering' && actions?.includes('festival')) { w += 8; }
     if (def.id === 'officer_discontent' && domain.flags.officerDiscontent === true) { w += 14; }
+    if (def.id === 'neighbor_militarize' && domain.flags[RIVAL_RAID_PREP_FLAG] === true) { w += 12; }
     if (def.id === 'domain_quiet_month') { w = Math.max(1, w - 2); }
     return w;
 }
@@ -730,6 +754,27 @@ export function applyMonthlyCommit(
         next = { ...next, pendingPetitions: queue.map((p) => p.id) };
     }
 
+    let rivalActionId: RivalActionId | undefined;
+    if (config.rivalsEnabled && !next.rival && config.rivalRegionId) {
+        next = { ...next, rival: deriveRivalLord(config.rivalRegionId) };
+    }
+    if (next.rival) {
+        let rival = next.rival;
+        if (actions.includes('diplomacy')) {
+            rival = resolveRivalDiplomacy(rival, next.prestige, worldTurnSeed);
+        }
+        if (actions.includes('espionage') || ops.intelligence === 'gather_rumors') {
+            rival = discloseRivalInfo(rival, next.calendarMonth, next.calendarYear);
+        }
+        const tickResult = tickRivalLord(rival, next, worldTurnSeed);
+        rivalActionId = tickResult.action;
+        next = { ...next, rival: tickResult.rival };
+        if (tickResult.playerDelta) {
+            next = applyDelta(next, tickResult.playerDelta);
+        }
+        next.flags = { ...next.flags, [RIVAL_RAID_PREP_FLAG]: tickResult.rival.raidPending === true };
+    }
+
     return {
         domain: next,
         rolledEventId: eventId,
@@ -740,6 +785,7 @@ export function applyMonthlyCommit(
             next.calendarMonth === 1 ? next.calendarYear - 1 : next.calendarYear
         ),
         councilLines,
+        rivalActionId,
     };
 }
 

@@ -13,6 +13,21 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.39.11] - 2026-07-03
+
+### Added
+
+- **§F8 Rival Lord tick engine** — `src/rivalLordCore.ts`: 3変数（strength/aggression/stance）の軽量隣国領主。月次コミットごとに `tickRivalLord` が決定論で1手選択（build/trade/raid_prep/envoy/raid, 重み付き無作為・raid は raid_prep 済みのみ発火）。`raid` は playerDomain の troops/defense との比較で自動 delta を適用（F10 合戦リゾルバが後で置き換える暫定解決）。
+  - `domain.rival` を `enableDomainRivals` + `rivalRegionId`（World Forge `connectedTo` 隣接から自動選定、または `domainRivalRegionId` 明示指定）で月次コミット時に遅延初期化。
+  - `diplomacy` 行動 → `resolveRivalDiplomacy`（stance を友好側へ1段階、決定論の成功判定）。`espionage`/`gather_rumors` → `discloseRivalInfo`（FoW と同じ「開示済みのみ GM に渡す」規約。`disclosedStrength`/`disclosedStance` 以外は絶対にプロンプト/webview に出さない）。
+  - `raid_prep` は `domain.flags.rivalRaidPrep` を立て、既存の `neighbor_militarize` イベント重みを+12（`officer_discontent` と同型の flags パターン）。
+  - 配線: `domainCore`（state/config/validate/applyMonthlyCommit）· `gameRules`（`enableDomainRivals` 既定 OFF・`domainRivalRegionId` 任意）· `domainTurnOps.ts`（World Forge 隣接解決）· `domainBridge.ts`（`[Domain — Rival]` 開示情報のみの1行 + `pickDomainForWebview` 公開サブセット）。
+  - `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` §F8。
+
+### Verification
+
+- `npm test` **111/111**（`test_rival_lord_core.js` 21 assert: 決定論・raid ゲート・開示ゲート・stance 遷移・validate・イベント重み接続・lazy init 統合）
+
 ## [1.39.10] - 2026-07-03
 
 ### Added

@@ -5,12 +5,26 @@ import type { GameState } from './types/GameState';
 import { loadGameRules } from './gameRules';
 import { loadWorldState } from './worldState';
 import { loadNpcRegistry } from './npcRegistry';
+import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import {
     applyDomainOpsToGameState,
     readDomainFromState,
 } from './domainTurnOpsCore';
 import { registryToOfficerBondContext } from './domainOfficerBondCore';
 import type { DomainState } from './domainCore';
+
+/** §F8: prefer an explicit config id, else the first Forge-adjacent region, else any other region. */
+function resolveRivalRegionId(controlledRegionId: string, explicitId?: string): string | undefined {
+    if (explicitId && explicitId !== controlledRegionId) { return explicitId; }
+    if (!isWorldForgeEnabled()) { return undefined; }
+    const forge = loadWorldForge();
+    if (!forge) { return undefined; }
+    const regions = forge.geography.regions;
+    const own = regions.find((r) => r.id === controlledRegionId);
+    const adjacent = own?.connectedTo?.find((id) => id !== controlledRegionId && regions.some((r) => r.id === id));
+    if (adjacent) { return adjacent; }
+    return regions.find((r) => r.id !== controlledRegionId)?.id;
+}
 
 export { applyDomainOpsToGameState, readDomainFromState } from './domainTurnOpsCore';
 
@@ -41,6 +55,12 @@ export function applyDomainTurnOps(
         )
         : undefined;
 
+    const existingDomain = readDomainFromState(gameState as unknown as Record<string, unknown>);
+    const rivalsEnabled = rules.enableDomainRivals === true;
+    const rivalRegionId = rivalsEnabled && existingDomain
+        ? resolveRivalRegionId(existingDomain.controlledRegionId, rules.domainRivalRegionId)
+        : undefined;
+
     const next = applyDomainOpsToGameState(
         turnResult,
         gameState as unknown as Record<string, unknown>,
@@ -49,6 +69,8 @@ export function applyDomainTurnOps(
             monthDays: rules.domainMonthDays,
             monthlyActions: rules.domainMonthlyActions,
             audienceSize: rules.domainAudienceSize,
+            rivalsEnabled,
+            rivalRegionId,
         },
         worldTurnSeed,
         { officerBond, registryNpcIds }

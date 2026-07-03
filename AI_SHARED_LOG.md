@@ -6,11 +6,27 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.39.10** |
-| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見エンジン ✅（UI は D3 待ち）** · **D3 UI 次** |
+| Package version | **1.39.11** |
+| Domain Mode | D1–D2 + D1b + D1.5 + D4(一部) + D5 **完了** · **F7 謁見エンジン ✅** · **F8 ライバル領主エンジン ✅**（両方 UI は D3 待ち） · **D3 UI 次** |
 | Parlor Mode | v1.34.0 出荷済 |
-| Tests | `npm test` **110/110** |
-| Next (推奨) | **D3 UI**（§20.2-A、F7 謁見パネルも同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F8 ライバル領主 |
+| Tests | `npm test` **111/111** |
+| Next (推奨) | **D3 UI**（§20.2-A、F7 謁見パネル + F8 ライバル表示も同梱）· `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md` F9 主命・派遣 |
+
+---
+
+## 2026-07-03 JST - Claude Sonnet 5 - §F8 Rival Lord tick engine (v1.39.11)
+
+### Summary
+
+- Fable5 Wave 2 の **F8 隣国ライバル領主** をエンジン部まで実装（1領地ソリティア問題への対応）。
+- `src/rivalLordCore.ts`（strength/aggression/stance の3変数 + 決定論月次tick + raid_prep→raid ゲート + FoW型開示ゲート）+ `domainCore`/`gameRules`/`domainTurnOps`/`domainBridge` 配線。
+- `domain.rival` を `enableDomainRivals` ON 時に World Forge 隣接（`connectedTo`）から自動選定し月次コミットで遅延初期化。`diplomacy`/`espionage`/`gather_rumors` 行動が rival の stance/開示に作用。`raid_prep` は既存 `neighbor_militarize` イベント重みを押し上げる（F8 ブリーフどおり）。
+- `raid` 発生時は playerDomain troops/defense との比較で暫定 delta を適用（**F10 合戦リゾルバが後で本実装に置き換える**、と明記）。
+
+### Verification
+
+- `npm test` **111/111**（`test_rival_lord_core.js` 21 assert）
+- `npm run compile` クリーン
 
 ---
 

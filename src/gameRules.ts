@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { CHARACTER_ID_PATTERN } from './characterId';
 
 export interface GameRules {
     enableRpgMechanics: boolean;
@@ -36,6 +37,10 @@ export interface GameRules {
     enableDomainAudience?: boolean;
     /** Petitioners surfaced per audience day (1–4). */
     domainAudienceSize?: number;
+    /** §F8: neighboring rival lord tick (requires Domain Mode; World Forge recommended). */
+    enableDomainRivals?: boolean;
+    /** Optional explicit neighbor region id; auto-picked from World Forge adjacency if unset. */
+    domainRivalRegionId?: string;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -62,7 +67,8 @@ export const DEFAULT_GAME_RULES: GameRules = {
     domainMonthDays: 30,
     domainMonthlyActions: 2,
     enableDomainAudience: false,
-    domainAudienceSize: 3
+    domainAudienceSize: 3,
+    enableDomainRivals: false
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -197,6 +203,12 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.domainAudienceSize !== undefined && typeof rules.domainAudienceSize === 'number') {
             sanitized.domainAudienceSize = Math.max(1, Math.min(4, Math.floor(rules.domainAudienceSize)));
+        }
+        if (rules.enableDomainRivals !== undefined && typeof rules.enableDomainRivals === 'boolean') {
+            sanitized.enableDomainRivals = rules.enableDomainRivals;
+        }
+        if (typeof rules.domainRivalRegionId === 'string' && CHARACTER_ID_PATTERN.test(rules.domainRivalRegionId)) {
+            sanitized.domainRivalRegionId = rules.domainRivalRegionId;
         }
     }
 

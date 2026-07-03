@@ -40,6 +40,7 @@ export function loadDiscoveryLedger(): DiscoveryLedgerDocument | undefined {
         const raw = JSON.parse(fs.readFileSync(ledgerPath, 'utf-8'));
         const parsed = parseDiscoveryLedger(raw);
         if (!parsed) {
+            clearDiscoveryLedgerCache();
             return undefined;
         }
         cachedPath = ledgerPath;

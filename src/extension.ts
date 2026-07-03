@@ -5,6 +5,8 @@ import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
 import { loadGameRules, saveGameRules, clearGameRulesCache, type GameRules } from './gameRules';
+import { clearCampaignKitCache } from './campaignKit';
+import { clearDiscoveryLedgerCache } from './discoveryLedger';
 import {
     initI18n,
     t,
@@ -1249,6 +1251,8 @@ function sendDebugCapabilities(): void {
 async function handleUpdateGameRules(raw: unknown): Promise<void> {
     if (!raw || typeof raw !== 'object') return;
     saveGameRules(raw as Partial<GameRules>);
+    clearCampaignKitCache();
+    clearDiscoveryLedgerCache();
     sendGameRules();
 }
 

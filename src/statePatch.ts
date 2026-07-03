@@ -701,7 +701,6 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
         }
 
         let commitState = applyTurnGameStateFinalize(turnResult, state, true);
-        applyDiscoveryTurnOps(turnResult);
 
         const freshDisk = readGameStateRecord(statePath);
         if (readStateRevision(freshDisk) > baseRevision) {
@@ -753,6 +752,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             baseRevision,
             mergeProfile: 'turn',
         });
+        applyDiscoveryTurnOps(turnResult);
 
         const appliedAt = new Date().toISOString();
         const enriched: TurnResult = {

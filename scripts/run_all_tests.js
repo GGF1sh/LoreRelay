@@ -54,6 +54,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_discovery_ledger_core.js' },
     { category: 'unit', file: 'test_scrapbound_sample_integrity.js' },
     { category: 'unit', file: 'test_discovery_turn_ops_core.js' },
+    { category: 'unit', file: 'test_agentic_discovery_ops.js' },
     { category: 'unit', file: 'test_prompt_context_budget.js' },
     { category: 'unit', file: 'test_prompt_budget_eviction.js' },
     { category: 'unit', file: 'test_webview_handlers_core.js' },

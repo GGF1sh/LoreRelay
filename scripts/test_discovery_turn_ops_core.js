@@ -60,6 +60,16 @@ const {
     }
 }
 
+{
+    const base = { version: 1, entries: [{ id: 'x', kind: 'material', label: 'A', status: 'unidentified' }] };
+    const same = applyDiscoveryOpsToLedger(base, [{ op: 'update', id: 'missing', status: 'identified' }]);
+    if (same.entries.length !== 1 || same.entries[0].status !== 'unidentified') {
+        fail(`update on missing id should no-op: ${JSON.stringify(same.entries)}`);
+    } else {
+        ok('update on missing id is no-op');
+    }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

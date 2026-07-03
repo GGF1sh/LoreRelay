@@ -27,7 +27,11 @@ export function applyDiscoveryTurnOps(turnResult: Pick<TurnResult, 'discoveryOps
         return false;
     }
     const worldTurn = loadWorldState()?.worldTurn;
-    const next = applyDiscoveryOpsToLedger(loadDiscoveryLedger(), ops, worldTurn);
+    const current = loadDiscoveryLedger();
+    const next = applyDiscoveryOpsToLedger(current, ops, worldTurn);
+    if (JSON.stringify(current) === JSON.stringify(next)) {
+        return false;
+    }
     try {
         writeJsonAtomic(ledgerPath, next);
         clearDiscoveryLedgerCache();

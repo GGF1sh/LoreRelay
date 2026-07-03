@@ -291,8 +291,13 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         if (rules.enableCampaignKit !== undefined && typeof rules.enableCampaignKit === 'boolean') {
             sanitized.enableCampaignKit = rules.enableCampaignKit;
         }
-        if (typeof rules.campaignKitId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(rules.campaignKitId)) {
-            sanitized.campaignKitId = rules.campaignKitId;
+        if (rules.campaignKitId !== undefined && typeof rules.campaignKitId === 'string') {
+            const kitId = rules.campaignKitId.trim();
+            if (!kitId) {
+                sanitized.campaignKitId = '';
+            } else if (/^[a-zA-Z0-9_-]{1,64}$/.test(kitId)) {
+                sanitized.campaignKitId = kitId;
+            }
         }
     }
 

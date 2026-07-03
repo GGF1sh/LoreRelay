@@ -13,6 +13,21 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.45.3] - 2026-07-03
+
+### Fixed
+
+- **Campaign Kit review (v1.45.2 follow-up)**
+  - `discoveryOps` は `commitGameState` 成功後のみ `discoveries.json` へ書き込み（失敗時の ledger だけ更新を防止）。
+  - Game Rules UI の「自動」プリセットで `campaignKitId` を空文字にクリア可能に。
+  - Agentic Referee が `discoveryOps` をパース・マージ。
+  - Game Rules 更新時に Campaign Kit / Discovery キャッシュを無効化。
+  - 無効 `discoveries.json` 読み込み時のキャッシュクリア；同一内容の no-op 書き込みをスキップ。
+
+### Verification
+
+- `npm test` **126/126**
+
 ## [1.45.2] - 2026-07-03
 
 ### Added

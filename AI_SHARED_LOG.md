@@ -6,10 +6,22 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.45.2** |
-| Campaign Kit | **Phase A+B + D-lite** · discoveryOps · Start Hub demo · Game Rules UI |
-| Tests | `npm test` **125/125** |
+| Package version | **1.45.3** |
+| Campaign Kit | **Phase A+B + D-lite** · v1.45.3 commit-order + agentic parse fixes |
+| Tests | `npm test` **126/126** |
 | Next (推奨) | Campaign Kit Phase C（Job board）or G5 ライバルギルド |
+
+---
+
+## 2026-07-03 JST - Grok - Campaign Kit v1.45.3 review fixes
+
+### Summary
+
+- discoveryOps を commit 成功後にのみ永続化；Agentic parse/merge；campaignKitId クリア；キャッシュ無効化。
+
+### Verification
+
+- `npm test` **126/126**
 
 ---
 

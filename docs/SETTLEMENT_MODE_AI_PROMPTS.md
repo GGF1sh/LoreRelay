@@ -12,8 +12,7 @@ Current repository baseline:
 
 - `package.json` version: `1.72.0`
 - M4b persistence on `main` (commits `af24e9e`, `0b8bbb1`)
-- Current priority: **M4c UX preview/request flow** (Claude), then M4c gate
-  (Codex/ChatGPT), then M2 replay/remote overlay wiring
+- M4c UX **Approved** (`ff86f60`). Current priority: **M2 replay/remote overlay wiring**
 
 ## 0. Common Header
 

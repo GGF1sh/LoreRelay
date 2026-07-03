@@ -11,9 +11,9 @@
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **149/149** |
-| Settlement Mode M4 | M4a pure core (v1.71.0) + M4b `expand_layer` → `settlement_layout.json` persistence (v1.72.0) + M4c UX preview/request flow (Unreleased, uncommitted) |
-| Next (推奨) | **M4c gate** (Codex, `docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md`) → M2 replay/remote overlay |
-| Git | `main` pushed through `0b8bbb1` (M4b + ledger no-op fix); M4c UX changes are local/uncommitted |
+| Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) |
+| Next (推奨) | **M2 replay/remote overlay wiring** (`mapOverlayCore` choke point) · M4 実機 smoke は任意 |
+| Git | `main` synced through `ff86f60` |
 
 ---
 
@@ -27,6 +27,14 @@
 - テスト: `scripts/test_settlement_view_core.js` に決定性・非破壊・key allow-list・missing-layer/profile網羅のテストを追加。`scripts/test_webview_world_modules.js` に新規シンボル検証 + 「settlement isometricモジュールがfsに触れないこと」のアサーションを追加。
 - 検証: `npm run compile` / `test_settlement_layer_expansion_core.js` / `test_settlement_layout_turn_ops_core.js` / `test_settlement_layout_turn_ops.js` / `test_cross_ledger_partial_failure.js`(M4a/M4b既存テストは無変更で全通過) / `npm test` **149/149** / `validate_utf8_docs.js` OK。
 - 次: `docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md` のレビューチェックリスト1–15をCodex/ChatGPTに確認してもらう。
+
+---
+
+## 2026-07-04 JST - Codex - Settlement Mode M4c UX gate approved
+
+- Static review of Claude M4c delivery (`40ba354`): Webview uses `insertChatText` only; no `settlement_layout.json` write; no direct `settlementOps` apply; ghost preview via `buildSettlementExpansionPreviews()` (in-memory M4a core).
+- Gate doc updated: `docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md` — **Approved**. Commit `ff86f60` pushed.
+- Next: M2 replay/remote overlay wiring. Optional manual smoke: missing layer → preview → GM request text → GM turn → M4b persist.
 
 ---
 

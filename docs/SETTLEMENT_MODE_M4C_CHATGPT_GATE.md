@@ -2,8 +2,7 @@
 
 Date: 2026-07-04 JST
 Reviewer: Codex / ChatGPT (run **after** Claude implements M4 UX)
-Status override after review: **Approved** - M4c UX preview/request flow may proceed to follow-up work
-Status: **Pending** — fill findings after Claude delivery
+Status: **Approved** (2026-07-04 JST) — M4c UX may proceed to M2 replay/remote overlay wiring
 
 Prerequisites:
 

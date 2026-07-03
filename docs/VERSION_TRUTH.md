@@ -64,5 +64,5 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
 | Living World | v1.23–1.34（Commerce / Agency / LW3）+ Domain v1.39.x–1.40.x |
-| GitHub Release latest | **タグ push 次第** — `release.yml` で VSIX 生成 |
+| GitHub Release latest | **v1.59.0**（`lorerelay-1.59.0.vsix` 添付済み · [Release](https://github.com/GGF1sh/LoreRelay/releases/tag/v1.59.0)） |
 | テスト | `npm test` **139/139**（`check_version_consistency.js` 含む） |

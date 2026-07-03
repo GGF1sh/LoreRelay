@@ -9,10 +9,19 @@
 
 ## [Unreleased]
 
+## [1.67.0] - 2026-07-04
+
+### Added
+
+- **Settlement Mode M2 pure cores** — `mapOverlayCore.ts`: FoW-safe `buildMapOverlaySnapshot()` (NPC/merchant/caravan/faction/quest/discovery/settlement-pressure markers, allow-list keys, per-kind caps). `settlementEventCore.ts`: deterministic adaptive event candidate selector + `deriveLegacyNote()` (no disk apply). `worldView` に `mapOverlay` ペイロードを追加（描画は未実装）。テスト **145/145**。
+
 ### Docs
+
+- **Settlement Mode M2 ChatGPT/Codex gate** — `docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md`: cleaned the M2 design contract and executed the sanitize/FoW gate in-session. M2a is approved as a `buildMapOverlaySnapshot` projection with strict marker allow-listing for Webview/replay/remote payloads; M2b is approved as a pure settlement event selector with no disk apply or `turn_result` wiring.
 
 - **Settlement reference patterns** — `docs/SETTLEMENT_REFERENCE_PATTERNS.md`: added Caves of Qud and Kenshi pattern extraction for M2+ design. Qud is scoped to procedural history, village hubs, discoveries, and appraisal loops; Kenshi is scoped to outpost vulnerability, faction world-states, caravans/merchants, and away-time pressure. Updated Settlement design, AI prompts, and roadmap links. Design only; no code changes.
 - **Narrative structure patterns** — new `docs/NARRATIVE_PATTERNS.md`: companion to Settlement reference patterns, scoped to *narrative-shaped* inspiration rather than simulation-shaped. Extracts Quality-Based Narrative (Fallen London/StoryNexus), RimWorld's adaptive event-pacing "storyteller," Wildermyth's legacy-props/scars pattern, and King of Dragon Pass/Six Ages-style single-decision framing. Cross-linked from `SETTLEMENT_REFERENCE_PATTERNS.md` and `AI_ROADMAP.md` M2 checklist. Design only; no code changes.
+- **Settlement Mode M2 design** — new `docs/SETTLEMENT_MODE_M2_DESIGN.md`: splits M2 into two independent tracks. **M2a Map Overlay Layer** — NPC/merchant/caravan/faction/quest/discovery/settlement-pressure markers on the existing macro tile overmap, derived + non-persisted + never in GM prompt (same pattern as `tileOvermapCore`), with a single sanitize choke point (`buildMapOverlaySnapshot`) that webview/replay/remote all route through and normative FoW rules (resolves the M1 gate's Webview/replay/remote leak blocker). **M2b Settlement Event Pacing** — new `settlementEventCore` as a pure selector (RimWorld-style adaptive weighting + per-category cooldown, Wildermyth-style legacy notes); settlementOps disk apply stays deferred to a separate apply-gate. Includes data contract, per-source feature gating, module plan, acceptance tests, and AI handoff. Design only; no code changes.
 
 ## [1.66.0] - 2026-07-04
 

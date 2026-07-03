@@ -291,9 +291,11 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 *ステータス: M1 完了（v1.63.0）· M2–M5 未実装（2026-07-04）*
 
 設計正本: [`docs/SETTLEMENT_MODE_DESIGN.md`](docs/SETTLEMENT_MODE_DESIGN.md)  
-AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_PROMPTS.md)
+AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_PROMPTS.md)  
+参照パターン: [`docs/SETTLEMENT_REFERENCE_PATTERNS.md`](docs/SETTLEMENT_REFERENCE_PATTERNS.md)（シム寄り: DF/CDDA/StoneSense/Kenshi/Qud）  
+物語構造パターン: [`docs/NARRATIVE_PATTERNS.md`](docs/NARRATIVE_PATTERNS.md)（QBN/RimWorld/Wildermyth/KoDP — 状態をどう場面に変換するか）
 
-**目的:** Dwarf Fortress / CDDA / StoneSense / RimTalk から「設計パターンだけ」を抽出し、LoreRelay の既存アーキテクチャに合う **拠点台帳 + 表示専用ビュー + In-World Chat 接続**として実装する。建築ゲーム本体や本格3D化ではなく、物語が発生する拠点正本を先に作る。
+**目的:** Dwarf Fortress / CDDA / StoneSense / RimTalk / Caves of Qud / Kenshi から「設計パターンだけ」を抽出し、LoreRelay の既存アーキテクチャに合う **拠点台帳 + 表示専用ビュー + In-World Chat 接続**として実装する。建築ゲーム本体や本格3D化ではなく、物語が発生する拠点正本を先に作る。
 
 ### M1 — Settlement Model Foundation
 
@@ -305,8 +307,16 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 
 ### M2 — 2D Tile Overlay Strengthening
 
-- [ ] existing tile overmapに NPC / merchant / faction / quest / FoW overlays
-- [ ] display-only, no state writes from tile clicks
+*設計正本: [`docs/SETTLEMENT_MODE_M2_DESIGN.md`](docs/SETTLEMENT_MODE_M2_DESIGN.md) — M2a(map overlay 表示専用・FoW-safe) と M2b(settlement event pacing 純選択) に分離*  
+*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md)*
+
+- [x] `mapOverlayCore.ts` — FoW-safe overlay snapshot + `worldView.mapOverlay` payload（pure core）
+- [x] Kenshi風 caravan / outpost pressure / faction world-state marker（display-only 導出）
+- [x] Qud風 discovery marker + Campaign Kit ledger 接続（FoW-safe）
+- [x] display-only, no state writes from tile clicks（core 層）
+- [ ] Webview 上の marker 描画（Claude M2 UI タスク）
+- [x] `settlementEventCore` — adaptive weighting + cooldown（[`docs/NARRATIVE_PATTERNS.md`](docs/NARRATIVE_PATTERNS.md) §3）
+- [x] `deriveLegacyNote()` — 解決済み incident の短い note 導出（同§4、スキーマ変更なし）
 
 ### M3 — StoneSense-style Isometric View
 

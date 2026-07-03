@@ -15,6 +15,10 @@ import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
+import { buildMapOverlaySnapshot, deriveKnownNpcIds } from './mapOverlayCore';
+import { loadSettlementState } from './settlementState';
+import { loadDiscoveryLedger } from './discoveryLedger';
+import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
 import type { GameState, GameStateWorld } from './types/GameState';
@@ -32,6 +36,8 @@ import { loadGameRules } from './gameRules';
 import { pickDomainForWebview } from './domainBridge';
 import { pickGuildForWebview } from './guildBridge';
 import { buildCampaignKitWebviewPayload } from './campaignKitBridge';
+import { getCampaignKitPath } from './campaignKit';
+import { livingWorldEnabled } from './livingWorldBridge';
 import { readDomainFromGameState } from './domainTurnOps';
 import { readGuildFromGameState } from './guildTurnOps';
 import { buildMarketPriceTable } from './commerceCore';
@@ -456,6 +462,44 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     // Derived display data only — never persisted, never sent to the GM.
     const tileOvermap = buildTileOvermap(forge);
     const overmapThemeKey = resolveOvermapThemeKey(forge.meta.theme);
+    const campaignKitActive = isCampaignKitPromptActive({
+        enableCampaignKit: gameRules.enableCampaignKit === true,
+        hasCampaignKitFile: Boolean(getCampaignKitPath() && fs.existsSync(getCampaignKitPath()!)),
+        enableDomainMode: gameRules.enableDomainMode === true,
+        enableGuildMode: gameRules.enableGuildMode === true,
+        enableEmergentSimulation: gameRules.enableEmergentSimulation === true,
+        enableWorldObservatory: gameRules.enableWorldObservatory === true,
+        chronicleRecapInPrompt: false,
+        enableCommerce: gameRules.enableCommerce === true,
+        enableNpcRegistry: gameRules.enableNpcRegistry === true,
+        enableNpcRelationships: gameRules.enableNpcRelationships === true,
+        livingWorldEnabled: livingWorldEnabled(gameRules),
+        worldStateEnabled: simEnabled,
+        worldForgeEnabled: true,
+        enableTravelEncounters: gameRules.enableTravelEncounters === true,
+        enableSettlementMode: gameRules.enableSettlementMode === true,
+    });
+    const mapOverlay = buildMapOverlaySnapshot({
+        forge,
+        fog: {
+            discoveredRegionIds: fog.discoveredRegionIds,
+            rumoredRegionIds: fog.rumoredRegionIds,
+        },
+        enableNpcAgency: gameRules.enableNpcAgency === true,
+        enableNpcRegistry: gameRules.enableNpcRegistry === true,
+        enableSettlementMode: gameRules.enableSettlementMode === true,
+        enableCampaignKit: campaignKitActive,
+        enableFactionReputation: gameRules.enableFactionReputation === true,
+        worldTurn,
+        worldRegions: regionStates,
+        worldFactions: factionStates,
+        npcPositions: worldState?.npcPositions,
+        questHooks: worldState?.questHooks,
+        settlementState: gameRules.enableSettlementMode === true ? loadSettlementState() : undefined,
+        discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
+        npcRegistry: registry,
+        knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
+    });
     const rawForgeDoc = loadWorldForgeDocument();
     const commerceForge = gameRules.enableCommerce === true && rawForgeDoc
         ? resolveCommerceForge(forge, rawForgeDoc)
@@ -517,6 +561,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         regionMapFeedback,
         highlightRegionIds: [...highlightRegionIds],
         tileOvermap,
+        mapOverlay,
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,

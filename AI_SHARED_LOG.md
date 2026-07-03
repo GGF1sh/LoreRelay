@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-07-04 JST - Claude (Opus 4.8) - Settlement Mode M2 design
+
+- 新規 `docs/SETTLEMENT_MODE_M2_DESIGN.md` — M2を2トラックに分離する設計正本。
+- **M2a Map Overlay Layer**: 既存マクロ tile overmap への NPC/merchant/caravan/faction/quest/discovery/settlement-pressure マーカー。`tileOvermapCore` と同じく **純導出・非永続・GM prompt非注入**。単一choke point `buildMapOverlaySnapshot`（新規 `src/mapOverlayCore.ts`）に webview/replay/remote を全て通し、6つのFoW正規則でM1ゲートのリーク blocker を解消。マーカー種別ごとに既存feature flagでgate（新masterスイッチは作らない）。
+- **M2b Settlement Event Pacing**: 新規 `src/settlementEventCore.ts` を**純選択のみ**（RimWorld風 adaptive weighting + per-category cooldown、Wildermyth風 legacy note）。settlementOps の disk適用は M1同様に別ゲート（apply-gate/M2.5）へ据え置き。cooldownは settlement_state に optional 追加フィールド（v1据え置き・後方互換）。
+- データ契約・受け入れテスト・モジュール計画・AI振り分け（ChatGPT=sanitize gate → Grok=pure core → Claude=webview → Gemini=説明）を明記。`AI_ROADMAP.md` M2にリンク追加。
+- 設計のみ、コード変更なし。次アクションはChatGPTへ §6-1 の sanitize/FoW contract gate を投げること。
+
+---
+
 ## 2026-07-04 JST - Claude (Sonnet 5) - Narrative structure patterns doc
 
 - 新規 `docs/NARRATIVE_PATTERNS.md` — Settlement Mode向けの参照パターン群のうち、シム寄り（DF/CDDA/StoneSense/Kenshi/Qud、`SETTLEMENT_REFERENCE_PATTERNS.md`）とは別軸の「状態をどう場面に変換するか」を整理。
@@ -56,12 +66,30 @@
 
 ---
 
+## 2026-07-04 JST - Grok - Settlement Mode M2 pure cores (v1.67.0)
+
+- `src/mapOverlayCore.ts` — `buildMapOverlaySnapshot()` FoW/sanitize choke point; marker kinds gated by source features.
+- `src/settlementEventCore.ts` — pure `selectSettlementEvent()` + cooldowns + `deriveLegacyNote()`.
+- `worldView.ts` — `mapOverlay` field on `worldView` message (no Webview renderer yet).
+- Tests: `test_map_overlay_core.js`, `test_settlement_event_core.js`. `npm test` **145/145**.
+
+---
+
 ## 2026-07-04 JST - Grok - Settlement Mode M1 (v1.63.0)
 
 - Implemented M1 pure core per `docs/SETTLEMENT_MODE_CHATGPT_GATE.md`.
 - `src/settlementCore.ts` — parser/caps/tick/prompt formatter/`settlementOps` stubs; `src/settlementState.ts` — `settlement_state.json` loader + GM prompt bridge.
 - `game_rules.json` flag `enableSettlementMode` (default OFF); GM prompt chunk `settlement` gated via `gmPromptBuilderCore.shouldIncludePromptChunk`.
 - `scripts/test_settlement_core.js`; `npm test` **143/143**.
+
+---
+
+## 2026-07-04 JST - Codex - Settlement Mode M2 ChatGPT/Codex gate
+
+- Reviewed Claude's M2 design and rewrote `docs/SETTLEMENT_MODE_M2_DESIGN.md` to remove mojibake and make the contract handoff-safe.
+- Added `docs/SETTLEMENT_MODE_M2_CHATGPT_GATE.md`: M2a map overlays must route Webview/replay/remote through one sanitized `buildMapOverlaySnapshot`; M2b settlement event pacing remains a pure selector with no disk apply or `turn_result` wiring.
+- Updated `docs/SETTLEMENT_MODE_AI_PROMPTS.md` with a Grok M2 pure-core prompt and revised recommended order.
+- Design/gate update only. No code implementation and no version bump.
 
 ---
 

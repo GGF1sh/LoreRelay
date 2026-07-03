@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.37.5] - 2026-07-03
+
+### Fixed
+
+- **Campaign P0 PR1-lite — commerce-ui 常時 commerce-only merge** — debounce flush 時、revision 競合がなくても stale `gameState` スナップショット全体を spread せず、`commerce`（+ entries id マージ）のみ更新。
+
+### Verification
+
+- `npm test` **96/96**（commerce-ui no-conflict 回帰テスト追加）
+
 ## [1.37.4] - 2026-07-03
 
 ### Fixed

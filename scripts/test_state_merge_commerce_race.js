@@ -134,7 +134,46 @@ const emptyCargo = [];
     if (cargo.length !== 0 || merged.commerce?.credits !== 120) {
         fail(`commerce-ui profile should win: ${JSON.stringify(merged.commerce)}`);
     } else {
-        ok('commerce-ui profile applies sell on commit');
+        ok('commerce-ui profile applies sell on commit (conflict)');
+    }
+}
+
+{
+    const disk = {
+        schemaVersion: 2,
+        stateRevision: 5,
+        entries: [
+            { id: 'u1', role: 'user', content: 'wait' },
+            { id: 'gm-1', role: 'gm', sender: 'GM', content: 'fresh' },
+        ],
+        commerce: { credits: 100, food: 30, transportId: 'wagon', playerRole: 'merchant', cargo: emptyCargo },
+        status: { hp: { current: 3, max: 10 } },
+    };
+    const staleTradeSnapshot = {
+        schemaVersion: 2,
+        stateRevision: 5,
+        entries: [{ id: 'u1', role: 'user', content: 'wait' }],
+        commerce: { credits: 40, food: 30, transportId: 'wagon', playerRole: 'merchant', cargo: [wheatCargo] },
+        status: { hp: { current: 10, max: 10 } },
+    };
+    const merged = mergeGameStateForPersist(disk, staleTradeSnapshot, {
+        baseRevision: 5,
+        profile: 'commerce-ui',
+    });
+    if (merged.commerce?.credits !== 40) {
+        fail(`commerce-ui no-conflict should apply commerce: ${JSON.stringify(merged.commerce)}`);
+    } else {
+        ok('commerce-ui applies commerce when revision matches');
+    }
+    if (merged.status?.hp?.current !== 3) {
+        fail(`commerce-ui no-conflict must not spread stale status: ${JSON.stringify(merged.status)}`);
+    } else {
+        ok('commerce-ui no-conflict keeps disk status (no stale spread)');
+    }
+    if (merged.entries.length !== 2 || merged.entries[1]?.content !== 'fresh') {
+        fail(`commerce-ui no-conflict must keep disk entries: ${JSON.stringify(merged.entries)}`);
+    } else {
+        ok('commerce-ui no-conflict keeps disk entries merged by id');
     }
 }
 

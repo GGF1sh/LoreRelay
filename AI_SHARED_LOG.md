@@ -1,5 +1,16 @@
 # AI Shared Log
 
+## 2026-07-03 JST - Grok - Campaign P0 PR1-lite commerce-ui merge (v1.37.5)
+
+### Summary
+
+- `mergeCommerceUiForPersist` — commerce-ui profile always updates `commerce` only (+ entry id merge), never spreads stale debounced snapshots on matching revision.
+- Test: no-conflict stale status/entries must not overwrite disk in `test_state_merge_commerce_race.js`.
+
+### Verification
+
+- `npm test` **96/96**
+
 ## 2026-07-03 JST - Grok - Campaign P0 PR6-lite status array OCC (v1.37.4)
 
 ### Summary

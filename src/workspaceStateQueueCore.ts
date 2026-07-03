@@ -106,6 +106,24 @@ export function mergeTurnStatusOnConflict(
     return merged;
 }
 
+/** Commerce UI debounce flush — always touch commerce (+ entry id merge) only; never spread stale snapshots. */
+function mergeCommerceUiForPersist(
+    disk: Record<string, unknown>,
+    incoming: Record<string, unknown>,
+    mergedEntries: unknown[],
+    diskRevision: number
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {
+        ...disk,
+        entries: mergedEntries,
+        stateRevision: diskRevision + 1,
+    };
+    if ('commerce' in incoming) {
+        result.commerce = incoming.commerce;
+    }
+    return result;
+}
+
 /**
  * Reload-before-write merge for game_state.json.
  * entries are always merged by id; other roots depend on profile / revision conflict.
@@ -141,6 +159,10 @@ export function mergeGameStateForPersist(
         };
     }
 
+    if (profile === 'commerce-ui') {
+        return mergeCommerceUiForPersist(disk, incoming, mergedEntries, diskRevision);
+    }
+
     if (!conflict) {
         return {
             ...disk,
@@ -148,18 +170,6 @@ export function mergeGameStateForPersist(
             entries: mergedEntries,
             stateRevision: diskRevision + 1,
         };
-    }
-
-    if (profile === 'commerce-ui') {
-        const result: Record<string, unknown> = {
-            ...disk,
-            entries: mergedEntries,
-            stateRevision: diskRevision + 1,
-        };
-        if ('commerce' in incoming) {
-            result.commerce = incoming.commerce;
-        }
-        return result;
     }
 
     if (profile === 'turn') {

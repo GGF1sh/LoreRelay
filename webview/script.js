@@ -7618,6 +7618,9 @@ function ensureCampaignKitStyles() {
         .campaign-badge.status-unidentified { color: var(--vscode-charts-yellow, #e8c547); }
         .campaign-badge.status-identified { color: var(--vscode-charts-blue, #6cb6ff); }
         .campaign-badge.status-appraised { color: var(--vscode-charts-green, #73c991); }
+        .campaign-badge.condition-repaired { color: var(--vscode-charts-green, #73c991); }
+        .campaign-badge.condition-upgraded { color: var(--vscode-charts-blue, #6cb6ff); }
+        .campaign-badge.condition-damaged { color: var(--vscode-charts-red, #f14c4c); }
         .campaign-badge.kind-job { color: var(--vscode-charts-orange, #e8a838); }
         .campaign-badge.kind-rumor { color: var(--vscode-charts-purple, #b180d7); }
         .campaign-job-summary { font-size: 0.86em; opacity: 0.9; margin-bottom: 0.3rem; }
@@ -7684,12 +7687,20 @@ function buildCampaignDiscoveriesSection(discoveries, appraisalLabel) {
         const siteLine = entry.siteName
             ? `<span>${escapeHtml(T('webview.world.campaignDiscoverySite', { site: entry.siteName }))}</span>`
             : '';
+        const conditionLine = entry.condition
+            ? `<span class="campaign-badge condition-${escapeHtml(entry.condition)}">${escapeHtml(campaignKitT('DiscoveryCondition', entry.condition))}</span>`
+            : '';
+        const valueLine = typeof entry.suggestedValue === 'number'
+            ? `<span>${escapeHtml(T('webview.world.campaignSuggestedValue', { value: String(entry.suggestedValue) }))}</span>`
+            : '';
         card.innerHTML = `
             <div class="campaign-discovery-title">${escapeHtml(entry.label || entry.id)}</div>
             <div class="campaign-discovery-meta">
                 <span class="campaign-badge status-${escapeHtml(entry.status || 'unidentified')}">${escapeHtml(statusLabel)}</span>
                 <span class="campaign-badge">${escapeHtml(kindLabel)}</span>
+                ${conditionLine}
                 ${siteLine}
+                ${valueLine}
             </div>
         `;
         if (entry.status === 'unidentified' || entry.status === 'identified') {

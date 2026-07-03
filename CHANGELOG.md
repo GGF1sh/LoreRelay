@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.50.0] - 2026-07-03
+
+### Added
+
+- **Campaign Kit Phase F — services state machine** — `DiscoveryEntry` に `condition`(`standard`/`repaired`/`upgraded`/`damaged`)と `estValue`(GM基準価格見積もり)を追加。`computeSuggestedSellValue()` が `estValue × 倍率`(standard 1x/repaired 1.3x/upgraded 1.6x/damaged 0.6x)を算出し、これまで文章上のヒントに過ぎなかった「修理/改造で価値が変わる」を**数値としてCore正本化**した。
+- **サービス可能性ゲート** — `isServiceableStatus`/`resolveDiscoveryConditionAfterPatch`(`discoveryAppraisalCore.ts`)により、`condition` の変更は発見物が `identified`/`appraised` の場合のみ適用され、`unidentified`(鑑定前は何を直すか分からない)・`sold`/`consumed`(既に手放した物は直せない)への `condition` op は Core が無害に無視する。`estValue` にはこのゲートは掛からない(GM側の見積もりでプレイヤー非公開)。
+- **曖昧さの維持** — `discoveries.json` プロンプト・World タブとも、`condition`/推定売却額は `unidentified` の間は一切表示しない(`formatEntryLine`/`pickDiscoveriesForWebview` 双方でゲート)。鑑定前に価値が漏れる設計バグを避けた。
+- **GM プロンプト連携** — `[Campaign Discoveries]` に `[condition] ~推定額` を追記。`sell_discovery` の交渉額をこの推定額に近づけるよう GM に指示。Campaign Kit の Services ループ行も「修理/改造で discoveryOps condition/estValue を設定」という具体的な手順に更新。
+- **World タブ UI** — 発見物カードに condition バッジ + 推定額を表示(i18n: en/ja/zh-CN/zh-TW)。
+
+### Notes
+
+- `discoveries.json`・discoveryOps の既存フィールドは非破壊(追加フィールドのみ)。`test_discovery_ledger_core.js`/`test_discovery_appraisal_core.js`/`test_discovery_turn_ops_core.js` にゲーティング・倍率計算・曖昧さ維持のテストを追加。テスト **129/129**、`check_version_consistency.js` PASS。
+
 ## [1.49.0] - 2026-07-03
 
 ### Added

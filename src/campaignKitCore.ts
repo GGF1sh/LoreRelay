@@ -533,7 +533,7 @@ export function buildCampaignKitPromptBlock(kit: CampaignKitConfig | undefined):
     if (kit.services.length) {
         const serviceNames = kit.services.slice(0, 6).map((s) => s.name).join(', ');
         lines.push(
-            `Services loop at ${l.hubLabel}: ${serviceNames}. Repair, upgrade, or refine a find to raise its value or unlock its use; resupply and training spend resources for capability. Reflect price/stock changes through Commerce tradeOps, and record a find's improved state via discoveryOps (identifiedLabel/status).`
+            `Services loop at ${l.hubLabel}: ${serviceNames}. Once a find is identified, repair/upgrade services may set discoveryOps condition ("repaired"/"upgraded"/"damaged") and estValue to raise or lower its suggested sell price; resupply and training spend resources for capability. Reflect price/stock changes through Commerce tradeOps, and anchor sell_discovery near the ledger's suggested value.`
         );
     }
     for (const guide of kit.gmGuidance.slice(0, 5)) {

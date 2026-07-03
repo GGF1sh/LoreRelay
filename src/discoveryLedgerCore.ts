@@ -5,6 +5,9 @@ import { buildDiscoveryAppraisalPromptLines } from './discoveryAppraisalCore';
 
 export type DiscoveryStatus = 'unidentified' | 'identified' | 'appraised' | 'sold' | 'consumed';
 
+/** Service state applied via hub repair/upgrade services (Phase F). Only meaningful once identified. */
+export type DiscoveryCondition = 'standard' | 'repaired' | 'upgraded' | 'damaged';
+
 export interface DiscoveryEntry {
     id: string;
     kind: DiscoveryKind;
@@ -18,6 +21,27 @@ export interface DiscoveryEntry {
     identifiedLabel?: string;
     notes?: string;
     acquiredWorldTurn?: number;
+    /** Service state from repair/upgrade; only settable once identified (not on 'unidentified'). */
+    condition?: DiscoveryCondition;
+    /** GM base value estimate; combined with condition for a suggested sell price. */
+    estValue?: number;
+}
+
+/** Repair/upgrade raises the suggested sell value; damage lowers it. Applied on top of estValue. */
+export const CONDITION_VALUE_MULTIPLIER: Record<DiscoveryCondition, number> = {
+    standard: 1,
+    repaired: 1.3,
+    upgraded: 1.6,
+    damaged: 0.6,
+};
+
+/** Canonical suggested sell price for an appraised/identified find; GM should anchor sell_discovery near this. */
+export function computeSuggestedSellValue(entry: Pick<DiscoveryEntry, 'estValue' | 'condition'>): number | undefined {
+    if (typeof entry.estValue !== 'number' || !Number.isFinite(entry.estValue) || entry.estValue < 0) {
+        return undefined;
+    }
+    const multiplier = CONDITION_VALUE_MULTIPLIER[entry.condition ?? 'standard'];
+    return Math.round(entry.estValue * multiplier);
 }
 
 export interface DiscoveryLedgerDocument {
@@ -62,6 +86,21 @@ function asStatus(raw: unknown): DiscoveryStatus {
         : 'unidentified';
 }
 
+function asCondition(raw: unknown): DiscoveryCondition | undefined {
+    return raw === 'standard'
+        || raw === 'repaired'
+        || raw === 'upgraded'
+        || raw === 'damaged'
+        ? raw
+        : undefined;
+}
+
+function asEstValue(raw: unknown): number | undefined {
+    return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0
+        ? Math.min(999999, Math.round(raw))
+        : undefined;
+}
+
 function parseEntry(raw: unknown): DiscoveryEntry | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return undefined;
@@ -87,6 +126,12 @@ function parseEntry(raw: unknown): DiscoveryEntry | undefined {
     if (typeof r.acquiredWorldTurn === 'number' && Number.isFinite(r.acquiredWorldTurn)) {
         entry.acquiredWorldTurn = Math.max(0, Math.floor(r.acquiredWorldTurn));
     }
+    const condition = asCondition(r.condition);
+    if (condition && condition !== 'standard' && entry.status !== 'unidentified') {
+        entry.condition = condition;
+    }
+    const estValue = asEstValue(r.estValue);
+    if (estValue !== undefined) { entry.estValue = estValue; }
     return entry;
 }
 
@@ -119,7 +164,12 @@ function formatEntryLine(entry: DiscoveryEntry): string {
         : (entry.identifiedLabel || entry.label);
     const site = entry.siteId ? ` @ ${entry.siteId}` : '';
     const hint = entry.valueHint ? ` (${entry.valueHint})` : '';
-    return `- ${entry.status}/${entry.kind}: ${display}${site}${hint}`;
+    // Keep unidentified finds vague: no condition/value leak before appraisal.
+    const revealed = entry.status !== 'unidentified';
+    const condition = revealed && entry.condition && entry.condition !== 'standard' ? ` [${entry.condition}]` : '';
+    const suggested = revealed ? computeSuggestedSellValue(entry) : undefined;
+    const value = suggested !== undefined ? ` ~${suggested}` : '';
+    return `- ${entry.status}/${entry.kind}: ${display}${site}${hint}${condition}${value}`;
 }
 
 /** GM prompt block for active expedition findings (guidance; canonical updates via turn_result). */
@@ -137,6 +187,7 @@ export function buildDiscoveryLedgerPromptBlock(
         '[Campaign Discoveries]',
         ...active.map(formatEntryLine),
         'Unidentified entries should stay vague until appraisal/repair/decode. Update ledger facts through turn_result.discoveryOps — do not invent new discovery IDs silently.',
+        'Entries show [condition] and ~suggested value when set (estValue x condition multiplier: standard 1x, repaired 1.3x, upgraded 1.6x, damaged 0.6x). Anchor negotiated sell_discovery price near the suggested value.',
         ...buildDiscoveryAppraisalPromptLines(kit),
     ];
     return lines.join('\n');

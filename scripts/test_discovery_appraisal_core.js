@@ -19,6 +19,8 @@ const {
     isAllowedDiscoveryTransition,
     resolveDiscoveryStatusAfterPatch,
     finalizeDiscoveryEntry,
+    isServiceableStatus,
+    resolveDiscoveryConditionAfterPatch,
 } = require(corePath);
 
 {
@@ -50,6 +52,33 @@ const {
         fail(`illegal backward transition should be reverted: ${finalized.status}`);
     } else {
         ok('finalizeDiscoveryEntry blocks backward transition');
+    }
+}
+
+{
+    if (isServiceableStatus('unidentified') || isServiceableStatus('sold') || isServiceableStatus('consumed')) {
+        fail('unidentified/sold/consumed should not be serviceable');
+    } else if (!isServiceableStatus('identified') || !isServiceableStatus('appraised')) {
+        fail('identified/appraised should be serviceable');
+    } else {
+        ok('isServiceableStatus gates by status');
+    }
+}
+
+{
+    const unidentified = { status: 'unidentified', condition: undefined };
+    const kept = resolveDiscoveryConditionAfterPatch(unidentified, 'unidentified', 'repaired');
+    const identified = { status: 'identified', condition: undefined };
+    const applied = resolveDiscoveryConditionAfterPatch(identified, 'identified', 'repaired');
+    const unchanged = resolveDiscoveryConditionAfterPatch(identified, 'identified', undefined);
+    if (kept !== undefined) {
+        fail(`condition change on unidentified entry should be dropped: ${kept}`);
+    } else if (applied !== 'repaired') {
+        fail(`condition change on identified entry should apply: ${applied}`);
+    } else if (unchanged !== undefined) {
+        fail(`no patch condition should leave entry condition untouched: ${unchanged}`);
+    } else {
+        ok('resolveDiscoveryConditionAfterPatch gates on serviceable status');
     }
 }
 

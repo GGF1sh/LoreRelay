@@ -94,6 +94,46 @@ const {
     }
 }
 
+{
+    // Condition op on an unidentified find is ignored; on an identified find it applies.
+    const base = {
+        version: 1,
+        entries: [{ id: 'x', kind: 'material', label: 'Warm shard', status: 'unidentified' }],
+    };
+    const stillUnidentified = applyDiscoveryOpsToLedger(base, [
+        { op: 'update', id: 'x', condition: 'repaired', estValue: 200 },
+    ]);
+    if (stillUnidentified.entries[0].condition !== undefined) {
+        fail(`condition on unidentified find should be ignored: ${stillUnidentified.entries[0].condition}`);
+    } else if (stillUnidentified.entries[0].estValue !== 200) {
+        fail('estValue should still apply even when condition is gated out');
+    } else {
+        ok('condition op ignored on unidentified find');
+    }
+
+    const identified = applyDiscoveryOpsToLedger(base, [
+        { op: 'update', id: 'x', identifiedLabel: 'Relay housing', estValue: 150 },
+        { op: 'update', id: 'x', condition: 'upgraded' },
+    ]);
+    if (identified.entries[0].status !== 'identified' || identified.entries[0].condition !== 'upgraded') {
+        fail(`condition op should apply once identified: ${JSON.stringify(identified.entries[0])}`);
+    } else {
+        ok('condition op applies after identification');
+    }
+}
+
+{
+    // add op with an explicit serviceable status can set condition directly.
+    const withAdd = applyDiscoveryOpsToLedger({ version: 1, entries: [] }, [
+        { op: 'add', id: 'find_b', label: 'Scavenged rifle', discoveryKind: 'material', status: 'identified', identifiedLabel: 'Old rifle', condition: 'repaired', estValue: 300 },
+    ]);
+    if (withAdd.entries[0].condition !== 'repaired' || withAdd.entries[0].estValue !== 300) {
+        fail(`add op should accept condition/estValue when status is serviceable: ${JSON.stringify(withAdd.entries[0])}`);
+    } else {
+        ok('add op accepts condition/estValue for a serviceable status');
+    }
+}
+
 if (failed > 0) {
     process.exit(1);
 }

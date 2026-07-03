@@ -4,7 +4,7 @@ import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { resolveActiveCampaignKit } from './campaignKit';
 import { loadDiscoveryLedger } from './discoveryLedger';
 import type { CampaignKitConfig } from './campaignKitCore';
-import type { DiscoveryEntry, DiscoveryLedgerDocument, DiscoveryStatus } from './discoveryLedgerCore';
+import { computeSuggestedSellValue, type DiscoveryCondition, type DiscoveryEntry, type DiscoveryLedgerDocument, type DiscoveryStatus } from './discoveryLedgerCore';
 import { filterJobBoardByQuestHooks } from './campaignJobQuestCore';
 import {
     buildCampaignJobBoard,
@@ -45,7 +45,7 @@ function displayLabel(entry: DiscoveryEntry): string {
     return entry.identifiedLabel || entry.label;
 }
 
-/** FoW-safe discovery list for World tab (no GM-only valueHint). */
+/** FoW-safe discovery list for World tab (no GM-only valueHint; value/condition hidden until identified). */
 export function pickDiscoveriesForWebview(
     ledger: DiscoveryLedgerDocument | undefined,
     maxEntries = 24
@@ -56,19 +56,26 @@ export function pickDiscoveriesForWebview(
     status: DiscoveryStatus;
     siteId?: string;
     siteName?: string;
+    condition?: DiscoveryCondition;
+    suggestedValue?: number;
 }> | undefined {
     if (!ledger?.entries.length) { return undefined; }
     const active = ledger.entries
         .filter((e) => WEBVIEW_DISCOVERY_STATUSES.includes(e.status))
         .slice(0, maxEntries)
-        .map((e) => ({
-            id: e.id,
-            kind: e.kind,
-            label: displayLabel(e),
-            status: e.status,
-            siteId: e.siteId,
-            siteName: e.siteId ? resolveLocationName(e.siteId) : undefined,
-        }));
+        .map((e) => {
+            const revealed = e.status !== 'unidentified';
+            return {
+                id: e.id,
+                kind: e.kind,
+                label: displayLabel(e),
+                status: e.status,
+                siteId: e.siteId,
+                siteName: e.siteId ? resolveLocationName(e.siteId) : undefined,
+                condition: revealed && e.condition && e.condition !== 'standard' ? e.condition : undefined,
+                suggestedValue: revealed ? computeSuggestedSellValue(e) : undefined,
+            };
+        });
     return active.length ? active : undefined;
 }
 

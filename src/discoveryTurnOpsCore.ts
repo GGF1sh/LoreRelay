@@ -2,12 +2,14 @@
 
 import type { DiscoveryKind } from './campaignKitCore';
 import type {
+    DiscoveryCondition,
     DiscoveryEntry,
     DiscoveryLedgerDocument,
     DiscoveryStatus,
 } from './discoveryLedgerCore';
 import {
     finalizeDiscoveryEntry,
+    resolveDiscoveryConditionAfterPatch,
     resolveDiscoveryStatusAfterPatch,
 } from './discoveryAppraisalCore';
 
@@ -25,6 +27,8 @@ export interface DiscoveryTurnOp {
     notes?: string;
     valueHint?: string;
     identifiedLabel?: string;
+    condition?: DiscoveryCondition;
+    estValue?: number;
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -53,6 +57,21 @@ function asStatus(raw: unknown): DiscoveryStatus | undefined {
         || raw === 'sold'
         || raw === 'consumed'
         ? raw
+        : undefined;
+}
+
+function asCondition(raw: unknown): DiscoveryCondition | undefined {
+    return raw === 'standard'
+        || raw === 'repaired'
+        || raw === 'upgraded'
+        || raw === 'damaged'
+        ? raw
+        : undefined;
+}
+
+function asEstValue(raw: unknown): number | undefined {
+    return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0
+        ? Math.min(999999, Math.round(raw))
         : undefined;
 }
 
@@ -85,6 +104,10 @@ function parseOp(raw: unknown): DiscoveryTurnOp | undefined {
     if (valueHint) { parsed.valueHint = valueHint; }
     const identifiedLabel = clampText(r.identifiedLabel, 120);
     if (identifiedLabel) { parsed.identifiedLabel = identifiedLabel; }
+    const condition = asCondition(r.condition);
+    if (condition) { parsed.condition = condition; }
+    const estValue = asEstValue(r.estValue);
+    if (estValue !== undefined) { parsed.estValue = estValue; }
     if (op === 'add' && !parsed.label) {
         return undefined;
     }
@@ -122,6 +145,9 @@ function mergeEntry(base: DiscoveryEntry | undefined, op: DiscoveryTurnOp, acqui
         if (op.notes) { entry.notes = op.notes; }
         if (op.valueHint) { entry.valueHint = op.valueHint; }
         if (op.identifiedLabel) { entry.identifiedLabel = op.identifiedLabel; }
+        if (op.estValue !== undefined) { entry.estValue = op.estValue; }
+        const addedCondition = resolveDiscoveryConditionAfterPatch(entry, entry.status, op.condition);
+        if (addedCondition) { entry.condition = addedCondition; }
         if (acquiredWorldTurn !== undefined) { entry.acquiredWorldTurn = acquiredWorldTurn; }
         return finalizeDiscoveryEntry(entry, 'unidentified');
     }
@@ -135,11 +161,14 @@ function mergeEntry(base: DiscoveryEntry | undefined, op: DiscoveryTurnOp, acqui
     if (op.notes) { next.notes = op.notes; }
     if (op.valueHint) { next.valueHint = op.valueHint; }
     if (op.identifiedLabel) { next.identifiedLabel = op.identifiedLabel; }
+    if (op.estValue !== undefined) { next.estValue = op.estValue; }
     next.status = resolveDiscoveryStatusAfterPatch(base, {
         status: op.status,
         label: op.label,
         identifiedLabel: op.identifiedLabel,
     });
+    const nextCondition = resolveDiscoveryConditionAfterPatch(base, next.status, op.condition);
+    if (nextCondition) { next.condition = nextCondition; }
     return finalizeDiscoveryEntry(next, base.status);
 }
 

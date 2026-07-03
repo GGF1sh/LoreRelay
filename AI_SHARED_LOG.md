@@ -6,10 +6,21 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.49.0** |
-| Campaign Kit | **Phase A–E** · 7 genre presets · sell_discovery · services loop guidance · campaign quest factionId + reputationOps prompt |
+| Package version | **1.50.0** |
+| Campaign Kit | **Phase A–F** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· campaign quest factionId + reputationOps prompt |
 | Tests | `npm test` **129/129** |
-| Next (推奨) | Services 状態機（repaired/upgraded status）· 動的 market demand（相場変動）· G5 ライバルギルド |
+| Next (推奨) | 動的 market demand（相場変動）· resupply 消費ループ · G5 ライバルギルド |
+
+---
+
+## 2026-07-03 JST - Claude (Opus 4.8) - Campaign Kit Phase F v1.50.0 services state machine
+
+- **Phase F 完了** — `DiscoveryEntry.condition`(standard/repaired/upgraded/damaged)+ `estValue` 追加。`computeSuggestedSellValue()` = estValue×倍率(1x/1.3x/1.6x/0.6x)。前回(v1.49.0)は「修理で価値が変わる」がプロンプト文言だけだった穴を、数値としてCore正本化。
+- **ゲーティング** — `isServiceableStatus`/`resolveDiscoveryConditionAfterPatch`(discoveryAppraisalCore.ts)で、condition変更は identified/appraised のみ適用。unidentified/sold/consumedへのcondition opは無害に無視。estValueはゲート無し(GM側見積もり、鑑定前は非公開)。
+- **曖昧さ維持** — formatEntryLine・pickDiscoveriesForWebview 双方で「unidentifiedの間はcondition/推定額を出さない」ガードを追加(実装中に自分で見つけた設計バグ、鑑定前に価値が漏れるところだった)。
+- GM prompt に `[condition] ~推定額` 追記、sell_discovery交渉額をこれに近づける指示。World タブに condition バッジ+推定額表示(i18n ×4)。
+- `discoveryLedgerCore.ts`/`discoveryAppraisalCore.ts`/`discoveryTurnOpsCore.ts`/`campaignKitBridge.ts`/`campaignKitCore.ts` 拡張。テスト129/129・version consistency PASS。
+- **次候補:** 動的market demand(派閥/事件で相場変動)・resupply消費ループ(食料/水/弾薬)・G5ライバルギルド。
 
 ---
 

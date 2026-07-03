@@ -103,7 +103,7 @@ This keeps genre flavor flexible without forking the engine per setting.
 | Job / rumor board | Quest Hooks + GM narration | Phase C: deterministic hub board (prompt + World tab) |
 | Expedition site | World Forge geography + travel | Danger from region/location |
 | Findings | `discoveries.json` + inventory | Phase B: ledger prompt |
-| Appraisal / repair | GM + Commerce | Phase D: turn ops |
+| Appraisal / repair | GM + Commerce | Phase D: turn ops; Phase F: condition/estValue canonicalize repair value |
 | Market reaction | Commerce + Living World | `tradeOps` canonical |
 | World reaction | Faction rep + world_state | Simulation when enabled |
 
@@ -155,6 +155,27 @@ Valid transitions: `unidentified` → `identified` → `appraised` → `sold` / 
 - Setting `identifiedLabel` on an `unidentified` entry auto-promotes to `identified`.
 - World tab **Request appraisal** / **Complete appraisal** inserts player intent into chat (GM responds with `discoveryOps`).
 
+### Services state machine — condition & value (Phase F)
+
+Repair/upgrade services now change a find's *canonical* value instead of only its description. `DiscoveryEntry` gained two optional fields:
+
+- `condition`: `"standard"` (default) | `"repaired"` | `"upgraded"` | `"damaged"`
+- `estValue`: GM base price estimate (integer, clamped 0–999999)
+
+`computeSuggestedSellValue(entry)` = `estValue × multiplier` where standard=1x, repaired=1.3x, upgraded=1.6x, damaged=0.6x. The ledger prompt shows `[condition] ~suggestedValue` next to each entry once it's no longer `unidentified` — this stays vague pre-appraisal by design (no leak of value/condition before identification).
+
+**Gating (`isServiceableStatus` / `resolveDiscoveryConditionAfterPatch` in `discoveryAppraisalCore.ts`):** a `condition` change only applies when the entry's resulting status is `identified` or `appraised`. Condition ops on `unidentified`, `sold`, or `consumed` entries are silently ignored by core — you have to know what you found before you can repair it, and you can't service something already sold. `estValue` has no such gate (it's a GM-side estimate, not a player-visible number until the entry is identified).
+
+```json
+{
+  "discoveryOps": [
+    { "op": "update", "id": "find_metro_shard", "condition": "repaired", "estValue": 180 }
+  ]
+}
+```
+
+GM guidance: anchor the negotiated `sell_discovery` price near the ledger's suggested value when one is shown; price/stock still route through Commerce `tradeOps`, condition/value state stays in `discoveryOps`.
+
 ## Job/Rumor Board (Phase C)
 
 When Campaign Kit is active and World Forge has expedition sites, LoreRelay builds a deterministic hub board from kit genre + geography (seed: `worldSeed`, hub id, `worldTurn`). Entries are guidance prompts — accepting a posting does not auto-create quest hooks.
@@ -175,6 +196,7 @@ World tab **Campaign** panel shows:
 | **C** Job/Rumor board runtime | **done** | Deterministic hub board + GM prompt (`campaignJobBoardCore.ts`) |
 | **D** Appraisal state machine | **done** | Status transitions + GM guidance; webview appraisal request; `discoveryOps` persist |
 | **E** Genre preset packs | **done** | 7 built-in genre presets (all `CampaignKitGenre` covered) + `scrapbound-settlement` sample |
+| **F** Services state machine | **done** | `condition`/`estValue` on `DiscoveryEntry`, `computeSuggestedSellValue`, serviceable-status gating |
 
 ## Sample Workspace
 

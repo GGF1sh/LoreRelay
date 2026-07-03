@@ -11,8 +11,9 @@ import { loadWorldState, saveWorldState } from './worldState';
 import { loadNpcRegistry } from './npcRegistry';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { parseTradeOps, applyTradeOps, initializeMarketState } from './commerceCore';
-import { parseNpcAgencyOps, applyNpcAgencyOps } from './npcAgencyCore';
+import { parseNpcAgencyOps, applyNpcAgencyOps, resolveNpcLocation } from './npcAgencyCore';
 import { parseRelationshipOps, applyRelationshipOps } from './npcRelationshipCore';
+import { applyPlayerBondTradeAdjustment, type PlayerBondRegistryLike } from './playerBondCore';
 import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import {
     getOrInitPlayerCommerce,
@@ -63,6 +64,43 @@ export function applyLivingWorldTurnOps(
                 );
                 const batch = applyTradeOps(commerce, markets, playerCommerce, ops);
                 if (batch.ok) {
+                    let finalCommerce = batch.commerce;
+
+                    // LW3-P2: 絆の交易波及 — 盟友NPCが同席する市場では商いに情が乗り(還元)、
+                    // 敵対NPCの市場では上乗せされる。全opが同一市場の場合のみ(通常のUI経路)。
+                    if (rules.enableNpcRelationships && rules.enableNpcAgency && rules.enableNpcRegistry) {
+                        const locations = new Set(ops.map((o) => o.marketLocationId));
+                        if (locations.size === 1) {
+                            const locationId = ops[0].marketLocationId;
+                            const registry = loadNpcRegistry();
+                            const bondReg: PlayerBondRegistryLike = {};
+                            const npcAtLocation: Record<string, string | undefined> = {};
+                            for (const [id, entry] of Object.entries(registry.npcs)) {
+                                bondReg[id] = { name: entry.name };
+                                npcAtLocation[id] = resolveNpcLocation(
+                                    id,
+                                    registryToAgencyLike(registry),
+                                    ws.npcPositions ?? {},
+                                    ws.worldTurn,
+                                    true
+                                )?.locationId;
+                            }
+                            const adj = applyPlayerBondTradeAdjustment({
+                                milestones: ws.playerNpcMilestones ?? {},
+                                registry: bondReg,
+                                npcAtLocation,
+                                locationId,
+                                creditsDelta: batch.commerce.credits - playerCommerce.credits,
+                            });
+                            if (adj.adjustment !== 0) {
+                                finalCommerce = {
+                                    ...finalCommerce,
+                                    credits: Math.max(0, finalCommerce.credits + adj.adjustment),
+                                };
+                            }
+                        }
+                    }
+
                     const updatedWorld: WorldState = {
                         ...ws,
                         markets: batch.markets,
@@ -70,7 +108,7 @@ export function applyLivingWorldTurnOps(
                     saveWorldState(updatedWorld);
                     nextGame = {
                         ...nextGame,
-                        commerce: batch.commerce,
+                        commerce: finalCommerce,
                     } as GameState;
                 }
             }

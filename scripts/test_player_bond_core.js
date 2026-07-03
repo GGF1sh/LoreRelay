@@ -29,8 +29,9 @@ if (spawnSync(cmd, args, { stdio: 'inherit', shell: useShell }).status !== 0) {
 const core = require(path.join(outDir, 'playerBondCore.js'));
 const {
     detectPlayerBondEvents, listPlayerBondStandings, buildPlayerBondMessage,
-    buildPlayerBondGmHint, buildPlayerBondPromptLines,
+    buildPlayerBondGmHint, buildPlayerBondPromptLines, applyPlayerBondTradeAdjustment,
     PLAYER_TRUST_COMPANION_MIN, PLAYER_ROMANCE_MIN, PLAYER_TRUST_NEMESIS_MAX, PLAYER_FEAR_MIN,
+    BOND_TRADE_ALLY_PCT, BOND_TRADE_MAX_ADJUSTMENT,
 } = core;
 
 let failed = 0;
@@ -143,6 +144,89 @@ function eq(a, e, m) { if (a === e) { ok(m); } else { fail(`${m} (got ${JSON.str
     const res = detectPlayerBondEvents({ registry: reg, milestones: {}, worldTurn: 1 });
     if (res.events.length <= 6) { ok('per-tick event cap respected'); }
     else { fail(`event cap (${res.events.length})`); }
+}
+
+// --- LW3-P2: 絆の交易波及 ---
+
+const TRADE_REG = { npc_elda: { name: 'Elda' }, npc_rurik: { name: 'Rurik' } };
+
+// 13. 盟友が同席する市場: 純支出100 → +10 還元
+{
+    const adj = applyPlayerBondTradeAdjustment({
+        milestones: { npc_elda: ['trusted_companion'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'elda_shop' },
+        locationId: 'elda_shop',
+        creditsDelta: -100,
+    });
+    eq(adj.adjustment, 100 * BOND_TRADE_ALLY_PCT / 100, 'ally favor rebates 10% of spend');
+    eq(adj.reason, 'ally_favor', 'reason ally_favor');
+    eq(adj.npcName, 'Elda', 'ally name resolved');
+}
+
+// 14. 敵対が同席: 純収入200 → -20 上乗せ(不利)
+{
+    const adj = applyPlayerBondTradeAdjustment({
+        milestones: { npc_rurik: ['nemesis'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_rurik: 'south_port' },
+        locationId: 'south_port',
+        creditsDelta: 200,
+    });
+    eq(adj.adjustment, -20, 'nemesis markup costs 10%');
+    eq(adj.reason, 'nemesis_markup', 'reason nemesis_markup');
+}
+
+// 15. 盟友と敵対が両方同席 → 盟友優先
+{
+    const adj = applyPlayerBondTradeAdjustment({
+        milestones: { npc_elda: ['trusted_companion'], npc_rurik: ['nemesis'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'hub', npc_rurik: 'hub' },
+        locationId: 'hub',
+        creditsDelta: -100,
+    });
+    eq(adj.reason, 'ally_favor', 'ally wins when both present');
+}
+
+// 16. 背信した元盟友は還元しない
+{
+    const adj = applyPlayerBondTradeAdjustment({
+        milestones: { npc_elda: ['trusted_companion', 'estrangement'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'elda_shop' },
+        locationId: 'elda_shop',
+        creditsDelta: -100,
+    });
+    eq(adj.adjustment, 0, 'estranged ally gives no favor');
+}
+
+// 17. 別の場所に居る盟友は効かない / delta 0 は無調整 / 上限クランプ
+{
+    const away = applyPlayerBondTradeAdjustment({
+        milestones: { npc_elda: ['trusted_companion'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'far_away' },
+        locationId: 'elda_shop',
+        creditsDelta: -100,
+    });
+    eq(away.adjustment, 0, 'absent ally gives no favor');
+    const zero = applyPlayerBondTradeAdjustment({
+        milestones: { npc_elda: ['trusted_companion'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'elda_shop' },
+        locationId: 'elda_shop',
+        creditsDelta: 0,
+    });
+    eq(zero.adjustment, 0, 'zero delta -> no adjustment');
+    const capped = applyPlayerBondTradeAdjustment({
+        milestones: { npc_elda: ['trusted_companion'] },
+        registry: TRADE_REG,
+        npcAtLocation: { npc_elda: 'elda_shop' },
+        locationId: 'elda_shop',
+        creditsDelta: -999999,
+    });
+    eq(capped.adjustment, BOND_TRADE_MAX_ADJUSTMENT, 'adjustment capped');
 }
 
 try { fs.rmSync(outDir, { recursive: true, force: true }); } catch (_) { /* noop */ }

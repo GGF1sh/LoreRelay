@@ -156,6 +156,73 @@ export function buildPlayerBondGmHint(kind: PlayerBondKind): string {
     return base;
 }
 
+// --- LW3-P2: 絆の交易波及(盟友の店では商いに情が乗り、敵の店では上乗せされる) ---
+
+export const BOND_TRADE_ALLY_PCT = 10;     // 盟友NPC同席市場: 純支出の10%還元 / 純収入の10%上乗せ
+export const BOND_TRADE_NEMESIS_PCT = 10;  // 敵対NPC同席市場: 逆方向に10%
+export const BOND_TRADE_MAX_ADJUSTMENT = 500; // 1回の取引バッチでの調整上限(暴走防止)
+
+export type BondTradeReason = 'ally_favor' | 'nemesis_markup';
+
+export interface BondTradeAdjustment {
+    /** credits への加算値(正=プレイヤー有利)。0 なら調整なし。 */
+    adjustment: number;
+    reason?: BondTradeReason;
+    npcId?: string;
+    npcName?: string;
+}
+
+/**
+ * 取引バッチ後の credits 調整を計算する(純関数)。
+ * - locationId に「固い盟友」(trusted_companion 到達済み・背信していない)が居れば有利に、
+ *   「敵対」(nemesis)が居れば不利に、純増減 |creditsDelta| の一定割合を調整。
+ * - 両方居る場合は相殺せず盟友を優先(顔なじみが取りなす)。
+ * - npcAtLocation: npcId → 現在の locationId(ホストが resolveNpcLocation で解決して渡す)。
+ */
+export function applyPlayerBondTradeAdjustment(input: {
+    milestones: PlayerBondMilestoneMap;
+    registry: PlayerBondRegistryLike;
+    npcAtLocation: Record<string, string | undefined>;
+    locationId: string;
+    creditsDelta: number;
+}): BondTradeAdjustment {
+    if (!input.locationId || !Number.isFinite(input.creditsDelta) || input.creditsDelta === 0) {
+        return { adjustment: 0 };
+    }
+
+    let ally: string | undefined;
+    let nemesis: string | undefined;
+    for (const npcId of Object.keys(input.registry).slice(0, MAX_PLAYER_BONDS)) {
+        if (input.npcAtLocation[npcId] !== input.locationId) { continue; }
+        const reached = new Set(input.milestones[npcId] ?? []);
+        if (reached.has('trusted_companion') && !reached.has('estrangement') && !ally) {
+            ally = npcId;
+        }
+        if (reached.has('nemesis') && !nemesis) {
+            nemesis = npcId;
+        }
+    }
+
+    const magnitude = Math.abs(input.creditsDelta);
+    if (ally) {
+        const adjustment = Math.min(
+            BOND_TRADE_MAX_ADJUSTMENT,
+            Math.round((magnitude * BOND_TRADE_ALLY_PCT) / 100)
+        );
+        if (adjustment <= 0) { return { adjustment: 0 }; }
+        return { adjustment, reason: 'ally_favor', npcId: ally, npcName: input.registry[ally]?.name };
+    }
+    if (nemesis) {
+        const adjustment = Math.min(
+            BOND_TRADE_MAX_ADJUSTMENT,
+            Math.round((magnitude * BOND_TRADE_NEMESIS_PCT) / 100)
+        );
+        if (adjustment <= 0) { return { adjustment: 0 }; }
+        return { adjustment: -adjustment, reason: 'nemesis_markup', npcId: nemesis, npcName: input.registry[nemesis]?.name };
+    }
+    return { adjustment: 0 };
+}
+
 const STANDING_LABEL_EN: Record<PlayerBondKind, string> = {
     trusted_companion: 'sworn ally',
     romance: 'holds you dear',

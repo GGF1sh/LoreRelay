@@ -75,7 +75,8 @@
    sanitizeGameRules に boolean ガードを追加(既存 enableDomainMode の追加パターンを踏襲)。
 6. World タブに最小 Guild パネル（coffers/renown/townFavor/discipline/adventurers一覧のみ表示、
    read-only）。既存 Domain パネルの webview モジュール構造を参考に配置。
-7. テスト test/test_guild_core.js を新規: validate/parseOps の正常系異常系、
+7. テスト scripts/test_guild_core.js を新規（`scripts/run_all_tests.js` に登録）:
+   validate/parseOps の正常系異常系、
    computeGuildEventWeight の重み条件、applyWeeklyCommit の決定論性
    （同一 domain+ops+seed→同一結果を複数回呼んで比較）。
 
@@ -129,7 +130,7 @@ DoD:
    （クリックで focusRequestId をチャットに挿入 — 既存 insertChatText 経由の
    パターンを Cartography のピンクリック実装(mapFeedbackCore.ts 付近)から踏襲）。
 7. game_rules.ts に enableGuildRequests: false を追加。
-8. テスト test/test_guild_request.js: queue の決定論性、各 ruling の delta 検証、
+8. テスト scripts/test_guild_request_core.js: queue の決定論性、各 ruling の delta 検証、
    accept→quest 昇格の内容検証、resolveGuildBoardTier の bulk/full 分岐、
    requestId/rulingId のサニタイズ（不正値・改行混入で例外にならないこと）。
 
@@ -183,7 +184,7 @@ skill・Bond・difficulty・seed から決定論で成否を判定する。
    GUILD_QUEST_OPS_PROMPT_LINE を追加。
 6. World タブ: 受注済みクエスト一覧 + パーティ編成UI（冒険者チェックボックス選択→
    assign_party ops をチャット挿入）。
-7. テスト test/test_guild_quest.js:
+7. テスト scripts/test_guild_quest_core.js:
    - computeQuestGradeWeights: skill/bond/difficulty の各方向への重み変化を検証
    - 同一 seed+同一入力→同一 grade を複数回検証（決定論の核）
    - avgBond低（宿敵混在）→ disaster率上昇の検証
@@ -232,7 +233,7 @@ DoD:
 4. game_rules.ts のフラグ群を最終形に揃える:
    enableGuildMode / enableGuildRequests / enableGuildParties / enableRivalGuild(未配線・
    宣言のみ) の4つが揃っているか確認。無ければ追加。
-5. テスト test/test_guild_drift.js: drift の決定論性、cap動作、
+5. テスト scripts/test_guild_drift_core.js: drift の決定論性、cap動作、
    report文字列のサニタイズ（改行/制御文字混入で例外にならない）。
 
 DoD:

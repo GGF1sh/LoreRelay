@@ -967,6 +967,7 @@
   "webview.world.campaignKitHint": "Expedition findings and hub postings (read-only).",
   "webview.world.campaignKitHub": "Hub: {hub}",
   "webview.world.campaignDiscoveriesTitle": "Findings",
+  "webview.world.campaignResourcesTitle": "Supplies",
   "webview.world.campaignDiscoveriesEmpty": "No active findings in the ledger yet.",
   "webview.world.campaignJobBoardTitle": "{label}",
   "webview.world.campaignJobBoardFallback": "Job/Rumor Board",

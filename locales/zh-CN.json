@@ -967,6 +967,7 @@
   "webview.world.campaignKitHint": "远征发现物与据点告示（只读）。",
   "webview.world.campaignKitHub": "据点: {hub}",
   "webview.world.campaignDiscoveriesTitle": "发现物",
+  "webview.world.campaignResourcesTitle": "物资",
   "webview.world.campaignDiscoveriesEmpty": "台账中尚无有效发现物。",
   "webview.world.campaignJobBoardTitle": "{label}",
   "webview.world.campaignJobBoardFallback": "工作/传闻告示板",

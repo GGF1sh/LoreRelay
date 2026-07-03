@@ -13,6 +13,20 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.52.0] - 2026-07-03
+
+### Added
+
+- **Campaign Kit Phase G — campaign resources** — Campaign Kitのジャンル別資源(postapoc_scavengerのwater/ammo/medicine等)を実際に消費・補給できるプレイヤー状態として正本化。`campaignResourcesCore.ts`(純関数): `campaign_resources.json`(任意, resourceId→数量, 0〜999999にクランプ)、初回は未作成でもアクティブなキットの全資源にデフォルト値10を自動補完して表示。
+- **campaignResourceOps** — `turn_result.campaignResourceOps`(最大8件、`{ op: "delta"|"set", resourceId, amount, reason? }`)。`delta`は加減算(負値で消費)、`set`は絶対値固定。**アクティブなキットの語彙に無いresourceIdは Core が無害に無視**(discoveries.jsonの`DiscoveryKind`ゲーティングと同じ設計思想 — GMが未定義の資源を捏造できない)。`statePatch.ts`で`discoveryOps`永続化の直後に配線(`discoveries.json`と同じ独立ファイルパターン、`game_state.json`本体は非破壊)。
+- **GM プロンプト** — `[Campaign Resources]`(優先度91、上限900字)で各資源の残量を表示、残量2以下は`(low)`、0は`(OUT)`と明示し「無視せず物語上の重みを持たせる」よう指示。
+- **World タブ UI** — Campaign パネル上部に物資チップ(残量に応じて緑/黄/赤)を表示(i18n: en/ja/zh-CN/zh-TW)。
+
+### Notes
+
+- Commerce `tradeOps`とは意図的に非連携(独立したid空間) — 市場での購入が自動的に資源を補充するわけではなく、GMが物語として「井戸で水を補給した」等をcampaignResourceOpsで反映する設計。既存の`applyTravelFoodConsumption`(旅行時の食料消費、`PlayerCommerceState.food`)とは別軸(あちらはCommerce本体のbase resource、こちらはCampaign Kitのジャンル別資源)、共存可能。
+- `test_campaign_resources_core.js`新規(パース・クランプ・キット語彙ゲーティング・0床止め・プロンプト表示を検証)。テスト **131/131**、`check_version_consistency.js` PASS。
+
 ## [1.51.0] - 2026-07-03
 
 ### Added

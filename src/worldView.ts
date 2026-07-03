@@ -547,6 +547,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         campaignKit: campaignKitPayload.campaignKit ?? null,
         campaignDiscoveries: campaignKitPayload.discoveries ?? null,
         campaignJobBoard: campaignKitPayload.jobBoard ?? null,
+        campaignResources: campaignKitPayload.resources ?? null,
         mapItems: listActiveMapItems(worldBlock).map((item) => ({
             id: item.id,
             name: item.name,

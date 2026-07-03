@@ -103,6 +103,7 @@ This keeps genre flavor flexible without forking the engine per setting.
 | Job / rumor board | Quest Hooks + GM narration | Phase C: deterministic hub board (prompt + World tab) |
 | Expedition site | World Forge geography + travel | Danger from region/location |
 | Findings | `discoveries.json` + inventory | Phase B: ledger prompt |
+| Resources | `campaign_resources.json` | Phase G: consumable genre supplies (water/ammo/medicine/etc), GM-narrated spend/resupply |
 | Appraisal / repair | GM + Commerce | Phase D: turn ops; Phase F: condition/estValue canonicalize repair value |
 | Market reaction | Commerce + Living World | `tradeOps` canonical; faction-controlled markets also drift with player reputation when `enableFactionReputation` is on |
 | World reaction | Faction rep + world_state | Simulation when enabled |
@@ -187,6 +188,43 @@ World tab **Campaign** panel shows:
 - **Findings** — active `discoveries.json` entries (no GM-only `valueHint`)
 - **Job board** — generated postings with **Inquire** (chat) and **Accept job** (creates active `questHooks` entry, `source: campaign`)
 
+## Campaign Resources (Phase G)
+
+Optional workspace file: `campaign_resources.json`
+
+```json
+{
+  "version": 1,
+  "quantities": { "food": 8, "water": 2, "fuel": 15 }
+}
+```
+
+Resource ids must match the active kit's `resources` list (e.g. `food`/`water`/`fuel`/`ammo`/`medicine`/`parts` for `postapoc_scavenger`). If the file doesn't exist yet, LoreRelay seeds a default starting quantity (10) for every resource the active kit defines — the file is only written once a `campaignResourceOps` update actually changes something.
+
+GM prompt chunk `[Campaign Resources]` (priority 91, char cap 900) lists each tracked resource with its current quantity and flags `(low)` at ≤2 and `(OUT)` at 0.
+
+### campaignResourceOps
+
+GM may set `turn_result.campaignResourceOps` (max 8) when Campaign Kit is active:
+
+```json
+{
+  "campaignResourceOps": [
+    { "op": "delta", "resourceId": "food", "amount": -3, "reason": "trail rations" },
+    { "op": "set", "resourceId": "water", "amount": 20 }
+  ]
+}
+```
+
+- `"delta"` adds/subtracts from the current quantity (negative to consume); `"set"` pins an absolute value.
+- Quantities are clamped to `[0, 999999]` — they never go negative.
+- Ops for a `resourceId` outside the active kit's `resources` vocabulary are **ignored by core** (the GM cannot invent untracked supplies; mirrors the `DiscoveryKind` enum gating in the discovery ledger).
+- Persists to `campaign_resources.json` on turn apply, right after `discoveryOps` (`statePatch.ts`).
+
+World tab **Campaign** panel shows a compact supply chip row (name + qty, colored by level) above Findings.
+
+This is intentionally decoupled from Commerce `tradeOps`: buying a matching commodity at a hub market does not automatically bump a campaign resource (the two systems use independent id spaces). The GM is expected to narrate the tie ("you restock water at the well" → emit a matching `campaignResourceOps` delta) rather than have Core assume a 1:1 mapping between commodity ids and resource ids.
+
 ## Implementation Phases
 
 | Phase | Status | Deliverable |
@@ -197,6 +235,7 @@ World tab **Campaign** panel shows:
 | **D** Appraisal state machine | **done** | Status transitions + GM guidance; webview appraisal request; `discoveryOps` persist |
 | **E** Genre preset packs | **done** | 7 built-in genre presets (all `CampaignKitGenre` covered) + `scrapbound-settlement` sample |
 | **F** Services state machine | **done** | `condition`/`estValue` on `DiscoveryEntry`, `computeSuggestedSellValue`, serviceable-status gating |
+| **G** Campaign resources | **done** | `campaign_resources.json`, `campaignResourcesCore.ts`, `campaignResourceOps`, World tab supply chips |
 
 ## Sample Workspace
 
@@ -211,5 +250,6 @@ Quickstart: [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md)
 | Campaign Kit | 94 | 1800 |
 | Discovery Ledger | 93 | 1200 |
 | Campaign Job Board | 92 | 1400 |
+| Campaign Resources | 91 | 900 |
 
-All three rank above Domain/Guild simulation helpers so genre loop guidance survives eviction.
+All four rank above Domain/Guild simulation helpers so genre loop guidance survives eviction.

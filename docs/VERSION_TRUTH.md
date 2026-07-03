@@ -55,9 +55,9 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.51.0** |
-| CHANGELOG 先頭 | **[1.51.0]** Faction reputation market demand — controlling faction's opinion of the player drifts market priceIndex |
-| Campaign Kit | Phase A–F · 7 genre presets · sell_discovery · services state machine (condition/estValue) · factionId on campaign quests · `scrapbound-settlement` sample |
+| `package.json` | **1.52.0** |
+| CHANGELOG 先頭 | **[1.52.0]** Campaign Kit Phase G — campaign resources (water/ammo/medicine等の消費ループ) |
+| Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources**(campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World | LW1 Commerce に 2つ目の価格ドライバ追加(v1.51.0): 派閥/regionイベント連動 + **プレイヤー評判連動**(faction-controlled markets) |
 | Domain Mode | D1–D5 + **D3 UI 完了**（1.40.0）· F7–F10 engine + World タブ UI · v1.40.1 hardening |
 | Guild Master (F11) | **G1–G4 完了**（1.41.0–1.44.1）· v1.44.1 hardening · `enableGuildMode` 既定 OFF |

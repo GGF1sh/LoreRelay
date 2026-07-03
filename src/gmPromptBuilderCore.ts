@@ -413,6 +413,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     campaignKit: 94,
     discoveryLedger: 93,
     campaignJobBoard: 92,
+    campaignResources: 91,
     domain: 67,
     guild: 66,
     director: 95,

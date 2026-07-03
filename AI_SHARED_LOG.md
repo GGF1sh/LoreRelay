@@ -6,11 +6,23 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.51.0** |
-| Campaign Kit | **Phase A–F** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· campaign quest factionId + reputationOps prompt |
+| Package version | **1.52.0** |
+| Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
-| Tests | `npm test` **130/130** |
-| Next (推奨) | Campaign Kit 資源(water/ammo/medicine等)の消費ループ化 · G5 ライバルギルド |
+| Tests | `npm test` **131/131** |
+| Next (推奨) | G5 ライバルギルド · Campaign Resources と Commerce tradeOps の緩い連携(任意, GM裁量のまま据え置き中) |
+
+---
+
+## 2026-07-03 JST - Claude (Opus 5) - Campaign Kit Phase G v1.52.0 campaign resources
+
+- **Phase G 完了** — Campaign Kitのジャンル別資源(water/ammo/medicine等、これまでプロンプト上のラベルだけだった)を`campaignResourcesCore.ts`で実プレイヤー状態として正本化。`campaign_resources.json`(任意ファイル、discoveries.jsonと同じ独立ファイルパターン)、未作成時はアクティブキットの全資源にデフォルト10を自動補完。
+- **campaignResourceOps** — `delta`/`set`、resourceIdはアクティブキットの`resources`語彙のみ許可(語彙外は無害に無視 — discoveries.jsonの`DiscoveryKind`ゲーティングと同じ思想)。`statePatch.ts`で`discoveryOps`の直後に配線。
+- GM prompt `[Campaign Resources]`(優先度91)で残量+`(low)`/`(OUT)`表示。World タブに物資チップ(緑/黄/赤)追加(i18n×4)。
+- **意図的に非連携にした点** — Commerce `tradeOps`での購入は自動的にresourceを補充しない(id空間が独立)。GMが「井戸で水を補給した」等を物語としてcampaignResourceOpsに反映する設計。1:1マッピングを強制すると、商品idと資源idの命名を無理に揃える必要が生じ、既存のcommerce_forge.json設計を歪めるリスクがあったため、疎結合のまま据え置いた。
+- **既存機能との関係** — `applyTravelFoodConsumption`(旅行時food消費、Commerce本体の`PlayerCommerceState.food`)とは別軸。あちらはエンジン標準resource、こちらはCampaign Kit有効時のみのジャンル別resource。共存可能、競合なし。
+- `test_campaign_resources_core.js`新規(10ケース)。テスト131/131、version consistency PASS。
+- **次候補:** Campaign ResourcesとCommerce tradeOpsの緩い連携(GM裁量のプロンプト誘導を厚くする程度に留めるか、要相談)・G5ライバルギルド。
 
 ---
 

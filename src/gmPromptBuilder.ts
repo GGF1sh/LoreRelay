@@ -102,6 +102,7 @@ import { buildGuildPromptContext } from './guildBridge';
 import { buildCampaignKitPromptContext } from './campaignKit';
 import { buildCampaignJobBoardPromptContext } from './campaignKitBridge';
 import { buildDiscoveryLedgerPromptContext } from './discoveryLedger';
+import { buildCampaignResourcesPromptContext } from './campaignResources';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
@@ -194,6 +195,7 @@ function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLi
         { id: 'campaignKit', label: 'Campaign Kit', limitChars: 1800 },
         { id: 'discoveryLedger', label: 'Discoveries', limitChars: 1200 },
         { id: 'campaignJobBoard', label: 'Campaign Job Board', limitChars: 1400 },
+        { id: 'campaignResources', label: 'Campaign Resources', limitChars: 900 },
         { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
         { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
         { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
@@ -1154,6 +1156,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         buildSection('campaignKit', 'Campaign Kit', buildCampaignKitPromptContext()),
         buildSection('discoveryLedger', 'Discoveries', buildDiscoveryLedgerPromptContext()),
         buildSection('campaignJobBoard', 'Campaign Job Board', buildCampaignJobBoardPromptContextForGm()),
+        buildSection('campaignResources', 'Campaign Resources', buildCampaignResourcesPromptContext()),
         buildSection('domain', 'Domain', buildDomainPromptContextForGm(hint)),
         buildSection('guild', 'Guild', buildGuildPromptContextForGm(hint)),
         buildSection('director', 'Scenario Director', buildScenarioDirectorPromptContext()),
@@ -1219,6 +1222,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     pushPromptChunk(specs, 'campaignKit', buildCampaignKitPromptContext());
     pushPromptChunk(specs, 'discoveryLedger', buildDiscoveryLedgerPromptContext());
     pushPromptChunk(specs, 'campaignJobBoard', buildCampaignJobBoardPromptContextForGm());
+    pushPromptChunk(specs, 'campaignResources', buildCampaignResourcesPromptContext());
     pushPromptChunk(
         specs,
         'domain',

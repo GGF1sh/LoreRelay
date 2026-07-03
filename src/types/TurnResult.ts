@@ -137,6 +137,13 @@ export interface TurnResult {
         valueHint?: string;
         identifiedLabel?: string;
     }>;
+    /** Campaign Kit: consumable genre resource updates (campaignResourceOps, max 8). */
+    campaignResourceOps?: Array<{
+        op: 'delta' | 'set';
+        resourceId: string;
+        amount: number;
+        reason?: string;
+    }>;
     /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
         kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request' | 'assign_party';

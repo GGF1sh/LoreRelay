@@ -3,6 +3,7 @@
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { resolveActiveCampaignKit } from './campaignKit';
 import { loadDiscoveryLedger } from './discoveryLedger';
+import { resolveCampaignResourcesForPrompt } from './campaignResources';
 import type { CampaignKitConfig } from './campaignKitCore';
 import { computeSuggestedSellValue, type DiscoveryCondition, type DiscoveryEntry, type DiscoveryLedgerDocument, type DiscoveryStatus } from './discoveryLedgerCore';
 import { filterJobBoardByQuestHooks } from './campaignJobQuestCore';
@@ -96,6 +97,19 @@ export function pickJobBoardForWebview(
     }));
 }
 
+/** kit.resources ordering preserved so the World tab shows a stable, genre-appropriate list. */
+export function pickResourcesForWebview(
+    kit: CampaignKitConfig
+): Array<{ id: string; name: string; qty: number }> | undefined {
+    if (!kit.resources.length) { return undefined; }
+    const doc = resolveCampaignResourcesForPrompt();
+    return kit.resources.slice(0, 8).map((r) => ({
+        id: r.id,
+        name: r.name,
+        qty: doc?.quantities[r.id] ?? 0,
+    }));
+}
+
 export function resolveCampaignBoardContext(
     currentLocationId: string | null | undefined,
     worldTurn: number
@@ -127,6 +141,7 @@ export function buildCampaignKitWebviewPayload(
     campaignKit?: CampaignKitWebviewPayload;
     discoveries?: ReturnType<typeof pickDiscoveriesForWebview>;
     jobBoard?: ReturnType<typeof pickJobBoardForWebview>;
+    resources?: ReturnType<typeof pickResourcesForWebview>;
 } {
     const ctx = resolveCampaignBoardContext(currentLocationId, worldTurn);
     if (!ctx) {
@@ -149,6 +164,7 @@ export function buildCampaignKitWebviewPayload(
         },
         discoveries: pickDiscoveriesForWebview(loadDiscoveryLedger()),
         jobBoard: pickJobBoardForWebview(board),
+        resources: pickResourcesForWebview(ctx.kit),
     };
 }
 

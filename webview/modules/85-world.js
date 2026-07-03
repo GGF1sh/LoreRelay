@@ -2543,6 +2543,10 @@ function ensureCampaignKitStyles() {
         .campaign-badge.condition-damaged { color: var(--vscode-charts-red, #f14c4c); }
         .campaign-badge.kind-job { color: var(--vscode-charts-orange, #e8a838); }
         .campaign-badge.kind-rumor { color: var(--vscode-charts-purple, #b180d7); }
+        .campaign-resource-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.4rem; }
+        .campaign-resource-chip.level-ok { color: var(--vscode-charts-green, #73c991); }
+        .campaign-resource-chip.level-low { color: var(--vscode-charts-yellow, #e8c547); }
+        .campaign-resource-chip.level-out { color: var(--vscode-charts-red, #f14c4c); border-color: var(--vscode-charts-red, #f14c4c); }
         .campaign-job-summary { font-size: 0.86em; opacity: 0.9; margin-bottom: 0.3rem; }
         .campaign-job-actions, .campaign-discovery-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
     `;
@@ -2569,6 +2573,7 @@ function renderCampaignKitPanel(msg) {
 
     const discoveries = Array.isArray(msg.campaignDiscoveries) ? msg.campaignDiscoveries : [];
     const jobBoard = Array.isArray(msg.campaignJobBoard) ? msg.campaignJobBoard : [];
+    const resources = Array.isArray(msg.campaignResources) ? msg.campaignResources : [];
     const boardLabel = kit.loop?.jobBoardLabel || T('webview.world.campaignJobBoardFallback');
 
     panel.innerHTML = `
@@ -2578,9 +2583,33 @@ function renderCampaignKitPanel(msg) {
         </div>
     `;
 
+    if (resources.length) {
+        panel.appendChild(buildCampaignResourcesSection(resources));
+    }
     const appraisalLabel = kit.loop?.appraisalLabel || T('webview.world.campaignAppraisalFallback');
     panel.appendChild(buildCampaignDiscoveriesSection(discoveries, appraisalLabel));
     panel.appendChild(buildCampaignJobBoardSection(jobBoard, boardLabel));
+}
+
+function buildCampaignResourcesSection(resources) {
+    const el = document.createElement('div');
+    el.className = 'campaign-kit-section';
+    const heading = document.createElement('div');
+    heading.className = 'campaign-kit-section-heading';
+    heading.textContent = T('webview.world.campaignResourcesTitle');
+    el.appendChild(heading);
+
+    const list = document.createElement('div');
+    list.className = 'campaign-resource-list';
+    resources.forEach((r) => {
+        const chip = document.createElement('span');
+        const level = r.qty === 0 ? 'out' : r.qty <= 2 ? 'low' : 'ok';
+        chip.className = `campaign-badge campaign-resource-chip level-${level}`;
+        chip.textContent = `${r.name}: ${r.qty}`;
+        list.appendChild(chip);
+    });
+    el.appendChild(list);
+    return el;
 }
 
 function buildCampaignDiscoveriesSection(discoveries, appraisalLabel) {

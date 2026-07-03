@@ -54,6 +54,7 @@ import {
 } from './guildHallDriftCore';
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { applyDiscoveryTurnOps } from './discoveryTurnOps';
+import { applyCampaignResourceTurnOps } from './campaignResourceTurnOps';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 
@@ -753,6 +754,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             mergeProfile: 'turn',
         });
         applyDiscoveryTurnOps(turnResult);
+        applyCampaignResourceTurnOps(turnResult);
 
         const appliedAt = new Date().toISOString();
         const enriched: TurnResult = {

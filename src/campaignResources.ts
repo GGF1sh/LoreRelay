@@ -28,6 +28,20 @@ export function clearCampaignResourcesCache(): void {
     cachedDoc = undefined;
 }
 
+/** Fresh disk read for serialized mutations (bypasses loader cache). */
+export function readCampaignResourcesFromDisk(resPath?: string): CampaignResourcesDocument | undefined {
+    const resolved = resPath ?? getCampaignResourcesPath();
+    if (!resolved || !fs.existsSync(resolved)) {
+        return undefined;
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(resolved, 'utf-8'));
+        return parseCampaignResourcesDocument(raw);
+    } catch {
+        return undefined;
+    }
+}
+
 export function loadCampaignResources(): CampaignResourcesDocument | undefined {
     const resPath = getCampaignResourcesPath();
     if (!resPath || !fs.existsSync(resPath)) {
@@ -38,8 +52,7 @@ export function loadCampaignResources(): CampaignResourcesDocument | undefined {
         if (cachedDoc && cachedPath === resPath && cachedMtime === stat.mtimeMs) {
             return cachedDoc;
         }
-        const raw = JSON.parse(fs.readFileSync(resPath, 'utf-8'));
-        const parsed = parseCampaignResourcesDocument(raw);
+        const parsed = readCampaignResourcesFromDisk(resPath);
         if (!parsed) {
             clearCampaignResourcesCache();
             return undefined;

@@ -90,6 +90,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_npc_agency_webview_sanitize.js' },
     { category: 'unit', file: 'test_webview_payload_whitelist.js' },
     { category: 'unit', file: 'test_sync_file_queue_core.js' },
+    { category: 'unit', file: 'test_independent_ledger_write_queue.js' },
     { category: 'unit', file: 'test_workspace_state_queue_core.js' },
     { category: 'unit', file: 'test_world_state_quest_accept_observer_race.js' },
     { category: 'unit', file: 'test_commerce_persist_debounce.js' },

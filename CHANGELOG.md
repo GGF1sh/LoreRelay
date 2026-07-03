@@ -13,6 +13,19 @@
 
 - **Fable5 Wave 2 ブリーフ（F7–F12）** — `docs/FABLE5_WAVE2_PROPOSALS_DESIGN.md`: F7 謁見の間 / F8 隣国ライバル領主 / F9 主命・派遣 / F10 合戦リゾルバ / F11 ギルドマスター（温め枠）/ F12 家史エピローグ。`docs/PHASE_NAMING.md` に Wave 2 表を追加、F1–F5 の状態を出荷済みに更新。
 
+## [1.57.0] - 2026-07-03
+
+### Fixed
+
+- **独立台帳 write queue（PR-7）** — `discoveries.json` / `campaign_resources.json` の turn ops 直書きを FIFO 直列化。
+  - `runSerializedDiscoveryMutation` / `runSerializedCampaignResourcesMutation` を `workspaceStateQueue.ts` に追加。
+  - `readDiscoveryLedgerFromDisk` / `readCampaignResourcesFromDisk` — キュー内で最新 disk を読んでから apply + atomic write + cache clear。
+  - `discoveryTurnOps` / `campaignResourceTurnOps` は read-apply-write 全体をキュー内で実行。
+
+### Added
+
+- `test_independent_ledger_write_queue.js` — FIFO 順序・キュー独立性・直列更新を検証。テスト **137/137**。
+
 ## [1.56.0] - 2026-07-03
 
 ### Fixed

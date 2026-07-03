@@ -27,6 +27,20 @@ export function clearDiscoveryLedgerCache(): void {
     cachedLedger = undefined;
 }
 
+/** Fresh disk read for serialized mutations (bypasses loader cache). */
+export function readDiscoveryLedgerFromDisk(ledgerPath?: string): DiscoveryLedgerDocument | undefined {
+    const resolved = ledgerPath ?? getDiscoveriesPath();
+    if (!resolved || !fs.existsSync(resolved)) {
+        return undefined;
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(resolved, 'utf-8'));
+        return parseDiscoveryLedger(raw);
+    } catch {
+        return undefined;
+    }
+}
+
 export function loadDiscoveryLedger(): DiscoveryLedgerDocument | undefined {
     const ledgerPath = getDiscoveriesPath();
     if (!ledgerPath || !fs.existsSync(ledgerPath)) {
@@ -37,8 +51,7 @@ export function loadDiscoveryLedger(): DiscoveryLedgerDocument | undefined {
         if (cachedLedger && cachedPath === ledgerPath && cachedMtime === stat.mtimeMs) {
             return cachedLedger;
         }
-        const raw = JSON.parse(fs.readFileSync(ledgerPath, 'utf-8'));
-        const parsed = parseDiscoveryLedger(raw);
+        const parsed = readDiscoveryLedgerFromDisk(ledgerPath);
         if (!parsed) {
             clearDiscoveryLedgerCache();
             return undefined;

@@ -5,7 +5,7 @@ import { resolveActiveCampaignKit } from './campaignKit';
 import {
     clearCampaignResourcesCache,
     getCampaignResourcesPath,
-    loadCampaignResources,
+    readCampaignResourcesFromDisk,
 } from './campaignResources';
 import {
     applyCampaignResourceOps,
@@ -13,6 +13,7 @@ import {
     parseCampaignResourceOps,
 } from './campaignResourcesCore';
 import { writeJsonAtomic } from './workspacePaths';
+import { runSerializedCampaignResourcesMutation } from './workspaceStateQueue';
 
 export function applyCampaignResourceTurnOps(turnResult: Pick<TurnResult, 'campaignResourceOps'>): boolean {
     const kit = resolveActiveCampaignKit();
@@ -27,18 +28,22 @@ export function applyCampaignResourceTurnOps(turnResult: Pick<TurnResult, 'campa
     if (!resPath) {
         return false;
     }
-    const current = loadCampaignResources()
-        ?? { version: 1 as const, quantities: defaultCampaignResourceQuantities(kit) };
-    const next = applyCampaignResourceOps(current, ops, kit);
-    if (JSON.stringify(current) === JSON.stringify(next)) {
-        return false;
-    }
-    try {
-        writeJsonAtomic(resPath, next);
-        clearCampaignResourcesCache();
-        return true;
-    } catch (e) {
-        console.warn('[campaignResourceTurnOps] failed to save campaign_resources.json', e);
-        return false;
-    }
+
+    let applied = false;
+    runSerializedCampaignResourcesMutation(() => {
+        const current = readCampaignResourcesFromDisk(resPath)
+            ?? { version: 1 as const, quantities: defaultCampaignResourceQuantities(kit) };
+        const next = applyCampaignResourceOps(current, ops, kit);
+        if (JSON.stringify(current) === JSON.stringify(next)) {
+            return;
+        }
+        try {
+            writeJsonAtomic(resPath, next);
+            clearCampaignResourcesCache();
+            applied = true;
+        } catch (e) {
+            console.warn('[campaignResourceTurnOps] failed to save campaign_resources.json', e);
+        }
+    });
+    return applied;
 }

@@ -80,6 +80,10 @@ const baseInputs = {
         fail('rumored markers must use fogVisibility rumored');
     } else if (snap.markers.some((m) => m.label.includes('Raiders'))) {
         fail('rumored faction marker must not expose exact faction name');
+    } else if (snap.markers.some((m) => /faction_b|faction_a/i.test(m.id))) {
+        fail(`rumored faction marker must not leak faction id: ${JSON.stringify(snap.markers.map((m) => m.id))}`);
+    } else if (!snap.markers.every((m) => m.id.startsWith('rumor_'))) {
+        fail(`rumored markers must use public rumor ids: ${JSON.stringify(snap.markers.map((m) => m.id))}`);
     } else if (!snap.markers.every((m) => m.tone === 'unknown' || m.tone === 'neutral' || m.tone === 'hostile')) {
         fail('rumored markers should use unknown tone for faction');
     } else {
@@ -154,6 +158,108 @@ const baseInputs = {
         fail('met NPC should appear');
     } else {
         ok('NPC markers respect acquaintance gate');
+    }
+}
+
+{
+    const registry = {
+        format: 'npc-registry/1.0',
+        npcs: {
+            secret_npc: {
+                name: 'Hidden Agent',
+                locationId: 'hub_market',
+                disposition: { playerTrust: 0, playerRomance: 0, playerFear: 0, mood: 'neutral', lastInteractionTurn: 0 },
+                needs: [],
+                memories: [],
+            },
+        },
+    };
+    const known = deriveKnownNpcIds(registry, ['hub_market']);
+    if (known.has('secret_npc')) {
+        fail('NPC at previously visited location must not become known without interaction');
+    } else {
+        ok('late-arrival NPC does not infer acquaintance from visited locations');
+    }
+}
+
+{
+    const registry = {
+        format: 'npc-registry/1.0',
+        npcs: {
+            met_npc: {
+                name: 'Mira',
+                locationId: 'factory',
+                disposition: { playerTrust: 20, playerRomance: 0, playerFear: 0, mood: 'neutral', lastInteractionTurn: 3 },
+                needs: [],
+                memories: [],
+            },
+        },
+    };
+    const snap = buildMapOverlaySnapshot({
+        ...baseInputs,
+        fog: { discoveredRegionIds: ['r_settlement'], rumoredRegionIds: ['r_industrial'] },
+        npcRegistry: registry,
+        npcPositions: { met_npc: { locationId: 'factory', arrivesTurn: 1 } },
+        knownNpcIds: deriveKnownNpcIds(registry, ['hub_market']),
+    });
+    const npc = snap.markers.find((m) => m.kind === 'npc');
+    if (!npc) {
+        fail('met NPC in rumored region should emit marker');
+    } else if (npc.id.includes('met_npc')) {
+        fail(`rumored NPC marker must not leak npc id: ${npc.id}`);
+    } else if (!npc.id.startsWith('rumor_npc_')) {
+        fail(`rumored NPC marker id shape: ${npc.id}`);
+    } else {
+        ok('rumored NPC uses public id');
+    }
+}
+
+{
+    const snap = buildMapOverlaySnapshot({
+        ...baseInputs,
+        fog: { discoveredRegionIds: ['r_settlement'], rumoredRegionIds: ['r_industrial'] },
+        questHooks: [{
+            id: 'q_secret',
+            title: 'Hidden quest',
+            description: 'd',
+            source: 'campaign',
+            relatedId: 'r_industrial',
+            status: 'available',
+            turnGenerated: 1,
+        }],
+    });
+    const quest = snap.markers.find((m) => m.kind === 'quest');
+    if (!quest) {
+        fail('quest in rumored region expected');
+    } else if (quest.id.includes('q_secret')) {
+        fail(`rumored quest must not leak hook id: ${quest.id}`);
+    } else {
+        ok('rumored quest uses public id');
+    }
+}
+
+{
+    const snap = buildMapOverlaySnapshot({
+        ...baseInputs,
+        fog: { discoveredRegionIds: ['r_settlement'], rumoredRegionIds: ['r_industrial'] },
+        discoveryLedger: {
+            version: 1,
+            entries: [{
+                id: 'find_secret',
+                kind: 'lore',
+                label: 'Strange idol',
+                status: 'unidentified',
+                siteId: 'factory',
+            }],
+        },
+    });
+    const discovery = snap.markers.find((m) => m.kind === 'discovery');
+    if (!discovery) {
+        fail('discovery in rumored region expected');
+    } else if (discovery.id.includes('find_secret')) {
+        fail(`rumored discovery must not leak entry id: ${discovery.id}`);
+    } else {
+        ok('rumored discovery uses public id');
     }
 }
 

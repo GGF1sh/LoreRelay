@@ -22,7 +22,12 @@ export interface GameEntryLike {
 export interface GalleryLike {
     imagePath: string;
     locationId?: string;
+    /** World simulation turn — not GM conversation turn. */
     worldTurn?: number;
+    /** GM conversation turn index for replay attachment. */
+    gmTurn?: number;
+    /** Direct link to a game_state entry id (strongest replay binding). */
+    sourceEntryId?: string;
     prompt?: string;
     description?: string;
 }
@@ -159,6 +164,11 @@ function resolveEntryImage(
     resolveRelativeImage?: (imagePath: string) => string | undefined
 ): string | undefined {
     if (!options.includeImages || entry.imageBlocked) { return undefined; }
+    for (const item of gallery) {
+        if (!item.imagePath || item.sourceEntryId !== entry.id) { continue; }
+        const rel = resolveRelativeImage?.(item.imagePath);
+        if (rel) { return rel; }
+    }
     const candidates = [
         entry.rawImagePath,
         entry.image?.replace(/^file:\/\//i, '').replace(/\//g, '\\'),
@@ -171,7 +181,7 @@ function resolveEntryImage(
 }
 
 function pickGalleryExtras(
-    gmTurn: number,
+    sourceGmTurn: number,
     gallery: GalleryLike[],
     usedPaths: Set<string>,
     options: ReplayOptions,
@@ -181,7 +191,8 @@ function pickGalleryExtras(
     const out: string[] = [];
     for (const item of gallery) {
         if (!item.imagePath || usedPaths.has(item.imagePath)) { continue; }
-        if (item.worldTurn !== undefined && item.worldTurn !== gmTurn) { continue; }
+        if (item.sourceEntryId) { continue; }
+        if (item.gmTurn === undefined || item.gmTurn !== sourceGmTurn) { continue; }
         const rel = resolveRelativeImage?.(item.imagePath);
         if (rel) {
             usedPaths.add(item.imagePath);
@@ -189,6 +200,28 @@ function pickGalleryExtras(
         }
     }
     return out;
+}
+
+interface ReplayGmSourceSlice {
+    sourceGmTurn: number;
+    diceLedger?: DiceLedgerEntry[];
+}
+
+function advanceReplayGmSourceTimeline(
+    entry: GameEntryLike,
+    journalTurns: ReplayJournalTurn[] | undefined,
+    gmTurn: number,
+    journalIndex: number
+): { gmTurn: number; journalIndex: number; slice?: ReplayGmSourceSlice } {
+    if (entry.role !== 'gm') {
+        return { gmTurn, journalIndex };
+    }
+    const nextGmTurn = gmTurn + 1;
+    const slice: ReplayGmSourceSlice = {
+        sourceGmTurn: nextGmTurn,
+        diceLedger: journalTurns?.[journalIndex]?.diceLedger,
+    };
+    return { gmTurn: nextGmTurn, journalIndex: journalIndex + 1, slice };
 }
 
 function deepCloneJson<T>(value: T): T {
@@ -234,11 +267,15 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
     let journalIndex = 0;
 
     for (const entry of entries) {
+        const advanced = advanceReplayGmSourceTimeline(entry, input.journalTurns, gmTurn, journalIndex);
+        gmTurn = advanced.gmTurn;
+        journalIndex = advanced.journalIndex;
+        const slice = advanced.slice;
+
         if (!shouldIncludeEntry(entry, options)) { continue; }
 
-        if (entry.role === 'gm') {
-            gmTurn++;
-            const heading = chapterHeadings.get(gmTurn);
+        if (entry.role === 'gm' && slice) {
+            const heading = chapterHeadings.get(slice.sourceGmTurn);
             if (heading) {
                 lines.push(`## ${heading}`, '');
             }
@@ -248,12 +285,8 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
         lines.push(`**${speaker}**`, '');
         lines.push(escapeMarkdown(entry.content || ''), '');
 
-        if (entry.role === 'gm' && options.includeDice) {
-            const dice = input.journalTurns?.[journalIndex]?.diceLedger;
-            if (dice?.length) {
-                lines.push(formatDiceBlock(dice, 'markdown'), '');
-            }
-            journalIndex++;
+        if (entry.role === 'gm' && options.includeDice && slice?.diceLedger?.length) {
+            lines.push(formatDiceBlock(slice.diceLedger, 'markdown'), '');
         }
 
         const imageRel = resolveEntryImage(entry, input.gallery ?? [], options, input.resolveRelativeImage);
@@ -262,9 +295,9 @@ export function buildReplayMarkdown(input: ReplayBuildInput): string {
             if (entry.rawImagePath) { usedGallery.add(entry.rawImagePath); }
         }
 
-        if (entry.role === 'gm') {
+        if (entry.role === 'gm' && slice) {
             for (const extra of pickGalleryExtras(
-                gmTurn,
+                slice.sourceGmTurn,
                 input.gallery ?? [],
                 usedGallery,
                 options,
@@ -294,11 +327,15 @@ export function buildReplayHtml(input: ReplayBuildInput): string {
     let journalIndex = 0;
 
     for (const entry of entries) {
+        const advanced = advanceReplayGmSourceTimeline(entry, input.journalTurns, gmTurn, journalIndex);
+        gmTurn = advanced.gmTurn;
+        journalIndex = advanced.journalIndex;
+        const slice = advanced.slice;
+
         if (!shouldIncludeEntry(entry, options)) { continue; }
 
-        if (entry.role === 'gm') {
-            gmTurn++;
-            const heading = chapterHeadings.get(gmTurn);
+        if (entry.role === 'gm' && slice) {
+            const heading = chapterHeadings.get(slice.sourceGmTurn);
             if (heading) {
                 body.push(`<h2>${escapeHtml(heading)}</h2>`);
             }
@@ -310,11 +347,9 @@ export function buildReplayHtml(input: ReplayBuildInput): string {
         body.push(`<div class="speaker">${speaker}</div>`);
         body.push(`<div class="content">${escapeHtml(entry.content || '')}</div>`);
 
-        if (entry.role === 'gm' && options.includeDice) {
-            const dice = input.journalTurns?.[journalIndex]?.diceLedger;
-            const diceHtml = formatDiceBlock(dice, 'html');
+        if (entry.role === 'gm' && options.includeDice && slice?.diceLedger?.length) {
+            const diceHtml = formatDiceBlock(slice.diceLedger, 'html');
             if (diceHtml) { body.push(diceHtml); }
-            journalIndex++;
         }
 
         const imageRel = resolveEntryImage(entry, input.gallery ?? [], options, input.resolveRelativeImage);
@@ -323,9 +358,9 @@ export function buildReplayHtml(input: ReplayBuildInput): string {
             if (entry.rawImagePath) { usedGallery.add(entry.rawImagePath); }
         }
 
-        if (entry.role === 'gm') {
+        if (entry.role === 'gm' && slice) {
             for (const extra of pickGalleryExtras(
-                gmTurn,
+                slice.sourceGmTurn,
                 input.gallery ?? [],
                 usedGallery,
                 options,

@@ -17,6 +17,7 @@ import {
 } from './replayExportCore';
 import {
     EXPORTS_DIR_NAME,
+    isPathUnderWorkspaceExports,
     relativeImagePathFromExport,
     resolveReplayExportPath,
 } from './replayExportPathsCore';
@@ -50,6 +51,8 @@ function buildGalleryList(): GalleryLike[] {
             imagePath: entry.imagePath,
             locationId: entry.locationId,
             worldTurn: entry.worldTurn,
+            gmTurn: entry.gmTurn,
+            sourceEntryId: entry.sourceEntryId,
             prompt: entry.generationPrompt,
             description: entry.description
         });
@@ -128,10 +131,10 @@ export async function exportReplayToWorkspace(request: ExportReplayRequest = {})
 export async function openReplayExport(filePath: string): Promise<void> {
     const ws = getWorkspacePath();
     if (!ws || !filePath) { return; }
-    const normalized = path.normalize(filePath);
-    if (!normalized.startsWith(path.normalize(path.join(ws, EXPORTS_DIR_NAME)))) {
+    if (!isPathUnderWorkspaceExports(filePath, ws)) {
         return;
     }
+    const normalized = path.normalize(filePath);
     const uri = vscode.Uri.file(normalized);
     if (normalized.toLowerCase().endsWith('.html')) {
         await vscode.env.openExternal(uri);

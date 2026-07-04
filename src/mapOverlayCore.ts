@@ -199,15 +199,39 @@ export function pressureBandLabel(band: SettlementPressureBand): string {
     }
 }
 
+/** Public overlay id — rumored markers must not expose canonical entity ids (Remote Play / DevTools). */
+export function overlayMarkerPublicId(
+    internalId: string,
+    kind: OverlayMarkerKind,
+    regionId: string,
+    ordinal: number,
+    fogVisibility: OverlayFogVisibility
+): string {
+    if (fogVisibility === 'discovered') {
+        return internalId;
+    }
+    const safeRegion = regionId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 24) || 'unknown';
+    return `rumor_${kind}_${safeRegion}_${ordinal}`;
+}
+
+function looksLikeLeakyRumoredId(id: string): boolean {
+    return /^(npc|faction|quest|discovery|merchant|caravan)_/i.test(id);
+}
+
 /** Allow-listed marker projection — single choke point for Webview/replay/remote. */
 export function sanitizeOverlayMarker(raw: OverlayMarker): OverlayMarker {
+    let id = clampText(raw.id, 64);
+    const fogVisibility: OverlayFogVisibility = raw.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
+    if (fogVisibility === 'rumored' && looksLikeLeakyRumoredId(id)) {
+        id = `rumor_${raw.kind}_${Math.floor(raw.x)}_${Math.floor(raw.y)}`;
+    }
     const out: OverlayMarker = {
-        id: clampText(raw.id, 64),
+        id,
         kind: raw.kind,
         x: Math.max(0, Math.min(63, Math.floor(raw.x))),
         y: Math.max(0, Math.min(63, Math.floor(raw.y))),
         label: clampText(raw.label, MAX_OVERLAY_LABEL),
-        fogVisibility: raw.fogVisibility === 'rumored' ? 'rumored' : 'discovered',
+        fogVisibility,
     };
     if (raw.tone === 'friendly' || raw.tone === 'neutral' || raw.tone === 'hostile' || raw.tone === 'unknown') {
         out.tone = raw.tone;
@@ -249,6 +273,7 @@ function buildNpcMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMar
         true
     );
     const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
     for (const p of presence) {
         if (!known.has(p.npcId)) { continue; }
         const regionId = resolveLocationRegionId(inputs.forge, p.locationId);
@@ -259,8 +284,9 @@ function buildNpcMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMar
         const label = vis === 'rumored'
             ? (p.inTransit ? 'Traveler rumored' : 'Figure rumored')
             : (p.inTransit ? `${p.name} (en route)` : p.name);
+        const internalId = `npc_${p.npcId}`;
         markers.push({
-            id: `npc_${p.npcId}`,
+            id: overlayMarkerPublicId(internalId, 'npc', regionId ?? 'unknown', rumorOrdinal++, vis),
             kind: 'npc',
             x: coords.x,
             y: coords.y,
@@ -289,10 +315,12 @@ function buildMerchantMarkers(inputs: MapOverlayInputs, gridSize: number): Overl
     if (!coords) { return []; }
 
     const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
     for (const merchant of settlement.merchants) {
         const label = vis === 'rumored' ? 'Merchant rumored' : `Merchant ${merchant.npcId}`;
+        const internalId = `merchant_${merchant.npcId}`;
         markers.push({
-            id: `merchant_${merchant.npcId}`,
+            id: overlayMarkerPublicId(internalId, 'merchant', regionId, rumorOrdinal++, vis),
             kind: 'merchant',
             x: coords.x,
             y: coords.y,
@@ -321,11 +349,13 @@ function buildCaravanMarkers(inputs: MapOverlayInputs, gridSize: number): Overla
 
     const worldTurn = inputs.worldTurn ?? 0;
     const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
     for (const visitor of settlement.visitors) {
         if (visitor.purpose !== 'trade' && visitor.purpose !== 'diplomacy') { continue; }
         if (visitor.untilWorldTurn <= worldTurn) { continue; }
+        const internalId = `caravan_${visitor.npcId}`;
         markers.push({
-            id: `caravan_${visitor.npcId}`,
+            id: overlayMarkerPublicId(internalId, 'caravan', regionId, rumorOrdinal++, vis),
             kind: 'caravan',
             x: coords.x,
             y: coords.y,
@@ -353,8 +383,9 @@ function buildFactionMarkers(inputs: MapOverlayInputs, gridSize: number): Overla
         const label = vis === 'rumored'
             ? 'Faction presence rumored'
             : (faction?.name ?? 'Faction control');
+        const internalId = `faction_${regionId}_${factionId}`;
         markers.push({
-            id: `faction_${regionId}_${factionId}`,
+            id: overlayMarkerPublicId(internalId, 'faction_control', regionId, 0, vis),
             kind: 'faction_control',
             x: coords.x,
             y: coords.y,
@@ -380,6 +411,7 @@ function buildQuestMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayM
     const discovered = new Set(inputs.fog.discoveredRegionIds);
     const rumored = new Set(inputs.fog.rumoredRegionIds);
     const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
     for (const hook of hooks) {
         if (hook.status !== 'available' && hook.status !== 'active') { continue; }
         const regionId = resolveHookRegionId(inputs.forge, hook);
@@ -387,8 +419,9 @@ function buildQuestMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayM
         if (vis === 'hidden' || !regionId) { continue; }
         const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
         if (!coords) { continue; }
+        const internalId = `quest_${hook.id}`;
         markers.push({
-            id: `quest_${hook.id}`,
+            id: overlayMarkerPublicId(internalId, 'quest', regionId, rumorOrdinal++, vis),
             kind: 'quest',
             x: coords.x,
             y: coords.y,
@@ -408,6 +441,7 @@ function buildDiscoveryMarkers(inputs: MapOverlayInputs, gridSize: number): Over
     const discovered = new Set(inputs.fog.discoveredRegionIds);
     const rumored = new Set(inputs.fog.rumoredRegionIds);
     const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
     for (const entry of inputs.discoveryLedger.entries) {
         if (entry.status === 'sold' || entry.status === 'consumed') { continue; }
         const regionId = entry.siteId
@@ -421,8 +455,9 @@ function buildDiscoveryMarkers(inputs: MapOverlayInputs, gridSize: number): Over
         const label = unidentified || vis === 'rumored'
             ? 'Unknown find'
             : clampText(entry.identifiedLabel || entry.label, MAX_OVERLAY_LABEL);
+        const internalId = `discovery_${entry.id}`;
         markers.push({
-            id: `discovery_${entry.id}`,
+            id: overlayMarkerPublicId(internalId, 'discovery', regionId, rumorOrdinal++, vis),
             kind: 'discovery',
             x: coords.x,
             y: coords.y,
@@ -621,19 +656,15 @@ export function buildMapOverlaySnapshot(inputs: MapOverlayInputs): MapOverlaySna
     return { version: MAP_OVERLAY_VERSION, markers };
 }
 
-/** NPCs the player has met or encountered at a visited location. */
+/** NPCs the player has actually met (interaction turn), not inferred from visited locations. */
 export function deriveKnownNpcIds(
     registry: NpcRegistry | undefined,
-    visitedLocationIds: readonly string[]
+    _visitedLocationIds?: readonly string[]
 ): Set<string> {
     const known = new Set<string>();
     if (!registry?.npcs) { return known; }
-    const visited = new Set(visitedLocationIds);
     for (const [npcId, npc] of Object.entries(registry.npcs)) {
         if ((npc.disposition?.lastInteractionTurn ?? 0) > 0) {
-            known.add(npcId);
-        }
-        if (npc.locationId && visited.has(npc.locationId)) {
             known.add(npcId);
         }
     }

@@ -20,6 +20,10 @@ export interface VisualMemoryEntry {
     analyzedAt: string;
     /** worldTurn at time of creation (if world simulation is enabled). */
     worldTurn?: number;
+    /** GM conversation turn index when the image was captured. */
+    gmTurn?: number;
+    /** game_state entry id the image belongs to (replay binding). */
+    sourceEntryId?: string;
     /** WorldLocation id the image is associated with. */
     locationId?: string;
     /** ComfyUI / generation prompt used to create this image. */

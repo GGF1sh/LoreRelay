@@ -120,6 +120,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_faction_reputation_core.js' },
     { category: 'unit', file: 'test_travel_encounter_core.js' },
     { category: 'unit', file: 'test_replay_export_core.js' },
+    { category: 'unit', file: 'test_replay_export_gm_timeline.js' },
     { category: 'unit', file: 'test_replay_export_concurrent_mutation.js' },
     { category: 'unit', file: 'test_replay_export_sanitize_core.js' },
     { category: 'unit', file: 'test_living_world_bridge.js' },

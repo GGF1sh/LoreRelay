@@ -9,7 +9,27 @@
 
 ## [Unreleased]
 
+## [1.74.0] - 2026-07-04
+
+### Fixed
+
+- **ChatGPT review — FoW-safe rumored marker ids** — `overlayMarkerPublicId()` redacts canonical entity ids (`npc_*`, `faction_*`, `quest_*`, `discovery_*`, etc.) to `rumor_{kind}_{region}_{ordinal}` for `fogVisibility: 'rumored'` markers. `sanitizeOverlayMarker()` defense-in-depth for leaky ids. Remote Play / DevTools payloads no longer expose `secret_npc` or `faction_b` behind rumored labels. `test_map_overlay_core.js` extended.
+
+- **ChatGPT review — Replay GM source timeline** — `advanceReplayGmSourceTimeline()` advances source `gmTurn` and `journalIndex` before `shouldIncludeEntry` skip, so excluded GM entries no longer shift chapter headings, dice blocks, or gallery extras. `test_replay_export_gm_timeline.js` added.
+
+- **ChatGPT review — Replay gallery turn alignment** — `pickGalleryExtras()` matches `gmTurn` (not `worldTurn` vs replay `gmTurn`). `VisualMemoryEntry` gains optional `gmTurn` / `sourceEntryId`; `resolveEntryImage()` prefers `sourceEntryId`.
+
+- **ChatGPT review — NPC acquaintance inference** — `deriveKnownNpcIds()` no longer promotes NPCs to known based on `visitedLocationIds`; only `lastInteractionTurn > 0` counts.
+
+- **ChatGPT review — Replay export path containment** — `openReplayExport()` uses `isPathUnderWorkspaceExports()` instead of weak prefix `startsWith`.
+
+- **Gemini review — bulk sim event-loop yield, replay snapshot freeze, Tier 0 prompt eviction** — async yield in bulk simulation; `snapshotReplayBuildInput()` deep-clones export inputs; prompt budget never evicts Tier 0 chunks.
+
+- **Grok review — settlement cross-ledger atomicity, prompt bloat, webview sanitization** — M4 cross-ledger tests; settlement prompt bloat regression; webview payload sanitize hardening.
+
 ### Added
+
+- **Mod System MOD1 pure resolver** — `modSystemCore.ts` load-order resolver (no I/O). `test_mod_system_core.js`.
 
 - **Tech debt (review follow-up) — GM prompt bloat + region hazard line** — `vehicles`/`mobileBase` chunk priorities lowered (64/63) so they evict before `worldForge` under budget pressure. `buildVehiclePromptContext()` skips V5 integration lines in `compact` mode; per-chunk limit 800 chars in compact. `regionHazardPromptCore.ts` injects one capped hazard flavor line into World Forge context when the player region has a `hazard` tag. Tests: `test_prompt_budget_eviction.js` (vehicle eviction), `test_region_hazard_prompt_core.js`.
 

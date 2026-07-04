@@ -36,8 +36,12 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
     fail('worldState priority should exceed livingWorldNpcBonds');
 } else if (resolvePromptChunkPriority('livingWorldNpcBonds') <= resolvePromptChunkPriority('livingWorldPlayerBonds')) {
     fail('livingWorldNpcBonds priority should exceed livingWorldPlayerBonds');
+} else if (resolvePromptChunkPriority('settlement') <= resolvePromptChunkPriority('vehicles')) {
+    fail('settlement priority should exceed vehicles under bloat mitigation');
+} else if (resolvePromptChunkPriority('worldForge') <= resolvePromptChunkPriority('vehicles')) {
+    fail('worldForge priority should exceed vehicles');
 } else {
-    ok('LW bond chunk priorities below worldState');
+    ok('LW bond + vehicle priority ordering');
 }
 
 {
@@ -110,6 +114,25 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
         fail(`clampSimulationPromptModule: len=${clamped.length}`);
     } else {
         ok('clampSimulationPromptModule caps domain/guild blocks');
+    }
+}
+
+{
+    const vehiclePad = 'v'.repeat(3000);
+    const chunks = [
+        { id: 'gameRules', text: 'rules', priority: 100 },
+        { id: 'worldForge', text: 'world', priority: 65 },
+        { id: 'vehicles', text: vehiclePad, priority: 64 },
+        { id: 'mobileBase', text: 'm'.repeat(2000), priority: 63 },
+    ];
+    const kept = evictPromptChunksByBudget(chunks, 250);
+    const joined = kept.join('\n');
+    if (!joined.includes('rules') || !joined.includes('world')) {
+        fail('core + worldForge should survive before vehicles');
+    } else if (joined.includes(vehiclePad)) {
+        fail('vehicles chunk should evict under tight budget');
+    } else {
+        ok('vehicles evicted before worldForge under tight budget');
     }
 }
 

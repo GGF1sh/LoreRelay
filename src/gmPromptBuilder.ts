@@ -110,6 +110,7 @@ import { buildVehiclePromptContext } from './vehicleState';
 import { buildMobileBasePromptContext } from './mobileBaseBridge';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
+import { buildRegionHazardPromptLine } from './regionHazardPromptCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import { getVisualMemoryEntry } from './visualMemory';
 import { buildVisualContextSnippet } from './visualMemoryCore';
@@ -202,8 +203,16 @@ function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLi
         { id: 'campaignJobBoard', label: 'Campaign Job Board', limitChars: 1400 },
         { id: 'campaignResources', label: 'Campaign Resources', limitChars: 900 },
         { id: 'settlement', label: 'Settlement', limitChars: 1600 },
-        { id: 'vehicles', label: 'Vehicles', limitChars: 1200 },
-        { id: 'mobileBase', label: 'Mobile Base', limitChars: 1200 },
+        {
+            id: 'vehicles',
+            label: 'Vehicles',
+            limitChars: policy.mode === 'compact' ? 800 : 1200,
+        },
+        {
+            id: 'mobileBase',
+            label: 'Mobile Base',
+            limitChars: policy.mode === 'compact' ? 800 : 1200,
+        },
         { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
         { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
         { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
@@ -725,6 +734,8 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
         if (region?.dangerLevel !== undefined) {
             lines.push(`  Danger: ${region.dangerLevel}/10${region.description ? ` — ${region.description}` : ''}`);
         }
+        const hazardLine = buildRegionHazardPromptLine(region);
+        if (hazardLine) { lines.push(`  ${hazardLine}`); }
     } else if (statusLocation) {
         lines.push(`Player location: ${statusLocation} (not mapped in world_forge.json)`);
     }
@@ -1170,7 +1181,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         maybeBuildSection('campaignJobBoard', 'Campaign Job Board', activation, buildCampaignJobBoardPromptContextForGm),
         maybeBuildSection('campaignResources', 'Campaign Resources', activation, buildCampaignResourcesPromptContext),
         maybeBuildSection('settlement', 'Settlement', activation, buildSettlementPromptContext),
-        maybeBuildSection('vehicles', 'Vehicles', activation, buildVehiclePromptContext),
+        maybeBuildSection('vehicles', 'Vehicles', activation, () => buildVehiclePromptContext(policy)),
         maybeBuildSection('mobileBase', 'Mobile Base', activation, buildMobileBasePromptContext),
         maybeBuildSection('domain', 'Domain', activation, () => buildDomainPromptContextForGm(hint)),
         maybeBuildSection('guild', 'Guild', activation, () => buildGuildPromptContextForGm(hint)),
@@ -1294,7 +1305,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     maybePushPromptChunk(specs, 'campaignJobBoard', activation, buildCampaignJobBoardPromptContextForGm);
     maybePushPromptChunk(specs, 'campaignResources', activation, buildCampaignResourcesPromptContext);
     maybePushPromptChunk(specs, 'settlement', activation, buildSettlementPromptContext);
-    maybePushPromptChunk(specs, 'vehicles', activation, buildVehiclePromptContext);
+    maybePushPromptChunk(specs, 'vehicles', activation, () => buildVehiclePromptContext(policy));
     maybePushPromptChunk(specs, 'mobileBase', activation, buildMobileBasePromptContext);
     maybePushPromptChunk(specs, 'domain', activation, () =>
         clampSimulationPromptModule(buildDomainPromptContextForGm(playerAction))

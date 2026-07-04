@@ -3,6 +3,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadGameRules } from './gameRules';
+import type { PromptBudgetPolicy } from './gmPromptBuilderCore';
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
 import {
@@ -86,7 +87,7 @@ function readCurrentLocationIdFromGameState(): string | undefined {
     }
 }
 
-export function buildVehiclePromptContext(): string {
+export function buildVehiclePromptContext(policy?: Pick<PromptBudgetPolicy, 'mode'>): string {
     const rules = loadGameRules();
     if (!vehicleModeEnabled(rules)) {
         return '';
@@ -98,6 +99,10 @@ export function buildVehiclePromptContext(): string {
     const currentLocationId = readCurrentLocationIdFromGameState();
     const block = buildVehiclePromptBlock(state, true, { currentLocationId });
     if (!block) { return ''; }
+
+    if (policy?.mode === 'compact') {
+        return block;
+    }
 
     const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
     const location = currentLocationId

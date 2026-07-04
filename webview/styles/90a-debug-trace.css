@@ -1,0 +1,126 @@
+/* Debug Trace Inspector (Phase B) — read-only causal trace timeline.
+   Kept in its own file so audience/phase chip colors don't get lost inside
+   the larger 90-inspector.css. */
+
+.debug-trace-audience-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 10px;
+}
+
+.debug-trace-audience-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.debug-trace-warnings {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.debug-trace-warning-item {
+    background: rgba(201, 162, 39, 0.12);
+    border: 1px solid var(--text-warning);
+    color: var(--text-warning);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.debug-trace-run {
+    margin-bottom: 8px;
+}
+
+.debug-trace-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.debug-trace-entry summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    cursor: pointer;
+}
+
+.debug-trace-entry.debug-trace-highlight {
+    outline: 2px solid var(--accent);
+}
+
+.debug-trace-body {
+    padding: 6px 4px 2px 4px;
+    font-size: 12px;
+}
+
+.debug-trace-message {
+    color: var(--text-dim);
+    margin-bottom: 6px;
+}
+
+.debug-trace-conditions {
+    margin: 4px 0;
+}
+
+.debug-trace-cond {
+    font-size: 11px;
+    margin: 2px 0;
+}
+
+.debug-trace-cond-pass {
+    color: var(--text-success);
+}
+
+.debug-trace-cond-fail {
+    color: var(--text-danger);
+}
+
+.debug-trace-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0;
+}
+
+.debug-trace-parent-link {
+    font-size: 11px;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    margin-top: 4px;
+}
+
+.debug-trace-phase-warning {
+    color: var(--text-danger);
+}
+
+.debug-trace-phase-decision {
+    color: var(--text-warning);
+}
+
+.debug-trace-phase-effect,
+.debug-trace-phase-persist {
+    color: var(--accent-hover);
+}
+
+.debug-trace-aud-internal {
+    background: rgba(224, 112, 112, 0.18);
+    color: var(--text-danger);
+}
+
+.debug-trace-aud-gm_safe {
+    background: rgba(201, 162, 39, 0.18);
+    color: var(--text-warning);
+}
+
+.debug-trace-aud-player_safe {
+    background: rgba(125, 206, 160, 0.18);
+    color: var(--text-success);
+}

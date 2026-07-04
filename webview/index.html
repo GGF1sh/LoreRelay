@@ -441,6 +441,17 @@
             <p id="inspector-lw-market-result" class="img-gen-hint" style="margin-top:0.35rem;"></p>
           </div>
         </div>
+        <div class="inspector-section hidden" id="inspector-debug-trace-section">
+          <h4 data-i18n="webview.inspector.debugTrace.title">Debug Trace</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.debugTrace.hint">Read-only causal trace of world/simulation decisions (event → rule condition → decision → effect).</p>
+          <div class="debug-trace-audience-toggle" id="debug-trace-audience-toggle">
+            <button type="button" class="small-btn debug-trace-audience-btn active" data-audience="internal" data-i18n="webview.inspector.debugTrace.audience.internal">Internal</button>
+            <button type="button" class="small-btn debug-trace-audience-btn" data-audience="gm_safe" data-i18n="webview.inspector.debugTrace.audience.gmSafe">GM-safe</button>
+            <button type="button" class="small-btn debug-trace-audience-btn" data-audience="player_safe" data-i18n="webview.inspector.debugTrace.audience.playerSafe">Player-safe</button>
+          </div>
+          <div id="inspector-debug-trace-warnings" class="debug-trace-warnings hidden"></div>
+          <div id="inspector-debug-trace-runs" class="debug-trace-runs"></div>
+        </div>
         <div class="inspector-section" id="inspector-chronicle-section">
           <h4 data-i18n="webview.inspector.chronicleTitle">Chronicle</h4>
           <p class="img-gen-hint" data-i18n="webview.inspector.chronicleHint">Deterministic timeline from the state journal (read-only).</p>

@@ -1,6 +1,6 @@
 # Debug Trace Inspector UI Design
 
-Status: Design (UI/UX) — Phase A **shipped** v1.77.8 · Phase B **pending**
+Status: Design (UI/UX) — Phase A **shipped** v1.77.8 · Phase B **shipped** v1.77.9
 Date: 2026-07-04
 Owner: Claude Sonnet 5
 Recommended implementation model: Claude Sonnet (Webview render module), Grok/Codex (host wiring gate)

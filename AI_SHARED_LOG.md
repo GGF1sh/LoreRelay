@@ -6,7 +6,7 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.77.8** |
+| Package version | **1.77.9** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
@@ -20,10 +20,16 @@
 | World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
 | State Orchestrator | **SO1** ledger descriptor inventory · **SO2** transaction planning gate · **SO2b** turn_result diagnostic command |
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
-| Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) |
+| Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) · **Debug Trace Inspector Phase B** UI (`80a-debug-trace.js`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | **Claude: Inspector Phase B UI** · **Grok/Codex: Deep Emit P2a**（`DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`）· SO3 |
-| Git | `main` synced through v1.77.8 |
+| Next (推奨) | **Grok/Codex: Deep Emit P2a**（`DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`）· SO3 transaction executor · Context Engine P1 |
+| Git | `main` synced through v1.77.9 |
+
+---
+
+## 2026-07-04 JST - Claude - v1.77.9 Debug Trace Inspector Phase B (Webview UI)
+
+- `webview/modules/80a-debug-trace.js` + `webview/styles/90a-debug-trace.css`: read-only timeline renderer for `debugTraceUpdate`. New `inspector-debug-trace-section` (sibling to debug console section, separate from Context Inspector). Run grouping, `parentTraceId` indentation, conditions ✓/✗ checklist, ref chips, `linkWarnings` click-to-jump/highlight, `internal`/`gm_safe`/`player_safe` audience toggle (local re-projection, no host round-trip). i18n: en/ja/zh-CN/zh-TW. Registered in `scripts/build-webview.js`. Verified with a static harness loading the real shipped module against a fixture `debugTraceUpdate` payload (audience filtering, warning jump, empty state, hide-on-`debugCapabilities`-false all confirmed). `npm run compile` clean, `npm test` **207/207**.
 
 ---
 

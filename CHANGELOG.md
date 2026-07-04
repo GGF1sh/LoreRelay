@@ -11,8 +11,13 @@
 
 ### Added
 
-- **Debug Trace Inspector UI design** — `docs/DEBUG_TRACE_INSPECTOR_UI_DESIGN.md` (Claude): Phase B Webview timeline spec; Phase A marked shipped v1.77.8.
 - **Debug Trace Deep Emit Gate design** — `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md` (Grok): npcAgency / food crisis / faction conflict rule-level emit boundaries before P2a implementation.
+
+## [1.77.9] - 2026-07-04
+
+### Added
+
+- **Debug Trace Inspector Phase B (Webview UI)** (Claude) — `webview/modules/80a-debug-trace.js` + `webview/styles/90a-debug-trace.css`: read-only timeline renderer for `debugTraceUpdate` messages from `debugTraceHostCore.ts` (v1.77.8). New `inspector-debug-trace-section`, sibling to the existing debug console section and separate from Context Inspector. Groups entries by `runId`, indents by `parentTraceId` depth, renders `conditions[]` as a ✓/✗ checklist with actual/expected, shows `inputRefs`/`outputRefs` as chips, and renders `linkWarnings` from `validateDebugTraceLinks` with click-to-jump/highlight. `internal` / `gm_safe` / `player_safe` audience toggle re-projects the already-received buffer locally (mirrors `debugTraceCore.ts:projectDebugTraceBuffer`) — no host round-trip, no new postMessage types, no mutation actions. Gated by the same debug-console visibility flag as the rest of the debug tooling. i18n keys added to `en`/`ja`/`zh-CN`/`zh-TW`. Registered in `scripts/build-webview.js` module order. Design: `docs/DEBUG_TRACE_INSPECTOR_UI_DESIGN.md` (Phase A/B both shipped as of this release).
 
 ## [1.77.8] - 2026-07-04
 

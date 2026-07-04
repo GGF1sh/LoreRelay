@@ -15,7 +15,11 @@
 
 ### Added
 
+- **State Orchestrator SO1 Ledger Descriptor Inventory design** - added `docs/STATE_ORCHESTRATOR_SO1_DESIGN.md`, defining the first runtime State Orchestrator entry gate as observation-only metadata. SO1 catalogs existing ledger write surfaces, queues, backup policies, and failure policies, then tests descriptor parity with `TURN_LEDGER_PERSIST_ORDER` without changing write paths, ledger order, queues, `statePatch`, `TurnResult`, Webview, Remote, Replay, or GM prompt wiring.
+
 - **World Intent WI7b Migration Backup Restore Gate design** - added `docs/WORLD_INTENT_WI7B_MIGRATION_RESTORE_GATE.md`, defining a manual restore gate for WI7-created `vehicle_state.json` migration backups. Scope is explicit user-selected restore only: fixed backup directory, metadata validation, modal confirmation, strict pre-restore backup, atomic replacement, post-restore validation, bounded Output Channel reporting, and no auto-rollback/checkpoint/Git/Webview/Remote/GM-turn integration.
+
+- **World Intent WI7b Migration Backup Restore Gate** — opt-in host command `LoreRelay: Restore Vehicle State Migration Backup` (`textadventure.restoreVehicleStateMigrationBackup`). QuickPick over WI7 backups in `.lorerelay/backups/migrations/<timestamp>/` (requires `migration_meta.json`); modal confirmation; strict pre-restore backup to `.lorerelay/backups/migration-restores/<timestamp>/`; atomic text restore + post-validation. No auto-rollback from WI7, no checkpoint/Git/Webview/Remote/GM wiring. `ledgerMigrationRestoreCore.ts` + `ledgerMigrationRestoreHost.ts` + `ledgerMigrationRestoreRunner.ts`; `scripts/test_ledger_migration_restore_core.js`. `npm test` **195/196** (pre-existing `test_npc_relationship_core.js` flake unrelated to WI7b).
 
 - **World Intent WI7 Migration Write-Back Gate design** - added `docs/WORLD_INTENT_WI7_MIGRATION_WRITEBACK_GATE.md`, defining the first explicit migration write-back gate. Scope is intentionally narrow: user-confirmed `vehicle_state.json` v0 -> v1 only, fresh dry-run before write, strict timestamped backup before atomic write, post-write validation, bounded Output Channel reporting, and no apply-all/rollback/Webview/Remote/GM-turn integration.
 

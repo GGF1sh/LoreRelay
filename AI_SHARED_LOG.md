@@ -10,16 +10,24 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **195/195** |
+| Tests | `npm test` **195/196** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6/WI6b/WI7** migration helper + preview + write-back pilot |
-| Next (推奨) | WI3a Tier 2 payload-aware preview · Context Engine P0 |
+| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
+| Next (推奨) | Context Engine P0 · State Orchestrator entry design |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Grok - World Intent WI7b Migration Backup Restore Gate implementation
+
+- Added `ledgerMigrationRestoreCore.ts` (pure metadata/path/report), `ledgerMigrationRestoreHost.ts` (backup listing + pre-restore backup + atomic restore), and `ledgerMigrationRestoreRunner.ts` (QuickPick + modal confirmation + Output Channel).
+- Command: `textadventure.restoreVehicleStateMigrationBackup` — manual restore from WI7 migration backups only; not auto-called by WI7.
+- `scripts/test_ledger_migration_restore_core.js` (design §18). `npm test` **195/196**.
 
 ---
 
@@ -35,6 +43,13 @@
 
 - Added `docs/WORLD_INTENT_WI7B_MIGRATION_RESTORE_GATE.md`: manual restore gate for WI7-created `vehicle_state.json` migration backups.
 - Scope is explicit user-selected restore only: fixed backup directory, metadata validation, modal confirmation, strict pre-restore backup, atomic replacement, post-restore validation, bounded Output Channel reporting. Automatic rollback, checkpoint/Git restore, Webview/Remote/Replay/GM-turn wiring, and State Orchestrator behavior are deferred.
+
+---
+
+## 2026-07-04 JST - Codex - State Orchestrator SO1 Ledger Descriptor Inventory design
+
+- Added `docs/STATE_ORCHESTRATOR_SO1_DESIGN.md`: observation-only descriptor inventory for existing ledger write surfaces.
+- SO1 catalogs ledger owners, phases, queues, backup policies, circuit breakers, and failure policies, then tests parity with `TURN_LEDGER_PERSIST_ORDER`. It explicitly forbids changing write paths, ledger order, queues, `statePatch`, `TurnResult`, Webview/Remote/Replay wiring, transaction plans, rollback, or orchestrated writes.
 
 ---
 

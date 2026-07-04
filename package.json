@@ -51,7 +51,8 @@
     "onCommand:textadventure.promoteParlorToCampaign",
     "onCommand:textadventure.runWorkspaceSanityCheck",
     "onCommand:textadventure.previewWorkspaceMigrations",
-    "onCommand:textadventure.applyVehicleStateMigration"
+    "onCommand:textadventure.applyVehicleStateMigration",
+    "onCommand:textadventure.restoreVehicleStateMigrationBackup"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -159,6 +160,10 @@
       {
         "command": "textadventure.applyVehicleStateMigration",
         "title": "%command.applyVehicleStateMigration%"
+      },
+      {
+        "command": "textadventure.restoreVehicleStateMigrationBackup",
+        "title": "%command.restoreVehicleStateMigrationBackup%"
       }
     ],
     "configuration": {

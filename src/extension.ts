@@ -210,6 +210,7 @@ import { registerCoreCommands } from './extension/commands';
 import { runWorkspaceSanityCheckCommand } from './worldIntentSanityRunner';
 import { runPreviewWorkspaceMigrationsCommand } from './ledgerMigrationRunner';
 import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWritebackRunner';
+import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -472,6 +473,11 @@ export function activate(context: vscode.ExtensionContext) {
         () => { void runApplyVehicleStateMigrationCommand(); }
     );
 
+    const restoreVehicleStateMigrationBackupCmd = vscode.commands.registerCommand(
+        'textadventure.restoreVehicleStateMigrationBackup',
+        () => { void runRestoreVehicleStateMigrationBackupCommand(); }
+    );
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -519,7 +525,8 @@ export function activate(context: vscode.ExtensionContext) {
         promoteParlorCmd,
         runWorkspaceSanityCheckCmd,
         previewWorkspaceMigrationsCmd,
-        applyVehicleStateMigrationCmd
+        applyVehicleStateMigrationCmd,
+        restoreVehicleStateMigrationBackupCmd
     );
 
     context.subscriptions.push(

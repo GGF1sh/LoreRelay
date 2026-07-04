@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Genesis Mode RP2 Host Apply Gate** - `rulesProfileApplyCore.ts`: host-authoritative merge from `GenesisAnswers` to normalized `game_rules.json`, preserving unrelated manual settings, rejecting unsupported keys, and returning changed keys. `genesisApplyProfile` now re-runs `resolveRulesProfile()` in the extension host before saving, refreshes the Game Rules panel, and reports success/failure to the Webview. `genesisGenerateImage` now uses the host-resolved genre prompt rather than trusting arbitrary Webview prompt text.
+
 - **Genesis Mode G1 Rules Profile Core** — `rulesProfileCore.ts`: pure deterministic onboarding resolver from `GenesisAnswers` to safe `game_rules.json` patch, with axis-based genre/playstyle/pressure/bookkeeping handling, warnings for invalid answers, ComfyUI style prompt metadata, and `test_rules_profile_core.js`.
 
 - **Genesis Guide asset pack** - bundled Gemini-generated guide/background art under `webview/assets/genesis/`, added `docs/GENESIS_MODE_ASSETS.md`, and exposed non-authoritative `assetHint` metadata from `rulesProfileCore`.

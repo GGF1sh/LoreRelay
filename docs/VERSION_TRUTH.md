@@ -66,4 +66,4 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Living World (履歴) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
 | Debug Trace | P1 contracts (v1.77.14) · **retention/coalesce/live run** (v1.77.15) · Inspector UI Phase B + UX polish |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
-| テスト | `npm test` **207/207**（`check_version_consistency.js` 含む · simulation batch は二重実行なし） |
+| テスト | `npm test` **209/209**（`check_version_consistency.js` 含む · simulation batch は二重実行なし） |

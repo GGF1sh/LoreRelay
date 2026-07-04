@@ -15,6 +15,8 @@ import {
     normalizeLocale
 } from './i18n';
 import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
+import { buildRulesProfileApplication } from './rulesProfileApplyCore';
+import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
 import { loadLorebookForUi, saveLorebookFromUi } from './lorebookLoader';
 import { initScenarioDirector, pushScenarioDirectorToWebview } from './scenarioDirector';
@@ -1343,6 +1345,52 @@ async function handleUpdateGameRules(raw: unknown): Promise<void> {
     sendGameRules();
 }
 
+async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
+    const message = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const answers = message.answers && typeof message.answers === 'object'
+        ? message.answers as Record<string, unknown>
+        : undefined;
+    const application = buildRulesProfileApplication(loadGameRules(), answers);
+    const ok = saveGameRules(application.mergedRules);
+    if (ok) {
+        clearCampaignKitCache();
+        clearDiscoveryLedgerCache();
+        sendGameRules();
+        panel?.webview.postMessage({
+            type: 'genesisProfileApplied',
+            ok: true,
+            profileId: application.profile.profileId,
+            summary: application.profile.summary,
+            warnings: application.profile.warnings,
+            changedKeys: application.changedKeys,
+        });
+        vscode.window.setStatusBarMessage(`Genesis profile applied: ${application.profile.profileId}`, 3500);
+        return;
+    }
+
+    panel?.webview.postMessage({
+        type: 'genesisProfileApplied',
+        ok: false,
+        profileId: application.profile.profileId,
+        summary: application.profile.summary,
+        warnings: application.profile.warnings,
+        changedKeys: [],
+        error: 'save_failed',
+    });
+    vscode.window.showErrorMessage('Genesis profile could not be saved to game_rules.json.');
+}
+
+async function handleGenesisGenerateImage(raw: unknown): Promise<void> {
+    const message = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const profile = resolveRulesProfile({
+        genre: message.genre,
+        imageGenerationWanted: true,
+    });
+    const prompt = profile.comfyUiStylePrompt.slice(0, 4000);
+    if (!prompt) { return; }
+    await runImageGeneration(prompt, 'illustrious');
+}
+
 async function exportCharacterCard(payload: any): Promise<void> {
     const defaultName = (payload.char_name || 'Character').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'Character';
     const uri = await vscode.window.showSaveDialog({
@@ -1625,6 +1673,8 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 vscode.window.showErrorMessage(`Quickstart failed: ${result.error}`);
             }
         },
+        handleGenesisApplyProfile,
+        handleGenesisGenerateImage,
         handleAcceptQuest: async (questId: string) => {
             const { loadWorldState, saveWorldState } = await import('./worldState');
             const state = loadWorldState();

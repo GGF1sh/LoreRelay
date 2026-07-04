@@ -134,6 +134,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_forge.js' },
     { category: 'unit', file: 'test_game_rules_core.js' },
     { category: 'unit', file: 'test_rules_profile_core.js' },
+    { category: 'unit', file: 'test_rules_profile_apply_core.js' },
     { category: 'unit', file: 'test_world_state.js' },
     { category: 'unit', file: 'test_world_state_warning_buffer.js' },
 

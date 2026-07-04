@@ -628,14 +628,28 @@ function findGalleryIndexByImagePath(imagePath) {
 
   startBtn.addEventListener('click', () => {
     const preview = resolvePreview(state.answers);
+    startBtn.disabled = true;
     vscode.postMessage({
       type: 'genesisApplyProfile',
       answers: Object.assign({}, state.answers),
       freeformNotes: notesInput ? notesInput.value.slice(0, 2000) : '',
       previewProfileId: preview.profileId,
     });
+    appliedToast.textContent = T('webview.genesis.summary.applyingToast');
     appliedToast.classList.remove('hidden');
-    setTimeout(() => appliedToast.classList.add('hidden'), 4000);
+  });
+
+  window.addEventListener('message', (event) => {
+    const message = event.data || {};
+    if (message.type !== 'genesisProfileApplied') return;
+    startBtn.disabled = false;
+    appliedToast.textContent = message.ok
+      ? T('webview.genesis.summary.appliedSuccess')
+      : T('webview.genesis.summary.appliedFailed');
+    appliedToast.classList.remove('hidden');
+    if (message.ok) {
+      setTimeout(() => appliedToast.classList.add('hidden'), 5000);
+    }
   });
 
   if (copyPromptBtn) {

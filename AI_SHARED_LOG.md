@@ -10,7 +10,7 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **208/208** (+ `test:simulation` batch) |
+| Tests | `npm test` **209/209** (+ `test:simulation` batch) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -26,6 +26,13 @@
 | Git | `main` synced through v1.77.11 |
 
 ---
+
+## 2026-07-05 JST - Codex - Genesis Mode RP2 Host Apply Gate
+
+- Added `src/rulesProfileApplyCore.ts`: pure host-authoritative Genesis profile application from current `game_rules` + `GenesisAnswers` to normalized merged rules, preserving unrelated manual settings and dropping unsupported input keys.
+- Wired `genesisApplyProfile` in the extension host: Webview answers are re-resolved with `resolveRulesProfile()`, saved through `saveGameRules()`, then `gameRules` + `genesisProfileApplied` messages refresh the UI.
+- Wired `genesisGenerateImage` to use the host-resolved genre prompt before calling the existing image generation flow. The Webview prompt text is no longer authoritative.
+- Added `scripts/test_rules_profile_apply_core.js` and registered it in `run_all_tests.js`.
 
 ## 2026-07-05 JST - Claude - Genesis Mode G2 Webview UI
 

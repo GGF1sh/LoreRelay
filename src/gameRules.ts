@@ -52,9 +52,9 @@ export function loadGameRules(): GameRules {
     }
 }
 
-export function saveGameRules(rules: Partial<GameRules>): void {
+export function saveGameRules(rules: Partial<GameRules>): boolean {
     const rulesPath = getGameRulesPath();
-    if (!rulesPath) return;
+    if (!rulesPath) return false;
 
     const current = loadGameRules();
     const updated = normalizeGameRules({ ...current, ...rules }, current);
@@ -64,7 +64,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         cachedRules = updated;
         cacheRulesPath = rulesPath;
         try { cacheRulesMtime = fs.statSync(rulesPath).mtimeMs; } catch { cacheRulesMtime = 0; }
+        return true;
     } catch (err) {
         console.error("Failed to save game_rules.json", err);
+        return false;
     }
 }

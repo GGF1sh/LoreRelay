@@ -97,6 +97,8 @@ export interface WebviewHandlerDeps {
     handleSetNpcPortrait(npcId: string, imagePath: string): Promise<void>;
     handleRequestNpcPortraitLink(npcId: string): Promise<void>;
     handleRunQuickstart(prompt: string, overwrite: boolean): Promise<void>;
+    handleGenesisApplyProfile(raw: unknown): Promise<void>;
+    handleGenesisGenerateImage(raw: unknown): Promise<void>;
     handleAcceptQuest(questId: string): Promise<void>;
     handleAcceptCampaignJob(boardEntryId: string): Promise<void>;
     handleRequestNpcTts(raw: unknown): Promise<void>;
@@ -506,6 +508,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 const overwrite = !!message.overwrite;
                 await deps.handleRunQuickstart(message.prompt, overwrite);
             }
+            break;
+        case 'genesisApplyProfile':
+            await deps.handleGenesisApplyProfile(message);
+            break;
+        case 'genesisGenerateImage':
+            await deps.handleGenesisGenerateImage(message);
             break;
         case 'requestNpcTts':
             await deps.handleRequestNpcTts(message);

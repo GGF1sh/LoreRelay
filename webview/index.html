@@ -650,6 +650,7 @@
               <button type="button" id="world-map-mode-parchment" class="world-map-mode-btn" data-mode="parchment" data-i18n="webview.world.mapModeParchment">Parchment</button>
               <button type="button" id="world-map-mode-tile" class="world-map-mode-btn" data-mode="tile" data-i18n="webview.world.mapModeTile">Tile</button>
               <button type="button" id="world-map-mode-settlement" class="world-map-mode-btn hidden" data-mode="settlement" data-i18n="webview.world.mapModeSettlement">Settlement</button>
+              <button type="button" id="world-map-mode-diorama" class="world-map-mode-btn hidden" data-mode="diorama" data-i18n="webview.world.mapModeDiorama">Diorama</button>
             </div>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
               <div id="world-mermaid" class="mermaid world-map-panel"></div>
@@ -693,6 +694,22 @@
                   <p class="world-settlement-expand-hint" data-i18n="webview.world.settlementExpandHint">This layer does not exist yet. Preview a possible layout, then ask the GM to build it.</p>
                   <div id="world-settlement-expand-buttons" class="world-settlement-expand-buttons"></div>
                 </div>
+              </div>
+              <div id="world-diorama" class="world-map-panel hidden">
+                <div id="world-diorama-toolbar" class="world-diorama-toolbar">
+                  <button type="button" id="world-diorama-zoom-out" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaZoomOut" title="Zoom out">-</button>
+                  <button type="button" id="world-diorama-zoom-reset" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaReset">Reset</button>
+                  <button type="button" id="world-diorama-zoom-fit" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaFit">Fit</button>
+                  <button type="button" id="world-diorama-zoom-in" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaZoomIn" title="Zoom in">+</button>
+                </div>
+                <div id="world-diorama-stage" class="world-diorama-stage hidden">
+                  <canvas id="world-diorama-canvas"></canvas>
+                  <div id="world-diorama-tooltip" class="world-diorama-tooltip hidden" role="tooltip"></div>
+                </div>
+                <p id="world-diorama-empty" class="empty-text hidden" data-i18n="webview.world.dioramaEmpty">No diorama data yet.</p>
+                <p id="world-diorama-unavailable" class="world-diorama-unavailable hidden" data-i18n="webview.world.dioramaUnavailable">Three.js / WebGL is unavailable in this Webview.</p>
+                <div id="world-diorama-detail" class="world-diorama-detail hidden" aria-live="polite"></div>
+                <div id="world-diorama-marker-fallback" class="world-diorama-marker-fallback hidden"></div>
               </div>
             </div>
             <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>

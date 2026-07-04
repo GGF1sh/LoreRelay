@@ -4287,3 +4287,156 @@ body[data-ui-theme="steampunk"] {
     outline: 2px solid var(--vscode-focusBorder, #4a90e2);
     outline-offset: 1px;
 }
+
+/* --- 99-settlement-diorama.css --- */
+#world-diorama {
+    position: relative;
+}
+
+.world-diorama-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+    margin-bottom: 0.45rem;
+}
+
+.world-diorama-zoom-btn {
+    font-size: 0.78em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--vscode-foreground, #ccc);
+    cursor: pointer;
+}
+
+.world-diorama-zoom-btn:hover,
+.world-diorama-zoom-btn:focus-visible {
+    border-color: var(--vscode-focusBorder, #4a90e2);
+    background: rgba(74, 144, 226, 0.18);
+}
+
+.world-diorama-zoom-btn:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder, #4a90e2);
+    outline-offset: 1px;
+}
+
+#world-diorama-stage {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(6, 10, 18, 0.65);
+}
+
+#world-diorama-stage.hidden {
+    display: none !important;
+}
+
+#world-diorama-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+#world-diorama-canvas:active {
+    cursor: grabbing;
+}
+
+.world-diorama-tooltip {
+    position: absolute;
+    z-index: 6;
+    max-width: min(240px, 90%);
+    padding: 0.3rem 0.45rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 12, 20, 0.92);
+    color: var(--vscode-foreground, #dde4ec);
+    font-size: 0.78em;
+    line-height: 1.35;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.world-diorama-tooltip.hidden {
+    display: none !important;
+}
+
+.world-diorama-detail {
+    margin-top: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.22);
+    font-size: 0.86em;
+}
+
+.world-diorama-detail.hidden {
+    display: none !important;
+}
+
+.world-diorama-detail h4 {
+    margin: 0;
+    font-size: 1em;
+}
+
+.world-diorama-marker-fallback {
+    margin-top: 0.45rem;
+    font-size: 0.82em;
+}
+
+.world-diorama-marker-fallback.hidden {
+    display: none !important;
+}
+
+.world-diorama-marker-fallback-title {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    opacity: 0.85;
+}
+
+.world-diorama-marker-fallback ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    max-height: 8.5em;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.world-diorama-marker-item {
+    background: none;
+    border: none;
+    color: var(--vscode-textLink-foreground, #6cb6ff);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+}
+
+.world-diorama-marker-item:hover,
+.world-diorama-marker-item:focus-visible {
+    text-decoration: underline;
+}
+
+#world-map-mode-diorama.hidden {
+    display: none !important;
+}
+
+.world-diorama-unavailable {
+    margin: 0.3rem 0;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 0.84em;
+    opacity: 0.85;
+}
+
+.world-diorama-unavailable.hidden {
+    display: none !important;
+}

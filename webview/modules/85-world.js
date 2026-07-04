@@ -130,6 +130,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const modeParchment = document.getElementById('world-map-mode-parchment');
     const modeTile = document.getElementById('world-map-mode-tile');
     const modeSettlement = document.getElementById('world-map-mode-settlement');
+    const modeDiorama = document.getElementById('world-map-mode-diorama');
     if (modeMermaid) {
         modeMermaid.addEventListener('click', () => setWorldMapMode('mermaid'));
     }
@@ -142,10 +143,13 @@ window.addEventListener('DOMContentLoaded', () => {
     if (modeSettlement) {
         modeSettlement.addEventListener('click', () => setWorldMapMode('settlement'));
     }
+    if (modeDiorama) {
+        modeDiorama.addEventListener('click', () => setWorldMapMode('diorama'));
+    }
 
     try {
         const saved = localStorage.getItem(WORLD_MAP_MODE_KEY);
-        if (saved === 'mermaid' || saved === 'parchment' || saved === 'tile' || saved === 'settlement') {
+        if (saved === 'mermaid' || saved === 'parchment' || saved === 'tile' || saved === 'settlement' || saved === 'diorama') {
             worldMapMode = saved;
         }
     } catch { /* private mode */ }
@@ -206,6 +210,8 @@ function renderWorldView(msg) {
     _tileOvermapMsg = msg;
     _settlementWorldMsg = msg;
     syncSettlementMapModeUi(msg);
+    _dioramaWorldMsg = msg;
+    syncDioramaMapModeUi(msg);
     syncWorldPinSelectionUi();
 
     if (msg.cartographyHasImage && worldMapMode === 'parchment') {
@@ -1249,6 +1255,22 @@ function syncSettlementMapModeUi(msg) {
     }
 }
 
+/** M5b: Diorama button only appears when the flag is on AND the host sent a non-empty snapshot. */
+function syncDioramaMapModeUi(msg) {
+    const btn = document.getElementById('world-map-mode-diorama');
+    if (!btn) { return; }
+    const snapshot = msg.settlementDiorama;
+    const hasContent = Boolean(snapshot && (
+        (Array.isArray(snapshot.blocks) && snapshot.blocks.length > 0)
+        || (Array.isArray(snapshot.markers) && snapshot.markers.length > 0)
+    ));
+    const show = msg.enableSettlementDiorama === true && hasContent;
+    btn.classList.toggle('hidden', !show);
+    if (!show && worldMapMode === 'diorama') {
+        setWorldMapMode('mermaid', { persist: true });
+    }
+}
+
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
     if (mode === 'settlement') {
@@ -1257,6 +1279,13 @@ function setWorldMapMode(mode, options = {}) {
             worldMapMode = 'mermaid';
         } else {
             worldMapMode = 'settlement';
+        }
+    } else if (mode === 'diorama') {
+        const btn = document.getElementById('world-map-mode-diorama');
+        if (btn?.classList.contains('hidden')) {
+            worldMapMode = 'mermaid';
+        } else {
+            worldMapMode = 'diorama';
         }
     } else {
         worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
@@ -1273,12 +1302,14 @@ function applyWorldMapModeVisibility() {
         parchment: document.getElementById('world-cartography'),
         tile: document.getElementById('world-overmap'),
         settlement: document.getElementById('world-settlement'),
+        diorama: document.getElementById('world-diorama'),
     };
     const buttons = {
         mermaid: document.getElementById('world-map-mode-mermaid'),
         parchment: document.getElementById('world-map-mode-parchment'),
         tile: document.getElementById('world-map-mode-tile'),
         settlement: document.getElementById('world-map-mode-settlement'),
+        diorama: document.getElementById('world-map-mode-diorama'),
     };
     for (const mode of Object.keys(panels)) {
         if (panels[mode]) {
@@ -1294,6 +1325,9 @@ function applyWorldMapModeVisibility() {
     }
     if (worldMapMode === 'settlement' && typeof drawSettlementIsometric === 'function') {
         requestAnimationFrame(() => drawSettlementIsometric());
+    }
+    if (worldMapMode === 'diorama' && typeof renderSettlementDiorama === 'function') {
+        requestAnimationFrame(() => renderSettlementDiorama());
     }
 }
 

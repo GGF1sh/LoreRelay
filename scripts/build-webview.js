@@ -25,6 +25,7 @@ const JS_MODULE_ORDER = [
     '85-world.js',
     '86-tile-overmap.js',
     '86b-settlement-isometric.js',
+    '86c-settlement-diorama.js',
     '87-parlor-settings.js',
     '88-world-observatory.js',
     '90-bootstrap.js'
@@ -48,12 +49,14 @@ const CSS_MODULE_ORDER = [
     '87-parlor-settings.css',
     '88-world-observatory.css',
     '97-visual-refresh.css',
-    '98-settlement-isometric.css'
+    '98-settlement-isometric.css',
+    '99-settlement-diorama.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');
 const jsModulesDir = path.join(webviewDir, 'modules');
 const cssModulesDir = path.join(webviewDir, 'styles');
+const vendorDir = path.join(webviewDir, 'vendor');
 
 function buildBundle(moduleOrder, modulesDir, outPath, headerLines, ext) {
     let out = headerLines.join('\n') + '\n';
@@ -70,16 +73,30 @@ function buildBundle(moduleOrder, modulesDir, outPath, headerLines, ext) {
     console.log(`Built ${path.basename(outPath)} (${out.split('\n').length} lines) from ${moduleOrder.length} modules`);
 }
 
+// Settlement Diorama (M5b): prepend the local Three.js vendor build so the
+// global `THREE` exists before 86c-settlement-diorama.js runs. No CDN, no
+// separate <script> tag / extension.ts change needed. Gracefully absent if
+// the vendor file is missing — 86c degrades via its own THREE-availability check.
+const threeMinPath = path.join(vendorDir, 'three.min.js');
+const jsHeaderLines = [
+    '// AUTO-GENERATED from webview/modules/*.js — run: npm run build:webview',
+    '// @ts-nocheck',
+    '// LoreRelay - Webview Script',
+    ''
+];
+if (fs.existsSync(threeMinPath)) {
+    jsHeaderLines.push('/* --- vendor/three.min.js (Three.js, MIT license, bundled locally for Settlement Diorama M5b) --- */');
+    jsHeaderLines.push(fs.readFileSync(threeMinPath, 'utf-8').trimEnd());
+    console.log('Prepended vendor/three.min.js into script.js bundle');
+} else {
+    console.warn(`WARNING: three.min.js not found at ${threeMinPath}. Settlement Diorama (M5b) will show its unavailable-fallback state.`);
+}
+
 buildBundle(
     JS_MODULE_ORDER,
     jsModulesDir,
     path.join(webviewDir, 'script.js'),
-    [
-        '// AUTO-GENERATED from webview/modules/*.js — run: npm run build:webview',
-        '// @ts-nocheck',
-        '// LoreRelay - Webview Script',
-        ''
-    ],
+    jsHeaderLines,
     'js'
 );
 
@@ -96,7 +113,6 @@ buildBundle(
 );
 
 // Copy vendor scripts
-const vendorDir = path.join(webviewDir, 'vendor');
 if (!fs.existsSync(vendorDir)) {
     fs.mkdirSync(vendorDir);
 }

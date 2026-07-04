@@ -20,12 +20,16 @@ const htmlSymbols = [
     'id="world-map-mode-parchment"',
     'id="world-map-mode-tile"',
     'id="world-map-mode-settlement"',
+    'id="world-map-mode-diorama"',
     'id="world-mermaid"',
     'id="world-cartography"',
     'id="world-overmap"',
     'id="world-overmap-canvas"',
     'id="world-settlement"',
     'id="world-settlement-canvas"',
+    'id="world-diorama"',
+    'id="world-diorama-stage"',
+    'id="world-diorama-canvas"',
 ];
 for (const symbol of htmlSymbols) {
     assert(indexHtml.includes(symbol), `webview/index.html is missing ${symbol}`);
@@ -39,6 +43,10 @@ assert(
 assert(
     buildScript.indexOf("'86-tile-overmap.js'") < buildScript.indexOf("'86b-settlement-isometric.js'"),
     '86b-settlement-isometric.js must be bundled after tile overmap module'
+);
+assert(
+    buildScript.indexOf("'86b-settlement-isometric.js'") < buildScript.indexOf("'86c-settlement-diorama.js'"),
+    '86c-settlement-diorama.js must be bundled after 86b-settlement-isometric.js'
 );
 console.log('ok: World modules are bundled in the expected order');
 
@@ -180,6 +188,38 @@ assert(
 );
 assert(indexHtml.includes('id="world-settlement-expand-panel"'), 'world-settlement-expand-panel markup missing from index.html');
 console.log('ok: Settlement M4c expand preview/request symbols are bundled');
+
+// M5b: read-only Three.js diorama renderer — no state writes, no chat insertion, no fs.
+const dioramaModule = read('webview', 'modules', '86c-settlement-diorama.js');
+const dioramaSymbols = [
+    'function renderSettlementDiorama()',
+    'function disposeSettlementDiorama()',
+    'function initSettlementDioramaControls()',
+    'enableSettlementDiorama',
+    'settlementDiorama',
+    "worldMapMode === 'diorama'",
+    'syncDioramaMapModeUi',
+    'world-diorama-detail',
+    'world-diorama-marker-fallback',
+    'world-diorama-unavailable',
+];
+for (const symbol of dioramaSymbols) {
+    assert(
+        dioramaModule.includes(symbol) || worldModule.includes(symbol) || bundle.includes(symbol),
+        `settlement diorama (M5b) symbol missing: ${symbol}`
+    );
+}
+assert(
+    !dioramaModule.includes('insertChatText')
+    && !dioramaModule.includes('writeJsonAtomic')
+    && !dioramaModule.includes("require('fs')")
+    && !dioramaModule.includes('require("fs")')
+    && !dioramaModule.includes('settlementOps'),
+    '86c-settlement-diorama.js must stay read-only: no insertChatText/writeJsonAtomic/fs/settlementOps'
+);
+assert(indexHtml.includes('id="world-diorama-marker-fallback"'), 'world-diorama-marker-fallback markup missing from index.html');
+assert(indexHtml.includes('id="world-diorama-unavailable"'), 'world-diorama-unavailable markup missing from index.html');
+console.log('ok: Settlement Diorama (M5b) renderer symbols are bundled and read-only');
 
 const worldPaneStart = indexHtml.indexOf('<div id="pane-world"');
 const worldPaneEnd = indexHtml.indexOf('</div> <!-- /pane-world -->');

@@ -12,10 +12,26 @@
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **157/157** |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
-| Settlement Mode M5 | M5a diorama snapshot pure core（`settlementDioramaCore.ts`）— M5b Three.js は別ゲート待ち |
+| Settlement Mode M5 | M5a diorama snapshot pure core（`settlementDioramaCore.ts`）+ **M5b Three.js Webview renderer実装済み(Claude)** — host配線(`enableSettlementDiorama`永続化・`worldView.ts`配線・remote/replay)はGrok未着手 |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
-| Next (推奨) | M5a gate レビュー → Claude M5b · Gemini README/screenshot plan（任意） |
-| Git | `main` synced through `45e1c64` |
+| Next (推奨) | **Grok: M5b host配線**（`enableSettlementDiorama: false`をgame_rules.jsonに追加、`worldView.ts`で`settlementView`→`buildSettlementDioramaSnapshot()`配線、`AI_ROADMAP.md` M5b `[x]`）· Gemini README/screenshot plan（任意） |
+| Git | `main` synced through `d7ef989` |
+
+---
+
+## 2026-07-04 JST - Claude (Sonnet 5) - Settlement Mode M5b Three.js diorama Webview renderer
+
+- 必読: `docs/SETTLEMENT_MODE_M5_DESIGN.md`、`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`、`src/settlementDioramaCore.ts`(M5a, Grok実装済み、無変更)。
+- **注記**: M5 gateドキュメントには「M5bの実装はこのgateでは未承認、Claude着手前に別途Codex/ChatGPTレビューが必要」と明記されている。今回はユーザーからGrok作成のM5b実装プロンプトを直接依頼される形でこのタスクに着手した(=実質的なユーザー承認)。設計文書中の安全制約(read-only/no settlementOps/no insertChatText/M3 Canvas無変更/フラグ既定OFF等)は全て遵守した上で実装。ChatGPT/Codexによる正式なM5bゲートレビューはまだ行われていない — 次のAIが引き継ぐ際は`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`の「M5b Future Gate Requirements」チェックリストに沿ったレビューを推奨。
+- `webview/modules/86c-settlement-diorama.js`(新規) + `webview/styles/99-settlement-diorama.css`(新規): World タブに6番目のマップモード「Diorama」を追加(既存のSettlement Canvas M3bは無変更)。`msg.settlementDiorama`(M5a snapshot)と`msg.enableSettlementDiorama`のみを消費し、生の`settlement_state.json`/`settlement_layout.json`/`settlementView`には一切触れない。
+- シーン構築: `blocks[]`→`BoxGeometry`、`markers[]`→kind別のcone/cylinder/box、色は閉じたclient-side material→colorマップ×`snapshot.palette`。カメラは自前実装のlimited orbit(ドラッグでyaw/pitch回転、pitch clamp付き、ホイールでズーム、distance clamp付き、Reset/Fitボタン)— OrbitControls不使用、fly/first-person無し。ホバー/クリックはraycasterでヒットテストし、サニタイズ済み`label`のみを検出パネルに表示(HTMLエスケープ済み)。
+- **Three.js vendor**: 最新npm版(0.185.1)はESモジュール専用ビルドのみで、UMD/グローバル`THREE`ビルド(`build/three.min.js`)が存在しないことが判明(r150前後で廃止)。UMDビルドが残っている最後のバージョン`three@0.149.0`(MIT)から`build/three.min.js`を取得し`webview/vendor/three.min.js`として静的にコミット(package.jsonへの依存追加なし、`--no-save`でインストール後`node_modules/three`は削除済み)。`build-webview.js`を修正し、`script.js`バンドルの先頭(モジュール一覧より前)にthree.min.jsの中身を直接連結する方式を採用 — mermaidと違いCDNなし・`extension.ts`変更なし・別`<script>`タグ不要で`THREE`グローバルが86c実行前に存在する。
+- グレースフルデグレード: `THREE`/WebGL利用不可時は`#world-diorama-unavailable`+マーカーのテキスト一覧(`#world-diorama-marker-fallback`)にフォールバック。フラグOFFまたはsnapshot未着時は`#world-diorama-empty`。
+- `webview/modules/85-world.js`: `syncDioramaMapModeUi(msg)`追加(既存の`settlement`モード切替パターンを踏襲、`enableSettlementDiorama === true` **かつ** snapshotにblocks/markersが実際にある場合のみボタン表示)。`setWorldMapMode`/`applyWorldMapModeVisibility`を拡張。
+- i18n: `mapModeDiorama`/`dioramaEmpty`/`dioramaUnavailable`/`dioramaReset`/`dioramaFit`/`dioramaZoomIn`/`dioramaZoomOut`/`dioramaMarkerList`をen/ja/zh-CN/zh-TW全4言語に追加。
+- テスト: `scripts/test_webview_world_modules.js`にバンドル順序・シンボル・read-only制約(`insertChatText`/`writeJsonAtomic`/`fs`/`settlementOps`が一切含まれないこと)のアサーションを追加。
+- 検証: `npm run compile` / `npm test` **157/157** / `test_webview_world_modules.js` / `check_i18n_keys.js`(0 missing全言語) / `validate_utf8_docs.js` OK。手動確認はスクラッチパッドの静的ハーネス(`_dioramaWorldMsg`を直接モック注入)で実施 — WebGLピクセルサンプリング+スクリーンショットで実際に低ポリシーンが描画されることを確認、ズームイン/アウト/リセット、クリックでの検出パネル選択、データなし/THREE利用不可の両フォールバック状態も確認。
+- **Grok引き継ぎ事項(host配線、未着手)**: (1) `game_rules.json`に`enableSettlementDiorama: false`追加、(2) `src/worldView.ts`で`settlementView`(選択中レイヤー)→`buildSettlementDioramaSnapshot()`を配線し`worldView`postMessageに`enableSettlementDiorama`/`settlementDiorama`を追加、(3) `extension.ts`の変更は不要だった(vendor埋め込み方式採用のため`threeUri`シム不要)、(4) `AI_ROADMAP.md`のM5bチェックボックスを`[x]`に、(5) remote/replayへの`settlementDiorama`配信は今回スコープ外(design docの非ゴール通り、GM prompt/turn_result変更も一切なし)。
 
 ---
 

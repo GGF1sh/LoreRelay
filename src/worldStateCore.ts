@@ -83,6 +83,10 @@ export interface WorldState {
     marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
     /** LW3: NPC間関係 — 正規化ペアキー "idA|idB" → affinity [-100,100] (Relationships ON). */
     npcRelationships?: Record<string, number>;
+    /** LW3: 派閥間関係(異派閥) — 正規化ペアキー "factionA|factionB" → [-100,100]。NPC数に依存しない。 */
+    npcFactionRelationships?: Record<string, number>;
+    /** LW3: 派閥内結束(同派閥) — factionId → [-100,100]。 */
+    npcFactionCohesion?: Record<string, number>;
     /** LW3-L: 到達済みライフイベント — ペアキー → マイルストーン id 配列(一度きり発火の記録). */
     npcMilestones?: Record<string, string[]>;
     /** LW3-P: プレイヤー↔NPC の到達済み絆マイルストーン — npcId → id 配列. */
@@ -293,7 +297,14 @@ function parseTurnByLocation(raw: unknown): Record<string, number> | undefined {
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
-const MAX_PARSE_NPC_RELATIONSHIPS = 64; // 10人の全ペア45 + 余裕
+// レガシー既定値(旧: 10人の全ペア45 + 余裕)。個人relationshipsは実際に関わった
+// ペアのみ materialize されるため、maxNamedNpcCount を引き上げても爆発的には
+// 増えないが、パース時の安全上限としては余裕を持たせておく(JSONの構造検証であり、
+// 計算量には影響しない)。
+const MAX_PARSE_NPC_RELATIONSHIPS = 20_000;
+// 派閥数(F)にのみ依存するため、これで十分すぎるほど余裕がある。
+const MAX_PARSE_FACTION_RELATIONSHIPS = 2_000;
+const MAX_PARSE_FACTION_COHESION = 500;
 
 function parseNpcRelationships(raw: unknown): Record<string, number> | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
@@ -311,10 +322,43 @@ function parseNpcRelationships(raw: unknown): Record<string, number> | undefined
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** npcFactionRelationships のパース(構造は npcRelationships と同じ、keyは factionA|factionB)。 */
+function parseNpcFactionRelationships(raw: unknown): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_PARSE_FACTION_RELATIONSHIPS) { break; }
+        const sep = key.indexOf('|');
+        if (sep <= 0 || sep >= key.length - 1) { continue; }
+        if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
+        out[key] = Math.max(-100, Math.min(100, Math.round(val)));
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** npcFactionCohesion のパース(key は factionId 単体)。 */
+function parseNpcFactionCohesion(raw: unknown): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_PARSE_FACTION_COHESION) { break; }
+        if (!key) { continue; }
+        if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
+        out[key] = Math.max(-100, Math.min(100, Math.round(val)));
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 const VALID_MILESTONE_KINDS = new Set([
     'sworn_allies', 'inseparable', 'bitter_enemies', 'estranged', 'reconciled',
 ]);
-const MAX_PARSE_MILESTONE_PAIRS = 64;
+// レガシー既定値(旧: 64)。milestonesもnpcRelationshipsと同様、実際に関わった
+// ペアのみ記録されるので、maxNamedNpcCount 引き上げに合わせて余裕を持たせる。
+const MAX_PARSE_MILESTONE_PAIRS = 20_000;
 const MAX_PARSE_MILESTONES_PER_PAIR = 8;
 
 function parseNpcMilestones(raw: unknown): Record<string, string[]> | undefined {
@@ -446,6 +490,8 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         lastVisitTurnByLocation: parseTurnByLocation(doc.lastVisitTurnByLocation),
         marketSnapshotByLocation: parseLocationSnapshotMap(doc.marketSnapshotByLocation),
         npcRelationships: parseNpcRelationships(doc.npcRelationships),
+        npcFactionRelationships: parseNpcFactionRelationships(doc.npcFactionRelationships),
+        npcFactionCohesion: parseNpcFactionCohesion(doc.npcFactionCohesion),
         npcMilestones: parseNpcMilestones(doc.npcMilestones),
         playerNpcMilestones: parsePlayerNpcMilestones(doc.playerNpcMilestones),
         marketPriceHistory: parseMarketPriceHistory(doc.marketPriceHistory),

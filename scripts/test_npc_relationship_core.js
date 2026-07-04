@@ -43,6 +43,7 @@ const {
     parseRelationshipOps, applyRelationshipOps, listNotableRelationships,
     buildRelationshipPromptLines, applyIntroductionTrustBoost,
     reconcileRelationshipGraph, cascadeNpcRemovalFromGraph,
+    factionPairKey, getFactionRelation, getFactionCohesion,
     MAX_AFFINITY, MIN_AFFINITY, CO_LOCATION_STEP, SHARED_CRISIS_STEP,
     FACTION_CONFLICT_STEP, AFFINITY_FRIEND, INTRODUCTION_MIN_AFFINITY,
     FACTION_ALLIED_REP_MIN, FACTION_INTRO_TRUST_DAMPEN, MAX_EFFECTIVE_PLAYER_TRUST,
@@ -120,7 +121,7 @@ eq(describeRelationship(-80), 'enemy', 'label enemy');
     else { fail(`shared crisis bond (got ${em})`); }
 }
 
-// 7. 派閥動態 — 紛争イベント時、異派閥は険悪化
+// 7. 派閥動態 — 紛争イベント時、個人ペアではなく「派閥そのもの」の関係が動く
 {
     const res = evolveRelationships({
         registry,
@@ -129,13 +130,42 @@ eq(describeRelationship(-80), 'enemy', 'label enemy');
         worldTurn: 5,
         recentChanges: [{ worldTurn: 5, category: 'conflict', severity: 'critical', message: '国境で紛争が勃発' }],
     });
-    const em = getAffinity(res.relationships, 'npc_elda', 'npc_marcus');
-    if (em <= FACTION_CONFLICT_STEP) { ok('faction conflict sours cross-faction'); }
-    else { fail(`faction conflict (got ${em})`); }
-    // 同派閥(Marcus-Rurik 両方 smiths, ただし別location)は結束(正)
-    const mr = getAffinity(res.relationships, 'npc_marcus', 'npc_far');
-    if (mr > 0) { ok('faction kinship bonds same-faction'); }
-    else { fail(`faction kinship (got ${mr})`); }
+    // 個人の relationships には faction dynamics は一切書き込まれない(N^2回避の核心)
+    eq(getAffinity(res.relationships, 'npc_elda', 'npc_marcus'), 0, 'faction conflict does not touch personal affinity');
+    eq(getAffinity(res.relationships, 'npc_marcus', 'npc_far'), 0, 'faction kinship does not touch personal affinity');
+    // 代わりに派閥レベルの関係が動く
+    const fr = getFactionRelation(res.factionRelationships, 'faction_merchants', 'faction_smiths');
+    if (fr <= FACTION_CONFLICT_STEP) { ok('faction conflict sours cross-faction (faction-level)'); }
+    else { fail(`faction conflict faction-level (got ${fr})`); }
+    const fc = getFactionCohesion(res.factionCohesion, 'faction_smiths');
+    if (fc > 0) { ok('faction kinship bonds same-faction (faction-level)'); }
+    else { fail(`faction kinship faction-level (got ${fc})`); }
+    // 変化イベントも派閥レベルで1件ずつ(NPCペア単位ではない)
+    const conflictChange = res.factionChanges.find((c) => c.reason === 'faction_conflict');
+    const kinshipChange = res.factionChanges.find((c) => c.reason === 'faction_kinship');
+    if (conflictChange && kinshipChange) { ok('factionChanges records both conflict and kinship'); }
+    else { fail(`factionChanges (got ${JSON.stringify(res.factionChanges)})`); }
+}
+
+// 7b. 派閥動態の計算量は派閥数(F)にのみ依存する — NPC数(N)が増えても
+// 派閥数が同じなら factionChanges の件数は変わらない(O(N^2)に戻っていないことの確認)。
+{
+    const many = {};
+    // 500人だが所属は3派閥のみ、かつ全員同じ場所(同席で個人peerも生成されるが、
+    // ここで見たいのは派閥レベルの出力サイズが N に連動しないこと)。
+    for (let i = 0; i < 500; i++) {
+        many['npc_' + i] = { name: 'N' + i, locationId: 'far_away_' + i, factionId: 'faction_' + (i % 3) };
+    }
+    const res = evolveRelationships({
+        registry: many, positions: {}, relationships: {}, worldTurn: 1, maxNamedNpcCount: 500,
+        recentChanges: [{ worldTurn: 1, category: 'conflict', severity: 'critical', message: 'war' }],
+    });
+    // 3派閥 → 自己結束3件 + 異派閥ペア3件(0-1,0-2,1-2) = 最大6件。500人には連動しない。
+    if (res.factionChanges.length <= 6) {
+        ok(`faction dynamics output stays O(F) regardless of N (${res.factionChanges.length} changes for 500 NPCs / 3 factions)`);
+    } else {
+        fail(`faction dynamics output scaled with N (got ${res.factionChanges.length} changes, want <=6)`);
+    }
 }
 
 // 8. clamp — 上限に張り付いたら実変化なし → change を出さない(黙る)
@@ -243,6 +273,82 @@ eq(describeRelationship(-80), 'enemy', 'label enemy');
     } else {
         fail(`faction dampen (got ${marcusTrust}, want ${expectedCap})`);
     }
+}
+
+// 17. maxNamedNpcCount raises the cap beyond the legacy 10 (game_rules.maxNamedNpcCount)
+{
+    const big = {};
+    for (let i = 0; i < 15; i++) { big['npc_' + i] = { name: 'N' + i, locationId: 'hub' }; }
+    const res = evolveRelationships({
+        registry: big, positions: {}, relationships: {}, worldTurn: 1, maxNamedNpcCount: 20,
+    });
+    const involves15th = Object.keys(res.relationships).some((k) => k.split('|').includes('npc_14'));
+    if (involves15th) { ok('maxNamedNpcCount=20 includes 15th NPC'); }
+    else { fail('15th NPC excluded despite maxNamedNpcCount=20'); }
+}
+
+// 18. co-location grouping is scoped per-location (no cross-location pairs), even at larger N
+{
+    const many = {};
+    // 3 locations x 8 npcs = 24 named NPCs, above the legacy 10.
+    for (let loc = 0; loc < 3; loc++) {
+        for (let i = 0; i < 8; i++) { many[`npc_l${loc}_${i}`] = { name: `L${loc}N${i}`, locationId: `loc${loc}` }; }
+    }
+    const res = evolveRelationships({
+        registry: many, positions: {}, relationships: {}, worldTurn: 1, maxNamedNpcCount: 24,
+    });
+    const pairs = Object.keys(res.relationships);
+    const crossLocation = pairs.some((k) => {
+        const [a, b] = k.split('|');
+        return a.slice(0, 6) !== b.slice(0, 6); // "npc_l0" prefix differs -> different location
+    });
+    const sameLocationPairCount = pairs.length;
+    // per location: C(8,2) = 28 pairs, x3 locations = 84
+    if (!crossLocation && sameLocationPairCount === 84) {
+        ok('co-location grouping only bonds same-location pairs (84 pairs across 3 locations)');
+    } else {
+        fail(`co-location grouping (crossLocation=${crossLocation}, pairs=${sameLocationPairCount}, want 84)`);
+    }
+}
+
+// 19. applyRelationshipOps / listNotableRelationships / reconcileRelationshipGraph honor maxNamedNpcCount
+{
+    const big = {};
+    for (let i = 0; i < 12; i++) { big['npc_' + i] = { name: 'N' + i }; }
+    const ops = [{ a: 'npc_0', b: 'npc_11', delta: 50, reason: 'manual' }];
+    const withDefault = applyRelationshipOps({}, ops, big);
+    eq(getAffinity(withDefault, 'npc_0', 'npc_11'), 0, 'applyRelationshipOps default cap (10) excludes npc_11');
+    const withRaisedCap = applyRelationshipOps({}, ops, big, 12);
+    eq(getAffinity(withRaisedCap, 'npc_0', 'npc_11'), 50, 'applyRelationshipOps maxNamedNpcCount=12 includes npc_11');
+
+    const rels = { [pairKey('npc_0', 'npc_11')]: 80 };
+    const notableDefault = listNotableRelationships(rels, big, 8);
+    eq(notableDefault.length, 0, 'listNotableRelationships default cap excludes npc_11 pair');
+    const notableRaised = listNotableRelationships(rels, big, 8, 12);
+    eq(notableRaised.length, 1, 'listNotableRelationships maxNamedNpcCount=12 includes npc_11 pair');
+
+    const reconciledDefault = reconcileRelationshipGraph(rels, big);
+    eq(Object.keys(reconciledDefault).length, 0, 'reconcileRelationshipGraph default cap drops npc_11 pair');
+    const reconciledRaised = reconcileRelationshipGraph(rels, big, 12);
+    eq(Object.keys(reconciledRaised).length, 1, 'reconcileRelationshipGraph maxNamedNpcCount=12 keeps npc_11 pair');
+}
+
+// 20. listNotableRelationships blends faction context (personal + faction modifier),
+// but only for pairs that already have a personal relationship entry (bounded, no O(N^2)).
+{
+    const reg = {
+        npc_a: { name: 'A', factionId: 'faction_x' },
+        npc_b: { name: 'B', factionId: 'faction_y' },
+    };
+    const rels = { [pairKey('npc_a', 'npc_b')]: 10 }; // personal alone: neutral (below AFFINITY_FRIEND)
+    const withoutFaction = listNotableRelationships(rels, reg, 8, 10);
+    eq(withoutFaction.length, 0, 'sanity: personal-only affinity (10) is neutral, not notable');
+
+    const factionRelationships = { [factionPairKey('faction_x', 'faction_y')]: -90 }; // factions at war
+    const withFaction = listNotableRelationships(rels, reg, 8, 10, factionRelationships, {});
+    eq(withFaction.length, 1, 'faction hostility surfaces the pair as notable');
+    eq(withFaction[0].affinity, -80, 'effective affinity = personal(10) + faction(-90) = -80');
+    eq(withFaction[0].label, 'enemy', 'listNotableRelationships blends faction hostility into effective label');
 }
 
 // cleanup

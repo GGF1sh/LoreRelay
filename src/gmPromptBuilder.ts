@@ -814,15 +814,16 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     return lines.join('\n');
 }
 
-function buildLivingWorldBondPromptContexts(): { npcBonds: string; playerBonds: string } {
+function buildLivingWorldBondPromptContexts(): { npcBonds: string; playerBonds: string; factionRelations: string } {
     if (!isWorldStateEnabled() || !livingWorldEnabled(loadGameRules())) {
-        return { npcBonds: '', playerBonds: '' };
+        return { npcBonds: '', playerBonds: '', factionRelations: '' };
     }
     const worldState = loadWorldState();
     if (!worldState) {
-        return { npcBonds: '', playerBonds: '' };
+        return { npcBonds: '', playerBonds: '', factionRelations: '' };
     }
-    return buildLivingWorldBondPromptBlocks(worldState, loadNpcRegistry(), loadGameRules());
+    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
+    return buildLivingWorldBondPromptBlocks(worldState, loadNpcRegistry(), loadGameRules(), forge ?? undefined);
 }
 
 function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
@@ -1174,8 +1175,9 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     const activation = resolvePromptChunkActivationContext();
     const lwBonds = shouldIncludePromptChunk('livingWorldNpcBonds', activation)
         || shouldIncludePromptChunk('livingWorldPlayerBonds', activation)
+        || shouldIncludePromptChunk('livingWorldFactionRelations', activation)
         ? buildLivingWorldBondPromptContexts()
-        : { npcBonds: '', playerBonds: '' };
+        : { npcBonds: '', playerBonds: '', factionRelations: '' };
 
     const sections = [
         maybeBuildSection('gameRules', 'Game Rules', activation, buildGameRulesPromptContext),
@@ -1209,6 +1211,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         maybeBuildSection('worldState', 'World State', activation, () => buildWorldStatePromptContext(policy)),
         maybeBuildSection('livingWorldNpcBonds', 'LW NPC Bonds', activation, () => lwBonds.npcBonds),
         maybeBuildSection('livingWorldPlayerBonds', 'LW Your Bonds', activation, () => lwBonds.playerBonds),
+        maybeBuildSection('livingWorldFactionRelations', 'LW Faction Relations', activation, () => lwBonds.factionRelations),
         maybeBuildSection('worldChangeSummary', 'World Changes', activation, peekWorldChangeSummaryContext),
         maybeBuildSection('lorebook', 'Lorebook', activation, () => buildLorebookPromptContext(hint, policy)),
         maybeBuildSection('npcRegistry', 'NPC Awareness', activation, () => buildNpcRegistryPromptContext(policy)),
@@ -1351,10 +1354,12 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
 
     const lwBonds = shouldIncludePromptChunk('livingWorldNpcBonds', activation)
         || shouldIncludePromptChunk('livingWorldPlayerBonds', activation)
+        || shouldIncludePromptChunk('livingWorldFactionRelations', activation)
         ? buildLivingWorldBondPromptContexts()
-        : { npcBonds: '', playerBonds: '' };
+        : { npcBonds: '', playerBonds: '', factionRelations: '' };
     maybePushPromptChunk(specs, 'livingWorldNpcBonds', activation, () => lwBonds.npcBonds);
     maybePushPromptChunk(specs, 'livingWorldPlayerBonds', activation, () => lwBonds.playerBonds);
+    maybePushPromptChunk(specs, 'livingWorldFactionRelations', activation, () => lwBonds.factionRelations);
     maybePushPromptChunk(specs, 'worldChangeSummary', activation, consumeWorldChangeSummaryContext);
     maybePushPromptChunk(specs, 'lorebook', activation, () => buildLorebookPromptContext(hint, policy));
     maybePushPromptChunk(specs, 'npcRegistry', activation, () => buildNpcRegistryPromptContext(policy));

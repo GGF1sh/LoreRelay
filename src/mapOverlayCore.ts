@@ -107,6 +107,8 @@ export interface MapOverlayInputs {
     enableVehicleSystem?: boolean;
     vehicleState?: VehicleState;
     currentLocationId?: string;
+    /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は npcAgencyCore の既定値。 */
+    maxNamedNpcCount?: number;
 }
 
 const KIND_CAPS: Record<OverlayMarkerKind, number> = {
@@ -266,7 +268,8 @@ function buildNpcMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMar
         inputs.npcRegistry.npcs,
         positions,
         worldTurn,
-        true
+        true,
+        inputs.maxNamedNpcCount
     );
     const markers: OverlayMarker[] = [];
     let rumorOrdinal = 0;

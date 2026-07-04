@@ -141,6 +141,35 @@ function freshMarketState() {
     eq(registry.npc_marcus.playerTrust, 30, 'input registry not mutated');
 }
 
+// 9. applyBondMarketEffects honors maxNamedNpcCount (beyond the legacy 10)
+{
+    const bigRegistry = {};
+    for (let i = 0; i < 12; i++) {
+        bigRegistry['npc_' + i] = { name: 'N' + i, locationId: i % 2 === 0 ? 'elda_shop' : 'north_farm' };
+    }
+    const relationships = {}; relationships[pairKey('npc_0', 'npc_11')] = 75; // ally, both wheat markets
+    const defaultRes = applyBondMarketEffects({
+        relationships, registry: bigRegistry, positions: {}, worldTurn: 5, markets, marketState: freshMarketState(),
+    });
+    eq(defaultRes.effects.length, 0, 'default cap (10) excludes npc_11 from bond effects');
+    const raisedRes = applyBondMarketEffects({
+        relationships, registry: bigRegistry, positions: {}, worldTurn: 5, markets, marketState: freshMarketState(),
+    }, 12);
+    eq(raisedRes.effects.length, 1, 'maxNamedNpcCount=12 includes npc_11 in bond effects');
+}
+
+// 10. applyIntroductionTrustBoost honors maxNamedNpcCount (beyond the legacy 10)
+{
+    const bigRegistry = {};
+    for (let i = 0; i < 12; i++) { bigRegistry['npc_' + i] = { name: 'N' + i, playerTrust: i === 11 ? 80 : 0 }; }
+    bigRegistry.npc_0 = { name: 'N0', playerTrust: undefined };
+    const relationships = {}; relationships[pairKey('npc_0', 'npc_11')] = 75;
+    const defaultBoost = applyIntroductionTrustBoost(bigRegistry, relationships);
+    eq(defaultBoost.npc_0.introducedBy, undefined, 'introduction default cap excludes npc_11');
+    const raisedBoost = applyIntroductionTrustBoost(bigRegistry, relationships, undefined, 12);
+    eq(raisedBoost.npc_0.introducedBy, 'npc_11', 'introduction maxNamedNpcCount=12 includes npc_11');
+}
+
 try { fs.rmSync(outDir, { recursive: true, force: true }); } catch (_) { /* noop */ }
 
 if (failed > 0) { console.error(`\n${failed} failing`); process.exit(1); }

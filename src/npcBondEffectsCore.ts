@@ -10,7 +10,6 @@
 
 import {
     describeRelationship,
-    getAffinity,
     MAX_NAMED_NPC_RELATIONSHIP,
     type NpcRelationshipMap,
     type RelationshipPositionsLike,
@@ -89,61 +88,70 @@ function effectiveLocation(
  * 絆の市場効果を1tick適用する(決定論・純関数)。
  * 呼び出し順は「市場recovery(Tier1)の後」を想定 — 物流ボーナスが回復に食われない。
  */
-export function applyBondMarketEffects(input: BondMarketEffectsInput): BondMarketEffectsResult {
-    const ids = Object.keys(input.registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP);
+export function applyBondMarketEffects(
+    input: BondMarketEffectsInput,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
+): BondMarketEffectsResult {
+    const allowed = new Set(Object.keys(input.registry).slice(0, maxNamedNpcCount));
     const marketByLocation = new Map<string, BondMarketDefLike>();
     for (const m of input.markets) { marketByLocation.set(m.locationId, m); }
 
     const next = cloneMarketState(input.marketState);
     const effects: BondMarketEffect[] = [];
 
-    for (let i = 0; i < ids.length && effects.length < MAX_BOND_EFFECTS_PER_TICK; i++) {
-        for (let j = i + 1; j < ids.length && effects.length < MAX_BOND_EFFECTS_PER_TICK; j++) {
-            const a = ids[i]!;
-            const b = ids[j]!;
-            const label = describeRelationship(getAffinity(input.relationships, a, b));
-            if (label !== 'ally' && label !== 'enemy') { continue; }
+    // 全ペア総当り(O(N^2))を避け、affinity が記録された疎なペア(実際に交流があった
+    // ペアのみ)を見る(O(E))。ally/enemy に届かないペアは relationships に記録されないか
+    // 閾値未満なので、ここで弾いても結果は変わらない。
+    for (const [key, affinity] of Object.entries(input.relationships)) {
+        if (effects.length >= MAX_BOND_EFFECTS_PER_TICK) { break; }
+        if (typeof affinity !== 'number' || !Number.isFinite(affinity)) { continue; }
+        const idx = key.indexOf('|');
+        if (idx <= 0 || idx >= key.length - 1) { continue; }
+        const a = key.slice(0, idx);
+        const b = key.slice(idx + 1);
+        if (!allowed.has(a) || !allowed.has(b)) { continue; }
+        const label = describeRelationship(affinity);
+        if (label !== 'ally' && label !== 'enemy') { continue; }
 
-            const locA = effectiveLocation(a, input.registry, input.positions, input.worldTurn);
-            const locB = effectiveLocation(b, input.registry, input.positions, input.worldTurn);
-            if (!locA || !locB) { continue; }
-            const marketA = marketByLocation.get(locA);
-            const marketB = marketByLocation.get(locB);
+        const locA = effectiveLocation(a, input.registry, input.positions, input.worldTurn);
+        const locB = effectiveLocation(b, input.registry, input.positions, input.worldTurn);
+        if (!locA || !locB) { continue; }
+        const marketA = marketByLocation.get(locA);
+        const marketB = marketByLocation.get(locB);
 
-            if (label === 'ally') {
-                // 物流は「別々の市場」の間にだけ生まれる(同居なら既に同じ市場)
-                if (locA === locB || !marketA || !marketB) { continue; }
-                const shared = marketA.commodityIds.filter((c) => marketB.commodityIds.includes(c));
-                if (shared.length === 0) { continue; }
-                for (const cid of shared) {
-                    for (const loc of [locA, locB]) {
-                        const entry = next[loc]?.[cid];
-                        if (!entry) { continue; }
-                        entry.stock = Math.min(ALLY_TRADE_MAX_STOCK, entry.stock + ALLY_TRADE_STOCK_BONUS);
-                    }
-                }
-                effects.push({ type: 'ally_trade', a, b, locationIds: [locA, locB], commodityIds: shared });
-                continue;
-            }
-
-            // enemy friction: それぞれの居場所の市場全商品の priceIndex がじわり上がる
-            const frictionLocs = [...new Set([locA, locB])].filter((loc) => marketByLocation.has(loc));
-            if (frictionLocs.length === 0) { continue; }
-            const touched: string[] = [];
-            for (const loc of frictionLocs) {
-                for (const cid of marketByLocation.get(loc)!.commodityIds) {
+        if (label === 'ally') {
+            // 物流は「別々の市場」の間にだけ生まれる(同居なら既に同じ市場)
+            if (locA === locB || !marketA || !marketB) { continue; }
+            const shared = marketA.commodityIds.filter((c) => marketB.commodityIds.includes(c));
+            if (shared.length === 0) { continue; }
+            for (const cid of shared) {
+                for (const loc of [locA, locB]) {
                     const entry = next[loc]?.[cid];
                     if (!entry) { continue; }
-                    entry.priceIndex = Math.min(
-                        ENEMY_FRICTION_PRICE_MAX,
-                        Math.round((entry.priceIndex + ENEMY_FRICTION_PRICE_BUMP) * 100) / 100
-                    );
-                    if (!touched.includes(cid)) { touched.push(cid); }
+                    entry.stock = Math.min(ALLY_TRADE_MAX_STOCK, entry.stock + ALLY_TRADE_STOCK_BONUS);
                 }
             }
-            if (touched.length > 0) {
-                effects.push({ type: 'enemy_friction', a, b, locationIds: frictionLocs, commodityIds: touched });
+            effects.push({ type: 'ally_trade', a, b, locationIds: [locA, locB], commodityIds: shared });
+            continue;
+        }
+
+        // enemy friction: それぞれの居場所の市場全商品の priceIndex がじわり上がる
+        const frictionLocs = [...new Set([locA, locB])].filter((loc) => marketByLocation.has(loc));
+        if (frictionLocs.length === 0) { continue; }
+        const touched: string[] = [];
+        for (const loc of frictionLocs) {
+            for (const cid of marketByLocation.get(loc)!.commodityIds) {
+                const entry = next[loc]?.[cid];
+                if (!entry) { continue; }
+                entry.priceIndex = Math.min(
+                    ENEMY_FRICTION_PRICE_MAX,
+                    Math.round((entry.priceIndex + ENEMY_FRICTION_PRICE_BUMP) * 100) / 100
+                );
+                if (!touched.includes(cid)) { touched.push(cid); }
             }
+        }
+        if (touched.length > 0) {
+            effects.push({ type: 'enemy_friction', a, b, locationIds: frictionLocs, commodityIds: touched });
         }
     }
 

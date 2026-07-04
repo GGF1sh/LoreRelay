@@ -24,6 +24,8 @@ export interface WorldKitTickInput {
     marketFactionIds?: Record<string, string | undefined>;
     /** factionId -> player reputation (-100..100); only used when marketFactionIds is set. */
     factionReputations?: Record<string, number>;
+    /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は npcAgencyCore の既定値。 */
+    maxNamedNpcCount?: number;
 }
 
 export interface WorldKitTickResult {
@@ -65,6 +67,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
             positions: npcPositions,
             worldTurn: input.worldTurn,
             recentChanges: input.recentChanges,
+            maxNamedNpcCount: input.maxNamedNpcCount,
         });
         npcPositions = reaction.positions;
         npcMoves = reaction.moves;

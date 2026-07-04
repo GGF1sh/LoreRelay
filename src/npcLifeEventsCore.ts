@@ -78,8 +78,11 @@ export interface LifeEventsResult {
  * affinity と過去マイルストーンから、このtickで新たに到達した転機を検出する(決定論)。
  * 各マイルストーンはペアごとに一度だけ発火(milestones に記録して抑制)。
  */
-export function detectLifeEvents(input: LifeEventsInput): LifeEventsResult {
-    const allowed = new Set(Object.keys(input.registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP));
+export function detectLifeEvents(
+    input: LifeEventsInput,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
+): LifeEventsResult {
+    const allowed = new Set(Object.keys(input.registry).slice(0, maxNamedNpcCount));
     const next = cloneMilestones(input.milestones);
     const events: NpcLifeEvent[] = [];
 
@@ -189,9 +192,10 @@ export function deepestMilestone(
 /** Drop milestone history for pairs that reference NPCs no longer in the registry. */
 export function reconcileNpcMilestones(
     milestones: NpcMilestoneMap,
-    registry: RelationshipRegistryLike
+    registry: RelationshipRegistryLike,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): NpcMilestoneMap {
-    const allowed = new Set(Object.keys(registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP));
+    const allowed = new Set(Object.keys(registry).slice(0, maxNamedNpcCount));
     const next = cloneMilestones(milestones);
     for (const key of Object.keys(next)) {
         const pair = splitPairKey(key);

@@ -73,6 +73,43 @@
             </button>`;
     }
 
+    const INTENT_ACTION_LABEL_KEYS = {
+        set_active_vehicle: 'webview.vehicles.intentPreview.action.setActive',
+        move_vehicle: 'webview.vehicles.intentPreview.action.move',
+        repair_vehicle: 'webview.vehicles.intentPreview.action.repair',
+        refuel_vehicle: 'webview.vehicles.intentPreview.action.refuel',
+    };
+
+    function renderIntentPreview(item) {
+        if (!item || typeof window.LR_vehicleIntentPreview?.computeRows !== 'function') {
+            return '';
+        }
+        const enableVehicleSystem = _lastWorldMsg ? _lastWorldMsg.enableVehicleSystem === true : true;
+        const rows = window.LR_vehicleIntentPreview.computeRows(item, enableVehicleSystem);
+        if (!rows.length) { return ''; }
+
+        const rowsHtml = rows.map((row) => {
+            const actionLabel = T(INTENT_ACTION_LABEL_KEYS[row.action] || row.action);
+            const statusText = row.reasonKey
+                ? T(row.textKey, { reason: T(row.reasonKey) })
+                : T(row.textKey);
+            const srText = T('webview.vehicles.intentPreview.srStatusPrefix', { status: statusText });
+            return `
+                <div class="vehicle-intent-row" data-intent-status="${escapeHtml(row.statusClass)}">
+                    <span class="vehicle-intent-dot" aria-hidden="true"></span>
+                    <span class="vehicle-intent-sr-only">${escapeHtml(srText)}</span>
+                    <span class="vehicle-intent-action">${escapeHtml(actionLabel)}</span>
+                    <span class="vehicle-intent-status-text">${escapeHtml(statusText)}</span>
+                </div>`;
+        }).join('');
+
+        return `
+            <div class="vehicle-intent-preview" aria-label="${escapeHtml(T('webview.vehicles.intentPreview.ariaLabel'))}">
+                <span class="vehicle-bar-label">${escapeHtml(T('webview.vehicles.intentPreview.title'))}</span>
+                <div class="vehicle-intent-rows">${rowsHtml}</div>
+            </div>`;
+    }
+
     function hasMapMarkerForVehicle(vehicleId) {
         const markers = _lastWorldMsg?.mapOverlay?.markers;
         if (!vehicleId || !Array.isArray(markers)) { return false; }
@@ -151,6 +188,7 @@
                 ${renderBar(item.cargoLoad, item.cargoCapacity, T('webview.vehicles.cargo'))}
                 ${renderBar(item.crewRequired, item.crewCapacity, T('webview.vehicles.crew'))}
                 <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.passengers'))}</span><span>${escapeHtml(String(item.passengerCapacity))}</span></div>
+                ${renderIntentPreview(item)}
                 <div class="vehicle-modules-wrap">
                     <span class="vehicle-bar-label">${escapeHtml(T('webview.vehicles.modules'))}</span>
                     <div class="vehicle-module-list">${renderModuleChips(item.modules)}</div>

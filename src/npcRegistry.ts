@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { loadGameRules } from './gameRules';
 import { isValidEntryId } from './entryId';
 import { resolveAllowedImagePath } from './mediaPaths';
 import { parseNpcVoiceProfile } from './npcVoiceCore';
@@ -20,8 +21,10 @@ import {
 export type { NpcRegistry, NpcEntry, NpcNeed, NpcMemoryEntry, NpcMemoryUpdate };
 
 const NPC_REGISTRY_FILENAME = 'npc_registry.json';
-const MAX_MEMORIES_PER_NPC = 10;
-const MEMORY_COMPRESS_THRESHOLD = 12;
+// レガシー既定値(pre-1.0 の暫定値)。実際の上限は game_rules.maxMemoriesPerNpc。
+const DEFAULT_MAX_MEMORIES_PER_NPC = 10;
+// 上限に対する猶予(この分だけ超過してから圧縮する。旧: 10件上限に対し12件目で圧縮)。
+const MEMORY_COMPRESS_THRESHOLD_MARGIN = 2;
 
 let cachePath = '';
 let cacheMtime = 0;
@@ -170,8 +173,9 @@ export function applyNpcMemoryUpdates(updates: NpcMemoryUpdate[], currentTurn: n
                     tags: Array.isArray(m.tags) ? m.tags.filter((t) => typeof t === 'string').slice(0, 5) : []
                 };
                 entry.memories.push(newMem);
-                if (entry.memories.length >= MEMORY_COMPRESS_THRESHOLD) {
-                    entry.memories = compressMemories(entry.memories);
+                const maxMemories = loadGameRules().maxMemoriesPerNpc ?? DEFAULT_MAX_MEMORIES_PER_NPC;
+                if (entry.memories.length >= maxMemories + MEMORY_COMPRESS_THRESHOLD_MARGIN) {
+                    entry.memories = compressMemories(entry.memories, maxMemories);
                 }
                 changed = true;
             }
@@ -201,13 +205,13 @@ export function applyNpcMemoryUpdates(updates: NpcMemoryUpdate[], currentTurn: n
     }
 }
 
-/** 古い記憶を末尾のMAX_MEMORIES_PER_NPC件に切り詰める。positiveは優先保持。 */
-function compressMemories(memories: NpcMemoryEntry[]): NpcMemoryEntry[] {
-    if (memories.length <= MAX_MEMORIES_PER_NPC) { return memories; }
+/** 古い記憶を末尾の maxMemories 件に切り詰める。positiveは優先保持。 */
+function compressMemories(memories: NpcMemoryEntry[], maxMemories: number): NpcMemoryEntry[] {
+    if (memories.length <= maxMemories) { return memories; }
     const positive = memories.filter((m) => m.emotionalWeight === 'positive' || m.emotionalWeight === 'suspicious');
     const rest = memories.filter((m) => m.emotionalWeight !== 'positive' && m.emotionalWeight !== 'suspicious');
-    const keepPositive = positive.slice(-Math.ceil(MAX_MEMORIES_PER_NPC / 2));
-    const keepRest = rest.slice(-(MAX_MEMORIES_PER_NPC - keepPositive.length));
+    const keepPositive = positive.slice(-Math.ceil(maxMemories / 2));
+    const keepRest = rest.slice(-(maxMemories - keepPositive.length));
     return [...keepPositive, ...keepRest].sort((a, b) => a.turn - b.turn);
 }
 

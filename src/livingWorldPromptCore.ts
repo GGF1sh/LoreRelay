@@ -58,6 +58,7 @@ export interface LivingWorldPromptInput {
     locationToRegion?: Record<string, string>;
     npcNames?: Record<string, string>;
     playerCommerce?: CaravanPromptSnapshot;
+    maxNamedNpcCount?: number;
 }
 
 function locLabel(id: string, names?: Record<string, string>): string {
@@ -109,9 +110,10 @@ export function buildNpcAgencyPromptLines(
     worldTurn: number,
     agencyEnabled: boolean,
     locationNames?: Record<string, string>,
-    whereaboutsCtx?: WhereaboutsFormatContext
+    whereaboutsCtx?: WhereaboutsFormatContext,
+    maxNamedNpcCount?: number
 ): string[] {
-    const presence = listNpcPresence(registry, positions, worldTurn, agencyEnabled);
+    const presence = listNpcPresence(registry, positions, worldTurn, agencyEnabled, maxNamedNpcCount);
     const ctx: WhereaboutsFormatContext = {
         locationNames,
         regionNames: whereaboutsCtx?.regionNames,
@@ -178,7 +180,8 @@ export function buildLivingWorldPromptBlocks(input: LivingWorldPromptInput): Liv
             {
                 regionNames: input.regionNames,
                 locationToRegion: input.locationToRegion,
-            }
+            },
+            input.maxNamedNpcCount
         )
         : [];
 

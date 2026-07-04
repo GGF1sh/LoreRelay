@@ -21,11 +21,18 @@ import {
 } from './livingWorldPromptCore';
 import { computeSinceLastVisitDelta } from './worldSimCommerceCore';
 import type { WorldChangeEvent } from './worldEventLogCore';
-import type { NpcRelationshipMap, NpcRelationshipChange } from './npcRelationshipCore';
+import type {
+    NpcRelationshipMap,
+    NpcRelationshipChange,
+    NpcFactionRelationshipMap,
+    NpcFactionCohesionMap,
+    NpcFactionRelationshipChange,
+} from './npcRelationshipCore';
 import {
     evolveRelationships,
     listNotableRelationships,
     buildRelationshipPromptLines,
+    buildFactionRelationsPromptLines,
     describeRelationship,
     applyIntroductionTrustBoost,
     reconcileRelationshipGraph,
@@ -57,6 +64,10 @@ export interface LivingWorldWorldStateExt {
     marketSnapshotByLocation?: Record<string, Record<string, MarketStockEntry>>;
     /** LW3: NPC間関係 — ペアキー "idA|idB" → affinity [-100,100]. */
     npcRelationships?: NpcRelationshipMap;
+    /** LW3: 派閥間関係(異派閥) — ペアキー "factionA|factionB" → [-100,100]. */
+    npcFactionRelationships?: NpcFactionRelationshipMap;
+    /** LW3: 派閥内結束(同派閥) — factionId → [-100,100]. */
+    npcFactionCohesion?: NpcFactionCohesionMap;
     /** LW3-L: 到達済みライフイベント — ペアキー → マイルストーン id 配列. */
     npcMilestones?: Record<string, string[]>;
     /** LW3-P: プレイヤー↔NPC の到達済み絆マイルストーン — npcId → id 配列. */
@@ -152,6 +163,9 @@ export interface LivingWorldTickOutcome {
 /** 直近 tick の関係変化(GM プロンプトの「(変化)」行用。プロセス内キャッシュで十分)。 */
 let lastRelationshipChanges: NpcRelationshipChange[] = [];
 
+/** 直近 tick の派閥関係変化(個人のBondsとは別枠のGM プロンプト用)。 */
+let lastFactionRelationshipChanges: NpcFactionRelationshipChange[] = [];
+
 /** 直近 tick のプレイヤー絆の転機(★ マーク用)。 */
 let lastPlayerBondEvents: PlayerBondEvent[] = [];
 
@@ -199,6 +213,7 @@ export function tickLivingWorldAfterSim(
     const commerceForge = commerce ?? { commodities: [], markets: [], transportKinds: [] };
     const commerceEnabled = rules.enableCommerce === true && !!commerce;
     const useFactionMarketDemand = commerceEnabled && factionMarketDemandEnabled(rules);
+    const maxNamedNpcCount = rules.maxNamedNpcCount ?? 10;
 
     const tick = runLivingWorldTick({
         forge: commerceForge,
@@ -215,6 +230,7 @@ export function tickLivingWorldAfterSim(
         factionReputations: useFactionMarketDemand
             ? buildFactionReputations(state.factions ?? {})
             : undefined,
+        maxNamedNpcCount,
     });
 
     ext.markets = tick.markets;
@@ -223,8 +239,8 @@ export function tickLivingWorldAfterSim(
     // LW3: 世界が動いた「結果」として NPC 同士の関係を進める(同席/共通の危機/派閥対立)。
     if (npcRelationshipsEnabled(rules)) {
         const agencyRegistry = registryToAgencyLike(registry);
-        ext.npcRelationships = reconcileRelationshipGraph(ext.npcRelationships ?? {}, agencyRegistry);
-        ext.npcMilestones = reconcileNpcMilestones(ext.npcMilestones ?? {}, agencyRegistry);
+        ext.npcRelationships = reconcileRelationshipGraph(ext.npcRelationships ?? {}, agencyRegistry, maxNamedNpcCount);
+        ext.npcMilestones = reconcileNpcMilestones(ext.npcMilestones ?? {}, agencyRegistry, maxNamedNpcCount);
         const playerBondReg = registryToPlayerBondLike(registry);
         ext.playerNpcMilestones = purgeStalePlayerBondMilestones(
             ext.playerNpcMilestones ?? {},
@@ -238,9 +254,15 @@ export function tickLivingWorldAfterSim(
             worldTurn: state.worldTurn,
             recentChanges: mapRecentChanges(state.recentChanges),
             agencyMoves: tick.npcMoves,
+            maxNamedNpcCount,
+            factionRelationships: ext.npcFactionRelationships ?? {},
+            factionCohesion: ext.npcFactionCohesion ?? {},
         });
         ext.npcRelationships = evolved.relationships;
+        ext.npcFactionRelationships = evolved.factionRelationships;
+        ext.npcFactionCohesion = evolved.factionCohesion;
         lastRelationshipChanges = evolved.changes;
+        lastFactionRelationshipChanges = evolved.factionChanges;
 
         // ラベル遷移(中立→友好 等)だけを世界イベントに昇格 — 「留守中に二人が
         // 親しくなっていた」が Since-last-visit / World Changes の伝聞に乗る。
@@ -249,13 +271,32 @@ export function tickLivingWorldAfterSim(
             state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], bondEvents);
         }
 
+        // 派閥レベルの変化(個人のBondsとは別枠)も、世界の噂として昇格させる。
+        const factionNameMap: Record<string, { name?: string }> = {};
+        for (const f of forge.factions) { factionNameMap[f.id] = { name: f.name }; }
+        const factionEvents = evolved.factionChanges.map((c) => makeWorldChangeEvent({
+            worldTurn: state.worldTurn,
+            category: 'faction',
+            severity: c.delta < 0 && c.factionA !== c.factionB ? 'warning' : 'info',
+            source: 'simulation',
+            message: buildFactionRelationsPromptLines([c], factionNameMap, 1)[0]
+                ?? `${factionNameMap[c.factionA]?.name ?? c.factionA} の情勢が変化した`,
+            gmHint: 'Narrate this as a faction-level rumor/mood shift, not a specific individual\'s doing; never state numeric values.',
+            factionId: c.factionA,
+            expiresAfterTurns: 15,
+            idSuffix: `faction_${c.factionA}_${c.factionB}_${c.reason}`,
+        }));
+        if (factionEvents.length > 0) {
+            state.recentChanges = mergeRecentChanges(state.recentChanges ?? [], factionEvents);
+        }
+
         // LW3-L: 決定的な転機(盟友の契り/離れがたい仲/宿敵/決別/和解)を一度だけ昇格。
         const life = detectLifeEvents({
             relationships: ext.npcRelationships ?? {},
             milestones: ext.npcMilestones ?? {},
             registry: agencyRegistry,
             worldTurn: state.worldTurn,
-        });
+        }, maxNamedNpcCount);
         ext.npcMilestones = life.milestones;
         if (life.events.length > 0) {
             const lifeChanges = life.events.map((ev) => makeWorldChangeEvent({
@@ -305,7 +346,7 @@ export function tickLivingWorldAfterSim(
                 worldTurn: state.worldTurn,
                 markets: commerce.markets,
                 marketState: ext.markets,
-            });
+            }, maxNamedNpcCount);
             ext.markets = fx.marketState as typeof ext.markets;
         }
     }
@@ -424,8 +465,9 @@ export function buildLivingWorldGmLines(
             factionReputation[factionId] = factionState.playerReputation;
         }
     }
+    const maxNamedNpcCount = rules.maxNamedNpcCount ?? 10;
     const promptRegistryLike = npcRelationshipsEnabled(rules)
-        ? applyIntroductionTrustBoost(baseRegistryLike, ext.npcRelationships ?? {}, factionReputation)
+        ? applyIntroductionTrustBoost(baseRegistryLike, ext.npcRelationships ?? {}, factionReputation, maxNamedNpcCount)
         : baseRegistryLike;
 
     const blocks = buildLivingWorldPromptBlocks({
@@ -442,6 +484,7 @@ export function buildLivingWorldGmLines(
         regionNames,
         locationToRegion,
         playerCommerce: rules.enableCommerce === true ? playerCommerce : undefined,
+        maxNamedNpcCount,
     });
 
     return formatLivingWorldGmInjection(blocks);
@@ -450,21 +493,31 @@ export function buildLivingWorldGmLines(
 export interface LivingWorldBondPromptBlocks {
     npcBonds: string;
     playerBonds: string;
+    factionRelations: string;
 }
 
 /** LW3 bond blocks as separate GM prompt chunks (evictable independently from worldState). */
 export function buildLivingWorldBondPromptBlocks(
     state: WorldState,
     registry: NpcRegistry | undefined,
-    rules: GameRules
+    rules: GameRules,
+    forge?: WorldForge
 ): LivingWorldBondPromptBlocks {
     if (!npcRelationshipsEnabled(rules)) {
-        return { npcBonds: '', playerBonds: '' };
+        return { npcBonds: '', playerBonds: '', factionRelations: '' };
     }
 
     const ext = state as WorldState & LivingWorldWorldStateExt;
     const agencyRegistry = registryToAgencyLike(registry);
-    const notable = listNotableRelationships(ext.npcRelationships ?? {}, agencyRegistry);
+    const maxNamedNpcCount = rules.maxNamedNpcCount ?? 10;
+    const notable = listNotableRelationships(
+        ext.npcRelationships ?? {},
+        agencyRegistry,
+        8,
+        maxNamedNpcCount,
+        ext.npcFactionRelationships ?? {},
+        ext.npcFactionCohesion ?? {}
+    );
     const bondLines = buildRelationshipPromptLines(notable, lastRelationshipChanges, agencyRegistry);
     const npcBonds = bondLines.length > 0
         ? ['[Living World — Bonds]', ...bondLines.map((l) => `- ${l}`)].join('\n')
@@ -479,7 +532,15 @@ export function buildLivingWorldBondPromptBlocks(
         ? ['[Living World — Your Bonds]', ...yourLines.map((l) => `- ${l}`)].join('\n')
         : '';
 
-    return { npcBonds, playerBonds };
+    // 派閥レベルの空気(個人のBondsとは別枠) — 「国が戦争になった」規模の話。
+    const factionNameMap: Record<string, { name?: string }> = {};
+    for (const f of forge?.factions ?? []) { factionNameMap[f.id] = { name: f.name }; }
+    const factionLines = buildFactionRelationsPromptLines(lastFactionRelationshipChanges, factionNameMap);
+    const factionRelations = factionLines.length > 0
+        ? ['[Living World — Faction Relations]', ...factionLines.map((l) => `- ${l}`)].join('\n')
+        : '';
+
+    return { npcBonds, playerBonds, factionRelations };
 }
 
 /**

@@ -229,7 +229,8 @@ interface WorldViewNpcBond {
 function buildNpcBondsPayload(
     registry: ReturnType<typeof loadNpcRegistry>,
     worldState: { npcRelationships?: Record<string, number>; npcMilestones?: Record<string, string[]> } | undefined,
-    relationshipsEnabled: boolean
+    relationshipsEnabled: boolean,
+    maxNamedNpcCount: number
 ): WorldViewNpcBond[] {
     if (!relationshipsEnabled || !worldState?.npcRelationships) { return []; }
     const registryLike: Record<string, { name: string; locationId?: string; factionId?: string }> = {};
@@ -237,7 +238,7 @@ function buildNpcBondsPayload(
         registryLike[id] = { name: npc.name, locationId: npc.locationId, factionId: npc.factionId };
     }
     const milestones = worldState.npcMilestones ?? {};
-    return listNotableRelationships(worldState.npcRelationships, registryLike)
+    return listNotableRelationships(worldState.npcRelationships, registryLike, 8, maxNamedNpcCount)
         .map((n) => ({
             nameA: n.nameA,
             nameB: n.nameB,
@@ -251,7 +252,8 @@ function buildNpcWhereaboutsPayload(
     registry: ReturnType<typeof loadNpcRegistry>,
     worldState: ReturnType<typeof loadWorldState> | undefined,
     agencyEnabled: boolean,
-    relationshipsEnabled = false
+    relationshipsEnabled = false,
+    maxNamedNpcCount = 10
 ): WorldViewNpcWhereabouts {
     const npcEntries = Object.entries(registry.npcs);
     let registryLike: Record<string, {
@@ -279,7 +281,7 @@ function buildNpcWhereaboutsPayload(
                     factionReputation[factionId] = factionState.playerReputation;
                 }
             }
-            registryLike = applyIntroductionTrustBoost(registryLike, relationships, factionReputation);
+            registryLike = applyIntroductionTrustBoost(registryLike, relationships, factionReputation, maxNamedNpcCount);
         }
     }
 
@@ -300,7 +302,8 @@ function buildNpcWhereaboutsPayload(
         registryLike,
         worldState?.npcPositions ?? {},
         worldState?.worldTurn ?? 0,
-        agencyEnabled
+        agencyEnabled,
+        maxNamedNpcCount
     );
 
     return {
@@ -426,18 +429,21 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const ttsExternalProvider = normalizeExternalProvider(ttsConfig.get('tts.external.provider', ''));
     const npcTtsCatalog = buildNpcTtsCatalog(registry);
     const npcVoiceCount = countNpcVoices(registry);
+    const maxNamedNpcCount = gameRules.maxNamedNpcCount ?? 10;
     const npcWhereabouts = buildNpcWhereaboutsPayload(
         forge,
         registry,
         worldState,
         gameRules.enableNpcAgency === true && gameRules.enableNpcRegistry === true,
-        npcRelationshipsEnabled(gameRules)
+        npcRelationshipsEnabled(gameRules),
+        maxNamedNpcCount
     );
     // LW3: notable NPC-to-NPC bonds. Labels only — raw affinity numbers stay host-side (v1.27.1 leak policy).
     const npcBonds = buildNpcBondsPayload(
         registry,
         worldState as { npcRelationships?: Record<string, number> } | undefined,
-        npcRelationshipsEnabled(gameRules)
+        npcRelationshipsEnabled(gameRules),
+        maxNamedNpcCount
     );
     // LW3-P: プレイヤー自身の絆(kind ラベルのみ。数値は送らない)。
     const playerBonds = npcRelationshipsEnabled(gameRules) && worldState

@@ -429,6 +429,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     worldState: 68,
     livingWorldNpcBonds: 62,
     livingWorldPlayerBonds: 61,
+    livingWorldFactionRelations: 60,
     worldChangeSummary: 66,
     worldForge: 65,
     npcRegistry: 55,
@@ -513,6 +514,7 @@ export function shouldIncludePromptChunk(
             return ctx.worldStateEnabled && ctx.enableEmergentSimulation;
         case 'livingWorldNpcBonds':
         case 'livingWorldPlayerBonds':
+        case 'livingWorldFactionRelations':
             return ctx.livingWorldEnabled
                 && ctx.worldStateEnabled
                 && ctx.enableNpcRelationships;

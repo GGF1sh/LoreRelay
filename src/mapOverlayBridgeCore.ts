@@ -51,6 +51,7 @@ export function buildMapOverlayFromContext(ctx: MapOverlayWorkspaceContext): Map
         enableVehicleSystem: ctx.gameRules.enableVehicleSystem === true,
         vehicleState: ctx.vehicleState,
         currentLocationId: ctx.currentLocationId,
+        maxNamedNpcCount: ctx.gameRules.maxNamedNpcCount ?? 10,
     });
     return sanitizeMapOverlaySnapshot(snapshot);
 }

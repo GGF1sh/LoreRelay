@@ -11735,6 +11735,75 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 })();
 
+/* --- 89c-vehicle-intent-preview.js --- */
+// webview/modules/89c-vehicle-intent-preview.js
+// World Intent WI3a-1: Tier 1 read-only preview for the Vehicles tab (no disk writes).
+//
+// Pure function of fields already present in the `vehicleGarage` payload the host
+// already sends (see docs/WORLD_INTENT_WI3A_PREVIEW_UI_DESIGN.md, Phase WI3a-1).
+// This module does not call any WorldIntentCore host query/execute function and
+// does not import any src/*.ts module. It re-derives only the payload-free subset
+// of that taxonomy that can be answered from state already on screen.
+// `move_vehicle` has no candidate destination here, so it is intentionally left as
+// a "needs_input" pseudo-state rather than a real allowed/valid_noop verdict.
+
+(function () {
+    const PREVIEW_ACTIONS = ['set_active_vehicle', 'move_vehicle', 'repair_vehicle', 'refuel_vehicle'];
+
+    function blockedRow(action, reasonKey) {
+        return {
+            action,
+            statusClass: 'blocked',
+            textKey: 'webview.vehicles.intentPreview.status.blockedPrefix',
+            reasonKey,
+        };
+    }
+
+    function computeRow(action, item, enableVehicleSystem) {
+        if (enableVehicleSystem === false) {
+            return blockedRow(action, 'webview.vehicles.intentPreview.reason.systemDisabled');
+        }
+        if (item.status === 'lost') {
+            return blockedRow(action, 'webview.vehicles.intentPreview.reason.vehicleLost');
+        }
+
+        switch (action) {
+            case 'set_active_vehicle':
+                if (item.isActive) {
+                    return { action, statusClass: 'valid_noop', textKey: 'webview.vehicles.intentPreview.status.alreadyActive' };
+                }
+                return { action, statusClass: 'allowed', textKey: 'webview.vehicles.intentPreview.status.availableActivate' };
+            case 'move_vehicle':
+                return { action, statusClass: 'needs_input', textKey: 'webview.vehicles.intentPreview.status.needsDestination' };
+            case 'repair_vehicle':
+                if (item.hp >= item.maxHp) {
+                    return { action, statusClass: 'valid_noop', textKey: 'webview.vehicles.intentPreview.status.alreadyMaxHp' };
+                }
+                return { action, statusClass: 'allowed', textKey: 'webview.vehicles.intentPreview.status.repairable' };
+            case 'refuel_vehicle':
+                if (!item.powerType) {
+                    return blockedRow(action, 'webview.vehicles.intentPreview.reason.noFuelTank');
+                }
+                if ((item.fuelCurrent ?? 0) >= (item.fuelMax ?? 0)) {
+                    return { action, statusClass: 'valid_noop', textKey: 'webview.vehicles.intentPreview.status.alreadyFull' };
+                }
+                return { action, statusClass: 'allowed', textKey: 'webview.vehicles.intentPreview.status.refuelable' };
+            default:
+                return blockedRow(action, 'webview.vehicles.intentPreview.reason.systemDisabled');
+        }
+    }
+
+    function computeRows(item, enableVehicleSystem) {
+        if (!item) { return []; }
+        return PREVIEW_ACTIONS.map((action) => computeRow(action, item, enableVehicleSystem));
+    }
+
+    window.LR_vehicleIntentPreview = {
+        PREVIEW_ACTIONS,
+        computeRows,
+    };
+})();
+
 /* --- 89-vehicles.js --- */
 // webview/modules/89-vehicles.js
 // Vehicle System V4: read-only garage/dock/stable panel (no disk writes).
@@ -11809,6 +11878,43 @@ window.addEventListener('DOMContentLoaded', () => {
                 ${mobile}
                 <span class="vehicle-list-meta">${escapeHtml(kind)} · ${escapeHtml(status)} · ${escapeHtml(item.locationLabel)}</span>
             </button>`;
+    }
+
+    const INTENT_ACTION_LABEL_KEYS = {
+        set_active_vehicle: 'webview.vehicles.intentPreview.action.setActive',
+        move_vehicle: 'webview.vehicles.intentPreview.action.move',
+        repair_vehicle: 'webview.vehicles.intentPreview.action.repair',
+        refuel_vehicle: 'webview.vehicles.intentPreview.action.refuel',
+    };
+
+    function renderIntentPreview(item) {
+        if (!item || typeof window.LR_vehicleIntentPreview?.computeRows !== 'function') {
+            return '';
+        }
+        const enableVehicleSystem = _lastWorldMsg ? _lastWorldMsg.enableVehicleSystem === true : true;
+        const rows = window.LR_vehicleIntentPreview.computeRows(item, enableVehicleSystem);
+        if (!rows.length) { return ''; }
+
+        const rowsHtml = rows.map((row) => {
+            const actionLabel = T(INTENT_ACTION_LABEL_KEYS[row.action] || row.action);
+            const statusText = row.reasonKey
+                ? T(row.textKey, { reason: T(row.reasonKey) })
+                : T(row.textKey);
+            const srText = T('webview.vehicles.intentPreview.srStatusPrefix', { status: statusText });
+            return `
+                <div class="vehicle-intent-row" data-intent-status="${escapeHtml(row.statusClass)}">
+                    <span class="vehicle-intent-dot" aria-hidden="true"></span>
+                    <span class="vehicle-intent-sr-only">${escapeHtml(srText)}</span>
+                    <span class="vehicle-intent-action">${escapeHtml(actionLabel)}</span>
+                    <span class="vehicle-intent-status-text">${escapeHtml(statusText)}</span>
+                </div>`;
+        }).join('');
+
+        return `
+            <div class="vehicle-intent-preview" aria-label="${escapeHtml(T('webview.vehicles.intentPreview.ariaLabel'))}">
+                <span class="vehicle-bar-label">${escapeHtml(T('webview.vehicles.intentPreview.title'))}</span>
+                <div class="vehicle-intent-rows">${rowsHtml}</div>
+            </div>`;
     }
 
     function hasMapMarkerForVehicle(vehicleId) {
@@ -11889,6 +11995,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 ${renderBar(item.cargoLoad, item.cargoCapacity, T('webview.vehicles.cargo'))}
                 ${renderBar(item.crewRequired, item.crewCapacity, T('webview.vehicles.crew'))}
                 <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.passengers'))}</span><span>${escapeHtml(String(item.passengerCapacity))}</span></div>
+                ${renderIntentPreview(item)}
                 <div class="vehicle-modules-wrap">
                     <span class="vehicle-bar-label">${escapeHtml(T('webview.vehicles.modules'))}</span>
                     <div class="vehicle-module-list">${renderModuleChips(item.modules)}</div>

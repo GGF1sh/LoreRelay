@@ -27,6 +27,10 @@ export interface GameRules {
     enableNpcAgency?: boolean;
     /** LW3: NPC間関係(同席/共通の危機/派閥対立で affinity が動く)。Registry+Agency 前提。 */
     enableNpcRelationships?: boolean;
+    /** 名ありNPC(registry/agency/relationships が扱う対象)の上限。既定10は後方互換のレガシー値(pre-1.0の暫定値)。 */
+    maxNamedNpcCount?: number;
+    /** NPC1体あたりの保持記憶件数の上限。既定10は同上の暫定値。 */
+    maxMemoriesPerNpc?: number;
     /** Domain Mode: lordship / fief management layer (default OFF). */
     enableDomainMode?: boolean;
     /** World days advanced per monthly domain commit (1–100). */
@@ -97,6 +101,8 @@ export const DEFAULT_GAME_RULES: GameRules = {
     playerRole: 'merchant',
     enableNpcAgency: false,
     enableNpcRelationships: false,
+    maxNamedNpcCount: 10,
+    maxMemoriesPerNpc: 10,
     enableDomainMode: false,
     domainMonthDays: 30,
     domainMonthlyActions: 2,
@@ -238,6 +244,12 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableNpcRelationships !== undefined && typeof rules.enableNpcRelationships === 'boolean') {
             sanitized.enableNpcRelationships = rules.enableNpcRelationships;
+        }
+        if (rules.maxNamedNpcCount !== undefined && typeof rules.maxNamedNpcCount === 'number') {
+            sanitized.maxNamedNpcCount = Math.max(1, Math.min(5000, Math.floor(rules.maxNamedNpcCount)));
+        }
+        if (rules.maxMemoriesPerNpc !== undefined && typeof rules.maxMemoriesPerNpc === 'number') {
+            sanitized.maxMemoriesPerNpc = Math.max(1, Math.min(5000, Math.floor(rules.maxMemoriesPerNpc)));
         }
         if (rules.enableCommerceUi !== undefined && typeof rules.enableCommerceUi === 'boolean') {
             sanitized.enableCommerceUi = rules.enableCommerceUi;

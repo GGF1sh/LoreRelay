@@ -9,7 +9,9 @@
 // ホストは既存の registry / npcPositions / recentChanges を下の *Like 形へ写して呼ぶ。
 // 対応スペック: docs/LIVING_WORLD_LW3_RELATIONSHIPS.md / BRIEF §0.5・§5.6(future arc)。
 
-export const MAX_NAMED_NPC_RELATIONSHIP = 10; // npcAgencyCore の ≤10 と揃える
+// レガシー既定値(pre-1.0 の暫定値、規模検討の結果ではない)。
+// ホストは game_rules.json の maxNamedNpcCount をここへ渡す。未指定時のみこの値を使う。
+export const MAX_NAMED_NPC_RELATIONSHIP = 10;
 export const MAX_AFFINITY = 100;
 export const MIN_AFFINITY = -100;
 
@@ -29,14 +31,24 @@ export const MAX_RELATIONSHIP_CHANGES_PER_TICK = 24;
 export type NpcRelationshipReason =
     | 'co_location'
     | 'shared_crisis'
-    | 'faction_conflict'
-    | 'faction_kinship'
     | 'manual';
 
 export type NpcRelationshipLabel = 'ally' | 'friend' | 'neutral' | 'rival' | 'enemy';
 
+export type NpcFactionRelationshipReason = 'faction_conflict' | 'faction_kinship';
+
 /** 正規化ペアキー "idA|idB"(ソート済み) → affinity [-100,100]。 */
 export type NpcRelationshipMap = Record<string, number>;
+
+/**
+ * 派閥間の関係(異派閥同士の敵対/同盟度)。正規化ペアキー "factionA|factionB"(ソート済み)
+ * → 値 [-100,100]。派閥数(F)にのみ依存し、名ありNPC数(N)には依存しない
+ * (F は通常一桁〜数十のオーダーで、N=10でもN=5000でも変わらない)。
+ */
+export type NpcFactionRelationshipMap = Record<string, number>;
+
+/** 派閥内の結束度(同派閥NPC同士の絆の底上げ)。factionId → 値 [-100,100]。 */
+export type NpcFactionCohesionMap = Record<string, number>;
 
 // --- ホストが写して渡す最小形(既存 registry/positions/events から adapt) ---
 
@@ -75,6 +87,16 @@ export interface NpcRelationshipChange {
     delta: number;      // このtickの純増減
     affinity: number;   // 適用後
     reason: NpcRelationshipReason;
+    worldTurn: number;
+}
+
+/** 派閥レベルの関係変化(faction_kinship は factionA === factionB の自己結束として表す)。 */
+export interface NpcFactionRelationshipChange {
+    factionA: string;
+    factionB: string;
+    delta: number;
+    value: number;
+    reason: NpcFactionRelationshipReason;
     worldTurn: number;
 }
 
@@ -117,8 +139,49 @@ export function describeRelationship(affinity: number): NpcRelationshipLabel {
     return 'neutral';
 }
 
-function namedIds(registry: RelationshipRegistryLike): string[] {
-    return Object.keys(registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP);
+/** 順序に依存しない正規化ペアキー(派閥id用。個人用の pairKey と同じ規則)。 */
+export function factionPairKey(a: string, b: string): string {
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+export function getFactionRelation(map: NpcFactionRelationshipMap, factionA: string, factionB: string): number {
+    if (factionA === factionB) { return 0; }
+    const v = map[factionPairKey(factionA, factionB)];
+    return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+export function getFactionCohesion(map: NpcFactionCohesionMap, factionId: string): number {
+    const v = map[factionId];
+    return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+/**
+ * 個人の絆(personal)に、派閥文脈(異派閥なら敵対/同盟、同派閥なら結束)を上乗せした
+ * 実効affinity。「実際に関わったことがある個人ペア」にのみ意味を持たせるため、
+ * 呼び出し側は relationships に既にキーがあるペアに対してのみ使うこと(全ペア総当りで
+ * 呼ぶと元のO(N^2)に戻ってしまう)。
+ */
+export function getEffectiveAffinity(
+    personal: NpcRelationshipMap,
+    factionRelationships: NpcFactionRelationshipMap,
+    factionCohesion: NpcFactionCohesionMap,
+    registry: RelationshipRegistryLike,
+    a: string,
+    b: string
+): number {
+    if (a === b) { return 0; }
+    const personalAffinity = getAffinity(personal, a, b);
+    const factionA = registry[a]?.factionId;
+    const factionB = registry[b]?.factionId;
+    if (!factionA || !factionB) { return personalAffinity; }
+    const modifier = factionA === factionB
+        ? getFactionCohesion(factionCohesion, factionA)
+        : getFactionRelation(factionRelationships, factionA, factionB);
+    return clampAffinity(personalAffinity + modifier);
+}
+
+function namedIds(registry: RelationshipRegistryLike, maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP): string[] {
+    return Object.keys(registry).slice(0, maxNamedNpcCount);
 }
 
 function cloneMap(map: NpcRelationshipMap): NpcRelationshipMap {
@@ -164,11 +227,20 @@ export interface RelationshipEvolveInput {
     recentChanges?: RelationshipEventLike[];
     /** このtickの reactNpcsToWorld の moves(共通危機の結束判定に使う)。 */
     agencyMoves?: RelationshipMoveLike[];
+    /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は MAX_NAMED_NPC_RELATIONSHIP(10)。 */
+    maxNamedNpcCount?: number;
+    /** 派閥間関係の前tick状態(規則3の入力)。 */
+    factionRelationships?: NpcFactionRelationshipMap;
+    /** 派閥内結束の前tick状態(規則3の入力)。 */
+    factionCohesion?: NpcFactionCohesionMap;
 }
 
 export interface RelationshipEvolveResult {
     relationships: NpcRelationshipMap;
     changes: NpcRelationshipChange[];
+    factionRelationships: NpcFactionRelationshipMap;
+    factionCohesion: NpcFactionCohesionMap;
+    factionChanges: NpcFactionRelationshipChange[];
 }
 
 /**
@@ -176,11 +248,12 @@ export interface RelationshipEvolveResult {
  * 規則(v0):
  *  1. 同席     — 同じ場所に居合わせるペアは少しずつ親密化(顔見知りに)。
  *  2. 共通の危機 — 同じ reason で同tickに動いたペアは結束(危機の盟友)。
- *  3. 派閥動態  — 紛争/critical イベント時、異派閥は険悪化・同派閥は結束。
+ *  3. 派閥動態  — 紛争/critical イベント時、派閥そのものの関係(異派閥=険悪化/
+ *     同派閥=結束)を動かす。個人ペアへは書き込まない(下記参照)。
  * 全変化は clamp され、ペアごとに純増減 + 最大寄与の reason で1件に集約。
  */
 export function evolveRelationships(input: RelationshipEvolveInput): RelationshipEvolveResult {
-    const ids = namedIds(input.registry);
+    const ids = namedIds(input.registry, input.maxNamedNpcCount);
     const worldTurn = input.worldTurn;
 
     // ペアごとに寄与を蓄積(dominant reason = 単一寄与の絶対値が最大のもの)
@@ -202,18 +275,20 @@ export function evolveRelationships(input: RelationshipEvolveInput): Relationshi
     };
 
     // 規則1: 同席
-    const locOf = new Map<string, string>();
+    // 全ペア総当り(O(N^2))を避けるため、場所ごとにグループ化してから
+    // 同じ場所のNPC同士だけを比較する(O(N + Σ 場所ごとの人数^2))。
+    // 名ありNPCが多くても、大多数の場所は少人数なので実効コストは低いまま保たれる。
+    const idsByLocation = new Map<string, string[]>();
     for (const id of ids) {
         const loc = effectiveLocation(id, input.registry, input.positions, worldTurn);
-        if (loc) { locOf.set(id, loc); }
+        if (!loc) { continue; }
+        const bucket = idsByLocation.get(loc);
+        if (bucket) { bucket.push(id); } else { idsByLocation.set(loc, [id]); }
     }
-    for (let i = 0; i < ids.length; i++) {
-        for (let j = i + 1; j < ids.length; j++) {
-            const a = ids[i]!;
-            const b = ids[j]!;
-            const la = locOf.get(a);
-            if (la !== undefined && la === locOf.get(b)) {
-                add(a, b, CO_LOCATION_STEP, 'co_location');
+    for (const bucket of idsByLocation.values()) {
+        for (let i = 0; i < bucket.length; i++) {
+            for (let j = i + 1; j < bucket.length; j++) {
+                add(bucket[i]!, bucket[j]!, CO_LOCATION_STEP, 'co_location');
             }
         }
     }
@@ -234,17 +309,44 @@ export function evolveRelationships(input: RelationshipEvolveInput): Relationshi
     }
 
     // 規則3: 派閥動態(紛争/critical イベント時のみ)
+    // 「世界のどこかで戦が起きた」動揺は居合わせていなくても波及する設計だが、
+    // 個人ペア(N^2)へは書き込まない — 派閥そのもの(F, 通常一桁〜数十)の関係を
+    // 動かす。国同士が戦争になった瞬間に全国民同士が互いを憎み合うわけではなく、
+    // 「所属派閥の空気が悪くなる/結束する」だけ。個人の絆は同席や共通の危機で
+    // 実際に関わった時にだけ育つ(規則1・2)。これで maxNamedNpcCount を
+    // どれだけ引き上げても、この規則の計算量は派閥数だけに依存する。
     const conflict = (input.recentChanges ?? []).some(isConflictEvent);
+    const factionRelationships = cloneMap(input.factionRelationships ?? {});
+    const factionCohesion: NpcFactionCohesionMap = { ...(input.factionCohesion ?? {}) };
+    const factionChanges: NpcFactionRelationshipChange[] = [];
     if (conflict) {
-        for (let i = 0; i < ids.length; i++) {
-            for (let j = i + 1; j < ids.length; j++) {
-                const a = ids[i]!;
-                const b = ids[j]!;
-                const fa = input.registry[a]?.factionId;
-                const fb = input.registry[b]?.factionId;
-                if (fa && fb) {
-                    if (fa === fb) { add(a, b, FACTION_KINSHIP_STEP, 'faction_kinship'); }
-                    else { add(a, b, FACTION_CONFLICT_STEP, 'faction_conflict'); }
+        const factionIds = [...new Set(
+            ids.map((id) => input.registry[id]?.factionId).filter((f): f is string => !!f)
+        )];
+        for (const f of factionIds) {
+            const before = getFactionCohesion(factionCohesion, f);
+            const after = clampAffinity(before + FACTION_KINSHIP_STEP);
+            if (after !== before) {
+                factionCohesion[f] = after;
+                factionChanges.push({
+                    factionA: f, factionB: f, delta: after - before, value: after,
+                    reason: 'faction_kinship', worldTurn,
+                });
+            }
+        }
+        for (let i = 0; i < factionIds.length; i++) {
+            for (let j = i + 1; j < factionIds.length; j++) {
+                const fa = factionIds[i]!;
+                const fb = factionIds[j]!;
+                const key = factionPairKey(fa, fb);
+                const before = getFactionRelation(factionRelationships, fa, fb);
+                const after = clampAffinity(before + FACTION_CONFLICT_STEP);
+                if (after !== before) {
+                    factionRelationships[key] = after;
+                    factionChanges.push({
+                        factionA: fa, factionB: fb, delta: after - before, value: after,
+                        reason: 'faction_conflict', worldTurn,
+                    });
                 }
             }
         }
@@ -263,7 +365,14 @@ export function evolveRelationships(input: RelationshipEvolveInput): Relationshi
         changes.push({ a: pair[0], b: pair[1], delta: after - before, affinity: after, reason: c.reason, worldTurn });
     }
     changes.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
-    return { relationships: next, changes: changes.slice(0, MAX_RELATIONSHIP_CHANGES_PER_TICK) };
+    factionChanges.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+    return {
+        relationships: next,
+        changes: changes.slice(0, MAX_RELATIONSHIP_CHANGES_PER_TICK),
+        factionRelationships,
+        factionCohesion,
+        factionChanges: factionChanges.slice(0, MAX_RELATIONSHIP_CHANGES_PER_TICK),
+    };
 }
 
 /** turn_result.relationshipOps をパース(GM の例外的確定。±100 に clamp、self ペア/0 を除外)。 */
@@ -285,14 +394,15 @@ export function parseRelationshipOps(raw: unknown): NpcRelationshipOp[] {
     return out;
 }
 
-/** GM ops を適用(registry ≤10 のペアのみ許可、clamp)。 */
+/** GM ops を適用(registry の名ありNPC上限内のペアのみ許可、clamp)。 */
 export function applyRelationshipOps(
     relationships: NpcRelationshipMap,
     ops: NpcRelationshipOp[],
-    registry: RelationshipRegistryLike
+    registry: RelationshipRegistryLike,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): NpcRelationshipMap {
     const next = cloneMap(relationships);
-    const allowed = new Set(namedIds(registry));
+    const allowed = new Set(namedIds(registry, maxNamedNpcCount));
     for (const op of ops) {
         if (op.a === op.b || !allowed.has(op.a) || !allowed.has(op.b)) { continue; }
         const key = pairKey(op.a, op.b);
@@ -310,27 +420,45 @@ export interface NotableRelationship {
     label: NpcRelationshipLabel;
 }
 
-/** UI/プロンプト用: neutral 以外の顕著な関係を |affinity| 降順で。 */
+/**
+ * UI/プロンプト用: neutral 以外の顕著な関係を |affinity| 降順で。
+ * factionRelationships/factionCohesion を渡すと、個人の絆に派閥文脈を上乗せした
+ * 実効affinityで判定・表示する(既に relationships にキーがある=実際に関わった
+ * ペアのみを見るので、O(N^2) には戻らない)。
+ */
 export function listNotableRelationships(
     relationships: NpcRelationshipMap,
     registry: RelationshipRegistryLike,
-    limit = 8
+    limit = 8,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP,
+    factionRelationships: NpcFactionRelationshipMap = {},
+    factionCohesion: NpcFactionCohesionMap = {}
 ): NotableRelationship[] {
-    const allowed = new Set(namedIds(registry));
+    const allowed = new Set(namedIds(registry, maxNamedNpcCount));
     const out: NotableRelationship[] = [];
     for (const [key, affinity] of Object.entries(relationships)) {
         if (typeof affinity !== 'number' || !Number.isFinite(affinity)) { continue; }
         const pair = splitPairKey(key);
         if (!pair) { continue; }
         if (!allowed.has(pair[0]) || !allowed.has(pair[1])) { continue; }
-        const label = describeRelationship(affinity);
+        // 派閥modifierを加える(getAffinity経由の再lookupはしない — このループは
+        // 既に該当キーの値を手にしているので、pairKeyの正規化に依存せず済む)。
+        const factionA = registry[pair[0]]?.factionId;
+        const factionB = registry[pair[1]]?.factionId;
+        const modifier = (factionA && factionB)
+            ? (factionA === factionB
+                ? getFactionCohesion(factionCohesion, factionA)
+                : getFactionRelation(factionRelationships, factionA, factionB))
+            : 0;
+        const effective = clampAffinity(affinity + modifier);
+        const label = describeRelationship(effective);
         if (label === 'neutral') { continue; }
         out.push({
             a: pair[0],
             b: pair[1],
             nameA: registry[pair[0]]?.name ?? pair[0],
             nameB: registry[pair[1]]?.name ?? pair[1],
-            affinity,
+            affinity: effective,
             label,
         });
     }
@@ -366,42 +494,56 @@ export const MAX_EFFECTIVE_PLAYER_TRUST = 100;
 export function applyIntroductionTrustBoost<T extends IntroductionBoostEntry>(
     registry: Record<string, T>,
     relationships: NpcRelationshipMap,
-    factionReputation?: Record<string, number>
+    factionReputation?: Record<string, number>,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): Record<string, T & { introducedBy?: string }> {
-    const ids = Object.keys(registry).slice(0, MAX_NAMED_NPC_RELATIONSHIP);
+    const allowed = new Set(Object.keys(registry).slice(0, maxNamedNpcCount));
     const out: Record<string, T & { introducedBy?: string }> = {};
     for (const [id, entry] of Object.entries(registry)) {
         out[id] = { ...entry };
     }
-    for (const id of ids) {
+
+    // 全ペア総当り(O(N^2))を避け、relationships に affinity が記録された疎なペアだけを
+    // 見る(O(E))。affinity 未記録のペアは INTRODUCTION_MIN_AFFINITY(=盟友水準)を
+    // 満たしようがないので、走査対象から外しても結果は変わらない。
+    const best = new Map<string, { trust: number; via: string }>();
+    const consider = (id: string, allyId: string): void => {
+        if (!allowed.has(id) || !allowed.has(allyId)) { return; }
+        const allyTrust = registry[allyId]?.playerTrust;
+        if (typeof allyTrust !== 'number') { return; }
+        const introduced = allyTrust - INTRODUCTION_TRUST_PENALTY;
+        const prev = best.get(id);
+        if (!prev || introduced > prev.trust) {
+            best.set(id, { trust: introduced, via: allyId });
+        }
+    };
+    for (const [key, affinity] of Object.entries(relationships)) {
+        if (typeof affinity !== 'number' || affinity < INTRODUCTION_MIN_AFFINITY) { continue; }
+        const pair = splitPairKey(key);
+        if (!pair) { continue; }
+        consider(pair[0], pair[1]);
+        consider(pair[1], pair[0]);
+    }
+
+    for (const id of allowed) {
+        const candidate = best.get(id);
+        if (!candidate) { continue; }
         const base = typeof registry[id]?.playerTrust === 'number' ? registry[id]!.playerTrust! : undefined;
-        let best: { trust: number; via: string } | undefined;
-        for (const allyId of ids) {
-            if (allyId === id) { continue; }
-            if (getAffinity(relationships, id, allyId) < INTRODUCTION_MIN_AFFINITY) { continue; }
-            const allyTrust = registry[allyId]?.playerTrust;
-            if (typeof allyTrust !== 'number') { continue; }
-            const introduced = allyTrust - INTRODUCTION_TRUST_PENALTY;
-            if (introduced > (best?.trust ?? -Infinity)) {
-                best = { trust: introduced, via: allyId };
-            }
+        if (!(candidate.trust > (base ?? -Infinity))) { continue; }
+        const baseTrust = base ?? 0;
+        let effective = Math.round(candidate.trust);
+        const factionId = registry[id]?.factionId;
+        const factionRep = factionId ? factionReputation?.[factionId] : undefined;
+        if (
+            typeof factionRep === 'number'
+            && factionRep >= FACTION_ALLIED_REP_MIN
+            && effective > baseTrust
+        ) {
+            const introOnly = effective - baseTrust;
+            effective = baseTrust + Math.round(introOnly * FACTION_INTRO_TRUST_DAMPEN);
         }
-        if (best && best.trust > (base ?? -Infinity)) {
-            const baseTrust = base ?? 0;
-            let effective = Math.round(best.trust);
-            const factionId = registry[id]?.factionId;
-            const factionRep = factionId ? factionReputation?.[factionId] : undefined;
-            if (
-                typeof factionRep === 'number'
-                && factionRep >= FACTION_ALLIED_REP_MIN
-                && effective > baseTrust
-            ) {
-                const introOnly = effective - baseTrust;
-                effective = baseTrust + Math.round(introOnly * FACTION_INTRO_TRUST_DAMPEN);
-            }
-            effective = Math.max(0, Math.min(MAX_EFFECTIVE_PLAYER_TRUST, effective));
-            out[id] = { ...out[id], playerTrust: effective, introducedBy: best.via };
-        }
+        effective = Math.max(0, Math.min(MAX_EFFECTIVE_PLAYER_TRUST, effective));
+        out[id] = { ...out[id], playerTrust: effective, introducedBy: candidate.via };
     }
     return out;
 }
@@ -409,9 +551,10 @@ export function applyIntroductionTrustBoost<T extends IntroductionBoostEntry>(
 /** Remove relationship edges that reference NPCs no longer in the registry. */
 export function reconcileRelationshipGraph(
     relationships: NpcRelationshipMap,
-    registry: RelationshipRegistryLike
+    registry: RelationshipRegistryLike,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): NpcRelationshipMap {
-    const allowed = new Set(namedIds(registry));
+    const allowed = new Set(namedIds(registry, maxNamedNpcCount));
     const next: NpcRelationshipMap = {};
     for (const [key, affinity] of Object.entries(relationships)) {
         const pair = splitPairKey(key);
@@ -452,8 +595,6 @@ const RELATIONSHIP_LABEL_JA: Record<NpcRelationshipLabel, string> = {
 const REASON_JA: Record<NpcRelationshipReason, string> = {
     co_location: '同じ場所で過ごした',
     shared_crisis: '同じ危機に共に動いた',
-    faction_conflict: '対立が深まった',
-    faction_kinship: '同志として結束した',
     manual: '',
 };
 
@@ -479,6 +620,35 @@ export function buildRelationshipPromptLines(
         const dir = c.delta > 0 ? '近づいた' : '離れた';
         const why = REASON_JA[c.reason];
         lines.push(why ? `(変化) ${nameA} と ${nameB} が${dir} — ${why}` : `(変化) ${nameA} と ${nameB} が${dir}`);
+        if (lines.length >= maxLines) { break; }
+    }
+    return lines;
+}
+
+export interface FactionNameLike {
+    name?: string;
+}
+
+/**
+ * GM プロンプト用 `[Living World — Faction Relations]` 行。
+ * 個人の絆(Bonds)とは別枠 — 「派閥そのものの空気」を伝える(誰と誰の話かではない)。
+ */
+export function buildFactionRelationsPromptLines(
+    changes: NpcFactionRelationshipChange[],
+    factionNames: Record<string, FactionNameLike | undefined>,
+    maxLines = 4
+): string[] {
+    const lines: string[] = [];
+    for (const c of changes) {
+        const nameA = factionNames[c.factionA]?.name ?? c.factionA;
+        if (c.factionA === c.factionB) {
+            const dir = c.delta > 0 ? '結束が強まっている' : '結束が緩んでいる';
+            lines.push(`${nameA}の${dir}という噂だ`);
+        } else {
+            const nameB = factionNames[c.factionB]?.name ?? c.factionB;
+            const dir = c.delta > 0 ? '歩み寄っている' : '険悪になっている';
+            lines.push(`${nameA}と${nameB}の関係が${dir}という噂だ`);
+        }
         if (lines.length >= maxLines) { break; }
     }
     return lines;

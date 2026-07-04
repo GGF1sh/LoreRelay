@@ -12,6 +12,7 @@ import type {
 } from './livingWorldTypes';
 import { quoteMarketPrice } from './commerceCore';
 
+// レガシー既定値(pre-1.0 の暫定値)。ホストは game_rules.maxNamedNpcCount をここへ渡す。
 export const MAX_NAMED_NPC_AGENCY = 10;
 export const DEFAULT_AGENDA_TRAVEL_DAYS = 3;
 
@@ -33,14 +34,14 @@ function clonePositions(positions: NpcPositionsMap): NpcPositionsMap {
     return out;
 }
 
-function registryNpcIds(registry: NpcRegistryLike): string[] {
-    return Object.keys(registry).slice(0, MAX_NAMED_NPC_AGENCY);
+function registryNpcIds(registry: NpcRegistryLike, maxNamedNpcCount = MAX_NAMED_NPC_AGENCY): string[] {
+    return Object.keys(registry).slice(0, maxNamedNpcCount);
 }
 
-export function parseNpcAgencyOps(raw: unknown): NpcAgencyOp[] {
+export function parseNpcAgencyOps(raw: unknown, maxNamedNpcCount = MAX_NAMED_NPC_AGENCY): NpcAgencyOp[] {
     if (!Array.isArray(raw)) { return []; }
     const out: NpcAgencyOp[] = [];
-    for (const item of raw.slice(0, MAX_NAMED_NPC_AGENCY)) {
+    for (const item of raw.slice(0, maxNamedNpcCount)) {
         if (!item || typeof item !== 'object') { continue; }
         const row = item as Record<string, unknown>;
         if (typeof row.npcId !== 'string' || !row.npcId) { continue; }
@@ -90,10 +91,11 @@ export function listNpcPresence(
     registry: NpcRegistryLike,
     positions: NpcPositionsMap,
     worldTurn: number,
-    agencyEnabled: boolean
+    agencyEnabled: boolean,
+    maxNamedNpcCount = MAX_NAMED_NPC_AGENCY
 ): NpcPresence[] {
     const out: NpcPresence[] = [];
-    for (const npcId of registryNpcIds(registry)) {
+    for (const npcId of registryNpcIds(registry, maxNamedNpcCount)) {
         const reg = registry[npcId];
         const resolved = resolveNpcLocation(npcId, registry, positions, worldTurn, agencyEnabled);
         if (!resolved) { continue; }
@@ -145,6 +147,7 @@ export interface AgencyReactionInput {
     positions: NpcPositionsMap;
     worldTurn: number;
     recentChanges?: WorldChangeEventLike[];
+    maxNamedNpcCount?: number;
 }
 
 /**
@@ -159,7 +162,7 @@ export function reactNpcsToWorld(
     const cheapWheat = cheapestWheatMarket(input.forge, input.markets);
     const steelShort = marketWithSteelShortage(input.forge, input.markets);
 
-    for (const npcId of registryNpcIds(input.registry)) {
+    for (const npcId of registryNpcIds(input.registry, input.maxNamedNpcCount)) {
         const reg = input.registry[npcId];
         const existing = next[npcId];
         if (existing && existing.arrivesTurn > input.worldTurn) { continue; }
@@ -216,10 +219,11 @@ function isFoodCrisisEvent(ev: WorldChangeEventLike): boolean {
 export function applyNpcAgencyOps(
     positions: NpcPositionsMap,
     ops: NpcAgencyOp[],
-    registry: NpcRegistryLike
+    registry: NpcRegistryLike,
+    maxNamedNpcCount = MAX_NAMED_NPC_AGENCY
 ): NpcPositionsMap {
     const next = clonePositions(positions);
-    const allowed = new Set(registryNpcIds(registry));
+    const allowed = new Set(registryNpcIds(registry, maxNamedNpcCount));
 
     for (const op of ops) {
         if (!allowed.has(op.npcId)) { continue; }

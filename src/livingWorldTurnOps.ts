@@ -131,7 +131,8 @@ function runCommercePhase(
 }
 
 function runNpcAgencyPhase(turnResult: TurnResult, ws: WorldState): { ws: WorldState; dirty: boolean } {
-    const ops = parseNpcAgencyOps(turnResult.npcAgencyOps);
+    const maxNamedNpcCount = loadGameRules().maxNamedNpcCount ?? 10;
+    const ops = parseNpcAgencyOps(turnResult.npcAgencyOps, maxNamedNpcCount);
     if (ops.length === 0) {
         return { ws, dirty: false };
     }
@@ -139,12 +140,14 @@ function runNpcAgencyPhase(turnResult: TurnResult, ws: WorldState): { ws: WorldS
     const positions = applyNpcAgencyOps(
         ws.npcPositions ?? {},
         ops,
-        registryToAgencyLike(registry)
+        registryToAgencyLike(registry),
+        maxNamedNpcCount
     );
     return { ws: { ...ws, npcPositions: positions }, dirty: true };
 }
 
 function runRelationshipPhase(turnResult: TurnResult, ws: WorldState): { ws: WorldState; dirty: boolean } {
+    const maxNamedNpcCount = loadGameRules().maxNamedNpcCount ?? 10;
     const ops = parseRelationshipOps(turnResult.relationshipOps);
     if (ops.length === 0) {
         return { ws, dirty: false };
@@ -153,7 +156,8 @@ function runRelationshipPhase(turnResult: TurnResult, ws: WorldState): { ws: Wor
     const relationships = applyRelationshipOps(
         ws.npcRelationships ?? {},
         ops,
-        registryToAgencyLike(registry)
+        registryToAgencyLike(registry),
+        maxNamedNpcCount
     );
     return { ws: { ...ws, npcRelationships: relationships }, dirty: true };
 }

@@ -20,7 +20,12 @@ import { deriveKnownNpcIds } from './mapOverlayCore';
 import { loadDiscoveryLedger } from './discoveryLedger';
 import { loadSettlementLayout, loadSettlementState } from './settlementState';
 import { buildWorkspaceSettlementDiorama, resolveDioramaThemeFromOvermap, settlementDioramaEnabled } from './settlementDioramaBridge';
-import { buildSettlementExpansionPreviews, buildSettlementViewSnapshot } from './settlementViewCore';
+import {
+    buildSettlementExpansionPreviews,
+    buildSettlementViewSnapshot,
+    sanitizeSettlementExpansionPreviewsForWebview,
+    sanitizeSettlementViewForWebview,
+} from './settlementViewCore';
 import type { SettlementLayerId } from './settlementCore';
 
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
@@ -606,10 +611,10 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         tileOvermap,
         mapOverlay,
         enableSettlementMode: gameRules.enableSettlementMode === true,
-        settlementView: settlementView ?? null,
+        settlementView: sanitizeSettlementViewForWebview(settlementView),
         enableSettlementDiorama: settlementDioramaEnabled(gameRules),
         settlementDiorama: settlementDiorama ?? null,
-        settlementExpansionPreviews,
+        settlementExpansionPreviews: sanitizeSettlementExpansionPreviewsForWebview(settlementExpansionPreviews),
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,

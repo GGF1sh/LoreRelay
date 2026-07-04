@@ -40,8 +40,8 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
     fail('worldState priority should exceed livingWorldNpcBonds');
 } else if (resolvePromptChunkPriority('livingWorldNpcBonds') <= resolvePromptChunkPriority('livingWorldPlayerBonds')) {
     fail('livingWorldNpcBonds priority should exceed livingWorldPlayerBonds');
-} else if (resolvePromptChunkPriority('settlement') <= resolvePromptChunkPriority('vehicles')) {
-    fail('settlement priority should exceed vehicles under bloat mitigation');
+} else if (resolvePromptChunkPriority('settlement') >= resolvePromptChunkPriority('vehicles')) {
+    fail('settlement should evict before vehicles under bloat mitigation');
 } else if (resolvePromptChunkPriority('worldForge') <= resolvePromptChunkPriority('vehicles')) {
     fail('worldForge priority should exceed vehicles');
 } else {

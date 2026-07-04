@@ -202,7 +202,11 @@ function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLi
         { id: 'discoveryLedger', label: 'Discoveries', limitChars: 1200 },
         { id: 'campaignJobBoard', label: 'Campaign Job Board', limitChars: 1400 },
         { id: 'campaignResources', label: 'Campaign Resources', limitChars: 900 },
-        { id: 'settlement', label: 'Settlement', limitChars: 1600 },
+        {
+            id: 'settlement',
+            label: 'Settlement',
+            limitChars: policy.mode === 'compact' ? 520 : 1200,
+        },
         {
             id: 'vehicles',
             label: 'Vehicles',
@@ -1180,7 +1184,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         maybeBuildSection('discoveryLedger', 'Discoveries', activation, buildDiscoveryLedgerPromptContext),
         maybeBuildSection('campaignJobBoard', 'Campaign Job Board', activation, buildCampaignJobBoardPromptContextForGm),
         maybeBuildSection('campaignResources', 'Campaign Resources', activation, buildCampaignResourcesPromptContext),
-        maybeBuildSection('settlement', 'Settlement', activation, buildSettlementPromptContext),
+        maybeBuildSection('settlement', 'Settlement', activation, () => buildSettlementPromptContext(policy)),
         maybeBuildSection('vehicles', 'Vehicles', activation, () => buildVehiclePromptContext(policy)),
         maybeBuildSection('mobileBase', 'Mobile Base', activation, buildMobileBasePromptContext),
         maybeBuildSection('domain', 'Domain', activation, () => buildDomainPromptContextForGm(hint)),
@@ -1304,7 +1308,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     maybePushPromptChunk(specs, 'discoveryLedger', activation, buildDiscoveryLedgerPromptContext);
     maybePushPromptChunk(specs, 'campaignJobBoard', activation, buildCampaignJobBoardPromptContextForGm);
     maybePushPromptChunk(specs, 'campaignResources', activation, buildCampaignResourcesPromptContext);
-    maybePushPromptChunk(specs, 'settlement', activation, buildSettlementPromptContext);
+    maybePushPromptChunk(specs, 'settlement', activation, () => buildSettlementPromptContext(policy));
     maybePushPromptChunk(specs, 'vehicles', activation, () => buildVehiclePromptContext(policy));
     maybePushPromptChunk(specs, 'mobileBase', activation, buildMobileBasePromptContext);
     maybePushPromptChunk(specs, 'domain', activation, () =>

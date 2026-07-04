@@ -12,6 +12,7 @@ import {
     type SettlementLayoutV1,
     type SettlementStateV1,
 } from './settlementCore';
+import type { PromptBudgetPolicy } from './gmPromptBuilderCore';
 
 export const SETTLEMENT_STATE_FILENAME = 'settlement_state.json';
 export const SETTLEMENT_LAYOUT_FILENAME = 'settlement_layout.json';
@@ -122,8 +123,10 @@ export function loadSettlementLayout(): SettlementLayoutV1 | undefined {
     }
 }
 
-export function buildSettlementPromptContext(): string {
+export function buildSettlementPromptContext(policy?: Pick<PromptBudgetPolicy, 'mode'>): string {
     const rules = loadGameRules();
     if (!settlementModeEnabled(rules)) { return ''; }
-    return buildSettlementPromptBlock(loadSettlementState(), true);
+    return buildSettlementPromptBlock(loadSettlementState(), true, {
+        summaryOnly: policy?.mode === 'compact',
+    });
 }

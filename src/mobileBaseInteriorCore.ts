@@ -11,6 +11,8 @@ import type { VehicleEntry } from './vehicleCore';
 import {
     buildSettlementExpansionPreviews,
     buildSettlementViewSnapshot,
+    sanitizeSettlementExpansionPreviewsForWebview,
+    sanitizeSettlementViewForWebview,
     type SettlementExpansionPreview,
     type SettlementViewSnapshot,
 } from './settlementViewCore';
@@ -143,14 +145,19 @@ export function buildMobileBaseInteriorPayload(
         { theme: options?.dioramaTheme, includeLabels: true }
     );
 
-    base.hasCanvas = viewHasCanvas(settlementView);
+    const safeView = sanitizeSettlementViewForWebview(settlementView);
+    if (!safeView) {
+        return undefined;
+    }
+    base.hasCanvas = viewHasCanvas(safeView);
     base.hasDiorama = dioramaHasContent(settlementDiorama);
-    base.settlementView = settlementView;
+    base.settlementView = safeView;
     if (settlementDiorama) {
         base.settlementDiorama = settlementDiorama;
     }
-    if (expansionPreviews.length) {
-        base.settlementExpansionPreviews = expansionPreviews;
+    const safePreviews = sanitizeSettlementExpansionPreviewsForWebview(expansionPreviews);
+    if (safePreviews.length) {
+        base.settlementExpansionPreviews = safePreviews;
     }
 
     return base;

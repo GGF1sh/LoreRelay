@@ -414,7 +414,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     discoveryLedger: 93,
     campaignJobBoard: 92,
     campaignResources: 91,
-    settlement: 90,
+    settlement: 58,
     vehicles: 64,
     mobileBase: 63,
     domain: 67,

@@ -14,6 +14,7 @@ export const MAX_SETTLEMENT_INCIDENTS = 80;
 export const MAX_SETTLEMENT_NOTES = 40;
 export const MAX_SETTLEMENT_OPS = 8;
 export const MAX_SETTLEMENT_PROMPT_CHARS = 1600;
+export const MAX_SETTLEMENT_PROMPT_SUMMARY_CHARS = 520;
 export const MAX_SETTLEMENT_NAME_CHARS = 120;
 export const MAX_SETTLEMENT_TEXT_CHARS = 280;
 export const MAX_SETTLEMENT_WARES = 12;
@@ -797,12 +798,39 @@ function formatStockLine(stock: SettlementStock): string {
     return `- ${stock.id}: ${stock.amount}${warn}`;
 }
 
+export interface SettlementPromptOptions {
+    /** Compact budget mode — scores/incidents counts only, no full stock lists. */
+    summaryOnly?: boolean;
+}
+
 /** Prompt-safe settlement summary; pass enabled=false or omit state to emit nothing. */
 export function buildSettlementPromptBlock(
     state: SettlementStateV1 | undefined,
-    enabled: boolean
+    enabled: boolean,
+    options?: SettlementPromptOptions
 ): string {
     if (!enabled || !state) { return ''; }
+
+    if (options?.summaryOnly) {
+        const openIncidents = state.incidents.filter((i) => !i.resolved).length;
+        const lowStocks = state.stocks.filter((s) => s.amount <= 2).length;
+        const scoreParts: string[] = [];
+        if (state.morale !== undefined) { scoreParts.push(`morale ${state.morale}`); }
+        if (state.safety !== undefined) { scoreParts.push(`safety ${state.safety}`); }
+        const lines = [
+            '[Settlement]',
+            `Site: ${state.name} (${state.settlementId})`,
+            scoreParts.length ? `Scores: ${scoreParts.join(', ')}.` : '',
+            `Stocks: ${state.stocks.length} tracked${lowStocks ? `, ${lowStocks} low/empty` : ''}.`,
+            openIncidents ? `Open incidents: ${openIncidents}.` : 'No open incidents.',
+            'Layer expansion: turn_result.settlementOps.expand_layer only (preview is read-only).',
+        ].filter(Boolean);
+        let block = lines.join('\n');
+        if (block.length > MAX_SETTLEMENT_PROMPT_SUMMARY_CHARS) {
+            block = `${block.slice(0, MAX_SETTLEMENT_PROMPT_SUMMARY_CHARS - 20)}...[truncated]`;
+        }
+        return block;
+    }
 
     const lines: string[] = [
         '[Settlement]',

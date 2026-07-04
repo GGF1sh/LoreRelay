@@ -821,6 +821,53 @@ export function pickSettlementViewSnapshotKeys(snapshot: SettlementViewSnapshot)
     return out;
 }
 
+/** FoW-safe settlement canvas payload for Webview postMessage (whitelist per tile/marker). */
+export function sanitizeSettlementViewForWebview(
+    snapshot: SettlementViewSnapshot | null | undefined
+): SettlementViewSnapshot | null {
+    if (!snapshot) { return null; }
+    const base = pickSettlementViewSnapshotKeys(snapshot) as Partial<SettlementViewSnapshot>;
+    const tiles = (snapshot.tiles ?? [])
+        .slice(0, MAX_VIEW_TILES)
+        .map((tile) => sanitizeTile(tile));
+    const markers = (snapshot.markers ?? [])
+        .slice(0, MAX_VIEW_MARKERS)
+        .map((marker) => sanitizeMarker(marker));
+    const layers = (snapshot.layers ?? []).slice(0, VALID_SETTLEMENT_LAYER_IDS.length);
+    const warnings = snapshot.warnings?.slice(0, MAX_VIEW_WARNINGS);
+    const out: SettlementViewSnapshot = {
+        version: SETTLEMENT_VIEW_VERSION,
+        settlementId: String(base.settlementId ?? snapshot.settlementId ?? ''),
+        name: clampText(base.name ?? snapshot.name, MAX_SETTLEMENT_NAME_CHARS),
+        layerId: resolveSelectedLayerId(snapshot.layerId),
+        layers,
+        width: clampViewSize(snapshot.width, MIN_VIEW_SIZE),
+        height: clampViewSize(snapshot.height, MIN_VIEW_SIZE),
+        tiles,
+        markers,
+        legend: Array.isArray(snapshot.legend) ? snapshot.legend.slice(0, 12) : [],
+    };
+    if (warnings?.length) { out.warnings = warnings; }
+    return out;
+}
+
+/** Read-only M4c ghost previews — never includes raw layout zones or hidden GM fields. */
+export function sanitizeSettlementExpansionPreviewsForWebview(
+    previews: SettlementExpansionPreview[] | null | undefined
+): SettlementExpansionPreview[] {
+    if (!Array.isArray(previews) || !previews.length) { return []; }
+    return previews.slice(0, MAX_EXPANSION_PREVIEWS).map((preview) => {
+        const picked = pickSettlementExpansionPreviewKeys(preview) as Partial<SettlementExpansionPreview>;
+        return {
+            layerId: picked.layerId ?? preview.layerId,
+            profile: picked.profile ?? preview.profile,
+            tiles: (preview.tiles ?? []).slice(0, MAX_VIEW_TILES).map((tile) => sanitizeTile(tile)),
+            markers: (preview.markers ?? []).slice(0, MAX_VIEW_MARKERS).map((marker) => sanitizeMarker(marker)),
+            warnings: preview.warnings?.slice(0, MAX_VIEW_WARNINGS),
+        };
+    });
+}
+
 export function buildSettlementViewSnapshot(
     inputs: SettlementViewInputs
 ): SettlementViewSnapshot | undefined {

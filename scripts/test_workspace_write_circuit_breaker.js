@@ -36,11 +36,13 @@ const {
 const {
     runSerializedGameStateMutation,
     runSerializedWorldStateMutation,
+    runSerializedSettlementLayoutMutation,
     resetWorkspaceWriteQueueForTests,
     isGameStateWriteCircuitOpen,
     isWorldStateWriteCircuitOpen,
     getGameStateCircuitForTests,
     getWorldStateCircuitForTests,
+    getSettlementLayoutWriteQueueDepthForTests,
 } = require(queuePath);
 const {
     recordSplitBrainRisk,
@@ -208,6 +210,20 @@ resetWorkspaceWriteHealthForTests();
         fail(`nested guarded queues: ${log.join(',')}`);
     } else {
         ok('nested guarded queues still drain');
+    }
+}
+
+{
+    resetWorkspaceWriteQueueForTests();
+    const log = [];
+    runSerializedSettlementLayoutMutation(() => log.push('layout-1'));
+    runSerializedSettlementLayoutMutation(() => log.push('layout-2'));
+    if (log.join(',') !== 'layout-1,layout-2') {
+        fail(`settlement layout queue serializes: ${log.join(',')}`);
+    } else if (getSettlementLayoutWriteQueueDepthForTests() !== 0) {
+        fail('settlement layout queue should drain');
+    } else {
+        ok('settlement_layout writes use serialized queue (M4b)');
     }
 }
 

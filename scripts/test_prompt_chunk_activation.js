@@ -36,6 +36,7 @@ const allOff = {
     worldForgeEnabled: false,
     enableTravelEncounters: false,
     enableSettlementMode: false,
+    enableVehicleSystem: false,
 };
 
 {
@@ -49,8 +50,10 @@ const allOff = {
         fail('campaignKit should be skipped when kit inactive');
     } else if (shouldIncludePromptChunk('settlement', allOff)) {
         fail('settlement should be skipped when enableSettlementMode is false');
+    } else if (shouldIncludePromptChunk('vehicles', allOff)) {
+        fail('vehicles should be skipped when enableVehicleSystem is false');
     } else {
-        ok('inactive domain/guild/campaign/settlement chunks skipped');
+        ok('inactive domain/guild/campaign/settlement/vehicle chunks skipped');
     }
 }
 
@@ -60,6 +63,15 @@ const allOff = {
         fail('settlement should include when enableSettlementMode is true');
     } else {
         ok('settlement chunk activates with enableSettlementMode');
+    }
+}
+
+{
+    const ctx = { ...allOff, enableVehicleSystem: true };
+    if (!shouldIncludePromptChunk('vehicles', ctx)) {
+        fail('vehicles should include when enableVehicleSystem is true');
+    } else {
+        ok('vehicles chunk activates with enableVehicleSystem');
     }
 }
 

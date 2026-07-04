@@ -18,6 +18,9 @@ export const MAX_VEHICLE_WARNINGS = 8;
 export const MAX_PROMPT_VEHICLES = 3;
 export const MAX_PROMPT_CARRIED_NAMES = 4;
 export const MAX_PROMPT_LINE_CHARS = 180;
+export const MAX_VEHICLE_PROMPT_CHARS = 1200;
+export const VEHICLE_OPS_NOT_WIRED_LINE =
+    'Persistent vehicle changes require turn_result.vehicleOps (parse/apply gate not yet wired).';
 export const MAX_CAPACITY_VALUE = 999;
 export const MAX_HP_VALUE = 9999;
 export const MAX_COMBAT_POWER = 999;
@@ -903,6 +906,35 @@ function selectPromptVehicles(state: VehicleState, options?: VehiclePromptOption
         if (selected.length >= max) { break; }
     }
     return selected;
+}
+
+export function vehicleModeEnabled(rules: { enableVehicleSystem?: boolean } | undefined): boolean {
+    return rules?.enableVehicleSystem === true;
+}
+
+/** Prompt-safe vehicle summary; pass enabled=false or omit state to emit nothing. */
+export function buildVehiclePromptBlock(
+    state: VehicleState | undefined,
+    enabled: boolean,
+    options?: VehiclePromptOptions
+): string {
+    if (!enabled || !state || !state.vehicles.length) { return ''; }
+
+    const fleet = validateVehicleFleet(state);
+    const lines: string[] = ['[Vehicles]'];
+    if (!fleet.ok && fleet.issues.length) {
+        lines.push(
+            clampPromptLine(`Fleet issues: ${fleet.issues.slice(0, 3).join('; ')}.`)
+        );
+    }
+    lines.push(...buildVehiclePromptLines(state, options));
+    lines.push(VEHICLE_OPS_NOT_WIRED_LINE);
+
+    let block = lines.join('\n');
+    if (block.length > MAX_VEHICLE_PROMPT_CHARS) {
+        block = `${block.slice(0, MAX_VEHICLE_PROMPT_CHARS - 20)}...[truncated]`;
+    }
+    return block;
 }
 
 export function buildVehiclePromptLines(state: VehicleState, options?: VehiclePromptOptions): string[] {

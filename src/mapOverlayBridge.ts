@@ -55,6 +55,7 @@ function resolveCampaignKitActive(gameRules: GameRules): boolean {
         worldForgeEnabled: true,
         enableTravelEncounters: gameRules.enableTravelEncounters === true,
         enableSettlementMode: gameRules.enableSettlementMode === true,
+        enableVehicleSystem: gameRules.enableVehicleSystem === true,
     });
 }
 

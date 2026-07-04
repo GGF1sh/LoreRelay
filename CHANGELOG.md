@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Vehicle System V2 I/O + GM prompt** — `vehicleState.ts` loads optional `vehicle_state.json` (mtime cache). `enableVehicleSystem` (default OFF) in `game_rules.json` gates `[Vehicles]` prompt chunk in `gmPromptBuilder`. `buildVehiclePromptContext()` prefers vehicles at `game_state.world.currentLocationId`. `scripts/test_vehicle_state.js` + prompt activation tests.
+
 - **Vehicle System V1 pure core** — `vehicleCore.ts`: `parseVehicleState()`, `canVehicleAccessLocation()`, `validateVehicleFleet()` (fleet/carrier/hangar cycle and size checks), `buildVehiclePromptLines()`. Independent `vehicle_state.json` contract; size/access tags; no I/O or Webview. `scripts/test_vehicle_core.js`.
 
 - **Mobile Base System MB1 pure link core** — `mobileBaseCore.ts`: `parseMobileBaseLink()`, `validateMobileBaseLink()`, `buildMobileBasePromptLines()` bridging Vehicle + Settlement ledgers (ship/landship/caravan/mobile_community). No cross-ledger writes. `scripts/test_mobile_base_core.js`.

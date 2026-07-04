@@ -71,6 +71,8 @@ export interface GameRules {
     enableSettlementMode?: boolean;
     /** Settlement Diorama: optional Three.js dream-track view (default OFF; requires enableSettlementMode). */
     enableSettlementDiorama?: boolean;
+    /** Vehicle System: mobile assets ledger + prompt chunk (default OFF). */
+    enableVehicleSystem?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -114,6 +116,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableWorldObservatory: false,
     enableSettlementMode: false,
     enableSettlementDiorama: false,
+    enableVehicleSystem: false,
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -316,6 +319,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableSettlementDiorama !== undefined && typeof rules.enableSettlementDiorama === 'boolean') {
             sanitized.enableSettlementDiorama = rules.enableSettlementDiorama;
+        }
+        if (rules.enableVehicleSystem !== undefined && typeof rules.enableVehicleSystem === 'boolean') {
+            sanitized.enableVehicleSystem = rules.enableVehicleSystem;
         }
     }
 

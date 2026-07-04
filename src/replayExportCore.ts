@@ -191,11 +191,35 @@ function pickGalleryExtras(
     return out;
 }
 
+function deepCloneJson<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/**
+ * Freeze replay export inputs so async/concurrent state mutations cannot tear the export.
+ * Call once at export start; build documents only from the returned snapshot.
+ */
+export function snapshotReplayBuildInput(input: ReplayBuildInput): ReplayBuildInput {
+    const entries = pickReplayExportEntries(deepCloneJson(input.entries as unknown[]));
+    return {
+        entries,
+        chapters: input.chapters ? deepCloneJson(input.chapters) : undefined,
+        gallery: input.gallery ? deepCloneJson(input.gallery) : undefined,
+        journalTurns: input.journalTurns ? deepCloneJson(input.journalTurns) : undefined,
+        options: { ...input.options },
+        title: input.title,
+        exportPath: input.exportPath,
+        resolveRelativeImage: input.resolveRelativeImage,
+        mapOverlay: input.mapOverlay ? deepCloneJson(input.mapOverlay) : undefined,
+    };
+}
+
 export function buildReplayDocument(input: ReplayBuildInput): string {
-    if (input.options.format === 'html') {
-        return buildReplayHtml(input);
+    const snapshot = snapshotReplayBuildInput(input);
+    if (snapshot.options.format === 'html') {
+        return buildReplayHtml(snapshot);
     }
-    return buildReplayMarkdown(input);
+    return buildReplayMarkdown(snapshot);
 }
 
 export function buildReplayMarkdown(input: ReplayBuildInput): string {

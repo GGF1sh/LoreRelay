@@ -69,8 +69,8 @@ export async function exportReplayToWorkspace(request: ExportReplayRequest = {})
         return { ok: false, message: t('extension.error.workspaceRequired') };
     }
 
-    const entries = getGameEntryHistory();
-    if (!entries.length) {
+    const liveEntries = getGameEntryHistory();
+    if (!liveEntries.length) {
         return { ok: false, message: t('extension.error.replayEmpty') };
     }
 
@@ -98,8 +98,9 @@ export async function exportReplayToWorkspace(request: ExportReplayRequest = {})
         return relativeImagePathFromExport(exportPath, resolved);
     };
 
+    // Snapshot all narrative inputs in one tick before document build / I/O.
     const content = buildReplayDocument({
-        entries,
+        entries: JSON.parse(JSON.stringify(liveEntries)),
         chapters: buildChronicleForWorkspace(ws),
         gallery: buildGalleryList(),
         journalTurns: buildJournalTurns(ws),

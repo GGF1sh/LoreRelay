@@ -442,6 +442,16 @@ export function resolvePromptChunkPriority(id: string): number {
     return PROMPT_CHUNK_PRIORITIES[id] ?? 50;
 }
 
+/** Tier 0 — system constraints; never evicted or truncated by budget logic. */
+export const PROMPT_NEVER_EVICT_CHUNK_IDS = [
+    'gameRules',
+    'narrativeTime',
+] as const;
+
+export function isPromptChunkNeverEvict(id: string): boolean {
+    return (PROMPT_NEVER_EVICT_CHUNK_IDS as readonly string[]).includes(id);
+}
+
 /** Host-supplied module flags — used to skip inactive prompt chunks before expensive builders run. */
 export interface PromptChunkActivationContext {
     enableCampaignKit: boolean;
@@ -523,10 +533,10 @@ export function shouldIncludePromptChunk(
  * Enforce a global char budget by dropping or truncating lowest-priority blocks first.
  * Returns chunk texts in original assembly order (empty chunks omitted).
  */
-export function evictPromptChunksByBudget(
+function evictMutablePromptChunks(
     chunks: PromptContextChunkSpec[],
     targetChars: number
-): string[] {
+): PromptContextChunkSpec[] {
     const limit = Math.max(0, Math.floor(targetChars));
     const working = chunks
         .map((c) => ({
@@ -542,7 +552,7 @@ export function evictPromptChunksByBudget(
 
     let total = working.reduce((sum, c) => sum + c.text.length, 0);
     if (total <= limit) {
-        return working.map((c) => c.text);
+        return working;
     }
 
     const order = [...working].sort((a, b) => a.priority - b.priority);
@@ -573,5 +583,40 @@ export function evictPromptChunksByBudget(
         }
     }
 
-    return working.map((c) => c.text);
+    return working;
+}
+
+export function evictPromptChunksByBudget(
+    chunks: PromptContextChunkSpec[],
+    targetChars: number
+): string[] {
+    const normalized = chunks
+        .map((c) => ({
+            ...c,
+            text: String(c.text ?? '').trim(),
+            priority: Number.isFinite(c.priority) ? c.priority : resolvePromptChunkPriority(c.id),
+        }))
+        .filter((c) => c.text.length > 0);
+
+    if (normalized.length === 0) {
+        return [];
+    }
+
+    const pinned = normalized.filter((c) => isPromptChunkNeverEvict(c.id));
+    const mutable = normalized.filter((c) => !isPromptChunkNeverEvict(c.id));
+    const pinnedChars = pinned.reduce((sum, c) => sum + c.text.length, 0);
+    const mutableBudget = Math.max(0, Math.floor(targetChars) - pinnedChars);
+
+    const evictedMutable = evictMutablePromptChunks(mutable, mutableBudget);
+    const byId = new Map<string, string>();
+    for (const c of pinned) {
+        byId.set(c.id, c.text);
+    }
+    for (const c of evictedMutable) {
+        byId.set(c.id, c.text);
+    }
+
+    return normalized
+        .map((c) => byId.get(c.id))
+        .filter((text): text is string => Boolean(text));
 }

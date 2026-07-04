@@ -7,7 +7,7 @@ import {
     DEFAULT_MAX_BULK_WORLD_STEPS,
     type BulkWorldSimSummary,
 } from './worldSimBulkCore';
-import { persistWorldSimulationSteps } from './worldSimPersist';
+import { persistWorldSimulationSteps, persistWorldSimulationStepsAsync } from './worldSimPersist';
 
 export type BulkWorldSimRunnerFailureReason =
     | 'DISABLED'
@@ -61,7 +61,7 @@ export async function executeBulkWorldSimulation(steps: number): Promise<BulkWor
         return { ok: false, reason: 'INVALID_STEPS' };
     }
 
-    const result = persistWorldSimulationSteps(clamped, maxSteps);
+    const result = await persistWorldSimulationStepsAsync(clamped, maxSteps);
     if (!result.ok) {
         return { ok: false, reason: result.reason === 'SIM_OFF' ? 'SIM_OFF' : result.reason === 'NO_FORGE' ? 'NO_FORGE' : 'INVALID_STEPS' };
     }

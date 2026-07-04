@@ -11,13 +11,17 @@ import { generateQuestHooks } from './questGeneratorCore';
 
 export const DEFAULT_MAX_BULK_WORLD_STEPS = 50;
 export const ABSOLUTE_MAX_BULK_WORLD_STEPS = 100;
+/** Yield to the extension-host event loop every N sim steps (async bulk path). */
+export const BULK_WORLD_SIM_YIELD_EVERY_STEPS = 5;
 
 export interface BulkWorldSimOptions {
     steps: number;
     enableNpcRegistry: boolean;
     maxSteps?: number;
     /** Optional hook after each simulation step (e.g. Living World market/NPC tick). */
-    afterStep?: (state: WorldState, stepEvents: WorldChangeEvent[]) => WorldState;
+    afterStep?: (state: WorldState, stepEvents: WorldChangeEvent[], registry?: NpcRegistry) => WorldState;
+    /** Async bulk only — override steps between event-loop yields (default BULK_WORLD_SIM_YIELD_EVERY_STEPS). */
+    yieldEverySteps?: number;
 }
 
 export interface BulkWorldSimNotableEvent {
@@ -81,6 +85,55 @@ function collectNotableEvents(bucket: BulkWorldSimNotableEvent[], events: WorldC
     }
 }
 
+/** Release the extension-host event loop between bulk sim chunks. */
+export function yieldToEventLoop(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve));
+}
+
+function runBulkWorldSimulationLoop(
+    forge: WorldForge,
+    state: WorldState,
+    registry: NpcRegistry | undefined,
+    steps: number,
+    options: BulkWorldSimOptions
+): Omit<BulkWorldSimSuccess, 'ok'> {
+    let current: WorldState = state;
+    let reg = registry;
+    const notable: BulkWorldSimNotableEvent[] = [];
+    let totalEvents = 0;
+    const startTurn = current.worldTurn ?? 0;
+
+    for (let i = 0; i < steps; i++) {
+        const { state: next, stepEvents } = runSimulationStep(forge, current);
+        totalEvents += stepEvents.length;
+        collectNotableEvents(notable, stepEvents);
+        if (options.enableNpcRegistry && reg && stepEvents.length > 0) {
+            const { registry: updated } = applyEventsToNpcRegistry(stepEvents, reg, forge);
+            reg = updated;
+        }
+        current = options.afterStep ? options.afterStep(next, stepEvents, reg) : next;
+    }
+
+    generateQuestHooks(current, reg, false);
+
+    const hooks = current.questHooks ?? [];
+    const summary: BulkWorldSimSummary = {
+        startWorldTurn: startTurn,
+        endWorldTurn: current.worldTurn ?? 0,
+        stepsExecuted: steps,
+        totalEventsEmitted: totalEvents,
+        notableEvents: notable.slice(-MAX_NOTABLE_EVENTS),
+        questHooksAvailable: hooks.filter((h) => h.status === 'available').length,
+        questHooksActive: hooks.filter((h) => h.status === 'active').length,
+    };
+
+    return {
+        state: current,
+        registry: reg,
+        summary,
+    };
+}
+
 /**
  * Run N emergent simulation steps without advancing GM turn count.
  * Does not persist — caller saves state/registry.
@@ -96,6 +149,29 @@ export function runBulkWorldSimulation(
         return { ok: false, reason: 'INVALID_STEPS' };
     }
 
+    const outcome = runBulkWorldSimulationLoop(forge, state, registry, steps, options);
+    return { ok: true, ...outcome };
+}
+
+/**
+ * Async bulk sim — yields to the event loop every N steps so the extension host stays responsive.
+ */
+export async function runBulkWorldSimulationAsync(
+    forge: WorldForge,
+    state: WorldState,
+    registry: NpcRegistry | undefined,
+    options: BulkWorldSimOptions
+): Promise<BulkWorldSimResult> {
+    const steps = clampBulkWorldSimSteps(options.steps, options.maxSteps ?? DEFAULT_MAX_BULK_WORLD_STEPS);
+    if (steps === 0) {
+        return { ok: false, reason: 'INVALID_STEPS' };
+    }
+
+    const yieldEvery = Math.max(
+        1,
+        Math.floor(options.yieldEverySteps ?? BULK_WORLD_SIM_YIELD_EVERY_STEPS)
+    );
+
     let current: WorldState = state;
     let reg = registry;
     const notable: BulkWorldSimNotableEvent[] = [];
@@ -110,7 +186,12 @@ export function runBulkWorldSimulation(
             const { registry: updated } = applyEventsToNpcRegistry(stepEvents, reg, forge);
             reg = updated;
         }
-        current = options.afterStep ? options.afterStep(next, stepEvents) : next;
+        current = options.afterStep ? options.afterStep(next, stepEvents, reg) : next;
+
+        const isChunkEnd = (i + 1) % yieldEvery === 0;
+        if (isChunkEnd && i + 1 < steps) {
+            await yieldToEventLoop();
+        }
     }
 
     generateQuestHooks(current, reg, false);

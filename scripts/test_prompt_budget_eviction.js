@@ -14,7 +14,11 @@ if (!require('fs').existsSync(corePath)) {
     process.exit(1);
 }
 
-const { evictPromptChunksByBudget, resolvePromptChunkPriority } = require(corePath);
+const {
+    evictPromptChunksByBudget,
+    resolvePromptChunkPriority,
+    isPromptChunkNeverEvict,
+} = require(corePath);
 
 if (resolvePromptChunkPriority('gameRules') <= resolvePromptChunkPriority('vision')) {
     fail('gameRules priority should exceed vision');
@@ -133,6 +137,36 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
         fail('vehicles chunk should evict under tight budget');
     } else {
         ok('vehicles evicted before worldForge under tight budget');
+    }
+}
+
+{
+    if (!isPromptChunkNeverEvict('gameRules') || !isPromptChunkNeverEvict('narrativeTime')) {
+        fail('Tier 0 chunks marked never-evict');
+    } else if (isPromptChunkNeverEvict('vision')) {
+        fail('vision should remain evictable');
+    } else {
+        ok('Tier 0 never-evict ids');
+    }
+}
+
+{
+    const rulesText = 'SYSTEM RULES: never remove player agency';
+    const timeText = 'TIME: day 3';
+    const chunks = [
+        { id: 'gameRules', text: rulesText, priority: 100 },
+        { id: 'narrativeTime', text: timeText, priority: 98 },
+        { id: 'vision', text: 'v'.repeat(8000), priority: 35 },
+        { id: 'lorebook', text: 'l'.repeat(8000), priority: 40 },
+    ];
+    const kept = evictPromptChunksByBudget(chunks, 120);
+    const joined = kept.join('\n');
+    if (!joined.includes(rulesText) || !joined.includes(timeText)) {
+        fail(`Tier 0 chunks must survive tiny budget: ${joined}`);
+    } else if (joined.includes('v'.repeat(4000))) {
+        fail('evictable vision should drop before Tier 0');
+    } else {
+        ok('Tier 0 preserved under extreme budget pressure');
     }
 }
 

@@ -268,7 +268,58 @@ function vehicleIntent(action, payload, targetId = 'rust_wagon') {
     }
 }
 
-// 9. query blocked cases
+// 9. invalid entity kind for vehicle actions
+{
+    const wrongTarget = queryWorldIntent({
+        id: 'intent_wrong_target',
+        source: 'gm',
+        subsystem: 'vehicle',
+        action: 'damage_vehicle',
+        target: { kind: 'location', id: 'outer_gate' },
+        payload: { vehicleId: 'rust_wagon', amount: 2 },
+    }, { vehicleState: makeState() });
+    if (wrongTarget.status !== 'invalid' || wrongTarget.reasonCode !== 'invalid_entity_kind') {
+        fail(`non-vehicle target should be invalid, got ${JSON.stringify(wrongTarget)}`);
+    }
+
+    const payloadOnly = queryWorldIntent({
+        id: 'intent_payload_vehicle',
+        source: 'gm',
+        subsystem: 'vehicle',
+        action: 'damage_vehicle',
+        payload: { vehicleId: 'rust_wagon', amount: 2 },
+    }, { vehicleState: makeState() });
+    if (payloadOnly.status !== 'allowed') {
+        fail(`payload-only vehicleId should stay allowed, got ${payloadOnly.status}`);
+    }
+
+    const invalidExec = executeWorldIntent({
+        id: 'intent_wrong_target_exec',
+        source: 'gm',
+        subsystem: 'vehicle',
+        action: 'refuel_vehicle',
+        target: { kind: 'npc', id: 'n1' },
+        payload: { vehicleId: 'rust_wagon', amount: 2 },
+    }, { vehicleState: makeState() });
+    if (invalidExec.status !== 'invalid' || invalidExec.attempted !== false) {
+        fail(`invalid entity kind execute should be invalid/attempted:false, got ${JSON.stringify(invalidExec)}`);
+    } else {
+        ok('invalid entity kind returns invalid; payload-only vehicleId still allowed');
+    }
+}
+
+// 10. amount caps align with vehicleOpsCore
+{
+    const intent = vehicleIntent('refuel_vehicle', { amount: 1500 });
+    const op = vehicleOpFromWorldIntent(intent);
+    if (!op || op.amount !== 1500) {
+        fail(`refuel amount 1500 should clamp to 1500, got ${JSON.stringify(op)}`);
+    } else {
+        ok('vehicle intent amount caps match vehicleOpsCore constants');
+    }
+}
+
+// 11. query blocked cases
 {
     const missing = queryWorldIntent(vehicleIntent('damage_vehicle', { amount: 2 }, 'missing_ship'), {
         vehicleState: makeState(),
@@ -301,7 +352,7 @@ function vehicleIntent(action, payload, targetId = 'rust_wagon') {
     }
 }
 
-// 10. execute does not mutate input vehicleState
+// 12. execute does not mutate input vehicleState
 {
     const state = makeState();
     const before = JSON.stringify(state);
@@ -313,7 +364,7 @@ function vehicleIntent(action, payload, targetId = 'rust_wagon') {
     }
 }
 
-// 11. execute returns in-memory next state for allowed actions
+// 13. execute returns in-memory next state for allowed actions
 {
     const state = makeState({ activeVehicleId: 'scout_bike' });
     const result = executeWorldIntent(vehicleIntent('set_active_vehicle', {}), { vehicleState: state });
@@ -326,7 +377,7 @@ function vehicleIntent(action, payload, targetId = 'rust_wagon') {
     }
 }
 
-// 12. execute attempted:false for blocked/invalid/unsupported
+// 14. execute attempted:false for blocked/invalid/unsupported
 {
     const blocked = executeWorldIntent(vehicleIntent('damage_vehicle', { amount: 2 }, 'ghost'), {
         vehicleState: makeState(),
@@ -356,7 +407,7 @@ function vehicleIntent(action, payload, targetId = 'rust_wagon') {
     }
 }
 
-// 13. static assertion: forbidden imports in worldIntentCore.ts
+// 15. static assertion: forbidden imports in worldIntentCore.ts
 {
     const src = fs.readFileSync(srcPath, 'utf-8');
     const forbidden = ['vscode', 'statePatch', 'turnLedgerPersistCore', 'vehicleTurnOps', 'mobileBaseTurnOps'];
@@ -372,7 +423,7 @@ function vehicleIntent(action, payload, targetId = 'rust_wagon') {
     }
 }
 
-// 14. WI1 does not require TurnResult/statePatch changes (no worldIntent wiring there yet)
+// 16. WI1 does not require TurnResult/statePatch changes (no worldIntent wiring there yet)
 {
     const turnResultSrc = fs.readFileSync(path.join(root, 'src', 'types', 'TurnResult.ts'), 'utf-8');
     const statePatchSrc = fs.readFileSync(path.join(root, 'src', 'statePatch.ts'), 'utf-8');

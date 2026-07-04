@@ -17,9 +17,17 @@
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1** pure core + vehicle adapter (`worldIntentCore.ts`) |
-| Next (推奨) | WI1R review · WI2 gate (action registry + shadow parity) |
+| World Intent | **WI1** pure core + vehicle adapter · **WI1R** P1 fixes (`worldIntentCore.ts`) |
+| Next (推奨) | WI2 gate (action registry + shadow parity) |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Grok - World Intent Core WI1R (Codex review fixes)
+
+- P1 fixes in `src/worldIntentCore.ts` only: amount caps via `MAX_VEHICLE_OP_AMOUNT` / `MAX_VEHICLE_REFUEL_AMOUNT`; `invalid_entity_kind` when `target.kind` is not `vehicle`; `execute_precondition_failed` → `attempted: true`.
+- Extended `scripts/test_world_intent_core.js`: invalid entity kind, payload-only `vehicleId`, refuel amount 1500 parity.
+- `npm test` **187/187**. Unresolved P2 (query/execute drift, double apply, array depth cap, etc.) deferred to WI2+.
 
 ---
 

@@ -3,6 +3,8 @@
 import {
     applyVehicleOps,
     type DamageVehicleOp,
+    MAX_VEHICLE_OP_AMOUNT,
+    MAX_VEHICLE_REFUEL_AMOUNT,
     type MoveVehicleOp,
     type RefuelVehicleOp,
     type RepairVehicleOp,
@@ -300,6 +302,10 @@ function payloadRecord(payload: JsonValue): Record<string, JsonValue> | undefine
     return payload as Record<string, JsonValue>;
 }
 
+function invalidVehicleEntityKind(intent: WorldIntent): boolean {
+    return intent.target !== undefined && intent.target.kind !== 'vehicle';
+}
+
 function vehicleIdFromIntent(intent: WorldIntent): string {
     if (intent.target?.kind === 'vehicle') {
         return asId(intent.target.id);
@@ -316,6 +322,7 @@ function clampPositiveAmount(raw: unknown, max: number): number | undefined {
 export function vehicleOpFromWorldIntent(intent: WorldIntent): VehicleOp | undefined {
     if (intent.subsystem !== 'vehicle') { return undefined; }
     if (!WI1_VEHICLE_ACTIONS.has(intent.action)) { return undefined; }
+    if (invalidVehicleEntityKind(intent)) { return undefined; }
 
     const vehicleId = vehicleIdFromIntent(intent);
     if (!vehicleId) { return undefined; }
@@ -334,7 +341,7 @@ export function vehicleOpFromWorldIntent(intent: WorldIntent): VehicleOp | undef
             return op;
         }
         case 'damage_vehicle': {
-            const amount = clampPositiveAmount(rec.amount, 9999);
+            const amount = clampPositiveAmount(rec.amount, MAX_VEHICLE_OP_AMOUNT);
             if (amount === undefined) { return undefined; }
             const op: DamageVehicleOp = { type: 'damage_vehicle', vehicleId, amount };
             const reason = clampText(rec.reason, 120);
@@ -342,7 +349,7 @@ export function vehicleOpFromWorldIntent(intent: WorldIntent): VehicleOp | undef
             return op;
         }
         case 'repair_vehicle': {
-            const amount = clampPositiveAmount(rec.amount, 9999);
+            const amount = clampPositiveAmount(rec.amount, MAX_VEHICLE_OP_AMOUNT);
             if (amount === undefined) { return undefined; }
             const op: RepairVehicleOp = { type: 'repair_vehicle', vehicleId, amount };
             const reason = clampText(rec.reason, 120);
@@ -350,7 +357,7 @@ export function vehicleOpFromWorldIntent(intent: WorldIntent): VehicleOp | undef
             return op;
         }
         case 'refuel_vehicle': {
-            const amount = clampPositiveAmount(rec.amount, 999);
+            const amount = clampPositiveAmount(rec.amount, MAX_VEHICLE_REFUEL_AMOUNT);
             if (amount === undefined) { return undefined; }
             const op: RefuelVehicleOp = { type: 'refuel_vehicle', vehicleId, amount };
             const resourceType = clampText(rec.resourceType, 32);
@@ -425,6 +432,10 @@ function queryVehicleIntent(intent: WorldIntent, ctx: WorldIntentQueryContext): 
 
     if (!WI1_VEHICLE_ACTIONS.has(intent.action)) {
         return { ok: false, status: 'unsupported', reasonCode: 'unsupported_action', preview };
+    }
+
+    if (invalidVehicleEntityKind(intent)) {
+        return { ok: false, status: 'invalid', reasonCode: 'invalid_entity_kind', preview };
     }
 
     const op = vehicleOpFromWorldIntent(intent);
@@ -533,7 +544,7 @@ export function executeWorldIntent(intent: WorldIntent, context: WorldIntentQuer
             return {
                 ok: false,
                 applied: false,
-                attempted: false,
+                attempted: true,
                 status: 'failed',
                 reasonCode: 'execute_precondition_failed',
             };

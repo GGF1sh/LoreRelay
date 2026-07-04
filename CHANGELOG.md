@@ -19,6 +19,10 @@
 
 - **World Intent Core WI1** — `worldIntentCore.ts` pure skeleton + `vehicleOps` adapter: `parseWorldIntent` / `parseWorldIntentBatch`, `queryWorldIntent`, `executeWorldIntent` (in-memory `nextVehicleState` only), `worldIntentFromVehicleOp` / `vehicleOpFromWorldIntent`. Supported: `subsystem: vehicle` + V3 actions (`set_active_vehicle`, `move_vehicle`, `damage_vehicle`, `repair_vehicle`, `refuel_vehicle`). Status taxonomy: `allowed`, `valid_noop`, `blocked`, `invalid`, `unsupported`, `failed`. No `TurnResult`, `statePatch`, persist, or Webview changes. `scripts/test_world_intent_core.js` (gate Required Tests 14). `npm test` **187/187**.
 
+### Fixed
+
+- **World Intent Core WI1R** — Codex review P1 fixes in `worldIntentCore.ts`: import `MAX_VEHICLE_OP_AMOUNT` / `MAX_VEHICLE_REFUEL_AMOUNT` from `vehicleOpsCore` (refuel cap was 999 vs 9999); non-`vehicle` `target.kind` returns `invalid` (`invalid_entity_kind`) even when `payload.vehicleId` is present; `execute_precondition_failed` uses `attempted: true` per gate `failed` contract. Tests: invalid entity kind, payload-only `vehicleId`, refuel amount parity. `npm test` **187/187**.
+
 ## [1.76.0] - 2026-07-04
 
 ### Added

@@ -1,4 +1,53 @@
-/** GM プロンプト注入の可視化用型（Inspector v0.5a） */
+/** GM プロンプト注入の可視化用型（Inspector v0.5a + Context Engine P0） */
+
+export type ContextInspectorDecision =
+    | 'included'
+    | 'included_pinned'
+    | 'truncated_by_budget'
+    | 'evicted_by_budget'
+    | 'skipped_inactive'
+    | 'skipped_empty';
+
+export type ContextInspectorCategory =
+    | 'system'
+    | 'director'
+    | 'scene'
+    | 'party'
+    | 'memory'
+    | 'lore'
+    | 'world'
+    | 'npc'
+    | 'resources'
+    | 'settlement'
+    | 'vehicle'
+    | 'visual'
+    | 'other';
+
+export interface ContextInspectorItem {
+    id: string;
+    label: string;
+    category: ContextInspectorCategory;
+    priority: number;
+    decision: ContextInspectorDecision;
+    reasonCode: string;
+    originalChars: number;
+    finalChars: number;
+    tokenEstimate: number;
+    preview: string;
+    pinned: boolean;
+}
+
+export interface ContextInspectorReport {
+    version: 1;
+    targetChars: number;
+    targetTokensEstimate: number;
+    totalOriginalChars: number;
+    totalFinalChars: number;
+    includedCount: number;
+    omittedCount: number;
+    truncatedCount: number;
+    items: ContextInspectorItem[];
+}
 
 export interface PromptContextSection {
     id: string;
@@ -52,6 +101,7 @@ export interface PromptContextBreakdown {
     budget?: PromptBudgetInfo;
     totalChars: number;
     totalTokensEstimate: number;
+    contextInspector?: ContextInspectorReport;
 }
 
 /** 粗い token 概算（chars / 4） */
@@ -147,7 +197,8 @@ export function finalizeBreakdown(
     memoryMatches: PromptMemoryMatch[],
     hintPreview: string,
     budget?: PromptBudgetInfo,
-    budgetLimits?: PromptBudgetLimitSpec[]
+    budgetLimits?: PromptBudgetLimitSpec[],
+    contextInspector?: ContextInspectorReport
 ): PromptContextBreakdown {
     const kept = sections.filter((s): s is PromptContextSection => Boolean(s));
     const totalChars = kept.reduce((sum, s) => sum + s.charCount, 0);
@@ -162,6 +213,7 @@ export function finalizeBreakdown(
         hintPreview,
         budget: resolvedBudget,
         totalChars,
-        totalTokensEstimate: estimateTokens(kept.map((s) => s.text).join('\n'))
+        totalTokensEstimate: estimateTokens(kept.map((s) => s.text).join('\n')),
+        contextInspector,
     };
 }

@@ -10,7 +10,7 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **197/197** |
+| Tests | `npm test` **199/199** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -18,9 +18,36 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
-| State Orchestrator | **SO1** ledger descriptor inventory (observation-only) |
-| Next (推奨) | Context Engine P0 · SO2 transaction planning gate |
+| State Orchestrator | **SO1** ledger descriptor inventory · **SO2 transaction planning gate design** |
+| Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
+| Next (推奨) | Context Engine P1 category budgeter design · SO2 pure planning implementation |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Codex - State Orchestrator SO2 Transaction Planning Gate design
+
+- Added `docs/STATE_ORCHESTRATOR_SO2_TRANSACTION_PLANNING_GATE.md`: pure read-only transaction planning report for GM turn ledger order.
+- Scope: use SO1 `LEDGER_DESCRIPTORS` + `TURN_LEDGER_PERSIST_ORDER` to explain planned/skipped/blocked ledger steps and failure policies. No file writes, queue/order changes, rollback, `statePatch`, `TurnResult`, Webview, Remote, Replay, GM prompt, or World Intent execution changes.
+- Handoff recommends `stateOrchestratorPlanCore.ts` + `scripts/test_state_orchestrator_plan_core.js`.
+
+---
+
+## 2026-07-04 JST - Grok - Context Engine P0 Inspector implementation
+
+- `contextInspectorCore.ts`: pure `buildContextInspectorReport` with decision semantics (`included` / `included_pinned` / `truncated_by_budget` / `evicted_by_budget` / `skipped_inactive` / `skipped_empty`).
+- `gmPromptBuilderCore.ts`: shared `applyPromptChunkBudgetRecords` primitive used by `evictPromptChunksByBudget` and inspector parity.
+- `gmPromptBuilder.ts`: `buildGmPromptChunkSpecsWithMeta` tracks inactive/empty ids; `buildGmPromptBreakdown` attaches `contextInspector` to `PromptContextBreakdown`.
+- Webview: `80-inspector.js` + `inspector-context-inspector` container; i18n keys in en/ja/zh-CN/zh-TW.
+- Tests: `test_context_inspector_core.js`, `test_context_inspector_integration.js`. `npm test` **199/199**.
+
+---
+
+## 2026-07-04 JST - Codex - Context Engine P0 Inspector design
+
+- Added `docs/CONTEXT_ENGINE_P0_INSPECTOR_DESIGN.md`: P0 is a read-only evolution of the existing Inspector prompt context display, not a new retrieval engine.
+- Scope: trace current GM prompt chunks as included / pinned / truncated / evicted / empty / inactive, preserve `buildGmPromptContext()` output, and avoid new ledgers, semantic retrieval, Remote/Replay exposure, `TurnResult`, `statePatch`, or State Orchestrator wiring.
+- Implementation handoff recommends a pure report builder plus optional `PromptContextBreakdown.contextInspector`, with Webview rendering inside the existing Inspector panel.
 
 ---
 

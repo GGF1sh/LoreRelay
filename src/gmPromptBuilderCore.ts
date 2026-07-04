@@ -588,10 +588,19 @@ function evictMutablePromptChunks(
     return working;
 }
 
-export function evictPromptChunksByBudget(
+export interface PromptChunkBudgetRecord {
+    id: string;
+    originalText: string;
+    finalText: string;
+    priority: number;
+    pinned: boolean;
+}
+
+/** Shared primitive for eviction strings and Context Inspector parity. */
+export function applyPromptChunkBudgetRecords(
     chunks: PromptContextChunkSpec[],
     targetChars: number
-): string[] {
+): PromptChunkBudgetRecord[] {
     const normalized = chunks
         .map((c) => ({
             ...c,
@@ -610,15 +619,28 @@ export function evictPromptChunksByBudget(
     const mutableBudget = Math.max(0, Math.floor(targetChars) - pinnedChars);
 
     const evictedMutable = evictMutablePromptChunks(mutable, mutableBudget);
-    const byId = new Map<string, string>();
+    const finalById = new Map<string, string>();
     for (const c of pinned) {
-        byId.set(c.id, c.text);
+        finalById.set(c.id, c.text);
     }
     for (const c of evictedMutable) {
-        byId.set(c.id, c.text);
+        finalById.set(c.id, c.text);
     }
 
-    return normalized
-        .map((c) => byId.get(c.id))
-        .filter((text): text is string => Boolean(text));
+    return normalized.map((c) => ({
+        id: c.id,
+        originalText: c.text,
+        finalText: finalById.get(c.id) ?? '',
+        priority: c.priority,
+        pinned: isPromptChunkNeverEvict(c.id),
+    }));
+}
+
+export function evictPromptChunksByBudget(
+    chunks: PromptContextChunkSpec[],
+    targetChars: number
+): string[] {
+    return applyPromptChunkBudgetRecords(chunks, targetChars)
+        .filter((record) => record.finalText.length > 0)
+        .map((record) => record.finalText);
 }

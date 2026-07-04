@@ -198,6 +198,89 @@ function renderGitTimeline(status) {
     }
 }
 
+function contextInspectorDecisionLabel(decision) {
+    const key = `webview.inspector.contextInspector.decision.${decision}`;
+    return typeof T === 'function' ? T(key) : decision;
+}
+
+function contextInspectorCategoryLabel(category) {
+    const key = `webview.inspector.contextInspector.category.${category}`;
+    return typeof T === 'function' ? T(key) : category;
+}
+
+function renderContextInspector(report) {
+    const container = document.getElementById('inspector-context-inspector');
+    if (!container) { return; }
+
+    container.innerHTML = '';
+    if (!report || !Array.isArray(report.items) || report.items.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    container.classList.remove('hidden');
+
+    const summary = document.createElement('div');
+    summary.className = 'inspector-item context-inspector-summary';
+    summary.textContent = typeof T === 'function'
+        ? T('webview.inspector.contextInspector.summary', {
+            target: String(report.targetChars ?? 0),
+            original: String(report.totalOriginalChars ?? 0),
+            final: String(report.totalFinalChars ?? 0),
+            included: String(report.includedCount ?? 0),
+            omitted: String(report.omittedCount ?? 0),
+            truncated: String(report.truncatedCount ?? 0),
+        })
+        : `Budget ${report.targetChars} chars | original ${report.totalOriginalChars} | final ${report.totalFinalChars} | included ${report.includedCount} | omitted ${report.omittedCount} | truncated ${report.truncatedCount}`;
+    container.appendChild(summary);
+
+    const groups = [
+        { key: 'included', titleKey: 'webview.inspector.contextInspector.included', filter: (item) => item.decision === 'included' || item.decision === 'included_pinned' || item.decision === 'truncated_by_budget' },
+        { key: 'omitted', titleKey: 'webview.inspector.contextInspector.omitted', filter: (item) => item.decision === 'evicted_by_budget' || item.decision === 'skipped_inactive' || item.decision === 'skipped_empty' },
+        { key: 'truncated', titleKey: 'webview.inspector.contextInspector.truncated', filter: (item) => item.decision === 'truncated_by_budget' },
+    ];
+
+    for (const group of groups) {
+        const items = report.items.filter(group.filter);
+        if (items.length === 0) { continue; }
+
+        const heading = document.createElement('div');
+        heading.className = 'inspector-item context-inspector-group-title';
+        heading.textContent = typeof T === 'function' ? T(group.titleKey) : group.key;
+        container.appendChild(heading);
+
+        for (const item of items) {
+            const row = document.createElement('details');
+            row.className = 'inspector-item prompt-section context-inspector-item';
+
+            const summaryEl = document.createElement('summary');
+            const decision = contextInspectorDecisionLabel(item.decision);
+            const charsLabel = typeof T === 'function'
+                ? T('webview.inspector.contextInspector.chars', {
+                    final: String(item.finalChars ?? 0),
+                    original: String(item.originalChars ?? 0),
+                })
+                : `${item.finalChars}/${item.originalChars} chars`;
+            summaryEl.innerHTML = `<strong>${escapeHtml(item.label || item.id)}</strong> `
+                + `<span class="tag-item">${escapeHtml(contextInspectorCategoryLabel(item.category))}</span> `
+                + `<span class="tag-item">P${escapeHtml(String(item.priority ?? 0))}</span> `
+                + `<span class="tag-item">${escapeHtml(decision)}</span> `
+                + `<span class="tag-item">${escapeHtml(charsLabel)}</span> `
+                + `<span class="tag-item">~${escapeHtml(String(item.tokenEstimate ?? 0))} tok</span>`;
+            row.appendChild(summaryEl);
+
+            if (item.preview) {
+                const preview = document.createElement('pre');
+                preview.className = 'prompt-preview';
+                preview.textContent = item.preview;
+                row.appendChild(preview);
+            }
+
+            container.appendChild(row);
+        }
+    }
+}
+
 function renderPromptContext(breakdown) {
     const emptyText = document.getElementById('inspector-empty-text');
     const content = document.getElementById('inspector-content');
@@ -248,6 +331,8 @@ function renderPromptContext(breakdown) {
             .join(' | ');
         summaryDiv.appendChild(details);
     }
+
+    renderContextInspector(breakdown.contextInspector);
 
     sectionsDiv.innerHTML = '';
     (breakdown.sections || []).forEach((section) => {

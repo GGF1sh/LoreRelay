@@ -1,4 +1,4 @@
-// World Intent Core WI1: pure intent parse/query/execute + vehicleOps adapter (no I/O).
+// World Intent Core WI2: closed vehicle GameAction registry + vehicleOps adapter (no I/O).
 
 import {
     applyVehicleOps,
@@ -169,7 +169,25 @@ export type RequirementExpr =
     | { not: RequirementExpr }
     | { subject: EntityKind; field: string; operator: RequirementOperator; value?: JsonValue };
 
-const WI1_VEHICLE_ACTIONS = new Set<string>(V3_VEHICLE_OP_TYPES);
+export type WI2GameActionKey = `vehicle:${V3VehicleOpType}`;
+
+export type VehicleWorldIntentBridgeMode = 'off' | 'shadow' | 'compare_only';
+
+const VEHICLE_BRIDGE_MODES: readonly VehicleWorldIntentBridgeMode[] = ['off', 'shadow', 'compare_only'];
+
+export interface GameActionResolution {
+    query: IntentQueryResult;
+    op?: VehicleOp;
+    candidateNextVehicleState?: VehicleState;
+}
+
+interface VehicleGameAction {
+    readonly subsystem: 'vehicle';
+    readonly action: V3VehicleOpType;
+    readonly key: WI2GameActionKey;
+    query(intent: WorldIntent, context: WorldIntentQueryContext): GameActionResolution;
+    execute(intent: WorldIntent, context: WorldIntentQueryContext, resolution: GameActionResolution): IntentExecuteResult;
+}
 
 function asId(raw: unknown): string {
     if (typeof raw !== 'string') { return ''; }
@@ -321,7 +339,7 @@ function clampPositiveAmount(raw: unknown, max: number): number | undefined {
 
 export function vehicleOpFromWorldIntent(intent: WorldIntent): VehicleOp | undefined {
     if (intent.subsystem !== 'vehicle') { return undefined; }
-    if (!WI1_VEHICLE_ACTIONS.has(intent.action)) { return undefined; }
+    if (!VEHICLE_GAME_ACTION_REGISTRY.has(intent.action as V3VehicleOpType)) { return undefined; }
     if (invalidVehicleEntityKind(intent)) { return undefined; }
 
     const vehicleId = vehicleIdFromIntent(intent);
@@ -421,89 +439,257 @@ function vehicleSystemBlocked(ctx: WorldIntentQueryContext): boolean {
     return ctx.gameRules?.enableVehicleSystem === false;
 }
 
-function wouldVehicleOpChange(state: VehicleState, op: VehicleOp): boolean {
-    const next = applyVehicleOps(state, [op]);
-    return next !== undefined && next !== state;
+function cloneVehicleState(state: VehicleState): VehicleState {
+    return parseVehicleState(JSON.parse(JSON.stringify(state)));
 }
 
-function queryVehicleIntent(intent: WorldIntent, ctx: WorldIntentQueryContext): IntentQueryResult {
+function noopReasonForAction(action: V3VehicleOpType): string {
+    switch (action) {
+        case 'set_active_vehicle':
+            return 'already_active';
+        case 'move_vehicle':
+            return 'already_at_location';
+        case 'damage_vehicle':
+        case 'repair_vehicle':
+            return 'no_hp_change';
+        case 'refuel_vehicle':
+            return 'no_fuel_change';
+        default:
+            return 'no_effective_delta';
+    }
+}
+
+type VehicleQueryOptions = {
+    earlyNoop?: (
+        op: VehicleOp,
+        vehicle: VehicleEntry,
+        state: VehicleState
+    ) => IntentQueryResult | undefined;
+    oracleNoopReason?: string;
+};
+
+function queryVehicleGameAction(
+    intent: WorldIntent,
+    ctx: WorldIntentQueryContext,
+    options: VehicleQueryOptions = {}
+): GameActionResolution {
     const vehicleId = vehicleIdFromIntent(intent);
     const preview = vehiclePreview(intent, vehicleId);
 
-    if (!WI1_VEHICLE_ACTIONS.has(intent.action)) {
-        return { ok: false, status: 'unsupported', reasonCode: 'unsupported_action', preview };
-    }
-
     if (invalidVehicleEntityKind(intent)) {
-        return { ok: false, status: 'invalid', reasonCode: 'invalid_entity_kind', preview };
+        return { query: { ok: false, status: 'invalid', reasonCode: 'invalid_entity_kind', preview } };
     }
 
     const op = vehicleOpFromWorldIntent(intent);
     if (!op) {
-        return { ok: false, status: 'invalid', reasonCode: 'invalid_vehicle_payload', preview };
+        return { query: { ok: false, status: 'invalid', reasonCode: 'invalid_vehicle_payload', preview } };
     }
 
     if (vehicleSystemBlocked(ctx)) {
-        return { ok: false, status: 'blocked', reasonCode: 'vehicle_system_disabled', preview };
+        return { query: { ok: false, status: 'blocked', reasonCode: 'vehicle_system_disabled', preview } };
     }
 
     const state = ctx.vehicleState;
     const vehicle = findVehicle(state, op.vehicleId);
     if (!vehicle) {
-        return { ok: false, status: 'blocked', reasonCode: 'vehicle_not_found', preview };
+        return { query: { ok: false, status: 'blocked', reasonCode: 'vehicle_not_found', preview } };
     }
     if (vehicle.status === 'lost') {
-        return { ok: false, status: 'blocked', reasonCode: 'vehicle_lost', preview };
+        return { query: { ok: false, status: 'blocked', reasonCode: 'vehicle_lost', preview } };
     }
 
-    switch (op.type) {
-        case 'set_active_vehicle':
-            if (state?.activeVehicleId === op.vehicleId) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'already_active', preview };
-            }
-            return { ok: true, status: 'allowed', preview };
-        case 'move_vehicle':
-            if (!state || !wouldVehicleOpChange(state, op)) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'already_at_location', preview };
-            }
-            return { ok: true, status: 'allowed', preview };
-        case 'damage_vehicle':
-            if (vehicle.durability.hp <= 0) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'hp_already_zero', preview };
-            }
-            if (!state || !wouldVehicleOpChange(state, op)) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'no_hp_change', preview };
-            }
-            return { ok: true, status: 'allowed', preview };
-        case 'repair_vehicle':
-            if (vehicle.durability.hp >= vehicle.durability.maxHp) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'hp_already_max', preview };
-            }
-            if (!state || !wouldVehicleOpChange(state, op)) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'no_hp_change', preview };
-            }
-            return { ok: true, status: 'allowed', preview };
-        case 'refuel_vehicle': {
-            const resources = vehicle.resources;
-            if (!resources || resources.powerType === 'none') {
-                return { ok: false, status: 'blocked', reasonCode: 'no_fuel_tank', preview };
-            }
-            if (op.resourceType && op.resourceType !== resources.powerType) {
-                return { ok: false, status: 'blocked', reasonCode: 'fuel_type_mismatch', preview };
-            }
-            const max = resources.max ?? 0;
-            const current = resources.current ?? 0;
-            if (current >= max) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'fuel_already_max', preview };
-            }
-            if (!state || !wouldVehicleOpChange(state, op)) {
-                return { ok: true, status: 'valid_noop', reasonCode: 'no_fuel_change', preview };
-            }
-            return { ok: true, status: 'allowed', preview };
+    if (op.type === 'refuel_vehicle') {
+        const resources = vehicle.resources;
+        if (!resources || resources.powerType === 'none') {
+            return { query: { ok: false, status: 'blocked', reasonCode: 'no_fuel_tank', preview } };
         }
-        default:
-            return { ok: false, status: 'unsupported', reasonCode: 'unsupported_action', preview };
+        if (op.resourceType && op.resourceType !== resources.powerType) {
+            return { query: { ok: false, status: 'blocked', reasonCode: 'fuel_type_mismatch', preview } };
+        }
     }
+
+    if (state && options.earlyNoop) {
+        const early = options.earlyNoop(op, vehicle, state);
+        if (early) {
+            return { query: early, op };
+        }
+    }
+
+    if (!state) {
+        return { query: { ok: false, status: 'blocked', reasonCode: 'vehicle_not_found', preview } };
+    }
+
+    const candidate = applyVehicleOps(state, [op], { worldTurn: ctx.worldTurn });
+    if (!candidate || candidate === state) {
+        return {
+            query: {
+                ok: true,
+                status: 'valid_noop',
+                reasonCode: options.oracleNoopReason ?? noopReasonForAction(op.type),
+                preview,
+            },
+            op,
+        };
+    }
+
+    return {
+        query: { ok: true, status: 'allowed', preview },
+        op,
+        candidateNextVehicleState: cloneVehicleState(candidate),
+    };
+}
+
+function executeFromGameActionResolution(resolution: GameActionResolution): IntentExecuteResult {
+    const base = {
+        reasonCode: resolution.query.reasonCode,
+        message: resolution.query.message,
+    };
+
+    switch (resolution.query.status) {
+        case 'unsupported':
+            return { ok: false, applied: false, attempted: false, status: 'unsupported', ...base };
+        case 'invalid':
+            return { ok: false, applied: false, attempted: false, status: 'invalid', ...base };
+        case 'blocked':
+            return { ok: false, applied: false, attempted: false, status: 'blocked', ...base };
+        case 'valid_noop':
+            return { ok: true, applied: false, attempted: true, status: 'valid_noop', ...base };
+        case 'allowed':
+            if (!resolution.candidateNextVehicleState) {
+                return {
+                    ok: false,
+                    applied: false,
+                    attempted: true,
+                    status: 'failed',
+                    reasonCode: 'execute_precondition_failed',
+                };
+            }
+            return {
+                ok: true,
+                applied: true,
+                attempted: true,
+                status: 'applied',
+                ...base,
+                nextVehicleState: cloneVehicleState(resolution.candidateNextVehicleState),
+            };
+        default:
+            return {
+                ok: false,
+                applied: false,
+                attempted: true,
+                status: 'failed',
+                reasonCode: 'execute_precondition_failed',
+            };
+    }
+}
+
+function createVehicleGameAction(action: V3VehicleOpType, options: VehicleQueryOptions = {}): VehicleGameAction {
+    const key = `vehicle:${action}` as WI2GameActionKey;
+    return {
+        subsystem: 'vehicle',
+        action,
+        key,
+        query(intent, context) {
+            return queryVehicleGameAction(intent, context, options);
+        },
+        execute(_intent, _context, resolution) {
+            return executeFromGameActionResolution(resolution);
+        },
+    };
+}
+
+const VEHICLE_GAME_ACTION_REGISTRY: ReadonlyMap<V3VehicleOpType, VehicleGameAction> = new Map([
+    ['set_active_vehicle', createVehicleGameAction('set_active_vehicle', {
+        earlyNoop: (op, _vehicle, state) => {
+            if (state.activeVehicleId === op.vehicleId) {
+                return {
+                    ok: true,
+                    status: 'valid_noop',
+                    reasonCode: 'already_active',
+                    preview: { subsystem: 'vehicle', action: 'set_active_vehicle', vehicleId: op.vehicleId },
+                };
+            }
+            return undefined;
+        },
+    })],
+    ['move_vehicle', createVehicleGameAction('move_vehicle', { oracleNoopReason: 'already_at_location' })],
+    ['damage_vehicle', createVehicleGameAction('damage_vehicle', {
+        earlyNoop: (op, vehicle) => {
+            if (vehicle.durability.hp <= 0) {
+                return {
+                    ok: true,
+                    status: 'valid_noop',
+                    reasonCode: 'hp_already_zero',
+                    preview: { subsystem: 'vehicle', action: 'damage_vehicle', vehicleId: op.vehicleId },
+                };
+            }
+            return undefined;
+        },
+    })],
+    ['repair_vehicle', createVehicleGameAction('repair_vehicle', {
+        earlyNoop: (_op, vehicle) => {
+            if (vehicle.durability.hp >= vehicle.durability.maxHp) {
+                return {
+                    ok: true,
+                    status: 'valid_noop',
+                    reasonCode: 'hp_already_max',
+                    preview: { subsystem: 'vehicle', action: 'repair_vehicle', vehicleId: vehicle.id },
+                };
+            }
+            return undefined;
+        },
+    })],
+    ['refuel_vehicle', createVehicleGameAction('refuel_vehicle', {
+        earlyNoop: (_op, vehicle) => {
+            const resources = vehicle.resources;
+            const max = resources?.max ?? 0;
+            const current = resources?.current ?? 0;
+            if (current >= max) {
+                return {
+                    ok: true,
+                    status: 'valid_noop',
+                    reasonCode: 'fuel_already_max',
+                    preview: { subsystem: 'vehicle', action: 'refuel_vehicle', vehicleId: vehicle.id },
+                };
+            }
+            return undefined;
+        },
+        oracleNoopReason: 'no_fuel_change',
+    })],
+]);
+
+export const VEHICLE_GAME_ACTION_REGISTRY_KEYS: readonly WI2GameActionKey[] = V3_VEHICLE_OP_TYPES.map(
+    (action) => `vehicle:${action}` as WI2GameActionKey
+);
+
+export function getVehicleGameActionRegistrySize(): number {
+    return VEHICLE_GAME_ACTION_REGISTRY.size;
+}
+
+export function getVehicleGameActionRegistryKey(action: V3VehicleOpType): WI2GameActionKey | undefined {
+    return VEHICLE_GAME_ACTION_REGISTRY.get(action)?.key;
+}
+
+export function parseVehicleWorldIntentBridgeMode(raw: unknown): VehicleWorldIntentBridgeMode | undefined {
+    if (typeof raw !== 'string') { return undefined; }
+    return (VEHICLE_BRIDGE_MODES as readonly string[]).includes(raw)
+        ? (raw as VehicleWorldIntentBridgeMode)
+        : undefined;
+}
+
+function resolveVehicleGameAction(intent: WorldIntent): VehicleGameAction | undefined {
+    if (intent.subsystem !== 'vehicle') { return undefined; }
+    return VEHICLE_GAME_ACTION_REGISTRY.get(intent.action as V3VehicleOpType);
+}
+
+function unsupportedVehicleActionResult(intent: WorldIntent): IntentQueryResult {
+    const vehicleId = vehicleIdFromIntent(intent);
+    return {
+        ok: false,
+        status: 'unsupported',
+        reasonCode: 'unsupported_action',
+        preview: vehiclePreview(intent, vehicleId),
+    };
 }
 
 export function queryWorldIntent(intent: WorldIntent, context: WorldIntentQueryContext): IntentQueryResult {
@@ -515,60 +701,40 @@ export function queryWorldIntent(intent: WorldIntent, context: WorldIntentQueryC
             preview: { subsystem: intent.subsystem, action: intent.action },
         };
     }
-    return queryVehicleIntent(intent, context);
+
+    const entry = resolveVehicleGameAction(intent);
+    if (!entry) {
+        return unsupportedVehicleActionResult(intent);
+    }
+    return entry.query(intent, context).query;
 }
 
 export function executeWorldIntent(intent: WorldIntent, context: WorldIntentQueryContext): IntentExecuteResult {
     try {
-        const query = queryWorldIntent(intent, context);
-        const base = {
-            reasonCode: query.reasonCode,
-            message: query.message,
-        };
-
-        if (query.status === 'unsupported') {
-            return { ok: false, applied: false, attempted: false, status: 'unsupported', ...base };
-        }
-        if (query.status === 'invalid') {
-            return { ok: false, applied: false, attempted: false, status: 'invalid', ...base };
-        }
-        if (query.status === 'blocked') {
-            return { ok: false, applied: false, attempted: false, status: 'blocked', ...base };
-        }
-        if (query.status === 'valid_noop') {
-            return { ok: true, applied: false, attempted: true, status: 'valid_noop', ...base };
-        }
-
-        const op = vehicleOpFromWorldIntent(intent);
-        if (!op || !context.vehicleState) {
+        if (intent.subsystem !== 'vehicle') {
             return {
                 ok: false,
                 applied: false,
-                attempted: true,
-                status: 'failed',
-                reasonCode: 'execute_precondition_failed',
+                attempted: false,
+                status: 'unsupported',
+                reasonCode: 'unsupported_subsystem',
             };
         }
 
-        const before = context.vehicleState;
-        const next = applyVehicleOps(before, [op], { worldTurn: context.worldTurn });
-        if (!next || next === before) {
+        const entry = resolveVehicleGameAction(intent);
+        if (!entry) {
+            const unsupported = unsupportedVehicleActionResult(intent);
             return {
-                ok: true,
+                ok: false,
                 applied: false,
-                attempted: true,
-                status: 'valid_noop',
-                reasonCode: 'no_effective_delta',
+                attempted: false,
+                status: 'unsupported',
+                reasonCode: unsupported.reasonCode,
             };
         }
 
-        return {
-            ok: true,
-            applied: true,
-            attempted: true,
-            status: 'applied',
-            nextVehicleState: parseVehicleState(JSON.parse(JSON.stringify(next))),
-        };
+        const resolution = entry.query(intent, context);
+        return entry.execute(intent, context, resolution);
     } catch {
         return {
             ok: false,

@@ -73,6 +73,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_vehicle_state.js' },
     { category: 'unit', file: 'test_vehicle_ops.js' },
     { category: 'unit', file: 'test_world_intent_core.js' },
+    { category: 'unit', file: 'test_world_intent_wi2.js' },
     { category: 'unit', file: 'test_vehicle_view_core.js' },
     { category: 'smoke', file: 'test_webview_vehicle_garage.js' },
     { category: 'unit', file: 'test_region_hazard_prompt_core.js' },

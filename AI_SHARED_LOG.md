@@ -10,16 +10,32 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **187/187** |
+| Tests | `npm test` **188/188** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1** pure core + vehicle adapter · **WI1R** P1 fixes (`worldIntentCore.ts`) |
-| Next (推奨) | WI2 gate (action registry + shadow parity) |
+| World Intent | **WI1** pure core · **WI1R** P1 fixes · **WI2** closed registry + shadow parity |
+| Next (推奨) | WI3a UI (Claude) · WI3b Gate/bridge host wiring |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Grok - World Intent Core WI2 implementation
+
+- Refactored `src/worldIntentCore.ts`: immutable closed `GameAction` registry (5 V3 vehicle keys); `queryWorldIntent` / `executeWorldIntent` share one `GameActionResolution`; allowed execute consumes `candidateNextVehicleState` (no double apply).
+- Added `src/worldIntentVehicleParityCore.ts`: pure legacy↔WorldIntent parity reports (`match` / `mismatch` / `not_comparable`); `vehicleOpsCore` remains authoritative oracle.
+- Bridge contract only: `off` / `shadow` / `compare_only` (`parseVehicleWorldIntentBridgeMode`); no `apply`, no `processTurnResult` / persist / Webview wiring.
+- Added `scripts/test_world_intent_wi2.js` (Gate Required Tests 30/30). `npm test` **188/188**, `validate_utf8_docs.js` OK.
+- Parity mismatches: **none** (full V3 sweep + taxonomy cases match).
+
+---
+
+## 2026-07-04 JST - ChatGPT - World Intent WI2 Gate
+
+- Added `docs/WORLD_INTENT_WI2_CHATGPT_GATE.md` (**Approved with constraints**). Baseline WI1R @ `7b71e31`. Defines legacy↔WorldIntent taxonomy mapping, closed registry, shadow parity module, bridge modes (`off`/`shadow`/`compare_only` only), Required Tests 30.
 
 ---
 

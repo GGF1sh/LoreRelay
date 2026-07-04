@@ -11,6 +11,8 @@
 
 ### Added
 
+- **World Intent WI5 Semantic Sanity Checker design** - added `docs/WORLD_INTENT_WI5_SANITY_CHECKER_DESIGN.md`, defining the next pure report-only checker for vehicle, mobile-base, mod/profile, and game-rule consistency. The design forbids auto-fix, persistence, GM-turn blocking, raw payload diagnostics, and State Orchestrator wiring.
+
 - **World Intent WI4 Effect Accounting design** - added `docs/WORLD_INTENT_WI4_EFFECT_ACCOUNTING_DESIGN.md`, defining the next Codex gate as a narrow `refuel_vehicle` accounting pilot. The design records deterministic before/delta/after fuel explanations from canonical legacy vehicle state, without fuel consumption rules, persistence, replay export, Webview execution, or State Orchestrator wiring.
 
 - **World Intent WI4 Effect Accounting** — `worldIntentEffectAccountingCore.ts`: pure `refuel_vehicle` `EffectAccountingEntry` (`before` / `delta` / `after` / `cause`) from canonical legacy pre/post state only. Capped gains use effective delta, not raw `op.amount`. WI3b batch report extended with `accountingEntries` in `shadow`/`compare_only`. No fuel consumption, disk write, TurnResult/statePatch changes. `scripts/test_world_intent_wi4_effect_accounting.js` (design §10). `npm test` **190/190**.

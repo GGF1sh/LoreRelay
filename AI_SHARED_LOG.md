@@ -45,6 +45,13 @@
 
 ---
 
+## 2026-07-04 JST - Codex - World Intent WI5 Semantic Sanity Checker design
+
+- Added `docs/WORLD_INTENT_WI5_SANITY_CHECKER_DESIGN.md`: pure report-only sanity checker design for vehicle, mobile-base, mod/profile, and game-rule consistency.
+- The gate forbids auto-fix, persistence, turn blocking, raw JSON diagnostics, and State Orchestrator wiring. Existing local validators remain authoritative; WI5 only normalizes findings into a bounded report.
+
+---
+
 ## 2026-07-04 JST - Codex - World Intent WI4 Effect Accounting design
 
 - Added `docs/WORLD_INTENT_WI4_EFFECT_ACCOUNTING_DESIGN.md`: narrow vehicle `refuel_vehicle` accounting pilot. It derives bounded before/delta/after fuel explanation entries from canonical legacy pre/post vehicle state only.

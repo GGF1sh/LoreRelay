@@ -17,6 +17,8 @@
 
 - **World Intent Core DeepResearch addendum** - extended the design with the Action Execution Kernel / Rule Kernel split, Intent vs GameAction boundary, post-commit event bus rule, visibility-aware ChangeSet guidance, effect-accounting roadmap, per-ledger migration direction, scheduler descriptor concept, and deferred materialization notes. WI1 scope remains unchanged.
 
+- **World Intent Core WI1** — `worldIntentCore.ts` pure skeleton + `vehicleOps` adapter: `parseWorldIntent` / `parseWorldIntentBatch`, `queryWorldIntent`, `executeWorldIntent` (in-memory `nextVehicleState` only), `worldIntentFromVehicleOp` / `vehicleOpFromWorldIntent`. Supported: `subsystem: vehicle` + V3 actions (`set_active_vehicle`, `move_vehicle`, `damage_vehicle`, `repair_vehicle`, `refuel_vehicle`). Status taxonomy: `allowed`, `valid_noop`, `blocked`, `invalid`, `unsupported`, `failed`. No `TurnResult`, `statePatch`, persist, or Webview changes. `scripts/test_world_intent_core.js` (gate Required Tests 14). `npm test` **187/187**.
+
 ## [1.76.0] - 2026-07-04
 
 ### Added

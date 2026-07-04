@@ -675,3 +675,57 @@ Produce:
 Default stance: block if Webview touches disk, applies settlementOps, or widens
 beyond `expand_layer` request text.
 ```
+
+## 13. Codex/ChatGPT Gate - M5 Low-poly Diorama
+
+Gate output (2026-07-04): `docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md` - **approved
+for M5a pure diorama snapshot only**. M5b Three.js renderer requires a later
+post-M5a gate.
+
+## 14. Grok/Codex Prompt - M5a Pure Diorama Snapshot
+
+Use this after `docs/SETTLEMENT_MODE_M5_DESIGN.md` and
+`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md` exist.
+
+```markdown
+You are implementing Settlement Mode M5a for LoreRelay.
+
+Read first:
+
+1. `docs/SETTLEMENT_MODE_M5_DESIGN.md`
+2. `docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`
+3. `docs/SETTLEMENT_MODE_M3_DESIGN.md`
+4. `src/settlementViewCore.ts`
+5. `scripts/test_settlement_view_core.js`
+
+Implement M5a only:
+
+- `src/settlementDioramaCore.ts`
+- pure `buildSettlementDioramaSnapshot()`
+- capped `SettlementDioramaSnapshot` from sanitized `SettlementViewSnapshot`
+- allow-list pickers/sanitizers
+- `scripts/test_settlement_diorama_core.js`
+- test runner registration
+
+Do not implement:
+
+- Three.js
+- Webview Diorama mode
+- vendor assets
+- persistence
+- settlementOps
+- insertChatText
+- remote/replay changes
+- prompt changes
+
+Verification:
+
+- `npm run compile`
+- `node scripts/test_settlement_view_core.js`
+- `node scripts/test_settlement_diorama_core.js`
+- `npm test`
+- `node scripts/validate_utf8_docs.js`
+
+Update `CHANGELOG.md` and `AI_SHARED_LOG.md`.
+Commit only intentional files.
+```

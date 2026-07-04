@@ -395,6 +395,11 @@ Minimum features:
 
 Dream track only.
 
+Detailed design and gate:
+
+- [`docs/SETTLEMENT_MODE_M5_DESIGN.md`](SETTLEMENT_MODE_M5_DESIGN.md)
+- [`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`](SETTLEMENT_MODE_M5_CHATGPT_GATE.md)
+
 If implemented:
 
 - fixed/limited camera;
@@ -477,12 +482,15 @@ Acceptance:
 Goal:
 
 - optional future visualizer.
+- dream track, default OFF.
+- split into M5a pure diorama snapshot and M5b Three.js read-only renderer.
 
 Acceptance:
 
 - read-only;
 - no canonical state in Three.js;
 - not a blocker for Settlement Mode.
+- no M5b renderer before M5a pure snapshot and gate pass.
 
 ## 9. AI Division
 

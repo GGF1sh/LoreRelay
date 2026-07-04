@@ -18,6 +18,15 @@
 
 ---
 
+## 2026-07-04 JST - Codex - Settlement Mode M5 Low-poly Diorama design/gate
+
+- Added `docs/SETTLEMENT_MODE_M5_DESIGN.md`: dream-track, default-OFF Low-poly Diorama plan split into M5a pure `SettlementDioramaSnapshot` from sanitized M3 `settlementView`, and M5b Three.js read-only renderer.
+- Added `docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`: approves M5a pure core only; M5b renderer requires a later post-M5a gate. The gate blocks Webview writes, settlementOps, external assets, textures/models/shaders, and canonical 3D state.
+- Updated `docs/SETTLEMENT_MODE_DESIGN.md` and `docs/SETTLEMENT_MODE_AI_PROMPTS.md` with M5 links and the M5a implementation handoff prompt.
+- Design only; no runtime code.
+
+---
+
 ## 2026-07-04 JST - Claude (Sonnet 5) - Settlement Mode M3b/M4c isometric Webview UX polish
 
 - 必読: `docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md`(承認済み境界を破らないこと)、`webview/modules/86b-settlement-isometric.js`、`85-world.js`、`98-settlement-isometric.css`。純コア(`settlementViewCore.ts`)は無変更 — Webview/CSS/i18nのみの見た目調整タスク。

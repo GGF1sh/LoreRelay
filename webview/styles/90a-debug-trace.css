@@ -82,6 +82,16 @@
     color: var(--text-danger);
 }
 
+.debug-trace-cond-badge-pass {
+    background: rgba(125, 206, 160, 0.18);
+    color: var(--text-success);
+}
+
+.debug-trace-cond-badge-fail {
+    background: rgba(224, 112, 112, 0.18);
+    color: var(--text-danger);
+}
+
 .debug-trace-refs {
     display: flex;
     flex-wrap: wrap;

@@ -541,6 +541,7 @@
   "webview.inspector.debugTrace.audience.gmSafe": "GM 可見",
   "webview.inspector.debugTrace.audience.playerSafe": "玩家安全",
   "webview.inspector.debugTrace.empty": "尚無追蹤條目。",
+  "webview.inspector.debugTrace.emptyForAudience": "此受眾層級下沒有可見的條目。請嘗試「內部」。",
   "webview.inspector.debugTrace.runEntryCount": "{count} 筆",
   "webview.inspector.debugTrace.parentLink": "父層: {traceId}",
   "webview.inspector.debugTrace.actual": "實際值",

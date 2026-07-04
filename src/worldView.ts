@@ -15,7 +15,9 @@ import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
-import { buildWorkspaceMapOverlay } from './mapOverlayBridge';
+import { buildMapOverlayFromContext } from './mapOverlayBridge';
+import { deriveKnownNpcIds } from './mapOverlayCore';
+import { loadDiscoveryLedger } from './discoveryLedger';
 import { loadSettlementLayout, loadSettlementState } from './settlementState';
 import { buildWorkspaceSettlementDiorama, resolveDioramaThemeFromOvermap, settlementDioramaEnabled } from './settlementDioramaBridge';
 import { buildSettlementExpansionPreviews, buildSettlementViewSnapshot } from './settlementViewCore';
@@ -514,7 +516,21 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         { theme: dioramaTheme, includeLabels: true }
     );
 
-    const mapOverlay = buildWorkspaceMapOverlay(currentLocationId);
+    const mapOverlay = buildMapOverlayFromContext({
+        forge,
+        fog: {
+            discoveredRegionIds: fog.discoveredRegionIds,
+            rumoredRegionIds: fog.rumoredRegionIds,
+        },
+        gameRules,
+        simEnabled,
+        worldState,
+        registry,
+        settlementState,
+        campaignKitActive,
+        discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
+        knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
+    });
     const rawForgeDoc = loadWorldForgeDocument();
     const commerceForge = gameRules.enableCommerce === true && rawForgeDoc
         ? resolveCommerceForge(forge, rawForgeDoc)

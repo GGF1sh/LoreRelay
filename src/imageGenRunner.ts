@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { spawn, ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
+import { spawnWithTimeout } from './spawnWithTimeout';
 import { t } from './i18n';
 import {
     getImageGenConfigPath,
@@ -352,64 +353,57 @@ export async function executeImageGeneration(
     getPanel()?.webview.postMessage({ type: 'imageGenStart', source: options?.fromQueue ? 'queue' : 'direct' });
 
     const python = resolvePythonCommand();
-    const child = spawn(python, [scriptPath, prompt, outputDir, safeMode], {
-        shell: false,
-        env
-    });
-    imageGenerationProcess = child;
-
+    const IMAGE_GEN_TIMEOUT_MS = 600_000;
     let generatedImagePath = '';
     let imageGenFinished = false;
 
-    return new Promise((resolve) => {
-        child.stdout.on('data', (data) => {
-            const out = data.toString();
-            channel.append(out);
-
-            const lines = out.split('\n');
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.endsWith('.png') && trimmed.length > 4) {
-                    generatedImagePath = trimmed;
+    const { child, result } = spawnWithTimeout(
+        python,
+        [scriptPath, prompt, outputDir, safeMode],
+        { env, timeoutMs: IMAGE_GEN_TIMEOUT_MS },
+        {
+            stdout: (out) => {
+                channel.append(out);
+                for (const line of out.split('\n')) {
+                    const trimmed = line.trim();
+                    if (trimmed.endsWith('.png') && trimmed.length > 4) {
+                        generatedImagePath = trimmed;
+                    }
                 }
-            }
-        });
+            },
+            stderr: (err) => channel.append(err),
+        }
+    );
+    imageGenerationProcess = child;
 
-        child.stderr.on('data', (data) => {
-            channel.append(data.toString());
-        });
-
-        const finishImageGeneration = (code: number | null) => {
-            if (imageGenFinished) {
-                return;
-            }
-            imageGenFinished = true;
-            imageGenerationProcess = undefined;
-            channel.appendLine(`\nProcess exited with code ${code}`);
-            getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
-
-            if (code === 0 && generatedImagePath && entryId && isValidEntryId(entryId)) {
-                const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
-                if (ok) {
-                    channel.appendLine(`Updated entry ${entryId} with new image`);
-                } else {
-                    channel.appendLine(`Entry ${entryId} not found in game history`);
-                }
-            }
-
-            void drainImageQueue();
-            resolve(code === 0);
-        };
-
-        child.on('error', (err) => {
-            channel.appendLine(`\n[Error: ${err.message}]`);
+    return result.then(({ code, timedOut }) => {
+        if (imageGenFinished) {
+            return code === 0 && !timedOut;
+        }
+        imageGenFinished = true;
+        imageGenerationProcess = undefined;
+        if (timedOut) {
+            channel.appendLine(`\nImage generation timed out after ${IMAGE_GEN_TIMEOUT_MS / 1000}s — process killed.`);
             if (!options?.fromQueue) {
-                vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
+                vscode.window.showWarningMessage('Image generation timed out. The subprocess was terminated.');
             }
-            finishImageGeneration(null);
-        });
+        } else {
+            channel.appendLine(`\nProcess exited with code ${code}`);
+        }
+        const success = code === 0 && !timedOut;
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success });
 
-        child.on('close', (code) => finishImageGeneration(code));
+        if (success && generatedImagePath && entryId && isValidEntryId(entryId)) {
+            const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
+            if (ok) {
+                channel.appendLine(`Updated entry ${entryId} with new image`);
+            } else {
+                channel.appendLine(`Entry ${entryId} not found in game history`);
+            }
+        }
+
+        void drainImageQueue();
+        return success;
     });
 }
 
@@ -464,27 +458,24 @@ export function runListImageModels(): void {
     channel.appendLine(`\n=== List Image Models (${env.COMFYUI_URL || 'http://127.0.0.1:8188'}) ===`);
 
     const python = resolvePythonCommand();
-    const child = spawn(python, [scriptPath, '--list-models'], { shell: false, env });
+    const { child, result } = spawnWithTimeout(
+        python,
+        [scriptPath, '--list-models'],
+        { env, timeoutMs: 60_000 },
+        {
+            stdout: (out) => channel.append(out),
+            stderr: (err) => channel.append(err),
+        }
+    );
     listModelsProcess = child;
 
-    let finished = false;
-    const finishListModels = (code: number | null) => {
-        if (finished) { return; }
-        finished = true;
+    void result.then(({ code, timedOut }) => {
         listModelsProcess = undefined;
-        channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
-    };
-
-    child.stdout.on('data', (data) => channel.append(data.toString()));
-    child.stderr.on('data', (data) => channel.append(data.toString()));
-    child.on('error', (err) => {
-        if (finished) { return; }
-        channel.appendLine(`\n[Error: ${err.message}]`);
-        vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
-        finishListModels(null);
-    });
-    child.on('close', (code) => {
-        finishListModels(code);
+        if (timedOut) {
+            channel.appendLine('\n[List models timed out — process killed]');
+        } else {
+            channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
+        }
         appendLocalModelScan(channel);
     });
 }

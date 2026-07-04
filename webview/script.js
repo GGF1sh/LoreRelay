@@ -9998,6 +9998,7 @@ let _dioramaDrag = null;
 let _dioramaDidDrag = false;
 let _lastDioramaSettlementId = null;
 let _lastDioramaLayerId = null;
+let _lastDioramaRevision = null;
 let _dioramaSelected = null;
 let _dioramaResizeQueued = false;
 
@@ -10094,17 +10095,57 @@ function disposeObject3D(obj) {
     });
 }
 
-function disposeSettlementDiorama() {
+function disposeSceneObjects() {
+    const t = _dioramaThree;
+    if (!t || !t.group) { return; }
+    t.scene.remove(t.group);
+    disposeObject3D(t.group);
+    t.group = null;
+    t.hitMeshes = [];
+}
+
+function disposeSettlementDioramaRenderer() {
     const t = _dioramaThree;
     if (!t) { return; }
-    if (t.group) { disposeObject3D(t.group); }
+    disposeSceneObjects();
     if (t.renderer) {
-        // Do not remove t.renderer.domElement — it is the static <canvas> owned
-        // by index.html, reused across rebuilds. Only release the GL context.
         t.renderer.dispose();
         if (typeof t.renderer.forceContextLoss === 'function') { t.renderer.forceContextLoss(); }
     }
     _dioramaThree = null;
+    _lastDioramaSettlementId = null;
+    _lastDioramaLayerId = null;
+    _lastDioramaRevision = null;
+}
+
+function disposeSettlementDiorama() {
+    disposeSettlementDioramaRenderer();
+}
+
+function rebuildDioramaSceneContent(snapshot) {
+    const t = _dioramaThree;
+    if (!t) { return null; }
+    disposeSceneObjects();
+    const group = new THREE.Group();
+    const hitMeshes = [];
+    group.add(buildGroundPlane(snapshot));
+    for (const block of snapshot.blocks) {
+        const mesh = buildBlockMesh(block);
+        group.add(mesh);
+        hitMeshes.push(mesh);
+    }
+    for (const marker of snapshot.markers) {
+        const mesh = buildMarkerMesh(marker);
+        group.add(mesh);
+        hitMeshes.push(mesh);
+    }
+    t.scene.add(group);
+    t.group = group;
+    t.hitMeshes = hitMeshes;
+    if (snapshot.palette?.background) {
+        t.scene.background = new THREE.Color(snapshot.palette.background);
+    }
+    return t;
 }
 
 function buildBlockMesh(block) {
@@ -10222,17 +10263,39 @@ function buildSettlementDioramaScene(canvas, snapshot) {
     return { renderer, scene, camera, group, hitMeshes };
 }
 
-function ensureSettlementDioramaScene(snapshot) {
-    const changed = snapshot.settlementId !== _lastDioramaSettlementId || snapshot.layerId !== _lastDioramaLayerId;
-    if (_dioramaThree && !changed) { return _dioramaThree; }
+function dioramaSceneChanged(snapshot) {
+    const revision = snapshot.revision || '';
+    return snapshot.settlementId !== _lastDioramaSettlementId
+        || snapshot.layerId !== _lastDioramaLayerId
+        || revision !== _lastDioramaRevision;
+}
 
-    disposeSettlementDiorama();
+function markDioramaSceneState(snapshot) {
+    _lastDioramaSettlementId = snapshot.settlementId;
+    _lastDioramaLayerId = snapshot.layerId;
+    _lastDioramaRevision = snapshot.revision || '';
+}
+
+function ensureSettlementDioramaScene(snapshot) {
+    if (_dioramaThree && !dioramaSceneChanged(snapshot)) {
+        return _dioramaThree;
+    }
+
     const canvas = document.getElementById('world-diorama-canvas');
     if (!canvas) { return null; }
 
+    if (_dioramaThree) {
+        rebuildDioramaSceneContent(snapshot);
+        markDioramaSceneState(snapshot);
+        applyOrbitFromCamera(snapshot.camera);
+        _dioramaSelected = null;
+        renderSettlementDioramaDetailPanel(null);
+        return _dioramaThree;
+    }
+
+    disposeSettlementDioramaRenderer();
     _dioramaThree = buildSettlementDioramaScene(canvas, snapshot);
-    _lastDioramaSettlementId = snapshot.settlementId;
-    _lastDioramaLayerId = snapshot.layerId;
+    markDioramaSceneState(snapshot);
     applyOrbitFromCamera(snapshot.camera);
     _dioramaSelected = null;
     renderSettlementDioramaDetailPanel(null);

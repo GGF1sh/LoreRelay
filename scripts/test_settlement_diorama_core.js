@@ -101,6 +101,8 @@ if (!baseView) {
         fail(`blocks exceed default cap: ${snap.blocks.length}`);
     } else if (snap.markers.length > MAX_DIORAMA_MARKERS) {
         fail(`markers exceed default cap: ${snap.markers.length}`);
+    } else if (!snap.revision || typeof snap.revision !== 'string') {
+        fail(`revision required on snapshot: ${snap.revision}`);
     } else if (snap.camera.mode !== 'fixed_orbit') {
         fail('camera mode must be fixed_orbit');
     } else if (!Number.isFinite(snap.camera.distance)) {

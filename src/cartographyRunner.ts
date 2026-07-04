@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { spawn, ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
+import { spawnWithTimeout } from './spawnWithTimeout';
 import { t } from './i18n';
 import { buildImageGenEnv, getResolvedImageMode } from './imageGenRunner';
 import { getWorkspacePath } from './workspacePaths';
@@ -147,30 +148,20 @@ function spawnAndWait(
     args: string[],
     env: NodeJS.ProcessEnv,
     channel: vscode.OutputChannel,
-    trackProcess?: (child: ChildProcess | undefined) => void
-): Promise<{ code: number | null }> {
-    return new Promise((resolve) => {
-        const child = spawn(command, args, { shell: false, env });
-        trackProcess?.(child);
-        let finished = false;
-
-        const finish = (code: number | null) => {
-            if (finished) { return; }
-            finished = true;
-            trackProcess?.(undefined);
-            resolve({ code });
-        };
-
-        child.stdout.on('data', (data) => channel.append(data.toString()));
-
-        child.stderr.on('data', (data) => channel.append(data.toString()));
-
-        child.on('error', (err) => {
-            channel.appendLine(`\n[Error: ${err.message}]`);
-            finish(null);
-        });
-
-        child.on('close', (code) => finish(code));
+    trackProcess?: (child: ChildProcess | undefined) => void,
+    timeoutMs = 120_000
+): Promise<{ code: number | null; timedOut: boolean }> {
+    const { child, result } = spawnWithTimeout(command, args, { env, timeoutMs }, {
+        stdout: (out) => channel.append(out),
+        stderr: (err) => channel.append(err),
+    });
+    trackProcess?.(child);
+    return result.then(({ code, timedOut }) => {
+        trackProcess?.(undefined);
+        if (timedOut) {
+            channel.appendLine(`\n[Process timed out after ${timeoutMs / 1000}s — killed]`);
+        }
+        return { code, timedOut };
     });
 }
 
@@ -189,14 +180,15 @@ async function renderStableLayout(
     const size = env.TA_WIDTH ? parseInt(String(env.TA_WIDTH), 10) : 1024;
     const python = resolvePythonCommand();
     channel.appendLine(`Rendering layout preview → ${layoutPath}`);
-    const { code } = await spawnAndWait(
+    const { code, timedOut } = await spawnAndWait(
         python,
         [script, forgePath, layoutPath, '--size', String(Number.isFinite(size) && size > 0 ? size : 1024)],
         env,
         channel,
-        (child) => { cartographyProcess = child; }
+        (child) => { cartographyProcess = child; },
+        120_000
     );
-    return code === 0 && fs.existsSync(layoutPath);
+    return !timedOut && code === 0 && fs.existsSync(layoutPath);
 }
 
 /** Generate parchment world map via ComfyUI; saves world_map.png in workspace root. */
@@ -285,65 +277,62 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
     }
 
     const python = resolvePythonCommand();
-    const child = spawn(python, [scriptPath, validatedForge, validatedOutputDir], { shell: false, env });
-    cartographyProcess = child;
-
+    const CARTOGRAPHY_TIMEOUT_MS = 300_000;
     let generatedImagePath = '';
     let genFinished = false;
 
-    return new Promise((resolve) => {
+    const { child, result } = spawnWithTimeout(
+        python,
+        [scriptPath, validatedForge, validatedOutputDir],
+        { env, timeoutMs: CARTOGRAPHY_TIMEOUT_MS },
+        {
+            stdout: (out) => {
+                channel.append(out);
+                for (const line of out.split('\n')) {
+                    const trimmed = line.trim();
+                    if (trimmed.endsWith('.png') && trimmed.length > 4) {
+                        generatedImagePath = trimmed;
+                    }
+                }
+            },
+            stderr: (err) => channel.append(err),
+        }
+    );
+    cartographyProcess = child;
+
+    return result.then(({ code, timedOut }) => {
+        if (genFinished) { return false; }
+        genFinished = true;
+        cartographyProcess = undefined;
         const finish = (success: boolean) => {
-            if (genFinished) { return; }
-            genFinished = true;
-            cartographyProcess = undefined;
             getPanel()?.webview.postMessage({ type: 'worldMapGenEnd', success });
-            resolve(success);
+            return success;
         };
-
-        child.stdout.on('data', (data) => {
-            const out = data.toString();
-            channel.append(out);
-            for (const line of out.split('\n')) {
-                const trimmed = line.trim();
-                if (trimmed.endsWith('.png') && trimmed.length > 4) {
-                    generatedImagePath = trimmed;
-                }
+        if (timedOut) {
+            channel.appendLine(`\nCartography generation timed out after ${CARTOGRAPHY_TIMEOUT_MS / 1000}s — process killed.`);
+            return finish(false);
+        }
+        channel.appendLine(`\nProcess exited with code ${code}`);
+        if (code !== 0 || !generatedImagePath) {
+            return finish(false);
+        }
+        const srcPath = validateCartographyGeneratedImagePath(generatedImagePath, wsPath);
+        const allowedPath = resolveAllowedImagePath(generatedImagePath);
+        if (!srcPath || !allowedPath || srcPath !== allowedPath) {
+            channel.appendLine(`Generated path rejected (outside workspace or invalid name): ${generatedImagePath}`);
+            return finish(false);
+        }
+        try {
+            fs.copyFileSync(srcPath, targetMapPath);
+            channel.appendLine(`Saved world map → ${targetMapPath}`);
+            if (srcPath !== targetMapPath && path.basename(srcPath).startsWith('world_map_')) {
+                try { fs.unlinkSync(srcPath); } catch { /* temp cleanup best-effort */ }
             }
-        });
-
-        child.stderr.on('data', (data) => channel.append(data.toString()));
-
-        child.on('error', (err) => {
-            channel.appendLine(`\n[Error: ${err.message}]`);
-            vscode.window.showErrorMessage(t('extension.error.pythonFailed', { message: err.message }));
-            finish(false);
-        });
-
-        child.on('close', (code) => {
-            channel.appendLine(`\nProcess exited with code ${code}`);
-            if (code !== 0 || !generatedImagePath) {
-                finish(false);
-                return;
-            }
-            const srcPath = validateCartographyGeneratedImagePath(generatedImagePath, wsPath);
-            const allowedPath = resolveAllowedImagePath(generatedImagePath);
-            if (!srcPath || !allowedPath || srcPath !== allowedPath) {
-                channel.appendLine(`Generated path rejected (outside workspace or invalid name): ${generatedImagePath}`);
-                finish(false);
-                return;
-            }
-            try {
-                fs.copyFileSync(srcPath, targetMapPath);
-                channel.appendLine(`Saved world map → ${targetMapPath}`);
-                if (srcPath !== targetMapPath && path.basename(srcPath).startsWith('world_map_')) {
-                    try { fs.unlinkSync(srcPath); } catch { /* temp cleanup best-effort */ }
-                }
-                finish(true);
-            } catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                channel.appendLine(`Failed to save world_map.png: ${msg}`);
-                finish(false);
-            }
-        });
+            return finish(true);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            channel.appendLine(`Failed to save world_map.png: ${msg}`);
+            return finish(false);
+        }
     });
 }

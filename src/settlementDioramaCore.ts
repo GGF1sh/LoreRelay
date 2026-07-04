@@ -9,6 +9,7 @@ import type {
     SettlementViewTile,
     SettlementViewTone,
 } from './settlementViewCore';
+import { hashStringToSeed } from './tileOvermapCore';
 import { layerIdToZ } from './settlementViewCore';
 
 export const SETTLEMENT_DIORAMA_VERSION = 1 as const;
@@ -87,6 +88,8 @@ export interface SettlementDioramaSnapshot {
     settlementId: string;
     name: string;
     layerId: SettlementLayerId;
+    /** Deterministic fingerprint so M5b rebuilds when content changes within the same layer. */
+    revision: string;
     bounds: { width: number; depth: number; height: number };
     camera: SettlementDioramaCamera;
     blocks: SettlementDioramaBlock[];
@@ -124,6 +127,7 @@ export const SETTLEMENT_DIORAMA_SNAPSHOT_KEYS = [
     'settlementId',
     'name',
     'layerId',
+    'revision',
     'bounds',
     'camera',
     'blocks',
@@ -238,6 +242,13 @@ function clampBoundsSize(raw: number | undefined, fallback: number): number {
     return Math.max(MIN_DIORAMA_BOUNDS, Math.min(MAX_DIORAMA_BOUNDS, n));
 }
 
+export function normalizeDioramaCap(raw: number | undefined, max: number): number {
+    if (raw === undefined || !Number.isFinite(raw)) {
+        return max;
+    }
+    return Math.max(0, Math.min(max, Math.floor(raw)));
+}
+
 function resolveTheme(raw: SettlementDioramaTheme | undefined): SettlementDioramaTheme {
     if (raw && VALID_THEMES.has(raw)) { return raw; }
     return 'default';
@@ -263,14 +274,14 @@ function sortLabels(a: SettlementDioramaLabel, b: SettlementDioramaLabel): numbe
     return a.id.localeCompare(b.id);
 }
 
-function tileToBlock(tile: SettlementViewTile, index: number): SettlementDioramaBlock {
+function tileToBlock(tile: SettlementViewTile, index: number, layerBaseZ: number): SettlementDioramaBlock {
     const code = VALID_TILE_CODES.has(tile.code) ? tile.code : 'unknown';
     const dims = TILE_DIMS[code];
     const block: SettlementDioramaBlock = {
         id: clampText(`blk_${tile.x}_${tile.y}_${index}`, MAX_DIORAMA_ID),
         x: clampFinite(tile.x, 0, MAX_DIORAMA_BOUNDS - 1, 0),
         y: clampFinite(tile.y, 0, MAX_DIORAMA_BOUNDS - 1, 0),
-        z: clampFinite(tile.z, -4, 4, 0),
+        z: clampFinite(tile.z - layerBaseZ, -1, 4, 0),
         w: clampFinite(dims.w, 0.05, 4, 0.9),
         d: clampFinite(dims.d, 0.05, 4, 0.9),
         h: clampFinite(dims.h, 0.02, 4, 0.1),
@@ -281,13 +292,13 @@ function tileToBlock(tile: SettlementViewTile, index: number): SettlementDiorama
     return block;
 }
 
-function markerToDioramaMarker(marker: SettlementViewMarker): SettlementDioramaMarker {
+function markerToDioramaMarker(marker: SettlementViewMarker, layerBaseZ: number): SettlementDioramaMarker {
     const kind = VALID_MARKER_KINDS.has(marker.kind) ? marker.kind : 'structure_note';
     return {
         id: clampText(marker.id, MAX_DIORAMA_ID),
         x: clampFinite(marker.x, 0, MAX_DIORAMA_BOUNDS - 1, 0),
         y: clampFinite(marker.y, 0, MAX_DIORAMA_BOUNDS - 1, 0),
-        z: clampFinite(marker.z + 0.35, -4, 6, 0.35),
+        z: clampFinite(marker.z - layerBaseZ + 0.35, 0, 6, 0.35),
         kind,
         material: markerKindToMaterial(kind),
         label: clampText(marker.label, MAX_DIORAMA_LABEL_TEXT),
@@ -297,7 +308,8 @@ function markerToDioramaMarker(marker: SettlementViewMarker): SettlementDioramaM
 function buildLabelsFromView(
     tiles: readonly SettlementViewTile[],
     markers: readonly SettlementViewMarker[],
-    maxLabels: number
+    maxLabels: number,
+    layerBaseZ: number
 ): SettlementDioramaLabel[] {
     const labels: SettlementDioramaLabel[] = [];
     const seen = new Set<string>();
@@ -312,7 +324,7 @@ function buildLabelsFromView(
             id,
             x: clampFinite(tile.x, 0, MAX_DIORAMA_BOUNDS - 1, 0),
             y: clampFinite(tile.y, 0, MAX_DIORAMA_BOUNDS - 1, 0),
-            z: clampFinite(tile.z + 0.5, -4, 6, 0.5),
+            z: clampFinite(tile.z - layerBaseZ + 0.5, 0, 6, 0.5),
             text,
         });
         if (labels.length >= maxLabels) { break; }
@@ -329,7 +341,7 @@ function buildLabelsFromView(
                 id,
                 x: clampFinite(marker.x, 0, MAX_DIORAMA_BOUNDS - 1, 0),
                 y: clampFinite(marker.y, 0, MAX_DIORAMA_BOUNDS - 1, 0),
-                z: clampFinite(marker.z + 0.6, -4, 6, 0.6),
+                z: clampFinite(marker.z - layerBaseZ + 0.6, 0, 6, 0.6),
                 text,
             });
             if (labels.length >= maxLabels) { break; }
@@ -439,15 +451,30 @@ export function pickSettlementDioramaSnapshotKeys(snapshot: SettlementDioramaSna
     return out;
 }
 
+export function deriveDioramaRevision(parts: {
+    blocks: readonly SettlementDioramaBlock[];
+    markers: readonly SettlementDioramaMarker[];
+    palette: SettlementDioramaPalette;
+    camera: SettlementDioramaCamera;
+}): string {
+    const blockSig = parts.blocks.map((b) => `${b.id}:${b.x},${b.y},${b.z}:${b.code}:${b.material}`).join('|');
+    const markerSig = parts.markers.map((m) => `${m.id}:${m.x},${m.y},${m.z}:${m.kind}`).join('|');
+    const paletteSig = `${parts.palette.theme}:${parts.palette.background}:${parts.palette.ground}`;
+    const camSig = `${parts.camera.distance}:${parts.camera.yaw}:${parts.camera.pitch}`;
+    const raw = `${blockSig}#${markerSig}#${paletteSig}#${camSig}`;
+    return `d${hashStringToSeed(raw).toString(36)}`;
+}
+
 export function buildSettlementDioramaSnapshot(
     inputs: SettlementDioramaInputs
 ): SettlementDioramaSnapshot | undefined {
     const view = inputs.view;
     if (!view) { return undefined; }
 
-    const maxBlocks = Math.min(MAX_DIORAMA_BLOCKS, inputs.options?.maxBlocks ?? MAX_DIORAMA_BLOCKS);
-    const maxMarkers = Math.min(MAX_DIORAMA_MARKERS, inputs.options?.maxMarkers ?? MAX_DIORAMA_MARKERS);
-    const maxLabels = Math.min(MAX_DIORAMA_LABELS, inputs.options?.maxLabels ?? MAX_DIORAMA_LABELS);
+    const maxBlocks = normalizeDioramaCap(inputs.options?.maxBlocks, MAX_DIORAMA_BLOCKS);
+    const maxMarkers = normalizeDioramaCap(inputs.options?.maxMarkers, MAX_DIORAMA_MARKERS);
+    const maxLabels = normalizeDioramaCap(inputs.options?.maxLabels, MAX_DIORAMA_LABELS);
+    const layerBaseZ = layerIdToZ(view.layerId);
     const theme = resolveTheme(inputs.options?.theme);
     const includeLabels = inputs.options?.includeLabels === true;
 
@@ -458,35 +485,39 @@ export function buildSettlementDioramaSnapshot(
 
     const rawBlocks = view.tiles
         .filter((tile) => tile.code !== 'empty')
-        .map((tile, index) => tileToBlock(tile, index))
+        .map((tile, index) => tileToBlock(tile, index, layerBaseZ))
         .sort(sortBlocks);
 
-    const rawMarkers = view.markers.map(markerToDioramaMarker).sort(sortMarkers);
+    const rawMarkers = view.markers.map((m) => markerToDioramaMarker(m, layerBaseZ)).sort(sortMarkers);
 
     const blocks = capBlocks(rawBlocks, maxBlocks, warnings);
     const markers = capMarkers(rawMarkers, maxMarkers, warnings);
 
     let labels: SettlementDioramaLabel[] | undefined;
     if (includeLabels) {
-        const built = buildLabelsFromView(view.tiles, view.markers, maxLabels);
+        const built = buildLabelsFromView(view.tiles, view.markers, maxLabels, layerBaseZ);
         labels = capLabels(built, maxLabels, warnings);
         if (!labels.length) { labels = undefined; }
     }
 
     const sceneHeight = computeSceneHeight(blocks);
     const uniqueWarnings = [...new Set(warnings)].slice(0, MAX_DIORAMA_WARNINGS);
+    const camera = buildCamera(width, depth);
+    const palette = buildPalette(theme);
+    const revision = deriveDioramaRevision({ blocks, markers, palette, camera });
 
     return {
         version: SETTLEMENT_DIORAMA_VERSION,
         settlementId: clampText(view.settlementId, MAX_DIORAMA_ID),
         name: clampText(view.name, MAX_DIORAMA_LABEL_TEXT),
         layerId: view.layerId,
+        revision,
         bounds: { width, depth, height: sceneHeight },
-        camera: buildCamera(width, depth),
+        camera,
         blocks,
         markers,
         labels,
-        palette: buildPalette(theme),
+        palette,
         warnings: uniqueWarnings.length ? uniqueWarnings : undefined,
     };
 }

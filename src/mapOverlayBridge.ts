@@ -4,10 +4,13 @@ import * as fs from 'fs';
 import { getCampaignKitPath } from './campaignKit';
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { loadDiscoveryLedger } from './discoveryLedger';
-import { loadGameRules } from './gameRules';
+import { loadGameRules, type GameRules } from './gameRules';
 import {
-    buildMapOverlaySnapshot,
+    buildMapOverlayFromContext,
     deriveKnownNpcIds,
+    type MapOverlayWorkspaceContext,
+} from './mapOverlayBridgeCore';
+import {
     pickMapOverlaySnapshotKeys,
     sanitizeMapOverlaySnapshot,
     type MapOverlaySnapshot,
@@ -21,6 +24,9 @@ import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { getGameStatePath } from './workspacePaths';
 
+export type { MapOverlayWorkspaceContext } from './mapOverlayBridgeCore';
+export { buildMapOverlayFromContext } from './mapOverlayBridgeCore';
+
 function loadWorldBlockFromDisk(): GameStateWorld | undefined {
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) { return undefined; }
@@ -32,19 +38,30 @@ function loadWorldBlockFromDisk(): GameStateWorld | undefined {
     }
 }
 
-/**
- * Builds a FoW-safe map overlay snapshot from current workspace canonical state.
- * Single choke point for Webview, replay export, and remote play payloads.
- */
-export function buildWorkspaceMapOverlay(currentLocationId?: string): MapOverlaySnapshot {
-    if (!isWorldForgeEnabled()) {
-        return sanitizeMapOverlaySnapshot({ version: 1, markers: [] });
-    }
+function resolveCampaignKitActive(gameRules: GameRules): boolean {
+    return isCampaignKitPromptActive({
+        enableCampaignKit: gameRules.enableCampaignKit === true,
+        hasCampaignKitFile: Boolean(getCampaignKitPath() && fs.existsSync(getCampaignKitPath()!)),
+        enableDomainMode: gameRules.enableDomainMode === true,
+        enableGuildMode: gameRules.enableGuildMode === true,
+        enableEmergentSimulation: gameRules.enableEmergentSimulation === true,
+        enableWorldObservatory: gameRules.enableWorldObservatory === true,
+        chronicleRecapInPrompt: false,
+        enableCommerce: gameRules.enableCommerce === true,
+        enableNpcRegistry: gameRules.enableNpcRegistry === true,
+        enableNpcRelationships: gameRules.enableNpcRelationships === true,
+        livingWorldEnabled: livingWorldEnabled(gameRules),
+        worldStateEnabled: isWorldStateEnabled(),
+        worldForgeEnabled: true,
+        enableTravelEncounters: gameRules.enableTravelEncounters === true,
+        enableSettlementMode: gameRules.enableSettlementMode === true,
+    });
+}
 
+function loadMapOverlayWorkspaceContext(currentLocationId?: string): MapOverlayWorkspaceContext | undefined {
+    if (!isWorldForgeEnabled()) { return undefined; }
     const forge = loadWorldForge();
-    if (!forge) {
-        return sanitizeMapOverlaySnapshot({ version: 1, markers: [] });
-    }
+    if (!forge) { return undefined; }
 
     const simEnabled = isWorldStateEnabled();
     const worldState = simEnabled ? loadWorldState() : undefined;
@@ -57,49 +74,36 @@ export function buildWorkspaceMapOverlay(currentLocationId?: string): MapOverlay
     worldBlock = normalizeFogWorldState(worldBlock, forge, resolvedLocationId) ?? worldBlock;
     const fog = buildFogPayload(worldBlock, forge);
 
-    const campaignKitActive = isCampaignKitPromptActive({
-        enableCampaignKit: gameRules.enableCampaignKit === true,
-        hasCampaignKitFile: Boolean(getCampaignKitPath() && fs.existsSync(getCampaignKitPath()!)),
-        enableDomainMode: gameRules.enableDomainMode === true,
-        enableGuildMode: gameRules.enableGuildMode === true,
-        enableEmergentSimulation: gameRules.enableEmergentSimulation === true,
-        enableWorldObservatory: gameRules.enableWorldObservatory === true,
-        chronicleRecapInPrompt: false,
-        enableCommerce: gameRules.enableCommerce === true,
-        enableNpcRegistry: gameRules.enableNpcRegistry === true,
-        enableNpcRelationships: gameRules.enableNpcRelationships === true,
-        livingWorldEnabled: livingWorldEnabled(gameRules),
-        worldStateEnabled: simEnabled,
-        worldForgeEnabled: true,
-        enableTravelEncounters: gameRules.enableTravelEncounters === true,
-        enableSettlementMode: gameRules.enableSettlementMode === true,
-    });
-
+    const campaignKitActive = resolveCampaignKitActive(gameRules);
     const settlementState = gameRules.enableSettlementMode === true ? loadSettlementState() : undefined;
 
-    const snapshot = buildMapOverlaySnapshot({
+    return {
         forge,
         fog: {
             discoveredRegionIds: fog.discoveredRegionIds,
             rumoredRegionIds: fog.rumoredRegionIds,
         },
-        enableNpcAgency: gameRules.enableNpcAgency === true,
-        enableNpcRegistry: gameRules.enableNpcRegistry === true,
-        enableSettlementMode: gameRules.enableSettlementMode === true,
-        enableCampaignKit: campaignKitActive,
-        enableFactionReputation: gameRules.enableFactionReputation === true,
-        worldTurn: worldState?.worldTurn,
-        worldRegions: worldState?.regions,
-        worldFactions: worldState?.factions,
-        npcPositions: worldState?.npcPositions,
-        questHooks: worldState?.questHooks,
+        gameRules,
+        simEnabled,
+        worldState,
+        registry,
         settlementState,
+        campaignKitActive,
         discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
-        npcRegistry: registry,
         knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
-    });
+    };
+}
 
-    return sanitizeMapOverlaySnapshot(snapshot);
+/**
+ * Builds a FoW-safe map overlay snapshot from current workspace canonical state.
+ * Single choke point for replay export and remote play payloads.
+ */
+export function buildWorkspaceMapOverlay(currentLocationId?: string): MapOverlaySnapshot {
+    const ctx = loadMapOverlayWorkspaceContext(currentLocationId);
+    if (!ctx) {
+        return sanitizeMapOverlaySnapshot({ version: 1, markers: [] });
+    }
+    return buildMapOverlayFromContext(ctx);
 }
 
 /** Allow-listed projection for replay/remote payloads (tests + export guards). */

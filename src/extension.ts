@@ -349,6 +349,7 @@ export function activate(context: vscode.ExtensionContext) {
         const scriptUri = webviewAssetUri('script.js');
         const mermaidUri = webviewAssetUri(path.join('vendor', 'mermaid.min.js'));
         const threeUri = webviewAssetUri(path.join('vendor', 'three.min.js'));
+        const genesisAssetBaseUri = panel.webview.asWebviewUri(vscode.Uri.file(webviewPath)).toString();
         const nonce = getNonce();
 
         html = html
@@ -356,6 +357,7 @@ export function activate(context: vscode.ExtensionContext) {
             .replace(/\{\{scriptUri\}\}/g, scriptUri.toString())
             .replace(/\{\{mermaidUri\}\}/g, mermaidUri.toString())
             .replace(/\{\{threeUri\}\}/g, threeUri.toString())
+            .replace(/\{\{genesisAssetBaseUri\}\}/g, genesisAssetBaseUri)
             .replace(/\{\{cspSource\}\}/g, panel.webview.cspSource)
             .replace(/\{\{nonce\}\}/g, nonce);
 

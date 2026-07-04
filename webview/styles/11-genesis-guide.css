@@ -1,0 +1,436 @@
+/* ============================
+   Genesis Guide Wizard (Genesis Mode G2)
+   ============================ */
+
+/* === Start Hub hero banner === */
+.genesis-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 640px;
+  background: linear-gradient(135deg, rgba(124, 179, 255, 0.16), rgba(189, 143, 255, 0.12));
+  border: 1px solid rgba(124, 179, 255, 0.35);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 24px rgba(79, 142, 247, 0.15);
+}
+
+.genesis-hero-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.genesis-hero-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.genesis-hero-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.genesis-hero-desc {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+.genesis-hero-cta {
+  flex-shrink: 0;
+  background: linear-gradient(90deg, #7cb3ff, #bd8fff);
+  color: #0b0d16;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.genesis-hero-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(124, 179, 255, 0.35);
+}
+
+/* === Wizard modal (centered dialog) === */
+.genesis-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(680px, 94vw);
+  max-height: 88vh;
+  background: rgba(8, 10, 20, 0.97);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(124, 179, 255, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75);
+  border-radius: 16px;
+  z-index: 301;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.genesis-modal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(180deg, rgba(8, 10, 20, 0.74), rgba(8, 10, 20, 0.97)), var(--genesis-background-image);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.genesis-modal.hidden {
+  display: none;
+}
+
+.genesis-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.45);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.genesis-modal-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, #7cb3ff 0%, #bd8fff 60%, #7cb3ff 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: cc-shimmer 4s linear infinite;
+}
+
+.genesis-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 142, 247, 0.2) transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.genesis-progress {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.genesis-step-view,
+.genesis-summary-view {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.genesis-summary-view.hidden,
+.genesis-step-view.hidden {
+  display: none;
+}
+
+.genesis-guide-visual {
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.genesis-guide-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.genesis-guide-portrait.hidden {
+  display: none;
+}
+
+.genesis-guide-portrait-fallback {
+  font-size: 40px;
+}
+
+.genesis-step-main,
+.genesis-summary-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.genesis-step-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.genesis-step-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.genesis-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.genesis-option-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: var(--text);
+  text-align: left;
+}
+
+.genesis-option-chip:hover {
+  border-color: var(--accent, #4a9eff);
+  background: rgba(79, 142, 247, 0.1);
+}
+
+.genesis-option-chip.selected {
+  border-color: var(--accent, #4a9eff);
+  background: rgba(79, 142, 247, 0.22);
+  box-shadow: 0 0 0 1px var(--accent, #4a9eff) inset;
+}
+
+.genesis-option-chip-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.genesis-option-chip-desc {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.genesis-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.genesis-nav.hidden {
+  display: none;
+}
+
+.genesis-skip-link {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.genesis-skip-link:hover {
+  color: var(--text);
+}
+
+/* === Summary screen === */
+.genesis-summary-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.genesis-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.genesis-summary-row-label {
+  color: var(--text-dim);
+}
+
+.genesis-summary-row-value {
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.genesis-summary-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.genesis-summary-block-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.genesis-system-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.genesis-system-chip {
+  background: rgba(124, 179, 255, 0.15);
+  border: 1px solid rgba(124, 179, 255, 0.35);
+  color: var(--text);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.genesis-system-chip.genesis-system-chip-baseline {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-dim);
+}
+
+.genesis-summary-warnings {
+  background: rgba(255, 190, 80, 0.08);
+  border: 1px solid rgba(255, 190, 80, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #ffcf80;
+}
+
+.genesis-summary-warnings.hidden {
+  display: none;
+}
+
+.genesis-notes-input {
+  width: 100%;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.genesis-prompt-box {
+  width: 100%;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.genesis-summary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.genesis-inline-toast {
+  font-size: 11px;
+  color: var(--accent-light, #7cb3ff);
+  animation: fadeIn 0.3s ease;
+}
+
+.genesis-inline-toast.hidden {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .genesis-modal {
+    width: 96vw;
+    max-height: 94vh;
+  }
+
+  .genesis-step-view,
+  .genesis-summary-view {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .genesis-guide-visual {
+    width: 72px;
+    height: 72px;
+  }
+
+  .genesis-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .genesis-hero {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .genesis-hero-cta {
+    width: 100%;
+  }
+
+  .genesis-summary-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .genesis-summary-row-value {
+    text-align: left;
+  }
+
+  .genesis-nav {
+    justify-content: center;
+  }
+}

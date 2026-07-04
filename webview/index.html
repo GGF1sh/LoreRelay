@@ -70,6 +70,14 @@
       </div>
       <div id="chat-log"></div>
       <div id="start-hub" class="start-hub hidden">
+        <div id="genesis-hero" class="genesis-hero">
+          <div class="genesis-hero-icon" aria-hidden="true">🌟</div>
+          <div class="genesis-hero-text">
+            <div class="genesis-hero-title" data-i18n="webview.genesis.heroTitle">世界を一緒に作る</div>
+            <div class="genesis-hero-desc" data-i18n="webview.genesis.heroDesc">案内人が質問しながら、世界観・遊び方・危険度・管理の細かさを一緒に決めます。</div>
+          </div>
+          <button type="button" id="genesis-hero-cta" class="genesis-hero-cta" data-i18n="webview.genesis.heroCta">世界を作りはじめる</button>
+        </div>
         <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
         <div class="start-hub-presets-label" data-i18n="webview.startHub.demoLabel">はじめての方:</div>
         <div class="start-hub-options">
@@ -1339,6 +1347,84 @@
     </div><!-- /.char-creator-body -->
   </div><!-- /#char-creator-modal -->
 
+  <!-- ========================================== -->
+  <!-- Genesis Guide Wizard (Genesis Mode G2)     -->
+  <!-- Webview UI only. Does not write game_rules.json or canonical -->
+  <!-- state directly; final step only posts a message to the host. -->
+  <!-- ========================================== -->
+  <div id="genesis-guide-backdrop" class="cc-backdrop hidden"></div>
+  <div id="genesis-guide-modal" class="genesis-modal hidden" role="dialog" aria-modal="true" aria-label="Genesis Guide">
+    <div class="genesis-modal-header">
+      <h2 data-i18n="webview.genesis.modalTitle">✨ Genesis Guide</h2>
+      <button id="genesis-guide-close" class="glass-btn" data-i18n-title="webview.genesis.closeBtn" title="Close">✕</button>
+    </div>
+    <div class="genesis-modal-body">
+      <div id="genesis-guide-progress" class="genesis-progress"></div>
+
+      <div id="genesis-guide-step-view" class="genesis-step-view">
+        <div class="genesis-guide-visual">
+          <img id="genesis-guide-portrait" class="genesis-guide-portrait hidden" alt="" />
+          <div id="genesis-guide-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+        </div>
+        <div class="genesis-step-main">
+          <div id="genesis-step-title" class="genesis-step-title"></div>
+          <div id="genesis-step-desc" class="genesis-step-desc"></div>
+          <div id="genesis-step-options" class="genesis-option-grid"></div>
+        </div>
+      </div>
+
+      <div id="genesis-guide-summary-view" class="genesis-summary-view hidden">
+        <div class="genesis-guide-visual">
+          <img id="genesis-summary-portrait" class="genesis-guide-portrait hidden" alt="" />
+          <div id="genesis-summary-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+        </div>
+        <div class="genesis-summary-main">
+          <div class="genesis-summary-title" data-i18n="webview.genesis.summary.title">確認：この設定で世界を作ります</div>
+
+          <div class="genesis-summary-rows" id="genesis-summary-rows"></div>
+
+          <div class="genesis-summary-block">
+            <div class="genesis-summary-block-label" data-i18n="webview.genesis.summary.systems">有効になる主要システム</div>
+            <div id="genesis-summary-systems" class="genesis-system-chips"></div>
+          </div>
+
+          <div id="genesis-summary-warnings" class="genesis-summary-warnings hidden"></div>
+
+          <div class="genesis-summary-block">
+            <label class="genesis-summary-block-label" for="genesis-summary-notes" data-i18n="webview.genesis.summary.notesLabel">追加メモ（任意・そのまま保存はされません）</label>
+            <textarea id="genesis-summary-notes" class="genesis-notes-input" rows="2" data-i18n-placeholder="webview.genesis.summary.notesPlaceholder" placeholder="世界観について自由に書き足せます（任意）"></textarea>
+          </div>
+
+          <div class="genesis-summary-block">
+            <div class="genesis-summary-block-label" data-i18n="webview.genesis.summary.comfyTitle">画像生成AI用プロンプト</div>
+            <textarea id="genesis-comfy-prompt" class="genesis-prompt-box" rows="3" readonly></textarea>
+            <p class="inline-help" data-i18n="webview.genesis.summary.comfyHint">ComfyUIが使える場合は「Genesis画像を生成」を押してください。使えない場合は上のプロンプトをコピーして、お好きな画像生成AI（ブラウザ版など）に貼り付けてください。</p>
+            <div class="genesis-summary-actions">
+              <button type="button" id="genesis-copy-prompt-btn" class="glass-btn" data-i18n="webview.genesis.summary.copyPromptBtn">📋 プロンプトをコピー</button>
+              <button type="button" id="genesis-generate-image-btn" class="glass-btn" data-i18n="webview.genesis.summary.generateImageBtn">🎨 Genesis画像を生成</button>
+            </div>
+            <div id="genesis-copy-prompt-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.copyPromptDone">コピーしました</div>
+            <div id="genesis-generate-image-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.generateImageHint">画像生成を依頼しました（ComfyUI未設定の場合は反応しないことがあります）</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="genesis-guide-nav" class="genesis-nav">
+        <button type="button" id="genesis-back-btn" class="glass-btn" data-i18n="webview.genesis.backBtn">← 戻る</button>
+        <button type="button" id="genesis-skip-summary-btn" class="genesis-skip-link" data-i18n="webview.genesis.skipToSummaryBtn">今すぐ確認する</button>
+        <button type="button" id="genesis-next-btn" class="cc-save-primary" data-i18n="webview.genesis.nextBtn">次へ →</button>
+      </div>
+
+      <div id="genesis-guide-summary-nav" class="genesis-nav hidden">
+        <button type="button" id="genesis-restart-btn" class="glass-btn" data-i18n="webview.genesis.summary.restartBtn">↺ 最初からやり直す</button>
+        <button type="button" id="genesis-advanced-btn" class="glass-btn" data-i18n="webview.genesis.summary.advancedBtn">⚙️ 詳細設定へ</button>
+        <button type="button" id="genesis-start-btn" class="cc-save-primary" data-i18n="webview.genesis.summary.startBtn">🚀 この設定で始める</button>
+      </div>
+      <div id="genesis-applied-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.appliedToast">設定を送信しました。反映は準備中の機能です。</div>
+    </div>
+  </div>
+
+  <script nonce="{{nonce}}">window.__LR_GENESIS_ASSET_BASE_URI__ = '{{genesisAssetBaseUri}}';</script>
   <script nonce="{{nonce}}">window.__LR_THREE_SCRIPT_URI__ = '{{threeUri}}';</script>
   <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
   <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>

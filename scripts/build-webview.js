@@ -7,6 +7,7 @@ const path = require('path');
 const JS_MODULE_ORDER = [
     '00-core.js',
     '05-quickstart.js',
+    '06-genesis-guide.js',
     '10-game-state.js',
     '20-input-audio-prep.js',
     '30-bgm-sfx.js',
@@ -40,6 +41,7 @@ const JS_MODULE_ORDER = [
 const CSS_MODULE_ORDER = [
     '00-base.css',
     '10-layout-chat.css',
+    '11-genesis-guide.css',
     '15-ux-polish.css',
     '20-quickreply-messages.css',
     '30-status-gallery.css',

@@ -216,7 +216,12 @@ body.profile-parlor .start-hub-btn-disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* flex-start (not center): when content overflows a centered flex column,
+     the overflow above the centered block is unreachable by scrolling in
+     Chromium/WebKit, permanently hiding whatever is first (e.g. the Genesis
+     hero banner). Top-anchoring keeps all content reachable regardless of
+     panel height. */
+  justify-content: flex-start;
   gap: 16px;
   padding: 24px;
 }

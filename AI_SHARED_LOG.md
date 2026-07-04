@@ -22,10 +22,23 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) · **Debug Trace Inspector Phase B** UI (`80a-debug-trace.js`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | **Deep Emit P2**（commerce / faction conflict）· Codex 統合レビュー · SO3 |
+| Next (推奨) | **Deep Emit P2**（commerce / faction conflict）· Codex 統合レビュー · SO3 · Genesis Mode **RP2 host apply gate**（`genesisApplyProfile`/`genesisGenerateImage` 受信・`resolveRulesProfile`呼び出し・`asWebviewUri`配線） |
 | Git | `main` synced through v1.77.11 |
 
 ---
+
+## 2026-07-05 JST - Claude - Genesis Mode G2 Webview UI
+
+- 追加: `webview/modules/06-genesis-guide.js` + `webview/styles/11-genesis-guide.css` — Start Hub に目立つ「世界を作りはじめる」ヒーローバナーを追加し、genre → playstyle → pressure → bookkeeping → protagonistMode → imageGenerationWanted の6ステップ・チップ選択式ウィザードを実装。
+- プレビューは `src/rulesProfileCore.ts` の `resolveRulesProfile()` を **UI側でミラーした非正本ロジック**でその場計算（有効システムのプレビュー・summary行・warnings枠）。ホスト側の正本解決はまだ未実装（RP2）。
+- 最終確認画面: 世界観/遊び方/難易度/管理量/主人公作成方法/画像生成有無/主要システムを表示。`comfyUiStylePrompt` 表示＋「プロンプトをコピー」ボタン（クリップボード書込み失敗時は textarea select() にフォールバック）、「Genesis画像を生成」ボタン（配線のみ、ComfyUI未実装でも進行をブロックしない）。
+- 「この設定で始める」は `genesisApplyProfile`（answers + freeformNotes）を、「Genesis画像を生成」は `genesisGenerateImage`（genre + prompt + assetHint）を postMessage するのみ。`game_rules.json` / canonical state は一切書き込まない。「詳細設定へ」は既存 Game Rules パネルを開くだけ。既存Quickstartは無変更。
+- 画像は `window.__LR_GENESIS_ASSET_BASE_URI__`（`webview/index.html` 内 `{{genesisAssetBaseUri}}` プレースホルダ、host側は未置換）が使えない間は絵文字フォールバック表示に留める。絶対パスはWebviewに出さない。
+- 副次修正: `.start-hub` の `justify-content: center` が、内容がオーバーフローするとflexboxの既知挙動で上端コンテンツ（新ヒーローバナー含む）がスクロールで到達不能になるバグを発見し `flex-start` に変更（`webview/styles/10-layout-chat.css`）。
+- i18n: `webview.genesis.*` を en/ja/zh-CN/zh-TW 全ロケールに109キー追加、キー数一致を確認済み。
+- 検証: 実ビルド済み `webview/script.js`/`style.css` を静的HTMLハーネス（`acquireVsCodeApi`スタブ + `localeBundle`注入）に読み込み、Preview toolでウィザード全ステップ・summary・コピー/生成ボタン・postMessageペイロード・モバイル幅(375px)表示を目視確認（ハーネスは検証用のみで作業後に削除、リポジトリに残していない）。
+- `npm run compile` clean。`npm test` **208/208**。
+- 未実装（次のAIへの申し送り）: RP2 host apply gate — 拡張側で `genesisApplyProfile` / `genesisGenerateImage` を受信し、`resolveRulesProfile()` を正本として呼び出して `game_rules.json` に安全パッチ適用、`assetHint` のパスを `asWebviewUri` 経由で `window.__LR_GENESIS_ASSET_BASE_URI__` に注入する処理、ComfyUI連携の実装。
 
 ## 2026-07-04 JST - Codex - Genesis Mode G1 Rules Profile Core
 

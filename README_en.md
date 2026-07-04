@@ -71,12 +71,16 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
 ## 📸 Screenshots & Demo
 
 <p align="center">
-  <img src="docs/assets/hero-ui.png" alt="LoreRelay main UI" width="720" />
+  <img src="docs/assets/hero-ui.jpg" alt="LoreRelay — an AI Game Master conjuring a holographic screen in a lantern-lit tavern" width="720" />
 </p>
 
-| Inspector | Remote Play | Party Director |
+<p align="center">
+  <img src="docs/assets/screenshot-status.png" width="720" alt="Adventure Log chat with GM narration, HP/MP/Affection bars, inventory and skill tags" />
+</p>
+
+| Inspector (with Debug Trace) | Remote Play | Party Director |
 |:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
+| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector with Debug Trace timeline" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
 
 | Lorebook | ComfyUI | World Map |
 |:---:|:---:|:---:|

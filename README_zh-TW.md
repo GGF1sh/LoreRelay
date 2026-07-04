@@ -69,12 +69,16 @@ GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 ## 📸 Screenshots & Demo
 
 <p align="center">
-  <img src="docs/assets/hero-ui.png" alt="LoreRelay main UI" width="720" />
+  <img src="docs/assets/hero-ui.jpg" alt="LoreRelay — AI 遊戲主持人在燈籠點亮的酒館中召喚全息螢幕" width="720" />
 </p>
 
-| Inspector | Remote Play | Party Director |
+<p align="center">
+  <img src="docs/assets/screenshot-status.png" width="720" alt="冒險日誌聊天介面，含GM敘事、HP/MP/好感度條、物品欄與技能標籤" />
+</p>
+
+| Inspector（含 Debug Trace） | Remote Play | Party Director |
 |:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
+| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector with Debug Trace timeline" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
 
 | Lorebook | ComfyUI | World Map |
 |:---:|:---:|:---:|

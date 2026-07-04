@@ -47,18 +47,42 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 
 ## Assets in repo
 
-| File | Use |
-|------|-----|
-| `docs/assets/hero-ui.svg` | Main README hero |
-| `docs/assets/screenshot-inspector.svg` | Turn Inspector |
-| `docs/assets/screenshot-remote-play.svg` | LAN remote play |
-| `docs/assets/screenshot-party-director.svg` | Party speech control |
-| `docs/assets/screenshot-lorebook.svg` | Lorebook editor |
-| `docs/assets/screenshot-comfyui.svg` | ComfyUI integration |
-| `docs/assets/screenshot-world-map.svg` | World tab parchment + pins |
-| `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) |
+| File | Use | Status |
+|------|-----|--------|
+| `docs/assets/hero-ui.jpg` | Main README hero | Real — ComfyUI illustration (IL `waiIllustriousSDXL_v170`), 2026-07-04 |
+| `docs/assets/screenshot-status.png` | Adventure Log chat + status panel | Real — captured from the actual `webview/index.html` + `script.js` + `style.css` build (see below), 2026-07-04 |
+| `docs/assets/screenshot-inspector.png` | Turn Inspector incl. Debug Trace | Real — same capture method, 2026-07-04 |
+| `docs/assets/screenshot-remote-play.svg` / `.png` | LAN remote play | Placeholder wireframe (not yet refreshed) |
+| `docs/assets/screenshot-party-director.svg` / `.png` | Party speech control | Placeholder wireframe (not yet refreshed) |
+| `docs/assets/screenshot-lorebook.svg` / `.png` | Lorebook editor | Placeholder wireframe (not yet refreshed) |
+| `docs/assets/screenshot-comfyui.svg` / `.png` | ComfyUI integration | Placeholder wireframe (not yet refreshed) |
+| `docs/assets/screenshot-world-map.svg` / `.png` | World tab parchment + pins | Placeholder wireframe (not yet refreshed) |
+| `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
 
-Replace SVGs with PNG/GIF when ready; keep filenames or update README paths.
+### How the "Real" screenshots were captured (no VS Code needed)
+
+The Webview is plain HTML/CSS/JS with no VS Code-only APIs beyond `acquireVsCodeApi()`
+(a thin `postMessage` wrapper). To capture real, reproducible screenshots without an
+Extension Development Host:
+
+1. Copy `webview/index.html` + `webview/script.js` + `webview/style.css` (+ `webview/vendor/`)
+   to a scratch folder and serve over plain HTTP.
+2. In `index.html`, resolve the `{{styleUri}}` / `{{scriptUri}}` / `{{nonce}}` / `{{cspSource}}`
+   template placeholders (the extension host normally substitutes these) and drop the strict
+   CSP meta tag (not needed outside the real webview sandbox).
+3. Stub `window.acquireVsCodeApi` to a no-op `postMessage`/`setState`/`getState`.
+4. Load a locale file (e.g. `locales/ja.json`) and `postMessage({ type: 'localeBundle', ... })`,
+   then `postMessage` a realistic `gameStateUpdate` / `debugCapabilities` / `debugTraceUpdate`
+   payload — the same message shapes `src/gameStateSync.ts` / `src/extension.ts` send for real.
+5. Capture with `chrome --headless=new --window-size=1280,900 --screenshot=out.png URL` for a
+   fully deterministic shot (no manual clicking needed — drive tab switches via
+   `document.querySelector('[data-target="..."]').click()` in an injected script keyed off a
+   `?demo=` query param).
+
+This reuses the exact production bundle, so screenshots stay authentic and cheap to refresh —
+no throwaway mockups needed. Remaining placeholder wireframes (Remote Play, Party Director,
+Lorebook, ComfyUI, World Map) can be refreshed the same way; they mostly need a populated
+`world_forge.json` / `npc_registry.json` / lorebook entries in the mock `gameStateUpdate`.
 
 ## Recommended capture settings
 

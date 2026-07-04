@@ -18,6 +18,10 @@ import {
     tryApplyVehicleTurnOpsWithDeps,
     type VehicleTurnOpsDeps,
 } from './vehicleTurnOpsCore';
+import {
+    emitVehicleWorldIntentBridgeDiagnostics,
+    getVehicleWorldIntentBridgeMode,
+} from './vehicleWorldIntentBridge';
 
 export type { VehicleTurnOpsDeps } from './vehicleTurnOpsCore';
 export { applyVehicleTurnOpsWithDeps, tryApplyVehicleTurnOpsWithDeps } from './vehicleTurnOpsCore';
@@ -39,6 +43,8 @@ const defaultDeps: VehicleTurnOpsDeps = {
     writeVehicleStateAtomic: (statePath, state) => writeJsonAtomic(statePath, state),
     clearVehicleStateCache: () => clearVehicleStateCache(),
     runSerializedMutation: (fn) => runSerializedVehicleStateMutation(fn),
+    getVehicleBridgeMode: () => getVehicleWorldIntentBridgeMode(),
+    emitVehicleBridgeDiagnostics: (report) => emitVehicleWorldIntentBridgeDiagnostics(report),
 };
 
 export function applyVehicleTurnOps(

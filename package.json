@@ -693,6 +693,21 @@
           ],
           "default": "auto",
           "description": "%config.textAdventure.memory.backend.description%"
+        },
+        "textAdventure.worldIntent.vehicleBridgeMode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "shadow",
+            "compare_only"
+          ],
+          "enumDescriptions": [
+            "Legacy vehicleOps only; no World Intent parity diagnostics",
+            "Run World Intent parity diagnostics best-effort; legacy write remains authoritative",
+            "Same as shadow, but emit structured parity reports for operator review"
+          ],
+          "default": "off",
+          "description": "%config.textAdventure.worldIntent.vehicleBridgeMode.description%"
         }
       }
     }

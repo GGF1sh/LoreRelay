@@ -6,6 +6,12 @@ import {
     parseVehicleOps,
     shouldAttemptVehiclePersistCore,
 } from './vehicleOpsCore';
+import type { VehicleWorldIntentBridgeMode } from './worldIntentCore';
+import {
+    buildVehicleBridgeParityErrorReport,
+    runVehicleWorldIntentBridgeBatch,
+    type VehicleWorldIntentBridgeBatchReport,
+} from './vehicleWorldIntentBridgeCore';
 
 export { shouldAttemptVehiclePersistCore } from './vehicleOpsCore';
 
@@ -17,6 +23,8 @@ export interface VehicleTurnOpsDeps {
     writeVehicleStateAtomic: (statePath: string, state: VehicleState) => void;
     clearVehicleStateCache: () => void;
     runSerializedMutation: (fn: () => void) => void;
+    getVehicleBridgeMode?: () => VehicleWorldIntentBridgeMode;
+    emitVehicleBridgeDiagnostics?: (report: VehicleWorldIntentBridgeBatchReport) => void;
 }
 
 export interface VehicleTurnOpsResult {
@@ -42,6 +50,7 @@ export function tryApplyVehicleTurnOpsWithDeps(
     }
 
     const result: VehicleTurnOpsResult = { ok: true, applied: false, attempted: true };
+    const bridgeMode = deps.getVehicleBridgeMode?.() ?? 'off';
     try {
         deps.runSerializedMutation(() => {
             const current = deps.readVehicleStateFromDisk(statePath);
@@ -49,6 +58,32 @@ export function tryApplyVehicleTurnOpsWithDeps(
                 return;
             }
             const worldTurn = deps.loadWorldTurn();
+
+            if (bridgeMode !== 'off') {
+                try {
+                    const batchReport = runVehicleWorldIntentBridgeBatch({
+                        bridgeMode,
+                        vehicleOps: turnResult.vehicleOps,
+                        preWriteVehicleState: current,
+                        enableVehicleSystem: deps.isVehicleSystemEnabled(),
+                        worldTurn,
+                    });
+                    try {
+                        deps.emitVehicleBridgeDiagnostics?.(batchReport);
+                    } catch (emitErr) {
+                        console.warn('[vehicleTurnOps] bridge diagnostics emit failed', emitErr);
+                    }
+                } catch (e) {
+                    try {
+                        deps.emitVehicleBridgeDiagnostics?.(
+                            buildVehicleBridgeParityErrorReport(bridgeMode, ops.length, e)
+                        );
+                    } catch (emitErr) {
+                        console.warn('[vehicleTurnOps] bridge diagnostics emit failed', emitErr);
+                    }
+                }
+            }
+
             const next = applyVehicleOps(current, ops, { worldTurn });
             if (!next || JSON.stringify(current) === JSON.stringify(next)) {
                 return;

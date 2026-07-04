@@ -268,9 +268,10 @@ export function compareVehicleWorldIntentParity(
         mismatches.push('next_state');
     }
 
-    if (!legacy.changed && legacy.nextVehicleState === undefined) {
+    if (!legacy.changed && legacy.nextVehicleState === undefined && executeResult.nextVehicleState !== undefined) {
         const finiteTurn = typeof input.worldTurn === 'number' && Number.isFinite(input.worldTurn);
-        if (finiteTurn && executeResult.nextVehicleState?.updatedTurn !== input.vehicleState?.updatedTurn) {
+        const inputTurn = input.vehicleState?.updatedTurn;
+        if (finiteTurn && executeResult.nextVehicleState.updatedTurn !== inputTurn) {
             mismatches.push('updated_turn');
         }
     }

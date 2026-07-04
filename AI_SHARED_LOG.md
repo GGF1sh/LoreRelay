@@ -10,16 +10,33 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **188/188** |
+| Tests | `npm test` **189/189** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1** pure core · **WI1R** P1 fixes · **WI2** closed registry + shadow parity |
-| Next (推奨) | WI3a UI (Claude) · WI3b Gate/bridge host wiring |
+| World Intent | **WI1–WI2** core/registry/parity · **WI3b** host bridge diagnostics (`off`/`shadow`/`compare_only`) |
+| Next (推奨) | WI3a preview UI (Claude) · WI4 fuel accounting Gate |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Codex - World Intent WI3b Gate + Claude WI3a prompt
+
+- Added `docs/WORLD_INTENT_WI3B_CHATGPT_GATE.md` (**Approved with constraints**): vehicle World Intent host bridge may run only `off` / `shadow` / `compare_only` diagnostics around the existing `vehicleTurnOps` ledger path. Legacy `vehicleOps` remains canonical; parity uses pre-write cloned vehicle state and must never write, block, retry, or compensate.
+- Added `docs/WORLD_INTENT_WI3A_CLAUDE_PROMPT.md`: Claude task packet for read-only Vehicles tab preview UX design. Host read-only query endpoints and any Webview trust-boundary changes remain separate gate work.
+
+---
+
+## 2026-07-04 JST - Grok - World Intent Core WI3b host bridge
+
+- Added `vehicleWorldIntentBridgeCore.ts` (pure batch parity) and `vehicleWorldIntentBridge.ts` (VS Code config + Output Channel).
+- Integrated into `vehicleTurnOpsCore.ts` at pre-write boundary; `statePatch.ts` unchanged.
+- Setting: `textAdventure.worldIntent.vehicleBridgeMode` (`off` default). Legacy vehicleOps authoritative; one `vehicle_state.json` write.
+- Fixed parity `updated_turn` false positive on blocked/no-op when `worldTurn` provided.
+- `scripts/test_world_intent_wi3b.js` (Gate §10). `npm test` **189/189**.
 
 ---
 

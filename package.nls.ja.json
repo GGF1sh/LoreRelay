@@ -91,5 +91,6 @@
   "config.textAdventure.worldForge.defaultFactionCount.description": "新しい World Forge を生成する際のデフォルトの勢力（Faction）数。",
   "config.textAdventure.worldForge.defaultNpcCount.description": "新しい World Forge を生成する際のデフォルトのNPC数。",
   "config.textAdventure.worldForge.llmEnrich.description": "World Forgeの生成時、LLMを使用して各地域や勢力、NPCに詳細な設定やフレーバーテキストを自動付与して拡張します。",
-  "config.textAdventure.memory.backend.description": "NPC RegistryやWorld State用のセマンティックメモリのインデックス作成バックエンド。"
+  "config.textAdventure.memory.backend.description": "NPC RegistryやWorld State用のセマンティックメモリのインデックス作成バックエンド。",
+  "config.textAdventure.worldIntent.vehicleBridgeMode.description": "World Intent と legacy vehicleOps の診断用 parity モード。canonical は従来の vehicleOps のみ。off で parity 無効。"
 }

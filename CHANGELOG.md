@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Mod System design docs** — `docs/MOD_SYSTEM_DESIGN.md`, `docs/MOD_SYSTEM_CHATGPT_GATE.md`, and `docs/MOD_SYSTEM_AI_PROMPTS.md`: MOD1–MOD5 plan (profiles, load order, pure resolver, conflict viewer, read-only UI), ChatGPT gate for MOD1 data-only resolver, and multi-AI handoff prompts. Design only; MOD1 pure resolver already shipped in code.
+
+- **Graphics Upgrade Track 2 — Settlement Diorama lighting/depth** — Webview-only, no schema/payload change (uses the existing `SettlementDioramaSnapshot.palette.theme`/`.accent`, previously unused client-side). `86c-settlement-diorama.js`: shadow mapping (`PCFSoftShadowMap`, dirLight `castShadow`, blocks cast+receive, markers/ground receive-only, shadow-camera frustum sized to `snapshot.bounds`); `THREE.Fog` tinted to `palette.background` so the diorama no longer reads as a box floating in empty space; per-material PBR finish (`DIORAMA_MATERIAL_FINISH`: metal/water get distinct metalness+roughness, `light`/`hazard` get a faint emissive glow) replacing the previous flat `MeshLambertMaterial`; genre-linked directional-light color/intensity/angle (`DIORAMA_THEME_LIGHTING`, keyed by the snapshot's own `palette.theme` — `default`/`fantasy`/`postapoc`/`industrial`/`eastern`/`horror`/`scifi`) tinted with `palette.accent`. Lighting/fog reconfigure on both initial scene build and content rebuild (layer/settlement switches can change `bounds`). No animation added (per design decision — diorama stays render-on-camera-change). `npm test` **185/185** unaffected by this change (pre-existing unrelated `check_version_consistency.js` drift from another agent's in-flight commit, not touched here). `check_i18n_keys.js` / `validate_utf8_docs.js` unaffected (no new strings).
+
 ## [1.75.2] - 2026-07-04
 
 ### Fixed

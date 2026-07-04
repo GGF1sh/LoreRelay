@@ -45,6 +45,14 @@
 
 ---
 
+## 2026-07-04 JST - Grok - Mod System design docs commit
+
+- Added `docs/MOD_SYSTEM_DESIGN.md`, `docs/MOD_SYSTEM_CHATGPT_GATE.md`, `docs/MOD_SYSTEM_AI_PROMPTS.md` to git (MOD1–MOD5 contract, ChatGPT gate for data-only resolver, handoff prompts).
+- MOD1 pure resolver (`modSystemCore.ts`) already shipped; docs formalize later MOD2+ phases. No runtime code changed.
+- `validate_utf8_docs.js` OK.
+
+---
+
 ## 2026-07-04 JST - Codex - AI Command Tower design
 
 - Added `docs/AI_COMMAND_TOWER_DESIGN.md` as the coordination-layer design for routing LoreRelay work across Codex/ChatGPT, Claude, Grok, Gemini, and optional local coder models.

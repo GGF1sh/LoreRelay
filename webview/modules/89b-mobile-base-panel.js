@@ -1,8 +1,9 @@
 // webview/modules/89b-mobile-base-panel.js
-// Mobile Base System MB4: read-only panel in Vehicles tab (no disk writes).
+// Mobile Base System MB4/MB5: read-only panel + Settlement interior view entry (no disk writes).
 // Persistence channel: turn_result.mobileBaseOps (MB3 apply gate).
 
 (function () {
+    let _mbPanelWorldMsg = null;
     function escapeHtml(str) {
         if (str === undefined || str === null) return '';
         return String(str)
@@ -38,6 +39,49 @@
         return facilities.map((f) => (
             `<span class="mb-facility-chip status-${escapeHtml(f.status)}">${escapeHtml(f.name)}</span>`
         )).join('');
+    }
+
+    function openMobileBaseInteriorView(mapMode) {
+        if (typeof activateStatusPane === 'function') {
+            activateStatusPane('pane-world');
+        } else {
+            document.getElementById('tab-btn-world')?.click();
+        }
+        if (typeof setWorldMapMode === 'function') {
+            setWorldMapMode(mapMode, { persist: true });
+        }
+    }
+
+    function renderInteriorActions(interior) {
+        if (!interior) {
+            return '';
+        }
+        if (interior.interiorBlocked) {
+            const reason = interior.interiorBlockReason || interior.interiorAccess || 'blocked';
+            return `<p class="vehicle-warning mb-interior-blocked">${escapeHtml(T('webview.mobileBase.interiorBlocked'))}: ${escapeHtml(reason)}</p>`;
+        }
+        const buttons = [];
+        if (interior.hasCanvas) {
+            buttons.push(`<button type="button" class="small-btn mb-interior-btn" data-mb-view="settlement">${escapeHtml(T('webview.mobileBase.viewInteriorCanvas'))}</button>`);
+        }
+        if (interior.hasDiorama) {
+            buttons.push(`<button type="button" class="small-btn mb-interior-btn" data-mb-view="diorama">${escapeHtml(T('webview.mobileBase.viewInteriorDiorama'))}</button>`);
+        }
+        if (!buttons.length) {
+            return '';
+        }
+        return `<div class="mb-interior-actions">${buttons.join('')}</div>`;
+    }
+
+    function wireInteriorActionButtons(root) {
+        root.querySelectorAll('.mb-interior-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const mode = btn.getAttribute('data-mb-view');
+                if (mode === 'settlement' || mode === 'diorama') {
+                    openMobileBaseInteriorView(mode);
+                }
+            });
+        });
     }
 
     function renderStockRows(stocks) {
@@ -103,6 +147,8 @@
             ? `<div class="mb-problems"><span class="vehicle-bar-label">${escapeHtml(T('webview.mobileBase.concerns'))}</span><ul>${panel.problems.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`
             : '';
 
+        const interiorActions = renderInteriorActions(_mbPanelWorldMsg ? _mbPanelWorldMsg.mobileBaseInterior : null);
+
         root.innerHTML = `
             <div class="mobile-base-panel-card">
                 <div class="vehicle-detail-header">
@@ -128,12 +174,15 @@
                     <div class="mb-chip-row">${renderStockRows(panel.stocks)}</div>
                 </div>
                 ${problems}
+                ${interiorActions}
             </div>`;
+        wireInteriorActionButtons(root);
     }
 
     window.addEventListener('message', (event) => {
         const msg = event.data;
         if (!msg || msg.type !== 'worldView') { return; }
+        _mbPanelWorldMsg = msg;
         if (msg.enableMobileBaseSystem === true) {
             renderMobileBasePanel(msg.mobileBasePanel || null);
         } else {

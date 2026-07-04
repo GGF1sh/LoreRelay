@@ -258,3 +258,14 @@
     padding-left: 1.1rem;
     font-size: 0.82em;
 }
+
+.mb-interior-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+}
+
+.mb-interior-blocked {
+    margin-top: 0.5rem;
+}

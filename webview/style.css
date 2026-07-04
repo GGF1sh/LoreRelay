@@ -4051,6 +4051,19 @@ body[data-ui-theme="steampunk"] {
     position: relative;
 }
 
+.world-settlement-mobile-base-banner {
+    font-size: 0.82em;
+    opacity: 0.85;
+    margin: 0 0 0.45rem;
+    padding: 0.35rem 0.5rem;
+    border-left: 3px solid var(--vscode-textLink-foreground, #3794ff);
+    background: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.12));
+}
+
+.world-settlement-mobile-base-banner.hidden {
+    display: none;
+}
+
 .world-settlement-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -4701,4 +4714,15 @@ body[data-ui-theme="steampunk"] {
     margin: 0.25rem 0 0;
     padding-left: 1.1rem;
     font-size: 0.82em;
+}
+
+.mb-interior-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+}
+
+.mb-interior-blocked {
+    margin-top: 0.5rem;
 }

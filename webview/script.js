@@ -6358,10 +6358,19 @@ function renderFogOverlays(container, msg) {
     }
 }
 
+function hasSettlementMapContent(msg) {
+    if (!msg) { return false; }
+    const interior = msg.mobileBaseInterior;
+    if (msg.enableMobileBaseSystem === true && interior && !interior.interiorBlocked && interior.hasCanvas) {
+        return true;
+    }
+    return msg.enableSettlementMode === true && Boolean(msg.settlementView);
+}
+
 function syncSettlementMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-settlement');
     if (!btn) { return; }
-    const show = msg.enableSettlementMode === true;
+    const show = hasSettlementMapContent(msg);
     btn.classList.toggle('hidden', !show);
     if (!show && worldMapMode === 'settlement') {
         setWorldMapMode('mermaid', { persist: true });
@@ -9382,15 +9391,52 @@ function resetSettlementViewTransform() {
     _settlementZoom = 1;
 }
 
+function getMobileBaseInterior(msg) {
+    if (!msg || msg.enableMobileBaseSystem !== true) { return null; }
+    const interior = msg.mobileBaseInterior;
+    if (!interior || interior.interiorBlocked) { return null; }
+    return interior;
+}
+
 function getSettlementSnapshot() {
     const msg = _settlementWorldMsg;
+    const interior = getMobileBaseInterior(msg);
+    if (interior && interior.settlementView) {
+        return interior.settlementView;
+    }
     return msg && msg.settlementView ? msg.settlementView : null;
 }
 
 /** M4c: read-only ghost previews computed by the host (applyExpandLayerToLayout). Never written by the Webview. */
 function getSettlementExpansionPreviews() {
     const msg = _settlementWorldMsg;
+    const interior = getMobileBaseInterior(msg);
+    if (interior && Array.isArray(interior.settlementExpansionPreviews)) {
+        return interior.settlementExpansionPreviews;
+    }
     return msg && Array.isArray(msg.settlementExpansionPreviews) ? msg.settlementExpansionPreviews : [];
+}
+
+function renderMobileBaseInteriorBanner(msg, view) {
+    const banner = document.getElementById('world-settlement-mobile-base-banner');
+    if (!banner) { return; }
+    const interior = getMobileBaseInterior(msg);
+    const show = Boolean(
+        interior
+        && interior.hasCanvas
+        && view
+        && view.settlementId === interior.settlementId
+    );
+    if (!show) {
+        banner.classList.add('hidden');
+        banner.textContent = '';
+        return;
+    }
+    const vars = { vehicle: interior.vehicleName, mode: interior.mode };
+    banner.textContent = typeof T === 'function'
+        ? T('webview.mobileBase.interiorBanner', vars)
+        : `Mobile base interior — ${interior.vehicleName} (${interior.mode})`;
+    banner.classList.remove('hidden');
 }
 
 function settlementExpandProfileLabel(profile) {
@@ -9435,7 +9481,7 @@ function renderSettlementExpandPanel(view, msg) {
     const layerLabelEl = document.getElementById('world-settlement-expand-layer-label');
     if (!panel || !buttonsEl) { return; }
 
-    const enabled = Boolean(msg && msg.enableSettlementMode === true);
+    const enabled = Boolean(msg && (msg.enableSettlementMode === true || getMobileBaseInterior(msg)));
     const previews = enabled ? getSettlementExpansionPreviews() : [];
     const layerId = view ? view.layerId : null;
     const forLayer = layerId ? previews.filter((p) => p && p.layerId === layerId) : [];
@@ -9737,6 +9783,7 @@ function drawSettlementIsometric() {
         }
     }
     stage.classList.toggle('hidden', !view);
+    renderMobileBaseInteriorBanner(msg, view);
     if (!view) {
         hideSettlementTooltip();
         renderSettlementDetailPanel(null);
@@ -10078,8 +10125,19 @@ function loadThreeJsLazy() {
     return _dioramaThreeLoadPromise;
 }
 
+function getMobileBaseInteriorDiorama(msg) {
+    if (!msg || msg.enableMobileBaseSystem !== true) { return null; }
+    const interior = msg.mobileBaseInterior;
+    if (!interior || interior.interiorBlocked) { return null; }
+    return interior;
+}
+
 function getDioramaSnapshot() {
     const msg = _dioramaWorldMsg;
+    const interior = getMobileBaseInteriorDiorama(msg);
+    if (interior && interior.settlementDiorama) {
+        return interior.settlementDiorama;
+    }
     return msg && msg.settlementDiorama ? msg.settlementDiorama : null;
 }
 
@@ -11319,10 +11377,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 /* --- 89b-mobile-base-panel.js --- */
 // webview/modules/89b-mobile-base-panel.js
-// Mobile Base System MB4: read-only panel in Vehicles tab (no disk writes).
+// Mobile Base System MB4/MB5: read-only panel + Settlement interior view entry (no disk writes).
 // Persistence channel: turn_result.mobileBaseOps (MB3 apply gate).
 
 (function () {
+    let _mbPanelWorldMsg = null;
     function escapeHtml(str) {
         if (str === undefined || str === null) return '';
         return String(str)
@@ -11358,6 +11417,49 @@ window.addEventListener('DOMContentLoaded', () => {
         return facilities.map((f) => (
             `<span class="mb-facility-chip status-${escapeHtml(f.status)}">${escapeHtml(f.name)}</span>`
         )).join('');
+    }
+
+    function openMobileBaseInteriorView(mapMode) {
+        if (typeof activateStatusPane === 'function') {
+            activateStatusPane('pane-world');
+        } else {
+            document.getElementById('tab-btn-world')?.click();
+        }
+        if (typeof setWorldMapMode === 'function') {
+            setWorldMapMode(mapMode, { persist: true });
+        }
+    }
+
+    function renderInteriorActions(interior) {
+        if (!interior) {
+            return '';
+        }
+        if (interior.interiorBlocked) {
+            const reason = interior.interiorBlockReason || interior.interiorAccess || 'blocked';
+            return `<p class="vehicle-warning mb-interior-blocked">${escapeHtml(T('webview.mobileBase.interiorBlocked'))}: ${escapeHtml(reason)}</p>`;
+        }
+        const buttons = [];
+        if (interior.hasCanvas) {
+            buttons.push(`<button type="button" class="small-btn mb-interior-btn" data-mb-view="settlement">${escapeHtml(T('webview.mobileBase.viewInteriorCanvas'))}</button>`);
+        }
+        if (interior.hasDiorama) {
+            buttons.push(`<button type="button" class="small-btn mb-interior-btn" data-mb-view="diorama">${escapeHtml(T('webview.mobileBase.viewInteriorDiorama'))}</button>`);
+        }
+        if (!buttons.length) {
+            return '';
+        }
+        return `<div class="mb-interior-actions">${buttons.join('')}</div>`;
+    }
+
+    function wireInteriorActionButtons(root) {
+        root.querySelectorAll('.mb-interior-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const mode = btn.getAttribute('data-mb-view');
+                if (mode === 'settlement' || mode === 'diorama') {
+                    openMobileBaseInteriorView(mode);
+                }
+            });
+        });
     }
 
     function renderStockRows(stocks) {
@@ -11423,6 +11525,8 @@ window.addEventListener('DOMContentLoaded', () => {
             ? `<div class="mb-problems"><span class="vehicle-bar-label">${escapeHtml(T('webview.mobileBase.concerns'))}</span><ul>${panel.problems.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`
             : '';
 
+        const interiorActions = renderInteriorActions(_mbPanelWorldMsg ? _mbPanelWorldMsg.mobileBaseInterior : null);
+
         root.innerHTML = `
             <div class="mobile-base-panel-card">
                 <div class="vehicle-detail-header">
@@ -11448,12 +11552,15 @@ window.addEventListener('DOMContentLoaded', () => {
                     <div class="mb-chip-row">${renderStockRows(panel.stocks)}</div>
                 </div>
                 ${problems}
+                ${interiorActions}
             </div>`;
+        wireInteriorActionButtons(root);
     }
 
     window.addEventListener('message', (event) => {
         const msg = event.data;
         if (!msg || msg.type !== 'worldView') { return; }
+        _mbPanelWorldMsg = msg;
         if (msg.enableMobileBaseSystem === true) {
             renderMobileBasePanel(msg.mobileBasePanel || null);
         } else {

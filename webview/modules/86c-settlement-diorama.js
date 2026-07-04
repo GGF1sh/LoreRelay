@@ -104,8 +104,19 @@ function loadThreeJsLazy() {
     return _dioramaThreeLoadPromise;
 }
 
+function getMobileBaseInteriorDiorama(msg) {
+    if (!msg || msg.enableMobileBaseSystem !== true) { return null; }
+    const interior = msg.mobileBaseInterior;
+    if (!interior || interior.interiorBlocked) { return null; }
+    return interior;
+}
+
 function getDioramaSnapshot() {
     const msg = _dioramaWorldMsg;
+    const interior = getMobileBaseInteriorDiorama(msg);
+    if (interior && interior.settlementDiorama) {
+        return interior.settlementDiorama;
+    }
     return msg && msg.settlementDiorama ? msg.settlementDiorama : null;
 }
 

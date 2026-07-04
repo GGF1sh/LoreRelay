@@ -11,6 +11,7 @@
 
 ### Added
 
+- **Mobile Base System MB5 interior view reuse** — `mobileBaseInteriorCore.ts` builds `mobileBaseInterior` payload (validated link → `settlementView` + optional `settlementDiorama`). Triple gate; blocks `locked`/`damaged`/`unsafe` interior without leaking layout. Webview reuses M3 Canvas and M5 Diorama renderers; Vehicles panel adds interior view buttons. `test_mobile_base_interior_core.js`, `test_webview_mobile_base_interior.js`.
 - **Mobile Base System MB4 read-only Webview panel** — `mobileBaseViewCore.ts` builds capped `MobileBasePanelSnapshot` (facilities, stock bands, concerns, docking, hull/fuel, hangar). `mobileBaseBridge.buildMobileBasePanelWebviewPayload()` + `worldView` postMessage when triple gate ON. `89b-mobile-base-panel.js` section in Vehicles tab. No disk writes. `test_mobile_base_view_core.js`, `test_webview_mobile_base_panel.js`.
 
 - **Vehicle System V4 read-only Webview garage panel** — `vehicleViewCore.ts` builds capped `VehicleGarageSnapshot`; `vehicleBridge.ts` + `worldView` postMessage (`enableVehicleSystem`, `vehicleGarage`). New tab `pane-vehicles` + `89-vehicles.js` / `89-vehicles.css`: fleet list, active vehicle card, cargo/crew bars, modules, fuel band, access warnings. No disk writes from Webview. `scripts/test_vehicle_view_core.js`, `test_webview_vehicle_garage.js`.

@@ -122,15 +122,52 @@ function resetSettlementViewTransform() {
     _settlementZoom = 1;
 }
 
+function getMobileBaseInterior(msg) {
+    if (!msg || msg.enableMobileBaseSystem !== true) { return null; }
+    const interior = msg.mobileBaseInterior;
+    if (!interior || interior.interiorBlocked) { return null; }
+    return interior;
+}
+
 function getSettlementSnapshot() {
     const msg = _settlementWorldMsg;
+    const interior = getMobileBaseInterior(msg);
+    if (interior && interior.settlementView) {
+        return interior.settlementView;
+    }
     return msg && msg.settlementView ? msg.settlementView : null;
 }
 
 /** M4c: read-only ghost previews computed by the host (applyExpandLayerToLayout). Never written by the Webview. */
 function getSettlementExpansionPreviews() {
     const msg = _settlementWorldMsg;
+    const interior = getMobileBaseInterior(msg);
+    if (interior && Array.isArray(interior.settlementExpansionPreviews)) {
+        return interior.settlementExpansionPreviews;
+    }
     return msg && Array.isArray(msg.settlementExpansionPreviews) ? msg.settlementExpansionPreviews : [];
+}
+
+function renderMobileBaseInteriorBanner(msg, view) {
+    const banner = document.getElementById('world-settlement-mobile-base-banner');
+    if (!banner) { return; }
+    const interior = getMobileBaseInterior(msg);
+    const show = Boolean(
+        interior
+        && interior.hasCanvas
+        && view
+        && view.settlementId === interior.settlementId
+    );
+    if (!show) {
+        banner.classList.add('hidden');
+        banner.textContent = '';
+        return;
+    }
+    const vars = { vehicle: interior.vehicleName, mode: interior.mode };
+    banner.textContent = typeof T === 'function'
+        ? T('webview.mobileBase.interiorBanner', vars)
+        : `Mobile base interior — ${interior.vehicleName} (${interior.mode})`;
+    banner.classList.remove('hidden');
 }
 
 function settlementExpandProfileLabel(profile) {
@@ -175,7 +212,7 @@ function renderSettlementExpandPanel(view, msg) {
     const layerLabelEl = document.getElementById('world-settlement-expand-layer-label');
     if (!panel || !buttonsEl) { return; }
 
-    const enabled = Boolean(msg && msg.enableSettlementMode === true);
+    const enabled = Boolean(msg && (msg.enableSettlementMode === true || getMobileBaseInterior(msg)));
     const previews = enabled ? getSettlementExpansionPreviews() : [];
     const layerId = view ? view.layerId : null;
     const forLayer = layerId ? previews.filter((p) => p && p.layerId === layerId) : [];
@@ -477,6 +514,7 @@ function drawSettlementIsometric() {
         }
     }
     stage.classList.toggle('hidden', !view);
+    renderMobileBaseInteriorBanner(msg, view);
     if (!view) {
         hideSettlementTooltip();
         renderSettlementDetailPanel(null);

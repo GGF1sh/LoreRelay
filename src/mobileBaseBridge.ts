@@ -8,8 +8,14 @@ import {
     mobileBaseSystemEnabled,
     resolveActiveMobileBaseVehicle,
 } from './mobileBaseCore';
+import {
+    buildMobileBaseInteriorPayload,
+    type MobileBaseInteriorPayload,
+} from './mobileBaseInteriorCore';
 import { buildMobileBasePanelSnapshot, type MobileBasePanelSnapshot } from './mobileBaseViewCore';
-import { loadSettlementState } from './settlementState';
+import type { SettlementLayerId } from './settlementCore';
+import type { SettlementDioramaTheme } from './settlementDioramaCore';
+import { loadSettlementLayout, loadSettlementState } from './settlementState';
 import { loadVehicleState } from './vehicleState';
 
 export { mobileBaseSystemEnabled } from './mobileBaseCore';
@@ -61,4 +67,32 @@ export function buildMobileBasePanelWebviewPayload(
         resolveLocationName,
         carriedVehicleNames: buildCarriedVehicleNameMap(vehicleState),
     }) ?? null;
+}
+
+/** Read-only MB5 interior view — reuses Settlement Mode snapshots (triple gate). */
+export function buildMobileBaseInteriorWebviewPayload(
+    selectedLayerId: SettlementLayerId = 'z0',
+    dioramaTheme?: SettlementDioramaTheme
+): MobileBaseInteriorPayload | null {
+    const rules = loadGameRules();
+    if (!mobileBaseSystemEnabled(rules)) {
+        return null;
+    }
+    const vehicleState = loadVehicleState();
+    const vehicle = resolveActiveMobileBaseVehicle(vehicleState);
+    if (!vehicle) {
+        return null;
+    }
+    const settlement = loadSettlementState();
+    if (!settlement) {
+        return null;
+    }
+    const layout = loadSettlementLayout();
+    return buildMobileBaseInteriorPayload(
+        vehicle,
+        settlement,
+        layout ?? undefined,
+        rules,
+        { selectedLayerId, dioramaTheme }
+    ) ?? null;
 }

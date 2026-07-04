@@ -1245,10 +1245,19 @@ function renderFogOverlays(container, msg) {
     }
 }
 
+function hasSettlementMapContent(msg) {
+    if (!msg) { return false; }
+    const interior = msg.mobileBaseInterior;
+    if (msg.enableMobileBaseSystem === true && interior && !interior.interiorBlocked && interior.hasCanvas) {
+        return true;
+    }
+    return msg.enableSettlementMode === true && Boolean(msg.settlementView);
+}
+
 function syncSettlementMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-settlement');
     if (!btn) { return; }
-    const show = msg.enableSettlementMode === true;
+    const show = hasSettlementMapContent(msg);
     btn.classList.toggle('hidden', !show);
     if (!show && worldMapMode === 'settlement') {
         setWorldMapMode('mermaid', { persist: true });

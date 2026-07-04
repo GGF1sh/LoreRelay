@@ -9,11 +9,17 @@
    `window.LR_anim`、off/light/full の実行時切替）＋タイルオーバーマップの水面揺らぎ・hazard tint 脈動・
    `@` 明滅・rumored マーカー点滅・（fullティアのみ）残り火パーティクル。詳細:
    [`GRAPHICS_UPGRADE_DESIGN.md`](GRAPHICS_UPGRADE_DESIGN.md) §1-2、`AI_SHARED_LOG.md` 2026-07-04 Claude。
-2. **未着手 — ジオラマ（M5）のライティング/奥行き** — 方向光+アンビエント+簡易シャドウ、
-   背景フォグ/グラデーション天空、マテリアル質感差、ジャンル連動ライティングプロファイル。
-3. **未着手 — テーマのクローム/ポストエフェクト拡張（統一感）** — 8ジャンルテーマをタイル配色だけでなく
-   UI枠装飾・Canvas ポストエフェクト（スキャンライン/フィルムグレイン/紙テクスチャ）・
-   チャット区切り装飾まで拡張。
+2. **✅ 実装済み（ジオラマ ライティング/奥行き）** — `86c-settlement-diorama.js`。
+   シャドウマッピング（bounds連動フラスタム）、`THREE.Fog`（palette.backgroundと同色）、
+   素材別 metalness/roughness（`MeshLambertMaterial`→`MeshStandardMaterial`）、
+   `palette.theme`/`palette.accent`（既存だが未使用だった）を使ったジャンル連動ライティング。
+   ペイロード変更ゼロ。常時アニメは入れていない（設計判断どおり）。詳細:
+   `AI_SHARED_LOG.md` 2026-07-04 Claude「Graphics Upgrade Track 2」。
+3. **✅ 実装済み（ジャンルクローム/ポストエフェクト）** — `webview/styles/9b-genre-chrome.css` +
+   `#genre-fx-overlay`。設計から逸脱し `data-genre` 自動付与ではなく既存の手動 `body[data-ui-theme]`
+   を再利用（マップ/ジオラマのジャンルキーとプレイヤー選択テーマの二重信号を避ける）。
+   CRT/ビネット/グレイン/ダスト等の静的エッジ処理、`--cyber-glow`/`--glass-glow` の配線、
+   GM送信者グリフ。詳細: `AI_SHARED_LOG.md` 2026-07-04 Claude「Graphics Upgrade Track 3」。
 
 ## 保留（後回し・別コスト）
 

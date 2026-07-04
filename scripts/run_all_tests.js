@@ -110,6 +110,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_model_scanner.js' },
     { category: 'smoke', file: 'test_webview_bundle.js' },
     { category: 'smoke', file: 'test_webview_world_modules.js' },
+    { category: 'smoke', file: 'test_webview_genre_chrome.js' },
     { category: 'unit', file: 'test_world_forge.js' },
     { category: 'unit', file: 'test_world_state.js' },
     { category: 'unit', file: 'test_emergent_simulator.js' },

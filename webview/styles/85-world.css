@@ -214,3 +214,18 @@
 .quest-actions {
   margin-top: 0.5rem;
 }
+
+.world-effects-tier-btn {
+  margin-left: 0.5rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.world-effects-tier-btn.is-off {
+  opacity: 0.6;
+}
+
+.world-effects-tier-btn.is-full {
+  color: var(--accent, #4f8ef7);
+  border-color: var(--accent, #4f8ef7);
+}

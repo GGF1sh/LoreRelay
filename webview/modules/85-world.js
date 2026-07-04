@@ -1331,6 +1331,9 @@ function applyWorldMapModeVisibility() {
     if (worldMapMode === 'tile') {
         // The canvas has zero width while its panel is hidden — draw after unhide.
         requestAnimationFrame(() => drawTileOvermap());
+        if (typeof registerTileOvermapAnimation === 'function') { registerTileOvermapAnimation(); }
+    } else if (typeof unregisterTileOvermapAnimation === 'function') {
+        unregisterTileOvermapAnimation();
     }
     if (typeof syncVehicleTileHint === 'function') {
         syncVehicleTileHint(_worldViewMsg);

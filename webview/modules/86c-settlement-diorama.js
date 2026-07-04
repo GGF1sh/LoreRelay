@@ -34,6 +34,35 @@ const DIORAMA_MATERIAL_COLOR = {
     neutral: 0x6a7280,
 };
 
+// Graphics Upgrade Track 2 — per-material PBR finish (metalness/roughness) so blocks/markers
+// read as distinct surfaces under the directional light instead of one flat matte color.
+// 'light'/'hazard' get a faint emissive glow so residents/incidents read as light sources
+// even before the viewer notices the shadow. Display-only; no schema/payload change.
+const DIORAMA_MATERIAL_FINISH = {
+    stone: { metalness: 0.05, roughness: 0.9 },
+    wood: { metalness: 0.0, roughness: 0.85 },
+    metal: { metalness: 0.65, roughness: 0.35 },
+    cloth: { metalness: 0.0, roughness: 0.95 },
+    water: { metalness: 0.1, roughness: 0.12, transparent: true, opacity: 0.88 },
+    ruins: { metalness: 0.05, roughness: 0.95 },
+    hazard: { metalness: 0.0, roughness: 0.7, emissiveIntensity: 0.3 },
+    light: { metalness: 0.0, roughness: 0.4, emissiveIntensity: 0.85 },
+    neutral: { metalness: 0.05, roughness: 0.8 },
+};
+
+// Genre-linked lighting profile, keyed by the diorama snapshot's own `palette.theme`
+// (already resolved server-side from the world genre — see `resolveDioramaThemeFromOvermap()`
+// in src/settlementDioramaBridge.ts). No payload change: only client-side lighting tuning.
+const DIORAMA_THEME_LIGHTING = {
+    default: { dirIntensity: 0.75, ambientIntensity: 0.7, elevation: 55, azimuth: 35 },
+    fantasy: { dirIntensity: 0.85, ambientIntensity: 0.7, elevation: 50, azimuth: 40 },
+    postapoc: { dirIntensity: 0.7, ambientIntensity: 0.6, elevation: 40, azimuth: 30 },
+    industrial: { dirIntensity: 0.6, ambientIntensity: 0.55, elevation: 60, azimuth: -20 },
+    eastern: { dirIntensity: 0.9, ambientIntensity: 0.65, elevation: 45, azimuth: 55 },
+    horror: { dirIntensity: 0.35, ambientIntensity: 0.45, elevation: 20, azimuth: 15 },
+    scifi: { dirIntensity: 0.7, ambientIntensity: 0.6, elevation: 65, azimuth: -35 },
+};
+
 const DIORAMA_MARKER_SHAPE = {
     resident: 'cone',
     visitor: 'cone',
@@ -139,6 +168,73 @@ function resolveDioramaMaterialColor(material) {
         : DIORAMA_MATERIAL_COLOR.neutral;
 }
 
+/** Builds a PBR material for a closed `SettlementDioramaMaterial` key (Track 2 finish differentiation). */
+function buildDioramaMaterial(materialKey) {
+    const color = resolveDioramaMaterialColor(materialKey);
+    const finish = DIORAMA_MATERIAL_FINISH[materialKey] || DIORAMA_MATERIAL_FINISH.neutral;
+    const opts = { color, metalness: finish.metalness, roughness: finish.roughness };
+    if (finish.transparent) {
+        opts.transparent = true;
+        opts.opacity = finish.opacity ?? 1;
+    }
+    if (finish.emissiveIntensity) {
+        opts.emissive = color;
+        opts.emissiveIntensity = finish.emissiveIntensity;
+    }
+    return new THREE.MeshStandardMaterial(opts);
+}
+
+function buildGroundMaterial(hexColorString) {
+    const color = parseInt(String(hexColorString).replace('#', ''), 16) || 0x3d4a3d;
+    return new THREE.MeshStandardMaterial({ color, metalness: 0, roughness: 1 });
+}
+
+/** Unit light direction from elevation/azimuth degrees (Track 2 genre lighting profiles). */
+function dioramaLightDirection(elevationDeg, azimuthDeg) {
+    const el = (elevationDeg * Math.PI) / 180;
+    const az = (azimuthDeg * Math.PI) / 180;
+    return {
+        x: Math.cos(el) * Math.sin(az),
+        y: Math.sin(el),
+        z: Math.cos(el) * Math.cos(az),
+    };
+}
+
+/**
+ * Applies shadow-camera framing, genre-tinted directional light, ambient intensity, and
+ * scene fog for the current snapshot's bounds/palette. Called on both initial scene build
+ * and content rebuild (bounds/theme can differ between settlements/layers).
+ */
+function configureDioramaLighting(t, snapshot) {
+    const { width, depth, height } = snapshot.bounds;
+    const maxDim = Math.max(width, depth, height, 4);
+    const profile = DIORAMA_THEME_LIGHTING[snapshot.palette.theme] || DIORAMA_THEME_LIGHTING.default;
+    const targetX = width / 2;
+    const targetZ = depth / 2;
+
+    const dir = dioramaLightDirection(profile.elevation, profile.azimuth);
+    t.dirLight.position.set(targetX + dir.x * maxDim, dir.y * maxDim, targetZ + dir.z * maxDim);
+    t.dirLight.target.position.set(targetX, 0, targetZ);
+    t.dirLight.color = new THREE.Color(snapshot.palette.accent || '#ffffff');
+    t.dirLight.intensity = profile.dirIntensity;
+
+    const shadowCam = t.dirLight.shadow.camera;
+    shadowCam.left = -maxDim;
+    shadowCam.right = maxDim;
+    shadowCam.top = maxDim;
+    shadowCam.bottom = -maxDim;
+    shadowCam.near = 0.5;
+    shadowCam.far = maxDim * 4;
+    shadowCam.updateProjectionMatrix();
+
+    t.ambientLight.color = new THREE.Color(snapshot.palette.ambient || '#8899aa');
+    t.ambientLight.intensity = profile.ambientIntensity;
+
+    const fogColor = snapshot.palette.background || '#1a1a2e';
+    const fogNear = Math.max(4, maxDim * 0.9);
+    t.scene.fog = new THREE.Fog(fogColor, fogNear, fogNear + Math.max(4, maxDim * 2.1));
+}
+
 function disposeObject3D(obj) {
     if (!obj) { return; }
     obj.traverse((child) => {
@@ -203,22 +299,24 @@ function rebuildDioramaSceneContent(snapshot) {
     if (snapshot.palette?.background) {
         t.scene.background = new THREE.Color(snapshot.palette.background);
     }
+    configureDioramaLighting(t, snapshot);
     return t;
 }
 
 function buildBlockMesh(block) {
     const geo = new THREE.BoxGeometry(block.w, block.h, block.d);
-    const mat = new THREE.MeshLambertMaterial({ color: resolveDioramaMaterialColor(block.material) });
+    const mat = buildDioramaMaterial(block.material);
     const mesh = new THREE.Mesh(geo, mat);
     const center = toSceneVec(block.x, block.y, block.z);
     mesh.position.set(center.x, center.y + block.h / 2, center.z);
     mesh.userData = { kind: 'block', label: block.code };
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
 }
 
 function buildMarkerMesh(marker) {
     const shape = DIORAMA_MARKER_SHAPE[marker.kind] || 'box';
-    const color = resolveDioramaMaterialColor(marker.material);
     let geo;
     if (shape === 'cone') {
         geo = new THREE.ConeGeometry(0.16, 0.42, 8);
@@ -227,21 +325,25 @@ function buildMarkerMesh(marker) {
     } else {
         geo = new THREE.BoxGeometry(0.22, 0.3, 0.22);
     }
-    const mat = new THREE.MeshLambertMaterial({ color });
+    const mat = buildDioramaMaterial(marker.material);
     const mesh = new THREE.Mesh(geo, mat);
     const pos = toSceneVec(marker.x, marker.y, marker.z);
     mesh.position.set(pos.x, pos.y + 0.2, pos.z);
     mesh.userData = { kind: 'marker', id: marker.id, label: marker.label };
+    // Markers stay shadow receivers only (not casters) — 80 of them casting adds little
+    // visible value over the block shadows and would double the shadow-pass draw calls.
+    mesh.receiveShadow = true;
     return mesh;
 }
 
 function buildGroundPlane(snapshot) {
     const { width, depth } = snapshot.bounds;
     const geo = new THREE.BoxGeometry(width, 0.06, depth);
-    const mat = new THREE.MeshLambertMaterial({ color: parseInt(snapshot.palette.ground.replace('#', ''), 16) || 0x3d4a3d });
+    const mat = buildGroundMaterial(snapshot.palette.ground);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set((width - 1) / 2, -0.03, (depth - 1) / 2);
     mesh.userData = { kind: 'ground' };
+    mesh.receiveShadow = true;
     return mesh;
 }
 
@@ -285,11 +387,16 @@ function buildSettlementDioramaScene(canvas, snapshot) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(snapshot.palette.background);
 
-    const ambientColor = snapshot.palette.ambient || '#8899aa';
-    scene.add(new THREE.AmbientLight(ambientColor, 0.7));
+    const ambientLight = new THREE.AmbientLight(snapshot.palette.ambient || '#8899aa', 0.7);
+    scene.add(ambientLight);
+
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
-    dirLight.position.set(6, 10, 4);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.bias = -0.0015;
     scene.add(dirLight);
+    scene.add(dirLight.target);
 
     const cssWidth = Math.max(1, canvas.clientWidth || 320);
     const cssHeight = Math.max(1, canvas.clientHeight || 260);
@@ -299,6 +406,8 @@ function buildSettlementDioramaScene(canvas, snapshot) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     renderer.setPixelRatio(dpr);
     renderer.setSize(cssWidth, cssHeight, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     const group = new THREE.Group();
     const hitMeshes = [];
@@ -318,7 +427,9 @@ function buildSettlementDioramaScene(canvas, snapshot) {
 
     scene.add(group);
 
-    return { renderer, scene, camera, group, hitMeshes };
+    const t = { renderer, scene, camera, group, hitMeshes, ambientLight, dirLight };
+    configureDioramaLighting(t, snapshot);
+    return t;
 }
 
 function dioramaSceneChanged(snapshot) {

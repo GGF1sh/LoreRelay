@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.75.2** |
+| Package version | **1.76.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **185/185** |
+| Tests | `npm test` **186/186** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -18,7 +18,48 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | Next (推奨) | M5 実機 smoke · populate visual memory `gmTurn`/`sourceEntryId` at write sites |
-| Git | `main` synced through v1.75.2 |
+| Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Grok - Graphics Upgrade Track 1-3 ship (v1.76.0)
+
+- Claude Track3 実装のコミット代行（コンテキスト上限直前）。Track1（`84a-webview-anim.js` + タイル Atmosphere）、Track2（ジオラマ照明）、Track3（`9b-genre-chrome.css` + `#genre-fx-overlay`）を **v1.76.0** としてまとめて出荷。
+- Track3 は `data-genre` 自動付与ではなく既存 `body[data-ui-theme]` 再利用（設計逸脱を CHANGELOG に明記）。
+- 新規テスト `test_webview_genre_chrome.js`。`npm test` **186/186**（version consistency 同期込み）。
+- RULES_PROFILE / Genesis Guide 変更は本コミット対象外（別作業ツリーに残置）。
+
+---
+
+## 2026-07-04 JST - Claude - Graphics Upgrade Track 3: Genre chrome (Unreleased)
+
+- `webview/styles/9b-genre-chrome.css` を bundle 末尾に追加。`#genre-fx-overlay`（`index.html`）でテーマ別エッジ処理（cyberpunk/scifi=CRT、horror=ビネット+SVG grain、postapoc/steampunk=dust、eastern=暖色ビネット）。
+- 既存手動 `body[data-ui-theme]` を再利用 — ワールド genre（overmap/diorama）とプレイヤー選択 UI テーマの三重重複を避ける（`GRAPHICS_UPGRADE_DESIGN.md` §4 からの意図的逸脱）。
+- `97-visual-refresh.css` で定義済みだった `--cyber-glow` / `--glass-glow` を GM/overmap/vehicle/mobile-base カードへ配線。GM `.msg-sender::before` にテーマ別グリフ。
+- 静的 CSS のみ（`@keyframes` なし）。`scripts/test_webview_genre_chrome.js` で manifest 順序・`data-ui-theme` 契約・no-animation を検証。
+
+---
+
+## 2026-07-04 JST - Claude - Graphics Upgrade Track 2: Diorama lighting/depth (Unreleased)
+
+- 前回の Track1（アニメ土台）に続き、Track2（ジオラマ照明/奥行き）を実装。ペイロード変更ゼロ ——
+  `SettlementDioramaSnapshot.palette.theme`/`.accent` は既にサーバー側で解決済みだったが
+  クライアントで未使用だったので、そこに乗せた（`accent` は今回まで完全に unused だった）。
+- `86c-settlement-diorama.js`: シャドウマッピング（`PCFSoftShadowMap`、bounds連動のシャドウカメラ
+  フラスタム）、`THREE.Fog`（`palette.background`と同色でブレンド、箱庭の浮遊感を解消）、
+  マテリアルを `MeshLambertMaterial` 一律から `MeshStandardMaterial` + 素材別 metalness/roughness
+  （metal/water で質感差、light/hazard に微発光）へ。ジャンル連動ライティング
+  （`DIORAMA_THEME_LIGHTING`、snapshotの`palette.theme`——default/fantasy/postapoc/industrial/
+  eastern/horror/scifi——をキーに方向光の色相/強度/角度を変える）は `palette.accent` で色付け。
+- 初回シーン構築時・コンテンツ再構築時（レイヤー/施設切替でboundsが変わりうる）の両方で
+  ライティング/フォグを再設定する `configureDioramaLighting()` に集約。
+- 常時アニメーションは入れていない（設計判断どおり、diorama はカメラ操作時のみ再レンダのまま）。
+- 検証: `npm run compile`、`npm test` **184/185**（唯一の失敗 `check_version_consistency.js` は
+  ChatGPTレビュー側の別コミット `16df79d`（v1.75.2 への package.json 更新）が README/
+  package-lock/VERSION_TRUTH の同期をまだ済ませていない**既存のズレ**で、本タスクとは無関係。
+  package.json 等は一切変更していない）。`check_i18n_keys.js` / `validate_utf8_docs.js` も
+  新規文字列なしのため影響なし。
+- Idea note (`docs/GRAPHICS_UPGRADE_IDEAS.md`) を更新済み。
 
 ---
 

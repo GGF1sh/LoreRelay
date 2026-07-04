@@ -12,6 +12,62 @@
 let _tileOvermapMsg = null;
 let _overmapResizeTimer;
 
+// --- Graphics Upgrade Track 1: Atmosphere Pass -----------------------------
+// Decorative-only animation phase driven by LR_anim (webview/modules/84a-webview-anim.js).
+// Never persisted, never read back into state; when motion is disabled (reduced-motion or
+// effects tier "off") drawTileOvermap() falls back to the exact pre-animation static formulas.
+let _tileAnimPhase = 0;
+let _tileAnimRegistered = false;
+
+function registerTileOvermapAnimation() {
+    if (_tileAnimRegistered || !window.LR_anim) { return; }
+    _tileAnimRegistered = true;
+    window.LR_anim.register('tile-overmap', (phase) => {
+        _tileAnimPhase = phase;
+        drawTileOvermap();
+    }, { fps: 10 });
+}
+
+function unregisterTileOvermapAnimation() {
+    _tileAnimRegistered = false;
+    if (window.LR_anim) { window.LR_anim.unregister('tile-overmap'); }
+}
+
+function effectsTierLabel(tier) {
+    const key = `webview.world.effectsTier.${tier}`;
+    const translated = typeof T === 'function' ? T(key) : '';
+    return translated && translated !== key ? translated : tier;
+}
+
+function updateEffectsTierButton() {
+    const btn = document.getElementById('world-effects-tier-btn');
+    if (!btn || !window.LR_anim) { return; }
+    const tier = window.LR_anim.getEffectsTier();
+    const titlePrefix = typeof T === 'function' ? T('webview.world.effectsTierTitle') : 'Motion effects';
+    btn.textContent = `✨ ${effectsTierLabel(tier)}`;
+    btn.classList.toggle('is-off', tier === 'off');
+    btn.classList.toggle('is-full', tier === 'full');
+    btn.title = `${titlePrefix}: ${effectsTierLabel(tier)}`;
+    btn.setAttribute('aria-label', btn.title);
+}
+
+function initEffectsTierButton() {
+    const btn = document.getElementById('world-effects-tier-btn');
+    if (!btn || !window.LR_anim) { return; }
+    updateEffectsTierButton();
+    btn.addEventListener('click', () => {
+        const order = window.LR_anim.TIERS;
+        const current = window.LR_anim.getEffectsTier();
+        window.LR_anim.setEffectsTier(order[(order.indexOf(current) + 1) % order.length]);
+        updateEffectsTierButton();
+    });
+    window.LR_anim.onTierChange(() => {
+        updateEffectsTierButton();
+        if (typeof worldMapMode !== 'undefined' && worldMapMode === 'tile') { drawTileOvermap(); }
+    });
+}
+// ---------------------------------------------------------------------------
+
 window.addEventListener('resize', () => {
     if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') { return; }
     clearTimeout(_overmapResizeTimer);
@@ -53,6 +109,7 @@ function initTileOvermapPinClicks() {
 window.addEventListener('DOMContentLoaded', () => {
     initTileOvermapPinClicks();
     initMapOverlayHover();
+    initEffectsTierButton();
 });
 
 function ensureMapOverlayTooltip() {
@@ -190,6 +247,8 @@ function drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight) {
     ));
     if (!inBounds.length) { return; }
 
+    const motionOn = Boolean(window.LR_anim && window.LR_anim.isMotionEnabled());
+
     ctx.save();
     // Floors keep glyphs legible at narrow sidebar widths where `cell` shrinks toward its minimum (F13).
     const fontPx = Math.max(8, cell);
@@ -207,7 +266,13 @@ function drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight) {
             color = MAP_OVERLAY_TONE_COLORS.unknown;
         }
 
-        ctx.globalAlpha = rumored ? 0.52 : 1;
+        if (rumored && motionOn) {
+            // Deterministic per-marker phase offset so rumored markers don't all flicker in lockstep.
+            const offset = overmapHash(marker.x, marker.y, 4271) * Math.PI * 2;
+            ctx.globalAlpha = 0.4 + 0.25 * (0.5 + 0.5 * Math.sin(_tileAnimPhase / 650 + offset));
+        } else {
+            ctx.globalAlpha = rumored ? 0.52 : 1;
+        }
         const radius = Math.max(4, cell * 0.42);
         ctx.fillStyle = rumored ? 'rgba(12, 16, 24, 0.55)' : 'rgba(8, 12, 20, 0.72)';
         ctx.beginPath();
@@ -556,6 +621,34 @@ function drawOvermapOutlinedText(ctx, text, x, y, fill) {
     ctx.fillText(text, x, y);
 }
 
+/** Scales the alpha channel of an `rgba(...)` string; returns the input unchanged if it doesn't match. */
+function scaleRgbaAlpha(rgba, factor) {
+    const m = /^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/.exec(rgba);
+    if (!m) { return rgba; }
+    const alpha = Math.max(0, Math.min(1, parseFloat(m[4]) * factor));
+    return `rgba(${m[1]},${m[2]},${m[3]},${alpha.toFixed(3)})`;
+}
+
+/** "Full" effects tier only: sparse, deterministic rising embers over a hazard tile. Decorative, not persisted. */
+function drawEmberParticle(ctx, tx, ty, cell, phase, seed) {
+    const chance = overmapHash(tx, ty, seed + 311);
+    if (chance > 0.18) { return; }
+    const cycleMs = 1800;
+    const t = ((phase + chance * cycleMs) % cycleMs) / cycleMs;
+    const xJitter = (overmapHash(tx, ty, seed + 727) - 0.5) * cell * 0.6;
+    const px = tx * cell + cell / 2 + xJitter;
+    const py = ty * cell + cell * (1 - t * 0.9);
+    const alpha = Math.max(0, 1 - t);
+    if (alpha <= 0) { return; }
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.fillStyle = '#ffb347';
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(1, cell * 0.06), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
 function drawTileOvermap() {
     const canvas = document.getElementById('world-overmap-canvas');
     const empty = document.getElementById('world-overmap-empty');
@@ -599,13 +692,24 @@ function drawTileOvermap() {
     const fogLayout = Array.isArray(msg.fogRegionLayout) ? msg.fogRegionLayout : [];
     const fog = msg.fog;
 
+    // Graphics Upgrade Track 1 (Atmosphere Pass): when motion is disabled, every branch below
+    // falls back to the original static formula, so the rendered frame is unchanged from before.
+    const motionOn = Boolean(window.LR_anim && window.LR_anim.isMotionEnabled());
+    const effectsTier = window.LR_anim ? window.LR_anim.getEffectsTier() : 'light';
+
     for (let ty = 0; ty < om.rows; ty++) {
         const row = om.tileRows[ty] || '';
         for (let tx = 0; tx < om.cols; tx++) {
             const code = row[tx] || 'o';
             const style = themeOverrides[code] || TILE_OVERMAP_ASCII_THEME[code] || TILE_OVERMAP_ASCII_THEME.o;
             const variant = overmapHash(tx, ty, seed + 99);
-            let glyph = style.glyphs[Math.floor(variant * style.glyphs.length)];
+            let glyph;
+            if (motionOn && TILE_OVERMAP_WATER_CODES.has(code)) {
+                const cyclePos = (variant * style.glyphs.length + _tileAnimPhase / 500) % style.glyphs.length;
+                glyph = style.glyphs[Math.floor(cyclePos)];
+            } else {
+                glyph = style.glyphs[Math.floor(variant * style.glyphs.length)];
+            }
             let fg = style.fg[Math.floor(overmapHash(tx, ty, seed + 55) * style.fg.length)];
             if (roadSet.has(`${tx},${ty}`)) {
                 glyph = TILE_OVERMAP_WATER_CODES.has(code) ? '=' : '·';
@@ -637,10 +741,18 @@ function drawTileOvermap() {
             const regionId = resolveTileRegionId(tx, ty, om.cols, om.rows, fogLayout);
             const feedback = regionFeedbackMap.get(regionId);
             const boost = feedback?.dangerTier === 'high';
-            ctx.fillStyle = boost ? hz.tint.replace('0.16', '0.28') : hz.tint;
+            let tint = boost ? hz.tint.replace('0.16', '0.28') : hz.tint;
+            if (motionOn) {
+                const offset = overmapHash(tx, ty, seed + 613) * Math.PI * 2;
+                tint = scaleRgbaAlpha(tint, 0.8 + 0.2 * Math.sin(_tileAnimPhase / 900 + offset));
+            }
+            ctx.fillStyle = tint;
             ctx.fillRect(tx * cell, ty * cell, cell, cell);
             ctx.fillStyle = hz.fg;
             ctx.fillText(hz.glyph, tx * cell + cell / 2, ty * cell + cell / 2 + 1);
+            if (motionOn && effectsTier === 'full') {
+                drawEmberParticle(ctx, tx, ty, cell, _tileAnimPhase, seed);
+            }
         }
     }
 
@@ -688,7 +800,11 @@ function drawTileOvermap() {
     }
     if (currentPin) {
         ctx.font = `600 ${Math.max(10, cell + 3)}px "Courier New", monospace`;
+        if (motionOn) {
+            ctx.globalAlpha = 0.72 + 0.28 * (0.5 + 0.5 * Math.sin(_tileAnimPhase / 700));
+        }
         drawOvermapOutlinedText(ctx, '@', currentPin.px, currentPin.py, '#ffd75f');
+        ctx.globalAlpha = 1;
         if (currentPin.pinFog === 'discovered') {
             ctx.font = '600 11px sans-serif';
             const label = currentPin.pin.locationName || currentPin.pin.locationId || '';

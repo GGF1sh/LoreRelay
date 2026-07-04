@@ -453,6 +453,7 @@ window.addEventListener('message', (event) => {
     renderAllMessages();
     renderGallery();
     renderCheckpointUi();
+    if (typeof updateEffectsTierButton === 'function') { updateEffectsTierButton(); }
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
     }

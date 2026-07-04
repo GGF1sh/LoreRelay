@@ -246,4 +246,47 @@ const closes = (worldPaneHtml.match(/<\/div>/g) || []).length;
 assert.strictEqual(opens, closes, `pane-world has unbalanced div tags (${opens} opens, ${closes} closes)`);
 console.log('ok: pane-world div structure is balanced');
 
+const animModule = read('webview', 'modules', '84a-webview-anim.js');
+assert(
+    buildScript.indexOf("'84-party.js'") < buildScript.indexOf("'84a-webview-anim.js'")
+    && buildScript.indexOf("'84a-webview-anim.js'") < buildScript.indexOf("'85-world.js'"),
+    '84a-webview-anim.js must be bundled after 84-party.js and before 85-world.js'
+);
+const animSymbols = [
+    'window.LR_anim',
+    'register',
+    'unregister',
+    'isMotionEnabled',
+    'getEffectsTier',
+    'setEffectsTier',
+    'prefers-reduced-motion',
+    'visibilitychange',
+];
+for (const symbol of animSymbols) {
+    assert(animModule.includes(symbol), `84a-webview-anim.js is missing ${symbol}`);
+    assert(bundle.includes(symbol), `webview/script.js bundle is missing anim symbol ${symbol}`);
+}
+console.log('ok: Graphics Upgrade Track 1 animation driver (LR_anim) is bundled');
+
+const atmosphereSymbols = [
+    'registerTileOvermapAnimation',
+    'unregisterTileOvermapAnimation',
+    '_tileAnimPhase',
+    'drawEmberParticle',
+    'scaleRgbaAlpha',
+    'world-effects-tier-btn',
+];
+for (const symbol of atmosphereSymbols) {
+    assert(
+        tileModule.includes(symbol) || indexHtml.includes(symbol),
+        `Atmosphere Pass symbol missing: ${symbol}`
+    );
+    assert(bundle.includes(symbol) || indexHtml.includes(symbol), `Atmosphere Pass symbol missing from bundle/html: ${symbol}`);
+}
+assert(
+    worldModule.includes('registerTileOvermapAnimation') && worldModule.includes('unregisterTileOvermapAnimation'),
+    '85-world.js must register/unregister the tile atmosphere animation on map mode switch'
+);
+console.log('ok: Tile Overmap Atmosphere Pass (Track 1) is wired');
+
 console.log('Webview World / Tile Overmap smoke test passed.');

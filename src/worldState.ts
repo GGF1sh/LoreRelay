@@ -21,10 +21,19 @@ export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
 
 let lastWorldStateParseWarnings: WorldStateParseWarning[] = [];
+let cachedWorldStateParseWarnings: WorldStateParseWarning[] = [];
 
 /** Last cap-overflow warnings from the most recent workspace world_state parse (diagnostic buffer). */
 export function peekLastWorldStateParseWarnings(): readonly WorldStateParseWarning[] {
     return lastWorldStateParseWarnings;
+}
+
+function setWorldStateParseWarnings(warnings: readonly WorldStateParseWarning[]): void {
+    lastWorldStateParseWarnings = [...warnings];
+}
+
+function clearWorldStateParseWarnings(): void {
+    lastWorldStateParseWarnings = [];
 }
 
 function warnWorldStateParseCaps(warnings: ReturnType<typeof parseWorldStateWithWarnings>['warnings']): void {
@@ -42,9 +51,9 @@ function warnWorldStateParseCaps(warnings: ReturnType<typeof parseWorldStateWith
 
 function parseWorldStateFromRaw(raw: unknown) {
     const { state, warnings } = parseWorldStateWithWarnings(raw);
-    lastWorldStateParseWarnings = warnings;
+    setWorldStateParseWarnings(warnings);
     warnWorldStateParseCaps(warnings);
-    return state;
+    return { state, warnings };
 }
 
 const WORLD_STATE_FILENAME = 'world_state.json';
@@ -62,7 +71,8 @@ export function clearWorldStateCache(): void {
     cachedState = undefined;
     cachePath = '';
     cacheMtime = 0;
-    lastWorldStateParseWarnings = [];
+    cachedWorldStateParseWarnings = [];
+    clearWorldStateParseWarnings();
 }
 
 export function isWorldStateEnabled(): boolean {
@@ -73,25 +83,39 @@ export function isWorldStateEnabled(): boolean {
 
 export function loadWorldState(): WorldState | undefined {
     const statePath = getWorldStatePath();
-    if (!statePath) { return undefined; }
+    if (!statePath) {
+        clearWorldStateCache();
+        return undefined;
+    }
 
     if (!fs.existsSync(statePath)) {
         cachedState = null;
+        cachePath = statePath;
+        cacheMtime = 0;
+        cachedWorldStateParseWarnings = [];
+        clearWorldStateParseWarnings();
         return undefined;
     }
 
     try {
         const mtime = fs.statSync(statePath).mtimeMs;
         if (statePath === cachePath && mtime === cacheMtime && cachedState !== undefined) {
+            setWorldStateParseWarnings(cachedWorldStateParseWarnings);
             return cachedState ?? undefined;
         }
         const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         const parsed = parseWorldStateFromRaw(raw);
         cachePath = statePath;
         cacheMtime = mtime;
-        cachedState = parsed ?? null;
-        return parsed;
+        cachedState = parsed.state ?? null;
+        cachedWorldStateParseWarnings = [...parsed.warnings];
+        return parsed.state;
     } catch {
+        cachedState = undefined;
+        cachePath = statePath;
+        cacheMtime = 0;
+        cachedWorldStateParseWarnings = [];
+        clearWorldStateParseWarnings();
         return undefined;
     }
 }
@@ -116,12 +140,18 @@ export function markChronicleInjected(journalTurnCount: number): void {
 
 function readWorldStateFromDisk(statePath: string): WorldState | undefined {
     if (!fs.existsSync(statePath)) {
+        cachedWorldStateParseWarnings = [];
+        clearWorldStateParseWarnings();
         return undefined;
     }
     try {
         const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        return parseWorldStateFromRaw(raw);
+        const parsed = parseWorldStateFromRaw(raw);
+        cachedWorldStateParseWarnings = [...parsed.warnings];
+        return parsed.state;
     } catch {
+        cachedWorldStateParseWarnings = [];
+        clearWorldStateParseWarnings();
         return undefined;
     }
 }
@@ -135,6 +165,8 @@ function writeWorldStateToDisk(statePath: string, state: WorldState): void {
     writeJsonAtomic(statePath, toSave);
     cachedState = toSave;
     cachePath = statePath;
+    cachedWorldStateParseWarnings = [];
+    clearWorldStateParseWarnings();
     try {
         cacheMtime = fs.statSync(statePath).mtimeMs;
     } catch {
@@ -236,6 +268,8 @@ export function resetWorldStateFromForge(forge: WorldForge, createBackup = false
         writeJsonAtomic(statePath, toSave, createBackup);
         cachedState = toSave;
         cachePath = statePath;
+        cachedWorldStateParseWarnings = [];
+        clearWorldStateParseWarnings();
         try {
             cacheMtime = fs.statSync(statePath).mtimeMs;
         } catch {

@@ -10,7 +10,7 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **204/204** (+ `test:simulation` batch) |
+| Tests | `npm test` **205/205** (+ `test:simulation` batch) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -20,9 +20,25 @@
 | World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
 | State Orchestrator | **SO1** ledger descriptor inventory · **SO2** transaction planning gate · **SO2b** turn_result diagnostic command |
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
+| Debug / QA | Simulation regression batch · **Debug Trace P1 design** |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | SO3 transaction executor design · Context Engine P1 category budgeter |
+| Next (推奨) | Debug Trace P1 implementation · SO3 transaction executor design · Context Engine P1 category budgeter |
 | Git | `main` synced through v1.77.6 |
+
+---
+
+## 2026-07-04 JST - Codex - world_state parse warning buffer P1 fix
+
+- Fixed `loadWorldState()` diagnostic freshness: missing/no-workspace/parse-failure paths now clear stale parse cap warnings, cache hits restore the cached warning snapshot, and missing `world_state.json` updates cache identity to avoid workspace-switch stale `undefined`.
+- Added `scripts/test_world_state_warning_buffer.js` and wired it into `run_all_tests.js`.
+
+---
+
+## 2026-07-04 JST - Codex - Debug Trace P1 design
+
+- Added `docs/DEBUG_TRACE_P1_DESIGN.md`: pure structured trace core gate for causal world-debugging.
+- Scope: bounded trace entries, immutable ring buffer, parent/child linkage warnings, deterministic ordering, and internal/gm-safe/player-safe projection. No runtime wiring, Webview, VS Code command, disk persistence, `statePatch`, `TurnResult`, Remote/Replay, or GM prompt changes.
+- Intended next step after v1.77.6 simulation regression batch: `debugTraceCore.ts` + `scripts/test_debug_trace_core.js`.
 
 ---
 

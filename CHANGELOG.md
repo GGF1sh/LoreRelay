@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **world_state parse warning buffer** — `loadWorldState()` now clears stale cap warnings on missing/no-workspace/parse-failure paths, preserves cached parse warnings on cache hits, and updates the cache path when `world_state.json` is absent so workspace switching cannot return a stale `undefined`; added `scripts/test_world_state_warning_buffer.js`.
+
+### Added
+
+- **Debug Trace P1 design** — `docs/DEBUG_TRACE_P1_DESIGN.md`: pure structured trace core gate for causal world-debugging. Defines bounded trace entries, ring-buffer semantics, parent/child linkage checks, and internal/gm-safe/player-safe projection. No Webview, command, disk persistence, simulation wiring, `statePatch`, `TurnResult`, Remote/Replay, or GM prompt changes.
+
 ## [1.77.6] - 2026-07-04
 
 ### Added

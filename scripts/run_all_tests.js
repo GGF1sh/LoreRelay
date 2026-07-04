@@ -130,6 +130,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_forge.js' },
     { category: 'unit', file: 'test_game_rules_core.js' },
     { category: 'unit', file: 'test_world_state.js' },
+    { category: 'unit', file: 'test_world_state_warning_buffer.js' },
     { category: 'unit', file: 'test_emergent_simulator.js' },
     { category: 'unit', file: 'test_world_sim_bulk_core.js' },
     { category: 'unit', file: 'test_world_sim_bulk_event_loop_yield.js' },

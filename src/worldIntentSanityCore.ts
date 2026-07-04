@@ -68,7 +68,7 @@ export interface WorldSanityGameRules {
 
 export interface WorldSanityLedgerLoadIssue {
     file: string;
-    code: 'json_parse_error';
+    code: 'json_parse_error' | 'structural_validation_failed';
     message: string;
 }
 

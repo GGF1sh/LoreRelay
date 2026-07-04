@@ -7,7 +7,9 @@ import {
     type FactionWorldState,
     type RegionWorldState,
     type GlobalEvent,
-    parseWorldState,
+    parseWorldStateWithWarnings,
+    formatWorldStateParseWarning,
+    MAX_WORLD_STATE_PARSE_WARNINGS_LOG,
     buildInitialWorldState
 } from './worldStateCore';
 import type { WorldForge } from './worldForgeCore';
@@ -16,6 +18,25 @@ import { isWorldStateWriteCircuitOpen, runSerializedWorldStateMutation } from '.
 
 export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
+
+function warnWorldStateParseCaps(warnings: ReturnType<typeof parseWorldStateWithWarnings>['warnings']): void {
+    if (warnings.length === 0) { return; }
+    const slice = warnings.slice(0, MAX_WORLD_STATE_PARSE_WARNINGS_LOG);
+    for (const warning of slice) {
+        console.warn(`[worldState] ${formatWorldStateParseWarning(warning)}`);
+    }
+    if (warnings.length > MAX_WORLD_STATE_PARSE_WARNINGS_LOG) {
+        console.warn(
+            `[worldState] ${warnings.length - MAX_WORLD_STATE_PARSE_WARNINGS_LOG} additional parse cap warning(s) omitted`
+        );
+    }
+}
+
+function parseWorldStateFromRaw(raw: unknown) {
+    const { state, warnings } = parseWorldStateWithWarnings(raw);
+    warnWorldStateParseCaps(warnings);
+    return state;
+}
 
 const WORLD_STATE_FILENAME = 'world_state.json';
 
@@ -55,7 +76,7 @@ export function loadWorldState(): WorldState | undefined {
             return cachedState ?? undefined;
         }
         const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        const parsed = parseWorldState(raw);
+        const parsed = parseWorldStateFromRaw(raw);
         cachePath = statePath;
         cacheMtime = mtime;
         cachedState = parsed ?? null;
@@ -89,7 +110,7 @@ function readWorldStateFromDisk(statePath: string): WorldState | undefined {
     }
     try {
         const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        return parseWorldState(raw);
+        return parseWorldStateFromRaw(raw);
     } catch {
         return undefined;
     }

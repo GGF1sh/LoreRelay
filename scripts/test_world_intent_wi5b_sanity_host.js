@@ -259,6 +259,18 @@ function mod(id, records, extra = {}) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
+{
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wi5b-settle-'));
+    fs.writeFileSync(path.join(dir, 'settlement_state.json'), JSON.stringify({ version: 1 }), 'utf-8');
+    const snapshot = readWorkspaceSanitySnapshot(dir);
+    if (!snapshot.ledgerLoadIssues?.some((i) => i.code === 'structural_validation_failed')) {
+        fail('invalid settlement_state.json should record structural_validation_failed');
+    } else {
+        ok('loader surfaces invalid settlement_state.json structure');
+    }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);
     process.exit(1);

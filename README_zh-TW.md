@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.77.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.77.2-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -38,6 +38,10 @@
 - 🛡️ **Robust State Management:** 上限鉗制、非法 ID 清理、安全狀態遷移等機制，防止龐大資料導致 UI 崩潰。
 - 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM 分析生成圖像並寫入 `visual_memory.json`，在後續 GM 提示中自動注入視覺上下文。
 - 🔒 **Audit Wave Hardening (v1.6):** 對 State / GM Bridge / World / ST Import / Webview / Remote Play / Extension Hub 進行 7 軌道稽核，新增 pure 驗證模組與大量回歸測試。
+- 🏘️ **Settlement Mode (v1.69–1.73):** 聚落模擬 — 等角 Webview 版面、層展開持久化、可選 Three.js 視覺。
+- 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` 車隊管理、車庫面板、移動基地（MB1–MB5）與 World Intent 橋接。
+- 🧭 **State Orchestrator (SO1–SO2):** 台帳描述符清單與 GM 回合唯讀 transaction planning gate。
+- 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector 中的 chunk 生命週期追蹤（included / truncated / evicted 等）。
 
 架構詳解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 

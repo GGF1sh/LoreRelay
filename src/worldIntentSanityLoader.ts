@@ -6,7 +6,11 @@ import { parseModManifest, parseModProfile, type ParsedModManifest } from './mod
 import { parseSettlementState } from './settlementCore';
 import { normalizeGameRules } from './gameRulesCore';
 import { diagnoseVehicleStateRaw, parseVehicleState } from './vehicleCore';
-import type { WorkspaceSanitySnapshot, WorkspaceSanitySources } from './worldIntentSanityHostCore';
+import type {
+    WorkspaceSanityLedgerLoadIssue,
+    WorkspaceSanitySnapshot,
+    WorkspaceSanitySources,
+} from './worldIntentSanityHostCore';
 
 export const MOD_MANIFEST_FILENAME = 'lorerelay_mod.json';
 export const MAX_MOD_DIRS_SCANNED = 128;
@@ -30,12 +34,13 @@ function readJsonFile(filePath: string): JsonReadResult {
     }
 }
 
-function recordLedgerParseError(
+function recordLedgerLoadIssue(
     snapshot: WorkspaceSanitySnapshot,
     file: string,
+    code: WorkspaceSanityLedgerLoadIssue['code'],
     message: string
 ): void {
-    const issue = { file, code: 'json_parse_error' as const, message };
+    const issue = { file, code, message };
     snapshot.ledgerLoadIssues = [...(snapshot.ledgerLoadIssues ?? []), issue];
     const sources = snapshot.sources ?? {};
     const errs = sources.ledgerParseErrors ?? [];
@@ -197,7 +202,7 @@ export function readWorkspaceSanitySnapshot(
     const vehiclePath = path.join(wsPath, 'vehicle_state.json');
     const vehicleRead = readJsonFile(vehiclePath);
     if (vehicleRead.exists && vehicleRead.parseError) {
-        recordLedgerParseError(snapshot, 'vehicle_state.json', 'vehicle_state.json is not valid JSON.');
+        recordLedgerLoadIssue(snapshot, 'vehicle_state.json', 'json_parse_error', 'vehicle_state.json is not valid JSON.');
     } else {
         const vehicleBundle = readVehicleStateFile(vehiclePath);
         if (vehicleBundle) {
@@ -214,19 +219,26 @@ export function readWorkspaceSanitySnapshot(
     const settlementPath = path.join(wsPath, 'settlement_state.json');
     const settlementRead = readJsonFile(settlementPath);
     if (settlementRead.exists && settlementRead.parseError) {
-        recordLedgerParseError(snapshot, 'settlement_state.json', 'settlement_state.json is not valid JSON.');
-    } else {
-        const settlementState = readSettlementStateFile(settlementPath);
+        recordLedgerLoadIssue(snapshot, 'settlement_state.json', 'json_parse_error', 'settlement_state.json is not valid JSON.');
+    } else if (settlementRead.exists && settlementRead.data !== undefined) {
+        const settlementState = parseSettlementState(settlementRead.data);
         if (settlementState) {
             snapshot.settlementState = settlementState;
             sources.settlementState = true;
+        } else {
+            recordLedgerLoadIssue(
+                snapshot,
+                'settlement_state.json',
+                'structural_validation_failed',
+                'settlement_state.json failed structural validation.'
+            );
         }
     }
 
     const gameRulesPath = path.join(wsPath, 'game_rules.json');
     const gameRulesRead = readJsonFile(gameRulesPath);
     if (gameRulesRead.exists && gameRulesRead.parseError) {
-        recordLedgerParseError(snapshot, 'game_rules.json', 'game_rules.json is not valid JSON.');
+        recordLedgerLoadIssue(snapshot, 'game_rules.json', 'json_parse_error', 'game_rules.json is not valid JSON.');
         snapshot.gameRules = normalizeGameRules(undefined);
     } else {
         snapshot.gameRules = readGameRuleFlags(wsPath);
@@ -238,7 +250,7 @@ export function readWorkspaceSanitySnapshot(
     if (modProfilePath) {
         const modProfileRead = readJsonFile(modProfilePath);
         if (modProfileRead.exists && modProfileRead.parseError) {
-            recordLedgerParseError(snapshot, 'mod_profile.json', 'mod_profile.json is not valid JSON.');
+            recordLedgerLoadIssue(snapshot, 'mod_profile.json', 'json_parse_error', 'mod_profile.json is not valid JSON.');
         }
     }
     if (modBundle.modProfile) {

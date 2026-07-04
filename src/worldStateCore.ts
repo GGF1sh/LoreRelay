@@ -480,6 +480,12 @@ function pushCapWarning(
     }
 }
 
+export const MAX_WORLD_STATE_PARSE_WARNINGS_LOG = 8;
+
+export function formatWorldStateParseWarning(warning: WorldStateParseWarning): string {
+    return `world_state parse cap: ${warning.field} dropped ${warning.dropped} entries (cap ${warning.cap})`;
+}
+
 /** Parse world_state with bounded-field overflow accounting (no I/O). */
 export function parseWorldStateWithWarnings(raw: unknown): WorldStateParseResult {
     const warnings: WorldStateParseWarning[] = [];

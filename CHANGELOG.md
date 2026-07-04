@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+## [1.77.2] - 2026-07-04
+
+### Fixed
+
+- **world_state load** — `loadWorldState` / disk reads use `parseWorldStateWithWarnings` and log bounded cap-overflow warnings.
+- **WI5 settlement** — invalid `settlement_state.json` structure surfaces `structural_validation_failed` (not only JSON syntax errors).
+
+### Added
+
+- **`formatWorldStateParseWarning()`** — human-readable cap overflow lines for host logging.
+- **README zh-CN/zh-TW** — v1.59+ feature bullets aligned with ja/en.
+
 ## [1.77.1] - 2026-07-04
 
 ### Fixed

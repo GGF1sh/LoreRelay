@@ -7,6 +7,7 @@ const {
     parseWorldState,
     buildInitialWorldState,
     parseWorldStateWithWarnings,
+    formatWorldStateParseWarning,
 } = require('../out/worldStateCore');
 const { parseWorldForge } = require('../out/worldForgeCore');
 
@@ -304,6 +305,21 @@ if (!Array.isArray(initial.recentChanges) || initial.recentChanges.length !== 0)
         } else {
             ok('npcMilestones reversed pair canonicalized');
         }
+    }
+}
+
+// formatWorldStateParseWarning — human-readable cap line
+{
+    const line = formatWorldStateParseWarning({
+        code: 'parse_cap_exceeded',
+        field: 'factions',
+        dropped: 3,
+        cap: 50,
+    });
+    if (!line.includes('factions') || !line.includes('dropped 3')) {
+        fail(`formatWorldStateParseWarning (got ${line})`);
+    } else {
+        ok('formatWorldStateParseWarning formats cap overflow');
     }
 }
 

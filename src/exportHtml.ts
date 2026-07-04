@@ -79,10 +79,12 @@ export async function exportSagaToHtml(targetUri: vscode.Uri): Promise<void> {
 
 function escapeHtml(str: string): string {
     if (!str) return '';
-    return str
+    return String(str)
+        .replace(/\0/g, '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/'/g, '&#039;')
+        .replace(/`/g, '&#096;');
 }

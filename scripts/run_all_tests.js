@@ -36,6 +36,7 @@ const MANIFEST = [
     { category: 'validate', file: 'validate.js' },
     { category: 'unit', file: 'test_state_manager.js' },
     { category: 'unit', file: 'test_media_paths.js' },
+    { category: 'unit', file: 'test_image_gen_circuit_core.js' },
     { category: 'unit', file: 'test_lorebook_save.js' },
     { category: 'unit', file: 'test_lorebook_redos.js' },
     { category: 'unit', file: 'test_scenario_director.js' },

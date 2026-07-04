@@ -22,7 +22,14 @@ import {
 } from './gameStateSync';
 import { resolvePythonCommand } from './skillScriptRunner';
 import { buildVlmMetaFromGameState } from './vlmQueue';
-import { resolveAllowedImagePath } from './mediaPaths';
+import { resolveAllowedImagePath, toWebviewSafeMediaRef } from './mediaPaths';
+import {
+    createImageGenCircuitState,
+    isImageGenCircuitOpen,
+    recordImageGenFailure,
+    recordImageGenSuccess,
+    type ImageGenCircuitState,
+} from './imageGenCircuitCore';
 import { formatModelSize, scanLocalModelRoots, type LocalModelFile } from './modelScanner';
 import { commitGameState } from './stateManager';
 
@@ -39,6 +46,7 @@ interface ImageGenJob {
 const imageGenQueue: ImageGenJob[] = [];
 let drainingImageQueue = false;
 const queuedEntryIds = new Set<string>();
+let imageGenCircuit: ImageGenCircuitState = createImageGenCircuitState();
 
 export interface ImageGenRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -91,6 +99,11 @@ export function killImageGenerationProcess(): void {
     imageGenQueue.length = 0;
     queuedEntryIds.clear();
     drainingImageQueue = false;
+    imageGenCircuit = createImageGenCircuitState();
+}
+
+export function getImageGenCircuitState(): ImageGenCircuitState {
+    return { ...imageGenCircuit };
 }
 
 function getMaxImageQueueSize(): number {
@@ -100,6 +113,10 @@ function getMaxImageQueueSize(): number {
 
 /** Enqueue ComfyUI generation (MediaAgent / manual retry when busy). Returns false if duplicate or queue full. */
 export function enqueueImageGeneration(prompt: string, mode: string, entryId?: string): boolean {
+    if (isImageGenCircuitOpen(imageGenCircuit, Date.now())) {
+        getImageOutputChannel().appendLine('[Circuit] Image generation paused after repeated failures — text-only play continues.');
+        return false;
+    }
     if (entryId && queuedEntryIds.has(entryId)) {
         return false;
     }
@@ -120,13 +137,37 @@ async function drainImageQueue(): Promise<void> {
         return;
     }
     drainingImageQueue = true;
+    const channel = getImageOutputChannel();
     try {
         while (imageGenQueue.length > 0 && !imageGenerationProcess) {
+            if (isImageGenCircuitOpen(imageGenCircuit, Date.now())) {
+                imageGenQueue.length = 0;
+                channel.appendLine('[Circuit] Cleared pending image queue after circuit opened.');
+                break;
+            }
             const job = imageGenQueue.shift();
             if (!job) {
                 break;
             }
-            await executeImageGeneration(job.prompt, job.mode, job.entryId, { fromQueue: true });
+            let success = false;
+            try {
+                success = await executeImageGeneration(job.prompt, job.mode, job.entryId, { fromQueue: true });
+            } catch (err) {
+                const detail = err instanceof Error ? err.message : String(err);
+                channel.appendLine(`[Queue] Image job error: ${detail}`);
+                success = false;
+            }
+            if (success) {
+                imageGenCircuit = recordImageGenSuccess(imageGenCircuit);
+            } else {
+                const opened = recordImageGenFailure(imageGenCircuit, Date.now());
+                imageGenCircuit = opened.state;
+                if (opened.circuitOpened) {
+                    channel.appendLine('[Circuit] Image generation paused for 5 minutes after repeated failures.');
+                    imageGenQueue.length = 0;
+                    break;
+                }
+            }
             if (job.entryId) {
                 queuedEntryIds.delete(job.entryId);
             }
@@ -287,7 +328,7 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
                 id: entryId,
                 image: uri,
                 imagePrompt: prompt,
-                rawImagePath: resolveAllowedImagePath(imagePath) ?? imagePath,
+                rawImagePath: toWebviewSafeMediaRef(imagePath),
                 locationId: meta.locationId,
                 worldTurn: meta.worldTurn,
             }
@@ -402,8 +443,33 @@ export async function executeImageGeneration(
             }
         }
 
+        if (!options?.fromQueue) {
+            if (success) {
+                imageGenCircuit = recordImageGenSuccess(imageGenCircuit);
+            } else {
+                const opened = recordImageGenFailure(imageGenCircuit, Date.now());
+                imageGenCircuit = opened.state;
+                if (opened.circuitOpened) {
+                    channel.appendLine('[Circuit] Image generation paused for 5 minutes after repeated failures.');
+                    imageGenQueue.length = 0;
+                    queuedEntryIds.clear();
+                }
+            }
+        }
+
         void drainImageQueue();
         return success;
+    }).catch((err) => {
+        imageGenerationProcess = undefined;
+        const detail = err instanceof Error ? err.message : String(err);
+        channel.appendLine(`[Image Gen] Unexpected error: ${detail}`);
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: false });
+        if (!options?.fromQueue) {
+            const opened = recordImageGenFailure(imageGenCircuit, Date.now());
+            imageGenCircuit = opened.state;
+        }
+        void drainImageQueue();
+        return false;
     });
 }
 

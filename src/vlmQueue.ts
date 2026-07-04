@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { getGameStatePath, writeJsonAtomic } from './workspacePaths';
 import { getCachedGameState } from './gameStateSync';
-import { resolveAllowedImagePath } from './mediaPaths';
+import { resolveAllowedImagePath, toWebviewSafeMediaRef } from './mediaPaths';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import {
     hashImageFile,
@@ -152,17 +152,25 @@ async function runAnalysis(imagePath: string, meta: VlmAnalysisMeta): Promise<vo
 }
 
 function notifyVlmAnalysisComplete(imagePath: string, description: string): void {
+    const safeRef = toWebviewSafeMediaRef(imagePath);
+    if (!safeRef) {
+        return;
+    }
     queueDeps?.getPanel()?.webview.postMessage({
         type: 'vlmAnalysisComplete',
-        imagePath,
+        imagePath: safeRef,
         description,
     });
 }
 
 function notifyVlmAnalysisFailed(imagePath: string): void {
+    const safeRef = toWebviewSafeMediaRef(imagePath);
+    if (!safeRef) {
+        return;
+    }
     queueDeps?.getPanel()?.webview.postMessage({
         type: 'vlmAnalysisFailed',
-        imagePath,
+        imagePath: safeRef,
     });
 }
 

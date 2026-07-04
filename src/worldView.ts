@@ -13,6 +13,7 @@ import { normalizeExternalProvider } from './ttsBridgeCore';
 import { isLocalTtsConfigured } from './ttsBridgeRunner';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
+import { toWebviewSafeMediaRef } from './mediaPaths';
 import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildMapOverlayFromContext } from './mapOverlayBridge';
@@ -393,7 +394,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             .slice(0, 4)
             .map((e) => ({
                 src: safeImageUri(e.imagePath) ?? '',
-                rawImagePath: e.imagePath,
+                rawImagePath: toWebviewSafeMediaRef(e.imagePath),
                 description: e.description,
                 worldTurn: e.worldTurn,
             }))

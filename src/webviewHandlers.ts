@@ -4,7 +4,7 @@ import { isValidCharacterId } from './characterId';
 import { isValidEntryId } from './entryId';
 import { isValidCheckpointId } from './checkpoint';
 import { isValidEventId } from './worldEventLogCore';
-import { resolveAllowedImagePath } from './mediaPaths';
+import { resolveMediaPathFromWebviewRef } from './mediaPaths';
 import { t } from './i18n';
 import {
     clampString,
@@ -480,7 +480,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'requestVlmAnalysis': {
             const resolved = typeof message.imagePath === 'string'
-                ? resolveAllowedImagePath(message.imagePath)
+                ? resolveMediaPathFromWebviewRef(message.imagePath)
                 : undefined;
             if (resolved) {
                 await deps.handleRequestVlmAnalysis(resolved);
@@ -489,7 +489,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         }
         case 'setNpcPortrait': {
             const resolvedPortrait = typeof message.imagePath === 'string'
-                ? resolveAllowedImagePath(message.imagePath)
+                ? resolveMediaPathFromWebviewRef(message.imagePath)
                 : undefined;
             if (isValidEntryId(message.npcId) && resolvedPortrait) {
                 await deps.handleSetNpcPortrait(message.npcId as string, resolvedPortrait);

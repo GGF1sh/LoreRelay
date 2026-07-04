@@ -11,6 +11,9 @@ const {
   isAllowedImagePath,
   getImageMimeType,
   ALLOWED_IMAGE_EXTENSIONS,
+  relativizePathUnderRoot,
+  joinPathUnderRoot,
+  WEBVIEW_SKILL_MEDIA_PREFIX,
 } = require('../out/mediaPathCore');
 
 let failed = 0;
@@ -127,6 +130,36 @@ withTempDir((root) => {
     ok('isAllowedImagePath true for valid png');
   }
 });
+
+withTempDir((root) => {
+  const nested = path.join(root, 'output', 'scene.png');
+  fs.mkdirSync(path.dirname(nested), { recursive: true });
+  fs.writeFileSync(nested, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const resolved = resolveAllowedImagePath(nested, [root]);
+  const rel = relativizePathUnderRoot(resolved, root);
+  if (rel !== 'output/scene.png') {
+    fail(`relativizePathUnderRoot expected output/scene.png got ${rel}`);
+  } else {
+    ok('relativizePathUnderRoot nested path');
+  }
+  const joined = joinPathUnderRoot(root, rel);
+  if (!joined || resolveAllowedImagePath(joined, [root]) !== resolved) {
+    fail('joinPathUnderRoot round-trip');
+  } else {
+    ok('joinPathUnderRoot round-trip');
+  }
+  if (joinPathUnderRoot(root, '../outside.png') !== undefined) {
+    fail('joinPathUnderRoot rejects traversal');
+  } else {
+    ok('joinPathUnderRoot rejects traversal');
+  }
+});
+
+if (WEBVIEW_SKILL_MEDIA_PREFIX !== 'skill:') {
+  fail('WEBVIEW_SKILL_MEDIA_PREFIX');
+} else {
+  ok('WEBVIEW_SKILL_MEDIA_PREFIX');
+}
 
 if (failed > 0) {
   process.exit(1);

@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+## [1.77.12] - 2026-07-04
+
+### Changed
+
+- **Debug Trace Inspector UX polish** (Webview-only, `ca163c8`) — adjacent DFS parent/child ordering; preserve expand state across `debugTraceUpdate` re-renders; audience-specific empty message (`emptyForAudience`); condition pass/fail badges with failed-first sort in expanded rows.
+
+### Security / Hardening
+
+- **Webview media path privacy** — `toWebviewSafeMediaRef` / `resolveMediaPathFromWebviewRef`: workspace-relative (or `skill:`) refs only; absolute paths stripped in `gameStateWebviewSanitizeCore`, `gameStateSync`, `vlmQueue`, `worldView`, `imageGenRunner`.
+- **Image gen circuit breaker** — `imageGenCircuitCore.ts`: pause queue after 3 consecutive failures (5 min cooldown); queue drain wrapped in try/catch.
+- **Prompt eviction** — `director` added to `PROMPT_NEVER_EVICT_CHUNK_IDS`.
+- **HTML export** — `escapeHtml` null-byte and backtick hardening.
+- **Dev script** — `call_local_coder.py` output path must stay under cwd.
+
 ## [1.77.11] - 2026-07-04
 
 ### Added

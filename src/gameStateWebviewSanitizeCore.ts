@@ -73,6 +73,21 @@ const WEBVIEW_DICE_LEDGER_KEYS = [
     'success',
 ] as const;
 
+/** Block absolute / traversal paths in webview media refs (defense in depth). */
+function sanitizeWebviewMediaRef(value: unknown): string | undefined {
+    const s = typeof value === 'string' ? value.trim() : '';
+    if (!s) {
+        return undefined;
+    }
+    if (s.includes('..')) {
+        return undefined;
+    }
+    if (/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(s)) {
+        return undefined;
+    }
+    return s;
+}
+
 const WEBVIEW_TRADE_OP_KEYS = [
     'op',
     'marketLocationId',
@@ -385,12 +400,25 @@ export function pickGameStateForWebview(state: Record<string, unknown>): Record<
     } else {
         delete out.world;
     }
+    const latestRef = sanitizeWebviewMediaRef(out.latestImageRawPath);
+    if (latestRef) {
+        out.latestImageRawPath = latestRef;
+    } else {
+        delete out.latestImageRawPath;
+    }
     if (Array.isArray(state.entries)) {
         out.entries = state.entries.map((entry) => {
             if (!entry || typeof entry !== 'object') {
                 return entry;
             }
-            return pickShallow(entry as Record<string, unknown>, WEBVIEW_GAME_ENTRY_KEYS);
+            const picked = pickShallow(entry as Record<string, unknown>, WEBVIEW_GAME_ENTRY_KEYS);
+            const rawRef = sanitizeWebviewMediaRef(picked.rawImagePath);
+            if (rawRef) {
+                picked.rawImagePath = rawRef;
+            } else {
+                delete picked.rawImagePath;
+            }
+            return picked;
         });
     }
     return out;

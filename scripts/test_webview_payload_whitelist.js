@@ -69,6 +69,41 @@ const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhe
 
 {
     const viaSanitize = sanitizeGameStateForWebview({
+        entries: [{
+            id: 'e2',
+            role: 'gm',
+            sender: 'GM',
+            content: 'scene',
+            rawImagePath: 'C:\\\\Users\\\\secret\\\\scene.png',
+        }],
+        latestImageRawPath: 'I:\\\\AI\\\\output\\\\latest.png',
+        status: { hp: { current: 1, max: 1 } },
+    });
+    const entry = viaSanitize.entries?.[0];
+    if (entry?.rawImagePath || viaSanitize.latestImageRawPath) {
+        fail(`absolute media paths stripped from webview payload: ${JSON.stringify(viaSanitize)}`);
+    } else {
+        ok('absolute media paths stripped from webview payload');
+    }
+    const safe = sanitizeGameStateForWebview({
+        entries: [{
+            id: 'e3',
+            role: 'gm',
+            sender: 'GM',
+            content: 'ok',
+            rawImagePath: 'output/scene.png',
+        }],
+        latestImageRawPath: 'output/latest.png',
+    });
+    if (safe.entries?.[0]?.rawImagePath !== 'output/scene.png' || safe.latestImageRawPath !== 'output/latest.png') {
+        fail(`safe relative media refs preserved: ${JSON.stringify(safe)}`);
+    } else {
+        ok('safe relative media refs preserved');
+    }
+}
+
+{
+    const viaSanitize = sanitizeGameStateForWebview({
         entries: [],
         __FUTURE_HIDDEN_FIELD__: { x: 1 },
         hiddenState: { y: 2 },

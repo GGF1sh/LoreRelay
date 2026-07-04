@@ -58,13 +58,31 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
     const joined = kept.join('\n');
     if (!joined.includes('rules')) {
         fail('high-priority gameRules preserved');
+    } else if (!isPromptChunkNeverEvict('director')) {
+        fail('director should be never-evict');
     } else {
         ok('high-priority gameRules preserved');
+        ok('director is never-evict');
     }
     if (joined.includes('v'.repeat(4000))) {
         fail('low-priority vision evicted or truncated first');
     } else {
         ok('low-priority vision evicted or truncated first');
+    }
+}
+
+{
+    const chunks = [
+        { id: 'gameRules', text: 'rules', priority: 100 },
+        { id: 'director', text: 'scenario-objective-critical', priority: 95 },
+        { id: 'vision', text: 'v'.repeat(5000), priority: 35 },
+    ];
+    const kept = evictPromptChunksByBudget(chunks, 120);
+    const joined = kept.join('\n');
+    if (!joined.includes('scenario-objective-critical')) {
+        fail('director pinned under tight budget');
+    } else {
+        ok('director pinned under tight budget');
     }
 }
 

@@ -51,7 +51,7 @@ import { pushScenarioDirectorToWebview } from './scenarioDirector';
 import { pushPartyDirectorToWebview } from './partyDirector';
 import { pushWorldViewToWebview } from './worldView';
 import { maybeTickSimulation } from './emergentSimulator';
-import { isAllowedImagePath } from './mediaPaths';
+import { isAllowedImagePath, toWebviewSafeMediaRef } from './mediaPaths';
 import type { TurnResult } from './types/TurnResult';
 import { loadWorldForge } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
@@ -441,8 +441,14 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             const entriesToSend = sourceEntries.map((entry: GameEntry) => {
                 const e = { ...entry };
                 if (e.image) {
-                    e.rawImagePath = e.image;
-                    const uri = safeImageUri(e.image);
+                    const diskPath = e.image;
+                    const safeRef = toWebviewSafeMediaRef(diskPath);
+                    if (safeRef) {
+                        e.rawImagePath = safeRef;
+                    } else {
+                        delete e.rawImagePath;
+                    }
+                    const uri = safeImageUri(diskPath);
                     if (uri) {
                         e.image = uri;
                     } else {
@@ -470,7 +476,9 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                         }))
                     : undefined;
 
-            const latestImageRawPath = activeState.latestImage ? String(activeState.latestImage) : undefined;
+            const latestImageRawPath = activeState.latestImage
+                ? toWebviewSafeMediaRef(String(activeState.latestImage))
+                : undefined;
             const stateForWebview = sanitizeGameStateForWebview({
                 ...activeState,
                 entries: entriesToSend,

@@ -29,13 +29,29 @@ def call_qwen(prompt_text):
         print(f"Error connecting to LM Studio: {e}", file=sys.stderr)
         return None
 
+def validate_output_path(output_path: str) -> str:
+    resolved = os.path.realpath(output_path)
+    cwd = os.path.realpath(os.getcwd())
+    try:
+        common = os.path.commonpath([resolved, cwd])
+    except ValueError:
+        raise ValueError("output path must be under the current working directory") from None
+    if common != cwd:
+        raise ValueError("output path must be under the current working directory")
+    return resolved
+
+
 def main():
     if len(sys.argv) < 3:
         print("Usage: python scripts/call_local_coder.py <task_number> <output_file>", file=sys.stderr)
         sys.exit(1)
         
     task_num = sys.argv[1]
-    output_path = sys.argv[2]
+    try:
+        output_path = validate_output_path(sys.argv[2])
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
     
     # Read AGENT_PROMPTS_LIVING_WORLD.md
     prompts_file = os.path.join("docs", "AGENT_PROMPTS_LIVING_WORLD.md")
@@ -76,7 +92,9 @@ def main():
     
     result = call_qwen(full_prompt)
     if result:
-        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        parent = os.path.dirname(output_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as out_f:
             out_f.write(result)
         print(f"Successfully saved Qwen output to: {output_path}")

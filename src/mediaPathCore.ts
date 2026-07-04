@@ -73,3 +73,48 @@ export function getImageMimeType(imagePath: string): string | undefined {
     const ext = path.extname(imagePath).toLowerCase();
     return IMAGE_MIME[ext];
 }
+
+/** Prefix for skill-dir media refs sent to Webview (never expose absolute paths). */
+export const WEBVIEW_SKILL_MEDIA_PREFIX = 'skill:';
+
+function isSafeRelativeRef(ref: string): boolean {
+    const normalized = ref.replace(/\\/g, '/');
+    if (!normalized || path.isAbsolute(normalized)) {
+        return false;
+    }
+    if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized)) {
+        return false;
+    }
+    const segments = normalized.split('/');
+    return !segments.some((seg) => seg === '..');
+}
+
+/** Workspace- or skill-root-relative ref from an already-resolved absolute path. */
+export function relativizePathUnderRoot(resolvedPath: string, root: string): string | undefined {
+    const realRoot = normalizeRoot(root);
+    let realResolved: string;
+    try {
+        realResolved = fs.realpathSync(resolvedPath);
+    } catch {
+        realResolved = path.normalize(resolvedPath);
+    }
+    const rel = path.relative(realRoot, realResolved);
+    if (!isSafeRelativeRef(rel)) {
+        return undefined;
+    }
+    return rel.split(path.sep).join('/');
+}
+
+/** Join a validated relative ref under root (no traversal). */
+export function joinPathUnderRoot(root: string, relativeRef: string): string | undefined {
+    const ref = String(relativeRef ?? '').trim().replace(/\\/g, '/');
+    if (!isSafeRelativeRef(ref)) {
+        return undefined;
+    }
+    const joined = path.normalize(path.join(root, ref));
+    const realRoot = normalizeRoot(root);
+    if (!isUnderRoot(joined, realRoot) && joined !== realRoot) {
+        return undefined;
+    }
+    return joined;
+}

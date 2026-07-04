@@ -447,6 +447,7 @@ export function resolvePromptChunkPriority(id: string): number {
 export const PROMPT_NEVER_EVICT_CHUNK_IDS = [
     'gameRules',
     'narrativeTime',
+    'director',
 ] as const;
 
 export function isPromptChunkNeverEvict(id: string): boolean {

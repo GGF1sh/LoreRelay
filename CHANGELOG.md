@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.77.4] - 2026-07-04
+
+### Added
+
+- **WI5 world_state cap warnings** — workspace sanity loader parses `world_state.json` with `parseWorldStateWithWarnings`; `parse_cap_exceeded` surfaces in WI5b report (`world_state` domain).
+- **SO2 preview** — `previewGmTurnTransactionPlan` calls `loadWorldState()` so `peekLastWorldStateParseWarnings` reflects on-disk ledger before plan output.
+
 ## [1.77.3] - 2026-07-04
 
 ### Added

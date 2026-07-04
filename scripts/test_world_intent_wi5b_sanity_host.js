@@ -271,6 +271,35 @@ function mod(id, records, extra = {}) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
+{
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wi5b-world-state-'));
+    const factions = {};
+    for (let i = 0; i < 51; i++) {
+        factions[`fac_${i}`] = { power: 10, morale: 10 };
+    }
+    fs.writeFileSync(path.join(dir, 'world_state.json'), JSON.stringify({
+        format: 'lorerelay-world-state/1.0',
+        worldTurn: 1,
+        factions,
+        regions: {},
+    }), 'utf-8');
+    const snapshot = readWorkspaceSanitySnapshot(dir);
+    if (!snapshot.sources?.worldState) {
+        fail('loader should mark world_state source when file exists');
+    } else if (!snapshot.worldStateParseWarnings?.length) {
+        fail('loader should capture world_state parse cap warnings');
+    } else {
+        ok('loader captures world_state parse cap warnings');
+    }
+    const report = runWorkspaceSanityCheckFromSnapshot(snapshot);
+    if (!report.issues.some((i) => i.domain === 'world_state' && i.code === 'parse_cap_exceeded')) {
+        fail('WI5 report should surface world_state parse_cap_exceeded');
+    } else {
+        ok('workspace sanity report includes world_state cap warnings');
+    }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);
     process.exit(1);

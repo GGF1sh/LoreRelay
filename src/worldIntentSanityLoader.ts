@@ -6,6 +6,7 @@ import { parseModManifest, parseModProfile, type ParsedModManifest } from './mod
 import { parseSettlementState } from './settlementCore';
 import { normalizeGameRules } from './gameRulesCore';
 import { diagnoseVehicleStateRaw, parseVehicleState } from './vehicleCore';
+import { parseWorldStateWithWarnings } from './worldStateCore';
 import type {
     WorkspaceSanityLedgerLoadIssue,
     WorkspaceSanitySnapshot,
@@ -232,6 +233,18 @@ export function readWorkspaceSanitySnapshot(
                 'structural_validation_failed',
                 'settlement_state.json failed structural validation.'
             );
+        }
+    }
+
+    const worldStatePath = path.join(wsPath, 'world_state.json');
+    const worldStateRead = readJsonFile(worldStatePath);
+    if (worldStateRead.exists && worldStateRead.parseError) {
+        recordLedgerLoadIssue(snapshot, 'world_state.json', 'json_parse_error', 'world_state.json is not valid JSON.');
+    } else if (worldStateRead.exists && worldStateRead.data !== undefined) {
+        sources.worldState = true;
+        const { warnings } = parseWorldStateWithWarnings(worldStateRead.data);
+        if (warnings.length > 0) {
+            snapshot.worldStateParseWarnings = warnings;
         }
     }
 

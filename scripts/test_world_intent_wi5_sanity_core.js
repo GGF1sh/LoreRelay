@@ -20,7 +20,11 @@ for (const p of [sanityPath, vehiclePath, settlementPath, modPath]) {
     }
 }
 
-const { buildWorldSanityReport } = require(sanityPath);
+const {
+    buildWorldSanityReport,
+    checkWorldStateParseCapSanity,
+    checkLedgerLoadSanity,
+} = require(sanityPath);
 const { parseVehicleState, diagnoseVehicleStateRaw } = require(vehiclePath);
 const { parseSettlementState } = require(settlementPath);
 const { parseModManifest, parseModProfile } = require(modPath);
@@ -516,7 +520,6 @@ function vehicleWithMobileBase(settlementId = 'ashcrawler_home') {
 }
 
 {
-    const { buildWorldSanityReport, checkLedgerLoadSanity } = require(sanityPath);
     const issues = checkLedgerLoadSanity({
         ledgerLoadIssues: [{
             file: 'vehicle_state.json',
@@ -542,6 +545,22 @@ function vehicleWithMobileBase(settlementId = 'ashcrawler_home') {
         fail('report should include json_parse_error issue');
     } else {
         ok('buildWorldSanityReport fails on ledger parse errors');
+    }
+}
+
+{
+    const warnings = [{ code: 'parse_cap_exceeded', field: 'factions', dropped: 3, cap: 50 }];
+    const issues = checkWorldStateParseCapSanity({ worldStateParseWarnings: warnings });
+    if (!issues.some((i) => i.domain === 'world_state' && i.code === 'parse_cap_exceeded')) {
+        fail('world_state cap warnings should surface as world_state domain issues');
+    } else {
+        ok('checkWorldStateParseCapSanity reports parse cap exceeded');
+    }
+    const report = buildWorldSanityReport({ worldStateParseWarnings: warnings });
+    if (!report.warningCount || !report.issues.some((i) => i.domain === 'world_state')) {
+        fail('report should include world_state cap warnings');
+    } else {
+        ok('buildWorldSanityReport includes world_state parse cap warnings');
     }
 }
 

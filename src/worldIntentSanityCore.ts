@@ -16,6 +16,10 @@ import {
     type VehicleState,
 } from './vehicleCore';
 import { parseVehicleWorldIntentBridgeMode } from './worldIntentCore';
+import {
+    formatWorldStateParseWarning,
+    type WorldStateParseWarning,
+} from './worldStateCore';
 
 export const WORLD_SANITY_REPORT_VERSION = 1 as const;
 
@@ -29,6 +33,7 @@ export type WorldSanitySeverity = 'info' | 'warning' | 'error';
 export type WorldSanityDomain =
     | 'vehicle'
     | 'mobile_base'
+    | 'world_state'
     | 'mod'
     | 'game_rules'
     | 'world_intent';
@@ -81,6 +86,7 @@ export interface WorldSanityInput {
     modProfile?: ModProfile;
     mods?: Readonly<Record<string, ParsedModManifest>>;
     ledgerLoadIssues?: WorldSanityLedgerLoadIssue[];
+    worldStateParseWarnings?: WorldStateParseWarning[];
     rawConfig?: {
         vehicleBridgeMode?: unknown;
     };
@@ -94,8 +100,9 @@ const DOMAIN_ORDER: Record<WorldSanityDomain, number> = {
     game_rules: 0,
     vehicle: 1,
     mobile_base: 2,
-    mod: 3,
-    world_intent: 4,
+    world_state: 3,
+    mod: 4,
+    world_intent: 5,
 };
 
 const SEVERITY_ORDER: Record<WorldSanitySeverity, number> = {
@@ -608,9 +615,25 @@ export function checkGameRuleSanity(input: WorldSanityInput): WorldSanityIssue[]
 function ledgerLoadDomain(file: string): WorldSanityDomain {
     if (file === 'vehicle_state.json') { return 'vehicle'; }
     if (file === 'settlement_state.json') { return 'mobile_base'; }
+    if (file === 'world_state.json') { return 'world_state'; }
     if (file === 'mod_profile.json' || file.endsWith('/mod_profile.json')) { return 'mod'; }
     if (file === 'game_rules.json') { return 'game_rules'; }
     return 'world_intent';
+}
+
+export function checkWorldStateParseCapSanity(input: WorldSanityInput): WorldSanityIssue[] {
+    const warnings = input.worldStateParseWarnings;
+    if (!warnings?.length) { return []; }
+
+    return warnings.map((warning) => makeIssue(
+        'warning',
+        'world_state',
+        'parse_cap_exceeded',
+        formatWorldStateParseWarning(warning),
+        { kind: 'world_state_field', id: warning.field },
+        undefined,
+        'Trim ledger growth or archive old entries; parser silently dropped overflow.'
+    ));
 }
 
 export function checkLedgerLoadSanity(input: WorldSanityInput): WorldSanityIssue[] {
@@ -658,6 +681,7 @@ export function buildWorldSanityReport(
         ...checkVehicleRawParseSanity(input),
         ...checkVehicleSanity(input),
         ...checkMobileBaseSanity(input),
+        ...checkWorldStateParseCapSanity(input),
         ...checkModSanity(input),
         ...checkWorldIntentSanity(input),
     ];

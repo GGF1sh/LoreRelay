@@ -13,7 +13,7 @@ import {
 } from './stateOrchestratorPlanHostCore';
 import type { StateTransactionPlan } from './stateOrchestratorPlanCore';
 import { formatWorldStateParseWarning } from './worldStateCore';
-import { peekLastWorldStateParseWarnings } from './worldState';
+import { loadWorldState, peekLastWorldStateParseWarnings } from './worldState';
 
 const TURN_RESULT_FILENAME = 'turn_result.json';
 
@@ -74,6 +74,8 @@ export async function runPreviewGmTurnTransactionPlanCommand(): Promise<StateTra
         }
         return undefined;
     }
+
+    void loadWorldState();
 
     const rules = loadGameRules();
     const plan = buildGmTurnTransactionPlanFromTurnResult(read.data, rules);

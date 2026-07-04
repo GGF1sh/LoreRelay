@@ -32,9 +32,14 @@ const moduleSymbols = [
     'mobileBasePanel',
     'renderMobileBasePanel',
     'mobile-base-panel-card',
+    'mobile-base-unavailable',
     'mb-facility-chip',
     'mobileBaseOps',
+    'accessReasonCode',
+    'linkUnavailable',
 ];
+assert(indexHtml.includes('world-vehicle-tile-hint'), 'index.html must include vehicle tile hint');
+assert(bundle.includes('focusVehicleOnMap'), 'script.js must include map focus helper');
 for (const symbol of moduleSymbols) {
     assert(moduleJs.includes(symbol), `89b-mobile-base-panel.js missing ${symbol}`);
     assert(bundle.includes(symbol), `script.js bundle missing ${symbol}`);

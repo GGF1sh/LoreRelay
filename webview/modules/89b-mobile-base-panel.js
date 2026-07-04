@@ -4,6 +4,24 @@
 
 (function () {
     let _mbPanelWorldMsg = null;
+
+    const L = () => (window.LR_vehicleLabels || {
+        enumLabel: (_g, c) => (c || '—'),
+        accessReasonLabel: (c) => (c || ''),
+        fuelBandLabel: (b) => (b && b !== 'ok' ? b : ''),
+        stockLabel: (id) => id,
+        joinLabels: (codes, g) => (codes || []).join(', '),
+        humanizeCode: (c) => String(c || '').replace(/_/g, ' '),
+    });
+
+    function mbLabel(group, code) {
+        if (!code) { return '—'; }
+        const key = `webview.mobileBase.enum.${group}.${code}`;
+        if (typeof T !== 'function') { return L().humanizeCode(code); }
+        const translated = T(key);
+        return translated && translated !== key ? translated : L().humanizeCode(code);
+    }
+
     function escapeHtml(str) {
         if (str === undefined || str === null) return '';
         return String(str)
@@ -57,7 +75,8 @@
             return '';
         }
         if (interior.interiorBlocked) {
-            const reason = interior.interiorBlockReason || interior.interiorAccess || 'blocked';
+            const reasonCode = interior.interiorBlockReason || interior.interiorAccess || 'blocked';
+            const reason = mbLabel('interiorAccess', reasonCode);
             return `<p class="vehicle-warning mb-interior-blocked">${escapeHtml(T('webview.mobileBase.interiorBlocked'))}: ${escapeHtml(reason)}</p>`;
         }
         const buttons = [];
@@ -89,8 +108,14 @@
             return `<span class="vehicle-muted">${escapeHtml(T('webview.mobileBase.noStocks'))}</span>`;
         }
         return stocks.map((s) => (
-            `<span class="mb-stock-chip ${stockBandClass(s.band)}">${escapeHtml(s.id)}: ${escapeHtml(stockBandLabel(s.band))}</span>`
+            `<span class="mb-stock-chip ${stockBandClass(s.band)}">${escapeHtml(L().stockLabel(s.id))}: ${escapeHtml(stockBandLabel(s.band))}</span>`
         )).join('');
+    }
+
+    function renderLinkUnavailable() {
+        return `<div class="mobile-base-panel-card mobile-base-unavailable">
+            <p class="vehicle-warning">${escapeHtml(T('webview.mobileBase.linkUnavailable'))}</p>
+        </div>`;
     }
 
     function renderMobileBasePanel(panel) {
@@ -99,35 +124,37 @@
         if (!section || !root) return;
 
         if (!panel) {
-            section.classList.add('hidden');
-            root.innerHTML = '';
+            root.innerHTML = renderLinkUnavailable();
             return;
         }
 
-        section.classList.remove('hidden');
+        section.open = true;
 
         const warnings = [];
         if (panel.linkWarnings && panel.linkWarnings.length) {
             warnings.push(`<div class="vehicle-warning">${escapeHtml(panel.linkWarnings.join(' · '))}</div>`);
         }
-        if (panel.accessWarning) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.access'))}: ${escapeHtml(panel.accessWarning)}</div>`);
+        if (panel.accessReasonCode) {
+            const reason = L().accessReasonLabel(panel.accessReasonCode);
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.access'))}: ${escapeHtml(reason)}</div>`);
         }
         if (panel.parkingFallbackId) {
             warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.parkingFallback'))}: ${escapeHtml(panel.parkingFallbackId)}</div>`);
         }
         if (panel.exteriorLimits && panel.exteriorLimits.length) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.exteriorLimits'))}: ${escapeHtml(panel.exteriorLimits.join(', '))}</div>`);
+            const limits = L().joinLabels(panel.exteriorLimits, 'blocker');
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.exteriorLimits'))}: ${escapeHtml(limits)}</div>`);
         }
 
         const hereBadge = panel.atCurrentLocation
             ? `<span class="vehicle-badge active">${escapeHtml(T('webview.mobileBase.atPartyLocation'))}</span>`
             : '';
 
+        const fuelBandText = L().fuelBandLabel(panel.fuelBand);
         const fuelLine = panel.powerType
             ? `<div class="vehicle-stat-row ${fuelBandClass(panel.fuelBand)}">
                 <span>${escapeHtml(T('webview.mobileBase.power'))}</span>
-                <span>${escapeHtml(panel.powerType)} ${escapeHtml(String(panel.fuelCurrent ?? 0))}/${escapeHtml(String(panel.fuelMax ?? 0))}</span>
+                <span>${escapeHtml(L().enumLabel('powerType', panel.powerType))} ${escapeHtml(String(panel.fuelCurrent ?? 0))}/${escapeHtml(String(panel.fuelMax ?? 0))}${fuelBandText ? ` <span class="vehicle-fuel-band-label">${escapeHtml(fuelBandText)}</span>` : ''}</span>
                </div>`
             : '';
 
@@ -140,7 +167,7 @@
             : '';
 
         const interior = panel.interiorAccess
-            ? `<div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.interiorAccess'))}</span><span>${escapeHtml(panel.interiorAccess)}</span></div>`
+            ? `<div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.interiorAccess'))}</span><span>${escapeHtml(mbLabel('interiorAccess', panel.interiorAccess))}</span></div>`
             : '';
 
         const problems = panel.problems && panel.problems.length
@@ -149,17 +176,33 @@
 
         const interiorActions = renderInteriorActions(_mbPanelWorldMsg ? _mbPanelWorldMsg.mobileBaseInterior : null);
 
+        const sub = [
+            panel.vehicleName,
+            mbLabel('mode', panel.mode),
+            mbLabel('layoutProfile', panel.layoutProfile),
+            panel.dockLabel,
+        ].filter(Boolean).join(' · ');
+
+        const conditionParts = [
+            L().enumLabel('condition', panel.condition),
+            `HP ${panel.hp}/${panel.maxHp}`,
+            L().enumLabel('armorBand', panel.armorBand),
+        ];
+        if (panel.threatBand) {
+            conditionParts.push(L().enumLabel('threatBand', panel.threatBand));
+        }
+
         root.innerHTML = `
             <div class="mobile-base-panel-card">
                 <div class="vehicle-detail-header">
                     <h4 class="vehicle-detail-title">${escapeHtml(panel.settlementName)}</h4>
                     ${hereBadge}
                 </div>
-                <div class="vehicle-detail-sub">${escapeHtml(panel.vehicleName)} · ${escapeHtml(panel.mode)} · ${escapeHtml(panel.layoutProfile)} · ${escapeHtml(panel.dockLabel)}</div>
+                <div class="vehicle-detail-sub">${escapeHtml(sub)}</div>
                 <p class="vehicle-garage-hint">${escapeHtml(T('webview.mobileBase.hint'))}</p>
                 ${warnings.join('')}
                 ${interior}
-                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.condition'))}</span><span>${escapeHtml(panel.condition)} · HP ${escapeHtml(String(panel.hp))}/${escapeHtml(String(panel.maxHp))} · ${escapeHtml(panel.armorBand)}${panel.threatBand ? ' · ' + escapeHtml(panel.threatBand) : ''}</span></div>
+                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.condition'))}</span><span>${escapeHtml(conditionParts.join(' · '))}</span></div>
                 ${fuelLine}
                 ${hangar}
                 ${community}
@@ -183,10 +226,15 @@
         const msg = event.data;
         if (!msg || msg.type !== 'worldView') { return; }
         _mbPanelWorldMsg = msg;
+        const section = document.getElementById('vehicles-mobile-base-section');
+        if (!section) { return; }
         if (msg.enableMobileBaseSystem === true) {
+            section.classList.remove('hidden');
             renderMobileBasePanel(msg.mobileBasePanel || null);
         } else {
-            renderMobileBasePanel(null);
+            section.classList.add('hidden');
+            const root = document.getElementById('vehicles-mobile-base-panel');
+            if (root) { root.innerHTML = ''; }
         }
     });
 })();

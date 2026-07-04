@@ -1332,6 +1332,9 @@ function applyWorldMapModeVisibility() {
         // The canvas has zero width while its panel is hidden — draw after unhide.
         requestAnimationFrame(() => drawTileOvermap());
     }
+    if (typeof syncVehicleTileHint === 'function') {
+        syncVehicleTileHint(_worldViewMsg);
+    }
     if (worldMapMode === 'settlement' && typeof drawSettlementIsometric === 'function') {
         requestAnimationFrame(() => drawSettlementIsometric());
     }

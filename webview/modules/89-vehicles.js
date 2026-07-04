@@ -3,6 +3,15 @@
 
 (function () {
     let selectedVehicleId = null;
+    let _lastWorldMsg = null;
+
+    const L = () => (window.LR_vehicleLabels || {
+        enumLabel: (_g, c) => (c || '—'),
+        accessReasonLabel: (c) => (c || ''),
+        fuelBandLabel: (b) => (b && b !== 'ok' ? b : ''),
+        joinLabels: (codes, g) => (codes || []).join(', '),
+        humanizeCode: (c) => String(c || '').replace(/_/g, ' '),
+    });
 
     function escapeHtml(str) {
         if (str === undefined || str === null) return '';
@@ -42,7 +51,9 @@
             return `<span class="vehicle-muted">${escapeHtml(T('webview.vehicles.noModules'))}</span>`;
         }
         return modules.map((mod) => {
-            const cond = mod.condition ? ` (${mod.condition})` : '';
+            const cond = mod.condition
+                ? ` (${L().enumLabel('moduleCondition', mod.condition)})`
+                : '';
             return `<span class="vehicle-module-chip" title="${escapeHtml(mod.slot)}">${escapeHtml(mod.name)}${escapeHtml(cond)}</span>`;
         }).join('');
     }
@@ -52,12 +63,26 @@
         const here = item.atCurrentLocation ? ' is-here' : '';
         const selected = item.id === selectedVehicleId ? ' is-selected' : '';
         const mobile = item.isMobileBase ? `<span class="vehicle-badge mobile-base">${escapeHtml(T('webview.vehicles.mobileBase'))}</span>` : '';
+        const kind = L().enumLabel('kind', item.kind);
+        const status = L().enumLabel('status', item.status);
         return `
             <button type="button" class="vehicle-list-item${active}${here}${selected}" data-vehicle-id="${escapeHtml(item.id)}">
                 <span class="vehicle-list-name">${escapeHtml(item.name)}</span>
                 ${mobile}
-                <span class="vehicle-list-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.status)} · ${escapeHtml(item.locationLabel)}</span>
+                <span class="vehicle-list-meta">${escapeHtml(kind)} · ${escapeHtml(status)} · ${escapeHtml(item.locationLabel)}</span>
             </button>`;
+    }
+
+    function hasMapMarkerForVehicle(vehicleId) {
+        const markers = _lastWorldMsg?.mapOverlay?.markers;
+        if (!vehicleId || !Array.isArray(markers)) { return false; }
+        return markers.some((m) => {
+            if (!m || !m.id) { return false; }
+            return m.id === `vehicle_${vehicleId}`
+                || m.id === `vehicle_park_${vehicleId}`
+                || m.id === `vehicle_park_fallback_${vehicleId}`
+                || m.id === `vehicle_settlement_park_${vehicleId}`;
+        });
     }
 
     function renderDetail(item) {
@@ -65,20 +90,23 @@
             return `<p class="empty-text">${escapeHtml(T('webview.vehicles.selectHint'))}</p>`;
         }
         const warnings = [];
-        if (item.accessWarning) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessWarning'))}: ${escapeHtml(item.accessWarning)}</div>`);
+        if (item.accessReasonCode) {
+            const reason = L().accessReasonLabel(item.accessReasonCode);
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessWarning'))}: ${escapeHtml(reason)}</div>`);
         }
         if (item.parkingFallbackId) {
             warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.parkingFallback'))}: ${escapeHtml(item.parkingFallbackId)}</div>`);
         }
         if (item.accessRestrictions && item.accessRestrictions.length) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessLimits'))}: ${escapeHtml(item.accessRestrictions.join(', '))}</div>`);
+            const limits = L().joinLabels(item.accessRestrictions, 'blocker');
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessLimits'))}: ${escapeHtml(limits)}</div>`);
         }
 
+        const fuelBandText = L().fuelBandLabel(item.fuelBand);
         const fuelLine = item.powerType
             ? `<div class="vehicle-stat-row ${fuelBandClass(item.fuelBand)}">
                 <span>${escapeHtml(T('webview.vehicles.fuel'))}</span>
-                <span>${escapeHtml(item.powerType)} ${escapeHtml(String(item.fuelCurrent ?? 0))}/${escapeHtml(String(item.fuelMax ?? 0))}</span>
+                <span>${escapeHtml(L().enumLabel('powerType', item.powerType))} ${escapeHtml(String(item.fuelCurrent ?? 0))}/${escapeHtml(String(item.fuelMax ?? 0))}${fuelBandText ? ` <span class="vehicle-fuel-band-label">${escapeHtml(fuelBandText)}</span>` : ''}</span>
                </div>`
             : '';
 
@@ -90,6 +118,23 @@
             ? `<div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.carrier'))}</span><span>${escapeHtml(item.carriedSummary)}</span></div>`
             : '';
 
+        const showOnMap = hasMapMarkerForVehicle(item.id)
+            ? `<button type="button" class="small-btn vehicle-show-on-map-btn" data-vehicle-id="${escapeHtml(item.id)}">${escapeHtml(T('webview.vehicles.showOnMap'))}</button>`
+            : '';
+
+        const sub = [
+            L().enumLabel('kind', item.kind),
+            L().enumLabel('sizeClass', item.sizeClass),
+            L().enumLabel('status', item.status),
+            item.locationLabel,
+        ].filter(Boolean).join(' · ');
+
+        const conditionLine = [
+            L().enumLabel('condition', item.condition),
+            `HP ${item.hp}/${item.maxHp}`,
+            L().enumLabel('armorBand', item.armorBand),
+        ].join(' · ');
+
         return `
             <div class="vehicle-detail-card">
                 <div class="vehicle-detail-header">
@@ -97,9 +142,9 @@
                     ${item.isActive ? `<span class="vehicle-badge active">${escapeHtml(T('webview.vehicles.active'))}</span>` : ''}
                     ${item.isMobileBase ? `<span class="vehicle-badge mobile-base">${escapeHtml(T('webview.vehicles.mobileBase'))}</span>` : ''}
                 </div>
-                <div class="vehicle-detail-sub">${escapeHtml(item.kind)} · ${escapeHtml(item.sizeClass)} · ${escapeHtml(item.status)} · ${escapeHtml(item.locationLabel)}</div>
+                <div class="vehicle-detail-sub">${escapeHtml(sub)}</div>
                 ${warnings.join('')}
-                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.condition'))}</span><span>${escapeHtml(item.condition)} · HP ${escapeHtml(String(item.hp))}/${escapeHtml(String(item.maxHp))} · ${escapeHtml(item.armorBand)}</span></div>
+                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.condition'))}</span><span>${escapeHtml(conditionLine)}</span></div>
                 ${fuelLine}
                 ${parking}
                 ${carried}
@@ -110,6 +155,7 @@
                     <span class="vehicle-bar-label">${escapeHtml(T('webview.vehicles.modules'))}</span>
                     <div class="vehicle-module-list">${renderModuleChips(item.modules)}</div>
                 </div>
+                ${showOnMap ? `<div class="vehicle-detail-actions">${showOnMap}</div>` : ''}
             </div>`;
     }
 
@@ -120,6 +166,19 @@
             btn.addEventListener('click', () => {
                 selectedVehicleId = btn.getAttribute('data-vehicle-id');
                 renderGarage(garage);
+            });
+        });
+    }
+
+    function wireDetailActions() {
+        const detail = document.getElementById('vehicles-detail');
+        if (!detail) return;
+        detail.querySelectorAll('.vehicle-show-on-map-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-vehicle-id');
+                if (id && typeof window.focusVehicleOnMap === 'function') {
+                    window.focusVehicleOnMap(id);
+                }
             });
         });
     }
@@ -157,7 +216,8 @@
         if (warnings) {
             if (garage.warnings && garage.warnings.length) {
                 warnings.classList.remove('hidden');
-                warnings.textContent = garage.warnings.join(' · ');
+                warnings.setAttribute('aria-live', 'polite');
+                warnings.textContent = `${T('webview.vehicles.fleetWarning')}: ${garage.warnings.join(' · ')}`;
             } else {
                 warnings.classList.add('hidden');
                 warnings.textContent = '';
@@ -168,6 +228,12 @@
         const activeItem = garage.vehicles.find((v) => v.id === selectedVehicleId);
         detail.innerHTML = renderDetail(activeItem);
         wireListClicks(garage);
+        wireDetailActions();
+
+        const selectedBtn = list.querySelector(`[data-vehicle-id="${CSS.escape(selectedVehicleId)}"]`);
+        if (selectedBtn) {
+            selectedBtn.focus({ preventScroll: true });
+        }
     }
 
     function setTabVisible(visible) {
@@ -177,6 +243,7 @@
     }
 
     function renderFromWorldView(msg) {
+        _lastWorldMsg = msg;
         const enabled = msg.enableVehicleSystem === true;
         setTabVisible(enabled);
         if (!enabled) {
@@ -189,6 +256,22 @@
         }
         renderGarage(msg.vehicleGarage || null);
     }
+
+    window.selectGarageVehicle = function selectGarageVehicle(vehicleId) {
+        if (!vehicleId) { return; }
+        selectedVehicleId = vehicleId;
+        renderGarage(_lastWorldMsg?.vehicleGarage || null);
+    };
+
+    window.openVehicleFromMapMarker = function openVehicleFromMapMarker(vehicleId) {
+        if (!vehicleId) { return; }
+        if (typeof activateStatusPane === 'function') {
+            activateStatusPane('pane-vehicles');
+        } else {
+            document.getElementById('tab-btn-vehicles')?.click();
+        }
+        window.selectGarageVehicle(vehicleId);
+    };
 
     window.addEventListener('message', (event) => {
         const msg = event.data;

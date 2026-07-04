@@ -6445,6 +6445,9 @@ function applyWorldMapModeVisibility() {
         // The canvas has zero width while its panel is hidden — draw after unhide.
         requestAnimationFrame(() => drawTileOvermap());
     }
+    if (typeof syncVehicleTileHint === 'function') {
+        syncVehicleTileHint(_worldViewMsg);
+    }
     if (worldMapMode === 'settlement' && typeof drawSettlementIsometric === 'function') {
         requestAnimationFrame(() => drawSettlementIsometric());
     }
@@ -8692,6 +8695,18 @@ function initTileOvermapPinClicks() {
     if (!canvas) { return; }
     canvas.addEventListener('click', (e) => {
         if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') { return; }
+        const overlayMarker = hitTestMapOverlayMarker(e.clientX, e.clientY, canvas);
+        if (overlayMarker) {
+            const labels = window.LR_vehicleLabels;
+            const vehicleId = labels && typeof labels.vehicleIdFromOverlayMarker === 'function'
+                ? labels.vehicleIdFromOverlayMarker(overlayMarker)
+                : null;
+            if (vehicleId && typeof window.openVehicleFromMapMarker === 'function') {
+                e.stopPropagation();
+                window.openVehicleFromMapMarker(vehicleId);
+                return;
+            }
+        }
         if (typeof hitTestWorldPin !== 'function' || typeof selectWorldLocationPin !== 'function') { return; }
         const locationId = hitTestWorldPin(e.clientX, e.clientY, canvas);
         if (locationId) {
@@ -9018,9 +9033,75 @@ function renderMapOverlayLegend(msg) {
         const rumoredLabel = escapeHtml(overlayLegendLabel('rumored'));
         items.push(`<span class="world-map-overlay-legend-item world-map-overlay-legend-hint"><span class="world-map-overlay-legend-glyph">?</span>${rumoredLabel}</span>`);
     }
+    const vehicleMarkers = markers.filter((m) => m && (m.kind === 'vehicle' || m.kind === 'vehicle_parking'));
+    if (vehicleMarkers.length) {
+        const listLabel = typeof T === 'function' ? T('webview.world.overlayVehicleList') : 'Vehicles on map';
+        const listItems = vehicleMarkers.slice(0, 6).map((m) => {
+            const vid = window.LR_vehicleLabels?.vehicleIdFromOverlayMarker?.(m);
+            const clickable = vid ? ` data-vehicle-marker-id="${escapeHtml(vid)}"` : '';
+            return `<li class="world-map-overlay-vehicle-item"${clickable}>${escapeHtml(m.label || m.kind)}</li>`;
+        }).join('');
+        items.push(`<div class="world-map-overlay-vehicle-list" role="list"><span class="world-map-overlay-vehicle-list-title">${escapeHtml(listLabel)}</span><ul>${listItems}</ul></div>`);
+    }
     el.innerHTML = items.join('');
     el.classList.remove('hidden');
+    el.querySelectorAll('[data-vehicle-marker-id]').forEach((node) => {
+        node.addEventListener('click', () => {
+            const id = node.getAttribute('data-vehicle-marker-id');
+            if (id && typeof window.openVehicleFromMapMarker === 'function') {
+                window.openVehicleFromMapMarker(id);
+            }
+        });
+    });
 }
+
+function syncVehicleTileHint(msg) {
+    const el = document.getElementById('world-vehicle-tile-hint');
+    if (!el) { return; }
+    const enabled = msg && msg.enableVehicleSystem === true;
+    const hasVehicleMarkers = Boolean(
+        msg && msg.mapOverlay && Array.isArray(msg.mapOverlay.markers)
+        && msg.mapOverlay.markers.some((m) => m && (m.kind === 'vehicle' || m.kind === 'vehicle_parking'))
+    );
+    const notTile = typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile';
+    el.classList.toggle('hidden', !(enabled && hasVehicleMarkers && notTile));
+}
+
+function flashMapOverlayMarkerTooltip(marker) {
+    const hit = _overlayMarkerHits.find((h) => h.marker && h.marker.id === marker.id);
+    if (!hit) { return; }
+    const panel = document.getElementById('world-overmap');
+    const canvas = document.getElementById('world-overmap-canvas');
+    if (!panel || !canvas) { return; }
+    const rect = panel.getBoundingClientRect();
+    showMapOverlayTooltip(marker, rect.left + hit.px, rect.top + hit.py);
+    window.setTimeout(() => hideMapOverlayTooltip(), 3200);
+}
+
+window.focusVehicleOnMap = function focusVehicleOnMap(vehicleId) {
+    if (!vehicleId || !_tileOvermapMsg) { return; }
+    const markers = _tileOvermapMsg.mapOverlay && Array.isArray(_tileOvermapMsg.mapOverlay.markers)
+        ? _tileOvermapMsg.mapOverlay.markers
+        : [];
+    const marker = markers.find((m) => {
+        const vid = window.LR_vehicleLabels?.vehicleIdFromOverlayMarker?.(m);
+        return vid === vehicleId;
+    });
+    if (typeof activateStatusPane === 'function') {
+        activateStatusPane('pane-world');
+    } else {
+        document.getElementById('tab-btn-world')?.click();
+    }
+    if (typeof setWorldMapMode === 'function') {
+        setWorldMapMode('tile', { persist: true });
+    }
+    requestAnimationFrame(() => {
+        drawTileOvermap();
+        if (marker) {
+            requestAnimationFrame(() => flashMapOverlayMarkerTooltip(marker));
+        }
+    });
+};
 
 function getRegionFogVisibility(regionId, fog) {
     if (!fog || !regionId) { return 'discovered'; }
@@ -9269,6 +9350,7 @@ function drawTileOvermap() {
 
     drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight);
     renderMapOverlayLegend(msg);
+    syncVehicleTileHint(msg);
     hideMapOverlayTooltip();
 }
 
@@ -11180,12 +11262,95 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 })();
 
+/* --- 89a-vehicle-labels.js --- */
+// webview/modules/89a-vehicle-labels.js
+// Shared display-only i18n helpers for Vehicle / Mobile Base panels (no disk writes).
+
+(function () {
+    function humanizeCode(code) {
+        if (!code) { return '—'; }
+        return String(code).replace(/_/g, ' ');
+    }
+
+    function enumLabel(group, code) {
+        if (!code) { return '—'; }
+        const key = `webview.vehicles.enum.${group}.${code}`;
+        if (typeof T !== 'function') { return humanizeCode(code); }
+        const translated = T(key);
+        return translated && translated !== key ? translated : humanizeCode(code);
+    }
+
+    function accessReasonLabel(code) {
+        if (!code || code === 'ok') { return ''; }
+        const key = `webview.vehicles.accessReason.${code}`;
+        if (typeof T !== 'function') { return humanizeCode(code); }
+        const translated = T(key);
+        return translated && translated !== key ? translated : humanizeCode(code);
+    }
+
+    function fuelBandLabel(band) {
+        if (!band || band === 'ok') { return ''; }
+        const key = `webview.vehicles.fuelBand.${band}`;
+        if (typeof T !== 'function') { return band; }
+        const translated = T(key);
+        return translated && translated !== key ? translated : band;
+    }
+
+    function stockLabel(id) {
+        if (!id) { return '—'; }
+        const key = `webview.stock.${id}`;
+        if (typeof T !== 'function') { return humanizeCode(id); }
+        const translated = T(key);
+        return translated && translated !== key ? translated : humanizeCode(id);
+    }
+
+    function joinLabels(codes, group) {
+        if (!codes || !codes.length) { return ''; }
+        return codes.map((c) => enumLabel(group, c)).join(', ');
+    }
+
+    function vehicleIdFromOverlayMarker(marker) {
+        if (!marker || !marker.id) { return null; }
+        const prefixes = [
+            'vehicle_park_fallback_',
+            'vehicle_settlement_park_',
+            'vehicle_park_',
+            'vehicle_',
+        ];
+        for (const prefix of prefixes) {
+            if (marker.id.startsWith(prefix)) {
+                return marker.id.slice(prefix.length);
+            }
+        }
+        return null;
+    }
+
+    window.LR_vehicleLabels = {
+        enumLabel,
+        accessReasonLabel,
+        fuelBandLabel,
+        stockLabel,
+        joinLabels,
+        vehicleIdFromOverlayMarker,
+        humanizeCode,
+    };
+})();
+
 /* --- 89-vehicles.js --- */
 // webview/modules/89-vehicles.js
 // Vehicle System V4: read-only garage/dock/stable panel (no disk writes).
 
 (function () {
     let selectedVehicleId = null;
+    let _lastWorldMsg = null;
+
+    const L = () => (window.LR_vehicleLabels || {
+        enumLabel: (_g, c) => (c || '—'),
+        accessReasonLabel: (c) => (c || ''),
+        fuelBandLabel: (b) => (b && b !== 'ok' ? b : ''),
+        joinLabels: (codes, g) => (codes || []).join(', '),
+        humanizeCode: (c) => String(c || '').replace(/_/g, ' '),
+    });
 
     function escapeHtml(str) {
         if (str === undefined || str === null) return '';
@@ -11225,7 +11390,9 @@ window.addEventListener('DOMContentLoaded', () => {
             return `<span class="vehicle-muted">${escapeHtml(T('webview.vehicles.noModules'))}</span>`;
         }
         return modules.map((mod) => {
-            const cond = mod.condition ? ` (${mod.condition})` : '';
+            const cond = mod.condition
+                ? ` (${L().enumLabel('moduleCondition', mod.condition)})`
+                : '';
             return `<span class="vehicle-module-chip" title="${escapeHtml(mod.slot)}">${escapeHtml(mod.name)}${escapeHtml(cond)}</span>`;
         }).join('');
     }
@@ -11235,12 +11402,26 @@ window.addEventListener('DOMContentLoaded', () => {
         const here = item.atCurrentLocation ? ' is-here' : '';
         const selected = item.id === selectedVehicleId ? ' is-selected' : '';
         const mobile = item.isMobileBase ? `<span class="vehicle-badge mobile-base">${escapeHtml(T('webview.vehicles.mobileBase'))}</span>` : '';
+        const kind = L().enumLabel('kind', item.kind);
+        const status = L().enumLabel('status', item.status);
         return `
             <button type="button" class="vehicle-list-item${active}${here}${selected}" data-vehicle-id="${escapeHtml(item.id)}">
                 <span class="vehicle-list-name">${escapeHtml(item.name)}</span>
                 ${mobile}
-                <span class="vehicle-list-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.status)} · ${escapeHtml(item.locationLabel)}</span>
+                <span class="vehicle-list-meta">${escapeHtml(kind)} · ${escapeHtml(status)} · ${escapeHtml(item.locationLabel)}</span>
             </button>`;
+    }
+
+    function hasMapMarkerForVehicle(vehicleId) {
+        const markers = _lastWorldMsg?.mapOverlay?.markers;
+        if (!vehicleId || !Array.isArray(markers)) { return false; }
+        return markers.some((m) => {
+            if (!m || !m.id) { return false; }
+            return m.id === `vehicle_${vehicleId}`
+                || m.id === `vehicle_park_${vehicleId}`
+                || m.id === `vehicle_park_fallback_${vehicleId}`
+                || m.id === `vehicle_settlement_park_${vehicleId}`;
+        });
     }
 
     function renderDetail(item) {
@@ -11248,20 +11429,23 @@ window.addEventListener('DOMContentLoaded', () => {
             return `<p class="empty-text">${escapeHtml(T('webview.vehicles.selectHint'))}</p>`;
         }
         const warnings = [];
-        if (item.accessWarning) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessWarning'))}: ${escapeHtml(item.accessWarning)}</div>`);
+        if (item.accessReasonCode) {
+            const reason = L().accessReasonLabel(item.accessReasonCode);
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessWarning'))}: ${escapeHtml(reason)}</div>`);
         }
         if (item.parkingFallbackId) {
             warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.parkingFallback'))}: ${escapeHtml(item.parkingFallbackId)}</div>`);
         }
         if (item.accessRestrictions && item.accessRestrictions.length) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessLimits'))}: ${escapeHtml(item.accessRestrictions.join(', '))}</div>`);
+            const limits = L().joinLabels(item.accessRestrictions, 'blocker');
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.vehicles.accessLimits'))}: ${escapeHtml(limits)}</div>`);
         }
 
+        const fuelBandText = L().fuelBandLabel(item.fuelBand);
         const fuelLine = item.powerType
             ? `<div class="vehicle-stat-row ${fuelBandClass(item.fuelBand)}">
                 <span>${escapeHtml(T('webview.vehicles.fuel'))}</span>
-                <span>${escapeHtml(item.powerType)} ${escapeHtml(String(item.fuelCurrent ?? 0))}/${escapeHtml(String(item.fuelMax ?? 0))}</span>
+                <span>${escapeHtml(L().enumLabel('powerType', item.powerType))} ${escapeHtml(String(item.fuelCurrent ?? 0))}/${escapeHtml(String(item.fuelMax ?? 0))}${fuelBandText ? ` <span class="vehicle-fuel-band-label">${escapeHtml(fuelBandText)}</span>` : ''}</span>
                </div>`
             : '';
 
@@ -11273,6 +11457,23 @@ window.addEventListener('DOMContentLoaded', () => {
             ? `<div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.carrier'))}</span><span>${escapeHtml(item.carriedSummary)}</span></div>`
             : '';
 
+        const showOnMap = hasMapMarkerForVehicle(item.id)
+            ? `<button type="button" class="small-btn vehicle-show-on-map-btn" data-vehicle-id="${escapeHtml(item.id)}">${escapeHtml(T('webview.vehicles.showOnMap'))}</button>`
+            : '';
+
+        const sub = [
+            L().enumLabel('kind', item.kind),
+            L().enumLabel('sizeClass', item.sizeClass),
+            L().enumLabel('status', item.status),
+            item.locationLabel,
+        ].filter(Boolean).join(' · ');
+
+        const conditionLine = [
+            L().enumLabel('condition', item.condition),
+            `HP ${item.hp}/${item.maxHp}`,
+            L().enumLabel('armorBand', item.armorBand),
+        ].join(' · ');
+
         return `
             <div class="vehicle-detail-card">
                 <div class="vehicle-detail-header">
@@ -11280,9 +11481,9 @@ window.addEventListener('DOMContentLoaded', () => {
                     ${item.isActive ? `<span class="vehicle-badge active">${escapeHtml(T('webview.vehicles.active'))}</span>` : ''}
                     ${item.isMobileBase ? `<span class="vehicle-badge mobile-base">${escapeHtml(T('webview.vehicles.mobileBase'))}</span>` : ''}
                 </div>
-                <div class="vehicle-detail-sub">${escapeHtml(item.kind)} · ${escapeHtml(item.sizeClass)} · ${escapeHtml(item.status)} · ${escapeHtml(item.locationLabel)}</div>
+                <div class="vehicle-detail-sub">${escapeHtml(sub)}</div>
                 ${warnings.join('')}
-                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.condition'))}</span><span>${escapeHtml(item.condition)} · HP ${escapeHtml(String(item.hp))}/${escapeHtml(String(item.maxHp))} · ${escapeHtml(item.armorBand)}</span></div>
+                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.vehicles.condition'))}</span><span>${escapeHtml(conditionLine)}</span></div>
                 ${fuelLine}
                 ${parking}
                 ${carried}
@@ -11293,6 +11494,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     <span class="vehicle-bar-label">${escapeHtml(T('webview.vehicles.modules'))}</span>
                     <div class="vehicle-module-list">${renderModuleChips(item.modules)}</div>
                 </div>
+                ${showOnMap ? `<div class="vehicle-detail-actions">${showOnMap}</div>` : ''}
             </div>`;
     }
 
@@ -11303,6 +11505,19 @@ window.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', () => {
                 selectedVehicleId = btn.getAttribute('data-vehicle-id');
                 renderGarage(garage);
+            });
+        });
+    }
+
+    function wireDetailActions() {
+        const detail = document.getElementById('vehicles-detail');
+        if (!detail) return;
+        detail.querySelectorAll('.vehicle-show-on-map-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-vehicle-id');
+                if (id && typeof window.focusVehicleOnMap === 'function') {
+                    window.focusVehicleOnMap(id);
+                }
             });
         });
     }
@@ -11340,7 +11555,8 @@ window.addEventListener('DOMContentLoaded', () => {
         if (warnings) {
             if (garage.warnings && garage.warnings.length) {
                 warnings.classList.remove('hidden');
-                warnings.textContent = garage.warnings.join(' · ');
+                warnings.setAttribute('aria-live', 'polite');
+                warnings.textContent = `${T('webview.vehicles.fleetWarning')}: ${garage.warnings.join(' · ')}`;
             } else {
                 warnings.classList.add('hidden');
                 warnings.textContent = '';
@@ -11351,6 +11567,12 @@ window.addEventListener('DOMContentLoaded', () => {
         const activeItem = garage.vehicles.find((v) => v.id === selectedVehicleId);
         detail.innerHTML = renderDetail(activeItem);
         wireListClicks(garage);
+        wireDetailActions();
+
+        const selectedBtn = list.querySelector(`[data-vehicle-id="${CSS.escape(selectedVehicleId)}"]`);
+        if (selectedBtn) {
+            selectedBtn.focus({ preventScroll: true });
+        }
     }
 
     function setTabVisible(visible) {
@@ -11360,6 +11582,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderFromWorldView(msg) {
+        _lastWorldMsg = msg;
         const enabled = msg.enableVehicleSystem === true;
         setTabVisible(enabled);
         if (!enabled) {
@@ -11372,6 +11595,22 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         renderGarage(msg.vehicleGarage || null);
     }
+
+    window.selectGarageVehicle = function selectGarageVehicle(vehicleId) {
+        if (!vehicleId) { return; }
+        selectedVehicleId = vehicleId;
+        renderGarage(_lastWorldMsg?.vehicleGarage || null);
+    };
+
+    window.openVehicleFromMapMarker = function openVehicleFromMapMarker(vehicleId) {
+        if (!vehicleId) { return; }
+        if (typeof activateStatusPane === 'function') {
+            activateStatusPane('pane-vehicles');
+        } else {
+            document.getElementById('tab-btn-vehicles')?.click();
+        }
+        window.selectGarageVehicle(vehicleId);
+    };
 
     window.addEventListener('message', (event) => {
         const msg = event.data;
@@ -11388,6 +11627,24 @@ window.addEventListener('DOMContentLoaded', () => {
 
 (function () {
     let _mbPanelWorldMsg = null;
+
+    const L = () => (window.LR_vehicleLabels || {
+        enumLabel: (_g, c) => (c || '—'),
+        accessReasonLabel: (c) => (c || ''),
+        fuelBandLabel: (b) => (b && b !== 'ok' ? b : ''),
+        stockLabel: (id) => id,
+        joinLabels: (codes, g) => (codes || []).join(', '),
+        humanizeCode: (c) => String(c || '').replace(/_/g, ' '),
+    });
+
+    function mbLabel(group, code) {
+        if (!code) { return '—'; }
+        const key = `webview.mobileBase.enum.${group}.${code}`;
+        if (typeof T !== 'function') { return L().humanizeCode(code); }
+        const translated = T(key);
+        return translated && translated !== key ? translated : L().humanizeCode(code);
+    }
+
     function escapeHtml(str) {
         if (str === undefined || str === null) return '';
         return String(str)
@@ -11441,7 +11698,8 @@ window.addEventListener('DOMContentLoaded', () => {
             return '';
         }
         if (interior.interiorBlocked) {
-            const reason = interior.interiorBlockReason || interior.interiorAccess || 'blocked';
+            const reasonCode = interior.interiorBlockReason || interior.interiorAccess || 'blocked';
+            const reason = mbLabel('interiorAccess', reasonCode);
             return `<p class="vehicle-warning mb-interior-blocked">${escapeHtml(T('webview.mobileBase.interiorBlocked'))}: ${escapeHtml(reason)}</p>`;
         }
         const buttons = [];
@@ -11473,8 +11731,14 @@ window.addEventListener('DOMContentLoaded', () => {
             return `<span class="vehicle-muted">${escapeHtml(T('webview.mobileBase.noStocks'))}</span>`;
         }
         return stocks.map((s) => (
-            `<span class="mb-stock-chip ${stockBandClass(s.band)}">${escapeHtml(s.id)}: ${escapeHtml(stockBandLabel(s.band))}</span>`
+            `<span class="mb-stock-chip ${stockBandClass(s.band)}">${escapeHtml(L().stockLabel(s.id))}: ${escapeHtml(stockBandLabel(s.band))}</span>`
         )).join('');
+    }
+
+    function renderLinkUnavailable() {
+        return `<div class="mobile-base-panel-card mobile-base-unavailable">
+            <p class="vehicle-warning">${escapeHtml(T('webview.mobileBase.linkUnavailable'))}</p>
+        </div>`;
     }
 
     function renderMobileBasePanel(panel) {
@@ -11483,35 +11747,37 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!section || !root) return;
 
         if (!panel) {
-            section.classList.add('hidden');
-            root.innerHTML = '';
+            root.innerHTML = renderLinkUnavailable();
             return;
         }
 
-        section.classList.remove('hidden');
+        section.open = true;
 
         const warnings = [];
         if (panel.linkWarnings && panel.linkWarnings.length) {
             warnings.push(`<div class="vehicle-warning">${escapeHtml(panel.linkWarnings.join(' · '))}</div>`);
         }
-        if (panel.accessWarning) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.access'))}: ${escapeHtml(panel.accessWarning)}</div>`);
+        if (panel.accessReasonCode) {
+            const reason = L().accessReasonLabel(panel.accessReasonCode);
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.access'))}: ${escapeHtml(reason)}</div>`);
         }
         if (panel.parkingFallbackId) {
             warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.parkingFallback'))}: ${escapeHtml(panel.parkingFallbackId)}</div>`);
         }
         if (panel.exteriorLimits && panel.exteriorLimits.length) {
-            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.exteriorLimits'))}: ${escapeHtml(panel.exteriorLimits.join(', '))}</div>`);
+            const limits = L().joinLabels(panel.exteriorLimits, 'blocker');
+            warnings.push(`<div class="vehicle-warning">${escapeHtml(T('webview.mobileBase.exteriorLimits'))}: ${escapeHtml(limits)}</div>`);
         }
 
         const hereBadge = panel.atCurrentLocation
             ? `<span class="vehicle-badge active">${escapeHtml(T('webview.mobileBase.atPartyLocation'))}</span>`
             : '';
 
+        const fuelBandText = L().fuelBandLabel(panel.fuelBand);
         const fuelLine = panel.powerType
             ? `<div class="vehicle-stat-row ${fuelBandClass(panel.fuelBand)}">
                 <span>${escapeHtml(T('webview.mobileBase.power'))}</span>
-                <span>${escapeHtml(panel.powerType)} ${escapeHtml(String(panel.fuelCurrent ?? 0))}/${escapeHtml(String(panel.fuelMax ?? 0))}</span>
+                <span>${escapeHtml(L().enumLabel('powerType', panel.powerType))} ${escapeHtml(String(panel.fuelCurrent ?? 0))}/${escapeHtml(String(panel.fuelMax ?? 0))}${fuelBandText ? ` <span class="vehicle-fuel-band-label">${escapeHtml(fuelBandText)}</span>` : ''}</span>
                </div>`
             : '';
 
@@ -11524,7 +11790,7 @@ window.addEventListener('DOMContentLoaded', () => {
             : '';
 
         const interior = panel.interiorAccess
-            ? `<div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.interiorAccess'))}</span><span>${escapeHtml(panel.interiorAccess)}</span></div>`
+            ? `<div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.interiorAccess'))}</span><span>${escapeHtml(mbLabel('interiorAccess', panel.interiorAccess))}</span></div>`
             : '';
 
         const problems = panel.problems && panel.problems.length
@@ -11533,17 +11799,33 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const interiorActions = renderInteriorActions(_mbPanelWorldMsg ? _mbPanelWorldMsg.mobileBaseInterior : null);
 
+        const sub = [
+            panel.vehicleName,
+            mbLabel('mode', panel.mode),
+            mbLabel('layoutProfile', panel.layoutProfile),
+            panel.dockLabel,
+        ].filter(Boolean).join(' · ');
+
+        const conditionParts = [
+            L().enumLabel('condition', panel.condition),
+            `HP ${panel.hp}/${panel.maxHp}`,
+            L().enumLabel('armorBand', panel.armorBand),
+        ];
+        if (panel.threatBand) {
+            conditionParts.push(L().enumLabel('threatBand', panel.threatBand));
+        }
+
         root.innerHTML = `
             <div class="mobile-base-panel-card">
                 <div class="vehicle-detail-header">
                     <h4 class="vehicle-detail-title">${escapeHtml(panel.settlementName)}</h4>
                     ${hereBadge}
                 </div>
-                <div class="vehicle-detail-sub">${escapeHtml(panel.vehicleName)} · ${escapeHtml(panel.mode)} · ${escapeHtml(panel.layoutProfile)} · ${escapeHtml(panel.dockLabel)}</div>
+                <div class="vehicle-detail-sub">${escapeHtml(sub)}</div>
                 <p class="vehicle-garage-hint">${escapeHtml(T('webview.mobileBase.hint'))}</p>
                 ${warnings.join('')}
                 ${interior}
-                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.condition'))}</span><span>${escapeHtml(panel.condition)} · HP ${escapeHtml(String(panel.hp))}/${escapeHtml(String(panel.maxHp))} · ${escapeHtml(panel.armorBand)}${panel.threatBand ? ' · ' + escapeHtml(panel.threatBand) : ''}</span></div>
+                <div class="vehicle-stat-row"><span>${escapeHtml(T('webview.mobileBase.condition'))}</span><span>${escapeHtml(conditionParts.join(' · '))}</span></div>
                 ${fuelLine}
                 ${hangar}
                 ${community}
@@ -11567,10 +11849,15 @@ window.addEventListener('DOMContentLoaded', () => {
         const msg = event.data;
         if (!msg || msg.type !== 'worldView') { return; }
         _mbPanelWorldMsg = msg;
+        const section = document.getElementById('vehicles-mobile-base-section');
+        if (!section) { return; }
         if (msg.enableMobileBaseSystem === true) {
+            section.classList.remove('hidden');
             renderMobileBasePanel(msg.mobileBasePanel || null);
         } else {
-            renderMobileBasePanel(null);
+            section.classList.add('hidden');
+            const root = document.getElementById('vehicles-mobile-base-panel');
+            if (root) { root.innerHTML = ''; }
         }
     });
 })();

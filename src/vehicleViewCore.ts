@@ -27,7 +27,7 @@ export const VEHICLE_GARAGE_ITEM_KEYS = [
     'locationLabel', 'parkingLabel', 'condition', 'hp', 'maxHp', 'armorBand',
     'cargoLoad', 'cargoCapacity', 'passengerCapacity', 'crewRequired', 'crewCapacity',
     'powerType', 'fuelCurrent', 'fuelMax', 'fuelBand', 'modules', 'accessRestrictions',
-    'accessWarning', 'parkingFallbackId', 'carriedSummary', 'isMobileBase',
+    'accessReasonCode', 'parkingFallbackId', 'carriedSummary', 'isMobileBase',
 ] as const;
 
 export const VEHICLE_GARAGE_SNAPSHOT_KEYS = [
@@ -69,7 +69,7 @@ export interface VehicleGarageListItem {
     fuelBand?: VehicleGarageFuelBand;
     modules: VehicleGarageModuleChip[];
     accessRestrictions: string[];
-    accessWarning?: string;
+    accessReasonCode?: string;
     parkingFallbackId?: string;
     carriedSummary?: string;
     isMobileBase: boolean;
@@ -143,16 +143,15 @@ function buildCarriedSummary(vehicle: VehicleEntry, state: VehicleState): string
     return `${used}/${cap}: ${names.join(', ')}`;
 }
 
-function buildAccessWarning(
+function buildAccessReason(
     vehicle: VehicleEntry,
     options?: VehicleGarageBuildOptions
-): { warning?: string; parkingFallbackId?: string } {
+): { reasonCode?: string; parkingFallbackId?: string } {
     if (!options?.locationAccess) { return {}; }
     const result = canVehicleAccessLocation(vehicle, options.locationAccess);
     if (result.allowed) { return {}; }
-    const warning = `Cannot enter (${result.reason})`;
     return {
-        warning: clampText(warning, MAX_GARAGE_LABEL_CHARS),
+        reasonCode: result.reason,
         parkingFallbackId: result.parkingLocationId,
     };
 }
@@ -165,7 +164,7 @@ function buildGarageItem(
     const locId = vehicleLocationId(vehicle);
     const current = options?.currentLocationId;
     const atCurrent = Boolean(current && locId && locId === current);
-    const access = buildAccessWarning(vehicle, options);
+    const access = buildAccessReason(vehicle, options);
     const resources = vehicle.resources;
     const powerType = resources && resources.powerType !== 'none' ? resources.powerType : undefined;
     const fuelCurrent = powerType ? (resources?.current ?? 0) : undefined;
@@ -204,7 +203,9 @@ function buildGarageItem(
         item.fuelMax = fuelMax;
         item.fuelBand = fuelBand(fuelCurrent, fuelMax);
     }
-    if (access.warning) { item.accessWarning = access.warning; }
+    if (access.reasonCode && access.reasonCode !== 'ok') {
+        item.accessReasonCode = access.reasonCode;
+    }
     if (access.parkingFallbackId) { item.parkingFallbackId = access.parkingFallbackId; }
     const carried = buildCarriedSummary(vehicle, state);
     if (carried) { item.carriedSummary = clampText(carried, MAX_GARAGE_LABEL_CHARS); }

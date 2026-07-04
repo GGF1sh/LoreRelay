@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+## [1.75.0] - 2026-07-04
+
+### Fixed
+
+- **Claude UI/UX audit — Vehicle/Mobile Base i18n display** — enum/status/size/condition/armor/power/stock IDs render through Webview label dictionaries (`89a-vehicle-labels.js`); core snapshots pass `accessReasonCode` only (not English warning strings). 4-locale parity for access reasons, fuel bands, and common enums.
+
+- **Claude audit — map ↔ Vehicles cross-navigation** — Tile overlay marker click opens Vehicles tab and selects the vehicle; detail card adds「地図で表示」/ Show on map → World tab + Tile mode + marker tooltip flash. Non-Tile modes show a Tile-mode hint when vehicle markers exist.
+
+- **Claude audit — Mobile Base discoverability** — invalid/missing link shows a placeholder instead of silently hiding the section; `<details>` auto-expands when panel data is present.
+
+### Added
+
+- **Overlay vehicle readable list** — Tile map legend includes a keyboard-accessible vehicle marker list (F12 partial).
+
 ## [1.74.0] - 2026-07-04
 
 ### Fixed

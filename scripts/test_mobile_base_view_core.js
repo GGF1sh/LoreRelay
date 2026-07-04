@@ -127,8 +127,8 @@ if (!settlement || !vehicle) {
         fail('panel should include settlement name');
     } else if (!panel.atCurrentLocation || panel.dockLabel !== 'Outer Gate') {
         fail('dock/current location should resolve');
-    } else if (!panel.accessWarning || panel.parkingFallbackId !== 'gate_yard') {
-        fail(`access warning missing: ${JSON.stringify(panel)}`);
+    } else if (panel.accessReasonCode !== 'vehicle_too_large' || panel.parkingFallbackId !== 'gate_yard') {
+        fail(`access reason missing: ${JSON.stringify(panel)}`);
     } else if (panel.facilities.length < 2 || panel.stocks.length < 2) {
         fail('facilities and stocks should be included');
     } else if (!panel.problems.length || panel.fuelBand !== 'low') {

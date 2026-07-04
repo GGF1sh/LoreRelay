@@ -6,7 +6,7 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.74.0** |
+| Package version | **1.75.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
@@ -18,7 +18,14 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | Next (推奨) | M5 実機 smoke · populate visual memory `gmTurn`/`sourceEntryId` at write sites |
-| Git | `main` synced through v1.74.0 (`8a71465`) |
+| Git | `main` — v1.75.0 Claude vehicle UI/UX pending push |
+
+---
+
+## 2026-07-04 JST - Grok - Claude Vehicle/Mobile Base UI/UX audit (v1.75.0)
+
+- P1: enum i18n labels, `accessReasonCode` in view cores, map↔Vehicles cross-nav, Tile mode hint, Mobile Base link placeholder.
+- `89a-vehicle-labels.js`, updates to `89-vehicles.js`, `89b-mobile-base-panel.js`, `86-tile-overmap.js`. `npm test` **183/183**.
 
 ---
 

@@ -27,6 +27,18 @@ function initTileOvermapPinClicks() {
     if (!canvas) { return; }
     canvas.addEventListener('click', (e) => {
         if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile') { return; }
+        const overlayMarker = hitTestMapOverlayMarker(e.clientX, e.clientY, canvas);
+        if (overlayMarker) {
+            const labels = window.LR_vehicleLabels;
+            const vehicleId = labels && typeof labels.vehicleIdFromOverlayMarker === 'function'
+                ? labels.vehicleIdFromOverlayMarker(overlayMarker)
+                : null;
+            if (vehicleId && typeof window.openVehicleFromMapMarker === 'function') {
+                e.stopPropagation();
+                window.openVehicleFromMapMarker(vehicleId);
+                return;
+            }
+        }
         if (typeof hitTestWorldPin !== 'function' || typeof selectWorldLocationPin !== 'function') { return; }
         const locationId = hitTestWorldPin(e.clientX, e.clientY, canvas);
         if (locationId) {
@@ -353,9 +365,75 @@ function renderMapOverlayLegend(msg) {
         const rumoredLabel = escapeHtml(overlayLegendLabel('rumored'));
         items.push(`<span class="world-map-overlay-legend-item world-map-overlay-legend-hint"><span class="world-map-overlay-legend-glyph">?</span>${rumoredLabel}</span>`);
     }
+    const vehicleMarkers = markers.filter((m) => m && (m.kind === 'vehicle' || m.kind === 'vehicle_parking'));
+    if (vehicleMarkers.length) {
+        const listLabel = typeof T === 'function' ? T('webview.world.overlayVehicleList') : 'Vehicles on map';
+        const listItems = vehicleMarkers.slice(0, 6).map((m) => {
+            const vid = window.LR_vehicleLabels?.vehicleIdFromOverlayMarker?.(m);
+            const clickable = vid ? ` data-vehicle-marker-id="${escapeHtml(vid)}"` : '';
+            return `<li class="world-map-overlay-vehicle-item"${clickable}>${escapeHtml(m.label || m.kind)}</li>`;
+        }).join('');
+        items.push(`<div class="world-map-overlay-vehicle-list" role="list"><span class="world-map-overlay-vehicle-list-title">${escapeHtml(listLabel)}</span><ul>${listItems}</ul></div>`);
+    }
     el.innerHTML = items.join('');
     el.classList.remove('hidden');
+    el.querySelectorAll('[data-vehicle-marker-id]').forEach((node) => {
+        node.addEventListener('click', () => {
+            const id = node.getAttribute('data-vehicle-marker-id');
+            if (id && typeof window.openVehicleFromMapMarker === 'function') {
+                window.openVehicleFromMapMarker(id);
+            }
+        });
+    });
 }
+
+function syncVehicleTileHint(msg) {
+    const el = document.getElementById('world-vehicle-tile-hint');
+    if (!el) { return; }
+    const enabled = msg && msg.enableVehicleSystem === true;
+    const hasVehicleMarkers = Boolean(
+        msg && msg.mapOverlay && Array.isArray(msg.mapOverlay.markers)
+        && msg.mapOverlay.markers.some((m) => m && (m.kind === 'vehicle' || m.kind === 'vehicle_parking'))
+    );
+    const notTile = typeof worldMapMode !== 'undefined' && worldMapMode !== 'tile';
+    el.classList.toggle('hidden', !(enabled && hasVehicleMarkers && notTile));
+}
+
+function flashMapOverlayMarkerTooltip(marker) {
+    const hit = _overlayMarkerHits.find((h) => h.marker && h.marker.id === marker.id);
+    if (!hit) { return; }
+    const panel = document.getElementById('world-overmap');
+    const canvas = document.getElementById('world-overmap-canvas');
+    if (!panel || !canvas) { return; }
+    const rect = panel.getBoundingClientRect();
+    showMapOverlayTooltip(marker, rect.left + hit.px, rect.top + hit.py);
+    window.setTimeout(() => hideMapOverlayTooltip(), 3200);
+}
+
+window.focusVehicleOnMap = function focusVehicleOnMap(vehicleId) {
+    if (!vehicleId || !_tileOvermapMsg) { return; }
+    const markers = _tileOvermapMsg.mapOverlay && Array.isArray(_tileOvermapMsg.mapOverlay.markers)
+        ? _tileOvermapMsg.mapOverlay.markers
+        : [];
+    const marker = markers.find((m) => {
+        const vid = window.LR_vehicleLabels?.vehicleIdFromOverlayMarker?.(m);
+        return vid === vehicleId;
+    });
+    if (typeof activateStatusPane === 'function') {
+        activateStatusPane('pane-world');
+    } else {
+        document.getElementById('tab-btn-world')?.click();
+    }
+    if (typeof setWorldMapMode === 'function') {
+        setWorldMapMode('tile', { persist: true });
+    }
+    requestAnimationFrame(() => {
+        drawTileOvermap();
+        if (marker) {
+            requestAnimationFrame(() => flashMapOverlayMarkerTooltip(marker));
+        }
+    });
+};
 
 function getRegionFogVisibility(regionId, fog) {
     if (!fog || !regionId) { return 'discovered'; }
@@ -604,5 +682,6 @@ function drawTileOvermap() {
 
     drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight);
     renderMapOverlayLegend(msg);
+    syncVehicleTileHint(msg);
     hideMapOverlayTooltip();
 }

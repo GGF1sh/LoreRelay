@@ -93,8 +93,8 @@ function makeState(extra = {}) {
             fail('active vehicle should be flagged active and at current location');
         } else if (active.fuelBand !== 'low' || active.cargoLoad !== 12) {
             fail(`fuel/cargo bands wrong: ${JSON.stringify({ fuel: active.fuelBand, cargo: active.cargoLoad })}`);
-        } else if (!active.accessWarning || active.parkingFallbackId !== 'gate_yard') {
-            fail(`access warning missing: ${JSON.stringify(active)}`);
+        } else if (active.accessReasonCode !== 'vehicle_too_large' || active.parkingFallbackId !== 'gate_yard') {
+            fail(`access reason missing: ${JSON.stringify(active)}`);
         } else if (!active.modules.length || active.accessRestrictions.length !== 2) {
             fail('modules and access restrictions should be included');
         } else if (snap.currentLocationLabel !== 'Outer Gate') {

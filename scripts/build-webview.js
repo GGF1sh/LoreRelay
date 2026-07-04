@@ -28,6 +28,7 @@ const JS_MODULE_ORDER = [
     '86c-settlement-diorama.js',
     '87-parlor-settings.js',
     '88-world-observatory.js',
+    '89a-vehicle-labels.js',
     '89-vehicles.js',
     '89b-mobile-base-panel.js',
     '90-bootstrap.js'

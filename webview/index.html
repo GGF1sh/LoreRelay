@@ -631,18 +631,18 @@
 
       <!-- Vehicles (read-only garage; gated by enableVehicleSystem) -->
       <div id="pane-vehicles" class="tab-pane">
-        <p id="vehicles-empty" class="empty-text" data-i18n="webview.vehicles.empty">No vehicles in fleet. Add vehicle_state.json and enable Vehicle System in game_rules.json.</p>
+        <p id="vehicles-empty" class="empty-text" data-i18n="webview.vehicles.empty">Fleet is empty. Add vehicles to vehicle_state.json in your workspace.</p>
         <div id="vehicles-content" class="hidden">
           <p class="vehicle-garage-hint" data-i18n="webview.vehicles.hint">Fleet garage (read-only). Changes persist via turn_result.vehicleOps.</p>
           <p id="vehicles-fleet-meta"></p>
           <p id="vehicles-warnings" class="hidden"></p>
           <div class="vehicle-garage-layout">
-            <div id="vehicles-list" role="list" aria-label="Vehicle fleet"></div>
-            <div id="vehicles-detail" role="region" aria-label="Vehicle detail"></div>
+            <div id="vehicles-list" role="list" data-i18n-aria-label="webview.vehicles.ariaFleetList" aria-label="Vehicle fleet"></div>
+            <div id="vehicles-detail" role="region" data-i18n-aria-label="webview.vehicles.ariaDetail" aria-label="Vehicle detail"></div>
           </div>
           <details id="vehicles-mobile-base-section" class="vehicles-mobile-base-section hidden">
             <summary data-i18n="webview.mobileBase.sectionTitle">Mobile Base</summary>
-            <div id="vehicles-mobile-base-panel" role="region" aria-label="Mobile base panel"></div>
+            <div id="vehicles-mobile-base-panel" role="region" data-i18n-aria-label="webview.mobileBase.ariaPanel" aria-label="Mobile base panel"></div>
           </details>
         </div>
       </div> <!-- /pane-vehicles -->
@@ -671,6 +671,7 @@
               <button type="button" id="world-map-mode-settlement" class="world-map-mode-btn hidden" data-mode="settlement" data-i18n="webview.world.mapModeSettlement">Settlement</button>
               <button type="button" id="world-map-mode-diorama" class="world-map-mode-btn hidden" data-mode="diorama" data-i18n="webview.world.mapModeDiorama">Diorama</button>
             </div>
+            <p id="world-vehicle-tile-hint" class="world-vehicle-tile-hint hidden" data-i18n="webview.world.vehicleTileHint">Vehicles and parking markers appear on the Tile map mode.</p>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
               <div id="world-mermaid" class="mermaid world-map-panel"></div>
               <div id="world-cartography" class="world-map-panel hidden">

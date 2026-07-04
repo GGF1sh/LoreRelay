@@ -30,7 +30,7 @@ export const MOBILE_BASE_PANEL_STOCK_KEYS = ['id', 'band'] as const;
 export const MOBILE_BASE_PANEL_SNAPSHOT_KEYS = [
     'version', 'settlementName', 'vehicleName', 'vehicleId', 'mode', 'layoutProfile',
     'interiorAccess', 'dockLabel', 'atCurrentLocation', 'currentLocationLabel',
-    'accessWarning', 'parkingFallbackId', 'exteriorLimits', 'facilities', 'stocks',
+    'accessReasonCode', 'parkingFallbackId', 'exteriorLimits', 'facilities', 'stocks',
     'problems', 'communityCount', 'hp', 'maxHp', 'condition', 'armorBand', 'threatBand',
     'powerType', 'fuelCurrent', 'fuelMax', 'fuelBand', 'hangarSummary', 'carriedVehicles',
     'linkWarnings', 'crewRequired', 'crewCapacity', 'passengerCapacity',
@@ -58,7 +58,7 @@ export interface MobileBasePanelSnapshot {
     dockLabel: string;
     atCurrentLocation: boolean;
     currentLocationLabel?: string;
-    accessWarning?: string;
+    accessReasonCode?: string;
     parkingFallbackId?: string;
     exteriorLimits: string[];
     facilities: MobileBaseFacilityRow[];
@@ -185,12 +185,12 @@ export function buildMobileBasePanelSnapshot(
     const current = options?.currentLocationId;
     const atCurrent = Boolean(current && dockId && dockId === current);
 
-    let accessWarning: string | undefined;
+    let accessReasonCode: string | undefined;
     let parkingFallbackId: string | undefined;
     if (options?.locationAccess) {
         const access = canVehicleAccessLocation(vehicle, options.locationAccess);
-        if (!access.allowed) {
-            accessWarning = clampText(`Cannot enter (${access.reason})`, MAX_PANEL_LABEL_CHARS);
+        if (!access.allowed && access.reason !== 'ok') {
+            accessReasonCode = access.reason;
             parkingFallbackId = access.parkingLocationId;
         }
     }
@@ -243,7 +243,7 @@ export function buildMobileBasePanelSnapshot(
     if (current) {
         snapshot.currentLocationLabel = resolveLabel(current, options?.resolveLocationName);
     }
-    if (accessWarning) { snapshot.accessWarning = accessWarning; }
+    if (accessReasonCode) { snapshot.accessReasonCode = accessReasonCode; }
     if (parkingFallbackId) { snapshot.parkingFallbackId = parkingFallbackId; }
     if (vehicle.combat?.threatBand) { snapshot.threatBand = vehicle.combat.threatBand; }
     if (powerType) {

@@ -38,7 +38,13 @@ const moduleSymbols = [
     'setTabVisible',
     'vehicle-list-item',
     'vehicle-detail-card',
+    'selectGarageVehicle',
+    'openVehicleFromMapMarker',
+    'vehicle-show-on-map-btn',
+    'accessReasonCode',
 ];
+assert(buildScript.includes("'89a-vehicle-labels.js'"), 'build-webview.js must include 89a-vehicle-labels.js');
+assert(moduleJs.includes('LR_vehicleLabels') || bundle.includes('LR_vehicleLabels'), 'vehicle labels helper must be bundled');
 for (const symbol of moduleSymbols) {
     assert(moduleJs.includes(symbol), `89-vehicles.js missing ${symbol}`);
     assert(bundle.includes(symbol), `script.js bundle missing ${symbol}`);

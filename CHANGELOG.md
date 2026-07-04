@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.77.11] - 2026-07-04
+
+### Added
+
+- **Debug Trace Deep Emit P1b** — `debugTraceEmitHost.ts` + `livingWorldBridge` adapter: gated food-crisis deep trace append after `runLivingWorldTick`; `getActiveDebugTraceSimulationRunId()`; `scripts/test_debug_trace_emit_host.js`.
+
 ## [1.77.10] - 2026-07-04
 
 ### Added

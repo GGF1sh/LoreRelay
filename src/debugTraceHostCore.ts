@@ -25,6 +25,7 @@ const MAX_EVENTS_TRACED_PER_STEP = 16;
 
 let buffer: DebugTraceBuffer = createDebugTraceBuffer();
 let runSequence = 0;
+let activeSimulationRunId: string | undefined;
 
 export type DebugTraceHostUpdateListener = () => void;
 
@@ -34,7 +35,12 @@ let updateListener: DebugTraceHostUpdateListener | undefined;
 export function resetDebugTraceHostForTests(): void {
     buffer = createDebugTraceBuffer();
     runSequence = 0;
+    activeSimulationRunId = undefined;
     updateListener = undefined;
+}
+
+export function getActiveDebugTraceSimulationRunId(): string | undefined {
+    return activeSimulationRunId;
 }
 
 export function setDebugTraceHostUpdateListener(listener: DebugTraceHostUpdateListener | undefined): void {
@@ -81,7 +87,8 @@ export function appendDebugTraceHostEntries(entries: unknown[]): void {
 
 export function beginDebugTraceSimulationRun(startWorldTurn: number): string {
     runSequence += 1;
-    return `sim_${startWorldTurn}_${runSequence}`;
+    activeSimulationRunId = `sim_${startWorldTurn}_${runSequence}`;
+    return activeSimulationRunId;
 }
 
 function buildFoodCrisisConditions(ev: WorldChangeEvent) {

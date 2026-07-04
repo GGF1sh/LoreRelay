@@ -27,10 +27,12 @@ export interface FoodCrisisAgencyEmitInput {
     maxNpcTraces?: number;
 }
 
-export function shouldEmitDeepDebugTrace(flags: {
+export interface DeepTraceEmitGateFlags {
     bulkWorldSimDebug: boolean;
     debugScenarioActive: boolean;
-}): boolean {
+}
+
+export function shouldEmitDeepDebugTrace(flags: DeepTraceEmitGateFlags): boolean {
     return flags.bulkWorldSimDebug === true || flags.debugScenarioActive === true;
 }
 

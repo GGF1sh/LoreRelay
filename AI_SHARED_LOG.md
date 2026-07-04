@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.77.10** |
+| Package version | **1.77.11** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **208/208** (+ `test:simulation` batch) |
+| Tests | `npm test` **209/209** (+ `test:simulation` batch) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -22,8 +22,14 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) · **Debug Trace Inspector Phase B** UI (`80a-debug-trace.js`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | **Deep Emit P1b**（livingWorldBridge adapter）· SO3 · Context Engine P1 |
-| Git | `main` synced through v1.77.10 |
+| Next (推奨) | **Deep Emit P2**（commerce / faction conflict）· Codex 統合レビュー · SO3 |
+| Git | `main` synced through v1.77.11 |
+
+---
+
+## 2026-07-04 JST - Grok - v1.77.11 Debug Trace Deep Emit P1b host adapter
+
+- `debugTraceEmitHost.ts` + `livingWorldBridge.tickLivingWorldAfterSim`: gated deep trace append after agency tick; `getActiveDebugTraceSimulationRunId()`.
 
 ---
 

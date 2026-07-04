@@ -20,6 +20,7 @@ const {
     DEBUG_TRACE_UPDATE_MESSAGE_TYPE,
     appendDebugTraceHostEntries,
     beginDebugTraceSimulationRun,
+    getActiveDebugTraceSimulationRunId,
     buildDebugTraceUpdateMessage,
     buildSimulationStepTraceEntries,
     captureDebugTraceSimulationStep,
@@ -67,6 +68,8 @@ resetDebugTraceHostForTests();
     const runB = beginDebugTraceSimulationRun(10);
     if (runA === runB) {
         fail('simulation run ids should be unique');
+    } else if (getActiveDebugTraceSimulationRunId() !== runB) {
+        fail('active simulation run id should track latest begin');
     } else {
         ok('simulation run ids are unique');
     }

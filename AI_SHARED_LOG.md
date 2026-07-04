@@ -18,7 +18,7 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | Next (推奨) | M5 実機 smoke · populate visual memory `gmTurn`/`sourceEntryId` at write sites |
-| Git | `main` — v1.75.1 Gemini+Claude pending push |
+| Git | `main` synced through v1.75.1 (`d9694d9`) |
 
 ---
 

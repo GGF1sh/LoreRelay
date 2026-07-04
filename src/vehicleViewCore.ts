@@ -1,5 +1,6 @@
 // Vehicle System V4: read-only garage snapshot for Webview (pure, no vscode/fs/DOM).
 
+import { normalizeCountCap } from './settlementDioramaCore';
 import {
     canVehicleAccessLocation,
     parseVehicleState,
@@ -228,7 +229,7 @@ export function buildVehicleGarageSnapshot(
 ): VehicleGarageSnapshot | undefined {
     if (!state?.vehicles.length) { return undefined; }
 
-    const max = Math.min(MAX_GARAGE_VEHICLES, options?.maxVehicles ?? MAX_GARAGE_VEHICLES);
+    const max = normalizeCountCap(options?.maxVehicles, MAX_GARAGE_VEHICLES);
     const fleet = validateVehicleFleet(state);
     const warnings: string[] = [];
     if (!fleet.ok && fleet.issues.length) {

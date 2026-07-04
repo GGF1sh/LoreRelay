@@ -136,6 +136,21 @@ function makeState(extra = {}) {
 }
 
 {
+    const many = Array.from({ length: 5 }, (_, i) => ({
+        ...baseVehicle,
+        id: `veh_${i}`,
+        name: `Vehicle ${i}`,
+    }));
+    const state = parseVehicleState({ version: 1, vehicles: many });
+    const snap = buildVehicleGarageSnapshot(state, { maxVehicles: -1 });
+    if (!snap || snap.vehicles.length !== 0) {
+        fail(`negative maxVehicles should cap to 0 vehicles, got ${snap?.vehicles.length}`);
+    } else {
+        ok('garage negative maxVehicles clamps to zero');
+    }
+}
+
+{
     const state = makeState({
         vehicles: [
             { ...baseVehicle, carriedByVehicleId: 'rust_wagon' },

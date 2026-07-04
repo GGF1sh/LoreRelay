@@ -9,6 +9,28 @@
 
 ## [Unreleased]
 
+## [1.75.2] - 2026-07-04
+
+### Fixed
+
+- **ChatGPT review — Vehicle status/condition state machine (P1)** — `damage_vehicle` now moves movable statuses (`parked`, `docked`, etc.) to `damaged`; `repair_vehicle` restores `available` when HP reaches max. Regression tests in `test_vehicle_ops.js`.
+
+- **ChatGPT review — Mobile Base undock clears stale parking (P1)** — `undock_mobile_base` deletes `vehicle.parkedAt` so map/UI no longer resolve to the old dock after deploy.
+
+- **ChatGPT review — FoW rumored marker ID invariant (P1)** — All `rumored` overlay markers (including vehicle, parking, settlement pressure) get public `rumor_*` ids at build + sanitize choke points; canonical entity ids never leak in snapshot JSON.
+
+- **ChatGPT review — Module tags parser (P2)** — Vehicle module `tags` accept free-form sanitized strings instead of filtering through `VALID_VEHICLE_KINDS`.
+
+- **ChatGPT review — Mod mergeStrategy contract (P2)** — MOD1 officially supports `replace` only; unsupported strategies in manifests are ignored at parse time.
+
+- **ChatGPT review — Negative vehicle caps (P3)** — Shared `normalizeCountCap()` clamps invalid `maxVehicles` in garage/prompt builders (negative values no longer become `slice(0, -1)`).
+
+### Added
+
+- **AI Command Tower design** - added `docs/AI_COMMAND_TOWER_DESIGN.md`, defining multi-AI task routing, reasoning-level policy, gate workflow, handoff packet format, conflict rules, and the boundary between coordination docs and a future runtime State Orchestrator.
+
+- **Graphics Upgrade — animation foundation + Track 1 Atmosphere Pass** — design: `docs/GRAPHICS_UPGRADE_DESIGN.md` / `docs/GRAPHICS_UPGRADE_IDEAS.md` (Webview-only visual polish plan, Tracks 1–3; Track 4 asset pipeline deferred). New `84a-webview-anim.js`: single shared `requestAnimationFrame` driver (`window.LR_anim`) for all decorative animation — per-handler fps throttle, `prefers-reduced-motion` + tab-visibility pause, and a user-facing `off`/`light`/`full` effects tier persisted in `localStorage` (`lr.effectsTier`, default `light`). No canonical state, ops, or GM prompt changes. Track 1 wired into `86-tile-overmap.js`: water-tile glyph shimmer, hazard-tint pulse, current-location `@` blink, and rumored-marker flicker are all deterministic `f(seed, phase)` overlays on the existing static draw path — when motion is disabled every branch falls back to the pre-existing static formula (bit-identical baseline). `full` tier adds sparse deterministic ember particles over hazard tiles. New `#world-effects-tier-btn` toggle in the World map toolbar (`85-world.js` registers/unregisters the tile animation on map-mode switch). i18n: `effectsTierTitle`/`effectsTier.{off,light,full}`, 4 locales. Tests: extended `test_webview_world_modules.js` (bundle order, `LR_anim` symbols, atmosphere wiring). `npm test` **185/185**, `check_i18n_keys.js` 0 missing, `validate_utf8_docs.js` OK. Tracks 2 (Diorama lighting) and 3 (genre chrome/post-effects) not yet implemented.
+
 ## [1.75.1] - 2026-07-04
 
 ### Fixed

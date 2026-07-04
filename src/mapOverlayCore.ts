@@ -214,15 +214,11 @@ export function overlayMarkerPublicId(
     return `rumor_${kind}_${safeRegion}_${ordinal}`;
 }
 
-function looksLikeLeakyRumoredId(id: string): boolean {
-    return /^(npc|faction|quest|discovery|merchant|caravan)_/i.test(id);
-}
-
 /** Allow-listed marker projection — single choke point for Webview/replay/remote. */
 export function sanitizeOverlayMarker(raw: OverlayMarker): OverlayMarker {
     let id = clampText(raw.id, 64);
     const fogVisibility: OverlayFogVisibility = raw.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
-    if (fogVisibility === 'rumored' && looksLikeLeakyRumoredId(id)) {
+    if (fogVisibility === 'rumored') {
         id = `rumor_${raw.kind}_${Math.floor(raw.x)}_${Math.floor(raw.y)}`;
     }
     const out: OverlayMarker = {
@@ -485,8 +481,9 @@ function buildPressureMarkers(inputs: MapOverlayInputs, gridSize: number): Overl
     if (!coords) { return []; }
     const band = deriveSettlementPressureBand(settlement);
     if (band === 'calm' && vis === 'rumored') { return []; }
+    const internalId = `pressure_${settlement.settlementId}`;
     return [{
-        id: `pressure_${settlement.settlementId}`,
+        id: overlayMarkerPublicId(internalId, 'settlement_pressure', regionId, 0, vis),
         kind: 'settlement_pressure',
         x: coords.x,
         y: coords.y,
@@ -540,8 +537,9 @@ function buildVehicleMarkers(inputs: MapOverlayInputs, gridSize: number): Overla
         const placed = markerAtLocationWithOffset(inputs, locId, gridSize, offset++);
         if (!placed) { continue; }
         const active = vehicle.id === state.activeVehicleId;
+        const regionId = resolveLocationRegionId(inputs.forge, locId) ?? 'unknown';
         markers.push({
-            id: `vehicle_${vehicle.id}`,
+            id: overlayMarkerPublicId(`vehicle_${vehicle.id}`, 'vehicle', regionId, offset, placed.vis),
             kind: 'vehicle',
             x: placed.coords.x,
             y: placed.coords.y,
@@ -566,8 +564,9 @@ function buildVehicleMarkers(inputs: MapOverlayInputs, gridSize: number): Overla
         seenParking.add(key);
         const placed = markerAtLocationWithOffset(inputs, parkingId, gridSize, offset++);
         if (!placed) { continue; }
+        const regionId = resolveLocationRegionId(inputs.forge, parkingId) ?? 'unknown';
         markers.push({
-            id: `vehicle_park_${vehicle.id}`,
+            id: overlayMarkerPublicId(`vehicle_park_${vehicle.id}`, 'vehicle_parking', regionId, offset, placed.vis),
             kind: 'vehicle_parking',
             x: placed.coords.x,
             y: placed.coords.y,
@@ -591,8 +590,15 @@ function buildVehicleMarkers(inputs: MapOverlayInputs, gridSize: number): Overla
                 seenParking.add(key);
                 const placed = markerAtLocationWithOffset(inputs, check.parkingLocationId, gridSize, offset++);
                 if (placed) {
+                    const regionId = resolveLocationRegionId(inputs.forge, check.parkingLocationId) ?? 'unknown';
                     markers.push({
-                        id: `vehicle_park_fallback_${activeVehicle.id}`,
+                        id: overlayMarkerPublicId(
+                            `vehicle_park_fallback_${activeVehicle.id}`,
+                            'vehicle_parking',
+                            regionId,
+                            offset,
+                            placed.vis
+                        ),
                         kind: 'vehicle_parking',
                         x: placed.coords.x,
                         y: placed.coords.y,
@@ -618,8 +624,15 @@ function buildVehicleMarkers(inputs: MapOverlayInputs, gridSize: number): Overla
             seenParking.add(key);
             const placed = markerAtLocationWithOffset(inputs, settlementLoc, gridSize, offset++);
             if (!placed) { continue; }
+            const regionId = resolveLocationRegionId(inputs.forge, settlementLoc) ?? 'unknown';
             markers.push({
-                id: `vehicle_settlement_park_${vehicle.id}`,
+                id: overlayMarkerPublicId(
+                    `vehicle_settlement_park_${vehicle.id}`,
+                    'vehicle_parking',
+                    regionId,
+                    offset,
+                    placed.vis
+                ),
                 kind: 'vehicle_parking',
                 x: placed.coords.x,
                 y: placed.coords.y,

@@ -6,7 +6,7 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.75.1** |
+| Package version | **1.75.2** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
@@ -18,7 +18,38 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | Next (推奨) | M5 実機 smoke · populate visual memory `gmTurn`/`sourceEntryId` at write sites |
-| Git | `main` synced through v1.75.1 (`d9694d9`) |
+| Git | `main` synced through v1.75.2 |
+
+---
+
+## 2026-07-04 JST - Grok - ChatGPT review fixes (v1.75.2)
+
+- **P1** Vehicle `statusAfterDamage` / `statusAfterRepair` split — parked+heavy damage → `damaged`; full repair → `available`.
+- **P1** Mobile Base `undock_mobile_base` clears `parkedAt`.
+- **P1** FoW invariant: all `rumored` markers get `rumor_*` public ids (vehicle/parking/pressure + sanitize choke point).
+- **P2** Module tags free-form; MOD1 `mergeStrategy` replace-only contract.
+- **P3** `normalizeCountCap()` for garage/prompt vehicle caps.
+- `npm test` **185/185**.
+
+---
+
+## 2026-07-04 JST - Claude - Graphics Upgrade: animation foundation + Track 1 Atmosphere Pass (Unreleased)
+
+- ブレスト（設計は前段の `docs/GRAPHICS_UPGRADE_DESIGN.md`）の Track 1-3 実装に着手。今回は**土台＋Track1のみ**（Track2 ジオラマ照明・Track3 ジャンルクロームは未着手）。
+- 新規 `webview/modules/84a-webview-anim.js` — 全アニメの単一 rAF 駆動系 `window.LR_anim`。`prefers-reduced-motion` / タブ非表示で自動停止、`localStorage`（`lr.effectsTier`: off/light/full, 既定 light）でユーザー切替可能。canonical state 非依存。
+- `86-tile-overmap.js` に Track1 を配線 — 水面グリフの巡回、hazard tint の脈動、現在地 `@` の明滅、rumored マーカーの点滅。すべて `f(seed, phase)` の決定論オーバーレイで、モーション無効時は**変更前と完全に同じ静的描画式にフォールバック**（既存の見た目を一切壊さない設計）。`full` ティアのみ hazard タイルに疎な残り火パーティクルを追加。
+- World マップツールバーに `#world-effects-tier-btn`（off→light→full 循環）を追加、`85-world.js` がタイルモード切替に合わせて register/unregister。i18n 4ロケール追加。
+- レビュー時に見つけた副産物: `applyI18n()` の `data-i18n-aria-label` 更新呼び出しが `localeBundle` ハンドラから漏れていたので `updateEffectsTierButton()` 呼び出しを追加（本来は前回のVehicles UX polishターンの続き）。
+- 検証: `npm run compile`、`npm test` **185/185**（新規アサーション込み）、`check_i18n_keys.js` 0 missing、`validate_utf8_docs.js` OK。
+- 残り: Track2（ジオラマ ライティング/フォグ/マテリアル質感）・Track3（`body[data-genre]` 適用 + ジャンル別クローム/ポストエフェクト）は次回以降。
+
+---
+
+## 2026-07-04 JST - Codex - AI Command Tower design
+
+- Added `docs/AI_COMMAND_TOWER_DESIGN.md` as the coordination-layer design for routing LoreRelay work across Codex/ChatGPT, Claude, Grok, Gemini, and optional local coder models.
+- Defined task classes, recommended reasoning levels, dispatch packet format, gate triggers, review pairs, conflict rules, and the separation between AI Command Tower and a future runtime State Orchestrator.
+- Updated `CHANGELOG.md` [Unreleased]. No runtime code or persistence behavior changed.
 
 ---
 

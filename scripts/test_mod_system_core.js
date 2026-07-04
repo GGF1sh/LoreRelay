@@ -112,6 +112,21 @@ function mod(id, records, extra = {}) {
 }
 
 {
+    const parsed = parseModManifest(mod('author.merge-test', [
+        { domain: 'scenario', id: 'harbor', mergeStrategy: 'delete', data: { title: 'Harbor' } },
+        { domain: 'lore_entry', id: 'gone', mergeStrategy: 'append', data: { lore: 1 } },
+    ]));
+    const rec = parsed?.records?.[0];
+    if (!rec || rec.mergeStrategy) {
+        fail('MOD1 should ignore unsupported mergeStrategy declarations');
+    } else if (parsed.records.length !== 2) {
+        fail('records should still parse when mergeStrategy is present');
+    } else {
+        ok('MOD1 mergeStrategy contract is replace-only at parse time');
+    }
+}
+
+{
     const base = parseModManifest(mod('a.base', [
         { domain: 'scenario', id: 'shared', data: { from: 'base' } },
     ]));

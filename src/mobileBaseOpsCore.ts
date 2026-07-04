@@ -213,6 +213,10 @@ function applyUndockMobileBase(vehicle: VehicleEntry): boolean {
         vehicle.mobileBase = nextLink;
         changed = true;
     }
+    if (vehicle.parkedAt) {
+        delete vehicle.parkedAt;
+        changed = true;
+    }
     if (vehicle.status === 'docked' || vehicle.status === 'parked') {
         vehicle.status = 'deployed';
         changed = true;

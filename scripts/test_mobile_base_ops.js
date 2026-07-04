@@ -165,6 +165,8 @@ function clone(obj) {
     const free = undocked?.vehicles.find((v) => v.id === 'ashcrawler_hull');
     if (!free || free.status !== 'deployed' || free.mobileBase?.dockedAtLocationId) {
         fail(`undock_mobile_base state wrong: ${JSON.stringify({ status: free?.status, dock: free?.mobileBase?.dockedAtLocationId })}`);
+    } else if (free.parkedAt) {
+        fail(`undock_mobile_base should clear parkedAt, got ${JSON.stringify(free.parkedAt)}`);
     } else {
         ok('dock_mobile_base and undock_mobile_base update docking state');
     }

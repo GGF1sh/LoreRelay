@@ -242,11 +242,15 @@ function clampBoundsSize(raw: number | undefined, fallback: number): number {
     return Math.max(MIN_DIORAMA_BOUNDS, Math.min(MAX_DIORAMA_BOUNDS, n));
 }
 
-export function normalizeDioramaCap(raw: number | undefined, max: number): number {
+export function normalizeCountCap(raw: number | undefined, max: number): number {
     if (raw === undefined || !Number.isFinite(raw)) {
         return max;
     }
     return Math.max(0, Math.min(max, Math.floor(raw)));
+}
+
+export function normalizeDioramaCap(raw: number | undefined, max: number): number {
+    return normalizeCountCap(raw, max);
 }
 
 function resolveTheme(raw: SettlementDioramaTheme | undefined): SettlementDioramaTheme {

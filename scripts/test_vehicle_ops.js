@@ -167,6 +167,44 @@ function clone(obj) {
 
 {
     const current = makeState();
+    const wagon = current.vehicles.find((v) => v.id === 'rust_wagon');
+    wagon.durability.hp = 60;
+    wagon.durability.condition = 'pristine';
+    wagon.status = 'parked';
+    const next = applyVehicleOps(current, [{ type: 'damage_vehicle', vehicleId: 'rust_wagon', amount: 59 }]);
+    const hit = next?.vehicles.find((v) => v.id === 'rust_wagon');
+    if (!hit || hit.durability.hp !== 1) {
+        fail(`damage_vehicle should leave 1 hp, got ${hit?.durability.hp}`);
+    } else if (hit.durability.condition !== 'critical') {
+        fail(`damage_vehicle should set critical condition, got ${hit.durability.condition}`);
+    } else if (hit.status !== 'damaged') {
+        fail(`damage_vehicle should move parked -> damaged, got ${hit.status}`);
+    } else {
+        ok('damage_vehicle updates status from parked to damaged');
+    }
+}
+
+{
+    const current = makeState();
+    const wagon = current.vehicles.find((v) => v.id === 'rust_wagon');
+    wagon.durability.hp = 5;
+    wagon.durability.condition = 'critical';
+    wagon.status = 'damaged';
+    const next = applyVehicleOps(current, [{ type: 'repair_vehicle', vehicleId: 'rust_wagon', amount: 55 }]);
+    const repaired = next?.vehicles.find((v) => v.id === 'rust_wagon');
+    if (!repaired || repaired.durability.hp !== 60) {
+        fail(`full repair should restore maxHp, got ${repaired?.durability.hp}`);
+    } else if (repaired.durability.condition !== 'pristine') {
+        fail(`full repair should set pristine condition, got ${repaired.durability.condition}`);
+    } else if (repaired.status !== 'available') {
+        fail(`full repair should move damaged -> available, got ${repaired.status}`);
+    } else {
+        ok('repair_vehicle updates status from damaged to available when fully repaired');
+    }
+}
+
+{
+    const current = makeState();
     const next = applyVehicleOps(current, [
         { type: 'refuel_vehicle', vehicleId: 'rust_wagon', amount: 4, resourceType: 'battery' },
         { type: 'move_vehicle', vehicleId: 'missing_vehicle', locationId: 'dock' },

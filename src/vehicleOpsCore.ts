@@ -177,10 +177,25 @@ function conditionFromHp(hp: number, maxHp: number): VehicleCondition {
     return 'pristine';
 }
 
-function statusAfterHpChange(prev: VehicleStatus, hp: number): VehicleStatus {
+const MOVABLE_VEHICLE_STATUSES = new Set<VehicleStatus>([
+    'available',
+    'parked',
+    'docked',
+    'stabled',
+    'deployed',
+]);
+
+function statusAfterDamage(prev: VehicleStatus, hp: number): VehicleStatus {
     if (hp <= 0) { return 'disabled'; }
-    if (prev === 'disabled' || prev === 'lost') { return 'damaged'; }
-    if (prev === 'damaged' && hp > 0) { return 'damaged'; }
+    if (MOVABLE_VEHICLE_STATUSES.has(prev)) { return 'damaged'; }
+    return prev;
+}
+
+function statusAfterRepair(prev: VehicleStatus, hp: number, maxHp: number): VehicleStatus {
+    if (hp <= 0) { return 'disabled'; }
+    if (prev === 'disabled' || prev === 'damaged') {
+        return hp >= maxHp ? 'available' : 'damaged';
+    }
     return prev;
 }
 
@@ -234,7 +249,7 @@ function applyDamageVehicle(state: VehicleState, op: DamageVehicleOp): boolean {
 
     vehicle.durability.hp = nextHp;
     vehicle.durability.condition = conditionFromHp(nextHp, vehicle.durability.maxHp);
-    vehicle.status = statusAfterHpChange(vehicle.status, nextHp);
+    vehicle.status = statusAfterDamage(vehicle.status, nextHp);
     return true;
 }
 
@@ -250,7 +265,7 @@ function applyRepairVehicle(state: VehicleState, op: RepairVehicleOp): boolean {
 
     vehicle.durability.hp = nextHp;
     vehicle.durability.condition = conditionFromHp(nextHp, vehicle.durability.maxHp);
-    vehicle.status = statusAfterHpChange(vehicle.status, nextHp);
+    vehicle.status = statusAfterRepair(vehicle.status, nextHp, vehicle.durability.maxHp);
     return true;
 }
 

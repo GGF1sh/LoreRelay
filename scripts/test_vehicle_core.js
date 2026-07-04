@@ -123,6 +123,29 @@ const baseVehicle = {
 }
 
 {
+    const state = parseVehicleState({
+        version: 1,
+        vehicles: [{
+            ...baseVehicle,
+            modules: [{
+                id: 'radar',
+                slot: 'utility',
+                name: 'Radar',
+                tags: ['sensor', 'long_range', 'military', 'truck'],
+            }],
+        }],
+    });
+    const mod = state.vehicles[0]?.modules?.[0];
+    if (!mod?.tags?.includes('sensor') || !mod.tags.includes('long_range')) {
+        fail(`module tags should preserve free-form labels, got ${JSON.stringify(mod?.tags)}`);
+    } else if (!mod.tags.includes('truck')) {
+        fail('module tags should still accept vehicle-kind labels when present');
+    } else {
+        ok('module tags accept free-form sanitized strings');
+    }
+}
+
+{
     const allowed = canVehicleAccessLocation(
         { ...baseVehicle, access: { sizeClass: 'small', accessTags: ['road', 'dungeon_entry'] } },
         { allowedVehicleSizeMax: 'large', requiredAccessTags: ['road'] }

@@ -369,6 +369,78 @@ const baseInputs = {
 }
 
 {
+    const vehicleState = {
+        version: 1,
+        activeVehicleId: 'secret_nuclear_submarine',
+        vehicles: [{
+            id: 'secret_nuclear_submarine',
+            name: 'Nuclear Submarine',
+            kind: 'ship',
+            owner: { type: 'party' },
+            status: 'parked',
+            locationId: 'factory',
+            parkedAt: { locationId: 'factory', parkingLocationId: 'factory' },
+            capacity: { crewRequired: 1, crewCapacity: 4, passengerCapacity: 2, cargoCapacity: 10 },
+            access: { sizeClass: 'large', accessTags: ['water'] },
+            mobility: { speedBand: 'fast', rangeBand: 'regional', terrainTags: ['water'] },
+            durability: { hp: 50, maxHp: 50, armorBand: 'heavy', condition: 'pristine' },
+            resources: { powerType: 'fuel', current: 10, max: 20 },
+        }],
+    };
+    const snap = buildMapOverlaySnapshot({
+        ...baseInputs,
+        fog: { discoveredRegionIds: ['r_settlement'], rumoredRegionIds: ['r_industrial'] },
+        enableVehicleSystem: true,
+        vehicleState,
+        currentLocationId: 'factory',
+    });
+    const vehicleMarkers = snap.markers.filter((m) => m.kind === 'vehicle' || m.kind === 'vehicle_parking');
+    if (!vehicleMarkers.length) {
+        fail('rumored vehicle overlay markers expected');
+    } else if (vehicleMarkers.filter((m) => m.fogVisibility === 'rumored').length === 0) {
+        fail('rumored region should emit at least one rumored vehicle marker');
+    } else if (JSON.stringify(snap).includes('secret_nuclear_submarine')) {
+        fail(`rumored vehicle markers must not leak vehicle id: ${JSON.stringify(vehicleMarkers.map((m) => m.id))}`);
+    } else if (!vehicleMarkers.every((m) => m.id.startsWith('rumor_'))) {
+        fail(`rumored vehicle markers must use public rumor ids: ${JSON.stringify(vehicleMarkers.map((m) => m.id))}`);
+    } else {
+        ok('rumored vehicle and parking markers hide canonical ids');
+    }
+}
+
+{
+    const settlement = {
+        version: 1,
+        settlementId: 'secret_rebel_base',
+        name: 'Rebel Base',
+        locationId: 'factory',
+        morale: 40,
+        safety: 50,
+        stocks: [{ id: 'food', amount: 5 }],
+        structures: [],
+        residents: [],
+        visitors: [],
+        merchants: [],
+        incidents: [{ id: 'i1', worldTurn: 1, kind: 'unrest', severity: 'warning', resolved: false, text: 'Tension' }],
+    };
+    const snap = buildMapOverlaySnapshot({
+        ...baseInputs,
+        fog: { discoveredRegionIds: ['r_settlement'], rumoredRegionIds: ['r_industrial'] },
+        settlementState: settlement,
+    });
+    const pressure = snap.markers.find((m) => m.kind === 'settlement_pressure');
+    if (!pressure) {
+        fail('rumored settlement pressure marker expected');
+    } else if (JSON.stringify(pressure).includes('secret_rebel_base')) {
+        fail(`rumored pressure must not leak settlementId: ${JSON.stringify(pressure)}`);
+    } else if (!pressure.id.startsWith('rumor_')) {
+        fail(`rumored pressure must use public rumor id: ${pressure.id}`);
+    } else {
+        ok('rumored settlement pressure hides canonical id');
+    }
+}
+
+{
     const snap = buildMapOverlaySnapshot({
         ...baseInputs,
         worldRegions: { r_settlement: { controllingFaction: 'faction_a' } },

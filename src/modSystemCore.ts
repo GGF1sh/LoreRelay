@@ -55,14 +55,8 @@ export const MOD_RECORD_DOMAINS = [
 ] as const;
 export type ModRecordDomain = (typeof MOD_RECORD_DOMAINS)[number];
 
-export const MOD_MERGE_STRATEGIES = [
-    'replace',
-    'append',
-    'append_unique',
-    'patch_fields',
-    'delete',
-    'disabled',
-] as const;
+/** MOD1 officially supports replace-only merge; other strategies are reserved for future loaders. */
+export const MOD_MERGE_STRATEGIES = ['replace'] as const;
 export type ModMergeStrategy = (typeof MOD_MERGE_STRATEGIES)[number];
 
 export interface ModRecordKey {
@@ -287,10 +281,6 @@ function parseProvidedRecord(raw: unknown): ModProvidedRecord | undefined {
     if (!id) { return undefined; }
     const rec: ModProvidedRecord = { domain, id };
     if ('data' in r) { rec.data = r.data; }
-    const mergeStrategy = pickUnion(r.mergeStrategy, MOD_MERGE_STRATEGIES, 'replace');
-    if (mergeStrategy !== 'replace') {
-        rec.mergeStrategy = mergeStrategy;
-    }
     return rec;
 }
 

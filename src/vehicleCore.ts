@@ -1,5 +1,7 @@
 // Vehicle System V1: pure parser, access checks, fleet validation, prompt summaries (no vscode/fs/DOM).
 
+import { normalizeCountCap } from './settlementDioramaCore';
+
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 export const VEHICLE_STATE_VERSION = 1 as const;
@@ -479,8 +481,10 @@ function parseModule(raw: unknown): VehicleModule | undefined {
         ? r.effects.map((e) => clampText(e, 48)).filter(Boolean).slice(0, MAX_VEHICLE_EFFECTS)
         : [];
     if (effects.length) { mod.effects = effects; }
-    const tags = pickStringArray(r.tags, VALID_VEHICLE_KINDS, MAX_VEHICLE_TAGS);
-    if (tags.length) { mod.tags = tags as unknown as string[]; }
+    const tags = Array.isArray(r.tags)
+        ? r.tags.map((t) => clampText(t, 32)).filter(Boolean).slice(0, MAX_VEHICLE_TAGS)
+        : [];
+    if (tags.length) { mod.tags = tags; }
     return mod;
 }
 
@@ -903,7 +907,7 @@ function summarizeVehicleLine(vehicle: VehicleEntry, state: VehicleState): strin
 }
 
 function selectPromptVehicles(state: VehicleState, options?: VehiclePromptOptions): VehicleEntry[] {
-    const max = Math.min(MAX_PROMPT_VEHICLES, options?.maxVehicles ?? MAX_PROMPT_VEHICLES);
+    const max = normalizeCountCap(options?.maxVehicles, MAX_PROMPT_VEHICLES);
     const current = options?.currentLocationId;
     const nearby = new Set(options?.nearbyLocationIds ?? []);
     const selected: VehicleEntry[] = [];

@@ -21,7 +21,7 @@ for (const p of [sanityPath, vehiclePath, settlementPath, modPath]) {
 }
 
 const { buildWorldSanityReport } = require(sanityPath);
-const { parseVehicleState } = require(vehiclePath);
+const { parseVehicleState, diagnoseVehicleStateRaw } = require(vehiclePath);
 const { parseSettlementState } = require(settlementPath);
 const { parseModManifest, parseModProfile } = require(modPath);
 
@@ -485,6 +485,33 @@ function vehicleWithMobileBase(settlementId = 'ashcrawler_home') {
         fail('report must not embed raw ledgers');
     } else {
         ok('output does not include raw manifest/vehicle JSON payloads');
+    }
+}
+
+{
+    const raw = {
+        version: 1,
+        vehicles: [
+            { ...baseVehicle, resources: { powerType: 'fuel', current: 999, max: 10 } },
+            { ...baseVehicle },
+        ],
+    };
+    const rawIssues = diagnoseVehicleStateRaw(raw);
+    const parsed = parseVehicleState(raw);
+    const report = buildWorldSanityReport({
+        vehicleState: parsed,
+        vehicleRawParseIssues: rawIssues,
+    });
+    if (!rawIssues.some((i) => i.code === 'duplicate_vehicle_id')) {
+        fail('diagnoseVehicleStateRaw should detect duplicate ids');
+    } else if (!rawIssues.some((i) => i.code === 'resource_over_max')) {
+        fail('diagnoseVehicleStateRaw should detect resource_over_max before normalization');
+    } else if (!report.issues.some((i) => i.code === 'raw_resource_over_max')) {
+        fail('sanity report should surface raw_resource_over_max');
+    } else if (parsed.vehicles[0].resources.current !== 10) {
+        fail('parseVehicleState should clamp over-max resource');
+    } else {
+        ok('raw parse diagnostics surface pre-normalization vehicle issues');
     }
 }
 

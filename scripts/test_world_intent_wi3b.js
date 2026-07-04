@@ -318,6 +318,112 @@ function makeDeps(statePath, state, options = {}) {
     }
 }
 
+// 16-19. sequential batch parity — each op sees legacy running state, not pre-write clone
+{
+    const worldTurn = 12;
+    const batchOpts = {
+        bridgeMode: 'compare_only',
+        enableVehicleSystem: true,
+        worldTurn,
+    };
+
+    // 16. refuel near-cap ×2 — second op must be valid_noop, not another changed
+    {
+        const state = makeState();
+        state.vehicles.find((v) => v.id === 'rust_wagon').resources = { powerType: 'fuel', current: 18, max: 20 };
+        const batch = runVehicleWorldIntentBridgeBatch({
+            ...batchOpts,
+            vehicleOps: [
+                { type: 'refuel_vehicle', vehicleId: 'rust_wagon', amount: 2 },
+                { type: 'refuel_vehicle', vehicleId: 'rust_wagon', amount: 2 },
+            ],
+            preWriteVehicleState: state,
+        });
+        if (batch.reportCount !== 2) {
+            fail(`refuel near-cap batch expected 2 reports, got ${batch.reportCount}`);
+        } else if (batch.reports[0].expected.legacyClass !== 'changed') {
+            fail(`refuel op1 expected changed, got ${batch.reports[0].expected.legacyClass}`);
+        } else if (batch.reports[1].expected.legacyClass !== 'unchanged_noop') {
+            fail(`refuel op2 at cap expected unchanged_noop, got ${batch.reports[1].expected.legacyClass}`);
+        } else if (batch.reports[0].outcome !== 'match' || batch.reports[1].outcome !== 'match') {
+            fail(`refuel near-cap parity mismatch: ${JSON.stringify(batch.reports.map((r) => r.outcome))}`);
+        } else {
+            ok('sequential batch: refuel near-cap ×2 classifies op2 as valid_noop');
+        }
+    }
+
+    // 17. damage → repair — repair sees post-damage HP
+    {
+        const state = makeState();
+        const batch = runVehicleWorldIntentBridgeBatch({
+            ...batchOpts,
+            vehicleOps: [
+                { type: 'damage_vehicle', vehicleId: 'rust_wagon', amount: 5 },
+                { type: 'repair_vehicle', vehicleId: 'rust_wagon', amount: 2 },
+            ],
+            preWriteVehicleState: state,
+        });
+        const hpAfterDamage = batch.reports[0].legacy.nextVehicleState?.vehicles
+            .find((v) => v.id === 'rust_wagon')?.durability?.hp;
+        const hpAfterRepair = batch.reports[1].legacy.nextVehicleState?.vehicles
+            .find((v) => v.id === 'rust_wagon')?.durability?.hp;
+        if (batch.reports[0].expected.legacyClass !== 'changed'
+            || batch.reports[1].expected.legacyClass !== 'changed') {
+            fail('damage→repair batch expected both ops changed');
+        } else if (hpAfterDamage !== 37 || hpAfterRepair !== 39) {
+            fail(`damage→repair HP chain wrong (damage=${hpAfterDamage}, repair=${hpAfterRepair})`);
+        } else if (batch.reports[0].outcome !== 'match' || batch.reports[1].outcome !== 'match') {
+            fail('damage→repair parity should match');
+        } else {
+            ok('sequential batch: damage → repair uses running HP');
+        }
+    }
+
+    // 18. move A→B → move B→B — second move is exact-location noop
+    {
+        const state = makeState();
+        const batch = runVehicleWorldIntentBridgeBatch({
+            ...batchOpts,
+            vehicleOps: [
+                { type: 'move_vehicle', vehicleId: 'rust_wagon', locationId: 'market_square' },
+                { type: 'move_vehicle', vehicleId: 'rust_wagon', locationId: 'market_square' },
+            ],
+            preWriteVehicleState: state,
+        });
+        if (batch.reports[0].expected.legacyClass !== 'changed') {
+            fail(`move A→B expected changed, got ${batch.reports[0].expected.legacyClass}`);
+        } else if (batch.reports[1].expected.legacyClass !== 'unchanged_noop') {
+            fail(`move B→B expected unchanged_noop, got ${batch.reports[1].expected.legacyClass}`);
+        } else if (batch.reports[0].outcome !== 'match' || batch.reports[1].outcome !== 'match') {
+            fail('move A→B → B→B parity should match');
+        } else {
+            ok('sequential batch: move A→B then B→B classifies second as noop');
+        }
+    }
+
+    // 19. first op fills tank → second refuel blocked/noop taxonomy (not re-changed from initial)
+    {
+        const state = makeState();
+        state.vehicles.find((v) => v.id === 'rust_wagon').resources = { powerType: 'fuel', current: 19, max: 20 };
+        const batch = runVehicleWorldIntentBridgeBatch({
+            ...batchOpts,
+            vehicleOps: [
+                { type: 'refuel_vehicle', vehicleId: 'rust_wagon', amount: 1 },
+                { type: 'refuel_vehicle', vehicleId: 'rust_wagon', amount: 5 },
+            ],
+            preWriteVehicleState: state,
+        });
+        const op2 = batch.reports[1];
+        if (op2.expected.queryStatus !== 'valid_noop' || op2.expected.executeStatus !== 'valid_noop') {
+            fail(`second refuel at full should be valid_noop taxonomy, got ${JSON.stringify(op2.expected)}`);
+        } else if (op2.outcome !== 'match') {
+            fail(`second refuel at full parity should match, got ${op2.outcome}`);
+        } else {
+            ok('sequential batch: op1 state gates op2 refuel taxonomy');
+        }
+    }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} WI3b test(s) failed.`);
     process.exit(1);

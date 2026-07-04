@@ -43,8 +43,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 ## 迴ｾ陦鯉ｼ域焔蜍墓峩譁ｰ: 2026-07-04・・
 | 鬆・岼 | 蛟､ |
 |------|-----|
-| `package.json` | **1.76.0** |
-| CHANGELOG 先頭 | **[1.76.0]** Graphics Upgrade Tracks 1-3 (anim + diorama lighting + genre chrome) |
+| `package.json` | **1.77.0** |
+| CHANGELOG 先頭 | **[1.77.0]** Claude review P1/P2 (Living World stepEvents, WI3bR, gameRulesCore, SO1 coordination) |
 | Campaign Kit | Phase A窶敵 ﾂｷ 7 genre presets ﾂｷ sell_discovery ﾂｷ services state machine (condition/estValue) ﾂｷ **campaign resources**(campaignResourceOps) ﾂｷ factionId on campaign quests ﾂｷ `scrapbound-settlement` sample |
 | Living World | LW1 Commerce 縺ｫ 2縺､逶ｮ縺ｮ萓｡譬ｼ繝峨Λ繧､繝占ｿｽ蜉(v1.51.0): 豢ｾ髢･/region繧､繝吶Φ繝磯｣蜍・+ **繝励Ξ繧､繝､繝ｼ隧募愛騾｣蜍・*(faction-controlled markets) |
 | World Observatory | 譁ｰ隕・v1.53.0): 蟶ょｴ萓｡譬ｼ螻･豁ｴ繧ｹ繝代・繧ｯ繝ｩ繧､繝ｳ繝ｻ蟷ｴ莉｣險倥ち繧､繝繝ｩ繧､繝ｳ繝ｻ繝励Ξ繧､繝､繝ｼ繧ｿ繝ｼ繝ｳ縺ｪ縺励〒荳也阜繧帝ｲ繧√ｋ隕ｳ貂ｬ閠・ユ繧｣繝・け(watch=辟｡繧ｳ繧ｹ繝・advance=鬟滓侭豸郁ｲｻ)縲ＡenableWorldObservatory` 譌｢螳唹FF |
@@ -53,4 +53,4 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Parlor Mode | v1.34.0 蜃ｺ闕ｷ貂・|
 | Living World | v1.23窶・.34・・ommerce / Agency / LW3・・ Domain v1.39.x窶・.40.x |
 | GitHub Release latest | **v1.59.0**・・lorerelay-1.59.0.vsix` ﾂｷ 繧ｿ繧ｰ push 縺ｧ閾ｪ蜍墓峩譁ｰ・・|
-| 繝・せ繝・| `npm test` **193/193**・・check_version_consistency.js` 蜷ｫ繧・・|
+| 繝・せ繝・| `npm test` **202/202**・・check_version_consistency.js` 蜷ｫ繧・・|

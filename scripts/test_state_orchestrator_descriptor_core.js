@@ -24,6 +24,7 @@ const {
     KNOWN_LEDGER_QUEUE_NAMES,
     buildStateOrchestratorDescriptorReport,
     checkTurnLedgerDescriptorOrder,
+    checkPhysicalResourceCoordination,
     formatStateOrchestratorDescriptorLines,
     MAX_STATE_ORCHESTRATOR_DESCRIPTOR_ISSUES,
     validateDescriptorShape,
@@ -127,6 +128,52 @@ const { TURN_LEDGER_PERSIST_ORDER } = require(turnLedgerPath);
         }
     }
     ok('known queue names are listed for queued ledgers');
+}
+
+{
+    const vehicleWriters = LEDGER_DESCRIPTORS.filter((d) => d.resourceKey === 'vehicle_state.json');
+    if (vehicleWriters.length < 3) {
+        fail('vehicle_state.json should have canonical + migration writers');
+    } else if (!vehicleWriters.every((d) => d.coordinationDomain === 'vehicle_state')) {
+        fail('vehicle_state writers should share coordinationDomain');
+    } else {
+        ok('vehicle_state physical resource is tagged on all writers');
+    }
+}
+
+{
+    const coordIssues = checkPhysicalResourceCoordination(LEDGER_DESCRIPTORS);
+    if (coordIssues.some((i) => i.code === 'mixed_physical_resource_coordination')) {
+        fail(`migration exempt writers should not trip coordination: ${JSON.stringify(coordIssues)}`);
+    } else {
+        ok('migration writers are coordinationExempt for vehicle_state.json');
+    }
+}
+
+{
+    const bad = [
+        ...LEDGER_DESCRIPTORS,
+        {
+            id: 'rogue_vehicle_write',
+            owner: 'other',
+            fileNamePattern: 'vehicle_state.json',
+            resourceKey: 'vehicle_state.json',
+            coordinationDomain: 'vehicle_state',
+            phase: 'user_command',
+            canonicalModule: 'rogue.ts',
+            atomicWrite: true,
+            participatesInTurnLedgerOrder: false,
+            failurePolicy: 'best_effort',
+            backupPolicy: 'none',
+            circuitBreaker: 'none',
+        },
+    ];
+    const issues = checkPhysicalResourceCoordination(bad);
+    if (!issues.some((i) => i.code === 'mixed_physical_resource_coordination')) {
+        fail('unqueued rogue writer to shared resource should be flagged');
+    } else {
+        ok('mixed_physical_resource_coordination detects rogue unqueued writer');
+    }
 }
 
 {

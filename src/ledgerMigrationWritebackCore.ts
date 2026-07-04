@@ -51,14 +51,33 @@ export interface MigrationBackupPaths {
     metaFileRel: string;
 }
 
-const BACKUP_TIMESTAMP_RE = /^[0-9]{8}T[0-9]{6}Z$/;
+/** Compact UTC with optional milliseconds and collision suffix (_01.._99). */
+const BACKUP_TIMESTAMP_RE = /^[0-9]{8}T[0-9]{6}(?:\.[0-9]{3})?Z(?:_\d{2})?$/;
 
 export function formatMigrationBackupTimestamp(date: Date): string {
-    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    return date.toISOString().replace(/[-:]/g, '');
 }
 
 export function isValidMigrationBackupTimestamp(timestamp: string): boolean {
     return BACKUP_TIMESTAMP_RE.test(timestamp);
+}
+
+/** Pick a backup dir name that does not collide with existing migration backups. */
+export function allocateMigrationBackupTimestamp(
+    baseTimestamp: string,
+    existingTimestamps: Iterable<string>
+): string | undefined {
+    if (!isValidMigrationBackupTimestamp(baseTimestamp)) { return undefined; }
+    const existing = new Set(existingTimestamps);
+    if (!existing.has(baseTimestamp)) { return baseTimestamp; }
+    const root = baseTimestamp.replace(/_\d{2}$/, '');
+    for (let i = 1; i <= 99; i++) {
+        const candidate = `${root}_${String(i).padStart(2, '0')}`;
+        if (isValidMigrationBackupTimestamp(candidate) && !existing.has(candidate)) {
+            return candidate;
+        }
+    }
+    return undefined;
 }
 
 export function buildMigrationBackupPaths(timestamp: string): MigrationBackupPaths | undefined {

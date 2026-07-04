@@ -17,6 +17,8 @@ export interface WorldChangeEvent {
     category: WorldChangeCategory;
     severity: WorldChangeSeverity;
     factionId?: string;
+    /** 紛争/外交イベントの相手派閥(派閥動態のペアバインド用)。 */
+    targetFactionId?: string;
     regionId?: string;
     locationId?: string;
     /** Up to MAX_NPC_IDS_PER_EVENT NPC IDs affected by this event. */
@@ -157,6 +159,9 @@ export function parseWorldChangeEvent(raw: unknown): WorldChangeEvent | undefine
     const factionId = asStr(r.factionId, MAX_ID_LEN);
     if (factionId && isValidEventId(factionId)) { event.factionId = factionId; }
 
+    const targetFactionId = asStr(r.targetFactionId, MAX_ID_LEN);
+    if (targetFactionId && isValidEventId(targetFactionId)) { event.targetFactionId = targetFactionId; }
+
     const regionId = asStr(r.regionId, MAX_ID_LEN);
     if (regionId && isValidEventId(regionId)) { event.regionId = regionId; }
 
@@ -271,6 +276,7 @@ export interface MakeEventOptions {
     message: string;
     gmHint?: string;
     factionId?: string;
+    targetFactionId?: string;
     regionId?: string;
     locationId?: string;
     npcIds?: string[];
@@ -296,6 +302,7 @@ export function makeWorldChangeEvent(opts: MakeEventOptions): WorldChangeEvent {
     };
     if (opts.gmHint) { ev.gmHint = opts.gmHint.slice(0, MAX_EVENT_GM_HINT_LEN); }
     if (opts.factionId && isValidEventId(opts.factionId)) { ev.factionId = opts.factionId; }
+    if (opts.targetFactionId && isValidEventId(opts.targetFactionId)) { ev.targetFactionId = opts.targetFactionId; }
     if (opts.regionId && isValidEventId(opts.regionId)) { ev.regionId = opts.regionId; }
     if (opts.locationId && isValidEventId(opts.locationId)) { ev.locationId = opts.locationId; }
     if (opts.npcIds) { ev.npcIds = opts.npcIds.filter(isValidEventId).slice(0, MAX_NPC_IDS_PER_EVENT); }

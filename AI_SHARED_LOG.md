@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.76.0** |
+| Package version | **1.77.0** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **200/200** |
+| Tests | `npm test` **202/202** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -20,8 +20,28 @@
 | World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
 | State Orchestrator | **SO1** ledger descriptor inventory · **SO2** transaction planning gate |
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
+| Idea parking | **Information & Rumor System** idea note |
 | Next (推奨) | SO3 transaction executor design · Context Engine P1 category budgeter |
-| Git | `main` synced through v1.76.0 |
+| Git | `main` synced through v1.77.0 |
+
+---
+
+## 2026-07-04 JST - Grok - Claude review P1/P2 batch (v1.77.0)
+
+- **Living World P1** — `stepEvents` separation for faction conflict + food crisis; faction pair binding (`factionId` + `targetFactionId`); emergent sim emits friction `stepEvents`; `isFoodCrisisEvent` unified in `livingWorldTypes.ts`.
+- **WI3bR** — sequential batch parity running state in `vehicleWorldIntentBridgeCore.ts`.
+- **gameRulesCore** — `normalizeGameRules()` load/save clamp; WI5 sanity loader uses same normalization.
+- **Pair key canonicalization** — `worldStateCore` parse + `canonicalizeAffinityPairMap`.
+- **WI7 backup** — ms timestamps + collision suffix + exclusive backup dir.
+- **SO1** — `checkPhysicalResourceCoordination`; WI5 `diagnoseVehicleStateRaw`.
+- Tests **202/202**.
+
+---
+
+## 2026-07-04 JST - Codex - Information & Rumor System idea note
+
+- Added `docs/INFORMATION_RUMOR_SYSTEM_IDEA.md`: parked future design ideas for campaign-time in-world information sharing, rumor spreading, false claims, source concealment, proxy rumor spreaders, trace risk, and reputation consequences.
+- Not implemented. Intended future bridge points: Context Engine, In-World Chat, Faction Reputation, Living World, Cartography C9, Settlement hubs, Caravan/Mobile Base routes, and World Intent.
 
 ---
 

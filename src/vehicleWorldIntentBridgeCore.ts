@@ -1,6 +1,6 @@
 // World Intent WI3b: pure vehicle bridge batch parity (no I/O).
 
-import { parseVehicleOps } from './vehicleOpsCore';
+import { applyVehicleOps, parseVehicleOps } from './vehicleOpsCore';
 import { parseVehicleState, type VehicleState } from './vehicleCore';
 import {
     parseVehicleWorldIntentBridgeMode,
@@ -79,16 +79,25 @@ export function runVehicleWorldIntentBridgeBatch(
 
     const reports: VehicleWorldIntentParityReport[] = [];
     let exceptionCount = 0;
+    let runningState = cloneVehicleState(input.preWriteVehicleState);
+    const advanceRunningState = input.enableVehicleSystem !== false && runningState !== undefined;
 
     for (const op of ops) {
         try {
             const report = compareVehicleWorldIntentParity({
                 op,
-                vehicleState: cloneVehicleState(input.preWriteVehicleState),
+                vehicleState: runningState,
                 enableVehicleSystem: input.enableVehicleSystem,
                 worldTurn: input.worldTurn,
             });
             reports.push(report);
+
+            if (advanceRunningState && runningState) {
+                const next = applyVehicleOps(runningState, [op], { worldTurn: input.worldTurn });
+                if (next && next !== runningState) {
+                    runningState = next;
+                }
+            }
         } catch (e) {
             exceptionCount++;
             console.warn('[vehicleWorldIntentBridge] parity exception', e);

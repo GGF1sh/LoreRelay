@@ -55,20 +55,20 @@ const fixture = JSON.parse(fs.readFileSync(path.join(root, '..', 'lorerelay-worl
         loreHistory: [],
         initialNpcs: [],
     };
+    const foodCrisisEvent = {
+        worldTurn: 5,
+        category: 'resource',
+        severity: 'warning',
+        message: 'Food reserves are low',
+        regionId: 'r_central',
+    };
     const state = {
         format: 'lorerelay-world-state/1.1',
         worldTurn: 5,
         factions: {},
-        recentChanges: [{
-            worldTurn: 5,
-            category: 'resource',
-            severity: 'warning',
-            message: 'Food reserves are low',
-            regionId: 'r_central',
-        }],
     };
     const rules = { enableCommerce: true, enableNpcAgency: true, enableNpcRegistry: true };
-    const outcome = tickLivingWorldAfterSim(forge, state, undefined, rules, fixture);
+    const outcome = tickLivingWorldAfterSim(forge, state, undefined, rules, fixture, [foodCrisisEvent]);
     if (!outcome.state.markets || !Object.keys(outcome.state.markets).length) {
         fail('tick should init markets');
     } else {

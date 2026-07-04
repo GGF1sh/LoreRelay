@@ -264,6 +264,64 @@ if (!Array.isArray(initial.recentChanges) || initial.recentChanges.length !== 0)
 }
 
 // ---------------------------------------------------------------------------
+// P2: pair key canonicalization on parse (b|a -> a|b)
+// ---------------------------------------------------------------------------
+
+{
+    const rel = parseWorldState({
+        worldTurn: 3,
+        factions: {},
+        npcRelationships: {
+            'npc_b|npc_a': 25,
+            'faction_y|faction_x': -40,
+        },
+        npcFactionRelationships: {
+            'faction_smiths|faction_merchants': -15,
+        },
+        npcMilestones: {
+            'npc_marcus|npc_elda': ['sworn_allies'],
+        },
+    });
+    if (!rel) {
+        fail('pair key canonicalization: state should parse');
+    } else {
+        if (rel.npcRelationships?.['npc_a|npc_b'] !== 25) {
+            fail(`npcRelationships canonical key (got ${JSON.stringify(rel.npcRelationships)})`);
+        } else {
+            ok('npcRelationships b|a canonicalized to a|b');
+        }
+        if (rel.npcFactionRelationships?.['faction_merchants|faction_smiths'] !== -15) {
+            fail(`npcFactionRelationships canonical key (got ${JSON.stringify(rel.npcFactionRelationships)})`);
+        } else {
+            ok('npcFactionRelationships reversed key canonicalized');
+        }
+        if (!rel.npcMilestones?.['npc_elda|npc_marcus']?.includes('sworn_allies')) {
+            fail(`npcMilestones canonical key (got ${JSON.stringify(rel.npcMilestones)})`);
+        } else {
+            ok('npcMilestones reversed pair canonicalized');
+        }
+    }
+}
+
+// Milestone pair-key collision merges kinds (does not last-wins drop)
+{
+    const merged = parseWorldState({
+        worldTurn: 1,
+        factions: {},
+        npcMilestones: {
+            'npc_b|npc_a': ['sworn_allies'],
+            'npc_a|npc_b': ['bitter_enemies'],
+        },
+    });
+    const kinds = merged?.npcMilestones?.['npc_a|npc_b'];
+    if (!kinds || !kinds.includes('sworn_allies') || !kinds.includes('bitter_enemies')) {
+        fail(`npcMilestones merge on canonical collision (got ${JSON.stringify(kinds)})`);
+    } else {
+        ok('npcMilestones canonical collision merges kinds');
+    }
+}
+
+// ---------------------------------------------------------------------------
 // P1 regression: parseGlobalEvent id must be a valid slug
 // ---------------------------------------------------------------------------
 

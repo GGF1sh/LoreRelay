@@ -28,6 +28,7 @@ const {
     assessVehicleStateWritebackEligibility,
     buildMigrationBackupMeta,
     buildMigrationBackupPaths,
+    allocateMigrationBackupTimestamp,
     formatMigrationBackupTimestamp,
     formatWritebackReportLines,
     isValidMigrationBackupTimestamp,
@@ -120,8 +121,25 @@ const futureResult = migrateVehicleStateDocument({ version: 2, vehicles: [] });
         fail('malformed timestamp accepted');
     } else if (!formatMigrationBackupTimestamp(new Date('2026-07-04T15:30:12.000Z')).startsWith('20260704T153012')) {
         fail('timestamp formatter did not normalize to compact UTC');
+    } else if (!isValidMigrationBackupTimestamp('20260704T153012.123Z')) {
+        fail('millisecond timestamp should be valid');
+    } else if (!isValidMigrationBackupTimestamp('20260704T153012Z_01')) {
+        fail('collision suffix timestamp should be valid');
     } else {
         ok('malformed timestamp rejected and formatter normalizes safely');
+    }
+}
+
+{
+    const base = formatMigrationBackupTimestamp(new Date('2026-07-04T15:30:12.345Z'));
+    const first = allocateMigrationBackupTimestamp(base, []);
+    const second = allocateMigrationBackupTimestamp(base, [base]);
+    if (first !== base) {
+        fail(`allocate should return base when unused (got ${first})`);
+    } else if (!second || second === base || !second.endsWith('_01')) {
+        fail(`allocate should suffix on collision (got ${second})`);
+    } else {
+        ok('allocateMigrationBackupTimestamp avoids same-second collisions');
     }
 }
 

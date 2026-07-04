@@ -194,7 +194,8 @@ export function tickLivingWorldAfterSim(
     state: WorldState,
     registry: NpcRegistry | undefined,
     rules: GameRules,
-    rawForgeDoc?: unknown
+    rawForgeDoc?: unknown,
+    stepEvents?: WorldChangeEvent[]
 ): LivingWorldTickOutcome {
     const ext = state as WorldState & LivingWorldWorldStateExt;
     if (!livingWorldEnabled(rules)) {
@@ -215,13 +216,15 @@ export function tickLivingWorldAfterSim(
     const useFactionMarketDemand = commerceEnabled && factionMarketDemandEnabled(rules);
     const maxNamedNpcCount = rules.maxNamedNpcCount ?? 10;
 
+    const mappedStepEvents = mapStepEvents(stepEvents);
+
     const tick = runLivingWorldTick({
         forge: commerceForge,
         markets,
         registry: registryToAgencyLike(registry),
         npcPositions: ext.npcPositions ?? {},
         worldTurn: state.worldTurn,
-        recentChanges: mapRecentChanges(state.recentChanges),
+        stepEvents: mappedStepEvents,
         commerceEnabled,
         agencyEnabled: rules.enableNpcAgency === true && rules.enableNpcRegistry === true,
         marketFactionIds: useFactionMarketDemand
@@ -252,7 +255,7 @@ export function tickLivingWorldAfterSim(
             positions: ext.npcPositions ?? {},
             relationships: ext.npcRelationships ?? {},
             worldTurn: state.worldTurn,
-            recentChanges: mapRecentChanges(state.recentChanges),
+            stepEvents: mappedStepEvents,
             agencyMoves: tick.npcMoves,
             maxNamedNpcCount,
             factionRelationships: ext.npcFactionRelationships ?? {},
@@ -393,14 +396,16 @@ function buildBondTransitionEvents(
     return events;
 }
 
-function mapRecentChanges(events: WorldChangeEvent[] | undefined) {
+function mapStepEvents(events: WorldChangeEvent[] | undefined) {
     return (events ?? []).map((e) => ({
+        id: e.id,
         worldTurn: e.worldTurn,
         category: e.category,
         severity: e.severity,
         message: e.message,
         regionId: e.regionId,
         factionId: e.factionId,
+        targetFactionId: e.targetFactionId,
     }));
 }
 

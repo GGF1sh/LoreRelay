@@ -10,6 +10,7 @@ import type {
     NpcRegistryLike,
     WorldChangeEventLike,
 } from './livingWorldTypes';
+import { isFoodCrisisEvent } from './livingWorldTypes';
 import { quoteMarketPrice } from './commerceCore';
 
 // レガシー既定値(pre-1.0 の暫定値)。ホストは game_rules.maxNamedNpcCount をここへ渡す。
@@ -146,7 +147,8 @@ export interface AgencyReactionInput {
     registry: NpcRegistryLike;
     positions: NpcPositionsMap;
     worldTurn: number;
-    recentChanges?: WorldChangeEventLike[];
+    /** この sim tick で新規発生したイベントのみ。食料危機判定に使う。 */
+    stepEvents?: WorldChangeEventLike[];
     maxNamedNpcCount?: number;
 }
 
@@ -158,7 +160,7 @@ export function reactNpcsToWorld(
 ): { positions: NpcPositionsMap; moves: NpcAgencyOp[] } {
     const next = clonePositions(input.positions);
     const moves: NpcAgencyOp[] = [];
-    const foodCrisis = (input.recentChanges ?? []).some(isFoodCrisisEvent);
+    const foodCrisis = (input.stepEvents ?? []).some(isFoodCrisisEvent);
     const cheapWheat = cheapestWheatMarket(input.forge, input.markets);
     const steelShort = marketWithSteelShortage(input.forge, input.markets);
 
@@ -206,15 +208,7 @@ export function reactNpcsToWorld(
     return { positions: next, moves };
 }
 
-function isFoodCrisisEvent(ev: WorldChangeEventLike): boolean {
-    const msg = ev.message.toLowerCase();
-    return ev.category === 'resource'
-        || ev.severity === 'warning'
-        || msg.includes('food')
-        || msg.includes('wheat')
-        || msg.includes('食料')
-        || msg.includes('小麦');
-}
+export { isFoodCrisisEvent } from './livingWorldTypes';
 
 export function applyNpcAgencyOps(
     positions: NpcPositionsMap,

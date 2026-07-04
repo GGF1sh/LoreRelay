@@ -17,7 +17,8 @@ export interface WorldKitTickInput {
     registry: NpcRegistryLike;
     npcPositions: NpcPositionsMap;
     worldTurn: number;
-    recentChanges?: WorldChangeEventLike[];
+    /** この sim tick で新規発生したイベントのみ。市場/NPC反応の mutation 入力。 */
+    stepEvents?: WorldChangeEventLike[];
     commerceEnabled: boolean;
     agencyEnabled: boolean;
     /** Market locationId -> controlling factionId (undefined = no faction demand drift there). */
@@ -44,7 +45,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
     if (input.commerceEnabled) {
         const tick = tickMarketRecovery(input.forge, markets, {
             worldTurn: input.worldTurn,
-            recentChanges: input.recentChanges,
+            stepEvents: input.stepEvents,
         });
         markets = tick.markets;
         marketSummary = tick.summary;
@@ -66,7 +67,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
             registry: input.registry,
             positions: npcPositions,
             worldTurn: input.worldTurn,
-            recentChanges: input.recentChanges,
+            stepEvents: input.stepEvents,
             maxNamedNpcCount: input.maxNamedNpcCount,
         });
         npcPositions = reaction.positions;

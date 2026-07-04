@@ -43,7 +43,8 @@ const {
     parseRelationshipOps, applyRelationshipOps, listNotableRelationships,
     buildRelationshipPromptLines, applyIntroductionTrustBoost,
     reconcileRelationshipGraph, cascadeNpcRemovalFromGraph,
-    factionPairKey, getFactionRelation, getFactionCohesion,
+    factionPairKey, getFactionRelation, getFactionCohesion, isConflictEvent,
+    canonicalizeAffinityPairMap,
     MAX_AFFINITY, MIN_AFFINITY, CO_LOCATION_STEP, SHARED_CRISIS_STEP,
     FACTION_CONFLICT_STEP, AFFINITY_FRIEND, INTRODUCTION_MIN_AFFINITY,
     FACTION_ALLIED_REP_MIN, FACTION_INTRO_TRUST_DAMPEN, MAX_EFFECTIVE_PLAYER_TRUST,
@@ -65,6 +66,13 @@ const registry = {
 
 // 1. pairKey は順序非依存
 eq(pairKey('b', 'a'), pairKey('a', 'b'), 'pairKey canonical');
+
+// 1b. canonicalizeAffinityPairMap merges split-brain keys
+{
+    const out = canonicalizeAffinityPairMap({ 'b|a': 12, 'a|b': 99 });
+    eq(out['a|b'], 99, 'canonicalizeAffinityPairMap last-wins on collision');
+    eq(Object.keys(out).length, 1, 'canonicalizeAffinityPairMap single canonical key');
+}
 
 // 2. getAffinity 既定 0 / self 0
 eq(getAffinity({}, 'x', 'y'), 0, 'getAffinity default 0');
@@ -128,7 +136,14 @@ eq(describeRelationship(-80), 'enemy', 'label enemy');
         positions: { npc_elda: { locationId: 'a', arrivesTurn: 1 }, npc_marcus: { locationId: 'b', arrivesTurn: 1 } },
         relationships: {},
         worldTurn: 5,
-        recentChanges: [{ worldTurn: 5, category: 'conflict', severity: 'critical', message: '国境で紛争が勃発' }],
+        stepEvents: [{
+            worldTurn: 5,
+            category: 'conflict',
+            severity: 'critical',
+            message: '国境で紛争が勃発',
+            factionId: 'faction_merchants',
+            targetFactionId: 'faction_smiths',
+        }],
     });
     // 個人の relationships には faction dynamics は一切書き込まれない(N^2回避の核心)
     eq(getAffinity(res.relationships, 'npc_elda', 'npc_marcus'), 0, 'faction conflict does not touch personal affinity');
@@ -158,14 +173,153 @@ eq(describeRelationship(-80), 'enemy', 'label enemy');
     }
     const res = evolveRelationships({
         registry: many, positions: {}, relationships: {}, worldTurn: 1, maxNamedNpcCount: 500,
-        recentChanges: [{ worldTurn: 1, category: 'conflict', severity: 'critical', message: 'war' }],
+        stepEvents: [{
+            worldTurn: 1,
+            category: 'conflict',
+            severity: 'critical',
+            message: 'war',
+            factionId: 'faction_0',
+            targetFactionId: 'faction_1',
+        }],
     });
-    // 3派閥 → 自己結束3件 + 異派閥ペア3件(0-1,0-2,1-2) = 最大6件。500人には連動しない。
-    if (res.factionChanges.length <= 6) {
+    // バインドされた紛争(0 vs 1)のみ → 結束2件 + 敵対1件 = 最大3件。500人/Nには連動しない。
+    if (res.factionChanges.length <= 3) {
         ok(`faction dynamics output stays O(F) regardless of N (${res.factionChanges.length} changes for 500 NPCs / 3 factions)`);
     } else {
-        fail(`faction dynamics output scaled with N (got ${res.factionChanges.length} changes, want <=6)`);
+        fail(`faction dynamics output scaled with N (got ${res.factionChanges.length} changes, want <=3)`);
     }
+}
+
+// 7c. recentChanges に紛争が残っていても stepEvents が空なら派閥動態は再適用しない
+{
+    const res = evolveRelationships({
+        registry,
+        positions: {},
+        relationships: {},
+        worldTurn: 10,
+        recentChanges: [{
+            id: 'wce_5_conflict_border',
+            worldTurn: 5,
+            category: 'conflict',
+            severity: 'critical',
+            message: '国境で紛争が勃発',
+            factionId: 'faction_merchants',
+            targetFactionId: 'faction_smiths',
+        }],
+        stepEvents: [],
+    });
+    eq(res.factionChanges.length, 0, 'recentChanges alone does not re-apply faction conflict');
+    eq(getFactionRelation(res.factionRelationships, 'faction_merchants', 'faction_smiths'), 0, 'no stale recentChanges faction drift');
+}
+
+// 7d. A-B 戦争で C-D は変化しない
+{
+    const fourFactionRegistry = {
+        npc_a: { name: 'A', locationId: 'x', factionId: 'faction_a' },
+        npc_b: { name: 'B', locationId: 'y', factionId: 'faction_b' },
+        npc_c: { name: 'C', locationId: 'z', factionId: 'faction_c' },
+        npc_d: { name: 'D', locationId: 'w', factionId: 'faction_d' },
+    };
+    const res = evolveRelationships({
+        registry: fourFactionRegistry,
+        positions: {},
+        relationships: {},
+        worldTurn: 3,
+        stepEvents: [{
+            id: 'wce_3_conflict_ab',
+            worldTurn: 3,
+            category: 'conflict',
+            message: 'war between A and B',
+            factionId: 'faction_a',
+            targetFactionId: 'faction_b',
+        }],
+    });
+    const ab = getFactionRelation(res.factionRelationships, 'faction_a', 'faction_b');
+    const cd = getFactionRelation(res.factionRelationships, 'faction_c', 'faction_d');
+    if (ab <= FACTION_CONFLICT_STEP) { ok('A-B conflict sours bound pair'); }
+    else { fail(`A-B conflict (got ${ab})`); }
+    eq(cd, 0, 'C-D unaffected by A-B war');
+}
+
+// 7e. critical な地域危険度イベントは紛争扱いしない
+{
+    const regionCritical = {
+        worldTurn: 8,
+        category: 'region',
+        severity: 'critical',
+        message: 'Dark Moor: danger rising (9/10)',
+        factionId: 'faction_merchants',
+        targetFactionId: 'faction_smiths',
+    };
+    if (!isConflictEvent(regionCritical)) { ok('region critical alone is not conflict'); }
+    else { fail('region critical should not be conflict'); }
+    const res = evolveRelationships({
+        registry,
+        positions: {},
+        relationships: {},
+        worldTurn: 8,
+        stepEvents: [regionCritical],
+    });
+    eq(res.factionChanges.length, 0, 'region critical does not trigger faction dynamics');
+}
+
+// 7f. 同一 eventId は stepEvents 内でも1回だけ作用
+{
+    const conflictEv = {
+        id: 'wce_4_conflict_dup',
+        worldTurn: 4,
+        category: 'conflict',
+        message: 'raid',
+        factionId: 'faction_merchants',
+        targetFactionId: 'faction_smiths',
+    };
+    const res = evolveRelationships({
+        registry,
+        positions: {},
+        relationships: {},
+        worldTurn: 4,
+        stepEvents: [conflictEv, conflictEv],
+    });
+    const conflictChanges = res.factionChanges.filter((c) => c.reason === 'faction_conflict');
+    eq(conflictChanges.length, 1, 'duplicate eventId applies faction conflict once');
+}
+
+// 7g. ペア未バインドの conflict は派閥動態を起こさない(意図的な breaking change)
+{
+    const unbound = {
+        worldTurn: 5,
+        category: 'conflict',
+        message: 'war somewhere',
+    };
+    if (!isConflictEvent(unbound)) { fail('unbound conflict should match isConflictEvent'); }
+    const res = evolveRelationships({
+        registry,
+        positions: {},
+        relationships: {},
+        worldTurn: 5,
+        stepEvents: [unbound],
+    });
+    eq(res.factionChanges.length, 0, 'unbound conflict has no faction effect');
+}
+
+// 7h. id なしの同一 conflict も stepEvents 内で1回だけ作用
+{
+    const conflictEv = {
+        worldTurn: 6,
+        category: 'conflict',
+        message: 'raid',
+        factionId: 'faction_merchants',
+        targetFactionId: 'faction_smiths',
+    };
+    const res = evolveRelationships({
+        registry,
+        positions: {},
+        relationships: {},
+        worldTurn: 6,
+        stepEvents: [conflictEv, conflictEv],
+    });
+    const conflictChanges = res.factionChanges.filter((c) => c.reason === 'faction_conflict');
+    eq(conflictChanges.length, 1, 'duplicate id-less conflict applies faction conflict once');
 }
 
 // 8. clamp — 上限に張り付いたら実変化なし → change を出さない(黙る)

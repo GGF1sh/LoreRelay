@@ -101,12 +101,26 @@ export interface LocationGraphNode {
 export type WorldChangeSeverity = 'info' | 'warning' | 'critical';
 
 export interface WorldChangeEventLike {
+    id?: string;
     worldTurn: number;
     category?: string;
     severity?: WorldChangeSeverity;
     message: string;
     regionId?: string;
     factionId?: string;
+    targetFactionId?: string;
+}
+
+/** Shared food-crisis semantics for commerce (Tier 1) and NPC agency (Tier 2). */
+export function isFoodCrisisEvent(ev: WorldChangeEventLike): boolean {
+    const msg = ev.message.toLowerCase();
+    return ev.category === 'resource'
+        && (
+            msg.includes('food')
+            || msg.includes('wheat')
+            || msg.includes('食料')
+            || msg.includes('小麦')
+        );
 }
 
 export interface NpcRegistryEntryLike {

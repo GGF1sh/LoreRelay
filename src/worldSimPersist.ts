@@ -55,7 +55,7 @@ export function persistWorldSimulationSteps(
         steps: clamped,
         enableNpcRegistry: enableNpc,
         maxSteps,
-        afterStep: (next, _events, reg) => applyLivingWorldAfterSimulationStep(forge, next, reg),
+        afterStep: (next, events, reg) => applyLivingWorldAfterSimulationStep(forge, next, reg, events),
     });
 
     if (!result.ok) {
@@ -98,7 +98,7 @@ export async function persistWorldSimulationStepsAsync(
         steps: clamped,
         enableNpcRegistry: enableNpc,
         maxSteps,
-        afterStep: (next, _events, reg) => applyLivingWorldAfterSimulationStep(forge, next, reg),
+        afterStep: (next, events, reg) => applyLivingWorldAfterSimulationStep(forge, next, reg, events),
     });
 
     if (!result.ok) {

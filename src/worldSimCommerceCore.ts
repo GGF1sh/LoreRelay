@@ -5,6 +5,7 @@ import type {
     MarketStateMap,
     WorldChangeEventLike,
 } from './livingWorldTypes';
+import { isFoodCrisisEvent } from './livingWorldTypes';
 import { reputationTier, type ReputationTier } from './factionReputationCore';
 
 export const DEFAULT_MARKET_RECOVERY_PER_TICK = 2;
@@ -16,7 +17,8 @@ export const STEEL_IMPROVEMENT_STOCK = 3;
 export interface MarketTickOptions {
     worldTurn: number;
     recoveryPerTick?: number;
-    recentChanges?: WorldChangeEventLike[];
+    /** この sim tick で新規発生したイベントのみ。市場へのイベント適用に使う。 */
+    stepEvents?: WorldChangeEventLike[];
 }
 
 export interface MarketTickSummary {
@@ -39,15 +41,6 @@ function cloneMarkets(markets: MarketStateMap): MarketStateMap {
 
 function bumpPriceIndex(current: number, delta: number): number {
     return Math.max(MIN_PRICE_INDEX, Math.min(MAX_PRICE_INDEX, current + delta));
-}
-
-function isFoodCrisisEvent(ev: WorldChangeEventLike): boolean {
-    const msg = ev.message.toLowerCase();
-    return ev.category === 'resource'
-        || msg.includes('food')
-        || msg.includes('食料')
-        || msg.includes('wheat')
-        || msg.includes('小麦');
 }
 
 function isSteelCraftEvent(ev: WorldChangeEventLike): boolean {
@@ -150,7 +143,7 @@ export function tickMarketRecovery(
     const eventResult = applyWorldEventsToMarkets(
         forge,
         next,
-        options.recentChanges ?? []
+        options.stepEvents ?? []
     );
 
     return {

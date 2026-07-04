@@ -670,6 +670,73 @@ function parseVehicleEntry(raw: unknown): VehicleEntry | undefined {
     return entry;
 }
 
+export type VehicleParseIssueCode =
+    | 'invalid_root'
+    | 'invalid_version'
+    | 'duplicate_vehicle_id'
+    | 'resource_over_max';
+
+export interface VehicleParseIssue {
+    code: VehicleParseIssueCode;
+    message: string;
+    vehicleId?: string;
+}
+
+/** Structural checks on raw JSON before parseVehicleState normalization. */
+export function diagnoseVehicleStateRaw(raw: unknown): VehicleParseIssue[] {
+    const issues: VehicleParseIssue[] = [];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        issues.push({
+            code: 'invalid_root',
+            message: 'vehicle_state.json root must be a JSON object.',
+        });
+        return issues;
+    }
+    const r = raw as Record<string, unknown>;
+    if (r.version !== VEHICLE_STATE_VERSION) {
+        issues.push({
+            code: 'invalid_version',
+            message: `Expected version ${VEHICLE_STATE_VERSION}, got ${String(r.version)}.`,
+        });
+    }
+    if (!Array.isArray(r.vehicles)) { return issues; }
+
+    const seenIds = new Set<string>();
+    for (const item of r.vehicles) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) { continue; }
+        const row = item as Record<string, unknown>;
+        const id = asId(row.id);
+        if (!id) { continue; }
+        if (seenIds.has(id)) {
+            issues.push({
+                code: 'duplicate_vehicle_id',
+                message: `Duplicate vehicle id "${id}" in raw vehicle_state.json.`,
+                vehicleId: id,
+            });
+        } else {
+            seenIds.add(id);
+        }
+        const resources = row.resources;
+        if (!resources || typeof resources !== 'object' || Array.isArray(resources)) { continue; }
+        const res = resources as Record<string, unknown>;
+        if (res.powerType === 'none') { continue; }
+        const current = typeof res.current === 'number' && Number.isFinite(res.current)
+            ? res.current
+            : undefined;
+        const max = typeof res.max === 'number' && Number.isFinite(res.max)
+            ? res.max
+            : undefined;
+        if (current !== undefined && max !== undefined && current > max) {
+            issues.push({
+                code: 'resource_over_max',
+                message: `Vehicle ${id} raw resource current (${current}) exceeds max (${max}).`,
+                vehicleId: id,
+            });
+        }
+    }
+    return issues;
+}
+
 export function parseVehicleState(input: unknown): VehicleState {
     const empty: VehicleState = { version: VEHICLE_STATE_VERSION, vehicles: [] };
     if (!input || typeof input !== 'object' || Array.isArray(input)) { return empty; }

@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseModManifest, parseModProfile, type ParsedModManifest } from './modSystemCore';
 import { parseSettlementState } from './settlementCore';
-import { parseVehicleState } from './vehicleCore';
+import { normalizeGameRules } from './gameRulesCore';
+import { diagnoseVehicleStateRaw, parseVehicleState } from './vehicleCore';
 import type { WorkspaceSanitySnapshot, WorkspaceSanitySources } from './worldIntentSanityHostCore';
 
 export const MOD_MANIFEST_FILENAME = 'lorerelay_mod.json';
@@ -23,11 +24,18 @@ function readJsonFile(filePath: string): unknown | undefined {
     }
 }
 
-function readVehicleStateFile(statePath: string) {
+function readVehicleStateFile(statePath: string): {
+    parsed?: ReturnType<typeof parseVehicleState>;
+    rawIssues?: ReturnType<typeof diagnoseVehicleStateRaw>;
+} | undefined {
     const raw = readJsonFile(statePath);
     if (!raw) { return undefined; }
+    const rawIssues = diagnoseVehicleStateRaw(raw);
     const parsed = parseVehicleState(raw);
-    return parsed.vehicles.length ? parsed : undefined;
+    return {
+        parsed: parsed.vehicles.length ? parsed : undefined,
+        rawIssues: rawIssues.length ? rawIssues : undefined,
+    };
 }
 
 function readSettlementStateFile(statePath: string) {
@@ -37,14 +45,7 @@ function readSettlementStateFile(statePath: string) {
 
 function readGameRuleFlags(wsPath: string): WorkspaceSanitySnapshot['gameRules'] {
     const raw = readJsonFile(path.join(wsPath, 'game_rules.json'));
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return {
-            enableVehicleSystem: false,
-            enableSettlementMode: false,
-            enableMobileBaseSystem: false,
-        };
-    }
-    const rules = raw as Record<string, unknown>;
+    const rules = normalizeGameRules(raw);
     return {
         enableVehicleSystem: rules.enableVehicleSystem === true,
         enableSettlementMode: rules.enableSettlementMode === true,
@@ -168,10 +169,15 @@ export function readWorkspaceSanitySnapshot(
     const sources: WorkspaceSanitySources = {};
     const snapshot: WorkspaceSanitySnapshot = { sources };
 
-    const vehicleState = readVehicleStateFile(path.join(wsPath, 'vehicle_state.json'));
-    if (vehicleState) {
-        snapshot.vehicleState = vehicleState;
-        sources.vehicleState = true;
+    const vehicleBundle = readVehicleStateFile(path.join(wsPath, 'vehicle_state.json'));
+    if (vehicleBundle) {
+        if (vehicleBundle.parsed) {
+            snapshot.vehicleState = vehicleBundle.parsed;
+            sources.vehicleState = true;
+        }
+        if (vehicleBundle.rawIssues?.length) {
+            snapshot.vehicleRawParseIssues = vehicleBundle.rawIssues;
+        }
     }
 
     const settlementState = readSettlementStateFile(path.join(wsPath, 'settlement_state.json'));

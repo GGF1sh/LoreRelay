@@ -6,7 +6,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const corePath = path.join(root, 'out', 'mobileBaseCore.js');
 const bridgeSrcPath = path.join(root, 'src', 'mobileBaseBridge.ts');
-const gameRulesPath = path.join(root, 'src', 'gameRules.ts');
+const gameRulesCorePath = path.join(root, 'src', 'gameRulesCore.ts');
 const gmCorePath = path.join(root, 'out', 'gmPromptBuilderCore.js');
 const vehicleCorePath = path.join(root, 'out', 'vehicleCore.js');
 const settlementCorePath = path.join(root, 'out', 'settlementCore.js');
@@ -112,7 +112,7 @@ if (!settlementFixture || !vehicleStateFixture) {
 }
 
 {
-    const src = fs.readFileSync(gameRulesPath, 'utf-8');
+    const src = fs.readFileSync(gameRulesCorePath, 'utf-8');
     if (!/enableMobileBaseSystem:\s*false/.test(src)) {
         fail('DEFAULT_GAME_RULES should define enableMobileBaseSystem: false');
     } else {

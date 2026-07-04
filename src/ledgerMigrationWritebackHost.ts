@@ -4,10 +4,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { LedgerMigrationResult } from './ledgerMigrationCore';
 import {
+    allocateMigrationBackupTimestamp,
     assessVehicleStateWritebackEligibility,
     buildMigrationBackupMeta,
     buildMigrationBackupPaths,
     formatMigrationBackupTimestamp,
+    isValidMigrationBackupTimestamp,
+    MIGRATION_BACKUP_ROOT_REL,
     VEHICLE_STATE_WRITEBACK_FILE,
     type MigrationBackupMeta,
     type WritebackAbortReason,
@@ -38,6 +41,7 @@ export interface VehicleStateWritebackResult {
 export interface VehicleStateWritebackHostDeps {
     exists?: (filePath: string) => boolean;
     readFile?: (filePath: string, encoding: BufferEncoding) => string;
+    readdir?: (dirPath: string) => string[];
     mkdir?: (dirPath: string, options: fs.MakeDirectoryOptions) => void;
     copyFile?: (src: string, dest: string) => void;
     writeFile?: (filePath: string, data: string, encoding: BufferEncoding) => void;
@@ -45,6 +49,21 @@ export interface VehicleStateWritebackHostDeps {
     migrate?: (raw: unknown) => LedgerMigrationResult;
     parse?: (raw: unknown) => { version: number };
     now?: () => Date;
+}
+
+export function listMigrationBackupTimestamps(
+    wsPath: string,
+    deps: VehicleStateWritebackHostDeps = {}
+): string[] {
+    const exists = deps.exists ?? fs.existsSync.bind(fs);
+    const readdir = deps.readdir ?? ((dir) => fs.readdirSync(dir));
+    const root = resolveWorkspaceRelativePath(wsPath, MIGRATION_BACKUP_ROOT_REL);
+    if (!exists(root)) { return []; }
+    try {
+        return readdir(root).filter((name) => isValidMigrationBackupTimestamp(name));
+    } catch {
+        return [];
+    }
 }
 
 function resolveWorkspaceRelativePath(wsPath: string, relativePath: string): string {
@@ -94,15 +113,22 @@ function createStrictBackup(
     const backupDir = resolveWorkspaceRelativePath(wsPath, paths.backupDirRel);
     const backupFile = resolveWorkspaceRelativePath(wsPath, paths.backupFileRel);
     const metaFile = resolveWorkspaceRelativePath(wsPath, paths.metaFileRel);
+    const exists = deps.exists ?? fs.existsSync.bind(fs);
     const mkdir = deps.mkdir ?? fs.mkdirSync.bind(fs);
     const copyFile = deps.copyFile ?? fs.copyFileSync.bind(fs);
     const writeFile = deps.writeFile ?? fs.writeFileSync.bind(fs);
 
     try {
-        mkdir(backupDir, { recursive: true });
+        const parentDir = path.dirname(backupDir);
+        if (!exists(parentDir)) {
+            mkdir(parentDir, { recursive: true });
+        }
+        if (exists(backupDir)) {
+            return { ok: false };
+        }
+        mkdir(backupDir, { recursive: false });
         copyFile(sourcePath, backupFile);
         writeFile(metaFile, `${JSON.stringify(meta, null, 2)}\n`, 'utf-8');
-        const exists = deps.exists ?? fs.existsSync.bind(fs);
         if (!exists(backupFile) || !exists(metaFile)) {
             return { ok: false };
         }
@@ -165,7 +191,19 @@ export function applyVehicleStateMigrationWriteback(
     }
 
     const now = deps.now ?? (() => new Date());
-    const timestamp = formatMigrationBackupTimestamp(now());
+    const existingTimestamps = listMigrationBackupTimestamps(wsPath, deps);
+    const timestamp = allocateMigrationBackupTimestamp(
+        formatMigrationBackupTimestamp(now()),
+        existingTimestamps
+    );
+    if (!timestamp) {
+        return {
+            outcome: 'aborted',
+            reasonCode: 'backup_failed',
+            backupCreated: false,
+            migrationResult: prepared.migrationResult,
+        };
+    }
     const createdAt = now().toISOString();
     const meta = buildMigrationBackupMeta(prepared.migrationResult, createdAt);
     if (!meta) {

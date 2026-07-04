@@ -99,7 +99,7 @@ const result = runBulkWorldSimulation(FORGE, state, undefined, {
             registry: fixture.npcRegistry ?? {},
             npcPositions: next.npcPositions ?? {},
             worldTurn: next.worldTurn ?? 0,
-            recentChanges: next.recentChanges ?? [],
+            stepEvents: [],
             commerceEnabled: true,
             agencyEnabled: false,
         });

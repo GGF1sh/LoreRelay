@@ -12,6 +12,7 @@ import type { SettlementStateV1 } from './settlementCore';
 import {
     validateVehicleFleet,
     type VehicleEntry,
+    type VehicleParseIssue,
     type VehicleState,
 } from './vehicleCore';
 import { parseVehicleWorldIntentBridgeMode } from './worldIntentCore';
@@ -67,6 +68,8 @@ export interface WorldSanityGameRules {
 
 export interface WorldSanityInput {
     vehicleState?: VehicleState;
+    /** Raw structural issues detected before parseVehicleState normalization. */
+    vehicleRawParseIssues?: VehicleParseIssue[];
     settlementState?: SettlementStateV1;
     gameRules?: WorldSanityGameRules;
     modProfile?: ModProfile;
@@ -187,6 +190,26 @@ function statusConditionMismatch(vehicle: VehicleEntry): string | undefined {
         return `Vehicle ${vehicle.id} has ${condition} condition but status is ${status}.`;
     }
     return undefined;
+}
+
+export function checkVehicleRawParseSanity(input: WorldSanityInput): WorldSanityIssue[] {
+    const rawIssues = input.vehicleRawParseIssues;
+    if (!rawIssues?.length) { return []; }
+
+    const issues: WorldSanityIssue[] = [];
+    for (const raw of rawIssues) {
+        const severity: WorldSanitySeverity = raw.code === 'invalid_version' ? 'warning' : 'error';
+        issues.push(makeIssue(
+            severity,
+            'vehicle',
+            `raw_${raw.code}`,
+            raw.message,
+            raw.vehicleId ? { kind: 'vehicle', id: raw.vehicleId } : undefined,
+            undefined,
+            'Fix vehicle_state.json directly; normalization may hide this issue from semantic checks.'
+        ));
+    }
+    return issues;
 }
 
 export function checkVehicleSanity(input: WorldSanityInput): WorldSanityIssue[] {
@@ -603,6 +626,7 @@ export function buildWorldSanityReport(
     const maxIssues = options?.maxIssues ?? MAX_WORLD_SANITY_ISSUES;
     const collected = [
         ...checkGameRuleSanity(input),
+        ...checkVehicleRawParseSanity(input),
         ...checkVehicleSanity(input),
         ...checkMobileBaseSanity(input),
         ...checkModSanity(input),

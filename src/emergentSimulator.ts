@@ -26,12 +26,13 @@ import { loadWorldForgeDocument } from './worldForge';
 export function applyLivingWorldAfterSimulationStep(
     forge: WorldForge,
     state: WorldState,
-    registry: NpcRegistry | undefined
+    registry: NpcRegistry | undefined,
+    stepEvents: WorldChangeEvent[] = []
 ): WorldState {
     const rules = loadGameRules();
     if (!livingWorldEnabled(rules)) { return state; }
     const rawDoc = loadWorldForgeDocument();
-    return tickLivingWorldAfterSim(forge, state, registry, rules, rawDoc).state;
+    return tickLivingWorldAfterSim(forge, state, registry, rules, rawDoc, stepEvents).state;
 }
 
 export interface WorldStepOutcome {
@@ -66,7 +67,7 @@ export function computeOneWorldStep(forge: WorldForge, state: WorldState, rules 
         }
     }
 
-    next = applyLivingWorldAfterSimulationStep(forge, next, currentRegistry);
+    next = applyLivingWorldAfterSimulationStep(forge, next, currentRegistry, stepEvents);
 
     // Phase 8: Generate Quest Hooks before persisting world state
     generateQuestHooks(next, currentRegistry, false);
@@ -183,7 +184,7 @@ function tickFaction(
     tickResources(faction, fs, state.worldTurn, events, worldEvents);
 
     // 敵対派閥との摩擦
-    tickEnemyFriction(faction, fs, forge, state, events);
+    tickEnemyFriction(faction, fs, forge, state, events, worldEvents);
 
     // 友好派閥のボーナス
     tickAllyBonus(faction, fs, state);
@@ -246,28 +247,44 @@ function tickEnemyFriction(
     fs: FactionWorldState,
     forge: WorldForge,
     state: WorldState,
-    events: string[]
+    events: string[],
+    worldEvents: WorldChangeEvent[]
 ): void {
     for (const enemyId of (faction.enemies ?? [])) {
         const enemyState = state.factions[enemyId];
         if (!enemyState) { continue; }
 
         const powerDiff = fs.power - enemyState.power;
+        let frictionMessage: string | undefined;
 
         if (powerDiff > 10) {
             // 明確な優勢：敵を1点削る、自分は+0.5
             enemyState.power = Math.max(0, enemyState.power - 1);
             fs.power = Math.min(100, fs.power + 0.5);
-            events.push(`${getFactionName(forge, enemyId)}との対立で優位`);
+            frictionMessage = `${getFactionName(forge, enemyId)}との対立で優位`;
         } else if (powerDiff < -10) {
             // 明確な劣勢：自分が-1
             fs.power = Math.max(0, fs.power - 1);
-            events.push(`${getFactionName(forge, enemyId)}に押されている`);
+            frictionMessage = `${getFactionName(forge, enemyId)}に押されている`;
         } else {
             // 拮抗：両者消耗
             fs.power = Math.max(0, fs.power - 0.5);
             enemyState.power = Math.max(0, enemyState.power - 0.5);
+            frictionMessage = `${getFactionName(forge, enemyId)}との紛争が続く`;
         }
+
+        events.push(frictionMessage);
+        worldEvents.push(makeWorldChangeEvent({
+            worldTurn: state.worldTurn,
+            category: 'faction',
+            severity: 'warning',
+            factionId: faction.id,
+            targetFactionId: enemyId,
+            message: `${getFactionName(forge, faction.id)}と${getFactionName(forge, enemyId)}の紛争が続く`,
+            gmHint: 'Narrate as faction-level border tension between these two powers, not individual NPC actions.',
+            expiresAfterTurns: 5,
+            idSuffix: `friction_${faction.id}_${enemyId}`,
+        }));
     }
 }
 

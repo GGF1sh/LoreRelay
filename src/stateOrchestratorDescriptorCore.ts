@@ -38,6 +38,12 @@ export interface LedgerDescriptor {
     id: string;
     owner: LedgerWriteOwner;
     fileNamePattern: string;
+    /** Workspace-relative physical resource (e.g. vehicle_state.json). */
+    resourceKey?: string;
+    /** Logical coordination domain for writers targeting the same resourceKey. */
+    coordinationDomain?: string;
+    /** Manual/exception path — may write resourceKey without serializedQueue. */
+    coordinationExempt?: boolean;
     phase: LedgerWritePhase;
     canonicalModule: string;
     atomicWrite: boolean;
@@ -137,6 +143,8 @@ export const LEDGER_DESCRIPTORS: readonly LedgerDescriptor[] = [
         id: 'vehicle_state',
         owner: 'vehicle_state',
         fileNamePattern: 'vehicle_state.json',
+        resourceKey: 'vehicle_state.json',
+        coordinationDomain: 'vehicle_state',
         phase: 'gm_turn_secondary',
         canonicalModule: 'vehicleTurnOps.ts',
         atomicWrite: true,
@@ -178,6 +186,9 @@ export const LEDGER_DESCRIPTORS: readonly LedgerDescriptor[] = [
         id: 'migration_vehicle_writeback',
         owner: 'migration',
         fileNamePattern: 'vehicle_state.json',
+        resourceKey: 'vehicle_state.json',
+        coordinationDomain: 'vehicle_state',
+        coordinationExempt: true,
         phase: 'migration_command',
         canonicalModule: 'ledgerMigrationWritebackRunner.ts',
         atomicWrite: true,
@@ -191,6 +202,9 @@ export const LEDGER_DESCRIPTORS: readonly LedgerDescriptor[] = [
         id: 'migration_vehicle_restore',
         owner: 'migration',
         fileNamePattern: 'vehicle_state.json',
+        resourceKey: 'vehicle_state.json',
+        coordinationDomain: 'vehicle_state',
+        coordinationExempt: true,
         phase: 'migration_command',
         canonicalModule: 'ledgerMigrationRestoreRunner.ts',
         atomicWrite: true,
@@ -356,6 +370,42 @@ export function checkTurnLedgerDescriptorOrder(input: {
     return issues;
 }
 
+export function checkPhysicalResourceCoordination(
+    descriptors: readonly LedgerDescriptor[]
+): StateOrchestratorDescriptorIssue[] {
+    const issues: StateOrchestratorDescriptorIssue[] = [];
+    const byResource = new Map<string, LedgerDescriptor[]>();
+
+    for (const descriptor of descriptors) {
+        if (!descriptor.resourceKey) { continue; }
+        const bucket = byResource.get(descriptor.resourceKey);
+        if (bucket) { bucket.push(descriptor); } else { byResource.set(descriptor.resourceKey, [descriptor]); }
+    }
+
+    for (const [resourceKey, group] of byResource) {
+        if (group.length <= 1) { continue; }
+        const queued = group.filter((d) => !!d.serializedQueue);
+        const unqueued = group.filter((d) => !d.serializedQueue);
+        if (queued.length === 0 || unqueued.length === 0) { continue; }
+
+        const unqueuedExempt = unqueued.every((d) => d.coordinationExempt === true);
+        if (unqueuedExempt) { continue; }
+
+        for (const descriptor of unqueued) {
+            pushIssue(issues, {
+                severity: 'error',
+                code: 'mixed_physical_resource_coordination',
+                descriptorId: descriptor.id,
+                message:
+                    `Descriptor "${descriptor.id}" writes "${resourceKey}" without a serialized queue `
+                    + `while other writers use queue coordination.`,
+            });
+        }
+    }
+
+    return issues;
+}
+
 export function checkLedgerQueueDescriptors(
     descriptors: readonly LedgerDescriptor[]
 ): StateOrchestratorDescriptorIssue[] {
@@ -390,6 +440,7 @@ export function buildStateOrchestratorDescriptorReport(input?: {
     }
 
     issues.push(...checkLedgerQueueDescriptors(descriptors));
+    issues.push(...checkPhysicalResourceCoordination(descriptors));
 
     const bounded = issues.slice(0, MAX_STATE_ORCHESTRATOR_DESCRIPTOR_ISSUES);
     return {

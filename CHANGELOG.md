@@ -9,6 +9,24 @@
 
 ## [Unreleased]
 
+## [1.77.0] - 2026-07-04
+
+### Fixed
+
+- **Living World P1 (Claude review)** — faction conflict dynamics use `stepEvents` only (not rolling `recentChanges`); `isConflictEvent` no longer treats `severity=critical` alone as war; faction pair binding via `factionId` + `targetFactionId`; `isFoodCrisisEvent` requires `category=resource` plus food keywords (faction warnings no longer trigger wheat rush); emergent sim now emits bindable faction friction `stepEvents` with `targetFactionId`.
+- **World Intent WI3bR** — batch parity advances running legacy state per op (refuel near-cap ×2, damage→repair, move noop chain); matches WI4 accounting sequential semantics.
+- **game_rules load clamp** — `gameRulesCore.ts` `normalizeGameRules()` shared by load/save; negative `maxNamedNpcCount` / oversized `maxMemoriesPerNpc` clamped on load.
+- **World state pair keys** — `npcRelationships` / `npcFactionRelationships` / `npcMilestones` canonicalize `b|a` → `a|b` on parse.
+- **WI7 backup timestamps** — millisecond precision + `_01`…`_99` collision suffix; exclusive backup directory create (no silent overwrite).
+- **WI5 raw vehicle diagnostics** — `diagnoseVehicleStateRaw` surfaces duplicate ids / resource over max / invalid version before `parseVehicleState` normalization.
+- **Review follow-up** — id-less conflict `stepEvents` dedupe; `npcMilestones` canonical-key collision merges kinds; `loadGameRules` error/missing paths use `normalizeGameRules`; bridge test passes food crisis via `stepEvents`.
+
+### Added
+
+- **`gameRulesCore.ts`** — pure rules normalization (no vscode/fs).
+- **SO1 physical-resource coordination** — `resourceKey` / `coordinationDomain` / `coordinationExempt` on descriptors; `checkPhysicalResourceCoordination()` flags unqueued rogue writers to shared files.
+- **Tests** — `test_npc_agency_step_events.js`, `test_game_rules_core.js`; WI3b §16–19 sequential batch; relationship §7c–7f; SO1 coordination; WI5 raw parse; migration timestamp allocation.
+
 ### Fixed
 
 - **World Intent WI5R / WI5bR (self-review)** — mod loader no longer injects every scanned manifest (only enabled profile entries); empty mod registry still runs MOD checks; mobile base vehicles warn when settlement ledger is absent; alias cycle dedupe; WI5b Output Channel appends instead of clearing WI3b history; command messages i18n (`extension.*.workspaceSanity*`).

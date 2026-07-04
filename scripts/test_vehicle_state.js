@@ -7,7 +7,7 @@ const os = require('os');
 const root = path.join(__dirname, '..');
 const vehicleCorePath = path.join(root, 'out', 'vehicleCore.js');
 const vehicleStateSrcPath = path.join(root, 'src', 'vehicleState.ts');
-const gameRulesPath = path.join(root, 'src', 'gameRules.ts');
+const gameRulesCorePath = path.join(root, 'src', 'gameRulesCore.ts');
 const gmCorePath = path.join(root, 'out', 'gmPromptBuilderCore.js');
 
 let failed = 0;
@@ -102,7 +102,7 @@ const fixtureVehicle = {
 }
 
 {
-    const src = fs.readFileSync(gameRulesPath, 'utf-8');
+    const src = fs.readFileSync(gameRulesCorePath, 'utf-8');
     if (!/enableVehicleSystem:\s*false/.test(src)) {
         fail('DEFAULT_GAME_RULES should define enableVehicleSystem: false');
     } else {

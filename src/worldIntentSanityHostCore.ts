@@ -2,7 +2,7 @@
 
 import type { ModProfile, ParsedModManifest } from './modSystemCore';
 import type { SettlementStateV1 } from './settlementCore';
-import type { VehicleState } from './vehicleCore';
+import type { VehicleParseIssue, VehicleState } from './vehicleCore';
 import {
     buildWorldSanityReport,
     type BuildWorldSanityReportOptions,
@@ -23,6 +23,7 @@ export interface WorkspaceSanitySources {
 
 export interface WorkspaceSanitySnapshot {
     vehicleState?: VehicleState;
+    vehicleRawParseIssues?: VehicleParseIssue[];
     settlementState?: SettlementStateV1;
     gameRules?: WorldSanityGameRules;
     modProfile?: ModProfile;
@@ -36,6 +37,9 @@ export interface WorkspaceSanitySnapshot {
 export function buildWorldSanityInputFromSnapshot(snapshot: WorkspaceSanitySnapshot): WorldSanityInput {
     const input: WorldSanityInput = {};
     if (snapshot.vehicleState) { input.vehicleState = snapshot.vehicleState; }
+    if (snapshot.vehicleRawParseIssues?.length) {
+        input.vehicleRawParseIssues = snapshot.vehicleRawParseIssues;
+    }
     if (snapshot.settlementState) { input.settlementState = snapshot.settlementState; }
     if (snapshot.gameRules) { input.gameRules = snapshot.gameRules; }
     if (snapshot.modProfile) { input.modProfile = snapshot.modProfile; }

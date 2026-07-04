@@ -6,7 +6,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const bridgePath = path.join(root, 'out', 'settlementDioramaBridge.js');
 const viewPath = path.join(root, 'out', 'settlementViewCore.js');
-const rulesSrcPath = path.join(root, 'src', 'gameRules.ts');
+const rulesSrcPath = path.join(root, 'src', 'gameRulesCore.ts');
 const settlementCorePath = path.join(root, 'out', 'settlementCore.js');
 
 let failed = 0;

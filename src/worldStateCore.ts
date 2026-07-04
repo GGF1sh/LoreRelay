@@ -5,6 +5,7 @@ import {
     parseRecentChanges,
     isValidEventId,
 } from './worldEventLogCore';
+import { canonicalizeAffinityPairMap, pairKey } from './npcRelationshipCore';
 
 export type { WorldChangeEvent };
 
@@ -308,33 +309,34 @@ const MAX_PARSE_FACTION_COHESION = 500;
 
 function parseNpcRelationships(raw: unknown): Record<string, number> | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
-    const out: Record<string, number> = {};
+    const scratch: Record<string, number> = {};
     let count = 0;
     for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
         if (count >= MAX_PARSE_NPC_RELATIONSHIPS) { break; }
-        // ペアキー "idA|idB"(両側非空)のみ受理
         const sep = key.indexOf('|');
         if (sep <= 0 || sep >= key.length - 1) { continue; }
         if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
-        out[key] = Math.max(-100, Math.min(100, Math.round(val)));
+        scratch[key] = val;
         count++;
     }
+    const out = canonicalizeAffinityPairMap(scratch, MAX_PARSE_NPC_RELATIONSHIPS);
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** npcFactionRelationships のパース(構造は npcRelationships と同じ、keyは factionA|factionB)。 */
 function parseNpcFactionRelationships(raw: unknown): Record<string, number> | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
-    const out: Record<string, number> = {};
+    const scratch: Record<string, number> = {};
     let count = 0;
     for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
         if (count >= MAX_PARSE_FACTION_RELATIONSHIPS) { break; }
         const sep = key.indexOf('|');
         if (sep <= 0 || sep >= key.length - 1) { continue; }
         if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
-        out[key] = Math.max(-100, Math.min(100, Math.round(val)));
+        scratch[key] = val;
         count++;
     }
+    const out = canonicalizeAffinityPairMap(scratch, MAX_PARSE_FACTION_RELATIONSHIPS);
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -373,7 +375,15 @@ function parseNpcMilestones(raw: unknown): Record<string, string[]> | undefined 
         const kinds = val
             .filter((k): k is string => typeof k === 'string' && VALID_MILESTONE_KINDS.has(k))
             .slice(0, MAX_PARSE_MILESTONES_PER_PAIR);
-        if (kinds.length > 0) { out[key] = kinds; count++; }
+        if (kinds.length === 0) { continue; }
+        const a = key.slice(0, sep);
+        const b = key.slice(sep + 1);
+        const canonKey = pairKey(a, b);
+        const prev = out[canonKey];
+        out[canonKey] = prev
+            ? [...new Set([...prev, ...kinds])].slice(0, MAX_PARSE_MILESTONES_PER_PAIR)
+            : kinds;
+        count++;
     }
     return Object.keys(out).length > 0 ? out : undefined;
 }

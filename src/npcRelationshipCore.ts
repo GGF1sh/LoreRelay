@@ -68,10 +68,13 @@ export interface RelationshipPositionLike {
 export type RelationshipPositionsLike = Record<string, RelationshipPositionLike>;
 
 export interface RelationshipEventLike {
+    id?: string;
     worldTurn: number;
     category?: string;
     severity?: string;
     message: string;
+    factionId?: string;
+    targetFactionId?: string;
 }
 
 /** reactNpcsToWorld が返す move(このtickで誰がなぜ動いたか)。共通危機の判定に使う。 */
@@ -114,10 +117,28 @@ export function pairKey(a: string, b: string): string {
     return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-function splitPairKey(key: string): [string, string] | undefined {
+export function splitPairKey(key: string): [string, string] | undefined {
     const idx = key.indexOf('|');
     if (idx <= 0 || idx >= key.length - 1) { return undefined; }
     return [key.slice(0, idx), key.slice(idx + 1)];
+}
+
+/** 手編集の b|a / a|b split-brain を正規化。衝突時は後勝ち。 */
+export function canonicalizeAffinityPairMap(
+    raw: Record<string, number>,
+    maxEntries = 20_000
+): Record<string, number> {
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, val] of Object.entries(raw)) {
+        if (count >= maxEntries) { break; }
+        const pair = splitPairKey(key);
+        if (!pair) { continue; }
+        if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
+        out[pairKey(pair[0], pair[1])] = clampAffinity(val);
+        count++;
+    }
+    return out;
 }
 
 export function getAffinity(map: NpcRelationshipMap, a: string, b: string): number {
@@ -206,10 +227,10 @@ function effectiveLocation(
     return registry[id]?.locationId;
 }
 
-function isConflictEvent(ev: RelationshipEventLike): boolean {
+/** 紛争イベント判定。severity=critical 単独は紛争扱いしない(地域危険度等の誤爆防止)。 */
+export function isConflictEvent(ev: RelationshipEventLike): boolean {
     const msg = (ev.message ?? '').toLowerCase();
     return ev.category === 'conflict'
-        || ev.severity === 'critical'
         || msg.includes('war')
         || msg.includes('conflict')
         || msg.includes('raid')
@@ -219,12 +240,32 @@ function isConflictEvent(ev: RelationshipEventLike): boolean {
         || msg.includes('紛争');
 }
 
+function extractConflictFactionPair(
+    ev: RelationshipEventLike
+): { factionA: string; factionB: string } | undefined {
+    const actor = ev.factionId;
+    const target = ev.targetFactionId;
+    if (actor && target && actor !== target) {
+        return { factionA: actor, factionB: target };
+    }
+    return undefined;
+}
+
+/** Id-based or composite-key dedupe for conflict stepEvents within one tick. */
+function conflictEventDedupeKey(ev: RelationshipEventLike): string {
+    if (ev.id) { return `id:${ev.id}`; }
+    return `anon:${ev.worldTurn}|${ev.category ?? ''}|${ev.factionId ?? ''}|${ev.targetFactionId ?? ''}|${ev.message}`;
+}
+
 export interface RelationshipEvolveInput {
     registry: RelationshipRegistryLike;
     positions: RelationshipPositionsLike;
     relationships: NpcRelationshipMap;
     worldTurn: number;
+    /** UI/伝聞用のローリング窓。派閥動態の mutation には使わない。 */
     recentChanges?: RelationshipEventLike[];
+    /** この sim tick で新規発生したイベントのみ。派閥動態の mutation 入力。 */
+    stepEvents?: RelationshipEventLike[];
     /** このtickの reactNpcsToWorld の moves(共通危機の結束判定に使う)。 */
     agencyMoves?: RelationshipMoveLike[];
     /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は MAX_NAMED_NPC_RELATIONSHIP(10)。 */
@@ -315,15 +356,25 @@ export function evolveRelationships(input: RelationshipEvolveInput): Relationshi
     // 「所属派閥の空気が悪くなる/結束する」だけ。個人の絆は同席や共通の危機で
     // 実際に関わった時にだけ育つ(規則1・2)。これで maxNamedNpcCount を
     // どれだけ引き上げても、この規則の計算量は派閥数だけに依存する。
-    const conflict = (input.recentChanges ?? []).some(isConflictEvent);
     const factionRelationships = cloneMap(input.factionRelationships ?? {});
     const factionCohesion: NpcFactionCohesionMap = { ...(input.factionCohesion ?? {}) };
     const factionChanges: NpcFactionRelationshipChange[] = [];
-    if (conflict) {
-        const factionIds = [...new Set(
-            ids.map((id) => input.registry[id]?.factionId).filter((f): f is string => !!f)
-        )];
-        for (const f of factionIds) {
+    const seenConflictEvents = new Set<string>();
+    const kinshipApplied = new Set<string>();
+    const conflictPairsApplied = new Set<string>();
+
+    for (const ev of input.stepEvents ?? []) {
+        const dedupeKey = conflictEventDedupeKey(ev);
+        if (seenConflictEvents.has(dedupeKey)) { continue; }
+        seenConflictEvents.add(dedupeKey);
+        if (!isConflictEvent(ev)) { continue; }
+
+        const pair = extractConflictFactionPair(ev);
+        if (!pair) { continue; }
+
+        for (const f of [pair.factionA, pair.factionB]) {
+            if (kinshipApplied.has(f)) { continue; }
+            kinshipApplied.add(f);
             const before = getFactionCohesion(factionCohesion, f);
             const after = clampAffinity(before + FACTION_KINSHIP_STEP);
             if (after !== before) {
@@ -334,21 +385,19 @@ export function evolveRelationships(input: RelationshipEvolveInput): Relationshi
                 });
             }
         }
-        for (let i = 0; i < factionIds.length; i++) {
-            for (let j = i + 1; j < factionIds.length; j++) {
-                const fa = factionIds[i]!;
-                const fb = factionIds[j]!;
-                const key = factionPairKey(fa, fb);
-                const before = getFactionRelation(factionRelationships, fa, fb);
-                const after = clampAffinity(before + FACTION_CONFLICT_STEP);
-                if (after !== before) {
-                    factionRelationships[key] = after;
-                    factionChanges.push({
-                        factionA: fa, factionB: fb, delta: after - before, value: after,
-                        reason: 'faction_conflict', worldTurn,
-                    });
-                }
-            }
+
+        const conflictKey = factionPairKey(pair.factionA, pair.factionB);
+        if (conflictPairsApplied.has(conflictKey)) { continue; }
+        conflictPairsApplied.add(conflictKey);
+        const before = getFactionRelation(factionRelationships, pair.factionA, pair.factionB);
+        const after = clampAffinity(before + FACTION_CONFLICT_STEP);
+        if (after !== before) {
+            factionRelationships[conflictKey] = after;
+            factionChanges.push({
+                factionA: pair.factionA, factionB: pair.factionB,
+                delta: after - before, value: after,
+                reason: 'faction_conflict', worldTurn,
+            });
         }
     }
 

@@ -11,10 +11,25 @@
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
 | Tests | `npm test` **156/156** |
-| Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) |
+| Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
 | Next (推奨) | M4 実機 smoke（任意）· README/screenshot plan（Gemini #16） |
-| Git | `main` synced through `a939594` |
+| Git | `main` synced through `05eee16` |
+
+---
+
+## 2026-07-04 JST - Claude (Sonnet 5) - Settlement Mode M3b/M4c isometric Webview UX polish
+
+- 必読: `docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md`(承認済み境界を破らないこと)、`webview/modules/86b-settlement-isometric.js`、`85-world.js`、`98-settlement-isometric.css`。純コア(`settlementViewCore.ts`)は無変更 — Webview/CSS/i18nのみの見た目調整タスク。
+- レイヤーセレクタ: `view.layers`に存在しない(=真に未構築の)レイヤーボタンにドット表示+タイトルツールチップ(`settlementLayerUnbuilt`)を追加。存在するが空(tiles/markers共に0)のレイヤーには新規`#world-settlement-layer-note`で「このレイヤーにはまだタイルやマーカーがありません」を表示(拡張パネルが出ている場合は重複回避で非表示)。
+- 拡張パネル: レイヤー見出し「Preview options for {layer}」を追加(`settlementExpandForLayer`)、複数プロファイル候補がある場合に現在プレビュー中のボタンへ`is-active`ハイライトを付与。
+- ゴーストプレビュー: 破線アウトラインが`rgba(0,0,0,0.35)`という黒に近い色で、暗いタイル上でほぼ見えなかった可読性バグを修正。`drawIsoDiamond`に`strokeOverride`引数を追加し、ゴースト専用に明るい白破線(`rgba(255,255,255,0.9)`)を使用。
+- **バグ修正(既存, ズーム軸)**: `drawSettlementIsometric()`のcanvas拡大縮小が常にcanvas中央を軸にscaleしていたが、アイソメトリック原点(`computeSettlementOrigin`)はcanvas中央からずれた位置にコンテンツを配置する設計だったため、zoom=1以外(既存の「Fit」ボタン含む)で描画がコーナー外へドリフトする既存バグを発見・修正。軸をコンテンツの実際の幾何中心に変更(zoom=1の初期表示は無変更、ズーム時のみ修正)。レイヤー切替時の自動フィット(下記)を実装する過程で顕在化。
+- レイヤー切替時、設定(`localStorage`)を上書きしない一時的な自動フィットを追加(`applySettlementFitTransform`を共有化)。サイズの異なるレイヤーへ切り替えた際に古いpan/zoomのまま表示がほぼ画面外になる体験を解消(上記ズーム軸バグ修正とセットで機能)。
+- 詳細パネル本文・マーカー一覧に`max-height`+スクロールを追加(長いサニタイズ済みテキストでカードが際限なく伸びるのを防止)。
+- i18n: `settlementExpandForLayer`/`settlementLayerUnbuilt`/`settlementLayerEmpty`をen/ja/zh-CN/zh-TW全4言語に追加。
+- 検証: `npm run compile` / `npm test` **156/156** / `test_webview_world_modules.js` / `test_settlement_view_core.js`(無変更、回帰なし確認)/ `check_i18n_keys.js`(0 missing全言語)/ `validate_utf8_docs.js` OK。手動確認はスクラッチパッドの静的ハーネス(`_settlementWorldMsg`を直接モック注入)で present/missing/empty の3レイヤー状態・ゴーストhover切替・Fit/ズーム軸修正を確認。
+- Webviewはfs/settlementOps適用/`settlement_layout.json`書き込みに一切触れず(M4cゲート境界を維持)、クリックは既存の`insertChatText`のみ。
 
 ---
 

@@ -34,10 +34,42 @@
     background: rgba(74, 144, 226, 0.18);
 }
 
+.world-settlement-layer-btn.is-active {
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(74, 144, 226, 0.45);
+}
+
+.world-settlement-layer-btn.is-missing {
+    border-style: dashed;
+    opacity: 0.68;
+}
+
+.world-settlement-layer-btn.is-missing::after {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    margin-left: 0.3rem;
+    border-radius: 50%;
+    background: rgba(232, 176, 80, 0.85);
+    vertical-align: middle;
+}
+
 .world-settlement-layer-btn:focus-visible,
 .world-settlement-zoom-btn:focus-visible {
     outline: 2px solid var(--vscode-focusBorder, #4a90e2);
     outline-offset: 1px;
+}
+
+.world-settlement-layer-note {
+    margin: 0 0 0.4rem;
+    font-size: 0.8em;
+    font-style: italic;
+    opacity: 0.65;
+}
+
+.world-settlement-layer-note.hidden {
+    display: none !important;
 }
 
 #world-settlement-stage {
@@ -100,6 +132,10 @@
 .world-settlement-detail-body {
     margin: 0;
     opacity: 0.82;
+    max-height: 4.6em;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    word-break: break-word;
 }
 
 .world-settlement-marker-fallback {
@@ -121,6 +157,9 @@
 .world-settlement-marker-fallback ul {
     margin: 0;
     padding-left: 1.1rem;
+    max-height: 8.5em;
+    overflow-y: auto;
+    scrollbar-width: thin;
 }
 
 .world-settlement-marker-item {
@@ -155,6 +194,13 @@
     display: none !important;
 }
 
+.world-settlement-expand-layer-label {
+    margin: 0 0 0.15rem;
+    font-weight: 600;
+    font-size: 0.88em;
+    opacity: 0.92;
+}
+
 .world-settlement-expand-hint {
     margin: 0 0 0.4rem;
     opacity: 0.78;
@@ -177,9 +223,15 @@
 }
 
 .world-settlement-expand-btn:hover,
-.world-settlement-expand-btn:focus-visible {
+.world-settlement-expand-btn:focus-visible,
+.world-settlement-expand-btn.is-active {
     border-color: var(--vscode-focusBorder, #4a90e2);
     background: rgba(74, 144, 226, 0.28);
+}
+
+.world-settlement-expand-btn.is-active {
+    box-shadow: inset 0 0 0 1px rgba(74, 144, 226, 0.55);
+    font-weight: 600;
 }
 
 .world-settlement-expand-btn:focus-visible {

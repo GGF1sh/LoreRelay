@@ -12,6 +12,7 @@ let _settlementDidDrag = false;
 let _settlementHits = [];
 let _settlementSelected = null;
 let _lastSettlementId = null;
+let _lastSettlementLayerId = null;
 let _settlementControlsReady = false;
 let _settlementExpandHoverPreview = null;
 let _lastSettlementExpandLayerId = null;
@@ -152,9 +153,26 @@ function buildSettlementExpandRequestText(layerId, profile) {
     return `[Settlement expansion request]\nPlease consider emitting turn_result.settlementOps.expand_layer for this settlement.\nlayerId: ${layerId}\nprofile: ${profile}\nreason: ${reason}\nDo not add layers beyond z1/z0/z-1/z-2.`;
 }
 
+// Cosmetic fallback only (mirrors settlementViewCore.ts LAYER_LABELS) for the
+// rare case a layer is missing from view.layers entirely (never built yet),
+// so the expand-panel heading reads as a name instead of a raw layer id.
+const SETTLEMENT_LAYER_NAME_FALLBACK = {
+    z1: 'Upper deck',
+    z0: 'Ground',
+    'z-1': 'Cellar',
+    'z-2': 'Deep ruins',
+};
+
+function settlementLayerDisplayLabel(view, layerId) {
+    const layers = Array.isArray(view?.layers) ? view.layers : [];
+    const found = layers.find((l) => l.id === layerId);
+    return found?.label || SETTLEMENT_LAYER_NAME_FALLBACK[layerId] || layerId;
+}
+
 function renderSettlementExpandPanel(view, msg) {
     const panel = document.getElementById('world-settlement-expand-panel');
     const buttonsEl = document.getElementById('world-settlement-expand-buttons');
+    const layerLabelEl = document.getElementById('world-settlement-expand-layer-label');
     if (!panel || !buttonsEl) { return; }
 
     const enabled = Boolean(msg && msg.enableSettlementMode === true);
@@ -165,6 +183,7 @@ function renderSettlementExpandPanel(view, msg) {
     if (!enabled || !view || !forLayer.length) {
         panel.classList.add('hidden');
         buttonsEl.innerHTML = '';
+        if (layerLabelEl) { layerLabelEl.textContent = ''; }
         _settlementExpandHoverPreview = null;
         return;
     }
@@ -176,9 +195,19 @@ function renderSettlementExpandPanel(view, msg) {
         _settlementExpandHoverPreview = forLayer[0];
     }
 
-    buttonsEl.innerHTML = forLayer.map((preview) => (
-        `<button type="button" class="world-settlement-expand-btn" data-expand-layer="${escapeSettlementHtml(preview.layerId)}" data-expand-profile="${escapeSettlementHtml(preview.profile)}">${escapeSettlementHtml(settlementExpandProfileLabel(preview.profile))}</button>`
-    )).join('');
+    if (layerLabelEl) {
+        const layerLabel = settlementLayerDisplayLabel(view, layerId);
+        layerLabelEl.textContent = typeof T === 'function'
+            ? T('webview.world.settlementExpandForLayer', { layer: layerLabel })
+            : `Preview options for ${layerLabel}`;
+    }
+
+    const activeProfile = _settlementExpandHoverPreview ? _settlementExpandHoverPreview.profile : null;
+    buttonsEl.innerHTML = forLayer.map((preview) => {
+        const isActive = preview.profile === activeProfile;
+        const cls = isActive ? 'world-settlement-expand-btn is-active' : 'world-settlement-expand-btn';
+        return `<button type="button" class="${cls}" aria-pressed="${isActive ? 'true' : 'false'}" data-expand-layer="${escapeSettlementHtml(preview.layerId)}" data-expand-profile="${escapeSettlementHtml(preview.profile)}">${escapeSettlementHtml(settlementExpandProfileLabel(preview.profile))}</button>`;
+    }).join('');
     panel.classList.remove('hidden');
 
     buttonsEl.querySelectorAll('.world-settlement-expand-btn').forEach((btn) => {
@@ -207,13 +236,13 @@ function drawSettlementGhostPreview(ctx, view, originX, originY) {
     if (!preview || !view || preview.layerId !== view.layerId) { return; }
 
     ctx.save();
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.45;
     ctx.setLineDash([4, 3]);
     const tiles = Array.isArray(preview.tiles) ? preview.tiles : [];
     for (const tile of tiles) {
         const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
         const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
-        drawIsoDiamond(ctx, sx, sy, colors, colors.glyph);
+        drawIsoDiamond(ctx, sx, sy, colors, colors.glyph, SETTLEMENT_GHOST_STROKE);
     }
     ctx.setLineDash([]);
     const markers = Array.isArray(preview.markers) ? preview.markers : [];
@@ -231,7 +260,7 @@ function isoProject(x, y, z, originX, originY) {
     };
 }
 
-function drawIsoDiamond(ctx, sx, sy, colors, glyph) {
+function drawIsoDiamond(ctx, sx, sy, colors, glyph, strokeOverride) {
     const hw = SETTLEMENT_TILE_W / 2;
     const hh = SETTLEMENT_TILE_H / 2;
     ctx.beginPath();
@@ -242,8 +271,8 @@ function drawIsoDiamond(ctx, sx, sy, colors, glyph) {
     ctx.closePath();
     ctx.fillStyle = colors.top;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = strokeOverride ? strokeOverride.color : 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = strokeOverride ? strokeOverride.width : 1;
     ctx.stroke();
     if (glyph && glyph !== ' ') {
         ctx.font = '600 10px "Courier New", monospace';
@@ -253,6 +282,9 @@ function drawIsoDiamond(ctx, sx, sy, colors, glyph) {
         ctx.fillText(glyph, sx, sy + 1);
     }
 }
+
+/** Bright, high-contrast dashed outline so the ghost preview reads clearly against any tile color. */
+const SETTLEMENT_GHOST_STROKE = { color: 'rgba(255,255,255,0.9)', width: 1.5 };
 
 function drawIsoMarker(ctx, sx, sy, kind) {
     const color = SETTLEMENT_MARKER_COLORS[kind] || '#b8c4d0';
@@ -281,10 +313,9 @@ function computeSettlementOrigin(canvas, view) {
     return { originX, originY, boundsW, boundsH, cssWidth, cssHeight };
 }
 
-function fitSettlementViewToCanvas() {
-    const view = getSettlementSnapshot();
-    const canvas = document.getElementById('world-settlement-canvas');
-    if (!view || !canvas || !canvas.clientWidth) { return; }
+/** Shared fit-to-bounds math for the manual "Fit" button and the automatic per-layer recenter. */
+function applySettlementFitTransform(view, canvas) {
+    if (!view || !canvas || !canvas.clientWidth) { return false; }
     const boundsW = (view.width + view.height) * (SETTLEMENT_TILE_W / 2);
     const boundsH = (view.width + view.height) * (SETTLEMENT_TILE_H / 2) + SETTLEMENT_LAYER_HEIGHT * 2;
     const pad = 24;
@@ -292,6 +323,13 @@ function fitSettlementViewToCanvas() {
     const scaleY = (canvas.clientHeight - pad) / Math.max(1, boundsH);
     _settlementZoom = Math.max(SETTLEMENT_ZOOM_MIN, Math.min(SETTLEMENT_ZOOM_MAX, Math.min(scaleX, scaleY)));
     _settlementPan = { x: 0, y: 0 };
+    return true;
+}
+
+function fitSettlementViewToCanvas() {
+    const view = getSettlementSnapshot();
+    const canvas = document.getElementById('world-settlement-canvas');
+    if (!applySettlementFitTransform(view, canvas)) { return; }
     const settlementId = view.settlementId;
     if (settlementId) { saveSettlementViewPrefs(settlementId); }
 }
@@ -333,6 +371,22 @@ function renderSettlementDetailPanel(hit) {
     const detail = hit.detail ? `<p class="world-settlement-detail-body">${escapeSettlementHtml(hit.detail)}</p>` : '';
     panel.innerHTML = `<h4>${escapeSettlementHtml(title)}</h4>${detail}`;
     panel.classList.remove('hidden');
+}
+
+function updateSettlementLayerNote(view) {
+    const note = document.getElementById('world-settlement-layer-note');
+    if (!note) { return; }
+    const expandPanel = document.getElementById('world-settlement-expand-panel');
+    const expandShown = Boolean(expandPanel && !expandPanel.classList.contains('hidden'));
+    const tiles = Array.isArray(view?.tiles) ? view.tiles : [];
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    const isEmpty = !expandShown && tiles.length === 0 && markers.length === 0;
+    note.classList.toggle('hidden', !isEmpty);
+    if (isEmpty) {
+        note.textContent = typeof T === 'function'
+            ? T('webview.world.settlementLayerEmpty')
+            : 'This layer has no tiles or markers yet.';
+    }
 }
 
 function escapeSettlementHtml(text) {
@@ -389,10 +443,19 @@ function hitTestSettlement(clientX, clientY, canvas) {
 
 function syncSettlementLayerButtons(view) {
     const layerId = view?.layerId || 'z0';
+    const layers = Array.isArray(view?.layers) ? view.layers : [];
+    const layerById = new Map(layers.map((l) => [l.id, l]));
+    const unbuiltTitle = typeof T === 'function'
+        ? T('webview.world.settlementLayerUnbuilt')
+        : 'Not built yet — select to preview expansion options';
     document.querySelectorAll('[data-settlement-layer]').forEach((btn) => {
         const layer = btn.getAttribute('data-settlement-layer');
         btn.classList.toggle('is-active', layer === layerId);
         btn.setAttribute('aria-pressed', layer === layerId ? 'true' : 'false');
+        const known = layerById.get(layer);
+        const missing = layers.length > 0 && !known;
+        btn.classList.toggle('is-missing', missing);
+        btn.title = missing ? unbuiltTitle : (known?.label || '');
     });
 }
 
@@ -423,21 +486,31 @@ function drawSettlementIsometric() {
             list.classList.add('hidden');
         }
         renderSettlementExpandPanel(null, msg);
+        const note = document.getElementById('world-settlement-layer-note');
+        if (note) { note.classList.add('hidden'); }
         return;
     }
 
     if (view.settlementId !== _lastSettlementId) {
         _lastSettlementId = view.settlementId;
+        _lastSettlementLayerId = view.layerId;
         resetSettlementViewTransform();
         loadSettlementViewPrefs(view.settlementId);
         _settlementSelected = null;
         _settlementExpandHoverPreview = null;
         _lastSettlementExpandLayerId = null;
+    } else if (view.layerId !== _lastSettlementLayerId) {
+        // M3b/M4c polish: switching layers keeps a settlement-wide pan/zoom pref,
+        // which can leave a differently-sized layer mostly out of frame. Recenter
+        // transiently (no localStorage write) rather than persisting a surprise view.
+        _lastSettlementLayerId = view.layerId;
+        applySettlementFitTransform(view, canvas);
     }
 
     syncSettlementLayerButtons(view);
     renderSettlementMarkerFallback(view);
     renderSettlementExpandPanel(view, msg);
+    updateSettlementLayerNote(view);
 
     const panelWidth = stage.clientWidth;
     if (!panelWidth) { return; }
@@ -457,12 +530,18 @@ function drawSettlementIsometric() {
     ctx.fillStyle = 'rgba(8, 12, 20, 0.92)';
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-    const { originX, originY } = computeSettlementOrigin(canvas, view);
+    const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
     const zoom = _settlementZoom;
+    // Zoom must pivot on the content's own geometric center (not the canvas
+    // center — the isometric origin already places tile (0,0) asymmetrically
+    // within the canvas). Otherwise any zoom != 1 (including "Fit") drifts the
+    // whole layer toward a corner instead of scaling in place.
+    const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
+    const pivotY = originY + boundsH / 2;
     ctx.save();
-    ctx.translate(cssWidth / 2, cssHeight / 2);
+    ctx.translate(pivotX, pivotY);
     ctx.scale(zoom, zoom);
-    ctx.translate(-cssWidth / 2, -cssHeight / 2);
+    ctx.translate(-pivotX, -pivotY);
 
     _settlementHits = [];
     const tiles = Array.isArray(view.tiles) ? [...view.tiles] : [];

@@ -14,7 +14,7 @@
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
 | Next (推奨) | M4 実機 smoke（任意）· README/screenshot plan（Gemini #16） |
-| Git | `main` synced through `05eee16` |
+| Git | `main` synced through `45e1c64` |
 
 ---
 

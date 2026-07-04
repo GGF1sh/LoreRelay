@@ -9,6 +9,7 @@
  *   node scripts/run_all_tests.js --validate
  *   node scripts/run_all_tests.js --unit
  *   node scripts/run_all_tests.js --smoke
+ *   node scripts/run_all_tests.js --simulation
  *   node scripts/run_all_tests.js --list
  */
 
@@ -20,7 +21,7 @@ const ROOT = path.join(__dirname, '..');
 const SCRIPTS = __dirname;
 const DEFAULT_TIMEOUT_MS = 60000;
 
-/** @typedef {'validate' | 'unit' | 'smoke'} TestCategory */
+/** @typedef {'validate' | 'unit' | 'smoke' | 'simulation'} TestCategory */
 
 /**
  * Ordered manifest — keep in sync with npm test / CI expectations.
@@ -231,6 +232,12 @@ const MANIFEST = [
     { category: 'unit', file: 'test_vscode_lm_turn_result_core.js' },
     { category: 'unit', file: 'test_world_observatory_core.js' },
     { category: 'unit', file: 'test_observer_tick_side_effect_contract.js' },
+    {
+        category: 'simulation',
+        file: 'run_simulation_tests.js',
+        timeoutMs: 180000,
+        description: 'deterministic world-engine regression batch (9 scripts)',
+    },
 ];
 
 function parseMode(argv) {
@@ -238,6 +245,7 @@ function parseMode(argv) {
     if (argv.includes('--validate')) { return 'validate'; }
     if (argv.includes('--unit')) { return 'unit'; }
     if (argv.includes('--smoke')) { return 'smoke'; }
+    if (argv.includes('--simulation')) { return 'simulation'; }
     return 'all';
 }
 
@@ -296,15 +304,16 @@ function filterManifest(mode) {
 }
 
 function printList() {
-    const counts = { validate: 0, unit: 0, smoke: 0 };
+    const counts = { validate: 0, unit: 0, smoke: 0, simulation: 0 };
     for (const e of MANIFEST) { counts[e.category]++; }
     console.log('LoreRelay test manifest\n');
-    for (const cat of ['validate', 'unit', 'smoke']) {
+    for (const cat of ['validate', 'unit', 'smoke', 'simulation']) {
         console.log(`## ${cat} (${counts[cat]})`);
         for (const e of MANIFEST.filter((x) => x.category === cat)) {
             const runner = e.runner === 'python' ? 'python' : 'node';
             const timeout = e.timeoutMs ? ` timeout=${e.timeoutMs}ms` : '';
-            console.log(`  - [${runner}] ${e.file}${timeout}`);
+            const note = e.description ? ` — ${e.description}` : '';
+            console.log(`  - [${runner}] ${e.file}${timeout}${note}`);
         }
         console.log('');
     }
@@ -319,7 +328,9 @@ function main() {
     }
 
     const suite = filterManifest(mode);
-    const label = mode === 'all' ? 'all (validate + unit + smoke)' : mode;
+    const label = mode === 'all'
+        ? 'all (validate + unit + smoke + simulation)'
+        : mode;
 
     console.log('=== LoreRelay Test Runner ===');
     console.log(`Mode: ${label}`);

@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.77.5** |
+| Package version | **1.77.6** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **203/203** |
+| Tests | `npm test` **204/204** (+ `test:simulation` batch) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -22,7 +22,13 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Idea parking | **Information & Rumor System** idea note |
 | Next (推奨) | SO3 transaction executor design · Context Engine P1 category budgeter |
-| Git | `main` synced through v1.77.5 |
+| Git | `main` synced through v1.77.6 |
+
+---
+
+## 2026-07-04 JST - Grok - v1.77.6 merge simulation regression batch (Gemini)
+
+- Merged `feature/debug-simulation-test-suite`; wired `run_simulation_tests.js` into `npm test` simulation category.
 
 ---
 

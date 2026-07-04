@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.77.6] - 2026-07-04
+
+### Added
+
+- **Simulation regression batch** (Gemini) — merge `feature/debug-simulation-test-suite`: `docs/DEBUG_SIMULATION_TEST_ARCHITECTURE.md`, `scripts/run_simulation_tests.js` (9 deterministic world-engine scripts).
+- **npm test integration** — `run_all_tests.js` `simulation` category; `npm run test:simulation` for isolated batch.
+
 ## [1.77.5] - 2026-07-04
 
 ### Added

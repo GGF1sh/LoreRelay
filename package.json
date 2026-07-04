@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
-  "version": "1.77.5",
+  "version": "1.77.6",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -746,6 +746,7 @@
     "test:validate": "node scripts/run_all_tests.js --validate",
     "test:unit": "node scripts/run_all_tests.js --unit",
     "test:smoke": "node scripts/run_all_tests.js --smoke",
+    "test:simulation": "node scripts/run_simulation_tests.js",
     "test:list": "node scripts/run_all_tests.js --list",
     "test:coverage": "c8 node scripts/run_all_tests.js --unit",
     "domain:balance": "node scripts/domain_balance_harness.js"

@@ -11,6 +11,8 @@
  * Usage:
  *   node scripts/run_simulation_tests.js
  *   node scripts/run_simulation_tests.js --list
+ *   npm run test:simulation
+ *   npm test   (via run_all_tests.js simulation category)
  *
  * Requires compiled output where the selected tests already require it:
  *   npm run compile

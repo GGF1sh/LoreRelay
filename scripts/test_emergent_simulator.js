@@ -395,6 +395,43 @@ function makeState(overrides = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Living World LW3 — friction stepEvents → faction dynamics (integration)
+// ---------------------------------------------------------------------------
+
+{
+    const { tickLivingWorldAfterSim } = require('../out/livingWorldBridge');
+    const { getFactionRelation } = require('../out/npcRelationshipCore');
+    const state = makeState({ npcFactionRelationships: {} });
+    const rules = {
+        enableCommerce: false,
+        enableNpcAgency: true,
+        enableNpcRegistry: true,
+        enableNpcRelationships: true,
+        maxNamedNpcCount: 10,
+    };
+    const registry = {
+        npcs: {
+            npc_a: { name: 'A', locationId: 'upper', factionId: 'undead' },
+            npc_b: { name: 'B', locationId: 'upper', factionId: 'watchers' },
+        },
+    };
+    const { stepEvents } = runSimulationStep(FORGE, state);
+    const friction = stepEvents.filter((e) => e.targetFactionId && /紛争/.test(e.message));
+    if (friction.length === 0) {
+        fail('expected bindable friction stepEvents from enemy pairs');
+    } else {
+        ok('friction stepEvents include targetFactionId');
+    }
+    const outcome = tickLivingWorldAfterSim(FORGE, state, registry, rules, undefined, stepEvents);
+    const rel = getFactionRelation(outcome.state.npcFactionRelationships ?? {}, 'undead', 'watchers');
+    if (rel >= 0) {
+        fail(`friction should sour bound faction pair (got ${rel})`);
+    } else {
+        ok('friction stepEvents shift npcFactionRelationships for bound pair');
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Result
 // ---------------------------------------------------------------------------
 

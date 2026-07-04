@@ -43,8 +43,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 ## 迴ｾ陦鯉ｼ域焔蜍墓峩譁ｰ: 2026-07-04・・
 | 鬆・岼 | 蛟､ |
 |------|-----|
-| `package.json` | **1.77.0** |
-| CHANGELOG 先頭 | **[1.77.0]** Claude review P1/P2 (Living World stepEvents, WI3bR, gameRulesCore, SO1 coordination) |
+| `package.json` | **1.77.1** |
+| CHANGELOG 先頭 | **[1.77.1]** README restore, friction integration test, parse warnings, WI5 ledger JSON errors |
 | Campaign Kit | Phase A窶敵 ﾂｷ 7 genre presets ﾂｷ sell_discovery ﾂｷ services state machine (condition/estValue) ﾂｷ **campaign resources**(campaignResourceOps) ﾂｷ factionId on campaign quests ﾂｷ `scrapbound-settlement` sample |
 | Living World | LW1 Commerce 縺ｫ 2縺､逶ｮ縺ｮ萓｡譬ｼ繝峨Λ繧､繝占ｿｽ蜉(v1.51.0): 豢ｾ髢･/region繧､繝吶Φ繝磯｣蜍・+ **繝励Ξ繧､繝､繝ｼ隧募愛騾｣蜍・*(faction-controlled markets) |
 | World Observatory | 譁ｰ隕・v1.53.0): 蟶ょｴ萓｡譬ｼ螻･豁ｴ繧ｹ繝代・繧ｯ繝ｩ繧､繝ｳ繝ｻ蟷ｴ莉｣險倥ち繧､繝繝ｩ繧､繝ｳ繝ｻ繝励Ξ繧､繝､繝ｼ繧ｿ繝ｼ繝ｳ縺ｪ縺励〒荳也阜繧帝ｲ繧√ｋ隕ｳ貂ｬ閠・ユ繧｣繝・け(watch=辟｡繧ｳ繧ｹ繝・advance=鬟滓侭豸郁ｲｻ)縲ＡenableWorldObservatory` 譌｢螳唹FF |

@@ -9,6 +9,19 @@
 
 ## [Unreleased]
 
+## [1.77.1] - 2026-07-04
+
+### Fixed
+
+- **README encoding** — restored UTF-8 text/emoji/language nav from pre-v1.69 corruption; added v1.59+ feature bullets (Settlement, Vehicle/Mobile Base, State Orchestrator, Context Engine P0).
+
+### Added
+
+- **Living World integration test** — emergent friction `stepEvents` → `npcFactionRelationships` via `tickLivingWorldAfterSim`.
+- **SO1** — `mobile_base_vehicle_turn_ops` descriptor for `mobileBaseTurnOps.ts` shared-queue writer.
+- **`parseWorldStateWithWarnings()`** — bounded-field cap overflow accounting on parse.
+- **WI5** — malformed `vehicle_state.json` / `settlement_state.json` / `game_rules.json` / `mod_profile.json` surfaced as ledger parse errors.
+
 ## [1.77.0] - 2026-07-04
 
 ### Fixed

@@ -12,6 +12,12 @@ import {
     type WorldSanityReport,
 } from './worldIntentSanityCore';
 
+export interface WorkspaceSanityLedgerLoadIssue {
+    file: string;
+    code: 'json_parse_error';
+    message: string;
+}
+
 export interface WorkspaceSanitySources {
     vehicleState?: boolean;
     settlementState?: boolean;
@@ -19,6 +25,7 @@ export interface WorkspaceSanitySources {
     modProfile?: boolean;
     modManifestCount?: number;
     vehicleBridgeMode?: boolean;
+    ledgerParseErrors?: string[];
 }
 
 export interface WorkspaceSanitySnapshot {
@@ -28,6 +35,7 @@ export interface WorkspaceSanitySnapshot {
     gameRules?: WorldSanityGameRules;
     modProfile?: ModProfile;
     mods?: Readonly<Record<string, ParsedModManifest>>;
+    ledgerLoadIssues?: WorkspaceSanityLedgerLoadIssue[];
     rawConfig?: {
         vehicleBridgeMode?: unknown;
     };
@@ -45,6 +53,7 @@ export function buildWorldSanityInputFromSnapshot(snapshot: WorkspaceSanitySnaps
     if (snapshot.modProfile) { input.modProfile = snapshot.modProfile; }
     if (snapshot.mods) { input.mods = snapshot.mods; }
     if (snapshot.rawConfig) { input.rawConfig = snapshot.rawConfig; }
+    if (snapshot.ledgerLoadIssues?.length) { input.ledgerLoadIssues = snapshot.ledgerLoadIssues; }
     return input;
 }
 
@@ -77,6 +86,9 @@ export function formatWorldSanitySourceSummary(sources: WorkspaceSanitySources |
         parts.push(`mods=${sources.modManifestCount}`);
     }
     if (sources.vehicleBridgeMode) { parts.push('bridge_mode'); }
+    if (sources.ledgerParseErrors?.length) {
+        parts.push(`parse_errors=${sources.ledgerParseErrors.join('+')}`);
+    }
     return parts.length ? `sources=${parts.join(',')}` : 'sources=none';
 }
 

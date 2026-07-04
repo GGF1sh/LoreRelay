@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.77.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.77.1-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**
@@ -44,6 +44,10 @@
 - 🛒 **Living World Economy (v1.23+、experimental):** 貿易・相場・輸送、Commerce UI（Buy/Sell）、NPC Agency、信頼連動の所在、NPC↔NPC / プレイヤー↔NPC の絆（LW3）、盟友の交易還元（v1.33+）。
 - 🏰 **Domain Mode (v1.39+、experimental):** 領地運営（太閤立志伝風月次方針）— `enableDomainMode` 既定 OFF · F7–F10 engine + World タブ UI（v1.40.0）· compact GM プロンプト。
 - ⚔️ **Guild Master (v1.41–1.44、experimental):** 冒険者ギルド / 依頼掲示板 — `enableGuildMode` 既定 OFF · G1 週次コミット · G2 依頼裁定 · G3 パーティ派遣 · G4 留守ドリフト + Since-last-visit。
+- 🏘️ **Settlement Mode (v1.69–1.73):** 集落シミュレーション — 等角 Webview レイアウト、レイヤー展開、Three.js ビジュアル（任意）。
+- 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` フリート管理、ガレージ UI、移動拠点（MB1–MB5）と World Intent 連携。
+- 🧭 **State Orchestrator (SO1–SO2):** 台帳記述子インベントリと GM ターン transaction planning gate（読み取り専用レポート）。
+- 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector にチャンク lifecycle トレース（included / truncated / evicted 等）。
 
 ### 🎭 Parlor モード（SillyTavern 風 1対1 RP）
 

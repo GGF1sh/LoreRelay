@@ -132,12 +132,25 @@ const { TURN_LEDGER_PERSIST_ORDER } = require(turnLedgerPath);
 
 {
     const vehicleWriters = LEDGER_DESCRIPTORS.filter((d) => d.resourceKey === 'vehicle_state.json');
-    if (vehicleWriters.length < 3) {
-        fail('vehicle_state.json should have canonical + migration writers');
+    if (vehicleWriters.length < 4) {
+        fail('vehicle_state.json should have vehicle + mobile_base + migration writers');
     } else if (!vehicleWriters.every((d) => d.coordinationDomain === 'vehicle_state')) {
         fail('vehicle_state writers should share coordinationDomain');
     } else {
         ok('vehicle_state physical resource is tagged on all writers');
+    }
+}
+
+{
+    const mobileBase = LEDGER_DESCRIPTORS.find((d) => d.id === 'mobile_base_vehicle_turn_ops');
+    if (!mobileBase) {
+        fail('mobile_base_vehicle_turn_ops descriptor missing');
+    } else if (mobileBase.canonicalModule !== 'mobileBaseTurnOps.ts') {
+        fail('mobile_base descriptor should point at mobileBaseTurnOps.ts');
+    } else if (mobileBase.serializedQueue !== KNOWN_LEDGER_QUEUE_NAMES.vehicle_state) {
+        fail('mobile_base descriptor should share vehicle_state queue');
+    } else {
+        ok('mobile_base_vehicle_turn_ops descriptor documents shared queue writer');
     }
 }
 

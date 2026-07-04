@@ -443,6 +443,62 @@ function parsePlayerNpcMilestones(raw: unknown): Record<string, string[]> | unde
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+export interface WorldStateParseWarning {
+    code: 'parse_cap_exceeded';
+    field: string;
+    dropped: number;
+    cap: number;
+}
+
+export interface WorldStateParseResult {
+    state?: WorldState;
+    warnings: WorldStateParseWarning[];
+}
+
+function countRecordKeys(raw: unknown): number {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return 0; }
+    return Object.keys(raw as Record<string, unknown>).length;
+}
+
+function countArrayLen(raw: unknown): number {
+    return Array.isArray(raw) ? raw.length : 0;
+}
+
+function pushCapWarning(
+    warnings: WorldStateParseWarning[],
+    field: string,
+    total: number,
+    cap: number
+): void {
+    if (total > cap) {
+        warnings.push({
+            code: 'parse_cap_exceeded',
+            field,
+            dropped: total - cap,
+            cap,
+        });
+    }
+}
+
+/** Parse world_state with bounded-field overflow accounting (no I/O). */
+export function parseWorldStateWithWarnings(raw: unknown): WorldStateParseResult {
+    const warnings: WorldStateParseWarning[] = [];
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const doc = raw as Record<string, unknown>;
+        pushCapWarning(warnings, 'factions', countRecordKeys(doc.factions), MAX_PARSE_FACTIONS);
+        pushCapWarning(warnings, 'regions', countRecordKeys(doc.regions), MAX_PARSE_REGIONS);
+        pushCapWarning(warnings, 'globalEvents', countArrayLen(doc.globalEvents), MAX_PARSE_GLOBAL_EVENTS);
+        pushCapWarning(warnings, 'questHooks', countArrayLen(doc.questHooks), MAX_PARSE_QUEST_HOOKS);
+        pushCapWarning(warnings, 'npcRelationships', countRecordKeys(doc.npcRelationships), MAX_PARSE_NPC_RELATIONSHIPS);
+        pushCapWarning(warnings, 'npcFactionRelationships', countRecordKeys(doc.npcFactionRelationships), MAX_PARSE_FACTION_RELATIONSHIPS);
+        pushCapWarning(warnings, 'npcFactionCohesion', countRecordKeys(doc.npcFactionCohesion), MAX_PARSE_FACTION_COHESION);
+        pushCapWarning(warnings, 'npcMilestones', countRecordKeys(doc.npcMilestones), MAX_PARSE_MILESTONE_PAIRS);
+        pushCapWarning(warnings, 'playerNpcMilestones', countRecordKeys(doc.playerNpcMilestones), MAX_PARSE_PLAYER_BONDS);
+    }
+    const state = parseWorldState(raw);
+    return { state, warnings };
+}
+
 export function parseWorldState(raw: unknown): WorldState | undefined {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const doc = raw as Record<string, unknown>;

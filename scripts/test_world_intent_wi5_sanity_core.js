@@ -515,6 +515,36 @@ function vehicleWithMobileBase(settlementId = 'ashcrawler_home') {
     }
 }
 
+{
+    const { buildWorldSanityReport, checkLedgerLoadSanity } = require(sanityPath);
+    const issues = checkLedgerLoadSanity({
+        ledgerLoadIssues: [{
+            file: 'vehicle_state.json',
+            code: 'json_parse_error',
+            message: 'vehicle_state.json is not valid JSON.',
+        }],
+    });
+    if (!issues.some((i) => i.code === 'json_parse_error' && i.domain === 'vehicle')) {
+        fail('ledger load parse errors should surface as vehicle domain issues');
+    } else {
+        ok('checkLedgerLoadSanity reports malformed ledger JSON');
+    }
+    const report = buildWorldSanityReport({
+        ledgerLoadIssues: [{
+            file: 'settlement_state.json',
+            code: 'json_parse_error',
+            message: 'settlement_state.json is not valid JSON.',
+        }],
+    });
+    if (report.ok) {
+        fail('report should not be ok when ledger JSON is malformed');
+    } else if (!report.issues.some((i) => i.code === 'json_parse_error')) {
+        fail('report should include json_parse_error issue');
+    } else {
+        ok('buildWorldSanityReport fails on ledger parse errors');
+    }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);
     process.exit(1);

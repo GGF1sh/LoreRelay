@@ -245,6 +245,20 @@ function mod(id, records, extra = {}) {
     }
 }
 
+{
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wi5b-parse-'));
+    fs.writeFileSync(path.join(dir, 'vehicle_state.json'), '{ not json', 'utf-8');
+    const snapshot = readWorkspaceSanitySnapshot(dir);
+    if (!snapshot.ledgerLoadIssues?.some((i) => i.file === 'vehicle_state.json')) {
+        fail('malformed vehicle_state.json should record ledgerLoadIssues');
+    } else if (!snapshot.sources?.ledgerParseErrors?.includes('vehicle_state.json')) {
+        fail('sources should list ledger parse error files');
+    } else {
+        ok('loader surfaces malformed vehicle_state.json parse error');
+    }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);
     process.exit(1);

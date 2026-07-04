@@ -66,6 +66,12 @@ export interface WorldSanityGameRules {
     enableMobileBaseSystem?: boolean;
 }
 
+export interface WorldSanityLedgerLoadIssue {
+    file: string;
+    code: 'json_parse_error';
+    message: string;
+}
+
 export interface WorldSanityInput {
     vehicleState?: VehicleState;
     /** Raw structural issues detected before parseVehicleState normalization. */
@@ -74,6 +80,7 @@ export interface WorldSanityInput {
     gameRules?: WorldSanityGameRules;
     modProfile?: ModProfile;
     mods?: Readonly<Record<string, ParsedModManifest>>;
+    ledgerLoadIssues?: WorldSanityLedgerLoadIssue[];
     rawConfig?: {
         vehicleBridgeMode?: unknown;
     };
@@ -598,6 +605,27 @@ export function checkGameRuleSanity(input: WorldSanityInput): WorldSanityIssue[]
     return issues;
 }
 
+function ledgerLoadDomain(file: string): WorldSanityDomain {
+    if (file === 'vehicle_state.json') { return 'vehicle'; }
+    if (file === 'settlement_state.json') { return 'mobile_base'; }
+    if (file === 'mod_profile.json' || file.endsWith('/mod_profile.json')) { return 'mod'; }
+    if (file === 'game_rules.json') { return 'game_rules'; }
+    return 'world_intent';
+}
+
+export function checkLedgerLoadSanity(input: WorldSanityInput): WorldSanityIssue[] {
+    if (!input.ledgerLoadIssues?.length) { return []; }
+    return input.ledgerLoadIssues.map((issue) => makeIssue(
+        'error',
+        ledgerLoadDomain(issue.file),
+        issue.code,
+        issue.message,
+        { kind: 'ledger_file', id: issue.file },
+        undefined,
+        'Fix JSON syntax or restore from backup before running migration or turn ops.'
+    ));
+}
+
 export function checkWorldIntentSanity(input: WorldSanityInput): WorldSanityIssue[] {
     const raw = input.rawConfig?.vehicleBridgeMode;
     if (raw === undefined) { return []; }
@@ -625,6 +653,7 @@ export function buildWorldSanityReport(
 ): WorldSanityReport {
     const maxIssues = options?.maxIssues ?? MAX_WORLD_SANITY_ISSUES;
     const collected = [
+        ...checkLedgerLoadSanity(input),
         ...checkGameRuleSanity(input),
         ...checkVehicleRawParseSanity(input),
         ...checkVehicleSanity(input),

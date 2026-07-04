@@ -3,7 +3,11 @@
  * Unit tests for worldStateCore.ts (parseWorldState, buildInitialWorldState).
  * No vscode dependency — runs in plain Node.js.
  */
-const { parseWorldState, buildInitialWorldState } = require('../out/worldStateCore');
+const {
+    parseWorldState,
+    buildInitialWorldState,
+    parseWorldStateWithWarnings,
+} = require('../out/worldStateCore');
 const { parseWorldForge } = require('../out/worldForgeCore');
 
 let failed = 0;
@@ -300,6 +304,21 @@ if (!Array.isArray(initial.recentChanges) || initial.recentChanges.length !== 0)
         } else {
             ok('npcMilestones reversed pair canonicalized');
         }
+    }
+}
+
+// parseWorldStateWithWarnings — cap overflow accounting
+{
+    const manyFactions = {};
+    for (let i = 0; i < 55; i++) { manyFactions[`f${i}`] = { power: 1, morale: 1, resources: {} }; }
+    const result = parseWorldStateWithWarnings({ worldTurn: 1, factions: manyFactions, regions: {} });
+    const warn = result.warnings.find((w) => w.field === 'factions');
+    if (!result.state || Object.keys(result.state.factions).length !== 50) {
+        fail(`factions should clamp to 50 (got ${Object.keys(result.state?.factions ?? {}).length})`);
+    } else if (!warn || warn.dropped !== 5) {
+        fail(`factions cap warning expected drop 5 (got ${JSON.stringify(warn)})`);
+    } else {
+        ok('parseWorldStateWithWarnings reports factions cap overflow');
     }
 }
 

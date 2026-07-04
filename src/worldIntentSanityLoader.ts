@@ -15,23 +15,45 @@ export interface ReadWorkspaceSanitySnapshotOptions {
     vehicleBridgeMode?: unknown;
 }
 
-function readJsonFile(filePath: string): unknown | undefined {
-    if (!fs.existsSync(filePath)) { return undefined; }
+interface JsonReadResult {
+    data?: unknown;
+    parseError?: string;
+    exists: boolean;
+}
+
+function readJsonFile(filePath: string): JsonReadResult {
+    if (!fs.existsSync(filePath)) { return { exists: false }; }
     try {
-        return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        return { exists: true, data: JSON.parse(fs.readFileSync(filePath, 'utf-8')) };
     } catch {
-        return undefined;
+        return { exists: true, parseError: 'invalid JSON' };
     }
+}
+
+function recordLedgerParseError(
+    snapshot: WorkspaceSanitySnapshot,
+    file: string,
+    message: string
+): void {
+    const issue = { file, code: 'json_parse_error' as const, message };
+    snapshot.ledgerLoadIssues = [...(snapshot.ledgerLoadIssues ?? []), issue];
+    const sources = snapshot.sources ?? {};
+    const errs = sources.ledgerParseErrors ?? [];
+    if (!errs.includes(file)) {
+        sources.ledgerParseErrors = [...errs, file];
+    }
+    snapshot.sources = sources;
 }
 
 function readVehicleStateFile(statePath: string): {
     parsed?: ReturnType<typeof parseVehicleState>;
     rawIssues?: ReturnType<typeof diagnoseVehicleStateRaw>;
 } | undefined {
-    const raw = readJsonFile(statePath);
-    if (!raw) { return undefined; }
-    const rawIssues = diagnoseVehicleStateRaw(raw);
-    const parsed = parseVehicleState(raw);
+    const read = readJsonFile(statePath);
+    if (!read.exists) { return undefined; }
+    if (read.parseError || read.data === undefined) { return { rawIssues: undefined }; }
+    const rawIssues = diagnoseVehicleStateRaw(read.data);
+    const parsed = parseVehicleState(read.data);
     return {
         parsed: parsed.vehicles.length ? parsed : undefined,
         rawIssues: rawIssues.length ? rawIssues : undefined,
@@ -39,13 +61,14 @@ function readVehicleStateFile(statePath: string): {
 }
 
 function readSettlementStateFile(statePath: string) {
-    const raw = readJsonFile(statePath);
-    return raw ? parseSettlementState(raw) : undefined;
+    const read = readJsonFile(statePath);
+    if (!read.exists || read.parseError || read.data === undefined) { return undefined; }
+    return parseSettlementState(read.data);
 }
 
 function readGameRuleFlags(wsPath: string): WorkspaceSanitySnapshot['gameRules'] {
-    const raw = readJsonFile(path.join(wsPath, 'game_rules.json'));
-    const rules = normalizeGameRules(raw);
+    const read = readJsonFile(path.join(wsPath, 'game_rules.json'));
+    const rules = normalizeGameRules(read.data);
     return {
         enableVehicleSystem: rules.enableVehicleSystem === true,
         enableSettlementMode: rules.enableSettlementMode === true,
@@ -78,8 +101,9 @@ function listModDirectories(...roots: Array<string | undefined>): string[] {
 
 function parseManifestAt(modDir: string): ParsedModManifest | undefined {
     const manifestPath = path.join(modDir, MOD_MANIFEST_FILENAME);
-    const raw = readJsonFile(manifestPath);
-    return raw ? parseModManifest(raw) : undefined;
+    const read = readJsonFile(manifestPath);
+    if (!read.exists || read.parseError || read.data === undefined) { return undefined; }
+    return parseModManifest(read.data);
 }
 
 function discoverModProfilePath(wsPath: string): string | undefined {
@@ -140,8 +164,9 @@ function loadWorkspaceMods(wsPath: string): {
     if (!profilePath) {
         return { modProfileLoaded: false, modManifestCount: 0 };
     }
-    const rawProfile = readJsonFile(profilePath);
-    const modProfile = parseModProfile(rawProfile);
+    const profileRead = readJsonFile(profilePath);
+    const modProfile = profileRead.data ? parseModProfile(profileRead.data) : undefined;
+    if (!modProfile) { return { modProfileLoaded: false, modManifestCount: 0 }; }
     const indexed = indexModManifests(wsPath);
     const mods: Record<string, ParsedModManifest> = {};
 
@@ -169,27 +194,53 @@ export function readWorkspaceSanitySnapshot(
     const sources: WorkspaceSanitySources = {};
     const snapshot: WorkspaceSanitySnapshot = { sources };
 
-    const vehicleBundle = readVehicleStateFile(path.join(wsPath, 'vehicle_state.json'));
-    if (vehicleBundle) {
-        if (vehicleBundle.parsed) {
-            snapshot.vehicleState = vehicleBundle.parsed;
-            sources.vehicleState = true;
-        }
-        if (vehicleBundle.rawIssues?.length) {
-            snapshot.vehicleRawParseIssues = vehicleBundle.rawIssues;
+    const vehiclePath = path.join(wsPath, 'vehicle_state.json');
+    const vehicleRead = readJsonFile(vehiclePath);
+    if (vehicleRead.exists && vehicleRead.parseError) {
+        recordLedgerParseError(snapshot, 'vehicle_state.json', 'vehicle_state.json is not valid JSON.');
+    } else {
+        const vehicleBundle = readVehicleStateFile(vehiclePath);
+        if (vehicleBundle) {
+            if (vehicleBundle.parsed) {
+                snapshot.vehicleState = vehicleBundle.parsed;
+                sources.vehicleState = true;
+            }
+            if (vehicleBundle.rawIssues?.length) {
+                snapshot.vehicleRawParseIssues = vehicleBundle.rawIssues;
+            }
         }
     }
 
-    const settlementState = readSettlementStateFile(path.join(wsPath, 'settlement_state.json'));
-    if (settlementState) {
-        snapshot.settlementState = settlementState;
-        sources.settlementState = true;
+    const settlementPath = path.join(wsPath, 'settlement_state.json');
+    const settlementRead = readJsonFile(settlementPath);
+    if (settlementRead.exists && settlementRead.parseError) {
+        recordLedgerParseError(snapshot, 'settlement_state.json', 'settlement_state.json is not valid JSON.');
+    } else {
+        const settlementState = readSettlementStateFile(settlementPath);
+        if (settlementState) {
+            snapshot.settlementState = settlementState;
+            sources.settlementState = true;
+        }
     }
 
-    snapshot.gameRules = readGameRuleFlags(wsPath);
+    const gameRulesPath = path.join(wsPath, 'game_rules.json');
+    const gameRulesRead = readJsonFile(gameRulesPath);
+    if (gameRulesRead.exists && gameRulesRead.parseError) {
+        recordLedgerParseError(snapshot, 'game_rules.json', 'game_rules.json is not valid JSON.');
+        snapshot.gameRules = normalizeGameRules(undefined);
+    } else {
+        snapshot.gameRules = readGameRuleFlags(wsPath);
+    }
     sources.gameRules = true;
 
     const modBundle = loadWorkspaceMods(wsPath);
+    const modProfilePath = discoverModProfilePath(wsPath);
+    if (modProfilePath) {
+        const modProfileRead = readJsonFile(modProfilePath);
+        if (modProfileRead.exists && modProfileRead.parseError) {
+            recordLedgerParseError(snapshot, 'mod_profile.json', 'mod_profile.json is not valid JSON.');
+        }
+    }
     if (modBundle.modProfile) {
         snapshot.modProfile = modBundle.modProfile;
         snapshot.mods = modBundle.mods;

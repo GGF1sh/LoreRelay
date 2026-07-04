@@ -6,18 +6,24 @@
 
 ---
 
-## 0. 設計を規定する実測前提(これが全ての土台)
+## 0. 設計を規定する実測前提(v0.3.1 で訂正)
 
-北極星を書くにあたり、まず「LoreRelay の実際の設計エンベロープ」を実コードで確定させた。**ここが Grok/ChatGPT のスケール不安と食い違う最重要点。**
+> **訂正(2026-07-04, ユーザー確認)**: `MAX_NAMED_NPC_RELATIONSHIP=10` は pre-1.0 の超初期に置かれた定数で、**「実際に狙う規模」を検討した上での設計決定ではない**。ユーザーの意向は「**スペックが許す限り大規模、ただしユーザーが設定可能な数字**」。以下、Actor数を10固定と仮定していた箇所を訂正する。
 
-| 実測値 | 実ファイル | 帰結 |
+| 実測値 | 実ファイル | 訂正後の扱い |
 |---|---|---|
-| 名ありNPC **≤10体**(`slice(0,10)` で強制) | npcRelationshipCore.ts:12, npcAgencyCore.ts:15 | Actor 数は小。**「1万NPC」は分布外の仮説であり設計制約にしない** |
-| NPCあたり記憶 **≤10件** | npcRegistry.ts:23 (`MAX_MEMORIES_PER_NPC`) | Knowledge/Memory の per-actor 規模も小 |
-| 独立JSONファイル台帳パターン(discoveries.json 等、game_state.json非破壊) | discoveryLedgerCore / campaignResourcesCore | 新台帳もこの様式に従う(`knowledge_ledger.json` 等) |
-| char基準の予算eviction | gmPromptBuilderCore.ts:536 | token化は本仕様で置換(§Q7) |
+| 名ありNPC **≤10体**(`slice(0,10)` で強制、5ファイル16箇所) | npcRelationshipCore.ts:12, npcAgencyCore.ts:15, npcRegistry.ts, npcBondEffectsCore.ts, npcLifeEventsCore.ts | **legacy 定数、design constraint として扱わない。**上限は将来 `enableNpcRelationships` 系フラグと並ぶ設定値(`maxNamedNpcCount`)にすべき。数値自体はこの spec の範囲外 |
+| NPCあたり記憶 **≤10件** | npcRegistry.ts:23 (`MAX_MEMORIES_PER_NPC`) | 同上、legacy。Memory の LOD 圧縮(§Q6)がある以上、件数上限より **token/salience 予算での自然な淘汰**に寄せるべき |
+| 独立JSONファイル台帳パターン(discoveries.json 等、game_state.json非破壊) | discoveryLedgerCore / campaignResourcesCore | 変更なし。Nが増えても様式は同じ |
+| char基準の予算eviction | gmPromptBuilderCore.ts:536 | 変更なし(token化は§Q7) |
 
-> **設計判断: Context Engine は "小さな actor 集合 × 大きな世界イベント" に最適化する。** ボトルネックは NPC 数ではなく、World Truth / Event Ledger 側の増大(§Q10 で windowing)。Grok の adversarial は「起こったら壊れる」の証明用に価値があるが、それに合わせて MVP を過剰設計しない。
+### Q1 は無傷で残る、無傷でないのは既存LW3関係性システム(別イニシアチブ)
+
+幸い **Q1(actor-partitioned map = `Record<actorId, KnowledgeEntry[]>`)はNに依存せず素直にスケールする**(N=10でもN=500でもO(N)の辞書)。Context Engine のスキーマ判断はこの訂正で変更不要。
+
+**変更が必要なのは Context Engine ではなく既存 LW3 の関係性システム側**: `npcRelationshipCore.ts` は全ペアを疎マップ(`"idA|idB"→affinity`)で持つため常時 O(N²) メモリではないが、(a) 登録順で機械的に `slice(0,N)` 切り捨てるため N+1 体目以降が関係性システムに一切現れない、(b) 同席処理は同一地点のNPC数に対し組み合わせ的にコストが増える。**「スペックが許す限り大規模」を目指すなら、この2点の再設計(切り捨てをやめ設定可能な上限に、同席処理を疎/イベント駆動に)が別途必要。** これは Context Engine の Pilot(P0-P3)をブロックしない独立課題として切り出す。
+
+> ボトルネックは NPC 数だけでなく、World Truth / Event Ledger 側の増大(§Q10 windowing)にもある。Grok の adversarial ケースは「起こったら壊れる」の証明用に引き続き有効。
 
 ---
 

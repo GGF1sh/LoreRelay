@@ -13,6 +13,8 @@
 
 - **Genesis Mode G1 Rules Profile Core** — `rulesProfileCore.ts`: pure deterministic onboarding resolver from `GenesisAnswers` to safe `game_rules.json` patch, with axis-based genre/playstyle/pressure/bookkeeping handling, warnings for invalid answers, ComfyUI style prompt metadata, and `test_rules_profile_core.js`.
 
+- **Genesis Guide asset pack** - bundled Gemini-generated guide/background art under `webview/assets/genesis/`, added `docs/GENESIS_MODE_ASSETS.md`, and exposed non-authoritative `assetHint` metadata from `rulesProfileCore`.
+
 ## [1.77.15] - 2026-07-04
 
 ### Changed

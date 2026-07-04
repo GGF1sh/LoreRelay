@@ -68,6 +68,13 @@ export interface RulesProfileWarning {
     received?: string;
 }
 
+export interface GenesisAssetHint {
+    guideAssetId: string;
+    guideWebviewPath: string;
+    backgroundAssetId?: string;
+    backgroundWebviewPath?: string;
+}
+
 export interface RulesProfileResult {
     profileId: string;
     normalizedAnswers: NormalizedGenesisAnswers;
@@ -75,6 +82,7 @@ export interface RulesProfileResult {
     summary: string;
     warnings: RulesProfileWarning[];
     comfyUiStylePrompt: string;
+    assetHint: GenesisAssetHint;
 }
 
 const GENRE_SET = new Set<string>(GENESIS_GENRES);
@@ -101,6 +109,43 @@ const STYLE_PROMPT_BY_GENRE: Record<GenesisGenre, string> = {
     eastern: 'eastern fantasy, misty mountains, shrine path, elegant ink-painting adventure key visual',
     horror: 'survival horror, abandoned streets, tense shadows, desperate safe room key visual',
     modern: 'modern occult, urban night, hidden ritual signs, investigative supernatural key visual',
+};
+
+const ASSET_HINT_BY_GENRE: Record<GenesisGenre, GenesisAssetHint> = {
+    fantasy: {
+        guideAssetId: 'guide_fantasy_goddess',
+        guideWebviewPath: 'assets/genesis/guide_fantasy_goddess.png',
+        backgroundAssetId: 'background_fantasy',
+        backgroundWebviewPath: 'assets/genesis/background_fantasy.png',
+    },
+    post_apocalypse: {
+        guideAssetId: 'guide_post_apocalypse_mechanic',
+        guideWebviewPath: 'assets/genesis/guide_post_apocalypse_mechanic.png',
+        backgroundAssetId: 'background_post_apocalypse',
+        backgroundWebviewPath: 'assets/genesis/background_post_apocalypse.png',
+    },
+    cyberpunk: {
+        guideAssetId: 'guide_cyberpunk_ai_avatar',
+        guideWebviewPath: 'assets/genesis/guide_cyberpunk_ai_avatar.png',
+        backgroundAssetId: 'background_cyberpunk',
+        backgroundWebviewPath: 'assets/genesis/background_cyberpunk.png',
+    },
+    sci_fi: {
+        guideAssetId: 'guide_space_alien_mercenary',
+        guideWebviewPath: 'assets/genesis/guide_space_alien_mercenary.png',
+    },
+    eastern: {
+        guideAssetId: 'guide_eastern_xianxia_fairy',
+        guideWebviewPath: 'assets/genesis/guide_eastern_xianxia_fairy.png',
+    },
+    horror: {
+        guideAssetId: 'guide_horror_hooded',
+        guideWebviewPath: 'assets/genesis/guide_horror_hooded.png',
+    },
+    modern: {
+        guideAssetId: 'guide_modern_occult_librarian',
+        guideWebviewPath: 'assets/genesis/guide_modern_occult_librarian.png',
+    },
 };
 
 function normalizeToken(value: unknown): string | undefined {
@@ -373,5 +418,6 @@ export function resolveRulesProfile(rawAnswers?: GenesisAnswers): RulesProfileRe
         summary: buildSummary(answers, rulesPatch),
         warnings,
         comfyUiStylePrompt: STYLE_PROMPT_BY_GENRE[answers.genre],
+        assetHint: ASSET_HINT_BY_GENRE[answers.genre],
     };
 }

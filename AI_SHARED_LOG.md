@@ -33,6 +33,12 @@
 - No Webview, VS Code API, filesystem, quickstartRunner, LLM guide, or ComfyUI wiring. Manual override remains a future host/UI merge concern.
 - Added `scripts/test_rules_profile_core.js` and registered it in `run_all_tests.js`. Verification: `npm run compile`; `npm test` **208/208**.
 
+## 2026-07-04 JST - Codex - Genesis Guide asset pack
+
+- Bundled Gemini-generated Genesis guide/background images under `webview/assets/genesis/` with stable names.
+- Added `docs/GENESIS_MODE_ASSETS.md` and `webview/assets/genesis/README.md`.
+- Extended `rulesProfileCore.resolveRulesProfile()` with non-authoritative `assetHint` metadata. No canonical state writes; future G2 UI should convert paths through `asWebviewUri`.
+
 ---
 
 ## 2026-07-04 JST - Grok - v1.77.11 Debug Trace Deep Emit P1b host adapter

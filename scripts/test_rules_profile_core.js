@@ -64,6 +64,8 @@ function assertDeterministic(input, label) {
     eq(result.rulesPatch.enableVehicleSystem, undefined, 'default does not enable vehicle system');
     eq(result.rulesPatch.enableSettlementMode, undefined, 'default does not enable settlement mode');
     eq(result.rulesPatch.diceDifficulty, 'Normal', 'default pressure normal');
+    eq(result.assetHint.guideWebviewPath, 'assets/genesis/guide_fantasy_goddess.png', 'default asset uses fantasy guide');
+    eq(result.assetHint.backgroundWebviewPath, 'assets/genesis/background_fantasy.png', 'default asset uses fantasy background');
     assertPatchKeysSupported(result.rulesPatch, 'default fantasy adventure');
     truthy(result.summary.includes('Fantasy / Adventure'), 'summary names default profile');
 }
@@ -85,6 +87,8 @@ function assertDeterministic(input, label) {
     eq(result.rulesPatch.enableWorldObservatory, false, 'minimal bookkeeping disables observatory pressure');
     eq(result.rulesPatch.diceDifficulty, 'Hard', 'survival pressure is hard');
     eq(result.normalizedAnswers.imageGenerationWanted, false, 'imageGenerationWanted false preserved');
+    eq(result.assetHint.guideAssetId, 'guide_post_apocalypse_mechanic', 'post-apocalypse asset uses mechanic guide');
+    eq(result.assetHint.backgroundAssetId, 'background_post_apocalypse', 'post-apocalypse asset uses wasteland background');
     assertPatchKeysSupported(result.rulesPatch, 'post-apocalypse vehicle');
 }
 
@@ -103,6 +107,8 @@ function assertDeterministic(input, label) {
     eq(result.rulesPatch.enableMobileBaseSystem, true, 'mobile base enables mobile base system');
     eq(result.rulesPatch.enableSettlementDiorama, true, 'mobile base enables diorama');
     eq(result.rulesPatch.playerRole, 'merchant', 'mobile base defaults to merchant role');
+    eq(result.assetHint.guideWebviewPath, 'assets/genesis/guide_space_alien_mercenary.png', 'sci-fi asset uses space guide');
+    eq(result.assetHint.backgroundWebviewPath, undefined, 'sci-fi has no bundled background yet');
     assertPatchKeysSupported(result.rulesPatch, 'mobile base caravan');
 }
 

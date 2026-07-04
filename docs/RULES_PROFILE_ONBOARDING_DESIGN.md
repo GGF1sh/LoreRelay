@@ -3,6 +3,7 @@
 > Status: design only.
 > Purpose: connect Start Hub / Quickstart / Game Rules into a "goddess interview" flow that chooses a sandbox rules preset before world generation.
 > Non-scope: implementation, new persistence beyond `game_rules.json`, or changing existing Quickstart behavior immediately.
+> Asset catalog: `docs/GENESIS_MODE_ASSETS.md` / `webview/assets/genesis/`.
 
 ## 1. Problem
 
@@ -18,6 +19,8 @@ The desired fantasy is:
 > A goddess-like guide appears before the campaign begins and asks what kind of world, danger, survival pressure, vehicles, settlements, and GM strictness the user wants.
 
 This is not only flavor. It is a rules-profile wizard.
+
+The guide art is optional UI chrome. `rulesProfileCore.resolveRulesProfile()` can return an `assetHint`, but that hint is not canonical state and must not be written to `game_rules.json`.
 
 ## 2. Design Goals
 

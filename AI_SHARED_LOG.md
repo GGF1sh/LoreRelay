@@ -22,6 +22,25 @@
 
 ---
 
+## 2026-07-04 JST - Codex - World Intent Core design
+
+- Added `docs/WORLD_INTENT_CORE_DESIGN.md` as a design-only common mutation-request layer for future LoreRelay systems.
+- Design extracts patterns from Screeps (intent pipeline), OpenRCT2 (query/execute split), FreeOrion (effect cause/priority/accounting), and Freeciv (requirements/sanity) while explicitly forbidding GPL code/schema copying.
+- Scope is pure-core and adapter-first: existing `statePatch`, `vehicleOps`, `mobileBaseOps`, `settlementOps`, `campaignResourceOps`, and `discoveryOps` remain intact. No runtime code or persistence behavior changed.
+
+## 2026-07-04 JST - Codex - World Intent Core ChatGPT gate
+
+- Added `docs/WORLD_INTENT_CORE_CHATGPT_GATE.md`.
+- Gate result: **Approved with constraints** for WI1. Allowed scope is `src/worldIntentCore.ts` + `scripts/test_world_intent_core.js`, pure-only, no VS Code/fs/persistence imports, no `TurnResult.ts` or `statePatch.ts` changes.
+- WI1 supported surface is only `subsystem: "vehicle"` with current V3 vehicle actions (`set_active_vehicle`, `move_vehicle`, `damage_vehicle`, `repair_vehicle`, `refuel_vehicle`). `RequirementExpr`, `EffectAccountingEntry`, ledger plans, Webview execution, Mobile Base, Settlement, Campaign, Discovery, and State Orchestrator integration are deferred.
+
+## 2026-07-04 JST - Codex - World Intent DeepResearch addendum
+
+- Extended `docs/WORLD_INTENT_CORE_DESIGN.md` with the DeepResearch synthesis: thin Action Execution Kernel over existing subsystem cores, Intent vs GameAction split, two future kernels (Action Execution Kernel + Rule Kernel), post-commit-only Event Bus, staged EffectAccounting, visibility-aware ChangeSet as defense-in-depth alongside existing FoW-safe projections, per-ledger migration chain, scheduler descriptors, and deferred materialization.
+- Updated `docs/WORLD_INTENT_CORE_CHATGPT_GATE.md` to clarify that these research-backed ideas **do not expand WI1**. WI1 remains pure `WorldIntent` skeleton + `vehicleOps` adapter only.
+
+---
+
 ## 2026-07-04 JST - Grok - Graphics Upgrade Track 1-3 ship (v1.76.0)
 
 - Claude Track3 実装のコミット代行（コンテキスト上限直前）。Track1（`84a-webview-anim.js` + タイル Atmosphere）、Track2（ジオラマ照明）、Track3（`9b-genre-chrome.css` + `#genre-fx-overlay`）を **v1.76.0** としてまとめて出荷。

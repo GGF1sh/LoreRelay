@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **World Intent Core design** - added `docs/WORLD_INTENT_CORE_DESIGN.md`, defining a future common intent/query/execute layer inspired by Screeps, OpenRCT2, FreeOrion, and Freeciv design patterns without copying GPL code. The design keeps existing `turn_result.*Ops` intact and proposes a pure-core adapter path before any State Orchestrator integration.
+
+- **World Intent Core ChatGPT gate** - added `docs/WORLD_INTENT_CORE_CHATGPT_GATE.md`, approving WI1 only as a pure skeleton plus `vehicleOps` adapter. The gate explicitly defers `TurnResult`, `statePatch`, ledger persistence, Webview execution, RequirementExpr evaluation, and State Orchestrator integration.
+
+- **World Intent Core DeepResearch addendum** - extended the design with the Action Execution Kernel / Rule Kernel split, Intent vs GameAction boundary, post-commit event bus rule, visibility-aware ChangeSet guidance, effect-accounting roadmap, per-ledger migration direction, scheduler descriptor concept, and deferred materialization notes. WI1 scope remains unchanged.
+
 ## [1.76.0] - 2026-07-04
 
 ### Added

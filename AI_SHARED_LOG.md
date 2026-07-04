@@ -10,15 +10,15 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **190/190** |
+| Tests | `npm test` **191/191** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel effect accounting (diagnostic only) |
-| Next (推奨) | WI3a preview UI (Claude) · WI4R review · WI5 sanity checker Gate |
+| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel effect accounting · **WI5** semantic sanity checker (report-only) |
+| Next (推奨) | WI3a preview UI (Claude) · WI5b host command (opt-in) |
 | Git | `main` synced through v1.76.0 |
 
 ---
@@ -42,6 +42,13 @@
 - Extended `vehicleWorldIntentBridgeCore.ts` batch report with `accountingEntries`; `compare_only` output logs fuel deltas.
 - No fuel consumption, persist, TurnResult/statePatch/replay/GM prompt changes.
 - `scripts/test_world_intent_wi4_effect_accounting.js` (design §10). `npm test` **190/190**.
+
+---
+
+## 2026-07-04 JST - Grok - World Intent WI5 Semantic Sanity Checker implementation
+
+- Added `src/worldIntentSanityCore.ts`: pure `buildWorldSanityReport` with domain helpers (`checkVehicleSanity`, `checkModSanity`, `checkGameRuleSanity`, `checkWorldIntentSanity`, `checkMobileBaseSanity`). Report-only; reuses `validateVehicleFleet`, `validateMobileBaseLink`, `resolveModProfile`, `parseVehicleWorldIntentBridgeMode`. Active vehicle lost = warning; disabled mod dependency = warning.
+- `scripts/test_world_intent_wi5_sanity_core.js` (design §12 Required Tests 1–20). `npm test` **191/191**.
 
 ---
 

@@ -15,6 +15,8 @@
 
 ### Added
 
+- **World Intent WI6 Per-Ledger Migration Helper** — `ledgerMigrationCore.ts` + `vehicleMigrationCore.ts`: pure dry-run `migrateLedgerDocument` / `migrateVehicleStateDocument` with contiguous version-step chains. Pilot: `vehicle_state` implicit v0 (`{ vehicles }` without `version`) → v1 (`version: 1`), then `parseVehicleState` validation. No disk write, no global workspace migration, no `TurnResult`/`statePatch` changes. `scripts/test_ledger_migration_core.js` (design §12). `npm test` **193/193**.
+
 - **World Intent WI6b Migration Preview Command design** - added `docs/WORLD_INTENT_WI6B_MIGRATION_PREVIEW_COMMAND_DESIGN.md`, defining an opt-in read-only host command (`LoreRelay: Preview Workspace Migrations`) that loads fixed known workspace ledgers, runs WI6 dry-run migration helpers, and prints bounded Output Channel diagnostics. The design forbids write-back, backups, apply buttons, GM-turn integration, Webview execution, Remote Play, replay export, and raw JSON diagnostics.
 
 - **World Intent WI5b Workspace Sanity Check command** — opt-in host command `LoreRelay: Run Workspace Sanity Check` (`textadventure.runWorkspaceSanityCheck`). Read-only loader for `vehicle_state.json`, `settlement_state.json`, `game_rules.json`, `.lorerelay/mod_profile.json` + mod manifests; calls `buildWorldSanityReport`; shows bounded summary in `LoreRelay World Intent` Output Channel. No auto-fix, no GM-turn hook, no ledger writes. `worldIntentSanityHostCore.ts` + `worldIntentSanityLoader.ts` + `worldIntentSanityRunner.ts`; `scripts/test_world_intent_wi5b_sanity_host.js`. `npm test` **192/192**.

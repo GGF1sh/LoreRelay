@@ -79,6 +79,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_intent_wi5_sanity_core.js' },
     { category: 'unit', file: 'test_world_intent_wi5b_sanity_host.js' },
     { category: 'unit', file: 'test_ledger_migration_core.js' },
+    { category: 'unit', file: 'test_ledger_migration_host_core.js' },
     { category: 'unit', file: 'test_vehicle_view_core.js' },
     { category: 'smoke', file: 'test_webview_vehicle_garage.js' },
     { category: 'unit', file: 'test_region_hazard_prompt_core.js' },

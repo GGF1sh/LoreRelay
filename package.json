@@ -49,7 +49,8 @@
     "onCommand:textadventure.generateWorldMapImage",
     "onCommand:textadventure.resetProtagonistBootstrap",
     "onCommand:textadventure.promoteParlorToCampaign",
-    "onCommand:textadventure.runWorkspaceSanityCheck"
+    "onCommand:textadventure.runWorkspaceSanityCheck",
+    "onCommand:textadventure.previewWorkspaceMigrations"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -149,6 +150,10 @@
       {
         "command": "textadventure.runWorkspaceSanityCheck",
         "title": "%command.runWorkspaceSanityCheck%"
+      },
+      {
+        "command": "textadventure.previewWorkspaceMigrations",
+        "title": "%command.previewWorkspaceMigrations%"
       }
     ],
     "configuration": {

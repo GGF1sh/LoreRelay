@@ -13,8 +13,8 @@ export const MAX_MOBILE_BASE_PROBLEMS = 3;
 export const MAX_MOBILE_BASE_CARRIED_NAMES = 4;
 export const MAX_MOBILE_BASE_WARNINGS = 8;
 export const MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS = 1200;
-export const MOBILE_BASE_OPS_NOT_WIRED_LINE =
-    'Persistent mobile-base docking/travel requires mobileBaseOps (parse/apply gate not yet wired).';
+export const MOBILE_BASE_OPS_PERSIST_LINE =
+    'Persist mobile-base docking/travel via turn_result.mobileBaseOps (max 8, triple flag gate ON): dock_mobile_base, undock_mobile_base, move_mobile_base, consume_mobile_base_fuel. Writes vehicle_state.json only; settlement stocks/facilities remain narration-only until a cross-ledger gate.';
 
 export const VALID_MOBILE_BASE_MODES = [
     'crawler', 'landship', 'caravan', 'mobile_community', 'ship', 'airship', 'train',
@@ -236,7 +236,7 @@ export function buildMobileBasePromptBlock(
         }
     }
     lines.push(...bodyLines);
-    lines.push(MOBILE_BASE_OPS_NOT_WIRED_LINE);
+    lines.push(MOBILE_BASE_OPS_PERSIST_LINE);
 
     let block = lines.join('\n');
     if (block.length > MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS) {

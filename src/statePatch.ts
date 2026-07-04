@@ -60,6 +60,10 @@ import {
     tryApplySettlementLayoutTurnOps,
 } from './settlementLayoutTurnOps';
 import {
+    shouldAttemptMobileBasePersist,
+    tryApplyMobileBaseTurnOps,
+} from './mobileBaseTurnOps';
+import {
     shouldAttemptVehiclePersist,
     tryApplyVehicleTurnOps,
 } from './vehicleTurnOps';
@@ -774,11 +778,19 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
                 && turnResult.campaignResourceOps.length > 0,
             settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
-            vehicleOpsPresent: shouldAttemptVehiclePersist(turnResult),
+            vehicleOpsPresent: shouldAttemptVehiclePersist(turnResult)
+                || shouldAttemptMobileBasePersist(turnResult),
             applyDiscovery: () => tryApplyDiscoveryTurnOps(turnResult),
             applyCampaignResources: () => tryApplyCampaignResourceTurnOps(turnResult),
             applySettlementLayout: () => tryApplySettlementLayoutTurnOps(turnResult),
-            applyVehicleState: () => tryApplyVehicleTurnOps(turnResult),
+            applyVehicleState: () => {
+                const vehicle = tryApplyVehicleTurnOps(turnResult);
+                const mobile = tryApplyMobileBaseTurnOps(turnResult);
+                return {
+                    ok: vehicle.ok && mobile.ok,
+                    applied: vehicle.applied || mobile.applied,
+                };
+            },
         });
         if (!ledgerOutcome.ok) {
             console.error(

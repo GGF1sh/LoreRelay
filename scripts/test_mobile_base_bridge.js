@@ -162,8 +162,8 @@ if (!settlementFixture || !vehicleStateFixture) {
         fail('buildMobileBasePromptBlock should be empty when disabled');
     } else if (!on.includes('[Mobile Base]') || !on.includes('landship')) {
         fail('buildMobileBasePromptBlock should summarize linked mobile base');
-    } else if (!on.includes('mobileBaseOps')) {
-        fail('prompt block should note mobileBaseOps not wired');
+    } else if (!on.includes('turn_result.mobileBaseOps')) {
+        fail('prompt block should document mobileBaseOps persist channel');
     } else {
         ok('buildMobileBasePromptBlock gated and summarizes mobile base');
     }

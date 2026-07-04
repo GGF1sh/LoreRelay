@@ -381,6 +381,6 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 
 - [x] MB1 `mobileBaseCore.ts` — link validation + prompt summary
 - [x] MB2 `mobileBaseBridge.ts` — `enableMobileBaseSystem` + GM prompt chunk (triple gate)
-- [ ] MB3 docking/travel apply gate
+- [x] MB3 docking/travel apply gate
 - [ ] Caravan travel announcement / joiners（別ゲート）
 - [ ] Transport contracts / autonomous route actors（Living World 連携）

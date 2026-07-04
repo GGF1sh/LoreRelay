@@ -165,6 +165,16 @@ export interface TurnResult {
         reason?: string;
         [key: string]: unknown;
     }>;
+    /** Mobile Base System: dock/travel/fuel (mobileBaseOps, max 8). MB3 writes vehicle_state.json only. */
+    mobileBaseOps?: Array<{
+        type: string;
+        vehicleId?: string;
+        locationId?: string;
+        parkingLocationId?: string;
+        amount?: number;
+        reason?: string;
+        [key: string]: unknown;
+    }>;
     /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
         kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request' | 'assign_party';

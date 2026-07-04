@@ -102,6 +102,8 @@ export interface PromptContextBreakdown {
     totalChars: number;
     totalTokensEstimate: number;
     contextInspector?: ContextInspectorReport;
+    /** Bounded human-readable lines from recent world_state parse cap overflow (diagnostic). */
+    worldStateParseWarnings?: string[];
 }
 
 /** 粗い token 概算（chars / 4） */
@@ -198,7 +200,8 @@ export function finalizeBreakdown(
     hintPreview: string,
     budget?: PromptBudgetInfo,
     budgetLimits?: PromptBudgetLimitSpec[],
-    contextInspector?: ContextInspectorReport
+    contextInspector?: ContextInspectorReport,
+    worldStateParseWarnings?: string[]
 ): PromptContextBreakdown {
     const kept = sections.filter((s): s is PromptContextSection => Boolean(s));
     const totalChars = kept.reduce((sum, s) => sum + s.charCount, 0);
@@ -215,5 +218,6 @@ export function finalizeBreakdown(
         totalChars,
         totalTokensEstimate: estimateTokens(kept.map((s) => s.text).join('\n')),
         contextInspector,
+        worldStateParseWarnings: worldStateParseWarnings?.length ? worldStateParseWarnings : undefined,
     };
 }

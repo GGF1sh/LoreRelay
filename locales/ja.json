@@ -573,6 +573,7 @@
   "webview.inspector.promptBudget": "Budget: {mode} / ~{tokens} tokens",
   "webview.inspector.promptContext": "プロンプト文脈（直近GM呼び出し）",
   "webview.inspector.promptSummary": "Memory backend: {backend} · 約{tokens} tokens · {chars} 文字注入",
+  "webview.inspector.worldStateWarnings.title": "world_state パース上限警告",
   "webview.inspector.contextInspector.summary": "チャンク予算: 目標 {target} 文字 · 元 {original} · 最終 {final} · 含む {included} · 除外 {omitted} · 切り詰め {truncated}",
   "webview.inspector.contextInspector.included": "含まれる",
   "webview.inspector.contextInspector.omitted": "除外",

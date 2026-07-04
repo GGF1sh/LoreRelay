@@ -6,7 +6,7 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.77.4** |
+| Package version | **1.77.5** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
@@ -22,7 +22,13 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Idea parking | **Information & Rumor System** idea note |
 | Next (推奨) | SO3 transaction executor design · Context Engine P1 category budgeter |
-| Git | `main` synced through v1.77.4 |
+| Git | `main` synced through v1.77.5 |
+
+---
+
+## 2026-07-04 JST - Grok - v1.77.5 Inspector world_state cap warnings
+
+- `PromptContextBreakdown.worldStateParseWarnings` + Webview Inspector block.
 
 ---
 

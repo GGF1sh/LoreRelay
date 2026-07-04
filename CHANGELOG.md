@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.77.5] - 2026-07-04
+
+### Added
+
+- **Inspector world_state cap warnings** — `PromptContextBreakdown.worldStateParseWarnings` surfaces `peekLastWorldStateParseWarnings` in the Webview Inspector when Living World is enabled (read-only diagnostic block below Context Inspector).
+
 ## [1.77.4] - 2026-07-04
 
 ### Added

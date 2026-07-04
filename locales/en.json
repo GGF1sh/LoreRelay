@@ -573,6 +573,7 @@
   "webview.inspector.promptBudget": "Budget: {mode} / ~{tokens} tokens",
   "webview.inspector.promptContext": "Prompt context (last GM call)",
   "webview.inspector.promptSummary": "Memory backend: {backend} · ~{tokens} tokens · {chars} chars injected",
+  "webview.inspector.worldStateWarnings.title": "World state parse cap warnings",
   "webview.inspector.contextInspector.summary": "Chunk budget: {target} chars target · {original} original · {final} final · {included} included · {omitted} omitted · {truncated} truncated",
   "webview.inspector.contextInspector.included": "Included",
   "webview.inspector.contextInspector.omitted": "Omitted",

@@ -573,6 +573,7 @@
   "webview.inspector.promptBudget": "Budget: {mode} / ~{tokens} tokens",
   "webview.inspector.promptContext": "提示詞上下文（最近一次 GM 呼叫）",
   "webview.inspector.promptSummary": "Memory backend: {backend} · 約 {tokens} tokens · 注入 {chars} 字元",
+  "webview.inspector.worldStateWarnings.title": "world_state 解析上限警告",
   "webview.inspector.contextInspector.summary": "區塊預算：目標 {target} 字元 · 原始 {original} · 最終 {final} · 包含 {included} · 省略 {omitted} · 截斷 {truncated}",
   "webview.inspector.contextInspector.included": "已包含",
   "webview.inspector.contextInspector.omitted": "已省略",

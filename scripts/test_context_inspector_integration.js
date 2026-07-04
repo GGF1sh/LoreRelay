@@ -30,6 +30,8 @@ const indexSource = fs.readFileSync(indexHtml, 'utf-8');
         fail('gmPromptBuilder must track inactive/empty chunk metadata');
     } else if (!gmBuilderSource.includes('contextInspector')) {
         fail('gmPromptBuilder must pass contextInspector to finalizeBreakdown');
+    } else if (!gmBuilderSource.includes('peekLastWorldStateParseWarnings')) {
+        fail('gmPromptBuilder must attach world_state parse cap warnings when enabled');
     } else {
         ok('gmPromptBuilder wires contextInspector into breakdown');
     }
@@ -51,6 +53,8 @@ const indexSource = fs.readFileSync(indexHtml, 'utf-8');
         fail('80-inspector.js must render contextInspector');
     } else if (!inspectorSource.includes('inspector-context-inspector')) {
         fail('80-inspector.js must target inspector-context-inspector container');
+    } else if (!inspectorSource.includes('renderWorldStateParseWarnings')) {
+        fail('80-inspector.js must render world_state parse cap warnings');
     } else if (inspectorSource.includes('applySuggestedPriority')) {
         fail('inspector must not expose apply-priority mutation actions');
     } else {
@@ -73,6 +77,8 @@ const indexSource = fs.readFileSync(indexHtml, 'utf-8');
 {
     if (!indexSource.includes('id="inspector-context-inspector"')) {
         fail('index.html must include inspector-context-inspector container');
+    } else if (!indexSource.includes('id="inspector-world-state-warnings"')) {
+        fail('index.html must include inspector-world-state-warnings container');
     } else {
         ok('index.html includes context inspector container');
     }
@@ -80,6 +86,7 @@ const indexSource = fs.readFileSync(indexHtml, 'utf-8');
 
 {
     const requiredKeys = [
+        'webview.inspector.worldStateWarnings.title',
         'webview.inspector.contextInspector.summary',
         'webview.inspector.contextInspector.included',
         'webview.inspector.contextInspector.omitted',

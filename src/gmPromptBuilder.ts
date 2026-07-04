@@ -48,7 +48,14 @@ import {
     resolveCommerceForge,
 } from './livingWorldBridge';
 import { TRUST_WHEREABOUTS_EXACT_MIN, TRUST_WHEREABOUTS_UNKNOWN_MAX } from './npcWhereaboutsTrustCore';
-import { loadWorldState, isWorldStateEnabled, markWorldChangeSummaryInjected, markChronicleInjected } from './worldState';
+import {
+    loadWorldState,
+    isWorldStateEnabled,
+    markWorldChangeSummaryInjected,
+    markChronicleInjected,
+    peekLastWorldStateParseWarnings,
+} from './worldState';
+import { formatWorldStateParseWarning } from './worldStateCore';
 import {
     buildHintTextFromContents,
     buildWorldChangeSummaryFromChanges,
@@ -1234,6 +1241,15 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         orderedIds: chunkMeta.orderedIds,
     });
 
+    let worldStateParseWarnings: string[] | undefined;
+    if (isWorldStateEnabled()) {
+        loadWorldState();
+        const capWarnings = peekLastWorldStateParseWarnings();
+        if (capWarnings.length > 0) {
+            worldStateParseWarnings = capWarnings.map(formatWorldStateParseWarning);
+        }
+    }
+
     return finalizeBreakdown(
         sections,
         memoryBackend,
@@ -1246,7 +1262,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
             targetTokens: policy.targetTokens
         },
         buildPromptBudgetLimitSpecs(policy),
-        contextInspector
+        contextInspector,
+        worldStateParseWarnings
     );
 }
 

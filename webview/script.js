@@ -3838,6 +3838,33 @@ function contextInspectorCategoryLabel(category) {
     return typeof T === 'function' ? T(key) : category;
 }
 
+function renderWorldStateParseWarnings(warnings) {
+    const container = document.getElementById('inspector-world-state-warnings');
+    if (!container) { return; }
+
+    container.innerHTML = '';
+    if (!Array.isArray(warnings) || warnings.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    container.classList.remove('hidden');
+
+    const heading = document.createElement('div');
+    heading.className = 'inspector-item context-inspector-group-title';
+    heading.textContent = typeof T === 'function'
+        ? T('webview.inspector.worldStateWarnings.title')
+        : 'World state parse warnings';
+    container.appendChild(heading);
+
+    for (const line of warnings) {
+        const row = document.createElement('div');
+        row.className = 'inspector-item world-state-warning';
+        row.textContent = String(line);
+        container.appendChild(row);
+    }
+}
+
 function renderContextInspector(report) {
     const container = document.getElementById('inspector-context-inspector');
     if (!container) { return; }
@@ -3963,6 +3990,7 @@ function renderPromptContext(breakdown) {
     }
 
     renderContextInspector(breakdown.contextInspector);
+    renderWorldStateParseWarnings(breakdown.worldStateParseWarnings);
 
     sectionsDiv.innerHTML = '';
     (breakdown.sections || []).forEach((section) => {

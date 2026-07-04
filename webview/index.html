@@ -186,6 +186,7 @@
         <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">Memory</span></button>
         <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">Director</span></button>
         <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">Party</span></button>
+        <button class="tab-btn hidden" data-target="pane-vehicles" id="tab-btn-vehicles"><span class="tab-icon">🚗</span><span class="tab-text" data-i18n="webview.tab.vehicles">Vehicles</span></button>
         <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">OOC</span></button>
       </div>
 
@@ -627,6 +628,20 @@
           <button id="party-save-btn" type="button" class="small-btn primary" data-i18n="webview.party.save">Save party_director.json</button>
         </div>
       </div> <!-- /pane-party -->
+
+      <!-- Vehicles (read-only garage; gated by enableVehicleSystem) -->
+      <div id="pane-vehicles" class="tab-pane">
+        <p id="vehicles-empty" class="empty-text" data-i18n="webview.vehicles.empty">No vehicles in fleet. Add vehicle_state.json and enable Vehicle System in game_rules.json.</p>
+        <div id="vehicles-content" class="hidden">
+          <p class="vehicle-garage-hint" data-i18n="webview.vehicles.hint">Fleet garage (read-only). Changes persist via turn_result.vehicleOps.</p>
+          <p id="vehicles-fleet-meta"></p>
+          <p id="vehicles-warnings" class="hidden"></p>
+          <div class="vehicle-garage-layout">
+            <div id="vehicles-list" role="list" aria-label="Vehicle fleet"></div>
+            <div id="vehicles-detail" role="region" aria-label="Vehicle detail"></div>
+          </div>
+        </div>
+      </div> <!-- /pane-vehicles -->
 
       <!-- ページ: World Map -->
       <div id="pane-world" class="tab-pane">

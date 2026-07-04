@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Vehicle System V4 read-only Webview garage panel** — `vehicleViewCore.ts` builds capped `VehicleGarageSnapshot`; `vehicleBridge.ts` + `worldView` postMessage (`enableVehicleSystem`, `vehicleGarage`). New tab `pane-vehicles` + `89-vehicles.js` / `89-vehicles.css`: fleet list, active vehicle card, cargo/crew bars, modules, fuel band, access warnings. No disk writes from Webview. `scripts/test_vehicle_view_core.js`, `test_webview_vehicle_garage.js`.
+
 - **Mobile Base System MB3 mobileBaseOps apply gate** — `mobileBaseOpsCore.ts` parses/applies `turn_result.mobileBaseOps` (max 8): `dock_mobile_base`, `undock_mobile_base`, `move_mobile_base`, `consume_mobile_base_fuel`. Triple-flag gate; writes `vehicle_state.json` only (no settlement cross-write). `mobileBaseTurnOps.ts` wired in `statePatch` alongside `vehicleOps`. `scripts/test_mobile_base_ops.js`.
 
 - **Vehicle System V3 vehicleOps apply gate** — `vehicleOpsCore.ts` parses/applies `turn_result.vehicleOps` (max 8): `set_active_vehicle`, `move_vehicle`, `damage_vehicle`, `repair_vehicle`, `refuel_vehicle`. `vehicleTurnOps.ts` persists to `vehicle_state.json` when `enableVehicleSystem` is ON (gated in `statePatch` / `turnLedgerPersistCore`). Cargo/module/carrier ops remain blocked. `scripts/test_vehicle_ops.js`.

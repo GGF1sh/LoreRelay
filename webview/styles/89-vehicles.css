@@ -1,0 +1,193 @@
+/* Vehicle System V4 — read-only garage panel */
+
+#pane-vehicles .vehicle-garage-hint {
+    opacity: 0.75;
+    font-size: 0.85em;
+    margin-bottom: 0.75rem;
+}
+
+#vehicles-fleet-meta {
+    font-size: 0.85em;
+    opacity: 0.8;
+    margin-bottom: 0.5rem;
+}
+
+#vehicles-warnings {
+    font-size: 0.82em;
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    margin-bottom: 0.5rem;
+}
+
+.vehicle-garage-layout {
+    display: grid;
+    grid-template-columns: minmax(9rem, 34%) 1fr;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+@media (max-width: 720px) {
+    .vehicle-garage-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+#vehicles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 22rem;
+    overflow-y: auto;
+}
+
+.vehicle-list-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    border: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editor-background);
+    border-radius: 4px;
+    padding: 0.45rem 0.55rem;
+    cursor: pointer;
+}
+
+.vehicle-list-item:hover {
+    border-color: var(--vscode-focusBorder);
+}
+
+.vehicle-list-item.is-selected {
+    border-color: var(--vscode-focusBorder);
+    box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.vehicle-list-item.is-active {
+    border-left: 3px solid var(--vscode-charts-green, #4ec9b0);
+}
+
+.vehicle-list-item.is-here .vehicle-list-meta::after {
+    content: ' · ●';
+    color: var(--vscode-charts-green, #4ec9b0);
+}
+
+.vehicle-list-name {
+    font-weight: 600;
+    font-size: 0.92em;
+}
+
+.vehicle-list-meta {
+    font-size: 0.78em;
+    opacity: 0.75;
+}
+
+.vehicle-detail-card {
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 0.65rem 0.75rem;
+    background: var(--vscode-sideBar-background);
+}
+
+.vehicle-detail-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.25rem;
+}
+
+.vehicle-detail-title {
+    margin: 0;
+    font-size: 1em;
+}
+
+.vehicle-detail-sub {
+    font-size: 0.82em;
+    opacity: 0.8;
+    margin-bottom: 0.5rem;
+}
+
+.vehicle-badge {
+    font-size: 0.72em;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    border: 1px solid var(--vscode-panel-border);
+}
+
+.vehicle-badge.active {
+    color: var(--vscode-charts-green, #4ec9b0);
+}
+
+.vehicle-badge.mobile-base {
+    color: var(--vscode-charts-blue, #4fc1ff);
+}
+
+.vehicle-stat-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.84em;
+    margin-bottom: 0.25rem;
+}
+
+.vehicle-bar-row {
+    display: grid;
+    grid-template-columns: 4.5rem 1fr auto;
+    gap: 0.35rem;
+    align-items: center;
+    font-size: 0.82em;
+    margin-bottom: 0.3rem;
+}
+
+.vehicle-bar-track {
+    height: 0.45rem;
+    background: var(--vscode-panel-border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.vehicle-bar-fill {
+    height: 100%;
+    background: var(--vscode-charts-blue, #4fc1ff);
+    border-radius: 2px;
+}
+
+.vehicle-fuel-low .vehicle-stat-row span:last-child {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.vehicle-fuel-empty .vehicle-stat-row span:last-child {
+    color: var(--vscode-errorForeground, #f48771);
+}
+
+.vehicle-warning {
+    font-size: 0.8em;
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    margin-bottom: 0.35rem;
+}
+
+.vehicle-modules-wrap {
+    margin-top: 0.45rem;
+}
+
+.vehicle-module-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.25rem;
+}
+
+.vehicle-module-chip {
+    font-size: 0.75em;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editor-background);
+}
+
+.vehicle-muted {
+    font-size: 0.8em;
+    opacity: 0.65;
+}
+
+#tab-btn-vehicles.hidden {
+    display: none;
+}

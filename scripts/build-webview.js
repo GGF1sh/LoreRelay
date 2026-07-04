@@ -28,6 +28,7 @@ const JS_MODULE_ORDER = [
     '86c-settlement-diorama.js',
     '87-parlor-settings.js',
     '88-world-observatory.js',
+    '89-vehicles.js',
     '90-bootstrap.js'
 ];
 
@@ -50,7 +51,8 @@ const CSS_MODULE_ORDER = [
     '88-world-observatory.css',
     '97-visual-refresh.css',
     '98-settlement-isometric.css',
-    '99-settlement-diorama.css'
+    '99-settlement-diorama.css',
+    '89-vehicles.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

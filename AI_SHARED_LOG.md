@@ -10,14 +10,23 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **167/167** |
-| Vehicle System | V1 core + V2 I/O + **V3** `vehicleOps` apply gate (active/move/damage/repair/refuel) |
+| Tests | `npm test` **169/169** |
+| Vehicle System | V1–V3 core/ops + **V4** read-only Webview garage panel |
 | Mobile Base | MB1 core + MB2 prompt + **MB3** `mobileBaseOps` apply (dock/travel/fuel) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlayFromContext` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
-| Next (推奨) | V4/MB4 read-only Webview · M5 実機 smoke |
-| Git | `main` synced through MB3 commit (`3f8b572`) |
+| Next (推奨) | MB4 mobile base panel · M5 実機 smoke |
+| Git | `main` synced through V4 commit (`c771515`) |
+
+---
+
+## 2026-07-04 JST - Grok - Vehicle System V4 read-only Webview garage
+
+- `vehicleViewCore.ts` — `buildVehicleGarageSnapshot()` capped fleet/detail for Webview.
+- `vehicleBridge.ts` + `worldView.ts` — `vehicleGarage` postMessage when `enableVehicleSystem` ON.
+- `89-vehicles.js` / `89-vehicles.css` — Vehicles tab (read-only, no disk writes).
+- Tests: `test_vehicle_view_core.js`, `test_webview_vehicle_garage.js`. `npm test` **169/169**.
 
 ---
 

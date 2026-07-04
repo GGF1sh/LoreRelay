@@ -373,7 +373,7 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] V1 `vehicleCore.ts` — parse, access check, fleet validation, prompt lines
 - [x] V2 `vehicleState.ts` — `vehicle_state.json` I/O + `enableVehicleSystem` GM prompt chunk
 - [x] V3 `vehicleOps` apply gate
-- [ ] V4 Webview garage/dock panel (read-only first)
+- [x] V4 Webview garage/dock panel (read-only first)
 
 ### Mobile Base System — Moving Settlements
 

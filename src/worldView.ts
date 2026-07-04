@@ -59,6 +59,7 @@ import {
     type WhereaboutsPrecision,
 } from './npcWhereaboutsTrustCore';
 import { buildChronicleForWorkspace } from './chronicleLoader';
+import { buildVehicleGarageWebviewPayload } from './vehicleBridge';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 let preferredSettlementLayerId: SettlementLayerId = 'z0';
@@ -651,5 +652,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableWorldObservatory: worldObservatoryEnabled,
         marketPriceHistory: worldObservatoryEnabled ? (worldState?.marketPriceHistory ?? null) : null,
         chronicle: observatoryChronicle,
+        enableVehicleSystem: gameRules.enableVehicleSystem === true,
+        vehicleGarage: buildVehicleGarageWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
     });
 }

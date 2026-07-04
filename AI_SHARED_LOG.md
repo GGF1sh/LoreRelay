@@ -10,15 +10,15 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **189/189** |
+| Tests | `npm test` **190/190** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1–WI2** core/registry/parity · **WI3b** host bridge diagnostics (`off`/`shadow`/`compare_only`) |
-| Next (推奨) | WI3a preview UI (Claude) · WI4 fuel accounting Gate |
+| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel effect accounting (diagnostic only) |
+| Next (推奨) | WI3a preview UI (Claude) · WI4R review · WI5 sanity checker Gate |
 | Git | `main` synced through v1.76.0 |
 
 ---
@@ -27,6 +27,22 @@
 
 - Added `docs/WORLD_INTENT_WI3B_CHATGPT_GATE.md` (**Approved with constraints**): vehicle World Intent host bridge may run only `off` / `shadow` / `compare_only` diagnostics around the existing `vehicleTurnOps` ledger path. Legacy `vehicleOps` remains canonical; parity uses pre-write cloned vehicle state and must never write, block, retry, or compensate.
 - Added `docs/WORLD_INTENT_WI3A_CLAUDE_PROMPT.md`: Claude task packet for read-only Vehicles tab preview UX design. Host read-only query endpoints and any Webview trust-boundary changes remain separate gate work.
+
+---
+
+## 2026-07-04 JST - Grok - World Intent WI4 Effect Accounting implementation
+
+- Added `src/worldIntentEffectAccountingCore.ts`: pure `refuel_vehicle` accounting entries from legacy pre/post state (`before`/`delta`/`after`/`cause`).
+- Extended `vehicleWorldIntentBridgeCore.ts` batch report with `accountingEntries`; `compare_only` output logs fuel deltas.
+- No fuel consumption, persist, TurnResult/statePatch/replay/GM prompt changes.
+- `scripts/test_world_intent_wi4_effect_accounting.js` (design §10). `npm test` **190/190**.
+
+---
+
+## 2026-07-04 JST - Codex - World Intent WI4 Effect Accounting design
+
+- Added `docs/WORLD_INTENT_WI4_EFFECT_ACCOUNTING_DESIGN.md`: narrow vehicle `refuel_vehicle` accounting pilot. It derives bounded before/delta/after fuel explanation entries from canonical legacy pre/post vehicle state only.
+- Explicitly deferred fuel consumption, movement costs, generic Effect Kernel, persistence, replay export, GM prompt injection, and State Orchestrator wiring.
 
 ---
 

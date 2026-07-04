@@ -63,5 +63,13 @@ export function emitVehicleWorldIntentBridgeDiagnostics(
                 `  ${item.action}: ${item.outcome} legacy=${item.expected.legacyClass}${mismatches}`
             );
         }
+        if (report.accountingEntryCount > 0) {
+            getOutputChannel().appendLine(`  accounting entries=${report.accountingEntryCount}`);
+            for (const entry of report.accountingEntries) {
+                getOutputChannel().appendLine(
+                    `    ${entry.entity.id} ${entry.field}: ${entry.before} +${entry.delta} -> ${entry.after}`
+                );
+            }
+        }
     }
 }

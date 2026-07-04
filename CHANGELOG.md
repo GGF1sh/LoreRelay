@@ -11,9 +11,9 @@
 
 ### Added
 
-- **World Intent WI3b host bridge gate** - added `docs/WORLD_INTENT_WI3B_CHATGPT_GATE.md`, approving only diagnostic `off` / `shadow` / `compare_only` vehicle bridge wiring around the existing `vehicleTurnOps` ledger path. Legacy `vehicleOps` remains canonical; World Intent parity must compare pre-write cloned state and never write or block persistence.
+- **World Intent WI4 Effect Accounting design** - added `docs/WORLD_INTENT_WI4_EFFECT_ACCOUNTING_DESIGN.md`, defining the next Codex gate as a narrow `refuel_vehicle` accounting pilot. The design records deterministic before/delta/after fuel explanations from canonical legacy vehicle state, without fuel consumption rules, persistence, replay export, Webview execution, or State Orchestrator wiring.
 
-- **World Intent WI3a Claude UI prompt** - added `docs/WORLD_INTENT_WI3A_CLAUDE_PROMPT.md`, scoping Claude's next task to read-only Vehicles tab preview UX design. Webview execution, host mutation, and read-only host query endpoints remain gated separately.
+- **World Intent WI4 Effect Accounting** — `worldIntentEffectAccountingCore.ts`: pure `refuel_vehicle` `EffectAccountingEntry` (`before` / `delta` / `after` / `cause`) from canonical legacy pre/post state only. Capped gains use effective delta, not raw `op.amount`. WI3b batch report extended with `accountingEntries` in `shadow`/`compare_only`. No fuel consumption, disk write, TurnResult/statePatch changes. `scripts/test_world_intent_wi4_effect_accounting.js` (design §10). `npm test` **190/190**.
 
 - **World Intent Core design** - added `docs/WORLD_INTENT_CORE_DESIGN.md`, defining a future common intent/query/execute layer inspired by Screeps, OpenRCT2, FreeOrion, and Freeciv design patterns without copying GPL code. The design keeps existing `turn_result.*Ops` intact and proposes a pure-core adapter path before any State Orchestrator integration.
 

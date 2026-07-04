@@ -7,6 +7,10 @@ import {
     type VehicleWorldIntentBridgeMode,
 } from './worldIntentCore';
 import {
+    buildVehicleRefuelAccountingEntriesForOps,
+    type EffectAccountingEntry,
+} from './worldIntentEffectAccountingCore';
+import {
     compareVehicleWorldIntentParity,
     type VehicleWorldIntentParityReport,
 } from './worldIntentVehicleParityCore';
@@ -31,6 +35,8 @@ export interface VehicleWorldIntentBridgeBatchReport {
     notComparableCount: number;
     exceptionCount: number;
     reports: VehicleWorldIntentParityReport[];
+    accountingEntryCount: number;
+    accountingEntries: EffectAccountingEntry[];
     parityError?: string;
 }
 
@@ -53,6 +59,8 @@ function emptyBatchReport(
         notComparableCount: 0,
         exceptionCount: 0,
         reports: [],
+        accountingEntryCount: 0,
+        accountingEntries: [],
     };
 }
 
@@ -87,6 +95,13 @@ export function runVehicleWorldIntentBridgeBatch(
         }
     }
 
+    const accountingEntries = input.preWriteVehicleState
+        ? buildVehicleRefuelAccountingEntriesForOps(ops, input.preWriteVehicleState, {
+            worldTurn: input.worldTurn,
+            cause: { type: 'world_intent_shadow', label: 'vehicle_bridge_parity' },
+        })
+        : [];
+
     return {
         version: VEHICLE_BRIDGE_BATCH_VERSION,
         bridgeMode,
@@ -97,6 +112,8 @@ export function runVehicleWorldIntentBridgeBatch(
         notComparableCount: reports.filter((r) => r.outcome === 'not_comparable').length,
         exceptionCount,
         reports,
+        accountingEntryCount: accountingEntries.length,
+        accountingEntries,
     };
 }
 

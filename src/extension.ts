@@ -208,6 +208,7 @@ import {
 import { checkForUpdates } from './updateManager';
 import { registerCoreCommands } from './extension/commands';
 import { runWorkspaceSanityCheckCommand } from './worldIntentSanityRunner';
+import { runPreviewGmTurnTransactionPlanCommand } from './stateOrchestratorPlanRunner';
 import { runPreviewWorkspaceMigrationsCommand } from './ledgerMigrationRunner';
 import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWritebackRunner';
 import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
@@ -468,6 +469,11 @@ export function activate(context: vscode.ExtensionContext) {
         () => { void runPreviewWorkspaceMigrationsCommand(); }
     );
 
+    const previewGmTurnTransactionPlanCmd = vscode.commands.registerCommand(
+        'textadventure.previewGmTurnTransactionPlan',
+        () => { void runPreviewGmTurnTransactionPlanCommand(); }
+    );
+
     const applyVehicleStateMigrationCmd = vscode.commands.registerCommand(
         'textadventure.applyVehicleStateMigration',
         () => { void runApplyVehicleStateMigrationCommand(); }
@@ -524,6 +530,7 @@ export function activate(context: vscode.ExtensionContext) {
         exportReplayCmd,
         promoteParlorCmd,
         runWorkspaceSanityCheckCmd,
+        previewGmTurnTransactionPlanCmd,
         previewWorkspaceMigrationsCmd,
         applyVehicleStateMigrationCmd,
         restoreVehicleStateMigrationBackupCmd

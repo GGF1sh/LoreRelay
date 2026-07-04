@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.77.3] - 2026-07-04
+
+### Added
+
+- **State Orchestrator SO2b** — `stateOrchestratorPlanHostCore.ts`: `buildGmTurnPlanRequestFromTurnResult()` mirrors `statePatch.ts` side-ledger flags with `game_rules` gates; `scripts/test_state_orchestrator_plan_host_core.js`.
+- **SO2 diagnostic command** — `textadventure.previewGmTurnTransactionPlan` reads `turn_result.json`, prints planned/skipped ledger steps to **LoreRelay State Orchestrator** Output Channel (read-only).
+- **`peekLastWorldStateParseWarnings()`** — diagnostic buffer for recent `world_state` cap-overflow warnings (included in SO2 preview when present).
+
 ## [1.77.2] - 2026-07-04
 
 ### Fixed

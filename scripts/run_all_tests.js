@@ -84,6 +84,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_ledger_migration_restore_core.js' },
     { category: 'unit', file: 'test_state_orchestrator_descriptor_core.js' },
     { category: 'unit', file: 'test_state_orchestrator_plan_core.js' },
+    { category: 'unit', file: 'test_state_orchestrator_plan_host_core.js' },
     { category: 'unit', file: 'test_vehicle_view_core.js' },
     { category: 'smoke', file: 'test_webview_vehicle_garage.js' },
     { category: 'unit', file: 'test_region_hazard_prompt_core.js' },

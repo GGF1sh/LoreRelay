@@ -19,6 +19,7 @@
   "command.resetProtagonistBootstrap": "LoreRelay: 重置主人公自動註冊",
   "command.promoteParlorToCampaign": "LoreRelay: 將 Parlor 升格為 Campaign",
   "command.runWorkspaceSanityCheck": "LoreRelay: 執行工作區完整性檢查",
+  "command.previewGmTurnTransactionPlan": "LoreRelay: 預覽 GM 回合台帳寫入計畫",
   "command.previewWorkspaceMigrations": "LoreRelay: 預覽工作區遷移",
   "command.applyVehicleStateMigration": "LoreRelay: 套用 vehicle_state 遷移",
   "command.restoreVehicleStateMigrationBackup": "LoreRelay: 還原 vehicle_state 遷移備份",

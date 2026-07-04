@@ -7,6 +7,7 @@ import {
     type FactionWorldState,
     type RegionWorldState,
     type GlobalEvent,
+    type WorldStateParseWarning,
     parseWorldStateWithWarnings,
     formatWorldStateParseWarning,
     MAX_WORLD_STATE_PARSE_WARNINGS_LOG,
@@ -18,6 +19,13 @@ import { isWorldStateWriteCircuitOpen, runSerializedWorldStateMutation } from '.
 
 export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
+
+let lastWorldStateParseWarnings: WorldStateParseWarning[] = [];
+
+/** Last cap-overflow warnings from the most recent workspace world_state parse (diagnostic buffer). */
+export function peekLastWorldStateParseWarnings(): readonly WorldStateParseWarning[] {
+    return lastWorldStateParseWarnings;
+}
 
 function warnWorldStateParseCaps(warnings: ReturnType<typeof parseWorldStateWithWarnings>['warnings']): void {
     if (warnings.length === 0) { return; }
@@ -34,6 +42,7 @@ function warnWorldStateParseCaps(warnings: ReturnType<typeof parseWorldStateWith
 
 function parseWorldStateFromRaw(raw: unknown) {
     const { state, warnings } = parseWorldStateWithWarnings(raw);
+    lastWorldStateParseWarnings = warnings;
     warnWorldStateParseCaps(warnings);
     return state;
 }
@@ -53,6 +62,7 @@ export function clearWorldStateCache(): void {
     cachedState = undefined;
     cachePath = '';
     cacheMtime = 0;
+    lastWorldStateParseWarnings = [];
 }
 
 export function isWorldStateEnabled(): boolean {

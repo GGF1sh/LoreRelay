@@ -22,6 +22,7 @@
   "command.resetProtagonistBootstrap": "LoreRelay: Reset Protagonist Bootstrap",
   "command.promoteParlorToCampaign": "LoreRelay: Promote Parlor to Campaign",
   "command.runWorkspaceSanityCheck": "LoreRelay: Run Workspace Sanity Check",
+  "command.previewGmTurnTransactionPlan": "LoreRelay: Preview GM Turn Transaction Plan",
   "command.previewWorkspaceMigrations": "LoreRelay: Preview Workspace Migrations",
   "command.applyVehicleStateMigration": "LoreRelay: Apply Vehicle State Migration",
   "command.restoreVehicleStateMigrationBackup": "LoreRelay: Restore Vehicle State Migration Backup",

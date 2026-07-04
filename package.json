@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
-  "version": "1.77.2",
+  "version": "1.77.3",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -50,6 +50,7 @@
     "onCommand:textadventure.resetProtagonistBootstrap",
     "onCommand:textadventure.promoteParlorToCampaign",
     "onCommand:textadventure.runWorkspaceSanityCheck",
+    "onCommand:textadventure.previewGmTurnTransactionPlan",
     "onCommand:textadventure.previewWorkspaceMigrations",
     "onCommand:textadventure.applyVehicleStateMigration",
     "onCommand:textadventure.restoreVehicleStateMigrationBackup"
@@ -152,6 +153,10 @@
       {
         "command": "textadventure.runWorkspaceSanityCheck",
         "title": "%command.runWorkspaceSanityCheck%"
+      },
+      {
+        "command": "textadventure.previewGmTurnTransactionPlan",
+        "title": "%command.previewGmTurnTransactionPlan%"
       },
       {
         "command": "textadventure.previewWorkspaceMigrations",

@@ -1,7 +1,8 @@
-# Context & Knowledge Engine — North-Star Spec (v0.4)
+# Context & Knowledge Engine — North-Star Spec (v0.5)
 
 > ステータス: **北極星仕様(Draft、4AIレビュー中)**。Architecture Owner(Opus 4.8)が [`CONTEXT_ENGINE_DESIGN_BRIEF.md`](CONTEXT_ENGINE_DESIGN_BRIEF.md) v0.2 §9 の Open Questions 10問に決定を下したもの。
-> 起草: 2026-07-04, Opus 4.8。v0.3.1でactor≤10前提を§0のみ訂正→**本文への伝播漏れをChatGPT 5.5レビューが指摘、v0.4でQ1根拠/F5/F7/§5を全面修正(Sonnet 5検証・反映)**。
+> 起草: 2026-07-04, Opus 4.8。v0.3.1でactor≤10前提を§0のみ訂正→本文への伝播漏れをChatGPT 5.5レビューが指摘、v0.4でQ1根拠/F5/F7/§5を全面修正。
+> **v0.5: Dwarf Fortress Raws比較レビュー(Gemini調査→Grok実コード照合→ChatGPT設計補正)を統合。詳細は [`CONTEXT_ENGINE_DF_REVIEW_ADDENDUM.md`](CONTEXT_ENGINE_DF_REVIEW_ADDENDUM.md) 参照。LOAD-BEARING決定の変更なし、Claim/EntityRef/KnowledgeAcquisitionへ3件の安価なスキーマ拡張のみ追加。**
 > **この後も Grok(adversarial)/ Gemini(repo consistency)/ ChatGPT(systems critic)/ Fable 5(narrative UX)のレビューを前提とする。まだ実装しない。**
 > 各決定に **可逆性(Reversibility)** を付す: `LOAD-BEARING`=後から覆すと下流総やり直し / `TUNABLE`=後から数値・実装を差し替え可能。
 
@@ -85,7 +86,12 @@ ContextBuildResult { bundle, accountingInternal, accountingUserSafe? }
 ### Q5. `canAcquire()` / `canRecall()` の正式シグネチャ + 基本型 → **下記に確定** `LOAD-BEARING`(分離) / `TUNABLE`(内部条件)
 
 ```ts
-type EntityRef  = { kind: 'npc' | 'player' | 'faction' | 'party'; id: string };
+// v0.5: DF Review Addendum Q7 — identity/public-identity/form分離の予約。
+// 解決ロジック(偽名バレ・変装解除等)は別イニシアチブだが、alias型を今空けないと
+// 「Aliceはmasked_merchantを知っているがmasked_merchant=Bobとは知らない」を表現できなくなる。
+type EntityRef =
+  | { kind: 'npc' | 'player' | 'faction' | 'party'; id: string }   // 正本ID解決済み
+  | { kind: 'alias'; label: string };                              // actorが知る「呼び名」のみ、未解決
 type LocationRef = { id: string };                    // cartography の region/settlement id
 type ClockRef   = { clock: 'world' | 'gm' | 'domainMonth' | 'guildDrift' | 'simTick'; value: number };
 type WorldContext = {                                 // 導出の入力(読み取り専用スナップショット)

@@ -138,6 +138,18 @@ type Claim = {
   predicate: string;
   value: JsonValue;
   truthRelation?: 'confirmed' | 'contradicted' | 'unknown';  // World Truth との関係(GM/Engine内部の正本判定用、actorには見せない)
+  validAt?: ClockRef;   // v0.5 DF Addendum Q6: 「間違った信念」と「古くなった信念」を区別するため、
+                        // この Claim が指す時点を1点だけ持てる。範囲(validFrom/validUntil)は
+                        // MVP過剰設計と判断し予約のみ、staleness自動失効ロジックも未実装(北極星v0.5参照)。
+};
+
+// --- 4.2a-2 知識取得の経路(v0.5 DF Addendum Q8) ---
+// KnowledgeEntry.acquisitionType(単純enum)を置換。Provenance必須制約(§2-5)と直結。
+type KnowledgeAcquisition = {
+  method: 'witnessed' | 'told' | 'document' | 'inferred' | 'research' | 'broadcast';
+  sourceActor?: EntityRef;
+  sourceEvent?: EventRef;
+  sourceDocument?: EntityRef;  // 型のみ予約。Document/Book系の仕組みが無いため当面 undefined
 };
 
 // --- 4.2b 知識台帳(MVP: 伝播シミュレーションなし) ---
@@ -146,7 +158,7 @@ type Claim = {
 type KnowledgeEntry = {
   actor: EntityRef;                                            // 誰の知識か(v0.1で欠落していた必須フィールド)
   claimId: string;                                              // factId ではなく Claim を指す
-  acquisitionType: 'witnessed' | 'told' | 'document' | 'inferred';
+  acquisition: KnowledgeAcquisition;                            // v0.5: 単純enumから構造化(source追跡のため)
   confidence: number;
   acquiredAt: ClockRef;                                         // bare number 禁止
 };

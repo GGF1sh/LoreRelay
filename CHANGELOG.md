@@ -15,6 +15,10 @@
 
 - **World Intent WI4 Effect Accounting** — `worldIntentEffectAccountingCore.ts`: pure `refuel_vehicle` `EffectAccountingEntry` (`before` / `delta` / `after` / `cause`) from canonical legacy pre/post state only. Capped gains use effective delta, not raw `op.amount`. WI3b batch report extended with `accountingEntries` in `shadow`/`compare_only`. No fuel consumption, disk write, TurnResult/statePatch changes. `scripts/test_world_intent_wi4_effect_accounting.js` (design §10). `npm test` **190/190**.
 
+### Fixed
+
+- **World Intent WI4R (self-review)** — reject accounting when `after > max` or `before > max`; skip bridge batch accounting when `enableVehicleSystem:false`; sequential multi-refuel batch tests; invalid `cause.type` sanitization test.
+
 - **World Intent Core design** - added `docs/WORLD_INTENT_CORE_DESIGN.md`, defining a future common intent/query/execute layer inspired by Screeps, OpenRCT2, FreeOrion, and Freeciv design patterns without copying GPL code. The design keeps existing `turn_result.*Ops` intact and proposes a pure-core adapter path before any State Orchestrator integration.
 
 - **World Intent Core ChatGPT gate** - added `docs/WORLD_INTENT_CORE_CHATGPT_GATE.md`, approving WI1 only as a pure skeleton plus `vehicleOps` adapter. The gate explicitly defers `TurnResult`, `statePatch`, ledger persistence, Webview execution, RequirementExpr evaluation, and State Orchestrator integration.

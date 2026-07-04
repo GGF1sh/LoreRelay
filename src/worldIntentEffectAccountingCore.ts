@@ -119,10 +119,14 @@ export function buildVehicleRefuelAccountingEntry(
 
     const before = finiteNonNegativeInt(preResources.current);
     const after = finiteNonNegativeInt(postResources.current);
+    const max = finiteNonNegativeInt(postResources.max);
     if (before === undefined || after === undefined) { return undefined; }
     if (after <= before) { return undefined; }
+    if (max !== undefined && after > max) { return undefined; }
+    if (max !== undefined && before > max) { return undefined; }
 
     const delta = after - before;
+    if (max !== undefined && before + delta !== after) { return undefined; }
     const entry: EffectAccountingEntry = {
         version: EFFECT_ACCOUNTING_VERSION,
         ledger: 'vehicle_state',

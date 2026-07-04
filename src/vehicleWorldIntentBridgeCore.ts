@@ -95,7 +95,7 @@ export function runVehicleWorldIntentBridgeBatch(
         }
     }
 
-    const accountingEntries = input.preWriteVehicleState
+    const accountingEntries = input.preWriteVehicleState && input.enableVehicleSystem !== false
         ? buildVehicleRefuelAccountingEntriesForOps(ops, input.preWriteVehicleState, {
             worldTurn: input.worldTurn,
             cause: { type: 'world_intent_shadow', label: 'vehicle_bridge_parity' },

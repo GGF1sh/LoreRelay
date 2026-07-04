@@ -263,6 +263,62 @@ function applyRefuel(state, amount, vehicleId = 'rust_wagon') {
     }
 }
 
+// disabled vehicle system skips batch accounting
+{
+    const disabled = runVehicleWorldIntentBridgeBatch({
+        bridgeMode: 'compare_only',
+        vehicleOps: [{ type: 'refuel_vehicle', vehicleId: 'rust_wagon', amount: 2 }],
+        preWriteVehicleState: makeState(),
+        enableVehicleSystem: false,
+    });
+    if (disabled.accountingEntryCount !== 0) {
+        fail('disabled vehicle system should not produce batch accounting');
+    } else {
+        ok('enableVehicleSystem:false skips bridge accounting');
+    }
+}
+
+// sequential refuel batch uses running legacy simulation
+{
+    const state = makeState();
+    state.vehicles.find((v) => v.id === 'rust_wagon').resources = { powerType: 'fuel', current: 2, max: 10 };
+    const entries = buildVehicleRefuelAccountingEntriesForOps([
+        refuelOp(3),
+        refuelOp(4),
+    ], state);
+    if (entries.length !== 2 || entries[0].before !== 2 || entries[0].after !== 5 ||
+        entries[1].before !== 5 || entries[1].after !== 9) {
+        fail(`sequential refuel batch wrong: ${JSON.stringify(entries)}`);
+    } else {
+        ok('batch accounting chains refuel ops on simulated legacy state');
+    }
+}
+
+// inconsistent post state (after > max) produces no entry
+{
+    const state = makeState();
+    const pre = parseVehicleState(JSON.parse(JSON.stringify(state)));
+    const post = parseVehicleState(JSON.parse(JSON.stringify(state)));
+    post.vehicles.find((v) => v.id === 'rust_wagon').resources = { powerType: 'fuel', current: 25, max: 20 };
+    if (buildVehicleRefuelAccountingEntry({ op: refuelOp(2), preState: pre, postState: post }) !== undefined) {
+        fail('after > max must not produce accounting entry');
+    } else {
+        ok('accounting rejects post state above resource max');
+    }
+}
+
+// invalid cause type sanitizes to vehicle_op
+{
+    const entry = buildVehicleRefuelAccountingFromLegacyApply(refuelOp(1), makeState(), {
+        cause: { type: 'bogus', label: 'test' },
+    });
+    if (!entry || entry.cause.type !== 'vehicle_op') {
+        fail('invalid cause type should sanitize to vehicle_op');
+    } else {
+        ok('invalid cause type sanitizes safely');
+    }
+}
+
 // forbidden imports static check
 {
     const src = fs.readFileSync(path.join(root, 'src', 'worldIntentEffectAccountingCore.ts'), 'utf-8');

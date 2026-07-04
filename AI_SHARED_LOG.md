@@ -30,6 +30,12 @@
 
 ---
 
+## 2026-07-04 JST - Grok - World Intent WI4R self-review fixes
+
+- WI4 accounting: reject `after > max`; skip bridge accounting when vehicle system disabled; added sequential batch + bounds tests.
+
+---
+
 ## 2026-07-04 JST - Grok - World Intent WI4 Effect Accounting implementation
 
 - Added `src/worldIntentEffectAccountingCore.ts`: pure `refuel_vehicle` accounting entries from legacy pre/post state (`before`/`delta`/`after`/`cause`).

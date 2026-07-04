@@ -416,6 +416,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     campaignResources: 91,
     settlement: 90,
     vehicles: 89,
+    mobileBase: 88,
     domain: 67,
     guild: 66,
     director: 95,
@@ -459,6 +460,7 @@ export interface PromptChunkActivationContext {
     enableTravelEncounters: boolean;
     enableSettlementMode: boolean;
     enableVehicleSystem: boolean;
+    enableMobileBaseSystem: boolean;
 }
 
 export function isCampaignKitPromptActive(ctx: PromptChunkActivationContext): boolean {
@@ -483,6 +485,10 @@ export function shouldIncludePromptChunk(
             return ctx.enableSettlementMode;
         case 'vehicles':
             return ctx.enableVehicleSystem;
+        case 'mobileBase':
+            return ctx.enableMobileBaseSystem
+                && ctx.enableVehicleSystem
+                && ctx.enableSettlementMode;
         case 'domain':
             return ctx.enableDomainMode;
         case 'guild':

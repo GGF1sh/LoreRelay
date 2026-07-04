@@ -495,6 +495,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableTravelEncounters: gameRules.enableTravelEncounters === true,
         enableSettlementMode: gameRules.enableSettlementMode === true,
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
+        enableMobileBaseSystem: gameRules.enableMobileBaseSystem === true,
     });
     const settlementState = gameRules.enableSettlementMode === true ? loadSettlementState() : undefined;
     const settlementLayout = settlementState ? loadSettlementLayout() : undefined;

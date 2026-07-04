@@ -1,7 +1,7 @@
 // Mobile Base System MB1: pure link validation and prompt summaries (no vscode/fs/DOM).
 
 import type { SettlementStateV1 } from './settlementCore';
-import type { VehicleEntry } from './vehicleCore';
+import type { VehicleEntry, VehicleState } from './vehicleCore';
 import { canVehicleAccessLocation, type LocationVehicleAccess } from './vehicleCore';
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -12,6 +12,9 @@ export const MAX_MOBILE_BASE_FACILITIES = 3;
 export const MAX_MOBILE_BASE_PROBLEMS = 3;
 export const MAX_MOBILE_BASE_CARRIED_NAMES = 4;
 export const MAX_MOBILE_BASE_WARNINGS = 8;
+export const MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS = 1200;
+export const MOBILE_BASE_OPS_NOT_WIRED_LINE =
+    'Persistent mobile-base docking/travel requires mobileBaseOps (parse/apply gate not yet wired).';
 
 export const VALID_MOBILE_BASE_MODES = [
     'crawler', 'landship', 'caravan', 'mobile_community', 'ship', 'airship', 'train',
@@ -179,6 +182,67 @@ function lowStockLabels(settlement: SettlementStateV1): string[] {
         if (lows.length >= 3) { break; }
     }
     return lows;
+}
+
+export type MobileBaseRuleFlags = {
+    enableVehicleSystem?: boolean;
+    enableSettlementMode?: boolean;
+    enableMobileBaseSystem?: boolean;
+};
+
+export function mobileBaseSystemEnabled(rules: MobileBaseRuleFlags | undefined): boolean {
+    return rules?.enableVehicleSystem === true
+        && rules?.enableSettlementMode === true
+        && rules?.enableMobileBaseSystem === true;
+}
+
+/** Prefer activeVehicleId when it carries a mobileBase link; else first linked vehicle. */
+export function resolveActiveMobileBaseVehicle(state: VehicleState | undefined): VehicleEntry | undefined {
+    if (!state?.vehicles.length) { return undefined; }
+    if (state.activeVehicleId) {
+        const active = state.vehicles.find((v) => v.id === state.activeVehicleId);
+        if (active?.mobileBase) { return active; }
+    }
+    return state.vehicles.find((v) => v.mobileBase);
+}
+
+export function buildCarriedVehicleNameMap(state: VehicleState | undefined): Record<string, string> {
+    const map: Record<string, string> = {};
+    for (const vehicle of state?.vehicles ?? []) {
+        map[vehicle.id] = vehicle.name;
+    }
+    return map;
+}
+
+/** Prompt-safe mobile base summary; requires a validated vehicle+settlement pair. */
+export function buildMobileBasePromptBlock(
+    vehicle: VehicleEntry | undefined,
+    settlement: SettlementStateV1 | undefined,
+    enabled: boolean,
+    options?: MobileBasePromptOptions
+): string {
+    if (!enabled || !vehicle || !settlement) { return ''; }
+
+    const validation = validateMobileBaseLink(vehicle, settlement);
+    if (!validation.isMobileBase || !validation.ok) { return ''; }
+
+    const bodyLines = buildMobileBasePromptLines(vehicle, settlement, options);
+    if (!bodyLines.length) { return ''; }
+
+    const lines: string[] = [];
+    if (validation.warnings?.length) {
+        for (const warning of validation.warnings) {
+            lines.push(clampPromptLine(warning));
+        }
+    }
+    lines.push(...bodyLines);
+    lines.push(MOBILE_BASE_OPS_NOT_WIRED_LINE);
+
+    let block = lines.join('\n');
+    if (block.length > MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS) {
+        block = `${block.slice(0, MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS - 20)}...[truncated]`;
+    }
+    return block;
 }
 
 export function buildMobileBasePromptLines(

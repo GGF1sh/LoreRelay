@@ -56,6 +56,7 @@ function resolveCampaignKitActive(gameRules: GameRules): boolean {
         enableTravelEncounters: gameRules.enableTravelEncounters === true,
         enableSettlementMode: gameRules.enableSettlementMode === true,
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
+        enableMobileBaseSystem: gameRules.enableMobileBaseSystem === true,
     });
 }
 

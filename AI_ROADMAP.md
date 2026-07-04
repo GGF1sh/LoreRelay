@@ -380,7 +380,7 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 *設計: [`docs/MOBILE_BASE_SYSTEM_DESIGN.md`](docs/MOBILE_BASE_SYSTEM_DESIGN.md)* · *Gate: [`docs/MOBILE_BASE_SYSTEM_CHATGPT_GATE.md`](docs/MOBILE_BASE_SYSTEM_CHATGPT_GATE.md)*
 
 - [x] MB1 `mobileBaseCore.ts` — link validation + prompt summary
-- [ ] MB2 feature flag + prompt wiring
+- [x] MB2 `mobileBaseBridge.ts` — `enableMobileBaseSystem` + GM prompt chunk (triple gate)
 - [ ] MB3 docking/travel apply gate
 - [ ] Caravan travel announcement / joiners（別ゲート）
 - [ ] Transport contracts / autonomous route actors（Living World 連携）

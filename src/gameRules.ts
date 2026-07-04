@@ -73,6 +73,8 @@ export interface GameRules {
     enableSettlementDiorama?: boolean;
     /** Vehicle System: mobile assets ledger + prompt chunk (default OFF). */
     enableVehicleSystem?: boolean;
+    /** Mobile Base: moving settlement link + prompt chunk (default OFF; requires Vehicle + Settlement). */
+    enableMobileBaseSystem?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -117,6 +119,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableSettlementMode: false,
     enableSettlementDiorama: false,
     enableVehicleSystem: false,
+    enableMobileBaseSystem: false,
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -322,6 +325,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableVehicleSystem !== undefined && typeof rules.enableVehicleSystem === 'boolean') {
             sanitized.enableVehicleSystem = rules.enableVehicleSystem;
+        }
+        if (rules.enableMobileBaseSystem !== undefined && typeof rules.enableMobileBaseSystem === 'boolean') {
+            sanitized.enableMobileBaseSystem = rules.enableMobileBaseSystem;
         }
     }
 

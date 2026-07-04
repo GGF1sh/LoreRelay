@@ -107,6 +107,7 @@ import { buildDiscoveryLedgerPromptContext } from './discoveryLedger';
 import { buildCampaignResourcesPromptContext } from './campaignResources';
 import { buildSettlementPromptContext } from './settlementState';
 import { buildVehiclePromptContext } from './vehicleState';
+import { buildMobileBasePromptContext } from './mobileBaseBridge';
 import type { CargoEntry } from './livingWorldTypes';
 import { listUnexploredRegionNames } from './fogOfWarCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
@@ -202,6 +203,7 @@ function buildPromptBudgetLimitSpecs(policy: PromptBudgetPolicy): PromptBudgetLi
         { id: 'campaignResources', label: 'Campaign Resources', limitChars: 900 },
         { id: 'settlement', label: 'Settlement', limitChars: 1600 },
         { id: 'vehicles', label: 'Vehicles', limitChars: 1200 },
+        { id: 'mobileBase', label: 'Mobile Base', limitChars: 1200 },
         { id: 'summary', label: 'Story Synopsis', limitChars: policy.summaryChars },
         { id: 'saga', label: 'Saga Archive', limitChars: policy.sagaChars },
         { id: 'memory', label: 'Memory Bank', limitChars: policy.memoryMatches * policy.memoryChars },
@@ -1169,6 +1171,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         maybeBuildSection('campaignResources', 'Campaign Resources', activation, buildCampaignResourcesPromptContext),
         maybeBuildSection('settlement', 'Settlement', activation, buildSettlementPromptContext),
         maybeBuildSection('vehicles', 'Vehicles', activation, buildVehiclePromptContext),
+        maybeBuildSection('mobileBase', 'Mobile Base', activation, buildMobileBasePromptContext),
         maybeBuildSection('domain', 'Domain', activation, () => buildDomainPromptContextForGm(hint)),
         maybeBuildSection('guild', 'Guild', activation, () => buildGuildPromptContextForGm(hint)),
         maybeBuildSection('director', 'Scenario Director', activation, buildScenarioDirectorPromptContext),
@@ -1250,6 +1253,7 @@ function resolvePromptChunkActivationContext(): PromptChunkActivationContext {
         enableTravelEncounters: rules.enableTravelEncounters === true,
         enableSettlementMode: rules.enableSettlementMode === true,
         enableVehicleSystem: rules.enableVehicleSystem === true,
+        enableMobileBaseSystem: rules.enableMobileBaseSystem === true,
     };
 }
 
@@ -1291,6 +1295,7 @@ function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolic
     maybePushPromptChunk(specs, 'campaignResources', activation, buildCampaignResourcesPromptContext);
     maybePushPromptChunk(specs, 'settlement', activation, buildSettlementPromptContext);
     maybePushPromptChunk(specs, 'vehicles', activation, buildVehiclePromptContext);
+    maybePushPromptChunk(specs, 'mobileBase', activation, buildMobileBasePromptContext);
     maybePushPromptChunk(specs, 'domain', activation, () =>
         clampSimulationPromptModule(buildDomainPromptContextForGm(playerAction))
     );

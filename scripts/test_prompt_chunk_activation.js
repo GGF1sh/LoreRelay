@@ -37,6 +37,7 @@ const allOff = {
     enableTravelEncounters: false,
     enableSettlementMode: false,
     enableVehicleSystem: false,
+    enableMobileBaseSystem: false,
 };
 
 {
@@ -52,8 +53,10 @@ const allOff = {
         fail('settlement should be skipped when enableSettlementMode is false');
     } else if (shouldIncludePromptChunk('vehicles', allOff)) {
         fail('vehicles should be skipped when enableVehicleSystem is false');
+    } else if (shouldIncludePromptChunk('mobileBase', allOff)) {
+        fail('mobileBase should be skipped when enableMobileBaseSystem is false');
     } else {
-        ok('inactive domain/guild/campaign/settlement/vehicle chunks skipped');
+        ok('inactive domain/guild/campaign/settlement/vehicle/mobileBase chunks skipped');
     }
 }
 
@@ -72,6 +75,22 @@ const allOff = {
         fail('vehicles should include when enableVehicleSystem is true');
     } else {
         ok('vehicles chunk activates with enableVehicleSystem');
+    }
+}
+
+{
+    const ctx = {
+        ...allOff,
+        enableMobileBaseSystem: true,
+        enableVehicleSystem: true,
+        enableSettlementMode: true,
+    };
+    if (!shouldIncludePromptChunk('mobileBase', ctx)) {
+        fail('mobileBase should include when all three flags are true');
+    } else if (shouldIncludePromptChunk('mobileBase', { ...ctx, enableSettlementMode: false })) {
+        fail('mobileBase should require enableSettlementMode');
+    } else {
+        ok('mobileBase chunk activates with triple gate');
     }
 }
 

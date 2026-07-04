@@ -137,6 +137,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_debug_scenario_core.js' },
     { category: 'unit', file: 'test_debug_trace_core.js' },
     { category: 'unit', file: 'test_debug_trace_host.js' },
+    { category: 'unit', file: 'test_debug_trace_emit_core.js' },
     { category: 'unit', file: 'test_narrative_time_passage_core.js' },
     { category: 'unit', file: 'test_chronicle_core.js' },
     { category: 'unit', file: 'test_pacing_core.js' },

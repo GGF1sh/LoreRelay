@@ -9,9 +9,11 @@
 
 ## [Unreleased]
 
+## [1.77.10] - 2026-07-04
+
 ### Added
 
-- **Debug Trace Deep Emit Gate design (Approved)** — `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md` (Grok): P1a/P1b contract for npcAgency `isFoodCrisisEvent` rule-level trace; trace examples + 12 required tests.
+- **Debug Trace Deep Emit P1a** — `debugTraceEmitCore.ts`: pure `buildFoodCrisisAgencyTraceEntries` (food crisis scan → gate → per-NPC decision → effect); `scripts/test_debug_trace_emit_core.js`. P1b host adapter deferred.
 
 ## [1.77.9] - 2026-07-04
 

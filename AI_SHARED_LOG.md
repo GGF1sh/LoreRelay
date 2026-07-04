@@ -22,8 +22,14 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | Debug Trace Inspector UI (Claude Phase B) · SO3 transaction executor design · Context Engine P1 category budgeter |
+| Next (推奨) | **Debug Trace Inspector Phase B**（Claude §14）· SO3 transaction executor · Context Engine P1 |
 | Git | `main` synced through v1.77.8 |
+
+---
+
+## 2026-07-04 JST - Claude - Debug Trace Inspector UI design
+
+- `docs/DEBUG_TRACE_INSPECTOR_UI_DESIGN.md`: タイムライン・監査者切替・警告ジャンプ・Context Inspector との分離。静的 HTML プロトタイプで検証済み。Phase B 実装は §14 プロンプト。
 
 ---
 

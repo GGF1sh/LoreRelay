@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Debug Trace Inspector UI design** — `docs/DEBUG_TRACE_INSPECTOR_UI_DESIGN.md` (Claude): Phase B Webview timeline spec; Phase A marked shipped v1.77.8.
+
 ## [1.77.8] - 2026-07-04
 
 ### Added

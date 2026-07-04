@@ -73,10 +73,9 @@ function buildBundle(moduleOrder, modulesDir, outPath, headerLines, ext) {
     console.log(`Built ${path.basename(outPath)} (${out.split('\n').length} lines) from ${moduleOrder.length} modules`);
 }
 
-// Settlement Diorama (M5b): prepend the local Three.js vendor build so the
-// global `THREE` exists before 86c-settlement-diorama.js runs. No CDN, no
-// separate <script> tag / extension.ts change needed. Gracefully absent if
-// the vendor file is missing — 86c degrades via its own THREE-availability check.
+// Settlement Diorama (M5b): Three.js stays in webview/vendor/three.min.js and is
+// lazy-loaded by 86c-settlement-diorama.js when Diorama mode is first used.
+// Default-OFF users never pay the parse cost. No CDN.
 const threeMinPath = path.join(vendorDir, 'three.min.js');
 const jsHeaderLines = [
     '// AUTO-GENERATED from webview/modules/*.js — run: npm run build:webview',
@@ -84,11 +83,7 @@ const jsHeaderLines = [
     '// LoreRelay - Webview Script',
     ''
 ];
-if (fs.existsSync(threeMinPath)) {
-    jsHeaderLines.push('/* --- vendor/three.min.js (Three.js, MIT license, bundled locally for Settlement Diorama M5b) --- */');
-    jsHeaderLines.push(fs.readFileSync(threeMinPath, 'utf-8').trimEnd());
-    console.log('Prepended vendor/three.min.js into script.js bundle');
-} else {
+if (!fs.existsSync(threeMinPath)) {
     console.warn(`WARNING: three.min.js not found at ${threeMinPath}. Settlement Diorama (M5b) will show its unavailable-fallback state.`);
 }
 

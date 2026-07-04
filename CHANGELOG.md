@@ -9,7 +9,13 @@
 
 ## [Unreleased]
 
+## [1.73.0] - 2026-07-04
+
 ### Added
+
+- **Settlement Mode M5 finish — Three.js lazy load** — `webview/vendor/three.min.js` is no longer prepended into `script.js`. Diorama mode lazy-loads Three.js on first use via `loadThreeJsLazy()` + `window.__LR_THREE_SCRIPT_URI__` from `extension.ts`. Default-OFF users avoid the Three.js parse cost. `test_webview_world_modules.js` asserts bundle separation.
+
+### Added (carried from Unreleased development)
 
 - **3-AI code review fixes (Settlement M5 + overlay + subprocess)** — M5a `revision` fingerprint and selected-layer local Z (fixes underground layers rendering below ground). M5b reuses WebGL renderer on content change (`revision`-aware rebuild) instead of `forceContextLoss` per update. `buildMapOverlayFromContext()` lets World View share one loaded snapshot with overlay (no duplicate disk reads / turn drift). `spawnWithTimeout` hard-kills hung ComfyUI/cartography/image-gen subprocesses. Tests: `test_settlement_diorama_revision_z.js`, `test_map_overlay_context_coherence.js`, `test_spawn_with_timeout.js`.
 

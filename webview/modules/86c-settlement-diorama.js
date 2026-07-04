@@ -10,6 +10,7 @@
 let _dioramaWorldMsg = null;
 let _dioramaControlsReady = false;
 let _dioramaAvailable = null; // cached THREE/WebGL capability check
+let _dioramaThreeLoadPromise = null;
 let _dioramaThree = null; // { renderer, scene, camera, group, hitMeshes: [] }
 let _dioramaOrbit = { yaw: 45, pitch: 35, distance: 16 };
 let _dioramaTarget = { x: 0, y: 0, z: 0 };
@@ -69,11 +70,38 @@ function detectWebglSupport() {
     }
 }
 
+function resolveThreeScriptUri() {
+    if (typeof window !== 'undefined' && window.__LR_THREE_SCRIPT_URI__) {
+        return window.__LR_THREE_SCRIPT_URI__;
+    }
+    return null;
+}
+
 function isThreeAvailable() {
     if (_dioramaAvailable !== null) { return _dioramaAvailable; }
     const hasThree = typeof THREE !== 'undefined' && typeof THREE.Scene === 'function';
     _dioramaAvailable = hasThree && detectWebglSupport();
     return _dioramaAvailable;
+}
+
+/** Lazy-load vendor/three.min.js only when Diorama mode is actually used. */
+function loadThreeJsLazy() {
+    if (isThreeAvailable()) { return Promise.resolve(true); }
+    const uri = resolveThreeScriptUri();
+    if (!uri) { return Promise.resolve(false); }
+    if (_dioramaThreeLoadPromise) { return _dioramaThreeLoadPromise; }
+    _dioramaThreeLoadPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = uri;
+        script.async = true;
+        script.onload = () => {
+            _dioramaAvailable = null;
+            resolve(isThreeAvailable());
+        };
+        script.onerror = () => resolve(false);
+        document.head.appendChild(script);
+    });
+    return _dioramaThreeLoadPromise;
 }
 
 function getDioramaSnapshot() {
@@ -395,6 +423,35 @@ function renderSettlementDioramaMarkerFallback(snapshot) {
     });
 }
 
+function renderSettlementDioramaScene(snapshot) {
+    const stage = document.getElementById('world-diorama-stage');
+    const unavailable = document.getElementById('world-diorama-unavailable');
+    const canvas = document.getElementById('world-diorama-canvas');
+    if (!stage || !canvas || !snapshot) { return; }
+
+    if (!isThreeAvailable()) {
+        stage.classList.add('hidden');
+        if (unavailable) {
+            unavailable.classList.remove('hidden');
+            unavailable.textContent = typeof T === 'function' ? T('webview.world.dioramaUnavailable') : 'Three.js / WebGL is unavailable in this Webview.';
+        }
+        disposeSettlementDiorama();
+        renderSettlementDioramaMarkerFallback(snapshot);
+        return;
+    }
+
+    if (unavailable) { unavailable.classList.add('hidden'); }
+    stage.classList.remove('hidden');
+
+    if (!stage.clientWidth) { return; }
+
+    const t = ensureSettlementDioramaScene(snapshot);
+    if (!t) { return; }
+    resizeSettlementDiorama();
+    renderSettlementDioramaMarkerFallback(snapshot);
+    renderDioramaOnce();
+}
+
 function renderSettlementDiorama() {
     const stage = document.getElementById('world-diorama-stage');
     const empty = document.getElementById('world-diorama-empty');
@@ -420,28 +477,18 @@ function renderSettlementDiorama() {
     }
 
     if (empty) { empty.classList.add('hidden'); }
-
-    if (!isThreeAvailable()) {
-        stage.classList.add('hidden');
-        if (unavailable) {
-            unavailable.classList.remove('hidden');
-            unavailable.textContent = typeof T === 'function' ? T('webview.world.dioramaUnavailable') : 'Three.js / WebGL is unavailable in this Webview.';
-        }
-        disposeSettlementDiorama();
-        renderSettlementDioramaMarkerFallback(snapshot);
-        return;
-    }
-
-    if (unavailable) { unavailable.classList.add('hidden'); }
-    stage.classList.remove('hidden');
-
-    if (!stage.clientWidth) { return; }
-
-    const t = ensureSettlementDioramaScene(snapshot);
-    if (!t) { return; }
-    resizeSettlementDiorama();
     renderSettlementDioramaMarkerFallback(snapshot);
-    renderDioramaOnce();
+
+    loadThreeJsLazy().then((ok) => {
+        if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'diorama') { return; }
+        const fresh = getDioramaSnapshot();
+        if (!fresh) { return; }
+        if (!ok) {
+            renderSettlementDioramaScene(fresh);
+            return;
+        }
+        renderSettlementDioramaScene(fresh);
+    });
 }
 
 function resizeSettlementDiorama() {

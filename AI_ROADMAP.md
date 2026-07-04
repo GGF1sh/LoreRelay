@@ -288,7 +288,7 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 
 ## 🟡 Phase 13 Candidate: Settlement Mode / StoneSense-style View
 
-*ステータス: M1–M5b host配線完了（v1.72.0+）· M2 replay/remote 完了 · M5 remote/replay 未実装（2026-07-04）*
+*ステータス: M1–M5 完了（v1.73.0）· M2 replay/remote 完了 · M5 remote/replay 未実装（設計非ゴール）（2026-07-04）*
 
 設計正本: [`docs/SETTLEMENT_MODE_DESIGN.md`](docs/SETTLEMENT_MODE_DESIGN.md)  
 AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_PROMPTS.md)  
@@ -361,5 +361,7 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] capped blocks/markers/labels + closed material mapping + allow-list pickers
 - [x] M5b read-only Three.js Webview renderer（Claude · `86c-settlement-diorama.js`）
 - [x] host 配線 — `enableSettlementDiorama`（default OFF）+ `worldView.settlementDiorama`（`settlementDioramaBridge.ts`）
+- [x] 3-AI review fixes — `revision` scene rebuild, selected-layer local Z, renderer reuse, overlay context injection
+- [x] Three.js lazy load — vendor split from `script.js`; load on first Diorama use（v1.73.0）
 
 **Non-goals:** full colony sim, pathfinding, freeform tile editor, full geological strata, sprite/code/schema copying from referenced games.

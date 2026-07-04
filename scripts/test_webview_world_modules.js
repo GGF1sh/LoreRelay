@@ -219,6 +219,22 @@ assert(
 );
 assert(indexHtml.includes('id="world-diorama-marker-fallback"'), 'world-diorama-marker-fallback markup missing from index.html');
 assert(indexHtml.includes('id="world-diorama-unavailable"'), 'world-diorama-unavailable markup missing from index.html');
+assert(
+    indexHtml.includes('__LR_THREE_SCRIPT_URI__'),
+    'index.html must expose threeUri for M5 lazy loading'
+);
+assert(
+    !bundle.includes('Three.js Authors'),
+    'Three.js vendor must not be prepended into script.js (M5 lazy load)'
+);
+assert(
+    dioramaModule.includes('loadThreeJsLazy'),
+    '86c-settlement-diorama.js must lazy-load Three.js'
+);
+assert(
+    !buildScript.includes('fs.readFileSync(threeMinPath'),
+    'build-webview.js must not prepend three.min.js into script.js'
+);
 console.log('ok: Settlement Diorama (M5b) renderer symbols are bundled and read-only');
 
 const worldPaneStart = indexHtml.indexOf('<div id="pane-world"');

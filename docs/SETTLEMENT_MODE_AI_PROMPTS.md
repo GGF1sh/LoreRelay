@@ -10,16 +10,16 @@ Primary design document:
 
 Current repository baseline:
 
-- `package.json` version: `1.72.0`
-- M4b persistence on `main` (commits `af24e9e`, `0b8bbb1`)
-- M4c UX **Approved** (`ff86f60`). Current priority: **M2 replay/remote overlay wiring**
+- `package.json` version: `1.73.0`
+- M5 complete on `main` (M5a/M5b/host wiring + 3-AI review fixes + lazy load)
+- M4c UX **Approved** (`ff86f60`). M2 replay/remote overlay wiring complete
 
 ## 0. Common Header
 
 Paste this before any role-specific prompt:
 
 ```markdown
-LoreRelay v1.72.0 handoff.
+LoreRelay v1.73.0 handoff.
 
 Before working, read these files in order:
 

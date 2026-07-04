@@ -337,12 +337,14 @@ export function activate(context: vscode.ExtensionContext) {
         const styleUri = webviewAssetUri('style.css');
         const scriptUri = webviewAssetUri('script.js');
         const mermaidUri = webviewAssetUri(path.join('vendor', 'mermaid.min.js'));
+        const threeUri = webviewAssetUri(path.join('vendor', 'three.min.js'));
         const nonce = getNonce();
 
         html = html
             .replace(/\{\{styleUri\}\}/g, styleUri.toString())
             .replace(/\{\{scriptUri\}\}/g, scriptUri.toString())
             .replace(/\{\{mermaidUri\}\}/g, mermaidUri.toString())
+            .replace(/\{\{threeUri\}\}/g, threeUri.toString())
             .replace(/\{\{cspSource\}\}/g, panel.webview.cspSource)
             .replace(/\{\{nonce\}\}/g, nonce);
 

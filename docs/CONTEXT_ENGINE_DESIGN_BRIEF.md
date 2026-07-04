@@ -1,7 +1,8 @@
-# Context & Knowledge Engine — Design Brief (v0.1, north-star)
+# Context & Knowledge Engine — Design Brief (v0.2, north-star)
 
 > ステータス: **設計依頼(未実装)**。この文書は Architecture Owner が「北極星設計」を確定させるための入力ブリーフであり、確定仕様ではない。実装着手はまだ。
-> 起草: 2026-07-04, Opus 4.8(Architecture Owner ロール)。ChatGPT 5.5(概念拡張)/ Sonnet 5(スコープ制御)/ ユーザーの多AI相談から統合。
+> 起草: 2026-07-04, Opus 4.8(Architecture Owner ロール)。ChatGPT 5.5(概念拡張)/ Sonnet 5(スコープ制御・実コード検証)/ ユーザーの多AI相談から統合。
+> v0.2: Grok・Gemini 3.1 Pro・ChatGPT 5.5 のレビューを反映(§2/§3/§4/§6/§9 更新)。3AI 独立収束の合意事項は locked、真の設計判断は §9 Open Questions へ。
 > 対象バージョン: v1.76.0 実測時点。
 
 ---
@@ -32,6 +33,9 @@ LoreRelay は機能が膨大化した(Core だけで 126 ファイル、Campaign
 | `chronicleCore.ts` / `chronicleJournalCore.ts` | 年代記 | 期間要約(Medium/Long-term Memory) | Memory LOD へ |
 | `worldObservatoryCore.ts`(リングバッファ24件) | 相場履歴 | 時間 LOD の先例(踏襲すべき実装パターン) | — |
 | `parlorPromptBuilderCore.ts` / `parlorSessionCore.ts` | 1対1 NPC 会話 | **P0 Pilot の対象** | 最小の実験場 |
+| `gameStateWebviewSanitizeCore.ts:sanitizeStatePatchForWebview()`(:330) | 内部 state → Webview 送出前の削除/変換 | **Context Accounting の audience 分離の先例** | Internal Full Accounting / User-safe Accounting の分離はこのパターンを踏襲(新規発明ではない) |
+
+**実測で確定した1点(2026-07-04, Sonnet 5 検証)**: `parlorPromptBuilderCore.ts` は `PROMPT_CHUNK_PRIORITIES` / `evictPromptChunksByBudget` を**一切参照しない**。つまり §2/現行コードの「worldState:68 > memory:45」eviction リスクは **`gmPromptBuilderCore.ts` 経路(Campaign/GM モード)限定**であり、Parlor モードは影響を受けない(別経路で identity を供給しているため)。「NPCが自分が誰か忘れる」という v0.1 の表現はこの意味で範囲が広すぎた。正確には: **「現行のフラット eviction では、GM/Campaign モードにおいて会話主体に重要な記憶・Lore が世界状態より先に削除され得る構造的リスクが実在する」**。
 
 > ⚠️ 表の下半分(recentChanges 昇格 / introduction trust boost の内部)はメモリ由来の記述であり、本セッションでファイルを直接読んでいない項目を含む。**Repository-wide Consistency Review(Gemini ロール)が、この表を1件ずつ現地確認して確定させること。**
 
@@ -63,6 +67,22 @@ LoreRelay は機能が膨大化した(Core だけで 126 ファイル、Campaign
 - 毎回導出する: **Accessibility / Awareness**(所属変更で可視性が変わる、user message 依存のため)。
 - 最終的に GM プロンプトへ入るのは「このアクターが知っていて、今回の会話で思い出しそうな情報」= Awareness の出力のみ。
 
+### ⚠️ v0.1 のバグ修正: Access と Recall は別の判定(ChatGPT 5.5 指摘, 確定採用)
+
+v0.1 は「Accessibility は導出、`canAccessFact()` で判定」とだけ書いており、これを**既得知識の再想起(recall)判定にも使ってしまう読み方ができた**。それは誤り。例: Alice が商人ギルド所属時代に秘密を知り、その後脱退した場合——
+
+- 現在の Access(そのギルド情報網への**新規アクセス**) = ない
+- 既に持っている Knowledge(その秘密) = ある、消えない
+
+`canAccessFact()` は **「新しく知識を取得できるか」にのみ使う。既に Acquired Knowledge になった情報の再想起には使ってはならない。** これは Invariant として明文化する:
+
+```ts
+canAcquire(actor: EntityRef, source: InformationSource, ctx: WorldContext): boolean;  // 新規取得のゲート
+canRecall(actor: EntityRef, entry: KnowledgeEntry, ctx: WorldContext): boolean;        // 既得知識の想起判定(salience/staleness等が要因、accessibilityではない)
+```
+
+Access を失っても Knowledge は保持される、というのが不変条件。Architecture Owner はこの2関数を明確に別シグネチャとして確定させること(§9 Q5)。
+
 ### 決定論と semantic の境界(pure-core 志向との和解)
 
 > **Engine は (WorldState, KnowledgeLedger, MemoryLedger, ContextRequest) に対して決定論的でなければならない。唯一の非決定論源は optional な Semantic Retriever で、それは candidate generation 段にのみ隔離する。** 選択(re-rank)と予算(budget)段は完全に決定論・再現可能・テスト可能に保つ。これが「pure core 志向」と「hybrid 検索」の両立点。**embedding に "このNPCが知っているか / 開示していいか" を判定させてはならない(それは deterministic)。** semantic は「意味的に関係する昔の事件を候補として拾う」補助輪に限る。
@@ -84,6 +104,12 @@ World  →  1.Access/Knowledge Filter (deterministic)
 ## 4. コアスキーマ(たたき台・Architecture Owner が確定)
 
 ```ts
+// --- 4.0 時計参照(bare number 禁止, Grok/ChatGPT 指摘・確定採用) ---
+// 理由: 実際に過去 gmTurn/worldTurn 混同インシデントが発生済み
+// (CHANGELOG.md:94 "Replay gallery matches gmTurn not worldTurn")。
+// Domain/Guild/Simulation はそれぞれ別の時間概念を持つため bare number は禁止。
+type ClockRef = { clock: 'world' | 'gm' | 'domainMonth' | 'guildDrift' | 'simTick'; value: number };
+
 // --- 4.1 出所を必ず持つ Context の最小単位 ---
 type ContextItem = {
   id: string;
@@ -101,12 +127,39 @@ type ContextItem = {
   lod: 0 | 1 | 2 | 3 | 4;     // 0=IDのみ … 4=原文
 };
 
-// --- 4.2 知識台帳(MVP: 伝播シミュレーションなし) ---
+// --- 4.2a World Fact と Claim/Proposition の分離(3AI 独立収束・確定採用) ---
+// Grok・Gemini・ChatGPT が独立に同じ穴を指摘: factId 参照だけでは
+// 「誤解」「古い情報」「勘違い」を表現できない(真実しか弱く信じられない)。
+// 例: World Truth = King.deadCause:'illness' だが
+//     Alice の Knowledge は Claim「王は暗殺された」confidence 0.7 になり得る。
+type Claim = {
+  id: string;
+  subject: EntityRef;
+  predicate: string;
+  value: JsonValue;
+  truthRelation?: 'confirmed' | 'contradicted' | 'unknown';  // World Truth との関係(GM/Engine内部の正本判定用、actorには見せない)
+};
+
+// --- 4.2b 知識台帳(MVP: 伝播シミュレーションなし) ---
+// ⚠️ 「誰の知識か」(actor-owned ledger か global ledger+knower参照か)は
+// Architecture Owner が確定させる未決事項。§9 Q1 を参照。以下は暫定形。
 type KnowledgeEntry = {
-  factId: string;
+  actor: EntityRef;                                            // 誰の知識か(v0.1で欠落していた必須フィールド)
+  claimId: string;                                              // factId ではなく Claim を指す
   acquisitionType: 'witnessed' | 'told' | 'document' | 'inferred';
   confidence: number;
-  acquiredAt: number;         // worldTurn
+  acquiredAt: ClockRef;                                         // bare number 禁止
+};
+
+// --- 4.2c 記憶台帳(参照+想起メタデータ、Knowledgeの複製ではない。二重正本を避ける) ---
+type MemoryEntry = {
+  actor: EntityRef;
+  knowledgeRef?: string;      // KnowledgeEntry への参照(複製しない)
+  eventRef?: string;          // TimelineEvent への参照
+  memoryType: 'episodic' | 'semantic' | 'relationship' | 'commitment';
+  salience: number;           // recall されやすさ(staleness減衰の入力)
+  lastRecalledAt?: ClockRef;
+  summaryRefs: { lod1?: string; lod2?: string; lod3?: string };  // LOD別の要約文への参照
 };
 
 // --- 4.3 Entity Timeline Index(全文検索ではなく索引) ---
@@ -144,19 +197,41 @@ type ContextRequest = {
 };
 
 // --- 4.6 出力: bundle + accounting(#5 制約) ---
+// ⚠️ Gemini 指摘(確定採用): Context Accounting をそのまま Webview/Remote Player へ
+// 出すと "Omitted: 暗殺者の正体(理由: inaccessible)" のように
+// 「秘密が存在すること自体」が漏洩する(過去の Map Overlay ID 漏れ修正と同種の罠)。
+// gameStateWebviewSanitizeCore.ts の sanitize パターンを踏襲し、
+// Internal Full Accounting と User-safe Accounting を必ず分離する。
+// P0 Context Inspector は GM/Developer 専用画面とし、Remote Player へ生送りしない。
 type ContextBuildResult = {
   bundle: ContextBundle;         // mandatory / currentScene / speakerIdentity /
                                  // relationships / relevantMemories /
                                  // relevantWorldFacts / rumors /
                                  // activeCommitments / compressedBackground
-  accounting: {
+  accountingInternal: {          // GM/Developer専用。sanitize前提でWebviewへ渡さない
     candidatesConsidered: number;
     included: ContextDecision[];   // {itemId, category, tokens, reason}
     omitted: ContextDecision[];    // {itemId, reason: 'inaccessible'|'low_relevance'|'budget_exceeded'|'redundant'}
     tokenBudget: number;
     tokenUsed: number;
     truncationOccurred: boolean;
+    retrievalReceipt?: RetrievalReceipt;  // semantic retriever使用時のみ、Shadow/Debug用
   };
+  accountingUserSafe?: {         // Remote Player等へ出してよい要約のみ(存在の有無を漏らさない粒度)
+    truncationOccurred: boolean;
+    tokenUsed: number;
+    tokenBudget: number;
+  };
+};
+
+// --- 4.7 Semantic Retriever 使用時の再現性(ChatGPT指摘, Shadow/Debug用途に限定) ---
+// embeddingモデル更新等でcandidate setが変わると、re-rankがdeterministicでも結果が変わる。
+// 本編の正本には保存不要だが、Shadow Mode比較・デバッグには必須。
+type RetrievalReceipt = {
+  retrieverId: string;
+  retrieverVersion: string;
+  candidateIds: string[];
+  queryHash: string;
 };
 ```
 
@@ -188,16 +263,26 @@ FinalScore =
 
 現行 `evictPromptChunksByBudget` は「pinned 予約 → 単一フラット mutable pool を優先度 evict」の2層。これを **N カテゴリ予約 + 可変 pool** へ格上げする。理由: 現行だと世界イベント(worldState:68)が identity/memory(memory:45, lorebook:40)より上位で、Opus 指摘の**「NPC が自分が誰か忘れる」**が実コードで起こり得る。
 
-予約例(12,000 tokens):
+### ⚠️ v0.1 の固定割当は第二の「priority戦争」になり得る(3AI 収束・確定採用)
+
+固定額の予約(Speaker Identity=1,000 固定など)は、方向は正しいが、Current Scene が 1,100 しか使わず 900 が死蔵される・Memory が今回 3,000 必要でも 2,000 で頭打ちになる、という新たな硬直を生む。**`min/target/max + borrowUnused` モデルへ変更する:**
+
+```ts
+type CategoryBudget = { min: number; target: number; max: number; borrowUnused: boolean };
+```
+
+アルゴリズム: (1) 全カテゴリへ `min` を保証 → (2) `target` まで配分 → (3) 余剰を Flexible Pool へ戻す → (4) relevance 順に `max` まで借用可。
+
+予約の目安(12,000 tokens、`min/target/max`):
 ```text
-System / Rules      2,000   (現行 PROMPT_NEVER_EVICT に相当)
-Current Scene       2,000
-Speaker Identity    1,000   ← 予約で保護。世界イベントに食われない
-Relationships       1,000
-Relevant Memories   2,000
-World Information    1,500
-Recent Events        1,000
-Flexible Pool        1,500   ← カテゴリ間の余りを競う
+System / Rules      2,000 / 2,000 / 2,000  (現行 PROMPT_NEVER_EVICT に相当、可変なし)
+Current Scene         800 / 2,000 / 2,500
+Speaker Identity       500 / 1,000 / 1,500  ← min保証で世界イベントに食われない
+Relationships          300 / 1,000 / 1,500
+Relevant Memories      800 / 2,000 / 3,000
+World Information      500 / 1,500 / 2,000
+Recent Events          300 / 1,000 / 1,500
+Flexible Pool            0 / 1,500 / —      ← カテゴリ間の余りを吸収
 ```
 
 + Context LOD: 同一情報を LOD 0(ID)〜4(原文)で保持し、予算に応じて Engine が段階を選ぶ(Three.js / 地図 LOD と同じ発想)。例: `Bob: trusted friend` → `…recently disagreed over caravan policy` → 全文。
@@ -228,12 +313,24 @@ Pilot 対象は最小の `parlor*Core.ts`(1 NPC / 1 User / 1 会話)から。こ
 
 ---
 
-## 9. Architecture Owner への確定タスク(このブリーフの次)
+## 9. Architecture Owner への Open Questions(v0.2, Grok/Gemini/ChatGPT 合意の上で残った真の設計判断)
 
-1. §4 スキーマを確定(特に EntityRef/LocationRef/ClockSnapshot/TokenBudget の定義)。
-2. `canAccessFact()` / `buildAwareness()` の**決定論的**シグネチャと不変条件を定義。
-3. §1 の既存機構を Engine へ寄せる **migration 経路**(subsystem が prompt chunk を書く現行 → subsystem が `ContextProvider` として候補を registerする形へ)。Shadow Mode(P1)があるので旧経路と並走で漸進移行可能。
-4. char→token 移行の tokenizer 依存をどう pure core に閉じ込めるか(現行は char 基準)。
-5. Failure modes 一覧(Adversarial Tester への投入前提)。
+以下は「意見が割れている」のではなく、**3AIレビューを経てなお Architecture Owner が明示的に決めないと下流(スキーマ・Pilot実装)が全部やり直しになる決定事項**。コードは書かず、この10問への回答をもって v0.3(確定仕様)とすること。
+
+1. **KnowledgeEntry の所有モデル**: actor-owned ledger(`ActorKnowledgeLedger { actor, entries[] }`)か、global ledger + knower参照か? — Grok 曰く「これを先に決めないと全部ブレる」、最優先。
+2. **Knowledge は canonical fact のみを参照するか**: false belief / outdated belief / contradiction をどう表現するか(§4.2a の Claim 分離は3AI合意で確定済みだが、contradiction 解決ロジックの粒度は未決)。
+3. fact/claim/proposition の分離を Pilot(P0)スコープでどこまで実装するか(スキーマは4.2aで確定、MVP実装範囲は未定)。
+4. §4.2b の `KnowledgeEntry.actor` フィールド追加は本ブリーフで確定済み。追加の invariant(同一 actor に対する矛盾する claim の共存を許すか)を定義せよ。
+5. `canAcquire()` / `canRecall()` (§3 バグ修正で分離済み)の正式シグネチャと、EntityRef/LocationRef/WorldContext の型定義。
+6. MemoryLedger(§4.2c で暫定形は提示済み)を正式化し、salience の減衰関数(staleness計算)を決定論的に定義せよ。
+7. §6 の `min/target/max + borrowUnused` アルゴリズムの厳密な擬似コード化(競合時の再配分順序)。
+8. §4.6 の Internal/User-safe Accounting 分離の具体的なフィールド境界線(何を user-safe 側に残してよいか)。
+9. `ContextCandidateRetriever` interface(§4.4)を正式 schema へ昇格し、既存 subsystem がどう `ContextProvider` として register するかの migration 経路(prompt chunk を書く現行 → 候補を提供する形へ)。
+10. Failure modes 一覧の作成(Adversarial Tester = Grok への投入前提: 100万Event/1万NPC/500年/同名NPC/記憶改竄/複数世界時計)。
+
+### 保留中の実務判断(Architecture Owner確定を待つ、今は着手しない)
+
+- **現行 priority 数値の緊急パッチ(`memory:45`を上げる等)は保留。** ChatGPT/Grok 一致: 数字だけ動かすと別の chunk が落ちるだけ。先に「巨大worldState + 必要なNPC memory + 予算超過 → 何が実際に落ちるか」を**GM/Campaignモード限定で**再現するテストを書き、実害箇所を確定してから対処する(長期解は §6 の Category Budgeter)。
+- char→token 移行の tokenizer 依存を pure core にどう閉じ込めるか(現行は char 基準)。
 
 > **今は実装フェーズではない。北極星設計を1本作るフェーズ。この基幹は今後100コミット規模に影響し得る。**

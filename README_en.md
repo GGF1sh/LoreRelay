@@ -1,6 +1,6 @@
-# LoreRelay - Local-first AI Game Master UI 軸
+# LoreRelay - Local-first AI Game Master UI 🎲
 
-[English](README_en.md) | [譌･譛ｬ隱枉(README.md) | [邂菴謎ｸｭ譁Ⅹ(README_zh-CN.md) | [郢・ｫ比ｸｭ譁Ⅹ(README_zh-TW.md)
+[English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-1.77.0-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
@@ -8,38 +8,38 @@
 
 **Local-first AI Game Master UI**
 
-**Antigravity (Free) ﾃ・LoreRelay ﾃ・ComfyUI 窶披・A fully automated RPG environment hosted by frontier models, requiring no API keys or extra costs.**
+**Antigravity (Free) × LoreRelay × ComfyUI —— A fully automated RPG environment hosted by frontier models, requiring no API keys or extra costs.**
 
 A VSCode extension that maximizes your existing AI subscriptions, combining backend freedom like SillyTavern with an authentic CRPG experience like Saga & Seeker.
 By passing JSON via manual copy-paste (or automating via local agents), it provides a completely open and hackable "Hacker Edition" UI layer to build your own adventure environment.
 
-> 庁 **Notice:** If you like this extension, please consider [buying me a coffee 笘評(https://ko-fi.com/promptpalette)
+> 💡 **Notice:** If you like this extension, please consider [buying me a coffee ☕](https://ko-fi.com/promptpalette)
 
 ---
 
-## 検 Features
+## 🌟 Features
 
-- 頂 **No Extra API Costs (by default):** No pay-as-you-go API keys are needed for local LLMs, Grok CLI, or manual copy-paste operations. An API key is only required if you use OpenRouter.
-- ｧｩ **Agent Bridge:** If you use a locally executable AI like Grok Build, you can send Webview choices and free text input directly to the GM.
-- 耳 **Glassmorphism UI:** A rich display featuring a translucent chat UI, worldview theme switching, and an image gallery.
-- 笞費ｸ・**CRPG Character Sheet:** A visual status panel inspired by Saga & Seeker and others, managing HP/MP progress bars, skills, and inventory.
-- 名・・**Local Image Generation & World Integration (v1.3+):** Integrates with ComfyUI for on-the-spot scene generation; World System can auto-generate backgrounds on location changes.
-- 七 **Adaptive BGM & SFX:** Automatically controls and crossfades sound sources registered in `bgm.json` / `sfx.json` based on the GM's instructions.
-- 逃 **Scenario Packs:** Load a folder containing `scenario.json` to apply the starting scene, theme, and dedicated BGM/SFX all at once.
-- 軸 **Built-in Dice Roller & Calculator:** Includes a dice roller (NdX) and math calculator essential for TRPG-like checks.
-- 沈 **Persistent Adventure Log:** Saves adventure logs to `game_history.json`, allowing you to restore your history even after restarting VSCode.
-- 剥 **Turn Inspector:** Per-turn dice ledger, state patches, and triggered lore.
-- 当 **Lorebook & Memory UI:** ST-compatible lorebook editor, memory search preview, pinned lore injection.
-- 汐 **Scenario & Party Director:** `scenario.json` / `party_director.json` with `game_state` runtime overrides.
-- 導 **Remote Play (v0.7+):** LAN join URLs (copy & share), player / spectator roles. WebSocket auth, input clamps, and **signed `/media` URLs** (short-TTL HMAC, v1.6.2+).
-- 訣 **Living World System (v1.3+):** `world_forge.json` (World Forge), emergent simulation, World tab Mermaid map with biome styling and pan/zoom (v1.6.3+).
-- 亮・・**Cartography / Parchment Map (v1.7+, optional advanced):** Region `x/y/biome` 竊・layout PNG 竊・ComfyUI ControlNet parchment map 竊・Webview pin overlay. Requires ComfyUI + SDXL Canny; layout-only works with Python alone.
-- 笞呻ｸ・**Emergent Simulation:** Per-turn resource consumption, power balance, and NPC affinity/fear auto-simulation.
-- 孱・・**Robust State Management:** Size clamps, invalid ID purge, and safe state migrations to prevent UI crashes from oversized data.
-- 早・・**Visual Memory / Soulgaze (v1.5+):** VLM analyzes generated images into `visual_memory.json` and injects visual context into later GM prompts.
-- 白 **Audit Wave Hardening (v1.6):** Seven-track audit across State, GM Bridge, World, ST Import, Webview, Remote Play, and Extension Hub with pure validation modules and expanded regression tests.
-- 床 **Domain Mode (v1.39+, experimental):** Lordship / fief management 窶・`enableDomainMode` OFF by default ﾂｷ F7窶擢10 engine + World tab UI (v1.40.0).
-- 笞費ｸ・**Guild Master (v1.41窶・.44, experimental):** Adventurer guild / quest board 窶・`enableGuildMode` OFF by default ﾂｷ weekly commit ﾂｷ request rulings ﾂｷ party dispatch ﾂｷ absence drift.
+- 💸 **No Extra API Costs (by default):** No pay-as-you-go API keys are needed for local LLMs, Grok CLI, or manual copy-paste operations. An API key is only required if you use OpenRouter.
+- 🧩 **Agent Bridge:** If you use a locally executable AI like Grok Build, you can send Webview choices and free text input directly to the GM.
+- 🎨 **Glassmorphism UI:** A rich display featuring a translucent chat UI, worldview theme switching, and an image gallery.
+- ⚔️ **CRPG Character Sheet:** A visual status panel inspired by Saga & Seeker and others, managing HP/MP progress bars, skills, and inventory.
+- 🖼️ **Local Image Generation & World Integration (v1.3+):** Integrates with ComfyUI for on-the-spot scene generation; World System can auto-generate backgrounds on location changes.
+- 🎵 **Adaptive BGM & SFX:** Automatically controls and crossfades sound sources registered in `bgm.json` / `sfx.json` based on the GM's instructions.
+- 📦 **Scenario Packs:** Load a folder containing `scenario.json` to apply the starting scene, theme, and dedicated BGM/SFX all at once.
+- 🎲 **Built-in Dice Roller & Calculator:** Includes a dice roller (NdX) and math calculator essential for TRPG-like checks.
+- 💾 **Persistent Adventure Log:** Saves adventure logs to `game_history.json`, allowing you to restore your history even after restarting VSCode.
+- 🔍 **Turn Inspector:** Per-turn dice ledger, state patches, and triggered lore.
+- 📖 **Lorebook & Memory UI:** ST-compatible lorebook editor, memory search preview, pinned lore injection.
+- 🎬 **Scenario & Party Director:** `scenario.json` / `party_director.json` with `game_state` runtime overrides.
+- 📱 **Remote Play (v0.7+):** LAN join URLs (copy & share), player / spectator roles. WebSocket auth, input clamps, and **signed `/media` URLs** (short-TTL HMAC, v1.6.2+).
+- 🌍 **Living World System (v1.3+):** `world_forge.json` (World Forge), emergent simulation, World tab Mermaid map with biome styling and pan/zoom (v1.6.3+).
+- 🗺️ **Cartography / Parchment Map (v1.7+, optional advanced):** Region `x/y/biome` → layout PNG → ComfyUI ControlNet parchment map → Webview pin overlay. Requires ComfyUI + SDXL Canny; layout-only works with Python alone.
+- ⚙️ **Emergent Simulation:** Per-turn resource consumption, power balance, and NPC affinity/fear auto-simulation.
+- 🛡️ **Robust State Management:** Size clamps, invalid ID purge, and safe state migrations to prevent UI crashes from oversized data.
+- 👁️ **Visual Memory / Soulgaze (v1.5+):** VLM analyzes generated images into `visual_memory.json` and injects visual context into later GM prompts.
+- 🔒 **Audit Wave Hardening (v1.6):** Seven-track audit across State, GM Bridge, World, ST Import, Webview, Remote Play, and Extension Hub with pure validation modules and expanded regression tests.
+- 🏰 **Domain Mode (v1.39+, experimental):** Lordship / fief management — `enableDomainMode` OFF by default · F7–F10 engine + World tab UI (v1.40.0).
+- ⚔️ **Guild Master (v1.41–1.44, experimental):** Adventurer guild / quest board — `enableGuildMode` OFF by default · weekly commit · request rulings · party dispatch · absence drift.
 
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -49,10 +49,10 @@ Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUA
 |------|---------------|
 | **Required (core play)** | VSCode 1.85+, Python, `TextAdventureGMSkill` (`SKILL.md`) |
 | **Recommended** | GM Bridge (Grok / Ollama / clipboard, etc.) or manual copy-paste |
-| **Optional 窶・images** | ComfyUI (API mode) for scene backgrounds and parchment maps |
-| **Optional 窶・vision** | VLM (Ollama `llava` or OpenRouter multimodal) for Soulgaze |
-| **Optional 窶・multiplayer** | Remote Play (same LAN) |
-| **Optional 窶・maps** | Cartography 窶・layout PNG needs Python only; illustrated parchment needs ComfyUI + SDXL Canny |
+| **Optional — images** | ComfyUI (API mode) for scene backgrounds and parchment maps |
+| **Optional — vision** | VLM (Ollama `llava` or OpenRouter multimodal) for Soulgaze |
+| **Optional — multiplayer** | Remote Play (same LAN) |
+| **Optional — maps** | Cartography — layout PNG needs Python only; illustrated parchment needs ComfyUI + SDXL Canny |
 
 ### Data flow (Persist-Before-Narrate)
 
@@ -60,11 +60,11 @@ Each turn, the GM should write **`turn_result.json`** (`statePatch` + `narration
 
 Direct **`game_state.json`** overwrites are an **emergency fallback** (manual paste or legacy GM). `turnResultFallback` then synthesizes `turn_result.json` so Inspector, journal, and MediaAgent stay on the same path.
 
-**Cartography pipeline (optional):** `world_forge.json` (region `x` / `y` / `biome`) 竊・layout PNG (`world_map.layout.png`) 竊・(optional) ComfyUI ControlNet 竊・`world_map.png` 竊・桃 pin overlay in the World tab
+**Cartography pipeline (optional):** `world_forge.json` (region `x` / `y` / `biome`) → layout PNG (`world_map.layout.png`) → (optional) ComfyUI ControlNet → `world_map.png` → 📍 pin overlay in the World tab
 
 ---
 
-## 萄 Screenshots & Demo
+## 📸 Screenshots & Demo
 
 <p align="center">
   <img src="docs/assets/hero-ui.png" alt="LoreRelay main UI" width="720" />
@@ -82,13 +82,13 @@ See [`DEMO.md`](DEMO.md) to replace mockups with real screenshots or a demo GIF.
 
 ---
 
-## 噫 How to Play
+## 🚀 How to Play
 
 ### Quick start (3 minutes)
 
-1. `LoreRelay: Load Scenario Pack` 竊・`sample-scenarios/lost-catacombs`
-2. `LoreRelay: Open Game UI` 竊・enable **World Forge** in Game Rules
-3. **World** tab 竊・**Parchment** to see bundled `world_map.layout.png` and pins (no ComfyUI)
+1. `LoreRelay: Load Scenario Pack` → `sample-scenarios/lost-catacombs`
+2. `LoreRelay: Open Game UI` → enable **World Forge** in Game Rules
+3. **World** tab → **Parchment** to see bundled `world_map.layout.png` and pins (no ComfyUI)
 4. Play one turn and watch the GM response
 
 For illustrated parchment maps: start ComfyUI, then `LoreRelay: Generate World Map Image`. See [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) (**optional / advanced**).
@@ -102,7 +102,7 @@ This extension uses a loosely coupled mechanism that watches `turn_result.json` 
 2. After that, just chat with the AI. The AI will automatically roll dice, generate images with ComfyUI, and update `game_state.json`.
 3. Keep this extension open in VSCode, and the UI will update in real-time!
 
-> **For Antigravity users:** You can easily operate by clicking a choice in the Webview 竊・copy to clipboard 竊・paste into Antigravity chat 竊・auto update. See [`ANTIGRAVITY_GUIDE.md`](ANTIGRAVITY_GUIDE.md) for details.
+> **For Antigravity users:** You can easily operate by clicking a choice in the Webview → copy to clipboard → paste into Antigravity chat → auto update. See [`ANTIGRAVITY_GUIDE.md`](ANTIGRAVITY_GUIDE.md) for details.
 
 ### Mode B: Manual Copy & Paste Mode
 **Target:** If you are using standard browser-based ChatGPT, Claude, or Gemini.
@@ -113,14 +113,14 @@ This extension uses a loosely coupled mechanism that watches `turn_result.json` 
 
 ---
 
-## 屏・・Setup & Installation
+## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+) 窶・required
-- **Python** 窶・required (dice, layout maps, GM bridge scripts)
-- **TextAdventureGMSkill** 窶・required (`SKILL.md` and `scripts/`; place next to this repo)
-- **ComfyUI** 窶・*optional* (scene images and parchment maps only; start in API mode)
-- **VLM** 窶・*optional* (Visual Memory / Soulgaze via Ollama or OpenRouter)
+- **VSCode** (v1.85+) — required
+- **Python** — required (dice, layout maps, GM bridge scripts)
+- **TextAdventureGMSkill** — required (`SKILL.md` and `scripts/`; place next to this repo)
+- **ComfyUI** — *optional* (scene images and parchment maps only; start in API mode)
+- **VLM** — *optional* (Visual Memory / Soulgaze via Ollama or OpenRouter)
 
 ### 2. Quick setup (recommended)
 
@@ -140,9 +140,9 @@ chmod +x scripts/setup.sh
 ```
 
 What the script does:
-- Auto-detects GM skill path 竊・generates `my-adventure/.vscode/settings.json`
+- Auto-detects GM skill path → generates `my-adventure/.vscode/settings.json`
 - `npm install` / `compile` / `test`
-- (Optional) VSIX package 竊・`code --install-extension`
+- (Optional) VSIX package → `code --install-extension`
 - Generates `text-adventure.code-workspace` (3 roots: Game + Skill + Extension)
 
 Example options: `-Locale en` `-GmProvider clipboard` `-SkipVsix`
@@ -158,17 +158,17 @@ Search for `textAdventure.skillPath` in VSCode Settings and specify the absolute
 
 Main settings:
 
-- `textAdventure.skillPath` 窶・Absolute path to `comfyui_generate.py`
-- `textAdventure.locale` 窶・Language for UI / errors / GM prompts (`ja` / `en` / `zh-CN` / `zh-TW`). Can also be changed from the 倹 in the Webview header.
-- `textAdventure.gmBridge.provider` 窶・`grok` / `ollama` / `koboldcpp` / `clipboard` / `command` (Details in `GM_BRIDGE_PRESETS.md`)
-- `textAdventure.grokBridge.*` 窶・Enable Grok Build auto-send, CLI path, fallback settings
-- `textAdventure.imageGen.*` 窶・ComfyUI / Stability Matrix URL, checkpoint, workflow, generation size
-- `textAdventure.imageGen.controlNet` 窶・SDXL Canny model name for Cartography (optional)
-- `textAdventure.vlm.*` 窶・Soulgaze VLM (`provider` / `model` / `endpoint`)
-- `textAdventure.mediaAgent.*` 窶・background image queue, early BGM/SFX from GM stream
-- `textAdventure.remotePlay.*` 窶・port, `bindAddress`, `mediaUrlTtlSec` (signed media URL TTL), etc.
-- `textAdventure.bgm.*` 窶・BGM manifest and volume
-- `textAdventure.sfx.*` 窶・SFX manifest and volume
+- `textAdventure.skillPath` — Absolute path to `comfyui_generate.py`
+- `textAdventure.locale` — Language for UI / errors / GM prompts (`ja` / `en` / `zh-CN` / `zh-TW`). Can also be changed from the 🌐 in the Webview header.
+- `textAdventure.gmBridge.provider` — `grok` / `ollama` / `koboldcpp` / `clipboard` / `command` (Details in `GM_BRIDGE_PRESETS.md`)
+- `textAdventure.grokBridge.*` — Enable Grok Build auto-send, CLI path, fallback settings
+- `textAdventure.imageGen.*` — ComfyUI / Stability Matrix URL, checkpoint, workflow, generation size
+- `textAdventure.imageGen.controlNet` — SDXL Canny model name for Cartography (optional)
+- `textAdventure.vlm.*` — Soulgaze VLM (`provider` / `model` / `endpoint`)
+- `textAdventure.mediaAgent.*` — background image queue, early BGM/SFX from GM stream
+- `textAdventure.remotePlay.*` — port, `bindAddress`, `mediaUrlTtlSec` (signed media URL TTL), etc.
+- `textAdventure.bgm.*` — BGM manifest and volume
+- `textAdventure.sfx.*` — SFX manifest and volume
 
 ### 5. Command palette (key commands)
 
@@ -218,9 +218,9 @@ Also under `TextAdventureGMSkill/scenarios/`.
 - Export and validate scenario packs to build Workshop-ready ZIPs (marketplace publishing is under consideration)
 
 ### 9. Model & ComfyUI presets
-- [`MODEL_PRESETS.md`](MODEL_PRESETS.md) 窶・copy JSON from `presets/`
-- [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) 窶・scene + cartography workflows
-- Cartography (optional): [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) ﾂｷ [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md) ﾂｷ [`docs/CARTOGRAPHY_DESIGN.md`](docs/CARTOGRAPHY_DESIGN.md)
+- [`MODEL_PRESETS.md`](MODEL_PRESETS.md) — copy JSON from `presets/`
+- [`COMFYUI_WORKFLOWS.md`](COMFYUI_WORKFLOWS.md) — scene + cartography workflows
+- Cartography (optional): [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md) · [`docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md`](docs/CARTOGRAPHY_WORKFLOW_CONTRACT.md) · [`docs/CARTOGRAPHY_DESIGN.md`](docs/CARTOGRAPHY_DESIGN.md)
 - Demo walkthrough: [`sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md`](sample-scenarios/lost-catacombs/CARTOGRAPHY_DEMO.md)
 
 ### 10. Documentation index
@@ -237,22 +237,22 @@ Also under `TextAdventureGMSkill/scenarios/`.
 
 ---
 
-## 亮・・Roadmap
+## 🗺️ Roadmap
 
-> **Source of truth:** `package.json` (currently **1.52.0**) ﾂｷ [`CHANGELOG.md`](CHANGELOG.md) ﾂｷ [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) ﾂｷ task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **Source of truth:** `package.json` (currently **1.52.0**) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
 
 **Shipped (summary)**
 
 | Era | Highlights |
 |-----|------------|
-| **v1.3窶・.7** | World Forge / Emergent Sim / Visual Memory / Audit Wave / Cartography |
-| **v1.10窶・.11** | Quest Board (Event-to-Quest) ﾂｷ Agentic GM ﾂｷ Git Timeline ﾂｷ Adaptive TTS |
-| **v1.13窶・.18** | Tile Overmap ﾂｷ Cartography C8/C9 ﾂｷ Debug sandbox ﾂｷ world time passage |
-| **v1.19窶・.21** | Chronicle ﾂｷ Pacing Director ﾂｷ faction reputation ﾂｷ travel encounters ﾂｷ Replay Export |
-| **v1.23窶・.33** | Living World economy (Commerce / Agency) ﾂｷ Commerce UI ﾂｷ trust whereabouts ﾂｷ **LW3 bonds** (NPC竊年PC / player竊年PC / trade ripple) |
-| **v1.34** | Parlor Mode (1-on-1 RP) ﾂｷ ST card import |
-| **v1.39窶・.40** | Domain Mode (D1窶泥5) ﾂｷ D3 World tab UI ﾂｷ F7 audience / F8 rivals / F9 missions / F10 mass battle |
-| **v1.41窶・.44** | Guild Master G1窶敵4 (weekly commit ﾂｷ request board ﾂｷ party dispatch ﾂｷ absence drift) |
+| **v1.3–1.7** | World Forge / Emergent Sim / Visual Memory / Audit Wave / Cartography |
+| **v1.10–1.11** | Quest Board (Event-to-Quest) · Agentic GM · Git Timeline · Adaptive TTS |
+| **v1.13–1.18** | Tile Overmap · Cartography C8/C9 · Debug sandbox · world time passage |
+| **v1.19–1.21** | Chronicle · Pacing Director · faction reputation · travel encounters · Replay Export |
+| **v1.23–1.33** | Living World economy (Commerce / Agency) · Commerce UI · trust whereabouts · **LW3 bonds** (NPC↔NPC / player↔NPC / trade ripple) |
+| **v1.34** | Parlor Mode (1-on-1 RP) · ST card import |
+| **v1.39–1.40** | Domain Mode (D1–D5) · D3 World tab UI · F7 audience / F8 rivals / F9 missions / F10 mass battle |
+| **v1.41–1.44** | Guild Master G1–G4 (weekly commit · request board · party dispatch · absence drift) |
 
 See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.
 
@@ -265,12 +265,12 @@ See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/tra
 
 ---
 
-## ､・Contributing & Support
+## 🤝 Contributing & Support
 This project is an experimental OSS aiming to be a "new playground for text adventures" in the AI era.
 Bug reports and pull requests are highly welcome!
 
 If this project excites you...
-痩 **[Buy me a coffee 笘評(https://ko-fi.com/promptpalette)**
+👉 **[Buy me a coffee ☕](https://ko-fi.com/promptpalette)**
 
 ---
 **Enjoy your adventure!**

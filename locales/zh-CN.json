@@ -1151,6 +1151,7 @@
   "webview.world.overlayLegendRumored": "传闻（未确认）",
   "webview.world.overlayLegendVehicle": "载具",
   "webview.world.overlayLegendVehicleParking": "载具停放",
+  "webview.world.overlayLegendAriaLabel": "地图标记图例",
   "webview.world.overlayVehicleList": "地图上的载具",
   "webview.world.overmapEmpty": "尚无区域。生成世界后即可查看图块地图。",
   "webview.world.pinAction.examine": "详细调查{name}周边。",

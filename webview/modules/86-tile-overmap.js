@@ -75,11 +75,17 @@ function hideMapOverlayTooltip() {
     }
 }
 
-function showMapOverlayTooltip(marker, clientX, clientY) {
+function showMapOverlayTooltip(marker, clientX, clientY, cluster) {
     const el = ensureMapOverlayTooltip();
     if (!el || !marker) { return; }
-    const parts = [marker.label || ''];
-    if (marker.detail) { parts.push(marker.detail); }
+    let parts;
+    if (Array.isArray(cluster) && cluster.length > 1) {
+        parts = cluster.slice(0, 4).map((m) => (m && m.label) || '');
+        if (cluster.length > 4) { parts.push(`+${cluster.length - 4}`); }
+    } else {
+        parts = [marker.label || ''];
+        if (marker.detail) { parts.push(marker.detail); }
+    }
     el.textContent = parts.filter(Boolean).join(' · ');
     el.classList.remove('hidden');
     const panel = document.getElementById('world-overmap');
@@ -91,7 +97,8 @@ function showMapOverlayTooltip(marker, clientX, clientY) {
     el.style.top = `${top}px`;
 }
 
-function hitTestMapOverlayMarker(clientX, clientY, canvas) {
+/** Returns the full hit record ({ marker, cluster, px, py }) for the nearest marker/cluster under the cursor, or null. */
+function hitTestMapOverlayMarkerHit(clientX, clientY, canvas) {
     if (!canvas || !_overlayMarkerHits.length) { return null; }
     const rect = canvas.getBoundingClientRect();
     const x = clientX - rect.left;
@@ -102,10 +109,15 @@ function hitTestMapOverlayMarker(clientX, clientY, canvas) {
         const dist = Math.hypot(hit.px - x, hit.py - y);
         if (dist <= MAP_OVERLAY_HIT_RADIUS_PX && dist < bestDist) {
             bestDist = dist;
-            best = hit.marker;
+            best = hit;
         }
     }
     return best;
+}
+
+function hitTestMapOverlayMarker(clientX, clientY, canvas) {
+    const hit = hitTestMapOverlayMarkerHit(clientX, clientY, canvas);
+    return hit ? hit.marker : null;
 }
 
 function initMapOverlayHover() {
@@ -118,9 +130,9 @@ function initMapOverlayHover() {
             hideMapOverlayTooltip();
             return;
         }
-        const marker = hitTestMapOverlayMarker(e.clientX, e.clientY, canvas);
-        if (marker) {
-            showMapOverlayTooltip(marker, e.clientX, e.clientY);
+        const hit = hitTestMapOverlayMarkerHit(e.clientX, e.clientY, canvas);
+        if (hit) {
+            showMapOverlayTooltip(hit.marker, e.clientX, e.clientY, hit.cluster);
         } else {
             hideMapOverlayTooltip();
         }
@@ -151,6 +163,17 @@ function resolveOverlayMarkerGlyph(marker) {
     return base.glyph;
 }
 
+/** Groups markers sharing the same tile so overlapping entries draw as one glyph + count badge instead of a stacked blob (F13). */
+function groupOverlayMarkersByCell(markers) {
+    const groups = new Map();
+    for (const marker of markers) {
+        const key = `${marker.x},${marker.y}`;
+        if (!groups.has(key)) { groups.set(key, []); }
+        groups.get(key).push(marker);
+    }
+    return groups;
+}
+
 function drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight) {
     _overlayMarkerHits = [];
     const overlay = msg && msg.mapOverlay;
@@ -161,13 +184,20 @@ function drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight) {
     const cols = om && om.cols ? om.cols : 64;
     const rows = om && om.rows ? om.rows : 64;
 
+    const inBounds = markers.filter((marker) => (
+        marker && typeof marker.x === 'number' && typeof marker.y === 'number'
+        && marker.x >= 0 && marker.y >= 0 && marker.x < cols && marker.y < rows
+    ));
+    if (!inBounds.length) { return; }
+
     ctx.save();
-    ctx.font = `600 ${Math.max(7, cell - 1)}px "Courier New", monospace`;
+    // Floors keep glyphs legible at narrow sidebar widths where `cell` shrinks toward its minimum (F13).
+    const fontPx = Math.max(8, cell);
+    const badgeFontPx = Math.max(7, Math.round(fontPx * 0.72));
+    ctx.font = `600 ${fontPx}px "Courier New", monospace`;
 
-    for (const marker of markers) {
-        if (!marker || typeof marker.x !== 'number' || typeof marker.y !== 'number') { continue; }
-        if (marker.x < 0 || marker.y < 0 || marker.x >= cols || marker.y >= rows) { continue; }
-
+    for (const group of groupOverlayMarkersByCell(inBounds).values()) {
+        const marker = group[0];
         const px = marker.x * cell + cell / 2;
         const py = marker.y * cell + cell / 2;
         const rumored = marker.fogVisibility === 'rumored';
@@ -178,15 +208,21 @@ function drawMapOverlayMarkers(ctx, msg, cell, cssWidth, cssHeight) {
         }
 
         ctx.globalAlpha = rumored ? 0.52 : 1;
-        const radius = Math.max(3, cell * 0.38);
+        const radius = Math.max(4, cell * 0.42);
         ctx.fillStyle = rumored ? 'rgba(12, 16, 24, 0.55)' : 'rgba(8, 12, 20, 0.72)';
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.font = `600 ${fontPx}px "Courier New", monospace`;
         drawOvermapOutlinedText(ctx, glyph, px, py, color);
+
+        if (group.length > 1) {
+            ctx.font = `700 ${badgeFontPx}px "Courier New", monospace`;
+            drawOvermapOutlinedText(ctx, `+${group.length - 1}`, px + radius * 0.85, py - radius * 0.85, '#ffe9a8');
+        }
         ctx.globalAlpha = 1;
 
-        _overlayMarkerHits.push({ marker, px, py });
+        _overlayMarkerHits.push({ marker, cluster: group, px, py });
     }
 
     ctx.restore();
@@ -406,7 +442,7 @@ function flashMapOverlayMarkerTooltip(marker) {
     const canvas = document.getElementById('world-overmap-canvas');
     if (!panel || !canvas) { return; }
     const rect = panel.getBoundingClientRect();
-    showMapOverlayTooltip(marker, rect.left + hit.px, rect.top + hit.py);
+    showMapOverlayTooltip(marker, rect.left + hit.px, rect.top + hit.py, hit.cluster);
     window.setTimeout(() => hideMapOverlayTooltip(), 3200);
 }
 

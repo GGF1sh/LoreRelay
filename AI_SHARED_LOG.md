@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.75.0** |
+| Package version | **1.75.1** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **183/183** |
+| Tests | `npm test` **185/185** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -18,7 +18,25 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | Next (推奨) | M5 実機 smoke · populate visual memory `gmTurn`/`sourceEntryId` at write sites |
-| Git | `main` synced through v1.75.0 (`d9a6e08`) |
+| Git | `main` — v1.75.1 Gemini+Claude pending push |
+
+---
+
+## 2026-07-04 JST - Claude - Vehicles tab UX polish review (post-457639b, Unreleased)
+
+- Reviewed Grok's V-UX0 P1 implementation (`89-vehicles.js`, `89a-vehicle-labels.js`, `86-tile-overmap.js`, i18n) — enum/i18n labels, access-reason i18n, map↔Vehicles cross-nav, Mobile Base placeholder/auto-expand all sound. No regressions found in existing P1 scope.
+- Found and fixed a real gap: `data-i18n-aria-label` (added to `vehicles-list`/`vehicles-detail`/`vehicles-mobile-base-panel` in v1.75.0) was never wired in `applyI18n()` — aria-labels stayed English in every locale. Added the handler + extended `world-overmap-legend` to the same pattern (new key `overlayLegendAriaLabel`, 4 locales) — closes F16/F17. `check_i18n_keys.js` regex now also scans this attribute so it can't silently regress again.
+- Implemented F13 (marker declutter/legibility): `86-tile-overmap.js` groups overlay markers sharing a tile into one glyph + `+N` badge instead of overdrawing stacked circles; raised marker radius/font floors for narrow sidebar widths. Tooltip/flash show all clustered labels. `hitTestMapOverlayMarker()` return contract unchanged (new `hitTestMapOverlayMarkerHit()` added for cluster access) — map→Vehicles click nav untouched.
+- Read-only Webview/i18n/CSS polish only; no canonical state, ops, or persistence touched. F4 (Diagram/Parchment marker rendering) intentionally left untouched per scope.
+- Verified: `npm run compile`, `npm test` **183/183**, `check_i18n_keys.js` (0 missing, 4 locales), `validate_utf8_docs.js`. No browser preview run — this is a VSCode Webview (requires Extension Development Host, not a standalone dev server); verification was via the above scripted checks + source reading.
+
+---
+
+## 2026-07-04 JST - Grok - Gemini review PR1 + Claude Vehicles P2 (v1.75.1)
+
+- `spawnWithTimeout.ts` — `killProcessTree()` (`taskkill /T` on Windows, `pkill -P` on POSIX).
+- Tests: `test_spawn_with_timeout.js` grandchild fixture, `test_mobile_base_interior_disclosure.js`, `test_mobile_base_move_vehicle_only.js`.
+- Claude carry: F13 overlay declutter, F16 `data-i18n-aria-label` in `00-core.js`.
 
 ---
 

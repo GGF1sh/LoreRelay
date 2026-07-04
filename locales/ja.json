@@ -1151,6 +1151,7 @@
   "webview.world.overlayLegendRumored": "噂（未確認）",
   "webview.world.overlayLegendVehicle": "車両",
   "webview.world.overlayLegendVehicleParking": "車両駐車",
+  "webview.world.overlayLegendAriaLabel": "地図マーカー凡例",
   "webview.world.overlayVehicleList": "地図上",
   "webview.world.overmapEmpty": "リージョンがまだありません。世界を生成するとタイルマップが表示されます。",
   "webview.world.pinAction.examine": "{name} の周辺を詳しく調べる。",

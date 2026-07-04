@@ -80,6 +80,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_mobile_base_core.js' },
     { category: 'unit', file: 'test_mobile_base_bridge.js' },
     { category: 'unit', file: 'test_mobile_base_ops.js' },
+    { category: 'unit', file: 'test_mobile_base_move_vehicle_only.js' },
+    { category: 'unit', file: 'test_mobile_base_interior_disclosure.js' },
     { category: 'unit', file: 'test_mobile_base_view_core.js' },
     { category: 'smoke', file: 'test_webview_mobile_base_panel.js' },
     { category: 'unit', file: 'test_mobile_base_interior_core.js' },

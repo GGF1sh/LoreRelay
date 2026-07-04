@@ -30,6 +30,9 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n-title]').forEach((el) => {
     el.title = T(el.dataset.i18nTitle);
   });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
+    el.setAttribute('aria-label', T(el.dataset.i18nAriaLabel));
+  });
   const gallery = document.getElementById('gallery');
   if (gallery) {
     gallery.dataset.emptyText = T('webview.gallery.empty');

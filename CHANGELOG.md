@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+## [1.75.1] - 2026-07-04
+
+### Fixed
+
+- **Gemini review — spawnWithTimeout process-tree kill (PR1)** — `killProcessTree()` uses `taskkill /T /F` on Windows and `pkill -P` + `SIGKILL` on POSIX so timed-out ComfyUI/Python grandchildren do not keep GPU VRAM. Extended `test_spawn_with_timeout.js` with a grandchild fixture.
+
+- **Claude review — Vehicles tab UX polish follow-up (post-457639b)** — `applyI18n()` wires `data-i18n-aria-label` (F16/F17). Tile overlay marker declutter (F13): per-cell grouping, `+N` badge, raised glyph floors, clustered tooltips. `check_i18n_keys.js` scans `data-i18n-aria-label`.
+
+### Added
+
+- **Gemini review — Mobile Base disclosure/move contract tests** — `test_mobile_base_interior_disclosure.js` (party active MB only; settlement mismatch blocks interior). `test_mobile_base_move_vehicle_only.js` documents MB3 vehicle-only move (settlement ledger untouched).
+
 ## [1.75.0] - 2026-07-04
 
 ### Fixed

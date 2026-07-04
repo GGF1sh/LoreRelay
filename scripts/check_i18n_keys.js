@@ -8,7 +8,7 @@ const ROOT = path.join(__dirname, '..');
 const keys = new Set();
 
 function collectFromText(text) {
-    for (const m of text.matchAll(/data-i18n(?:-placeholder|-title)?="([^"]+)"/g)) {
+    for (const m of text.matchAll(/data-i18n(?:-placeholder|-title|-aria-label)?="([^"]+)"/g)) {
         keys.add(m[1]);
     }
     for (const m of text.matchAll(/(?:T|t|i18n)\(\s*['"]((?:webview|extension)\.[^'"]+)['"]/g)) {

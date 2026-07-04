@@ -1151,6 +1151,7 @@
   "webview.world.overlayLegendRumored": "Rumored (unconfirmed)",
   "webview.world.overlayLegendVehicle": "Vehicle",
   "webview.world.overlayLegendVehicleParking": "Vehicle parking",
+  "webview.world.overlayLegendAriaLabel": "Map marker legend",
   "webview.world.overlayVehicleList": "On map",
   "webview.world.overmapEmpty": "No regions yet. Generate a world to see the tile overmap.",
   "webview.world.pinAction.examine": "Examine the area around {name} in detail.",

@@ -53,6 +53,14 @@
 
 ---
 
+## 2026-07-04 JST - Codex - Rules Profile Onboarding design
+
+- Added `docs/RULES_PROFILE_ONBOARDING_DESIGN.md` for a goddess-style first-run setup flow that asks genre/playstyle/pressure/bookkeeping/signature-system questions and resolves them into safe `game_rules.json` presets.
+- Design keeps LLM goddess narration non-authoritative: deterministic profile resolver owns feature flags, while the LLM may ask questions and summarize.
+- Proposed RP1-RP5 phases: pure resolver, host apply gate, Start Hub wizard UI, Quickstart integration, and custom profile editor. No runtime code changed.
+
+---
+
 ## 2026-07-04 JST - Claude - Vehicles tab UX polish review (post-457639b, Unreleased)
 
 - Reviewed Grok's V-UX0 P1 implementation (`89-vehicles.js`, `89a-vehicle-labels.js`, `86-tile-overmap.js`, i18n) — enum/i18n labels, access-reason i18n, map↔Vehicles cross-nav, Mobile Base placeholder/auto-expand all sound. No regressions found in existing P1 scope.

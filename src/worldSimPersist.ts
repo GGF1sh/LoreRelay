@@ -15,6 +15,7 @@ import { applyLivingWorldAfterSimulationStep } from './emergentSimulator';
 import {
     beginDebugTraceSimulationRun,
     captureDebugTraceSimulationStep,
+    endDebugTraceSimulationRun,
 } from './debugTraceHostCore';
 import { isDeepTraceEmitEnabled } from './debugTraceEmitHost';
 import type { NpcRegistry } from './npcRegistryCore';
@@ -73,23 +74,27 @@ export function persistWorldSimulationSteps(
     const registry = enableNpc ? loadNpcRegistry() : undefined;
     const traceRunId = beginDebugTraceSimulationRun(state.worldTurn ?? 0);
 
-    const result = runBulkWorldSimulation(forge, state, registry, {
-        steps: clamped,
-        enableNpcRegistry: enableNpc,
-        maxSteps,
-        afterStep: buildDebugTraceAfterStep(forge, traceRunId),
-    });
+    try {
+        const result = runBulkWorldSimulation(forge, state, registry, {
+            steps: clamped,
+            enableNpcRegistry: enableNpc,
+            maxSteps,
+            afterStep: buildDebugTraceAfterStep(forge, traceRunId),
+        });
 
-    if (!result.ok) {
-        return { ok: false, reason: 'INVALID_STEPS' };
+        if (!result.ok) {
+            return { ok: false, reason: 'INVALID_STEPS' };
+        }
+
+        saveWorldState(result.state);
+        if (enableNpc && result.registry) {
+            saveNpcRegistry(result.registry);
+        }
+
+        return { ok: true, summary: result.summary };
+    } finally {
+        endDebugTraceSimulationRun(traceRunId);
     }
-
-    saveWorldState(result.state);
-    if (enableNpc && result.registry) {
-        saveNpcRegistry(result.registry);
-    }
-
-    return { ok: true, summary: result.summary };
 }
 
 /** Async bulk persist — yields during multi-step sim to avoid extension-host freezes. */
@@ -117,21 +122,25 @@ export async function persistWorldSimulationStepsAsync(
     const registry = enableNpc ? loadNpcRegistry() : undefined;
     const traceRunId = beginDebugTraceSimulationRun(state.worldTurn ?? 0);
 
-    const result = await runBulkWorldSimulationAsync(forge, state, registry, {
-        steps: clamped,
-        enableNpcRegistry: enableNpc,
-        maxSteps,
-        afterStep: buildDebugTraceAfterStep(forge, traceRunId),
-    });
+    try {
+        const result = await runBulkWorldSimulationAsync(forge, state, registry, {
+            steps: clamped,
+            enableNpcRegistry: enableNpc,
+            maxSteps,
+            afterStep: buildDebugTraceAfterStep(forge, traceRunId),
+        });
 
-    if (!result.ok) {
-        return { ok: false, reason: 'INVALID_STEPS' };
+        if (!result.ok) {
+            return { ok: false, reason: 'INVALID_STEPS' };
+        }
+
+        saveWorldState(result.state);
+        if (enableNpc && result.registry) {
+            saveNpcRegistry(result.registry);
+        }
+
+        return { ok: true, summary: result.summary };
+    } finally {
+        endDebugTraceSimulationRun(traceRunId);
     }
-
-    saveWorldState(result.state);
-    if (enableNpc && result.registry) {
-        saveNpcRegistry(result.registry);
-    }
-
-    return { ok: true, summary: result.summary };
 }

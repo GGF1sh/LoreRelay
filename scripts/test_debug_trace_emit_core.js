@@ -238,12 +238,48 @@ function findEntry(entries, traceId) {
     const source = fs.readFileSync(sourcePath, 'utf-8');
     if (/\brecentChanges\b/.test(source)) {
         fail('debugTraceEmitCore must not reference recentChanges');
+    } else if (/\bmessageHasFoodKeyword\b/.test(source)) {
+        fail('debugTraceEmitCore must use evaluateFoodCrisisEvent canonical helper');
     } else {
-        ok('emit core has no recentChanges reference');
+        ok('emit core uses canonical food crisis evaluation');
     }
 }
 
-// 9. Per-tick entry count ≤ 24
+// 9. Matched events prioritized in scan budget when many events exist
+{
+    const manyEvents = [];
+    for (let i = 0; i < 12; i++) {
+        manyEvents.push({
+            id: `wce_noise_${i}`,
+            worldTurn: 14,
+            category: 'faction',
+            severity: 'warning',
+            message: 'diplomatic tension',
+        });
+    }
+    manyEvents.push({
+        id: 'wce_real_food',
+        worldTurn: 14,
+        category: 'resource',
+        severity: 'warning',
+        message: 'wheat shortage',
+    });
+    const entries = buildFoodCrisisAgencyTraceEntries(baseInput({
+        worldTurn: 14,
+        stepEvents: manyEvents,
+    }));
+    const scan = findEntry(entries, 'trace_fc_scan_wce_real_food');
+    const gate = findEntry(entries, 'trace_fc_gate_t14');
+    if (!scan || scan.decision !== 'matched') {
+        fail('matched food event beyond first 8 should appear in scan budget');
+    } else if (!gate?.conditions?.some((c) => c.label.includes('omitted'))) {
+        fail('gate should report omitted scan count when events overflow budget');
+    } else {
+        ok('matched events prioritized; omitted count surfaced on gate');
+    }
+}
+
+// 10. Per-tick entry count ≤ 24
 {
     const manyEvents = [];
     for (let i = 0; i < 20; i++) {
@@ -272,7 +308,7 @@ function findEntry(entries, traceId) {
     }
 }
 
-// 10. Deterministic order
+// 11. Deterministic order
 {
     const input = baseInput({
         worldTurn: 13,
@@ -293,7 +329,7 @@ function findEntry(entries, traceId) {
     }
 }
 
-// 11. Malformed input → [], no throw
+// 12. Malformed input → [], no throw
 {
     const badInputs = [null, undefined, {}, { runId: '' }, { runId: 'x', worldTurn: NaN }];
     let threw = false;
@@ -316,7 +352,7 @@ function findEntry(entries, traceId) {
     }
 }
 
-// 12. No forbidden imports in source
+// 13. No forbidden imports in source
 {
     const source = fs.readFileSync(sourcePath, 'utf-8');
     const forbidden = ['vscode', 'writeJsonAtomic', 'statePatch'];

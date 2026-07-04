@@ -55,8 +55,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.77.13** |
-| CHANGELOG 先頭 | **[1.77.13]** Debug Trace Deep Emit P2 |
+| `package.json` | **1.77.14** |
+| CHANGELOG 先頭 | **[1.77.14]** Debug Trace P1 contracts |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
 | World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |
@@ -64,6 +64,6 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Guild Master (F11) | **G1–G4 完了** (v1.41.0–v1.44.1) · v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
 | Living World (履歴) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
-| Debug Trace | P1 core · P2 host (`debugTraceUpdate`) · Deep Emit P1a/P1b · **P2 dedup/ring buffer** (v1.77.13) · Inspector UI Phase B + UX polish |
+| Debug Trace | P1 core · P2 host (`debugTraceUpdate`) · Deep Emit P1a/P1b · P2 dedup/ring buffer · **P1 contracts: run-scoped identity + lifecycle + budget** (v1.77.14) · Inspector UI Phase B + UX polish |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
-| テスト | `npm test` **211/211**（`check_version_consistency.js` 含む） |
+| テスト | `npm test` **213/213**（`check_version_consistency.js` 含む） |

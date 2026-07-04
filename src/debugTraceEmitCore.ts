@@ -6,6 +6,7 @@
 import { quoteMarketPrice } from './commerceCore';
 import type { DebugTraceCondition, DebugTraceEntry } from './debugTraceCore';
 import {
+    evaluateFoodCrisisEvent,
     isFoodCrisisEvent,
     type CommerceForge,
     type MarketStateMap,
@@ -19,6 +20,8 @@ import { MAX_NAMED_NPC_AGENCY, type AgencyReactionInput } from './npcAgencyCore'
 export const MAX_FOOD_CRISIS_SCAN_EVENTS = 8;
 export const MAX_FOOD_CRISIS_NPC_DECISIONS = 10;
 export const MAX_DEEP_EMIT_ENTRIES_PER_TICK = 24;
+export const MAX_DEEP_EMIT_EFFECT_ROWS = 8;
+export const MAX_DEEP_EMIT_DECISION_ROWS = 8;
 
 export interface FoodCrisisAgencyEmitInput {
     runId: string;
@@ -41,32 +44,6 @@ export function shouldEmitDeepDebugTrace(flags: DeepTraceEmitGateFlags): boolean
 
 function registryNpcIds(registry: NpcRegistryLike, maxNamedNpcCount = MAX_NAMED_NPC_AGENCY): string[] {
     return Object.keys(registry).slice(0, maxNamedNpcCount);
-}
-
-function messageHasFoodKeyword(message: string): boolean {
-    const msg = message.toLowerCase();
-    return msg.includes('food')
-        || msg.includes('wheat')
-        || msg.includes('食料')
-        || msg.includes('小麦');
-}
-
-function buildIsFoodCrisisConditions(ev: WorldChangeEventLike): DebugTraceCondition[] {
-    const keywordMatch = messageHasFoodKeyword(ev.message);
-    return [
-        {
-            label: 'category === resource',
-            result: ev.category === 'resource',
-            actual: ev.category,
-            expected: 'resource',
-        },
-        {
-            label: 'message includes food keyword',
-            result: keywordMatch,
-            actual: ev.message.slice(0, 120),
-            expected: '(food|wheat|食料|小麦)',
-        },
-    ];
 }
 
 function stepEventDedupeKey(ev: WorldChangeEventLike): string {
@@ -105,11 +82,18 @@ function cheapestWheatMarket(forge: CommerceForge, markets: MarketStateMap): str
     return best?.loc;
 }
 
-function trimEntries(entries: DebugTraceEntry[]): DebugTraceEntry[] {
-    if (entries.length <= MAX_DEEP_EMIT_ENTRIES_PER_TICK) {
-        return entries;
+function dedupeStepEvents(stepEvents: WorldChangeEventLike[]): WorldChangeEventLike[] {
+    const seen = new Set<string>();
+    const out: WorldChangeEventLike[] = [];
+    for (const ev of stepEvents) {
+        const key = stepEventDedupeKey(ev);
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        out.push(ev);
     }
-    return entries.slice(0, MAX_DEEP_EMIT_ENTRIES_PER_TICK);
+    return out;
 }
 
 function buildScanEntries(
@@ -117,22 +101,37 @@ function buildScanEntries(
     worldTurn: number,
     parentTraceId: string,
     stepEvents: WorldChangeEventLike[]
-): DebugTraceEntry[] {
-    const entries: DebugTraceEntry[] = [];
-    const seen = new Set<string>();
-
-    for (const ev of stepEvents) {
-        const dedupeKey = stepEventDedupeKey(ev);
-        if (seen.has(dedupeKey)) {
-            continue;
+): { entries: DebugTraceEntry[]; omittedCount: number } {
+    const unique = dedupeStepEvents(stepEvents);
+    const matched: WorldChangeEventLike[] = [];
+    const unmatched: WorldChangeEventLike[] = [];
+    for (const ev of unique) {
+        if (isFoodCrisisEvent(ev)) {
+            matched.push(ev);
+        } else {
+            unmatched.push(ev);
         }
-        seen.add(dedupeKey);
-        if (entries.length >= MAX_FOOD_CRISIS_SCAN_EVENTS) {
+    }
+
+    const selected: WorldChangeEventLike[] = [];
+    for (const ev of matched) {
+        if (selected.length >= MAX_FOOD_CRISIS_SCAN_EVENTS) {
             break;
         }
+        selected.push(ev);
+    }
+    for (const ev of unmatched) {
+        if (selected.length >= MAX_FOOD_CRISIS_SCAN_EVENTS) {
+            break;
+        }
+        selected.push(ev);
+    }
+    const omittedCount = Math.max(0, unique.length - selected.length);
 
-        const conditions = buildIsFoodCrisisConditions(ev);
-        const matched = conditions.every((c) => c.result);
+    const entries: DebugTraceEntry[] = [];
+    for (const ev of selected) {
+        const evaluation = evaluateFoodCrisisEvent(ev);
+        const conditions = evaluation.conditions as DebugTraceCondition[];
         const traceId = stepEventScanTraceId(ev);
         const inputRefs = ev.id ? [{ kind: 'event' as const, id: ev.id }] : undefined;
 
@@ -145,7 +144,7 @@ function buildScanEntries(
             subsystem: 'livingWorldClassifier',
             phase: 'query',
             ruleId: 'isFoodCrisisEvent',
-            decision: matched ? 'matched' : 'not_matched',
+            decision: evaluation.matched ? 'matched' : 'not_matched',
             message: 'Scan stepEvent for food crisis semantics.',
             inputRefs,
             conditions,
@@ -153,7 +152,7 @@ function buildScanEntries(
         });
     }
 
-    return entries;
+    return { entries, omittedCount };
 }
 
 function countMatchedFoodCrisisEvents(stepEvents: WorldChangeEventLike[]): number {
@@ -178,9 +177,31 @@ function buildGateEntry(
     parentTraceId: string,
     foodCrisis: boolean,
     matchedCount: number,
-    cheapWheat: string | undefined
+    cheapWheat: string | undefined,
+    omittedScanCount: number
 ): DebugTraceEntry {
     const gateOpen = foodCrisis && !!cheapWheat;
+    const conditions: DebugTraceCondition[] = [
+        {
+            label: 'any stepEvent matched isFoodCrisisEvent',
+            result: foodCrisis,
+            actual: matchedCount,
+            expected: '>=1 when crisis',
+        },
+        {
+            label: 'cheapestWheatMarket exists',
+            result: !!cheapWheat,
+            actual: cheapWheat ?? '(none)',
+        },
+    ];
+    if (omittedScanCount > 0) {
+        conditions.push({
+            label: 'scan events omitted from trace budget',
+            result: true,
+            actual: omittedScanCount,
+            expected: '0 when all events fit',
+        });
+    }
     return {
         version: 1,
         runId,
@@ -194,19 +215,7 @@ function buildGateEntry(
         message: gateOpen
             ? 'Food crisis stepEvent matched and wheat market available; npcAgency wheat rush gate open.'
             : 'Food crisis npcAgency wheat rush gate closed.',
-        conditions: [
-            {
-                label: 'any stepEvent matched isFoodCrisisEvent',
-                result: foodCrisis,
-                actual: matchedCount,
-                expected: '>=1 when crisis',
-            },
-            {
-                label: 'cheapestWheatMarket exists',
-                result: !!cheapWheat,
-                actual: cheapWheat ?? '(none)',
-            },
-        ],
+        conditions,
         audience: 'internal',
     };
 }
@@ -216,13 +225,17 @@ function buildNpcDecisionEntries(
     worldTurn: number,
     gateTraceId: string,
     gateOpen: boolean,
-    input: FoodCrisisAgencyEmitInput
+    input: FoodCrisisAgencyEmitInput,
+    maxRows: number
 ): DebugTraceEntry[] {
-    if (!gateOpen) {
+    if (!gateOpen || maxRows <= 0) {
         return [];
     }
 
-    const maxNpc = input.maxNpcTraces ?? MAX_FOOD_CRISIS_NPC_DECISIONS;
+    const maxNpc = Math.min(
+        input.maxNpcTraces ?? MAX_FOOD_CRISIS_NPC_DECISIONS,
+        MAX_FOOD_CRISIS_NPC_DECISIONS
+    );
     const { agencyInput } = input;
     const entries: DebugTraceEntry[] = [];
     const matchedEventRefs = (input.stepEvents ?? [])
@@ -233,7 +246,7 @@ function buildNpcDecisionEntries(
         .filter((ref): ref is { kind: 'event'; id: string } => !!ref);
 
     for (const npcId of registryNpcIds(agencyInput.registry, agencyInput.maxNamedNpcCount)) {
-        if (entries.length >= maxNpc) {
+        if (entries.length >= maxRows || entries.length >= maxNpc) {
             break;
         }
         const reg = agencyInput.registry[npcId];
@@ -281,12 +294,16 @@ function buildNpcDecisionEntries(
 function buildEffectEntries(
     runId: string,
     worldTurn: number,
-    moves: NpcAgencyOp[]
+    moves: NpcAgencyOp[],
+    maxRows: number
 ): DebugTraceEntry[] {
     const entries: DebugTraceEntry[] = [];
     for (const move of moves) {
         if (move.reason !== 'food_crisis_buy_wheat') {
             continue;
+        }
+        if (entries.length >= maxRows) {
+            break;
         }
         entries.push({
             version: 1,
@@ -309,6 +326,34 @@ function buildEffectEntries(
     return entries;
 }
 
+function assembleBoundedEntries(
+    scanEntries: DebugTraceEntry[],
+    gateEntry: DebugTraceEntry,
+    effectEntries: DebugTraceEntry[],
+    npcEntries: DebugTraceEntry[]
+): DebugTraceEntry[] {
+    const budget = MAX_DEEP_EMIT_ENTRIES_PER_TICK;
+    const result: DebugTraceEntry[] = [];
+
+    for (const entry of scanEntries) {
+        if (result.length >= budget) {
+            break;
+        }
+        result.push(entry);
+    }
+    if (result.length < budget) {
+        result.push(gateEntry);
+    }
+
+    const effectCap = Math.min(MAX_DEEP_EMIT_EFFECT_ROWS, budget - result.length);
+    result.push(...effectEntries.slice(0, effectCap));
+
+    const decisionCap = Math.min(MAX_DEEP_EMIT_DECISION_ROWS, budget - result.length);
+    result.push(...npcEntries.slice(0, decisionCap));
+
+    return result;
+}
+
 /** Build food-crisis npcAgency deep trace entries for one sim tick. Never throws. */
 export function buildFoodCrisisAgencyTraceEntries(input: FoodCrisisAgencyEmitInput): DebugTraceEntry[] {
     try {
@@ -327,32 +372,47 @@ export function buildFoodCrisisAgencyTraceEntries(input: FoodCrisisAgencyEmitInp
         const parentTraceId = input.parentTraceId;
         const runId = input.runId;
 
-        const scanEntries = buildScanEntries(runId, worldTurn, parentTraceId, stepEvents);
+        const { entries: scanEntries, omittedCount } = buildScanEntries(
+            runId,
+            worldTurn,
+            parentTraceId,
+            stepEvents
+        );
         const matchedCount = countMatchedFoodCrisisEvents(stepEvents);
         const foodCrisis = matchedCount > 0;
         const cheapWheat = cheapestWheatMarket(input.agencyInput.forge, input.agencyInput.markets);
-        const gateEntry = buildGateEntry(runId, worldTurn, parentTraceId, foodCrisis, matchedCount, cheapWheat);
+        const gateEntry = buildGateEntry(
+            runId,
+            worldTurn,
+            parentTraceId,
+            foodCrisis,
+            matchedCount,
+            cheapWheat,
+            omittedCount
+        );
         const gateOpen = gateEntry.decision === 'gate_open';
 
+        const effectEntries = buildEffectEntries(
+            runId,
+            worldTurn,
+            input.agencyResult.moves ?? [],
+            MAX_DEEP_EMIT_EFFECT_ROWS
+        );
+
+        const remainingAfterScanAndGate = Math.max(
+            0,
+            MAX_DEEP_EMIT_ENTRIES_PER_TICK - scanEntries.length - 1 - effectEntries.length
+        );
         const npcEntries = buildNpcDecisionEntries(
             runId,
             worldTurn,
             gateEntry.traceId,
             gateOpen,
-            input
-        );
-        const effectEntries = buildEffectEntries(
-            runId,
-            worldTurn,
-            input.agencyResult.moves ?? []
+            input,
+            Math.min(MAX_DEEP_EMIT_DECISION_ROWS, remainingAfterScanAndGate)
         );
 
-        return trimEntries([
-            ...scanEntries,
-            gateEntry,
-            ...npcEntries,
-            ...effectEntries,
-        ]);
+        return assembleBoundedEntries(scanEntries, gateEntry, effectEntries, npcEntries);
     } catch {
         return [];
     }

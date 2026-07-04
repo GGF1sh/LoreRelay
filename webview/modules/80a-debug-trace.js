@@ -21,7 +21,7 @@
     // UX polish (2026-07-04 review): preserve user expand/collapse state across the
     // frequent `debugTraceUpdate` re-renders a multi-step bulk sim produces (one
     // message per simulated step). Only a run's *first* appearance gets a default.
-    const openEntryIds = new Set();
+    const openEntryIds = new Set(); // `${runId}:${traceId}`
     const runOpenState = new Map(); // runId -> boolean, once known (first-seen default applied once)
 
     function audienceRank(audience) {
@@ -67,6 +67,10 @@
     // (all scans, then the gate, then all per-NPC decisions, then all effects), so
     // without this a decision's own effect row can land several rows below
     // unrelated sibling decisions — confirmed during the 2026-07-04 UX review.
+    function traceEntryKey(runId, traceId) {
+        return `${runId}:${traceId}`;
+    }
+
     function buildOrderedEntries(entries) {
         const byId = new Map(entries.map((e) => [e.traceId, e]));
         const childrenByParent = new Map();
@@ -128,8 +132,8 @@
         return `<div class="debug-trace-refs">${refs.map((r) => `<span class="tag-item">${escapeHtml(r.kind)}:${escapeHtml(r.id)}</span>`).join('')}</div>`;
     }
 
-    function entryDomId(traceId) {
-        return `debug-trace-entry-${traceId}`;
+    function entryDomId(runId, traceId) {
+        return `debug-trace-entry-${runId}-${traceId}`;
     }
 
     function renderEntry(entry, depth) {
@@ -142,11 +146,11 @@
             const parentText = typeof T === 'function'
                 ? T('webview.inspector.debugTrace.parentLink', { traceId: entry.parentTraceId })
                 : `parent: ${entry.parentTraceId}`;
-            parentLink = `<div class="debug-trace-parent-link" data-goto-trace="${escapeHtml(entry.parentTraceId)}">↑ ${escapeHtml(parentText)}</div>`;
+            parentLink = `<div class="debug-trace-parent-link" data-goto-run="${escapeHtml(entry.runId)}" data-goto-trace="${escapeHtml(entry.parentTraceId)}">↑ ${escapeHtml(parentText)}</div>`;
         }
-        const isOpen = openEntryIds.has(entry.traceId);
+        const isOpen = openEntryIds.has(traceEntryKey(entry.runId, entry.traceId));
         return `
-            <details class="inspector-item debug-trace-entry" id="${escapeHtml(entryDomId(entry.traceId))}" data-trace-id="${escapeHtml(entry.traceId)}" style="margin-left:${depth * 16}px"${isOpen ? ' open' : ''}>
+            <details class="inspector-item debug-trace-entry" id="${escapeHtml(entryDomId(entry.runId, entry.traceId))}" data-run-id="${escapeHtml(entry.runId)}" data-trace-id="${escapeHtml(entry.traceId)}" style="margin-left:${depth * 16}px"${isOpen ? ' open' : ''}>
                 <summary>
                     <span class="tag-item debug-trace-phase-${escapeHtml(entry.phase)}">${escapeHtml(phaseLabel(entry.phase))}</span>
                     <strong>${label}</strong>
@@ -165,30 +169,51 @@
         `;
     }
 
-    function goToTraceEntry(traceId) {
-        if (!traceId) { return; }
-        const el = document.getElementById(entryDomId(traceId));
+    function goToTraceEntry(runId, traceId) {
+        if (!runId || !traceId) { return; }
+        const el = document.getElementById(entryDomId(runId, traceId));
         if (!el) { return; }
         el.open = true;
+        openEntryIds.add(traceEntryKey(runId, traceId));
         el.classList.add('debug-trace-highlight');
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => el.classList.remove('debug-trace-highlight'), 1200);
     }
 
+    function projectLinkWarnings(buffer, linkWarnings, audience) {
+        if (!buffer || audience === 'internal' || !Array.isArray(linkWarnings)) {
+            return linkWarnings || [];
+        }
+        const visibleKeys = new Set(
+            projectEntries(buffer.entries || [], audience).map((e) => traceEntryKey(e.runId, e.traceId))
+        );
+        return linkWarnings.filter((w) => {
+            if (!w.traceId) { return true; }
+            if (!w.runId) {
+                return (buffer.entries || []).some(
+                    (e) => e.traceId === w.traceId && visibleKeys.has(traceEntryKey(e.runId, e.traceId))
+                );
+            }
+            return visibleKeys.has(traceEntryKey(w.runId, w.traceId));
+        });
+    }
+
     function renderWarnings(linkWarnings) {
         warningsEl.innerHTML = '';
-        if (!Array.isArray(linkWarnings) || linkWarnings.length === 0) {
+        const projected = projectLinkWarnings(lastBuffer, linkWarnings, currentAudience);
+        if (!Array.isArray(projected) || projected.length === 0) {
             warningsEl.classList.add('hidden');
             return;
         }
         warningsEl.classList.remove('hidden');
-        linkWarnings.forEach((w) => {
+        projected.forEach((w) => {
             const row = document.createElement('div');
             row.className = 'debug-trace-warning-item';
             row.textContent = `⚠ ${w.message}`;
-            if (w.traceId) {
+            if (w.traceId && w.runId) {
+                row.dataset.gotoRun = w.runId;
                 row.dataset.gotoTrace = w.traceId;
-                row.addEventListener('click', () => goToTraceEntry(w.traceId));
+                row.addEventListener('click', () => goToTraceEntry(w.runId, w.traceId));
             }
             warningsEl.appendChild(row);
         });
@@ -234,13 +259,13 @@
         runsEl.querySelectorAll('[data-goto-trace]').forEach((el) => {
             el.addEventListener('click', (ev) => {
                 ev.stopPropagation();
-                goToTraceEntry(el.getAttribute('data-goto-trace'));
+                goToTraceEntry(el.getAttribute('data-goto-run'), el.getAttribute('data-goto-trace'));
             });
         });
         runsEl.querySelectorAll('.debug-trace-entry').forEach((el) => {
             el.addEventListener('toggle', () => {
-                const id = el.dataset.traceId;
-                if (el.open) { openEntryIds.add(id); } else { openEntryIds.delete(id); }
+                const key = traceEntryKey(el.dataset.runId, el.dataset.traceId);
+                if (el.open) { openEntryIds.add(key); } else { openEntryIds.delete(key); }
             });
         });
         runsEl.querySelectorAll('.debug-trace-run').forEach((el) => {

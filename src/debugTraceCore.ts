@@ -5,6 +5,7 @@ export const DEBUG_TRACE_BUFFER_VERSION = 1 as const;
 
 export const MAX_DEBUG_TRACE_ID_CHARS = 96;
 export const MAX_DEBUG_TRACE_MESSAGE_CHARS = 500;
+export const MAX_DEBUG_TRACE_SCALAR_STRING_CHARS = 120;
 export const MAX_DEBUG_TRACE_CONDITIONS = 24;
 export const MAX_DEBUG_TRACE_REFS = 32;
 export const MIN_DEBUG_TRACE_BUFFER_ENTRIES = 1;
@@ -83,6 +84,12 @@ export interface DebugTraceWarning {
     code: string;
     message: string;
     traceId?: string;
+    runId?: string;
+}
+
+/** Composite primary key for trace entries — traceId alone is not unique across runs. */
+export function traceEntryKey(runId: string, traceId: string): string {
+    return `${runId}:${traceId}`;
 }
 
 export interface DebugTraceAppendResult {
@@ -185,8 +192,18 @@ function optionalNonNegativeInt(value: unknown, field: string): number | undefin
     return n >= 0 ? n : undefined;
 }
 
+function clampScalarString(value: string): string {
+    if (value.length <= MAX_DEBUG_TRACE_SCALAR_STRING_CHARS) {
+        return value;
+    }
+    return value.slice(0, MAX_DEBUG_TRACE_SCALAR_STRING_CHARS);
+}
+
 function parseScalar(value: unknown): string | number | boolean | undefined {
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (typeof value === 'string') {
+        return clampScalarString(value);
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
         return value;
     }
     return undefined;
@@ -567,20 +584,22 @@ export function appendDebugTraceEntries(
 
 export function validateDebugTraceLinks(buffer: DebugTraceBuffer): DebugTraceWarning[] {
     const warnings: DebugTraceWarning[] = [];
-    const byId = new Map<string, DebugTraceEntry>();
-    const seenIds = new Set<string>();
+    const byKey = new Map<string, DebugTraceEntry>();
+    const seenKeys = new Set<string>();
 
     for (const entry of buffer.entries) {
-        if (seenIds.has(entry.traceId)) {
+        const key = traceEntryKey(entry.runId, entry.traceId);
+        if (seenKeys.has(key)) {
             pushWarning(warnings, {
                 code: 'duplicate_trace_id',
-                message: `Duplicate traceId "${entry.traceId}".`,
+                message: `Duplicate traceId "${entry.traceId}" in run "${entry.runId}".`,
                 traceId: entry.traceId,
+                runId: entry.runId,
             });
         } else {
-            seenIds.add(entry.traceId);
+            seenKeys.add(key);
         }
-        byId.set(entry.traceId, entry);
+        byKey.set(key, entry);
     }
 
     for (const entry of buffer.entries) {
@@ -593,14 +612,17 @@ export function validateDebugTraceLinks(buffer: DebugTraceBuffer): DebugTraceWar
                 code: 'self_parent',
                 message: `traceId "${entry.traceId}" cannot parent itself.`,
                 traceId: entry.traceId,
+                runId: entry.runId,
             });
             continue;
         }
-        if (!byId.has(parentId)) {
+        const parentKey = traceEntryKey(entry.runId, parentId);
+        if (!byKey.has(parentKey)) {
             pushWarning(warnings, {
                 code: 'missing_parent',
-                message: `parentTraceId "${parentId}" is not present in buffer.`,
+                message: `parentTraceId "${parentId}" is not present in run "${entry.runId}".`,
                 traceId: entry.traceId,
+                runId: entry.runId,
             });
             continue;
         }
@@ -613,11 +635,12 @@ export function validateDebugTraceLinks(buffer: DebugTraceBuffer): DebugTraceWar
                     code: 'parent_cycle',
                     message: `Parent chain cycle detected at traceId "${entry.traceId}".`,
                     traceId: entry.traceId,
+                    runId: entry.runId,
                 });
                 break;
             }
             visited.add(cursor);
-            cursor = byId.get(cursor)?.parentTraceId;
+            cursor = byKey.get(traceEntryKey(entry.runId, cursor))?.parentTraceId;
         }
     }
 
@@ -649,4 +672,29 @@ export function projectDebugTraceBuffer(
         maxEntries: buffer.maxEntries,
         entries: [...entries],
     };
+}
+
+/** Hide link warnings that reference entries not visible under the audience projection. */
+export function projectDebugTraceLinkWarnings(
+    buffer: DebugTraceBuffer,
+    warnings: DebugTraceWarning[],
+    audience: DebugTraceAudience
+): DebugTraceWarning[] {
+    if (audience === 'internal') {
+        return [...warnings];
+    }
+    const visibleKeys = new Set(
+        projectDebugTraceBuffer(buffer, audience).entries.map((e) => traceEntryKey(e.runId, e.traceId))
+    );
+    return warnings.filter((warning) => {
+        if (!warning.traceId) {
+            return true;
+        }
+        if (!warning.runId) {
+            return buffer.entries.some(
+                (e) => e.traceId === warning.traceId && visibleKeys.has(traceEntryKey(e.runId, e.traceId))
+            );
+        }
+        return visibleKeys.has(traceEntryKey(warning.runId, warning.traceId));
+    });
 }

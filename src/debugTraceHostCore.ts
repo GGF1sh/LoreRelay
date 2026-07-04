@@ -100,6 +100,13 @@ export function beginDebugTraceSimulationRun(startWorldTurn: number): string {
     return activeSimulationRunId;
 }
 
+/** Clear the active simulation run marker when a bulk/debug session ends. */
+export function endDebugTraceSimulationRun(runId: string): void {
+    if (activeSimulationRunId === runId) {
+        activeSimulationRunId = undefined;
+    }
+}
+
 function buildNotableEventEntry(
     runId: string,
     parentTraceId: string,

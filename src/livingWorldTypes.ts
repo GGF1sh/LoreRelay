@@ -111,16 +111,52 @@ export interface WorldChangeEventLike {
     targetFactionId?: string;
 }
 
+export interface FoodCrisisCondition {
+    label: string;
+    result: boolean;
+    actual?: string | number | boolean;
+    expected?: string | number | boolean;
+}
+
+export interface FoodCrisisEvaluation {
+    matched: boolean;
+    conditions: FoodCrisisCondition[];
+}
+
+function messageHasFoodKeyword(message: string): boolean {
+    const msg = message.toLowerCase();
+    return msg.includes('food')
+        || msg.includes('wheat')
+        || msg.includes('食料')
+        || msg.includes('小麦');
+}
+
+/** Canonical food-crisis evaluation — single source for production rules and trace conditions. */
+export function evaluateFoodCrisisEvent(ev: WorldChangeEventLike): FoodCrisisEvaluation {
+    const keywordMatch = messageHasFoodKeyword(ev.message);
+    const conditions: FoodCrisisCondition[] = [
+        {
+            label: 'category === resource',
+            result: ev.category === 'resource',
+            actual: ev.category,
+            expected: 'resource',
+        },
+        {
+            label: 'message includes food keyword',
+            result: keywordMatch,
+            actual: ev.message.slice(0, 120),
+            expected: '(food|wheat|食料|小麦)',
+        },
+    ];
+    return {
+        matched: conditions.every((c) => c.result),
+        conditions,
+    };
+}
+
 /** Shared food-crisis semantics for commerce (Tier 1) and NPC agency (Tier 2). */
 export function isFoodCrisisEvent(ev: WorldChangeEventLike): boolean {
-    const msg = ev.message.toLowerCase();
-    return ev.category === 'resource'
-        && (
-            msg.includes('food')
-            || msg.includes('wheat')
-            || msg.includes('食料')
-            || msg.includes('小麦')
-        );
+    return evaluateFoodCrisisEvent(ev).matched;
 }
 
 export interface NpcRegistryEntryLike {

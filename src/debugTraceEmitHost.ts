@@ -18,7 +18,9 @@ export function resolveDeepTraceEmitGateFlags(): DeepTraceEmitGateFlags {
         }
         const bulkWorldSimDebug =
             vscode.workspace.getConfiguration('textAdventure.debug').get<boolean>('bulkWorldSim') === true;
-        const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getWorkspacePath } = require('./workspacePaths') as typeof import('./workspacePaths');
+        const wsPath = getWorkspacePath();
         let debugScenarioActive = false;
         if (wsPath) {
             // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -49,6 +51,7 @@ import type {
 } from './livingWorldTypes';
 
 export interface LivingWorldTickDeepTraceParams {
+    runId?: string;
     worldTurn: number;
     stepEvents: WorldChangeEventLike[];
     commerceForge: CommerceForge;
@@ -65,10 +68,10 @@ export function captureFoodCrisisAgencyDeepTrace(
     flags: DeepTraceEmitGateFlags,
     params: LivingWorldTickDeepTraceParams
 ): void {
-    if (!shouldEmitDeepDebugTrace(flags)) {
+    if (!shouldEmitDeepDebugTrace(flags) || !params) {
         return;
     }
-    const runId = getActiveDebugTraceSimulationRunId();
+    const runId = params.runId ?? getActiveDebugTraceSimulationRunId();
     if (!runId) {
         return;
     }
@@ -94,7 +97,7 @@ export function captureFoodCrisisAgencyDeepTrace(
                 moves: params.npcMoves,
                 positions: params.npcPositionsAfterTick,
             },
-            maxNpcTraces: params.maxNamedNpcCount,
+            maxNpcTraces: Math.min(params.maxNamedNpcCount, 10),
         });
         appendDebugTraceHostEntries(entries);
     } catch {

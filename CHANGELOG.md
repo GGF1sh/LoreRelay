@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.77.14] - 2026-07-04
+
+### Changed
+
+- **Debug Trace P1 contracts (ChatGPT review)** — `(runId, traceId)` composite identity in link validator; `endDebugTraceSimulationRun` + bulk sim `try/finally`; Deep Emit budget allocates effects before decisions (no 5000-NPC generate-then-slice).
+- **Food crisis canonical** — `evaluateFoodCrisisEvent()` in `livingWorldTypes.ts`; scan budget prioritizes matched events + omitted count on gate.
+- **Inspector** — run-scoped DOM IDs / expand state / parent jump; audience-projected link warnings.
+- **Tests** — `test_debug_trace_cross_run_identity.js`, `test_debug_trace_large_npc_budget.js`.
+
 ## [1.77.13] - 2026-07-04
 
 ### Changed

@@ -23,7 +23,10 @@ const {
     parseDebugTraceEntry,
     projectDebugTraceBuffer,
     validateDebugTraceLinks,
+    traceEntryKey,
+    projectDebugTraceLinkWarnings,
     MAX_DEBUG_TRACE_ID_CHARS,
+    MAX_DEBUG_TRACE_SCALAR_STRING_CHARS,
     MAX_DEBUG_TRACE_MESSAGE_CHARS,
     MAX_DEBUG_TRACE_CONDITIONS,
     MAX_DEBUG_TRACE_REFS,
@@ -132,6 +135,60 @@ function validEntry(overrides = {}) {
         fail('duplicate traceId should warn');
     } else {
         ok('duplicate traceId warning');
+    }
+}
+
+{
+    let buffer = createDebugTraceBuffer();
+    buffer = appendDebugTraceEntries(buffer, [
+        validEntry({ runId: 'sim_A', traceId: 'trace_step_10' }),
+        validEntry({ runId: 'sim_B', traceId: 'trace_step_10' }),
+    ]).buffer;
+    const warnings = validateDebugTraceLinks(buffer);
+    if (warnings.some((w) => w.code === 'duplicate_trace_id')) {
+        fail('same traceId across runs should not warn duplicate');
+    } else {
+        ok('cross-run traceId is not duplicate');
+    }
+}
+
+{
+    const key = traceEntryKey('sim_1', 'trace_a');
+    if (key !== 'sim_1:trace_a') {
+        fail(`traceEntryKey unexpected: ${key}`);
+    } else {
+        ok('traceEntryKey');
+    }
+}
+
+{
+    const longActual = 'x'.repeat(MAX_DEBUG_TRACE_SCALAR_STRING_CHARS + 50);
+    const parsed = parseDebugTraceEntry(validEntry({
+        conditions: [{ label: 'long', result: true, actual: longActual }],
+    }), []);
+    if (!parsed || typeof parsed.conditions[0].actual !== 'string'
+        || parsed.conditions[0].actual.length !== MAX_DEBUG_TRACE_SCALAR_STRING_CHARS) {
+        fail('condition scalar strings should clamp');
+    } else {
+        ok('condition scalar strings are bounded');
+    }
+}
+
+{
+    let buffer = createDebugTraceBuffer();
+    buffer = appendDebugTraceEntries(buffer, [
+        validEntry({ traceId: 'internal_only', audience: 'internal' }),
+        validEntry({ traceId: 'gm_row', audience: 'gm_safe' }),
+    ]).buffer;
+    const warnings = [
+        { code: 'missing_parent', message: 'hidden', traceId: 'internal_only', runId: 'sim_142' },
+        { code: 'missing_parent', message: 'visible', traceId: 'gm_row', runId: 'sim_142' },
+    ];
+    const projected = projectDebugTraceLinkWarnings(buffer, warnings, 'gm_safe');
+    if (projected.length !== 1 || projected[0].traceId !== 'gm_row') {
+        fail(`projectDebugTraceLinkWarnings should hide internal-only refs: ${JSON.stringify(projected)}`);
+    } else {
+        ok('projectDebugTraceLinkWarnings filters by audience');
     }
 }
 

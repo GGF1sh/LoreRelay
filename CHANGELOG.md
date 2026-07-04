@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Mobile Base System MB4 read-only Webview panel** — `mobileBaseViewCore.ts` builds capped `MobileBasePanelSnapshot` (facilities, stock bands, concerns, docking, hull/fuel, hangar). `mobileBaseBridge.buildMobileBasePanelWebviewPayload()` + `worldView` postMessage when triple gate ON. `89b-mobile-base-panel.js` section in Vehicles tab. No disk writes. `test_mobile_base_view_core.js`, `test_webview_mobile_base_panel.js`.
+
 - **Vehicle System V4 read-only Webview garage panel** — `vehicleViewCore.ts` builds capped `VehicleGarageSnapshot`; `vehicleBridge.ts` + `worldView` postMessage (`enableVehicleSystem`, `vehicleGarage`). New tab `pane-vehicles` + `89-vehicles.js` / `89-vehicles.css`: fleet list, active vehicle card, cargo/crew bars, modules, fuel band, access warnings. No disk writes from Webview. `scripts/test_vehicle_view_core.js`, `test_webview_vehicle_garage.js`.
 
 - **Mobile Base System MB3 mobileBaseOps apply gate** — `mobileBaseOpsCore.ts` parses/applies `turn_result.mobileBaseOps` (max 8): `dock_mobile_base`, `undock_mobile_base`, `move_mobile_base`, `consume_mobile_base_fuel`. Triple-flag gate; writes `vehicle_state.json` only (no settlement cross-write). `mobileBaseTurnOps.ts` wired in `statePatch` alongside `vehicleOps`. `scripts/test_mobile_base_ops.js`.

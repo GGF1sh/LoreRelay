@@ -59,6 +59,7 @@ import {
     type WhereaboutsPrecision,
 } from './npcWhereaboutsTrustCore';
 import { buildChronicleForWorkspace } from './chronicleLoader';
+import { buildMobileBasePanelWebviewPayload, mobileBaseSystemEnabled } from './mobileBaseBridge';
 import { buildVehicleGarageWebviewPayload } from './vehicleBridge';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
@@ -654,5 +655,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         chronicle: observatoryChronicle,
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
         vehicleGarage: buildVehicleGarageWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
+        enableMobileBaseSystem: mobileBaseSystemEnabled(gameRules),
+        mobileBasePanel: buildMobileBasePanelWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
     });
 }

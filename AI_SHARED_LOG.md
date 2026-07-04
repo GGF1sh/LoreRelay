@@ -10,14 +10,23 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **169/169** |
+| Tests | `npm test` **171/171** |
 | Vehicle System | V1–V3 core/ops + **V4** read-only Webview garage panel |
-| Mobile Base | MB1 core + MB2 prompt + **MB3** `mobileBaseOps` apply (dock/travel/fuel) |
+| Mobile Base | MB1–MB3 core/ops + **MB4** read-only Webview panel |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlayFromContext` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
-| Next (推奨) | MB4 mobile base panel · M5 実機 smoke |
-| Git | `main` synced through V4 commit (`c771515`) |
+| Next (推奨) | MB5 settlement view reuse · M5 実機 smoke |
+| Git | `main` synced through MB4 commit (`1b372ae`) |
+
+---
+
+## 2026-07-04 JST - Grok - Mobile Base MB4 read-only Webview panel
+
+- `mobileBaseViewCore.ts` — `buildMobileBasePanelSnapshot()` for linked vehicle+settlement.
+- `mobileBaseBridge.buildMobileBasePanelWebviewPayload()` + `worldView` (`enableMobileBaseSystem`, `mobileBasePanel`).
+- `89b-mobile-base-panel.js` — collapsible section in Vehicles tab (read-only).
+- Tests: `test_mobile_base_view_core.js`, `test_webview_mobile_base_panel.js`. `npm test` **171/171**.
 
 ---
 

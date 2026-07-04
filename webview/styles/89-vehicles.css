@@ -191,3 +191,70 @@
 #tab-btn-vehicles.hidden {
     display: none;
 }
+
+.vehicles-mobile-base-section {
+    margin-top: 0.85rem;
+    border-top: 1px solid var(--vscode-panel-border);
+    padding-top: 0.5rem;
+}
+
+.vehicles-mobile-base-section.hidden {
+    display: none;
+}
+
+.vehicles-mobile-base-section summary {
+    cursor: pointer;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.mobile-base-panel-card {
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 0.65rem 0.75rem;
+    background: var(--vscode-sideBar-background);
+}
+
+.mb-section {
+    margin-top: 0.45rem;
+}
+
+.mb-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.25rem;
+}
+
+.mb-facility-chip,
+.mb-stock-chip {
+    font-size: 0.75em;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editor-background);
+}
+
+.mb-facility-chip.status-damaged,
+.mb-facility-chip.status-under_construction {
+    border-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.mb-facility-chip.status-disabled,
+.mb-facility-chip.status-ruined {
+    opacity: 0.65;
+}
+
+.mb-stock-low {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.mb-stock-empty {
+    color: var(--vscode-errorForeground, #f48771);
+}
+
+.mb-problems ul {
+    margin: 0.25rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.82em;
+}

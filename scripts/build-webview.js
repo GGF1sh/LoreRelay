@@ -29,6 +29,7 @@ const JS_MODULE_ORDER = [
     '87-parlor-settings.js',
     '88-world-observatory.js',
     '89-vehicles.js',
+    '89b-mobile-base-panel.js',
     '90-bootstrap.js'
 ];
 

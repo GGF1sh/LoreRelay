@@ -73,6 +73,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_mobile_base_core.js' },
     { category: 'unit', file: 'test_mobile_base_bridge.js' },
     { category: 'unit', file: 'test_mobile_base_ops.js' },
+    { category: 'unit', file: 'test_mobile_base_view_core.js' },
+    { category: 'smoke', file: 'test_webview_mobile_base_panel.js' },
     { category: 'unit', file: 'test_settlement_marker_layer_semantics.js' },
     { category: 'unit', file: 'test_settlement_layer_expansion_core.js' },
     { category: 'unit', file: 'test_settlement_expansion_retry_determinism.js' },

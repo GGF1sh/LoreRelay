@@ -69,6 +69,8 @@ export interface GameRules {
     enableWorldObservatory?: boolean;
     /** Settlement Mode: hub settlement ledger + prompt chunk (default OFF). */
     enableSettlementMode?: boolean;
+    /** Settlement Diorama: optional Three.js dream-track view (default OFF; requires enableSettlementMode). */
+    enableSettlementDiorama?: boolean;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -111,6 +113,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     campaignKitId: '',
     enableWorldObservatory: false,
     enableSettlementMode: false,
+    enableSettlementDiorama: false,
 };
 
 export function getGameRulesPath(): string | undefined {
@@ -310,6 +313,9 @@ export function saveGameRules(rules: Partial<GameRules>): void {
         }
         if (rules.enableSettlementMode !== undefined && typeof rules.enableSettlementMode === 'boolean') {
             sanitized.enableSettlementMode = rules.enableSettlementMode;
+        }
+        if (rules.enableSettlementDiorama !== undefined && typeof rules.enableSettlementDiorama === 'boolean') {
+            sanitized.enableSettlementDiorama = rules.enableSettlementDiorama;
         }
     }
 

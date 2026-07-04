@@ -10,12 +10,23 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **157/157** |
+| Tests | `npm test` **158/158** |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
-| Settlement Mode M5 | M5a diorama snapshot pure core（`settlementDioramaCore.ts`）+ **M5b Three.js Webview renderer実装済み(Claude)** — host配線(`enableSettlementDiorama`永続化・`worldView.ts`配線・remote/replay)はGrok未着手 |
+| Settlement Mode M5 | M5a (`d7ef989`) + M5b Webview (`34c9b40`, Claude) + **host配線**（`settlementDioramaBridge.ts` · `enableSettlementDiorama` default OFF） |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
-| Next (推奨) | **Grok: M5b host配線**（`enableSettlementDiorama: false`をgame_rules.jsonに追加、`worldView.ts`で`settlementView`→`buildSettlementDioramaSnapshot()`配線、`AI_ROADMAP.md` M5b `[x]`）· Gemini README/screenshot plan（任意） |
-| Git | `main` synced through `d7ef989` |
+| Next (推奨) | M5b 正式ゲートレビュー(ChatGPT) · M5 実機 smoke（`game_rules.json`で両フラグON）· Gemini README/screenshot plan（任意） |
+| Git | `main` synced through `34c9b40` |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M5b host diorama wiring
+
+- `src/settlementDioramaBridge.ts` — `buildWorkspaceSettlementDiorama()` from sanitized `settlementView` when `enableSettlementMode` **and** `enableSettlementDiorama` are ON. `resolveDioramaThemeFromOvermap()` maps overmap theme → diorama palette.
+- `src/gameRules.ts` — `enableSettlementDiorama: false` default + save sanitization.
+- `src/worldView.ts` — postMessage adds `enableSettlementDiorama` / `settlementDiorama` (no GM prompt, no persistence, no remote/replay).
+- `scripts/test_settlement_diorama_bridge.js` — dual-gate, default OFF, theme mapping, no-mutation.
+- 検証: `npm run compile` / `npm test` **158/158** / `validate_utf8_docs.js` OK.
+- 有効化: `game_rules.json` に `"enableSettlementMode": true` と `"enableSettlementDiorama": true` を設定し `settlement_state.json` が存在すること。
 
 ---
 

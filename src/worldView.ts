@@ -17,6 +17,7 @@ import { buildCartographyPinPositions, buildCartographyRegionLabels } from './ca
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildWorkspaceMapOverlay } from './mapOverlayBridge';
 import { loadSettlementLayout, loadSettlementState } from './settlementState';
+import { buildWorkspaceSettlementDiorama, resolveDioramaThemeFromOvermap, settlementDioramaEnabled } from './settlementDioramaBridge';
 import { buildSettlementExpansionPreviews, buildSettlementViewSnapshot } from './settlementViewCore';
 import type { SettlementLayerId } from './settlementCore';
 
@@ -506,6 +507,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const settlementExpansionPreviews = settlementState
         ? buildSettlementExpansionPreviews(settlementState, settlementLayout)
         : [];
+    const dioramaTheme = resolveDioramaThemeFromOvermap(overmapThemeKey);
+    const settlementDiorama = buildWorkspaceSettlementDiorama(
+        settlementView,
+        gameRules,
+        { theme: dioramaTheme, includeLabels: true }
+    );
 
     const mapOverlay = buildWorkspaceMapOverlay(currentLocationId);
     const rawForgeDoc = loadWorldForgeDocument();
@@ -572,6 +579,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         mapOverlay,
         enableSettlementMode: gameRules.enableSettlementMode === true,
         settlementView: settlementView ?? null,
+        enableSettlementDiorama: settlementDioramaEnabled(gameRules),
+        settlementDiorama: settlementDiorama ?? null,
         settlementExpansionPreviews,
         factions,
         factionStates: factionStates ?? null,

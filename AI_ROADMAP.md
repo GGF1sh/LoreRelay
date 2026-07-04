@@ -288,7 +288,7 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 
 ## 🟡 Phase 13 Candidate: Settlement Mode / StoneSense-style View
 
-*ステータス: M1–M4c 完了（v1.72.0+）· M2 replay/remote 完了 · M5a 完了 · M5b 未実装（2026-07-04）*
+*ステータス: M1–M5b host配線完了（v1.72.0+）· M2 replay/remote 完了 · M5 remote/replay 未実装（2026-07-04）*
 
 設計正本: [`docs/SETTLEMENT_MODE_DESIGN.md`](docs/SETTLEMENT_MODE_DESIGN.md)  
 AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_PROMPTS.md)  
@@ -355,10 +355,11 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 ### M5 — Low-poly Diorama
 
 *設計正本: [`docs/SETTLEMENT_MODE_M5_DESIGN.md`](docs/SETTLEMENT_MODE_M5_DESIGN.md)*  
-*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md) — M5a **Approved** · M5b 別ゲート待ち*
+*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md) — M5a **Approved** · M5b Webview 実装済み（正式ゲートレビュー推奨）*
 
-- [x] M5a `settlementDioramaCore.ts` — pure `buildSettlementDioramaSnapshot()` from M3 view（dream track · default OFF flag は M5b 配線時）
+- [x] M5a `settlementDioramaCore.ts` — pure `buildSettlementDioramaSnapshot()` from M3 view
 - [x] capped blocks/markers/labels + closed material mapping + allow-list pickers
-- [ ] M5b read-only Three.js Webview renderer（Claude · `enableSettlementDiorama` 配線含む）
+- [x] M5b read-only Three.js Webview renderer（Claude · `86c-settlement-diorama.js`）
+- [x] host 配線 — `enableSettlementDiorama`（default OFF）+ `worldView.settlementDiorama`（`settlementDioramaBridge.ts`）
 
 **Non-goals:** full colony sim, pathfinding, freeform tile editor, full geological strata, sprite/code/schema copying from referenced games.

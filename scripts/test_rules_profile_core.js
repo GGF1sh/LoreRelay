@@ -108,7 +108,7 @@ function assertDeterministic(input, label) {
     eq(result.rulesPatch.enableSettlementDiorama, true, 'mobile base enables diorama');
     eq(result.rulesPatch.playerRole, 'merchant', 'mobile base defaults to merchant role');
     eq(result.assetHint.guideWebviewPath, 'assets/genesis/guide_space_alien_mercenary.png', 'sci-fi asset uses space guide');
-    eq(result.assetHint.backgroundWebviewPath, undefined, 'sci-fi has no bundled background yet');
+    eq(result.assetHint.backgroundWebviewPath, 'assets/genesis/background_sci_fi.png', 'sci-fi asset uses space background');
     assertPatchKeysSupported(result.rulesPatch, 'mobile base caravan');
 }
 
@@ -172,6 +172,12 @@ function assertDeterministic(input, label) {
     eq(n.answers.genre, 'cyberpunk', 'case-insensitive genre normalization');
     eq(n.answers.playstyle, 'character_chat', 'hyphenated character chat normalization');
     eq(n.answers.imageGenerationWanted, false, 'string off normalizes to false');
+}
+
+{
+    const result = resolveRulesProfile({ genre: 'modern' });
+    eq(result.assetHint.guideWebviewPath, 'assets/genesis/guide_modern_occult_librarian.png', 'modern asset uses occult librarian guide');
+    eq(result.assetHint.backgroundWebviewPath, 'assets/genesis/background_modern.png', 'modern asset uses occult background');
 }
 
 {

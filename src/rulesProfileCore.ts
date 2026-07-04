@@ -133,18 +133,26 @@ const ASSET_HINT_BY_GENRE: Record<GenesisGenre, GenesisAssetHint> = {
     sci_fi: {
         guideAssetId: 'guide_space_alien_mercenary',
         guideWebviewPath: 'assets/genesis/guide_space_alien_mercenary.png',
+        backgroundAssetId: 'background_sci_fi',
+        backgroundWebviewPath: 'assets/genesis/background_sci_fi.png',
     },
     eastern: {
         guideAssetId: 'guide_eastern_xianxia_fairy',
         guideWebviewPath: 'assets/genesis/guide_eastern_xianxia_fairy.png',
+        backgroundAssetId: 'background_eastern',
+        backgroundWebviewPath: 'assets/genesis/background_eastern.png',
     },
     horror: {
         guideAssetId: 'guide_horror_hooded',
         guideWebviewPath: 'assets/genesis/guide_horror_hooded.png',
+        backgroundAssetId: 'background_horror',
+        backgroundWebviewPath: 'assets/genesis/background_horror.png',
     },
     modern: {
         guideAssetId: 'guide_modern_occult_librarian',
         guideWebviewPath: 'assets/genesis/guide_modern_occult_librarian.png',
+        backgroundAssetId: 'background_modern',
+        backgroundWebviewPath: 'assets/genesis/background_modern.png',
     },
 };
 

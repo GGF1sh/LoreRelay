@@ -20,6 +20,12 @@ These files are runtime Webview assets. Future UI wiring should resolve them thr
 | Background | Fantasy | `background_fantasy.png` |
 | Background | Cyberpunk | `background_cyberpunk.png` |
 | Background | Post-apocalypse | `background_post_apocalypse.png` |
+| Background | Sci-fi / space opera | `background_sci_fi.png` |
+| Background | Eastern fantasy | `background_eastern.png` |
+| Background | Horror / dark | `background_horror.png` |
+| Background | Modern occult | `background_modern.png` |
+| Background | Steampunk | `background_steampunk.png` |
+| Background | Cozy fantasy | `background_cozy.png` |
 
 ## Current Integration
 

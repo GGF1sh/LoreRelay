@@ -21,10 +21,10 @@ Gemini generated a small visual pack for the first-session Genesis Guide. The as
 | `fantasy` | `guide_fantasy_goddess.png` | `background_fantasy.png` |
 | `post_apocalypse` | `guide_post_apocalypse_mechanic.png` | `background_post_apocalypse.png` |
 | `cyberpunk` | `guide_cyberpunk_ai_avatar.png` | `background_cyberpunk.png` |
-| `sci_fi` | `guide_space_alien_mercenary.png` | none bundled yet |
-| `eastern` | `guide_eastern_xianxia_fairy.png` | none bundled yet |
-| `horror` | `guide_horror_hooded.png` | none bundled yet |
-| `modern` | `guide_modern_occult_librarian.png` | none bundled yet |
+| `sci_fi` | `guide_space_alien_mercenary.png` | `background_sci_fi.png` |
+| `eastern` | `guide_eastern_xianxia_fairy.png` | `background_eastern.png` |
+| `horror` | `guide_horror_hooded.png` | `background_horror.png` |
+| `modern` | `guide_modern_occult_librarian.png` | `background_modern.png` |
 
 ## Extra Pack Assets
 
@@ -34,6 +34,8 @@ These are bundled for likely future Genesis genres or theme variants, but are no
 |---------------|-------|
 | Steampunk | `guide_steampunk_automaton.png` |
 | Cozy fantasy / tavern start | `guide_cozy_tavern_master.png` |
+| Steampunk background | `background_steampunk.png` |
+| Cozy fantasy background | `background_cozy.png` |
 
 ## G2 UI Notes
 

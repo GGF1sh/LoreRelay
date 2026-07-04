@@ -19,6 +19,8 @@ import { loadGameRules } from './gameRules';
 import { saveWorldState, ensureWorldStateExists } from './worldState';
 import { loadNpcRegistry, saveNpcRegistry } from './npcRegistry';
 import { generateQuestHooks } from './questGeneratorCore';
+import { captureWorldStepDebugTraceIfGated } from './debugTraceWorldStepHost';
+import { flushDebugTraceHostUpdate } from './debugTraceHostCore';
 import { livingWorldEnabled, tickLivingWorldAfterSim } from './livingWorldBridge';
 import { loadWorldForgeDocument } from './worldForge';
 
@@ -67,7 +69,9 @@ export function computeOneWorldStep(forge: WorldForge, state: WorldState, rules 
         }
     }
 
+    captureWorldStepDebugTraceIfGated(next, stepEvents);
     next = applyLivingWorldAfterSimulationStep(forge, next, currentRegistry, stepEvents);
+    flushDebugTraceHostUpdate();
 
     // Phase 8: Generate Quest Hooks before persisting world state
     generateQuestHooks(next, currentRegistry, false);

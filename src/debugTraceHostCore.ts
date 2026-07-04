@@ -35,21 +35,46 @@ const MAX_EVENTS_TRACED_PER_STEP = 16;
 let buffer: DebugTraceBuffer = createDebugTraceBuffer();
 let runSequence = 0;
 let activeSimulationRunId: string | undefined;
+let debugLiveRunId: string | undefined;
 
 export type DebugTraceHostUpdateListener = () => void;
 
 let updateListener: DebugTraceHostUpdateListener | undefined;
+let updateCoalesceScheduled = false;
 
 /** Test-only reset. */
 export function resetDebugTraceHostForTests(): void {
     buffer = createDebugTraceBuffer();
     runSequence = 0;
     activeSimulationRunId = undefined;
+    debugLiveRunId = undefined;
     updateListener = undefined;
+    updateCoalesceScheduled = false;
 }
 
 export function getActiveDebugTraceSimulationRunId(): string | undefined {
-    return activeSimulationRunId;
+    return activeSimulationRunId ?? debugLiveRunId;
+}
+
+/**
+ * Persistent run for debug-scenario / single-tick world steps when bulk sim is not active.
+ * Returns undefined when a bulk simulation run already owns the active marker.
+ */
+export function ensureDebugTraceLiveRun(worldTurn: number): string | undefined {
+    if (activeSimulationRunId) {
+        return activeSimulationRunId;
+    }
+    if (!debugLiveRunId) {
+        runSequence += 1;
+        debugLiveRunId = `debug_live_${worldTurn}_${runSequence}`;
+    }
+    return debugLiveRunId;
+}
+
+export function clearDebugTraceLiveRun(): void {
+    if (!activeSimulationRunId) {
+        debugLiveRunId = undefined;
+    }
 }
 
 export function setDebugTraceHostUpdateListener(listener: DebugTraceHostUpdateListener | undefined): void {
@@ -67,6 +92,7 @@ export function buildDebugTraceUpdateMessage(): DebugTraceUpdateMessage {
             version: buffer.version,
             maxEntries: buffer.maxEntries,
             entries: [...buffer.entries],
+            evictedTraceKeys: buffer.evictedTraceKeys ? [...buffer.evictedTraceKeys] : undefined,
         },
         linkWarnings: validateDebugTraceLinks(buffer),
     };
@@ -80,6 +106,27 @@ function notifyUpdated(): void {
     }
 }
 
+/** Coalesce multiple append calls in the same tick into one Webview refresh. */
+function scheduleNotifyUpdated(): void {
+    if (updateCoalesceScheduled) {
+        return;
+    }
+    updateCoalesceScheduled = true;
+    queueMicrotask(() => {
+        if (!updateCoalesceScheduled) {
+            return;
+        }
+        updateCoalesceScheduled = false;
+        notifyUpdated();
+    });
+}
+
+/** Force a pending coalesced Webview refresh (call at tick boundary). */
+export function flushDebugTraceHostUpdate(): void {
+    updateCoalesceScheduled = false;
+    notifyUpdated();
+}
+
 /** Append one or more entries; never throws into callers. */
 export function appendDebugTraceHostEntries(entries: unknown[]): void {
     if (!entries.length) {
@@ -88,7 +135,7 @@ export function appendDebugTraceHostEntries(entries: unknown[]): void {
     try {
         const result = appendDebugTraceEntries(buffer, entries);
         buffer = result.buffer;
-        notifyUpdated();
+        scheduleNotifyUpdated();
     } catch {
         // Swallow — debug trace must never affect game behavior.
     }

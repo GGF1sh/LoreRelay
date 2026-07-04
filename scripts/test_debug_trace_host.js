@@ -21,6 +21,7 @@ const {
     appendDebugTraceHostEntries,
     beginDebugTraceSimulationRun,
     endDebugTraceSimulationRun,
+    flushDebugTraceHostUpdate,
     getActiveDebugTraceSimulationRunId,
     buildDebugTraceUpdateMessage,
     buildSimulationStepTraceEntries,
@@ -44,10 +45,14 @@ resetDebugTraceHostForTests();
         message: 'hello',
         audience: 'internal',
     }]);
+    if (notified !== 0) {
+        fail(`append should coalesce notify until flush (got ${notified})`);
+    }
+    flushDebugTraceHostUpdate();
     if (notified !== 1) {
-        fail(`listener should fire once on append (got ${notified})`);
+        fail(`listener should fire once after flush (got ${notified})`);
     } else {
-        ok('append notifies update listener');
+        ok('append coalesces then flush notifies update listener');
     }
     setDebugTraceHostUpdateListener(undefined);
 }

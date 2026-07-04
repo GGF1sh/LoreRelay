@@ -32,17 +32,7 @@ const DEFAULT_TIMEOUT_MS = 90000;
  * Do not put long soak/scale tests here. A future opt-in soak runner should
  * have separate limits and scheduling.
  */
-const MANIFEST = [
-    { file: 'test_world_event_log.js' },
-    { file: 'test_emergent_simulator.js' },
-    { file: 'test_world_sim_bulk_core.js' },
-    { file: 'test_world_sim_bulk_event_loop_yield.js' },
-    { file: 'test_debug_scenario_core.js' },
-    { file: 'test_living_world_bridge.js' },
-    { file: 'test_world_sim_living_world.js' },
-    { file: 'test_npc_agency_step_events.js' },
-    { file: 'test_npc_relationship_core.js', timeoutMs: 120000 },
-];
+const { SIMULATION_TEST_MANIFEST: MANIFEST } = require('./simulation_test_manifest');
 
 function printList() {
     console.log('LoreRelay simulation regression batch\n');

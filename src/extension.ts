@@ -35,6 +35,8 @@ import { runObserverWorldTick } from './worldObservatoryTick';
 import { isActiveDebugScenario } from './debugScenarioRunner';
 import {
     buildDebugTraceUpdateMessage,
+    clearDebugTraceLiveRun,
+    ensureDebugTraceLiveRun,
     setDebugTraceHostUpdateListener,
 } from './debugTraceHostCore';
 import { initVlmQueue } from './vlmQueue';
@@ -1287,8 +1289,20 @@ function sendDebugTraceUpdate(): void {
     panel.webview.postMessage(buildDebugTraceUpdateMessage());
 }
 
+function syncDebugTraceLiveRun(): void {
+    const wsPath = getWorkspacePath();
+    const debugScenarioActive = wsPath ? isActiveDebugScenario(wsPath) : false;
+    if (!debugScenarioActive) {
+        clearDebugTraceLiveRun();
+        return;
+    }
+    const state = loadWorldState();
+    ensureDebugTraceLiveRun(state?.worldTurn ?? 0);
+}
+
 function sendDebugCapabilities(): void {
     if (!panel) { return; }
+    syncDebugTraceLiveRun();
     const wsPath = getWorkspacePath();
     const debugScenarioActive = wsPath ? isActiveDebugScenario(wsPath) : false;
     const rules = loadGameRules();

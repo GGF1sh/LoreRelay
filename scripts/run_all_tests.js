@@ -20,6 +20,9 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const SCRIPTS = __dirname;
 const DEFAULT_TIMEOUT_MS = 60000;
+const { SIMULATION_TEST_FILES } = require('./simulation_test_manifest');
+/** Unit scripts owned by run_simulation_tests.js — omit from unit category to avoid double runs. */
+const SIMULATION_BATCH_FILES = new Set(SIMULATION_TEST_FILES);
 
 /** @typedef {'validate' | 'unit' | 'smoke' | 'simulation'} TestCategory */
 
@@ -132,10 +135,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_game_rules_core.js' },
     { category: 'unit', file: 'test_world_state.js' },
     { category: 'unit', file: 'test_world_state_warning_buffer.js' },
-    { category: 'unit', file: 'test_emergent_simulator.js' },
-    { category: 'unit', file: 'test_world_sim_bulk_core.js' },
-    { category: 'unit', file: 'test_world_sim_bulk_event_loop_yield.js' },
-    { category: 'unit', file: 'test_debug_scenario_core.js' },
+
     { category: 'unit', file: 'test_debug_trace_core.js' },
     { category: 'unit', file: 'test_debug_trace_host.js' },
     { category: 'unit', file: 'test_debug_trace_emit_core.js' },
@@ -143,6 +143,9 @@ const MANIFEST = [
     { category: 'unit', file: 'test_debug_trace_emit_p2.js' },
     { category: 'unit', file: 'test_debug_trace_cross_run_identity.js' },
     { category: 'unit', file: 'test_debug_trace_large_npc_budget.js' },
+    { category: 'unit', file: 'test_debug_trace_ring_eviction.js' },
+    { category: 'unit', file: 'test_debug_trace_coalesce.js' },
+    { category: 'unit', file: 'test_debug_trace_live_run.js' },
     { category: 'unit', file: 'test_narrative_time_passage_core.js' },
     { category: 'unit', file: 'test_chronicle_core.js' },
     { category: 'unit', file: 'test_pacing_core.js' },
@@ -152,9 +155,9 @@ const MANIFEST = [
     { category: 'unit', file: 'test_replay_export_gm_timeline.js' },
     { category: 'unit', file: 'test_replay_export_concurrent_mutation.js' },
     { category: 'unit', file: 'test_replay_export_sanitize_core.js' },
-    { category: 'unit', file: 'test_living_world_bridge.js' },
+
     { category: 'unit', file: 'test_living_world_turn_ops.js' },
-    { category: 'unit', file: 'test_world_sim_living_world.js' },
+
     { category: 'unit', file: 'test_market_price_multiplier.js' },
     { category: 'unit', file: 'test_faction_market_demand.js' },
     { category: 'unit', file: 'test_living_world_market_debug_core.js' },
@@ -177,8 +180,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_view_simulation_payload.js' },
     { category: 'unit', file: 'test_living_world_player_role_core.js' },
     { category: 'unit', file: 'test_since_last_visit_host.js' },
-    { category: 'unit', file: 'test_npc_relationship_core.js' },
-    { category: 'unit', file: 'test_npc_agency_step_events.js' },
+
     { category: 'unit', file: 'test_npc_relationship_host.js' },
     { category: 'unit', file: 'test_npc_bond_effects_core.js' },
     { category: 'unit', file: 'test_npc_life_events_core.js' },
@@ -230,7 +232,7 @@ const MANIFEST = [
     { category: 'validate', file: 'validate_cartography_workflow_direct.js' },
     { category: 'unit', file: 'test_world_forge_generator.js' },
     { category: 'unit', file: 'test_location_image_builder.js' },
-    { category: 'unit', file: 'test_world_event_log.js' },
+
     { category: 'unit', file: 'test_npc_bridge.js' },
     { category: 'unit', file: 'test_quest_generator.js' },
     { category: 'unit', file: 'test_agentic_gm_core.js' },
@@ -245,9 +247,15 @@ const MANIFEST = [
         category: 'simulation',
         file: 'run_simulation_tests.js',
         timeoutMs: 180000,
-        description: 'deterministic world-engine regression batch (9 scripts)',
+        description: 'deterministic world-engine regression batch (simulation_test_manifest.js)',
     },
 ];
+
+for (const entry of MANIFEST) {
+    if (entry.category === 'unit' && SIMULATION_BATCH_FILES.has(entry.file)) {
+        throw new Error(`unit manifest must not list simulation-batch script: ${entry.file}`);
+    }
+}
 
 function parseMode(argv) {
     if (argv.includes('--list')) { return 'list'; }

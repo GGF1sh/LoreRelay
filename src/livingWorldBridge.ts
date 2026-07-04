@@ -19,7 +19,7 @@ import {
     captureFoodCrisisAgencyDeepTrace,
     resolveDeepTraceEmitGateFlags,
 } from './debugTraceEmitHost';
-import { getActiveDebugTraceSimulationRunId } from './debugTraceHostCore';
+import { ensureDebugTraceLiveRun, getActiveDebugTraceSimulationRunId } from './debugTraceHostCore';
 import {
     buildLivingWorldPromptBlocks,
     formatLivingWorldGmInjection,
@@ -247,7 +247,8 @@ export function tickLivingWorldAfterSim(
 
     if (rules.enableNpcAgency === true && rules.enableNpcRegistry === true) {
         captureFoodCrisisAgencyDeepTrace(resolveDeepTraceEmitGateFlags(), {
-            runId: getActiveDebugTraceSimulationRunId(),
+            runId: getActiveDebugTraceSimulationRunId()
+                ?? ensureDebugTraceLiveRun(state.worldTurn ?? 0),
             worldTurn: state.worldTurn ?? 0,
             stepEvents: mappedStepEvents,
             commerceForge,

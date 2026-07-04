@@ -16,6 +16,7 @@ import {
     beginDebugTraceSimulationRun,
     captureDebugTraceSimulationStep,
     endDebugTraceSimulationRun,
+    flushDebugTraceHostUpdate,
 } from './debugTraceHostCore';
 import { isDeepTraceEmitEnabled } from './debugTraceEmitHost';
 import type { NpcRegistry } from './npcRegistryCore';
@@ -45,7 +46,9 @@ function buildDebugTraceAfterStep(
         captureDebugTraceSimulationStep(runId, next, events, {
             omitFoodCrisisShallowWhenDeepEmit: isDeepTraceEmitEnabled(),
         });
-        return applyLivingWorldAfterSimulationStep(forge, next, reg, events);
+        const stepped = applyLivingWorldAfterSimulationStep(forge, next, reg, events);
+        flushDebugTraceHostUpdate();
+        return stepped;
     };
 }
 

@@ -13,6 +13,8 @@ export const MAX_DEBUG_TRACE_BUFFER_ENTRIES = 1000;
 /** Default ring size for debug sessions (bulk sim can emit ~40 entries/step). */
 export const DEFAULT_DEBUG_TRACE_BUFFER_ENTRIES = 512;
 export const MAX_DEBUG_TRACE_APPEND_WARNINGS = 16;
+/** Retention tombstones for evicted parents — bounded, not unbounded history. */
+export const MAX_DEBUG_TRACE_EVICTED_KEYS = 128;
 
 /** player_safe: Webview may expose rows to players — sanitize message/refs before emitting. */
 export const DEBUG_TRACE_AUDIENCES = ['internal', 'gm_safe', 'player_safe'] as const;
@@ -78,6 +80,8 @@ export interface DebugTraceBuffer {
     version: typeof DEBUG_TRACE_BUFFER_VERSION;
     maxEntries: number;
     entries: DebugTraceEntry[];
+    /** `${runId}:${traceId}` keys dropped by ring-buffer retention (not structural corruption). */
+    evictedTraceKeys?: string[];
 }
 
 export interface DebugTraceWarning {
@@ -418,7 +422,35 @@ export function createDebugTraceBuffer(maxEntries?: number): DebugTraceBuffer {
         version: DEBUG_TRACE_BUFFER_VERSION,
         maxEntries: clampBufferMax(maxEntries),
         entries: [],
+        evictedTraceKeys: [],
     };
+}
+
+/** Keys of entries removed by a ring-buffer trim pass. */
+export function collectEvictedEntryKeys(
+    before: readonly DebugTraceEntry[],
+    after: readonly DebugTraceEntry[]
+): string[] {
+    const afterKeys = new Set(after.map((e) => traceEntryKey(e.runId, e.traceId)));
+    const evicted: string[] = [];
+    for (const entry of before) {
+        const key = traceEntryKey(entry.runId, entry.traceId);
+        if (!afterKeys.has(key)) {
+            evicted.push(key);
+        }
+    }
+    return evicted;
+}
+
+function mergeEvictedTraceKeys(existing: string[] | undefined, added: string[]): string[] {
+    if (added.length === 0) {
+        return existing ?? [];
+    }
+    const merged = [...(existing ?? []), ...added];
+    if (merged.length <= MAX_DEBUG_TRACE_EVICTED_KEYS) {
+        return merged;
+    }
+    return merged.slice(merged.length - MAX_DEBUG_TRACE_EVICTED_KEYS);
 }
 
 function isStepAnchorEntry(entry: DebugTraceEntry): boolean {
@@ -547,12 +579,18 @@ export function appendDebugTraceEntry(
         };
     }
 
-    const nextEntries = trimRingBuffer([...buffer.entries, parsed], buffer.maxEntries);
+    const combined = [...buffer.entries, parsed];
+    const nextEntries = trimRingBuffer(combined, buffer.maxEntries);
+    const evictedKeys = mergeEvictedTraceKeys(
+        buffer.evictedTraceKeys,
+        collectEvictedEntryKeys(combined, nextEntries)
+    );
     return {
         buffer: {
             version: buffer.version,
             maxEntries: buffer.maxEntries,
             entries: nextEntries,
+            evictedTraceKeys: evictedKeys,
         },
         accepted: 1,
         rejected: 0,
@@ -618,9 +656,12 @@ export function validateDebugTraceLinks(buffer: DebugTraceBuffer): DebugTraceWar
         }
         const parentKey = traceEntryKey(entry.runId, parentId);
         if (!byKey.has(parentKey)) {
+            const evicted = new Set(buffer.evictedTraceKeys ?? []);
             pushWarning(warnings, {
-                code: 'missing_parent',
-                message: `parentTraceId "${parentId}" is not present in run "${entry.runId}".`,
+                code: evicted.has(parentKey) ? 'parent_evicted' : 'missing_parent',
+                message: evicted.has(parentKey)
+                    ? `parentTraceId "${parentId}" was evicted by ring-buffer retention in run "${entry.runId}".`
+                    : `parentTraceId "${parentId}" is not present in run "${entry.runId}".`,
                 traceId: entry.traceId,
                 runId: entry.runId,
             });
@@ -671,6 +712,7 @@ export function projectDebugTraceBuffer(
         version: buffer.version,
         maxEntries: buffer.maxEntries,
         entries: [...entries],
+        evictedTraceKeys: buffer.evictedTraceKeys ? [...buffer.evictedTraceKeys] : undefined,
     };
 }
 

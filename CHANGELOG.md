@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.77.15] - 2026-07-04
+
+### Changed
+
+- **Debug Trace retention** — `parent_evicted` vs `missing_parent`; `evictedTraceKeys` tombstones on ring buffer.
+- **Debug Trace coalesce** — tick-boundary `flushDebugTraceHostUpdate()`; append schedules one Webview refresh per turn.
+- **Debug scenario live run** — `debug_live_*` run + `captureWorldStepDebugTraceIfGated` on `computeOneWorldStep`; extension sync on debug workspace.
+- **Test manifest** — `simulation_test_manifest.js`; simulation scripts removed from unit category (no double execution).
+
 ## [1.77.14] - 2026-07-04
 
 ### Changed

@@ -443,6 +443,25 @@ function vehicleWithMobileBase(settlementId = 'ashcrawler_home') {
 }
 
 {
+    const state = parseVehicleState({
+        version: 1,
+        vehicles: [{
+            ...baseVehicle,
+            id: 'ashcrawler_hull',
+            kind: 'mobile_base',
+            mobileBase: { settlementId: 'home_base', mode: 'landship' },
+        }],
+    });
+    const report = buildWorldSanityReport({ vehicleState: state });
+    const issue = report.issues.find((i) => i.code === 'settlement_ledger_not_supplied');
+    if (!issue || issue.severity !== 'warning') {
+        fail('mobile base without settlement ledger should warn');
+    } else {
+        ok('mobile base without settlement ledger -> warning');
+    }
+}
+
+{
     const manifest = parseModManifest(mod('secret.mod', [
         { domain: 'scenario', id: 'hidden', data: { secretPayload: { nested: true, list: [1, 2, 3] } } },
     ]));

@@ -330,9 +330,25 @@ function mobileBaseIssueFromReason(
 
 export function checkMobileBaseSanity(input: WorldSanityInput): WorldSanityIssue[] {
     const state = input.vehicleState;
-    if (!state || !input.settlementState) { return []; }
+    if (!state) { return []; }
 
     const issues: WorldSanityIssue[] = [];
+    if (!input.settlementState) {
+        for (const vehicle of state.vehicles) {
+            if (!vehicle.mobileBase) { continue; }
+            issues.push(makeIssue(
+                'warning',
+                'mobile_base',
+                'settlement_ledger_not_supplied',
+                `Mobile base vehicle ${vehicle.id} cannot be link-validated without a settlement ledger.`,
+                { kind: 'vehicle', id: vehicle.id },
+                [{ kind: 'settlement', id: vehicle.mobileBase.settlementId }],
+                'Add settlement_state.json or supply settlement data to the checker.'
+            ));
+        }
+        return issues;
+    }
+
     for (const vehicle of state.vehicles) {
         if (!vehicle.mobileBase) { continue; }
         const result = validateMobileBaseLink(vehicle, input.settlementState);
@@ -382,8 +398,22 @@ function collectAliasRules(
     return rules;
 }
 
+function normalizeAliasCycleKey(cycle: string[]): string {
+    const nodes = cycle.length > 1 && cycle[0] === cycle[cycle.length - 1]
+        ? cycle.slice(0, -1)
+        : cycle.slice();
+    if (!nodes.length) { return ''; }
+    let best = nodes.join('\0');
+    for (let i = 1; i < nodes.length; i++) {
+        const rotated = nodes.slice(i).concat(nodes.slice(0, i)).join('\0');
+        if (rotated < best) { best = rotated; }
+    }
+    return best;
+}
+
 function detectAliasCycles(rules: ModAliasRule[]): string[][] {
     const cycles: string[][] = [];
+    const seen = new Set<string>();
     const domains = new Set(rules.map((r) => r.domain));
     for (const domain of domains) {
         const domainRules = rules.filter((r) => r.domain === domain);
@@ -399,7 +429,12 @@ function detectAliasCycles(rules: ModAliasRule[]): string[][] {
             if (visiting.has(node)) {
                 const start = stack.indexOf(node);
                 if (start >= 0) {
-                    cycles.push(stack.slice(start).concat(node));
+                    const cycle = stack.slice(start).concat(node);
+                    const key = normalizeAliasCycleKey(cycle);
+                    if (key && !seen.has(key)) {
+                        seen.add(key);
+                        cycles.push(cycle);
+                    }
                 }
                 return;
             }

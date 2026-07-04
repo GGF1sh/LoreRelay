@@ -206,6 +206,45 @@ function mod(id, records, extra = {}) {
     }
 }
 
+{
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-wi5b-mods-'));
+    const enabledDir = path.join(dir, '.lorerelay', 'mods', 'enabled.mod');
+    const disabledDir = path.join(dir, '.lorerelay', 'mods', 'disabled.mod');
+    fs.mkdirSync(enabledDir, { recursive: true });
+    fs.mkdirSync(disabledDir, { recursive: true });
+    fs.writeFileSync(path.join(enabledDir, 'lorerelay_mod.json'), JSON.stringify(
+        mod('enabled.mod', [{ domain: 'scenario', id: 'on', data: {} }]),
+        null,
+        2
+    ), 'utf-8');
+    fs.writeFileSync(path.join(disabledDir, 'lorerelay_mod.json'), JSON.stringify(
+        mod('disabled.mod', [{ domain: 'scenario', id: 'off', data: {} }], {
+            conflicts: [{ modId: 'enabled.mod' }],
+        }),
+        null,
+        2
+    ), 'utf-8');
+    fs.writeFileSync(path.join(dir, '.lorerelay', 'mod_profile.json'), JSON.stringify({
+        profileVersion: 1,
+        name: 'Disabled Mod Excluded',
+        enabledMods: [
+            { modId: 'enabled.mod', enabled: true, priority: 0 },
+            { modId: 'disabled.mod', enabled: false, priority: 10 },
+        ],
+    }, null, 2), 'utf-8');
+
+    const snapshot = readWorkspaceSanitySnapshot(dir);
+    if (!snapshot.mods || snapshot.mods['disabled.mod']) {
+        fail('disabled or unscanned mods should not be included in snapshot mods');
+    } else if (!snapshot.mods['enabled.mod']) {
+        fail('enabled mod manifest should still load');
+    } else if (snapshot.sources?.modManifestCount !== 1) {
+        fail(`expected modManifestCount=1, got ${snapshot.sources?.modManifestCount}`);
+    } else {
+        ok('loader includes only enabled profile mods');
+    }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);
     process.exit(1);

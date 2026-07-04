@@ -56,6 +56,15 @@
 
 ---
 
+## 2026-07-04 JST - Grok - World Intent WI5R / WI5bR self-review fixes
+
+- Mod loader: only enabled profile mods (not all scanned manifests); pass empty `mods: {}` when profile exists so missing-registry errors surface.
+- Core: mobile base warns when settlement ledger not supplied; alias cycle dedupe.
+- Runner: append to Output Channel (no `clear()`); i18n for command toasts.
+- Tests: mobile base without settlement, disabled mod exclusion. `npm test` **192/192**.
+
+---
+
 ## 2026-07-04 JST - Grok - World Intent WI5b host command
 
 - Added `worldIntentSanityHostCore.ts` (pure snapshot/format), `worldIntentSanityLoader.ts` (fs-only ledger loader), and `worldIntentSanityRunner.ts` (VS Code command + Output Channel).
@@ -75,6 +84,13 @@
 
 - Added `docs/WORLD_INTENT_WI6_LEDGER_MIGRATION_DESIGN.md`: pure dry-run per-ledger migration helper design.
 - The first pilot is intentionally tiny (`vehicle_state` v0 -> v1 by adding `version: 1`). Global workspace migration, write-back, semantic auto-fix, GM-turn integration, and State Orchestrator wiring are deferred.
+
+---
+
+## 2026-07-04 JST - Codex - World Intent WI6b Migration Preview Command design
+
+- Added `docs/WORLD_INTENT_WI6B_MIGRATION_PREVIEW_COMMAND_DESIGN.md`: opt-in read-only host command design for `LoreRelay: Preview Workspace Migrations`.
+- The command may read fixed known workspace ledgers, run WI6 dry-run migration helpers, and print bounded Output Channel diagnostics. Write-back, backups, apply buttons, GM-turn hooks, Webview/Remote/Replay wiring, and raw JSON diagnostics are forbidden.
 
 ---
 

@@ -151,15 +151,10 @@ function loadWorkspaceMods(wsPath: string): {
             mods[entry.modId] = manifest;
         }
     }
-    for (const [modId, manifest] of indexed) {
-        if (!mods[modId]) {
-            mods[modId] = manifest;
-        }
-    }
 
     return {
         modProfile,
-        mods: Object.keys(mods).length ? mods : undefined,
+        mods,
         modProfileLoaded: true,
         modManifestCount: Object.keys(mods).length,
     };
@@ -191,10 +186,8 @@ export function readWorkspaceSanitySnapshot(
     const modBundle = loadWorkspaceMods(wsPath);
     if (modBundle.modProfile) {
         snapshot.modProfile = modBundle.modProfile;
-        sources.modProfile = modBundle.modProfileLoaded;
-    }
-    if (modBundle.mods) {
         snapshot.mods = modBundle.mods;
+        sources.modProfile = modBundle.modProfileLoaded;
         sources.modManifestCount = modBundle.modManifestCount;
     }
 

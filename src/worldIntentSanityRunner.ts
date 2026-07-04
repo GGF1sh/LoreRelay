@@ -1,6 +1,7 @@
 // World Intent WI5b: opt-in workspace sanity check command (read-only).
 
 import * as vscode from 'vscode';
+import { t } from './i18n';
 import { getWorkspacePath } from './workspacePaths';
 import {
     formatWorldSanityReportLines,
@@ -32,7 +33,8 @@ export function emitWorkspaceSanityReport(
     sources?: WorkspaceSanitySources
 ): void {
     const channel = getOutputChannel();
-    channel.clear();
+    channel.appendLine('');
+    channel.appendLine('--- WI5b workspace sanity check ---');
     for (const line of formatWorldSanityReportLines(report, sources)) {
         channel.appendLine(line);
     }
@@ -43,7 +45,7 @@ export function emitWorkspaceSanityReport(
 export async function runWorkspaceSanityCheckCommand(): Promise<WorldSanityReport | undefined> {
     const wsPath = getWorkspacePath();
     if (!wsPath) {
-        void vscode.window.showWarningMessage('LoreRelay: Open a workspace folder before running the sanity check.');
+        void vscode.window.showWarningMessage(t('extension.warning.workspaceSanityNoFolder'));
         return undefined;
     }
 
@@ -54,8 +56,11 @@ export async function runWorkspaceSanityCheckCommand(): Promise<WorldSanityRepor
     emitWorkspaceSanityReport(report, snapshot.sources);
 
     const status = report.ok
-        ? `LoreRelay: Workspace sanity OK (${report.issueCount} issues). See "LoreRelay World Intent" output.`
-        : `LoreRelay: Workspace sanity found ${report.errorCount} error(s), ${report.warningCount} warning(s). See "LoreRelay World Intent" output.`;
+        ? t('extension.info.workspaceSanityOk', { issueCount: String(report.issueCount) })
+        : t('extension.error.workspaceSanityIssues', {
+            errorCount: String(report.errorCount),
+            warningCount: String(report.warningCount),
+        });
     if (report.ok && report.warningCount === 0) {
         void vscode.window.showInformationMessage(status);
     } else if (report.ok) {

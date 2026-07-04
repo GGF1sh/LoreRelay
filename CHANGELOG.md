@@ -12,6 +12,7 @@
 ### Added
 
 - **Debug Trace Inspector UI design** — `docs/DEBUG_TRACE_INSPECTOR_UI_DESIGN.md` (Claude): Phase B Webview timeline spec; Phase A marked shipped v1.77.8.
+- **Debug Trace Deep Emit Gate design** — `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md` (Grok): npcAgency / food crisis / faction conflict rule-level emit boundaries before P2a implementation.
 
 ## [1.77.8] - 2026-07-04
 

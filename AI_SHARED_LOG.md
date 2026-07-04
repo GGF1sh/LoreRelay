@@ -22,8 +22,14 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | **Debug Trace Inspector Phase B**（Claude §14）· SO3 transaction executor · Context Engine P1 |
+| Next (推奨) | **Claude: Inspector Phase B UI** · **Grok/Codex: Deep Emit P2a**（`DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`）· SO3 |
 | Git | `main` synced through v1.77.8 |
+
+---
+
+## 2026-07-04 JST - Grok - Debug Trace Deep Emit Gate design
+
+- `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`: npcAgency / commerce / npcRelationship の rule-level emit 境界。adapter-layer 方針、予算、回帰テスト（派閥警告≠食料危機）。
 
 ---
 

@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **World Intent WI5R / WI5bR (self-review)** — mod loader no longer injects every scanned manifest (only enabled profile entries); empty mod registry still runs MOD checks; mobile base vehicles warn when settlement ledger is absent; alias cycle dedupe; WI5b Output Channel appends instead of clearing WI3b history; command messages i18n (`extension.*.workspaceSanity*`).
+
 ### Added
 
 - **World Intent WI6b Migration Preview Command design** - added `docs/WORLD_INTENT_WI6B_MIGRATION_PREVIEW_COMMAND_DESIGN.md`, defining an opt-in read-only host command (`LoreRelay: Preview Workspace Migrations`) that loads fixed known workspace ledgers, runs WI6 dry-run migration helpers, and prints bounded Output Channel diagnostics. The design forbids write-back, backups, apply buttons, GM-turn integration, Webview execution, Remote Play, replay export, and raw JSON diagnostics.

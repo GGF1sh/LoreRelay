@@ -365,3 +365,22 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] Three.js lazy load — vendor split from `script.js`; load on first Diorama use（v1.73.0）
 
 **Non-goals:** full colony sim, pathfinding, freeform tile editor, full geological strata, sprite/code/schema copying from referenced games.
+
+### Vehicle System — Mobile Assets
+
+*設計: [`docs/VEHICLE_SYSTEM_DESIGN.md`](docs/VEHICLE_SYSTEM_DESIGN.md)* · *Gate: [`docs/VEHICLE_SYSTEM_CHATGPT_GATE.md`](docs/VEHICLE_SYSTEM_CHATGPT_GATE.md)*
+
+- [x] V1 `vehicleCore.ts` — parse, access check, fleet validation, prompt lines
+- [ ] V2 `vehicle_state.json` I/O + optional GM prompt injection
+- [ ] V3 `vehicleOps` apply gate
+- [ ] V4 Webview garage/dock panel (read-only first)
+
+### Mobile Base System — Moving Settlements
+
+*設計: [`docs/MOBILE_BASE_SYSTEM_DESIGN.md`](docs/MOBILE_BASE_SYSTEM_DESIGN.md)* · *Gate: [`docs/MOBILE_BASE_SYSTEM_CHATGPT_GATE.md`](docs/MOBILE_BASE_SYSTEM_CHATGPT_GATE.md)*
+
+- [x] MB1 `mobileBaseCore.ts` — link validation + prompt summary
+- [ ] MB2 feature flag + prompt wiring
+- [ ] MB3 docking/travel apply gate
+- [ ] Caravan travel announcement / joiners（別ゲート）
+- [ ] Transport contracts / autonomous route actors（Living World 連携）

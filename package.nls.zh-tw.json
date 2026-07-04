@@ -20,6 +20,7 @@
   "command.promoteParlorToCampaign": "LoreRelay: 將 Parlor 升格為 Campaign",
   "command.runWorkspaceSanityCheck": "LoreRelay: 執行工作區完整性檢查",
   "command.previewWorkspaceMigrations": "LoreRelay: 預覽工作區遷移",
+  "command.applyVehicleStateMigration": "LoreRelay: 套用 vehicle_state 遷移",
   "config.textAdventure.locale.description": "Webview、擴充功能訊息和 GM 敘事提示詞的 UI 語言。也可在 Webview 頭部下拉選單中修改。",
   "config.textAdventure.skillPath.description": "comfyui_generate.py 腳本的絕對路徑。",
   "config.textAdventure.imageGen.backend.description": "圖像生成後端。所有選項均使用 ComfyUI API（端點透過 imageGen.comfyuiUrl 設定）。",

@@ -10,16 +10,31 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **194/194** |
+| Tests | `npm test` **195/195** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6/WI6b** per-ledger migration helper + preview command |
-| Next (推奨) | WI3a Tier 2 payload-aware preview · WI7 migration write-back gate |
+| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6/WI6b/WI7** migration helper + preview + write-back pilot |
+| Next (推奨) | WI3a Tier 2 payload-aware preview · Context Engine P0 |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Grok - World Intent WI7 Migration Write-Back Gate implementation
+
+- Added `ledgerMigrationWritebackCore.ts` (pure eligibility/format), `ledgerMigrationWritebackHost.ts` (strict backup + atomic write + post-validation), and `ledgerMigrationWritebackRunner.ts` (modal confirmation + Output Channel).
+- Command: `textadventure.applyVehicleStateMigration` — `vehicle_state.json` v0→v1 only; fresh dry-run before write; backup under `.lorerelay/backups/migrations/<timestamp>/`; no apply-all/rollback.
+- `scripts/test_ledger_migration_writeback_core.js` (design §16). `npm test` **195/195**.
+
+---
+
+## 2026-07-04 JST - Codex - World Intent WI7b Migration Backup Restore Gate design
+
+- Added `docs/WORLD_INTENT_WI7B_MIGRATION_RESTORE_GATE.md`: manual restore gate for WI7-created `vehicle_state.json` migration backups.
+- Scope is explicit user-selected restore only: fixed backup directory, metadata validation, modal confirmation, strict pre-restore backup, atomic replacement, post-restore validation, bounded Output Channel reporting. Automatic rollback, checkpoint/Git restore, Webview/Remote/Replay/GM-turn wiring, and State Orchestrator behavior are deferred.
 
 ---
 
@@ -28,6 +43,13 @@
 - Added `ledgerMigrationHostCore.ts` (pure report/totals/format), `ledgerMigrationLoader.ts` (fs-only known ledger loader), and `ledgerMigrationRunner.ts` (VS Code command + Output Channel).
 - Command: `textadventure.previewWorkspaceMigrations` — loads 8 fixed workspace ledgers, runs WI6 dry-run migration preview, no writes. Output always ends with `No files were changed.`
 - `scripts/test_ledger_migration_host_core.js` (design §13). `npm test` **194/194**.
+
+---
+
+## 2026-07-04 JST - Codex - World Intent WI7 Migration Write-Back Gate design
+
+- Added `docs/WORLD_INTENT_WI7_MIGRATION_WRITEBACK_GATE.md`: first explicit migration write-back gate.
+- Scope is deliberately narrow: user-confirmed `vehicle_state.json` v0 -> v1 only, fresh dry-run before write, strict timestamped backup before `writeJsonAtomic`, post-write validation, bounded Output Channel reporting. Apply-all, rollback, Webview/Remote/Replay/GM-turn wiring, and State Orchestrator behavior are deferred.
 
 ---
 

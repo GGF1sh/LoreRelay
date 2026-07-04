@@ -50,7 +50,8 @@
     "onCommand:textadventure.resetProtagonistBootstrap",
     "onCommand:textadventure.promoteParlorToCampaign",
     "onCommand:textadventure.runWorkspaceSanityCheck",
-    "onCommand:textadventure.previewWorkspaceMigrations"
+    "onCommand:textadventure.previewWorkspaceMigrations",
+    "onCommand:textadventure.applyVehicleStateMigration"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -154,6 +155,10 @@
       {
         "command": "textadventure.previewWorkspaceMigrations",
         "title": "%command.previewWorkspaceMigrations%"
+      },
+      {
+        "command": "textadventure.applyVehicleStateMigration",
+        "title": "%command.applyVehicleStateMigration%"
       }
     ],
     "configuration": {

@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.77.7** |
+| Package version | **1.77.8** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **206/206** (+ `test:simulation` batch) |
+| Tests | `npm test` **207/207** (+ `test:simulation` batch) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -20,10 +20,16 @@
 | World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
 | State Orchestrator | **SO1** ledger descriptor inventory · **SO2** transaction planning gate · **SO2b** turn_result diagnostic command |
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
-| Debug / QA | Simulation regression batch · **Debug Trace P1** pure trace core |
+| Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | Debug Trace P2 host wiring · SO3 transaction executor design · Context Engine P1 category budgeter |
-| Git | `main` synced through v1.77.7 |
+| Next (推奨) | Debug Trace Inspector UI (Claude Phase B) · SO3 transaction executor design · Context Engine P1 category budgeter |
+| Git | `main` synced through v1.77.8 |
+
+---
+
+## 2026-07-04 JST - Grok - v1.77.8 Debug Trace P2 Phase A host wiring
+
+- `debugTraceHostCore.ts`: session buffer, `captureDebugTraceSimulationStep` on `worldSimPersist` afterStep, `debugTraceUpdate` postMessage (debug-console gated).
 
 ---
 

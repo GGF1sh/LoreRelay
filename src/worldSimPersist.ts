@@ -12,6 +12,14 @@ import {
     type BulkWorldSimSummary,
 } from './worldSimBulkCore';
 import { applyLivingWorldAfterSimulationStep } from './emergentSimulator';
+import {
+    beginDebugTraceSimulationRun,
+    captureDebugTraceSimulationStep,
+} from './debugTraceHostCore';
+import type { NpcRegistry } from './npcRegistryCore';
+import type { WorldChangeEvent } from './worldEventLogCore';
+import type { WorldState } from './worldStateCore';
+import type { WorldForge } from './worldForgeCore';
 
 export type WorldSimPersistFailureReason = 'SIM_OFF' | 'NO_FORGE' | 'INVALID_STEPS';
 
@@ -26,6 +34,16 @@ export interface WorldSimPersistFailure {
 }
 
 export type WorldSimPersistResult = WorldSimPersistSuccess | WorldSimPersistFailure;
+
+function buildDebugTraceAfterStep(
+    forge: WorldForge,
+    runId: string
+): (state: WorldState, stepEvents: WorldChangeEvent[], registry?: NpcRegistry) => WorldState {
+    return (next, events, reg) => {
+        captureDebugTraceSimulationStep(runId, next, events);
+        return applyLivingWorldAfterSimulationStep(forge, next, reg, events);
+    };
+}
 
 /** Run emergent simulation N steps and persist world_state (+ npc_registry). */
 export function persistWorldSimulationSteps(
@@ -50,12 +68,13 @@ export function persistWorldSimulationSteps(
     const state = ensureWorldStateExists(forge);
     const enableNpc = rules.enableNpcRegistry === true;
     const registry = enableNpc ? loadNpcRegistry() : undefined;
+    const traceRunId = beginDebugTraceSimulationRun(state.worldTurn ?? 0);
 
     const result = runBulkWorldSimulation(forge, state, registry, {
         steps: clamped,
         enableNpcRegistry: enableNpc,
         maxSteps,
-        afterStep: (next, events, reg) => applyLivingWorldAfterSimulationStep(forge, next, reg, events),
+        afterStep: buildDebugTraceAfterStep(forge, traceRunId),
     });
 
     if (!result.ok) {
@@ -93,12 +112,13 @@ export async function persistWorldSimulationStepsAsync(
     const state = ensureWorldStateExists(forge);
     const enableNpc = rules.enableNpcRegistry === true;
     const registry = enableNpc ? loadNpcRegistry() : undefined;
+    const traceRunId = beginDebugTraceSimulationRun(state.worldTurn ?? 0);
 
     const result = await runBulkWorldSimulationAsync(forge, state, registry, {
         steps: clamped,
         enableNpcRegistry: enableNpc,
         maxSteps,
-        afterStep: (next, events, reg) => applyLivingWorldAfterSimulationStep(forge, next, reg, events),
+        afterStep: buildDebugTraceAfterStep(forge, traceRunId),
     });
 
     if (!result.ok) {

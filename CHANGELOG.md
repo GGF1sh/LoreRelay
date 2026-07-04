@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.77.8] - 2026-07-04
+
+### Added
+
+- **Debug Trace P2 Phase A (host wiring)** — `debugTraceHostCore.ts`: session ring buffer, simulation step capture (`worldSimPersist` afterStep), `debugTraceUpdate` postMessage gated by debug-console visibility; `scripts/test_debug_trace_host.js`.
+
 ## [1.77.7] - 2026-07-04
 
 ### Fixed

@@ -33,6 +33,10 @@ import {
 } from './worldSimBulkRunner';
 import { runObserverWorldTick } from './worldObservatoryTick';
 import { isActiveDebugScenario } from './debugScenarioRunner';
+import {
+    buildDebugTraceUpdateMessage,
+    setDebugTraceHostUpdateListener,
+} from './debugTraceHostCore';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
 import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument } from './worldForge';
@@ -355,6 +359,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         panel.webview.html = html;
 
+        setDebugTraceHostUpdateListener(() => sendDebugTraceUpdate());
         startWatchingGameState();
         sendLocaleBundle();
         sendDebugCapabilities();
@@ -367,6 +372,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         panel.onDidDispose(() => {
+            setDebugTraceHostUpdateListener(undefined);
             panel = undefined;
             disposeGameStateWatcher();
             if (bgmWatcher) {
@@ -1268,12 +1274,25 @@ function sendGameRules(): void {
     panel.webview.postMessage({ type: 'gameRules', rules });
 }
 
+function isDebugTraceVisible(): boolean {
+    const wsPath = getWorkspacePath();
+    const debugScenarioActive = wsPath ? isActiveDebugScenario(wsPath) : false;
+    return isBulkWorldSimDebugEnabled() || debugScenarioActive;
+}
+
+function sendDebugTraceUpdate(): void {
+    if (!panel || !isDebugTraceVisible()) {
+        return;
+    }
+    panel.webview.postMessage(buildDebugTraceUpdateMessage());
+}
+
 function sendDebugCapabilities(): void {
     if (!panel) { return; }
     const wsPath = getWorkspacePath();
     const debugScenarioActive = wsPath ? isActiveDebugScenario(wsPath) : false;
     const rules = loadGameRules();
-    const showDebugConsole = isBulkWorldSimDebugEnabled() || debugScenarioActive;
+    const showDebugConsole = isDebugTraceVisible();
     const forge = loadWorldForge();
     const rawDoc = loadWorldForgeDocument();
     const commerce = forge && rawDoc ? resolveCommerceForge(forge, rawDoc) : undefined;
@@ -1297,6 +1316,7 @@ function sendDebugCapabilities(): void {
         marketLocations,
         marketCommodities,
     });
+    sendDebugTraceUpdate();
 }
 
 async function handleUpdateGameRules(raw: unknown): Promise<void> {
@@ -1659,6 +1679,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 })
             );
             panel?.webview.postMessage({ type: 'bulkWorldSimResult', ok: true, summary: s });
+            sendDebugTraceUpdate();
         },
         handleLivingWorldMarketDebug: async (raw: unknown) => {
             const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};

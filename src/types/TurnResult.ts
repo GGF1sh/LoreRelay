@@ -154,6 +154,17 @@ export interface TurnResult {
         seed?: number;
         [key: string]: unknown;
     }>;
+    /** Vehicle System: fleet mutations (vehicleOps, max 8). V3 applies active/move/damage/repair/refuel only. */
+    vehicleOps?: Array<{
+        type: string;
+        vehicleId?: string;
+        locationId?: string;
+        parkingLocationId?: string;
+        amount?: number;
+        resourceType?: string;
+        reason?: string;
+        [key: string]: unknown;
+    }>;
     /** Guild Master Mode: weekly policy / adventurer roster / request board (Guild ON). */
     guildOps?: {
         kind: 'weekly_commit' | 'recruit_adventurer' | 'dismiss_adventurer' | 'resolve_request' | 'assign_party';

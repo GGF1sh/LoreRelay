@@ -18,6 +18,7 @@ const worldStateQueue = createSyncFileQueue();
 const discoveryLedgerQueue = createSyncFileQueue();
 const campaignResourcesQueue = createSyncFileQueue();
 const settlementLayoutQueue = createSyncFileQueue();
+const vehicleStateQueue = createSyncFileQueue();
 
 let gameCircuit: CircuitBreakerState = createCircuitBreakerState();
 let worldCircuit: CircuitBreakerState = createCircuitBreakerState();
@@ -71,6 +72,11 @@ export function runSerializedSettlementLayoutMutation(fn: () => void): void {
     settlementLayoutQueue.enqueue(fn);
 }
 
+/** Serialize mutations to vehicle_state.json only. */
+export function runSerializedVehicleStateMutation(fn: () => void): void {
+    vehicleStateQueue.enqueue(fn);
+}
+
 /**
  * @deprecated Prefer commitGameState / saveWorldState (separate per-file queues).
  * Runs fn directly; nested writes route to game/world queues independently.
@@ -94,6 +100,7 @@ export function resetWorkspaceWriteQueueForTests(): void {
     discoveryLedgerQueue.reset();
     campaignResourcesQueue.reset();
     settlementLayoutQueue.reset();
+    vehicleStateQueue.reset();
     gameCircuit = createCircuitBreakerState();
     worldCircuit = createCircuitBreakerState();
 }
@@ -117,6 +124,10 @@ export function getCampaignResourcesWriteQueueDepthForTests(): number {
 
 export function getSettlementLayoutWriteQueueDepthForTests(): number {
     return settlementLayoutQueue.getPendingCount() + (settlementLayoutQueue.isBusy() ? 1 : 0);
+}
+
+export function getVehicleStateWriteQueueDepthForTests(): number {
+    return vehicleStateQueue.getPendingCount() + (vehicleStateQueue.isBusy() ? 1 : 0);
 }
 
 /** Test hooks — circuit breaker snapshots. */

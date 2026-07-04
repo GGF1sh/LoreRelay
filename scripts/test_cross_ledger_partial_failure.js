@@ -41,10 +41,10 @@ const { applyDiscoveryOpsToLedger } = require(discoveryOpsPath);
     if (!TURN_LEDGER_PERSIST_ORDER.includes('game_state')
         || TURN_LEDGER_PERSIST_ORDER[0] !== 'game_state') {
         fail(`persist order: ${TURN_LEDGER_PERSIST_ORDER.join(',')}`);
-    } else if (TURN_LEDGER_PERSIST_ORDER[TURN_LEDGER_PERSIST_ORDER.length - 1] !== 'settlement_layout') {
-        fail(`settlement_layout should be last in persist order: ${TURN_LEDGER_PERSIST_ORDER.join(',')}`);
+    } else if (TURN_LEDGER_PERSIST_ORDER[TURN_LEDGER_PERSIST_ORDER.length - 1] !== 'vehicle_state') {
+        fail(`vehicle_state should be last in persist order: ${TURN_LEDGER_PERSIST_ORDER.join(',')}`);
     } else {
-        ok('game_state is first and settlement_layout is last in turn ledger persist order');
+        ok('game_state is first and vehicle_state is last in turn ledger persist order');
     }
 }
 

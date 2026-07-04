@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Vehicle System V3 vehicleOps apply gate** — `vehicleOpsCore.ts` parses/applies `turn_result.vehicleOps` (max 8): `set_active_vehicle`, `move_vehicle`, `damage_vehicle`, `repair_vehicle`, `refuel_vehicle`. `vehicleTurnOps.ts` persists to `vehicle_state.json` when `enableVehicleSystem` is ON (gated in `statePatch` / `turnLedgerPersistCore`). Cargo/module/carrier ops remain blocked. `scripts/test_vehicle_ops.js`.
+
 - **Mobile Base System MB2 prompt wiring** — `mobileBaseBridge.ts` + `enableMobileBaseSystem` (default OFF; requires `enableVehicleSystem` + `enableSettlementMode`). `[Mobile Base]` GM prompt chunk links `vehicle.mobileBase` to `settlement_state.json` via `resolveActiveMobileBaseVehicle()`. `scripts/test_mobile_base_bridge.js`.
 
 - **Vehicle System V2 I/O + GM prompt** — `vehicleState.ts` loads optional `vehicle_state.json` (mtime cache). `enableVehicleSystem` (default OFF) in `game_rules.json` gates `[Vehicles]` prompt chunk in `gmPromptBuilder`. `buildVehiclePromptContext()` prefers vehicles at `game_state.world.currentLocationId`. `scripts/test_vehicle_state.js` + prompt activation tests.

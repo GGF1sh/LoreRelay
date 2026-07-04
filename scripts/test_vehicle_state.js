@@ -94,8 +94,8 @@ const fixtureVehicle = {
         fail('buildVehiclePromptBlock should be empty when disabled');
     } else if (!on.includes('[Vehicles]') || !on.includes('Rust Wagon')) {
         fail('buildVehiclePromptBlock should summarize vehicles when enabled');
-    } else if (!on.includes('vehicleOps')) {
-        fail('prompt block should note vehicleOps not wired');
+    } else if (!on.includes('turn_result.vehicleOps')) {
+        fail('prompt block should document vehicleOps persist channel');
     } else {
         ok('buildVehiclePromptBlock gated by enabled flag');
     }

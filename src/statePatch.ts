@@ -59,6 +59,10 @@ import {
     shouldAttemptSettlementLayoutPersist,
     tryApplySettlementLayoutTurnOps,
 } from './settlementLayoutTurnOps';
+import {
+    shouldAttemptVehiclePersist,
+    tryApplyVehicleTurnOps,
+} from './vehicleTurnOps';
 import { persistTurnLedgersAfterCommit } from './turnLedgerPersistCore';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
@@ -770,9 +774,11 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
                 && turnResult.campaignResourceOps.length > 0,
             settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
+            vehicleOpsPresent: shouldAttemptVehiclePersist(turnResult),
             applyDiscovery: () => tryApplyDiscoveryTurnOps(turnResult),
             applyCampaignResources: () => tryApplyCampaignResourceTurnOps(turnResult),
             applySettlementLayout: () => tryApplySettlementLayoutTurnOps(turnResult),
+            applyVehicleState: () => tryApplyVehicleTurnOps(turnResult),
         });
         if (!ledgerOutcome.ok) {
             console.error(
@@ -784,6 +790,7 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
                     discoveryApplied: ledgerOutcome.discoveryApplied,
                     campaignResourcesApplied: ledgerOutcome.campaignResourcesApplied,
                     settlementLayoutApplied: ledgerOutcome.settlementLayoutApplied,
+                    vehicleStateApplied: ledgerOutcome.vehicleStateApplied,
                 }
             );
         }

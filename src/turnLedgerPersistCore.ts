@@ -9,6 +9,7 @@ export const TURN_LEDGER_PERSIST_ORDER = [
     'discoveries',
     'campaign_resources',
     'settlement_layout',
+    'vehicle_state',
 ] as const;
 
 /**
@@ -22,7 +23,7 @@ export const CROSS_LEDGER_COMPENSATION_POLICY = {
     operatorReconcileRecommended: true,
 } as const;
 
-export type TurnLedgerTarget = 'discovery' | 'campaignResources' | 'settlementLayout';
+export type TurnLedgerTarget = 'discovery' | 'campaignResources' | 'settlementLayout' | 'vehicleState';
 
 export interface TurnLedgerApplyResult {
     ok: boolean;
@@ -40,6 +41,8 @@ export interface TurnLedgerPersistOutcome {
     campaignResourcesApplied: boolean;
     settlementLayoutAttempted: boolean;
     settlementLayoutApplied: boolean;
+    vehicleStateAttempted: boolean;
+    vehicleStateApplied: boolean;
     failedTargets: TurnLedgerTarget[];
 }
 
@@ -47,9 +50,11 @@ export interface TurnLedgerPersistInput {
     discoveryOpsPresent: boolean;
     campaignResourceOpsPresent: boolean;
     settlementLayoutOpsPresent: boolean;
+    vehicleOpsPresent?: boolean;
     applyDiscovery: () => boolean | TurnLedgerApplyResult;
     applyCampaignResources: () => boolean | TurnLedgerApplyResult;
     applySettlementLayout: () => boolean | TurnLedgerApplyResult;
+    applyVehicleState?: () => boolean | TurnLedgerApplyResult;
 }
 
 /** Gate independent ledger writes on successful game_state commit. */
@@ -77,9 +82,12 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
     let discoveryApplied = false;
     let campaignResourcesApplied = false;
     let settlementLayoutApplied = false;
+    let vehicleStateApplied = false;
     const discoveryAttempted = input.discoveryOpsPresent;
     const campaignResourcesAttempted = input.campaignResourceOpsPresent;
     const settlementLayoutAttempted = input.settlementLayoutOpsPresent;
+    const vehicleStateAttempted = input.vehicleOpsPresent === true;
+    const applyVehicleState = input.applyVehicleState ?? (() => ({ ok: true, applied: false }));
 
     if (discoveryAttempted) {
         const discoveryResult = normalizeLedgerApplyResult(input.applyDiscovery());
@@ -105,9 +113,18 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
         }
     }
 
+    if (vehicleStateAttempted) {
+        const vehicleResult = normalizeLedgerApplyResult(applyVehicleState());
+        vehicleStateApplied = vehicleResult.applied;
+        if (!vehicleResult.ok) {
+            failedTargets.push('vehicleState');
+        }
+    }
+
     const anySucceeded = (discoveryAttempted && discoveryApplied)
         || (campaignResourcesAttempted && campaignResourcesApplied)
-        || (settlementLayoutAttempted && settlementLayoutApplied);
+        || (settlementLayoutAttempted && settlementLayoutApplied)
+        || (vehicleStateAttempted && vehicleStateApplied);
     const partial = failedTargets.length > 0 && anySucceeded;
 
     return {
@@ -119,6 +136,8 @@ export function persistTurnLedgersAfterCommit(input: TurnLedgerPersistInput): Tu
         campaignResourcesApplied,
         settlementLayoutAttempted,
         settlementLayoutApplied,
+        vehicleStateAttempted,
+        vehicleStateApplied,
         failedTargets,
     };
 }

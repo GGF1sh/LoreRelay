@@ -43,9 +43,11 @@ function ledgerInput(overrides = {}) {
         discoveryOpsPresent: false,
         campaignResourceOpsPresent: false,
         settlementLayoutOpsPresent: false,
+        vehicleOpsPresent: false,
         applyDiscovery: () => ({ ok: true, applied: false }),
         applyCampaignResources: () => ({ ok: true, applied: false }),
         applySettlementLayout: () => ({ ok: true, applied: false }),
+        applyVehicleState: () => ({ ok: true, applied: false }),
         ...overrides,
     };
 }
@@ -92,6 +94,18 @@ function ledgerInput(overrides = {}) {
         fail(`settlement layout valid no-op ledger: ${JSON.stringify(outcome)}`);
     } else {
         ok('settlement layout valid no-op is not a failed target');
+    }
+}
+
+{
+    const outcome = persistTurnLedgersAfterCommit(ledgerInput({
+        vehicleOpsPresent: true,
+        applyVehicleState: () => ({ ok: true, applied: false }),
+    }));
+    if (!outcome.ok || outcome.partial || outcome.failedTargets.length !== 0 || outcome.vehicleStateApplied) {
+        fail(`vehicle state valid no-op ledger: ${JSON.stringify(outcome)}`);
+    } else {
+        ok('vehicle state valid no-op is not a failed target');
     }
 }
 

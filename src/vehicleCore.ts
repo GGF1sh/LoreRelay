@@ -19,8 +19,8 @@ export const MAX_PROMPT_VEHICLES = 3;
 export const MAX_PROMPT_CARRIED_NAMES = 4;
 export const MAX_PROMPT_LINE_CHARS = 180;
 export const MAX_VEHICLE_PROMPT_CHARS = 1200;
-export const VEHICLE_OPS_NOT_WIRED_LINE =
-    'Persistent vehicle changes require turn_result.vehicleOps (parse/apply gate not yet wired).';
+export const VEHICLE_OPS_PERSIST_LINE =
+    'Persist vehicle changes via turn_result.vehicleOps (max 8, enableVehicleSystem ON): set_active_vehicle, move_vehicle, damage_vehicle, repair_vehicle, refuel_vehicle. Cargo/module/carrier ops are not yet wired.';
 export const MAX_CAPACITY_VALUE = 999;
 export const MAX_HP_VALUE = 9999;
 export const MAX_COMBAT_POWER = 999;
@@ -928,7 +928,7 @@ export function buildVehiclePromptBlock(
         );
     }
     lines.push(...buildVehiclePromptLines(state, options));
-    lines.push(VEHICLE_OPS_NOT_WIRED_LINE);
+    lines.push(VEHICLE_OPS_PERSIST_LINE);
 
     let block = lines.join('\n');
     if (block.length > MAX_VEHICLE_PROMPT_CHARS) {

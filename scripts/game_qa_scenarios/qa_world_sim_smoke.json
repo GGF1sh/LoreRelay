@@ -1,0 +1,51 @@
+{
+  "id": "qa_world_sim_smoke",
+  "version": 1,
+  "description": "Debug sandbox world simulation smoke with bounded emergent ticks.",
+  "mode": "quick",
+  "modes": ["quick", "benchmark"],
+  "workspace": {
+    "source": "sample",
+    "sampleId": "debug-sandbox"
+  },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxSteps": 50,
+    "maxFileBytes": 1000000,
+    "maxReportEvents": 200
+  },
+  "steps": [
+    {
+      "id": "sanity_before",
+      "type": "assert",
+      "checks": [
+        "game_state_valid",
+        "world_state_valid",
+        "game_rules_valid",
+        "workspace_sanity_ok",
+        "no_json_parse_error"
+      ]
+    },
+    {
+      "id": "advance_world",
+      "type": "world_sim",
+      "steps": 5,
+      "assertAfter": ["world_state_valid", "no_unhandled_exception", "no_json_parse_error"]
+    },
+    {
+      "id": "workspace_sanity_after_sim",
+      "type": "workspace_sanity",
+      "assertAfter": ["workspace_sanity_ok"]
+    },
+    {
+      "id": "file_size_guard",
+      "type": "assert",
+      "checks": ["file_sizes_below_limit"]
+    },
+    {
+      "id": "snapshot_after",
+      "type": "snapshot",
+      "label": "post-world-sim"
+    }
+  ]
+}

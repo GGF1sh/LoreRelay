@@ -1,0 +1,50 @@
+{
+  "id": "qa_smoke_beginner_adventure",
+  "version": 1,
+  "description": "Starter commerce sample smoke: ledger validity, workspace sanity, and transaction plan preview.",
+  "mode": "quick",
+  "workspace": {
+    "source": "sample",
+    "sampleId": "trade-routes"
+  },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxSteps": 20,
+    "maxFileBytes": 1000000,
+    "maxReportEvents": 200
+  },
+  "steps": [
+    {
+      "id": "sanity_before",
+      "type": "assert",
+      "checks": [
+        "game_state_valid",
+        "world_state_valid",
+        "game_rules_valid",
+        "workspace_sanity_ok",
+        "no_json_parse_error"
+      ]
+    },
+    {
+      "id": "workspace_sanity_pass",
+      "type": "workspace_sanity",
+      "assertAfter": ["workspace_sanity_ok"]
+    },
+    {
+      "id": "transaction_plan_preview",
+      "type": "state_orchestrator_plan",
+      "turnResultFixture": "fixtures/qa/noop_turn_result.json",
+      "assertAfter": ["transaction_plan_valid"]
+    },
+    {
+      "id": "file_size_guard",
+      "type": "assert",
+      "checks": ["file_sizes_below_limit", "no_unhandled_exception"]
+    },
+    {
+      "id": "snapshot_after",
+      "type": "snapshot",
+      "label": "post-smoke"
+    }
+  ]
+}

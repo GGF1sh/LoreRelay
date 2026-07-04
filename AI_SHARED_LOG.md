@@ -6,11 +6,11 @@
 
 | Item | Value |
 |------|-------|
-| Package version | **1.77.11** |
+| Package version | **1.77.15** |
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **209/209** (+ `test:simulation` batch) |
+| Tests | `npm test` **208/208** (+ `test:simulation` batch) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -24,6 +24,14 @@
 | Idea parking | **Information & Rumor System** idea note |
 | Next (推奨) | **Deep Emit P2**（commerce / faction conflict）· Codex 統合レビュー · SO3 |
 | Git | `main` synced through v1.77.11 |
+
+---
+
+## 2026-07-04 JST - Codex - Genesis Mode G1 Rules Profile Core
+
+- Added `src/rulesProfileCore.ts`: pure deterministic resolver from `GenesisAnswers` (genre/playstyle/pressure/bookkeeping/protagonist/image preference) to safe `Partial<GameRules>` patch.
+- No Webview, VS Code API, filesystem, quickstartRunner, LLM guide, or ComfyUI wiring. Manual override remains a future host/UI merge concern.
+- Added `scripts/test_rules_profile_core.js` and registered it in `run_all_tests.js`. Verification: `npm run compile`; `npm test` **208/208**.
 
 ---
 

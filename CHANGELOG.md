@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Game QA Runner / Autoplay Benchmark design** - `docs/GAME_QA_RUNNER_DESIGN.md`: deterministic temp-workspace QA runner plan for scripted game behavior checks, with scenario JSON format, assertion catalog, side-effect policy, `qa:game:*` script plan, QA1-QA5 phases, and a Grok implementation prompt. QA1 intentionally excludes LLM/Webview/ComfyUI and does not join `npm test`.
+
 - **Genesis Mode RP2 Host Apply Gate** - `rulesProfileApplyCore.ts`: host-authoritative merge from `GenesisAnswers` to normalized `game_rules.json`, preserving unrelated manual settings, rejecting unsupported keys, and returning changed keys. `genesisApplyProfile` now re-runs `resolveRulesProfile()` in the extension host before saving, refreshes the Game Rules panel, and reports success/failure to the Webview. `genesisGenerateImage` now uses the host-resolved genre prompt rather than trusting arbitrary Webview prompt text.
 
 - **Genesis Mode G1 Rules Profile Core** — `rulesProfileCore.ts`: pure deterministic onboarding resolver from `GenesisAnswers` to safe `game_rules.json` patch, with axis-based genre/playstyle/pressure/bookkeeping handling, warnings for invalid answers, ComfyUI style prompt metadata, and `test_rules_profile_core.js`.

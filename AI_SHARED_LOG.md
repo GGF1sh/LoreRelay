@@ -27,6 +27,12 @@
 
 ---
 
+## 2026-07-05 JST - Codex - Game QA Runner / Autoplay Benchmark design
+
+- Added `docs/GAME_QA_RUNNER_DESIGN.md`: deterministic QA runner design for temp-workspace scripted game behavior checks.
+- Scope: QA1 starts without LLM/Webview/ComfyUI; runs sample/fixture workspaces, deterministic world sim, sanity checks, State Orchestrator previews, and bounded reports.
+- Includes scenario JSON format, assert/check catalog, temp workspace safety policy, `qa:game:*` npm script plan, QA1-QA5 phases, and Grok implementation prompt.
+
 ## 2026-07-05 JST - Codex - Genesis Mode RP2 Host Apply Gate
 
 - Added `src/rulesProfileApplyCore.ts`: pure host-authoritative Genesis profile application from current `game_rules` + `GenesisAnswers` to normalized merged rules, preserving unrelated manual settings and dropping unsupported input keys.

@@ -1,30 +1,38 @@
-# 繝舌・繧ｸ繝ｧ繝ｳ縺ｮ豁｣譛ｬ・・I繝ｻ莠ｺ髢灘髄縺托ｼ・
-LoreRelay 縺ｫ縺ｯ **3 遞ｮ鬘槭・縲檎沿縲・* 縺後≠繧翫∵ｷｷ蜷後☆繧九→ Web Grok / ChatGPT 遲峨′縲稽ain 縺ｯ v1.6.1縲阪→隱､隱阪＠縺ｾ縺吶・
-## 1. 繧ｽ繝ｼ繧ｹ縺ｮ豁｣譛ｬ・医＞縺｡縺ｰ繧謎ｿ｡鬆ｼ縺吶ｋ・・
-| 遒ｺ隱榊・ | 諢丞袖 |
-|--------|------|
-| `package.json` 縺ｮ `version` | **迴ｾ蝨ｨ縺ｮ繧ｳ繝ｼ繝臥沿** |
-| `CHANGELOG.md` 縺ｮ蜈磯ｭ繧ｻ繧ｯ繧ｷ繝ｧ繝ｳ・・[Unreleased]` 縺ｮ谺｡・・| **螳溯｣・ｸ医∩讖溯・縺ｮ豁｣譛ｬ** |
-| `git log origin/main -1` | **蜈ｬ髢・main 縺ｮ蜈磯ｭ繧ｳ繝溘ャ繝・* |
+# バージョンの正本（AI・人間向け）
 
-**繝ｪ繝昴ず繝医Μ:** https://github.com/GGF1sh/LoreRelay  
-**繝ｭ繝ｼ繧ｫ繝ｫ豁｣譛ｬ繝代せ:** `C:\AI\text-adventure-vsce`・・C:\AI\LoreRelay` 縺ｯ蜿､縺・け繝ｭ繝ｼ繝ｳ縺ｮ縺薙→縺後≠繧具ｼ・
-## 2. 驟榊ｸ・・豁｣譛ｬ・・SIX繝ｻ譖ｴ譁ｰ騾夂衍・・
-| 遒ｺ隱榊・ | 諢丞袖 |
-|--------|------|
-| [GitHub Releases](https://github.com/GGF1sh/LoreRelay/releases) | **繝ｦ繝ｼ繧ｶ繝ｼ縺・`Check for Updates` 縺ｧ蜿悶ｋ迚・* |
-| 繧ｿ繧ｰ `v*` push | `.github/workflows/release.yml` 縺・VSIX 繧呈ｷｻ莉假ｼ・package.json` 縺ｨ荳閾ｴ蠢・茨ｼ・|
+LoreRelay には **3 種類の「版」** があり、混同すると Web Grok / ChatGPT 等が「main は v1.6.1」と誤認します。
 
-**豕ｨ諢・** main 縺ｮ `package.json` 縺碁ｲ繧薙〒縺・※繧ゅ；itHub Release 縺悟商縺・ち繧ｰ縺ｮ縺ｾ縺ｾ縺ｪ繧峨後う繝ｳ繧ｹ繝医・繝ｫ貂医∩諡｡蠑ｵ縺ｯ蜿､縺・咲憾諷九ゅさ繝ｼ繝峨・騾ｲ繧薙〒縺・ｋ縺・**驟榊ｸ・・驕・ｌ縺ｦ縺・ｋ**縲・
-## 3. 隱ｬ譏弱ラ繧ｭ繝･繝｡繝ｳ繝茨ｼ亥ｱ･豁ｴ繝ｻ繧ｹ繝翫ャ繝励す繝ｧ繝・ヨ・・
-`README.md` Features 蜀・・縲・v1.3+)縲阪～WORLD_AND_VISUAL_MEMORY.md` 縺ｮ縲計1.6.1 譎らせ縲阪～README` 譛ｫ蟆ｾ Roadmap 縺ｮ **荳紋ｻ｣陦ｨ** 縺ｪ縺ｩ縺ｯ **讖溯・蟆主・譎ゅ・繝ｩ繝吶Ν** 縺ｾ縺溘・ **隕∫ｴ・*縲ら樟陦檎沿縺ｮ謨ｰ蟄励・ `package.json` 縺梧ｭ｣譛ｬ縲・
-| 繝峨く繝･繝｡繝ｳ繝・| 蠖ｹ蜑ｲ |
+## 1. ソースの正本（いちばん信頼する）
+
+| 確認先 | 意味 |
+|--------|------|
+| `package.json` の `version` | **現在のコード版** |
+| `CHANGELOG.md` の先頭セクション（`[Unreleased]` の次） | **実装済み機能の正本** |
+| `git log origin/main -1` | **公開 main の先頭コミット** |
+
+**リポジトリ:** https://github.com/GGF1sh/LoreRelay  
+**ローカル正本パス:** `C:\AI\text-adventure-vsce`（`C:\AI\LoreRelay` は別クローンのことがある）
+
+## 2. 配布の正本（VSIX・更新通知）
+
+| 確認先 | 意味 |
+|--------|------|
+| [GitHub Releases](https://github.com/GGF1sh/LoreRelay/releases) | **ユーザーが `Check for Updates` で取る版** |
+| タグ `v*` push | `.github/workflows/release.yml` が VSIX を生成（`package.json` と一致必須） |
+
+**注意:** main の `package.json` が進んでいても、GitHub Release が古いタグのままなら「インストール済み拡張は古い」状態。コードは進んでいるが **配布が遅れている**。
+
+## 3. 説明ドキュメント（履歴・スナップショット）
+
+`README.md` Features 内の「v1.3+)」、`WORLD_AND_VISUAL_MEMORY.md` の「v1.6.1 時点」、`README` 末尾 Roadmap の **世代表** などは **機能導入時のラベル** または **参考**。現行版の数値は `package.json` が正本。
+
+| ドキュメント | 役割 |
 |--------------|------|
-| [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md) | stable / experimental 縺ｮ蛻晁ｦ句髄縺台ｸ隕ｧ |
-| [`AI_ROADMAP.md`](../AI_ROADMAP.md) | 繧ｿ繧ｹ繧ｯ鮟呈攸・・hase 螳御ｺ・・谺｡譛溘ヨ繝ｩ繝・け・・|
-| [`AI_SHARED_LOG.md`](../AI_SHARED_LOG.md) 蜈磯ｭ **Current Snapshot** | AI 蜷代￠蜍慕噪繧ｵ繝槭Μ |
+| [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md) | stable / experimental の区分一覧 |
+| [`AI_ROADMAP.md`](../AI_ROADMAP.md) | タスク粒度・Phase 完了・次候補トラック |
+| [`AI_SHARED_LOG.md`](../AI_SHARED_LOG.md) 先頭 **Current Snapshot** | AI 向け動的サマリ |
 
-## AI 菴懈･ｭ蜑阪・ 30 遘偵メ繧ｧ繝・け
+## AI 作業前の 30 秒チェック
 
 ```powershell
 cd C:\AI\text-adventure-vsce
@@ -35,22 +43,27 @@ git log origin/main --oneline -1
 git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object -Last 3
 ```
 
-## 繧ｺ繝ｬ繧堤峩縺吶→縺阪・蜆ｪ蜈磯・ｽ・
-1. **繧ｿ繧ｰ + Release** 窶・`package.json` 縺ｨ荳閾ｴ縺吶ｋ `vX.Y.Z` 繧・push・磯・蟶・ｒ霑ｽ縺・▽縺九○繧具ｼ・2. **Current Snapshot 譖ｴ譁ｰ** 窶・`AI_SHARED_LOG.md`
-3. **README 繝舌ャ繧ｸ + Roadmap** 窶・`package.json` 縺ｨ蜷梧悄
-4. **繧ｭ繝｣繝・メ繧｢繝・・繝励Ο繝ｳ繝励ヨ** 窶・`VSCODE_CHATGPT_CATCHUP.md`
-5. **螻･豁ｴ繝峨く繝･繝｡繝ｳ繝・* 窶・迚育分蜿ｷ繧偵檎樟陦後阪→譖ｸ縺肴鋤縺医ｋ縺ｮ縺ｧ縺ｯ縺ｪ縺上∝・鬆ｭ縺ｫ縲後い繝ｼ繧ｭ繝・け繝√Ε蜿り・・迴ｾ陦後・ CHANGELOG縲阪→豕ｨ險・
-## 迴ｾ陦鯉ｼ域焔蜍墓峩譁ｰ: 2026-07-04・・
-| 鬆・岼 | 蛟､ |
+## ズレを直すときの優先順位
+
+1. **タグ + Release** — `package.json` と一致する `vX.Y.Z` を push（順序を追いつかせる）
+2. **Current Snapshot 更新** — `AI_SHARED_LOG.md`
+3. **README バッジ + Roadmap** — `package.json` と同期
+4. **キャッチアッププロンプト** — `VSCODE_CHATGPT_CATCHUP.md`
+5. **履歴ドキュメント** — 版番号を「最新」と書き換えるのではなく、先頭に「アーキテクチャ参考・現行は CHANGELOG」と注記
+
+## 現行（手動更新: 2026-07-04）
+
+| 項目 | 値 |
 |------|-----|
 | `package.json` | **1.77.13** |
 | CHANGELOG 先頭 | **[1.77.13]** Debug Trace Deep Emit P2 |
-| Campaign Kit | Phase A窶敵 ﾂｷ 7 genre presets ﾂｷ sell_discovery ﾂｷ services state machine (condition/estValue) ﾂｷ **campaign resources**(campaignResourceOps) ﾂｷ factionId on campaign quests ﾂｷ `scrapbound-settlement` sample |
-| Living World | LW1 Commerce 縺ｫ 2縺､逶ｮ縺ｮ萓｡譬ｼ繝峨Λ繧､繝占ｿｽ蜉(v1.51.0): 豢ｾ髢･/region繧､繝吶Φ繝磯｣蜍・+ **繝励Ξ繧､繝､繝ｼ隧募愛騾｣蜍・*(faction-controlled markets) |
-| World Observatory | 譁ｰ隕・v1.53.0): 蟶ょｴ萓｡譬ｼ螻･豁ｴ繧ｹ繝代・繧ｯ繝ｩ繧､繝ｳ繝ｻ蟷ｴ莉｣險倥ち繧､繝繝ｩ繧､繝ｳ繝ｻ繝励Ξ繧､繝､繝ｼ繧ｿ繝ｼ繝ｳ縺ｪ縺励〒荳也阜繧帝ｲ繧√ｋ隕ｳ貂ｬ閠・ユ繧｣繝・け(watch=辟｡繧ｳ繧ｹ繝・advance=鬟滓侭豸郁ｲｻ)縲ＡenableWorldObservatory` 譌｢螳唹FF |
-| Domain Mode | D1窶泥5 + **D3 UI 螳御ｺ・*・・.40.0・可ｷ F7窶擢10 engine + World 繧ｿ繝・UI ﾂｷ v1.40.1 hardening |
-| Guild Master (F11) | **G1窶敵4 螳御ｺ・*・・.41.0窶・.44.1・可ｷ v1.44.1 hardening ﾂｷ `enableGuildMode` 譌｢螳・OFF |
-| Parlor Mode | v1.34.0 蜃ｺ闕ｷ貂・|
-| Living World | v1.23窶・.34・・ommerce / Agency / LW3・・ Domain v1.39.x窶・.40.x |
-| GitHub Release latest | **v1.59.0**・・lorerelay-1.59.0.vsix` ﾂｷ 繧ｿ繧ｰ push 縺ｧ閾ｪ蜍墓峩譁ｰ・・|
-| テスト | `npm test` **210/210**（`check_version_consistency.js` 含む） |
+| Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
+| Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
+| World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |
+| Domain Mode | D1–D5 + **D3 UI 完了** (v1.40.0) · F7–F10 engine + World タブ UI · v1.40.1 hardening |
+| Guild Master (F11) | **G1–G4 完了** (v1.41.0–v1.44.1) · v1.44.1 hardening · `enableGuildMode` 既定 OFF |
+| Parlor Mode | v1.34.0 出荷済 |
+| Living World (履歴) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
+| Debug Trace | P1 core · P2 host (`debugTraceUpdate`) · Deep Emit P1a/P1b · **P2 dedup/ring buffer** (v1.77.13) · Inspector UI Phase B + UX polish |
+| GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
+| テスト | `npm test` **211/211**（`check_version_consistency.js` 含む） |

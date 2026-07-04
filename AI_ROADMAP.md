@@ -282,13 +282,13 @@ AI 振り分け: [`docs/PARLOR_MODE_AI_PROMPTS.md`](docs/PARLOR_MODE_AI_PROMPTS.
 | **Gemini** | README 4言語 · Start Hub 文案 · スクショ計画 · testing_checklist |
 | **ChatGPT** | セキュリティ監査 · PARLOR_SKILL.md · 昇格データ境界 · 実装ゲート |
 | **Grok** | Phase A 実装 · test · CHANGELOG · push |
-| Claude | 5h 制限中 — 復帰後に Phase B UI polish 候補 |
+| Claude | Settlement M4c/M3 Webview UX · remote-player mini-map（`*Core.ts` / persistence 無変更） |
 
 ---
 
 ## 🟡 Phase 13 Candidate: Settlement Mode / StoneSense-style View
 
-*ステータス: M1 完了（v1.63.0）· M2–M5 未実装（2026-07-04）*
+*ステータス: M1–M4c 完了（v1.72.0+）· M2 replay/remote 完了 · M5a 完了 · M5b 未実装（2026-07-04）*
 
 設計正本: [`docs/SETTLEMENT_MODE_DESIGN.md`](docs/SETTLEMENT_MODE_DESIGN.md)  
 AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_PROMPTS.md)  
@@ -317,6 +317,8 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] Webview 上の marker 描画（`86-tile-overmap.js` · v1.68.0）
 - [x] `settlementEventCore` — adaptive weighting + cooldown（[`docs/NARRATIVE_PATTERNS.md`](docs/NARRATIVE_PATTERNS.md) §3）
 - [x] `deriveLegacyNote()` — 解決済み incident の短い note 導出（同§4、スキーマ変更なし）
+- [x] `mapOverlayBridge.ts` — replay export + remote play が同一 `buildMapOverlaySnapshot` を共有
+- [x] remote-player 読み取り専用ミニマップ（Claude · `state.mapOverlay` 消費のみ）
 
 ### M3 — StoneSense-style Isometric View
 
@@ -326,6 +328,7 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] display snapshot via `settlementViewCore.ts`（M3a pure core · v1.69.0）
 - [x] Canvas renderer, pan/zoom, ASCII fallback glyphs（M3b · v1.70.0）
 - [x] limited layer selector `Z+1 / Z0 / Z-1 / Z-2`（M3b · v1.70.0）
+- [x] M3b/M4c isometric UX polish（Claude · レイヤー affordance、ゴースト可読性、ズーム軸修正、詳細パネル scroll clamp）
 
 ### M4 — Limited Z-Level Operations
 
@@ -335,12 +338,27 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] M4a bounded in-memory `expand_layer` pure core（v1.71.0）
 - [x] deterministic layer generation for `z1`, `z0`, `z-1`, `z-2` only（M4a in-memory）
 - [x] `expand_layer` parser stub in `settlementCore.ts`（v1.71.0）
-- [ ] M4b `settlement_layout.json` persistence apply gate
-- [ ] no full tile arrays, no geology/mining/pathfinding
-- [ ] M4b persistence apply-gate before any `settlement_layout.json` write wiring
+- [x] design constraint: no full tile arrays, no geology/mining/pathfinding（M4a/M4b スコープで遵守）
+- [x] M4b `settlement_layout.json` persistence apply gate（v1.72.0 · `settlementLayoutTurnOps*`）
+- [x] M4b persistence apply-gate before `settlement_layout.json` write wiring（post-commit ledger · `turn_result.settlementOps.expand_layer` のみ）
+- [x] ChatGPT review PR1–PR5 + entity dedupe + cross-ledger valid no-op（post-M4b）
+
+### M4c — Expansion UX Preview/Request（Webview-only）
+
+*設計正本: [`docs/SETTLEMENT_MODE_M4_DESIGN.md`](docs/SETTLEMENT_MODE_M4_DESIGN.md) §7*  
+*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M4C_CHATGPT_GATE.md) — **Approved***
+
+- [x] `buildSettlementExpansionPreviews()` — in-memory ghost preview per missing layer（pure core · v1.72.0+）
+- [x] Webview expand panel + `insertChatText` request only（永続化は M4b ledger 経由のみ）
+- [x] layout layer normalization + Z-level marker semantics + expansion retry determinism（PR3/PR4/PR5）
 
 ### M5 — Low-poly Diorama
 
-- [ ] dream track only; read-only Three.js view if ever implemented
+*設計正本: [`docs/SETTLEMENT_MODE_M5_DESIGN.md`](docs/SETTLEMENT_MODE_M5_DESIGN.md)*  
+*ChatGPT/Codex gate: [`docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md`](docs/SETTLEMENT_MODE_M5_CHATGPT_GATE.md) — M5a **Approved** · M5b 別ゲート待ち*
+
+- [x] M5a `settlementDioramaCore.ts` — pure `buildSettlementDioramaSnapshot()` from M3 view（dream track · default OFF flag は M5b 配線時）
+- [x] capped blocks/markers/labels + closed material mapping + allow-list pickers
+- [ ] M5b read-only Three.js Webview renderer（Claude · `enableSettlementDiorama` 配線含む）
 
 **Non-goals:** full colony sim, pathfinding, freeform tile editor, full geological strata, sprite/code/schema copying from referenced games.

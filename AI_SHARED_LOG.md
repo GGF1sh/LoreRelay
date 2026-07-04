@@ -10,11 +10,21 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **156/156** |
+| Tests | `npm test` **157/157** |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
+| Settlement Mode M5 | M5a diorama snapshot pure core（`settlementDioramaCore.ts`）— M5b Three.js は別ゲート待ち |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlaySnapshot` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
-| Next (推奨) | M4 実機 smoke（任意）· README/screenshot plan（Gemini #16） |
+| Next (推奨) | M5a gate レビュー → Claude M5b · Gemini README/screenshot plan（任意） |
 | Git | `main` synced through `45e1c64` |
+
+---
+
+## 2026-07-04 JST - Grok - Settlement Mode M5a diorama snapshot pure core
+
+- `src/settlementDioramaCore.ts` — pure `buildSettlementDioramaSnapshot()` from sanitized M3 `SettlementViewSnapshot`. Capped `blocks`/`markers`/optional `labels`, `fixed_orbit` camera, theme `palette`, closed tile-code → material mapping, allow-list pickers. No Three.js/Webview/persistence.
+- `scripts/test_settlement_diorama_core.js` — determinism, no-mutation, allow-lists, material mapping, caps/warnings, no secret/stock-quantity leak.
+- 検証: `npm run compile` / `test_settlement_view_core.js` / `test_settlement_diorama_core.js` / `npm test` **157/157** / `validate_utf8_docs.js` OK.
+- 次: ChatGPT/Codex M5a implementation gate → Claude M5b Three.js renderer.
 
 ---
 

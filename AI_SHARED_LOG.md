@@ -10,7 +10,7 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **199/199** |
+| Tests | `npm test` **200/200** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -18,10 +18,18 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
 | World Intent | **WI1–WI3b** core/bridge · **WI4** refuel accounting · **WI5/WI5b** sanity checker · **WI6–WI7b** migration preview/write-back/restore pilot |
-| State Orchestrator | **SO1** ledger descriptor inventory · **SO2 transaction planning gate design** |
+| State Orchestrator | **SO1** ledger descriptor inventory · **SO2** transaction planning gate |
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
-| Next (推奨) | Context Engine P1 category budgeter design · SO2 pure planning implementation |
+| Next (推奨) | SO3 transaction executor design · Context Engine P1 category budgeter |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Grok - State Orchestrator SO2 Transaction Planning Gate implementation
+
+- `stateOrchestratorPlanCore.ts`: pure `buildStateTransactionPlan` for `gm_turn` using SO1 descriptors + `TURN_LEDGER_PERSIST_ORDER`.
+- Reports planned/skipped/blocked steps, descriptor-backed policies, out-of-scope ledger ids, bounded warnings; `resolvePlannedLedgerAttempts` parity helper.
+- Tests: `scripts/test_state_orchestrator_plan_core.js`. `npm test` **200/200**.
 
 ---
 

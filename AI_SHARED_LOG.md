@@ -17,7 +17,7 @@
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | `mapOverlayBridge.ts` — Webview + replay + remote share `buildMapOverlayFromContext` choke point。remote-player に読み取り専用ミニマップ追加(Claude) |
 | Next (推奨) | M5 実機 smoke · caravan/travel gates |
-| Git | `main` synced through V5 commit (pending) |
+| Git | `main` synced through V5 commit (`40fe9d1`) |
 
 ---
 

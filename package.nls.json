@@ -21,6 +21,7 @@
   "command.generateWorldMapImage": "LoreRelay: Generate World Map Image",
   "command.resetProtagonistBootstrap": "LoreRelay: Reset Protagonist Bootstrap",
   "command.promoteParlorToCampaign": "LoreRelay: Promote Parlor to Campaign",
+  "command.runWorkspaceSanityCheck": "LoreRelay: Run Workspace Sanity Check",
   "config.textAdventure.locale.description": "UI language for Webview, extension messages, and GM narrative prompts. Also changeable from the Webview header dropdown.",
   "config.textAdventure.skillPath.description": "Absolute path to the comfyui_generate.py script",
   "config.textAdventure.imageGen.backend.description": "Image generation backend. All options speak the ComfyUI API; this is mostly a label — the actual endpoint is set by imageGen.comfyuiUrl.",

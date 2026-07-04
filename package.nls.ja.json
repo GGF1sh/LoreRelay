@@ -18,6 +18,7 @@
   "command.generateWorldMapImage": "LoreRelay: ワールドマップ画像を生成",
   "command.resetProtagonistBootstrap": "LoreRelay: 主人公自動登録をリセット",
   "command.promoteParlorToCampaign": "LoreRelay: Parlor を Campaign に昇格",
+  "command.runWorkspaceSanityCheck": "LoreRelay: ワークスペース整合性チェック",
   "config.textAdventure.locale.description": "Webview、拡張機能のメッセージ、GMストーリーテリング用プロンプトのUI言語。Webviewヘッダーのドロップダウンからも変更可能です。",
   "config.textAdventure.skillPath.description": "comfyui_generate.py スクリプトへの絶対パス。",
   "config.textAdventure.imageGen.backend.description": "画像生成のバックエンド。すべてのオプションは ComfyUI API を使用します（接続先は imageGen.comfyuiUrl で設定します）。",

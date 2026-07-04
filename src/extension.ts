@@ -207,6 +207,7 @@ import {
 } from './checkpointHandlers';
 import { checkForUpdates } from './updateManager';
 import { registerCoreCommands } from './extension/commands';
+import { runWorkspaceSanityCheckCommand } from './worldIntentSanityRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -454,6 +455,11 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
+    const runWorkspaceSanityCheckCmd = vscode.commands.registerCommand(
+        'textadventure.runWorkspaceSanityCheck',
+        () => { void runWorkspaceSanityCheckCommand(); }
+    );
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -498,7 +504,8 @@ export function activate(context: vscode.ExtensionContext) {
         generateWorldMapImageCmd,
         resetProtagonistBootstrapCmd,
         exportReplayCmd,
-        promoteParlorCmd
+        promoteParlorCmd,
+        runWorkspaceSanityCheckCmd
     );
 
     context.subscriptions.push(

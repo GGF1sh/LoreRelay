@@ -48,7 +48,8 @@
     "onCommand:textadventure.generateWorldForge",
     "onCommand:textadventure.generateWorldMapImage",
     "onCommand:textadventure.resetProtagonistBootstrap",
-    "onCommand:textadventure.promoteParlorToCampaign"
+    "onCommand:textadventure.promoteParlorToCampaign",
+    "onCommand:textadventure.runWorkspaceSanityCheck"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -144,6 +145,10 @@
       {
         "command": "textadventure.promoteParlorToCampaign",
         "title": "%command.promoteParlorToCampaign%"
+      },
+      {
+        "command": "textadventure.runWorkspaceSanityCheck",
+        "title": "%command.runWorkspaceSanityCheck%"
       }
     ],
     "configuration": {

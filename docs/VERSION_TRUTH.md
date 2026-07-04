@@ -53,4 +53,4 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Parlor Mode | v1.34.0 蜃ｺ闕ｷ貂・|
 | Living World | v1.23窶・.34・・ommerce / Agency / LW3・・ Domain v1.39.x窶・.40.x |
 | GitHub Release latest | **v1.59.0**・・lorerelay-1.59.0.vsix` ﾂｷ 繧ｿ繧ｰ push 縺ｧ閾ｪ蜍墓峩譁ｰ・・|
-| 繝・せ繝・| `npm test` **191/191**・・check_version_consistency.js` 蜷ｫ繧・・|
+| 繝・せ繝・| `npm test` **192/192**・・check_version_consistency.js` 蜷ｫ繧・・|

@@ -10,16 +10,27 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **191/191** |
+| Tests | `npm test` **192/192** |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
 | Settlement Mode M4 | M4a (v1.71.0) + M4b persistence (v1.72.0) + M4c UX preview/request (`40ba354`, gate **Approved** `ff86f60`) + M3b/M4c isometric Webview UX polish(Claude, ズーム軸バグ修正含む) |
 | Settlement Mode M5 | **完了**（v1.73.0）— M5a/M5b/host配線 + 3-AI review fixes + Three.js lazy load |
 | M2 overlay wiring | FoW-safe rumored marker ids + replay/remote sanitize choke point |
-| World Intent | **WI1–WI3b** core/bridge · **WI4** refuel effect accounting · **WI5** semantic sanity checker (report-only) |
-| Next (推奨) | WI3a preview UI (Claude) · WI5b host command (opt-in) |
+| World Intent | **WI1–WI3b** core/bridge · **WI3a-1** Vehicles tab Tier 1 preview (Webview-only) · **WI4** refuel effect accounting · **WI5** semantic sanity checker · **WI5b** opt-in host command |
+| Next (推奨) | WI3a Tier 2 payload-aware preview (needs new Codex gate, host read-only query endpoint) |
 | Git | `main` synced through v1.76.0 |
+
+---
+
+## 2026-07-04 JST - Claude - World Intent WI3a-1 Vehicles tab preview (Tier 1)
+
+- Design: `docs/WORLD_INTENT_WI3A_PREVIEW_UI_DESIGN.md` — split the WI3a prompt's ask into Tier 1 (payload-free, state-only, Webview-only) and Tier 2 (payload-aware, needs a new gated host read-only query endpoint), since `move_vehicle` / `repair_vehicle` / `refuel_vehicle`'s real `allowed`/`valid_noop` verdict depends on a destination/amount the Webview never receives. Codex reviewed and endorsed the split; scoped Tier 1 to Claude, Tier 2 to a later Codex gate.
+- Implemented Tier 1 only, per Codex's scoped prompt: new pure `webview/modules/89c-vehicle-intent-preview.js` (`LR_vehicleIntentPreview.computeRows(item, enableVehicleSystem)`) derives `set_active_vehicle` / `move_vehicle` / `repair_vehicle` / `refuel_vehicle` status from fields already in the existing `vehicleGarage` payload only. `damage_vehicle` excluded (no player affordance). `move_vehicle` renders as a `needs_input` pseudo-state ("pick a destination to preview"), never a real verdict.
+- `89-vehicles.js`'s `renderDetail()` now calls `renderIntentPreview(item)`; block has no buttons/inputs/`addEventListener`, status shown via icon + text (not color-only), screen-reader-only status text span. CSS added to `webview/styles/89-vehicles.css`. i18n keys added to all 4 locales.
+- `scripts/test_webview_vehicle_intent_preview.js`: asserts build-manifest order, no host query/message symbols in the pure module, no interactive DOM in the render block, i18n key presence in all locales, and functional `computeRows()` taxonomy (system-disabled/lost blocks everything; already-active/already-max-hp/already-full → `valid_noop`; `move_vehicle` never claims a verdict; no-fuel-tank blocks refuel specifically).
+- No `src/*.ts` change, no new Webview→host `postMessage`, no `queryWorldIntent()`/`executeWorldIntent()` call. `npm run compile`, `npm test` **192/192**, `check_i18n_keys.js` 0 missing, `validate_utf8_docs.js` OK.
+- Note: `scripts/run_all_tests.js` had a concurrent edit (another AI's WI5 test registration) land while this was in progress; re-added this task's manifest line after re-reading the file rather than overwriting the concurrent change.
 
 ---
 
@@ -45,10 +56,25 @@
 
 ---
 
+## 2026-07-04 JST - Grok - World Intent WI5b host command
+
+- Added `worldIntentSanityHostCore.ts` (pure snapshot/format), `worldIntentSanityLoader.ts` (fs-only ledger loader), and `worldIntentSanityRunner.ts` (VS Code command + Output Channel).
+- Command: `textadventure.runWorkspaceSanityCheck` — loads parsed ledgers/mod profile, runs WI5 report, no writes.
+- `scripts/test_world_intent_wi5b_sanity_host.js`. `npm test` **192/192**.
+
+---
+
 ## 2026-07-04 JST - Grok - World Intent WI5 Semantic Sanity Checker implementation
 
 - Added `src/worldIntentSanityCore.ts`: pure `buildWorldSanityReport` with domain helpers (`checkVehicleSanity`, `checkModSanity`, `checkGameRuleSanity`, `checkWorldIntentSanity`, `checkMobileBaseSanity`). Report-only; reuses `validateVehicleFleet`, `validateMobileBaseLink`, `resolveModProfile`, `parseVehicleWorldIntentBridgeMode`. Active vehicle lost = warning; disabled mod dependency = warning.
 - `scripts/test_world_intent_wi5_sanity_core.js` (design §12 Required Tests 1–20). `npm test` **191/191**.
+
+---
+
+## 2026-07-04 JST - Codex - World Intent WI6 Per-Ledger Migration Helper design
+
+- Added `docs/WORLD_INTENT_WI6_LEDGER_MIGRATION_DESIGN.md`: pure dry-run per-ledger migration helper design.
+- The first pilot is intentionally tiny (`vehicle_state` v0 -> v1 by adding `version: 1`). Global workspace migration, write-back, semantic auto-fix, GM-turn integration, and State Orchestrator wiring are deferred.
 
 ---
 

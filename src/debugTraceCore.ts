@@ -9,9 +9,11 @@ export const MAX_DEBUG_TRACE_CONDITIONS = 24;
 export const MAX_DEBUG_TRACE_REFS = 32;
 export const MIN_DEBUG_TRACE_BUFFER_ENTRIES = 1;
 export const MAX_DEBUG_TRACE_BUFFER_ENTRIES = 1000;
-export const DEFAULT_DEBUG_TRACE_BUFFER_ENTRIES = 256;
+/** Default ring size for debug sessions (bulk sim can emit ~40 entries/step). */
+export const DEFAULT_DEBUG_TRACE_BUFFER_ENTRIES = 512;
 export const MAX_DEBUG_TRACE_APPEND_WARNINGS = 16;
 
+/** player_safe: Webview may expose rows to players — sanitize message/refs before emitting. */
 export const DEBUG_TRACE_AUDIENCES = ['internal', 'gm_safe', 'player_safe'] as const;
 export type DebugTraceAudience = (typeof DEBUG_TRACE_AUDIENCES)[number];
 
@@ -402,11 +404,115 @@ export function createDebugTraceBuffer(maxEntries?: number): DebugTraceBuffer {
     };
 }
 
-function trimRingBuffer(entries: DebugTraceEntry[], maxEntries: number): DebugTraceEntry[] {
-    if (entries.length <= maxEntries) {
+function isStepAnchorEntry(entry: DebugTraceEntry): boolean {
+    return entry.subsystem === 'worldSim'
+        && entry.traceId.startsWith('trace_step_')
+        && !entry.parentTraceId;
+}
+
+/** Partition buffer entries into simulation-step bundles (anchor → children until next anchor). */
+export function partitionDebugTraceStepBundles(entries: readonly DebugTraceEntry[]): DebugTraceEntry[][] {
+    const bundles: DebugTraceEntry[][] = [];
+    let current: DebugTraceEntry[] = [];
+
+    for (const entry of entries) {
+        if (isStepAnchorEntry(entry) && current.length > 0) {
+            bundles.push(current);
+            current = [entry];
+            continue;
+        }
+        current.push(entry);
+    }
+    if (current.length > 0) {
+        bundles.push(current);
+    }
+    return bundles;
+}
+
+function collectReferencedParentIds(entries: readonly DebugTraceEntry[]): Set<string> {
+    const refs = new Set<string>();
+    for (const entry of entries) {
+        if (entry.parentTraceId) {
+            refs.add(entry.parentTraceId);
+        }
+    }
+    return refs;
+}
+
+/** Drop oldest leaf entries inside one bundle until it fits the remaining budget. */
+function trimBundleLeavesFromFront(bundle: DebugTraceEntry[], maxKeep: number): DebugTraceEntry[] {
+    if (bundle.length <= maxKeep) {
+        return [...bundle];
+    }
+    let working = [...bundle];
+    while (working.length > maxKeep) {
+        const parentRefs = collectReferencedParentIds(working);
+        let removed = false;
+        for (let i = 0; i < working.length && working.length > maxKeep; i++) {
+            const candidate = working[i];
+            if (!parentRefs.has(candidate.traceId)) {
+                working.splice(i, 1);
+                removed = true;
+                break;
+            }
+        }
+        if (!removed) {
+            return working.slice(working.length - maxKeep);
+        }
+    }
+    return working;
+}
+
+/**
+ * Trim ring buffer by evicting oldest whole simulation-step bundles first,
+ * then leaf rows inside the oldest retained bundle. Reduces missing_parent warnings.
+ */
+export function trimDebugTraceRingBuffer(
+    entries: DebugTraceEntry[],
+    maxEntries: number
+): DebugTraceEntry[] {
+    const limit = Math.max(MIN_DEBUG_TRACE_BUFFER_ENTRIES, Math.floor(maxEntries));
+    if (entries.length <= limit) {
         return entries;
     }
-    return entries.slice(entries.length - maxEntries);
+
+    const bundles = partitionDebugTraceStepBundles(entries);
+    if (bundles.length === 0) {
+        return entries.slice(entries.length - limit);
+    }
+
+    while (bundles.length > 1) {
+        const total = bundles.reduce((sum, bundle) => sum + bundle.length, 0);
+        if (total <= limit) {
+            break;
+        }
+        bundles.shift();
+    }
+
+    let flat = bundles.flat();
+    if (flat.length > limit && bundles.length === 1) {
+        flat = trimBundleLeavesFromFront(bundles[0], limit);
+    } else if (flat.length > limit) {
+        let overflow = flat.length - limit;
+        const trimmedBundles = [...bundles];
+        while (overflow > 0 && trimmedBundles.length > 0) {
+            const head = trimmedBundles[0];
+            if (head.length <= overflow) {
+                overflow -= head.length;
+                trimmedBundles.shift();
+                continue;
+            }
+            trimmedBundles[0] = trimBundleLeavesFromFront(head, head.length - overflow);
+            overflow = 0;
+        }
+        flat = trimmedBundles.flat();
+    }
+
+    return flat.length > limit ? flat.slice(flat.length - limit) : flat;
+}
+
+function trimRingBuffer(entries: DebugTraceEntry[], maxEntries: number): DebugTraceEntry[] {
+    return trimDebugTraceRingBuffer(entries, maxEntries);
 }
 
 export function appendDebugTraceEntry(

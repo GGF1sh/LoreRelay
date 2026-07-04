@@ -111,16 +111,46 @@ resetDebugTraceHostForTests();
         ok('step trace includes summary and notable events only');
     }
     const food = entries.find((e) => e.traceId === 'trace_ev_wce_43_food');
-    if (!food || food.ruleId !== 'food_crisis_classifier' || !food.conditions?.length) {
-        fail('food crisis event should include classifier conditions');
+    if (!food || food.ruleId !== 'notable_event' || food.conditions?.length) {
+        fail('food crisis shallow row should be slim notable_event without classifier conditions');
     } else {
-        ok('food crisis classifier conditions are attached');
+        ok('food crisis shallow row is slim notable_event (classifier owned by P1a)');
     }
     const faction = entries.find((e) => e.traceId === 'trace_ev_wce_43_faction_warn');
     if (!faction || faction.parentTraceId !== 'trace_step_43') {
         fail('notable events should parent to step trace');
     } else {
         ok('notable events link to parent step trace');
+    }
+}
+
+{
+    const runId = 'sim_omit_test';
+    const omitEntries = buildSimulationStepTraceEntries(runId, { worldTurn: 43 }, [
+        {
+            id: 'wce_43_food',
+            worldTurn: 43,
+            source: 'simulator',
+            category: 'resource',
+            severity: 'critical',
+            message: 'Wheat shortage threatens the region.',
+        },
+        {
+            id: 'wce_43_faction_warn',
+            worldTurn: 43,
+            source: 'simulator',
+            category: 'faction',
+            severity: 'warning',
+            factionId: 'merchants',
+            message: 'Merchants warn of trade disruption.',
+        },
+    ], { omitFoodCrisisShallowWhenDeepEmit: true });
+    if (omitEntries.length !== 2) {
+        fail(`deep emit on should omit food crisis shallow row (got ${omitEntries.length})`);
+    } else if (omitEntries.some((e) => e.traceId === 'trace_ev_wce_43_food')) {
+        fail('food crisis shallow row should be omitted when deep emit is active');
+    } else {
+        ok('deep emit on omits food crisis shallow Phase A row');
     }
 }
 

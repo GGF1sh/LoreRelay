@@ -350,14 +350,21 @@ recentChanges: [{ category: 'conflict', ... }]  // NOT in input type — adapter
 
 **No `npcAgencyCore` edits.**
 
-### P2 — Deferred
+### P2 — Emit fixes (v1.77.13, shipped)
+
+| Item | Detail |
+|------|--------|
+| Phase A / P1a dedup | `debugTraceHostCore`: food-crisis shallow `food_crisis_classifier` removed. When `isDeepTraceEmitEnabled()`, Phase A omits food-crisis notable rows; P1a `trace_fc_scan_*` owns classification. When deep emit OFF, slim `notable_event` breadcrumb only (no conditions). Gate resolver centralized in `debugTraceEmitHost.resolveDeepTraceEmitGateFlags`. |
+| Ring buffer | `DEFAULT_DEBUG_TRACE_BUFFER_ENTRIES` **512**; `trimDebugTraceRingBuffer` evicts oldest **whole step bundles** (`trace_step_*` + children) before leaf trim — reduces `missing_parent` during bulk sim. |
+| player_safe future | P1 emits `internal` / `gm_safe` only. **Before adding `player_safe` rows:** sanitize `message` and `inputRefs`/`outputRefs` — no raw `npc_*` ids, no hidden locations, no internal rule ids. Use display names + FoW-safe refs; add projection tests in `test_debug_trace_emit_p2.js`. |
+
+### P2 — Deferred (subsystem deep emit)
 
 | Item | Subsystem |
 |------|-----------|
 | Commerce price bump trace | `worldSimCommerceCore` |
 | Faction conflict trace | `npcRelationshipCore` |
 | Resource need vs food crisis divergence | `npcBridgeCore` |
-| Slim Phase A notable-event conditions | `debugTraceHostCore` cleanup |
 | Golden fixtures in simulation batch | `run_simulation_tests.js` |
 
 ---

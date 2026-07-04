@@ -15,8 +15,10 @@ import type { CaravanPromptSnapshot } from './livingWorldPromptCore';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { initializeMarketState } from './commerceCore';
 import { runLivingWorldTick } from './worldKitTickCore';
-import { captureFoodCrisisAgencyDeepTrace } from './debugTraceEmitHost';
-import type { DeepTraceEmitGateFlags } from './debugTraceEmitCore';
+import {
+    captureFoodCrisisAgencyDeepTrace,
+    resolveDeepTraceEmitGateFlags,
+} from './debugTraceEmitHost';
 import {
     buildLivingWorldPromptBlocks,
     formatLivingWorldGmInjection,
@@ -185,29 +187,6 @@ function registryToPlayerBondLike(registry: NpcRegistry | undefined): PlayerBond
         };
     }
     return out;
-}
-
-function resolveDeepTraceEmitGateFlags(): DeepTraceEmitGateFlags {
-    try {
-        // Lazy require — node unit tests run without the vscode module.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const vscode = require('vscode') as typeof import('vscode');
-        if (!vscode?.workspace) {
-            return { bulkWorldSimDebug: false, debugScenarioActive: false };
-        }
-        const bulkWorldSimDebug =
-            vscode.workspace.getConfiguration('textAdventure.debug').get<boolean>('bulkWorldSim') === true;
-        const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        let debugScenarioActive = false;
-        if (wsPath) {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const { isActiveDebugScenario } = require('./debugScenarioRunnerCore') as typeof import('./debugScenarioRunnerCore');
-            debugScenarioActive = isActiveDebugScenario(wsPath);
-        }
-        return { bulkWorldSimDebug, debugScenarioActive };
-    } catch {
-        return { bulkWorldSimDebug: false, debugScenarioActive: false };
-    }
 }
 
 /**

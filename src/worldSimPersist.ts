@@ -16,6 +16,7 @@ import {
     beginDebugTraceSimulationRun,
     captureDebugTraceSimulationStep,
 } from './debugTraceHostCore';
+import { isDeepTraceEmitEnabled } from './debugTraceEmitHost';
 import type { NpcRegistry } from './npcRegistryCore';
 import type { WorldChangeEvent } from './worldEventLogCore';
 import type { WorldState } from './worldStateCore';
@@ -40,7 +41,9 @@ function buildDebugTraceAfterStep(
     runId: string
 ): (state: WorldState, stepEvents: WorldChangeEvent[], registry?: NpcRegistry) => WorldState {
     return (next, events, reg) => {
-        captureDebugTraceSimulationStep(runId, next, events);
+        captureDebugTraceSimulationStep(runId, next, events, {
+            omitFoodCrisisShallowWhenDeepEmit: isDeepTraceEmitEnabled(),
+        });
         return applyLivingWorldAfterSimulationStep(forge, next, reg, events);
     };
 }

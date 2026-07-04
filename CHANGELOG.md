@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.77.13] - 2026-07-04
+
+### Changed
+
+- **Debug Trace Deep Emit P2** — Phase A / P1a responsibility split: food-crisis classification owned by P1a (`trace_fc_scan_*`); Phase A omits duplicate shallow rows when deep emit is gated ON; slim `notable_event` breadcrumb when OFF. `resolveDeepTraceEmitGateFlags` centralized in `debugTraceEmitHost.ts`.
+- **Debug Trace ring buffer** — default size 512; `trimDebugTraceRingBuffer` evicts oldest whole `trace_step_*` bundles first to reduce `missing_parent` during bulk sim.
+- **Tests** — `scripts/test_debug_trace_emit_p2.js`; host/core test updates for P2 contract.
+
 ## [1.77.12] - 2026-07-04
 
 ### Changed

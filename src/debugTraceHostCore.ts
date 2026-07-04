@@ -9,6 +9,15 @@ import {
     type DebugTraceWarning,
 } from './debugTraceCore';
 import { isFoodCrisisEvent } from './livingWorldTypes';
+
+/**
+ * Phase A capture options.
+ * When deep emit is ON, food-crisis classification is owned by P1a (`debugTraceEmitCore`);
+ * Phase A must not duplicate `food_crisis_classifier` rows.
+ */
+export interface SimulationStepTraceOptions {
+    omitFoodCrisisShallowWhenDeepEmit?: boolean;
+}
 import type { WorldState } from './worldStateCore';
 import type { WorldChangeEvent, WorldChangeSeverity } from './worldEventLogCore';
 
@@ -91,31 +100,17 @@ export function beginDebugTraceSimulationRun(startWorldTurn: number): string {
     return activeSimulationRunId;
 }
 
-function buildFoodCrisisConditions(ev: WorldChangeEvent) {
-    const msg = ev.message.toLowerCase();
-    return [
-        {
-            label: 'category === resource',
-            result: ev.category === 'resource',
-            actual: ev.category,
-            expected: 'resource',
-        },
-        {
-            label: 'message includes food keyword',
-            result: msg.includes('food')
-                || msg.includes('wheat')
-                || msg.includes('食料')
-                || msg.includes('小麦'),
-        },
-    ];
-}
-
 function buildNotableEventEntry(
     runId: string,
     parentTraceId: string,
-    ev: WorldChangeEvent
-): DebugTraceEntry {
+    ev: WorldChangeEvent,
+    options?: SimulationStepTraceOptions
+): DebugTraceEntry | undefined {
     const foodCrisis = isFoodCrisisEvent(ev);
+    if (foodCrisis && options?.omitFoodCrisisShallowWhenDeepEmit) {
+        return undefined;
+    }
+
     const entry: DebugTraceEntry = {
         version: 1,
         runId,
@@ -124,15 +119,12 @@ function buildNotableEventEntry(
         worldTurn: ev.worldTurn,
         subsystem: 'worldEvent',
         phase: ev.severity === 'critical' ? 'warning' : 'event',
-        ruleId: foodCrisis ? 'food_crisis_classifier' : 'notable_event',
-        decision: foodCrisis ? 'matched' : 'notable',
+        ruleId: 'notable_event',
+        decision: 'notable',
         message: ev.message,
         inputRefs: [{ kind: 'event', id: ev.id }],
         audience: ev.severity === 'critical' ? 'gm_safe' : 'internal',
     };
-    if (foodCrisis) {
-        entry.conditions = buildFoodCrisisConditions(ev);
-    }
     if (ev.factionId) {
         entry.outputRefs = [{ kind: 'faction', id: ev.factionId }];
     }
@@ -143,7 +135,8 @@ function buildNotableEventEntry(
 export function buildSimulationStepTraceEntries(
     runId: string,
     state: WorldState,
-    stepEvents: WorldChangeEvent[]
+    stepEvents: WorldChangeEvent[],
+    options?: SimulationStepTraceOptions
 ): DebugTraceEntry[] {
     const worldTurn = state.worldTurn ?? 0;
     const parentTraceId = `trace_step_${worldTurn}`;
@@ -168,7 +161,10 @@ export function buildSimulationStepTraceEntries(
         if (traced >= MAX_EVENTS_TRACED_PER_STEP) {
             break;
         }
-        entries.push(buildNotableEventEntry(runId, parentTraceId, ev));
+        const notable = buildNotableEventEntry(runId, parentTraceId, ev, options);
+        if (notable) {
+            entries.push(notable);
+        }
         traced += 1;
     }
 
@@ -179,10 +175,11 @@ export function buildSimulationStepTraceEntries(
 export function captureDebugTraceSimulationStep(
     runId: string,
     state: WorldState,
-    stepEvents: WorldChangeEvent[]
+    stepEvents: WorldChangeEvent[],
+    options?: SimulationStepTraceOptions
 ): void {
     try {
-        const entries = buildSimulationStepTraceEntries(runId, state, stepEvents);
+        const entries = buildSimulationStepTraceEntries(runId, state, stepEvents, options);
         appendDebugTraceHostEntries(entries);
     } catch {
         // Swallow — debug trace must never affect game behavior.

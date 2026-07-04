@@ -1,4 +1,7 @@
-// Debug Trace Deep Emit P1a: pure trace builders from subsystem inputs/outputs (no I/O).
+// Debug Trace Deep Emit P1a/P2: pure trace builders from subsystem inputs/outputs (no I/O).
+//
+// player_safe future: when adding player_safe rows, never copy raw npcId/locationId/internal
+// rule text into message — use display names and FoW-safe refs only (see DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md §P2).
 
 import { quoteMarketPrice } from './commerceCore';
 import type { DebugTraceCondition, DebugTraceEntry } from './debugTraceCore';

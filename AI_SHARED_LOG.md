@@ -22,7 +22,7 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) · **Debug Trace Inspector Phase B** UI (`80a-debug-trace.js`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | **Grok/Codex: Deep Emit P2a**（`DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`）· SO3 transaction executor · Context Engine P1 |
+| Next (推奨) | **Deep Emit P1a/P1b 実装**（`DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md` Approved）· SO3 · Context Engine P1 |
 | Git | `main` synced through v1.77.9 |
 
 ---
@@ -33,9 +33,9 @@
 
 ---
 
-## 2026-07-04 JST - Grok - Debug Trace Deep Emit Gate design
+## 2026-07-04 JST - Grok - Debug Trace Deep Emit Gate design (Approved P1 contract)
 
-- `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`: npcAgency / commerce / npcRelationship の rule-level emit 境界。adapter-layer 方針、予算、回帰テスト（派閥警告≠食料危機）。
+- `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md`: npcAgency 食料危機を第一候補とする Approved P1 契約（query→gate→per-NPC decision→effect）。P1a pure / P1b adapter / P2 deferred。v1.77.9 UI 前提。
 
 ---
 

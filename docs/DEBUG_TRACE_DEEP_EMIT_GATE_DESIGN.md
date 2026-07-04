@@ -1,344 +1,426 @@
 # Debug Trace Deep Emit Gate Design
 
-Status: Design / implementation gate  
+Status: **Approved** (implementation gate)  
 Date: 2026-07-04  
-Owner: Grok / Codex  
-Recommended implementation model: Grok or Codex, reasoning Medium
+Owner: Grok  
+Recommended implementation model: Grok or Codex, reasoning Medium–High
 
-## 日本語サマリ（開発者向け）
+## 日本語サマリ
 
-- **目的:** Phase A（v1.77.8）の step サマリ trace より深い粒度で、`event → rule condition → decision → effect` を記録する**安全境界**を先に確定する。
-- **最初の対象:** `npcAgency`（食料危機買い付け）・`livingWorldCommerce`（食料危機の市場反応）・`npcRelationship`（派閥紛争 / 共通危機）。直近の再発バグ（派閥警告を食料危機と誤認）の検知に直結。
-- **やらないこと:** Webview / UI / disk persistence / GM prompt / Remote / Replay / `statePatch` / `TurnResult` 変更。
-- **実装方針:** 既存 pure core（`npcAgencyCore` 等）の**シグネチャは変えない**。`debugTraceEmitCore.ts`（pure）が入力/出力から trace entry を**事後構築**し、host adapter（`livingWorldBridge` 等）が `appendDebugTraceHostEntries` へ渡す。
-- **順番:** 本設計ゲート → `debugTraceEmitCore.ts` + テスト → adapter 1 箇所（`tickLivingWorldAfterSim`）→ 統合レビュー（Codex）。
+- **目的:** Inspector（v1.77.9）に意味のある rule-level trace を流す。第一候補は `npcAgencyCore` の食料危機判定。
+- **契約:** `debugTraceEmitCore.ts`（pure）が `stepEvents` + subsystem 入出力から entry を構築 → `livingWorldBridge` が debug ゲート時のみ append。
+- **フェーズ:** P1a pure builders + テスト → P1b host adapter → P2 commerce / npcRelationship / npcBridge。
+- **禁止:** GM prompt、disk、Remote/Replay、`npcAgencyCore` シグネチャ変更。
 
-## 1. Summary
+---
 
-P1 core (`debugTraceCore.ts`) and Phase A host (`debugTraceHostCore.ts`, v1.77.8) already provide:
+## Findings / Risks
 
-- a bounded in-memory ring buffer;
-- `debugTraceUpdate` postMessage when debug console is visible;
-- per-step summaries + notable `WorldChangeEvent` rows with a **shallow** `food_crisis_classifier` hint.
+### Findings
 
-That shallow capture is useful but **not sufficient** to answer:
+| # | Finding | Implication |
+|---|---------|-------------|
+| F1 | Stack is ready: P1 core (v1.77.7), host snapshot (v1.77.8), Inspector UI (v1.77.9) all consume `debugTraceUpdate`. | Deep emit can ship without UI work. |
+| F2 | Phase A (`debugTraceHostCore`) emits shallow `food_crisis_classifier` on **notable** events only — no per-NPC decision path. | Inspector shows *that* an event was notable, not *why* NPC Elda moved. |
+| F3 | `isFoodCrisisEvent` (`livingWorldTypes.ts`) is the **canonical** food-crisis predicate for `reactNpcsToWorld`. | Trace `conditions[]` must mirror this function — never duplicate keyword lists in emit-only code. |
+| F4 | `reactNpcsToWorld` uses **`stepEvents` only** (documented in `AgencyReactionInput`). `recentChanges` is never read. | Emit builders must accept `stepEvents` only; tests must prove `recentChanges` is ignored. |
+| F5 | `test_npc_agency_step_events.js` already locks the regression: faction warning → 0 moves; resource+food keyword → `restock_wheat`. | Deep emit tests should mirror these cases as trace assertions. |
+| F6 | `npcBridgeCore` uses `category === 'resource' && factionId` — **broader** than `isFoodCrisisEvent`. | Out of P1 scope; document as P2 risk (R3). |
+| F7 | `traceId` in entries must be unique within buffer. Event ids (`wce_*`) are unique per sim event. | Use `trace_fc_scan_{eventId}`; dedupe duplicate ids within one `stepEvents` array. |
 
-```text
-Why did npcAgency move NPC X to market Y this tick?
-Was it because isFoodCrisisEvent matched, or because a faction warning was misread?
-```
+### Risks
 
-Deep Emit adds **rule-level trace** around Living World subsystems without changing game behavior.
+| # | Risk | Mitigation |
+|---|------|------------|
+| R1 | Trace volume per tick blows ring buffer (256). | Per-tick budget **24** deep entries (P1a); global ring unchanged. |
+| R2 | Emit throws into `tickLivingWorldAfterSim` and breaks Living World. | `appendDebugTraceHostEntries` already never throws; builders return `[]` on bad input. |
+| R3 | `npcBridge` resource path fires when `isFoodCrisisEvent` is false (mana low, etc.). | P2 emit for `npcBridge`; P1a documents divergence in §Findings F6. |
+| R4 | Phase A shallow rows duplicate P1a classifier conditions. | P1a entries use distinct `traceId` prefix `trace_fc_*`; optional P2 cleanup to slim Phase A rows. |
+| R5 | `internal` decision text leaks via `gm_safe` toggle misunderstanding. | P1a emits decision rows as `internal` only; effects as `gm_safe`. No `player_safe` in P1. |
+| R6 | Host builds trace when debug gate off → perf cost. | `shouldEmitDeepDebugTrace(flags)` short-circuits **before** any builder call. |
 
-## 2. Why This Gate Exists
+---
 
-Recent cross-subsystem bugs:
+## Approved Deep Emit P1 Contract
 
-| Bug pattern | Subsystems involved | What shallow trace misses |
-|-------------|---------------------|---------------------------|
-| Faction warning mistaken for food crisis | `worldEvent` → `npcAgency` / commerce | Per-NPC decision + classifier inputs |
-| `recentChanges` re-applied | `emergentSimulator` → `npcBridge` | Which events were consumed this tick vs replayed |
-| Unrelated faction pairs affected | `npcRelationship` faction_conflict | Which `stepEvents` triggered which faction pair |
-
-Unit tests catch regressions after the fact. Deep Emit makes the **decision path visible in the Inspector** (once Phase B UI lands) without coupling trace to GM prompts.
-
-## 3. Current Baseline (v1.77.8)
-
-| Layer | File | What it emits today |
-|-------|------|---------------------|
-| P1 vocabulary | `debugTraceCore.ts` | parse / buffer / projection / linkage validation |
-| Phase A host | `debugTraceHostCore.ts` | `trace_step_{turn}` + up to 16 notable events/step |
-| Capture hook | `worldSimPersist.ts` `afterStep` | calls `captureDebugTraceSimulationStep` before Living World tick |
-| UI contract | `DEBUG_TRACE_INSPECTOR_UI_DESIGN.md` | consumes `debugTraceUpdate` (Phase B pending) |
-
-**Gap:** `reactNpcsToWorld`, `applyWorldEventsToMarkets`, `evolveRelationships` produce effects but emit **no rule-level trace**.
-
-## 4. Scope
-
-### In scope (P2 Deep Emit — first slice)
-
-- `src/debugTraceEmitCore.ts` — pure trace builders from subsystem inputs/outputs
-- `scripts/test_debug_trace_emit_core.js`
-- One host adapter choke point: `livingWorldBridge.tickLivingWorldAfterSim` (after `runLivingWorldTick` + `evolveRelationships`)
-- Bounded entry budgets per sim tick
-- Parent/child linkage to existing `trace_step_{turn}` rows from Phase A
-
-### Out of scope
-
-- Webview / `81-debug-trace.js` (Claude Phase B)
-- Modifying `npcAgencyCore.reactNpcsToWorld` return type or internals
-- Disk persistence, Output Channel command, golden trace files
-- GM prompt / Context Inspector / `buildRelationshipPromptLines` integration
-- Remote Play / replay export / Webview sanitize changes
-- Automatic trace in every subsystem (commerce-only, npcBridge-only paths deferred to P2b)
-
-## 5. Canonical Classifiers (do not duplicate logic)
-
-Trace builders must **import and reference** existing classifiers — never reimplement keywords in emit code.
-
-| Classifier | Canonical source | Used by |
-|------------|-------------------|---------|
-| Food crisis event | `isFoodCrisisEvent` (`livingWorldTypes.ts`) | `npcAgencyCore`, `worldSimCommerceCore`, shallow host capture |
-| Conflict event | `isConflictEvent` (`npcRelationshipCore.ts`) | `evolveRelationships` rule 3 |
-| Conflict faction pair | `extractConflictFactionPair` | faction relationship mutation |
-| Resource→NPC need | `npcBridgeCore` inline: `category === 'resource' && factionId` | **Different** from `isFoodCrisisEvent` — trace must surface this distinction |
-
-**Design rule:** When emit reports a `decision`, `conditions[]` must cite the **same predicate** the subsystem used, including `actual` / `expected` where cheap.
-
-## 6. Emit Architecture
-
-### 6.1 Layering
+### Architecture
 
 ```text
-npcAgencyCore / worldSimCommerceCore / npcRelationshipCore  (unchanged pure)
+npcAgencyCore.reactNpcsToWorld  (unchanged — no trace imports)
         │
         ▼
-debugTraceEmitCore.ts  (pure: build entries from inputs + outputs)
+debugTraceEmitCore.ts           (pure — build entries from input + output)
         │
         ▼
-livingWorldBridge.tickLivingWorldAfterSim  (adapter: append if debug trace enabled)
+livingWorldBridge.ts            (adapter — if shouldEmitDeepDebugTrace)
         │
         ▼
-debugTraceHostCore.appendDebugTraceHostEntries  (never throws)
+debugTraceHostCore.ts           (append — never throws)
         │
         ▼
-extension.ts → debugTraceUpdate  (existing Phase A)
+debugTraceUpdate → 80a-debug-trace.js
 ```
 
-### 6.2 Why adapter-layer emit first
-
-- Keeps `npcAgencyCore` import-clean (no vscode, no host, no circular deps).
-- Lets us ship trace without risking agency/commerce determinism.
-- Later optional refactor: return `{ moves, traceEntries }` from cores — **not P2a**.
-
-### 6.3 Debug gating
-
-Deep emit appends only when **the same gate as Phase A** is true:
+### Input contract (P1a)
 
 ```ts
-isBulkWorldSimDebugEnabled() || isActiveDebugScenario(workspacePath)
+export interface FoodCrisisAgencyEmitInput {
+    runId: string;
+    worldTurn: number;
+    parentTraceId: string;           // trace_step_{worldTurn} from Phase A
+    stepEvents: WorldChangeEventLike[];  // THIS TICK ONLY — never recentChanges
+    agencyInput: AgencyReactionInput;
+    agencyResult: { moves: NpcAgencyOp[]; positions: NpcPositionsMap };
+    maxNpcTraces?: number;           // default 10
+}
 ```
 
-Implement as a pure helper `shouldEmitDeepDebugTrace(flags)` in emit core; host evaluates flags.
+### Entry chain (per sim tick, npcAgency food crisis)
 
-When gate is false: **zero builder calls** (not just zero append).
+| Step | `phase` | `subsystem` | `ruleId` | `traceId pattern | Purpose |
+|------|---------|-------------|----------|-------------------|---------|
+| 1 | `query` | `livingWorldClassifier` | `isFoodCrisisEvent` | `trace_fc_scan_{eventId}` | Per **unique** stepEvent: evidence + conditions |
+| 2 | `decision` | `npcAgency` | `food_crisis_gate` | `trace_fc_gate_t{turn}` | Tick-level: any match + cheap wheat market exists |
+| 3 | `decision` | `npcAgency` | `food_crisis_buy_wheat` | `trace_fc_npc_{npcId}_t{turn}` | Per evaluated NPC: why move / skip |
+| 4 | `effect` | `npcAgency` | `food_crisis_buy_wheat` | `trace_fc_effect_{npcId}_t{turn}` | Only when move in `agencyResult.moves` |
 
-## 7. First-Slice Emit Points
+**Linkage:** steps 1–2 parent → `trace_step_{turn}`; step 3 parent → `trace_fc_gate_t{turn}`; step 4 parent → step 3.
 
-All entries share `runId` from `beginDebugTraceSimulationRun` (already started in `worldSimPersist`). Deep emit entries use `parentTraceId: trace_step_{worldTurn}` to link under the Phase A step row.
+### `isFoodCrisisEvent` → conditions[] (step 1)
 
-### 7.1 Food crisis classifier (query → decision)
+Mirror `livingWorldTypes.ts` exactly:
 
-**Subsystem:** cross-cutting  
-**Trigger:** `stepEvents.length > 0` on a Living World tick  
-**Function:** `buildFoodCrisisScanTrace(runId, worldTurn, stepEvents)`
-
-For each `stepEvent` evaluated by `isFoodCrisisEvent`:
-
-| Field | Value |
-|-------|-------|
-| `subsystem` | `livingWorldClassifier` |
-| `phase` | `query` |
-| `ruleId` | `isFoodCrisisEvent` |
-| `decision` | `matched` / `not_matched` |
-| `conditions` | category === resource, message keyword check (mirror `livingWorldTypes`) |
-| `inputRefs` | `[{ kind: 'event', id }]` |
-| `audience` | `internal` |
-
-Emit at most **8** classifier rows per tick (cap). Skip `info` severity events unless already notable in Phase A.
-
-### 7.2 Commerce food crisis effect
-
-**Subsystem:** `livingWorldCommerce`  
-**Input:** `WorldKitTickInput.stepEvents`, `tickMarketRecovery` / `applyWorldEventsToMarkets` outcome  
-**Function:** `buildCommerceFoodCrisisTrace(runId, worldTurn, stepEvents, summary)`
-
-| Field | Value |
-|-------|-------|
-| `phase` | `effect` |
-| `ruleId` | `food_crisis_price_bump` |
-| `decision` | `applied` / `skipped_no_match` |
-| `message` | e.g. `Wheat priceIndex bumped at N markets` |
-| `outputRefs` | `[{ kind: 'location', id: marketLoc }, …]` (max 8) |
-| `audience` | `gm_safe` when applied, `internal` when skipped |
-
-### 7.3 npcAgency food crisis buy wheat
-
-**Subsystem:** `npcAgency`  
-**Input:** `AgencyReactionInput`, `reactNpcsToWorld` result `{ moves, positions }`  
-**Function:** `buildNpcAgencyFoodCrisisTrace(runId, worldTurn, input, result)`
-
-Per **evaluated** NPC (cap **10** = `maxNamedNpcCount`):
-
-1. **Decision row** — `phase: decision`, `ruleId: food_crisis_buy_wheat`
-   - `conditions`: `foodCrisisDetected` (any stepEvent matched), `hasFaction`, `hasCheapWheat`, `notInTransit`
-   - `decision`: `move_scheduled` / `not_matched` / `skipped_in_transit`
-   - `inputRefs`: triggering food crisis events (if any)
-   - `audience`: `internal`
-
-2. **Effect row** (only when move emitted) — `phase: effect`, parent = decision traceId
-   - `outputRefs`: `[{ kind: 'npc', id: npcId }, { kind: 'location', id: cheapWheat }]`
-   - `message`: `NPC {name} restock_wheat → {location} in {days} days`
-   - `audience`: `gm_safe`
-
-**Critical regression case to lock in tests:**
-
-```text
-stepEvent: category=faction, severity=warning, message="Merchants warn of trade disruption"
-→ isFoodCrisisEvent = false
-→ foodCrisisDetected condition result: false
-→ no food_crisis_buy_wheat move
+```ts
+[
+  { label: 'category === resource', result: ev.category === 'resource', actual: ev.category, expected: 'resource' },
+  { label: 'message includes food keyword', result: <keyword match>, actual: <truncated message>, expected: '(food|wheat|食料|小麦)' },
+]
 ```
 
-### 7.4 npcRelationship faction conflict
+`decision`: `matched` if both true, else `not_matched`.
 
-**Subsystem:** `npcRelationship`  
-**Input:** `RelationshipEvolveInput.stepEvents`, `evolveRelationships` output `factionChanges`  
-**Function:** `buildFactionConflictTrace(runId, worldTurn, stepEvents, factionChanges)`
+### `food_crisis_gate` → conditions[] (step 2)
 
-Per conflict event (cap **4** per tick):
-
-| Field | Value |
-|-------|-------|
-| `phase` | `decision` |
-| `ruleId` | `faction_conflict` |
-| `conditions` | `isConflictEvent`, `extractConflictFactionPair` present |
-| `decision` | `relation_delta_applied` / `not_matched` |
-| `inputRefs` | event ref |
-| `outputRefs` | `[{ kind: 'faction', id: factionA }, { kind: 'faction', id: factionB }]` |
-
-Per applied `faction_kinship` (cap **4**): similar with `ruleId: faction_kinship`.
-
-`audience`: `gm_safe` for applied deltas, `internal` for non-matches.
-
-### 7.5 Shared crisis (optional P2a tail)
-
-If `agencyMoves` produce `shared_crisis` relationship deltas, emit one summary row:
-
-- `ruleId: shared_crisis_bond`, `phase: effect`, `audience: gm_safe`
-- Cap 4 pair rows.
-
-Defer if entry budget pressure — P2b.
-
-## 8. Boundedness
-
-| Budget | Limit |
-|--------|-------|
-| Total deep entries per Living World tick | **32** (in addition to Phase A step rows) |
-| Classifier query rows | 8 |
-| npcAgency per-NPC decision rows | 10 |
-| Commerce location refs | 8 |
-| Faction conflict rows | 8 |
-
-Builder returns entries in deterministic order:
-
-```text
-classifier scans → commerce effect → npcAgency decisions → npcAgency effects → faction conflict
+```ts
+[
+  { label: 'any stepEvent matched isFoodCrisisEvent', result: foodCrisis, actual: matchedCount, expected: '>=1 when crisis' },
+  { label: 'cheapestWheatMarket exists', result: !!cheapWheat, actual: cheapWheat ?? '(none)' },
+]
 ```
 
-If over budget: drop **lowest priority tail** (shared_crisis first, then in-transit skipped NPCs).
+`decision`: `gate_open` | `gate_closed`.
 
-Ring buffer global cap remains `DEFAULT_DEBUG_TRACE_BUFFER_ENTRIES` (256).
+### Per-NPC `food_crisis_buy_wheat` → conditions[] (step 3)
 
-## 9. Audience & Safety Boundaries
+Evaluate NPCs in same order as `reactNpcsToWorld` (`registryNpcIds` slice):
 
-| Content | `audience` | Rationale |
-|---------|------------|-----------|
-| Classifier internals, skipped NPC eval | `internal` | Developer-only |
-| Market price bumps, NPC moves, faction deltas | `gm_safe` | GM narration aid, not player-facing |
-| `player_safe` | **unused in P2a** | No semantic redaction yet — do not emit player_safe rows |
+```ts
+[
+  { label: 'food_crisis_gate open', result: gateOpen },
+  { label: 'npc has factionId', result: reg.factionId !== undefined, actual: reg.factionId ?? '(none)' },
+  { label: 'npc not in transit', result: !(existing?.arrivesTurn > worldTurn) },
+]
+```
 
-**Hard boundaries (review checklist for Codex):**
+`decision` values:
 
-1. **Prompt Context:** no trace fields added to `PromptContextBreakdown` or GM prompt builders.
-2. **Replay / Remote:** no trace in replay export or `gameStateWebviewSanitize` payloads.
-3. **Projection:** Webview uses `projectDebugTraceBuffer` locally — host always sends full `internal` buffer; Inspector toggles visibility.
-4. **Failure isolation:** `appendDebugTraceHostEntries` try/catch — emit never blocks `tickLivingWorldAfterSim`.
-5. **No `recentChanges` reads:** deep emit uses `stepEvents` only for mutation causality (matches `emergentSimulator` comment).
+| Value | Meaning |
+|-------|---------|
+| `move_scheduled` | All conditions true → move will be emitted |
+| `skipped_in_transit` | Gate open but in transit |
+| `skipped_no_faction` | Gate open but no `factionId` |
+| `not_matched` | Gate closed |
 
-## 10. Relationship to Phase A Shallow Capture
+### Audience boundary (approved)
 
-Phase A `buildSimulationStepTraceEntries` in `debugTraceHostCore.ts` duplicates shallow `food_crisis_classifier` on notable events.
+| Row kind | `audience` | Visible in Inspector |
+|----------|------------|---------------------|
+| Classifier scan (`query`) | `internal` | Internal only |
+| Gate + per-NPC decision | `internal` | Internal only |
+| Move effect (`effect`) | `gm_safe` | Internal + GM-safe |
+| `player_safe` | **not emitted in P1** | N/A |
 
-**P2a plan:**
+Host sends full buffer; Webview `projectDebugTraceBuffer` filters locally (v1.77.9).
 
-- Keep Phase A step summary as parent anchor.
-- Move detailed classifier conditions to `debugTraceEmitCore` (canonical).
-- Optionally slim Phase A notable rows to `phase: event` only (no conditions) in P2b cleanup — **not required for P2a**.
+### Boundedness (P1a)
 
-## 11. File-Level Breakdown
+| Limit | Value |
+|-------|-------|
+| Unique `stepEvents` scanned (step 1) | 8 |
+| NPC decision rows (step 3) | 10 (`maxNamedNpcCount`) |
+| Effect rows (step 4) | ≤ moves.length |
+| **Total deep entries per tick** | **24** |
+| Builder function | Returns trimmed array; never throws |
 
-### P2a — pure emit core (Grok/Codex)
+### Optional / gated
 
-| File | Action |
-|------|--------|
-| `src/debugTraceEmitCore.ts` | New — builders in §7, budgets §8 |
-| `scripts/test_debug_trace_emit_core.js` | New — regression cases §7.3, boundedness |
+```ts
+export function shouldEmitDeepDebugTrace(flags: {
+    bulkWorldSimDebug: boolean;
+    debugScenarioActive: boolean;
+}): boolean {
+    return flags.bulkWorldSimDebug || flags.debugScenarioActive;
+}
+```
+
+When false: adapter does not call builders.
+
+### Non-goals (hard)
+
+- No `recentChanges` in any builder input type.
+- No writes to `world_state`, `npc_registry`, markets, positions.
+- No `PromptContextBreakdown`, GM prompt, replay export, Remote sanitize fields.
+- No disk persistence of trace buffer.
+- No changes to `npcAgencyCore.ts` function signatures.
+
+### stepEvents-only verification shape
+
+Every P1a builder input type **must not include** `recentChanges`. Tests pass `recentChanges` with conflict events alongside **empty** `stepEvents` and assert **zero** food-crisis trace rows — mirrors `test_npc_relationship_core.js` §7c.
+
+### eventId deduplication
+
+Within one tick's `stepEvents` array:
+
+- Scan each event once by key: `ev.id ?? anon:{worldTurn}|{category}|{factionId}|{message}`.
+- Second identical key → skip scan row (no duplicate `trace_fc_scan_*`).
+
+---
+
+## Trace Entry Examples
+
+### Example A — Faction warning (false positive regression)
+
+`stepEvents`:
+
+```json
+[{
+  "id": "wce_5_faction_merchants_smiths",
+  "worldTurn": 5,
+  "category": "faction",
+  "severity": "warning",
+  "message": "Merchants and Smiths relations soured",
+  "factionId": "faction_merchants"
+}]
+```
+
+**Entry 1 — query (scan):**
+
+```json
+{
+  "version": 1,
+  "runId": "sim_4_1",
+  "traceId": "trace_fc_scan_wce_5_faction_merchants_smiths",
+  "parentTraceId": "trace_step_5",
+  "worldTurn": 5,
+  "subsystem": "livingWorldClassifier",
+  "phase": "query",
+  "ruleId": "isFoodCrisisEvent",
+  "decision": "not_matched",
+  "message": "Scan stepEvent for food crisis semantics.",
+  "inputRefs": [{ "kind": "event", "id": "wce_5_faction_merchants_smiths" }],
+  "conditions": [
+    { "label": "category === resource", "result": false, "actual": "faction", "expected": "resource" },
+    { "label": "message includes food keyword", "result": false }
+  ],
+  "audience": "internal"
+}
+```
+
+**Entry 2 — gate decision:**
+
+```json
+{
+  "version": 1,
+  "runId": "sim_4_1",
+  "traceId": "trace_fc_gate_t5",
+  "parentTraceId": "trace_step_5",
+  "worldTurn": 5,
+  "subsystem": "npcAgency",
+  "phase": "decision",
+  "ruleId": "food_crisis_gate",
+  "decision": "gate_closed",
+  "message": "No food crisis stepEvent matched; npcAgency wheat rush gate closed.",
+  "conditions": [
+    { "label": "any stepEvent matched isFoodCrisisEvent", "result": false, "actual": 0 },
+    { "label": "cheapestWheatMarket exists", "result": true, "actual": "cheap_farm" }
+  ],
+  "audience": "internal"
+}
+```
+
+No per-NPC rows. `agencyResult.moves` empty. Inspector: gate_closed + ✗ category visible at a glance.
+
+### Example B — Food crisis → NPC move
+
+`stepEvents`:
+
+```json
+[{
+  "id": "wce_6_resource_merchants_food",
+  "worldTurn": 6,
+  "category": "resource",
+  "severity": "warning",
+  "message": "Merchants: 食料が底をついた",
+  "factionId": "faction_merchants"
+}]
+```
+
+**Entry — scan (matched):** `decision: "matched"`, both conditions ✓.
+
+**Entry — gate:** `decision: "gate_open"`.
+
+**Entry — NPC decision (`npc_elda`):**
+
+```json
+{
+  "version": 1,
+  "runId": "sim_5_1",
+  "traceId": "trace_fc_npc_npc_elda_t6",
+  "parentTraceId": "trace_fc_gate_t6",
+  "worldTurn": 6,
+  "subsystem": "npcAgency",
+  "phase": "decision",
+  "ruleId": "food_crisis_buy_wheat",
+  "decision": "move_scheduled",
+  "message": "Elda scheduled for wheat restock.",
+  "inputRefs": [{ "kind": "event", "id": "wce_6_resource_merchants_food" }],
+  "conditions": [
+    { "label": "food_crisis_gate open", "result": true },
+    { "label": "npc has factionId", "result": true, "actual": "faction_merchants" },
+    { "label": "npc not in transit", "result": true }
+  ],
+  "audience": "internal"
+}
+```
+
+**Entry — effect:**
+
+```json
+{
+  "version": 1,
+  "runId": "sim_5_1",
+  "traceId": "trace_fc_effect_npc_elda_t6",
+  "parentTraceId": "trace_fc_npc_npc_elda_t6",
+  "worldTurn": 6,
+  "subsystem": "npcAgency",
+  "phase": "effect",
+  "ruleId": "food_crisis_buy_wheat",
+  "decision": "applied",
+  "message": "restock_wheat → cheap_farm in 3 days",
+  "outputRefs": [
+    { "kind": "npc", "id": "npc_elda" },
+    { "kind": "location", "id": "cheap_farm" }
+  ],
+  "audience": "gm_safe"
+}
+```
+
+### Example C — recentChanges must not emit (verification)
+
+Input to builder:
+
+```ts
+stepEvents: []
+recentChanges: [{ category: 'conflict', ... }]  // NOT in input type — adapter must not pass
+```
+
+**Expected:** zero P1a entries (only Phase A `trace_step_{turn}` may exist from host).
+
+---
+
+## Implementation Phases
+
+### P1a — Pure emit core (Grok/Codex)
+
+| Deliverable | Detail |
+|-------------|--------|
+| `src/debugTraceEmitCore.ts` | `buildFoodCrisisAgencyTraceEntries(input)` + helpers + `shouldEmitDeepDebugTrace` |
+| `scripts/test_debug_trace_emit_core.js` | Required tests below |
 | `scripts/run_all_tests.js` | Register test |
 
-### P2a — host adapter (Grok/Codex)
+**No host wiring.**
 
-| File | Action |
-|------|--------|
-| `src/livingWorldBridge.ts` | After `runLivingWorldTick` + `evolveRelationships`, call emit builders + append when gated |
-| `src/debugTraceHostCore.ts` | Export `isDebugTraceCaptureEnabled()` helper or accept flags from bridge via small host util |
+### P1b — Host adapter (Grok/Codex)
 
-**Do not modify:** `webview/*`, `gmPromptBuilder*`, `replayExport*`, `npcAgencyCore.ts` signatures.
+| Deliverable | Detail |
+|-------------|--------|
+| `src/livingWorldBridge.ts` | After `runLivingWorldTick`, if gated, build + `appendDebugTraceHostEntries` |
+| Pass `runId` | Thread from `debugTraceHostCore` — add `getActiveDebugTraceRunId()` or begin run in bridge from `state.worldTurn` at tick start |
+| `src/debugTraceHostCore.ts` | Export active `runId` for current bulk sim run |
 
-### P2b — deferred
+**No `npcAgencyCore` edits.**
 
-- `npcBridgeCore.applyEventsToNpcRegistry` emit (resource need path vs `isFoodCrisisEvent` mismatch visibility)
-- `emergentSimulator` faction event generation trace
-- Output Channel / `LoreRelay: Inspect Last Simulation Tick` command
+### P2 — Deferred
 
-### P2c — deferred
+| Item | Subsystem |
+|------|-----------|
+| Commerce price bump trace | `worldSimCommerceCore` |
+| Faction conflict trace | `npcRelationshipCore` |
+| Resource need vs food crisis divergence | `npcBridgeCore` |
+| Slim Phase A notable-event conditions | `debugTraceHostCore` cleanup |
+| Golden fixtures in simulation batch | `run_simulation_tests.js` |
 
-- Golden trace fixtures in `scripts/run_simulation_tests.js`
-- Semantic redaction for `player_safe`
+---
 
-## 12. Required Tests (`test_debug_trace_emit_core.js`)
+## Required Tests
 
-1. Faction warning event → `isFoodCrisisEvent` not matched → no `food_crisis_buy_wheat` move trace.
-2. Resource + food keyword event → classifier matched → agency move trace with parent link.
-3. NPC in transit → `skipped_in_transit` decision, no effect row.
-4. `isConflictEvent` + valid pair → `faction_conflict` applied row with faction refs.
-5. Per-tick entry count ≤ 32; deterministic ordering across two runs with same input.
-6. Builder does not import `vscode` / `fs` / `statePatch`.
-7. Malformed partial input → empty array, never throws.
+`scripts/test_debug_trace_emit_core.js`:
 
-## 13. Implementation Prompt (P2a)
+1. **Faction warning** (`test_npc_agency_step_events` parity) → scan `not_matched`, gate `gate_closed`, 0 NPC rows, 0 effects.
+2. **Resource + food keyword** → scan `matched`, gate `gate_open`, NPC `move_scheduled`, effect with `gm_safe` audience.
+3. **Resource without food keyword** (mana low) → scan `not_matched`, no moves trace.
+4. **NPC in transit** → gate open but NPC decision `skipped_in_transit`, no effect row.
+5. **NPC without factionId** → `skipped_no_faction`.
+6. **Duplicate event id in stepEvents** → single scan row only.
+7. **Empty stepEvents** → gate closed, no scan rows (or zero scans).
+8. **recentChanges not in input type** — builder has no parameter; static test on `debugTraceEmitCore.ts` source forbids `recentChanges` identifier.
+9. **Per-tick entry count ≤ 24** with max NPCs + 8 events.
+10. **Deterministic order** — two identical inputs produce byte-identical entry arrays.
+11. **Malformed partial input** → `[]`, no throw.
+12. **No forbidden imports** — `vscode`, `fs`, `statePatch` absent from emit core.
+
+After P1b:
+
+13. **Integration smoke** — gated off → `appendDebugTraceHostEntries` not called (mock listener count 0).
+
+---
+
+## Implementation Prompt (Grok/Codex)
 
 ```markdown
-LoreRelay Debug Trace Deep Emit P2a.
+LoreRelay Debug Trace Deep Emit P1a + P1b.
 
 推奨モデル: Grok / Codex
-推奨推論: Medium
+推奨推論: Medium–High
 
 Read first:
-1. docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md (this file)
-2. docs/DEBUG_TRACE_P1_DESIGN.md
-3. src/debugTraceCore.ts
-4. src/debugTraceHostCore.ts
-5. src/npcAgencyCore.ts (reactNpcsToWorld)
-6. src/worldSimCommerceCore.ts (applyWorldEventsToMarkets)
-7. src/npcRelationshipCore.ts (evolveRelationships, isConflictEvent)
-8. src/livingWorldBridge.ts (tickLivingWorldAfterSim)
-9. scripts/test_living_world_bridge.js (if present)
+1. docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md (this file — Approved P1 contract)
+2. src/debugTraceCore.ts
+3. src/debugTraceHostCore.ts
+4. src/npcAgencyCore.ts (reactNpcsToWorld — do not modify signatures)
+5. src/livingWorldTypes.ts (isFoodCrisisEvent)
+6. src/livingWorldBridge.ts (tickLivingWorldAfterSim)
+7. scripts/test_npc_agency_step_events.js
+8. webview/modules/80a-debug-trace.js (consumer — do not modify)
 
 Task:
-Implement P2a deep emit per §11 — pure builders + livingWorldBridge adapter only.
+Implement Approved Deep Emit P1 contract § "Approved Deep Emit P1 Contract".
 
-Scope:
-- src/debugTraceEmitCore.ts
-- scripts/test_debug_trace_emit_core.js
-- livingWorldBridge.ts append hook (gated)
+P1a:
+- src/debugTraceEmitCore.ts — buildFoodCrisisAgencyTraceEntries + shouldEmitDeepDebugTrace
+- scripts/test_debug_trace_emit_core.js — all Required Tests 1–12
 - scripts/run_all_tests.js registration
 
+P1b:
+- Thread runId from debugTraceHostCore (getActiveDebugTraceRunId or equivalent)
+- livingWorldBridge.ts: after runLivingWorldTick, gated append
+- Do not modify npcAgencyCore.ts
+
 Forbidden:
-- No Webview / Inspector UI changes
-- No npcAgencyCore / npcRelationshipCore signature changes
-- No GM prompt / TurnResult / statePatch / replay / remote changes
-- No disk persistence
+- npcAgencyCore / npcRelationshipCore signature changes
+- recentChanges in builder inputs
+- Webview / GM prompt / replay / remote / disk
+- player_safe entries in P1
 
 Verification:
 - npm run compile
@@ -346,24 +428,23 @@ Verification:
 - npm test
 ```
 
-## 14. Acceptance Criteria
+---
 
-P2a Deep Emit is done when a debug-gated bulk sim tick produces linked trace rows showing:
+## Acceptance Criteria
 
-- which `stepEvents` matched `isFoodCrisisEvent`;
-- whether `reactNpcsToWorld` scheduled `food_crisis_buy_wheat` per NPC and why;
-- whether commerce bumped wheat prices;
-- which faction conflict events moved faction relationships;
+P1 (P1a + P1b) is done when:
 
-—all without changing world state, prompts, or player-visible behavior, and with `npm test` green.
+1. Debug-gated bulk sim produces linked `trace_fc_*` rows under `trace_step_{turn}`.
+2. Faction warning tick shows `not_matched` + `gate_closed` in Inspector (internal audience).
+3. Food crisis tick shows per-NPC decision + `gm_safe` effect row.
+4. `npm test` green; no game behavior change when debug gate off.
+5. Codex integration review checklist (§Review Handoff) can run on PR.
 
-## 15. Review Handoff (Codex — after P2a implementation)
+## Review Handoff (Codex — post-P1)
 
-Integration review checklist:
-
-- [ ] Trace entries absent from `PromptContextBreakdown` and GM prompt output
-- [ ] `player_safe` projection hides all P2a rows (they are `internal` or `gm_safe` only)
-- [ ] Per-tick + ring buffer bounds enforced in tests
-- [ ] No new fields in replay export or Remote sanitize paths
-- [ ] `stepEvents`-only causality — no `recentChanges` replay in emit builders
-- [ ] Classifier conditions match canonical `isFoodCrisisEvent` / `isConflictEvent` semantics
+- [ ] No trace in `PromptContextBreakdown` / GM prompt strings
+- [ ] `player_safe` toggle hides all P1 rows (all are `internal` or `gm_safe`)
+- [ ] Per-tick ≤24 + ring buffer 256 unchanged
+- [ ] Replay export / Remote sanitize unchanged
+- [ ] Builders source: `stepEvents` only — grep audit
+- [ ] `isFoodCrisisEvent` conditions match `livingWorldTypes.ts`

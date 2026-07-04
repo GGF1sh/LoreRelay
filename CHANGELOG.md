@@ -11,7 +11,7 @@
 
 ### Added
 
-- **Debug Trace Deep Emit Gate design** — `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md` (Grok): npcAgency / food crisis / faction conflict rule-level emit boundaries before P2a implementation.
+- **Debug Trace Deep Emit Gate design (Approved)** — `docs/DEBUG_TRACE_DEEP_EMIT_GATE_DESIGN.md` (Grok): P1a/P1b contract for npcAgency `isFoodCrisisEvent` rule-level trace; trace examples + 12 required tests.
 
 ## [1.77.9] - 2026-07-04
 

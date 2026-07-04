@@ -11,6 +11,7 @@
 
 ### Added
 
+- **Vehicle System V5 trade/settlement/map integration** — `vehicleIntegrationCore.ts` adds GM helper lines (cannot-enter access, trade narration, repair/refuel service hooks). `world_forge.json` locations may declare optional `vehicleAccess`. Map overlay gains `vehicle` / `vehicle_parking` markers when `enableVehicleSystem` is ON. Garage panel uses forge access profiles. `test_vehicle_integration_core.js`, `test_webview_vehicle_integration.js`.
 - **Mobile Base System MB5 interior view reuse** — `mobileBaseInteriorCore.ts` builds `mobileBaseInterior` payload (validated link → `settlementView` + optional `settlementDiorama`). Triple gate; blocks `locked`/`damaged`/`unsafe` interior without leaking layout. Webview reuses M3 Canvas and M5 Diorama renderers; Vehicles panel adds interior view buttons. `test_mobile_base_interior_core.js`, `test_webview_mobile_base_interior.js`.
 - **Mobile Base System MB4 read-only Webview panel** — `mobileBaseViewCore.ts` builds capped `MobileBasePanelSnapshot` (facilities, stock bands, concerns, docking, hull/fuel, hangar). `mobileBaseBridge.buildMobileBasePanelWebviewPayload()` + `worldView` postMessage when triple gate ON. `89b-mobile-base-panel.js` section in Vehicles tab. No disk writes. `test_mobile_base_view_core.js`, `test_webview_mobile_base_panel.js`.
 

@@ -176,6 +176,8 @@
   "webview.world.overlayLegendQuest": "Quest lead",
   "webview.world.overlayLegendDiscovery": "Discovery",
   "webview.world.overlayLegendPressure": "Settlement pressure",
+  "webview.world.overlayLegendVehicle": "Vehicle",
+  "webview.world.overlayLegendVehicleParking": "Vehicle parking",
   "webview.world.overlayLegendRumored": "Rumored (unconfirmed)",
   "webview.world.mapImage": "🗺 Map Image",
   "webview.world.mapImageTitle": "Generate parchment world map via ComfyUI",

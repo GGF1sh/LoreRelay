@@ -13,6 +13,12 @@ import {
     type SettlementStateV1,
 } from './settlementCore';
 import { TILE_OVERMAP_SIZE } from './tileOvermapCore';
+import {
+    canVehicleAccessLocation,
+    type VehicleEntry,
+    type VehicleState,
+} from './vehicleCore';
+import { resolveLocationVehicleAccess } from './vehicleIntegrationCore';
 
 export const MAP_OVERLAY_VERSION = 1 as const;
 
@@ -23,7 +29,9 @@ export type OverlayMarkerKind =
     | 'faction_control'
     | 'quest'
     | 'discovery'
-    | 'settlement_pressure';
+    | 'settlement_pressure'
+    | 'vehicle'
+    | 'vehicle_parking';
 
 export type OverlayFogVisibility = 'discovered' | 'rumored';
 export type OverlayTone = 'friendly' | 'neutral' | 'hostile' | 'unknown';
@@ -64,6 +72,8 @@ export const MAX_OVERLAY_FACTION = 50;
 export const MAX_OVERLAY_QUEST = 40;
 export const MAX_OVERLAY_DISCOVERY = 40;
 export const MAX_OVERLAY_PRESSURE = 20;
+export const MAX_OVERLAY_VEHICLE = 12;
+export const MAX_OVERLAY_VEHICLE_PARKING = 8;
 export const MAX_OVERLAY_TOTAL = 200;
 export const MAX_OVERLAY_LABEL = 64;
 export const MAX_OVERLAY_DETAIL = 120;
@@ -94,6 +104,9 @@ export interface MapOverlayInputs {
     npcRegistry?: NpcRegistry;
     /** NPCs safe to reveal on the map (met, public, or otherwise cleared). */
     knownNpcIds?: ReadonlySet<string>;
+    enableVehicleSystem?: boolean;
+    vehicleState?: VehicleState;
+    currentLocationId?: string;
 }
 
 const KIND_CAPS: Record<OverlayMarkerKind, number> = {
@@ -104,6 +117,8 @@ const KIND_CAPS: Record<OverlayMarkerKind, number> = {
     quest: MAX_OVERLAY_QUEST,
     discovery: MAX_OVERLAY_DISCOVERY,
     settlement_pressure: MAX_OVERLAY_PRESSURE,
+    vehicle: MAX_OVERLAY_VEHICLE,
+    vehicle_parking: MAX_OVERLAY_VEHICLE_PARKING,
 };
 
 function clampText(raw: string, max: number): string {
@@ -447,6 +462,143 @@ function buildPressureMarkers(inputs: MapOverlayInputs, gridSize: number): Overl
     }];
 }
 
+function vehicleLocationId(vehicle: VehicleEntry): string | undefined {
+    return vehicle.locationId || vehicle.parkedAt?.locationId || vehicle.parkedAt?.parkingLocationId;
+}
+
+function markerAtLocationWithOffset(
+    inputs: MapOverlayInputs,
+    locationId: string,
+    gridSize: number,
+    offsetIndex: number
+): { coords: { x: number; y: number }; vis: OverlayFogVisibility } | undefined {
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const regionId = resolveLocationRegionId(inputs.forge, locationId);
+    const vis = regionVisibility(regionId, discovered, rumored);
+    if (vis === 'hidden' || !regionId) { return undefined; }
+    const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+    if (!coords) { return undefined; }
+    const dx = (offsetIndex % 3) - 1;
+    const dy = Math.floor(offsetIndex / 3) - 1;
+    return {
+        coords: {
+            x: Math.max(0, Math.min(gridSize - 1, coords.x + dx)),
+            y: Math.max(0, Math.min(gridSize - 1, coords.y + dy)),
+        },
+        vis,
+    };
+}
+
+function buildVehicleMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (inputs.enableVehicleSystem !== true || !inputs.vehicleState?.vehicles.length) {
+        return [];
+    }
+    const state = inputs.vehicleState;
+    const markers: OverlayMarker[] = [];
+    let offset = 0;
+
+    for (const vehicle of state.vehicles) {
+        if (markers.filter((m) => m.kind === 'vehicle').length >= MAX_OVERLAY_VEHICLE) { break; }
+        const locId = vehicleLocationId(vehicle);
+        if (!locId) { continue; }
+        const placed = markerAtLocationWithOffset(inputs, locId, gridSize, offset++);
+        if (!placed) { continue; }
+        const active = vehicle.id === state.activeVehicleId;
+        markers.push({
+            id: `vehicle_${vehicle.id}`,
+            kind: 'vehicle',
+            x: placed.coords.x,
+            y: placed.coords.y,
+            label: placed.vis === 'rumored' ? 'Vehicle rumored' : `${vehicle.name} (${vehicle.status})`,
+            fogVisibility: placed.vis,
+            tone: active ? 'friendly' : vehicle.status === 'damaged' ? 'hostile' : 'neutral',
+            detail: active ? 'Active vehicle' : undefined,
+        });
+    }
+
+    const seenParking = new Set<string>();
+    for (const vehicle of state.vehicles) {
+        if (markers.filter((m) => m.kind === 'vehicle_parking').length >= MAX_OVERLAY_VEHICLE_PARKING) {
+            break;
+        }
+        const parkingId = vehicle.parkedAt?.parkingLocationId;
+        if (!parkingId) { continue; }
+        const atId = vehicle.parkedAt?.locationId || vehicle.locationId;
+        if (atId === parkingId) { continue; }
+        const key = `${parkingId}:${vehicle.id}`;
+        if (seenParking.has(key)) { continue; }
+        seenParking.add(key);
+        const placed = markerAtLocationWithOffset(inputs, parkingId, gridSize, offset++);
+        if (!placed) { continue; }
+        markers.push({
+            id: `vehicle_park_${vehicle.id}`,
+            kind: 'vehicle_parking',
+            x: placed.coords.x,
+            y: placed.coords.y,
+            label: placed.vis === 'rumored' ? 'Parking rumored' : `Parking: ${vehicle.name}`,
+            fogVisibility: placed.vis,
+            tone: 'unknown',
+            detail: 'External parking',
+        });
+    }
+
+    const current = inputs.currentLocationId;
+    const activeVehicle = state.activeVehicleId
+        ? state.vehicles.find((v) => v.id === state.activeVehicleId)
+        : state.vehicles[0];
+    if (activeVehicle && current) {
+        const access = resolveLocationVehicleAccess(inputs.forge, current);
+        const check = canVehicleAccessLocation(activeVehicle, access);
+        if (!check.allowed && check.parkingLocationId) {
+            const key = `fallback:${check.parkingLocationId}`;
+            if (!seenParking.has(key) && markers.filter((m) => m.kind === 'vehicle_parking').length < MAX_OVERLAY_VEHICLE_PARKING) {
+                seenParking.add(key);
+                const placed = markerAtLocationWithOffset(inputs, check.parkingLocationId, gridSize, offset++);
+                if (placed) {
+                    markers.push({
+                        id: `vehicle_park_fallback_${activeVehicle.id}`,
+                        kind: 'vehicle_parking',
+                        x: placed.coords.x,
+                        y: placed.coords.y,
+                        label: placed.vis === 'rumored' ? 'Parking rumored' : `Parking: ${activeVehicle.name}`,
+                        fogVisibility: placed.vis,
+                        tone: 'unknown',
+                        detail: `Cannot enter ${current}`,
+                    });
+                }
+            }
+        }
+    }
+
+    if (inputs.settlementState?.locationId) {
+        const settlementLoc = inputs.settlementState.locationId;
+        for (const vehicle of state.vehicles) {
+            if (markers.filter((m) => m.kind === 'vehicle_parking').length >= MAX_OVERLAY_VEHICLE_PARKING) {
+                break;
+            }
+            if (vehicleLocationId(vehicle) !== settlementLoc) { continue; }
+            const key = `settlement:${vehicle.id}`;
+            if (seenParking.has(key)) { continue; }
+            seenParking.add(key);
+            const placed = markerAtLocationWithOffset(inputs, settlementLoc, gridSize, offset++);
+            if (!placed) { continue; }
+            markers.push({
+                id: `vehicle_settlement_park_${vehicle.id}`,
+                kind: 'vehicle_parking',
+                x: placed.coords.x,
+                y: placed.coords.y,
+                label: placed.vis === 'rumored' ? 'Base parking rumored' : `Docked: ${vehicle.name}`,
+                fogVisibility: placed.vis,
+                tone: 'neutral',
+                detail: 'Settlement parking',
+            });
+        }
+    }
+
+    return markers;
+}
+
 export function buildMapOverlaySnapshot(inputs: MapOverlayInputs): MapOverlaySnapshot {
     if (!inputs.forge?.geography?.regions?.length) {
         return { version: MAP_OVERLAY_VERSION, markers: [] };
@@ -462,6 +614,7 @@ export function buildMapOverlaySnapshot(inputs: MapOverlayInputs): MapOverlaySna
         ...buildQuestMarkers(inputs, gridSize),
         ...buildDiscoveryMarkers(inputs, gridSize),
         ...buildPressureMarkers(inputs, gridSize),
+        ...buildVehicleMarkers(inputs, gridSize),
     ];
 
     const markers = capMarkersByKind(raw.map(sanitizeOverlayMarker));
@@ -490,6 +643,7 @@ export function deriveKnownNpcIds(
 function sanitizeOverlayMarkerKind(kind: string): OverlayMarkerKind {
     const valid: OverlayMarkerKind[] = [
         'npc', 'merchant', 'caravan', 'faction_control', 'quest', 'discovery', 'settlement_pressure',
+        'vehicle', 'vehicle_parking',
     ];
     return valid.includes(kind as OverlayMarkerKind) ? (kind as OverlayMarkerKind) : 'npc';
 }

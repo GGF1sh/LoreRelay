@@ -374,6 +374,7 @@ AI 振り分け: [`docs/SETTLEMENT_MODE_AI_PROMPTS.md`](docs/SETTLEMENT_MODE_AI_
 - [x] V2 `vehicleState.ts` — `vehicle_state.json` I/O + `enableVehicleSystem` GM prompt chunk
 - [x] V3 `vehicleOps` apply gate
 - [x] V4 Webview garage/dock panel (read-only first)
+- [x] V5 trade/settlement/map integration (overlay markers + GM helpers)
 
 ### Mobile Base System — Moving Settlements
 

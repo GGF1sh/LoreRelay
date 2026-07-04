@@ -176,6 +176,8 @@
   "webview.world.overlayLegendQuest": "クエストの手がかり",
   "webview.world.overlayLegendDiscovery": "発見物",
   "webview.world.overlayLegendPressure": "拠点の圧力",
+  "webview.world.overlayLegendVehicle": "車両",
+  "webview.world.overlayLegendVehicleParking": "車両駐車",
   "webview.world.overlayLegendRumored": "噂（未確認）",
   "webview.world.mapImage": "🗺 地図画像",
   "webview.world.mapImageTitle": "ComfyUI で羊皮紙ワールドマップを生成",

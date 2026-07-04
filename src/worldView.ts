@@ -65,6 +65,7 @@ import {
     mobileBaseSystemEnabled,
 } from './mobileBaseBridge';
 import { buildVehicleGarageWebviewPayload } from './vehicleBridge';
+import { loadVehicleState } from './vehicleState';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 let preferredSettlementLayerId: SettlementLayerId = 'z0';
@@ -524,6 +525,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         { theme: dioramaTheme, includeLabels: true }
     );
 
+    const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
     const mapOverlay = buildMapOverlayFromContext({
         forge,
         fog: {
@@ -538,6 +540,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         campaignKitActive,
         discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
         knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
+        vehicleState,
+        currentLocationId: currentLocationId ?? worldBlock?.currentLocationId,
     });
     const rawForgeDoc = loadWorldForgeDocument();
     const commerceForge = gameRules.enableCommerce === true && rawForgeDoc

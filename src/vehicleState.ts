@@ -3,7 +3,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadGameRules } from './gameRules';
+import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
+import {
+    buildVehicleIntegrationPromptLines,
+    resolveLocationVehicleAccess,
+} from './vehicleIntegrationCore';
 import {
     buildVehiclePromptBlock,
     parseVehicleState,
@@ -90,7 +95,20 @@ export function buildVehiclePromptContext(): string {
     if (!state) {
         return '';
     }
-    return buildVehiclePromptBlock(state, true, {
-        currentLocationId: readCurrentLocationIdFromGameState(),
+    const currentLocationId = readCurrentLocationIdFromGameState();
+    const block = buildVehiclePromptBlock(state, true, { currentLocationId });
+    if (!block) { return ''; }
+
+    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
+    const location = currentLocationId
+        ? forge?.geography.locations.find((l) => l.id === currentLocationId)
+        : undefined;
+    const integrationLines = buildVehicleIntegrationPromptLines({
+        state,
+        currentLocationId,
+        location,
+        locationAccess: resolveLocationVehicleAccess(forge, currentLocationId),
     });
+    if (!integrationLines.length) { return block; }
+    return `${block}\n${integrationLines.join('\n')}`;
 }

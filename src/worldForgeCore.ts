@@ -1,3 +1,6 @@
+import type { LocationVehicleAccess } from './vehicleCore';
+import { parseLocationVehicleAccess } from './vehicleCore';
+
 export type GenerationMethod = 'manual' | 'ai-generated';
 export type RegionType = 'wilderness' | 'urban' | 'dungeon' | 'ruins' | 'ocean' | 'mountains' | 'forest' | 'other';
 export type RegionBiome = 'forest' | 'desert' | 'mountain' | 'sea' | 'coast' | 'city' | 'plains' | 'swamp' | 'wasteland' | 'ruins' | 'dungeon' | 'underground' | 'snow' | 'volcanic' | 'other';
@@ -39,6 +42,7 @@ export interface WorldLocation {
     factionControl?: string;
     description?: string;
     services?: string[];
+    vehicleAccess?: LocationVehicleAccess;
     imagePromptHint?: string;
 }
 
@@ -216,6 +220,8 @@ function parseWorldLocation(raw: unknown): WorldLocation | undefined {
     }
     if (r.description) { loc.description = asString(r.description); }
     if (r.services) { loc.services = asStringArray(r.services); }
+    const vehicleAccess = parseLocationVehicleAccess(r.vehicleAccess);
+    if (vehicleAccess) { loc.vehicleAccess = vehicleAccess; }
     if (r.imagePromptHint) { loc.imagePromptHint = asString(r.imagePromptHint); }
     return loc;
 }

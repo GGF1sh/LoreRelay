@@ -11,6 +11,7 @@ import {
 import type { DiscoveryLedgerDocument } from './discoveryLedgerCore';
 import type { NpcRegistry } from './npcRegistryCore';
 import type { SettlementStateV1 } from './settlementCore';
+import type { VehicleState } from './vehicleCore';
 import type { WorldForge } from './worldForgeCore';
 import type { WorldState } from './worldState';
 
@@ -25,6 +26,8 @@ export type MapOverlayWorkspaceContext = {
     campaignKitActive: boolean;
     discoveryLedger?: DiscoveryLedgerDocument;
     knownNpcIds: ReadonlySet<string>;
+    vehicleState?: VehicleState;
+    currentLocationId?: string;
 };
 
 export function buildMapOverlayFromContext(ctx: MapOverlayWorkspaceContext): MapOverlaySnapshot {
@@ -45,6 +48,9 @@ export function buildMapOverlayFromContext(ctx: MapOverlayWorkspaceContext): Map
         discoveryLedger: ctx.campaignKitActive ? ctx.discoveryLedger : undefined,
         npcRegistry: ctx.registry,
         knownNpcIds: ctx.knownNpcIds,
+        enableVehicleSystem: ctx.gameRules.enableVehicleSystem === true,
+        vehicleState: ctx.vehicleState,
+        currentLocationId: ctx.currentLocationId,
     });
     return sanitizeMapOverlaySnapshot(snapshot);
 }

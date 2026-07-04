@@ -176,6 +176,8 @@
   "webview.world.overlayLegendQuest": "任务线索",
   "webview.world.overlayLegendDiscovery": "发现物",
   "webview.world.overlayLegendPressure": "聚落压力",
+  "webview.world.overlayLegendVehicle": "载具",
+  "webview.world.overlayLegendVehicleParking": "载具停放",
   "webview.world.overlayLegendRumored": "传闻（未确认）",
   "webview.world.mapImage": "🗺 地图图像",
   "webview.world.mapImageTitle": "通过 ComfyUI 生成羊皮纸世界地图",

@@ -8940,6 +8940,8 @@ const MAP_OVERLAY_MARKER_STYLE = {
     quest: { glyph: '!', fg: '#b080f0' },
     discovery: { glyph: '✦', fg: '#50c8b8' },
     settlement_pressure: { glyph: '▲', fg: '#e8b050' },
+    vehicle: { glyph: 'V', fg: '#70b8f0' },
+    vehicle_parking: { glyph: 'P', fg: '#a0a8b8' },
 };
 
 const MAP_OVERLAY_PRESSURE_COLORS = {
@@ -8962,6 +8964,8 @@ const MAP_OVERLAY_LEGEND_I18N_KEY = {
     quest: 'webview.world.overlayLegendQuest',
     discovery: 'webview.world.overlayLegendDiscovery',
     settlement_pressure: 'webview.world.overlayLegendPressure',
+    vehicle: 'webview.world.overlayLegendVehicle',
+    vehicle_parking: 'webview.world.overlayLegendVehicleParking',
 };
 const MAP_OVERLAY_LEGEND_FALLBACK = {
     npc: 'NPC',
@@ -8971,6 +8975,8 @@ const MAP_OVERLAY_LEGEND_FALLBACK = {
     quest: 'Quest lead',
     discovery: 'Discovery',
     settlement_pressure: 'Settlement pressure',
+    vehicle: 'Vehicle',
+    vehicle_parking: 'Vehicle parking',
     rumored: 'Rumored (unconfirmed)',
 };
 

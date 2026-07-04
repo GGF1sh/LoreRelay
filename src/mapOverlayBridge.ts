@@ -17,6 +17,7 @@ import {
 } from './mapOverlayCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadSettlementState } from './settlementState';
+import { loadVehicleState } from './vehicleState';
 import type { GameStateWorld } from './types/GameState';
 import { buildFogPayload, normalizeFogWorldState } from './fogOfWarCore';
 import { livingWorldEnabled } from './livingWorldBridge';
@@ -78,6 +79,7 @@ function loadMapOverlayWorkspaceContext(currentLocationId?: string): MapOverlayW
 
     const campaignKitActive = resolveCampaignKitActive(gameRules);
     const settlementState = gameRules.enableSettlementMode === true ? loadSettlementState() : undefined;
+    const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
 
     return {
         forge,
@@ -93,6 +95,8 @@ function loadMapOverlayWorkspaceContext(currentLocationId?: string): MapOverlayW
         campaignKitActive,
         discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
         knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
+        vehicleState,
+        currentLocationId: resolvedLocationId,
     };
 }
 

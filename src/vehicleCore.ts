@@ -282,6 +282,34 @@ export interface LocationVehicleAccess {
     notes?: string;
 }
 
+/** Parse compact location vehicle access profile from world_forge location metadata. */
+export function parseLocationVehicleAccess(raw: unknown): LocationVehicleAccess | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const out: LocationVehicleAccess = {};
+    if (r.allowedVehicleSizeMax !== undefined) {
+        out.allowedVehicleSizeMax = pickUnion(r.allowedVehicleSizeMax, VALID_SIZE_CLASSES, 'medium');
+    }
+    const required = pickStringArray(r.requiredAccessTags, VALID_ACCESS_TAGS, 8);
+    if (required.length) { out.requiredAccessTags = required; }
+    const blocked = pickStringArray(r.blockedVehicleTags, VALID_ACCESS_BLOCKERS, 8);
+    if (blocked.length) { out.blockedVehicleTags = blocked; }
+    const parkingLocationId = asId(r.parkingLocationId);
+    if (parkingLocationId) { out.parkingLocationId = parkingLocationId; }
+    const notes = clampText(r.notes, MAX_VEHICLE_TEXT_CHARS);
+    if (notes) { out.notes = notes; }
+    if (
+        !out.allowedVehicleSizeMax
+        && !out.requiredAccessTags?.length
+        && !out.blockedVehicleTags?.length
+        && !out.parkingLocationId
+        && !out.notes
+    ) {
+        return undefined;
+    }
+    return out;
+}
+
 export interface VehicleAccessResult {
     allowed: boolean;
     reason: VehicleAccessReason;

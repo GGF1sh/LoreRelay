@@ -4,6 +4,7 @@ import { loadGameRules } from './gameRules';
 import { loadWorldForge, isWorldForgeEnabled } from './worldForge';
 import { loadVehicleState } from './vehicleState';
 import { vehicleModeEnabled } from './vehicleCore';
+import { resolveLocationVehicleAccess } from './vehicleIntegrationCore';
 import {
     buildVehicleGarageSnapshot,
     type VehicleGarageSnapshot,
@@ -30,8 +31,10 @@ export function buildVehicleGarageWebviewPayload(
     const loc = typeof currentLocationId === 'string' && currentLocationId.trim()
         ? currentLocationId.trim()
         : undefined;
+    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
     return buildVehicleGarageSnapshot(state, {
         currentLocationId: loc,
         resolveLocationName,
+        locationAccess: resolveLocationVehicleAccess(forge, loc),
     }) ?? null;
 }

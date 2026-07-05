@@ -15,7 +15,10 @@ if (!require('fs').existsSync(corePath)) {
 }
 
 const {
+    applyPromptChunkBudgetRecords,
+    clampSimulationPromptModule,
     evictPromptChunksByBudget,
+    MAX_SIMULATION_MODULE_PROMPT_CHARS,
     resolvePromptChunkPriority,
     isPromptChunkNeverEvict,
 } = require(corePath);
@@ -129,13 +132,48 @@ if (resolvePromptChunkPriority('worldState') <= resolvePromptChunkPriority('livi
 }
 
 {
-    const { clampSimulationPromptModule, MAX_SIMULATION_MODULE_PROMPT_CHARS } = require(corePath);
     const huge = 'x'.repeat(MAX_SIMULATION_MODULE_PROMPT_CHARS + 500);
     const clamped = clampSimulationPromptModule(huge);
     if (clamped.length > MAX_SIMULATION_MODULE_PROMPT_CHARS || !clamped.includes('[truncated]')) {
         fail(`clampSimulationPromptModule: len=${clamped.length}`);
     } else {
         ok('clampSimulationPromptModule caps domain/guild blocks');
+    }
+}
+
+{
+    const chunks = [
+        { id: 'vision', text: 'x'.repeat(30), priority: 35 },
+    ];
+    const kept = evictPromptChunksByBudget(chunks, 10);
+    const joined = kept.join('\n');
+    if (joined.length > 10) {
+        fail(`tiny truncation budget must not overshoot: len=${joined.length}`);
+    } else {
+        ok('tiny truncation budget does not overshoot');
+    }
+}
+
+{
+    const chunks = [
+        { id: 'vision', text: 'x'.repeat(30), priority: 35 },
+        { id: 'lorebook', text: 'lore', priority: 40 },
+    ];
+    const records = applyPromptChunkBudgetRecords(chunks, 20).filter((r) => r.finalText.length > 0);
+    const kept = evictPromptChunksByBudget(chunks, 20);
+    if (JSON.stringify(records.map((r) => r.finalText)) !== JSON.stringify(kept)) {
+        fail('budget records and evictPromptChunksByBudget parity');
+    } else {
+        ok('budget records and evictPromptChunksByBudget parity');
+    }
+}
+
+{
+    const clamped = clampSimulationPromptModule('x'.repeat(40), 12);
+    if (clamped.length > 12) {
+        fail(`clampSimulationPromptModule exact cap: len=${clamped.length}`);
+    } else {
+        ok('clampSimulationPromptModule respects exact cap');
     }
 }
 

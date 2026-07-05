@@ -5,7 +5,7 @@ import type {
     MarketStateMap,
     WorldChangeEventLike,
 } from './livingWorldTypes';
-import { isFoodCrisisEvent } from './livingWorldTypes';
+import { isFoodCrisisEvent, isSteelCraftEvent } from './livingWorldTypes';
 import { reputationTier, type ReputationTier } from './factionReputationCore';
 import type { DebugTraceEntry } from './debugTraceCore';
 
@@ -42,14 +42,6 @@ function cloneMarkets(markets: MarketStateMap): MarketStateMap {
 
 function bumpPriceIndex(current: number, delta: number): number {
     return Math.max(MIN_PRICE_INDEX, Math.min(MAX_PRICE_INDEX, current + delta));
-}
-
-function isSteelCraftEvent(ev: WorldChangeEventLike): boolean {
-    const msg = ev.message.toLowerCase();
-    return msg.includes('steel')
-        || msg.includes('鍛冶')
-        || msg.includes('smith')
-        || msg.includes('forge');
 }
 
 function marketsInRegion(forge: CommerceForge, regionId: string): string[] {

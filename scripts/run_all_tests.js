@@ -123,6 +123,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_agentic_discovery_ops.js' },
     { category: 'unit', file: 'test_prompt_context_budget.js' },
     { category: 'unit', file: 'test_prompt_budget_eviction.js' },
+    { category: 'unit', file: 'test_game_rules_load.js' },
     { category: 'unit', file: 'test_context_inspector_core.js' },
     { category: 'unit', file: 'test_context_inspector_integration.js' },
     { category: 'unit', file: 'test_prompt_chunk_activation.js' },
@@ -252,6 +253,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_vscode_lm_turn_result_core.js' },
     { category: 'unit', file: 'test_world_observatory_core.js' },
     { category: 'unit', file: 'test_observer_tick_side_effect_contract.js' },
+    { category: 'unit', file: 'test_event_classification.js' },
     {
         category: 'simulation',
         file: 'run_simulation_tests.js',

@@ -28,6 +28,15 @@
 
 ---
 
+## 2026-07-05 JST - Gemini/Codex - Terminology contracts and P1 review fixes
+
+- Added terminology and event-classification contracts for cross-ledger naming, clock references, and composite semantic event matching.
+- Centralized additional Living World semantic evaluators (`food_crisis`, `steel_craft`, `faction_friction`, `region_danger`) so consumers do not infer behavior from `severity` alone.
+- Fixed prompt truncation suffix handling to respect tight budgets and hardened `loadGameRules()` against polluted fallback values such as persisted `"false"` strings.
+- Verification target: prompt budget, game rules load path, event classification, compile, and full `npm test`.
+
+---
+
 ## 2026-07-05 JST - Claude - 拠点ビューアP2（昼夜トグル・水面揺らぎ・グリフLOD, Webviewのみ）
 
 - 前回の拠点ビューア描画アップグレード（af43c5a）で挙げたP2候補3件を実装。

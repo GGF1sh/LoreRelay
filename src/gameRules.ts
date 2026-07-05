@@ -40,8 +40,7 @@ export function loadGameRules(): GameRules {
         }
         const data = fs.readFileSync(rulesPath, 'utf8');
         const parsed = JSON.parse(data);
-        const merged = { ...DEFAULT_GAME_RULES, ...parsed };
-        const loaded = normalizeGameRules(merged, merged);
+        const loaded = normalizeGameRules(parsed, DEFAULT_GAME_RULES);
         cachedRules = loaded;
         cacheRulesPath = rulesPath;
         cacheRulesMtime = mtime;
@@ -57,7 +56,7 @@ export function saveGameRules(rules: Partial<GameRules>): boolean {
     if (!rulesPath) return false;
 
     const current = loadGameRules();
-    const updated = normalizeGameRules({ ...current, ...rules }, current);
+    const updated = normalizeGameRules(rules, current);
 
     try {
         writeJsonAtomic(rulesPath, updated);

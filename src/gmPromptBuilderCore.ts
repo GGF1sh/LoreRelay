@@ -394,6 +394,18 @@ export interface PromptContextChunkSpec {
 
 /** Per-module cap before global eviction (Domain + Guild + LW competing). */
 export const MAX_SIMULATION_MODULE_PROMPT_CHARS = 2800;
+const PROMPT_TRUNCATION_SUFFIX = '...[truncated]';
+
+function truncatePromptTextWithSuffix(text: string, maxChars: number): string {
+    const limit = Math.max(0, Math.floor(maxChars));
+    if (text.length <= limit) {
+        return text;
+    }
+    if (limit <= PROMPT_TRUNCATION_SUFFIX.length) {
+        return '';
+    }
+    return `${text.slice(0, limit - PROMPT_TRUNCATION_SUFFIX.length)}${PROMPT_TRUNCATION_SUFFIX}`;
+}
 
 export function clampSimulationPromptModule(
     text: string,
@@ -403,7 +415,7 @@ export function clampSimulationPromptModule(
     if (!trimmed || trimmed.length <= maxChars) {
         return trimmed;
     }
-    return `${trimmed.slice(0, Math.max(0, maxChars - 20))}...[truncated]`;
+    return truncatePromptTextWithSuffix(trimmed, maxChars);
 }
 
 /** Lower numbers are evicted first when total context exceeds targetChars. */
@@ -575,9 +587,7 @@ function evictMutablePromptChunks(
             continue;
         }
         const keep = Math.max(0, current.text.length - excess);
-        const trimmed = keep <= 3
-            ? ''
-            : `${current.text.slice(0, keep - 20)}...[truncated]`;
+        const trimmed = truncatePromptTextWithSuffix(current.text, keep);
         total -= current.text.length - trimmed.length;
         if (!trimmed) {
             working.splice(idx, 1);

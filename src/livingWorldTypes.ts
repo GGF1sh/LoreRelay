@@ -1,5 +1,14 @@
 // JSON contracts shared across Commerce / Transport / NPC Agency (host-agnostic).
 
+import { EntityKind, EntityRef } from './entityIdentityCore';
+
+export { EntityKind, EntityRef };
+
+export interface ClockRef {
+    clock: 'world' | 'gm' | 'domainMonth' | 'guildDrift' | 'simTick';
+    value: number;
+}
+
 export type PlayerRole = 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
 
 export interface CommodityDef {
@@ -111,16 +120,16 @@ export interface WorldChangeEventLike {
     targetFactionId?: string;
 }
 
-export interface FoodCrisisCondition {
+export interface SemanticCondition {
     label: string;
     result: boolean;
     actual?: string | number | boolean;
     expected?: string | number | boolean;
 }
 
-export interface FoodCrisisEvaluation {
+export interface SemanticEvaluation {
     matched: boolean;
-    conditions: FoodCrisisCondition[];
+    conditions: SemanticCondition[];
 }
 
 function messageHasFoodKeyword(message: string): boolean {
@@ -132,9 +141,9 @@ function messageHasFoodKeyword(message: string): boolean {
 }
 
 /** Canonical food-crisis evaluation — single source for production rules and trace conditions. */
-export function evaluateFoodCrisisEvent(ev: WorldChangeEventLike): FoodCrisisEvaluation {
+export function evaluateFoodCrisisEvent(ev: WorldChangeEventLike): SemanticEvaluation {
     const keywordMatch = messageHasFoodKeyword(ev.message);
-    const conditions: FoodCrisisCondition[] = [
+    const conditions: SemanticCondition[] = [
         {
             label: 'category === resource',
             result: ev.category === 'resource',
@@ -157,6 +166,106 @@ export function evaluateFoodCrisisEvent(ev: WorldChangeEventLike): FoodCrisisEva
 /** Shared food-crisis semantics for commerce (Tier 1) and NPC agency (Tier 2). */
 export function isFoodCrisisEvent(ev: WorldChangeEventLike): boolean {
     return evaluateFoodCrisisEvent(ev).matched;
+}
+
+function messageHasSteelKeyword(message: string): boolean {
+    const msg = message.toLowerCase();
+    return msg.includes('steel')
+        || msg.includes('鍛冶')
+        || msg.includes('smith')
+        || msg.includes('forge');
+}
+
+export function evaluateSteelCraftEvent(ev: WorldChangeEventLike): SemanticEvaluation {
+    const keywordMatch = messageHasSteelKeyword(ev.message);
+    const conditions: SemanticCondition[] = [
+        {
+            label: 'category === resource',
+            result: ev.category === 'resource',
+            actual: ev.category,
+            expected: 'resource',
+        },
+        {
+            label: 'message includes steel keyword',
+            result: keywordMatch,
+            actual: ev.message.slice(0, 120),
+            expected: '(steel|鍛冶|smith|forge)',
+        },
+    ];
+    return {
+        matched: conditions.every((c) => c.result),
+        conditions,
+    };
+}
+
+export function isSteelCraftEvent(ev: WorldChangeEventLike): boolean {
+    return evaluateSteelCraftEvent(ev).matched;
+}
+
+function messageHasFrictionKeyword(message: string): boolean {
+    const msg = message.toLowerCase();
+    return msg.includes('friction')
+        || msg.includes('紛争')
+        || msg.includes('対立');
+}
+
+export function evaluateFactionFrictionEvent(ev: WorldChangeEventLike): SemanticEvaluation {
+    const keywordMatch = messageHasFrictionKeyword(ev.message);
+    const conditions: SemanticCondition[] = [
+        {
+            label: 'category === faction',
+            result: ev.category === 'faction',
+            actual: ev.category,
+            expected: 'faction',
+        },
+        {
+            label: 'message includes friction keyword',
+            result: keywordMatch,
+            actual: ev.message.slice(0, 120),
+            expected: '(friction|紛争|対立)',
+        },
+    ];
+    return {
+        matched: conditions.every((c) => c.result),
+        conditions,
+    };
+}
+
+export function isFactionFrictionEvent(ev: WorldChangeEventLike): boolean {
+    return evaluateFactionFrictionEvent(ev).matched;
+}
+
+function messageHasDangerKeyword(message: string): boolean {
+    const msg = message.toLowerCase();
+    return msg.includes('danger')
+        || msg.includes('不安定化')
+        || msg.includes('危険度');
+}
+
+export function evaluateRegionDangerEvent(ev: WorldChangeEventLike): SemanticEvaluation {
+    const keywordMatch = messageHasDangerKeyword(ev.message);
+    const conditions: SemanticCondition[] = [
+        {
+            label: 'category === region',
+            result: ev.category === 'region',
+            actual: ev.category,
+            expected: 'region',
+        },
+        {
+            label: 'message includes danger keyword',
+            result: keywordMatch,
+            actual: ev.message.slice(0, 120),
+            expected: '(danger|不安定化|危険度)',
+        },
+    ];
+    return {
+        matched: conditions.every((c) => c.result),
+        conditions,
+    };
+}
+
+export function isRegionDangerEvent(ev: WorldChangeEventLike): boolean {
+    return evaluateRegionDangerEvent(ev).matched;
 }
 
 export interface NpcRegistryEntryLike {

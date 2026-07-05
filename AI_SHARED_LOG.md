@@ -1,5 +1,21 @@
 # AI Shared Log
 
+## 2026-07-05 JST - Claude (Opus 4.8) - PROMPT-001A Architecture Gate（ChatGPT不在時の代行）
+
+- ChatGPT 5.5/5.4が利用不可のため、Architecture Gate Owner代理としてPROMPT-001A（Candidate→Budget→Delivered→Accepted→Consumed順序契約）を代行完了。実装は一切行わずGate設計のみ。
+- **仮説はCONFIRMED（かつより深刻）**: `buildGmPromptChunkSpecsWithMeta`（`src/gmPromptBuilder.ts`）が候補生成時点で`consumeChronicleRecapContext`/`consumeWorldChangeSummaryContext`を直接呼び、`markChronicleInjected`/`markWorldChangeSummaryInjected`経由で`world_state.json`へdurable markerを即座に書き込んでいた。これはeviction・provider送信・turn acceptanceのいずれよりも前で、rollback機構が存在しないため、provider失敗/parse失敗/turn rejection/canonical commit失敗のいずれでも消費が誤確定し恒久損失する。
+- 追加でQ7（Inspector separation）違反を発見: `buildGmPromptBreakdown`（Inspector/Preview用データ源）も消費系関数を経由しており、Preview生成自体が消費副作用を持っていた。
+- Candidate/Selected/Delivered/Accepted/Consumedの厳密契約・Failure Matrix・Minimal Change Boundary・Acceptance Criteria・Required Testsを策定し、`docs/ai-tasks/PROMPT-001A-GATE-REPORT.md`として保存。Task Packetのstatusを`GATE_DRAFTED`→`ADVERSARIAL_REVIEW`へ進め、`docs/AI_REVIEW_BACKLOG.md`のOwnerも更新。
+- 新規発見3件は`docs/AI_FINDINGS_INBOX.md`へCandidateとして報告のみ（Backlogへの直接追記はせず）。
+- 次: Gemini 3.1 Pro によるAdversarial Review。Touch Set拡張（`gmPromptBuilder.ts`単独では収まらず、provider runner + acceptance pathへの配線が必要）の是非、at-least-once retry semanticsの妥当性、Delivered判定点の3点を申し送り。
+- 検証: ドキュメントのみの変更（コード変更・コンパイル・テスト実行なし）。
+
+### Files touched
+
+- `docs/ai-tasks/PROMPT-001A.md`, `docs/ai-tasks/PROMPT-001A-GATE-REPORT.md`(新規), `docs/AI_REVIEW_BACKLOG.md`, `docs/AI_FINDINGS_INBOX.md`, `AI_SHARED_LOG.md`
+
+---
+
 ## Current Snapshot (2026-07-04)
 
 > **版の正本:** `package.json` + `CHANGELOG.md` + [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md)

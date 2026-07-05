@@ -29,7 +29,7 @@
 | ID | Area / 内容 | Severity | Priority | Status | Depends On | Touch Set | Owner | Reviewer |
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
-| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約 | P1 | Critical | **GATE_DRAFTED** | - | `gmPromptBuilder.ts`等 | ChatGPT 5.5 | Gemini 3.1 Pro |
+| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約 | P1 | Critical | **ADVERSARIAL_REVIEW** | - | `gmPromptBuilder.ts`等 | Claude Opus 4.8(代行) | Gemini 3.1 Pro |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | CONFIRMED | `PROMPT-001A` | | ChatGPT | Gemini |
 | `PROMPT-001C` | Prompt Assembly Receipt | P1 | High | CONFIRMED | `PROMPT-001A, B` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |

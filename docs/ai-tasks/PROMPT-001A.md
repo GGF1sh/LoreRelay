@@ -3,9 +3,10 @@
 | Field | Description |
 |:---|:---|
 | **Task ID** | `PROMPT-001A` |
-| **Status** | GATE_DRAFTED |
-| **As-of Commit** | `4d56b28` |
+| **Status** | ADVERSARIAL_REVIEW |
+| **As-of Commit** | `3eaae25` |
 | **Depends On** | None |
+| **Gate Report** | [`PROMPT-001A-GATE-REPORT.md`](PROMPT-001A-GATE-REPORT.md)（Claude Opus 4.8, ChatGPT 5.5/5.4不在時の代行, 2026-07-05） |
 
 ## Objective
 Evicted or undelivered context chunks must never be marked as "consumed" or "accepted". Establish a pure execution order for prompt assembly.

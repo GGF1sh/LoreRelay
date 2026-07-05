@@ -41,7 +41,6 @@ const seenEntryIds = new Set<string>();
 let schemaWarningShown = false;
 let lastGoodGameState: Record<string, unknown> | undefined;
 let gameStateSyncSeq = 0;
-import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import { processTurnResult, takeAutoLocationImageRequest } from './statePatch';
 import { queueAutoLocationImageSilent } from './autoLocationImageRunner';
 import { markTurnResultHandled } from './turnResultFallback';
@@ -75,6 +74,15 @@ let debounceTimer: NodeJS.Timeout | undefined;
 let lastProcessedTurnHash = '';
 /** Entry IDs already seen when applying game_state (for MediaAgent new-entry detection). */
 const knownStateEntryIds = new Set<string>();
+
+export function resetTurnResultProcessingStateForTests(): void {
+    lastProcessedTurnHash = '';
+    knownStateEntryIds.clear();
+}
+
+export function getLastProcessedTurnHashForTests(): string {
+    return lastProcessedTurnHash;
+}
 
 export function initGameStateSync(syncDeps: GameStateSyncDeps): void {
     deps = syncDeps;
@@ -587,6 +595,8 @@ function sleep(ms: number): Promise<void> {
  * webview. Returns true if a new turn was actually processed.
  */
 async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<boolean> {
+    let hash = '';
+    let turnResult: TurnResult;
     try {
         if (!fs.existsSync(fsPath)) {
             return false;
@@ -596,36 +606,12 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
             throw new Error('Empty file content');
         }
 
-        const hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
+        hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
         if (hash === lastProcessedTurnHash) {
             return false;
         }
 
-        const turnResult = JSON.parse(content) as TurnResult;
-        lastProcessedTurnHash = hash;
-        markTurnResultHandled();
-
-        handleTurnResultMedia(turnResult);
-        flushScheduledCommercePersist();
-        const enriched = processTurnResult(turnResult);
-
-        const autoImageRequest = takeAutoLocationImageRequest();
-        if (autoImageRequest) {
-            queueAutoLocationImageSilent(autoImageRequest.locationId, autoImageRequest.gmTurn);
-        }
-
-        const panel = deps?.getPanel();
-        if (panel) {
-            const trustLookup = buildNpcTrustLookup();
-            const rawTurn = enriched || turnResult;
-            panel.webview.postMessage({
-                type: 'gameStateUpdate',
-                syncSeq: ++gameStateSyncSeq,
-                turnResult: sanitizeTurnResultForWebview(rawTurn, trustLookup),
-            });
-        }
-        scheduleProtagonistBootstrap(turnResult);
-        return true;
+        turnResult = JSON.parse(content) as TurnResult;
     } catch (e) {
         if (retryCount < 3) {
             console.warn(`Retry reading turn_result.json (attempt ${retryCount + 1}): ${e instanceof Error ? e.message : String(e)}`);
@@ -635,6 +621,55 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
         console.error('Failed to parse turn_result.json after retries', e);
         return false;
     }
+
+    const enriched = processTurnResult(turnResult);
+    if (!enriched) {
+        return false;
+    }
+
+    lastProcessedTurnHash = hash;
+    markTurnResultHandled();
+
+    try {
+        handleTurnResultMedia(enriched);
+    } catch (e) {
+        console.error('[gameStateSync] Accepted turn media handling failed', e);
+    }
+
+    try {
+        const panel = deps?.getPanel();
+        if (panel) {
+            const trustLookup = buildNpcTrustLookup();
+            panel.webview.postMessage({
+                type: 'gameStateUpdate',
+                syncSeq: ++gameStateSyncSeq,
+                turnResult: sanitizeTurnResultForWebview(enriched, trustLookup),
+            });
+        }
+    } catch (e) {
+        console.error('[gameStateSync] Accepted turn webview update failed', e);
+    }
+
+    try {
+        const autoImageRequest = takeAutoLocationImageRequest();
+        if (autoImageRequest) {
+            queueAutoLocationImageSilent(autoImageRequest.locationId, autoImageRequest.gmTurn);
+        }
+    } catch (e) {
+        console.error('[gameStateSync] Accepted auto-location image queue failed', e);
+    }
+
+    try {
+        scheduleProtagonistBootstrap(enriched);
+    } catch (e) {
+        console.error('[gameStateSync] Accepted protagonist bootstrap scheduling failed', e);
+    }
+
+    return true;
+}
+
+export async function processTurnResultFileAtForTests(fsPath: string, retryCount = 0): Promise<boolean> {
+    return processTurnResultFileAt(fsPath, retryCount);
 }
 
 /**

@@ -3,12 +3,12 @@
 | Field | Description |
 |:---|:---|
 | **Task ID** | `PROMPT-001A` |
-| **Status** | GATE_DRAFTED |
-| **As-of Commit** | `6af4bc5` code baseline |
+| **Status** | ADVERSARIAL_REVIEW |
+| **As-of Commit** | `6af4bc5` code baseline; V2 Gate at `6c403e3` |
 | **Depends On** | None for Gate revision; final accepted-consumption authority belongs downstream of `RUNTIME-002A` |
 | **Gate Report** | [`PROMPT-001A-GATE-REPORT.md`](PROMPT-001A-GATE-REPORT.md) (V1, Claude Opus 4.8 — 差戻し済み) |
 | **Gate Report V2** | [`PROMPT-001A-GATE-REPORT-V2.md`](PROMPT-001A-GATE-REPORT-V2.md) (改訂版, Claude Opus 4.8 代行 — merge-safe staging = Option C。Verdict: READY_FOR_ADVERSARIAL_REVIEW) |
-| **Adversarial Review** | [`PROMPT-001A-ADVERSARIAL-REVIEW.md`](PROMPT-001A-ADVERSARIAL-REVIEW.md) (Gemini 3.1 Pro) |
+| **Adversarial Review V1** | [`PROMPT-001A-ADVERSARIAL-REVIEW.md`](PROMPT-001A-ADVERSARIAL-REVIEW.md) (Gemini 3.1 Pro) |
 | **Chief Disposition** | [`PROMPT-001A-INTEGRATOR-DISPOSITION.md`](PROMPT-001A-INTEGRATOR-DISPOSITION.md) |
 
 ## Objective
@@ -100,4 +100,4 @@ The revised Gate must make these verifiable:
 
 ## Current Lifecycle Note
 
-Adversarial review returned the original broad Gate to architecture. No implementation may start until the revised Gate resolves the merge-safe staging problem and the Chief Integrator advances the task again.
+V2 Gate is now in differential adversarial review. No implementation may start until the V1→V2 changes survive review and the Chief Integrator advances the task.

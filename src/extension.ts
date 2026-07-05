@@ -216,7 +216,11 @@ import {
 import { checkForUpdates } from './updateManager';
 import { registerCoreCommands } from './extension/commands';
 import { runWorkspaceSanityCheckCommand } from './worldIntentSanityRunner';
-import { runPreviewGmTurnTransactionPlanCommand } from './stateOrchestratorPlanRunner';
+import {
+    runPreviewGmTurnTransactionPlanCommand,
+    runRetryFailedTransactionsCommand,
+    initStateOrchestratorPlanRunner,
+} from './stateOrchestratorPlanRunner';
 import { runPreviewWorkspaceMigrationsCommand } from './ledgerMigrationRunner';
 import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWritebackRunner';
 import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
@@ -298,6 +302,7 @@ export function activate(context: vscode.ExtensionContext) {
     initWorldView({ getPanel: () => panel });
     initAutoLocationImageRunner({ getPanel: () => panel });
     initVlmQueue({ getPanel: () => panel });
+    initStateOrchestratorPlanRunner({ getPanel: () => panel });
 
     const openGameCmd = vscode.commands.registerCommand('textadventure.openGame', async () => {
         if (panel) {
@@ -486,6 +491,11 @@ export function activate(context: vscode.ExtensionContext) {
         () => { void runPreviewGmTurnTransactionPlanCommand(); }
     );
 
+    const retryFailedTransactionsCmd = vscode.commands.registerCommand(
+        'textadventure.retryFailedTransactions',
+        () => { void runRetryFailedTransactionsCommand(); }
+    );
+
     const applyVehicleStateMigrationCmd = vscode.commands.registerCommand(
         'textadventure.applyVehicleStateMigration',
         () => { void runApplyVehicleStateMigrationCommand(); }
@@ -543,6 +553,7 @@ export function activate(context: vscode.ExtensionContext) {
         promoteParlorCmd,
         runWorkspaceSanityCheckCmd,
         previewGmTurnTransactionPlanCmd,
+        retryFailedTransactionsCmd,
         previewWorkspaceMigrationsCmd,
         applyVehicleStateMigrationCmd,
         restoreVehicleStateMigrationBackupCmd
@@ -1508,6 +1519,12 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             if (result.ok) {
                 await sendUiState(0, true);
             }
+        },
+        handlePreviewGmTurnTransactionPlan: async () => {
+            await runPreviewGmTurnTransactionPlanCommand();
+        },
+        handleRetryFailedTransactions: async () => {
+            await runRetryFailedTransactionsCommand();
         },
         sendParlorSettingsToWebview,
         handleSetParlorConnectionProfile,

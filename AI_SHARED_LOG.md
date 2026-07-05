@@ -80,6 +80,15 @@
 
 ---
 
+## 2026-07-05 JST - Codex - State Orchestrator SO3 stabilization
+
+- Reviewed the pending SO3 executor/rollback/UI work and kept the commit scope to an experimental executor preview rather than replacing existing GM-turn write paths.
+- Added SO3 executor core/host tests, rollback test, `queue_retry` policy plumbing, and a read-only Inspector Mermaid preview.
+- Fixed two unsafe draft details before commit: Webview updates now use the live panel getter instead of the activation-time panel value, and manual retry no longer pretends success.
+- Verification target: SO3 tests and `npm run compile`.
+
+---
+
 ## 2026-07-05 JST - Gemini/Codex - Identity / Reference Layer D1a core
 
 - Added `src/entityIdentityCore.ts`: pure identity core for D1 (`EntityKind`, `EntityRef`, alias/tombstone contracts, resolve/validate helpers).

@@ -85,6 +85,38 @@ export function runSerializedWorkspaceMutation(fn: () => void): void {
     fn();
 }
 
+/**
+ * Route a retry callback to the appropriate ledger queue.
+ * Used by State Orchestrator SO3 for queue_retry policies.
+ */
+export function enqueueLedgerRetry(ledgerId: string, fn: () => void): void {
+    switch (ledgerId) {
+        case 'game_state':
+            runSerializedGameStateMutation(fn);
+            break;
+        case 'world_state':
+            runSerializedWorldStateMutation(fn);
+            break;
+        case 'discoveries':
+            runSerializedDiscoveryMutation(fn);
+            break;
+        case 'campaign_resources':
+            runSerializedCampaignResourcesMutation(fn);
+            break;
+        case 'settlement_layout':
+            runSerializedSettlementLayoutMutation(fn);
+            break;
+        case 'vehicle_state':
+            runSerializedVehicleStateMutation(fn);
+            break;
+        default:
+            // For unregistered ledgers, run directly on the event loop
+            console.warn(`[workspaceQueue] enqueueLedgerRetry: unknown ledger ${ledgerId}, running directly.`);
+            setTimeout(fn, 0);
+            break;
+    }
+}
+
 export function isGameStateWriteCircuitOpen(): boolean {
     return isCircuitOpen(gameCircuit);
 }

@@ -117,6 +117,8 @@ export interface WebviewHandlerDeps {
     handleSaveParlorPersona(raw: unknown): void;
     handleSetParlorBackground(backgroundId: string | null): void;
     handlePromoteParlor(): Promise<void>;
+    handlePreviewGmTurnTransactionPlan(): Promise<void>;
+    handleRetryFailedTransactions(): Promise<void>;
 }
 
 /**
@@ -139,6 +141,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                 typeof message.authorsNote === 'string' ? message.authorsNote : undefined,
                 typeof message.entryId === 'string' && isValidEntryId(message.entryId) ? message.entryId : undefined
             );
+            break;
+        case 'previewGmTurnTransactionPlan':
+            await deps.handlePreviewGmTurnTransactionPlan();
+            break;
+        case 'retryFailedTransactions':
+            await deps.handleRetryFailedTransactions();
             break;
         case 'generateImage': {
             const prompt = clampString(message.prompt, MAX_IMAGE_PROMPT_LEN);

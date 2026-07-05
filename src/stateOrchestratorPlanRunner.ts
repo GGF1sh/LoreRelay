@@ -14,16 +14,41 @@ import {
 import type { StateTransactionPlan } from './stateOrchestratorPlanCore';
 import { formatWorldStateParseWarning } from './worldStateCore';
 import { loadWorldState, peekLastWorldStateParseWarnings } from './worldState';
+import {
+    buildTransactionExecutionSequence,
+    generateStateOrchestratorMermaid,
+    type TransactionExecutionResult
+} from './stateOrchestratorExecutorCore';
 
 const TURN_RESULT_FILENAME = 'turn_result.json';
 
 let outputChannel: vscode.OutputChannel | undefined;
+let getWebviewPanel: (() => vscode.WebviewPanel | undefined) | undefined;
+let lastBuiltPlan: StateTransactionPlan | undefined;
+let lastExecutionResult: TransactionExecutionResult | undefined;
+
+export function initStateOrchestratorPlanRunner(deps: { getPanel: () => vscode.WebviewPanel | undefined }): void {
+    getWebviewPanel = deps.getPanel;
+}
 
 function getOutputChannel(): vscode.OutputChannel {
     if (!outputChannel) {
         outputChannel = vscode.window.createOutputChannel('LoreRelay State Orchestrator');
     }
     return outputChannel;
+}
+
+function sendStateOrchestratorUpdateToWebview(): void {
+    const webviewPanel = getWebviewPanel?.();
+    if (!webviewPanel) { return; }
+    if (!lastBuiltPlan) { return; }
+    const mermaidCode = generateStateOrchestratorMermaid(lastBuiltPlan, lastExecutionResult);
+    webviewPanel.webview.postMessage({
+        type: 'stateOrchestratorUpdate',
+        mermaid: mermaidCode,
+        status: lastExecutionResult ? lastExecutionResult.status : 'planned',
+        errorMessage: lastExecutionResult?.errorMessage
+    });
 }
 
 type TurnResultReadResult =
@@ -79,7 +104,11 @@ export async function runPreviewGmTurnTransactionPlanCommand(): Promise<StateTra
 
     const rules = loadGameRules();
     const plan = buildGmTurnTransactionPlanFromTurnResult(read.data, rules);
+    lastBuiltPlan = plan;
+    lastExecutionResult = undefined; // reset status on new plan
+
     emitGmTurnTransactionPlanReport(plan);
+    sendStateOrchestratorUpdateToWebview();
 
     const plannedCount = plan.steps.filter((step) => step.status === 'planned').length;
     void vscode.window.showInformationMessage(
@@ -87,4 +116,10 @@ export async function runPreviewGmTurnTransactionPlanCommand(): Promise<StateTra
     );
 
     return plan;
+}
+
+/** Trigger retry of failed transaction actions */
+export async function runRetryFailedTransactionsCommand(): Promise<void> {
+    vscode.window.showInformationMessage('State Orchestrator retry is queued automatically for queue_retry ledgers; no manual retry is available yet.');
+    sendStateOrchestratorUpdateToWebview();
 }

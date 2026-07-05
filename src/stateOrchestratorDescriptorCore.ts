@@ -32,6 +32,7 @@ export type LedgerFailurePolicy =
     | 'retain_primary_report_partial'
     | 'skip_and_warn'
     | 'best_effort'
+    | 'queue_retry'
     | 'manual_reconcile';
 
 export interface LedgerDescriptor {

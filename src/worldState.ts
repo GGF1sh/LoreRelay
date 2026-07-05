@@ -56,6 +56,10 @@ function parseWorldStateFromRaw(raw: unknown) {
     return { state, warnings };
 }
 
+function parseWorldStateSnapshot(raw: unknown) {
+    return parseWorldStateWithWarnings(raw);
+}
+
 const WORLD_STATE_FILENAME = 'world_state.json';
 
 let cachePath = '';
@@ -79,6 +83,30 @@ export function isWorldStateEnabled(): boolean {
     if (!loadGameRules().enableEmergentSimulation) { return false; }
     const statePath = getWorldStatePath();
     return Boolean(statePath && fs.existsSync(statePath));
+}
+
+/**
+ * Inspector/query-only world_state reader.
+ * Returns a snapshot-local parse result without touching shared warning buffers or caches.
+ */
+export function readWorldStateSnapshotReadOnly(): {
+    state: WorldState | undefined;
+    warnings: readonly WorldStateParseWarning[];
+} {
+    const statePath = getWorldStatePath();
+    if (!statePath || !fs.existsSync(statePath)) {
+        return { state: undefined, warnings: [] };
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        const parsed = parseWorldStateSnapshot(raw);
+        return {
+            state: parsed.state,
+            warnings: parsed.warnings,
+        };
+    } catch {
+        return { state: undefined, warnings: [] };
+    }
 }
 
 export function loadWorldState(): WorldState | undefined {

@@ -123,16 +123,52 @@ function extractConstBody(constName) {
 }
 
 {
-    // Inspector call-site ownership: buildGmPromptBreakdown must use the pure entry point.
+    // Inspector call-site ownership: buildGmPromptBreakdown must use the single-pass
+    // Inspector assembly and must not rebuild via the pure/legacy/shared helpers.
     const breakdownBody = extractFunctionBody('buildGmPromptBreakdown');
     if (!breakdownBody) {
         fail('buildGmPromptBreakdown not found');
-    } else if (!breakdownBody.includes('buildPureCandidateSpecsWithMeta(')) {
-        fail('buildGmPromptBreakdown (Inspector/Preview) must call buildPureCandidateSpecsWithMeta');
-    } else if (breakdownBody.includes('buildLegacyProductionSpecsWithMeta(') || /buildGmPromptChunkSpecsWithMeta\(playerAction,\s*policy\)/.test(breakdownBody)) {
-        fail('buildGmPromptBreakdown must not call the legacy path or the shared helper directly');
+    } else if (!breakdownBody.includes('buildInspectorPromptAssembly(')) {
+        fail('buildGmPromptBreakdown (Inspector/Preview) must call buildInspectorPromptAssembly');
+    } else if (
+        breakdownBody.includes('buildPureCandidateSpecsWithMeta(')
+        || breakdownBody.includes('buildLegacyProductionSpecsWithMeta(')
+        || /buildGmPromptChunkSpecsWithMeta\(playerAction,\s*policy\)/.test(breakdownBody)
+    ) {
+        fail('buildGmPromptBreakdown must not call the pure path, legacy path, or shared helper directly');
     } else {
-        ok('buildGmPromptBreakdown (Inspector/Preview) uses the explicit pure entry point only');
+        ok('buildGmPromptBreakdown (Inspector/Preview) uses the Inspector-local single-pass assembly only');
+    }
+}
+
+{
+    const inspectorBody = extractFunctionBody('buildInspectorPromptAssembly');
+    const required = [
+        'readWorldStateSnapshotReadOnly',
+        'buildPartyPromptContextReadOnly',
+        'buildPartyDirectorPromptContextReadOnly',
+        'buildChronicleRecapContextWithWorldState(false, policy, inspectorWorldState)',
+        'buildWorldChangeSummaryContextFromWorldState(inspectorWorldState)',
+    ];
+    const forbidden = [
+        'loadWorldState(',
+        'getCharactersDir(',
+        'getPartyIds(',
+        'loadDynamicProfiles(',
+        'loadCharacterById(',
+    ];
+    if (!inspectorBody) {
+        fail('buildInspectorPromptAssembly not found');
+    } else {
+        const missing = required.filter((name) => !inspectorBody.includes(name));
+        const leaked = forbidden.filter((name) => inspectorBody.includes(name));
+        if (missing.length > 0) {
+            fail(`buildInspectorPromptAssembly missing required read-only hooks: ${missing.join(', ')}`);
+        } else if (leaked.length > 0) {
+            fail(`buildInspectorPromptAssembly references mutating read paths: ${leaked.join(', ')}`);
+        } else {
+            ok('buildInspectorPromptAssembly uses explicit read-only APIs only');
+        }
     }
 }
 
@@ -244,6 +280,7 @@ try {
 
 const { buildGmPromptBreakdown, buildGmPromptContext } = gmPromptBuilder;
 const worldStatePath = path.join(WS_PATH, 'world_state.json');
+const charactersDirPath = path.join(WS_PATH, 'characters');
 
 function readWorldState() {
     return JSON.parse(fs.readFileSync(worldStatePath, 'utf-8'));
@@ -258,6 +295,11 @@ try {
     } else {
         ok('fixture starts with lastInjectedChronicleTurn === sourceTurn (1) and worldChangeSummary marker unset');
     }
+    if (fs.existsSync(charactersDirPath)) {
+        fail('fixture setup invalid: characters/ must not exist before Inspector read-only test');
+    } else {
+        ok('fixture starts without characters/ so Inspector lazy-init regressions are observable');
+    }
 
     // --- pure candidate path (Inspector) must not advance durable markers ---
     const breakdown1 = buildGmPromptBreakdown('look around');
@@ -268,6 +310,11 @@ try {
         fail(`pure candidate path (buildGmPromptBreakdown) changed lastInjectedChronicleTurn (got ${JSON.stringify(afterPure1.lastInjectedChronicleTurn)})`);
     } else {
         ok('pure candidate path (buildGmPromptBreakdown) leaves durable markers unchanged');
+    }
+    if (fs.existsSync(charactersDirPath)) {
+        fail('pure candidate path (buildGmPromptBreakdown) created characters/ via lazy-init regression');
+    } else {
+        ok('pure candidate path (buildGmPromptBreakdown) does not create characters/');
     }
 
     // Sanity: the pure path must actually have seen the consumables, otherwise the
@@ -284,6 +331,26 @@ try {
         fail('fixture invalid: chronicle section absent from pure breakdown (purity test would be vacuous)');
     } else {
         ok('pure breakdown includes chronicle content (purity test is not vacuous)');
+    }
+    {
+        const inspectorItems1 = breakdown1.contextInspector?.items || [];
+        let mismatch;
+        for (const section of sections1) {
+            const item = inspectorItems1.find((candidate) => candidate.id === section.id);
+            if (!item) {
+                mismatch = `contextInspector missing item for displayed section ${section.id}`;
+                break;
+            }
+            if (item.originalChars !== section.charCount) {
+                mismatch = `contextInspector originalChars mismatch for ${section.id}: section=${section.charCount}, inspector=${item.originalChars}`;
+                break;
+            }
+        }
+        if (mismatch) {
+            fail(mismatch);
+        } else {
+            ok('display sections and contextInspector accounting share the same section text lengths');
+        }
     }
 
     // --- repeated pure builds must leave markers and chronicleSessionPending unchanged ---
@@ -306,6 +373,12 @@ try {
         fail('second pure build lost chronicle content — with lastInjectedChronicleTurn already === sourceTurn, this proves chronicleSessionPending was cleared by the first pure build (regression)');
     } else {
         ok('second pure build still surfaces chronicle content despite lastInjectedChronicleTurn === sourceTurn — direct proof chronicleSessionPending was not cleared by the pure path');
+    }
+
+    if (JSON.stringify(breakdown1.contextInspector || null) !== JSON.stringify(breakdown2.contextInspector || null)) {
+        fail('repeated pure candidate builds changed contextInspector accounting despite identical read-only fixture');
+    } else {
+        ok('repeated pure candidate builds produce stable contextInspector accounting');
     }
 
     // --- Inspector/Preview isolation: buildGmPromptBreakdown is the exact payload

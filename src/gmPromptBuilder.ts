@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
 import type { ProfileUpdate } from './types/GameState';
+import type { CharacterProfile } from './types/Character';
 import {
     t,
     getConfiguredLocale,
@@ -17,7 +18,7 @@ import {
     isArchiveAutoPromptEnabled,
     supportsArchivePrompt
 } from './archivePrompt';
-import { isValidCharacterId } from './characterId';
+import { filterValidCharacterIds, isValidCharacterId, resolveCharacterJsonPath } from './characterId';
 import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
 import { getCachedGameState, getGameEntryHistory } from './gameStateSync';
 import { getGmBridgeOutputChannel } from './gmBridgeRunner';
@@ -31,6 +32,7 @@ import { loadGameRules } from './gameRules';
 import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import {
     getCharactersDir,
+    tryGetCharactersDirReadOnly,
     getPartyIds,
     loadCharacterById,
     loadDynamicProfiles
@@ -38,7 +40,13 @@ import {
 import { type LorebookEntry, matchEntriesAgainstText } from './lorebookMatcher';
 import { loadScenarioDirector } from './scenarioDirector';
 import { loadPartyDirector } from './partyDirector';
-import type { RelationshipType } from './partyDirectorCore';
+import {
+    mergePartyDirector,
+    parseGameStatePartyDirector,
+    parsePartyDirectorTemplate,
+    type PartyDirectorView,
+    type RelationshipType,
+} from './partyDirectorCore';
 import { loadNpcRegistry } from './npcRegistry';
 import { loadWorldForge, loadWorldForgeDocument, resolveCurrentLocation, isWorldForgeEnabled } from './worldForge';
 import {
@@ -50,10 +58,11 @@ import {
 import { TRUST_WHEREABOUTS_EXACT_MIN, TRUST_WHEREABOUTS_UNKNOWN_MAX } from './npcWhereaboutsTrustCore';
 import {
     loadWorldState,
+    readWorldStateSnapshotReadOnly,
     isWorldStateEnabled,
     markWorldChangeSummaryInjected,
     markChronicleInjected,
-    peekLastWorldStateParseWarnings,
+    type WorldState,
 } from './worldState';
 import { formatWorldStateParseWarning } from './worldStateCore';
 import {
@@ -129,6 +138,7 @@ import {
     finalizeBreakdown,
     previewText,
     type PromptContextBreakdown,
+    type PromptContextSection,
     type PromptLoreMatch,
     type PromptMemoryMatch,
     type PromptBudgetLimitSpec
@@ -139,6 +149,19 @@ export interface GmPromptChunkBuildMeta {
     inactiveIds: string[];
     emptyIds: string[];
     orderedIds: string[];
+}
+
+interface InspectorPromptAssembly {
+    sections: PromptContextSection[];
+    specs: PromptContextChunkSpec[];
+    inactiveIds: string[];
+    emptyIds: string[];
+    orderedIds: string[];
+    matchedLore: PromptLoreMatch[];
+    memoryMatches: PromptMemoryMatch[];
+    memoryBackend: string;
+    hintPreview: string;
+    worldStateParseWarnings?: string[];
 }
 
 export interface GmPromptBuilderDeps {
@@ -196,6 +219,52 @@ function loadStorySummary(): string {
         return '';
     }
     return typeof state.summary === 'string' ? state.summary.trim() : '';
+}
+
+function readJsonDocument<T>(filePath: string): T | undefined {
+    if (!fs.existsSync(filePath)) {
+        return undefined;
+    }
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+    } catch {
+        return undefined;
+    }
+}
+
+function getPartyIdsReadOnly(): string[] {
+    const charDir = tryGetCharactersDirReadOnly();
+    if (!charDir) { return []; }
+    const raw = readJsonDocument<unknown>(path.join(charDir, 'party.json'));
+    return Array.isArray(raw) ? filterValidCharacterIds(raw) : [];
+}
+
+function loadCharacterByIdReadOnly(id: string): CharacterProfile | undefined {
+    if (!isValidCharacterId(id)) { return undefined; }
+    const charDir = tryGetCharactersDirReadOnly();
+    if (!charDir) { return undefined; }
+    const filePath = resolveCharacterJsonPath(charDir, id);
+    if (!filePath) { return undefined; }
+    return readJsonDocument<CharacterProfile>(filePath);
+}
+
+function loadDynamicProfilesReadOnly(): Record<string, string> {
+    const charDir = tryGetCharactersDirReadOnly();
+    if (!charDir) { return {}; }
+    const raw = readJsonDocument<unknown>(path.join(charDir, 'dynamic_profiles.json'));
+    return raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw as Record<string, string>
+        : {};
+}
+
+function loadPartyDirectorReadOnly(): PartyDirectorView | undefined {
+    const charDir = tryGetCharactersDirReadOnly();
+    const templateRaw = charDir
+        ? readJsonDocument<unknown>(path.join(charDir, 'party_director.json'))
+        : undefined;
+    const template = parsePartyDirectorTemplate(templateRaw);
+    const runtime = parseGameStatePartyDirector(readGameStateForPrompt()?.partyDirector);
+    return mergePartyDirector(template, runtime, getPartyIdsReadOnly());
 }
 
 function getPromptBudgetPolicy(): PromptBudgetPolicy {
@@ -377,9 +446,12 @@ function relationshipLabel(rel: RelationshipType): string {
     return rel;
 }
 
-function buildPartyPromptContext(policy: PromptBudgetPolicy): string {
-    const dynProfiles = loadDynamicProfiles();
-    const ids = getPartyIds();
+function buildPartyPromptContextFromData(
+    policy: PromptBudgetPolicy,
+    ids: readonly string[],
+    dynProfiles: Record<string, string>,
+    loadCharacter: (id: string) => CharacterProfile | undefined
+): string {
     if (ids.length === 0) {
         return '';
     }
@@ -391,7 +463,7 @@ function buildPartyPromptContext(policy: PromptBudgetPolicy): string {
         }
     };
     for (const id of ids) {
-        const char = loadCharacterById(id);
+        const char = loadCharacter(id);
         if (!char) {
             continue;
         }
@@ -422,8 +494,23 @@ function buildPartyPromptContext(policy: PromptBudgetPolicy): string {
     return lines.join('\n');
 }
 
-function buildPartyDirectorPromptContext(): string {
-    const director = loadPartyDirector();
+function buildPartyPromptContext(policy: PromptBudgetPolicy): string {
+    return buildPartyPromptContextFromData(policy, getPartyIds(), loadDynamicProfiles(), loadCharacterById);
+}
+
+function buildPartyPromptContextReadOnly(policy: PromptBudgetPolicy): string {
+    return buildPartyPromptContextFromData(
+        policy,
+        getPartyIdsReadOnly(),
+        loadDynamicProfilesReadOnly(),
+        loadCharacterByIdReadOnly
+    );
+}
+
+function buildPartyDirectorPromptContextFromData(
+    director: PartyDirectorView | undefined,
+    loadCharacter: (id: string) => CharacterProfile | undefined
+): string {
     if (!director) {
         return '';
     }
@@ -443,7 +530,7 @@ function buildPartyDirectorPromptContext(): string {
 
     const idToName = new Map<string, string>();
     for (const id of Object.keys(director.members)) {
-        const char = loadCharacterById(id);
+        const char = loadCharacter(id);
         idToName.set(id, char?.name || id);
     }
 
@@ -478,6 +565,14 @@ function buildPartyDirectorPromptContext(): string {
     }
     lines.push('Respect muted/verbosity flags. Use relationship tone when NPCs address each other.');
     return lines.join('\n');
+}
+
+function buildPartyDirectorPromptContext(): string {
+    return buildPartyDirectorPromptContextFromData(loadPartyDirector(), loadCharacterById);
+}
+
+function buildPartyDirectorPromptContextReadOnly(): string {
+    return buildPartyDirectorPromptContextFromData(loadPartyDirectorReadOnly(), loadCharacterByIdReadOnly);
 }
 
 function formatTravelEncounterLine(enc: TravelEncounter): string {
@@ -674,15 +769,19 @@ function buildGuildPromptContextForGm(playerAction: string): string {
     return buildGuildPromptContext(state, playerAction);
 }
 
-function buildCampaignJobBoardPromptContextForGm(): string {
+function buildCampaignJobBoardPromptContextFromWorldState(worldState: WorldState | undefined): string {
     const state = readGameStateForPrompt();
     const world = state?.world as { currentLocationId?: string } | undefined;
     const currentLocationId = typeof world?.currentLocationId === 'string'
         ? world.currentLocationId
         : undefined;
-    const simWorld = isWorldStateEnabled() ? loadWorldState() : undefined;
-    const worldTurn = typeof simWorld?.worldTurn === 'number' ? simWorld.worldTurn : 0;
+    const worldTurn = typeof worldState?.worldTurn === 'number' ? worldState.worldTurn : 0;
     return buildCampaignJobBoardPromptContext(currentLocationId, worldTurn);
+}
+
+function buildCampaignJobBoardPromptContextForGm(): string {
+    const simWorld = isWorldStateEnabled() ? loadWorldState() : undefined;
+    return buildCampaignJobBoardPromptContextFromWorldState(simWorld);
 }
 
 function buildGameRulesPromptContext(): string {
@@ -829,11 +928,12 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     return lines.join('\n');
 }
 
-function buildLivingWorldBondPromptContexts(): { npcBonds: string; playerBonds: string; factionRelations: string } {
+function buildLivingWorldBondPromptContextsFromWorldState(
+    worldState: WorldState | undefined
+): { npcBonds: string; playerBonds: string; factionRelations: string } {
     if (!isWorldStateEnabled() || !livingWorldEnabled(loadGameRules())) {
         return { npcBonds: '', playerBonds: '', factionRelations: '' };
     }
-    const worldState = loadWorldState();
     if (!worldState) {
         return { npcBonds: '', playerBonds: '', factionRelations: '' };
     }
@@ -841,9 +941,18 @@ function buildLivingWorldBondPromptContexts(): { npcBonds: string; playerBonds: 
     return buildLivingWorldBondPromptBlocks(worldState, loadNpcRegistry(), loadGameRules(), forge ?? undefined);
 }
 
-function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
+function buildLivingWorldBondPromptContexts(): { npcBonds: string; playerBonds: string; factionRelations: string } {
+    if (!isWorldStateEnabled() || !livingWorldEnabled(loadGameRules())) {
+        return { npcBonds: '', playerBonds: '', factionRelations: '' };
+    }
+    return buildLivingWorldBondPromptContextsFromWorldState(loadWorldState());
+}
+
+function buildWorldStatePromptContextFromWorldState(
+    policy: PromptBudgetPolicy,
+    worldState: WorldState | undefined
+): string {
     if (!isWorldStateEnabled()) { return ''; }
-    const worldState = loadWorldState();
     if (!worldState) { return ''; }
 
     const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
@@ -956,6 +1065,11 @@ function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
     return lines.join('\n');
 }
 
+function buildWorldStatePromptContext(policy: PromptBudgetPolicy): string {
+    if (!isWorldStateEnabled()) { return ''; }
+    return buildWorldStatePromptContextFromWorldState(policy, loadWorldState());
+}
+
 function buildNpcRegistryPromptContext(policy: PromptBudgetPolicy): string {
     if (!loadGameRules().enableNpcRegistry) { return ''; }
     const registry = loadNpcRegistry();
@@ -1061,15 +1175,19 @@ function buildHintText(playerAction: string, policy: PromptBudgetPolicy): string
 /**
  * Preview for Turn Inspector — does not mark a summary as consumed.
  */
-function peekWorldChangeSummaryContext(): string {
-    if (!isWorldStateEnabled()) { return ''; }
-    const worldState = loadWorldState();
+function buildWorldChangeSummaryContextFromWorldState(worldState: WorldState | undefined): string {
     if (!worldState?.recentChanges?.length) { return ''; }
     return buildWorldChangeSummaryFromChanges(
         worldState.recentChanges,
         worldState.worldTurn,
         worldState.lastInjectedWorldChangeSummaryTurn
     );
+}
+
+function peekWorldChangeSummaryContext(): string {
+    if (!isWorldStateEnabled()) { return ''; }
+    const worldState = loadWorldState();
+    return buildWorldChangeSummaryContextFromWorldState(worldState);
 }
 
 /**
@@ -1080,11 +1198,7 @@ function consumeWorldChangeSummaryContext(): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
     if (!worldState?.recentChanges?.length) { return ''; }
-    const summary = buildWorldChangeSummaryFromChanges(
-        worldState.recentChanges,
-        worldState.worldTurn,
-        worldState.lastInjectedWorldChangeSummaryTurn
-    );
+    const summary = buildWorldChangeSummaryContextFromWorldState(worldState);
     if (!summary) { return ''; }
     const turn = resolveWorldChangeSummaryTurn(
         worldState.recentChanges,
@@ -1112,7 +1226,11 @@ function clearChronicleSessionPending(): void {
     chronicleSessionPending = false;
 }
 
-function buildChronicleRecapContext(consume: boolean, policy: PromptBudgetPolicy): string {
+function buildChronicleRecapContextWithWorldState(
+    consume: boolean,
+    policy: PromptBudgetPolicy,
+    worldState: WorldState | undefined
+): string {
     const recapInPrompt = vscode.workspace.getConfiguration('textAdventure.chronicle')
         .get<boolean>('recapInPrompt', false);
     if (!recapInPrompt) { return ''; }
@@ -1124,7 +1242,6 @@ function buildChronicleRecapContext(consume: boolean, policy: PromptBudgetPolicy
     const sourceTurn = resolveChronicleSourceTurn(journalTurns.length);
     if (sourceTurn <= 0) { return ''; }
 
-    const worldState = loadWorldState();
     const lastInjected = worldState?.lastInjectedChronicleTurn;
     const sessionPending = peekChronicleSessionPending();
     if (!shouldInjectChronicle(sourceTurn, lastInjected, sessionPending)) {
@@ -1149,6 +1266,10 @@ function buildChronicleRecapContext(consume: boolean, policy: PromptBudgetPolicy
     return line;
 }
 
+function buildChronicleRecapContext(consume: boolean, policy: PromptBudgetPolicy): string {
+    return buildChronicleRecapContextWithWorldState(consume, policy, loadWorldState());
+}
+
 function peekChronicleRecapContext(policy: PromptBudgetPolicy): string {
     return buildChronicleRecapContext(false, policy);
 }
@@ -1157,17 +1278,15 @@ function consumeChronicleRecapContext(policy: PromptBudgetPolicy): string {
     return buildChronicleRecapContext(true, policy);
 }
 
-function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
-    const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return matchMemories(ws, hint, policy.memoryMatches);
-    }
-    return resolveMemoriesViaPython(ws, hint, backend, policy.memoryMatches);
-}
-
-export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
+/**
+ * Inspector builds sections and accounting from one local pass so preview text and
+ * Context Inspector decisions cannot diverge or re-trigger mutating read paths.
+ */
+function buildInspectorPromptAssembly(
+    playerAction: string,
+    policy: PromptBudgetPolicy
+): InspectorPromptAssembly {
     const ws = getWorkspacePath();
-    const policy = getPromptBudgetPolicy();
     const hint = buildHintText(playerAction, policy);
     const memoryBackend = getMemoryBackendSetting();
 
@@ -1188,74 +1307,136 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
     }));
 
     const activation = resolvePromptChunkActivationContext();
+    const worldStateSnapshot = isWorldStateEnabled()
+        ? readWorldStateSnapshotReadOnly()
+        : { state: undefined, warnings: [] as const };
+    const inspectorWorldState = worldStateSnapshot.state;
+    const assembly: InspectorPromptAssembly = {
+        sections: [],
+        specs: [],
+        inactiveIds: [],
+        emptyIds: [],
+        orderedIds: [],
+        matchedLore,
+        memoryMatches,
+        memoryBackend,
+        hintPreview: previewText(hint, 240),
+        worldStateParseWarnings: worldStateSnapshot.warnings.length > 0
+            ? worldStateSnapshot.warnings.map(formatWorldStateParseWarning)
+            : undefined,
+    };
+
+    const considerInspectorChunk = (
+        id: string,
+        label: string,
+        build: () => string | undefined
+    ): void => {
+        assembly.orderedIds.push(id);
+        if (!shouldIncludePromptChunk(id, activation)) {
+            assembly.inactiveIds.push(id);
+            return;
+        }
+        const section = buildSection(id, label, String(build() ?? ''));
+        if (!section) {
+            assembly.emptyIds.push(id);
+            return;
+        }
+        assembly.sections.push(section);
+        assembly.specs.push({
+            id,
+            text: section.text,
+            priority: resolvePromptChunkPriority(id),
+        });
+    };
+
     const lwBonds = shouldIncludePromptChunk('livingWorldNpcBonds', activation)
         || shouldIncludePromptChunk('livingWorldPlayerBonds', activation)
         || shouldIncludePromptChunk('livingWorldFactionRelations', activation)
-        ? buildLivingWorldBondPromptContexts()
+        ? buildLivingWorldBondPromptContextsFromWorldState(inspectorWorldState)
         : { npcBonds: '', playerBonds: '', factionRelations: '' };
 
-    const sections = [
-        maybeBuildSection('gameRules', 'Game Rules', activation, buildGameRulesPromptContext),
-        maybeBuildSection('narrativeTime', 'Narrative Time', activation, buildNarrativeTimePromptContext),
-        maybeBuildSection('campaignKit', 'Campaign Kit', activation, buildCampaignKitPromptContext),
-        maybeBuildSection('discoveryLedger', 'Discoveries', activation, buildDiscoveryLedgerPromptContext),
-        maybeBuildSection('campaignJobBoard', 'Campaign Job Board', activation, buildCampaignJobBoardPromptContextForGm),
-        maybeBuildSection('campaignResources', 'Campaign Resources', activation, buildCampaignResourcesPromptContext),
-        maybeBuildSection('settlement', 'Settlement', activation, () => buildSettlementPromptContext(policy)),
-        maybeBuildSection('vehicles', 'Vehicles', activation, () => buildVehiclePromptContext(policy)),
-        maybeBuildSection('mobileBase', 'Mobile Base', activation, buildMobileBasePromptContext),
-        maybeBuildSection('domain', 'Domain', activation, () => buildDomainPromptContextForGm(hint)),
-        maybeBuildSection('guild', 'Guild', activation, () => buildGuildPromptContextForGm(hint)),
-        maybeBuildSection('director', 'Scenario Director', activation, buildScenarioDirectorPromptContext),
-        maybeBuildSection('chronicle', 'Chronicle Recap', activation, () => peekChronicleRecapContext(policy)),
-        maybeBuildSection('summary', 'Story Synopsis', activation, () => {
-            const summary = loadStorySummary();
-            return summary ? `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}` : '';
-        }),
-        ws && shouldIncludePromptChunk('saga', activation)
-            ? buildSection('saga', 'Saga Archive', clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars))
-            : undefined,
-        maybeBuildSection('party', 'Party', activation, () => buildPartyPromptContext(policy)),
-        maybeBuildSection('partyDirector', 'Party Director', activation, buildPartyDirectorPromptContext),
-        ws && shouldIncludePromptChunk('memory', activation)
-            ? buildSection('memory', 'Memory Bank', buildMemoryContextForPrompt(ws, hint, policy))
-            : undefined,
-        maybeBuildSection('travelEncounters', 'Travel Encounters', activation, () => buildTravelEncounterPromptContext(playerAction)),
-        maybeBuildSection('livingWorldTravel', 'Living World Travel', activation, () => buildLivingWorldTravelPromptContext(playerAction)),
-        maybeBuildSection('worldForge', 'World', activation, () => buildWorldForgePromptContext(policy)),
-        maybeBuildSection('worldState', 'World State', activation, () => buildWorldStatePromptContext(policy)),
-        maybeBuildSection('livingWorldNpcBonds', 'LW NPC Bonds', activation, () => lwBonds.npcBonds),
-        maybeBuildSection('livingWorldPlayerBonds', 'LW Your Bonds', activation, () => lwBonds.playerBonds),
-        maybeBuildSection('livingWorldFactionRelations', 'LW Faction Relations', activation, () => lwBonds.factionRelations),
-        maybeBuildSection('worldChangeSummary', 'World Changes', activation, peekWorldChangeSummaryContext),
-        maybeBuildSection('lorebook', 'Lorebook', activation, () => buildLorebookPromptContext(hint, policy)),
-        maybeBuildSection('npcRegistry', 'NPC Awareness', activation, () => buildNpcRegistryPromptContext(policy)),
-        maybeBuildSection('vision', 'Vision', activation, () => buildVisionContext(policy)),
-    ];
-
-    const chunkMeta = buildPureCandidateSpecsWithMeta(playerAction, policy);
-    const targetChars = policy.targetTokens * 4;
-    const contextInspector = buildContextInspectorReport(chunkMeta.specs, targetChars, {
-        inactiveIds: chunkMeta.inactiveIds,
-        emptyIds: chunkMeta.emptyIds,
-        orderedIds: chunkMeta.orderedIds,
+    considerInspectorChunk('gameRules', 'Game Rules', buildGameRulesPromptContext);
+    considerInspectorChunk('narrativeTime', 'Narrative Time', buildNarrativeTimePromptContext);
+    considerInspectorChunk('campaignKit', 'Campaign Kit', buildCampaignKitPromptContext);
+    considerInspectorChunk('discoveryLedger', 'Discoveries', buildDiscoveryLedgerPromptContext);
+    considerInspectorChunk('campaignJobBoard', 'Campaign Job Board', () =>
+        buildCampaignJobBoardPromptContextFromWorldState(inspectorWorldState)
+    );
+    considerInspectorChunk('campaignResources', 'Campaign Resources', buildCampaignResourcesPromptContext);
+    considerInspectorChunk('settlement', 'Settlement', () => buildSettlementPromptContext(policy));
+    considerInspectorChunk('vehicles', 'Vehicles', () => buildVehiclePromptContext(policy));
+    considerInspectorChunk('mobileBase', 'Mobile Base', buildMobileBasePromptContext);
+    considerInspectorChunk('domain', 'Domain', () => buildDomainPromptContextForGm(hint));
+    considerInspectorChunk('guild', 'Guild', () => buildGuildPromptContextForGm(hint));
+    considerInspectorChunk('director', 'Scenario Director', buildScenarioDirectorPromptContext);
+    considerInspectorChunk('chronicle', 'Chronicle Recap', () =>
+        buildChronicleRecapContextWithWorldState(false, policy, inspectorWorldState)
+    );
+    considerInspectorChunk('summary', 'Story Synopsis', () => {
+        const summary = loadStorySummary();
+        return summary ? `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}` : '';
     });
 
-    let worldStateParseWarnings: string[] | undefined;
-    if (isWorldStateEnabled()) {
-        loadWorldState();
-        const capWarnings = peekLastWorldStateParseWarnings();
-        if (capWarnings.length > 0) {
-            worldStateParseWarnings = capWarnings.map(formatWorldStateParseWarning);
-        }
+    if (ws) {
+        considerInspectorChunk('saga', 'Saga Archive', () =>
+            clampTextForPrompt(buildSagaPromptContext(ws, policy.sagaChapters), policy.sagaChars)
+        );
     }
 
+    considerInspectorChunk('party', 'Party', () => buildPartyPromptContextReadOnly(policy));
+    considerInspectorChunk('partyDirector', 'Party Director', buildPartyDirectorPromptContextReadOnly);
+
+    if (ws) {
+        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, hint, policy));
+    }
+
+    considerInspectorChunk('travelEncounters', 'Travel Encounters', () =>
+        buildTravelEncounterPromptContext(playerAction)
+    );
+    considerInspectorChunk('livingWorldTravel', 'Living World Travel', () =>
+        buildLivingWorldTravelPromptContext(playerAction)
+    );
+    considerInspectorChunk('worldForge', 'World', () => buildWorldForgePromptContext(policy));
+    considerInspectorChunk('worldState', 'World State', () =>
+        buildWorldStatePromptContextFromWorldState(policy, inspectorWorldState)
+    );
+    considerInspectorChunk('livingWorldNpcBonds', 'LW NPC Bonds', () => lwBonds.npcBonds);
+    considerInspectorChunk('livingWorldPlayerBonds', 'LW Your Bonds', () => lwBonds.playerBonds);
+    considerInspectorChunk('livingWorldFactionRelations', 'LW Faction Relations', () => lwBonds.factionRelations);
+    considerInspectorChunk('worldChangeSummary', 'World Changes', () =>
+        buildWorldChangeSummaryContextFromWorldState(inspectorWorldState)
+    );
+    considerInspectorChunk('lorebook', 'Lorebook', () => buildLorebookPromptContext(hint, policy));
+    considerInspectorChunk('npcRegistry', 'NPC Awareness', () => buildNpcRegistryPromptContext(policy));
+    considerInspectorChunk('vision', 'Vision', () => buildVisionContext(policy));
+
+    return assembly;
+}
+
+function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
+    const backend = getMemoryBackendSetting();
+    if (backend === 'tfidf') {
+        return matchMemories(ws, hint, policy.memoryMatches);
+    }
+    return resolveMemoriesViaPython(ws, hint, backend, policy.memoryMatches);
+}
+
+export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
+    const policy = getPromptBudgetPolicy();
+    const assembly = buildInspectorPromptAssembly(playerAction, policy);
+    const targetChars = policy.targetTokens * 4;
+    const contextInspector = buildContextInspectorReport(assembly.specs, targetChars, {
+        inactiveIds: assembly.inactiveIds,
+        emptyIds: assembly.emptyIds,
+        orderedIds: assembly.orderedIds,
+    });
+
     return finalizeBreakdown(
-        sections,
-        memoryBackend,
-        matchedLore,
-        memoryMatches,
-        previewText(hint, 240),
+        assembly.sections,
+        assembly.memoryBackend,
+        assembly.matchedLore,
+        assembly.memoryMatches,
+        assembly.hintPreview,
         {
             mode: policy.mode,
             requestedMode: policy.requestedMode,
@@ -1263,7 +1444,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         },
         buildPromptBudgetLimitSpecs(policy),
         contextInspector,
-        worldStateParseWarnings
+        assembly.worldStateParseWarnings
     );
 }
 

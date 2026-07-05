@@ -434,12 +434,32 @@ export async function executeImageGeneration(
         const success = code === 0 && !timedOut;
         getPanel()?.webview.postMessage({ type: 'imageGenEnd', success });
 
-        if (success && generatedImagePath && entryId && isValidEntryId(entryId)) {
-            const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
-            if (ok) {
-                channel.appendLine(`Updated entry ${entryId} with new image`);
-            } else {
-                channel.appendLine(`Entry ${entryId} not found in game history`);
+        if (success && generatedImagePath && entryId) {
+            if (entryId === 'genesis') {
+                const panel = getPanel();
+                if (panel) {
+                    const imageUri = panel.webview.asWebviewUri(vscode.Uri.file(generatedImagePath)).toString();
+                    panel.webview.postMessage({
+                        type: 'genesisImageGenerated',
+                        success: true,
+                        imageUri
+                    });
+                }
+            } else if (isValidEntryId(entryId)) {
+                const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
+                if (ok) {
+                    channel.appendLine(`Updated entry ${entryId} with new image`);
+                } else {
+                    channel.appendLine(`Entry ${entryId} not found in game history`);
+                }
+            }
+        } else if (entryId === 'genesis') {
+            const panel = getPanel();
+            if (panel) {
+                panel.webview.postMessage({
+                    type: 'genesisImageGenerated',
+                    success: false
+                });
             }
         }
 
@@ -464,6 +484,9 @@ export async function executeImageGeneration(
         const detail = err instanceof Error ? err.message : String(err);
         channel.appendLine(`[Image Gen] Unexpected error: ${detail}`);
         getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: false });
+        if (entryId === 'genesis') {
+            getPanel()?.webview.postMessage({ type: 'genesisImageGenerated', success: false });
+        }
         if (!options?.fromQueue) {
             const opened = recordImageGenFailure(imageGenCircuit, Date.now());
             imageGenCircuit = opened.state;

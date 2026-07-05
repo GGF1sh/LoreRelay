@@ -746,23 +746,37 @@ function findGalleryIndexByImagePath(imagePath) {
     appliedToast.classList.remove('hidden');
   });
 
+  let imageGenTimeoutId = null;
+
   window.addEventListener('message', (event) => {
     const message = event.data || {};
-    if (message.type !== 'genesisProfileApplied') return;
-    startBtn.disabled = false;
-    if (message.ok) {
-      state.applied = true;
-      const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
-      appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
-      startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
-      if (Array.isArray(message.warnings) && message.warnings.length > 0) {
-        summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
-        summaryWarningsEl.classList.remove('hidden');
+    if (message.type === 'genesisProfileApplied') {
+      startBtn.disabled = false;
+      if (message.ok) {
+        state.applied = true;
+        const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
+        appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
+        startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
+        if (Array.isArray(message.warnings) && message.warnings.length > 0) {
+          summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
+          summaryWarningsEl.classList.remove('hidden');
+        }
+      } else {
+        appliedToast.textContent = T('webview.genesis.summary.appliedFailed');
       }
-    } else {
-      appliedToast.textContent = T('webview.genesis.summary.appliedFailed');
+      appliedToast.classList.remove('hidden');
+    } else if (message.type === 'genesisImageGenerated') {
+      if (imageGenTimeoutId) {
+        clearTimeout(imageGenTimeoutId);
+        imageGenTimeoutId = null;
+      }
+      generateImageBtn.disabled = false;
+      generateImageToast.classList.add('hidden');
+      if (message.success && message.imageUri) {
+        applyPortrait(portraitImg, portraitFallback, portraitCaption, message.imageUri);
+        applyPortrait(summaryPortraitImg, summaryPortraitFallback, summaryPortraitCaption, message.imageUri);
+      }
     }
-    appliedToast.classList.remove('hidden');
   });
 
   if (copyPromptBtn) {
@@ -795,10 +809,12 @@ function findGalleryIndexByImagePath(imagePath) {
       });
       generateImageBtn.disabled = true;
       generateImageToast.classList.remove('hidden');
-      setTimeout(() => {
+      if (imageGenTimeoutId) clearTimeout(imageGenTimeoutId);
+      imageGenTimeoutId = setTimeout(() => {
         generateImageToast.classList.add('hidden');
         generateImageBtn.disabled = false;
-      }, 6000);
+        imageGenTimeoutId = null;
+      }, 90000);
     });
   }
 })();
@@ -5375,6 +5391,74 @@ function escapeHtml(str) {
             section.classList.remove('hidden');
             render();
         }
+        if (message && message.type === 'debugCapabilities') {
+            const show = !!(message.showDebugConsole || message.bulkWorldSim);
+            if (!show) {
+                section.classList.add('hidden');
+            }
+        }
+    });
+})();
+
+/* --- 80b-state-orchestrator.js --- */
+/* global window, document, vscode */
+(function () {
+    const section = document.getElementById('inspector-state-orchestrator-section');
+    const previewBtn = document.getElementById('inspector-so-preview-btn');
+    const retryBtn = document.getElementById('inspector-so-retry-btn');
+    const mermaidEl = document.getElementById('inspector-so-mermaid');
+    const errorEl = document.getElementById('inspector-so-error');
+
+    if (!section || !previewBtn || !retryBtn || !mermaidEl) {
+        return;
+    }
+
+    // Bind actions
+    previewBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'previewGmTurnTransactionPlan' });
+    });
+
+    retryBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'retryFailedTransactions' });
+    });
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message && message.type === 'stateOrchestratorUpdate') {
+            section.classList.remove('hidden');
+
+            // Show error message if exists
+            if (message.errorMessage) {
+                if (errorEl) {
+                    errorEl.textContent = `Error: ${message.errorMessage}`;
+                    errorEl.classList.remove('hidden');
+                }
+            } else {
+                if (errorEl) {
+                    errorEl.classList.add('hidden');
+                }
+            }
+
+            // Render mermaid chart
+            if (message.mermaid && window.mermaid) {
+                mermaidEl.textContent = message.mermaid;
+                // Add data-processed="false" so mermaid.run knows to parse it
+                mermaidEl.removeAttribute('data-processed');
+                window.mermaid.run({ nodes: [mermaidEl] })
+                    .catch((e) => console.error('State Orchestrator Mermaid render error:', e));
+            }
+
+            // Disable/enable retry button based on status
+            if (message.status === 'committed') {
+                retryBtn.disabled = true;
+            } else if (message.status === 'rolled_back' || message.status === 'partial_commit_warn') {
+                retryBtn.disabled = false;
+            } else {
+                retryBtn.disabled = true; // planned/aborted etc.
+            }
+        }
+
+        // Hide if debug capabilities are disabled
         if (message && message.type === 'debugCapabilities') {
             const show = !!(message.showDebugConsole || message.bulkWorldSim);
             if (!show) {

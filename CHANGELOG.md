@@ -21,6 +21,8 @@
 
 ### Added
 
+- **Genesis Guide image feedback loop** - Genesis image generation now uses the reserved `genesis` entry channel: the host returns `genesisImageGenerated` with the generated Webview URI, and the wizard swaps the guide/summary portrait to the generated image instead of leaving the button in a timed-only pending state.
+
 - **Debug Trace Deep Emit P2** - extended deep trace emitters for commerce price shocks, faction conflict/kinship changes, and NPC need divergence, with host capture wrappers and simulation/Living World wiring. Trace rows remain `gm_safe`/bounded and failures are swallowed so debug tracing cannot alter simulation behavior.
 
 - **State Orchestrator SO3 executor preview** - `stateOrchestratorExecutorCore.ts` / `stateOrchestratorExecutorHost.ts`: experimental transaction execution sequence for SO2 plans (`backup` / `write_tmp` / `commit_rename` / `cleanup_bak`), host-side temp write + rename commit, rollback-from-backup tests, `queue_retry` policy plumbing, and Inspector preview graph (`80b-state-orchestrator.js`). Manual retry is intentionally non-authoritative/no-op until a real persisted retry queue lands; existing GM-turn write paths are not replaced.

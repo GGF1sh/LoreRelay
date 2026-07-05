@@ -1399,7 +1399,7 @@ async function handleGenesisGenerateImage(raw: unknown): Promise<void> {
     });
     const prompt = profile.comfyUiStylePrompt.slice(0, 4000);
     if (!prompt) { return; }
-    await runImageGeneration(prompt, 'illustrious');
+    await runImageGeneration(prompt, 'illustrious', 'genesis');
 }
 
 async function exportCharacterCard(payload: any): Promise<void> {

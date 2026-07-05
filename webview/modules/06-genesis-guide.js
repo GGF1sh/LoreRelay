@@ -527,23 +527,37 @@
     appliedToast.classList.remove('hidden');
   });
 
+  let imageGenTimeoutId = null;
+
   window.addEventListener('message', (event) => {
     const message = event.data || {};
-    if (message.type !== 'genesisProfileApplied') return;
-    startBtn.disabled = false;
-    if (message.ok) {
-      state.applied = true;
-      const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
-      appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
-      startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
-      if (Array.isArray(message.warnings) && message.warnings.length > 0) {
-        summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
-        summaryWarningsEl.classList.remove('hidden');
+    if (message.type === 'genesisProfileApplied') {
+      startBtn.disabled = false;
+      if (message.ok) {
+        state.applied = true;
+        const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
+        appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
+        startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
+        if (Array.isArray(message.warnings) && message.warnings.length > 0) {
+          summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
+          summaryWarningsEl.classList.remove('hidden');
+        }
+      } else {
+        appliedToast.textContent = T('webview.genesis.summary.appliedFailed');
       }
-    } else {
-      appliedToast.textContent = T('webview.genesis.summary.appliedFailed');
+      appliedToast.classList.remove('hidden');
+    } else if (message.type === 'genesisImageGenerated') {
+      if (imageGenTimeoutId) {
+        clearTimeout(imageGenTimeoutId);
+        imageGenTimeoutId = null;
+      }
+      generateImageBtn.disabled = false;
+      generateImageToast.classList.add('hidden');
+      if (message.success && message.imageUri) {
+        applyPortrait(portraitImg, portraitFallback, portraitCaption, message.imageUri);
+        applyPortrait(summaryPortraitImg, summaryPortraitFallback, summaryPortraitCaption, message.imageUri);
+      }
     }
-    appliedToast.classList.remove('hidden');
   });
 
   if (copyPromptBtn) {
@@ -576,10 +590,12 @@
       });
       generateImageBtn.disabled = true;
       generateImageToast.classList.remove('hidden');
-      setTimeout(() => {
+      if (imageGenTimeoutId) clearTimeout(imageGenTimeoutId);
+      imageGenTimeoutId = setTimeout(() => {
         generateImageToast.classList.add('hidden');
         generateImageBtn.disabled = false;
-      }, 6000);
+        imageGenTimeoutId = null;
+      }, 90000);
     });
   }
 })();

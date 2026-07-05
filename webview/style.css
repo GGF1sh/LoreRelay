@@ -3400,6 +3400,27 @@ textarea:focus-visible {
     color: var(--text-success);
 }
 
+/* --- 90b-state-orchestrator.css --- */
+#inspector-state-orchestrator-section {
+    margin-top: 1rem;
+    border-top: 1px solid var(--vscode-panel-border, #3c3c3c);
+    padding-top: 1rem;
+}
+
+#inspector-so-mermaid {
+    margin-top: 0.5rem;
+    overflow-x: auto;
+}
+
+.so-error-msg {
+    color: var(--vscode-errorForeground, #f48771);
+    background-color: rgba(244, 135, 113, 0.1);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    font-size: 12px;
+}
+
 /* --- 95-character-creator.css --- */
 /* ============================
    Character Creator / Editor Modal

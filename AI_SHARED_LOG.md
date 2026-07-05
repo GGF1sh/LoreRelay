@@ -80,6 +80,14 @@
 
 ---
 
+## 2026-07-05 JST - Codex - Genesis image generation feedback
+
+- Wired Genesis image generation to the reserved `genesis` image channel so ComfyUI success/failure reports back to the wizard.
+- Webview now clears the pending image state on `genesisImageGenerated` and swaps the guide/summary portrait when an image URI is returned.
+- Verification: `check_i18n_keys.js` and `npm run compile`.
+
+---
+
 ## 2026-07-05 JST - Codex - Debug Trace Deep Emit P2
 
 - Stabilized the pending P2 emitters for commerce price bumps, faction relationship shifts, and NPC need divergence.

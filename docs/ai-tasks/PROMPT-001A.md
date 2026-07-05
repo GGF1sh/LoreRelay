@@ -3,8 +3,8 @@
 | Field | Description |
 |:---|:---|
 | **Task ID** | `PROMPT-001A` |
-| **Status** | BULK_AUDIT |
-| **As-of Commit** | `6af4bc5` code baseline; implementation branch tip `e1b4715`; verification passed on main |
+| **Status** | SECOND_REVIEW |
+| **As-of Commit** | `6af4bc5` code baseline; implementation branch tip `e1b4715`; bulk audit passed on main |
 | **Depends On** | None for staging implementation; terminal DONE depends on `PROMPT-001C` integration and the truthful Accepted boundary from `RUNTIME-002A` |
 | **Gate Report V1** | [`PROMPT-001A-GATE-REPORT.md`](PROMPT-001A-GATE-REPORT.md) (Claude Opus 4.8 — superseded / returned) |
 | **Adversarial Review V1** | [`PROMPT-001A-ADVERSARIAL-REVIEW.md`](PROMPT-001A-ADVERSARIAL-REVIEW.md) (Gemini 3.1 Pro) |
@@ -14,6 +14,7 @@
 | **Canonical Implementation Amendment** | [`PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md`](PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md) |
 | **Verification Review** | [`PROMPT-001A-VERIFYING-REVIEW.md`](PROMPT-001A-VERIFYING-REVIEW.md) |
 | **Verification Result** | [`PROMPT-001A-VERIFYING-RESULT.md`](PROMPT-001A-VERIFYING-RESULT.md) |
+| **Bulk Audit Report** | [`PROMPT-001A-BULK-AUDIT-REPORT.md`](PROMPT-001A-BULK-AUDIT-REPORT.md) |
 
 ## Objective
 
@@ -70,7 +71,7 @@ Only the explicit legacy production path may preserve these staging side effects
 ### Current call-site ownership
 
 - `buildGmPromptBreakdown` / Inspector → pure path
-- `buildGmPromptChunkSpecs` → `buildGmPromptContext` / production → legacy production path
+- `buildGmPromptContext` / production → legacy production path
 
 Any additional caller discovered during implementation is a stop condition. Report it before expanding scope.
 
@@ -97,11 +98,14 @@ Any additional caller discovered during implementation is a stop condition. Repo
 
 ## Touch Set
 
-Primary and expected sole source file:
+Primary source file:
 
 - `src/gmPromptBuilder.ts`
 
-Tests may be added/updated only for PROMPT-001A behavior.
+Targeted tests:
+
+- `scripts/test_prompt_candidate_purity.js`
+- `scripts/run_all_tests.js` registration only
 
 ## Stage Acceptance Criteria
 
@@ -114,45 +118,95 @@ The staging implementation may pass its own quality gates only when all are true
 5. Production uses an explicit named legacy production path, not a boolean/default mode.
 6. Production prompt output remains equivalent to the current baseline for the same state/action/configuration.
 7. Production legacy marker values and pending-clear behavior remain equivalent to the current baseline during staging.
-8. No source file outside `src/gmPromptBuilder.ts` is changed without scope review.
+8. No forbidden source path is changed.
 9. No provider runner, TurnResult acceptance path, budgeter core, or RUNTIME-002A code is modified.
 
-## Required Tests
+## Quality Evidence to Date
 
-- pure candidate path leaves both durable markers unchanged;
-- repeated pure builds leave markers and `chronicleSessionPending` unchanged;
-- `buildGmPromptBreakdown` / `postPromptContextToWebview` isolation;
-- production prompt output parity with baseline;
-- production legacy marker/pending parity with baseline;
-- explicit-path structural test/review: no boolean/default authority switch;
-- flag/caller inventory: only Inspector uses pure entry and production uses legacy entry;
-- diff-scope check: no unrelated source changes.
+### Implementation
 
-## Bulk Audit Scope
+Branch:
 
-Audit the complete branch delta:
+`task/PROMPT-001A-option-c-staging`
 
-`0289b347f6bef4b5c524d4fe959b7d9434d9ee58..e1b47150f0932c68eb427a656048e289503cfc72`
+Tip:
 
-The audit must verify at minimum:
+`e1b47150f0932c68eb427a656048e289503cfc72`
 
-- all call sites of `buildGmPromptChunkSpecsWithMeta`, `buildPureCandidateSpecsWithMeta`, `buildLegacyProductionSpecsWithMeta`, and `buildLegacyProductionSpecs`;
-- no hidden/default/boolean authority selection;
-- pure path has no consume/mark/clear reachability for the two consumables;
-- production path still reaches legacy consume authority and still evicts in `buildGmPromptContext`;
-- no other source file in the branch changes behavior;
-- targeted test is non-vacuous and directly proves pending isolation;
-- test registration is limited to the new targeted test;
-- no source-string compatibility test was weakened or removed;
-- no new finding is silently hidden by the staging design.
+Changed files:
+
+- `src/gmPromptBuilder.ts`
+- `scripts/test_prompt_candidate_purity.js`
+- `scripts/run_all_tests.js`
+
+### Verification
+
+- source authority split: PASS
+- pending-isolation proof gap found and repaired
+- local compile: PASS
+- targeted/related tests: PASS
+- full local suite: `220/220` PASS
+- GitHub CI/status checks: none
+
+### Bulk Audit
+
+Gemini 3.5 Flash verdict:
+
+`BULK_AUDIT_PASS`
+
+No hidden caller, authority leak, forbidden-file change, test bypass, chunk-order change, priority change, or new Finding Candidate was reported.
+
+## Second Review Scope
+
+SECOND_REVIEW must inspect only the merge-critical residual questions below. Do not restart the full Architecture Gate.
+
+### 1. Strategy object mutability / authority substitution
+
+Confirm whether mutable top-level strategy objects or callback references could be reassigned/mutated at runtime in current module scope, allowing pure authority to be redirected to consume functions.
+
+Decide whether current `const` object references are sufficient or whether `Object.freeze` / `Readonly` / another minimal hardening is required.
+
+Do not demand hardening merely for style; require it only if a concrete reachable mutation path exists.
+
+### 2. Exact production parity claim
+
+Verify whether the branch truly preserves production behavior for Chronicle and World Change Summary across:
+
+- activation inactive;
+- empty content;
+- successful content build;
+- marker write failure / thrown consume callback;
+- budget eviction after consumption.
+
+The staging contract intentionally preserves the bad early-consumption semantics. The question is whether the wrapper/strategy refactor accidentally changes timing, ordering, exception propagation, or output.
+
+### 3. Test structural fragility vs merge safety
+
+Assess whether regex/source-text tests are sufficiently narrow for this task or create a false sense of safety. A test may be brittle without blocking merge; distinguish:
+
+- merge-blocking correctness gap;
+- maintainability note;
+- no issue.
+
+Do not redesign the project test architecture.
+
+### 4. Lifecycle / merge decision
+
+If SECOND_REVIEW passes:
+
+- branch may be merged into main;
+- PROMPT-001A must not go to DONE;
+- after merge and post-merge smoke confirmation, transition to `BLOCKED (Waiting for PROMPT-001C)`.
+
+If merge exposes conflict or source drift since base, return to VERIFYING rather than silently resolving authority-sensitive changes.
 
 ## Lifecycle / Done Semantics
 
-Normal quality flow remains mandatory:
+Normal quality flow:
 
 `READY_TO_IMPLEMENT → IMPLEMENTING → VERIFYING → BULK_AUDIT → SECOND_REVIEW`
 
-After SECOND_REVIEW passes:
+After SECOND_REVIEW passes and the branch is merged with post-merge smoke confirmation:
 
 - if PROMPT-001C is incomplete, transition to `BLOCKED (Waiting for PROMPT-001C)`;
 - do not transition to DONE.
@@ -186,4 +240,4 @@ PROMPT-001A reaches terminal DONE only after downstream integration proves:
 
 ## Current Lifecycle Note
 
-Implementation branch tip `e1b4715` passed verification review and is now in BULK_AUDIT. The branch remains unmerged.
+Implementation branch tip `e1b4715` passed VERIFYING and BULK_AUDIT. It remains unmerged and is now in SECOND_REVIEW.

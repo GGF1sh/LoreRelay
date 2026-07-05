@@ -123,6 +123,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_agentic_discovery_ops.js' },
     { category: 'unit', file: 'test_prompt_context_budget.js' },
     { category: 'unit', file: 'test_prompt_budget_eviction.js' },
+    { category: 'unit', file: 'test_context_budgeter.js' },
     { category: 'unit', file: 'test_game_rules_load.js' },
     { category: 'unit', file: 'test_context_inspector_core.js' },
     { category: 'unit', file: 'test_context_inspector_integration.js' },

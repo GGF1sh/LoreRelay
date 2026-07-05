@@ -166,8 +166,17 @@ fs.writeFileSync(path.join(WS_PATH, 'game_rules.json'), JSON.stringify({
     enableWorldObservatory: false,
 }, null, 2));
 
+// lastInjectedChronicleTurn is deliberately pre-set to the same value that the single
+// state_journal.ndjson line below resolves to (sourceTurn = journalTurns.length = 1).
+// With lastInjectedTurn === sourceTurn, shouldInjectChronicle(sourceTurn, lastInjected, pending)
+// reduces to `pending` alone (the `lastInjectedTurn < sourceTurn` disjunct is false). This makes
+// a second pure build's chronicle visibility a direct proof that chronicleSessionPending — which
+// starts true at module load — was NOT cleared by the first pure build. (An unset
+// lastInjectedChronicleTurn would let `-1 < sourceTurn` mask a wrongly-cleared pending on the
+// second call, which is exactly the gap being closed here.)
 fs.writeFileSync(path.join(WS_PATH, 'world_state.json'), JSON.stringify({
     worldTurn: 3,
+    lastInjectedChronicleTurn: 1,
     recentChanges: [
         {
             id: 'wce_test_1',
@@ -242,8 +251,12 @@ function readWorldState() {
 
 try {
     const before = readWorldState();
-    if (before.lastInjectedWorldChangeSummaryTurn !== undefined || before.lastInjectedChronicleTurn !== undefined) {
-        fail('fixture setup invalid: durable markers should start unset');
+    if (before.lastInjectedWorldChangeSummaryTurn !== undefined) {
+        fail('fixture setup invalid: worldChangeSummary marker should start unset');
+    } else if (before.lastInjectedChronicleTurn !== 1) {
+        fail(`fixture setup invalid: lastInjectedChronicleTurn should start at 1 (got ${JSON.stringify(before.lastInjectedChronicleTurn)})`);
+    } else {
+        ok('fixture starts with lastInjectedChronicleTurn === sourceTurn (1) and worldChangeSummary marker unset');
     }
 
     // --- pure candidate path (Inspector) must not advance durable markers ---
@@ -251,8 +264,8 @@ try {
     const afterPure1 = readWorldState();
     if (afterPure1.lastInjectedWorldChangeSummaryTurn !== undefined) {
         fail('pure candidate path (buildGmPromptBreakdown) advanced lastInjectedWorldChangeSummaryTurn');
-    } else if (afterPure1.lastInjectedChronicleTurn !== undefined) {
-        fail('pure candidate path (buildGmPromptBreakdown) advanced lastInjectedChronicleTurn');
+    } else if (afterPure1.lastInjectedChronicleTurn !== 1) {
+        fail(`pure candidate path (buildGmPromptBreakdown) changed lastInjectedChronicleTurn (got ${JSON.stringify(afterPure1.lastInjectedChronicleTurn)})`);
     } else {
         ok('pure candidate path (buildGmPromptBreakdown) leaves durable markers unchanged');
     }
@@ -274,25 +287,32 @@ try {
     }
 
     // --- repeated pure builds must leave markers and chronicleSessionPending unchanged ---
+    // With lastInjectedChronicleTurn === sourceTurn (1) in the fixture, shouldInjectChronicle's
+    // `lastInjectedTurn < sourceTurn` disjunct is false, so this second call's chronicle
+    // visibility depends entirely on chronicleSessionPending still being true. If the first pure
+    // build had wrongly cleared it, this second call would see no chronicle section at all —
+    // making its presence a direct proof of pending isolation, not just an unchanged marker value.
     const breakdown2 = buildGmPromptBreakdown('look around again');
     const afterPure2 = readWorldState();
-    if (afterPure2.lastInjectedWorldChangeSummaryTurn !== undefined || afterPure2.lastInjectedChronicleTurn !== undefined) {
-        fail('repeated pure candidate builds advanced durable markers');
+    if (afterPure2.lastInjectedWorldChangeSummaryTurn !== undefined) {
+        fail('repeated pure candidate builds advanced lastInjectedWorldChangeSummaryTurn');
+    } else if (afterPure2.lastInjectedChronicleTurn !== 1) {
+        fail(`repeated pure candidate builds changed lastInjectedChronicleTurn (got ${JSON.stringify(afterPure2.lastInjectedChronicleTurn)})`);
     } else {
         ok('repeated pure candidate builds leave durable markers unchanged');
     }
     const chronicleSection2 = (breakdown2.sections || []).find((s) => s.id === 'chronicle');
     if (!chronicleSection2 || !chronicleSection2.text.includes('[Previously]')) {
-        fail('repeated pure build lost chronicle content — chronicleSessionPending must not be cleared by the pure path');
+        fail('second pure build lost chronicle content — with lastInjectedChronicleTurn already === sourceTurn, this proves chronicleSessionPending was cleared by the first pure build (regression)');
     } else {
-        ok('repeated pure build still surfaces chronicle content (chronicleSessionPending untouched by pure path)');
+        ok('second pure build still surfaces chronicle content despite lastInjectedChronicleTurn === sourceTurn — direct proof chronicleSessionPending was not cleared by the pure path');
     }
 
     // --- Inspector/Preview isolation: buildGmPromptBreakdown is the exact payload
     // builder behind postPromptContextToWebview, already exercised above. Assert
     // idempotence explicitly (no hidden one-time side effect on first call).
     const afterPure3 = readWorldState();
-    if (afterPure3.lastInjectedWorldChangeSummaryTurn !== undefined || afterPure3.lastInjectedChronicleTurn !== undefined) {
+    if (afterPure3.lastInjectedWorldChangeSummaryTurn !== undefined || afterPure3.lastInjectedChronicleTurn !== 1) {
         fail('Inspector/Preview payload builder advanced durable markers across repeated calls');
     } else {
         ok('Inspector/Preview payload builder (buildGmPromptBreakdown) is consumption-isolated across repeated calls');

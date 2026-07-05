@@ -4805,6 +4805,328 @@ body[data-ui-theme="steampunk"] {
 ::-webkit-scrollbar-thumb { background: rgba(140, 160, 200, 0.18); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(var(--vr-accent-rgb), 0.45); }
 
+/* ============================================================
+   Visual Refresh Wave 2 — World タブ / 拠点 / 各 Viewer の質感統一
+   （85-world.js が実行時に <style> を注入するクラス群は、注入側が
+   document 順で勝つため #pane-world 等の id プレフィックスで
+   詳細度を上げて上書きする。89/98/99 は CSS_MODULE_ORDER で本ファイル
+   より後に連結されるため、同様に id プレフィックスが必要）
+   ============================================================ */
+
+/* ----- World タブ: <details> セクションをガラスカードに ----- */
+#world-content > details,
+#world-content details#world-map-details {
+  background: linear-gradient(170deg, rgba(18, 22, 38, 0.45), rgba(8, 10, 20, 0.35));
+  border: 1px solid var(--vr-hairline);
+  border-radius: 12px;
+  padding: 0.55rem 0.75rem 0.7rem;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+#world-content > details > summary {
+  padding: 0.3rem 0.5rem;
+  margin: -0.2rem -0.35rem 0.5rem;
+  border-radius: 8px;
+  border-left: 3px solid rgba(var(--vr-accent-rgb), 0.55);
+  background: linear-gradient(90deg, rgba(var(--vr-accent-rgb), 0.09), transparent 60%);
+  letter-spacing: 0.4px;
+  transition: background 0.15s;
+  list-style-position: inside;
+}
+
+#world-content > details > summary:hover {
+  background: linear-gradient(90deg, rgba(var(--vr-accent-rgb), 0.16), rgba(var(--vr-accent-rgb), 0.03) 70%);
+}
+
+#world-content > details > summary::marker {
+  color: rgba(var(--vr-accent-rgb), 0.75);
+  font-size: 0.8em;
+}
+
+#world-content > details:not([open]) {
+  opacity: 0.85;
+}
+
+/* ----- World タブ: マップモードバーをセグメントコントロール風に ----- */
+#pane-world .world-map-mode-bar {
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--vr-hairline);
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+#pane-world .world-map-mode-btn {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+#pane-world .world-map-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#pane-world .world-map-mode-btn.is-active {
+  background: linear-gradient(180deg, rgba(var(--vr-accent-rgb), 0.30), rgba(var(--vr-accent-rgb), 0.16));
+  border-color: rgba(var(--vr-accent-rgb), 0.45);
+  color: #eaf1ff;
+  box-shadow: 0 0 8px rgba(var(--vr-accent-rgb), 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ----- World タブ: 市場/請願/NPC/クエスト等のカード面を統一 ----- */
+#pane-world .world-market-card,
+#pane-world .domain-petition-card,
+#pane-world .world-npc-card,
+#pane-world .quest-item {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+#pane-world .world-market-card:hover,
+#pane-world .world-npc-card:hover,
+#pane-world .quest-item:hover {
+  border-color: rgba(var(--vr-accent-rgb), 0.40);
+  box-shadow: 0 4px 14px rgba(var(--vr-accent-rgb), 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+#pane-world .quest-item.status-active {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: linear-gradient(165deg, rgba(245, 158, 11, 0.10), rgba(245, 158, 11, 0.03));
+}
+
+#pane-world .world-market-title {
+  color: var(--vr-accent-bright);
+}
+
+#pane-world .world-market-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- World タブ: ステータスバー（Domain/Guild）をアクセントグラデ + 発光に ----- */
+#pane-world .domain-stat-fill,
+#pane-world .guild-stat-fill {
+  background: linear-gradient(90deg, rgba(var(--vr-accent-rgb), 0.85), rgba(var(--vr-accent2-rgb), 0.9));
+  box-shadow: 0 0 6px rgba(var(--vr-accent-rgb), 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+#pane-world .domain-stat-bar,
+#pane-world .guild-stat-bar {
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+#pane-world .domain-rank-badge,
+#pane-world .guild-rank-badge {
+  border-color: rgba(var(--vr-accent-rgb), 0.45);
+  background: rgba(var(--vr-accent-rgb), 0.12);
+  border-radius: 999px;
+  padding: 0.08rem 0.5rem;
+}
+
+/* ----- チップ類: ピル化 + アクセントのほのかな色味 ----- */
+.tag-item,
+#pane-world .domain-officer-chip,
+#pane-world .domain-action-chip,
+#pane-vehicles .vehicle-module-chip,
+#pane-vehicles .mb-facility-chip,
+#pane-vehicles .mb-stock-chip {
+  border-radius: 999px;
+  background: rgba(var(--vr-accent-rgb), 0.08);
+  border: 1px solid rgba(var(--vr-accent-rgb), 0.22);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#pane-world .domain-action-chip:hover {
+  background: rgba(var(--vr-accent-rgb), 0.20);
+  border-color: rgba(var(--vr-accent-rgb), 0.55);
+}
+
+#pane-world .domain-action-chip.is-selected {
+  background: rgba(var(--vr-accent-rgb), 0.28);
+  border-color: rgba(var(--vr-accent-rgb), 0.75);
+  box-shadow: 0 0 8px rgba(var(--vr-accent-rgb), 0.22);
+}
+
+/* ----- 拠点（Settlement）ビュー: 詳細カード・ツールバー・展開パネル ----- */
+#pane-world .world-settlement-detail,
+#pane-world .world-settlement-marker-fallback,
+#pane-world .world-settlement-expand-panel,
+#pane-world .world-diorama-detail,
+#pane-world .world-diorama-marker-fallback {
+  background: linear-gradient(170deg, rgba(18, 22, 38, 0.60), rgba(8, 10, 20, 0.50));
+  border: 1px solid rgba(var(--vr-accent-rgb), 0.20);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+#pane-world .world-settlement-layer-btn,
+#pane-world .world-settlement-zoom-btn,
+#pane-world .world-diorama-zoom-btn {
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.30);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+#pane-world .world-settlement-layer-btn:hover,
+#pane-world .world-settlement-zoom-btn:hover,
+#pane-world .world-diorama-zoom-btn:hover {
+  border-color: rgba(var(--vr-accent-rgb), 0.50);
+  background: rgba(var(--vr-accent-rgb), 0.12);
+  color: var(--vr-accent-bright);
+}
+
+#pane-world .world-settlement-layer-btn.is-active {
+  background: linear-gradient(180deg, rgba(var(--vr-accent-rgb), 0.30), rgba(var(--vr-accent-rgb), 0.16));
+  border-color: rgba(var(--vr-accent-rgb), 0.55);
+  color: #eaf1ff;
+  box-shadow: 0 0 8px rgba(var(--vr-accent-rgb), 0.20);
+}
+
+#pane-world .world-settlement-stage,
+#pane-world .world-diorama-stage {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--vr-hairline);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* ----- Vehicles / Mobile Base パネル: ガレージカードの質感 ----- */
+#pane-vehicles .vehicle-list-item {
+  border-radius: 10px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+#pane-vehicles .vehicle-list-item:hover {
+  border-color: rgba(var(--vr-accent-rgb), 0.45);
+  box-shadow: 0 4px 14px rgba(var(--vr-accent-rgb), 0.12);
+  transform: translateY(-1px);
+}
+
+#pane-vehicles .vehicle-list-item.is-selected {
+  border-color: rgba(var(--vr-accent-rgb), 0.70);
+  box-shadow: 0 0 0 1px rgba(var(--vr-accent-rgb), 0.45) inset, 0 0 12px rgba(var(--vr-accent-rgb), 0.15);
+}
+
+#pane-vehicles .vehicle-detail-card,
+#pane-vehicles .mobile-base-panel-card {
+  border-radius: 12px;
+  background: linear-gradient(170deg, rgba(18, 22, 38, 0.55), rgba(8, 10, 20, 0.45));
+  border: 1px solid var(--vr-hairline);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+#pane-vehicles .vehicle-bar-fill {
+  background: linear-gradient(90deg, rgba(var(--vr-accent-rgb), 0.85), rgba(var(--vr-accent2-rgb), 0.9));
+  box-shadow: 0 0 5px rgba(var(--vr-accent-rgb), 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+#pane-vehicles .vehicle-bar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 燃料低下/空はバー色を警告系のまま維持（fill の色分岐クラスを尊重） */
+#pane-vehicles .vehicle-bar-fill.vehicle-fuel-low {
+  background: linear-gradient(90deg, #e2a13c, #c46a20);
+  box-shadow: 0 0 5px rgba(226, 161, 60, 0.35);
+}
+
+#pane-vehicles .vehicle-bar-fill.vehicle-fuel-empty {
+  background: linear-gradient(90deg, #d24646, #8f1f2e);
+  box-shadow: 0 0 5px rgba(210, 70, 70, 0.35);
+}
+
+/* ----- World Observatory: 観測カードと年代記 ----- */
+#world-observatory .observatory-market-card {
+  border-radius: 10px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#world-observatory .observatory-market-card:hover {
+  border-color: rgba(var(--vr-accent-rgb), 0.40);
+  box-shadow: 0 4px 14px rgba(var(--vr-accent-rgb), 0.10);
+}
+
+#world-observatory .observatory-turn-chip {
+  border-radius: 999px;
+  background: rgba(var(--vr-accent-rgb), 0.12);
+  border: 1px solid rgba(var(--vr-accent-rgb), 0.30);
+}
+
+#world-observatory .observatory-chronicle-row {
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+#world-observatory .observatory-chronicle-row:hover {
+  background: rgba(var(--vr-accent-rgb), 0.07);
+}
+
+#world-observatory .observatory-chronicle-dot {
+  box-shadow: 0 0 6px rgba(var(--vr-accent-rgb), 0.45);
+}
+
+/* ----- Status サイドバー: ブロックをカード化、値にメリハリ ----- */
+#pane-status .status-block {
+  border-top: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+#pane-status .status-label {
+  letter-spacing: 0.8px;
+}
+
+#pane-status .status-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- ギャラリー: サムネイルにホバーの持ち上がり ----- */
+.gallery-thumb {
+  border-radius: 8px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.gallery-item:hover .gallery-thumb {
+  transform: scale(1.03);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 10px rgba(var(--vr-accent-rgb), 0.18);
+}
+
+/* ----- 縮小モーション設定を尊重（Wave 2 で追加した transition/transform を無効化） ----- */
+@media (prefers-reduced-motion: reduce) {
+  #pane-world .world-market-card,
+  #pane-world .world-npc-card,
+  #pane-world .quest-item,
+  #pane-vehicles .vehicle-list-item,
+  #world-observatory .observatory-market-card,
+  .gallery-thumb {
+    transition: none;
+  }
+
+  #pane-world .world-market-card:hover,
+  #pane-world .world-npc-card:hover,
+  #pane-world .quest-item:hover,
+  #pane-vehicles .vehicle-list-item:hover,
+  .gallery-item:hover .gallery-thumb {
+    transform: none;
+  }
+}
+
 /* --- 98-settlement-isometric.css --- */
 #world-settlement {
     position: relative;

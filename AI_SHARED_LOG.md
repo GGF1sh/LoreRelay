@@ -28,6 +28,17 @@
 
 ---
 
+## 2026-07-05 JST - Claude - Visual Refresh Wave 2（World/拠点/Viewer パネルの豪華化, CSSのみ）
+
+- `97-visual-refresh.css` 末尾に Wave 2 レイヤーを追加。対象: World タブ全セクション（`<details>`をガラスカード+アクセント見出し化、マップモードバーをセグメントコントロール化、市場/NPC/クエスト/請願カードの質感統一+ホバー浮上、Domain/Guild ステータスバーのグラデ+発光）、拠点ビュー（Settlement/Diorama の詳細・展開パネル・ツールバー）、Vehicles/Mobile Base（ガレージカード、燃料/耐久バー — low/empty の警告色は分岐クラスで維持）、Observatory（市場カード・年代記行・ターンチップ）、Status サイドバー（状態/所持品/スキルをカード化、数値は tabular-nums）、ギャラリーサムネイルのホバー。
+- 全て既存の `--vr-accent-rgb` テーマ変数経由なので、世界観テーマ切替で全パネルが一括で配色追従する（eastern で実測確認済み）。`prefers-reduced-motion` で新規 transition を無効化。
+- **詳細度の罠（今後の参考）**: `85-world.js` が実行時に注入する `<style>` は document 順で linked CSS より後になり同点勝ちするため、上書きは `#pane-world` 等の id プレフィックスが必須。また `CSS_MODULE_ORDER` では `89-vehicles.css`/`98`/`99` が `97-visual-refresh.css` より**後**に連結されるため、これらのクラスも同様に id プレフィックスが要る。
+- 検証: 静的ハーネスに World/Status/Vehicles のフィクスチャDOMを注入し、既定テーマ+eastern テーマでスクリーンショット確認。`node scripts/build-webview.js` clean。
+- **並行開発メモ**: 本作業中、別AIが `src/livingWorldBridge.ts` 等（Deep Emit P2 と思われる）を編集中で main ツリーの `npm run compile`/`npm test` が一時的に落ちる状態だった。切り分けのため一時 git worktree（HEAD + 本CSSのみ、node_modules と `../lorerelay-world-kit` はジャンクションで共有 — **テストが兄弟ディレクトリの fixture を参照するため worktree 検証では必須**）で実行し、**212/212 PASS** を確認済み。コミットは CSS ソース+build成果物 style.css のみ（script.js は他AIのWIPを含むため未ステージ）。
+- P2候補: ガレージ2カラムの狭幅折返し改善（89-vehicles.css 側）、World タブ NPC カードのポートレート発光、チャットログ側の世界イベント通知カード化。
+
+---
+
 ## 2026-07-05 JST - Claude - Genesis Guide UX polish (Webview-only)
 
 - **バグ修正**: 最終ステップが生キー表示になっていた（JSは `step.imageGenerationWanted.*` を参照、ロケールは `step.images.*` のみ定義）→ `06-genesis-guide.js` にキーエイリアスを追加して解消。

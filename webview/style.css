@@ -5150,7 +5150,16 @@ body[data-ui-theme="steampunk"] {
     flex-wrap: wrap;
     gap: 0.45rem;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: 0.45rem;
+}
+
+/* P2: manual day/dusk/night toggle for the isometric viewer (no structured
+   world-clock data exists to drive this automatically — see 86b-settlement-isometric.js). */
+.world-settlement-time-btn {
+    font-size: 1em;
+    line-height: 1;
+    padding: 0.15rem 0.4rem;
 }
 
 .world-settlement-layer-bar,

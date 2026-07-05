@@ -109,6 +109,84 @@ const SETTLEMENT_TILE_ELEVATION = {
 
 let _settlementHover = null;
 
+// P2: manual day/dusk/night toggle. There is no structured world-clock field
+// in game_state/world_state (GM-authored status.time is free text), so this
+// is a display-only, per-settlement preference rather than an automatic
+// simulation-time readout. Cycles day -> dusk -> night -> day.
+const SETTLEMENT_TIME_OF_DAY_ORDER = ['day', 'dusk', 'night'];
+const SETTLEMENT_TIME_OF_DAY_ICON = { day: '☀️', dusk: '🌆', night: '🌙' };
+let _settlementTimeOfDay = 'day';
+
+// Sky/glow backdrop and top-face rim-light tint per time of day. Side-face
+// shading (drawIsoBlock) reuses these via SETTLEMENT_TIME_SHADE_FACTOR.
+const SETTLEMENT_TIME_PALETTE = {
+    day: {
+        sky: ['#1c2438', '#141c30', '#0a0e1c'],
+        glow: 'rgba(120, 160, 220, 0.12)',
+        rim: 'rgba(255,255,255,0.22)',
+        vignette: 'rgba(0,0,0,0.32)',
+    },
+    dusk: {
+        sky: ['#2a1c30', '#1c1428', '#0e0a16'],
+        glow: 'rgba(230, 140, 90, 0.14)',
+        rim: 'rgba(255,205,150,0.28)',
+        vignette: 'rgba(20,8,10,0.42)',
+    },
+    night: {
+        sky: ['#0a0c16', '#07080f', '#04050a'],
+        glow: 'rgba(90, 110, 200, 0.10)',
+        rim: 'rgba(170,190,255,0.20)',
+        vignette: 'rgba(0,0,4,0.55)',
+    },
+};
+
+// Multiplies the left/right face lightness so night reads darker/moodier and
+// day reads brighter, without needing per-tile-code night variants.
+const SETTLEMENT_TIME_SHADE_FACTOR = { day: 1, dusk: 0.88, night: 0.62 };
+
+function settlementTimeOfDayKey(settlementId) {
+    return settlementPrefsKey(settlementId, 'timeOfDay');
+}
+
+function loadSettlementTimeOfDay(settlementId) {
+    if (!settlementId) { return; }
+    try {
+        const raw = localStorage.getItem(settlementTimeOfDayKey(settlementId));
+        if (raw && SETTLEMENT_TIME_OF_DAY_ORDER.includes(raw)) {
+            _settlementTimeOfDay = raw;
+            return;
+        }
+    } catch { /* ignore */ }
+    _settlementTimeOfDay = 'day';
+}
+
+function saveSettlementTimeOfDay(settlementId) {
+    if (!settlementId) { return; }
+    try {
+        localStorage.setItem(settlementTimeOfDayKey(settlementId), _settlementTimeOfDay);
+    } catch { /* ignore */ }
+}
+
+function syncSettlementTimeToggleButton() {
+    const btn = document.getElementById('world-settlement-time-toggle');
+    if (!btn) { return; }
+    btn.textContent = SETTLEMENT_TIME_OF_DAY_ICON[_settlementTimeOfDay] || '☀️';
+    const labelKey = `webview.world.settlementTimeOfDay.${_settlementTimeOfDay}`;
+    const label = typeof T === 'function' ? T(labelKey) : _settlementTimeOfDay;
+    btn.title = label && label !== labelKey ? label : _settlementTimeOfDay;
+}
+
+function darkenHexColor(hex, factor) {
+    if (factor >= 1) { return hex; }
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!m) { return hex; }
+    const num = parseInt(m[1], 16);
+    const r = Math.round(((num >> 16) & 0xff) * factor);
+    const g = Math.round(((num >> 8) & 0xff) * factor);
+    const b = Math.round((num & 0xff) * factor);
+    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
 function settlementPrefsKey(settlementId, suffix) {
     return `${SETTLEMENT_PREFS_PREFIX}${settlementId}.${suffix}`;
 }
@@ -321,6 +399,11 @@ function isoProject(x, y, z, originX, originY) {
     };
 }
 
+// Below this zoom level, glyph text is skipped: on a large settlement zoomed
+// out to fit, 200+ tiny fillText() calls cost more than they read, and the
+// letters are illegible at that scale anyway.
+const SETTLEMENT_GLYPH_ZOOM_THRESHOLD = 0.65;
+
 function drawIsoDiamond(ctx, sx, sy, colors, glyph, strokeOverride) {
     const hw = SETTLEMENT_TILE_W / 2;
     const hh = SETTLEMENT_TILE_H / 2;
@@ -335,7 +418,7 @@ function drawIsoDiamond(ctx, sx, sy, colors, glyph, strokeOverride) {
     ctx.strokeStyle = strokeOverride ? strokeOverride.color : 'rgba(0,0,0,0.35)';
     ctx.lineWidth = strokeOverride ? strokeOverride.width : 1;
     ctx.stroke();
-    if (glyph && glyph !== ' ') {
+    if (glyph && glyph !== ' ' && _settlementZoom >= SETTLEMENT_GLYPH_ZOOM_THRESHOLD) {
         ctx.font = '600 10px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -348,11 +431,17 @@ function drawIsoDiamond(ctx, sx, sy, colors, glyph, strokeOverride) {
  * Extruded isometric block: side faces from the flat base at `sy` up to the
  * top face at `sy - elev`, then the lit top diamond with a sun-side edge
  * highlight. `sy` stays the logical (hit-test / marker) position.
+ *
+ * `timeOfDay` darkens the side faces (SETTLEMENT_TIME_SHADE_FACTOR) and tints
+ * the rim light (SETTLEMENT_TIME_PALETTE[...].rim) so the manual day/dusk/
+ * night toggle reads as a real lighting change, not just a background swap.
  */
-function drawIsoBlock(ctx, sx, sy, colors, glyph, elev) {
+function drawIsoBlock(ctx, sx, sy, colors, glyph, elev, timeOfDay) {
     const hw = SETTLEMENT_TILE_W / 2;
     const hh = SETTLEMENT_TILE_H / 2;
     const topY = sy - elev;
+    const shade = SETTLEMENT_TIME_SHADE_FACTOR[timeOfDay] ?? 1;
+    const rimColor = (SETTLEMENT_TIME_PALETTE[timeOfDay] || SETTLEMENT_TIME_PALETTE.day).rim;
 
     if (elev > 0) {
         // Left face (in shade)
@@ -362,7 +451,7 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev) {
         ctx.lineTo(sx, sy + hh);
         ctx.lineTo(sx - hw, sy);
         ctx.closePath();
-        ctx.fillStyle = colors.left;
+        ctx.fillStyle = darkenHexColor(colors.left, shade);
         ctx.fill();
         ctx.strokeStyle = 'rgba(0,0,0,0.30)';
         ctx.lineWidth = 1;
@@ -375,7 +464,7 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev) {
         ctx.lineTo(sx, sy + hh);
         ctx.lineTo(sx + hw, sy);
         ctx.closePath();
-        ctx.fillStyle = colors.right;
+        ctx.fillStyle = darkenHexColor(colors.right, shade);
         ctx.fill();
         ctx.stroke();
 
@@ -396,22 +485,22 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev) {
     ctx.lineTo(sx, topY + hh);
     ctx.lineTo(sx - hw, topY);
     ctx.closePath();
-    ctx.fillStyle = colors.top;
+    ctx.fillStyle = darkenHexColor(colors.top, Math.min(1, shade + 0.15));
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Sun-side rim light on the two upper edges of the top face
+    // Sun/moon-side rim light on the two upper edges of the top face
     ctx.beginPath();
     ctx.moveTo(sx - hw, topY);
     ctx.lineTo(sx, topY - hh);
     ctx.lineTo(sx + hw, topY);
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.strokeStyle = rimColor;
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    if (glyph && glyph !== ' ') {
+    if (glyph && glyph !== ' ' && _settlementZoom >= SETTLEMENT_GLYPH_ZOOM_THRESHOLD) {
         ctx.font = '600 10px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -421,16 +510,17 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev) {
 }
 
 /** Water reads better flat and glossy: translucent fill + two ripple highlights. */
-function drawIsoWater(ctx, sx, sy, colors) {
+function drawIsoWater(ctx, sx, sy, colors, timeOfDay) {
     const hw = SETTLEMENT_TILE_W / 2;
     const hh = SETTLEMENT_TILE_H / 2;
+    const shade = SETTLEMENT_TIME_SHADE_FACTOR[timeOfDay] ?? 1;
     ctx.beginPath();
     ctx.moveTo(sx, sy - hh);
     ctx.lineTo(sx + hw, sy);
     ctx.lineTo(sx, sy + hh);
     ctx.lineTo(sx - hw, sy);
     ctx.closePath();
-    ctx.fillStyle = colors.top;
+    ctx.fillStyle = darkenHexColor(colors.top, shade);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
     ctx.fill();
@@ -508,30 +598,32 @@ function drawIsoMarker(ctx, sx, sy, kind) {
 }
 
 /** Atmospheric canvas backdrop: vertical sky gradient + soft glow behind the settlement + vignette. */
-function drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY) {
+function drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY, timeOfDay) {
+    const palette = SETTLEMENT_TIME_PALETTE[timeOfDay] || SETTLEMENT_TIME_PALETTE.day;
     const sky = ctx.createLinearGradient(0, 0, 0, cssHeight);
-    sky.addColorStop(0, '#101527');
-    sky.addColorStop(0.6, '#0a0e1c');
-    sky.addColorStop(1, '#05070d');
+    sky.addColorStop(0, palette.sky[0]);
+    sky.addColorStop(0.6, palette.sky[1]);
+    sky.addColorStop(1, palette.sky[2]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     const glowR = Math.max(cssWidth, cssHeight) * 0.55;
     const glow = ctx.createRadialGradient(pivotX, pivotY, 0, pivotX, pivotY, glowR);
-    glow.addColorStop(0, 'rgba(90, 130, 200, 0.10)');
-    glow.addColorStop(1, 'rgba(90, 130, 200, 0)');
+    glow.addColorStop(0, palette.glow);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
-function drawSettlementVignette(ctx, cssWidth, cssHeight) {
+function drawSettlementVignette(ctx, cssWidth, cssHeight, timeOfDay) {
+    const palette = SETTLEMENT_TIME_PALETTE[timeOfDay] || SETTLEMENT_TIME_PALETTE.day;
     const r = Math.max(cssWidth, cssHeight);
     const v = ctx.createRadialGradient(
         cssWidth / 2, cssHeight / 2, r * 0.45,
         cssWidth / 2, cssHeight / 2, r * 0.85
     );
     v.addColorStop(0, 'rgba(0,0,0,0)');
-    v.addColorStop(1, 'rgba(0,0,0,0.38)');
+    v.addColorStop(1, palette.vignette);
     ctx.fillStyle = v;
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 }
@@ -741,6 +833,8 @@ function drawSettlementIsometric() {
         _lastSettlementLayerId = view.layerId;
         resetSettlementViewTransform();
         loadSettlementViewPrefs(view.settlementId);
+        loadSettlementTimeOfDay(view.settlementId);
+        syncSettlementTimeToggleButton();
         _settlementSelected = null;
         _settlementExpandHoverPreview = null;
         _lastSettlementExpandLayerId = null;
@@ -782,7 +876,7 @@ function drawSettlementIsometric() {
     const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
     const pivotY = originY + boundsH / 2;
 
-    drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY);
+    drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY, _settlementTimeOfDay);
 
     ctx.save();
     ctx.translate(pivotX, pivotY);
@@ -800,9 +894,9 @@ function drawSettlementIsometric() {
         const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
         const elev = SETTLEMENT_TILE_ELEVATION[tile.code] ?? 4;
         if (tile.code === 'water') {
-            drawIsoWater(ctx, sx, sy, colors);
+            drawIsoWater(ctx, sx, sy, colors, _settlementTimeOfDay);
         } else {
-            drawIsoBlock(ctx, sx, sy, colors, colors.glyph, elev);
+            drawIsoBlock(ctx, sx, sy, colors, colors.glyph, elev, _settlementTimeOfDay);
         }
         _settlementHits.push({
             type: 'tile',
@@ -855,7 +949,7 @@ function drawSettlementIsometric() {
 
     ctx.restore();
 
-    drawSettlementVignette(ctx, cssWidth, cssHeight);
+    drawSettlementVignette(ctx, cssWidth, cssHeight, _settlementTimeOfDay);
 
     if (_settlementSelected) {
         const still = _settlementHits.find((h) => (
@@ -890,6 +984,19 @@ function initSettlementIsometricControls() {
     const zoomOut = document.getElementById('world-settlement-zoom-out');
     const zoomReset = document.getElementById('world-settlement-zoom-reset');
     const zoomFit = document.getElementById('world-settlement-zoom-fit');
+    const timeToggle = document.getElementById('world-settlement-time-toggle');
+
+    if (timeToggle) {
+        syncSettlementTimeToggleButton();
+        timeToggle.addEventListener('click', () => {
+            const idx = SETTLEMENT_TIME_OF_DAY_ORDER.indexOf(_settlementTimeOfDay);
+            _settlementTimeOfDay = SETTLEMENT_TIME_OF_DAY_ORDER[(idx + 1) % SETTLEMENT_TIME_OF_DAY_ORDER.length];
+            syncSettlementTimeToggleButton();
+            const view = getSettlementSnapshot();
+            if (view?.settlementId) { saveSettlementTimeOfDay(view.settlementId); }
+            drawSettlementIsometric();
+        });
+    }
 
     if (zoomIn) {
         zoomIn.addEventListener('click', () => {

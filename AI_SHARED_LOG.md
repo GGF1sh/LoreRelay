@@ -28,6 +28,19 @@
 
 ---
 
+## 2026-07-05 JST - Claude - 拠点ビューアP2（昼夜トグル・水面揺らぎ・グリフLOD, Webviewのみ）
+
+- 前回の拠点ビューア描画アップグレード（af43c5a）で挙げたP2候補3件を実装。
+- **①昼夜トーン切替**: アイソメツールバーに☀️/🌆/🌙トグルボタン（拠点ごとlocalStorage永続化）。クリックでday→dusk→nightを循環し、空グラデ+グロー+ビネット+押し出しブロック側面の陰影(`SETTLEMENT_TIME_SHADE_FACTOR`)+天面リムライト色を再着色。**正本の世界時計フィールドが存在しない**(status.timeはGM自由文)ため、「ワールド時刻連動」ではなく手動トグルとして実装（ユーザーへ確認済みの現実的な代替）。
+- **②ジオラマ水面の揺らぎ**: 水材質ブロックのみタイル位置ベースの位相オフセットで上下バウンス+不透明度シマー。rAFループは「Dioramaタブ表示中 かつ 水ブロックが存在 かつ `prefers-reduced-motion`オフ」の時のみ稼働、それ以外は静止位置/不透明度に復元。タブ切替のstart/stopは`85-world.js`の既存tile-overmap register/unregisterパターンを踏襲(`updateDioramaWaterAnimationState()`を`applyWorldMapModeVisibility()`から呼び出し)。シーン再構築/破棄時もループを確実に停止（`disposeSceneObjects`/`disposeSettlementDioramaRenderer`）。
+- **③グリフのズームLOD**: `_settlementZoom < 0.65`でタイルグリフ(`M`/`W`/`#`等の小文字)描画をスキップ。大規模拠点をFitでズームアウトした際の`fillText()`コスト削減、かつ元々判読不能なサイズなので実害なし。
+- i18n: `webview.world.settlementTimeToggleTitle`/`webview.world.settlementTimeOfDay.{day,dusk,night}`を4ロケール追加。
+- 検証: 静的ハーネスで☀️→🌆→🌙の実クリック遷移（背景色・リムライト変化をスクリーンショット確認）、拠点切替時の設定永続化（別拠点はdefault、同一拠点は復元）、ズームアウト時のグリフ非表示、水面バウンスのY座標変化、reduced-motionスタブでの静止復帰、Worldタブ離脱/復帰でのアニメループ停止/再開をeval+スクリーンショットで確認。`npm test` **212/212**（隔離worktreeで確認）。
+- **並行開発の手順（今回新しく踏んだ罠）**: 他AIが`index.html`にも`inspector-state-orchestrator`セクション（i18nキー未追加のWIP）を追加中だったため、worktree検証で`check_i18n_keys.js`が失敗した。`index.html`はビルド成果物ではなく直接コミット対象の静的ファイルなので、`git diff`から自分のハンクだけを抽出したパッチを作り`git apply --cached`で部分ステージし、他AIの未完成ハンクは実ファイル（ワーキングツリー）に残したままコミットした。**この方法（1ファイル内に複数AIの独立した変更が混在する場合の対処）は今後も使える**: `git diff -U3 -- <file>`でハンク番号を確認→該当ハンクだけを抜き出した最小パッチを作成→`git apply --cached --check`で単独適用可能か確認→OKなら`git apply --cached`。
+- P2は今回で全て消化。次候補: なし（追加要望があれば都度）。
+
+---
+
 ## 2026-07-05 JST - Claude - 拠点ビューア描画アップグレード（アイソメ + 3Dジオラマ, Webviewのみ）
 
 - ユーザー要望「DFの外付けViewerみたいに斜め見下ろし/簡易3Dで拠点を豪華に」への対応。CSS額縁ではなく描画コード本体を強化。

@@ -1344,6 +1344,11 @@ function applyWorldMapModeVisibility() {
     if (worldMapMode === 'diorama' && typeof renderSettlementDiorama === 'function') {
         requestAnimationFrame(() => renderSettlementDiorama());
     }
+    // Stop (or resume) the diorama's water-bob animation loop when leaving/entering
+    // this mode — mirrors the tile-overmap register/unregister pattern above.
+    if (typeof updateDioramaWaterAnimationState === 'function') {
+        updateDioramaWaterAnimationState();
+    }
 }
 
 function renderCartographyMap(msg) {

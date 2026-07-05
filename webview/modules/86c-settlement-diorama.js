@@ -261,12 +261,15 @@ function disposeSceneObjects() {
     disposeObject3D(t.group);
     t.group = null;
     t.hitMeshes = [];
+    t.waterMeshes = [];
+    stopDioramaWaterAnimation();
 }
 
 function disposeSettlementDioramaRenderer() {
     const t = _dioramaThree;
     if (!t) { return; }
     disposeSceneObjects();
+    stopDioramaWaterAnimation();
     if (t.renderer) {
         t.renderer.dispose();
         if (typeof t.renderer.forceContextLoss === 'function') { t.renderer.forceContextLoss(); }
@@ -288,12 +291,14 @@ function rebuildDioramaSceneContent(snapshot) {
     _dioramaHighlight = null;
     const group = new THREE.Group();
     const hitMeshes = [];
+    const waterMeshes = [];
     group.add(buildGroundPlane(snapshot));
     const withEdges = snapshot.blocks.length <= DIORAMA_EDGE_LINES_MAX_BLOCKS;
     for (const block of snapshot.blocks) {
         const mesh = buildBlockMesh(block, withEdges);
         group.add(mesh);
         hitMeshes.push(mesh);
+        if (mesh.userData.isWater) { waterMeshes.push(mesh); }
     }
     for (const marker of snapshot.markers) {
         const mesh = buildMarkerMesh(marker);
@@ -303,10 +308,12 @@ function rebuildDioramaSceneContent(snapshot) {
     t.scene.add(group);
     t.group = group;
     t.hitMeshes = hitMeshes;
+    t.waterMeshes = waterMeshes;
     if (snapshot.palette?.background) {
         t.scene.background = new THREE.Color(snapshot.palette.background);
     }
     configureDioramaLighting(t, snapshot);
+    updateDioramaWaterAnimationState();
     return t;
 }
 
@@ -320,7 +327,8 @@ function buildBlockMesh(block, withEdges) {
     const mat = buildDioramaMaterial(block.material);
     const mesh = new THREE.Mesh(geo, mat);
     const center = toSceneVec(block.x, block.y, block.z);
-    mesh.position.set(center.x, center.y + block.h / 2, center.z);
+    const baseY = center.y + block.h / 2;
+    mesh.position.set(center.x, baseY, center.z);
     mesh.userData = { kind: 'block', label: block.code };
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -330,6 +338,14 @@ function buildBlockMesh(block, withEdges) {
             new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 })
         );
         mesh.add(edges);
+    }
+    // Water blocks get a gentle bob + opacity shimmer (see updateDioramaWaterAnimation).
+    // No cast shadow flicker: castShadow stays fixed, only position/opacity animate.
+    if (block.material === 'water') {
+        mesh.userData.isWater = true;
+        mesh.userData.baseY = baseY;
+        mesh.userData.baseOpacity = mat.opacity ?? 0.88;
+        mesh.userData.animPhase = (block.x * 0.7 + block.y * 1.3) % (Math.PI * 2);
     }
     return mesh;
 }
@@ -421,6 +437,70 @@ function renderDioramaOnce() {
     t.renderer.render(t.scene, t.camera);
 }
 
+// P2: water-only animation loop. Bobs each water block on its own sine phase
+// (offset by tile position so a pond doesn't pulse in unison) and shimmers
+// opacity slightly. Only runs while the diorama tab is visible, there is at
+// least one water block, and the OS reduced-motion preference is off — the
+// water simply stays static (at its base Y/opacity) in all other cases.
+let _dioramaWaterAnimHandle = null;
+let _dioramaWaterAnimStart = 0;
+const DIORAMA_WATER_BOB_AMPLITUDE = 0.025;
+const DIORAMA_WATER_BOB_SPEED = 1.4; // radians/sec
+const DIORAMA_WATER_OPACITY_AMPLITUDE = 0.06;
+
+function stopDioramaWaterAnimation() {
+    if (_dioramaWaterAnimHandle !== null) {
+        cancelAnimationFrame(_dioramaWaterAnimHandle);
+        _dioramaWaterAnimHandle = null;
+    }
+}
+
+function dioramaWaterAnimTick(now) {
+    const t = _dioramaThree;
+    if (!t || !Array.isArray(t.waterMeshes) || !t.waterMeshes.length) {
+        _dioramaWaterAnimHandle = null;
+        return;
+    }
+    if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'diorama') {
+        _dioramaWaterAnimHandle = null;
+        return;
+    }
+    const elapsed = (now - _dioramaWaterAnimStart) / 1000;
+    for (const mesh of t.waterMeshes) {
+        const phase = elapsed * DIORAMA_WATER_BOB_SPEED + (mesh.userData.animPhase || 0);
+        mesh.position.y = mesh.userData.baseY + Math.sin(phase) * DIORAMA_WATER_BOB_AMPLITUDE;
+        if (mesh.material) {
+            mesh.material.opacity = mesh.userData.baseOpacity + Math.sin(phase * 0.6) * DIORAMA_WATER_OPACITY_AMPLITUDE;
+        }
+    }
+    renderDioramaOnce();
+    _dioramaWaterAnimHandle = requestAnimationFrame(dioramaWaterAnimTick);
+}
+
+/** Starts/stops the loop to match current scene contents, tab visibility, and reduced-motion. */
+function updateDioramaWaterAnimationState() {
+    const t = _dioramaThree;
+    const hasWater = Boolean(t && Array.isArray(t.waterMeshes) && t.waterMeshes.length);
+    const shouldRun = hasWater
+        && !dioramaPrefersReducedMotion()
+        && !(typeof worldMapMode !== 'undefined' && worldMapMode !== 'diorama');
+    if (shouldRun && _dioramaWaterAnimHandle === null) {
+        _dioramaWaterAnimStart = performance.now();
+        _dioramaWaterAnimHandle = requestAnimationFrame(dioramaWaterAnimTick);
+    } else if (!shouldRun) {
+        stopDioramaWaterAnimation();
+        // Reset to the resting position/opacity so a paused/reduced-motion
+        // scene doesn't stay mid-bob.
+        if (t && Array.isArray(t.waterMeshes)) {
+            for (const mesh of t.waterMeshes) {
+                mesh.position.y = mesh.userData.baseY;
+                if (mesh.material) { mesh.material.opacity = mesh.userData.baseOpacity; }
+            }
+            if (t.waterMeshes.length) { renderDioramaOnce(); }
+        }
+    }
+}
+
 function fitSettlementDioramaToSnapshot(snapshot) {
     applyOrbitFromCamera(snapshot.camera);
     updateDioramaCameraPosition();
@@ -471,6 +551,7 @@ function buildSettlementDioramaScene(canvas, snapshot) {
 
     const group = new THREE.Group();
     const hitMeshes = [];
+    const waterMeshes = [];
 
     group.add(buildGroundPlane(snapshot));
 
@@ -479,6 +560,7 @@ function buildSettlementDioramaScene(canvas, snapshot) {
         const mesh = buildBlockMesh(block, withEdges);
         group.add(mesh);
         hitMeshes.push(mesh);
+        if (mesh.userData.isWater) { waterMeshes.push(mesh); }
     }
     for (const marker of snapshot.markers) {
         const mesh = buildMarkerMesh(marker);
@@ -488,7 +570,7 @@ function buildSettlementDioramaScene(canvas, snapshot) {
 
     scene.add(group);
 
-    const t = { renderer, scene, camera, group, hitMeshes, ambientLight, dirLight };
+    const t = { renderer, scene, camera, group, hitMeshes, waterMeshes, ambientLight, dirLight };
     configureDioramaLighting(t, snapshot);
     return t;
 }
@@ -529,6 +611,7 @@ function ensureSettlementDioramaScene(snapshot) {
     applyOrbitFromCamera(snapshot.camera);
     _dioramaSelected = null;
     renderSettlementDioramaDetailPanel(null);
+    updateDioramaWaterAnimationState();
     return _dioramaThree;
 }
 

@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-07-05 JST - Codex - Identity / Reference Layer D1 design
+
+- Added `docs/IDENTITY_REFERENCE_LAYER_D1_DESIGN.md`: pure read-only cross-ledger entity inventory + reference validation contract.
+- Scope: minimal `EntityKind` set (`region`, `location`, `faction`, `npc`, `vehicle`, `settlement`, `mod`), `EntityRef`, alias/tombstone semantics, deterministic `EntityPresence[]` / `EntityReferenceObservation[]`, and ledger inventory rules.
+- Key decisions: `npc_registry` is canonical for NPCs while `world_forge.initialNpcs` is seed-only; `mobile_base` remains a vehicle link, not a D1 entity kind; MOD1 alias rules remain mod-local.
+- Explicitly deferred: new identity ledger, canonical write-back, migration apply, State Orchestrator integration, host/UI commands, generic mod alias merge, name-based auto-match, ECS/Event Sourcing/JSON Patch redesign.
+
+---
+
 ## 2026-07-05 JST - Codex - Determinism Spine D1 design
 
 - Added `docs/DETERMINISM_SPINE_D1_DESIGN.md`: deterministic canonical state hashing and drift detection contract for Game QA Runner.

@@ -1,8 +1,8 @@
 # AI Review Backlog & Central Control Board
 
-**Board Code Baseline:** `6af4bc5`
-**Control Artifacts Synced Through:** `d10d0c5` (PROMPT-001A bulk audit pass → second review)
-**Last Reconciled:** 2026-07-05 JST
+**Board Code Baseline:** `99a3b8e` (PROMPT-001A staging merged)
+**Control Artifacts Synced Through:** `0830c24` (SECOND_REVIEW_PASS + merge recorded; post-merge smoke pending)
+**Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
 このドキュメントは、LoreRelayプロジェクトにおいて稼働する複数のAIエージェントのタスクを中央管制（Central Control）するためのバックログです。
@@ -30,7 +30,7 @@
 | ID | Area / 内容 | Severity | Priority | Status | Depends On | Touch Set | Owner | Reviewer |
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
-| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging） | P1 | Critical | **SECOND_REVIEW** | - | `gmPromptBuilder.ts` + targeted tests | Claude Sonnet 5 | ChatGPT / Gemini 3.1 Pro |
+| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging; merged, smoke pending） | P1 | Critical | **SECOND_REVIEW** | - | `gmPromptBuilder.ts` + targeted tests | Claude Sonnet 5 | Codex GPT-5.5 post-merge smoke |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | CONFIRMED | `PROMPT-001A` | | ChatGPT | Gemini |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
@@ -71,9 +71,9 @@
 |:---|:---|:---|
 | **Chief Integrator** | ChatGPT 5.5 | 【Lane A】タスクパケット生成、バックログ整理、成果物判定。コードは書かない。 |
 | **Architecture Gate** | ChatGPT 5.4/5.5 | 【Lane A】アーキテクチャの整合性・契約策定（例: `PROMPT-001A`）。 |
-| **Adversarial Architect** | Gemini 3.1 Pro | 【Lane B】既存設計の攻撃、破綻箇所の発見。1度に1つの重要Gateのみ（例: `D2-001`）。 |
+| **Adversarial Architect** | Gemini 3.1 Pro | 【Lane B】既存設計の攻撃、破綻箇所の発見。1度に1つの重要Gateのみ。 |
 | **Bulk Auditor** | Gemini 3.5 Flash | 【Main Sync】mainとBacklogの同期、現実とのズレ調査。大量同型検索。 |
 | **Repo Engineer** | Antigravity (Gemini) | リポジトリの直接読み書き。現在は**待機（Standby）**。 |
 | **UX / Debug Hub** | Claude Sonnet | 【Lane C】ユーザー体験の設計、フロントエンド/Webviewの挙動レビュー。 |
 | **Small Pure Core** | Grok | 純粋なロジックコアの実装やアルゴリズム最適化。現在は**待機**。 |
-| **Repair / Tests** | Codex / Cursor | コンパイル救出、QAスクリプト。現在は**待機**。 |
+| **Repair / Tests** | Codex / Cursor | コンパイル救出、QAスクリプト、post-merge smoke。 |

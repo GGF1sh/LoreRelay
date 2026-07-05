@@ -3,8 +3,8 @@
 | Field | Description |
 |:---|:---|
 | **Task ID** | `RUNTIME-002A` |
-| **Status** | **READY_TO_IMPLEMENT** |
-| **As-of Commit** | Gate refined through `649ffa3`; adversarial review + Chief amendment through `ea65482` |
+| **Status** | **VERIFYING** |
+| **As-of Commit** | implementation branch commit `5dd883349a99f322f7174d9c51763a2e62236cea`; intake recorded on main |
 | **Origin** | `GEMINI-20260705-001`, promoted by Chief Integrator |
 | **Severity** | P1 |
 | **Priority** | Critical |
@@ -13,6 +13,7 @@
 | **Adversarial Review** | [`RUNTIME-002A-ADVERSARIAL-REVIEW.md`](RUNTIME-002A-ADVERSARIAL-REVIEW.md) |
 | **Chief Disposition** | [`RUNTIME-002A-INTEGRATOR-DISPOSITION.md`](RUNTIME-002A-INTEGRATOR-DISPOSITION.md) |
 | **Canonical Amendment** | [`RUNTIME-002A-GATE-AMENDMENT.md`](RUNTIME-002A-GATE-AMENDMENT.md) |
+| **Implementation Intake** | [`RUNTIME-002A-IMPLEMENTATION-INTAKE.md`](RUNTIME-002A-IMPLEMENTATION-INTAKE.md) |
 
 ## Objective
 
@@ -20,7 +21,7 @@ Establish a truthful TurnResult acceptance boundary so a turn is not marked hand
 
 ## Broken Invariant
 
-Current `processTurnResultFileAt()` can:
+Current pre-fix `processTurnResultFileAt()` can:
 
 1. store `lastProcessedTurnHash`,
 2. call `markTurnResultHandled()` and fire the pending accepted callback,
@@ -161,6 +162,43 @@ Open finding:
 
 This is a separate durable accepted-identity/replay problem.
 
+## Implementation
+
+Branch:
+
+`task/RUNTIME-002A-accepted-boundary`
+
+Commit:
+
+`5dd883349a99f322f7174d9c51763a2e62236cea`
+
+Changed files:
+
+- `src/gameStateSync.ts`
+- `src/statePatch.ts`
+- `src/turnResultFallback.ts`
+- `scripts/test_runtime_turn_result_acceptance.js`
+- `scripts/run_all_tests.js`
+
+Implementer-reported evidence:
+
+- compile PASS;
+- focused test PASS;
+- related tests PASS;
+- full suite `221/221` PASS;
+- webview compile outputs classified `EOL_ONLY_DIRTY` with no content patch.
+
+## Verification Focus
+
+Independent verification must attack:
+
+1. no reachable post-commit path can escape to the outer `false` return;
+2. actual fallback/watcher duplicate observations preserve exactly-one apply/Handled/callback;
+3. restart-with-failed-file behavior requested by the test matrix;
+4. production test-hook exports do not alter runtime authority;
+5. exact branch diff remains within the five authorized files;
+6. `221/221` is reproducible.
+
 ## Implementation Touch Set
 
 ### MUST CHANGE
@@ -200,24 +238,6 @@ At minimum:
 - duplicate successful file does not reapply or refire callback;
 - post-commit failure cannot make `processTurnResult()` return `false`.
 
-## Required Tests
-
-1. parse failure
-2. shape/schema rejection before commit
-3. semantic validation failure before commit
-4. canonical commit failure
-5. successful apply
-6. duplicate successful result
-7. failed same-hash retry then success
-8. corrected new hash after failure
-9. restart with failed file and transient condition cleared
-10. game_state success + secondary-ledger structured failure
-11. game_state success + secondary-ledger thrown exception
-12. journal failure after game_state success
-13. accepted callback throws
-14. callback exactly once under watcher/fallback duplicate observations
-15. rejected result emits no success-only media/UI/bootstrap effects
-
 ## Related Findings
 
 - `GEMINI-20260705-001` — source finding that created this task
@@ -235,8 +255,8 @@ At minimum:
 
 ## Current Lifecycle Note
 
-Architecture Gate completed, adversarial review completed, and Chief narrow amendments applied.
+Architecture Gate, adversarial review, Chief amendment, and implementation are complete.
 
-`RUNTIME-002A` is now **READY_TO_IMPLEMENT**.
+`RUNTIME-002A` is now in **VERIFYING**.
 
-Implementation must follow the Gate Report plus the Canonical Gate Amendment. No additional Architecture Gate round is required before coding.
+No merge is authorized until independent verification passes.

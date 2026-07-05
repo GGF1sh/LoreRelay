@@ -91,6 +91,7 @@ export function synthesizeTurnResultIfNeeded(
 }
 
 let pendingTurnResultFromGm = false;
+let pendingAcceptedTurnCallback: (() => void) | undefined;
 
 /**
  * Injected from extension.ts (avoids a static import cycle with
@@ -105,8 +106,9 @@ export function initTurnResultFallback(checkFn: () => Promise<boolean>): void {
     checkPendingTurnResultFile = checkFn;
 }
 
-export function beginGmRun(): Record<string, unknown> | undefined {
+export function beginGmRun(onAcceptedTurn?: () => void): Record<string, unknown> | undefined {
     pendingTurnResultFromGm = true;
+    pendingAcceptedTurnCallback = onAcceptedTurn;
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
         return undefined;
@@ -120,6 +122,9 @@ export function beginGmRun(): Record<string, unknown> | undefined {
 
 export function markTurnResultHandled(): void {
     pendingTurnResultFromGm = false;
+    const onAccepted = pendingAcceptedTurnCallback;
+    pendingAcceptedTurnCallback = undefined;
+    onAccepted?.();
 }
 
 /**
@@ -137,6 +142,7 @@ export function finishGmRun(
 ): void {
     if (!success || !pendingTurnResultFromGm) {
         pendingTurnResultFromGm = false;
+        pendingAcceptedTurnCallback = undefined;
         return;
     }
     setTimeout(() => {
@@ -147,10 +153,14 @@ export function finishGmRun(
             const handled = await checkPendingTurnResultFile?.();
             if (handled || !pendingTurnResultFromGm) {
                 pendingTurnResultFromGm = false;
+                if (!handled) {
+                    pendingAcceptedTurnCallback = undefined;
+                }
                 return;
             }
-            if (prevState) {
-                synthesizeTurnResultIfNeeded(prevState, playerAction);
+            const synthesized = prevState ? synthesizeTurnResultIfNeeded(prevState, playerAction) : false;
+            if (!synthesized) {
+                pendingAcceptedTurnCallback = undefined;
             }
             pendingTurnResultFromGm = false;
         })();

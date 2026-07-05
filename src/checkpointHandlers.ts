@@ -25,7 +25,7 @@ import {
     sendCurrentState,
     setGameEntryHistoryWithSeenIds
 } from './gameStateSync';
-import { invokeGmBridge, fallbackToClipboard } from './gmBridgeRunner';
+import { invokeGmBridge, fallbackToClipboard, resetGmBridgeSessions } from './gmBridgeRunner';
 import { runSkillScript } from './skillScriptRunner';
 import { computeAndSetArchiveMilestone } from './gmPromptBuilder';
 import { commitGameState } from './stateManager';
@@ -62,7 +62,7 @@ function readGameStateFromDisk(statePath: string): Record<string, unknown> | nul
 }
 
 function writeGameStateToDisk(statePath: string, state: Record<string, unknown>): void {
-    commitGameState(state);
+    commitGameState(state, { mergeProfile: 'replace' });
 }
 
 export async function handleEditEntry(id: string, content: string): Promise<void> {
@@ -243,6 +243,7 @@ export async function handleUndoLastTurn(): Promise<void> {
     }
     setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
     saveHistoryToDisk();
+    resetGmBridgeSessions();
     await writeRestoredGameState(findLastGmEntry(getGameEntryHistory()), t('extension.info.undoSuccess'));
 }
 
@@ -263,6 +264,7 @@ export async function handleRestoreToTurn(entryId: string): Promise<void> {
     }
     setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
     saveHistoryToDisk();
+    resetGmBridgeSessions();
     const gm = findLastGmEntry(getGameEntryHistory());
     await writeRestoredGameState(gm, t('extension.info.rewindSuccess'));
 }
@@ -300,6 +302,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
     }
     setGameEntryHistoryWithSeenIds(cp.history);
     saveHistoryToDisk();
+    resetGmBridgeSessions();
     const gm = findLastGmEntry(getGameEntryHistory());
     await writeRestoredGameState(gm, t('extension.info.checkpointRestored', { label: cp.meta.label }));
 }
@@ -340,6 +343,7 @@ export async function handleRegenerateLastTurn(): Promise<void> {
     }
     setGameEntryHistoryWithSeenIds(trimmed);
     saveHistoryToDisk();
+    resetGmBridgeSessions();
     const gm = findLastGmEntry(getGameEntryHistory());
     if (!(await writeRestoredGameState(gm, t('extension.info.regenerateStarted')))) {
         return;

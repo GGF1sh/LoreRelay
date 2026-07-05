@@ -7,6 +7,10 @@ import { generateAndSaveWorldForge, getDefaultGeneratorInput } from './worldForg
 import { loadWorldForge } from './worldForge';
 import { resetWorldStateFromForge } from './worldState';
 import { maybeBootstrapProtagonist, quickstartFieldsToDraft } from './protagonistBootstrap';
+import { resetGmBridgeSessions } from './gmBridgeRunner';
+import { setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
+import { commitGameState } from './stateManager';
+import type { GameEntry } from './types/GameState';
 
 interface QuickstartResult {
     success: boolean;
@@ -27,6 +31,9 @@ export async function runQuickstart(userPrompt: string, overwrite: boolean): Pro
         if (fs.existsSync(worldForgePath) || fs.existsSync(characterPath)) {
             return { success: false, error: 'ALREADY_EXISTS' };
         }
+    }
+    if (overwrite) {
+        resetGmBridgeSessions();
     }
 
     vscode.window.showInformationMessage('Quickstart: Generating world and character... This may take a moment.');
@@ -121,6 +128,26 @@ Output ONLY valid JSON. Do not include markdown formatting or extra text.`;
     if (forge) {
         resetWorldStateFromForge(forge, true);
     }
+
+    const openingEntry: GameEntry = {
+        id: 'quickstart-opening',
+        role: 'gm',
+        sender: 'Game Master',
+        content: scenarioData.first_message,
+    };
+    const initialState = {
+        entries: [openingEntry],
+        status: {},
+        options: [],
+        theme: parsed.theme || 'custom',
+        director: {
+            objective: parsed.scenarioObjective,
+            guidanceMode: 'sandbox',
+        },
+    };
+    setGameEntryHistoryWithSeenIds([openingEntry]);
+    saveHistoryToDisk();
+    commitGameState(initialState, { mergeProfile: 'replace' });
 
     const draft = quickstartFieldsToDraft({
         characterName: parsed.characterName,

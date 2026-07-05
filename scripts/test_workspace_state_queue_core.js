@@ -72,6 +72,39 @@ const {
 
 {
     const disk = {
+        schemaVersion: 2,
+        stateRevision: 9,
+        entries: [
+            { id: 'old-user', role: 'user', content: 'old campaign' },
+            { id: 'old-gm', role: 'gm', content: 'old future' },
+        ],
+        status: { hp: { current: 1, max: 10 }, inventory: ['old relic'] },
+        commerce: { credits: 999, cargo: [{ commodityId: 'wheat', qty: 3 }] },
+        world: { currentLocationId: 'old-world' },
+    };
+    const incoming = {
+        schemaVersion: 2,
+        entries: [{ id: 'scenario-opening', role: 'gm', content: 'new world' }],
+        status: { hp: { current: 10, max: 10 } },
+        theme: 'fantasy',
+    };
+    const replaced = mergeGameStateForPersist(disk, incoming, { profile: 'replace' });
+    if (
+        replaced.entries.length !== 1
+        || replaced.entries[0].id !== 'scenario-opening'
+        || 'commerce' in replaced
+        || 'world' in replaced
+        || replaced.status.inventory
+        || replaced.stateRevision !== 10
+    ) {
+        fail(`replace profile must not revive disk-only campaign state: ${JSON.stringify(replaced)}`);
+    } else {
+        ok('replace profile drops disk-only entries and roots');
+    }
+}
+
+{
+    const disk = {
         worldTurn: 1,
         factions: { f1: { playerReputation: 10 } },
         markets: { m1: { stock: 5 } },

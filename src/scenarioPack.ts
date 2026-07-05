@@ -8,6 +8,7 @@ import { sendCurrentState, setGameEntryHistoryWithSeenIds, saveHistoryToDisk } f
 import { sendBgmManifest, sendSfxManifest } from './mediaManifest';
 import { resolvePythonCommand } from './skillScriptRunner';
 import { commitGameState } from './stateManager';
+import { resetGmBridgeSessions } from './gmBridgeRunner';
 import {
     parseScenarioDirectorTemplate,
     pushScenarioDirectorToWebview,
@@ -164,9 +165,10 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
 
     setGameEntryHistoryWithSeenIds([]);
     saveHistoryToDisk();
+    resetGmBridgeSessions();
 
     try {
-        commitGameState(state);
+        commitGameState(state, { mergeProfile: 'replace' });
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
             fs.copyFileSync(scenarioPath, wsScenario);

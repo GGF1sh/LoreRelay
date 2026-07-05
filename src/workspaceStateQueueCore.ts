@@ -50,7 +50,7 @@ export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     ...GUILD_TURN_AUTHORITATIVE_ROOT_KEYS,
 ] as const;
 
-export type GameStateMergeProfile = 'default' | 'turn' | 'commerce-ui' | 'entries-only';
+export type GameStateMergeProfile = 'default' | 'turn' | 'commerce-ui' | 'entries-only' | 'replace';
 
 export interface GameStateMergeOptions {
     /** Revision observed when the writer read game_state.json (OCC base). */
@@ -186,6 +186,14 @@ export function mergeGameStateForPersist(
 
     const baseRevision = options.baseRevision ?? diskRevision;
     const conflict = diskRevision > baseRevision;
+
+    if (profile === 'replace') {
+        return {
+            ...incoming,
+            entries: mergeGameStateEntries([], Array.isArray(incoming.entries) ? incoming.entries : []),
+            stateRevision: diskRevision + 1,
+        };
+    }
 
     if (profile === 'entries-only') {
         return {

@@ -462,7 +462,7 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
-    const prevGmState = beginGmRun();
+    const prevGmState = beginGmRun(() => { grokSessionActive = true; });
 
     return new Promise((resolve) => {
         let finished = false;
@@ -507,7 +507,6 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
 
             if (code === 0) {
                 pendingDiceLedgerWritten = false;
-                grokSessionActive = true;
                 finishGmRun(prevGmState, playerAction, true);
                 vscode.window.showInformationMessage(t('extension.info.grokDone'));
                 finishGrok(true);
@@ -593,7 +592,7 @@ async function invokeLocalLlmBridge(
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
-    const prevGmState = beginGmRun();
+    const prevGmState = beginGmRun(() => { localGmSessionActive = true; });
 
     return new Promise((resolve) => {
         gmProcess = spawn(python, args, {
@@ -623,7 +622,6 @@ async function invokeLocalLlmBridge(
 
             if (code === 0) {
                 pendingDiceLedgerWritten = false;
-                localGmSessionActive = true;
                 finishGmRun(prevGmState, playerAction, true);
                 let msgKey = 'extension.info.gmDone';
                 if (provider === 'ollama') { msgKey = 'extension.info.ollamaDone'; }
@@ -1005,7 +1003,7 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
-    const prevGmState = beginGmRun();
+    const prevGmState = beginGmRun(() => { localGmSessionActive = true; });
     const cts = new vscode.CancellationTokenSource();
     let fullText = '';
 
@@ -1027,7 +1025,6 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
         vscodeLmWriteTurnResult(wsPath, fullText, locale, playerAction);
 
         pendingDiceLedgerWritten = false;
-        localGmSessionActive = true;
         finishGmRun(prevGmState, playerAction, true);
         vscode.window.setStatusBarMessage('');
         notifyRemoteGmBusy(false);

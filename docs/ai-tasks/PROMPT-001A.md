@@ -3,8 +3,8 @@
 | Field | Description |
 |:---|:---|
 | **Task ID** | `PROMPT-001A` |
-| **Status** | READY_TO_IMPLEMENT |
-| **As-of Commit** | `6af4bc5` code baseline; Gate V2 at `6c403e3`; Chief amendment after V2 differential review |
+| **Status** | VERIFYING |
+| **As-of Commit** | `6af4bc5` code baseline; implementation branch commit `b47f626`; verification review on main |
 | **Depends On** | None for staging implementation; terminal DONE depends on `PROMPT-001C` integration and the truthful Accepted boundary from `RUNTIME-002A` |
 | **Gate Report V1** | [`PROMPT-001A-GATE-REPORT.md`](PROMPT-001A-GATE-REPORT.md) (Claude Opus 4.8 — superseded / returned) |
 | **Adversarial Review V1** | [`PROMPT-001A-ADVERSARIAL-REVIEW.md`](PROMPT-001A-ADVERSARIAL-REVIEW.md) (Gemini 3.1 Pro) |
@@ -12,6 +12,7 @@
 | **Gate Report V2** | [`PROMPT-001A-GATE-REPORT-V2.md`](PROMPT-001A-GATE-REPORT-V2.md) (Claude Opus 4.8 — Option C staging) |
 | **Adversarial Review V2** | [`PROMPT-001A-ADVERSARIAL-REVIEW-V2.md`](PROMPT-001A-ADVERSARIAL-REVIEW-V2.md) (Gemini 3.1 Pro differential review) |
 | **Canonical Implementation Amendment** | [`PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md`](PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md) |
+| **Verification Review** | [`PROMPT-001A-VERIFYING-REVIEW.md`](PROMPT-001A-VERIFYING-REVIEW.md) |
 
 ## Objective
 
@@ -126,6 +127,19 @@ The staging implementation may pass its own quality gates only when all are true
 - flag/caller inventory: only Inspector uses pure entry and production uses legacy entry;
 - diff-scope check: no unrelated source changes.
 
+## Current Verification Blocker
+
+The implementation shape passed preliminary source review, but the first targeted test does not independently prove that `chronicleSessionPending` remains unchanged across pure builds.
+
+Required repair is documented in `PROMPT-001A-VERIFYING-REVIEW.md`:
+
+- set `lastInjectedChronicleTurn` equal to the fixture `sourceTurn` before pure builds;
+- rely on session-pending alone to make Chronicle visible;
+- verify Chronicle is still visible on the second pure build;
+- rerun compile, targeted tests, related tests, and full suite.
+
+No source redesign is requested unless the repaired test exposes a real implementation failure.
+
 ## Lifecycle / Done Semantics
 
 Normal quality flow remains mandatory:
@@ -166,4 +180,4 @@ PROMPT-001A reaches terminal DONE only after downstream integration proves:
 
 ## Current Lifecycle Note
 
-Gate V2 survived differential adversarial review with required amendments. The canonical implementation contract is this Task Packet plus `PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md`.
+Implementation commit `b47f626` is under verification. The authority split is preliminarily accepted; one targeted test-proof gap must be repaired before BULK_AUDIT.

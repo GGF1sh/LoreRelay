@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `99a3b8e` (PROMPT-001A staging merged)
-**Control Artifacts Synced Through:** `06d5690` (RUNTIME-002A Gate + adversarial + Chief amendment → ready to implement)
+**Control Artifacts Synced Through:** `6f8c4e8` (RUNTIME-002A implementation accepted for verifying)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -45,7 +45,7 @@
 | `RUNTIME-001B`| RuntimeContextKey / Campaign identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
-| `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **READY_TO_IMPLEMENT** | - | `gameStateSync.ts`, `statePatch.ts`, `turnResultFallback.ts` + focused tests | Codex GPT-5.4 High | ChatGPT / Gemini |
+| `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **VERIFYING** | - | `gameStateSync.ts`, `statePatch.ts`, `turnResultFallback.ts` + focused tests | Codex GPT-5.4 High | ChatGPT GPT-5.5 verification |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |
@@ -75,5 +75,5 @@
 | **Bulk Auditor** | Gemini 3.5 Flash | 【Main Sync】mainとBacklogの同期、現実とのズレ調査。大量同型検索。 |
 | **Repo Engineer** | Antigravity (Gemini) | リポジトリの直接読み書き。現在は**待機（Standby）**。 |
 | **UX / Debug Hub** | Claude Sonnet | 【Lane C】ユーザー体験の設計、フロントエンド/Webviewの挙動レビュー。 |
-| **Small Pure Core** | Grok | 純粋なロジックコアの実装やアルゴリズム最適化。現在は**待機**。 |
+| **Small Pure Core** | Grok | 純粋なロジックコアの実装やアルゴリズム最適化。現在は**待機（Standby）**。 |
 | **Repair / Tests** | Codex / Cursor | コンパイル救出、QAスクリプト、post-merge smoke。 |

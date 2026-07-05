@@ -17,6 +17,8 @@ export const MAX_PLAYER_BONDS = 16;            // 走査する名ありNPCの上
 export const MAX_PLAYER_BOND_MILESTONES = 8;   // 1 NPC が保持する履歴上限
 export const MAX_PLAYER_BOND_EVENTS_PER_TICK = 6;
 
+import { stableNamedNpcIds } from './npcRelationshipCore';
+
 export type PlayerBondKind =
     | 'trusted_companion'
     | 'romance'
@@ -78,7 +80,7 @@ export interface PlayerBondResult {
  * 各マイルストーンは NPC ごとに一度だけ発火。
  */
 export function detectPlayerBondEvents(input: PlayerBondInput): PlayerBondResult {
-    const ids = Object.keys(input.registry).slice(0, MAX_PLAYER_BONDS);
+    const ids = stableNamedNpcIds(input.registry, MAX_PLAYER_BONDS);
     const next = cloneMilestones(input.milestones);
     const events: PlayerBondEvent[] = [];
 
@@ -126,7 +128,7 @@ export function listPlayerBondStandings(
     milestones: PlayerBondMilestoneMap
 ): PlayerBondStanding[] {
     const out: PlayerBondStanding[] = [];
-    for (const npcId of Object.keys(registry).slice(0, MAX_PLAYER_BONDS)) {
+    for (const npcId of stableNamedNpcIds(registry, MAX_PLAYER_BONDS)) {
         const reached = new Set(milestones[npcId] ?? []);
         if (reached.size === 0) { continue; }
         const kind = STANDING_PRIORITY.find((k) => reached.has(k));
@@ -193,7 +195,7 @@ export function applyPlayerBondTradeAdjustment(input: {
 
     let ally: string | undefined;
     let nemesis: string | undefined;
-    for (const npcId of Object.keys(input.registry).slice(0, MAX_PLAYER_BONDS)) {
+    for (const npcId of stableNamedNpcIds(input.registry, MAX_PLAYER_BONDS)) {
         if (input.npcAtLocation[npcId] !== input.locationId) { continue; }
         const reached = new Set(input.milestones[npcId] ?? []);
         if (reached.has('trusted_companion') && !reached.has('estrangement') && !ally) {
@@ -289,7 +291,7 @@ export function purgeStalePlayerBondMilestones(
     idleTurns = PLAYER_BOND_GC_IDLE_TURNS
 ): PlayerBondMilestoneMap {
     const next = cloneMilestones(milestones);
-    const allowed = new Set(Object.keys(registry).slice(0, MAX_PLAYER_BONDS));
+    const allowed = new Set(stableNamedNpcIds(registry, MAX_PLAYER_BONDS));
 
     for (const npcId of Object.keys(next)) {
         if (!allowed.has(npcId)) {

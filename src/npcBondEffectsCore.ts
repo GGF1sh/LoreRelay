@@ -11,6 +11,7 @@
 import {
     describeRelationship,
     MAX_NAMED_NPC_RELATIONSHIP,
+    stableNamedNpcIds,
     type NpcRelationshipMap,
     type RelationshipPositionsLike,
     type RelationshipRegistryLike,
@@ -92,7 +93,7 @@ export function applyBondMarketEffects(
     input: BondMarketEffectsInput,
     maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): BondMarketEffectsResult {
-    const allowed = new Set(Object.keys(input.registry).slice(0, maxNamedNpcCount));
+    const allowed = new Set(stableNamedNpcIds(input.registry, maxNamedNpcCount));
     const marketByLocation = new Map<string, BondMarketDefLike>();
     for (const m of input.markets) { marketByLocation.set(m.locationId, m); }
 

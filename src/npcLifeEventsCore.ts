@@ -12,6 +12,7 @@
 import {
     getAffinity,
     MAX_NAMED_NPC_RELATIONSHIP,
+    stableNamedNpcIds,
     type NpcRelationshipMap,
     type RelationshipRegistryLike,
 } from './npcRelationshipCore';
@@ -82,7 +83,7 @@ export function detectLifeEvents(
     input: LifeEventsInput,
     maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): LifeEventsResult {
-    const allowed = new Set(Object.keys(input.registry).slice(0, maxNamedNpcCount));
+    const allowed = new Set(stableNamedNpcIds(input.registry, maxNamedNpcCount));
     const next = cloneMilestones(input.milestones);
     const events: NpcLifeEvent[] = [];
 
@@ -195,7 +196,7 @@ export function reconcileNpcMilestones(
     registry: RelationshipRegistryLike,
     maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): NpcMilestoneMap {
-    const allowed = new Set(Object.keys(registry).slice(0, maxNamedNpcCount));
+    const allowed = new Set(stableNamedNpcIds(registry, maxNamedNpcCount));
     const next = cloneMilestones(milestones);
     for (const key of Object.keys(next)) {
         const pair = splitPairKey(key);

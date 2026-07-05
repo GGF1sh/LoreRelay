@@ -156,7 +156,7 @@ export function generateQuestHooks(
     }
 
     if (npcRegistry) {
-        for (const [npcId, npc] of Object.entries(npcRegistry.npcs).slice(0, 100)) {
+        for (const [npcId, npc] of Object.entries(npcRegistry.npcs).sort(([a], [b]) => a.localeCompare(b)).slice(0, 100)) {
             for (const need of npc.needs.slice(0, 20)) {
                 if (need.urgency < QUEST_NEED_URGENCY_THRESHOLD) { continue; }
                 const relatedId = `need_${npcId}_${need.id}`;

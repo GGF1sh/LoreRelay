@@ -45,6 +45,7 @@ const {
     reconcileRelationshipGraph, cascadeNpcRemovalFromGraph,
     factionPairKey, getFactionRelation, getFactionCohesion, isConflictEvent,
     canonicalizeAffinityPairMap,
+    stableNamedNpcIds,
     MAX_AFFINITY, MIN_AFFINITY, CO_LOCATION_STEP, SHARED_CRISIS_STEP,
     FACTION_CONFLICT_STEP, AFFINITY_FRIEND, INTRODUCTION_MIN_AFFINITY,
     FACTION_ALLIED_REP_MIN, FACTION_INTRO_TRUST_DAMPEN, MAX_EFFECTIVE_PLAYER_TRUST,
@@ -72,6 +73,24 @@ eq(pairKey('b', 'a'), pairKey('a', 'b'), 'pairKey canonical');
     const out = canonicalizeAffinityPairMap({ 'b|a': 12, 'a|b': 99 });
     eq(out['a|b'], 99, 'canonicalizeAffinityPairMap last-wins on collision');
     eq(Object.keys(out).length, 1, 'canonicalizeAffinityPairMap single canonical key');
+}
+
+// 1c. relationship caps are order-independent
+{
+    const ids = stableNamedNpcIds({
+        npc_b: { name: 'B' },
+        npc_a: { name: 'A' },
+        npc_c: { name: 'C' },
+    }, 2);
+    eq(JSON.stringify(ids), JSON.stringify(['npc_a', 'npc_b']), 'stableNamedNpcIds sorts before cap');
+}
+
+// 1d. affinity cap is based on canonical key order, not JSON insertion order
+{
+    const a = canonicalizeAffinityPairMap({ 'z|y': 1, 'b|a': 2, 'd|c': 3 }, 2);
+    const b = canonicalizeAffinityPairMap({ 'd|c': 3, 'z|y': 1, 'b|a': 2 }, 2);
+    eq(JSON.stringify(a), JSON.stringify(b), 'canonicalizeAffinityPairMap order-independent cap');
+    eq(Object.keys(a).length, 2, 'canonicalizeAffinityPairMap respects cap after sorting');
 }
 
 // 2. getAffinity 既定 0 / self 0

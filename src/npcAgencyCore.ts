@@ -12,6 +12,7 @@ import type {
 } from './livingWorldTypes';
 import { isFoodCrisisEvent } from './livingWorldTypes';
 import { quoteMarketPrice } from './commerceCore';
+import { stableNamedNpcIds } from './npcRelationshipCore';
 
 // レガシー既定値(pre-1.0 の暫定値)。ホストは game_rules.maxNamedNpcCount をここへ渡す。
 export const MAX_NAMED_NPC_AGENCY = 10;
@@ -36,7 +37,7 @@ function clonePositions(positions: NpcPositionsMap): NpcPositionsMap {
 }
 
 function registryNpcIds(registry: NpcRegistryLike, maxNamedNpcCount = MAX_NAMED_NPC_AGENCY): string[] {
-    return Object.keys(registry).slice(0, maxNamedNpcCount);
+    return stableNamedNpcIds(registry, maxNamedNpcCount);
 }
 
 export function parseNpcAgencyOps(raw: unknown, maxNamedNpcCount = MAX_NAMED_NPC_AGENCY): NpcAgencyOp[] {

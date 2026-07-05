@@ -130,14 +130,26 @@ export function canonicalizeAffinityPairMap(
     maxEntries = 20_000
 ): Record<string, number> {
     const out: Record<string, number> = {};
+    const rows = Object.entries(raw)
+        .map(([key, val]) => {
+            const pair = splitPairKey(key);
+            return pair ? { key, canonicalKey: pairKey(pair[0], pair[1]), val } : undefined;
+        })
+        .filter((row): row is { key: string; canonicalKey: string; val: number } => row !== undefined)
+        .sort((a, b) => {
+            const canonicalDelta = a.canonicalKey.localeCompare(b.canonicalKey);
+            if (canonicalDelta !== 0) { return canonicalDelta; }
+            if (a.key === a.canonicalKey && b.key !== b.canonicalKey) { return 1; }
+            if (a.key !== a.canonicalKey && b.key === b.canonicalKey) { return -1; }
+            return a.key.localeCompare(b.key);
+        });
     let count = 0;
-    for (const [key, val] of Object.entries(raw)) {
-        if (count >= maxEntries) { break; }
-        const pair = splitPairKey(key);
-        if (!pair) { continue; }
+    for (const { canonicalKey, val } of rows) {
+        const isNewKey = out[canonicalKey] === undefined;
+        if (count >= maxEntries && isNewKey) { break; }
         if (typeof val !== 'number' || !Number.isFinite(val)) { continue; }
-        out[pairKey(pair[0], pair[1])] = clampAffinity(val);
-        count++;
+        if (isNewKey) { count++; }
+        out[canonicalKey] = clampAffinity(val);
     }
     return out;
 }
@@ -203,7 +215,34 @@ export function getEffectiveAffinity(
 }
 
 function namedIds(registry: RelationshipRegistryLike, maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP): string[] {
-    return Object.keys(registry).slice(0, maxNamedNpcCount);
+    return stableNamedNpcIds(registry, maxNamedNpcCount);
+}
+
+export function stableNamedNpcIds(
+    registry: RelationshipRegistryLike,
+    maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
+): string[] {
+    return Object.keys(registry).sort(compareStableId).slice(0, maxNamedNpcCount);
+}
+
+function compareStableId(a: string, b: string): number {
+    const chunk = /(\d+|\D+)/g;
+    const aa = a.match(chunk) ?? [a];
+    const bb = b.match(chunk) ?? [b];
+    const max = Math.max(aa.length, bb.length);
+    for (let i = 0; i < max; i++) {
+        const left = aa[i] ?? '';
+        const right = bb[i] ?? '';
+        if (left === right) { continue; }
+        const leftNum = /^\d+$/.test(left) ? Number(left) : undefined;
+        const rightNum = /^\d+$/.test(right) ? Number(right) : undefined;
+        if (leftNum !== undefined && rightNum !== undefined && leftNum !== rightNum) {
+            return leftNum - rightNum;
+        }
+        const textDelta = left.localeCompare(right);
+        if (textDelta !== 0) { return textDelta; }
+    }
+    return a.localeCompare(b);
 }
 
 function cloneMap(map: NpcRelationshipMap): NpcRelationshipMap {
@@ -547,7 +586,7 @@ export function applyIntroductionTrustBoost<T extends IntroductionBoostEntry>(
     factionReputation?: Record<string, number>,
     maxNamedNpcCount = MAX_NAMED_NPC_RELATIONSHIP
 ): Record<string, T & { introducedBy?: string }> {
-    const allowed = new Set(Object.keys(registry).slice(0, maxNamedNpcCount));
+    const allowed = new Set(stableNamedNpcIds(registry, maxNamedNpcCount));
     const out: Record<string, T & { introducedBy?: string }> = {};
     for (const [id, entry] of Object.entries(registry)) {
         out[id] = { ...entry };

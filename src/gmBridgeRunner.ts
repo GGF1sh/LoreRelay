@@ -28,8 +28,9 @@ import { enqueueVlmAnalysis, buildVlmMetaFromGameState, isVlmEnabled } from './v
 import {
     buildVscodeLmTurnResult,
     extractVscodeLmJsonBlock,
+    nextVscodeLmTurnIdFromEntries,
     stripVscodeLmJsonBlock,
-    substituteDiceMarkersSimple,
+    substituteDiceMarkersWithLedger,
     type VscodeLmGmJson,
 } from './vscodeLmTurnResultCore';
 import type { VscodeLmProfileOptions } from './connectionProfileCore';
@@ -777,11 +778,7 @@ function vscodeLmNextTurnId(wsPath: string): string {
     if (!fs.existsSync(statePath)) { return 'turn-1'; }
     try {
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-        if (Array.isArray(state.entries) && state.entries.length > 0) {
-            const lastId: string = state.entries[state.entries.length - 1].id ?? 'turn-0';
-            const m = /turn-(\d+)$/.exec(lastId);
-            if (m) { return `turn-${parseInt(m[1], 10) + 1}`; }
-        }
+        return nextVscodeLmTurnIdFromEntries(state.entries);
     } catch { /* ignore */ }
     return 'turn-1';
 }
@@ -830,7 +827,8 @@ function vscodeLmWriteTurnResult(
         try { prev = JSON.parse(fs.readFileSync(statePath, 'utf-8')); } catch { /* ignore */ }
     }
 
-    const withDice = substituteDiceMarkersSimple(fullText);
+    const diceSubstitution = substituteDiceMarkersWithLedger(fullText);
+    const withDice = diceSubstitution.text;
     const llmJson = extractVscodeLmJsonBlock(withDice);
     const narrative = stripVscodeLmJsonBlock(withDice);
     const turnId = vscodeLmNextTurnId(wsPath);
@@ -839,6 +837,8 @@ function vscodeLmWriteTurnResult(
 
     const hint = `${playerAction}\n${narrative}`;
     const triggeredLore = getTriggeredLoreLabels(hint);
+    const playerDiceLedger = vscodeLmLoadDiceLedger(wsPath) ?? [];
+    const diceLedger = [...playerDiceLedger, ...diceSubstitution.diceLedger];
     const turnResult = buildVscodeLmTurnResult({
         prev,
         llmJson,
@@ -846,7 +846,7 @@ function vscodeLmWriteTurnResult(
         turnId,
         locale,
         playerAction,
-        diceLedger: vscodeLmLoadDiceLedger(wsPath),
+        diceLedger: diceLedger.length > 0 ? diceLedger : undefined,
         triggeredLore,
     });
 

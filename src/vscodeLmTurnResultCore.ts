@@ -23,8 +23,31 @@ const DEFAULT_OPTIONS: Record<string, string[]> = {
     en: ['Search the area', 'Proceed carefully', 'Try something else'],
 };
 
-export function substituteDiceMarkersSimple(text: string): string {
-    return text.replace(/\{\{DICE:(\d+)d(\d+)\}\}/gi, (_m, countStr, sidesStr) => {
+export function nextVscodeLmTurnIdFromEntries(entries: unknown): string {
+    if (!Array.isArray(entries)) {
+        return 'turn-1';
+    }
+    let maxTurn = 0;
+    for (const entry of entries) {
+        if (!entry || typeof entry !== 'object') { continue; }
+        const id = (entry as { id?: unknown }).id;
+        if (typeof id !== 'string') { continue; }
+        const m = /^turn-(\d+)$/.exec(id);
+        if (m) {
+            maxTurn = Math.max(maxTurn, parseInt(m[1], 10));
+        }
+    }
+    return `turn-${maxTurn + 1}`;
+}
+
+export interface DiceMarkerSubstitutionResult {
+    text: string;
+    diceLedger: DiceLedgerEntry[];
+}
+
+export function substituteDiceMarkersWithLedger(text: string): DiceMarkerSubstitutionResult {
+    const diceLedger: DiceLedgerEntry[] = [];
+    const substituted = text.replace(/\{\{DICE:(\d+)d(\d+)\}\}/gi, (_m, countStr, sidesStr) => {
         const count = Math.max(1, Math.min(100, parseInt(countStr, 10)));
         const sides = Math.max(2, Math.min(10000, parseInt(sidesStr, 10)));
         let total = 0;
@@ -34,8 +57,20 @@ export function substituteDiceMarkersSimple(text: string): string {
             rolls.push(r);
             total += r;
         }
+        diceLedger.push({
+            formula: `${count}d${sides}`,
+            rolls,
+            modifier: 0,
+            total,
+            reason: 'gm_dice_marker',
+        });
         return count === 1 ? String(total) : `${total}[${rolls.join('+')}]`;
     });
+    return { text: substituted, diceLedger };
+}
+
+export function substituteDiceMarkersSimple(text: string): string {
+    return substituteDiceMarkersWithLedger(text).text;
 }
 
 export function extractVscodeLmJsonBlock(text: string): VscodeLmGmJson | null {

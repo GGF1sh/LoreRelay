@@ -91,7 +91,12 @@ assert(id3 === 'wce_5_global_evt', `empty suffix → "evt" fallback: "${id3}"`);
 
 const longSuffix = 'a'.repeat(80);
 const id4 = makeEventId(1, 'npc', longSuffix);
-assert(id4.length <= 'wce_1_npc_'.length + 32, `long suffix is capped: "${id4}"`);
+assert(id4.length <= MAX_ID_LEN, `long suffix is capped: "${id4}"`);
+assert(/_[0-9a-f]{8}$/.test(id4), `truncated suffix gets hash suffix: "${id4}"`);
+
+const collidingA = makeEventId(2, 'faction', 'friction_empire_of_the_crimson_sun_north_alpha');
+const collidingB = makeEventId(2, 'faction', 'friction_empire_of_the_crimson_sun_north_beta');
+assert(collidingA !== collidingB, `long semantic suffixes do not collide: "${collidingA}" vs "${collidingB}"`);
 
 // ---------------------------------------------------------------------------
 // parseWorldChangeEvent

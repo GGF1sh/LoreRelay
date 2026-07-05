@@ -65,6 +65,15 @@ const VALID_SOURCES = new Set<WorldChangeSource>([
 // Allows letters, digits, hyphens, underscores — no spaces or special chars.
 const VALID_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
+function fnv1aHash8(input: string): string {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < input.length; i++) {
+        h ^= input.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 // ---------------------------------------------------------------------------
 // ID helpers
 // ---------------------------------------------------------------------------
@@ -89,12 +98,18 @@ export function makeEventId(
     category: WorldChangeCategory,
     suffix: string
 ): string {
-    const slug = suffix
+    const normalized = suffix
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 32);
-    return `wce_${Math.max(0, Math.floor(worldTurn))}_${category}_${slug || 'evt'}`;
+        .replace(/^_+|_+$/g, '');
+    const slug = normalized || 'evt';
+    const prefix = `wce_${Math.max(0, Math.floor(worldTurn))}_${category}_`;
+    if (slug.length <= 32) {
+        return `${prefix}${slug}`;
+    }
+    const hash = fnv1aHash8(suffix);
+    const maxSlugLen = Math.max(1, MAX_ID_LEN - prefix.length - hash.length - 1);
+    return `${prefix}${slug.slice(0, Math.min(32, maxSlugLen))}_${hash}`;
 }
 
 // ---------------------------------------------------------------------------

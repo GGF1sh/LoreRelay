@@ -16,6 +16,7 @@ import {
     type WorldChangeEventLike,
 } from './livingWorldTypes';
 import { MAX_NAMED_NPC_AGENCY, type AgencyReactionInput } from './npcAgencyCore';
+import { stableNamedNpcIds } from './npcRelationshipCore';
 
 export const MAX_FOOD_CRISIS_SCAN_EVENTS = 8;
 export const MAX_FOOD_CRISIS_NPC_DECISIONS = 10;
@@ -43,7 +44,7 @@ export function shouldEmitDeepDebugTrace(flags: DeepTraceEmitGateFlags): boolean
 }
 
 function registryNpcIds(registry: NpcRegistryLike, maxNamedNpcCount = MAX_NAMED_NPC_AGENCY): string[] {
-    return Object.keys(registry).slice(0, maxNamedNpcCount);
+    return stableNamedNpcIds(registry, maxNamedNpcCount);
 }
 
 function stepEventDedupeKey(ev: WorldChangeEventLike): string {

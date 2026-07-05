@@ -22,6 +22,8 @@ const {
     buildVscodeLmTurnResult,
     extractVscodeLmJsonBlock,
     mergeVscodeLmGameState,
+    nextVscodeLmTurnIdFromEntries,
+    substituteDiceMarkersWithLedger,
     substituteDiceMarkersSimple,
 } = require(corePath);
 const { applyStatePatch, mergeGmEntryFromTurn } = require(path.join(root, 'out', 'statePatch.js'));
@@ -102,6 +104,25 @@ try {
         fail('substituteDiceMarkersSimple');
     } else {
         ok('substituteDiceMarkersSimple');
+    }
+
+    const diceReceipt = substituteDiceMarkersWithLedger('GM rolls {{DICE:2d6}}.');
+    if (diceReceipt.diceLedger.length !== 1 || diceReceipt.diceLedger[0].formula !== '2d6' || diceReceipt.diceLedger[0].rolls.length !== 2) {
+        fail(`substituteDiceMarkersWithLedger records GM dice: ${JSON.stringify(diceReceipt)}`);
+    } else {
+        ok('substituteDiceMarkersWithLedger records GM dice');
+    }
+
+    const nextTurn = nextVscodeLmTurnIdFromEntries([
+        { id: 'turn-1' },
+        { id: 'user-1780000000000' },
+        { id: 'turn-7' },
+        { id: 'user-1780000000001' },
+    ]);
+    if (nextTurn !== 'turn-8') {
+        fail(`nextVscodeLmTurnIdFromEntries scans max GM turn: ${nextTurn}`);
+    } else {
+        ok('nextVscodeLmTurnIdFromEntries scans max GM turn');
     }
 
     const merged = mergeVscodeLmGameState(prev, null, 'fallback narrative', 'turn-2', 'ja');

@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `6af4bc5`
-**Control Artifacts Synced Through:** `0de5838` (PROMPT-001A implementation verification)
+**Control Artifacts Synced Through:** `4ca25c8` (PROMPT-001A verification pass → bulk audit)
 **Last Reconciled:** 2026-07-05 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -30,7 +30,7 @@
 | ID | Area / 内容 | Severity | Priority | Status | Depends On | Touch Set | Owner | Reviewer |
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
-| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging） | P1 | Critical | **VERIFYING** | - | `gmPromptBuilder.ts` + targeted tests | Claude Sonnet 5 | ChatGPT / Gemini 3.1 Pro |
+| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging） | P1 | Critical | **BULK_AUDIT** | - | `gmPromptBuilder.ts` + targeted tests | Claude Sonnet 5 | Gemini 3.5 Flash → ChatGPT/Gemini 3.1 Pro |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | CONFIRMED | `PROMPT-001A` | | ChatGPT | Gemini |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |

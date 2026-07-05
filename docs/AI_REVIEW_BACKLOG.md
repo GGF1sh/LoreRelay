@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `6fc5700` (RUNTIME-002A merged)
-**Control Artifacts Synced Through:** `a461a66` (RUNTIME-002A merged → post-merge smoke required)
+**Control Artifacts Synced Through:** `de35ed0` (RUNTIME-002A post-merge smoke passed → done)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -45,7 +45,7 @@
 | `RUNTIME-001B`| RuntimeContextKey / Campaign identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
-| `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **POST_MERGE_SMOKE** | - | merged at `6fc5700`; smoke pending | Codex GPT-5.4 Medium | ChatGPT |
+| `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **DONE** (`6fc5700`; smoke `221/221`) | - | merged + smoke passed | - | - |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

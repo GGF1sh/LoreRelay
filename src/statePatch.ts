@@ -823,29 +823,33 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             appliedAt
         };
 
-        const wsPath = getWorkspacePath();
-        if (wsPath) {
-            const journalPath = path.join(wsPath, 'state_journal.ndjson');
-            try {
-                if (fs.existsSync(journalPath)) {
-                    const stats = fs.statSync(journalPath);
-                    if (stats.size > 10 * 1024 * 1024) {
-                        const backupPath = `${journalPath}.bak`;
-                        if (fs.existsSync(backupPath)) {
-                            fs.unlinkSync(backupPath);
+        try {
+            const wsPath = getWorkspacePath();
+            if (wsPath) {
+                const journalPath = path.join(wsPath, 'state_journal.ndjson');
+                try {
+                    if (fs.existsSync(journalPath)) {
+                        const stats = fs.statSync(journalPath);
+                        if (stats.size > 10 * 1024 * 1024) {
+                            const backupPath = `${journalPath}.bak`;
+                            if (fs.existsSync(backupPath)) {
+                                fs.unlinkSync(backupPath);
+                            }
+                            fs.renameSync(journalPath, backupPath);
                         }
-                        fs.renameSync(journalPath, backupPath);
                     }
+                } catch (e) {
+                    console.error('Failed to rotate state_journal.ndjson', e);
                 }
-            } catch (e) {
-                console.error('Failed to rotate state_journal.ndjson', e);
-            }
 
-            try {
-                fs.appendFileSync(journalPath, JSON.stringify(enriched) + '\n', 'utf-8');
-            } catch (e) {
-                console.error('Failed to append state_journal.ndjson after Accepted commit', e);
+                try {
+                    fs.appendFileSync(journalPath, JSON.stringify(enriched) + '\n', 'utf-8');
+                } catch (e) {
+                    console.error('Failed to append state_journal.ndjson after Accepted commit', e);
+                }
             }
+        } catch (e) {
+            console.error('[statePatch] post-commit journal setup threw; game_state retained per compensation policy.', e);
         }
 
         return enriched;

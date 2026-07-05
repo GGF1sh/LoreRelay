@@ -66,6 +66,11 @@ function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value), 'utf8');
 }
 
+async function flushAsyncWork() {
+    await Promise.resolve();
+    await Promise.resolve();
+}
+
 function baseTurnResult(id = 'turn-2') {
     return {
         turnId: id,
@@ -77,7 +82,7 @@ function baseTurnResult(id = 'turn-2') {
 function loadGameStateSyncHarness(options = {}) {
     purgeModules([outGameStateSync]);
 
-    const tmpDir = makeTempDir('lr-runtime-002a-sync-');
+    const tmpDir = options.tmpDir || makeTempDir('lr-runtime-002a-sync-');
     const turnResultPath = path.join(tmpDir, 'turn_result.json');
     const events = [];
     const postMessages = [];
@@ -303,7 +308,12 @@ function makeStatePatchMocks(tempDir, options = {}) {
             './worldEventLogCore': { isValidEventId(id) { return typeof id === 'string' && id.length > 0; } },
             './workspacePaths': {
                 getGameStatePath() { return statePath; },
-                getWorkspacePath() { return tempDir; },
+                getWorkspacePath() {
+                    if (typeof options.getWorkspacePath === 'function') {
+                        return options.getWorkspacePath();
+                    }
+                    return tempDir;
+                },
                 writeJsonAtomic() {},
             },
             './validateGameState': {
@@ -431,6 +441,185 @@ function loadStatePatchHarness(options = {}) {
         statePath: setup.statePath,
         get commitCalls() { return setup.commitCalls; },
         get ledgerCalls() { return setup.ledgerCalls; },
+    };
+}
+
+function makeWatcherFallbackIntegrationHarness(options = {}) {
+    purgeModules([outGameStateSync, outTurnResultFallback]);
+
+    const tmpDir = makeTempDir('lr-runtime-002a-integration-');
+    const gameStatePath = path.join(tmpDir, 'game_state.json');
+    const historyPath = path.join(tmpDir, 'game_history.json');
+    const turnResultPath = path.join(tmpDir, 'turn_result.json');
+    writeJson(gameStatePath, {
+        schemaVersion: 2,
+        entries: [],
+        status: { hp: { current: 10, max: 10 }, mp: { current: 5, max: 5 } },
+        options: ['Wait'],
+    });
+
+    const events = [];
+    let applyCount = 0;
+    let callbackCount = 0;
+    let handledCount = 0;
+    const processResponses = Array.isArray(options.processResponses)
+        ? [...options.processResponses]
+        : [];
+
+    const workspacePaths = {
+        getActiveWorkspaceFolder: () => ({ uri: { fsPath: tmpDir } }),
+        writeJsonAtomic() {},
+        getGameStatePath: () => gameStatePath,
+        getWorkspacePath: () => tmpDir,
+        getHistoryPath: () => historyPath,
+    };
+
+    const mocks = {
+        vscode: createVscodeStub({
+            workspace: {
+                getConfiguration: () => ({ get: () => undefined, update: async () => undefined }),
+                workspaceFolders: [{ uri: { fsPath: tmpDir } }],
+                createFileSystemWatcher: () => ({
+                    onDidChange() {},
+                    onDidCreate() {},
+                    dispose() {},
+                }),
+                RelativePattern: function RelativePattern() {},
+            },
+            Uri: { file: (p) => ({ fsPath: p }) },
+        }),
+        './workspacePaths': workspacePaths,
+        './statePatch': {
+            processTurnResult(turnResult) {
+                applyCount++;
+                events.push(`apply:${turnResult.turnId}`);
+                if (processResponses.length > 0) {
+                    return processResponses.shift();
+                }
+                return turnResult;
+            },
+            takeAutoLocationImageRequest() { return undefined; },
+            buildStatePatchFromDiff() { return []; },
+        },
+        './gmPromptBuilder': {
+            getTriggeredLoreLabels() { return []; },
+        },
+        './npcRegistry': {
+            applyNpcMemoryUpdates() {},
+            parseNpcMemoryUpdatesFromGameState() { return []; },
+            loadNpcRegistry() { return { npcs: {} }; },
+        },
+        './gameRules': {
+            loadGameRules() {
+                return { enableNpcRegistry: false };
+            },
+        },
+        './entryId': {
+            isValidEntryId(id) { return typeof id === 'string' && id.length > 0; },
+        },
+        './validateGameState': { validateGameState() { return []; } },
+        './gameStateSanitize': { salvageGameStateFromUnknown() { return undefined; } },
+        './migrateGameState': {
+            migrateGameState(state) { return { state, migrated: false, fromVersion: 2 }; },
+            CURRENT_SCHEMA_VERSION: 2,
+        },
+        './autoLocationImageRunner': {
+            queueAutoLocationImageSilent() {
+                events.push('auto');
+            },
+        },
+        './mediaAgent': {
+            handleGameStateMedia() {},
+            handleTurnResultMedia(turnResult) {
+                events.push(`media:${turnResult.turnId}`);
+            },
+        },
+        './remotePlayServer': { pushGameStateToRemoteClients() {} },
+        './scenarioDirector': { pushScenarioDirectorToWebview() {} },
+        './partyDirector': { pushPartyDirectorToWebview() {} },
+        './worldView': { pushWorldViewToWebview() {} },
+        './emergentSimulator': { maybeTickSimulation() {} },
+        './mediaPaths': {
+            isAllowedImagePath() { return true; },
+            toWebviewSafeMediaRef() { return undefined; },
+        },
+        './worldForge': { loadWorldForge() { return undefined; } },
+        './worldState': {
+            loadWorldState() { return undefined; },
+            isWorldStateEnabled() { return false; },
+        },
+        './locationImageBuilder': { buildLocationImagePrompt() { return undefined; } },
+        './locationImageTracker': {
+            shouldAutoGenerateForLocation() { return false; },
+            markLocationAutoGenerated() {},
+        },
+        './imageGenRunner': {
+            enqueueImageGeneration() { return false; },
+            getResolvedImageMode() { return 'location'; },
+        },
+        './stateManager': { commitGameState() { return { ok: true, action: 'write' }; } },
+        './protagonistBootstrap': {
+            scheduleProtagonistBootstrap(turnResult) {
+                events.push(`bootstrap:${turnResult.turnId}`);
+            },
+        },
+        './npcWhereaboutsTrustCore': { readNpcPlayerTrust(value) { return value; } },
+        './gameStateWebviewSanitize': {
+            sanitizeGameStateForWebview(value) { return value; },
+            sanitizeTurnResultForWebview(value) { return value; },
+        },
+    };
+
+    const turnResultFallback = withMockedRequire(mocks, () => require(outTurnResultFallback));
+    const gameStateSync = withMockedRequire(mocks, () => require(outGameStateSync));
+    if (typeof turnResultFallback.resetTurnResultFallbackForTests === 'function') {
+        turnResultFallback.resetTurnResultFallbackForTests();
+    }
+    gameStateSync.resetTurnResultProcessingStateForTests();
+    gameStateSync.initGameStateSync({
+        getPanel: () => ({
+            webview: {
+                postMessage(payload) {
+                    events.push(`ui:${payload.turnResult?.turnId ?? 'none'}`);
+                },
+            },
+        }),
+        getGameStatePath: workspacePaths.getGameStatePath,
+        getWorkspacePath: workspacePaths.getWorkspacePath,
+        getSkillDir: () => undefined,
+        getHistoryPath: workspacePaths.getHistoryPath,
+        processProfileUpdates() {},
+        maybeSuggestArchive() {},
+        appendGmBridgeLog() {},
+    });
+
+    const originalMarkHandled = turnResultFallback.markTurnResultHandled;
+    turnResultFallback.markTurnResultHandled = function patchedMarkHandled() {
+        handledCount++;
+        events.push('handled');
+        return originalMarkHandled.apply(this, arguments);
+    };
+
+    return {
+        tmpDir,
+        gameStatePath,
+        turnResultPath,
+        events,
+        gameStateSync,
+        turnResultFallback,
+        get applyCount() { return applyCount; },
+        get handledCount() { return handledCount; },
+        get callbackCount() { return callbackCount; },
+        writeTurnResult(turnResult) {
+            writeJson(turnResultPath, turnResult);
+        },
+        beginPendingTurn() {
+            const prevState = turnResultFallback.beginGmRun(() => {
+                callbackCount++;
+                events.push('callback');
+            });
+            return prevState;
+        },
     };
 }
 
@@ -588,6 +777,19 @@ async function runAsyncCases() {
         }
     }
 
+    // 10b. post-commit getWorkspacePath throw remains Accepted.
+    {
+        const harness = loadStatePatchHarness({
+            getWorkspacePath() {
+                throw new Error('workspace path boom');
+            },
+        });
+        const accepted = harness.module.processTurnResult(baseTurnResult('turn-workspace-throw'));
+        assert(Boolean(accepted), 'post-commit getWorkspacePath throw stays Accepted/truthy');
+        assert(harness.commitCalls === 1, 'post-commit getWorkspacePath throw occurs after canonical commit');
+        assert(harness.ledgerCalls === 1, 'post-commit getWorkspacePath throw does not roll back secondary ledger attempt');
+    }
+
     // 2/3. pre-commit validation failure and canonical commit failure stay false.
     {
         const validationHarness = loadStatePatchHarness({
@@ -611,6 +813,67 @@ async function runAsyncCases() {
         assert(rejected === false, 'canonical commit failure returns false');
         assert(commitHarness.commitCalls === 1, 'canonical commit failure reaches commit exactly once');
         assert(commitHarness.ledgerCalls === 0, 'canonical commit failure does not run post-commit ledgers');
+    }
+
+    // 9. restart with failed file and transient condition cleared reprocesses same bytes.
+    {
+        const tmpDir = makeTempDir('lr-runtime-002a-restart-');
+        const turn = baseTurnResult('turn-restart');
+        const firstHarness = loadGameStateSyncHarness({
+            tmpDir,
+            processResponses: [false],
+        });
+        firstHarness.beginPendingTurn(() => {});
+        fs.writeFileSync(firstHarness.turnResultPath, JSON.stringify(turn), 'utf8');
+
+        const first = await firstHarness.processFile();
+        assert(first === false, 'restart proof: first lifetime returns false');
+        assert(fs.existsSync(firstHarness.turnResultPath), 'restart proof: failed file remains on disk');
+        assert(firstHarness.getHash() === '', 'restart proof: first lifetime does not commit hash');
+        assert(firstHarness.handledCount === 0, 'restart proof: first lifetime does not mark Handled');
+        assert(firstHarness.callbackCount === 0, 'restart proof: first lifetime does not fire callback');
+
+        const secondHarness = loadGameStateSyncHarness({
+            tmpDir,
+            processResponses: [{ ...turn, beforeHash: 'r0', afterHash: 'r1', appliedAt: 'restart' }],
+        });
+        const second = await secondHarness.processFile();
+        assert(second === true, 'restart proof: same bytes may succeed after restart/reset');
+        assert(fs.existsSync(secondHarness.turnResultPath), 'restart proof: same file still exists for second lifetime');
+        assert(secondHarness.processCalls === 1, 'restart proof: exactly one successful apply in restarted lifetime');
+        assert(secondHarness.handledCount === 1, 'restart proof: restarted lifetime marks Handled once');
+        assert(secondHarness.callbackCount === 0, 'restart proof: callback does not survive restart');
+    }
+
+    // 12. fallback-first duplicate observation with watcher second only accepts once.
+    {
+        const harness = makeWatcherFallbackIntegrationHarness({
+            processResponses: [{ ...baseTurnResult('turn-integration'), beforeHash: 'i0', afterHash: 'i1', appliedAt: 'integration' }],
+        });
+        const prevState = harness.beginPendingTurn();
+        harness.turnResultFallback.initTurnResultFallback(harness.gameStateSync.checkPendingTurnResultFile);
+        harness.writeTurnResult(baseTurnResult('turn-integration'));
+
+        const originalSetTimeout = global.setTimeout;
+        const scheduled = [];
+        global.setTimeout = ((fn, ms, ...args) => {
+            scheduled.push(() => fn(...args));
+            return { __fakeTimer: true, ms };
+        });
+        try {
+            harness.turnResultFallback.finishGmRun(prevState, 'Wait', true);
+            assert(scheduled.length === 1, 'integration proof: finishGmRun schedules fallback check');
+            scheduled[0]();
+            await flushAsyncWork();
+        } finally {
+            global.setTimeout = originalSetTimeout;
+        }
+
+        const watcherDuplicate = await harness.gameStateSync.processTurnResultFileAtForTests(harness.turnResultPath);
+        assert(watcherDuplicate === false, 'integration proof: watcher sees duplicate after fallback acceptance');
+        assert(harness.applyCount === 1, 'integration proof: apply count = 1');
+        assert(harness.handledCount === 1, 'integration proof: Handled count = 1');
+        assert(harness.callbackCount === 1, 'integration proof: callback count = 1');
     }
 
     // 11. callback throw is isolated and cannot re-fire.

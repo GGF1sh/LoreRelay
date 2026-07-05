@@ -13,6 +13,8 @@
 
 - **Identity / Reference Layer D1 design** - `docs/IDENTITY_REFERENCE_LAYER_D1_DESIGN.md`: pure read-only cross-ledger entity inventory and reference validation contract, defining minimal `EntityKind` / `EntityRef` / alias / tombstone semantics, ledger reference inventory, deferred write-back boundaries, required tests, and a Grok/Codex implementation prompt.
 
+- **Determinism Spine D1 review fixes** - tightened QA determinism hashing after implementation: volatile redaction now only removes the documented root fields, compare-runs temp workspaces are kept only for drift/failure unless requested, and unsupported `determinism.customFiles` is rejected to preserve the fixed D1 canonical file set.
+
 - **Determinism Spine D1 design** - `docs/DETERMINISM_SPINE_D1_DESIGN.md`: canonical JSON state hashing and drift detection contract for Game QA Runner, including stable serialization, canonical file set, QA report extensions, two-run comparison flow, safety boundaries, D1a-D1c phases, and a Grok implementation prompt.
 
 - **Game QA Runner / Autoplay Benchmark design** - `docs/GAME_QA_RUNNER_DESIGN.md`: deterministic temp-workspace QA runner plan for scripted game behavior checks, with scenario JSON format, assertion catalog, side-effect policy, `qa:game:*` script plan, QA1-QA5 phases, and a Grok implementation prompt. QA1 intentionally excludes LLM/Webview/ComfyUI and does not join `npm test`.

@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-07-05 JST - Codex - Determinism Spine D1 review fixes
+
+- Reviewed Antigravity/Gemini's Determinism Spine D1 follow-up changes on top of `a6d7262`.
+- Kept the useful root-only volatile redaction fix so nested domain fields named `debug` / `lastSavedAt` are not silently removed from hashes.
+- Rejected `determinism.customFiles` in D1 to preserve the fixed canonical file set and avoid scenario-controlled arbitrary file hashing.
+- Verified: `npm run compile`, `node scripts/test_determinism_spine_core.js`, `npm run qa:game:determinism`, and `npm test` **211/211**.
+
+---
+
 ## 2026-07-05 JST - Codex - Identity / Reference Layer D1 design
 
 - Added `docs/IDENTITY_REFERENCE_LAYER_D1_DESIGN.md`: pure read-only cross-ledger entity inventory + reference validation contract.

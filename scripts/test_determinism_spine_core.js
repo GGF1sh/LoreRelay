@@ -161,13 +161,19 @@ const hashText = (text) => crypto.createHash('sha256').update(text, 'utf8').dige
         debug: { trace: 1 },
         report: { ok: true },
         meta: { generatedAt: '2026-07-05T00:00:00Z', worldName: 'Test' },
+        nested: {
+            debug: { keepThis: 123 },
+            lastSavedAt: 'preserve_me',
+        }
     });
     if (redacted.lastSavedAt || redacted.lastUpdated || redacted.debug || redacted.report || redacted.meta.generatedAt) {
-        fail('volatile exclusions should remove named fields only');
+        fail('volatile exclusions should remove named root fields');
     } else if (redacted.meta.worldName !== 'Test' || redacted.worldTurn !== 1) {
         fail('volatile exclusions should preserve non-volatile fields');
+    } else if (!redacted.nested || !redacted.nested.debug || redacted.nested.debug.keepThis !== 123 || redacted.nested.lastSavedAt !== 'preserve_me') {
+        fail('volatile exclusions should not remove deep nested fields with identical names');
     } else {
-        ok('volatile path exclusion is narrow and tested');
+        ok('volatile path exclusion is narrow and only applies to root fields');
     }
 }
 
@@ -224,6 +230,16 @@ const hashText = (text) => crypto.createHash('sha256').update(text, 'utf8').dige
         fail('compareRuns:3 should be rejected in D1');
     } else {
         ok('determinism config parser rejects unsupported compareRuns');
+    }
+
+    const configWithCustom = parseQaDeterminismConfig({
+        enabled: true,
+        customFiles: ['custom_data.json', 'another_file.json']
+    });
+    if (configWithCustom.ok) {
+        fail('determinism config parser should reject customFiles in D1');
+    } else {
+        ok('determinism config parser rejects customFiles in D1');
     }
 
     const scenario = parseQaScenarioDocument({

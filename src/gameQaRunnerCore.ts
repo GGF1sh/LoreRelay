@@ -346,6 +346,10 @@ export function parseQaDeterminismConfig(raw: unknown): ParseQaDeterminismConfig
         }
     }
 
+    if (doc.customFiles !== undefined) {
+        errors.push('determinism.customFiles is not supported in D1');
+    }
+
     if (errors.length > 0) {
         return { ok: false, errors };
     }

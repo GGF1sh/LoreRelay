@@ -122,37 +122,39 @@ export function stableSerialize(value: unknown): string {
 }
 
 /** Apply the D1 allowlisted volatile-field redaction pass. */
-export function redactVolatileFields(value: unknown): unknown {
+export function redactVolatileFields(value: unknown, isRoot = true): unknown {
     if (value === null || value === undefined) {
         return value;
     }
     if (Array.isArray(value)) {
-        return value.map((item) => redactVolatileFields(item));
+        return value.map((item) => redactVolatileFields(item, false));
     }
     if (typeof value !== 'object') {
         return value;
     }
 
     const record = { ...(value as Record<string, unknown>) };
-    for (const key of DETERMINISM_VOLATILE_ROOT_KEYS) {
-        delete record[key];
-    }
-    if ('lastSavedAt' in record) {
-        delete record.lastSavedAt;
-    }
-    if ('lastUpdated' in record) {
-        delete record.lastUpdated;
-    }
-    if (record.meta && typeof record.meta === 'object' && !Array.isArray(record.meta)) {
-        const meta = { ...(record.meta as Record<string, unknown>) };
-        delete meta.generatedAt;
-        record.meta = meta;
+    if (isRoot) {
+        for (const key of DETERMINISM_VOLATILE_ROOT_KEYS) {
+            delete record[key];
+        }
+        if ('lastSavedAt' in record) {
+            delete record.lastSavedAt;
+        }
+        if ('lastUpdated' in record) {
+            delete record.lastUpdated;
+        }
+        if (record.meta && typeof record.meta === 'object' && !Array.isArray(record.meta)) {
+            const meta = { ...(record.meta as Record<string, unknown>) };
+            delete meta.generatedAt;
+            record.meta = meta;
+        }
     }
 
     for (const key of Object.keys(record)) {
         const child = record[key];
         if (child && typeof child === 'object') {
-            record[key] = redactVolatileFields(child);
+            record[key] = redactVolatileFields(child, false);
         }
     }
     return record;

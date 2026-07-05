@@ -934,11 +934,24 @@ function main() {
             noKeepFailed: args.noKeepFailed,
         };
         if (scenario.determinism?.enabled && scenario.determinism.compareRuns >= 2) {
-            const baseline = runScenario(scenario, args.mode, runOptions);
+            const baseline = runScenario(scenario, args.mode, { ...runOptions, keepTemp: true });
             const repeat = runScenario(scenario, args.mode, { ...runOptions, keepTemp: true });
-            applyDeterminismComparison(baseline, repeat, scenario.determinism);
+            const comparison = applyDeterminismComparison(baseline, repeat, scenario.determinism);
             printScenarioSummary(repeat);
             results.push(repeat);
+
+            if (comparison.ok && !runOptions.keepTemp) {
+                try {
+                    if (fs.existsSync(baseline.plan.runDir)) {
+                        removeDirectorySafe(baseline.plan.runDir, baseline.plan.qaTempRoot);
+                    }
+                    if (fs.existsSync(repeat.plan.runDir)) {
+                        removeDirectorySafe(repeat.plan.runDir, repeat.plan.qaTempRoot);
+                    }
+                } catch (err) {
+                    console.error(`WARN: failed to delete temp run dirs: ${err.message}`);
+                }
+            }
         } else {
             const result = runScenario(scenario, args.mode, runOptions);
             printScenarioSummary(result);

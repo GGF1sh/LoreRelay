@@ -4,7 +4,7 @@
 |:---|:---|
 | **Task ID** | `PROMPT-001A` |
 | **Status** | SECOND_REVIEW |
-| **As-of Commit** | `6af4bc5` code baseline; implementation branch tip `e1b4715`; bulk audit passed on main |
+| **As-of Commit** | merged to main at `99a3b8e`; SECOND_REVIEW passed; post-merge smoke pending |
 | **Depends On** | None for staging implementation; terminal DONE depends on `PROMPT-001C` integration and the truthful Accepted boundary from `RUNTIME-002A` |
 | **Gate Report V1** | [`PROMPT-001A-GATE-REPORT.md`](PROMPT-001A-GATE-REPORT.md) (Claude Opus 4.8 — superseded / returned) |
 | **Adversarial Review V1** | [`PROMPT-001A-ADVERSARIAL-REVIEW.md`](PROMPT-001A-ADVERSARIAL-REVIEW.md) (Gemini 3.1 Pro) |
@@ -15,6 +15,8 @@
 | **Verification Review** | [`PROMPT-001A-VERIFYING-REVIEW.md`](PROMPT-001A-VERIFYING-REVIEW.md) |
 | **Verification Result** | [`PROMPT-001A-VERIFYING-RESULT.md`](PROMPT-001A-VERIFYING-RESULT.md) |
 | **Bulk Audit Report** | [`PROMPT-001A-BULK-AUDIT-REPORT.md`](PROMPT-001A-BULK-AUDIT-REPORT.md) |
+| **Second Review Report** | [`PROMPT-001A-SECOND-REVIEW-REPORT.md`](PROMPT-001A-SECOND-REVIEW-REPORT.md) |
+| **Merge** | PR #2 merged at `99a3b8ed2e02898eb5f0f2db45b5bd15b1074ac5` |
 
 ## Objective
 
@@ -133,6 +135,10 @@ Tip:
 
 `e1b47150f0932c68eb427a656048e289503cfc72`
 
+Merged by PR #2 to:
+
+`99a3b8ed2e02898eb5f0f2db45b5bd15b1074ac5`
+
 Changed files:
 
 - `src/gmPromptBuilder.ts`
@@ -156,49 +162,36 @@ Gemini 3.5 Flash verdict:
 
 No hidden caller, authority leak, forbidden-file change, test bypass, chunk-order change, priority change, or new Finding Candidate was reported.
 
-## Second Review Scope
+### Second Review
 
-SECOND_REVIEW must inspect only the merge-critical residual questions below. Do not restart the full Architecture Gate.
+Gemini 3.1 Pro verdict:
 
-### 1. Strategy object mutability / authority substitution
+`SECOND_REVIEW_PASS`
 
-Confirm whether mutable top-level strategy objects or callback references could be reassigned/mutated at runtime in current module scope, allowing pure authority to be redirected to consume functions.
+No merge-blocking issue was reported for strategy mutability, production parity, authority boundary strength, or test structural fragility.
 
-Decide whether current `const` object references are sufficient or whether `Object.freeze` / `Readonly` / another minimal hardening is required.
+### Source Drift / Merge Safety
 
-Do not demand hardening merely for style; require it only if a concrete reachable mutation path exists.
+Chief Integrator re-check before merge:
 
-### 2. Exact production parity claim
+- implementation base → pre-merge main: PROMPT-001A control docs only;
+- implementation base → branch tip: exactly three expected implementation/test files;
+- no relevant source drift;
+- PR #2 became mergeable and was merged without authority-sensitive conflict.
 
-Verify whether the branch truly preserves production behavior for Chronicle and World Change Summary across:
+## Post-Merge Smoke Gate
 
-- activation inactive;
-- empty content;
-- successful content build;
-- marker write failure / thrown consume callback;
-- budget eviction after consumption.
+Before leaving SECOND_REVIEW, current main `99a3b8e` must pass a post-merge smoke confirmation:
 
-The staging contract intentionally preserves the bad early-consumption semantics. The question is whether the wrapper/strategy refactor accidentally changes timing, ordering, exception propagation, or output.
+1. `git status` clean after sync;
+2. compile passes;
+3. `scripts/test_prompt_candidate_purity.js` passes;
+4. `scripts/test_context_inspector_integration.js` passes;
+5. related prompt/chronicle tests pass;
+6. full suite passes;
+7. no unexpected diff or generated source change remains.
 
-### 3. Test structural fragility vs merge safety
-
-Assess whether regex/source-text tests are sufficiently narrow for this task or create a false sense of safety. A test may be brittle without blocking merge; distinguish:
-
-- merge-blocking correctness gap;
-- maintainability note;
-- no issue.
-
-Do not redesign the project test architecture.
-
-### 4. Lifecycle / merge decision
-
-If SECOND_REVIEW passes:
-
-- branch may be merged into main;
-- PROMPT-001A must not go to DONE;
-- after merge and post-merge smoke confirmation, transition to `BLOCKED (Waiting for PROMPT-001C)`.
-
-If merge exposes conflict or source drift since base, return to VERIFYING rather than silently resolving authority-sensitive changes.
+GitHub CI/status checks do not exist; smoke evidence is local unless a remote check is added.
 
 ## Lifecycle / Done Semantics
 
@@ -206,9 +199,13 @@ Normal quality flow:
 
 `READY_TO_IMPLEMENT → IMPLEMENTING → VERIFYING → BULK_AUDIT → SECOND_REVIEW`
 
-After SECOND_REVIEW passes and the branch is merged with post-merge smoke confirmation:
+Current state:
 
-- if PROMPT-001C is incomplete, transition to `BLOCKED (Waiting for PROMPT-001C)`;
+`SECOND_REVIEW_PASS → merged → post-merge smoke pending`
+
+After post-merge smoke confirmation:
+
+- transition to `BLOCKED (Waiting for PROMPT-001C)`;
 - do not transition to DONE.
 
 PROMPT-001A reaches terminal DONE only after downstream integration proves:
@@ -240,4 +237,4 @@ PROMPT-001A reaches terminal DONE only after downstream integration proves:
 
 ## Current Lifecycle Note
 
-Implementation branch tip `e1b4715` passed VERIFYING and BULK_AUDIT. It remains unmerged and is now in SECOND_REVIEW.
+SECOND_REVIEW passed and PR #2 merged at `99a3b8e`. PROMPT-001A remains in SECOND_REVIEW only until post-merge smoke on current main succeeds; then it transitions to `BLOCKED (Waiting for PROMPT-001C)`.

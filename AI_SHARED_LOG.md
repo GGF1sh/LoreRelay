@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-07-05 JST - Codex - Determinism Spine D1 design
+
+- Added `docs/DETERMINISM_SPINE_D1_DESIGN.md`: deterministic canonical state hashing and drift detection contract for Game QA Runner.
+- Scope: D1 hashes a bounded canonical JSON file set in QA temp workspaces, records snapshots at start/step/finish, and optionally compares two runs to locate the first drift.
+- Explicitly deferred: named seed streams, Debug Trace emission, Replay integration, active workspace diagnosis, binary/media hashing, and automatic repair.
+- Includes D1a-D1c implementation phases, safety boundaries, report schema extension, required tests, and a Grok/Codex implementation prompt.
+
+---
+
 ## 2026-07-05 JST - Codex - Game QA Runner / Autoplay Benchmark design
 
 - Added `docs/GAME_QA_RUNNER_DESIGN.md`: deterministic QA runner design for temp-workspace scripted game behavior checks.

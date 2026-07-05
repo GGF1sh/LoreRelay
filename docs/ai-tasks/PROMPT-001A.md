@@ -3,8 +3,8 @@
 | Field | Description |
 |:---|:---|
 | **Task ID** | `PROMPT-001A` |
-| **Status** | VERIFYING |
-| **As-of Commit** | `6af4bc5` code baseline; implementation branch commit `b47f626`; verification review on main |
+| **Status** | BULK_AUDIT |
+| **As-of Commit** | `6af4bc5` code baseline; implementation branch tip `e1b4715`; verification passed on main |
 | **Depends On** | None for staging implementation; terminal DONE depends on `PROMPT-001C` integration and the truthful Accepted boundary from `RUNTIME-002A` |
 | **Gate Report V1** | [`PROMPT-001A-GATE-REPORT.md`](PROMPT-001A-GATE-REPORT.md) (Claude Opus 4.8 — superseded / returned) |
 | **Adversarial Review V1** | [`PROMPT-001A-ADVERSARIAL-REVIEW.md`](PROMPT-001A-ADVERSARIAL-REVIEW.md) (Gemini 3.1 Pro) |
@@ -13,6 +13,7 @@
 | **Adversarial Review V2** | [`PROMPT-001A-ADVERSARIAL-REVIEW-V2.md`](PROMPT-001A-ADVERSARIAL-REVIEW-V2.md) (Gemini 3.1 Pro differential review) |
 | **Canonical Implementation Amendment** | [`PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md`](PROMPT-001A-INTEGRATOR-AMENDMENT-V2.md) |
 | **Verification Review** | [`PROMPT-001A-VERIFYING-REVIEW.md`](PROMPT-001A-VERIFYING-REVIEW.md) |
+| **Verification Result** | [`PROMPT-001A-VERIFYING-RESULT.md`](PROMPT-001A-VERIFYING-RESULT.md) |
 
 ## Objective
 
@@ -127,18 +128,23 @@ The staging implementation may pass its own quality gates only when all are true
 - flag/caller inventory: only Inspector uses pure entry and production uses legacy entry;
 - diff-scope check: no unrelated source changes.
 
-## Current Verification Blocker
+## Bulk Audit Scope
 
-The implementation shape passed preliminary source review, but the first targeted test does not independently prove that `chronicleSessionPending` remains unchanged across pure builds.
+Audit the complete branch delta:
 
-Required repair is documented in `PROMPT-001A-VERIFYING-REVIEW.md`:
+`0289b347f6bef4b5c524d4fe959b7d9434d9ee58..e1b47150f0932c68eb427a656048e289503cfc72`
 
-- set `lastInjectedChronicleTurn` equal to the fixture `sourceTurn` before pure builds;
-- rely on session-pending alone to make Chronicle visible;
-- verify Chronicle is still visible on the second pure build;
-- rerun compile, targeted tests, related tests, and full suite.
+The audit must verify at minimum:
 
-No source redesign is requested unless the repaired test exposes a real implementation failure.
+- all call sites of `buildGmPromptChunkSpecsWithMeta`, `buildPureCandidateSpecsWithMeta`, `buildLegacyProductionSpecsWithMeta`, and `buildLegacyProductionSpecs`;
+- no hidden/default/boolean authority selection;
+- pure path has no consume/mark/clear reachability for the two consumables;
+- production path still reaches legacy consume authority and still evicts in `buildGmPromptContext`;
+- no other source file in the branch changes behavior;
+- targeted test is non-vacuous and directly proves pending isolation;
+- test registration is limited to the new targeted test;
+- no source-string compatibility test was weakened or removed;
+- no new finding is silently hidden by the staging design.
 
 ## Lifecycle / Done Semantics
 
@@ -180,4 +186,4 @@ PROMPT-001A reaches terminal DONE only after downstream integration proves:
 
 ## Current Lifecycle Note
 
-Implementation commit `b47f626` is under verification. The authority split is preliminarily accepted; one targeted test-proof gap must be repaired before BULK_AUDIT.
+Implementation branch tip `e1b4715` passed verification review and is now in BULK_AUDIT. The branch remains unmerged.

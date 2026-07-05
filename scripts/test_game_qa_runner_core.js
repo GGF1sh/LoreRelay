@@ -104,6 +104,13 @@ const {
             ok('resolveScenarioRunModes honors optional modes[]');
         }
     }
+
+    const determinism = scenarios.find((s) => s.id === 'qa_determinism_world_sim');
+    if (!determinism?.determinism?.enabled || determinism.determinism.compareRuns !== 2) {
+        fail('qa_determinism_world_sim should enable compareRuns:2 determinism');
+    } else {
+        ok('parses determinism-enabled scenario');
+    }
 }
 
 {

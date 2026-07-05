@@ -14,6 +14,7 @@
  *   npm run compile
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -44,6 +45,16 @@ const {
 } = require(corePath);
 
 const { resolveBundledSampleDir } = require(path.join(ROOT, 'out', 'scenarioPackCore.js'));
+const {
+    DETERMINISM_CANONICAL_FILES,
+    DETERMINISM_PARSE_ERROR_SENTINEL,
+    buildDeterminismSnapshot,
+    compareDeterminismSnapshotStreams,
+    trimDeterminismSnapshots,
+} = require(path.join(ROOT, 'out', 'determinismSpineCore.js'));
+
+const hashCanonicalText = (text) => crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+const QUICK_DETERMINISM_SNAPSHOT_LIMIT = 20;
 
 let executionModules;
 function loadExecutionModules() {
@@ -228,6 +239,101 @@ function readJsonIfExists(filePath) {
     } catch (err) {
         return { exists: true, parseError: err.message };
     }
+}
+
+function collectCanonicalFileInputs(workspaceDir) {
+    const inputsByPath = {};
+    for (const fileName of DETERMINISM_CANONICAL_FILES) {
+        const filePath = path.join(workspaceDir, fileName);
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+            inputsByPath[fileName] = { path: fileName, exists: false };
+            continue;
+        }
+        const bytes = fs.statSync(filePath).size;
+        try {
+            const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            inputsByPath[fileName] = { path: fileName, exists: true, bytes, parsed };
+        } catch {
+            inputsByPath[fileName] = {
+                path: fileName,
+                exists: true,
+                bytes,
+                parseError: DETERMINISM_PARSE_ERROR_SENTINEL,
+            };
+        }
+    }
+    return inputsByPath;
+}
+
+function readWorldTurn(workspaceDir) {
+    const read = readJsonIfExists(path.join(workspaceDir, 'world_state.json'));
+    if (!read.exists || read.parseError || !read.data || typeof read.data !== 'object') {
+        return undefined;
+    }
+    const turn = read.data.worldTurn;
+    return typeof turn === 'number' && Number.isFinite(turn) ? Math.floor(turn) : undefined;
+}
+
+function shouldCaptureDeterminismSnapshot(config, trigger) {
+    return config.snapshotOn.includes(trigger);
+}
+
+function captureDeterminismSnapshot(ctx, label, stepMeta) {
+    const snapshot = buildDeterminismSnapshot({
+        label,
+        stepId: stepMeta?.stepId,
+        stepIndex: stepMeta?.stepIndex,
+        worldTurn: readWorldTurn(ctx.workspaceDir),
+        inputsByPath: collectCanonicalFileInputs(ctx.workspaceDir),
+        hashText: hashCanonicalText,
+    });
+    ctx.runtime.determinismSnapshots.push(snapshot);
+}
+
+function resolveDeterminismSnapshotLimit(scenario, mode) {
+    const configured = scenario.limits?.maxReportEvents;
+    if (mode === 'quick') {
+        return Math.min(QUICK_DETERMINISM_SNAPSHOT_LIMIT, configured ?? QUICK_DETERMINISM_SNAPSHOT_LIMIT);
+    }
+    return configured ?? 50;
+}
+
+function attachDeterminismMetrics(report, scenario, mode, snapshots) {
+    if (!scenario.determinism?.enabled) {
+        return;
+    }
+    report.metrics.determinism = {
+        enabled: true,
+        snapshots: trimDeterminismSnapshots(snapshots, resolveDeterminismSnapshotLimit(scenario, mode)),
+    };
+}
+
+function applyDeterminismComparison(baselineResult, repeatResult, config) {
+    const leftSnaps = baselineResult.report.metrics.determinism?.snapshots ?? [];
+    const rightSnaps = repeatResult.report.metrics.determinism?.snapshots ?? [];
+    const comparison = compareDeterminismSnapshotStreams(leftSnaps, rightSnaps);
+
+    repeatResult.report.metrics.determinism = {
+        enabled: true,
+        snapshots: rightSnaps,
+        baselineRunId: baselineResult.report.runId,
+        comparison,
+    };
+
+    if (!comparison.ok && config.failOnDrift) {
+        repeatResult.report.ok = false;
+        repeatResult.report.failureClass = 'determinism_drift';
+        baselineResult.keepTemp = true;
+        repeatResult.keepTemp = true;
+        if (fs.existsSync(baselineResult.plan.runDir)) {
+            writeReports(baselineResult.plan, baselineResult.report);
+        }
+        if (fs.existsSync(repeatResult.plan.runDir)) {
+            writeReports(repeatResult.plan, repeatResult.report);
+        }
+    }
+
+    return comparison;
 }
 
 function collectFileByteMetrics(workspaceDir) {
@@ -592,6 +698,7 @@ function runScenario(scenario, mode, options) {
         jsonParseErrors: [],
         lastTransactionPlan: undefined,
         snapshots: [],
+        determinismSnapshots: [],
     };
 
     let keepTemp = options.keepTemp;
@@ -619,7 +726,12 @@ function runScenario(scenario, mode, options) {
             const timeoutMs = scenario.limits?.timeoutMs;
             const deadline = timeoutMs ? Date.now() + timeoutMs : undefined;
 
-            for (const step of scenario.steps) {
+            if (scenario.determinism?.enabled && shouldCaptureDeterminismSnapshot(scenario.determinism, 'start')) {
+                captureDeterminismSnapshot(ctx, 'start');
+            }
+
+            for (let stepIndex = 0; stepIndex < scenario.steps.length; stepIndex++) {
+                const step = scenario.steps[stepIndex];
                 if (deadline && Date.now() > deadline) {
                     report.failureClass = 'timeout';
                     report.steps.push({
@@ -668,6 +780,19 @@ function runScenario(scenario, mode, options) {
                     scenarioFailed = true;
                     break;
                 }
+
+                if (scenario.determinism?.enabled && shouldCaptureDeterminismSnapshot(scenario.determinism, 'after_step')) {
+                    captureDeterminismSnapshot(ctx, `after_step:${step.id}`, {
+                        stepId: step.id,
+                        stepIndex,
+                    });
+                }
+            }
+
+            if (!scenarioFailed
+                && scenario.determinism?.enabled
+                && shouldCaptureDeterminismSnapshot(scenario.determinism, 'finish')) {
+                captureDeterminismSnapshot(ctx, 'finish');
             }
         }
     } catch (err) {
@@ -688,6 +813,7 @@ function runScenario(scenario, mode, options) {
     if (fs.existsSync(plan.workspaceDir)) {
         report.metrics.fileBytes = collectFileByteMetrics(plan.workspaceDir);
     }
+    attachDeterminismMetrics(report, scenario, mode, runtime.determinismSnapshots);
     finalizeQaRunReport(report, new Date().toISOString());
 
     if (scenarioFailed) {
@@ -738,6 +864,17 @@ function printScenarioSummary(result) {
                 }
             }
         }
+        const drift = result.report.metrics.determinism?.comparison;
+        if (drift && !drift.ok) {
+            console.log(`   determinism drift at ${drift.firstDifferentSnapshot.label} (index ${drift.firstDifferentSnapshot.index})`);
+            if (drift.fileDiffs[0]) {
+                console.log(`   first file diff: ${drift.fileDiffs[0].path}`);
+            }
+        }
+    }
+    const determinism = result.report.metrics.determinism;
+    if (determinism?.enabled && determinism.comparison?.ok) {
+        console.log(`   determinism: OK (${determinism.comparison.snapshots} snapshots)`);
     }
     if (result.keepTemp && fs.existsSync(result.plan.runDir)) {
         console.log(`   kept temp: ${result.plan.runDir}`);
@@ -769,13 +906,15 @@ function main() {
         return;
     }
 
-    let scenarios = filterScenariosByRunMode(loaded.scenarios, args.mode);
+    let scenarios;
     if (args.scenarioId) {
-        scenarios = scenarios.filter((scenario) => scenario.id === args.scenarioId);
+        scenarios = loaded.scenarios.filter((scenario) => scenario.id === args.scenarioId);
         if (scenarios.length === 0) {
-            console.error(`FAIL: scenario not found for mode ${args.mode}: ${args.scenarioId}`);
+            console.error(`FAIL: scenario not found: ${args.scenarioId}`);
             process.exit(1);
         }
+    } else {
+        scenarios = filterScenariosByRunMode(loaded.scenarios, args.mode);
     }
 
     if (scenarios.length === 0) {
@@ -790,12 +929,21 @@ function main() {
     const results = [];
     for (const scenario of scenarios) {
         console.log(`\n--- [game-qa] ${scenario.id} ---`);
-        const result = runScenario(scenario, args.mode, {
+        const runOptions = {
             keepTemp: args.keepTemp,
             noKeepFailed: args.noKeepFailed,
-        });
-        printScenarioSummary(result);
-        results.push(result);
+        };
+        if (scenario.determinism?.enabled && scenario.determinism.compareRuns >= 2) {
+            const baseline = runScenario(scenario, args.mode, runOptions);
+            const repeat = runScenario(scenario, args.mode, { ...runOptions, keepTemp: true });
+            applyDeterminismComparison(baseline, repeat, scenario.determinism);
+            printScenarioSummary(repeat);
+            results.push(repeat);
+        } else {
+            const result = runScenario(scenario, args.mode, runOptions);
+            printScenarioSummary(result);
+            results.push(result);
+        }
     }
 
     const passed = results.filter((r) => r.report.ok).length;

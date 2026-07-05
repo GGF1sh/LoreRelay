@@ -38,7 +38,70 @@ export type QaFailureClass =
     | 'step_failed'
     | 'assert_failed'
     | 'timeout'
-    | 'internal_error';
+    | 'internal_error'
+    | 'determinism_drift';
+
+export const QA_DETERMINISM_SNAPSHOT_TRIGGERS = ['start', 'after_step', 'finish'] as const;
+export type QaDeterminismSnapshotTrigger = (typeof QA_DETERMINISM_SNAPSHOT_TRIGGERS)[number];
+
+export interface QaDeterminismConfig {
+    enabled: boolean;
+    snapshotOn: QaDeterminismSnapshotTrigger[];
+    compareRuns: number;
+    failOnDrift: boolean;
+}
+
+export interface QaDeterminismHash {
+    algorithm: 'sha256';
+    value: string;
+}
+
+export interface QaDeterminismFileHash {
+    path: string;
+    exists: boolean;
+    hash?: QaDeterminismHash;
+    bytes?: number;
+    parseError?: string;
+}
+
+export interface QaDeterminismSnapshot {
+    version: 1;
+    label: string;
+    stepId?: string;
+    stepIndex?: number;
+    worldTurn?: number;
+    aggregateHash: QaDeterminismHash;
+    files: QaDeterminismFileHash[];
+    warnings: string[];
+}
+
+export interface QaDeterminismDrift {
+    ok: false;
+    firstDifferentSnapshot: {
+        index: number;
+        label: string;
+        leftHash: string;
+        rightHash: string;
+    };
+    fileDiffs: Array<{
+        path: string;
+        leftHash?: string;
+        rightHash?: string;
+        leftExists: boolean;
+        rightExists: boolean;
+    }>;
+}
+
+export type QaDeterminismComparison =
+    | { ok: true; snapshots: number }
+    | QaDeterminismDrift;
+
+export interface QaDeterminismMetrics {
+    enabled: boolean;
+    snapshots: QaDeterminismSnapshot[];
+    baselineRunId?: string;
+    comparison?: QaDeterminismComparison;
+}
 
 export type QaWorkspaceSource =
     | { source: 'empty' }
@@ -100,6 +163,7 @@ export interface QaScenarioDefinition {
     modes?: QaRunMode[];
     workspace: QaWorkspaceSource;
     limits?: QaScenarioLimits;
+    determinism?: QaDeterminismConfig;
     steps: QaStep[];
 }
 
@@ -139,6 +203,7 @@ export interface QaRunReport {
     steps: QaStepReport[];
     metrics: {
         fileBytes: Record<string, number>;
+        determinism?: QaDeterminismMetrics;
     };
 }
 
@@ -214,6 +279,86 @@ function parseWorkspace(raw: unknown, errors: string[]): QaWorkspaceSource | und
     }
     errors.push('workspace.source must be empty, sample, or fixture');
     return undefined;
+}
+
+export type ParseQaDeterminismConfigResult =
+    | { ok: true; config: QaDeterminismConfig }
+    | { ok: false; errors: string[] };
+
+function isDeterminismSnapshotTrigger(value: unknown): value is QaDeterminismSnapshotTrigger {
+    return typeof value === 'string'
+        && (QA_DETERMINISM_SNAPSHOT_TRIGGERS as readonly string[]).includes(value);
+}
+
+/** Parse optional scenario determinism config with D1 defaults. */
+export function parseQaDeterminismConfig(raw: unknown): ParseQaDeterminismConfigResult {
+    if (raw === undefined) {
+        return {
+            ok: true,
+            config: {
+                enabled: false,
+                snapshotOn: ['start', 'finish'],
+                compareRuns: 1,
+                failOnDrift: false,
+            },
+        };
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return { ok: false, errors: ['determinism must be an object when provided'] };
+    }
+
+    const errors: string[] = [];
+    const doc = raw as Record<string, unknown>;
+    const enabled = doc.enabled === true;
+
+    let snapshotOn: QaDeterminismSnapshotTrigger[] = ['start', 'finish'];
+    if (doc.snapshotOn !== undefined) {
+        if (!Array.isArray(doc.snapshotOn) || doc.snapshotOn.length === 0) {
+            errors.push('determinism.snapshotOn must be a non-empty array');
+        } else {
+            snapshotOn = [];
+            for (let i = 0; i < doc.snapshotOn.length; i++) {
+                const item = doc.snapshotOn[i];
+                if (!isDeterminismSnapshotTrigger(item)) {
+                    errors.push(`determinism.snapshotOn[${i}] must be start, after_step, or finish`);
+                } else if (!snapshotOn.includes(item)) {
+                    snapshotOn.push(item);
+                }
+            }
+        }
+    }
+
+    let compareRuns = 1;
+    if (doc.compareRuns !== undefined) {
+        if (doc.compareRuns !== 1 && doc.compareRuns !== 2) {
+            errors.push('determinism.compareRuns must be 1 or 2 in D1');
+        } else {
+            compareRuns = doc.compareRuns;
+        }
+    }
+
+    let failOnDrift = compareRuns >= 2;
+    if (doc.failOnDrift !== undefined) {
+        if (typeof doc.failOnDrift !== 'boolean') {
+            errors.push('determinism.failOnDrift must be a boolean');
+        } else {
+            failOnDrift = doc.failOnDrift;
+        }
+    }
+
+    if (errors.length > 0) {
+        return { ok: false, errors };
+    }
+
+    return {
+        ok: true,
+        config: {
+            enabled,
+            snapshotOn,
+            compareRuns,
+            failOnDrift,
+        },
+    };
 }
 
 function parseStep(raw: unknown, index: number, errors: string[]): QaStep | undefined {
@@ -382,6 +527,16 @@ export function parseQaScenarioDocument(raw: unknown): ParseQaScenarioResult {
         }
     }
 
+    let determinism: QaDeterminismConfig | undefined;
+    if (doc.determinism !== undefined) {
+        const parsedDeterminism = parseQaDeterminismConfig(doc.determinism);
+        if (!parsedDeterminism.ok) {
+            errors.push(...parsedDeterminism.errors);
+        } else if (parsedDeterminism.config.enabled) {
+            determinism = parsedDeterminism.config;
+        }
+    }
+
     const scenarioId = isNonEmptyString(doc.id) ? doc.id.trim() : '';
     const scenarioDescription = isNonEmptyString(doc.description) ? doc.description.trim() : '';
     if (errors.length > 0 || !scenarioId || !scenarioDescription || !isQaRunMode(doc.mode) || !workspace || steps.length === 0) {
@@ -398,6 +553,7 @@ export function parseQaScenarioDocument(raw: unknown): ParseQaScenarioResult {
             modes,
             workspace,
             limits,
+            determinism,
             steps,
         },
     };
@@ -609,5 +765,30 @@ export function formatQaRunReportMarkdown(report: QaRunReport): string {
         }
         lines.push('');
     }
+
+    const determinism = report.metrics.determinism;
+    if (determinism?.enabled) {
+        lines.push('## Determinism');
+        lines.push('');
+        for (const snapshot of determinism.snapshots) {
+            lines.push(`- \`${snapshot.label}\`: \`${snapshot.aggregateHash.value}\``);
+        }
+        if (determinism.comparison) {
+            if (determinism.comparison.ok) {
+                lines.push(`- comparison: OK (${determinism.comparison.snapshots} snapshots)`);
+            } else {
+                const drift = determinism.comparison;
+                lines.push(`- comparison: DRIFT at index ${drift.firstDifferentSnapshot.index} (\`${drift.firstDifferentSnapshot.label}\`)`);
+                lines.push(`  - left: \`${drift.firstDifferentSnapshot.leftHash}\``);
+                lines.push(`  - right: \`${drift.firstDifferentSnapshot.rightHash}\``);
+                if (drift.fileDiffs.length > 0) {
+                    const first = drift.fileDiffs[0];
+                    lines.push(`  - first file diff: \`${first.path}\``);
+                }
+            }
+        }
+        lines.push('');
+    }
+
     return lines.join('\n');
 }

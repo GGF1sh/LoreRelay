@@ -1,0 +1,35 @@
+{
+  "id": "qa_determinism_world_sim",
+  "version": 1,
+  "description": "Deterministic world-sim drift check: run twice in isolated temp workspaces and compare snapshot hashes.",
+  "mode": "full",
+  "determinism": {
+    "enabled": true,
+    "snapshotOn": ["start", "after_step", "finish"],
+    "compareRuns": 2,
+    "failOnDrift": true
+  },
+  "workspace": {
+    "source": "sample",
+    "sampleId": "debug-sandbox"
+  },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxSteps": 20,
+    "maxFileBytes": 1000000,
+    "maxReportEvents": 20
+  },
+  "steps": [
+    {
+      "id": "advance_world",
+      "type": "world_sim",
+      "steps": 5,
+      "assertAfter": ["world_state_valid", "no_unhandled_exception", "no_json_parse_error"]
+    },
+    {
+      "id": "workspace_sanity_after_sim",
+      "type": "workspace_sanity",
+      "assertAfter": ["workspace_sanity_ok"]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `99a3b8e` (PROMPT-001A staging merged)
-**Control Artifacts Synced Through:** `0830c24` (SECOND_REVIEW_PASS + merge recorded; post-merge smoke pending)
+**Control Artifacts Synced Through:** `c24e323` (PROMPT-001A smoke pass → blocked on PROMPT-001C)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -30,7 +30,7 @@
 | ID | Area / 内容 | Severity | Priority | Status | Depends On | Touch Set | Owner | Reviewer |
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
-| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging; merged, smoke pending） | P1 | Critical | **SECOND_REVIEW** | - | `gmPromptBuilder.ts` + targeted tests | Claude Sonnet 5 | Codex GPT-5.5 post-merge smoke |
+| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging merged + smoke passed） | P1 | Critical | **BLOCKED (Waiting for PROMPT-001C)** | `PROMPT-001C, RUNTIME-002A` | `gmPromptBuilder.ts` + targeted tests | - | - |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | CONFIRMED | `PROMPT-001A` | | ChatGPT | Gemini |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
@@ -70,7 +70,7 @@
 | 役割 (Role) | 推奨AIモデル | 職務内容 (Responsibilities) |
 |:---|:---|:---|
 | **Chief Integrator** | ChatGPT 5.5 | 【Lane A】タスクパケット生成、バックログ整理、成果物判定。コードは書かない。 |
-| **Architecture Gate** | ChatGPT 5.4/5.5 | 【Lane A】アーキテクチャの整合性・契約策定（例: `PROMPT-001A`）。 |
+| **Architecture Gate** | ChatGPT 5.4/5.5 | 【Lane A】アーキテクチャの整合性・契約策定。 |
 | **Adversarial Architect** | Gemini 3.1 Pro | 【Lane B】既存設計の攻撃、破綻箇所の発見。1度に1つの重要Gateのみ。 |
 | **Bulk Auditor** | Gemini 3.5 Flash | 【Main Sync】mainとBacklogの同期、現実とのズレ調査。大量同型検索。 |
 | **Repo Engineer** | Antigravity (Gemini) | リポジトリの直接読み書き。現在は**待機（Standby）**。 |

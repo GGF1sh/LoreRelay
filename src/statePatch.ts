@@ -773,37 +773,45 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             );
             return false;
         }
-        const ledgerOutcome = persistTurnLedgersAfterCommit({
-            discoveryOpsPresent: Array.isArray(turnResult.discoveryOps) && turnResult.discoveryOps.length > 0,
-            campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
-                && turnResult.campaignResourceOps.length > 0,
-            settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
-            vehicleOpsPresent: shouldAttemptVehiclePersist(turnResult)
-                || shouldAttemptMobileBasePersist(turnResult),
-            applyDiscovery: () => tryApplyDiscoveryTurnOps(turnResult),
-            applyCampaignResources: () => tryApplyCampaignResourceTurnOps(turnResult),
-            applySettlementLayout: () => tryApplySettlementLayoutTurnOps(turnResult),
-            applyVehicleState: () => {
-                const vehicle = tryApplyVehicleTurnOps(turnResult);
-                const mobile = tryApplyMobileBaseTurnOps(turnResult);
-                return {
-                    ok: vehicle.ok && mobile.ok,
-                    applied: vehicle.applied || mobile.applied,
-                };
-            },
-        });
-        if (!ledgerOutcome.ok) {
+        try {
+            const ledgerOutcome = persistTurnLedgersAfterCommit({
+                discoveryOpsPresent: Array.isArray(turnResult.discoveryOps) && turnResult.discoveryOps.length > 0,
+                campaignResourceOpsPresent: Array.isArray(turnResult.campaignResourceOps)
+                    && turnResult.campaignResourceOps.length > 0,
+                settlementLayoutOpsPresent: shouldAttemptSettlementLayoutPersist(turnResult),
+                vehicleOpsPresent: shouldAttemptVehiclePersist(turnResult)
+                    || shouldAttemptMobileBasePersist(turnResult),
+                applyDiscovery: () => tryApplyDiscoveryTurnOps(turnResult),
+                applyCampaignResources: () => tryApplyCampaignResourceTurnOps(turnResult),
+                applySettlementLayout: () => tryApplySettlementLayoutTurnOps(turnResult),
+                applyVehicleState: () => {
+                    const vehicle = tryApplyVehicleTurnOps(turnResult);
+                    const mobile = tryApplyMobileBaseTurnOps(turnResult);
+                    return {
+                        ok: vehicle.ok && mobile.ok,
+                        applied: vehicle.applied || mobile.applied,
+                    };
+                },
+            });
+            if (!ledgerOutcome.ok) {
+                console.error(
+                    '[statePatch] partial cross-ledger persist after game_state commit;',
+                    'game_state retained per compensation policy.',
+                    {
+                        partial: ledgerOutcome.partial,
+                        failedTargets: ledgerOutcome.failedTargets,
+                        discoveryApplied: ledgerOutcome.discoveryApplied,
+                        campaignResourcesApplied: ledgerOutcome.campaignResourcesApplied,
+                        settlementLayoutApplied: ledgerOutcome.settlementLayoutApplied,
+                        vehicleStateApplied: ledgerOutcome.vehicleStateApplied,
+                    }
+                );
+            }
+        } catch (e) {
             console.error(
-                '[statePatch] partial cross-ledger persist after game_state commit;',
+                '[statePatch] post-commit secondary ledger persistence threw;',
                 'game_state retained per compensation policy.',
-                {
-                    partial: ledgerOutcome.partial,
-                    failedTargets: ledgerOutcome.failedTargets,
-                    discoveryApplied: ledgerOutcome.discoveryApplied,
-                    campaignResourcesApplied: ledgerOutcome.campaignResourcesApplied,
-                    settlementLayoutApplied: ledgerOutcome.settlementLayoutApplied,
-                    vehicleStateApplied: ledgerOutcome.vehicleStateApplied,
-                }
+                e
             );
         }
 
@@ -815,25 +823,33 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             appliedAt
         };
 
-        const wsPath = getWorkspacePath();
-        if (wsPath) {
-            const journalPath = path.join(wsPath, 'state_journal.ndjson');
-            try {
-                if (fs.existsSync(journalPath)) {
-                    const stats = fs.statSync(journalPath);
-                    if (stats.size > 10 * 1024 * 1024) {
-                        const backupPath = `${journalPath}.bak`;
-                        if (fs.existsSync(backupPath)) {
-                            fs.unlinkSync(backupPath);
+        try {
+            const wsPath = getWorkspacePath();
+            if (wsPath) {
+                const journalPath = path.join(wsPath, 'state_journal.ndjson');
+                try {
+                    if (fs.existsSync(journalPath)) {
+                        const stats = fs.statSync(journalPath);
+                        if (stats.size > 10 * 1024 * 1024) {
+                            const backupPath = `${journalPath}.bak`;
+                            if (fs.existsSync(backupPath)) {
+                                fs.unlinkSync(backupPath);
+                            }
+                            fs.renameSync(journalPath, backupPath);
                         }
-                        fs.renameSync(journalPath, backupPath);
                     }
+                } catch (e) {
+                    console.error('Failed to rotate state_journal.ndjson', e);
                 }
-            } catch (e) {
-                console.error('Failed to rotate state_journal.ndjson', e);
-            }
 
-            fs.appendFileSync(journalPath, JSON.stringify(enriched) + '\n', 'utf-8');
+                try {
+                    fs.appendFileSync(journalPath, JSON.stringify(enriched) + '\n', 'utf-8');
+                } catch (e) {
+                    console.error('Failed to append state_journal.ndjson after Accepted commit', e);
+                }
+            }
+        } catch (e) {
+            console.error('[statePatch] post-commit journal setup threw; game_state retained per compensation policy.', e);
         }
 
         return enriched;

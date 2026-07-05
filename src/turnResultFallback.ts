@@ -124,7 +124,20 @@ export function markTurnResultHandled(): void {
     pendingTurnResultFromGm = false;
     const onAccepted = pendingAcceptedTurnCallback;
     pendingAcceptedTurnCallback = undefined;
-    onAccepted?.();
+    if (!onAccepted) {
+        return;
+    }
+    try {
+        onAccepted();
+    } catch (e) {
+        console.error('[turnResultFallback] accepted callback failed after Handled detach', e);
+    }
+}
+
+export function resetTurnResultFallbackForTests(): void {
+    pendingTurnResultFromGm = false;
+    pendingAcceptedTurnCallback = undefined;
+    checkPendingTurnResultFile = undefined;
 }
 
 /**

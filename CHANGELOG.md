@@ -21,6 +21,8 @@
 
 ### Added
 
+- **Combat System design** - `docs/COMBAT_SYSTEM_DESIGN.md`: tiered combat architecture brief for person-to-empire scale resolution, preserving prose-first GM narration, keeping tactical grids/real-time play out of scope, and defining shared combatant/projection concepts plus P0-P5 implementation phases.
+
 - **Genesis Guide image feedback loop** - Genesis image generation now uses the reserved `genesis` entry channel: the host returns `genesisImageGenerated` with the generated Webview URI, and the wizard swaps the guide/summary portrait to the generated image instead of leaving the button in a timed-only pending state.
 
 - **Debug Trace Deep Emit P2** - extended deep trace emitters for commerce price shocks, faction conflict/kinship changes, and NPC need divergence, with host capture wrappers and simulation/Living World wiring. Trace rows remain `gm_safe`/bounded and failures are swallowed so debug tracing cannot alter simulation behavior.

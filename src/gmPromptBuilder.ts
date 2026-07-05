@@ -1233,7 +1233,7 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         maybeBuildSection('vision', 'Vision', activation, () => buildVisionContext(policy)),
     ];
 
-    const chunkMeta = buildGmPromptChunkSpecsWithMeta(playerAction, policy);
+    const chunkMeta = buildPureCandidateSpecsWithMeta(playerAction, policy);
     const targetChars = policy.targetTokens * 4;
     const contextInspector = buildContextInspectorReport(chunkMeta.specs, targetChars, {
         inactiveIds: chunkMeta.inactiveIds,
@@ -1344,9 +1344,42 @@ function considerPromptChunk(
     });
 }
 
+/**
+ * Explicit, required strategy for the two consumables whose builders can either
+ * peek (side-effect free) or consume (advance durable ACK markers / clear session
+ * pending). This is a named authority contract, not a boolean/default switch —
+ * every caller of `buildGmPromptChunkSpecsWithMeta` must supply one explicitly.
+ */
+interface GmPromptConsumableBuilders {
+    chronicle: (policy: PromptBudgetPolicy) => string | undefined;
+    worldChangeSummary: () => string | undefined;
+}
+
+/**
+ * PURE authority: chronicle/worldChangeSummary use peek-only builders and are
+ * structurally unable to reach markWorldChangeSummaryInjected, markChronicleInjected,
+ * clearChronicleSessionPending, or the consume* functions. Used by Inspector/Preview only.
+ */
+const PURE_CANDIDATE_CONSUMABLE_BUILDERS: GmPromptConsumableBuilders = {
+    chronicle: (policy) => peekChronicleRecapContext(policy),
+    worldChangeSummary: () => peekWorldChangeSummaryContext(),
+};
+
+/**
+ * LEGACY authority: preserves current production behavior during PROMPT-001A staging.
+ * Only this builder set may advance durable ACK markers / clear session pending.
+ * Used by production prompt assembly only. PROMPT-001C owns switching production
+ * off this legacy authority.
+ */
+const LEGACY_PRODUCTION_CONSUMABLE_BUILDERS: GmPromptConsumableBuilders = {
+    chronicle: (policy) => consumeChronicleRecapContext(policy),
+    worldChangeSummary: () => consumeWorldChangeSummaryContext(),
+};
+
 function buildGmPromptChunkSpecsWithMeta(
     playerAction: string,
-    policy: PromptBudgetPolicy
+    policy: PromptBudgetPolicy,
+    consumableBuilders: GmPromptConsumableBuilders
 ): GmPromptChunkBuildMeta {
     const hint = buildHintText(playerAction, policy);
     const ws = getWorkspacePath();
@@ -1374,7 +1407,7 @@ function buildGmPromptChunkSpecsWithMeta(
         clampSimulationPromptModule(buildGuildPromptContextForGm(playerAction))
     );
     considerPromptChunk(meta, 'director', activation, buildScenarioDirectorPromptContext);
-    considerPromptChunk(meta, 'chronicle', activation, () => consumeChronicleRecapContext(policy));
+    considerPromptChunk(meta, 'chronicle', activation, () => consumableBuilders.chronicle(policy));
 
     if (loadStorySummary()) {
         considerPromptChunk(meta, 'summary', activation, () => {
@@ -1413,7 +1446,7 @@ function buildGmPromptChunkSpecsWithMeta(
     considerPromptChunk(meta, 'livingWorldNpcBonds', activation, () => lwBonds.npcBonds);
     considerPromptChunk(meta, 'livingWorldPlayerBonds', activation, () => lwBonds.playerBonds);
     considerPromptChunk(meta, 'livingWorldFactionRelations', activation, () => lwBonds.factionRelations);
-    considerPromptChunk(meta, 'worldChangeSummary', activation, consumeWorldChangeSummaryContext);
+    considerPromptChunk(meta, 'worldChangeSummary', activation, () => consumableBuilders.worldChangeSummary());
     considerPromptChunk(meta, 'lorebook', activation, () => buildLorebookPromptContext(hint, policy));
     considerPromptChunk(meta, 'npcRegistry', activation, () => buildNpcRegistryPromptContext(policy));
     considerPromptChunk(meta, 'vision', activation, () => buildVisionContext(policy));
@@ -1421,14 +1454,41 @@ function buildGmPromptChunkSpecsWithMeta(
     return meta;
 }
 
-function buildGmPromptChunkSpecs(playerAction: string, policy: PromptBudgetPolicy): PromptContextChunkSpec[] {
-    return buildGmPromptChunkSpecsWithMeta(playerAction, policy).specs;
+/**
+ * Explicit PURE authority entry point. Structurally cannot reach consumeChronicleRecapContext,
+ * consumeWorldChangeSummaryContext, markWorldChangeSummaryInjected, markChronicleInjected, or
+ * clearChronicleSessionPending — it only closes over PURE_CANDIDATE_CONSUMABLE_BUILDERS, whose
+ * chronicle/worldChangeSummary fields are peek-only. Inspector/Preview must call this, not the
+ * shared helper directly.
+ */
+function buildPureCandidateSpecsWithMeta(
+    playerAction: string,
+    policy: PromptBudgetPolicy
+): GmPromptChunkBuildMeta {
+    return buildGmPromptChunkSpecsWithMeta(playerAction, policy, PURE_CANDIDATE_CONSUMABLE_BUILDERS);
+}
+
+/**
+ * Explicit LEGACY authority entry point. Preserves current production consumption timing
+ * during PROMPT-001A staging. Only this path (and buildLegacyProductionSpecs below) may
+ * advance durable ACK markers / clear chronicleSessionPending. Production prompt assembly
+ * must call this, not the shared helper directly.
+ */
+function buildLegacyProductionSpecsWithMeta(
+    playerAction: string,
+    policy: PromptBudgetPolicy
+): GmPromptChunkBuildMeta {
+    return buildGmPromptChunkSpecsWithMeta(playerAction, policy, LEGACY_PRODUCTION_CONSUMABLE_BUILDERS);
+}
+
+function buildLegacyProductionSpecs(playerAction: string, policy: PromptBudgetPolicy): PromptContextChunkSpec[] {
+    return buildLegacyProductionSpecsWithMeta(playerAction, policy).specs;
 }
 
 export function buildGmPromptContext(playerAction: string): string {
     flushScheduledCommercePersist();
     const policy = getPromptBudgetPolicy();
-    const specs = buildGmPromptChunkSpecs(playerAction, policy);
+    const specs = buildLegacyProductionSpecs(playerAction, policy);
     const targetChars = policy.targetTokens * 4;
     const chunks = evictPromptChunksByBudget(specs, targetChars);
     return chunks.length ? `\n\n${chunks.join('\n\n')}` : '';

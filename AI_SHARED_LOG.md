@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-07-05 JST - Gemini/Codex - Identity / Reference Layer D1a core
+
+- Added `src/entityIdentityCore.ts`: pure identity core for D1 (`EntityKind`, `EntityRef`, alias/tombstone contracts, resolve/validate helpers).
+- Added `scripts/test_entity_identity_core.js` and registered it in `scripts/run_all_tests.js`.
+- Codex follow-up hardened validation for cross-kind aliases and missing merge targets while preserving the no-I/O/no-write-back D1a boundary.
+- Verification: `npm run compile`, `node scripts/test_entity_identity_core.js`, and `node scripts/validate_utf8_docs.js` pass. `npm test` is currently blocked by unrelated dirty Genesis Webview/i18n work (`webview.genesis.*` keys missing outside ja).
+
+---
+
 ## 2026-07-05 JST - Codex - Determinism Spine D1 review fixes
 
 - Reviewed Antigravity/Gemini's Determinism Spine D1 follow-up changes on top of `a6d7262`.

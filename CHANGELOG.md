@@ -11,6 +11,8 @@
 
 ### Added
 
+- **Identity / Reference Layer D1a core** - `entityIdentityCore.ts`: pure entity identity helpers for cross-ledger reference work, including minimal `EntityKind`, `EntityRef`, alias/tombstone contracts, exact/alias/merged/deleted/missing resolution, same-kind validation, cross-kind alias/merge rejection, missing merge-target detection, deterministic keys, and unit tests.
+
 - **Identity / Reference Layer D1 design** - `docs/IDENTITY_REFERENCE_LAYER_D1_DESIGN.md`: pure read-only cross-ledger entity inventory and reference validation contract, defining minimal `EntityKind` / `EntityRef` / alias / tombstone semantics, ledger reference inventory, deferred write-back boundaries, required tests, and a Grok/Codex implementation prompt.
 
 - **Determinism Spine D1 review fixes** - tightened QA determinism hashing after implementation: volatile redaction now only removes the documented root fields, compare-runs temp workspaces are kept only for drift/failure unless requested, and unsupported `determinism.customFiles` is rejected to preserve the fixed D1 canonical file set.

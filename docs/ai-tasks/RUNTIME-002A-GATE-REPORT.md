@@ -6,8 +6,9 @@ Status: Architecture Gate only. No runtime source or test implementation is incl
 
 ## 1. Gate Snapshot
 
-- Current `main` HEAD reviewed: `3b09c70ef2d4b07c772ce6902b377198658da847`
-- Current `main` was rechecked before writing this report and was still identical to the Chief Integrator snapshot.
+- Runtime Source of Truth reviewed: `3b09c70ef2d4b07c772ce6902b377198658da847`
+- Chief Integrator snapshot was rechecked at Gate start and was the current `main`.
+- During Gate work, `main` advanced to `7d8833ddc23d3d689c06b3d51460b7d9ed616b05` by adding only this Gate Report. `GitHub.compare_commits` showed no runtime source or test drift.
 - Gate verdict: `READY_FOR_ADVERSARIAL_REVIEW`
 
 ### Reviewed control docs
@@ -21,44 +22,60 @@ Status: Architecture Gate only. No runtime source or test implementation is incl
 - `src/gameStateSync.ts`
 - `src/turnResultFallback.ts`
 - `src/statePatch.ts`
-- `src/turnLedgerPersistCore.ts`
 - `src/stateManager.ts`
-- `src/worldState.ts`
+- `src/turnLedgerPersistCore.ts`
 - `src/livingWorldCommercePersist.ts`
+- `src/livingWorldTurnOps.ts`
+- `src/worldSimPersist.ts`
+- `src/worldState.ts`
+- `src/npcRegistry.ts`
 - `src/mediaAgent.ts`
 - `src/extension.ts`
 - `src/gmBridgeRunner.ts`
 - `src/agenticGmRunner.ts`
+- `src/types/TurnResult.ts`
 
 ### Reviewed callers / references
 
-The GitHub connector code-search index returned no hits for exact-symbol searches such as `processTurnResultFileAt`, `processTurnResult`, `beginGmRun`, and `turn_result`; caller coverage was therefore completed by direct source inspection of the modules that import or wire these functions.
+The GitHub connector code-search index returned no hits for exact-symbol searches. Caller/reference coverage was completed by direct source inspection of the importing and wiring modules.
 
 Reviewed references include:
 
-- `startGameStateWatcher()` and its `turn_result.json` watcher path in `src/gameStateSync.ts`
-- startup sweep via `processTurnResultFileAt(path.join(folder.uri.fsPath, 'turn_result.json'))`
-- `checkPendingTurnResultFile()` in `src/gameStateSync.ts`
-- `initTurnResultFallback(checkPendingTurnResultFile)` in `src/extension.ts`
-- `beginGmRun()`, `finishGmRun()`, and `markTurnResultHandled()` in `src/turnResultFallback.ts`
-- Grok, local LLM, custom command, VS Code LM, and agentic GM paths in `src/gmBridgeRunner.ts` and `src/agenticGmRunner.ts`
-- pending accepted callbacks that mark provider session continuation (`grokSessionActive`, `localGmSessionActive`)
+- `startGameStateWatcher()` watcher and startup sweep
+- `processTurnResultFileAt()`
+- `checkPendingTurnResultFile()`
+- module-level `lastProcessedTurnHash`
+- `processTurnResult()`
+- `markTurnResultHandled()`
+- `beginGmRun()` / `finishGmRun()`
+- `initTurnResultFallback(checkPendingTurnResultFile)`
+- Grok, local LLM, custom command, VS Code LM, and agentic GM paths
+- pending accepted callbacks that set `grokSessionActive` / `localGmSessionActive`
+- `persistTurnLedgersAfterCommit()` and compensation policy
+- journal append path
 
 ### Reviewed tests
 
-- `package.json` test scripts
+- `package.json`
 - `scripts/run_all_tests.js`
 - `scripts/validate.js`
 - `scripts/test_turn_result_pipeline.js`
 - `scripts/test_state_patch.js`
 - `scripts/test_turn_artifact_commit_atomicity.js`
 - `scripts/test_cross_ledger_partial_failure.js`
+- `scripts/test_turn_ledger_valid_noop.js`
 
-Current tests document patch/merge behavior and cross-ledger compensation, but do not currently test the `processTurnResultFileAt()` Accepted/Handled/Dedupe boundary.
+Current tests prove patch/merge behavior and the explicit post-`game_state` compensation policy, but they do not test the `processTurnResultFileAt()` Accepted / Handled / Dedupe boundary.
 
 ### Google Drive guardrail
 
-Reviewed `LoreRelay World Intent / Action Execution Kernel - ChatGPT Master Design 2026-07-04` only as an upper-level guardrail. It reinforces that State Orchestrator must not become a universal save system, ledgers retain ownership of their parsing/migration/validation/persistence, and event-like downstream effects are post-commit only. Current GitHub `main` remains the source of truth for this Gate.
+Reviewed `LoreRelay World Intent / Action Execution Kernel - ChatGPT Master Design 2026-07-04` only as an upper-level guardrail. It reinforces:
+
+- State Orchestrator must not become a universal save system.
+- Each ledger retains ownership of parsing, migration, validation, and persistence.
+- Event-like downstream effects are post-commit only.
+
+Current GitHub runtime source remains the Source of Truth.
 
 ## 2. Current Reality
 
@@ -67,194 +84,297 @@ Reviewed `LoreRelay World Intent / Action Execution Kernel - ChatGPT Master Desi
 Current sequence in `src/gameStateSync.ts`:
 
 1. `startGameStateWatcher()` creates a `turn_result.json` watcher for create/change events.
-2. Each event schedules `processTurnResultFileAt(uri.fsPath)` after 50ms.
-3. Watcher startup also sweeps the workspace root `turn_result.json` once.
-4. `processTurnResultFileAt(fsPath, retryCount = 0)` returns `false` if the file does not exist.
-5. It reads file text synchronously.
-6. Empty content throws and enters the retry path.
+2. Each event schedules `processTurnResultFileAt(uri.fsPath)` after 50 ms.
+3. Watcher startup also sweeps the workspace root `turn_result.json`.
+4. `processTurnResultFileAt()` returns `false` if the file does not exist.
+5. It reads the file synchronously.
+6. Empty content throws.
 7. It computes `sha256(content)`.
-8. If `hash === lastProcessedTurnHash`, it returns `false` as an in-memory duplicate suppression.
-9. It parses JSON using `JSON.parse(content) as TurnResult`.
+8. If the hash equals `lastProcessedTurnHash`, it returns `false`.
+9. It parses with `JSON.parse(content) as TurnResult`.
 10. It immediately assigns `lastProcessedTurnHash = hash`.
 11. It immediately calls `markTurnResultHandled()`.
 12. It calls `handleTurnResultMedia(turnResult)`.
-13. It calls `flushScheduledCommercePersist()`.
+13. It flushes scheduled commerce persistence.
 14. It calls `const enriched = processTurnResult(turnResult)`.
-15. It calls `takeAutoLocationImageRequest()` and may queue an auto location image.
-16. It posts a `gameStateUpdate` with `turnResult: sanitizeTurnResultForWebview(enriched || turnResult, ...)`.
-17. It calls `scheduleProtagonistBootstrap(turnResult)`.
+15. It takes/queues any auto-location-image request.
+16. It posts `gameStateUpdate` using `enriched || turnResult`.
+17. It schedules protagonist bootstrap.
 18. It returns `true`.
-19. In the outer `catch`, it retries up to three times after 100ms, then logs parse/read failure and returns `false`.
+19. Only thrown failures enter the bounded retry path: up to three 100 ms retries, then `false`.
 
-The critical current fact is that `lastProcessedTurnHash` and `markTurnResultHandled()` advance before `processTurnResult()` is called, and `processTurnResult()` returning `false` is not treated as a failed file-processing result.
+The critical current facts are:
+
+- dedupe and Handled advance before canonical apply;
+- the pending accepted callback can fire before canonical apply;
+- `processTurnResult() === false` is ignored;
+- a rejected TurnResult can still drive media, UI, auto-image, and protagonist side effects;
+- the caller can return `true` although canonical apply returned `false`.
 
 ### B. `processTurnResult()` path
 
 Current sequence in `src/statePatch.ts`:
 
-1. Resolve `game_state.json` path. If missing, return `false`.
+1. Resolve `game_state.json`; missing path returns `false`.
 2. Flush scheduled commerce persistence.
 3. Read current game state or create an initial record.
 4. Capture `baseRevision` and `beforeHash`.
-5. Apply TurnResult patches and fog/cartography transformations.
-6. Apply elapsed world simulation steps. A non-ok simulation result logs a warning and continues.
-7. Load `world_state.json` and apply domain/guild travel drift. Some drift paths may persist `world_state.json` before `game_state` commit.
-8. Load `world_state.json` again and apply faction reputation, quest completion, and location visit changes. If dirty, save `world_state.json` before `game_state` commit.
-9. Build finalized `commitState` by merging GM entry, living-world operations, domain operations, guild operations, and normalized status fields.
-10. Re-read fresh disk state. If disk revision advanced past `baseRevision`, reapply TurnResult to the fresh disk state.
-11. Calculate pending auto-location-image request metadata.
-12. Validate `commitState` with `validateGameState()`. On validation errors, log/show error and return `false`.
+5. Apply state patches and fog/cartography transforms.
+6. If `elapsedWorldTurns` is present, call `persistWorldSimulationSteps()`. A non-ok domain result logs and continues; thrown I/O can escape to the outer catch.
+7. Load world state and apply domain/guild travel drift. Some paths persist `world_state.json` before `game_state` commit.
+8. Re-load world state and apply faction reputation, quest completion, NPC-memory side effects, and location-visit changes. Dirty world state is saved before `game_state` commit.
+9. Finalize `commitState`: GM entry merge, living-world operations, domain operations, guild operations, normalization. Living-world finalization may persist `world_state.json`.
+10. Re-read fresh `game_state`. If disk revision advanced, call `applyTurnResultToGameState(turnResult, freshDisk, false)`.
+11. Calculate pending auto-location-image metadata.
+12. Validate `commitState` using `validateGameState()`. Failure returns `false`.
 13. Compute `afterHash`.
 14. Call `commitGameState(commitState, { mode: 'salvage', baseRevision, mergeProfile: 'turn' })`.
-15. If `commit.ok === false`, log skip/quarantine/circuit details and return `false`.
-16. Call `persistTurnLedgersAfterCommit()` for discovery, campaign resources, settlement layout, vehicle, and mobile-base ledgers.
-17. If ledger persistence is not ok, log the partial/failed targets and explicitly retain `game_state` per compensation policy.
-18. Build an enriched `TurnResult` with `beforeHash`, `afterHash`, and `appliedAt`.
-19. Rotate `state_journal.ndjson` best-effort inside a local try/catch.
-20. Append the enriched TurnResult to `state_journal.ndjson` using `fs.appendFileSync()`.
+15. `commit.ok === false` returns `false`.
+16. Call `persistTurnLedgersAfterCommit()` for discovery, campaign resources, settlement layout, vehicle, and mobile-base effects.
+17. A structured secondary-ledger failure is logged; `game_state` is explicitly retained.
+18. Build enriched TurnResult metadata.
+19. Rotate `state_journal.ndjson` inside a local best-effort try/catch.
+20. Append to `state_journal.ndjson` with `fs.appendFileSync()`.
 21. Return the enriched TurnResult.
-22. Any uncaught exception in this path is caught by the outer catch, logged, shown to the user, and returns `false`.
+22. Any uncaught exception reaches the outer catch and returns `false`.
 
-Important current hazard: `fs.appendFileSync()` for `state_journal.ndjson` is currently outside the local rotation try/catch. If it throws after `commitGameState()` succeeded, `processTurnResult()` currently returns `false` after the canonical game-state commit. This is incompatible with a truthful Accepted boundary and must be corrected by implementation.
+Two post-commit hazards matter directly to RUNTIME-002A:
+
+- journal append can throw after successful `game_state` commit and currently convert the result to `false`;
+- a thrown exception from post-commit secondary-ledger execution can also reach the outer catch and convert an already committed turn to `false`.
+
+Therefore a naive “move two caller lines after `processTurnResult()`” is insufficient. First, `processTurnResult()` truthiness must become truthful: `false` must mean the Accepted boundary was not crossed.
+
+### Current runtime validation reality
+
+There is no unified TypeScript runtime validator for the `TurnResult` object itself. The file path performs `JSON.parse(... ) as TurnResult`; the cast is compile-time only.
+
+For this Gate:
+
+- **Parsed** means syntactically valid JSON.
+- **Validated** means the current acceptance-critical application path has not rejected/aborted and the prepared `commitState` passes `validateGameState()`.
+- subsystem-owned operation parsers/semantic checks remain owned by their ledgers and may reject individual operations as invalid/no-op according to current contracts.
+
+RUNTIME-002A must not invent a new global TurnResult schema/error taxonomy merely to fix ordering.
 
 ### C. Pending GM run lifecycle
 
 Current sequence:
 
-1. GM bridge providers call `beginGmRun(onAcceptedTurn?)` before starting a provider run.
-2. `beginGmRun()` sets `pendingTurnResultFromGm = true` and stores `pendingAcceptedTurnCallback`.
-3. When the provider exits successfully, the provider calls `finishGmRun(prevState, playerAction, true)`.
-4. `finishGmRun()` waits 250ms.
-5. If still pending, it calls injected `checkPendingTurnResultFile()`.
-6. `checkPendingTurnResultFile()` calls `processTurnResultFileAt(workspace/turn_result.json)`.
-7. Current `processTurnResultFileAt()` calls `markTurnResultHandled()` before canonical apply.
-8. Current `markTurnResultHandled()` clears pending state, clears the callback, and invokes the callback synchronously without exception isolation.
-9. `finishGmRun()` sees `handled === true` or `pendingTurnResultFromGm === false` and stops.
-10. If no real TurnResult was handled, `finishGmRun()` may synthesize a fallback TurnResult from direct `game_state.json` changes.
+1. Provider path calls `beginGmRun(onAcceptedTurn?)`.
+2. `beginGmRun()` sets `pendingTurnResultFromGm = true`.
+3. It stores `pendingAcceptedTurnCallback`.
+4. Grok, local LLM, and VS Code LM pass callbacks that mark their provider session active; custom command and agentic paths do not pass a callback.
+5. Provider success calls `finishGmRun(prevState, playerAction, true)`.
+6. After 250 ms, if still pending, `finishGmRun()` calls `checkPendingTurnResultFile()`.
+7. `checkPendingTurnResultFile()` calls `processTurnResultFileAt(workspace/turn_result.json)`.
+8. Current `processTurnResultFileAt()` calls `markTurnResultHandled()` before canonical apply.
+9. `markTurnResultHandled()`:
+   - clears `pendingTurnResultFromGm`;
+   - captures the callback;
+   - clears the stored callback;
+   - invokes the callback synchronously without exception isolation.
+10. `finishGmRun()` then stops because the result appears handled.
+11. If no real TurnResult was handled, fallback synthesis may write a TurnResult derived from direct `game_state` changes.
 
 ### D. Restart behavior
 
-Current `lastProcessedTurnHash` and pending callback state are module-level in-memory state only.
+Current state is in-memory only:
 
-On extension restart:
-
-- `lastProcessedTurnHash` resets to `''`.
-- `pendingTurnResultFromGm` resets to `false`.
+- `lastProcessedTurnHash` resets to `''`;
+- `pendingTurnResultFromGm` resets to `false`;
 - `pendingAcceptedTurnCallback` resets to `undefined`.
-- `startGameStateWatcher()` performs a startup sweep for an existing `turn_result.json`.
-- A failed file that remains present can be retried after restart because no committed dedupe survives restart.
-- A previously successful file that remains present can also be re-observed after restart because current dedupe is not persistent. Durable accepted-result identity is outside RUNTIME-002A and belongs to later receipt/identity work.
-- If a failed file is retried after restart without a pending GM run, it may still be applied, but the original pending callback cannot fire because that in-memory pending run no longer exists.
+
+On watcher startup, an existing `turn_result.json` is swept.
+
+Therefore:
+
+- a failed file left on disk can be retried after restart;
+- no original pending callback survives restart;
+- an accepted file left on disk can also be re-observed because successful dedupe is not durable.
+
+The last point is a separate new Finding Candidate, not a reason to expand RUNTIME-002A into persistent receipt/identity design.
 
 ## 3. Broken Invariant
 
-Current code can produce this false sequence:
+Current code permits:
 
 ```text
 Observed
 → Parsed
-→ Deduped
+→ dedupe hash committed
 → Handled
 → accepted callback fired
 → canonical apply attempted
-→ canonical validation/commit fails or returns false
+→ validation / commit fails
+→ processTurnResult() returns false
+→ caller still returns true
 ```
 
-This violates the required invariant:
+It can also permit:
 
 ```text
-Accepted / Handled / committed dedupe must never become true before canonical application succeeds.
+game_state commit succeeds
+→ post-commit journal or secondary-ledger code throws
+→ processTurnResult() returns false
 ```
 
-It also violates retryability: a failed TurnResult hash can become `lastProcessedTurnHash`, suppressing the same file in the same extension process even though the turn never became Accepted.
+Both violate the required invariant:
+
+```text
+Accepted / committed dedupe / Handled / accepted callback
+must never become true before canonical success,
+and post-Accepted failures must never turn the same turn back into a retryable whole-turn failure.
+```
+
+A failed hash must remain retryable. An accepted canonical mutation must never be replayed merely because a post-acceptance observer/secondary effect failed.
 
 ## 4. Accepted Boundary Decision
 
-Decision: **Option D — post-validation `game_state` canonical commit boundary, before secondary ledgers, journal, callback, and downstream events.**
+### Decision: Option A
 
-A TurnResult becomes **Accepted** when all of the following are true:
+**A TurnResult becomes Accepted immediately when `commitGameState()` returns `{ ok: true, action: 'write' }` for the prepared TurnResult `commitState`.**
 
-1. the TurnResult file has been observed and parsed;
-2. the current `processTurnResult()` validation/preparation path has not rejected the turn;
-3. `validateGameState(commitState)` has passed;
-4. `commitGameState(commitState, { mode: 'salvage', baseRevision, mergeProfile: 'turn' })` has returned `{ ok: true, action: 'write' }`.
+This boundary is reached after the current pre-commit preparation/validation path and before post-commit independent ledgers, journal append, Handled, callback, and downstream file-consumer side effects.
 
-The accepted boundary is reached **at the successful `game_state.json` commit**. It is **not** delayed until independent discovery/campaign/settlement/vehicle ledgers succeed. It is **not** delayed until `state_journal.ndjson` append succeeds. It is **not** delayed until webview/media/protagonist/callback side effects succeed.
+This is Option A, strengthened by one necessary contract:
 
-Exact answer to the required question:
+> Once `commitGameState()` succeeds, no later secondary-ledger, journal, callback, media, UI, image, or bootstrap failure may make the TurnResult unaccepted or eligible for whole-turn replay.
+
+Exact answer to the central compensation question:
 
 > If `game_state` commit succeeds, but a secondary ledger persistence later fails and current compensation policy intentionally retains `game_state`, is the turn Accepted?
 
-**Yes. The turn is Accepted.** The secondary ledger failure is post-acceptance compensation/reporting, not a reason to unaccept or retry the whole TurnResult.
+**Yes. The turn is Accepted.**
+
+The repository already declares that post-commit independent ledger failure does not roll back `game_state`. Delaying Accepted until those ledgers succeed would contradict current compensation policy.
 
 ### State vocabulary
 
-- **Observed**: a `turn_result.json` file exists and was read.
-- **Parsed**: file content decoded as syntactically valid JSON into a TurnResult-shaped value.
-- **Validated**: current TurnResult application path has produced a `commitState` that passes `validateGameState()` and has not hit a semantic rejection/abort before commit. Safe-patch allowlist skips are sanitization, not whole-turn rejection by themselves.
-- **Canonically Applied**: `commitGameState()` wrote the authoritative `game_state.json` mutation successfully.
-- **Accepted**: the turn crossed the boundary above. Downstream systems may rely on `game_state` canonical commit having happened.
-- **Handled**: the pending GM run lifecycle may be cleared and completion/accepted callback machinery may run.
-- **Deduped**: the hash is committed as a successfully accepted hash and may suppress later observation of the same successful result in the same extension process.
-- **Retryable Failure**: failure occurred before Accepted and did not commit dedupe, clear pending as accepted, or fire the accepted callback.
+- **Observed**: `turn_result.json` exists and its bytes were read.
+- **Parsed**: bytes decoded as syntactically valid JSON.
+- **Validated**: the current acceptance-critical application path has not rejected/aborted and prepared `commitState` passes `validateGameState()`.
+- **Canonically Applied**: `commitGameState()` successfully wrote the authoritative TurnResult `game_state` mutation.
+- **Accepted**: the turn crossed that canonical commit boundary; downstream systems may rely on it.
+- **Handled**: the pending GM run lifecycle may be cleared and completion callback machinery may run.
+- **Deduped**: the candidate hash has been committed as the hash of a successfully Accepted result and may suppress same-process re-observation.
+- **Retryable Failure**: failure occurred before Accepted and did not commit dedupe, mark the run handled, or fire the accepted callback.
+
+`Handled` is not semantically identical to `Accepted`. It is a subsequent lifecycle state.
 
 ## 5. Canonical Ordering Contract
 
 Approved future ordering:
 
 1. Observe/read `turn_result.json`.
-2. Compute candidate hash.
-3. Check candidate hash against **committed accepted-result dedupe** only.
-4. Parse JSON.
-5. Do not mark handled, do not commit dedupe, do not fire accepted callback.
-6. Call `processTurnResult(turnResult)`.
-7. Inside `processTurnResult()`, apply current validation/preparation path.
-8. If validation or canonical commit fails, return `false` before Accepted.
-9. Accepted boundary: `commitGameState(...).ok === true`.
-10. Persist post-acceptance secondary ledgers and log compensation outcomes. These failures do not unaccept the turn.
-11. Append journal as observability-only best effort. Journal failure does not unaccept the turn.
-12. Return a truthy enriched TurnResult from `processTurnResult()` only after the Accepted boundary.
-13. In `processTurnResultFileAt()`, if `processTurnResult()` returned `false`, return `false` and leave the same hash retryable.
-14. If `processTurnResult()` returned truthy, commit `lastProcessedTurnHash = hash`.
-15. Mark the pending GM run handled.
-16. Fire the post-acceptance callback, with exception isolation.
-17. Perform post-acceptance UI/media/auto-image/protagonist side effects.
-18. Return `true` from `processTurnResultFileAt()` for a newly Accepted turn.
+2. Compute candidate SHA-256 hash.
+3. Check only the **committed successful dedupe hash**.
+4. If equal, return duplicate/no-op `false`.
+5. Parse JSON.
+6. Do not commit dedupe, do not mark Handled, do not fire callback.
+7. Flush current pre-apply synchronization prerequisites as required by existing ownership.
+8. Call `processTurnResult(turnResult)`.
+9. Inside it, run current preparation, subsystem-owned pre-commit work, and result-state validation.
+10. If pre-Accepted validation/preparation fails, return `false`.
+11. Attempt `commitGameState()`.
+12. If commit fails, return `false`.
+13. **Accepted boundary:** `commitGameState(...).ok === true`.
+14. Attempt post-commit secondary ledgers. Structured failure or thrown exception is compensation/reporting only and cannot revoke Accepted.
+15. Attempt journal rotation/append. Failure is observability-only and cannot revoke Accepted.
+16. Return a truthy enriched TurnResult from `processTurnResult()`.
+17. In `processTurnResultFileAt()`, if the result is `false`, return `false`; do not perform success-only effects.
+18. If truthy, commit `lastProcessedTurnHash = hash`.
+19. Mark the pending GM run Handled.
+20. Fire the stored post-acceptance callback with exception isolation.
+21. Run success-only TurnResult media/image, webview, and protagonist-bootstrap effects with post-acceptance failure isolation.
+22. Return `true` for the newly Accepted turn.
 
-`Handled` may immediately follow `Accepted` in implementation, but the conceptual ordering must remain explicit.
+The Accepted **semantic boundary** is step 13. The current minimal implementation signal is delayed until `processTurnResult()` returns after post-commit accounting attempts; those attempts may delay the signal but may not suppress it.
+
+### Return Contract
+
+#### `processTurnResult(turnResult): TurnResult | false`
+
+- Truthy enriched TurnResult means the turn crossed Accepted.
+- `false` means the turn did **not** cross Accepted.
+- `false` is reserved for pre-Accepted failures.
+- Post-commit secondary-ledger failures, including thrown exceptions, must be isolated/logged and still produce a truthy accepted result.
+- Post-commit journal rotation/append failures must be isolated/logged and still produce a truthy accepted result.
+
+No explicit new result type is required.
+
+#### `processTurnResultFileAt(fsPath): Promise<boolean>`
+
+- `true`: this invocation newly Accepted a non-duplicate TurnResult.
+- `false`: missing file, duplicate successful hash, parse/read exhaustion, or pre-Accepted processing failure.
+- `processTurnResult() === false` must immediately produce file-processing `false`.
+- A `false` application result must not use the three-attempt read/parse retry loop to replay whole canonical processing automatically.
+- Read/empty/parse exceptions may retain the existing bounded short retry for file-write races.
+- On pre-Accepted `false`, preserve the file, do not commit hash, do not mark Handled, do not fire callback, and do not run success-only media/UI/bootstrap effects.
+- Same hash remains eligible for later watcher event, replacement, fallback check, or restart.
+- Once Accepted is crossed, post-acceptance failures must not make the function return `false` for that newly Accepted invocation.
+
+### Failure propagation
+
+For retry semantics, `processTurnResult() === false` and a thrown **pre-Accepted** failure are equivalent in authority:
+
+- not Accepted;
+- no dedupe commit;
+- no Handled;
+- no callback;
+- later retry allowed.
+
+They are not required to use the same immediate scheduling. Deterministic validation failure should not be blindly replayed three times merely because parse/read races are retried.
+
+Logs must continue to distinguish:
+
+- read/parse failure;
+- result-state validation rejection;
+- canonical commit skip/quarantine/circuit/write failure;
+- post-acceptance secondary compensation;
+- journal observability failure;
+- callback/downstream side-effect failure.
+
+The file caller must not label a `processTurnResult() === false` result as a parse failure.
 
 ## 6. Failure Matrix
 
-| Failure Point | Accepted? | Dedupe committed? | Handled? | Callback? | Retry allowed? | Required behavior |
-|:--|:--:|:--:|:--:|:--:|:--:|:--|
-| Parse failure | No | No | No | No | Yes | Preserve file; retry short read/parse race; later same hash may retry. |
-| TurnResult schema/shape failure | No | No | No | No | Yes | Treat as pre-accept rejection; do not suppress corrected or same-file retry. |
-| Semantic validation failure | No | No | No | No | Yes | `processTurnResult()` returns `false`; caller returns `false`. |
-| `validateGameState(commitState)` failure | No | No | No | No | Yes | No callback, no dedupe, no accepted side effects. |
-| `commitGameState()` skip/quarantine/circuit/write failure | No | No | No | No | Yes | Same hash remains retryable; log commit failure separately from parse/validation. |
-| Secondary ledger partial failure after `game_state` commit | Yes | Yes | Yes | Yes | No whole-turn retry | Log compensation; retain `game_state`; do not reapply TurnResult. |
-| Secondary ledger total failure after `game_state` commit | Yes | Yes | Yes | Yes | No whole-turn retry | Same as partial; failed ledgers require operator/host reconciliation, not TurnResult replay. |
-| Journal rotation failure | Yes if `game_state` committed | Yes | Yes | Yes | No whole-turn retry | Log observability failure; Accepted remains true. |
-| Journal append failure | Yes if `game_state` committed | Yes | Yes | Yes | No whole-turn retry | Must be isolated from `processTurnResult()` false return. |
-| Post-accept media/webview/protagonist side effect failure | Yes | Yes | Yes | Callback already post-accept | No whole-turn retry | Log/isolate; do not unaccept canonical state. |
-| Accepted callback throws | Yes | Yes | Yes | Attempted once | No whole-turn retry | Catch/log; callback failure does not rollback or retry canonical apply. |
-| Duplicate successful result in same extension process | Already accepted earlier | Already committed earlier | No new handled | No new callback | No reapply | Return `false`/duplicate no-op; do not fire callback again. |
+| Failure Point | Accepted? | Dedupe committed? | Handled? | Callback? | Retry allowed? |
+|:--|:--:|:--:|:--:|:--:|:--:|
+| Parse failure | No | No | No | No | Yes |
+| TurnResult shape/schema rejection before commit | No | No | No | No | Yes |
+| Semantic validation failure before commit | No | No | No | No | Yes |
+| `validateGameState(commitState)` failure | No | No | No | No | Yes |
+| Canonical `commitGameState()` failure | No | No | No | No | Yes |
+| Secondary ledger partial failure after commit | Yes | Yes | Yes | Once if registered | No whole-turn retry |
+| Secondary ledger thrown/total failure after commit | Yes | Yes | Yes | Once if registered | No whole-turn retry |
+| Journal failure after commit | Yes | Yes | Yes | Once if registered | No whole-turn retry |
+| Callback failure | Yes | Yes | Yes | Attempted once; exception isolated | No whole-turn retry |
+| Post-accept media/UI/bootstrap failure | Yes | Yes | Yes | Already post-accept | No whole-turn retry |
+| Duplicate successful result, same process | Already Accepted earlier; no new acceptance | Already committed | No new Handled | No new callback | No reapply |
+
+Notes:
+
+- “Retry allowed” means the failed hash is not permanently suppressed. It does not promise multi-ledger atomic replay; pre-commit cross-ledger idempotency remains TEMP-001B/C scope.
+- Same invalid bytes may be observed again and fail deterministically. They still must not be falsely marked successful/deduped.
+- A post-Accepted failure is never a reason to replay the whole TurnResult.
 
 ## 7. Dedupe and Retry Contract
 
 ### Committed dedupe
 
-`lastProcessedTurnHash` is a committed accepted-result dedupe marker. It may become authoritative only after the TurnResult has crossed the Accepted boundary.
+`lastProcessedTurnHash` is a committed accepted-result marker, not an observation marker.
 
-This is the approved timing:
+Approved:
 
 ```text
-processTurnResult(turnResult) returns truthy accepted result
+processTurnResult() returns truthy Accepted result
 → lastProcessedTurnHash = hash
-→ mark handled / callback
+→ mark Handled
+→ callback
 ```
 
-This timing is forbidden:
+Forbidden:
 
 ```text
 hash recorded
@@ -265,136 +385,211 @@ hash recorded
 
 No in-flight reservation is required for RUNTIME-002A.
 
-Reasoning:
+Reasons:
 
-- The successful current `processTurnResultFileAt()` path is synchronous after entry and has no `await` until failure retry sleep paths.
-- VS Code extension host JavaScript runs these callbacks on the same event loop; queued watcher/fallback invocations do not overlap inside the synchronous success path.
-- Multiple file watcher events can queue, but after the first successful Accepted result commits `lastProcessedTurnHash`, later queued calls see the committed duplicate.
-- When the first attempt fails before Accepted, the same hash must remain retryable, so a persistent in-flight reservation would enlarge scope and risk suppressing legitimate retry.
+- watcher create/change events and fallback checks can queue multiple calls;
+- the current successful processing path is synchronous and does not `await` during the canonical apply/dedupe critical path;
+- JavaScript event-loop execution therefore does not interleave two successful apply critical sections;
+- after the first success commits the hash, later queued invocations see the committed duplicate;
+- failed read/parse paths may yield during the retry sleep, but no accepted canonical apply happened before that yield;
+- reserving a hash before success would enlarge scope and risks suppressing the legitimate retry this task must preserve.
 
-If future implementation makes canonical apply asynchronous, an in-flight reservation may be reconsidered as a separate concurrency task. It is not required here.
+If canonical apply becomes asynchronous later, re-evaluate in-flight reservation separately.
 
-### Failed hash behavior
+### Failed hash
 
-A failed hash is not committed. The same bytes may be retried after:
+A failed hash is never committed. The same bytes may be retried after:
 
-- read/parse race;
-- schema/semantic validation failure if the operator wants another attempt;
-- transient canonical commit failure;
+- a read/parse race;
+- a pre-commit validation/semantic rejection;
+- a transient canonical commit failure;
+- a later watcher/fallback observation;
 - extension restart.
 
-### Restart behavior
+A corrected file with a new hash is not blocked by the failed old hash.
 
-Current dedupe remains in-memory only. RUNTIME-002A does not introduce durable accepted-result dedupe. Therefore:
+### Same file after failure
 
-- failed pending files retry after restart;
-- accepted files left on disk may be re-observed after restart;
-- durable accepted identity / ACK token design remains PROMPT-001C or later runtime identity scope.
+#### Validation failure
+
+- Retryable: yes.
+- Deduped: no.
+- Pending run: not marked Handled; remains pending until the existing fallback lifecycle accepts a real/synthesized result or clears it.
+- Callback: no.
+- File: preserved.
+
+#### Canonical commit failure
+
+- Retryable: yes.
+- Deduped: no.
+- Pending run: not marked Handled.
+- Callback: no.
+- File: preserved.
+
+#### Corrected new file
+
+- Retryable/processable: yes.
+- Old failed hash has no authority.
+- New hash may be Accepted, then committed to dedupe.
+- If the original pending run is still active, its callback fires only after Accepted.
+
+#### Extension restart
+
+- Failed file remains retryable because in-memory dedupe resets.
+- Original pending callback cannot survive restart.
+- Startup sweep may accept the file without any original callback.
+- Successful-file replay after restart is a separate Candidate finding below.
 
 ## 8. Handled / Callback Contract
 
-`markTurnResultHandled()` currently bundles two effects:
+`markTurnResultHandled()` currently bundles:
 
 1. clear pending GM run state;
-2. fire the stored accepted callback.
+2. detach/clear the pending callback;
+3. invoke that callback.
 
-Conceptually, **Handled is not identical to Accepted**. Accepted is the canonical success boundary. Handled is a pending-run lifecycle transition that is allowed only after Accepted.
-
-Minimum approved architecture:
+Conceptually:
 
 ```text
-Canonical game_state commit succeeds
-→ TurnResult is Accepted
-→ committed dedupe hash advances
-→ pending GM run is marked Handled
-→ post-acceptance callback fires
+Accepted
+→ committed dedupe
+→ Handled
+→ callback attempt
 ```
 
-Splitting `markTurnResultHandled()` into separate `markAccepted` and `fireCallback` APIs is not required for RUNTIME-002A if the implementation enforces post-Accepted ordering and isolates callback exceptions. A rename/split may be a cleanup, not a Gate requirement.
+### Is Handled identical to Accepted?
 
-### Callback exception semantics
+No.
 
-If the accepted callback throws:
+Accepted is canonical authority. Handled is a later pending-run lifecycle transition.
 
-- the TurnResult remains Accepted;
-- committed dedupe remains committed;
-- pending GM run remains handled/cleared;
-- canonical apply must not be retried;
-- the exception must be caught and logged;
-- callback consumers must be idempotent and must not assume they can make acceptance rollback.
+Examples:
 
-This prevents callback failure from causing duplicate canonical mutation on retry.
+- a startup-sweep acceptance can be Accepted even though there is no meaningful pending run to clear;
+- a callback may throw after the run is already Accepted and Handled;
+- duplicate observation of an earlier Accepted result is not a new Handled transition.
+
+### Must `markTurnResultHandled()` be split now?
+
+No.
+
+Splitting the function is not required if:
+
+- it is called only after Accepted and committed dedupe;
+- it clears/detaches callback state before invoking the callback;
+- callback exceptions are caught/logged and cannot escape.
+
+Keeping the existing API is the minimum architecture. Renaming/splitting is optional cleanup.
+
+### Callback timing
+
+The callback fires only after:
+
+- canonical `game_state` commit succeeded;
+- current post-commit secondary/journal attempts completed without being allowed to revoke acceptance;
+- committed dedupe hash was advanced;
+- pending callback state was detached.
+
+It fires before or as part of the remaining file-consumer success-only downstream effects.
+
+### Callback failure
+
+If callback code throws:
+
+- Accepted remains true;
+- dedupe remains committed;
+- Handled remains true;
+- canonical apply is not retried;
+- the exception is logged and swallowed at the lifecycle boundary;
+- no automatic callback retry occurs.
+
+Callback consumers that perform durable effects must be idempotent because the callback is not transactionally coupled to their side effect and may fail after partially executing.
+
+### Callback identity
+
+Current callback type is `() => void`.
+
+RUNTIME-002A does not add a hash, turn ID, token, or immutable ACK receipt to the callback. Identity/token design remains PROMPT-001C scope.
 
 ## 9. Compensation Policy
 
-Current repository policy already states:
+Exact rule:
 
-- `game_state` commits before independent ledgers;
-- independent ledger writes are gated on successful `game_state` commit;
-- failed independent ledgers do not roll back `game_state`;
-- failed ledger targets are surfaced for operator/host reconciliation.
+> Once `commitGameState()` succeeds, the TurnResult remains Accepted. Failure of any currently post-commit independent ledger or journal write must be reported/compensated without rolling back `game_state` and without replaying the whole TurnResult.
 
-RUNTIME-002A adopts that policy without redesigning multi-ledger atomicity.
+### Write inventory and required classification
 
-### Write inventory and classification
-
-| Write / side effect | Current location | Classification for RUNTIME-002A |
+| Write / effect | Owner / timing | Classification |
 |:--|:--|:--|
-| Scheduled commerce flush to `game_state` / `world_state` | `flushScheduledCommercePersist()` before/during processing | Pre-existing ambient persistence; not the TurnResult Accepted boundary. Failures must not be mistaken for Accepted. |
-| `world_state` simulation/drift/reputation/quest/location writes before `game_state` commit | `statePatch.ts` helpers calling `saveWorldState()` / simulation persist | Current canonical-adjacent side effects; full atomicity is out of scope and belongs to TEMP-001B/C. Throwing failures before `game_state` commit keep TurnResult unaccepted. |
-| `game_state.json` via `commitGameState()` | `processTurnResult()` | Acceptance-critical canonical write. |
-| Discovery ledger | `persistTurnLedgersAfterCommit()` | Post-acceptance secondary ledger; compensatable. |
-| Campaign resources ledger | `persistTurnLedgersAfterCommit()` | Post-acceptance secondary ledger; compensatable. |
-| Settlement layout ledger | `persistTurnLedgersAfterCommit()` | Post-acceptance secondary ledger; compensatable. |
-| Vehicle/mobile-base ledger | `persistTurnLedgersAfterCommit()` | Post-acceptance secondary ledger; compensatable. |
-| `state_journal.ndjson` rotation/append | `processTurnResult()` | Observability only; must not decide Accepted. |
-| Media/image queue | `handleTurnResultMedia()` / auto image queue | Post-acceptance event/side effect. |
-| Webview `gameStateUpdate` | `processTurnResultFileAt()` | Post-acceptance UI notification. |
-| Protagonist bootstrap scheduling | `scheduleProtagonistBootstrap()` | Post-acceptance side effect. |
-| Accepted callback | `markTurnResultHandled()` | Post-acceptance lifecycle/event signal. |
+| Flush of previously scheduled commerce persistence to `game_state` / `world_state` | `flushScheduledCommercePersist()`, before current TurnResult commit | **compensatable best-effort persistence** |
+| Elapsed world simulation persistence to `world_state` and optionally `npc_registry` | `persistWorldSimulationSteps()`, before `game_state` commit | **acceptance-critical canonical write** in the current pre-commit phase; full atomicity remains TEMP-001B/C |
+| Guild/domain/living-world/reputation/quest/location world-state persistence | subsystem-owned helpers before `game_state` commit | **acceptance-critical canonical write** in the current pre-commit phase; owner-specific no-op/false semantics are not redesigned here |
+| NPC-memory / simulation registry persistence | `npcRegistry` owner, before `game_state` commit | **acceptance-critical canonical write** in the current pre-commit phase |
+| TurnResult `game_state.json` commit | `commitGameState()` | **acceptance-critical canonical write** and the RUNTIME-002A Accepted commit point |
+| Discovery ledger | after `game_state` commit | **post-acceptance secondary ledger** |
+| Campaign resources ledger | after `game_state` commit | **post-acceptance secondary ledger** |
+| Settlement layout ledger | after `game_state` commit | **post-acceptance secondary ledger** |
+| Vehicle/mobile-base ledger | after `game_state` commit | **post-acceptance secondary ledger** |
+| `state_journal.ndjson` rotation/append | after commit | **observability only** |
+| Compensation/error logging | after failures | **observability only** |
+| TurnResult media/image queue, webview update, protagonist bootstrap | file-consumer post-acceptance phase | **observability only** for acceptance authority; these effects cannot decide or revoke Accepted |
 
-### Journal rule
+No current write in the reviewed RUNTIME-002A path needs `unclear / requires escalation` to define this Gate. The non-atomic relationship among independently canonical pre-commit ledgers is known residual scope for TEMP-001B/C.
 
-Journal append is observability only. If journal append fails after `game_state` commit, Accepted remains true. Retrying the whole TurnResult would be unsafe because canonical mutation and possibly some secondary ledger writes have already happened.
+### Journal semantics
 
-Implementation must therefore prevent post-commit journal failure from making `processTurnResult()` return `false`.
+Journal append is observability only.
+
+If journal append fails after `game_state` commit:
+
+- Accepted remains true;
+- dedupe must still commit;
+- Handled/callback must still proceed;
+- failure is logged/reported;
+- whole-turn retry is forbidden.
+
+Retrying the whole TurnResult after a journal-only failure is unsafe because canonical mutation and possibly secondary ledger writes have already occurred.
 
 ## 10. Restart Semantics
 
 | Scenario | Retryable? | Deduped? | Pending run still active? | Callback fired? | File behavior |
 |:--|:--:|:--:|:--:|:--:|:--|
-| Invalid JSON file observed repeatedly | Yes | No | Yes until fallback lifecycle times out/clears | No | Preserved; startup sweep can retry after restart. |
-| Parsed but schema/semantic invalid TurnResult | Yes | No | Yes until fallback lifecycle clears or new valid file accepted | No | Preserved; same hash may retry; corrected new hash processes. |
-| Canonical commit transient failure | Yes | No | Yes until fallback lifecycle clears or valid retry accepted | No | Preserved; same hash may retry after transient clears. |
-| Corrected file replaces failed file | Yes | No prior failed hash | If pending still active, callback can fire after Accepted | Only after Accepted | New hash processes normally. |
-| Extension restart with failed file present | Yes | No in-memory dedupe | No original pending run/callback survives | No original callback | Startup sweep reprocesses file. |
-| Extension restart with previously accepted file present | Current code may re-observe | No durable dedupe | No original pending run/callback survives | No original callback | Durable accepted identity is out of scope. |
+| Invalid JSON observed again | Yes | No | Until current fallback lifecycle clears/accepts another result | No | Preserved; can be observed again |
+| Parsed but pre-commit invalid/rejected | Yes | No | Not marked Handled; fallback lifecycle decides eventual clear/synthesis | No | Preserved |
+| Canonical commit transient failure | Yes | No | Not marked Handled | No | Preserved; same hash can retry |
+| Corrected file with new hash | Yes | No failed-hash authority | If still pending, yes until acceptance | Only after Accepted | New hash processes normally |
+| Restart with failed file still present and still invalid | Yes | No | Original pending state lost | No original callback | Startup sweep retries and fails again |
+| Restart with failed file and transient condition now cleared | Yes, then success | New-process hash commits after success | Original pending state lost | No original callback | Startup sweep may Accept it |
+| Restart with previously successful file present | Current code can replay | No durable dedupe | Original pending state lost | No original callback | Candidate finding; out of RUNTIME-002A fix |
+
+Pending/callback state is intentionally not reconstructed by this task.
 
 ## 11. PROMPT-001C Dependency Contract
 
-After RUNTIME-002A is implemented, PROMPT-001C may rely on this signal:
+After RUNTIME-002A implementation, PROMPT-001C may rely on:
 
-> The post-acceptance callback fired by the pending GM run lifecycle means the TurnResult has crossed the RUNTIME-002A Accepted boundary: schema/current semantic checks passed and authoritative `game_state` canonical commit succeeded.
+> The pending-run post-acceptance callback means the TurnResult has crossed the RUNTIME-002A Accepted boundary: the authoritative TurnResult `game_state` commit succeeded.
 
-PROMPT-001C may rely on:
+Guarantees:
 
-- callback is post-canonical-commit;
-- callback does not fire for parse failure;
-- callback does not fire for schema/semantic validation failure;
-- callback does not fire for canonical commit failure;
-- callback fires at most once per accepted non-duplicate TurnResult in the current extension process;
-- callback failure does not make the turn unaccepted;
-- duplicate same-hash successful result in the same extension process does not fire callback again.
+- signal is post-canonical-commit;
+- it cannot fire for parse failure;
+- it cannot fire for pre-commit validation/semantic failure;
+- it cannot fire for canonical commit failure;
+- it fires at most once for one newly Accepted non-duplicate result in the current extension-host lifetime;
+- same-process duplicate successful observation does not fire it again;
+- callback failure does not unaccept or replay the turn;
+- post-commit secondary-ledger success is not implied.
 
-PROMPT-001C may not rely on:
+Non-guarantees:
 
-- durable accepted identity across extension restart;
-- immutable provider-delivery ACK tokens;
-- callback receiving a stable TurnResult identity/token;
-- exactly-once semantics across process boundaries;
-- secondary ledger success.
+- no durable exactly-once identity across restart;
+- no immutable provider-delivery ACK token;
+- callback receives no identity/token;
+- no promise that every independently canonical ledger is atomic with `game_state`;
+- no callback retry after callback exception.
 
-Current callback receives no identity/token. Designing immutable prompt ACK tokens and delivery-time source identity remains PROMPT-001C scope.
+PROMPT-001C must own any immutable identity/ACK token and downstream durable idempotency design. RUNTIME-002A provides only the truthful post-commit acceptance signal.
 
 ## 12. Required Implementation Shape
 
@@ -404,23 +599,24 @@ Current callback receives no identity/token. Designing immutable prompt ACK toke
 
 Responsibilities:
 
-- Treat `processTurnResult(turnResult) === false` as failed processing.
-- Do not commit `lastProcessedTurnHash` before Accepted.
-- Do not call `markTurnResultHandled()` before Accepted.
-- Do not fire accepted UI/media/protagonist side effects before Accepted.
-- Preserve retryability for failed same-hash files.
-- Keep duplicate successful-result suppression in the same extension process.
+- treat `processTurnResult() === false` as failed file processing;
+- immediately return `false` on that result;
+- move `lastProcessedTurnHash = hash` after truthy Accepted result;
+- move `markTurnResultHandled()` after committed dedupe;
+- move `handleTurnResultMedia()`, auto-image consumption/queue, webview update, and protagonist bootstrap to success-only post-acceptance execution;
+- do not use `enriched || turnResult` to notify UI after an application failure;
+- ensure post-Accepted caller-side effects cannot make a newly Accepted invocation return `false`;
+- preserve same-hash retry after failure.
 
-Minimum shape:
+Minimum conceptual shape:
 
 ```text
-parse
-→ if committed duplicate return false
+read/hash/duplicate/parse
 → const enriched = processTurnResult(turnResult)
 → if (!enriched) return false
 → lastProcessedTurnHash = hash
 → markTurnResultHandled()
-→ post-accept side effects
+→ isolated post-acceptance effects
 → return true
 ```
 
@@ -428,103 +624,205 @@ parse
 
 Responsibilities:
 
-- Preserve `false` only for pre-Accepted failures.
-- Ensure successful `commitGameState()` is the Accepted boundary.
-- Ensure secondary ledger failure after `game_state` commit returns a truthy accepted result with compensation logged.
-- Ensure journal rotation/append failure after `game_state` commit is caught/logged and does not turn Accepted into `false`.
+- reserve `false` for failures before Accepted;
+- make successful `commitGameState()` the exact commit point;
+- isolate both structured and thrown post-commit secondary-ledger failures;
+- isolate journal rotation/append failures;
+- always return a truthy enriched accepted result after the commit point.
+
+No global TurnResult validator and no new multi-ledger transaction are required.
 
 #### `src/turnResultFallback.ts`
 
 Responsibilities:
 
-- Ensure accepted callback exceptions cannot escape and cannot undo Handled/Accepted state.
-- Keep pending lifecycle clear semantics, but make callback failure post-acceptance and isolated.
+- keep callback state detached/cleared before invocation;
+- catch/log callback exceptions;
+- never allow callback failure to escape and trigger canonical retry or reverse Handled.
 
 ### MAY CHANGE
 
-- `scripts/run_all_tests.js` / `scripts/validate.js` if a new focused runtime acceptance test is added to the manifest.
-- A new focused test file such as `scripts/test_runtime_turn_result_acceptance.js`.
-- `src/turnLedgerPersistCore.ts` only if the implementation needs a richer, still-compatible compensation result. No change is required by this Gate.
+Future implementation tests only:
+
+- a new focused test such as `scripts/test_runtime_turn_result_acceptance.js`;
+- `scripts/run_all_tests.js` and/or `scripts/validate.js` only to register that test.
 
 ### MUST NOT CHANGE for RUNTIME-002A implementation
 
+- `src/stateManager.ts`
+- `src/turnLedgerPersistCore.ts`
+- `src/livingWorldCommercePersist.ts`
+- `src/livingWorldTurnOps.ts`
+- `src/worldSimPersist.ts`
+- `src/worldState.ts`
+- `src/npcRegistry.ts`
+- `src/mediaAgent.ts`
+- `src/extension.ts`
+- `src/gmBridgeRunner.ts`
+- `src/agenticGmRunner.ts`
 - `docs/AI_REVIEW_BACKLOG.md`
 - `docs/AI_FINDINGS_INBOX.md`
-- `docs/ai-tasks/RUNTIME-002A.md` status fields
-- PROMPT-001C immutable ACK token design
-- State Orchestrator transaction architecture
-- TEMP-001B/C multi-ledger atomicity design
-- unrelated prompt budgeter / context-engine code
+- status fields in `docs/ai-tasks/RUNTIME-002A.md`
+- State Orchestrator architecture
+- TEMP-001B/C multi-ledger transaction design
+- PROMPT-001C immutable ACK/token design
+- unrelated runtime/prompt/context code
+
+This is the smallest correct runtime Touch Set: three source files plus focused tests.
 
 ## 13. Future Test Matrix
 
+For this matrix, **apply count means successful authoritative `game_state` TurnResult commit count**, not mere function-entry or commit-attempt count.
+
 | Test | Apply count | Accepted count | Handled count | Callback count | Dedupe state | Retryability |
 |:--|--:|--:|--:|--:|:--|:--|
-| 1. Parse failure | 0 | 0 | 0 | 0 | hash not committed | Same file retry allowed. |
-| 2. TurnResult schema/shape failure | 0 | 0 | 0 | 0 | hash not committed | Same file retry allowed. |
-| 3. Semantic validation failure | 0 canonical commits | 0 | 0 | 0 | hash not committed | Same file retry allowed. |
-| 4. Canonical commit failure | 0 successful commits | 0 | 0 | 0 | hash not committed | Same file retry allowed after transient clears. |
-| 5. Successful apply | 1 | 1 | 1 | 1 | hash committed | Whole-turn retry not allowed in same process. |
-| 6. Duplicate successful result | 0 additional | 0 additional | 0 additional | 0 additional | hash already committed | Suppressed in same process. |
-| 7. Failed same-hash retry | 1 only after later success | 1 only after later success | 1 only after later success | 1 only after later success | committed only after success | Same hash remains retryable until Accepted. |
-| 8. Corrected new hash after failure | 1 for corrected file | 1 | 1 | 1 | corrected hash committed | Failed old hash not suppressing new hash. |
-| 9. Extension restart with failed file present | 1 if later valid/apply succeeds | 1 if commit succeeds | 0 original pending; possible new none | 0 original callback | in-memory dedupe reset | Startup sweep retries file. |
-| 10. `game_state` success + secondary ledger partial failure | 1 canonical commit | 1 | 1 | 1 | hash committed | No whole-turn retry; compensation logged. |
-| 11. Journal failure after `game_state` success | 1 canonical commit | 1 | 1 | 1 | hash committed | No whole-turn retry; journal error logged. |
-| 12. Accepted callback throws | 1 canonical commit | 1 | 1 | 1 attempted | hash committed | No whole-turn retry; exception logged. |
-| 13. Callback fires exactly once on successful accepted turn | 1 | 1 | 1 | 1 | hash committed | Duplicate event does not refire. |
+| 1. Parse failure | 0 | 0 | 0 | 0 | Hash not committed | Same file retry allowed |
+| 2. TurnResult shape/schema failure before commit | 0 | 0 | 0 | 0 | Hash not committed | Same file retry allowed |
+| 3. Semantic validation failure before commit | 0 | 0 | 0 | 0 | Hash not committed | Same file retry allowed |
+| 4. Canonical commit failure | 0 | 0 | 0 | 0 | Hash not committed | Same hash retry allowed |
+| 5. Successful apply | 1 | 1 | 1 | 1 | Hash committed | No same-process whole-turn retry |
+| 6. Duplicate successful result | 1 total, 0 additional | 1 total, 0 additional | 1 total, 0 additional | 1 total, 0 additional | Already committed | Duplicate suppressed |
+| 7. Failed same-hash retry, then success | 1 total after later success | 1 | 1 | 1 | Committed only after success | Allowed until success |
+| 8. Corrected new hash after failure | 1 for corrected file | 1 | 1 | 1 | Corrected hash committed | Old failed hash has no authority |
+| 9. Restart with failed file; transient condition clears | 1 total after restart success | 1 | 1 lifecycle-call/no-op pending clear | 0 original callback | New-process hash committed | Startup sweep retries |
+| 10. `game_state` success + secondary ledger partial failure | 1 | 1 | 1 | 1 | Hash committed | No whole-turn retry |
+| 11. Journal failure after `game_state` success | 1 | 1 | 1 | 1 | Hash committed | No whole-turn retry |
+| 12. Accepted callback throws | 1 | 1 | 1 | 1 attempted | Hash committed | No whole-turn retry |
+| 13. Callback exactly once under watcher + fallback duplicate observations | 1 | 1 | 1 | 1 | Hash committed | Later same-process observations suppressed |
 
-Suggested test seams:
+Required assertions beyond counts:
 
-- mock/stub `processTurnResult()` to return `false`, truthy, or throw before acceptance;
-- mock/stub `commitGameState()` failure inside `processTurnResult()`;
-- mock/stub `persistTurnLedgersAfterCommit()` partial failure;
-- mock/stub journal append failure;
-- inject accepted callback that increments count or throws;
-- simulate repeated watcher/fallback calls with same hash.
+1. **Parse failure**
+   - bounded read/parse retry may occur;
+   - `processTurnResult()` not called for invalid JSON;
+   - file preserved.
+
+2. **Shape/schema failure**
+   - no accepted side effects;
+   - raw rejected TurnResult not posted as successful `gameStateUpdate`.
+
+3. **Semantic validation failure**
+   - model using an existing pre-commit semantic rejection seam or controlled stub;
+   - no need to add a production-wide error taxonomy.
+
+4. **Canonical commit failure**
+   - same hash not suppressed;
+   - domain-specific commit log retained.
+
+5. **Successful apply**
+   - ordering assertion: commit success before hash, before Handled, before callback.
+
+6. **Duplicate successful result**
+   - invoke file path repeatedly through watcher/fallback surfaces;
+   - zero additional apply/Handled/callback.
+
+7. **Failed same-hash retry**
+   - first attempt pre-Accepted false;
+   - second identical bytes after transient clears succeeds exactly once.
+
+8. **Corrected new hash**
+   - old failed hash never committed;
+   - new file succeeds normally.
+
+9. **Restart with failed file**
+   - reset module dedupe/pending state;
+   - startup sweep retries;
+   - original callback count remains zero.
+
+10. **Secondary partial failure**
+    - include returned structured failure and a thrown post-commit secondary exception case;
+    - both remain Accepted.
+
+11. **Journal failure**
+    - inject append failure;
+    - accepted result stays truthy and callback/dedupe still happen.
+
+12. **Callback throws**
+    - exception observed in log;
+    - no canonical retry;
+    - duplicate observation remains suppressed.
+
+13. **Exactly once callback**
+    - create/change/fallback duplicate observations around one successful file;
+    - one callback only.
+
+The focused test should exercise actual ordering seams, not merely pure `statePatch` helpers.
 
 ## 14. Alternatives Rejected
 
-### Design A — only move handled/dedupe after `processTurnResult() === true`
+### Design A — naive move only
 
-Rejected as insufficient by itself.
+**Selected boundary, rejected implementation sufficiency.**
 
-Moving the calls is necessary, but not sufficient, because current `processTurnResult()` can return `false` after successful `game_state` commit if post-commit journal append throws. The implementation must also ensure post-accept failures do not turn an accepted result into `false`.
+Option A is the correct Accepted boundary, but only moving `lastProcessedTurnHash` and `markTurnResultHandled()` after the current `processTurnResult()` call is insufficient. Current `processTurnResult()` can still return `false` after successful commit because of post-commit exceptions.
 
-### Design B — explicit result type from `processTurnResult()`
+Approved architecture is therefore **Option A plus a truthful return contract**.
 
-Rejected as not required for this task.
-
-A richer result such as `accepted`, `rejected_retryable`, or `accepted_with_compensation` may be useful later, but RUNTIME-002A can be made truthful with the current `TurnResult | false` contract if and only if `false` is reserved for pre-Accepted failures and truthy means Accepted.
-
-### Design C — in-flight reservation + committed dedupe
+### Design B — explicit result type
 
 Rejected for current scope.
 
-No real concurrent overlap requiring reservation was found in the current synchronous success path. Adding reservation state would enlarge scope and could suppress legitimate retry if not carefully released.
+A future status union could improve diagnostics, but RUNTIME-002A can be correct with `TurnResult | false` if:
+
+- truthy means Accepted;
+- false means not Accepted;
+- post-acceptance failures are isolated.
+
+Adding a result taxonomy now enlarges Touch Set without being necessary.
+
+### Design C — in-flight reservation + committed dedupe
+
+Rejected.
+
+No real interleaving of two successful synchronous apply critical sections was found. A reservation adds state and creates a new release-on-failure problem.
 
 ### Design D — split Accepted from Handled callback machinery
 
-Rejected as a hard requirement, accepted as an optional cleanup.
+Rejected as a requirement.
 
-The current `markTurnResultHandled()` name is semantically overloaded, but ordering plus callback exception isolation is enough for RUNTIME-002A. PROMPT-001C can consume the callback as a post-commit signal once this ordering is enforced.
+Conceptual separation is mandatory; API splitting is not. Correct ordering and callback exception isolation are enough for the current task. A later rename/split may be cleanup.
 
 ## 15. Residual Risks
 
-- `lastProcessedTurnHash` remains in-memory only. Durable accepted identity across restart is intentionally out of scope.
-- Some `world_state` and scheduled commerce writes can occur before the `game_state` commit in the current `processTurnResult()` path. RUNTIME-002A does not redesign multi-ledger atomicity; TEMP-001B/C owns that architecture.
-- The current code has no explicit TurnResult JSON schema validation before `JSON.parse(... ) as TurnResult`; validation is effectively performed through the application path and resulting `game_state` validation. A dedicated TurnResult validator is outside this Gate unless implementation tests need a narrow helper.
-- Code-search index limitations prevented connector-backed exact-symbol search results. Direct source inspection covered known wiring and imports, but adversarial review should re-run local `grep`/`rg` if available.
-- Durable exactly-once callback semantics across extension host restart remain PROMPT-001C / runtime identity scope.
+- Pre-commit `world_state` / `npc_registry` / scheduled-commerce mutations are not transactionally atomic with the TurnResult `game_state` commit. TEMP-001B/C owns that architecture.
+- Allowing retry after pre-Accepted `game_state` commit failure does not guarantee all earlier subsystem side effects are globally idempotent. RUNTIME-002A must preserve retry eligibility but cannot solve multi-ledger replay safety.
+- Current TypeScript file path has no dedicated TurnResult runtime schema validator.
+- Current same-process dedupe is one in-memory hash only.
+- Durable accepted identity and cross-restart exactly-once behavior remain unresolved.
+- Callback is an at-most-once in-memory signal with no payload/identity.
+- If `processTurnResult()` is made asynchronous in the future, concurrency assumptions must be re-reviewed.
+- Connector-backed exact-symbol search returned no index hits; adversarial review should re-run local `rg`/`grep` if available.
 
 ## 16. New Finding Candidates
 
-None.
+### Candidate ID: `CHATGPT-20260706-001`
 
-Residual pre-commit `world_state` side effects are noted above as TEMP-001B/C scope rather than a new RUNTIME-002A finding.
+- **Reporter:** ChatGPT (GPT-5.5 Thinking)
+- **As-of Commit:** `3b09c70ef2d4b07c772ce6902b377198658da847`
+- **Evidence:** `lastProcessedTurnHash` is module-level memory initialized to `''`; `startGameStateWatcher()` unconditionally sweeps an existing `turn_result.json`; successful file processing does not remove/archive the file. After extension-host restart, an already Accepted file can be processed again because no successful dedupe survives restart.
+- **Suggested Severity:** P1 High
+- **Possible Duplicate:** Related to RUNTIME-002A and future PROMPT/runtime identity work, but no exact duplicate was found in the reviewed Backlog/Findings Inbox.
+- **Confidence:** High
+
+Impact note: reprocessing is not necessarily harmless because TurnResult processing includes potentially non-idempotent world simulation and ledger effects.
+
+### Candidate ID: `CHATGPT-20260706-002`
+
+- **Reporter:** ChatGPT (GPT-5.5 Thinking)
+- **As-of Commit:** `3b09c70ef2d4b07c772ce6902b377198658da847`
+- **Evidence:** `processTurnResult()` can apply `persistWorldSimulationSteps()` before the fresh-revision check. If `freshRevision > baseRevision`, it then calls `applyTurnResultToGameState(turnResult, freshDisk, false)`. That helper unconditionally processes `elapsedWorldTurns` and calls `persistWorldSimulationSteps()` again; its `persistWorld` flag only gates later living-world persistence. The same TurnResult can therefore advance world simulation twice on the optimistic-reapply path.
+- **Suggested Severity:** P1 High
+- **Possible Duplicate:** Related to TEMP-001B/C and state-merge/concurrency work; no exact duplicate was found in the reviewed Backlog/Findings Inbox.
+- **Confidence:** High
+
+Neither Candidate is added to Backlog or Findings Inbox by this Gate.
 
 ## 17. Gate Verdict
 
 `READY_FOR_ADVERSARIAL_REVIEW`
 
-RUNTIME-002A is not ready for implementation until adversarial architecture review passes. This Gate only defines the truthful Accepted boundary and the minimum future implementation/test shape.
+The architecture question is answered precisely:
+
+> The rest of LoreRelay may truthfully believe a TurnResult has been Accepted at the successful `commitGameState()` commit point, and only then. Later secondary-ledger, journal, callback, or downstream-effect failure may require compensation/reporting, but may not revoke Accepted or trigger whole-turn replay.
+
+RUNTIME-002A is not ready for implementation until adversarial architecture review also passes.

@@ -10,7 +10,8 @@
 | Campaign Kit | **Phase A–G** · 7 genre presets · sell_discovery · services state machine(condition/estValue)· **campaign resources**(campaignResourceOps)· campaign quest factionId + reputationOps prompt |
 | Living World | LW1 Commerce に評判連動 market demand 追加(v1.51.0) |
 | World Observatory | 新規(v1.53.0): 相場スパークライン・年代記・観測者モード(watch/advance)。`enableWorldObservatory` 既定OFF |
-| Tests | `npm test` **209/209** (+ `test:simulation` batch) |
+| Tests | `npm test` **212/212** (+ `test:simulation` batch) |
+| Genesis Mode | G1 core + G2 wizard + RP2 host apply gate + asset base URI 配線 **完了**・UX polish (Claude, 2026-07-05) |
 | Vehicle System | V1–V5 core/ops + **V4** garage panel + **V5** map/prompt integration |
 | Mobile Base | MB1–MB5 core/ops + **MB4** panel + **MB5** interior view reuse |
 | Mod System | MOD1 pure resolver (`modSystemCore.ts`) |
@@ -22,8 +23,23 @@
 | Context Engine | **P0 Inspector** — read-only prompt chunk accounting in Inspector (`contextInspectorCore.ts`) |
 | Debug / QA | Simulation regression batch · **Debug Trace P1** core · **Debug Trace P2** host wiring (`debugTraceUpdate`) · **Debug Trace Inspector Phase B** UI (`80a-debug-trace.js`) |
 | Idea parking | **Information & Rumor System** idea note |
-| Next (推奨) | **Deep Emit P2**（commerce / faction conflict）· Codex 統合レビュー · SO3 · Genesis Mode **RP2 host apply gate**（`genesisApplyProfile`/`genesisGenerateImage` 受信・`resolveRulesProfile`呼び出し・`asWebviewUri`配線） |
+| Next (推奨) | **Deep Emit P2**（commerce / faction conflict）· Codex 統合レビュー · SO3 · Identity/Reference Layer D1b |
 | Git | `main` synced through v1.77.11 |
+
+---
+
+## 2026-07-05 JST - Claude - Genesis Guide UX polish (Webview-only)
+
+- **バグ修正**: 最終ステップが生キー表示になっていた（JSは `step.imageGenerationWanted.*` を参照、ロケールは `step.images.*` のみ定義）→ `06-genesis-guide.js` にキーエイリアスを追加して解消。
+- ステップドット進捗（6ステップ+サマリー✓、クリックで任意ステップへジャンプ）、案内人ポートレート下にジャンル別キャプション+切替時クロスフェード、サマリー行クリックで該当ステップに戻れる編集導線（✎）を追加。
+- ComfyUIフォールバック: 「画像生成しない」選択時はサマリーのプロンプト枠を非表示にし「後から有効化できる」ヒントに差し替え。生成ボタンのトーストを「チャットに届く／届かない場合はComfyUI起動確認 or プロンプトコピーで他ツールへ」に改善、連打防止のボタン無効化も追加。
+- RP2反映後のフロー: 成功時は更新項目数入りトースト+スタートボタンが「🚪 閉じて冒険の準備へ」に変化（クリックで閉じてStart Hubへ）、失敗時はワークスペースフォルダ確認を促す文言、host警告(`warnings[]`)を警告枠に表示。
+- 導線: ウィザードフッターに「⚡ ざっと作る」へのエスケープリンク（既存Quickstartボタンを起動）。Escで閉じる、チップに `aria-pressed`、`prefers-reduced-motion` 対応、≤420px向けレイアウト調整（狭幅ではポートレート+キャプションが横並びに）。
+- i18n: `guideCaption`/`quickstartLink`/`imagesSkippedHint`/`editRowHint`/`closeAndStartBtn`/`appliedWarnings` を新規追加、`generateImageHint`/`appliedSuccess`/`appliedFailed`/`appliedToast` を更新。en/ja/zh-CN/zh-TW 4ロケール同期済み（一時的に ja 先行で `npm test` が落ちていた状態は解消済み、下記 Gemini/Codex エントリ参照）。
+- `docs/GENESIS_MODE_ASSETS.md` にジャンル別 ComfyUI プロンプト文案（案内人/背景、Illustrious系向け）を追記。
+- 制約遵守: host / canonical state / game_rules 保存ロジック無変更。Webviewから直接書き込みなし。画像パスは既存の `__LR_GENESIS_ASSET_BASE_URI__`（host側 `asWebviewUri` 置換済み）経由のみ。
+- 検証: 実ビルド `script.js`/`style.css` を静的ハーネス（スクラッチパッド、リポジトリ外）に読み込み、ja/en 両ロケールで全ステップ・ドットジャンプ・サマリー行編集・画像スキップ表示・成功/失敗/警告トースト・postMessageペイロード・375px幅を目視+eval確認。`npm run compile` clean、`npm test` **212/212**。
+- P2候補: ジャンル切替時の背景プリロード、apply後の主人公作成への直接ディープリンク（protagonistMode連動）、Start Hubヒーローへのジャンルサムネイル帯。
 
 ---
 

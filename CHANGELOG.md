@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Genesis Guide UX polish** (Claude, Webview-only) — fixed the final wizard step showing raw i18n keys (`step.imageGenerationWanted.*` → locale files use `step.images.*`; added an alias in `06-genesis-guide.js`). Added clickable step-dot progress (6 steps + summary ✓), a genre-guide caption under the portrait with a soft crossfade on genre change, and clickable summary rows (✎) that jump back to the corresponding step. Summary now hides the ComfyUI prompt block when "no images" was chosen and shows a reassuring text-only hint instead; the generate-image toast explains where the image will arrive and what to do if ComfyUI is not running (copy-prompt fallback). Apply flow now reflects the RP2 host gate: success toast reports the number of changed settings and turns the start button into "Close and get ready to play"; failure suggests checking the workspace folder; host-side answer warnings are surfaced in the warnings box. Added a "Quick build" escape-hatch link in the wizard footer, Escape-to-close, `aria-pressed` on option chips, `prefers-reduced-motion` support, and a tighter ≤420px layout (portrait+caption switch to a row on narrow panels). New/updated `webview.genesis.*` keys kept in sync across en/ja/zh-CN/zh-TW. `docs/GENESIS_MODE_ASSETS.md` gained per-genre ComfyUI prompt drafts for regenerating guide/background art. No host, canonical-state, or `game_rules.json` logic touched.
+
 ### Added
 
 - **Identity / Reference Layer D1a core** - `entityIdentityCore.ts`: pure entity identity helpers for cross-ledger reference work, including minimal `EntityKind`, `EntityRef`, alias/tombstone contracts, exact/alias/merged/deleted/missing resolution, same-kind validation, cross-kind alias/merge rejection, missing merge-target detection, deterministic keys, and unit tests.

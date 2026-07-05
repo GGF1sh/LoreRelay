@@ -221,9 +221,9 @@ function findGalleryIndexByImagePath(imagePath) {
 // Webview UI only. Never writes game_rules.json or canonical state directly.
 // The preview logic below MIRRORS src/rulesProfileCore.ts for local, instant
 // feedback while the wizard is open. It is NOT authoritative: when the user
-// clicks "Start with this", only a postMessage is sent — the host is expected
-// to call the real resolveRulesProfile() before touching any files (RP2 gate,
-// not implemented yet).
+// clicks "Start with this", only a postMessage is sent — the host re-resolves
+// the answers through the real resolveRulesProfile() (RP2 apply gate) before
+// touching game_rules.json.
 
 (function initGenesisGuide() {
   const backdrop = document.getElementById('genesis-guide-backdrop');
@@ -234,6 +234,7 @@ function findGalleryIndexByImagePath(imagePath) {
   if (!modal) return;
 
   const progressEl = document.getElementById('genesis-guide-progress');
+  const progressDotsEl = document.getElementById('genesis-guide-progress-dots');
   const stepView = document.getElementById('genesis-guide-step-view');
   const summaryView = document.getElementById('genesis-guide-summary-view');
   const stepTitleEl = document.getElementById('genesis-step-title');
@@ -241,13 +242,17 @@ function findGalleryIndexByImagePath(imagePath) {
   const stepOptionsEl = document.getElementById('genesis-step-options');
   const portraitImg = document.getElementById('genesis-guide-portrait');
   const portraitFallback = document.getElementById('genesis-guide-portrait-fallback');
+  const portraitCaption = document.getElementById('genesis-guide-portrait-caption');
   const summaryPortraitImg = document.getElementById('genesis-summary-portrait');
   const summaryPortraitFallback = document.getElementById('genesis-summary-portrait-fallback');
+  const summaryPortraitCaption = document.getElementById('genesis-summary-portrait-caption');
 
   const stepNav = document.getElementById('genesis-guide-nav');
   const backBtn = document.getElementById('genesis-back-btn');
   const nextBtn = document.getElementById('genesis-next-btn');
   const skipToSummaryBtn = document.getElementById('genesis-skip-summary-btn');
+  const altLinksEl = document.getElementById('genesis-alt-links');
+  const quickstartLink = document.getElementById('genesis-quickstart-link');
 
   const summaryNav = document.getElementById('genesis-guide-summary-nav');
   const restartBtn = document.getElementById('genesis-restart-btn');
@@ -259,6 +264,8 @@ function findGalleryIndexByImagePath(imagePath) {
   const summarySystemsEl = document.getElementById('genesis-summary-systems');
   const summaryWarningsEl = document.getElementById('genesis-summary-warnings');
   const notesInput = document.getElementById('genesis-summary-notes');
+  const comfyBlock = document.getElementById('genesis-comfy-block');
+  const imagesSkipHint = document.getElementById('genesis-images-skip-hint');
   const comfyPromptEl = document.getElementById('genesis-comfy-prompt');
   const copyPromptBtn = document.getElementById('genesis-copy-prompt-btn');
   const copyPromptToast = document.getElementById('genesis-copy-prompt-toast');
@@ -267,6 +274,13 @@ function findGalleryIndexByImagePath(imagePath) {
 
   // ---- Answer domain (mirrors GENESIS_* enums in src/rulesProfileCore.ts) ----
   const STEPS = ['genre', 'playstyle', 'pressure', 'bookkeeping', 'protagonistMode', 'imageGenerationWanted'];
+
+  // Locale files use "step.images.*" for the imageGenerationWanted step.
+  const STEP_I18N_ALIAS = { imageGenerationWanted: 'images' };
+
+  function stepI18nId(stepId) {
+    return STEP_I18N_ALIAS[stepId] || stepId;
+  }
 
   const OPTIONS = {
     genre: [
@@ -424,6 +438,7 @@ function findGalleryIndexByImagePath(imagePath) {
     stepIndex: 0,
     answers: Object.assign({}, DEFAULTS),
     touched: {},
+    applied: false,
   };
 
   function assetBaseUri() {
@@ -438,10 +453,22 @@ function findGalleryIndexByImagePath(imagePath) {
     return `${base}/${String(webviewPath).replace(/^\/+/, '')}`;
   }
 
-  function applyPortrait(imgEl, fallbackEl, webviewPath) {
+  function guideCaptionText() {
+    const genreLabel = optionLabel('genre', state.answers.genre);
+    return T('webview.genesis.guideCaption', { genre: genreLabel });
+  }
+
+  function applyPortrait(imgEl, fallbackEl, captionEl, webviewPath) {
     const uri = resolveAssetUri(webviewPath);
+    const caption = guideCaptionText();
+    if (captionEl) captionEl.textContent = caption;
     if (uri) {
-      imgEl.src = uri;
+      if (imgEl.getAttribute('src') !== uri) {
+        imgEl.classList.add('genesis-portrait-loading');
+        imgEl.onload = () => imgEl.classList.remove('genesis-portrait-loading');
+        imgEl.src = uri;
+      }
+      imgEl.alt = caption;
       imgEl.classList.remove('hidden');
       fallbackEl.classList.add('hidden');
       imgEl.onerror = () => {
@@ -471,14 +498,46 @@ function findGalleryIndexByImagePath(imagePath) {
     return T(`webview.genesis.${stepId}.${optionId}.desc`);
   }
 
+  function renderProgressDots() {
+    if (!progressDotsEl) return;
+    progressDotsEl.innerHTML = '';
+    const onSummary = state.stepIndex >= STEPS.length;
+    STEPS.forEach((stepId, idx) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'genesis-progress-dot';
+      if (idx === state.stepIndex) dot.classList.add('active');
+      else if (idx < state.stepIndex) dot.classList.add('done');
+      dot.title = T(`webview.genesis.step.${stepI18nId(stepId)}.title`);
+      dot.setAttribute('aria-label', dot.title);
+      dot.addEventListener('click', () => {
+        state.stepIndex = idx;
+        render();
+      });
+      progressDotsEl.appendChild(dot);
+    });
+    const summaryDot = document.createElement('button');
+    summaryDot.type = 'button';
+    summaryDot.className = 'genesis-progress-dot genesis-progress-dot-summary';
+    if (onSummary) summaryDot.classList.add('active');
+    summaryDot.textContent = '✓';
+    summaryDot.title = T('webview.genesis.summary.title');
+    summaryDot.setAttribute('aria-label', summaryDot.title);
+    summaryDot.addEventListener('click', () => {
+      state.stepIndex = STEPS.length;
+      render();
+    });
+    progressDotsEl.appendChild(summaryDot);
+  }
+
   function renderStep() {
     const stepId = STEPS[state.stepIndex];
     progressEl.textContent = T('webview.genesis.progress', { current: state.stepIndex + 1, total: STEPS.length });
-    stepTitleEl.textContent = T(`webview.genesis.step.${stepId}.title`);
-    stepDescEl.textContent = T(`webview.genesis.step.${stepId}.desc`);
+    stepTitleEl.textContent = T(`webview.genesis.step.${stepI18nId(stepId)}.title`);
+    stepDescEl.textContent = T(`webview.genesis.step.${stepI18nId(stepId)}.desc`);
 
     const hint = ASSET_HINT_BY_GENRE[state.answers.genre] || {};
-    applyPortrait(portraitImg, portraitFallback, hint.guideWebviewPath);
+    applyPortrait(portraitImg, portraitFallback, portraitCaption, hint.guideWebviewPath);
     applyBackground(hint.backgroundWebviewPath);
 
     stepOptionsEl.innerHTML = '';
@@ -487,6 +546,7 @@ function findGalleryIndexByImagePath(imagePath) {
       chip.type = 'button';
       chip.className = 'genesis-option-chip';
       if (state.answers[stepId] === opt.id) chip.classList.add('selected');
+      chip.setAttribute('aria-pressed', state.answers[stepId] === opt.id ? 'true' : 'false');
       chip.innerHTML = `<span class="genesis-option-chip-label">${opt.icon} ${escapeHtml(optionLabel(stepId, String(opt.id)))}</span>` +
         `<span class="genesis-option-chip-desc">${escapeHtml(optionDesc(stepId, String(opt.id)))}</span>`;
       chip.addEventListener('click', () => {
@@ -504,10 +564,12 @@ function findGalleryIndexByImagePath(imagePath) {
       ? T('webview.genesis.summaryBtnShort')
       : T('webview.genesis.nextBtn');
 
+    renderProgressDots();
     stepView.classList.remove('hidden');
     summaryView.classList.add('hidden');
     stepNav.classList.remove('hidden');
     summaryNav.classList.add('hidden');
+    if (altLinksEl) altLinksEl.classList.remove('hidden');
   }
 
   function escapeHtml(str) {
@@ -516,15 +578,23 @@ function findGalleryIndexByImagePath(imagePath) {
     return div.innerHTML;
   }
 
+  function resetAppliedState() {
+    state.applied = false;
+    startBtn.disabled = false;
+    startBtn.textContent = T('webview.genesis.summary.startBtn');
+    appliedToast.classList.add('hidden');
+    appliedToast.textContent = '';
+  }
+
   function renderSummary() {
     const answers = state.answers;
     const preview = resolvePreview(answers);
     const hint = preview.assetHint || {};
-    applyPortrait(summaryPortraitImg, summaryPortraitFallback, hint.guideWebviewPath);
+    applyPortrait(summaryPortraitImg, summaryPortraitFallback, summaryPortraitCaption, hint.guideWebviewPath);
     applyBackground(hint.backgroundWebviewPath);
 
     const rows = [
-      ['webview.genesis.summary.genre', `${optionLabel('genre', answers.genre)} (${label(answers.genre)})`],
+      ['webview.genesis.summary.genre', optionLabel('genre', answers.genre)],
       ['webview.genesis.summary.playstyle', optionLabel('playstyle', answers.playstyle)],
       ['webview.genesis.summary.pressure', optionLabel('pressure', answers.pressure)],
       ['webview.genesis.summary.bookkeeping', optionLabel('bookkeeping', answers.bookkeeping)],
@@ -533,10 +603,20 @@ function findGalleryIndexByImagePath(imagePath) {
         ? optionLabel('imageGenerationWanted', 'true')
         : optionLabel('imageGenerationWanted', 'false')],
     ];
-    summaryRowsEl.innerHTML = rows.map(([labelKey, value]) => (
-      `<div class="genesis-summary-row"><span class="genesis-summary-row-label">${escapeHtml(T(labelKey))}</span>` +
-      `<span class="genesis-summary-row-value">${escapeHtml(value)}</span></div>`
+    const stepIndexByRow = [0, 1, 2, 3, 4, 5];
+    summaryRowsEl.innerHTML = rows.map(([labelKey, value], rowIdx) => (
+      `<button type="button" class="genesis-summary-row" data-step="${stepIndexByRow[rowIdx]}" ` +
+      `title="${escapeHtml(T('webview.genesis.summary.editRowHint'))}">` +
+      `<span class="genesis-summary-row-label">${escapeHtml(T(labelKey))}</span>` +
+      `<span class="genesis-summary-row-value">${escapeHtml(value)} <span class="genesis-summary-row-edit" aria-hidden="true">✎</span></span></button>`
     )).join('');
+    summaryRowsEl.querySelectorAll('.genesis-summary-row').forEach((rowEl) => {
+      rowEl.addEventListener('click', () => {
+        const idx = parseInt(rowEl.dataset.step || '0', 10);
+        state.stepIndex = Number.isFinite(idx) ? idx : 0;
+        render();
+      });
+    });
 
     const baselineChips = BASELINE_SYSTEM_KEYS.map((k) => (
       `<span class="genesis-system-chip genesis-system-chip-baseline">${escapeHtml(T(k))}</span>`
@@ -550,15 +630,20 @@ function findGalleryIndexByImagePath(imagePath) {
     summaryWarningsEl.classList.add('hidden');
     summaryWarningsEl.textContent = '';
 
+    const wantsImages = answers.imageGenerationWanted === true;
+    if (comfyBlock) comfyBlock.classList.toggle('hidden', !wantsImages);
+    if (imagesSkipHint) imagesSkipHint.classList.toggle('hidden', wantsImages);
     comfyPromptEl.value = preview.comfyUiStylePrompt;
     copyPromptToast.classList.add('hidden');
     generateImageToast.classList.add('hidden');
 
+    renderProgressDots();
     stepView.classList.add('hidden');
     summaryView.classList.remove('hidden');
     stepNav.classList.add('hidden');
     summaryNav.classList.remove('hidden');
-    progressEl.textContent = T('webview.genesis.summary.title');
+    if (altLinksEl) altLinksEl.classList.add('hidden');
+    progressEl.textContent = '';
   }
 
   function render() {
@@ -574,6 +659,7 @@ function findGalleryIndexByImagePath(imagePath) {
     state.stepIndex = 0;
     state.answers = Object.assign({}, DEFAULTS);
     state.touched = {};
+    resetAppliedState();
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
     render();
@@ -591,6 +677,12 @@ function findGalleryIndexByImagePath(imagePath) {
   if (heroCta) heroCta.addEventListener('click', openGenesisGuide);
   if (closeBtn) closeBtn.addEventListener('click', closeGenesisGuide);
   if (backdrop) backdrop.addEventListener('click', closeGenesisGuide);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.open) {
+      closeGenesisGuide();
+    }
+  });
 
   backBtn.addEventListener('click', () => {
     if (state.stepIndex > 0) {
@@ -617,6 +709,7 @@ function findGalleryIndexByImagePath(imagePath) {
     state.stepIndex = 0;
     state.answers = Object.assign({}, DEFAULTS);
     state.touched = {};
+    resetAppliedState();
     render();
   });
 
@@ -626,7 +719,21 @@ function findGalleryIndexByImagePath(imagePath) {
     if (rulesBtn) rulesBtn.click();
   });
 
+  if (quickstartLink) {
+    quickstartLink.addEventListener('click', () => {
+      closeGenesisGuide();
+      const quickBtn = document.getElementById('start-hub-quick-btn');
+      if (quickBtn) quickBtn.click();
+    });
+  }
+
   startBtn.addEventListener('click', () => {
+    if (state.applied) {
+      // Second click after a successful apply: just close and hand the user
+      // back to the Start Hub (protagonist creation, demos, etc.).
+      closeGenesisGuide();
+      return;
+    }
     const preview = resolvePreview(state.answers);
     startBtn.disabled = true;
     vscode.postMessage({
@@ -643,13 +750,19 @@ function findGalleryIndexByImagePath(imagePath) {
     const message = event.data || {};
     if (message.type !== 'genesisProfileApplied') return;
     startBtn.disabled = false;
-    appliedToast.textContent = message.ok
-      ? T('webview.genesis.summary.appliedSuccess')
-      : T('webview.genesis.summary.appliedFailed');
-    appliedToast.classList.remove('hidden');
     if (message.ok) {
-      setTimeout(() => appliedToast.classList.add('hidden'), 5000);
+      state.applied = true;
+      const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
+      appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
+      startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
+      if (Array.isArray(message.warnings) && message.warnings.length > 0) {
+        summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
+        summaryWarningsEl.classList.remove('hidden');
+      }
+    } else {
+      appliedToast.textContent = T('webview.genesis.summary.appliedFailed');
     }
+    appliedToast.classList.remove('hidden');
   });
 
   if (copyPromptBtn) {
@@ -680,8 +793,12 @@ function findGalleryIndexByImagePath(imagePath) {
         prompt: preview.comfyUiStylePrompt,
         assetHint: preview.assetHint,
       });
+      generateImageBtn.disabled = true;
       generateImageToast.classList.remove('hidden');
-      setTimeout(() => generateImageToast.classList.add('hidden'), 4000);
+      setTimeout(() => {
+        generateImageToast.classList.add('hidden');
+        generateImageBtn.disabled = false;
+      }, 6000);
     });
   }
 })();

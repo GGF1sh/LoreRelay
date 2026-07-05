@@ -1359,12 +1359,16 @@
       <button id="genesis-guide-close" class="glass-btn" data-i18n-title="webview.genesis.closeBtn" title="Close">✕</button>
     </div>
     <div class="genesis-modal-body">
+      <div id="genesis-guide-progress-dots" class="genesis-progress-dots" role="tablist"></div>
       <div id="genesis-guide-progress" class="genesis-progress"></div>
 
       <div id="genesis-guide-step-view" class="genesis-step-view">
-        <div class="genesis-guide-visual">
-          <img id="genesis-guide-portrait" class="genesis-guide-portrait hidden" alt="" />
-          <div id="genesis-guide-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+        <div class="genesis-guide-side">
+          <div class="genesis-guide-visual">
+            <img id="genesis-guide-portrait" class="genesis-guide-portrait hidden" alt="" />
+            <div id="genesis-guide-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+          </div>
+          <div id="genesis-guide-portrait-caption" class="genesis-guide-caption"></div>
         </div>
         <div class="genesis-step-main">
           <div id="genesis-step-title" class="genesis-step-title"></div>
@@ -1374,9 +1378,12 @@
       </div>
 
       <div id="genesis-guide-summary-view" class="genesis-summary-view hidden">
-        <div class="genesis-guide-visual">
-          <img id="genesis-summary-portrait" class="genesis-guide-portrait hidden" alt="" />
-          <div id="genesis-summary-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+        <div class="genesis-guide-side">
+          <div class="genesis-guide-visual">
+            <img id="genesis-summary-portrait" class="genesis-guide-portrait hidden" alt="" />
+            <div id="genesis-summary-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+          </div>
+          <div id="genesis-summary-portrait-caption" class="genesis-guide-caption"></div>
         </div>
         <div class="genesis-summary-main">
           <div class="genesis-summary-title" data-i18n="webview.genesis.summary.title">確認：この設定で世界を作ります</div>
@@ -1395,7 +1402,7 @@
             <textarea id="genesis-summary-notes" class="genesis-notes-input" rows="2" data-i18n-placeholder="webview.genesis.summary.notesPlaceholder" placeholder="世界観について自由に書き足せます（任意）"></textarea>
           </div>
 
-          <div class="genesis-summary-block">
+          <div id="genesis-comfy-block" class="genesis-summary-block">
             <div class="genesis-summary-block-label" data-i18n="webview.genesis.summary.comfyTitle">画像生成AI用プロンプト</div>
             <textarea id="genesis-comfy-prompt" class="genesis-prompt-box" rows="3" readonly></textarea>
             <p class="inline-help" data-i18n="webview.genesis.summary.comfyHint">ComfyUIが使える場合は「Genesis画像を生成」を押してください。使えない場合は上のプロンプトをコピーして、お好きな画像生成AI（ブラウザ版など）に貼り付けてください。</p>
@@ -1404,8 +1411,9 @@
               <button type="button" id="genesis-generate-image-btn" class="glass-btn" data-i18n="webview.genesis.summary.generateImageBtn">🎨 Genesis画像を生成</button>
             </div>
             <div id="genesis-copy-prompt-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.copyPromptDone">コピーしました</div>
-            <div id="genesis-generate-image-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.generateImageHint">画像生成を依頼しました（ComfyUI未設定の場合は反応しないことがあります）</div>
+            <div id="genesis-generate-image-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.generateImageHint">🎨 画像生成をComfyUIに依頼しました。できあがった画像はチャットに届きます。</div>
           </div>
+          <p id="genesis-images-skip-hint" class="inline-help hidden" data-i18n="webview.genesis.summary.imagesSkippedHint">画像なしで進めます。あとから Game Rules や 🎨 ボタンで画像生成を使うこともできます。</p>
         </div>
       </div>
 
@@ -1420,7 +1428,10 @@
         <button type="button" id="genesis-advanced-btn" class="glass-btn" data-i18n="webview.genesis.summary.advancedBtn">⚙️ 詳細設定へ</button>
         <button type="button" id="genesis-start-btn" class="cc-save-primary" data-i18n="webview.genesis.summary.startBtn">🚀 この設定で始める</button>
       </div>
-      <div id="genesis-applied-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.appliedToast">設定を送信しました。反映は準備中の機能です。</div>
+      <div id="genesis-alt-links" class="genesis-alt-links">
+        <button type="button" id="genesis-quickstart-link" class="genesis-skip-link" data-i18n="webview.genesis.quickstartLink">⚡ 急ぐなら「ざっと作る」（一文から自動生成）</button>
+      </div>
+      <div id="genesis-applied-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.appliedToast">設定を送信しました。</div>
     </div>
   </div>
 

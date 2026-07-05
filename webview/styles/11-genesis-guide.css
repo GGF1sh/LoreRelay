@@ -138,6 +138,57 @@
   letter-spacing: 1px;
 }
 
+/* Step dots: one per wizard step + a final ✓ for the summary screen. */
+.genesis-progress-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.genesis-progress-dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(124, 179, 255, 0.4);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  font-size: 0;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.genesis-progress-dot:hover {
+  transform: scale(1.3);
+  background: rgba(124, 179, 255, 0.3);
+}
+
+.genesis-progress-dot.done {
+  background: rgba(124, 179, 255, 0.55);
+}
+
+.genesis-progress-dot.active {
+  background: linear-gradient(90deg, #7cb3ff, #bd8fff);
+  border-color: transparent;
+  transform: scale(1.25);
+}
+
+.genesis-progress-dot-summary {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.genesis-progress-dot-summary.active {
+  color: #0b0d16;
+}
+
 .genesis-step-view,
 .genesis-summary-view {
   display: flex;
@@ -150,10 +201,19 @@
   display: none;
 }
 
+.genesis-guide-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 110px;
+}
+
 .genesis-guide-visual {
   flex-shrink: 0;
-  width: 96px;
-  height: 96px;
+  width: 110px;
+  height: 110px;
   border-radius: 14px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
@@ -163,10 +223,24 @@
   justify-content: center;
 }
 
+.genesis-guide-caption {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .genesis-guide-portrait {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.genesis-guide-portrait.genesis-portrait-loading {
+  opacity: 0;
 }
 
 .genesis-guide-portrait.hidden {
@@ -282,11 +356,28 @@
   padding: 12px 14px;
 }
 
+/* Each summary row is a button: clicking jumps back to that wizard step. */
 .genesis-summary-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   font-size: 12px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 6px;
+  margin: -3px -6px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.genesis-summary-row:hover {
+  background: rgba(124, 179, 255, 0.1);
+}
+
+.genesis-summary-row:hover .genesis-summary-row-edit {
+  opacity: 1;
 }
 
 .genesis-summary-row-label {
@@ -297,6 +388,13 @@
   color: var(--text);
   font-weight: 600;
   text-align: right;
+}
+
+.genesis-summary-row-edit {
+  opacity: 0.35;
+  font-weight: 400;
+  color: var(--text-dim);
+  transition: opacity 0.15s;
 }
 
 .genesis-summary-block {
@@ -390,6 +488,23 @@
   display: none;
 }
 
+.genesis-alt-links {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.genesis-alt-links.hidden {
+  display: none;
+}
+
+.genesis-comfy-block.hidden,
+#genesis-comfy-block.hidden,
+#genesis-images-skip-hint.hidden {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .genesis-modal {
     width: 96vw;
@@ -402,9 +517,22 @@
     align-items: center;
   }
 
+  /* Narrow panels: guide portrait + caption sit side by side above the options. */
+  .genesis-guide-side {
+    flex-direction: row;
+    width: 100%;
+    justify-content: center;
+    gap: 10px;
+  }
+
   .genesis-guide-visual {
-    width: 72px;
-    height: 72px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .genesis-guide-caption {
+    text-align: left;
+    max-width: 55%;
   }
 
   .genesis-option-grid {
@@ -432,5 +560,40 @@
 
   .genesis-nav {
     justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .genesis-modal-body {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+
+  .genesis-modal-header {
+    padding: 12px 14px;
+  }
+
+  .genesis-nav .glass-btn,
+  .genesis-nav .cc-save-primary {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .genesis-modal-header h2 {
+    animation: none;
+  }
+
+  .genesis-guide-portrait,
+  .genesis-progress-dot,
+  .genesis-hero-cta,
+  .genesis-option-chip {
+    transition: none;
+  }
+
+  .genesis-hero-cta:hover,
+  .genesis-progress-dot:hover {
+    transform: none;
   }
 }

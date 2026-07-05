@@ -37,6 +37,27 @@ These are bundled for likely future Genesis genres or theme variants, but are no
 | Steampunk background | `background_steampunk.png` |
 | Cozy fantasy background | `background_cozy.png` |
 
+## ComfyUI Prompt Drafts (optional regeneration / variants)
+
+These drafts are for regenerating or adding guide/background variants with a local ComfyUI (Illustrious/Anima-style anime checkpoints work well). They are documentation only — the runtime never requires ComfyUI, and generated files must be bundled under `webview/assets/genesis/` with stable names before UI use.
+
+Common suffixes:
+
+- Guide portrait: `solo, upper body, looking at viewer, warm welcoming expression, detailed face, soft rim light, masterpiece, best quality` / negative: `lowres, bad hands, extra fingers, watermark, text, signature`
+- Background: `no humans, scenery, wide shot, depth of field, masterpiece, best quality` (portrait negatives minus hand terms)
+
+| Genre | Guide portrait draft | Background draft |
+|-------|----------------------|------------------|
+| fantasy | `1girl, gentle goddess guide, flowing robes, golden ornaments, ancient ruin hall, warm lantern light` | `ancient stone ruins, warm lantern light, ivy, painterly fantasy vista` |
+| post_apocalypse | `1girl, scavenger mechanic, goggles on head, patched jacket, toolbelt, rusted workshop` | `post-apocalyptic wasteland, rusted vehicles, scavenger settlement, dramatic dusk sky` |
+| cyberpunk | `1girl, holographic AI avatar, translucent glowing body, neon reflections, rainy megacity alley` | `cyberpunk neon city, rainy street, holographic ads, high contrast night` |
+| sci_fi | `1girl, alien mercenary guide, exotic skin markings, utility flight suit, starport concourse` | `space frontier starport, exploration vessel, alien horizon, cinematic lighting` |
+| eastern | `1girl, xianxia fairy guide, hanfu, floating ribbons, misty mountain shrine path` | `misty mountains, shrine path, ink-painting style, soft dawn light` |
+| horror | `1girl, hooded mysterious guide, pale skin, candlelight, abandoned corridor, subdued palette` | `abandoned streets at night, tense shadows, distant safe room light, survival horror mood` |
+| modern | `1girl, occult librarian, glasses, cardigan, hidden ritual sigils, urban library at night` | `modern city at night, quiet library window light, subtle ritual signs, investigative mood` |
+
+Extra-pack variants: steampunk (`automaton guide, brass gears, victorian workshop` / `steampunk skyline, airships, brass and steam`), cozy (`tavern master, apron, hearth light` / `cozy tavern interior, fireplace, wooden beams`).
+
 ## G2 UI Notes
 
 When the Genesis Guide Webview UI is implemented:

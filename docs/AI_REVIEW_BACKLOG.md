@@ -1,6 +1,7 @@
 # AI Review Backlog & Central Control Board
 
-**Board Synced To Commit:** `6af4bc5` (code baseline; subsequent control changes are docs-only)
+**Board Code Baseline:** `6af4bc5`
+**Control Artifacts Synced Through:** `6c403e3` (PROMPT-001A Gate V2)
 **Last Reconciled:** 2026-07-05 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -29,7 +30,7 @@
 | ID | Area / 内容 | Severity | Priority | Status | Depends On | Touch Set | Owner | Reviewer |
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
-| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Adversarial差戻し・原子分割改訂中） | P1 | Critical | **GATE_DRAFTED** | - | `gmPromptBuilder.ts`等 | Claude Opus 4.8(代行) | Gemini 3.1 Pro |
+| `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（V2差分レビュー） | P1 | Critical | **ADVERSARIAL_REVIEW** | - | `gmPromptBuilder.ts` | Claude Opus 4.8(代行) | Gemini 3.1 Pro |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | CONFIRMED | `PROMPT-001A` | | ChatGPT | Gemini |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |

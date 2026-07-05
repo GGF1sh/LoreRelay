@@ -228,6 +228,9 @@ function configureDioramaLighting(t, snapshot) {
     shadowCam.updateProjectionMatrix();
 
     t.ambientLight.color = new THREE.Color(snapshot.palette.ambient || '#8899aa');
+    if (t.ambientLight.groundColor) {
+        t.ambientLight.groundColor = new THREE.Color(snapshot.palette.ground || '#3d4a3d');
+    }
     t.ambientLight.intensity = profile.ambientIntensity;
 
     const fogColor = snapshot.palette.background || '#1a1a2e';
@@ -252,6 +255,8 @@ function disposeObject3D(obj) {
 function disposeSceneObjects() {
     const t = _dioramaThree;
     if (!t || !t.group) { return; }
+    _dioramaHighlight = null;
+    _dioramaLastHitMesh = null;
     t.scene.remove(t.group);
     disposeObject3D(t.group);
     t.group = null;
@@ -280,11 +285,13 @@ function rebuildDioramaSceneContent(snapshot) {
     const t = _dioramaThree;
     if (!t) { return null; }
     disposeSceneObjects();
+    _dioramaHighlight = null;
     const group = new THREE.Group();
     const hitMeshes = [];
     group.add(buildGroundPlane(snapshot));
+    const withEdges = snapshot.blocks.length <= DIORAMA_EDGE_LINES_MAX_BLOCKS;
     for (const block of snapshot.blocks) {
-        const mesh = buildBlockMesh(block);
+        const mesh = buildBlockMesh(block, withEdges);
         group.add(mesh);
         hitMeshes.push(mesh);
     }
@@ -303,7 +310,12 @@ function rebuildDioramaSceneContent(snapshot) {
     return t;
 }
 
-function buildBlockMesh(block) {
+// Low-poly definition: subtle dark edge lines make each block read as a
+// distinct model (the DF-visualizer look) instead of merged color masses.
+// Capped by block count so a huge settlement doesn't double its draw calls.
+const DIORAMA_EDGE_LINES_MAX_BLOCKS = 350;
+
+function buildBlockMesh(block, withEdges) {
     const geo = new THREE.BoxGeometry(block.w, block.h, block.d);
     const mat = buildDioramaMaterial(block.material);
     const mesh = new THREE.Mesh(geo, mat);
@@ -312,23 +324,38 @@ function buildBlockMesh(block) {
     mesh.userData = { kind: 'block', label: block.code };
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    if (withEdges) {
+        const edges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(geo),
+            new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 })
+        );
+        mesh.add(edges);
+    }
     return mesh;
 }
 
 function buildMarkerMesh(marker) {
     const shape = DIORAMA_MARKER_SHAPE[marker.kind] || 'box';
+    const isPlayer = marker.kind === 'player';
     let geo;
     if (shape === 'cone') {
-        geo = new THREE.ConeGeometry(0.16, 0.42, 8);
+        geo = isPlayer
+            ? new THREE.ConeGeometry(0.2, 0.55, 8)
+            : new THREE.ConeGeometry(0.16, 0.42, 8);
     } else if (shape === 'cylinder') {
         geo = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8);
     } else {
         geo = new THREE.BoxGeometry(0.22, 0.3, 0.22);
     }
     const mat = buildDioramaMaterial(marker.material);
+    if (isPlayer) {
+        // "You are here" should glow like a cursor even in dim horror lighting.
+        mat.emissive = new THREE.Color(0xffd75f);
+        mat.emissiveIntensity = 0.6;
+    }
     const mesh = new THREE.Mesh(geo, mat);
     const pos = toSceneVec(marker.x, marker.y, marker.z);
-    mesh.position.set(pos.x, pos.y + 0.2, pos.z);
+    mesh.position.set(pos.x, pos.y + (isPlayer ? 0.27 : 0.2), pos.z);
     mesh.userData = { kind: 'marker', id: marker.id, label: marker.label };
     // Markers stay shadow receivers only (not casters) — 80 of them casting adds little
     // visible value over the block shadows and would double the shadow-pass draw calls.
@@ -338,13 +365,30 @@ function buildMarkerMesh(marker) {
 
 function buildGroundPlane(snapshot) {
     const { width, depth } = snapshot.bounds;
-    const geo = new THREE.BoxGeometry(width, 0.06, depth);
+    const group = new THREE.Group();
+
+    // Diorama plinth: a slightly oversized base slab so the settlement reads
+    // as a tabletop model instead of blocks floating on a paper-thin sheet.
+    const geo = new THREE.BoxGeometry(width + 1, 0.3, depth + 1);
     const mat = buildGroundMaterial(snapshot.palette.ground);
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set((width - 1) / 2, -0.03, (depth - 1) / 2);
+    mesh.position.set((width - 1) / 2, -0.15, (depth - 1) / 2);
     mesh.userData = { kind: 'ground' };
     mesh.receiveShadow = true;
-    return mesh;
+    group.add(mesh);
+
+    // Faint survey grid on top of the plinth (DF-visualizer vibe, read-only decoration)
+    const gridSize = Math.max(width, depth) + 1;
+    const grid = new THREE.GridHelper(gridSize, gridSize, 0xffffff, 0xffffff);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.06;
+    grid.material.depthWrite = false;
+    grid.position.set((width - 1) / 2, 0.005, (depth - 1) / 2);
+    grid.userData = { kind: 'ground' };
+    group.add(grid);
+
+    group.userData = { kind: 'ground' };
+    return group;
 }
 
 function applyOrbitFromCamera(camera) {
@@ -387,7 +431,14 @@ function buildSettlementDioramaScene(canvas, snapshot) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(snapshot.palette.background);
 
-    const ambientLight = new THREE.AmbientLight(snapshot.palette.ambient || '#8899aa', 0.7);
+    // Hemisphere light (sky tint from palette.ambient, bounce tint from the
+    // ground color) instead of a flat AmbientLight — gives every face a subtle
+    // top/bottom gradient so unlit sides still read as 3D.
+    const ambientLight = new THREE.HemisphereLight(
+        snapshot.palette.ambient || '#8899aa',
+        snapshot.palette.ground || '#3d4a3d',
+        0.7
+    );
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
@@ -408,14 +459,24 @@ function buildSettlementDioramaScene(canvas, snapshot) {
     renderer.setSize(cssWidth, cssHeight, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Filmic tone mapping + sRGB output: softer highlights and richer mids than
+    // the linear default, which rendered the low-poly blocks flat and washed out.
+    if (THREE.ACESFilmicToneMapping !== undefined) {
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+    }
+    if (THREE.sRGBEncoding !== undefined) {
+        renderer.outputEncoding = THREE.sRGBEncoding;
+    }
 
     const group = new THREE.Group();
     const hitMeshes = [];
 
     group.add(buildGroundPlane(snapshot));
 
+    const withEdges = snapshot.blocks.length <= DIORAMA_EDGE_LINES_MAX_BLOCKS;
     for (const block of snapshot.blocks) {
-        const mesh = buildBlockMesh(block);
+        const mesh = buildBlockMesh(block, withEdges);
         group.add(mesh);
         hitMeshes.push(mesh);
     }
@@ -504,6 +565,32 @@ function renderSettlementDioramaDetailPanel(hit) {
     panel.classList.remove('hidden');
 }
 
+// Click-to-highlight: remembers the last raycast mesh + its original emissive
+// so a selected block/marker glows until deselected or the scene rebuilds.
+let _dioramaLastHitMesh = null;
+let _dioramaHighlight = null; // { mesh, emissive, intensity }
+
+function clearDioramaSelectionHighlight() {
+    const h = _dioramaHighlight;
+    if (h && h.mesh && h.mesh.material) {
+        h.mesh.material.emissive = h.emissive;
+        h.mesh.material.emissiveIntensity = h.intensity;
+    }
+    _dioramaHighlight = null;
+}
+
+function applyDioramaSelectionHighlight(mesh) {
+    clearDioramaSelectionHighlight();
+    if (!mesh || !mesh.material || !mesh.material.emissive) { return; }
+    _dioramaHighlight = {
+        mesh,
+        emissive: mesh.material.emissive.clone(),
+        intensity: mesh.material.emissiveIntensity ?? 0,
+    };
+    mesh.material.emissive = new THREE.Color(0xffd75f);
+    mesh.material.emissiveIntensity = 0.45;
+}
+
 function hitTestSettlementDiorama(clientX, clientY) {
     const t = _dioramaThree;
     const canvas = document.getElementById('world-diorama-canvas');
@@ -515,7 +602,11 @@ function hitTestSettlementDiorama(clientX, clientY) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), t.camera);
     const intersects = raycaster.intersectObjects(t.hitMeshes, false);
-    if (!intersects.length) { return null; }
+    if (!intersects.length) {
+        _dioramaLastHitMesh = null;
+        return null;
+    }
+    _dioramaLastHitMesh = intersects[0].object;
     return intersects[0].object.userData || null;
 }
 
@@ -731,6 +822,12 @@ function initSettlementDioramaControls() {
         const hit = hitTestSettlementDiorama(e.clientX, e.clientY);
         _dioramaSelected = hit;
         renderSettlementDioramaDetailPanel(hit);
+        if (hit && _dioramaLastHitMesh) {
+            applyDioramaSelectionHighlight(_dioramaLastHitMesh);
+        } else {
+            clearDioramaSelectionHighlight();
+        }
+        renderDioramaOnce();
     });
 
     window.addEventListener('resize', () => {

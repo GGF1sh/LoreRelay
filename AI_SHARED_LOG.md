@@ -28,6 +28,19 @@
 
 ---
 
+## 2026-07-05 JST - Claude - 拠点ビューア描画アップグレード（アイソメ + 3Dジオラマ, Webviewのみ）
+
+- ユーザー要望「DFの外付けViewerみたいに斜め見下ろし/簡易3Dで拠点を豪華に」への対応。CSS額縁ではなく描画コード本体を強化。
+- **アイソメ `86b-settlement-isometric.js`**: 従来は天面ダイヤモンドのみのフラット描画（`SETTLEMENT_TILE_COLORS` の left/right 面色が未使用だった）。tile code 別の高さテーブル（wall 16px〜floor 2px）で押し出しブロック化し、陰影付き側面+接地AOライン+天面の日照リムライト、水タイルは半光沢+波紋ハイライト、マーカーは接地影+支柱+player は金色ハロー。背景は空グラデ+拠点背後のアクセントグロー+ビネット。ホバータイルにアクセント輪郭、クリック選択に金色輪郭（tile/markerとも）。
+- **潜在バグ修正**: ヒット座標はズーム前コンテンツ座標で保存されるのにマウス座標を無変換比較していたため zoom≠1 でクリック/ホバーがずれていた → `hitTestSettlement` でズームピボット周りの逆変換を追加。
+- **ジオラマ `86c-settlement-diorama.js`**: ACESFilmic トーンマッピング+sRGB出力、AmbientLight→HemisphereLight（palette.ambient=空/palette.ground=照り返し）、ブロックごとの暗色エッジライン（`EdgesGeometry`、350ブロック上限でドローコール抑制）、台座を厚い一回り大きなプリンス+微細サーベイグリッドに、player マーカーは大型コーン+emissive発光、クリック選択で金色 emissive ハイライト（選択解除/再構築で復元、`disposeSceneObjects` でも参照クリア）。
+- 契約不変: 読み取り専用（settlementOps/state書き込みなし）、payload/schema 無変更、M4c ghost preview・markerフォールバックリスト無変更。
+- 検証: 静的ハーネスに 12x10 の城塞拠点フィクスチャ（壁/門/市場/工房/居住/水/廃墟/hazard + 5マーカー）を注入し、アイソメの押し出し描画・ズーム・ホバー/選択、ジオラマの postapoc/horror 両テーマ照明・エッジ・選択ハイライトをスクリーンショット+eval で確認。
+- **並行開発の作業手順メモ**: 他AIが `scripts/build-webview.js`+新モジュール `80b-state-orchestrator.js`+`06-genesis-guide.js`+多数の src/*.ts を編集中で main ツリーの tsc が壊れていたため、(1) ビルドに影響する WIP 2ファイルを退避→HEAD に一時戻して script.js/style.css をクリーン再生成、(2) 一時 worktree（HEAD+本変更、node_modules と `../lorerelay-world-kit` ジャンクション）で `npm test` **212/212** を確認、(3) 自分のファイルのみコミット、(4) 退避した WIP を復元、という手順を取った。
+- P2候補: アイソメの昼夜トーン切替（world time 連動）、ジオラマの水面アニメーション（reduced-motion 配慮必須）、拠点規模が大きい場合のアイソメ glyph 描画のズーム閾値スキップ。
+
+---
+
 ## 2026-07-05 JST - Claude - Visual Refresh Wave 2（World/拠点/Viewer パネルの豪華化, CSSのみ）
 
 - `97-visual-refresh.css` 末尾に Wave 2 レイヤーを追加。対象: World タブ全セクション（`<details>`をガラスカード+アクセント見出し化、マップモードバーをセグメントコントロール化、市場/NPC/クエスト/請願カードの質感統一+ホバー浮上、Domain/Guild ステータスバーのグラデ+発光）、拠点ビュー（Settlement/Diorama の詳細・展開パネル・ツールバー）、Vehicles/Mobile Base（ガレージカード、燃料/耐久バー — low/empty の警告色は分岐クラスで維持）、Observatory（市場カード・年代記行・ターンチップ）、Status サイドバー（状態/所持品/スキルをカード化、数値は tabular-nums）、ギャラリーサムネイルのホバー。

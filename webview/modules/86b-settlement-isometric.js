@@ -85,6 +85,30 @@ const SETTLEMENT_MARKER_GLYPHS = {
     player: '@',
 };
 
+// Visual polish: per-code extrusion height (px at zoom 1). The left/right face
+// colors in SETTLEMENT_TILE_COLORS were previously unused — the "isometric"
+// view drew flat top diamonds only. Heights are display-only (hit testing and
+// the M4c ghost preview still use the flat base position).
+const SETTLEMENT_TILE_ELEVATION = {
+    floor: 2,
+    wall: 16,
+    gate: 12,
+    market: 8,
+    workshop: 9,
+    stockpile: 6,
+    quarters: 9,
+    clinic: 9,
+    barracks: 10,
+    shrine: 12,
+    water: 0,
+    ruins: 5,
+    hazard: 3,
+    empty: 0,
+    unknown: 4,
+};
+
+let _settlementHover = null;
+
 function settlementPrefsKey(settlementId, suffix) {
     return `${SETTLEMENT_PREFS_PREFIX}${settlementId}.${suffix}`;
 }
@@ -320,15 +344,158 @@ function drawIsoDiamond(ctx, sx, sy, colors, glyph, strokeOverride) {
     }
 }
 
+/**
+ * Extruded isometric block: side faces from the flat base at `sy` up to the
+ * top face at `sy - elev`, then the lit top diamond with a sun-side edge
+ * highlight. `sy` stays the logical (hit-test / marker) position.
+ */
+function drawIsoBlock(ctx, sx, sy, colors, glyph, elev) {
+    const hw = SETTLEMENT_TILE_W / 2;
+    const hh = SETTLEMENT_TILE_H / 2;
+    const topY = sy - elev;
+
+    if (elev > 0) {
+        // Left face (in shade)
+        ctx.beginPath();
+        ctx.moveTo(sx - hw, topY);
+        ctx.lineTo(sx, topY + hh);
+        ctx.lineTo(sx, sy + hh);
+        ctx.lineTo(sx - hw, sy);
+        ctx.closePath();
+        ctx.fillStyle = colors.left;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.30)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Right face (half light)
+        ctx.beginPath();
+        ctx.moveTo(sx + hw, topY);
+        ctx.lineTo(sx, topY + hh);
+        ctx.lineTo(sx, sy + hh);
+        ctx.lineTo(sx + hw, sy);
+        ctx.closePath();
+        ctx.fillStyle = colors.right;
+        ctx.fill();
+        ctx.stroke();
+
+        // Ambient-occlusion line where the block meets the ground
+        ctx.beginPath();
+        ctx.moveTo(sx - hw, sy);
+        ctx.lineTo(sx, sy + hh);
+        ctx.lineTo(sx + hw, sy);
+        ctx.strokeStyle = 'rgba(0,0,0,0.40)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // Top face
+    ctx.beginPath();
+    ctx.moveTo(sx, topY - hh);
+    ctx.lineTo(sx + hw, topY);
+    ctx.lineTo(sx, topY + hh);
+    ctx.lineTo(sx - hw, topY);
+    ctx.closePath();
+    ctx.fillStyle = colors.top;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Sun-side rim light on the two upper edges of the top face
+    ctx.beginPath();
+    ctx.moveTo(sx - hw, topY);
+    ctx.lineTo(sx, topY - hh);
+    ctx.lineTo(sx + hw, topY);
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    if (glyph && glyph !== ' ') {
+        ctx.font = '600 10px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(8,12,20,0.9)';
+        ctx.fillText(glyph, sx, topY + 1);
+    }
+}
+
+/** Water reads better flat and glossy: translucent fill + two ripple highlights. */
+function drawIsoWater(ctx, sx, sy, colors) {
+    const hw = SETTLEMENT_TILE_W / 2;
+    const hh = SETTLEMENT_TILE_H / 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - hh);
+    ctx.lineTo(sx + hw, sy);
+    ctx.lineTo(sx, sy + hh);
+    ctx.lineTo(sx - hw, sy);
+    ctx.closePath();
+    ctx.fillStyle = colors.top;
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.30)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(220,240,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx - hw * 0.45, sy - hh * 0.15);
+    ctx.quadraticCurveTo(sx - hw * 0.1, sy - hh * 0.45, sx + hw * 0.3, sy - hh * 0.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - hw * 0.25, sy + hh * 0.3);
+    ctx.quadraticCurveTo(sx + hw * 0.15, sy + hh * 0.05, sx + hw * 0.45, sy + hh * 0.25);
+    ctx.stroke();
+}
+
+/** Accent outline on the (possibly elevated) top face for hover / selection. */
+function drawIsoHighlight(ctx, sx, sy, elev, color, width) {
+    const hw = SETTLEMENT_TILE_W / 2;
+    const hh = SETTLEMENT_TILE_H / 2;
+    const topY = sy - (elev || 0);
+    ctx.beginPath();
+    ctx.moveTo(sx, topY - hh);
+    ctx.lineTo(sx + hw, topY);
+    ctx.lineTo(sx, topY + hh);
+    ctx.lineTo(sx - hw, topY);
+    ctx.closePath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+}
+
 /** Bright, high-contrast dashed outline so the ghost preview reads clearly against any tile color. */
 const SETTLEMENT_GHOST_STROKE = { color: 'rgba(255,255,255,0.9)', width: 1.5 };
 
 function drawIsoMarker(ctx, sx, sy, kind) {
     const color = SETTLEMENT_MARKER_COLORS[kind] || '#b8c4d0';
     const glyph = SETTLEMENT_MARKER_GLYPHS[kind] || '+';
+    const bubbleY = sy - SETTLEMENT_TILE_H;
+
+    // Grounding: soft contact shadow + stem from the tile up to the bubble
     ctx.beginPath();
-    ctx.arc(sx, sy - SETTLEMENT_TILE_H, 5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(8,12,20,0.82)';
+    ctx.ellipse(sx, sy, 5, 2.2, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - 1);
+    ctx.lineTo(sx, bubbleY + 5);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Player marker gets a halo so "you are here" pops like a DF cursor
+    if (kind === 'player') {
+        ctx.beginPath();
+        ctx.arc(sx, bubbleY, 8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,215,95,0.22)';
+        ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(sx, bubbleY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(8,12,20,0.85)';
     ctx.fill();
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -337,7 +504,36 @@ function drawIsoMarker(ctx, sx, sy, kind) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = color;
-    ctx.fillText(glyph, sx, sy - SETTLEMENT_TILE_H + 1);
+    ctx.fillText(glyph, sx, bubbleY + 1);
+}
+
+/** Atmospheric canvas backdrop: vertical sky gradient + soft glow behind the settlement + vignette. */
+function drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY) {
+    const sky = ctx.createLinearGradient(0, 0, 0, cssHeight);
+    sky.addColorStop(0, '#101527');
+    sky.addColorStop(0.6, '#0a0e1c');
+    sky.addColorStop(1, '#05070d');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    const glowR = Math.max(cssWidth, cssHeight) * 0.55;
+    const glow = ctx.createRadialGradient(pivotX, pivotY, 0, pivotX, pivotY, glowR);
+    glow.addColorStop(0, 'rgba(90, 130, 200, 0.10)');
+    glow.addColorStop(1, 'rgba(90, 130, 200, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+}
+
+function drawSettlementVignette(ctx, cssWidth, cssHeight) {
+    const r = Math.max(cssWidth, cssHeight);
+    const v = ctx.createRadialGradient(
+        cssWidth / 2, cssHeight / 2, r * 0.45,
+        cssWidth / 2, cssHeight / 2, r * 0.85
+    );
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, 'rgba(0,0,0,0.38)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
 function computeSettlementOrigin(canvas, view) {
@@ -464,8 +660,19 @@ function renderSettlementMarkerFallback(view) {
 function hitTestSettlement(clientX, clientY, canvas) {
     if (!canvas || !_settlementHits.length) { return null; }
     const rect = canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    // Hit positions are stored in pre-zoom content coordinates, but the mouse
+    // arrives in screen coordinates. Invert the draw transform (scale around
+    // the content pivot) so hovering/clicking stays accurate at any zoom.
+    const view = getSettlementSnapshot();
+    if (view && _settlementZoom !== 1) {
+        const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
+        const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
+        const pivotY = originY + boundsH / 2;
+        x = pivotX + (x - pivotX) / _settlementZoom;
+        y = pivotY + (y - pivotY) / _settlementZoom;
+    }
     let best = null;
     let bestDist = SETTLEMENT_HIT_RADIUS_PX + 1;
     for (const hit of _settlementHits) {
@@ -565,8 +772,6 @@ function drawSettlementIsometric() {
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
-    ctx.fillStyle = 'rgba(8, 12, 20, 0.92)';
-    ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
     const zoom = _settlementZoom;
@@ -576,6 +781,9 @@ function drawSettlementIsometric() {
     // whole layer toward a corner instead of scaling in place.
     const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
     const pivotY = originY + boundsH / 2;
+
+    drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY);
+
     ctx.save();
     ctx.translate(pivotX, pivotY);
     ctx.scale(zoom, zoom);
@@ -583,16 +791,24 @@ function drawSettlementIsometric() {
 
     _settlementHits = [];
     const tiles = Array.isArray(view.tiles) ? [...view.tiles] : [];
-    tiles.sort((a, b) => (a.x + a.y) - (b.x + b.y) || a.x - b.x);
+    // Painter's order for extruded blocks: back-to-front by (x+y), then lower
+    // z first so raised sub-layers stack correctly.
+    tiles.sort((a, b) => (a.x + a.y) - (b.x + b.y) || (a.z || 0) - (b.z || 0) || a.x - b.x);
 
     for (const tile of tiles) {
         const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
         const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
-        drawIsoDiamond(ctx, sx, sy, colors, colors.glyph);
+        const elev = SETTLEMENT_TILE_ELEVATION[tile.code] ?? 4;
+        if (tile.code === 'water') {
+            drawIsoWater(ctx, sx, sy, colors);
+        } else {
+            drawIsoBlock(ctx, sx, sy, colors, colors.glyph, elev);
+        }
         _settlementHits.push({
             type: 'tile',
             px: sx,
             py: sy,
+            elev,
             label: tile.label,
             detail: tile.code,
             code: tile.code,
@@ -609,6 +825,7 @@ function drawSettlementIsometric() {
             kind: marker.kind,
             px: sx,
             py: sy - SETTLEMENT_TILE_H,
+            elev: 0,
             label: marker.label,
             detail: marker.detail,
         });
@@ -616,7 +833,29 @@ function drawSettlementIsometric() {
 
     drawSettlementGhostPreview(ctx, view, originX, originY);
 
+    // Hover / selection outlines on top of everything (accent + gold)
+    if (_settlementHover && _settlementHover.type === 'tile') {
+        drawIsoHighlight(ctx, _settlementHover.px, _settlementHover.py, _settlementHover.elev, 'rgba(139,183,255,0.9)', 1.5);
+    }
+    const selectedHit = _settlementSelected
+        ? _settlementHits.find((h) => (
+            h.type === _settlementSelected.type
+            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+        ))
+        : null;
+    if (selectedHit && selectedHit.type === 'tile') {
+        drawIsoHighlight(ctx, selectedHit.px, selectedHit.py, selectedHit.elev, 'rgba(255,215,95,0.95)', 2);
+    } else if (selectedHit && selectedHit.type === 'marker') {
+        ctx.beginPath();
+        ctx.arc(selectedHit.px, selectedHit.py, 8, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,215,95,0.95)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
     ctx.restore();
+
+    drawSettlementVignette(ctx, cssWidth, cssHeight);
 
     if (_settlementSelected) {
         const still = _settlementHits.find((h) => (
@@ -723,13 +962,25 @@ function initSettlementIsometricControls() {
         }
         if (_settlementDrag) { return; }
         const hit = hitTestSettlement(e.clientX, e.clientY, canvas);
+        const hoverKey = hit ? `${hit.type}:${hit.id || ''}:${hit.px},${hit.py}` : null;
+        const prevKey = _settlementHover ? `${_settlementHover.type}:${_settlementHover.id || ''}:${_settlementHover.px},${_settlementHover.py}` : null;
+        if (hoverKey !== prevKey) {
+            _settlementHover = hit;
+            drawSettlementIsometric();
+        }
         if (hit) {
             showSettlementTooltip(hit, e.clientX, e.clientY);
         } else {
             hideSettlementTooltip();
         }
     });
-    canvas.addEventListener('mouseleave', hideSettlementTooltip);
+    canvas.addEventListener('mouseleave', () => {
+        hideSettlementTooltip();
+        if (_settlementHover) {
+            _settlementHover = null;
+            drawSettlementIsometric();
+        }
+    });
 
     canvas.addEventListener('click', (e) => {
         if (typeof worldMapMode !== 'undefined' && worldMapMode !== 'settlement') { return; }
@@ -737,6 +988,7 @@ function initSettlementIsometricControls() {
         const hit = hitTestSettlement(e.clientX, e.clientY, canvas);
         _settlementSelected = hit;
         renderSettlementDetailPanel(hit);
+        drawSettlementIsometric();
     });
 
     window.addEventListener('resize', () => {

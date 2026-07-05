@@ -9,6 +9,7 @@
 // ホストは既存の registry / npcPositions / recentChanges を下の *Like 形へ写して呼ぶ。
 // 対応スペック: docs/LIVING_WORLD_LW3_RELATIONSHIPS.md / BRIEF §0.5・§5.6(future arc)。
 
+import type { DebugTraceEntry } from './debugTraceCore';
 // レガシー既定値(pre-1.0 の暫定値、規模検討の結果ではない)。
 // ホストは game_rules.json の maxNamedNpcCount をここへ渡す。未指定時のみこの値を使う。
 export const MAX_NAMED_NPC_RELATIONSHIP = 10;
@@ -701,4 +702,57 @@ export function buildFactionRelationsPromptLines(
         if (lines.length >= maxLines) { break; }
     }
     return lines;
+}
+
+/** Deep Emit P2: generate traces for faction conflict / kinship dynamics. */
+export function buildFactionConflictTraceEntries(
+    runId: string,
+    worldTurn: number,
+    factionChanges: NpcFactionRelationshipChange[],
+    factionNames: Record<string, FactionNameLike | undefined>
+): DebugTraceEntry[] {
+    const entries: DebugTraceEntry[] = [];
+    const parentTraceId = `trace_step_${worldTurn}`;
+    let sequence = 0;
+
+    for (const change of factionChanges) {
+        sequence++;
+        if (change.factionA === change.factionB) {
+            // Kinship
+            entries.push({
+                version: 1,
+                runId,
+                traceId: `trace_fac_kin_${change.factionA}_t${worldTurn}_${sequence}`,
+                parentTraceId,
+                worldTurn,
+                subsystem: 'npcRelationship',
+                phase: 'effect',
+                ruleId: 'faction_kinship',
+                decision: 'apply_kinship',
+                message: `Faction kinship shift for ${factionNames[change.factionA]?.name ?? change.factionA} (${change.delta > 0 ? '+' : ''}${change.delta}) → ${change.value}`,
+                outputRefs: [{ kind: 'faction', id: change.factionA }],
+                audience: 'gm_safe',
+            });
+        } else {
+            // Conflict
+            entries.push({
+                version: 1,
+                runId,
+                traceId: `trace_fac_con_${change.factionA}_${change.factionB}_t${worldTurn}_${sequence}`,
+                parentTraceId,
+                worldTurn,
+                subsystem: 'npcRelationship',
+                phase: 'effect',
+                ruleId: 'faction_conflict',
+                decision: 'apply_conflict',
+                message: `Faction relation shift between ${factionNames[change.factionA]?.name ?? change.factionA} and ${factionNames[change.factionB]?.name ?? change.factionB} (${change.delta > 0 ? '+' : ''}${change.delta}) → ${change.value}`,
+                outputRefs: [
+                    { kind: 'faction', id: change.factionA },
+                    { kind: 'faction', id: change.factionB }
+                ],
+                audience: 'gm_safe',
+            });
+        }
+    }
+    return entries;
 }

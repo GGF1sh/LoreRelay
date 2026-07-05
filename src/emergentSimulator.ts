@@ -20,7 +20,8 @@ import { saveWorldState, ensureWorldStateExists } from './worldState';
 import { loadNpcRegistry, saveNpcRegistry } from './npcRegistry';
 import { generateQuestHooks } from './questGeneratorCore';
 import { captureWorldStepDebugTraceIfGated } from './debugTraceWorldStepHost';
-import { flushDebugTraceHostUpdate } from './debugTraceHostCore';
+import { flushDebugTraceHostUpdate, ensureDebugTraceLiveRun } from './debugTraceHostCore';
+import { captureNpcNeedDivergenceDeepTrace, resolveDeepTraceEmitGateFlags } from './debugTraceEmitHost';
 import { livingWorldEnabled, tickLivingWorldAfterSim } from './livingWorldBridge';
 import { loadWorldForgeDocument } from './worldForge';
 
@@ -62,7 +63,16 @@ export function computeOneWorldStep(forge: WorldForge, state: WorldState, rules 
                 currentRegistry,
                 forge
             );
+
             if (updatedIds.length > 0) {
+                captureNpcNeedDivergenceDeepTrace(
+                    resolveDeepTraceEmitGateFlags(),
+                    ensureDebugTraceLiveRun(next.worldTurn ?? 0),
+                    next.worldTurn ?? 0,
+                    currentRegistry,
+                    updated,
+                    updatedIds
+                );
                 currentRegistry = updated;
                 registryUpdated = true;
             }

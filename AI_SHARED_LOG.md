@@ -80,6 +80,14 @@
 
 ---
 
+## 2026-07-05 JST - Codex - Debug Trace Deep Emit P2
+
+- Stabilized the pending P2 emitters for commerce price bumps, faction relationship shifts, and NPC need divergence.
+- Fixed the P2 test syntax issue before committing and verified the targeted test plus TypeScript compile.
+- Debug trace emit remains non-authoritative: host capture wrappers swallow errors and must not affect simulation/Living World outcomes.
+
+---
+
 ## 2026-07-05 JST - Codex - State Orchestrator SO3 stabilization
 
 - Reviewed the pending SO3 executor/rollback/UI work and kept the commit scope to an experimental executor preview rather than replacing existing GM-turn write paths.

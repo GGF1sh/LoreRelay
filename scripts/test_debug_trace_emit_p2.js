@@ -34,6 +34,9 @@ const {
     getDebugTraceHostBuffer,
 } = require(hostPath);
 const { buildFoodCrisisAgencyTraceEntries } = require(emitPath);
+const { buildCommercePriceBumpTraceEntries } = require(path.join(root, 'out', 'worldSimCommerceCore.js'));
+const { buildFactionConflictTraceEntries } = require(path.join(root, 'out', 'npcRelationshipCore.js'));
+const { buildNpcNeedDivergenceTraceEntries } = require(path.join(root, 'out', 'npcBridgeCore.js'));
 
 function foodEvent(turn, id = `wce_${turn}_food`) {
     return {
@@ -216,6 +219,54 @@ function foodEvent(turn, id = `wce_${turn}_food`) {
         fail('trim should keep recent step anchors');
     } else {
         ok('trimDebugTraceRingBuffer enforces limit with step-aware eviction');
+    }
+}
+
+// 6. buildCommercePriceBumpTraceEntries
+{
+    const stepEvents = [foodEvent(13)];
+    const forge = {
+        markets: [{ locationId: 'farm' }]
+    };
+    const marketsBefore = { farm: { wheat: { priceIndex: 1.0 } } };
+    const marketsAfter = { farm: { wheat: { priceIndex: 1.35 } } };
+
+    const entries = buildCommercePriceBumpTraceEntries('run1', 13, forge, marketsBefore, marketsAfter, stepEvents);
+    if (entries.length !== 1 || !entries[0].traceId.includes('wheat')) {
+        fail('buildCommercePriceBumpTraceEntries failed to trace wheat price bump');
+    } else {
+        ok('buildCommercePriceBumpTraceEntries traces food crisis price shocks');
+    }
+}
+
+// 7. buildFactionConflictTraceEntries
+{
+    const changes = [
+        { factionA: 'f1', factionB: 'f2', delta: -10, value: -20, reason: 'faction_conflict', worldTurn: 14 },
+        { factionA: 'f1', factionB: 'f1', delta: 5, value: 50, reason: 'faction_kinship', worldTurn: 14 }
+    ];
+    const names = { f1: { name: 'Faction 1' }, f2: { name: 'Faction 2' } };
+    const entries = buildFactionConflictTraceEntries('run1', 14, changes, names);
+
+    if (entries.length !== 2) {
+        fail(`buildFactionConflictTraceEntries returned ${entries.length} instead of 2`);
+    } else if (entries[0].ruleId !== 'faction_conflict' || entries[1].ruleId !== 'faction_kinship') {
+        fail('buildFactionConflictTraceEntries rules do not match');
+    } else {
+        ok('buildFactionConflictTraceEntries correctly separates conflict and kinship');
+    }
+}
+
+// 8. buildNpcNeedDivergenceTraceEntries
+{
+    const regBefore = { npcs: { n1: { name: 'Bob', needs: [{ id: 'need_1', urgency: 50 }] } } };
+    const regAfter = { npcs: { n1: { name: 'Bob', needs: [{ id: 'need_1', urgency: 75, description: 'Hungry' }] } } };
+
+    const entries = buildNpcNeedDivergenceTraceEntries('run1', 15, regBefore, regAfter, ['n1']);
+    if (entries.length !== 1 || entries[0].decision !== 'need_escalated') {
+        fail('buildNpcNeedDivergenceTraceEntries failed on escalated need');
+    } else {
+        ok('buildNpcNeedDivergenceTraceEntries correctly identifies escalated urgency');
     }
 }
 

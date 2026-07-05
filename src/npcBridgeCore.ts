@@ -4,6 +4,7 @@
 import type { WorldChangeEvent } from './worldEventLogCore';
 import type { WorldForge } from './worldForgeCore';
 import type { NpcRegistry, NpcNeed, NpcEntry } from './npcRegistryCore';
+import type { DebugTraceEntry } from './debugTraceCore';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -177,4 +178,48 @@ export function extractHighlightRegionIds(events: WorldChangeEvent[]): Set<strin
         if (ev.mapHighlight && ev.regionId) { ids.add(ev.regionId); }
     }
     return ids;
+}
+
+/** Deep Emit P2: generate traces for NPC need divergence caused by world events (e.g. food crisis). */
+export function buildNpcNeedDivergenceTraceEntries(
+    runId: string,
+    worldTurn: number,
+    registryBefore: NpcRegistry,
+    registryAfter: NpcRegistry,
+    updatedIds: string[]
+): DebugTraceEntry[] {
+    const entries: DebugTraceEntry[] = [];
+    const parentTraceId = `trace_step_${worldTurn}`;
+    let sequence = 0;
+
+    for (const npcId of updatedIds) {
+        const before = registryBefore.npcs[npcId];
+        const after = registryAfter.npcs[npcId];
+        if (!before || !after) continue;
+
+        for (const needAfter of after.needs) {
+            const needBefore = before.needs.find(n => n.id === needAfter.id);
+            if (!needBefore || needBefore.urgency !== needAfter.urgency) {
+                sequence++;
+                const isNew = !needBefore;
+                entries.push({
+                    version: 1,
+                    runId,
+                    traceId: `trace_npc_need_${npcId}_t${worldTurn}_${sequence}`,
+                    parentTraceId,
+                    worldTurn,
+                    subsystem: 'npcBridge',
+                    phase: 'effect',
+                    ruleId: 'resource_need_divergence',
+                    decision: isNew ? 'need_created' : 'need_escalated',
+                    message: isNew
+                        ? `New need for ${after.name}: ${needAfter.description} (urgency ${needAfter.urgency})`
+                        : `Escalated need for ${after.name}: ${needAfter.description} (urgency ${needBefore.urgency} → ${needAfter.urgency})`,
+                    outputRefs: [{ kind: 'npc', id: npcId }],
+                    audience: 'gm_safe',
+                });
+            }
+        }
+    }
+    return entries;
 }

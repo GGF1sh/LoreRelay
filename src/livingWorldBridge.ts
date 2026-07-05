@@ -17,6 +17,8 @@ import { initializeMarketState } from './commerceCore';
 import { runLivingWorldTick } from './worldKitTickCore';
 import {
     captureFoodCrisisAgencyDeepTrace,
+    captureCommercePriceBumpDeepTrace,
+    captureFactionConflictDeepTrace,
     resolveDeepTraceEmitGateFlags,
 } from './debugTraceEmitHost';
 import { ensureDebugTraceLiveRun, getActiveDebugTraceSimulationRunId } from './debugTraceHostCore';
@@ -245,10 +247,24 @@ export function tickLivingWorldAfterSim(
     ext.markets = tick.markets;
     ext.npcPositions = tick.npcPositions;
 
+    const flags = resolveDeepTraceEmitGateFlags();
+    const runId = getActiveDebugTraceSimulationRunId() ?? ensureDebugTraceLiveRun(state.worldTurn ?? 0);
+
+    if (commerceEnabled) {
+        captureCommercePriceBumpDeepTrace(
+            flags,
+            runId,
+            state.worldTurn ?? 0,
+            commerceForge,
+            markets,
+            tick.markets,
+            mappedStepEvents
+        );
+    }
+
     if (rules.enableNpcAgency === true && rules.enableNpcRegistry === true) {
-        captureFoodCrisisAgencyDeepTrace(resolveDeepTraceEmitGateFlags(), {
-            runId: getActiveDebugTraceSimulationRunId()
-                ?? ensureDebugTraceLiveRun(state.worldTurn ?? 0),
+        captureFoodCrisisAgencyDeepTrace(flags, {
+            runId,
             worldTurn: state.worldTurn ?? 0,
             stepEvents: mappedStepEvents,
             commerceForge,
@@ -299,6 +315,15 @@ export function tickLivingWorldAfterSim(
         // 派閥レベルの変化(個人のBondsとは別枠)も、世界の噂として昇格させる。
         const factionNameMap: Record<string, { name?: string }> = {};
         for (const f of forge.factions) { factionNameMap[f.id] = { name: f.name }; }
+
+        captureFactionConflictDeepTrace(
+            flags,
+            runId,
+            state.worldTurn ?? 0,
+            evolved.factionChanges,
+            factionNameMap
+        );
+
         const factionEvents = evolved.factionChanges.map((c) => makeWorldChangeEvent({
             worldTurn: state.worldTurn,
             category: 'faction',

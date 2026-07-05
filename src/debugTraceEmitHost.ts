@@ -49,6 +49,10 @@ import type {
     NpcRegistryLike,
     WorldChangeEventLike,
 } from './livingWorldTypes';
+import { buildCommercePriceBumpTraceEntries } from './worldSimCommerceCore';
+import { buildFactionConflictTraceEntries, type NpcFactionRelationshipChange, type FactionNameLike } from './npcRelationshipCore';
+import { buildNpcNeedDivergenceTraceEntries } from './npcBridgeCore';
+import type { NpcRegistry } from './npcRegistryCore';
 
 export interface LivingWorldTickDeepTraceParams {
     runId?: string;
@@ -102,5 +106,80 @@ export function captureFoodCrisisAgencyDeepTrace(
         appendDebugTraceHostEntries(entries);
     } catch {
         // Debug trace must never affect Living World behavior.
+    }
+}
+
+export function captureCommercePriceBumpDeepTrace(
+    flags: DeepTraceEmitGateFlags,
+    runId: string | undefined,
+    worldTurn: number,
+    forge: CommerceForge,
+    marketsBefore: MarketStateMap,
+    marketsAfter: MarketStateMap,
+    stepEvents: WorldChangeEventLike[]
+): void {
+    if (!shouldEmitDeepDebugTrace(flags)) return;
+    const activeRunId = runId ?? getActiveDebugTraceSimulationRunId();
+    if (!activeRunId) return;
+    try {
+        const entries = buildCommercePriceBumpTraceEntries(
+            activeRunId,
+            Math.floor(worldTurn),
+            forge,
+            marketsBefore,
+            marketsAfter,
+            stepEvents
+        );
+        appendDebugTraceHostEntries(entries);
+    } catch {
+        // Debug trace must never affect behavior.
+    }
+}
+
+export function captureFactionConflictDeepTrace(
+    flags: DeepTraceEmitGateFlags,
+    runId: string | undefined,
+    worldTurn: number,
+    factionChanges: NpcFactionRelationshipChange[],
+    factionNames: Record<string, FactionNameLike | undefined>
+): void {
+    if (!shouldEmitDeepDebugTrace(flags)) return;
+    const activeRunId = runId ?? getActiveDebugTraceSimulationRunId();
+    if (!activeRunId || !factionChanges.length) return;
+    try {
+        const entries = buildFactionConflictTraceEntries(
+            activeRunId,
+            Math.floor(worldTurn),
+            factionChanges,
+            factionNames
+        );
+        appendDebugTraceHostEntries(entries);
+    } catch {
+        // Debug trace must never affect behavior.
+    }
+}
+
+export function captureNpcNeedDivergenceDeepTrace(
+    flags: DeepTraceEmitGateFlags,
+    runId: string | undefined,
+    worldTurn: number,
+    registryBefore: NpcRegistry,
+    registryAfter: NpcRegistry,
+    updatedIds: string[]
+): void {
+    if (!shouldEmitDeepDebugTrace(flags)) return;
+    const activeRunId = runId ?? getActiveDebugTraceSimulationRunId();
+    if (!activeRunId || !updatedIds.length) return;
+    try {
+        const entries = buildNpcNeedDivergenceTraceEntries(
+            activeRunId,
+            Math.floor(worldTurn),
+            registryBefore,
+            registryAfter,
+            updatedIds
+        );
+        appendDebugTraceHostEntries(entries);
+    } catch {
+        // Debug trace must never affect behavior.
     }
 }

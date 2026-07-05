@@ -7,6 +7,7 @@ import type {
 } from './livingWorldTypes';
 import { isFoodCrisisEvent } from './livingWorldTypes';
 import { reputationTier, type ReputationTier } from './factionReputationCore';
+import type { DebugTraceEntry } from './debugTraceCore';
 
 export const DEFAULT_MARKET_RECOVERY_PER_TICK = 2;
 export const MAX_PRICE_INDEX = 4;
@@ -262,4 +263,79 @@ export function applyMarketPriceMultiplier(
         Math.min(MAX_PRICE_INDEX, target.priceIndex * multiplier)
     );
     return { markets: next, applied: true };
+}
+
+/** Deep Emit P2: generate traces for price bumps driven by world events. */
+export function buildCommercePriceBumpTraceEntries(
+    runId: string,
+    worldTurn: number,
+    forge: CommerceForge,
+    marketsBefore: MarketStateMap,
+    marketsAfter: MarketStateMap,
+    stepEvents: WorldChangeEventLike[]
+): DebugTraceEntry[] {
+    const entries: DebugTraceEntry[] = [];
+    const parentTraceId = `trace_step_${worldTurn}`;
+    let anonSequence = 0;
+
+    for (const ev of stepEvents) {
+        if (!isFoodCrisisEvent(ev) && !isSteelCraftEvent(ev)) {
+            continue;
+        }
+
+        const targets = ev.regionId
+            ? marketsInRegion(forge, ev.regionId)
+            : allMarketLocations(forge);
+
+        for (const loc of targets) {
+            if (isFoodCrisisEvent(ev)) {
+                const before = marketsBefore[loc]?.wheat?.priceIndex;
+                const after = marketsAfter[loc]?.wheat?.priceIndex;
+                if (before !== undefined && after !== undefined && after !== before) {
+                    anonSequence++;
+                    const evId = ev.id ? ev.id : `anon${anonSequence}`;
+                    entries.push({
+                        version: 1,
+                        runId,
+                        traceId: `trace_com_bump_${loc}_wheat_t${worldTurn}_${evId}`,
+                        parentTraceId,
+                        worldTurn,
+                        subsystem: 'worldSimCommerce',
+                        phase: 'effect',
+                        ruleId: 'food_crisis_price_bump',
+                        decision: 'bump_wheat',
+                        message: `Food crisis shock in ${loc}: wheat price index ${before.toFixed(2)} → ${after.toFixed(2)}`,
+                        inputRefs: ev.id ? [{ kind: 'event', id: ev.id }] : undefined,
+                        outputRefs: [{ kind: 'location', id: loc }],
+                        audience: 'gm_safe',
+                    });
+                }
+            }
+
+            if (isSteelCraftEvent(ev)) {
+                const before = marketsBefore[loc]?.steel?.priceIndex;
+                const after = marketsAfter[loc]?.steel?.priceIndex;
+                if (before !== undefined && after !== undefined && after !== before) {
+                    anonSequence++;
+                    const evId = ev.id ? ev.id : `anon${anonSequence}`;
+                    entries.push({
+                        version: 1,
+                        runId,
+                        traceId: `trace_com_bump_${loc}_steel_t${worldTurn}_${evId}`,
+                        parentTraceId,
+                        worldTurn,
+                        subsystem: 'worldSimCommerce',
+                        phase: 'effect',
+                        ruleId: 'steel_craft_price_bump',
+                        decision: 'bump_steel',
+                        message: `Steel craft shock in ${loc}: steel price index ${before.toFixed(2)} → ${after.toFixed(2)}`,
+                        inputRefs: ev.id ? [{ kind: 'event', id: ev.id }] : undefined,
+                        outputRefs: [{ kind: 'location', id: loc }],
+                        audience: 'gm_safe',
+                    });
+                }
+            }
+        }
+    }
+    return entries;
 }

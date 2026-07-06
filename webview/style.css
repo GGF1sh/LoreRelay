@@ -519,6 +519,68 @@ body.profile-parlor .start-hub-btn-disabled {
   background: rgba(74, 158, 255, 0.08);
 }
 
+.start-hub-readiness {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 640px;
+  margin-top: -6px;
+}
+
+.start-hub-options-primary {
+  max-width: 760px;
+}
+
+.start-hub-options-primary .start-hub-btn {
+  flex: 1 1 220px;
+  padding: 22px 18px;
+}
+
+.start-hub-options-primary .start-hub-btn-icon {
+  font-size: 32px;
+}
+
+.start-hub-more {
+  width: 100%;
+  max-width: 640px;
+}
+
+.start-hub-more-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--glass-border);
+  user-select: none;
+}
+
+.start-hub-more-summary:hover {
+  color: var(--text);
+}
+
+.start-hub-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.start-hub-more-summary::before {
+  content: '▸ ';
+}
+
+.start-hub-more[open] .start-hub-more-summary::before {
+  content: '▾ ';
+}
+
+.start-hub-more-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+}
+
 .inline-help {
   font-size: 11px;
   line-height: 1.45;

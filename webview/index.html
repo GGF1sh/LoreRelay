@@ -79,73 +79,81 @@
           <button type="button" id="genesis-hero-cta" class="genesis-hero-cta" data-i18n="webview.genesis.heroCta">世界を作りはじめる</button>
         </div>
         <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
-        <div class="start-hub-presets-label" data-i18n="webview.startHub.demoLabel">はじめての方:</div>
-        <div class="start-hub-options">
+        <div class="start-hub-readiness" data-i18n="webview.startHub.readinessHint">✅ 追加設定なしで今すぐ遊べます。GMプロバイダ・ComfyUI・TTSは任意です（⚙️ Settings タブでいつでも設定可）。</div>
+        <div class="start-hub-options start-hub-options-primary">
+          <button type="button" id="start-hub-demo-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon">🎮</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.demoTitle">お試しデモを始める</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.demoDesc">穏やかな港町ミステリー（約15分）。設定不要ですぐ遊べます。</span>
+          </button>
           <button type="button" id="start-hub-parlor-btn" class="start-hub-btn start-hub-btn-primary">
             <span class="start-hub-btn-icon">🎭</span>
             <span class="start-hub-btn-label" data-i18n="webview.startHub.parlorTitle">キャラと話す (Parlor)</span>
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.parlorDesc">インポートしたキャラカードを使って、シンプルな1対1のチャットを始めます。</span>
           </button>
-          <button type="button" id="start-hub-inworld-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">🌐</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.inWorldTitle">世界内チャット</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.inWorldDesc">作成済みの世界・領地・情勢を背景に、住人として会話します。</span>
-          </button>
-          <button type="button" id="start-hub-demo-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">🎮</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.demoTitle">お試しデモを始める</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.demoDesc">穏やかな港町ミステリー（約15分）。設定不要ですぐ遊べます。</span>
-          </button>
-          <button type="button" id="start-hub-map-demo-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">🗺️</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.mapDemoTitle">地図デモ（上級）</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.mapDemoDesc">地下聖堂＋同梱レイアウト地図。World タブの Parchment を確認。</span>
-          </button>
-          <button type="button" id="start-hub-debug-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">🔧</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.debugTitle">デバッグサンドボックス</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.debugDesc">好感度・地図の霧・世界ターンを言葉で即操作（開発者向け）。</span>
-          </button>
-          <button type="button" id="start-hub-scavenger-demo-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">🧰</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.scavengerDemoTitle">スカベンジャーデモ</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.scavengerDemoDesc">廃墟探索・サルベージ・鑑定ループ（Campaign Kit + Commerce）。</span>
-          </button>
-        </div>
-        <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
-        <div class="start-hub-options">
-          <button type="button" id="start-hub-quick-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">🚀</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.quickTitle">ざっと作る</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.quickDesc">短い一文から世界・キャラ・初期シナリオを自動生成する。</span>
-          </button>
-          <button type="button" id="start-hub-interview-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">💬</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.interviewTitle">質問しながら作る</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.interviewDesc">GMがジャンル、主人公、雰囲気、危険度などを質問して、世界を一緒に組み立てる。</span>
-          </button>
-        </div>
-        <div class="start-hub-presets-label" data-i18n="webview.startHub.presetsLabel">プリセット:</div>
-        <div class="start-hub-presets" id="start-hub-presets">
-          <button type="button" class="start-hub-preset-chip" data-preset="beginnerFantasy" data-i18n="webview.startHub.presetBeginnerFantasy">初心者向けファンタジー</button>
-          <button type="button" class="start-hub-preset-chip" data-preset="postApocalypse" data-i18n="webview.startHub.presetPostApocalypse">ポストアポカリプス</button>
-          <button type="button" class="start-hub-preset-chip" data-preset="cyberpunk" data-i18n="webview.startHub.presetCyberpunk">サイバーパンク</button>
-          <button type="button" class="start-hub-preset-chip" data-preset="urbanFantasy" data-i18n="webview.startHub.presetUrbanFantasy">現代異能</button>
-          <button type="button" class="start-hub-preset-chip" data-preset="freeform" data-i18n="webview.startHub.presetFreeform">自由入力</button>
-        </div>
-        <div class="start-hub-presets-label" data-i18n="webview.startHub.characterLabel">主人公:</div>
-        <div class="start-hub-options">
-          <button type="button" id="start-hub-char-new-btn" class="start-hub-btn">
+          <button type="button" id="start-hub-char-new-btn" class="start-hub-btn start-hub-btn-primary">
             <span class="start-hub-btn-icon">🧑</span>
             <span class="start-hub-btn-label" data-i18n="webview.startHub.characterNewTitle">主人公を新規作成</span>
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterNewDesc">名前・容姿・性格などを入力して主人公を作成する。</span>
           </button>
-          <button type="button" id="start-hub-char-import-btn" class="start-hub-btn">
-            <span class="start-hub-btn-icon">📥</span>
-            <span class="start-hub-btn-label" data-i18n="webview.startHub.characterImportTitle">カードを読み込む</span>
-            <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterImportDesc">SillyTavernカード（PNG/JSON）や既存のcharacter.jsonを読み込む。</span>
-          </button>
         </div>
+        <details class="start-hub-more">
+          <summary class="start-hub-more-summary" data-i18n="webview.startHub.moreSummary">その他の遊び方・詳細設定</summary>
+          <div class="start-hub-more-body">
+            <div class="start-hub-presets-label" data-i18n="webview.startHub.moreDemosLabel">その他のデモ・上級者向け:</div>
+            <div class="start-hub-options">
+              <button type="button" id="start-hub-inworld-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">🌐</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.inWorldTitle">世界内チャット</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.inWorldDesc">作成済みの世界・領地・情勢を背景に、住人として会話します。</span>
+              </button>
+              <button type="button" id="start-hub-map-demo-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">🗺️</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.mapDemoTitle">地図デモ（上級）</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.mapDemoDesc">地下聖堂＋同梱レイアウト地図。World タブの Parchment を確認。</span>
+              </button>
+              <button type="button" id="start-hub-debug-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">🔧</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.debugTitle">デバッグサンドボックス</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.debugDesc">好感度・地図の霧・世界ターンを言葉で即操作（開発者向け）。</span>
+              </button>
+              <button type="button" id="start-hub-scavenger-demo-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">🧰</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.scavengerDemoTitle">スカベンジャーデモ</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.scavengerDemoDesc">廃墟探索・サルベージ・鑑定ループ（Campaign Kit + Commerce）。</span>
+              </button>
+            </div>
+            <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
+            <div class="start-hub-options">
+              <button type="button" id="start-hub-quick-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">🚀</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.quickTitle">ざっと作る</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.quickDesc">短い一文から世界・キャラ・初期シナリオを自動生成する。</span>
+              </button>
+              <button type="button" id="start-hub-interview-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">💬</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.interviewTitle">質問しながら作る</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.interviewDesc">GMがジャンル、主人公、雰囲気、危険度などを質問して、世界を一緒に組み立てる。</span>
+              </button>
+            </div>
+            <div class="start-hub-presets-label" data-i18n="webview.startHub.presetsLabel">プリセット:</div>
+            <div class="start-hub-presets" id="start-hub-presets">
+              <button type="button" class="start-hub-preset-chip" data-preset="beginnerFantasy" data-i18n="webview.startHub.presetBeginnerFantasy">初心者向けファンタジー</button>
+              <button type="button" class="start-hub-preset-chip" data-preset="postApocalypse" data-i18n="webview.startHub.presetPostApocalypse">ポストアポカリプス</button>
+              <button type="button" class="start-hub-preset-chip" data-preset="cyberpunk" data-i18n="webview.startHub.presetCyberpunk">サイバーパンク</button>
+              <button type="button" class="start-hub-preset-chip" data-preset="urbanFantasy" data-i18n="webview.startHub.presetUrbanFantasy">現代異能</button>
+              <button type="button" class="start-hub-preset-chip" data-preset="freeform" data-i18n="webview.startHub.presetFreeform">自由入力</button>
+            </div>
+            <div class="start-hub-presets-label" data-i18n="webview.startHub.characterLabel">主人公:</div>
+            <div class="start-hub-options">
+              <button type="button" id="start-hub-char-import-btn" class="start-hub-btn">
+                <span class="start-hub-btn-icon">📥</span>
+                <span class="start-hub-btn-label" data-i18n="webview.startHub.characterImportTitle">カードを読み込む</span>
+                <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterImportDesc">SillyTavernカード（PNG/JSON）や既存のcharacter.jsonを読み込む。</span>
+              </button>
+            </div>
+          </div>
+        </details>
       </div>
       <div id="game-over-overlay" class="game-over-overlay hidden">
         <div class="game-over-card">

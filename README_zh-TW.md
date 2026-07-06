@@ -102,6 +102,18 @@ GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 
 替換為真實截圖或 GIF 的步驟見 [`DEMO.md`](DEMO.md)。
 
+### 🌟 Start Hub 與 Genesis Guide — 一眼就懂的入口
+
+<p align="center">
+  <img src="docs/assets/screenshot-start-hub.png" width="720" alt="Start Hub with three primary actions (quick demo, talk to a character, create a protagonist) plus a collapsed 'more options' section for advanced demos and manual world-building" />
+</p>
+<p align="center"><sub>首次開啟時看到的第一個畫面。只保留四個首要選項——建立世界、快速試玩、與角色對話、建立主角——地圖演示、除錯沙盒、手動建立世界、預設等都收進可折疊的「其他玩法與詳細設定」中。GM 提供商、ComfyUI、TTS 皆為可選項，不需任何設定即可立即開始遊玩。</sub></p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-genesis-summary.png" width="380" alt="Genesis Guide completed summary: post-apocalypse settlement playstyle with survival danger and detailed bookkeeping, showing enabled systems (Settlement, Commerce, World Observatory) and a matching ComfyUI image prompt" />
+</p>
+<p align="center"><sub>Genesis Guide（世界的指引）——每次選擇世界觀、玩法、危險度、管理深度，都會即時組合出將啟用的系統與對應的 ComfyUI 提示詞。</sub></p>
+
 ---
 
 ## 🚀 How to Play

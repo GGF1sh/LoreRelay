@@ -104,6 +104,18 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
 
 All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`). See [`DEMO.md`](DEMO.md) for the capture method.
 
+### 🌟 Start Hub & Genesis Guide — a front door you can't get lost in
+
+<p align="center">
+  <img src="docs/assets/screenshot-start-hub.png" width="720" alt="Start Hub with three primary actions (quick demo, talk to a character, create a protagonist) plus a collapsed 'more options' section for advanced demos and manual world-building" />
+</p>
+<p align="center"><sub>The very first screen you see. Only four choices are up front — create a world, try the quick demo, talk to a character, or create a protagonist — while map demo, debug sandbox, manual world-building, and presets live in a collapsed "More ways to play & advanced setup" section. GM provider, ComfyUI, and TTS are all optional: you can play right now with zero setup.</sub></p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-genesis-summary.png" width="380" alt="Genesis Guide completed summary: post-apocalypse settlement playstyle with survival danger and detailed bookkeeping, showing enabled systems (Settlement, Commerce, World Observatory) and a matching ComfyUI image prompt" />
+</p>
+<p align="center"><sub>Genesis Guide — every choice about genre, playstyle, danger, and bookkeeping depth assembles a live summary of which systems turn on and a matching ComfyUI prompt, in real time.</sub></p>
+
 ---
 
 ## 🚀 How to Play

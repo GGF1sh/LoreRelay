@@ -26,12 +26,14 @@ const indexSource = fs.readFileSync(indexHtml, 'utf-8');
 {
     if (!gmBuilderSource.includes('buildContextInspectorReport')) {
         fail('gmPromptBuilder must attach contextInspector report');
-    } else if (!gmBuilderSource.includes('buildGmPromptChunkSpecsWithMeta')) {
-        fail('gmPromptBuilder must track inactive/empty chunk metadata');
+    } else if (!gmBuilderSource.includes('buildInspectorPromptAssembly')) {
+        fail('gmPromptBuilder must use Inspector-local single-pass assembly');
     } else if (!gmBuilderSource.includes('contextInspector')) {
         fail('gmPromptBuilder must pass contextInspector to finalizeBreakdown');
-    } else if (!gmBuilderSource.includes('peekLastWorldStateParseWarnings')) {
-        fail('gmPromptBuilder must attach world_state parse cap warnings when enabled');
+    } else if (!gmBuilderSource.includes('readWorldStateSnapshotReadOnly')) {
+        fail('gmPromptBuilder must attach world_state parse warnings via read-only snapshot API');
+    } else if (!gmBuilderSource.includes('tryGetCharactersDirReadOnly')) {
+        fail('gmPromptBuilder inspector path must use read-only character directory API');
     } else {
         ok('gmPromptBuilder wires contextInspector into breakdown');
     }

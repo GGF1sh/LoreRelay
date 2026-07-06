@@ -129,6 +129,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_context_inspector_core.js' },
     { category: 'unit', file: 'test_context_inspector_integration.js' },
     { category: 'unit', file: 'test_prompt_candidate_purity.js' },
+    { category: 'unit', file: 'test_prompt_inspector_readonly.js' },
     { category: 'unit', file: 'test_prompt_chunk_activation.js' },
     { category: 'unit', file: 'test_webview_handlers_core.js' },
     { category: 'unit', file: 'test_model_scanner.js' },

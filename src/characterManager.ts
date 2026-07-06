@@ -62,6 +62,16 @@ export function getCharactersDir(): string | undefined {
     return charDir;
 }
 
+/**
+ * Read-only counterpart for Inspector/query paths.
+ * Must never lazy-create `characters/`, otherwise preview-only calls would mutate the workspace.
+ */
+export function tryGetCharactersDirReadOnly(): string | undefined {
+    const ws = getWorkspacePath();
+    if (!ws) { return undefined; }
+    return path.join(ws, 'characters');
+}
+
 export function getPartyIds(): string[] {
     const charDir = getCharactersDir();
     if (!charDir) { return []; }

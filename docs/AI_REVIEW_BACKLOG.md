@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `a319e68` (PROMPT-001D2 merged; World Map / README showcase already merged)
-**Control Artifacts Synced Through:** `ca31355` (RUNTIME-003A adversarial findings accepted for gate repair)
+**Control Artifacts Synced Through:** `8430695` (RUNTIME-003A Gate repaired; ready for adversarial recheck)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -46,7 +46,7 @@
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
 | `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **DONE** (`6fc5700`; smoke `221/221`) | - | merged + smoke passed | - | - |
-| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **GATE_DRAFTED (Adversarial Repair)** | `RUNTIME-002A` | liveness / restore divergence / durable scope / replay guard | ChatGPT 5.5 | Gemini 3.1 Pro |
+| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **ADVERSARIAL_REVIEW (Recheck)** (`8430695`) | `RUNTIME-002A` | structured outcomes / timeline epoch / campaign scope / writer lease | ChatGPT 5.5 | Gemini 3.1 Pro |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

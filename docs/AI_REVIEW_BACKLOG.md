@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
-**Board Code Baseline:** `6fc5700` (RUNTIME-002A merged)
-**Control Artifacts Synced Through:** `7cbc5ba` (PROMPT-001B bulk audit passed → second review)
+**Board Code Baseline:** `933252c` (PROMPT-001B merged)
+**Control Artifacts Synced Through:** `c628952` (PROMPT-001B merged → post-merge smoke required)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -31,7 +31,7 @@
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
 | `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging merged + smoke passed） | P1 | Critical | **BLOCKED (Waiting for PROMPT-001C)** | `PROMPT-001C, RUNTIME-002A` | `gmPromptBuilder.ts` + targeted tests | - | - |
-| `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **SECOND_REVIEW** | `PROMPT-001A` | `gmPromptBuilder.ts`, `characterManager.ts`, `worldState.ts` + focused tests | Codex GPT-5.4 High | ChatGPT GPT-5.5 High |
+| `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **POST_MERGE_SMOKE** | `PROMPT-001A` | merged at `933252c`; smoke pending | Codex GPT-5.4 High | Codex GPT-5.4 Medium |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
 | `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | CONFIRMED | `PROMPT-001A, B, C` | `contextEngineBudgeterCore.ts` | Antigravity | |
@@ -73,7 +73,7 @@
 | **Architecture Gate** | ChatGPT 5.4/5.5 | 【Lane A】アーキテクチャの整合性・契約策定。 |
 | **Adversarial Architect** | Gemini 3.1 Pro | 【Lane B】既存設計の攻撃、破綻箇所の発見。1度に1つの重要Gateのみ。 |
 | **Bulk Auditor** | Gemini 3.5 Flash | 【Main Sync】mainとBacklogの同期、現実とのズレ調査。大量同型検索。 |
-| **Repo Engineer** | Antigravity (Gemini) | リポジトリの直接読み書き。現在は**待機（Standby）**。 |
+| **Repo Engineer** | Antigravity (Gemini) | 【Lane Implementation】リポジトリの直接読み書き。 |
 | **UX / Debug Hub** | Claude Sonnet | 【Lane C】ユーザー体験の設計、フロントエンド/Webviewの挙動レビュー。 |
-| **Small Pure Core** | Grok | 純粋なロジックコアの実装やアルゴリズム最適化。現在は**待機（Standby）**。 |
+| **Small Pure Core** | Grok | 純粋なロジックコアの実装やアルゴリズム最適化。 |
 | **Repair / Tests** | Codex / Cursor | コンパイル救出、QAスクリプト、post-merge smoke。 |

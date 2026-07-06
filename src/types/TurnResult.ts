@@ -76,6 +76,14 @@ export interface TurnResultAgenticMeta {
     narratorProvider?: string;
 }
 
+export interface TurnResultPromptReceiptMeta {
+    receiptId: string;
+    provider: 'grok' | 'ollama' | 'koboldcpp' | 'openrouter' | 'command' | 'vscode-lm' | 'agentic';
+    assemblyDigest: string;
+    transportPayloadHash?: string;
+    stageTransportPayloadHashes?: Array<{ stage: string; hash: string }>;
+}
+
 export interface TurnResult {
     turnId: string;
     playerAction?: string;
@@ -92,6 +100,8 @@ export interface TurnResult {
     afterHash?: string;
     appliedAt?: string;
     triggeredLore?: string[];
+    /** Trusted host/runtime receipt correlation for PROMPT-001C ACK after Accepted. */
+    promptReceipt?: TurnResultPromptReceiptMeta;
     /** Optional metadata for Phase 9 agentic GM runs. Not required for legacy turn_result files. */
     agentic?: TurnResultAgenticMeta;
     /** When set, LoreRelay can offer to create characters/{id}.json for the player protagonist. */

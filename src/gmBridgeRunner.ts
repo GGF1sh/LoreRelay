@@ -18,13 +18,27 @@ import {
     resolveGmBridgeScript,
     resolvePythonCommand
 } from './skillScriptRunner';
-import { DiceLedgerEntry } from './types/TurnResult';
+import { DiceLedgerEntry, type TurnResult } from './types/TurnResult';
 import { dispatchStreamMediaHints, parseGmStreamChunk, resetMediaStreamCache } from './mediaAgent';
 import { notifyRemoteGmBusy } from './remotePlayServer';
 import { beginGmRun, finishGmRun } from './turnResultFallback';
-import { getTriggeredLoreLabels, postPromptContextToWebview } from './gmPromptBuilder';
+import {
+    acknowledgePromptReceiptAfterAccepted,
+    buildProductionPromptAssembly,
+    buildGrokPromptFromContext,
+    getTriggeredLoreLabels,
+    postPromptContextToWebview,
+} from './gmPromptBuilder';
 import { getCachedGameState } from './gameStateSync';
 import { enqueueVlmAnalysis, buildVlmMetaFromGameState, isVlmEnabled } from './vlmQueue';
+import {
+    attachTurnResultPromptReceipt,
+    buildTurnResultPromptReceiptMeta,
+    hashPromptReceiptText,
+    type PromptDeliveryReceipt,
+    type PromptReceiptProvider,
+    type TurnResultPromptReceiptMeta,
+} from './promptReceiptCore';
 import {
     buildVscodeLmTurnResult,
     extractVscodeLmJsonBlock,
@@ -423,8 +437,57 @@ function createGmStreamMediaTap(): { append(chunk: string): void; reset(): void 
     };
 }
 
+function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {
+    switch (provider) {
+        case 'grok':
+        case 'ollama':
+        case 'koboldcpp':
+        case 'openrouter':
+        case 'command':
+        case 'vscode-lm':
+            return provider;
+        default:
+            return 'grok';
+    }
+}
+
+function withPromptReceiptDiagnostics(
+    receipt: PromptDeliveryReceipt,
+    diagnostics: {
+        transportPayloadHash?: string;
+        stageTransportPayloadHashes?: Array<{ stage: string; hash: string }>;
+    }
+): PromptDeliveryReceipt {
+    return {
+        ...receipt,
+        diagnostics: {
+            transportPayloadHash: diagnostics.transportPayloadHash ?? receipt.diagnostics?.transportPayloadHash,
+            stageTransportPayloadHashes: diagnostics.stageTransportPayloadHashes
+                ?? receipt.diagnostics?.stageTransportPayloadHashes,
+        },
+    };
+}
+
+export function createPromptAcceptedCallbackForTests(
+    receipt: PromptDeliveryReceipt,
+    channel: vscode.OutputChannel,
+    onAccepted?: () => void
+): (acceptedTurn?: TurnResult) => void {
+    return (acceptedTurn?: TurnResult) => {
+        const ack = acknowledgePromptReceiptAfterAccepted(receipt, acceptedTurn);
+        if (!ack.correlated) {
+            channel.appendLine(`[PROMPT-001C] Accepted without trusted receipt correlation; ACK skipped for ${receipt.receiptId}.`);
+        } else if (ack.failedTokenIds.length > 0) {
+            channel.appendLine(
+                `[PROMPT-001C] ACK partial failure receipt=${receipt.receiptId} failed=${ack.failedTokenIds.join(',')}`
+            );
+        }
+        onAccepted?.();
+    };
+}
+
 async function invokeGrokBridge(playerAction: string): Promise<boolean> {
-    const { getPanel, buildGrokPrompt } = requireDeps();
+    const { getPanel } = requireDeps();
     const config = vscode.workspace.getConfiguration('textAdventure');
     if (!config.get<boolean>('grokBridge.enabled', true)) {
         return false;
@@ -439,7 +502,8 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     const grokCmd = resolveGrokCommand(config.get<string>('grokBridge.command', 'grok') || 'grok');
     const autoApprove = config.get<boolean>('grokBridge.autoApprove', false);
     const isContinuation = grokSessionActive;
-    const prompt = buildGrokPrompt(playerAction, isContinuation);
+    const promptAssembly = buildProductionPromptAssembly(playerAction, 'grok');
+    const prompt = buildGrokPromptFromContext(playerAction, isContinuation, promptAssembly.promptText);
     const promptFile = writePromptFile(cwd, prompt);
 
     const args = ['--prompt-file', promptFile, '--cwd', cwd];
@@ -463,7 +527,13 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
-    const prevGmState = beginGmRun(() => { grokSessionActive = true; });
+    const prevGmState = beginGmRun(createPromptAcceptedCallbackForTests(
+        withPromptReceiptDiagnostics(promptAssembly.receipt, {
+            transportPayloadHash: hashPromptReceiptText(prompt),
+        }),
+        channel,
+        () => { grokSessionActive = true; }
+    ));
 
     return new Promise((resolve) => {
         let finished = false;
@@ -819,7 +889,8 @@ function vscodeLmWriteTurnResult(
     wsPath: string,
     fullText: string,
     locale: string,
-    playerAction: string
+    playerAction: string,
+    promptReceiptMeta?: TurnResultPromptReceiptMeta
 ): void {
     const statePath = path.join(wsPath, 'game_state.json');
     let prev: Record<string, unknown> = {};
@@ -848,6 +919,7 @@ function vscodeLmWriteTurnResult(
         playerAction,
         diceLedger: diceLedger.length > 0 ? diceLedger : undefined,
         triggeredLore,
+        promptReceipt: promptReceiptMeta,
     });
 
     writeJsonAtomic(path.join(wsPath, 'turn_result.json'), turnResult);
@@ -971,8 +1043,8 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
 
     const locale = getConfiguredLocale();
     const systemPrompt = vscodeLmSystemPrompt(locale);
-    const { buildGmPromptContext } = await import('./gmPromptBuilder');
-    const context = buildGmPromptContext(playerAction);
+    const promptAssembly = buildProductionPromptAssembly(playerAction, 'vscode-lm');
+    const context = promptAssembly.promptText;
     const turnId = vscodeLmNextTurnId(wsPath);
     const contTailJa = '上記の行動に対して1ターン進め、JSONブロックを出力してください。';
     const startTailJa = 'テキストアドベンチャーを開始し、1ターン分のナラティブとJSONを出力してください。';
@@ -989,6 +1061,9 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
         '',
         tail,
     ].join('\n');
+    const receipt = withPromptReceiptDiagnostics(promptAssembly.receipt, {
+        transportPayloadHash: hashPromptReceiptText(userPrompt),
+    });
 
     const channel = getGmBridgeOutputChannel();
     channel.clear();
@@ -1003,7 +1078,9 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
 
     const mediaTap = createGmStreamMediaTap();
     mediaTap.reset();
-    const prevGmState = beginGmRun(() => { localGmSessionActive = true; });
+    const prevGmState = beginGmRun(createPromptAcceptedCallbackForTests(receipt, channel, () => {
+        localGmSessionActive = true;
+    }));
     const cts = new vscode.CancellationTokenSource();
     let fullText = '';
 
@@ -1022,7 +1099,8 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
         }
         channel.appendLine('\n[vscode-lm: complete]');
 
-        vscodeLmWriteTurnResult(wsPath, fullText, locale, playerAction);
+        const promptReceiptMeta = buildTurnResultPromptReceiptMeta(receipt);
+        vscodeLmWriteTurnResult(wsPath, fullText, locale, playerAction, promptReceiptMeta);
 
         pendingDiceLedgerWritten = false;
         finishGmRun(prevGmState, playerAction, true);

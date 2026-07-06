@@ -41,12 +41,14 @@ const indexSource = fs.readFileSync(indexHtml, 'utf-8');
 
 {
     const buildContext = gmBuilderSource.match(/export function buildGmPromptContext[\s\S]*?^}/m);
-    if (!buildContext || !buildContext[0].includes('evictPromptChunksByBudget')) {
-        fail('buildGmPromptContext must still use evictPromptChunksByBudget');
+    if (!buildContext || !buildContext[0].includes('buildProductionPromptAssembly')) {
+        fail('buildGmPromptContext must route through buildProductionPromptAssembly');
     } else if (buildContext[0].includes('buildContextInspectorReport')) {
         fail('buildGmPromptContext must not call inspector builder');
+    } else if (buildContext[0].includes('buildLegacyProductionSpecs') || buildContext[0].includes('evictPromptChunksByBudget')) {
+        fail('buildGmPromptContext must not use legacy production or direct eviction anymore');
     } else {
-        ok('buildGmPromptContext path unchanged aside from shared chunk specs helper');
+        ok('buildGmPromptContext uses pure receipt-prep assembly without inspector coupling');
     }
 }
 

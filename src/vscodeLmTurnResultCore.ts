@@ -1,7 +1,8 @@
 // Pure helpers for vscode-lm GM JSON → turn_result.json (mirrors gm_bridge_common.process_llm_response).
 
 import { buildStatePatchFromDiff } from './statePatch';
-import type { DiceLedgerEntry, TurnResult } from './types/TurnResult';
+import { attachTurnResultPromptReceipt } from './promptReceiptCore';
+import type { DiceLedgerEntry, TurnResult, TurnResultPromptReceiptMeta } from './types/TurnResult';
 
 export interface VscodeLmGmJson {
     entries?: Array<{ id?: string; role?: string; sender?: string; content?: string; imagePrompt?: string; image?: string }>;
@@ -152,6 +153,7 @@ export function buildVscodeLmTurnResult(params: {
     playerAction?: string;
     diceLedger?: DiceLedgerEntry[];
     triggeredLore?: string[];
+    promptReceipt?: TurnResultPromptReceiptMeta;
 }): TurnResult {
     const merged = mergeVscodeLmGameState(params.prev, params.llmJson, params.narrative, params.turnId, params.locale);
     const statePatch = buildStatePatchFromDiff(params.prev, merged);
@@ -195,5 +197,5 @@ export function buildVscodeLmTurnResult(params: {
         ...(params.triggeredLore && params.triggeredLore.length > 0 ? { triggeredLore: params.triggeredLore } : {}),
     };
 
-    return turnResult;
+    return attachTurnResultPromptReceipt(turnResult, params.promptReceipt);
 }

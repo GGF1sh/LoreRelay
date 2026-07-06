@@ -79,6 +79,11 @@ const narratorJson = {
         referee: referee,
         narrator,
         fallbackNarration: 'fallback',
+        promptReceipt: {
+            receiptId: 'receipt-agentic-test',
+            provider: 'agentic',
+            assemblyDigest: 'digest-agentic-test',
+        },
     });
     if (!merged.ok || !merged.result) {
         fail('merge success path');
@@ -127,6 +132,12 @@ const narratorJson = {
         fail('npcAgencyOps comes from referee');
     } else {
         ok('npcAgencyOps comes from referee');
+    }
+
+    if (result.promptReceipt?.receiptId !== 'receipt-agentic-test' || result.promptReceipt?.provider !== 'agentic') {
+        fail('mergeAgenticTurnResult preserves trusted prompt receipt metadata');
+    } else {
+        ok('mergeAgenticTurnResult preserves trusted prompt receipt metadata');
     }
 }
 

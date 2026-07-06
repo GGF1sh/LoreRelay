@@ -104,10 +104,10 @@ function extractConstBody(constName) {
         fail('PURE_CANDIDATE_CONSUMABLE_BUILDERS not found');
     } else if (leaked.length > 0) {
         fail(`PURE_CANDIDATE_CONSUMABLE_BUILDERS references consume symbols: ${leaked.join(', ')}`);
-    } else if (!pureBuilders.includes('peekChronicleRecapContext') || !pureBuilders.includes('peekWorldChangeSummaryContext')) {
-        fail('PURE_CANDIDATE_CONSUMABLE_BUILDERS must use peek* builders for both consumables');
+    } else if (!pureBuilders.includes('buildChronicleRecapCandidate') || !pureBuilders.includes('buildWorldChangeSummaryCandidateFromWorldState')) {
+        fail('PURE_CANDIDATE_CONSUMABLE_BUILDERS must use pure candidate builders for both consumables');
     } else {
-        ok('PURE_CANDIDATE_CONSUMABLE_BUILDERS wires only peek* builders');
+        ok('PURE_CANDIDATE_CONSUMABLE_BUILDERS wires only pure candidate builders');
     }
 }
 
@@ -148,7 +148,7 @@ function extractConstBody(constName) {
         'buildPartyPromptContextReadOnly',
         'buildPartyDirectorPromptContextReadOnly',
         'buildChronicleRecapContextWithWorldState(false, policy, inspectorWorldState)',
-        'buildWorldChangeSummaryContextFromWorldState(inspectorWorldState)',
+        "buildWorldChangeSummaryCandidateFromWorldState(inspectorWorldState)?.text ?? ''",
     ];
     const forbidden = [
         'loadWorldState(',
@@ -173,20 +173,19 @@ function extractConstBody(constName) {
 }
 
 {
-    // Production call-site ownership: buildGmPromptContext must use the legacy entry point,
-    // still call evictPromptChunksByBudget directly, and must not call the inspector builder
-    // (preserves the pre-existing test_context_inspector_integration.js contract).
+    // Production call-site ownership: buildGmPromptContext must route through the
+    // receipt-prep pure assembly and must not call the inspector builder or legacy path.
     const contextBody = extractFunctionBody('buildGmPromptContext');
     if (!contextBody) {
         fail('buildGmPromptContext not found');
-    } else if (!contextBody.includes('buildLegacyProductionSpecs(')) {
-        fail('buildGmPromptContext (production) must call buildLegacyProductionSpecs');
-    } else if (!contextBody.includes('evictPromptChunksByBudget')) {
-        fail('buildGmPromptContext must still use evictPromptChunksByBudget directly');
-    } else if (contextBody.includes('buildContextInspectorReport') || contextBody.includes('buildPureCandidateSpecsWithMeta(')) {
-        fail('buildGmPromptContext must not call the inspector builder or the pure entry point');
+    } else if (!contextBody.includes('buildProductionPromptAssembly(')) {
+        fail('buildGmPromptContext (production) must call buildProductionPromptAssembly');
+    } else if (contextBody.includes('buildContextInspectorReport')
+        || contextBody.includes('buildLegacyProductionSpecs(')
+        || contextBody.includes('evictPromptChunksByBudget')) {
+        fail('buildGmPromptContext must not call inspector accounting, legacy production, or direct eviction');
     } else {
-        ok('buildGmPromptContext (production) uses the explicit legacy entry point only, evicts directly, no inspector call');
+        ok('buildGmPromptContext (production) routes only through receipt-prep pure assembly');
     }
 }
 
@@ -391,39 +390,35 @@ try {
         ok('Inspector/Preview payload builder (buildGmPromptBreakdown) is consumption-isolated across repeated calls');
     }
 
-    // --- production (legacy) path must preserve current production behavior ---
+    // --- production path is now pure: it still surfaces eligible content but must not
+    // consume Chronicle/WCS before Accepted correlation. ---
     const prodOutput1 = buildGmPromptContext('look around');
-    const afterLegacy1 = readWorldState();
-    if (afterLegacy1.lastInjectedWorldChangeSummaryTurn !== 3) {
-        fail(`production (legacy) path did not advance lastInjectedWorldChangeSummaryTurn to 3 (got ${JSON.stringify(afterLegacy1.lastInjectedWorldChangeSummaryTurn)})`);
+    const afterProd1 = readWorldState();
+    if (afterProd1.lastInjectedWorldChangeSummaryTurn !== undefined) {
+        fail('production pure path advanced lastInjectedWorldChangeSummaryTurn before Accepted');
+    } else if (afterProd1.lastInjectedChronicleTurn !== 1) {
+        fail(`production pure path changed lastInjectedChronicleTurn before Accepted (got ${JSON.stringify(afterProd1.lastInjectedChronicleTurn)})`);
     } else {
-        ok('production (legacy) path advances lastInjectedWorldChangeSummaryTurn exactly like baseline (token 3)');
-    }
-    if (afterLegacy1.lastInjectedChronicleTurn !== 1) {
-        fail(`production (legacy) path did not advance lastInjectedChronicleTurn to 1 (got ${JSON.stringify(afterLegacy1.lastInjectedChronicleTurn)})`);
-    } else {
-        ok('production (legacy) path advances lastInjectedChronicleTurn exactly like baseline (token 1)');
+        ok('production pure path leaves durable markers unchanged before Accepted');
     }
     if (!prodOutput1.includes('Since Last Visit') || !prodOutput1.includes('[Previously]')) {
-        fail('production (legacy) prompt output missing expected worldChangeSummary/chronicle content');
+        fail('production pure prompt output missing expected worldChangeSummary/chronicle content');
     } else {
-        ok('production (legacy) prompt output contains expected worldChangeSummary/chronicle content');
+        ok('production pure prompt output contains expected worldChangeSummary/chronicle content');
     }
 
-    // --- production dedupe parity: a second legacy build on the same fixture must not
-    // re-advance markers or re-inject already-consumed content (matches pre-existing
-    // shouldInjectChronicle / resolveWorldChangeSummaryTurn guard behavior). ---
+    // Repeated production builds remain side-effect free until Accepted.
     const prodOutput2 = buildGmPromptContext('look around once more');
-    const afterLegacy2 = readWorldState();
-    if (afterLegacy2.lastInjectedWorldChangeSummaryTurn !== 3 || afterLegacy2.lastInjectedChronicleTurn !== 1) {
-        fail('second production (legacy) build unexpectedly changed already-advanced durable markers');
+    const afterProd2 = readWorldState();
+    if (afterProd2.lastInjectedWorldChangeSummaryTurn !== undefined || afterProd2.lastInjectedChronicleTurn !== 1) {
+        fail('second production pure build unexpectedly changed durable markers before Accepted');
     } else {
-        ok('second production (legacy) build leaves already-advanced durable markers unchanged (baseline dedupe preserved)');
+        ok('second production pure build leaves durable markers unchanged before Accepted');
     }
-    if (prodOutput2.includes('Since Last Visit') || prodOutput2.includes('[Previously]')) {
-        fail('second production (legacy) build re-injected already-consumed worldChangeSummary/chronicle content');
+    if (!prodOutput2.includes('Since Last Visit') || !prodOutput2.includes('[Previously]')) {
+        fail('second production pure build lost eligible worldChangeSummary/chronicle content before Accepted');
     } else {
-        ok('second production (legacy) build does not re-inject already-consumed content (baseline dedupe preserved)');
+        ok('second production pure build still surfaces eligible content before Accepted');
     }
 } finally {
     Module._load = _origLoad;

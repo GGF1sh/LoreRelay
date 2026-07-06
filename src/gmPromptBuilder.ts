@@ -62,6 +62,8 @@ import {
     isWorldStateEnabled,
     markWorldChangeSummaryInjected,
     markChronicleInjected,
+    ackWorldChangeSummaryToken,
+    ackChronicleTokenMarker,
     type WorldState,
 } from './worldState';
 import { formatWorldStateParseWarning } from './worldStateCore';
@@ -85,6 +87,7 @@ import {
     TRADE_OPS_PROMPT_LINE,
     NPC_AGENCY_OPS_PROMPT_LINE,
     RELATIONSHIP_OPS_PROMPT_LINE,
+    applyPromptChunkBudgetRecords,
     evictPromptChunksByBudget,
     clampSimulationPromptModule,
     resolvePromptChunkPriority,
@@ -143,9 +146,25 @@ import {
     type PromptMemoryMatch,
     type PromptBudgetLimitSpec
 } from './promptContext';
+import {
+    createPromptDeliveryReceipt,
+    createPromptReceiptId,
+    hashPromptReceiptText,
+    turnResultMatchesPromptReceipt,
+    type PromptConsumableAckToken,
+    type PromptDeliveryReceipt,
+    type PromptReceiptProvider,
+    type ChronicleAckToken,
+    type WorldChangeSummaryAckToken,
+} from './promptReceiptCore';
+import type { TurnResult } from './types/TurnResult';
+
+interface PromptContextCandidateSpec extends PromptContextChunkSpec {
+    ackToken?: PromptConsumableAckToken;
+}
 
 export interface GmPromptChunkBuildMeta {
-    specs: PromptContextChunkSpec[];
+    specs: PromptContextCandidateSpec[];
     inactiveIds: string[];
     emptyIds: string[];
     orderedIds: string[];
@@ -162,6 +181,27 @@ interface InspectorPromptAssembly {
     memoryBackend: string;
     hintPreview: string;
     worldStateParseWarnings?: string[];
+}
+
+export interface ProductionPromptAssembly {
+    promptText: string;
+    receipt: PromptDeliveryReceipt;
+    selectedSpecs: PromptContextCandidateSpec[];
+    policy: PromptBudgetPolicy;
+}
+
+interface PromptReceiptAckFailure {
+    receiptId: string;
+    tokenId: string;
+    chunkId: PromptConsumableAckToken['chunkId'];
+    message: string;
+}
+
+export interface PromptReceiptAckResult {
+    correlated: boolean;
+    attemptedTokenIds: string[];
+    succeededTokenIds: string[];
+    failedTokenIds: string[];
 }
 
 export interface GmPromptBuilderDeps {
@@ -1180,14 +1220,63 @@ function buildWorldChangeSummaryContextFromWorldState(worldState: WorldState | u
     return buildWorldChangeSummaryFromChanges(
         worldState.recentChanges,
         worldState.worldTurn,
-        worldState.lastInjectedWorldChangeSummaryTurn
+        undefined
     );
+}
+
+function shouldOfferWorldChangeSummaryCandidate(
+    summaryTurn: number | undefined,
+    sourceDigest: string,
+    worldState: WorldState | undefined
+): boolean {
+    if (summaryTurn === undefined) {
+        return false;
+    }
+    const lastInjectedTurn = worldState?.lastInjectedWorldChangeSummaryTurn ?? -1;
+    const lastInjectedDigest = worldState?.lastInjectedWorldChangeSummaryDigest;
+    if (lastInjectedTurn > summaryTurn) {
+        return false;
+    }
+    if (lastInjectedTurn === summaryTurn && lastInjectedDigest === sourceDigest) {
+        return false;
+    }
+    return true;
+}
+
+function buildWorldChangeSummaryCandidateFromWorldState(
+    worldState: WorldState | undefined
+): { text: string; ackToken: WorldChangeSummaryAckToken } | undefined {
+    if (!worldState?.recentChanges?.length) {
+        return undefined;
+    }
+    const summary = buildWorldChangeSummaryContextFromWorldState(worldState);
+    if (!summary) {
+        return undefined;
+    }
+    const summaryTurn = resolveWorldChangeSummaryTurn(
+        worldState.recentChanges,
+        worldState.worldTurn,
+        undefined
+    );
+    const sourceDigest = hashPromptReceiptText(summary);
+    if (!shouldOfferWorldChangeSummaryCandidate(summaryTurn, sourceDigest, worldState) || summaryTurn === undefined) {
+        return undefined;
+    }
+    return {
+        text: summary,
+        ackToken: {
+            tokenId: `worldChangeSummary:${summaryTurn}:${sourceDigest}`,
+            chunkId: 'worldChangeSummary',
+            summaryTurn,
+            sourceDigest,
+        },
+    };
 }
 
 function peekWorldChangeSummaryContext(): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
-    return buildWorldChangeSummaryContextFromWorldState(worldState);
+    return buildWorldChangeSummaryCandidateFromWorldState(worldState)?.text ?? '';
 }
 
 /**
@@ -1197,33 +1286,43 @@ function peekWorldChangeSummaryContext(): string {
 function consumeWorldChangeSummaryContext(): string {
     if (!isWorldStateEnabled()) { return ''; }
     const worldState = loadWorldState();
-    if (!worldState?.recentChanges?.length) { return ''; }
-    const summary = buildWorldChangeSummaryContextFromWorldState(worldState);
-    if (!summary) { return ''; }
-    const turn = resolveWorldChangeSummaryTurn(
-        worldState.recentChanges,
-        worldState.worldTurn,
-        worldState.lastInjectedWorldChangeSummaryTurn
-    );
-    if (turn !== undefined) {
-        markWorldChangeSummaryInjected(turn);
-    }
-    return summary;
+    const candidate = buildWorldChangeSummaryCandidateFromWorldState(worldState);
+    if (!candidate) { return ''; }
+    markWorldChangeSummaryInjected(candidate.ackToken.summaryTurn, candidate.ackToken.sourceDigest);
+    return candidate.text;
 }
 
 let chronicleSessionPending = true;
+let chronicleSessionPendingGeneration = 1;
+const promptAckCompensationQueue = new Map<string, PromptReceiptAckFailure>();
 
 /** Reset on extension activate so the first GM turn after resume can inject recap. */
 export function resetChronicleSessionPending(): void {
     chronicleSessionPending = true;
+    chronicleSessionPendingGeneration += 1;
 }
 
 function peekChronicleSessionPending(): boolean {
     return chronicleSessionPending;
 }
 
+function peekChronicleSessionPendingGeneration(): number {
+    return chronicleSessionPendingGeneration;
+}
+
 function clearChronicleSessionPending(): void {
     chronicleSessionPending = false;
+}
+
+function clearChronicleSessionPendingForGeneration(pendingGeneration: number): boolean {
+    if (!chronicleSessionPending) {
+        return false;
+    }
+    if (chronicleSessionPendingGeneration !== pendingGeneration) {
+        return false;
+    }
+    chronicleSessionPending = false;
+    return true;
 }
 
 function buildChronicleRecapContextWithWorldState(
@@ -1242,12 +1341,7 @@ function buildChronicleRecapContextWithWorldState(
     const sourceTurn = resolveChronicleSourceTurn(journalTurns.length);
     if (sourceTurn <= 0) { return ''; }
 
-    const lastInjected = worldState?.lastInjectedChronicleTurn;
     const sessionPending = peekChronicleSessionPending();
-    if (!shouldInjectChronicle(sourceTurn, lastInjected, sessionPending)) {
-        return '';
-    }
-
     const maxRecapLines = vscode.workspace.getConfiguration('textAdventure.chronicle')
         .get<number>('maxRecapLines', DEFAULT_CHRONICLE_RECAP_LINES);
     const chapters = buildChronicle({
@@ -1258,16 +1352,55 @@ function buildChronicleRecapContextWithWorldState(
     const recap = buildChronicleRecap(chapters, maxRecapLines, policy.chronicleChars);
     const line = buildChronicleRecapLine(recap);
     if (!line) { return ''; }
+    const lineDigest = hashPromptReceiptText(line);
+    const lastInjected = worldState?.lastInjectedChronicleTurn;
+    const lastInjectedDigest = worldState?.lastInjectedChronicleDigest;
+    const visible = sessionPending
+        || shouldInjectChronicle(sourceTurn, lastInjected, false)
+        || (lastInjected === sourceTurn && lastInjectedDigest !== lineDigest);
+    if (!visible) {
+        return '';
+    }
 
     if (consume) {
-        markChronicleInjected(sourceTurn);
-        clearChronicleSessionPending();
+        markChronicleInjected(sourceTurn, lineDigest);
+        clearChronicleSessionPendingForGeneration(peekChronicleSessionPendingGeneration());
     }
     return line;
 }
 
 function buildChronicleRecapContext(consume: boolean, policy: PromptBudgetPolicy): string {
     return buildChronicleRecapContextWithWorldState(consume, policy, loadWorldState());
+}
+
+function buildChronicleRecapCandidate(
+    policy: PromptBudgetPolicy
+): { text: string; ackToken: ChronicleAckToken } | undefined {
+    const worldState = loadWorldState();
+    const text = buildChronicleRecapContextWithWorldState(false, policy, worldState);
+    if (!text) {
+        return undefined;
+    }
+    const ws = getWorkspacePath();
+    if (!ws) {
+        return undefined;
+    }
+    const journalTurns = readJournalTurnsFromPath(path.join(ws, 'state_journal.ndjson'));
+    const sourceTurn = resolveChronicleSourceTurn(journalTurns.length);
+    if (sourceTurn <= 0) {
+        return undefined;
+    }
+    const sourceDigest = hashPromptReceiptText(text);
+    return {
+        text,
+        ackToken: {
+            tokenId: `chronicle:${sourceTurn}:${sourceDigest}:${peekChronicleSessionPendingGeneration()}`,
+            chunkId: 'chronicle',
+            sourceTurn,
+            sourceDigest,
+            pendingGeneration: peekChronicleSessionPendingGeneration(),
+        },
+    };
 }
 
 function peekChronicleRecapContext(policy: PromptBudgetPolicy): string {
@@ -1404,7 +1537,7 @@ function buildInspectorPromptAssembly(
     considerInspectorChunk('livingWorldPlayerBonds', 'LW Your Bonds', () => lwBonds.playerBonds);
     considerInspectorChunk('livingWorldFactionRelations', 'LW Faction Relations', () => lwBonds.factionRelations);
     considerInspectorChunk('worldChangeSummary', 'World Changes', () =>
-        buildWorldChangeSummaryContextFromWorldState(inspectorWorldState)
+        buildWorldChangeSummaryCandidateFromWorldState(inspectorWorldState)?.text ?? ''
     );
     considerInspectorChunk('lorebook', 'Lorebook', () => buildLorebookPromptContext(hint, policy));
     considerInspectorChunk('npcRegistry', 'NPC Awareness', () => buildNpcRegistryPromptContext(policy));
@@ -1506,14 +1639,17 @@ function considerPromptChunk(
     meta: GmPromptChunkBuildMeta,
     id: string,
     activation: PromptChunkActivationContext,
-    build: () => string | undefined
+    build: () => string | { text: string; ackToken?: PromptConsumableAckToken } | undefined
 ): void {
     meta.orderedIds.push(id);
     if (!shouldIncludePromptChunk(id, activation)) {
         meta.inactiveIds.push(id);
         return;
     }
-    const trimmed = String(build() ?? '').trim();
+    const built = build();
+    const trimmed = typeof built === 'string'
+        ? built.trim()
+        : String(built?.text ?? '').trim();
     if (!trimmed) {
         meta.emptyIds.push(id);
         return;
@@ -1522,6 +1658,7 @@ function considerPromptChunk(
         id,
         text: trimmed,
         priority: resolvePromptChunkPriority(id),
+        ...(typeof built === 'object' && built?.ackToken ? { ackToken: built.ackToken } : {}),
     });
 }
 
@@ -1532,8 +1669,8 @@ function considerPromptChunk(
  * every caller of `buildGmPromptChunkSpecsWithMeta` must supply one explicitly.
  */
 interface GmPromptConsumableBuilders {
-    chronicle: (policy: PromptBudgetPolicy) => string | undefined;
-    worldChangeSummary: () => string | undefined;
+    chronicle: (policy: PromptBudgetPolicy) => string | { text: string; ackToken?: PromptConsumableAckToken } | undefined;
+    worldChangeSummary: () => string | { text: string; ackToken?: PromptConsumableAckToken } | undefined;
 }
 
 /**
@@ -1542,8 +1679,8 @@ interface GmPromptConsumableBuilders {
  * clearChronicleSessionPending, or the consume* functions. Used by Inspector/Preview only.
  */
 const PURE_CANDIDATE_CONSUMABLE_BUILDERS: GmPromptConsumableBuilders = {
-    chronicle: (policy) => peekChronicleRecapContext(policy),
-    worldChangeSummary: () => peekWorldChangeSummaryContext(),
+    chronicle: (policy) => buildChronicleRecapCandidate(policy),
+    worldChangeSummary: () => buildWorldChangeSummaryCandidateFromWorldState(loadWorldState()),
 };
 
 /**
@@ -1639,8 +1776,8 @@ function buildGmPromptChunkSpecsWithMeta(
  * Explicit PURE authority entry point. Structurally cannot reach consumeChronicleRecapContext,
  * consumeWorldChangeSummaryContext, markWorldChangeSummaryInjected, markChronicleInjected, or
  * clearChronicleSessionPending — it only closes over PURE_CANDIDATE_CONSUMABLE_BUILDERS, whose
- * chronicle/worldChangeSummary fields are peek-only. Inspector/Preview must call this, not the
- * shared helper directly.
+ * chronicle/worldChangeSummary fields are peek-only. Inspector uses its own local assembly;
+ * production receipt prep uses this pure path for candidate selection.
  */
 function buildPureCandidateSpecsWithMeta(
     playerAction: string,
@@ -1650,10 +1787,8 @@ function buildPureCandidateSpecsWithMeta(
 }
 
 /**
- * Explicit LEGACY authority entry point. Preserves current production consumption timing
- * during PROMPT-001A staging. Only this path (and buildLegacyProductionSpecs below) may
- * advance durable ACK markers / clear chronicleSessionPending. Production prompt assembly
- * must call this, not the shared helper directly.
+ * Explicit LEGACY authority entry point retained only for regression proof / staging compatibility.
+ * Production prompt assembly must no longer route through this path after PROMPT-001C.
  */
 function buildLegacyProductionSpecsWithMeta(
     playerAction: string,
@@ -1666,13 +1801,173 @@ function buildLegacyProductionSpecs(playerAction: string, policy: PromptBudgetPo
     return buildLegacyProductionSpecsWithMeta(playerAction, policy).specs;
 }
 
-export function buildGmPromptContext(playerAction: string): string {
+function buildSelectedPromptSpecs(
+    specs: PromptContextCandidateSpec[],
+    targetChars: number
+): PromptContextCandidateSpec[] {
+    const records = applyPromptChunkBudgetRecords(specs, targetChars);
+    const finalById = new Map(records.map((record) => [record.id, record.finalText]));
+    return specs
+        .map((spec) => {
+            const finalText = finalById.get(spec.id) ?? '';
+            if (!finalText) {
+                return undefined;
+            }
+            return {
+                ...spec,
+                text: finalText,
+            };
+        })
+        .filter((spec): spec is PromptContextCandidateSpec => Boolean(spec));
+}
+
+/**
+ * Receipt authority is created here, after budget selection and before provider transport
+ * wrapping. The receipt binds the exact selected assembly, not a mutable later rebuild.
+ */
+export function buildProductionPromptAssembly(
+    playerAction: string,
+    provider: PromptReceiptProvider
+): ProductionPromptAssembly {
     flushScheduledCommercePersist();
     const policy = getPromptBudgetPolicy();
-    const specs = buildLegacyProductionSpecs(playerAction, policy);
+    const candidateMeta = buildPureCandidateSpecsWithMeta(playerAction, policy);
     const targetChars = policy.targetTokens * 4;
-    const chunks = evictPromptChunksByBudget(specs, targetChars);
-    return chunks.length ? `\n\n${chunks.join('\n\n')}` : '';
+    const selectedSpecs = buildSelectedPromptSpecs(candidateMeta.specs, targetChars);
+    const promptText = selectedSpecs.length
+        ? `\n\n${selectedSpecs.map((spec) => spec.text).join('\n\n')}`
+        : '';
+    const receipt = createPromptDeliveryReceipt({
+        receiptId: createPromptReceiptId(),
+        provider,
+        selectedChunks: selectedSpecs.map((spec) => ({
+            id: spec.id,
+            text: spec.text,
+            priority: spec.priority,
+        })),
+        selectedTokens: selectedSpecs
+            .map((spec) => spec.ackToken)
+            .filter((token): token is PromptConsumableAckToken => Boolean(token)),
+        budgetMode: policy.mode,
+        targetTokens: policy.targetTokens,
+    });
+    return {
+        promptText,
+        receipt,
+        selectedSpecs,
+        policy,
+    };
+}
+
+function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {
+    switch (provider) {
+        case 'grok':
+        case 'ollama':
+        case 'koboldcpp':
+        case 'openrouter':
+        case 'command':
+        case 'vscode-lm':
+            return provider;
+        default:
+            return 'grok';
+    }
+}
+
+export function buildGmPromptContext(playerAction: string): string {
+    return buildProductionPromptAssembly(
+        playerAction,
+        resolvePromptReceiptProvider(getGmProvider())
+    ).promptText;
+}
+
+function recordPromptAckFailure(failure: PromptReceiptAckFailure): void {
+    promptAckCompensationQueue.set(`${failure.receiptId}:${failure.tokenId}`, failure);
+}
+
+function clearPromptAckFailure(receiptId: string, tokenId: string): void {
+    promptAckCompensationQueue.delete(`${receiptId}:${tokenId}`);
+}
+
+function applyChronicleAckToken(token: ChronicleAckToken): boolean {
+    const markerApplied = ackChronicleTokenMarker(token);
+    const pendingCleared = clearChronicleSessionPendingForGeneration(token.pendingGeneration);
+    return markerApplied || pendingCleared;
+}
+
+function applyWorldChangeSummaryAckToken(token: WorldChangeSummaryAckToken): boolean {
+    return ackWorldChangeSummaryToken(token);
+}
+
+/**
+ * ACK happens only after Accepted and trusted receipt correlation. We intentionally keep this
+ * process-local only: after restart there is no durable receipt recovery and skipped ACKs may repeat,
+ * but we do not guess with latest-pending or heuristic consume.
+ */
+export function acknowledgePromptReceiptAfterAccepted(
+    receipt: PromptDeliveryReceipt,
+    acceptedTurn: TurnResult | undefined,
+    options: {
+        applyChronicleToken?: (token: ChronicleAckToken) => boolean;
+        applyWorldChangeSummaryToken?: (token: WorldChangeSummaryAckToken) => boolean;
+    } = {}
+): PromptReceiptAckResult {
+    if (!turnResultMatchesPromptReceipt(acceptedTurn, receipt)) {
+        return {
+            correlated: false,
+            attemptedTokenIds: [],
+            succeededTokenIds: [],
+            failedTokenIds: [],
+        };
+    }
+
+    const applyChronicle = options.applyChronicleToken ?? applyChronicleAckToken;
+    const applyWorldChangeSummary = options.applyWorldChangeSummaryToken ?? applyWorldChangeSummaryAckToken;
+    const attemptedTokenIds: string[] = [];
+    const succeededTokenIds: string[] = [];
+    const failedTokenIds: string[] = [];
+
+    for (const token of receipt.selectedTokens) {
+        attemptedTokenIds.push(token.tokenId);
+        try {
+            if (token.chunkId === 'chronicle') {
+                applyChronicle(token);
+            } else {
+                applyWorldChangeSummary(token);
+            }
+            clearPromptAckFailure(receipt.receiptId, token.tokenId);
+            succeededTokenIds.push(token.tokenId);
+        } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            recordPromptAckFailure({
+                receiptId: receipt.receiptId,
+                tokenId: token.tokenId,
+                chunkId: token.chunkId,
+                message,
+            });
+            failedTokenIds.push(token.tokenId);
+        }
+    }
+
+    return {
+        correlated: true,
+        attemptedTokenIds,
+        succeededTokenIds,
+        failedTokenIds,
+    };
+}
+
+export function peekPromptAckCompensationQueueForTests(): PromptReceiptAckFailure[] {
+    return [...promptAckCompensationQueue.values()].map((entry) => ({ ...entry }));
+}
+
+export function resetPromptReceiptStateForTests(): void {
+    promptAckCompensationQueue.clear();
+    chronicleSessionPending = true;
+    chronicleSessionPendingGeneration = 1;
+}
+
+export function peekChronicleSessionPendingGenerationForTests(): number {
+    return peekChronicleSessionPendingGeneration();
 }
 
 export function postPromptContextToWebview(playerAction: string): void {
@@ -1750,9 +2045,16 @@ export function processProfileUpdates(updates: ProfileUpdate[]): void {
 }
 
 export function buildGrokPrompt(playerAction: string, isContinuation: boolean): string {
+    return buildGrokPromptFromContext(playerAction, isContinuation, buildGmPromptContext(playerAction));
+}
+
+export function buildGrokPromptFromContext(
+    playerAction: string,
+    isContinuation: boolean,
+    context: string
+): string {
     const locale = getConfiguredLocale();
     const base = t('gm.prompt.playerAction', { action: playerAction }, locale);
-    const context = buildGmPromptContext(playerAction);
     if (isContinuation) {
         return t('gm.prompt.continue', { base }, locale) + context;
     }

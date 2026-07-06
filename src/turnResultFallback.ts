@@ -91,7 +91,7 @@ export function synthesizeTurnResultIfNeeded(
 }
 
 let pendingTurnResultFromGm = false;
-let pendingAcceptedTurnCallback: (() => void) | undefined;
+let pendingAcceptedTurnCallback: ((acceptedTurn?: TurnResult) => void) | undefined;
 
 /**
  * Injected from extension.ts (avoids a static import cycle with
@@ -106,7 +106,7 @@ export function initTurnResultFallback(checkFn: () => Promise<boolean>): void {
     checkPendingTurnResultFile = checkFn;
 }
 
-export function beginGmRun(onAcceptedTurn?: () => void): Record<string, unknown> | undefined {
+export function beginGmRun(onAcceptedTurn?: (acceptedTurn?: TurnResult) => void): Record<string, unknown> | undefined {
     pendingTurnResultFromGm = true;
     pendingAcceptedTurnCallback = onAcceptedTurn;
     const statePath = getGameStatePath();
@@ -120,7 +120,7 @@ export function beginGmRun(onAcceptedTurn?: () => void): Record<string, unknown>
     }
 }
 
-export function markTurnResultHandled(): void {
+export function markTurnResultHandled(acceptedTurn?: TurnResult): void {
     pendingTurnResultFromGm = false;
     const onAccepted = pendingAcceptedTurnCallback;
     pendingAcceptedTurnCallback = undefined;
@@ -128,7 +128,7 @@ export function markTurnResultHandled(): void {
         return;
     }
     try {
-        onAccepted();
+        onAccepted(acceptedTurn);
     } catch (e) {
         console.error('[turnResultFallback] accepted callback failed after Handled detach', e);
     }

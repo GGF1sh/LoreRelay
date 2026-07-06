@@ -9,6 +9,7 @@ import type {
     TurnGmEntryMeta,
     TurnMediaRequest,
     TurnResult,
+    TurnResultPromptReceiptMeta,
 } from './types/TurnResult';
 import { parseCartographyReveal } from './cartographyRevealCore';
 import { parseTradeOps } from './commerceCore';
@@ -555,6 +556,7 @@ export function mergeAgenticTurnResult(input: {
     narrator?: NarratorResultCandidate | null;
     fallbackNarration: string;
     provider: AgenticGmProvider;
+    promptReceipt?: TurnResultPromptReceiptMeta;
 }): AgenticMergeResult {
     const { referee, narrator, fallbackNarration } = input;
     if (!isValidEntryId(referee.turnId)) {
@@ -572,6 +574,7 @@ export function mergeAgenticTurnResult(input: {
     const result: TurnResult = {
         turnId: referee.turnId,
         narration,
+        ...(input.promptReceipt ? { promptReceipt: input.promptReceipt } : {}),
         agentic: {
             mode: 'referee-narrator',
             refereeOk: true,

@@ -44,7 +44,7 @@ import {
     setAgenticBridgeBusy,
 } from './gmBridgeRunner';
 import { notifyRemoteGmBusy } from './remotePlayServer';
-import { ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
+import { ensureAcceptedTurnScope, ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
 
 export interface AgenticBridgeResult {
     handled: boolean;
@@ -242,6 +242,17 @@ export async function maybeInvokeAgenticBridge(
             success: false,
             fallbackToSingleStage: false,
             fallbackReason: 'writer conflict',
+        };
+    }
+    try {
+        ensureAcceptedTurnScope(cwd);
+    } catch (e) {
+        vscode.window.showErrorMessage(`LoreRelay: Failed to initialize replay scope. ${String(e)}`);
+        return {
+            handled: true,
+            success: false,
+            fallbackToSingleStage: false,
+            fallbackReason: 'replay scope initialization failed',
         };
     }
 

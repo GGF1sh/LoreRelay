@@ -19,6 +19,7 @@ import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } fr
 import { migrateGameState } from './migrateGameState';
 import { sanitizeGameStateForPersist } from './gameStateSanitize';
 import {
+    clearTurnResultRawHashAuthorityForEpochChange,
     getGameEntryHistory,
     replaceHistoryFromDisk,
     saveHistoryToDisk,
@@ -30,8 +31,7 @@ import { runSkillScript } from './skillScriptRunner';
 import { computeAndSetArchiveMilestone } from './gmPromptBuilder';
 import { commitGameState } from './stateManager';
 import {
-    ensureAcceptedTurnWriterLease,
-    rotateAcceptedTurnTimelineEpoch,
+    prepareAcceptedTurnTimelineRestore,
 } from './acceptedTurnReplayGuard';
 
 export interface CheckpointHandlerDeps {
@@ -65,23 +65,25 @@ function readGameStateFromDisk(statePath: string): Record<string, unknown> | nul
     }
 }
 
-function writeGameStateToDisk(statePath: string, state: Record<string, unknown>): void {
-    commitGameState(state, { mergeProfile: 'replace' });
+function writeGameStateToDisk(
+    statePath: string,
+    state: Record<string, unknown>,
+    clearRuntimeWitness = false
+): void {
+    commitGameState(state, {
+        mergeProfile: 'replace',
+        ...(clearRuntimeWitness ? { runtimeAcceptedTurnWitnessMode: 'clear' as const } : {}),
+    });
 }
 
-function prepareTimelineRestore(ws: string, reason: string): boolean {
-    const leaseConflict = ensureAcceptedTurnWriterLease(ws, reason);
-    if (leaseConflict) {
-        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+async function prepareTimelineRestore(ws: string, reason: string): Promise<boolean> {
+    const result = await prepareAcceptedTurnTimelineRestore(ws, reason);
+    if ('kind' in result) {
+        vscode.window.showErrorMessage(`LoreRelay: ${result.reason ?? 'Replay timeline restore preparation failed.'}`);
         return false;
     }
-    try {
-        rotateAcceptedTurnTimelineEpoch(ws);
-        return true;
-    } catch (e) {
-        vscode.window.showErrorMessage(`LoreRelay: Failed to rotate replay epoch. ${String(e)}`);
-        return false;
-    }
+    clearTurnResultRawHashAuthorityForEpochChange();
+    return true;
 }
 
 export async function handleEditEntry(id: string, content: string): Promise<void> {
@@ -224,7 +226,7 @@ async function writeRestoredGameState(
         theme: 'fantasy'
     };
     try {
-        writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>);
+        writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>, true);
         replaceHistoryFromDisk();
         sendCurrentState(0, true);
         sendCheckpointList();
@@ -260,7 +262,7 @@ export async function handleUndoLastTurn(): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToUndo'));
         return;
     }
-    if (!prepareTimelineRestore(ws, 'undo-last-turn')) {
+    if (!(await prepareTimelineRestore(ws, 'undo-last-turn'))) {
         return;
     }
     setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
@@ -284,7 +286,7 @@ export async function handleRestoreToTurn(entryId: string): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.rewindNotFound'));
         return;
     }
-    if (!prepareTimelineRestore(ws, 'restore-to-turn')) {
+    if (!(await prepareTimelineRestore(ws, 'restore-to-turn'))) {
         return;
     }
     setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
@@ -325,7 +327,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
         return;
     }
-    if (!prepareTimelineRestore(ws, 'restore-checkpoint')) {
+    if (!(await prepareTimelineRestore(ws, 'restore-checkpoint'))) {
         return;
     }
     setGameEntryHistoryWithSeenIds(cp.history);
@@ -369,7 +371,7 @@ export async function handleRegenerateLastTurn(): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.noTurnToRegenerate'));
         return;
     }
-    if (!prepareTimelineRestore(ws, 'regenerate-last-turn')) {
+    if (!(await prepareTimelineRestore(ws, 'regenerate-last-turn'))) {
         return;
     }
     setGameEntryHistoryWithSeenIds(trimmed);

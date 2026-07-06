@@ -77,17 +77,25 @@ export { isAllowedImagePath };
 let fileWatcher: vscode.FileSystemWatcher | undefined;
 let turnResultWatcher: vscode.FileSystemWatcher | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
-let lastProcessedTurnHash = '';
+let lastProcessedTurnHash: {
+    rawHash: string;
+    campaignInstanceId: string;
+    timelineEpochId: string;
+} | undefined;
 /** Entry IDs already seen when applying game_state (for MediaAgent new-entry detection). */
 const knownStateEntryIds = new Set<string>();
 
 export function resetTurnResultProcessingStateForTests(): void {
-    lastProcessedTurnHash = '';
+    lastProcessedTurnHash = undefined;
     knownStateEntryIds.clear();
 }
 
 export function getLastProcessedTurnHashForTests(): string {
-    return lastProcessedTurnHash;
+    return lastProcessedTurnHash?.rawHash ?? '';
+}
+
+export function clearTurnResultRawHashAuthorityForEpochChange(): void {
+    lastProcessedTurnHash = undefined;
 }
 
 export function initGameStateSync(syncDeps: GameStateSyncDeps): void {
@@ -618,9 +626,6 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         }
 
         hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
-        if (hash === lastProcessedTurnHash) {
-            return { kind: 'alreadyAccepted', accepted: false, reason: 'same-process duplicate raw hash' };
-        }
 
         turnResult = JSON.parse(content) as TurnResult;
     } catch (e) {
@@ -651,6 +656,19 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         }
         return preflight;
     }
+    if (
+        lastProcessedTurnHash?.rawHash === hash
+        && lastProcessedTurnHash.campaignInstanceId === preflight.context.identity.campaignInstanceId
+        && lastProcessedTurnHash.timelineEpochId === preflight.context.identity.timelineEpochId
+    ) {
+        return {
+            kind: 'alreadyAccepted',
+            accepted: false,
+            identityHash: preflight.context.identity.identityHash,
+            turnId: preflight.context.identity.turnId,
+            reason: 'same-process duplicate raw hash in current replay epoch',
+        };
+    }
 
     const enriched = processTurnResult(turnResult, preflight.context);
     if (!enriched) {
@@ -663,7 +681,11 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         };
     }
 
-    lastProcessedTurnHash = hash;
+    lastProcessedTurnHash = {
+        rawHash: hash,
+        campaignInstanceId: preflight.context.identity.campaignInstanceId,
+        timelineEpochId: preflight.context.identity.timelineEpochId,
+    };
     markTurnResultHandled(enriched);
 
     try {

@@ -12,6 +12,8 @@ import {
     type AcceptedTurnScope,
     buildAcceptedTurnIdentity,
     createAcceptedTurnLedgerRecord,
+    activeEpochLedgerHead,
+    hasAcceptedTurnWitnessField,
     ledgerHead,
     parseAcceptedTurnLedger,
     parseAcceptedTurnScope,
@@ -30,11 +32,14 @@ const RUNTIME_DIR = path.join('.text-adventure', 'runtime');
 const ACCEPTED_SCOPE_FILE = 'accepted_turn_scope.json';
 const ACCEPTED_LEDGER_FILE = 'accepted_turn_ledger.json';
 const WRITER_LEASE_FILE = 'writer_lease.json';
+const WRITER_LEASE_LOCK_DIR = 'writer_lease.lock';
 const WRITER_LEASE_TIMEOUT_MS = 30_000;
+const WRITER_LEASE_HEARTBEAT_MS = 10_000;
 
 const hostInstanceId = crypto.randomUUID();
 const processStartedAt = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
 let singleFlight: Promise<unknown> = Promise.resolve();
+let heartbeatTimer: NodeJS.Timeout | undefined;
 
 interface WriterLease {
     schemaVersion: 1;
@@ -64,8 +69,16 @@ export function getAcceptedTurnWriterLeasePath(workspacePath: string): string {
     return path.join(getAcceptedTurnRuntimeDir(workspacePath), WRITER_LEASE_FILE);
 }
 
+export function getAcceptedTurnWriterLeaseLockDir(workspacePath: string): string {
+    return path.join(getAcceptedTurnRuntimeDir(workspacePath), WRITER_LEASE_LOCK_DIR);
+}
+
 export function resetAcceptedTurnReplayGuardForTests(): void {
     singleFlight = Promise.resolve();
+    if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = undefined;
+    }
 }
 
 function readJsonFile(filePath: string): unknown {
@@ -98,6 +111,18 @@ export function ensureAcceptedTurnScope(workspacePath: string): AcceptedTurnScop
     return scope;
 }
 
+export function loadExistingAcceptedTurnScope(workspacePath: string): AcceptedTurnScope | undefined {
+    const scopePath = getAcceptedTurnScopePath(workspacePath);
+    if (!fs.existsSync(scopePath)) {
+        return undefined;
+    }
+    const parsed = parseAcceptedTurnScope(readJsonFile(scopePath));
+    if (!parsed) {
+        throw new Error('accepted turn scope is corrupt');
+    }
+    return parsed;
+}
+
 export function rotateAcceptedTurnTimelineEpoch(workspacePath: string): AcceptedTurnScope {
     const prior = ensureAcceptedTurnScope(workspacePath);
     const next: AcceptedTurnScope = {
@@ -106,12 +131,12 @@ export function rotateAcceptedTurnTimelineEpoch(workspacePath: string): Accepted
         updatedAt: new Date().toISOString(),
     };
     writeJsonAtomic(getAcceptedTurnScopePath(workspacePath), next, true);
-    quarantineRetainedTurnResult(workspacePath, 'epoch-rotate');
     return next;
 }
 
 export function rebindAcceptedTurnCampaignInstance(workspacePath: string): AcceptedTurnScope {
     const prior = ensureAcceptedTurnScope(workspacePath);
+    quarantineRetainedTurnResult(workspacePath, 'campaign-rebind');
     const next: AcceptedTurnScope = {
         ...prior,
         campaignInstanceId: crypto.randomUUID(),
@@ -119,23 +144,25 @@ export function rebindAcceptedTurnCampaignInstance(workspacePath: string): Accep
         updatedAt: new Date().toISOString(),
     };
     writeJsonAtomic(getAcceptedTurnScopePath(workspacePath), next, true);
-    quarantineRetainedTurnResult(workspacePath, 'campaign-rebind');
     return next;
 }
 
-function emptyLedger(): AcceptedTurnLedger {
-    return { schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION, records: [] };
+function emptyLedger(campaignInstanceId: string): AcceptedTurnLedger {
+    return { schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION, campaignInstanceId, records: [] };
 }
 
-export function loadAcceptedTurnLedger(workspacePath: string): AcceptedTurnLedger {
+export function loadAcceptedTurnLedger(workspacePath: string, campaignInstanceId?: string): AcceptedTurnLedger {
     ensureRuntimeDir(workspacePath);
     const ledgerPath = getAcceptedTurnLedgerPath(workspacePath);
     const backupPath = `${ledgerPath}.bak`;
     if (!fs.existsSync(ledgerPath)) {
-        return emptyLedger();
+        if (!campaignInstanceId) {
+            throw new Error('accepted turn ledger missing campaign authority');
+        }
+        return emptyLedger(campaignInstanceId);
     }
     try {
-        const parsed = parseAcceptedTurnLedger(readJsonFile(ledgerPath));
+        const parsed = parseAcceptedTurnLedger(readJsonFile(ledgerPath), campaignInstanceId);
         if (parsed) {
             return parsed;
         }
@@ -144,9 +171,9 @@ export function loadAcceptedTurnLedger(workspacePath: string): AcceptedTurnLedge
     }
     if (fs.existsSync(backupPath)) {
         try {
-            const backup = parseAcceptedTurnLedger(readJsonFile(backupPath));
+            const backup = parseAcceptedTurnLedger(readJsonFile(backupPath), campaignInstanceId);
             if (backup) {
-                writeJsonAtomic(ledgerPath, backup, true);
+                writeJsonAtomic(ledgerPath, backup, false);
                 return backup;
             }
         } catch {
@@ -160,13 +187,16 @@ function writeAcceptedTurnLedger(workspacePath: string, ledger: AcceptedTurnLedg
     writeJsonAtomic(getAcceptedTurnLedgerPath(workspacePath), ledger, true);
 }
 
-function readWitnessFromGameState(workspacePath: string) {
+function readGameStateRecord(workspacePath: string): Record<string, unknown> | undefined {
     const statePath = path.join(workspacePath, 'game_state.json');
     if (!fs.existsSync(statePath)) {
         return undefined;
     }
     try {
-        return readAcceptedTurnWitnessFromState(readJsonFile(statePath));
+        const value = readJsonFile(statePath);
+        return typeof value === 'object' && value !== null && !Array.isArray(value)
+            ? value as Record<string, unknown>
+            : undefined;
     } catch {
         return undefined;
     }
@@ -178,11 +208,50 @@ function recordMatchesIdentity(record: AcceptedTurnLedgerRecord, identity: Accep
 
 function isWitnessOneStepAhead(
     witness: AcceptedTurnLedgerRecord,
-    identity: AcceptedTurnIdentity,
     head: AcceptedTurnLedgerRecord | undefined
 ): boolean {
-    return sameAcceptedTurnIdentity(witness, identity)
-        && witness.parentIdentityHash === head?.identityHash;
+    return witness.parentIdentityHash === head?.identityHash;
+}
+
+function reconcileWitnessBeforeCurrentInput(
+    workspacePath: string,
+    scope: AcceptedTurnScope,
+    ledger: AcceptedTurnLedger
+): { ok: true; ledger: AcceptedTurnLedger } | TurnResultFileOutcome {
+    const state = readGameStateRecord(workspacePath);
+    const hasWitnessField = hasAcceptedTurnWitnessField(state);
+    const witness = readAcceptedTurnWitnessFromState(state);
+    const activeHead = activeEpochLedgerHead(ledger.records, scope);
+
+    if (hasWitnessField && !witness) {
+        return { kind: 'repairRequired', accepted: false, reason: 'canonical accepted-turn witness is malformed' };
+    }
+    if (!witness) {
+        if (activeHead) {
+            return { kind: 'repairRequired', accepted: false, reason: 'active accepted ledger head exists but canonical witness is missing' };
+        }
+        return { ok: true, ledger };
+    }
+    if (witness.campaignInstanceId !== scope.campaignInstanceId) {
+        return { kind: 'repairRequired', accepted: false, reason: 'canonical witness belongs to a different campaign' };
+    }
+    if (witness.timelineEpochId !== scope.timelineEpochId) {
+        return { kind: 'repairRequired', accepted: false, reason: 'canonical witness belongs to a different timeline epoch' };
+    }
+    if (activeHead && sameAcceptedTurnIdentity(witness, activeHead)) {
+        return { ok: true, ledger };
+    }
+    const witnessRecord: AcceptedTurnLedgerRecord = { ...witness, ordinal: ledger.records.length + 1 };
+    if (isWitnessOneStepAhead(witnessRecord, activeHead)) {
+        const repaired: AcceptedTurnLedger = {
+            schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION,
+            campaignInstanceId: ledger.campaignInstanceId,
+            records: [...ledger.records, witnessRecord],
+        };
+        writeAcceptedTurnLedger(workspacePath, repaired);
+        return { ok: true, ledger: repaired };
+    }
+    return { kind: 'repairRequired', accepted: false, reason: 'canonical witness is not reconciled with accepted-turn ledger' };
 }
 
 export function preflightAcceptedTurn(
@@ -195,9 +264,14 @@ export function preflightAcceptedTurn(
     let ledger: AcceptedTurnLedger;
     let identity: AcceptedTurnIdentity;
     try {
-        scope = ensureAcceptedTurnScope(workspacePath);
+        scope = loadExistingAcceptedTurnScope(workspacePath) ?? (() => {
+            if (fs.existsSync(path.join(workspacePath, 'turn_result.json'))) {
+                throw new Error('legacy ambiguous retained turn_result.json without accepted-turn scope');
+            }
+            return ensureAcceptedTurnScope(workspacePath);
+        })();
         identity = buildAcceptedTurnIdentity(turnResult, scope);
-        ledger = loadAcceptedTurnLedger(workspacePath);
+        ledger = loadAcceptedTurnLedger(workspacePath, scope.campaignInstanceId);
     } catch (e) {
         return {
             kind: 'repairRequired',
@@ -205,6 +279,16 @@ export function preflightAcceptedTurn(
             reason: e instanceof Error ? e.message : String(e),
         };
     }
+
+    const reconciled = reconcileWitnessBeforeCurrentInput(workspacePath, scope, ledger);
+    if ('kind' in reconciled) {
+        return {
+            ...reconciled,
+            identityHash: identity.identityHash,
+            turnId: identity.turnId,
+        };
+    }
+    ledger = reconciled.ledger;
 
     if (ledger.records.some((record) => recordMatchesIdentity(record, identity))) {
         return { kind: 'alreadyAccepted', accepted: false, identityHash: identity.identityHash, turnId: identity.turnId };
@@ -220,27 +304,6 @@ export function preflightAcceptedTurn(
     }
 
     const head = ledgerHead(ledger.records);
-    const witness = readWitnessFromGameState(workspacePath);
-    if (witness && witness.campaignInstanceId === scope.campaignInstanceId && witness.timelineEpochId === scope.timelineEpochId) {
-        const witnessRecord: AcceptedTurnLedgerRecord = { ...witness, ordinal: ledger.records.length + 1 };
-        if (ledger.records.some((record) => record.identityHash === witness.identityHash)) {
-            // Existing historical witness is fine; a new identity may proceed.
-        } else if (isWitnessOneStepAhead(witnessRecord, identity, head)) {
-            writeAcceptedTurnLedger(workspacePath, {
-                schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION,
-                records: [...ledger.records, witnessRecord],
-            });
-            return { kind: 'alreadyAccepted', accepted: false, identityHash: identity.identityHash, turnId: identity.turnId };
-        } else if (witness.identityHash !== head?.identityHash) {
-            return {
-                kind: 'repairRequired',
-                accepted: false,
-                identityHash: identity.identityHash,
-                turnId: identity.turnId,
-                reason: 'canonical witness is not reconciled with accepted-turn ledger',
-            };
-        }
-    }
 
     return {
         kind: 'unseen',
@@ -255,13 +318,14 @@ export function preflightAcceptedTurn(
 }
 
 export function recordAcceptedTurnAfterCommit(workspacePath: string, context: AcceptedTurnCommitContext): void {
-    const ledger = loadAcceptedTurnLedger(workspacePath);
+    const ledger = loadAcceptedTurnLedger(workspacePath, context.identity.campaignInstanceId);
     if (ledger.records.some((record) => record.identityHash === context.identity.identityHash)) {
         return;
     }
     const record = createAcceptedTurnLedgerRecord(context, ledger.records.length + 1);
     writeAcceptedTurnLedger(workspacePath, {
         schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION,
+        campaignInstanceId: context.identity.campaignInstanceId,
         records: [...ledger.records, record],
     });
 }
@@ -280,35 +344,40 @@ function parseLease(value: unknown): WriterLease | undefined {
     return raw as unknown as WriterLease;
 }
 
-function isLeaseLive(lease: WriterLease, nowMs: number): boolean {
+function isLeaseRecentlyRenewed(lease: WriterLease, nowMs: number): boolean {
     const renewed = Date.parse(lease.renewedAt);
     return Number.isFinite(renewed) && nowMs - renewed < (lease.leaseTimeoutMs || WRITER_LEASE_TIMEOUT_MS);
 }
 
-export function ensureAcceptedTurnWriterLease(
-    workspacePath: string,
-    purpose: string
-): TurnResultFileOutcome | undefined {
-    ensureRuntimeDir(workspacePath);
-    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
-    const nowMs = Date.now();
-    const now = new Date(nowMs).toISOString();
-    let prior: WriterLease | undefined;
-    if (fs.existsSync(leasePath)) {
-        try {
-            prior = parseLease(readJsonFile(leasePath));
-        } catch {
-            prior = undefined;
-        }
+function isPidRunning(pid: number): boolean {
+    if (!Number.isFinite(pid) || pid <= 0) {
+        return false;
     }
-    if (prior && prior.hostInstanceId !== hostInstanceId && isLeaseLive(prior, nowMs)) {
-        return {
-            kind: 'writerConflict',
-            accepted: false,
-            reason: `live writer lease held by ${prior.hostname}:${prior.pid}`,
-        };
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
     }
-    const lease: WriterLease = {
+}
+
+function isForeignLeaseRecoverable(lease: WriterLease, nowMs: number): boolean {
+    if (lease.hostInstanceId === hostInstanceId) {
+        return true;
+    }
+    if (isLeaseRecentlyRenewed(lease, nowMs)) {
+        return false;
+    }
+    if (lease.hostname !== os.hostname()) {
+        return false;
+    }
+    // A live PID remains protected even after timeout; timeout alone is not authority.
+    return !isPidRunning(lease.pid);
+}
+
+function buildWriterLease(purpose: string, prior?: WriterLease): WriterLease {
+    const now = new Date().toISOString();
+    return {
         schemaVersion: 1,
         hostInstanceId,
         pid: process.pid,
@@ -319,7 +388,89 @@ export function ensureAcceptedTurnWriterLease(
         purpose,
         leaseTimeoutMs: WRITER_LEASE_TIMEOUT_MS,
     };
-    writeJsonAtomic(leasePath, lease, true);
+}
+
+function startWriterLeaseHeartbeat(workspacePath: string): void {
+    if (heartbeatTimer) {
+        return;
+    }
+    heartbeatTimer = setInterval(() => {
+        try {
+            renewAcceptedTurnWriterLeaseForTests(workspacePath, 'heartbeat');
+        } catch {
+            // Losing the heartbeat should not throw from the timer; the next
+            // mutating entry point will fail closed on lease validation.
+        }
+    }, WRITER_LEASE_HEARTBEAT_MS);
+    heartbeatTimer.unref?.();
+}
+
+export function renewAcceptedTurnWriterLeaseForTests(workspacePath: string, purpose: string): boolean {
+    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
+    if (!fs.existsSync(leasePath)) {
+        return false;
+    }
+    const prior = parseLease(readJsonFile(leasePath));
+    if (!prior || prior.hostInstanceId !== hostInstanceId) {
+        return false;
+    }
+    writeJsonAtomic(leasePath, buildWriterLease(purpose, prior), true);
+    return true;
+}
+
+export function ensureAcceptedTurnWriterLease(
+    workspacePath: string,
+    purpose: string
+): TurnResultFileOutcome | undefined {
+    ensureRuntimeDir(workspacePath);
+    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
+    const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
+    const nowMs = Date.now();
+    let prior: WriterLease | undefined;
+    if (fs.existsSync(leasePath)) {
+        try {
+            prior = parseLease(readJsonFile(leasePath));
+        } catch {
+            prior = undefined;
+        }
+    }
+    if (fs.existsSync(leasePath) && !prior) {
+        return {
+            kind: 'writerConflict',
+            accepted: false,
+            reason: 'writer lease is malformed; authority is uncertain',
+        };
+    }
+    if (prior?.hostInstanceId === hostInstanceId) {
+        writeJsonAtomic(leasePath, buildWriterLease(purpose, prior), true);
+        startWriterLeaseHeartbeat(workspacePath);
+        return undefined;
+    }
+    if (prior && !isForeignLeaseRecoverable(prior, nowMs)) {
+        return {
+            kind: 'writerConflict',
+            accepted: false,
+            reason: `writer lease held by ${prior.hostname}:${prior.pid}`,
+        };
+    }
+
+    try {
+        fs.mkdirSync(lockDir);
+    } catch {
+        if (prior && isForeignLeaseRecoverable(prior, nowMs)) {
+            try {
+                fs.rmSync(lockDir, { recursive: true, force: true });
+                fs.mkdirSync(lockDir);
+            } catch {
+                return { kind: 'writerConflict', accepted: false, reason: 'writer lease lock is held' };
+            }
+        } else {
+            return { kind: 'writerConflict', accepted: false, reason: 'writer lease lock is held' };
+        }
+    }
+
+    writeJsonAtomic(leasePath, buildWriterLease(purpose, prior), false);
+    startWriterLeaseHeartbeat(workspacePath);
     return undefined;
 }
 
@@ -334,6 +485,53 @@ export function quarantineRetainedTurnResult(workspacePath: string, reason: stri
     );
     ensureRuntimeDir(workspacePath);
     fs.renameSync(turnResultPath, quarantinePath);
+    if (fs.existsSync(turnResultPath)) {
+        throw new Error('retained turn_result.json quarantine did not remove root file');
+    }
+}
+
+export async function prepareAcceptedTurnTimelineRestore(
+    workspacePath: string,
+    reason: string
+): Promise<{ ok: true; scope: AcceptedTurnScope } | TurnResultFileOutcome> {
+    return runAcceptedTurnSingleFlight(async () => {
+        const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, reason);
+        if (leaseConflict) {
+            return leaseConflict;
+        }
+        try {
+            quarantineRetainedTurnResult(workspacePath, reason);
+        } catch (e) {
+            return {
+                kind: 'repairRequired',
+                accepted: false,
+                reason: `failed to quarantine retained turn_result.json before epoch rotation: ${e instanceof Error ? e.message : String(e)}`,
+            };
+        }
+        try {
+            return { ok: true, scope: rotateAcceptedTurnTimelineEpoch(workspacePath) };
+        } catch (e) {
+            return {
+                kind: 'repairRequired',
+                accepted: false,
+                reason: `failed to rotate replay epoch: ${e instanceof Error ? e.message : String(e)}`,
+            };
+        }
+    });
+}
+
+export function clearCanonicalAcceptedTurnWitness(workspacePath: string): void {
+    const statePath = path.join(workspacePath, 'game_state.json');
+    if (!fs.existsSync(statePath)) {
+        return;
+    }
+    const state = readGameStateRecord(workspacePath);
+    if (!state || !hasAcceptedTurnWitnessField(state)) {
+        return;
+    }
+    const next = { ...state };
+    delete next.runtimeAcceptedTurn;
+    writeJsonAtomic(statePath, next, true);
 }
 
 export function runAcceptedTurnSingleFlight<T>(fn: () => Promise<T>): Promise<T> {

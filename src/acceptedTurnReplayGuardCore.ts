@@ -52,6 +52,7 @@ export interface AcceptedTurnLedgerRecord extends AcceptedTurnWitness {
 
 export interface AcceptedTurnLedger {
     schemaVersion: 1;
+    campaignInstanceId: string;
     records: AcceptedTurnLedgerRecord[];
 }
 
@@ -118,13 +119,12 @@ export function buildAcceptedTurnIdentity(turnResult: unknown, scope: AcceptedTu
     const campaignInstanceId = requireNonEmptyString(scope.campaignInstanceId, 'campaignInstanceId');
     const timelineEpochId = requireNonEmptyString(scope.timelineEpochId, 'timelineEpochId');
     const payloadHash = computeAcceptedTurnPayloadHash(turnResult);
-    const identityHash = sha256Hex([
-        ACCEPTED_TURN_IDENTITY_DOMAIN,
+    const identityHash = computeAcceptedTurnIdentityHash({
         campaignInstanceId,
         timelineEpochId,
         turnId,
         payloadHash,
-    ].join('\0'));
+    });
     return {
         campaignInstanceId,
         timelineEpochId,
@@ -132,6 +132,21 @@ export function buildAcceptedTurnIdentity(turnResult: unknown, scope: AcceptedTu
         payloadHash,
         identityHash,
     };
+}
+
+export function computeAcceptedTurnIdentityHash(input: {
+    campaignInstanceId: string;
+    timelineEpochId: string;
+    turnId: string;
+    payloadHash: string;
+}): string {
+    return sha256Hex([
+        ACCEPTED_TURN_IDENTITY_DOMAIN,
+        input.campaignInstanceId,
+        input.timelineEpochId,
+        input.turnId,
+        input.payloadHash,
+    ].join('\0'));
 }
 
 export function buildAcceptedTurnWitness(context: AcceptedTurnCommitContext): AcceptedTurnWitness {
@@ -157,6 +172,10 @@ export function readAcceptedTurnWitnessFromState(state: unknown): AcceptedTurnWi
         return undefined;
     }
     return parseAcceptedTurnWitness(state[RUNTIME_ACCEPTED_TURN_WITNESS_KEY]);
+}
+
+export function hasAcceptedTurnWitnessField(state: unknown): boolean {
+    return isRecord(state) && Object.prototype.hasOwnProperty.call(state, RUNTIME_ACCEPTED_TURN_WITNESS_KEY);
 }
 
 export function isValidUuidLike(value: unknown): value is string {
@@ -197,8 +216,17 @@ export function parseAcceptedTurnWitness(value: unknown): AcceptedTurnWitness | 
     return value as unknown as AcceptedTurnWitness;
 }
 
-export function parseAcceptedTurnLedger(value: unknown): AcceptedTurnLedger | undefined {
+export function parseAcceptedTurnLedger(
+    value: unknown,
+    expectedCampaignInstanceId?: string
+): AcceptedTurnLedger | undefined {
     if (!isRecord(value) || value.schemaVersion !== ACCEPTED_TURN_LEDGER_SCHEMA_VERSION || !Array.isArray(value.records)) {
+        return undefined;
+    }
+    if (typeof value.campaignInstanceId !== 'string' || !value.campaignInstanceId.trim()) {
+        return undefined;
+    }
+    if (expectedCampaignInstanceId && value.campaignInstanceId !== expectedCampaignInstanceId) {
         return undefined;
     }
     const records: AcceptedTurnLedgerRecord[] = [];
@@ -206,6 +234,13 @@ export function parseAcceptedTurnLedger(value: unknown): AcceptedTurnLedger | un
         const raw = value.records[i];
         const witness = parseAcceptedTurnWitness(raw);
         if (!witness || !isRecord(raw) || raw.ordinal !== i + 1) {
+            return undefined;
+        }
+        if (witness.campaignInstanceId !== value.campaignInstanceId) {
+            return undefined;
+        }
+        const expectedIdentityHash = computeAcceptedTurnIdentityHash(witness);
+        if (witness.identityHash !== expectedIdentityHash) {
             return undefined;
         }
         if (raw.sourceRawHash !== undefined && (typeof raw.sourceRawHash !== 'string' || !HEX_64.test(raw.sourceRawHash))) {
@@ -219,7 +254,36 @@ export function parseAcceptedTurnLedger(value: unknown): AcceptedTurnLedger | un
     if (!validateAcceptedTurnLedgerChain(records)) {
         return undefined;
     }
-    return { schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION, records };
+    if (!validateAcceptedTurnLedgerUniqueness(records)) {
+        return undefined;
+    }
+    return {
+        schemaVersion: ACCEPTED_TURN_LEDGER_SCHEMA_VERSION,
+        campaignInstanceId: value.campaignInstanceId,
+        records,
+    };
+}
+
+export function validateAcceptedTurnLedgerUniqueness(records: AcceptedTurnLedgerRecord[]): boolean {
+    const identities = new Set<string>();
+    const sameEpochTurns = new Map<string, string>();
+    for (const record of records) {
+        if (identities.has(record.identityHash)) {
+            return false;
+        }
+        identities.add(record.identityHash);
+        const turnKey = [
+            record.campaignInstanceId,
+            record.timelineEpochId,
+            record.turnId,
+        ].join('\0');
+        const priorPayload = sameEpochTurns.get(turnKey);
+        if (priorPayload !== undefined && priorPayload !== record.payloadHash) {
+            return false;
+        }
+        sameEpochTurns.set(turnKey, record.payloadHash);
+    }
+    return true;
 }
 
 export function validateAcceptedTurnLedgerChain(records: AcceptedTurnLedgerRecord[]): boolean {
@@ -235,6 +299,22 @@ export function validateAcceptedTurnLedgerChain(records: AcceptedTurnLedgerRecor
 
 export function ledgerHead(records: AcceptedTurnLedgerRecord[]): AcceptedTurnLedgerRecord | undefined {
     return records.length > 0 ? records[records.length - 1] : undefined;
+}
+
+export function activeEpochLedgerHead(
+    records: AcceptedTurnLedgerRecord[],
+    scope: Pick<AcceptedTurnScope, 'campaignInstanceId' | 'timelineEpochId'>
+): AcceptedTurnLedgerRecord | undefined {
+    for (let i = records.length - 1; i >= 0; i--) {
+        const record = records[i];
+        if (
+            record.campaignInstanceId === scope.campaignInstanceId
+            && record.timelineEpochId === scope.timelineEpochId
+        ) {
+            return record;
+        }
+    }
+    return undefined;
 }
 
 export function sameAcceptedTurnIdentity(a: AcceptedTurnIdentity, b: AcceptedTurnIdentity): boolean {

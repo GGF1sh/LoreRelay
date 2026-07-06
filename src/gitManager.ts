@@ -2,11 +2,14 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { getWorkspacePath } from './workspacePaths';
-import { getGameEntryHistory } from './gameStateSync';
+import {
+    clearTurnResultRawHashAuthorityForEpochChange,
+    getGameEntryHistory,
+} from './gameStateSync';
 import * as fs from 'fs';
 import {
-    ensureAcceptedTurnWriterLease,
-    rotateAcceptedTurnTimelineEpoch,
+    clearCanonicalAcceptedTurnWitness,
+    prepareAcceptedTurnTimelineRestore,
 } from './acceptedTurnReplayGuard';
 
 function runGit(args: string[], cwd: string): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -31,6 +34,7 @@ const GITIGNORE_DEFAULT = [
     '.env',
     '*.tmp',
     'game_state.invalid.latest.json',
+    '.text-adventure/runtime/',
     '.vscode/'
 ].join('\n') + '\n';
 
@@ -39,19 +43,41 @@ const GITIGNORE_DEFAULT = [
 // what actually prevents ensureGitInit from being reached again.
 let initConsentAsked = false;
 
-function prepareTimelineGitRestore(cwd: string, reason: string): boolean {
-    const leaseConflict = ensureAcceptedTurnWriterLease(cwd, reason);
-    if (leaseConflict) {
-        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
-        return false;
-    }
-    try {
-        rotateAcceptedTurnTimelineEpoch(cwd);
+async function ensureRuntimeAuthorityIgnored(cwd: string): Promise<boolean> {
+    const ignorePath = path.join(cwd, '.gitignore');
+    const ignoreLine = '.text-adventure/runtime/';
+    if (!fs.existsSync(ignorePath)) {
+        fs.writeFileSync(ignorePath, GITIGNORE_DEFAULT);
         return true;
-    } catch (e) {
-        vscode.window.showErrorMessage(`LoreRelay: Failed to rotate replay epoch. ${String(e)}`);
+    }
+    const text = fs.readFileSync(ignorePath, 'utf-8');
+    if (!text.split(/\r?\n/).includes(ignoreLine)) {
+        fs.appendFileSync(ignorePath, `${text.endsWith('\n') ? '' : '\n'}${ignoreLine}\n`, 'utf-8');
+    }
+    return true;
+}
+
+async function hasTrackedRuntimeAuthority(cwd: string): Promise<boolean> {
+    if (!fs.existsSync(path.join(cwd, '.git'))) {
         return false;
     }
+    const tracked = await runGit(['ls-files', '--', '.text-adventure/runtime'], cwd);
+    return tracked.stdout.trim().length > 0;
+}
+
+async function prepareTimelineGitRestore(cwd: string, reason: string): Promise<boolean> {
+    await ensureRuntimeAuthorityIgnored(cwd);
+    if (await hasTrackedRuntimeAuthority(cwd)) {
+        vscode.window.showErrorMessage('LoreRelay: Git Timeline has tracked replay runtime authority; refusing timeline mutation until repaired.');
+        return false;
+    }
+    const result = await prepareAcceptedTurnTimelineRestore(cwd, reason);
+    if ('kind' in result) {
+        vscode.window.showErrorMessage(`LoreRelay: ${result.reason ?? 'Replay timeline restore preparation failed.'}`);
+        return false;
+    }
+    clearTurnResultRawHashAuthorityForEpochChange();
+    return true;
 }
 
 async function promptGitInitConsent(cwd: string): Promise<boolean> {
@@ -70,6 +96,7 @@ export async function ensureGitInit(): Promise<boolean> {
 
     const gitDir = path.join(cwd, '.git');
     if (fs.existsSync(gitDir)) {
+        await ensureRuntimeAuthorityIgnored(cwd);
         return true;
     }
 
@@ -95,10 +122,7 @@ export async function ensureGitInit(): Promise<boolean> {
 
     const { code } = await runGit(['init'], cwd);
     if (code === 0) {
-        const ignorePath = path.join(cwd, '.gitignore');
-        if (!fs.existsSync(ignorePath)) {
-            fs.writeFileSync(ignorePath, GITIGNORE_DEFAULT);
-        }
+        await ensureRuntimeAuthorityIgnored(cwd);
         await runGit(['add', '.'], cwd);
         await runGit(['commit', '-m', 'Initial commit (LoreRelay Git Timeline)'], cwd);
         vscode.window.showInformationMessage(
@@ -179,7 +203,7 @@ export async function branchFromTurn(turnId: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Cannot find commit for Turn ${turnIndex}`);
         return false;
     }
-    if (!prepareTimelineGitRestore(cwd, 'git-branch-from-turn')) {
+    if (!(await prepareTimelineGitRestore(cwd, 'git-branch-from-turn'))) {
         return false;
     }
     
@@ -189,6 +213,7 @@ export async function branchFromTurn(turnId: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Failed to branch timeline. ${stderr}`);
         return false;
     }
+    clearCanonicalAcceptedTurnWitness(cwd);
     
     vscode.window.showInformationMessage(`LoreRelay: Branched to ${branchName} at Turn ${turnIndex}`);
     return true;
@@ -265,7 +290,7 @@ export async function switchToBranch(branchName: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Branch "${branchName}" no longer exists.`);
         return false;
     }
-    if (!prepareTimelineGitRestore(cwd, 'git-switch-timeline-branch')) {
+    if (!(await prepareTimelineGitRestore(cwd, 'git-switch-timeline-branch'))) {
         return false;
     }
 
@@ -274,6 +299,7 @@ export async function switchToBranch(branchName: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Failed to switch branch. ${stderr}`);
         return false;
     }
+    clearCanonicalAcceptedTurnWitness(cwd);
 
     const picked = await vscode.window.showInformationMessage(
         `LoreRelay: Switched to ${branchName}. Reload the window to load its game state.`,

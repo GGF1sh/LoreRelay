@@ -67,6 +67,19 @@ function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value), 'utf8');
 }
 
+function seedReplayScope(tmpDir) {
+    const runtimeDir = path.join(tmpDir, '.text-adventure', 'runtime');
+    fs.mkdirSync(runtimeDir, { recursive: true });
+    const now = new Date().toISOString();
+    writeJson(path.join(runtimeDir, 'accepted_turn_scope.json'), {
+        schemaVersion: 1,
+        campaignInstanceId: crypto.randomUUID(),
+        timelineEpochId: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+    });
+}
+
 async function flushAsyncWork() {
     await Promise.resolve();
     await Promise.resolve();
@@ -84,6 +97,7 @@ function loadGameStateSyncHarness(options = {}) {
     purgeModules([outGameStateSync]);
 
     const tmpDir = options.tmpDir || makeTempDir('lr-runtime-002a-sync-');
+    seedReplayScope(tmpDir);
     const turnResultPath = path.join(tmpDir, 'turn_result.json');
     const events = [];
     const postMessages = [];
@@ -103,7 +117,10 @@ function loadGameStateSyncHarness(options = {}) {
 
     const workspacePaths = {
         getActiveWorkspaceFolder: () => ({ uri: { fsPath: tmpDir } }),
-        writeJsonAtomic() {},
+        writeJsonAtomic(filePath, value) {
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            writeJson(filePath, value);
+        },
         getGameStatePath: () => path.join(tmpDir, 'game_state.json'),
         getWorkspacePath: () => tmpDir,
         getHistoryPath: () => path.join(tmpDir, 'game_history.json'),
@@ -283,12 +300,14 @@ function makeStatePatchMocks(tempDir, options = {}) {
     let commitCalls = 0;
     let ledgerCalls = 0;
     let lastCommitState;
+    let lastCommitConfig;
 
     return {
         statePath,
         get commitCalls() { return commitCalls; },
         get ledgerCalls() { return ledgerCalls; },
         get lastCommitState() { return lastCommitState; },
+        get lastCommitConfig() { return lastCommitConfig; },
         mocks: {
             vscode: createVscodeStub(),
             './worldForge': { isWorldForgeEnabled() { return false; }, loadWorldForge() { return undefined; } },
@@ -331,6 +350,7 @@ function makeStatePatchMocks(tempDir, options = {}) {
                 commitGameState(value, config) {
                     commitCalls++;
                     lastCommitState = value;
+                    lastCommitConfig = config;
                     return typeof options.commitGameState === 'function'
                         ? options.commitGameState(value, config)
                         : { ok: true, action: 'write' };
@@ -446,6 +466,7 @@ function loadStatePatchHarness(options = {}) {
         get commitCalls() { return setup.commitCalls; },
         get ledgerCalls() { return setup.ledgerCalls; },
         get lastCommitState() { return setup.lastCommitState; },
+        get lastCommitConfig() { return setup.lastCommitConfig; },
     };
 }
 
@@ -453,6 +474,7 @@ function makeWatcherFallbackIntegrationHarness(options = {}) {
     purgeModules([outGameStateSync, outTurnResultFallback]);
 
     const tmpDir = makeTempDir('lr-runtime-002a-integration-');
+    seedReplayScope(tmpDir);
     const gameStatePath = path.join(tmpDir, 'game_state.json');
     const historyPath = path.join(tmpDir, 'game_history.json');
     const turnResultPath = path.join(tmpDir, 'turn_result.json');
@@ -473,7 +495,10 @@ function makeWatcherFallbackIntegrationHarness(options = {}) {
 
     const workspacePaths = {
         getActiveWorkspaceFolder: () => ({ uri: { fsPath: tmpDir } }),
-        writeJsonAtomic() {},
+        writeJsonAtomic(filePath, value) {
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            writeJson(filePath, value);
+        },
         getGameStatePath: () => gameStatePath,
         getWorkspacePath: () => tmpDir,
         getHistoryPath: () => historyPath,
@@ -777,10 +802,12 @@ async function runAsyncCases() {
             acceptedAt: '2026-07-06T00:00:00.000Z',
         };
         const accepted = harness.module.processTurnResult(baseTurnResult('turn-witness-installed'), context);
-        const witness = harness.lastCommitState?.[acceptedCore.RUNTIME_ACCEPTED_TURN_WITNESS_KEY];
+        const witness = harness.lastCommitConfig?.runtimeAcceptedTurnWitness;
         assert(Boolean(accepted), 'accepted witness install remains truthy');
-        assert(witness?.identityHash === context.identity.identityHash, 'canonical commit payload contains accepted-turn witness identity');
-        assert(witness?.parentIdentityHash === context.parentIdentityHash, 'canonical witness preserves ledger parent link');
+        assert(harness.lastCommitConfig?.runtimeAcceptedTurnWitnessMode === 'install', 'canonical commit uses trusted witness install authority');
+        assert(!harness.lastCommitState?.[acceptedCore.RUNTIME_ACCEPTED_TURN_WITNESS_KEY], 'turn commit payload does not self-author witness root');
+        assert(witness?.identityHash === context.identity.identityHash, 'trusted commit option contains accepted-turn witness identity');
+        assert(witness?.parentIdentityHash === context.parentIdentityHash, 'trusted witness option preserves ledger parent link');
     }
 
     // 9. post-commit thrown secondary ledger failure remains Accepted.

@@ -49,7 +49,7 @@ import {
     type VscodeLmGmJson,
 } from './vscodeLmTurnResultCore';
 import type { VscodeLmProfileOptions } from './connectionProfileCore';
-import { ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
+import { ensureAcceptedTurnScope, ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
 
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
@@ -1122,6 +1122,12 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'provider-dispatch');
     if (leaseConflict) {
         vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+        return false;
+    }
+    try {
+        ensureAcceptedTurnScope(workspacePath);
+    } catch (e) {
+        vscode.window.showErrorMessage(`LoreRelay: Failed to initialize replay scope. ${String(e)}`);
         return false;
     }
 

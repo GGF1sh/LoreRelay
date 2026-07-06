@@ -71,7 +71,7 @@ import { persistTurnLedgersAfterCommit } from './turnLedgerPersistCore';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
 import {
-    attachAcceptedTurnWitnessToState,
+    buildAcceptedTurnWitness,
     type AcceptedTurnCommitContext,
 } from './acceptedTurnReplayGuardCore';
 import { recordAcceptedTurnAfterCommit } from './acceptedTurnReplayGuard';
@@ -729,10 +729,6 @@ export function processTurnResult(
             commitState = applyTurnResultToGameState(turnResult, freshDisk, false);
         }
 
-        if (acceptedTurnContext) {
-            commitState = attachAcceptedTurnWitnessToState(commitState, acceptedTurnContext);
-        }
-
         pendingAutoLocationImage = undefined;
         const worldAfterTurn = commitState.world as GameStateWorld | undefined;
         const nextLocationId = typeof worldAfterTurn?.currentLocationId === 'string'
@@ -777,6 +773,12 @@ export function processTurnResult(
             mode: 'salvage',
             baseRevision,
             mergeProfile: 'turn',
+            ...(acceptedTurnContext
+                ? {
+                    runtimeAcceptedTurnWitnessMode: 'install' as const,
+                    runtimeAcceptedTurnWitness: buildAcceptedTurnWitness(acceptedTurnContext),
+                }
+                : {}),
         });
         if (!commit.ok) {
             console.error(

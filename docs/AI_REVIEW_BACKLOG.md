@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
-**Board Code Baseline:** `16be517` (Genesis / README visual polish merged)
-**Control Artifacts Synced Through:** `ffd7701` (PROMPT-001D2 D2-V1 shape repair pushed → reverify)
+**Board Code Baseline:** `a319e68` (PROMPT-001D2 merged; World Map / README showcase already merged)
+**Control Artifacts Synced Through:** `7cb6c10` (PROMPT-001D2 post-merge smoke PASS → DONE)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -34,7 +34,7 @@
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **DONE** (`933252c`; re-smoke `222/222`) | `PROMPT-001A` | merged + post-merge re-smoke passed | - | - |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | **DONE** (`1773a9d`; post-merge smoke `223/223`) | `PROMPT-001A, B, RUNTIME-002A` | merged + post-merge smoke passed | - | - |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
-| `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | **VERIFYING (D2-V1 Shape Recheck)** (`ffd7701`) | `PROMPT-001A, B, C` | nested AllocationResult / AllocatedItem runtime shape validation repaired | Codex GPT-5.4 Medium | ChatGPT 5.5 High |
+| `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | **DONE** (`a319e68`; post-merge smoke `224/224`; smoke doc `7cb6c10`) | `PROMPT-001A, B, C` | merged + post-merge smoke passed | - | - |
 | **TEMP** | | | | | | | | |
 | `TEMP-001A` | Future-entry resurrection / replace semantics | - | - | **DONE** (`6ea886a`) | - | | - | - |
 | `TEMP-001B` | Multi-ledger temporal checkpoint/restore | P0 | Critical | CONFIRMED | - | | ChatGPT | Gemini 3.1 Pro |

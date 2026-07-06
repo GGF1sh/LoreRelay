@@ -198,6 +198,36 @@ function assertProductionUnchanged(candidate, baseline, label) {
     return true;
 }
 
+function assertFailedMalformedReport(candidate, label) {
+    if (!candidate.shadowReport || candidate.shadowReport.status !== 'failed') {
+        fail(`${label}: malformed shadow output must produce explicit failed report: ${JSON.stringify(candidate.shadowReport)}`);
+        return false;
+    }
+    if (!String(candidate.shadowReport.failureMessage || '').trim()) {
+        fail(`${label}: failed report must include non-empty failureMessage`);
+        return false;
+    }
+    if (!Object.isFrozen(candidate.shadowReport)) {
+        fail(`${label}: failed report must be frozen`);
+        return false;
+    }
+    return true;
+}
+
+function assertMalformedAllocatorCase(label, baseline, allocator) {
+    const candidate = buildProductionPromptAssemblyWithShadowAllocatorForTests(
+        'look around',
+        'grok',
+        allocator
+    );
+    if (assertProductionUnchanged(candidate, baseline, label)) {
+        ok(`${label} leaves production unchanged`);
+    }
+    if (assertFailedMalformedReport(candidate, label)) {
+        ok(`${label} produces frozen failed report with failureMessage`);
+    }
+}
+
 function normalizeReportIds(report) {
     if (!report || report.status !== 'ok') {
         return null;
@@ -362,6 +392,118 @@ try {
     } else {
         ok('invalid top-level allocator produces explicit failed report');
     }
+
+    assertMalformedAllocatorCase(
+        'missing allocatedTokens allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            items: [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'NaN allocatedTokens allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: Number.NaN,
+            items: [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'negative allocatedTokens allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: -1,
+            items: [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'missing lod allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: category.candidates.length ? 1 : 0,
+            items: category.candidates.length
+                ? [{
+                    id: category.candidates[0].id,
+                    text: '',
+                    tokenCost: 1,
+                }]
+                : [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'NaN lod allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: category.candidates.length ? 1 : 0,
+            items: category.candidates.length
+                ? [{
+                    id: category.candidates[0].id,
+                    lod: Number.NaN,
+                    text: '',
+                    tokenCost: 1,
+                }]
+                : [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'missing text allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: category.candidates.length ? 1 : 0,
+            items: category.candidates.length
+                ? [{
+                    id: category.candidates[0].id,
+                    lod: 0,
+                    tokenCost: 1,
+                }]
+                : [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'NaN tokenCost allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: category.candidates.length ? 1 : 0,
+            items: category.candidates.length
+                ? [{
+                    id: category.candidates[0].id,
+                    lod: 0,
+                    text: '',
+                    tokenCost: Number.NaN,
+                }]
+                : [],
+        }))
+    );
+
+    assertMalformedAllocatorCase(
+        'negative tokenCost allocator',
+        baseline,
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: category.candidates.length ? 1 : 0,
+            items: category.candidates.length
+                ? [{
+                    id: category.candidates[0].id,
+                    lod: 0,
+                    text: '',
+                    tokenCost: -1,
+                }]
+                : [],
+        }))
+    );
 
     const validZeroSelection = buildProductionPromptAssemblyWithShadowAllocatorForTests(
         'look around',

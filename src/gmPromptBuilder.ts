@@ -2050,11 +2050,22 @@ function buildCategoryBudgetShadowReport(
         let shadowTokenEstimate = 0;
 
         for (const result of results) {
-            if (!result || typeof result !== 'object' || typeof result.categoryId !== 'string' || !Array.isArray(result.items)) {
+            if (!result
+                || typeof result !== 'object'
+                || typeof result.categoryId !== 'string'
+                || !Number.isFinite(result.allocatedTokens)
+                || result.allocatedTokens < 0
+                || !Array.isArray(result.items)) {
                 throw new Error('shadow allocator returned invalid category result');
             }
             for (const item of result.items) {
-                if (!item || typeof item !== 'object' || typeof item.id !== 'string' || typeof item.tokenCost !== 'number') {
+                if (!item
+                    || typeof item !== 'object'
+                    || typeof item.id !== 'string'
+                    || !Number.isFinite(item.lod)
+                    || typeof item.text !== 'string'
+                    || !Number.isFinite(item.tokenCost)
+                    || item.tokenCost < 0) {
                     throw new Error(`shadow allocator returned invalid allocated item for category ${result.categoryId}`);
                 }
                 shadowSelectedIdSet.add(item.id);

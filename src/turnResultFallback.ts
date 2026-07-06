@@ -6,6 +6,7 @@ import { isValidEntryId } from './entryId';
 import { getTriggeredLoreLabels } from './gmPromptBuilder';
 import { buildStatePatchFromDiff } from './statePatch';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import type { TurnResultFileOutcome } from './acceptedTurnReplayGuardCore';
 
 
 function findLatestGmEntry(state: Record<string, unknown>): GameEntry | undefined {
@@ -100,9 +101,9 @@ let pendingAcceptedTurnCallback: ((acceptedTurn?: TurnResult) => void) | undefin
  * it processed a new turn, so finishGmRun() can skip the game_state.json-diff
  * synthesis fallback when the real turn_result was already applied.
  */
-let checkPendingTurnResultFile: (() => Promise<boolean>) | undefined;
+let checkPendingTurnResultFile: (() => Promise<TurnResultFileOutcome>) | undefined;
 
-export function initTurnResultFallback(checkFn: () => Promise<boolean>): void {
+export function initTurnResultFallback(checkFn: () => Promise<TurnResultFileOutcome>): void {
     checkPendingTurnResultFile = checkFn;
 }
 
@@ -163,12 +164,22 @@ export function finishGmRun(
             if (!pendingTurnResultFromGm) {
                 return;
             }
-            const handled = await checkPendingTurnResultFile?.();
+            const outcome = await checkPendingTurnResultFile?.();
+            const handled = outcome?.kind === 'newlyAccepted';
             if (handled || !pendingTurnResultFromGm) {
                 pendingTurnResultFromGm = false;
                 if (!handled) {
                     pendingAcceptedTurnCallback = undefined;
                 }
+                return;
+            }
+            if (
+                outcome
+                && outcome.kind !== 'missing'
+                && outcome.kind !== 'alreadyAccepted'
+            ) {
+                pendingAcceptedTurnCallback = undefined;
+                pendingTurnResultFromGm = false;
                 return;
             }
             const synthesized = prevState ? synthesizeTurnResultIfNeeded(prevState, playerAction) : false;

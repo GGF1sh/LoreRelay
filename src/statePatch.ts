@@ -70,6 +70,11 @@ import {
 import { persistTurnLedgersAfterCommit } from './turnLedgerPersistCore';
 import { recordLocationVisit } from './livingWorldBridge';
 import { ABSOLUTE_MAX_BULK_WORLD_STEPS } from './worldSimBulkCore';
+import {
+    attachAcceptedTurnWitnessToState,
+    type AcceptedTurnCommitContext,
+} from './acceptedTurnReplayGuardCore';
+import { recordAcceptedTurnAfterCommit } from './acceptedTurnReplayGuard';
 
 /** game_state_schema.json と整合するパッチ許可ルート（entries は別処理）。 */
 const ALLOWED_ROOTS = new Set([
@@ -639,7 +644,10 @@ function normalizeStatusArrayFields(state: Record<string, unknown>): Record<stri
     return changed ? { ...state, status: next } : state;
 }
 
-export function processTurnResult(turnResult: TurnResult): TurnResult | false {
+export function processTurnResult(
+    turnResult: TurnResult,
+    acceptedTurnContext?: AcceptedTurnCommitContext
+): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath) {
         return false;
@@ -721,6 +729,10 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             commitState = applyTurnResultToGameState(turnResult, freshDisk, false);
         }
 
+        if (acceptedTurnContext) {
+            commitState = attachAcceptedTurnWitnessToState(commitState, acceptedTurnContext);
+        }
+
         pendingAutoLocationImage = undefined;
         const worldAfterTurn = commitState.world as GameStateWorld | undefined;
         const nextLocationId = typeof worldAfterTurn?.currentLocationId === 'string'
@@ -773,6 +785,22 @@ export function processTurnResult(turnResult: TurnResult): TurnResult | false {
             );
             return false;
         }
+
+        if (acceptedTurnContext) {
+            try {
+                const wsPath = getWorkspacePath();
+                if (wsPath) {
+                    recordAcceptedTurnAfterCommit(wsPath, acceptedTurnContext);
+                }
+            } catch (e) {
+                console.error(
+                    '[statePatch] accepted-turn ledger persistence failed after canonical Accepted commit;',
+                    'canonical witness retained for restart repair.',
+                    e
+                );
+            }
+        }
+
         try {
             const ledgerOutcome = persistTurnLedgersAfterCommit({
                 discoveryOpsPresent: Array.isArray(turnResult.discoveryOps) && turnResult.discoveryOps.length > 0,

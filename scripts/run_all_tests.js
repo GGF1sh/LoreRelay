@@ -113,6 +113,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_turn_artifact_commit_atomicity.js' },
     { category: 'unit', file: 'test_cross_ledger_partial_failure.js' },
     { category: 'unit', file: 'test_runtime_turn_result_acceptance.js' },
+    { category: 'unit', file: 'test_runtime_accepted_replay_guard.js' },
     { category: 'unit', file: 'test_turn_ledger_valid_noop.js' },
     { category: 'unit', file: 'test_ledger_sanitization.js' },
     { category: 'unit', file: 'test_campaign_job_board_core.js' },

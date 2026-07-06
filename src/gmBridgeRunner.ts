@@ -49,6 +49,7 @@ import {
     type VscodeLmGmJson,
 } from './vscodeLmTurnResultCore';
 import type { VscodeLmProfileOptions } from './connectionProfileCore';
+import { ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
 
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
@@ -1116,6 +1117,11 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     const workspacePath = getWorkspacePath();
     if (!workspacePath) {
         vscode.window.showErrorMessage('LoreRelay: Workspace not found.');
+        return false;
+    }
+    const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'provider-dispatch');
+    if (leaseConflict) {
+        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
         return false;
     }
 

@@ -44,6 +44,7 @@ import {
     setAgenticBridgeBusy,
 } from './gmBridgeRunner';
 import { notifyRemoteGmBusy } from './remotePlayServer';
+import { ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
 
 export interface AgenticBridgeResult {
     handled: boolean;
@@ -231,6 +232,16 @@ export async function maybeInvokeAgenticBridge(
             success: false,
             fallbackToSingleStage: agenticCfg.fallbackToSingleStage,
             fallbackReason: 'workspace unavailable or untrusted',
+        };
+    }
+    const leaseConflict = ensureAcceptedTurnWriterLease(cwd, 'agentic-provider-dispatch');
+    if (leaseConflict) {
+        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+        return {
+            handled: true,
+            success: false,
+            fallbackToSingleStage: false,
+            fallbackReason: 'writer conflict',
         };
     }
 

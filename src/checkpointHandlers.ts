@@ -29,6 +29,10 @@ import { invokeGmBridge, fallbackToClipboard, resetGmBridgeSessions } from './gm
 import { runSkillScript } from './skillScriptRunner';
 import { computeAndSetArchiveMilestone } from './gmPromptBuilder';
 import { commitGameState } from './stateManager';
+import {
+    ensureAcceptedTurnWriterLease,
+    rotateAcceptedTurnTimelineEpoch,
+} from './acceptedTurnReplayGuard';
 
 export interface CheckpointHandlerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -63,6 +67,21 @@ function readGameStateFromDisk(statePath: string): Record<string, unknown> | nul
 
 function writeGameStateToDisk(statePath: string, state: Record<string, unknown>): void {
     commitGameState(state, { mergeProfile: 'replace' });
+}
+
+function prepareTimelineRestore(ws: string, reason: string): boolean {
+    const leaseConflict = ensureAcceptedTurnWriterLease(ws, reason);
+    if (leaseConflict) {
+        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+        return false;
+    }
+    try {
+        rotateAcceptedTurnTimelineEpoch(ws);
+        return true;
+    } catch (e) {
+        vscode.window.showErrorMessage(`LoreRelay: Failed to rotate replay epoch. ${String(e)}`);
+        return false;
+    }
 }
 
 export async function handleEditEntry(id: string, content: string): Promise<void> {
@@ -241,6 +260,9 @@ export async function handleUndoLastTurn(): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToUndo'));
         return;
     }
+    if (!prepareTimelineRestore(ws, 'undo-last-turn')) {
+        return;
+    }
     setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
     saveHistoryToDisk();
     resetGmBridgeSessions();
@@ -260,6 +282,9 @@ export async function handleRestoreToTurn(entryId: string): Promise<void> {
     const result = truncateHistoryToGmEntry(getGameEntryHistory(), entryId);
     if (!result) {
         vscode.window.showWarningMessage(t('extension.warning.rewindNotFound'));
+        return;
+    }
+    if (!prepareTimelineRestore(ws, 'restore-to-turn')) {
         return;
     }
     setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
@@ -298,6 +323,9 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
     const cp = loadCheckpointFile(ws, checkpointId);
     if (!cp?.history?.length) {
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
+        return;
+    }
+    if (!prepareTimelineRestore(ws, 'restore-checkpoint')) {
         return;
     }
     setGameEntryHistoryWithSeenIds(cp.history);
@@ -339,6 +367,9 @@ export async function handleRegenerateLastTurn(): Promise<void> {
     }
     if (!lastUserAction) {
         vscode.window.showWarningMessage(t('extension.warning.noTurnToRegenerate'));
+        return;
+    }
+    if (!prepareTimelineRestore(ws, 'regenerate-last-turn')) {
         return;
     }
     setGameEntryHistoryWithSeenIds(trimmed);

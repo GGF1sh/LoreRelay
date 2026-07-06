@@ -42,6 +42,7 @@ export const TURN_AUTHORITATIVE_ROOT_KEYS = [
     'summary',
     'diceRequest',
     'hiddenState',
+    'runtimeAcceptedTurn',
     'director',
     'partyDirector',
     'world',

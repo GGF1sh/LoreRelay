@@ -4,6 +4,10 @@ import { spawn } from 'child_process';
 import { getWorkspacePath } from './workspacePaths';
 import { getGameEntryHistory } from './gameStateSync';
 import * as fs from 'fs';
+import {
+    ensureAcceptedTurnWriterLease,
+    rotateAcceptedTurnTimelineEpoch,
+} from './acceptedTurnReplayGuard';
 
 function runGit(args: string[], cwd: string): Promise<{ stdout: string, stderr: string, code: number }> {
     return new Promise((resolve) => {
@@ -34,6 +38,21 @@ const GITIGNORE_DEFAULT = [
 // after a decline; the persisted gitAutoCommitInterval=0 update (below) is
 // what actually prevents ensureGitInit from being reached again.
 let initConsentAsked = false;
+
+function prepareTimelineGitRestore(cwd: string, reason: string): boolean {
+    const leaseConflict = ensureAcceptedTurnWriterLease(cwd, reason);
+    if (leaseConflict) {
+        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+        return false;
+    }
+    try {
+        rotateAcceptedTurnTimelineEpoch(cwd);
+        return true;
+    } catch (e) {
+        vscode.window.showErrorMessage(`LoreRelay: Failed to rotate replay epoch. ${String(e)}`);
+        return false;
+    }
+}
 
 async function promptGitInitConsent(cwd: string): Promise<boolean> {
     const choice = await vscode.window.showWarningMessage(
@@ -160,6 +179,9 @@ export async function branchFromTurn(turnId: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Cannot find commit for Turn ${turnIndex}`);
         return false;
     }
+    if (!prepareTimelineGitRestore(cwd, 'git-branch-from-turn')) {
+        return false;
+    }
     
     const branchName = `timeline/turn_${turnIndex}_${Date.now()}`;
     const { code, stderr } = await runGit(['checkout', '-b', branchName, hash], cwd);
@@ -241,6 +263,9 @@ export async function switchToBranch(branchName: string): Promise<boolean> {
     const exists = await runGit(['rev-parse', '--verify', '--quiet', `refs/heads/${branchName}`], cwd);
     if (exists.code !== 0) {
         vscode.window.showErrorMessage(`LoreRelay: Branch "${branchName}" no longer exists.`);
+        return false;
+    }
+    if (!prepareTimelineGitRestore(cwd, 'git-switch-timeline-branch')) {
         return false;
     }
 

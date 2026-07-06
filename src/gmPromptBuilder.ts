@@ -138,14 +138,22 @@ import { sanitizeVlmDescription } from './vlmQueueCore';
 import { buildContextInspectorReport } from './contextInspectorCore';
 import {
     buildSection,
+    estimateTokens,
     finalizeBreakdown,
     previewText,
+    type CategoryBudgetShadowReport,
     type PromptContextBreakdown,
     type PromptContextSection,
     type PromptLoreMatch,
     type PromptMemoryMatch,
     type PromptBudgetLimitSpec
 } from './promptContext';
+import {
+    allocateContextBudgets,
+    type AllocationResult,
+    type ContextCategory,
+    type ContextCategoryInput,
+} from './contextEngineBudgeterCore';
 import {
     createPromptDeliveryReceipt,
     createPromptReceiptAckWorkItem,
@@ -190,6 +198,7 @@ export interface ProductionPromptAssembly {
     receipt: PromptDeliveryReceipt;
     selectedSpecs: PromptContextCandidateSpec[];
     policy: PromptBudgetPolicy;
+    shadowReport: CategoryBudgetShadowReport;
 }
 
 interface PromptReceiptAckFailure {
@@ -215,6 +224,65 @@ export interface GmPromptBuilderDeps {
 
 let deps: GmPromptBuilderDeps | undefined;
 let lastArchivePromptMilestone = 0;
+
+const CATEGORY_BUDGET_SHADOW_ORDER: ReadonlyArray<ContextCategory> = Object.freeze([
+    'system_rules',
+    'current_scene',
+    'speaker_identity',
+    'relationships',
+    'relevant_memories',
+    'world_information',
+    'recent_events',
+    'flexible_pool',
+]);
+
+const CATEGORY_BUDGET_SHADOW_BUDGETS: Readonly<Record<ContextCategory, {
+    min: number;
+    target: number;
+    max: number;
+    borrowUnused: boolean;
+}>> = Object.freeze({
+    system_rules: { min: 2000, target: 2000, max: 2000, borrowUnused: false },
+    current_scene: { min: 800, target: 2000, max: 2500, borrowUnused: true },
+    speaker_identity: { min: 500, target: 1000, max: 1500, borrowUnused: true },
+    relationships: { min: 300, target: 1000, max: 1500, borrowUnused: true },
+    relevant_memories: { min: 800, target: 2000, max: 3000, borrowUnused: true },
+    world_information: { min: 500, target: 1500, max: 2000, borrowUnused: true },
+    recent_events: { min: 300, target: 1000, max: 1500, borrowUnused: true },
+    flexible_pool: { min: 0, target: 1500, max: 1500, borrowUnused: true },
+});
+
+const CATEGORY_BUDGET_SHADOW_CATEGORY_BY_CHUNK_ID: Readonly<Record<string, ContextCategory>> = Object.freeze({
+    gameRules: 'system_rules',
+    narrativeTime: 'system_rules',
+    director: 'current_scene',
+    partyDirector: 'current_scene',
+    travelEncounters: 'current_scene',
+    livingWorldTravel: 'current_scene',
+    summary: 'relevant_memories',
+    chronicle: 'recent_events',
+    saga: 'relevant_memories',
+    memory: 'relevant_memories',
+    lorebook: 'relevant_memories',
+    worldForge: 'world_information',
+    worldState: 'world_information',
+    worldChangeSummary: 'recent_events',
+    npcRegistry: 'relationships',
+    livingWorldNpcBonds: 'relationships',
+    livingWorldPlayerBonds: 'relationships',
+    livingWorldFactionRelations: 'relationships',
+    campaignKit: 'world_information',
+    discoveryLedger: 'world_information',
+    campaignJobBoard: 'world_information',
+    campaignResources: 'world_information',
+    settlement: 'world_information',
+    vehicles: 'world_information',
+    mobileBase: 'world_information',
+    vision: 'current_scene',
+    party: 'speaker_identity',
+    domain: 'world_information',
+    guild: 'world_information',
+});
 
 export function initGmPromptBuilder(builderDeps: GmPromptBuilderDeps): void {
     deps = builderDeps;
@@ -1574,6 +1642,11 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         emptyIds: assembly.emptyIds,
         orderedIds: assembly.orderedIds,
     });
+    const shadowReport = buildCategoryBudgetShadowReport(
+        assembly.specs,
+        buildSelectedPromptSpecs(assembly.specs, targetChars),
+        policy.targetTokens
+    );
 
     return finalizeBreakdown(
         assembly.sections,
@@ -1588,7 +1661,8 @@ export function buildGmPromptBreakdown(playerAction: string): PromptContextBreak
         },
         buildPromptBudgetLimitSpecs(policy),
         contextInspector,
-        assembly.worldStateParseWarnings
+        assembly.worldStateParseWarnings,
+        shadowReport
     );
 }
 
@@ -1832,19 +1906,223 @@ function buildSelectedPromptSpecs(
         .filter((spec): spec is PromptContextCandidateSpec => Boolean(spec));
 }
 
+function mapChunkIdToShadowCategory(chunkId: string): ContextCategory {
+    return CATEGORY_BUDGET_SHADOW_CATEGORY_BY_CHUNK_ID[chunkId] ?? 'flexible_pool';
+}
+
+function buildShadowCategoryInputs(
+    candidateSpecs: readonly PromptContextChunkSpec[]
+): ContextCategoryInput[] {
+    const inputs = new Map<ContextCategory, ContextCategoryInput>();
+    for (const categoryId of CATEGORY_BUDGET_SHADOW_ORDER) {
+        const budget = CATEGORY_BUDGET_SHADOW_BUDGETS[categoryId];
+        inputs.set(categoryId, {
+            categoryId,
+            budget: {
+                min: budget.min,
+                target: budget.target,
+                max: budget.max,
+                borrowUnused: budget.borrowUnused,
+            },
+            candidates: [],
+        });
+    }
+
+    for (const spec of candidateSpecs) {
+        const categoryId = mapChunkIdToShadowCategory(spec.id);
+        const input = inputs.get(categoryId);
+        if (!input) {
+            continue;
+        }
+        input.candidates.push({
+            id: spec.id,
+            relevanceScore: spec.priority,
+            lodVariants: [{
+                lod: 1,
+                text: spec.text,
+                tokenCost: estimateTokens(spec.text),
+            }],
+        });
+    }
+
+    return [...inputs.values()];
+}
+
+function createFrozenShadowReportFailure(
+    targetTokens: number,
+    candidateSpecs: readonly PromptContextChunkSpec[],
+    productionSelectedSpecs: readonly PromptContextChunkSpec[],
+    error: unknown
+): CategoryBudgetShadowReport {
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    return Object.freeze({
+        version: 1 as const,
+        status: 'failed' as const,
+        targetTokens,
+        totalCandidateCount: candidateSpecs.length,
+        productionSelectedCount: productionSelectedSpecs.length,
+        productionTokenEstimate: productionSelectedSpecs.reduce((sum, spec) => sum + estimateTokens(spec.text), 0),
+        failureMessage,
+    });
+}
+
+function createFrozenShadowReportSuccess(input: {
+    targetTokens: number;
+    candidateSpecs: readonly PromptContextChunkSpec[];
+    productionSelectedSpecs: readonly PromptContextChunkSpec[];
+    shadowSelectedIds: string[];
+    shadowTokenEstimate: number;
+}): CategoryBudgetShadowReport {
+    const perCategoryCandidateCounts: Record<string, number> = {};
+    const perCategoryProductionSelectedCounts: Record<string, number> = {};
+    const perCategoryShadowSelectedCounts: Record<string, number> = {};
+
+    for (const categoryId of CATEGORY_BUDGET_SHADOW_ORDER) {
+        perCategoryCandidateCounts[categoryId] = 0;
+        perCategoryProductionSelectedCounts[categoryId] = 0;
+        perCategoryShadowSelectedCounts[categoryId] = 0;
+    }
+
+    for (const spec of input.candidateSpecs) {
+        const categoryId = mapChunkIdToShadowCategory(spec.id);
+        perCategoryCandidateCounts[categoryId] += 1;
+    }
+
+    const productionSelectedIds = input.productionSelectedSpecs.map((spec) => spec.id);
+    for (const spec of input.productionSelectedSpecs) {
+        const categoryId = mapChunkIdToShadowCategory(spec.id);
+        perCategoryProductionSelectedCounts[categoryId] += 1;
+    }
+
+    for (const id of input.shadowSelectedIds) {
+        const categoryId = mapChunkIdToShadowCategory(id);
+        perCategoryShadowSelectedCounts[categoryId] += 1;
+    }
+
+    const perCategoryShadowEvictedCounts: Record<string, number> = {};
+    for (const categoryId of CATEGORY_BUDGET_SHADOW_ORDER) {
+        perCategoryShadowEvictedCounts[categoryId] = Math.max(
+            0,
+            perCategoryCandidateCounts[categoryId] - perCategoryShadowSelectedCounts[categoryId]
+        );
+    }
+
+    const shadowSelectedSet = new Set(input.shadowSelectedIds);
+    const productionSelectedSet = new Set(productionSelectedIds);
+    const overlapIds = productionSelectedIds.filter((id) => shadowSelectedSet.has(id));
+    const productionOnlyIds = productionSelectedIds.filter((id) => !shadowSelectedSet.has(id));
+    const shadowOnlyIds = input.shadowSelectedIds.filter((id) => !productionSelectedSet.has(id));
+
+    return Object.freeze({
+        version: 1 as const,
+        status: 'ok' as const,
+        targetTokens: input.targetTokens,
+        totalCandidateCount: input.candidateSpecs.length,
+        productionSelectedCount: input.productionSelectedSpecs.length,
+        shadowSelectedCount: input.shadowSelectedIds.length,
+        productionTokenEstimate: input.productionSelectedSpecs.reduce((sum, spec) => sum + estimateTokens(spec.text), 0),
+        shadowTokenEstimate: input.shadowTokenEstimate,
+        overlapIds: Object.freeze([...overlapIds]),
+        productionOnlyIds: Object.freeze([...productionOnlyIds]),
+        shadowOnlyIds: Object.freeze([...shadowOnlyIds]),
+        perCategoryCandidateCounts: Object.freeze({ ...perCategoryCandidateCounts }),
+        perCategoryProductionSelectedCounts: Object.freeze({ ...perCategoryProductionSelectedCounts }),
+        perCategoryShadowSelectedCounts: Object.freeze({ ...perCategoryShadowSelectedCounts }),
+        perCategoryShadowEvictedCounts: Object.freeze({ ...perCategoryShadowEvictedCounts }),
+    });
+}
+
+function buildCategoryBudgetShadowReport(
+    candidateSpecs: readonly PromptContextChunkSpec[],
+    productionSelectedSpecs: readonly PromptContextChunkSpec[],
+    targetTokens: number,
+    allocator: (categories: ContextCategoryInput[], totalTokens: number) => AllocationResult[] = allocateContextBudgets
+): CategoryBudgetShadowReport {
+    try {
+        const results = allocator(buildShadowCategoryInputs(candidateSpecs), targetTokens);
+        if (!Array.isArray(results)) {
+            throw new Error('shadow allocator returned invalid top-level result');
+        }
+        if (candidateSpecs.length > 0 && results.length === 0) {
+            throw new Error('shadow allocator returned empty top-level result for non-empty input');
+        }
+        const shadowSelectedIdSet = new Set<string>();
+        let shadowTokenEstimate = 0;
+
+        for (const result of results) {
+            if (!result
+                || typeof result !== 'object'
+                || typeof result.categoryId !== 'string'
+                || !Number.isFinite(result.allocatedTokens)
+                || result.allocatedTokens < 0
+                || !Array.isArray(result.items)) {
+                throw new Error('shadow allocator returned invalid category result');
+            }
+            for (const item of result.items) {
+                if (!item
+                    || typeof item !== 'object'
+                    || typeof item.id !== 'string'
+                    || !Number.isFinite(item.lod)
+                    || typeof item.text !== 'string'
+                    || !Number.isFinite(item.tokenCost)
+                    || item.tokenCost < 0) {
+                    throw new Error(`shadow allocator returned invalid allocated item for category ${result.categoryId}`);
+                }
+                shadowSelectedIdSet.add(item.id);
+                shadowTokenEstimate += item.tokenCost;
+            }
+        }
+
+        const shadowSelectedIds = candidateSpecs
+            .filter((spec) => shadowSelectedIdSet.has(spec.id))
+            .map((spec) => spec.id);
+
+        return createFrozenShadowReportSuccess({
+            targetTokens,
+            candidateSpecs,
+            productionSelectedSpecs,
+            shadowSelectedIds,
+            shadowTokenEstimate,
+        });
+    } catch (error) {
+        return createFrozenShadowReportFailure(targetTokens, candidateSpecs, productionSelectedSpecs, error);
+    }
+}
+
+export function buildCategoryBudgetShadowReportForTests(
+    candidateSpecs: readonly PromptContextChunkSpec[],
+    productionSelectedSpecs: readonly PromptContextChunkSpec[],
+    targetTokens: number,
+    allocator?: (categories: ContextCategoryInput[], totalTokens: number) => AllocationResult[]
+): CategoryBudgetShadowReport {
+    return buildCategoryBudgetShadowReport(candidateSpecs, productionSelectedSpecs, targetTokens, allocator);
+}
+
 /**
  * Receipt authority is created here, after budget selection and before provider transport
  * wrapping. The receipt binds the exact selected assembly, not a mutable later rebuild.
  */
-export function buildProductionPromptAssembly(
+function buildProductionPromptAssemblyInternal(
     playerAction: string,
-    provider: PromptReceiptProvider
+    provider: PromptReceiptProvider,
+    options: {
+        includeShadowReport: boolean;
+        shadowAllocator?: (categories: ContextCategoryInput[], totalTokens: number) => AllocationResult[];
+    }
 ): ProductionPromptAssembly {
     flushScheduledCommercePersist();
     const policy = getPromptBudgetPolicy();
     const candidateMeta = buildPureCandidateSpecsWithMeta(playerAction, policy);
     const targetChars = policy.targetTokens * 4;
     const selectedSpecs = buildSelectedPromptSpecs(candidateMeta.specs, targetChars);
+    const shadowReport = options.includeShadowReport
+        ? buildCategoryBudgetShadowReport(
+            candidateMeta.specs,
+            selectedSpecs,
+            policy.targetTokens,
+            options.shadowAllocator
+        )
+        : createFrozenShadowReportFailure(policy.targetTokens, candidateMeta.specs, selectedSpecs, 'shadow disabled');
     const promptText = selectedSpecs.length
         ? `\n\n${selectedSpecs.map((spec) => spec.text).join('\n\n')}`
         : '';
@@ -1867,7 +2145,38 @@ export function buildProductionPromptAssembly(
         receipt,
         selectedSpecs,
         policy,
+        shadowReport,
     };
+}
+
+/**
+ * Shadow comparison is advisory only. It runs after production selection is fixed and before
+ * provider transport, and its report is attached to this specific assembly result rather than
+ * cached globally, so it cannot rewrite selected IDs, payload, receipt identity, or dispatch.
+ */
+export function buildProductionPromptAssembly(
+    playerAction: string,
+    provider: PromptReceiptProvider
+): ProductionPromptAssembly {
+    return buildProductionPromptAssemblyInternal(playerAction, provider, { includeShadowReport: true });
+}
+
+export function buildProductionPromptAssemblyWithoutShadowForTests(
+    playerAction: string,
+    provider: PromptReceiptProvider
+): ProductionPromptAssembly {
+    return buildProductionPromptAssemblyInternal(playerAction, provider, { includeShadowReport: false });
+}
+
+export function buildProductionPromptAssemblyWithShadowAllocatorForTests(
+    playerAction: string,
+    provider: PromptReceiptProvider,
+    shadowAllocator: (categories: ContextCategoryInput[], totalTokens: number) => AllocationResult[]
+): ProductionPromptAssembly {
+    return buildProductionPromptAssemblyInternal(playerAction, provider, {
+        includeShadowReport: true,
+        shadowAllocator,
+    });
 }
 
 function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {

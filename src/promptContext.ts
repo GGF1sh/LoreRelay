@@ -92,6 +92,36 @@ export interface PromptBudgetLimitSpec {
     limitChars: number;
 }
 
+interface CategoryBudgetShadowReportBase {
+    version: 1;
+    targetTokens: number;
+    totalCandidateCount: number;
+    productionSelectedCount: number;
+    productionTokenEstimate: number;
+}
+
+export interface CategoryBudgetShadowReportSuccess extends CategoryBudgetShadowReportBase {
+    status: 'ok';
+    shadowSelectedCount: number;
+    shadowTokenEstimate: number;
+    overlapIds: ReadonlyArray<string>;
+    productionOnlyIds: ReadonlyArray<string>;
+    shadowOnlyIds: ReadonlyArray<string>;
+    perCategoryCandidateCounts: Readonly<Record<string, number>>;
+    perCategoryProductionSelectedCounts: Readonly<Record<string, number>>;
+    perCategoryShadowSelectedCounts: Readonly<Record<string, number>>;
+    perCategoryShadowEvictedCounts: Readonly<Record<string, number>>;
+}
+
+export interface CategoryBudgetShadowReportFailure extends CategoryBudgetShadowReportBase {
+    status: 'failed';
+    failureMessage: string;
+}
+
+export type CategoryBudgetShadowReport =
+    | CategoryBudgetShadowReportSuccess
+    | CategoryBudgetShadowReportFailure;
+
 export interface PromptContextBreakdown {
     sections: PromptContextSection[];
     memoryBackend: string;
@@ -102,6 +132,7 @@ export interface PromptContextBreakdown {
     totalChars: number;
     totalTokensEstimate: number;
     contextInspector?: ContextInspectorReport;
+    shadowReport?: CategoryBudgetShadowReport;
     /** Bounded human-readable lines from recent world_state parse cap overflow (diagnostic). */
     worldStateParseWarnings?: string[];
 }
@@ -201,7 +232,8 @@ export function finalizeBreakdown(
     budget?: PromptBudgetInfo,
     budgetLimits?: PromptBudgetLimitSpec[],
     contextInspector?: ContextInspectorReport,
-    worldStateParseWarnings?: string[]
+    worldStateParseWarnings?: string[],
+    shadowReport?: CategoryBudgetShadowReport
 ): PromptContextBreakdown {
     const kept = sections.filter((s): s is PromptContextSection => Boolean(s));
     const totalChars = kept.reduce((sum, s) => sum + s.charCount, 0);
@@ -218,6 +250,7 @@ export function finalizeBreakdown(
         totalChars,
         totalTokensEstimate: estimateTokens(kept.map((s) => s.text).join('\n')),
         contextInspector,
+        shadowReport,
         worldStateParseWarnings: worldStateParseWarnings?.length ? worldStateParseWarnings : undefined,
     };
 }

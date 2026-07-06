@@ -47,9 +47,10 @@ function extractFunctionBody(fnName) {
 }
 
 {
-    const assemblyBody = extractFunctionBody('buildProductionPromptAssembly');
+    const assemblyBody = extractFunctionBody('buildProductionPromptAssemblyInternal')
+        || extractFunctionBody('buildProductionPromptAssembly');
     if (!assemblyBody) {
-        fail('buildProductionPromptAssembly not found');
+        fail('buildProductionPromptAssembly core not found');
     } else if (!assemblyBody.includes('buildPureCandidateSpecsWithMeta(')) {
         fail('buildProductionPromptAssembly must use pure candidate specs');
     } else if (!assemblyBody.includes('buildSelectedPromptSpecs(')) {

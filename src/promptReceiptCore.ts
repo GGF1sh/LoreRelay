@@ -36,16 +36,16 @@ export type PromptConsumableAckToken = ChronicleAckToken | WorldChangeSummaryAck
 
 export interface PromptDeliveryReceiptDiagnostics {
     transportPayloadHash?: string;
-    stageTransportPayloadHashes?: Array<{ stage: string; hash: string }>;
+    stageTransportPayloadHashes?: ReadonlyArray<Readonly<{ stage: string; hash: string }>>;
 }
 
 export interface PromptDeliveryReceipt {
-    receiptId: string;
-    provider: PromptReceiptProvider;
-    assemblyDigest: string;
-    selectedChunks: PromptReceiptChunkRecord[];
-    selectedTokens: PromptConsumableAckToken[];
-    diagnostics?: PromptDeliveryReceiptDiagnostics;
+    readonly receiptId: string;
+    readonly provider: PromptReceiptProvider;
+    readonly assemblyDigest: string;
+    readonly selectedChunks: ReadonlyArray<Readonly<PromptReceiptChunkRecord>>;
+    readonly selectedTokens: ReadonlyArray<Readonly<PromptConsumableAckToken>>;
+    readonly diagnostics?: Readonly<PromptDeliveryReceiptDiagnostics>;
 }
 
 export interface TurnResultPromptReceiptMeta {
@@ -106,6 +106,12 @@ export function createPromptAssemblyDigest(input: {
     return hashPromptReceiptText(stableJson(authorityShape));
 }
 
+/**
+ * Receipt authority is immutable from construction onward: chunk records, token records, and
+ * their containing arrays are frozen so no later caller can mutate ACK authority in place after
+ * a callback closure has captured this object. Callers must not rely on being able to reassign
+ * receipt fields; consumption always goes through `createPromptReceiptAckWorkItem` below.
+ */
 export function createPromptDeliveryReceipt(input: {
     receiptId: string;
     provider: PromptReceiptProvider;
@@ -115,31 +121,57 @@ export function createPromptDeliveryReceipt(input: {
     targetTokens: number;
     diagnostics?: PromptDeliveryReceiptDiagnostics;
 }): PromptDeliveryReceipt {
-    return {
+    const assemblyDigest = createPromptAssemblyDigest({
+        selectedChunks: input.selectedChunks,
+        selectedTokens: input.selectedTokens,
+        budgetMode: input.budgetMode,
+        targetTokens: input.targetTokens,
+    });
+    const selectedChunks = Object.freeze(input.selectedChunks.map((chunk) => Object.freeze({
+        id: chunk.id,
+        contentDigest: hashPromptReceiptText(chunk.text),
+        charCount: chunk.text.length,
+        priority: chunk.priority,
+    })));
+    const selectedTokens = Object.freeze(input.selectedTokens.map((token) => Object.freeze({ ...token })));
+    const diagnostics = input.diagnostics
+        ? Object.freeze({
+            transportPayloadHash: input.diagnostics.transportPayloadHash,
+            stageTransportPayloadHashes: input.diagnostics.stageTransportPayloadHashes
+                ? Object.freeze(input.diagnostics.stageTransportPayloadHashes.map((entry) => Object.freeze({ ...entry })))
+                : undefined,
+        })
+        : undefined;
+    return Object.freeze({
         receiptId: input.receiptId,
         provider: input.provider,
-        assemblyDigest: createPromptAssemblyDigest({
-            selectedChunks: input.selectedChunks,
-            selectedTokens: input.selectedTokens,
-            budgetMode: input.budgetMode,
-            targetTokens: input.targetTokens,
-        }),
-        selectedChunks: input.selectedChunks.map((chunk) => ({
-            id: chunk.id,
-            contentDigest: hashPromptReceiptText(chunk.text),
-            charCount: chunk.text.length,
-            priority: chunk.priority,
-        })),
-        selectedTokens: input.selectedTokens.map((token) => ({ ...token })),
-        diagnostics: input.diagnostics
-            ? {
-                transportPayloadHash: input.diagnostics.transportPayloadHash,
-                stageTransportPayloadHashes: input.diagnostics.stageTransportPayloadHashes
-                    ? input.diagnostics.stageTransportPayloadHashes.map((entry) => ({ ...entry }))
-                    : undefined,
-            }
-            : undefined,
-    };
+        assemblyDigest,
+        selectedChunks,
+        selectedTokens,
+        diagnostics,
+    });
+}
+
+/**
+ * Immutable ACK work item copied from the receipt at Accepted-callback-invocation time. ACK must
+ * iterate this copy, never the live receipt reference held elsewhere, so a post-capture mutation
+ * attempt on the original receipt/token arrays (even one that bypasses freeze via a fresh object)
+ * cannot change what tokens actually get applied.
+ */
+export interface PromptReceiptAckWorkItem {
+    readonly receiptId: string;
+    readonly provider: PromptReceiptProvider;
+    readonly assemblyDigest: string;
+    readonly selectedTokens: ReadonlyArray<Readonly<PromptConsumableAckToken>>;
+}
+
+export function createPromptReceiptAckWorkItem(receipt: PromptDeliveryReceipt): PromptReceiptAckWorkItem {
+    return Object.freeze({
+        receiptId: receipt.receiptId,
+        provider: receipt.provider,
+        assemblyDigest: receipt.assemblyDigest,
+        selectedTokens: Object.freeze(receipt.selectedTokens.map((token) => Object.freeze({ ...token }))),
+    });
 }
 
 export function buildTurnResultPromptReceiptMeta(

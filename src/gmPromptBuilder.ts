@@ -148,6 +148,7 @@ import {
 } from './promptContext';
 import {
     createPromptDeliveryReceipt,
+    createPromptReceiptAckWorkItem,
     createPromptReceiptId,
     hashPromptReceiptText,
     turnResultMatchesPromptReceipt,
@@ -1902,6 +1903,10 @@ function applyWorldChangeSummaryAckToken(token: WorldChangeSummaryAckToken): boo
  * ACK happens only after Accepted and trusted receipt correlation. We intentionally keep this
  * process-local only: after restart there is no durable receipt recovery and skipped ACKs may repeat,
  * but we do not guess with latest-pending or heuristic consume.
+ *
+ * The receipt itself is frozen at construction, but ACK additionally copies it into an immutable
+ * work item here so authority never depends on iterating a live receipt reference that some other
+ * holder of the original object could still be pointing at.
  */
 export function acknowledgePromptReceiptAfterAccepted(
     receipt: PromptDeliveryReceipt,
@@ -1920,26 +1925,39 @@ export function acknowledgePromptReceiptAfterAccepted(
         };
     }
 
+    const ackWorkItem = createPromptReceiptAckWorkItem(receipt);
     const applyChronicle = options.applyChronicleToken ?? applyChronicleAckToken;
     const applyWorldChangeSummary = options.applyWorldChangeSummaryToken ?? applyWorldChangeSummaryAckToken;
     const attemptedTokenIds: string[] = [];
     const succeededTokenIds: string[] = [];
     const failedTokenIds: string[] = [];
 
-    for (const token of receipt.selectedTokens) {
+    for (const token of ackWorkItem.selectedTokens) {
         attemptedTokenIds.push(token.tokenId);
         try {
-            if (token.chunkId === 'chronicle') {
-                applyChronicle(token);
+            // A `false` return means the token failed to apply (e.g. persistence rejected the
+            // marker/generation transition). It must not be treated as success: a false-returning
+            // token is compensation-queue failure, but it must not block the remaining token's
+            // independent ACK attempt.
+            const applied = token.chunkId === 'chronicle'
+                ? applyChronicle(token)
+                : applyWorldChangeSummary(token);
+            if (applied) {
+                clearPromptAckFailure(ackWorkItem.receiptId, token.tokenId);
+                succeededTokenIds.push(token.tokenId);
             } else {
-                applyWorldChangeSummary(token);
+                recordPromptAckFailure({
+                    receiptId: ackWorkItem.receiptId,
+                    tokenId: token.tokenId,
+                    chunkId: token.chunkId,
+                    message: 'ACK returned false',
+                });
+                failedTokenIds.push(token.tokenId);
             }
-            clearPromptAckFailure(receipt.receiptId, token.tokenId);
-            succeededTokenIds.push(token.tokenId);
         } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
             recordPromptAckFailure({
-                receiptId: receipt.receiptId,
+                receiptId: ackWorkItem.receiptId,
                 tokenId: token.tokenId,
                 chunkId: token.chunkId,
                 message,

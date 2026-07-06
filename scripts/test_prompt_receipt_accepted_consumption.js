@@ -409,6 +409,85 @@ try {
     }
 
     writeFixture();
+    const mutationReceipt = buildProductionPromptAssembly('mutation-sanity', 'grok');
+    const capturedAccepted = acceptedTurnForReceipt(mutationReceipt.receipt);
+    const originalTokenIds = mutationReceipt.receipt.selectedTokens.map((token) => token.tokenId).slice().sort();
+    let mutationThrew = false;
+    try {
+        mutationReceipt.receipt.selectedTokens.push({
+            tokenId: 'injected-token',
+            chunkId: 'worldChangeSummary',
+            summaryTurn: 999,
+            sourceDigest: 'injected-digest',
+        });
+    } catch (e) {
+        mutationThrew = true;
+    }
+    for (const token of mutationReceipt.receipt.selectedTokens) {
+        try {
+            token.sourceTurn = -1;
+            token.summaryTurn = -1;
+            token.sourceDigest = 'tampered';
+        } catch (e) {
+            mutationThrew = true;
+        }
+    }
+    if (!mutationThrew) {
+        fail('mutating a frozen receipt/token in strict mode should throw TypeError');
+    } else {
+        ok('receipt authority is frozen: post-capture mutation attempts throw instead of silently applying');
+    }
+    const mutationAck = acknowledgePromptReceiptAfterAccepted(mutationReceipt.receipt, capturedAccepted);
+    const afterMutation = readWorldState();
+    const ackedTokenIds = mutationAck.succeededTokenIds.slice().sort();
+    if (!mutationAck.correlated
+        || ackedTokenIds.join(',') !== originalTokenIds.join(',')
+        || mutationReceipt.receipt.selectedTokens.length !== originalTokenIds.length
+        || afterMutation.lastInjectedChronicleTurn !== 1
+        || afterMutation.lastInjectedWorldChangeSummaryTurn !== 3) {
+        fail(`post-capture mutation must not alter ACK authority: ${JSON.stringify({ ackedTokenIds, originalTokenIds, afterMutation })}`);
+    } else {
+        ok('mutating original receipt/token arrays after callback capture cannot alter ACK authority');
+    }
+
+    writeFixture();
+    const chronicleFalseReceipt = buildProductionPromptAssembly('chronicle-false-return', 'grok');
+    const chronicleFalseAck = acknowledgePromptReceiptAfterAccepted(
+        chronicleFalseReceipt.receipt,
+        acceptedTurnForReceipt(chronicleFalseReceipt.receipt),
+        { applyChronicleToken: () => false }
+    );
+    const afterChronicleFalse = readWorldState();
+    if (!chronicleFalseAck.correlated
+        || !chronicleFalseAck.failedTokenIds.some((id) => chronicleFalseReceipt.receipt.selectedTokens.some((t) => t.tokenId === id && t.chunkId === 'chronicle'))
+        || afterChronicleFalse.lastInjectedChronicleTurn !== undefined
+        || afterChronicleFalse.lastInjectedWorldChangeSummaryTurn !== 3
+        || peekPromptAckCompensationQueueForTests().length === 0) {
+        fail(`Chronicle ACK false-return must be treated as failure and not block WCS: ${JSON.stringify({ chronicleFalseAck, afterChronicleFalse })}`);
+    } else {
+        ok('Chronicle ACK false-return is a failure; WCS ACK still attempted and Chronicle remains failed');
+    }
+
+    writeFixture();
+    const wcsFalseReceipt = buildProductionPromptAssembly('wcs-false-return', 'grok');
+    const wcsFalseAcceptedTurn = acceptedTurnForReceipt(wcsFalseReceipt.receipt);
+    const wcsFalseAck = acknowledgePromptReceiptAfterAccepted(
+        wcsFalseReceipt.receipt,
+        wcsFalseAcceptedTurn,
+        { applyWorldChangeSummaryToken: () => false }
+    );
+    const afterWcsFalse = readWorldState();
+    if (!wcsFalseAck.correlated
+        || !wcsFalseAck.failedTokenIds.some((id) => wcsFalseReceipt.receipt.selectedTokens.some((t) => t.tokenId === id && t.chunkId === 'worldChangeSummary'))
+        || afterWcsFalse.lastInjectedChronicleTurn !== 1
+        || afterWcsFalse.lastInjectedWorldChangeSummaryTurn !== undefined
+        || peekPromptAckCompensationQueueForTests().length === 0) {
+        fail(`WCS ACK false-return must be treated as failure without revoking Accepted: ${JSON.stringify({ wcsFalseAck, afterWcsFalse })}`);
+    } else {
+        ok('WCS ACK false-return is a failure; Accepted remains true and WCS remains failed');
+    }
+
+    writeFixture();
     let acceptedCallbackCount = 0;
     const launchFailureReceipt = buildProductionPromptAssembly('launch-failure', 'grok');
     const prevState = turnResultFallback.beginGmRun((acceptedTurn) => {

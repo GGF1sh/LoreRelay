@@ -2040,11 +2040,23 @@ function buildCategoryBudgetShadowReport(
 ): CategoryBudgetShadowReport {
     try {
         const results = allocator(buildShadowCategoryInputs(candidateSpecs), targetTokens);
+        if (!Array.isArray(results)) {
+            throw new Error('shadow allocator returned invalid top-level result');
+        }
+        if (candidateSpecs.length > 0 && results.length === 0) {
+            throw new Error('shadow allocator returned empty top-level result for non-empty input');
+        }
         const shadowSelectedIdSet = new Set<string>();
         let shadowTokenEstimate = 0;
 
         for (const result of results) {
+            if (!result || typeof result !== 'object' || typeof result.categoryId !== 'string' || !Array.isArray(result.items)) {
+                throw new Error('shadow allocator returned invalid category result');
+            }
             for (const item of result.items) {
+                if (!item || typeof item !== 'object' || typeof item.id !== 'string' || typeof item.tokenCost !== 'number') {
+                    throw new Error(`shadow allocator returned invalid allocated item for category ${result.categoryId}`);
+                }
                 shadowSelectedIdSet.add(item.id);
                 shadowTokenEstimate += item.tokenCost;
             }

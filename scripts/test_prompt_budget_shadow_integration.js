@@ -176,6 +176,28 @@ function sumValues(record) {
     return Object.values(record || {}).reduce((sum, value) => sum + Number(value || 0), 0);
 }
 
+function assertProductionUnchanged(candidate, baseline, label) {
+    const candidateIds = candidate.selectedSpecs.map((spec) => spec.id);
+    const baselineIds = baseline.selectedSpecs.map((spec) => spec.id);
+    if (JSON.stringify(candidateIds) !== JSON.stringify(baselineIds)) {
+        fail(`${label}: production selected IDs changed`);
+        return false;
+    }
+    if (candidate.promptText !== baseline.promptText) {
+        fail(`${label}: promptText changed`);
+        return false;
+    }
+    if (candidate.receipt.assemblyDigest !== baseline.receipt.assemblyDigest) {
+        fail(`${label}: receipt assemblyDigest changed`);
+        return false;
+    }
+    if (JSON.stringify(candidate.receipt.selectedTokens) !== JSON.stringify(baseline.receipt.selectedTokens)) {
+        fail(`${label}: receipt selectedTokens changed`);
+        return false;
+    }
+    return true;
+}
+
 function normalizeReportIds(report) {
     if (!report || report.status !== 'ok') {
         return null;
@@ -282,6 +304,83 @@ try {
         fail(`failed shadow evaluation must retain the thrown message: ${JSON.stringify(failing.shadowReport)}`);
     } else {
         ok('shadow failure cannot block production and is explicitly reported as failure');
+    }
+
+    const radicallyDivergent = buildProductionPromptAssemblyWithShadowAllocatorForTests(
+        'look around',
+        'grok',
+        (categories) => categories.map((category, idx) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: category.candidates.length ? 1 : 0,
+            items: category.candidates.length && idx % 2 === 0
+                ? [{
+                    id: category.candidates[0].id,
+                    lod: 0,
+                    text: '',
+                    tokenCost: 1,
+                }]
+                : [],
+        }))
+    );
+    if (assertProductionUnchanged(radicallyDivergent, baseline, 'divergent allocator')) {
+        ok('radically divergent valid allocator leaves production IDs / payload / digest unchanged');
+    }
+    if (!radicallyDivergent.shadowReport || radicallyDivergent.shadowReport.status !== 'ok') {
+        fail(`radically divergent valid allocator should still produce a valid success report: ${JSON.stringify(radicallyDivergent.shadowReport)}`);
+    }
+
+    const emptyTopLevel = buildProductionPromptAssemblyWithShadowAllocatorForTests(
+        'look around',
+        'grok',
+        () => []
+    );
+    if (assertProductionUnchanged(emptyTopLevel, baseline, 'empty top-level allocator')) {
+        ok('empty top-level allocator leaves production unchanged');
+    }
+    if (!emptyTopLevel.shadowReport || emptyTopLevel.shadowReport.status !== 'failed') {
+        fail(`empty top-level allocator must produce explicit failed report: ${JSON.stringify(emptyTopLevel.shadowReport)}`);
+    } else if (!String(emptyTopLevel.shadowReport.failureMessage || '').trim()) {
+        fail('empty top-level allocator failed report must include non-empty failureMessage');
+    } else if (!Object.isFrozen(emptyTopLevel.shadowReport)) {
+        fail('empty top-level allocator failed report must be frozen');
+    } else {
+        ok('empty top-level allocator returns frozen failed report with failureMessage');
+    }
+
+    const invalidTopLevel = buildProductionPromptAssemblyWithShadowAllocatorForTests(
+        'look around',
+        'grok',
+        () => ({ nope: true })
+    );
+    if (assertProductionUnchanged(invalidTopLevel, baseline, 'invalid top-level allocator')) {
+        ok('invalid top-level allocator leaves production unchanged');
+    }
+    if (!invalidTopLevel.shadowReport || invalidTopLevel.shadowReport.status !== 'failed') {
+        fail(`invalid top-level allocator must produce explicit failed report: ${JSON.stringify(invalidTopLevel.shadowReport)}`);
+    } else if (!String(invalidTopLevel.shadowReport.failureMessage || '').trim()) {
+        fail('invalid top-level allocator failed report must include non-empty failureMessage');
+    } else {
+        ok('invalid top-level allocator produces explicit failed report');
+    }
+
+    const validZeroSelection = buildProductionPromptAssemblyWithShadowAllocatorForTests(
+        'look around',
+        'grok',
+        (categories) => categories.map((category) => ({
+            categoryId: category.categoryId,
+            allocatedTokens: 0,
+            items: [],
+        }))
+    );
+    if (assertProductionUnchanged(validZeroSelection, baseline, 'valid zero-selection allocator')) {
+        ok('valid zero-selection allocator leaves production unchanged');
+    }
+    if (!validZeroSelection.shadowReport || validZeroSelection.shadowReport.status !== 'ok') {
+        fail(`valid zero-selection allocator must remain successful if category results are valid: ${JSON.stringify(validZeroSelection.shadowReport)}`);
+    } else if (validZeroSelection.shadowReport.shadowSelectedCount !== 0) {
+        fail(`valid zero-selection allocator should report zero selected items: ${JSON.stringify(validZeroSelection.shadowReport)}`);
+    } else {
+        ok('valid allocator output with zero selected items remains a valid success');
     }
 
     const syntheticCandidatesA = [

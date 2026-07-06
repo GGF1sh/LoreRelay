@@ -5496,7 +5496,9 @@ function escapeHtml(str) {
             }
         });
         tabs.querySelectorAll('.inspector-lane-btn').forEach((btn) => {
-            btn.classList.toggle('is-active', btn.getAttribute('data-lane') === lane);
+            const isSelected = btn.getAttribute('data-lane') === lane;
+            btn.classList.toggle('is-active', isSelected);
+            btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
         });
     }
 

@@ -44,6 +44,7 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` fleet ops, garage panel, mobile base (MB1–MB5) with World Intent bridge.
 - 🧭 **State Orchestrator (SO1–SO2):** Ledger descriptor inventory and read-only GM-turn transaction planning gate.
 - 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector chunk lifecycle trace (included / truncated / evicted, etc.).
+- ✨ **Genesis Guide (Unreleased):** A staged wizard from the Start Hub's "Start building your world" — pick genre, playstyle, danger level, bookkeeping depth, protagonist creation method, and whether you want generated images, all by clicking chips. Previews the systems it will enable and the image-generation prompt live, then applies a safe patch to `game_rules.json` when you click "Start with this." Jumps straight into character creation or SillyTavern card import based on the protagonist method you picked. Falls back to prompt-copy gracefully if ComfyUI isn't running. Design: [`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
 
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -78,15 +79,22 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
   <img src="docs/assets/screenshot-status.png" width="720" alt="Adventure Log chat with GM narration, HP/MP/Affection bars, inventory and skill tags" />
 </p>
 
-| Inspector (with Debug Trace) | Remote Play | Party Director |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector with Debug Trace timeline" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
+<p align="center">
+  <img src="docs/assets/screenshot-inspector.png" width="260" alt="Turn Inspector with Debug Trace timeline" /><br />
+  <sub>Turn Inspector — dice ledger, statePatch, and Debug Trace visualized per turn</sub>
+</p>
 
-| Lorebook | ComfyUI | World Map |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-lorebook.png" width="240" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.png" width="240" alt="ComfyUI scene generation" /> | <img src="docs/assets/screenshot-world-map.png" width="240" alt="Parchment world map with pins" /> |
+| Remote Play | ComfyUI |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-remote-play.png" width="330" alt="Remote Play LAN join panel with player/spectator URLs and connected clients" /> | <img src="docs/assets/screenshot-comfyui.png" width="200" alt="ComfyUI-generated scene image inline in the Adventure Log" /> |
+| Join from a phone/tablet over LAN — player/spectator URLs and a connected-client list | GM narration turned into a scene image on the spot, shown inline in chat |
 
-See [`DEMO.md`](DEMO.md) to replace mockups with real screenshots or a demo GIF.
+| Party Director | Lorebook | World Map |
+|:---:|:---:|:---:|
+| <img src="docs/assets/screenshot-party-director.png" width="230" alt="Party Director member cards with verbosity sliders and relationship values" /> | <img src="docs/assets/screenshot-lorebook.png" width="230" alt="Lorebook editor with enabled, pinned, and disabled entries" /> | <img src="docs/assets/screenshot-world-map.png" width="230" alt="World tab Parchment map with region labels and location pins" /> |
+| Tune NPC verbosity, mute/force-speak, and relationship values | Browse, edit, and pin ST-compatible lorebook entries | Explored regions and location pins on the parchment map |
+
+All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`). See [`DEMO.md`](DEMO.md) for the capture method.
 
 ---
 

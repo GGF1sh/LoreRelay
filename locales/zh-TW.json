@@ -1426,6 +1426,8 @@
   "webview.genesis.summary.editRowHint": "點擊可重新選擇此項",
   "webview.genesis.summary.startBtn": "🚀 以此設置開始",
   "webview.genesis.summary.closeAndStartBtn": "🚪 關閉並準備冒險",
+  "webview.genesis.summary.closeAndCreateBtn": "🧑 關閉並建立主角",
+  "webview.genesis.summary.closeAndImportBtn": "📥 關閉並匯入卡片",
   "webview.genesis.summary.advancedBtn": "⚙️ 前往進階設置",
   "webview.genesis.summary.restartBtn": "↺ 從頭開始",
   "webview.genesis.summary.appliedToast": "設置已送出。",

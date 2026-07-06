@@ -42,6 +42,7 @@
 - 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` 车队管理、车库面板、移动基地（MB1–MB5）与 World Intent 桥接。
 - 🧭 **State Orchestrator (SO1–SO2):** 台账描述符清单与 GM 回合只读 transaction planning gate。
 - 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector 中的 chunk 生命周期追踪（included / truncated / evicted 等）。
+- ✨ **Genesis Guide (Unreleased):** 从 Start Hub 的「开始创建世界」进入的分步向导——只需点选即可决定世界观、玩法、危险度、管理深度、主角创建方式以及是否需要生成图像。实时预览将启用的系统与图像生成提示词，点击「以此设置开始」后安全地写入 `game_rules.json`。根据所选的主角创建方式，可直接跳转到角色创建或 SillyTavern 卡片导入。ComfyUI 不可用时会自然回退为复制提示词。设计文档：[`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
 
 架构详解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -76,13 +77,20 @@ GM 每回合应写入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
   <img src="docs/assets/screenshot-status.png" width="720" alt="冒险日志聊天界面，含GM叙事、HP/MP/好感度条、物品栏与技能标签" />
 </p>
 
-| Inspector（含 Debug Trace） | Remote Play | Party Director |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-inspector.png" width="240" alt="Turn Inspector with Debug Trace timeline" /> | <img src="docs/assets/screenshot-remote-play.png" width="240" alt="Remote Play" /> | <img src="docs/assets/screenshot-party-director.png" width="240" alt="Party Director" /> |
+<p align="center">
+  <img src="docs/assets/screenshot-inspector.png" width="260" alt="Turn Inspector with Debug Trace timeline" /><br />
+  <sub>Turn Inspector — 按回合可视化骰子台账、statePatch 与 Debug Trace</sub>
+</p>
 
-| Lorebook | ComfyUI | World Map |
+| Remote Play | ComfyUI |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-remote-play.png" width="330" alt="Remote Play LAN join panel with player/spectator URLs and connected clients" /> | <img src="docs/assets/screenshot-comfyui.png" width="200" alt="ComfyUI-generated scene image inline in the Adventure Log" /> |
+| 通过局域网从手机/平板加入，玩家/观战者链接与已连接客户端列表 | GM 描写即时生成场景图像，直接显示在聊天中 |
+
+| Party Director | Lorebook | World Map |
 |:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-lorebook.png" width="240" alt="Lorebook editor" /> | <img src="docs/assets/screenshot-comfyui.png" width="240" alt="ComfyUI scene generation" /> | <img src="docs/assets/screenshot-world-map.png" width="240" alt="Parchment world map with pins" /> |
+| <img src="docs/assets/screenshot-party-director.png" width="230" alt="Party Director member cards with verbosity sliders and relationship values" /> | <img src="docs/assets/screenshot-lorebook.png" width="230" alt="Lorebook editor with enabled, pinned, and disabled entries" /> | <img src="docs/assets/screenshot-world-map.png" width="230" alt="World tab Parchment map with region labels and location pins" /> |
+| 调整 NPC 发言量、静音/强制发言与关系值 | 浏览、编辑并置顶 ST 兼容的 Lorebook 条目 | 显示已探索区域与地点图钉 |
 
 替换为真实截图或 GIF 的步骤见 [`DEMO.md`](DEMO.md)。
 

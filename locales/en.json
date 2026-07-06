@@ -1426,6 +1426,8 @@
   "webview.genesis.summary.editRowHint": "Click to change this answer",
   "webview.genesis.summary.startBtn": "🚀 Start with this",
   "webview.genesis.summary.closeAndStartBtn": "🚪 Close and get ready to play",
+  "webview.genesis.summary.closeAndCreateBtn": "🧑 Close and create your protagonist",
+  "webview.genesis.summary.closeAndImportBtn": "📥 Close and import your card",
   "webview.genesis.summary.advancedBtn": "⚙️ Advanced settings",
   "webview.genesis.summary.restartBtn": "↺ Start over",
   "webview.genesis.summary.appliedToast": "Setup sent.",

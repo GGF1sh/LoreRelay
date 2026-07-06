@@ -727,11 +727,34 @@ function findGalleryIndexByImagePath(imagePath) {
     });
   }
 
+  // "What happens next" after a successful apply: protagonistMode was only
+  // ever decorative for resolveRulesProfile() (it does not map to any
+  // game_rules key — see src/rulesProfileCore.ts), so acting on it here is a
+  // pure Webview navigation shortcut, not new backend behavior. 'generate'
+  // and 'skip' have no extra action (the GM improvises / user decides later).
+  function protagonistNextStepLabelKey() {
+    switch (state.answers.protagonistMode) {
+      case 'manual': return 'webview.genesis.summary.closeAndCreateBtn';
+      case 'sillytavern': return 'webview.genesis.summary.closeAndImportBtn';
+      default: return 'webview.genesis.summary.closeAndStartBtn';
+    }
+  }
+
+  function runProtagonistNextStep() {
+    closeGenesisGuide();
+    if (state.answers.protagonistMode === 'manual') {
+      window.openCharacterCreator?.(null);
+    } else if (state.answers.protagonistMode === 'sillytavern') {
+      vscode.postMessage({ type: 'importTavernCard' });
+    }
+  }
+
   startBtn.addEventListener('click', () => {
     if (state.applied) {
-      // Second click after a successful apply: just close and hand the user
-      // back to the Start Hub (protagonist creation, demos, etc.).
-      closeGenesisGuide();
+      // Second click after a successful apply: close, then jump straight to
+      // the protagonist step the user already chose (create / import), or
+      // just hand back to the Start Hub for generate/skip.
+      runProtagonistNextStep();
       return;
     }
     const preview = resolvePreview(state.answers);
@@ -756,7 +779,7 @@ function findGalleryIndexByImagePath(imagePath) {
         state.applied = true;
         const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
         appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
-        startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
+        startBtn.textContent = T(protagonistNextStepLabelKey());
         if (Array.isArray(message.warnings) && message.warnings.length > 0) {
           summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
           summaryWarningsEl.classList.remove('hidden');
@@ -3477,12 +3500,24 @@ function updateRemotePlayButton(status) {
   renderRemotePlayPanel(status);
 }
 
+// The panel had an `#remote-play-backdrop` element in index.html from the
+// start, styled identically to the image-gen panel's backdrop, but nothing
+// ever toggled it — so opening Remote Play left the Start Hub / chat log
+// fully visible (and clickable) behind the panel instead of dimming it.
+function syncRemotePlayBackdrop() {
+  const panel = document.getElementById('remote-play-panel');
+  const backdrop = document.getElementById('remote-play-backdrop');
+  if (!panel || !backdrop) { return; }
+  backdrop.classList.toggle('hidden', panel.classList.contains('hidden'));
+}
+
 function renderRemotePlayPanel(status) {
   const panel = document.getElementById('remote-play-panel');
   if (!panel) { return; }
 
   const running = Boolean(status && status.running);
   panel.classList.toggle('hidden', !running);
+  syncRemotePlayBackdrop();
   if (!running) {
     return;
   }
@@ -3521,6 +3556,7 @@ function renderRemotePlayPanel(status) {
 (function initRemotePlayUi() {
   const btn = document.getElementById('remote-play-btn');
   const panel = document.getElementById('remote-play-panel');
+  const backdrop = document.getElementById('remote-play-backdrop');
   const closeBtn = document.getElementById('remote-play-close');
   const stopBtn = document.getElementById('remote-play-stop-btn');
   const copyPlayerBtn = document.getElementById('remote-play-copy-player');
@@ -3531,13 +3567,23 @@ function renderRemotePlayPanel(status) {
   btn.addEventListener('click', () => {
     if (remotePlayActive && panel) {
       panel.classList.toggle('hidden');
+      syncRemotePlayBackdrop();
       return;
     }
     vscode.postMessage({ type: 'toggleRemotePlay' });
   });
 
   if (closeBtn && panel) {
-    closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+    closeBtn.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      syncRemotePlayBackdrop();
+    });
+  }
+  if (backdrop && panel) {
+    backdrop.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      syncRemotePlayBackdrop();
+    });
   }
   if (stopBtn) {
     stopBtn.addEventListener('click', () => {

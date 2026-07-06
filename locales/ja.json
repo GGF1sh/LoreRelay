@@ -1426,6 +1426,8 @@
   "webview.genesis.summary.editRowHint": "クリックしてこの項目を選び直す",
   "webview.genesis.summary.startBtn": "🚀 この設定で始める",
   "webview.genesis.summary.closeAndStartBtn": "🚪 閉じて冒険の準備へ",
+  "webview.genesis.summary.closeAndCreateBtn": "🧑 閉じて主人公を作成する",
+  "webview.genesis.summary.closeAndImportBtn": "📥 閉じてカードを読み込む",
   "webview.genesis.summary.advancedBtn": "⚙️ 詳細設定へ",
   "webview.genesis.summary.restartBtn": "↺ 最初からやり直す",
   "webview.genesis.summary.appliedToast": "設定を送信しました。",

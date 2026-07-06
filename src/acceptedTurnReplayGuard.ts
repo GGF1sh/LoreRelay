@@ -52,6 +52,7 @@ const hostInstanceId = crypto.randomUUID();
 const processStartedAt = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
 let singleFlight: Promise<unknown> = Promise.resolve();
 let heartbeatTimer: NodeJS.Timeout | undefined;
+let processLocalRestoreRepairLatches = new Map<string, RestoreRepairLatch>();
 
 interface WriterLease {
     schemaVersion: 1;
@@ -121,6 +122,7 @@ export function getAcceptedTurnRestoreRepairLatchPath(workspacePath: string): st
 
 export function resetAcceptedTurnReplayGuardForTests(): void {
     singleFlight = Promise.resolve();
+    processLocalRestoreRepairLatches = new Map();
     if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
         heartbeatTimer = undefined;
@@ -176,7 +178,43 @@ function readRestoreRepairLatch(workspacePath: string): { exists: boolean; latch
     }
 }
 
+function processLocalLatchKey(workspacePath: string): string {
+    return path.resolve(workspacePath);
+}
+
+function installProcessLocalRestoreRepairLatch(
+    workspacePath: string,
+    reason: string,
+    phase: string,
+    scope?: AcceptedTurnScope
+): void {
+    processLocalRestoreRepairLatches.set(processLocalLatchKey(workspacePath), {
+        schemaVersion: RESTORE_REPAIR_LATCH_SCHEMA_VERSION,
+        kind: 'timelineRestoreRepairRequired',
+        createdAt: new Date().toISOString(),
+        reason,
+        phase,
+        ...(scope ? { scope } : {}),
+    });
+}
+
+export function installAcceptedTurnEmergencyRestoreRepairLatchForTests(
+    workspacePath: string,
+    reason = 'test emergency restore repair latch',
+    phase = 'test'
+): void {
+    installProcessLocalRestoreRepairLatch(workspacePath, reason, phase);
+}
+
 export function getAcceptedTurnRestoreRepairLatchOutcome(workspacePath: string): TurnResultFileOutcome | undefined {
+    const processLocalLatch = processLocalRestoreRepairLatches.get(processLocalLatchKey(workspacePath));
+    if (processLocalLatch) {
+        return {
+            kind: 'repairRequired',
+            accepted: false,
+            reason: `timeline restore repair latch is set in process memory: ${processLocalLatch.reason}`,
+        };
+    }
     const state = readRestoreRepairLatch(workspacePath);
     if (!state.exists) {
         return undefined;
@@ -192,6 +230,9 @@ export function getAcceptedTurnRestoreRepairLatchOutcome(workspacePath: string):
 
 function writeRestoreRepairLatch(workspacePath: string, reason: string, phase: string, scope?: AcceptedTurnScope): void {
     ensureRuntimeDir(workspacePath);
+    if (process.env.LORERELAY_RESTORE_REPAIR_LATCH_FAIL_WRITE === '1') {
+        throw new Error('simulated durable restore repair latch write failure');
+    }
     const latch: RestoreRepairLatch = {
         schemaVersion: RESTORE_REPAIR_LATCH_SCHEMA_VERSION,
         kind: 'timelineRestoreRepairRequired',
@@ -204,9 +245,10 @@ function writeRestoreRepairLatch(workspacePath: string, reason: string, phase: s
 }
 
 export function clearAcceptedTurnRestoreRepairLatchForRepair(workspacePath: string): boolean {
+    const processLocalDeleted = processLocalRestoreRepairLatches.delete(processLocalLatchKey(workspacePath));
     const latchPath = getAcceptedTurnRestoreRepairLatchPath(workspacePath);
     if (!fs.existsSync(latchPath)) {
-        return false;
+        return processLocalDeleted;
     }
     fs.unlinkSync(latchPath);
     return true;
@@ -568,12 +610,10 @@ function fileFingerprint(filePath: string): FileFingerprint | undefined {
     }
 }
 
-function fileFingerprintMatches(filePath: string, expected: FileFingerprint | undefined): boolean {
-    if (!expected) {
-        return false;
-    }
-    const current = fileFingerprint(filePath);
+function fingerprintsEqual(current: FileFingerprint | undefined, expected: FileFingerprint | undefined): boolean {
     return Boolean(
+        expected
+        &&
         current
         && current.size === expected.size
         && current.mtimeMs === expected.mtimeMs
@@ -750,9 +790,8 @@ function pauseForWriterLeaseTest(markerEnv: string, resumeEnv: string): void {
     }
 }
 
-function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: WriterLease): boolean {
+function tryAcquireWriterLeaseLock(workspacePath: string, pauseAfterLock: boolean): string | undefined {
     const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
-    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
     const lockToken = crypto.randomUUID();
     const pendingDir = pendingLockDirFor(lockDir, lockToken);
     try {
@@ -760,22 +799,18 @@ function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: Wr
         writeJsonAtomic(path.join(pendingDir, WRITER_LEASE_LOCK_OWNER_FILE), buildLockOwner(lockToken), false);
         fs.renameSync(pendingDir, lockDir);
         if (!lockOwnerMatches(lockDir, lockToken)) {
-            return false;
+            return undefined;
         }
-        pauseForWriterLeaseTest(
-            'LORERELAY_WRITER_LEASE_PAUSE_AFTER_LOCK_FILE',
-            'LORERELAY_WRITER_LEASE_RESUME_AFTER_LOCK_FILE'
-        );
+        if (pauseAfterLock) {
+            pauseForWriterLeaseTest(
+                'LORERELAY_WRITER_LEASE_PAUSE_AFTER_LOCK_FILE',
+                'LORERELAY_WRITER_LEASE_RESUME_AFTER_LOCK_FILE'
+            );
+        }
         if (!lockOwnerMatches(lockDir, lockToken)) {
-            return false;
+            return undefined;
         }
-        writeJsonAtomic(leasePath, buildWriterLease(purpose, lockToken, prior), false);
-        const committed = readLeaseState(leasePath).lease;
-        if (!committed || committed.lockToken !== lockToken || !lockOwnerMatches(lockDir, lockToken)) {
-            return false;
-        }
-        startWriterLeaseHeartbeat(workspacePath);
-        return true;
+        return lockToken;
     } catch {
         try {
             const owner = readLockOwner(lockDir);
@@ -788,8 +823,37 @@ function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: Wr
         } catch {
             // Preserve fail-closed behavior if cleanup is uncertain.
         }
+        return undefined;
+    }
+}
+
+function commitFreshLeaseWithOwnedLock(
+    workspacePath: string,
+    purpose: string,
+    lockToken: string,
+    prior?: WriterLease
+): boolean {
+    const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
+    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
+    try {
+        if (!lockOwnerMatches(lockDir, lockToken)) {
+            return false;
+        }
+        writeJsonAtomic(leasePath, buildWriterLease(purpose, lockToken, prior), false);
+        const committed = readLeaseState(leasePath).lease;
+        if (!committed || committed.lockToken !== lockToken || !lockOwnerMatches(lockDir, lockToken)) {
+            return false;
+        }
+        startWriterLeaseHeartbeat(workspacePath);
+        return true;
+    } catch {
         return false;
     }
+}
+
+function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: WriterLease): boolean {
+    const lockToken = tryAcquireWriterLeaseLock(workspacePath, true);
+    return Boolean(lockToken && commitFreshLeaseWithOwnedLock(workspacePath, purpose, lockToken, prior));
 }
 
 function lockEvidenceAgeMs(lockDir: string, nowMs: number): number | undefined {
@@ -818,26 +882,6 @@ function recoveryDirFor(lockDir: string, reason: string, token: string): string 
     return `${lockDir}.${reason}.${safeToken}.${process.pid}.${Date.now()}.recovered`;
 }
 
-function quarantineLeaseFile(leasePath: string, reason: string): void {
-    if (!fs.existsSync(leasePath)) {
-        return;
-    }
-    const quarantinePath = `${leasePath}.${reason}.${process.pid}.${Date.now()}.quarantined`;
-    fs.renameSync(leasePath, quarantinePath);
-}
-
-function quarantineLeaseFileIfFingerprintMatches(
-    leasePath: string,
-    reason: string,
-    expected: FileFingerprint | undefined
-): boolean {
-    if (!fileFingerprintMatches(leasePath, expected)) {
-        return false;
-    }
-    quarantineLeaseFile(leasePath, reason);
-    return true;
-}
-
 function recoverLockByRename(
     workspacePath: string,
     reason: string,
@@ -859,6 +903,76 @@ function recoverLockByRename(
         return false;
     }
     return true;
+}
+
+function malformedLeaseQuarantinePath(leasePath: string, reason: string): string {
+    return `${leasePath}.${reason}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.quarantined`;
+}
+
+function restoreCapturedLeaseIfSafe(capturedPath: string, leasePath: string): void {
+    try {
+        if (!fs.existsSync(leasePath) && fs.existsSync(capturedPath)) {
+            fs.renameSync(capturedPath, leasePath);
+        }
+    } catch {
+        // Recovery remains fail-closed if the captured authority cannot be restored.
+    }
+}
+
+function captureMalformedLeaseForRecovery(
+    leasePath: string,
+    reason: string,
+    expected: FileFingerprint | undefined
+): string | undefined {
+    const capturedPath = malformedLeaseQuarantinePath(leasePath, reason);
+    try {
+        fs.renameSync(leasePath, capturedPath);
+    } catch {
+        return undefined;
+    }
+    if (!fingerprintsEqual(fileFingerprint(capturedPath), expected)) {
+        restoreCapturedLeaseIfSafe(capturedPath, leasePath);
+        return undefined;
+    }
+    return capturedPath;
+}
+
+function pauseAfterMalformedCaptureForWriterLeaseTest(workspacePath: string, lockToken: string): void {
+    if (process.env.LORERELAY_WRITER_LEASE_RELEASE_LOCK_BEFORE_MALFORMED_CAPTURE_PAUSE === '1') {
+        const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
+        try {
+            if (lockOwnerMatches(lockDir, lockToken)) {
+                fs.rmSync(lockDir, { recursive: true, force: true });
+            }
+        } catch {
+            // Test synchronization hooks must never alter production behavior.
+        }
+    }
+    pauseForWriterLeaseTest(
+        'LORERELAY_WRITER_LEASE_PAUSE_AFTER_MALFORMED_CAPTURE_FILE',
+        'LORERELAY_WRITER_LEASE_RESUME_AFTER_MALFORMED_CAPTURE_FILE'
+    );
+}
+
+function recoverMalformedLeaseWithFreshLock(
+    workspacePath: string,
+    purpose: string,
+    expectedMalformedLease: FileFingerprint | undefined
+): boolean {
+    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
+    const lockToken = tryAcquireWriterLeaseLock(workspacePath, false);
+    if (!lockToken) {
+        return false;
+    }
+    const capturedPath = captureMalformedLeaseForRecovery(leasePath, 'malformed-writer-lease', expectedMalformedLease);
+    if (!capturedPath) {
+        return false;
+    }
+    pauseAfterMalformedCaptureForWriterLeaseTest(workspacePath, lockToken);
+    if (fs.existsSync(leasePath)) {
+        return false;
+    }
+    return commitFreshLeaseWithOwnedLock(workspacePath, purpose, lockToken);
 }
 
 function recoverStaleLease(workspacePath: string, purpose: string, prior: WriterLease): boolean {
@@ -923,15 +1037,7 @@ function recoverOrphanOrMalformedLock(
         return false;
     }
     if (reason === 'malformed') {
-        pauseForWriterLeaseTest(
-            'LORERELAY_WRITER_LEASE_PAUSE_AFTER_RECOVERY_RENAME_FILE',
-            'LORERELAY_WRITER_LEASE_RESUME_AFTER_RECOVERY_RENAME_FILE'
-        );
-    }
-    if (reason === 'malformed') {
-        if (!quarantineLeaseFileIfFingerprintMatches(leasePath, 'malformed-writer-lease', expectedMalformedLease)) {
-            return false;
-        }
+        return recoverMalformedLeaseWithFreshLock(workspacePath, purpose, expectedMalformedLease);
     }
     return tryAcquireFreshLease(workspacePath, purpose);
 }
@@ -1022,12 +1128,10 @@ export function ensureAcceptedTurnWriterLease(
             && malformedAgeMs >= WRITER_LEASE_RECOVERY_GRACE_MS
         ) {
             try {
-                if (!quarantineLeaseFileIfFingerprintMatches(leasePath, 'malformed-writer-lease', malformedFingerprint)) {
+                if (!recoverMalformedLeaseWithFreshLock(workspacePath, purpose, malformedFingerprint)) {
                     return { kind: 'writerConflict', accepted: false, reason: 'writer lease malformed recovery lost compare-and-swap' };
                 }
-                if (tryAcquireFreshLease(workspacePath, purpose)) {
-                    return undefined;
-                }
+                return undefined;
             } catch {
                 return { kind: 'writerConflict', accepted: false, reason: 'writer lease malformed recovery failed' };
             }
@@ -1132,6 +1236,12 @@ export async function runAcceptedTurnTimelineRestoreTransaction<T>(
             try {
                 writeRestoreRepairLatch(workspacePath, reason, 'post-epoch-rotation-restore-mutation', scope);
             } catch (latchError) {
+                installProcessLocalRestoreRepairLatch(
+                    workspacePath,
+                    `${reason}; additionally failed to write durable repair latch: ${latchError instanceof Error ? latchError.message : String(latchError)}`,
+                    'post-epoch-rotation-restore-mutation-emergency',
+                    scope
+                );
                 return {
                     kind: 'repairRequired',
                     accepted: false,

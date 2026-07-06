@@ -12,6 +12,7 @@ const root = path.join(__dirname, '..');
 const outGameStateSync = path.join(root, 'out', 'gameStateSync.js');
 const outStatePatch = path.join(root, 'out', 'statePatch.js');
 const outTurnResultFallback = path.join(root, 'out', 'turnResultFallback.js');
+const outAcceptedTurnReplayGuard = path.join(root, 'out', 'acceptedTurnReplayGuard.js');
 const outAcceptedTurnReplayGuardCore = path.join(root, 'out', 'acceptedTurnReplayGuardCore.js');
 
 let failed = 0;
@@ -715,6 +716,34 @@ async function runAsyncCases() {
         const restartBlocked = await restartedHarness.processFile();
         assert(restartBlocked.kind === 'repairRequired', 'restore repair latch survives gameStateSync restart simulation');
         assert(restartedHarness.processCalls === 0, 'restart latch still blocks processTurnResult');
+    }
+
+    // RUNTIME-003A: process-local emergency restore repair latch blocks watcher TurnResult in the same process.
+    {
+        const harness = loadGameStateSyncHarness({
+            processResponses: [baseTurnResult('should-not-process-emergency')],
+            autoImageRequest: { locationId: 'loc', gmTurn: 4 },
+        });
+        const guard = require(outAcceptedTurnReplayGuard);
+        writeJson(harness.turnResultPath, baseTurnResult('turn-blocked-by-emergency-latch'));
+        guard.installAcceptedTurnEmergencyRestoreRepairLatchForTests(
+            harness.tmpDir,
+            'simulated durable latch write failure',
+            'unit-test'
+        );
+        harness.beginPendingTurn(() => {
+            harness.events.push('callback');
+        });
+        const blocked = await harness.processFile();
+        assert(blocked.kind === 'repairRequired', 'process-local emergency latch returns repairRequired through watcher path');
+        assert(harness.processCalls === 0, 'process-local emergency latch blocks processTurnResult');
+        assert(harness.getHash() === '', 'process-local emergency latch does not commit dedupe hash');
+        assert(harness.handledCount === 0, 'process-local emergency latch does not mark Handled');
+        assert(harness.callbackCount === 0, 'process-local emergency latch does not fire callback');
+        assert(harness.mediaCount === 0 && harness.autoImageCount === 0 && harness.bootstrapCount === 0, 'process-local emergency latch emits no success-only media/auto/bootstrap');
+        assert(harness.postMessages.length === 0, 'process-local emergency latch emits no success UI update');
+        assert(!fs.existsSync(path.join(harness.tmpDir, '.text-adventure', 'runtime', 'accepted_turn_restore_repair_latch.json')), 'process-local emergency latch does not create durable restart proof');
+        guard.resetAcceptedTurnReplayGuardForTests();
     }
 
     // 2,4,5,6,12,13. pre-commit false -> same-hash retry -> success -> duplicate suppression.

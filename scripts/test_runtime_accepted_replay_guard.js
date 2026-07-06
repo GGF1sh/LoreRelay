@@ -588,10 +588,12 @@ async function run() {
         const malformedPause = path.join(malformedRaceDir, 'a-paused.json');
         const malformedResume = path.join(malformedRaceDir, 'a-resume');
         const malformedA = spawnLeaseContender(wsMalformedRace, 'malformed-race-a', {
-            LORERELAY_WRITER_LEASE_PAUSE_AFTER_RECOVERY_RENAME_FILE: malformedPause,
-            LORERELAY_WRITER_LEASE_RESUME_AFTER_RECOVERY_RENAME_FILE: malformedResume,
+            LORERELAY_WRITER_LEASE_PAUSE_AFTER_MALFORMED_CAPTURE_FILE: malformedPause,
+            LORERELAY_WRITER_LEASE_RESUME_AFTER_MALFORMED_CAPTURE_FILE: malformedResume,
+            LORERELAY_WRITER_LEASE_RELEASE_LOCK_BEFORE_MALFORMED_CAPTURE_PAUSE: '1',
         });
-        assert(await waitForFile(malformedPause), 'malformed recovery contender paused after old lock rename');
+        assert(await waitForFile(malformedPause), 'malformed recovery contender paused after successful malformed lease capture validation');
+        assert(!fs.existsSync(malformedRacePath), 'paused malformed recoverer captured only the old malformed lease generation');
         const malformedB = await spawnLeaseContender(wsMalformedRace, 'malformed-race-b');
         fs.writeFileSync(malformedResume, 'go', 'utf8');
         const malformedAResult = await malformedA;
@@ -602,7 +604,29 @@ async function run() {
             malformedRaceResults.filter((result) => result.success).length === 1,
             `two-process malformed authority recovery has exactly one winner (${JSON.stringify(malformedRaceResults)})`
         );
+        assert(malformedB.success, 'fresh winner can install a valid writer lease while stale recoverer is paused after validation');
+        assert(!malformedAResult.success && malformedAResult.kind === 'writerConflict', 'stale malformed recoverer fails closed after fresh winner appears');
         assert(finalMalformedRaceLease.lockToken === finalMalformedRaceOwner.lockToken, 'malformed recovery loser cannot quarantine/delete fresh winner lease');
+
+        const wsIdenticalReplacement = tempWorkspace();
+        const identicalPath = guard.getAcceptedTurnWriterLeasePath(wsIdenticalReplacement);
+        fs.mkdirSync(path.dirname(identicalPath), { recursive: true });
+        fs.writeFileSync(identicalPath, '{broken', 'utf8');
+        touchOld(identicalPath);
+        const identicalDir = path.join(wsIdenticalReplacement, 'malformed-identical-sync');
+        const identicalPause = path.join(identicalDir, 'a-paused.json');
+        const identicalResume = path.join(identicalDir, 'a-resume');
+        const identicalA = spawnLeaseContender(wsIdenticalReplacement, 'malformed-identical-a', {
+            LORERELAY_WRITER_LEASE_PAUSE_AFTER_MALFORMED_CAPTURE_FILE: identicalPause,
+            LORERELAY_WRITER_LEASE_RESUME_AFTER_MALFORMED_CAPTURE_FILE: identicalResume,
+            LORERELAY_WRITER_LEASE_RELEASE_LOCK_BEFORE_MALFORMED_CAPTURE_PAUSE: '1',
+        });
+        assert(await waitForFile(identicalPause), 'identical replacement attacker waits until stale recoverer validated captured malformed bytes');
+        fs.writeFileSync(identicalPath, '{broken', 'utf8');
+        fs.writeFileSync(identicalResume, 'go', 'utf8');
+        const identicalResult = await identicalA;
+        assert(!identicalResult.success && identicalResult.kind === 'writerConflict', 'stale recoverer fails closed when identical bytes reappear at canonical lease path');
+        assert(fs.readFileSync(identicalPath, 'utf8') === '{broken', 'identical-content replacement remains untouched by stale recoverer');
 
         const wsHeartbeatRace = tempWorkspace();
         const heartbeatDir = path.join(wsHeartbeatRace, 'heartbeat-sync');
@@ -730,6 +754,57 @@ async function run() {
         assert(guard.clearAcceptedTurnRestoreRepairLatchForRepair(wsLatch), 'explicit trusted repair helper clears durable latch');
         const afterExplicitClear = guard.preflightAcceptedTurn(wsLatch, baseTurn({ turnId: 'after-explicit-clear' }), '3'.repeat(64), 'after-clear');
         assert(afterExplicitClear.kind === 'unseen', 'TurnResult can proceed only after explicit latch clear helper');
+
+        const wsEmergencyLatch = tempWorkspace();
+        guard.ensureAcceptedTurnScope(wsEmergencyLatch);
+        let releaseEmergencyRestore;
+        let emergencyQueuedStarted = false;
+        const previousLatchFailEnv = process.env.LORERELAY_RESTORE_REPAIR_LATCH_FAIL_WRITE;
+        try {
+            process.env.LORERELAY_RESTORE_REPAIR_LATCH_FAIL_WRITE = '1';
+            const emergencyRestore = guard.runAcceptedTurnTimelineRestoreTransaction(wsEmergencyLatch, 'restore-emergency-latch-failure', async () => {
+                writeJson(path.join(wsEmergencyLatch, 'game_state.json'), { schemaVersion: 2, entries: [], partialRestore: true });
+                await new Promise((resolve) => { releaseEmergencyRestore = resolve; });
+                throw new Error('simulated post-rotation restore failure with latch write failure');
+            });
+            await delay(30);
+            const emergencyQueuedTurn = guard.runAcceptedTurnSingleFlight(async () => {
+                emergencyQueuedStarted = true;
+                assert(!fs.existsSync(guard.getAcceptedTurnRestoreRepairLatchPath(wsEmergencyLatch)), 'forced latch write failure leaves no durable latch for queued TurnResult');
+                return guard.preflightAcceptedTurn(wsEmergencyLatch, baseTurn({ turnId: 'queued-after-emergency-latch' }), '4'.repeat(64), 'queued-emergency');
+            });
+            await delay(60);
+            assert(!emergencyQueuedStarted, 'queued TurnResult waits while failing restore mutation with latch-write failure is in flight');
+            releaseEmergencyRestore();
+            const emergencyRestoreResult = await emergencyRestore;
+            const emergencyQueuedOutcome = await emergencyQueuedTurn;
+            assert(emergencyRestoreResult.kind === 'repairRequired', 'restore failure with durable latch write failure returns repairRequired');
+            assert(!fs.existsSync(guard.getAcceptedTurnRestoreRepairLatchPath(wsEmergencyLatch)), 'durable latch write failure leaves no durable latch file');
+            assert(emergencyQueuedOutcome.kind === 'repairRequired', 'queued TurnResult is blocked by process-local emergency latch');
+            const repeatedEmergencyOutcome = guard.preflightAcceptedTurn(wsEmergencyLatch, baseTurn({ turnId: 'emergency-repeat' }), '5'.repeat(64), 'repeat-emergency');
+            assert(repeatedEmergencyOutcome.kind === 'repairRequired', 'process-local emergency latch is not automatically cleared by another TurnResult preflight');
+            let emergencyProviderBlocked = false;
+            try {
+                guard.ensureAcceptedTurnScope(wsEmergencyLatch);
+            } catch {
+                emergencyProviderBlocked = true;
+            }
+            assert(emergencyProviderBlocked, 'process-local emergency latch blocks provider scope bootstrap');
+            guard.resetAcceptedTurnReplayGuardForTests();
+            assert(!guard.getAcceptedTurnRestoreRepairLatchOutcome(wsEmergencyLatch), 'process-local emergency latch does not masquerade as durable restart proof after explicit process reset');
+        } finally {
+            if (previousLatchFailEnv === undefined) {
+                delete process.env.LORERELAY_RESTORE_REPAIR_LATCH_FAIL_WRITE;
+            } else {
+                process.env.LORERELAY_RESTORE_REPAIR_LATCH_FAIL_WRITE = previousLatchFailEnv;
+            }
+        }
+
+        const wsEmergencyClear = tempWorkspace();
+        guard.installAcceptedTurnEmergencyRestoreRepairLatchForTests(wsEmergencyClear, 'manual repair still required', 'unit-test');
+        assert(guard.getAcceptedTurnRestoreRepairLatchOutcome(wsEmergencyClear)?.kind === 'repairRequired', 'test-installed emergency latch blocks before explicit repair clear');
+        assert(guard.clearAcceptedTurnRestoreRepairLatchForRepair(wsEmergencyClear), 'explicit trusted repair helper clears process-local emergency latch');
+        assert(!guard.getAcceptedTurnRestoreRepairLatchOutcome(wsEmergencyClear), 'process-local emergency latch is cleared only by explicit trusted helper/reset');
 
         const wsGitFail = tempWorkspace();
         guard.ensureAcceptedTurnScope(wsGitFail);

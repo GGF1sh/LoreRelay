@@ -683,6 +683,40 @@ async function runAsyncCases() {
         assert(harness.postMessages.length === 0, 'parse failure emits no success UI update');
     }
 
+    // RUNTIME-003A: durable restore repair latch blocks watcher TurnResult before mutation side effects.
+    {
+        const harness = loadGameStateSyncHarness({
+            processResponses: [baseTurnResult('should-not-process')],
+            autoImageRequest: { locationId: 'loc', gmTurn: 3 },
+        });
+        writeJson(harness.turnResultPath, baseTurnResult('turn-blocked-by-restore-latch'));
+        writeJson(path.join(harness.tmpDir, '.text-adventure', 'runtime', 'accepted_turn_restore_repair_latch.json'), {
+            schemaVersion: 1,
+            kind: 'timelineRestoreRepairRequired',
+            createdAt: new Date().toISOString(),
+            reason: 'simulated post-rotation restore failure',
+            phase: 'unit-test',
+        });
+        harness.beginPendingTurn(() => {
+            harness.events.push('callback');
+        });
+        const blocked = await harness.processFile();
+        assert(blocked.kind === 'repairRequired', 'restore repair latch returns repairRequired through watcher path');
+        assert(harness.processCalls === 0, 'restore repair latch blocks processTurnResult');
+        assert(harness.getHash() === '', 'restore repair latch does not commit dedupe hash');
+        assert(harness.handledCount === 0, 'restore repair latch does not mark Handled');
+        assert(harness.callbackCount === 0, 'restore repair latch does not fire callback');
+        assert(harness.mediaCount === 0 && harness.autoImageCount === 0 && harness.bootstrapCount === 0, 'restore repair latch emits no success-only media/auto/bootstrap');
+        assert(harness.postMessages.length === 0, 'restore repair latch emits no success UI update');
+        const restartedHarness = loadGameStateSyncHarness({
+            tmpDir: harness.tmpDir,
+            processResponses: [baseTurnResult('still-should-not-process')],
+        });
+        const restartBlocked = await restartedHarness.processFile();
+        assert(restartBlocked.kind === 'repairRequired', 'restore repair latch survives gameStateSync restart simulation');
+        assert(restartedHarness.processCalls === 0, 'restart latch still blocks processTurnResult');
+    }
+
     // 2,4,5,6,12,13. pre-commit false -> same-hash retry -> success -> duplicate suppression.
     {
         const turn = baseTurnResult('turn-accept');

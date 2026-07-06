@@ -35,7 +35,13 @@ const ACCEPTED_LEDGER_FILE = 'accepted_turn_ledger.json';
 const WRITER_LEASE_FILE = 'writer_lease.json';
 const WRITER_LEASE_LOCK_DIR = 'writer_lease.lock';
 const WRITER_LEASE_LOCK_OWNER_FILE = 'owner.json';
-const WRITER_LEASE_TIMEOUT_MS = 30_000;
+const WRITER_LEASE_PENDING_PREFIX = `${WRITER_LEASE_LOCK_DIR}.pending.`;
+const RESTORE_REPAIR_LATCH_FILE = 'accepted_turn_restore_repair_latch.json';
+const RESTORE_REPAIR_LATCH_SCHEMA_VERSION = 1;
+const WRITER_LEASE_TIMEOUT_MS = Math.max(
+    50,
+    Number(process.env.LORERELAY_WRITER_LEASE_TIMEOUT_MS) || 30_000
+);
 const WRITER_LEASE_HEARTBEAT_MS = Math.max(
     10,
     Number(process.env.LORERELAY_WRITER_LEASE_HEARTBEAT_MS) || 10_000
@@ -70,6 +76,21 @@ interface WriterLeaseLockOwner {
     lockToken: string;
 }
 
+interface RestoreRepairLatch {
+    schemaVersion: 1;
+    kind: 'timelineRestoreRepairRequired';
+    createdAt: string;
+    reason: string;
+    phase: string;
+    scope?: AcceptedTurnScope;
+}
+
+interface FileFingerprint {
+    size: number;
+    mtimeMs: number;
+    sha256: string;
+}
+
 export function getAcceptedTurnRuntimeDir(workspacePath: string): string {
     return path.join(workspacePath, RUNTIME_DIR);
 }
@@ -94,6 +115,10 @@ export function getAcceptedTurnWriterLeaseLockOwnerPath(workspacePath: string): 
     return path.join(getAcceptedTurnWriterLeaseLockDir(workspacePath), WRITER_LEASE_LOCK_OWNER_FILE);
 }
 
+export function getAcceptedTurnRestoreRepairLatchPath(workspacePath: string): string {
+    return path.join(getAcceptedTurnRuntimeDir(workspacePath), RESTORE_REPAIR_LATCH_FILE);
+}
+
 export function resetAcceptedTurnReplayGuardForTests(): void {
     singleFlight = Promise.resolve();
     if (heartbeatTimer) {
@@ -108,6 +133,83 @@ function readJsonFile(filePath: string): unknown {
 
 function ensureRuntimeDir(workspacePath: string): void {
     fs.mkdirSync(getAcceptedTurnRuntimeDir(workspacePath), { recursive: true });
+}
+
+function parseRestoreRepairLatch(value: unknown): RestoreRepairLatch | undefined {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return undefined;
+    }
+    const raw = value as Record<string, unknown>;
+    if (
+        raw.schemaVersion !== RESTORE_REPAIR_LATCH_SCHEMA_VERSION
+        || raw.kind !== 'timelineRestoreRepairRequired'
+        || typeof raw.createdAt !== 'string'
+        || typeof raw.reason !== 'string'
+        || typeof raw.phase !== 'string'
+    ) {
+        return undefined;
+    }
+    const scope = raw.scope === undefined ? undefined : parseAcceptedTurnScope(raw.scope);
+    if (raw.scope !== undefined && !scope) {
+        return undefined;
+    }
+    return {
+        schemaVersion: RESTORE_REPAIR_LATCH_SCHEMA_VERSION,
+        kind: 'timelineRestoreRepairRequired',
+        createdAt: raw.createdAt,
+        reason: raw.reason,
+        phase: raw.phase,
+        ...(scope ? { scope } : {}),
+    };
+}
+
+function readRestoreRepairLatch(workspacePath: string): { exists: boolean; latch?: RestoreRepairLatch; malformed: boolean } {
+    const latchPath = getAcceptedTurnRestoreRepairLatchPath(workspacePath);
+    if (!fs.existsSync(latchPath)) {
+        return { exists: false, malformed: false };
+    }
+    try {
+        const latch = parseRestoreRepairLatch(readJsonFile(latchPath));
+        return { exists: true, latch, malformed: !latch };
+    } catch {
+        return { exists: true, malformed: true };
+    }
+}
+
+export function getAcceptedTurnRestoreRepairLatchOutcome(workspacePath: string): TurnResultFileOutcome | undefined {
+    const state = readRestoreRepairLatch(workspacePath);
+    if (!state.exists) {
+        return undefined;
+    }
+    return {
+        kind: 'repairRequired',
+        accepted: false,
+        reason: state.latch
+            ? `timeline restore repair latch is set: ${state.latch.reason}`
+            : 'timeline restore repair latch is malformed; manual repair required',
+    };
+}
+
+function writeRestoreRepairLatch(workspacePath: string, reason: string, phase: string, scope?: AcceptedTurnScope): void {
+    ensureRuntimeDir(workspacePath);
+    const latch: RestoreRepairLatch = {
+        schemaVersion: RESTORE_REPAIR_LATCH_SCHEMA_VERSION,
+        kind: 'timelineRestoreRepairRequired',
+        createdAt: new Date().toISOString(),
+        reason,
+        phase,
+        ...(scope ? { scope } : {}),
+    };
+    writeJsonAtomic(getAcceptedTurnRestoreRepairLatchPath(workspacePath), latch, true);
+}
+
+export function clearAcceptedTurnRestoreRepairLatchForRepair(workspacePath: string): boolean {
+    const latchPath = getAcceptedTurnRestoreRepairLatchPath(workspacePath);
+    if (!fs.existsSync(latchPath)) {
+        return false;
+    }
+    fs.unlinkSync(latchPath);
+    return true;
 }
 
 function hasRetainedTurnResult(workspacePath: string): boolean {
@@ -129,6 +231,10 @@ function createAcceptedTurnScope(workspacePath: string): AcceptedTurnScope {
 
 export function ensureAcceptedTurnScope(workspacePath: string): AcceptedTurnScope {
     ensureRuntimeDir(workspacePath);
+    const latch = getAcceptedTurnRestoreRepairLatchOutcome(workspacePath);
+    if (latch) {
+        throw new Error(latch.reason ?? 'timeline restore repair latch is set');
+    }
     const scopePath = getAcceptedTurnScopePath(workspacePath);
     if (fs.existsSync(scopePath)) {
         const parsed = parseAcceptedTurnScope(readJsonFile(scopePath));
@@ -301,6 +407,10 @@ export function preflightAcceptedTurn(
     sourceRawHash?: string,
     observationSource = 'turn_result_file'
 ): AcceptedTurnPreflightResult {
+    const latch = getAcceptedTurnRestoreRepairLatchOutcome(workspacePath);
+    if (latch) {
+        return latch;
+    }
     let scope: AcceptedTurnScope;
     let ledger: AcceptedTurnLedger;
     let identity: AcceptedTurnIdentity;
@@ -442,6 +552,35 @@ function readLockOwner(lockDir: string): WriterLeaseLockOwner | undefined {
     }
 }
 
+function fileFingerprint(filePath: string): FileFingerprint | undefined {
+    try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) {
+            return undefined;
+        }
+        return {
+            size: stat.size,
+            mtimeMs: stat.mtimeMs,
+            sha256: crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
+        };
+    } catch {
+        return undefined;
+    }
+}
+
+function fileFingerprintMatches(filePath: string, expected: FileFingerprint | undefined): boolean {
+    if (!expected) {
+        return false;
+    }
+    const current = fileFingerprint(filePath);
+    return Boolean(
+        current
+        && current.size === expected.size
+        && current.mtimeMs === expected.mtimeMs
+        && current.sha256 === expected.sha256
+    );
+}
+
 function isLeaseRecentlyRenewed(lease: WriterLease, nowMs: number): boolean {
     const renewed = Date.parse(lease.renewedAt);
     return Number.isFinite(renewed) && nowMs - renewed < (lease.leaseTimeoutMs || WRITER_LEASE_TIMEOUT_MS);
@@ -518,6 +657,22 @@ function isLeaseOwnerLive(lease: WriterLease, nowMs: number): boolean {
     return true;
 }
 
+function isLockOwnerLive(owner: WriterLeaseLockOwner, nowMs: number): boolean {
+    const pseudoLease: WriterLease = {
+        schemaVersion: 1,
+        hostInstanceId: owner.hostInstanceId,
+        pid: owner.pid,
+        hostname: owner.hostname,
+        processStartedAt: owner.processStartedAt,
+        acquiredAt: owner.createdAt,
+        renewedAt: owner.createdAt,
+        purpose: 'lock-owner',
+        leaseTimeoutMs: WRITER_LEASE_TIMEOUT_MS,
+        lockToken: owner.lockToken,
+    };
+    return isLeaseOwnerLive(pseudoLease, nowMs);
+}
+
 function isForeignLeaseRecoverable(lease: WriterLease, nowMs: number): boolean {
     if (lease.hostInstanceId === hostInstanceId) {
         return true;
@@ -564,14 +719,61 @@ function lockOwnerMatches(lockDir: string, lockToken: string): boolean {
     return Boolean(owner && owner.lockToken === lockToken && owner.hostInstanceId === hostInstanceId);
 }
 
+function pendingLockDirFor(lockDir: string, lockToken: string): string {
+    const safeToken = lockToken.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    return `${lockDir}.pending.${process.pid}.${safeToken}`;
+}
+
+function sleepSync(ms: number): void {
+    const view = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.wait(view, 0, 0, ms);
+}
+
+function pauseForWriterLeaseTest(markerEnv: string, resumeEnv: string): void {
+    const markerPath = process.env[markerEnv];
+    if (!markerPath) {
+        return;
+    }
+    try {
+        fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+        fs.writeFileSync(markerPath, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }), 'utf8');
+    } catch {
+        // Test synchronization hooks must never alter production behavior.
+    }
+    const resumePath = process.env[resumeEnv];
+    if (!resumePath) {
+        return;
+    }
+    const deadline = Date.now() + 10_000;
+    while (!fs.existsSync(resumePath) && Date.now() < deadline) {
+        sleepSync(10);
+    }
+}
+
 function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: WriterLease): boolean {
     const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
     const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
     const lockToken = crypto.randomUUID();
+    const pendingDir = pendingLockDirFor(lockDir, lockToken);
     try {
-        fs.mkdirSync(lockDir);
-        writeJsonAtomic(path.join(lockDir, WRITER_LEASE_LOCK_OWNER_FILE), buildLockOwner(lockToken), false);
+        fs.mkdirSync(pendingDir);
+        writeJsonAtomic(path.join(pendingDir, WRITER_LEASE_LOCK_OWNER_FILE), buildLockOwner(lockToken), false);
+        fs.renameSync(pendingDir, lockDir);
+        if (!lockOwnerMatches(lockDir, lockToken)) {
+            return false;
+        }
+        pauseForWriterLeaseTest(
+            'LORERELAY_WRITER_LEASE_PAUSE_AFTER_LOCK_FILE',
+            'LORERELAY_WRITER_LEASE_RESUME_AFTER_LOCK_FILE'
+        );
+        if (!lockOwnerMatches(lockDir, lockToken)) {
+            return false;
+        }
         writeJsonAtomic(leasePath, buildWriterLease(purpose, lockToken, prior), false);
+        const committed = readLeaseState(leasePath).lease;
+        if (!committed || committed.lockToken !== lockToken || !lockOwnerMatches(lockDir, lockToken)) {
+            return false;
+        }
         startWriterLeaseHeartbeat(workspacePath);
         return true;
     } catch {
@@ -579,6 +781,9 @@ function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: Wr
             const owner = readLockOwner(lockDir);
             if (owner?.lockToken === lockToken) {
                 fs.rmSync(lockDir, { recursive: true, force: true });
+            }
+            if (fs.existsSync(pendingDir)) {
+                fs.rmSync(pendingDir, { recursive: true, force: true });
             }
         } catch {
             // Preserve fail-closed behavior if cleanup is uncertain.
@@ -619,6 +824,18 @@ function quarantineLeaseFile(leasePath: string, reason: string): void {
     }
     const quarantinePath = `${leasePath}.${reason}.${process.pid}.${Date.now()}.quarantined`;
     fs.renameSync(leasePath, quarantinePath);
+}
+
+function quarantineLeaseFileIfFingerprintMatches(
+    leasePath: string,
+    reason: string,
+    expected: FileFingerprint | undefined
+): boolean {
+    if (!fileFingerprintMatches(leasePath, expected)) {
+        return false;
+    }
+    quarantineLeaseFile(leasePath, reason);
+    return true;
 }
 
 function recoverLockByRename(
@@ -677,7 +894,8 @@ function recoverOrphanOrMalformedLock(
     workspacePath: string,
     purpose: string,
     reason: 'orphan' | 'malformed',
-    nowMs: number
+    nowMs: number,
+    expectedMalformedLease?: FileFingerprint
 ): boolean {
     const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
     const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
@@ -687,6 +905,9 @@ function recoverOrphanOrMalformedLock(
     }
     const originalOwner = readLockOwner(lockDir);
     const originalToken = originalOwner?.lockToken;
+    if (originalOwner && isLockOwnerLive(originalOwner, nowMs)) {
+        return false;
+    }
     const verifyBefore = () => {
         if (!fs.existsSync(lockDir)) {
             return false;
@@ -702,7 +923,15 @@ function recoverOrphanOrMalformedLock(
         return false;
     }
     if (reason === 'malformed') {
-        quarantineLeaseFile(leasePath, 'malformed-writer-lease');
+        pauseForWriterLeaseTest(
+            'LORERELAY_WRITER_LEASE_PAUSE_AFTER_RECOVERY_RENAME_FILE',
+            'LORERELAY_WRITER_LEASE_RESUME_AFTER_RECOVERY_RENAME_FILE'
+        );
+    }
+    if (reason === 'malformed') {
+        if (!quarantineLeaseFileIfFingerprintMatches(leasePath, 'malformed-writer-lease', expectedMalformedLease)) {
+            return false;
+        }
     }
     return tryAcquireFreshLease(workspacePath, purpose);
 }
@@ -779,7 +1008,11 @@ export function ensureAcceptedTurnWriterLease(
     }
 
     if (state.malformed) {
-        if (fs.existsSync(lockDir) && recoverOrphanOrMalformedLock(workspacePath, purpose, 'malformed', nowMs)) {
+        const malformedFingerprint = fileFingerprint(leasePath);
+        if (
+            fs.existsSync(lockDir)
+            && recoverOrphanOrMalformedLock(workspacePath, purpose, 'malformed', nowMs, malformedFingerprint)
+        ) {
             return undefined;
         }
         const malformedAgeMs = fileEvidenceAgeMs(leasePath, nowMs);
@@ -789,7 +1022,9 @@ export function ensureAcceptedTurnWriterLease(
             && malformedAgeMs >= WRITER_LEASE_RECOVERY_GRACE_MS
         ) {
             try {
-                quarantineLeaseFile(leasePath, 'malformed-writer-lease');
+                if (!quarantineLeaseFileIfFingerprintMatches(leasePath, 'malformed-writer-lease', malformedFingerprint)) {
+                    return { kind: 'writerConflict', accepted: false, reason: 'writer lease malformed recovery lost compare-and-swap' };
+                }
                 if (tryAcquireFreshLease(workspacePath, purpose)) {
                     return undefined;
                 }
@@ -893,10 +1128,20 @@ export async function runAcceptedTurnTimelineRestoreTransaction<T>(
             const value = await restoreMutation(scope);
             return { ok: true, scope, value };
         } catch (e) {
+            const reason = `timeline restore failed after epoch rotation; manual repair required before accepting new TurnResult: ${e instanceof Error ? e.message : String(e)}`;
+            try {
+                writeRestoreRepairLatch(workspacePath, reason, 'post-epoch-rotation-restore-mutation', scope);
+            } catch (latchError) {
+                return {
+                    kind: 'repairRequired',
+                    accepted: false,
+                    reason: `${reason}; additionally failed to write durable repair latch: ${latchError instanceof Error ? latchError.message : String(latchError)}`,
+                };
+            }
             return {
                 kind: 'repairRequired',
                 accepted: false,
-                reason: `timeline restore failed after epoch rotation; manual repair required before accepting new TurnResult: ${e instanceof Error ? e.message : String(e)}`,
+                reason,
             };
         }
     });

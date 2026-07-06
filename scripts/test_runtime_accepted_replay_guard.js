@@ -121,7 +121,7 @@ function writeForeignLease(ws, guard, overrides = {}) {
     return { owner, lease };
 }
 
-function spawnLeaseContender(ws, purpose) {
+function spawnLeaseContender(ws, purpose, env = {}) {
     const childScript = `
 const Module = require('module');
 const original = Module.prototype.require;
@@ -138,6 +138,53 @@ console.log(JSON.stringify({ success: !result, kind: result && result.kind, reas
     return new Promise((resolve) => {
         const child = spawn(process.execPath, ['-e', childScript], {
             cwd: root,
+            env: { ...process.env, ...env },
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        child.on('close', (code) => {
+            try {
+                const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+                resolve({ code, stderr, ...JSON.parse(lines[lines.length - 1] || '{}') });
+            } catch (e) {
+                resolve({ code, stderr, success: false, parseError: String(e), stdout });
+            }
+        });
+        child.on('error', (e) => resolve({ code: 1, stderr: String(e), success: false }));
+    });
+}
+
+function spawnLeaseHolder(ws, purpose, readyFile, releaseFile, env = {}) {
+    const childScript = `
+const fs = require('fs');
+const path = require('path');
+const Module = require('module');
+const original = Module.prototype.require;
+Module.prototype.require = function patchedRequire(id) {
+  if (id === 'vscode') {
+    return require(${JSON.stringify(vscodeStubPath)}).createVscodeStub();
+  }
+  return original.apply(this, arguments);
+};
+const guard = require(${JSON.stringify(outGuard)});
+const result = guard.ensureAcceptedTurnWriterLease(${JSON.stringify(ws)}, ${JSON.stringify(purpose)});
+fs.mkdirSync(path.dirname(${JSON.stringify(readyFile)}), { recursive: true });
+fs.writeFileSync(${JSON.stringify(readyFile)}, JSON.stringify({ success: !result, kind: result && result.kind, reason: result && result.reason }), 'utf8');
+const deadline = Date.now() + 10000;
+const timer = setInterval(() => {
+  if (fs.existsSync(${JSON.stringify(releaseFile)}) || Date.now() > deadline) {
+    clearInterval(timer);
+    console.log(JSON.stringify({ success: !result, kind: result && result.kind, reason: result && result.reason }));
+  }
+}, 20);
+`;
+    return new Promise((resolve) => {
+        const child = spawn(process.execPath, ['-e', childScript], {
+            cwd: root,
+            env: { ...process.env, ...env },
             stdio: ['ignore', 'pipe', 'pipe'],
         });
         let stdout = '';
@@ -158,6 +205,24 @@ console.log(JSON.stringify({ success: !result, kind: result && result.kind, reas
 
 function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForFile(filePath, timeoutMs = 5000) {
+    const deadline = Date.now() + timeoutMs;
+    while (!fs.existsSync(filePath) && Date.now() < deadline) {
+        await delay(10);
+    }
+    return fs.existsSync(filePath);
+}
+
+function writeRestoreLatch(ws, reason = 'test latch') {
+    writeJson(path.join(ws, '.text-adventure', 'runtime', 'accepted_turn_restore_repair_latch.json'), {
+        schemaVersion: 1,
+        kind: 'timelineRestoreRepairRequired',
+        createdAt: new Date().toISOString(),
+        reason,
+        phase: 'test',
+    });
 }
 
 function baseTurn(extra = {}) {
@@ -476,6 +541,86 @@ async function run() {
         touchOld(malformedPath);
         const malformedRecovered = guard.ensureAcceptedTurnWriterLease(wsMalformed, 'malformed-old');
         assert(!malformedRecovered, 'old malformed lease is quarantined and safely recovered');
+
+        const wsEmptyRace = tempWorkspace();
+        const emptyRaceResults = await Promise.all([
+            spawnLeaseContender(wsEmptyRace, 'empty-race-a'),
+            spawnLeaseContender(wsEmptyRace, 'empty-race-b'),
+        ]);
+        assert(
+            emptyRaceResults.filter((result) => result.success).length === 1,
+            `two-process empty workspace acquisition has exactly one winner (${JSON.stringify(emptyRaceResults)})`
+        );
+
+        const wsDelayed = tempWorkspace();
+        const delayedDir = path.join(wsDelayed, 'lease-sync');
+        const delayedMarker = path.join(delayedDir, 'a-paused.json');
+        const delayedResume = path.join(delayedDir, 'a-resume');
+        const delayedA = spawnLeaseContender(wsDelayed, 'delayed-initial-a', {
+            LORERELAY_WRITER_LEASE_PAUSE_AFTER_LOCK_FILE: delayedMarker,
+            LORERELAY_WRITER_LEASE_RESUME_AFTER_LOCK_FILE: delayedResume,
+            LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+        });
+        assert(await waitForFile(delayedMarker), 'delayed initial acquirer reached lock-owned pre-lease pause');
+        await delay(350);
+        const delayedB = await spawnLeaseContender(wsDelayed, 'delayed-initial-b', {
+            LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+        });
+        fs.writeFileSync(delayedResume, 'go', 'utf8');
+        const delayedAResult = await delayedA;
+        const delayedResults = [delayedAResult, delayedB];
+        const delayedLease = readJson(guard.getAcceptedTurnWriterLeasePath(wsDelayed));
+        const delayedOwner = readJson(guard.getAcceptedTurnWriterLeaseLockOwnerPath(wsDelayed));
+        assert(
+            delayedResults.filter((result) => result.success).length === 1,
+            `delayed initial acquirer versus orphan recovery has exactly one winner (${JSON.stringify(delayedResults)})`
+        );
+        assert(delayedLease.lockToken === delayedOwner.lockToken, 'delayed initial loser cannot overwrite winner token');
+
+        const wsMalformedRace = tempWorkspace();
+        const malformedRacePath = guard.getAcceptedTurnWriterLeasePath(wsMalformedRace);
+        fs.mkdirSync(guard.getAcceptedTurnWriterLeaseLockDir(wsMalformedRace), { recursive: true });
+        fs.mkdirSync(path.dirname(malformedRacePath), { recursive: true });
+        fs.writeFileSync(malformedRacePath, '{broken', 'utf8');
+        touchOld(guard.getAcceptedTurnWriterLeaseLockDir(wsMalformedRace));
+        touchOld(malformedRacePath);
+        const malformedRaceDir = path.join(wsMalformedRace, 'malformed-sync');
+        const malformedPause = path.join(malformedRaceDir, 'a-paused.json');
+        const malformedResume = path.join(malformedRaceDir, 'a-resume');
+        const malformedA = spawnLeaseContender(wsMalformedRace, 'malformed-race-a', {
+            LORERELAY_WRITER_LEASE_PAUSE_AFTER_RECOVERY_RENAME_FILE: malformedPause,
+            LORERELAY_WRITER_LEASE_RESUME_AFTER_RECOVERY_RENAME_FILE: malformedResume,
+        });
+        assert(await waitForFile(malformedPause), 'malformed recovery contender paused after old lock rename');
+        const malformedB = await spawnLeaseContender(wsMalformedRace, 'malformed-race-b');
+        fs.writeFileSync(malformedResume, 'go', 'utf8');
+        const malformedAResult = await malformedA;
+        const malformedRaceResults = [malformedAResult, malformedB];
+        const finalMalformedRaceLease = readJson(guard.getAcceptedTurnWriterLeasePath(wsMalformedRace));
+        const finalMalformedRaceOwner = readJson(guard.getAcceptedTurnWriterLeaseLockOwnerPath(wsMalformedRace));
+        assert(
+            malformedRaceResults.filter((result) => result.success).length === 1,
+            `two-process malformed authority recovery has exactly one winner (${JSON.stringify(malformedRaceResults)})`
+        );
+        assert(finalMalformedRaceLease.lockToken === finalMalformedRaceOwner.lockToken, 'malformed recovery loser cannot quarantine/delete fresh winner lease');
+
+        const wsHeartbeatRace = tempWorkspace();
+        const heartbeatDir = path.join(wsHeartbeatRace, 'heartbeat-sync');
+        const heartbeatReady = path.join(heartbeatDir, 'ready.json');
+        const heartbeatRelease = path.join(heartbeatDir, 'release');
+        const heartbeatHolder = spawnLeaseHolder(wsHeartbeatRace, 'long-provider-heartbeat', heartbeatReady, heartbeatRelease, {
+            LORERELAY_WRITER_LEASE_HEARTBEAT_MS: '25',
+            LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+        });
+        assert(await waitForFile(heartbeatReady), 'long provider heartbeat holder acquired writer lease');
+        await delay(450);
+        const heartbeatContender = await spawnLeaseContender(wsHeartbeatRace, 'heartbeat-contender', {
+            LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+        });
+        fs.writeFileSync(heartbeatRelease, 'done', 'utf8');
+        const heartbeatHolderResult = await heartbeatHolder;
+        assert(heartbeatHolderResult.success, 'long provider heartbeat holder remains successful beyond timeout');
+        assert(heartbeatContender.kind === 'writerConflict', 'separate contender cannot take live heartbeat owner beyond timeout');
     }
 
     // V5: restore coordinator quarantines before epoch rotation and aborts if quarantine fails.
@@ -548,6 +693,52 @@ async function run() {
             ['git-branch-from-turn', 'git-switch-timeline-branch'].every((reason) => gitSource.includes(`runTimelineGitRestore(cwd, '${reason}'`)),
             'Git branch-from-turn and branch switch use full restore transaction wrapper'
         );
+
+        const wsLatch = tempWorkspace();
+        guard.ensureAcceptedTurnScope(wsLatch);
+        let releaseFailingRestore;
+        let queuedStarted = false;
+        const failingRestore = guard.runAcceptedTurnTimelineRestoreTransaction(wsLatch, 'restore-latch-failure', async () => {
+            writeJson(path.join(wsLatch, 'game_state.json'), { schemaVersion: 2, entries: [], partialRestore: true });
+            await new Promise((resolve) => { releaseFailingRestore = resolve; });
+            throw new Error('simulated post-rotation restore failure');
+        });
+        await delay(30);
+        const queuedTurn = guard.runAcceptedTurnSingleFlight(async () => {
+            queuedStarted = true;
+            assert(fs.existsSync(guard.getAcceptedTurnRestoreRepairLatchPath(wsLatch)), 'durable repair latch exists before queued TurnResult runs');
+            return guard.preflightAcceptedTurn(wsLatch, baseTurn({ turnId: 'queued-after-restore-fail' }), '1'.repeat(64), 'queued');
+        });
+        await delay(60);
+        assert(!queuedStarted, 'queued TurnResult waits while failing restore mutation is in flight');
+        releaseFailingRestore();
+        const restoreFailure = await failingRestore;
+        const queuedOutcome = await queuedTurn;
+        assert(restoreFailure.kind === 'repairRequired', 'post-rotation restore failure returns repairRequired');
+        assert(fs.existsSync(guard.getAcceptedTurnRestoreRepairLatchPath(wsLatch)), 'post-rotation restore failure leaves durable repair latch');
+        assert(queuedOutcome.kind === 'repairRequired', 'queued TurnResult after restore failure is blocked by latch');
+        guard.resetAcceptedTurnReplayGuardForTests();
+        const restartBlocked = guard.preflightAcceptedTurn(wsLatch, baseTurn({ turnId: 'after-restart-latch' }), '2'.repeat(64), 'restart');
+        assert(restartBlocked.kind === 'repairRequired', 'durable repair latch survives process-local reset/restart simulation');
+        let providerScopeBlocked = false;
+        try {
+            guard.ensureAcceptedTurnScope(wsLatch);
+        } catch {
+            providerScopeBlocked = true;
+        }
+        assert(providerScopeBlocked, 'durable repair latch blocks provider scope bootstrap');
+        assert(guard.clearAcceptedTurnRestoreRepairLatchForRepair(wsLatch), 'explicit trusted repair helper clears durable latch');
+        const afterExplicitClear = guard.preflightAcceptedTurn(wsLatch, baseTurn({ turnId: 'after-explicit-clear' }), '3'.repeat(64), 'after-clear');
+        assert(afterExplicitClear.kind === 'unseen', 'TurnResult can proceed only after explicit latch clear helper');
+
+        const wsGitFail = tempWorkspace();
+        guard.ensureAcceptedTurnScope(wsGitFail);
+        const asyncGitFailure = await guard.runAcceptedTurnTimelineRestoreTransaction(wsGitFail, 'git-switch-timeline-branch', async () => {
+            await delay(20);
+            throw new Error('simulated async git checkout failure');
+        });
+        assert(asyncGitFailure.kind === 'repairRequired', 'async Git-style post-transition failure returns repairRequired');
+        assert(fs.existsSync(guard.getAcceptedTurnRestoreRepairLatchPath(wsGitFail)), 'async Git-style failure writes durable repair latch');
     }
 
     // V5: Git runtime authority is ignored by initialization and tracked authority is detectable.

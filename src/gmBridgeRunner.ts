@@ -49,7 +49,11 @@ import {
     type VscodeLmGmJson,
 } from './vscodeLmTurnResultCore';
 import type { VscodeLmProfileOptions } from './connectionProfileCore';
-import { ensureAcceptedTurnScope, ensureAcceptedTurnWriterLease } from './acceptedTurnReplayGuard';
+import {
+    ensureAcceptedTurnScope,
+    ensureAcceptedTurnWriterLease,
+    getAcceptedTurnRestoreRepairLatchOutcome,
+} from './acceptedTurnReplayGuard';
 
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
@@ -1117,6 +1121,11 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     const workspacePath = getWorkspacePath();
     if (!workspacePath) {
         vscode.window.showErrorMessage('LoreRelay: Workspace not found.');
+        return false;
+    }
+    const restoreLatch = getAcceptedTurnRestoreRepairLatchOutcome(workspacePath);
+    if (restoreLatch) {
+        vscode.window.showErrorMessage(`LoreRelay: ${restoreLatch.reason ?? 'Timeline restore requires repair.'}`);
         return false;
     }
     const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'provider-dispatch');

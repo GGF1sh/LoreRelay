@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `933252c` (PROMPT-001B merged)
-**Control Artifacts Synced Through:** `c628952` (PROMPT-001B merged → post-merge smoke required)
+**Control Artifacts Synced Through:** `062932e` (PROMPT-001B post-merge smoke blocked by install anomaly)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -31,7 +31,7 @@
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **PROMPT** | | | | | | | | |
 | `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging merged + smoke passed） | P1 | Critical | **BLOCKED (Waiting for PROMPT-001C)** | `PROMPT-001C, RUNTIME-002A` | `gmPromptBuilder.ts` + targeted tests | - | - |
-| `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **POST_MERGE_SMOKE** | `PROMPT-001A` | merged at `933252c`; smoke pending | Codex GPT-5.4 High | Codex GPT-5.4 Medium |
+| `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **BLOCKED (Post-merge install anomaly diagnosis)** | `PROMPT-001A` | merged at `933252c`; source smoke passed; `npm ci` anomaly | Codex GPT-5.4 High | Codex GPT-5.4 Medium |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
 | `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | CONFIRMED | `PROMPT-001A, B, C` | `contextEngineBudgeterCore.ts` | Antigravity | |

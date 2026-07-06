@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `933252c` (PROMPT-001B merged)
-**Control Artifacts Synced Through:** `88eb2f1` (PROMPT-001B post-merge re-smoke passed → done)
+**Control Artifacts Synced Through:** `b059911` (PROMPT-001C gate accepted → adversarial review)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -32,7 +32,7 @@
 | **PROMPT** | | | | | | | | |
 | `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging merged + smoke passed） | P1 | Critical | **BLOCKED (Waiting for PROMPT-001C)** | `PROMPT-001C, RUNTIME-002A` | `gmPromptBuilder.ts` + targeted tests | - | - |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **DONE** (`933252c`; re-smoke `222/222`) | `PROMPT-001A` | merged + post-merge re-smoke passed | - | - |
-| `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | CONFIRMED | `PROMPT-001A, B, RUNTIME-002A` | | ChatGPT | Gemini |
+| `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | **ADVERSARIAL_REVIEW** | `PROMPT-001A, B, RUNTIME-002A` | receipt/prompt/provider/Accepted correlation | ChatGPT GPT-5.5 High | Gemini 3.1 Pro Deep |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
 | `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | CONFIRMED | `PROMPT-001A, B, C` | `contextEngineBudgeterCore.ts` | Antigravity | |
 | **TEMP** | | | | | | | | |

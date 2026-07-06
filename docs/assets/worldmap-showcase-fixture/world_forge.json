@@ -1,0 +1,330 @@
+{
+  "format": "lorerelay-world-forge/1.0",
+  "meta": {
+    "worldName": "The Shattered Crown",
+    "theme": "fantasy",
+    "worldSeed": "worldmap-showcase-2026",
+    "generatedAt": "2026-07-06T00:00:00Z",
+    "generationMethod": "manual"
+  },
+  "geography": {
+    "regions": [
+      {
+        "id": "r_crownhaven",
+        "name": "Crownhaven Reach",
+        "description": "The walled royal seat, wheat terraces and river docks radiating out from the throne.",
+        "type": "urban",
+        "dangerLevel": 1,
+        "x": 420,
+        "y": 430,
+        "biome": "city",
+        "connectedTo": ["r_northmarch", "r_aurelian", "r_sylvewood", "r_deepfen"]
+      },
+      {
+        "id": "r_northmarch",
+        "name": "The Northmarch",
+        "description": "A frozen frontier of watch-forts and border levies holding the line against the Dragonspine.",
+        "type": "wilderness",
+        "dangerLevel": 4,
+        "x": 380,
+        "y": 150,
+        "biome": "snow",
+        "connectedTo": ["r_crownhaven", "r_dragonspine"]
+      },
+      {
+        "id": "r_aurelian",
+        "name": "Aurelian Spire",
+        "description": "A vertical mage-city of floating study-halls and arcane markets built around a spire of white stone.",
+        "type": "urban",
+        "dangerLevel": 2,
+        "x": 660,
+        "y": 380,
+        "biome": "city",
+        "connectedTo": ["r_crownhaven", "r_dragonspine", "r_shatteredfront"]
+      },
+      {
+        "id": "r_sylvewood",
+        "name": "Sylvewood Realm",
+        "description": "An ancient forest kingdom of tree-throne courts, older than Crownhaven's crown.",
+        "type": "forest",
+        "dangerLevel": 3,
+        "x": 190,
+        "y": 420,
+        "biome": "forest",
+        "connectedTo": ["r_crownhaven", "r_saltmere", "r_cinderwastes"]
+      },
+      {
+        "id": "r_valdrakon",
+        "name": "Valdrakon Empire",
+        "description": "The southern empire's garrison provinces, all iron roads and legion camps.",
+        "type": "urban",
+        "dangerLevel": 3,
+        "x": 700,
+        "y": 690,
+        "biome": "plains",
+        "connectedTo": ["r_shatteredfront", "r_saltmere", "r_deepfen"]
+      },
+      {
+        "id": "r_saltmere",
+        "name": "Saltmere Coast",
+        "description": "A free port coastline of smugglers, tide markets, and one very old drowned temple.",
+        "type": "ocean",
+        "dangerLevel": 2,
+        "x": 300,
+        "y": 760,
+        "biome": "coast",
+        "connectedTo": ["r_sylvewood", "r_valdrakon", "r_deepfen"]
+      },
+      {
+        "id": "r_dragonspine",
+        "name": "Dragonspine Range",
+        "description": "A jagged mountain wall where wyrms still nest above the tree line.",
+        "type": "mountains",
+        "dangerLevel": 8,
+        "x": 800,
+        "y": 170,
+        "biome": "mountain",
+        "connectedTo": ["r_northmarch", "r_aurelian"]
+      },
+      {
+        "id": "r_shatteredfront",
+        "name": "The Shattered Front",
+        "description": "A contested war border where Aurelian and Valdrakon claims still bleed into each other.",
+        "type": "ruins",
+        "dangerLevel": 9,
+        "x": 840,
+        "y": 550,
+        "biome": "wasteland",
+        "hazard": "corrupted",
+        "connectedTo": ["r_aurelian", "r_valdrakon"]
+      },
+      {
+        "id": "r_deepfen",
+        "name": "The Deep Fen",
+        "description": "A sunken marsh riddled with sinkholes leading down into an older, buried city.",
+        "type": "wilderness",
+        "dangerLevel": 6,
+        "x": 480,
+        "y": 620,
+        "biome": "swamp",
+        "connectedTo": ["r_crownhaven", "r_valdrakon", "r_saltmere"]
+      },
+      {
+        "id": "r_cinderwastes",
+        "name": "Cinder Wastes",
+        "description": "A grey, ash-blown expanse past the old maps' edge. No expedition has returned with a full survey.",
+        "type": "wilderness",
+        "dangerLevel": 9,
+        "x": 110,
+        "y": 700,
+        "biome": "wasteland",
+        "hazard": "storm",
+        "connectedTo": ["r_sylvewood"]
+      }
+    ],
+    "locations": [
+      {
+        "id": "loc_crownhaven_palace",
+        "name": "Crownhaven Palace",
+        "regionId": "r_crownhaven",
+        "description": "Seat of the Crown, its terraced gardens overlooking the river docks.",
+        "type": "settlement",
+        "population": 42000,
+        "factionControl": "faction_kingdom",
+        "services": ["inn", "market", "temple", "guild-hall"]
+      },
+      {
+        "id": "loc_ironward_keep",
+        "name": "Ironward Keep",
+        "regionId": "r_northmarch",
+        "description": "A frontier fortress garrisoned against raids out of the Dragonspine foothills.",
+        "type": "settlement",
+        "population": 1800,
+        "factionControl": "faction_kingdom",
+        "services": ["inn", "smith", "barracks"]
+      },
+      {
+        "id": "loc_frostfang_watch",
+        "name": "Frostfang Watchtower",
+        "regionId": "r_northmarch",
+        "description": "A lone signal tower on the last ridge before wyrm territory.",
+        "type": "landmark"
+      },
+      {
+        "id": "loc_arcanum",
+        "name": "The Aurelian Arcanum",
+        "regionId": "r_aurelian",
+        "description": "A floating academy of battle-mages and cartographers, chartered to map the Dragonspine.",
+        "type": "settlement",
+        "population": 9000,
+        "factionControl": "faction_arcanum",
+        "services": ["market", "enchanter", "library"]
+      },
+      {
+        "id": "loc_sylvewood_grove",
+        "name": "Sylvewood Grove-Throne",
+        "regionId": "r_sylvewood",
+        "description": "The living-tree court of the Sylvan monarchs, grown rather than built.",
+        "type": "settlement",
+        "population": 6200,
+        "factionControl": "faction_sylvan",
+        "services": ["inn", "herbalist"]
+      },
+      {
+        "id": "loc_whisperwood_shrine",
+        "name": "Whisperwood Shrine",
+        "regionId": "r_sylvewood",
+        "description": "A moss-covered shrine said to answer questions asked at dusk.",
+        "type": "landmark"
+      },
+      {
+        "id": "loc_valdrakon_citadel",
+        "name": "Valdrakon Citadel",
+        "regionId": "r_valdrakon",
+        "description": "The empire's southern seat, ringed by three legion camps.",
+        "type": "settlement",
+        "population": 51000,
+        "factionControl": "faction_empire",
+        "services": ["inn", "market", "barracks", "smith"]
+      },
+      {
+        "id": "loc_saltmere_docks",
+        "name": "Saltmere Free Docks",
+        "regionId": "r_saltmere",
+        "description": "A no-flag harbor where smugglers, refugees, and treasure-hunters all dock together.",
+        "type": "settlement",
+        "population": 7400,
+        "factionControl": "faction_freeport",
+        "services": ["inn", "market", "shipwright"]
+      },
+      {
+        "id": "loc_sunken_temple",
+        "name": "Sunken Temple of Vael",
+        "regionId": "r_saltmere",
+        "description": "A drowned temple visible only at low tide, its inner sanctum still dry after a thousand years.",
+        "type": "ruins"
+      },
+      {
+        "id": "loc_dragonfang_aerie",
+        "name": "Dragonfang Aerie",
+        "regionId": "r_dragonspine",
+        "description": "A wyrm's nesting cliff, littered with the wreckage of past expeditions.",
+        "type": "landmark"
+      },
+      {
+        "id": "loc_forbidden_vault",
+        "name": "The Forbidden Vault",
+        "regionId": "r_shatteredfront",
+        "description": "A sealed pre-war ruin both sides claim and neither has taken.",
+        "type": "ruins"
+      },
+      {
+        "id": "loc_catacombs_kharon",
+        "name": "Catacombs of Kharon",
+        "regionId": "r_deepfen",
+        "description": "A flooded burial labyrinth beneath the Fen, older than any kingdom on the surface map.",
+        "type": "dungeon"
+      },
+      {
+        "id": "loc_deepfen_waystation",
+        "name": "Fenmarsh Waystation",
+        "regionId": "r_deepfen",
+        "description": "A stilt-built trade post at the only dry crossing through the Fen.",
+        "type": "settlement",
+        "population": 400,
+        "services": ["inn"]
+      },
+      {
+        "id": "loc_cinder_outpost",
+        "name": "Last Watch Outpost",
+        "regionId": "r_cinderwastes",
+        "description": "A half-buried watch camp at the edge of the surveyed world. Reports from it have grown rare.",
+        "type": "wilderness"
+      }
+    ]
+  },
+  "factions": [
+    {
+      "id": "faction_kingdom",
+      "name": "Crownhaven Crown",
+      "type": "player-faction",
+      "power": 70,
+      "description": "The ruling kingdom holding the map's center.",
+      "goals": ["hold the Northmarch line", "keep the trade roads open"],
+      "enemies": ["faction_empire"],
+      "allies": ["faction_sylvan"]
+    },
+    {
+      "id": "faction_arcanum",
+      "name": "Aurelian Concord",
+      "type": "neutral",
+      "power": 55,
+      "description": "A neutral academy-state that sells maps and wards to whoever pays.",
+      "goals": ["chart the Dragonspine", "stay out of the war"],
+      "enemies": [],
+      "allies": []
+    },
+    {
+      "id": "faction_sylvan",
+      "name": "Sylvewood Court",
+      "type": "friendly",
+      "power": 40,
+      "description": "The old forest court, allied to the Crown by treaty.",
+      "goals": ["protect the Grove-Throne", "watch the Cinder Wastes"],
+      "enemies": [],
+      "allies": ["faction_kingdom"]
+    },
+    {
+      "id": "faction_empire",
+      "name": "Valdrakon Empire",
+      "type": "hostile",
+      "power": 75,
+      "description": "An expanding southern empire pressing the Shattered Front.",
+      "goals": ["break the Shattered Front stalemate", "annex Saltmere's harbor"],
+      "enemies": ["faction_kingdom"],
+      "allies": []
+    },
+    {
+      "id": "faction_freeport",
+      "name": "Saltmere Free Traders",
+      "type": "neutral",
+      "power": 35,
+      "description": "An unaligned merchant council that trades with every flag.",
+      "goals": ["stay unaligned", "keep the harbor open"],
+      "enemies": [],
+      "allies": []
+    }
+  ],
+  "loreHistory": [
+    {
+      "yearsBefore": 300,
+      "event": "The old empire that built the Forbidden Vault and the Catacombs of Kharon collapsed; both Crownhaven and Valdrakon claim its ruins."
+    },
+    {
+      "yearsBefore": 40,
+      "event": "The Shattered Front opened when Aurelian and Valdrakon surveyors' claims overlapped on the same ruin."
+    },
+    {
+      "yearsBefore": 6,
+      "event": "The last full survey team into the Cinder Wastes stopped reporting."
+    }
+  ],
+  "initialNpcs": [
+    {
+      "id": "npc_queen_isolde",
+      "name": "Queen Isolde",
+      "role": "monarch",
+      "locationId": "loc_crownhaven_palace",
+      "factionId": "faction_kingdom",
+      "description": "The current Crown, holding the center against two hostile borders."
+    },
+    {
+      "id": "npc_archmagister_venn",
+      "name": "Archmagister Venn",
+      "role": "scholar",
+      "locationId": "loc_arcanum",
+      "factionId": "faction_arcanum",
+      "description": "Head cartographer of the Arcanum, selling Dragonspine survey maps to the highest bidder."
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import {
     CARTOGRAPHY_MAP_SIZE,
     type CartographyPinPosition,
     type CartographyRegionLabel,
+    type CartographyRouteEdge,
 } from './cartographyLayoutCore';
 
 export type RegionFogVisibility = 'discovered' | 'rumored' | 'unknown';
@@ -271,5 +272,20 @@ export function maskCartographyRegionLabelsForFog(
             ...label,
             regionName: '',
         };
+    });
+}
+
+/** Drop trade-route lines where either endpoint region is still fully unknown (FoW). */
+export function maskCartographyRouteEdgesForFog(
+    edges: CartographyRouteEdge[],
+    fog: FogViewPayload
+): CartographyRouteEdge[] {
+    const discovered = new Set(fog.discoveredRegionIds);
+    const rumored = new Set(fog.rumoredRegionIds);
+
+    return edges.filter((edge) => {
+        const fromVisibility = getRegionFogVisibility(edge.fromRegionId, discovered, rumored);
+        const toVisibility = getRegionFogVisibility(edge.toRegionId, discovered, rumored);
+        return fromVisibility !== 'unknown' && toVisibility !== 'unknown';
     });
 }

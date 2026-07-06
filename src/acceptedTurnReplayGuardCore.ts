@@ -213,6 +213,15 @@ export function parseAcceptedTurnWitness(value: unknown): AcceptedTurnWitness | 
     if (value.parentIdentityHash !== undefined && (typeof value.parentIdentityHash !== 'string' || !HEX_64.test(value.parentIdentityHash))) {
         return undefined;
     }
+    const expectedIdentityHash = computeAcceptedTurnIdentityHash({
+        campaignInstanceId: String(value.campaignInstanceId),
+        timelineEpochId: String(value.timelineEpochId),
+        turnId: String(value.turnId),
+        payloadHash: String(value.payloadHash),
+    });
+    if (value.identityHash !== expectedIdentityHash) {
+        return undefined;
+    }
     return value as unknown as AcceptedTurnWitness;
 }
 
@@ -237,10 +246,6 @@ export function parseAcceptedTurnLedger(
             return undefined;
         }
         if (witness.campaignInstanceId !== value.campaignInstanceId) {
-            return undefined;
-        }
-        const expectedIdentityHash = computeAcceptedTurnIdentityHash(witness);
-        if (witness.identityHash !== expectedIdentityHash) {
             return undefined;
         }
         if (raw.sourceRawHash !== undefined && (typeof raw.sourceRawHash !== 'string' || !HEX_64.test(raw.sourceRawHash))) {
@@ -287,12 +292,17 @@ export function validateAcceptedTurnLedgerUniqueness(records: AcceptedTurnLedger
 }
 
 export function validateAcceptedTurnLedgerChain(records: AcceptedTurnLedgerRecord[]): boolean {
-    let parent: string | undefined;
+    const epochHeads = new Map<string, string | undefined>();
     for (const record of records) {
+        const epochKey = [
+            record.campaignInstanceId,
+            record.timelineEpochId,
+        ].join('\0');
+        const parent = epochHeads.get(epochKey);
         if (record.parentIdentityHash !== parent) {
             return false;
         }
-        parent = record.identityHash;
+        epochHeads.set(epochKey, record.identityHash);
     }
     return true;
 }

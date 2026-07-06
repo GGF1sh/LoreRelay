@@ -5,13 +5,14 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const Module = require('module');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { createVscodeStub } = require('./test_helpers/vscode_stub');
 
 const root = path.join(__dirname, '..');
 const outCore = path.join(root, 'out', 'acceptedTurnReplayGuardCore.js');
 const outGuard = path.join(root, 'out', 'acceptedTurnReplayGuard.js');
 const outStateManager = path.join(root, 'out', 'stateManager.js');
+const vscodeStubPath = path.join(root, 'scripts', 'test_helpers', 'vscode_stub.js');
 
 let failed = 0;
 
@@ -81,6 +82,84 @@ function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
 }
 
+function oldIso(ageMs = 120000) {
+    return new Date(Date.now() - ageMs).toISOString();
+}
+
+function touchOld(filePath, ageMs = 120000) {
+    const when = new Date(Date.now() - ageMs);
+    fs.utimesSync(filePath, when, when);
+}
+
+function writeForeignLease(ws, guard, overrides = {}) {
+    const token = overrides.lockToken || `foreign-token-${Date.now()}-${Math.random()}`;
+    const lockDir = guard.getAcceptedTurnWriterLeaseLockDir(ws);
+    fs.mkdirSync(lockDir, { recursive: true });
+    const owner = {
+        schemaVersion: 1,
+        hostInstanceId: overrides.hostInstanceId || 'foreign-host',
+        pid: overrides.pid ?? 99999999,
+        hostname: overrides.hostname || os.hostname(),
+        processStartedAt: overrides.processStartedAt || oldIso(),
+        createdAt: overrides.createdAt || oldIso(),
+        lockToken: token,
+    };
+    const lease = {
+        schemaVersion: 1,
+        hostInstanceId: owner.hostInstanceId,
+        pid: owner.pid,
+        hostname: owner.hostname,
+        processStartedAt: owner.processStartedAt,
+        acquiredAt: overrides.acquiredAt || oldIso(),
+        renewedAt: overrides.renewedAt || oldIso(),
+        purpose: overrides.purpose || 'foreign',
+        leaseTimeoutMs: overrides.leaseTimeoutMs || 30000,
+        lockToken: token,
+    };
+    writeJson(guard.getAcceptedTurnWriterLeaseLockOwnerPath(ws), owner);
+    writeJson(guard.getAcceptedTurnWriterLeasePath(ws), lease);
+    return { owner, lease };
+}
+
+function spawnLeaseContender(ws, purpose) {
+    const childScript = `
+const Module = require('module');
+const original = Module.prototype.require;
+Module.prototype.require = function patchedRequire(id) {
+  if (id === 'vscode') {
+    return require(${JSON.stringify(vscodeStubPath)}).createVscodeStub();
+  }
+  return original.apply(this, arguments);
+};
+const guard = require(${JSON.stringify(outGuard)});
+const result = guard.ensureAcceptedTurnWriterLease(${JSON.stringify(ws)}, ${JSON.stringify(purpose)});
+console.log(JSON.stringify({ success: !result, kind: result && result.kind, reason: result && result.reason }));
+`;
+    return new Promise((resolve) => {
+        const child = spawn(process.execPath, ['-e', childScript], {
+            cwd: root,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+        child.on('close', (code) => {
+            try {
+                const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+                resolve({ code, stderr, ...JSON.parse(lines[lines.length - 1] || '{}') });
+            } catch (e) {
+                resolve({ code, stderr, success: false, parseError: String(e), stdout });
+            }
+        });
+        child.on('error', (e) => resolve({ code: 1, stderr: String(e), success: false }));
+    });
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function baseTurn(extra = {}) {
     return {
         turnId: 'turn-003a',
@@ -128,6 +207,7 @@ if (!fs.existsSync(outCore) || !fs.existsSync(outGuard) || !fs.existsSync(outSta
 }
 
 async function run() {
+    process.env.LORERELAY_WRITER_LEASE_HEARTBEAT_MS = '25';
     const { core, guard } = loadModules();
 
     // Identity stability and host-only field exclusion.
@@ -198,6 +278,14 @@ async function run() {
         const malformed = guard.preflightAcceptedTurn(wsMalformed, baseTurn({ turnId: 'next-after-malformed' }), '6'.repeat(64), 'test');
         assert(malformed.kind === 'repairRequired', 'malformed disk witness fails closed');
 
+        const wsForged = tempWorkspace();
+        acceptWithWitness(wsForged, guard, core, baseTurn({ turnId: 'forged-witness' }), '6'.repeat(64));
+        const forgedState = readJson(path.join(wsForged, 'game_state.json'));
+        forgedState.runtimeAcceptedTurn.identityHash = 'f'.repeat(64);
+        writeJson(path.join(wsForged, 'game_state.json'), forgedState);
+        const forged = guard.preflightAcceptedTurn(wsForged, baseTurn({ turnId: 'next-after-forged' }), '6'.repeat(64), 'test');
+        assert(forged.kind === 'repairRequired', 'structurally valid forged witness identityHash fails closed');
+
         const wsWrongEpoch = tempWorkspace();
         acceptWithWitness(wsWrongEpoch, guard, core, baseTurn({ turnId: 'wrong-epoch-witness' }), '7'.repeat(64));
         const state = readJson(path.join(wsWrongEpoch, 'game_state.json'));
@@ -258,6 +346,24 @@ async function run() {
         assert(ledger.records.length === 1 && ledger.records[0].turnId === 'turn-a', 'witness-first repair appended Turn A');
     }
 
+    // V3: first Accepted in a new epoch has no global parent and repairs after post-commit/pre-ledger crash.
+    {
+        const ws = tempWorkspace();
+        acceptWithWitness(ws, guard, core, baseTurn({ turnId: 'epoch-one-a' }), '1'.repeat(64));
+        await guard.prepareAcceptedTurnTimelineRestore(ws, 'epoch-two-restore');
+        guard.clearCanonicalAcceptedTurnWitness(ws);
+        const turnB = baseTurn({ turnId: 'epoch-two-b' });
+        const b = guard.preflightAcceptedTurn(ws, turnB, '2'.repeat(64), 'epoch-two-b');
+        assert(b.kind === 'unseen', 'first Turn B in new epoch is unseen');
+        assert(!b.context.parentIdentityHash, 'first Turn B in new epoch has no global parent');
+        installWitness(ws, core, b.context);
+        const afterRestart = guard.preflightAcceptedTurn(ws, turnB, '2'.repeat(64), 'epoch-two-b-restart');
+        const ledger = readJson(guard.getAcceptedTurnLedgerPath(ws));
+        assert(afterRestart.kind === 'alreadyAccepted', 'new-epoch post-commit/pre-ledger witness repairs to alreadyAccepted');
+        assert(ledger.records.length === 2 && ledger.records[1].turnId === 'epoch-two-b', 'new-epoch witness repair appends B after preserved historical A');
+        assert(!ledger.records[1].parentIdentityHash, 'new-epoch first ledger record keeps undefined parent');
+    }
+
     // V3: backup recovery preserves the valid backup and both corrupt files fail closed.
     {
         const ws = tempWorkspace();
@@ -282,36 +388,99 @@ async function run() {
         fs.writeFileSync(path.join(ws, 'turn_result.json'), JSON.stringify(baseTurn({ turnId: 'legacy-file' })), 'utf8');
         const legacy = guard.preflightAcceptedTurn(ws, baseTurn({ turnId: 'legacy-file' }), '1'.repeat(64), 'legacy');
         assert(legacy.kind === 'repairRequired', 'retained TurnResult without scope is legacy ambiguous/repairRequired');
+        let ensureFailed = false;
+        try {
+            guard.ensureAcceptedTurnScope(ws);
+        } catch {
+            ensureFailed = true;
+        }
+        assert(ensureFailed, 'provider scope bootstrap cannot erase legacy retained TurnResult ambiguity');
     }
 
-    // V4: writer lease blocks live owners, protects live PID beyond timeout, recovers dead stale owner, and rejects malformed leases.
+    // V1/V3: explicit campaign rebind clears old witness and separates old ledger authority.
     {
         const ws = tempWorkspace();
-        const acquired = guard.ensureAcceptedTurnWriterLease(ws, 'first-host');
-        assert(!acquired, 'first host acquires writer lease');
-        const leasePath = guard.getAcceptedTurnWriterLeasePath(ws);
-        const live = readJson(leasePath);
-        live.hostInstanceId = 'foreign-live-host';
-        live.renewedAt = new Date(Date.now() - 120000).toISOString();
-        writeJson(leasePath, live);
-        const liveConflict = guard.ensureAcceptedTurnWriterLease(ws, 'live-beyond-timeout');
+        acceptWithWitness(ws, guard, core, baseTurn({ turnId: 'old-campaign-turn' }), '1'.repeat(64));
+        fs.writeFileSync(path.join(ws, 'turn_result.json'), JSON.stringify(baseTurn({ turnId: 'retained-before-rebind' })), 'utf8');
+        const oldScope = guard.ensureAcceptedTurnScope(ws);
+        const rebound = guard.rebindAcceptedTurnCampaignInstance(ws);
+        const state = readJson(path.join(ws, 'game_state.json'));
+        const runtimeFiles = fs.readdirSync(guard.getAcceptedTurnRuntimeDir(ws));
+        const next = guard.preflightAcceptedTurn(ws, baseTurn({ turnId: 'new-campaign-turn' }), '2'.repeat(64), 'post-rebind');
+        assert(rebound.campaignInstanceId !== oldScope.campaignInstanceId, 'campaign rebind creates a new campaign authority');
+        assert(!state.runtimeAcceptedTurn, 'campaign rebind clears old canonical witness through trusted state authority');
+        assert(runtimeFiles.some((name) => name.includes('accepted_turn_ledger.json.campaign-rebind')), 'campaign rebind archives old ledger authority');
+        assert(!fs.existsSync(path.join(ws, 'turn_result.json')), 'campaign rebind quarantines retained TurnResult');
+        assert(next.kind === 'unseen', 'next valid TurnResult after rebind is usable under new campaign ledger');
+    }
+
+    // V4: writer lease blocks live owners, heartbeats, recovers dead/orphaned authority, and fails closed on fresh malformed authority.
+    {
+        guard.resetAcceptedTurnReplayGuardForTests();
+
+        const wsLive = tempWorkspace();
+        const acquired = guard.ensureAcceptedTurnWriterLease(wsLive, 'first-host');
+        assert(!acquired, 'empty workspace first host acquires writer lease');
+        const leasePath = guard.getAcceptedTurnWriterLeasePath(wsLive);
+        const firstLease = readJson(leasePath);
+        assert(typeof firstLease.lockToken === 'string' && firstLease.lockToken.length > 10, 'writer lease records a lock token');
+        await delay(90);
+        const heartbeatLease = readJson(leasePath);
+        assert(Date.parse(heartbeatLease.renewedAt) > Date.parse(firstLease.renewedAt), 'writer lease heartbeat renews live owner');
+        heartbeatLease.hostInstanceId = 'foreign-live-host';
+        heartbeatLease.renewedAt = oldIso();
+        writeJson(leasePath, heartbeatLease);
+        const liveConflict = guard.ensureAcceptedTurnWriterLease(wsLive, 'live-beyond-timeout');
         assert(liveConflict && liveConflict.kind === 'writerConflict', 'live PID remains protected beyond timeout');
+        guard.resetAcceptedTurnReplayGuardForTests();
 
-        fs.rmSync(guard.getAcceptedTurnWriterLeaseLockDir(ws), { recursive: true, force: true });
-        live.pid = 99999999;
-        live.renewedAt = new Date(Date.now() - 120000).toISOString();
-        writeJson(leasePath, live);
-        const recovered = guard.ensureAcceptedTurnWriterLease(ws, 'dead-stale-owner');
-        assert(!recovered, 'stale dead owner is recovered');
+        const wsDead = tempWorkspace();
+        writeForeignLease(wsDead, guard);
+        fs.rmSync(guard.getAcceptedTurnWriterLeaseLockDir(wsDead), { recursive: true, force: true });
+        const recovered = guard.ensureAcceptedTurnWriterLease(wsDead, 'dead-stale-owner');
+        assert(!recovered, 'stale dead owner without lock is recovered');
+        guard.resetAcceptedTurnReplayGuardForTests();
 
-        fs.rmSync(guard.getAcceptedTurnWriterLeaseLockDir(ws), { recursive: true, force: true });
-        fs.writeFileSync(leasePath, '{broken', 'utf8');
-        const malformed = guard.ensureAcceptedTurnWriterLease(ws, 'malformed');
-        assert(malformed && malformed.kind === 'writerConflict', 'malformed lease fails closed');
+        const wsRace = tempWorkspace();
+        writeForeignLease(wsRace, guard, { lockToken: 'stale-race-token' });
+        const raceResults = await Promise.all([
+            spawnLeaseContender(wsRace, 'race-a'),
+            spawnLeaseContender(wsRace, 'race-b'),
+        ]);
+        const raceWinners = raceResults.filter((result) => result.success);
+        assert(raceWinners.length === 1, `two-process stale takeover has exactly one winner (${JSON.stringify(raceResults)})`);
+
+        const wsOrphan = tempWorkspace();
+        fs.mkdirSync(guard.getAcceptedTurnWriterLeaseLockDir(wsOrphan), { recursive: true });
+        touchOld(guard.getAcceptedTurnWriterLeaseLockDir(wsOrphan));
+        const orphanRecovered = guard.ensureAcceptedTurnWriterLease(wsOrphan, 'orphan-lock');
+        assert(!orphanRecovered, 'orphan lock after mkdir-before-metadata crash recovers after grace');
+        guard.resetAcceptedTurnReplayGuardForTests();
+
+        const wsPidReuse = tempWorkspace();
+        writeForeignLease(wsPidReuse, guard, {
+            pid: process.pid,
+            processStartedAt: '2000-01-01T00:00:00.000Z',
+            lockToken: 'pid-reuse-token',
+        });
+        const pidReuseRecovered = guard.ensureAcceptedTurnWriterLease(wsPidReuse, 'pid-reuse');
+        assert(!pidReuseRecovered, 'PID reuse with mismatched process-start evidence is recoverable');
+        guard.resetAcceptedTurnReplayGuardForTests();
+
+        const wsMalformed = tempWorkspace();
+        const malformedPath = guard.getAcceptedTurnWriterLeasePath(wsMalformed);
+        fs.mkdirSync(path.dirname(malformedPath), { recursive: true });
+        fs.writeFileSync(malformedPath, '{broken', 'utf8');
+        const malformedFresh = guard.ensureAcceptedTurnWriterLease(wsMalformed, 'malformed-fresh');
+        assert(malformedFresh && malformedFresh.kind === 'writerConflict', 'fresh malformed lease fails closed');
+        touchOld(malformedPath);
+        const malformedRecovered = guard.ensureAcceptedTurnWriterLease(wsMalformed, 'malformed-old');
+        assert(!malformedRecovered, 'old malformed lease is quarantined and safely recovered');
     }
 
     // V5: restore coordinator quarantines before epoch rotation and aborts if quarantine fails.
     {
+        guard.resetAcceptedTurnReplayGuardForTests();
         const ws = tempWorkspace();
         guard.ensureAcceptedTurnScope(ws);
         fs.writeFileSync(path.join(ws, 'turn_result.json'), JSON.stringify(baseTurn({ turnId: 'retained' })), 'utf8');
@@ -344,6 +513,41 @@ async function run() {
         const failAfter = guard.ensureAcceptedTurnScope(wsFail);
         assert('kind' in failedPrepare && failedPrepare.kind === 'repairRequired', 'quarantine failure aborts restore preparation');
         assert(failBefore.timelineEpochId === failAfter.timelineEpochId, 'quarantine failure leaves epoch unchanged');
+
+        const wsRace = tempWorkspace();
+        guard.ensureAcceptedTurnScope(wsRace);
+        let releaseRestore;
+        let restoreStarted = false;
+        let competingStarted = false;
+        const restorePromise = guard.runAcceptedTurnTimelineRestoreTransaction(wsRace, 'restore-race', async () => {
+            restoreStarted = true;
+            await new Promise((resolve) => { releaseRestore = resolve; });
+            return true;
+        });
+        await delay(30);
+        const competingPromise = guard.runAcceptedTurnSingleFlight(async () => {
+            competingStarted = true;
+            return true;
+        });
+        await delay(60);
+        assert(restoreStarted, 'restore transaction mutation has started');
+        assert(!competingStarted, 'competing TurnResult work waits while restore mutation is in flight');
+        releaseRestore();
+        const restoreRaceResult = await restorePromise;
+        await competingPromise;
+        assert(!('kind' in restoreRaceResult), 'restore race transaction completes successfully');
+        assert(competingStarted, 'competing TurnResult work runs only after restore mutation completes');
+
+        const checkpointSource = fs.readFileSync(path.join(root, 'src', 'checkpointHandlers.ts'), 'utf8');
+        const gitSource = fs.readFileSync(path.join(root, 'src', 'gitManager.ts'), 'utf8');
+        assert(
+            ['undo-last-turn', 'restore-to-turn', 'restore-checkpoint', 'regenerate-last-turn'].every((reason) => checkpointSource.includes(`runTimelineRestore(ws, '${reason}'`)),
+            'Undo, rewind, checkpoint restore, and regenerate use full restore transaction wrapper'
+        );
+        assert(
+            ['git-branch-from-turn', 'git-switch-timeline-branch'].every((reason) => gitSource.includes(`runTimelineGitRestore(cwd, '${reason}'`)),
+            'Git branch-from-turn and branch switch use full restore transaction wrapper'
+        );
     }
 
     // V5: Git runtime authority is ignored by initialization and tracked authority is detectable.

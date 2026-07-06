@@ -122,6 +122,28 @@ export function commitGameState(
     return result;
 }
 
+export function commitGameStateAtPathForRuntimeAuthority(
+    statePath: string,
+    state: Record<string, unknown> | GameState,
+    options: CommitGameStateOptions
+): CommitGameStateResult {
+    if (isGameStateWriteCircuitOpen()) {
+        return { ok: false, action: 'skip', reason: ['circuit open: game_state'] };
+    }
+
+    const raw = state as Record<string, unknown>;
+    let result: CommitGameStateResult = { ok: false, action: 'skip', reason: ['queue aborted'] };
+    let completed = false;
+    runSerializedGameStateMutation(() => {
+        result = writeGameStatePlan(statePath, raw, options);
+        completed = true;
+    });
+    if (!completed) {
+        return { ok: false, action: 'skip', reason: ['game_state write failed'] };
+    }
+    return result;
+}
+
 function quarantineInvalidState(statePath: string, payload: Record<string, unknown>): void {
     const invalidPath = path.join(path.dirname(statePath), 'game_state.invalid.latest.json');
     try {

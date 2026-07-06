@@ -9,7 +9,7 @@ import {
 import * as fs from 'fs';
 import {
     clearCanonicalAcceptedTurnWitness,
-    prepareAcceptedTurnTimelineRestore,
+    runAcceptedTurnTimelineRestoreTransaction,
 } from './acceptedTurnReplayGuard';
 
 function runGit(args: string[], cwd: string): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -65,18 +65,26 @@ async function hasTrackedRuntimeAuthority(cwd: string): Promise<boolean> {
     return tracked.stdout.trim().length > 0;
 }
 
-async function prepareTimelineGitRestore(cwd: string, reason: string): Promise<boolean> {
+async function runTimelineGitRestore(
+    cwd: string,
+    reason: string,
+    restoreMutation: () => Promise<void>
+): Promise<boolean> {
     await ensureRuntimeAuthorityIgnored(cwd);
     if (await hasTrackedRuntimeAuthority(cwd)) {
         vscode.window.showErrorMessage('LoreRelay: Git Timeline has tracked replay runtime authority; refusing timeline mutation until repaired.');
         return false;
     }
-    const result = await prepareAcceptedTurnTimelineRestore(cwd, reason);
+    const result = await runAcceptedTurnTimelineRestoreTransaction(cwd, reason, async () => {
+        clearTurnResultRawHashAuthorityForEpochChange();
+        await restoreMutation();
+        clearCanonicalAcceptedTurnWitness(cwd);
+        return true;
+    });
     if ('kind' in result) {
         vscode.window.showErrorMessage(`LoreRelay: ${result.reason ?? 'Replay timeline restore preparation failed.'}`);
         return false;
     }
-    clearTurnResultRawHashAuthorityForEpochChange();
     return true;
 }
 
@@ -203,18 +211,17 @@ export async function branchFromTurn(turnId: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Cannot find commit for Turn ${turnIndex}`);
         return false;
     }
-    if (!(await prepareTimelineGitRestore(cwd, 'git-branch-from-turn'))) {
-        return false;
-    }
-    
     const branchName = `timeline/turn_${turnIndex}_${Date.now()}`;
-    const { code, stderr } = await runGit(['checkout', '-b', branchName, hash], cwd);
-    if (code !== 0) {
-        vscode.window.showErrorMessage(`LoreRelay: Failed to branch timeline. ${stderr}`);
+    const restored = await runTimelineGitRestore(cwd, 'git-branch-from-turn', async () => {
+        const { code, stderr } = await runGit(['checkout', '-b', branchName, hash], cwd);
+        if (code !== 0) {
+            throw new Error(`Failed to branch timeline. ${stderr}`);
+        }
+    });
+    if (!restored) {
         return false;
     }
-    clearCanonicalAcceptedTurnWitness(cwd);
-    
+
     vscode.window.showInformationMessage(`LoreRelay: Branched to ${branchName} at Turn ${turnIndex}`);
     return true;
 }
@@ -290,16 +297,15 @@ export async function switchToBranch(branchName: string): Promise<boolean> {
         vscode.window.showErrorMessage(`LoreRelay: Branch "${branchName}" no longer exists.`);
         return false;
     }
-    if (!(await prepareTimelineGitRestore(cwd, 'git-switch-timeline-branch'))) {
+    const restored = await runTimelineGitRestore(cwd, 'git-switch-timeline-branch', async () => {
+        const { code, stderr } = await runGit(['checkout', branchName], cwd);
+        if (code !== 0) {
+            throw new Error(`Failed to switch branch. ${stderr}`);
+        }
+    });
+    if (!restored) {
         return false;
     }
-
-    const { code, stderr } = await runGit(['checkout', branchName], cwd);
-    if (code !== 0) {
-        vscode.window.showErrorMessage(`LoreRelay: Failed to switch branch. ${stderr}`);
-        return false;
-    }
-    clearCanonicalAcceptedTurnWitness(cwd);
 
     const picked = await vscode.window.showInformationMessage(
         `LoreRelay: Switched to ${branchName}. Reload the window to load its game state.`,

@@ -1319,16 +1319,18 @@ function clearChronicleSessionPending(): void {
 }
 
 /**
- * `alreadySatisfied` when pending was already cleared (by this or an earlier exact ACK) — a
- * truthful no-op, not a failure. A generation mismatch (a newer reset occurred) remains `failed`
- * so an old token cannot be mistaken for having cleared the newer generation.
+ * Generation identity is checked first: a mismatch means a newer reset has already occurred, so
+ * this token is stale and must be `failed` regardless of the current pending flag — otherwise an
+ * old-generation token could be misread as an `alreadySatisfied` no-op merely because a *newer*
+ * generation happened to already be cleared. Only once the generation matches exactly can
+ * `pending === false` be read as this token's own truthful no-op (`alreadySatisfied`).
  */
 function clearChronicleSessionPendingForGeneration(pendingGeneration: number): PromptReceiptAckOutcome {
-    if (!chronicleSessionPending) {
-        return 'alreadySatisfied';
-    }
     if (chronicleSessionPendingGeneration !== pendingGeneration) {
         return 'failed';
+    }
+    if (!chronicleSessionPending) {
+        return 'alreadySatisfied';
     }
     chronicleSessionPending = false;
     return 'applied';
@@ -1898,21 +1900,31 @@ function clearPromptAckFailure(receiptId: string, tokenId: string): void {
 }
 
 /**
- * Combines two independent sub-outcomes into one token-level outcome: any real state change
- * ('applied') wins outright; otherwise any genuine 'failed' sub-outcome wins so a real failure is
- * never masked; only when neither happened do we report the truthful 'alreadySatisfied' no-op.
+ * Combines two independent sub-outcomes into one token-level outcome. Precedence is
+ * `failed` > `applied` > `alreadySatisfied`: a genuine sub-operation failure must dominate and
+ * retain compensation truth even when the *other* sub-operation reports real progress
+ * (`applied`) — `applied` must never mask a genuine `failed`. Only once no sub-outcome failed
+ * does an `applied` win over `alreadySatisfied`; if neither happened, the combined outcome is
+ * the truthful no-op `alreadySatisfied`.
  */
 function combinePromptReceiptAckOutcomes(
     a: PromptReceiptAckOutcome,
     b: PromptReceiptAckOutcome
 ): PromptReceiptAckOutcome {
-    if (a === 'applied' || b === 'applied') {
-        return 'applied';
-    }
     if (a === 'failed' || b === 'failed') {
         return 'failed';
     }
+    if (a === 'applied' || b === 'applied') {
+        return 'applied';
+    }
     return 'alreadySatisfied';
+}
+
+export function combinePromptReceiptAckOutcomesForTests(
+    a: PromptReceiptAckOutcome,
+    b: PromptReceiptAckOutcome
+): PromptReceiptAckOutcome {
+    return combinePromptReceiptAckOutcomes(a, b);
 }
 
 function applyChronicleAckToken(token: ChronicleAckToken): PromptReceiptAckOutcome {
@@ -2019,6 +2031,15 @@ export function resetPromptReceiptStateForTests(): void {
 
 export function peekChronicleSessionPendingGenerationForTests(): number {
     return peekChronicleSessionPendingGeneration();
+}
+
+/**
+ * Test-only: re-arms pending for the CURRENT generation (unlike `resetChronicleSessionPending`,
+ * which also bumps the generation). Used to isolate a `pending=true` transition happening within
+ * the SAME generation from a genuine newer-generation reset.
+ */
+export function rearmChronicleSessionPendingSameGenerationForTests(): void {
+    chronicleSessionPending = true;
 }
 
 export function postPromptContextToWebview(playerAction: string): void {

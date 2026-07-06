@@ -143,6 +143,8 @@ const {
     peekPromptAckCompensationQueueForTests,
     peekChronicleSessionPendingGenerationForTests,
     resetChronicleSessionPending,
+    combinePromptReceiptAckOutcomesForTests,
+    rearmChronicleSessionPendingSameGenerationForTests,
 } = gmPromptBuilder;
 const {
     buildTurnResultPromptReceiptMeta,
@@ -309,6 +311,221 @@ try {
         fail('old Chronicle token must not clear newer pending generation');
     } else {
         ok('old Chronicle token cannot clear newer pending generation');
+    }
+
+    // SR-001-R1 truth table: genuine failure must dominate a compound Chronicle outcome.
+    {
+        const cases = [
+            ['failed', 'applied', 'failed'],
+            ['applied', 'failed', 'failed'],
+            ['applied', 'alreadySatisfied', 'applied'],
+            ['alreadySatisfied', 'applied', 'applied'],
+            ['alreadySatisfied', 'alreadySatisfied', 'alreadySatisfied'],
+            ['failed', 'alreadySatisfied', 'failed'],
+            ['alreadySatisfied', 'failed', 'failed'],
+            ['failed', 'failed', 'failed'],
+        ];
+        let allOk = true;
+        for (const [a, b, expected] of cases) {
+            const got = combinePromptReceiptAckOutcomesForTests(a, b);
+            if (got !== expected) {
+                allOk = false;
+                fail(`combine(${a}, ${b}) should be ${expected}, got ${got}`);
+            }
+        }
+        if (allOk) {
+            ok('SR-001-R1 truth table: failed > applied > alreadySatisfied precedence holds for all 8 combinations');
+        }
+    }
+
+    writeFixture();
+    {
+        // marker applied (fresh, never recorded) + generation failed (mismatch) -> failed.
+        const genA = buildProductionPromptAssembly('sr001-r1-marker-applied-gen-failed', 'grok');
+        resetChronicleSessionPending();
+        const accepted = acceptedTurnForReceipt(genA.receipt);
+        const ack = acknowledgePromptReceiptAfterAccepted(genA.receipt, accepted);
+        const chronicleTokenId = genA.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle').tokenId;
+        if (!ack.correlated
+            || !ack.failedTokenIds.includes(chronicleTokenId)
+            || ack.alreadySatisfiedTokenIds.includes(chronicleTokenId)
+            || ack.succeededTokenIds.includes(chronicleTokenId)
+            || !peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === chronicleTokenId)) {
+            fail(`marker applied + generation failed must combine to failed with compensation retained: ${JSON.stringify(ack)}`);
+        } else {
+            ok('marker applied + generation failed combines to failed; compensation retained');
+        }
+    }
+
+    writeFixture();
+    {
+        // marker failed (already stale, currentTurn advanced past token) + generation applied -> failed.
+        const staleMarker = buildProductionPromptAssembly('sr001-r1-marker-failed-gen-applied', 'grok');
+        const chronicleToken = staleMarker.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        worldState.markChronicleInjected(chronicleToken.sourceTurn + 1, 'advanced-past-token-digest');
+        worldState.clearWorldStateCache();
+        const accepted = acceptedTurnForReceipt(staleMarker.receipt);
+        const ack = acknowledgePromptReceiptAfterAccepted(staleMarker.receipt, accepted);
+        if (!ack.correlated
+            || !ack.failedTokenIds.includes(chronicleToken.tokenId)
+            || ack.alreadySatisfiedTokenIds.includes(chronicleToken.tokenId)
+            || ack.succeededTokenIds.includes(chronicleToken.tokenId)
+            || !peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === chronicleToken.tokenId)) {
+            fail(`marker failed + generation applied must combine to failed with compensation retained: ${JSON.stringify(ack)}`);
+        } else {
+            ok('marker failed + generation applied combines to failed; compensation retained');
+        }
+    }
+
+    writeFixture();
+    {
+        // marker applied (fresh, distinct sourceTurn) + generation alreadySatisfied (same
+        // generation, already cleared by an earlier token) -> applied.
+        const firstGenToken = buildProductionPromptAssembly('sr001-r1-first-in-generation', 'grok');
+        acknowledgePromptReceiptAfterAccepted(firstGenToken.receipt, acceptedTurnForReceipt(firstGenToken.receipt));
+        // Append a second journal entry (without calling writeFixture/resetPromptReceiptStateForTests,
+        // which would bump the generation) so the next Chronicle candidate has a genuinely new,
+        // never-recorded sourceTurn while remaining in the SAME (already-cleared) generation.
+        fs.appendFileSync(journalPath, `${JSON.stringify({ turnId: 'turn_2', playerAction: 'Second distinct action in same generation' })}\n`);
+        worldState.clearWorldStateCache();
+        const secondGenToken = buildProductionPromptAssembly('sr001-r1-second-in-same-generation', 'grok');
+        const chronicleToken = secondGenToken.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        const accepted = acceptedTurnForReceipt(secondGenToken.receipt);
+        const ack = acknowledgePromptReceiptAfterAccepted(secondGenToken.receipt, accepted);
+        if (!ack.correlated
+            || !ack.succeededTokenIds.includes(chronicleToken.tokenId)
+            || ack.failedTokenIds.includes(chronicleToken.tokenId)
+            || ack.alreadySatisfiedTokenIds.includes(chronicleToken.tokenId)) {
+            fail(`marker applied + generation alreadySatisfied must combine to applied: ${JSON.stringify({ ack, chronicleToken })}`);
+        } else {
+            ok('marker applied + generation alreadySatisfied combines to applied');
+        }
+    }
+
+    writeFixture();
+    {
+        // marker alreadySatisfied (exact duplicate) + generation applied -> applied. First ACK
+        // establishes the marker; reset just the compensation bookkeeping (not the generation) is
+        // not applicable here, so instead we simulate by re-running the SAME token twice within the
+        // SAME generation but forcing the marker sub-outcome via an override is not needed: the
+        // second exact ACK naturally yields marker=alreadySatisfied + generation=alreadySatisfied
+        // (already covered by the exact-duplicate test above). To isolate marker=alreadySatisfied +
+        // generation=applied specifically, force the generation to look freshly-clearable by
+        // resetting pending (not generation) via a second exact token after a manual re-arm.
+        const base = buildProductionPromptAssembly('sr001-r1-marker-satisfied-gen-applied', 'grok');
+        const chronicleToken = base.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        const accepted = acceptedTurnForReceipt(base.receipt);
+        acknowledgePromptReceiptAfterAccepted(base.receipt, accepted);
+        // Re-arm pending for the SAME generation (no reset -> no generation bump) so the next ACK
+        // of the same exact token yields generation=applied while the marker is already satisfied.
+        rearmChronicleSessionPendingSameGenerationForTests();
+        const ack = acknowledgePromptReceiptAfterAccepted(base.receipt, accepted);
+        if (!ack.correlated
+            || !ack.succeededTokenIds.includes(chronicleToken.tokenId)
+            || ack.failedTokenIds.includes(chronicleToken.tokenId)
+            || ack.alreadySatisfiedTokenIds.includes(chronicleToken.tokenId)) {
+            fail(`marker alreadySatisfied + generation applied must combine to applied: ${JSON.stringify(ack)}`);
+        } else {
+            ok('marker alreadySatisfied + generation applied combines to applied');
+        }
+    }
+
+    writeFixture();
+    {
+        // SR-001-R2: an old-generation token must not become alreadySatisfied merely because a
+        // NEWER generation has already been cleared by a different (current) token.
+        const oldGenToken = buildProductionPromptAssembly('sr001-r2-old-generation', 'grok');
+        const oldGenAccepted = acceptedTurnForReceipt(oldGenToken.receipt);
+        resetChronicleSessionPending();
+        const newGenToken = buildProductionPromptAssembly('sr001-r2-old-generation', 'grok');
+        acknowledgePromptReceiptAfterAccepted(newGenToken.receipt, acceptedTurnForReceipt(newGenToken.receipt));
+        // Newer generation is now genuinely cleared (pending=false) for generation B. The old
+        // generation-A token's marker is now also already satisfied (same source turn/digest as
+        // the newer token), so a correct implementation must still report `failed` because the
+        // generation itself is stale, not `alreadySatisfied`.
+        const oldChronicleToken = oldGenToken.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        const oldAck = acknowledgePromptReceiptAfterAccepted(oldGenToken.receipt, oldGenAccepted);
+        if (!oldAck.correlated
+            || !oldAck.failedTokenIds.includes(oldChronicleToken.tokenId)
+            || oldAck.alreadySatisfiedTokenIds.includes(oldChronicleToken.tokenId)
+            || oldAck.succeededTokenIds.includes(oldChronicleToken.tokenId)
+            || !peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === oldChronicleToken.tokenId)) {
+            fail(`old generation after newer generation already cleared must remain failed, not alreadySatisfied: ${JSON.stringify(oldAck)}`);
+        } else {
+            ok('old generation after newer generation already cleared is failed, not alreadySatisfied; compensation retained');
+        }
+    }
+
+    writeFixture();
+    {
+        // Mixed token outcomes: Chronicle forced failed + WCS naturally alreadySatisfied (exact
+        // duplicate) must be reported independently.
+        const mixed = buildProductionPromptAssembly('sr001-mixed-failed-satisfied', 'grok');
+        const accepted = acceptedTurnForReceipt(mixed.receipt);
+        acknowledgePromptReceiptAfterAccepted(mixed.receipt, accepted);
+        const chronicleToken = mixed.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        const wcsToken = mixed.receipt.selectedTokens.find((t) => t.chunkId === 'worldChangeSummary');
+        const ack = acknowledgePromptReceiptAfterAccepted(mixed.receipt, accepted, {
+            applyChronicleToken: () => 'failed',
+        });
+        if (!ack.correlated
+            || !ack.failedTokenIds.includes(chronicleToken.tokenId)
+            || !ack.alreadySatisfiedTokenIds.includes(wcsToken.tokenId)
+            || ack.failedTokenIds.includes(wcsToken.tokenId)
+            || !peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === chronicleToken.tokenId)) {
+            fail(`mixed Chronicle-failed + WCS-alreadySatisfied outcomes must be independent: ${JSON.stringify(ack)}`);
+        } else {
+            ok('mixed token outcomes (Chronicle failed, WCS alreadySatisfied) remain independent');
+        }
+    }
+
+    writeFixture();
+    {
+        // Mixed token outcomes: Chronicle naturally alreadySatisfied (exact duplicate) + WCS forced
+        // applied must be reported independently.
+        const mixed = buildProductionPromptAssembly('sr001-mixed-satisfied-applied', 'grok');
+        const accepted = acceptedTurnForReceipt(mixed.receipt);
+        acknowledgePromptReceiptAfterAccepted(mixed.receipt, accepted);
+        const chronicleToken = mixed.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        const wcsToken = mixed.receipt.selectedTokens.find((t) => t.chunkId === 'worldChangeSummary');
+        const ack = acknowledgePromptReceiptAfterAccepted(mixed.receipt, accepted, {
+            applyWorldChangeSummaryToken: () => 'applied',
+        });
+        if (!ack.correlated
+            || !ack.alreadySatisfiedTokenIds.includes(chronicleToken.tokenId)
+            || !ack.succeededTokenIds.includes(wcsToken.tokenId)
+            || ack.failedTokenIds.includes(chronicleToken.tokenId)
+            || ack.failedTokenIds.includes(wcsToken.tokenId)) {
+            fail(`mixed Chronicle-alreadySatisfied + WCS-applied outcomes must be independent: ${JSON.stringify(ack)}`);
+        } else {
+            ok('mixed token outcomes (Chronicle alreadySatisfied, WCS applied) remain independent');
+        }
+    }
+
+    writeFixture();
+    {
+        // Exact retry after prior compensation history: a genuinely-failed attempt is recorded as
+        // compensation, then a later real ACK of the same receipt/token that truthfully reaches
+        // applied/alreadySatisfied must clear that stale compensation entry and report the truthful
+        // current outcome (not the stale failure).
+        const retry = buildProductionPromptAssembly('sr001-retry-after-compensation', 'grok');
+        const accepted = acceptedTurnForReceipt(retry.receipt);
+        const chronicleToken = retry.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+        const firstAck = acknowledgePromptReceiptAfterAccepted(retry.receipt, accepted, {
+            applyChronicleToken: () => 'failed',
+        });
+        const hadCompensationAfterFirst = peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === chronicleToken.tokenId);
+        const secondAck = acknowledgePromptReceiptAfterAccepted(retry.receipt, accepted);
+        const hasCompensationAfterSecond = peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === chronicleToken.tokenId);
+        if (!firstAck.correlated || !hadCompensationAfterFirst
+            || !secondAck.correlated
+            || !secondAck.succeededTokenIds.includes(chronicleToken.tokenId)
+            || secondAck.failedTokenIds.includes(chronicleToken.tokenId)
+            || hasCompensationAfterSecond) {
+            fail(`exact retry after prior compensation history must report the truthful current outcome and clear stale compensation: ${JSON.stringify({ firstAck, secondAck })}`);
+        } else {
+            ok('exact retry after prior compensation history reports truthful outcome and clears stale compensation');
+        }
     }
 
     writeFixture({

@@ -35,6 +35,7 @@ import {
     attachTurnResultPromptReceipt,
     buildTurnResultPromptReceiptMeta,
     hashPromptReceiptText,
+    withPromptReceiptDiagnostics,
     type PromptDeliveryReceipt,
     type PromptReceiptProvider,
     type TurnResultPromptReceiptMeta,
@@ -449,23 +450,6 @@ function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {
         default:
             return 'grok';
     }
-}
-
-function withPromptReceiptDiagnostics(
-    receipt: PromptDeliveryReceipt,
-    diagnostics: {
-        transportPayloadHash?: string;
-        stageTransportPayloadHashes?: Array<{ stage: string; hash: string }>;
-    }
-): PromptDeliveryReceipt {
-    return {
-        ...receipt,
-        diagnostics: {
-            transportPayloadHash: diagnostics.transportPayloadHash ?? receipt.diagnostics?.transportPayloadHash,
-            stageTransportPayloadHashes: diagnostics.stageTransportPayloadHashes
-                ?? receipt.diagnostics?.stageTransportPayloadHashes,
-        },
-    };
 }
 
 export function createPromptAcceptedCallbackForTests(

@@ -147,6 +147,7 @@ const {
 const {
     buildTurnResultPromptReceiptMeta,
     attachTurnResultPromptReceipt,
+    withPromptReceiptDiagnostics,
 } = promptReceiptCore;
 
 function writeFixture(options = {}) {
@@ -455,17 +456,18 @@ try {
     const chronicleFalseAck = acknowledgePromptReceiptAfterAccepted(
         chronicleFalseReceipt.receipt,
         acceptedTurnForReceipt(chronicleFalseReceipt.receipt),
-        { applyChronicleToken: () => false }
+        { applyChronicleToken: () => 'failed' }
     );
     const afterChronicleFalse = readWorldState();
     if (!chronicleFalseAck.correlated
         || !chronicleFalseAck.failedTokenIds.some((id) => chronicleFalseReceipt.receipt.selectedTokens.some((t) => t.tokenId === id && t.chunkId === 'chronicle'))
+        || chronicleFalseAck.alreadySatisfiedTokenIds.length !== 0
         || afterChronicleFalse.lastInjectedChronicleTurn !== undefined
         || afterChronicleFalse.lastInjectedWorldChangeSummaryTurn !== 3
         || peekPromptAckCompensationQueueForTests().length === 0) {
-        fail(`Chronicle ACK false-return must be treated as failure and not block WCS: ${JSON.stringify({ chronicleFalseAck, afterChronicleFalse })}`);
+        fail(`Chronicle ACK genuine-failure outcome must be treated as failure and not block WCS: ${JSON.stringify({ chronicleFalseAck, afterChronicleFalse })}`);
     } else {
-        ok('Chronicle ACK false-return is a failure; WCS ACK still attempted and Chronicle remains failed');
+        ok('Chronicle ACK genuine-failure outcome is a failure with a compensation entry; WCS ACK still attempted and Chronicle remains failed');
     }
 
     writeFixture();
@@ -474,17 +476,100 @@ try {
     const wcsFalseAck = acknowledgePromptReceiptAfterAccepted(
         wcsFalseReceipt.receipt,
         wcsFalseAcceptedTurn,
-        { applyWorldChangeSummaryToken: () => false }
+        { applyWorldChangeSummaryToken: () => 'failed' }
     );
     const afterWcsFalse = readWorldState();
     if (!wcsFalseAck.correlated
         || !wcsFalseAck.failedTokenIds.some((id) => wcsFalseReceipt.receipt.selectedTokens.some((t) => t.tokenId === id && t.chunkId === 'worldChangeSummary'))
+        || wcsFalseAck.alreadySatisfiedTokenIds.length !== 0
         || afterWcsFalse.lastInjectedChronicleTurn !== 1
         || afterWcsFalse.lastInjectedWorldChangeSummaryTurn !== undefined
         || peekPromptAckCompensationQueueForTests().length === 0) {
-        fail(`WCS ACK false-return must be treated as failure without revoking Accepted: ${JSON.stringify({ wcsFalseAck, afterWcsFalse })}`);
+        fail(`WCS ACK genuine-failure outcome must be treated as failure without revoking Accepted: ${JSON.stringify({ wcsFalseAck, afterWcsFalse })}`);
     } else {
-        ok('WCS ACK false-return is a failure; Accepted remains true and WCS remains failed');
+        ok('WCS ACK genuine-failure outcome is a failure with a compensation entry; Accepted remains true and WCS remains failed');
+    }
+
+    writeFixture();
+    const exactDupChronicleReceipt = buildProductionPromptAssembly('exact-duplicate-chronicle', 'grok');
+    const exactDupChronicleAccepted = acceptedTurnForReceipt(exactDupChronicleReceipt.receipt);
+    const firstChronicleAck = acknowledgePromptReceiptAfterAccepted(exactDupChronicleReceipt.receipt, exactDupChronicleAccepted);
+    const secondChronicleAck = acknowledgePromptReceiptAfterAccepted(exactDupChronicleReceipt.receipt, exactDupChronicleAccepted);
+    const chronicleToken = exactDupChronicleReceipt.receipt.selectedTokens.find((t) => t.chunkId === 'chronicle');
+    if (!firstChronicleAck.correlated || !secondChronicleAck.correlated
+        || !secondChronicleAck.alreadySatisfiedTokenIds.includes(chronicleToken.tokenId)
+        || secondChronicleAck.failedTokenIds.includes(chronicleToken.tokenId)
+        || peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === chronicleToken.tokenId)) {
+        fail(`exact duplicate Chronicle ACK must be a truthful no-op, not a failure: ${JSON.stringify({ firstChronicleAck, secondChronicleAck })}`);
+    } else {
+        ok('exact duplicate Chronicle ACK is a truthful no-op: not a failure, no compensation entry');
+    }
+
+    writeFixture();
+    const exactDupWcsReceipt = buildProductionPromptAssembly('exact-duplicate-wcs', 'grok');
+    const exactDupWcsAccepted = acceptedTurnForReceipt(exactDupWcsReceipt.receipt);
+    const firstWcsAck = acknowledgePromptReceiptAfterAccepted(exactDupWcsReceipt.receipt, exactDupWcsAccepted);
+    const secondWcsAck = acknowledgePromptReceiptAfterAccepted(exactDupWcsReceipt.receipt, exactDupWcsAccepted);
+    const wcsToken = exactDupWcsReceipt.receipt.selectedTokens.find((t) => t.chunkId === 'worldChangeSummary');
+    if (!firstWcsAck.correlated || !secondWcsAck.correlated
+        || !secondWcsAck.alreadySatisfiedTokenIds.includes(wcsToken.tokenId)
+        || secondWcsAck.failedTokenIds.includes(wcsToken.tokenId)
+        || peekPromptAckCompensationQueueForTests().some((f) => f.tokenId === wcsToken.tokenId)) {
+        fail(`exact duplicate WCS ACK must be a truthful no-op, not a failure: ${JSON.stringify({ firstWcsAck, secondWcsAck })}`);
+    } else {
+        ok('exact duplicate WCS ACK is a truthful no-op: not a failure, no compensation entry');
+    }
+
+    writeFixture();
+    const diagnosticsReceiptBase = buildProductionPromptAssembly('diagnostics-wrap', 'grok');
+    const diagnosticsWrappedReceipt = withPromptReceiptDiagnostics(diagnosticsReceiptBase.receipt, {
+        transportPayloadHash: 'redacted-transport-hash',
+    });
+    if (!Object.isFrozen(diagnosticsWrappedReceipt)
+        || !Object.isFrozen(diagnosticsWrappedReceipt.selectedTokens)
+        || !diagnosticsWrappedReceipt.selectedTokens.every((token) => Object.isFrozen(token))
+        || !Object.isFrozen(diagnosticsWrappedReceipt.selectedChunks)
+        || !diagnosticsWrappedReceipt.selectedChunks.every((chunk) => Object.isFrozen(chunk))
+        || !Object.isFrozen(diagnosticsWrappedReceipt.diagnostics)) {
+        fail('diagnostics-wrapped provider-bound receipt must remain fully frozen (top-level, chunks, tokens, diagnostics)');
+    } else {
+        ok('diagnostics-wrapped provider receipt is frozen at every authority level');
+    }
+
+    const diagnosticsAccepted = acceptedTurnForReceipt(diagnosticsWrappedReceipt);
+    const originalDiagnosticsTokenIds = diagnosticsWrappedReceipt.selectedTokens.map((t) => t.tokenId).slice().sort();
+    let diagnosticsMutationThrew = false;
+    try {
+        diagnosticsWrappedReceipt.receiptId = 'tampered-receipt-id';
+    } catch (e) { diagnosticsMutationThrew = true; }
+    try {
+        diagnosticsWrappedReceipt.selectedTokens.push({
+            tokenId: 'injected', chunkId: 'worldChangeSummary', summaryTurn: 999, sourceDigest: 'injected',
+        });
+    } catch (e) { diagnosticsMutationThrew = true; }
+    for (const token of diagnosticsWrappedReceipt.selectedTokens) {
+        try {
+            token.sourceTurn = -1;
+            token.summaryTurn = -1;
+            token.sourceDigest = 'tampered';
+        } catch (e) { diagnosticsMutationThrew = true; }
+    }
+    if (!diagnosticsMutationThrew) {
+        fail('mutating a diagnostics-wrapped provider-bound receipt in strict mode should throw TypeError');
+    } else {
+        ok('post-provider-binding mutation attempts on the diagnostics-wrapped receipt throw instead of silently applying');
+    }
+    const diagnosticsAck = acknowledgePromptReceiptAfterAccepted(diagnosticsWrappedReceipt, diagnosticsAccepted);
+    const afterDiagnosticsAck = readWorldState();
+    const diagnosticsAckedIds = diagnosticsAck.succeededTokenIds.slice().sort();
+    if (!diagnosticsAck.correlated
+        || diagnosticsAckedIds.join(',') !== originalDiagnosticsTokenIds.join(',')
+        || diagnosticsWrappedReceipt.selectedTokens.length !== originalDiagnosticsTokenIds.length
+        || afterDiagnosticsAck.lastInjectedChronicleTurn !== 1
+        || afterDiagnosticsAck.lastInjectedWorldChangeSummaryTurn !== 3) {
+        fail(`mutation attempts after provider binding must not alter ACK authority: ${JSON.stringify({ diagnosticsAckedIds, originalDiagnosticsTokenIds, afterDiagnosticsAck })}`);
+    } else {
+        ok('mutation attempts after provider binding cannot alter ACK authority for the diagnostics-wrapped receipt');
     }
 
     writeFixture();

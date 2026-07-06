@@ -34,6 +34,14 @@ export interface WorldChangeSummaryAckToken {
 
 export type PromptConsumableAckToken = ChronicleAckToken | WorldChangeSummaryAckToken;
 
+/**
+ * Explicit three-way outcome for a single bounded ACK application, used instead of a bare
+ * boolean so an already-satisfied idempotent no-op (e.g. a repeated exact token) can be told
+ * apart from a genuine persistence/application failure. `false` alone cannot make this
+ * distinction, which is why native appliers and the ACK loop must speak this contract.
+ */
+export type PromptReceiptAckOutcome = 'applied' | 'alreadySatisfied' | 'failed';
+
 export interface PromptDeliveryReceiptDiagnostics {
     transportPayloadHash?: string;
     stageTransportPayloadHashes?: ReadonlyArray<Readonly<{ stage: string; hash: string }>>;
@@ -171,6 +179,39 @@ export function createPromptReceiptAckWorkItem(receipt: PromptDeliveryReceipt): 
         provider: receipt.provider,
         assemblyDigest: receipt.assemblyDigest,
         selectedTokens: Object.freeze(receipt.selectedTokens.map((token) => Object.freeze({ ...token }))),
+    });
+}
+
+/**
+ * Provider bridges attach transport/stage diagnostics to a receipt after construction (e.g. once
+ * the actual outbound prompt text is known). This must not weaken the receipt's runtime
+ * immutability: the returned receipt is a fresh, fully frozen object, reusing the already-frozen
+ * `selectedChunks`/`selectedTokens` from the source receipt, so a diagnostics-wrapped receipt
+ * captured by a provider Accepted callback (Grok, VS Code LM, Agentic) remains just as immutable
+ * as the receipt returned by `createPromptDeliveryReceipt`.
+ */
+export function withPromptReceiptDiagnostics(
+    receipt: PromptDeliveryReceipt,
+    diagnostics: {
+        transportPayloadHash?: string;
+        stageTransportPayloadHashes?: ReadonlyArray<Readonly<{ stage: string; hash: string }>>;
+    }
+): PromptDeliveryReceipt {
+    const transportPayloadHash = diagnostics.transportPayloadHash ?? receipt.diagnostics?.transportPayloadHash;
+    const stageTransportPayloadHashes = diagnostics.stageTransportPayloadHashes
+        ?? receipt.diagnostics?.stageTransportPayloadHashes;
+    return Object.freeze({
+        receiptId: receipt.receiptId,
+        provider: receipt.provider,
+        assemblyDigest: receipt.assemblyDigest,
+        selectedChunks: receipt.selectedChunks,
+        selectedTokens: receipt.selectedTokens,
+        diagnostics: Object.freeze({
+            transportPayloadHash,
+            stageTransportPayloadHashes: stageTransportPayloadHashes
+                ? Object.freeze(stageTransportPayloadHashes.map((entry) => Object.freeze({ ...entry })))
+                : undefined,
+        }),
     });
 }
 

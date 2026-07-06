@@ -155,6 +155,7 @@ import {
     type PromptConsumableAckToken,
     type PromptDeliveryReceipt,
     type PromptReceiptProvider,
+    type PromptReceiptAckOutcome,
     type ChronicleAckToken,
     type WorldChangeSummaryAckToken,
 } from './promptReceiptCore';
@@ -202,6 +203,8 @@ export interface PromptReceiptAckResult {
     correlated: boolean;
     attemptedTokenIds: string[];
     succeededTokenIds: string[];
+    /** Exact-duplicate idempotent no-ops: truthful, not failures, never queued for compensation. */
+    alreadySatisfiedTokenIds: string[];
     failedTokenIds: string[];
 }
 
@@ -1315,15 +1318,20 @@ function clearChronicleSessionPending(): void {
     chronicleSessionPending = false;
 }
 
-function clearChronicleSessionPendingForGeneration(pendingGeneration: number): boolean {
+/**
+ * `alreadySatisfied` when pending was already cleared (by this or an earlier exact ACK) — a
+ * truthful no-op, not a failure. A generation mismatch (a newer reset occurred) remains `failed`
+ * so an old token cannot be mistaken for having cleared the newer generation.
+ */
+function clearChronicleSessionPendingForGeneration(pendingGeneration: number): PromptReceiptAckOutcome {
     if (!chronicleSessionPending) {
-        return false;
+        return 'alreadySatisfied';
     }
     if (chronicleSessionPendingGeneration !== pendingGeneration) {
-        return false;
+        return 'failed';
     }
     chronicleSessionPending = false;
-    return true;
+    return 'applied';
 }
 
 function buildChronicleRecapContextWithWorldState(
@@ -1889,13 +1897,31 @@ function clearPromptAckFailure(receiptId: string, tokenId: string): void {
     promptAckCompensationQueue.delete(`${receiptId}:${tokenId}`);
 }
 
-function applyChronicleAckToken(token: ChronicleAckToken): boolean {
-    const markerApplied = ackChronicleTokenMarker(token);
-    const pendingCleared = clearChronicleSessionPendingForGeneration(token.pendingGeneration);
-    return markerApplied || pendingCleared;
+/**
+ * Combines two independent sub-outcomes into one token-level outcome: any real state change
+ * ('applied') wins outright; otherwise any genuine 'failed' sub-outcome wins so a real failure is
+ * never masked; only when neither happened do we report the truthful 'alreadySatisfied' no-op.
+ */
+function combinePromptReceiptAckOutcomes(
+    a: PromptReceiptAckOutcome,
+    b: PromptReceiptAckOutcome
+): PromptReceiptAckOutcome {
+    if (a === 'applied' || b === 'applied') {
+        return 'applied';
+    }
+    if (a === 'failed' || b === 'failed') {
+        return 'failed';
+    }
+    return 'alreadySatisfied';
 }
 
-function applyWorldChangeSummaryAckToken(token: WorldChangeSummaryAckToken): boolean {
+function applyChronicleAckToken(token: ChronicleAckToken): PromptReceiptAckOutcome {
+    const markerOutcome = ackChronicleTokenMarker(token);
+    const pendingOutcome = clearChronicleSessionPendingForGeneration(token.pendingGeneration);
+    return combinePromptReceiptAckOutcomes(markerOutcome, pendingOutcome);
+}
+
+function applyWorldChangeSummaryAckToken(token: WorldChangeSummaryAckToken): PromptReceiptAckOutcome {
     return ackWorldChangeSummaryToken(token);
 }
 
@@ -1912,8 +1938,8 @@ export function acknowledgePromptReceiptAfterAccepted(
     receipt: PromptDeliveryReceipt,
     acceptedTurn: TurnResult | undefined,
     options: {
-        applyChronicleToken?: (token: ChronicleAckToken) => boolean;
-        applyWorldChangeSummaryToken?: (token: WorldChangeSummaryAckToken) => boolean;
+        applyChronicleToken?: (token: ChronicleAckToken) => PromptReceiptAckOutcome;
+        applyWorldChangeSummaryToken?: (token: WorldChangeSummaryAckToken) => PromptReceiptAckOutcome;
     } = {}
 ): PromptReceiptAckResult {
     if (!turnResultMatchesPromptReceipt(acceptedTurn, receipt)) {
@@ -1921,6 +1947,7 @@ export function acknowledgePromptReceiptAfterAccepted(
             correlated: false,
             attemptedTokenIds: [],
             succeededTokenIds: [],
+            alreadySatisfiedTokenIds: [],
             failedTokenIds: [],
         };
     }
@@ -1930,29 +1957,34 @@ export function acknowledgePromptReceiptAfterAccepted(
     const applyWorldChangeSummary = options.applyWorldChangeSummaryToken ?? applyWorldChangeSummaryAckToken;
     const attemptedTokenIds: string[] = [];
     const succeededTokenIds: string[] = [];
+    const alreadySatisfiedTokenIds: string[] = [];
     const failedTokenIds: string[] = [];
 
     for (const token of ackWorkItem.selectedTokens) {
         attemptedTokenIds.push(token.tokenId);
         try {
-            // A `false` return means the token failed to apply (e.g. persistence rejected the
-            // marker/generation transition). It must not be treated as success: a false-returning
-            // token is compensation-queue failure, but it must not block the remaining token's
-            // independent ACK attempt.
-            const applied = token.chunkId === 'chronicle'
+            // Three-way outcome, not a bare boolean: 'applied' and 'alreadySatisfied' are both
+            // truthful non-failures (an exact-duplicate no-op must never enter the compensation
+            // queue), while only 'failed' is a genuine compensation-queue failure. Each token is
+            // still independent — one token's outcome never blocks the other's attempt.
+            const outcome = token.chunkId === 'chronicle'
                 ? applyChronicle(token)
                 : applyWorldChangeSummary(token);
-            if (applied) {
-                clearPromptAckFailure(ackWorkItem.receiptId, token.tokenId);
-                succeededTokenIds.push(token.tokenId);
-            } else {
+            if (outcome === 'failed') {
                 recordPromptAckFailure({
                     receiptId: ackWorkItem.receiptId,
                     tokenId: token.tokenId,
                     chunkId: token.chunkId,
-                    message: 'ACK returned false',
+                    message: 'ACK reported failed outcome',
                 });
                 failedTokenIds.push(token.tokenId);
+            } else {
+                clearPromptAckFailure(ackWorkItem.receiptId, token.tokenId);
+                if (outcome === 'alreadySatisfied') {
+                    alreadySatisfiedTokenIds.push(token.tokenId);
+                } else {
+                    succeededTokenIds.push(token.tokenId);
+                }
             }
         } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
@@ -1970,6 +2002,7 @@ export function acknowledgePromptReceiptAfterAccepted(
         correlated: true,
         attemptedTokenIds,
         succeededTokenIds,
+        alreadySatisfiedTokenIds,
         failedTokenIds,
     };
 }

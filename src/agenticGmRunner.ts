@@ -32,6 +32,7 @@ import {
 import {
     buildTurnResultPromptReceiptMeta,
     hashPromptReceiptText,
+    withPromptReceiptDiagnostics,
 } from './promptReceiptCore';
 import {
     getGmBridgeOutputChannel,
@@ -262,15 +263,12 @@ export async function maybeInvokeAgenticBridge(
     vscode.window.setStatusBarMessage(`Agentic GM (${provider}): State Referee...`, 0);
 
     const prevGmState = beginGmRun(createPromptAcceptedCallbackForTests(
-        {
-            ...promptAssembly.receipt,
-            diagnostics: {
-                stageTransportPayloadHashes: [{
-                    stage: 'referee',
-                    hash: hashPromptReceiptText(refereePrompt),
-                }],
-            },
-        },
+        withPromptReceiptDiagnostics(promptAssembly.receipt, {
+            stageTransportPayloadHashes: [{
+                stage: 'referee',
+                hash: hashPromptReceiptText(refereePrompt),
+            }],
+        }),
         channel
     ));
 
@@ -370,15 +368,12 @@ export async function maybeInvokeAgenticBridge(
             narrator,
             fallbackNarration: buildFallbackNarration(referee),
             provider,
-            promptReceipt: buildTurnResultPromptReceiptMeta({
-                ...promptAssembly.receipt,
-                diagnostics: {
-                    stageTransportPayloadHashes: [
-                        { stage: 'referee', hash: hashPromptReceiptText(refereePrompt) },
-                        { stage: 'narrator', hash: hashPromptReceiptText(narratorPrompt) },
-                    ],
-                },
-            }),
+            promptReceipt: buildTurnResultPromptReceiptMeta(withPromptReceiptDiagnostics(promptAssembly.receipt, {
+                stageTransportPayloadHashes: [
+                    { stage: 'referee', hash: hashPromptReceiptText(refereePrompt) },
+                    { stage: 'narrator', hash: hashPromptReceiptText(narratorPrompt) },
+                ],
+            })),
         });
         if (!merged.ok || !merged.result) {
             finishGmRun(prevGmState, playerAction, false);

@@ -52,12 +52,14 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | `docs/assets/hero-ui.jpg` | Main README hero | Real — ComfyUI illustration (IL `waiIllustriousSDXL_v170`), 2026-07-04 |
 | `docs/assets/screenshot-status.png` | Adventure Log chat + status panel | Real — captured from the actual `webview/index.html` + `script.js` + `style.css` build (see below), 2026-07-04 |
 | `docs/assets/screenshot-inspector.png` | Turn Inspector incl. Debug Trace | Real — same capture method, 2026-07-04 |
-| `docs/assets/screenshot-remote-play.svg` / `.png` | LAN remote play | Placeholder wireframe (not yet refreshed) |
-| `docs/assets/screenshot-party-director.svg` / `.png` | Party speech control | Placeholder wireframe (not yet refreshed) |
-| `docs/assets/screenshot-lorebook.svg` / `.png` | Lorebook editor | Placeholder wireframe (not yet refreshed) |
-| `docs/assets/screenshot-comfyui.svg` / `.png` | ComfyUI integration | Placeholder wireframe (not yet refreshed) |
-| `docs/assets/screenshot-world-map.svg` / `.png` | World tab parchment + pins | Placeholder wireframe (not yet refreshed) |
+| `docs/assets/screenshot-remote-play.png` | LAN remote play panel | Real — same capture method (headless Chrome), 2026-07-06 |
+| `docs/assets/screenshot-party-director.png` | Party speech control | Real — same capture method, 2026-07-06 |
+| `docs/assets/screenshot-lorebook.png` | Lorebook editor | Real — same capture method, 2026-07-06 |
+| `docs/assets/screenshot-comfyui.png` | ComfyUI scene generation inline in chat | Real — Webview capture; scene image generated via local ComfyUI (IL `waiIllustriousSDXL_v170`), 2026-07-06 |
+| `docs/assets/screenshot-world-map.png` | World tab Parchment map + pins | Real — same capture method, uses the bundled `lost-catacombs` layout image, 2026-07-06 |
 | `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
+
+The old wireframe `.svg` placeholders for these five screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
 
 ### How the "Real" screenshots were captured (no VS Code needed)
 
@@ -80,9 +82,25 @@ Extension Development Host:
    `?demo=` query param).
 
 This reuses the exact production bundle, so screenshots stay authentic and cheap to refresh —
-no throwaway mockups needed. Remaining placeholder wireframes (Remote Play, Party Director,
-Lorebook, ComfyUI, World Map) can be refreshed the same way; they mostly need a populated
-`world_forge.json` / `npc_registry.json` / lorebook entries in the mock `gameStateUpdate`.
+no throwaway mockups needed. All five previously-placeholder screenshots (Remote Play, Party
+Director, Lorebook, ComfyUI, World Map) now use this method:
+
+- **Remote Play**: call `updateRemotePlayButton({ running: true, urls: [...], spectatorUrls: [...], clients: [...] })` directly instead of a real `remotePlayStatus` postMessage (no LAN server needed for a screenshot).
+- **Party Director**: post `characterList` (for display names) then `partyDirector` with a `members` map.
+- **Lorebook**: post `lorebookList` with a few `entries` (mix of enabled/disabled/pinned to show the visual states).
+- **World Map**: switch to Parchment mode and call `renderCartographyMap({ cartographyImage, cartographyRegionLabels, cartographyPins, ... })` — the bundled `sample-scenarios/lost-catacombs/world_map.layout.png` works well as a stand-in image.
+- **ComfyUI**: push two `messageHistory` entries via `renderMessage()`, the second one carrying an `image` field pointing at a real ComfyUI-generated scene (see below).
+
+If a screenshot needs a *new* generated image (not just UI with fixture data), generate it directly
+against a running ComfyUI instance with the bundled `comfyui/workflow_sdxl_1024.json` template
+(set `ckpt_name` to a checkpoint from `LoreRelay: List Image Models`, POST to `/prompt`, poll
+`/history/{prompt_id}`, fetch via `/view?filename=...`) — this is exactly what the current
+`screenshot-comfyui.png` scene image is.
+
+One gotcha: capturing with `--disable-gpu` in headless Chrome can silently break
+`backdrop-filter`/alpha-blended overlays (e.g. a modal's dimmed backdrop renders fully
+transparent even though DOM/computed-style inspection looks correct) — omit that flag if a
+screenshot involves a translucent backdrop.
 
 ## Recommended capture settings
 

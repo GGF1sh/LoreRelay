@@ -13,12 +13,24 @@ function updateRemotePlayButton(status) {
   renderRemotePlayPanel(status);
 }
 
+// The panel had an `#remote-play-backdrop` element in index.html from the
+// start, styled identically to the image-gen panel's backdrop, but nothing
+// ever toggled it — so opening Remote Play left the Start Hub / chat log
+// fully visible (and clickable) behind the panel instead of dimming it.
+function syncRemotePlayBackdrop() {
+  const panel = document.getElementById('remote-play-panel');
+  const backdrop = document.getElementById('remote-play-backdrop');
+  if (!panel || !backdrop) { return; }
+  backdrop.classList.toggle('hidden', panel.classList.contains('hidden'));
+}
+
 function renderRemotePlayPanel(status) {
   const panel = document.getElementById('remote-play-panel');
   if (!panel) { return; }
 
   const running = Boolean(status && status.running);
   panel.classList.toggle('hidden', !running);
+  syncRemotePlayBackdrop();
   if (!running) {
     return;
   }
@@ -57,6 +69,7 @@ function renderRemotePlayPanel(status) {
 (function initRemotePlayUi() {
   const btn = document.getElementById('remote-play-btn');
   const panel = document.getElementById('remote-play-panel');
+  const backdrop = document.getElementById('remote-play-backdrop');
   const closeBtn = document.getElementById('remote-play-close');
   const stopBtn = document.getElementById('remote-play-stop-btn');
   const copyPlayerBtn = document.getElementById('remote-play-copy-player');
@@ -67,13 +80,23 @@ function renderRemotePlayPanel(status) {
   btn.addEventListener('click', () => {
     if (remotePlayActive && panel) {
       panel.classList.toggle('hidden');
+      syncRemotePlayBackdrop();
       return;
     }
     vscode.postMessage({ type: 'toggleRemotePlay' });
   });
 
   if (closeBtn && panel) {
-    closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+    closeBtn.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      syncRemotePlayBackdrop();
+    });
+  }
+  if (backdrop && panel) {
+    backdrop.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      syncRemotePlayBackdrop();
+    });
   }
   if (stopBtn) {
     stopBtn.addEventListener('click', () => {

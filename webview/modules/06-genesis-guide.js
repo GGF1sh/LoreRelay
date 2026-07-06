@@ -508,11 +508,34 @@
     });
   }
 
+  // "What happens next" after a successful apply: protagonistMode was only
+  // ever decorative for resolveRulesProfile() (it does not map to any
+  // game_rules key — see src/rulesProfileCore.ts), so acting on it here is a
+  // pure Webview navigation shortcut, not new backend behavior. 'generate'
+  // and 'skip' have no extra action (the GM improvises / user decides later).
+  function protagonistNextStepLabelKey() {
+    switch (state.answers.protagonistMode) {
+      case 'manual': return 'webview.genesis.summary.closeAndCreateBtn';
+      case 'sillytavern': return 'webview.genesis.summary.closeAndImportBtn';
+      default: return 'webview.genesis.summary.closeAndStartBtn';
+    }
+  }
+
+  function runProtagonistNextStep() {
+    closeGenesisGuide();
+    if (state.answers.protagonistMode === 'manual') {
+      window.openCharacterCreator?.(null);
+    } else if (state.answers.protagonistMode === 'sillytavern') {
+      vscode.postMessage({ type: 'importTavernCard' });
+    }
+  }
+
   startBtn.addEventListener('click', () => {
     if (state.applied) {
-      // Second click after a successful apply: just close and hand the user
-      // back to the Start Hub (protagonist creation, demos, etc.).
-      closeGenesisGuide();
+      // Second click after a successful apply: close, then jump straight to
+      // the protagonist step the user already chose (create / import), or
+      // just hand back to the Start Hub for generate/skip.
+      runProtagonistNextStep();
       return;
     }
     const preview = resolvePreview(state.answers);
@@ -537,7 +560,7 @@
         state.applied = true;
         const count = Array.isArray(message.changedKeys) ? message.changedKeys.length : 0;
         appliedToast.textContent = T('webview.genesis.summary.appliedSuccess', { count });
-        startBtn.textContent = T('webview.genesis.summary.closeAndStartBtn');
+        startBtn.textContent = T(protagonistNextStepLabelKey());
         if (Array.isArray(message.warnings) && message.warnings.length > 0) {
           summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
           summaryWarningsEl.classList.remove('hidden');

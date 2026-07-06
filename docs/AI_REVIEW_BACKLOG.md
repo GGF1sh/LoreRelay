@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `a319e68` (PROMPT-001D2 merged; World Map / README showcase already merged)
-**Control Artifacts Synced Through:** `4e9867f` (RUNTIME-003A second reverify failed; third repair intake recorded)
+**Control Artifacts Synced Through:** `dfbd488` (RUNTIME-003A third verification repair complete; ready for third reverify)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -46,7 +46,7 @@
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
 | `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **DONE** (`6fc5700`; smoke `221/221`) | - | merged + smoke passed | - | - |
-| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **IMPLEMENTING (Third Verification Repair)** (`639fa53`; R3A-V4/V5 remain) | `RUNTIME-002A` | delayed-acquirer/orphan ownership continuity / conditional malformed recovery / durable restore repair latch | Codex 5.5 Very High | ChatGPT 5.5 High + o3 |
+| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **VERIFYING (Third Reverify)** (`0f6908c`; report `dfbd488`) | `RUNTIME-002A` | acquisition continuity / fingerprint-bound malformed recovery / durable restore repair latch | Codex 5.5 Very High | ChatGPT 5.5 High + o3 |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

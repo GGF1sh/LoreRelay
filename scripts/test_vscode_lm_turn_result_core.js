@@ -62,12 +62,23 @@ try {
         turnId: 'turn-2',
         locale: 'en',
         playerAction: 'enter cave',
+        promptReceipt: {
+            receiptId: 'receipt-vscode-test',
+            provider: 'vscode-lm',
+            assemblyDigest: 'digest-vscode-test',
+        },
     });
 
     if (!turnResult.statePatch || turnResult.statePatch.length === 0) {
         fail('statePatch generated');
     } else {
         ok('statePatch generated');
+    }
+
+    if (turnResult.promptReceipt?.receiptId !== 'receipt-vscode-test' || turnResult.promptReceipt?.provider !== 'vscode-lm') {
+        fail('buildVscodeLmTurnResult preserves trusted prompt receipt metadata');
+    } else {
+        ok('buildVscodeLmTurnResult preserves trusted prompt receipt metadata');
     }
 
     const hasMood = turnResult.statePatch.some((p) => p.path === '/mood');

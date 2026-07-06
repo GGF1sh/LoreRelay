@@ -628,7 +628,7 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
     }
 
     lastProcessedTurnHash = hash;
-    markTurnResultHandled();
+    markTurnResultHandled(enriched);
 
     try {
         handleTurnResultMedia(enriched);

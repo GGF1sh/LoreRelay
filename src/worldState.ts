@@ -16,6 +16,7 @@ import {
 import type { WorldForge } from './worldForgeCore';
 import { mergeWorldStateForPersist } from './workspaceStateQueueCore';
 import { isWorldStateWriteCircuitOpen, runSerializedWorldStateMutation } from './workspaceStateQueue';
+import type { ChronicleAckToken, WorldChangeSummaryAckToken, PromptReceiptAckOutcome } from './promptReceiptCore';
 
 export type { WorldState, FactionWorldState, RegionWorldState, GlobalEvent };
 export { buildInitialWorldState };
@@ -149,21 +150,91 @@ export function loadWorldState(): WorldState | undefined {
 }
 
 /** Mark a world-turn "Since Last Visit" block as consumed so it is not re-injected every GM turn. */
-export function markWorldChangeSummaryInjected(worldTurn: number): void {
+export function markWorldChangeSummaryInjected(worldTurn: number, sourceDigest?: string): void {
     const state = loadWorldState();
     if (!state) { return; }
     const turn = Math.max(0, Math.floor(worldTurn));
-    if ((state.lastInjectedWorldChangeSummaryTurn ?? -1) >= turn) { return; }
-    saveWorldState({ ...state, lastInjectedWorldChangeSummaryTurn: turn });
+    const currentTurn = state.lastInjectedWorldChangeSummaryTurn ?? -1;
+    const currentDigest = state.lastInjectedWorldChangeSummaryDigest;
+    if (currentTurn > turn) { return; }
+    if (currentTurn === turn && currentDigest === sourceDigest) { return; }
+    saveWorldState({
+        ...state,
+        lastInjectedWorldChangeSummaryTurn: turn,
+        ...(sourceDigest ? { lastInjectedWorldChangeSummaryDigest: sourceDigest } : {}),
+    });
 }
 
 /** Mark chronicle recap as consumed for this journal turn count. */
-export function markChronicleInjected(journalTurnCount: number): void {
+export function markChronicleInjected(journalTurnCount: number, sourceDigest?: string): void {
     const state = loadWorldState();
     if (!state) { return; }
     const turn = Math.max(0, Math.floor(journalTurnCount));
-    if ((state.lastInjectedChronicleTurn ?? -1) >= turn) { return; }
-    saveWorldState({ ...state, lastInjectedChronicleTurn: turn });
+    const currentTurn = state.lastInjectedChronicleTurn ?? -1;
+    const currentDigest = state.lastInjectedChronicleDigest;
+    if (currentTurn > turn) { return; }
+    if (currentTurn === turn && currentDigest === sourceDigest) { return; }
+    saveWorldState({
+        ...state,
+        lastInjectedChronicleTurn: turn,
+        ...(sourceDigest ? { lastInjectedChronicleDigest: sourceDigest } : {}),
+    });
+}
+
+/**
+ * `alreadySatisfied` is returned only when the marker already exactly records this token's
+ * `(summaryTurn, sourceDigest)` — a truthful idempotent no-op, not a failure. All other
+ * non-applying cases (stale token, blocked by a different same-turn digest, missing state,
+ * persistence rejection) remain `failed` so bounded marker authority is not weakened.
+ */
+export function ackWorldChangeSummaryToken(token: WorldChangeSummaryAckToken): PromptReceiptAckOutcome {
+    const state = loadWorldState();
+    if (!state) {
+        return 'failed';
+    }
+    const currentTurn = state.lastInjectedWorldChangeSummaryTurn ?? -1;
+    const currentDigest = state.lastInjectedWorldChangeSummaryDigest;
+    if (currentTurn === token.summaryTurn && currentDigest === token.sourceDigest) {
+        return 'alreadySatisfied';
+    }
+    if (currentTurn > token.summaryTurn) {
+        return 'failed';
+    }
+    if (currentTurn === token.summaryTurn && currentDigest && currentDigest !== token.sourceDigest) {
+        return 'failed';
+    }
+    return saveWorldState({
+        ...state,
+        lastInjectedWorldChangeSummaryTurn: token.summaryTurn,
+        lastInjectedWorldChangeSummaryDigest: token.sourceDigest,
+    }) ? 'applied' : 'failed';
+}
+
+/**
+ * See `ackWorldChangeSummaryToken` for the outcome contract; same bounded-authority rules apply
+ * to the Chronicle marker.
+ */
+export function ackChronicleTokenMarker(token: Pick<ChronicleAckToken, 'sourceTurn' | 'sourceDigest'>): PromptReceiptAckOutcome {
+    const state = loadWorldState();
+    if (!state) {
+        return 'failed';
+    }
+    const currentTurn = state.lastInjectedChronicleTurn ?? -1;
+    const currentDigest = state.lastInjectedChronicleDigest;
+    if (currentTurn === token.sourceTurn && currentDigest === token.sourceDigest) {
+        return 'alreadySatisfied';
+    }
+    if (currentTurn > token.sourceTurn) {
+        return 'failed';
+    }
+    if (currentTurn === token.sourceTurn && currentDigest && currentDigest !== token.sourceDigest) {
+        return 'failed';
+    }
+    return saveWorldState({
+        ...state,
+        lastInjectedChronicleTurn: token.sourceTurn,
+        lastInjectedChronicleDigest: token.sourceDigest,
+    }) ? 'applied' : 'failed';
 }
 
 function readWorldStateFromDisk(statePath: string): WorldState | undefined {

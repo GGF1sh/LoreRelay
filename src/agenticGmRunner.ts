@@ -2,7 +2,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { t } from './i18n';
-import { buildGmPromptContext, postPromptContextToWebview } from './gmPromptBuilder';
+import {
+    buildProductionPromptAssembly,
+    postPromptContextToWebview,
+} from './gmPromptBuilder';
 import {
     buildFallbackNarration,
     buildNarratorPrompt,
@@ -27,7 +30,13 @@ import {
     finishGmRun,
 } from './turnResultFallback';
 import {
+    buildTurnResultPromptReceiptMeta,
+    hashPromptReceiptText,
+    withPromptReceiptDiagnostics,
+} from './promptReceiptCore';
+import {
     getGmBridgeOutputChannel,
+    createPromptAcceptedCallbackForTests,
     GrokPromptRunResult,
     runGrokPromptFile,
     runLocalAgenticStage,
@@ -79,14 +88,14 @@ function safeUnlinkAgenticFile(filePath: string): void {
     }
 }
 
-function buildAgenticBasePrompt(playerAction: string): string {
+function buildAgenticBasePrompt(playerAction: string, promptContext: string): string {
     return [
         '[LoreRelay Agentic GM Context]',
         `Player action: ${playerAction}`,
         '',
         'Use the context below, but follow the current agentic stage instructions over any general GM behavior.',
         'Do not write game_state.json directly.',
-        buildGmPromptContext(playerAction),
+        promptContext,
     ].join('\n');
 }
 
@@ -228,7 +237,8 @@ export async function maybeInvokeAgenticBridge(
     const channel = getGmBridgeOutputChannel();
     channel.appendLine(`\n[Agentic GM] provider=${provider}`);
     const suggestedTurnId = loadSuggestedTurnId(cwd);
-    const basePrompt = buildAgenticBasePrompt(playerAction);
+    const promptAssembly = buildProductionPromptAssembly(playerAction, 'agentic');
+    const basePrompt = buildAgenticBasePrompt(playerAction, promptAssembly.promptText);
     const agenticDir = ensureAgenticDir(cwd);
 
     const refereePrompt = buildRefereePrompt({
@@ -252,7 +262,15 @@ export async function maybeInvokeAgenticBridge(
     setAgenticBridgeBusy(true);
     vscode.window.setStatusBarMessage(`Agentic GM (${provider}): State Referee...`, 0);
 
-    const prevGmState = beginGmRun();
+    const prevGmState = beginGmRun(createPromptAcceptedCallbackForTests(
+        withPromptReceiptDiagnostics(promptAssembly.receipt, {
+            stageTransportPayloadHashes: [{
+                stage: 'referee',
+                hash: hashPromptReceiptText(refereePrompt),
+            }],
+        }),
+        channel
+    ));
 
     try {
         const refereeRun = await runAgenticStage({
@@ -350,6 +368,12 @@ export async function maybeInvokeAgenticBridge(
             narrator,
             fallbackNarration: buildFallbackNarration(referee),
             provider,
+            promptReceipt: buildTurnResultPromptReceiptMeta(withPromptReceiptDiagnostics(promptAssembly.receipt, {
+                stageTransportPayloadHashes: [
+                    { stage: 'referee', hash: hashPromptReceiptText(refereePrompt) },
+                    { stage: 'narrator', hash: hashPromptReceiptText(narratorPrompt) },
+                ],
+            })),
         });
         if (!merged.ok || !merged.result) {
             finishGmRun(prevGmState, playerAction, false);

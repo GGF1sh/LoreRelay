@@ -64,8 +64,12 @@ export interface WorldState {
     lastSimulatedGmTurn?: number;
     /** World turn whose "Since Last Visit" block was already injected into a GM prompt. */
     lastInjectedWorldChangeSummaryTurn?: number;
+    /** Digest for the world-change summary content last acknowledged at that turn. */
+    lastInjectedWorldChangeSummaryDigest?: string;
     /** GM journal turn count when chronicle recap was last injected into a GM prompt. */
     lastInjectedChronicleTurn?: number;
+    /** Digest for the chronicle recap content last acknowledged at that journal turn. */
+    lastInjectedChronicleDigest?: string;
     factions: Record<string, FactionWorldState>;
     regions?: Record<string, RegionWorldState>;
     globalEvents?: GlobalEvent[];
@@ -546,8 +550,14 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         lastInjectedWorldChangeSummaryTurn: doc.lastInjectedWorldChangeSummaryTurn !== undefined
             ? asNumber(doc.lastInjectedWorldChangeSummaryTurn, 0)
             : undefined,
+        lastInjectedWorldChangeSummaryDigest: doc.lastInjectedWorldChangeSummaryDigest !== undefined
+            ? asString(doc.lastInjectedWorldChangeSummaryDigest)
+            : undefined,
         lastInjectedChronicleTurn: doc.lastInjectedChronicleTurn !== undefined
             ? asNumber(doc.lastInjectedChronicleTurn, 0)
+            : undefined,
+        lastInjectedChronicleDigest: doc.lastInjectedChronicleDigest !== undefined
+            ? asString(doc.lastInjectedChronicleDigest)
             : undefined,
         factions,
         regions,

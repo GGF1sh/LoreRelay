@@ -198,6 +198,116 @@ None.
   junction was created to the primary worktree's `node_modules`); `git diff` shows no actual
   content change, so it was **not** staged/committed.
 
-## 17. Final verdict
+## 17. Final verdict (initial pass)
 
 START_HUB_GENESIS_VISUAL_POLISH_READY_FOR_REVIEW
+
+---
+
+# Final Polish Pass (2026-07-07)
+
+AI: Claude (Sonnet 5, Medium reasoning) — Onboarding UX Finishing Reviewer
+Scope: narrow finishing touches only. The visual hierarchy from the initial pass was approved
+and **not** redesigned.
+
+## 18. Rebase baseline
+
+Branch was rebased onto `origin/main` at `07b04ae` (4 commits ahead of the original `b7cb43c`
+baseline, all unrelated `docs:` RUNTIME-003A verification-repair entries). Clean rebase, no
+conflicts — the branch's diff vs. `origin/main` is unchanged in scope after the rebase (same
+14 files as the initial pass, now applied on top of current main). Branch tip after rebase +
+this pass's commit is pushed to `origin/ux/start-hub-genesis-visual-polish`.
+
+## 19. Readiness copy change
+
+The original wording ("✅ 追加設定なしで今すぐ遊べます。GMプロバイダ・ComfyUI・TTSは任意です")
+overclaimed: without any GM provider actually configured (or a manual copy/paste flow), there
+is no real AI game-master response, so "you can play right now with zero setup" was misleading
+about what "playing" means. Replaced in all 4 locales + the HTML fallback with copy that only
+promises what's true — you can start exploring the demo now, and the AI/image/voice
+integrations are things you add afterward, not prerequisites to opening the app:
+
+- ja: "💡 まずはデモから試せます。AI連携・画像生成・音声は後から追加できます（⚙️ Settings タブでいつでも設定可）。"
+- en: "💡 Start with the demo right away. AI connection, image generation, and voice can all be added later (⚙️ Settings tab, anytime)."
+- zh-CN: "💡 可以先从演示开始体验。AI 连接、图像生成、语音都可以稍后再添加（⚙️ 随时可在 Settings 标签设置）。"
+- zh-TW: "💡 可以先從展示開始體驗。AI 連接、圖像生成、語音都可以稍後再新增（⚙️ 隨時可在 Settings 分頁設定）。"
+
+Also swapped the ✅ (implies "all good, ready to go") for 💡 (a neutral tip icon), since the
+checkmark itself was part of the overclaim, independent of the wording. No diagnostics or
+backend detection added — still a static, honest line.
+
+## 20. Final visual review verdict
+
+Re-ran the actual production build (`npm run build:webview`) in the same real-Webview static
+harness used for the initial pass (real `script.js`/`style.css`, stubbed `acquireVsCodeApi`,
+injected `localeBundle`), captured via headless Chrome (no `--disable-gpu`):
+
+- Genesis hero card remains the visually dominant element (gradient background, larger than
+  the primary tiles) — confirmed unchanged, still first in DOM and visually first.
+- The 3 primary tiles (demo / Parlor / new character) remain balanced and equal-weight to each
+  other, distinct from the hero by using a flat accent-bordered style instead of a gradient.
+- The readiness line is a single small (11px) line of dim text between the title and the
+  tiles — it does not compete with the tiles or the hero for attention.
+- The collapsed "▸ その他の遊び方・詳細設定" disclosure is present and visible directly under
+  the primary tiles, discoverable without scrolling on a normal desktop viewport.
+- Narrow width (900×700 tested): the primary tile row wraps from 3-per-row to 2-per-row
+  correctly; the 3rd tile flows below the fold, reachable via the pane's existing
+  `overflow-y: auto` scroll (same intentional top-anchored/scrollable design already
+  documented in `webview/styles/10-layout-chat.css`'s `.start-hub` comment — not a new
+  regression, and not something introduced by this pass).
+- No duplicated visual emphasis: exactly one gradient element (hero) and one accent-tile
+  group (primary tiles); readiness hint and collapsed-section summary both use plain dim text.
+- Japanese copy fits cleanly at both 1440px and 900px widths with no overflow or clipped text.
+
+**Verdict: visual hierarchy holds up; no further Start Hub redesign needed.**
+
+Refreshed `docs/assets/screenshot-start-hub.png` only, because the readiness line's literal
+text is directly visible in that screenshot and had changed. Did **not** touch
+`docs/assets/screenshot-genesis-summary.png` — nothing about Genesis Guide changed in this
+pass.
+
+## 21. Route regression (re-verified after rebase + copy change)
+
+Re-clicked every route in the refreshed harness and asserted the resulting `postMessage`/
+global call, same method as the initial pass:
+
+| Route | Result |
+|---|---|
+| `start-hub-demo-btn` (harbor-mist demo) | `{"type":"loadBundledScenario","sampleId":"harbor-mist"}` |
+| `start-hub-parlor-btn` (Parlor, no character yet) | `{"type":"importTavernCard"}` |
+| `start-hub-char-new-btn` (Character Creator) | `window.openCharacterCreator(null)` called |
+| `.start-hub-more-summary` (advanced details) | toggles `<details open>` true → false correctly both directions |
+| `start-hub-map-demo-btn` (map demo) | `{"type":"loadBundledScenario","sampleId":"lost-catacombs"}` |
+| `start-hub-quick-btn` (quickstart) | `#quickstart-modal` opens (visible, flex) |
+| `start-hub-char-import-btn` (SillyTavern import) | `{"type":"importTavernCard"}` |
+| `genesis-hero-cta` (Genesis Guide) | `#genesis-guide-modal` opens on step 1/6 |
+
+All 8 routes intact. No route logic was changed in this pass (only copy + rebase).
+
+## 22. Compile (final)
+
+`npm run compile` → clean (webview build + `tsc -p ./`, no errors) after the rebase and the
+readiness-copy edit.
+
+## 23. Full suite (final)
+
+`npm test` → **224/224 passed** (35.0s).
+
+## 24. i18n (final)
+
+`node scripts/check_i18n_keys.js` → **0 missing** in all 4 locales (`ja`, `en`, `zh-CN`,
+`zh-TW`) after the readiness-copy edit.
+
+## 25. Branch cleanliness
+
+`git status` clean after rebase. `webview/vendor/mermaid.min.js` again showed as modified
+purely from the build step re-copying it in this worktree (`git diff` shows 0 changed lines);
+restored with `git checkout --` and excluded from the commit, same as the initial pass.
+
+## 26. Blockers
+
+None.
+
+## 27. Final verdict
+
+START_HUB_GENESIS_VISUAL_POLISH_FINAL_READY

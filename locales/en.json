@@ -847,7 +847,7 @@
   "webview.startHub.interviewTitle": "Build via Q&A",
   "webview.startHub.mapDemoDesc": "Dungeon crawl + bundled layout map. Check World → Parchment.",
   "webview.startHub.mapDemoTitle": "Map demo (advanced)",
-  "webview.startHub.readinessHint": "✅ You can play right now with zero setup. GM provider, ComfyUI, and TTS are all optional (⚙️ Settings tab, anytime).",
+  "webview.startHub.readinessHint": "💡 Start with the demo right away. AI connection, image generation, and voice can all be added later (⚙️ Settings tab, anytime).",
   "webview.startHub.moreSummary": "More ways to play & advanced setup",
   "webview.startHub.moreDemosLabel": "More demos & advanced:",
   "webview.startHub.parlorDesc": "Start a simple 1-on-1 roleplay using an imported character card.",

@@ -847,7 +847,7 @@
   "webview.startHub.interviewTitle": "邊問邊做",
   "webview.startHub.mapDemoDesc": "地下聖堂 + 內建布局地圖。在 World → Parchment 查看。",
   "webview.startHub.mapDemoTitle": "地圖演示（進階）",
-  "webview.startHub.readinessHint": "✅ 不需要額外設定即可立即開始遊玩。GM 提供商、ComfyUI、TTS 皆為可選項（⚙️ 隨時可在 Settings 分頁設定）。",
+  "webview.startHub.readinessHint": "💡 可以先從展示開始體驗。AI 連接、圖像生成、語音都可以稍後再新增（⚙️ 隨時可在 Settings 分頁設定）。",
   "webview.startHub.moreSummary": "更多玩法與詳細設定",
   "webview.startHub.moreDemosLabel": "更多演示與進階內容：",
   "webview.startHub.parlorDesc": "使用匯入的角色卡開始簡單的1對1角色扮演聊天。",

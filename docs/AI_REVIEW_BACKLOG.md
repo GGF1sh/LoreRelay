@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `16be517` (Genesis / README visual polish merged)
-**Control Artifacts Synced Through:** `d178eb7` (PROMPT-001D2 verification failed → D2-V1 narrow repair)
+**Control Artifacts Synced Through:** `b8ca442` (PROMPT-001D2 D2-V1 repair complete → reverify)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -34,7 +34,7 @@
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **DONE** (`933252c`; re-smoke `222/222`) | `PROMPT-001A` | merged + post-merge re-smoke passed | - | - |
 | `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | **DONE** (`1773a9d`; post-merge smoke `223/223`) | `PROMPT-001A, B, RUNTIME-002A` | merged + post-merge smoke passed | - | - |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
-| `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | **IMPLEMENTING (D2-V1 Narrow Repair)** | `PROMPT-001A, B, C` | empty/invalid allocator output truth + divergence tests | Codex GPT-5.4 Medium | ChatGPT 5.5 High |
+| `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | **VERIFYING (D2-V1 Recheck)** (`2474f47`) | `PROMPT-001A, B, C` | empty/invalid allocator output truth repaired; divergence tests added | Codex GPT-5.4 Medium | ChatGPT 5.5 High |
 | **TEMP** | | | | | | | | |
 | `TEMP-001A` | Future-entry resurrection / replace semantics | - | - | **DONE** (`6ea886a`) | - | | - | - |
 | `TEMP-001B` | Multi-ledger temporal checkpoint/restore | P0 | Critical | CONFIRMED | - | | ChatGPT | Gemini 3.1 Pro |

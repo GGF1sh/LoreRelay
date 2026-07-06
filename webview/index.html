@@ -421,6 +421,55 @@
 
       <!-- ページ 3: Turn Inspector -->
       <div id="pane-inspector" class="tab-pane">
+        <div class="inspector-lane-tabs" id="inspector-lane-tabs" role="tablist" aria-label="Inspector lane">
+          <button type="button" class="inspector-lane-btn is-active" data-lane="timeline" role="tab" aria-selected="true"><span aria-hidden="true">🕐</span> <span data-i18n="webview.inspector.lane.timeline">Timeline</span></button>
+          <button type="button" class="inspector-lane-btn" data-lane="debug" role="tab" aria-selected="false"><span aria-hidden="true">🔍</span> <span data-i18n="webview.inspector.lane.debug">Debug</span></button>
+          <button type="button" class="inspector-lane-btn" data-lane="qa" role="tab" aria-selected="false"><span aria-hidden="true">🧪</span> <span data-i18n="webview.inspector.lane.qa">QA</span></button>
+        </div>
+
+        <div class="inspector-lane" id="inspector-lane-timeline" data-lane-panel="timeline">
+        <div class="inspector-section" id="inspector-chronicle-section">
+          <h4 data-i18n="webview.inspector.chronicleTitle">Chronicle</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.chronicleHint">Deterministic timeline from the state journal (read-only).</p>
+          <div id="inspector-chronicle-list" class="inspector-list"></div>
+          <button type="button" id="inspector-chronicle-refresh-btn" class="small-btn" data-i18n="webview.inspector.chronicleRefresh">Refresh</button>
+        </div>
+        <div class="inspector-section" id="inspector-replay-section">
+          <h4 data-i18n="webview.inspector.replayTitle">Replay Export</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.replayHint">Export chat log + chronicle chapters + gallery images to Markdown or HTML under exports/.</p>
+          <div class="inspector-replay-options" style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center; margin:0.5rem 0;">
+            <label for="inspector-replay-format" style="display:flex; align-items:center; gap:0.35rem;">
+              <span data-i18n="webview.inspector.replayFormat">Format</span>
+              <select id="inspector-replay-format">
+                <option value="markdown" data-i18n="webview.inspector.replayFormatMarkdown">Markdown</option>
+                <option value="html" data-i18n="webview.inspector.replayFormatHtml">HTML</option>
+              </select>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-images" checked />
+              <span data-i18n="webview.inspector.replayIncludeImages">Include images</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-gm" checked />
+              <span data-i18n="webview.inspector.replayIncludeGm">Include GM</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-dice" />
+              <span data-i18n="webview.inspector.replayIncludeDice">Include dice</span>
+            </label>
+          </div>
+          <button type="button" id="inspector-replay-export-btn" class="small-btn" data-i18n="webview.inspector.replayExport">Export replay</button>
+          <p id="inspector-replay-status" class="img-gen-hint" style="margin-top:0.5rem;"></p>
+        </div>
+        <div class="inspector-section" id="inspector-git-timeline">
+          <h4 data-i18n="webview.inspector.gitTimeline">Git Timeline</h4>
+          <div id="inspector-git-current-branch" class="inspector-item empty-text" data-i18n="webview.inspector.gitTimelineLoading">Checking Git status…</div>
+          <div id="inspector-git-branch-list" class="inspector-list"></div>
+          <button type="button" id="inspector-git-refresh-btn" class="small-btn" data-i18n="webview.inspector.gitRefresh">Refresh</button>
+        </div>
+        </div> <!-- /inspector-lane-timeline -->
+
+        <div class="inspector-lane hidden" id="inspector-lane-debug" data-lane-panel="debug">
         <div class="inspector-section hidden" id="inspector-debug-console-section">
           <h4 data-i18n="webview.inspector.debugConsoleTitle">Debug Console</h4>
           <p id="inspector-debug-sandbox-badge" class="img-gen-hint hidden" data-i18n="webview.inspector.debugSandboxBadge">Debug sandbox active — chat commands apply instantly.</p>
@@ -469,45 +518,6 @@
           </div>
           <div id="inspector-debug-trace-warnings" class="debug-trace-warnings hidden"></div>
           <div id="inspector-debug-trace-runs" class="debug-trace-runs"></div>
-        </div>
-        <div class="inspector-section" id="inspector-chronicle-section">
-          <h4 data-i18n="webview.inspector.chronicleTitle">Chronicle</h4>
-          <p class="img-gen-hint" data-i18n="webview.inspector.chronicleHint">Deterministic timeline from the state journal (read-only).</p>
-          <div id="inspector-chronicle-list" class="inspector-list"></div>
-          <button type="button" id="inspector-chronicle-refresh-btn" class="small-btn" data-i18n="webview.inspector.chronicleRefresh">Refresh</button>
-        </div>
-        <div class="inspector-section" id="inspector-replay-section">
-          <h4 data-i18n="webview.inspector.replayTitle">Replay Export</h4>
-          <p class="img-gen-hint" data-i18n="webview.inspector.replayHint">Export chat log + chronicle chapters + gallery images to Markdown or HTML under exports/.</p>
-          <div class="inspector-replay-options" style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center; margin:0.5rem 0;">
-            <label for="inspector-replay-format" style="display:flex; align-items:center; gap:0.35rem;">
-              <span data-i18n="webview.inspector.replayFormat">Format</span>
-              <select id="inspector-replay-format">
-                <option value="markdown" data-i18n="webview.inspector.replayFormatMarkdown">Markdown</option>
-                <option value="html" data-i18n="webview.inspector.replayFormatHtml">HTML</option>
-              </select>
-            </label>
-            <label style="display:flex; align-items:center; gap:0.35rem;">
-              <input type="checkbox" id="inspector-replay-images" checked />
-              <span data-i18n="webview.inspector.replayIncludeImages">Include images</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:0.35rem;">
-              <input type="checkbox" id="inspector-replay-gm" checked />
-              <span data-i18n="webview.inspector.replayIncludeGm">Include GM</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:0.35rem;">
-              <input type="checkbox" id="inspector-replay-dice" />
-              <span data-i18n="webview.inspector.replayIncludeDice">Include dice</span>
-            </label>
-          </div>
-          <button type="button" id="inspector-replay-export-btn" class="small-btn" data-i18n="webview.inspector.replayExport">Export replay</button>
-          <p id="inspector-replay-status" class="img-gen-hint" style="margin-top:0.5rem;"></p>
-        </div>
-        <div class="inspector-section" id="inspector-git-timeline">
-          <h4 data-i18n="webview.inspector.gitTimeline">Git Timeline</h4>
-          <div id="inspector-git-current-branch" class="inspector-item empty-text" data-i18n="webview.inspector.gitTimelineLoading">Checking Git status…</div>
-          <div id="inspector-git-branch-list" class="inspector-list"></div>
-          <button type="button" id="inspector-git-refresh-btn" class="small-btn" data-i18n="webview.inspector.gitRefresh">Refresh</button>
         </div>
         <p id="inspector-empty-text" class="empty-text" data-i18n="webview.inspector.empty">Complete a GM turn to inspect dice, patches, and lore triggers.</p>
         <div id="inspector-content" class="hidden">
@@ -559,6 +569,14 @@
             <pre id="inspector-hidden-state" class="inspector-item" style="white-space: pre-wrap; font-size: 12px;"></pre>
           </div>
         </div>
+        </div> <!-- /inspector-lane-debug -->
+
+        <div class="inspector-lane hidden" id="inspector-lane-qa" data-lane-panel="qa">
+        <div class="inspector-section inspector-lane-qa-placeholder">
+          <h4 data-i18n="webview.inspector.qa.title">QA Runner</h4>
+          <p class="empty-text" data-i18n="webview.inspector.qa.comingSoon">QA Runner UI is not implemented yet. This lane is a placeholder.</p>
+        </div>
+        </div> <!-- /inspector-lane-qa -->
       </div> <!-- /pane-inspector -->
 
       <!-- ページ: Lorebook Editor -->

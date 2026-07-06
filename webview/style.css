@@ -3421,6 +3421,57 @@ textarea:focus-visible {
     font-size: 12px;
 }
 
+/* --- 90c-inspector-lanes.css --- */
+/* ========= Inspector: Timeline / Debug / QA lane split (Phase 1, UX-only) =========
+   Presentation-only navigation layered on top of the existing Inspector
+   sections. No message/runtime contract changes — this file only styles the
+   lane tab bar. Show/hide of each lane is done by toggling the pre-existing
+   `.hidden` utility class (see 00-base.css) on the lane containers.
+   Design source: docs/ux/DEBUG-HUB-UX-PROPOSAL.md (Safe Immediate Slice). */
+
+#pane-inspector .inspector-lane-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 14px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--vr-hairline, var(--border-color));
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+#pane-inspector .inspector-lane-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#pane-inspector .inspector-lane-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#pane-inspector .inspector-lane-btn.is-active {
+  background: linear-gradient(180deg, rgba(var(--vr-accent-rgb, 79, 142, 247), 0.30), rgba(var(--vr-accent-rgb, 79, 142, 247), 0.16));
+  border-color: rgba(var(--vr-accent-rgb, 79, 142, 247), 0.45);
+  color: #eaf1ff;
+  box-shadow: 0 0 8px rgba(var(--vr-accent-rgb, 79, 142, 247), 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+#pane-inspector .inspector-lane-qa-placeholder {
+  padding: 10px 12px;
+}
+
 /* --- 95-character-creator.css --- */
 /* ============================
    Character Creator / Editor Modal

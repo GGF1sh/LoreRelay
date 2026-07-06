@@ -89,10 +89,18 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
 | <img src="docs/assets/screenshot-remote-play.png" width="330" alt="Remote Play LAN join panel with player/spectator URLs and connected clients" /> | <img src="docs/assets/screenshot-comfyui.png" width="200" alt="ComfyUI-generated scene image inline in the Adventure Log" /> |
 | Join from a phone/tablet over LAN — player/spectator URLs and a connected-client list | GM narration turned into a scene image on the spot, shown inline in chat |
 
-| Party Director | Lorebook | World Map |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-party-director.png" width="230" alt="Party Director member cards with verbosity sliders and relationship values" /> | <img src="docs/assets/screenshot-lorebook.png" width="230" alt="Lorebook editor with enabled, pinned, and disabled entries" /> | <img src="docs/assets/screenshot-world-map.png" width="230" alt="World tab Parchment map with region labels and location pins" /> |
-| Tune NPC verbosity, mute/force-speak, and relationship values | Browse, edit, and pin ST-compatible lorebook entries | Explored regions and location pins on the parchment map |
+| Party Director | Lorebook |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-party-director.png" width="280" alt="Party Director member cards with verbosity sliders and relationship values" /> | <img src="docs/assets/screenshot-lorebook.png" width="280" alt="Lorebook editor with enabled, pinned, and disabled entries" /> |
+| Tune NPC verbosity, mute/force-speak, and relationship values | Browse, edit, and pin ST-compatible lorebook entries |
+
+### 🗺️ World Map — a living campaign world
+
+<p align="center">
+  <img src="docs/assets/screenshot-world-map.png" width="380" alt="World Map overview: 10 regions and 14 locations across a ComfyUI-generated parchment map, with region labels, faction-tinted borders, a compact legend, and a fogged unexplored region" />
+  <img src="docs/assets/screenshot-world-map-detail.png" width="380" alt="World Map detail view: a selected high-danger ruin location card showing its type, danger level, and region, with quick actions to travel there or examine it" />
+</p>
+<p align="center"><sub>Cities, ruins, dungeons, ports, mountains, danger zones, unexplored frontiers, faction territory, and trade routes on a single map. Click a pin to open its type/danger/faction detail card with quick actions. The background is ComfyUI-generated (Illustrious + ControlNet); pins, labels, trade routes, and Fog of War are all drawn by the Webview from real world data.</sub></p>
 
 All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`). See [`DEMO.md`](DEMO.md) for the capture method.
 

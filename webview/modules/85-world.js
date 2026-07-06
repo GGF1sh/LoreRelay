@@ -14,6 +14,16 @@ const FACTION_TYPE_ICON = {
     'player-faction': '⭐'
 };
 
+/** Mirrors LOCATION_TYPE_ICON in src/worldMapGenerator.ts so Mermaid and Parchment modes agree visually. */
+const LOCATION_TYPE_ICON = {
+    settlement: '🏘️',
+    dungeon: '🕳️',
+    landmark: '🗿',
+    ruins: '🏚️',
+    wilderness: '🌲',
+    other: '📍'
+};
+
 const SEVERITY_COLOR = {
     minor: 'var(--vscode-charts-yellow)',
     moderate: 'var(--vscode-charts-orange, #e8a838)',
@@ -699,6 +709,26 @@ function ensureCartographyStyles() {
             35% { box-shadow: inset 0 0 120px rgba(192, 48, 48, 0.28); }
             100% { box-shadow: inset 0 0 0 rgba(192, 48, 48, 0); }
         }
+        .world-cartography-routes {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+        .world-cartography-route-line {
+            stroke: rgba(245, 226, 176, 0.55);
+            stroke-width: 0.35;
+            stroke-dasharray: 1.4 1.1;
+            vector-effect: non-scaling-stroke;
+        }
+        #world-cartography-legend {
+            position: absolute;
+            left: 6px;
+            bottom: 6px;
+            z-index: 7;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -1356,6 +1386,7 @@ function renderCartographyMap(msg) {
     const img = document.getElementById('world-cartography-img');
     const pinsEl = document.getElementById('world-cartography-pins');
     const empty = document.getElementById('world-cartography-empty');
+    const routesEl = document.getElementById('world-cartography-routes');
     if (!stage || !img || !pinsEl) { return; }
 
     const hasImage = Boolean(msg.cartographyImage);
@@ -1367,6 +1398,8 @@ function renderCartographyMap(msg) {
     if (!hasImage) {
         img.removeAttribute('src');
         pinsEl.innerHTML = '';
+        if (routesEl) { routesEl.innerHTML = ''; }
+        renderCartographyLegend([]);
         return;
     }
 
@@ -1375,6 +1408,7 @@ function renderCartographyMap(msg) {
 
     pinsEl.innerHTML = '';
     renderFogOverlays(stage, msg);
+    renderCartographyRoutes(routesEl, msg);
 
     const labels = Array.isArray(msg.cartographyRegionLabels) ? msg.cartographyRegionLabels : [];
     for (const label of labels) {
@@ -1420,8 +1454,9 @@ function renderCartographyMap(msg) {
             el.classList.add('is-rumored');
         }
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
+        const typeIcon = LOCATION_TYPE_ICON[pinMeta?.locationType] || LOCATION_TYPE_ICON.other;
         el.title = visibility === 'rumored' ? T('webview.world.pinRumoredTooltip') : (pin.locationName || pin.locationId || '');
-        el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : '📍');
+        el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : typeIcon);
         el.setAttribute('aria-label', pinLabel || 'Location');
         if (_selectedPinId && pin.locationId === _selectedPinId) {
             el.classList.add('is-selected');
@@ -1433,6 +1468,75 @@ function renderCartographyMap(msg) {
         wireParchmentWorldPin(el, pin, msg);
         wrap.appendChild(el);
         pinsEl.appendChild(wrap);
+    }
+
+    renderCartographyLegend(pins.map((pin) => findWorldPinMeta(pin.locationId)).filter(Boolean));
+}
+
+/** Trade-road / travel-route lines between connected regions (parchment overlay only). */
+function renderCartographyRoutes(routesEl, msg) {
+    if (!routesEl) { return; }
+    routesEl.setAttribute('viewBox', '0 0 100 100');
+    routesEl.setAttribute('preserveAspectRatio', 'none');
+    routesEl.innerHTML = '';
+    const edges = Array.isArray(msg.cartographyRouteEdges) ? msg.cartographyRouteEdges : [];
+    for (const edge of edges) {
+        if ([edge.x1Pct, edge.y1Pct, edge.x2Pct, edge.y2Pct].some((v) => typeof v !== 'number')) { continue; }
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('class', 'world-cartography-route-line');
+        line.setAttribute('x1', String(edge.x1Pct));
+        line.setAttribute('y1', String(edge.y1Pct));
+        line.setAttribute('x2', String(edge.x2Pct));
+        line.setAttribute('y2', String(edge.y2Pct));
+        routesEl.appendChild(line);
+    }
+}
+
+const CARTOGRAPHY_LEGEND_ORDER = ['settlement', 'landmark', 'ruins', 'dungeon', 'wilderness'];
+
+/** Compact legend keyed off the location types actually present on the current map. */
+function renderCartographyLegend(pinMetas) {
+    const el = document.getElementById('world-cartography-legend');
+    if (!el) { return; }
+    const seenTypes = new Set();
+    let hasDanger = false;
+    let hasRumored = false;
+    for (const meta of pinMetas) {
+        if (meta?.locationType) { seenTypes.add(meta.locationType); }
+        if (meta?.dangerTier === 'high' || meta?.dangerTier === 'medium') { hasDanger = true; }
+        if (meta?.fogVisibility === 'rumored') { hasRumored = true; }
+    }
+    if (seenTypes.size === 0) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    el.classList.remove('hidden');
+    el.innerHTML = '';
+    for (const type of CARTOGRAPHY_LEGEND_ORDER) {
+        if (!seenTypes.has(type)) { continue; }
+        const item = document.createElement('span');
+        item.className = 'world-map-overlay-legend-item';
+        const glyph = document.createElement('span');
+        glyph.className = 'world-map-overlay-legend-glyph';
+        glyph.textContent = LOCATION_TYPE_ICON[type] || LOCATION_TYPE_ICON.other;
+        item.appendChild(glyph);
+        item.appendChild(document.createTextNode(T(`webview.world.locationType.${type}`)));
+        el.appendChild(item);
+    }
+    if (hasDanger) {
+        const item = document.createElement('span');
+        item.className = 'world-map-overlay-legend-item';
+        item.innerHTML = '<span class="world-map-overlay-legend-glyph">⚠</span>';
+        item.appendChild(document.createTextNode(T('webview.world.pinDetail.danger')));
+        el.appendChild(item);
+    }
+    if (hasRumored) {
+        const item = document.createElement('span');
+        item.className = 'world-map-overlay-legend-item';
+        item.innerHTML = '<span class="world-map-overlay-legend-glyph">?</span>';
+        item.appendChild(document.createTextNode(T('webview.world.overlayLegendRumored')));
+        el.appendChild(item);
     }
 }
 

@@ -14,7 +14,7 @@ import { isLocalTtsConfigured } from './ttsBridgeRunner';
 import { getEntriesByLocation } from './visualMemory';
 import { safeImageUri } from './gameStateSync';
 import { toWebviewSafeMediaRef } from './mediaPaths';
-import { buildCartographyPinPositions, buildCartographyRegionLabels } from './cartographyLayoutCore';
+import { buildCartographyPinPositions, buildCartographyRegionLabels, buildCartographyRouteEdges } from './cartographyLayoutCore';
 import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildMapOverlayFromContext } from './mapOverlayBridge';
 import { deriveKnownNpcIds } from './mapOverlayCore';
@@ -39,6 +39,7 @@ import {
     buildLocationPinCatalog,
     maskCartographyPinsForFog,
     maskCartographyRegionLabelsForFog,
+    maskCartographyRouteEdgesForFog,
     normalizeFogWorldState,
 } from './fogOfWarCore';
 import { listActiveMapItems } from './cartographyRevealCore';
@@ -473,6 +474,10 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         buildCartographyRegionLabels(forge),
         fog
     );
+    const cartographyRouteEdges = maskCartographyRouteEdgesForFog(
+        buildCartographyRouteEdges(forge),
+        fog
+    );
     const fogRegionLayout = buildFogRegionLayout(forge);
     const regionHighlightMeta = buildRegionHighlightMeta(activeChanges);
     const regionMapFeedback = buildRegionMapFeedback(
@@ -609,6 +614,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         cartographyImage,
         cartographyPins,
         cartographyRegionLabels,
+        cartographyRouteEdges,
         cartographyHasImage: Boolean(cartographyImage),
         fog,
         fogRegionLayout,

@@ -87,10 +87,18 @@ GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 | <img src="docs/assets/screenshot-remote-play.png" width="330" alt="Remote Play LAN join panel with player/spectator URLs and connected clients" /> | <img src="docs/assets/screenshot-comfyui.png" width="200" alt="ComfyUI-generated scene image inline in the Adventure Log" /> |
 | 透過區網從手機/平板加入，玩家/觀戰者連結與已連線客戶端清單 | GM 敘述即時生成場景圖像，直接顯示於聊天中 |
 
-| Party Director | Lorebook | World Map |
-|:---:|:---:|:---:|
-| <img src="docs/assets/screenshot-party-director.png" width="230" alt="Party Director member cards with verbosity sliders and relationship values" /> | <img src="docs/assets/screenshot-lorebook.png" width="230" alt="Lorebook editor with enabled, pinned, and disabled entries" /> | <img src="docs/assets/screenshot-world-map.png" width="230" alt="World tab Parchment map with region labels and location pins" /> |
-| 調整 NPC 發言量、靜音/強制發言與關係值 | 瀏覽、編輯並釘選 ST 相容的 Lorebook 條目 | 顯示已探索區域與地點圖釘 |
+| Party Director | Lorebook |
+|:---:|:---:|
+| <img src="docs/assets/screenshot-party-director.png" width="280" alt="Party Director member cards with verbosity sliders and relationship values" /> | <img src="docs/assets/screenshot-lorebook.png" width="280" alt="Lorebook editor with enabled, pinned, and disabled entries" /> |
+| 調整 NPC 發言量、靜音/強制發言與關係值 | 瀏覽、編輯並釘選 ST 相容的 Lorebook 條目 |
+
+### 🗺️ World Map — 有生命的戰役世界
+
+<p align="center">
+  <img src="docs/assets/screenshot-world-map.png" width="380" alt="World Map overview: 10 regions and 14 locations across a ComfyUI-generated parchment map, with region labels, faction-tinted borders, a compact legend, and a fogged unexplored region" />
+  <img src="docs/assets/screenshot-world-map-detail.png" width="380" alt="World Map detail view: a selected high-danger ruin location card showing its type, danger level, and region, with quick actions to travel there or examine it" />
+</p>
+<p align="center"><sub>城市、遺跡、地下城、港口、山脈、危險地帶、未探索邊疆、勢力領地與貿易路線，盡在一張地圖上。點擊圖釘即可開啟該地點的類型/危險度/所屬勢力詳情卡片與快捷操作。背景由 ComfyUI（Illustrious + ControlNet）生成，圖釘、標籤、貿易路線與戰爭迷霧（Fog of War）皆由 Webview 依據真實世界資料繪製。</sub></p>
 
 替換為真實截圖或 GIF 的步驟見 [`DEMO.md`](DEMO.md)。
 

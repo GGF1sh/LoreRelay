@@ -53,6 +53,16 @@ export interface CartographyRegionLabel {
     topPct: number;
 }
 
+export interface CartographyRouteEdge {
+    fromRegionId: string;
+    toRegionId: string;
+    /** Percent 0..100 endpoints for an HTML/SVG overlay line. */
+    x1Pct: number;
+    y1Pct: number;
+    x2Pct: number;
+    y2Pct: number;
+}
+
 /** Distinct RGB fills for ControlNet layout masks (not display colors). */
 export const BIOME_LAYOUT_RGB: Record<RegionBiome, [number, number, number]> = {
     forest: [34, 120, 52],
@@ -245,6 +255,27 @@ export function buildCartographyRegionLabels(forge: WorldForge): CartographyRegi
         leftPct: mapCoordToPercent(region.x),
         topPct: Math.min(98, mapCoordToPercent(region.y) + 4),
     }));
+}
+
+/** Trade-road / travel-route lines between connected regions, for the parchment overlay. */
+export function buildCartographyRouteEdges(forge: WorldForge): CartographyRouteEdge[] {
+    const spec = buildCartographyLayoutSpec(forge);
+    const byId = new Map(spec.regions.map((r) => [r.id, r]));
+    return spec.edges
+        .map((edge) => {
+            const from = byId.get(edge.fromId);
+            const to = byId.get(edge.toId);
+            if (!from || !to) { return undefined; }
+            return {
+                fromRegionId: edge.fromId,
+                toRegionId: edge.toId,
+                x1Pct: mapCoordToPercent(from.x),
+                y1Pct: mapCoordToPercent(from.y),
+                x2Pct: mapCoordToPercent(to.x),
+                y2Pct: mapCoordToPercent(to.y),
+            };
+        })
+        .filter((e): e is CartographyRouteEdge => e !== undefined);
 }
 
 export function buildCartographyPinPositions(forge: WorldForge): CartographyPinPosition[] {

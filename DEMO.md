@@ -56,7 +56,8 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | `docs/assets/screenshot-party-director.png` | Party speech control | Real — same capture method, 2026-07-06 |
 | `docs/assets/screenshot-lorebook.png` | Lorebook editor | Real — same capture method, 2026-07-06 |
 | `docs/assets/screenshot-comfyui.png` | ComfyUI scene generation inline in chat | Real — Webview capture; scene image generated via local ComfyUI (IL `waiIllustriousSDXL_v170`), 2026-07-06 |
-| `docs/assets/screenshot-world-map.png` | World tab Parchment map + pins | Real — same capture method, uses the bundled `lost-catacombs` layout image, 2026-07-06 |
+| `docs/assets/screenshot-world-map.png` | World tab Parchment map overview | Real — same capture method, uses a dedicated 10-region/14-location showcase `world_forge.json` (`docs/assets/worldmap-showcase-fixture/`) rendered to a ComfyUI parchment background (Illustrious + Canny ControlNet, no LoRA — see fixture folder for generation notes), 2026-07-06 |
+| `docs/assets/screenshot-world-map-detail.png` | World tab Parchment map, selected-location detail card | Real — same capture + fixture, with a high-danger ruin pin selected to show the type/danger/faction detail panel, 2026-07-06 |
 | `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
 
 The old wireframe `.svg` placeholders for these five screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
@@ -88,7 +89,7 @@ Director, Lorebook, ComfyUI, World Map) now use this method:
 - **Remote Play**: call `updateRemotePlayButton({ running: true, urls: [...], spectatorUrls: [...], clients: [...] })` directly instead of a real `remotePlayStatus` postMessage (no LAN server needed for a screenshot).
 - **Party Director**: post `characterList` (for display names) then `partyDirector` with a `members` map.
 - **Lorebook**: post `lorebookList` with a few `entries` (mix of enabled/disabled/pinned to show the visual states).
-- **World Map**: switch to Parchment mode and call `renderCartographyMap({ cartographyImage, cartographyRegionLabels, cartographyPins, ... })` — the bundled `sample-scenarios/lost-catacombs/world_map.layout.png` works well as a stand-in image.
+- **World Map**: switch to Parchment mode and post a `worldView` message with `cartographyImage`, `cartographyPins`, `cartographyRegionLabels`, `cartographyRouteEdges`, and `locationPinCatalog` built from a `world_forge.json` (see `docs/assets/worldmap-showcase-fixture/` for the 10-region/14-location showcase world and its generated `world_map.png`). A minimal per-region `fog`/`regionMapFeedback` demonstrates the fog-of-war and faction-tint overlays; selecting a pin (`selectWorldLocationPin(id)`) shows the type/danger/faction detail card for the second screenshot.
 - **ComfyUI**: push two `messageHistory` entries via `renderMessage()`, the second one carrying an `image` field pointing at a real ComfyUI-generated scene (see below).
 
 If a screenshot needs a *new* generated image (not just UI with fixture data), generate it directly

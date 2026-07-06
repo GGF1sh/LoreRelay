@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `a319e68` (PROMPT-001D2 merged; World Map / README showcase already merged)
-**Control Artifacts Synced Through:** `f864902` (RUNTIME-003A verification failed; repair intake recorded)
+**Control Artifacts Synced Through:** `8cff5ff` (RUNTIME-003A verification repair complete; ready for reverify)
 **Last Reconciled:** 2026-07-06 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -46,7 +46,7 @@
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
 | `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **DONE** (`6fc5700`; smoke `221/221`) | - | merged + smoke passed | - | - |
-| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **IMPLEMENTING (Verification Repair)** (`97a30f1`; blockers R3A-V1..V5) | `RUNTIME-002A` | witness ownership / epoch identity / ledger authority / writer lease / restore serialization | Codex 5.5 | ChatGPT 5.5 |
+| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **VERIFYING (Reverify)** (`1c988ab`; report `8cff5ff`) | `RUNTIME-002A` | witness ownership / epoch identity / ledger authority / writer lease / restore serialization | Codex 5.5 | ChatGPT 5.5 |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

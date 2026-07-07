@@ -1451,4 +1451,15 @@
   "webview.genesis.system.guild": "ギルド",
   "webview.genesis.system.commerce": "商業",
   "webview.genesis.system.observatory": "ワールド観測所"
+  ,"webview.world.decisionRunSpike": "高騰を狙って走る",
+  "webview.world.decisionSellLocalNow": "今ここで売る: {price}",
+  "webview.world.decisionTravelPreview": "{days}日 · 食料{foodCost} · {transport}",
+  "webview.world.decisionPressureValue": "{pressure} の価格圧",
+  "webview.world.decisionEvidence.pricePressure": "価格圧",
+  "webview.world.decisionEvidence.recentEvent": "最近の出来事",
+  "webview.world.decisionEvidence.reputationHostile": "敵対的な評判",
+  "webview.world.decisionEvidence.reputationUnfriendly": "ぎくしゃくした評判",
+  "webview.world.decisionEvidence.reputationFriendly": "友好的な評判",
+  "webview.world.decisionEvidence.reputationAllied": "同盟的な評判",
+  "webview.world.decisionEvidence.lowStock": "在庫薄"
 }

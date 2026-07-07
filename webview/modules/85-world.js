@@ -263,6 +263,7 @@ function renderWorldView(msg) {
     // Living World market prices (+ direct trade when UI enabled)
     renderLivingWorldMarkets(
         msg.livingWorldMarkets || [],
+        msg.livingWorldDecisionSurface || null,
         msg.enableCommerce === true,
         msg.enableCommerceUi === true,
         msg.currentLocationId
@@ -352,6 +353,31 @@ function ensureCartographyStyles() {
             font-variant-numeric: tabular-nums;
             text-align: right;
             opacity: 0.85;
+        }
+        .world-market-row.has-decision-surface {
+            align-items: start;
+        }
+        .world-market-decision {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+            margin-top: 0.28rem;
+            padding-top: 0.32rem;
+            border-top: 1px dashed rgba(255,255,255,0.08);
+            font-size: 0.82em;
+        }
+        .world-market-pressure,
+        .world-market-evidence {
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 999px;
+            padding: 0.08rem 0.42rem;
+            background: rgba(255,255,255,0.04);
+        }
+        .world-market-route,
+        .world-market-local {
+            opacity: 0.78;
         }
         .world-market-trade {
             display: flex;
@@ -2136,7 +2162,115 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
     row.appendChild(trade);
 }
 
-function renderLivingWorldMarkets(markets, commerceEnabled, commerceUiEnabled, currentLocationId) {
+function buildDecisionSurfaceLookup(decisionSurface) {
+    const lookup = new Map();
+    const markets = Array.isArray(decisionSurface?.markets) ? decisionSurface.markets : [];
+    markets.forEach((market) => {
+        if (!market?.locationId || !Array.isArray(market.quotes)) { return; }
+        const quoteMap = new Map();
+        market.quotes.forEach((quote) => {
+            if (quote?.commodityId) {
+                quoteMap.set(quote.commodityId, quote);
+            }
+        });
+        if (quoteMap.size > 0) {
+            lookup.set(market.locationId, quoteMap);
+        }
+    });
+    return lookup;
+}
+
+function getDecisionQuote(decisionLookup, market, quote) {
+    return decisionLookup.get(market?.locationId)?.get(quote?.commodityId);
+}
+
+function formatDecisionPressure(pct) {
+    const n = Number(pct);
+    if (!Number.isFinite(n)) { return '0%'; }
+    return `${n > 0 ? '+' : ''}${formatMarketNumber(n)}%`;
+}
+
+function decisionEvidenceLabel(kind) {
+    switch (kind) {
+        case 'recent_event':
+            return T('webview.world.decisionEvidence.recentEvent');
+        case 'reputation_hostile':
+            return T('webview.world.decisionEvidence.reputationHostile');
+        case 'reputation_unfriendly':
+            return T('webview.world.decisionEvidence.reputationUnfriendly');
+        case 'reputation_friendly':
+            return T('webview.world.decisionEvidence.reputationFriendly');
+        case 'reputation_allied':
+            return T('webview.world.decisionEvidence.reputationAllied');
+        case 'low_stock':
+            return T('webview.world.decisionEvidence.lowStock');
+        default:
+            return T('webview.world.decisionEvidence.pricePressure');
+    }
+}
+
+function buildRunSpikeText(market) {
+    const meta = findWorldPinMeta(market?.locationId);
+    if (meta) {
+        return buildWorldPinActionText('move', meta);
+    }
+    return T('webview.world.pinAction.move', { name: market?.locationName || market?.locationId || 'there' });
+}
+
+function appendDecisionSurface(row, market, decisionQuote) {
+    if (!decisionQuote) { return; }
+    row.classList.add('has-decision-surface');
+
+    const detail = document.createElement('div');
+    detail.className = 'world-market-decision';
+
+    const pressure = document.createElement('span');
+    pressure.className = 'world-market-pressure';
+    pressure.textContent = T('webview.world.decisionPressureValue', {
+        pressure: formatDecisionPressure(decisionQuote.pressurePct),
+    });
+    detail.appendChild(pressure);
+
+    const evidence = Array.isArray(decisionQuote.evidence) ? decisionQuote.evidence : [];
+    const labels = evidence.length > 0
+        ? evidence.map(decisionEvidenceLabel)
+        : [T('webview.world.decisionEvidence.pricePressure')];
+    labels.forEach((label) => {
+        const badge = document.createElement('span');
+        badge.className = 'world-market-evidence';
+        badge.textContent = label;
+        detail.appendChild(badge);
+    });
+
+    const route = document.createElement('span');
+    route.className = 'world-market-route';
+    route.textContent = T('webview.world.decisionTravelPreview', {
+        days: formatMarketNumber(decisionQuote.travelPreview?.days),
+        foodCost: formatMarketNumber(decisionQuote.travelPreview?.foodCost),
+        transport: decisionQuote.travelPreview?.transportName || '?',
+    });
+    detail.appendChild(route);
+
+    const local = document.createElement('span');
+    local.className = 'world-market-local';
+    local.textContent = T('webview.world.decisionSellLocalNow', {
+        price: formatMarketNumber(decisionQuote.localUnitPrice),
+    });
+    detail.appendChild(local);
+
+    const runBtn = document.createElement('button');
+    runBtn.type = 'button';
+    runBtn.className = 'world-market-trade-btn';
+    runBtn.textContent = T('webview.world.decisionRunSpike');
+    runBtn.addEventListener('click', () => {
+        postWorldInsertChatText(buildRunSpikeText(market));
+    });
+    detail.appendChild(runBtn);
+
+    row.appendChild(detail);
+}
+
+function renderLivingWorldMarkets(markets, decisionSurface, commerceEnabled, commerceUiEnabled, currentLocationId) {
     const section = document.getElementById('world-markets-details');
     const list = document.getElementById('world-markets-list');
     const hint = document.getElementById('world-markets-hint');
@@ -2155,8 +2289,9 @@ function renderLivingWorldMarkets(markets, commerceEnabled, commerceUiEnabled, c
     }
 
     list.innerHTML = '';
+    const decisionLookup = buildDecisionSurfaceLookup(decisionSurface);
     const displayMarkets = commerceUiEnabled && currentLocationId
-        ? markets.filter((m) => m.locationId === currentLocationId)
+        ? markets.filter((m) => m.locationId === currentLocationId || decisionLookup.has(m.locationId))
         : markets;
 
     if (displayMarkets.length === 0) {
@@ -2187,7 +2322,12 @@ function renderLivingWorldMarkets(markets, commerceEnabled, commerceUiEnabled, c
         }
         card.appendChild(title);
 
-        const quotes = Array.isArray(market.quotes) ? market.quotes.slice(0, 8) : [];
+        const allQuotes = Array.isArray(market.quotes) ? market.quotes : [];
+        const quotes = commerceUiEnabled && currentLocationId && market.locationId !== currentLocationId
+            ? allQuotes.filter((quote) => getDecisionQuote(decisionLookup, market, quote)).slice(0, 8)
+            : allQuotes.slice(0, 8);
+        if (quotes.length === 0) { return; }
+
         quotes.forEach((quote) => {
             const row = document.createElement('div');
             row.className = 'world-market-row';
@@ -2199,6 +2339,9 @@ function renderLivingWorldMarkets(markets, commerceEnabled, commerceUiEnabled, c
             `;
             if (commerceUiEnabled) {
                 appendMarketTradeControls(row, market, quote, commerceUiEnabled, currentLocationId);
+                if (market.locationId !== currentLocationId) {
+                    appendDecisionSurface(row, market, getDecisionQuote(decisionLookup, market, quote));
+                }
             }
             card.appendChild(row);
         });

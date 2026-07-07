@@ -379,6 +379,30 @@ function showGmLoading() {
   if (parlorSettingsBtn) parlorSettingsBtn.disabled = true;
 }
 
+function showRelayWaitingState() {
+  if (document.getElementById('gm-loading')) { return; }
+  const div = document.createElement('div');
+  div.id = 'gm-loading';
+  div.className = 'msg gm relay-waiting';
+  const sender = document.createElement('div');
+  sender.className = 'msg-sender';
+  sender.style.color = 'var(--vscode-charts-yellow, #ffcc00)';
+  sender.textContent = 'Relay Mode';
+  const body = document.createElement('div');
+  body.className = 'msg-body';
+  const label = document.createElement('span');
+  label.textContent = 'Waiting for Antigravity... Paste payload in external chat.';
+  body.appendChild(label);
+  div.appendChild(sender);
+  div.appendChild(body);
+  chatLog.appendChild(div);
+  scrollToBottom();
+
+  freeInput.disabled = true;
+  sendBtn.disabled = true;
+  document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+}
+
 function hideGmLoading(success) {
   const el = document.getElementById('gm-loading');
   if (el) { el.remove(); }

@@ -189,6 +189,7 @@ import { exportSagaToHtml } from './exportHtml';
 import { exportReplayToWorkspace, openReplayExport } from './replayExport';
 import {
     initGmPromptBuilder,
+    buildGmPromptBreakdown,
     buildGrokPrompt,
     processProfileUpdates,
     maybeSuggestArchive,
@@ -375,6 +376,7 @@ export function activate(context: vscode.ExtensionContext) {
         sendLocaleBundle();
         sendDebugCapabilities();
         sendExperienceProfileToWebview();
+        sendRelayModeStatus();
 
         panel.webview.onDidReceiveMessage(
             (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
@@ -564,6 +566,9 @@ export function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration('textAdventure.locale')) {
                 sendLocaleBundle();
             }
+            if (e.affectsConfiguration('textAdventure.antigravityRelay.enabled')) {
+                sendRelayModeStatus();
+            }
         })
     );
 
@@ -580,6 +585,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 function getNonce(): string {
     return randomBytes(16).toString('hex');
+}
+
+function sendRelayModeStatus(): void {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    panel?.webview.postMessage({
+        type: 'relayModeStatus',
+        antigravityRelayMode: config.get<boolean>('antigravityRelay.enabled', false)
+    });
 }
 
 function sendRemotePlayStatus(): void {
@@ -875,6 +888,26 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
     persistPlayerInputEntry(trimmed, entryId);
 
     if (await tryExecuteDebugScenarioCommand(trimmed)) {
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const relayMode = config.get<boolean>('antigravityRelay.enabled', false);
+    if (relayMode) {
+        const breakdown = buildGmPromptBreakdown(trimmed);
+        const state = getCachedGameState();
+        const payload = {
+            kind: 'antigravity_relay_request',
+            version: 1,
+            playerAction: trimmed,
+            promptContext: breakdown,
+            availableOptions: state?.options ?? [],
+            targetOutput: 'turn_result.json'
+        };
+        await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
+        vscode.window.showInformationMessage('Relay Mode ON: Prepared handoff payload. Please paste into Antigravity.');
+        
+        panel?.webview.postMessage({ type: 'relayWaitingStateStart' });
         return;
     }
 

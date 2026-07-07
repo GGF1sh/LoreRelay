@@ -19,6 +19,7 @@ import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } fr
 import { migrateGameState } from './migrateGameState';
 import { sanitizeGameStateForPersist } from './gameStateSanitize';
 import {
+    clearTurnResultRawHashAuthorityForEpochChange,
     getGameEntryHistory,
     replaceHistoryFromDisk,
     saveHistoryToDisk,
@@ -29,6 +30,9 @@ import { invokeGmBridge, fallbackToClipboard, resetGmBridgeSessions } from './gm
 import { runSkillScript } from './skillScriptRunner';
 import { computeAndSetArchiveMilestone } from './gmPromptBuilder';
 import { commitGameState } from './stateManager';
+import {
+    runAcceptedTurnTimelineRestoreTransaction,
+} from './acceptedTurnReplayGuard';
 
 export interface CheckpointHandlerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -61,8 +65,35 @@ function readGameStateFromDisk(statePath: string): Record<string, unknown> | nul
     }
 }
 
-function writeGameStateToDisk(statePath: string, state: Record<string, unknown>): void {
-    commitGameState(state, { mergeProfile: 'replace' });
+function writeGameStateToDisk(
+    statePath: string,
+    state: Record<string, unknown>,
+    clearRuntimeWitness = false
+): void {
+    commitGameState(state, {
+        mergeProfile: 'replace',
+        ...(clearRuntimeWitness ? { runtimeAcceptedTurnWitnessMode: 'clear' as const } : {}),
+    });
+}
+
+async function runTimelineRestore(
+    ws: string,
+    reason: string,
+    restoreMutation: () => Promise<boolean> | boolean
+): Promise<boolean> {
+    const result = await runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
+        clearTurnResultRawHashAuthorityForEpochChange();
+        const ok = await restoreMutation();
+        if (!ok) {
+            throw new Error('restore mutation did not complete');
+        }
+        return true;
+    });
+    if ('kind' in result) {
+        vscode.window.showErrorMessage(`LoreRelay: ${result.reason ?? 'Replay timeline restore preparation failed.'}`);
+        return false;
+    }
+    return true;
 }
 
 export async function handleEditEntry(id: string, content: string): Promise<void> {
@@ -205,7 +236,7 @@ async function writeRestoredGameState(
         theme: 'fantasy'
     };
     try {
-        writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>);
+        writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>, true);
         replaceHistoryFromDisk();
         sendCurrentState(0, true);
         sendCheckpointList();
@@ -241,10 +272,12 @@ export async function handleUndoLastTurn(): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToUndo'));
         return;
     }
-    setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
-    saveHistoryToDisk();
-    resetGmBridgeSessions();
-    await writeRestoredGameState(findLastGmEntry(getGameEntryHistory()), t('extension.info.undoSuccess'));
+    await runTimelineRestore(ws, 'undo-last-turn', async () => {
+        setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
+        saveHistoryToDisk();
+        resetGmBridgeSessions();
+        return writeRestoredGameState(findLastGmEntry(getGameEntryHistory()), t('extension.info.undoSuccess'));
+    });
 }
 
 export async function handleRestoreToTurn(entryId: string): Promise<void> {
@@ -262,11 +295,13 @@ export async function handleRestoreToTurn(entryId: string): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.rewindNotFound'));
         return;
     }
-    setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
-    saveHistoryToDisk();
-    resetGmBridgeSessions();
-    const gm = findLastGmEntry(getGameEntryHistory());
-    await writeRestoredGameState(gm, t('extension.info.rewindSuccess'));
+    await runTimelineRestore(ws, 'restore-to-turn', async () => {
+        setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
+        saveHistoryToDisk();
+        resetGmBridgeSessions();
+        const gm = findLastGmEntry(getGameEntryHistory());
+        return writeRestoredGameState(gm, t('extension.info.rewindSuccess'));
+    });
 }
 
 export async function handleSaveCheckpoint(label?: string): Promise<void> {
@@ -300,11 +335,13 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
         return;
     }
-    setGameEntryHistoryWithSeenIds(cp.history);
-    saveHistoryToDisk();
-    resetGmBridgeSessions();
-    const gm = findLastGmEntry(getGameEntryHistory());
-    await writeRestoredGameState(gm, t('extension.info.checkpointRestored', { label: cp.meta.label }));
+    await runTimelineRestore(ws, 'restore-checkpoint', async () => {
+        setGameEntryHistoryWithSeenIds(cp.history);
+        saveHistoryToDisk();
+        resetGmBridgeSessions();
+        const gm = findLastGmEntry(getGameEntryHistory());
+        return writeRestoredGameState(gm, t('extension.info.checkpointRestored', { label: cp.meta.label }));
+    });
 }
 
 export async function handleDeleteCheckpoint(checkpointId: string): Promise<void> {
@@ -341,11 +378,14 @@ export async function handleRegenerateLastTurn(): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.noTurnToRegenerate'));
         return;
     }
-    setGameEntryHistoryWithSeenIds(trimmed);
-    saveHistoryToDisk();
-    resetGmBridgeSessions();
-    const gm = findLastGmEntry(getGameEntryHistory());
-    if (!(await writeRestoredGameState(gm, t('extension.info.regenerateStarted')))) {
+    const restored = await runTimelineRestore(ws, 'regenerate-last-turn', async () => {
+        setGameEntryHistoryWithSeenIds(trimmed);
+        saveHistoryToDisk();
+        resetGmBridgeSessions();
+        const gm = findLastGmEntry(getGameEntryHistory());
+        return writeRestoredGameState(gm, t('extension.info.regenerateStarted'));
+    });
+    if (!restored) {
         return;
     }
     const regenPrompt = t('gm.prompt.regenerate', { action: lastUserAction });

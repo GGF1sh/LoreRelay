@@ -12,6 +12,8 @@ const root = path.join(__dirname, '..');
 const outGameStateSync = path.join(root, 'out', 'gameStateSync.js');
 const outStatePatch = path.join(root, 'out', 'statePatch.js');
 const outTurnResultFallback = path.join(root, 'out', 'turnResultFallback.js');
+const outAcceptedTurnReplayGuard = path.join(root, 'out', 'acceptedTurnReplayGuard.js');
+const outAcceptedTurnReplayGuardCore = path.join(root, 'out', 'acceptedTurnReplayGuardCore.js');
 
 let failed = 0;
 
@@ -66,6 +68,19 @@ function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value), 'utf8');
 }
 
+function seedReplayScope(tmpDir) {
+    const runtimeDir = path.join(tmpDir, '.text-adventure', 'runtime');
+    fs.mkdirSync(runtimeDir, { recursive: true });
+    const now = new Date().toISOString();
+    writeJson(path.join(runtimeDir, 'accepted_turn_scope.json'), {
+        schemaVersion: 1,
+        campaignInstanceId: crypto.randomUUID(),
+        timelineEpochId: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+    });
+}
+
 async function flushAsyncWork() {
     await Promise.resolve();
     await Promise.resolve();
@@ -83,6 +98,7 @@ function loadGameStateSyncHarness(options = {}) {
     purgeModules([outGameStateSync]);
 
     const tmpDir = options.tmpDir || makeTempDir('lr-runtime-002a-sync-');
+    seedReplayScope(tmpDir);
     const turnResultPath = path.join(tmpDir, 'turn_result.json');
     const events = [];
     const postMessages = [];
@@ -102,7 +118,10 @@ function loadGameStateSyncHarness(options = {}) {
 
     const workspacePaths = {
         getActiveWorkspaceFolder: () => ({ uri: { fsPath: tmpDir } }),
-        writeJsonAtomic() {},
+        writeJsonAtomic(filePath, value) {
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            writeJson(filePath, value);
+        },
         getGameStatePath: () => path.join(tmpDir, 'game_state.json'),
         getWorkspacePath: () => tmpDir,
         getHistoryPath: () => path.join(tmpDir, 'game_history.json'),
@@ -281,11 +300,15 @@ function makeStatePatchMocks(tempDir, options = {}) {
 
     let commitCalls = 0;
     let ledgerCalls = 0;
+    let lastCommitState;
+    let lastCommitConfig;
 
     return {
         statePath,
         get commitCalls() { return commitCalls; },
         get ledgerCalls() { return ledgerCalls; },
+        get lastCommitState() { return lastCommitState; },
+        get lastCommitConfig() { return lastCommitConfig; },
         mocks: {
             vscode: createVscodeStub(),
             './worldForge': { isWorldForgeEnabled() { return false; }, loadWorldForge() { return undefined; } },
@@ -327,6 +350,8 @@ function makeStatePatchMocks(tempDir, options = {}) {
             './stateManager': {
                 commitGameState(value, config) {
                     commitCalls++;
+                    lastCommitState = value;
+                    lastCommitConfig = config;
                     return typeof options.commitGameState === 'function'
                         ? options.commitGameState(value, config)
                         : { ok: true, action: 'write' };
@@ -441,6 +466,8 @@ function loadStatePatchHarness(options = {}) {
         statePath: setup.statePath,
         get commitCalls() { return setup.commitCalls; },
         get ledgerCalls() { return setup.ledgerCalls; },
+        get lastCommitState() { return setup.lastCommitState; },
+        get lastCommitConfig() { return setup.lastCommitConfig; },
     };
 }
 
@@ -448,6 +475,7 @@ function makeWatcherFallbackIntegrationHarness(options = {}) {
     purgeModules([outGameStateSync, outTurnResultFallback]);
 
     const tmpDir = makeTempDir('lr-runtime-002a-integration-');
+    seedReplayScope(tmpDir);
     const gameStatePath = path.join(tmpDir, 'game_state.json');
     const historyPath = path.join(tmpDir, 'game_history.json');
     const turnResultPath = path.join(tmpDir, 'turn_result.json');
@@ -468,7 +496,10 @@ function makeWatcherFallbackIntegrationHarness(options = {}) {
 
     const workspacePaths = {
         getActiveWorkspaceFolder: () => ({ uri: { fsPath: tmpDir } }),
-        writeJsonAtomic() {},
+        writeJsonAtomic(filePath, value) {
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            writeJson(filePath, value);
+        },
         getGameStatePath: () => gameStatePath,
         getWorkspacePath: () => tmpDir,
         getHistoryPath: () => historyPath,
@@ -623,12 +654,18 @@ function makeWatcherFallbackIntegrationHarness(options = {}) {
     };
 }
 
-if (!fs.existsSync(outGameStateSync) || !fs.existsSync(outStatePatch) || !fs.existsSync(outTurnResultFallback)) {
+if (
+    !fs.existsSync(outGameStateSync)
+    || !fs.existsSync(outStatePatch)
+    || !fs.existsSync(outTurnResultFallback)
+    || !fs.existsSync(outAcceptedTurnReplayGuardCore)
+) {
     fail('compiled runtime modules missing - run npm run compile first');
     process.exit(1);
 }
 
 async function runAsyncCases() {
+    const acceptedCore = require(outAcceptedTurnReplayGuardCore);
     // 1. Parse failure: no apply / dedupe / handled / callback-like side effects.
     {
         const harness = loadGameStateSyncHarness({
@@ -638,13 +675,75 @@ async function runAsyncCases() {
         harness.beginPendingTurn(() => {});
         fs.writeFileSync(harness.turnResultPath, '{"broken"', 'utf8');
         const result = await harness.processFile();
-        assert(result === false, 'parse failure returns false');
+        assert(result.kind === 'retryableFailure', 'parse failure returns retryableFailure');
         assert(harness.processCalls === 0, 'parse failure does not apply turn');
         assert(harness.getHash() === '', 'parse failure does not commit dedupe hash');
         assert(harness.handledCount === 0, 'parse failure does not mark Handled');
         assert(harness.callbackCount === 0, 'parse failure does not fire callback');
         assert(harness.mediaCount === 0 && harness.autoImageCount === 0 && harness.bootstrapCount === 0, 'parse failure emits no success-only media/auto/bootstrap');
         assert(harness.postMessages.length === 0, 'parse failure emits no success UI update');
+    }
+
+    // RUNTIME-003A: durable restore repair latch blocks watcher TurnResult before mutation side effects.
+    {
+        const harness = loadGameStateSyncHarness({
+            processResponses: [baseTurnResult('should-not-process')],
+            autoImageRequest: { locationId: 'loc', gmTurn: 3 },
+        });
+        writeJson(harness.turnResultPath, baseTurnResult('turn-blocked-by-restore-latch'));
+        writeJson(path.join(harness.tmpDir, '.text-adventure', 'runtime', 'accepted_turn_restore_repair_latch.json'), {
+            schemaVersion: 1,
+            kind: 'timelineRestoreRepairRequired',
+            createdAt: new Date().toISOString(),
+            reason: 'simulated post-rotation restore failure',
+            phase: 'unit-test',
+        });
+        harness.beginPendingTurn(() => {
+            harness.events.push('callback');
+        });
+        const blocked = await harness.processFile();
+        assert(blocked.kind === 'repairRequired', 'restore repair latch returns repairRequired through watcher path');
+        assert(harness.processCalls === 0, 'restore repair latch blocks processTurnResult');
+        assert(harness.getHash() === '', 'restore repair latch does not commit dedupe hash');
+        assert(harness.handledCount === 0, 'restore repair latch does not mark Handled');
+        assert(harness.callbackCount === 0, 'restore repair latch does not fire callback');
+        assert(harness.mediaCount === 0 && harness.autoImageCount === 0 && harness.bootstrapCount === 0, 'restore repair latch emits no success-only media/auto/bootstrap');
+        assert(harness.postMessages.length === 0, 'restore repair latch emits no success UI update');
+        const restartedHarness = loadGameStateSyncHarness({
+            tmpDir: harness.tmpDir,
+            processResponses: [baseTurnResult('still-should-not-process')],
+        });
+        const restartBlocked = await restartedHarness.processFile();
+        assert(restartBlocked.kind === 'repairRequired', 'restore repair latch survives gameStateSync restart simulation');
+        assert(restartedHarness.processCalls === 0, 'restart latch still blocks processTurnResult');
+    }
+
+    // RUNTIME-003A: process-local emergency restore repair latch blocks watcher TurnResult in the same process.
+    {
+        const harness = loadGameStateSyncHarness({
+            processResponses: [baseTurnResult('should-not-process-emergency')],
+            autoImageRequest: { locationId: 'loc', gmTurn: 4 },
+        });
+        const guard = require(outAcceptedTurnReplayGuard);
+        writeJson(harness.turnResultPath, baseTurnResult('turn-blocked-by-emergency-latch'));
+        guard.installAcceptedTurnEmergencyRestoreRepairLatchForTests(
+            harness.tmpDir,
+            'simulated durable latch write failure',
+            'unit-test'
+        );
+        harness.beginPendingTurn(() => {
+            harness.events.push('callback');
+        });
+        const blocked = await harness.processFile();
+        assert(blocked.kind === 'repairRequired', 'process-local emergency latch returns repairRequired through watcher path');
+        assert(harness.processCalls === 0, 'process-local emergency latch blocks processTurnResult');
+        assert(harness.getHash() === '', 'process-local emergency latch does not commit dedupe hash');
+        assert(harness.handledCount === 0, 'process-local emergency latch does not mark Handled');
+        assert(harness.callbackCount === 0, 'process-local emergency latch does not fire callback');
+        assert(harness.mediaCount === 0 && harness.autoImageCount === 0 && harness.bootstrapCount === 0, 'process-local emergency latch emits no success-only media/auto/bootstrap');
+        assert(harness.postMessages.length === 0, 'process-local emergency latch emits no success UI update');
+        assert(!fs.existsSync(path.join(harness.tmpDir, '.text-adventure', 'runtime', 'accepted_turn_restore_repair_latch.json')), 'process-local emergency latch does not create durable restart proof');
+        guard.resetAcceptedTurnReplayGuardForTests();
     }
 
     // 2,4,5,6,12,13. pre-commit false -> same-hash retry -> success -> duplicate suppression.
@@ -665,7 +764,7 @@ async function runAsyncCases() {
         fs.writeFileSync(harness.turnResultPath, content, 'utf8');
 
         const first = await harness.processFile();
-        assert(first === false, 'pre-commit failure returns false');
+        assert(first.kind === 'retryableFailure', 'pre-commit failure returns retryableFailure');
         assert(harness.getHash() === '', 'pre-commit failure leaves hash retryable');
         assert(harness.handledCount === 0, 'pre-commit failure does not mark Handled');
         assert(harness.callbackCount === 0, 'pre-commit failure does not fire callback');
@@ -674,7 +773,7 @@ async function runAsyncCases() {
 
         harness.events.length = 0;
         const second = await harness.processFile();
-        assert(second === true, 'same-hash retry may later succeed');
+        assert(second.kind === 'newlyAccepted', 'same-hash retry may later succeed');
         assert(harness.getHash() === expectedHash, 'successful apply commits dedupe hash after Accepted');
         assert(harness.handledCount === 1, 'successful apply marks Handled once');
         assert(harness.callbackCount === 1, 'successful apply fires callback once after Handled');
@@ -700,7 +799,7 @@ async function runAsyncCases() {
         );
 
         const third = await harness.processFile();
-        assert(third === false, 'duplicate successful result returns false');
+        assert(third.kind === 'alreadyAccepted', 'duplicate successful result returns alreadyAccepted');
         assert(harness.processCalls === 2, 'duplicate successful result does not reapply');
         assert(harness.handledCount === 1, 'duplicate successful result does not mark Handled twice');
         assert(harness.callbackCount === 1, 'duplicate successful result does not re-fire callback');
@@ -716,10 +815,10 @@ async function runAsyncCases() {
         harness.beginPendingTurn(() => {});
         fs.writeFileSync(harness.turnResultPath, JSON.stringify(firstTurn), 'utf8');
         const first = await harness.processFile();
-        assert(first === false, 'old failed file remains unaccepted');
+        assert(first.kind === 'retryableFailure', 'old failed file remains unaccepted');
         fs.writeFileSync(harness.turnResultPath, JSON.stringify(secondTurn), 'utf8');
         const second = await harness.processFile();
-        assert(second === true, 'corrected new hash succeeds normally');
+        assert(second.kind === 'newlyAccepted', 'corrected new hash succeeds normally');
         assert(harness.handledCount === 1, 'corrected new hash leads to one Handled event');
         assert(harness.callbackCount === 1, 'corrected new hash leads to one callback event');
     }
@@ -747,6 +846,31 @@ async function runAsyncCases() {
         assert(Boolean(accepted), 'secondary ledger structured failure stays Accepted/truthy');
         assert(harness.commitCalls === 1, 'structured failure case crosses canonical commit once');
         assert(harness.ledgerCalls === 1, 'structured failure still attempts post-commit ledger persistence');
+    }
+
+    // 8b. canonical Accepted commit installs a host-owned replay witness.
+    {
+        const harness = loadStatePatchHarness();
+        const context = {
+            identity: {
+                campaignInstanceId: '11111111-1111-4111-8111-111111111111',
+                timelineEpochId: '22222222-2222-4222-8222-222222222222',
+                turnId: 'turn-witness-installed',
+                payloadHash: 'a'.repeat(64),
+                identityHash: 'b'.repeat(64),
+            },
+            parentIdentityHash: 'c'.repeat(64),
+            sourceRawHash: 'd'.repeat(64),
+            observationSource: 'unit-test',
+            acceptedAt: '2026-07-06T00:00:00.000Z',
+        };
+        const accepted = harness.module.processTurnResult(baseTurnResult('turn-witness-installed'), context);
+        const witness = harness.lastCommitConfig?.runtimeAcceptedTurnWitness;
+        assert(Boolean(accepted), 'accepted witness install remains truthy');
+        assert(harness.lastCommitConfig?.runtimeAcceptedTurnWitnessMode === 'install', 'canonical commit uses trusted witness install authority');
+        assert(!harness.lastCommitState?.[acceptedCore.RUNTIME_ACCEPTED_TURN_WITNESS_KEY], 'turn commit payload does not self-author witness root');
+        assert(witness?.identityHash === context.identity.identityHash, 'trusted commit option contains accepted-turn witness identity');
+        assert(witness?.parentIdentityHash === context.parentIdentityHash, 'trusted witness option preserves ledger parent link');
     }
 
     // 9. post-commit thrown secondary ledger failure remains Accepted.
@@ -827,7 +951,7 @@ async function runAsyncCases() {
         fs.writeFileSync(firstHarness.turnResultPath, JSON.stringify(turn), 'utf8');
 
         const first = await firstHarness.processFile();
-        assert(first === false, 'restart proof: first lifetime returns false');
+        assert(first.kind === 'retryableFailure', 'restart proof: first lifetime returns retryableFailure');
         assert(fs.existsSync(firstHarness.turnResultPath), 'restart proof: failed file remains on disk');
         assert(firstHarness.getHash() === '', 'restart proof: first lifetime does not commit hash');
         assert(firstHarness.handledCount === 0, 'restart proof: first lifetime does not mark Handled');
@@ -838,7 +962,7 @@ async function runAsyncCases() {
             processResponses: [{ ...turn, beforeHash: 'r0', afterHash: 'r1', appliedAt: 'restart' }],
         });
         const second = await secondHarness.processFile();
-        assert(second === true, 'restart proof: same bytes may succeed after restart/reset');
+        assert(second.kind === 'newlyAccepted', 'restart proof: same bytes may succeed after restart/reset');
         assert(fs.existsSync(secondHarness.turnResultPath), 'restart proof: same file still exists for second lifetime');
         assert(secondHarness.processCalls === 1, 'restart proof: exactly one successful apply in restarted lifetime');
         assert(secondHarness.handledCount === 1, 'restart proof: restarted lifetime marks Handled once');
@@ -870,7 +994,7 @@ async function runAsyncCases() {
         }
 
         const watcherDuplicate = await harness.gameStateSync.processTurnResultFileAtForTests(harness.turnResultPath);
-        assert(watcherDuplicate === false, 'integration proof: watcher sees duplicate after fallback acceptance');
+        assert(watcherDuplicate.kind === 'alreadyAccepted', 'integration proof: watcher sees duplicate after fallback acceptance');
         assert(harness.applyCount === 1, 'integration proof: apply count = 1');
         assert(harness.handledCount === 1, 'integration proof: Handled count = 1');
         assert(harness.callbackCount === 1, 'integration proof: callback count = 1');

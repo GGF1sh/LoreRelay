@@ -42,6 +42,12 @@ let schemaWarningShown = false;
 let lastGoodGameState: Record<string, unknown> | undefined;
 let gameStateSyncSeq = 0;
 import { processTurnResult, takeAutoLocationImageRequest } from './statePatch';
+import {
+    ensureAcceptedTurnWriterLease,
+    preflightAcceptedTurn,
+    runAcceptedTurnSingleFlight,
+} from './acceptedTurnReplayGuard';
+import type { TurnResultFileOutcome } from './acceptedTurnReplayGuardCore';
 import { queueAutoLocationImageSilent } from './autoLocationImageRunner';
 import { markTurnResultHandled } from './turnResultFallback';
 import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
@@ -71,17 +77,25 @@ export { isAllowedImagePath };
 let fileWatcher: vscode.FileSystemWatcher | undefined;
 let turnResultWatcher: vscode.FileSystemWatcher | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
-let lastProcessedTurnHash = '';
+let lastProcessedTurnHash: {
+    rawHash: string;
+    campaignInstanceId: string;
+    timelineEpochId: string;
+} | undefined;
 /** Entry IDs already seen when applying game_state (for MediaAgent new-entry detection). */
 const knownStateEntryIds = new Set<string>();
 
 export function resetTurnResultProcessingStateForTests(): void {
-    lastProcessedTurnHash = '';
+    lastProcessedTurnHash = undefined;
     knownStateEntryIds.clear();
 }
 
 export function getLastProcessedTurnHashForTests(): string {
-    return lastProcessedTurnHash;
+    return lastProcessedTurnHash?.rawHash ?? '';
+}
+
+export function clearTurnResultRawHashAuthorityForEpochChange(): void {
+    lastProcessedTurnHash = undefined;
 }
 
 export function initGameStateSync(syncDeps: GameStateSyncDeps): void {
@@ -592,14 +606,19 @@ function sleep(ms: number): Promise<void> {
 /**
  * Reads turn_result.json at fsPath if present and not already processed
  * (sha256-deduped via lastProcessedTurnHash), applies it, and notifies the
- * webview. Returns true if a new turn was actually processed.
+ * webview. Returns a structured outcome so stale duplicates and repair states
+ * cannot collapse into the same fallback behavior as a missing file.
  */
-async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<boolean> {
+async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {
+    return runAcceptedTurnSingleFlight(() => processTurnResultFileAtSerialized(fsPath, retryCount));
+}
+
+async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {
     let hash = '';
     let turnResult: TurnResult;
     try {
         if (!fs.existsSync(fsPath)) {
-            return false;
+            return { kind: 'missing', accepted: false, reason: 'turn_result.json missing' };
         }
         const content = fs.readFileSync(fsPath, 'utf-8');
         if (!content.trim()) {
@@ -607,27 +626,66 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
         }
 
         hash = crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
-        if (hash === lastProcessedTurnHash) {
-            return false;
-        }
 
         turnResult = JSON.parse(content) as TurnResult;
     } catch (e) {
         if (retryCount < 3) {
             console.warn(`Retry reading turn_result.json (attempt ${retryCount + 1}): ${e instanceof Error ? e.message : String(e)}`);
             await sleep(100);
-            return processTurnResultFileAt(fsPath, retryCount + 1);
+            return processTurnResultFileAtSerialized(fsPath, retryCount + 1);
         }
         console.error('Failed to parse turn_result.json after retries', e);
-        return false;
+        return { kind: 'retryableFailure', accepted: false, reason: 'failed to parse turn_result.json after retries' };
     }
 
-    const enriched = processTurnResult(turnResult);
+    const workspacePath = path.dirname(fsPath);
+    const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'turn-result-observation');
+    if (leaseConflict) {
+        return leaseConflict;
+    }
+
+    const preflight = preflightAcceptedTurn(workspacePath, turnResult, hash, 'turn_result_file');
+    if (preflight.kind !== 'unseen') {
+        if (preflight.kind === 'alreadyAccepted') {
+            console.info('[gameStateSync] stale accepted turn_result.json observed; skipping apply', {
+                turnId: preflight.turnId,
+                identityHash: preflight.identityHash,
+            });
+        } else {
+            console.warn('[gameStateSync] turn_result.json preflight stopped before apply', preflight);
+        }
+        return preflight;
+    }
+    if (
+        lastProcessedTurnHash?.rawHash === hash
+        && lastProcessedTurnHash.campaignInstanceId === preflight.context.identity.campaignInstanceId
+        && lastProcessedTurnHash.timelineEpochId === preflight.context.identity.timelineEpochId
+    ) {
+        return {
+            kind: 'alreadyAccepted',
+            accepted: false,
+            identityHash: preflight.context.identity.identityHash,
+            turnId: preflight.context.identity.turnId,
+            reason: 'same-process duplicate raw hash in current replay epoch',
+        };
+    }
+
+    const enriched = processTurnResult(turnResult, preflight.context);
     if (!enriched) {
-        return false;
+        return {
+            kind: 'retryableFailure',
+            accepted: false,
+            identityHash: preflight.context.identity.identityHash,
+            turnId: preflight.context.identity.turnId,
+            reason: 'processTurnResult returned false before Accepted boundary',
+        };
     }
 
-    lastProcessedTurnHash = hash;
+    lastProcessedTurnHash = {
+        rawHash: hash,
+        campaignInstanceId: preflight.context.identity.campaignInstanceId,
+        timelineEpochId: preflight.context.identity.timelineEpochId,
+    };
     markTurnResultHandled(enriched);
 
     try {
@@ -665,10 +723,15 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
         console.error('[gameStateSync] Accepted protagonist bootstrap scheduling failed', e);
     }
 
-    return true;
+    return {
+        kind: 'newlyAccepted',
+        accepted: true,
+        identityHash: preflight.context.identity.identityHash,
+        turnId: preflight.context.identity.turnId,
+    };
 }
 
-export async function processTurnResultFileAtForTests(fsPath: string, retryCount = 0): Promise<boolean> {
+export async function processTurnResultFileAtForTests(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {
     return processTurnResultFileAt(fsPath, retryCount);
 }
 
@@ -680,10 +743,10 @@ export async function processTurnResultFileAtForTests(fsPath: string, retryCount
  * after the GM bridge process exits. A no-op if the watcher already handled
  * it (sha256 hash dedupe in processTurnResultFileAt above).
  */
-export async function checkPendingTurnResultFile(): Promise<boolean> {
+export async function checkPendingTurnResultFile(): Promise<TurnResultFileOutcome> {
     const folder = getActiveWorkspaceFolder();
     if (!folder) {
-        return false;
+        return { kind: 'missing', accepted: false, reason: 'no workspace folder' };
     }
     return processTurnResultFileAt(path.join(folder.uri.fsPath, 'turn_result.json'));
 }

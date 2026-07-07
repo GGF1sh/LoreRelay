@@ -44,6 +44,11 @@ import {
     setAgenticBridgeBusy,
 } from './gmBridgeRunner';
 import { notifyRemoteGmBusy } from './remotePlayServer';
+import {
+    ensureAcceptedTurnScope,
+    ensureAcceptedTurnWriterLease,
+    getAcceptedTurnRestoreRepairLatchOutcome,
+} from './acceptedTurnReplayGuard';
 
 export interface AgenticBridgeResult {
     handled: boolean;
@@ -231,6 +236,37 @@ export async function maybeInvokeAgenticBridge(
             success: false,
             fallbackToSingleStage: agenticCfg.fallbackToSingleStage,
             fallbackReason: 'workspace unavailable or untrusted',
+        };
+    }
+    const restoreLatch = getAcceptedTurnRestoreRepairLatchOutcome(cwd);
+    if (restoreLatch) {
+        vscode.window.showErrorMessage(`LoreRelay: ${restoreLatch.reason ?? 'Timeline restore requires repair.'}`);
+        return {
+            handled: true,
+            success: false,
+            fallbackToSingleStage: false,
+            fallbackReason: 'timeline restore repair required',
+        };
+    }
+    const leaseConflict = ensureAcceptedTurnWriterLease(cwd, 'agentic-provider-dispatch');
+    if (leaseConflict) {
+        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+        return {
+            handled: true,
+            success: false,
+            fallbackToSingleStage: false,
+            fallbackReason: 'writer conflict',
+        };
+    }
+    try {
+        ensureAcceptedTurnScope(cwd);
+    } catch (e) {
+        vscode.window.showErrorMessage(`LoreRelay: Failed to initialize replay scope. ${String(e)}`);
+        return {
+            handled: true,
+            success: false,
+            fallbackToSingleStage: false,
+            fallbackReason: 'replay scope initialization failed',
         };
     }
 

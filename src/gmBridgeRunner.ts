@@ -49,6 +49,11 @@ import {
     type VscodeLmGmJson,
 } from './vscodeLmTurnResultCore';
 import type { VscodeLmProfileOptions } from './connectionProfileCore';
+import {
+    ensureAcceptedTurnScope,
+    ensureAcceptedTurnWriterLease,
+    getAcceptedTurnRestoreRepairLatchOutcome,
+} from './acceptedTurnReplayGuard';
 
 
 let grokOutputChannel: vscode.OutputChannel | undefined;
@@ -1116,6 +1121,22 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     const workspacePath = getWorkspacePath();
     if (!workspacePath) {
         vscode.window.showErrorMessage('LoreRelay: Workspace not found.');
+        return false;
+    }
+    const restoreLatch = getAcceptedTurnRestoreRepairLatchOutcome(workspacePath);
+    if (restoreLatch) {
+        vscode.window.showErrorMessage(`LoreRelay: ${restoreLatch.reason ?? 'Timeline restore requires repair.'}`);
+        return false;
+    }
+    const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'provider-dispatch');
+    if (leaseConflict) {
+        vscode.window.showErrorMessage(`LoreRelay: ${leaseConflict.reason ?? 'Another writer is active.'}`);
+        return false;
+    }
+    try {
+        ensureAcceptedTurnScope(workspacePath);
+    } catch (e) {
+        vscode.window.showErrorMessage(`LoreRelay: Failed to initialize replay scope. ${String(e)}`);
         return false;
     }
 

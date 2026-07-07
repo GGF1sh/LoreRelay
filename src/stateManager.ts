@@ -12,6 +12,10 @@ import {
     type GameStateMergeProfile,
 } from './workspaceStateQueueCore';
 import { isGameStateWriteCircuitOpen, runSerializedGameStateMutation } from './workspaceStateQueue';
+import {
+    RUNTIME_ACCEPTED_TURN_WITNESS_KEY,
+    type AcceptedTurnWitness,
+} from './acceptedTurnReplayGuardCore';
 
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
 export { resolveGameStatePersistPlan } from './stateManagerCore';
@@ -26,6 +30,8 @@ export interface CommitGameStateOptions {
     /** Revision when the caller read game_state.json (optimistic concurrency). */
     baseRevision?: number;
     mergeProfile?: GameStateMergeProfile;
+    runtimeAcceptedTurnWitness?: AcceptedTurnWitness;
+    runtimeAcceptedTurnWitnessMode?: 'preserve' | 'install' | 'clear';
 }
 
 /**
@@ -55,8 +61,9 @@ function writeGameStatePlan(
         baseRevision: options.baseRevision,
         profile: options.mergeProfile,
     });
+    const witnessOwned = applyRuntimeAcceptedTurnWitnessAuthority(merged, disk, options);
 
-    const plan = resolveGameStatePersistPlan(merged, mode);
+    const plan = resolveGameStatePersistPlan(witnessOwned, mode);
     if (plan.action === 'skip') {
         console.error(
             `[commitGameState] ${mode} mode: validation failed, not writing. Errors:`,
@@ -73,7 +80,7 @@ function writeGameStatePlan(
         return { ok: false, action: 'quarantine', reason: [plan.reason] };
     }
 
-    if (mode === 'salvage' && validateGameState(merged).length > 0) {
+    if (mode === 'salvage' && validateGameState(witnessOwned).length > 0) {
         console.warn('[commitGameState] salvage mode: wrote sanitized state after raw validation failed.');
     }
 
@@ -115,6 +122,28 @@ export function commitGameState(
     return result;
 }
 
+export function commitGameStateAtPathForRuntimeAuthority(
+    statePath: string,
+    state: Record<string, unknown> | GameState,
+    options: CommitGameStateOptions
+): CommitGameStateResult {
+    if (isGameStateWriteCircuitOpen()) {
+        return { ok: false, action: 'skip', reason: ['circuit open: game_state'] };
+    }
+
+    const raw = state as Record<string, unknown>;
+    let result: CommitGameStateResult = { ok: false, action: 'skip', reason: ['queue aborted'] };
+    let completed = false;
+    runSerializedGameStateMutation(() => {
+        result = writeGameStatePlan(statePath, raw, options);
+        completed = true;
+    });
+    if (!completed) {
+        return { ok: false, action: 'skip', reason: ['game_state write failed'] };
+    }
+    return result;
+}
+
 function quarantineInvalidState(statePath: string, payload: Record<string, unknown>): void {
     const invalidPath = path.join(path.dirname(statePath), 'game_state.invalid.latest.json');
     try {
@@ -122,4 +151,28 @@ function quarantineInvalidState(statePath: string, payload: Record<string, unkno
     } catch (e) {
         console.error('[commitGameState] Failed to quarantine invalid state:', e);
     }
+}
+
+function applyRuntimeAcceptedTurnWitnessAuthority(
+    merged: Record<string, unknown>,
+    disk: Record<string, unknown> | undefined,
+    options: CommitGameStateOptions
+): Record<string, unknown> {
+    const next = { ...merged };
+    delete next[RUNTIME_ACCEPTED_TURN_WITNESS_KEY];
+
+    if (options.runtimeAcceptedTurnWitnessMode === 'clear') {
+        return next;
+    }
+    if (options.runtimeAcceptedTurnWitnessMode === 'install') {
+        if (!options.runtimeAcceptedTurnWitness) {
+            throw new Error('runtime accepted turn witness install requested without witness payload');
+        }
+        next[RUNTIME_ACCEPTED_TURN_WITNESS_KEY] = options.runtimeAcceptedTurnWitness;
+        return next;
+    }
+    if (disk && Object.prototype.hasOwnProperty.call(disk, RUNTIME_ACCEPTED_TURN_WITNESS_KEY)) {
+        next[RUNTIME_ACCEPTED_TURN_WITNESS_KEY] = disk[RUNTIME_ACCEPTED_TURN_WITNESS_KEY];
+    }
+    return next;
 }

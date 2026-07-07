@@ -1455,6 +1455,16 @@ function renderOptions(options) {
     btn.textContent = `${i + 1}. ${opt}`;
     btn.addEventListener('click', () => {
       if (isInputLocked() || btn.disabled) return;
+      if (window.antigravityRelayMode) {
+        if (freeInput) {
+          const text = `${i + 1}. ${opt}`;
+          const currentVal = freeInput.value.trim();
+          freeInput.value = currentVal ? `${currentVal}\n${text}` : text;
+          autoGrowFreeInput();
+          freeInput.focus();
+        }
+        return;
+      }
       window.speechSynthesis?.cancel();
       const entryId = `user-${Date.now()}`;
       // Share this id with the extension so the persisted entry it later sends back
@@ -1467,7 +1477,7 @@ function renderOptions(options) {
       });
       clearAuthorsNote();
       // UIにもPlayerメッセージとして追加
-      const entry = { id: entryId, role: 'user', content: `${i + 1}. ${opt}`, sender: T('webview.sender.player') };
+      const entry = { id: entryId, role: 'user', content: `${i + 1}. ${opt}`, sender: typeof T === 'function' && T('webview.sender.player') ? T('webview.sender.player') : 'Player' };
       messageHistory.push(entry);
       renderMessage(entry);
       optionsBar.innerHTML = '';
@@ -14654,8 +14664,22 @@ window.addEventListener('message', (event) => {
     if (!shouldApplyGameStateUpdate(msg)) {
       return;
     }
+    if (msg.turnResult) {
+      if (typeof hideGmLoading === 'function') hideGmLoading(true);
+    }
     if (msg.state) {
       applyGameState(msg.state, msg.fullHistory);
+    }
+    if (typeof msg.antigravityRelayMode === 'boolean') {
+      window.antigravityRelayMode = msg.antigravityRelayMode;
+      const sendBtn = document.getElementById('send-btn');
+      if (sendBtn) {
+        if (msg.antigravityRelayMode) {
+          sendBtn.textContent = 'Prepare for Antigravity';
+        } else {
+          sendBtn.textContent = typeof T === 'function' && T('webview.button.send') ? T('webview.button.send') : 'Send';
+        }
+      }
     }
   } else if (msg.type === 'imageGenStart') {
     showImageLoading();

@@ -305,8 +305,22 @@ window.addEventListener('message', (event) => {
     if (!shouldApplyGameStateUpdate(msg)) {
       return;
     }
+    if (msg.turnResult) {
+      if (typeof hideGmLoading === 'function') hideGmLoading(true);
+    }
     if (msg.state) {
       applyGameState(msg.state, msg.fullHistory);
+    }
+    if (typeof msg.antigravityRelayMode === 'boolean') {
+      window.antigravityRelayMode = msg.antigravityRelayMode;
+      const sendBtn = document.getElementById('send-btn');
+      if (sendBtn) {
+        if (msg.antigravityRelayMode) {
+          sendBtn.textContent = 'Prepare for Antigravity';
+        } else {
+          sendBtn.textContent = 'Send';
+        }
+      }
     }
   } else if (msg.type === 'imageGenStart') {
     showImageLoading();

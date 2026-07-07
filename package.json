@@ -585,6 +585,11 @@
           "default": true,
           "description": "%config.textAdventure.grokBridge.fallbackToClipboard.description%"
         },
+        "textAdventure.grokBridge.antigravityRelayMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Antigravity Relay Mode. Normal GM is disabled, and handoff payload is copied to clipboard."
+        },
         "textAdventure.gmBridge.agentic.enabled": {
           "type": "boolean",
           "default": false,

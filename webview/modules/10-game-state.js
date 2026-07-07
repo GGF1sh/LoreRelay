@@ -610,6 +610,16 @@ function renderOptions(options) {
     btn.textContent = `${i + 1}. ${opt}`;
     btn.addEventListener('click', () => {
       if (isInputLocked() || btn.disabled) return;
+      if (window.antigravityRelayMode) {
+        if (freeInput) {
+          const text = `${i + 1}. ${opt}`;
+          const currentVal = freeInput.value.trim();
+          freeInput.value = currentVal ? `${currentVal}\n${text}` : text;
+          autoGrowFreeInput();
+          freeInput.focus();
+        }
+        return;
+      }
       window.speechSynthesis?.cancel();
       const entryId = `user-${Date.now()}`;
       // Share this id with the extension so the persisted entry it later sends back

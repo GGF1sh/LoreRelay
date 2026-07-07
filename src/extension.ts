@@ -189,6 +189,7 @@ import { exportSagaToHtml } from './exportHtml';
 import { exportReplayToWorkspace, openReplayExport } from './replayExport';
 import {
     initGmPromptBuilder,
+    buildGmPromptBreakdown,
     buildGrokPrompt,
     processProfileUpdates,
     maybeSuggestArchive,
@@ -875,6 +876,27 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
     persistPlayerInputEntry(trimmed, entryId);
 
     if (await tryExecuteDebugScenarioCommand(trimmed)) {
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const relayMode = config.get<boolean>('grokBridge.antigravityRelayMode', false);
+    if (relayMode) {
+        const breakdown = buildGmPromptBreakdown(trimmed);
+        const state = getCachedGameState();
+        const payload = {
+            kind: 'AntigravityRelayHandoff',
+            version: 1,
+            playerAction: trimmed,
+            promptContext: breakdown,
+            availableOptions: state?.options ?? [],
+            targetOutput: 'turn_result.json'
+        };
+        await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
+        vscode.window.showInformationMessage('Relay Mode ON: Prepared handoff payload. Please paste into Antigravity.');
+        
+        // Ensure UI enters loading state to wait for Antigravity's turn_result.json
+        panel?.webview.postMessage({ type: 'gmStart' });
         return;
     }
 

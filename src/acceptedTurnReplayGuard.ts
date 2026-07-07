@@ -52,6 +52,7 @@ const hostInstanceId = crypto.randomUUID();
 const processStartedAt = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
 let singleFlight: Promise<unknown> = Promise.resolve();
 let heartbeatTimer: NodeJS.Timeout | undefined;
+const heartbeatWorkspaces = new Map<string, { workspacePath: string; lockToken: string }>();
 let processLocalRestoreRepairLatches = new Map<string, RestoreRepairLatch>();
 
 interface WriterLease {
@@ -123,6 +124,7 @@ export function getAcceptedTurnRestoreRepairLatchPath(workspacePath: string): st
 export function resetAcceptedTurnReplayGuardForTests(): void {
     singleFlight = Promise.resolve();
     processLocalRestoreRepairLatches = new Map();
+    heartbeatWorkspaces.clear();
     if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
         heartbeatTimer = undefined;
@@ -844,7 +846,7 @@ function commitFreshLeaseWithOwnedLock(
         if (!committed || committed.lockToken !== lockToken || !lockOwnerMatches(lockDir, lockToken)) {
             return false;
         }
-        startWriterLeaseHeartbeat(workspacePath);
+        startWriterLeaseHeartbeat(workspacePath, lockToken);
         return true;
     } catch {
         return false;
@@ -854,6 +856,17 @@ function commitFreshLeaseWithOwnedLock(
 function tryAcquireFreshLease(workspacePath: string, purpose: string, prior?: WriterLease): boolean {
     const lockToken = tryAcquireWriterLeaseLock(workspacePath, true);
     return Boolean(lockToken && commitFreshLeaseWithOwnedLock(workspacePath, purpose, lockToken, prior));
+}
+
+function releaseWriterLeaseLockIfOwned(workspacePath: string, lockToken: string): void {
+    const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
+    try {
+        if (lockOwnerMatches(lockDir, lockToken)) {
+            fs.rmSync(lockDir, { recursive: true, force: true });
+        }
+    } catch {
+        // Fail closed if cleanup cannot be proven.
+    }
 }
 
 function lockEvidenceAgeMs(lockDir: string, nowMs: number): number | undefined {
@@ -960,19 +973,67 @@ function recoverMalformedLeaseWithFreshLock(
     expectedMalformedLease: FileFingerprint | undefined
 ): boolean {
     const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
-    const lockToken = tryAcquireWriterLeaseLock(workspacePath, false);
+    const lockToken = tryAcquireWriterLeaseLock(workspacePath, true);
     if (!lockToken) {
         return false;
     }
-    const capturedPath = captureMalformedLeaseForRecovery(leasePath, 'malformed-writer-lease', expectedMalformedLease);
-    if (!capturedPath) {
+    let keepLock = false;
+    try {
+        const capturedPath = captureMalformedLeaseForRecovery(leasePath, 'malformed-writer-lease', expectedMalformedLease);
+        if (!capturedPath) {
+            return false;
+        }
+        pauseAfterMalformedCaptureForWriterLeaseTest(workspacePath, lockToken);
+        if (fs.existsSync(leasePath)) {
+            return false;
+        }
+        keepLock = commitFreshLeaseWithOwnedLock(workspacePath, purpose, lockToken);
+        return keepLock;
+    } finally {
+        if (!keepLock) {
+            releaseWriterLeaseLockIfOwned(workspacePath, lockToken);
+        }
+    }
+}
+
+function heartbeatWorkspaceKey(workspacePath: string): string {
+    return path.resolve(workspacePath);
+}
+
+function stopWriterLeaseHeartbeatIfIdle(): void {
+    if (heartbeatWorkspaces.size > 0 || !heartbeatTimer) {
+        return;
+    }
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = undefined;
+}
+
+function removeWriterLeaseHeartbeat(workspacePath: string): void {
+    heartbeatWorkspaces.delete(heartbeatWorkspaceKey(workspacePath));
+    stopWriterLeaseHeartbeatIfIdle();
+}
+
+function renewAcceptedTurnWriterLease(
+    workspacePath: string,
+    purpose: string,
+    expectedLockToken?: string
+): boolean {
+    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
+    const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
+    if (!fs.existsSync(leasePath)) {
         return false;
     }
-    pauseAfterMalformedCaptureForWriterLeaseTest(workspacePath, lockToken);
-    if (fs.existsSync(leasePath)) {
+    const prior = parseLease(readJsonFile(leasePath));
+    if (
+        !prior
+        || prior.hostInstanceId !== hostInstanceId
+        || (expectedLockToken !== undefined && prior.lockToken !== expectedLockToken)
+        || !lockOwnerMatches(lockDir, prior.lockToken)
+    ) {
         return false;
     }
-    return commitFreshLeaseWithOwnedLock(workspacePath, purpose, lockToken);
+    writeJsonAtomic(leasePath, buildWriterLease(purpose, prior.lockToken, prior), true);
+    return true;
 }
 
 function recoverStaleLease(workspacePath: string, purpose: string, prior: WriterLease): boolean {
@@ -1042,33 +1103,31 @@ function recoverOrphanOrMalformedLock(
     return tryAcquireFreshLease(workspacePath, purpose);
 }
 
-function startWriterLeaseHeartbeat(workspacePath: string): void {
+function startWriterLeaseHeartbeat(workspacePath: string, lockToken: string): void {
+    heartbeatWorkspaces.set(heartbeatWorkspaceKey(workspacePath), { workspacePath, lockToken });
     if (heartbeatTimer) {
         return;
     }
     heartbeatTimer = setInterval(() => {
-        try {
-            renewAcceptedTurnWriterLeaseForTests(workspacePath, 'heartbeat');
-        } catch {
-            // Losing the heartbeat should not throw from the timer; the next
-            // mutating entry point will fail closed on lease validation.
+        for (const [workspaceKey, entry] of Array.from(heartbeatWorkspaces.entries())) {
+            try {
+                if (!renewAcceptedTurnWriterLease(entry.workspacePath, 'heartbeat', entry.lockToken)) {
+                    heartbeatWorkspaces.delete(workspaceKey);
+                }
+            } catch {
+                heartbeatWorkspaces.delete(workspaceKey);
+                // Losing one heartbeat should not throw from the timer or stop
+                // other workspace leases; the next mutating entry point for the
+                // lost workspace will fail closed on lease validation.
+            }
         }
+        stopWriterLeaseHeartbeatIfIdle();
     }, WRITER_LEASE_HEARTBEAT_MS);
     heartbeatTimer.unref?.();
 }
 
 export function renewAcceptedTurnWriterLeaseForTests(workspacePath: string, purpose: string): boolean {
-    const leasePath = getAcceptedTurnWriterLeasePath(workspacePath);
-    const lockDir = getAcceptedTurnWriterLeaseLockDir(workspacePath);
-    if (!fs.existsSync(leasePath)) {
-        return false;
-    }
-    const prior = parseLease(readJsonFile(leasePath));
-    if (!prior || prior.hostInstanceId !== hostInstanceId || !lockOwnerMatches(lockDir, prior.lockToken)) {
-        return false;
-    }
-    writeJsonAtomic(leasePath, buildWriterLease(purpose, prior.lockToken, prior), true);
-    return true;
+    return renewAcceptedTurnWriterLease(workspacePath, purpose);
 }
 
 export function releaseAcceptedTurnWriterLeaseForTests(workspacePath: string): boolean {
@@ -1084,10 +1143,7 @@ export function releaseAcceptedTurnWriterLeaseForTests(workspacePath: string): b
     } catch {
         // Lease may already have been removed by a test cleanup.
     }
-    if (heartbeatTimer) {
-        clearInterval(heartbeatTimer);
-        heartbeatTimer = undefined;
-    }
+    removeWriterLeaseHeartbeat(workspacePath);
     return true;
 }
 
@@ -1109,7 +1165,7 @@ export function ensureAcceptedTurnWriterLease(
             return undefined;
         }
         writeJsonAtomic(leasePath, buildWriterLease(purpose, state.lease.lockToken, state.lease), true);
-        startWriterLeaseHeartbeat(workspacePath);
+        startWriterLeaseHeartbeat(workspacePath, state.lease.lockToken);
         return undefined;
     }
 

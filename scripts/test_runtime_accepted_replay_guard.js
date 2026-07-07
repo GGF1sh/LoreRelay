@@ -215,6 +215,19 @@ async function waitForFile(filePath, timeoutMs = 5000) {
     return fs.existsSync(filePath);
 }
 
+async function waitForRenewedAfter(filePath, previousRenewedAt, timeoutMs = 1000) {
+    const previous = Date.parse(previousRenewedAt);
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const current = readJson(filePath);
+        if (Date.parse(current.renewedAt) > previous) {
+            return current;
+        }
+        await delay(10);
+    }
+    return readJson(filePath);
+}
+
 function writeRestoreLatch(ws, reason = 'test latch') {
     writeJson(path.join(ws, '.text-adventure', 'runtime', 'accepted_turn_restore_repair_latch.json'), {
         schemaVersion: 1,
@@ -273,6 +286,7 @@ if (!fs.existsSync(outCore) || !fs.existsSync(outGuard) || !fs.existsSync(outSta
 
 async function run() {
     process.env.LORERELAY_WRITER_LEASE_HEARTBEAT_MS = '25';
+    process.env.LORERELAY_WRITER_LEASE_TIMEOUT_MS = '150';
     const { core, guard } = loadModules();
 
     // Identity stability and host-only field exclusion.
@@ -499,6 +513,52 @@ async function run() {
         assert(liveConflict && liveConflict.kind === 'writerConflict', 'live PID remains protected beyond timeout');
         guard.resetAcceptedTurnReplayGuardForTests();
 
+        const wsHeartbeatA = tempWorkspace();
+        const wsHeartbeatB = tempWorkspace();
+        assert(!guard.ensureAcceptedTurnWriterLease(wsHeartbeatA, 'multi-heartbeat-a'), 'multi-workspace heartbeat A acquires writer lease');
+        assert(!guard.ensureAcceptedTurnWriterLease(wsHeartbeatB, 'multi-heartbeat-b'), 'multi-workspace heartbeat B acquires writer lease');
+        const heartbeatAPath = guard.getAcceptedTurnWriterLeasePath(wsHeartbeatA);
+        const heartbeatBPath = guard.getAcceptedTurnWriterLeasePath(wsHeartbeatB);
+        const heartbeatA0 = readJson(heartbeatAPath);
+        const heartbeatB0 = readJson(heartbeatBPath);
+        const heartbeatA1 = await waitForRenewedAfter(heartbeatAPath, heartbeatA0.renewedAt);
+        const heartbeatB1 = await waitForRenewedAfter(heartbeatBPath, heartbeatB0.renewedAt);
+        assert(Date.parse(heartbeatA1.renewedAt) > Date.parse(heartbeatA0.renewedAt), 'multi-workspace heartbeat renews first workspace beyond timeout');
+        assert(Date.parse(heartbeatB1.renewedAt) > Date.parse(heartbeatB0.renewedAt), 'multi-workspace heartbeat renews second workspace beyond timeout');
+        assert(guard.releaseAcceptedTurnWriterLeaseForTests(wsHeartbeatA), 'release of heartbeat A succeeds');
+        const heartbeatBAfterRelease0 = readJson(heartbeatBPath);
+        const heartbeatBAfterRelease1 = await waitForRenewedAfter(heartbeatBPath, heartbeatBAfterRelease0.renewedAt);
+        assert(Date.parse(heartbeatBAfterRelease1.renewedAt) > Date.parse(heartbeatBAfterRelease0.renewedAt), 'releasing one workspace does not stop heartbeat renewal for another workspace');
+        guard.resetAcceptedTurnReplayGuardForTests();
+
+        const wsTokenLossA = tempWorkspace();
+        const wsTokenLossB = tempWorkspace();
+        assert(!guard.ensureAcceptedTurnWriterLease(wsTokenLossA, 'token-loss-a'), 'token-loss A acquires writer lease');
+        assert(!guard.ensureAcceptedTurnWriterLease(wsTokenLossB, 'token-loss-b'), 'token-loss B acquires writer lease');
+        const tokenLossAPath = guard.getAcceptedTurnWriterLeasePath(wsTokenLossA);
+        const tokenLossBPath = guard.getAcceptedTurnWriterLeasePath(wsTokenLossB);
+        const tokenLossA0 = await waitForRenewedAfter(tokenLossAPath, readJson(tokenLossAPath).renewedAt);
+        const tokenLossB = readJson(tokenLossBPath);
+        tokenLossB.lockToken = 'foreign-token-loss';
+        writeJson(tokenLossBPath, tokenLossB);
+        const tokenLossA1 = await waitForRenewedAfter(tokenLossAPath, tokenLossA0.renewedAt);
+        assert(Date.parse(tokenLossA1.renewedAt) > Date.parse(tokenLossA0.renewedAt), 'loss of B heartbeat authority does not stop A heartbeat renewal');
+        assert(readJson(tokenLossBPath).lockToken === 'foreign-token-loss', 'lost B token is not overwritten by heartbeat after authority loss');
+        guard.resetAcceptedTurnReplayGuardForTests();
+
+        const wsHealthyB = tempWorkspace();
+        assert(!guard.ensureAcceptedTurnWriterLease(wsHealthyB, 'healthy-b-heartbeat'), 'healthy B acquires writer lease for contender proof');
+        const healthyBPath = guard.getAcceptedTurnWriterLeasePath(wsHealthyB);
+        const healthyB0 = readJson(healthyBPath);
+        await delay(450);
+        const healthyB1 = readJson(healthyBPath);
+        assert(Date.parse(healthyB1.renewedAt) > Date.parse(healthyB0.renewedAt), 'healthy B remains registered and renewed beyond timeout');
+        const healthyBContender = await spawnLeaseContender(wsHealthyB, 'healthy-b-contender', {
+            LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+        });
+        assert(healthyBContender.kind === 'writerConflict', 'contender cannot stale-take over healthy registered B');
+        guard.resetAcceptedTurnReplayGuardForTests();
+
         const wsDead = tempWorkspace();
         writeForeignLease(wsDead, guard);
         fs.rmSync(guard.getAcceptedTurnWriterLeaseLockDir(wsDead), { recursive: true, force: true });
@@ -541,6 +601,55 @@ async function run() {
         touchOld(malformedPath);
         const malformedRecovered = guard.ensureAcceptedTurnWriterLease(wsMalformed, 'malformed-old');
         assert(!malformedRecovered, 'old malformed lease is quarantined and safely recovered');
+
+        const wsMalformedNormalHost = tempWorkspace();
+        const malformedNormalPath = guard.getAcceptedTurnWriterLeasePath(wsMalformedNormalHost);
+        fs.mkdirSync(path.dirname(malformedNormalPath), { recursive: true });
+        fs.writeFileSync(malformedNormalPath, '{broken', 'utf8');
+        touchOld(malformedNormalPath);
+        const malformedNormalDir = path.join(wsMalformedNormalHost, 'malformed-normal-sync');
+        const malformedNormalPause = path.join(malformedNormalDir, 'a-paused.json');
+        const malformedNormalResume = path.join(malformedNormalDir, 'a-resume');
+        const malformedNormalA = spawnLeaseContender(wsMalformedNormalHost, 'malformed-normal-a', {
+            LORERELAY_WRITER_LEASE_PAUSE_AFTER_LOCK_FILE: malformedNormalPause,
+            LORERELAY_WRITER_LEASE_RESUME_AFTER_LOCK_FILE: malformedNormalResume,
+        });
+        assert(await waitForFile(malformedNormalPause), 'normal malformed recoverer paused after acquiring fresh lock before capture');
+        const malformedNormalB = await spawnLeaseContender(wsMalformedNormalHost, 'malformed-normal-b');
+        assert(malformedNormalB.kind === 'writerConflict', 'protocol-compliant contender cannot mutate malformed lease after A owns fresh lock before capture');
+        fs.writeFileSync(malformedNormalResume, 'go', 'utf8');
+        const malformedNormalAResult = await malformedNormalA;
+        const malformedNormalLease = readJson(guard.getAcceptedTurnWriterLeasePath(wsMalformedNormalHost));
+        const malformedNormalOwner = readJson(guard.getAcceptedTurnWriterLeaseLockOwnerPath(wsMalformedNormalHost));
+        assert(malformedNormalAResult.success, 'normal malformed recoverer succeeds after proving no protocol capture-failure race');
+        assert(malformedNormalLease.lockToken === malformedNormalOwner.lockToken, 'normal malformed recovery leaves matching lease/owner token');
+
+        const wsMalformedCaptureFail = tempWorkspace();
+        const malformedCaptureFailPath = guard.getAcceptedTurnWriterLeasePath(wsMalformedCaptureFail);
+        const malformedCaptureFailLockDir = guard.getAcceptedTurnWriterLeaseLockDir(wsMalformedCaptureFail);
+        fs.mkdirSync(path.dirname(malformedCaptureFailPath), { recursive: true });
+        fs.writeFileSync(malformedCaptureFailPath, '{broken', 'utf8');
+        touchOld(malformedCaptureFailPath);
+        const originalRenameSync = fs.renameSync;
+        let captureFailureInjected = false;
+        try {
+            fs.renameSync = (oldPath, newPath) => {
+                if (
+                    String(oldPath) === malformedCaptureFailPath
+                    && String(newPath).includes('malformed-writer-lease')
+                ) {
+                    captureFailureInjected = true;
+                    throw new Error('simulated malformed capture failure');
+                }
+                return originalRenameSync(oldPath, newPath);
+            };
+            const captureFailResult = guard.ensureAcceptedTurnWriterLease(wsMalformedCaptureFail, 'malformed-capture-fail');
+            assert(captureFailResult && captureFailResult.kind === 'writerConflict', 'malformed capture failure returns writerConflict');
+        } finally {
+            fs.renameSync = originalRenameSync;
+        }
+        assert(captureFailureInjected, 'malformed capture failure injection reached post-lock capture path');
+        assert(!fs.existsSync(malformedCaptureFailLockDir), 'malformed capture failure rolls back the freshly acquired same-token lock');
 
         const wsEmptyRace = tempWorkspace();
         const emptyRaceResults = await Promise.all([

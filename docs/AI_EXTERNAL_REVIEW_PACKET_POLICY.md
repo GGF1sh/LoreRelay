@@ -33,6 +33,40 @@ For external review work:
 
 Local paths such as `C:\AI\text-adventure-vsce` must never be used as review inputs for browser-only AIs.
 
+## Code-grounding Gate
+
+Never infer an implemented relationship merely because nearby fields, types, or names look semantically related.
+
+Mandatory review rules:
+
+```text
+field exists
+≠
+mechanic exists
+
+mechanic exists
+≠
+two values are comparable
+
+higher abstract indicator
+≠
+higher actual outcome
+```
+
+For every PASS-critical claim, the reviewer must verify the exact production path:
+
+```text
+input
+→ function / rule
+→ mutation or returned value
+→ authority / persistence boundary
+→ player-visible outcome
+```
+
+Do not use field-name proximity, design-document wording, or domain plausibility as evidence of implementation.
+
+When a design claim and code disagree, prefer FAIL / BLOCKED over inventing the missing connection.
+
 ## Review packet branch
 
 Use a temporary branch when review inputs are not yet on `main`.
@@ -156,4 +190,6 @@ Reject these handoff patterns:
 - mixing implementation and review in one packet;
 - rewriting source inputs during review;
 - giant inline prompts duplicating durable GitHub documents;
-- claiming Drive or GitHub updates that were not actually made.
+- claiming Drive or GitHub updates that were not actually made;
+- treating semantically plausible field relationships as implemented mechanics;
+- searching code only for evidence that confirms the design document.

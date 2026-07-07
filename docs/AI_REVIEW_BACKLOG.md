@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `e4280d0` (Gameplay Slice 1 merged to main)
-**Control Artifacts Synced Through:** `e4280d0` (independent verify PASS + merge; post-merge smoke required)
+**Control Artifacts Synced Through:** `5a6a2f5` (post-merge smoke PASS + NOAI long-horizon analyst idea)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -49,8 +49,9 @@
 | `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **DONE** (`5740fbb`; post-merge smoke `d6bd50d`; `225/225`) | `RUNTIME-002A` | merged + clean post-merge smoke passed | - | - |
 | **NOAI** | | | | | | | | |
 | `NOAI-PHASE0` | Core-only AI participation policy + direct Commerce trade event history | Product/Runtime | High | **DONE** (`22c4602`; post-merge smoke `20d982a`; `226/226`) | `RUNTIME-003A` | merged + post-merge smoke passed | - | - |
+| `NOAI-PLAYTEST-001` | Long-horizon deterministic soak + structured telemetry + later read-only AI analyst | Product/QA | High | DISCOVERED (idea `5a6a2f5`) | `DET-001` | separate future gate; must not block Slice 1 human playtest | ChatGPT 5.5 High | Gemini / Grok / Claude by role |
 | **GAMEPLAY** | | | | | | | | |
-| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **VERIFYING** (independent verify PASS `2a1a287`; merged `e4280d0`) | `NOAI-PHASE0` | post-merge smoke required; then hybrid 30-minute playtest; no direct travel seam | - | Claude Sonnet High |
+| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **VERIFYING** (post-merge smoke PASS `669cae3`; merged `e4280d0`) | `NOAI-PHASE0` | hybrid 30-minute playtest next; scanner Gate open; no direct travel seam | User / ChatGPT | AI log analysis optional after test |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

@@ -26,6 +26,8 @@ function clone(value) {
 const required = [
     'gameRulesCore.js',
     'livingWorldCommercePersist.js',
+    'livingWorldCommerceUi.js',
+    'livingWorldCommerceUiCore.js',
     'npcBridgeCore.js',
     'worldEventLogCore.js',
 ];
@@ -52,6 +54,23 @@ function loadPersistWithStubs(stubs) {
     };
     try {
         return require(persistPath);
+    } finally {
+        Module._load = originalLoad;
+    }
+}
+
+function loadCommerceUiWithStubs(stubs) {
+    const uiPath = path.join(out, 'livingWorldCommerceUi.js');
+    delete require.cache[require.resolve(uiPath)];
+    const originalLoad = Module._load;
+    Module._load = function patchedLoad(request, parent, isMain) {
+        if (Object.prototype.hasOwnProperty.call(stubs, request)) {
+            return stubs[request];
+        }
+        return originalLoad.apply(this, arguments);
+    };
+    try {
+        return require(uiPath);
     } finally {
         Module._load = originalLoad;
     }
@@ -99,6 +118,84 @@ function createHarness(options = {}) {
         persist,
         savedWorldStates,
         getWorldState() { return clone(worldState); },
+        setWorldState(next) { worldState = clone(next); },
+    };
+}
+
+function createCommerceUiHarness(options = {}) {
+    const core = require(path.join(out, 'livingWorldCommerceUiCore.js'));
+    const gameStatePath = path.join(root, 'game_state.noai-test.json');
+    const scheduled = [];
+    let receiptCalls = 0;
+    const ui = loadCommerceUiWithStubs({
+        './gameRules': {
+            loadGameRules() {
+                return { enableCommerce: true, enableCommerceUi: true, playerRole: 'merchant' };
+            },
+        },
+        './worldForge': {
+            loadWorldForge() { return {}; },
+            loadWorldForgeDocument() { return {}; },
+            isWorldForgeEnabled() { return true; },
+        },
+        './worldState': {
+            loadWorldState() { return { worldTurn: 9, markets: {} }; },
+        },
+        './livingWorldBridge': {
+            resolveCommerceForge() { return {}; },
+            ensureLivingWorldMarkets() { return {}; },
+        },
+        './livingWorldTurnOpsCore': {
+            getOrInitPlayerCommerce() {
+                return { credits: 100, cargo: [], transportId: 'wagon', food: 30, playerRole: 'merchant' };
+            },
+        },
+        './workspaceStateQueueCore': {
+            readStateRevision() { return 7; },
+        },
+        './workspacePaths': {
+            getGameStatePath() { return gameStatePath; },
+        },
+        './livingWorldCommercePersist': {
+            scheduleCommercePersist(update) { scheduled.push(clone(update)); },
+        },
+        './promptReceiptCore': {
+            createPromptReceiptId() {
+                receiptCalls++;
+                if (options.throwReceipt) {
+                    throw new Error('synthetic draft id failure');
+                }
+                return options.draftId ?? 'draft-host-1';
+            },
+        },
+        './livingWorldCommerceUiCore': {
+            ...core,
+            executeDirectTrade() {
+                if (options.tradeFailure) {
+                    return { ok: false, reason: 'INVALID_QTY' };
+                }
+                return {
+                    ok: true,
+                    commerce: { credits: 88, cargo: [], transportId: 'wagon', food: 30, playerRole: 'merchant' },
+                    markets: { elda_shop: { wheat: { stock: 9, priceIndex: 1 } } },
+                    applied: 1,
+                    totalCost: 12,
+                    totalRevenue: 0,
+                };
+            },
+        },
+    });
+    fs.writeFileSync(gameStatePath, JSON.stringify({
+        entries: [],
+        world: { currentLocationId: 'elda_shop' },
+    }), 'utf-8');
+    return {
+        ui,
+        scheduled,
+        get receiptCalls() { return receiptCalls; },
+        cleanup() {
+            try { fs.unlinkSync(gameStatePath); } catch {}
+        },
     };
 }
 
@@ -179,6 +276,46 @@ function draft(draftId, overrides = {}) {
     eq(events[0].id, firstId, 'retrying the same draft preserves event id');
 }
 
+// Retrying the same draft after worldTurn advances keeps identity stable while fresh materialization uses the new turn.
+{
+    const h = createHarness({ worldState: { worldTurn: 31, recentChanges: [], markets: {} } });
+    const sameDraft = draft('trade-draft-later-turn-retry');
+    const firstMaterialized = h.persist.materializeCommerceTradeEventDrafts([sameDraft], 31)[0];
+    const laterMaterialized = h.persist.materializeCommerceTradeEventDrafts([sameDraft], 32)[0];
+    eq(firstMaterialized.id, laterMaterialized.id, 'same draft materializes to same event id across worldTurns');
+    eq(firstMaterialized.worldTurn, 31, 'first materialization uses first fresh worldTurn');
+    eq(laterMaterialized.worldTurn, 32, 'later materialization uses later fresh worldTurn metadata');
+
+    h.persist.scheduleCommercePersist({
+        markets: { elda_shop: { wheat: { stock: 4, priceIndex: 1 } } },
+        tradeEventDrafts: [sameDraft],
+    });
+    h.persist.flushScheduledCommercePersist();
+    const persistedFirst = h.getWorldState();
+    const firstId = persistedFirst.recentChanges[0].id;
+    eq(persistedFirst.recentChanges[0].worldTurn, 31, 'first successful persistence records authoritative fresh worldTurn');
+
+    h.setWorldState({ ...persistedFirst, worldTurn: 32 });
+    h.persist.scheduleCommercePersist({
+        markets: { elda_shop: { wheat: { stock: 4, priceIndex: 1 } } },
+        tradeEventDrafts: [sameDraft],
+    });
+    h.persist.flushScheduledCommercePersist();
+    const events = h.getWorldState().recentChanges ?? [];
+    eq(events.length, 1, 'same draft retry after later worldTurn does not duplicate recentChanges');
+    eq(events[0].id, firstId, 'same draft retry after later worldTurn preserves event id');
+}
+
+// Distinct drafts at different worldTurns remain distinct events.
+{
+    const h = createHarness();
+    const first = h.persist.materializeCommerceTradeEventDrafts([draft('trade-draft-distinct-1')], 61)[0];
+    const second = h.persist.materializeCommerceTradeEventDrafts([draft('trade-draft-distinct-2')], 62)[0];
+    assert(first.id !== second.id, 'distinct drafts at different worldTurns have distinct ids');
+    eq(first.worldTurn, 61, 'distinct draft first event keeps its fresh worldTurn');
+    eq(second.worldTurn, 62, 'distinct draft second event keeps its fresh worldTurn');
+}
+
 // Reordering unrelated drafts does not alter each draft's id.
 {
     const h = createHarness();
@@ -247,6 +384,68 @@ function draft(draftId, overrides = {}) {
     };
     const result = applyEventsToNpcRegistry([event], registry, forge);
     eq(result.updatedIds.length, 0, 'commerce resource/info/no-faction event does not trigger NPC food crisis');
+}
+
+// Host-level direct trade: failed trade creates no draft and schedules nothing.
+{
+    const h = createCommerceUiHarness({ tradeFailure: true });
+    try {
+        const result = h.ui.executeLivingWorldDirectTrade({
+            op: 'buy',
+            marketLocationId: 'elda_shop',
+            commodityId: 'wheat',
+            qty: 0,
+        });
+        eq(result.ok, false, 'failed host trade returns failure');
+        eq(h.scheduled.length, 0, 'failed host trade schedules no persistence');
+        eq(h.receiptCalls, 0, 'failed host trade creates no draft id');
+    } finally {
+        h.cleanup();
+    }
+}
+
+// Host-level direct trade: successful trade creates exactly one draft.
+{
+    const h = createCommerceUiHarness({ draftId: 'draft-host-success' });
+    try {
+        const result = h.ui.executeLivingWorldDirectTrade({
+            op: 'buy',
+            marketLocationId: 'elda_shop',
+            commodityId: 'wheat',
+            qty: 2,
+        });
+        eq(result.ok, true, 'successful host trade returns success');
+        eq(h.scheduled.length, 1, 'successful host trade schedules persistence once');
+        eq(h.receiptCalls, 1, 'successful host trade creates one draft id');
+        const drafts = h.scheduled[0].tradeEventDrafts ?? [];
+        eq(drafts.length, 1, 'successful host trade schedules exactly one draft');
+        eq(drafts[0].draftId, 'draft-host-success', 'host draft keeps generated draft id');
+        eq(drafts[0].goldDelta, -12, 'host buy draft records negative gold delta');
+    } finally {
+        h.cleanup();
+    }
+}
+
+// Host-level direct trade: draft creation failure does not revoke the successful trade.
+{
+    const warning = console.warn;
+    console.warn = () => {};
+    const h = createCommerceUiHarness({ throwReceipt: true });
+    try {
+        const result = h.ui.executeLivingWorldDirectTrade({
+            op: 'buy',
+            marketLocationId: 'elda_shop',
+            commodityId: 'wheat',
+            qty: 2,
+        });
+        eq(result.ok, true, 'draft creation failure does not revoke successful host trade');
+        eq(h.scheduled.length, 1, 'draft creation failure still schedules market/commerce persistence');
+        assert(h.scheduled[0].markets !== undefined, 'draft creation failure keeps market persistence payload');
+        eq((h.scheduled[0].tradeEventDrafts ?? []).length, 0, 'draft creation failure schedules no draft');
+    } finally {
+        console.warn = warning;
+        h.cleanup();
+    }
 }
 
 if (failed > 0) {

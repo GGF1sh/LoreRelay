@@ -23,9 +23,35 @@ interface PendingCommercePersist {
 
 let pendingHost: PendingCommercePersist | null = null;
 let commerceFlushInProgress = false;
+const COMMERCE_TRADE_EVENT_ID_PREFIX = 'wce_commerce_trade_';
+
+function fnv1aHash8(input: string): string {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < input.length; i++) {
+        h ^= input.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16).padStart(8, '0');
+}
 
 function formatSignedGoldDelta(goldDelta: number): string {
     return goldDelta >= 0 ? `+${goldDelta}` : String(goldDelta);
+}
+
+export function makeCommerceTradeEventId(draftId: string): string {
+    const raw = String(draftId ?? '');
+    const normalized = raw
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '_')
+        .replace(/^[_-]+|[_-]+$/g, '');
+    const slug = normalized || 'draft';
+    const maxLen = 64;
+    if (COMMERCE_TRADE_EVENT_ID_PREFIX.length + slug.length <= maxLen) {
+        return `${COMMERCE_TRADE_EVENT_ID_PREFIX}${slug}`;
+    }
+    const hash = fnv1aHash8(raw);
+    const maxSlugLen = Math.max(1, maxLen - COMMERCE_TRADE_EVENT_ID_PREFIX.length - hash.length - 1);
+    return `${COMMERCE_TRADE_EVENT_ID_PREFIX}${slug.slice(0, maxSlugLen)}_${hash}`;
 }
 
 function buildCommerceTradeEventMessage(draft: CommerceTradeEventDraft): string {
@@ -37,14 +63,17 @@ export function materializeCommerceTradeEventDrafts(
     drafts: readonly CommerceTradeEventDraft[],
     worldTurn: number
 ): WorldChangeEvent[] {
-    return drafts.map((draft) => makeWorldChangeEvent({
-        worldTurn,
-        category: 'resource',
-        severity: 'info',
-        source: 'player',
-        message: buildCommerceTradeEventMessage(draft),
-        locationId: draft.marketLocationId,
-        idSuffix: draft.draftId,
+    return drafts.map((draft) => ({
+        ...makeWorldChangeEvent({
+            worldTurn,
+            category: 'resource',
+            severity: 'info',
+            source: 'player',
+            message: buildCommerceTradeEventMessage(draft),
+            locationId: draft.marketLocationId,
+            idSuffix: draft.draftId,
+        }),
+        id: makeCommerceTradeEventId(draft.draftId),
     }));
 }
 

@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `a319e68` (PROMPT-001D2 merged; World Map / README showcase already merged)
-**Control Artifacts Synced Through:** `173beba` (RUNTIME-003A final external review found confirmed multi-workspace heartbeat blocker)
+**Control Artifacts Synced Through:** `d01b3a0` (RUNTIME-003A fifth verification repair complete; ready for fifth reverify)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -46,7 +46,7 @@
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
 | `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **DONE** (`6fc5700`; smoke `221/221`) | - | merged + smoke passed | - | - |
-| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **IMPLEMENTING (Fifth Verification Repair)** (`173beba`; external review confirmed multi-workspace heartbeat singleton bug) | `RUNTIME-002A` | per-workspace heartbeat registry / release isolation / malformed-capture cleanup validation | Codex 5.5 Very High | ChatGPT 5.5 High + Gemini 3.1 Pro |
+| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **VERIFYING (Fifth Reverify)** (`d01b3a0`) | `RUNTIME-002A` | multi-workspace heartbeat registry / release isolation / same-token malformed rollback | Codex 5.5 Very High | ChatGPT 5.5 High + Gemini 3.1 Pro |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |
@@ -60,7 +60,7 @@
 | `TERM-001` | EntityKind / ClockRef / Event class contract | P1 | High | BULK_AUDIT | - | `terminologyContract.ts` | Gemini 3.5 Flash | |
 | **OTHERS** | | | | | | | | |
 | `REMOTE-001` | Remote Audience Security & Spectator Role | P1 | High | CONFIRMED | - | | ChatGPT | Gemini 3.5 Flash |
-| `TRACE-001` | False causality in Trace/Debug logs | P1 | High | CONFIRMED | - | | Claude/ChatGPT | Gemini |
+| `TRACE-001` | False causality in Trace/Debug logs | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `SO3-001` | SO3 path boundary safety | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `DEBUG-UX-001`| Debug Hub UX (Timeline / Debug / QA lanes) | Enhancement| Medium | **GATE_DRAFTED** | - | Webview (`ux/debug-hub`) | Claude Sonnet | |
 

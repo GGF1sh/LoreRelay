@@ -1451,4 +1451,15 @@
   "webview.genesis.system.guild": "公會",
   "webview.genesis.system.commerce": "商業",
   "webview.genesis.system.observatory": "世界觀測所"
+  ,"webview.world.decisionRunSpike": "追趕高價",
+  "webview.world.decisionSellLocalNow": "現在本地出售：{price}",
+  "webview.world.decisionTravelPreview": "{days}天 · {foodCost}食物 · {transport}",
+  "webview.world.decisionPressureValue": "{pressure} 價格壓力",
+  "webview.world.decisionEvidence.pricePressure": "價格壓力",
+  "webview.world.decisionEvidence.recentEvent": "近期事件",
+  "webview.world.decisionEvidence.reputationHostile": "敵對聲望",
+  "webview.world.decisionEvidence.reputationUnfriendly": "緊張聲望",
+  "webview.world.decisionEvidence.reputationFriendly": "友好聲望",
+  "webview.world.decisionEvidence.reputationAllied": "同盟聲望",
+  "webview.world.decisionEvidence.lowStock": "庫存偏低"
 }

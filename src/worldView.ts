@@ -45,6 +45,7 @@ import {
 import { listActiveMapItems } from './cartographyRevealCore';
 import { buildRegionHighlightMeta, buildRegionMapFeedback, classifyDangerTier } from './mapFeedbackCore';
 import { loadGameRules } from './gameRules';
+import { buildCommerceDecisionSurface } from './livingWorldCommerceUiCore';
 import { pickDomainForWebview } from './domainBridge';
 import { pickGuildForWebview } from './guildBridge';
 import { buildCampaignKitWebviewPayload } from './campaignKitBridge';
@@ -175,6 +176,10 @@ interface WorldViewMarketTable {
     quotes: WorldViewMarketQuote[];
 }
 
+interface WorldViewCommerceDecisionSurface {
+    markets: ReturnType<typeof buildCommerceDecisionSurface>;
+}
+
 interface WorldViewNpcWhereaboutsEntry {
     npcId: string;
     name: string;
@@ -216,6 +221,45 @@ function buildLivingWorldMarketPayload(
             })),
         }))
         .filter((market) => market.quotes.length > 0);
+}
+
+function buildMarketFactionIds(
+    forge: NonNullable<ReturnType<typeof loadWorldForge>>,
+    commerce: CommerceForge,
+    worldState: ReturnType<typeof loadWorldState> | undefined
+): Record<string, string | undefined> {
+    const out: Record<string, string | undefined> = {};
+    const locationById = new Map(forge.geography.locations.map((loc) => [loc.id, loc]));
+    for (const market of commerce.markets) {
+        const loc = locationById.get(market.locationId);
+        const regionFaction = loc?.regionId
+            ? worldState?.regions?.[loc.regionId]?.controllingFaction ?? undefined
+            : undefined;
+        out[market.locationId] = regionFaction ?? loc?.factionControl;
+    }
+    return out;
+}
+
+function buildDiscoveredLocationIds(
+    forge: NonNullable<ReturnType<typeof loadWorldForge>>,
+    discoveredRegionIds: readonly string[]
+): string[] {
+    const discovered = new Set(discoveredRegionIds);
+    return forge.geography.locations
+        .filter((loc) => loc.regionId && discovered.has(loc.regionId))
+        .map((loc) => loc.id);
+}
+
+function buildFactionReputationPayload(
+    worldState: ReturnType<typeof loadWorldState> | undefined
+): Record<string, number | undefined> {
+    const out: Record<string, number | undefined> = {};
+    for (const [factionId, state] of Object.entries(worldState?.factions ?? {})) {
+        if (typeof state.playerReputation === 'number') {
+            out[factionId] = state.playerReputation;
+        }
+    }
+    return out;
 }
 
 interface WorldViewNpcBond {
@@ -576,6 +620,25 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         gameSnapshot?.commerce,
         gameRules.enableCommerce === true
     );
+    const livingWorldDecisionSurface: WorldViewCommerceDecisionSurface | null = commerceForge && playerCommerce
+        ? {
+            markets: buildCommerceDecisionSurface({
+                commerceForge,
+                marketTables: livingWorldMarkets,
+                playerCommerce,
+                currentLocationId: currentLocationId ?? null,
+                locations: forge.geography.locations,
+                regions: forge.geography.regions,
+                discoveredLocationIds: buildDiscoveredLocationIds(forge, fog.discoveredRegionIds),
+                discoveredRegionIds: fog.discoveredRegionIds,
+                recentChanges: activeChanges,
+                marketFactionIds: buildMarketFactionIds(forge, commerceForge, worldState),
+                factionReputations: gameRules.enableFactionReputation === true
+                    ? buildFactionReputationPayload(worldState)
+                    : undefined,
+            }),
+        }
+        : null;
 
     // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).
     const domainState = gameRules.enableDomainMode === true && gameSnapshot
@@ -635,6 +698,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         recentChanges: activeChanges,
         questHooks: worldState?.questHooks ?? [],
         livingWorldMarkets,
+        livingWorldDecisionSurface,
         playerCommerce,
         worldTurn: worldTurn ?? null,
         simEnabled,

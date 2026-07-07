@@ -1451,4 +1451,15 @@
   "webview.genesis.system.guild": "Guild",
   "webview.genesis.system.commerce": "Commerce",
   "webview.genesis.system.observatory": "World Observatory"
+  ,"webview.world.decisionRunSpike": "Run the spike",
+  "webview.world.decisionSellLocalNow": "Sell local now: {price}",
+  "webview.world.decisionTravelPreview": "{days}d · {foodCost} food · {transport}",
+  "webview.world.decisionPressureValue": "{pressure} pressure",
+  "webview.world.decisionEvidence.pricePressure": "price pressure",
+  "webview.world.decisionEvidence.recentEvent": "recent event",
+  "webview.world.decisionEvidence.reputationHostile": "hostile reputation",
+  "webview.world.decisionEvidence.reputationUnfriendly": "strained reputation",
+  "webview.world.decisionEvidence.reputationFriendly": "friendly reputation",
+  "webview.world.decisionEvidence.reputationAllied": "allied reputation",
+  "webview.world.decisionEvidence.lowStock": "low stock"
 }

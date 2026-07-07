@@ -37,6 +37,17 @@ Only use a long inline prompt when:
 - critical details are not yet recorded anywhere durable;
 - the user explicitly asks for the full detailed prompt.
 
+## External / browser AI reviews
+
+When the target AI cannot access the user's local filesystem, follow:
+
+- `docs/AI_EXTERNAL_REVIEW_PACKET_POLICY.md`
+- `docs/ai-review-packets/README.md`
+
+Package local-only audits, designs, and prior reviews into an exact GitHub review packet before the next cross-AI handoff whenever practical.
+
+Use an exact code commit and exact packet ref. Do not give browser-only AIs local paths or ask them to infer the task from current HEAD.
+
 ## LoreRelay default
 
 GitHub is the source of truth for task detail.

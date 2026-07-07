@@ -205,6 +205,24 @@ run('food-crisis wheat quote receives recent event, reputation, and low-stock ev
     );
 });
 
+run('food-crisis event does not emit recent_event for wheat when priceIndex <= 1.0', () => {
+    const out = surface({
+        playerCommerce: { cargo: [{ commodityId: 'wheat', qty: 2 }], transportId: 'wagon' },
+        marketTables: [
+            { locationId: 'elda_shop', locationName: "Elda's Shop", quotes: [q('wheat', 10, 35, 1, 'Wheat')] },
+            { locationId: 'south_port', locationName: 'South Port', quotes: [q('wheat', 12, 8, 0.9, 'Wheat')] },
+        ],
+        recentChanges: [{
+            worldTurn: 7,
+            category: 'resource',
+            severity: 'warning',
+            message: 'Food shortage lifts wheat prices at the port.',
+            regionId: 'r_south',
+        }],
+    });
+    assert(!out[0].quotes[0].evidence.includes('recent_event'));
+});
+
 run('steel improvement event is not evidence for elevated steel', () => {
     const out = surface({
         playerCommerce: { cargo: [{ commodityId: 'steel', qty: 1 }], transportId: 'wagon' },

@@ -161,9 +161,11 @@ function lowStockEvidence(forge: CommerceForge, locationId: string, commodityId:
 function recentFoodEventEvidence(
     events: readonly WorldChangeEventLike[] | undefined,
     marketRegionIdValue: string | undefined,
-    commodityId: string
+    commodityId: string,
+    priceIndex: number
 ): boolean {
     if (commodityId !== 'wheat') { return false; }
+    if (priceIndex <= 1.0) { return false; }
     return (events ?? []).some((event) => {
         if (event.category !== 'resource' || !isFoodCrisisEvent(event)) { return false; }
         if (event.regionId) { return event.regionId === marketRegionIdValue; }
@@ -190,13 +192,14 @@ function buildEvidence(input: {
     locationId: string;
     commodityId: string;
     stock: number;
+    priceIndex: number;
     marketRegionId?: string;
     recentChanges?: readonly WorldChangeEventLike[];
     marketFactionIds?: Record<string, string | undefined>;
     factionReputations?: Record<string, number | undefined>;
 }): CommerceDecisionSurfaceEvidenceKind[] {
     const evidence: CommerceDecisionSurfaceEvidenceKind[] = [];
-    if (recentFoodEventEvidence(input.recentChanges, input.marketRegionId, input.commodityId)) {
+    if (recentFoodEventEvidence(input.recentChanges, input.marketRegionId, input.commodityId, input.priceIndex)) {
         evidence.push('recent_event');
     }
     const reputation = reputationEvidence(input.marketFactionIds, input.factionReputations, input.locationId);
@@ -254,6 +257,7 @@ export function buildCommerceDecisionSurface(
                     locationId: market.locationId,
                     commodityId: remoteQuote.commodityId,
                     stock: remoteQuote.stock,
+                    priceIndex: remoteQuote.priceIndex,
                     marketRegionId: regionId,
                     recentChanges: input.recentChanges,
                     marketFactionIds: input.marketFactionIds,

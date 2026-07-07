@@ -23,6 +23,16 @@ Normally include only:
 - Output document path
 - Final verdict format
 
+Do not omit `Model` or `Reasoning` when handing work to another AI.
+
+Current Claude default for LoreRelay UX / gameplay design work:
+
+- AI: Claude
+- Model: Claude Sonnet
+- Reasoning: High
+
+Use a different Claude model or reasoning level only when the task explicitly justifies it.
+
 Do not paste long numbered sections such as `1` through `10+` into chat when those details are already recorded in GitHub.
 
 Instead use instructions like:

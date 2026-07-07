@@ -35,6 +35,13 @@ Use a different Claude model or reasoning level only when the task explicitly ju
 
 Do not paste long numbered sections such as `1` through `10+` into chat when those details are already recorded in GitHub.
 
+When a detailed audit or integrator review has already been written to GitHub, do not re-summarize all findings in chat. Chat should normally contain only:
+
+- verdict / current status;
+- what durable artifact was written or verified;
+- the next AI / model / reasoning;
+- one compact paste-ready prompt when needed.
+
 Instead use instructions like:
 
 > Read the listed task/review documents as source of truth. Verify or implement only the remaining recorded blockers. Do not broaden scope.

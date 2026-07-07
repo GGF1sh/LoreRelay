@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `22c4602` (NOAI Phase 0 merged to main)
-**Control Artifacts Synced Through:** `ff2c4c7` (Gameplay Slice 1 minimal UX implementation gate ready)
+**Control Artifacts Synced Through:** `8a89aea` (Gameplay Slice 1 implementation verify intake; small repair required)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -50,7 +50,7 @@
 | **NOAI** | | | | | | | | |
 | `NOAI-PHASE0` | Core-only AI participation policy + direct Commerce trade event history | Product/Runtime | High | **DONE** (`22c4602`; post-merge smoke `20d982a`; `226/226`) | `RUNTIME-003A` | merged + post-merge smoke passed | - | - |
 | **GAMEPLAY** | | | | | | | | |
-| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **READY_TO_IMPLEMENT** (gate `ff2c4c7`; repair3 `2647102`; design pass `1ac68bc`) | `NOAI-PHASE0` | minimal World-tab UX only; no direct travel seam; hard STOP for hybrid 30-minute test | Codex 5.5 High | ChatGPT 5.5 High |
+| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **VERIFYING** (implementation `3f5d231`; small repair intake `8a89aea`) | `NOAI-PHASE0` | fix elevated-wheat event evidence guard; then independent rerun; no direct travel seam | Gemini 3.1 Pro High | ChatGPT 5.5 High |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

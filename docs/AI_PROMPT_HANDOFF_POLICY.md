@@ -46,6 +46,14 @@ Instead use instructions like:
 
 > Read the listed task/review documents as source of truth. Verify or implement only the remaining recorded blockers. Do not broaden scope.
 
+## Exploration budget
+
+For every narrow repair, verify, UX gate, or implementation gate, also follow:
+
+- `docs/AI_EXPLORATION_BUDGET_POLICY.md`
+
+Prompts should explicitly state the exploration tier and forbid open-ended subagents unless the task is intentionally repo-wide.
+
 ## When long prompts are acceptable
 
 Only use a long inline prompt when:

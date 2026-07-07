@@ -585,6 +585,11 @@
           "default": true,
           "description": "%config.textAdventure.grokBridge.fallbackToClipboard.description%"
         },
+        "textAdventure.antigravityRelay.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Antigravity Relay Mode to bypass local GM and copy prompt payload to clipboard."
+        },
         "textAdventure.gmBridge.agentic.enabled": {
           "type": "boolean",
           "default": false,

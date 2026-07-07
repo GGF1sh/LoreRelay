@@ -611,6 +611,16 @@ function renderOptions(options) {
     btn.addEventListener('click', () => {
       if (isInputLocked() || btn.disabled) return;
       window.speechSynthesis?.cancel();
+
+      if (window.antigravityRelayMode) {
+        const fi = document.getElementById('free-input');
+        if (fi) {
+          fi.value = (fi.value ? fi.value + ' ' : '') + `${i + 1}. ${opt}`;
+          fi.focus();
+        }
+        return;
+      }
+
       const entryId = `user-${Date.now()}`;
       // Share this id with the extension so the persisted entry it later sends back
       // in gameStateUpdate matches this optimistic one instead of rendering a duplicate.

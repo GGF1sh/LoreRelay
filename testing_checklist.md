@@ -119,3 +119,6 @@ Prereq: same workspace; `enableNpcRegistry` + `enableNpcAgency` ON.
 - [ ] **Updater Execution**: Trigger a manual/automatic update check and verify that it parses the GitHub Releases correctly and downloads the valid VSIX.
 - [ ] **Installer / PowerShell**: Test the `.bat` and `.ps1` installer scripts on a fresh machine to ensure robust directory creation and extension sideloading.
 - [ ] **OpenRouter Key Migration**: Verify that the legacy plain-text API key is safely migrated into VS Code's `SecretStorage` mechanism on startup.
+
+## NOAI Phase 0
+- [ ] **Direct trade World Changes event**: After a successful direct trade, verify the existing World Changes panel shows the player trade as a `resource` / `info` event without triggering NPC food-crisis behavior.

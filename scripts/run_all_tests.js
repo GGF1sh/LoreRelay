@@ -176,6 +176,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_faction_market_demand.js' },
     { category: 'unit', file: 'test_living_world_market_debug_core.js' },
     { category: 'unit', file: 'test_living_world_commerce_ui_core.js' },
+    { category: 'unit', file: 'test_noai_phase0.js' },
     { category: 'unit', file: 'test_npc_whereabouts_trust_core.js' },
     { category: 'unit', file: 'test_npc_agency_webview_sanitize.js' },
     { category: 'unit', file: 'test_webview_payload_whitelist.js' },

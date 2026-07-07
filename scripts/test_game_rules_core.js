@@ -51,6 +51,7 @@ function eq(actual, expected, m) {
     eq(n.maxNamedNpcCount, 10, 'default maxNamedNpcCount');
     eq(n.maxMemoriesPerNpc, 10, 'default maxMemoriesPerNpc');
     eq(n.simIntervalTurns, 5, 'default simIntervalTurns');
+    eq(n.aiParticipationPolicy, 'always', 'default aiParticipationPolicy');
 }
 
 // load-time clamp: negative maxNamedNpcCount
@@ -74,11 +75,24 @@ function eq(actual, expected, m) {
 
 // partial update preserves unspecified fields via base
 {
-    const base = { ...DEFAULT_GAME_RULES, enableCommerce: true, maxNamedNpcCount: 42 };
+    const base = { ...DEFAULT_GAME_RULES, enableCommerce: true, maxNamedNpcCount: 42, aiParticipationPolicy: 'simulationOnly' };
     const n = normalizeGameRules({ enableNpcAgency: true }, base);
     eq(n.enableCommerce, true, 'partial update preserves enableCommerce');
     eq(n.maxNamedNpcCount, 42, 'partial update preserves maxNamedNpcCount');
+    eq(n.aiParticipationPolicy, 'simulationOnly', 'partial update preserves aiParticipationPolicy');
     eq(n.enableNpcAgency, true, 'partial update applies enableNpcAgency');
+}
+
+// aiParticipationPolicy accepts only the Phase 0 core enum
+{
+    const n = normalizeGameRules({ aiParticipationPolicy: 'onDemand' });
+    eq(n.aiParticipationPolicy, 'onDemand', 'valid aiParticipationPolicy preserved');
+}
+
+{
+    const base = { ...DEFAULT_GAME_RULES, aiParticipationPolicy: 'simulationOnly' };
+    const n = normalizeGameRules({ aiParticipationPolicy: 'directActionEverything' }, base);
+    eq(n.aiParticipationPolicy, 'simulationOnly', 'invalid aiParticipationPolicy keeps base');
 }
 
 // guild flags gated when guild mode off

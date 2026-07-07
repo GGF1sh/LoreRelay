@@ -2,6 +2,8 @@
 
 import { CHARACTER_ID_PATTERN } from './characterId';
 
+export type AiParticipationPolicy = 'always' | 'onDemand' | 'simulationOnly';
+
 export interface GameRules {
     enableRpgMechanics: boolean;
     defaultMaxHp: number;
@@ -48,6 +50,7 @@ export interface GameRules {
     enableSettlementDiorama?: boolean;
     enableVehicleSystem?: boolean;
     enableMobileBaseSystem?: boolean;
+    aiParticipationPolicy?: AiParticipationPolicy;
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -95,11 +98,13 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableSettlementDiorama: false,
     enableVehicleSystem: false,
     enableMobileBaseSystem: false,
+    aiParticipationPolicy: 'always',
 };
 
 const VALID_DICE = new Set(['Easy', 'Normal', 'Hard']);
 const VALID_ROLES = new Set(['merchant', 'adventurer', 'retainer', 'smith', 'ruler']);
 const VALID_DENSITIES = new Set(['low', 'medium', 'high']);
+const VALID_AI_PARTICIPATION_POLICIES = new Set<AiParticipationPolicy>(['always', 'onDemand', 'simulationOnly']);
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) { return fallback; }
@@ -166,6 +171,11 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         ? roleRaw as GameRules['playerRole']
         : base.playerRole;
 
+    const aiParticipationPolicyRaw = src.aiParticipationPolicy;
+    const aiParticipationPolicy = VALID_AI_PARTICIPATION_POLICIES.has(aiParticipationPolicyRaw as AiParticipationPolicy)
+        ? aiParticipationPolicyRaw as AiParticipationPolicy
+        : base.aiParticipationPolicy;
+
     const normalized: GameRules = {
         enableRpgMechanics: asBool(src.enableRpgMechanics, base.enableRpgMechanics),
         defaultMaxHp: clampInt(src.defaultMaxHp, 1, 99999, base.defaultMaxHp),
@@ -212,6 +222,7 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         enableSettlementDiorama: asOptionalBool(src.enableSettlementDiorama, base.enableSettlementDiorama),
         enableVehicleSystem: asOptionalBool(src.enableVehicleSystem, base.enableVehicleSystem),
         enableMobileBaseSystem: asOptionalBool(src.enableMobileBaseSystem, base.enableMobileBaseSystem),
+        aiParticipationPolicy,
     };
 
     return normalizeGuildRuleFlags(normalized);

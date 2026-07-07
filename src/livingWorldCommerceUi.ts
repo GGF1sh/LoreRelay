@@ -9,12 +9,14 @@ import { getOrInitPlayerCommerce } from './livingWorldTurnOpsCore';
 import { readStateRevision } from './workspaceStateQueueCore';
 import { getGameStatePath } from './workspacePaths';
 import { scheduleCommercePersist } from './livingWorldCommercePersist';
+import { createPromptReceiptId as createTradeDraftId } from './promptReceiptCore';
 import type { GameState } from './types/GameState';
 import type { PlayerRole } from './livingWorldTypes';
 import {
     executeDirectTrade,
     isValidPlayerRole,
     resolveDefaultPlayerRole,
+    type CommerceTradeEventDraft,
     type DirectTradeInput,
     type DirectTradeResult,
 } from './livingWorldCommerceUiCore';
@@ -48,6 +50,20 @@ function readGameState(): GameState | undefined {
 function currentPlayerLocationId(state: GameState | undefined): string | undefined {
     const id = state?.world?.currentLocationId;
     return typeof id === 'string' && id ? id : undefined;
+}
+
+function buildCommerceTradeEventDraft(
+    input: DirectTradeInput,
+    result: DirectTradeResult & { ok: true }
+): CommerceTradeEventDraft {
+    return {
+        draftId: createTradeDraftId(),
+        op: input.op,
+        marketLocationId: input.marketLocationId,
+        commodityId: input.commodityId,
+        qty: Math.floor(input.qty),
+        goldDelta: input.op === 'buy' ? -result.totalCost : result.totalRevenue,
+    };
 }
 
 export function executeLivingWorldDirectTrade(
@@ -108,12 +124,20 @@ export function executeLivingWorldDirectTrade(
         };
     }
 
+    let tradeEventDrafts: CommerceTradeEventDraft[] | undefined;
+    try {
+        tradeEventDrafts = [buildCommerceTradeEventDraft(input, result)];
+    } catch (err) {
+        console.warn('[livingWorldCommerceUi] failed to build commerce trade event draft:', err);
+    }
+
     if (gameState) {
         scheduleCommercePersist({
             gameState,
             baseRevision,
             commerce: result.commerce,
             markets: result.markets,
+            tradeEventDrafts,
         });
     }
 

@@ -33,6 +33,15 @@ export interface DirectTradeInput {
     currentLocationId?: string;
 }
 
+export interface CommerceTradeEventDraft {
+    draftId: string;
+    op: 'buy' | 'sell';
+    marketLocationId: string;
+    commodityId: string;
+    qty: number;
+    goldDelta: number;
+}
+
 export type DirectTradeFailureReason =
     | 'INVALID_OP'
     | 'INVALID_QTY'

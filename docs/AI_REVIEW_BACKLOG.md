@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `22c4602` (NOAI Phase 0 merged to main)
-**Control Artifacts Synced Through:** `20d982a` (NOAI Phase 0 post-merge smoke PASS)
+**Control Artifacts Synced Through:** `dc54d4f` (`review/gameplay-slice1`; adversarial review `SLICE1_NOT_READY`)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -49,6 +49,8 @@
 | `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **DONE** (`5740fbb`; post-merge smoke `d6bd50d`; `225/225`) | `RUNTIME-002A` | merged + clean post-merge smoke passed | - | - |
 | **NOAI** | | | | | | | | |
 | `NOAI-PHASE0` | Core-only AI participation policy + direct Commerce trade event history | Product/Runtime | High | **DONE** (`22c4602`; post-merge smoke `20d982a`; `226/226`) | `RUNTIME-003A` | merged + post-merge smoke passed | - | - |
+| **GAMEPLAY** | | | | | | | | |
+| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **ADVERSARIAL_REVIEW (FAIL; Design Repair Required)** (`review/gameplay-slice1` @ `dc54d4f`; `SLICE1_NOT_READY`) | `NOAI-PHASE0` | design only; no implementation; repair dominant strategy / omniscience / time-freeze / attribution | ChatGPT 5.5 High | Grok |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

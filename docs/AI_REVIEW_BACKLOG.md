@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `e4280d0` (Gameplay Slice 1 merged to main)
-**Control Artifacts Synced Through:** `8c0f8c3` (Antigravity relay UX bug intake)
+**Control Artifacts Synced Through:** `93133e3` (Antigravity relay gate integrator review; repair required)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -53,7 +53,7 @@
 | **GAMEPLAY** | | | | | | | | |
 | `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **VERIFYING** (post-merge smoke PASS `669cae3`; merged `e4280d0`) | `NOAI-PHASE0` | hybrid 30-minute playtest blocked by relay UX noise; no direct travel seam | User / ChatGPT | AI log analysis optional after test |
 | **UX / TOOLING** | | | | | | | | |
-| `ANTIGRAVITY-RELAY-001` | External Agent Relay Mode / payload panel; suppress misleading in-app action UI when Antigravity is active | UX/Tooling | High | CONFIRMED (bug intake `8c0f8c3`) | - | Webview + host message/export path; no gameplay changes | Claude Sonnet High | ChatGPT 5.5 High |
+| `ANTIGRAVITY-RELAY-001` | External Agent Relay Mode / payload panel; suppress misleading in-app action UI when Antigravity is active | UX/Tooling | High | **GATE_REPAIR_REQUIRED** (review `93133e3`; branch gate not accepted) | - | repair coherent playerAction→Antigravity handoff; no gameplay changes | Claude Sonnet High | ChatGPT 5.5 High |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `a319e68` (PROMPT-001D2 merged; World Map / README showcase already merged)
-**Control Artifacts Synced Through:** `346574a` (RUNTIME-003A fifth reverify PASS; integration merge pending)
+**Control Artifacts Synced Through:** `fb67889` (RUNTIME-003A integration merge prep READY; merge to main pending)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -32,7 +32,7 @@
 | **PROMPT** | | | | | | | | |
 | `PROMPT-001A` | Candidate→Budget→Delivered→Consumed順序契約（Option C staging merged + smoke passed） | P1 | Critical | **DONE** (`1773a9d`; terminal criteria satisfied by PROMPT-001C) | `PROMPT-001C, RUNTIME-002A` | merged; terminal criteria satisfied | - | - |
 | `PROMPT-001B` | Inspector read-only / no rebuild side effects | P1 | High | **DONE** (`933252c`; re-smoke `222/222`) | `PROMPT-001A` | merged + post-merge re-smoke passed | - | - |
-| `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | **DONE** (`1773a9d`; post-merge smoke `223/223`) | `PROMPT-001A, B, RUNTIME-002A` | merged + post-merge re-smoke passed | - | - |
+| `PROMPT-001C` | Prompt Assembly Receipt + immutable ACK / accepted consumption | P1 | High | **DONE** (`1773a9d`; post-merge smoke `223/223`) | `PROMPT-001A, B, RUNTIME-002A` | merged + post-merge smoke passed | - | - |
 | `PROMPT-001D1`| Category Budgeter pure core | - | - | **DONE** (`8c7f733`) | - | | - | - |
 | `PROMPT-001D2`| Category Budgeter shadow integration | P1 | High | **DONE** (`a319e68`; post-merge smoke `224/224`; smoke doc `7cb6c10`) | `PROMPT-001A, B, C` | merged + post-merge smoke passed | - | - |
 | **TEMP** | | | | | | | | |
@@ -46,7 +46,7 @@
 | `RUNTIME-001C`| Provider-specific session identity | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |
 | `RUNTIME-001D`| Async job epoch: Image/VLM stale writes | P1 | High | CONFIRMED | `RUNTIME-001B` | | ChatGPT | Gemini |
 | `RUNTIME-002A`| TurnResult handled/dedupe ordering + post-commit Accepted boundary | P1 | Critical | **DONE** (`6fc5700`; smoke `221/221`) | - | merged + smoke passed | - | - |
-| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **VERIFYING (Fifth Reverify PASS; Integration Merge Pending)** (`d01b3a0`, review `346574a`) | `RUNTIME-002A` | merge latest main, resolve integration, post-merge smoke | Codex 5.5 Very High | ChatGPT 5.5 High + Gemini 3.1 Pro |
+| `RUNTIME-003A`| Durable Accepted Turn Identity / Restart Replay Guard | P1 | Critical | **READY TO MERGE** (`fb67889`; latest main integrated, compile/focused/full tests PASS) | `RUNTIME-002A` | merge branch to main, then post-merge smoke | Codex 5.5 High | ChatGPT 5.5 High + Gemini 3.1 Pro |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

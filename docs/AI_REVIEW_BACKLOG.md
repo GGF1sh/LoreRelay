@@ -1,7 +1,7 @@
 # AI Review Backlog & Central Control Board
 
 **Board Code Baseline:** `22c4602` (NOAI Phase 0 merged to main)
-**Control Artifacts Synced Through:** `3eb62e0` (Gameplay Slice 1 Repair 2 integrator review; repair 3 required)
+**Control Artifacts Synced Through:** `1ac68bc` (Gameplay Slice 1 Repair 3 final integrator design pass)
 **Last Reconciled:** 2026-07-07 JST
 **Chief Integrator:** ChatGPT Browser
 
@@ -50,7 +50,7 @@
 | **NOAI** | | | | | | | | |
 | `NOAI-PHASE0` | Core-only AI participation policy + direct Commerce trade event history | Product/Runtime | High | **DONE** (`22c4602`; post-merge smoke `20d982a`; `226/226`) | `RUNTIME-003A` | merged + post-merge smoke passed | - | - |
 | **GAMEPLAY** | | | | | | | | |
-| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **DESIGN_REPAIR_REQUIRED** (repair2 `a98a221`; integrator review `3eb62e0`) | `NOAI-PHASE0` | design only; fix unitPrice/supplyBias, actual route days, food-credit conversion, invalid example paths; scanner remains playtest Gate | Claude Sonnet High | ChatGPT 5.5 High |
+| `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **IMPLEMENTATION_GATE_REQUIRED** (repair3 `2647102`; design pass `1ac68bc`) | `NOAI-PHASE0` | next: minimal player-facing UX only; direct travel seam deferred until hybrid 30-minute test passes; scanner remains empirical Gate | ChatGPT 5.5 High | - |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

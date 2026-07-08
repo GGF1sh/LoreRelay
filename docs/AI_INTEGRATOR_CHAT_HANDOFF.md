@@ -596,36 +596,29 @@ LoreRelay prepares context
 
 There is no proven API path that directly injects LoreRelay text into the Antigravity chat UI.
 
-Current branch/head at this snapshot:
+Current task state:
 
 ```text
-branch: task/antigravity-relay-001-small-fix
-head: 3e2a851c57ae71572399d3d917cf39f427344d60
+ANTIGRAVITY-RELAY-001: VERIFYING — REAL_RELAY_SMOKE_PENDING
 ```
 
-Current durable review:
+Evidence:
 
 ```text
-docs/ai-tasks/ANTIGRAVITY-RELAY-001-SMALL-FIX-VERIFY.md
-review commit: 0e346eb4b16438fe5d6e410e9f9706c31c32701c
+implementation/integration: 8e7dc27ff583d43641297941886c7c89a0f53a9c
+candidate head: 4e1c748e924f061367f3cd70804557846c98e470
+independent final verify: c10f1720312efe2ef41bb766e3d9c66007c939d7
+post-merge automated smoke: b15f0483874c1a2807d815b72bdaa50e5c83c920
+automated smoke result: PASS (compile, focused relay, Slice 1 regression, i18n, Symbol Registry, npm test 227/227)
 ```
 
-One narrow blocker remained at snapshot time: the suppression list must use exactly:
+Next required gate:
 
 ```text
-img-btn
-mic-btn
-undo-btn
-regen-btn
-qr-undo
-qr-retry
-experience-profile-btn
-parlor-settings-btn
+Run a real 1-2 turn Antigravity clipboard/file relay smoke.
 ```
 
-The implementation still used `image-prompt-btn` and omitted `undo-btn` / `regen-btn`.
-
-Do not re-open broad design. Fix the exact IDs, regenerate `webview/script.js`, rerun tests, verify, merge, and smoke.
+Do not mark ANTIGRAVITY-RELAY-001 DONE until that external relay proof is recorded. Do not re-open broad design unless the real smoke reveals a concrete defect.
 
 ### Symbol Registry generator
 
@@ -735,15 +728,12 @@ Final known integration:
 Unless current GitHub has moved on:
 
 ```text
-A. Finish the exact Antigravity suppression-ID fix.
-B. Verify branch, merge, post-merge smoke.
-C. Run a real 1–2 turn Antigravity clipboard/file relay smoke.
-D. Run the 30-minute Gameplay Slice 1 human playtest.
-E. Independently verify the Symbol Registry generator branch, then merge + smoke.
-F. Choose the next gameplay/product slice based on actual playtest evidence.
+A. Run a real 1-2 turn Antigravity clipboard/file relay smoke.
+B. Run the 30-minute Gameplay Slice 1 human playtest.
+C. Choose the next gameplay/product slice based on actual playtest evidence.
 ```
 
-The Symbol Registry work can be verified in parallel if it does not conflict with the Relay touch set, but it should not delay the blocked human playtest indefinitely.
+Symbol Registry generator work is already implemented, verified, merged, and smoked. Do not restart it while clearing the Relay smoke gate.
 
 Do not start a large new gameplay subsystem merely because the current test is inconvenient.
 

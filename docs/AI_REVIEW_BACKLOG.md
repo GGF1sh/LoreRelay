@@ -53,7 +53,7 @@
 | **GAMEPLAY** | | | | | | | | |
 | `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **VERIFYING** (post-merge smoke PASS `669cae3`; merged `e4280d0`) | `NOAI-PHASE0` | hybrid 30-minute playtest blocked by relay UX noise; no direct travel seam | User / ChatGPT | AI log analysis optional after test |
 | **UX / TOOLING** | | | | | | | | |
-| `ANTIGRAVITY-RELAY-001` | External Agent Relay Mode / clipboard payload handoff; suppress misleading normal-GM UI while Antigravity is active | UX/Tooling | High | **VERIFYING — ONE_SMALL_FIX_REMAINS** (head `3e2a851`; review `0e346eb`) | - | exact suppression IDs only: `img-btn`, `mic-btn`, `undo-btn`, `regen-btn`, `qr-undo`, `qr-retry`, `experience-profile-btn`, `parlor-settings-btn` | Antigravity / Gemini 3.1 Pro High | ChatGPT 5.5 High |
+| `ANTIGRAVITY-RELAY-001` | External Agent Relay Mode / clipboard payload handoff; suppress misleading normal-GM UI while Antigravity is active | UX/Tooling | High | **VERIFYING — REAL_RELAY_SMOKE_PENDING** (integration `8e7dc27`; verify `c10f172`; automated smoke `b15f048`) | - | next gate: real 1-2 turn Antigravity clipboard/file relay smoke; do not mark DONE before external relay proof | Antigravity / Gemini 3.1 Pro High | ChatGPT 5.5 High |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |
 | `D2-001A` | Inventory / checker | Architecture | High | **ADVERSARIAL_REVIEW** | `DET-001, RUNTIME-001B`| (設計フェーズ) | ChatGPT 5.4 | Gemini 3.1 Pro |

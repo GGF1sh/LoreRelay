@@ -1,9 +1,12 @@
 .vscode/**
 .git/**
 .github/**
+.claude/**
+.codex/**
 node_modules/**
 !node_modules/ws/
 !node_modules/ws/**
+*.vsix
 
 # TypeScript sources (compiled output lives in out/)
 src/**

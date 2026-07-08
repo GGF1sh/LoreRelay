@@ -69,6 +69,16 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lorerelay-installer-te
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
 try {
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $artifactPath = New-LoreRelayVsixArtifactPath -Version '1.77.15'
+    Assert-True ($artifactPath -like '*.vsix') 'artifact helper returns a VSIX path'
+    Assert-True (-not $artifactPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) 'artifact helper keeps generated VSIX outside the repo root'
+
+    $ignoreLines = Get-Content -LiteralPath (Join-Path $repoRoot '.vscodeignore')
+    Assert-True ($ignoreLines -contains '.claude/**') '.vscodeignore excludes .claude artifacts'
+    Assert-True ($ignoreLines -contains '.codex/**') '.vscodeignore excludes .codex artifacts'
+    Assert-True ($ignoreLines -contains '*.vsix') '.vscodeignore excludes nested VSIX artifacts'
+
     $validVsix = New-SyntheticVsix -RootDir $tempRoot -Version '1.77.15'
     $report = Test-VsixPackageIntegrity -VsixPath $validVsix -ExpectedVersion '1.77.15' -ExpectedExtensionId 'miya.lorerelay'
     Assert-Equal $report.PackageVersion '1.77.15' 'valid VSIX passes preflight'
@@ -138,6 +148,35 @@ exit /b 0
     Assert-True $rollbackFailed 'simulated replacement failure is surfaced'
     Assert-True (Test-Path $rollbackOldDir) 'rollback restores the old version on replacement failure'
     Assert-Equal (Read-InstalledPackageVersion -InstallDir $rollbackOldDir) '1.70.0' 'rollback keeps the previous installed version intact'
+
+    $cliCalls = 0
+    $fallbackCalls = 0
+    $cliPreferred = Invoke-PrimaryInstallWithFallback -PrimaryAvailable $true -PrimaryLabel 'CLI' -PrimaryAction {
+        $script:cliCalls++
+        return 'cli-ok'
+    } -FallbackLabel 'Fallback' -FallbackAction {
+        $script:fallbackCalls++
+        return 'fallback-ok'
+    }
+    Assert-True $cliPreferred.PrimarySucceeded 'CLI success is reported as successful'
+    Assert-True (-not $cliPreferred.FallbackRan) 'CLI success does not invoke direct-folder fallback'
+    Assert-Equal $cliCalls 1 'CLI success attempts the primary path once'
+    Assert-Equal $fallbackCalls 0 'CLI success skips the fallback path entirely'
+
+    $cliCalls = 0
+    $fallbackCalls = 0
+    $fallbackPreferred = Invoke-PrimaryInstallWithFallback -PrimaryAvailable $true -PrimaryLabel 'CLI' -PrimaryAction {
+        $script:cliCalls++
+        throw 'synthetic CLI failure'
+    } -FallbackLabel 'Fallback' -FallbackAction {
+        $script:fallbackCalls++
+        return 'fallback-ok'
+    }
+    Assert-True (-not $fallbackPreferred.PrimarySucceeded) 'CLI failure is reported as not successful'
+    Assert-True $fallbackPreferred.FallbackSucceeded 'CLI failure triggers fallback success'
+    Assert-True $fallbackPreferred.FallbackRan 'CLI failure runs direct-folder fallback'
+    Assert-Equal $cliCalls 1 'CLI failure still attempts the primary path once'
+    Assert-Equal $fallbackCalls 1 'CLI failure invokes fallback once'
 
     Write-Host 'Antigravity installer tests passed.'
 } finally {

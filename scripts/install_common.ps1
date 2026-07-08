@@ -8,6 +8,20 @@ function Test-SkillZipName([string]$Name) {
     return $Name -match '^text-adventure-gm[-v\d.]*\.zip$'
 }
 
+function Get-LoreRelayVsixArtifactsDir {
+    $dir = Join-Path ([System.IO.Path]::GetTempPath()) 'lorerelay-vsix-artifacts'
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    return [System.IO.Path]::GetFullPath($dir)
+}
+
+function New-LoreRelayVsixArtifactPath {
+    param([Parameter(Mandatory = $true)][string]$Version)
+
+    return Join-Path (Get-LoreRelayVsixArtifactsDir) ("lorerelay-{0}.vsix" -f $Version)
+}
+
 function Get-FileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -280,18 +294,46 @@ function Invoke-VsixCliInstallIsolated {
     }
 }
 
-function Install-VsixToDirDirectAtomic {
+function New-PreparedVsixInstallContent {
     param(
         [Parameter(Mandatory = $true)][string]$VsixPath,
+        [string]$ExpectedVersion,
+        [string]$ExpectedExtensionId
+    )
+
+    $integrity = Test-VsixPackageIntegrity -VsixPath $VsixPath -ExpectedVersion $ExpectedVersion -ExpectedExtensionId $ExpectedExtensionId
+    $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("vsix-extract-" + [Guid]::NewGuid().ToString('N'))
+    Expand-ArchiveSafe -ZipPath $VsixPath -DestDir $extractDir
+    $packageInfo = Get-ExtractedExtensionPackageInfo -ExtractRoot $extractDir -ExpectedVersion $ExpectedVersion -ExpectedExtensionId $ExpectedExtensionId
+
+    return [pscustomobject]@{
+        ExtractRoot = $extractDir
+        ExtensionDir = $packageInfo.ExtensionDir
+        PackageJsonPath = $packageInfo.PackageJsonPath
+        PackageVersion = $packageInfo.PackageVersion
+        ExtensionId = $packageInfo.ExtensionId
+        SizeBytes = $integrity.SizeBytes
+        Sha256 = $integrity.Sha256
+    }
+}
+
+function Remove-PreparedVsixInstallContent {
+    param([Parameter(Mandatory = $true)]$PreparedContent)
+
+    if ($PreparedContent.ExtractRoot -and (Test-Path $PreparedContent.ExtractRoot)) {
+        Remove-Item -LiteralPath $PreparedContent.ExtractRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Install-PreparedExtensionToDirAtomic {
+    param(
+        [Parameter(Mandatory = $true)]$PreparedContent,
         [Parameter(Mandatory = $true)][string]$TargetExtensionsDir,
         [Parameter(Mandatory = $true)][string]$ExtensionId,
         [Parameter(Mandatory = $true)][string]$Version,
         [scriptblock]$PreCommitHook
     )
 
-    $null = Test-VsixPackageIntegrity -VsixPath $VsixPath -ExpectedVersion $Version -ExpectedExtensionId $ExtensionId
-
-    $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("vsix-extract-" + [Guid]::NewGuid().ToString('N'))
     $stageRoot = $null
     $backupRoot = $null
     $promoted = $false
@@ -300,16 +342,14 @@ function Install-VsixToDirDirectAtomic {
     $destDir = Join-Path $TargetExtensionsDir $targetDirName
 
     try {
-        Expand-ArchiveSafe -ZipPath $VsixPath -DestDir $extractDir
-        $packageInfo = Get-ExtractedExtensionPackageInfo -ExtractRoot $extractDir -ExpectedVersion $Version -ExpectedExtensionId $ExtensionId
-
         if (-not (Test-Path $TargetExtensionsDir)) {
             New-Item -ItemType Directory -Path $TargetExtensionsDir -Force | Out-Null
         }
 
+        # Prepared content stays read-only and lets multiple fallback roots reuse one validated extraction.
         $stageRoot = Join-Path $TargetExtensionsDir (".{0}.staging-{1}" -f $targetDirName, [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
-        Get-ChildItem -LiteralPath $packageInfo.ExtensionDir -Force | ForEach-Object {
+        Get-ChildItem -LiteralPath $PreparedContent.ExtensionDir -Force | ForEach-Object {
             Copy-Item -LiteralPath $_.FullName -Destination $stageRoot -Recurse -Force
         }
 
@@ -344,8 +384,8 @@ function Install-VsixToDirDirectAtomic {
 
         return [pscustomobject]@{
             InstalledDir = $destDir
-            ExtensionId = $packageInfo.ExtensionId
-            PackageVersion = $packageInfo.PackageVersion
+            ExtensionId = $PreparedContent.ExtensionId
+            PackageVersion = $PreparedContent.PackageVersion
             BackedUpCount = $movedExisting.Count
         }
     } catch {
@@ -364,10 +404,75 @@ function Install-VsixToDirDirectAtomic {
             Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
         throw
+    }
+}
+
+function Install-VsixToDirDirectAtomic {
+    param(
+        [Parameter(Mandatory = $true)][string]$VsixPath,
+        [Parameter(Mandatory = $true)][string]$TargetExtensionsDir,
+        [Parameter(Mandatory = $true)][string]$ExtensionId,
+        [Parameter(Mandatory = $true)][string]$Version,
+        [scriptblock]$PreCommitHook
+    )
+
+    $prepared = $null
+    try {
+        $prepared = New-PreparedVsixInstallContent -VsixPath $VsixPath -ExpectedVersion $Version -ExpectedExtensionId $ExtensionId
+        return Install-PreparedExtensionToDirAtomic -PreparedContent $prepared -TargetExtensionsDir $TargetExtensionsDir -ExtensionId $ExtensionId -Version $Version -PreCommitHook $PreCommitHook
     } finally {
-        if ($extractDir -and (Test-Path $extractDir)) {
-            Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+        if ($prepared) {
+            Remove-PreparedVsixInstallContent -PreparedContent $prepared
         }
+    }
+}
+
+function Invoke-PrimaryInstallWithFallback {
+    param(
+        [bool]$PrimaryAvailable,
+        [Parameter(Mandatory = $true)][string]$PrimaryLabel,
+        [Parameter(Mandatory = $true)][scriptblock]$PrimaryAction,
+        [Parameter(Mandatory = $true)][string]$FallbackLabel,
+        [Parameter(Mandatory = $true)][scriptblock]$FallbackAction
+    )
+
+    $report = [ordered]@{
+        PrimaryAvailable = $PrimaryAvailable
+        PrimaryAttempted = $false
+        PrimarySucceeded = $false
+        FallbackAttempted = $false
+        FallbackSucceeded = $false
+        FallbackRan = $false
+        PrimaryError = $null
+        FallbackError = $null
+        Result = $null
+    }
+
+    if ($PrimaryAvailable) {
+        $report.PrimaryAttempted = $true
+        try {
+            $report.Result = & $PrimaryAction
+            $report.PrimarySucceeded = $true
+            return [pscustomobject]$report
+        } catch {
+            $report.PrimaryError = "$PrimaryLabel failed: $($_.Exception.Message)"
+        }
+    } else {
+        $report.PrimaryError = "$PrimaryLabel unavailable"
+    }
+
+    $report.FallbackAttempted = $true
+    $report.FallbackRan = $true
+    try {
+        $report.Result = & $FallbackAction
+        $report.FallbackSucceeded = $true
+        return [pscustomobject]$report
+    } catch {
+        $report.FallbackError = "$FallbackLabel failed: $($_.Exception.Message)"
+        $messages = @()
+        if ($report.PrimaryError) { $messages += $report.PrimaryError }
+        if ($report.FallbackError) { $messages += $report.FallbackError }
+        throw ($messages -join "`n")
     }
 }
 
@@ -415,6 +520,7 @@ function Get-AntigravityExtensionsDirs {
     $homeDir = [Environment]::GetFolderPath('UserProfile')
     $dirs = @(
         (Join-Path $homeDir '.antigravity\extensions'),
+        (Join-Path $homeDir '.antigravity-ide\extensions'),
         (Join-Path $homeDir '.gemini\antigravity-ide\extensions')
     )
     $seen = New-Object 'System.Collections.Generic.HashSet[string]'

@@ -65,11 +65,12 @@ function Install-VsixViaCli {
 }
 
 try {
+    $InstallStartedAt = Get-Date
     $PackageVersion = (node -p "require('./package.json').version").Trim()
     Write-Host ""
     Write-Host "Building LoreRelay v$PackageVersion from $ProjectDir" -ForegroundColor Cyan
-    $VsixName = "lorerelay-$PackageVersion.vsix"
-    $VsixPath = Join-Path $ProjectDir $VsixName
+    Write-Host ("Install started at: {0:O}" -f $InstallStartedAt) -ForegroundColor DarkGray
+    $VsixPath = New-LoreRelayVsixArtifactPath -Version $PackageVersion
 
     if (Test-Path $VsixPath) {
         Remove-Item -LiteralPath $VsixPath -Force
@@ -85,9 +86,11 @@ try {
         throw "vsce package failed with exit code $LASTEXITCODE"
     }
     $vsixReport = Test-VsixPackageIntegrity -VsixPath $VsixPath -ExpectedVersion $PackageVersion -ExpectedExtensionId 'miya.lorerelay'
+    $PackageCompletedAt = Get-Date
     Write-Host "Validated VSIX: $VsixPath" -ForegroundColor Green
     Write-Host "  size bytes: $($vsixReport.SizeBytes)" -ForegroundColor DarkGray
     Write-Host "  sha256: $($vsixReport.Sha256)" -ForegroundColor DarkGray
+    Write-Host ("Package complete at: {0:O}" -f $PackageCompletedAt) -ForegroundColor DarkGray
 
     $anyInstall = $false
     $errors = New-Object 'System.Collections.Generic.List[string]'
@@ -95,34 +98,66 @@ try {
     # 1. Antigravity IDE (CLI — most reliable on Windows)
     if ($Target -in @('both', 'antigravity')) {
         $agCmd = Resolve-AntigravityIdeCommand
+        $fallbackDirs = @(Get-AntigravityExtensionsDirs)
+        $antigravityReport = $null
+
         if ($agCmd) {
             Write-Host ""
             Write-Host "Installing to Antigravity IDE..." -ForegroundColor Cyan
-            try {
-                Install-VsixViaCli -CliPath $agCmd -VsixPath $VsixPath -Label 'Antigravity IDE'
-                Write-Host "Antigravity IDE: OK" -ForegroundColor Green
-                $anyInstall = $true
-            } catch {
-                $errors.Add("Antigravity CLI: $_")
-                Write-Warning $_
-            }
         } else {
             Write-Host ""
-            Write-Host "Antigravity IDE CLI not found — will try direct folder copy." -ForegroundColor Yellow
+            Write-Host "Antigravity IDE CLI not found — enabling direct-folder fallback." -ForegroundColor Yellow
         }
 
-        # 2. Antigravity extension folders (fallback / dual-layout)
-        foreach ($extDir in Get-AntigravityExtensionsDirs) {
-            Write-Host ""
-            Write-Host "Installing to Antigravity extensions folder: $extDir" -ForegroundColor Cyan
-            try {
-                Install-VsixToDirDirect -VsixPath $VsixPath -TargetExtensionsDir $extDir -ExtensionId "miya.lorerelay" -Version $PackageVersion
-                Write-Host "Folder copy: OK ($extDir)" -ForegroundColor Green
+        try {
+            $antigravityReport = Invoke-PrimaryInstallWithFallback `
+                -PrimaryAvailable ([bool]$agCmd) `
+                -PrimaryLabel 'Antigravity CLI' `
+                -PrimaryAction {
+                    Install-VsixViaCli -CliPath $agCmd -VsixPath $VsixPath -Label 'Antigravity IDE'
+                } `
+                -FallbackLabel 'Antigravity direct-folder fallback' `
+                -FallbackAction {
+                    if (-not $fallbackDirs -or $fallbackDirs.Count -eq 0) {
+                        throw 'No Antigravity extension directories discovered for direct-folder fallback.'
+                    }
+
+                    Write-Host "Direct-folder fallback starting..." -ForegroundColor Yellow
+                    $prepared = New-PreparedVsixInstallContent -VsixPath $VsixPath -ExpectedVersion $PackageVersion -ExpectedExtensionId 'miya.lorerelay'
+                    try {
+                        $results = New-Object 'System.Collections.Generic.List[object]'
+                        foreach ($extDir in $fallbackDirs) {
+                            Write-Host ""
+                            Write-Host "Installing to Antigravity extensions folder: $extDir" -ForegroundColor Cyan
+                            $result = Install-PreparedExtensionToDirAtomic -PreparedContent $prepared -TargetExtensionsDir $extDir -ExtensionId 'miya.lorerelay' -Version $PackageVersion
+                            Write-Host "Folder copy: OK ($extDir)" -ForegroundColor Green
+                            [void]$results.Add($result)
+                        }
+                        return @($results)
+                    } finally {
+                        Remove-PreparedVsixInstallContent -PreparedContent $prepared
+                    }
+                }
+
+            if ($antigravityReport.PrimarySucceeded) {
+                $CliCompletedAt = Get-Date
+                Write-Host "Skipping direct-folder fallback because CLI install succeeded." -ForegroundColor DarkGray
+                Write-Host ("CLI install complete at: {0:O}" -f $CliCompletedAt) -ForegroundColor DarkGray
+                Write-Host "Antigravity IDE: OK" -ForegroundColor Green
                 $anyInstall = $true
-            } catch {
-                $errors.Add("Antigravity folder $extDir : $_")
-                Write-Warning $_
+            } elseif ($antigravityReport.FallbackSucceeded) {
+                $FallbackCompletedAt = Get-Date
+                if ($antigravityReport.PrimaryError) {
+                    $errors.Add($antigravityReport.PrimaryError)
+                    Write-Warning $antigravityReport.PrimaryError
+                }
+                Write-Host ("Fallback install complete at: {0:O}" -f $FallbackCompletedAt) -ForegroundColor DarkGray
+                Write-Host "Antigravity direct-folder fallback: OK" -ForegroundColor Green
+                $anyInstall = $true
             }
+        } catch {
+            $errors.Add([string]$_)
+            Write-Warning $_
         }
     }
 
@@ -151,6 +186,7 @@ try {
     }
 
     Write-Host ""
+    Write-Host ("Install finished at: {0:O}" -f (Get-Date)) -ForegroundColor DarkGray
     Write-Host "Done. Reload the target editor (Developer: Reload Window)." -ForegroundColor Green
     if ($errors.Count -gt 0) {
         Write-Host "Some targets failed (others may have succeeded):" -ForegroundColor Yellow

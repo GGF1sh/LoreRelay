@@ -620,6 +620,39 @@ Run a real 1-2 turn Antigravity clipboard/file relay smoke.
 
 Do not mark ANTIGRAVITY-RELAY-001 DONE until that external relay proof is recorded. Do not re-open broad design unless the real smoke reveals a concrete defect.
 
+### Antigravity Install 001
+
+Status:
+
+```text
+DONE
+```
+
+Final known evidence:
+
+```text
+implementation: 3cb51a31b173ac511b6d9522e03a405a867b665b
+independent verify: ec453fb9f79ad5f1d7c1b61a8bc0a08413869fd7
+integration to main: a5dea994480ec9dd84933027aa7172f263cd15fa
+post-merge smoke doc: c06bb874e002b44c6577459d30489fe659acb97a
+```
+
+Durable conclusions:
+
+- clean package hygiene passed with `968` entries, size `25434266`, SHA-256 `abf6e0ebee5558800e822c9a6acec42100f2c64d2fdd79f480999bcee496fad7`
+- no nested VSIX was present in the clean package
+- no `.git`, `.claude`, backup, or temp extraction content was present in the clean package
+- repaired installer passed focused tests, compile, and full suite `228/228`
+- live Antigravity install smoke succeeded and final installed version was `1.77.15`
+
+Important boundary:
+
+```text
+ANTIGRAVITY-INSTALL-001 is DONE.
+ANTIGRAVITY-RELAY-001 remains VERIFYING - REAL_RELAY_SMOKE_PENDING.
+Do not collapse these tasks into one status.
+```
+
 ### Symbol Registry generator
 
 User and integrator concluded that a manually maintained function/variable dictionary would rot.

@@ -53,6 +53,7 @@
 | **GAMEPLAY** | | | | | | | | |
 | `GAMEPLAY-SLICE1` | Existing hidden market drift → player Decision Surface (`The Fading Spike`) | Gameplay | Critical | **VERIFYING** (post-merge smoke PASS `669cae3`; merged `e4280d0`) | `NOAI-PHASE0` | hybrid 30-minute playtest blocked by relay UX noise; no direct travel seam | User / ChatGPT | AI log analysis optional after test |
 | **UX / TOOLING** | | | | | | | | |
+| `ANTIGRAVITY-INSTALL-001` | Antigravity VSIX installer integrity / package hygiene / isolated CLI install | Tooling | High | **DONE** (impl `3cb51a3`; verify `ec453fb`; main `a5dea99`; smoke `c06bb87`) | - | merged + package hygiene PASS + live install smoke PASS; keep Relay task separate | Codex 5.4 | Claude Sonnet 5 |
 | `ANTIGRAVITY-RELAY-001` | External Agent Relay Mode / clipboard payload handoff; suppress misleading normal-GM UI while Antigravity is active | UX/Tooling | High | **VERIFYING — REAL_RELAY_SMOKE_PENDING** (integration `8e7dc27`; verify `c10f172`; automated smoke `b15f048`) | - | next gate: real 1-2 turn Antigravity clipboard/file relay smoke; do not mark DONE before external relay proof | Antigravity / Gemini 3.1 Pro High | ChatGPT 5.5 High |
 | **D2 (Determinism)**| | | | | | | | |
 | `DET-001` | Determinism hash/order stability | - | - | **DONE** (`4d56b28`) | - | | - | - |

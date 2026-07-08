@@ -134,7 +134,11 @@ if "%DEPS_READY%"=="1" (
   echo [LoreRelay] Dependencies: installing with npm ci --include=dev...
   pushd "%MANAGED_PATH%"
   npm ci --include=dev
-  set "NPM_EXIT_CODE=!ERRORLEVEL!"
+  if errorlevel 1 (
+    set "NPM_EXIT_CODE=1"
+  ) else (
+    set "NPM_EXIT_CODE=0"
+  )
   popd
   if not "!NPM_EXIT_CODE!"=="0" (
     echo [LoreRelay] ERROR: npm ci --include=dev failed with exit code !NPM_EXIT_CODE!.

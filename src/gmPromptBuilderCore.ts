@@ -385,6 +385,17 @@ export function buildFogUnexploredPromptLine(
     return line;
 }
 
+export function buildAntigravityRelayPayload(trimmed: string, breakdown: any, availableOptions: string[]): any {
+    return {
+        kind: 'antigravity_relay_request',
+        version: 1,
+        playerAction: trimmed,
+        promptContext: breakdown,
+        availableOptions: availableOptions || [],
+        targetOutput: 'turn_result.json'
+    };
+}
+
 /** Prompt block with eviction priority (higher = keep longer when over global budget). */
 export interface PromptContextChunkSpec {
     id: string;

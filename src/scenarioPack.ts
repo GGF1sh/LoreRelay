@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { t } from './i18n';
+import { getConfiguredLocale, t } from './i18n';
 import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspacePaths';
 import { sendCurrentState, setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
 import { sendBgmManifest, sendSfxManifest } from './mediaManifest';
@@ -16,6 +16,7 @@ import {
     validateScenarioDirectorBlock
 } from './scenarioDirector';
 import {
+    applyScenarioLocaleOverlay,
     BUNDLED_SAMPLE_IDS,
     OPTIONAL_PACK_FILES,
     resolveBundledSampleDir,
@@ -24,8 +25,67 @@ import { isDebugScenarioPack } from './debugScenarioCore';
 import { seedDebugScenarioWorldFromForge } from './debugScenarioRunnerCore';
 import { clearCampaignKitCache } from './campaignKit';
 import { clearDiscoveryLedgerCache } from './discoveryLedger';
+import { isValidCharacterId } from './characterId';
+import { addToParty, getCharacters, saveCharacter, setActiveCharacter } from './characterManager';
+import {
+    parseProtagonistDraft,
+    protagonistDraftToProfile,
+    resolveUniqueCharacterId,
+} from './protagonistBootstrapCore';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : undefined;
+}
+
+function localizeScenarioData(scenario: Record<string, unknown>): Record<string, unknown> {
+    return applyScenarioLocaleOverlay(scenario, getConfiguredLocale());
+}
+
+function ensureScenarioStarterProtagonist(scenario: Record<string, unknown>): void {
+    const setup = asRecord(scenario.setup);
+    const rawStarter = asRecord(setup?.playerCharacter);
+    if (!rawStarter) {
+        return;
+    }
+
+    const draft = parseProtagonistDraft(rawStarter);
+    if (!draft) {
+        return;
+    }
+
+    const preferredId = typeof rawStarter.id === 'string' && isValidCharacterId(rawStarter.id.trim())
+        ? rawStarter.id.trim()
+        : undefined;
+    const existing = getCharacters();
+    const reusablePlayer = existing.find((character) =>
+        character.controlledBy === 'player'
+        && (
+            (preferredId && character.id === preferredId)
+            || character.name.trim().toLowerCase() === draft.name.trim().toLowerCase()
+        )
+    );
+    if (reusablePlayer) {
+        setActiveCharacter(reusablePlayer.id);
+        addToParty(reusablePlayer.id);
+        return;
+    }
+    if (existing.some((character) => character.controlledBy === 'player')) {
+        return;
+    }
+
+    const takenIds = existing.map((character) => character.id);
+    const id = preferredId && !takenIds.includes(preferredId)
+        ? preferredId
+        : resolveUniqueCharacterId(draft.name, takenIds);
+    const profile = protagonistDraftToProfile(draft, id);
+    saveCharacter(profile);
+    setActiveCharacter(id);
+    addToParty(id);
+}
 
 function resolvePackageScenarioScript(): string | undefined {
     const candidates = [
@@ -122,9 +182,10 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         return;
     }
 
-    const opening = (scenario.opening || {}) as Record<string, unknown>;
-    const setup = (scenario.setup || {}) as Record<string, unknown>;
-    const meta = (scenario.meta || {}) as Record<string, unknown>;
+    const localizedScenario = localizeScenarioData(scenario);
+    const opening = (localizedScenario.opening || {}) as Record<string, unknown>;
+    const setup = (localizedScenario.setup || {}) as Record<string, unknown>;
+    const meta = (localizedScenario.meta || {}) as Record<string, unknown>;
 
     const state: Record<string, unknown> = {
         entries: [{
@@ -143,7 +204,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     if (opening.sfx) { state.sfx = opening.sfx; }
 
     const directorTemplate = parseScenarioDirectorTemplate(
-        scenario.director as Record<string, unknown> | undefined,
+        localizedScenario.director as Record<string, unknown> | undefined,
         meta
     );
     if (directorTemplate) {
@@ -169,9 +230,12 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
 
     try {
         commitGameState(state, { mergeProfile: 'replace' });
+        ensureScenarioStarterProtagonist(localizedScenario);
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
-            fs.copyFileSync(scenarioPath, wsScenario);
+            // Keep the workspace-local scenario copy aligned with the active locale,
+            // otherwise bundled demos reopen with mixed-language context.
+            writeJsonAtomic(wsScenario, localizedScenario);
         }
         for (const fileName of OPTIONAL_PACK_FILES) {
             const src = path.join(dir, fileName);

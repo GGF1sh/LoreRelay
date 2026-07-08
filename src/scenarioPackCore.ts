@@ -24,6 +24,63 @@ export const OPTIONAL_PACK_FILES = [
     'discoveries.json',
 ] as const;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cloneJsonValue<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((entry) => cloneJsonValue(entry)) as T;
+    }
+    if (isPlainObject(value)) {
+        const out: Record<string, unknown> = {};
+        for (const [key, entry] of Object.entries(value)) {
+            out[key] = cloneJsonValue(entry);
+        }
+        return out as T;
+    }
+    return value;
+}
+
+function mergeScenarioRecords(
+    base: Record<string, unknown>,
+    overlay: Record<string, unknown>
+): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...base };
+    for (const [key, value] of Object.entries(overlay)) {
+        const prev = out[key];
+        out[key] = isPlainObject(prev) && isPlainObject(value)
+            ? mergeScenarioRecords(prev, value)
+            : cloneJsonValue(value);
+    }
+    return out;
+}
+
+/**
+ * Apply an optional locale overlay embedded inside scenario.json.
+ * The returned document is safe to write back as the workspace-local canonical copy.
+ */
+export function applyScenarioLocaleOverlay(
+    scenario: Record<string, unknown>,
+    locale: string
+): Record<string, unknown> {
+    const localized = cloneJsonValue(scenario);
+    const localeTable = isPlainObject(localized.locales)
+        ? localized.locales as Record<string, unknown>
+        : undefined;
+    delete localized.locales;
+    if (!localeTable) {
+        return localized;
+    }
+
+    const key = String(locale || '').trim();
+    const overlay = isPlainObject(localeTable[key]) ? localeTable[key] as Record<string, unknown> : undefined;
+    if (!overlay) {
+        return localized;
+    }
+    return mergeScenarioRecords(localized, overlay);
+}
+
 /** Resolve a bundled sample directory (dev checkout or packaged extension root). */
 export function resolveBundledSampleDir(sampleId: string, extRoot?: string): string | undefined {
     if (!BUNDLED_SAMPLE_IDS.includes(sampleId as BundledSampleId)) {

@@ -14510,14 +14510,35 @@ const START_HUB_PRESETS = {
 };
 
 let selectedStartHubPreset = '';
+let startHubForcedVisible = false;
 
-/** messageHistory が空のときだけ Start Hub を表示し、chat-log を隠す。 */
+function openStartHubHome() {
+  if (messageHistory.length === 0) return;
+  startHubForcedVisible = true;
+  updateStartHubVisibility();
+}
+
+function resumeCurrentSession() {
+  startHubForcedVisible = false;
+  updateStartHubVisibility();
+}
+
+/** Empty state shows Start Hub by default; active sessions can also reopen it without clearing progress. */
 function updateStartHubVisibility() {
   const hub = document.getElementById('start-hub');
+  const homeBtn = document.getElementById('start-hub-home-btn');
+  const resumeRow = document.getElementById('start-hub-resume-row');
   if (!hub || !chatLog) return;
-  const empty = messageHistory.length === 0;
-  hub.classList.toggle('hidden', !empty);
-  chatLog.classList.toggle('hidden', empty);
+  const hasHistory = messageHistory.length > 0;
+  const showHub = !hasHistory || startHubForcedVisible;
+  hub.classList.toggle('hidden', !showHub);
+  chatLog.classList.toggle('hidden', showHub);
+  if (homeBtn) {
+    homeBtn.classList.toggle('hidden', !hasHistory || showHub);
+  }
+  if (resumeRow) {
+    resumeRow.classList.toggle('hidden', !hasHistory || !showHub);
+  }
 }
 
 function applyExperienceProfile(profile) {
@@ -14538,6 +14559,7 @@ function applyExperienceProfile(profile) {
 
 function applyParlorSession(msg) {
   if (!Array.isArray(msg.entries)) return;
+  startHubForcedVisible = false;
   messageHistory = msg.entries.map((e) => ({
     id: e.id,
     role: e.role,
@@ -14562,9 +14584,24 @@ function initStartHub() {
   const presetsWrap = document.getElementById('start-hub-presets');
   const charNewBtn = document.getElementById('start-hub-char-new-btn');
   const charImportBtn = document.getElementById('start-hub-char-import-btn');
+  const homeBtn = document.getElementById('start-hub-home-btn');
+  const resumeBtn = document.getElementById('start-hub-resume-btn');
+
+  if (homeBtn) {
+    homeBtn.addEventListener('click', () => {
+      openStartHubHome();
+    });
+  }
+
+  if (resumeBtn) {
+    resumeBtn.addEventListener('click', () => {
+      resumeCurrentSession();
+    });
+  }
 
   if (parlorBtn) {
     parlorBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       if (!parlorHasCharacter) {
         vscode.postMessage({ type: 'importTavernCard' });
         return;
@@ -14575,6 +14612,7 @@ function initStartHub() {
 
   if (inWorldBtn) {
     inWorldBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       if (!parlorHasCharacter) {
         vscode.postMessage({ type: 'importTavernCard' });
         return;
@@ -14602,21 +14640,25 @@ function initStartHub() {
 
   if (demoBtn) {
     demoBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'harbor-mist' });
     });
   }
   if (mapDemoBtn) {
     mapDemoBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'lost-catacombs' });
     });
   }
   if (debugBtn) {
     debugBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'debug-sandbox' });
     });
   }
   if (scavengerDemoBtn) {
     scavengerDemoBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'scrapbound-settlement' });
     });
   }
@@ -14639,6 +14681,7 @@ function initStartHub() {
 
   if (quickBtn) {
     quickBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
       const promptField = document.getElementById('quickstart-prompt');
       if (promptField && presetText) {
@@ -14650,6 +14693,7 @@ function initStartHub() {
 
   if (interviewBtn) {
     interviewBtn.addEventListener('click', () => {
+      resumeCurrentSession();
       const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
       const template = presetText
         ? T('webview.startHub.interviewTemplateWithPreset', { preset: presetText })
@@ -14689,6 +14733,7 @@ window.addEventListener('message', (event) => {
       return;
     }
     if (msg.state) {
+      startHubForcedVisible = false;
       applyGameState(msg.state, msg.fullHistory);
     }
   } else if (msg.type === 'imageGenStart') {

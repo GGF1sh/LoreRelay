@@ -12,6 +12,7 @@ if (!fs.existsSync(corePath)) {
 }
 
 const {
+    applyScenarioLocaleOverlay,
     resolveBundledSampleDir,
     BUNDLED_SAMPLE_IDS,
     OPTIONAL_PACK_FILES,
@@ -73,6 +74,28 @@ for (const id of BUNDLED_SAMPLE_IDS) {
         fail(`resolveBundledSampleDir(${id}) from repo`);
     } else {
         ok(`resolveBundledSampleDir(${id}) from repo`);
+    }
+}
+
+{
+    const localized = applyScenarioLocaleOverlay({
+        meta: { title: 'Base' },
+        opening: { status: { location: 'Market' } },
+        locales: {
+            ja: {
+                meta: { title: 'Japanese' },
+                opening: { status: { location: '市場', time: '夕方' } }
+            }
+        }
+    }, 'ja');
+    if (localized.meta?.title !== 'Japanese' || localized.opening?.status?.location !== '市場') {
+        fail('applyScenarioLocaleOverlay merges localized fields');
+    } else if (localized.opening.status.time !== '夕方') {
+        fail('applyScenarioLocaleOverlay preserves nested additions');
+    } else if ('locales' in localized) {
+        fail('applyScenarioLocaleOverlay strips locale table from localized copy');
+    } else {
+        ok('applyScenarioLocaleOverlay merges locale data');
     }
 }
 

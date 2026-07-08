@@ -10,12 +10,14 @@ const worldForgeCore = path.join(root, 'out', 'worldForgeCore.js');
 const commerceCore = path.join(root, 'out', 'livingWorldForgeCore.js');
 const kitCore = path.join(root, 'out', 'campaignKitCore.js');
 const ledgerCore = path.join(root, 'out', 'discoveryLedgerCore.js');
+const scenarioPackCore = path.join(root, 'out', 'scenarioPackCore.js');
+const protagonistCore = path.join(root, 'out', 'protagonistBootstrapCore.js');
 
 let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
 function ok(msg) { console.log(`OK: ${msg}`); }
 
-for (const p of [worldForgeCore, commerceCore, kitCore, ledgerCore]) {
+for (const p of [worldForgeCore, commerceCore, kitCore, ledgerCore, scenarioPackCore, protagonistCore]) {
     if (!fs.existsSync(p)) {
         fail(`${path.basename(p)} missing — run npm run compile`);
         process.exit(1);
@@ -26,6 +28,8 @@ const { parseWorldForge } = require(worldForgeCore);
 const { parseCommerceForge } = require(commerceCore);
 const { parseCampaignKitConfig } = require(kitCore);
 const { parseDiscoveryLedger } = require(ledgerCore);
+const { applyScenarioLocaleOverlay } = require(scenarioPackCore);
+const { parseProtagonistDraft } = require(protagonistCore);
 
 function readJson(name) {
     return JSON.parse(fs.readFileSync(path.join(sampleDir, name), 'utf-8'));
@@ -64,6 +68,20 @@ function readJson(name) {
         fail('discoveries.json should parse seed entries');
     } else {
         ok('campaign kit and discoveries parse');
+    }
+}
+
+{
+    const localized = applyScenarioLocaleOverlay(readJson('scenario.json'), 'ja');
+    const starter = parseProtagonistDraft(localized.setup && localized.setup.playerCharacter);
+    if (!starter || !starter.name || !starter.description) {
+        fail('localized starter protagonist should parse');
+    } else if (localized.meta.title !== 'スクラップバウンド居住区') {
+        fail('ja overlay should localize sample title');
+    } else if (localized.opening.status.location !== 'スクラップバウンド市場通り') {
+        fail('ja overlay should localize opening status');
+    } else {
+        ok('localized starter protagonist and opening data parse');
     }
 }
 

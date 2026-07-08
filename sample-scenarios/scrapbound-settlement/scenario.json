@@ -8,8 +8,21 @@
     "tags": ["campaign-kit", "postapocalypse", "scavenger", "commerce", "demo"]
   },
   "setup": {
-    "world": "Ash years after the collapse. Scrapbound is a walled settlement of traders, fixers, and ruin-runners. Old metro tunnels and dead factories still hide salvage — and worse.",
+    "world": "Ash years after the collapse. Scrapbound is a walled settlement of traders, fixers, and ruin-runners. Old metro tunnels and dead factories still hide salvage and worse.",
     "protagonist": "A new scavenger with a light pack, a little credit, and no reputation yet.",
+    "playerCharacter": {
+      "id": "scrapbound_runner",
+      "name": "Ren Vale",
+      "description": "A wiry scavenger with a patched dust coat, a light salvage pack, and a sharp eye for what can still be sold. New to Scrapbound, but already good at spotting which ruins are worth the risk.",
+      "personality": "Cautious with strangers, quietly funny when the tension drops, and stubborn about coming back alive with something useful.",
+      "scenario": "You are taking your first real salvage jobs in Scrapbound and need to turn thin credits into a reputation before somebody tougher claims your routes.",
+      "arrivalReason": "You followed rumor and hunger to Scrapbound, hoping the settlement's ruin runs can buy you a future before the wastes take everything else.",
+      "equipment": {
+        "weapon": "scrap spear",
+        "armor": "patched dust coat",
+        "accessory": "filter mask"
+      }
+    },
     "tone": "Gritty but hopeful. Everyday survival, sharp banter, and the thrill of a good haul. Explain prices and risks clearly.",
     "imageMode": "natural",
     "theme": "post-apocalyptic scavenger ruins",
@@ -24,7 +37,7 @@
     "act": "Demo",
     "chapter": "First Haul",
     "scene": "Scrapbound Market Row",
-    "objective": "Teach hub → rumor/job → ruin run → salvage → appraisal/sale → world reaction.",
+    "objective": "Teach hub -> rumor/job -> ruin run -> salvage -> appraisal/sale -> world reaction.",
     "successConditions": [
       "The player accepts a notice-board job or rumor lead.",
       "The player enters a ruin and returns with at least one finding.",
@@ -55,5 +68,65 @@
       "Buy food and a filter mask before leaving town."
     ],
     "narrative": "Scrapbound smells like hot metal, fried oil, and rain on old concrete. Vendors shout over a generator chorus while a chalk board lists jobs: wire from the dead factory, med packs from the clinic bunker, \"anything that still boots\" from the north metro.\n\nMira the fixer leans on her counter beside a tray of unidentified scrap. \"You look new. Rule one: don't eat mystery cans. Rule two: bring me junk I can sell, or bring me stories I can sell. Rule three: the metro still has lights sometimes. That's never good news.\"\n\nYour pack is empty, your credits are thin, and the ruins are waiting."
+  },
+  "locales": {
+    "ja": {
+      "meta": {
+        "title": "スクラップバウンド居住区",
+        "description": "ポストアポカリプスのスカベンジャー導入デモ。掲示板の噂、廃墟探索、未鑑定サルベージ、鑑定、売却、そして市場反応までを体験できます。"
+      },
+      "setup": {
+        "world": "崩壊から長い年月が過ぎ、空には灰が漂っている。スクラップバウンドは、商人、修理屋、廃墟漁りたちが身を寄せる壁付きの居住区だ。古い地下鉄や死んだ工場には、まだ売れる残骸と、それ以上に危ない何かが眠っている。",
+        "protagonist": "軽い荷物とわずかなクレジットだけを持った、新米のスカベンジャー。",
+        "playerCharacter": {
+          "id": "scrapbound_runner",
+          "name": "レン・ヴェイル",
+          "description": "継ぎ接ぎだらけの防塵コートをまとい、軽いサルベージパックを背負った痩せた漁り屋。スクラップバウンドではまだ新顔だが、どの廃墟が危険に見合うかを嗅ぎ分ける目は鋭い。",
+          "personality": "初対面には慎重だが、緊張がほどけると少し皮肉っぽく笑う。無駄死にだけはしないと決めている。",
+          "scenario": "スクラップバウンドで初めて本格的な回収仕事に挑み、乏しい資金を評判へ変えなければならない。",
+          "arrivalReason": "飢えと噂に導かれてスクラップバウンドへ流れ着いた。廃墟漁りで稼げるうちに、この荒野で生き残る足場を作りたい。",
+          "equipment": {
+            "weapon": "スクラップ槍",
+            "armor": "継ぎ接ぎの防塵コート",
+            "accessory": "簡易フィルターマスク"
+          }
+        },
+        "tone": "荒っぽいが希望はある。日々の生存、乾いた軽口、そして良い回収品を持ち帰る高揚感。価格や危険は分かりやすく伝えること。",
+        "theme": "ポストアポカリプスの廃墟スカベンジャー",
+        "rules": "危険な廃墟選択では 1d20 を使う。Commerce と Campaign Kit は有効。売買は turn_result.tradeOps で処理する。未鑑定サルベージは鑑定されるまで曖昧なままにする。"
+      },
+      "director": {
+        "chapter": "最初の戦果",
+        "scene": "スクラップバウンド市場通り",
+        "objective": "掲示板や噂で仕事を受け、廃墟へ入り、戦利品を持ち帰って鑑定か売却まで回す流れを体験させる。",
+        "successConditions": [
+          "プレイヤーが掲示板の依頼か噂話を受ける。",
+          "プレイヤーが廃墟へ入り、少なくとも 1 件の発見物を持ち帰る。",
+          "未鑑定アイテムが鑑定されるか、居住区ループの中で売却される。"
+        ],
+        "failConditions": [
+          "tradeOps や鑑定フローなしでサルベージ価格を捏造する。",
+          "危険や準備の選択肢なしに廃墟を描写する。"
+        ],
+        "optionalEncounters": [
+          "怪しい上乗せ価格で品を流そうとするフィクサー。",
+          "北地下鉄への道を尾けてくるレイダーたち。"
+        ]
+      },
+      "opening": {
+        "status": {
+          "location": "スクラップバウンド市場通り",
+          "time": "夕方遅く / 砂塵まじりの空気",
+          "condition": "HP 18/18、空腹気味だが足取りは確か",
+          "funds": "120 クレジット、荷袋は空"
+        },
+        "options": [
+          "掲示板を読んで、報酬付きの回収仕事を探す。",
+          "北地下鉄の噂についてフィクサーに聞く。",
+          "町を出る前に食料とフィルターマスクを買う。"
+        ],
+        "narrative": "スクラップバウンドには、焼けた金属と揚げ油、それから古いコンクリートに落ちた雨の匂いが混ざっている。発電機の唸りをかき消すように商人たちが声を張り上げ、黒板には依頼が並ぶ。死んだ工場の配線、診療バンカーの医療パック、北地下鉄の「まだ起動する何か」。\n\nフィクサーのミラは、未鑑定スクラップの盆を脇に置き、カウンターにもたれている。『あんた、新顔だね。ひとつ、怪しい缶詰は食べるな。ふたつ、売れるガラクタか、売れる話を持って帰れ。みっつ、地下鉄はたまにまだ灯りがつく。あれはだいたい、ろくでもない知らせだ』\n\n荷袋は空で、クレジットは心細い。けれど廃墟は、もう待っている。"
+      }
+    }
   }
 }

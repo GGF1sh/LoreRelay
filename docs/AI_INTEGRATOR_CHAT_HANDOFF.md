@@ -673,9 +673,16 @@ npm run compile PASS
 npm test 227/227 PASS
 ```
 
-This branch is not automatically accepted or DONE. It still needs independent verification, merge, and post-merge smoke.
+This branch has been merged and post-merge smoke passed.
 
-Once merged, new AI agents should consult the generated registry before doing broad symbol discovery.
+Final known post-merge evidence:
+
+- implementation commit `82acffca923b9ff0836c034674aefebdf6ab9c72`;
+- independent verify commit `051a3e874b33a2278e40182a421bab15b76d0870`, merged to main as `16df40b5db1f8fa7aae45b9c565558a21593f02a`;
+- post-merge smoke doc commit `5b85f2999bb97f75356300a2373fbe1b738fcd80`;
+- full suite `227/227` at completion.
+
+New AI agents should consult the generated registry before doing broad symbol discovery.
 
 Do not register every local variable. The valuable scope is shared/public/cross-system symbols:
 

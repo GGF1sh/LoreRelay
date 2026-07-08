@@ -65,7 +65,7 @@
 | `IDENT-001A` | Entity Reference Inventory Core | - | - | **DONE** (`192b017`) | - | | - | - |
 | `IDENT-001B` | Dangling ref validator / duplicate owner | P1 | High | CONFIRMED | `IDENT-001A` | `entityReferenceInventoryCore.ts`| Grok/Antigravity | ChatGPT / Gemini |
 | `TERM-001` | EntityKind / ClockRef / Event class contract | P1 | High | BULK_AUDIT | - | terminology docs + checker; reconcile stale board touch-set wording later | Gemini 3.5 Flash | |
-| `SYMBOL-REGISTRY-001` | Deterministic generated registry for shared functions/types/message types/config keys | Tooling/Docs | High | **VERIFYING** (branch `task/SYMBOL-REGISTRY-generator`; head `e7eacf8`; exactly 1 ahead of `885a1be`) | `TERM-001` related, not blocked | generator + generated JSON/Markdown + tests; independent verify then merge + post-merge smoke | Codex 5.5 Very High | ChatGPT 5.5 High |
+| `SYMBOL-REGISTRY-001` | Deterministic generated registry for shared functions/types/message types/config keys | Tooling/Docs | High | **DONE** (impl `82acffc`; verify `051a3e8` / main `16df40b`; smoke `5b85f29`) | `TERM-001` related, not blocked | generator + generated JSON/Markdown + tests; integrated to main; post-merge smoke PASS (`227/227`) | Codex 5.5 Very High | ChatGPT 5.5 High |
 | **OTHERS** | | | | | | | | |
 | `REMOTE-001` | Remote Audience Security & Spectator Role | P1 | High | CONFIRMED | - | | ChatGPT | Gemini 3.5 Flash |
 | `TRACE-001` | False causality in Trace/Debug logs | P1 | High | CONFIRMED | - | | ChatGPT | Gemini |

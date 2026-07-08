@@ -262,6 +262,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_observatory_core.js' },
     { category: 'unit', file: 'test_observer_tick_side_effect_contract.js' },
     { category: 'unit', file: 'test_event_classification.js' },
+    { category: 'unit', file: 'test_symbol_registry.js' },
     {
         category: 'simulation',
         file: 'run_simulation_tests.js',

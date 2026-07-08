@@ -747,6 +747,8 @@
     "test:unit": "node scripts/run_all_tests.js --unit",
     "test:smoke": "node scripts/run_all_tests.js --smoke",
     "test:simulation": "node scripts/run_simulation_tests.js",
+    "generate:symbol-registry": "node scripts/generate_symbol_registry.js --write",
+    "check:symbol-registry": "node scripts/generate_symbol_registry.js --check",
     "qa:game": "node scripts/run_game_qa.js",
     "qa:game:quick": "node scripts/run_game_qa.js --mode quick",
     "qa:game:full": "node scripts/run_game_qa.js --mode full",

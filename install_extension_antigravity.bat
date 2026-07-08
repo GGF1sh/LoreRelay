@@ -34,6 +34,11 @@ if not defined SOURCE_COMMON (
   set "PS_EXIT_CODE=1"
   goto :finish
 )
+if "!SOURCE_COMMON:~1,1!"==":" (
+  for %%I in ("!SOURCE_COMMON!") do set "SOURCE_COMMON=%%~fI"
+) else (
+  for %%I in ("%SOURCE_DIR%\!SOURCE_COMMON!") do set "SOURCE_COMMON=%%~fI"
+)
 
 echo [LoreRelay] Fetching origin in source repository...
 git -C "%SOURCE_DIR%" fetch origin
@@ -65,6 +70,11 @@ if exist "%MANAGED_PATH%" (
   )
   for %%I in ("%MANAGED_PATH%") do set "MANAGED_EXPECTED=%%~fI"
   for %%I in ("!MANAGED_TOP!") do set "MANAGED_TOP_ABS=%%~fI"
+  if "!MANAGED_COMMON:~1,1!"==":" (
+    for %%I in ("!MANAGED_COMMON!") do set "MANAGED_COMMON=%%~fI"
+  ) else (
+    for %%I in ("%MANAGED_PATH%\!MANAGED_COMMON!") do set "MANAGED_COMMON=%%~fI"
+  )
   if /I not "!MANAGED_TOP_ABS!"=="!MANAGED_EXPECTED!" (
     echo [LoreRelay] ERROR: managed path is not the root of its Git worktree.
     echo [LoreRelay] Expected: !MANAGED_EXPECTED!

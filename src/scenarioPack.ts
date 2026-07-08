@@ -26,7 +26,7 @@ import { seedDebugScenarioWorldFromForge } from './debugScenarioRunnerCore';
 import { clearCampaignKitCache } from './campaignKit';
 import { clearDiscoveryLedgerCache } from './discoveryLedger';
 import { isValidCharacterId } from './characterId';
-import { addToParty, getCharacters, saveCharacter, setActiveCharacter } from './characterManager';
+import { addToParty, getCharacters, saveCharacter, sendCharacterList, setActiveCharacter } from './characterManager';
 import {
     parseProtagonistDraft,
     protagonistDraftToProfile,
@@ -45,6 +45,19 @@ function localizeScenarioData(scenario: Record<string, unknown>): Record<string,
     return applyScenarioLocaleOverlay(scenario, getConfiguredLocale());
 }
 
+function normalizeOpeningStatus(raw: unknown): Record<string, unknown> {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {};
+    }
+    const status = { ...(raw as Record<string, unknown>) };
+    for (const field of ['condition', 'inventory', 'skills'] as const) {
+        if (typeof status[field] === 'string' && status[field].trim()) {
+            status[field] = [status[field].trim()];
+        }
+    }
+    return status;
+}
+
 function ensureScenarioStarterProtagonist(scenario: Record<string, unknown>): void {
     const setup = asRecord(scenario.setup);
     const rawStarter = asRecord(setup?.playerCharacter);
@@ -61,11 +74,16 @@ function ensureScenarioStarterProtagonist(scenario: Record<string, unknown>): vo
         ? rawStarter.id.trim()
         : undefined;
     const existing = getCharacters();
-    const reusablePlayer = existing.find((character) =>
+    const usablePlayerCharacters = existing.filter((character) =>
         character.controlledBy === 'player'
-        && (
-            (preferredId && character.id === preferredId)
-            || character.name.trim().toLowerCase() === draft.name.trim().toLowerCase()
+        && typeof character.name === 'string'
+        && character.name.trim().length > 0
+    );
+    const reusablePlayer = usablePlayerCharacters.find((character) =>
+        (preferredId && character.id === preferredId)
+        || (
+            typeof character.name === 'string'
+            && character.name.trim().toLowerCase() === draft.name.trim().toLowerCase()
         )
     );
     if (reusablePlayer) {
@@ -73,7 +91,7 @@ function ensureScenarioStarterProtagonist(scenario: Record<string, unknown>): vo
         addToParty(reusablePlayer.id);
         return;
     }
-    if (existing.some((character) => character.controlledBy === 'player')) {
+    if (usablePlayerCharacters.length > 0) {
         return;
     }
 
@@ -186,6 +204,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     const opening = (localizedScenario.opening || {}) as Record<string, unknown>;
     const setup = (localizedScenario.setup || {}) as Record<string, unknown>;
     const meta = (localizedScenario.meta || {}) as Record<string, unknown>;
+    const openingStatus = normalizeOpeningStatus(opening.status);
 
     const state: Record<string, unknown> = {
         entries: [{
@@ -196,7 +215,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
                 title: String(meta.title || t('extension.scenario.defaultTitle'))
             })
         }],
-        status: opening.status || {},
+        status: openingStatus,
         options: Array.isArray(opening.options) ? opening.options : [],
         theme: setup.theme || 'fantasy'
     };
@@ -285,6 +304,8 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     await vscode.commands.executeCommand('textadventure.openGame');
     setTimeout(() => {
         sendCurrentState(0, true);
+        // Starter creation can happen before the panel exists, so re-send once the game view is open.
+        sendCharacterList();
         sendBgmManifest();
         sendSfxManifest();
         pushScenarioDirectorToWebview();

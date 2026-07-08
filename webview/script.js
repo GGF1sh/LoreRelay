@@ -14733,7 +14733,6 @@ window.addEventListener('message', (event) => {
       return;
     }
     if (msg.state) {
-      startHubForcedVisible = false;
       applyGameState(msg.state, msg.fullHistory);
     }
   } else if (msg.type === 'imageGenStart') {

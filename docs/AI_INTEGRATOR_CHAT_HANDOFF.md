@@ -569,8 +569,9 @@ Key integration:
 - implementation verification baseline was `55ec1bb`;
 - human 30-minute hybrid playtest is still required before terminal completion;
 - direct AI-off travel commit seam is not part of Slice 1.
+- PLAYTEST-UNBLOCK-001 is DONE and the machine is ready for the 5-minute Japanese Scrapbound / Start Hub smoke before resuming the longer playtest.
 
-The human test was blocked by Antigravity Relay UX noise.
+The human test was previously blocked by Antigravity Relay UX noise and then by the Japanese Scrapbound / Start Hub smoke issue. PLAYTEST-UNBLOCK-001 cleared the immediate app readiness blocker; ANTIGRAVITY-RELAY-001 still remains separate and pending real relay smoke.
 
 When testing, capture:
 
@@ -581,6 +582,60 @@ When testing, capture:
 - whether evidence labels explain anything;
 - whether the loop becomes repetitive;
 - whether the UI feels like work.
+
+### Playtest Unblock 001
+
+Status:
+
+```text
+DONE
+```
+
+Purpose:
+
+```text
+Unblock the user's immediate Japanese Scrapbound / Start Hub human smoke so they can return to actual gameplay testing.
+```
+
+Final known evidence:
+
+```text
+implementation: 4ce73dff7fbea0b416f4687a6554ede0cb1826ca
+small repair: f03ff0c085b315702a4c370c8a396e94375540cb
+adversarial review: 4e3fd36912da03ad0afcf08716b1cc1f2d499368
+final verify: abc26509973cc6acdbcce529686814f527382277
+integration tip: 9c4748226761efa5b73b9f9c9e68374de9db5a6a
+post-merge smoke doc: af33cf7c50c489b2adedac6dd5cc68b787b2414b
+```
+
+Durable conclusions:
+
+- focused PLAYTEST-UNBLOCK tests passed
+- Scrapbound sample integrity and scenario pack tests passed
+- webview bundle test passed
+- Symbol Registry passed after CRLF-only local normalization
+- full suite passed `230/230`
+- literal everyday BAT install used `origin/main` with no installer-ref override
+- managed installer checkout was `9c4748226761efa5b73b9f9c9e68374de9db5a6a`
+- package hygiene class passed: `976` files, `25466364` bytes, SHA-256 `928280aa289b7c361351ad849f0a2d808c5e65b37229b449aa3b418df1594dc0`
+- old visible `Expand-Archive` path did not appear
+- Antigravity CLI succeeded and direct-folder fallback did not run after CLI success
+- final installed version remained `1.77.15`
+
+Immediate human smoke now requested:
+
+```text
+1. Open LoreRelay.
+2. Set locale to Japanese.
+3. Load Scrapbound.
+4. Confirm Japanese narrative/status/options.
+5. Open Character Profile and confirm レン・ヴェイル.
+6. Click Start Hub.
+7. Wait several seconds / allow normal state sync.
+8. Confirm Start Hub does not kick back to chat.
+9. Click Resume.
+10. Confirm exact same session returns.
+```
 
 ### Antigravity Relay 001
 
@@ -809,9 +864,10 @@ Final known integration:
 Unless current GitHub has moved on:
 
 ```text
-A. Run a real 1-2 turn Antigravity clipboard/file relay smoke.
+A. Run the 5-minute Japanese Scrapbound / Start Hub human smoke from PLAYTEST-UNBLOCK-001.
 B. Run the 30-minute Gameplay Slice 1 human playtest.
-C. Choose the next gameplay/product slice based on actual playtest evidence.
+C. Run a real 1-2 turn Antigravity clipboard/file relay smoke when returning to Relay.
+D. Choose the next gameplay/product slice based on actual playtest evidence.
 ```
 
 Symbol Registry generator work is already implemented, verified, merged, and smoked. Do not restart it while clearing the Relay smoke gate.

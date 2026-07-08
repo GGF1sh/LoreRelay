@@ -137,7 +137,6 @@ if "%LORERELAY_BOOTSTRAP_PREPARE_ONLY%"=="1" (
 
 set "DEPS_READY=1"
 if not exist "%MANAGED_PATH%\node_modules\typescript\bin\tsc" set "DEPS_READY=0"
-if not exist "%MANAGED_PATH%\node_modules\@vscode\vsce\vsce" set "DEPS_READY=0"
 if "%DEPS_READY%"=="1" (
   echo [LoreRelay] Dependencies: reused existing managed node_modules.
 ) else (
@@ -145,16 +144,12 @@ if "%DEPS_READY%"=="1" (
   pushd "%MANAGED_PATH%"
   npm ci --include=dev
   if errorlevel 1 (
-    set "NPM_EXIT_CODE=1"
-  ) else (
-    set "NPM_EXIT_CODE=0"
-  )
-  popd
-  if not "!NPM_EXIT_CODE!"=="0" (
-    echo [LoreRelay] ERROR: npm ci --include=dev failed with exit code !NPM_EXIT_CODE!.
-    set "PS_EXIT_CODE=!NPM_EXIT_CODE!"
+    popd
+    echo [LoreRelay] ERROR: npm ci --include=dev failed.
+    set "PS_EXIT_CODE=1"
     goto :finish
   )
+  popd
 )
 
 echo [LoreRelay] Handoff to managed installer...

@@ -14737,8 +14737,8 @@ window.addEventListener('message', (event) => {
     }
 
     const controlsToHide = [
-      'qr-undo', 'qr-retry', 'image-prompt-btn', 'mic-btn', 
-      'experience-profile-btn', 'parlor-settings-btn'
+      'img-btn', 'mic-btn', 'undo-btn', 'regen-btn',
+      'qr-undo', 'qr-retry', 'experience-profile-btn', 'parlor-settings-btn'
     ];
     controlsToHide.forEach(id => {
       const el = document.getElementById(id);

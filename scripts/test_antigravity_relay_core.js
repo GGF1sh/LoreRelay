@@ -7,6 +7,7 @@ const assert = require('assert');
 
 const root = path.join(__dirname, '..');
 const corePath = path.join(root, 'out', 'gmPromptBuilderCore.js');
+const bootstrapPath = path.join(root, 'webview', 'modules', '90-bootstrap.js');
 
 let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
@@ -34,6 +35,23 @@ function runTests() {
     assert.deepStrictEqual(payload.availableOptions, ["Look around", "Go back"]);
     assert.strictEqual(payload.targetOutput, 'turn_result.json');
     ok("production relay payload matches contract");
+
+    const bootstrap = fs.readFileSync(bootstrapPath, 'utf8');
+    const match = bootstrap.match(/const controlsToHide = \[([\s\S]*?)\];/);
+    assert(match, 'relay suppression list not found');
+    const ids = [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    assert.deepStrictEqual(ids, [
+        'img-btn',
+        'mic-btn',
+        'undo-btn',
+        'regen-btn',
+        'qr-undo',
+        'qr-retry',
+        'experience-profile-btn',
+        'parlor-settings-btn',
+    ]);
+    assert(!ids.includes('image-prompt-btn'));
+    ok("relay suppression IDs match accepted UI affordance list");
 }
 
 try {

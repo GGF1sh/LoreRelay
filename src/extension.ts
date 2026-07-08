@@ -187,14 +187,7 @@ import {
 import { adaptCharacterToWorld } from './characterWorldAdapter';
 import { exportSagaToHtml } from './exportHtml';
 import { exportReplayToWorkspace, openReplayExport } from './replayExport';
-import { 
-    PromptContextChunkSpec,
-    buildGmPromptContext, 
-    evaluatePacingHint, 
-    buildChronicleRecapPrompt, 
-    evictPromptChunksByBudget,
-    buildAntigravityRelayPayload
-} from './gmPromptBuilderCore';
+import { buildAntigravityRelayPayload } from './gmPromptBuilderCore';
 import {
     initGmPromptBuilder,
     buildGmPromptBreakdown,
@@ -904,7 +897,8 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
     if (relayMode) {
         const breakdown = buildGmPromptBreakdown(trimmed);
         const state = getCachedGameState();
-        const payload = buildAntigravityRelayPayload(trimmed, breakdown, state?.options ?? []);
+        const availableOptions = Array.isArray(state?.options) ? state.options as string[] : [];
+        const payload = buildAntigravityRelayPayload(trimmed, breakdown, availableOptions);
         await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
         vscode.window.showInformationMessage(t('webview.relay.banner.active'));
         

@@ -2054,11 +2054,11 @@ function showRelayWaitingState() {
   const sender = document.createElement('div');
   sender.className = 'msg-sender';
   sender.style.color = 'var(--vscode-charts-yellow, #ffcc00)';
-  sender.textContent = 'Relay Mode';
+  sender.textContent = typeof T === 'function' && T('webview.relay.sender.name') ? T('webview.relay.sender.name') : 'Relay Mode';
   const body = document.createElement('div');
   body.className = 'msg-body';
   const label = document.createElement('span');
-  label.textContent = 'Waiting for Antigravity... Paste payload in external chat.';
+  label.textContent = typeof T === 'function' && T('webview.relay.waiting.label') ? T('webview.relay.waiting.label') : 'Waiting for Antigravity... Paste payload in external chat.';
   body.appendChild(label);
   div.appendChild(sender);
   div.appendChild(body);
@@ -14690,9 +14690,6 @@ window.addEventListener('message', (event) => {
     }
     if (msg.state) {
       applyGameState(msg.state, msg.fullHistory);
-      if (window.antigravityRelayMode) {
-        hideGmLoading(true);
-      }
     }
   } else if (msg.type === 'imageGenStart') {
     showImageLoading();
@@ -14705,7 +14702,10 @@ window.addEventListener('message', (event) => {
       const ids = Array.isArray(msg.sfx) ? msg.sfx : [msg.sfx];
       ids.forEach((id) => playSfx(id));
     }
-  } else if (msg.type === 'bgmManifest') {
+  } else if (msg.type === 'turnResult') {
+    if (window.antigravityRelayMode) {
+      hideGmLoading(true);
+    }
     setBgmManifest(msg.tracks, msg.defaultVolume, msg.enabled);
   } else if (msg.type === 'sfxManifest') {
     setSfxManifest(msg.sounds, msg.defaultVolume, msg.enabled);
@@ -14715,9 +14715,9 @@ window.addEventListener('message', (event) => {
     hideGmLoading(msg.success);
   } else if (msg.type === 'relayModeStatus') {
     window.antigravityRelayMode = msg.antigravityRelayMode;
-    const sendBtn = document.getElementById('player-send-btn');
-    if (sendBtn) {
-      sendBtn.textContent = window.antigravityRelayMode ? 'Prepare for Antigravity' : 'Send';
+    const sBtn = document.getElementById('send-btn');
+    if (sBtn) {
+      sBtn.textContent = window.antigravityRelayMode ? T('webview.relay.button.prepare') : T('webview.button.send');
     }
     
     // Role clarification / suppression
@@ -14730,16 +14730,22 @@ window.addEventListener('message', (event) => {
       relayBanner.style.padding = '8px';
       relayBanner.style.textAlign = 'center';
       relayBanner.style.fontWeight = 'bold';
-      relayBanner.textContent = 'Antigravity Relay Mode is ACTIVE. LoreRelay AI is bypassed.';
+      relayBanner.textContent = T('webview.relay.banner.active');
       document.body.insertBefore(relayBanner, document.body.firstChild);
     } else if (!window.antigravityRelayMode && relayBanner) {
       relayBanner.remove();
     }
 
-    const qrUndoBtn = document.getElementById('qr-undo');
-    if (qrUndoBtn) qrUndoBtn.style.display = window.antigravityRelayMode ? 'none' : '';
-    const qrRetryBtn = document.getElementById('qr-retry');
-    if (qrRetryBtn) qrRetryBtn.style.display = window.antigravityRelayMode ? 'none' : '';
+    const controlsToHide = [
+      'qr-undo', 'qr-retry', 'image-prompt-btn', 'mic-btn', 
+      'experience-profile-btn', 'parlor-settings-btn'
+    ];
+    controlsToHide.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = window.antigravityRelayMode ? 'none' : '';
+      }
+    });
 
   } else if (msg.type === 'relayWaitingStateStart') {
     if (typeof showRelayWaitingState === 'function') {

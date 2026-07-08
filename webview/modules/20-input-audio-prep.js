@@ -387,11 +387,11 @@ function showRelayWaitingState() {
   const sender = document.createElement('div');
   sender.className = 'msg-sender';
   sender.style.color = 'var(--vscode-charts-yellow, #ffcc00)';
-  sender.textContent = 'Relay Mode';
+  sender.textContent = typeof T === 'function' && T('webview.relay.sender.name') ? T('webview.relay.sender.name') : 'Relay Mode';
   const body = document.createElement('div');
   body.className = 'msg-body';
   const label = document.createElement('span');
-  label.textContent = 'Waiting for Antigravity... Paste payload in external chat.';
+  label.textContent = typeof T === 'function' && T('webview.relay.waiting.label') ? T('webview.relay.waiting.label') : 'Waiting for Antigravity... Paste payload in external chat.';
   body.appendChild(label);
   div.appendChild(sender);
   div.appendChild(body);

@@ -649,8 +649,56 @@ Important boundary:
 
 ```text
 ANTIGRAVITY-INSTALL-001 is DONE.
+ANTIGRAVITY-INSTALL-002 is DONE.
 ANTIGRAVITY-RELAY-001 remains VERIFYING - REAL_RELAY_SMOKE_PENDING.
 Do not collapse these tasks into one status.
+```
+
+### Antigravity Install 002
+
+Status:
+
+```text
+DONE
+```
+
+Purpose:
+
+```text
+Fast Antigravity install path and terminal root-entrypoint bootstrap
+for the literal everyday BAT path
+C:\AI\text-adventure-vsce\install_extension_antigravity.bat
+```
+
+Final known evidence:
+
+```text
+fast-install implementation: e3208a342c0a684b0e749a90816535c0cb6c344f
+root-entrypoint final candidate: 8b6dacb672161d3afb1067f6c56448ab04256e82
+prior independent review: 650adedc1c98e884a58c65789f2e7c17e3d696c2
+final independent review: 8c9ccb573d26c47dcd6d0effd63256af56f5b787
+integration tip: e9f9fef520ceecd2810ba09c4ce1c72e321cd8ce
+post-merge smoke doc: ff5a054eaec3832a0cf508763bbe5fe17984eba7
+```
+
+Durable conclusions:
+
+- terminal literal BAT smoke used no installer-ref override and resolved `origin/main`
+- managed installer checkout was `C:\AI\wt-lorerelay-installer-current` at `e9f9fef520ceecd2810ba09c4ce1c72e321cd8ce`
+- physical root branch/HEAD stayed unchanged at `task/ANTIGRAVITY-INSTALL-001-verify` / `ec453fb9f79ad5f1d7c1b61a8bc0a08413869fd7`
+- root dirty state stayed exactly `M install_extension_antigravity.bat`, `M webview/script.js`, `?? .claude/`
+- package hygiene class passed: `970` files, `25435878` bytes, SHA-256 `912f9624bf3a31994fc4c520e133d3bd3a74f1f2bdf703b07e783de9463e489c`
+- no old visible `Expand-Archive` / `lorerelay-vsix-<guid>.zip` path appeared
+- Antigravity CLI succeeded and direct-folder fallback did not run after CLI success
+- final installed version remained `1.77.15`
+- automated post-merge suite passed `229/229` after CRLF-only Symbol Registry normalization
+
+Important boundary:
+
+```text
+ANTIGRAVITY-INSTALL-002 is DONE.
+ANTIGRAVITY-RELAY-001 remains VERIFYING - REAL_RELAY_SMOKE_PENDING.
+Do not mark Relay DONE until the real clipboard/file relay smoke is recorded.
 ```
 
 ### Symbol Registry generator

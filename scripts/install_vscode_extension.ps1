@@ -19,31 +19,8 @@ function Install-VsixToDirDirect {
         [Parameter(Mandatory = $true)][string]$Version
     )
 
-    $targetDirName = "$ExtensionId-$Version"
-    $destDir = Join-Path $TargetExtensionsDir $targetDirName
-
-    if (Test-Path $TargetExtensionsDir) {
-        Get-ChildItem -Path $TargetExtensionsDir -Filter "$ExtensionId-*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("vsix-extract-" + [Guid]::NewGuid().ToString('N'))
-    try {
-        Expand-ArchiveSafe -ZipPath $VsixPath -DestDir $tmpDir
-        $extractedExtensionDir = Join-Path $tmpDir "extension"
-        if (-not (Test-Path $extractedExtensionDir)) {
-            throw "Invalid VSIX structure: 'extension' directory not found inside zip."
-        }
-        if (-not (Test-Path $TargetExtensionsDir)) {
-            New-Item -ItemType Directory -Path $TargetExtensionsDir -Force | Out-Null
-        }
-        Copy-Item -LiteralPath $extractedExtensionDir -Destination $destDir -Recurse -Force
-    } finally {
-        if (Test-Path $tmpDir) {
-            Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
+    # Direct-folder fallback must validate and stage the archive before it touches an existing install.
+    return Install-VsixToDirDirectAtomic -VsixPath $VsixPath -TargetExtensionsDir $TargetExtensionsDir -ExtensionId $ExtensionId -Version $Version
 }
 
 function Install-VsixViaCli {
@@ -54,27 +31,36 @@ function Install-VsixViaCli {
     )
 
     Write-Host "  -> $Label ($CliPath)" -ForegroundColor DarkGray
-    $prevEap = $ErrorActionPreference
+    $cliReport = $null
+    $previousEap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $installed = & $CliPath --list-extensions --show-versions 2>&1
-        if ($installed -match '^miya\.lorerelay@') {
-            & $CliPath --uninstall-extension miya.lorerelay 2>&1 | Out-Null
+        $cliReport = Invoke-VsixCliInstallIsolated -CliPath $CliPath -VsixPath $VsixPath
+        Write-Host "    canonical sha256 (before): $($cliReport.OriginalHashBefore)" -ForegroundColor DarkGray
+        Write-Host "    isolated copy sha256 (before): $($cliReport.TempCopyHashBefore)" -ForegroundColor DarkGray
+        foreach ($line in $cliReport.Output) {
+            Write-Host $line
         }
-        $output = & $CliPath --install-extension $VsixPath --force 2>&1
-        $output | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0) {
-            throw "$Label CLI install failed with exit code $LASTEXITCODE"
+        Write-Host "    canonical sha256 (after):  $($cliReport.OriginalHashAfter)" -ForegroundColor DarkGray
+        if ($cliReport.TempCopyHashAfter) {
+            Write-Host "    isolated copy sha256 (after):  $($cliReport.TempCopyHashAfter)" -ForegroundColor DarkGray
         }
-        if ($output -match 'successfully installed') {
-            return
+        if ($cliReport.ExitCode -ne 0) {
+            throw "$Label CLI install failed with exit code $($cliReport.ExitCode)"
         }
-        if ($output -match 'already installed') {
-            return
+        $joinedOutput = ($cliReport.Output -join "`n")
+        if ($joinedOutput -match 'successfully installed') {
+            return $cliReport
+        }
+        if ($joinedOutput -match 'already installed') {
+            return $cliReport
         }
         throw "$Label CLI install did not report success"
     } finally {
-        $ErrorActionPreference = $prevEap
+        $ErrorActionPreference = $previousEap
+        if ($cliReport -and $cliReport.TempCopyPath -and (Test-Path $cliReport.TempCopyPath)) {
+            Remove-Item -LiteralPath $cliReport.TempCopyPath -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -98,9 +84,10 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "vsce package failed with exit code $LASTEXITCODE"
     }
-    if (-not (Test-Path $VsixPath)) {
-        throw "Expected VSIX was not created: $VsixPath"
-    }
+    $vsixReport = Test-VsixPackageIntegrity -VsixPath $VsixPath -ExpectedVersion $PackageVersion -ExpectedExtensionId 'miya.lorerelay'
+    Write-Host "Validated VSIX: $VsixPath" -ForegroundColor Green
+    Write-Host "  size bytes: $($vsixReport.SizeBytes)" -ForegroundColor DarkGray
+    Write-Host "  sha256: $($vsixReport.Sha256)" -ForegroundColor DarkGray
 
     $anyInstall = $false
     $errors = New-Object 'System.Collections.Generic.List[string]'

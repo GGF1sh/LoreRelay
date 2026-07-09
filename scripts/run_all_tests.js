@@ -265,6 +265,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_event_classification.js' },
     { category: 'unit', file: 'test_symbol_registry.js' },
     { category: 'unit', file: 'test_antigravity_file_bridge.js' },
+    { category: 'unit', file: 'test_antigravity_relay_webview.js' },
     { category: 'unit', file: 'test_antigravity_installer.js' },
     { category: 'unit', file: 'test_antigravity_installer_bootstrap.js' },
     {

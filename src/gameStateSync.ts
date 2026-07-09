@@ -730,6 +730,14 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
     markTurnResultHandled(enriched);
     if (pendingRelayRequest && relayMatch.requestId) {
         clearPendingAntigravityRelayRequest(workspacePath, 'accepted-result', relayMatch.requestId);
+        try {
+            deps?.getPanel()?.webview.postMessage({
+                type: 'relayWaitingStateDone',
+                requestId: relayMatch.requestId,
+            });
+        } catch (e) {
+            console.error('[gameStateSync] Failed to notify Antigravity Relay waiting completion', e);
+        }
     }
 
     try {

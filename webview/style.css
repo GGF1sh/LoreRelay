@@ -1420,6 +1420,27 @@ body.profile-parlor .start-hub-btn-disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.relay-trigger-command {
+  display: inline-block;
+  margin: 8px 0 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--code-background, rgba(127, 127, 127, 0.16));
+  color: var(--text-color);
+  user-select: text;
+}
+
+.relay-trigger-copy-btn {
+  margin-top: 2px;
+}
+
+.relay-mode-status {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* ----- Horizontal scroll affordance (scrollbars are hidden on these) -----
    タブ列とクイックリプライ列は overflow-x:auto かつスクロールバー非表示なので、
    端をフェードさせて「続きがある」ことを視覚的に示す。 */

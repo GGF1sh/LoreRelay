@@ -333,6 +333,7 @@ async function assertFreshRelayImportRecovery() {
     assert(fs.existsSync(scopePath), 'verified first Relay result initializes accepted-turn scope');
     assert(fs.existsSync(path.join(workspace, '.text-adventure', 'runtime', 'accepted_turn_ledger.json')));
     assert(!fs.existsSync(getAntigravityRelayRequestPath(workspace)), 'matching accepted result clears pending request');
+    assert(harness.postMessages.some((msg) => msg.type === 'relayWaitingStateDone' && msg.requestId === requestId), 'matching accepted result explicitly ends Relay waiting state');
     assert(harness.postMessages.some((msg) => msg.type === 'gameStateUpdate' && msg.turnResult?.turnId === 'turn-1'));
     assert.strictEqual(harness.showErrors.length, 0);
 

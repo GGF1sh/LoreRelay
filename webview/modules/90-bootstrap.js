@@ -413,10 +413,27 @@ window.addEventListener('message', (event) => {
       relayBanner.style.fontWeight = 'bold';
       relayBanner.style.whiteSpace = 'pre-line';
       relayBanner.style.lineHeight = '1.35';
-      relayBanner.textContent = T('webview.relay.banner.active');
+      const bannerText = document.createElement('div');
+      bannerText.textContent = T('webview.relay.banner.active');
+      const bannerStatus = document.createElement('div');
+      bannerStatus.setAttribute('data-relay-status', 'true');
+      bannerStatus.className = 'relay-mode-status';
+      relayBanner.appendChild(bannerText);
+      relayBanner.appendChild(bannerStatus);
       document.body.insertBefore(relayBanner, document.body.firstChild);
     } else if (!window.antigravityRelayMode && relayBanner) {
       relayBanner.remove();
+    }
+    if (!window.antigravityRelayMode) {
+      const loading = document.getElementById('gm-loading');
+      if (loading && loading.classList && loading.classList.contains('relay-waiting')) {
+        hideGmLoading(true);
+      }
+      if (typeof setRelayUiState === 'function') {
+        setRelayUiState('idle');
+      }
+    } else if (typeof setRelayUiState === 'function') {
+      setRelayUiState(relayUiState === 'pending' ? 'pending' : 'idle');
     }
 
     const controlsToHide = [
@@ -433,6 +450,13 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'relayWaitingStateStart') {
     if (typeof showRelayWaitingState === 'function') {
       showRelayWaitingState();
+    }
+  } else if (msg.type === 'relayWaitingStateDone') {
+    if (typeof hideGmLoading === 'function') {
+      hideGmLoading(true);
+    }
+    if (typeof setRelayUiState === 'function') {
+      setRelayUiState('idle');
     }
   } else if (msg.type === 'relayWaitingStateError') {
     if (typeof showRelayWaitingError === 'function') {

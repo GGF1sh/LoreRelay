@@ -1460,8 +1460,8 @@ function renderOptions(options) {
       if (window.antigravityRelayMode) {
         const fi = document.getElementById('free-input');
         if (fi) {
-          fi.value = (fi.value ? fi.value + ' ' : '') + `${i + 1}. ${opt}`;
-          fi.focus();
+          fi.value = `${i + 1}. ${opt}`;
+          sendFreeInput();
         }
         return;
       }
@@ -1999,6 +1999,57 @@ function hideImageLoading(success) {
 
 // ===== GM ターン待ちローディング =====
 let gmLoadingTimer = null;
+const ANTIGRAVITY_RELAY_TRIGGER_COMMAND = '/text-adventure-gm process pending LoreRelay request';
+let relayUiState = 'idle';
+
+function setTurnControlsLocked(locked) {
+  freeInput.disabled = locked;
+  sendBtn.disabled = locked;
+  document.querySelectorAll('.option-btn').forEach(b => { b.disabled = locked; });
+  const qrUndoBtn = document.getElementById('qr-undo');
+  if (qrUndoBtn) qrUndoBtn.disabled = locked;
+  const qrRetryBtn = document.getElementById('qr-retry');
+  if (qrRetryBtn) qrRetryBtn.disabled = locked;
+  const profileBtn = document.getElementById('experience-profile-btn');
+  if (profileBtn) profileBtn.disabled = locked;
+  const parlorSettingsBtn = document.getElementById('parlor-settings-btn');
+  if (parlorSettingsBtn) parlorSettingsBtn.disabled = locked;
+}
+
+function setRelayUiState(state) {
+  relayUiState = ['idle', 'pending', 'accepted', 'error'].includes(state) ? state : 'idle';
+  if (document.body && typeof document.body.setAttribute === 'function') {
+    document.body.setAttribute('data-relay-state', relayUiState);
+  }
+  const relayEnabled = !!window.antigravityRelayMode;
+  const sBtn = document.getElementById('send-btn');
+  if (sBtn) {
+    if (!relayEnabled) {
+      sBtn.textContent = T('webview.button.send');
+    } else if (relayUiState === 'pending') {
+      sBtn.textContent = T('webview.relay.state.pending');
+    } else if (relayUiState === 'error') {
+      sBtn.textContent = T('webview.relay.state.error');
+    } else {
+      sBtn.textContent = T('webview.relay.button.prepare');
+    }
+  }
+  const banner = document.getElementById('relay-mode-banner');
+  if (banner) {
+    let status = banner.querySelector ? banner.querySelector('[data-relay-status]') : null;
+    if (!status && typeof document.createElement === 'function') {
+      status = document.createElement('div');
+      status.setAttribute('data-relay-status', 'true');
+      status.className = 'relay-mode-status';
+      banner.appendChild(status);
+    }
+    if (status) {
+      status.textContent = relayEnabled
+        ? T(`webview.relay.state.${relayUiState}`)
+        : T('webview.relay.toggle.off');
+    }
+  }
+}
 
 function showGmLoading() {
   if (document.getElementById('gm-loading')) { return; }
@@ -2033,24 +2084,20 @@ function showGmLoading() {
     if (sec >= 3) { elapsedEl.textContent = `${sec}s`; }
   }, 1000);
   // 入力をロック（二重送信防止）
-  freeInput.disabled = true;
-  sendBtn.disabled = true;
-  document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
-  const qrUndoBtn = document.getElementById('qr-undo');
-  if (qrUndoBtn) qrUndoBtn.disabled = true;
-  const qrRetryBtn = document.getElementById('qr-retry');
-  if (qrRetryBtn) qrRetryBtn.disabled = true;
-  const profileBtn = document.getElementById('experience-profile-btn');
-  if (profileBtn) profileBtn.disabled = true;
-  const parlorSettingsBtn = document.getElementById('parlor-settings-btn');
-  if (parlorSettingsBtn) parlorSettingsBtn.disabled = true;
+  setTurnControlsLocked(true);
 }
 
 function showRelayWaitingState() {
-  if (document.getElementById('gm-loading')) { return; }
-  const div = document.createElement('div');
+  let div = document.getElementById('gm-loading');
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'gm-loading';
+    chatLog.appendChild(div);
+  }
+  if (gmLoadingTimer) { clearInterval(gmLoadingTimer); gmLoadingTimer = null; }
   div.id = 'gm-loading';
   div.className = 'msg gm relay-waiting';
+  div.innerHTML = '';
   const sender = document.createElement('div');
   sender.className = 'msg-sender';
   sender.style.color = 'var(--vscode-charts-yellow, #ffcc00)';
@@ -2058,40 +2105,49 @@ function showRelayWaitingState() {
   const body = document.createElement('div');
   body.className = 'msg-body';
   const label = document.createElement('span');
-  label.textContent = typeof T === 'function' && T('webview.relay.waiting.label') ? T('webview.relay.waiting.label') : 'Waiting for Antigravity... Paste payload in external chat.';
+  label.textContent = typeof T === 'function' && T('webview.relay.waiting.label') ? T('webview.relay.waiting.label') : 'Waiting for Antigravity... Send the short trigger on the right.';
+  const trigger = document.createElement('code');
+  trigger.className = 'relay-trigger-command';
+  trigger.textContent = ANTIGRAVITY_RELAY_TRIGGER_COMMAND;
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'glass-btn relay-trigger-copy-btn';
+  copyBtn.textContent = T('webview.relay.copyTrigger');
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard?.writeText(ANTIGRAVITY_RELAY_TRIGGER_COMMAND).then(() => {
+      copyBtn.textContent = T('webview.relay.copyTriggerCopied');
+      setTimeout(() => { copyBtn.textContent = T('webview.relay.copyTrigger'); }, 1400);
+    }).catch(() => {});
+  });
   body.appendChild(label);
+  body.appendChild(document.createElement('br'));
+  body.appendChild(trigger);
+  body.appendChild(document.createElement('br'));
+  body.appendChild(copyBtn);
   div.appendChild(sender);
   div.appendChild(body);
-  chatLog.appendChild(div);
   scrollToBottom();
 
-  freeInput.disabled = true;
-  sendBtn.disabled = true;
-  document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+  setRelayUiState('pending');
+  setTurnControlsLocked(true);
 }
 
 function hideGmLoading(success) {
   const el = document.getElementById('gm-loading');
   if (el) { el.remove(); }
   if (gmLoadingTimer) { clearInterval(gmLoadingTimer); gmLoadingTimer = null; }
-  const qrUndoBtn = document.getElementById('qr-undo');
-  if (qrUndoBtn) qrUndoBtn.disabled = false;
-  const qrRetryBtn = document.getElementById('qr-retry');
-  if (qrRetryBtn) qrRetryBtn.disabled = false;
-  freeInput.disabled = false;
-  sendBtn.disabled = false;
-  document.querySelectorAll('.option-btn').forEach(b => { b.disabled = false; });
-  const profileBtn = document.getElementById('experience-profile-btn');
-  if (profileBtn) profileBtn.disabled = false;
-  const parlorSettingsBtn = document.getElementById('parlor-settings-btn');
-  if (parlorSettingsBtn) parlorSettingsBtn.disabled = false;
+  setTurnControlsLocked(false);
+  if (success !== false && window.antigravityRelayMode) {
+    setRelayUiState('idle');
+  }
   if (success === false) {
     addSystemMessage(T('webview.gm.failed'));
   }
 }
 
 function showRelayWaitingError(reason) {
-  hideGmLoading(false);
+  hideGmLoading(true);
+  setRelayUiState('error');
   const detail = typeof reason === 'string' && reason.trim() ? reason.trim() : '';
   const prefix = typeof T === 'function' ? T('webview.relay.error.prefix') : 'Antigravity Relay could not import the result.';
   addSystemMessage(detail ? `${prefix} ${detail}` : prefix);
@@ -14803,10 +14859,27 @@ window.addEventListener('message', (event) => {
       relayBanner.style.fontWeight = 'bold';
       relayBanner.style.whiteSpace = 'pre-line';
       relayBanner.style.lineHeight = '1.35';
-      relayBanner.textContent = T('webview.relay.banner.active');
+      const bannerText = document.createElement('div');
+      bannerText.textContent = T('webview.relay.banner.active');
+      const bannerStatus = document.createElement('div');
+      bannerStatus.setAttribute('data-relay-status', 'true');
+      bannerStatus.className = 'relay-mode-status';
+      relayBanner.appendChild(bannerText);
+      relayBanner.appendChild(bannerStatus);
       document.body.insertBefore(relayBanner, document.body.firstChild);
     } else if (!window.antigravityRelayMode && relayBanner) {
       relayBanner.remove();
+    }
+    if (!window.antigravityRelayMode) {
+      const loading = document.getElementById('gm-loading');
+      if (loading && loading.classList && loading.classList.contains('relay-waiting')) {
+        hideGmLoading(true);
+      }
+      if (typeof setRelayUiState === 'function') {
+        setRelayUiState('idle');
+      }
+    } else if (typeof setRelayUiState === 'function') {
+      setRelayUiState(relayUiState === 'pending' ? 'pending' : 'idle');
     }
 
     const controlsToHide = [
@@ -14823,6 +14896,13 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'relayWaitingStateStart') {
     if (typeof showRelayWaitingState === 'function') {
       showRelayWaitingState();
+    }
+  } else if (msg.type === 'relayWaitingStateDone') {
+    if (typeof hideGmLoading === 'function') {
+      hideGmLoading(true);
+    }
+    if (typeof setRelayUiState === 'function') {
+      setRelayUiState('idle');
     }
   } else if (msg.type === 'relayWaitingStateError') {
     if (typeof showRelayWaitingError === 'function') {

@@ -615,8 +615,8 @@ function renderOptions(options) {
       if (window.antigravityRelayMode) {
         const fi = document.getElementById('free-input');
         if (fi) {
-          fi.value = (fi.value ? fi.value + ' ' : '') + `${i + 1}. ${opt}`;
-          fi.focus();
+          fi.value = `${i + 1}. ${opt}`;
+          sendFreeInput();
         }
         return;
       }

@@ -81,13 +81,39 @@ function summarizeLocations(entries) {
         .join(', ');
 }
 
+function isWebviewReceiver(entry) {
+    return entry.direction === 'received' && String(entry.sourcePath || '').startsWith('webview/modules/');
+}
+
+function isHostReceiver(entry) {
+    return entry.direction === 'received' && String(entry.sourcePath || '').startsWith('src/');
+}
+
 function protocolStatus(group) {
     const hostSenders = group.filter((entry) => entry.direction === 'host-to-webview');
     const webviewSenders = group.filter((entry) => entry.direction === 'webview-to-host');
-    const receivers = group.filter((entry) => entry.direction === 'received');
-    const hasSender = hostSenders.length > 0 || webviewSenders.length > 0;
-    const paired = hasSender && receivers.length > 0;
-    return paired ? 'paired' : 'unpaired';
+    const webviewReceivers = group.filter(isWebviewReceiver);
+    const hostReceivers = group.filter(isHostReceiver);
+    const statuses = [];
+
+    if (hostSenders.length > 0) {
+        statuses.push({
+            direction: 'host-to-webview',
+            paired: webviewReceivers.length > 0,
+        });
+    }
+    if (webviewSenders.length > 0) {
+        statuses.push({
+            direction: 'webview-to-host',
+            paired: hostReceivers.length > 0,
+        });
+    }
+
+    if (statuses.length === 0) { return 'unpaired'; }
+    if (statuses.length === 1) { return statuses[0].paired ? 'paired' : 'unpaired'; }
+    return statuses
+        .map((status) => `${status.direction}=${status.paired ? 'paired' : 'unpaired'}`)
+        .join('; ');
 }
 
 function formatProtocolGroups(messageEntries) {

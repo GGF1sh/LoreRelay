@@ -134,6 +134,39 @@ Focused test coverage:
 - CRLF-only Symbol Registry check passes
 - real Symbol Registry content difference fails
 
+## Narrow Protocol-Pairing Repair
+
+Independent verify `11db84a478916fac184554f0c7172fc1546b2705` found one residual in the protocol-pairing status:
+
+- previous status logic treated `any sender + any received` as `paired`
+- this could falsely label a wrong-side receiver as paired
+
+Repair:
+
+- `host-to-webview` senders now pair only with `received` entries under `webview/modules/*`
+- `webview-to-host` senders now pair only with `received` entries under `src/*`
+- sender-only message groups remain `unpaired`
+- wrong-side receiver groups remain `unpaired`
+- bidirectional message names report each actual direction independently when the directions do not share the same status
+
+No production host-webview protocols were changed. The Symbol Registry schema was not redesigned; receiver side is inferred from `sourcePath`.
+
+Additional behavioral tests:
+
+- known host-to-webview paired message: `relayWaitingStateDone`
+- known webview-to-host paired message: `selectOption`
+- synthetic sender-only message remains unpaired
+- synthetic host sender plus host-side receiver remains unpaired
+- synthetic webview sender plus webview-side receiver remains unpaired
+- synthetic bidirectional mixed group reports `host-to-webview=paired; webview-to-host=unpaired`
+
+Repair verification:
+
+- `npm run compile`: PASS
+- `node scripts/test_knowledge_lookup.js`: PASS
+- `node scripts/test_symbol_registry.js`: PASS
+- `npm test`: PASS, `233/233`
+
 ## Final Verdict
 
-KNOWLEDGE_OPS_001_READY_FOR_VERIFY
+KNOWLEDGE_OPS_001_REPAIR_READY_FOR_VERIFY

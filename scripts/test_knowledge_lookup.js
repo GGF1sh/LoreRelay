@@ -43,11 +43,97 @@ run('knowledge lookup supports partial case-insensitive query', () => {
     assert(out.includes('Protocol pairs:'));
 });
 
-run('knowledge lookup groups protocol pairing', () => {
+run('knowledge lookup groups known host to webview paired protocol', () => {
     const out = lookup('relayWaitingStateDone');
     assert(out.includes('- relayWaitingStateDone | paired'));
     assert(out.includes('host-to-webview senders: src/gameStateSync.ts:'));
     assert(out.includes('receivers: webview/modules/90-bootstrap.js:'));
+});
+
+run('knowledge lookup groups known webview to host paired protocol', () => {
+    const out = lookup('selectOption');
+    assert(out.includes('- selectOption | paired'));
+    assert(out.includes('webview-to-host senders: webview/modules/10-game-state.js:'));
+    assert(out.includes('receivers: src/remotePlayServer.ts:'));
+    assert(out.includes('src/webviewHandlers.ts:'));
+});
+
+run('protocol pairing reports sender-only message as unpaired', () => {
+    const lines = knowledge.formatProtocolGroups([{
+        name: 'senderOnlyMessage',
+        kind: 'messageType',
+        direction: 'host-to-webview',
+        sourcePath: 'src/gameStateSync.ts',
+        line: 10,
+    }]);
+    assert(lines.includes('- senderOnlyMessage | unpaired'));
+});
+
+run('protocol pairing rejects host sender with host-side receiver', () => {
+    const lines = knowledge.formatProtocolGroups([
+        {
+            name: 'wrongSideHostMessage',
+            kind: 'messageType',
+            direction: 'host-to-webview',
+            sourcePath: 'src/gameStateSync.ts',
+            line: 10,
+        },
+        {
+            name: 'wrongSideHostMessage',
+            kind: 'messageType',
+            direction: 'received',
+            sourcePath: 'src/webviewHandlers.ts',
+            line: 20,
+        },
+    ]);
+    assert(lines.includes('- wrongSideHostMessage | unpaired'));
+});
+
+run('protocol pairing rejects webview sender with webview-side receiver', () => {
+    const lines = knowledge.formatProtocolGroups([
+        {
+            name: 'wrongSideWebviewMessage',
+            kind: 'messageType',
+            direction: 'webview-to-host',
+            sourcePath: 'webview/modules/10-game-state.js',
+            line: 10,
+        },
+        {
+            name: 'wrongSideWebviewMessage',
+            kind: 'messageType',
+            direction: 'received',
+            sourcePath: 'webview/modules/90-bootstrap.js',
+            line: 20,
+        },
+    ]);
+    assert(lines.includes('- wrongSideWebviewMessage | unpaired'));
+});
+
+run('protocol pairing reports each bidirectional direction honestly', () => {
+    const lines = knowledge.formatProtocolGroups([
+        {
+            name: 'bidirectionalMixedMessage',
+            kind: 'messageType',
+            direction: 'host-to-webview',
+            sourcePath: 'src/gameStateSync.ts',
+            line: 10,
+        },
+        {
+            name: 'bidirectionalMixedMessage',
+            kind: 'messageType',
+            direction: 'webview-to-host',
+            sourcePath: 'webview/modules/10-game-state.js',
+            line: 20,
+        },
+        {
+            name: 'bidirectionalMixedMessage',
+            kind: 'messageType',
+            direction: 'received',
+            sourcePath: 'webview/modules/90-bootstrap.js',
+            line: 30,
+        },
+    ]);
+    assert(lines.includes('- bidirectionalMixedMessage | host-to-webview=paired; webview-to-host=unpaired'));
 });
 
 run('knowledge lookup finds configuration keys', () => {

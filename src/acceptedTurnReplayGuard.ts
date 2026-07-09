@@ -293,6 +293,19 @@ export function ensureAcceptedTurnScope(workspacePath: string): AcceptedTurnScop
     return createAcceptedTurnScope(workspacePath);
 }
 
+export function ensureAcceptedTurnScopeForVerifiedRelayResult(workspacePath: string): AcceptedTurnScope {
+    ensureRuntimeDir(workspacePath);
+    const latch = getAcceptedTurnRestoreRepairLatchOutcome(workspacePath);
+    if (latch) {
+        throw new Error(latch.reason ?? 'timeline restore repair latch is set');
+    }
+    const existing = loadExistingAcceptedTurnScope(workspacePath);
+    if (existing) {
+        return existing;
+    }
+    return createAcceptedTurnScope(workspacePath);
+}
+
 export function loadExistingAcceptedTurnScope(workspacePath: string): AcceptedTurnScope | undefined {
     const scopePath = getAcceptedTurnScopePath(workspacePath);
     if (!fs.existsSync(scopePath)) {

@@ -68,6 +68,7 @@ import {
     getCachedGameState,
     checkPendingTurnResultFile,
 } from './gameStateSync';
+import { ensureAcceptedTurnScope } from './acceptedTurnReplayGuard';
 import { initTurnResultFallback } from './turnResultFallback';
 import { isValidEntryId } from './entryId';
 import { isValidEventId } from './worldEventLogCore';
@@ -937,6 +938,14 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
         const createdAt = new Date().toISOString();
         const turnIndex = history.filter(e => e.role === 'gm').length + 1;
         const workspaceIdentity = path.resolve(workspacePath);
+        try {
+            ensureAcceptedTurnScope(workspacePath);
+        } catch (e) {
+            const reason = e instanceof Error ? e.message : String(e);
+            getGmBridgeOutputChannel().appendLine(`[Antigravity Relay] Failed to initialize accepted-turn scope: ${reason}`);
+            vscode.window.showErrorMessage(`LoreRelay Antigravity Relay could not start: ${reason}`);
+            return;
+        }
         const requestId = buildAntigravityRelayRequestId({
             workspacePath,
             playerAction: trimmed,

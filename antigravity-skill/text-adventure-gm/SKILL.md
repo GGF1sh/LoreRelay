@@ -7,9 +7,12 @@ description: "Act as a Game Master for a generic text adventure with ComfyUI ima
 
 ## LoreRelay Antigravity Relay File Bridge (highest startup priority)
 
-When `/text-adventure-gm` starts, check the exact LoreRelay workspace request
-file `.text-adventure/antigravity_relay_request.json` before asking any generic
-setup wizard questions. The request JSON is the authority for the workspace:
+When `/text-adventure-gm` starts or the user sends a short trigger such as
+`/text-adventure-gm process pending LoreRelay request`, check the exact
+LoreRelay workspace request file `.text-adventure/antigravity_relay_request.json`
+before asking any generic setup wizard questions. Slash-command selection alone
+may only activate this skill; the pending request file is processed when a model
+turn is actually submitted. The request JSON is the authority for the workspace:
 `workspacePath` and `workspaceIdentity` identify the LoreRelay workspace that
 created this turn.
 

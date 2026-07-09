@@ -422,3 +422,10 @@ function hideGmLoading(success) {
     addSystemMessage(T('webview.gm.failed'));
   }
 }
+
+function showRelayWaitingError(reason) {
+  hideGmLoading(false);
+  const detail = typeof reason === 'string' && reason.trim() ? reason.trim() : '';
+  const prefix = typeof T === 'function' ? T('webview.relay.error.prefix') : 'Antigravity Relay could not import the result.';
+  addSystemMessage(detail ? `${prefix} ${detail}` : prefix);
+}

@@ -44,6 +44,7 @@ let gameStateSyncSeq = 0;
 import { processTurnResult, takeAutoLocationImageRequest } from './statePatch';
 import {
     ensureAcceptedTurnWriterLease,
+    ensureAcceptedTurnScopeForVerifiedRelayResult,
     preflightAcceptedTurn,
     runAcceptedTurnSingleFlight,
 } from './acceptedTurnReplayGuard';
@@ -642,6 +643,9 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
             return processTurnResultFileAtSerialized(fsPath, retryCount + 1);
         }
         console.error('Failed to parse turn_result.json after retries', e);
+        if (readPendingAntigravityRelayRequest(path.dirname(fsPath))) {
+            notifyRelayImportFailure('failed to parse turn_result.json after retries');
+        }
         return { kind: 'retryableFailure', accepted: false, reason: 'failed to parse turn_result.json after retries' };
     }
 
@@ -649,6 +653,7 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
     const pendingRelayRequest = readPendingAntigravityRelayRequest(workspacePath);
     const relayMatch = validateTurnResultForPendingRelayRequest(pendingRelayRequest, turnResult);
     if (!relayMatch.ok) {
+        notifyRelayImportFailure(relayMatch.reason || 'turn_result.json did not match pending Antigravity Relay request');
         return {
             kind: 'rejected',
             accepted: false,
@@ -656,8 +661,21 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         };
     }
 
+    if (pendingRelayRequest) {
+        try {
+            ensureAcceptedTurnScopeForVerifiedRelayResult(workspacePath);
+        } catch (e) {
+            const reason = `failed to initialize accepted-turn scope for verified Relay result: ${e instanceof Error ? e.message : String(e)}`;
+            notifyRelayImportFailure(reason);
+            return { kind: 'repairRequired', accepted: false, reason };
+        }
+    }
+
     const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'turn-result-observation');
     if (leaseConflict) {
+        if (pendingRelayRequest) {
+            notifyRelayImportFailure(leaseConflict.reason ?? 'writer lease blocked Antigravity Relay result import');
+        }
         return leaseConflict;
     }
 
@@ -670,6 +688,9 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
             });
         } else {
             console.warn('[gameStateSync] turn_result.json preflight stopped before apply', preflight);
+            if (pendingRelayRequest) {
+                notifyRelayImportFailure(preflight.reason ?? 'accepted-turn preflight stopped Antigravity Relay result import');
+            }
         }
         return preflight;
     }
@@ -689,6 +710,9 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
 
     const enriched = processTurnResult(turnResult, preflight.context);
     if (!enriched) {
+        if (pendingRelayRequest) {
+            notifyRelayImportFailure('processTurnResult returned false before Accepted boundary');
+        }
         return {
             kind: 'retryableFailure',
             accepted: false,
@@ -749,6 +773,25 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         identityHash: preflight.context.identity.identityHash,
         turnId: preflight.context.identity.turnId,
     };
+}
+
+function notifyRelayImportFailure(reason: string): void {
+    const message = `Antigravity Relay result was not imported: ${reason}`;
+    try {
+        requireDeps().appendGmBridgeLog(`[Antigravity Relay] ${message}`);
+    } catch {
+        console.warn(`[Antigravity Relay] ${message}`);
+    }
+    try {
+        const panel = deps?.getPanel();
+        panel?.webview.postMessage({
+            type: 'relayWaitingStateError',
+            reason,
+        });
+    } catch (e) {
+        console.error('[gameStateSync] failed to notify Relay import failure', e);
+    }
+    void vscode.window.showErrorMessage(`LoreRelay: ${message}`);
 }
 
 export async function processTurnResultFileAtForTests(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {

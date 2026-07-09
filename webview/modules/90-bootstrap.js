@@ -434,6 +434,12 @@ window.addEventListener('message', (event) => {
     if (typeof showRelayWaitingState === 'function') {
       showRelayWaitingState();
     }
+  } else if (msg.type === 'relayWaitingStateError') {
+    if (typeof showRelayWaitingError === 'function') {
+      showRelayWaitingError(msg.reason);
+    } else {
+      hideGmLoading(false);
+    }
   } else if (msg.type === 'oocMessage') {
     const oocLog = document.getElementById('ooc-log');
     if (oocLog) {

@@ -2090,6 +2090,13 @@ function hideGmLoading(success) {
   }
 }
 
+function showRelayWaitingError(reason) {
+  hideGmLoading(false);
+  const detail = typeof reason === 'string' && reason.trim() ? reason.trim() : '';
+  const prefix = typeof T === 'function' ? T('webview.relay.error.prefix') : 'Antigravity Relay could not import the result.';
+  addSystemMessage(detail ? `${prefix} ${detail}` : prefix);
+}
+
 /* --- 30-bgm-sfx.js --- */
 // ===== BGM プレイヤー =====
 // マニフェスト（extension が bgm.json を解決して webview URI 付きで送ってくる）
@@ -14816,6 +14823,12 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'relayWaitingStateStart') {
     if (typeof showRelayWaitingState === 'function') {
       showRelayWaitingState();
+    }
+  } else if (msg.type === 'relayWaitingStateError') {
+    if (typeof showRelayWaitingError === 'function') {
+      showRelayWaitingError(msg.reason);
+    } else {
+      hideGmLoading(false);
     }
   } else if (msg.type === 'oocMessage') {
     const oocLog = document.getElementById('ooc-log');

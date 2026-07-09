@@ -721,6 +721,58 @@ Run the real human smoke:
 
 Do not mark ANTIGRAVITY-RELAY-002 DONE until the real smoke is recorded.
 
+### Antigravity Relay 003
+
+Purpose:
+
+```text
+Recover the real Antigravity smoke path so the user can use the short GM Skill trigger:
+LoreRelay writes the pending request file
+-> user sends /text-adventure-gm process pending LoreRelay request
+-> repo-owned GM skill processes the exact workspace request
+-> turn_result.json returns to LoreRelay
+-> LoreRelay imports it and clears the waiting state
+```
+
+Current task state:
+
+```text
+ANTIGRAVITY-RELAY-003: VERIFYING - REAL_SMOKE_READY
+```
+
+Evidence:
+
+```text
+implementation candidate: 1e18d259006db589756cbe07525911119dc5bb87
+independent verify: 3e203f253e3f8563a9b9a6859790aa2ee3882e58
+main integration: 4aff826aad5198e5bdc6b05b54ad74a9dd44fcd1
+post-merge smoke: a0f8426f5ff972cbf732949630764900334d1143
+automated result: PASS (compile, focused Relay tests, i18n, Symbol Registry after CRLF-only normalization, npm test 231/231)
+install result: PASS via install_extension_antigravity.bat; installed Gemini skill hash matched repo-owned skill
+```
+
+Next required gate:
+
+```text
+Run the real human smoke:
+1. Open an empty game workspace folder in Antigravity.
+2. Open LoreRelay.
+3. Turn Antigravity Relay ON.
+4. Send one LoreRelay action on the left.
+5. On the right, submit exactly:
+   /text-adventure-gm process pending LoreRelay request
+6. Confirm no long prompt copy/paste.
+7. Confirm no unrelated 1/5 setup wizard.
+8. Confirm the right side processes the pending request file.
+9. Confirm turn_result.json is imported back to LoreRelay.
+10. Confirm the left waiting state ends.
+11. Confirm narration/options appear on the left.
+```
+
+Do not claim full automatic chat injection. The short right-side trigger is the expected product behavior for this gate.
+
+Do not mark ANTIGRAVITY-RELAY-003 DONE until the real smoke is recorded.
+
 ### Antigravity Install 001
 
 Status:
@@ -912,7 +964,7 @@ Unless current GitHub has moved on:
 ```text
 A. Run the 5-minute Japanese Scrapbound / Start Hub human smoke from PLAYTEST-UNBLOCK-001.
 B. Run the 30-minute Gameplay Slice 1 human playtest.
-C. Run the ANTIGRAVITY-RELAY-002 real `/text-adventure-gm` file-bridge smoke when returning to Relay.
+C. Run the ANTIGRAVITY-RELAY-003 real `/text-adventure-gm process pending LoreRelay request` file-bridge smoke when returning to Relay.
 D. Choose the next gameplay/product slice based on actual playtest evidence.
 ```
 

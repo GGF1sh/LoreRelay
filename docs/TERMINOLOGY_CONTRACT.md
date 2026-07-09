@@ -19,6 +19,18 @@ interface EntityRef {
 ```
 *Rule:* `EntityKind` must always be `snake_case`.
 
+### EntityKind Layer Ownership
+
+The contract vocabulary is intentionally broader than some individual cores. Do not treat one existing source as universally wrong merely because its accepted set is narrower or wider.
+
+| Layer | Current ownership | Kinds / vocabulary | Notes |
+| --- | --- | --- | --- |
+| D1 Identity Core | `src/entityIdentityCore.ts` | `region`, `location`, `faction`, `npc`, `vehicle`, `settlement`, `mod` | Minimal cross-ledger identity inventory. Do not assume `mobile_base`, `guild`, or `domain` are accepted here until they are intentionally promoted. |
+| World Intent | `src/worldIntentCore.ts` | D1 identity kinds plus `mobile_base`, `guild`, `domain` | Wider action/requirement vocabulary for world-intent planning and diagnostics. |
+| Broader campaign/domain vocabulary | domain, guild, mobile-base, rules profile, mod, and scenario layers | `mobile_base`, `guild`, and `domain` may describe campaign subsystems or feature gates even when they are not D1 identity records. | Use the owning subsystem's parser/validator rather than silently reusing D1 identity assumptions. |
+
+Operational rule: when adding or changing entity kinds, name the layer being changed and verify whether the target is D1 identity inventory, World Intent vocabulary, or broader campaign/domain terminology.
+
 ## 2. Time & Temporal Boundaries
 
 **Forbidden:** Bare numbers for time or the ambiguous word `turn` (e.g., `expiresIn: 5` or `turn: 10`).

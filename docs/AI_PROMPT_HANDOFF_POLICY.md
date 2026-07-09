@@ -54,6 +54,32 @@ For every narrow repair, verify, UX gate, or implementation gate, also follow:
 
 Prompts should explicitly state the exploration tier and forbid open-ended subagents unless the task is intentionally repo-wide.
 
+## Conditional knowledge lookup
+
+Do not make every AI read the entire generated Symbol Registry for every task. Use the lookup workflow only when the task touches shared names, protocols, configuration, or semantic vocabulary.
+
+Before adding a shared helper, exported type, public webview function, or reusable constant:
+
+```powershell
+npm run knowledge -- <proposed name>
+```
+
+Before adding or changing a host-webview message:
+
+```powershell
+npm run knowledge -- <message type>
+```
+
+Before adding a `textAdventure.*` configuration key:
+
+```powershell
+npm run knowledge -- <proposed config key>
+```
+
+Before adding entity kinds, clock vocabulary, or cross-ledger reference terms, read the relevant section of `docs/TERMINOLOGY_CONTRACT.md` and identify whether the change belongs to D1 Identity Core, World Intent, or broader campaign/domain vocabulary.
+
+Before adding severity/event semantic reactions, read `docs/EVENT_CLASSIFICATION_GLOSSARY.md` and look for existing `evaluate*Event` helpers. Do not infer semantic meaning from `severity` alone.
+
 ## When long prompts are acceptable
 
 Only use a long inline prompt when:

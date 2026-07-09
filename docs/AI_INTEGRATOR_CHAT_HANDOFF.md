@@ -986,6 +986,22 @@ Do not register every local variable. The valuable scope is shared/public/cross-
 
 Keep curated terminology docs and generated symbol registry as separate layers.
 
+Operational lookup command:
+
+```text
+npm run knowledge -- <query>
+```
+
+Conditional use rules:
+
+- Before adding a shared helper/exported type/public webview function/reusable constant, run the lookup for the proposed name.
+- Before adding or changing a host-webview message, look up the message type and check protocol pairing output.
+- Before adding a `textAdventure.*` configuration key, look up the proposed key.
+- Before adding entity kinds, clock vocabulary, or cross-ledger reference terms, read the relevant `TERMINOLOGY_CONTRACT.md` section and identify the owning layer: D1 Identity Core, World Intent, or broader campaign/domain vocabulary.
+- Before adding severity/event semantic reactions, read `EVENT_CLASSIFICATION_GLOSSARY.md` and look for existing `evaluate*Event` helpers.
+
+Do not make all AI agents read the full Symbol Registry on every task; use targeted lookup instead.
+
 ### NOAI Phase 0
 
 Status:

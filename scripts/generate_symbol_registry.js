@@ -566,6 +566,14 @@ function writeGenerated(registry) {
     fs.writeFileSync(MD_PATH, renderMarkdown(registry), 'utf8');
 }
 
+function normalizeGeneratedForCheck(content) {
+    return String(content).replace(/\r\n/g, '\n');
+}
+
+function generatedContentMatches(actual, expected) {
+    return normalizeGeneratedForCheck(actual) === normalizeGeneratedForCheck(expected);
+}
+
 function checkGenerated(registry) {
     const expected = new Map([
         [JSON_PATH, renderJson(registry)],
@@ -573,7 +581,7 @@ function checkGenerated(registry) {
     ]);
     const stale = [];
     for (const [file, content] of expected) {
-        if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== content) {
+        if (!fs.existsSync(file) || !generatedContentMatches(fs.readFileSync(file, 'utf8'), content)) {
             stale.push(rel(file));
         }
     }
@@ -623,6 +631,8 @@ module.exports = {
     renderJson,
     renderMarkdown,
     checkGenerated,
+    generatedContentMatches,
+    normalizeGeneratedForCheck,
     writeGenerated,
     NOTICE,
     JSON_PATH,

@@ -125,6 +125,18 @@ run('generated files are current under --check', () => {
     assert.strictEqual(result.status, 0, result.stdout + result.stderr);
 });
 
+run('generated check treats CRLF-only differences as current', () => {
+    const expected = generator.renderJson(registry);
+    const crlf = expected.replace(/\n/g, '\r\n');
+    assert.strictEqual(generator.generatedContentMatches(crlf, expected), true);
+});
+
+run('generated check still rejects real content drift', () => {
+    const expected = generator.renderJson(registry);
+    const drifted = expected.replace('"schemaVersion": 1', '"schemaVersion": 999');
+    assert.strictEqual(generator.generatedContentMatches(drifted, expected), false);
+});
+
 run('registry counts expose useful slices', () => {
     assert(registry.counts.total > 100, `unexpectedly small registry: ${registry.counts.total}`);
     assert(registry.counts.byKind.function > 0, 'no function entries');

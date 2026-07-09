@@ -1002,6 +1002,35 @@ Conditional use rules:
 
 Do not make all AI agents read the full Symbol Registry on every task; use targeted lookup instead.
 
+KNOWLEDGE-OPS-001 status:
+
+```text
+DONE
+```
+
+Final known integration evidence:
+
+- audit evidence `409868ea6f4ce40a1d8af3b48606c45e06106dbd`;
+- implementation `e80292ad321d66324797f1f322dab72ec7b62bec`;
+- protocol-pairing repair `02efaf9e98689b0ed0d1a94ae28d30b6a27ba4e5`;
+- original independent verify `11db84a478916fac184554f0c7172fc1546b2705`;
+- repair verify `2440a88b4a548d470044589dd94ccfb8f541314a`;
+- post-merge smoke `docs/ai-tasks/KNOWLEDGE-OPS-001-POST-MERGE-SMOKE.md`;
+- FAST gates passed: compile, knowledge lookup focused tests, Symbol Registry tests, `npm run knowledge -- relayWaitingStateDone`, `npm run knowledge -- EntityKind`.
+
+Important review lesson:
+
+- the original independent verify said `VERIFY_PASS`, but its own synthetic wrong-side receiver counterexample violated the protocol-pairing gate;
+- the integrator classification is therefore `REPAIR_REQUIRED` for that verify, closed by the side-aware pairing repair and repair verify;
+- host-to-webview senders pair only with `webview/modules/*` receivers, and webview-to-host senders pair only with `src/*` receivers.
+
+AI-OPS integration lane rule:
+
+- FAST lane is appropriate for doc/tooling-only integrations with accepted implementation + repair evidence and narrow smoke gates;
+- NORMAL lane is appropriate when source/runtime behavior or packaging risk requires full suite and ordinary post-merge smoke;
+- RECOVERY lane is appropriate when evidence is missing, main moved unexpectedly, or the task state must be reconstructed from local artifacts;
+- do not silently promote a task to FAST when a verifier has an unresolved blocker.
+
 ### NOAI Phase 0
 
 Status:

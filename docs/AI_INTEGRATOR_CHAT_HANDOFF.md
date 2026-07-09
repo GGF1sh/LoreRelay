@@ -737,7 +737,7 @@ LoreRelay writes the pending request file
 Current task state:
 
 ```text
-ANTIGRAVITY-RELAY-003: VERIFYING - REAL_SMOKE_READY
+ANTIGRAVITY-RELAY-003: VERIFYING - REAL_SMOKE_PARTIAL_PASS_SUPERSEDED_BY_004
 ```
 
 Evidence:
@@ -751,27 +751,92 @@ automated result: PASS (compile, focused Relay tests, i18n, Symbol Registry afte
 install result: PASS via install_extension_antigravity.bat; installed Gemini skill hash matched repo-owned skill
 ```
 
-Next required gate:
+Real human smoke result:
 
 ```text
-Run the real human smoke:
-1. Open an empty game workspace folder in Antigravity.
-2. Open LoreRelay.
-3. Turn Antigravity Relay ON.
-4. Send one LoreRelay action on the left.
-5. On the right, submit exactly:
-   /text-adventure-gm process pending LoreRelay request
-6. Confirm no long prompt copy/paste.
-7. Confirm no unrelated 1/5 setup wizard.
-8. Confirm the right side processes the pending request file.
-9. Confirm turn_result.json is imported back to LoreRelay.
-10. Confirm the left waiting state ends.
-11. Confirm narration/options appear on the left.
+ANTIGRAVITY_RELAY_003_REAL_SMOKE_PARTIAL_PASS
 ```
+
+Passed:
+
+- pending request file created
+- short trigger processed pending request
+- right generated turn_result.json
+- left imported result
+- narration/status/options appeared
+- multi-turn continuation worked
+
+Failed / superseded by ANTIGRAVITY-RELAY-004:
+
+- successful waiting row did not clear
+- old GM loading timer remained
+- pending/accepted UX was unclear
 
 Do not claim full automatic chat injection. The short right-side trigger is the expected product behavior for this gate.
 
-Do not mark ANTIGRAVITY-RELAY-003 DONE until the real smoke is recorded.
+### Antigravity Relay 004
+
+Purpose:
+
+```text
+Close the real-smoke UX gap after Relay 003:
+generic GM loading row
+-> Relay-specific pending UI with exact short trigger
+-> explicit relayWaitingStateDone on matching accepted import
+-> waiting row removed, timer stopped, controls unlocked
+```
+
+Current task state:
+
+```text
+ANTIGRAVITY-RELAY-004: VERIFYING - REAL_SMOKE_READY
+```
+
+Evidence:
+
+```text
+implementation candidate: 5103dc3fbbe2a06121be1a73bed5be086432a67e
+independent verify: 292f3d97eececafa98106c31a86c0eaee5aaf896
+main integration: c03c8d4b35f4b992313b67ed7690aa3930cfa552
+post-merge smoke: 27a51234d52298c9843282587e44ffb6304c31f6
+automated result: PASS (compile, focused Relay tests, i18n, Symbol Registry after CRLF-only normalization, npm test 232/232)
+install result: PASS via install_extension_antigravity.bat; actual Antigravity IDE install target hash matched managed latest webview script; installed Gemini skill hash matched repo-owned skill
+```
+
+Current human gate:
+
+```text
+1. Open a fresh empty game workspace in Antigravity.
+2. Open LoreRelay.
+3. Turn Antigravity Relay ON.
+4. Send one left-side LoreRelay action.
+5. Confirm the generic "GM がターンを処理中..." row becomes Relay-specific waiting UI.
+6. Confirm only one waiting row exists.
+7. Confirm the UI clearly shows:
+   /text-adventure-gm process pending LoreRelay request
+8. Confirm a one-click copy action copies only that short command.
+9. Send that short command on the right.
+10. Confirm right processes the pending request file.
+11. Confirm left imports the result.
+12. Confirm waiting row disappears.
+13. Confirm elapsed timer is gone.
+14. Confirm controls unlock.
+15. Confirm narration/options remain visible.
+16. Click one returned option on the left.
+17. Confirm the second turn enters the same Relay pending state.
+18. Confirm the user does not need to copy the option text into the right chat.
+```
+
+Do not claim automatic right-side chat injection or automatic model-turn submission. The current product boundary is:
+
+```text
+left action
+-> pending request
+-> one short right-side trigger
+-> result returns left
+```
+
+Do not mark ANTIGRAVITY-RELAY-004 DONE until this real smoke is recorded.
 
 ### Antigravity Install 001
 
@@ -964,7 +1029,7 @@ Unless current GitHub has moved on:
 ```text
 A. Run the 5-minute Japanese Scrapbound / Start Hub human smoke from PLAYTEST-UNBLOCK-001.
 B. Run the 30-minute Gameplay Slice 1 human playtest.
-C. Run the ANTIGRAVITY-RELAY-003 real `/text-adventure-gm process pending LoreRelay request` file-bridge smoke when returning to Relay.
+C. Run the ANTIGRAVITY-RELAY-004 real completion-state smoke with `/text-adventure-gm process pending LoreRelay request` when returning to Relay.
 D. Choose the next gameplay/product slice based on actual playtest evidence.
 ```
 

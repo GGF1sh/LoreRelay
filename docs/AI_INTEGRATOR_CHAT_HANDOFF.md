@@ -1031,6 +1031,83 @@ AI-OPS integration lane rule:
 - RECOVERY lane is appropriate when evidence is missing, main moved unexpectedly, or the task state must be reconstructed from local artifacts;
 - do not silently promote a task to FAST when a verifier has an unresolved blocker.
 
+### MEDIA-ARCHITECTURE-001
+
+Status:
+
+```text
+DESIGN_READY
+no production implementation yet
+```
+
+Durable design:
+
+```text
+docs/ai-tasks/MEDIA-ARCHITECTURE-001-COMFYUI-ACTION-ROUTING-DESIGN.md
+design commit: 78c19eb4365634da2c248f8c34082b1f6be3f1ea
+verdict: MEDIA_ARCHITECTURE_001_DESIGN_READY
+```
+
+Accepted target architecture (do not invent a competing stack):
+
+```text
+Media Intent
+-> Media Profile
+-> Prompt Compiler
+-> Validated Generation Plan
+-> local ComfyUI executor
+```
+
+Accepted execution architecture:
+
+```text
+LOCAL / DELEGATED / HYBRID
+orthogonal to
+DIRECT / MANUAL_HANDOFF
+```
+
+Product constraint:
+
+```text
+LoreRelay is distributed / multi-user.
+Do not hard-lock media defaults to one personal GPU or one checkpoint path.
+Use Media Profiles + hardware tiers + AUTO among installed compatible profiles.
+Reference machine (e.g. 12GB NVIDIA class) is for built-in balanced defaults only.
+```
+
+Next implementation (after Codex quota):
+
+```text
+M1  Compatibility Gate + Profile Spine
+    - block Anima × SDXL-simple illegal stacks before queue
+    - also reject incompatible profile/checkpoint inheritance into world-map generation
+      (full Cartography Profile integration remains M6)
+
+M2  Media Intent + Prompt Compiler (scene / portrait)
+
+M3  visualIdentity Core (LOCAL only)
+    - schema, storage, edit UI, use in generation
+    - do NOT add temporary AI handoff / HYBRID fill-if-missing here
+
+M4  Expression Reference (img2img / reference continuity)
+
+M5  Action Router + Manual Handoff
+    - first place to activate HYBRID visualIdentity fill-if-missing via GM/provider
+
+M6  Cartography Profile full integration
+
+M7  Hardware Tier + AUTO
+```
+
+Sequencing trap to avoid:
+
+```text
+Do not implement HYBRID AI fill-if-missing in M3 before M5 Action Router exists,
+or a throwaway one-off AI delegation path will appear.
+```
+
+M1 recommended AI: Codex High (touches image generation path). Do not under-effort M1.
+
 ### NOAI Phase 0
 
 Status:
@@ -1075,7 +1152,8 @@ Unless current GitHub has moved on:
 A. Run the 5-minute Japanese Scrapbound / Start Hub human smoke from PLAYTEST-UNBLOCK-001.
 B. Run the 30-minute Gameplay Slice 1 human playtest.
 C. Run the ANTIGRAVITY-RELAY-004 real completion-state smoke with `/text-adventure-gm process pending LoreRelay request` when returning to Relay.
-D. Choose the next gameplay/product slice based on actual playtest evidence.
+D. MEDIA-ARCHITECTURE-001 is DESIGN_READY on main (docs only). After Codex weekly quota resets, start M1 Compatibility Gate + Profile Spine (Codex High). Do not start M3 HYBRID AI fill before M5.
+E. Choose the next gameplay/product slice based on actual playtest evidence.
 ```
 
 Symbol Registry generator work is already implemented, verified, merged, and smoked. Do not restart it while clearing the Relay smoke gate.

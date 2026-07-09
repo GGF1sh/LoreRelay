@@ -385,14 +385,21 @@ export function buildFogUnexploredPromptLine(
     return line;
 }
 
-export function buildAntigravityRelayPayload(trimmed: string, breakdown: any, availableOptions: string[]): any {
+export function buildAntigravityRelayPayload(
+    trimmed: string,
+    breakdown: any,
+    availableOptions: string[],
+    relay?: { requestId?: string; createdAt?: string; targetOutput?: string }
+): any {
     return {
         kind: 'antigravity_relay_request',
         version: 1,
+        requestId: relay?.requestId,
+        createdAt: relay?.createdAt,
         playerAction: trimmed,
         promptContext: breakdown,
         availableOptions: availableOptions || [],
-        targetOutput: 'turn_result.json'
+        targetOutput: relay?.targetOutput || 'turn_result.json'
     };
 }
 

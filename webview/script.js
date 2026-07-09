@@ -14774,6 +14774,8 @@ window.addEventListener('message', (event) => {
       relayBanner.style.padding = '8px';
       relayBanner.style.textAlign = 'center';
       relayBanner.style.fontWeight = 'bold';
+      relayBanner.style.whiteSpace = 'pre-line';
+      relayBanner.style.lineHeight = '1.35';
       relayBanner.textContent = T('webview.relay.banner.active');
       document.body.insertBefore(relayBanner, document.body.firstChild);
     } else if (!window.antigravityRelayMode && relayBanner) {

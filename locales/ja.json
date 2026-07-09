@@ -923,7 +923,7 @@
   "webview.quickReply.retry": "🔄 再生成",
   "webview.quickReply.summary": "📝 要約",
   "webview.quickReply.undo": "⏪ 戻る",
-  "webview.relay.banner.active": "Antigravity Relay Mode はアクティブです。LoreRelay AI はバイパスされます。",
+  "webview.relay.banner.active": "Antigravity Relay\n1. LoreRelayで行動を選ぶ\n2. 右側で /text-adventure-gm を起動する\n3. 左の依頼ファイルを自動で読み込んで処理する\nチャットへの自動注入ではありません。",
   "webview.relay.button.prepare": "Antigravity の準備",
   "webview.relay.sender.name": "Relay Mode",
   "webview.relay.waiting.label": "Antigravity 待機中... ペイロードを外部チャットに貼り付けてください。",

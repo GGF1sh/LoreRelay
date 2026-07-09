@@ -84,6 +84,16 @@ export interface TurnResultPromptReceiptMeta {
     stageTransportPayloadHashes?: Array<{ stage: string; hash: string }>;
 }
 
+export interface TurnResultMetadata {
+    /** Antigravity Relay file-bridge request correlation. */
+    requestId?: string;
+    antigravityRelay?: {
+        requestId?: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
 export interface TurnResult {
     turnId: string;
     playerAction?: string;
@@ -102,6 +112,8 @@ export interface TurnResult {
     triggeredLore?: string[];
     /** Trusted host/runtime receipt correlation for PROMPT-001C ACK after Accepted. */
     promptReceipt?: TurnResultPromptReceiptMeta;
+    /** Optional transport metadata. Antigravity Relay requires metadata.requestId. */
+    metadata?: TurnResultMetadata;
     /** Optional metadata for Phase 9 agentic GM runs. Not required for legacy turn_result files. */
     agentic?: TurnResultAgenticMeta;
     /** When set, LoreRelay can offer to create characters/{id}.json for the player protagonist. */

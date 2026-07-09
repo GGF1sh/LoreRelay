@@ -81,7 +81,8 @@ import {
     getWorkspacePath,
     getGameStatePath,
     getHistoryPath,
-    getGmProvider
+    getGmProvider,
+    writeJsonAtomic
 } from './workspacePaths';
 import {
     initGmBridgeRunner,
@@ -188,6 +189,12 @@ import { adaptCharacterToWorld } from './characterWorldAdapter';
 import { exportSagaToHtml } from './exportHtml';
 import { exportReplayToWorkspace, openReplayExport } from './replayExport';
 import { buildAntigravityRelayPayload } from './gmPromptBuilderCore';
+import {
+    ANTIGRAVITY_RELAY_EXPECTED_OUTPUT,
+    buildAntigravityRelayRequest,
+    buildAntigravityRelayRequestId,
+    getAntigravityRelayRequestPath,
+} from './antigravityRelayBridgeCore';
 import {
     initGmPromptBuilder,
     buildGmPromptBreakdown,
@@ -895,10 +902,38 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
     const config = vscode.workspace.getConfiguration('textAdventure');
     const relayMode = config.get<boolean>('antigravityRelay.enabled', false);
     if (relayMode) {
+        const workspacePath = getWorkspacePath();
+        if (!workspacePath) {
+            vscode.window.showErrorMessage(t('extension.error.workspaceRequired'));
+            return;
+        }
         const breakdown = buildGmPromptBreakdown(trimmed);
         const state = getCachedGameState();
         const availableOptions = Array.isArray(state?.options) ? state.options as string[] : [];
-        const payload = buildAntigravityRelayPayload(trimmed, breakdown, availableOptions);
+        const history = getGameEntryHistory();
+        const createdAt = new Date().toISOString();
+        const turnIndex = history.filter(e => e.role === 'gm').length + 1;
+        const requestId = buildAntigravityRelayRequestId({
+            workspacePath,
+            playerAction: trimmed,
+            createdAt,
+            turnIndex,
+        });
+        const payload = buildAntigravityRelayPayload(trimmed, breakdown, availableOptions, {
+            requestId,
+            createdAt,
+            targetOutput: ANTIGRAVITY_RELAY_EXPECTED_OUTPUT,
+        });
+        const request = buildAntigravityRelayRequest({
+            requestId,
+            createdAt,
+            playerAction: trimmed,
+            minimalContext: {
+                promptContext: breakdown,
+            },
+            availableOptions,
+        });
+        writeJsonAtomic(getAntigravityRelayRequestPath(workspacePath), request);
         await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
         vscode.window.showInformationMessage(t('webview.relay.banner.active'));
         

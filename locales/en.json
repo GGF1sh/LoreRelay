@@ -923,7 +923,7 @@
   "webview.quickReply.retry": "🔄 Retry",
   "webview.quickReply.summary": "📝 Summary",
   "webview.quickReply.undo": "⏪ Undo",
-  "webview.relay.banner.active": "Antigravity Relay Mode is ACTIVE. LoreRelay AI is bypassed.",
+  "webview.relay.banner.active": "Antigravity Relay\n1. Choose an action in LoreRelay.\n2. On the right, run /text-adventure-gm.\n3. The right side reads and processes the left request file automatically.\nNo automatic chat injection is used.",
   "webview.relay.button.prepare": "Prepare for Antigravity",
   "webview.relay.sender.name": "Relay Mode",
   "webview.relay.waiting.label": "Waiting for Antigravity... Paste payload in external chat.",

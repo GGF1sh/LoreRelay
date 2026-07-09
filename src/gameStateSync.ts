@@ -71,6 +71,12 @@ import {
     sanitizeGameStateForWebview,
     sanitizeTurnResultForWebview,
 } from './gameStateWebviewSanitize';
+import {
+    getAntigravityRelayRequestPath,
+    parseAntigravityRelayRequest,
+    validateTurnResultForPendingRelayRequest,
+    type AntigravityRelayRequest,
+} from './antigravityRelayBridgeCore';
 
 export { isAllowedImagePath };
 
@@ -603,6 +609,36 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function readPendingAntigravityRelayRequest(workspacePath: string): AntigravityRelayRequest | undefined {
+    const requestPath = getAntigravityRelayRequestPath(workspacePath);
+    if (!fs.existsSync(requestPath)) {
+        return undefined;
+    }
+    try {
+        const raw = fs.readFileSync(requestPath, 'utf8');
+        return parseAntigravityRelayRequest(JSON.parse(raw));
+    } catch (e) {
+        console.warn('[gameStateSync] ignored malformed Antigravity Relay request file', e);
+        return undefined;
+    }
+}
+
+function clearPendingAntigravityRelayRequest(workspacePath: string, requestId: string): void {
+    const requestPath = getAntigravityRelayRequestPath(workspacePath);
+    try {
+        if (!fs.existsSync(requestPath)) {
+            return;
+        }
+        const raw = fs.readFileSync(requestPath, 'utf8');
+        const current = parseAntigravityRelayRequest(JSON.parse(raw));
+        if (current?.requestId === requestId) {
+            fs.unlinkSync(requestPath);
+        }
+    } catch (e) {
+        console.warn('[gameStateSync] failed to clear Antigravity Relay request file', e);
+    }
+}
+
 /**
  * Reads turn_result.json at fsPath if present and not already processed
  * (sha256-deduped via lastProcessedTurnHash), applies it, and notifies the
@@ -639,6 +675,16 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
     }
 
     const workspacePath = path.dirname(fsPath);
+    const pendingRelayRequest = readPendingAntigravityRelayRequest(workspacePath);
+    const relayMatch = validateTurnResultForPendingRelayRequest(pendingRelayRequest, turnResult);
+    if (!relayMatch.ok) {
+        return {
+            kind: 'rejected',
+            accepted: false,
+            reason: relayMatch.reason || 'turn_result.json did not match pending Antigravity Relay request',
+        };
+    }
+
     const leaseConflict = ensureAcceptedTurnWriterLease(workspacePath, 'turn-result-observation');
     if (leaseConflict) {
         return leaseConflict;
@@ -687,6 +733,9 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         timelineEpochId: preflight.context.identity.timelineEpochId,
     };
     markTurnResultHandled(enriched);
+    if (pendingRelayRequest && relayMatch.requestId) {
+        clearPendingAntigravityRelayRequest(workspacePath, relayMatch.requestId);
+    }
 
     try {
         handleTurnResultMedia(enriched);

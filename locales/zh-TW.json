@@ -923,7 +923,7 @@
   "webview.quickReply.retry": "🔄 重試",
   "webview.quickReply.summary": "📝 摘要",
   "webview.quickReply.undo": "⏪ 復原",
-  "webview.relay.banner.active": "Antigravity Relay 模式已啟用。已繞過 LoreRelay AI。",
+  "webview.relay.banner.active": "Antigravity Relay\n1. 在 LoreRelay 中選擇行動。\n2. 在右側執行 /text-adventure-gm。\n3. 右側會自動讀取並處理左側的請求檔案。\n不會自動注入聊天內容。",
   "webview.relay.button.prepare": "準備 Antigravity",
   "webview.relay.sender.name": "Relay Mode",
   "webview.relay.waiting.label": "等待 Antigravity... 請將有效負載貼上至外部聊天中。",

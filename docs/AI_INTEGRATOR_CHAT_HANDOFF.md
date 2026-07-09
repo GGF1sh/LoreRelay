@@ -675,6 +675,52 @@ Run a real 1-2 turn Antigravity clipboard/file relay smoke.
 
 Do not mark ANTIGRAVITY-RELAY-001 DONE until that external relay proof is recorded. Do not re-open broad design unless the real smoke reveals a concrete defect.
 
+### Antigravity Relay 002
+
+Purpose:
+
+```text
+LoreRelay writes .text-adventure/antigravity_relay_request.json
+-> visible Antigravity Relay toggle ON
+-> user runs /text-adventure-gm on the right
+-> repo-owned GM skill reads the exact workspace request first
+-> turn_result.json with matching metadata.requestId returns to LoreRelay
+```
+
+Current task state:
+
+```text
+ANTIGRAVITY-RELAY-002: VERIFYING - REAL_SMOKE_READY
+```
+
+Evidence:
+
+```text
+implementation: 33e652b690360f889d6543515846fb5afe07a9b4
+repair: 2ffe79e9e0970984eb38d44c34fcce22c556bbe4
+failed independent review: cf9f3b43d42bbd0793d11c94e31998def8a98d9e
+repair verify: 09ce5a6dd71391cfcd6d290ca3b359eb323c7065
+main integration: dc86941e1f49c1f7517e24e80f3f6e87a2bdc2b6
+post-merge smoke: 31570183d880b31d77eb4f98a6e71d7803bf7709
+automated result: PASS (compile, focused Relay tests, i18n, Symbol Registry, npm test 231/231)
+install result: PASS via install_extension_antigravity.bat; installed Gemini skill hash matched repo-owned skill
+```
+
+Next required gate:
+
+```text
+Run the real human smoke:
+1. Open LoreRelay.
+2. Turn Antigravity Relay ON.
+3. Choose one left-side action.
+4. Run /text-adventure-gm on the right.
+5. Confirm no 1/5 genre wizard.
+6. Confirm same request/action is processed.
+7. Confirm result returns left.
+```
+
+Do not mark ANTIGRAVITY-RELAY-002 DONE until the real smoke is recorded.
+
 ### Antigravity Install 001
 
 Status:
@@ -866,7 +912,7 @@ Unless current GitHub has moved on:
 ```text
 A. Run the 5-minute Japanese Scrapbound / Start Hub human smoke from PLAYTEST-UNBLOCK-001.
 B. Run the 30-minute Gameplay Slice 1 human playtest.
-C. Run a real 1-2 turn Antigravity clipboard/file relay smoke when returning to Relay.
+C. Run the ANTIGRAVITY-RELAY-002 real `/text-adventure-gm` file-bridge smoke when returning to Relay.
 D. Choose the next gameplay/product slice based on actual playtest evidence.
 ```
 

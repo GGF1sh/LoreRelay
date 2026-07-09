@@ -35,7 +35,7 @@ Write-Host (Get-Loc 'gm_title' '  LoreRelay Antigravity GM Skill Installer') -Fo
 Write-Host '=================================================' -ForegroundColor Cyan
 Write-Host ''
 
-$sourceDir = (Resolve-Path (Join-Path $ProjectDir '..\..\TextAdventureGMSkill') -ErrorAction SilentlyContinue).Path
+$sourceDir = (Resolve-Path (Join-Path $ProjectDir '..\antigravity-skill\text-adventure-gm') -ErrorAction SilentlyContinue).Path
 $homeDir = [Environment]::GetFolderPath('UserProfile')
 $targetParentDir = Join-Path $homeDir '.gemini\config\skills'
 $targetDir = Join-Path $targetParentDir 'text-adventure-gm'

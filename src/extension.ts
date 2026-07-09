@@ -195,6 +195,7 @@ import {
     buildAntigravityRelayRequestId,
     getAntigravityRelayRequestPath,
 } from './antigravityRelayBridgeCore';
+import { clearPendingAntigravityRelayRequest } from './antigravityRelayBridgeHost';
 import {
     initGmPromptBuilder,
     buildGmPromptBreakdown,
@@ -575,6 +576,10 @@ export function activate(context: vscode.ExtensionContext) {
                 sendLocaleBundle();
             }
             if (e.affectsConfiguration('textAdventure.antigravityRelay.enabled')) {
+                const enabled = vscode.workspace.getConfiguration('textAdventure').get<boolean>('antigravityRelay.enabled', false);
+                if (!enabled) {
+                    clearRelayRequestForCurrentWorkspace('relay-mode-off');
+                }
                 sendRelayModeStatus();
             }
         })
@@ -601,6 +606,24 @@ function sendRelayModeStatus(): void {
         type: 'relayModeStatus',
         antigravityRelayMode: config.get<boolean>('antigravityRelay.enabled', false)
     });
+}
+
+function clearRelayRequestForCurrentWorkspace(reason: 'relay-mode-off' | 'scenario-load' | 'session-transition'): void {
+    clearPendingAntigravityRelayRequest(getWorkspacePath(), reason);
+}
+
+async function handleSetAntigravityRelayMode(enabled: boolean): Promise<void> {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const target = vscode.workspace.workspaceFolders?.length
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+    await config.update('antigravityRelay.enabled', enabled, target);
+    if (!enabled) {
+        clearRelayRequestForCurrentWorkspace('relay-mode-off');
+    } else if (!getWorkspacePath()) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+    }
+    sendRelayModeStatus();
 }
 
 function sendRemotePlayStatus(): void {
@@ -913,6 +936,7 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
         const history = getGameEntryHistory();
         const createdAt = new Date().toISOString();
         const turnIndex = history.filter(e => e.role === 'gm').length + 1;
+        const workspaceIdentity = path.resolve(workspacePath);
         const requestId = buildAntigravityRelayRequestId({
             workspacePath,
             playerAction: trimmed,
@@ -923,10 +947,14 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
             requestId,
             createdAt,
             targetOutput: ANTIGRAVITY_RELAY_EXPECTED_OUTPUT,
+            workspacePath,
+            workspaceIdentity,
         });
         const request = buildAntigravityRelayRequest({
             requestId,
             createdAt,
+            workspacePath,
+            workspaceIdentity,
             playerAction: trimmed,
             minimalContext: {
                 promptContext: breakdown,
@@ -1541,12 +1569,14 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendLocaleBundle,
         sendCurrentState: sendUiState,
         handleStartParlor: async (characterId?: string) => {
+            clearRelayRequestForCurrentWorkspace('session-transition');
             const ok = await startParlorMode(characterId);
             if (ok) {
                 await sendUiState(0, true);
             }
         },
         handleStartInWorld: async (characterId?: string) => {
+            clearRelayRequestForCurrentWorkspace('session-transition');
             const ok = await startInWorldMode(characterId);
             if (ok) {
                 await sendUiState(0, true);
@@ -1556,20 +1586,24 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleSwitchExperienceProfile: async (profile: unknown) => {
             if (profile === 'campaign') {
                 if (isInWorldMode()) {
+                    clearRelayRequestForCurrentWorkspace('session-transition');
                     await switchToCampaignMode();
                     await sendUiState(0, true);
                     return;
                 }
+                clearRelayRequestForCurrentWorkspace('session-transition');
                 const result = await promoteParlorToCampaign();
                 if (result.ok) {
                     await sendUiState(0, true);
                 }
             } else if (profile === 'parlor') {
+                clearRelayRequestForCurrentWorkspace('session-transition');
                 const ok = await demoteCampaignToParlorWithPrompt();
                 if (ok) {
                     await sendUiState(0, true);
                 }
             } else if (profile === 'inworld') {
+                clearRelayRequestForCurrentWorkspace('session-transition');
                 const ok = await startInWorldMode();
                 if (ok) {
                     await sendUiState(0, true);
@@ -1578,6 +1612,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             }
         },
         handlePromoteParlor: async () => {
+            clearRelayRequestForCurrentWorkspace('session-transition');
             const result = await promoteParlorToCampaign();
             if (result.ok) {
                 await sendUiState(0, true);
@@ -1656,8 +1691,14 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         updateSummary,
         handleEditEntry,
         handleToggleExcludeEntry,
-        loadScenarioPack,
-        loadBundledSampleScenario,
+        loadScenarioPack: async () => {
+            clearRelayRequestForCurrentWorkspace('scenario-load');
+            await loadScenarioPack();
+        },
+        loadBundledSampleScenario: async (sampleId: string) => {
+            clearRelayRequestForCurrentWorkspace('scenario-load');
+            await loadBundledSampleScenario(sampleId);
+        },
         sendImageGenConfig,
         handleUpdateImageGenConfig,
         sendGameRules,
@@ -1665,6 +1706,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleUpdateGameRules,
         toggleRemotePlay,
         sendRemotePlayStatus,
+        handleSetAntigravityRelayMode,
         handleBranchTimeline,
         sendGitTimelineStatus,
         sendChronicle,
@@ -1726,6 +1768,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             }
         },
         handleRunQuickstart: async (prompt: string, overwrite: boolean) => {
+            clearRelayRequestForCurrentWorkspace('scenario-load');
             const { runQuickstart } = await import('./quickstartRunner');
             const result = await runQuickstart(prompt, overwrite);
             if (result.success) {

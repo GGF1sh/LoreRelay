@@ -119,6 +119,7 @@ export interface WebviewHandlerDeps {
     handlePromoteParlor(): Promise<void>;
     handlePreviewGmTurnTransactionPlan(): Promise<void>;
     handleRetryFailedTransactions(): Promise<void>;
+    handleSetAntigravityRelayMode(enabled: boolean): Promise<void>;
 }
 
 /**
@@ -472,6 +473,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'toggleRemotePlay':
             await deps.toggleRemotePlay();
+            break;
+        case 'setAntigravityRelayMode':
+            await deps.handleSetAntigravityRelayMode(!!message.enabled);
             break;
         case 'getRemotePlayStatus':
             deps.sendRemotePlayStatus();

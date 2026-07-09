@@ -14382,6 +14382,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
 /* --- 90-bootstrap.js --- */
 // ===== Initialization =====
+function updateRelayToggleButton(enabled) {
+  const relayToggleBtn = document.getElementById('relay-toggle-btn');
+  if (!relayToggleBtn) return;
+  relayToggleBtn.classList.toggle('active', !!enabled);
+  relayToggleBtn.textContent = enabled ? T('webview.relay.toggle.on') : T('webview.relay.toggle.off');
+  relayToggleBtn.title = T('webview.relay.toggle.title');
+  if (typeof relayToggleBtn.setAttribute === 'function') {
+    relayToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   // 保存された状態を復元
   const savedState = vscode.getState();
@@ -14423,6 +14434,14 @@ window.addEventListener('DOMContentLoaded', () => {
     sel.addEventListener('change', () => {
       vscode.postMessage({ type: 'setLocale', locale: sel.value });
     });
+  }
+
+  const relayToggleBtn = document.getElementById('relay-toggle-btn');
+  if (relayToggleBtn) {
+    relayToggleBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'setAntigravityRelayMode', enabled: !window.antigravityRelayMode });
+    });
+    updateRelayToggleButton(!!window.antigravityRelayMode);
   }
 
   if (savedState && messageHistory.length > 0) {
@@ -14759,6 +14778,7 @@ window.addEventListener('message', (event) => {
     hideGmLoading(msg.success);
   } else if (msg.type === 'relayModeStatus') {
     window.antigravityRelayMode = msg.antigravityRelayMode;
+    updateRelayToggleButton(window.antigravityRelayMode);
     const sBtn = document.getElementById('send-btn');
     if (sBtn) {
       sBtn.textContent = window.antigravityRelayMode ? T('webview.relay.button.prepare') : T('webview.button.send');

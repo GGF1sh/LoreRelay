@@ -19,6 +19,8 @@ export interface AntigravityRelayRequest {
     kind: 'antigravity_relay_request';
     requestId: string;
     createdAt: string;
+    workspacePath: string;
+    workspaceIdentity: string;
     playerAction: string;
     minimalContext: Record<string, unknown>;
     availableOptions: string[];
@@ -61,6 +63,8 @@ export function buildAntigravityRelayRequestId(input: AntigravityRelayRequestIdI
 export function buildAntigravityRelayRequest(input: {
     requestId: string;
     createdAt: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
     playerAction: string;
     minimalContext: Record<string, unknown>;
     availableOptions: unknown;
@@ -76,6 +80,8 @@ export function buildAntigravityRelayRequest(input: {
         kind: 'antigravity_relay_request',
         requestId: input.requestId,
         createdAt: input.createdAt,
+        workspacePath: path.resolve(input.workspacePath),
+        workspaceIdentity: (input.workspaceIdentity?.trim() || path.resolve(input.workspacePath)),
         playerAction: clampString(input.playerAction, 4000),
         minimalContext: input.minimalContext,
         availableOptions,
@@ -89,6 +95,8 @@ export function parseAntigravityRelayRequest(value: unknown): AntigravityRelayRe
     if (value.kind !== 'antigravity_relay_request') { return undefined; }
     if (typeof value.requestId !== 'string' || !value.requestId.trim()) { return undefined; }
     if (typeof value.createdAt !== 'string' || !value.createdAt.trim()) { return undefined; }
+    if (typeof value.workspacePath !== 'string' || !value.workspacePath.trim()) { return undefined; }
+    if (typeof value.workspaceIdentity !== 'string' || !value.workspaceIdentity.trim()) { return undefined; }
     if (typeof value.playerAction !== 'string') { return undefined; }
     if (!isRecord(value.minimalContext)) { return undefined; }
     if (!Array.isArray(value.availableOptions)) { return undefined; }
@@ -96,6 +104,8 @@ export function parseAntigravityRelayRequest(value: unknown): AntigravityRelayRe
     return buildAntigravityRelayRequest({
         requestId: value.requestId.trim(),
         createdAt: value.createdAt,
+        workspacePath: value.workspacePath,
+        workspaceIdentity: value.workspaceIdentity,
         playerAction: value.playerAction,
         minimalContext: value.minimalContext,
         availableOptions: value.availableOptions,

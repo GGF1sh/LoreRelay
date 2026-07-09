@@ -389,13 +389,15 @@ export function buildAntigravityRelayPayload(
     trimmed: string,
     breakdown: any,
     availableOptions: string[],
-    relay?: { requestId?: string; createdAt?: string; targetOutput?: string }
+    relay?: { requestId?: string; createdAt?: string; targetOutput?: string; workspacePath?: string; workspaceIdentity?: string }
 ): any {
     return {
         kind: 'antigravity_relay_request',
         version: 1,
         requestId: relay?.requestId,
         createdAt: relay?.createdAt,
+        workspacePath: relay?.workspacePath,
+        workspaceIdentity: relay?.workspaceIdentity,
         playerAction: trimmed,
         promptContext: breakdown,
         availableOptions: availableOptions || [],

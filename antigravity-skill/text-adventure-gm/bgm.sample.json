@@ -1,0 +1,87 @@
+{
+  "_comment": "BGMマニフェストのサンプル。これを 'bgm.json' という名前でゲームのワークスペース直下にコピーし、file を自分の音源ファイル名に書き換えてください。音源は workspace 直下か bgm/ フォルダに置きます（.mp3/.ogg/.wav/.m4a）。",
+  "_howto": "GM は各ターンで game_state.json に \"bgm\": \"<id>\"（直接指定）または \"mood\": \"<mood>\"（ムードで自動選曲）を書き込みます。AI に判断させたい場合は description に曲の雰囲気を書いておくと、GM が状況に合わせて選びます。",
+  "defaultVolume": 50,
+  "tracks": [
+    {
+      "id": "title",
+      "file": "title.mp3",
+      "mood": "title,menu",
+      "description": "タイトル画面・メニュー。荘厳で期待感のある導入曲。",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "id": "town",
+      "file": "town.mp3",
+      "mood": "peaceful,town,safe,shop",
+      "description": "街・村・拠点。穏やかで生活感のある日常曲。安全地帯。",
+      "loop": true,
+      "volume": 0.9
+    },
+    {
+      "id": "field",
+      "file": "field.mp3",
+      "mood": "explore,travel,field,adventure",
+      "description": "フィールド・道中の探索。冒険的で軽快な移動曲。",
+      "loop": true,
+      "volume": 0.9
+    },
+    {
+      "id": "dungeon",
+      "file": "dungeon.mp3",
+      "mood": "dungeon,cave,dark,mystery",
+      "description": "ダンジョン・洞窟・遺跡。薄暗く不気味で緊張感のある探索曲。",
+      "loop": true,
+      "volume": 0.85
+    },
+    {
+      "id": "tension",
+      "file": "tension.mp3",
+      "mood": "tension,suspense,danger,stealth",
+      "description": "緊迫・潜入・危険が迫る場面。静かだが不安を煽る曲。",
+      "loop": true,
+      "volume": 0.85
+    },
+    {
+      "id": "battle",
+      "file": "battle.mp3",
+      "mood": "battle,combat,fight",
+      "description": "通常戦闘。激しくテンポの速いバトル曲。",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "id": "boss",
+      "file": "boss.mp3",
+      "mood": "boss,climax,desperate",
+      "description": "ボス戦・山場。重厚で絶望的な大型戦闘曲。",
+      "loop": true,
+      "volume": 1.0
+    },
+    {
+      "id": "victory",
+      "file": "victory.mp3",
+      "mood": "victory,win,fanfare",
+      "description": "勝利・達成。短い高揚感のあるファンファーレ。",
+      "loop": false,
+      "volume": 1.0
+    },
+    {
+      "id": "sad",
+      "file": "sad.mp3",
+      "mood": "sad,sorrow,loss,death",
+      "description": "悲しみ・喪失・別れ。しっとりと切ない曲。",
+      "loop": true,
+      "volume": 0.8
+    },
+    {
+      "id": "emotional",
+      "file": "emotional.mp3",
+      "mood": "emotional,touching,reunion,hope",
+      "description": "感動・再会・希望。心を打つ感情的な曲。",
+      "loop": true,
+      "volume": 0.85
+    }
+  ]
+}

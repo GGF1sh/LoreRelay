@@ -588,7 +588,7 @@
         "textAdventure.antigravityRelay.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable Antigravity Relay Mode to bypass local GM and copy prompt payload to clipboard."
+          "description": "Enable Antigravity Relay Mode to write a workspace request file for /text-adventure-gm, with clipboard payload fallback."
         },
         "textAdventure.gmBridge.agentic.enabled": {
           "type": "boolean",

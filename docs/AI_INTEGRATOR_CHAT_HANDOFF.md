@@ -1037,7 +1037,7 @@ Status:
 
 ```text
 DESIGN_READY
-no production implementation yet
+M1 is integrated separately; M2-M7 remain unstarted.
 ```
 
 Durable design:
@@ -1075,14 +1075,33 @@ Use Media Profiles + hardware tiers + AUTO among installed compatible profiles.
 Reference machine (e.g. 12GB NVIDIA class) is for built-in balanced defaults only.
 ```
 
-Next implementation (after Codex quota):
+M1 post-merge state:
 
 ```text
-M1  Compatibility Gate + Profile Spine
-    - block Anima × SDXL-simple illegal stacks before queue
-    - also reject incompatible profile/checkpoint inheritance into world-map generation
-      (full Cartography Profile integration remains M6)
+implementation: 046385f52a3f3f12ae1fc49aa9c46ae8798e2e60
+candidate report: e2297138f8cf042d7a40f6e109464814d8ddcc66
+independent verify: 18d81f90cc1004929f872214e8efd800c850802f
+main integration: 34fec195396ef5cad695f04bd5b67fb4822e520c
+normal gates: PASS, npm test 235/235 (run once)
+status: MEDIA_M1_POST_MERGE_FAILED
+blocker: required canonical Antigravity BAT exited non-zero because the live
+miya.lorerelay-1.77.15 directory was locked; copied target contents do not substitute
+for installer PASS.
+durable evidence: docs/ai-tasks/MEDIA-M1-POST-MERGE-SMOKE.md
+```
 
+Recovery sequence:
+
+```text
+1. Restart Antigravity IDE so the extension directory is released.
+2. Run C:\AI\text-adventure-vsce\install_extension_antigravity.bat again; require exit 0.
+3. Only then run and record the four M1 human smoke cases in MEDIA-M1-POST-MERGE-SMOKE.md.
+4. Do not mark M1 DONE before real human smoke. Do not begin M2-M7.
+```
+
+Remaining implementation sequence:
+
+```text
 M2  Media Intent + Prompt Compiler (scene / portrait)
 
 M3  visualIdentity Core (LOCAL only)

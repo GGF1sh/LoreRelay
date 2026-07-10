@@ -13,12 +13,18 @@ import { safeImageUri } from './gameStateSync';
 import {
     buildImageGenEnv,
     getImageOutputChannel,
+    reportMediaCompatibilityFailure,
     resolveComfyScript
 } from './imageGenRunner';
 import { loadImageGenConfig } from './imageGenConfig';
 import { t } from './i18n';
 import { spawn, ChildProcess } from 'child_process';
 import { resolvePythonCommand } from './skillScriptRunner';
+import {
+    executeAfterMediaPreflight,
+    preflightExpressionGeneration,
+    preflightPortraitGeneration,
+} from './mediaCompatibility';
 
 
 let portraitProcess: ChildProcess | undefined;
@@ -413,22 +419,33 @@ export async function generatePortrait(id: string): Promise<void> {
         return;
     }
 
-    const channel = getImageOutputChannel();
-    const env = buildImageGenEnv(wsPath);
     const portraitConfig = loadImageGenConfig(wsPath);
     const portraitMode = ['pony', 'illustrious', 'natural', 'standard'].includes(portraitConfig.mode)
         ? portraitConfig.mode
         : 'illustrious';
+    const preflight = preflightPortraitGeneration(
+        wsPath,
+        buildImageGenEnv(wsPath, portraitMode),
+        path.join(path.dirname(scriptPath), 'workflow_api.json')
+    );
+    if (!preflight.ok) {
+        reportMediaCompatibilityFailure(preflight);
+        return;
+    }
+    const channel = getImageOutputChannel();
 
     channel.show(true);
     channel.appendLine(`Generating portrait for ${char.name} in theme ${currentTheme}...`);
     getPanel()?.webview.postMessage({ type: 'imageGenStart' });
 
     const python = resolvePythonCommand();
-    const child = spawn(python, [scriptPath, prompt, charDir, portraitMode], {
-        shell: false,
-        env
-    });
+    const execution = executeAfterMediaPreflight(preflight, validatedEnv =>
+        spawn(python, [scriptPath, prompt, charDir, portraitMode], {
+            shell: false,
+            env: validatedEnv
+        }));
+    if (!execution.executed || !execution.value) { return; }
+    const child = execution.value;
     portraitProcess = child;
 
     let finished = false;
@@ -529,22 +546,33 @@ export async function generateExpression(id: string, expression: string): Promis
         return;
     }
 
-    const channel = getImageOutputChannel();
-    const env = buildImageGenEnv(wsPath);
     const portraitConfig = loadImageGenConfig(wsPath);
     const portraitMode = ['pony', 'illustrious', 'natural', 'standard'].includes(portraitConfig.mode)
         ? portraitConfig.mode
         : 'illustrious';
+    const preflight = preflightExpressionGeneration(
+        wsPath,
+        buildImageGenEnv(wsPath, portraitMode),
+        path.join(path.dirname(scriptPath), 'workflow_api.json')
+    );
+    if (!preflight.ok) {
+        reportMediaCompatibilityFailure(preflight);
+        return;
+    }
+    const channel = getImageOutputChannel();
 
     channel.show(true);
     channel.appendLine(`Generating "${expression}" expression for ${char.name} in theme ${currentTheme}...`);
     getPanel()?.webview.postMessage({ type: 'imageGenStart' });
 
     const python = resolvePythonCommand();
-    const child = spawn(python, [scriptPath, prompt, charDir, portraitMode], {
-        shell: false,
-        env
-    });
+    const execution = executeAfterMediaPreflight(preflight, validatedEnv =>
+        spawn(python, [scriptPath, prompt, charDir, portraitMode], {
+            shell: false,
+            env: validatedEnv
+        }));
+    if (!execution.executed || !execution.value) { return; }
+    const child = execution.value;
     expressionProcess = child;
 
     let finished = false;

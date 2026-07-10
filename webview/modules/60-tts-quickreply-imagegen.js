@@ -116,6 +116,8 @@ function applyImageGenConfigForm(config) {
     const el = document.getElementById(id);
     if (el) { el.value = value ?? ''; }
   };
+  setVal('ig-profile', config.profileId || '');
+  setVal('ig-model-family', config.modelFamily || 'unknown');
   setVal('ig-checkpoint', config.checkpoint || '');
   setVal('ig-mode', config.mode || 'illustrious');
   setVal('ig-steps', config.steps ?? 0);
@@ -145,6 +147,9 @@ function collectImageGenConfigFromForm() {
     return el ? String(el.value).trim() : '';
   };
   return {
+    version: 2,
+    profileId: str('ig-profile'),
+    modelFamily: str('ig-model-family') || 'unknown',
     checkpoint: str('ig-checkpoint'),
     mode: str('ig-mode') || 'illustrious',
     steps: num('ig-steps'),

@@ -909,6 +909,20 @@
     </div>
     <div class="img-gen-panel-body">
       <p class="img-gen-hint" data-i18n="webview.imageGen.hint">Saved to image_gen_config.json in your workspace. 0 = workflow default.</p>
+      <label data-i18n="webview.imageGen.profile">Media Profile</label>
+      <select id="ig-profile">
+        <option value="" data-i18n="webview.imageGen.profileUnresolved">Unresolved legacy/custom</option>
+        <option value="sdxl-illustrious-simple">SDXL Simple / Illustrious</option>
+        <option value="pony-sdxl-simple">Pony / SDXL Simple</option>
+        <option value="sdxl-generic-simple">SDXL Simple / Generic</option>
+      </select>
+      <label data-i18n="webview.imageGen.modelFamily">Checkpoint family</label>
+      <select id="ig-model-family">
+        <option value="unknown" data-i18n="webview.imageGen.familyUnknown">Unknown (generation blocked)</option>
+        <option value="sdxl">SDXL</option>
+        <option value="pony">Pony (SDXL-compatible)</option>
+        <option value="anima">Anima</option>
+      </select>
       <label data-i18n="webview.imageGen.checkpoint">Checkpoint</label>
       <input type="text" id="ig-checkpoint" class="img-gen-input" data-field="checkpoint" />
       <label data-i18n="webview.imageGen.mode">Mode</label>

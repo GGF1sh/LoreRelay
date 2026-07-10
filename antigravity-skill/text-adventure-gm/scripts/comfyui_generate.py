@@ -170,7 +170,16 @@ def main():
         print(f"Error: blocked output directory: {output_dir}", file=sys.stderr)
         sys.exit(1)
 
-    ws_config = _load_workspace_image_config()
+    # M1 host preflight is the compatibility authority. Once validated, do not
+    # re-resolve legacy workspace values and recreate a different stack here.
+    host_validated = os.environ.get("TA_MEDIA_PREFLIGHT", "").strip().lower() == "validated"
+    ws_config = {} if host_validated else _load_workspace_image_config()
+    if host_validated:
+        required_contract = ("TA_MEDIA_PROFILE_ID", "TA_MODEL_FAMILY", "TA_GRAPH_FAMILY", "TA_WORKFLOW")
+        missing_contract = [name for name in required_contract if not os.environ.get(name, "").strip()]
+        if missing_contract:
+            print(f"Error: incomplete validated media contract: {', '.join(missing_contract)}", file=sys.stderr)
+            sys.exit(1)
 
     # モードの取得 (デフォルトは illustrious)
     mode = sys.argv[3].lower() if len(sys.argv) >= 4 else ""
@@ -183,7 +192,7 @@ def main():
 
     workflow_path = WORKFLOW_PATH
     ws_workflow = str(ws_config.get("workflowPath", "")).strip()
-    if ws_workflow and os.path.isfile(ws_workflow):
+    if not host_validated and ws_workflow and os.path.isfile(ws_workflow):
         workflow_path = ws_workflow
 
     # 1. ワークフローの読み込み

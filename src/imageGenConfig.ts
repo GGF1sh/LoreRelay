@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { writeJsonAtomic } from './workspacePaths';
+import {
+    inferCheckpointFamilyHint,
+    inferLegacyProfileId,
+    type MediaModelFamily,
+    type MediaPromptMode,
+} from './mediaProfileCore';
 
 export interface ImageGenTemplates {
     scene: string;
@@ -10,7 +16,28 @@ export interface ImageGenTemplates {
 }
 
 export interface ImageGenConfig {
-    version: number;
+    version: 2;
+    profileId: string;
+    modelFamily: MediaModelFamily;
+    checkpoint: string;
+    workflowPath: string;
+    mode: string;
+    steps: number;
+    cfg: number;
+    width: number;
+    height: number;
+    samplerName: string;
+    scheduler: string;
+    positivePrefix: string;
+    positiveSuffix: string;
+    negativePrompt: string;
+    templates: ImageGenTemplates;
+    /** Exact sanitized v1 values retained for rollback and compatibility diagnostics. */
+    legacy?: LegacyImageGenConfig;
+}
+
+export interface LegacyImageGenConfig {
+    version: 1;
     checkpoint: string;
     workflowPath: string;
     mode: string;
@@ -31,7 +58,9 @@ const ALLOWED_MODES = ['pony', 'illustrious', 'natural', 'standard'] as const;
 export const IMAGE_GEN_CONFIG_FILENAME = 'image_gen_config.json';
 
 export const DEFAULT_IMAGE_GEN_CONFIG: ImageGenConfig = {
-    version: 1,
+    version: 2,
+    profileId: '',
+    modelFamily: 'unknown',
     checkpoint: '',
     workflowPath: '',
     mode: 'illustrious',
@@ -93,14 +122,11 @@ function sanitizeTemplates(input: unknown): ImageGenTemplates {
     };
 }
 
-/** Validate and normalize user/workspace image generation settings. */
-export function sanitizeImageGenConfig(input: unknown): ImageGenConfig {
-    const src = (input && typeof input === 'object') ? input as Record<string, unknown> : {};
+function sanitizeLegacyFields(src: Record<string, unknown>): LegacyImageGenConfig {
     const modeRaw = sanitizeStr(src.mode, 32, DEFAULT_IMAGE_GEN_CONFIG.mode).toLowerCase();
     const mode = (ALLOWED_MODES as readonly string[]).includes(modeRaw)
         ? modeRaw
         : DEFAULT_IMAGE_GEN_CONFIG.mode;
-
     return {
         version: 1,
         checkpoint: sanitizeStr(src.checkpoint, 512),
@@ -115,7 +141,34 @@ export function sanitizeImageGenConfig(input: unknown): ImageGenConfig {
         positivePrefix: sanitizeStr(src.positivePrefix, 4000),
         positiveSuffix: sanitizeStr(src.positiveSuffix, 4000),
         negativePrompt: sanitizeStr(src.negativePrompt, 4000),
-        templates: sanitizeTemplates(src.templates)
+        templates: sanitizeTemplates(src.templates),
+    };
+}
+
+function sanitizeModelFamily(value: unknown): MediaModelFamily {
+    return value === 'sdxl' || value === 'pony' || value === 'anima' ? value : 'unknown';
+}
+
+/** Validate and normalize user/workspace image generation settings. */
+export function sanitizeImageGenConfig(input: unknown): ImageGenConfig {
+    const src = (input && typeof input === 'object') ? input as Record<string, unknown> : {};
+    const values = sanitizeLegacyFields(src);
+    const isV2 = Number(src.version) === 2;
+    const retainedLegacy = isV2 && src.legacy && typeof src.legacy === 'object'
+        ? sanitizeLegacyFields(src.legacy as Record<string, unknown>)
+        : undefined;
+    const migratedFamily = inferCheckpointFamilyHint(values.checkpoint);
+    const modelFamily = isV2 ? sanitizeModelFamily(src.modelFamily) : migratedFamily;
+    const profileId = isV2
+        ? sanitizeStr(src.profileId, 80).toLowerCase()
+        : inferLegacyProfileId(values.checkpoint, values.mode as MediaPromptMode);
+
+    return {
+        ...values,
+        version: 2,
+        profileId,
+        modelFamily,
+        legacy: isV2 ? retainedLegacy : values,
     };
 }
 

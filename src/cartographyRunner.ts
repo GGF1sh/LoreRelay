@@ -22,6 +22,10 @@ import {
     resolveWorldMapImagePath as resolveWorldMapImagePathCore,
     resolveWorldMapLayoutPath as resolveWorldMapLayoutPathCore,
 } from './cartographyPathCore';
+import {
+    executeAfterMediaPreflight,
+    preflightWorldMapGeneration,
+} from './mediaCompatibility';
 
 export const WORLD_MAP_IMAGE_FILENAME = WORLD_MAP_IMAGE_BASENAME;
 export const WORLD_MAP_LAYOUT_FILENAME = WORLD_MAP_LAYOUT_BASENAME;
@@ -240,7 +244,20 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
     }
 
     const channel = getCartographyOutputChannel();
-    const env = buildCartographyEnv(wsPath, extPath);
+    const rawEnv = buildCartographyEnv(wsPath, extPath);
+    const workflowPath = String(rawEnv.TA_WORKFLOW || '');
+    const preflight = preflightWorldMapGeneration(wsPath, rawEnv, workflowPath);
+    if (!preflight.ok) {
+        channel.show(true);
+        channel.appendLine('[Compatibility] World-map generation rejected before layout/ComfyUI spawn.');
+        channel.appendLine(`[Compatibility] profile=${preflight.profileId || '(unresolved)'} model=${preflight.modelFamily} graph=${preflight.graphFamily}`);
+        for (const reason of preflight.reasons) {
+            channel.appendLine(`[Compatibility:${reason.code}] ${reason.message}${reason.detail ? ` (${reason.detail})` : ''}`);
+        }
+        vscode.window.showErrorMessage(t('extension.error.worldMapMediaCompatibility', { detail: preflight.message }));
+        return false;
+    }
+    const env = preflight.env;
 
     channel.show(true);
     channel.appendLine('=== Cartography world map generation ===');
@@ -281,10 +298,10 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
     let generatedImagePath = '';
     let genFinished = false;
 
-    const { child, result } = spawnWithTimeout(
+    const execution = executeAfterMediaPreflight(preflight, validatedEnv => spawnWithTimeout(
         python,
         [scriptPath, validatedForge, validatedOutputDir],
-        { env, timeoutMs: CARTOGRAPHY_TIMEOUT_MS },
+        { env: validatedEnv, timeoutMs: CARTOGRAPHY_TIMEOUT_MS },
         {
             stdout: (out) => {
                 channel.append(out);
@@ -297,7 +314,9 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
             },
             stderr: (err) => channel.append(err),
         }
-    );
+    ));
+    if (!execution.executed || !execution.value) { return false; }
+    const { child, result } = execution.value;
     cartographyProcess = child;
 
     return result.then(({ code, timedOut }) => {

@@ -32,6 +32,11 @@ import {
 } from './imageGenCircuitCore';
 import { formatModelSize, scanLocalModelRoots, type LocalModelFile } from './modelScanner';
 import { commitGameState } from './stateManager';
+import {
+    executeAfterMediaPreflight,
+    preflightSceneGeneration,
+    type MediaPreflightResult,
+} from './mediaCompatibility';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
@@ -41,6 +46,11 @@ interface ImageGenJob {
     prompt: string;
     mode: string;
     entryId?: string;
+}
+
+interface ImageExecutionOutcome {
+    success: boolean;
+    preflightRejected: boolean;
 }
 
 const imageGenQueue: ImageGenJob[] = [];
@@ -124,6 +134,19 @@ export function enqueueImageGeneration(prompt: string, mode: string, entryId?: s
         getImageOutputChannel().appendLine(`[Queue] Dropped image job — queue full (${getMaxImageQueueSize()})`);
         return false;
     }
+    const wsPath = getWorkspacePath();
+    const scriptPath = wsPath ? resolveComfyScript(wsPath) : undefined;
+    if (wsPath && scriptPath) {
+        const preflight = preflightSceneGeneration(
+            wsPath,
+            buildImageGenEnv(wsPath, mode),
+            path.join(path.dirname(scriptPath), 'workflow_api.json')
+        );
+        if (!preflight.ok) {
+            reportMediaCompatibilityFailure(preflight);
+            return false;
+        }
+    }
     imageGenQueue.push({ prompt, mode, entryId });
     if (entryId) {
         queuedEntryIds.add(entryId);
@@ -149,15 +172,17 @@ async function drainImageQueue(): Promise<void> {
             if (!job) {
                 break;
             }
-            let success = false;
+            let outcome: ImageExecutionOutcome = { success: false, preflightRejected: false };
             try {
-                success = await executeImageGeneration(job.prompt, job.mode, job.entryId, { fromQueue: true });
+                outcome = await executeImageGenerationOutcome(job.prompt, job.mode, job.entryId, { fromQueue: true });
             } catch (err) {
                 const detail = err instanceof Error ? err.message : String(err);
                 channel.appendLine(`[Queue] Image job error: ${detail}`);
-                success = false;
+                outcome = { success: false, preflightRejected: false };
             }
-            if (success) {
+            if (outcome.preflightRejected) {
+                channel.appendLine('[Compatibility] Queue job rejected without consuming circuit-breaker failure count.');
+            } else if (outcome.success) {
                 imageGenCircuit = recordImageGenSuccess(imageGenCircuit);
             } else {
                 const opened = recordImageGenFailure(imageGenCircuit, Date.now());
@@ -205,7 +230,7 @@ export function getSkillDir(): string | undefined {
 }
 
 /** 画像生成バックエンド設定を comfyui_generate.py へ渡す環境変数として構築する。 */
-export function buildImageGenEnv(wsPath?: string): NodeJS.ProcessEnv {
+export function buildImageGenEnv(wsPath?: string, requestedMode?: string): NodeJS.ProcessEnv {
     const vsConfig = vscode.workspace.getConfiguration('textAdventure');
     const env: NodeJS.ProcessEnv = { ...process.env };
     const wsConfig = wsPath ? loadImageGenConfig(wsPath) : undefined;
@@ -237,9 +262,22 @@ export function buildImageGenEnv(wsPath?: string): NodeJS.ProcessEnv {
     if (wsConfig?.positivePrefix) { env.TA_POSITIVE_PREFIX = wsConfig.positivePrefix; }
     if (wsConfig?.positiveSuffix) { env.TA_POSITIVE_SUFFIX = wsConfig.positiveSuffix; }
     if (wsConfig?.negativePrompt) { env.TA_NEGATIVE_PROMPT = wsConfig.negativePrompt; }
-    if (wsConfig?.mode) { env.TA_MODE = wsConfig.mode; }
+    if (requestedMode) { env.TA_MODE = requestedMode; }
+    else if (wsConfig?.mode) { env.TA_MODE = wsConfig.mode; }
 
     return env;
+}
+
+export function reportMediaCompatibilityFailure(preflight: MediaPreflightResult): void {
+    const channel = getImageOutputChannel();
+    channel.show(true);
+    channel.appendLine('[Compatibility] Media generation rejected before ComfyUI queue/spawn.');
+    channel.appendLine(`[Compatibility] profile=${preflight.profileId || '(unresolved)'} model=${preflight.modelFamily} graph=${preflight.graphFamily} kind=${preflight.mediaKind}`);
+    channel.appendLine(`[Compatibility] workflow=${preflight.workflowPath}`);
+    for (const reason of preflight.reasons) {
+        channel.appendLine(`[Compatibility:${reason.code}] ${reason.message}${reason.detail ? ` (${reason.detail})` : ''}`);
+    }
+    vscode.window.showErrorMessage(t('extension.error.mediaCompatibility', { detail: preflight.message }));
 }
 
 export function sendImageGenConfig(): void {
@@ -359,16 +397,16 @@ export function getResolvedImageMode(mode = ''): string {
 }
 
 /** Core ComfyUI spawn — returns success. Used by queue drain and direct calls. */
-export async function executeImageGeneration(
+async function executeImageGenerationOutcome(
     prompt: string,
     mode: string,
     entryId?: string,
     options?: { fromQueue?: boolean }
-): Promise<boolean> {
+): Promise<ImageExecutionOutcome> {
     const { getPanel } = requireDeps();
     const wsPath = getWorkspacePath();
     if (!wsPath) {
-        return false;
+        return { success: false, preflightRejected: false };
     }
 
     const safeMode = resolveImageMode(mode, wsPath);
@@ -379,11 +417,20 @@ export async function executeImageGeneration(
         if (!options?.fromQueue) {
             vscode.window.showWarningMessage(t('extension.error.imageScriptNotFound'));
         }
-        return false;
+        return { success: false, preflightRejected: false };
     }
 
     const channel = getImageOutputChannel();
-    const env = buildImageGenEnv(wsPath);
+    const preflight = preflightSceneGeneration(
+        wsPath,
+        buildImageGenEnv(wsPath, safeMode),
+        path.join(path.dirname(scriptPath), 'workflow_api.json')
+    );
+    if (!preflight.ok) {
+        reportMediaCompatibilityFailure(preflight);
+        return { success: false, preflightRejected: true };
+    }
+    const env = preflight.env;
     if (!options?.fromQueue) {
         channel.show(true);
     }
@@ -398,10 +445,10 @@ export async function executeImageGeneration(
     let generatedImagePath = '';
     let imageGenFinished = false;
 
-    const { child, result } = spawnWithTimeout(
+    const execution = executeAfterMediaPreflight(preflight, (validatedEnv) => spawnWithTimeout(
         python,
         [scriptPath, prompt, outputDir, safeMode],
-        { env, timeoutMs: IMAGE_GEN_TIMEOUT_MS },
+        { env: validatedEnv, timeoutMs: IMAGE_GEN_TIMEOUT_MS },
         {
             stdout: (out) => {
                 channel.append(out);
@@ -414,12 +461,16 @@ export async function executeImageGeneration(
             },
             stderr: (err) => channel.append(err),
         }
-    );
+    ));
+    if (!execution.executed || !execution.value) {
+        return { success: false, preflightRejected: true };
+    }
+    const { child, result } = execution.value;
     imageGenerationProcess = child;
 
     return result.then(({ code, timedOut }) => {
         if (imageGenFinished) {
-            return code === 0 && !timedOut;
+            return { success: code === 0 && !timedOut, preflightRejected: false };
         }
         imageGenFinished = true;
         imageGenerationProcess = undefined;
@@ -478,7 +529,7 @@ export async function executeImageGeneration(
         }
 
         void drainImageQueue();
-        return success;
+        return { success, preflightRejected: false };
     }).catch((err) => {
         imageGenerationProcess = undefined;
         const detail = err instanceof Error ? err.message : String(err);
@@ -492,8 +543,18 @@ export async function executeImageGeneration(
             imageGenCircuit = opened.state;
         }
         void drainImageQueue();
-        return false;
+        return { success: false, preflightRejected: false };
     });
+}
+
+/** Core ComfyUI spawn result for callers that only need success/failure. */
+export async function executeImageGeneration(
+    prompt: string,
+    mode: string,
+    entryId?: string,
+    options?: { fromQueue?: boolean }
+): Promise<boolean> {
+    return (await executeImageGenerationOutcome(prompt, mode, entryId, options)).success;
 }
 
 export async function runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void> {

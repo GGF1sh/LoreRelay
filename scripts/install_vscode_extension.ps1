@@ -133,7 +133,12 @@ try {
                             Write-Host "Folder copy: OK ($extDir)" -ForegroundColor Green
                             [void]$results.Add($result)
                         }
-                        return @($results)
+                        # NOTE: do not use @($results) here. On this Windows PowerShell 5.1 build,
+                        # wrapping a System.Collections.Generic.List[object] with the array
+                        # subexpression operator throws "Argument types do not match"
+                        # (System.ArgumentException) even when every element added successfully.
+                        # .ToArray() is the PS 5.1 / PS7-compatible way to get a stable array back.
+                        return $results.ToArray()
                     } finally {
                         Remove-PreparedVsixInstallContent -PreparedContent $prepared
                     }

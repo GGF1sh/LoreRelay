@@ -37,6 +37,7 @@ const JS_MODULE_ORDER = [
     '89c-vehicle-intent-preview.js',
     '89-vehicles.js',
     '89b-mobile-base-panel.js',
+    '89d-cinematic-mode.js',
     '90-bootstrap.js'
 ];
 
@@ -65,6 +66,7 @@ const CSS_MODULE_ORDER = [
     '98-settlement-isometric.css',
     '99-settlement-diorama.css',
     '89-vehicles.css',
+    '9a-cinematic-mode.css',
     '9b-genre-chrome.css'
 ];
 

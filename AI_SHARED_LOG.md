@@ -1,5 +1,19 @@
 # AI Shared Log
 
+## 2026-07-10 JST - Claude (Fable 5) - PLAY-UX-001 Cinematic Play Mode 実装完了（READY_FOR_VERIFY）
+
+- ChatGPT 起案の PLAY-UX-001（没入プレイモード）を Webview-only で実装。ヘッダー 🎬 で `body[data-play-mode="cinematic"]` トグル: 管理 UI 退避・シーン背景主役化・720px 明朝読書カラム・大型選択肢カード・ステータスピル（MutationObserver ミラー、postMessage ゼロ）・「⋯」ツール折りたたみ・Esc/⛶ 復帰・localStorage 永続・reduced-motion/狭幅対応。
+- 新規: `webview/styles/9a-cinematic-mode.css`（9b-genre-chrome の直前、genre chrome 最終位置契約は維持）+ `webview/modules/89d-cinematic-mode.js`（90-bootstrap の前）+ 契約スモーク `scripts/test_webview_cinematic_mode.js`。`index.html` はボタン+トップバー追加のみ、ホスト側 `src/**` は無変更。i18n 4キー×4ロケール同期。
+- 着手前に MEDIA-M1.1 系ブランチとの touch set 交差ゼロを確認（同系は webview/ を触らない）。`package.json` 版数は PR ベース運用のため未変更。
+- 検証: `npm test` 236/236、`check_i18n_keys` 0 missing、静的ハーネス（実 index.html + ComfyUI 実生成背景）で切替/復帰/永続/375px/1600px を実写確認。詳細と再現手順は `docs/ai-tasks/PLAY-UX-001-CINEMATIC-PLAY-MODE-RESULT.md`。
+- ブランチ: `ux/PLAY-UX-001-cinematic-play-mode`（worktree 分離、未マージ・PR 判断はユーザー/他プロセスへ）。
+
+### Files touched
+
+- `webview/styles/9a-cinematic-mode.css`(新規), `webview/modules/89d-cinematic-mode.js`(新規), `webview/index.html`, `scripts/build-webview.js`, `scripts/run_all_tests.js`, `scripts/test_webview_cinematic_mode.js`(新規), `locales/{ja,en,zh-CN,zh-TW}.json`, `docs/assets/screenshot-cinematic-mode.jpg`(新規), `docs/ai-tasks/PLAY-UX-001-CINEMATIC-PLAY-MODE-RESULT.md`(新規), `docs/generated/symbol_registry.json`, `docs/generated/SYMBOL_REGISTRY.md`, `CHANGELOG.md`, `AI_SHARED_LOG.md`
+
+---
+
 ## 2026-07-05 JST - Claude (Opus 4.8) - PROMPT-001A Architecture Gate（ChatGPT不在時の代行）
 
 - ChatGPT 5.5/5.4が利用不可のため、Architecture Gate Owner代理としてPROMPT-001A（Candidate→Budget→Delivered→Accepted→Consumed順序契約）を代行完了。実装は一切行わずGate設計のみ。

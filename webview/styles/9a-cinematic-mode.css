@@ -1,0 +1,328 @@
+/* =========================================================================
+   9a-cinematic-mode.css — Cinematic Play Mode (PLAY-UX-001)
+   =========================================================================
+   Presentation-only mode toggled via body[data-play-mode="cinematic"].
+   Turns the management console into a focused play surface:
+   scene art (bg-layer) becomes the hero, narrative gets a centered reading
+   column, choices become large cinematic cards, and all administration UI
+   (status tabs, quick-reply tools, header buttons) is hidden or collapsed
+   behind the "⋯" tools toggle. No state writes, no host wiring — everything
+   here layers on existing DOM driven by 10-game-state.js.
+   Bundled after 89-vehicles.css and before 9b-genre-chrome.css so genre
+   accents still decorate the mode.
+   ========================================================================= */
+
+/* ---------- Full-bleed stage: drop the console chrome ---------- */
+body[data-play-mode="cinematic"] #app {
+  padding: 0;
+  gap: 0;
+}
+
+body[data-play-mode="cinematic"] #status-area,
+body[data-play-mode="cinematic"] #resizer,
+body[data-play-mode="cinematic"] #chat-header {
+  display: none !important;
+}
+
+body[data-play-mode="cinematic"] #chat-area {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Top scrim: narrative scrolling under the floating topbar fades out
+   instead of colliding with the status pills. */
+body[data-play-mode="cinematic"] #chat-area::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  background: linear-gradient(180deg, rgba(8, 8, 16, 0.72) 0%, rgba(8, 8, 16, 0.35) 55%, transparent 100%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Scene art becomes the hero: lighter cinematic vignette instead of the
+   heavy console dim (00-base.css uses 0.7/0.85). Darkest at the bottom
+   where the reading column and choices sit. */
+body[data-play-mode="cinematic"] #bg-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(8, 8, 16, 0.30) 0%,
+    rgba(8, 8, 16, 0.42) 45%,
+    rgba(8, 8, 16, 0.66) 78%,
+    rgba(8, 8, 16, 0.82) 100%
+  );
+}
+
+body[data-play-mode="cinematic"] #sprite-layer.visible {
+  opacity: 1;
+  max-height: 78vh;
+}
+
+/* ---------- Floating top bar: status strip + tools + exit ---------- */
+/* Hidden entirely outside cinematic mode. */
+#cinematic-topbar {
+  display: none;
+}
+
+body[data-play-mode="cinematic"] #cinematic-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  padding: 10px 16px;
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 0.25s ease;
+}
+
+body[data-play-mode="cinematic"] #cinematic-topbar:hover,
+body[data-play-mode="cinematic"] #cinematic-topbar:focus-within {
+  opacity: 1;
+}
+
+#cinematic-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.cin-stat {
+  background: rgba(8, 10, 20, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 32vw;
+}
+
+/* Empty placeholders ("---") stay rendered but fade back. */
+.cin-stat.cin-stat-empty {
+  opacity: 0.35;
+}
+
+.cinematic-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.cinematic-topbar-actions .glass-btn {
+  background: rgba(8, 10, 20, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#cinematic-tools-btn[aria-expanded="true"] {
+  background: rgba(79, 142, 247, 0.35);
+  border-color: rgba(79, 142, 247, 0.55);
+}
+
+/* ---------- Reading column: long-form narrative first ---------- */
+body[data-play-mode="cinematic"] #chat-log {
+  /* Center a 720px column while keeping the scrollbar at the viewport edge. */
+  padding: 56px max(24px, calc((100% - 720px) / 2)) 20px;
+  gap: 20px;
+}
+
+body[data-play-mode="cinematic"] .msg {
+  animation-duration: 0.6s;
+}
+
+body[data-play-mode="cinematic"] .msg.gm {
+  max-width: 100%;
+  align-self: stretch;
+  background: rgba(4, 6, 14, 0.52);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  border: 1px solid rgba(124, 179, 255, 0.12);
+  border-left: 2px solid var(--gm-color);
+  border-radius: 14px;
+  padding: 20px 26px;
+  font-family: 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', 'Georgia', serif;
+  font-size: 15.5px;
+  line-height: 2.05;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+body[data-play-mode="cinematic"] .msg.user {
+  background: rgba(79, 142, 247, 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 13.5px;
+}
+
+body[data-play-mode="cinematic"] .msg.system {
+  background: rgba(10, 12, 22, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ---------- Choices: large cinematic cards pinned above the input ---------- */
+body[data-play-mode="cinematic"] #options-bar {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 10px 24px 4px;
+  gap: 10px;
+  background: transparent;
+  border-top: none;
+}
+
+body[data-play-mode="cinematic"] .option-btn {
+  text-align: left;
+  padding: 13px 20px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  border-radius: 11px;
+  background: rgba(10, 14, 28, 0.72);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  border: 1px solid rgba(124, 179, 255, 0.32);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+body[data-play-mode="cinematic"] .option-btn:hover {
+  background: rgba(79, 142, 247, 0.38);
+  border-color: rgba(124, 179, 255, 0.65);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(79, 142, 247, 0.28);
+}
+
+body[data-play-mode="cinematic"] .option-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Input: compact translucent strip in the same column ---------- */
+body[data-play-mode="cinematic"] #input-area {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto 14px;
+  box-sizing: border-box;
+  background: rgba(8, 10, 20, 0.66);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+}
+
+/* ---------- Secondary tools fold behind the "⋯" toggle ---------- */
+body[data-play-mode="cinematic"] #quick-reply-bar,
+body[data-play-mode="cinematic"] #authors-note-row {
+  display: none;
+}
+
+body[data-play-mode="cinematic"].cinematic-tools-open #quick-reply-bar {
+  display: flex;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: rgba(8, 10, 20, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 10px;
+}
+
+body[data-play-mode="cinematic"].cinematic-tools-open #authors-note-row {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ---------- Narrow widths: fall back to fluid column ---------- */
+@media (max-width: 760px) {
+  body[data-play-mode="cinematic"] #chat-log {
+    padding: 52px 14px 16px;
+  }
+
+  body[data-play-mode="cinematic"] #options-bar,
+  body[data-play-mode="cinematic"] #input-area {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .cin-stat {
+    max-width: 40vw;
+    font-size: 11px;
+  }
+}
+
+/* ---------- Very narrow panels: single-row scrollable strip, wrapping input ---------- */
+@media (max-width: 560px) {
+  body[data-play-mode="cinematic"] #cinematic-status-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body[data-play-mode="cinematic"] #cinematic-status-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  body[data-play-mode="cinematic"] .cin-stat {
+    flex-shrink: 0;
+    max-width: 52vw;
+  }
+
+  body[data-play-mode="cinematic"] #input-area {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- Short viewports: keep the narrative visible above the fold ---------- */
+@media (max-height: 620px) {
+  body[data-play-mode="cinematic"] .option-btn {
+    padding: 9px 16px;
+    font-size: 13.5px;
+  }
+
+  body[data-play-mode="cinematic"] #options-bar {
+    gap: 7px;
+    padding-top: 6px;
+  }
+
+  body[data-play-mode="cinematic"] #chat-log {
+    padding-top: 48px;
+  }
+}
+
+/* ---------- Reduced motion: no entrance animation, instant crossfades ---------- */
+@media (prefers-reduced-motion: reduce) {
+  body[data-play-mode="cinematic"] .msg {
+    animation: none;
+  }
+
+  body[data-play-mode="cinematic"] #cinematic-topbar {
+    transition: none;
+  }
+}

@@ -48,6 +48,9 @@
         <div id="experience-profile-wrap">
           <button id="experience-profile-btn" class="glass-btn" title="Parlor / Campaign">🎭</button>
         </div>
+        <div id="cinematic-mode-wrap">
+          <button id="cinematic-mode-btn" class="glass-btn" type="button" aria-pressed="false" data-i18n-title="webview.cinematic.enter" title="Cinematic play mode">🎬</button>
+        </div>
         <div id="parlor-settings-wrap" class="profile-parlor-only">
           <button id="parlor-settings-btn" class="glass-btn" data-i18n-title="webview.parlor.settingsTitle" title="Parlor Settings">🎛️</button>
         </div>
@@ -75,6 +78,17 @@
         </div>
       </div>
       <div id="chat-log"></div>
+      <div id="cinematic-topbar" aria-hidden="true">
+        <div id="cinematic-status-strip">
+          <span class="cin-stat cin-stat-empty" id="cin-stat-location">---</span>
+          <span class="cin-stat cin-stat-empty" id="cin-stat-time">---</span>
+          <span class="cin-stat cin-stat-empty" id="cin-stat-funds">---</span>
+        </div>
+        <div class="cinematic-topbar-actions">
+          <button type="button" id="cinematic-tools-btn" class="glass-btn" aria-expanded="false" data-i18n-title="webview.cinematic.tools" title="Tools">⋯</button>
+          <button type="button" id="cinematic-exit-btn" class="glass-btn" data-i18n-title="webview.cinematic.exit" title="Exit cinematic mode">⛶ <span data-i18n="webview.cinematic.exitLabel">管理画面</span></button>
+        </div>
+      </div>
       <div id="start-hub" class="start-hub hidden">
         <div id="genesis-hero" class="genesis-hero">
           <div class="genesis-hero-icon" aria-hidden="true">🌟</div>

@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Cinematic Play Mode（シアターモード） — PLAY-UX-001** (Claude Fable 5, Webview-only) — 実プレイ用の没入プレゼンテーションモード。ヘッダーの 🎬 ボタン（または保存済み設定の自動復元）で `body[data-play-mode="cinematic"]` に切替: 右ステータスパネル/リサイザー/ヘッダーを退避してシーン背景（`#bg-layer`）を主役に昇格（減光グラデーションをシネマティックなヴィネットに差し替え）、GM本文は中央720px読書カラム（明朝系セリフ・15.5px・行間2.05・長文日本語向け）、選択肢は下部の大型カード、入力欄は同カラム幅の半透明ストリップになる。場所/時刻/資金はフローティングトップバーのピルへ `MutationObserver` で受動ミラー（`10-game-state.js` 無変更・ホストへの postMessage ゼロ）。Undo/チェックポイント等の管理ツールは「⋯」トグルの背後に折りたたみ、⛶ボタンか Esc（IME合成中は無視）で管理画面へ復帰、状態は localStorage 永続。`prefers-reduced-motion` でメッセージ入場アニメ停止、狭幅(≤560px)はピル1行スクロール+入力折返し、低height(≤620px)は選択肢を圧縮。新規ファイルは `webview/styles/9a-cinematic-mode.css`（`9b-genre-chrome.css` の直前に連結、genre chrome 最終位置の契約維持）+ `webview/modules/89d-cinematic-mode.js`（`90-bootstrap.js` の前）のみ、`index.html` はトグルボタンとトップバーの追加だけ。全ルールを `body[data-play-mode]` スコープに閉じ込めているため通常モードの見た目は完全無変更。契約スモーク `scripts/test_webview_cinematic_mode.js` 追加（DOM/バンドル順序/presentation-only/ARIA/i18n 4ロケール）。スクリーンショット: `docs/assets/screenshot-cinematic-mode.jpg`。
+
 ## [1.78.0] - 2026-07-10
 
 ### Changed

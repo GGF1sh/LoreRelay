@@ -24,7 +24,7 @@
     ]
   },
   "counts": {
-    "total": 3919,
+    "total": 3924,
     "byBoundary": {
       "configuration": 88,
       "host": 697,
@@ -32,7 +32,7 @@
       "host-webview": 392,
       "pure-core": 2289,
       "schema-types": 32,
-      "webview": 369
+      "webview": 374
     },
     "byCategory": {
       "accepted-turn-replay-guard": 60,
@@ -248,7 +248,7 @@
       "vlm-provider": 1,
       "vlm-queue": 11,
       "vscode-lm-turn-result": 9,
-      "webview": 369,
+      "webview": 374,
       "webview-handlers": 19,
       "workspace-paths": 7,
       "workspace-state-queue": 33,
@@ -282,7 +282,7 @@
       "interface": 647,
       "messageType": 392,
       "type": 275,
-      "webviewFunction": 353,
+      "webviewFunction": 358,
       "windowApi": 16
     }
   },
@@ -40500,6 +40500,61 @@
       "sourcePath": "webview/modules/86c-settlement-diorama.js",
       "line": 815,
       "signature": "function initSettlementDioramaControls()",
+      "public": "module-top-level",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
+      "id": "webview:webviewFunction:webview/modules/89d-cinematic-mode.js:isCinematicModeActive",
+      "name": "isCinematicModeActive",
+      "kind": "webviewFunction",
+      "sourcePath": "webview/modules/89d-cinematic-mode.js",
+      "line": 15,
+      "signature": "function isCinematicModeActive()",
+      "public": "module-top-level",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
+      "id": "webview:webviewFunction:webview/modules/89d-cinematic-mode.js:setCinematicMode",
+      "name": "setCinematicMode",
+      "kind": "webviewFunction",
+      "sourcePath": "webview/modules/89d-cinematic-mode.js",
+      "line": 19,
+      "signature": "function setCinematicMode(on, manageFocus)",
+      "public": "module-top-level",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
+      "id": "webview:webviewFunction:webview/modules/89d-cinematic-mode.js:setCinematicToolsOpen",
+      "name": "setCinematicToolsOpen",
+      "kind": "webviewFunction",
+      "sourcePath": "webview/modules/89d-cinematic-mode.js",
+      "line": 37,
+      "signature": "function setCinematicToolsOpen(open)",
+      "public": "module-top-level",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
+      "id": "webview:webviewFunction:webview/modules/89d-cinematic-mode.js:syncCinematicStatusStrip",
+      "name": "syncCinematicStatusStrip",
+      "kind": "webviewFunction",
+      "sourcePath": "webview/modules/89d-cinematic-mode.js",
+      "line": 49,
+      "signature": "function syncCinematicStatusStrip()",
+      "public": "module-top-level",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
+      "id": "webview:webviewFunction:webview/modules/89d-cinematic-mode.js:initCinematicStatusObserver",
+      "name": "initCinematicStatusObserver",
+      "kind": "webviewFunction",
+      "sourcePath": "webview/modules/89d-cinematic-mode.js",
+      "line": 61,
+      "signature": "function initCinematicStatusObserver()",
       "public": "module-top-level",
       "boundary": "webview",
       "category": "webview"

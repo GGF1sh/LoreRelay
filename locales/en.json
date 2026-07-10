@@ -1485,5 +1485,9 @@
   "webview.world.tradeSell": "Sell",
   "webview.world.vehicleTileHint": "Vehicle and parking markers appear on the Tile map mode.",
   "webview.world.worldGenBusy": "⏳ Generating...",
-  "webview.world.worldGenFailed": "❌ Generate Failed — Retry"
+  "webview.world.worldGenFailed": "❌ Generate Failed — Retry",
+  "webview.cinematic.enter": "Cinematic play mode (focus on the story)",
+  "webview.cinematic.exit": "Return to the full console (Esc)",
+  "webview.cinematic.exitLabel": "Console",
+  "webview.cinematic.tools": "Tools (Undo, checkpoints, Author's Note...)"
 }

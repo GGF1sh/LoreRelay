@@ -1485,5 +1485,9 @@
   "webview.world.tradeSell": "売る",
   "webview.world.vehicleTileHint": "乗り物・駐車マーカーはタイル地図モードで表示されます。",
   "webview.world.worldGenBusy": "⏳ 生成中...",
-  "webview.world.worldGenFailed": "❌ 生成失敗 — 再試行"
+  "webview.world.worldGenFailed": "❌ 生成失敗 — 再試行",
+  "webview.cinematic.enter": "シアターモード（物語に集中するプレイ画面）",
+  "webview.cinematic.exit": "通常の管理画面に戻る (Esc)",
+  "webview.cinematic.exitLabel": "管理画面",
+  "webview.cinematic.tools": "ツール（Undo・チェックポイント・Author's Note など）"
 }

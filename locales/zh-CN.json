@@ -1485,5 +1485,9 @@
   "webview.world.tradeSell": "卖出",
   "webview.world.vehicleTileHint": "载具与停车标记仅在瓦片地图模式下显示。",
   "webview.world.worldGenBusy": "⏳ 生成中...",
-  "webview.world.worldGenFailed": "❌ 生成失败 — 重试"
+  "webview.world.worldGenFailed": "❌ 生成失败 — 重试",
+  "webview.cinematic.enter": "剧场模式（专注于故事的游玩界面）",
+  "webview.cinematic.exit": "返回完整管理界面 (Esc)",
+  "webview.cinematic.exitLabel": "管理界面",
+  "webview.cinematic.tools": "工具（撤销、检查点、Author's Note 等）"
 }

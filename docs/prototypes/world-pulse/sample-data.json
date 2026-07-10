@@ -1,0 +1,417 @@
+{
+  "format": "lorerelay-world-pulse-prototype/0.1",
+  "note": "Shapes mirror src/worldStateCore.ts (WorldState), src/worldEventLogCore.ts (WorldChangeEvent), src/chronicleCore.ts (ChronicleChapter), src/npcRegistryCore.ts (NpcEntry subset). Read-only sample data — no field invented that the extension does not already persist.",
+  "names": {
+    "world": "アルヴェリオン",
+    "factions": {
+      "silver_scale_guild": "銀天秤商会",
+      "royal_order": "王国聖騎士団",
+      "black_phosphor_pact": "黒燐同盟",
+      "sylvan_folk": "森の民"
+    },
+    "regions": {
+      "central_plains": "中央平原",
+      "mistpeak_mountains": "霧峰山地",
+      "dark_moor": "黒沼地",
+      "harbor_reach": "港湾都市圏"
+    },
+    "locations": {
+      "lumina_capital": "王都リュミナ",
+      "hallow_town": "宿場町ハロウ",
+      "versa_port": "港町ヴェルサ",
+      "gorge_fort": "山峡の砦",
+      "sylva_village": "森の集落シルヴァ"
+    },
+    "commodities": {
+      "wheat": "小麦",
+      "steel": "鋼",
+      "salt": "塩",
+      "herbs": "薬草"
+    }
+  },
+  "scenarios": {
+    "fresh": {
+      "label": "始まりの朝",
+      "sublabel": "EMPTY / PARTIAL DATA",
+      "description": "世界が生まれた直後。市場もNPC関係もまだ観測されていない。",
+      "playerLocationId": "hallow_town",
+      "worldTurn": 1,
+      "factions": {
+        "silver_scale_guild": { "power": 50, "morale": 60, "playerReputation": 0, "recentEvents": [] },
+        "royal_order": { "power": 55, "morale": 60, "playerReputation": 0, "recentEvents": [] }
+      },
+      "regions": {
+        "central_plains": { "dangerLevel": 1, "controllingFaction": "royal_order", "activeEvents": [] }
+      },
+      "globalEvents": [],
+      "recentChanges": [],
+      "questHooks": [],
+      "markets": null,
+      "marketPriceHistory": null,
+      "npcPositions": null,
+      "npcRelationships": null,
+      "npcFactionRelationships": null,
+      "npcFactionCohesion": null,
+      "npcMilestones": null,
+      "playerNpcMilestones": null,
+      "lastVisitTurnByLocation": null,
+      "npcs": {
+        "erila": { "name": "エリラ", "factionId": "silver_scale_guild", "locationId": "hallow_town", "playerTrust": 50, "mood": "neutral" }
+      },
+      "chronicleChapters": []
+    },
+    "quiet": {
+      "label": "静かな世界",
+      "sublabel": "QUIET WORLD",
+      "description": "特段の危機はない。それでも世界は小さく呼吸している。",
+      "playerLocationId": "hallow_town",
+      "worldTurn": 18,
+      "factions": {
+        "silver_scale_guild": { "power": 52, "morale": 66, "playerReputation": 12, "recentEvents": ["ハロウ宿場に定期隊商を再開した"] },
+        "royal_order": { "power": 58, "morale": 62, "playerReputation": 5, "recentEvents": [] },
+        "sylvan_folk": { "power": 40, "morale": 70, "playerReputation": 8, "recentEvents": ["春の祭礼の準備を始めた"] }
+      },
+      "regions": {
+        "central_plains": { "dangerLevel": 1, "controllingFaction": "royal_order", "activeEvents": [] },
+        "mistpeak_mountains": { "dangerLevel": 2, "controllingFaction": null, "activeEvents": [] },
+        "harbor_reach": { "dangerLevel": 1, "controllingFaction": "silver_scale_guild", "activeEvents": [] }
+      },
+      "globalEvents": [
+        { "id": "ge_spring_rites", "type": "social", "severity": "minor", "description": "春の祭礼が近づき、各地の集落で灯籠づくりが始まっている", "turnsRemaining": 4 }
+      ],
+      "recentChanges": [
+        { "id": "wce_16_resource_hallow_wheat", "worldTurn": 16, "source": "simulation", "category": "resource", "severity": "info", "locationId": "hallow_town", "message": "ハロウ宿場の小麦相場が落ち着き、平年並みに戻った" },
+        { "id": "wce_17_npc_erila_restock", "worldTurn": 17, "source": "simulation", "category": "npc", "severity": "info", "npcIds": ["erila"], "locationId": "versa_port", "message": "エリラは仕入れのため港町ヴェルサへ向かった" },
+        { "id": "wce_18_faction_sylvan_rites", "worldTurn": 18, "source": "simulation", "category": "faction", "severity": "info", "factionId": "sylvan_folk", "message": "森の民が春の祭礼の準備を始めた。シルヴァの集落は灯りに満ちている" }
+      ],
+      "questHooks": [
+        { "id": "qh_lantern_herbs", "title": "祭礼の薬草集め", "description": "春の祭礼に使う薬草をシルヴァの長老イェンナへ届ける", "source": "npc", "relatedId": "yenna", "status": "available", "turnGenerated": 15, "npcId": "yenna" }
+      ],
+      "markets": {
+        "hallow_town": { "wheat": { "stock": 42, "priceIndex": 1.02 }, "salt": { "stock": 18, "priceIndex": 0.98 } },
+        "versa_port": { "wheat": { "stock": 60, "priceIndex": 0.95 }, "steel": { "stock": 25, "priceIndex": 1.05 }, "salt": { "stock": 40, "priceIndex": 0.92 } }
+      },
+      "marketPriceHistory": {
+        "hallow_town": {
+          "wheat": [1.18, 1.15, 1.12, 1.1, 1.08, 1.06, 1.05, 1.04, 1.03, 1.02, 1.02, 1.02],
+          "salt": [1.0, 1.0, 0.99, 0.99, 0.98, 0.98, 0.98, 0.98, 0.98, 0.98, 0.98, 0.98]
+        },
+        "versa_port": {
+          "steel": [1.0, 1.0, 1.01, 1.02, 1.02, 1.03, 1.03, 1.04, 1.04, 1.05, 1.05, 1.05]
+        }
+      },
+      "npcPositions": {
+        "erila": { "locationId": "versa_port", "arrivesTurn": 19, "agenda": "restock_wheat", "reason": "ハロウの小麦在庫を補充するため" },
+        "gordon": { "locationId": "hallow_town", "arrivesTurn": 12 },
+        "yenna": { "locationId": "sylva_village", "arrivesTurn": 0 }
+      },
+      "npcRelationships": {
+        "erila|gordon": 38,
+        "erila|mira": 12,
+        "gordon|kai": -18
+      },
+      "npcFactionRelationships": {
+        "royal_order|silver_scale_guild": 22,
+        "silver_scale_guild|sylvan_folk": 10
+      },
+      "npcFactionCohesion": {
+        "silver_scale_guild": 55,
+        "royal_order": 62,
+        "sylvan_folk": 78
+      },
+      "npcMilestones": null,
+      "playerNpcMilestones": {
+        "gordon": ["trusted_companion"]
+      },
+      "lastVisitTurnByLocation": {
+        "versa_port": 11,
+        "sylva_village": 6
+      },
+      "npcs": {
+        "erila": { "name": "エリラ", "factionId": "silver_scale_guild", "locationId": "versa_port", "playerTrust": 62, "mood": "happy" },
+        "gordon": { "name": "鍛冶師ゴードン", "factionId": null, "locationId": "hallow_town", "playerTrust": 74, "mood": "neutral" },
+        "mira": { "name": "斥候ミラ", "factionId": "royal_order", "locationId": "lumina_capital", "playerTrust": 48, "mood": "neutral" },
+        "kai": { "name": "傭兵カイ", "factionId": null, "locationId": "hallow_town", "playerTrust": 35, "mood": "neutral" },
+        "yenna": { "name": "長老イェンナ", "factionId": "sylvan_folk", "locationId": "sylva_village", "playerTrust": 55, "mood": "happy" }
+      },
+      "chronicleChapters": [
+        {
+          "index": 1,
+          "title": "第1章 — 旅立ち",
+          "events": [
+            { "worldTurn": 2, "gmTurn": 2, "kind": "travel", "text": "宿場町ハロウに到着した" },
+            { "worldTurn": 5, "gmTurn": 5, "kind": "quest", "text": "クエスト完了: 迷子の荷馬車を護衛する" },
+            { "worldTurn": 9, "gmTurn": 8, "kind": "milestone", "text": "地図の発見: 霧峰山地", "regionId": "mistpeak_mountains" }
+          ]
+        },
+        {
+          "index": 2,
+          "title": "第2章 — 宿場の日々",
+          "events": [
+            { "worldTurn": 12, "gmTurn": 11, "kind": "combat", "text": "1d20+3=17 (夜盗の襲撃を退けた)" },
+            { "worldTurn": 14, "gmTurn": 13, "kind": "quest", "text": "クエスト完了: ゴードンの炉に火を入れ直す" },
+            { "worldTurn": 16, "gmTurn": 15, "kind": "world", "text": "ハロウ宿場の小麦相場が落ち着き、平年並みに戻った" }
+          ]
+        }
+      ]
+    },
+    "crisis": {
+      "label": "迫る危機",
+      "sublabel": "BUILDING CRISIS",
+      "description": "黒沼地の飢饉が連鎖を始めた。派閥の均衡が崩れつつある。",
+      "playerLocationId": "hallow_town",
+      "worldTurn": 47,
+      "factions": {
+        "silver_scale_guild": { "power": 47, "morale": 41, "playerReputation": 18, "recentEvents": ["黒沼地への隊商路を一時封鎖した", "護衛料の値上げを通告した"] },
+        "royal_order": { "power": 63, "morale": 55, "playerReputation": -4, "recentEvents": ["山峡の砦に増援を送った"] },
+        "black_phosphor_pact": { "power": 58, "morale": 72, "playerReputation": -35, "recentEvents": ["黒沼地の飢えた村々を「保護」下に置いた", "商会の隊商を二度襲撃した"] },
+        "sylvan_folk": { "power": 38, "morale": 48, "playerReputation": 8, "recentEvents": ["森の境界に見張りを増やした"] }
+      },
+      "regions": {
+        "central_plains": { "dangerLevel": 2, "controllingFaction": "royal_order", "activeEvents": ["ge_famine_spill"] },
+        "mistpeak_mountains": { "dangerLevel": 3, "controllingFaction": null, "activeEvents": [] },
+        "dark_moor": { "dangerLevel": 5, "controllingFaction": "black_phosphor_pact", "activeEvents": ["ge_moor_famine"] },
+        "harbor_reach": { "dangerLevel": 2, "controllingFaction": "silver_scale_guild", "activeEvents": [] }
+      },
+      "globalEvents": [
+        { "id": "ge_moor_famine", "type": "environmental", "severity": "major", "description": "黒沼地の飢饉 — 泥雨が三月続き、沼の集落から穀物が消えた。飢えた人々が平原へ流れ始めている", "turnsRemaining": 9 },
+        { "id": "ge_famine_spill", "type": "social", "severity": "moderate", "description": "飢饉の余波が中央平原へ波及。ハロウ周辺の街道に難民の野営が増えている", "turnsRemaining": 6 }
+      ],
+      "recentChanges": [
+        { "id": "wce_41_resource_moor_wheat", "worldTurn": 41, "source": "simulation", "category": "resource", "severity": "warning", "regionId": "dark_moor", "message": "黒沼地の小麦が枯渇。飢えが広がり始めた" },
+        { "id": "wce_42_faction_pact_protect", "worldTurn": 42, "source": "simulation", "category": "faction", "severity": "warning", "factionId": "black_phosphor_pact", "regionId": "dark_moor", "message": "黒燐同盟が飢えた村々を「保護」下に置いた。見返りは忠誠だという" },
+        { "id": "wce_43_resource_hallow_spike", "worldTurn": 43, "source": "simulation", "category": "resource", "severity": "warning", "locationId": "hallow_town", "message": "ハロウ宿場の小麦相場が急騰。難民の流入で在庫が細っている" },
+        { "id": "wce_44_faction_guild_route", "worldTurn": 44, "source": "simulation", "category": "faction", "severity": "warning", "factionId": "silver_scale_guild", "targetFactionId": "black_phosphor_pact", "message": "銀天秤商会が黒沼地への隊商路を封鎖。黒燐同盟は「兵糧攻めだ」と非難した" },
+        { "id": "wce_45_npc_kai_contract", "worldTurn": 45, "source": "simulation", "category": "npc", "severity": "info", "npcIds": ["kai"], "message": "傭兵カイが商会の護衛契約を受けた。報酬は前金だったらしい" },
+        { "id": "wce_46_faction_order_fort", "worldTurn": 46, "source": "simulation", "category": "faction", "severity": "warning", "factionId": "royal_order", "regionId": "mistpeak_mountains", "message": "聖騎士団が山峡の砦に増援を送った。峠道の検問が始まっている" },
+        { "id": "wce_47_region_moor_raid", "worldTurn": 47, "source": "simulation", "category": "region", "severity": "critical", "regionId": "dark_moor", "factionId": "black_phosphor_pact", "targetFactionId": "silver_scale_guild", "message": "黒燐同盟が商会の隊商を襲撃。護衛二名が死亡し、積み荷の小麦はすべて沼地へ運び去られた。商会は報復を宣言している" },
+        { "id": "wce_47_npc_mira_missing", "worldTurn": 47, "source": "simulation", "category": "npc", "severity": "warning", "npcIds": ["mira"], "message": "斥候ミラからの定時連絡が途絶えた。最後の報告は黒沼地の境界からだった" }
+      ],
+      "questHooks": [
+        { "id": "qh_escort_grain", "title": "穀物輸送の護衛", "description": "ハロウからヴェルサ経由で小麦を運ぶ隊商を護衛する。黒燐同盟の襲撃が予想される", "source": "campaign", "relatedId": "silver_scale_guild", "status": "available", "turnGenerated": 45, "factionId": "silver_scale_guild", "reward": "報酬200G + 商会評判" },
+        { "id": "qh_find_mira", "title": "消えた斥候", "description": "黒沼地の境界で消息を絶った斥候ミラを捜索する", "source": "npc", "relatedId": "mira", "status": "available", "turnGenerated": 47, "npcId": "mira" },
+        { "id": "qh_moor_relief", "title": "沼地への糧食", "description": "封鎖線を越えて黒沼地の村へ食料を届ける。商会と同盟、双方の目がある", "source": "event", "relatedId": "ge_moor_famine", "status": "active", "turnGenerated": 44 }
+      ],
+      "markets": {
+        "hallow_town": { "wheat": { "stock": 6, "priceIndex": 1.85 }, "salt": { "stock": 12, "priceIndex": 1.2 }, "herbs": { "stock": 20, "priceIndex": 1.1 } },
+        "versa_port": { "wheat": { "stock": 30, "priceIndex": 1.4 }, "steel": { "stock": 14, "priceIndex": 1.3 }, "salt": { "stock": 35, "priceIndex": 1.0 } },
+        "gorge_fort": { "steel": { "stock": 8, "priceIndex": 1.55 } }
+      },
+      "marketPriceHistory": {
+        "hallow_town": {
+          "wheat": [1.05, 1.08, 1.1, 1.12, 1.18, 1.22, 1.3, 1.38, 1.45, 1.52, 1.68, 1.85],
+          "salt": [1.0, 1.0, 1.02, 1.05, 1.05, 1.08, 1.1, 1.12, 1.12, 1.15, 1.18, 1.2]
+        },
+        "versa_port": {
+          "wheat": [0.95, 0.96, 0.98, 1.0, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4],
+          "steel": [1.05, 1.05, 1.08, 1.1, 1.12, 1.15, 1.18, 1.2, 1.22, 1.25, 1.28, 1.3]
+        },
+        "gorge_fort": {
+          "steel": [1.1, 1.12, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.52, 1.55]
+        }
+      },
+      "npcPositions": {
+        "erila": { "locationId": "hallow_town", "arrivesTurn": 46, "agenda": "seek_buyer", "reason": "封鎖で行き場を失った在庫を売るため" },
+        "gordon": { "locationId": "hallow_town", "arrivesTurn": 12 },
+        "kai": { "locationId": "versa_port", "arrivesTurn": 48, "agenda": "visit_ally", "reason": "商会の護衛契約のため" },
+        "yenna": { "locationId": "sylva_village", "arrivesTurn": 0 },
+        "veth": { "locationId": "dark_moor_unknown", "arrivesTurn": 47, "agenda": "flee_danger" }
+      },
+      "npcRelationships": {
+        "erila|gordon": 44,
+        "erila|kai": 31,
+        "erila|veth": -52,
+        "gordon|kai": -24,
+        "mira|veth": -78,
+        "kai|veth": -35,
+        "erila|mira": 18
+      },
+      "npcFactionRelationships": {
+        "black_phosphor_pact|silver_scale_guild": -72,
+        "black_phosphor_pact|royal_order": -48,
+        "royal_order|silver_scale_guild": 30,
+        "silver_scale_guild|sylvan_folk": 12
+      },
+      "npcFactionCohesion": {
+        "silver_scale_guild": 44,
+        "royal_order": 66,
+        "black_phosphor_pact": 81,
+        "sylvan_folk": 58
+      },
+      "npcMilestones": {
+        "mira|veth": ["bitter_enemies"]
+      },
+      "playerNpcMilestones": {
+        "gordon": ["trusted_companion"],
+        "veth": ["feared"]
+      },
+      "lastVisitTurnByLocation": {
+        "versa_port": 39,
+        "sylva_village": 28,
+        "gorge_fort": 33
+      },
+      "npcs": {
+        "erila": { "name": "エリラ", "factionId": "silver_scale_guild", "locationId": "hallow_town", "playerTrust": 68, "mood": "worried" },
+        "gordon": { "name": "鍛冶師ゴードン", "factionId": null, "locationId": "hallow_town", "playerTrust": 78, "mood": "worried" },
+        "mira": { "name": "斥候ミラ", "factionId": "royal_order", "locationId": null, "playerTrust": 52, "mood": "fearful" },
+        "kai": { "name": "傭兵カイ", "factionId": null, "locationId": "versa_port", "playerTrust": 41, "mood": "neutral" },
+        "yenna": { "name": "長老イェンナ", "factionId": "sylvan_folk", "locationId": "sylva_village", "playerTrust": 58, "mood": "sad" },
+        "veth": { "name": "密偵ヴェス", "factionId": "black_phosphor_pact", "locationId": null, "playerTrust": 15, "mood": "neutral" }
+      },
+      "chronicleChapters": [
+        {
+          "index": 3,
+          "title": "第3章 — 泥雨のはじまり",
+          "events": [
+            { "worldTurn": 34, "gmTurn": 30, "kind": "world", "text": "黒沼地で泥雨が降り続いている。街道の噂は暗い", "regionId": "dark_moor" },
+            { "worldTurn": 37, "gmTurn": 33, "kind": "quest", "text": "クエスト完了: 難民の子どもを家族の野営まで送り届けた" },
+            { "worldTurn": 39, "gmTurn": 35, "kind": "travel", "text": "港町ヴェルサを訪れた" }
+          ]
+        },
+        {
+          "index": 4,
+          "title": "第4章 — 封鎖線",
+          "events": [
+            { "worldTurn": 41, "gmTurn": 37, "kind": "world", "text": "黒沼地の小麦が枯渇。飢えが広がり始めた", "regionId": "dark_moor" },
+            { "worldTurn": 44, "gmTurn": 39, "kind": "world", "text": "銀天秤商会が黒沼地への隊商路を封鎖", "factionId": "silver_scale_guild" },
+            { "worldTurn": 45, "gmTurn": 41, "kind": "combat", "text": "1d20+5=9 (検問所での小競り合い — 辛くも切り抜けた)" },
+            { "worldTurn": 47, "gmTurn": 43, "kind": "world", "text": "黒燐同盟が商会の隊商を襲撃。護衛二名が死亡", "regionId": "dark_moor", "factionId": "black_phosphor_pact" }
+          ]
+        }
+      ]
+    },
+    "campaign": {
+      "label": "長い戦役",
+      "sublabel": "LONG CAMPAIGN — T128",
+      "description": "128ターン、三つの戦役を越えた世界。歴史は厚く、現在は静かに再編されつつある。",
+      "playerLocationId": "lumina_capital",
+      "worldTurn": 128,
+      "generateFillerChronicle": true,
+      "factions": {
+        "silver_scale_guild": { "power": 61, "morale": 70, "playerReputation": 55, "recentEvents": ["戦後復興の入札で主導権を握った"] },
+        "royal_order": { "power": 44, "morale": 52, "playerReputation": 38, "recentEvents": ["団長交代の内紛が収まりつつある"] },
+        "black_phosphor_pact": { "power": 21, "morale": 30, "playerReputation": -60, "recentEvents": ["残党が霧峰の洞窟群に潜伏している"] },
+        "sylvan_folk": { "power": 49, "morale": 82, "playerReputation": 71, "recentEvents": ["焼けた森の植林が三年目を迎えた"] }
+      },
+      "regions": {
+        "central_plains": { "dangerLevel": 1, "controllingFaction": "royal_order", "activeEvents": [] },
+        "mistpeak_mountains": { "dangerLevel": 3, "controllingFaction": null, "activeEvents": ["ge_pact_remnants"] },
+        "dark_moor": { "dangerLevel": 2, "controllingFaction": "silver_scale_guild", "activeEvents": [] },
+        "harbor_reach": { "dangerLevel": 1, "controllingFaction": "silver_scale_guild", "activeEvents": [] }
+      },
+      "globalEvents": [
+        { "id": "ge_pact_remnants", "type": "military", "severity": "moderate", "description": "黒燐同盟の残党が霧峰山地の洞窟群に潜伏。峠の隊商がまれに姿を目撃している", "turnsRemaining": null },
+        { "id": "ge_reconstruction", "type": "political", "severity": "minor", "description": "黒沼地の戦後復興が進む。商会主導の干拓事業に王都から監査が入った", "turnsRemaining": 12 }
+      ],
+      "recentChanges": [
+        { "id": "wce_121_faction_guild_bid", "worldTurn": 121, "source": "simulation", "category": "faction", "severity": "info", "factionId": "silver_scale_guild", "message": "銀天秤商会が黒沼地復興の入札で主導権を握った" },
+        { "id": "wce_123_region_mist_sighting", "worldTurn": 123, "source": "simulation", "category": "region", "severity": "warning", "regionId": "mistpeak_mountains", "factionId": "black_phosphor_pact", "message": "霧峰の峠で黒燐同盟の残党らしき一団が目撃された。隊商は迂回路を使い始めている" },
+        { "id": "wce_124_npc_erila_guildmaster", "worldTurn": 124, "source": "simulation", "category": "npc", "severity": "info", "npcIds": ["erila"], "message": "エリラが商会ハロウ支部の支部長に就任した。あの行商人が、である" },
+        { "id": "wce_126_faction_order_succession", "worldTurn": 126, "source": "simulation", "category": "faction", "severity": "warning", "factionId": "royal_order", "message": "聖騎士団の団長交代を巡る内紛が表面化。若手将校たちは戦役の英雄ミラを推している" },
+        { "id": "wce_127_resource_moor_reclaim", "worldTurn": 127, "source": "simulation", "category": "resource", "severity": "info", "regionId": "dark_moor", "message": "干拓された黒沼地で最初の収穫があった。かつて飢饉の地だった場所に、小麦が実っている。復興事業に携わった者たちは皆、あの泥雨の三月を覚えているという。長かった戦役の傷は、こうして少しずつ土に還っていく" },
+        { "id": "wce_128_npc_veth_pardon", "worldTurn": 128, "source": "gm", "category": "npc", "severity": "warning", "npcIds": ["veth"], "message": "元密偵ヴェスの恩赦嘆願が王都で審理入り。証言台にはあなたの名前が挙がっている" }
+      ],
+      "questHooks": [
+        { "id": "qh_remnant_caves", "title": "霧峰の残党", "description": "峠を脅かす黒燐同盟残党の拠点を突き止める", "source": "campaign", "relatedId": "royal_order", "status": "available", "turnGenerated": 123, "factionId": "royal_order" },
+        { "id": "qh_veth_testimony", "title": "ヴェスの証言台", "description": "元密偵ヴェスの恩赦審理で証言する。かつての敵を赦すかどうかは、あなた次第だ", "source": "npc", "relatedId": "veth", "status": "available", "turnGenerated": 128, "npcId": "veth" }
+      ],
+      "markets": {
+        "lumina_capital": { "wheat": { "stock": 80, "priceIndex": 0.96 }, "steel": { "stock": 45, "priceIndex": 1.02 }, "salt": { "stock": 60, "priceIndex": 0.94 }, "herbs": { "stock": 30, "priceIndex": 1.0 } },
+        "hallow_town": { "wheat": { "stock": 55, "priceIndex": 0.98 }, "salt": { "stock": 30, "priceIndex": 0.97 } },
+        "versa_port": { "wheat": { "stock": 70, "priceIndex": 0.92 }, "steel": { "stock": 38, "priceIndex": 1.08 }, "salt": { "stock": 50, "priceIndex": 0.9 } },
+        "gorge_fort": { "steel": { "stock": 20, "priceIndex": 1.18 } }
+      },
+      "marketPriceHistory": {
+        "lumina_capital": {
+          "wheat": [1.02, 1.01, 1.0, 1.0, 0.99, 0.98, 0.98, 0.97, 0.97, 0.96, 0.96, 0.96],
+          "steel": [1.0, 1.0, 1.01, 1.01, 1.02, 1.02, 1.02, 1.02, 1.02, 1.02, 1.02, 1.02]
+        },
+        "gorge_fort": {
+          "steel": [1.05, 1.05, 1.06, 1.08, 1.08, 1.1, 1.1, 1.12, 1.12, 1.15, 1.16, 1.18]
+        },
+        "versa_port": {
+          "wheat": [0.95, 0.95, 0.94, 0.94, 0.93, 0.93, 0.93, 0.92, 0.92, 0.92, 0.92, 0.92]
+        }
+      },
+      "npcPositions": {
+        "erila": { "locationId": "hallow_town", "arrivesTurn": 124 },
+        "gordon": { "locationId": "lumina_capital", "arrivesTurn": 120, "agenda": "visit_ally", "reason": "王都の武具展に招かれて" },
+        "mira": { "locationId": "lumina_capital", "arrivesTurn": 126 },
+        "kai": { "locationId": "gorge_fort", "arrivesTurn": 125, "agenda": "restock_steel" },
+        "yenna": { "locationId": "sylva_village", "arrivesTurn": 0 },
+        "veth": { "locationId": "lumina_capital", "arrivesTurn": 127 },
+        "rico": { "locationId": "versa_port", "arrivesTurn": 122 }
+      },
+      "npcRelationships": {
+        "erila|gordon": 74,
+        "erila|kai": 55,
+        "erila|mira": 42,
+        "gordon|kai": 12,
+        "mira|veth": -44,
+        "kai|veth": 8,
+        "erila|veth": -20,
+        "mira|kai": 61,
+        "rico|erila": 28,
+        "gordon|yenna": 36
+      },
+      "npcFactionRelationships": {
+        "black_phosphor_pact|silver_scale_guild": -55,
+        "black_phosphor_pact|royal_order": -62,
+        "royal_order|silver_scale_guild": 18,
+        "silver_scale_guild|sylvan_folk": 45,
+        "royal_order|sylvan_folk": 25
+      },
+      "npcFactionCohesion": {
+        "silver_scale_guild": 72,
+        "royal_order": 38,
+        "black_phosphor_pact": 25,
+        "sylvan_folk": 85
+      },
+      "npcMilestones": {
+        "erila|gordon": ["sworn_allies"],
+        "mira|veth": ["bitter_enemies", "reconciled"],
+        "mira|kai": ["sworn_allies"]
+      },
+      "playerNpcMilestones": {
+        "gordon": ["trusted_companion"],
+        "erila": ["trusted_companion"],
+        "mira": ["trusted_companion"],
+        "veth": ["nemesis", "estrangement"]
+      },
+      "lastVisitTurnByLocation": {
+        "hallow_town": 119,
+        "versa_port": 102,
+        "sylva_village": 96,
+        "gorge_fort": 88,
+        "dark_moor": 110
+      },
+      "npcs": {
+        "erila": { "name": "エリラ", "factionId": "silver_scale_guild", "locationId": "hallow_town", "playerTrust": 88, "mood": "happy" },
+        "gordon": { "name": "鍛冶師ゴードン", "factionId": null, "locationId": "lumina_capital", "playerTrust": 92, "mood": "excited" },
+        "mira": { "name": "斥候ミラ", "factionId": "royal_order", "locationId": "lumina_capital", "playerTrust": 81, "mood": "worried" },
+        "kai": { "name": "傭兵カイ", "factionId": null, "locationId": "gorge_fort", "playerTrust": 66, "mood": "neutral" },
+        "yenna": { "name": "長老イェンナ", "factionId": "sylvan_folk", "locationId": "sylva_village", "playerTrust": 79, "mood": "happy" },
+        "veth": { "name": "ヴェス", "factionId": null, "locationId": "lumina_capital", "playerTrust": 33, "mood": "fearful" },
+        "rico": { "name": "吟遊詩人リコ", "factionId": null, "locationId": "versa_port", "playerTrust": 57, "mood": "happy" }
+      },
+      "majorArcs": [
+        { "id": "arc_moor_famine_war", "title": "黒沼飢饉戦役", "fromTurn": 34, "toTurn": 62, "summary": "泥雨の飢饉から始まり、黒燐同盟との全面衝突へ。封鎖、襲撃、そして沼の会戦。同盟の敗走で終わった", "kind": "war", "eventCount": 87 },
+        { "id": "arc_mist_purge", "title": "霧峰掃討", "fromTurn": 63, "toTurn": 84, "summary": "敗走した同盟残党を追う山岳戦。ミラとヴェスの因縁がここで和解に転じた", "kind": "war", "eventCount": 54 },
+        { "id": "arc_reconstruction", "title": "復興の三年", "fromTurn": 85, "toTurn": 128, "summary": "黒沼地の干拓と森の植林。剣の時代から帳簿の時代へ", "kind": "peace", "eventCount": 112 }
+      ],
+      "chronicleChapters": [
+        {
+          "index": 24,
+          "title": "第24章 — 帳簿の時代",
+          "events": [
+            { "worldTurn": 121, "gmTurn": 118, "kind": "world", "text": "銀天秤商会が黒沼地復興の入札で主導権を握った", "factionId": "silver_scale_guild" },
+            { "worldTurn": 124, "gmTurn": 120, "kind": "milestone", "text": "エリラが商会ハロウ支部の支部長に就任" },
+            { "worldTurn": 126, "gmTurn": 122, "kind": "world", "text": "聖騎士団の団長交代を巡る内紛が表面化", "factionId": "royal_order" },
+            { "worldTurn": 127, "gmTurn": 123, "kind": "world", "text": "干拓された黒沼地で最初の収穫", "regionId": "dark_moor" },
+            { "worldTurn": 128, "gmTurn": 124, "kind": "world", "text": "ヴェスの恩赦嘆願が王都で審理入り" }
+          ]
+        }
+      ]
+    }
+  }
+}

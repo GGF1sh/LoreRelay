@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>World Pulse — LoreRelay UXプロトタイプ (WORLD-PULSE-001)</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-tension="calm">
+
+<a class="skip-link" href="#now">「いま」へスキップ</a>
+
+<!-- ============ HEADER ============ -->
+<header class="pulse-header" role="banner">
+  <div class="pulse-brand">
+    <svg class="pulse-mark" viewBox="0 0 120 28" aria-hidden="true" focusable="false">
+      <polyline class="pulse-line" points="0,14 28,14 36,14 42,4 50,24 58,10 63,17 68,14 120,14"
+        fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div class="pulse-title-block">
+      <h1 class="pulse-title">WORLD PULSE</h1>
+      <p class="pulse-subtitle"><span id="world-name">—</span> <span class="turn-chip" id="turn-chip">T0</span></p>
+    </div>
+  </div>
+
+  <div class="tension-block" aria-live="polite">
+    <span class="tension-label">世界の脈</span>
+    <span class="tension-word" id="tension-word">静穏</span>
+  </div>
+
+  <nav class="scenario-tabs" aria-label="プロトタイプ・シナリオ切替">
+    <span class="scenario-tabs-note">シナリオ（試作用）</span>
+    <div role="tablist" id="scenario-tablist" aria-label="シナリオ">
+      <!-- tabs injected by prototype.js -->
+    </div>
+  </nav>
+</header>
+
+<p class="readonly-banner" role="note">
+  <span class="readonly-icon" aria-hidden="true">👁</span>
+  この画面は<strong>閲覧専用</strong>です。世界の状態を変更したり、出来事を作り出したりすることはありません。
+  <button class="legend-toggle" id="legend-toggle" aria-expanded="false" aria-controls="provenance-legend">記号の見かた</button>
+</p>
+
+<div class="provenance-legend" id="provenance-legend" hidden>
+  <dl>
+    <div><dt><span class="prov prov-fact">事実</span></dt><dd>シミュレーションが記録した出来事・数値そのもの。</dd></div>
+    <div><dt><span class="prov prov-derived">兆候</span></dt><dd>記録された事実からこの画面が読み取った傾向。世界の正史ではありません。</dd></div>
+    <div><dt><span class="prov prov-uncertain">不確か</span></dt><dd>情報が欠けている、または信頼できる観測がない部分。</dd></div>
+  </dl>
+</div>
+
+<main id="main">
+
+  <!-- ============ NOW ============ -->
+  <section class="section section-now" id="now" aria-labelledby="now-heading">
+    <h2 class="section-heading" id="now-heading"><span class="section-kana">いま</span><span class="section-en">NOW</span></h2>
+    <div class="now-cards" id="now-cards"></div>
+  </section>
+
+  <!-- ============ RISING / PEOPLE / PLACES ============ -->
+  <div class="tri-grid">
+    <section class="section" id="rising" aria-labelledby="rising-heading">
+      <h2 class="section-heading" id="rising-heading"><span class="section-kana">高まるもの</span><span class="section-en">RISING</span></h2>
+      <div class="stack" id="rising-list"></div>
+    </section>
+
+    <section class="section" id="people" aria-labelledby="people-heading">
+      <h2 class="section-heading" id="people-heading"><span class="section-kana">ひとびと</span><span class="section-en">PEOPLE</span></h2>
+      <div class="stack" id="people-list"></div>
+    </section>
+
+    <section class="section" id="places" aria-labelledby="places-heading">
+      <h2 class="section-heading" id="places-heading"><span class="section-kana">場所</span><span class="section-en">PLACES</span></h2>
+      <div class="stack" id="places-list"></div>
+    </section>
+  </div>
+
+  <!-- ============ CHRONICLE ============ -->
+  <section class="section section-chronicle" id="chronicle" aria-labelledby="chronicle-heading">
+    <h2 class="section-heading" id="chronicle-heading"><span class="section-kana">年代記</span><span class="section-en">CHRONICLE</span></h2>
+    <div class="arcs-strip" id="arcs-strip"></div>
+    <div class="chronicle-lanes">
+      <div class="chronicle-recent" id="chronicle-recent"></div>
+      <div class="chronicle-chapters" id="chronicle-chapters"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="pulse-footer">
+  <p>WORLD-PULSE-001 高忠実度UXプロトタイプ — LoreRelayの既存ワールド状態（world_state / npc_registry / chronicle）を読み取り専用で解釈する提案画面。実装は含まれていません。</p>
+</footer>
+
+<!-- ============ DETAIL DRAWER ============ -->
+<div class="drawer-scrim" id="drawer-scrim" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <header class="drawer-header">
+    <h3 id="drawer-title">詳細</h3>
+    <button class="drawer-close" id="drawer-close" aria-label="閉じる">✕</button>
+  </header>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<div class="load-error" id="load-error" hidden>
+  <h2>データを読み込めませんでした</h2>
+  <p>このプロトタイプは <code>sample-data.json</code> を読み込みます。ローカルサーバー経由で開いてください:</p>
+  <pre>cd docs/prototypes/world-pulse
+python -m http.server 8765
+# → http://localhost:8765</pre>
+</div>
+
+<script src="prototype.js"></script>
+</body>
+</html>

@@ -51,12 +51,21 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 4. **キャッチアッププロンプト** — `VSCODE_CHATGPT_CATCHUP.md`
 5. **履歴ドキュメント** — 版番号を「最新」と書き換えるのではなく、先頭に「アーキテクチャ参考・現行は CHANGELOG」と注記
 
-## 現行（手動更新: 2026-07-04）
+## バージョニングルール（INSTALLER-RELEASE-001 で追加）
+
+版番号を上げる/上げない判断はこのルールに従う。`check_version_consistency.js` は数値の一致だけを機械的に検証するため、いつ上げるかはこのルールが正本。
+
+- **patch bump**（例: 1.78.0 → 1.78.1）— リリース対象の repair-only ビルド（バグ修正・インストーラー修正など、後方互換の挙動変更を伴わないもの）。
+- **minor bump**（例: 1.77.15 → 1.78.0）— 後方互換の feature phase（例: MEDIA-M1 Compatibility Gate + Profile Spine）。
+- **人間スモーク対象の候補ビルド**が main に統合される場合、直前に出荷/テスト済みだった候補より **新しいバージョン識別子**を必ず持つこと（同一版で異なる中身の VSIX が生まれるのを防ぐ）。
+- **docs-only のコミット**（レビュー記録・ハンドオフドキュメントなど、`src/` やパッケージ内容に影響しないもの）ではバージョンを上げない。
+
+## 現行（手動更新: 2026-07-10, INSTALLER-RELEASE-001）
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.77.15** |
-| CHANGELOG 先頭 | **[1.77.15]** Debug Trace retention + coalesce + live run |
+| `package.json` | **1.78.0** |
+| CHANGELOG 先頭 | **[1.78.0]** MEDIA-M1 Compatibility Gate + Profile Spine · Antigravity direct-folder fallback false-failure fix |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
 | World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |
@@ -64,6 +73,7 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Guild Master (F11) | **G1–G4 完了** (v1.41.0–v1.44.1) · v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
 | Living World (履歴) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
-| Debug Trace | P1 contracts (v1.77.14) · **retention/coalesce/live run** (v1.77.15) · Inspector UI Phase B + UX polish |
+| Debug Trace | P1 contracts (v1.77.14) · retention/coalesce/live run (v1.77.15) · Inspector UI Phase B + UX polish |
+| MEDIA-M1 | Compatibility Gate + Media Profile Spine（v1.78.0）· 独立敵対的検証 PASS（`docs/ai-tasks/MEDIA-M1-INDEPENDENT-VERIFY.md`）· post-merge installer smoke は INSTALLER-RELEASE-001 待ち |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
-| テスト | `npm test` **209/209**（`check_version_consistency.js` 含む · simulation batch は二重実行なし） |
+| テスト | `npm test` — 本タスクでの実測値は `docs/ai-tasks/INSTALLER-RELEASE-001-FALLBACK-VERSIONING.md` を参照（`check_version_consistency.js` 含む · simulation batch は二重実行なし） |

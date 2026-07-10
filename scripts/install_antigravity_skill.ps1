@@ -66,6 +66,18 @@ if (-not (Test-Path $targetParentDir)) {
 Write-Host (Get-Loc 'gm_installing' 'Installing GM skill...')
 try {
     Install-SkillFolderAtomic -SourceDir $sourceDir -TargetDir $targetDir
+
+    # Mandatory post-install verification: the installed SKILL.md must be a byte-exact
+    # copy of the repo-owned source. A stale/mismatched/missing installed Skill fails here,
+    # so a canonical install can never report success against a drifted Skill.
+    $sourceSkillMd = Join-Path $sourceDir 'SKILL.md'
+    $installedSkillMd = Join-Path $targetDir 'SKILL.md'
+    $verifiedHash = Assert-InstalledSkillMatchesSource `
+        -SourceSkillMd $sourceSkillMd `
+        -InstalledSkillMd $installedSkillMd `
+        -TargetDir $targetDir
+    Write-Host ((Get-Loc 'gm_verified' 'Verified installed SKILL.md matches repo source (sha256: {0}).') -f $verifiedHash) -ForegroundColor DarkGray
+
     Write-Host ''
     Write-Host (Get-Loc 'gm_success' 'GM skill installation completed successfully!') -ForegroundColor Green
     Write-Host (Get-Loc 'gm_success_hint' 'You can now use this skill via Antigravity.') -ForegroundColor Green

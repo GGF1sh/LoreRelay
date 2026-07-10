@@ -222,6 +222,34 @@ function Install-SkillFolderAtomic {
     if (Test-Path $backupDir) { Remove-Item -LiteralPath $backupDir -Recurse -Force }
 }
 
+# Mandatory canonical install gate (MEDIA-M1.1 repair): after a Skill target is installed,
+# the installed SKILL.md must be a byte-exact copy of the repo-owned source SKILL.md.
+# A missing or mismatched installed SKILL.md must fail the installer nonzero so a stale
+# Skill can never survive a green canonical install. Returns the verified SHA-256 on success.
+function Assert-InstalledSkillMatchesSource {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceSkillMd,
+        [Parameter(Mandatory = $true)][string]$InstalledSkillMd,
+        [Parameter(Mandatory = $true)][string]$TargetDir
+    )
+
+    if (-not (Test-Path -LiteralPath $SourceSkillMd)) {
+        throw "Source SKILL.md not found for verification: $SourceSkillMd"
+    }
+    if (-not (Test-Path -LiteralPath $InstalledSkillMd)) {
+        throw "Installed SKILL.md is missing after install (target: $TargetDir). Expected file: $InstalledSkillMd"
+    }
+
+    $sourceHash = Get-FileSha256 -Path $SourceSkillMd
+    $installedHash = Get-FileSha256 -Path $InstalledSkillMd
+    if ($sourceHash -ne $installedHash) {
+        throw ("Installed SKILL.md does not match repo-owned source. " +
+            "source=$sourceHash installed=$installedHash target=$TargetDir")
+    }
+
+    return $installedHash
+}
+
 function Expand-ArchiveSafe {
     param(
         [Parameter(Mandatory = $true)][string]$ZipPath,

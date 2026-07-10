@@ -265,22 +265,25 @@ exit /b 0
     Assert-True (-not $noThrowFailed) "D: fallback-style List[object] aggregation via .ToArray() does not throw ($noThrowMessage)"
 
     # --- INSTALLER-RELEASE-001: version-aware VSIX naming + extracted package identity ---
+    # Version-agnostic: the exact number is validated by check_version_consistency.js; here we
+    # only prove the VSIX naming/extraction round-trips whatever package.json currently declares,
+    # so a later version bump does not falsely fail this installer test.
     $pkgJson = Get-Content -LiteralPath (Join-Path $repoRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $currentPackageVersion = ([string]$pkgJson.version).Trim()
-    Assert-Equal $currentPackageVersion '1.78.0' 'E/F: package.json version is the expected release identity'
+    Assert-True ($currentPackageVersion -match '^\d+\.\d+\.\d+$') 'E/F: package.json exposes a valid release version identity'
 
     # F. VSIX artifact naming resolves to lorerelay-<version>.vsix for the current release.
     $releaseArtifactPath = New-LoreRelayVsixArtifactPath -Version $currentPackageVersion
-    Assert-Equal (Split-Path $releaseArtifactPath -Leaf) 'lorerelay-1.78.0.vsix' 'F: VSIX artifact naming resolves to lorerelay-1.78.0.vsix'
+    Assert-Equal (Split-Path $releaseArtifactPath -Leaf) "lorerelay-$currentPackageVersion.vsix" 'F: VSIX artifact naming resolves to lorerelay-<version>.vsix'
 
-    # G. Extracted (synthetic) VSIX package reports the bumped version.
+    # G. Extracted (synthetic) VSIX package round-trips the current package version.
     $releaseVsix = New-SyntheticVsix -RootDir $tempRoot -Version $currentPackageVersion
     $releaseReport = Test-VsixPackageIntegrity -VsixPath $releaseVsix -ExpectedVersion $currentPackageVersion -ExpectedExtensionId 'miya.lorerelay'
-    Assert-Equal $releaseReport.PackageVersion '1.78.0' 'G: VSIX package.json reports 1.78.0'
+    Assert-Equal $releaseReport.PackageVersion $currentPackageVersion 'G: VSIX package.json reports the current package version'
     $releaseExtractDir = Join-Path $tempRoot ("release-extract-" + [Guid]::NewGuid().ToString('N'))
     Expand-ArchiveSafe -ZipPath $releaseVsix -DestDir $releaseExtractDir
     $extractedInfo = Get-ExtractedExtensionPackageInfo -ExtractRoot $releaseExtractDir -ExpectedVersion $currentPackageVersion -ExpectedExtensionId 'miya.lorerelay'
-    Assert-Equal $extractedInfo.PackageVersion '1.78.0' 'G: extracted extension/package.json reports 1.78.0'
+    Assert-Equal $extractedInfo.PackageVersion $currentPackageVersion 'G: extracted extension/package.json reports the current package version'
 
     Write-Host 'Antigravity installer tests passed.'
 } finally {

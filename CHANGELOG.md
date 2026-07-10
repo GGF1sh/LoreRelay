@@ -9,6 +9,16 @@
 
 ## [Unreleased]
 
+## [1.78.1] - 2026-07-10
+
+### Added
+
+- **MEDIA-M1.1 Character Portrait Artifact Adoption and Sync** — `mediaArtifactCore.ts` / `portraitArtifact.ts` / `portrait_artifact.py`: successful generation emits a machine-readable `TA_MEDIA_RESULT` record; the host adopts the exact generated artifact under a versioned character-owned path (`<id>_portrait_<16hex>.<ext>`), atomically updates the character JSON, and verifies file/JSON/freshness before reporting portrait success — no directory-wide newest-file guessing, no stale-image reuse. A `characters/*.json` watcher refreshes the left Character Profile after external Antigravity adoption. `comfyui_generate.py` gains `--help`/`-h` (exit 0, no workflow/ComfyUI) and paired `--character-id`/`--workspace` adoption flags. Independently adversarially verified (`docs/ai-tasks/MEDIA-M1.1-INDEPENDENT-VERIFY.md`).
+
+### Fixed
+
+- **MEDIA-M1.1 repair: mandatory installed-Skill verification gate** — the independent review found that MEDIA-M1.1's gating of the installed-vs-repo SKILL.md hash check behind `LORERELAY_REQUIRE_INSTALLED_SKILL_SYNC=1` left no wired canonical gate that sets it, so a stale installed Antigravity Skill could silently survive a green post-merge smoke. The canonical Skill installer (`scripts/install_antigravity_skill.ps1`) now performs a **mandatory** post-copy SHA-256 verification (`Assert-InstalledSkillMatchesSource` in `install_common.ps1`): after atomic install, the installed `SKILL.md` must byte-exactly match the repo-owned source or the installer fails nonzero and reports source hash, installed hash, and target path; a missing installed `SKILL.md` also fails. The installer is now the mandatory authority; ordinary candidate source tests remain relaxed (they no longer require a previously-installed Skill to already match), and `LORERELAY_REQUIRE_INSTALLED_SKILL_SYNC=1` is retained as an optional explicit drift diagnostic.
+
 ## [1.78.0] - 2026-07-10
 
 ### Changed

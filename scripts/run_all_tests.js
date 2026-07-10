@@ -273,6 +273,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_antigravity_relay_webview.js' },
     { category: 'unit', file: 'test_antigravity_installer.js' },
     { category: 'unit', file: 'test_antigravity_installer_bootstrap.js' },
+    { category: 'unit', file: 'test_antigravity_skill_installer.js' },
     {
         category: 'simulation',
         file: 'run_simulation_tests.js',

@@ -1,0 +1,241 @@
+{
+  "format": "lorerelay-portrait-studio-prototype/0.1",
+  "note": "Shapes mirror production contracts: characters/<id>.json portrait field (src/characterManager.ts), TA_MEDIA_RESULT (src/mediaArtifactCore.ts), verifyAdoptedPortraitArtifact rules (src/portraitArtifact.ts), TA_MEDIA_STATUS lifecycle from task/MEDIA-COMFY-001-long-load-lifecycle, MediaProfile (src/mediaProfileCore.ts). Candidate-ledger fields marked derivable are computed from filesystem + JSON diff today; nothing invents unimplemented persistence silently.",
+  "character": {
+    "id": "lisette",
+    "name": "リゼット",
+    "role": "見習い薬師",
+    "description": "生真面目な見習い薬師。師の遺した薬草図鑑を常に携え、森の奥の希少な素材を求めて危険な採集行にも踏み込む。左肩に古い火傷の痕があり、それを隠すように深緑のショールを羽織っている。",
+    "theme": "fantasy"
+  },
+  "intents": [
+    { "id": "portrait_fullbody", "label": "立ち絵 — 全身", "sub": "キャラクターの正式な全身ポートレート", "framing": "full_body", "aspect": "2:3" },
+    { "id": "portrait_bust", "label": "ポートレート — バスト", "sub": "顔と上半身。会話ウィンドウ向き", "framing": "portrait", "aspect": "1:1" },
+    { "id": "expression", "label": "表情リファレンス", "sub": "採用中の肖像から表情差分を起こす", "framing": "closeup", "aspect": "1:1" }
+  ],
+  "compiledPlan": {
+    "profile": "Illustrious (SDXL系)",
+    "graphFamily": "sdxl_txt2img",
+    "promptMode": "illustrious",
+    "defaults": { "steps": 28, "cfg": 5.5, "width": 832, "height": 1216 },
+    "preflight": "互換性検証済み — モデル系統とワークフローの組み合わせは有効"
+  },
+  "scenarios": {
+    "clean": {
+      "label": "正常系",
+      "sublabel": "CLEAN SUCCESS",
+      "description": "採用中の肖像がひとつ、新しい候補がひとつ。採用は明示操作で。",
+      "active": {
+        "file": "lisette_portrait_a3f9c2d417b8e601.png",
+        "adoption": "versioned",
+        "adoptedAt": "2026-07-08 21:14",
+        "fileOk": true,
+        "variant": "fullbody",
+        "palette": "green"
+      },
+      "job": {
+        "state": "COMPLETED",
+        "promptId": "9d3c1b7e-4a02-4f66-a1de-58f20cc21c44",
+        "elapsedSeconds": 74,
+        "liveTick": false,
+        "statusHistory": [
+          { "state": "QUEUED", "elapsedSeconds": 0 },
+          { "state": "RUNNING", "elapsedSeconds": 6 },
+          { "state": "COMPLETED", "elapsedSeconds": 74 }
+        ],
+        "resultLine": "TA_MEDIA_RESULT {\"success\":true,\"outputPath\":\"characters/lisette_portrait_c8d0e6f2a1b34477.png\",\"createdAt\":\"2026-07-10T21:58:12+09:00\",\"characterId\":\"lisette\"}"
+      },
+      "candidates": [
+        {
+          "file": "lisette_portrait_c8d0e6f2a1b34477.png",
+          "state": "GENERATED",
+          "createdAt": "2026-07-10 21:58",
+          "intent": "立ち絵 — 全身",
+          "variant": "fullbody-alt",
+          "palette": "teal",
+          "fileOk": true,
+          "adoptable": true,
+          "warnings": []
+        }
+      ],
+      "olderHistory": []
+    },
+    "longload": {
+      "label": "長時間ロード",
+      "sublabel": "LONG MODEL LOAD",
+      "description": "ジョブは6分以上RUNNING。モデル初回ロード中 — 壊れていない。",
+      "active": {
+        "file": "lisette_portrait_a3f9c2d417b8e601.png",
+        "adoption": "versioned",
+        "adoptedAt": "2026-07-08 21:14",
+        "fileOk": true,
+        "variant": "fullbody",
+        "palette": "green"
+      },
+      "job": {
+        "state": "RUNNING",
+        "promptId": "5f81aa20-93cd-45f7-8de2-1f4b6c99e7d3",
+        "elapsedSeconds": 408,
+        "liveTick": true,
+        "lastObservedSecondsAgo": 4,
+        "lastObservedVia": "/queue",
+        "modelLoading": true,
+        "jobTimeoutSeconds": 1200,
+        "statusHistory": [
+          { "state": "QUEUED", "elapsedSeconds": 0 },
+          { "state": "QUEUED", "elapsedSeconds": 30 },
+          { "state": "RUNNING", "elapsedSeconds": 61 },
+          { "state": "RUNNING", "elapsedSeconds": 240 },
+          { "state": "RUNNING", "elapsedSeconds": 405 }
+        ],
+        "intent": "立ち絵 — 全身"
+      },
+      "candidates": [],
+      "olderHistory": []
+    },
+    "mixed": {
+      "label": "混在履歴",
+      "sublabel": "DUPLICATE / MIXED HISTORY",
+      "description": "実スモークの再現。正式採用・手動リネーム・多人数事故・旧正が同居する。",
+      "active": {
+        "file": "lisette_final.png",
+        "adoption": "manual",
+        "adoptedAt": "2026-07-10 20:02（characters/lisette.json を直接編集）",
+        "fileOk": true,
+        "variant": "fullbody-alt",
+        "palette": "amber",
+        "authorityNote": "characters/lisette.json はこのファイルを指しています（それが正の定義）。ただしファイル名が版管理規約（lisette_portrait_<16hex>）の外にあり、正式な採用検証を経ていません。"
+      },
+      "job": { "state": "IDLE" },
+      "candidates": [
+        {
+          "file": "lisette_portrait_c8d0e6f2a1b34477.png",
+          "state": "SUPERSEDED",
+          "createdAt": "2026-07-10 19:41",
+          "adoptedAt": "2026-07-10 19:42",
+          "supersededAt": "2026-07-10 20:02",
+          "intent": "立ち絵 — 全身",
+          "variant": "fullbody",
+          "palette": "teal",
+          "fileOk": true,
+          "adoptable": true,
+          "note": "正式採用（TA_MEDIA_RESULT 検証済み）を経たのち、手動編集により旧版化",
+          "warnings": []
+        },
+        {
+          "file": "scene_7b2df310-8c55-4b0e.png",
+          "state": "GENERATED",
+          "createdAt": "2026-07-10 19:12",
+          "intent": "（意図記録なし — 旧経路の生成）",
+          "variant": "three",
+          "palette": "violet",
+          "fileOk": true,
+          "adoptable": true,
+          "warnings": [
+            { "kind": "heuristic", "text": "複数人物の可能性（3人の人影を検出）" },
+            { "kind": "heuristic", "text": "単独ポートレートとしては構図不適の可能性" }
+          ]
+        },
+        {
+          "file": "scene_31c09ae4-77d1-40f2.png",
+          "state": "GENERATED",
+          "createdAt": "2026-07-10 19:28",
+          "intent": "（意図記録なし — 旧経路の生成）",
+          "variant": "tiny",
+          "palette": "grey",
+          "fileOk": true,
+          "adoptable": true,
+          "warnings": [
+            { "kind": "heuristic", "text": "人物が画面に対して小さい（背景優位）" }
+          ]
+        },
+        {
+          "file": "lisette_portrait_a3f9c2d417b8e601.png",
+          "state": "SUPERSEDED",
+          "createdAt": "2026-07-08 21:13",
+          "adoptedAt": "2026-07-08 21:14",
+          "supersededAt": "2026-07-10 19:42",
+          "intent": "立ち絵 — 全身",
+          "variant": "fullbody",
+          "palette": "green",
+          "fileOk": true,
+          "adoptable": true,
+          "note": "旧・正（最初の正式採用版）",
+          "warnings": []
+        }
+      ],
+      "olderHistory": [
+        { "batch": "2026-07-06 の生成（テーマ調整前）", "count": 8, "states": { "GENERATED": 7, "MISSING": 1 } },
+        { "batch": "2026-07-02 の生成（キャラ作成直後）", "count": 12, "states": { "GENERATED": 11, "SUPERSEDED": 1 } }
+      ]
+    },
+    "failure": {
+      "label": "失敗と迷子",
+      "sublabel": "FAILURE / ORPHAN",
+      "description": "4種の失敗はそれぞれ違う顔をしている。同じ見た目にしてはいけない。",
+      "active": {
+        "file": "lisette_portrait_a3f9c2d417b8e601.png",
+        "adoption": "versioned",
+        "adoptedAt": "2026-07-08 21:14",
+        "fileOk": true,
+        "variant": "fullbody",
+        "palette": "green"
+      },
+      "job": {
+        "state": "QUEUE_REJECTED",
+        "promptId": null,
+        "elapsedSeconds": 0,
+        "liveTick": false,
+        "statusHistory": [],
+        "error": "ComfyUI rejected the prompt or returned no prompt_id.",
+        "resultLine": "TA_MEDIA_RESULT {\"success\":false,\"state\":\"QUEUE_REJECTED\",\"error\":\"ComfyUI rejected the prompt or returned no prompt_id.\"}",
+        "retrySafe": true
+      },
+      "candidates": [
+        {
+          "file": "（画像なし — prompt 8c44e1f0…）",
+          "state": "ORPHANED_JOB",
+          "createdAt": "2026-07-10 18:20",
+          "intent": "立ち絵 — 全身",
+          "variant": "orphan",
+          "palette": "grey",
+          "fileOk": false,
+          "adoptable": false,
+          "note": "確認済みだった prompt が /history からも /queue からも消失。猶予期間（COMFYUI_ORPHAN_GRACE）を過ぎたため ORPHANED として終了。画像が後から現れる可能性は低い。",
+          "warnings": []
+        },
+        {
+          "file": "lisette_portrait_99ab21cd03ef5566.png",
+          "state": "MISSING_FILE",
+          "createdAt": "2026-07-09 23:05",
+          "intent": "ポートレート — バスト",
+          "variant": "missing",
+          "palette": "grey",
+          "fileOk": false,
+          "adoptable": false,
+          "note": "履歴上は存在するはずのファイルがワークスペースに見つからない（外部で削除・移動された可能性）。",
+          "warnings": []
+        },
+        {
+          "file": "lisette_portrait_5e77d0b8c4a21933.png",
+          "state": "ADOPTION_FAILED",
+          "createdAt": "2026-07-09 22:41",
+          "intent": "立ち絵 — 全身",
+          "variant": "bust",
+          "palette": "teal",
+          "fileOk": true,
+          "adoptable": true,
+          "note": "生成は完了したが採用検証で拒否: 「artifact freshness evidence predates this generation attempt」。画像は候補として残っている — 再採用は可能。",
+          "warnings": []
+        }
+      ],
+      "olderHistory": []
+    }
+  },
+  "adoptionEffects": [
+    "characters/lisette.json の portrait 参照がこの画像の正確なパスに書き換わる",
+    "この候補が「採用中（正）」になる",
+    "いままでの採用中の肖像は「旧版」として履歴に残る（ファイルは削除されない）",
+    "ほかの候補・無関係なファイルには一切触れない"
+  ]
+}

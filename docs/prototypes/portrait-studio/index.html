@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Character Portrait Studio — LoreRelay UXプロトタイプ (PORTRAIT-STUDIO-001)</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip-link" href="#active-panel">採用中の肖像へスキップ</a>
+
+<!-- ============ HEADER ============ -->
+<header class="studio-header" role="banner">
+  <div class="studio-brand">
+    <span class="studio-mark" aria-hidden="true">
+      <svg viewBox="0 0 34 34" focusable="false"><rect x="3" y="3" width="28" height="28" rx="3" class="mark-frame"/><circle cx="17" cy="13.5" r="5" class="mark-head"/><path d="M8 28c1.5-6 5-8.5 9-8.5s7.5 2.5 9 8.5" class="mark-body"/></svg>
+    </span>
+    <div>
+      <h1 class="studio-title">PORTRAIT STUDIO</h1>
+      <p class="studio-subtitle">キャラクターの「顔」の正史を、ここで確かめる</p>
+    </div>
+  </div>
+
+  <div class="character-identity">
+    <span class="char-name" id="char-name">—</span>
+    <span class="char-role" id="char-role"></span>
+    <span class="char-id-chip" id="char-id-chip">characters/—.json</span>
+  </div>
+
+  <nav class="scenario-tabs" aria-label="プロトタイプ・シナリオ切替">
+    <span class="scenario-tabs-note">シナリオ（試作用）</span>
+    <div role="tablist" id="scenario-tablist" aria-label="シナリオ"></div>
+  </nav>
+</header>
+
+<p class="authority-banner" role="note">
+  <span aria-hidden="true">⚖</span>
+  正史の定義はただひとつ — <strong>ワークスペースの画像ファイル + <code id="authority-json">characters/—.json</code> の portrait 参照</strong>。
+  AIの発言もチャットの画像も、この画面の表示も、それ自体は正史を変えません。
+  <button class="legend-toggle" id="legend-toggle" aria-expanded="false" aria-controls="prov-legend">記号の見かた</button>
+</p>
+<div class="prov-legend" id="prov-legend" hidden>
+  <dl>
+    <div><dt><span class="prov prov-fact">事実</span></dt><dd>ファイル・JSON・ジョブ記録として観測されたもの。</dd></div>
+    <div><dt><span class="prov prov-heur">自動判定</span></dt><dd>画像内容などからの機械的な推定。誤ることがあります。</dd></div>
+    <div><dt><span class="prov prov-future">将来機能</span></dt><dd>まだ実装されていない構想。この試作では紙上のデモです。</dd></div>
+  </dl>
+</div>
+
+<main id="main">
+  <div class="studio-grid">
+
+    <!-- ============ A. ACTIVE PORTRAIT ============ -->
+    <section class="panel active-panel" id="active-panel" aria-labelledby="active-heading">
+      <h2 class="panel-heading" id="active-heading"><span class="heading-kana">採用中の肖像</span><span class="heading-en">ACTIVE PORTRAIT</span></h2>
+      <figure class="active-figure" id="active-figure">
+        <div class="active-frame" id="active-frame"></div>
+        <figcaption class="active-caption" id="active-caption"></figcaption>
+      </figure>
+      <dl class="active-meta" id="active-meta"></dl>
+      <div class="active-note" id="active-note" hidden></div>
+    </section>
+
+    <div class="right-col">
+      <!-- ============ B. GENERATION STATUS ============ -->
+      <section class="panel job-panel" id="job-panel" aria-labelledby="job-heading">
+        <h2 class="panel-heading" id="job-heading"><span class="heading-kana">生成の現在</span><span class="heading-en">GENERATION STATUS</span></h2>
+        <div id="job-body"></div>
+      </section>
+
+      <!-- ============ E. GENERATION INTENT ============ -->
+      <section class="panel intent-panel" id="intent-panel" aria-labelledby="intent-heading">
+        <h2 class="panel-heading" id="intent-heading"><span class="heading-kana">新しく生成する</span><span class="heading-en">GENERATION INTENT</span></h2>
+        <div class="intent-cards" id="intent-cards"></div>
+        <div class="intent-footer">
+          <button class="generate-btn" id="generate-btn">この意図で生成</button>
+          <span class="generate-guard" id="generate-guard"></span>
+        </div>
+        <details class="advanced-fold" id="advanced-fold">
+          <summary>詳細（上級） — コンパイル済み生成プラン</summary>
+          <div class="advanced-body" id="advanced-body"></div>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============ C. CANDIDATES / HISTORY ============ -->
+  <section class="panel candidates-panel" id="candidates-panel" aria-labelledby="cand-heading">
+    <h2 class="panel-heading" id="cand-heading"><span class="heading-kana">候補と履歴</span><span class="heading-en">CANDIDATES &amp; HISTORY</span></h2>
+    <p class="cand-lede">ここにある画像は<strong>存在するだけ</strong>で、正史ではありません。正にするには明示的な「採用」が必要です。</p>
+    <div class="cand-rail" id="cand-rail"></div>
+    <div class="older-history" id="older-history"></div>
+  </section>
+</main>
+
+<footer class="studio-footer">
+  <p>PORTRAIT-STUDIO-001 高忠実度UXプロトタイプ — MEDIA-M1.1 の採用権威モデルと MEDIA-COMFY-001 のジョブライフサイクルを前提にした提案画面。画像はすべてプレースホルダー。実装は含まれていません。</p>
+</footer>
+
+<!-- ============ D. COMPARISON / ADOPTION MODAL ============ -->
+<div class="modal-scrim" id="modal-scrim" hidden></div>
+<div class="compare-modal" id="compare-modal" role="dialog" aria-modal="true" aria-labelledby="compare-title" hidden>
+  <header class="modal-header">
+    <h3 id="compare-title">採用の確認 — 現在の正 と 候補</h3>
+    <button class="modal-close" id="modal-close" aria-label="閉じる">✕</button>
+  </header>
+  <div class="compare-body">
+    <div class="compare-pair" id="compare-pair"></div>
+    <div class="adoption-effects">
+      <h4>採用すると、正確に次のことが起きます</h4>
+      <ol id="adoption-effects-list"></ol>
+      <p class="adoption-caveat">切り抜きや加工は要求されません。ファイルはそのまま採用されます。</p>
+    </div>
+  </div>
+  <footer class="modal-footer">
+    <button class="btn-secondary" id="adopt-cancel">やめておく</button>
+    <button class="btn-adopt" id="adopt-confirm">この候補を採用する</button>
+  </footer>
+</div>
+
+<div class="load-error" id="load-error" hidden>
+  <h2>データを読み込めませんでした</h2>
+  <p>このプロトタイプは <code>sample-data.json</code> を読み込みます。ローカルサーバー経由で開いてください:</p>
+  <pre>cd docs/prototypes/portrait-studio
+python -m http.server 8766
+# → http://localhost:8766</pre>
+</div>
+
+<script src="prototype.js"></script>
+</body>
+</html>

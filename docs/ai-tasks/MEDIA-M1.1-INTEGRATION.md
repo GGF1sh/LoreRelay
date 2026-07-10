@@ -52,13 +52,40 @@ Both additional commits were confirmed to modify only `docs/ai-tasks` files.
 | `node scripts/check_version_consistency.js` | PASS |
 | `node scripts/check_i18n_keys.js` | PASS |
 | `npm run check:symbol-registry` | PASS |
-| `npm test` (run once) | BLOCKED: 237/239; the two installer checks stopped before test execution because Git rejected the isolated worktree ownership in the elevated process. |
+| First `npm test` attempt | Environment-blocked: 237/239 |
+| Integration-repair `npm test` (run once) | PASS: 239/239 |
 
-The two affected installer checks passed individually once the safe-directory setting was supplied only to their process.  The full suite was not rerun, honoring the one-run constraint.  Therefore the required `239/239` full-suite result has not been recorded.
+The first full-suite attempt did not expose a production-candidate defect.  The two scripts that did not execute were:
+
+- `scripts/test_antigravity_install_chain.js`
+- `scripts/test_antigravity_installer_bootstrap.js`
+
+Both stopped before their test cases ran because their child Git process reported:
+
+```
+fatal: detected dubious ownership in repository at 'C:/AI/media-m1-1-integration'
+'C:/AI/media-m1-1-integration/.git' is owned by:
+    2025SETPC/CodexSandboxOffline (...-1004)
+but the current user is:
+    2025SETPC/Keisuke (...-1002)
+To add an exception for this directory, call:
+
+    git config --global --add safe.directory C:/AI/media-m1-1-integration
+```
+
+The exact directory Git required as safe was `C:/AI/media-m1-1-integration`. No global or machine-wide Git configuration was changed. Instead, the two focused tests and the repaired full-suite process inherited only:
+
+```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=safe.directory
+GIT_CONFIG_VALUE_0=C:/AI/media-m1-1-integration
+```
+
+Both focused tests passed with that process-local configuration. The new integration-repair full-suite gate then passed `239/239`.
 
 ## Push state
 
-`main` was intentionally not pushed because the required full-suite `239/239` result is absent.  Accordingly, there is no new final `main` SHA; `origin/main` remains `e9f9a916063ab530ccfe184cfe66a34f9588c399`.
+Before push, `origin/main` was rechecked and remains `e9f9a916063ab530ccfe184cfe66a34f9588c399`. No production files changed after the verified candidate; the remaining integration change is this documentation update. Main will be pushed only after this record is committed.
 
 ## Next human terminal gate
 

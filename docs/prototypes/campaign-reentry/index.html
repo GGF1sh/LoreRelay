@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>世界へ戻る — Return to Your World (RETURN-UX-001 prototype)</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<a href="#threshold" class="skip-link">本文へスキップ</a>
+
+<!-- ============================================================
+     Prototype chrome: scenario switcher (not part of the product)
+     ============================================================ -->
+<header class="proto-bar" aria-label="プロトタイプ切り替え">
+  <div class="proto-mark">
+    <span class="proto-ribbon-glyph" aria-hidden="true"></span>
+    <span class="proto-title">世界へ戻る</span>
+    <span class="proto-sub">RETURN TO YOUR WORLD — 帰還プロトタイプ</span>
+  </div>
+  <nav class="proto-scenarios" role="tablist" aria-label="シナリオ（試作用）" id="scenario-tablist">
+    <!-- tabs injected by prototype.js -->
+  </nav>
+</header>
+
+<p class="readonly-note" id="readonly-note">
+  <span class="readonly-eye" aria-hidden="true">◐</span>
+  この画面は<strong>閲覧専用の帰還レイヤー</strong>です。世界を変えたり、出来事を作ったり、記憶を書き換えたりしません。
+  <button type="button" class="legend-link" id="legend-toggle" aria-expanded="false">記号の見かた</button>
+</p>
+<div class="legend-panel" id="legend-panel" hidden>
+  <dl class="legend-list">
+    <div><dt><span class="prov prov-fact">事実</span></dt><dd>シミュレーション・GM・プレイヤーが実際に生み出した記録。</dd></div>
+    <div><dt><span class="prov prov-derived">兆候</span></dt><dd>この画面が既存の記録から計算した読み（重要度の順位づけなど）。</dd></div>
+    <div><dt><span class="prov prov-recap">語り</span></dt><dd>複数の事実を短くまとめた語り直し。必ず「出典」から元の記録を確認できます。</dd></div>
+    <div><dt><span class="prov prov-stale">不確か</span></dt><dd>観測が古い・欠けている情報。世界は静かに変わっているかもしれません。</dd></div>
+  </dl>
+</div>
+
+<main id="reentry-root">
+  <!-- ==========================================================
+       A. THRESHOLD — campaign identity (the bookplate)
+       ========================================================== -->
+  <section class="threshold" id="threshold" aria-labelledby="world-name">
+    <div class="scene-backdrop" id="scene-backdrop" aria-hidden="true">
+      <div class="scene-art"></div>
+      <div class="scene-vignette"></div>
+    </div>
+    <div class="ribbon" aria-hidden="true"><div class="ribbon-silk"></div></div>
+
+    <div class="threshold-inner">
+      <p class="threshold-eyebrow" id="threshold-eyebrow">前回まで — あなたの世界</p>
+      <h1 class="world-name" id="world-name">…</h1>
+      <p class="world-epithet" id="world-epithet"></p>
+
+      <dl class="identity-chips" id="identity-chips">
+        <!-- injected: character / role / location / world turn / in-world time -->
+      </dl>
+
+      <p class="absence-line" id="absence-line"></p>
+      <p class="absence-honesty" id="absence-honesty"></p>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       B. PREVIOUSLY — 前回まで (narrative recap)
+       ========================================================== -->
+  <section class="band band-recap" aria-labelledby="recap-heading">
+    <h2 class="band-heading" id="recap-heading">
+      <span class="band-title">前回まで</span>
+      <span class="band-sub">PREVIOUSLY</span>
+      <span class="prov prov-recap" title="複数の事実の語り直し">語り</span>
+    </h2>
+    <div class="recap-body" id="recap-body"></div>
+    <div class="recap-actions">
+      <button type="button" class="evidence-btn" id="recap-sources-btn" aria-expanded="false">
+        出典を見る — この語りの元になった記録
+      </button>
+    </div>
+    <div class="recap-sources" id="recap-sources" hidden></div>
+  </section>
+
+  <!-- ==========================================================
+       LONG ARC — 長い道のり (only for long campaigns)
+       ========================================================== -->
+  <section class="band band-arcs" id="band-arcs" aria-labelledby="arcs-heading" hidden>
+    <h2 class="band-heading" id="arcs-heading">
+      <span class="band-title">長い道のり</span>
+      <span class="band-sub">THE ROAD SO FAR</span>
+    </h2>
+    <ol class="arc-strip" id="arc-strip"></ol>
+    <p class="arc-more" id="arc-more"></p>
+  </section>
+
+  <!-- ==========================================================
+       C. UNFINISHED — やり残したこと
+       ========================================================== -->
+  <section class="band band-threads" aria-labelledby="threads-heading">
+    <h2 class="band-heading" id="threads-heading">
+      <span class="band-title">やり残したこと</span>
+      <span class="band-sub">UNFINISHED</span>
+    </h2>
+    <ul class="thread-list" id="thread-list"></ul>
+    <p class="thread-overflow" id="thread-overflow" hidden></p>
+  </section>
+
+  <!-- ==========================================================
+       D. THE WORLD AS YOU LEFT IT — 世界のいま
+       ========================================================== -->
+  <section class="band band-world" aria-labelledby="world-heading">
+    <h2 class="band-heading" id="world-heading">
+      <span class="band-title">世界のいま</span>
+      <span class="band-sub">AS YOU LEFT IT</span>
+    </h2>
+    <ul class="dev-list" id="dev-list"></ul>
+    <ul class="stale-list" id="stale-list"></ul>
+    <p class="world-more"><button type="button" class="quiet-link" id="open-pulse-link">世界の脈を見る — World Pulse へ</button></p>
+  </section>
+
+  <!-- ==========================================================
+       E. PEOPLE WAITING — 待つ人々
+       ========================================================== -->
+  <section class="band band-people" aria-labelledby="people-heading">
+    <h2 class="band-heading" id="people-heading">
+      <span class="band-title">待つ人々</span>
+      <span class="band-sub">PEOPLE WAITING</span>
+    </h2>
+    <ul class="people-list" id="people-list"></ul>
+  </section>
+
+  <!-- ==========================================================
+       F. RESUME — 続きへ
+       ========================================================== -->
+  <section class="band band-resume" aria-labelledby="resume-heading">
+    <h2 class="visually-hidden" id="resume-heading">再開</h2>
+    <p class="resume-context" id="resume-context"></p>
+    <button type="button" class="resume-primary" id="resume-btn">
+      <span class="resume-glyph" aria-hidden="true">▸</span>
+      <span class="resume-label">物語を続ける</span>
+    </button>
+    <nav class="resume-secondary" aria-label="ほかの入り口">
+      <button type="button" class="quiet-link" data-handoff="pulse">世界を見る</button>
+      <span class="dotsep" aria-hidden="true">·</span>
+      <button type="button" class="quiet-link" data-handoff="people">人々</button>
+      <span class="dotsep" aria-hidden="true">·</span>
+      <button type="button" class="quiet-link" data-handoff="chronicle">年代記</button>
+      <span class="dotsep" aria-hidden="true">·</span>
+      <button type="button" class="quiet-link" data-handoff="portrait">姿を整える</button>
+    </nav>
+  </section>
+</main>
+
+<!-- Evidence bottom sheet (shared by threads / people / developments) -->
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+<aside class="evidence-sheet" id="evidence-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <div class="sheet-grip" aria-hidden="true"></div>
+  <header class="sheet-header">
+    <h3 id="sheet-title">根拠</h3>
+    <button type="button" class="sheet-close" id="sheet-close" aria-label="閉じる">✕</button>
+  </header>
+  <div class="sheet-body" id="sheet-body"></div>
+  <footer class="sheet-footer">この画面は閲覧専用です。記録そのものは変更されません。</footer>
+</aside>
+
+<!-- Handoff toast: demonstrates the resume/navigation contract without production integration -->
+<div class="handoff-toast" id="handoff-toast" role="status" aria-live="polite" hidden></div>
+
+<script src="prototype.js"></script>
+</body>
+</html>

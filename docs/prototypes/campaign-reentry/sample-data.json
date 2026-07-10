@@ -1,0 +1,755 @@
+{
+  "_comment": "RETURN-UX-001 sample data. Shapes mirror production: journalTail entries carry appliedAt ISO timestamps exactly as statePatch.ts writes them; questHooks mirror worldStateCore.QuestHook; recentChanges mirror worldEventLogCore.WorldChangeEvent; staleness mirrors lastVisitTurnByLocation; arcs mirror the future majorArcs store proposed by WORLD-PULSE-001 slice 6. recap paragraphs are hand-authored NARRATIVE CONDENSATION standing in for the deterministic template composer (production slice 2); every paragraph cites sourceRefs.",
+  "scenarios": [
+    {
+      "id": "first-return",
+      "label": "初めての帰還",
+      "nowIso": "2026-07-11T20:30:00+09:00",
+      "world": {
+        "name": "港町セイレンハーフェン",
+        "epithet": "霧と灯台の湾 — 第1章「灰色の帆」",
+        "sceneClass": "scene-harbor",
+        "sceneImage": "assets/harbor.jpg",
+        "worldTurn": 9,
+        "inWorldTime": "夜半・濃霧"
+      },
+      "player": {
+        "characterName": "旅の調べ手 カイ",
+        "roleLabel": "流れ者の調べ手",
+        "role": "traveler",
+        "location": "旧灯台・ヴェルナー老人の詰所"
+      },
+      "journalTail": [
+        { "turnId": "t6", "appliedAt": "2026-07-09T21:05:12+09:00", "playerAction": "港湾事務所で三日前の入港記録を尋ねた", "gmNote": "記録係は口を濁し、台帳の一頁が破られていた" },
+        { "turnId": "t7", "appliedAt": "2026-07-09T21:22:40+09:00", "playerAction": "破られた頁の切れ端を探した", "gmNote": "火鉢の灰から「グラウエ・メーヴェ」の船名の燃え残りを見つけた" },
+        { "turnId": "t8", "appliedAt": "2026-07-09T21:41:03+09:00", "playerAction": "旧灯台のヴェルナー老人を訪ねた", "gmNote": "老人は40年で二度だけ同じ船名を聞いたと語った。いずれも嵐の夜に沖で消えた船" },
+        { "turnId": "t9", "appliedAt": "2026-07-09T21:58:31+09:00", "playerAction": "老人に航海日誌を見せてもらった", "gmNote": "夜が明ける前に調べる方法は三つある、と老人は言った。選択肢が提示されたまま終了" }
+      ],
+      "recap": {
+        "paragraphs": [
+          { "text": "霧の夜、港に灰色の帆の船が現れた。名は〈グラウエ・メーヴェ〉——だが連盟の登録簿にその船は存在しない。港湾事務所の台帳は一頁だけ破り取られていた。", "sourceRefs": ["t6", "t7"] },
+          { "text": "旧灯台のヴェルナー老人は、四十年でこの船名を二度だけ聞いたという。いずれも、嵐の夜に沖で消えた船。夜が明ける前に調べるなら、方法は三つ——あなたはその選択の前で栞を挟んだ。", "sourceRefs": ["t8", "t9"] }
+        ]
+      },
+      "arcs": [],
+      "threads": [
+        {
+          "id": "th-ship",
+          "kind": "mystery",
+          "kindLabel": "調べ",
+          "glyph": "🕯",
+          "title": "〈灰色鴎号〉の正体を夜明け前に突き止める",
+          "why": "ヴェルナー老人が三つの方法を示したまま。選択肢は保存されています。",
+          "provenance": "fact",
+          "basis": "questHooks[q_grey_gull].status = active",
+          "ageTurns": 0,
+          "evidence": [
+            { "prov": "fact", "text": "クエスト「灰色鴎号の調査」が active のまま", "meta": "questHooks.q_grey_gull.status = \"active\" (turnGenerated: 4)" },
+            { "prov": "fact", "text": "T9 終了時に GM の選択肢 3 件が未消化のまま保存されている", "meta": "game_state.options.length = 3" }
+          ]
+        },
+        {
+          "id": "th-ledger",
+          "kind": "mystery",
+          "kindLabel": "手がかり",
+          "glyph": "📄",
+          "title": "台帳の頁を破ったのは誰か",
+          "why": "港湾事務所の記録係は何かを隠している様子でした。",
+          "provenance": "derived",
+          "basis": "journal t6 の未解決の含み — 明示クエスト化はされていない",
+          "ageTurns": 3,
+          "evidence": [
+            { "prov": "fact", "text": "T6: 台帳の一頁が破り取られていた（記録上の事実）", "meta": "journal t6.gmNote" },
+            { "prov": "derived", "text": "「誰が破ったか」はまだ世界に記録されていません。これは画面が立てた問いです。", "meta": "derived: open-question heuristic" }
+          ]
+        }
+      ],
+      "developments": [
+        { "id": "wce_8_harbor_fog", "worldTurn": 8, "severity": "warning", "category": "region", "message": "濃霧が湾を閉ざし、夜間の出入港が止まっている", "provenance": "fact" }
+      ],
+      "staleness": [],
+      "quietNote": null,
+      "people": [
+        {
+          "npcId": "npc_werner",
+          "name": "灯台守ヴェルナー",
+          "roleLabel": "旧灯台の守り手",
+          "affinity": 38,
+          "standing": "友好 (+38)",
+          "whereabouts": { "text": "旧灯台（あなたと同じ場所）", "precision": "exact" },
+          "why": "航海日誌を開いたまま、あなたの返答を待っています。",
+          "whyProv": "fact",
+          "evidence": [
+            { "prov": "fact", "text": "T9: 老人が三つの方法を提示し、ターンが選択待ちで終了", "meta": "journal t9 / game_state.options" },
+            { "prov": "fact", "text": "好感度 +38（友好域）", "meta": "npcRelationships[player|npc_werner] = 38" }
+          ]
+        },
+        {
+          "npcId": "npc_clerk",
+          "name": "港湾記録係マレン",
+          "roleLabel": "港湾事務所",
+          "affinity": -12,
+          "standing": "警戒 (−12)",
+          "whereabouts": { "text": "港湾事務所（推定・夜間は不在のはず）", "precision": "approximate" },
+          "why": "破られた台帳について、まだ問い詰めていません。",
+          "whyProv": "derived",
+          "evidence": [
+            { "prov": "fact", "text": "T6: 質問に口を濁した記録が残っています", "meta": "journal t6.gmNote" },
+            { "prov": "stale", "text": "現在の所在は前回観測（T6・港湾事務所）からの推定です", "meta": "npcPositions.npc_clerk (T6)" }
+          ]
+        }
+      ],
+      "resume": {
+        "context": "旧灯台・老人の三つの提案から — 選択肢はそのまま残っています。",
+        "handoffNote": "シネマティック・プレイへ。T9 の場面と選択肢 3 件を復元して再開します。"
+      }
+    },
+
+    {
+      "id": "quiet-life",
+      "label": "静かな暮らし",
+      "nowIso": "2026-07-11T09:15:00+09:00",
+      "world": {
+        "name": "谷あいの村 トリスメイデ",
+        "epithet": "薬草の谷 — 長雨のあとの朝",
+        "sceneClass": "scene-village",
+        "sceneImage": null,
+        "worldTurn": 34,
+        "inWorldTime": "朝・雨あがり"
+      },
+      "player": {
+        "characterName": "見習い薬師 リゼット",
+        "roleLabel": "村の見習い薬師",
+        "role": "healer",
+        "location": "薬草小屋"
+      },
+      "journalTail": [
+        { "turnId": "t31", "appliedAt": "2026-07-06T20:12:09+09:00", "playerAction": "熱を出した粉挽きの娘ミアに解熱の煎じ薬を処方した", "gmNote": "母親のハンナは夜通し看病すると言った" },
+        { "turnId": "t32", "appliedAt": "2026-07-06T20:35:44+09:00", "playerAction": "師匠オズワルドに在庫の目減りを報告した", "gmNote": "月白草があと二束。長雨で採取に行けていない" },
+        { "turnId": "t33", "appliedAt": "2026-07-06T20:52:18+09:00", "playerAction": "収穫祭の薬湯の支度を約束した", "gmNote": "祭りは世界ターンで3日後。村長が楽しみにしている" },
+        { "turnId": "t34", "appliedAt": "2026-07-06T21:04:55+09:00", "playerAction": "雨音を聞きながら乳鉢を洗い、店じまいをした", "gmNote": "静かな夜。遠くで犬が鳴いた" }
+      ],
+      "recap": {
+        "paragraphs": [
+          { "text": "長雨の終わりかけ、粉挽きの娘ミアが熱を出した。あなたは煎じ薬を出し、母のハンナが夜通し付き添った。月白草の在庫はあと二束——雨で採取に出られない日が続いていた。", "sourceRefs": ["t31", "t32"] },
+          { "text": "三日後には収穫祭。村長に薬湯の支度を約束して、あなたは乳鉢を洗い、静かに店じまいをした。", "sourceRefs": ["t33", "t34"] }
+        ]
+      },
+      "arcs": [],
+      "threads": [
+        {
+          "id": "th-mia",
+          "kind": "care",
+          "kindLabel": "気がかり",
+          "glyph": "🌿",
+          "title": "ミアの熱が下がったか確かめる",
+          "why": "煎じ薬を出してから世界ターンで一晩。経過は未観測です。",
+          "provenance": "fact",
+          "basis": "npcNeeds[npc_mia].care (urgency: medium)",
+          "ageTurns": 3,
+          "evidence": [
+            { "prov": "fact", "text": "T31: 解熱の煎じ薬を処方（記録済み）", "meta": "journal t31" },
+            { "prov": "stale", "text": "その後の容態はまだ観測されていません", "meta": "npc_registry.npc_mia — no update since T31" }
+          ]
+        },
+        {
+          "id": "th-herbs",
+          "kind": "stock",
+          "kindLabel": "商い",
+          "glyph": "⚖",
+          "title": "月白草の採取に谷へ出る",
+          "why": "在庫あと二束。雨は上がりました。",
+          "provenance": "fact",
+          "basis": "commerce/在庫記録",
+          "ageTurns": 2,
+          "evidence": [
+            { "prov": "fact", "text": "T32: 在庫あと二束と師匠に報告", "meta": "journal t32" },
+            { "prov": "fact", "text": "T34 で降雨イベントが終了", "meta": "recentChanges.wce_34_rain_end" }
+          ]
+        },
+        {
+          "id": "th-festival",
+          "kind": "promise",
+          "kindLabel": "約束",
+          "glyph": "🕯",
+          "title": "収穫祭の薬湯 — 世界ターンであと3日",
+          "why": "村長との約束。月白草の採取が前提になります。",
+          "provenance": "fact",
+          "basis": "questHooks[q_festival].status = active",
+          "ageTurns": 1,
+          "evidence": [
+            { "prov": "fact", "text": "T33: 薬湯の支度を約束（クエスト化済み）", "meta": "questHooks.q_festival (source: npc, turnGenerated: 33)" }
+          ]
+        }
+      ],
+      "developments": [
+        { "id": "wce_34_rain_end", "worldTurn": 34, "severity": "info", "category": "region", "message": "長雨が上がり、谷への小道が通れるようになった", "provenance": "fact" },
+        { "id": "wce_33_road", "worldTurn": 33, "severity": "info", "category": "region", "message": "街道の荷馬車が三日ぶりに村へ着いた", "provenance": "fact" }
+      ],
+      "staleness": [],
+      "quietNote": "大きな危機はありません。静けさも、記録のうちです。",
+      "people": [
+        {
+          "npcId": "npc_hanna",
+          "name": "ハンナ",
+          "roleLabel": "粉挽きの妻・ミアの母",
+          "affinity": 52,
+          "standing": "信頼 (+52)",
+          "whereabouts": { "text": "粉挽き小屋（ミアのそば）", "precision": "exact" },
+          "why": "娘の看病明け。あなたの往診を待っています。",
+          "whyProv": "derived",
+          "evidence": [
+            { "prov": "fact", "text": "T31: 夜通し看病すると発言", "meta": "journal t31.gmNote" },
+            { "prov": "derived", "text": "「待っている」は看病記録と好感度からの読みです", "meta": "derived: waiting heuristic (care need + trust ≥ 50)" }
+          ]
+        },
+        {
+          "npcId": "npc_oswald",
+          "name": "師匠オズワルド",
+          "roleLabel": "村の薬師",
+          "affinity": 61,
+          "standing": "信頼 (+61)",
+          "whereabouts": { "text": "薬草小屋の奥", "precision": "exact" },
+          "why": "在庫の件、あなたの段取りを任せると言っていました。",
+          "whyProv": "fact",
+          "evidence": [
+            { "prov": "fact", "text": "T32: 採取の段取りを任せる発言が記録されています", "meta": "journal t32" }
+          ]
+        }
+      ],
+      "resume": {
+        "context": "雨あがりの朝、薬草小屋から — 今日は谷へ出られます。",
+        "handoffNote": "シネマティック・プレイへ。T34 の朝の場面から再開します。"
+      }
+    },
+
+    {
+      "id": "building-crisis",
+      "label": "迫る隊商路",
+      "nowIso": "2026-07-11T19:00:00+09:00",
+      "world": {
+        "name": "アルヴェリオン",
+        "epithet": "第4章「封鎖線」 — 世界の脈: 緊迫",
+        "sceneClass": "scene-caravan",
+        "sceneImage": null,
+        "worldTurn": 47,
+        "inWorldTime": "夕刻・宿場町ハロウ"
+      },
+      "player": {
+        "characterName": "隊商主 セドリク",
+        "roleLabel": "三台の荷馬車の隊商主",
+        "role": "caravan_owner",
+        "location": "宿場町ハロウ・市場通り"
+      },
+      "journalTail": [
+        { "turnId": "t44", "appliedAt": "2026-07-10T22:10:05+09:00", "playerAction": "銀天秤商会の封鎖の報を受け、迂回路の地図を広げた", "gmNote": "黒沼地経由は危険度5。山峡経由は銅の在庫がわずか8" },
+        { "turnId": "t45", "appliedAt": "2026-07-10T22:31:52+09:00", "playerAction": "検問所で通行税の減額を交渉した (1d20+5=9)", "gmNote": "辛くも切り抜けたが、荷検めで半日を失った" },
+        { "turnId": "t46", "appliedAt": "2026-07-10T22:50:19+09:00", "playerAction": "エリラに宿場町ハロウでの買い手探しを頼んだ", "gmNote": "エリラは封鎖で行き場を失った在庫の売り先を探しに発った" },
+        { "turnId": "t47", "appliedAt": "2026-07-10T23:12:47+09:00", "playerAction": "護衛の増員を検討しながら宿に入った", "gmNote": "黒燐同盟が商会の隊商を襲撃。護衛二名が死亡、小麦は沼地へ。商会は報復を宣言" }
+      ],
+      "recap": {
+        "paragraphs": [
+          { "text": "銀天秤商会が黒沼地への隊商路を封鎖し、あなたの荷は行き場を失いかけた。検問では辛くも切り抜けたが、半日を失った。エリラには宿場町ハロウでの買い手探しを頼んである。", "sourceRefs": ["t44", "t45", "t46"] },
+          { "text": "そして宿に入ったその夜——黒燐同盟が商会の隊商を襲った。護衛二名が死に、積み荷の小麦は沼地へ。商会は報復を宣言した。あなたの隊商は、その火種のただ中に停まっている。", "sourceRefs": ["t47"] }
+        ]
+      },
+      "arcs": [],
+      "threads": [
+        {
+          "id": "th-route",
+          "kind": "pressure",
+          "kindLabel": "商い",
+          "glyph": "🐫",
+          "title": "三台の荷馬車の行き先を決める",
+          "why": "封鎖続行中。小麦相場は高騰（ハロウ ×1.85）——売り時でもあり、火種でもあります。",
+          "provenance": "derived",
+          "basis": "markets + 封鎖イベントからの読み",
+          "ageTurns": 0,
+          "evidence": [
+            { "prov": "fact", "text": "銀天秤商会の封鎖が継続中", "meta": "recentChanges.wce_44_blockade (T44)" },
+            { "prov": "fact", "text": "ハロウの小麦指数 ×1.85（観測期間で +76%）", "meta": "marketPriceHistory[halow|wheat]" },
+            { "prov": "derived", "text": "「売り時」という判断はこの画面の読みです。誰も助言していません。", "meta": "derived: price-spike framing rule (Δ ≥ 12%)" }
+          ]
+        },
+        {
+          "id": "th-guards",
+          "kind": "danger",
+          "kindLabel": "危険",
+          "glyph": "🛡",
+          "title": "護衛の増員 — 傭兵カイとの契約を詰める",
+          "why": "商会の隊商が襲われた直後。あなたの護衛は現在二名だけです。",
+          "provenance": "fact",
+          "basis": "questHooks[q_guards].status = active",
+          "ageTurns": 0,
+          "evidence": [
+            { "prov": "fact", "text": "T47: 護衛増員の検討が記録されたままターン終了", "meta": "journal t47" },
+            { "prov": "fact", "text": "黒燐同盟の襲撃で護衛二名死亡（他隊商）", "meta": "recentChanges.wce_47_raid (severity: critical)" }
+          ]
+        },
+        {
+          "id": "th-erila",
+          "kind": "promise",
+          "kindLabel": "約束",
+          "glyph": "🤝",
+          "title": "エリラの首尾を聞く",
+          "why": "買い手探しを頼んでから一晩。首尾はまだ届いていません。",
+          "provenance": "fact",
+          "basis": "npcPositions.npc_erila.agenda",
+          "ageTurns": 1,
+          "evidence": [
+            { "prov": "fact", "text": "エリラ → 宿場町ハロウへ、買い手探し（行動記録）", "meta": "npcPositions.npc_erila = { locationId: halow, agenda: trade, reason: 封鎖在庫の売り先 }" }
+          ]
+        }
+      ],
+      "developments": [
+        { "id": "wce_47_raid", "worldTurn": 47, "severity": "critical", "category": "faction", "message": "黒燐同盟が商会の隊商を襲撃。護衛二名が死亡し、商会は報復を宣言した", "provenance": "fact" },
+        { "id": "wce_44_blockade", "worldTurn": 44, "severity": "warning", "category": "faction", "message": "銀天秤商会が黒沼地への隊商路を封鎖。黒燐同盟は「兵糧攻めだ」と非難", "provenance": "fact" },
+        { "id": "wce_43_wheat", "worldTurn": 43, "severity": "warning", "category": "resource", "message": "ハロウ宿場の小麦相場が急騰。難民の流入で在庫が細っている", "provenance": "fact" }
+      ],
+      "staleness": [
+        { "locationName": "山峡の砦", "turnsSince": 14, "note": "銅の在庫わずか8 — 最後の観測から14ターン。状況は変わっているかもしれません" }
+      ],
+      "quietNote": null,
+      "people": [
+        {
+          "npcId": "npc_erila",
+          "name": "エリラ",
+          "roleLabel": "行商仲間",
+          "affinity": 44,
+          "standing": "友好 (+44)",
+          "whereabouts": { "text": "宿場町ハロウ（買い手探しの途上）", "precision": "exact" },
+          "why": "あなたの依頼で動いています。首尾の報告が最初の会話になるはずです。",
+          "whyProv": "fact",
+          "evidence": [
+            { "prov": "fact", "text": "T46: 買い手探しの依頼が記録されています", "meta": "journal t46 / npcPositions.npc_erila.agenda = trade" }
+          ]
+        },
+        {
+          "npcId": "npc_kai",
+          "name": "傭兵カイ",
+          "roleLabel": "港町ヴェルサの傭兵",
+          "affinity": -35,
+          "standing": "対抗 (−35)",
+          "whereabouts": { "text": "港町ヴェルサ（盟友を訪ねている）", "precision": "approximate" },
+          "why": "護衛契約の候補。ただし関係は対抗域——値は張るでしょう。",
+          "whyProv": "derived",
+          "evidence": [
+            { "prov": "fact", "text": "好感度 −35（対抗域）", "meta": "npcRelationships[player|npc_kai] = -35" },
+            { "prov": "derived", "text": "「値が張る」は関係値からの推測です", "meta": "derived: negotiation-cost heuristic" }
+          ]
+        },
+        {
+          "npcId": "npc_goden",
+          "name": "鍛冶師ゴードン",
+          "roleLabel": "ハロウの鍛冶師",
+          "affinity": 71,
+          "standing": "盟友 (+71) 🕊 信頼の仲間",
+          "whereabouts": { "text": "宿場町ハロウ・鍛冶場", "precision": "exact" },
+          "why": "荷馬車の車軸の修理を約束してくれています。",
+          "whyProv": "fact",
+          "evidence": [
+            { "prov": "fact", "text": "盟友域 +71・マイルストーン「信頼の仲間」達成済み", "meta": "playerNpcMilestones[npc_goden] = trusted_companion" }
+          ]
+        }
+      ],
+      "resume": {
+        "context": "宿場町ハロウの宿から — 相場は動き、商会は報復を口にしています。",
+        "handoffNote": "シネマティック・プレイへ。T47 の宿の場面から再開します。"
+      }
+    },
+
+    {
+      "id": "long-campaign",
+      "label": "長い戦役",
+      "nowIso": "2026-07-11T21:00:00+09:00",
+      "world": {
+        "name": "折れた王笏の地 ヴァルダマルク",
+        "epithet": "第11章「灰の講和」 — 世界ターン134",
+        "sceneClass": "scene-longroad",
+        "sceneImage": null,
+        "worldTurn": 134,
+        "inWorldTime": "冬の入り・自由旅団の野営"
+      },
+      "player": {
+        "characterName": "団長ヴェスナ",
+        "roleLabel": "自由旅団〈灰鷹〉団長（元・一介の傭兵）",
+        "role": "commander",
+        "location": "北街道・旅団野営地"
+      },
+      "journalTail": [
+        { "turnId": "t131", "appliedAt": "2026-06-20T21:44:10+09:00", "playerAction": "講和の使者として旧敵ドラガンと停戦条件を詰めた", "gmNote": "ドラガンは捕虜交換を条件に加えた。互いの署名はまだ" },
+        { "turnId": "t132", "appliedAt": "2026-06-20T22:08:33+09:00", "playerAction": "旅団の冬営地を北街道沿いに定めた", "gmNote": "兵站官イルマが食糧は40日分と報告" },
+        { "turnId": "t133", "appliedAt": "2026-06-20T22:26:51+09:00", "playerAction": "戦死者名簿に手ずから名を書き加えた", "gmNote": "マイルストーン: 旅団創設からの戦没者が100名を越えた" },
+        { "turnId": "t134", "appliedAt": "2026-06-20T22:41:02+09:00", "playerAction": "停戦文書の草案を灯の下で読み直した", "gmNote": "署名式は雪解けの市で。それまで小競り合いは止まらない" }
+      ],
+      "recap": {
+        "paragraphs": [
+          { "text": "三年の戦役の果てに、あなたは旧敵ドラガンと同じ卓についた。停戦の条件はほぼ固まり、残るは捕虜交換と、雪解けの市での署名——それまで、国境の小競り合いは止まらない。", "sourceRefs": ["t131", "t134"] },
+          { "text": "旅団は北街道に冬営している。食糧は40日分。戦死者名簿には、あなた自身の手で百人目の名が書き加えられた。", "sourceRefs": ["t132", "t133"] }
+        ]
+      },
+      "arcs": [
+        { "id": "arc1", "title": "傭兵時代 — 銀貨一枚の剣", "fromTurn": 1, "toTurn": 38, "eventCount": 61, "open": false, "note": "一介の傭兵として戦役に流れ着いた" },
+        { "id": "arc2", "title": "灰鷹旅団の旗揚げ", "fromTurn": 39, "toTurn": 82, "eventCount": 74, "open": false, "note": "敗残兵を束ね、旅団を創設した" },
+        { "id": "arc3", "title": "峠の三連戦", "fromTurn": 83, "toTurn": 117, "eventCount": 58, "open": false, "note": "ドラガン軍を三度退けた" },
+        { "id": "arc4", "title": "灰の講和", "fromTurn": 118, "toTurn": null, "eventCount": 22, "open": true, "note": "停戦交渉が進行中" }
+      ],
+      "arcsArchivedCount": 3,
+      "arcsArchivedEvents": 193,
+      "threads": [
+        {
+          "id": "th-treaty",
+          "kind": "politics",
+          "kindLabel": "講和",
+          "glyph": "🕊",
+          "title": "停戦文書 — 捕虜交換の条件に答える",
+          "why": "ドラガンの追加条件が未回答のまま。署名式は雪解けの市。",
+          "provenance": "fact",
+          "basis": "questHooks[q_truce].status = active",
+          "ageTurns": 3,
+          "evidence": [
+            { "prov": "fact", "text": "T131: 捕虜交換条件が提示され、未回答", "meta": "questHooks.q_truce / journal t131" }
+          ]
+        },
+        {
+          "id": "th-supply",
+          "kind": "pressure",
+          "kindLabel": "兵站",
+          "glyph": "⚖",
+          "title": "冬営の食糧 — 40日分から減り続けている",
+          "why": "報告時点で40日分。補給路の確保が未着手です。",
+          "provenance": "fact",
+          "basis": "campaignResources.food",
+          "ageTurns": 2,
+          "evidence": [
+            { "prov": "fact", "text": "T132: 兵站官イルマの報告（40日分）", "meta": "journal t132" },
+            { "prov": "stale", "text": "その後の消費は次のターンで確定します", "meta": "no simulation while away — value unchanged on disk" }
+          ]
+        },
+        {
+          "id": "th-skirmish",
+          "kind": "danger",
+          "kindLabel": "危険",
+          "glyph": "🛡",
+          "title": "国境の小競り合い — 署名まで続く",
+          "why": "停戦発効前。前哨の損耗が旅団の名簿に積もります。",
+          "provenance": "fact",
+          "basis": "recentChanges + globalEvents.truce_pending",
+          "ageTurns": 1,
+          "evidence": [
+            { "prov": "fact", "text": "進行中イベント「署名前の小競り合い」(残り推定: 署名まで)", "meta": "globalEvents.evt_skirmish (severity: moderate)" }
+          ]
+        },
+        {
+          "id": "th-hundred",
+          "kind": "care",
+          "kindLabel": "追悼",
+          "glyph": "🕯",
+          "title": "百人目の戦死者 — 遺族への沙汰",
+          "why": "名簿に名を書き加えたまま。旅団の慣例では団長が遺族に文を送ります。",
+          "provenance": "derived",
+          "basis": "milestone + 旅団慣例からの読み",
+          "ageTurns": 1,
+          "evidence": [
+            { "prov": "fact", "text": "T133: 戦没者100名のマイルストーンが記録", "meta": "journal t133 (milestone)" },
+            { "prov": "derived", "text": "「文を送る」は慣例からの提案で、義務としては記録されていません", "meta": "derived: obligation heuristic" }
+          ]
+        }
+      ],
+      "threadsOverflowCount": 7,
+      "developments": [
+        { "id": "wce_133_desert", "worldTurn": 133, "severity": "warning", "category": "faction", "message": "ドラガン軍から脱走兵の一団が北街道に流れた", "provenance": "fact" },
+        { "id": "wce_132_snow", "worldTurn": 132, "severity": "info", "category": "region", "message": "峠に初雪。雪解けの市まで世界ターンでおよそ20", "provenance": "fact" }
+      ],
+      "staleness": [
+        { "locationName": "南の旧戦場ヴェルデ野", "turnsSince": 41, "note": "峠の三連戦以来、未訪問。復興の噂は未確認です" },
+        { "locationName": "王都イェルサ", "turnsSince": 63, "note": "王笏の行方は63ターン前の観測のまま" }
+      ],
+      "quietNote": null,
+      "people": [
+        {
+          "npcId": "npc_dragan",
+          "name": "ドラガン",
+          "roleLabel": "旧敵・停戦交渉の相手",
+          "affinity": -18,
+          "standing": "警戒 (−18) 🕊 和解へ",
+          "whereabouts": { "text": "対岸の陣（交渉窓口経由でのみ接触可能）", "precision": "approximate" },
+          "why": "捕虜交換の返答を待っています。沈黙が長引けば強硬派が勢いづきます。",
+          "whyProv": "derived",
+          "evidence": [
+            { "prov": "fact", "text": "T131: 追加条件の提示（記録）", "meta": "journal t131" },
+            { "prov": "fact", "text": "マイルストーン「和解」が3ターン前に記録", "meta": "npcMilestones[player|npc_dragan] = reconciled (T131)" },
+            { "prov": "derived", "text": "「強硬派が勢いづく」は派閥結束値からの読みです", "meta": "npcFactionCohesion[dragan_army] = 44 (亀裂域に近い)" }
+          ]
+        },
+        {
+          "npcId": "npc_ilma",
+          "name": "兵站官イルマ",
+          "roleLabel": "旅団の台所番",
+          "affinity": 66,
+          "standing": "信頼 (+66)",
+          "whereabouts": { "text": "野営地・糧秣天幕", "precision": "exact" },
+          "why": "補給路の裁可待ち。あなたの決定がないと隊商を出せません。",
+          "whyProv": "fact",
+          "evidence": [
+            { "prov": "fact", "text": "T132: 補給の段取りが裁可待ちで保留", "meta": "journal t132 / questHooks.q_supply" }
+          ]
+        }
+      ],
+      "resume": {
+        "context": "冬営の灯の下、停戦文書の草案から — 返答を待つ者が二人います。",
+        "handoffNote": "シネマティック・プレイへ。T134 の野営の場面から再開します。"
+      }
+    },
+
+    {
+      "id": "stale-data",
+      "label": "霧の中の帰還",
+      "nowIso": "2026-07-11T18:00:00+09:00",
+      "world": {
+        "name": "白霧の群島 スヴァルネス",
+        "epithet": "未完の海図 — 世界ターン76",
+        "sceneClass": "scene-mist",
+        "sceneImage": null,
+        "worldTurn": 76,
+        "inWorldTime": "昼・霧"
+      },
+      "player": {
+        "characterName": "海図師 ヨナ",
+        "roleLabel": "流浪の海図師",
+        "role": "cartographer",
+        "location": "中ノ島・測量小屋"
+      },
+      "journalTail": [
+        { "turnId": "t74", "appliedAt": "2026-05-30T15:20:41+09:00", "playerAction": "北環礁の測深を終え、海図に第7葉を加えた", "gmNote": "残る空白は西の三島のみ" },
+        { "turnId": "t75", "appliedAt": "2026-05-30T15:47:12+09:00", "playerAction": "案内人スケリの手配を灯台島の組合に頼んだ", "gmNote": "返答は「次の便で」とのこと" },
+        { "turnId": "t76", "appliedAt": "2026-05-30T16:05:58+09:00", "playerAction": "測量小屋で道具を油布に包み、旅装を解いた", "gmNote": "霧笛が二度鳴った。静かな引き際" }
+      ],
+      "recap": {
+        "paragraphs": [
+          { "text": "北環礁の測深を終え、海図は第7葉まで進んだ。残る空白は西の三島。案内人スケリの手配を灯台島の組合に頼み、返答は「次の便で」——あなたはそこで道具を油布に包んだ。", "sourceRefs": ["t74", "t75", "t76"] }
+        ]
+      },
+      "arcs": [
+        { "id": "arc1", "title": "南岸の測量行", "fromTurn": 1, "toTurn": 41, "eventCount": 48, "open": false, "note": "海図第1〜4葉" },
+        { "id": "arc2", "title": "北環礁をめぐる", "fromTurn": 42, "toTurn": 76, "eventCount": 39, "open": true, "note": "海図第5〜7葉" }
+      ],
+      "arcsArchivedCount": 1,
+      "arcsArchivedEvents": 48,
+      "threads": [
+        {
+          "id": "th-guide",
+          "kind": "promise",
+          "kindLabel": "手配",
+          "glyph": "🧭",
+          "title": "案内人スケリの返答 — 「次の便」はもう着いたはず",
+          "why": "手配から42ターン。返答が届いたかどうか自体が未観測です。",
+          "provenance": "stale",
+          "basis": "questHooks[q_guide].status = active (T75)",
+          "ageTurns": 42,
+          "evidence": [
+            { "prov": "fact", "text": "T75: 組合への手配が記録されています", "meta": "questHooks.q_guide (turnGenerated: 75)" },
+            { "prov": "stale", "text": "返答の有無は、あなたが誰かに尋ねるまで世界に存在しません", "meta": "no observation since T75" }
+          ]
+        },
+        {
+          "id": "th-west",
+          "kind": "mystery",
+          "kindLabel": "空白",
+          "glyph": "🗺",
+          "title": "西の三島 — 海図最後の空白",
+          "why": "測深の目的そのもの。案内人なしでは近づけない潮流とされています。",
+          "provenance": "fact",
+          "basis": "fogOfWar: 三島は rumored のまま",
+          "ageTurns": 42,
+          "evidence": [
+            { "prov": "fact", "text": "西の三島は fog: rumored（噂のみ・未踏）", "meta": "fogOfWar.westTrio = rumored" }
+          ]
+        }
+      ],
+      "developments": [],
+      "staleness": [
+        { "locationName": "灯台島の組合", "turnsSince": 42, "note": "スケリの返答が着いているかは未観測です" },
+        { "locationName": "南岸の漁村ケルデ", "turnsSince": 55, "note": "嵐の噂（不確か）以後、観測なし" },
+        { "locationName": "北環礁の仮泊地", "turnsSince": 12, "note": "測深器具を一部残置したまま" }
+      ],
+      "quietNote": "この帰還で確かなことは多くありません。世界はあなたの観測を待っています。",
+      "people": [
+        {
+          "npcId": "npc_skelly",
+          "name": "案内人スケリ",
+          "roleLabel": "西水路の水先案内",
+          "affinity": 8,
+          "standing": "面識 (+8)",
+          "whereabouts": { "text": "所在不明 — 最後の観測は42ターン前・灯台島", "precision": "unknown" },
+          "why": "西の三島へ行く唯一の伝手。ただし現在の所在は不明です。",
+          "whyProv": "stale",
+          "evidence": [
+            { "prov": "stale", "text": "所在: 不明（信頼度が低く、位置精度は unknown に落ちています）", "meta": "npcWhereaboutsTrust: playerTrust 8 ≤ 30 → unknown" },
+            { "prov": "fact", "text": "T75: 組合経由での手配記録", "meta": "journal t75" }
+          ]
+        }
+      ],
+      "resume": {
+        "context": "測量小屋から — まず灯台島に便りを確かめるのが確実です。",
+        "handoffNote": "シネマティック・プレイへ。T76 の測量小屋から再開します。"
+      }
+    },
+
+    {
+      "id": "ruler",
+      "label": "辺境伯の帰還",
+      "nowIso": "2026-07-11T20:00:00+09:00",
+      "world": {
+        "name": "辺境伯領 ロートマルク",
+        "epithet": "赤壁の砦 — 世界ターン87・収穫の月",
+        "sceneClass": "scene-keep",
+        "sceneImage": null,
+        "worldTurn": 87,
+        "inWorldTime": "夕・評議の刻"
+      },
+      "player": {
+        "characterName": "辺境伯 アデルハイト",
+        "roleLabel": "ロートマルク辺境伯",
+        "role": "ruler",
+        "location": "赤壁の砦・評議の間"
+      },
+      "journalTail": [
+        { "turnId": "t84", "appliedAt": "2026-07-07T21:02:15+09:00", "playerAction": "収穫税の減免を求める村々の嘆願を聞いた", "gmNote": "家令ベルトルトは国庫残高を理由に難色。裁可は保留" },
+        { "turnId": "t85", "appliedAt": "2026-07-07T21:26:40+09:00", "playerAction": "東の隣領ファルケンの使者を砦に迎えた", "gmNote": "使者は「川関税の折半」を提案。回答期限は次の満月" },
+        { "turnId": "t86", "appliedAt": "2026-07-07T21:45:22+09:00", "playerAction": "守備隊長ローザに北の物見の増強を命じた", "gmNote": "山向こうの動きは依然不明。斥候は二人一組で" },
+        { "turnId": "t87", "appliedAt": "2026-07-07T22:01:37+09:00", "playerAction": "灯を落とす前に国庫の帳簿を検めた", "gmNote": "国庫: 銀820。冬越えの最低線は600と家令の見立て" }
+      ],
+      "recap": {
+        "paragraphs": [
+          { "text": "収穫の月。村々は税の減免を嘆願し、家令ベルトルトは国庫を理由に首を振った——裁可はあなたの手の中で保留のままだ。折しも東のファルケン領から使者が着き、川関税の折半を持ちかけてきた。回答期限は次の満月。", "sourceRefs": ["t84", "t85"] },
+          { "text": "北の山向こうの動きは、いまも霧の中。守備隊長ローザの斥候が二人一組で山を見ている。国庫は銀820——冬越えの最低線まで、あと220。", "sourceRefs": ["t86", "t87"] }
+        ]
+      },
+      "arcs": [
+        { "id": "arc1", "title": "相続と忠誠 — 若き辺境伯", "fromTurn": 1, "toTurn": 33, "eventCount": 45, "open": false, "note": "父の急逝と家中の掌握" },
+        { "id": "arc2", "title": "赤壁の再建", "fromTurn": 34, "toTurn": 70, "eventCount": 52, "open": false, "note": "砦の修復と街道の再開" },
+        { "id": "arc3", "title": "収穫の月", "fromTurn": 71, "toTurn": null, "eventCount": 19, "open": true, "note": "税・外交・北の影" }
+      ],
+      "arcsArchivedCount": 2,
+      "arcsArchivedEvents": 97,
+      "threads": [
+        {
+          "id": "th-tax",
+          "kind": "politics",
+          "kindLabel": "統治",
+          "glyph": "🏰",
+          "title": "収穫税の裁可 — 村々と国庫のあいだ",
+          "why": "嘆願は保留のまま。裁可が遅れるほど村の不満は記録に積もります。",
+          "provenance": "fact",
+          "basis": "domain: 裁可待ち事項",
+          "ageTurns": 3,
+          "evidence": [
+            { "prov": "fact", "text": "T84: 嘆願聴取・裁可保留の記録", "meta": "journal t84 / domain.audienceQueue" },
+            { "prov": "derived", "text": "「不満が積もる」は民心値の推移規則からの読みです", "meta": "derived: domain morale rule" }
+          ]
+        },
+        {
+          "id": "th-envoy",
+          "kind": "politics",
+          "kindLabel": "外交",
+          "glyph": "🕊",
+          "title": "ファルケン領の関税提案 — 期限は次の満月",
+          "why": "使者が砦に滞在中。回答期限つきの外交案件です。",
+          "provenance": "fact",
+          "basis": "questHooks[q_envoy].status = active",
+          "ageTurns": 2,
+          "evidence": [
+            { "prov": "fact", "text": "T85: 川関税折半の提案・期限つき", "meta": "questHooks.q_envoy (source: event)" }
+          ]
+        },
+        {
+          "id": "th-north",
+          "kind": "danger",
+          "kindLabel": "軍務",
+          "glyph": "🛡",
+          "title": "北の山向こう — 正体不明の動き",
+          "why": "斥候は出ています。報告はまだありません。",
+          "provenance": "stale",
+          "basis": "T86 命令記録 + 未帰還",
+          "ageTurns": 1,
+          "evidence": [
+            { "prov": "fact", "text": "T86: 物見増強の命令が記録されています", "meta": "journal t86" },
+            { "prov": "stale", "text": "山向こうの実態は依然未観測です", "meta": "fogOfWar.northRange = unknown" }
+          ]
+        },
+        {
+          "id": "th-treasury",
+          "kind": "pressure",
+          "kindLabel": "国庫",
+          "glyph": "⚖",
+          "title": "国庫 銀820 — 冬越え最低線まで220",
+          "why": "税の裁可と関税提案の両方がこの数字にかかっています。",
+          "provenance": "fact",
+          "basis": "domainLedger.treasury",
+          "ageTurns": 0,
+          "evidence": [
+            { "prov": "fact", "text": "T87: 帳簿検分の記録（銀820）", "meta": "domainLedger.treasury = 820 / journal t87" },
+            { "prov": "fact", "text": "最低線600は家令の見立てとして記録", "meta": "journal t87.gmNote" }
+          ]
+        }
+      ],
+      "threadsOverflowCount": 3,
+      "developments": [
+        { "id": "wce_86_market", "worldTurn": 86, "severity": "info", "category": "resource", "message": "収穫が入り、砦下の市に穀物が並びはじめた", "provenance": "fact" },
+        { "id": "wce_85_envoy", "worldTurn": 85, "severity": "warning", "category": "faction", "message": "ファルケン領の使者が滞在中。回答期限は次の満月", "provenance": "fact" }
+      ],
+      "staleness": [
+        { "locationName": "北の物見砦", "turnsSince": 9, "note": "斥候の定時報告が途切れています" }
+      ],
+      "quietNote": null,
+      "people": [
+        {
+          "npcId": "npc_berthold",
+          "name": "家令ベルトルト",
+          "roleLabel": "ロートマルク家令",
+          "affinity": 58,
+          "standing": "信頼 (+58)",
+          "whereabouts": { "text": "評議の間の控え", "precision": "exact" },
+          "why": "税の裁可を待っています。国庫の帳簿を携えて。",
+          "whyProv": "fact",
+          "evidence": [
+            { "prov": "fact", "text": "T84: 裁可保留・家令の難色が記録", "meta": "journal t84" }
+          ]
+        },
+        {
+          "npcId": "npc_falken_envoy",
+          "name": "ファルケンの使者 グレゴール",
+          "roleLabel": "隣領の外交使節",
+          "affinity": 5,
+          "standing": "面識 (+5)",
+          "whereabouts": { "text": "砦の客間（滞在中）", "precision": "exact" },
+          "why": "満月までの回答を待つ立場。滞在が長引くほど憶測が流れます。",
+          "whyProv": "derived",
+          "evidence": [
+            { "prov": "fact", "text": "T85: 滞在と期限の記録", "meta": "journal t85" },
+            { "prov": "derived", "text": "「憶測が流れる」は滞在長期化の一般則からの読みです", "meta": "derived: court-rumor heuristic" }
+          ]
+        },
+        {
+          "npcId": "npc_rosa",
+          "name": "守備隊長ローザ",
+          "roleLabel": "赤壁守備隊",
+          "affinity": 73,
+          "standing": "盟友 (+73)",
+          "whereabouts": { "text": "北壁の哨所（推定）", "precision": "approximate" },
+          "why": "斥候の第一報を、まずあなたに届けるはずです。",
+          "whyProv": "derived",
+          "evidence": [
+            { "prov": "fact", "text": "T86: 命令系統の記録（報告先は辺境伯）", "meta": "journal t86" },
+            { "prov": "stale", "text": "現在位置は勤務配置からの推定です", "meta": "npcPositions.npc_rosa (approximate)" }
+          ]
+        }
+      ],
+      "resume": {
+        "context": "評議の間から — 裁可がひとつ、返答がひとつ、報告がひとつ、あなたを待っています。",
+        "handoffNote": "シネマティック・プレイへ。T87 の評議の間から再開します。"
+      }
+    }
+  ]
+}

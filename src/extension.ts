@@ -260,7 +260,11 @@ export function activate(context: vscode.ExtensionContext) {
     initCartographyRunner({ getPanel, extensionPath: context.extensionPath, subscriptions: context.subscriptions });
     initMediaAgent({ getPanel, subscriptions: context.subscriptions });
     initMediaManifest({ getPanel });
-    initCharacterManager({ getPanel, onPartyChanged: pushPartyDirectorToWebview });
+    initCharacterManager({
+        getPanel,
+        onPartyChanged: pushPartyDirectorToWebview,
+        subscriptions: context.subscriptions,
+    });
     initGmPromptBuilder({
         getPanel: () => panel,
         onArchiveNow: archiveSaga

@@ -1,4 +1,6 @@
 {
+  "extension.info.portraitGenerated": "立ち絵を生成し、キャラクターに反映しました。",
+  "extension.error.portraitAdoptionFailed": "生成した立ち絵をキャラクターへ安全に反映できませんでした。以前の立ち絵は保持されています。{detail}",
   "webview.imageGen.profile": "Media Profile",
   "webview.imageGen.profileUnresolved": "未解決の旧設定／カスタム設定",
   "webview.imageGen.modelFamily": "チェックポイント系統",

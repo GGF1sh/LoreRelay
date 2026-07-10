@@ -6,6 +6,16 @@ import urllib.parse
 import time
 import os
 import uuid
+from datetime import datetime, timezone
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
+from portrait_artifact import PortraitAdoptionError, adopt_character_portrait
+
+
+MEDIA_RESULT_PREFIX = "TA_MEDIA_RESULT "
 
 # ===== 画像生成バックエンド設定 =====
 # ComfyUI / StabilityMatrix(内蔵ComfyUI) / その他 ComfyUI 互換サーバーに対応。
@@ -136,18 +146,56 @@ def get_image(filename, subfolder, folder_type):
         print(f"Error fetching image: {e}", file=sys.stderr)
         return None
 
+
+def print_help():
+    print("Usage: python comfyui_generate.py <prompt> [output_dir] [mode] [options]")
+    print("       python comfyui_generate.py --list-models")
+    print("       python comfyui_generate.py --help")
+    print("")
+    print("Modes: pony, illustrious, natural, standard")
+    print("Portrait adoption options:")
+    print("  --character-id <id>   Adopt the exact generated artifact for this character")
+    print("  --workspace <path>    Workspace containing characters/<id>.json")
+    print("")
+    print(f"Successful generation emits: {MEDIA_RESULT_PREFIX}<json>")
+
+
+def _option_value(args, option):
+    if option not in args:
+        return ""
+    index = args.index(option)
+    if index + 1 >= len(args):
+        raise ValueError(f"{option} requires a value")
+    return args[index + 1]
+
+
+def _emit_media_result(result):
+    print(f"{MEDIA_RESULT_PREFIX}{json.dumps(result, ensure_ascii=False, separators=(',', ':'))}")
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python comfyui_generate.py <prompt> [output_dir] [mode]")
-        print("       python comfyui_generate.py --list-models")
-        print("Modes: pony, illustrious, natural, standard")
+        print_help()
         sys.exit(1)
+
+    if sys.argv[1] in ("--help", "-h"):
+        print_help()
+        sys.exit(0)
 
     # モデル一覧取得モード
     if sys.argv[1] in ("--list-models", "-l"):
         list_models()
 
     prompt_text = sys.argv[1]
+    extra_args = sys.argv[4:]
+    try:
+        character_id = _option_value(extra_args, "--character-id")
+        adoption_workspace = _option_value(extra_args, "--workspace")
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(2)
+    if bool(character_id) != bool(adoption_workspace):
+        print("Error: --character-id and --workspace must be provided together.", file=sys.stderr)
+        sys.exit(2)
 
     # デフォルトの保存先をスクリプト実行パスからの相対で定義
     default_output = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
@@ -334,7 +382,33 @@ def main():
                         f.write(image_data)
                     
                     # 絶対パスを標準出力に出力 (Antigravityが受け取る用)
-                    print(os.path.abspath(save_path))
+                    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    result = {
+                        "success": True,
+                        "outputPath": os.path.abspath(save_path),
+                        "createdAt": created_at,
+                    }
+                    if character_id:
+                        try:
+                            result = adopt_character_portrait(
+                                adoption_workspace,
+                                character_id,
+                                save_path,
+                                created_at,
+                            )
+                        except (PortraitAdoptionError, OSError, ValueError) as error:
+                            _emit_media_result({
+                                "success": False,
+                                "outputPath": os.path.abspath(save_path),
+                                "createdAt": created_at,
+                                "characterId": character_id,
+                                "error": str(error),
+                            })
+                            print(f"Portrait adoption failed: {error}", file=sys.stderr)
+                            sys.exit(1)
+
+                    print(result["outputPath"])
+                    _emit_media_result(result)
                     sys.exit(0)
 
     print("Image generation finished but no image found.", file=sys.stderr)

@@ -1,4 +1,6 @@
 {
+  "extension.info.portraitGenerated": "立绘已生成并成功应用到角色。",
+  "extension.error.portraitAdoptionFailed": "生成结果未能作为已验证的角色立绘应用。原立绘已保留。{detail}",
   "webview.imageGen.profile": "Media Profile",
   "webview.imageGen.profileUnresolved": "未解析的旧版／自定义设置",
   "webview.imageGen.modelFamily": "检查点系列",

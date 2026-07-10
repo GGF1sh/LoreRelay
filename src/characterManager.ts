@@ -25,6 +25,8 @@ import {
     preflightExpressionGeneration,
     preflightPortraitGeneration,
 } from './mediaCompatibility';
+import { buildPortraitGeneratedMessage, parseMediaArtifactResult } from './mediaArtifactCore';
+import { verifyAdoptedPortraitArtifact } from './portraitArtifact';
 
 
 let portraitProcess: ChildProcess | undefined;
@@ -43,12 +45,32 @@ const DATA_IMAGE_RE = /^data:image\/(png|jpe?g|webp);base64,([a-zA-Z0-9+/=\r\n]+
 export interface CharacterManagerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
     onPartyChanged?: () => void;
+    subscriptions?: vscode.Disposable[];
 }
 
 let deps: CharacterManagerDeps | undefined;
+let characterProfileWatcher: vscode.FileSystemWatcher | undefined;
+let characterRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function initCharacterManager(managerDeps: CharacterManagerDeps): void {
     deps = managerDeps;
+    characterProfileWatcher?.dispose();
+    characterProfileWatcher = undefined;
+    const workspacePath = getWorkspacePath();
+    if (!workspacePath) { return; }
+    characterProfileWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(workspacePath, 'characters/*.json')
+    );
+    const scheduleRefresh = () => {
+        if (characterRefreshTimer) { clearTimeout(characterRefreshTimer); }
+        characterRefreshTimer = setTimeout(() => {
+            characterRefreshTimer = undefined;
+            if (deps?.getPanel()) { sendCharacterList(); }
+        }, 75);
+    };
+    characterProfileWatcher.onDidCreate(scheduleRefresh);
+    characterProfileWatcher.onDidChange(scheduleRefresh);
+    managerDeps.subscriptions?.push(characterProfileWatcher);
 }
 
 function requireDeps(): CharacterManagerDeps {
@@ -439,8 +461,18 @@ export async function generatePortrait(id: string): Promise<void> {
     getPanel()?.webview.postMessage({ type: 'imageGenStart' });
 
     const python = resolvePythonCommand();
+    const generationStartedAt = Date.now();
     const execution = executeAfterMediaPreflight(preflight, validatedEnv =>
-        spawn(python, [scriptPath, prompt, charDir, portraitMode], {
+        spawn(python, [
+            scriptPath,
+            prompt,
+            charDir,
+            portraitMode,
+            '--character-id',
+            id,
+            '--workspace',
+            wsPath,
+        ], {
             shell: false,
             env: validatedEnv
         }));
@@ -449,41 +481,49 @@ export async function generatePortrait(id: string): Promise<void> {
     portraitProcess = child;
 
     let finished = false;
+    let stdout = '';
     const finishPortrait = (code: number | null) => {
         if (finished) { return; }
         finished = true;
         portraitProcess = undefined;
         channel.appendLine(`\nProcess exited with code ${code ?? 'unknown'}`);
-        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: code === 0 });
-
+        let success = false;
         if (code === 0) {
-            try {
-                const files = fs.readdirSync(charDir)
-                    .filter(f => f.startsWith('scene_') && f.endsWith('.png'))
-                    .map(f => ({ name: f, time: fs.statSync(path.join(charDir, f)).mtime.getTime() }))
-                    .sort((a, b) => b.time - a.time);
-
-                if (files.length > 0) {
-                    const latest = files[0].name;
-                    const src = path.join(charDir, latest);
-                    const dest = path.join(charDir, `${id}_portrait.png`);
-                    fs.renameSync(src, dest);
-
-                    char.portrait = dest;
-                    saveCharacter(char);
-                    const uri = safeImageUri(dest);
-                    if (uri) {
-                        getPanel()?.webview.postMessage({ type: 'portraitGenerated', id, uri });
-                    }
-                    vscode.window.showInformationMessage('Portrait generated successfully!');
+            const artifact = parseMediaArtifactResult(stdout);
+            const verified = verifyAdoptedPortraitArtifact(wsPath, id, artifact, generationStartedAt);
+            if (verified.ok) {
+                const uri = safeImageUri(verified.portraitPath);
+                if (uri) {
+                    const message = buildPortraitGeneratedMessage(id, uri, verified.createdAt);
+                    getPanel()?.webview.postMessage({
+                        type: 'portraitGenerated',
+                        id: message.id,
+                        uri: message.uri,
+                        createdAt: message.createdAt,
+                    });
+                    sendCharacterList();
+                    vscode.window.showInformationMessage(t('extension.info.portraitGenerated'));
+                    success = true;
+                } else {
+                    channel.appendLine('[Portrait Adoption] Adopted file could not be converted to a safe Webview URI.');
                 }
-            } catch (e) {
-                console.error('Failed to link generated portrait:', e);
+            } else {
+                channel.appendLine(`[Portrait Adoption] ${verified.reason}`);
             }
+        }
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success });
+        if (!success && code !== null) {
+            const artifact = parseMediaArtifactResult(stdout);
+            const detail = artifact?.error || (code === 0 ? 'artifact verification failed' : `generator exited ${code}`);
+            vscode.window.showErrorMessage(t('extension.error.portraitAdoptionFailed', { detail }));
         }
     };
 
-    child.stdout.on('data', (data) => channel.append(data.toString()));
+    child.stdout.on('data', (data) => {
+        const text = data.toString();
+        stdout += text;
+        channel.append(text);
+    });
     child.stderr.on('data', (data) => channel.append(data.toString()));
 
     child.on('error', (err) => {

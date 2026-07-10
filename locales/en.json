@@ -1,4 +1,6 @@
 {
+  "extension.info.portraitGenerated": "Portrait generated and adopted successfully.",
+  "extension.error.portraitAdoptionFailed": "Portrait generation did not produce a verified character portrait. The previous portrait was preserved. {detail}",
   "webview.imageGen.profile": "Media Profile",
   "webview.imageGen.profileUnresolved": "Unresolved legacy/custom",
   "webview.imageGen.modelFamily": "Checkpoint family",

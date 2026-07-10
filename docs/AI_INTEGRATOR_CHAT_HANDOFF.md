@@ -1083,20 +1083,33 @@ candidate report: e2297138f8cf042d7a40f6e109464814d8ddcc66
 independent verify: 18d81f90cc1004929f872214e8efd800c850802f
 main integration: 34fec195396ef5cad695f04bd5b67fb4822e520c
 normal gates: PASS, npm test 235/235 (run once)
-status: MEDIA_M1_POST_MERGE_FAILED
-blocker: required canonical Antigravity BAT exited non-zero because the live
-miya.lorerelay-1.77.15 directory was locked; copied target contents do not substitute
-for installer PASS.
+status: VERIFYING — INSTALLER_RECOVERY_PENDING
+installer recovery is supplied by INSTALLER-RELEASE-001 at version 1.78.0.
 durable evidence: docs/ai-tasks/MEDIA-M1-POST-MERGE-SMOKE.md
 ```
 
-Recovery sequence:
+### INSTALLER-RELEASE-001
 
 ```text
-1. Restart Antigravity IDE so the extension directory is released.
-2. Run C:\AI\text-adventure-vsce\install_extension_antigravity.bat again; require exit 0.
-3. Only then run and record the four M1 human smoke cases in MEDIA-M1-POST-MERGE-SMOKE.md.
-4. Do not mark M1 DONE before real human smoke. Do not begin M2-M7.
+status: VERIFYING — REAL_INSTALL_PENDING
+implementation: ee005c5f27c95348838526943eaf27e92f9c5939
+independent verify: 9ba4fe47c2726bec83e5ba0942aff9fe82f545eb
+FAST gates: PASS (compile, version consistency, installer PowerShell tests)
+release identity: 1.78.0; expected VSIX lorerelay-1.78.0.vsix
+durable evidence: docs/ai-tasks/INSTALLER-RELEASE-001-INTEGRATION.md
+```
+
+Required human sequence:
+
+```text
+1. Fully exit Antigravity IDE.
+2. Run C:\AI\text-adventure-vsce\install_extension_antigravity.bat.
+3. Require installer exit 0.
+4. Require installed LoreRelay version 1.78.0.
+5. Restart Antigravity.
+6. Continue MEDIA-M1 real smoke A-D.
+7. Do not mark INSTALLER-RELEASE-001 DONE before the real canonical BAT succeeds.
+8. Do not mark MEDIA-M1 DONE before its human smoke passes. Do not begin M2-M7.
 ```
 
 Remaining implementation sequence:

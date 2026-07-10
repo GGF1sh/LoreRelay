@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.78.2] - 2026-07-10
+
+### Fixed
+
+- **MEDIA-COMFY-001 long-load ComfyUI lifecycle** — a confirmed prompt now has a state-aware lifecycle: completion history plus available pending/running queue observation distinguish queued, running, completed, orphaned, and absolute-timeout outcomes. `COMFYUI_JOB_TIMEOUT` defaults to 1200 seconds and is separate from per-request `COMFYUI_HTTP_TIMEOUT`; active model-loading jobs are not retried or failed at the former fixed 300-second threshold. Final machine-readable records retain `TA_MEDIA_RESULT` compatibility and include prompt/state diagnostics on failure.
+
 ## [1.78.1] - 2026-07-10
 
 ### Added

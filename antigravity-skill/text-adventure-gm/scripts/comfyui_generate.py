@@ -39,6 +39,22 @@ try:
 except ValueError:
     HTTP_TIMEOUT = 30.0
 
+
+def _positive_float_env(name, default):
+    try:
+        value = float(os.environ.get(name, str(default)))
+        return value if value > 0 else default
+    except ValueError:
+        return default
+
+
+# Transport timeouts apply to individual HTTP calls. Job lifecycle limits are
+# deliberately separate: a first model load can legitimately run for minutes.
+JOB_TIMEOUT = _positive_float_env("COMFYUI_JOB_TIMEOUT", 1200)
+POLL_INTERVAL = _positive_float_env("COMFYUI_POLL_INTERVAL", 2)
+ORPHAN_GRACE = _positive_float_env("COMFYUI_ORPHAN_GRACE", 10)
+MEDIA_STATUS_PREFIX = "TA_MEDIA_STATUS "
+
 # プロンプト・プリセット（モード別）
 def _load_workspace_image_config():
     """ワークスペースの image_gen_config.json を読み込む（TA_IMAGE_CONFIG または cwd）。"""
@@ -135,6 +151,92 @@ def get_history(prompt_id):
             return json.loads(response.read())
     except Exception:
         return {}
+
+
+def get_queue():
+    """Return ComfyUI queue data, or None when that endpoint is unavailable."""
+    try:
+        with urllib.request.urlopen(f"{COMFYUI_URL}/queue", timeout=HTTP_TIMEOUT) as response:
+            data = json.loads(response.read())
+            return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _queue_contains_prompt(entries, prompt_id):
+    """ComfyUI queue entries vary by version; match the exact prompt id only."""
+    if isinstance(entries, dict):
+        return any(_queue_contains_prompt(value, prompt_id) for value in entries.values())
+    if isinstance(entries, (list, tuple)):
+        return any(_queue_contains_prompt(value, prompt_id) for value in entries)
+    return entries == prompt_id
+
+
+def _emit_media_status(prompt_id, state, elapsed):
+    print(f"{MEDIA_STATUS_PREFIX}{json.dumps({'promptId': prompt_id, 'state': state, 'elapsedSeconds': round(elapsed, 3)}, separators=(',', ':'))}")
+
+
+def _failure_result(state, error, prompt_id=None, last_state=None):
+    result = {"success": False, "state": state, "error": error}
+    if prompt_id:
+        result["promptId"] = prompt_id
+    if last_state:
+        result["lastState"] = last_state
+    _emit_media_result(result)
+    return result
+
+
+def wait_for_job_completion(prompt_id, history_getter=get_history, queue_getter=get_queue,
+                            time_fn=time.monotonic, sleep_fn=time.sleep,
+                            job_timeout=JOB_TIMEOUT, poll_interval=POLL_INTERVAL,
+                            orphan_grace=ORPHAN_GRACE, status_emitter=_emit_media_status):
+    """Observe one already-queued ComfyUI job without ever re-submitting it."""
+    started = time_fn()
+    last_state = "QUEUED"
+    missing_since = None
+    emitted_state = None
+
+    while True:
+        elapsed = time_fn() - started
+        if elapsed >= job_timeout:
+            if emitted_state != "TIMED_OUT":
+                status_emitter(prompt_id, "TIMED_OUT", elapsed)
+            return {"state": "TIMED_OUT", "promptId": prompt_id, "lastState": last_state, "elapsedSeconds": elapsed}
+
+        history = history_getter(prompt_id) or {}
+        if prompt_id in history:
+            if emitted_state != "COMPLETED":
+                status_emitter(prompt_id, "COMPLETED", elapsed)
+            return {"state": "COMPLETED", "promptId": prompt_id, "history": history, "lastState": last_state, "elapsedSeconds": elapsed}
+
+        queue = queue_getter()
+        if queue is not None:
+            if _queue_contains_prompt(queue.get("queue_running", []), prompt_id):
+                state = "RUNNING"
+                missing_since = None
+            elif _queue_contains_prompt(queue.get("queue_pending", []), prompt_id):
+                state = "QUEUED"
+                missing_since = None
+            else:
+                if missing_since is None:
+                    missing_since = time_fn()
+                if time_fn() - missing_since >= orphan_grace:
+                    state = "ORPHANED"
+                else:
+                    state = last_state
+        else:
+            # Queue observation is optional on older/proxied ComfyUI installs.
+            # Preserve the confirmed queued state and wait for the absolute cap.
+            state = last_state
+
+        if state != emitted_state:
+            status_emitter(prompt_id, state, elapsed)
+            emitted_state = state
+        if state == "ORPHANED":
+            return {"state": state, "promptId": prompt_id, "lastState": last_state, "elapsedSeconds": elapsed}
+
+        last_state = state
+        sleep_fn(min(poll_interval, max(0, job_timeout - elapsed)))
 
 def get_image(filename, subfolder, folder_type):
     data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
@@ -337,25 +439,21 @@ def main():
 
     # 3. ジョブをキューに入れる
     response = queue_prompt(workflow)
-    if not response or "prompt_id" not in response:
+    if not response or not response.get("prompt_id"):
+        _failure_result("QUEUE_REJECTED", "ComfyUI rejected the prompt or returned no prompt_id.")
         print("Failed to queue prompt.", file=sys.stderr)
         sys.exit(1)
 
     prompt_id = response["prompt_id"]
 
     # 4. 完了までポーリング (最大5分)
-    history = {}
-    max_wait = 300
-    elapsed = 0
-    while elapsed < max_wait:
-        history = get_history(prompt_id)
-        if prompt_id in history:
-            break
-        time.sleep(2)
-        elapsed += 2
-    else:
-        print("Timeout waiting for ComfyUI.", file=sys.stderr)
+    lifecycle = wait_for_job_completion(prompt_id, history_getter=get_history, queue_getter=get_queue)
+    if lifecycle["state"] != "COMPLETED":
+        state = lifecycle["state"]
+        _failure_result(state, "ComfyUI job was not completed before lifecycle resolution.", prompt_id, lifecycle.get("lastState"))
+        print(f"ComfyUI job {prompt_id} ended in {state} (last state: {lifecycle.get('lastState')}).", file=sys.stderr)
         sys.exit(1)
+    history = lifecycle["history"]
 
     # 5. 画像をダウンロードして保存
     prompt_result = history[prompt_id]
@@ -387,6 +485,8 @@ def main():
                         "success": True,
                         "outputPath": os.path.abspath(save_path),
                         "createdAt": created_at,
+                        "promptId": prompt_id,
+                        "jobState": "COMPLETED",
                     }
                     if character_id:
                         try:
@@ -411,6 +511,7 @@ def main():
                     _emit_media_result(result)
                     sys.exit(0)
 
+    _failure_result("COMPLETED", "Image generation finished but no image found.", prompt_id, "COMPLETED")
     print("Image generation finished but no image found.", file=sys.stderr)
     sys.exit(1)
 

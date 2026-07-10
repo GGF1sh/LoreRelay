@@ -50,6 +50,8 @@ For any LoreRelay character portrait generated from Antigravity/manual Relay:
 5. Do not claim portrait success when generation or adoption fails. Preserve the previous valid portrait and report the failure.
 6. Use the adopted `outputPath` as character state. Do not invent `file:///` Markdown paths and do not write an old/stale portrait path into `turn_result.json`.
 7. The filesystem plus the validated `characters/<id>.json` update is authoritative; AI narration is not.
+8. If ComfyUI returns HTTP 400, another nonzero queue failure, or no `prompt_id`, stop immediately. Do not report waiting or running without prompt/job evidence.
+9. After a confirmed queued/running prompt, do not submit a duplicate retry merely because model loading is slow. Wait for the job lifecycle result; only `TA_MEDIA_RESULT` is completion evidence.
 
 Example shape (substitute real values; do not run `--help` as the prompt):
 

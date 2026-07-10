@@ -64,8 +64,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.78.1** |
-| CHANGELOG 先頭 | **[1.78.1]** MEDIA-M1.1 Portrait Artifact Adoption/Sync · installed-Skill mandatory verification gate |
+| `package.json` | **1.78.2** |
+| CHANGELOG 先頭 | **[1.78.2]** MEDIA-COMFY-001 long-load ComfyUI job lifecycle repair |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
 | World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |
@@ -75,6 +75,6 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Living World (履歴) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
 | Debug Trace | P1 contracts (v1.77.14) · retention/coalesce/live run (v1.77.15) · Inspector UI Phase B + UX polish |
 | MEDIA-M1 | Compatibility Gate + Media Profile Spine（v1.78.0）· 独立敵対的検証 PASS（`docs/ai-tasks/MEDIA-M1-INDEPENDENT-VERIFY.md`）· post-merge installer smoke は INSTALLER-RELEASE-001 待ち |
-| MEDIA-M1.1 | Portrait Artifact Adoption/Sync（v1.78.1）· 独立検証 REPAIR_REQUIRED → installed-Skill 必須検証ゲートを修理（`scripts/install_antigravity_skill.ps1` post-copy SHA-256）· human-smoke 候補 |
+| MEDIA-COMFY-001 | ComfyUI long-load job lifecycle repair（v1.78.2）· human-smoke 候補 |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
 | テスト | `npm test` — 本タスクでの実測値は `docs/ai-tasks/MEDIA-M1.1-REPAIR-INSTALLED-SKILL-GATE.md` を参照（`check_version_consistency.js` 含む · simulation batch は二重実行なし） |

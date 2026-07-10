@@ -152,9 +152,26 @@ if "%DEPS_READY%"=="1" (
   popd
 )
 
-echo [LoreRelay] Handoff to managed installer...
+echo [LoreRelay] Handoff to managed installer (1/2: Antigravity extension)...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%MANAGED_PATH%\scripts\install_vscode_extension.ps1" -Target "antigravity"
 set "PS_EXIT_CODE=%ERRORLEVEL%"
+if not "!PS_EXIT_CODE!"=="0" (
+  echo [LoreRelay] ERROR: extension installation failed with exit code !PS_EXIT_CODE!.
+  echo [LoreRelay] Skipping Antigravity GM Skill installation.
+  goto :finish
+)
+
+rem The GM Skill is installed from the SAME managed checkout SHA validated above.
+rem install_antigravity_skill.ps1 remains the mandatory SHA-256 authority: it exits
+rem nonzero when the installed SKILL.md does not byte-exactly match the repo-owned source.
+echo [LoreRelay] Handoff to managed installer (2/2: Antigravity GM Skill @ !MANAGED_SHA!)...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%MANAGED_PATH%\scripts\install_antigravity_skill.ps1" -ProjectDir "%MANAGED_PATH%\scripts"
+set "PS_EXIT_CODE=%ERRORLEVEL%"
+if not "!PS_EXIT_CODE!"=="0" (
+  echo [LoreRelay] ERROR: Antigravity GM Skill installation/verification failed with exit code !PS_EXIT_CODE!.
+  goto :finish
+)
+echo [LoreRelay] Antigravity GM Skill installed and SHA-256 verified from managed checkout !MANAGED_SHA!.
 
 :finish
 echo.

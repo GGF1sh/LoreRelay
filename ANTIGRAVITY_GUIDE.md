@@ -22,11 +22,17 @@ WebSocket サーバーも、複雑な API 連携も不要。**「AI が JSON を
 
 ## インストール手順
 
-Antigravity 用の GM スキルは、同梱のバッチファイルでワンクリック導入できます。
+Antigravity 用の **UI 拡張機能と GM スキルは、1 つのバッチファイル**でまとめて導入できます。
 
-1. 配布パッケージ内の `install_antigravity_skill.bat` をダブルクリックします。
-2. `skills\text-adventure-gm` または隣接する `TextAdventureGMSkill` から、`%USERPROFILE%\.gemini\config\skills\text-adventure-gm` へ `SKILL.md` と `scripts\` がコピーされます。
-3. Antigravity を再起動すると、スキルが認識されます。
+1. 配布パッケージ内の `install_extension_antigravity.bat` をダブルクリックします。
+2. 拡張機能が Antigravity にインストールされ、**成功した場合のみ**続けて GM スキルがインストールされます。
+   `%USERPROFILE%\.gemini\config\skills\text-adventure-gm` へ `SKILL.md` と `scripts\` がコピーされ、
+   インストールされた `SKILL.md` がリポジトリ正本と **SHA-256 で一致すること**が必須検証されます。
+   一致しない／欠落している場合、バッチ全体が失敗（非ゼロ終了）します。
+3. Antigravity を再起動すると、拡張機能とスキルの両方が認識されます。
+
+> `install_antigravity_skill.bat` はスキルのみを入れる補助用です。上記の手順を実行した場合、
+> **別途実行する必要はありません。**
 
 ---
 

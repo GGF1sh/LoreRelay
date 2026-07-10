@@ -1,4 +1,10 @@
 {
+  "webview.imageGen.profile": "Media Profile",
+  "webview.imageGen.profileUnresolved": "未解決の旧設定／カスタム設定",
+  "webview.imageGen.modelFamily": "チェックポイント系統",
+  "webview.imageGen.familyUnknown": "不明（画像生成を停止）",
+  "extension.error.mediaCompatibility": "画像生成設定の組み合わせに互換性がありません。{detail} 互換性のある Media Profile とチェックポイントを選択してから再試行してください。",
+  "extension.error.worldMapMediaCompatibility": "世界地図の生成には SDXL 互換の Media Profile／チェックポイントが必要です。{detail}",
   "extension.action.applyVehicleMigration": "移行を適用",
   "extension.action.cancel": "キャンセル",
   "extension.action.restoreVehicleMigration": "バックアップを復元",

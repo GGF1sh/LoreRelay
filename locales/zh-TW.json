@@ -1,4 +1,10 @@
 {
+  "webview.imageGen.profile": "Media Profile",
+  "webview.imageGen.profileUnresolved": "未解析的舊版／自訂設定",
+  "webview.imageGen.modelFamily": "檢查點系列",
+  "webview.imageGen.familyUnknown": "未知（阻止影像生成）",
+  "extension.error.mediaCompatibility": "影像生成設定不相容。{detail} 請選擇相容的 Media Profile 與檢查點綁定後重試。",
+  "extension.error.worldMapMediaCompatibility": "世界地圖生成需要相容 SDXL 的 Media Profile／檢查點綁定。{detail}",
   "extension.action.applyVehicleMigration": "套用遷移",
   "extension.action.cancel": "取消",
   "extension.action.restoreVehicleMigration": "還原備份",

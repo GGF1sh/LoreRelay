@@ -1,4 +1,10 @@
 {
+  "webview.imageGen.profile": "Media Profile",
+  "webview.imageGen.profileUnresolved": "Unresolved legacy/custom",
+  "webview.imageGen.modelFamily": "Checkpoint family",
+  "webview.imageGen.familyUnknown": "Unknown (generation blocked)",
+  "extension.error.mediaCompatibility": "Image generation settings are incompatible. {detail} Select a compatible Media Profile and checkpoint binding, then retry.",
+  "extension.error.worldMapMediaCompatibility": "World-map generation requires an SDXL-compatible Media Profile/checkpoint binding. {detail}",
   "extension.action.applyVehicleMigration": "Apply Migration",
   "extension.action.cancel": "Cancel",
   "extension.action.restoreVehicleMigration": "Restore Backup",

@@ -1,0 +1,1062 @@
+{
+  "format": "lorerelay-noai-play-shell-prototype/0.1",
+  "note": "NOAI-PLAY-001 「暮らす」 sample data. Shapes mirror real persisted state (src/types/GameState.ts commerce/world, src/worldStateCore.ts markets/lastVisitTurnByLocation, src/livingWorldTypes.ts, src/domainCore.ts DomainState, src/guildCore.ts GuildState). Every action carries source{module,symbol,availability} — availability 'now' means the pure logic exists on origin/main today; 'adapter' means the pieces exist but a small player-facing host command must compose them; 'future' means no production logic exists yet. No availability claim is invented: see the NOAI-PLAY-001 report source map.",
+  "world": {
+    "name": "アルヴェリオン",
+    "factions": {
+      "silver_scale_guild": "銀天秤商会",
+      "royal_order": "王国聖騎士団",
+      "black_phosphor_pact": "黒燐同盟",
+      "sylvan_folk": "森の民"
+    },
+    "regions": {
+      "central_plains": "中央平原",
+      "mistpeak_mountains": "霧峰山地",
+      "dark_moor": "黒沼地",
+      "harbor_reach": "港湾都市圏"
+    },
+    "locations": {
+      "lumina_capital": "王都リュミナ",
+      "hallow_town": "宿場町ハロウ",
+      "versa_port": "港町ヴェルサ",
+      "gorge_fort": "山峡の砦",
+      "sylva_village": "森の集落シルヴァ"
+    },
+    "commodities": {
+      "wheat": "小麦",
+      "steel": "鋼",
+      "salt": "塩",
+      "herbs": "薬草"
+    }
+  },
+  "vocabulary": {
+    "provenance": {
+      "fact": { "label": "確定", "desc": "決定論エンジンが実際に適用し、台帳に書き込んだ結果。読み直しても変わりません。" },
+      "estimate": { "label": "見立て", "desc": "既知の数値から画面が計算した予測。約束ではありません。" },
+      "unknown": { "label": "不確か", "desc": "霧の向こう・古い観測・エンジンが約束しない部分。" },
+      "narration": { "label": "語り", "desc": "確定した記録をAIが語り直したもの。記録そのものは一切変わりません。" },
+      "canon": { "label": "節目", "desc": "年代記に固定された大きな出来事。" }
+    },
+    "availability": {
+      "now": { "label": "実装済", "desc": "この判定・適用ロジックは現在の main に存在します。" },
+      "adapter": { "label": "要接続", "desc": "部品は実装済み。プレイヤー向けの細い配線(ホストコマンド)が1本必要です。" },
+      "future": { "label": "構想", "desc": "本番ロジックは未実装。デザイン上の目標です。" }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "healer",
+      "label": "静かな薬師",
+      "sublabel": "QUIET HEALER",
+      "description": "森の集落シルヴァの薬師。危機はなく、日々の営みだけがある。",
+      "cadence": "day",
+      "worldTurn": 58,
+      "tension": "calm",
+      "player": { "roleId": "healer", "roleLabel": "薬師", "name": "ユナ", "locationId": "sylva_village", "epithet": "森の集落の治し手" },
+      "purse": { "credits": 164, "food": 12, "capacity": 20, "transportId": "wagon", "transportLabel": "手押し車", "cargo": [ { "commodityId": "herbs", "qty": 5 } ] },
+      "slots": { "labels": ["朝", "昼", "夕"], "used": 1 },
+      "situation": [
+        "霧が晴れ、森は静かだ。急ぎの用はない。",
+        "乾かした薬草が5束。棚は半分ほど埋まっている。",
+        "村の広場では市が立っている。"
+      ],
+      "peopleHere": [
+        { "npcId": "npc_mira", "name": "ミラ婆", "trust": 78, "trustLabel": "厚い信頼", "factionId": "sylvan_folk", "note": "村の長老。膝の具合が悪い" },
+        { "npcId": "npc_rio", "name": "リオ", "trust": 55, "trustLabel": "顔なじみ", "note": "木こりの息子。昨日から咳" }
+      ],
+      "families": [
+        { "id": "work", "label": "仕事", "en": "WORK" },
+        { "id": "trade", "label": "商い", "en": "TRADE" },
+        { "id": "social", "label": "人", "en": "PEOPLE" },
+        { "id": "life", "label": "暮らし", "en": "LIFE" }
+      ],
+      "actions": [
+        {
+          "id": "gather_herbs",
+          "familyId": "work",
+          "label": "薬草を摘みに出る",
+          "desc": "森の浅場で薬草を集める。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [ { "label": "日中である", "met": true } ],
+          "known": [ "1刻を使う", "採れ高は 2〜4束の範囲で確定処理される(上限あり)" ],
+          "estimated": [ "雨上がりは実りが良いことが多い" ],
+          "unknown": [ "森で誰かに出会うかどうか" ],
+          "source": { "module": "campaignResourcesCore", "symbol": "applyCampaignResourceOps", "availability": "adapter", "note": "資源加算オペは実装済(±500/op上限)。採集レシピの配線が必要" },
+          "result": {
+            "title": "薬草を摘んだ",
+            "attempted": "森の浅場で薬草採集(1刻)",
+            "ok": true,
+            "deltas": [ { "label": "薬草", "before": 5, "after": 8, "delta": 3, "unit": "束" } ],
+            "events": [ { "id": "wce_58_resource_gather_herbs" } ],
+            "facts": [ "薬草 +3束(所持 8束)", "1刻を使った(残り: 夕)" ]
+          }
+        },
+        {
+          "id": "treat_rio",
+          "familyId": "work",
+          "label": "リオの咳を診る",
+          "desc": "薬草を煎じて手当てする。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "cargo", "label": "薬草", "amount": 1 } ],
+          "requires": [ { "label": "薬草 1束以上", "met": true, "detail": "所持 5束" }, { "label": "相手が同じ場所にいる", "met": true } ],
+          "target": { "kind": "npc", "id": "npc_rio", "label": "リオ" },
+          "known": [ "薬草 −1束", "1刻を使う" ],
+          "estimated": [ "信頼が少し深まる(顔なじみ 55 → 上向き)" ],
+          "unknown": [ "咳の原因が単純なものかどうか" ],
+          "source": { "module": "playerBondCore / campaignResourcesCore", "symbol": "milestone + resource op", "availability": "adapter", "note": "絆の節目・資源消費とも部品は実装済。手当てという行為の配線が必要" },
+          "result": {
+            "title": "リオを手当てした",
+            "attempted": "薬草を煎じて咳を診る(1刻・薬草1束)",
+            "ok": true,
+            "deltas": [ { "label": "薬草", "before": 5, "after": 4, "delta": -1, "unit": "束" }, { "label": "リオの信頼", "before": 55, "after": 58, "delta": 3 } ],
+            "events": [ { "id": "wce_58_npc_treat_rio" } ],
+            "facts": [ "薬草 −1束", "リオの信頼 55 → 58(顔なじみ)", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "sell_herbs",
+          "familyId": "trade",
+          "label": "市で薬草を売る",
+          "desc": "広場の市に薬草を出す。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "cargo", "label": "薬草", "amount": 2 } ],
+          "requires": [ { "label": "薬草 2束以上", "met": true, "detail": "所持 5束" }, { "label": "この場所に市がある", "met": true } ],
+          "known": [ "いまの買値: 1束 11銭(2束で 22銭)", "在庫と価格はこの場でエンジンが確定する" ],
+          "estimated": [ "市の在庫が薄いので、明日は値が上がるかもしれない" ],
+          "unknown": [],
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp(sell)", "availability": "now" },
+          "result": {
+            "title": "薬草を売った",
+            "attempted": "市で薬草2束を売却",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 164, "after": 186, "delta": 22 }, { "label": "薬草", "before": 5, "after": 3, "delta": -2, "unit": "束" } ],
+            "events": [ { "id": "wce_58_resource_trade_1" } ],
+            "facts": [ "売却 2束 × 11銭 = 22銭", "市の薬草在庫 3 → 5", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "talk_mira",
+          "familyId": "social",
+          "label": "ミラ婆の膝を見舞う",
+          "desc": "長老の家に寄って様子を聞く。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [ { "label": "相手が同じ場所にいる", "met": true } ],
+          "target": { "kind": "npc", "id": "npc_mira", "label": "ミラ婆" },
+          "known": [ "1刻を使う" ],
+          "estimated": [ "厚い信頼(78)がさらに深まる見込み" ],
+          "unknown": [ "婆が何を話したがっているか" ],
+          "source": { "module": "playerBondCore", "symbol": "detectPlayerBondEvents", "availability": "adapter", "note": "絆の閾値・節目検出は実装済。会話という行為の配線が必要" },
+          "result": {
+            "title": "ミラ婆を見舞った",
+            "attempted": "長老の家を訪ねる(1刻)",
+            "ok": true,
+            "deltas": [ { "label": "ミラ婆の信頼", "before": 78, "after": 80, "delta": 2 } ],
+            "events": [ { "id": "wce_58_npc_visit_mira" } ],
+            "facts": [ "ミラ婆の信頼 78 → 80(厚い信頼)", "「霧峰の峠が荒れている」と聞いた", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "rest",
+          "familyId": "life",
+          "label": "縁側で休む",
+          "desc": "何もしない。それも暮らしのうち。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [],
+          "known": [ "1刻を使う。ほかには何も変わらない" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "narrativeTimePassageCore", "symbol": "clampElapsedWorldTurns", "availability": "adapter", "note": "時間経過の器は実装済(debug: narrative_rest)。生活動作としての配線が必要" },
+          "result": {
+            "title": "縁側で休んだ",
+            "attempted": "休息(1刻)",
+            "ok": true,
+            "deltas": [],
+            "events": [],
+            "facts": [ "1刻を使った。世界は静かに進む" ]
+          }
+        }
+      ],
+      "ledger": {
+        "today": [
+          {
+            "kind": "receipt",
+            "id": "rcpt_58_1",
+            "time": "朝",
+            "title": "囲炉裏の火を入れ、店を開けた",
+            "ok": true,
+            "deltas": [],
+            "facts": [ "店先に「本日あき」の札を掛けた" ],
+            "events": []
+          }
+        ],
+        "folds": [
+          { "label": "昨日まで(第2月)", "count": 17, "sample": "薬草の採集 ×6 / 手当て ×4 / 市の売買 ×5 / 休息 ×2" }
+        ],
+        "arcs": []
+      },
+      "endDay": {
+        "preview": [ "世界が1刻すすむ(worldSim 1ステップ)", "市の在庫がすこし回復する(毎刻 +2 目安)", "薬草の乾燥がすすむ" ],
+        "summary": [ "静かな一日だった。森に大きな動きはない。", "市の薬草在庫 5 → 7(回復)" ],
+        "quiet": true
+      }
+    },
+    {
+      "id": "shopkeeper",
+      "label": "宿場の店主",
+      "sublabel": "SHOPKEEPER",
+      "description": "宿場町ハロウの小さな店。仕入れと売り、常連との駆け引き。",
+      "cadence": "day",
+      "worldTurn": 112,
+      "tension": "calm",
+      "player": { "roleId": "merchant", "roleLabel": "店主", "name": "ガレン", "locationId": "hallow_town", "epithet": "宿場町の雑貨商" },
+      "purse": { "credits": 186, "food": 9, "capacity": 20, "transportId": "wagon", "transportLabel": "荷馬車", "cargo": [ { "commodityId": "salt", "qty": 7 }, { "commodityId": "wheat", "qty": 3 } ] },
+      "slots": { "labels": ["朝", "昼", "夕"], "used": 0 },
+      "situation": [
+        "街道は穏やか。行商の荷馬車が朝から二台通った。",
+        "店の塩が売れ筋。小麦は北の農場から安く入る。",
+        "帳場の銭箱に 186銭。"
+      ],
+      "peopleHere": [
+        { "npcId": "npc_dan", "name": "行商のダン", "trust": 86, "trustLabel": "盟友", "factionId": "silver_scale_guild", "note": "今日は塩を探している" },
+        { "npcId": "npc_sera", "name": "宿の女将セラ", "trust": 62, "trustLabel": "顔なじみ", "note": "夕餉の食材を見にくる" }
+      ],
+      "families": [
+        { "id": "trade", "label": "商い", "en": "TRADE" },
+        { "id": "social", "label": "人", "en": "PEOPLE" },
+        { "id": "life", "label": "暮らし", "en": "LIFE" }
+      ],
+      "actions": [
+        {
+          "id": "buy_wheat",
+          "familyId": "trade",
+          "label": "小麦を仕入れる",
+          "desc": "北の農場荷から小麦6袋を仕入れる。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "credits", "label": "銭", "amount": 54 } ],
+          "requires": [
+            { "label": "銭 54 以上", "met": true, "detail": "所持 186銭" },
+            { "label": "市の在庫 6 以上", "met": true, "detail": "在庫 14" },
+            { "label": "荷台の空き 6 以上", "met": true, "detail": "空き 10" }
+          ],
+          "known": [ "単価 9銭 × 6袋 = 54銭(この場の確定値)", "在庫・銭・荷台はエンジンが検証してから適用される" ],
+          "estimated": [ "収穫どきで値は下がり気味(指数 0.90)" ],
+          "unknown": [],
+          "source": { "module": "livingWorldCommerceUiCore", "symbol": "executeDirectTrade(buy)", "availability": "now" },
+          "result": {
+            "title": "小麦を仕入れた",
+            "attempted": "小麦6袋の買い付け(54銭)",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 186, "after": 132, "delta": -54 }, { "label": "小麦", "before": 3, "after": 9, "delta": 6, "unit": "袋" } ],
+            "events": [ { "id": "wce_112_resource_trade_7" } ],
+            "facts": [ "買付 6袋 × 9銭 = 54銭", "市の小麦在庫 14 → 8", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "sell_salt",
+          "familyId": "trade",
+          "label": "ダンに塩を売る",
+          "desc": "盟友の行商に塩4袋を売る。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "cargo", "label": "塩", "amount": 4 } ],
+          "requires": [ { "label": "塩 4 以上", "met": true, "detail": "所持 7袋" } ],
+          "target": { "kind": "npc", "id": "npc_dan", "label": "行商のダン" },
+          "known": [ "単価 13銭 × 4袋 = 52銭(この場の確定値)" ],
+          "estimated": [ "盟友(信頼86)が同席する市 — 純収入に +10% の上乗せが見込める(上限500銭)" ],
+          "unknown": [],
+          "source": { "module": "commerceCore + playerBondCore", "symbol": "applyTradeOp(sell) + batchPlayerBondTradeAdjustments", "availability": "now" },
+          "result": {
+            "title": "ダンに塩を売った",
+            "attempted": "塩4袋の売却(盟友同席)",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 186, "after": 243, "delta": 57 }, { "label": "塩", "before": 7, "after": 3, "delta": -4, "unit": "袋" } ],
+            "events": [ { "id": "wce_112_resource_trade_8" } ],
+            "facts": [ "売却 4袋 × 13銭 = 52銭", "盟友の上乗せ +5銭(10%・確定)", "市の塩在庫 6 → 10", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "buy_steel",
+          "familyId": "trade",
+          "label": "鋼を仕入れる",
+          "desc": "鍛冶場向けの鋼4本。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "credits", "label": "銭", "amount": 240 } ],
+          "requires": [ { "label": "銭 240 以上", "met": false, "detail": "所持 186銭 — 54銭 足りない" } ],
+          "known": [ "単価 60銭 × 4本 = 240銭" ],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "INSUFFICIENT_CREDITS",
+          "disabledReason": "銭が足りない(必要 240 / 所持 186)",
+          "hint": "塩を4袋売れば 52銭 ほど入る。それで届く。",
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp(buy) → INSUFFICIENT_CREDITS", "availability": "now" }
+        },
+        {
+          "id": "reprice",
+          "familyId": "trade",
+          "label": "値札を見直す",
+          "desc": "自分の店の売値を付け替える。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [],
+          "known": [],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "NOT_IMPLEMENTED",
+          "disabledReason": "自店の値付けはまだ世界の仕組みにない(市場価格は需給指数で動く)",
+          "hint": "いまは「どこで・いつ売るか」が店主の裁量のすべて。",
+          "source": { "module": "—", "symbol": "player-owned shop pricing", "availability": "future" }
+        },
+        {
+          "id": "talk_sera",
+          "familyId": "social",
+          "label": "セラと立ち話",
+          "desc": "宿の女将から街道の噂を聞く。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [ { "label": "相手が同じ場所にいる", "met": true } ],
+          "target": { "kind": "npc", "id": "npc_sera", "label": "宿の女将セラ" },
+          "known": [ "1刻を使う" ],
+          "estimated": [ "信頼が少し深まる" ],
+          "unknown": [ "どんな噂が聞けるか" ],
+          "source": { "module": "playerBondCore", "symbol": "milestones", "availability": "adapter" },
+          "result": {
+            "title": "セラと立ち話をした",
+            "attempted": "宿先で世間話(1刻)",
+            "ok": true,
+            "deltas": [ { "label": "セラの信頼", "before": 62, "after": 64, "delta": 2 } ],
+            "events": [ { "id": "wce_112_npc_talk_sera" } ],
+            "facts": [ "「王都で塩が値上がりしている」と聞いた(市場の観測ではない・伝聞)", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "close_early",
+          "familyId": "life",
+          "label": "早じまいして休む",
+          "desc": "残りの刻を休みにあてる。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [],
+          "known": [ "1刻を使う" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "narrativeTimePassageCore", "symbol": "rest", "availability": "adapter" },
+          "result": {
+            "title": "早じまいした",
+            "attempted": "休息(1刻)",
+            "ok": true,
+            "deltas": [],
+            "events": [],
+            "facts": [ "1刻を使った" ]
+          }
+        }
+      ],
+      "ledger": {
+        "today": [],
+        "folds": [
+          { "label": "昨日まで(第4月)", "count": 31, "sample": "仕入れ ×9 / 店売り ×14 / 立ち話 ×5 / 休み ×3" },
+          { "label": "第3月", "count": 74, "sample": "月のまとめ: 純益 +214銭 / 盟友の節目 1件" }
+        ],
+        "arcs": [ { "label": "第3月 — ハロウに店を構えた", "canon": true } ]
+      },
+      "endDay": {
+        "preview": [ "世界が1刻すすむ(worldSim 1ステップ)", "市の在庫が目標へ回復(+2 目安)・価格指数がならされる", "明朝、行商が入れば品書きが変わる" ],
+        "summary": [ "市の小麦在庫 8 → 10 / 塩の価格指数 1.05 → 1.00", "北街道に王国聖騎士団の巡回(世界の出来事)" ]
+      }
+    },
+    {
+      "id": "caravan",
+      "label": "隊商主",
+      "sublabel": "CARAVAN OWNER",
+      "description": "港町ヴェルサから王都へ。荷と路銀と街道の風向き。",
+      "cadence": "day",
+      "worldTurn": 141,
+      "tension": "calm",
+      "player": { "roleId": "merchant", "roleLabel": "隊商主", "name": "レイフ", "locationId": "versa_port", "epithet": "二頭立て荷馬車の主" },
+      "purse": { "credits": 402, "food": 11, "capacity": 20, "transportId": "wagon", "transportLabel": "荷馬車", "cargo": [ { "commodityId": "salt", "qty": 9 } ] },
+      "slots": { "labels": ["朝", "昼", "夕"], "used": 0 },
+      "situation": [
+        "港は活気づいている。塩の相場はここが一番安い。",
+        "王都で塩が高い、という観測が市場記録に残っている。",
+        "街道は2日路。峠の砦を経由する。"
+      ],
+      "peopleHere": [
+        { "npcId": "npc_harbormaster", "name": "港務長オルガ", "trust": 58, "trustLabel": "顔なじみ", "factionId": "silver_scale_guild" }
+      ],
+      "families": [
+        { "id": "trade", "label": "商い", "en": "TRADE" },
+        { "id": "travel", "label": "移動", "en": "TRAVEL" },
+        { "id": "life", "label": "暮らし", "en": "LIFE" }
+      ],
+      "opportunities": [
+        {
+          "locationId": "lumina_capital",
+          "commodityId": "salt",
+          "localUnitPrice": 8,
+          "remoteUnitPrice": 14,
+          "pressurePct": 35,
+          "evidence": [ "recent_event", "low_stock" ],
+          "evidenceLabels": [ "最近の出来事(王都の塩不足)", "在庫が薄い" ],
+          "travel": { "days": 2, "foodCost": 5, "transportName": "荷馬車" }
+        }
+      ],
+      "actions": [
+        {
+          "id": "buy_salt_port",
+          "familyId": "trade",
+          "label": "塩を積み増す",
+          "desc": "港の塩をさらに8袋。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "credits", "label": "銭", "amount": 64 } ],
+          "requires": [
+            { "label": "銭 64 以上", "met": true, "detail": "所持 402銭" },
+            { "label": "市の在庫 8 以上", "met": true, "detail": "在庫 22" },
+            { "label": "荷台の空き 8 以上", "met": true, "detail": "空き 11" }
+          ],
+          "known": [ "単価 8銭 × 8袋 = 64銭(この場の確定値)" ],
+          "estimated": [ "王都との差額は袋あたり +6銭(いまの観測では)" ],
+          "unknown": [ "着いた時の王都の値" ],
+          "source": { "module": "livingWorldCommerceUiCore", "symbol": "executeDirectTrade(buy)", "availability": "now" },
+          "result": {
+            "title": "塩を積み増した",
+            "attempted": "塩8袋の買い付け(64銭)",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 402, "after": 338, "delta": -64 }, { "label": "塩", "before": 9, "after": 17, "delta": 8, "unit": "袋" } ],
+            "events": [ { "id": "wce_141_resource_trade_3" } ],
+            "facts": [ "買付 8袋 × 8銭 = 64銭", "荷台 17/20", "1刻を使った" ]
+          }
+        },
+        {
+          "id": "depart_lumina",
+          "familyId": "travel",
+          "label": "王都リュミナへ発つ",
+          "desc": "峠の砦を経由して2日路。",
+          "timeCost": { "days": 2 },
+          "costs": [ { "kind": "food", "label": "食料", "amount": 5 } ],
+          "requires": [
+            { "label": "食料 5 以上", "met": true, "detail": "所持 11" },
+            { "label": "経路がつながっている", "met": true, "detail": "ヴェルサ → 砦 → 王都" }
+          ],
+          "known": [ "所要 2日(荷馬車・経路2ホップの確定計算)", "食料 −5(日数×馬車×荷重の確定計算)", "着けば現在地が王都になる" ],
+          "estimated": [ "峠(霧峰山地)は危険度2 — 途中で何かに出会いやすい", "王都の塩 14銭は出発時の観測。着くまでに動きうる" ],
+          "unknown": [ "道中の出来事の中身(霧の向こう)" ],
+          "source": { "module": "transportCore (+host)", "symbol": "planTravel は実装済 / 移動の確定適用は要接続", "availability": "adapter", "note": "経路・日数・食料の計算は本番実装。現在地の書換+時間経過+食料消費を束ねる配線が必要" },
+          "result": {
+            "title": "王都リュミナに着いた",
+            "attempted": "ヴェルサ発・砦経由・2日路",
+            "ok": true,
+            "advancesDays": 2,
+            "deltas": [ { "label": "食料", "before": 11, "after": 6, "delta": -5 }, { "label": "現在地", "beforeLabel": "港町ヴェルサ", "afterLabel": "王都リュミナ" } ],
+            "events": [ { "id": "wce_143_region_travel_arrive" } ],
+            "facts": [ "2日が過ぎた(worldTurn 141 → 143)", "道中1日目・霧峰の峠で騎士団の検問(足止めなし)", "王都の塩はいま 13銭(観測が更新された)" ]
+          }
+        },
+        {
+          "id": "inspect_cargo",
+          "familyId": "life",
+          "label": "荷を検める",
+          "desc": "積み荷と食料を数え直す。",
+          "timeCost": { "slots": 0 },
+          "costs": [],
+          "requires": [],
+          "known": [ "刻を使わない。何も変わらない(見るだけ)" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "—", "symbol": "read-only observe", "availability": "now" },
+          "result": {
+            "title": "荷を検めた",
+            "attempted": "積み荷の点呼",
+            "ok": true,
+            "deltas": [],
+            "events": [],
+            "facts": [ "塩 9袋 / 食料 11 / 荷台 9/20 — 記録と一致" ]
+          }
+        }
+      ],
+      "ledger": {
+        "today": [],
+        "folds": [
+          { "label": "昨日まで(第5月)", "count": 22, "sample": "港の仕入れ ×7 / 荷検め ×6 / 短距離の往復 ×3" }
+        ],
+        "arcs": []
+      },
+      "endDay": {
+        "preview": [ "世界が1刻すすむ", "各地の市が回復・価格がならされる" ],
+        "summary": [ "港の塩在庫 22 → 24", "王都の塩不足はまだ続いている(市場記録)" ]
+      }
+    },
+    {
+      "id": "guild",
+      "label": "組合長",
+      "sublabel": "GUILD MASTER",
+      "description": "王都の冒険者組合。今週の采配は2手。依頼を裁き、隊を送り出す。",
+      "cadence": "week",
+      "worldTurn": 158,
+      "tension": "stirring",
+      "player": { "roleId": "guildmaster", "roleLabel": "組合長", "name": "ヴェルナ", "locationId": "lumina_capital", "epithet": "白鴉組合の長" },
+      "purse": { "credits": 0, "food": 0, "capacity": 0, "cargo": [] },
+      "board": {
+        "kind": "guild",
+        "title": "組合の帳面",
+        "stats": [
+          { "label": "金庫", "value": 320, "unit": "銭" },
+          { "label": "物資", "value": 41 },
+          { "label": "名声", "value": 27, "note": "認可組合" },
+          { "label": "規律", "value": 55 },
+          { "label": "町の受け", "value": 62 }
+        ],
+        "roster": [
+          { "name": "斥候ネル", "klass": "斥候", "skill": 62 },
+          { "name": "戦士ボルグ", "klass": "戦士", "skill": 58 },
+          { "name": "治し手ミア", "klass": "治し手", "skill": 49 }
+        ]
+      },
+      "actionsBudget": { "remaining": 2, "total": 2, "unit": "手", "commitLabel": "週を締める" },
+      "situation": [
+        "第23週。掲示板に依頼が2件、未裁のまま。",
+        "斥候ネルの隊は待機中。物資はやや心もとない。",
+        "町では黒燐同盟の噂がざわついている。"
+      ],
+      "peopleHere": [],
+      "families": [
+        { "id": "manage", "label": "采配", "en": "MANAGE" },
+        { "id": "requests", "label": "依頼", "en": "REQUESTS" }
+      ],
+      "weeklyActions": [
+        { "id": "recruit_drive", "label": "募集をかける", "hint": "名声/人集め" },
+        { "id": "train", "label": "訓練", "hint": "規律+" },
+        { "id": "maintain_hall", "label": "会館の手入れ", "hint": "施設+" },
+        { "id": "advertise", "label": "触れを出す", "hint": "町の受け+" },
+        { "id": "stock_supplies", "label": "物資を仕込む", "hint": "物資+/金庫−" },
+        { "id": "court_patrons", "label": "後援を口説く", "hint": "金庫+/名声条件" },
+        { "id": "open_board", "label": "掲示板を開く", "hint": "新規依頼を呼ぶ" }
+      ],
+      "requests": [
+        {
+          "id": "req_mine_survey",
+          "title": "廃坑の調査",
+          "from": "銀天秤商会",
+          "difficulty": 2,
+          "reward": 120,
+          "note": "霧峰の旧坑道。地図の更新が目的",
+          "rulings": [
+            { "id": "accept", "label": "受ける", "known": [ "受注一覧に載る(上限あり)", "隊を組んで送り出せるようになる" ] },
+            { "id": "negotiate", "label": "条件を詰める", "known": [ "報酬か difficulty が確定処理で調整される" ] },
+            { "id": "decline", "label": "断る", "known": [ "町の受けに小さく響くことがある" ] }
+          ]
+        },
+        {
+          "id": "req_escort",
+          "title": "薬師の護衛",
+          "from": "森の民",
+          "difficulty": 1,
+          "reward": 60,
+          "note": "シルヴァまでの往路のみ",
+          "rulings": [
+            { "id": "accept", "label": "受ける", "known": [ "受注一覧に載る" ] },
+            { "id": "negotiate", "label": "条件を詰める", "known": [ "報酬か difficulty が調整される" ] },
+            { "id": "decline", "label": "断る", "known": [ "森の民との縁に響くことがある" ] }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "assign_party",
+          "familyId": "requests",
+          "label": "隊を組んで送り出す",
+          "desc": "受けた依頼に隊を割り当てる。",
+          "timeCost": { "slots": 0 },
+          "costs": [],
+          "requires": [ { "label": "受注済みの依頼がある", "met": false, "detail": "未裁の依頼を先に「受ける」" } ],
+          "known": [ "隊は数週間、会館を離れる(週の締めで進む)" ],
+          "estimated": [ "難度と隊の腕で成否の傾向が変わる" ],
+          "unknown": [ "道中の仔細" ],
+          "disabled": true,
+          "disabledCode": "NO_ACCEPTED_QUEST",
+          "disabledReason": "受注済みの依頼がまだない",
+          "hint": "掲示の依頼を「受ける」と、ここが開く。",
+          "source": { "module": "guildCore", "symbol": "GuildOps assign_party", "availability": "now" }
+        }
+      ],
+      "commit": {
+        "label": "週を締める",
+        "requiresSelection": { "min": 1, "max": 2, "from": "weeklyActions" },
+        "known": [ "選んだ采配が確定処理される(季節の補正あり)", "週がひとつ進み、出来事がひとつ転がる" ],
+        "estimated": [ "第23週は夏 — 季節の補正が采配の効きを変える" ],
+        "unknown": [ "転がる出来事の中身" ],
+        "source": { "module": "guildCore", "symbol": "GuildOps weekly_commit + resolveWeeklyActionDeltas", "availability": "now" },
+        "result": {
+          "title": "第23週を締めた",
+          "attempted": "週次の采配(訓練/物資を仕込む)",
+          "ok": true,
+          "deltas": [
+            { "label": "規律", "before": 55, "after": 59, "delta": 4 },
+            { "label": "物資", "before": 41, "after": 49, "delta": 8 },
+            { "label": "金庫", "before": 320, "after": 296, "delta": -24 }
+          ],
+          "events": [ { "id": "guild_evt_w23_rowdy_night" } ],
+          "facts": [ "週次采配: 訓練 / 物資を仕込む(夏の補正)", "出来事: 酒場の乱闘 — 規律 −1(適用済み・上の数値は反映後)", "第24週へ" ]
+        }
+      },
+      "ledger": {
+        "today": [
+          {
+            "kind": "receipt",
+            "id": "rcpt_g_w22",
+            "time": "先週",
+            "title": "第22週を締めた",
+            "ok": true,
+            "deltas": [ { "label": "名声", "before": 25, "after": 27, "delta": 2 } ],
+            "facts": [ "触れを出す / 会館の手入れ", "出来事: 後援者の来訪" ],
+            "events": [ { "id": "guild_evt_w22_patron_visit" } ]
+          }
+        ],
+        "folds": [
+          { "label": "第18〜21週", "count": 4, "sample": "週次の締め ×4 / 依頼の裁き ×3 / 新規登録 1名" }
+        ],
+        "arcs": [ { "label": "第12週 — 組合が認可された", "canon": true } ]
+      },
+      "endDay": null
+    },
+    {
+      "id": "ruler",
+      "label": "領主",
+      "sublabel": "RULER / COMMANDER",
+      "description": "霧峰の谷を治める男爵未満の小領主。月の政務は2手。",
+      "cadence": "month",
+      "worldTurn": 40,
+      "tension": "stirring",
+      "player": { "roleId": "ruler", "roleLabel": "領主", "name": "アルド", "locationId": "gorge_fort", "epithet": "山峡の小領主" },
+      "purse": { "credits": 0, "food": 0, "capacity": 0, "cargo": [] },
+      "board": {
+        "kind": "domain",
+        "title": "領の帳面",
+        "stats": [
+          { "label": "国庫", "value": 840, "unit": "銭" },
+          { "label": "食料", "value": 120 },
+          { "label": "兵", "value": 65 },
+          { "label": "治安", "value": 58 },
+          { "label": "民心", "value": 61 },
+          { "label": "威信", "value": 12, "note": "小領主" }
+        ],
+        "roster": [
+          { "name": "家令ハルト", "klass": "家令", "skill": 66 },
+          { "name": "軍監ダリア", "klass": "軍監", "skill": 71 }
+        ]
+      },
+      "actionsBudget": { "remaining": 2, "total": 2, "unit": "手", "commitLabel": "月を締める" },
+      "situation": [
+        "第2月(春)。雪解けで峠がひらいた。",
+        "黒燐同盟の男爵が国境に斥候を出した — 先月の軍監の報せ。",
+        "謁見の間には請願がふたつ。"
+      ],
+      "peopleHere": [],
+      "families": [
+        { "id": "govern", "label": "政", "en": "GOVERN" },
+        { "id": "court", "label": "謁見", "en": "AUDIENCE" }
+      ],
+      "monthlyActions": [
+        { "id": "agriculture", "label": "農地を興す", "hint": "春は効きが良い" },
+        { "id": "commerce", "label": "市を立てる", "hint": "国庫+" },
+        { "id": "public_order", "label": "治安を敷く", "hint": "治安+" },
+        { "id": "train_troops", "label": "兵を練る", "hint": "兵+/食料−" },
+        { "id": "fortify", "label": "砦を固める", "hint": "防備+" },
+        { "id": "diplomacy", "label": "使いを送る", "hint": "隣領との間合い" },
+        { "id": "recruit", "label": "徴募", "hint": "兵+/民心−注意" },
+        { "id": "inspect", "label": "領内を検分", "hint": "実情を知る" },
+        { "id": "festival", "label": "祭を催す", "hint": "民心+/国庫−" },
+        { "id": "espionage", "label": "間者を放つ", "hint": "隣領の内情" },
+        { "id": "audience", "label": "謁見を開く", "hint": "請願を受け付ける" }
+      ],
+      "petitions": [
+        {
+          "id": "pet_bridge",
+          "title": "峠の橋の修繕",
+          "from": "山の集落の代表",
+          "note": "雪解け水で橋板が流れた",
+          "rulings": [
+            { "id": "grant", "label": "国庫から出す", "known": [ "国庫 −60 / 民心 +" ] },
+            { "id": "defer", "label": "検分してから", "known": [ "来月へ持ち越し" ] },
+            { "id": "refuse", "label": "退ける", "known": [ "民心 −" ] }
+          ]
+        },
+        {
+          "id": "pet_tax",
+          "title": "春税の減免",
+          "from": "麓の農家",
+          "note": "去年の不作の名残",
+          "rulings": [
+            { "id": "grant", "label": "減免する", "known": [ "国庫 − / 民心 +" ] },
+            { "id": "defer", "label": "半分だけ", "known": [ "折衷の確定処理" ] },
+            { "id": "refuse", "label": "退ける", "known": [ "民心 −" ] }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "dispatch_officer",
+          "familyId": "govern",
+          "label": "軍監を国境へ遣わす",
+          "desc": "ダリアに国境の見張りを任せる。",
+          "timeCost": { "slots": 0 },
+          "costs": [],
+          "requires": [ { "label": "任命済みの官吏がいる", "met": true, "detail": "軍監ダリア(腕 71)" } ],
+          "known": [ "1ヶ月、評定から外れる(月の締めで戻る)" ],
+          "estimated": [ "斥候の正体がつかめる見込みが高い(腕 71)" ],
+          "unknown": [ "国境で何が起きているか" ],
+          "source": { "module": "domainCore", "symbol": "DomainOps dispatch_officer", "availability": "now" },
+          "result": {
+            "title": "軍監を国境へ遣わした",
+            "attempted": "ダリアの派遣(1ヶ月)",
+            "ok": true,
+            "deltas": [],
+            "events": [ { "id": "domain_mission_daria_border" } ],
+            "facts": [ "ダリアは評定から外れた(帰還: 月の締め)", "任務: 国境の斥候の正体を探る" ]
+          }
+        }
+      ],
+      "commit": {
+        "label": "月を締める",
+        "requiresSelection": { "min": 1, "max": 2, "from": "monthlyActions" },
+        "known": [ "選んだ政務が確定処理される(季節の補正あり)", "月がひとつ進み、収支と出来事が転がる", "派遣中の官吏が戻り、報せが届く" ],
+        "estimated": [ "春は「農地を興す」の効きが良い", "隣領の男爵も一手を打ってくる(先月: 斥候)" ],
+        "unknown": [ "転がる出来事と、男爵の一手" ],
+        "source": { "module": "domainCore", "symbol": "DomainOps monthly_commit + resolveMonthlyActionDeltas", "availability": "now" },
+        "result": {
+          "title": "第2月を締めた",
+          "attempted": "月次の政務(農地を興す/砦を固める)",
+          "ok": true,
+          "deltas": [
+            { "label": "農", "before": 44, "after": 50, "delta": 6 },
+            { "label": "防備", "before": 39, "after": 43, "delta": 4 },
+            { "label": "国庫", "before": 840, "after": 902, "delta": 62 },
+            { "label": "食料", "before": 120, "after": 134, "delta": 14 }
+          ],
+          "events": [ { "id": "domain_evt_m7_border_probe" } ],
+          "facts": [
+            "月次政務: 農地を興す(春+)/ 砦を固める",
+            "月次収入: 国庫 +62 / 食料 +14",
+            "軍監の報せ: 国境の斥候は黒燐同盟の雇い者 — 数は少ない",
+            "隣領の一手: 男爵は市を立てた(こちらへの手出しなし)",
+            "第3月へ"
+          ]
+        }
+      },
+      "ledger": {
+        "today": [
+          {
+            "kind": "receipt",
+            "id": "rcpt_d_m1",
+            "time": "先月",
+            "title": "第1月を締めた",
+            "ok": true,
+            "deltas": [ { "label": "治安", "before": 54, "after": 58, "delta": 4 } ],
+            "facts": [ "治安を敷く / 領内を検分", "軍監の報せ: 国境に正体不明の斥候" ],
+            "events": [ { "id": "domain_evt_m1_scouts" } ]
+          }
+        ],
+        "folds": [
+          { "label": "拝領の月(第1月)", "count": 9, "sample": "官吏任命 ×2 / 検分 ×3 / 謁見 ×2 / 布告 ×2" }
+        ],
+        "arcs": [ { "label": "第1月 — 山峡の谷を拝領", "canon": true } ]
+      },
+      "endDay": null
+    },
+    {
+      "id": "blocked",
+      "label": "立ち往生",
+      "sublabel": "BLOCKED / RECOVERY",
+      "description": "砦で銭も荷も心もとない。それでも打てる手はある。",
+      "cadence": "day",
+      "worldTurn": 203,
+      "tension": "stirring",
+      "player": { "roleId": "merchant", "roleLabel": "行商", "name": "トビアス", "locationId": "gorge_fort", "epithet": "痩せ荷の行商" },
+      "purse": { "credits": 92, "food": 3, "capacity": 20, "transportId": "wagon", "transportLabel": "荷馬車", "cargo": [ { "commodityId": "salt", "qty": 12 } ] },
+      "slots": { "labels": ["朝", "昼", "夕"], "used": 1 },
+      "situation": [
+        "峠の砦。関の食堂は高く、財布は軽い。",
+        "塩を12袋抱えているが、砦の市は塩を扱わない。",
+        "ハロウの相場は9日前の観測しかない。"
+      ],
+      "peopleHere": [
+        { "npcId": "npc_guard", "name": "関守のバルド", "trust": 45, "trustLabel": "他人行儀", "factionId": "royal_order" }
+      ],
+      "staleness": [ { "locationId": "hallow_town", "turnsAgo": 9 } ],
+      "families": [
+        { "id": "trade", "label": "商い", "en": "TRADE" },
+        { "id": "travel", "label": "移動", "en": "TRAVEL" },
+        { "id": "life", "label": "暮らし", "en": "LIFE" }
+      ],
+      "actions": [
+        {
+          "id": "buy_steel_fort",
+          "familyId": "trade",
+          "label": "鋼を買い付ける",
+          "desc": "砦の武具庫から払い下げの鋼。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "credits", "label": "銭", "amount": 348 } ],
+          "requires": [ { "label": "銭 348 以上", "met": false, "detail": "所持 92銭 — 256銭 足りない" } ],
+          "known": [ "単価 58銭 × 6本 = 348銭" ],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "INSUFFICIENT_CREDITS",
+          "disabledReason": "銭が足りない(必要 348 / 所持 92)",
+          "hint": "塩はここでは売れない。ハロウまで下りれば売れる(下の「移動」を見る)。",
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp → INSUFFICIENT_CREDITS", "availability": "now" }
+        },
+        {
+          "id": "sell_salt_fort",
+          "familyId": "trade",
+          "label": "塩を売る",
+          "desc": "砦の市に塩を出す。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [ { "label": "この市が塩を扱う", "met": false, "detail": "砦の市: 小麦・鋼のみ" } ],
+          "known": [],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "NOT_TRADED_HERE",
+          "disabledReason": "砦の市は塩を扱わない",
+          "hint": "扱いのある市: 宿場町ハロウ(1日路)/ 港町ヴェルサ(2日路)。",
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp → NOT_TRADED_HERE", "availability": "now" }
+        },
+        {
+          "id": "sell_wheat_fort",
+          "familyId": "trade",
+          "label": "小麦を売る",
+          "desc": "砦は兵糧の小麦を高く買う。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [ { "label": "小麦 1 以上", "met": false, "detail": "所持 0袋" } ],
+          "known": [ "買値は良い(単価 12銭)" ],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "INSUFFICIENT_CARGO",
+          "disabledReason": "売る小麦を持っていない",
+          "hint": "ハロウで小麦を仕入れて砦へ運ぶ手はある(差額 +3銭/袋 — 9日前の観測)。",
+          "hintUncertain": true,
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp → INSUFFICIENT_CARGO", "availability": "now" }
+        },
+        {
+          "id": "travel_hallow",
+          "familyId": "travel",
+          "label": "ハロウへ下りる",
+          "desc": "峠道を1日。",
+          "timeCost": { "days": 1 },
+          "costs": [ { "kind": "food", "label": "食料", "amount": 4 } ],
+          "requires": [ { "label": "食料 4 以上", "met": false, "detail": "所持 3 — 1 足りない" } ],
+          "known": [ "所要 1日 / 食料 −4(荷12袋ぶんの重み込み)" ],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "INSUFFICIENT_FOOD",
+          "disabledReason": "道中の食料が足りない(必要 4 / 所持 3)",
+          "hint": "砦の兵站が食料を売っている: 1袋 6銭。92銭で足りる。",
+          "source": { "module": "transportCore", "symbol": "planTravel(foodCost)", "availability": "adapter" }
+        },
+        {
+          "id": "buy_food_fort",
+          "familyId": "trade",
+          "label": "食料を4袋買う",
+          "desc": "兵站の売店で旅の食料を。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "credits", "label": "銭", "amount": 24 } ],
+          "requires": [ { "label": "銭 24 以上", "met": true, "detail": "所持 92銭" } ],
+          "known": [ "6銭 × 4袋 = 24銭", "これで「ハロウへ下りる」が通るようになる" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp(buy)", "availability": "now" },
+          "result": {
+            "title": "旅の食料を買った",
+            "attempted": "食料4袋の買い付け(24銭)",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 92, "after": 68, "delta": -24 }, { "label": "食料", "before": 3, "after": 7, "delta": 4 } ],
+            "events": [ { "id": "wce_203_resource_trade_1" } ],
+            "facts": [ "食料 7 — ハロウ行きの条件を満たした", "1刻を使った" ],
+            "unblocks": [ "travel_hallow" ]
+          }
+        },
+        {
+          "id": "meet_mira_fort",
+          "familyId": "life",
+          "label": "ミラ婆に相談する",
+          "desc": "薬師の知恵を借りたい。",
+          "timeCost": { "slots": 1 },
+          "costs": [],
+          "requires": [ { "label": "相手が同じ場所にいる", "met": false, "detail": "ミラ婆はシルヴァにいる(観測)" } ],
+          "known": [],
+          "estimated": [],
+          "unknown": [],
+          "disabled": true,
+          "disabledCode": "TARGET_NOT_HERE",
+          "disabledReason": "ミラ婆はここにいない(居場所の観測: 森の集落シルヴァ)",
+          "hint": "会いに行くなら: 砦 → ハロウ → シルヴァ(2日路)。",
+          "source": { "module": "npcPositions", "symbol": "npcPositions[npcId].locationId", "availability": "now" }
+        },
+        {
+          "id": "stay_inn",
+          "familyId": "life",
+          "label": "砦の宿に泊まる",
+          "desc": "囲炉裏の隅で一晩。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "credits", "label": "銭", "amount": 8 } ],
+          "requires": [ { "label": "銭 8 以上", "met": true, "detail": "所持 92銭" } ],
+          "known": [ "銭 −8 / 1刻を使う" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "narrativeTimePassageCore", "symbol": "rest", "availability": "adapter" },
+          "result": {
+            "title": "砦の宿で休んだ",
+            "attempted": "宿泊(8銭)",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 92, "after": 84, "delta": -8 } ],
+            "events": [],
+            "facts": [ "1刻を使った" ]
+          }
+        }
+      ],
+      "ledger": {
+        "today": [
+          {
+            "kind": "receipt",
+            "id": "rcpt_203_1",
+            "time": "朝",
+            "title": "峠を越えて砦に着いた",
+            "ok": true,
+            "deltas": [ { "label": "食料", "before": 7, "after": 3, "delta": -4 } ],
+            "facts": [ "ヴェルサ発・1日路", "峠で騎士団の検問 — 通行料はなし" ],
+            "events": [ { "id": "wce_203_region_travel" } ]
+          }
+        ],
+        "folds": [
+          { "label": "昨日まで(第7月)", "count": 12, "sample": "港の仕入れ ×4 / 移動 ×3 / 宿 ×2" }
+        ],
+        "arcs": []
+      },
+      "endDay": {
+        "preview": [ "世界が1刻すすむ", "各地の市が回復・価格がならされる", "ハロウの観測はさらに古くなる(9日 → 10日)" ],
+        "summary": [ "砦の市: 小麦在庫 18 → 20", "峠の風が強まった(世界の出来事・軽微)" ]
+      }
+    },
+    {
+      "id": "aftermath",
+      "label": "語りの後で",
+      "sublabel": "AFTERMATH — TURN 300",
+      "description": "大口の取引が確定した直後。これを物語にするかどうかは、あなたが決める。",
+      "cadence": "day",
+      "worldTurn": 300,
+      "tension": "calm",
+      "player": { "roleId": "merchant", "roleLabel": "店主", "name": "ガレン", "locationId": "hallow_town", "epithet": "宿場町の顔役" },
+      "purse": { "credits": 1420, "food": 14, "capacity": 35, "transportId": "river_boat", "transportLabel": "川舟", "cargo": [ { "commodityId": "wheat", "qty": 4 }, { "commodityId": "salt", "qty": 6 } ] },
+      "slots": { "labels": ["朝", "昼", "夕"], "used": 2 },
+      "situation": [
+        "第10月30日。300刻目の夕暮れ。",
+        "銀天秤商会への大口納品が、たったいま確定した。",
+        "帳場は静か。今日をどう締めるかだけが残っている。"
+      ],
+      "peopleHere": [
+        { "npcId": "npc_dan", "name": "行商のダン", "trust": 92, "trustLabel": "盟友", "factionId": "silver_scale_guild" }
+      ],
+      "families": [
+        { "id": "trade", "label": "商い", "en": "TRADE" },
+        { "id": "life", "label": "暮らし", "en": "LIFE" }
+      ],
+      "actions": [
+        {
+          "id": "review_books",
+          "familyId": "life",
+          "label": "帳簿を見返す",
+          "desc": "この月の商いを眺める。",
+          "timeCost": { "slots": 0 },
+          "costs": [],
+          "requires": [],
+          "known": [ "刻を使わない(見るだけ)" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "—", "symbol": "read-only observe", "availability": "now" },
+          "result": {
+            "title": "帳簿を見返した",
+            "attempted": "第10月の集計を確認",
+            "ok": true,
+            "deltas": [],
+            "events": [],
+            "facts": [ "第10月の純益 +388銭(確定記録の合算)", "「小麦の仕入れ」が4日続いている" ]
+          }
+        },
+        {
+          "id": "last_sale",
+          "familyId": "trade",
+          "label": "店じまい前にひと売り",
+          "desc": "夕方の客に塩を2袋。",
+          "timeCost": { "slots": 1 },
+          "costs": [ { "kind": "cargo", "label": "塩", "amount": 2 } ],
+          "requires": [ { "label": "塩 2 以上", "met": true, "detail": "所持 6袋" } ],
+          "known": [ "単価 12銭 × 2袋 = 24銭" ],
+          "estimated": [],
+          "unknown": [],
+          "source": { "module": "commerceCore", "symbol": "applyTradeOp(sell)", "availability": "now" },
+          "result": {
+            "title": "夕方の客に塩を売った",
+            "attempted": "塩2袋の売却",
+            "ok": true,
+            "deltas": [ { "label": "銭", "before": 1420, "after": 1444, "delta": 24 }, { "label": "塩", "before": 6, "after": 4, "delta": -2, "unit": "袋" } ],
+            "events": [ { "id": "wce_300_resource_trade_9" } ],
+            "facts": [ "売却 2袋 × 12銭 = 24銭", "最後の1刻を使った" ]
+          }
+        }
+      ],
+      "ledger": {
+        "today": [
+          {
+            "kind": "receipt",
+            "id": "rcpt_300_2",
+            "time": "昼",
+            "title": "銀天秤商会へ小麦20袋を納めた",
+            "ok": true,
+            "highlight": true,
+            "deltas": [
+              { "label": "銭", "before": 1180, "after": 1420, "delta": 240 },
+              { "label": "小麦", "before": 24, "after": 4, "delta": -20, "unit": "袋" },
+              { "label": "ダンの信頼", "before": 89, "after": 92, "delta": 3 }
+            ],
+            "events": [ { "id": "wce_300_resource_trade_8" }, { "id": "wce_300_npc_bond_milestone_dan" } ],
+            "facts": [
+              "納品 20袋 × 12銭 = 240銭(盟友の上乗せ込み)",
+              "ダンの信頼 89 → 92 — 節目「固い盟友」を刻んだ",
+              "市の小麦在庫 4 → 24 / 価格指数 1.18 → 1.02"
+            ],
+            "narratable": true
+          },
+          {
+            "kind": "world",
+            "title": "世界の応答",
+            "lines": [ "ハロウの小麦不足が和らいだ(市場記録)", "銀天秤商会の荷札があなたの店に掛かった(縁の記録)" ]
+          }
+        ],
+        "folds": [
+          { "label": "今月(第10月)", "count": 38, "sample": "仕入れ ×12 / 店売り ×16 / 納品 ×2 / 立ち話 ×5 / 休み ×3" },
+          { "label": "第9月", "count": 41, "sample": "月のまとめ: 純益 +301銭 / 川舟を買った" },
+          { "label": "第4〜8月", "count": 5, "sample": "月ごとの束 ×5(開いて読める)" }
+        ],
+        "arcs": [
+          { "label": "第3月 — ハロウに店を構えた", "canon": true },
+          { "label": "第7月 — 王都の塩不足を凌いだ", "canon": true }
+        ],
+        "repetitionNote": "「小麦の仕入れ」が4日続いています — 明日からは束ねて記します。"
+      },
+      "endDay": {
+        "preview": [ "世界が1刻すすむ", "市の在庫が回復・価格がならされる", "第10月が終わり、月のまとめが束になる" ],
+        "summary": [ "第10月のまとめ: 純益 +412銭 / 節目 1件(固い盟友)", "第11月1日の朝が来る" ]
+      },
+      "narrations": {
+        "rcpt_300_2": "夕暮れの荷下ろし場に、銀天秤の秤紋を打った荷馬車が並んだ。ガレンは袋の口をひとつずつ開けて見せ、ダンは黙って頷いた。二十袋目の封を確かめたとき、行商人は初めて笑い、「これで冬の王都も飢えん」と言った。帳場に戻ると、銭箱の重みより、掛けられた商会の荷札のほうが誇らしかった。"
+      }
+    }
+  ]
+}

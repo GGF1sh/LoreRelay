@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>暮らす — LoreRelay UXプロトタイプ (NOAI-PLAY-001)</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-tension="calm" data-cadence="day">
+
+<a class="skip-link" href="#actions-col">「今日できること」へスキップ</a>
+
+<!-- ============================================================
+     Prototype chrome: scenario switcher (not part of the product)
+     ============================================================ -->
+<header class="proto-bar" aria-label="プロトタイプ切り替え">
+  <div class="proto-mark">
+    <svg class="daybook-mark" viewBox="0 0 34 26" aria-hidden="true" focusable="false">
+      <path class="mark-page" d="M3 4 Q10 1 17 4 Q24 1 31 4 L31 22 Q24 19 17 22 Q10 19 3 22 Z"/>
+      <line class="mark-spine" x1="17" y1="4" x2="17" y2="22"/>
+      <path class="mark-line" d="M6.5 9 Q11 8 14 9 M6.5 13 Q11 12 14 13 M20 9 Q24.5 8 28 9"/>
+    </svg>
+    <span class="proto-title">暮らす</span>
+    <span class="proto-sub">NOAI-PLAY-001 — 決定論アクションシェル試作</span>
+  </div>
+  <nav class="proto-scenarios" aria-label="シナリオ(試作用)">
+    <div role="tablist" id="scenario-tablist" aria-label="シナリオ"></div>
+  </nav>
+</header>
+
+<!-- ============================================================
+     GLOBAL STRIP — role · place · date · slots · purse · tension
+     ============================================================ -->
+<header class="day-header" role="banner">
+  <div class="identity-block">
+    <span class="role-glyph" id="role-glyph" aria-hidden="true">暮</span>
+    <div class="identity-text">
+      <h1 class="player-line"><span id="player-name">—</span><span class="role-chip" id="role-chip">—</span></h1>
+      <p class="epithet" id="player-epithet">—</p>
+    </div>
+  </div>
+
+  <dl class="global-strip">
+    <div class="strip-item"><dt>場所</dt><dd id="strip-place">—</dd></div>
+    <div class="strip-item"><dt>暦</dt><dd id="strip-date">—</dd></div>
+    <div class="strip-item" id="strip-slots-item"><dt id="strip-slots-label">今日</dt><dd id="strip-slots" aria-live="polite">—</dd></div>
+    <div class="strip-item" id="strip-purse-item"><dt>手元</dt><dd id="strip-purse">—</dd></div>
+    <div class="strip-item"><dt>世界</dt><dd class="tension-word" id="tension-word">静穏</dd></div>
+  </dl>
+
+  <nav class="house-links" aria-label="ほかの部屋へ">
+    <button type="button" class="house-link" data-room="cinematic">物語る</button>
+    <button type="button" class="house-link" data-room="pulse">世界の脈</button>
+    <button type="button" class="house-link" data-room="people">人々</button>
+    <button type="button" class="house-link" data-room="chronicle">年代記</button>
+  </nav>
+</header>
+
+<!-- ============================================================
+     MODE BANNER — this room writes; AI only when asked
+     ============================================================ -->
+<p class="mode-banner" role="note">
+  <span class="mode-icon" aria-hidden="true">✍</span>
+  この部屋の行動は<strong>決定論エンジンが確定</strong>します。AIは呼ばれません —
+  あなたが「<em>物語にする</em>」と頼んだときにだけ、確定した記録を語り直します。
+  <button type="button" class="legend-toggle" id="legend-toggle" aria-expanded="false" aria-controls="provenance-legend">記号の見かた</button>
+</p>
+
+<div class="provenance-legend" id="provenance-legend" hidden>
+  <dl id="legend-list"><!-- injected --></dl>
+</div>
+
+<!-- ============================================================
+     MAIN — three columns: situation / actions / ledger
+     ============================================================ -->
+<main id="main" class="day-grid">
+
+  <!-- LEFT: いまの私 -->
+  <section class="col col-now" id="now-col" aria-labelledby="now-heading">
+    <h2 class="col-heading" id="now-heading"><span class="col-kana">いまの私</span><span class="col-en">SITUATION</span></h2>
+
+    <div class="situation-card">
+      <ul class="situation-lines" id="situation-lines"></ul>
+    </div>
+
+    <section class="panel" aria-labelledby="purse-heading" id="purse-panel">
+      <h3 class="panel-heading" id="purse-heading">手元</h3>
+      <div id="purse-body"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="board-heading" id="board-panel" hidden>
+      <h3 class="panel-heading" id="board-heading">—</h3>
+      <div id="board-body"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="people-heading" id="people-panel">
+      <h3 class="panel-heading" id="people-heading">この場所にいる人</h3>
+      <ul class="people-list" id="people-list"></ul>
+    </section>
+
+    <section class="panel panel-stale" aria-labelledby="stale-heading" id="stale-panel" hidden>
+      <h3 class="panel-heading" id="stale-heading">古い観測</h3>
+      <ul class="stale-list" id="stale-list"></ul>
+    </section>
+  </section>
+
+  <!-- CENTER: 今日できること -->
+  <section class="col col-actions" id="actions-col" aria-labelledby="actions-heading" tabindex="-1">
+    <div class="actions-header">
+      <h2 class="col-heading" id="actions-heading"><span class="col-kana" id="actions-kana">今日できること</span><span class="col-en">ACTIONS</span></h2>
+      <p class="budget-line" id="budget-line" aria-live="polite" hidden></p>
+    </div>
+
+    <div id="opportunities-block" hidden>
+      <h3 class="sub-heading">市場の観測 <span class="prov prov-estimate">見立て</span></h3>
+      <div id="opportunities-list"></div>
+    </div>
+
+    <div id="requests-block" hidden>
+      <h3 class="sub-heading" id="requests-heading">—</h3>
+      <div id="requests-list"></div>
+    </div>
+
+    <div id="plan-block" hidden>
+      <h3 class="sub-heading" id="plan-heading">—</h3>
+      <div class="plan-chips" id="plan-chips" role="group" aria-labelledby="plan-heading"></div>
+      <div class="plan-commit-row">
+        <button type="button" class="commit-btn" id="plan-commit-btn" disabled>—</button>
+        <span class="plan-note" id="plan-note"></span>
+      </div>
+    </div>
+
+    <div id="action-groups"></div>
+
+    <div class="endday-row" id="endday-row" hidden>
+      <button type="button" class="endday-btn" id="endday-btn">一日を終える</button>
+      <span class="endday-note">残りの刻を置いて、世界をひとつ進めます</span>
+    </div>
+  </section>
+
+  <!-- RIGHT: 日誌 -->
+  <section class="col col-ledger" id="ledger-col" aria-labelledby="ledger-heading">
+    <h2 class="col-heading" id="ledger-heading"><span class="col-kana">日誌</span><span class="col-en">LEDGER</span></h2>
+    <p class="ledger-note">ここに載る「<span class="prov prov-fact">確定</span>」は、読み直しても変わらない世界の記録です。</p>
+    <div class="ledger-arcs" id="ledger-arcs"></div>
+    <div class="ledger-today" id="ledger-today" aria-live="polite"></div>
+    <p class="repetition-note" id="repetition-note" hidden></p>
+    <div class="ledger-folds" id="ledger-folds"></div>
+  </section>
+</main>
+
+<!-- ============================================================
+     REVIEW SHEET — before committing an action
+     ============================================================ -->
+<div class="sheet-scrim" id="sheet-scrim" hidden></div>
+
+<aside class="sheet" id="review-sheet" role="dialog" aria-modal="true" aria-labelledby="review-title" hidden>
+  <header class="sheet-head">
+    <h2 class="sheet-title" id="review-title">—</h2>
+    <button type="button" class="sheet-close" id="review-close" aria-label="閉じる">×</button>
+  </header>
+  <div class="sheet-body" id="review-body"></div>
+  <footer class="sheet-foot">
+    <button type="button" class="ghost-btn" id="review-cancel">やめておく</button>
+    <button type="button" class="commit-btn" id="review-commit">行う</button>
+  </footer>
+</aside>
+
+<!-- RESULT SHEET — the authoritative receipt -->
+<aside class="sheet sheet-receipt" id="result-sheet" role="dialog" aria-modal="true" aria-labelledby="result-title" hidden>
+  <header class="sheet-head">
+    <p class="receipt-stamp"><span class="prov prov-fact">確定</span> 世界に書き込まれました</p>
+    <h2 class="sheet-title" id="result-title">—</h2>
+    <button type="button" class="sheet-close" id="result-close" aria-label="閉じる">×</button>
+  </header>
+  <div class="sheet-body" id="result-body"></div>
+  <footer class="sheet-foot">
+    <button type="button" class="ghost-btn" id="result-continue">続ける</button>
+    <button type="button" class="narrate-btn" id="result-narrate" hidden>この出来事を物語にする</button>
+  </footer>
+</aside>
+
+<!-- NARRATE CONFIRM SHEET -->
+<aside class="sheet sheet-narrate" id="narrate-sheet" role="dialog" aria-modal="true" aria-labelledby="narrate-title" hidden>
+  <header class="sheet-head">
+    <h2 class="sheet-title" id="narrate-title">この出来事を物語にする</h2>
+    <button type="button" class="sheet-close" id="narrate-close" aria-label="閉じる">×</button>
+  </header>
+  <div class="sheet-body">
+    <p class="narrate-explain">AIを<strong>1回</strong>呼び、下の確定記録を語り直してもらいます。</p>
+    <ul class="narrate-terms">
+      <li><span class="prov prov-fact">確定</span> の記録は<strong>一切変わりません</strong>。</li>
+      <li>語りは <span class="prov prov-narration">語り</span> の印つきで日誌に並びます。</li>
+      <li>気に入らなければ語りだけを消せます(記録は残ります)。</li>
+    </ul>
+    <blockquote class="narrate-quote" id="narrate-quote">—</blockquote>
+  </div>
+  <footer class="sheet-foot">
+    <button type="button" class="ghost-btn" id="narrate-cancel">やめておく</button>
+    <button type="button" class="narrate-btn" id="narrate-confirm">語ってもらう(AI 1回)</button>
+  </footer>
+</aside>
+
+<!-- END-DAY SHEET -->
+<aside class="sheet" id="endday-sheet" role="dialog" aria-modal="true" aria-labelledby="endday-title" hidden>
+  <header class="sheet-head">
+    <h2 class="sheet-title" id="endday-title">一日を終える</h2>
+    <button type="button" class="sheet-close" id="endday-close" aria-label="閉じる">×</button>
+  </header>
+  <div class="sheet-body">
+    <h3 class="review-sec-title">これから起きること <span class="prov prov-fact">確定</span></h3>
+    <ul class="review-list" id="endday-preview"></ul>
+    <p class="endday-honest">※「進める」を押しても、面白いことが起きる保証はありません。静かな日は静かに終わります。</p>
+  </div>
+  <footer class="sheet-foot">
+    <button type="button" class="ghost-btn" id="endday-cancel">まだ続ける</button>
+    <button type="button" class="commit-btn" id="endday-confirm">進める</button>
+  </footer>
+</aside>
+
+<!-- Toast -->
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- ============================================================
+     FOOTER — dev grounding lens (prototype tooling)
+     ============================================================ -->
+<footer class="proto-foot">
+  <label class="lens-toggle">
+    <input type="checkbox" id="lens-checkbox">
+    <span>実装根拠を表示(開発用レンズ)</span>
+  </label>
+  <div class="lens-legend" id="lens-legend" hidden>
+    <span class="src-avail avail-now">実装済</span> = ロジックが main に存在
+    <span class="src-avail avail-adapter">要接続</span> = 部品あり・配線1本
+    <span class="src-avail avail-future">構想</span> = 未実装(正直に印)
+  </div>
+  <p class="proto-foot-note">NOAI-PLAY-001 高忠実度プロトタイプ — 本番コードには接続していません。データは <code>sample-data.json</code>。</p>
+</footer>
+
+<script src="prototype.js"></script>
+</body>
+</html>

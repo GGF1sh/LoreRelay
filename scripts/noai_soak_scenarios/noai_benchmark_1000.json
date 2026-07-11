@@ -1,0 +1,33 @@
+{
+  "id": "noai_benchmark_1000",
+  "version": 1,
+  "description": "Opt-in benchmark only: 1,000 turns in bounded chunks with a performance and ledger-growth report. Not part of normal npm test.",
+  "mode": "benchmark",
+  "modes": ["benchmark"],
+  "seed": "noai-benchmark-1000-seed",
+  "policyId": "merchant_balanced",
+  "workspace": { "source": "fixture", "fixturePath": "scripts/noai_soak_scenarios/fixtures/merchant_three_market" },
+  "horizon": { "turns": 1000 },
+  "worldSim": { "cadenceTurns": 1, "stepsPerCadence": 1, "enableNpcRegistry": false, "recoveryPerTick": 2 },
+  "limits": {
+    "timeoutMs": 300000,
+    "maxTurns": 1000,
+    "maxStepsPerChunk": 5,
+    "maxOpsPerTurn": 2,
+    "maxFileBytes": 2000000,
+    "maxRecentChanges": 20,
+    "performanceBudgetMs": 180000
+  },
+  "invariants": [
+    "no_nan_or_infinity",
+    "json_parseable",
+    "world_turn_monotonic",
+    "nonnegative_resources",
+    "market_ranges_valid",
+    "caps_bounded",
+    "no_duplicate_event_ids",
+    "no_duplicate_one_shot_events",
+    "output_files_bounded"
+  ],
+  "telemetry": { "sampleEveryTurns": 100, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 }
+}

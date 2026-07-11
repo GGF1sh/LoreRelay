@@ -1,0 +1,33 @@
+{
+  "id": "noai_determinism_100",
+  "version": 1,
+  "description": "Same seed and policy run twice with exact canonical hash and action-stream comparison — fails on any drift.",
+  "mode": "full",
+  "modes": ["full"],
+  "seed": "noai-determinism-100-seed",
+  "policyId": "merchant_balanced",
+  "workspace": { "source": "fixture", "fixturePath": "scripts/noai_soak_scenarios/fixtures/merchant_three_market" },
+  "horizon": { "turns": 100 },
+  "worldSim": { "cadenceTurns": 1, "stepsPerCadence": 1, "enableNpcRegistry": false, "recoveryPerTick": 2 },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxTurns": 100,
+    "maxStepsPerChunk": 5,
+    "maxOpsPerTurn": 2,
+    "maxFileBytes": 1000000,
+    "maxRecentChanges": 20
+  },
+  "invariants": [
+    "no_nan_or_infinity",
+    "json_parseable",
+    "world_turn_monotonic",
+    "nonnegative_resources",
+    "market_ranges_valid",
+    "caps_bounded",
+    "no_duplicate_event_ids",
+    "no_duplicate_one_shot_events",
+    "output_files_bounded"
+  ],
+  "telemetry": { "sampleEveryTurns": 10, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 },
+  "determinism": { "enabled": true, "compareRuns": 2, "failOnDrift": true, "snapshotEveryTurns": 10 }
+}

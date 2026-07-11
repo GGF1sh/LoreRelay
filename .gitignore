@@ -3,12 +3,18 @@ out/
 coverage/
 *.vsix
 
+# NOAI soak runner temporary run artifacts (safe temp root)
+.tmp/
+
 # Local play/session files
 game_state.json
 game_history.json
 scenario.json
 !sample-scenarios/**/scenario.json
 bgm.json
+
+# NOAI soak deterministic fixtures are versioned test data, not live play files
+!scripts/noai_soak_scenarios/**/game_state.json
 
 # Player workspace data (ST compat, saga, memory)
 characters/

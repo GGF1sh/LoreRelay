@@ -1,0 +1,32 @@
+{
+  "id": "noai_merchant_300",
+  "version": 1,
+  "description": "300 turns, merchant_balanced over the three-market fixture — exercises deterministic direct trades plus world simulation and verifies money, cargo, market and event coherence.",
+  "mode": "quick",
+  "modes": ["quick", "full"],
+  "seed": "noai-merchant-300-seed",
+  "policyId": "merchant_balanced",
+  "workspace": { "source": "fixture", "fixturePath": "scripts/noai_soak_scenarios/fixtures/merchant_three_market" },
+  "horizon": { "turns": 300 },
+  "worldSim": { "cadenceTurns": 1, "stepsPerCadence": 1, "enableNpcRegistry": false, "recoveryPerTick": 2 },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxTurns": 300,
+    "maxStepsPerChunk": 5,
+    "maxOpsPerTurn": 2,
+    "maxFileBytes": 1000000,
+    "maxRecentChanges": 20
+  },
+  "invariants": [
+    "no_nan_or_infinity",
+    "json_parseable",
+    "world_turn_monotonic",
+    "nonnegative_resources",
+    "market_ranges_valid",
+    "caps_bounded",
+    "no_duplicate_event_ids",
+    "no_duplicate_one_shot_events",
+    "output_files_bounded"
+  ],
+  "telemetry": { "sampleEveryTurns": 30, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "noai_observe_300",
+  "version": 1,
+  "description": "300 world turns, observe_only over an ordinary Living World fixture — proves stability and bounded growth with no player economic action.",
+  "mode": "quick",
+  "modes": ["quick", "full"],
+  "seed": "noai-observe-300-seed",
+  "policyId": "observe_only",
+  "workspace": { "source": "sample", "sampleId": "debug-sandbox" },
+  "horizon": { "turns": 300 },
+  "worldSim": { "cadenceTurns": 1, "stepsPerCadence": 1, "enableNpcRegistry": false },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxTurns": 300,
+    "maxStepsPerChunk": 5,
+    "maxOpsPerTurn": 1,
+    "maxFileBytes": 1000000,
+    "maxRecentChanges": 20
+  },
+  "invariants": [
+    "no_nan_or_infinity",
+    "json_parseable",
+    "world_turn_monotonic",
+    "nonnegative_resources",
+    "market_ranges_valid",
+    "caps_bounded",
+    "no_duplicate_event_ids",
+    "no_duplicate_one_shot_events",
+    "output_files_bounded"
+  ],
+  "telemetry": { "sampleEveryTurns": 30, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 }
+}

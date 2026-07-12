@@ -47,11 +47,16 @@ for (const [name, state, intent] of [
 ]) check(`${name} rejection changes nothing`, () => { const m=fresh(), before=JSON.parse(JSON.stringify({m,state})); const r=executeShopkeeperTrade(forge,m,state,'south_port',intent); if(r.ok) throw new Error('unexpected success'); same({m,state},before); });
 check('persistence failure cannot report success', () => { const r=executeShopkeeperTrade(forge,fresh(),base(),'north_farm',{op:'buy',marketLocationId:'north_farm',commodityId:'wheat',qty:1},false); if(r.ok || r.rejection.code !== 'PERSIST_FAILED') throw new Error(JSON.stringify(r)); });
 check('rejection map is constructive Japanese text', () => { const r=shopkeeperRejectionText('INSUFFICIENT_CREDITS'); if(!r.message || !r.nextStep) throw new Error('missing mapping'); });
-check('protocol is shopkeeper-specific and UI has dialog/focus/400px contract', () => {
-    const extension=fs.readFileSync(path.join(root,'src','extension.ts'),'utf8'); const ui=fs.readFileSync(path.join(root,'webview','modules','85-world.js'),'utf8');
-    for(const needle of ['shopkeeperDirectTrade','role', 'aria-modal', 'Escape', 'width:min(100%,460px)', '_shopkeeperInFlight']) if(!extension.includes(needle) && !ui.includes(needle)) throw new Error(`missing ${needle}`);
-    const shopkeeperBlock = ui.slice(ui.indexOf('function openShopkeeperDialog'), ui.indexOf('function finishShopkeeperTrade'));
-    if(/Relay|ComfyUI|postWorldInsertChatText/i.test(shopkeeperBlock)) throw new Error('AI/relay path leaked');
+check('trade stays shopkeeper-specific inside the unified hub (modal/focus/width contract)', () => {
+    const extension=fs.readFileSync(path.join(root,'src','extension.ts'),'utf8');
+    const ui=fs.readFileSync(path.join(root,'webview','modules','85-world.js'),'utf8');
+    const css=fs.readFileSync(path.join(root,'webview','styles','85-world.css'),'utf8');
+    for(const needle of ['shopkeeperDirectTrade','role', 'aria-modal', 'Escape', '_shopkeeperInFlight', 'openPlayerActionHub']) if(!extension.includes(needle) && !ui.includes(needle)) throw new Error(`missing ${needle}`);
+    // Width contract now lives in a semantic CSS class instead of an inline style string.
+    if(!/\.player-action-hub__panel[^}]*max-width/.test(css)) throw new Error('hub panel width constraint missing from semantic CSS');
+    const tradeBlock = ui.slice(ui.indexOf('function renderHubTradeSection'), ui.indexOf('function finishShopkeeperTrade'));
+    if(!tradeBlock) throw new Error('hub trade flow block not found');
+    if(/Relay|ComfyUI|postWorldInsertChatText/i.test(tradeBlock)) throw new Error('AI/relay path leaked into hub trade flow');
 });
 if (failed) process.exit(1);
 console.log('shopkeeper direct trade core tests passed.');

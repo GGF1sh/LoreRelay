@@ -2935,6 +2935,305 @@ textarea:focus-visible {
   border-color: var(--accent, #4f8ef7);
 }
 
+/* --- Player Action Hub (PLAYABLE-V0-UI-001) ---
+   Compact, VS Code-native game panel unifying 取引 / 旅 / 一日を終える.
+   Theme-aware (VS Code variables), keyboard-focus visible, reduced-motion and
+   high-contrast friendly. Presentation only — no gameplay authority here. */
+.player-action-hub {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.player-action-hub__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.player-action-hub__panel {
+  position: relative;
+  width: 100%;
+  max-width: min(100%, 460px);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--vscode-focusBorder, var(--accent, #4f8ef7));
+  border-radius: 8px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  color: var(--vscode-foreground, #ddd);
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-action-hub__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.player-action-hub__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.player-action-hub__close {
+  flex: 0 0 auto;
+}
+
+.player-action-hub__status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 4px 12px;
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.82rem;
+}
+
+.player-action-hub__stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.player-action-hub__stat dt {
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+  white-space: nowrap;
+}
+
+.player-action-hub__stat dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.12));
+}
+
+.player-action-hub__tab {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--vscode-foreground, #ddd);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.player-action-hub__tab.is-active {
+  background: var(--vscode-tab-activeBackground, rgba(255, 255, 255, 0.09));
+  border-color: var(--vscode-panel-border, rgba(255, 255, 255, 0.18));
+  font-weight: 700;
+}
+
+.player-action-hub__tab--endday.is-active {
+  border-color: var(--vscode-charts-orange, #e8a838);
+  box-shadow: inset 0 -2px 0 0 var(--vscode-charts-orange, #e8a838);
+}
+
+.player-action-hub__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.player-action-hub__section[hidden] {
+  display: none;
+}
+
+.player-action-hub__section-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.player-action-hub__note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__note--strong {
+  padding: 8px 10px;
+  border-left: 3px solid var(--vscode-charts-orange, #e8a838);
+  border-radius: 4px;
+  background: rgba(232, 168, 56, 0.12);
+  color: var(--vscode-foreground, #ddd);
+  font-weight: 600;
+}
+
+.player-action-hub__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.player-action-hub__select,
+.player-action-hub__qty-input {
+  max-width: 100%;
+  padding: 4px 6px;
+  color: var(--vscode-input-foreground, inherit);
+  background: var(--vscode-input-background, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.18));
+  border-radius: 4px;
+  font: inherit;
+}
+
+.player-action-hub__ops {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.14));
+  border-radius: 4px;
+}
+
+.player-action-hub__ops legend {
+  padding: 0 4px;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.player-action-hub__qty {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-action-hub__stepper {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.player-action-hub__step {
+  min-width: 2rem;
+  padding: 2px 8px;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.player-action-hub__qty-input {
+  width: 5rem;
+  text-align: center;
+}
+
+.player-action-hub__review {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--vscode-foreground, #ddd);
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__review[data-state="preview"] {
+  border: 1px dashed var(--vscode-focusBorder, var(--accent, #4f8ef7));
+}
+
+.player-action-hub__review[data-state="submitting"],
+.player-action-hub__review[data-state="loading"] {
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__review[data-state="success"],
+.player-action-hub__review[data-state="success-stale"] {
+  border-left: 3px solid var(--vscode-testing-iconPassed, var(--vscode-charts-green, #3fb950));
+  background: rgba(63, 185, 80, 0.12);
+}
+
+.player-action-hub__review[data-state="busy"] {
+  border-left: 3px solid var(--vscode-charts-yellow, #d7a100);
+  background: rgba(215, 161, 0, 0.14);
+}
+
+.player-action-hub__review[data-state="error"] {
+  border-left: 3px solid var(--vscode-errorForeground, #f14c4c);
+  background: rgba(241, 76, 76, 0.12);
+}
+
+.player-action-hub__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.player-action-hub__btn--primary {
+  font-weight: 700;
+}
+
+.player-action-hub__btn--danger {
+  font-weight: 700;
+  color: var(--vscode-button-foreground, #fff);
+  background: var(--vscode-charts-orange, #d78a1e);
+  border: 1px solid var(--vscode-charts-orange, #d78a1e);
+}
+
+.player-action-hub__btn--danger:disabled {
+  opacity: 0.55;
+}
+
+.player-action-hub__dev {
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__dev-body {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__tab:focus-visible,
+.player-action-hub__close:focus-visible,
+.player-action-hub__btn:focus-visible,
+.player-action-hub__step:focus-visible,
+.player-action-hub__select:focus-visible,
+.player-action-hub__qty-input:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--accent, #4f8ef7));
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-action-hub,
+  .player-action-hub * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
 /* --- 90-game-rules.css --- */
 /* 90-game-rules.css */
 /* Reuses .img-gen-panel and .img-gen-input from 80-image-gen.css */

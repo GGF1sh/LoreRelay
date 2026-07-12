@@ -156,6 +156,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_shopkeeper_repair.js' },
     { category: 'unit', file: 'test_end_day_world_progression.js' },
     { category: 'unit', file: 'test_market_travel_core.js' },
+    { category: 'smoke', file: 'test_playable_v0_player_action_hub.js' },
     { category: 'unit', file: 'test_deterministic_workspace_mutation_gate.js' },
     { category: 'unit', file: 'test_entity_identity_core.js' },
     { category: 'unit', file: 'test_entity_reference_inventory_core.js' },

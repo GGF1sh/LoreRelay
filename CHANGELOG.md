@@ -9,6 +9,35 @@
 
 ## [Unreleased]
 
+## [1.81.0] - 2026-07-12
+
+### Added
+
+- **NOAI-PLAY-P4 deterministic market travel integration** — adds canonical
+  zero-turn travel between known market locations with explicit preview and
+  confirmation, authoritative commit-time reread, request-id replay safety,
+  truthful persistence receipts, and no AI/world-progression side effects.
+
+### Fixed
+
+- **Playable-v0 travel UI and executable fixtures** — restores the Japanese
+  `旅に出る` UI without mojibake and replaces ceremonial fixture labels with
+  executable temporary-workspace proofs for travel, rejection, replay,
+  persistence failure, reload, and generic shared-gate exclusion.
+
+### Changed
+
+- **P2/P3/P4 shared mutation serialization** — deterministic direct trade,
+  end-day progression, and market travel reuse the same host-scoped workspace
+  mutation gate and fail immediately with `WORLD_MUTATION_IN_PROGRESS` rather
+  than queueing or retrying.
+
+### Deferred
+
+- The combined playable-v0 human smoke is deferred until the P2/P3/P4 user
+  interface is polished into a coherent player-facing flow.
+
+
 ## [1.80.0] - 2026-07-12
 
 ### Added

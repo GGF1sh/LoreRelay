@@ -236,12 +236,14 @@ import { runPreviewWorkspaceMigrationsCommand } from './ledgerMigrationRunner';
 import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWritebackRunner';
 import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
+import { createShopkeeperRequestGate } from './shopkeeperRequestGate';
 
 let panel: vscode.WebviewPanel | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let openRouterSettingsWarningShown = false;
+const shopkeeperRequestGate = createShopkeeperRequestGate(32);
 
 const OPENROUTER_SECRET_KEY = 'lorerelay.openrouter.apiKey';
 const TTS_EXTERNAL_SECRET_KEY = 'lorerelay.tts.external.apiKey';
@@ -401,6 +403,7 @@ export function activate(context: vscode.ExtensionContext) {
         panel.onDidDispose(() => {
             setDebugTraceHostUpdateListener(undefined);
             panel = undefined;
+            shopkeeperRequestGate.dispose();
             disposeGameStateWatcher();
             if (bgmWatcher) {
                 bgmWatcher.dispose();
@@ -1957,37 +1960,57 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         },
         handleShopkeeperDirectTrade: async (raw: unknown) => {
             const { parseShopkeeperIntent, shopkeeperRejectionText } = await import('./shopkeeperDirectTradeCore');
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const requestId = typeof doc.requestId === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(doc.requestId)
+                ? doc.requestId
+                : '';
             const intent = parseShopkeeperIntent(raw);
-            if (!intent) {
+            if (!requestId || !intent) {
                 panel?.webview.postMessage({
-                    type: 'shopkeeperDirectTradeResult', ok: false,
+                    type: 'shopkeeperDirectTradeResult', requestId, ok: false,
                     rejection: { code: 'INVALID_QTY', ...shopkeeperRejectionText('INVALID_QTY') },
                 });
                 return;
             }
-            // Only identifiers, operation, and quantity cross the protocol boundary.
-            // Price, totals, previews, and before/after values are never trusted.
-            const { executeLivingWorldDirectTrade, flushScheduledCommercePersist } = await import('./livingWorldCommerceUi');
-            const result = executeLivingWorldDirectTrade(intent);
-            if (!result.ok) {
-                const code = result.code || result.reason;
-                panel?.webview.postMessage({
-                    type: 'shopkeeperDirectTradeResult', ok: false,
-                    rejection: { code, ...shopkeeperRejectionText(code) },
-                });
-                return;
-            }
-            flushScheduledCommercePersist();
-            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
-            panel?.webview.postMessage({
-                type: 'shopkeeperDirectTradeResult', ok: true,
-                receipt: {
-                    op: intent.op, commodityId: intent.commodityId, qty: intent.qty,
-                    total: intent.op === 'buy' ? result.trade?.totalCost : result.trade?.totalRevenue,
-                    applied: result.trade?.applied,
-                    persisted: true,
-                },
+            const workspaceKey = getWorkspacePath() ?? '__no_workspace__';
+            const response = await shopkeeperRequestGate.run(workspaceKey, requestId, async () => {
+                // Only identifiers, operation and quantity cross the boundary.
+                const { executeLivingWorldDirectTrade, flushScheduledCommercePersist } = await import('./livingWorldCommerceUi');
+                const result = executeLivingWorldDirectTrade(intent);
+                if (!result.ok) {
+                    const code = result.code || result.reason;
+                    return {
+                        type: 'shopkeeperDirectTradeResult' as const, requestId, ok: false,
+                        rejection: { code, ...shopkeeperRejectionText(code) },
+                    };
+                }
+                const persistence = flushScheduledCommercePersist();
+                const persisted = persistence.ok
+                    && persistence.gameAttempted && persistence.gameOk
+                    && persistence.worldAttempted && persistence.worldOk;
+                if (!persisted) {
+                    return {
+                        type: 'shopkeeperDirectTradeResult' as const, requestId, ok: false,
+                        rejection: {
+                            code: persistence.partial ? 'PARTIAL_PERSIST_FAILED' : 'PERSIST_FAILED',
+                            message: '取引結果を世界に書き込んだことを確認できませんでした。',
+                            nextStep: '現在の状態を確認してから再試行してください。',
+                        },
+                        persistence,
+                    };
+                }
+                pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+                return {
+                    type: 'shopkeeperDirectTradeResult' as const, requestId, ok: true,
+                    receipt: {
+                        op: intent.op, commodityId: intent.commodityId, qty: intent.qty,
+                        total: intent.op === 'buy' ? result.trade?.totalCost : result.trade?.totalRevenue,
+                        applied: result.trade?.applied,
+                        persisted: true,
+                    },
+                };
             });
+            panel?.webview.postMessage(response);
         },
         handleLivingWorldSetPlayerRole: async (raw: unknown) => {
             const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};

@@ -2091,7 +2091,7 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceFood'))}</span><strong>${escapeHtml(commerce.food ?? 30)}</strong></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceTransport'))}</span><code class="patch-value">${escapeHtml(commerce.transportId || 'wagon')}</code></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceCargo'))}</span><span>${cargoLines}</span></div>
-        ${commerceUiEnabled ? '<button type="button" id="shopkeeper-open" class="world-market-trade-btn">証らす</button><p class="img-gen-hint">この画面の操作は確定前の確認を必要とします。AIは呼ばれません。</p>' : ''}
+        ${commerceUiEnabled ? '<button type="button" id="shopkeeper-open" class="world-market-trade-btn">暮らす</button><p class="img-gen-hint">この画面の操作は確定前の確認を必要とします。AIは呼ばれません。</p>' : ''}
         <div id="world-commerce-trade-toast" class="world-commerce-trade-toast hidden"></div>
     `;
 
@@ -2173,12 +2173,20 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
 let _shopkeeperDialog = null;
 let _shopkeeperInitiator = null;
 let _shopkeeperInFlight = false;
+let _shopkeeperPendingRequestId = null;
+
+function createShopkeeperRequestId() {
+    const random = new Uint32Array(2);
+    if (window.crypto?.getRandomValues) { window.crypto.getRandomValues(random); }
+    return `shop_${Date.now().toString(36)}_${random[0].toString(36)}${random[1].toString(36)}`;
+}
 
 function closeShopkeeperDialog() {
     const dialog = _shopkeeperDialog;
     if (dialog) { dialog.remove(); }
     _shopkeeperDialog = null;
     _shopkeeperInFlight = false;
+    _shopkeeperPendingRequestId = null;
     if (_shopkeeperInitiator && typeof _shopkeeperInitiator.focus === 'function') { _shopkeeperInitiator.focus(); }
 }
 
@@ -2195,10 +2203,10 @@ function openShopkeeperDialog(initiator) {
     dialog.id = 'shopkeeper-direct-trade-dialog';
     dialog.setAttribute('role', 'dialog');
     dialog.setAttribute('aria-modal', 'true');
-    dialog.setAttribute('aria-label', '証らす');
+    dialog.setAttribute('aria-label', '暮らす');
     dialog.style.cssText = 'position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:12px;background:rgba(0,0,0,.55)';
     dialog.innerHTML = `<section style="width:min(100%,460px);max-height:90vh;overflow:auto;padding:16px;border:1px solid var(--vscode-focusBorder);border-radius:8px;background:var(--vscode-editor-background);color:var(--vscode-foreground)">
-      <h2 style="margin-top:0">証らす</h2><p>現在地の市場で、AIを使わずに直接取引します。</p>
+      <h2 style="margin-top:0">暮らす</h2><p>現在地の市場で、AIを使わずに直接取引します。</p>
       <label>品目 <select id="shopkeeper-commodity">${market.quotes.map((q) => `<option value="${escapeHtml(q.commodityId)}">${escapeHtml(q.commodityName || q.commodityId)}（買 ${escapeHtml(formatMarketNumber(q.unitPrice))} / 在庫 ${escapeHtml(formatMarketNumber(q.stock))}）</option>`).join('')}</select></label>
       <fieldset><legend>操作</legend><label><input type="radio" name="shopkeeper-op" value="buy" checked> 購入</label> <label><input type="radio" name="shopkeeper-op" value="sell"> 売却</label></fieldset>
       <label>数量 <input id="shopkeeper-qty" type="number" min="1" max="999" step="1" value="1" inputmode="numeric"></label>
@@ -2220,7 +2228,8 @@ function openShopkeeperDialog(initiator) {
     confirm.addEventListener('click', () => {
         if (_shopkeeperInFlight) { return; }
         _shopkeeperInFlight = true; confirm.disabled = true; reviewBtn.disabled = true; review.textContent = '処理中…';
-        vscode.postMessage({ type: 'shopkeeperDirectTrade', ...intent() });
+        _shopkeeperPendingRequestId = createShopkeeperRequestId();
+        vscode.postMessage({ type: 'shopkeeperDirectTrade', requestId: _shopkeeperPendingRequestId, ...intent() });
     });
     dialog.querySelector('#shopkeeper-close-btn').addEventListener('click', closeShopkeeperDialog);
     dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); closeShopkeeperDialog(); } });
@@ -2229,6 +2238,8 @@ function openShopkeeperDialog(initiator) {
 
 function finishShopkeeperTrade(msg) {
     if (!_shopkeeperDialog) { return; }
+    if (!msg?.requestId || msg.requestId !== _shopkeeperPendingRequestId) { return; }
+    _shopkeeperPendingRequestId = null;
     const review = _shopkeeperDialog.querySelector('#shopkeeper-review');
     if (msg.ok) {
         const r = msg.receipt || {};

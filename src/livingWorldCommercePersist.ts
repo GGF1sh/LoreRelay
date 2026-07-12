@@ -10,6 +10,7 @@ import {
     type CommercePersistPayload,
 } from './livingWorldCommercePersistCore';
 import { executeCrossFileDualWrite } from './workspaceWriteCircuitBreakerCore';
+import type { CrossFileDualWriteOutcome } from './workspaceWriteCircuitBreakerCore';
 import { recordSplitBrainRisk } from './workspaceWriteHealth';
 import { makeWorldChangeEvent, mergeRecentChanges, type WorldChangeEvent } from './worldEventLogCore';
 
@@ -23,6 +24,7 @@ interface PendingCommercePersist {
 
 let pendingHost: PendingCommercePersist | null = null;
 let commerceFlushInProgress = false;
+let lastCommerceFlushOutcome: CrossFileDualWriteOutcome | undefined;
 const COMMERCE_TRADE_EVENT_ID_PREFIX = 'wce_commerce_trade_';
 
 function fnv1aHash8(input: string): string {
@@ -94,40 +96,49 @@ const scheduler = createCommercePersistScheduler((payload: CommercePersistPayloa
             if (!gameAttempted || !snap.gameState || snap.commerce === undefined) {
                 return true;
             }
-            const next = { ...snap.gameState, commerce: snap.commerce } as GameState;
-            const commit = commitGameState(next as unknown as Record<string, unknown>, {
-                mode: 'salvage',
-                baseRevision: snap.baseRevision ?? payload.baseRevision,
-                mergeProfile: 'commerce-ui',
-            });
-            return commit.ok;
+            try {
+                const next = { ...snap.gameState, commerce: snap.commerce } as GameState;
+                const commit = commitGameState(next as unknown as Record<string, unknown>, {
+                    mode: 'salvage',
+                    baseRevision: snap.baseRevision ?? payload.baseRevision,
+                    mergeProfile: 'commerce-ui',
+                });
+                return commit.ok;
+            } catch {
+                return false;
+            }
         },
         writeWorld: () => {
             if (!worldAttempted || !snap.markets) {
                 return true;
             }
-            const freshWs = loadWorldState();
-            if (!freshWs) {
+            try {
+                const freshWs = loadWorldState();
+                if (!freshWs) {
+                    return false;
+                }
+                let nextWs = snap.markets ? { ...freshWs, markets: snap.markets } : { ...freshWs };
+                if (snap.tradeEventDrafts?.length) {
+                    try {
+                        const events = materializeCommerceTradeEventDrafts(
+                            snap.tradeEventDrafts,
+                            freshWs.worldTurn
+                        );
+                        nextWs = {
+                            ...nextWs,
+                            recentChanges: mergeRecentChanges(freshWs.recentChanges ?? [], events),
+                        };
+                    } catch (err) {
+                        console.warn('[livingWorldCommercePersist] commerce trade event materialization failed:', err);
+                    }
+                }
+                return saveWorldState(nextWs);
+            } catch {
                 return false;
             }
-            let nextWs = snap.markets ? { ...freshWs, markets: snap.markets } : { ...freshWs };
-            if (snap.tradeEventDrafts?.length) {
-                try {
-                    const events = materializeCommerceTradeEventDrafts(
-                        snap.tradeEventDrafts,
-                        freshWs.worldTurn
-                    );
-                    nextWs = {
-                        ...nextWs,
-                        recentChanges: mergeRecentChanges(freshWs.recentChanges ?? [], events),
-                    };
-                } catch (err) {
-                    console.warn('[livingWorldCommercePersist] commerce trade event materialization failed:', err);
-                }
-            }
-            return saveWorldState(nextWs);
         },
     });
+    lastCommerceFlushOutcome = outcome;
 
     if (!outcome.ok) {
         console.error('[livingWorldCommercePersist] cross-file persist incomplete:', outcome);
@@ -160,13 +171,30 @@ export function isCommercePersistPending(): boolean {
 }
 
 /** Synchronous flush — safe to call from GM turn pre-hook and processTurnResult. */
-export function flushScheduledCommercePersist(): void {
+export function flushScheduledCommercePersist(): CrossFileDualWriteOutcome {
     if (commerceFlushInProgress) {
-        return;
+        return lastCommerceFlushOutcome ?? {
+            ok: false, partial: false, splitBrainRisk: false,
+            gameAttempted: false, gameOk: false, worldAttempted: false, worldOk: false,
+            failedTargets: [],
+        };
     }
     commerceFlushInProgress = true;
+    lastCommerceFlushOutcome = undefined;
     try {
         scheduler.flush();
+        return lastCommerceFlushOutcome ?? {
+            ok: true, partial: false, splitBrainRisk: false,
+            gameAttempted: false, gameOk: true, worldAttempted: false, worldOk: true,
+            failedTargets: [],
+        };
+    } catch {
+        return {
+            ok: false, partial: false, splitBrainRisk: false,
+            gameAttempted: Boolean(pendingHost?.gameState), gameOk: false,
+            worldAttempted: Boolean(pendingHost?.markets), worldOk: false,
+            failedTargets: [],
+        };
     } finally {
         commerceFlushInProgress = false;
     }
@@ -179,4 +207,5 @@ export function peekPendingCommercePersistForTests(): PendingCommercePersist | n
 export function resetCommercePersistForTests(): void {
     scheduler.reset();
     pendingHost = null;
+    lastCommerceFlushOutcome = undefined;
 }

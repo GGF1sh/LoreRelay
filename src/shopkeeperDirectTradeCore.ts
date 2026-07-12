@@ -1,4 +1,4 @@
-import { cargoWeight } from './commerceCore';
+import { cargoWeight, quoteMarketPrice } from './commerceCore';
 import { executeDirectTrade, type DirectTradeInput, type DirectTradeResult } from './livingWorldCommerceUiCore';
 import type { CommerceForge, MarketStateMap, PlayerCommerceState } from './livingWorldTypes';
 
@@ -12,8 +12,7 @@ export interface ShopkeeperSnapshot {
     commodities: Array<{
         commodityId: string;
         commodityName: string;
-        buyPrice: number;
-        sellPrice: number;
+        unitPrice: number;
         stock: number;
         heldQty: number;
     }>;
@@ -49,9 +48,11 @@ export function parseShopkeeperIntent(raw: unknown): ShopkeeperIntent | undefine
     const op = value?.op;
     const marketLocationId = value?.marketLocationId;
     const commodityId = value?.commodityId;
-    const qty = typeof value?.qty === 'number' ? value.qty : Number(value?.qty);
+    const qty = value?.qty;
     if ((op !== 'buy' && op !== 'sell') || typeof marketLocationId !== 'string' || !marketLocationId
-        || typeof commodityId !== 'string' || !commodityId || !Number.isFinite(qty)) {
+        || typeof commodityId !== 'string' || !commodityId
+        || typeof qty !== 'number' || !Number.isFinite(qty) || !Number.isInteger(qty)
+        || qty < 1 || qty > 999) {
         return undefined;
     }
     return { op, marketLocationId, commodityId, qty };
@@ -77,12 +78,12 @@ export function buildShopkeeperSnapshot(
             const definition = byId.get(commodityId);
             const state = market?.[commodityId];
             if (!definition || !state) { return []; }
-            const buyPrice = Math.max(1, Math.round(definition.basePrice * state.priceIndex));
+            const quote = quoteMarketPrice(forge, markets, currentLocationId, commodityId);
+            if (!quote) { return []; }
             return [{
                 commodityId,
                 commodityName: definition.name,
-                buyPrice,
-                sellPrice: Math.max(1, Math.floor(buyPrice * 0.8)),
+                unitPrice: quote.unitPrice,
                 stock: state.stock,
                 heldQty: held.get(commodityId) ?? 0,
             }];
@@ -107,7 +108,7 @@ export function executeShopkeeperTrade(
 ): ShopkeeperReceipt {
     const before = buildShopkeeperSnapshot(forge, markets, commerce, currentLocationId);
     const quote = before.commodities.find((item) => item.commodityId === intent.commodityId);
-    const unitPrice = intent.op === 'sell' ? quote?.sellPrice ?? 0 : quote?.buyPrice ?? 0;
+    const unitPrice = quote?.unitPrice ?? 0;
     const beforeStock = quote?.stock ?? 0;
     const result = executeDirectTrade(forge, markets, commerce, { ...intent, currentLocationId });
     if (!result.ok || !persistenceOk) {

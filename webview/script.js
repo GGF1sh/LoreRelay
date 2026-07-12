@@ -6638,6 +6638,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 );
             }
         }
+        if (msg.type === 'shopkeeperDirectTradeResult') {
+            finishShopkeeperTrade(msg);
+        }
         if (msg.type === 'livingWorldSetPlayerRoleResult') {
             if (!msg.ok) {
                 setCommerceTradeToast(msg.reason || T('webview.world.roleFailed'), 'error');
@@ -8623,10 +8626,15 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceFood'))}</span><strong>${escapeHtml(commerce.food ?? 30)}</strong></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceTransport'))}</span><code class="patch-value">${escapeHtml(commerce.transportId || 'wagon')}</code></div>
         <div class="world-commerce-row"><span>${escapeHtml(T('webview.world.commerceCargo'))}</span><span>${cargoLines}</span></div>
+        ${commerceUiEnabled ? '<button type="button" id="shopkeeper-open" class="world-market-trade-btn">暮らす</button><p class="img-gen-hint">この画面の操作は確定前の確認を必要とします。AIは呼ばれません。</p>' : ''}
         <div id="world-commerce-trade-toast" class="world-commerce-trade-toast hidden"></div>
     `;
 
     if (commerceUiEnabled) {
+        const shopkeeperOpen = document.getElementById('shopkeeper-open');
+        if (shopkeeperOpen) {
+            shopkeeperOpen.addEventListener('click', () => openShopkeeperDialog(shopkeeperOpen));
+        }
         const roleSelect = document.getElementById('world-commerce-role-select');
         if (roleSelect) {
             roleSelect.addEventListener('change', () => {
@@ -8695,6 +8703,90 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
     trade.appendChild(buyBtn);
     trade.appendChild(sellBtn);
     row.appendChild(trade);
+}
+
+let _shopkeeperDialog = null;
+let _shopkeeperInitiator = null;
+let _shopkeeperInFlight = false;
+let _shopkeeperPendingRequestId = null;
+
+function createShopkeeperRequestId() {
+    const random = new Uint32Array(2);
+    if (window.crypto?.getRandomValues) { window.crypto.getRandomValues(random); }
+    return `shop_${Date.now().toString(36)}_${random[0].toString(36)}${random[1].toString(36)}`;
+}
+
+function closeShopkeeperDialog() {
+    const dialog = _shopkeeperDialog;
+    if (dialog) { dialog.remove(); }
+    _shopkeeperDialog = null;
+    _shopkeeperInFlight = false;
+    _shopkeeperPendingRequestId = null;
+    if (_shopkeeperInitiator && typeof _shopkeeperInitiator.focus === 'function') { _shopkeeperInitiator.focus(); }
+}
+
+function openShopkeeperDialog(initiator) {
+    const msg = _worldViewMsg || {};
+    const market = (msg.livingWorldMarkets || []).find((entry) => entry.locationId === msg.currentLocationId);
+    if (!market || !Array.isArray(market.quotes) || market.quotes.length === 0) {
+        setCommerceTradeToast('現在地に取引できる市場がありません。', 'error');
+        return;
+    }
+    closeShopkeeperDialog();
+    _shopkeeperInitiator = initiator;
+    const dialog = document.createElement('div');
+    dialog.id = 'shopkeeper-direct-trade-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', '暮らす');
+    dialog.style.cssText = 'position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:12px;background:rgba(0,0,0,.55)';
+    dialog.innerHTML = `<section style="width:min(100%,460px);max-height:90vh;overflow:auto;padding:16px;border:1px solid var(--vscode-focusBorder);border-radius:8px;background:var(--vscode-editor-background);color:var(--vscode-foreground)">
+      <h2 style="margin-top:0">暮らす</h2><p>現在地の市場で、AIを使わずに直接取引します。</p>
+      <label>品目 <select id="shopkeeper-commodity">${market.quotes.map((q) => `<option value="${escapeHtml(q.commodityId)}">${escapeHtml(q.commodityName || q.commodityId)}（買 ${escapeHtml(formatMarketNumber(q.unitPrice))} / 在庫 ${escapeHtml(formatMarketNumber(q.stock))}）</option>`).join('')}</select></label>
+      <fieldset><legend>操作</legend><label><input type="radio" name="shopkeeper-op" value="buy" checked> 購入</label> <label><input type="radio" name="shopkeeper-op" value="sell"> 売却</label></fieldset>
+      <label>数量 <input id="shopkeeper-qty" type="number" min="1" max="999" step="1" value="1" inputmode="numeric"></label>
+      <p id="shopkeeper-review" class="img-gen-hint">確認を選ぶと、確定前の見積もりを表示します。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="shopkeeper-review-btn">確認</button><button type="button" id="shopkeeper-confirm-btn" disabled>確定</button><button type="button" id="shopkeeper-close-btn">閉じる</button></div>
+    </section>`;
+    document.body.appendChild(dialog); _shopkeeperDialog = dialog;
+    const qty = dialog.querySelector('#shopkeeper-qty'); const review = dialog.querySelector('#shopkeeper-review');
+    const confirm = dialog.querySelector('#shopkeeper-confirm-btn'); const reviewBtn = dialog.querySelector('#shopkeeper-review-btn');
+    const intent = () => ({ op: dialog.querySelector('input[name="shopkeeper-op"]:checked').value, marketLocationId: market.locationId, commodityId: dialog.querySelector('#shopkeeper-commodity').value, qty: Number(qty.value) });
+    reviewBtn.addEventListener('click', () => {
+        const value = intent();
+        if (!Number.isInteger(value.qty) || value.qty < 1 || value.qty > 999) { review.textContent = '数量は1から999までの整数で入力してください。'; confirm.disabled = true; return; }
+        const quote = market.quotes.find((q) => q.commodityId === value.commodityId);
+        const total = Math.round((quote?.unitPrice || 0) * value.qty);
+        review.textContent = `確認（未確定）: ${value.op === 'buy' ? '購入' : '売却'} / ${value.qty} / 見積 ${total}。確定時に現在の状態で再検証します。`;
+        confirm.disabled = false;
+    });
+    confirm.addEventListener('click', () => {
+        if (_shopkeeperInFlight) { return; }
+        _shopkeeperInFlight = true; confirm.disabled = true; reviewBtn.disabled = true; review.textContent = '処理中…';
+        _shopkeeperPendingRequestId = createShopkeeperRequestId();
+        vscode.postMessage({ type: 'shopkeeperDirectTrade', requestId: _shopkeeperPendingRequestId, ...intent() });
+    });
+    dialog.querySelector('#shopkeeper-close-btn').addEventListener('click', closeShopkeeperDialog);
+    dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); closeShopkeeperDialog(); } });
+    qty.focus();
+}
+
+function finishShopkeeperTrade(msg) {
+    if (!_shopkeeperDialog) { return; }
+    if (!msg?.requestId || msg.requestId !== _shopkeeperPendingRequestId) { return; }
+    _shopkeeperPendingRequestId = null;
+    const review = _shopkeeperDialog.querySelector('#shopkeeper-review');
+    if (msg.ok) {
+        const r = msg.receipt || {};
+        review.textContent = `確定・状態に書き込まれました: ${r.op === 'buy' ? '購入' : '売却'} ${r.qty || ''} ${r.commodityId || ''}（${r.total || 0}）`;
+        _shopkeeperDialog.querySelector('#shopkeeper-confirm-btn').disabled = true;
+        _shopkeeperInFlight = false;
+    } else {
+        const reject = msg.rejection || {};
+        review.textContent = `${reject.message || '取引を実行できませんでした。'} ${reject.nextStep || ''}`;
+        _shopkeeperDialog.querySelector('#shopkeeper-review-btn').disabled = false;
+        _shopkeeperInFlight = false;
+    }
 }
 
 function buildDecisionSurfaceLookup(decisionSurface) {

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds one complete deterministic role surface, **証らす**: local market inspection, buy/sell selection, bounded quantity, explicit review, explicit confirmation, host-authoritative commit, and a readable result. It intentionally does not add travel, gathering, treatment, conversation, role progression, free-text actions, world advancement, narration, or a generic action framework.
+This slice adds one complete deterministic role surface, **暮らす**: local market inspection, buy/sell selection, bounded quantity, explicit review, explicit confirmation, host-authoritative commit, and a readable result. It intentionally does not add travel, gathering, treatment, conversation, role progression, free-text actions, world advancement, narration, or a generic action framework.
 
 ## Production authority reused
 

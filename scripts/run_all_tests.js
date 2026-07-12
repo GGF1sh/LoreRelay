@@ -154,6 +154,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_noai_soak_runner_core.js' },
     { category: 'unit', file: 'test_shopkeeper_direct_trade_core.js' },
     { category: 'unit', file: 'test_shopkeeper_repair.js' },
+    { category: 'unit', file: 'test_end_day_world_progression.js' },
     { category: 'unit', file: 'test_entity_identity_core.js' },
     { category: 'unit', file: 'test_entity_reference_inventory_core.js' },
     { category: 'unit', file: 'test_world_state.js' },

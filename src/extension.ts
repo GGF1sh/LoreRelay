@@ -237,6 +237,7 @@ import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWriteback
 import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createShopkeeperRequestGate } from './shopkeeperRequestGate';
+import { createEndDayRequestGate } from './endDayRequestGate';
 
 let panel: vscode.WebviewPanel | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
@@ -244,6 +245,7 @@ let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let openRouterSettingsWarningShown = false;
 const shopkeeperRequestGate = createShopkeeperRequestGate(32);
+const endDayRequestGate = createEndDayRequestGate(32);
 
 const OPENROUTER_SECRET_KEY = 'lorerelay.openrouter.apiKey';
 const TTS_EXTERNAL_SECRET_KEY = 'lorerelay.tts.external.apiKey';
@@ -404,6 +406,7 @@ export function activate(context: vscode.ExtensionContext) {
             setDebugTraceHostUpdateListener(undefined);
             panel = undefined;
             shopkeeperRequestGate.dispose();
+            endDayRequestGate.dispose();
             disposeGameStateWatcher();
             if (bgmWatcher) {
                 bgmWatcher.dispose();
@@ -2010,6 +2013,41 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                     },
                 };
             });
+            panel?.webview.postMessage(response);
+        },
+        handleEndDayPreview: async () => {
+            const { previewEndDay } = await import('./endDayWorldProgression');
+            panel?.webview.postMessage({ type: 'endDayPreviewResult', ...previewEndDay() });
+        },
+        handleEndDayCommit: async (raw: unknown) => {
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const requestId = typeof doc.requestId === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(doc.requestId)
+                ? doc.requestId : '';
+            const confirmed = doc.confirmed === true;
+            if (!requestId) {
+                panel?.webview.postMessage({
+                    type: 'endDayResult', requestId, ok: false,
+                    failure: { code: 'CONFIRMATION_REQUIRED', message: '日を終えるには明示的な確認が必要です。', nextStep: '確認画面を開き直してください。' },
+                });
+                return;
+            }
+            const workspaceKey = getWorkspacePath() ?? '__no_workspace__';
+            const response = await endDayRequestGate.run(workspaceKey, requestId, async () => {
+                const { executeEndDay } = await import('./endDayWorldProgression');
+                const outcome = executeEndDay(requestId, confirmed);
+                if ('ok' in outcome && !outcome.ok) {
+                    return { type: 'endDayResult' as const, requestId, ok: false, failure: outcome };
+                }
+                return { type: 'endDayResult' as const, requestId, ok: true, receipt: outcome };
+            });
+            // Persistence success remains authoritative even when the display refresh is unavailable.
+            if (response.ok) {
+                try {
+                    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+                } catch {
+                    response.refreshFailed = true;
+                }
+            }
             panel?.webview.postMessage(response);
         },
         handleLivingWorldSetPlayerRole: async (raw: unknown) => {

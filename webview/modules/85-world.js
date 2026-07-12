@@ -106,6 +106,12 @@ window.addEventListener('DOMContentLoaded', () => {
         if (msg.type === 'shopkeeperDirectTradeResult') {
             finishShopkeeperTrade(msg);
         }
+        if (msg.type === 'endDayPreviewResult') {
+            finishEndDayPreview(msg);
+        }
+        if (msg.type === 'endDayResult') {
+            finishEndDay(msg);
+        }
         if (msg.type === 'livingWorldSetPlayerRoleResult') {
             if (!msg.ok) {
                 setCommerceTradeToast(msg.reason || T('webview.world.roleFailed'), 'error');
@@ -2100,6 +2106,15 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
         if (shopkeeperOpen) {
             shopkeeperOpen.addEventListener('click', () => openShopkeeperDialog(shopkeeperOpen));
         }
+        const endDayOpen = document.createElement('button');
+        endDayOpen.type = 'button';
+        endDayOpen.id = 'end-day-open';
+        endDayOpen.className = 'world-market-trade-btn';
+        endDayOpen.textContent = '一日を終える';
+        endDayOpen.setAttribute('aria-label', '一日を終える。世界は1ターン進み、AIは呼ばれません。');
+        endDayOpen.addEventListener('click', () => openEndDayDialog(endDayOpen));
+        const commerceToast = document.getElementById('world-commerce-trade-toast');
+        panel.insertBefore(endDayOpen, commerceToast || null);
         const roleSelect = document.getElementById('world-commerce-role-select');
         if (roleSelect) {
             roleSelect.addEventListener('change', () => {
@@ -2252,6 +2267,98 @@ function finishShopkeeperTrade(msg) {
         _shopkeeperDialog.querySelector('#shopkeeper-review-btn').disabled = false;
         _shopkeeperInFlight = false;
     }
+}
+
+let _endDayDialog = null;
+let _endDayInitiator = null;
+let _endDayPendingRequestId = null;
+let _endDayPreviewReady = false;
+
+function createEndDayRequestId() {
+    const random = new Uint32Array(2);
+    if (window.crypto?.getRandomValues) { window.crypto.getRandomValues(random); }
+    return `endday_${Date.now().toString(36)}_${random[0].toString(36)}${random[1].toString(36)}`;
+}
+
+function closeEndDayDialog() {
+    if (_endDayDialog) { _endDayDialog.remove(); }
+    _endDayDialog = null;
+    _endDayPendingRequestId = null;
+    _endDayPreviewReady = false;
+    if (_endDayInitiator && typeof _endDayInitiator.focus === 'function') { _endDayInitiator.focus(); }
+}
+
+function openEndDayDialog(initiator) {
+    closeEndDayDialog();
+    _endDayInitiator = initiator;
+    const dialog = document.createElement('div');
+    dialog.id = 'end-day-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', '一日を終える');
+    dialog.style.cssText = 'position:fixed;inset:0;z-index:1001;display:grid;place-items:center;padding:12px;background:rgba(0,0,0,.55)';
+    dialog.innerHTML = `<section style="width:min(100%,400px);max-height:90vh;overflow:auto;overflow-wrap:anywhere;padding:16px;border:1px solid var(--vscode-focusBorder);border-radius:8px;background:var(--vscode-editor-background);color:var(--vscode-foreground)">
+      <h2 style="margin-top:0">一日を終える</h2>
+      <p>世界は1ターン進みます。市場と世界の住人が変化することがあります。AIは呼ばれず、静かな日もあります。</p>
+      <p id="end-day-review" class="img-gen-hint">確認中…</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="end-day-confirm" disabled>一日を終える</button><button type="button" id="end-day-close">閉じる</button></div>
+    </section>`;
+    document.body.appendChild(dialog);
+    _endDayDialog = dialog;
+    const confirm = dialog.querySelector('#end-day-confirm');
+    confirm.addEventListener('click', () => {
+        if (!_endDayPreviewReady || _endDayPendingRequestId) { return; }
+        _endDayPendingRequestId = createEndDayRequestId();
+        confirm.disabled = true;
+        dialog.querySelector('#end-day-review').textContent = '一日を進めています…';
+        vscode.postMessage({ type: 'endDayCommit', requestId: _endDayPendingRequestId, confirmed: true });
+    });
+    dialog.querySelector('#end-day-close').addEventListener('click', closeEndDayDialog);
+    dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); closeEndDayDialog(); } });
+    dialog.querySelector('#end-day-close').focus();
+    vscode.postMessage({ type: 'endDayPreview' });
+}
+
+function finishEndDayPreview(msg) {
+    if (!_endDayDialog) { return; }
+    const review = _endDayDialog.querySelector('#end-day-review');
+    const confirm = _endDayDialog.querySelector('#end-day-confirm');
+    if (!msg.ok) {
+        review.textContent = `${msg.message || '一日を確認できませんでした。'} ${msg.nextStep || ''}`;
+        confirm.disabled = true;
+        return;
+    }
+    _endDayPreviewReady = true;
+    const systems = Array.isArray(msg.systems) ? msg.systems.join('、') : 'world simulation';
+    const consumption = Array.isArray(msg.fixedResourceConsumption) && msg.fixedResourceConsumption.length > 0
+        ? msg.fixedResourceConsumption.map((x) => `${x.resource} ${x.amount}`).join('、')
+        : '固定消費なし';
+    review.textContent = `確認（確定前）: ターン ${msg.currentWorldTurn} → ${msg.targetWorldTurn} / 現在地 ${msg.currentLocationId} / 進む系統: ${systems} / ${consumption}`;
+    confirm.disabled = false;
+    confirm.focus();
+}
+
+function finishEndDay(msg) {
+    if (!_endDayDialog || !msg?.requestId || msg.requestId !== _endDayPendingRequestId) { return; }
+    const review = _endDayDialog.querySelector('#end-day-review');
+    const confirm = _endDayDialog.querySelector('#end-day-confirm');
+    _endDayPendingRequestId = null;
+    if (!msg.ok) {
+        const failure = msg.failure || {};
+        review.textContent = `${failure.message || '日を終えたことを確認できませんでした。'} ${failure.nextStep || ''}`;
+        confirm.disabled = !_endDayPreviewReady;
+        return;
+    }
+    const r = msg.receipt || {};
+    const eventKinds = Array.isArray(r.eventCategories) && r.eventCategories.length > 0 ? r.eventCategories.join('、') : 'なし';
+    const markets = Array.isArray(r.marketChanges) && r.marketChanges.length > 0
+        ? r.marketChanges.map((change) => `${change.commodityId}: 在庫 ${change.stockDelta >= 0 ? '+' : ''}${change.stockDelta}`).join('、')
+        : '目立つ変化なし';
+    review.textContent = r.quiet
+        ? `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / ${r.currentLocationId} / 大きな出来事はありませんでした。受付 ${r.requestId}`
+        : `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / ${r.currentLocationId} / 出来事 ${r.eventCount}件（${eventKinds}）/ 市場 ${markets} / 受付 ${r.requestId}`;
+    if (msg.refreshFailed) { review.textContent += ' 表示の更新を確認できなかったため、画面を再読込してください。'; }
+    confirm.disabled = true;
 }
 
 function buildDecisionSurfaceLookup(decisionSurface) {

@@ -192,52 +192,63 @@ async function main() {
         try {
             const shared = createDeterministicWorkspaceMutationGate();
             
+            let p2Entered = 0;
+            let p3Entered = 0;
+            let p4Entered = 0;
+
             // Helper functions wrapping actual production cores
             const runP2 = async (harness, reqId) => shared.run(harness.dir, { actionKind: 'shopkeeper_trade', requestId: reqId }, async () => {
+                p2Entered++;
                 const intent = parseShopkeeperIntent({ op: 'buy', marketLocationId: 'north_farm', commodityId: 'wheat', qty: 1, total: 2, creditsBefore: 100 });
                 return executeShopkeeperTrade(harness.deps.loadWorldForgeDocument(), harness.world.markets, { credits: 100, cargo: [], transportId: 'wagon', food: 8 }, 'north_farm', intent, true, 'evt');
             });
             const runP3 = async (harness, reqId) => shared.run(harness.dir, { actionKind: 'end_day', requestId: reqId }, async () => {
-                return executeEndDay(reqId, false, harness.deps);
+                p3Entered++;
+                return executeEndDay(reqId, true, harness.deps);
             });
             const runP4 = async (harness, reqId) => shared.run(harness.dir, { actionKind: 'market_travel', requestId: reqId }, async () => {
+                p4Entered++;
                 return executeMarketTravel(reqId, 'south_port', true, harness.deps);
             });
 
-            // A. real P2 active -> real P4 rejected
+            // A. shopkeeper_trade gate slot occupied -> production P4 callback rejected
             {
                 const hold = deferred();
                 const p2 = shared.run(hA.dir, { actionKind: 'shopkeeper_trade', requestId: 'p2a' }, async () => { await hold.promise; return { ok: true }; });
                 const p4 = await runP4(hA, 'p4a');
-                assert.equal(p4.code, WORLD_MUTATION_IN_PROGRESS, 'A. real P2 active -> real P4 rejected');
+                assert.equal(p4.code, WORLD_MUTATION_IN_PROGRESS, 'A. shopkeeper_trade gate slot occupied -> production P4 callback rejected');
                 assert.equal(hA.commitCount, 0, 'rejected mutation performs no authoritative read/write');
+                assert.equal(p4Entered, 0, 'rejected production P4 callback was never entered');
                 hold.resolve(); await p2;
             }
 
-            // B. real P3 active -> real P4 rejected
+            // B. end_day gate slot occupied -> production P4 callback rejected
             {
                 const hold = deferred();
                 const p3 = shared.run(hA.dir, { actionKind: 'end_day', requestId: 'p3b' }, async () => { await hold.promise; return { ok: true }; });
                 const p4 = await runP4(hA, 'p4b');
-                assert.equal(p4.code, WORLD_MUTATION_IN_PROGRESS, 'B. real P3 active -> real P4 rejected');
+                assert.equal(p4.code, WORLD_MUTATION_IN_PROGRESS, 'B. end_day gate slot occupied -> production P4 callback rejected');
+                assert.equal(p4Entered, 0, 'rejected production P4 callback was never entered');
                 hold.resolve(); await p3;
             }
 
-            // C. real P4 active -> real P2 rejected
+            // C. market_travel gate slot occupied -> production P2 callback rejected
             {
                 const hold = deferred();
                 const p4 = shared.run(hA.dir, { actionKind: 'market_travel', requestId: 'p4c' }, async () => { await hold.promise; return { ok: true }; });
                 const p2 = await runP2(hA, 'p2c');
-                assert.equal(p2.code, WORLD_MUTATION_IN_PROGRESS, 'C. real P4 active -> real P2 rejected');
+                assert.equal(p2.code, WORLD_MUTATION_IN_PROGRESS, 'C. market_travel gate slot occupied -> production P2 callback rejected');
+                assert.equal(p2Entered, 0, 'rejected production P2 callback was never entered');
                 hold.resolve(); await p4;
             }
 
-            // D. real P4 active -> real P3 rejected
+            // D. market_travel gate slot occupied -> production P3 callback rejected
             {
                 const hold = deferred();
                 const p4 = shared.run(hA.dir, { actionKind: 'market_travel', requestId: 'p4d' }, async () => { await hold.promise; return { ok: true }; });
                 const p3 = await runP3(hA, 'p3d');
-                assert.equal(p3.code, WORLD_MUTATION_IN_PROGRESS, 'D. real P4 active -> real P3 rejected');
+                assert.equal(p3.code, WORLD_MUTATION_IN_PROGRESS, 'D. market_travel gate slot occupied -> production P3 callback rejected');
+                assert.equal(p3Entered, 0, 'rejected production P3 callback was never entered');
                 
                 // Workspace B can complete independently
                 const otherP4 = await runP4(hB, 'other_p4');
@@ -251,7 +262,7 @@ async function main() {
             const gameA = JSON.parse(fs.readFileSync(hA.gamePath, 'utf8'));
             assert.equal(gameA.commerce.credits, 100, 'player credits/cargo/market stock are not lost');
             
-            return { sameWorkspaceLoser: WORLD_MUTATION_IN_PROGRESS, maxSameWorkspaceProtectedMutationCount: 1, crossWorkspaceConcurrent: true };
+            return { proofKind: "generic_shared_gate_exclusion", maxSameWorkspaceProtectedMutationCount: 1, crossWorkspaceConcurrent: true, rejectedCallbackEntryCount: p2Entered + p3Entered + p4Entered - 1 };
         } finally { hA.cleanup(); hB.cleanup(); }
     });
 

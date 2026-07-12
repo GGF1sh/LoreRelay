@@ -9,6 +9,29 @@
 
 ## [Unreleased]
 
+## [1.82.0] - 2026-07-13
+
+### Added
+
+- **Playable-v0 Player Action Hub** — unifies deterministic direct trade,
+  zero-turn market travel, and one-turn end-day progression behind one
+  player-facing `暮らす` entry with `取引` / `旅` / `一日を終える` sections,
+  canonical state summaries, explicit previews and confirmations, and factual
+  receipts.
+
+### Changed
+
+- **Coherent deterministic gameplay flow** — replaces three unrelated utility
+  dialogs with a shared interaction surface, single-mutation client state,
+  stale-response protection, keyboard-accessible tabs, focus restoration,
+  semantic VS Code-native styling, and correct Japanese UI.
+
+### Deferred
+
+- Real VS Code visual layout and combined human gameplay smoke remain required
+  after installation of the integrated build.
+
+
 ## [1.81.0] - 2026-07-12
 
 ### Added

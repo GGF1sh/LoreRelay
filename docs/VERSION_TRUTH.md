@@ -60,13 +60,14 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 - **人間スモーク対象の候補ビルド**が main に統合される場合、直前に出荷/テスト済みだった候補より **新しいバージョン識別子**を必ず持つこと（同一版で異なる中身の VSIX が生まれるのを防ぐ）。
 - **docs-only のコミット**（レビュー記録・ハンドオフドキュメントなど、`src/` やパッケージ内容に影響しないもの）ではバージョンを上げない。
 
-## 現行（手動更新: 2026-07-12, NOAI-PLAY-P4-INTEGRATION）
+## 現行（手動更新: 2026-07-13, PLAYABLE-V0-UI-001-INTEGRATION）
 
 | 項目 | 値 |
 |------|-----|
+| PLAYABLE-V0-UI-001 | P2/P3/P4 Player Action Hub integrated; human visual/gameplay smoke required next |
 | NOAI-PLAY-P4 | Deterministic zero-turn market travel integrated with canonical destination authority, request-id replay safety, truthful persistence, correct `旅に出る` UI, seven executable fixtures, and `generic_shared_gate_exclusion` as the exact contention proof scope; combined human smoke waits for UI polish |
-| `package.json` | **1.81.0** |
-| CHANGELOG 先頭 | **[1.81.0]** NOAI-PLAY-P4 deterministic market travel, shared P2/P3/P4 mutation gate, UI encoding repair, and executable fixtures |
+| `package.json` | **1.82.0** |
+| CHANGELOG 先頭 | **[1.82.0]** Playable-v0 Player Action Hub integrated |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
 | World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |
@@ -79,4 +80,4 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | MEDIA-COMFY-001 | ComfyUI long-load job lifecycle repair（v1.78.2）· human-smoke 候補 |
 | NOAI-PLAY-P3 | Deterministic end-day integrated with P2/P3 shared mutation serialization and hermetic installer tests; live installer and combined P2/P3/P4 human smoke are deferred |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
-| テスト | `npm test` expects **246/246**; human smoke is deferred until playable-v0 UI polish is integrated |
+| テスト | `npm test` expects **247/247**; human smoke is deferred until playable-v0 UI polish is integrated |

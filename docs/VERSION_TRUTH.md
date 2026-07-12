@@ -60,12 +60,12 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 - **人間スモーク対象の候補ビルド**が main に統合される場合、直前に出荷/テスト済みだった候補より **新しいバージョン識別子**を必ず持つこと（同一版で異なる中身の VSIX が生まれるのを防ぐ）。
 - **docs-only のコミット**（レビュー記録・ハンドオフドキュメントなど、`src/` やパッケージ内容に影響しないもの）ではバージョンを上げない。
 
-## 現行（手動更新: 2026-07-10, MEDIA-M1.1-REPAIR）
+## 現行（手動更新: 2026-07-12, NOAI-PLAY-P3-INTEGRATION）
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.79.0** |
-| CHANGELOG 先頭 | **[1.79.0]** NOAI-PLAY-P2 deterministic shopkeeper direct trade |
+| `package.json` | **1.80.0** |
+| CHANGELOG 先頭 | **[1.80.0]** NOAI-PLAY-P3 deterministic end-day + shared mutation gate + hermetic installer tests |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
 | World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |
@@ -76,5 +76,6 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | Debug Trace | P1 contracts (v1.77.14) · retention/coalesce/live run (v1.77.15) · Inspector UI Phase B + UX polish |
 | MEDIA-M1 | Compatibility Gate + Media Profile Spine（v1.78.0）· 独立敵対的検証 PASS（`docs/ai-tasks/MEDIA-M1-INDEPENDENT-VERIFY.md`）· post-merge installer smoke は INSTALLER-RELEASE-001 待ち |
 | MEDIA-COMFY-001 | ComfyUI long-load job lifecycle repair（v1.78.2）· human-smoke 候補 |
+| NOAI-PLAY-P3 | Deterministic end-day integrated with P2/P3 shared mutation serialization and hermetic installer tests; live installer and combined P2/P3/P4 human smoke are deferred |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
-| テスト | `npm test` — 本タスクでの実測値は `docs/ai-tasks/MEDIA-M1.1-REPAIR-INSTALLED-SKILL-GATE.md` を参照（`check_version_consistency.js` 含む · simulation batch は二重実行なし） |
+| テスト | `npm test` — NOAI-PLAY-P3 final integration expects **245/245**; live installer / live workspace / human smoke remain deferred until P4 |

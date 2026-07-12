@@ -9,6 +9,21 @@
 
 ## [Unreleased]
 
+## [1.80.0] - 2026-07-12
+
+### Added
+
+- **NOAI-PLAY-P3 deterministic end-day integration** - integrates deterministic end-day world progression with explicit preview/confirmation, canonical reread on commit, one-turn advancement, bulk simulation/Living World/market recovery cadence, quiet-day receipts, and honest persistence/refresh outcomes.
+
+### Changed
+
+- **P2/P3 same-workspace mutation serialization** - P2 direct trade and P3 end-day now share the host-scoped deterministic workspace mutation gate so same-workspace authoritative mutations fail immediately with `WORLD_MUTATION_IN_PROGRESS` instead of queuing, retrying, or unlocking outside the persistence outcome.
+- **Hermetic installer tests** - Antigravity installer bootstrap/chain tests now use local bare-origin fixtures and reject network remotes; production installer scripts remain unchanged and live installation is still deferred.
+
+### Deferred
+
+- Live installation and the combined P2/P3/P4 playable-v0 human smoke remain deferred until P4.
+
 ## [1.79.0] - 2026-07-12
 
 ### Added

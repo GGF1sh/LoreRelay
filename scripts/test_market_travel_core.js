@@ -205,7 +205,11 @@ async function main() {
     const ui = fs.readFileSync(path.join(root, 'webview', 'modules', '85-world.js'), 'utf8');
     const bundle = fs.readFileSync(path.join(root, 'webview', 'script.js'), 'utf8');
     assert(ui.includes('marketTravelCommit') && ui.includes("failure.code === 'WORLD_MUTATION_IN_PROGRESS'"));
-    assert(bundle.includes('marketTravelCommit') && bundle.includes('譌・↓蜃ｺ繧・'), 'shipped bundle lacks P4 UI');
+    assert(bundle.includes('marketTravelCommit') && bundle.includes('旅に出る'), 'shipped bundle lacks P4 UI');
+    assert(ui.includes('旅に出る'), 'module lacks P4 UI');
+    const mojibake = /譌|蜃|繧|證/;
+    assert(!mojibake.test(ui), 'module contains known mojibake markers');
+    assert(!mojibake.test(bundle), 'shipped bundle contains known mojibake markers');
     console.log('market travel core tests passed.');
 }
 

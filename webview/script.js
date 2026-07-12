@@ -8651,8 +8651,8 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
         travelOpen.type = 'button';
         travelOpen.id = 'market-travel-open';
         travelOpen.className = 'world-market-trade-btn';
-        travelOpen.textContent = '譌・↓蜃ｺ繧・';
-        travelOpen.setAttribute('aria-label', '譌・↓蜃ｺ繧・');
+        travelOpen.textContent = '旅に出る';
+        travelOpen.setAttribute('aria-label', '旅に出る');
         travelOpen.addEventListener('click', () => openMarketTravelDialog(travelOpen));
         const endDayOpen = document.createElement('button');
         endDayOpen.type = 'button';
@@ -8854,10 +8854,10 @@ function openMarketTravelDialog(initiator) {
     dialog.id = 'market-travel-dialog';
     dialog.setAttribute('role', 'dialog');
     dialog.setAttribute('aria-modal', 'true');
-    dialog.setAttribute('aria-label', '譌・↓蜃ｺ繧・');
+    dialog.setAttribute('aria-label', '旅に出る');
     dialog.style.cssText = 'position:fixed;inset:0;z-index:1001;display:grid;place-items:center;padding:12px;background:rgba(0,0,0,.55)';
     dialog.innerHTML = `<section style="width:min(100%,400px);max-height:90vh;overflow:auto;overflow-wrap:anywhere;padding:16px;border:1px solid var(--vscode-focusBorder);border-radius:8px;background:var(--vscode-editor-background);color:var(--vscode-foreground)">
-      <h2 style="margin-top:0">譌・↓蜃ｺ繧・</h2>
+      <h2 style="margin-top:0">旅に出る</h2>
       <label style="display:block;margin-bottom:8px">移動先 <select id="market-travel-destination" style="max-width:100%"><option value="">読込中...</option></select></label>
       <p id="market-travel-review" class="img-gen-hint">市場の一覧を読込中です。</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="market-travel-preview" disabled>確認</button><button type="button" id="market-travel-confirm" disabled>移動を確定</button><button type="button" id="market-travel-close">閉じる</button></div>

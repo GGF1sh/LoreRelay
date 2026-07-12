@@ -64,8 +64,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.78.2** |
-| CHANGELOG 先頭 | **[1.78.2]** MEDIA-COMFY-001 long-load ComfyUI job lifecycle repair |
+| `package.json` | **1.79.0** |
+| CHANGELOG 先頭 | **[1.79.0]** NOAI-PLAY-P2 deterministic shopkeeper direct trade |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |
 | Living World (LW1) | Commerce: 評判連動 market demand (v1.51.0) · 季節/region イベント連動 · **プレイヤー関係連動** (faction-controlled markets) |
 | World Observatory | 新規 (v1.53.0): 市場価格履歴スパークライン・年代記タイムライン・観測者ティック (watch=無コスト / advance=資源消費)。`enableWorldObservatory` 既定 OFF |

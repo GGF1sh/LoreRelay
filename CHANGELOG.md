@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.79.0] - 2026-07-12
+
+### Added
+
+- **NOAI-PLAY-P2 deterministic shopkeeper direct trade** — adds the first backward-compatible user-facing deterministic gameplay surface, including authoritative host idempotency, honest persistence outcomes, and the canonical shipped webview bundle. Live installation and the combined playable-v0 human smoke are intentionally deferred until P3/P4 complete.
+
 ## [1.78.2] - 2026-07-10
 
 ### Fixed

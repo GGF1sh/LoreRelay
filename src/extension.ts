@@ -238,6 +238,10 @@ import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationR
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createShopkeeperRequestGate } from './shopkeeperRequestGate';
 import { createEndDayRequestGate } from './endDayRequestGate';
+import {
+    createDeterministicWorkspaceMutationGate,
+    WORLD_MUTATION_IN_PROGRESS,
+} from './deterministicWorkspaceMutationGate';
 
 let panel: vscode.WebviewPanel | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
@@ -246,6 +250,13 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let openRouterSettingsWarningShown = false;
 const shopkeeperRequestGate = createShopkeeperRequestGate(32);
 const endDayRequestGate = createEndDayRequestGate(32);
+const deterministicWorkspaceMutationGate = createDeterministicWorkspaceMutationGate();
+
+const WORLD_MUTATION_BUSY_COPY = {
+    code: WORLD_MUTATION_IN_PROGRESS,
+    message: '別の操作を確定中です。',
+    nextStep: '完了後に、もう一度操作してください。自動では再試行しません。',
+} as const;
 
 const OPENROUTER_SECRET_KEY = 'lorerelay.openrouter.apiKey';
 const TTS_EXTERNAL_SECRET_KEY = 'lorerelay.tts.external.apiKey';
@@ -257,6 +268,7 @@ function getPanel(): vscode.WebviewPanel | undefined {
 
 export function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
+    context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
     clearGameRulesCache();
     initI18n(context.extensionPath);
 
@@ -1977,6 +1989,10 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             }
             const workspaceKey = getWorkspacePath() ?? '__no_workspace__';
             const response = await shopkeeperRequestGate.run(workspaceKey, requestId, async () => {
+                const mutation = await deterministicWorkspaceMutationGate.run(
+                    workspaceKey,
+                    { actionKind: 'shopkeeper_trade', requestId },
+                    async () => {
                 // Only identifiers, operation and quantity cross the boundary.
                 const { executeLivingWorldDirectTrade, flushScheduledCommercePersist } = await import('./livingWorldCommerceUi');
                 const result = executeLivingWorldDirectTrade(intent);
@@ -2002,7 +2018,6 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                         persistence,
                     };
                 }
-                pushWorldViewToWebview(getCurrentLocationIdForWorldView());
                 return {
                     type: 'shopkeeperDirectTradeResult' as const, requestId, ok: true,
                     receipt: {
@@ -2012,7 +2027,30 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                         persisted: true,
                     },
                 };
+                    }
+                );
+                if (mutation.status === 'busy') {
+                    return {
+                        type: 'shopkeeperDirectTradeResult' as const, requestId, ok: false,
+                        rejection: WORLD_MUTATION_BUSY_COPY,
+                    };
+                }
+                if (mutation.status === 'failed') {
+                    return {
+                        type: 'shopkeeperDirectTradeResult' as const, requestId, ok: false,
+                        rejection: {
+                            code: 'TRADE_FAILED',
+                            message: '取引処理を完了できませんでした。',
+                            nextStep: '現在の状態を確認してから、もう一度操作してください。',
+                        },
+                    };
+                }
+                return mutation.value;
             });
+            if (response.ok) {
+                try { pushWorldViewToWebview(getCurrentLocationIdForWorldView()); }
+                catch { response.refreshFailed = true; }
+            }
             panel?.webview.postMessage(response);
         },
         handleEndDayPreview: async () => {
@@ -2033,12 +2071,36 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             }
             const workspaceKey = getWorkspacePath() ?? '__no_workspace__';
             const response = await endDayRequestGate.run(workspaceKey, requestId, async () => {
-                const { executeEndDay } = await import('./endDayWorldProgression');
-                const outcome = executeEndDay(requestId, confirmed);
-                if ('ok' in outcome && !outcome.ok) {
-                    return { type: 'endDayResult' as const, requestId, ok: false, failure: outcome };
+                const mutation = await deterministicWorkspaceMutationGate.run(
+                    workspaceKey,
+                    { actionKind: 'end_day', requestId },
+                    async () => {
+                        // executeEndDay performs commit-time canonical reads after shared acquisition.
+                        const { executeEndDay } = await import('./endDayWorldProgression');
+                        const outcome = executeEndDay(requestId, confirmed);
+                        if ('ok' in outcome && !outcome.ok) {
+                            return { type: 'endDayResult' as const, requestId, ok: false, failure: outcome };
+                        }
+                        return { type: 'endDayResult' as const, requestId, ok: true, receipt: outcome };
+                    }
+                );
+                if (mutation.status === 'busy') {
+                    return {
+                        type: 'endDayResult' as const, requestId, ok: false,
+                        failure: WORLD_MUTATION_BUSY_COPY,
+                    };
                 }
-                return { type: 'endDayResult' as const, requestId, ok: true, receipt: outcome };
+                if (mutation.status === 'failed') {
+                    return {
+                        type: 'endDayResult' as const, requestId, ok: false,
+                        failure: {
+                            code: 'SIMULATION_FAILED',
+                            message: '一日を進める処理を完了できませんでした。',
+                            nextStep: '現在の状態を確認してから、もう一度操作してください。',
+                        },
+                    };
+                }
+                return mutation.value;
             });
             // Persistence success remains authoritative even when the display refresh is unavailable.
             if (response.ok) {

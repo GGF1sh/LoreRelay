@@ -8798,6 +8798,14 @@ function finishShopkeeperTrade(msg) {
         _shopkeeperInFlight = false;
     } else {
         const reject = msg.rejection || {};
+        if (reject.code === 'WORLD_MUTATION_IN_PROGRESS') {
+            review.textContent = `${reject.message || '別の操作を確定中です。'} ${reject.nextStep || '完了後に、もう一度操作してください。'}`;
+            review.setAttribute('data-state', 'busy');
+            _shopkeeperDialog.querySelector('#shopkeeper-review-btn').disabled = false;
+            _shopkeeperInFlight = false;
+            _shopkeeperDialog.querySelector('#shopkeeper-review-btn').focus();
+            return;
+        }
         review.textContent = `${reject.message || '取引を実行できませんでした。'} ${reject.nextStep || ''}`;
         _shopkeeperDialog.querySelector('#shopkeeper-review-btn').disabled = false;
         _shopkeeperInFlight = false;
@@ -8880,6 +8888,13 @@ function finishEndDay(msg) {
     _endDayPendingRequestId = null;
     if (!msg.ok) {
         const failure = msg.failure || {};
+        if (failure.code === 'WORLD_MUTATION_IN_PROGRESS') {
+            review.textContent = `${failure.message || '別の操作を確定中です。'} ${failure.nextStep || '完了後に、もう一度操作してください。'}`;
+            review.setAttribute('data-state', 'busy');
+            confirm.disabled = !_endDayPreviewReady;
+            if (!confirm.disabled) { confirm.focus(); }
+            return;
+        }
         review.textContent = `${failure.message || '日を終えたことを確認できませんでした。'} ${failure.nextStep || ''}`;
         confirm.disabled = !_endDayPreviewReady;
         return;

@@ -106,6 +106,12 @@ window.addEventListener('DOMContentLoaded', () => {
         if (msg.type === 'shopkeeperDirectTradeResult') {
             finishShopkeeperTrade(msg);
         }
+        if (msg.type === 'marketTravelPreviewResult') {
+            finishMarketTravelPreview(msg);
+        }
+        if (msg.type === 'marketTravelResult') {
+            finishMarketTravel(msg);
+        }
         if (msg.type === 'endDayPreviewResult') {
             finishEndDayPreview(msg);
         }
@@ -2106,6 +2112,13 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
         if (shopkeeperOpen) {
             shopkeeperOpen.addEventListener('click', () => openShopkeeperDialog(shopkeeperOpen));
         }
+        const travelOpen = document.createElement('button');
+        travelOpen.type = 'button';
+        travelOpen.id = 'market-travel-open';
+        travelOpen.className = 'world-market-trade-btn';
+        travelOpen.textContent = '譌・↓蜃ｺ繧・';
+        travelOpen.setAttribute('aria-label', '譌・↓蜃ｺ繧・');
+        travelOpen.addEventListener('click', () => openMarketTravelDialog(travelOpen));
         const endDayOpen = document.createElement('button');
         endDayOpen.type = 'button';
         endDayOpen.id = 'end-day-open';
@@ -2114,6 +2127,7 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
         endDayOpen.setAttribute('aria-label', '一日を終える。世界は1ターン進み、AIは呼ばれません。');
         endDayOpen.addEventListener('click', () => openEndDayDialog(endDayOpen));
         const commerceToast = document.getElementById('world-commerce-trade-toast');
+        panel.insertBefore(travelOpen, commerceToast || null);
         panel.insertBefore(endDayOpen, commerceToast || null);
         const roleSelect = document.getElementById('world-commerce-role-select');
         if (roleSelect) {
@@ -2275,6 +2289,141 @@ function finishShopkeeperTrade(msg) {
         _shopkeeperDialog.querySelector('#shopkeeper-review-btn').disabled = false;
         _shopkeeperInFlight = false;
     }
+}
+
+let _marketTravelDialog = null;
+let _marketTravelInitiator = null;
+let _marketTravelPendingRequestId = null;
+let _marketTravelPreviewDestinationId = null;
+let _marketTravelPreviewReady = false;
+
+function createMarketTravelRequestId() {
+    const random = new Uint32Array(2);
+    if (window.crypto?.getRandomValues) { window.crypto.getRandomValues(random); }
+    return `travel_${Date.now().toString(36)}_${random[0].toString(36)}${random[1].toString(36)}`;
+}
+
+function closeMarketTravelDialog() {
+    if (_marketTravelDialog) { _marketTravelDialog.remove(); }
+    _marketTravelDialog = null;
+    _marketTravelPendingRequestId = null;
+    _marketTravelPreviewDestinationId = null;
+    _marketTravelPreviewReady = false;
+    if (_marketTravelInitiator && typeof _marketTravelInitiator.focus === 'function') { _marketTravelInitiator.focus(); }
+}
+
+function openMarketTravelDialog(initiator) {
+    closeMarketTravelDialog();
+    _marketTravelInitiator = initiator;
+    const dialog = document.createElement('div');
+    dialog.id = 'market-travel-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', '譌・↓蜃ｺ繧・');
+    dialog.style.cssText = 'position:fixed;inset:0;z-index:1001;display:grid;place-items:center;padding:12px;background:rgba(0,0,0,.55)';
+    dialog.innerHTML = `<section style="width:min(100%,400px);max-height:90vh;overflow:auto;overflow-wrap:anywhere;padding:16px;border:1px solid var(--vscode-focusBorder);border-radius:8px;background:var(--vscode-editor-background);color:var(--vscode-foreground)">
+      <h2 style="margin-top:0">譌・↓蜃ｺ繧・</h2>
+      <label style="display:block;margin-bottom:8px">移動先 <select id="market-travel-destination" style="max-width:100%"><option value="">読込中...</option></select></label>
+      <p id="market-travel-review" class="img-gen-hint">市場の一覧を読込中です。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="market-travel-preview" disabled>確認</button><button type="button" id="market-travel-confirm" disabled>移動を確定</button><button type="button" id="market-travel-close">閉じる</button></div>
+    </section>`;
+    document.body.appendChild(dialog);
+    _marketTravelDialog = dialog;
+    const select = dialog.querySelector('#market-travel-destination');
+    const previewBtn = dialog.querySelector('#market-travel-preview');
+    const confirm = dialog.querySelector('#market-travel-confirm');
+    select.addEventListener('change', () => {
+        _marketTravelPreviewReady = false;
+        _marketTravelPreviewDestinationId = null;
+        confirm.disabled = true;
+        previewBtn.disabled = !select.value;
+        dialog.querySelector('#market-travel-review').textContent = select.value ? '確認を選ぶと、正規データだけを使った移動内容を表示します。' : '移動先を選んでください。';
+    });
+    previewBtn.addEventListener('click', () => {
+        if (!select.value) { return; }
+        _marketTravelPreviewReady = false;
+        _marketTravelPreviewDestinationId = select.value;
+        confirm.disabled = true;
+        previewBtn.disabled = true;
+        dialog.querySelector('#market-travel-review').textContent = '確認中...';
+        vscode.postMessage({ type: 'marketTravelPreview', destinationId: select.value });
+    });
+    confirm.addEventListener('click', () => {
+        if (!_marketTravelPreviewReady || _marketTravelPendingRequestId || !select.value || select.value !== _marketTravelPreviewDestinationId) { return; }
+        _marketTravelPendingRequestId = createMarketTravelRequestId();
+        confirm.disabled = true;
+        previewBtn.disabled = true;
+        select.disabled = true;
+        dialog.querySelector('#market-travel-review').textContent = '移動を保存中...';
+        vscode.postMessage({ type: 'marketTravelCommit', requestId: _marketTravelPendingRequestId, destinationId: select.value, confirmed: true });
+    });
+    dialog.querySelector('#market-travel-close').addEventListener('click', closeMarketTravelDialog);
+    dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); closeMarketTravelDialog(); } });
+    dialog.querySelector('#market-travel-close').focus();
+    vscode.postMessage({ type: 'marketTravelPreview' });
+}
+
+function finishMarketTravelPreview(msg) {
+    if (!_marketTravelDialog) { return; }
+    const select = _marketTravelDialog.querySelector('#market-travel-destination');
+    const review = _marketTravelDialog.querySelector('#market-travel-review');
+    const previewBtn = _marketTravelDialog.querySelector('#market-travel-preview');
+    const confirm = _marketTravelDialog.querySelector('#market-travel-confirm');
+    const requestedDestination = _marketTravelPreviewDestinationId;
+    if (requestedDestination && msg.destinationId !== requestedDestination) { return; }
+    if (!msg.ok) {
+        review.textContent = `${msg.message || '移動内容を確認できませんでした。'} ${msg.nextStep || ''}`;
+        previewBtn.disabled = !select.value;
+        confirm.disabled = true;
+        return;
+    }
+    if (!requestedDestination) {
+        const options = Array.isArray(msg.destinations) ? msg.destinations : [];
+        select.innerHTML = options.length
+            ? `<option value="">移動先を選択</option>${options.map((dest) => `<option value="${escapeHtml(dest.id)}">${escapeHtml(dest.name || dest.id)}</option>`).join('')}`
+            : '<option value="">移動先なし</option>';
+        previewBtn.disabled = true;
+        confirm.disabled = true;
+        review.textContent = options.length
+            ? `現在地 ${msg.current?.name || msg.current?.id || '?'}。移動先を選んで確認してください。`
+            : '移動できる別の市場がありません。';
+        select.disabled = options.length === 0;
+        if (options.length > 0) { select.focus(); }
+        return;
+    }
+    _marketTravelPreviewReady = true;
+    const dest = msg.destination || {};
+    const systems = Array.isArray(msg.systemsNotAdvanced) ? msg.systemsNotAdvanced.join('、') : 'world turn';
+    review.textContent = `確認（読取専用）: ${msg.current?.name || msg.current?.id || '?'} -> ${dest.name || dest.id || requestedDestination} / 市場あり / 経過ターン ${msg.elapsedWorldTurns} / 根拠 ${msg.reachabilityBasis || 'known_market_location'} / 進まない系統: ${systems}`;
+    previewBtn.disabled = false;
+    confirm.disabled = false;
+    confirm.focus();
+}
+
+function finishMarketTravel(msg) {
+    if (!_marketTravelDialog || !msg?.requestId || msg.requestId !== _marketTravelPendingRequestId) { return; }
+    const select = _marketTravelDialog.querySelector('#market-travel-destination');
+    const review = _marketTravelDialog.querySelector('#market-travel-review');
+    const previewBtn = _marketTravelDialog.querySelector('#market-travel-preview');
+    const confirm = _marketTravelDialog.querySelector('#market-travel-confirm');
+    _marketTravelPendingRequestId = null;
+    select.disabled = false;
+    if (!msg.ok) {
+        const failure = msg.failure || {};
+        review.textContent = `${failure.message || '移動を保存できませんでした。'} ${failure.nextStep || ''}`;
+        if (failure.code === 'WORLD_MUTATION_IN_PROGRESS' || failure.code === 'BUSY') {
+            review.setAttribute('data-state', 'busy');
+        }
+        previewBtn.disabled = !select.value;
+        confirm.disabled = !_marketTravelPreviewReady;
+        if (!confirm.disabled) { confirm.focus(); }
+        return;
+    }
+    const r = msg.receipt || {};
+    review.textContent = `移動しました。${r.origin?.name || r.origin?.id || '?'} -> ${r.destination?.name || r.destination?.id || '?'} / 経過ターン ${r.elapsedWorldTurns} / 市場あり / 受付 ${r.requestId}`;
+    if (msg.refreshFailed || r.refreshFailed) { review.textContent += ' 保存は完了しましたが、表示の更新を確認できませんでした。画面を再読込してください。'; }
+    confirm.disabled = true;
+    previewBtn.disabled = false;
 }
 
 let _endDayDialog = null;

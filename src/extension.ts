@@ -238,6 +238,7 @@ import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationR
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createShopkeeperRequestGate } from './shopkeeperRequestGate';
 import { createEndDayRequestGate } from './endDayRequestGate';
+import { createMarketTravelRequestGate } from './marketTravelRequestGate';
 import {
     createDeterministicWorkspaceMutationGate,
     WORLD_MUTATION_IN_PROGRESS,
@@ -250,6 +251,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let openRouterSettingsWarningShown = false;
 const shopkeeperRequestGate = createShopkeeperRequestGate(32);
 const endDayRequestGate = createEndDayRequestGate(32);
+const marketTravelRequestGate = createMarketTravelRequestGate(32);
 const deterministicWorkspaceMutationGate = createDeterministicWorkspaceMutationGate();
 
 const WORLD_MUTATION_BUSY_COPY = {
@@ -419,6 +421,7 @@ export function activate(context: vscode.ExtensionContext) {
             panel = undefined;
             shopkeeperRequestGate.dispose();
             endDayRequestGate.dispose();
+            marketTravelRequestGate.dispose();
             disposeGameStateWatcher();
             if (bgmWatcher) {
                 bgmWatcher.dispose();
@@ -2050,6 +2053,78 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
             if (response.ok) {
                 try { pushWorldViewToWebview(getCurrentLocationIdForWorldView()); }
                 catch { response.refreshFailed = true; }
+            }
+            panel?.webview.postMessage(response);
+        },
+        handleMarketTravelPreview: async (raw: unknown) => {
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const destinationId = typeof doc.destinationId === 'string' ? doc.destinationId.trim() : undefined;
+            const { previewMarketTravel } = await import('./deterministicMarketTravel');
+            panel?.webview.postMessage({
+                type: 'marketTravelPreviewResult',
+                destinationId,
+                ...previewMarketTravel(destinationId),
+            });
+        },
+        handleMarketTravelCommit: async (raw: unknown) => {
+            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+            const requestId = typeof doc.requestId === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(doc.requestId)
+                ? doc.requestId : '';
+            const destinationId = typeof doc.destinationId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(doc.destinationId)
+                ? doc.destinationId : '';
+            const confirmed = doc.confirmed === true;
+            if (!requestId || !destinationId) {
+                panel?.webview.postMessage({
+                    type: 'marketTravelResult', requestId, ok: false,
+                    failure: {
+                        code: 'CONFIRMATION_REQUIRED',
+                        message: '移動には正しい受付番号と移動先の確認が必要です。',
+                        nextStep: '移動先を選び直して、確認画面から確定してください。',
+                    },
+                });
+                return;
+            }
+            const workspaceKey = getWorkspacePath() ?? '__no_workspace__';
+            const response = await marketTravelRequestGate.run(workspaceKey, requestId, async () => {
+                const mutation = await deterministicWorkspaceMutationGate.run(
+                    workspaceKey,
+                    { actionKind: 'market_travel', requestId },
+                    async () => {
+                        const { executeMarketTravel } = await import('./deterministicMarketTravel');
+                        const outcome = executeMarketTravel(requestId, destinationId, confirmed);
+                        if ('ok' in outcome && !outcome.ok) {
+                            return { type: 'marketTravelResult' as const, requestId, ok: false, failure: outcome };
+                        }
+                        return { type: 'marketTravelResult' as const, requestId, ok: true, receipt: outcome };
+                    }
+                );
+                if (mutation.status === 'busy') {
+                    return {
+                        type: 'marketTravelResult' as const, requestId, ok: false,
+                        failure: WORLD_MUTATION_BUSY_COPY,
+                    };
+                }
+                if (mutation.status === 'failed') {
+                    return {
+                        type: 'marketTravelResult' as const, requestId, ok: false,
+                        failure: {
+                            code: 'PERSIST_FAILED',
+                            message: '移動処理を完了できませんでした。',
+                            nextStep: '現在の状態を確認してから、新しい受付番号でやり直してください。',
+                        },
+                    };
+                }
+                return mutation.value;
+            });
+            if (response.ok) {
+                try {
+                    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+                } catch {
+                    response.refreshFailed = true;
+                    if (response.receipt && typeof response.receipt === 'object') {
+                        (response.receipt as Record<string, unknown>).refreshFailed = true;
+                    }
+                }
             }
             panel?.webview.postMessage(response);
         },

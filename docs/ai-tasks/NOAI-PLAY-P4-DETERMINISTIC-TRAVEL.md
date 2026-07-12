@@ -70,7 +70,7 @@ No travel narration is emitted.
 
 ## UI Flow
 
-- Added compact `譌・↓蜃ｺ繧・` action under `證ｮ繧峨☆`.
+- Added compact `旅に出る` action under `暮らす`.
 - Flow: open, choose canonical destination, read-only preview, explicit confirmation, processing state, authoritative receipt.
 - No free text.
 - Same-location and stale/unknown destinations are rejected by host.

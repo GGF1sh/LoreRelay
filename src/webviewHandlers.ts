@@ -108,6 +108,7 @@ export interface WebviewHandlerDeps {
     handleBulkAdvanceWorldSim(steps: number): Promise<void>;
     handleLivingWorldMarketDebug(raw: unknown): Promise<void>;
     handleLivingWorldDirectTrade(raw: unknown): Promise<void>;
+    handleShopkeeperDirectTrade(raw: unknown): Promise<void>;
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
     handleStartParlor(characterId?: string): Promise<void>;
     handleStartInWorld(characterId?: string): Promise<void>;
@@ -543,6 +544,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'livingWorldDirectTrade':
             await deps.handleLivingWorldDirectTrade(message);
+            break;
+        case 'shopkeeperDirectTrade':
+            await deps.handleShopkeeperDirectTrade(message);
             break;
         case 'livingWorldSetPlayerRole':
             await deps.handleLivingWorldSetPlayerRole(message);

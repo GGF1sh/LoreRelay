@@ -1955,6 +1955,40 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 trade: result.trade,
             });
         },
+        handleShopkeeperDirectTrade: async (raw: unknown) => {
+            const { parseShopkeeperIntent, shopkeeperRejectionText } = await import('./shopkeeperDirectTradeCore');
+            const intent = parseShopkeeperIntent(raw);
+            if (!intent) {
+                panel?.webview.postMessage({
+                    type: 'shopkeeperDirectTradeResult', ok: false,
+                    rejection: { code: 'INVALID_QTY', ...shopkeeperRejectionText('INVALID_QTY') },
+                });
+                return;
+            }
+            // Only identifiers, operation, and quantity cross the protocol boundary.
+            // Price, totals, previews, and before/after values are never trusted.
+            const { executeLivingWorldDirectTrade, flushScheduledCommercePersist } = await import('./livingWorldCommerceUi');
+            const result = executeLivingWorldDirectTrade(intent);
+            if (!result.ok) {
+                const code = result.code || result.reason;
+                panel?.webview.postMessage({
+                    type: 'shopkeeperDirectTradeResult', ok: false,
+                    rejection: { code, ...shopkeeperRejectionText(code) },
+                });
+                return;
+            }
+            flushScheduledCommercePersist();
+            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            panel?.webview.postMessage({
+                type: 'shopkeeperDirectTradeResult', ok: true,
+                receipt: {
+                    op: intent.op, commodityId: intent.commodityId, qty: intent.qty,
+                    total: intent.op === 'buy' ? result.trade?.totalCost : result.trade?.totalRevenue,
+                    applied: result.trade?.applied,
+                    persisted: true,
+                },
+            });
+        },
         handleLivingWorldSetPlayerRole: async (raw: unknown) => {
             const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
             const role = typeof doc.role === 'string' ? doc.role : '';

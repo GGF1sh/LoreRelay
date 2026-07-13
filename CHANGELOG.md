@@ -9,6 +9,27 @@
 
 ## [Unreleased]
 
+## [1.82.4] - 2026-07-14
+
+### Production fixes
+
+- **Debug sandbox deterministic fast path** — keeps recognized direct and
+  presentation-numbered quick-option commands inside LoreRelay without GM or
+  Antigravity Relay dispatch.
+- **Gameplay request concurrency and Relay authority** — rejects duplicate
+  player requests through the shared host mutation gate and marks Relay traffic
+  as gameplay-only with no repository-edit permission.
+
+### Test infrastructure fixes
+
+- **Deterministic writer-lease concurrency harness** — starts contenders behind
+  a shared barrier, holds the live winner through the competing attempt, and
+  separately proves legitimate post-death recovery without changing production
+  writer-locking behavior.
+- **Branch-hermetic installer bootstrap fixture** — creates a fresh local bare
+  remote with an exact baseline `main` and symbolic `HEAD`, preserving ordinary
+  fast-forward updater topology without network-addressable remotes.
+
 ## [1.82.3] - 2026-07-13
 
 ### Fixed

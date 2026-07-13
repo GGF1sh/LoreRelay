@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.82.3] - 2026-07-13
+
+### Fixed
+
+- **Debug sandbox deterministic fast path** — keeps recognized direct and
+  presentation-numbered quick-option commands inside LoreRelay without GM or
+  Antigravity Relay dispatch.
+- **Gameplay request concurrency and Relay authority** — rejects duplicate
+  player requests through the shared host mutation gate and marks Relay traffic
+  as gameplay-only with no repository-edit permission.
+
 ## [1.82.2] - 2026-07-13
 
 ### Fixed

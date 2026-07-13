@@ -9,6 +9,28 @@
 
 ## [Unreleased]
 
+## [1.82.5] - 2026-07-14
+
+### Production fixes
+
+- **Explicit, recoverable collapsed Relay banner state** — a persisted
+  collapsed Antigravity Relay banner (`localStorage` height `0`, or a legacy
+  value below the old collapse threshold) now renders as a compact,
+  always-visible strip with a clear "Antigravity Relay ON" label and an
+  explicit, keyboard-accessible expand/collapse control (`aria-expanded`,
+  `aria-controls`, click, Enter, Space). Double-clicking the resize sash is
+  retained as a secondary shortcut, not the only discoverable recovery path.
+- **Safe persisted-height normalization** — invalid stored values (`NaN`,
+  `Infinity`, negative, malformed/whitespace text) reset to the natural
+  expanded default instead of producing `NaNpx`/`Infinitypx` or a blank
+  banner; legacy small positive values migrate to the explicit collapsed
+  strip; oversized values clamp to a viewport-aware safe maximum that never
+  inverts (max < min) even at very short webview heights.
+- **Locale-safe dynamic banner labels** — the collapse/expand control and
+  active-Relay label refresh on `localeBundle` arrival (including when it
+  arrives after the banner was already created) instead of showing a raw
+  i18n key or staying in a stale locale after a mid-session language switch.
+
 ## [1.82.4] - 2026-07-14
 
 ### Production fixes

@@ -18,14 +18,25 @@ function runTest(name, fn) {
   }
 }
 
-// Static code analysis to ensure requirements are met
+// Static code analysis to ensure requirements are met.
+//
+// HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001 centralized the previously-inline
+// resize/persistence logic into small named helpers (readRelayBannerPreference,
+// normalizeRelayBannerHeight, setRelayBannerCollapsed/Expanded,
+// relayBannerViewportMax, persistRelayBannerHeight) -- see
+// scripts/test_relay_banner_recovery.js for full DOM-level behavioral
+// coverage of the collapse/expand/recovery contract. These assertions were
+// updated to match the new helper names/constant instead of the old inline
+// literals; the underlying behavior they protect is unchanged.
 runTest('Sash double-click restores default height', () => {
   assert(bootstrapCode.includes('dblclick'), 'Missing dblclick event listener for sash');
-  assert(bootstrapCode.includes("removeItem('lorerelay.relayBannerHeight')") || bootstrapCode.includes('removeItem("lorerelay.relayBannerHeight")'), 'Missing localStorage.removeItem on dblclick');
+  assert(bootstrapCode.includes("RELAY_BANNER_STORAGE_KEY = 'lorerelay.relayBannerHeight'"), 'Missing the persisted-height storage key constant');
+  assert(bootstrapCode.includes('removeItem(RELAY_BANNER_STORAGE_KEY)'), 'Missing localStorage.removeItem on dblclick');
 });
 
 runTest('Sash resizer limits max height to viewport percentage', () => {
-  assert(bootstrapCode.includes('window.innerHeight * 0.5') || bootstrapCode.includes('window.innerHeight *'), 'Missing innerHeight constraint');
+  assert(bootstrapCode.includes('RELAY_BANNER_VIEWPORT_MAX_RATIO = 0.5'), 'Missing the viewport-percentage max-height ratio constant');
+  assert(bootstrapCode.includes('function relayBannerViewportMax()'), 'Missing the centralized viewport-max helper');
 });
 
 runTest('Hide logic applies to content, not banner wrapper', () => {
@@ -34,7 +45,8 @@ runTest('Hide logic applies to content, not banner wrapper', () => {
 });
 
 runTest('Loaded localStorage value is clamped and applied correctly', () => {
-  assert(bootstrapCode.includes('parseFloat(savedHeight)') || bootstrapCode.includes('parseInt(savedHeight'), 'Must parse saved height');
+  assert(bootstrapCode.includes('function normalizeRelayBannerHeight('), 'Missing the centralized height-normalization helper');
+  assert(bootstrapCode.includes('parseFloat(raw)'), 'Must parse the saved height');
 });
 
 if (failCount > 0) {

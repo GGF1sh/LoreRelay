@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.82.2] - 2026-07-13
+
+### Fixed
+
+- **Relay mode banner resizer** — Adds vertical resizer sash for Relay Mode banner,
+  allowing height adjustments and clamping within safe limits, with double-click
+  reset and persistence in `localStorage`.
+
 ## [1.82.1] - 2026-07-13
 
 ### Fixed

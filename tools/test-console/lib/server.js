@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const { ExecutionEngine } = require('./engine');
 const { makePlan, defaultConcurrency, ROOT } = require('./planner');
 const { collectPreflight } = require('./preflight');
+const { hydrateOwnPlan } = require('./plan-trust');
 
 const PUBLIC = path.join(ROOT, 'tools', 'test-console', 'public');
 
@@ -108,7 +109,10 @@ function createServer(options = {}) {
                 state.status = 'running'; state.error = null; state.results = null; state.logs = {};
                 state.progress = { completed: 0, total: state.plan.selectedCommands.length, current: [] };
                 state.counts = { passed: 0, failed: 0, skipped: 0 }; state.startedAt = new Date().toISOString();
-                engine = new ExecutionEngine(state.plan, state.preflight, {
+                // Same validation/hydration boundary as the CLI (lib/plan-trust.js): the
+                // in-memory plan is declarative until hydrated from the trusted registry.
+                const hydratedPlan = hydrateOwnPlan(state.plan);
+                engine = new ExecutionEngine(hydratedPlan, state.preflight, {
                     concurrency: Math.max(1, Math.min(32, Number(input.concurrency) || state.concurrency)),
                     allowRepeatFullSuite: Boolean(input.allowRepeatFullSuite),
                     repeatReason: input.repeatReason,

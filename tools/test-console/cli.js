@@ -7,6 +7,7 @@ const { makePlan, defaultConcurrency, ROOT } = require('./lib/planner');
 const { collectPreflight } = require('./lib/preflight');
 const { ExecutionEngine } = require('./lib/engine');
 const { listen } = require('./lib/server');
+const { loadTrustedPlan } = require('./lib/plan-trust');
 
 function parse(argv) {
     const values = { _: [] };
@@ -46,7 +47,10 @@ async function main() {
     }
     if (command === 'run') {
         if (!args.plan) throw new Error('run requires --plan <plan.json>');
-        const plan = JSON.parse(fs.readFileSync(path.resolve(args.plan), 'utf8'));
+        // The plan file is untrusted declarative data: parse, validate, verify repository
+        // identity, regenerate a canonical plan, reject on mismatch, then hydrate for
+        // execution. See lib/plan-trust.js for the full boundary.
+        const plan = loadTrustedPlan(args.plan);
         const preflight = collectPreflight(plan);
         const engine = new ExecutionEngine(plan, preflight, {
             concurrency: args.concurrency || defaultConcurrency(),

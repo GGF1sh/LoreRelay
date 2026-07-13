@@ -70,7 +70,7 @@ body.profile-parlor .start-hub-btn-disabled {
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px;
+  padding: 12px 12px 32px 12px;
   gap: 0;
   min-height: 0;
 }
@@ -114,6 +114,25 @@ body.profile-parlor .start-hub-btn-disabled {
   gap: 16px;
   box-sizing: border-box;
   min-height: 0;
+}
+
+body.relay-mode-active #app {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+#relay-mode-banner {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 10;
+  background-color: var(--vscode-editorWarning-background, rgba(200, 150, 0, 0.2));
+  color: var(--vscode-editorWarning-foreground, #ffcc00);
+  padding: 8px;
+  text-align: center;
+  font-weight: bold;
+  white-space: pre-line;
+  line-height: 1.35;
 }
 
 #app > #chat-area,

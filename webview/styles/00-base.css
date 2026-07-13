@@ -46,6 +46,11 @@ body {
   overflow: hidden;
 }
 
+body.relay-mode-active {
+  display: flex;
+  flex-direction: column;
+}
+
 /* 背景画像レイヤー */
 #bg-layer {
   position: fixed;

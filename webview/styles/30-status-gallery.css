@@ -12,7 +12,7 @@
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  overflow-y: auto;
+  overflow: hidden;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
@@ -271,6 +271,25 @@
   background: var(--accent-dim);
   border-color: var(--accent);
   color: #fff;
+}
+
+#theme-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+#theme-header span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.theme-selector {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 /* =========================================

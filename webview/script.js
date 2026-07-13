@@ -15592,26 +15592,25 @@ window.addEventListener('message', (event) => {
     
     // Role clarification / suppression
     let relayBanner = document.getElementById('relay-mode-banner');
-    if (window.antigravityRelayMode && !relayBanner) {
-      relayBanner = document.createElement('div');
-      relayBanner.id = 'relay-mode-banner';
-      relayBanner.style.backgroundColor = 'var(--vscode-editorWarning-background, rgba(200, 150, 0, 0.2))';
-      relayBanner.style.color = 'var(--vscode-editorWarning-foreground, #ffcc00)';
-      relayBanner.style.padding = '8px';
-      relayBanner.style.textAlign = 'center';
-      relayBanner.style.fontWeight = 'bold';
-      relayBanner.style.whiteSpace = 'pre-line';
-      relayBanner.style.lineHeight = '1.35';
-      const bannerText = document.createElement('div');
-      bannerText.textContent = T('webview.relay.banner.active');
-      const bannerStatus = document.createElement('div');
-      bannerStatus.setAttribute('data-relay-status', 'true');
-      bannerStatus.className = 'relay-mode-status';
-      relayBanner.appendChild(bannerText);
-      relayBanner.appendChild(bannerStatus);
-      document.body.insertBefore(relayBanner, document.body.firstChild);
-    } else if (!window.antigravityRelayMode && relayBanner) {
-      relayBanner.remove();
+    if (window.antigravityRelayMode) {
+      document.body.classList.add('relay-mode-active');
+      if (!relayBanner) {
+        relayBanner = document.createElement('div');
+        relayBanner.id = 'relay-mode-banner';
+        const bannerText = document.createElement('div');
+        bannerText.textContent = T('webview.relay.banner.active');
+        const bannerStatus = document.createElement('div');
+        bannerStatus.setAttribute('data-relay-status', 'true');
+        bannerStatus.className = 'relay-mode-status';
+        relayBanner.appendChild(bannerText);
+        relayBanner.appendChild(bannerStatus);
+        document.body.insertBefore(relayBanner, document.body.firstChild);
+      }
+    } else {
+      document.body.classList.remove('relay-mode-active');
+      if (relayBanner) {
+        relayBanner.remove();
+      }
     }
     if (!window.antigravityRelayMode) {
       const loading = document.getElementById('gm-loading');

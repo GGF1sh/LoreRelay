@@ -21,13 +21,13 @@ const ROOT = path.join(__dirname, '..');
 const SCRIPTS = __dirname;
 const DEFAULT_TIMEOUT_MS = 60000;
 const { SIMULATION_TEST_FILES } = require('./simulation_test_manifest');
-/** Unit scripts owned by run_simulation_tests.js — omit from unit category to avoid double runs. */
+/** Unit scripts owned by run_simulation_tests.js  Eomit from unit category to avoid double runs. */
 const SIMULATION_BATCH_FILES = new Set(SIMULATION_TEST_FILES);
 
 /** @typedef {'validate' | 'unit' | 'smoke' | 'simulation'} TestCategory */
 
 /**
- * Ordered manifest — keep in sync with npm test / CI expectations.
+ * Ordered manifest  Ekeep in sync with npm test / CI expectations.
  * validate.js already runs: test_turn_result_pipeline, test_lorebook_python,
  * test_state_patch, test_lorebook (do not list those separately).
  */
@@ -284,6 +284,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_antigravity_installer_bootstrap.js' },
     { category: 'unit', file: 'test_antigravity_skill_installer.js' },
     { category: 'unit', file: 'test_antigravity_install_chain.js', timeoutMs: 240000 },
+    { category: 'unit', file: 'test_relay_banner_resizer.js' },
     {
         category: 'simulation',
         file: 'run_simulation_tests.js',
@@ -370,7 +371,7 @@ function printList() {
         for (const e of MANIFEST.filter((x) => x.category === cat)) {
             const runner = e.runner === 'python' ? 'python' : 'node';
             const timeout = e.timeoutMs ? ` timeout=${e.timeoutMs}ms` : '';
-            const note = e.description ? ` — ${e.description}` : '';
+            const note = e.description ? `  E${e.description}` : '';
             console.log(`  - [${runner}] ${e.file}${timeout}${note}`);
         }
         console.log('');
@@ -404,7 +405,7 @@ function main() {
             console.log(`=> PASS (${outcome.ms}ms)`);
             results.push({ entry, ok: true, ms: outcome.ms });
         } else {
-            console.log(`=> FAIL (${outcome.ms}ms) — ${outcome.error}`);
+            console.log(`=> FAIL (${outcome.ms}ms)  E${outcome.error}`);
             results.push({ entry, ok: false, ms: outcome.ms, error: outcome.error });
         }
     }

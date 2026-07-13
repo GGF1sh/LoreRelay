@@ -431,18 +431,42 @@ window.addEventListener('message', (event) => {
         bannerSash.addEventListener('mousedown', (e) => {
           isResizingBanner = true;
           bannerStartY = e.clientY;
-          bannerStartHeight = relayBanner.getBoundingClientRect().height;
+          const content = document.getElementById('relay-mode-banner-content');
+          bannerStartHeight = content.style.display === 'none' ? 0 : content.getBoundingClientRect().height;
           bannerSash.classList.add('dragging');
           document.body.style.cursor = 'row-resize';
           document.body.style.userSelect = 'none';
         });
+
+        bannerSash.addEventListener('dblclick', () => {
+          const content = document.getElementById('relay-mode-banner-content');
+          if (content) {
+            content.style.display = '';
+            content.style.height = '';
+            localStorage.removeItem('lorerelay.relayBannerHeight');
+          }
+        });
+
         relayBanner.appendChild(bannerSash);
         
         document.body.insertBefore(relayBanner, document.body.firstChild);
 
         const savedHeight = localStorage.getItem('lorerelay.relayBannerHeight');
-        if (savedHeight) {
-          relayBanner.style.height = `${savedHeight}px`;
+        if (savedHeight !== null && savedHeight !== '') {
+          let h = parseFloat(savedHeight);
+          if (!isNaN(h)) {
+            const maxH = window.innerHeight * 0.5;
+            if (h > maxH) h = maxH;
+            
+            const content = document.getElementById('relay-mode-banner-content');
+            if (h < 20) {
+              content.style.display = 'none';
+              content.style.height = '0px';
+            } else {
+              content.style.display = '';
+              content.style.height = `${h}px`;
+            }
+          }
         }
       }
     } else {
@@ -659,12 +683,21 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (isResizingBanner) {
-      const banner = document.getElementById('relay-mode-banner');
-      if (banner) {
+      const content = document.getElementById('relay-mode-banner-content');
+      if (content) {
         const diff = e.clientY - bannerStartY;
         let newHeight = bannerStartHeight + diff;
-        if (newHeight < 20) newHeight = 0; // Snap to completely hidden
-        banner.style.height = `${newHeight}px`;
+        
+        const maxH = window.innerHeight * 0.5;
+        if (newHeight > maxH) newHeight = maxH;
+        
+        if (newHeight < 20) {
+          newHeight = 0; // Snap to completely hidden
+          content.style.display = 'none';
+        } else {
+          content.style.display = '';
+          content.style.height = `${newHeight}px`;
+        }
       }
     }
   });
@@ -687,9 +720,13 @@ window.addEventListener('DOMContentLoaded', () => {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       
-      const banner = document.getElementById('relay-mode-banner');
-      if (banner) {
-        localStorage.setItem('lorerelay.relayBannerHeight', banner.getBoundingClientRect().height);
+      const content = document.getElementById('relay-mode-banner-content');
+      if (content) {
+        if (content.style.display === 'none') {
+          localStorage.setItem('lorerelay.relayBannerHeight', 0);
+        } else {
+          localStorage.setItem('lorerelay.relayBannerHeight', content.getBoundingClientRect().height);
+        }
       }
     }
   });

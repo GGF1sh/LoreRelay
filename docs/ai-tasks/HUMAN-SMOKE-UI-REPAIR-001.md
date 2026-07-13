@@ -34,13 +34,18 @@
 - Styled `.theme-selector` as `width: 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;` to allow the buttons to wrap cleanly underneath the title.
 
 ## Regression Testing
-- Created a new focused test: [test_relay_viewport_theme_layout.js](file:///c:/AI/wt-human-smoke-ui-repair-001/scripts/test_relay_viewport_theme_layout.js).
-- Added it to the unified test runner manifest in `scripts/run_all_tests.js`.
-- Verified that all assertions pass successfully (Relay class toggles, banner stacking, scroll container dominance, theme header shrink protection, and EOL normalized module bundling).
+- Strengthened the focused test: [scripts/test_relay_viewport_theme_layout.js](scripts/test_relay_viewport_theme_layout.js).
+- The original test had evidence gaps (regexes over-matching, global CSS assertions, fragile HTML checks). The strengthened test (Commit SHA: c8f65edaae763cd5775e19e62d2f3dba2a5efaf7) implements:
+  - Selector-scoped CSS assertions parsing exact blocks to prevent false positives.
+  - Real `#pane-status` to `#pane-character` Story Summary containment proof.
+  - Brace-aware extraction and inspection of the `setTheme` function.
+  - Complete, normalized source-to-bundle inclusion checks for JS/CSS files.
+- Verified that all the strengthened assertions pass successfully.
 
 ## Verification Results
+- **Focused Test**: Passed.
 - **Full Suite**: 248/248 tests passed.
-- **External Log**: `C:\AI\logs\human-smoke-ui-repair-001-full-suite.log`
+- **External Log**: `C:\AI\logs\human-smoke-ui-repair-001-evidence-full-suite.log`
 - **Validation scripts**: `check_version_consistency.js` and `validate_utf8_docs.js` exited 0.
 - **Symbol Registry**: Updated and matched (`check:symbol-registry` exited 0).
 

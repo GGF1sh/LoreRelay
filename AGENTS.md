@@ -2,7 +2,7 @@
 
 ## Verification scope
 
-Read `docs/DEVELOPMENT_AND_VERIFICATION_POLICY.md` first and size review/testing to the change's
+Read `docs/DEVELOPMENT_VERIFICATION_POLICY.md` first and size review/testing to the change's
 risk tier (Low/Medium/High) defined there. Most work is Low or Medium: focused tests only, no
 independent review, no full suite, no durable report. Reserve independent verification, repair
 passes, and full-suite runs for genuinely High-risk changes (shell/process execution, deletion,

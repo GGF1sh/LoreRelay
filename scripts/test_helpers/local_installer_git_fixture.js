@@ -54,8 +54,17 @@ function createLocalInstallerGitFixture(testRoot) {
     const managedPath = path.join(tempRoot, 'managed-installer');
     const candidateSha = git(['-C', testRoot, 'rev-parse', 'HEAD']);
 
-    git(['clone', '--bare', testRoot, bareOrigin]);
+    git(['init', '--bare', bareOrigin]);
+    git(['-C', testRoot, 'push', bareOrigin, `${candidateSha}:refs/heads/main`]);
+    git(['-C', bareOrigin, 'symbolic-ref', 'HEAD', 'refs/heads/main']);
+
+    assert.strictEqual(git(['-C', bareOrigin, 'symbolic-ref', 'HEAD']), 'refs/heads/main', 'Bare origin HEAD resolves symbolically to refs/heads/main');
+    assert.strictEqual(git(['-C', bareOrigin, 'rev-parse', 'refs/heads/main']), candidateSha, 'Bare origin refs/heads/main initially equals the exact fixture baseline SHA');
+
     git(['clone', bareOrigin, source]);
+    
+    assert.strictEqual(git(['-C', source, 'rev-parse', 'origin/main']), candidateSha, 'Source fixture origin/main equals the same baseline SHA');
+
     git(['-C', source, 'checkout', '--detach', candidateSha]);
     git(['-C', source, 'config', 'user.name', 'LoreRelay hermetic test']);
     git(['-C', source, 'config', 'user.email', 'installer-test@example.invalid']);
@@ -74,16 +83,24 @@ function createLocalInstallerGitFixture(testRoot) {
         pushRemoteMainUpdate() {
             const updater = path.join(tempRoot, 'updater');
             git(['clone', bareOrigin, updater]);
+            const oldMain = git(['-C', bareOrigin, 'rev-parse', 'refs/heads/main']);
+            assert.strictEqual(git(['-C', updater, 'rev-parse', 'HEAD']), oldMain, 'Updater begins from the current fixture main');
+
             git(['-C', updater, 'config', 'user.name', 'LoreRelay hermetic updater']);
             git(['-C', updater, 'config', 'user.email', 'installer-test@example.invalid']);
             const marker = path.join(updater, 'installer-hermetic-fetch-marker.txt');
             fs.writeFileSync(marker, `${Date.now()}\n`, 'utf8');
             git(['-C', updater, 'add', path.basename(marker)]);
             git(['-C', updater, 'commit', '-m', 'test: local installer origin update']);
+            const newSha = git(['-C', updater, 'rev-parse', 'HEAD']);
+            assert.strictEqual(git(['-C', updater, 'rev-parse', 'HEAD^']), oldMain, 'The update commit has the former fixture main as its direct parent');
+
             git(['-C', updater, 'push', 'origin', 'HEAD:main']);
-            const sha = git(['-C', updater, 'rev-parse', 'HEAD']);
+            assert.strictEqual(git(['-C', bareOrigin, 'rev-parse', 'refs/heads/main']), newSha, 'Pushing the update fast-forwards fixture main');
+
             fs.rmSync(updater, { recursive: true, force: true });
-            return sha;
+            assert.strictEqual(fs.existsSync(updater), false, 'No temporary updater process or directory remains after cleanup');
+            return newSha;
         },
         withOfflineOrigin(action) {
             const offline = `${bareOrigin}-offline`;

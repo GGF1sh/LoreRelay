@@ -14,6 +14,16 @@ function safeId(id) {
     return id.replace(/[^a-z0-9._-]+/gi, '_');
 }
 
+function terminateChild(child) {
+    if (!child || !child.pid) return;
+    if (process.platform === 'win32') {
+        const killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });
+        killer.unref();
+    } else {
+        try { child.kill('SIGTERM'); } catch (_) { /* already exited */ }
+    }
+}
+
 function readRuns(root) {
     const runsRoot = path.join(root, '.test-runs');
     if (!fs.existsSync(runsRoot)) return [];
@@ -57,7 +67,7 @@ class ExecutionEngine {
     cancel() {
         this.cancelled = true;
         for (const child of this.children) {
-            try { child.kill('SIGTERM'); } catch (_) { /* already exited */ }
+            terminateChild(child);
         }
         this.onEvent({ type: 'cancel-requested' });
     }
@@ -91,7 +101,7 @@ class ExecutionEngine {
             });
             const timer = setTimeout(() => {
                 timedOut = true;
-                try { child.kill('SIGTERM'); } catch (_) { /* already exited */ }
+                terminateChild(child);
             }, command.timeoutMs);
             const finish = (exitCode, error) => {
                 if (settled) return;

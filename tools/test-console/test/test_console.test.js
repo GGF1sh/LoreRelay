@@ -11,6 +11,8 @@ const { fingerprint } = require('../lib/report');
 
 let passed = 0;
 const tests = [];
+const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-console-tests-'));
+let fixtureNumber = 0;
 function test(name, fn) { tests.push({ name, fn }); }
 
 function command(program, args, cwd) {
@@ -20,7 +22,8 @@ function command(program, args, cwd) {
 }
 
 function fixture() {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-console-'));
+    const root = path.join(TEMP_ROOT, `fixture-${++fixtureNumber}`);
+    fs.mkdirSync(root, { recursive: true });
     fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '1.82.4', repository: { url: 'fixture' } }));
     fs.writeFileSync(path.join(root, 'package-lock.json'), '{}');
@@ -167,5 +170,6 @@ test('result, HTML, logs, and AI summary are generated', async () => {
         catch (error) { console.error(`FAIL ${item.name}\n${error.stack || error.message}`); process.exitCode = 1; }
     }
     console.log(`LoreRelay Test Console tests: ${passed}/${tests.length} passed`);
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
     if (passed !== tests.length) process.exitCode = 1;
 })().catch((error) => { console.error(error); process.exitCode = 1; });

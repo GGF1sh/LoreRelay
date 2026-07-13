@@ -43,7 +43,7 @@ function fingerprint(plan, preflight) {
 }
 
 function aiSummary(plan, results) {
-    const passed = results.commands.filter((item) => item.status === 'PASS').length;
+    const passed = results.commands.filter((item) => item.status === 'PASS' || item.status === 'REUSED_PASS').length;
     const failed = results.commands.filter((item) => item.status === 'FAIL' || item.status === 'TIMEOUT').length;
     const focused = results.commands.filter((item) => item.phase === 'focused');
     const focusedPassed = focused.filter((item) => item.status === 'PASS' || item.status === 'REUSED_PASS').length;

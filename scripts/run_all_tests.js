@@ -431,4 +431,16 @@ function main() {
     }
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = {
+    DEFAULT_TIMEOUT_MS,
+    MANIFEST,
+    filterManifest,
+    parseMode,
+    printList,
+    resolveRunner,
+    runEntry,
+};

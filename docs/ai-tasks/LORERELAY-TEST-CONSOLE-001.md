@@ -111,8 +111,13 @@ Compatibility checks:
 Final full-suite boundary:
 
 - command: integration-mode `npm run test:plan` followed by `npm run test:run`;
+- attempt 1: The first full-suite integration run was initiated, but the previous AI model session was interrupted due to model capacity immediately after launching the command. Upon resumption, investigation showed the background run failed to launch `full-suite` correctly due to `Error: spawn EINVAL`. The child process was unable to spawn `.cmd` executables directly on Windows with `shell: false`. No `results.json` was persisted for this interrupted attempt.
+- engine fix: The `ExecutionEngine` was updated (`shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command.executable)`) to correctly spawn `.cmd`/`.bat` files on Windows.
+- attempt 2: The plan was regenerated with the new fingerprint, and `npm run test:run` was launched again.
 - result: PASS, 251/251 manifest entries;
-- output: `.test-runs/<UTC-timestamp>-<short-head-sha>/` containing `plan.json`, `results.json`, `summary.md`, `index.html`, and per-command logs;
+- fingerprint: `940ab85ac30f0b9c820a7585fba69f1dee46b07fbcb3ea86f0914a832bace77b`;
+- full-suite attempt count: 1 persisted successful attempt (following the interrupted unpersisted attempt);
+- output: `.test-runs/2026-07-13T20-46-19-710Z-419ac2e9/` containing `plan.json`, `results.json`, `summary.md`, `index.html`, and per-command logs;
 - human smoke: NOT PERFORMED.
 
 ## Sample AI-readable summary
@@ -121,15 +126,15 @@ Final full-suite boundary:
 TEST_RUN_PASS
 
 Base: 08807d98234cada6d10ee194779d56202afa2fbd
-Target: <candidate-tip>
+Target: 419ac2e983be53eb1473cdce6b83f7f7adf24f75
 Version: 1.82.4
-Fingerprint: <results.json fingerprint>
+Fingerprint: 940ab85ac30f0b9c820a7585fba69f1dee46b07fbcb3ea86f0914a832bace77b
 Changed files: 17
 Focused: 3/3
 Full suite: PASS
 Unknown files: 0
 Human smoke: not performed
-Results: 4 passed, 0 failed, 0 skipped; .test-runs/<run>/
+Results: 4 passed, 0 failed, 0 skipped; C:\AI\wt-lorerelay-test-console-001\.test-runs\2026-07-13T20-46-19-710Z-419ac2e9
 ```
 
 ## Known limitations

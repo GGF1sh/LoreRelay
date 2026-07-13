@@ -128,11 +128,32 @@ body.relay-mode-active #app {
   z-index: 10;
   background-color: var(--vscode-editorWarning-background, rgba(200, 150, 0, 0.2));
   color: var(--vscode-editorWarning-foreground, #ffcc00);
-  padding: 8px;
   text-align: center;
   font-weight: bold;
   white-space: pre-line;
   line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#relay-mode-banner-content {
+  padding: 8px;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+#relay-banner-sash {
+  flex: 0 0 6px;
+  cursor: row-resize;
+  background-color: rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s;
+}
+
+#relay-banner-sash:hover,
+#relay-banner-sash.dragging {
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 #app > #chat-area,

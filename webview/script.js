@@ -15199,6 +15199,10 @@ function updateRelayToggleButton(enabled) {
   }
 }
 
+let isResizingBanner = false;
+let bannerStartY = 0;
+let bannerStartHeight = 0;
+
 window.addEventListener('DOMContentLoaded', () => {
   // 保存された状態を復元
   const savedState = vscode.getState();
@@ -15597,14 +15601,38 @@ window.addEventListener('message', (event) => {
       if (!relayBanner) {
         relayBanner = document.createElement('div');
         relayBanner.id = 'relay-mode-banner';
+        
+        const bannerContent = document.createElement('div');
+        bannerContent.id = 'relay-mode-banner-content';
+        
         const bannerText = document.createElement('div');
         bannerText.textContent = T('webview.relay.banner.active');
         const bannerStatus = document.createElement('div');
         bannerStatus.setAttribute('data-relay-status', 'true');
         bannerStatus.className = 'relay-mode-status';
-        relayBanner.appendChild(bannerText);
-        relayBanner.appendChild(bannerStatus);
+        
+        bannerContent.appendChild(bannerText);
+        bannerContent.appendChild(bannerStatus);
+        relayBanner.appendChild(bannerContent);
+
+        const bannerSash = document.createElement('div');
+        bannerSash.id = 'relay-banner-sash';
+        bannerSash.addEventListener('mousedown', (e) => {
+          isResizingBanner = true;
+          bannerStartY = e.clientY;
+          bannerStartHeight = relayBanner.getBoundingClientRect().height;
+          bannerSash.classList.add('dragging');
+          document.body.style.cursor = 'row-resize';
+          document.body.style.userSelect = 'none';
+        });
+        relayBanner.appendChild(bannerSash);
+        
         document.body.insertBefore(relayBanner, document.body.firstChild);
+
+        const savedHeight = localStorage.getItem('lorerelay.relayBannerHeight');
+        if (savedHeight) {
+          relayBanner.style.height = `${savedHeight}px`;
+        }
       }
     } else {
       document.body.classList.remove('relay-mode-active');
@@ -15811,13 +15839,23 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('mousemove', (e) => {
-    if (!isResizing) return;
-    const diff = startX - e.clientX;
-    let newWidth = startWidth + diff;
-    if (newWidth < 60) newWidth = 60;
-    if (newWidth > 800) newWidth = 800;
+    if (isResizing) {
+      const diff = startX - e.clientX;
+      let newWidth = startWidth + diff;
+      if (newWidth < 60) newWidth = 60;
+      if (newWidth > 800) newWidth = 800;
+      statusArea.style.setProperty('--status-width', `${newWidth}px`);
+    }
 
-    statusArea.style.setProperty('--status-width', `${newWidth}px`);
+    if (isResizingBanner) {
+      const banner = document.getElementById('relay-mode-banner');
+      if (banner) {
+        const diff = e.clientY - bannerStartY;
+        let newHeight = bannerStartHeight + diff;
+        if (newHeight < 20) newHeight = 0; // Snap to completely hidden
+        banner.style.height = `${newHeight}px`;
+      }
+    }
   });
 
   window.addEventListener('mouseup', () => {
@@ -15829,6 +15867,19 @@ window.addEventListener('DOMContentLoaded', () => {
       
       const finalWidth = statusArea.getBoundingClientRect().width;
       localStorage.setItem('lorerelay.statusWidth', finalWidth);
+    }
+
+    if (isResizingBanner) {
+      isResizingBanner = false;
+      const sash = document.getElementById('relay-banner-sash');
+      if (sash) sash.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      
+      const banner = document.getElementById('relay-mode-banner');
+      if (banner) {
+        localStorage.setItem('lorerelay.relayBannerHeight', banner.getBoundingClientRect().height);
+      }
     }
   });
 });

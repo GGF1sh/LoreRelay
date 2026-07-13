@@ -123,6 +123,8 @@ function writeForeignLease(ws, guard, overrides = {}) {
 
 function spawnLeaseContender(ws, purpose, env = {}) {
     const childScript = `
+const fs = require('fs');
+const path = require('path');
 const Module = require('module');
 const original = Module.prototype.require;
 Module.prototype.require = function patchedRequire(id) {
@@ -132,8 +134,56 @@ Module.prototype.require = function patchedRequire(id) {
   return original.apply(this, arguments);
 };
 const guard = require(${JSON.stringify(outGuard)});
+const readyFile = process.env.LORERELAY_WRITER_LEASE_TEST_READY_FILE;
+const startFile = process.env.LORERELAY_WRITER_LEASE_TEST_START_FILE;
+const resultFile = process.env.LORERELAY_WRITER_LEASE_TEST_RESULT_FILE;
+const releaseFile = process.env.LORERELAY_WRITER_LEASE_TEST_RELEASE_FILE;
+const readJson = (filePath) => {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return undefined; }
+};
+if (readyFile) {
+  fs.mkdirSync(path.dirname(readyFile), { recursive: true });
+  fs.writeFileSync(readyFile, JSON.stringify({ pid: process.pid, readyAt: new Date().toISOString() }), 'utf8');
+}
+if (startFile) {
+  const waitCell = new Int32Array(new SharedArrayBuffer(4));
+  const deadline = Date.now() + 10000;
+  while (!fs.existsSync(startFile) && Date.now() < deadline) {
+    Atomics.wait(waitCell, 0, 0, 5);
+  }
+  if (!fs.existsSync(startFile)) throw new Error('writer lease start barrier timed out');
+}
+const attemptStartedAt = new Date().toISOString();
 const result = guard.ensureAcceptedTurnWriterLease(${JSON.stringify(ws)}, ${JSON.stringify(purpose)});
-console.log(JSON.stringify({ success: !result, kind: result && result.kind, reason: result && result.reason }));
+const lease = readJson(guard.getAcceptedTurnWriterLeasePath(${JSON.stringify(ws)}));
+const owner = readJson(guard.getAcceptedTurnWriterLeaseLockOwnerPath(${JSON.stringify(ws)}));
+const payload = {
+  success: !result,
+  kind: result && result.kind,
+  reason: result && result.reason,
+  pid: process.pid,
+  attemptStartedAt,
+  resultAt: new Date().toISOString(),
+  leaseToken: lease && lease.lockToken,
+  leaseOwnerPid: lease && lease.pid,
+  lockOwnerToken: owner && owner.lockToken,
+  lockOwnerPid: owner && owner.pid,
+};
+if (resultFile) {
+  fs.mkdirSync(path.dirname(resultFile), { recursive: true });
+  fs.writeFileSync(resultFile, JSON.stringify(payload), 'utf8');
+}
+if (!result && releaseFile) {
+  const deadline = Date.now() + 15000;
+  const timer = setInterval(() => {
+    if (fs.existsSync(releaseFile) || Date.now() > deadline) {
+      clearInterval(timer);
+      console.log(JSON.stringify({ ...payload, childExitAt: new Date().toISOString() }));
+    }
+  }, 10);
+} else {
+  console.log(JSON.stringify({ ...payload, childExitAt: new Date().toISOString() }));
+}
 `;
     return new Promise((resolve) => {
         const child = spawn(process.execPath, ['-e', childScript], {
@@ -226,6 +276,85 @@ async function waitForRenewedAfter(filePath, previousRenewedAt, timeoutMs = 1000
         await delay(10);
     }
     return readJson(filePath);
+}
+
+function spawnSynchronizedLeaseContender(ws, purpose, syncDir, slot, env = {}) {
+    const readyFile = path.join(syncDir, `${slot}-ready.json`);
+    const resultFile = path.join(syncDir, `${slot}-result.json`);
+    const startFile = path.join(syncDir, 'start');
+    const releaseFile = path.join(syncDir, 'release-winner');
+    return {
+        slot,
+        readyFile,
+        resultFile,
+        startFile,
+        releaseFile,
+        completion: spawnLeaseContender(ws, purpose, {
+            ...env,
+            LORERELAY_WRITER_LEASE_TEST_READY_FILE: readyFile,
+            LORERELAY_WRITER_LEASE_TEST_START_FILE: startFile,
+            LORERELAY_WRITER_LEASE_TEST_RESULT_FILE: resultFile,
+            LORERELAY_WRITER_LEASE_TEST_RELEASE_FILE: releaseFile,
+        }),
+    };
+}
+
+async function assertSynchronizedLeaseRace(ws, guard, label) {
+    const syncDir = path.join(ws, `${label}-sync`);
+    fs.mkdirSync(syncDir, { recursive: true });
+    const contenders = [
+        spawnSynchronizedLeaseContender(ws, `${label}-a`, syncDir, 'a'),
+        spawnSynchronizedLeaseContender(ws, `${label}-b`, syncDir, 'b'),
+    ];
+    assert(await waitForFile(contenders[0].readyFile), `${label} contender A reaches start barrier`);
+    assert(await waitForFile(contenders[1].readyFile), `${label} contender B reaches start barrier`);
+    const barrierReleasedAt = new Date().toISOString();
+    fs.writeFileSync(contenders[0].startFile, barrierReleasedAt, 'utf8');
+    assert(await waitForFile(contenders[0].resultFile), `${label} contender A reports attempt result`);
+    assert(await waitForFile(contenders[1].resultFile), `${label} contender B reports attempt result`);
+
+    const results = contenders.map((contender) => readJson(contender.resultFile));
+    const winners = results.filter((result) => result.success);
+    const losers = results.filter((result) => !result.success);
+    assert(winners.length === 1, `${label} synchronized contenders have exactly one live winner (${JSON.stringify({ barrierReleasedAt, results })})`);
+    assert(losers.length === 1 && losers[0].kind === 'writerConflict', `${label} synchronized loser reports writerConflict`);
+
+    const winner = winners[0];
+    const leasePath = guard.getAcceptedTurnWriterLeasePath(ws);
+    const ownerPath = guard.getAcceptedTurnWriterLeaseLockOwnerPath(ws);
+    const leaseWhileHeld = readJson(leasePath);
+    const ownerWhileHeld = readJson(ownerPath);
+    assert(
+        winner.leaseToken === leaseWhileHeld.lockToken
+        && winner.leaseToken === ownerWhileHeld.lockToken
+        && leaseWhileHeld.pid === winner.pid
+        && ownerWhileHeld.pid === winner.pid,
+        `${label} winner token and PID match canonical lease and lock owner`
+    );
+
+    await delay(350);
+    const lateLoser = await spawnLeaseContender(ws, `${label}-late-held`, {
+        LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+    });
+    const leaseAfterLateLoser = readJson(leasePath);
+    const ownerAfterLateLoser = readJson(ownerPath);
+    assert(lateLoser.kind === 'writerConflict', `${label} live heartbeat owner remains protected beyond timeout`);
+    assert(
+        leaseAfterLateLoser.lockToken === winner.leaseToken
+        && ownerAfterLateLoser.lockToken === winner.leaseToken
+        && leaseAfterLateLoser.pid === winner.pid
+        && ownerAfterLateLoser.pid === winner.pid,
+        `${label} late loser cannot delete or replace held winner`
+    );
+
+    fs.writeFileSync(contenders[0].releaseFile, 'release', 'utf8');
+    await Promise.all(contenders.map((contender) => contender.completion));
+    await delay(250);
+    const recovery = await spawnLeaseContender(ws, `${label}-post-death-recovery`, {
+        LORERELAY_WRITER_LEASE_TIMEOUT_MS: '150',
+    });
+    assert(recovery.success, `${label} expired lease is recoverable after winner death`);
+    assert(recovery.leaseToken !== winner.leaseToken, `${label} post-death recovery receives a new canonical token`);
 }
 
 function writeRestoreLatch(ws, reason = 'test latch') {
@@ -568,12 +697,7 @@ async function run() {
 
         const wsRace = tempWorkspace();
         writeForeignLease(wsRace, guard, { lockToken: 'stale-race-token' });
-        const raceResults = await Promise.all([
-            spawnLeaseContender(wsRace, 'race-a'),
-            spawnLeaseContender(wsRace, 'race-b'),
-        ]);
-        const raceWinners = raceResults.filter((result) => result.success);
-        assert(raceWinners.length === 1, `two-process stale takeover has exactly one winner (${JSON.stringify(raceResults)})`);
+        await assertSynchronizedLeaseRace(wsRace, guard, 'stale-takeover');
 
         const wsOrphan = tempWorkspace();
         fs.mkdirSync(guard.getAcceptedTurnWriterLeaseLockDir(wsOrphan), { recursive: true });
@@ -652,14 +776,7 @@ async function run() {
         assert(!fs.existsSync(malformedCaptureFailLockDir), 'malformed capture failure rolls back the freshly acquired same-token lock');
 
         const wsEmptyRace = tempWorkspace();
-        const emptyRaceResults = await Promise.all([
-            spawnLeaseContender(wsEmptyRace, 'empty-race-a'),
-            spawnLeaseContender(wsEmptyRace, 'empty-race-b'),
-        ]);
-        assert(
-            emptyRaceResults.filter((result) => result.success).length === 1,
-            `two-process empty workspace acquisition has exactly one winner (${JSON.stringify(emptyRaceResults)})`
-        );
+        await assertSynchronizedLeaseRace(wsEmptyRace, guard, 'empty-workspace');
 
         const wsDelayed = tempWorkspace();
         const delayedDir = path.join(wsDelayed, 'lease-sync');

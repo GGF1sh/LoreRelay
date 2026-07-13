@@ -1,5 +1,23 @@
 # AI Shared Log
 
+## 2026-07-13 JST - Claude (Sonnet 5) - 人間スモーク直前 UI/UX 追加調査（Player Action Hub動作確認 + 追加i18n未翻訳4件 + テストversion drift修正）
+
+- 直前セッション(下記1582478)の続き。ユーザー指示で追加調査「① Player Action Hub(暮らす)の実機確認 ② ja.json未翻訳94件の精査 ③ Relay/Start Hub以外のペインの粗探し」を実施。
+- **①**: scratchpadの静的ハーネスに`window.postMessage`で`worldView`メッセージ（commerce付き、markets/quotesスキーマ）を手動注入し、暮らすハブを実際に開いて検証。取引タブ→品目選択→確認(見積り表示)→確定(`shopkeeperDirectTrade`postMessage)→ホスト応答模擬(`shopkeeperDirectTradeResult`)→成功レシート表示まで一通り動作を確認、コード上の実装(`docs/ai-tasks/PLAYABLE-V0-UI-001-PLAYER-ACTION-HUB.md`記載の設計)通りで新規バグは発見せず。旅/一日を終えるタブはホスト応答依存のプレビュー要求が飛ぶため、fakeホストでは「読込中...」で止まる(ハーネスの制約、実バグではない)。Browser paneの`computer`(screenshot)ツールがこのセッションで断続的にタイムアウトしたため、以降は`get_page_text`/`javascript_tool`でのDOM検査に切り替えて検証を継続。
+- **②③(実バグ4件、追加修正)**: ja.json精査で見つけた「英語のまま残っている」94件のうち、Inspector/開発者向けや意図的英語ブランディング（Relay等）を除き、明確にプレイヤー可視かつ他の同系統UIが日本語化済みなのに取り残されていたもの4系統を確認・修正（zh-CN/zh-TWも同様に確認し該当箇所を翻訳）:
+  1. ステータスタブ`Lorebook`/`Memory`/`Director`/`Party`（`冒険ステータス`等の兄弟タブは日本語なのにこの4つだけ英語のまま） → ja:ロアブック/メモリ/ディレクター/パーティ、zh-CN:Lorebook(既存踏襲)/记忆/场景/队伍、zh-TW:Lorebook(既存踏襲)/記憶/場景/隊伍。`OOC`は各locale内の本文でも英語のまま使われている確立済み借用語と判断し無変更。
+  2. チャット送信者ラベル`webview.sender.player`/`system`（`webview.sender.gm`はhost側`src/*.ts`の複数箇所が`sender:'Game Master'`をlocale非依存でハードコード default設定しているため、i18n修正の効果は「entry.senderが完全に欠落した場合のフォールバック」限定と判明・別途要検討としてログに残す） → ja:プレイヤー/システム。
+  3. Worldタブ`Maps & Intel`/`Unfold`/挿入チャット文/`Rep`(評判) → ja:地図と情報/広げる/「{name}を広げて中身を確認したい。」/評判、zh-CN/zh-TWも同様。
+  4. World Themeパネルの8ジャンルボタン(Fantasy/Cyberpunk/Sci-Fi/Post-Apocalypse/Modern/Eastern/Horror/Steampunk)が`webview/index.html`側に`data-i18n`属性自体が付いておらず、i18nシステムに一切接続されていなかった(regressionではなく元から未実装)。新規i18nキー8個×4locale追加+`data-i18n`配線、`data-theme`(機能側で参照する識別子)は無変更。
+- **バージョン管理の見落としに気づき修正**: 前セッションでpackage.jsonを1.82.2→1.82.3にbumpした際、`npm test`(249/249)は**bump前**に実行したもので、bump後は未検証のままコミット・pushしていたことが今回`npm test`で発覚(`check_version_consistency.js`が`package-lock.json`/4言語READMEバッジの取り残しを検出、248/249)。`npm install --package-lock-only`+README 4ファイルのバッジ更新で解消、249/249で再確認。同一1.82.3内での追加修正のため再bumpはせず(VERSION_TRUTHの「docs-onlyはbump不要」＋まだ未リリースのため)。
+- 検証: `node scripts/check_i18n_keys.js`(0 missing 全locale)、`npm run compile`、`npm run generate:symbol-registry`、`npm test` **249/249** PASS。
+
+### Files touched
+
+- `webview/index.html`, `locales/en.json`/`ja.json`/`zh-CN.json`/`zh-TW.json`, `webview/script.js`/`style.css`(ビルド成果物), `package-lock.json`, `README.md`/`README_en.md`/`README_zh-CN.md`/`README_zh-TW.md`, `CHANGELOG.md`, `docs/VERSION_TRUTH.md`, `AI_SHARED_LOG.md`
+
+---
+
 ## 2026-07-13 JST - Claude (Sonnet 5) - 人間スモーク直前 UI/UX 修正（Relay toggle i18n レース + Start Hub 未翻訳）
 
 - ユーザーが PLAYABLE-V0-UI-001 / Relay banner の人間スモークテストを行う直前に「UI/UXで改善できる部分があれば」と依頼。新機能追加ではなく既存UIの粗探し+修正。

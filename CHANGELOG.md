@@ -30,6 +30,23 @@
   branch never reached `main`), so Japanese/Chinese players saw an English
   card among otherwise-localized Start Hub options. Translated in all three
   locales.
+- **Status-tab labels untranslated in ja/zh-CN/zh-TW** — the `Lorebook` /
+  `Memory` / `Director` / `Party` status tabs (and the chat `sender.player` /
+  `sender.system` labels) were left as raw English source strings in all
+  three non-English locales, standing out next to the otherwise-localized
+  `冒険ステータス` / `キャラクタープロフィール` / `インスペクター` /
+  `ワールド` tabs. Translated in all three locales, following each locale's
+  existing terminology (e.g. ja keeps `OOC` as an established loanword).
+- **World tab strings untranslated in ja/zh-CN/zh-TW** — `Maps & Intel`, its
+  `Unfold` action/inserted-chat-text, and the `Rep` reputation stat were
+  still English source strings in all three non-English locales. Translated.
+- **World Theme genre buttons never wired into i18n at all** — the
+  Fantasy/Cyberpunk/Sci-Fi/Post-Apocalypse/Modern/Eastern/Horror/Steampunk
+  theme buttons (always visible in the Adventure Status sidebar) had no
+  `data-i18n` attribute in `webview/index.html`, so they rendered in English
+  regardless of locale. Added `data-i18n` wiring plus translated genre labels
+  in ja/zh-CN/zh-TW (en unchanged); the functional `data-theme` identifiers
+  used by theme-switching logic are untouched.
 
 ## [1.82.2] - 2026-07-13
 

@@ -5,6 +5,25 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { fingerprint, writeArtifacts } = require('./report');
 const { assertPlanCurrent } = require('./planner');
+const { TRUSTED_MARKER } = require('./trusted-commands');
+
+function assertTrustedExecutable(command) {
+    if (command[TRUSTED_MARKER] !== true) {
+        throw new Error(
+            `Refusing to execute command "${command.id}": it is not hydrated from the trusted command registry. ` +
+            'A plan file cannot grant spawn authority by itself; only lib/trusted-commands.js (via lib/plan-trust.js) may produce executable definitions.'
+        );
+    }
+    if (typeof command.executable !== 'string' || !command.executable) {
+        throw new Error(`Refusing to execute command "${command.id}": missing executable.`);
+    }
+    if (/\.(cmd|bat)$/i.test(command.executable)) {
+        throw new Error(
+            `Refusing to execute command "${command.id}": .cmd/.bat executables are never allowed (shell execution is disabled). ` +
+            'Route npm-script boundaries through the trusted npm JS CLI instead (see lib/trusted-commands.js).'
+        );
+    }
+}
 
 function timestamp() {
     return new Date().toISOString().replace(/[:.]/g, '-');
@@ -80,6 +99,7 @@ class ExecutionEngine {
         const stderrLog = path.join(this.runDirectory, `${basename}.stderr.log`);
         const stdoutStream = fs.createWriteStream(stdoutLog, { flags: 'a' });
         const stderrStream = fs.createWriteStream(stderrLog, { flags: 'a' });
+        assertTrustedExecutable(command);
         this.onEvent({ type: 'command-start', command });
         return new Promise((resolve) => {
             let timedOut = false;
@@ -87,7 +107,7 @@ class ExecutionEngine {
             const child = spawn(command.executable, command.args, {
                 cwd: this.plan.repositoryRoot,
                 env: process.env,
-                shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command.executable),
+                shell: false,
                 windowsHide: true,
             });
             this.children.add(child);

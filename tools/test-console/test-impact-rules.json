@@ -109,25 +109,14 @@
   "boundaries": {
     "compile": {
       "id": "boundary:compile",
-      "command": "npm run compile",
-      "executable": "npm",
-      "args": ["run", "compile"],
-      "category": "validate",
-      "timeoutMs": 240000,
-      "workspaceWriter": true,
-      "exclusiveGroup": "generated-output"
+      "category": "validate"
     },
     "webview-parity": {
       "test": "test_webview_bundle.js"
     },
     "symbol-registry": {
       "id": "boundary:symbol-registry",
-      "command": "npm run check:symbol-registry",
-      "executable": "npm",
-      "args": ["run", "check:symbol-registry"],
-      "category": "validate",
-      "timeoutMs": 120000,
-      "exclusiveGroup": "generated-output"
+      "category": "validate"
     },
     "i18n": { "test": "check_i18n_keys.js" },
     "version-consistency": { "test": "check_version_consistency.js" },

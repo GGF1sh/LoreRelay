@@ -5,10 +5,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { MANIFEST, DEFAULT_TIMEOUT_MS } = require('../../../scripts/run_all_tests');
+const { MANIFEST } = require('../../../scripts/run_all_tests');
+const { lookupTrustedDefinition } = require('./trusted-commands');
 
 const ROOT = path.resolve(__dirname, '../../..');
 const RULES_PATH = path.join(ROOT, 'tools', 'test-console', 'test-impact-rules.json');
+const PLAN_SCHEMA_VERSION = 2;
 const PHASES = { focused: 0, boundary: 1, 'full-suite': 2 };
 
 function sha256(value) {
@@ -76,32 +78,28 @@ function dirtyIdentity(root) {
     return { dirty: true, dirtyDiffHash: hash.digest('hex') };
 }
 
-function commandDisplay(executable, args) {
-    return [executable, ...args].map((part) => /[\s"]/u.test(part) ? JSON.stringify(part) : part).join(' ');
-}
-
-function defaultExclusiveGroup(file) {
-    if (/installer|install_chain/i.test(file)) return 'installer-worktree';
-    if (/remote_play|ws_functionality/i.test(file)) return 'fixed-port';
-    if (/simulation|noai_soak/i.test(file)) return 'simulation-stress';
-    if (/writer|write_queue|race|interleave|atomicity/i.test(file)) return 'writer-race';
-    return null;
-}
-
-function manifestCommand(entry, reason, phase = 'focused', exclusiveGroup = null) {
-    const executable = entry.runner === 'python' ? 'python' : process.execPath;
-    const args = [path.join(ROOT, 'scripts', entry.file)];
+/**
+ * A declarative selection descriptor: id, phase, category, reasons, and (when the rule
+ * config forces one) an exclusiveGroup override. No executable/args/shell/cwd/env - those
+ * are spawn authority and only ever come from the trusted-commands registry, looked up by
+ * id at hydration time (see lib/trusted-commands.js and lib/plan-trust.js).
+ */
+function declareCommand(id, category, reason, phase = 'focused', exclusiveGroupOverride = null) {
+    const definition = lookupTrustedDefinition(id);
+    if (!definition) throw new Error(`Planner selected an unknown trusted command id: ${id}`);
     return {
-        id: `test:${entry.file}`,
-        command: commandDisplay(entry.runner === 'python' ? 'python' : 'node', [`scripts/${entry.file}`]),
-        executable,
-        args,
-        category: entry.category,
-        exclusiveGroup: exclusiveGroup || defaultExclusiveGroup(entry.file),
-        timeoutMs: entry.timeoutMs || DEFAULT_TIMEOUT_MS,
+        id,
+        command: definition.command,
+        category,
+        exclusiveGroup: exclusiveGroupOverride || definition.exclusiveGroup || null,
+        workspaceWriter: Boolean(definition.workspaceWriter),
         phase,
         reasons: [reason],
     };
+}
+
+function manifestCommand(entry, reason, phase = 'focused', exclusiveGroup = null) {
+    return declareCommand(`test:${entry.file}`, entry.category, reason, phase, exclusiveGroup);
 }
 
 function addCommand(map, command) {
@@ -195,16 +193,12 @@ function makePlan(options = {}) {
         for (const [boundary, reasons] of [...boundaryReasons.entries()].sort()) {
             const definition = config.boundaries[boundary];
             if (!definition) continue;
+            const reasonText = `Verify boundary ${boundary}: ${reasons.join(' ')}`;
             if (definition.test) {
                 const entry = manifestByFile.get(definition.test);
-                if (entry) addCommand(selected, manifestCommand(entry, `Verify boundary ${boundary}: ${reasons.join(' ')}`, 'boundary', definition.exclusiveGroup || null));
-            } else {
-                addCommand(selected, {
-                    ...definition,
-                    executable: process.platform === 'win32' && definition.executable === 'npm' ? 'npm.cmd' : definition.executable,
-                    phase: 'boundary',
-                    reasons: [`Verify boundary ${boundary}: ${reasons.join(' ')}`],
-                });
+                if (entry) addCommand(selected, manifestCommand(entry, reasonText, 'boundary', definition.exclusiveGroup || null));
+            } else if (definition.id) {
+                addCommand(selected, declareCommand(definition.id, definition.category || 'validate', reasonText, 'boundary'));
             }
         }
     }
@@ -213,19 +207,10 @@ function makePlan(options = {}) {
     if (unknownFiles.length) requiresFullSuite = true;
     if (mode === 'integration' || mode === 'release') requiresFullSuite = true;
     if (requiresFullSuite) {
-        addCommand(selected, {
-            id: 'full-suite',
-            command: 'npm test',
-            executable: process.platform === 'win32' ? 'npm.cmd' : 'npm',
-            args: ['test'],
-            category: 'integration',
-            exclusiveGroup: 'full-suite',
-            timeoutMs: 60 * 60 * 1000,
-            phase: 'full-suite',
-            reasons: unknownFiles.length
-                ? [`Fail-closed full suite for unknown files: ${unknownFiles.join(', ')}`]
-                : [`${mode} mode requires a final full-manifest gate.`],
-        });
+        const reasonText = unknownFiles.length
+            ? `Fail-closed full suite for unknown files: ${unknownFiles.join(', ')}`
+            : `${mode} mode requires a final full-manifest gate.`;
+        addCommand(selected, declareCommand('full-suite', 'integration', reasonText, 'full-suite'));
     }
 
     const manifestIndex = new Map(MANIFEST.map((entry, index) => [`test:${entry.file}`, index]));
@@ -240,7 +225,7 @@ function makePlan(options = {}) {
     }
 
     return {
-        schemaVersion: 1,
+        schemaVersion: PLAN_SCHEMA_VERSION,
         repository,
         repositoryRoot: root,
         baseSha,
@@ -281,10 +266,12 @@ function assertPlanCurrent(plan) {
 module.exports = {
     ROOT,
     RULES_PATH,
+    PLAN_SCHEMA_VERSION,
     assertPlanCurrent,
     collectChangedFiles,
     defaultConcurrency,
     dirtyIdentity,
+    git,
     globRegex,
     loadRules,
     makePlan,

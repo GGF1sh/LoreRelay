@@ -6,6 +6,14 @@
 - Worktree: `C:\AI\wt-lorerelay-test-console-001`
 - Product version: `1.82.4` (unchanged)
 
+> **Superseded for merge purposes.** Independent adversarial verification
+> (`docs/ai-tasks/LORERELAY-TEST-CONSOLE-001-INDEPENDENT-VERIFY.md`, commit `ecad18b`) found the
+> Windows `.cmd`/`.bat` `shell: true` execution path in this candidate did not close the command
+> trust boundary (metacharacter injection, plan-JSON executable/args trust). This history is
+> preserved unchanged below; the fix is tracked separately in
+> `docs/ai-tasks/LORERELAY-TEST-CONSOLE-001-COMMAND-TRUST-REPAIR.md` on branch
+> `tooling/LORERELAY-TEST-CONSOLE-001-command-trust-repair`.
+
 ## Architecture
 
 The candidate is a dependency-free local Node.js application with four layers:

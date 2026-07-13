@@ -9,6 +9,19 @@
 
 ## [Unreleased]
 
+## [1.82.1] - 2026-07-13
+
+### Fixed
+
+- **Relay viewport and status-pane scrolling** — keeps the visible Relay banner
+  and the entire application inside the viewport, removes nested right-pane
+  vertical scrolling, and makes the final Story Summary section reachable.
+
+- **World Theme header layout** — prevents the localized heading from collapsing
+  or disappearing at narrow status-panel widths while preserving wrapped theme
+  controls and active-theme styling.
+
+
 ## [1.82.0] - 2026-07-13
 
 ### Added

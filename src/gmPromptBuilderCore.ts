@@ -394,6 +394,12 @@ export function buildAntigravityRelayPayload(
     return {
         kind: 'antigravity_relay_request',
         version: 1,
+        trafficClass: 'gameplay_narrative',
+        authority: {
+            scope: 'gameplay_narrative',
+            repositoryEditsAllowed: false,
+            allowedWorkspaceWrites: ['turn_result.json'],
+        },
         requestId: relay?.requestId,
         createdAt: relay?.createdAt,
         workspacePath: relay?.workspacePath,

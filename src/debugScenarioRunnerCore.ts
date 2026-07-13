@@ -167,9 +167,10 @@ function runWorldSimSteps(steps: number): {
 export function executeDebugScenarioTurn(
     wsPath: string,
     playerAction: string,
-    ctx: DebugCommandContext
+    ctx: DebugCommandContext,
+    presentationOptions: readonly string[] = []
 ): DebugScenarioTurnResult {
-    const parsed = parseDebugCommand(playerAction, ctx);
+    const parsed = parseDebugCommand(playerAction, ctx, presentationOptions);
     if (!parsed) {
         return { handled: false };
     }

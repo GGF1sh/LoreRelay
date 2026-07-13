@@ -20,6 +20,7 @@ export interface GameStateSyncDeps {
     processProfileUpdates(updates: ProfileUpdate[]): void;
     maybeSuggestArchive(): void;
     appendGmBridgeLog(line: string): void;
+    onRelayRequestSettled?(requestId: string, outcome: 'accepted' | 'failed'): void;
 }
 
 let deps: GameStateSyncDeps | undefined;
@@ -730,6 +731,7 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
     markTurnResultHandled(enriched);
     if (pendingRelayRequest && relayMatch.requestId) {
         clearPendingAntigravityRelayRequest(workspacePath, 'accepted-result', relayMatch.requestId);
+        deps?.onRelayRequestSettled?.(relayMatch.requestId, 'accepted');
         try {
             deps?.getPanel()?.webview.postMessage({
                 type: 'relayWaitingStateDone',
@@ -785,6 +787,17 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
 
 function notifyRelayImportFailure(reason: string): void {
     const message = `Antigravity Relay result was not imported: ${reason}`;
+    try {
+        const workspacePath = deps?.getWorkspacePath();
+        const pendingRequest = workspacePath
+            ? readPendingAntigravityRelayRequest(workspacePath)
+            : undefined;
+        if (pendingRequest) {
+            deps?.onRelayRequestSettled?.(pendingRequest.requestId, 'failed');
+        }
+    } catch (e) {
+        console.error('[gameStateSync] failed to release Relay gameplay lease', e);
+    }
     try {
         requireDeps().appendGmBridgeLog(`[Antigravity Relay] ${message}`);
     } catch {

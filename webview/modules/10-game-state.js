@@ -566,7 +566,7 @@ function updateStatus(status) {
 }
 
 function isInputLocked() {
-  return gameOverActive;
+  return gameOverActive || !!document.getElementById('gm-loading');
 }
 
 function setInputLocked(locked) {
@@ -607,32 +607,25 @@ function renderOptions(options) {
   options.forEach((opt, i) => {
     const btn = document.createElement('button');
     btn.className = 'option-btn';
-    btn.textContent = `${i + 1}. ${opt}`;
+    const displayText = `${i + 1}. ${opt}`;
+    btn.textContent = displayText;
     btn.addEventListener('click', () => {
       if (isInputLocked() || btn.disabled) return;
       window.speechSynthesis?.cancel();
-
-      if (window.antigravityRelayMode) {
-        const fi = document.getElementById('free-input');
-        if (fi) {
-          fi.value = `${i + 1}. ${opt}`;
-          sendFreeInput();
-        }
-        return;
-      }
 
       const entryId = `user-${Date.now()}`;
       // Share this id with the extension so the persisted entry it later sends back
       // in gameStateUpdate matches this optimistic one instead of rendering a duplicate.
       vscode.postMessage({
         type: 'selectOption',
-        text: `${i + 1}. ${opt}`,
+        text: opt,
+        optionIndex: i,
         authorsNote: getAuthorsNote(),
         entryId
       });
       clearAuthorsNote();
       // UIにもPlayerメッセージとして追加
-      const entry = { id: entryId, role: 'user', content: `${i + 1}. ${opt}`, sender: T('webview.sender.player') };
+      const entry = { id: entryId, role: 'user', content: displayText, sender: T('webview.sender.player') };
       messageHistory.push(entry);
       renderMessage(entry);
       optionsBar.innerHTML = '';

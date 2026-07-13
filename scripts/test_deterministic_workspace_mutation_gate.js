@@ -103,6 +103,23 @@ function createHarness() {
 }
 
 async function main() {
+    // Manual leases let accepted gameplay retain the same shared authority
+    // through Relay completion without introducing a competing pending system.
+    {
+        const gate = createDeterministicWorkspaceMutationGate();
+        const acquired = gate.acquire('same', { actionKind: 'gameplay_request', requestId: 'player_lease_001' });
+        assert.equal(acquired.status, 'acquired');
+        const busy = gate.acquire('same', { actionKind: 'shopkeeper_trade', requestId: 'trade_lease_001' });
+        assert.equal(busy.status, 'busy');
+        assert.equal(busy.code, WORLD_MUTATION_IN_PROGRESS);
+        assert.equal(busy.owner.actionKind, 'gameplay_request');
+        assert.equal(acquired.lease.release(), true);
+        assert.equal(acquired.lease.release(), false, 'lease release is idempotent');
+        const later = gate.acquire('same', { actionKind: 'shopkeeper_trade', requestId: 'trade_lease_002' });
+        assert.equal(later.status, 'acquired');
+        later.lease.release();
+    }
+
     // A: pending P2 excludes P3 before its canonical read or write.
     {
         const h = createHarness(); const hold = deferred(); const entered = deferred();

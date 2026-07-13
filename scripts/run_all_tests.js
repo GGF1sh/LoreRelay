@@ -159,6 +159,7 @@ const MANIFEST = [
     { category: 'smoke', file: 'test_playable_v0_player_action_hub.js' },
     { category: 'smoke', file: 'test_relay_viewport_theme_layout.js' },
     { category: 'unit', file: 'test_deterministic_workspace_mutation_gate.js' },
+    { category: 'unit', file: 'test_gameplay_input_fastpath.js' },
     { category: 'unit', file: 'test_entity_identity_core.js' },
     { category: 'unit', file: 'test_entity_reference_inventory_core.js' },
     { category: 'unit', file: 'test_world_state.js' },

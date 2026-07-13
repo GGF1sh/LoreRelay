@@ -31,6 +31,12 @@ function runTests() {
 
     assert.strictEqual(payload.kind, 'antigravity_relay_request');
     assert.strictEqual(payload.version, 1);
+    assert.strictEqual(payload.trafficClass, 'gameplay_narrative');
+    assert.deepStrictEqual(payload.authority, {
+        scope: 'gameplay_narrative',
+        repositoryEditsAllowed: false,
+        allowedWorkspaceWrites: ['turn_result.json'],
+    });
     assert.strictEqual(payload.playerAction, "I open the door.");
     assert.deepStrictEqual(payload.availableOptions, ["Look around", "Go back"]);
     assert.strictEqual(payload.targetOutput, 'turn_result.json');

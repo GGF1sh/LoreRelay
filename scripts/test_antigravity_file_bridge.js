@@ -151,6 +151,7 @@ async function assertRelayToggleRoutesToSettingHandler() {
 function createRelayImportHarness(workspace) {
     const postMessages = [];
     const outputLines = [];
+    const relaySettlements = [];
     const showErrors = [];
     let processCalls = 0;
 
@@ -277,11 +278,15 @@ function createRelayImportHarness(workspace) {
         appendGmBridgeLog(line) {
             outputLines.push(line);
         },
+        onRelayRequestSettled(requestId, outcome) {
+            relaySettlements.push({ requestId, outcome });
+        },
     });
 
     return {
         postMessages,
         outputLines,
+        relaySettlements,
         showErrors,
         get processCalls() { return processCalls; },
         processFile(filePath = path.join(workspace, 'turn_result.json')) {
@@ -344,6 +349,7 @@ async function assertFreshRelayImportRecovery() {
     const duplicate = await harness.processFile();
     assert.strictEqual(duplicate.kind, 'alreadyAccepted');
     assert.strictEqual(harness.processCalls, 1, 'duplicate observation applies once');
+    assert.deepStrictEqual(harness.relaySettlements, [{ requestId, outcome: 'accepted' }]);
     ok('fresh empty workspace first matching Relay result imports and duplicate observation is idempotent');
 }
 
@@ -380,6 +386,7 @@ async function assertRelayMismatchSurfacesErrorBeforeMutation() {
     assert(harness.postMessages.some((msg) => msg.type === 'relayWaitingStateError' && String(msg.reason).includes('requestId mismatch')));
     assert(harness.outputLines.some((line) => line.includes('Antigravity Relay result was not imported')));
     assert(harness.showErrors.some((line) => line.includes('Antigravity Relay result was not imported')));
+    assert.deepStrictEqual(harness.relaySettlements, [{ requestId: 'agr-expected', outcome: 'failed' }]);
     ok('mismatched Relay result is rejected before mutation and ends visible waiting state');
 }
 
@@ -484,6 +491,14 @@ async function runTests() {
     fs.mkdirSync(path.dirname(requestPath), { recursive: true });
     fs.writeFileSync(requestPath, JSON.stringify(request, null, 2), 'utf8');
     assert.strictEqual(readPendingAntigravityRelayRequest(workspace).requestId, requestId);
+    const missingGameplayBoundary = { ...request };
+    delete missingGameplayBoundary.trafficClass;
+    assert.strictEqual(parseAntigravityRelayRequest(missingGameplayBoundary), undefined,
+        'Relay requests without the gameplay authority boundary fail closed');
+    assert.strictEqual(parseAntigravityRelayRequest({
+        ...request,
+        authority: { ...request.authority, repositoryEditsAllowed: true },
+    }), undefined, 'Relay requests cannot grant repository-edit authority');
     assert.strictEqual(clearPendingAntigravityRelayRequest(workspace, 'accepted-result', 'wrong-id'), false);
     assert(fs.existsSync(requestPath), 'wrong expected requestId must not clear active pending request');
     assert.strictEqual(clearPendingAntigravityRelayRequest(workspace, 'relay-mode-off'), true);

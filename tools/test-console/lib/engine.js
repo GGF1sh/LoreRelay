@@ -87,7 +87,7 @@ class ExecutionEngine {
             const child = spawn(command.executable, command.args, {
                 cwd: this.plan.repositoryRoot,
                 env: process.env,
-                shell: false,
+                shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command.executable),
                 windowsHide: true,
             });
             this.children.add(child);

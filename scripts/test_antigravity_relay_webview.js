@@ -410,10 +410,20 @@ async function run() {
     {
         const h = createHarness();
         h.window.dispatchMessage({ type: 'relayModeStatus', antigravityRelayMode: true });
-        h.context.renderOptions(['Follow the lantern']);
-        const option = findByClass(h.elements.get('options-bar'), 'option-btn')[0];
+        h.context.renderOptions(['Wait', 'Follow the lantern']);
+        const option = findByClass(h.elements.get('options-bar'), 'option-btn')[1];
         option.click();
-        assert(h.postMessages.some((msg) => msg.type === 'freeInput' && msg.text === '1. Follow the lantern'), 'Relay option action uses the same send path as free text');
+        assert(h.postMessages.some((msg) => msg.type === 'selectOption'
+            && msg.text === 'Follow the lantern'
+            && msg.optionIndex === 1), 'quick option sends canonical text plus explicit presentation metadata');
+        assert.strictEqual(option.textContent, '2. Follow the lantern', 'quick option keeps visible numbering');
+        const acceptedCount = h.postMessages.length;
+        option.click();
+        h.elements.get('free-input').value = 'Racing input';
+        h.context.sendFreeInput();
+        assert.strictEqual(h.postMessages.length, acceptedCount, 'double-click and free-input race are blocked while pending');
+        h.context.renderOptions(['Wait', 'Follow the lantern']);
+        assert.strictEqual(findByClass(h.elements.get('options-bar'), 'option-btn').length, 0, 'state refresh cannot re-enable options while pending');
         h.window.dispatchMessage({ type: 'relayWaitingStateStart' });
         assert.strictEqual(h.body.getAttribute('data-relay-state'), 'pending', 'Relay option action enters pending state');
     }

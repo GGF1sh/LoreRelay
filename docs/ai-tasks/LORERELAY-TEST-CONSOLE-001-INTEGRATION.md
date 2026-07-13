@@ -110,7 +110,17 @@ The primary checkout compile attempt encountered a local Windows `EPERM` while c
 
 ## Post-push validation
 
-Pending the first normal push of `main`. This section will be updated with exact fetched SHA equality and the required self-test/version/UTF-8 results. The 251-test suite will not be rerun.
+The first normal push published integration-report commit `b002438eee8de37e94a35a904d65bd515956d4f5`. A subsequent fetch established exact equality:
+
+- local main: `b002438eee8de37e94a35a904d65bd515956d4f5`;
+- origin/main: `b002438eee8de37e94a35a904d65bd515956d4f5`;
+- required Test Console reports present on origin/main: 5/5;
+- origin/main package version: `1.82.4`;
+- `npm.cmd run test:console:self`: PASS, 34/34;
+- `node scripts/check_version_consistency.js`: PASS;
+- `node scripts/validate_utf8_docs.js`: PASS, 2,088 files in the primary checkout (including its pre-existing nested worktree content).
+
+This post-push result update is report-only. After its normal push, only version consistency and UTF-8 validation are rerun, followed by final local/origin SHA equality. The complete 251-test suite is not redundantly rerun.
 
 ## Untouched confirmations
 

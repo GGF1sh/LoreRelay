@@ -281,6 +281,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_knowledge_lookup.js' },
     { category: 'unit', file: 'test_antigravity_file_bridge.js' },
     { category: 'unit', file: 'test_antigravity_relay_webview.js' },
+    { category: 'unit', file: 'test_relay_banner_recovery.js' },
     { category: 'unit', file: 'test_antigravity_installer.js' },
     { category: 'unit', file: 'test_antigravity_installer_bootstrap.js' },
     { category: 'unit', file: 'test_antigravity_skill_installer.js' },

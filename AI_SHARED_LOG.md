@@ -1,5 +1,22 @@
 # AI Shared Log
 
+## 2026-07-13 JST - Claude (Sonnet 5) - 人間スモーク直前 UI/UX 修正（Relay toggle i18n レース + Start Hub 未翻訳）
+
+- ユーザーが PLAYABLE-V0-UI-001 / Relay banner の人間スモークテストを行う直前に「UI/UXで改善できる部分があれば」と依頼。新機能追加ではなく既存UIの粗探し+修正。
+- 検証手法: `npm run build:webview` 後、scratchpad に静的ハーネス(`index.html`のプレースホルダをローカルパスに置換・CSP除去・`acquireVsCodeApi`スタブ・`ja.json`をpostMessageで`localeBundle`注入)を作成しBrowser paneで実描画確認(過去セッションと同じ手法、`.claude/launch.json`に`playerhub-uxreview-harness`として追加)。
+- **発見・修正①(実バグ)**: `updateRelayToggleButton()`(`webview/modules/90-bootstrap.js`)が`DOMContentLoaded`時点で`i18nStrings`未ロードのまま`T()`を呼び、Relayトグルボタンに翻訳キーの生文字列`webview.relay.toggle.off`がそのまま表示される競合状態を発見(ハーネスで再現確認)。`i18nStrings`が空の間はテキスト書き込みをスキップし静的HTMLラベルを保持するガードを追加。
+- **発見・修正②(実バグ)**: 言語ドロップダウンでロケールを切り替えると`applyI18n()`は再実行されるが、Relayトグルボタン/Send-BtnのRelay文言(どちらも`data-i18n`属性を使わずプログラム的に設定)が更新されず旧ロケールの表示のまま固定される問題を発見。`localeBundle`ハンドラに更新済みロケールでの再描画を追加。
+- **発見・修正③(翻訳regression)**: `locales/ja.json`/`zh-CN.json`/`zh-TW.json`の`webview.startHub.debugTitle`/`debugDesc`が英語のまま(2026-07-06の`ux/start-hub-genesis-visual-polish`ブランチでの修正がmain未マージ)。3ロケール全てに翻訳を追加(`index.html`側の静的フォールバック文言をja訳の基準に使用、zh-CN/zh-TWは新規訳)。
+- 検証: `node scripts/test_antigravity_relay_webview.js`単体で①の修正が既存VMサンドボックステスト(`i18nStrings`をグローバル提供しない構成)を壊すことを検知→ `typeof i18nStrings !== 'undefined'`ガードに修正して再PASS。`npm run generate:symbol-registry`実行(webview module編集後の既定手順)。`npm test` **249/249** PASS。
+- バージョン: `docs/VERSION_TRUTH.md`のバージョニングルール(repair-onlyはpatch bump、smoke対象ビルドは新しい識別子を持つこと)に従い**1.82.2→1.82.3**。CHANGELOG/VERSION_TRUTH更新済み。
+- 次: 実VSCode上でのRelay banner/Player Action Hub(暮らす)人間スモークは未実施(このセッションは静的ハーネスでの検証のみ)。i18n監査で`ja.json`に英語のまま残っている文字列を94件検出したが、大半はInspector/開発者向けやAntigravity Relayのような意図的英語ブランディングと判断し今回は対象外(要精査なら別タスク)。
+
+### Files touched
+
+- `webview/modules/90-bootstrap.js`, `locales/ja.json`, `locales/zh-CN.json`, `locales/zh-TW.json`, `webview/script.js`/`style.css`(ビルド成果物), `docs/generated/symbol_registry.json`/`SYMBOL_REGISTRY.md`(再生成), `package.json`, `CHANGELOG.md`, `docs/VERSION_TRUTH.md`, `AI_SHARED_LOG.md`
+
+---
+
 ## 2026-07-05 JST - Claude (Opus 4.8) - PROMPT-001A Architecture Gate（ChatGPT不在時の代行）
 
 - ChatGPT 5.5/5.4が利用不可のため、Architecture Gate Owner代理としてPROMPT-001A（Candidate→Budget→Delivered→Accepted→Consumed順序契約）を代行完了。実装は一切行わずGate設計のみ。

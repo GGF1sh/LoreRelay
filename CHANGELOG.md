@@ -9,6 +9,28 @@
 
 ## [Unreleased]
 
+## [1.82.3] - 2026-07-13
+
+### Fixed
+
+- **Relay toggle button raw i18n key flash** — `updateRelayToggleButton()` ran on
+  `DOMContentLoaded` before the `localeBundle` message could arrive, so the
+  button briefly (or persistently, if the race lost) showed the raw key
+  `webview.relay.toggle.off` instead of localized text. The write is now
+  skipped until translations have loaded, leaving the static HTML label in
+  place.
+- **Relay toggle / send button stuck in stale locale after switching language**
+  — switching the language dropdown mid-session re-ran `applyI18n()` but never
+  refreshed the Relay toggle button or the Relay-aware Send button text (both
+  are set programmatically, not via `data-i18n`), so they kept showing the
+  previous locale's wording. They now refresh alongside the rest of the UI.
+- **Start Hub Debug sandbox card untranslated in ja/zh-CN/zh-TW** —
+  `webview.startHub.debugTitle`/`debugDesc` still held the English source
+  strings in all three non-English locale files (a prior fix on an unmerged
+  branch never reached `main`), so Japanese/Chinese players saw an English
+  card among otherwise-localized Start Hub options. Translated in all three
+  locales.
+
 ## [1.82.2] - 2026-07-13
 
 ### Fixed

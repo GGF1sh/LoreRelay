@@ -3,8 +3,13 @@ function updateRelayToggleButton(enabled) {
   const relayToggleBtn = document.getElementById('relay-toggle-btn');
   if (!relayToggleBtn) return;
   relayToggleBtn.classList.toggle('active', !!enabled);
-  relayToggleBtn.textContent = enabled ? T('webview.relay.toggle.on') : T('webview.relay.toggle.off');
-  relayToggleBtn.title = T('webview.relay.toggle.title');
+  // i18nStrings is populated asynchronously by the 'localeBundle' message, which
+  // can arrive after DOMContentLoaded; skip the text/title write until it has
+  // loaded so the button keeps its static HTML label instead of a raw i18n key.
+  if (typeof i18nStrings !== 'undefined' && Object.keys(i18nStrings).length > 0) {
+    relayToggleBtn.textContent = enabled ? T('webview.relay.toggle.on') : T('webview.relay.toggle.off');
+    relayToggleBtn.title = T('webview.relay.toggle.title');
+  }
   if (typeof relayToggleBtn.setAttribute === 'function') {
     relayToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
   }
@@ -642,6 +647,13 @@ window.addEventListener('message', (event) => {
     renderGallery();
     renderCheckpointUi();
     if (typeof updateEffectsTierButton === 'function') { updateEffectsTierButton(); }
+    // Relay toggle/send-btn text is set programmatically (not data-i18n) so it
+    // survives a locale switch mid-session instead of staying in the old language.
+    updateRelayToggleButton(window.antigravityRelayMode);
+    const sBtnLocale = document.getElementById('send-btn');
+    if (sBtnLocale) {
+      sBtnLocale.textContent = window.antigravityRelayMode ? T('webview.relay.button.prepare') : T('webview.button.send');
+    }
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
     }

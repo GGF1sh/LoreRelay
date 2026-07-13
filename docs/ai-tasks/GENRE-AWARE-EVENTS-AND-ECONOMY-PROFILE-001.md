@@ -65,13 +65,15 @@ tick関数の中で条件分岐→直接 `worldEvents.push(...)` されるハー
 - **enum型の難易度ノブの前例が既にある**: `GameRules.travelEncounterDensity: 'low'|'medium'|'high'`
   （`src/gameRulesCore.ts:21`）。経済にも同型（例 `economyProfile: 'easy'|'normal'|'harsh'`）を
   足すのが自然。`GameRules` に経済難易度ノブは現状**皆無**。
-- **設定を tick に運ぶ継ぎ目が既にある**: `WorldKitTickInput`（`src/worldKitTickCore.ts:39` の
-  `runLivingWorldTick`）は `commerceEnabled`/`agencyEnabled`/`maxNamedNpcCount` 等、
+- **設定を tick に運ぶ継ぎ目が既にある**: `WorldKitTickInput`（`src/worldKitTickCore.ts` の
+  interface。`runLivingWorldTick` がこの型を受け取る）は `commerceEnabled`/`agencyEnabled`/`maxNamedNpcCount` 等、
   **game_rules由来の設定を既にフィールドとして受け取っている**。ここに `economyProfile` を
   1本足し、`tickMarketRecovery` の options（`recoveryPerTick` 等）へ流すのが最小侵襲。
-- **theme（ジャンルタグ）は tick 実行地点で既に手に入る**: `input.forge.meta.theme`。
-  シムのエントリ `runSimulationStep(forge, state)` / `runLivingWorldTick(input)` は
-  どちらも forge を持つので、theme を消費するだけなら新規の引数追加は不要。
+- **theme（ジャンルタグ）の型付き経路は一様ではない**: `WorldForge` は relevant world-simulation
+  path で `meta.theme` を公開する。一方、`runLivingWorldTick` の `WorldKitTickInput.forge` は
+  `CommerceForge` 型であり、`CommerceForge` / `WorldKitTickInput` は同じ `meta` path を現状公開しない。
+  commerce/theme wiring には、`input.forge.meta.theme` が普遍的に存在すると仮定せず、theme を
+  明示的に渡す field または型を安全に広げる seam が必要。
 - **Campaign Kit の7ジャンルプリセットが「ジャンル×語彙」のモデル**として既に存在
   （classic_fantasy_guild / postapoc_scavenger / space_frontier / eastern_fantasy /
   cyberpunk_courier / modern_occult / survival_horror）。イベントのジャンルゲートは、
@@ -101,7 +103,7 @@ tick関数の中で条件分岐→直接 `worldEvents.push(...)` されるハー
 GameRules.economyProfile?           (gameRulesCore.ts — 新規、travelEncounterDensity に倣う)
    │  loadGameRules() → host
    ▼
-WorldKitTickInput.economyProfile    (worldKitTickCore.ts:39 — 新規フィールド、既存の enabled 群と同じ流し方)
+WorldKitTickInput.economyProfile    (worldKitTickCore.ts interface — 新規フィールド、既存の enabled 群と同じ流し方)
    │
    ▼
 tickMarketRecovery(forge, markets, {
@@ -110,7 +112,9 @@ tickMarketRecovery(forge, markets, {
 })
 
 theme ゲート:
-   input.forge.meta.theme → イベントテンプレートの allowedThemes と突合
+   WorldForge.meta.theme (world simulation path)
+      または commerce tick に追加する明示的な theme seam
+      → イベントテンプレートの allowedThemes と突合
    （未指定/未知 theme は「中立イベントのみ許可」にフォールバック）
 
 commodity 抽象化:

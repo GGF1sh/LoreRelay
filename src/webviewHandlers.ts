@@ -30,7 +30,12 @@ export interface WebviewMessage {
  * extension.ts の実装を注入し、God ファイルから switch を分離する。
  */
 export interface WebviewHandlerDeps {
-    handlePlayerInput(text: unknown, authorsNote?: string, entryId?: string): Promise<void>;
+    handlePlayerInput(
+        text: unknown,
+        authorsNote?: string,
+        entryId?: string,
+        source?: { kind: 'quick_option'; optionIndex: number }
+    ): Promise<void>;
     runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void>;
     handleLocaleChange(rawLocale: unknown): Promise<void>;
     sendLocaleBundle(): void;
@@ -145,7 +150,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             await deps.handlePlayerInput(
                 message.text,
                 typeof message.authorsNote === 'string' ? message.authorsNote : undefined,
-                typeof message.entryId === 'string' && isValidEntryId(message.entryId) ? message.entryId : undefined
+                typeof message.entryId === 'string' && isValidEntryId(message.entryId) ? message.entryId : undefined,
+                message.type === 'selectOption'
+                    && Number.isInteger(message.optionIndex)
+                    && Number(message.optionIndex) >= 0
+                    && Number(message.optionIndex) < 12
+                    ? { kind: 'quick_option', optionIndex: Number(message.optionIndex) }
+                    : undefined
             );
             break;
         case 'previewGmTurnTransactionPlan':

@@ -6,6 +6,13 @@ export const ANTIGRAVITY_RELAY_REQUEST_SCHEMA_VERSION = 1;
 export const ANTIGRAVITY_RELAY_REQUEST_DIR = '.text-adventure';
 export const ANTIGRAVITY_RELAY_REQUEST_FILE = 'antigravity_relay_request.json';
 export const ANTIGRAVITY_RELAY_EXPECTED_OUTPUT = 'turn_result.json';
+export const ANTIGRAVITY_RELAY_TRAFFIC_CLASS = 'gameplay_narrative' as const;
+
+export interface AntigravityRelayGameplayAuthority {
+    scope: 'gameplay_narrative';
+    repositoryEditsAllowed: false;
+    allowedWorkspaceWrites: ['turn_result.json'];
+}
 
 export interface AntigravityRelayRequestIdInput {
     workspacePath: string;
@@ -17,6 +24,8 @@ export interface AntigravityRelayRequestIdInput {
 export interface AntigravityRelayRequest {
     schemaVersion: 1;
     kind: 'antigravity_relay_request';
+    trafficClass: typeof ANTIGRAVITY_RELAY_TRAFFIC_CLASS;
+    authority: AntigravityRelayGameplayAuthority;
     requestId: string;
     createdAt: string;
     workspacePath: string;
@@ -78,6 +87,12 @@ export function buildAntigravityRelayRequest(input: {
     return {
         schemaVersion: ANTIGRAVITY_RELAY_REQUEST_SCHEMA_VERSION,
         kind: 'antigravity_relay_request',
+        trafficClass: ANTIGRAVITY_RELAY_TRAFFIC_CLASS,
+        authority: {
+            scope: 'gameplay_narrative',
+            repositoryEditsAllowed: false,
+            allowedWorkspaceWrites: [ANTIGRAVITY_RELAY_EXPECTED_OUTPUT],
+        },
         requestId: input.requestId,
         createdAt: input.createdAt,
         workspacePath: path.resolve(input.workspacePath),
@@ -93,6 +108,15 @@ export function parseAntigravityRelayRequest(value: unknown): AntigravityRelayRe
     if (!isRecord(value)) { return undefined; }
     if (value.schemaVersion !== ANTIGRAVITY_RELAY_REQUEST_SCHEMA_VERSION) { return undefined; }
     if (value.kind !== 'antigravity_relay_request') { return undefined; }
+    if (value.trafficClass !== ANTIGRAVITY_RELAY_TRAFFIC_CLASS) { return undefined; }
+    if (!isRecord(value.authority)) { return undefined; }
+    if (value.authority.scope !== 'gameplay_narrative') { return undefined; }
+    if (value.authority.repositoryEditsAllowed !== false) { return undefined; }
+    if (!Array.isArray(value.authority.allowedWorkspaceWrites)
+        || value.authority.allowedWorkspaceWrites.length !== 1
+        || value.authority.allowedWorkspaceWrites[0] !== ANTIGRAVITY_RELAY_EXPECTED_OUTPUT) {
+        return undefined;
+    }
     if (typeof value.requestId !== 'string' || !value.requestId.trim()) { return undefined; }
     if (typeof value.createdAt !== 'string' || !value.createdAt.trim()) { return undefined; }
     if (typeof value.workspacePath !== 'string' || !value.workspacePath.trim()) { return undefined; }

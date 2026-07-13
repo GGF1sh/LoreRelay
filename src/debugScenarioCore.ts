@@ -105,6 +105,37 @@ function normalizeInput(raw: string): string {
     return raw.trim().replace(/\s+/g, ' ');
 }
 
+function parsePresentationIndex(rawDigits: string): number | undefined {
+    const asciiDigits = rawDigits.replace(/[０-９]/g, (digit) =>
+        String.fromCharCode(digit.charCodeAt(0) - 0xFEE0)
+    );
+    const value = Number.parseInt(asciiDigits, 10);
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Strip a quick-option presentation prefix only when both its one-based index
+ * and remaining text match the canonical option list. Arbitrary numeric player
+ * input is therefore preserved.
+ */
+export function normalizeDebugScenarioPlayerInput(
+    raw: string,
+    presentationOptions: readonly string[] = []
+): string {
+    const normalized = normalizeInput(raw);
+    const decorated = /^([0-9０-９]+)\s*[.)）．。・]\s*(.+)$/u.exec(normalized);
+    if (!decorated) {
+        return normalized;
+    }
+    const oneBasedIndex = parsePresentationIndex(decorated[1]);
+    if (!oneBasedIndex || oneBasedIndex > presentationOptions.length) {
+        return normalized;
+    }
+    const option = normalizeInput(presentationOptions[oneBasedIndex - 1] ?? '');
+    const submittedOption = normalizeInput(decorated[2]);
+    return option && submittedOption === option ? option : normalized;
+}
+
 function extractSteps(text: string): number | undefined {
     const m = /(\d+)\s*(?:ターン|ステップ|step|steps|turn|turns)/i.exec(text);
     if (m) {
@@ -442,8 +473,12 @@ function parseNarrativeCommand(text: string, ctx: DebugCommandContext): DebugPar
 }
 
 /** Parse player input into a debug command, or null if not recognized. */
-export function parseDebugCommand(input: string, ctx: DebugCommandContext): DebugParsedCommand | null {
-    const text = normalizeInput(input);
+export function parseDebugCommand(
+    input: string,
+    ctx: DebugCommandContext,
+    presentationOptions: readonly string[] = []
+): DebugParsedCommand | null {
+    const text = normalizeDebugScenarioPlayerInput(input, presentationOptions);
     if (!text) {
         return null;
     }

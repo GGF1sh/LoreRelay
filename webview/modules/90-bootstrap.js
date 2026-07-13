@@ -397,6 +397,12 @@ window.addEventListener('message', (event) => {
     showGmLoading();
   } else if (msg.type === 'gmEnd' || msg.type === 'grokEnd') {
     hideGmLoading(msg.success);
+  } else if (msg.type === 'playerInputBusy') {
+    // A duplicate gameplay message must not unlock the accepted request.
+    // A competing non-gameplay mutation rejection clears this attempt's row.
+    if (msg.owner?.actionKind !== 'gameplay_request') {
+      hideGmLoading(true);
+    }
   } else if (msg.type === 'relayModeStatus') {
     window.antigravityRelayMode = msg.antigravityRelayMode;
     updateRelayToggleButton(window.antigravityRelayMode);

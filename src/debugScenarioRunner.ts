@@ -13,7 +13,8 @@ export { isActiveDebugScenario } from './debugScenarioRunnerCore';
 
 /** Try to handle player input as a debug-sandbox command. Returns true if handled (no GM call). */
 export async function tryExecuteDebugScenarioCommand(
-    playerAction: string
+    playerAction: string,
+    presentationOptions: readonly string[] = []
 ): Promise<boolean> {
     const wsPath = getWorkspacePath();
     if (!wsPath || !isActiveDebugScenario(wsPath)) {
@@ -25,7 +26,7 @@ export async function tryExecuteDebugScenarioCommand(
         return false;
     }
 
-    const result = executeDebugScenarioTurn(wsPath, playerAction, ctx);
+    const result = executeDebugScenarioTurn(wsPath, playerAction, ctx, presentationOptions);
     if (!result.handled) {
         return false;
     }

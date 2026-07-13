@@ -197,6 +197,7 @@ import {
     getAntigravityRelayRequestPath,
 } from './antigravityRelayBridgeCore';
 import { clearPendingAntigravityRelayRequest } from './antigravityRelayBridgeHost';
+import { routeGameplayInput } from './gameplayInputRouteCore';
 import {
     initGmPromptBuilder,
     buildGmPromptBreakdown,
@@ -241,6 +242,7 @@ import { createEndDayRequestGate } from './endDayRequestGate';
 import { createMarketTravelRequestGate } from './marketTravelRequestGate';
 import {
     createDeterministicWorkspaceMutationGate,
+    type DeterministicWorkspaceMutationLease,
     WORLD_MUTATION_IN_PROGRESS,
 } from './deterministicWorkspaceMutationGate';
 
@@ -253,6 +255,10 @@ const shopkeeperRequestGate = createShopkeeperRequestGate(32);
 const endDayRequestGate = createEndDayRequestGate(32);
 const marketTravelRequestGate = createMarketTravelRequestGate(32);
 const deterministicWorkspaceMutationGate = createDeterministicWorkspaceMutationGate();
+const retainedRelayGameplayLeases = new Map<string, {
+    requestId: string;
+    lease: DeterministicWorkspaceMutationLease;
+}>();
 
 const WORLD_MUTATION_BUSY_COPY = {
     code: WORLD_MUTATION_IN_PROGRESS,
@@ -328,7 +334,8 @@ export function activate(context: vscode.ExtensionContext) {
         getHistoryPath,
         processProfileUpdates,
         maybeSuggestArchive,
-        appendGmBridgeLog: (line) => getGmBridgeOutputChannel().appendLine(line)
+        appendGmBridgeLog: (line) => getGmBridgeOutputChannel().appendLine(line),
+        onRelayRequestSettled: (requestId) => releaseRetainedRelayGameplayLease(requestId),
     });
     initScenarioDirector({ getPanel: () => panel });
     initPartyDirector({ getPanel: () => panel });
@@ -635,7 +642,32 @@ function sendRelayModeStatus(): void {
 }
 
 function clearRelayRequestForCurrentWorkspace(reason: 'relay-mode-off' | 'scenario-load' | 'session-transition'): void {
-    clearPendingAntigravityRelayRequest(getWorkspacePath(), reason);
+    const workspacePath = getWorkspacePath();
+    clearPendingAntigravityRelayRequest(workspacePath, reason);
+    releaseRetainedRelayGameplayLease(undefined, workspacePath);
+}
+
+function retainRelayGameplayLease(
+    workspaceKey: string,
+    requestId: string,
+    lease: DeterministicWorkspaceMutationLease
+): void {
+    const previous = retainedRelayGameplayLeases.get(workspaceKey);
+    if (previous && previous.requestId !== requestId) {
+        previous.lease.release();
+    }
+    retainedRelayGameplayLeases.set(workspaceKey, { requestId, lease });
+}
+
+function releaseRetainedRelayGameplayLease(requestId?: string, workspaceKey?: string): boolean {
+    for (const [key, retained] of retainedRelayGameplayLeases) {
+        if ((workspaceKey === undefined || key === workspaceKey)
+            && (requestId === undefined || retained.requestId === requestId)) {
+            retainedRelayGameplayLeases.delete(key);
+            return retained.lease.release();
+        }
+    }
+    return false;
 }
 
 async function handleSetAntigravityRelayMode(enabled: boolean): Promise<void> {
@@ -892,7 +924,12 @@ function isGameOverActive(): boolean {
     }
 }
 
-async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: string): Promise<void> {
+async function handlePlayerInput(
+    text: unknown,
+    authorsNote?: string,
+    entryId?: string,
+    source?: { kind: 'quick_option'; optionIndex: number }
+): Promise<void> {
     if (typeof text !== 'string') {
         vscode.window.showErrorMessage(t('extension.error.invalidInput'));
         return;
@@ -908,6 +945,50 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
         vscode.window.showErrorMessage(t('extension.error.inputTooLong', { max: String(MAX_PLAYER_INPUT_LENGTH) }));
         return;
     }
+
+    const workspaceKey = getWorkspacePath() ?? '__no_workspace__';
+    const playerRequestId = entryId && isValidEntryId(entryId)
+        ? entryId
+        : `player-${Date.now()}-${randomBytes(6).toString('hex')}`;
+    const acquired = deterministicWorkspaceMutationGate.acquire(
+        workspaceKey,
+        { actionKind: 'gameplay_request', requestId: playerRequestId }
+    );
+    if (acquired.status === 'busy') {
+        panel?.webview.postMessage({
+            type: 'playerInputBusy',
+            code: acquired.code,
+            requestId: playerRequestId,
+            owner: acquired.owner,
+        });
+        return;
+    }
+
+    let retainedForRelay = false;
+    try {
+        const result = await handleAcceptedPlayerInput(trimmed, authorsNote, entryId, source);
+        if (result?.relayRequestId) {
+            retainRelayGameplayLease(workspaceKey, result.relayRequestId, acquired.lease);
+            retainedForRelay = true;
+        }
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`LoreRelay: ${reason}`);
+        panel?.webview.postMessage({ type: 'gmEnd', success: false });
+    } finally {
+        if (!retainedForRelay) {
+            acquired.lease.release();
+        }
+    }
+}
+
+async function handleAcceptedPlayerInput(
+    initialText: string,
+    authorsNote?: string,
+    entryId?: string,
+    source?: { kind: 'quick_option'; optionIndex: number }
+): Promise<{ relayRequestId?: string } | undefined> {
+    let trimmed = initialText;
 
     if (isParlorMode()) {
         await handleParlorPlayerInput(trimmed);
@@ -940,90 +1021,94 @@ async function handlePlayerInput(text: unknown, authorsNote?: string, entryId?: 
         }
     }
 
-    let actionForGm = formatPlayerActionWithNote(trimmed, processedAuthorsNote);
-    actionForGm = await interceptPlayerAction(actionForGm);
-    persistPlayerInputEntry(trimmed, entryId);
-
-    if (await tryExecuteDebugScenarioCommand(trimmed)) {
-        return;
-    }
-
+    const state = getCachedGameState();
+    const availableOptions = Array.isArray(state?.options) ? state.options as string[] : [];
+    const persistedPlayerText = source?.kind === 'quick_option'
+        && availableOptions[source.optionIndex] === trimmed
+        ? `${source.optionIndex + 1}. ${trimmed}`
+        : trimmed;
+    persistPlayerInputEntry(persistedPlayerText, entryId);
     const config = vscode.workspace.getConfiguration('textAdventure');
     const relayMode = config.get<boolean>('antigravityRelay.enabled', false);
-    if (relayMode) {
-        const workspacePath = getWorkspacePath();
-        if (!workspacePath) {
-            vscode.window.showErrorMessage(t('extension.error.workspaceRequired'));
-            return;
-        }
-        const breakdown = buildGmPromptBreakdown(trimmed);
-        const state = getCachedGameState();
-        const availableOptions = Array.isArray(state?.options) ? state.options as string[] : [];
-        const history = getGameEntryHistory();
-        const createdAt = new Date().toISOString();
-        const turnIndex = history.filter(e => e.role === 'gm').length + 1;
-        const workspaceIdentity = path.resolve(workspacePath);
-        try {
-            ensureAcceptedTurnScope(workspacePath);
-        } catch (e) {
-            const reason = e instanceof Error ? e.message : String(e);
-            getGmBridgeOutputChannel().appendLine(`[Antigravity Relay] Failed to initialize accepted-turn scope: ${reason}`);
-            vscode.window.showErrorMessage(`LoreRelay Antigravity Relay could not start: ${reason}`);
-            return;
-        }
-        const requestId = buildAntigravityRelayRequestId({
-            workspacePath,
-            playerAction: trimmed,
-            createdAt,
-            turnIndex,
-        });
-        const payload = buildAntigravityRelayPayload(trimmed, breakdown, availableOptions, {
-            requestId,
-            createdAt,
-            targetOutput: ANTIGRAVITY_RELAY_EXPECTED_OUTPUT,
-            workspacePath,
-            workspaceIdentity,
-        });
-        const request = buildAntigravityRelayRequest({
-            requestId,
-            createdAt,
-            workspacePath,
-            workspaceIdentity,
-            playerAction: trimmed,
-            minimalContext: {
-                promptContext: breakdown,
+    const route = await routeGameplayInput(
+        { playerAction: trimmed, presentationOptions: availableOptions, relayEnabled: relayMode },
+        {
+            tryDebugFastPath: (playerAction, presentationOptions) =>
+                tryExecuteDebugScenarioCommand(playerAction, presentationOptions),
+            dispatchRelay: async (playerAction) => {
+                const workspacePath = getWorkspacePath();
+                if (!workspacePath) {
+                    throw new Error(t('extension.error.workspaceRequired'));
+                }
+                const breakdown = buildGmPromptBreakdown(playerAction);
+                const history = getGameEntryHistory();
+                const createdAt = new Date().toISOString();
+                const turnIndex = history.filter(e => e.role === 'gm').length + 1;
+                const workspaceIdentity = path.resolve(workspacePath);
+                try {
+                    ensureAcceptedTurnScope(workspacePath);
+                } catch (e) {
+                    const reason = e instanceof Error ? e.message : String(e);
+                    getGmBridgeOutputChannel().appendLine(`[Antigravity Relay] Failed to initialize accepted-turn scope: ${reason}`);
+                    throw new Error(`LoreRelay Antigravity Relay could not start: ${reason}`);
+                }
+                const requestId = buildAntigravityRelayRequestId({
+                    workspacePath,
+                    playerAction,
+                    createdAt,
+                    turnIndex,
+                });
+                const payload = buildAntigravityRelayPayload(playerAction, breakdown, availableOptions, {
+                    requestId,
+                    createdAt,
+                    targetOutput: ANTIGRAVITY_RELAY_EXPECTED_OUTPUT,
+                    workspacePath,
+                    workspaceIdentity,
+                });
+                const request = buildAntigravityRelayRequest({
+                    requestId,
+                    createdAt,
+                    workspacePath,
+                    workspaceIdentity,
+                    playerAction,
+                    minimalContext: { promptContext: breakdown },
+                    availableOptions,
+                });
+                writeJsonAtomic(getAntigravityRelayRequestPath(workspacePath), request);
+                await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
+                vscode.window.showInformationMessage(t('webview.relay.banner.active'));
+                panel?.webview.postMessage({ type: 'relayWaitingStateStart' });
+                return requestId;
             },
-            availableOptions,
-        });
-        writeJsonAtomic(getAntigravityRelayRequestPath(workspacePath), request);
-        await vscode.env.clipboard.writeText(JSON.stringify(payload, null, 2));
-        vscode.window.showInformationMessage(t('webview.relay.banner.active'));
-        
-        panel?.webview.postMessage({ type: 'relayWaitingStateStart' });
-        return;
-    }
+            dispatchGm: async (playerAction) => {
+                let actionForGm = formatPlayerActionWithNote(playerAction, processedAuthorsNote);
+                actionForGm = await interceptPlayerAction(actionForGm);
+                const provider = getGmProvider();
+                if (provider === 'clipboard') {
+                    await fallbackToClipboard(actionForGm);
+                    return;
+                }
 
-    const provider = getGmProvider();
-    if (provider === 'clipboard') {
-        await fallbackToClipboard(actionForGm);
-        return;
-    }
-
-    const ok = await invokeGmBridge(actionForGm, diceResult.ledger);
-    if (!ok) {
-        await fallbackToClipboard(actionForGm);
-    } else {
-        const history = getGameEntryHistory();
-        const turnIndex = history.filter(e => e.role === 'gm').length;
-        
-        const config = vscode.workspace.getConfiguration('textAdventure');
-        const commitInterval = config.get<number>('gitAutoCommitInterval') ?? 1;
-        if (commitInterval > 0 && turnIndex > 0 && (turnIndex % commitInterval === 0)) {
-            await commitTurn(turnIndex);
+                const ok = await invokeGmBridge(actionForGm, diceResult.ledger);
+                if (!ok) {
+                    await fallbackToClipboard(actionForGm);
+                    return;
+                }
+                const history = getGameEntryHistory();
+                const turnIndex = history.filter(e => e.role === 'gm').length;
+                const commitInterval = config.get<number>('gitAutoCommitInterval') ?? 1;
+                if (commitInterval > 0 && turnIndex > 0 && (turnIndex % commitInterval === 0)) {
+                    await commitTurn(turnIndex);
+                }
+                generateOocCommentary().catch(console.error);
+            },
         }
-
-        // Trigger OOC Sidekick asynchronously without blocking the UI
-        generateOocCommentary().catch(console.error);
+    );
+    if (route.kind === 'relay') {
+        return { relayRequestId: route.value };
+    }
+    if (route.kind === 'debug_fast_path') {
+        panel?.webview.postMessage({ type: 'gmEnd', success: true });
     }
 }
 

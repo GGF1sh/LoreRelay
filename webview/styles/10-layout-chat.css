@@ -138,6 +138,56 @@ body.relay-mode-active #app {
   min-height: 0;
 }
 
+/* Always-visible header row: what a persisted collapsed banner renders as.
+ * Never a blank/near-invisible region -- HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001. */
+#relay-banner-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  text-align: left;
+}
+
+#relay-banner-header-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#relay-banner-toggle-btn {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#relay-banner-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Decorative direction indicator only -- accessible name comes from the
+ * button's localized text content, not this glyph. */
+#relay-banner-toggle-btn::after {
+  content: '\25BE';
+  margin-left: 5px;
+}
+
+#relay-banner-toggle-btn[aria-expanded="true"]::after {
+  content: '\25B4';
+}
+
 #relay-mode-banner-content {
   padding: 8px;
   flex: 1 1 auto;

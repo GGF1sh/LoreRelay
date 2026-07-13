@@ -15200,6 +15200,178 @@ function updateRelayToggleButton(enabled) {
 let isResizingBanner = false;
 let bannerStartY = 0;
 let bannerStartHeight = 0;
+// Session-only memory of the last valid expanded height, kept even after the
+// banner collapses (or Relay is toggled off/on) so the explicit expand
+// control can restore it instead of falling back to the natural default.
+// Intentionally not persisted under a second localStorage key -- see
+// HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001 report for the single-key rationale.
+let relayBannerLastExpandedHeight = null;
+
+// ===== Relay banner collapse/expand state =====
+const RELAY_BANNER_STORAGE_KEY = 'lorerelay.relayBannerHeight';
+// Heights below this normalize to the explicit collapsed strip; this is also
+// the safe expanded minimum (an "expanded" banner is never shorter than this).
+const RELAY_BANNER_COLLAPSE_THRESHOLD = 20;
+const RELAY_BANNER_VIEWPORT_MAX_RATIO = 0.5;
+// Used only when window.innerHeight is unavailable (e.g. a non-browser harness).
+const RELAY_BANNER_FALLBACK_VIEWPORT_HEIGHT = 600;
+
+/** Safe expanded maximum for the current viewport; floored at the collapse threshold so a
+ * tiny viewport can never produce an inverted (max < min) clamp range. */
+function relayBannerViewportMax() {
+  const vh = (typeof window !== 'undefined' && typeof window.innerHeight === 'number' && window.innerHeight > 0)
+    ? window.innerHeight
+    : RELAY_BANNER_FALLBACK_VIEWPORT_HEIGHT;
+  return Math.max(RELAY_BANNER_COLLAPSE_THRESHOLD, vh * RELAY_BANNER_VIEWPORT_MAX_RATIO);
+}
+
+/**
+ * Normalizes a raw localStorage value (string|null|undefined) into a safe banner
+ * preference. Pure and DOM-free so it is directly unit-testable.
+ * Returns { collapsed: boolean, height: number|null } -- height is null for the
+ * natural/default expanded height (no inline height should be applied).
+ */
+function normalizeRelayBannerHeight(raw, viewportMax) {
+  const max = (typeof viewportMax === 'number' && viewportMax > 0) ? viewportMax : relayBannerViewportMax();
+  if (raw === null || raw === undefined || String(raw).trim() === '') {
+    return { collapsed: false, height: null };
+  }
+  const h = parseFloat(raw);
+  // Number.isFinite rejects NaN and +/-Infinity in one check; negative values
+  // and non-numeric/whitespace strings (parseFloat -> NaN) are also covered.
+  if (!Number.isFinite(h) || h < 0) {
+    return { collapsed: false, height: null };
+  }
+  if (h < RELAY_BANNER_COLLAPSE_THRESHOLD) {
+    return { collapsed: true, height: 0 };
+  }
+  return { collapsed: false, height: Math.min(h, max) };
+}
+
+function readRelayBannerPreference() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(RELAY_BANNER_STORAGE_KEY);
+  } catch (e) {
+    raw = null;
+  }
+  return normalizeRelayBannerHeight(raw, relayBannerViewportMax());
+}
+
+function relayBannerCollapsedInDom(content) {
+  return !content || content.style.display === 'none';
+}
+
+function setRelayBannerCollapsed(content) {
+  if (!content) { return; }
+  content.style.display = 'none';
+  content.style.height = '0px';
+}
+
+function setRelayBannerExpanded(content, height) {
+  if (!content) { return; }
+  content.style.display = '';
+  content.style.height = (typeof height === 'number' && height > 0) ? `${height}px` : '';
+}
+
+/** Snapshots the current expanded height before a collapse so the explicit
+ * expand control can restore it later in this session. */
+function rememberRelayBannerHeightIfValid(content) {
+  if (!content || relayBannerCollapsedInDom(content)) { return; }
+  const rect = typeof content.getBoundingClientRect === 'function' ? content.getBoundingClientRect() : null;
+  const height = rect && typeof rect.height === 'number' ? rect.height : NaN;
+  if (Number.isFinite(height) && height >= RELAY_BANNER_COLLAPSE_THRESHOLD) {
+    relayBannerLastExpandedHeight = height;
+  }
+}
+
+function persistRelayBannerHeight(content) {
+  if (!content) { return; }
+  try {
+    if (relayBannerCollapsedInDom(content)) {
+      localStorage.setItem(RELAY_BANNER_STORAGE_KEY, '0');
+    } else {
+      const rect = typeof content.getBoundingClientRect === 'function' ? content.getBoundingClientRect() : null;
+      const height = rect && typeof rect.height === 'number' ? rect.height : 0;
+      localStorage.setItem(RELAY_BANNER_STORAGE_KEY, String(height));
+    }
+  } catch (e) { /* ignore persistence failures (e.g. storage disabled) */ }
+}
+
+/** Applies the persisted preference to a freshly created banner and seeds the
+ * in-session "last expanded height" memory so an immediate collapse -> expand
+ * cycle restores it instead of jumping to the natural default. */
+function applyRelayBannerPreference(content) {
+  if (!content) { return; }
+  const pref = readRelayBannerPreference();
+  if (pref.collapsed) {
+    setRelayBannerCollapsed(content);
+  } else {
+    setRelayBannerExpanded(content, pref.height);
+    if (typeof pref.height === 'number') {
+      relayBannerLastExpandedHeight = pref.height;
+    }
+  }
+}
+
+// The collapse/expand control and header label are created entirely in JS (no
+// static HTML fallback exists for them, unlike #relay-toggle-btn). If
+// i18nStrings has not loaded yet, an English fallback is used instead of
+// skipping the write -- skipping would leave the control blank/unlabeled,
+// which is worse than a briefly-English label that self-corrects once
+// 'localeBundle' arrives and calls updateRelayBannerI18n() again.
+const RELAY_BANNER_FALLBACK_STRINGS = {
+  active: 'Antigravity Relay ON',
+  expand: 'Show details',
+  collapse: 'Hide details',
+  resetTitle: 'Double-click to reset banner height',
+};
+
+function relayBannerText(key, fallback) {
+  if (typeof i18nStrings !== 'undefined' && Object.keys(i18nStrings).length > 0) {
+    return T(key);
+  }
+  return fallback;
+}
+
+/** Refreshes the collapse/expand control's localized text and aria-expanded
+ * state from the banner's current DOM state. Safe to call at any time
+ * (banner creation, toggle, drag, dblclick reset, and locale change). */
+function updateRelayBannerI18n() {
+  const label = document.getElementById('relay-banner-header-label');
+  const toggleBtn = document.getElementById('relay-banner-toggle-btn');
+  const content = document.getElementById('relay-mode-banner-content');
+  const sash = document.getElementById('relay-banner-sash');
+  if (label) {
+    label.textContent = relayBannerText('webview.relay.toggle.on', RELAY_BANNER_FALLBACK_STRINGS.active);
+  }
+  const collapsed = relayBannerCollapsedInDom(content);
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    const text = collapsed
+      ? relayBannerText('webview.relay.banner.expand', RELAY_BANNER_FALLBACK_STRINGS.expand)
+      : relayBannerText('webview.relay.banner.collapse', RELAY_BANNER_FALLBACK_STRINGS.collapse);
+    toggleBtn.textContent = text;
+    toggleBtn.title = text;
+  }
+  if (sash) {
+    sash.title = relayBannerText('webview.relay.banner.resetTitle', RELAY_BANNER_FALLBACK_STRINGS.resetTitle);
+  }
+}
+
+/** Click/keyboard handler for the explicit collapse/expand control. */
+function toggleRelayBannerCollapsed() {
+  const content = document.getElementById('relay-mode-banner-content');
+  if (!content) { return; }
+  if (relayBannerCollapsedInDom(content)) {
+    setRelayBannerExpanded(content, relayBannerLastExpandedHeight);
+  } else {
+    rememberRelayBannerHeightIfValid(content);
+    setRelayBannerCollapsed(content);
+  }
+  persistRelayBannerHeight(content);
+  updateRelayBannerI18n();
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   // 保存された状態を復元
@@ -15605,16 +15777,43 @@ window.addEventListener('message', (event) => {
       if (!relayBanner) {
         relayBanner = document.createElement('div');
         relayBanner.id = 'relay-mode-banner';
-        
+
+        // Always-visible header: active-label + explicit collapse/expand
+        // control. This is what a persisted collapsed banner renders as, so
+        // it is never a blank/near-invisible region (HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001).
+        const bannerHeader = document.createElement('div');
+        bannerHeader.id = 'relay-banner-header';
+
+        const bannerHeaderLabel = document.createElement('span');
+        bannerHeaderLabel.id = 'relay-banner-header-label';
+        bannerHeader.appendChild(bannerHeaderLabel);
+
+        const bannerToggleBtn = document.createElement('button');
+        bannerToggleBtn.type = 'button';
+        bannerToggleBtn.id = 'relay-banner-toggle-btn';
+        bannerToggleBtn.setAttribute('aria-controls', 'relay-mode-banner-content');
+        bannerToggleBtn.addEventListener('click', () => {
+          toggleRelayBannerCollapsed();
+        });
+        bannerToggleBtn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            toggleRelayBannerCollapsed();
+          }
+        });
+        bannerHeader.appendChild(bannerToggleBtn);
+
+        relayBanner.appendChild(bannerHeader);
+
         const bannerContent = document.createElement('div');
         bannerContent.id = 'relay-mode-banner-content';
-        
+
         const bannerText = document.createElement('div');
         bannerText.textContent = T('webview.relay.banner.active');
         const bannerStatus = document.createElement('div');
         bannerStatus.setAttribute('data-relay-status', 'true');
         bannerStatus.className = 'relay-mode-status';
-        
+
         bannerContent.appendChild(bannerText);
         bannerContent.appendChild(bannerStatus);
         relayBanner.appendChild(bannerContent);
@@ -15625,42 +15824,31 @@ window.addEventListener('message', (event) => {
           isResizingBanner = true;
           bannerStartY = e.clientY;
           const content = document.getElementById('relay-mode-banner-content');
-          bannerStartHeight = content.style.display === 'none' ? 0 : content.getBoundingClientRect().height;
+          bannerStartHeight = relayBannerCollapsedInDom(content) ? 0 : content.getBoundingClientRect().height;
           bannerSash.classList.add('dragging');
           document.body.style.cursor = 'row-resize';
           document.body.style.userSelect = 'none';
         });
 
+        // Retained as a secondary shortcut alongside the explicit header
+        // control (double-click is no longer the only discoverable recovery
+        // path -- HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001).
         bannerSash.addEventListener('dblclick', () => {
           const content = document.getElementById('relay-mode-banner-content');
           if (content) {
-            content.style.display = '';
-            content.style.height = '';
-            localStorage.removeItem('lorerelay.relayBannerHeight');
+            setRelayBannerExpanded(content, null);
+            localStorage.removeItem(RELAY_BANNER_STORAGE_KEY);
+            relayBannerLastExpandedHeight = null;
+            updateRelayBannerI18n();
           }
         });
 
         relayBanner.appendChild(bannerSash);
-        
+
         document.body.insertBefore(relayBanner, document.body.firstChild);
 
-        const savedHeight = localStorage.getItem('lorerelay.relayBannerHeight');
-        if (savedHeight !== null && savedHeight !== '') {
-          let h = parseFloat(savedHeight);
-          if (!isNaN(h)) {
-            const maxH = window.innerHeight * 0.5;
-            if (h > maxH) h = maxH;
-            
-            const content = document.getElementById('relay-mode-banner-content');
-            if (h < 20) {
-              content.style.display = 'none';
-              content.style.height = '0px';
-            } else {
-              content.style.display = '';
-              content.style.height = `${h}px`;
-            }
-          }
-        }
+        applyRelayBannerPreference(bannerContent);
+        updateRelayBannerI18n();
       }
     } else {
       document.body.classList.remove('relay-mode-active');
@@ -15842,6 +16030,7 @@ window.addEventListener('message', (event) => {
     if (sBtnLocale) {
       sBtnLocale.textContent = window.antigravityRelayMode ? T('webview.relay.button.prepare') : T('webview.button.send');
     }
+    updateRelayBannerI18n();
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
     }
@@ -15887,16 +16076,22 @@ window.addEventListener('DOMContentLoaded', () => {
       if (content) {
         const diff = e.clientY - bannerStartY;
         let newHeight = bannerStartHeight + diff;
-        
-        const maxH = window.innerHeight * 0.5;
+
+        const maxH = relayBannerViewportMax();
         if (newHeight > maxH) newHeight = maxH;
-        
-        if (newHeight < 20) {
-          newHeight = 0; // Snap to completely hidden
-          content.style.display = 'none';
+
+        const wasCollapsed = relayBannerCollapsedInDom(content);
+        if (newHeight < RELAY_BANNER_COLLAPSE_THRESHOLD) {
+          // Dragging below the threshold still collapses the banner, but it
+          // immediately shows the explicit recovery strip rather than a
+          // near-invisible sliver (HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001).
+          if (!wasCollapsed) { rememberRelayBannerHeightIfValid(content); }
+          setRelayBannerCollapsed(content);
         } else {
-          content.style.display = '';
-          content.style.height = `${newHeight}px`;
+          setRelayBannerExpanded(content, newHeight);
+        }
+        if (wasCollapsed !== relayBannerCollapsedInDom(content)) {
+          updateRelayBannerI18n();
         }
       }
     }
@@ -15919,14 +16114,11 @@ window.addEventListener('DOMContentLoaded', () => {
       if (sash) sash.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      
+
       const content = document.getElementById('relay-mode-banner-content');
       if (content) {
-        if (content.style.display === 'none') {
-          localStorage.setItem('lorerelay.relayBannerHeight', 0);
-        } else {
-          localStorage.setItem('lorerelay.relayBannerHeight', content.getBoundingClientRect().height);
-        }
+        persistRelayBannerHeight(content);
+        updateRelayBannerI18n();
       }
     }
   });

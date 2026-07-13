@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LoreRelay Test Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main>
+  <header><div><h1>LoreRelay Test Console</h1><p>Local impact planning, execution, and evidence</p></div><span id="status" class="pill">idle</span></header>
+  <section class="controls panel">
+    <label>Base<input id="base" value="origin/main"></label>
+    <label>Head<input id="head" value="HEAD"></label>
+    <label>Mode<select id="mode"><option>focused</option><option selected>verify</option><option>integration</option><option>release</option></select></label>
+    <label>Concurrency<input id="concurrency" type="number" min="1" max="32" value="2"></label>
+    <label>Repeat full-suite reason<input id="repeat" placeholder="Required only for unchanged repeat"></label>
+    <button id="plan">Plan</button><button id="run" disabled>Run</button><button id="stop" class="danger" disabled>Stop</button>
+  </section>
+  <div id="error" class="error hidden"></div>
+  <section id="identity" class="grid"></section>
+  <section id="warning" class="warning hidden"></section>
+  <section class="panel"><h2>Progress</h2><div class="bar"><i id="bar"></i></div><p id="progress">No plan yet.</p><p id="counts"></p></section>
+  <div class="columns">
+    <section class="panel"><h2>Changed files</h2><div id="files" class="list muted">No plan yet.</div></section>
+    <section class="panel"><h2>Selected commands and reasons</h2><div id="commands" class="list muted">No plan yet.</div></section>
+  </div>
+  <section class="panel"><h2>Preflight</h2><div id="preflight" class="facts muted">No plan yet.</div></section>
+  <section class="panel"><h2>Live output</h2><div id="logs" class="muted">Output appears while commands run.</div></section>
+  <section class="panel"><h2>Artifacts</h2><div id="artifacts" class="muted">Artifacts appear after completion.</div></section>
+  <section class="panel human"><h2>Human smoke</h2><p id="human">Not performed. Automated execution never marks real VS Code smoke complete.</p></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

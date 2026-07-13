@@ -768,6 +768,10 @@
     "check:terminology": "node scripts/check_terminology_contract.js",
     "test:list": "node scripts/run_all_tests.js --list",
     "test:coverage": "c8 node scripts/run_all_tests.js --unit",
+    "test:console": "node tools/test-console/cli.js serve --open",
+    "test:plan": "node tools/test-console/cli.js plan",
+    "test:run": "node tools/test-console/cli.js run",
+    "test:console:self": "node tools/test-console/test/test_console.test.js",
     "domain:balance": "node scripts/domain_balance_harness.js"
   },
   "devDependencies": {

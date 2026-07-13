@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "test-console",
+      "patterns": ["tools/test-console/**", "LoreRelay_Test_Console.bat"],
+      "tests": ["test_test_console.js"],
+      "boundaries": ["utf8-docs"],
+      "reason": "Test Console implementation or launcher changed."
+    },
+    {
+      "id": "test-runner",
+      "patterns": ["scripts/run_all_tests.js", "scripts/simulation_test_manifest.js", "scripts/run_simulation_tests.js"],
+      "tests": ["test_test_console.js"],
+      "reason": "Shared test manifest or runner behavior changed."
+    },
+    {
+      "id": "webview-modules",
+      "patterns": ["webview/modules/**"],
+      "tests": ["test_webview_bundle.js", "test_webview_world_modules.js", "test_webview_handlers_core.js"],
+      "boundaries": ["compile", "webview-parity", "i18n"],
+      "reason": "Generated webview modules require bundle and host-contract coverage."
+    },
+    {
+      "id": "webview-styles",
+      "patterns": ["webview/styles/**"],
+      "tests": ["test_webview_bundle.js", "test_webview_genre_chrome.js", "test_relay_viewport_theme_layout.js"],
+      "boundaries": ["compile", "webview-parity"],
+      "reason": "Webview styling requires generated bundle and layout parity checks."
+    },
+    {
+      "id": "webview-index",
+      "patterns": ["webview/index.html"],
+      "tests": ["test_webview_bundle.js", "validate_webview_html_structure.js"],
+      "boundaries": ["compile", "webview-parity", "i18n"],
+      "reason": "The webview document boundary changed."
+    },
+    {
+      "id": "locales",
+      "patterns": ["locales/**", "package.nls*.json"],
+      "tests": ["check_i18n_keys.js"],
+      "boundaries": ["i18n", "utf8-docs"],
+      "reason": "Locale resources require key and encoding validation."
+    },
+    {
+      "id": "typescript-source",
+      "patterns": ["src/**"],
+      "tests": ["validate.js"],
+      "boundaries": ["compile", "symbol-registry", "i18n"],
+      "reason": "Packaged TypeScript source changed; compile and contract validation are required."
+    },
+    {
+      "id": "test-script",
+      "patterns": ["scripts/test_*.js", "scripts/test_*.py", "scripts/validate_*.js", "scripts/check_*.js"],
+      "testsFromChangedFiles": true,
+      "reason": "Changed test or validator must execute directly."
+    },
+    {
+      "id": "installer",
+      "patterns": ["installer/**", "scripts/*installer*.js", "scripts/*installer*.ps1", "scripts/install*.ps1", "scripts/test_antigravity_install*.js", "scripts/test_*installer*.js"],
+      "tests": ["test_antigravity_installer.js", "test_antigravity_installer_bootstrap.js", "test_antigravity_skill_installer.js", "test_antigravity_install_chain.js"],
+      "boundaries": ["version-consistency", "utf8-docs"],
+      "reason": "Installer logic requires hermetic installer coverage and serialized worktree access.",
+      "exclusiveGroup": "installer-worktree"
+    },
+    {
+      "id": "symbol-registry",
+      "patterns": ["docs/generated/symbol-registry.json", "scripts/generate_symbol_registry.js", "symbol-registry.json"],
+      "tests": ["test_symbol_registry.js"],
+      "boundaries": ["symbol-registry"],
+      "reason": "Generated symbol registry or its generator changed."
+    },
+    {
+      "id": "release-truth",
+      "patterns": ["package.json", "package-lock.json", "CHANGELOG.md", "RELEASE*.md", "docs/release/**", "scripts/check_version_consistency.js"],
+      "tests": ["check_version_consistency.js"],
+      "boundaries": ["version-consistency", "utf8-docs"],
+      "reason": "Package or release-truth data changed."
+    },
+    {
+      "id": "sample-scenarios",
+      "patterns": ["sample-scenarios/**", "samples/**", "scenarios/**"],
+      "tests": ["test_sample_scenarios.js", "test_scrapbound_sample_integrity.js"],
+      "boundaries": ["utf8-docs"],
+      "reason": "Sample scenario content requires integrity and encoding checks."
+    },
+    {
+      "id": "simulation-noai",
+      "patterns": ["scripts/run_noai_*.js", "scripts/noai_**", "src/*Simulation*.ts", "src/*Simulator*.ts", "src/*World*.ts"],
+      "tests": ["test_determinism_spine_core.js", "test_noai_soak_runner_core.js", "run_simulation_tests.js"],
+      "boundaries": ["compile"],
+      "reason": "Simulation or NOAI behavior changed.",
+      "exclusiveGroup": "simulation-stress"
+    },
+    {
+      "id": "documentation",
+      "patterns": ["docs/**", "README.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE*", "AGENTS.md"],
+      "tests": ["validate_utf8_docs.js"],
+      "boundaries": ["utf8-docs"],
+      "reason": "Documentation-only changes require UTF-8 validation."
+    },
+    {
+      "id": "tooling-config",
+      "patterns": [".gitignore", ".github/**", "tsconfig.json", ".vscodeignore"],
+      "tests": ["validate_utf8_docs.js"],
+      "reason": "Repository tooling configuration changed."
+    }
+  ],
+  "boundaries": {
+    "compile": {
+      "id": "boundary:compile",
+      "command": "npm run compile",
+      "executable": "npm",
+      "args": ["run", "compile"],
+      "category": "validate",
+      "timeoutMs": 240000,
+      "workspaceWriter": true,
+      "exclusiveGroup": "generated-output"
+    },
+    "webview-parity": {
+      "test": "test_webview_bundle.js"
+    },
+    "symbol-registry": {
+      "id": "boundary:symbol-registry",
+      "command": "npm run check:symbol-registry",
+      "executable": "npm",
+      "args": ["run", "check:symbol-registry"],
+      "category": "validate",
+      "timeoutMs": 120000,
+      "exclusiveGroup": "generated-output"
+    },
+    "i18n": { "test": "check_i18n_keys.js" },
+    "version-consistency": { "test": "check_version_consistency.js" },
+    "utf8-docs": { "test": "validate_utf8_docs.js" }
+  }
+}

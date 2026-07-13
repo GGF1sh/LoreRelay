@@ -286,6 +286,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_antigravity_skill_installer.js' },
     { category: 'unit', file: 'test_antigravity_install_chain.js', timeoutMs: 240000 },
     { category: 'unit', file: 'test_relay_banner_resizer.js' },
+    { category: 'unit', file: 'test_test_console.js', timeoutMs: 120000 },
     {
         category: 'simulation',
         file: 'run_simulation_tests.js',

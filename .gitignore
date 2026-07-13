@@ -30,3 +30,4 @@ memories/
 # Python/cache artifacts that may appear when testing helper scripts
 __pycache__/
 *.pyc
+.test-runs/

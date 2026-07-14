@@ -279,7 +279,7 @@ const DOMAIN_EVENT_EFFECTS: Record<string, DomainStatDelta> = {
     domain_quiet_month: { popularSupport: 1 },
 };
 
-const DOMAIN_EVENT_GM_HINTS: Record<string, string> = {
+export const DOMAIN_EVENT_GM_HINTS: Record<string, string> = {
     bad_harvest: 'Crop yields failed; narrate hunger anxiety and rationing. Core already reduced food and support.',
     merchant_visit: 'A traveling merchant arrived; narrate trade opportunity. Treasury already increased.',
     bandit_activity: 'Bandits troubled the roads; narrate fear and patrols. Order and treasury already reduced.',

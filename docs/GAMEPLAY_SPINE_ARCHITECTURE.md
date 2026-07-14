@@ -1,11 +1,11 @@
 # LoreRelay Gameplay Spine Architecture
 
-- Status: design only; reconciled against the implemented economy/logistics stack
-- Gameplay Spine implementation status: not started
+- Status: design gate; reconciled through trusted roll evidence Slice 002
+- Gameplay Spine implementation status: Slice 001 complete; Slice 002 design only
 - Design authority: gameplay action lifecycle and subsystem integration
-- Implementation base: `88fb824586926f29ddba879b8686de463ff54e34`
+- Slice 002 reconciliation base: `49a12d1206eacd6a8b7f3e6fe75a11858c08fcd6`
 - Reconciled economy range: `NOAI-ECON-FLOWS-001` through `NOAI-ECON-FLOWS-005`
-- First implementation slice: `NOAI-GAMEPLAY-SPINE-001`
+- Next implementation slice: `NOAI-GAMEPLAY-SPINE-002`
 
 ## 0. Decision summary
 
@@ -402,7 +402,7 @@ Narration failure must not roll back a successful commit.
 ## 6. Minimal canonical contracts
 
 These shapes are architectural targets, not immediate implementation instructions. Exact
-generic syntax may be adjusted during Slice 001 without expanding the semantics.
+generic syntax may be adjusted in the owning implementation slice without expanding semantics.
 
 ### 6.1 Reuse `WorldIntent`
 
@@ -458,7 +458,7 @@ Rules:
 - mods may contribute data to a registered action family later, but V1 mods do not register
   arbitrary executable functions;
 - requirement evaluation remains handler-owned initially; do not build a universal
-  expression language in Slice 001.
+  expression language in an early Gameplay Spine slice.
 
 ### 6.3 Query status
 
@@ -649,55 +649,417 @@ clocks and does not imply that the action advanced all of them.
 
 ## 7. Resolution and trusted randomness
 
-### 7.1 Core owns the check result
+### 7.1 Current dice provenance is mixed
 
-AI may propose that an action is uncertain and may identify relevant fiction. It may not
-authoritatively provide:
+At the Slice 002 reconciliation base, `DiceLedgerEntry` is one compatibility shape used by
+several paths with different provenance. Possession of that shape does not establish trust.
 
-- raw dice values;
-- final total;
-- success boolean;
-- state deltas justified only by prose.
+| Entry path | Current behavior | Classification for Gameplay Spine |
+| --- | --- | --- |
+| Player `{{roll ...}}` through `processDiceMacros()` in `src/diceRoller.ts` | The extension parses the formula and calls Node `crypto.randomInt`; `src/extension.ts` forwards the resulting ledger to `invokeGmBridge()` | Host-generated, but insufficiently evidenced as a durable trusted receipt because term structure, source, algorithm, and receipt identity are absent |
+| `dice_ledger.json` forwarding through `src/gmBridgeRunner.ts`, the Python GM bridge, or `src/turnResultFallback.ts` | The host writes the player ledger; later readers load/copy the array without recomputing it | Known host origin only while that call chain is intact; after file loading the entry itself carries ambiguous provenance and remains legacy data |
+| VS Code LM `{{DICE:NdS}}` marker substitution in `src/vscodeLmTurnResultCore.ts` | The model proposes a marker; the extension clamps count/sides and generates values with `Math.random`, then builds a legacy ledger entry | Host-generated values, not model-generated values, but insufficiently evidenced and not Slice 002 trusted evidence |
+| Agentic referee JSON parsed by `parseDiceLedger()` in `src/agenticGmCore.ts` | The parser bounds array/string sizes and finite numbers, but copies `total`, `dc`, and `success` without formula validation or recomputation | Model-provided and untrusted |
+| Provider, Relay, or another external writer of `turn_result.json` | `src/gameStateSync.ts` parses the file as `TurnResult`; relay matching checks request correlation, not dice semantics | External/model-provided or unknown provenance; untrusted |
+| `state_journal.ndjson`, `dice_ledger.json` in turn commits, Chronicle, replay export, and Webview projection | Existing code copies or sanitizes selected fields for history, recap, export, and display; it does not reconstruct signed terms or prove the result | Persisted historical presentation, not trusted replay evidence |
 
-The action/rule core produces a `CheckSpec`. A trusted host random source produces a
-`RollReceipt`. The pure resolver validates and consumes that receipt.
+The accepted-turn replay guard hashes the complete accepted payload and detects duplicate or
+conflicting accepted turns. That is useful integrity/correlation evidence, but it does not
+prove how any roll was generated or that its total and outcome are mechanically correct.
+
+The Chronicle can summarize the first ledger entry, beat classification can inspect
+`reason`, and the resulting recap may later be injected into a prompt. Agentic referee input
+also receives the player ledger. Replay export prints ledger fields. These are reuse and
+presentation paths, not mechanical replay or promotion to trusted evidence. The Webview
+manual roller and Remote Play hidden-dice behavior are separate UI features; the inspected
+paths do not create a `DiceLedgerEntry` trusted by Gameplay Spine.
+
+Consequently, a referee model can currently return the following object and have its finite
+values accepted into the agentic `TurnResult` without host recomputation:
+
+```json
+{
+  "diceLedger": [
+    {
+      "formula": "1d20+2",
+      "rolls": [20],
+      "modifier": 2,
+      "total": 22,
+      "dc": 15,
+      "success": true
+    }
+  ]
+}
+```
+
+This is a current trust limitation. During migration, model-provided ledger data is at most
+display/history input. It must never justify Gameplay Spine outcome or canonical effects.
+
+### 7.2 Current macro formula language is broader than its receipt
+
+`src/diceRoller.ts` currently removes whitespace, lowercases the formula, admits only digits,
+`d`, `+`, and `-`, and tokenizes signed terms. Its effective intended language includes:
+
+- `d20` and `1d20` (`d20` defaults the count to one);
+- multiple dice terms such as `2d6+1d8-3`;
+- negative dice terms such as `1d20-1d4+2`;
+- positive and negative flat terms;
+- a lone positive bare number such as `100`, treated specially as `1d100` rather than a
+  `+100` modifier;
+- dice count `1..100` and sides `1..1000` for each dice term;
+- at most 20 successfully processed macros in one text, `dc` clamped to `1..10000`, and
+  `reason` truncated to 200 characters.
+
+There is no aggregate dice-count limit across multiple terms, explicit formula-length bound,
+or explicit flat-modifier bound in this parser. Invalid characters, invalid dice count/sides,
+and invalid numeric terms normally throw; `processDiceMacros()` then leaves the original macro
+unchanged. The tokenization is match-based rather than a canonical full-consumption parser, so
+it is not suitable as the trusted Slice 002 validator even though it filters characters first.
+
+The legacy fields are lossy for this language. For `1d20-1d4+2`, `rolls` contains both raw
+values in occurrence order and `modifier` is `2`; it does not record that the second value is
+subtracted or what sides produced either value. For `2d6+1d8-3`, term boundaries and sides are
+also lost. For `100`, the formula text does not itself distinguish the parser's special
+`1d100` interpretation from a flat number in another grammar. Therefore
+`sum(rolls) + modifier` cannot validate all current formulas.
+
+### 7.3 Slice 002 chooses structured signed terms
+
+Slice 002 uses a bounded, fully consumed formula grammar plus structured signed term evidence.
+It does not retain an ambiguous flat `rolls` receipt merely for legacy compatibility.
 
 ```ts
+interface DiceTermSpec {
+    sign: 1 | -1;
+    count: number;
+    sides: number;
+}
+
+interface ParsedCheckFormula {
+    schemaVersion: 1;
+    normalizedFormula: string;
+    terms: DiceTermSpec[];
+    flatModifier: number;
+}
+
+interface RollTermReceipt {
+    sign: 1 | -1;
+    count: number;
+    sides: number;
+    rolls: number[];
+}
+```
+
+The grammar accepts one or more explicit dice terms joined by `+` or `-`, plus zero or more
+signed integer flat terms. It accepts `d20` as input and canonicalizes it to `1d20`. It accepts
+examples such as `1d20-1d4+2` and `2d6+1d8-3`. It removes ASCII whitespace before parsing,
+requires full-string consumption, preserves dice-term order, and combines all flat terms into
+one `flatModifier` in the normalized form.
+
+Canonicalization removes leading zeroes from parsed integers, makes every dice count explicit,
+removes a leading `+`, serializes dice terms in encounter order, and appends the aggregate flat
+modifier only when non-zero. Thus `d020 + 02 - 1d004` normalizes to `1d20-1d4+2` after all
+bounds pass. A leading negative dice term retains `-`. Flat terms may appear anywhere in input,
+but their aggregate is serialized after the ordered dice terms.
+
+A bare integer is always a flat term in the trusted grammar, and a formula must contain at
+least one explicit `d` term. Therefore standalone `100` is rejected by the Slice 002 parser.
+The future legacy macro adapter may deliberately translate the current standalone `100`
+meaning to `1d100`; the trusted parser must not infer that ambiguity itself. This does not
+change or invalidate current macro runtime behavior.
+
+Slice 002 bounds are:
+
+| Value | Bound |
+| --- | --- |
+| Input formula | 1..128 characters before normalization |
+| Dice terms | 1..8 |
+| Dice count per term | integer `1..100` |
+| Total dice across terms | `1..100` |
+| Sides | integer `2..1000` |
+| Formula flat modifier | integer `-10000..10000` after aggregation |
+
+The trusted grammar intentionally excludes one-sided dice even though the current macro parser
+accepts them. Existing legacy results remain display/history data; promotion requires an
+explicit compatible adapter and complete evidence.
+
+### 7.4 `CheckSpec` is bounded calculation input
+
+```ts
+type CheckModifierSource =
+    | 'actor'
+    | 'target'
+    | 'world'
+    | 'equipment'
+    | 'assistance'
+    | 'difficulty_policy';
+
 interface CheckModifier {
     id: string;
     value: number;
-    source: 'actor' | 'target' | 'world' | 'equipment' | 'assistance' | 'difficulty_policy';
+    source: CheckModifierSource;
 }
 
 interface CheckSpec {
     formula: string;
     dc: number;
     modifiers: CheckModifier[];
-    partialBand?: { min: number; max: number };
-}
-
-interface RollReceipt {
-    receiptId: string;
-    formula: string;
-    rolls: number[];
-    modifier: number;
-    total: number;
-    source: 'system_random' | 'seeded_simulation';
-    algorithmVersion: number;
+    partialBand?: {
+        minDeficit: number;
+        maxDeficit: number;
+    };
 }
 ```
 
-The resolver recomputes totals and outcomes. It does not trust a supplied `success` flag.
-`WorldIntent.seed` is request metadata or a seeded-simulation hint; it is not trusted roll
-evidence for a player check.
+Rules:
 
-### 7.2 Replay uses evidence, not a reroll
+- `formula` may contain its bounded aggregate flat modifier. Those terms describe the base
+  dice expression. `modifiers` are separate contextual contributions and are never silently
+  folded into the formula before validation.
+- `dc` is a finite integer in `1..100000`; zero, negative, fractional, and non-finite DCs are
+  rejected. An unconditional action should use `automatic`, not a zero-DC check.
+- `modifiers` contains at most 32 entries. Each `id` is a unique ASCII token of 1..64
+  characters, each value is a finite integer in `-10000..10000`, and duplicate IDs are
+  rejected. The aggregate contextual modifier must remain in `-100000..100000`.
+- Validation returns a new canonical value and never mutates input. Modifier output order is
+  lexicographic by `id`; dice-term order remains formula order. Diagnostics use a stable
+  validation order.
+- `partialBand` is expressed as positive distance below `dc`. Both values are integers in
+  `1..100000` and `minDeficit <= maxDeficit`; otherwise the spec is rejected. Because the band
+  applies only when `total < dc`, it cannot overlap success.
+- With no partial band, the only outcomes are `success` and `failure`.
 
-Exact replay must consume the recorded `RollReceipt`. It must not call RNG again. Seeded
-simulation may also record a seed witness and algorithm version, but the final bounded roll
-evidence remains part of the resolution receipt.
+Outcome calculation is exact and ordered:
 
-### 7.3 Do not choose a universal dice system yet
+```text
+diceTotal = sum(term.sign * sum(term.rolls))
+total = diceTotal + parsedFormula.flatModifier + sum(canonical modifiers)
+
+if total >= dc:
+    success
+else if partialBand exists and dc - total is within its inclusive bounds:
+    partial
+else:
+    failure
+```
+
+Every arithmetic input and intermediate result must be a safe integer. This contract defines
+calculation authority only; it does not define a universal DC table, skill system, or campaign
+balance.
+
+### 7.5 `RollReceipt` contains evidence, not conclusions
+
+```ts
+type RollEvidenceSource = 'system_random' | 'seeded_simulation';
+
+interface RollReceipt {
+    schemaVersion: 1;
+    receiptId: string;
+    source: RollEvidenceSource;
+    algorithmVersion: string;
+    normalizedFormula: string;
+    terms: RollTermReceipt[];
+    seedWitness?: string;
+}
+```
+
+`receiptId` belongs in the pure contract for correlation, but pure Core only validates a
+caller-supplied ID; it never generates one. The ID is a 1..128 character ASCII token.
+`algorithmVersion` is a required 1..64 character ASCII token naming the generating algorithm,
+not an unbounded object or executable selector. No source other than `system_random` and
+`seeded_simulation` is accepted.
+
+For this slice, “ASCII token” means the full value matches
+`[A-Za-z0-9][A-Za-z0-9._:-]*`. The same grammar applies to modifier IDs, `receiptId`,
+`algorithmVersion`, and `seedWitness`, with each field's own length bound.
+
+The receipt repeats `normalizedFormula` and each term's `sign`, `count`, and `sides` to bind
+evidence to the parsed spec. Receipt terms must match the parsed formula one-for-one and in
+order. Each `rolls` array must have exactly `count` safe integers, each in `1..sides`. The
+receipt carries no flat modifier, total, DC, outcome, or trusted `success` boolean; Core derives
+all of those from validated spec and evidence.
+
+`seedWitness` is required for `seeded_simulation` and forbidden for `system_random`. It is a
+bounded 1..128 character opaque correlation/digest token, not necessarily the reusable raw
+seed. Slice 002 validates its shape but does not cryptographically prove that a caller used the
+claimed source. Trust still depends on admitting receipts only from a host or deterministic
+simulation boundary; a model cannot make its own data trusted by setting `source`.
+
+Impossible term shapes, formula mismatches, wrong roll counts, out-of-range rolls, unknown
+sources, malformed IDs/versions, non-finite numbers, unsafe integers, or overflow reject the
+whole receipt. Validation and resolution return new stable data and never mutate the spec,
+receipt, term arrays, or modifier arrays.
+
+### 7.6 Generation, validation, and resolution stay separate
+
+```text
+generation
+    trusted host RNG or seeded simulation creates structured raw evidence
+        |
+validation
+    pure Core parses CheckSpec and verifies RollReceipt against it
+        |
+resolution
+    pure Core recomputes dice total, final total, and MechanicalOutcome
+        |
+compatibility projection
+    computed result becomes legacy DiceLedgerEntry for existing consumers
+```
+
+Slice 002 implements the pure parser, validator, resolver, and projection only. It does not
+call `crypto`, `Math.random`, time, filesystem, network, VS Code, or any other generator. It
+does not replace the current host RNG or connect the new contract to a runtime path.
+
+AI may suggest fiction, factors, or a bounded `CheckSpec` candidate in a later interpretation
+slice. An authoritative rules layer must validate/choose the final spec, an admitted host or
+simulation source supplies evidence, and Core computes the result. Narration receives that
+computed result and may not alter it.
+
+### 7.7 Pure public API boundary
+
+Slice 002 exposes these pure stages rather than one function that secretly generates or trusts
+missing data:
+
+```ts
+type CheckCoreResult<T> =
+    | { ok: true; value: T }
+    | { ok: false; error: CheckValidationError };
+
+interface CheckValidationError {
+    code:
+        | 'invalid_type'
+        | 'invalid_format'
+        | 'out_of_range'
+        | 'too_many_items'
+        | 'duplicate_id'
+        | 'unsafe_integer'
+        | 'formula_mismatch'
+        | 'term_mismatch'
+        | 'roll_count_mismatch'
+        | 'roll_out_of_range'
+        | 'seed_witness_mismatch'
+        | 'arithmetic_overflow';
+    path: string;
+}
+
+interface ValidatedCheckSpec {
+    formula: ParsedCheckFormula;
+    dc: number;
+    modifiers: CheckModifier[];
+    partialBand?: { minDeficit: number; maxDeficit: number };
+}
+
+interface ValidatedRollReceipt extends RollReceipt {}
+
+interface ComputedCheckResolution {
+    spec: ValidatedCheckSpec;
+    receipt: ValidatedRollReceipt;
+    diceTotal: number;
+    formulaModifier: number;
+    contextualModifierTotal: number;
+    total: number;
+    outcome: MechanicalOutcome;
+}
+
+parseCheckFormula(formula: unknown): CheckCoreResult<ParsedCheckFormula>;
+validateCheckSpec(spec: unknown): CheckCoreResult<ValidatedCheckSpec>;
+validateRollReceipt(
+    spec: ValidatedCheckSpec,
+    receipt: unknown
+): CheckCoreResult<ValidatedRollReceipt>;
+resolveCheck(
+    spec: unknown,
+    receipt: unknown
+): CheckCoreResult<ComputedCheckResolution>;
+projectCheckResolutionToDiceLedger(
+    resolution: ComputedCheckResolution,
+    reason?: unknown
+): DiceLedgerEntry;
+```
+
+`resolveCheck()` is the safe convenience boundary: it invokes the same spec and receipt
+validation before calculation. It never assumes that a TypeScript assertion proves runtime
+trust. The lower-level validators remain exported for generation-boundary diagnostics and
+focused tests. Projection accepts only a computed resolution, never arbitrary legacy input.
+
+Validators fail on the first error in this stable phase order: formula envelope and parse,
+formula numeric bounds, DC, modifiers in input order, aggregate modifier, partial band,
+receipt envelope/provenance, formula binding, term metadata in order, roll counts/values in
+order, then arithmetic. `path` uses a stable dotted/indexed form such as
+`modifiers[2].id` or `terms[1].rolls[0]`. The exact English error message is not contractual;
+`code` and `path` are. Successful outputs are deep canonical copies.
+
+### 7.8 Legacy `DiceLedgerEntry` is a lossy outward projection
+
+The one-way compatibility rule is:
+
+```text
+validated CheckSpec + validated RollReceipt + computed resolution
+    -> lossy DiceLedgerEntry projection
+```
+
+It is not:
+
+```text
+arbitrary DiceLedgerEntry -> automatically trusted RollReceipt
+```
+
+Projection rules are exact:
+
+- `formula`: Core's canonical `normalizedFormula`;
+- `rolls`: raw values flattened in structured term order; signs, sides, and boundaries are
+  intentionally lost in this legacy view;
+- `modifier`: parsed formula flat modifier plus the stable sum of contextual modifiers;
+- `total`: Core-computed final total;
+- `reason`: optional bounded display metadata supplied separately by the caller, never a
+  mechanical input; trim it, omit it when empty, and truncate it to 200 UTF-16 code units;
+- `dc`: validated `CheckSpec.dc`;
+- `success`: `true` for `success`, `false` for `failure`, and omitted for `partial` because the
+  legacy boolean cannot represent a third outcome honestly.
+
+No legacy field is copied back as mechanical authority. A legacy entry may be promoted only
+when a trusted caller can also provide its provenance and complete signed term evidence and
+the pure validator accepts both. Most current entries, especially multi-term and negative-term
+formulas, do not contain enough information for promotion.
+
+`processDiceMacros()` therefore remains the legacy host-generated display/ledger path in this
+slice. A later runtime migration can make its generator emit structured evidence, validate and
+resolve that evidence through Gameplay Spine, then produce the same compatibility entry. Slice
+002 neither changes the parser nor silently declares its current results invalid.
+
+Model/referee-provided `diceLedger` remains display/history data during migration or may be
+dropped by a future authoritative integration boundary. It is never accepted as mechanics and
+never authorizes effects.
+
+### 7.9 Exact replay reuses validated evidence
+
+Exact check replay loads the recorded validated `CheckSpec` and `RollReceipt`, validates them
+again, and recomputes the same result. It never invokes RNG. `system_random` replay therefore
+requires the final structured term evidence and algorithm metadata. `seeded_simulation`
+records both final term evidence and `algorithmVersion` plus `seedWitness`; replay still uses
+the evidence rather than regenerating values from the seed witness.
+
+This decision prevents algorithm upgrades or missing RNG implementations from changing past
+outcomes. Durable storage, receipt-ledger ownership, cryptographic audit guarantees, and
+accepted-turn integration are later gates; Slice 002 defines the replayable value contract but
+does not add persistence or event sourcing.
+
+### 7.10 Core owns the check result
+
+AI may propose that an action is uncertain and may identify relevant fiction. It may not
+authoritatively provide:
+
+- raw dice values;
+- final total;
+- success, partial-success, or failure outcome;
+- state deltas justified only by prose.
+
+The action/rule core produces the final validated `CheckSpec`. A separately trusted host or
+seeded-simulation boundary produces a `RollReceipt`. The pure resolver validates and consumes
+that receipt. `WorldIntent.seed` alone is request metadata or a generation hint; it is not
+trusted evidence for a player check.
+
+### 7.11 Do not choose a universal dice system yet
 
 The first Gameplay Spine slices should define evidence and authority, not decide whether all
 worlds use d20, percentile, dice pools, or another formula. A later rule-profile slice may
@@ -714,7 +1076,7 @@ specified and tested:
 - consequence severity;
 - compatibility with existing prompts and `DiceLedgerEntry`.
 
-### 7.4 Resolution modes
+### 7.12 Resolution modes
 
 Use the smallest mode that matches the action:
 
@@ -1352,11 +1714,49 @@ Excludes:
 
 ### `NOAI-GAMEPLAY-SPINE-002`: check specification and trusted roll evidence
 
-- pure `CheckSpec`, modifier breakdown, and `RollReceipt` validation;
-- pure outcome computation from injected evidence;
-- compatibility projection to `DiceLedgerEntry`;
-- no host RNG replacement yet;
-- no fixed global DC table.
+This is a pure contract and calculation slice. It establishes authority without integrating a
+runtime producer.
+
+Includes only:
+
+- bounded `CheckSpec`, `CheckModifier`, parsed-formula, signed term, `RollReceipt`, validation
+  result, and computed resolution types from Section 7;
+- a full-consumption pure parser/canonicalizer for the Slice 002 formula grammar;
+- pure spec validation, pure receipt-to-spec validation, and pure total/outcome computation;
+- pure lossy projection from a computed result to `DiceLedgerEntry`;
+- deterministic, immutable outputs and stable diagnostic ordering;
+- focused tests for bounds, canonicalization, signed/multiple terms, evidence mismatch,
+  outcome boundaries, partial bands, projection, overflow, and input immutability.
+
+The slice must prove at least these examples:
+
+| Input | Required result |
+| --- | --- |
+| `d20` | canonical `1d20` |
+| `1d20-1d4+2` | two ordered signed terms and flat modifier `2` |
+| `2d6+1d8-3` | two ordered positive terms and flat modifier `-3` |
+| standalone `100` | rejected by trusted parser; legacy runtime behavior unchanged |
+| duplicate modifier IDs | rejected |
+| roll outside `1..sides` | receipt rejected |
+| receipt formula/term mismatch | receipt rejected |
+| `total === dc` | `success` |
+| deficit inside inclusive partial band | `partial` |
+| no partial band and `total < dc` | `failure` |
+| projected partial outcome | legacy `success` omitted |
+
+Excludes:
+
+- host RNG implementation or replacement;
+- changes to `processDiceMacros()` behavior;
+- GM/referee prompts or response parsing;
+- `TurnResult` schema migration;
+- authoritative host/runtime integration;
+- Webview, Remote Play, locale, persistence, or replay-storage changes;
+- final adjudication profile, fixed global DC table, skill/attribute rules, opposed checks,
+  combat, economy actions, effect planning, or commit behavior.
+
+Slice 002 may import `DiceLedgerEntry` as a type for its compatibility projector. It may not
+change that legacy interface or treat it as input authority.
 
 ### `NOAI-GAMEPLAY-SPINE-003`: action query/preview projection
 
@@ -1484,14 +1884,27 @@ Primary risks:
   market stock deltas, and read-only logistics projection exist at `88fb824`;
 - `EconomyOperationalState` and latest-tick view snapshots are transient, not canonical
   persisted mutable economy state;
-- the read-only logistics UI does not create authority for facility or route actions.
+- the read-only logistics UI does not create authority for facility or route actions;
+- Slice 001's pure lifecycle vocabulary and `vehicle:repair_vehicle` shadow adapter exist at
+  `49a12d1206eacd6a8b7f3e6fe75a11858c08fcd6`;
+- current `DiceLedgerEntry` provenance is mixed: player macros and VS Code LM markers are
+  host-generated legacy paths, agentic referee and arbitrary `turn_result.json` values may be
+  model/external data, and no current entry shape is the Slice 002 trusted receipt;
+- current history, Chronicle, prompt reuse, Webview display, and replay export preserve or
+  present legacy dice values but do not prove or mechanically replay them.
 
 ### 17.2 Decisions intentionally deferred
 
-- final name and values of `adjudicationProfile`;
 - versioned expansion policy for `IntentSubsystem`;
-- dice system and exact DC mapping;
+- final adjudication profile names and values;
+- universal DC table and campaign difficulty mapping;
+- skill/attribute system;
+- combat initiative;
 - generic opposed-check formula;
+- host UI and runtime integration for trusted rolls;
+- cryptographic roll audit guarantees;
+- durable `RollReceipt` ledger and accepted-turn storage integration;
+- model intent interpretation into candidate checks;
 - facility and route runtime ledger owner and host injection path;
 - promotion of `facility` and `trade_route` to cross-ledger identity kinds;
 - project reservation semantics;
@@ -1501,7 +1914,7 @@ Primary risks:
 - whether combat encounters need a persistent encounter ledger;
 - final player-facing action UI.
 
-These are gates, not invitations to guess during Slice 001.
+These are gates, not invitations to guess during Slice 002.
 
 ## 18. Model allocation
 
@@ -1510,122 +1923,201 @@ Recommended allocation after this architecture is accepted:
 | Work | Model | Reasoning |
 | --- | --- | --- |
 | Architecture changes or cross-ledger authority decisions | GPT-5.6 Sol | Very High |
-| `NOAI-GAMEPLAY-SPINE-001` pure shadow implementation | Grok 4.5 or GPT-5.5 Thinking | High |
+| `NOAI-GAMEPLAY-SPINE-002` pure evidence implementation | GPT-5.5 Thinking or equivalent capable coding model | High |
 | Focused parity review and play-feel review | Fable 5 | High |
 | Mechanical adapter implementation after contracts are fixed | capable lower coding model | Medium/High by risk |
 
 Reserve GPT-5.6 Sol for architecture that must reconcile identity, persistence ownership,
-cross-ledger accounting/rollback, or similarly coupled system boundaries. Slice 001 is a
-bounded pure compatibility implementation and does not require Sol.
+cross-ledger accounting/rollback, or similarly coupled system boundaries. Slice 002 is a
+bounded pure parser/validator implementation after this contract is fixed and does not require
+Sol.
 
 Do not send `NOAI-ECON-FLOWS-006` to an implementation model until the Section 14 gates are
 closed.
 
-## Appendix A: first implementation handoff prompt
+## Appendix A: Slice 002 implementation handoff prompt
 
-The following prompt is for a later session. It is included for handoff only; this design
-task must not execute it.
+The following prompt is for a later session. It is included for handoff only; this design task
+must not execute it.
+
+The documentation commit cannot literally contain its own Git SHA. The implementation session
+must resolve the immutable gate commit before editing: it is the unique pushed commit on
+`task/NOAI-GAMEPLAY-SPINE-002-dice-gate` whose parent is
+`49a12d1206eacd6a8b7f3e6fe75a11858c08fcd6` and whose subject is
+`docs(gameplay): define trusted roll evidence gate`. Record the resolved full SHA in that
+session's initial status; stop if the parent, subject, or changed-file set does not match.
 
 ```text
-Model recommendation: Grok 4.5 or GPT-5.5 Thinking
+Model recommendation: GPT-5.5 Thinking or an equivalent capable coding model
 Reasoning level: High
 
 Repository:
 C:\AI\text-adventure-vsce
 
 Required implementation base:
-88fb824586926f29ddba879b8686de463ff54e34
+Resolve the exact full SHA of origin/task/NOAI-GAMEPLAY-SPINE-002-dice-gate before editing.
+The required commit must have:
+- parent: 49a12d1206eacd6a8b7f3e6fe75a11858c08fcd6
+- subject: docs(gameplay): define trusted roll evidence gate
+- changed path: docs/GAMEPLAY_SPINE_ARCHITECTURE.md only
 
 Task:
-Implement only NOAI-GAMEPLAY-SPINE-001: lifecycle vocabulary and vehicle shadow adapter.
+Implement only NOAI-GAMEPLAY-SPINE-002: check specification and trusted roll evidence.
 
-This is a pure, shadow-only compatibility slice. Do not change runtime gameplay behavior.
+This is a pure parser, validation, calculation, and compatibility-projection slice. Do not
+integrate it into any runtime dice path.
 
 Read first:
 - AGENTS.md
 - docs/DEVELOPMENT_VERIFICATION_POLICY.md
-- docs/GAMEPLAY_SPINE_ARCHITECTURE.md
-- docs/WORLD_INTENT_CORE_DESIGN.md
+- docs/GAMEPLAY_SPINE_ARCHITECTURE.md, especially Section 7 and Slice 002
 - docs/TERMINOLOGY_CONTRACT.md
-- docs/IDENTITY_REFERENCE_LAYER_D1_DESIGN.md
-- src/worldIntentCore.ts
-- src/vehicleOpsCore.ts
-- src/vehicleCore.ts
+- docs/COMBAT_SYSTEM_DESIGN.md
+- src/gameplaySpineCore.ts
+- src/diceRoller.ts
 - src/types/TurnResult.ts
-- existing focused World Intent / vehicle parity tests
+- scripts/test_dice_roller.js for legacy behavior only
 
-Before editing, inspect the current branch and dirty worktree. Preserve all unrelated user
-changes. Do not use git add .
+Before editing:
+- run git status --short, git rev-parse HEAD, and git branch --show-current;
+- confirm HEAD is the resolved documentation gate commit;
+- preserve all unrelated user changes;
+- do not use git add ., git reset --hard, git clean, or git stash.
 
-Exact scope:
-- Add a small pure Gameplay Spine contract module for:
-  - ActionKey
-  - ActionAdmissionStatus
-  - ResolutionMode
-  - MechanicalOutcome
-  - ActionCommitStatus
-  - bounded lifecycle summary types
-- Add a pure compatibility adapter that maps the existing vehicle WorldIntent
-  query/execute result for vehicle:repair_vehicle into the new lifecycle summary.
-- Preserve current WorldIntent and vehicle behavior byte-for-byte where observable.
-- Preserve and explicitly map the current source contracts:
-  - query allowed -> Gameplay Spine admission ready
-  - query valid_noop -> admission valid_noop
-  - query blocked -> admission blocked
-  - query invalid -> admission invalid
-  - query unsupported -> admission unsupported
-  - execute applied + nextVehicleState -> resolution resolved with candidateChanged: true,
-    not committed
-  - execute valid_noop -> resolution valid_noop with candidateChanged: false
-  - execute blocked/invalid/unsupported -> retain the admission fact; no fabricated resolution
-  - execute failed -> adapter failure diagnostic; no resolved plan and no commit
-- Never rename the existing WorldIntent statuses themselves. ready and candidateChanged are
-  projection vocabulary only, and the source status remains available for diagnostics.
-- Keep all outputs deterministic and stably ordered.
-- Never mutate inputs.
+Exact allowed files:
+- create src/gameplaySpineCheckCore.ts
+- create scripts/test_gameplay_spine_check_core.js
+- edit scripts/run_all_tests.js only to register the one new focused test
 
-Likely files:
-- create src/gameplaySpineCore.ts
-- create src/gameplaySpineVehicleAdapterCore.ts
-- create one focused test script
-- edit scripts/run_all_tests.js only if repository policy requires test registration
+Do not edit any other file. In particular, do not edit src/gameplaySpineCore.ts,
+src/diceRoller.ts, src/types/TurnResult.ts, prompts, Webview, locales, persistence, package
+metadata, docs, version, CHANGELOG, or walkthrough.md.
 
-Existing parity authorities:
-- scripts/test_world_intent_core.js
-- scripts/test_world_intent_wi2.js
+Implement these pure contracts in src/gameplaySpineCheckCore.ts:
+- CheckModifierSource, CheckModifier, CheckSpec
+- DiceTermSpec, ParsedCheckFormula
+- RollEvidenceSource, RollTermReceipt, RollReceipt
+- CheckCoreResult, CheckValidationError, ValidatedCheckSpec, ValidatedRollReceipt
+- a computed check result containing canonical spec/formula, dice total, formula flat modifier,
+  contextual modifier total, final total, and MechanicalOutcome
+- a pure compatibility projection to DiceLedgerEntry
 
-Do not:
-- persist any file;
-- add VS Code or filesystem imports to the new core files;
-- call time or randomness;
-- add a host command or Webview UI;
-- add a new ledger or schema version;
-- change TurnResult;
-- change WorldIntent runtime modes;
-- change vehicleOps behavior;
-- implement a dynamic registry;
-- implement dice/DC rules;
-- implement EffectPlan commit;
-- implement any economy action;
-- implement NOAI-ECON-FLOWS-006;
-- update version, CHANGELOG, or walkthrough.md;
-- run the full test suite by default.
+Export these exact pure functions:
+- parseCheckFormula(formula)
+- validateCheckSpec(spec)
+- validateRollReceipt(spec, receipt)
+- resolveCheck(spec, receipt)
+- projectCheckResolutionToDiceLedger(resolution, reason?)
+
+Use the validation error-code union, first-error phase order, and dotted/indexed path rules from
+Section 7.7. resolveCheck must run runtime validation; do not trust TypeScript assertions.
+
+Formula contract:
+- accept ASCII space, tab, CR, and LF but remove them before full parsing;
+- require 1..128 input characters and at least one explicit dice term;
+- accept d20 and canonicalize it to 1d20;
+- accept ordered signed/multiple terms such as 1d20-1d4+2 and 2d6+1d8-3;
+- aggregate flat integer terms into one flatModifier;
+- accept leading zeroes only as decimal spelling, remove them during canonicalization, make
+  every dice count explicit, omit a leading +, preserve dice-term order, and append a non-zero
+  aggregate flat modifier after the dice terms in normalizedFormula;
+- reject standalone 100; do not reproduce the legacy bare-number special case;
+- allow 1..8 dice terms, 1..100 dice per term, 1..100 dice total, and 2..1000 sides;
+- require the aggregate formula flat modifier in -10000..10000;
+- require full-string consumption and reject malformed/ambiguous input.
+
+CheckSpec contract:
+- dc is an integer in 1..100000;
+- modifiers has at most 32 entries;
+- modifier id is a unique 1..64 character ASCII token matching
+  [A-Za-z0-9][A-Za-z0-9._:-]*;
+- modifier value is an integer in -10000..10000;
+- aggregate contextual modifier is in -100000..100000;
+- canonical modifier order is lexicographic id order;
+- partialBand uses inclusive positive distance below DC:
+  minDeficit and maxDeficit are integers in 1..100000 and minDeficit <= maxDeficit;
+- without partialBand, only success/failure are possible;
+- validation returns new values and never mutates input.
+
+RollReceipt contract:
+- schemaVersion is exactly 1;
+- receiptId is a caller-supplied 1..128 character ASCII token matching
+  [A-Za-z0-9][A-Za-z0-9._:-]*; Core validates but never generates it;
+- source is only system_random or seeded_simulation;
+- algorithmVersion is a 1..64 character token using the same grammar;
+- normalizedFormula and ordered receipt terms must exactly match the parsed CheckSpec formula;
+- each term repeats sign/count/sides and contains exactly count integer rolls in 1..sides;
+- seedWitness is required for seeded_simulation and forbidden for system_random;
+- seedWitness is an opaque 1..128 character token using the same grammar;
+- receipt contains no trusted modifier, total, DC, outcome, or success boolean;
+- reject the whole receipt on mismatch, impossible evidence, non-finite/unsafe integers, or
+  overflow;
+- never call RNG, time, crypto, filesystem, network, or VS Code.
+
+Resolution algorithm:
+- validate and canonicalize CheckSpec;
+- validate RollReceipt against the parsed formula;
+- diceTotal = sum(sign * sum(rolls)) in term order;
+- final total = diceTotal + formula flatModifier + stable sum(canonical modifiers);
+- total >= dc => success;
+- otherwise, an inclusive matching partialBand deficit => partial;
+- otherwise => failure;
+- use safe-integer checks for every numeric input and intermediate;
+- do not trust any caller-supplied total or success field;
+- keep output deterministic, stably ordered, and immutable.
+
+Legacy DiceLedgerEntry projection:
+- input must be only validated spec/receipt plus computed resolution;
+- formula = normalizedFormula;
+- rolls = raw rolls flattened in term order;
+- modifier = formula flatModifier + contextual modifier total;
+- total = Core-computed final total;
+- optional reason is bounded display metadata, not a mechanical input; trim it, omit an empty
+  value, and truncate it to 200 UTF-16 code units;
+- dc = validated CheckSpec dc;
+- success = true for success, false for failure, omitted for partial;
+- never accept arbitrary DiceLedgerEntry as trusted input.
+
+Focused tests must cover at least:
+- d20 canonicalization;
+- signed and multiple dice terms;
+- standalone 100 rejection;
+- all stated formula/spec/receipt bounds;
+- duplicate modifier IDs and canonical ordering;
+- formula/term mismatch, wrong roll count, and out-of-range rolls;
+- system_random/seeded_simulation seedWitness rules;
+- safe-integer and overflow rejection;
+- success at equality, partial-band edges, failure, and no-partial behavior;
+- exact legacy projection including omitted success for partial;
+- deterministic repeated output and deep input immutability;
+- no runtime call to processDiceMacros and no RNG generation.
+
+Explicit exclusions:
+- no host RNG replacement or generator;
+- no processDiceMacros behavior change;
+- no GM/referee parser or prompt change;
+- no TurnResult schema migration;
+- no runtime host integration;
+- no Webview, Remote Play, locale, persistence, or replay-storage change;
+- no adjudication profile, DC table, skill system, opposed-check rule, combat, economy action,
+  effect plan, commit, Slice 003, or NOAI-ECON-FLOWS-006;
+- no dependency, version, CHANGELOG, or walkthrough.md change;
+- no full suite, Test Console, smoke, soak, or independent reviewer.
 
 Focused verification limit:
-- npm run compile
-- the new focused Gameplay Spine test
-- node scripts/test_world_intent_core.js
-- node scripts/test_world_intent_wi2.js
+- npm.cmd run compile
+- node scripts/test_gameplay_spine_check_core.js
+- git diff --check
 
-Run each command at most once unless a concrete failure requires a code change. Do not run
-npm test unless the user explicitly authorizes it or the verification policy requires it for
-the actual changed risk tier.
+Run each command once after implementation. Rerun only a failed command after a concrete fix.
+Do not run npm test or any unrelated test.
 
 Stop before commit. Report:
+- exact base SHA resolved above;
 - changed files;
-- exact lifecycle mapping;
-- commands and results;
-- any mismatch between the design and current WorldIntent types;
+- implemented formula, evidence, outcome, and projection contracts;
+- focused commands and results;
+- any mismatch between implementation and the architecture;
 - confirmation that runtime behavior and unrelated files were untouched.
 ```
 

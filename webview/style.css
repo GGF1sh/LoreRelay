@@ -3362,7 +3362,9 @@ textarea:focus-visible {
 
 .logistics-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* The panel lives in the narrow status column; four columns truncate every
+     label ("稼働ルート" -> "稼働…"), two stay readable. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
   margin-bottom: 0.6rem;
 }
@@ -3466,17 +3468,18 @@ textarea:focus-visible {
 .logistics-route-label,
 .logistics-route-warning {
   fill: var(--vscode-foreground);
-  font-size: 10px;
+  font-size: 11px;
   text-anchor: middle;
   paint-order: stroke;
   stroke: var(--vscode-editor-background);
-  stroke-width: 4px;
+  stroke-width: 3px;
   stroke-linejoin: round;
   pointer-events: none;
 }
 
 .logistics-route-warning {
   fill: #efc66d;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -3485,7 +3488,8 @@ textarea:focus-visible {
 }
 
 .logistics-route:focus-visible .logistics-route-line,
-.logistics-route:hover .logistics-route-line {
+.logistics-route:hover .logistics-route-line,
+.logistics-route.is-selected .logistics-route-line {
   opacity: 1 !important;
   filter: drop-shadow(0 0 2px var(--vscode-focusBorder));
 }
@@ -3600,7 +3604,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 720px) {
-  .logistics-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .logistics-filter-row { align-items: stretch; flex-direction: column; }
   .logistics-filter { flex-basis: auto; width: 100%; }
   .logistics-detail-row { grid-template-columns: 1fr; gap: 0.08rem; }

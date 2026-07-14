@@ -11358,21 +11358,41 @@ function logisticsNodeRank(kind) {
   return 2;
 }
 
+// CJK glyphs are roughly twice as wide as ASCII at the node-label font size, so
+// truncate by width units instead of characters to keep labels inside the box.
+function logisticsTruncateLabel(label) {
+  const text = String(label ?? '');
+  const wide = /[ᄀ-ᇿ⺀-鿿　-ヿ㄰-㆏가-힣豈-﫿︰-﹏＀-｠￠-￦]/;
+  let units = 0;
+  let out = '';
+  for (const ch of text) {
+    units += wide.test(ch) ? 2 : 1;
+    if (units > 19) { return `${out}…`; }
+    out += ch;
+  }
+  return text;
+}
+
 function buildLogisticsLayout(nodes) {
   const columns = [[], [], []];
   nodes.slice().sort((a, b) => String(a.id).localeCompare(String(b.id))).forEach((node) => {
     columns[logisticsNodeRank(node.kind)].push(node);
   });
   const height = Math.max(280, ...columns.map((column) => 72 + column.length * 92));
-  const xByRank = [105, 380, 655];
+  // Assign x positions only to occupied columns so a filtered view (for example
+  // facility -> store only) does not leave its content scrolled out of sight
+  // behind an empty leading column.
+  const occupiedRanks = [0, 1, 2].filter((rank) => columns[rank].length > 0);
+  const xByRank = new Map(occupiedRanks.map((rank, index) => [rank, 105 + index * 275]));
+  const lastX = occupiedRanks.length > 0 ? 105 + (occupiedRanks.length - 1) * 275 : 105;
   const positions = new Map();
   columns.forEach((column, rank) => {
     const step = height / Math.max(1, column.length + 1);
     column.forEach((node, index) => {
-      positions.set(node.id, { x: xByRank[rank], y: Math.round(step * (index + 1)) });
+      positions.set(node.id, { x: xByRank.get(rank), y: Math.round(step * (index + 1)) });
     });
   });
-  return { width: 760, height, positions };
+  return { width: lastX + 105, height, positions };
 }
 
 function appendLogisticsTitle(parent, value) {
@@ -11457,39 +11477,69 @@ function visibleLogisticsData(payload) {
   (payload.nodes || []).forEach((node) => {
     if (commodityId === 'all' || (node.commodityIds || []).includes(commodityId)) { nodeIds.add(node.id); }
   });
+  // Keep processing locations visible for commodities that only exist as
+  // processing inputs/outputs (for example a refined good with no route yet).
+  (payload.processingSites || []).forEach((site) => {
+    if (commodityId === 'all') { return; }
+    const touches = [...(site.inputs || []), ...(site.outputs || [])]
+      .some((quantity) => quantity.commodityId === commodityId);
+    if (touches) { nodeIds.add(site.nodeId); }
+  });
   const nodes = (payload.nodes || []).filter((node) => nodeIds.has(node.id));
   return { routes, shortages, nodes };
 }
 
-function renderLogisticsRoute(svg, payload, route, positions, maxVolume) {
+function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSpots) {
   const from = positions.get(route.fromNodeId);
   const to = positions.get(route.toNodeId);
   if (!from || !to) { return; }
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}`);
+  const selected = economyLogisticsUiState.selection?.type === 'route' && economyLogisticsUiState.selection.id === route.id;
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}`);
   group.dataset.routeId = route.id;
   const direction = to.x >= from.x ? 1 : -1;
   const x1 = from.x + direction * 78;
   const x2 = to.x - direction * 78;
+  const disrupted = route.status === 'blocked' || route.status === 'raided';
   const line = logisticsSvgElement('line', 'logistics-route-line');
   line.setAttribute('x1', String(x1));
   line.setAttribute('y1', String(from.y));
   line.setAttribute('x2', String(x2));
   line.setAttribute('y2', String(to.y));
-  const width = 1.5 + Math.sqrt(Math.max(0, route.volume) / Math.max(1, maxVolume)) * 6;
+  const flowWidth = 1.5 + Math.sqrt(Math.max(0, route.volume) / Math.max(1, maxVolume)) * 6;
+  // Disrupted routes must stay readable even at zero volume.
+  const width = disrupted ? Math.max(flowWidth, 2.5) : flowWidth;
   line.setAttribute('stroke-width', width.toFixed(2));
   line.setAttribute('marker-end', `url(#logistics-arrow-${route.status})`);
-  line.style.opacity = route.volume > 0 ? String(0.55 + Math.min(1, route.utilization) * 0.4) : '0.4';
+  line.style.opacity = route.volume > 0
+    ? String(0.55 + Math.min(1, route.utilization) * 0.4)
+    : (disrupted ? '0.8' : '0.4');
   group.appendChild(line);
 
+  // Crossing routes share the exact segment midpoint, which stacks their
+  // labels into unreadable glyph soup. Slide along the line until this
+  // label no longer collides with an already placed one.
+  let labelT = 0.5;
+  for (const t of [0.5, 0.36, 0.64, 0.26, 0.74, 0.16, 0.84]) {
+    const cx = x1 + (x2 - x1) * t;
+    const cy = from.y + (to.y - from.y) * t;
+    if (!labelSpots.some((spot) => Math.abs(spot.x - cx) < 42 && Math.abs(spot.y - cy) < 28)) {
+      labelT = t;
+      break;
+    }
+  }
+  const labelX = Math.round(x1 + (x2 - x1) * labelT);
+  const labelY = Math.round(from.y + (to.y - from.y) * labelT);
+  labelSpots.push({ x: labelX, y: labelY });
+
   const label = logisticsSvgElement('text', 'logistics-route-label');
-  label.setAttribute('x', String(Math.round((x1 + x2) / 2)));
-  label.setAttribute('y', String(Math.round((from.y + to.y) / 2) - 7));
+  label.setAttribute('x', String(labelX));
+  label.setAttribute('y', String(labelY - 7));
   label.textContent = `${logisticsNumber(route.volume)}/${logisticsNumber(route.effectiveCapacity)}`;
   group.appendChild(label);
   if (route.status === 'blocked' || route.status === 'raided' || route.bottleneck) {
     const warning = logisticsSvgElement('text', 'logistics-route-warning');
-    warning.setAttribute('x', String(Math.round((x1 + x2) / 2)));
-    warning.setAttribute('y', String(Math.round((from.y + to.y) / 2) + 12));
+    warning.setAttribute('x', String(labelX));
+    warning.setAttribute('y', String(labelY + 12));
     warning.textContent = route.bottleneck ? '◆' : route.status === 'blocked' ? '×' : '!';
     group.appendChild(warning);
   }
@@ -11519,7 +11569,7 @@ function renderLogisticsNode(svg, payload, node, position, shortages) {
   const label = logisticsSvgElement('text', 'logistics-node-label');
   label.setAttribute('x', '12');
   label.setAttribute('y', '39');
-  label.textContent = node.label.length > 20 ? `${node.label.slice(0, 19)}…` : node.label;
+  label.textContent = logisticsTruncateLabel(node.label);
   group.appendChild(label);
   const nodeShortages = shortages.filter((item) => item.nodeId === node.id);
   if (nodeShortages.length > 0) {
@@ -11559,8 +11609,11 @@ function renderLogisticsNetwork(payload, parent) {
     marker.setAttribute('viewBox', '0 0 10 10');
     marker.setAttribute('refX', '9');
     marker.setAttribute('refY', '5');
-    marker.setAttribute('markerWidth', '6');
-    marker.setAttribute('markerHeight', '6');
+    // Fixed-size arrowheads: the default strokeWidth marker units make
+    // high-volume routes grow node-sized triangles.
+    marker.setAttribute('markerUnits', 'userSpaceOnUse');
+    marker.setAttribute('markerWidth', '13');
+    marker.setAttribute('markerHeight', '13');
     marker.setAttribute('orient', 'auto-start-reverse');
     const arrow = logisticsSvgElement('path', 'logistics-arrow-path');
     arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
@@ -11569,7 +11622,8 @@ function renderLogisticsNetwork(payload, parent) {
   });
   svg.appendChild(defs);
   const maxVolume = Math.max(1, ...data.routes.map((route) => route.volume || 0));
-  data.routes.forEach((route) => renderLogisticsRoute(svg, payload, route, layout.positions, maxVolume));
+  const labelSpots = [];
+  data.routes.forEach((route) => renderLogisticsRoute(svg, payload, route, layout.positions, maxVolume, labelSpots));
   data.nodes.forEach((node) => {
     const position = layout.positions.get(node.id);
     if (position) { renderLogisticsNode(svg, payload, node, position, data.shortages); }

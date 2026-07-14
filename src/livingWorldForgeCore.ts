@@ -1,10 +1,11 @@
 // Parse optional commerce block from world_forge.json (no vscode).
 
-import type { CommerceForge, CommodityDef, MarketDef, TransportKindDef } from './livingWorldTypes';
+import type { CommerceForge, CommodityDef, CommodityRole, MarketDef, TransportKindDef } from './livingWorldTypes';
 
 const MAX_COMMODITIES = 20;
 const MAX_MARKETS = 30;
 const MAX_TRANSPORT = 10;
+const VALID_COMMODITY_ROLES = new Set<CommodityRole>(['staple', 'material']);
 
 function asId(v: unknown): string | undefined {
     if (typeof v !== 'string') { return undefined; }
@@ -20,7 +21,11 @@ function parseCommodity(raw: unknown): CommodityDef | undefined {
     const basePrice = typeof r.basePrice === 'number' ? Math.max(1, Math.floor(r.basePrice)) : 0;
     const weight = typeof r.weight === 'number' ? Math.max(0.1, r.weight) : 0;
     if (!id || !name || !basePrice || !weight) { return undefined; }
-    return { id, name, basePrice, weight };
+    const def: CommodityDef = { id, name, basePrice, weight };
+    if (typeof r.role === 'string' && VALID_COMMODITY_ROLES.has(r.role as CommodityRole)) {
+        def.role = r.role as CommodityRole;
+    }
+    return def;
 }
 
 function parseMarket(raw: unknown): MarketDef | undefined {

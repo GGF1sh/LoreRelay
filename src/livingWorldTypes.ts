@@ -11,11 +11,22 @@ export interface ClockRef {
 
 export type PlayerRole = 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
 
+/**
+ * Genre-neutral economic role of a commodity. Economy shocks resolve their
+ * target commodities by role (a food crisis raises the price of `staple`
+ * goods; a smithing boom restocks `material` goods) instead of hard-coding the
+ * agrarian-fantasy ids `wheat`/`steel`. Worlds that leave commodities untagged
+ * keep the legacy id-based behavior (see resolveShockTargetCommodityIds).
+ */
+export type CommodityRole = 'staple' | 'material';
+
 export interface CommodityDef {
     id: string;
     name: string;
     basePrice: number;
     weight: number;
+    /** Optional economic role used to route genre-neutral economy shocks. */
+    role?: CommodityRole;
 }
 
 export interface MarketDef {

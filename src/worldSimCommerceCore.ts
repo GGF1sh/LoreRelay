@@ -2,6 +2,7 @@
 
 import type {
     CommerceForge,
+    CommodityRole,
     MarketStateMap,
     WorldChangeEventLike,
 } from './livingWorldTypes';
@@ -55,6 +56,27 @@ function allMarketLocations(forge: CommerceForge): string[] {
 }
 
 /**
+ * Which commodities an economy shock lands on, resolved by economic role.
+ *
+ * Genre fix (§3): the food crisis / smithing shocks used to hard-key the
+ * agrarian-fantasy ids `wheat`/`steel`, so a food crisis in a world without a
+ * `wheat` commodity silently did nothing. Now a shock targets every commodity
+ * tagged with the matching `role`, letting any world route the effect onto its
+ * own vocabulary (rations, parts, nutripaste…). Worlds that tag nothing fall
+ * back to the legacy id so existing scenarios (e.g. trade-routes) are unchanged.
+ */
+export function resolveShockTargetCommodityIds(
+    forge: CommerceForge,
+    role: CommodityRole,
+    legacyCommodityId: string
+): string[] {
+    const tagged = (forge.commodities ?? [])
+        .filter((c) => c.role === role)
+        .map((c) => c.id);
+    return tagged.length > 0 ? tagged : [legacyCommodityId];
+}
+
+/**
  * Apply world change events to market priceIndex / stock (Tier 1 aggregate sim).
  */
 export function applyWorldEventsToMarkets(
@@ -71,22 +93,28 @@ export function applyWorldEventsToMarkets(
             : allMarketLocations(forge);
 
         if (isFoodCrisisEvent(ev)) {
+            const commodityIds = resolveShockTargetCommodityIds(forge, 'staple', 'wheat');
             for (const loc of targets) {
-                const wheat = next[loc]?.wheat;
-                if (wheat) {
-                    wheat.priceIndex = bumpPriceIndex(wheat.priceIndex, FOOD_CRISIS_PRICE_BUMP);
-                    applied++;
+                for (const cid of commodityIds) {
+                    const entry = next[loc]?.[cid];
+                    if (entry) {
+                        entry.priceIndex = bumpPriceIndex(entry.priceIndex, FOOD_CRISIS_PRICE_BUMP);
+                        applied++;
+                    }
                 }
             }
         }
 
         if (isSteelCraftEvent(ev)) {
+            const commodityIds = resolveShockTargetCommodityIds(forge, 'material', 'steel');
             for (const loc of targets) {
-                const steel = next[loc]?.steel;
-                if (steel) {
-                    steel.stock += STEEL_IMPROVEMENT_STOCK;
-                    steel.priceIndex = bumpPriceIndex(steel.priceIndex, -0.1);
-                    applied++;
+                for (const cid of commodityIds) {
+                    const entry = next[loc]?.[cid];
+                    if (entry) {
+                        entry.stock += STEEL_IMPROVEMENT_STOCK;
+                        entry.priceIndex = bumpPriceIndex(entry.priceIndex, -0.1);
+                        applied++;
+                    }
                 }
             }
         }
@@ -279,24 +307,31 @@ export function buildCommercePriceBumpTraceEntries(
             ? marketsInRegion(forge, ev.regionId)
             : allMarketLocations(forge);
 
+        const foodCommodityIds = isFoodCrisisEvent(ev)
+            ? resolveShockTargetCommodityIds(forge, 'staple', 'wheat')
+            : [];
+        const steelCommodityIds = isSteelCraftEvent(ev)
+            ? resolveShockTargetCommodityIds(forge, 'material', 'steel')
+            : [];
+
         for (const loc of targets) {
-            if (isFoodCrisisEvent(ev)) {
-                const before = marketsBefore[loc]?.wheat?.priceIndex;
-                const after = marketsAfter[loc]?.wheat?.priceIndex;
+            for (const cid of foodCommodityIds) {
+                const before = marketsBefore[loc]?.[cid]?.priceIndex;
+                const after = marketsAfter[loc]?.[cid]?.priceIndex;
                 if (before !== undefined && after !== undefined && after !== before) {
                     anonSequence++;
                     const evId = ev.id ? ev.id : `anon${anonSequence}`;
                     entries.push({
                         version: 1,
                         runId,
-                        traceId: `trace_com_bump_${loc}_wheat_t${worldTurn}_${evId}`,
+                        traceId: `trace_com_bump_${loc}_${cid}_t${worldTurn}_${evId}`,
                         parentTraceId,
                         worldTurn,
                         subsystem: 'worldSimCommerce',
                         phase: 'effect',
                         ruleId: 'food_crisis_price_bump',
-                        decision: 'bump_wheat',
-                        message: `Food crisis shock in ${loc}: wheat price index ${before.toFixed(2)} → ${after.toFixed(2)}`,
+                        decision: `bump_${cid}`,
+                        message: `Food crisis shock in ${loc}: ${cid} price index ${before.toFixed(2)} → ${after.toFixed(2)}`,
                         inputRefs: ev.id ? [{ kind: 'event', id: ev.id }] : undefined,
                         outputRefs: [{ kind: 'location', id: loc }],
                         audience: 'gm_safe',
@@ -304,23 +339,23 @@ export function buildCommercePriceBumpTraceEntries(
                 }
             }
 
-            if (isSteelCraftEvent(ev)) {
-                const before = marketsBefore[loc]?.steel?.priceIndex;
-                const after = marketsAfter[loc]?.steel?.priceIndex;
+            for (const cid of steelCommodityIds) {
+                const before = marketsBefore[loc]?.[cid]?.priceIndex;
+                const after = marketsAfter[loc]?.[cid]?.priceIndex;
                 if (before !== undefined && after !== undefined && after !== before) {
                     anonSequence++;
                     const evId = ev.id ? ev.id : `anon${anonSequence}`;
                     entries.push({
                         version: 1,
                         runId,
-                        traceId: `trace_com_bump_${loc}_steel_t${worldTurn}_${evId}`,
+                        traceId: `trace_com_bump_${loc}_${cid}_t${worldTurn}_${evId}`,
                         parentTraceId,
                         worldTurn,
                         subsystem: 'worldSimCommerce',
                         phase: 'effect',
                         ruleId: 'steel_craft_price_bump',
-                        decision: 'bump_steel',
-                        message: `Steel craft shock in ${loc}: steel price index ${before.toFixed(2)} → ${after.toFixed(2)}`,
+                        decision: `bump_${cid}`,
+                        message: `Steel craft shock in ${loc}: ${cid} price index ${before.toFixed(2)} → ${after.toFixed(2)}`,
                         inputRefs: ev.id ? [{ kind: 'event', id: ev.id }] : undefined,
                         outputRefs: [{ kind: 'location', id: loc }],
                         audience: 'gm_safe',

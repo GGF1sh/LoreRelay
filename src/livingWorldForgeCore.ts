@@ -1,16 +1,45 @@
 // Parse optional commerce block from world_forge.json (no vscode).
 
+import type {
+    EconomyFlowDefinition,
+    EconomyNode,
+    EconomyNodeKind,
+    ProductionSource,
+    ResourceDemand,
+    TradeRoute,
+} from './economyFlowCore';
 import type { CommerceForge, CommodityDef, CommodityRole, MarketDef, TransportKindDef } from './livingWorldTypes';
 
 const MAX_COMMODITIES = 20;
 const MAX_MARKETS = 30;
 const MAX_TRANSPORT = 10;
+const MAX_FLOW_NODES = 100;
+const MAX_FLOW_SOURCES = 200;
+const MAX_FLOW_DEMANDS = 200;
+const MAX_FLOW_ROUTES = 200;
+const MAX_FLOW_LABEL_LEN = 120;
+const MAX_FLOW_NUMERIC = 1_000_000;
 const VALID_COMMODITY_ROLES = new Set<CommodityRole>(['staple', 'material']);
+const VALID_NODE_KINDS = new Set<EconomyNodeKind>([
+    'region',
+    'settlement',
+    'facility',
+    'market',
+    'store',
+]);
 
 function asId(v: unknown): string | undefined {
     if (typeof v !== 'string') { return undefined; }
     const s = v.trim();
     return /^[a-zA-Z0-9_-]{1,64}$/.test(s) ? s : undefined;
+}
+
+/** Finite non-negative number within safety limit; preserves fractions. */
+function asFlowAmount(v: unknown): number | undefined {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > MAX_FLOW_NUMERIC) {
+        return undefined;
+    }
+    return Object.is(v, -0) ? 0 : v;
 }
 
 function parseCommodity(raw: unknown): CommodityDef | undefined {
@@ -67,6 +96,105 @@ function parseTransport(raw: unknown): TransportKindDef | undefined {
     return out;
 }
 
+function parseEconomyNode(raw: unknown): EconomyNode | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    if (!id) { return undefined; }
+    if (typeof r.kind !== 'string' || !VALID_NODE_KINDS.has(r.kind as EconomyNodeKind)) {
+        return undefined;
+    }
+    if (typeof r.label !== 'string') { return undefined; }
+    const label = r.label.trim().slice(0, MAX_FLOW_LABEL_LEN);
+    if (!label) { return undefined; }
+    const node: EconomyNode = { id, kind: r.kind as EconomyNodeKind, label };
+    const locationId = asId(r.locationId);
+    if (locationId) { node.locationId = locationId; }
+    const regionId = asId(r.regionId);
+    if (regionId) { node.regionId = regionId; }
+    const marketLocationId = asId(r.marketLocationId);
+    if (marketLocationId) { node.marketLocationId = marketLocationId; }
+    return node;
+}
+
+function parseProductionSource(raw: unknown): ProductionSource | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const nodeId = asId(r.nodeId);
+    const commodityId = asId(r.commodityId);
+    const baseOutputPerTick = asFlowAmount(r.baseOutputPerTick);
+    if (!id || !nodeId || !commodityId || baseOutputPerTick === undefined) {
+        return undefined;
+    }
+    return { id, nodeId, commodityId, baseOutputPerTick };
+}
+
+function parseResourceDemand(raw: unknown): ResourceDemand | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const nodeId = asId(r.nodeId);
+    const commodityId = asId(r.commodityId);
+    const baseDemandPerTick = asFlowAmount(r.baseDemandPerTick);
+    if (!id || !nodeId || !commodityId || baseDemandPerTick === undefined) {
+        return undefined;
+    }
+    return { id, nodeId, commodityId, baseDemandPerTick };
+}
+
+function parseTradeRoute(raw: unknown): TradeRoute | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const fromNodeId = asId(r.fromNodeId);
+    const toNodeId = asId(r.toNodeId);
+    const commodityId = asId(r.commodityId);
+    const capacityPerTick = asFlowAmount(r.capacityPerTick);
+    if (!id || !fromNodeId || !toNodeId || !commodityId || capacityPerTick === undefined) {
+        return undefined;
+    }
+    const route: TradeRoute = { id, fromNodeId, toNodeId, commodityId, capacityPerTick };
+    if (r.baseRisk !== undefined) {
+        if (typeof r.baseRisk !== 'number' || !Number.isFinite(r.baseRisk)) {
+            return undefined;
+        }
+        const clamped = Math.max(0, Math.min(1, r.baseRisk));
+        route.baseRisk = Object.is(clamped, -0) ? 0 : clamped;
+    }
+    return route;
+}
+
+/**
+ * Parse optional resourceFlows. Returns undefined when missing, malformed,
+ * or empty of usable rows. Does not drop duplicate IDs or bad cross-refs
+ * (Slice 001 diagnostics own those).
+ */
+function parseResourceFlows(raw: unknown): EconomyFlowDefinition | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return undefined;
+    }
+    const r = raw as Record<string, unknown>;
+
+    const nodes = Array.isArray(r.nodes)
+        ? r.nodes.slice(0, MAX_FLOW_NODES).map(parseEconomyNode).filter((x): x is EconomyNode => !!x)
+        : [];
+    const productionSources = Array.isArray(r.productionSources)
+        ? r.productionSources.slice(0, MAX_FLOW_SOURCES).map(parseProductionSource).filter((x): x is ProductionSource => !!x)
+        : [];
+    const demands = Array.isArray(r.demands)
+        ? r.demands.slice(0, MAX_FLOW_DEMANDS).map(parseResourceDemand).filter((x): x is ResourceDemand => !!x)
+        : [];
+    const tradeRoutes = Array.isArray(r.tradeRoutes)
+        ? r.tradeRoutes.slice(0, MAX_FLOW_ROUTES).map(parseTradeRoute).filter((x): x is TradeRoute => !!x)
+        : [];
+
+    if (!nodes.length && !productionSources.length && !demands.length && !tradeRoutes.length) {
+        return undefined;
+    }
+    return { nodes, productionSources, demands, tradeRoutes };
+}
+
 export function parseCommerceForge(raw: unknown): CommerceForge | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const r = raw as Record<string, unknown>;
@@ -82,5 +210,11 @@ export function parseCommerceForge(raw: unknown): CommerceForge | undefined {
         : [];
 
     if (!commodities.length || !markets.length) { return undefined; }
-    return { commodities, markets, transportKinds };
+
+    const forge: CommerceForge = { commodities, markets, transportKinds };
+    const resourceFlows = parseResourceFlows(r.resourceFlows);
+    if (resourceFlows) {
+        forge.resourceFlows = resourceFlows;
+    }
+    return forge;
 }

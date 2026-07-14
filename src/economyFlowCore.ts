@@ -626,3 +626,50 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
         diagnostics,
     };
 }
+
+/**
+ * Apply flow stock deltas to a market map. Pure: never mutates input.
+ * Updates stock only; preserves every priceIndex exactly.
+ * Does not create missing markets/commodities. Clamps stock to >= 0.
+ */
+export function applyEconomyFlowMarketDeltas(
+    markets: MarketStateMap,
+    deltas: readonly MarketStockDelta[]
+): MarketStateMap {
+    if (!markets || typeof markets !== 'object') {
+        return markets;
+    }
+    if (!deltas || deltas.length === 0) {
+        return markets;
+    }
+
+    let out: MarketStateMap | null = null;
+
+    for (const d of deltas) {
+        if (!d || typeof d !== 'object') { continue; }
+        if (!isNonEmptyString(d.marketLocationId) || !isNonEmptyString(d.commodityId)) { continue; }
+        if (!isFiniteNumber(d.delta)) { continue; }
+
+        const srcMarket = (out ?? markets)[d.marketLocationId];
+        if (!srcMarket) { continue; }
+        const entry = srcMarket[d.commodityId];
+        if (!entry || typeof entry !== 'object') { continue; }
+        if (!isFiniteNumber(entry.stock)) { continue; }
+
+        const nextStock = nz(Math.max(0, entry.stock + d.delta));
+        if (nextStock === entry.stock) { continue; }
+
+        if (!out) {
+            out = { ...markets };
+        }
+        if (out[d.marketLocationId] === markets[d.marketLocationId]) {
+            out[d.marketLocationId] = { ...srcMarket };
+        }
+        out[d.marketLocationId][d.commodityId] = {
+            stock: nextStock,
+            priceIndex: entry.priceIndex,
+        };
+    }
+
+    return out ?? markets;
+}

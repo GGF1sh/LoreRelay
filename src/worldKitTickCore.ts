@@ -9,6 +9,11 @@ import type {
     WorldChangeEventLike,
 } from './livingWorldTypes';
 import {
+    applyEconomyFlowMarketDeltas,
+    computeEconomyFlowTick,
+    type EconomyFlowTickResult,
+} from './economyFlowCore';
+import {
     resolveEconomyProfileParams,
     tickFactionReputationMarketDemand,
     tickMarketRecovery,
@@ -52,6 +57,8 @@ export interface WorldKitTickResult {
     npcPositions: NpcPositionsMap;
     marketSummary: ReturnType<typeof tickMarketRecovery>['summary'] | null;
     npcMoves: ReturnType<typeof reactNpcsToWorld>['moves'];
+    /** Semantic flow summaries when resourceFlows ran; otherwise null. */
+    economyFlow: EconomyFlowTickResult | null;
 }
 
 export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult {
@@ -59,8 +66,19 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
     let npcPositions = advanceNpcArrivals(input.npcPositions, input.worldTurn);
     let marketSummary: WorldKitTickResult['marketSummary'] = null;
     let npcMoves: WorldKitTickResult['npcMoves'] = [];
+    let economyFlow: EconomyFlowTickResult | null = null;
 
     if (input.commerceEnabled) {
+        // NOAI-ECON-FLOWS-002: opt-in production/demand/route before recovery.
+        if (input.forge.resourceFlows) {
+            economyFlow = computeEconomyFlowTick({
+                definition: input.forge.resourceFlows,
+                forge: input.forge,
+                markets,
+            });
+            markets = applyEconomyFlowMarketDeltas(markets, economyFlow.marketDeltas);
+        }
+
         const hasConfig = !!input.economyConfig && (
             input.economyConfig.globalTier !== undefined
             || input.economyConfig.categoryTiers !== undefined
@@ -106,7 +124,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
         npcMoves = reaction.moves;
     }
 
-    return { markets, npcPositions, marketSummary, npcMoves };
+    return { markets, npcPositions, marketSummary, npcMoves, economyFlow };
 }
 
 export function defaultPlayerCommerce(

@@ -1,6 +1,7 @@
 // JSON contracts shared across Commerce / Transport / NPC Agency (host-agnostic).
 
 import { EntityKind, EntityRef } from './entityIdentityCore';
+import type { EconomyFlowDefinition } from './economyFlowCore';
 
 export { EntityKind, EntityRef };
 
@@ -54,6 +55,8 @@ export interface CommerceForge {
     commodities: CommodityDef[];
     markets: MarketDef[];
     transportKinds: TransportKindDef[];
+    /** Optional production / demand / route definition (NOAI-ECON-FLOWS-002). */
+    resourceFlows?: EconomyFlowDefinition;
 }
 
 export interface MarketStockEntry {

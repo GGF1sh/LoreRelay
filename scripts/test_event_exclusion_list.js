@@ -1,3 +1,15 @@
+const Module = require('module');
+const originalRequire = Module.prototype.require;
+Module.prototype.require = function() {
+    if (arguments[0] === 'vscode') {
+        return {
+            workspace: { workspaceFolders: [] },
+            Uri: { file: (p) => ({ fsPath: p }) },
+        };
+    }
+    return originalRequire.apply(this, arguments);
+};
+
 const assert = require('assert');
 const { rollDomainEvent } = require('../out/domainCore');
 const { rollGuildEvent } = require('../out/guildCore');
@@ -97,11 +109,57 @@ function testGuildExclusion() {
     console.log('OK: guild total exclusion falls back to quiet and quiet is un-excludable');
 }
 
+function testAudienceExclusion() {
+    const { buildAudienceQueue } = require('../out/domainAudienceCore');
+    const domain = {
+        enabled: true, controlledRegionId: 'reg1', rank: 'minor_lord', calendarMonth: 1, calendarYear: 1,
+        treasury: 100, food: 100, troops: 100, publicOrder: 50, popularSupport: 50, agriculture: 10, commerce: 10, defense: 10, culture: 10, prestige: 10,
+        monthlyActionsRemaining: 2, officers: [], pendingEvents: [], flags: {}
+    };
+    const seed = 12345;
+    
+    const baselineQueue = buildAudienceQueue(domain, seed, 4, new Set());
+    assert(baselineQueue.length > 0, 'Baseline audience queue should not be empty');
+    
+    const firstPetitionId = baselineQueue[0].id;
+    const exclusionSet = new Set([`audience:${firstPetitionId}`]);
+    const excludedQueue = buildAudienceQueue(domain, seed, 4, exclusionSet);
+    
+    assert(!excludedQueue.some(p => p.id === firstPetitionId), 'Excluded petition should not appear in the audience queue');
+    console.log('OK: Audience queue excludes specific petition');
+}
+
+function testHostConfigBoundary() {
+    const { buildGuildDriftConfig } = require('../out/guildTurnOps');
+    const { toExclusionSet } = require('../out/gameRulesCore');
+    
+    const rules = {
+        guildWeeklyActions: 2,
+        guildBoardSize: 3,
+        guildMaxActiveQuests: 2,
+        excludedEventIds: ['domain:foo', 'guild:bar']
+    };
+    
+    // 1. Check toExclusionSet
+    const set = toExclusionSet(rules);
+    assert(set instanceof Set, 'toExclusionSet returns a Set');
+    assert(set.has('domain:foo'), 'Set contains domain:foo');
+    
+    // 2. Check buildGuildDriftConfig boundary
+    const guildConfig = buildGuildDriftConfig(rules);
+    assert(guildConfig.excludedEventIds instanceof Set, 'Guild drift config includes the exclusion Set');
+    assert(guildConfig.excludedEventIds.has('guild:bar'), 'Guild drift config exclusion Set contains guild:bar');
+    
+    console.log('OK: Host config boundary receives and constructs normalized GameRules exclusions');
+}
+
 function main() {
     console.log('--- test_event_exclusion_list.js ---');
     testNormalizeGameRules();
     testDomainExclusion();
     testGuildExclusion();
+    testAudienceExclusion();
+    testHostConfigBoundary();
     console.log('All event exclusion tests passed.');
 }
 

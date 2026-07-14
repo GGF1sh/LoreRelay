@@ -11,6 +11,7 @@ import {
     readDomainFromState,
 } from './domainTurnOpsCore';
 import { registryToOfficerBondContext, buildOfficerTrustMap } from './domainOfficerBondCore';
+import { toExclusionSet } from './gameRulesCore';
 import type { DomainState } from './domainCore';
 
 /** §F8: prefer an explicit config id, else the first Forge-adjacent region, else any other region. */
@@ -77,6 +78,7 @@ export function applyDomainTurnOps(
             maxActiveMissions: rules.domainMaxActiveMissions,
             officerTrustMap,
             enableMassBattle: rules.enableMassBattle === true,
+            excludedEventIds: toExclusionSet(rules),
         },
         worldTurnSeed,
         { officerBond, registryNpcIds }

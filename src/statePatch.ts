@@ -44,6 +44,7 @@ import {
     isLocationInDomainRegion,
     recordDomainRegionDepart,
 } from './domainRegionDriftCore';
+import { toExclusionSet } from './gameRulesCore';
 import {
     applyGuildHallReturnDrift,
     clearGuildSinceLastVisitReport,
@@ -564,6 +565,7 @@ function applyDomainTravelDrift(
         return applyDomainRegionReturnDrift(state, worldTurn, {
             monthDays: rules.domainMonthDays,
             monthlyActions: rules.domainMonthlyActions,
+            excludedEventIds: toExclusionSet(rules),
         });
     }
     if (prevIn && nextIn) {

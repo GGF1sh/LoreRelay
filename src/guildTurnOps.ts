@@ -14,6 +14,7 @@ import type { GuildConfig, GuildState } from './guildCore';
 import { isLocationAtGuildHall } from './guildHallDriftCore';
 
 export { applyGuildOpsToGameState, readGuildFromState } from './guildTurnOpsCore';
+import { toExclusionSet } from './gameRulesCore';
 
 export function buildGuildDriftConfig(rules: ReturnType<typeof loadGameRules>): Partial<GuildConfig> {
     const registry = rules.enableNpcRegistry === true ? loadNpcRegistry() : undefined;
@@ -27,6 +28,7 @@ export function buildGuildDriftConfig(rules: ReturnType<typeof loadGameRules>): 
         requestsEnabled: rules.enableGuildRequests === true,
         partiesEnabled: rules.enableGuildParties === true,
         adventurerBondMap,
+        excludedEventIds: toExclusionSet(rules),
     };
 }
 

@@ -258,6 +258,10 @@ export function toExcludedEventId(kind: EventKind, id: string): string {
     return `${kind}:${id}`;
 }
 
-export function isExcludedEvent(set: ReadonlySet<string>, kind: EventKind, id: string): boolean {
-    return set.has(toExcludedEventId(kind, id));
+export function isExcludedEvent(exclusions: ReadonlySet<string>, kind: EventKind, id: string): boolean {
+    return exclusions.has(toExcludedEventId(kind, id));
+}
+
+export function toExclusionSet(rules?: GameRules): ReadonlySet<string> {
+    return new Set(rules?.excludedEventIds ?? []);
 }

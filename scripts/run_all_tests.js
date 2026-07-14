@@ -84,6 +84,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_vehicle_ops.js' },
     { category: 'unit', file: 'test_world_intent_core.js' },
     { category: 'unit', file: 'test_world_intent_wi2.js' },
+    { category: 'unit', file: 'test_gameplay_spine_vehicle_shadow.js' },
     { category: 'unit', file: 'test_world_intent_wi3b.js' },
     { category: 'unit', file: 'test_world_intent_wi4_effect_accounting.js' },
     { category: 'unit', file: 'test_world_intent_wi5_sanity_core.js' },

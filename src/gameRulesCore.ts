@@ -4,6 +4,9 @@ import { CHARACTER_ID_PATTERN } from './characterId';
 
 export type AiParticipationPolicy = 'always' | 'onDemand' | 'simulationOnly';
 
+/** Economy pacing for market recovery / shock strength. Missing/invalid → normal. */
+export type EconomyProfile = 'easy' | 'normal' | 'harsh';
+
 export interface GameRules {
     enableRpgMechanics: boolean;
     defaultMaxHp: number;
@@ -19,6 +22,8 @@ export interface GameRules {
     enableFactionReputation?: boolean;
     enableTravelEncounters?: boolean;
     travelEncounterDensity?: 'low' | 'medium' | 'high';
+    /** Market recovery / shock pacing. Default normal preserves legacy numbers. */
+    economyProfile?: EconomyProfile;
     enableCommerce?: boolean;
     enableCommerceUi?: boolean;
     playerRole?: 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
@@ -68,6 +73,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableFactionReputation: false,
     enableTravelEncounters: false,
     travelEncounterDensity: 'medium',
+    economyProfile: 'normal',
     enableCommerce: false,
     enableCommerceUi: false,
     playerRole: 'merchant',
@@ -104,6 +110,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
 const VALID_DICE = new Set(['Easy', 'Normal', 'Hard']);
 const VALID_ROLES = new Set(['merchant', 'adventurer', 'retainer', 'smith', 'ruler']);
 const VALID_DENSITIES = new Set(['low', 'medium', 'high']);
+const VALID_ECONOMY_PROFILES = new Set<EconomyProfile>(['easy', 'normal', 'harsh']);
 const VALID_AI_PARTICIPATION_POLICIES = new Set<AiParticipationPolicy>(['always', 'onDemand', 'simulationOnly']);
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
@@ -166,6 +173,11 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         ? densityRaw as GameRules['travelEncounterDensity']
         : base.travelEncounterDensity;
 
+    const economyProfileRaw = src.economyProfile;
+    const economyProfile = VALID_ECONOMY_PROFILES.has(economyProfileRaw as EconomyProfile)
+        ? economyProfileRaw as EconomyProfile
+        : base.economyProfile;
+
     const roleRaw = src.playerRole;
     const playerRole = VALID_ROLES.has(roleRaw as string)
         ? roleRaw as GameRules['playerRole']
@@ -191,6 +203,7 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         enableFactionReputation: asOptionalBool(src.enableFactionReputation, base.enableFactionReputation),
         enableTravelEncounters: asOptionalBool(src.enableTravelEncounters, base.enableTravelEncounters),
         travelEncounterDensity,
+        economyProfile,
         enableCommerce: asOptionalBool(src.enableCommerce, base.enableCommerce),
         enableCommerceUi: asOptionalBool(src.enableCommerceUi, base.enableCommerceUi),
         playerRole,

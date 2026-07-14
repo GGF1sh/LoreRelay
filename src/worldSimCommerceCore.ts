@@ -15,12 +15,71 @@ export const MAX_PRICE_INDEX = 4;
 export const MIN_PRICE_INDEX = 0.25;
 export const FOOD_CRISIS_PRICE_BUMP = 0.35;
 export const STEEL_IMPROVEMENT_STOCK = 3;
+/** Legacy material positive-event price cut (normal profile). */
+export const STEEL_IMPROVEMENT_PRICE_REDUCTION = 0.1;
+
+/** Economy pacing enum (mirrors GameRules.economyProfile). */
+export type EconomyProfile = 'easy' | 'normal' | 'harsh';
+
+/**
+ * Resolved numeric knobs for one economy profile.
+ * `normal` matches the pre-profile constants exactly.
+ */
+export interface EconomyProfileParams {
+    recoveryPerTick: number;
+    foodCrisisPriceBump: number;
+    positiveMaterialStockGain: number;
+    positiveMaterialPriceReduction: number;
+    maxPriceIndex: number;
+}
+
+const ECONOMY_PROFILE_PARAMS: Record<EconomyProfile, EconomyProfileParams> = {
+    easy: {
+        recoveryPerTick: 3,
+        foodCrisisPriceBump: 0.25,
+        positiveMaterialStockGain: 4,
+        positiveMaterialPriceReduction: 0.15,
+        maxPriceIndex: 3.5,
+    },
+    normal: {
+        recoveryPerTick: DEFAULT_MARKET_RECOVERY_PER_TICK,
+        foodCrisisPriceBump: FOOD_CRISIS_PRICE_BUMP,
+        positiveMaterialStockGain: STEEL_IMPROVEMENT_STOCK,
+        positiveMaterialPriceReduction: STEEL_IMPROVEMENT_PRICE_REDUCTION,
+        maxPriceIndex: MAX_PRICE_INDEX,
+    },
+    harsh: {
+        recoveryPerTick: 1,
+        foodCrisisPriceBump: 0.5,
+        positiveMaterialStockGain: 2,
+        positiveMaterialPriceReduction: 0.05,
+        maxPriceIndex: 5,
+    },
+};
+
+/** Missing / invalid profile → normal (legacy behavior). */
+export function resolveEconomyProfile(profile?: string | null): EconomyProfile {
+    if (profile === 'easy' || profile === 'normal' || profile === 'harsh') {
+        return profile;
+    }
+    return 'normal';
+}
+
+/** Centralized profile → commerce parameter mapping (do not scatter profile checks). */
+export function resolveEconomyProfileParams(profile?: string | null): EconomyProfileParams {
+    return ECONOMY_PROFILE_PARAMS[resolveEconomyProfile(profile)];
+}
 
 export interface MarketTickOptions {
     worldTurn: number;
     recoveryPerTick?: number;
     /** この sim tick で新規発生したイベントのみ。市場へのイベント適用に使う。 */
     stepEvents?: WorldChangeEventLike[];
+    /**
+     * Resolved economy profile knobs. When omitted, recovery/shocks use legacy
+     * normal defaults. Prefer resolveEconomyProfileParams(profile) at the host.
+     */
+    economyParams?: EconomyProfileParams;
 }
 
 export interface MarketTickSummary {
@@ -41,8 +100,12 @@ function cloneMarkets(markets: MarketStateMap): MarketStateMap {
     return out;
 }
 
-function bumpPriceIndex(current: number, delta: number): number {
-    return Math.max(MIN_PRICE_INDEX, Math.min(MAX_PRICE_INDEX, current + delta));
+function bumpPriceIndex(
+    current: number,
+    delta: number,
+    maxPriceIndex: number = MAX_PRICE_INDEX
+): number {
+    return Math.max(MIN_PRICE_INDEX, Math.min(maxPriceIndex, current + delta));
 }
 
 function marketsInRegion(forge: CommerceForge, regionId: string): string[] {
@@ -82,8 +145,10 @@ export function resolveShockTargetCommodityIds(
 export function applyWorldEventsToMarkets(
     forge: CommerceForge,
     markets: MarketStateMap,
-    events: WorldChangeEventLike[]
+    events: WorldChangeEventLike[],
+    economyParams?: EconomyProfileParams
 ): { markets: MarketStateMap; applied: number } {
+    const params = economyParams ?? resolveEconomyProfileParams('normal');
     const next = cloneMarkets(markets);
     let applied = 0;
 
@@ -98,7 +163,11 @@ export function applyWorldEventsToMarkets(
                 for (const cid of commodityIds) {
                     const entry = next[loc]?.[cid];
                     if (entry) {
-                        entry.priceIndex = bumpPriceIndex(entry.priceIndex, FOOD_CRISIS_PRICE_BUMP);
+                        entry.priceIndex = bumpPriceIndex(
+                            entry.priceIndex,
+                            params.foodCrisisPriceBump,
+                            params.maxPriceIndex
+                        );
                         applied++;
                     }
                 }
@@ -111,8 +180,12 @@ export function applyWorldEventsToMarkets(
                 for (const cid of commodityIds) {
                     const entry = next[loc]?.[cid];
                     if (entry) {
-                        entry.stock += STEEL_IMPROVEMENT_STOCK;
-                        entry.priceIndex = bumpPriceIndex(entry.priceIndex, -0.1);
+                        entry.stock += params.positiveMaterialStockGain;
+                        entry.priceIndex = bumpPriceIndex(
+                            entry.priceIndex,
+                            -params.positiveMaterialPriceReduction,
+                            params.maxPriceIndex
+                        );
                         applied++;
                     }
                 }
@@ -131,7 +204,11 @@ export function tickMarketRecovery(
     markets: MarketStateMap,
     options: MarketTickOptions
 ): { markets: MarketStateMap; summary: MarketTickSummary } {
-    const recovery = options.recoveryPerTick ?? DEFAULT_MARKET_RECOVERY_PER_TICK;
+    const economyParams = options.economyParams ?? resolveEconomyProfileParams('normal');
+    const recovery = options.recoveryPerTick
+        ?? economyParams.recoveryPerTick
+        ?? DEFAULT_MARKET_RECOVERY_PER_TICK;
+    const maxPriceIndex = economyParams.maxPriceIndex;
     const next = cloneMarkets(markets);
     let stockRecoveries = 0;
     let priceAdjustments = 0;
@@ -152,10 +229,10 @@ export function tickMarketRecovery(
             }
 
             if (entry.stock >= target && entry.priceIndex > 1) {
-                entry.priceIndex = bumpPriceIndex(entry.priceIndex, -0.05);
+                entry.priceIndex = bumpPriceIndex(entry.priceIndex, -0.05, maxPriceIndex);
                 priceAdjustments++;
-            } else if (entry.stock < target * 0.3 && entry.priceIndex < MAX_PRICE_INDEX) {
-                entry.priceIndex = bumpPriceIndex(entry.priceIndex, 0.05);
+            } else if (entry.stock < target * 0.3 && entry.priceIndex < maxPriceIndex) {
+                entry.priceIndex = bumpPriceIndex(entry.priceIndex, 0.05, maxPriceIndex);
                 priceAdjustments++;
             }
         }
@@ -164,7 +241,8 @@ export function tickMarketRecovery(
     const eventResult = applyWorldEventsToMarkets(
         forge,
         next,
-        options.stepEvents ?? []
+        options.stepEvents ?? [],
+        economyParams
     );
 
     return {

@@ -52,6 +52,17 @@ function eq(actual, expected, m) {
     eq(n.maxMemoriesPerNpc, 10, 'default maxMemoriesPerNpc');
     eq(n.simIntervalTurns, 5, 'default simIntervalTurns');
     eq(n.aiParticipationPolicy, 'always', 'default aiParticipationPolicy');
+    eq(n.economyProfile, 'normal', 'default economyProfile');
+}
+
+// economyProfile: valid values, missing, invalid
+{
+    eq(normalizeGameRules({ economyProfile: 'easy' }).economyProfile, 'easy', 'economyProfile easy');
+    eq(normalizeGameRules({ economyProfile: 'normal' }).economyProfile, 'normal', 'economyProfile normal');
+    eq(normalizeGameRules({ economyProfile: 'harsh' }).economyProfile, 'harsh', 'economyProfile harsh');
+    eq(normalizeGameRules({}).economyProfile, 'normal', 'missing economyProfile → normal');
+    eq(normalizeGameRules({ economyProfile: 'brutal' }).economyProfile, 'normal', 'invalid economyProfile → normal');
+    eq(normalizeGameRules({ economyProfile: 3 }).economyProfile, 'normal', 'non-string economyProfile → normal');
 }
 
 // load-time clamp: negative maxNamedNpcCount

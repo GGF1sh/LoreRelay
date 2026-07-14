@@ -4238,6 +4238,7 @@ window.addEventListener('message', (event) => {
         enableWorldObservatory: document.getElementById('gr-world-observatory'),
         enableCommerce: document.getElementById('gr-commerce'),
         enableCommerceUi: document.getElementById('gr-commerce-ui'),
+        economyProfile: document.getElementById('gr-economy-profile'),
         playerRole: document.getElementById('gr-player-role'),
         enableNpcAgency: document.getElementById('gr-npc-agency'),
         enableDomainMode: document.getElementById('gr-domain-mode'),
@@ -4298,6 +4299,7 @@ window.addEventListener('message', (event) => {
             enableWorldObservatory: inputs.enableWorldObservatory ? inputs.enableWorldObservatory.checked : false,
             enableCommerce: inputs.enableCommerce ? inputs.enableCommerce.checked : false,
             enableCommerceUi: inputs.enableCommerceUi ? inputs.enableCommerceUi.checked : false,
+            economyProfile: inputs.economyProfile ? inputs.economyProfile.value : 'normal',
             playerRole: inputs.playerRole ? inputs.playerRole.value : 'merchant',
             enableNpcAgency: inputs.enableNpcAgency ? inputs.enableNpcAgency.checked : false,
             enableDomainMode: inputs.enableDomainMode ? inputs.enableDomainMode.checked : false,
@@ -4349,6 +4351,7 @@ window.addEventListener('message', (event) => {
             if (rules.enableWorldObservatory !== undefined && inputs.enableWorldObservatory) inputs.enableWorldObservatory.checked = rules.enableWorldObservatory;
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
+            if (rules.economyProfile !== undefined && inputs.economyProfile) inputs.economyProfile.value = rules.economyProfile;
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
             if (rules.enableDomainMode !== undefined && inputs.enableDomainMode) inputs.enableDomainMode.checked = rules.enableDomainMode;

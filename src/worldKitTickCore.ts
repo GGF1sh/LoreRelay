@@ -8,7 +8,12 @@ import type {
     PlayerCommerceState,
     WorldChangeEventLike,
 } from './livingWorldTypes';
-import { tickFactionReputationMarketDemand, tickMarketRecovery } from './worldSimCommerceCore';
+import {
+    resolveEconomyProfileParams,
+    tickFactionReputationMarketDemand,
+    tickMarketRecovery,
+    type EconomyProfile,
+} from './worldSimCommerceCore';
 import { advanceNpcArrivals, reactNpcsToWorld } from './npcAgencyCore';
 
 export interface WorldKitTickInput {
@@ -27,6 +32,11 @@ export interface WorldKitTickInput {
     factionReputations?: Record<string, number>;
     /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は npcAgencyCore の既定値。 */
     maxNamedNpcCount?: number;
+    /**
+     * Economy pacing from game_rules.economyProfile.
+     * Missing/invalid → normal (legacy recovery and shock numbers).
+     */
+    economyProfile?: EconomyProfile;
 }
 
 export interface WorldKitTickResult {
@@ -43,9 +53,12 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
     let npcMoves: WorldKitTickResult['npcMoves'] = [];
 
     if (input.commerceEnabled) {
+        const economyParams = resolveEconomyProfileParams(input.economyProfile);
         const tick = tickMarketRecovery(input.forge, markets, {
             worldTurn: input.worldTurn,
             stepEvents: input.stepEvents,
+            recoveryPerTick: economyParams.recoveryPerTick,
+            economyParams,
         });
         markets = tick.markets;
         marketSummary = tick.summary;

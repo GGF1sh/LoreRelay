@@ -190,6 +190,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_market_price_multiplier.js' },
     { category: 'unit', file: 'test_faction_market_demand.js' },
     { category: 'unit', file: 'test_economy_shock_commodity_role.js' },
+    { category: 'unit', file: 'test_economy_profile.js' },
     { category: 'unit', file: 'test_living_world_market_debug_core.js' },
     { category: 'unit', file: 'test_living_world_commerce_ui_core.js' },
     { category: 'unit', file: 'test_noai_phase0.js' },

@@ -103,6 +103,7 @@ export function buildParlorSafeGameRules(options: Pick<ParlorPromoteOptions, 'en
         enableFactionReputation: false,
         enableTravelEncounters: false,
         travelEncounterDensity: 'medium',
+        economyProfile: 'normal',
         enableCommerce: false,
         enableCommerceUi: false,
         playerRole: 'adventurer',

@@ -242,6 +242,7 @@ export function tickLivingWorldAfterSim(
             ? buildFactionReputations(state.factions ?? {})
             : undefined,
         maxNamedNpcCount,
+        economyProfile: rules.economyProfile,
     });
 
     ext.markets = tick.markets;

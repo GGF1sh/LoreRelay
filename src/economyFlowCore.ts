@@ -42,11 +42,33 @@ export interface TradeRoute {
     baseRisk?: number;
 }
 
+export interface ProcessingRecipe {
+    id: string;
+    inputs: Record<string, number>;
+    outputs: Record<string, number>;
+}
+
+export interface ProcessingSite {
+    id: string;
+    nodeId: string;
+    recipeId: string;
+    maxBatchesPerTick: number;
+}
+
+/** Runtime-only production (e.g. processing outputs). Not part of Forge. */
+export interface RuntimeProduction {
+    nodeId: string;
+    commodityId: string;
+    amount: number;
+}
+
 export interface EconomyFlowDefinition {
     nodes: EconomyNode[];
     productionSources: ProductionSource[];
     demands: ResourceDemand[];
     tradeRoutes: TradeRoute[];
+    processingRecipes?: ProcessingRecipe[];
+    processingSites?: ProcessingSite[];
 }
 
 export interface TradeFlowSummary {
@@ -92,6 +114,8 @@ export interface EconomyFlowTickInput {
     definition: EconomyFlowDefinition;
     forge: Pick<CommerceForge, 'commodities' | 'markets'>;
     markets: MarketStateMap;
+    /** Optional same-tick runtime production (e.g. processing outputs). */
+    additionalProduction?: readonly RuntimeProduction[];
 }
 
 export interface EconomyFlowTickResult {
@@ -302,6 +326,52 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
         }
         const key = pairKey(src.nodeId, src.commodityId);
         produced.set(key, (produced.get(key) ?? 0) + src.baseOutputPerTick);
+    }
+
+    // --- Runtime additional production (e.g. processing outputs) ---
+    const rawAdditional = Array.isArray(input.additionalProduction)
+        ? input.additionalProduction
+        : [];
+    for (let i = 0; i < rawAdditional.length; i++) {
+        const ap = rawAdditional[i];
+        if (!ap || typeof ap !== 'object') {
+            diagnostics.push({
+                code: 'invalid_runtime_production',
+                message: `Runtime production entry ${i} is invalid`,
+            });
+            continue;
+        }
+        if (!isNonEmptyString(ap.nodeId) || !nodesById.has(ap.nodeId)) {
+            diagnostics.push({
+                code: 'missing_node',
+                message: `Runtime production entry ${i} references missing node`,
+            });
+            continue;
+        }
+        if (!isNonEmptyString(ap.commodityId) || !commodityIds.has(ap.commodityId)) {
+            diagnostics.push({
+                code: 'unknown_commodity',
+                message: `Runtime production entry ${i} has unknown commodity`,
+            });
+            continue;
+        }
+        if (!isFiniteNumber(ap.amount)) {
+            diagnostics.push({
+                code: 'invalid_number',
+                message: `Runtime production entry ${i} has non-finite amount`,
+            });
+            continue;
+        }
+        if (ap.amount < 0) {
+            diagnostics.push({
+                code: 'negative_value',
+                message: `Runtime production entry ${i} has negative amount`,
+            });
+            continue;
+        }
+        if (ap.amount === 0) { continue; }
+        const key = pairKey(ap.nodeId, ap.commodityId);
+        produced.set(key, nz((produced.get(key) ?? 0) + ap.amount));
     }
 
     // --- Valid direct routes (draw only from same-tick production) ---

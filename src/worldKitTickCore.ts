@@ -14,6 +14,10 @@ import {
     type EconomyFlowTickResult,
 } from './economyFlowCore';
 import {
+    computeEconomyProcessingTick,
+    type EconomyProcessingTickResult,
+} from './economyProcessingCore';
+import {
     resolveEconomyProfileParams,
     tickFactionReputationMarketDemand,
     tickMarketRecovery,
@@ -59,6 +63,17 @@ export interface WorldKitTickResult {
     npcMoves: ReturnType<typeof reactNpcsToWorld>['moves'];
     /** Semantic flow summaries when resourceFlows ran; otherwise null. */
     economyFlow: EconomyFlowTickResult | null;
+    /** Semantic processing summaries when processing ran; otherwise null. */
+    economyProcessing: EconomyProcessingTickResult | null;
+}
+
+function hasProcessingDefinitions(
+    resourceFlows: NonNullable<CommerceForge['resourceFlows']>
+): boolean {
+    const recipes = resourceFlows.processingRecipes;
+    const sites = resourceFlows.processingSites;
+    return (Array.isArray(recipes) && recipes.length > 0)
+        || (Array.isArray(sites) && sites.length > 0);
 }
 
 export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult {
@@ -67,14 +82,35 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
     let marketSummary: WorldKitTickResult['marketSummary'] = null;
     let npcMoves: WorldKitTickResult['npcMoves'] = [];
     let economyFlow: EconomyFlowTickResult | null = null;
+    let economyProcessing: EconomyProcessingTickResult | null = null;
 
     if (input.commerceEnabled) {
-        // NOAI-ECON-FLOWS-002: opt-in production/demand/route before recovery.
+        // NOAI-ECON-FLOWS-002/003: opt-in processing + flow before recovery.
         if (input.forge.resourceFlows) {
+            let additionalProduction: EconomyProcessingTickResult['runtimeProduction'] | undefined;
+
+            if (hasProcessingDefinitions(input.forge.resourceFlows)) {
+                economyProcessing = computeEconomyProcessingTick({
+                    definition: input.forge.resourceFlows,
+                    forge: input.forge,
+                    markets,
+                });
+                if (economyProcessing.inputMarketDeltas.length > 0) {
+                    markets = applyEconomyFlowMarketDeltas(
+                        markets,
+                        economyProcessing.inputMarketDeltas
+                    );
+                }
+                if (economyProcessing.runtimeProduction.length > 0) {
+                    additionalProduction = economyProcessing.runtimeProduction;
+                }
+            }
+
             economyFlow = computeEconomyFlowTick({
                 definition: input.forge.resourceFlows,
                 forge: input.forge,
                 markets,
+                additionalProduction,
             });
             markets = applyEconomyFlowMarketDeltas(markets, economyFlow.marketDeltas);
         }
@@ -124,7 +160,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
         npcMoves = reaction.moves;
     }
 
-    return { markets, npcPositions, marketSummary, npcMoves, economyFlow };
+    return { markets, npcPositions, marketSummary, npcMoves, economyFlow, economyProcessing };
 }
 
 export function defaultPlayerCommerce(

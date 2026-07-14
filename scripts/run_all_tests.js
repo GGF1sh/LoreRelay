@@ -193,6 +193,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_economy_profile.js' },
     { category: 'unit', file: 'test_economy_flow_core.js' },
     { category: 'unit', file: 'test_economy_flow_integration.js' },
+    { category: 'unit', file: 'test_economy_processing_core.js' },
     { category: 'unit', file: 'test_living_world_market_debug_core.js' },
     { category: 'unit', file: 'test_living_world_commerce_ui_core.js' },
     { category: 'unit', file: 'test_noai_phase0.js' },

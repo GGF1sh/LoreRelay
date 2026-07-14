@@ -4,6 +4,8 @@ import type {
     EconomyFlowDefinition,
     EconomyNode,
     EconomyNodeKind,
+    ProcessingRecipe,
+    ProcessingSite,
     ProductionSource,
     ResourceDemand,
     TradeRoute,
@@ -19,6 +21,10 @@ const MAX_FLOW_DEMANDS = 200;
 const MAX_FLOW_ROUTES = 200;
 const MAX_FLOW_LABEL_LEN = 120;
 const MAX_FLOW_NUMERIC = 1_000_000;
+const MAX_PROCESSING_RECIPES = 100;
+const MAX_PROCESSING_SITES = 100;
+const MAX_RECIPE_COMMODITIES = 20;
+const MAX_BATCHES = 100_000;
 const VALID_COMMODITY_ROLES = new Set<CommodityRole>(['staple', 'material']);
 const VALID_NODE_KINDS = new Set<EconomyNodeKind>([
     'region',
@@ -165,6 +171,52 @@ function parseTradeRoute(raw: unknown): TradeRoute | undefined {
     return route;
 }
 
+/** Positive finite quantity map for recipe inputs/outputs; preserves fractions. */
+function parseQuantityMap(raw: unknown): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return undefined;
+    }
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_RECIPE_COMMODITIES) { break; }
+        const id = asId(key);
+        if (!id) { continue; }
+        if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > MAX_FLOW_NUMERIC) {
+            continue;
+        }
+        out[id] = Object.is(value, -0) ? 0 : value;
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseProcessingRecipe(raw: unknown): ProcessingRecipe | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    if (!id) { return undefined; }
+    const inputs = parseQuantityMap(r.inputs);
+    const outputs = parseQuantityMap(r.outputs);
+    if (!inputs || !outputs) { return undefined; }
+    return { id, inputs, outputs };
+}
+
+function parseProcessingSite(raw: unknown): ProcessingSite | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const nodeId = asId(r.nodeId);
+    const recipeId = asId(r.recipeId);
+    if (!id || !nodeId || !recipeId) { return undefined; }
+    if (typeof r.maxBatchesPerTick !== 'number' || !Number.isFinite(r.maxBatchesPerTick)) {
+        return undefined;
+    }
+    const batches = Math.floor(r.maxBatchesPerTick);
+    if (batches <= 0 || batches > MAX_BATCHES) { return undefined; }
+    return { id, nodeId, recipeId, maxBatchesPerTick: batches };
+}
+
 /**
  * Parse optional resourceFlows. Returns undefined when missing, malformed,
  * or empty of usable rows. Does not drop duplicate IDs or bad cross-refs
@@ -188,11 +240,26 @@ function parseResourceFlows(raw: unknown): EconomyFlowDefinition | undefined {
     const tradeRoutes = Array.isArray(r.tradeRoutes)
         ? r.tradeRoutes.slice(0, MAX_FLOW_ROUTES).map(parseTradeRoute).filter((x): x is TradeRoute => !!x)
         : [];
+    const processingRecipes = Array.isArray(r.processingRecipes)
+        ? r.processingRecipes.slice(0, MAX_PROCESSING_RECIPES).map(parseProcessingRecipe).filter((x): x is ProcessingRecipe => !!x)
+        : [];
+    const processingSites = Array.isArray(r.processingSites)
+        ? r.processingSites.slice(0, MAX_PROCESSING_SITES).map(parseProcessingSite).filter((x): x is ProcessingSite => !!x)
+        : [];
 
-    if (!nodes.length && !productionSources.length && !demands.length && !tradeRoutes.length) {
+    if (!nodes.length && !productionSources.length && !demands.length && !tradeRoutes.length
+        && !processingRecipes.length && !processingSites.length) {
         return undefined;
     }
-    return { nodes, productionSources, demands, tradeRoutes };
+
+    const def: EconomyFlowDefinition = { nodes, productionSources, demands, tradeRoutes };
+    if (processingRecipes.length) {
+        def.processingRecipes = processingRecipes;
+    }
+    if (processingSites.length) {
+        def.processingSites = processingSites;
+    }
+    return def;
 }
 
 export function parseCommerceForge(raw: unknown): CommerceForge | undefined {

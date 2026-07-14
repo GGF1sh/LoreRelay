@@ -23,8 +23,7 @@ import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
 import { loadLorebookForUi, saveLorebookFromUi } from './lorebookLoader';
-import { validateLorebookData } from './lorebookValidator';
-import { getEventManagementCatalog } from './eventManagementCore';
+import { getEventManagementCatalog, getSuggestedExclusions } from './eventManagementCore';
 import { initScenarioDirector, pushScenarioDirectorToWebview } from './scenarioDirector';
 import {
     initPartyDirector,
@@ -1605,6 +1604,22 @@ async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
         ? message.answers as Record<string, unknown>
         : undefined;
     const application = buildRulesProfileApplication(loadGameRules(), answers);
+
+    const genre = answers && typeof answers.genre === 'string' ? answers.genre : '';
+    const freeformNotes = typeof message.freeformNotes === 'string' ? message.freeformNotes : '';
+
+    let suggestedExclusionCount = 0;
+    if (genre) {
+        const suggestedExclusions = await getSuggestedExclusions(genre, freeformNotes);
+        if (suggestedExclusions.length > 0) {
+            application.mergedRules.excludedEventIds = suggestedExclusions;
+            suggestedExclusionCount = suggestedExclusions.length;
+            if (!application.changedKeys.includes('excludedEventIds')) {
+                application.changedKeys.push('excludedEventIds');
+            }
+        }
+    }
+
     const ok = saveGameRules(application.mergedRules);
     if (ok) {
         clearCampaignKitCache();
@@ -1617,6 +1632,7 @@ async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
             summary: application.profile.summary,
             warnings: application.profile.warnings,
             changedKeys: application.changedKeys,
+            suggestedExclusionCount,
         });
         vscode.window.setStatusBarMessage(`Genesis profile applied: ${application.profile.profileId}`, 3500);
         return;

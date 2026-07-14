@@ -770,6 +770,7 @@ function findGalleryIndexByImagePath(imagePath) {
   });
 
   let imageGenTimeoutId = null;
+  const exclusionHintEl = document.getElementById('genesis-exclusion-hint');
 
   window.addEventListener('message', (event) => {
     const message = event.data || {};
@@ -784,8 +785,21 @@ function findGalleryIndexByImagePath(imagePath) {
           summaryWarningsEl.textContent = T('webview.genesis.summary.appliedWarnings');
           summaryWarningsEl.classList.remove('hidden');
         }
+        // C4: Show GM exclusion suggestion hint if any events were suggested
+        if (exclusionHintEl) {
+          const excludedCount = Array.isArray(message.suggestedExclusionCount)
+            ? message.suggestedExclusionCount
+            : (typeof message.suggestedExclusionCount === 'number' ? message.suggestedExclusionCount : 0);
+          if (excludedCount > 0) {
+            exclusionHintEl.textContent = T('webview.genesis.summary.exclusionHint', { count: excludedCount });
+            exclusionHintEl.classList.remove('hidden');
+          } else {
+            exclusionHintEl.classList.add('hidden');
+          }
+        }
       } else {
         appliedToast.textContent = T('webview.genesis.summary.appliedFailed');
+        if (exclusionHintEl) exclusionHintEl.classList.add('hidden');
       }
       appliedToast.classList.remove('hidden');
     } else if (message.type === 'genesisImageGenerated') {

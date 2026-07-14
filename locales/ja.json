@@ -612,6 +612,7 @@
   "webview.genesis.summary.appliedSuccess": "✅ 設定を保存しました（{count}項目を更新）。ウィザードを閉じて、主人公を作るかデモから冒険を始めましょう。",
   "webview.genesis.summary.appliedToast": "設定を送信しました。",
   "webview.genesis.summary.appliedWarnings": "一部の回答が認識できなかったため、既定値に置き換えて保存しました。",
+  "webview.genesis.summary.exclusionHint": "🚫 ジャンルに基づき、{count}件のイベントが自動除外されました。設定 → イベント管理で変更できます。",
   "webview.genesis.summary.applyingToast": "Genesis設定を反映しています...",
   "webview.genesis.summary.bookkeeping": "管理量",
   "webview.genesis.summary.closeAndCreateBtn": "🧑 閉じて主人公を作成する",

@@ -612,6 +612,7 @@
   "webview.genesis.summary.appliedSuccess": "✅ 設定已儲存（更新了 {count} 項設置）。關閉精靈後，可以建立主角或從演示開始冒險。",
   "webview.genesis.summary.appliedToast": "設置已送出。",
   "webview.genesis.summary.appliedWarnings": "部分回答無法識別，已替換為安全預設值後儲存。",
+  "webview.genesis.summary.exclusionHint": "🚫 根據您的類型，{count} 個事件已被自動排除。可在設定 → 事件管理中調整。",
   "webview.genesis.summary.applyingToast": "正在套用 Genesis 設定...",
   "webview.genesis.summary.bookkeeping": "管理量",
   "webview.genesis.summary.closeAndCreateBtn": "🧑 關閉並建立主角",

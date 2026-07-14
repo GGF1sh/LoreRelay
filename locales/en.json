@@ -612,6 +612,7 @@
   "webview.genesis.summary.appliedSuccess": "✅ Profile saved ({count} settings updated). Close the wizard, then create your protagonist or start from a demo.",
   "webview.genesis.summary.appliedToast": "Setup sent.",
   "webview.genesis.summary.appliedWarnings": "Some answers could not be recognized and were replaced with safe defaults.",
+  "webview.genesis.summary.exclusionHint": "🚫 {count} event(s) were auto-excluded based on your genre. You can adjust these in Settings → Event Management.",
   "webview.genesis.summary.applyingToast": "Applying Genesis profile...",
   "webview.genesis.summary.bookkeeping": "Bookkeeping",
   "webview.genesis.summary.closeAndCreateBtn": "🧑 Close and create your protagonist",

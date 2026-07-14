@@ -1368,6 +1368,11 @@ body.relay-mode-active #app {
   display: none;
 }
 
+.genesis-exclusion-hint {
+  color: var(--vscode-charts-orange, #e8a653);
+  margin-top: 4px;
+}
+
 .genesis-alt-links {
   display: flex;
   justify-content: center;

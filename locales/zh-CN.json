@@ -612,6 +612,7 @@
   "webview.genesis.summary.appliedSuccess": "✅ 配置已保存（更新了 {count} 项设置）。关闭向导后，可以创建主角或从演示开始冒险。",
   "webview.genesis.summary.appliedToast": "设置已送出。",
   "webview.genesis.summary.appliedWarnings": "部分回答无法识别，已替换为安全默认值后保存。",
+  "webview.genesis.summary.exclusionHint": "🚫 根据您的类型，{count} 个事件已被自动排除。可在设置 → 事件管理中调整。",
   "webview.genesis.summary.applyingToast": "正在应用 Genesis 配置...",
   "webview.genesis.summary.bookkeeping": "管理量",
   "webview.genesis.summary.closeAndCreateBtn": "🧑 关闭并创建主角",

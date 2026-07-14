@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
-  "version": "1.82.5",
+  "version": "1.83.0",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {

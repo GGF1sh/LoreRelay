@@ -18,7 +18,7 @@ import {
     quoteMarketPrice,
     transportCapacity,
 } from './commerceCore';
-import { MAX_PRICE_INDEX, MIN_PRICE_INDEX } from './worldSimCommerceCore';
+import { MAX_PROFILE_PRICE_INDEX, MIN_PRICE_INDEX } from './worldSimCommerceCore';
 import {
     MAX_RECENT_CHANGES,
     makeWorldChangeEvent,
@@ -101,6 +101,18 @@ export interface NoaiSoakWorldSimConfig {
     enableNpcRegistry: boolean;
     /** Deterministic market recovery per world tick when commerce is active. */
     recoveryPerTick?: number;
+    /**
+     * Economy pacing profile ('easy' | 'normal' | 'harsh'). When set, the host
+     * resolves it via resolveEconomyProfileParams() and passes the full knob set
+     * (recovery, shock magnitudes, price ceiling) to the market tick — so soak
+     * runs exercise the same profile a player would pick, not just recovery.
+     * Missing → legacy 'normal' knobs (unchanged behavior).
+     */
+    economyProfile?: string;
+    /** Per-resource-category (commodity role) tier overrides for soak. */
+    economyResourceProfiles?: Record<string, string>;
+    /** Per-commodity-id tier overrides for soak (custom resources). */
+    economyCommodityProfiles?: Record<string, string>;
 }
 
 export interface NoaiSoakLimits {
@@ -358,6 +370,35 @@ export function parseNoaiSoakScenarioDocument(raw: unknown): ParseNoaiSoakScenar
                     errors.push('worldSim.recoveryPerTick must be a non-negative number');
                 } else {
                     worldSim.recoveryPerTick = raw.worldSim.recoveryPerTick;
+                }
+            }
+            if (raw.worldSim.economyProfile !== undefined) {
+                const validTiers = ['abundant', 'plentiful', 'normal', 'scarce', 'barren', 'easy', 'harsh'];
+                if (typeof raw.worldSim.economyProfile !== 'string'
+                    || !validTiers.includes(raw.worldSim.economyProfile)) {
+                    errors.push(
+                        "worldSim.economyProfile must be one of: abundant, plentiful, normal, scarce, barren (legacy easy/harsh accepted)"
+                    );
+                } else {
+                    worldSim.economyProfile = raw.worldSim.economyProfile;
+                }
+            }
+            if (raw.worldSim.economyResourceProfiles !== undefined) {
+                if (typeof raw.worldSim.economyResourceProfiles !== 'object'
+                    || raw.worldSim.economyResourceProfiles === null
+                    || Array.isArray(raw.worldSim.economyResourceProfiles)) {
+                    errors.push('worldSim.economyResourceProfiles must be an object map');
+                } else {
+                    worldSim.economyResourceProfiles = raw.worldSim.economyResourceProfiles as Record<string, string>;
+                }
+            }
+            if (raw.worldSim.economyCommodityProfiles !== undefined) {
+                if (typeof raw.worldSim.economyCommodityProfiles !== 'object'
+                    || raw.worldSim.economyCommodityProfiles === null
+                    || Array.isArray(raw.worldSim.economyCommodityProfiles)) {
+                    errors.push('worldSim.economyCommodityProfiles must be an object map');
+                } else {
+                    worldSim.economyCommodityProfiles = raw.worldSim.economyCommodityProfiles as Record<string, string>;
                 }
             }
             if (limits && worldSim.stepsPerCadence > limits.maxStepsPerChunk) {
@@ -1174,7 +1215,7 @@ export function findMarketRangeViolations(markets: MarketStateMap): MarketRangeH
             if (
                 !Number.isFinite(entry.priceIndex)
                 || entry.priceIndex < MIN_PRICE_INDEX - 1e-9
-                || entry.priceIndex > MAX_PRICE_INDEX + 1e-9
+                || entry.priceIndex > MAX_PROFILE_PRICE_INDEX + 1e-9
             ) {
                 hits.push({ marketLocationId, commodityId, field: 'priceIndex', value: entry.priceIndex });
             }

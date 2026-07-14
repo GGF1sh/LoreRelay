@@ -12,6 +12,7 @@ import {
     resolveEconomyProfileParams,
     tickFactionReputationMarketDemand,
     tickMarketRecovery,
+    type EconomyDifficultyConfig,
     type EconomyProfile,
 } from './worldSimCommerceCore';
 import { advanceNpcArrivals, reactNpcsToWorld } from './npcAgencyCore';
@@ -33,10 +34,17 @@ export interface WorldKitTickInput {
     /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は npcAgencyCore の既定値。 */
     maxNamedNpcCount?: number;
     /**
-     * Economy pacing from game_rules.economyProfile.
+     * Economy pacing from game_rules.economyProfile (single global tier).
      * Missing/invalid → normal (legacy recovery and shock numbers).
+     * Ignored when economyConfig is provided.
      */
     economyProfile?: EconomyProfile;
+    /**
+     * Per-world difficulty config (global + per-category + per-commodity tiers,
+     * optional modifiers). When present, each commodity resolves its own knobs.
+     * Empty/undefined → legacy single-tier behavior via economyProfile.
+     */
+    economyConfig?: EconomyDifficultyConfig;
 }
 
 export interface WorldKitTickResult {
@@ -53,12 +61,23 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
     let npcMoves: WorldKitTickResult['npcMoves'] = [];
 
     if (input.commerceEnabled) {
-        const economyParams = resolveEconomyProfileParams(input.economyProfile);
+        const hasConfig = !!input.economyConfig && (
+            input.economyConfig.globalTier !== undefined
+            || input.economyConfig.categoryTiers !== undefined
+            || input.economyConfig.commodityTiers !== undefined
+            || input.economyConfig.modifiers !== undefined
+        );
+        const economyParams = resolveEconomyProfileParams(
+            input.economyConfig?.globalTier ?? input.economyProfile
+        );
         const tick = tickMarketRecovery(input.forge, markets, {
             worldTurn: input.worldTurn,
             stepEvents: input.stepEvents,
-            recoveryPerTick: economyParams.recoveryPerTick,
+            // When a per-world config is present, per-commodity recovery governs;
+            // otherwise the single global tier's recovery is used (legacy).
+            recoveryPerTick: hasConfig ? undefined : economyParams.recoveryPerTick,
             economyParams,
+            economyConfig: hasConfig ? input.economyConfig : undefined,
         });
         markets = tick.markets;
         marketSummary = tick.summary;

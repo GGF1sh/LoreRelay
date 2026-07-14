@@ -243,6 +243,12 @@ export function tickLivingWorldAfterSim(
             : undefined,
         maxNamedNpcCount,
         economyProfile: rules.economyProfile,
+        economyConfig: {
+            globalTier: rules.economyProfile,
+            categoryTiers: rules.economyResourceProfiles,
+            commodityTiers: rules.economyCommodityProfiles,
+            modifiers: rules.economyResourceModifiers,
+        },
     });
 
     ext.markets = tick.markets;

@@ -9,6 +9,53 @@
 
 ## [Unreleased]
 
+## [1.83.0] - 2026-07-14
+
+### Per-resource economy difficulty (absolute 5-tier scale)
+
+NOAI-mode economy balance was reworked from a single opaque `economyProfile`
+(`easy`/`normal`/`harsh`) into an **absolute, per-resource scarcity scale** so a
+freely-built world can say "minerals abundant but farmland barren", and even
+custom world resources (e.g. a setting-specific mineral) get their own
+difficulty. No fuzzy AI judgment — the tiers are fixed, testable numbers.
+
+- **5-tier scale** `abundant / plentiful / normal / scarce / barren`
+  (`worldSimCommerceCore.ts`). Each tier is a concrete parameter set (recovery,
+  shock strength, price ceiling, and a **new `baselinePriceBias`** so a scarce
+  resource stays expensive even in stock — felt every turn, not only during
+  shocks). `normal` is byte-identical to the previous constants. Legacy
+  `easy`/`harsh` are accepted on input and canonicalized to `plentiful`/`scarce`.
+- **Per-category and per-commodity overrides** in `game_rules`
+  (`economyResourceProfiles` by commodity role, `economyCommodityProfiles` by
+  commodity id) with resolution precedence **commodity id > category > global >
+  normal**. Custom resources are supported with zero new plumbing — the id is
+  the key.
+- **Optional `% modifiers`** (`economyResourceModifiers`) that scale a tier's
+  deviation from normal (`value = normal + (tier − normal) × modifier`,
+  clamped `[0, 3]`); the price ceiling is intentionally left unscaled so range
+  validators stay bounded. Empty config ⇒ every commodity resolves to `normal`
+  (legacy behavior unchanged).
+- **Market tick is now per-commodity** (`tickMarketRecovery` /
+  `applyWorldEventsToMarkets` accept an `economyConfig`), wired through
+  `worldKitTickCore` and `livingWorldBridge`.
+
+### NOAI soak: economy profile now actually exercised + a real bug fixed
+
+- The soak runner passed only `recoveryPerTick` to the market tick, so **4 of
+  the 5 economy knobs never fired** in any shipped scenario (shock knobs need
+  world-sim `resource` events, which no fixture triggered). The runner now
+  resolves the full profile / per-resource config and passes it through; new
+  `economyProfile` (+ `economyResourceProfiles` / `economyCommodityProfiles`)
+  scenario keys drive it.
+- **Bug fix:** the `market_ranges_valid` soak invariant hard-coded the old
+  `MAX_PRICE_INDEX` (4) as the price upper bound, so a legitimate scarce/harsh
+  price above 4 crashed the run mid-soak. It now uses `MAX_PROFILE_PRICE_INDEX`
+  (the highest tier ceiling, 7).
+- Added comparison scenarios (`noai_econprofile_*`, `noai_famine_*`) and a
+  `market_famine` fixture (factions with depleting food) that actually fires the
+  food-crisis path. Soak confirms resting price and stock floor are **monotonic
+  abundant→barren**, and barren genuinely strangles commerce.
+
 ## [1.82.5] - 2026-07-14
 
 ### Production fixes

@@ -29,8 +29,10 @@ const {
     tickMarketRecovery,
     resolveEconomyProfile,
     resolveEconomyProfileParams,
+    resolveCommodityEconomyParams,
     DEFAULT_MARKET_RECOVERY_PER_TICK,
     MAX_PRICE_INDEX,
+    MAX_PROFILE_PRICE_INDEX,
     FOOD_CRISIS_PRICE_BUMP,
     STEEL_IMPROVEMENT_STOCK,
     STEEL_IMPROVEMENT_PRICE_REDUCTION,
@@ -52,50 +54,62 @@ const baseForge = {
 };
 
 // 1–3. Parsing: missing / invalid / valid via gameRules + resolveEconomyProfile
+// 5-tier scale; legacy easy/harsh canonicalize to plentiful/scarce.
 {
     const missing = normalizeGameRules({});
     const invalid = normalizeGameRules({ economyProfile: 'nightmare' });
     const easy = normalizeGameRules({ economyProfile: 'easy' });
     const normal = normalizeGameRules({ economyProfile: 'normal' });
     const harsh = normalizeGameRules({ economyProfile: 'harsh' });
+    const abundant = normalizeGameRules({ economyProfile: 'abundant' });
+    const barren = normalizeGameRules({ economyProfile: 'barren' });
 
     if (missing.economyProfile !== 'normal') {
         fail(`missing profile should be normal, got ${missing.economyProfile}`);
     } else if (invalid.economyProfile !== 'normal') {
         fail(`invalid profile should be normal, got ${invalid.economyProfile}`);
-    } else if (easy.economyProfile !== 'easy' || normal.economyProfile !== 'normal' || harsh.economyProfile !== 'harsh') {
-        fail('valid economyProfile values not preserved');
+    } else if (easy.economyProfile !== 'plentiful' || harsh.economyProfile !== 'scarce') {
+        fail(`legacy easy/harsh should canonicalize to plentiful/scarce, got ${easy.economyProfile}/${harsh.economyProfile}`);
+    } else if (normal.economyProfile !== 'normal' || abundant.economyProfile !== 'abundant' || barren.economyProfile !== 'barren') {
+        fail('valid 5-tier economyProfile values not preserved');
     } else if (DEFAULT_GAME_RULES.economyProfile !== 'normal') {
         fail('DEFAULT_GAME_RULES.economyProfile must be normal');
     } else if (
         resolveEconomyProfile(undefined) !== 'normal'
         || resolveEconomyProfile(null) !== 'normal'
         || resolveEconomyProfile('bogus') !== 'normal'
-        || resolveEconomyProfile('easy') !== 'easy'
+        || resolveEconomyProfile('easy') !== 'plentiful'
+        || resolveEconomyProfile('harsh') !== 'scarce'
+        || resolveEconomyProfile('barren') !== 'barren'
     ) {
-        fail('resolveEconomyProfile fallback / accept broken');
+        fail('resolveEconomyProfile fallback / alias / accept broken');
     } else {
-        ok('missing/invalid → normal; valid easy/normal/harsh parse');
+        ok('missing/invalid → normal; 5-tier parse; legacy easy/harsh aliased');
     }
 }
 
-// 4. Exact profile parameter mapping
+// 4. Exact tier parameter mapping (5-tier scale)
 {
-    const easy = resolveEconomyProfileParams('easy');
+    const abundant = resolveEconomyProfileParams('abundant');
+    const plentiful = resolveEconomyProfileParams('plentiful');
     const normal = resolveEconomyProfileParams('normal');
-    const harsh = resolveEconomyProfileParams('harsh');
+    const scarce = resolveEconomyProfileParams('scarce');
+    const barren = resolveEconomyProfileParams('barren');
     const missing = resolveEconomyProfileParams(undefined);
 
     const expect = {
-        easy: { recoveryPerTick: 3, foodCrisisPriceBump: 0.25, positiveMaterialStockGain: 4, positiveMaterialPriceReduction: 0.15, maxPriceIndex: 3.5 },
+        abundant: { recoveryPerTick: 4, foodCrisisPriceBump: 0.15, positiveMaterialStockGain: 5, positiveMaterialPriceReduction: 0.20, maxPriceIndex: 2.0, baselinePriceBias: 0.85 },
+        plentiful: { recoveryPerTick: 3, foodCrisisPriceBump: 0.25, positiveMaterialStockGain: 4, positiveMaterialPriceReduction: 0.15, maxPriceIndex: 3.0, baselinePriceBias: 0.93 },
         normal: {
             recoveryPerTick: DEFAULT_MARKET_RECOVERY_PER_TICK,
             foodCrisisPriceBump: FOOD_CRISIS_PRICE_BUMP,
             positiveMaterialStockGain: STEEL_IMPROVEMENT_STOCK,
             positiveMaterialPriceReduction: STEEL_IMPROVEMENT_PRICE_REDUCTION,
             maxPriceIndex: MAX_PRICE_INDEX,
+            baselinePriceBias: 1.0,
         },
-        harsh: { recoveryPerTick: 1, foodCrisisPriceBump: 0.5, positiveMaterialStockGain: 2, positiveMaterialPriceReduction: 0.05, maxPriceIndex: 5 },
+        scarce: { recoveryPerTick: 1, foodCrisisPriceBump: 0.50, positiveMaterialStockGain: 2, positiveMaterialPriceReduction: 0.07, maxPriceIndex: 5.5, baselinePriceBias: 1.15 },
+        barren: { recoveryPerTick: 0, foodCrisisPriceBump: 0.70, positiveMaterialStockGain: 1, positiveMaterialPriceReduction: 0.04, maxPriceIndex: 7.0, baselinePriceBias: 1.30 },
     };
 
     function sameParams(a, b) {
@@ -103,17 +117,36 @@ const baseForge = {
             && approx(a.foodCrisisPriceBump, b.foodCrisisPriceBump)
             && a.positiveMaterialStockGain === b.positiveMaterialStockGain
             && approx(a.positiveMaterialPriceReduction, b.positiveMaterialPriceReduction)
-            && approx(a.maxPriceIndex, b.maxPriceIndex);
+            && approx(a.maxPriceIndex, b.maxPriceIndex)
+            && approx(a.baselinePriceBias, b.baselinePriceBias);
     }
 
-    if (!sameParams(easy, expect.easy)) {
-        fail(`easy params mismatch: ${JSON.stringify(easy)}`);
+    // Monotonic: recovery falls, shock bump rises, ceiling rises, resting price rises.
+    const order = [abundant, plentiful, normal, scarce, barren];
+    let monotonic = true;
+    for (let i = 1; i < order.length; i++) {
+        if (!(order[i].recoveryPerTick <= order[i - 1].recoveryPerTick
+            && order[i].foodCrisisPriceBump >= order[i - 1].foodCrisisPriceBump
+            && order[i].maxPriceIndex >= order[i - 1].maxPriceIndex
+            && order[i].baselinePriceBias >= order[i - 1].baselinePriceBias)) {
+            monotonic = false;
+        }
+    }
+
+    if (!sameParams(abundant, expect.abundant)) {
+        fail(`abundant params mismatch: ${JSON.stringify(abundant)}`);
+    } else if (!sameParams(plentiful, expect.plentiful)) {
+        fail(`plentiful params mismatch: ${JSON.stringify(plentiful)}`);
     } else if (!sameParams(normal, expect.normal) || !sameParams(missing, expect.normal)) {
         fail(`normal/missing params mismatch: ${JSON.stringify(normal)} / ${JSON.stringify(missing)}`);
-    } else if (!sameParams(harsh, expect.harsh)) {
-        fail(`harsh params mismatch: ${JSON.stringify(harsh)}`);
+    } else if (!sameParams(scarce, expect.scarce)) {
+        fail(`scarce params mismatch: ${JSON.stringify(scarce)}`);
+    } else if (!sameParams(barren, expect.barren)) {
+        fail(`barren params mismatch: ${JSON.stringify(barren)}`);
+    } else if (!monotonic) {
+        fail('tier params must be monotonic abundant→barren');
     } else {
-        ok('exact profile parameter mapping');
+        ok('exact 5-tier parameter mapping is monotonic');
     }
 }
 
@@ -194,27 +227,26 @@ const baseForge = {
     }
 }
 
-// max price index: easy clamps lower, harsh allows higher
+// max price index: plentiful clamps lower (3.0), scarce allows higher (5.5)
 {
-    const high = { town: { wheat: { stock: 20, priceIndex: 3.4 }, steel: { stock: 5, priceIndex: 1 } } };
-    const easyCap = applyWorldEventsToMarkets(
-        baseForge, high, [foodEvent], resolveEconomyProfileParams('easy')
+    // plentiful ceiling 3.0: a bump from 2.9 clamps at 3.0.
+    const high = { town: { wheat: { stock: 20, priceIndex: 2.9 }, steel: { stock: 5, priceIndex: 1 } } };
+    const plentifulCap = applyWorldEventsToMarkets(
+        baseForge, high, [foodEvent], resolveEconomyProfileParams('plentiful')
     ).markets.town.wheat.priceIndex;
-    const harshHigh = { town: { wheat: { stock: 20, priceIndex: 4.6 }, steel: { stock: 5, priceIndex: 1 } } };
-    const harshCap = applyWorldEventsToMarkets(
-        baseForge, harshHigh, [foodEvent], resolveEconomyProfileParams('harsh')
+    // scarce ceiling 5.5: a bump from 5.4 clamps at 5.5.
+    const scarceHigh = { town: { wheat: { stock: 20, priceIndex: 5.4 }, steel: { stock: 5, priceIndex: 1 } } };
+    const scarceCap = applyWorldEventsToMarkets(
+        baseForge, scarceHigh, [foodEvent], resolveEconomyProfileParams('scarce')
     ).markets.town.wheat.priceIndex;
-    if (!approx(easyCap, 3.5)) {
-        fail(`easy maxPriceIndex clamp expected 3.5, got ${easyCap}`);
-    } else if (!approx(harshCap, 5.0) && !approx(harshCap, 4.6 + 0.5)) {
-        // 4.6 + 0.5 = 5.1 → clamp 5
-        if (!approx(harshCap, 5)) {
-            fail(`harsh maxPriceIndex clamp expected 5, got ${harshCap}`);
-        } else {
-            ok('profile maxPriceIndex clamps adverse price growth');
-        }
+    if (!approx(plentifulCap, 3.0)) {
+        fail(`plentiful maxPriceIndex clamp expected 3.0, got ${plentifulCap}`);
+    } else if (!approx(scarceCap, 5.5)) {
+        fail(`scarce maxPriceIndex clamp expected 5.5, got ${scarceCap}`);
+    } else if (MAX_PROFILE_PRICE_INDEX !== 7.0) {
+        fail(`MAX_PROFILE_PRICE_INDEX should be barren ceiling 7.0, got ${MAX_PROFILE_PRICE_INDEX}`);
     } else {
-        ok('profile maxPriceIndex clamps adverse price growth');
+        ok('tier maxPriceIndex clamps adverse price growth; barren ceiling is global max');
     }
 }
 
@@ -351,6 +383,78 @@ const baseForge = {
         fail(`role material should take harsh stock gain: ${res.markets.wastes.parts.stock}`);
     } else {
         ok('Slice B1 role-based targets still work with economy profile');
+    }
+}
+
+// 11. Per-commodity / per-category resolution precedence + custom resources.
+{
+    const config = {
+        globalTier: 'normal',
+        categoryTiers: { staple: 'barren' },
+        commodityTiers: { sakuradite: 'abundant' },
+    };
+    // Custom resource by id wins (abundant).
+    const sakuradite = resolveCommodityEconomyParams(config, 'sakuradite', 'material');
+    // Category/role match (staple → barren) when no id override.
+    const rations = resolveCommodityEconomyParams(config, 'rations', 'staple');
+    // Falls back to global (normal) when neither id nor category matches.
+    const trinket = resolveCommodityEconomyParams(config, 'trinket', undefined);
+    // No config at all → normal.
+    const bare = resolveCommodityEconomyParams(undefined, 'anything', 'staple');
+
+    if (!approx(sakuradite.baselinePriceBias, 0.85)) {
+        fail(`commodity id override should win (abundant 0.85), got ${sakuradite.baselinePriceBias}`);
+    } else if (!approx(rations.baselinePriceBias, 1.30) || rations.recoveryPerTick !== 0) {
+        fail(`category staple→barren expected, got bias ${rations.baselinePriceBias} recovery ${rations.recoveryPerTick}`);
+    } else if (!approx(trinket.baselinePriceBias, 1.0)) {
+        fail(`unmatched commodity should fall to global normal, got ${trinket.baselinePriceBias}`);
+    } else if (!approx(bare.baselinePriceBias, 1.0)) {
+        fail(`no config should resolve normal, got ${bare.baselinePriceBias}`);
+    } else {
+        ok('per-commodity > per-category > global resolution; custom resources supported');
+    }
+}
+
+// 12. % modifier scales deviation from normal; price ceiling stays fixed.
+{
+    const config = { commodityTiers: { fuel: 'scarce' }, modifiers: { fuel: 2 } };
+    const fuel = resolveCommodityEconomyParams(config, 'fuel', undefined);
+    // scarce baselinePriceBias 1.15 → normal 1.0 + (1.15-1.0)*2 = 1.30
+    // scarce recovery 1 → 2 + (1-2)*2 = 0
+    // ceiling must stay the fixed scarce value 5.5 (NOT scaled).
+    if (!approx(fuel.baselinePriceBias, 1.30)) {
+        fail(`modifier x2 on scarce bias expected 1.30, got ${fuel.baselinePriceBias}`);
+    } else if (!approx(fuel.recoveryPerTick, 0)) {
+        fail(`modifier x2 on scarce recovery expected 0, got ${fuel.recoveryPerTick}`);
+    } else if (!approx(fuel.maxPriceIndex, 5.5)) {
+        fail(`price ceiling must stay fixed at scarce 5.5 (unmodified), got ${fuel.maxPriceIndex}`);
+    } else {
+        ok('modifier scales deviation-from-normal; ceiling stays bounded');
+    }
+}
+
+// 13. economyConfig path: per-commodity resting price applied every tick.
+{
+    // Well-supplied market (stock at/above target). With a scarce tier the
+    // resting price should drift UP toward 1.15, not toward 1.0.
+    const forge = {
+        commodities: [{ id: 'ore', name: 'Ore', basePrice: 10, weight: 1, role: 'material' }],
+        markets: [{ locationId: 'mine', commodityIds: ['ore'], targetStock: 30 }],
+        transportKinds: [],
+    };
+    let markets = { mine: { ore: { stock: 40, priceIndex: 1.0 } } };
+    const config = { globalTier: 'scarce' };
+    // Run several ticks; price should climb toward 1.15 (scarce resting bias).
+    for (let i = 0; i < 5; i++) {
+        markets = tickMarketRecovery(forge, markets, {
+            worldTurn: i, economyConfig: config,
+        }).markets;
+    }
+    const price = markets.mine.ore.priceIndex;
+    if (!(price > 1.0 && price <= 1.15 + 1e-9)) {
+        fail(`scarce resting price should drift up toward 1.15, got ${price}`);
+    } else {
+        ok('economyConfig applies per-commodity resting price each tick');
     }
 }
 

@@ -1,0 +1,15 @@
+{
+  "id": "noai_famine_plentiful_250",
+  "version": 1,
+  "description": "250 turns over market_famine (three factions with depleting food) with economyProfile=plentiful. Fires real food-crisis world events so the shock knobs (shock bump, ceiling) are exercised per scarcity tier.",
+  "mode": "full",
+  "modes": ["full"],
+  "seed": "noai-famine-250-seed",
+  "policyId": "merchant_stress",
+  "workspace": { "source": "fixture", "fixturePath": "scripts/noai_soak_scenarios/fixtures/market_famine" },
+  "horizon": { "turns": 250 },
+  "worldSim": { "cadenceTurns": 1, "stepsPerCadence": 1, "enableNpcRegistry": false, "economyProfile": "plentiful" },
+  "limits": { "timeoutMs": 60000, "maxTurns": 250, "maxStepsPerChunk": 5, "maxOpsPerTurn": 3, "maxFileBytes": 1000000, "maxRecentChanges": 20 },
+  "invariants": ["no_nan_or_infinity","json_parseable","world_turn_monotonic","nonnegative_resources","market_ranges_valid","caps_bounded","no_duplicate_event_ids","no_duplicate_one_shot_events","output_files_bounded"],
+  "telemetry": { "sampleEveryTurns": 25, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 }
+}

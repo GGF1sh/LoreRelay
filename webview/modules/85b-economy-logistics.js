@@ -1,9 +1,93 @@
 // NOAI-ECON-FLOWS-005 — read-only deterministic logistics network.
+// NOAI-ECON-FLOWS-005C — optional flow direction animation (particles when the
+// panel is wide enough, marching dashes when it is narrow; both purely
+// decorative/informational, never touching simulation state).
+
+const LOGISTICS_FLOW_ANIM_STORAGE_KEY = 'lorerelay.logisticsFlowAnimation';
+const LOGISTICS_COMPACT_WIDTH_PX = 420;
+
+function logisticsPrefersReducedMotion() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function logisticsLoadFlowAnimationPref() {
+  try {
+    return window.localStorage.getItem(LOGISTICS_FLOW_ANIM_STORAGE_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function logisticsSaveFlowAnimationPref(enabled) {
+  try {
+    window.localStorage.setItem(LOGISTICS_FLOW_ANIM_STORAGE_KEY, enabled ? 'on' : 'off');
+  } catch { /* private browsing / quota — animation choice just won't persist */ }
+}
+
+/** Deterministic pseudo-random unit value from an id, used only to stagger
+ *  particle start times so parallel routes don't all pulse in lockstep. */
+function logisticsHashUnit(id) {
+  let h = 0;
+  const s = String(id || '');
+  for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  return (h % 997) / 997;
+}
+
+function logisticsFlowMotionActive() {
+  return economyLogisticsUiState.flowAnimationEnabled && !logisticsPrefersReducedMotion();
+}
+
+function logisticsFlowDurationSeconds(route) {
+  const util = Math.max(0, Math.min(1, route.utilization || 0));
+  if (route.status === 'raided') { return 2.8 + (1 - util) * 1.6; }
+  if (route.status === 'strained') { return 2.2 + (1 - util) * 1.4; }
+  return 1.6 + (1 - util) * 1.2;
+}
+
+let logisticsNetworkResizeObserver = null;
+
+/** Measures the actual scrollable viewport (not the min-width-forced SVG) so a
+ *  docked, narrow status column reliably falls back to marching dashes even
+ *  when the overall VS Code window is wide. */
+function logisticsObserveNetworkWidth(viewportEl) {
+  if (typeof ResizeObserver !== 'function') { return; }
+  if (!logisticsNetworkResizeObserver) {
+    logisticsNetworkResizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width ?? 0;
+      const compact = width < LOGISTICS_COMPACT_WIDTH_PX;
+      if (compact !== economyLogisticsUiState.compactAnimation) {
+        economyLogisticsUiState.compactAnimation = compact;
+        renderEconomyLogisticsPanel();
+      }
+    });
+  } else {
+    logisticsNetworkResizeObserver.disconnect();
+  }
+  logisticsNetworkResizeObserver.observe(viewportEl);
+}
+
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  const logisticsMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const onLogisticsMotionChange = () => renderEconomyLogisticsPanel();
+  if (typeof logisticsMotionQuery.addEventListener === 'function') {
+    logisticsMotionQuery.addEventListener('change', onLogisticsMotionChange);
+  } else if (typeof logisticsMotionQuery.addListener === 'function') {
+    logisticsMotionQuery.addListener(onLogisticsMotionChange);
+  }
+}
 
 const economyLogisticsUiState = {
   payload: null,
   commodityId: 'all',
   selection: null,
+  flowAnimationEnabled: logisticsLoadFlowAnimationPref(),
+  // Conservative default (marching dashes, no particles) until the real
+  // container width is measured by ResizeObserver on first paint.
+  compactAnimation: true,
+  // Non-null while the panel is rendering inside the "view large" lightbox
+  // instead of its normal sidebar location (see ensureVisualLightbox below).
+  lightboxHost: null,
 };
 
 function logisticsElement(tag, className, value) {
@@ -175,7 +259,30 @@ function renderLogisticsFilter(payload, parent) {
   });
   row.appendChild(label);
   row.appendChild(select);
+  renderLogisticsFlowToggle(row);
   parent.appendChild(row);
+}
+
+function renderLogisticsFlowToggle(row) {
+  const reduced = logisticsPrefersReducedMotion();
+  const enabled = economyLogisticsUiState.flowAnimationEnabled;
+  const btn = logisticsElement(
+    'button',
+    `logistics-flow-toggle-btn${enabled && !reduced ? ' is-active' : ''}`,
+    T(enabled ? 'webview.world.logisticsFlowAnimationOn' : 'webview.world.logisticsFlowAnimationOff')
+  );
+  btn.type = 'button';
+  btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  btn.title = reduced
+    ? T('webview.world.logisticsFlowAnimationReducedMotionTitle')
+    : T('webview.world.logisticsFlowAnimationTitle');
+  btn.disabled = reduced;
+  btn.addEventListener('click', () => {
+    economyLogisticsUiState.flowAnimationEnabled = !economyLogisticsUiState.flowAnimationEnabled;
+    logisticsSaveFlowAnimationPref(economyLogisticsUiState.flowAnimationEnabled);
+    renderEconomyLogisticsPanel();
+  });
+  row.appendChild(btn);
 }
 
 function visibleLogisticsData(payload) {
@@ -205,7 +312,11 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
   const to = positions.get(route.toNodeId);
   if (!from || !to) { return; }
   const selected = economyLogisticsUiState.selection?.type === 'route' && economyLogisticsUiState.selection.id === route.id;
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}`);
+  const flowing = logisticsFlowMotionActive() && route.volume > 0;
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${flowing ? ' is-flowing' : ''}`);
+  if (flowing && typeof group.style.setProperty === 'function') {
+    group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
+  }
   group.dataset.routeId = route.id;
   const direction = to.x >= from.x ? 1 : -1;
   const x1 = from.x + direction * 78;
@@ -225,6 +336,9 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
     ? String(0.55 + Math.min(1, route.utilization) * 0.4)
     : (disrupted ? '0.8' : '0.4');
   group.appendChild(line);
+  if (flowing && !economyLogisticsUiState.compactAnimation) {
+    logisticsRenderFlowParticles(group, route, x1, from.y, x2, to.y);
+  }
 
   // Crossing routes share the exact segment midpoint, which stacks their
   // labels into unreadable glyph soup. Slide along the line until this
@@ -259,6 +373,38 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
   appendLogisticsTitle(group, `${aria}; ${T('webview.world.logisticsVolume')} ${logisticsNumber(route.volume)}; ${T('webview.world.logisticsRisk')} ${logisticsRiskLabel(route.risk)}`);
   bindLogisticsActivation(group, { type: 'route', id: route.id });
   svg.appendChild(group);
+}
+
+/** Declarative SMIL particles (no rAF loop, no canonical state): 2 steady dots
+ *  for open/strained flow, 1 sparse flickering dot for raided routes so a
+ *  convoy under threat visibly reads as different from healthy flow. */
+function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
+  const duration = logisticsFlowDurationSeconds(route);
+  const pathD = `M ${x1},${y1} L ${x2},${y2}`;
+  const dotCount = route.status === 'raided' ? 1 : 2;
+  const stagger = logisticsHashUnit(route.id) * duration;
+  for (let i = 0; i < dotCount; i++) {
+    const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
+    dot.setAttribute('r', '2.6');
+    dot.setAttribute('cx', String(x1));
+    dot.setAttribute('cy', String(y1));
+    const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+    motion.setAttribute('dur', `${duration.toFixed(2)}s`);
+    motion.setAttribute('repeatCount', 'indefinite');
+    motion.setAttribute('path', pathD);
+    const begin = (stagger + (i * duration) / dotCount) % duration;
+    motion.setAttribute('begin', `${begin.toFixed(2)}s`);
+    dot.appendChild(motion);
+    if (route.status === 'raided') {
+      const flicker = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+      flicker.setAttribute('attributeName', 'opacity');
+      flicker.setAttribute('values', '1;0.2;1;0.7;1');
+      flicker.setAttribute('dur', `${(duration * 0.7).toFixed(2)}s`);
+      flicker.setAttribute('repeatCount', 'indefinite');
+      dot.appendChild(flicker);
+    }
+    group.appendChild(dot);
+  }
 }
 
 function renderLogisticsNode(svg, payload, node, position, shortages) {
@@ -303,13 +449,38 @@ function renderLogisticsNode(svg, payload, node, position, shortages) {
 
 function renderLogisticsNetwork(payload, parent) {
   const data = visibleLogisticsData(payload);
+  // Best-effort synchronous read of the (already laid out) render target so
+  // the very first paint already picks the right mode instead of always
+  // starting compact and correcting itself once ResizeObserver's async
+  // initial callback lands a frame later (visible as a brief flash when the
+  // host — sidebar column or lightbox — is actually wide, e.g. right after
+  // opening the "view large" lightbox).
+  let hostWidth = 0;
+  if (typeof parent.clientWidth === 'number' && parent.clientWidth > 0) {
+    hostWidth = parent.clientWidth;
+  } else if (typeof parent.getBoundingClientRect === 'function') {
+    hostWidth = parent.getBoundingClientRect().width || 0;
+  }
+  if (hostWidth > 0) {
+    economyLogisticsUiState.compactAnimation = hostWidth < LOGISTICS_COMPACT_WIDTH_PX;
+  }
   const viewport = logisticsElement('div', 'logistics-network-viewport');
+  if (!economyLogisticsUiState.lightboxHost) {
+    const expandBtn = logisticsElement('button', 'logistics-expand-btn', '⤢');
+    expandBtn.type = 'button';
+    expandBtn.title = T('webview.world.logisticsExpand');
+    expandBtn.setAttribute('aria-label', T('webview.world.logisticsExpand'));
+    expandBtn.addEventListener('click', () => logisticsOpenLightbox(expandBtn));
+    viewport.appendChild(expandBtn);
+  }
   if (data.routes.length === 0) {
     const empty = logisticsElement('p', 'empty-text logistics-filter-empty', T('webview.world.logisticsFilterEmpty'));
     viewport.appendChild(empty);
   }
   const layout = buildLogisticsLayout(data.nodes);
-  const svg = logisticsSvgElement('svg', 'logistics-network');
+  const motionActive = logisticsFlowMotionActive();
+  const svgClass = `logistics-network${motionActive ? ' is-animated' : ''}${economyLogisticsUiState.compactAnimation ? ' is-compact' : ''}`;
+  const svg = logisticsSvgElement('svg', svgClass);
   svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
   svg.setAttribute('aria-label', T('webview.world.logisticsAria'));
   svg.setAttribute('role', 'img');
@@ -341,6 +512,7 @@ function renderLogisticsNetwork(payload, parent) {
   });
   viewport.appendChild(svg);
   parent.appendChild(viewport);
+  logisticsObserveNetworkWidth(viewport);
 }
 
 function appendLogisticsDetailRow(parent, label, value) {
@@ -401,13 +573,16 @@ function renderLogisticsDetails(payload, parent) {
 }
 
 function renderEconomyLogisticsPanel() {
-  const panel = document.getElementById('world-logistics-panel');
+  const panel = economyLogisticsUiState.lightboxHost || document.getElementById('world-logistics-panel');
   const payload = economyLogisticsUiState.payload;
   if (!panel || !payload) { return; }
   panel.replaceChildren();
   panel.onkeydown = (event) => {
     if (event.key === 'Escape' && economyLogisticsUiState.selection) {
       event.preventDefault();
+      // Clearing a selection and closing the expanded view are both bound to
+      // Escape; stop here so one press only ever does the innermost thing.
+      if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
       economyLogisticsUiState.selection = null;
       renderEconomyLogisticsPanel();
     }
@@ -426,6 +601,90 @@ function renderEconomyLogisticsPanel() {
   renderLogisticsDetails(payload, panel);
 }
 
+/** Generic "view large" lightbox: a single reusable overlay any read-only
+ *  visual panel can borrow (only the logistics network uses it so far). It
+ *  never owns feature state — callers get a body element to render into and
+ *  an onClose callback to unwind their own state when the user leaves. */
+function ensureVisualLightbox() {
+  if (window.__lrVisualLightbox) { return window.__lrVisualLightbox; }
+  const root = document.createElement('div');
+  root.className = 'visual-lightbox hidden';
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-modal', 'true');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'visual-lightbox-backdrop';
+  const panel = document.createElement('div');
+  panel.className = 'visual-lightbox-panel';
+  const header = document.createElement('div');
+  header.className = 'visual-lightbox-header';
+  const title = document.createElement('span');
+  title.className = 'visual-lightbox-title';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'visual-lightbox-close';
+  closeBtn.textContent = '✕';
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  const body = document.createElement('div');
+  body.className = 'visual-lightbox-body';
+  panel.appendChild(header);
+  panel.appendChild(body);
+  root.appendChild(backdrop);
+  root.appendChild(panel);
+  document.body.appendChild(root);
+
+  let onCloseCb = null;
+  let restoreFocusEl = null;
+
+  function close() {
+    if (root.classList.contains('hidden')) { return; }
+    root.classList.add('hidden');
+    // Restore focus to the trigger before the consumer's onClose callback
+    // runs — that callback typically re-renders its own panel (e.g. the
+    // logistics panel rebuilds and replaces its expand button), which would
+    // detach the very node we're about to focus if we waited until after.
+    if (restoreFocusEl && typeof restoreFocusEl.focus === 'function') { restoreFocusEl.focus(); }
+    restoreFocusEl = null;
+    const cb = onCloseCb;
+    onCloseCb = null;
+    if (typeof cb === 'function') { cb(); }
+  }
+
+  function open(titleText, triggerEl, onClose) {
+    title.textContent = titleText || '';
+    closeBtn.setAttribute('aria-label', T('webview.world.logisticsLightboxClose'));
+    closeBtn.title = T('webview.world.logisticsLightboxClose');
+    onCloseCb = onClose || null;
+    restoreFocusEl = triggerEl || document.activeElement;
+    root.classList.remove('hidden');
+    closeBtn.focus();
+  }
+
+  backdrop.addEventListener('click', close);
+  closeBtn.addEventListener('click', close);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !root.classList.contains('hidden')) {
+      event.preventDefault();
+      close();
+    }
+  });
+
+  window.__lrVisualLightbox = { open, close, body };
+  return window.__lrVisualLightbox;
+}
+
+function logisticsOpenLightbox(triggerEl) {
+  const lightbox = ensureVisualLightbox();
+  lightbox.body.classList.add('visual-lightbox-body--logistics');
+  economyLogisticsUiState.lightboxHost = lightbox.body;
+  lightbox.open(T('webview.world.logisticsTitle'), triggerEl, () => {
+    economyLogisticsUiState.lightboxHost = null;
+    lightbox.body.classList.remove('visual-lightbox-body--logistics');
+    renderEconomyLogisticsPanel();
+  });
+  renderEconomyLogisticsPanel();
+}
+
 function renderEconomyLogistics(payload, commerceEnabled) {
   const section = document.getElementById('world-logistics-details');
   const panel = document.getElementById('world-logistics-panel');
@@ -433,6 +692,10 @@ function renderEconomyLogistics(payload, commerceEnabled) {
   const visible = Boolean(payload);
   section.classList.toggle('hidden', !visible);
   if (!visible) {
+    if (economyLogisticsUiState.lightboxHost) {
+      economyLogisticsUiState.lightboxHost = null;
+      ensureVisualLightbox().close();
+    }
     panel.replaceChildren();
     economyLogisticsUiState.payload = null;
     economyLogisticsUiState.selection = null;

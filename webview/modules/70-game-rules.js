@@ -152,8 +152,109 @@
             if (rules.enableTravelEncounters !== undefined && inputs.enableTravelEncounters) inputs.enableTravelEncounters.checked = rules.enableTravelEncounters;
             if (rules.travelEncounterDensity !== undefined && inputs.travelEncounterDensity) inputs.travelEncounterDensity.value = rules.travelEncounterDensity;
             if (rules.simIntervalTurns !== undefined && inputs.simIntervalTurns) inputs.simIntervalTurns.value = rules.simIntervalTurns;
+
+            if (message.eventCatalog) {
+                renderEventCatalog(message.eventCatalog, rules.excludedEventIds || []);
+            }
         }
     });
+
+    let catalogRendered = false;
+    
+    function renderEventCatalog(catalog, excludedEventIds) {
+        const excludedSet = new Set(excludedEventIds);
+
+        if (catalogRendered) {
+            catalog.forEach(entry => {
+                const cbId = 'gr-ev-' + entry.namespacedId.replace(':', '-');
+                const cb = document.getElementById(cbId);
+                if (cb) {
+                    cb.checked = !excludedSet.has(entry.namespacedId);
+                }
+            });
+            updateCounts(catalog, excludedSet);
+            return;
+        }
+        
+        const domainList = document.getElementById('gr-domain-events-list');
+        const guildList = document.getElementById('gr-guild-events-list');
+        const audienceList = document.getElementById('gr-audience-events-list');
+        
+        if (!domainList || !guildList || !audienceList) return;
+        
+        domainList.innerHTML = '';
+        guildList.innerHTML = '';
+        audienceList.innerHTML = '';
+        
+        catalog.forEach(entry => {
+            const isExcluded = excludedSet.has(entry.namespacedId);
+            const isChecked = !isExcluded;
+            const cbId = 'gr-ev-' + entry.namespacedId.replace(':', '-');
+            
+            const row = document.createElement('div');
+            row.className = 'img-gen-row';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '0.25rem';
+            
+            const label = document.createElement('label');
+            label.htmlFor = cbId;
+            label.textContent = entry.label;
+            label.setAttribute('data-i18n', 'webview.events.' + entry.label);
+            label.title = 'Enabled in this world';
+            
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.id = cbId;
+            cb.checked = isChecked;
+            cb.addEventListener('change', (e) => {
+                vscode.postMessage({
+                    type: 'excludeEvent',
+                    id: entry.namespacedId,
+                    excluded: !e.target.checked
+                });
+                
+                if (e.target.checked) {
+                    excludedSet.delete(entry.namespacedId);
+                } else {
+                    excludedSet.add(entry.namespacedId);
+                }
+                updateCounts(catalog, excludedSet);
+                notifySave();
+            });
+            
+            row.appendChild(label);
+            row.appendChild(cb);
+            
+            if (entry.kind === 'domain') domainList.appendChild(row);
+            else if (entry.kind === 'guild') guildList.appendChild(row);
+            else if (entry.kind === 'audience') audienceList.appendChild(row);
+        });
+        
+        updateCounts(catalog, excludedSet);
+        if (window.i18nApplyToElement) {
+            window.i18nApplyToElement(domainList);
+            window.i18nApplyToElement(guildList);
+            window.i18nApplyToElement(audienceList);
+        }
+        catalogRendered = true;
+    }
+    
+    function updateCounts(catalog, excludedSet) {
+        let domainCount = 0, guildCount = 0, audienceCount = 0;
+        catalog.forEach(entry => {
+            if (!excludedSet.has(entry.namespacedId)) {
+                if (entry.kind === 'domain') domainCount++;
+                else if (entry.kind === 'guild') guildCount++;
+                else if (entry.kind === 'audience') audienceCount++;
+            }
+        });
+        const dCountEl = document.getElementById('gr-domain-count');
+        const gCountEl = document.getElementById('gr-guild-count');
+        const aCountEl = document.getElementById('gr-audience-count');
+        if (dCountEl) dCountEl.textContent = domainCount;
+        if (gCountEl) gCountEl.textContent = guildCount;
+        if (aCountEl) aCountEl.textContent = audienceCount;
+    }
 
     // Request initial rules
     vscode.postMessage({ type: 'getGameRules' });

@@ -178,7 +178,7 @@ interface GuildEventDef {
     season?: GuildSeason;
 }
 
-const GUILD_EVENTS: readonly GuildEventDef[] = [
+export const GUILD_EVENTS: readonly GuildEventDef[] = [
     { id: 'quest_board_dry', baseWeight: 10, townFavorMax: 45 },
     { id: 'wealthy_patron', baseWeight: 15, renownMin: 40 },
     { id: 'adventurer_brawl', baseWeight: 12, disciplineMax: 45 },

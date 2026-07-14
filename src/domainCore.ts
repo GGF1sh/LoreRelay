@@ -234,7 +234,7 @@ interface DomainEventDef {
     requiresOfficers?: boolean;
 }
 
-const DOMAIN_EVENTS: readonly DomainEventDef[] = [
+export const DOMAIN_EVENTS: readonly DomainEventDef[] = [
     { id: 'bad_harvest', baseWeight: 10, agricultureMax: 40 },
     { id: 'merchant_visit', baseWeight: 15, commerceMin: 50 },
     { id: 'bandit_activity', baseWeight: 12, publicOrderMax: 45 },

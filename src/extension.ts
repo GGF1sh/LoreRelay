@@ -23,6 +23,8 @@ import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
 import { loadLorebookForUi, saveLorebookFromUi } from './lorebookLoader';
+import { validateLorebookData } from './lorebookValidator';
+import { getEventManagementCatalog } from './eventManagementCore';
 import { initScenarioDirector, pushScenarioDirectorToWebview } from './scenarioDirector';
 import {
     initPartyDirector,
@@ -1502,7 +1504,8 @@ async function handleSaveLorebook(rawEntries: unknown): Promise<void> {
 function sendGameRules(): void {
     if (!panel) return;
     const rules = loadGameRules();
-    panel.webview.postMessage({ type: 'gameRules', rules });
+    const eventCatalog = getEventManagementCatalog();
+    panel.webview.postMessage({ type: 'gameRules', rules, eventCatalog });
 }
 
 function isDebugTraceVisible(): boolean {

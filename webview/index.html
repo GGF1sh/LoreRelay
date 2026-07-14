@@ -1203,6 +1203,25 @@
         <input type="number" id="gr-sim-interval" min="1" max="50" value="5" style="width:5rem;" />
       </div>
 
+      <div class="img-gen-row" style="margin-top: 1rem; border-top: 1px solid var(--vscode-panel-border); padding-top: 0.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0;" data-i18n="webview.gameRules.eventManagement">Event Management</h4>
+      </div>
+
+      <details class="gr-event-group">
+        <summary><span data-i18n="webview.gameRules.domainEvents">Domain Events</span> (<span id="gr-domain-count">0</span> enabled)</summary>
+        <div id="gr-domain-events-list" class="gr-event-list"></div>
+      </details>
+      
+      <details class="gr-event-group">
+        <summary><span data-i18n="webview.gameRules.guildEvents">Guild Events</span> (<span id="gr-guild-count">0</span> enabled)</summary>
+        <div id="gr-guild-events-list" class="gr-event-list"></div>
+      </details>
+
+      <details class="gr-event-group">
+        <summary><span data-i18n="webview.gameRules.audiencePetitions">Audience Petitions</span> (<span id="gr-audience-count">0</span> enabled)</summary>
+        <div id="gr-audience-events-list" class="gr-event-list"></div>
+      </details>
+
       <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>
     </div>
   </aside>

@@ -47,7 +47,7 @@ interface PetitionDef extends Petition {
     season?: DomainSeason;
 }
 
-const PETITION_DEFS: readonly PetitionDef[] = [
+export const PETITION_DEFS: readonly PetitionDef[] = [
     {
         id: 'water_dispute',
         petitionerArchetype: 'village elder',

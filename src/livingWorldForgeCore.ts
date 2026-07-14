@@ -4,12 +4,14 @@ import type {
     EconomyFlowDefinition,
     EconomyNode,
     EconomyNodeKind,
+    EconomyRouteStatus,
     ProcessingRecipe,
     ProcessingSite,
     ProductionSource,
     ResourceDemand,
     TradeRoute,
 } from './economyFlowCore';
+import { isEconomyRouteStatus } from './economyOperationalCore';
 import type { CommerceForge, CommodityDef, CommodityRole, MarketDef, TransportKindDef } from './livingWorldTypes';
 
 const MAX_COMMODITIES = 20;
@@ -123,6 +125,19 @@ function parseEconomyNode(raw: unknown): EconomyNode | undefined {
     return node;
 }
 
+/** Optional clamp field; omit when missing or non-finite (do not reject parent). */
+function asOptionalClamped(
+    v: unknown,
+    min: number,
+    max: number
+): number | undefined {
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+        return undefined;
+    }
+    const clamped = Math.max(min, Math.min(max, v));
+    return Object.is(clamped, -0) ? 0 : clamped;
+}
+
 function parseProductionSource(raw: unknown): ProductionSource | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const r = raw as Record<string, unknown>;
@@ -133,7 +148,16 @@ function parseProductionSource(raw: unknown): ProductionSource | undefined {
     if (!id || !nodeId || !commodityId || baseOutputPerTick === undefined) {
         return undefined;
     }
-    return { id, nodeId, commodityId, baseOutputPerTick };
+    const source: ProductionSource = { id, nodeId, commodityId, baseOutputPerTick };
+    const productivePotential = asOptionalClamped(r.productivePotential, 0, 2);
+    if (productivePotential !== undefined) {
+        source.productivePotential = productivePotential;
+    }
+    const condition = asOptionalClamped(r.condition, 0, 1);
+    if (condition !== undefined) {
+        source.condition = condition;
+    }
+    return source;
 }
 
 function parseResourceDemand(raw: unknown): ResourceDemand | undefined {
@@ -162,11 +186,22 @@ function parseTradeRoute(raw: unknown): TradeRoute | undefined {
     }
     const route: TradeRoute = { id, fromNodeId, toNodeId, commodityId, capacityPerTick };
     if (r.baseRisk !== undefined) {
-        if (typeof r.baseRisk !== 'number' || !Number.isFinite(r.baseRisk)) {
-            return undefined;
+        if (typeof r.baseRisk === 'number' && Number.isFinite(r.baseRisk)) {
+            const clamped = Math.max(0, Math.min(1, r.baseRisk));
+            route.baseRisk = Object.is(clamped, -0) ? 0 : clamped;
         }
-        const clamped = Math.max(0, Math.min(1, r.baseRisk));
-        route.baseRisk = Object.is(clamped, -0) ? 0 : clamped;
+        // Non-finite baseRisk is omitted (do not reject the whole route).
+    }
+    if (isEconomyRouteStatus(r.status)) {
+        route.status = r.status as EconomyRouteStatus;
+    }
+    const capacityMultiplier = asOptionalClamped(r.capacityMultiplier, 0, 2);
+    if (capacityMultiplier !== undefined) {
+        route.capacityMultiplier = capacityMultiplier;
+    }
+    const riskDelta = asOptionalClamped(r.riskDelta, -1, 1);
+    if (riskDelta !== undefined) {
+        route.riskDelta = riskDelta;
     }
     return route;
 }
@@ -214,7 +249,12 @@ function parseProcessingSite(raw: unknown): ProcessingSite | undefined {
     }
     const batches = Math.floor(r.maxBatchesPerTick);
     if (batches <= 0 || batches > MAX_BATCHES) { return undefined; }
-    return { id, nodeId, recipeId, maxBatchesPerTick: batches };
+    const site: ProcessingSite = { id, nodeId, recipeId, maxBatchesPerTick: batches };
+    const condition = asOptionalClamped(r.condition, 0, 1);
+    if (condition !== undefined) {
+        site.condition = condition;
+    }
+    return site;
 }
 
 /**

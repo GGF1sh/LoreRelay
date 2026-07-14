@@ -10,6 +10,11 @@ import type {
     ProcessingSite,
     RuntimeProduction,
 } from './economyFlowCore';
+import {
+    diagnoseUnknownOperationalIds,
+    resolveProcessingSiteOperation,
+    type EconomyOperationalState,
+} from './economyOperationalCore';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
 
 export interface CommodityQuantity {
@@ -22,6 +27,9 @@ export interface ProcessingSiteSummary {
     nodeId: string;
     recipeId: string;
     batches: number;
+    condition: number;
+    baseMaxBatches: number;
+    effectiveMaxBatches: number;
     inputsConsumed: CommodityQuantity[];
     outputsProduced: CommodityQuantity[];
 }
@@ -30,6 +38,7 @@ export interface EconomyProcessingTickInput {
     definition: EconomyFlowDefinition;
     forge: Pick<CommerceForge, 'commodities' | 'markets'>;
     markets: MarketStateMap;
+    operationalState?: EconomyOperationalState;
 }
 
 export interface EconomyProcessingTickResult {
@@ -75,6 +84,7 @@ export function computeEconomyProcessingTick(
     const definition = input?.definition;
     const forge = input?.forge;
     const markets = input?.markets ?? {};
+    const operational = input?.operationalState;
 
     const commodityIds = new Set<string>();
     if (forge && Array.isArray(forge.commodities)) {
@@ -272,6 +282,8 @@ export function computeEconomyProcessingTick(
         nodeId: string;
         recipeId: string;
         maxBatchesPerTick: number;
+        condition: number;
+        effectiveMaxBatches: number;
         marketLocationId: string;
         recipe: ProcessingRecipe;
     }
@@ -362,15 +374,22 @@ export function computeEconomyProcessingTick(
         }
         if (!tradesOk) { continue; }
 
+        const resolved = resolveProcessingSiteOperation(site, operational, diagnostics);
         validSites.push({
             id: site.id,
             nodeId: site.nodeId,
             recipeId: site.recipeId,
             maxBatchesPerTick: site.maxBatchesPerTick,
+            condition: resolved.condition,
+            effectiveMaxBatches: resolved.effectiveMaxBatches,
             marketLocationId: mid,
             recipe,
         });
     }
+
+    diagnostics.push(...diagnoseUnknownOperationalIds(operational, {
+        siteIds: seenSiteIds,
+    }));
 
     // Stable siteId order is the temporary priority policy for shared inputs.
     validSites.sort((a, b) => compareId(a.id, b.id));
@@ -401,7 +420,8 @@ export function computeEconomyProcessingTick(
         const inputIds = Object.keys(recipe.inputs).sort(compareId);
         const outputIds = Object.keys(recipe.outputs).sort(compareId);
 
-        let batches = site.maxBatchesPerTick;
+        // Condition floors max batches; then limited by available inputs.
+        let batches = site.effectiveMaxBatches;
         for (const cid of inputIds) {
             const required = recipe.inputs[cid];
             const avail = remaining(site.marketLocationId, cid);
@@ -456,6 +476,9 @@ export function computeEconomyProcessingTick(
             nodeId: site.nodeId,
             recipeId: site.recipeId,
             batches,
+            condition: site.condition,
+            baseMaxBatches: site.maxBatchesPerTick,
+            effectiveMaxBatches: site.effectiveMaxBatches,
             inputsConsumed,
             outputsProduced,
         });

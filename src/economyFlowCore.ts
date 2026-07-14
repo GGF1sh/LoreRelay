@@ -1,7 +1,16 @@
-// NOAI-ECON-FLOWS-001: deterministic production / demand / direct-flow backbone.
+// NOAI-ECON-FLOWS-001/004: deterministic production / demand / direct-flow backbone.
 // Pure Core — no vscode, fs, time, randomness, persistence, or LLM.
 
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
+import {
+    diagnoseUnknownOperationalIds,
+    resolveProductionSourceOperation,
+    resolveTradeRouteOperation,
+    type EconomyOperationalState,
+    type EconomyRouteStatus,
+} from './economyOperationalCore';
+
+export type { EconomyRouteStatus } from './economyOperationalCore';
 
 export type EconomyNodeKind =
     | 'region'
@@ -24,6 +33,10 @@ export interface ProductionSource {
     nodeId: string;
     commodityId: string;
     baseOutputPerTick: number;
+    /** World productive potential multiplier. Default 1. Range [0, 2]. */
+    productivePotential?: number;
+    /** Facility condition multiplier. Default 1. Range [0, 1]. */
+    condition?: number;
 }
 
 export interface ResourceDemand {
@@ -40,6 +53,12 @@ export interface TradeRoute {
     commodityId: string;
     capacityPerTick: number;
     baseRisk?: number;
+    /** Logistics status. Default open. */
+    status?: EconomyRouteStatus;
+    /** Authored capacity multiplier. Default 1. Range [0, 2]. */
+    capacityMultiplier?: number;
+    /** Authored risk delta added to baseRisk. Default 0. Range [-1, 1]. */
+    riskDelta?: number;
 }
 
 export interface ProcessingRecipe {
@@ -53,6 +72,8 @@ export interface ProcessingSite {
     nodeId: string;
     recipeId: string;
     maxBatchesPerTick: number;
+    /** Facility condition. Default 1. Range [0, 1]. */
+    condition?: number;
 }
 
 /** Runtime-only production (e.g. processing outputs). Not part of Forge. */
@@ -77,10 +98,25 @@ export interface TradeFlowSummary {
     toNodeId: string;
     commodityId: string;
     volume: number;
+    /** Effective capacity (backward-compatible field name). */
     capacity: number;
+    baseCapacity: number;
+    statusCapacityMultiplier: number;
+    capacityMultiplier: number;
     utilization: number;
     risk: number;
-    status: 'open';
+    riskDelta: number;
+    status: EconomyRouteStatus;
+}
+
+export interface ProductionSourceSummary {
+    sourceId: string;
+    nodeId: string;
+    commodityId: string;
+    baseOutput: number;
+    productivePotential: number;
+    condition: number;
+    effectiveOutput: number;
 }
 
 export interface NodeFlowSummary {
@@ -116,12 +152,15 @@ export interface EconomyFlowTickInput {
     markets: MarketStateMap;
     /** Optional same-tick runtime production (e.g. processing outputs). */
     additionalProduction?: readonly RuntimeProduction[];
+    /** Optional runtime operational overrides (not persisted). */
+    operationalState?: EconomyOperationalState;
 }
 
 export interface EconomyFlowTickResult {
     routes: TradeFlowSummary[];
     nodes: NodeFlowSummary[];
     marketDeltas: MarketStockDelta[];
+    productionSources: ProductionSourceSummary[];
     diagnostics: EconomyFlowDiagnostic[];
 }
 
@@ -144,12 +183,6 @@ function isFiniteNumber(value: unknown): value is number {
 /** Normalize -0 to +0 for stable public numerics. */
 function nz(value: number): number {
     return Object.is(value, -0) ? 0 : value;
-}
-
-function clampRisk(value: number): number {
-    if (value < 0) { return 0; }
-    if (value > 1) { return 1; }
-    return nz(value);
 }
 
 function pairKey(nodeId: string, commodityId: string): string {
@@ -271,12 +304,14 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
         return entry.stock;
     }
 
-    // --- Production: aggregate by nodeId + commodityId ---
+    // --- Production: aggregate effectiveOutput by nodeId + commodityId ---
     const produced = new Map<string, number>();
     const seenSourceIds = new Set<string>();
+    const productionSourceSummaries: ProductionSourceSummary[] = [];
     const rawSources = definition && Array.isArray(definition.productionSources)
         ? definition.productionSources
         : [];
+    const operational = input.operationalState;
 
     for (const src of rawSources) {
         if (!src || !isNonEmptyString(src.id)) {
@@ -324,9 +359,20 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
             });
             continue;
         }
+        const resolved = resolveProductionSourceOperation(src, operational, diagnostics);
         const key = pairKey(src.nodeId, src.commodityId);
-        produced.set(key, (produced.get(key) ?? 0) + src.baseOutputPerTick);
+        produced.set(key, nz((produced.get(key) ?? 0) + resolved.effectiveOutput));
+        productionSourceSummaries.push({
+            sourceId: src.id,
+            nodeId: src.nodeId,
+            commodityId: src.commodityId,
+            baseOutput: nz(src.baseOutputPerTick),
+            productivePotential: resolved.productivePotential,
+            condition: resolved.condition,
+            effectiveOutput: resolved.effectiveOutput,
+        });
     }
+    productionSourceSummaries.sort((a, b) => compareId(a.sourceId, b.sourceId));
 
     // --- Runtime additional production (e.g. processing outputs) ---
     const rawAdditional = Array.isArray(input.additionalProduction)
@@ -380,8 +426,14 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
         fromNodeId: string;
         toNodeId: string;
         commodityId: string;
+        /** Effective capacity after status and multipliers. */
         capacityPerTick: number;
+        baseCapacity: number;
+        statusCapacityMultiplier: number;
+        capacityMultiplier: number;
         risk: number;
+        riskDelta: number;
+        status: EconomyRouteStatus;
     }
 
     const validRoutes: ValidRoute[] = [];
@@ -445,27 +497,6 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
             continue;
         }
 
-        let risk = 0;
-        if (route.baseRisk !== undefined) {
-            if (!isFiniteNumber(route.baseRisk)) {
-                diagnostics.push({
-                    code: 'invalid_number',
-                    message: `Route ${route.id} has non-finite baseRisk`,
-                    id: route.id,
-                });
-                risk = 0;
-            } else if (route.baseRisk < 0) {
-                diagnostics.push({
-                    code: 'negative_value',
-                    message: `Route ${route.id} has negative baseRisk`,
-                    id: route.id,
-                });
-                risk = clampRisk(route.baseRisk);
-            } else {
-                risk = clampRisk(route.baseRisk);
-            }
-        }
-
         const toNode = nodesById.get(route.toNodeId)!;
         const destMarket = resolveMarketBinding(toNode);
         if (!destMarket) {
@@ -485,15 +516,27 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
             continue;
         }
 
+        const resolved = resolveTradeRouteOperation(route, operational, diagnostics);
         validRoutes.push({
             id: route.id,
             fromNodeId: route.fromNodeId,
             toNodeId: route.toNodeId,
             commodityId: route.commodityId,
-            capacityPerTick: route.capacityPerTick,
-            risk,
+            capacityPerTick: resolved.effectiveCapacity,
+            baseCapacity: resolved.baseCapacity,
+            statusCapacityMultiplier: resolved.statusCapacityMultiplier,
+            capacityMultiplier: resolved.capacityMultiplier,
+            risk: resolved.effectiveRisk,
+            riskDelta: resolved.riskDelta,
+            status: resolved.status,
         });
     }
+
+    // Unknown runtime ids for sources/routes (sites diagnosed in processing core).
+    diagnostics.push(...diagnoseUnknownOperationalIds(operational, {
+        sourceIds: seenSourceIds,
+        routeIds: seenRouteIds,
+    }));
 
     // Capacity-proportional allocation; independent of insertion order.
     const routesBySource = new Map<string, ValidRoute[]>();
@@ -674,9 +717,13 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
                 commodityId: r.commodityId,
                 volume: nz(volume),
                 capacity: nz(capacity),
+                baseCapacity: nz(r.baseCapacity),
+                statusCapacityMultiplier: nz(r.statusCapacityMultiplier),
+                capacityMultiplier: nz(r.capacityMultiplier),
                 utilization,
                 risk: r.risk,
-                status: 'open' as const,
+                riskDelta: nz(r.riskDelta),
+                status: r.status,
             };
         })
         .sort((a, b) => compareId(a.routeId, b.routeId));
@@ -693,6 +740,7 @@ export function computeEconomyFlowTick(input: EconomyFlowTickInput): EconomyFlow
         routes: routeSummaries,
         nodes: nodeSummaries,
         marketDeltas,
+        productionSources: productionSourceSummaries,
         diagnostics,
     };
 }

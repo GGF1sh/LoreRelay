@@ -13,6 +13,7 @@ import {
     computeEconomyFlowTick,
     type EconomyFlowTickResult,
 } from './economyFlowCore';
+import type { EconomyOperationalState } from './economyOperationalCore';
 import {
     computeEconomyProcessingTick,
     type EconomyProcessingTickResult,
@@ -54,6 +55,11 @@ export interface WorldKitTickInput {
      * Empty/undefined → legacy single-tier behavior via economyProfile.
      */
     economyConfig?: EconomyDifficultyConfig;
+    /**
+     * Runtime operational overrides (potential/condition/route state).
+     * Not mutated or persisted by this tick.
+     */
+    economyOperationalState?: EconomyOperationalState;
 }
 
 export interface WorldKitTickResult {
@@ -94,6 +100,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
                     definition: input.forge.resourceFlows,
                     forge: input.forge,
                     markets,
+                    operationalState: input.economyOperationalState,
                 });
                 if (economyProcessing.inputMarketDeltas.length > 0) {
                     markets = applyEconomyFlowMarketDeltas(
@@ -111,6 +118,7 @@ export function runLivingWorldTick(input: WorldKitTickInput): WorldKitTickResult
                 forge: input.forge,
                 markets,
                 additionalProduction,
+                operationalState: input.economyOperationalState,
             });
             markets = applyEconomyFlowMarketDeltas(markets, economyFlow.marketDeltas);
         }

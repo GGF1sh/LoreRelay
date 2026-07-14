@@ -56,6 +56,7 @@ export interface GameRules {
     enableVehicleSystem?: boolean;
     enableMobileBaseSystem?: boolean;
     aiParticipationPolicy?: AiParticipationPolicy;
+    excludedEventIds?: string[];
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
@@ -188,6 +189,15 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         ? aiParticipationPolicyRaw as AiParticipationPolicy
         : base.aiParticipationPolicy;
 
+    let excludedEventIds = base.excludedEventIds;
+    if (Array.isArray(src.excludedEventIds)) {
+        excludedEventIds = src.excludedEventIds
+            .filter((id) => typeof id === 'string')
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0)
+            .slice(0, 200);
+    }
+
     const normalized: GameRules = {
         enableRpgMechanics: asBool(src.enableRpgMechanics, base.enableRpgMechanics),
         defaultMaxHp: clampInt(src.defaultMaxHp, 1, 99999, base.defaultMaxHp),
@@ -236,7 +246,18 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         enableVehicleSystem: asOptionalBool(src.enableVehicleSystem, base.enableVehicleSystem),
         enableMobileBaseSystem: asOptionalBool(src.enableMobileBaseSystem, base.enableMobileBaseSystem),
         aiParticipationPolicy,
+        excludedEventIds,
     };
 
     return normalizeGuildRuleFlags(normalized);
+}
+
+export type EventKind = 'domain' | 'guild' | 'audience';
+
+export function toExcludedEventId(kind: EventKind, id: string): string {
+    return `${kind}:${id}`;
+}
+
+export function isExcludedEvent(set: ReadonlySet<string>, kind: EventKind, id: string): boolean {
+    return set.has(toExcludedEventId(kind, id));
 }

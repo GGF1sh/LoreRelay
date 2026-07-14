@@ -169,7 +169,7 @@ export function simulateBoardWeek(
         next = { ...next, pendingRequests: queue.map((r) => r.id) };
     }
 
-    const eventId = rollGuildEvent(next, seed, stewardActions);
+    const eventId = rollGuildEvent(next, seed, stewardActions, normalized.excludedEventIds);
     next = applyGuildEventEffect(next, eventId);
     next.lastEventId = eventId;
     next.pendingEvents = [...next.pendingEvents, eventId].slice(-MAX_GUILD_PENDING_EVENTS);

@@ -2,6 +2,7 @@
 // Type-only import from domainCore keeps runtime dependency one-directional (domainCore → this).
 
 import type { DomainState, DomainStatDelta, DomainSeason } from './domainCore';
+import { isExcludedEvent } from './gameRulesCore';
 
 export const MAX_AUDIENCE_QUEUE = 4;
 export const DEFAULT_AUDIENCE_SIZE = 3;
@@ -228,10 +229,12 @@ function hashSeed(parts: readonly (string | number)[]): number {
 export function buildAudienceQueue(
     domain: DomainState,
     seed: number,
-    size = DEFAULT_AUDIENCE_SIZE
+    size = DEFAULT_AUDIENCE_SIZE,
+    excludedEventIds?: ReadonlySet<string>
 ): Petition[] {
     const clampedSize = Math.max(1, Math.min(MAX_AUDIENCE_QUEUE, Math.floor(size)));
     const remaining = PETITION_DEFS
+        .filter((def) => !(excludedEventIds && isExcludedEvent(excludedEventIds, 'audience', def.id)))
         .map((def) => ({ id: def.id, w: computePetitionWeight(def.id, domain) }))
         .filter((e) => e.w > 0);
     const chosen: PetitionId[] = [];

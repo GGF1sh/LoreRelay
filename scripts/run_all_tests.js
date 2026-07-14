@@ -220,6 +220,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_npc_bond_effects_core.js' },
     { category: 'unit', file: 'test_npc_life_events_core.js' },
     { category: 'unit', file: 'test_player_bond_core.js' },
+    { category: 'unit', file: 'test_event_exclusion_list.js' },
     { category: 'unit', file: 'test_parlor_session_core.js' },
     { category: 'unit', file: 'test_parlor_prompt_builder_core.js' },
     { category: 'unit', file: 'test_in_world_prompt_builder_core.js' },

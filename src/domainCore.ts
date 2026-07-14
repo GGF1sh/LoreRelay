@@ -51,6 +51,7 @@ import {
     type BattleTactic,
     type BattleOutcome,
 } from './massBattleCore';
+import { isExcludedEvent } from './gameRulesCore';
 
 export const MAX_DOMAIN_OFFICERS = 5;
 export const MAX_DOMAIN_ACTIONS_PER_MONTH = 4;
@@ -149,6 +150,7 @@ export interface DomainConfig {
     officerTrustMap?: Record<string, number>;
     /** §F10: when ON, a rival `raid` starts a 3-round battle instead of an instant delta. */
     enableMassBattle?: boolean;
+    excludedEventIds?: ReadonlySet<string>;
 }
 
 export interface DomainOps {
@@ -349,9 +351,10 @@ export function normalizeDomainConfig(raw?: Partial<DomainConfig>): DomainConfig
         ? raw.officerTrustMap
         : undefined;
     const enableMassBattle = raw?.enableMassBattle === true;
+    const excludedEventIds = raw?.excludedEventIds instanceof Set ? raw.excludedEventIds : undefined;
     return {
         monthDays, monthlyActions, audienceSize, rivalsEnabled, rivalRegionId,
-        maxActiveMissions, officerTrustMap, enableMassBattle,
+        maxActiveMissions, officerTrustMap, enableMassBattle, excludedEventIds,
     };
 }
 
@@ -795,10 +798,14 @@ export function rollDomainEvent(
     domain: DomainState,
     seed: number,
     intelligence?: DomainIntelligence,
-    actions?: readonly DomainActionId[]
+    actions?: readonly DomainActionId[],
+    excludedEventIds?: ReadonlySet<string>
 ): string {
     const weights: { id: string; w: number }[] = [];
     for (const def of DOMAIN_EVENTS) {
+        if (def.id !== 'domain_quiet_month' && excludedEventIds && isExcludedEvent(excludedEventIds, 'domain', def.id)) {
+            continue;
+        }
         const w = eventWeight(def, domain, intelligence, actions);
         if (w > 0) { weights.push({ id: def.id, w }); }
     }
@@ -846,7 +853,7 @@ export function applyMonthlyCommit(
     next.monthlyActionsRemaining = config.monthlyActions;
     next.lastCommitWorldTurn = worldTurnSeed;
 
-    const eventId = rollDomainEvent(next, worldTurnSeed, ops.intelligence, actions);
+    const eventId = rollDomainEvent(next, worldTurnSeed, ops.intelligence, actions, config.excludedEventIds);
     next = applyDomainEventEffect(next, eventId);
     next.lastEventId = eventId;
     const pending = [...next.pendingEvents, eventId].slice(-MAX_DOMAIN_PENDING_EVENTS);
@@ -858,7 +865,7 @@ export function applyMonthlyCommit(
     };
 
     if (actions.includes('audience')) {
-        const queue = buildAudienceQueue(next, worldTurnSeed, config.audienceSize);
+        const queue = buildAudienceQueue(next, worldTurnSeed, config.audienceSize, config.excludedEventIds);
         next = { ...next, pendingPetitions: queue.map((p) => p.id) };
     }
 

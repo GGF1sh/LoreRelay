@@ -136,7 +136,7 @@ export function simulateStewardMonth(
     const stewardActions = presentOfficers(next).some((o) => o.role === 'steward')
         ? (['inspect', 'public_order'] as const)
         : (['inspect'] as const);
-    const eventId = rollDomainEvent(next, seed, 'none', stewardActions);
+    const eventId = rollDomainEvent(next, seed, 'none', stewardActions, normalized.excludedEventIds);
     next = applyDomainEventEffect(next, eventId);
     next.lastEventId = eventId;
     next.pendingEvents = [...next.pendingEvents, eventId].slice(-MAX_DOMAIN_PENDING_EVENTS);

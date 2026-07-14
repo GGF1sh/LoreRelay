@@ -13,6 +13,7 @@ import {
     formatRequestChronicleText,
     type QuestKind,
 } from './guildRequestCore';
+import { isExcludedEvent } from './gameRulesCore';
 import {
     assignParty,
     advanceActiveQuests,
@@ -108,6 +109,7 @@ export interface GuildConfig {
     partiesEnabled?: boolean;
     /** G3: npcId → playerTrust for quest risk resolution (default 50). */
     adventurerBondMap?: Record<string, number>;
+    excludedEventIds?: ReadonlySet<string>;
 }
 
 export interface GuildOps {
@@ -277,7 +279,8 @@ export function normalizeGuildConfig(raw?: Partial<GuildConfig>): GuildConfig {
     const adventurerBondMap = raw?.adventurerBondMap && typeof raw.adventurerBondMap === 'object'
         ? raw.adventurerBondMap
         : undefined;
-    return { weeklyActions, boardSize, maxActiveQuests, requestsEnabled, partiesEnabled, adventurerBondMap };
+    const excludedEventIds = raw?.excludedEventIds instanceof Set ? raw.excludedEventIds : undefined;
+    return { weeklyActions, boardSize, maxActiveQuests, requestsEnabled, partiesEnabled, adventurerBondMap, excludedEventIds };
 }
 
 export function defaultGuildState(hallLocationId: string, config?: Partial<GuildConfig>): GuildState {
@@ -717,10 +720,14 @@ export function applyWeeklyGuildIncome(guild: GuildState): GuildState {
 export function rollGuildEvent(
     guild: GuildState,
     seed: number,
-    actions?: readonly GuildActionId[]
+    actions?: readonly GuildActionId[],
+    excludedEventIds?: ReadonlySet<string>
 ): string {
     const weights: { id: string; w: number }[] = [];
     for (const def of GUILD_EVENTS) {
+        if (def.id !== 'guild_quiet_week' && excludedEventIds && isExcludedEvent(excludedEventIds, 'guild', def.id)) {
+            continue;
+        }
         const w = eventWeight(def, guild, actions);
         if (w > 0) { weights.push({ id: def.id, w }); }
     }
@@ -785,7 +792,7 @@ export function applyWeeklyCommit(
     next.weeklyActionsRemaining = config.weeklyActions;
     next.lastCommitWorldTurn = worldTurnSeed;
 
-    const eventId = rollGuildEvent(next, worldTurnSeed, actions);
+    const eventId = rollGuildEvent(next, worldTurnSeed, actions, config.excludedEventIds);
     next = applyGuildEventEffect(next, eventId);
     next.lastEventId = eventId;
     const pending = [...next.pendingEvents, eventId].slice(-MAX_GUILD_PENDING_EVENTS);

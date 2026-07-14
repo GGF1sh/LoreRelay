@@ -3353,6 +3353,263 @@ textarea:focus-visible {
   }
 }
 
+/* --- 85b-economy-logistics.css --- */
+/* NOAI-ECON-FLOWS-005 — read-only logistics network. */
+
+#world-logistics-panel {
+  color: var(--text-main, var(--vscode-foreground));
+}
+
+.logistics-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.logistics-summary-chip {
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 82%, var(--vscode-focusBorder) 18%);
+}
+
+.logistics-summary-chip strong,
+.logistics-summary-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logistics-summary-label {
+  margin-bottom: 0.12rem;
+  color: var(--text-dim, var(--vscode-descriptionForeground));
+  font-size: 0.72rem;
+}
+
+.logistics-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.logistics-filter-row label {
+  flex: 0 0 auto;
+  color: var(--text-dim, var(--vscode-descriptionForeground));
+  font-size: 0.78rem;
+}
+
+.logistics-filter {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 14rem;
+  color: var(--vscode-dropdown-foreground);
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+  border-radius: 5px;
+  padding: 0.3rem 0.45rem;
+}
+
+.logistics-filter:focus-visible,
+.logistics-clear-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.logistics-network-viewport {
+  position: relative;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-focusBorder) 6%);
+  scrollbar-gutter: stable;
+}
+
+.logistics-network {
+  display: block;
+  width: 100%;
+  min-width: 620px;
+  max-height: 520px;
+  min-height: 260px;
+}
+
+.logistics-route {
+  color: #7ab7e8;
+  cursor: pointer;
+}
+
+.logistics-route-line {
+  stroke: currentColor;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 120ms ease, stroke-width 120ms ease;
+}
+
+.logistics-route-open { color: #76b7e5; }
+.logistics-route-strained { color: #e5b95f; }
+.logistics-route-strained .logistics-route-line { stroke-dasharray: 10 5; }
+.logistics-route-blocked { color: #d18a94; }
+.logistics-route-blocked .logistics-route-line { stroke-dasharray: 3 5; }
+.logistics-route-raided { color: #c69be1; }
+.logistics-route-raided .logistics-route-line { stroke-dasharray: 12 4 2 4; }
+.logistics-route.is-bottleneck .logistics-route-line { stroke-dashoffset: 2; }
+
+.logistics-arrow-open .logistics-arrow-path { fill: #76b7e5; }
+.logistics-arrow-strained .logistics-arrow-path { fill: #e5b95f; }
+.logistics-arrow-blocked .logistics-arrow-path { fill: #d18a94; }
+.logistics-arrow-raided .logistics-arrow-path { fill: #c69be1; }
+
+.logistics-route-label,
+.logistics-route-warning {
+  fill: var(--vscode-foreground);
+  font-size: 10px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--vscode-editor-background);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.logistics-route-warning {
+  fill: #efc66d;
+  font-weight: 800;
+}
+
+.logistics-route:focus-visible {
+  outline: none;
+}
+
+.logistics-route:focus-visible .logistics-route-line,
+.logistics-route:hover .logistics-route-line {
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 2px var(--vscode-focusBorder));
+}
+
+.logistics-node {
+  cursor: pointer;
+}
+
+.logistics-node-shape {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 86%, var(--vscode-focusBorder) 14%);
+  stroke: var(--vscode-panel-border);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.logistics-node-region .logistics-node-shape { stroke-dasharray: 5 3; }
+.logistics-node-settlement .logistics-node-shape { stroke: #87aee0; }
+.logistics-node-facility .logistics-node-shape { stroke: #d3a768; }
+.logistics-node-market .logistics-node-shape { stroke: #7fc5aa; }
+.logistics-node-store .logistics-node-shape { stroke: #ba9bdd; }
+
+.logistics-node:focus-visible {
+  outline: none;
+}
+
+.logistics-node:focus-visible .logistics-node-shape,
+.logistics-node:hover .logistics-node-shape,
+.logistics-node.is-selected .logistics-node-shape {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 3;
+}
+
+.logistics-node-kind {
+  fill: var(--text-dim, var(--vscode-descriptionForeground));
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.logistics-node-label {
+  fill: var(--vscode-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.logistics-shortage-badge,
+.logistics-processing-badge {
+  fill: #efc66d;
+  font-size: 15px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.logistics-processing-badge { fill: #82c5dd; }
+
+.logistics-filter-empty {
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto auto 0;
+  margin: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
+}
+
+.logistics-details {
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-left: 3px solid color-mix(in srgb, var(--vscode-focusBorder) 75%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-focusBorder) 10%);
+}
+
+.logistics-details-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.logistics-clear-btn {
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 0.18rem 0.45rem;
+  cursor: pointer;
+}
+
+.logistics-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.logistics-detail-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 0.32fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.18rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
+  font-size: 0.78rem;
+}
+
+.logistics-detail-label { color: var(--text-dim, var(--vscode-descriptionForeground)); }
+.logistics-detail-value { overflow-wrap: anywhere; }
+
+.logistics-empty {
+  padding: 0.9rem;
+  border: 1px dashed var(--vscode-panel-border);
+  border-radius: 8px;
+  color: var(--text-dim, var(--vscode-descriptionForeground));
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .logistics-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .logistics-filter-row { align-items: stretch; flex-direction: column; }
+  .logistics-filter { flex-basis: auto; width: 100%; }
+  .logistics-detail-row { grid-template-columns: 1fr; gap: 0.08rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logistics-route-line { transition: none; }
+}
+
 /* --- 90-game-rules.css --- */
 /* 90-game-rules.css */
 /* Reuses .img-gen-panel and .img-gen-input from 80-image-gen.css */

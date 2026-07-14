@@ -54,8 +54,14 @@ import { livingWorldEnabled } from './livingWorldBridge';
 import { readDomainFromGameState } from './domainTurnOps';
 import { readGuildFromGameState } from './guildTurnOps';
 import { buildMarketPriceTable } from './commerceCore';
-import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
+import {
+    resolveCommerceForge,
+    ensureLivingWorldMarkets,
+    getLatestEconomyTickSnapshot,
+    npcRelationshipsEnabled,
+} from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
+import { buildEconomyLogisticsViewModel } from './economyLogisticsViewCore';
 import { listNotableRelationships, applyIntroductionTrustBoost } from './npcRelationshipCore';
 import { deepestMilestone } from './npcLifeEventsCore';
 import { listPlayerBondStandings } from './playerBondCore';
@@ -639,6 +645,17 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             }),
         }
         : null;
+    const economyTickSnapshot = commerceForge?.resourceFlows
+        ? getLatestEconomyTickSnapshot(forge.meta.worldName ?? '', commerceForge.resourceFlows)
+        : undefined;
+    const economyLogistics = buildEconomyLogisticsViewModel({
+        commerceEnabled: gameRules.enableCommerce === true,
+        worldTurn: economyTickSnapshot?.worldTurn,
+        commodities: commerceForge?.commodities,
+        definition: commerceForge?.resourceFlows,
+        flow: economyTickSnapshot?.economyFlow,
+        processing: economyTickSnapshot?.economyProcessing,
+    });
 
     // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).
     const domainState = gameRules.enableDomainMode === true && gameSnapshot
@@ -699,6 +716,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         questHooks: worldState?.questHooks ?? [],
         livingWorldMarkets,
         livingWorldDecisionSurface,
+        economyLogistics,
         playerCommerce,
         worldTurn: worldTurn ?? null,
         simEnabled,

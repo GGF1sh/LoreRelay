@@ -14,7 +14,8 @@ import type {
 import type { CaravanPromptSnapshot } from './livingWorldPromptCore';
 import { parseCommerceForge } from './livingWorldForgeCore';
 import { initializeMarketState } from './commerceCore';
-import { runLivingWorldTick } from './worldKitTickCore';
+import { runLivingWorldTick, type WorldKitTickResult } from './worldKitTickCore';
+import type { EconomyFlowDefinition } from './economyFlowCore';
 import {
     captureFoodCrisisAgencyDeepTrace,
     captureCommercePriceBumpDeepTrace,
@@ -167,6 +168,67 @@ export interface LivingWorldTickOutcome {
     injection?: string;
 }
 
+/** Transient, derived snapshot for read-only host views. Never persisted into WorldState. */
+export interface LivingWorldEconomyTickSnapshot {
+    worldName: string;
+    worldTurn: number;
+    economyFlow: NonNullable<WorldKitTickResult['economyFlow']>;
+    economyProcessing: WorldKitTickResult['economyProcessing'];
+}
+
+const latestEconomyTickSnapshots = new Map<string, LivingWorldEconomyTickSnapshot>();
+
+function economyDefinitionKey(worldName: string, definition: EconomyFlowDefinition): string {
+    const ids = (items: readonly { id: string }[] | undefined) => (items ?? []).map((item) => item.id).sort();
+    return JSON.stringify([
+        worldName,
+        ids(definition.nodes),
+        ids(definition.productionSources),
+        ids(definition.demands),
+        ids(definition.tradeRoutes),
+        ids(definition.processingRecipes),
+        ids(definition.processingSites),
+    ]);
+}
+
+function clearEconomyTickSnapshotsForWorld(worldName: string): void {
+    for (const [key, snapshot] of latestEconomyTickSnapshots) {
+        if (snapshot.worldName === worldName) { latestEconomyTickSnapshots.delete(key); }
+    }
+}
+
+function rememberEconomyTickSnapshot(
+    worldName: string,
+    worldTurn: number,
+    definition: EconomyFlowDefinition,
+    tick: WorldKitTickResult
+): void {
+    if (!tick.economyFlow) {
+        clearEconomyTickSnapshotsForWorld(worldName);
+        return;
+    }
+    const key = economyDefinitionKey(worldName, definition);
+    latestEconomyTickSnapshots.set(key, {
+        worldName,
+        worldTurn: Number.isFinite(worldTurn) ? Math.max(0, Math.floor(worldTurn)) : 0,
+        economyFlow: tick.economyFlow,
+        economyProcessing: tick.economyProcessing,
+    });
+    while (latestEconomyTickSnapshots.size > 8) {
+        const oldestKey = latestEconomyTickSnapshots.keys().next().value as string | undefined;
+        if (!oldestKey) { break; }
+        latestEconomyTickSnapshots.delete(oldestKey);
+    }
+}
+
+export function getLatestEconomyTickSnapshot(
+    worldName: string,
+    definition: EconomyFlowDefinition | null | undefined
+): LivingWorldEconomyTickSnapshot | undefined {
+    if (!definition) { return undefined; }
+    return latestEconomyTickSnapshots.get(economyDefinitionKey(worldName, definition));
+}
+
 /** 直近 tick の関係変化(GM プロンプトの「(変化)」行用。プロセス内キャッシュで十分)。 */
 let lastRelationshipChanges: NpcRelationshipChange[] = [];
 
@@ -205,12 +267,15 @@ export function tickLivingWorldAfterSim(
     stepEvents?: WorldChangeEvent[]
 ): LivingWorldTickOutcome {
     const ext = state as WorldState & LivingWorldWorldStateExt;
+    const worldName = forge.meta.worldName ?? '';
     if (!livingWorldEnabled(rules)) {
+        clearEconomyTickSnapshotsForWorld(worldName);
         return { state: ext };
     }
 
     const commerce = resolveCommerceForge(forge, rawForgeDoc);
     if (!commerce && rules.enableCommerce) {
+        clearEconomyTickSnapshotsForWorld(worldName);
         return { state: ext };
     }
 
@@ -253,6 +318,11 @@ export function tickLivingWorldAfterSim(
 
     ext.markets = tick.markets;
     ext.npcPositions = tick.npcPositions;
+    if (commerceEnabled && commerceForge.resourceFlows) {
+        rememberEconomyTickSnapshot(worldName, state.worldTurn, commerceForge.resourceFlows, tick);
+    } else {
+        clearEconomyTickSnapshotsForWorld(worldName);
+    }
 
     const flags = resolveDeepTraceEmitGateFlags();
     const runId = getActiveDebugTraceSimulationRunId() ?? ensureDebugTraceLiveRun(state.worldTurn ?? 0);

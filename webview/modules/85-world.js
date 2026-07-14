@@ -284,6 +284,9 @@ function renderWorldView(msg) {
         msg.currentLocationId
     );
 
+    // Read-only economy logistics network (NOAI-ECON-FLOWS-005)
+    renderEconomyLogistics(msg.economyLogistics || null, msg.enableCommerce === true);
+
     // Living World NPC whereabouts
     renderNpcWhereabouts(msg.npcWhereabouts || null);
 
@@ -327,6 +330,7 @@ function ensureCartographyStyles() {
         .world-map-items-section.hidden { display: none !important; }
         #world-commerce-details.hidden { display: none !important; }
         #world-markets-details.hidden { display: none !important; }
+        #world-logistics-details.hidden { display: none !important; }
         #world-npc-whereabouts-details.hidden { display: none !important; }
         .world-commerce-row {
             display: flex;

@@ -1503,5 +1503,9 @@
   "webview.world.tradeSell": "賣出",
   "webview.world.vehicleTileHint": "載具與停車標記僅在瓦片地圖模式下顯示。",
   "webview.world.worldGenBusy": "⏳ 生成中...",
-  "webview.world.worldGenFailed": "❌ 生成失敗 — 重試"
+  "webview.world.worldGenFailed": "❌ 生成失敗 — 重試",
+  "webview.world.domainRecentEventsTitle": "領地近期事件",
+  "webview.world.excludeEventHint": "隱藏當前地點不再重要的事件，以釋放額外資訊。",
+  "webview.world.excludeEventLabel": "隱藏當前地點",
+  "webview.world.guildRecentEventsTitle": "公會近期事件"
 }

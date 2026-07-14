@@ -10474,8 +10474,12 @@ function renderGuildPanel(msg) {
             : `<p class="empty-text">${escapeHtml(T('webview.world.guildNoAdventurers'))}</p>`}
     `;
 
+    if ((Array.isArray(guild.pendingEvents) && guild.pendingEvents.length > 0) || guild.lastEventId) {
+        panel.appendChild(buildGuildEventsSection(guild, msg));
+    }
+
     if (msg.enableGuildRequests === true && Array.isArray(guild.pendingRequests) && guild.pendingRequests.length > 0) {
-        panel.appendChild(buildGuildBoardSection(guild));
+        panel.appendChild(buildGuildBoardSection(guild, msg));
     }
 
     if (msg.enableGuildParties === true && Array.isArray(guild.quests) && guild.quests.length > 0) {
@@ -10614,7 +10618,7 @@ function buildGuildAssignForm(quest, adventurers, awayIds) {
     return card;
 }
 
-function buildGuildBoardSection(guild) {
+function buildGuildBoardSection(guild, msg) {
     const el = document.createElement('div');
     el.className = 'guild-board-section';
     const heading = document.createElement('div');
@@ -10663,6 +10667,9 @@ function buildGuildBoardSection(guild) {
             actionsRow.appendChild(btn);
         });
 
+        const isExcluded = Array.isArray(msg.excludedEventIds) && msg.excludedEventIds.includes(`guild:${request.id}`);
+        actionsRow.appendChild(buildEventExclusionControl('guild', request.id, isExcluded));
+
         card.appendChild(actionsRow);
         el.appendChild(card);
     });
@@ -10704,8 +10711,12 @@ function renderDomainPanel(msg) {
         panel.appendChild(buildDomainActionChips(domain));
     }
 
+    if ((Array.isArray(domain.pendingEvents) && domain.pendingEvents.length > 0) || domain.lastEventId) {
+        panel.appendChild(buildDomainEventsSection(domain, msg));
+    }
+
     if (msg.enableDomainAudience === true && Array.isArray(domain.pendingPetitions) && domain.pendingPetitions.length > 0) {
-        panel.appendChild(buildDomainAudienceSection(domain));
+        panel.appendChild(buildDomainAudienceSection(domain, msg));
     }
 
     if (msg.enableDomainRivals === true && domain.rival) {
@@ -10823,7 +10834,7 @@ function buildDomainActionChips(domain) {
     return wrap;
 }
 
-function buildDomainAudienceSection(domain) {
+function buildDomainAudienceSection(domain, msg) {
     const el = document.createElement('div');
     el.className = 'domain-audience-section';
     const heading = document.createElement('div');
@@ -10856,6 +10867,10 @@ function buildDomainAudienceSection(domain) {
             });
             rulingsRow.appendChild(btn);
         });
+
+        const isExcluded = Array.isArray(msg.excludedEventIds) && msg.excludedEventIds.includes(`audience:${petition.id}`);
+        rulingsRow.appendChild(buildEventExclusionControl('audience', petition.id, isExcluded));
+
         card.appendChild(rulingsRow);
         el.appendChild(card);
     });
@@ -11074,6 +11089,82 @@ function renderQuestHooks(quests) {
         }
         listEl.appendChild(item);
     });
+}
+
+function buildEventExclusionControl(kind, eventId, isExcluded) {
+    const label = document.createElement('label');
+    label.className = 'domain-event-exclude-toggle';
+    label.title = T('webview.world.excludeEventHint');
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = isExcluded;
+    cb.addEventListener('change', (e) => {
+        vscode.postMessage({ type: 'excludeEvent', id: `${kind}:${eventId}`, excluded: e.target.checked });
+    });
+    
+    const span = document.createElement('span');
+    span.textContent = T('webview.world.excludeEventLabel');
+    
+    label.appendChild(cb);
+    label.appendChild(span);
+    return label;
+}
+
+function buildDomainEventsSection(domain, msg) {
+    const el = document.createElement('div');
+    el.className = 'domain-events-section';
+    const heading = document.createElement('div');
+    heading.className = 'domain-section-heading';
+    heading.textContent = T('webview.world.domainRecentEventsTitle');
+    el.appendChild(heading);
+
+    const eventIds = Array.isArray(domain.pendingEvents) && domain.pendingEvents.length > 0 
+        ? domain.pendingEvents 
+        : (domain.lastEventId ? [domain.lastEventId] : []);
+        
+    eventIds.forEach(id => {
+        const row = document.createElement('div');
+        row.className = 'domain-event-row';
+        const name = document.createElement('span');
+        name.textContent = domainT('Event', id) || id;
+        
+        const isExcluded = Array.isArray(msg.excludedEventIds) && msg.excludedEventIds.includes(`domain:${id}`);
+        const toggle = buildEventExclusionControl('domain', id, isExcluded);
+        
+        row.appendChild(name);
+        row.appendChild(toggle);
+        el.appendChild(row);
+    });
+    return el;
+}
+
+function buildGuildEventsSection(guild, msg) {
+    const el = document.createElement('div');
+    el.className = 'domain-events-section';
+    const heading = document.createElement('div');
+    heading.className = 'domain-section-heading';
+    heading.textContent = T('webview.world.guildRecentEventsTitle');
+    el.appendChild(heading);
+
+    const eventIds = Array.isArray(guild.pendingEvents) && guild.pendingEvents.length > 0 
+        ? guild.pendingEvents 
+        : (guild.lastEventId ? [guild.lastEventId] : []);
+        
+    eventIds.forEach(id => {
+        const row = document.createElement('div');
+        row.className = 'domain-event-row';
+        const name = document.createElement('span');
+        name.textContent = guildT('Event', id) || id;
+        
+        const isExcluded = Array.isArray(msg.excludedEventIds) && msg.excludedEventIds.includes(`guild:${id}`);
+        const toggle = buildEventExclusionControl('guild', id, isExcluded);
+        
+        row.appendChild(name);
+        row.appendChild(toggle);
+        el.appendChild(row);
+    });
+    return el;
 }
 
 /* --- 86-tile-overmap.js --- */

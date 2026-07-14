@@ -5,6 +5,10 @@ import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
 import { loadGameRules, saveGameRules, clearGameRulesCache, type GameRules } from './gameRules';
+import { setEventExcluded } from './gameRulesCore';
+import { isValidDomainEventId } from './domainCore';
+import { isValidGuildEventId } from './guildCore';
+import { isValidPetitionId } from './domainAudienceCore';
 import { clearCampaignKitCache } from './campaignKit';
 import { clearDiscoveryLedgerCache } from './discoveryLedger';
 import {
@@ -1566,6 +1570,32 @@ async function handleUpdateGameRules(raw: unknown): Promise<void> {
     sendGameRules();
 }
 
+async function handleSetEventExcluded(eventId: string, excluded: boolean): Promise<void> {
+    if (typeof eventId !== 'string' || typeof excluded !== 'boolean') return;
+    
+    const parts = eventId.split(':');
+    if (parts.length !== 2) return;
+    const [ns, id] = parts;
+    
+    let valid = false;
+    if (ns === 'domain') {
+        valid = id !== 'domain_quiet_month' && isValidDomainEventId(id);
+    } else if (ns === 'guild') {
+        valid = id !== 'guild_quiet_week' && isValidGuildEventId(id);
+    } else if (ns === 'audience') {
+        valid = isValidPetitionId(id);
+    }
+    
+    if (!valid) return;
+
+    const rules = loadGameRules();
+    const updated = setEventExcluded(rules, eventId, excluded);
+    saveGameRules(updated);
+    clearCampaignKitCache();
+    clearDiscoveryLedgerCache();
+    sendGameRules();
+}
+
 async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
     const message = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     const answers = message.answers && typeof message.answers === 'object'
@@ -1823,6 +1853,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendGameRules,
         sendDebugCapabilities,
         handleUpdateGameRules,
+        handleSetEventExcluded,
         toggleRemotePlay,
         sendRemotePlayStatus,
         handleSetAntigravityRelayMode,

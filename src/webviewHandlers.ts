@@ -72,6 +72,7 @@ export interface WebviewHandlerDeps {
     handleUpdateImageGenConfig(raw: unknown): Promise<void>;
     sendGameRules(): void;
     handleUpdateGameRules(raw: unknown): Promise<void>;
+    handleSetEventExcluded(eventId: string, excluded: boolean): Promise<void>;
     toggleRemotePlay(start?: boolean): Promise<void>;
     sendRemotePlayStatus(): void;
     sendLorebookList(): void;
@@ -274,6 +275,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'updateGameRules':
             await deps.handleUpdateGameRules(message.rules);
+            break;
+        case 'excludeEvent':
+            await deps.handleSetEventExcluded(String(message.id), Boolean(message.excluded));
             break;
         case 'loadCharacters':
             deps.sendCharacterList();

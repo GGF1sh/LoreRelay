@@ -743,6 +743,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableWorldObservatory: worldObservatoryEnabled,
         marketPriceHistory: worldObservatoryEnabled ? (worldState?.marketPriceHistory ?? null) : null,
         chronicle: observatoryChronicle,
+        excludedEventIds: gameRules.excludedEventIds ?? [],
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
         vehicleGarage: buildVehicleGarageWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
         enableMobileBaseSystem: mobileBaseSystemEnabled(gameRules),

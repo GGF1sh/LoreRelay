@@ -265,3 +265,15 @@ export function isExcludedEvent(exclusions: ReadonlySet<string>, kind: EventKind
 export function toExclusionSet(rules?: GameRules): ReadonlySet<string> {
     return new Set(rules?.excludedEventIds ?? []);
 }
+
+export function setEventExcluded(rules: GameRules, eventId: string, excluded: boolean): GameRules {
+    const list = Array.isArray(rules.excludedEventIds) ? rules.excludedEventIds : [];
+    const set = new Set(list);
+    if (excluded) {
+        set.add(eventId);
+    } else {
+        set.delete(eventId);
+    }
+    const updatedList = Array.from(set).slice(-200);
+    return { ...rules, excludedEventIds: updatedList.length > 0 ? updatedList : undefined };
+}

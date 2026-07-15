@@ -201,11 +201,16 @@ body.relay-mode-active {
 
 /* --- 10-layout-chat.css --- */
 /* ========= Parlor profile (hide CRPG chrome) ========= */
-body.profile-parlor #status-area,
 body.profile-parlor #game-rules-wrap,
 body.profile-parlor #remote-play-wrap,
 body.profile-parlor #quickstart-wrap,
 body.profile-parlor #img-gen-wrap {
+  display: none !important;
+}
+
+/* The Parlor pane stays available; only its incompatible tabs are hidden. */
+#status-tabs .tab-btn.profile-parlor-hidden,
+#status-area .tab-pane.profile-parlor-hidden {
   display: none !important;
 }
 

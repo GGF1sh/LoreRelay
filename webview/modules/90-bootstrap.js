@@ -366,6 +366,9 @@ function applyExperienceProfile(profile) {
   if (typeof window.setParlorSettingsPanelAvailability === 'function') {
     window.setParlorSettingsPanelAvailability(experienceProfile === 'parlor');
   }
+  if (typeof window.syncStatusTabsForExperienceProfile === 'function') {
+    window.syncStatusTabsForExperienceProfile(experienceProfile);
+  }
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
     profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : (experienceProfile === 'inworld' ? '🌐' : '⚔️');
@@ -860,14 +863,20 @@ window.addEventListener('message', (event) => {
 });
 
 // ===== Resizer =====
+function clampStatusPaneWidth(value) {
+  const width = Number(value);
+  if (!Number.isFinite(width)) return 320;
+  return Math.max(60, Math.min(800, Math.round(width)));
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const resizer = document.getElementById('resizer');
   const statusArea = document.getElementById('status-area');
   if (!resizer || !statusArea) return;
 
   const savedWidth = localStorage.getItem('lorerelay.statusWidth');
-  if (savedWidth) {
-    statusArea.style.setProperty('--status-width', `${savedWidth}px`);
+  if (savedWidth !== null) {
+    statusArea.style.setProperty('--status-width', `${clampStatusPaneWidth(savedWidth)}px`);
   }
 
   let isResizing = false;

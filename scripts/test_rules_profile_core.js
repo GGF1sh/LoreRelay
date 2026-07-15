@@ -215,6 +215,86 @@ assertDeterministic({
     imageGenerationWanted: true,
 }, 'horror vehicle profile');
 
+// GENESIS-CHAT-LIGHTWEIGHT-001: character_chat must not inherit adventure common package
+{
+    const result = resolveRulesProfile({
+        genre: 'fantasy',
+        playstyle: 'character_chat',
+        pressure: 'standard',
+        bookkeeping: 'detailed',
+        protagonistMode: 'sillytavern',
+    });
+    const p = result.rulesPatch;
+    eq(p.enableWorldForge, false, 'character_chat disables World Forge');
+    eq(p.enableCampaignKit, false, 'character_chat disables Campaign Kit');
+    eq(p.campaignKitId, '', 'character_chat clears campaign kit id');
+    eq(p.enableNpcRegistry, false, 'character_chat disables NPC registry');
+    eq(p.enableNpcRelationships, false, 'character_chat disables NPC relationships');
+    eq(p.enableFactionReputation, false, 'character_chat disables faction reputation');
+    eq(p.enableEmergentSimulation, false, 'character_chat disables emergent simulation');
+    eq(p.enableTravelEncounters, false, 'character_chat disables travel encounters');
+    eq(p.enableNpcAgency, false, 'character_chat disables NPC agency');
+    eq(p.enableCommerce, false, 'character_chat disables commerce');
+    eq(p.enableCommerceUi, false, 'character_chat disables commerce UI');
+    eq(p.enableWorldObservatory, false, 'character_chat disables observatory');
+    eq(p.enableSettlementMode, false, 'character_chat disables settlement');
+    eq(p.enableVehicleSystem, false, 'character_chat disables vehicle');
+    eq(p.enableMobileBaseSystem, false, 'character_chat disables mobile base');
+    eq(p.enableDomainMode, false, 'character_chat disables domain');
+    eq(p.enableGuildMode, false, 'character_chat disables guild');
+    eq(p.enableRpgMechanics, false, 'character_chat disables RPG mechanics for plain chat');
+    // Pressure/bookkeeping must not re-enable adventure systems for chat.
+    truthy(!p.enableWorldForge && !p.enableEmergentSimulation, 'chat ignores pressure re-enable');
+    assertPatchKeysSupported(p, 'character_chat lightweight');
+    assertDeterministic({
+        genre: 'fantasy',
+        playstyle: 'character_chat',
+        pressure: 'nightmare',
+        bookkeeping: 'detailed',
+    }, 'character_chat twice is deterministic');
+}
+
+// character_chat applied to default rules leaves optional systems OFF after merge
+{
+    const full = normalizeGameRules({
+        ...DEFAULT_GAME_RULES,
+        ...resolveRulesProfile({ playstyle: 'character_chat' }).rulesPatch,
+    });
+    eq(full.enableWorldForge, false, 'merged default+chat: forge off');
+    eq(full.enableCampaignKit, false, 'merged default+chat: campaign kit off');
+    eq(full.enableNpcRegistry, false, 'merged default+chat: npc registry off');
+    eq(full.enableCommerce, false, 'merged default+chat: commerce off');
+    eq(full.enableDomainMode, false, 'merged default+chat: domain off');
+}
+
+// character_chat applied twice over adventure leaves the same chat-owned keys OFF
+{
+    const adventure = resolveRulesProfile({ playstyle: 'adventure', genre: 'fantasy' });
+    const afterAdventure = normalizeGameRules({ ...DEFAULT_GAME_RULES, ...adventure.rulesPatch });
+    eq(afterAdventure.enableWorldForge, true, 'precondition: adventure enables forge');
+    const chatOnce = normalizeGameRules({
+        ...afterAdventure,
+        ...resolveRulesProfile({ playstyle: 'character_chat' }).rulesPatch,
+    });
+    const chatTwice = normalizeGameRules({
+        ...chatOnce,
+        ...resolveRulesProfile({ playstyle: 'character_chat' }).rulesPatch,
+    });
+    eq(chatOnce.enableWorldForge, false, 'chat over adventure disables forge');
+    eq(JSON.stringify(chatOnce), JSON.stringify(chatTwice), 'reapplying character_chat is idempotent');
+}
+
+// Non-chat profiles still get common package (regression)
+{
+    const adventure = resolveRulesProfile({ playstyle: 'adventure' });
+    eq(adventure.rulesPatch.enableWorldForge, true, 'adventure still enables forge');
+    eq(adventure.rulesPatch.enableCampaignKit, true, 'adventure still enables campaign kit');
+    const trade = resolveRulesProfile({ playstyle: 'trade' });
+    eq(trade.rulesPatch.enableCommerce, true, 'trade still enables commerce');
+    const guild = resolveRulesProfile({ playstyle: 'guild' });
+    eq(guild.rulesPatch.enableGuildMode, true, 'guild still enables guild mode');
+}
+
 if (failed > 0) {
     console.error(`rulesProfileCore: ${failed} test(s) failed`);
     process.exit(1);

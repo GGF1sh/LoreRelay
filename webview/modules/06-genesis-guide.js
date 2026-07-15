@@ -193,6 +193,17 @@
 
   /** Local preview mirror of resolveRulesProfile(). Not authoritative. */
   function resolvePreview(answers) {
+    // character_chat skips the adventure common package (World Forge / Campaign Kit / NPC registry).
+    if (answers.playstyle === 'character_chat') {
+      return {
+        profileId: [answers.genre, answers.playstyle, answers.pressure, answers.bookkeeping].join('.'),
+        systemChips: [T('webview.genesis.system.characterChat')],
+        includeBaselineSystems: false,
+        comfyUiStylePrompt: STYLE_PROMPT_BY_GENRE[answers.genre] || '',
+        assetHint: ASSET_HINT_BY_GENRE[answers.genre] || {},
+      };
+    }
+
     const flags = applyPlaystylePreview(answers.playstyle);
     applyBookkeepingPreview(flags, answers);
 
@@ -208,6 +219,7 @@
     return {
       profileId: [answers.genre, answers.playstyle, answers.pressure, answers.bookkeeping].join('.'),
       systemChips,
+      includeBaselineSystems: true,
       comfyUiStylePrompt: STYLE_PROMPT_BY_GENRE[answers.genre] || '',
       assetHint: ASSET_HINT_BY_GENRE[answers.genre] || {},
     };
@@ -399,9 +411,11 @@
       });
     });
 
-    const baselineChips = BASELINE_SYSTEM_KEYS.map((k) => (
-      `<span class="genesis-system-chip genesis-system-chip-baseline">${escapeHtml(T(k))}</span>`
-    ));
+    const baselineChips = preview.includeBaselineSystems === false
+      ? []
+      : BASELINE_SYSTEM_KEYS.map((k) => (
+        `<span class="genesis-system-chip genesis-system-chip-baseline">${escapeHtml(T(k))}</span>`
+      ));
     const extraChips = preview.systemChips.map((label_) => (
       `<span class="genesis-system-chip">${escapeHtml(label_)}</span>`
     ));

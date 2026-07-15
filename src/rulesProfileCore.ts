@@ -258,6 +258,47 @@ function applyCommonRules(patch: Partial<GameRules>, answers: NormalizedGenesisA
     patch.maxMemoriesPerNpc = 12;
 }
 
+/**
+ * Lightweight Parlor / character-chat path.
+ * Does not inherit the adventure "common" package (World Forge, Campaign Kit, NPC registry…).
+ * Explicitly owns these keys so re-applying the profile is deterministic and does not leave
+ * residual adventure systems enabled from a previous Genesis selection.
+ */
+function applyCharacterChatRules(patch: Partial<GameRules>): void {
+    patch.enableRpgMechanics = false;
+    patch.enableCampaignKit = false;
+    patch.campaignKitId = '';
+    patch.enableWorldForge = false;
+    patch.enableNpcRegistry = false;
+    patch.enableNpcRelationships = false;
+    patch.enableFactionReputation = false;
+    patch.enableEmergentSimulation = false;
+    patch.enableTravelEncounters = false;
+    patch.enableNpcAgency = false;
+    patch.enableCommerce = false;
+    patch.enableCommerceUi = false;
+    patch.enableWorldObservatory = false;
+    patch.enableSettlementMode = false;
+    patch.enableSettlementDiorama = false;
+    patch.enableVehicleSystem = false;
+    patch.enableMobileBaseSystem = false;
+    patch.enableDomainMode = false;
+    patch.enableDomainAudience = false;
+    patch.enableDomainRivals = false;
+    patch.enableDomainMissions = false;
+    patch.enableMassBattle = false;
+    patch.enableGuildMode = false;
+    patch.enableGuildRequests = false;
+    patch.enableGuildParties = false;
+    patch.enableRivalGuild = false;
+    // Keep default-ish budgets; unused while registry/agency are off.
+    patch.maxNamedNpcCount = 10;
+    patch.maxMemoriesPerNpc = 10;
+    patch.simIntervalTurns = 5;
+    patch.travelEncounterDensity = 'low';
+    patch.diceDifficulty = 'Normal';
+}
+
 function applyPressureRules(patch: Partial<GameRules>, pressure: GenesisPressure): void {
     switch (pressure) {
         case 'tourist':
@@ -340,10 +381,7 @@ function applyPlaystyleRules(patch: Partial<GameRules>, playstyle: GenesisPlayst
             patch.playerRole = 'adventurer';
             break;
         case 'character_chat':
-            patch.enableEmergentSimulation = false;
-            patch.enableTravelEncounters = false;
-            patch.enableNpcAgency = false;
-            patch.maxNamedNpcCount = 20;
+            // Handled by applyCharacterChatRules() in resolveRulesProfile (skips common package).
             break;
         case 'adventure':
         default:
@@ -386,6 +424,16 @@ function label(value: string): string {
 }
 
 function buildSummary(answers: NormalizedGenesisAnswers, patch: Partial<GameRules>): string {
+    if (answers.playstyle === 'character_chat') {
+        return [
+            `${label(answers.genre)} / ${label(answers.playstyle)}`,
+            `pressure=${answers.pressure}`,
+            `bookkeeping=${answers.bookkeeping}`,
+            `protagonist=${answers.protagonistMode}`,
+            `images=${answers.imageGenerationWanted ? 'wanted' : 'skip'}`,
+            'systems=character chat (Parlor)',
+        ].join('; ');
+    }
     const enabled: string[] = [];
     if (patch.enableSettlementMode) { enabled.push('Settlement'); }
     if (patch.enableVehicleSystem) { enabled.push('Vehicle'); }
@@ -409,10 +457,15 @@ function buildSummary(answers: NormalizedGenesisAnswers, patch: Partial<GameRule
 export function resolveRulesProfile(rawAnswers?: GenesisAnswers): RulesProfileResult {
     const { answers, warnings } = normalizeGenesisAnswers(rawAnswers);
     const rulesPatch: Partial<GameRules> = {};
-    applyCommonRules(rulesPatch, answers);
-    applyPressureRules(rulesPatch, answers.pressure);
-    applyPlaystyleRules(rulesPatch, answers.playstyle);
-    applyBookkeepingRules(rulesPatch, answers);
+    if (answers.playstyle === 'character_chat') {
+        // Composition: chat path does not inherit adventure common/pressure/bookkeeping packages.
+        applyCharacterChatRules(rulesPatch);
+    } else {
+        applyCommonRules(rulesPatch, answers);
+        applyPressureRules(rulesPatch, answers.pressure);
+        applyPlaystyleRules(rulesPatch, answers.playstyle);
+        applyBookkeepingRules(rulesPatch, answers);
+    }
 
     return {
         profileId: [

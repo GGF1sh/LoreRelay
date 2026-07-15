@@ -1,6 +1,16 @@
 import * as vscode from 'vscode';
 import { t, getConfiguredLocale } from './i18n';
-import { getActiveCharacterId, getActiveCharacterProfile, getCharacters } from './characterManager';
+import {
+    getActiveCharacterId,
+    getActiveCharacterProfile,
+    getCharacters,
+    setActiveCharacter,
+} from './characterManager';
+import {
+    evaluateParlorVscodeLmPreflight,
+    resolveParlorActiveCharacterId,
+    shouldInsertParlorFirstGreeting,
+} from './parlorFirstUseCore';
 import { getGameEntryHistory } from './gameStateSync';
 import { isValidCharacterId } from './characterId';
 import { loadExperienceConfig, saveExperienceConfig, isParlorMode, isInWorldMode } from './experience';
@@ -27,6 +37,7 @@ import {
     invokeParlorVscodeLm,
     isParlorBridgeBusy,
     fallbackToClipboardParlor,
+    countParlorVscodeLmModels,
 } from './gmBridgeRunner';
 import {
     getActiveParlorConnectionProfile,
@@ -247,14 +258,19 @@ export async function startParlorMode(
     opts?: { skipProfileSave?: boolean }
 ): Promise<boolean> {
     const chars = getCharacters();
-    let activeId = characterId && isValidCharacterId(characterId) ? characterId : getActiveCharacterId();
-    if (!activeId && chars.length === 1) {
-        activeId = chars[0].id;
-    }
+    const preferred = characterId && isValidCharacterId(characterId) ? characterId : undefined;
+    const activeId = resolveParlorActiveCharacterId({
+        preferredId: preferred,
+        persistedActiveId: getActiveCharacterId(),
+        characterIds: chars.map((c) => c.id),
+    });
     if (!activeId) {
         vscode.window.showWarningMessage(t('extension.error.parlorNeedsCharacter'));
         return false;
     }
+    // Persist active character before session create/render so display + input
+    // paths that read active_character.txt stay consistent.
+    setActiveCharacter(activeId);
     const conn = loadConnectionProfiles();
     if (!opts?.skipProfileSave) {
         const experience = loadExperienceConfig();
@@ -270,10 +286,10 @@ export async function startParlorMode(
     const character = chars.find((c) => c.id === activeId) || getActiveCharacterProfile();
     let session = loadParlorSession(activeId) || getOrCreateParlorSession(activeId);
     const firstMes = character?.stSource?.first_mes?.trim();
-    if (session.messages.length === 0 && firstMes) {
+    if (shouldInsertParlorFirstGreeting(session.messages.length, firstMes)) {
         session = appendAndSaveParlorMessage(session, {
             role: 'assistant',
-            content: firstMes,
+            content: firstMes!,
             characterId: activeId,
         }, character?.name || 'Character', getConfiguredLocale());
     }
@@ -364,6 +380,23 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         return;
     }
 
+    // Preflight before appending user text so a missing model does not leave a
+    // one-sided user bubble in the session transcript.
+    const connProfile = getActiveParlorConnectionProfile();
+    if (connProfile.provider === 'vscode-lm') {
+        const modelCount = await countParlorVscodeLmModels(connProfile.vscodeLm);
+        const preflight = evaluateParlorVscodeLmPreflight({
+            provider: connProfile.provider,
+            availableModelCount: modelCount,
+        });
+        if (!preflight.ok) {
+            vscode.window.showErrorMessage(
+                'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code 等の拡張機能をインストールしてサインインしてください。'
+            );
+            return;
+        }
+    }
+
     parlorInFlight = true;
     try {
         let session = getOrCreateParlorSession(characterId);
@@ -374,7 +407,6 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         sendParlorSessionToWebview();
 
         const prompt = buildParlorUserPrompt(character, session, text);
-        const connProfile = getActiveParlorConnectionProfile();
         const result = await invokeParlorByProfile(prompt, connProfile);
         if (!isParlorMode()) {
             return;

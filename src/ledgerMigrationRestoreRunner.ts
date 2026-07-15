@@ -10,6 +10,7 @@ import {
     listVehicleStateMigrationBackups,
     restoreVehicleStateMigrationBackup,
 } from './ledgerMigrationRestoreHost';
+import { clearVehicleStateCache } from './vehicleState';
 import { getWorkspacePath } from './workspacePaths';
 
 let outputChannel: vscode.OutputChannel | undefined;
@@ -101,7 +102,9 @@ export async function runRestoreVehicleStateMigrationBackupCommand(): Promise<vo
         return;
     }
 
-    const result = restoreVehicleStateMigrationBackup(wsPath, pick.candidate.timestamp);
+    const result = restoreVehicleStateMigrationBackup(wsPath, pick.candidate.timestamp, {
+        clearVehicleStateCache,
+    });
     emitRestoreReport(workspaceName, {
         outcome: result.outcome,
         reasonCode: result.reasonCode,

@@ -18,6 +18,7 @@ import {
 } from './ledgerMigrationWritebackCore';
 import { migrateVehicleStateDocument } from './vehicleMigrationCore';
 import { parseVehicleState, VEHICLE_STATE_VERSION } from './vehicleCore';
+import { runSerializedVehicleStateMutation } from './workspaceStateQueue';
 
 function writeJsonAtomicLocal(filePath: string, data: unknown): void {
     const dir = path.dirname(filePath);
@@ -36,6 +37,7 @@ export interface VehicleStateWritebackResult {
     metaFileRel?: string;
     backupCreated: boolean;
     migrationResult?: LedgerMigrationResult;
+    cacheRefreshWarning?: 'cache_clear_failed_after_commit';
 }
 
 export interface VehicleStateWritebackHostDeps {
@@ -49,6 +51,15 @@ export interface VehicleStateWritebackHostDeps {
     migrate?: (raw: unknown) => LedgerMigrationResult;
     parse?: (raw: unknown) => { version: number };
     now?: () => Date;
+    runSerializedVehicleStateMutation?: (fn: () => void) => void;
+    clearVehicleStateCache?: () => void;
+}
+
+function clearVehicleStateCacheDefault(): void {
+    // Lazy import preserves this host's fs-only focused-test surface (no vscode at module load).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const vehicleState = require('./vehicleState') as typeof import('./vehicleState');
+    vehicleState.clearVehicleStateCache();
 }
 
 export function listMigrationBackupTimestamps(
@@ -190,6 +201,57 @@ export function applyVehicleStateMigrationWriteback(
         return prepared;
     }
 
+    const runSerialized = deps.runSerializedVehicleStateMutation
+        ?? runSerializedVehicleStateMutation;
+    let queuedResult: VehicleStateWritebackResult | undefined;
+    try {
+        // PRE3B lock order: this host is the sole vehicle-queue acquisition layer.
+        // Callers (including the command runner) must enter from outside the queue.
+        // The existing synchronous queue releases through createSyncFileQueue.drain's finally.
+        runSerialized(() => {
+            try {
+                queuedResult = applyPreparedVehicleStateMigrationWriteback(
+                    wsPath,
+                    prepared,
+                    deps
+                );
+            } catch {
+                queuedResult = {
+                    outcome: 'write_failed',
+                    reasonCode: 'write_failed',
+                    backupCreated: false,
+                    migrationResult: prepared.migrationResult,
+                };
+            }
+        });
+    } catch {
+        return {
+            outcome: 'write_failed',
+            reasonCode: 'write_failed',
+            backupCreated: false,
+            migrationResult: prepared.migrationResult,
+        };
+    }
+    return queuedResult ?? {
+        outcome: 'write_failed',
+        reasonCode: 'write_failed',
+        backupCreated: false,
+        migrationResult: prepared.migrationResult,
+    };
+}
+
+/** Backup, canonical replacement, reload validation, and cache refresh; caller holds vehicle queue. */
+function applyPreparedVehicleStateMigrationWriteback(
+    wsPath: string,
+    prepared: VehicleStateWritebackResult,
+    deps: VehicleStateWritebackHostDeps
+): VehicleStateWritebackResult {
+    const migrationResult = prepared.migrationResult;
+    const migrated = migrationResult?.migrated;
+    if (!migrationResult || migrated === undefined) {
+        return prepared;
+    }
+
     const now = deps.now ?? (() => new Date());
     const existingTimestamps = listMigrationBackupTimestamps(wsPath, deps);
     const timestamp = allocateMigrationBackupTimestamp(
@@ -201,17 +263,17 @@ export function applyVehicleStateMigrationWriteback(
             outcome: 'aborted',
             reasonCode: 'backup_failed',
             backupCreated: false,
-            migrationResult: prepared.migrationResult,
+            migrationResult,
         };
     }
     const createdAt = now().toISOString();
-    const meta = buildMigrationBackupMeta(prepared.migrationResult, createdAt);
+    const meta = buildMigrationBackupMeta(migrationResult, createdAt);
     if (!meta) {
         return {
             outcome: 'aborted',
             reasonCode: 'not_eligible',
             backupCreated: false,
-            migrationResult: prepared.migrationResult,
+            migrationResult,
         };
     }
 
@@ -222,7 +284,7 @@ export function applyVehicleStateMigrationWriteback(
             outcome: 'aborted',
             reasonCode: 'backup_failed',
             backupCreated: false,
-            migrationResult: prepared.migrationResult,
+            migrationResult,
         };
     }
 
@@ -232,7 +294,7 @@ export function applyVehicleStateMigrationWriteback(
     const exists = deps.exists ?? fs.existsSync.bind(fs);
 
     try {
-        writeJson(sourcePath, prepared.migrationResult.migrated);
+        writeJson(sourcePath, migrated);
     } catch {
         return {
             outcome: 'write_failed',
@@ -240,7 +302,7 @@ export function applyVehicleStateMigrationWriteback(
             backupFileRel: backup.backupFileRel,
             metaFileRel: backup.metaFileRel,
             backupCreated: true,
-            migrationResult: prepared.migrationResult,
+            migrationResult,
         };
     }
 
@@ -259,15 +321,21 @@ export function applyVehicleStateMigrationWriteback(
             backupFileRel: backup.backupFileRel,
             metaFileRel: backup.metaFileRel,
             backupCreated: true,
-            migrationResult: prepared.migrationResult,
+            migrationResult,
         };
     }
 
-    return {
+    const result: VehicleStateWritebackResult = {
         outcome: 'success',
         backupFileRel: backup.backupFileRel,
         metaFileRel: backup.metaFileRel,
         backupCreated: true,
-        migrationResult: prepared.migrationResult,
+        migrationResult,
     };
+    try {
+        (deps.clearVehicleStateCache ?? clearVehicleStateCacheDefault)();
+    } catch {
+        result.cacheRefreshWarning = 'cache_clear_failed_after_commit';
+    }
+    return result;
 }

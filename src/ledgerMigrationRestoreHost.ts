@@ -20,6 +20,7 @@ import {
     type RestoreAbortReason,
     type RestoreOutcome,
 } from './ledgerMigrationRestoreCore';
+import { runSerializedVehicleStateMutation } from './workspaceStateQueue';
 
 export interface VehicleStateRestoreResult {
     outcome: RestoreOutcome;
@@ -28,6 +29,7 @@ export interface VehicleStateRestoreResult {
     preRestoreBackupRel?: string;
     preRestoreBackupCreated: boolean;
     restoredDocument?: unknown;
+    cacheRefreshWarning?: 'cache_clear_failed_after_commit';
 }
 
 export interface VehicleStateRestoreHostDeps {
@@ -39,6 +41,15 @@ export interface VehicleStateRestoreHostDeps {
     writeFile?: (filePath: string, data: string, encoding: BufferEncoding) => void;
     writeTextAtomic?: (filePath: string, text: string) => void;
     now?: () => Date;
+    runSerializedVehicleStateMutation?: (fn: () => void) => void;
+    clearVehicleStateCache?: () => void;
+}
+
+function clearVehicleStateCacheDefault(): void {
+    // Lazy import preserves this host's fs-only focused-test surface (no vscode at module load).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const vehicleState = require('./vehicleState') as typeof import('./vehicleState');
+    vehicleState.clearVehicleStateCache();
 }
 
 function resolveWorkspaceRelativePath(wsPath: string, relativePath: string): string {
@@ -220,9 +231,7 @@ export function restoreVehicleStateMigrationBackup(
 
     const candidate = loaded.candidate;
     const backupPath = resolveWorkspaceRelativePath(wsPath, candidate.backupFileRel);
-    const targetPath = resolveWorkspaceRelativePath(wsPath, VEHICLE_STATE_WRITEBACK_FILE);
     const readFile = deps.readFile ?? ((p, enc) => fs.readFileSync(p, enc));
-    const exists = deps.exists ?? fs.existsSync.bind(fs);
 
     let backupText: string;
     let backupRaw: unknown;
@@ -245,6 +254,60 @@ export function restoreVehicleStateMigrationBackup(
             preRestoreBackupCreated: false,
         };
     }
+
+    const runSerialized = deps.runSerializedVehicleStateMutation
+        ?? runSerializedVehicleStateMutation;
+    let queuedResult: VehicleStateRestoreResult | undefined;
+    try {
+        // PRE3B lock order: this host is the sole vehicle-queue acquisition layer.
+        // Candidate selection/validation is read-only and occurs before acquisition. The current
+        // canonical backup, replacement, reload validation, and cache refresh all remain queued.
+        // createSyncFileQueue.drain's existing finally is the release boundary for every outcome.
+        runSerialized(() => {
+            try {
+                queuedResult = restoreValidatedVehicleStateMigrationBackup(
+                    wsPath,
+                    candidate,
+                    backupText,
+                    backupRaw,
+                    deps
+                );
+            } catch {
+                queuedResult = {
+                    outcome: 'write_failed',
+                    reasonCode: 'write_failed',
+                    restoredFromRel: candidate.backupFileRel,
+                    preRestoreBackupCreated: false,
+                };
+            }
+        });
+    } catch {
+        return {
+            outcome: 'write_failed',
+            reasonCode: 'write_failed',
+            restoredFromRel: candidate.backupFileRel,
+            preRestoreBackupCreated: false,
+        };
+    }
+    return queuedResult ?? {
+        outcome: 'write_failed',
+        reasonCode: 'write_failed',
+        restoredFromRel: candidate.backupFileRel,
+        preRestoreBackupCreated: false,
+    };
+}
+
+/** Current backup, replacement, validation, and cache refresh; caller holds vehicle queue. */
+function restoreValidatedVehicleStateMigrationBackup(
+    wsPath: string,
+    candidate: MigrationBackupCandidate,
+    backupText: string,
+    backupRaw: unknown,
+    deps: VehicleStateRestoreHostDeps
+): VehicleStateRestoreResult {
+    const targetPath = resolveWorkspaceRelativePath(wsPath, VEHICLE_STATE_WRITEBACK_FILE);
+    const readFile = deps.readFile ?? ((p, enc) => fs.readFileSync(p, enc));
+    const exists = deps.exists ?? fs.existsSync.bind(fs);
 
     const restoreTimestamp = formatMigrationBackupTimestamp((deps.now ?? (() => new Date()))());
     const currentExists = exists(targetPath);
@@ -297,11 +360,17 @@ export function restoreVehicleStateMigrationBackup(
         };
     }
 
-    return {
+    const result: VehicleStateRestoreResult = {
         outcome: 'success',
         restoredFromRel: candidate.backupFileRel,
         preRestoreBackupRel: preRestore.beforeFileRel,
         preRestoreBackupCreated: true,
         restoredDocument: backupRaw,
     };
+    try {
+        (deps.clearVehicleStateCache ?? clearVehicleStateCacheDefault)();
+    } catch {
+        result.cacheRefreshWarning = 'cache_clear_failed_after_commit';
+    }
+    return result;
 }

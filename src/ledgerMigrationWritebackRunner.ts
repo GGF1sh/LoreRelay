@@ -15,6 +15,7 @@ import {
     applyVehicleStateMigrationWriteback,
     prepareVehicleStateWriteback,
 } from './ledgerMigrationWritebackHost';
+import { clearVehicleStateCache } from './vehicleState';
 import { getWorkspacePath } from './workspacePaths';
 
 let outputChannel: vscode.OutputChannel | undefined;
@@ -103,7 +104,9 @@ export async function runApplyVehicleStateMigrationCommand(): Promise<void> {
         return;
     }
 
-    const result = applyVehicleStateMigrationWriteback(wsPath);
+    const result = applyVehicleStateMigrationWriteback(wsPath, {
+        clearVehicleStateCache,
+    });
     emitWritebackReport(workspaceName, result);
 
     if (result.outcome === 'success') {

@@ -67,6 +67,7 @@ const CSS_MODULE_ORDER = [
     '98-settlement-isometric.css',
     '99-settlement-diorama.css',
     '89-vehicles.css',
+    '9a-ink-lantern.css',
     '9b-genre-chrome.css'
 ];
 

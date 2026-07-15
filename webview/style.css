@@ -6858,6 +6858,214 @@ body[data-ui-theme="steampunk"] {
     border: 0;
 }
 
+/* --- 9a-ink-lantern.css --- */
+/* 9a-ink-lantern.css */
+/* Pilot: UI-VISUAL-HIERARCHY-001 (Ink and Lantern) */
+
+:root {
+  /* Pilot Accents */
+  --vr-ink-accent-lantern: var(--vscode-editorWarning-foreground, #cca700);
+  --vr-ink-accent-focus: var(--vscode-focusBorder, #007fd4);
+  --vr-ink-accent-success: var(--vscode-charts-green, #89d185);
+  --vr-ink-accent-danger: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+/* Light theme fallbacks */
+body.vscode-light {
+  --vr-ink-surface-panel: rgba(0, 0, 0, 0.03);
+  --vr-ink-surface-card: rgba(0, 0, 0, 0.06);
+  --vr-ink-surface-hover: rgba(0, 0, 0, 0.1);
+  --vr-ink-surface-selected: rgba(var(--vr-accent-rgb, 0, 122, 204), 0.12);
+  --vr-ink-surface-inset: rgba(0, 0, 0, 0.05);
+
+  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
+  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
+}
+
+/* Dark theme / High contrast */
+body.vscode-dark, body.vscode-high-contrast {
+  --vr-ink-surface-panel: rgba(255, 255, 255, 0.03);
+  --vr-ink-surface-card: rgba(255, 255, 255, 0.06);
+  --vr-ink-surface-hover: rgba(255, 255, 255, 0.1);
+  --vr-ink-surface-selected: rgba(var(--vr-accent-rgb, 0, 122, 204), 0.2);
+  --vr-ink-surface-inset: rgba(0, 0, 0, 0.25);
+
+  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 75%, transparent);
+  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 65%, transparent);
+}
+
+/* =========================================================
+   Scope 1 — Adventure Status
+   ========================================================= */
+#pane-status #status-area {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#pane-status #status-content {
+  background: var(--vr-ink-surface-panel);
+  border: none;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: none;
+}
+
+#pane-status .status-row,
+#pane-status .status-block {
+  background: var(--vr-ink-surface-card);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+#pane-status #dynamic-resources-container {
+  background: var(--vr-ink-surface-inset);
+  border: none;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+#pane-status .status-label {
+  color: var(--vr-ink-text-secondary);
+  font-weight: 400;
+}
+
+#pane-status .status-value,
+#pane-status .tag-item {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+#pane-status #status-funds {
+  color: var(--vr-ink-accent-lantern);
+}
+
+/* =========================================================
+   Scope 2 — Vehicle Garage
+   ========================================================= */
+
+/* Pane layout surface */
+#pane-vehicles #vehicles-list {
+  background: var(--vr-ink-surface-panel);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+#pane-vehicles .vehicle-detail-card,
+#pane-vehicles .mobile-base-panel-card {
+  background: var(--vr-ink-surface-panel);
+  border: none;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: none;
+}
+
+/* Vehicle List Item */
+#pane-vehicles .vehicle-list-item {
+  background: var(--vr-ink-surface-card);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  transition: background 0.15s, border-color 0.15s;
+  color: var(--vscode-foreground); /* MUST PRESERVE FIX */
+}
+
+#pane-vehicles .vehicle-list-item:hover {
+  background: var(--vr-ink-surface-hover);
+  border-color: transparent;
+}
+
+#pane-vehicles .vehicle-list-item:focus-visible {
+  border-color: var(--vr-ink-accent-focus);
+  outline: none;
+}
+
+#pane-vehicles .vehicle-list-item.is-selected {
+  background: var(--vr-ink-surface-selected);
+  border-color: var(--vr-ink-accent-focus);
+  box-shadow: none; /* remove uniform box shadows */
+}
+
+#pane-vehicles .vehicle-list-name {
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+#pane-vehicles .vehicle-list-meta {
+  color: var(--vr-ink-text-secondary);
+  opacity: 1; /* override any default CSS opacity to use explicit color */
+  font-weight: 400;
+}
+
+/* Active indicator */
+#pane-vehicles .vehicle-list-item.is-active {
+  border-left: 3px solid var(--vr-ink-accent-green);
+}
+#pane-vehicles .vehicle-list-item.is-here .vehicle-list-meta::after {
+  color: var(--vr-ink-accent-green);
+}
+
+/* Vehicle Detail & Mobile Base text hierarchy */
+#pane-vehicles .vehicle-detail-header {
+  margin-bottom: 16px;
+}
+
+#pane-vehicles .vehicle-stat-row span:first-child,
+#pane-vehicles .mb-chip-row .label,
+#pane-vehicles .vehicle-bar-row span:first-child {
+  color: var(--vr-ink-text-secondary);
+  font-weight: 400;
+}
+
+#pane-vehicles .vehicle-stat-row span:last-child,
+#pane-vehicles .mb-chip-row .value,
+#pane-vehicles .vehicle-bar-row span:last-child {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status colors */
+#pane-vehicles .vehicle-fuel-low .vehicle-stat-row span:last-child,
+#pane-vehicles .mb-stock-low,
+#pane-vehicles .mb-facility-chip.status-damaged,
+#pane-vehicles .mb-facility-chip.status-under_construction,
+#pane-vehicles .vehicle-warning {
+  color: var(--vr-ink-accent-lantern);
+  border-color: var(--vr-ink-accent-lantern);
+}
+
+#pane-vehicles .vehicle-fuel-empty .vehicle-stat-row span:last-child,
+#pane-vehicles .mb-stock-empty {
+  color: var(--vr-ink-accent-danger);
+}
+
+#pane-vehicles .vehicle-muted,
+#pane-vehicles .mb-facility-chip.status-disabled,
+#pane-vehicles .mb-facility-chip.status-ruined {
+  color: var(--vr-ink-text-disabled);
+  opacity: 1; /* override original opacity to strictly use token */
+}
+
+/* Intent Preview */
+#pane-vehicles .vehicle-intent-row {
+  background: var(--vr-ink-surface-card);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+}
+
+#pane-vehicles .vehicle-intent-row[data-intent-status="allowed"] .vehicle-intent-dot { background: var(--vr-ink-accent-green); }
+#pane-vehicles .vehicle-intent-row[data-intent-status="blocked"] .vehicle-intent-dot { background: var(--vr-ink-accent-lantern); }
+
 /* --- 9b-genre-chrome.css --- */
 /* ========= Genre Chrome (Graphics Upgrade Track 3) =========
    Deliberately reuses the existing MANUAL body[data-ui-theme] system (10-game-state.js

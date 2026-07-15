@@ -249,6 +249,7 @@ import { runPreviewWorkspaceMigrationsCommand } from './ledgerMigrationRunner';
 import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWritebackRunner';
 import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
 import { runUpgradeVehicleStateForGameplaySpineCommand } from './gameplaySpineVehicleStateUpgradeRunner';
+import { runGameplaySpineVehicleRepairCommand } from './gameplaySpineVehicleRepairRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createShopkeeperRequestGate } from './shopkeeperRequestGate';
 import { createEndDayRequestGate } from './endDayRequestGate';
@@ -568,6 +569,11 @@ export function activate(context: vscode.ExtensionContext) {
         () => { void runUpgradeVehicleStateForGameplaySpineCommand(); }
     );
 
+    const gameplaySpineRepairVehicleCmd = vscode.commands.registerCommand(
+        'textadventure.gameplaySpineRepairVehicle',
+        () => { void runGameplaySpineVehicleRepairCommand(); }
+    );
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -619,7 +625,8 @@ export function activate(context: vscode.ExtensionContext) {
         previewWorkspaceMigrationsCmd,
         applyVehicleStateMigrationCmd,
         restoreVehicleStateMigrationBackupCmd,
-        upgradeVehicleStateForGameplaySpineCmd
+        upgradeVehicleStateForGameplaySpineCmd,
+        gameplaySpineRepairVehicleCmd
     );
 
     context.subscriptions.push(

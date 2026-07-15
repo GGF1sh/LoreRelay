@@ -54,7 +54,8 @@
     "onCommand:textadventure.previewWorkspaceMigrations",
     "onCommand:textadventure.applyVehicleStateMigration",
     "onCommand:textadventure.restoreVehicleStateMigrationBackup",
-    "onCommand:textadventure.upgradeVehicleStateForGameplaySpine"
+    "onCommand:textadventure.upgradeVehicleStateForGameplaySpine",
+    "onCommand:textadventure.gameplaySpineRepairVehicle"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -174,6 +175,10 @@
       {
         "command": "textadventure.upgradeVehicleStateForGameplaySpine",
         "title": "LoreRelay: Upgrade Vehicle State for Gameplay Spine"
+      },
+      {
+        "command": "textadventure.gameplaySpineRepairVehicle",
+        "title": "LoreRelay: Repair Vehicle with Gameplay Spine"
       }
     ],
     "configuration": {

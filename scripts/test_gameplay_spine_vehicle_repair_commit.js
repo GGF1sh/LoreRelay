@@ -19,7 +19,11 @@ const { queryWorldIntent, executeWorldIntent } = require(path.join(root, 'out/wo
 const { planVehicleRepairPreview, buildVehicleRepairEffectPlan } = require(path.join(root, 'out/gameplaySpineVehicleRepairPlanAdapterCore.js'));
 const { digestWholeVehicleStateDocument } = require(path.join(root, 'out/vehicleStateDocumentCore.js'));
 const { createDeterministicWorkspaceMutationGate } = require(path.join(root, 'out/deterministicWorkspaceMutationGate.js'));
-const { commitVehicleRepairEffectPlanWithDeps, upgradeVehicleStateForGameplaySpineWithDeps } = require(path.join(root, 'out/gameplaySpineVehicleRepairCommitHost.js'));
+const {
+    commitVehicleRepairEffectPlanWithDeps,
+    reconcileVehicleRepairRequestWithDeps,
+    upgradeVehicleStateForGameplaySpineWithDeps,
+} = require(path.join(root, 'out/gameplaySpineVehicleRepairCommitHost.js'));
 
 function state() {
     return parseVehicleState({ version: 1, activeVehicleId: 'v1', updatedTurn: 3, vehicles: [{
@@ -77,6 +81,21 @@ function planFor(current, id = 'repair_request_1', amount = 30) {
     assert.strictEqual(h.read().vehicles[0].durability.hp, 80);
     assert.strictEqual(h.read().gameplayCommitReceipts.length, 1);
     assert.strictEqual(h.writes(), 1, 'mechanics and receipt share one replacement');
+    const reconciled = reconcileVehicleRepairRequestWithDeps({
+        requestId: input.plan.requestId,
+        target: { kind: 'vehicle', id: 'v1' }, requestedRepair: 30,
+    }, h.deps);
+    assert.strictEqual(reconciled.status, 'replayed', 'fresh disk reconciliation replays without a preview');
+    assert.strictEqual(reconciled.result.commitId, committed.commitId);
+    assert.strictEqual(reconciled.result.replayedPriorCommit, true);
+    assert.strictEqual(reconcileVehicleRepairRequestWithDeps({
+        requestId: input.plan.requestId,
+        target: { kind: 'vehicle', id: 'v1' }, requestedRepair: 20,
+    }, h.deps).result.reasonCode, 'request_id_conflict');
+    assert.strictEqual(reconcileVehicleRepairRequestWithDeps({
+        requestId: input.plan.requestId,
+        target: { kind: 'vehicle', id: 'other_vehicle' }, requestedRepair: 30,
+    }, h.deps).result.reasonCode, 'request_id_conflict');
     const replay = commitVehicleRepairEffectPlanWithDeps(input, deps);
     assert.strictEqual(replay.status, 'committed');
     assert.strictEqual(replay.replayedPriorCommit, true);

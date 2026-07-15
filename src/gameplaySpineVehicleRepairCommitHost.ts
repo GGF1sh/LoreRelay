@@ -26,6 +26,7 @@ import {
 } from './vehicleStateDocumentCore';
 import {
     createDefaultVehicleStateDocumentOwnerDeps,
+    readVehicleStateDocumentFreshWithDeps,
     runSerializedVehicleStateDocumentReplacementWithDeps,
     type VehicleStateDocumentOwnerDeps,
 } from './vehicleStateDocumentOwner';
@@ -67,6 +68,17 @@ export interface VehicleRepairCommitDeps {
     ownerDeps: VehicleStateDocumentOwnerDeps;
     gate: DeterministicWorkspaceMutationGate;
 }
+
+export interface VehicleRepairRequestReconciliationInput {
+    requestId: string;
+    target: { kind: 'vehicle'; id: string };
+    requestedRepair: number;
+}
+
+export type VehicleRepairRequestReconciliationResult =
+    | { status: 'not_found' }
+    | { status: 'replayed'; result: VehicleRepairCommitResult }
+    | { status: 'rejected'; result: VehicleRepairCommitResult };
 
 export interface VehicleStateGameplaySpineUpgradeResult {
     status: 'migrated' | 'already_current' | 'failed' | 'busy';
@@ -179,6 +191,47 @@ function sameReceiptAction(receipt: VehicleRepairActionCommitReceipt, plan: Vehi
         && receipt.actionVersion === plan.actionVersion
         && receipt.planId === planId
         && receipt.effectPlanDigest === effectPlanDigest;
+}
+
+/**
+ * Receipt-first replay reconciliation for the one repair receipt family.
+ * It deliberately reads only vehicle_state and exposes only the factual public
+ * commit projection; callers must not construct a post-commit preview first.
+ */
+export function reconcileVehicleRepairRequestWithDeps(
+    input: VehicleRepairRequestReconciliationInput,
+    ownerDeps: VehicleStateDocumentOwnerDeps
+): VehicleRepairRequestReconciliationResult {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(input.requestId)
+        || input.requestId === '.' || input.requestId === '..' || input.requestId.endsWith('.')
+        || input.requestId.includes('..') || input.target.kind !== 'vehicle'
+        || !/^[A-Za-z0-9_-]{1,64}$/.test(input.target.id)
+        || !Number.isSafeInteger(input.requestedRepair) || input.requestedRepair < 1) {
+        return { status: 'rejected', result: stale(input.requestId, 'invalid_request_identity') };
+    }
+    const read = readVehicleStateDocumentFreshWithDeps(ownerDeps);
+    if (!read.ok) {
+        return { status: 'rejected', result: stale(input.requestId, read.reason) };
+    }
+    if (read.document.version !== VEHICLE_STATE_DOCUMENT_V2_VERSION) {
+        return { status: 'rejected', result: stale(input.requestId, 'vehicle_state_v2_required') };
+    }
+    const receipt = (read.document.gameplayCommitReceipts ?? []).find(
+        (item) => item.requestId === input.requestId
+    );
+    if (!receipt) { return { status: 'not_found' }; }
+    if (receipt.actionKey !== REPAIR_VEHICLE_ACTION_KEY
+        || receipt.target.id !== input.target.id
+        || receipt.requestedRepair !== input.requestedRepair) {
+        return { status: 'rejected', result: stale(input.requestId, 'request_id_conflict') };
+    }
+    return { status: 'replayed', result: resultFromReceipt(receipt, true) };
+}
+
+export function reconcileVehicleRepairRequest(
+    input: VehicleRepairRequestReconciliationInput
+): VehicleRepairRequestReconciliationResult {
+    return reconcileVehicleRepairRequestWithDeps(input, createDefaultVehicleStateDocumentOwnerDeps());
 }
 
 /** Gate -> shared queue -> fresh disk read -> duplicate/stale/commit. */

@@ -1,10 +1,12 @@
-// NOAI-GAMEPLAY-SPINE-005B-PRE2: host owner for normal vehicle_state.json mutations.
-// Coordinates document read / mechanical mutation / version-preserving write.
+// NOAI-GAMEPLAY-SPINE-005B-PRE3A: durable host owner for normal vehicle_state.json mutations.
+// Coordinates document read / mechanical mutation / version-preserving replacement.
 // Does not create receipts, migrate v1→v2, or perform Gameplay Spine repair.
 // Exceptional writers (ledger migration writeback/restore, SO executor, etc.) stay outside.
 
 import * as fs from 'fs';
+import * as path from 'path';
 import {
+    canonicalizeVehicleStateDocument,
     parseVehicleStateDocument,
     projectVehicleStateDocumentMechanical,
     rebuildVehicleStateDocumentWithMechanical,
@@ -12,6 +14,32 @@ import {
     type VehicleStateDocumentParseResult,
 } from './vehicleStateDocumentCore';
 import type { VehicleState } from './vehicleCore';
+
+const VEHICLE_DOCUMENT_RENAME_ATTEMPTS = 5;
+const VEHICLE_DOCUMENT_RENAME_RETRY_BASE_DELAY_MS = 12;
+const VEHICLE_DOCUMENT_TEMP_BASENAME_MAX_LENGTH = 96;
+const RETRYABLE_RENAME_ERROR_CODES = new Set([
+    'EACCES',
+    'EBUSY',
+    'EEXIST',
+    'ENOTEMPTY',
+    'EPERM',
+]);
+const VEHICLE_DOCUMENT_TEMP_BASENAME = /^\.lorerelay-vehicle-state-\d+-\d+-\d+\.tmp$/;
+
+let tempFileSequence = 0;
+
+export type VehicleStateDocumentCommitState =
+    | 'not_committed'
+    | 'committed'
+    | 'indeterminate';
+
+export type VehicleStateDocumentDurabilityWarning =
+    | 'directory_fsync_unsupported'
+    | 'directory_fsync_failed';
+
+export type VehicleStateDocumentRefreshWarning =
+    | 'cache_clear_failed_after_commit';
 
 export type VehicleStateDocumentFailureReason =
     | 'no_workspace'
@@ -21,7 +49,12 @@ export type VehicleStateDocumentFailureReason =
     | 'invalid_receipt_metadata'
     | 'unsupported_document_version'
     | 'unreadable'
-    | 'write_failed'
+    | 'mutation_failed'
+    | 'serialization_failed'
+    | 'write_failed_before_replace'
+    | 'replace_failed'
+    | 'reload_failed_after_replace'
+    | 'reload_mismatch_after_replace'
     | 'no_change';
 
 export type VehicleStateDocumentFreshRead =
@@ -42,16 +75,82 @@ export interface VehicleStateDocumentMutationResult {
     ok: boolean;
     applied: boolean;
     attempted: boolean;
+    commitState: VehicleStateDocumentCommitState;
     reason?: VehicleStateDocumentFailureReason;
+    reconciliationRequired?: boolean;
+    refreshWarning?: VehicleStateDocumentRefreshWarning;
+    durabilityWarning?: VehicleStateDocumentDurabilityWarning;
 }
 
-export interface VehicleStateDocumentOwnerDeps {
+export interface VehicleStateDocumentReadDeps {
     getVehicleStatePath: () => string | undefined;
     fileExists: (filePath: string) => boolean;
     readFileUtf8: (filePath: string) => string;
-    writeJsonAtomic: (filePath: string, data: unknown) => void;
+}
+
+export interface VehicleStateDocumentOwnerDeps extends VehicleStateDocumentReadDeps {
+    allocateTempPath: (statePath: string) => string;
+    openTempFile: (tempPath: string) => number;
+    writeTempFileUtf8: (fileDescriptor: number, payload: string) => void;
+    fsyncTempFile: (fileDescriptor: number) => void;
+    closeTempFile: (fileDescriptor: number) => void;
+    renameFile: (fromPath: string, toPath: string) => void;
+    waitBeforeRenameRetry: (attempt: number) => void;
+    cleanupTempFile: (tempPath: string) => void;
+    syncDirectoryBestEffort: (
+        directoryPath: string
+    ) => VehicleStateDocumentDurabilityWarning | undefined;
     clearVehicleStateCache: () => void;
     runSerializedMutation: (fn: () => void) => void;
+    reportDiagnostic: (message: string, error?: unknown) => void;
+}
+
+function allocateVehicleDocumentTempPath(statePath: string): string {
+    tempFileSequence += 1;
+    return path.join(
+        path.dirname(statePath),
+        `.lorerelay-vehicle-state-${process.pid}-${Date.now()}-${tempFileSequence}.tmp`
+    );
+}
+
+function waitBeforeRenameRetrySync(attempt: number): void {
+    const waitUntil = Date.now() + VEHICLE_DOCUMENT_RENAME_RETRY_BASE_DELAY_MS * attempt;
+    while (Date.now() < waitUntil) {
+        // Deliberately bounded synchronous wait: this mirrors the existing workspace atomic writer.
+    }
+}
+
+/**
+ * File fsync requests that the OS flush the temp file before replacement; storage hardware and
+ * unsupported filesystems can still weaken power-loss guarantees. Same-directory rename is the
+ * repository-supported atomic replacement boundary. Directory fsync is additionally attempted
+ * where Node supports it. On Windows, fsyncSync on an opened directory returns EPERM, so the
+ * replacement remains committed but carries a bounded durability warning.
+ */
+function syncDirectoryBestEffortDefault(
+    directoryPath: string
+): VehicleStateDocumentDurabilityWarning | undefined {
+    if (process.platform === 'win32') {
+        return 'directory_fsync_unsupported';
+    }
+
+    let directoryFd: number | undefined;
+    let warning: VehicleStateDocumentDurabilityWarning | undefined;
+    try {
+        directoryFd = fs.openSync(directoryPath, 'r');
+        fs.fsyncSync(directoryFd);
+    } catch {
+        warning = 'directory_fsync_failed';
+    } finally {
+        if (directoryFd !== undefined) {
+            try {
+                fs.closeSync(directoryFd);
+            } catch {
+                warning = 'directory_fsync_failed';
+            }
+        }
+    }
+    return warning;
 }
 
 /** Lazy host defaults — keeps focused tests free of vscode when using WithDeps. */
@@ -59,16 +158,33 @@ export function createDefaultVehicleStateDocumentOwnerDeps(): VehicleStateDocume
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const vehicleState = require('./vehicleState') as typeof import('./vehicleState');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const workspacePaths = require('./workspacePaths') as typeof import('./workspacePaths');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const queue = require('./workspaceStateQueue') as typeof import('./workspaceStateQueue');
     return {
         getVehicleStatePath: () => vehicleState.getVehicleStatePath(),
         fileExists: (filePath) => fs.existsSync(filePath),
         readFileUtf8: (filePath) => fs.readFileSync(filePath, 'utf-8'),
-        writeJsonAtomic: (filePath, data) => workspacePaths.writeJsonAtomic(filePath, data),
+        allocateTempPath: allocateVehicleDocumentTempPath,
+        openTempFile: (tempPath) => fs.openSync(tempPath, 'wx', 0o600),
+        writeTempFileUtf8: (fileDescriptor, payload) => {
+            fs.writeFileSync(fileDescriptor, payload, { encoding: 'utf-8' });
+        },
+        fsyncTempFile: (fileDescriptor) => fs.fsyncSync(fileDescriptor),
+        closeTempFile: (fileDescriptor) => fs.closeSync(fileDescriptor),
+        renameFile: (fromPath, toPath) => fs.renameSync(fromPath, toPath),
+        waitBeforeRenameRetry: waitBeforeRenameRetrySync,
+        cleanupTempFile: (tempPath) => {
+            try {
+                if (fs.existsSync(tempPath)) {
+                    fs.unlinkSync(tempPath);
+                }
+            } catch {
+                // Best effort only. Never delete or rewrite the canonical path as cleanup.
+            }
+        },
+        syncDirectoryBestEffort: syncDirectoryBestEffortDefault,
         clearVehicleStateCache: () => vehicleState.clearVehicleStateCache(),
         runSerializedMutation: (fn) => queue.runSerializedVehicleStateMutation(fn),
+        reportDiagnostic: (message, error) => console.warn(message, error),
     };
 }
 
@@ -95,17 +211,33 @@ function mechanicalUnchanged(before: VehicleState, after: VehicleState): boolean
     return JSON.stringify(before) === JSON.stringify(after);
 }
 
+function reportDiagnosticBestEffort(
+    deps: VehicleStateDocumentOwnerDeps,
+    message: string,
+    error?: unknown
+): void {
+    try {
+        deps.reportDiagnostic(message, error);
+    } catch {
+        // Diagnostics must never change the document outcome.
+    }
+}
+
 /** Fresh document read (no cache). Fail-closed for corrupt / unsupported documents. */
 export function readVehicleStateDocumentFreshWithDeps(
-    deps: VehicleStateDocumentOwnerDeps,
+    deps: VehicleStateDocumentReadDeps,
     statePath?: string
 ): VehicleStateDocumentFreshRead {
     const resolved = statePath ?? deps.getVehicleStatePath();
     if (!resolved) {
         return { ok: false, reason: 'no_workspace' };
     }
-    if (!deps.fileExists(resolved)) {
-        return { ok: false, reason: 'missing', statePath: resolved };
+    try {
+        if (!deps.fileExists(resolved)) {
+            return { ok: false, reason: 'missing', statePath: resolved };
+        }
+    } catch {
+        return { ok: false, reason: 'unreadable', statePath: resolved };
     }
     let rawText: string;
     try {
@@ -158,7 +290,7 @@ export function readVehicleStateDocumentFresh(
 
 /** Fresh mechanical projection only (receipt metadata never included). */
 export function readMechanicalVehicleStateFreshWithDeps(
-    deps: VehicleStateDocumentOwnerDeps,
+    deps: VehicleStateDocumentReadDeps,
     statePath?: string
 ): VehicleState | undefined {
     const read = readVehicleStateDocumentFreshWithDeps(deps, statePath);
@@ -174,6 +306,193 @@ export function readMechanicalVehicleStateFresh(
     );
 }
 
+function errorCode(error: unknown): string | undefined {
+    if (!error || typeof error !== 'object' || !('code' in error)) {
+        return undefined;
+    }
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' ? code : undefined;
+}
+
+function isSafeSameDirectoryTempPath(statePath: string, tempPath: string): boolean {
+    const stateDirectory = path.resolve(path.dirname(statePath));
+    const tempDirectory = path.resolve(path.dirname(tempPath));
+    const basename = path.basename(tempPath);
+    return stateDirectory === tempDirectory
+        && basename.length <= VEHICLE_DOCUMENT_TEMP_BASENAME_MAX_LENGTH
+        && VEHICLE_DOCUMENT_TEMP_BASENAME.test(basename);
+}
+
+function replaceWithBoundedRetry(
+    deps: VehicleStateDocumentOwnerDeps,
+    tempPath: string,
+    statePath: string
+): void {
+    for (let attempt = 1; attempt <= VEHICLE_DOCUMENT_RENAME_ATTEMPTS; attempt += 1) {
+        try {
+            deps.renameFile(tempPath, statePath);
+            return;
+        } catch (error) {
+            const retryable = RETRYABLE_RENAME_ERROR_CODES.has(errorCode(error) ?? '');
+            if (!retryable || attempt === VEHICLE_DOCUMENT_RENAME_ATTEMPTS) {
+                throw error;
+            }
+            deps.waitBeforeRenameRetry(attempt);
+        }
+    }
+}
+
+function cleanupTempFileBestEffort(
+    deps: VehicleStateDocumentOwnerDeps,
+    tempPath: string
+): void {
+    try {
+        deps.cleanupTempFile(tempPath);
+    } catch {
+        // Cleanup cannot change a canonical-path outcome.
+    }
+}
+
+type DurableReplacementResult =
+    | {
+        ok: true;
+        commitState: 'committed';
+        durabilityWarning?: VehicleStateDocumentDurabilityWarning;
+    }
+    | {
+        ok: false;
+        commitState: 'not_committed' | 'indeterminate';
+        reason: Extract<
+            VehicleStateDocumentFailureReason,
+            | 'write_failed_before_replace'
+            | 'replace_failed'
+            | 'reload_failed_after_replace'
+            | 'reload_mismatch_after_replace'
+        >;
+        error?: unknown;
+        durabilityWarning?: VehicleStateDocumentDurabilityWarning;
+    };
+
+/**
+ * Replaces the canonical document without ever deleting it first. File fsync completes before
+ * same-directory rename; a fresh strict reload and PRE1 canonical projection establish success.
+ */
+function replaceVehicleStateDocumentDurably(
+    deps: VehicleStateDocumentOwnerDeps,
+    statePath: string,
+    outDocument: VehicleStateDocument
+): DurableReplacementResult {
+    let tempPath: string;
+    let payload: string;
+    try {
+        tempPath = deps.allocateTempPath(statePath);
+        if (!isSafeSameDirectoryTempPath(statePath, tempPath)) {
+            throw new Error('unsafe vehicle document temp path');
+        }
+        payload = `${canonicalizeVehicleStateDocument(outDocument)}\n`;
+    } catch (error) {
+        return {
+            ok: false,
+            commitState: 'not_committed',
+            reason: 'write_failed_before_replace',
+            error,
+        };
+    }
+
+    let fileDescriptor: number | undefined;
+    let tempCreated = false;
+    let closeAttempted = false;
+    try {
+        fileDescriptor = deps.openTempFile(tempPath);
+        tempCreated = true;
+        deps.writeTempFileUtf8(fileDescriptor, payload);
+        deps.fsyncTempFile(fileDescriptor);
+        closeAttempted = true;
+        deps.closeTempFile(fileDescriptor);
+        fileDescriptor = undefined;
+    } catch (error) {
+        if (fileDescriptor !== undefined && !closeAttempted) {
+            try {
+                deps.closeTempFile(fileDescriptor);
+            } catch {
+                // Best effort; the canonical path has not been touched.
+            }
+        }
+        if (tempCreated) {
+            cleanupTempFileBestEffort(deps, tempPath);
+        }
+        return {
+            ok: false,
+            commitState: 'not_committed',
+            reason: 'write_failed_before_replace',
+            error,
+        };
+    }
+
+    try {
+        replaceWithBoundedRetry(deps, tempPath, statePath);
+    } catch (error) {
+        cleanupTempFileBestEffort(deps, tempPath);
+        return {
+            ok: false,
+            commitState: 'not_committed',
+            reason: 'replace_failed',
+            error,
+        };
+    }
+
+    let durabilityWarning: VehicleStateDocumentDurabilityWarning | undefined;
+    try {
+        durabilityWarning = deps.syncDirectoryBestEffort(path.dirname(statePath));
+    } catch {
+        durabilityWarning = 'directory_fsync_failed';
+    }
+
+    let reloaded: VehicleStateDocumentFreshRead;
+    try {
+        reloaded = readVehicleStateDocumentFreshWithDeps(deps, statePath);
+    } catch (error) {
+        return {
+            ok: false,
+            commitState: 'indeterminate',
+            reason: 'reload_failed_after_replace',
+            error,
+            durabilityWarning,
+        };
+    }
+    if (!reloaded.ok) {
+        return {
+            ok: false,
+            commitState: 'indeterminate',
+            reason: 'reload_failed_after_replace',
+            durabilityWarning,
+        };
+    }
+
+    let documentsMatch = false;
+    try {
+        documentsMatch = canonicalizeVehicleStateDocument(outDocument)
+            === canonicalizeVehicleStateDocument(reloaded.document);
+    } catch (error) {
+        return {
+            ok: false,
+            commitState: 'indeterminate',
+            reason: 'reload_failed_after_replace',
+            error,
+            durabilityWarning,
+        };
+    }
+    if (!documentsMatch) {
+        return {
+            ok: false,
+            commitState: 'indeterminate',
+            reason: 'reload_mismatch_after_replace',
+            durabilityWarning,
+        };
+    }
+    return { ok: true, commitState: 'committed', durabilityWarning };
+}
+
 /**
  * Serialized normal mutation path for vehicleOps / mobileBaseOps.
  * v1→v1, v2→v2 with receipts preserved; invalid documents never write or clear cache.
@@ -187,6 +506,7 @@ export function runSerializedVehicleStateDocumentMutationWithDeps(
         ok: true,
         applied: false,
         attempted: true,
+        commitState: 'not_committed',
     };
     try {
         deps.runSerializedMutation(() => {
@@ -208,10 +528,14 @@ export function runSerializedVehicleStateDocumentMutationWithDeps(
             let nextMechanical: VehicleState | undefined;
             try {
                 nextMechanical = mutateMechanicalState(read.mechanical);
-            } catch (e) {
+            } catch (error) {
                 result.ok = false;
-                result.reason = 'write_failed';
-                console.warn(`[vehicleStateDocumentOwner] ${mutationName} mutate failed`, e);
+                result.reason = 'mutation_failed';
+                reportDiagnosticBestEffort(
+                    deps,
+                    `[vehicleStateDocumentOwner] ${mutationName} mutate failed`,
+                    error
+                );
                 return;
             }
 
@@ -224,25 +548,55 @@ export function runSerializedVehicleStateDocumentMutationWithDeps(
                 read.document,
                 nextMechanical
             );
-
-            try {
-                deps.writeJsonAtomic(read.statePath, outDocument);
-                deps.clearVehicleStateCache();
-                result.applied = true;
-                result.reason = undefined;
-            } catch (e) {
+            const replacement = replaceVehicleStateDocumentDurably(
+                deps,
+                read.statePath,
+                outDocument
+            );
+            result.commitState = replacement.commitState;
+            result.durabilityWarning = replacement.durabilityWarning;
+            if (!replacement.ok) {
                 result.ok = false;
                 result.applied = false;
-                result.reason = 'write_failed';
-                console.warn(
-                    `[vehicleStateDocumentOwner] ${mutationName} failed to save vehicle_state.json`,
-                    e
+                result.reason = replacement.reason;
+                result.reconciliationRequired = replacement.commitState === 'indeterminate';
+                reportDiagnosticBestEffort(
+                    deps,
+                    `[vehicleStateDocumentOwner] ${mutationName} ${replacement.reason}`,
+                    replacement.error
+                );
+                return;
+            }
+
+            result.applied = true;
+            result.reason = undefined;
+            try {
+                deps.clearVehicleStateCache();
+            } catch (error) {
+                result.refreshWarning = 'cache_clear_failed_after_commit';
+                reportDiagnosticBestEffort(
+                    deps,
+                    `[vehicleStateDocumentOwner] ${mutationName} cache clear failed after commit`,
+                    error
                 );
             }
         });
-    } catch (e) {
-        console.warn(`[vehicleStateDocumentOwner] ${mutationName} serialization failed`, e);
-        return { ok: false, applied: false, attempted: true, reason: 'write_failed' };
+    } catch (error) {
+        reportDiagnosticBestEffort(
+            deps,
+            `[vehicleStateDocumentOwner] ${mutationName} serialization failed`,
+            error
+        );
+        if (result.commitState !== 'not_committed') {
+            return result;
+        }
+        return {
+            ok: false,
+            applied: false,
+            attempted: true,
+            commitState: 'not_committed',
+            reason: 'serialization_failed',
+        };
     }
     return result;
 }

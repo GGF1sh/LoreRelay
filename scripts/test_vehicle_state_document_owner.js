@@ -160,6 +160,7 @@ function makeOwnerHarness(initialDoc) {
     let writeCount = 0;
     let cacheClears = 0;
     let writeShouldFail = false;
+    let tempSequence = 0;
     let lastQueueName = null;
     const queueCalls = [];
 
@@ -167,15 +168,33 @@ function makeOwnerHarness(initialDoc) {
         getVehicleStatePath: () => statePath,
         fileExists: (p) => fs.existsSync(p),
         readFileUtf8: (p) => fs.readFileSync(p, 'utf-8'),
-        writeJsonAtomic: (p, doc) => {
+        allocateTempPath: () => path.join(
+            dir,
+            `.lorerelay-vehicle-state-${process.pid}-${Date.now()}-${++tempSequence}.tmp`
+        ),
+        openTempFile: (p) => fs.openSync(p, 'wx', 0o600),
+        writeTempFileUtf8: (fd, payload) => {
             if (writeShouldFail) {
                 throw new Error('forced write failure');
             }
             writeCount += 1;
-            fs.writeFileSync(p, JSON.stringify(doc, null, 2), 'utf-8');
+            fs.writeFileSync(fd, payload, { encoding: 'utf-8' });
         },
+        fsyncTempFile: (fd) => fs.fsyncSync(fd),
+        closeTempFile: (fd) => fs.closeSync(fd),
+        renameFile: (from, to) => fs.renameSync(from, to),
+        waitBeforeRenameRetry: () => {},
+        cleanupTempFile: (p) => {
+            try {
+                if (fs.existsSync(p)) {
+                    fs.unlinkSync(p);
+                }
+            } catch {}
+        },
+        syncDirectoryBestEffort: () => undefined,
         clearVehicleStateCache: () => { cacheClears += 1; },
         runSerializedMutation: (fn) => fn(),
+        reportDiagnostic: () => {},
     };
 
     return {
@@ -232,7 +251,18 @@ function receiptsFingerprint(doc) {
             ? JSON.stringify(doc.gameplayCommitReceipts)
             : '<absent>';
     }
-    return JSON.stringify(doc.gameplayCommitReceipts);
+    function canonicalValue(value) {
+        if (Array.isArray(value)) {
+            return value.map(canonicalValue);
+        }
+        if (value && typeof value === 'object') {
+            return Object.fromEntries(
+                Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])])
+            );
+        }
+        return value;
+    }
+    return JSON.stringify(canonicalValue(doc.gameplayCommitReceipts));
 }
 
 // 1–3 fresh read

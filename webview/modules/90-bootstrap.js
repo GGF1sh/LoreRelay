@@ -399,6 +399,7 @@ function initStartHub() {
   const parlorBtn = document.getElementById('start-hub-parlor-btn');
   const inWorldBtn = document.getElementById('start-hub-inworld-btn');
   const demoBtn = document.getElementById('start-hub-demo-btn');
+  const tradingDemoBtn = document.getElementById('start-hub-trading-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
   const debugBtn = document.getElementById('start-hub-debug-btn');
   const scavengerDemoBtn = document.getElementById('start-hub-scavenger-demo-btn');
@@ -465,6 +466,12 @@ function initStartHub() {
     demoBtn.addEventListener('click', () => {
       resumeCurrentSession();
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'harbor-mist' });
+    });
+  }
+  if (tradingDemoBtn) {
+    tradingDemoBtn.addEventListener('click', () => {
+      resumeCurrentSession();
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'trade-routes' });
     });
   }
   if (mapDemoBtn) {

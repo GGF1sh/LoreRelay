@@ -2073,6 +2073,7 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
 
     const visible = commerceEnabled && commerce && typeof commerce.credits === 'number';
     section.classList.toggle('hidden', !visible);
+    section.querySelector('.world-simulation-actions')?.remove();
     if (hint) {
         hint.textContent = commerceUiEnabled
             ? T('webview.world.commerceHintInteractive')
@@ -2114,7 +2115,30 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
     if (commerceUiEnabled) {
         const hubOpen = document.getElementById('player-action-hub-open');
         if (hubOpen) {
+            hubOpen.textContent = T('webview.world.actionHubOpen');
+            const hubHint = hubOpen.nextElementSibling;
+            if (hubHint) { hubHint.textContent = T('webview.world.simulationActionsDescription'); }
+            const indicator = document.createElement('div');
+            indicator.className = 'world-simulation-actions img-gen-hint';
+            indicator.setAttribute('role', 'status');
+            indicator.innerHTML = `<strong>${escapeHtml(T('webview.world.simulationActionsTitle'))}</strong>`;
+            const heading = section.querySelector('summary');
+            if (heading) { heading.after(indicator); }
             hubOpen.addEventListener('click', () => openPlayerActionHub(hubOpen));
+            if (cargo.length === 0) {
+                const emptyCargo = document.createElement('div');
+                emptyCargo.className = 'world-commerce-empty-cargo';
+                const guidance = document.createElement('p');
+                guidance.className = 'img-gen-hint';
+                guidance.textContent = T('webview.world.emptyCargoGuidance');
+                const action = document.createElement('button');
+                action.type = 'button';
+                action.className = 'world-market-trade-btn';
+                action.textContent = T('webview.world.emptyCargoAction');
+                action.addEventListener('click', () => openPlayerActionHub(action));
+                emptyCargo.append(guidance, action);
+                hubOpen.after(emptyCargo);
+            }
         }
         const roleSelect = document.getElementById('world-commerce-role-select');
         if (roleSelect) {
@@ -2374,6 +2398,7 @@ function hubRenderTradeBody() {
     if (!_hubMarket) {
         body.innerHTML = '<p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite" data-state="empty">現在地に取引できる市場がありません。「旅」から市場のある場所へ移動してください。</p>';
         _shopkeeperPreviewReady = false;
+        localizePlayerActionHub();
         return;
     }
     body.innerHTML = `
@@ -2400,6 +2425,7 @@ function hubRenderTradeBody() {
       </div>`;
     hubRefreshTradeOptions();
     wireHubTradeInputs();
+    localizePlayerActionHub();
 }
 
 function hubRefreshTradeOptions() {
@@ -2647,6 +2673,11 @@ function finishMarketTravelPreview(msg) {
         confirm.disabled = true;
         review.setAttribute('data-state', 'idle');
         review.textContent = options.length ? '移動先を選んで確認してください。' : '移動できる別の市場がありません。';
+        if (!options.length) {
+            const emptyOption = select.querySelector('option');
+            if (emptyOption) { emptyOption.textContent = T('webview.world.actionHubNoDestinations'); }
+            review.textContent = T('webview.world.actionHubNoDestinations');
+        }
         select.disabled = options.length === 0;
         if (options.length > 0 && _playerActionHubSection === 'travel') { select.focus(); }
         return;
@@ -2803,6 +2834,60 @@ function finishEndDay(msg) {
     hubRefreshTradeOptions();
 }
 
+function setHubLeadingLabel(control, text) {
+    const label = control && control.closest('label');
+    if (label && label.firstChild) { label.firstChild.textContent = text; }
+}
+
+/** Keep the deterministic action surface in the normal Webview locale system.
+ * The host contracts and mutation flow are intentionally not part of this UI-only helper. */
+function localizePlayerActionHub() {
+    if (!_playerActionHub) { return; }
+    _playerActionHub.setAttribute('aria-label', T('webview.world.actionHubTitle'));
+    const textBySelector = {
+        '#player-action-hub-title': 'webview.world.actionHubTitle',
+        '#player-action-hub-close': 'webview.world.actionHubClose',
+        '#player-action-hub-tab-trade': 'webview.world.actionHubTrade',
+        '#player-action-hub-tab-travel': 'webview.world.actionHubTravel',
+        '#player-action-hub-tab-endday': 'webview.world.actionHubEndDay',
+        '#shopkeeper-review-btn': 'webview.world.actionHubReview',
+        '#shopkeeper-confirm-btn': 'webview.world.actionHubConfirm',
+        '#market-travel-preview': 'webview.world.actionHubReview',
+        '#market-travel-confirm': 'webview.world.actionHubTravelConfirm',
+        '#end-day-confirm': 'webview.world.actionHubEndDay',
+    };
+    Object.entries(textBySelector).forEach(([selector, key]) => {
+        const element = _playerActionHub.querySelector(selector);
+        if (element) { element.textContent = T(key); }
+    });
+    const close = _playerActionHub.querySelector('#player-action-hub-close');
+    if (close) { close.setAttribute('aria-label', T('webview.world.actionHubClose')); }
+    const status = _playerActionHub.querySelector('#player-action-hub-status');
+    if (status) { status.setAttribute('aria-label', T('webview.world.actionHubStatus')); }
+    const nav = _playerActionHub.querySelector('.player-action-hub__nav');
+    if (nav) { nav.setAttribute('aria-label', T('webview.world.actionHubChooseAction')); }
+    const sectionText = [
+        ['#player-action-hub-panel-trade .player-action-hub__section-title', 'webview.world.actionHubTrade'],
+        ['#player-action-hub-panel-trade .player-action-hub__note', 'webview.world.actionHubTradeDescription'],
+        ['#player-action-hub-panel-travel .player-action-hub__section-title', 'webview.world.actionHubTravel'],
+        ['#player-action-hub-panel-travel .player-action-hub__note', 'webview.world.actionHubTravelDescription'],
+        ['#player-action-hub-panel-endday .player-action-hub__section-title', 'webview.world.actionHubEndDay'],
+        ['#player-action-hub-panel-endday .player-action-hub__note', 'webview.world.actionHubEndDayDescription'],
+    ];
+    sectionText.forEach(([selector, key]) => {
+        const element = _playerActionHub.querySelector(selector);
+        if (element) { element.textContent = T(key); }
+    });
+    setHubLeadingLabel(_playerActionHub.querySelector('#shopkeeper-commodity'), T('webview.world.actionHubCommodity'));
+    setHubLeadingLabel(_playerActionHub.querySelector('#market-travel-destination'), T('webview.world.actionHubDestination'));
+    const tradeEmpty = _playerActionHub.querySelector('#shopkeeper-review[data-state="empty"]');
+    if (tradeEmpty) { tradeEmpty.textContent = T('webview.world.actionHubNoCurrentMarket'); }
+    const travelReview = _playerActionHub.querySelector('#market-travel-review');
+    if (travelReview && travelReview.getAttribute('data-state') === 'idle') {
+        travelReview.textContent = T('webview.world.actionHubTravelLoading');
+    }
+}
+
 /* --- Hub shell open/close/refresh --- */
 function openPlayerActionHub(initiator) {
     closePlayerActionHub();
@@ -2854,6 +2939,7 @@ function openPlayerActionHub(initiator) {
     wireHubTradeSection();
     wireHubTravelSection();
     wireHubEndDaySection();
+    localizePlayerActionHub();
 
     const closeBtn = overlay.querySelector('#player-action-hub-close');
     closeBtn.addEventListener('click', () => {

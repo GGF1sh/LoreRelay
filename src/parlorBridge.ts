@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { t, getConfiguredLocale } from './i18n';
 import {
@@ -52,6 +53,8 @@ import {
     listWorkspaceParlorBackgrounds,
     toParlorBackgroundWebviewUri,
 } from './parlorBackground';
+import { resolveParlorCampaignTransition } from './parlorPromoteCore';
+import { getGameStatePath } from './workspacePaths';
 
 export interface ParlorBridgeDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -150,6 +153,16 @@ export function sendParlorSettingsToWebview(): void {
         label: bg.label,
         uri: toParlorBackgroundWebviewUri(panel, bg.filename) || '',
     }));
+    const activeCharacterId = getActiveCharacterId() || null;
+    const statePath = getGameStatePath();
+    const hasGameState = Boolean(statePath && fs.existsSync(statePath));
+    const hasFrozenCampaign = Boolean(experience.campaign?.frozenAt && hasGameState);
+    const parlorSession = activeCharacterId ? loadParlorSession(activeCharacterId) : undefined;
+    const campaignTransition = resolveParlorCampaignTransition({
+        hasGameState,
+        hasFrozenCampaign,
+        parlorMessageCount: parlorSession?.messages?.length ?? 0,
+    });
     panel.webview.postMessage({
         type: 'parlorSettings',
         connectionProfiles: conn.profiles.map((p) => ({ id: p.id, label: p.label, provider: p.provider })),
@@ -162,7 +175,8 @@ export function sendParlorSettingsToWebview(): void {
             name: character.name,
             ...(character.portrait ? { portrait: character.portrait } : {}),
         })),
-        activeCharacterId: getActiveCharacterId() || null,
+        activeCharacterId,
+        campaignTransition,
     });
     applyParlorBackgroundToWebview();
 }

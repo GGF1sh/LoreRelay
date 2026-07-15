@@ -299,3 +299,101 @@ export function runParlorPromoteCore(input: {
         parlorSummary: summary,
     };
 }
+
+/** Bounded Parlor Settings view-model for Campaign transition CTAs. */
+export interface ParlorCampaignTransitionInput {
+    hasGameState: boolean;
+    hasFrozenCampaign: boolean;
+    parlorMessageCount: number;
+}
+
+export interface ParlorCampaignTransitionView {
+    hasGameState: boolean;
+    hasFrozenCampaign: boolean;
+    parlorMessageCount: number;
+    canCreateFresh: boolean;
+    canResumeFrozen: boolean;
+}
+
+export type ParlorPromoteIntent = 'auto' | 'resume' | 'fresh';
+
+/**
+ * Pure host path decision for promote/resume.
+ * Resume never requires Parlor messages; fresh creation always does.
+ */
+export type ParlorPromotePathDecision =
+    | { action: 'reject_no_workspace' }
+    | { action: 'reject_no_character' }
+    | { action: 'reject_empty_session' }
+    | { action: 'reject_no_frozen' }
+    | { action: 'resume' }
+    | { action: 'fresh' }
+    | { action: 'offer_frozen_choice'; allowFresh: boolean };
+
+export function resolveParlorCampaignTransition(
+    input: ParlorCampaignTransitionInput
+): ParlorCampaignTransitionView {
+    const parlorMessageCount = Number.isFinite(input.parlorMessageCount)
+        ? Math.max(0, Math.floor(input.parlorMessageCount))
+        : 0;
+    const hasGameState = input.hasGameState === true;
+    // Frozen resume requires both a freeze stamp and existing campaign state on disk.
+    const hasFrozenCampaign = hasGameState && input.hasFrozenCampaign === true;
+    return {
+        hasGameState,
+        hasFrozenCampaign,
+        parlorMessageCount,
+        canCreateFresh: parlorMessageCount > 0,
+        canResumeFrozen: hasFrozenCampaign,
+    };
+}
+
+export function decideParlorPromotePath(input: {
+    hasWorkspace: boolean;
+    hasCharacter: boolean;
+    hasGameState: boolean;
+    hasFrozenCampaign: boolean;
+    parlorMessageCount: number;
+    intent?: ParlorPromoteIntent;
+}): ParlorPromotePathDecision {
+    if (!input.hasWorkspace) {
+        return { action: 'reject_no_workspace' };
+    }
+    if (!input.hasCharacter) {
+        return { action: 'reject_no_character' };
+    }
+
+    const transition = resolveParlorCampaignTransition({
+        hasGameState: input.hasGameState,
+        hasFrozenCampaign: input.hasFrozenCampaign,
+        parlorMessageCount: input.parlorMessageCount,
+    });
+    const intent: ParlorPromoteIntent = input.intent === 'resume' || input.intent === 'fresh'
+        ? input.intent
+        : 'auto';
+
+    if (intent === 'resume') {
+        return transition.canResumeFrozen
+            ? { action: 'resume' }
+            : { action: 'reject_no_frozen' };
+    }
+
+    if (intent === 'fresh') {
+        return transition.canCreateFresh
+            ? { action: 'fresh' }
+            : { action: 'reject_empty_session' };
+    }
+
+    // auto: frozen campaigns are offered before empty-session rejection
+    if (transition.canResumeFrozen) {
+        return {
+            action: 'offer_frozen_choice',
+            allowFresh: transition.canCreateFresh,
+        };
+    }
+
+    if (!transition.canCreateFresh) {
+        return { action: 'reject_empty_session' };
+    }
+    return { action: 'fresh' };
+}

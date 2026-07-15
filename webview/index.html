@@ -1016,9 +1016,25 @@
       <p id="parlor-bg-hint" class="img-gen-hint hidden" data-i18n="webview.parlor.backgroundHint">Add images to the backgrounds/ folder in your workspace.</p>
       <div id="parlor-bg-gallery" class="parlor-bg-gallery"></div>
 
-      <h4 data-i18n="webview.parlor.promoteTitle">Promote to Campaign</h4>
-      <p class="img-gen-hint" data-i18n="webview.parlor.promoteHint">Turn your Parlor chat into a full Campaign with scenario.json and game_state.json.</p>
-      <button type="button" id="parlor-promote-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.promoteButton">Promote to Campaign…</button>
+      <section id="parlor-campaign-card" class="parlor-campaign-card" aria-labelledby="parlor-campaign-title">
+        <h4 id="parlor-campaign-title" data-i18n="webview.parlor.promoteTitle">Start an adventure with this character</h4>
+        <p class="img-gen-hint" data-i18n="webview.parlor.promoteHint">Use this conversation to create an adventure scenario and game state. Your Parlor chat is preserved. RPG rules and world features are optional.</p>
+        <details class="parlor-campaign-details">
+          <summary data-i18n="webview.parlor.promoteDetailsSummary">See details</summary>
+          <p class="img-gen-hint" data-i18n="webview.parlor.promoteDetails">Recent chat can be carried forward. An adventure scenario and game state are created. Existing Campaign state is never overwritten without confirmation. You can later return to Parlor.</p>
+        </details>
+        <p id="parlor-campaign-empty-hint" class="img-gen-hint hidden" data-i18n="webview.parlor.promoteEmptyHint">Chat with the character before starting an adventure.</p>
+        <div id="parlor-campaign-fresh-wrap" class="img-gen-row">
+          <button type="button" id="parlor-promote-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.promoteButton" data-i18n-aria-label="webview.parlor.promoteButton">Start an adventure with this character…</button>
+        </div>
+        <div id="parlor-campaign-frozen-wrap" class="parlor-campaign-frozen-wrap hidden">
+          <p class="img-gen-hint" data-i18n="webview.parlor.frozenCampaignHint">A previous adventure is frozen. Resume it, or create a new one from this chat.</p>
+          <div class="img-gen-row">
+            <button type="button" id="parlor-resume-campaign-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.resumeFrozenButton" data-i18n-aria-label="webview.parlor.resumeFrozenButton">Resume previous adventure</button>
+            <button type="button" id="parlor-fresh-campaign-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.freshCampaignButton" data-i18n-aria-label="webview.parlor.freshCampaignButton">Create a new adventure…</button>
+          </div>
+        </div>
+      </section>
     </div>
   </aside>
 

@@ -17,11 +17,23 @@
     const bgGallery = document.getElementById('parlor-bg-gallery');
     const bgHint = document.getElementById('parlor-bg-hint');
     const promoteBtn = document.getElementById('parlor-promote-btn');
+    const freshWrap = document.getElementById('parlor-campaign-fresh-wrap');
+    const frozenWrap = document.getElementById('parlor-campaign-frozen-wrap');
+    const emptyHint = document.getElementById('parlor-campaign-empty-hint');
+    const resumeCampaignBtn = document.getElementById('parlor-resume-campaign-btn');
+    const freshCampaignBtn = document.getElementById('parlor-fresh-campaign-btn');
 
     let activeConnectionId = '';
     let activeBackgroundId = null;
     let activeCharacterId = null;
     let personaSaveTimeout = null;
+    let campaignTransition = {
+        hasGameState: false,
+        hasFrozenCampaign: false,
+        parlorMessageCount: 0,
+        canCreateFresh: false,
+        canResumeFrozen: false,
+    };
 
     function openPanel() {
         if (!panel) return;
@@ -161,11 +173,79 @@
         }
     }
 
+    function normalizeCampaignTransition(raw) {
+        const t = raw && typeof raw === 'object' ? raw : {};
+        const parlorMessageCount = Number.isFinite(t.parlorMessageCount)
+            ? Math.max(0, Math.floor(t.parlorMessageCount))
+            : 0;
+        const hasGameState = t.hasGameState === true;
+        const hasFrozenCampaign = hasGameState && t.hasFrozenCampaign === true;
+        return {
+            hasGameState,
+            hasFrozenCampaign,
+            parlorMessageCount,
+            canCreateFresh: t.canCreateFresh === true || parlorMessageCount > 0,
+            canResumeFrozen: t.canResumeFrozen === true || hasFrozenCampaign,
+        };
+    }
+
+    function setButtonDisabled(btn, disabled, titleKey) {
+        if (!btn) return;
+        btn.disabled = !!disabled;
+        if (disabled && titleKey && typeof T === 'function') {
+            btn.title = T(titleKey);
+            btn.setAttribute('aria-disabled', 'true');
+        } else {
+            btn.removeAttribute('aria-disabled');
+            if (!disabled) {
+                btn.removeAttribute('title');
+            }
+        }
+    }
+
+    function renderCampaignTransition(raw) {
+        campaignTransition = normalizeCampaignTransition(raw);
+        const frozen = campaignTransition.canResumeFrozen;
+        const canFresh = campaignTransition.canCreateFresh;
+
+        if (freshWrap) {
+            freshWrap.classList.toggle('hidden', frozen);
+        }
+        if (frozenWrap) {
+            frozenWrap.classList.toggle('hidden', !frozen);
+        }
+        if (emptyHint) {
+            // Show why fresh creation is disabled when no messages and not only-resume UI clutter.
+            const showEmpty = !canFresh;
+            emptyHint.classList.toggle('hidden', !showEmpty);
+        }
+
+        setButtonDisabled(
+            promoteBtn,
+            !canFresh,
+            'webview.parlor.promoteEmptyHint'
+        );
+        setButtonDisabled(resumeCampaignBtn, !campaignTransition.canResumeFrozen, null);
+        setButtonDisabled(
+            freshCampaignBtn,
+            !canFresh,
+            'webview.parlor.promoteEmptyHint'
+        );
+    }
+
+    function postPromote(intent) {
+        if (document.getElementById('gm-loading')) {
+            return;
+        }
+        vscode.postMessage({ type: 'promoteParlor', intent: intent || 'auto' });
+    }
+
     function applyParlorSettings(msg) {
         renderCharacters(msg.characters, msg.activeCharacterId);
         renderConnectionProfiles(msg.connectionProfiles, msg.activeConnectionId);
         renderPersona(msg.persona);
         renderBackgroundGallery(msg.backgrounds, msg.activeBackgroundId);
+        renderCampaignTransition(msg.campaignTransition);
     }
 
     if (settingsBtn) settingsBtn.addEventListener('click', openPanel);
@@ -215,10 +295,20 @@
 
     if (promoteBtn) {
         promoteBtn.addEventListener('click', () => {
-            if (document.getElementById('gm-loading')) {
-                return;
-            }
-            vscode.postMessage({ type: 'promoteParlor' });
+            if (promoteBtn.disabled) return;
+            postPromote('fresh');
+        });
+    }
+    if (resumeCampaignBtn) {
+        resumeCampaignBtn.addEventListener('click', () => {
+            if (resumeCampaignBtn.disabled) return;
+            postPromote('resume');
+        });
+    }
+    if (freshCampaignBtn) {
+        freshCampaignBtn.addEventListener('click', () => {
+            if (freshCampaignBtn.disabled) return;
+            postPromote('fresh');
         });
     }
 

@@ -1787,9 +1787,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 }
             }
         },
-        handlePromoteParlor: async () => {
+        handlePromoteParlor: async (intent) => {
             clearRelayRequestForCurrentWorkspace('session-transition');
-            const result = await promoteParlorToCampaign();
+            const result = await promoteParlorToCampaign({ intent: intent || 'auto' });
             if (result.ok) {
                 await sendUiState(0, true);
             }

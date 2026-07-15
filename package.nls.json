@@ -20,7 +20,7 @@
   "command.generateWorldForge": "LoreRelay: Generate World Forge",
   "command.generateWorldMapImage": "LoreRelay: Generate World Map Image",
   "command.resetProtagonistBootstrap": "LoreRelay: Reset Protagonist Bootstrap",
-  "command.promoteParlorToCampaign": "LoreRelay: Promote Parlor to Campaign",
+  "command.promoteParlorToCampaign": "LoreRelay: Start an adventure with this character",
   "command.runWorkspaceSanityCheck": "LoreRelay: Run Workspace Sanity Check",
   "command.previewGmTurnTransactionPlan": "LoreRelay: Preview GM Turn Transaction Plan",
   "command.previewWorkspaceMigrations": "LoreRelay: Preview Workspace Migrations",

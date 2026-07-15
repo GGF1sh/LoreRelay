@@ -129,7 +129,7 @@ export interface WebviewHandlerDeps {
     handleSetParlorConnectionProfile(profileId: string): void;
     handleSaveParlorPersona(raw: unknown): void;
     handleSetParlorBackground(backgroundId: string | null): void;
-    handlePromoteParlor(): Promise<void>;
+    handlePromoteParlor(intent?: 'auto' | 'resume' | 'fresh'): Promise<void>;
     handlePreviewGmTurnTransactionPlan(): Promise<void>;
     handleRetryFailedTransactions(): Promise<void>;
     handleSetAntigravityRelayMode(enabled: boolean): Promise<void>;
@@ -633,9 +633,14 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         }
-        case 'promoteParlor':
-            await deps.handlePromoteParlor();
+        case 'promoteParlor': {
+            const rawIntent = (message as { intent?: unknown }).intent;
+            const intent = rawIntent === 'resume' || rawIntent === 'fresh' || rawIntent === 'auto'
+                ? rawIntent
+                : 'auto';
+            await deps.handlePromoteParlor(intent);
             break;
+        }
         default:
             break;
     }

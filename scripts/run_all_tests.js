@@ -59,6 +59,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_validate_game_state.js' },
     { category: 'unit', file: 'test_game_state_sanitize.js' },
     { category: 'unit', file: 'test_dice_roller.js' },
+    { category: 'unit', file: 'test_gameplay_spine_check_core.js' },
     { category: 'unit', file: 'test_gm_prompt_builder_core.js' },
     { category: 'unit', file: 'test_campaign_kit_core.js' },
     { category: 'unit', file: 'test_mod_system_core.js' },

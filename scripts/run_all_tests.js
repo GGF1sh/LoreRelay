@@ -159,6 +159,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_end_day_world_progression.js' },
     { category: 'unit', file: 'test_market_travel_core.js' },
     { category: 'unit', file: 'test_gameplay_spine_market_travel_preview.js' },
+    { category: 'unit', file: 'test_gameplay_spine_market_travel_effect_plan.js' },
     { category: 'unit', file: 'test_noai_travel_plan_core.js' },
     { category: 'smoke', file: 'test_playable_v0_player_action_hub.js' },
     { category: 'unit', file: 'test_noai_trading_sample.js' },

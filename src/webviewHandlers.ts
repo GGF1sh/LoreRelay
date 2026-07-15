@@ -52,7 +52,7 @@ export interface WebviewHandlerDeps {
     generatePortrait(id: string): Promise<void>;
     generateExpression(id: string, expression: string): Promise<void>;
     adaptCharacterToWorld(character: Pick<CharacterProfile, 'name' | 'description' | 'personality' | 'equipment'>): Promise<void>;
-    importTavernCard(): Promise<void>;
+    importTavernCard(): Promise<string | undefined>;
     addToParty(id: string): void;
     removeFromParty(id: string): void;
     summarizeHistory(): Promise<void>;
@@ -121,6 +121,8 @@ export interface WebviewHandlerDeps {
     handleEndDayCommit(raw: unknown): Promise<void>;
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
     handleStartParlor(characterId?: string): Promise<void>;
+    handleSwitchParlorCharacter(characterId: string): Promise<void>;
+    handleImportParlorCharacter(): Promise<void>;
     handleStartInWorld(characterId?: string): Promise<void>;
     handleSwitchExperienceProfile(profile: unknown): Promise<void>;
     sendParlorSettingsToWebview(): void;
@@ -312,6 +314,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'setActiveCharacter':
             if (isValidCharacterId(message.id)) {
                 deps.setActiveCharacter(message.id);
+            } else {
+                vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+            }
+            break;
+        case 'switchParlorCharacter':
+            if (isValidCharacterId(message.id)) {
+                await deps.handleSwitchParlorCharacter(message.id);
             } else {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
             }
@@ -603,6 +612,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'requestParlorSettings':
             deps.sendParlorSettingsToWebview();
+            break;
+        case 'importParlorTavernCard':
+            await deps.handleImportParlorCharacter();
             break;
         case 'setParlorConnectionProfile':
             if (typeof message.profileId === 'string') {

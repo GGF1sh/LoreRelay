@@ -6,6 +6,9 @@
     const backdrop = document.getElementById('parlor-settings-backdrop');
     const closeBtn = document.getElementById('parlor-settings-panel-close');
     const connSelect = document.getElementById('parlor-connection-select');
+    const characterSelect = document.getElementById('parlor-character-select');
+    const importCharacterBtn = document.getElementById('parlor-import-character-btn');
+    const editCharacterBtn = document.getElementById('parlor-edit-character-btn');
     const personaName = document.getElementById('parlor-persona-name');
     const personaDesc = document.getElementById('parlor-persona-description');
     const personaStyle = document.getElementById('parlor-persona-style');
@@ -17,6 +20,7 @@
 
     let activeConnectionId = '';
     let activeBackgroundId = null;
+    let activeCharacterId = null;
     let personaSaveTimeout = null;
 
     function openPanel() {
@@ -93,6 +97,23 @@
         }
     }
 
+    function renderCharacters(characters, activeId) {
+        if (!characterSelect) return;
+        const list = Array.isArray(characters) ? characters : [];
+        activeCharacterId = activeId || null;
+        characterSelect.innerHTML = '';
+        for (const character of list) {
+            const opt = document.createElement('option');
+            opt.value = character.id;
+            opt.textContent = character.name || character.id;
+            characterSelect.appendChild(opt);
+        }
+        if (activeCharacterId && list.some((character) => character.id === activeCharacterId)) {
+            characterSelect.value = activeCharacterId;
+        }
+        if (editCharacterBtn) editCharacterBtn.disabled = !activeCharacterId;
+    }
+
     function renderPersona(persona) {
         const p = persona || {};
         if (personaName) personaName.value = p.name || '';
@@ -141,6 +162,7 @@
     }
 
     function applyParlorSettings(msg) {
+        renderCharacters(msg.characters, msg.activeCharacterId);
         renderConnectionProfiles(msg.connectionProfiles, msg.activeConnectionId);
         renderPersona(msg.persona);
         renderBackgroundGallery(msg.backgrounds, msg.activeBackgroundId);
@@ -162,6 +184,32 @@
             if (id && id !== activeConnectionId) {
                 vscode.postMessage({ type: 'setParlorConnectionProfile', profileId: id });
             }
+        });
+    }
+
+    if (characterSelect) {
+        characterSelect.addEventListener('change', () => {
+            const requestedId = characterSelect.value;
+            // A refreshed characterList/settings payload is the host acceptance ack.
+            characterSelect.value = activeCharacterId || '';
+            if (requestedId && requestedId !== activeCharacterId) {
+                vscode.postMessage({ type: 'switchParlorCharacter', id: requestedId });
+            }
+        });
+    }
+
+    if (importCharacterBtn) {
+        importCharacterBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'importParlorTavernCard' });
+        });
+    }
+
+    if (editCharacterBtn) {
+        editCharacterBtn.addEventListener('click', () => {
+            const current = Array.isArray(window.currentCharacters)
+                ? window.currentCharacters.find((character) => character.id === activeCharacterId)
+                : null;
+            if (current) window.openCharacterCreator?.(current);
         });
     }
 

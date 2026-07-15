@@ -233,6 +233,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_parlor_session_core.js' },
     { category: 'unit', file: 'test_parlor_session_isolation.js' },
     { category: 'unit', file: 'test_parlor_first_use_core.js' },
+    { category: 'unit', file: 'test_parlor_character_switch_core.js' },
+    { category: 'unit', file: 'test_parlor_character_switch_webview.js' },
     { category: 'unit', file: 'test_parlor_prompt_builder_core.js' },
     { category: 'unit', file: 'test_in_world_prompt_builder_core.js' },
     { category: 'unit', file: 'test_domain_core.js' },

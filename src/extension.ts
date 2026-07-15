@@ -114,6 +114,8 @@ import {
     handleSetParlorConnectionProfile,
     handleSaveParlorPersona,
     handleSetParlorBackground,
+    switchParlorCharacter,
+    importParlorCharacter,
 } from './parlorBridge';
 import { promoteParlorToCampaign, demoteCampaignToParlorWithPrompt } from './parlorPromote';
 import {
@@ -1750,6 +1752,12 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 await sendUiState(0, true);
                 pushWorldViewToWebview(getCurrentLocationIdForWorldView());
             }
+        },
+        handleSwitchParlorCharacter: async (characterId: string) => {
+            await switchParlorCharacter(characterId);
+        },
+        handleImportParlorCharacter: async () => {
+            await importParlorCharacter(() => importTavernCard({ activate: false }));
         },
         handleSwitchExperienceProfile: async (profile: unknown) => {
             if (profile === 'campaign') {

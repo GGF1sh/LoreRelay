@@ -44,7 +44,7 @@ function saveCharacterBookAsLorebook(entries: CharacterBookEntry[], charName: st
     }
 }
 
-export async function importTavernCard(): Promise<void> {
+export async function importTavernCard(options?: { activate?: boolean }): Promise<string | undefined> {
     const charDir = getCharactersDir();
     if (!charDir) {
         void vscode.window.showErrorMessage('Character directory not found. Please open a workspace.');
@@ -199,7 +199,7 @@ export async function importTavernCard(): Promise<void> {
     // First-use path: imported character must become the persisted active selection
     // so Parlor start / render / message submit all resolve the same id.
     const activeId = resolveActiveIdAfterImport(profile.id);
-    if (activeId) {
+    if (activeId && options?.activate !== false) {
         setActiveCharacter(activeId);
     }
 
@@ -220,4 +220,5 @@ export async function importTavernCard(): Promise<void> {
     void vscode.window.showInformationMessage(
         `${t('extension.st.importSuccess') || 'Imported'}: ${name} (${specVersion})${lorebookMsg}`
     );
+    return activeId;
 }

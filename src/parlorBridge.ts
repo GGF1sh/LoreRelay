@@ -11,6 +11,7 @@ import {
     resolveParlorActiveCharacterId,
     shouldInsertParlorFirstGreeting,
 } from './parlorFirstUseCore';
+import { evaluateParlorCharacterSwitch } from './parlorCharacterSwitchCore';
 import { getGameEntryHistory } from './gameStateSync';
 import { isValidCharacterId } from './characterId';
 import { loadExperienceConfig, saveExperienceConfig, isParlorMode, isInWorldMode } from './experience';
@@ -156,6 +157,12 @@ export function sendParlorSettingsToWebview(): void {
         persona,
         activeBackgroundId: experience.parlor?.backgroundId || null,
         backgrounds,
+        characters: getCharacters().map((character) => ({
+            id: character.id,
+            name: character.name,
+            ...(character.portrait ? { portrait: character.portrait } : {}),
+        })),
+        activeCharacterId: getActiveCharacterId() || null,
     });
     applyParlorBackgroundToWebview();
 }
@@ -297,6 +304,50 @@ export async function startParlorMode(
     sendParlorSessionToWebview();
     sendParlorSettingsToWebview();
     return true;
+}
+
+/**
+ * The only live Parlor character-selection path. startParlorMode owns the
+ * active-id persistence, per-character session load/create, greeting-once
+ * rule, and Webview refreshes, so a selector can never leave the chat showing
+ * a previous character's transcript.
+ */
+export async function switchParlorCharacter(characterId: string): Promise<boolean> {
+    if (!isParlorMode()) {
+        return false;
+    }
+    const decision = evaluateParlorCharacterSwitch({
+        requestedCharacterId: characterId,
+        characterIds: getCharacters().map((character) => character.id),
+        isBusy: parlorInFlight || isParlorBridgeBusy(),
+    });
+    if (!decision.ok) {
+        if (decision.reason === 'busy') {
+            vscode.window.showWarningMessage(t('extension.error.parlorCharacterSwitchBusy'));
+        } else {
+            vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+        }
+        return false;
+    }
+    return startParlorMode(decision.characterId);
+}
+
+/** Import only after a busy check, then enter the imported character through the same path. */
+export async function importParlorCharacter(
+    importer: () => Promise<string | undefined>
+): Promise<boolean> {
+    if (!isParlorMode()) {
+        return false;
+    }
+    if (parlorInFlight || isParlorBridgeBusy()) {
+        vscode.window.showWarningMessage(t('extension.error.parlorCharacterSwitchBusy'));
+        return false;
+    }
+    const importedCharacterId = await importer();
+    if (!importedCharacterId) {
+        return false;
+    }
+    return switchParlorCharacter(importedCharacterId);
 }
 
 export async function startInWorldMode(

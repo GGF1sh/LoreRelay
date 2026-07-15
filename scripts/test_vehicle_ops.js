@@ -232,20 +232,25 @@ function clone(obj) {
     const state = makeState();
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
 
-    const deps = {
-        isVehicleSystemEnabled: () => true,
+    const {
+        runSerializedVehicleStateDocumentMutationWithDeps,
+    } = require(path.join(root, 'out', 'vehicleStateDocumentOwner.js'));
+    const ownerDeps = {
         getVehicleStatePath: () => statePath,
-        readVehicleStateFromDisk: (p) => {
-            const raw = JSON.parse(fs.readFileSync(p ?? statePath, 'utf-8'));
-            const parsed = parseVehicleState(raw);
-            return parsed.vehicles.length ? parsed : undefined;
-        },
-        loadWorldTurn: () => 11,
-        writeVehicleStateAtomic: (p, doc) => {
+        fileExists: (p) => fs.existsSync(p),
+        readFileUtf8: (p) => fs.readFileSync(p, 'utf-8'),
+        writeJsonAtomic: (p, doc) => {
             fs.writeFileSync(p, JSON.stringify(doc, null, 2), 'utf-8');
         },
         clearVehicleStateCache: () => {},
         runSerializedMutation: (fn) => fn(),
+    };
+    const deps = {
+        isVehicleSystemEnabled: () => true,
+        getVehicleStatePath: () => statePath,
+        loadWorldTurn: () => 11,
+        runSerializedVehicleStateDocumentMutation: (name, mutate) =>
+            runSerializedVehicleStateDocumentMutationWithDeps(ownerDeps, name, mutate),
     };
 
     const off = tryApplyVehicleTurnOpsWithDeps({

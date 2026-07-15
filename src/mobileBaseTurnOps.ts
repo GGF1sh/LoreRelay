@@ -3,14 +3,9 @@
 import type { TurnResult } from './types/TurnResult';
 import { loadGameRules } from './gameRules';
 import { loadWorldState } from './worldState';
-import { writeJsonAtomic } from './workspacePaths';
-import { runSerializedVehicleStateMutation } from './workspaceStateQueue';
 import type { TurnLedgerApplyResult } from './turnLedgerPersistCore';
-import {
-    clearVehicleStateCache,
-    getVehicleStatePath,
-    readVehicleStateFromDisk,
-} from './vehicleState';
+import { getVehicleStatePath } from './vehicleState';
+import { runSerializedVehicleStateDocumentMutation } from './vehicleStateDocumentOwner';
 import {
     applyMobileBaseTurnOpsWithDeps,
     shouldAttemptMobileBasePersistCore,
@@ -30,11 +25,9 @@ export function shouldAttemptMobileBasePersist(
 const defaultDeps: MobileBaseTurnOpsDeps = {
     loadRuleFlags: () => loadGameRules(),
     getVehicleStatePath: () => getVehicleStatePath(),
-    readVehicleStateFromDisk: (statePath) => readVehicleStateFromDisk(statePath),
     loadWorldTurn: () => loadWorldState()?.worldTurn,
-    writeVehicleStateAtomic: (statePath, state) => writeJsonAtomic(statePath, state),
-    clearVehicleStateCache: () => clearVehicleStateCache(),
-    runSerializedMutation: (fn) => runSerializedVehicleStateMutation(fn),
+    runSerializedVehicleStateDocumentMutation: (mutationName, mutate) =>
+        runSerializedVehicleStateDocumentMutation(mutationName, mutate),
 };
 
 export function applyMobileBaseTurnOps(

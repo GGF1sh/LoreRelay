@@ -694,16 +694,34 @@ export function projectVehicleStateDocumentMechanical(
     return canonicalMechanicalFromRecord(document as unknown as Record<string, unknown>);
 }
 
+/**
+ * Rebuild a versioned document after a mechanical-only mutation.
+ * - v1 stays v1 (no silent upgrade)
+ * - v2 keeps the same receipt array presence, order, and semantic content
+ * Receipt identities are cloned, never appended/evicted/regenerated.
+ */
+export function rebuildVehicleStateDocumentWithMechanical(
+    document: VehicleStateDocument,
+    mechanical: VehicleState
+): VehicleStateDocument {
+    const nextMechanical = parseVehicleState(mechanical);
+    if (document.version === VEHICLE_STATE_DOCUMENT_V1_VERSION) {
+        return v1FromMechanical(nextMechanical);
+    }
+    const receipts = document.gameplayCommitReceipts === undefined
+        ? undefined
+        : document.gameplayCommitReceipts.map(cloneReceipt);
+    return v2FromMechanical(nextMechanical, receipts);
+}
+
 /** Canonical whole-document projection. Every array retains its source order. */
 export function projectCanonicalVehicleStateDocument(
     document: VehicleStateDocument
 ): VehicleStateDocument {
-    const mechanical = projectVehicleStateDocumentMechanical(document);
-    if (document.version === VEHICLE_STATE_DOCUMENT_V1_VERSION) {
-        return v1FromMechanical(mechanical);
-    }
-    const receipts = document.gameplayCommitReceipts?.map(cloneReceipt);
-    return v2FromMechanical(mechanical, receipts);
+    return rebuildVehicleStateDocumentWithMechanical(
+        document,
+        projectVehicleStateDocumentMechanical(document)
+    );
 }
 
 /** Stable JSON text for an already-validated document; object keys are sorted, arrays are not. */

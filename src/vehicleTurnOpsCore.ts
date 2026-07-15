@@ -1,4 +1,5 @@
 // Vehicle System V3: persist turn_result.vehicleOps to vehicle_state.json.
+// PRE2: normal writes go through the vehicle state document owner (version-preserving).
 
 import type { VehicleState } from './vehicleCore';
 import {
@@ -12,17 +13,25 @@ import {
     runVehicleWorldIntentBridgeBatch,
     type VehicleWorldIntentBridgeBatchReport,
 } from './vehicleWorldIntentBridgeCore';
-
 export { shouldAttemptVehiclePersistCore } from './vehicleOpsCore';
+
+/** Result shape from vehicleStateDocumentOwner.runSerializedVehicleStateDocumentMutation. */
+export interface VehicleDocumentMutationOutcome {
+    ok: boolean;
+    applied: boolean;
+    attempted?: boolean;
+    reason?: string;
+}
 
 export interface VehicleTurnOpsDeps {
     isVehicleSystemEnabled: () => boolean;
     getVehicleStatePath: () => string | undefined;
-    readVehicleStateFromDisk: (statePath?: string) => VehicleState | undefined;
     loadWorldTurn: () => number | undefined;
-    writeVehicleStateAtomic: (statePath: string, state: VehicleState) => void;
-    clearVehicleStateCache: () => void;
-    runSerializedMutation: (fn: () => void) => void;
+    /** Document-aware owner path (v1/v2 preserving). Shared queue with mobile-base. */
+    runSerializedVehicleStateDocumentMutation: (
+        mutationName: string,
+        mutateMechanicalState: (current: VehicleState) => VehicleState | undefined
+    ) => VehicleDocumentMutationOutcome;
     getVehicleBridgeMode?: () => VehicleWorldIntentBridgeMode;
     emitVehicleBridgeDiagnostics?: (report: VehicleWorldIntentBridgeBatchReport) => void;
 }
@@ -49,14 +58,10 @@ export function tryApplyVehicleTurnOpsWithDeps(
         return { ok: true, applied: false, attempted: false };
     }
 
-    const result: VehicleTurnOpsResult = { ok: true, applied: false, attempted: true };
     const bridgeMode = deps.getVehicleBridgeMode?.() ?? 'off';
-    try {
-        deps.runSerializedMutation(() => {
-            const current = deps.readVehicleStateFromDisk(statePath);
-            if (!current) {
-                return;
-            }
+    const mutation = deps.runSerializedVehicleStateDocumentMutation(
+        'vehicleOps',
+        (current) => {
             const worldTurn = deps.loadWorldTurn();
 
             if (bridgeMode !== 'off') {
@@ -86,21 +91,17 @@ export function tryApplyVehicleTurnOpsWithDeps(
 
             const next = applyVehicleOps(current, ops, { worldTurn });
             if (!next || JSON.stringify(current) === JSON.stringify(next)) {
-                return;
+                return undefined;
             }
-            try {
-                deps.writeVehicleStateAtomic(statePath, next);
-                deps.clearVehicleStateCache();
-                result.applied = true;
-            } catch (e) {
-                result.ok = false;
-                console.warn('[vehicleTurnOps] failed to save vehicle_state.json', e);
-            }
-        });
-    } catch (e) {
-        return { ok: false, applied: false, attempted: true };
-    }
-    return result;
+            return next;
+        }
+    );
+
+    return {
+        ok: mutation.ok,
+        applied: mutation.applied,
+        attempted: true,
+    };
 }
 
 export function applyVehicleTurnOpsWithDeps(

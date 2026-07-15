@@ -53,7 +53,8 @@
     "onCommand:textadventure.previewGmTurnTransactionPlan",
     "onCommand:textadventure.previewWorkspaceMigrations",
     "onCommand:textadventure.applyVehicleStateMigration",
-    "onCommand:textadventure.restoreVehicleStateMigrationBackup"
+    "onCommand:textadventure.restoreVehicleStateMigrationBackup",
+    "onCommand:textadventure.upgradeVehicleStateForGameplaySpine"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -169,6 +170,10 @@
       {
         "command": "textadventure.restoreVehicleStateMigrationBackup",
         "title": "%command.restoreVehicleStateMigrationBackup%"
+      },
+      {
+        "command": "textadventure.upgradeVehicleStateForGameplaySpine",
+        "title": "LoreRelay: Upgrade Vehicle State for Gameplay Spine"
       }
     ],
     "configuration": {
@@ -738,6 +743,16 @@
           ],
           "default": "off",
           "description": "%config.textAdventure.worldIntent.vehicleBridgeMode.description%"
+        },
+        "textAdventure.gameplaySpine.vehicleRepairMode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "shadow",
+            "authoritative"
+          ],
+          "default": "off",
+          "description": "Controls the bounded Gameplay Spine vehicle repair pilot. Authoritative mode requires a confirmed durable repair EffectPlan."
         }
       }
     }

@@ -82,6 +82,24 @@ export interface VehicleStateDocumentMutationResult {
     durabilityWarning?: VehicleStateDocumentDurabilityWarning;
 }
 
+/**
+ * Narrow complete-document replacement result.  Unlike the normal mechanical
+ * writer this is used only by explicitly versioned callers which have already
+ * constructed and validated a complete canonical document (for example the
+ * Gameplay Spine repair receipt commit).  It deliberately shares the same
+ * fresh-read, queue, durable replacement, reload, and cache rules.
+ */
+export interface VehicleStateDocumentReplacementResult {
+    ok: boolean;
+    applied: boolean;
+    attempted: boolean;
+    commitState: VehicleStateDocumentCommitState;
+    reason?: VehicleStateDocumentFailureReason | string;
+    reconciliationRequired?: boolean;
+    refreshWarning?: VehicleStateDocumentRefreshWarning;
+    durabilityWarning?: VehicleStateDocumentDurabilityWarning;
+}
+
 export interface VehicleStateDocumentReadDeps {
     getVehicleStatePath: () => string | undefined;
     fileExists: (filePath: string) => boolean;
@@ -493,6 +511,14 @@ function replaceVehicleStateDocumentDurably(
     return { ok: true, commitState: 'committed', durabilityWarning };
 }
 
+/** The sole vehicle-queue acquisition layer for normal and authoritative document writers. */
+function runVehicleDocumentSerialized(
+    deps: VehicleStateDocumentOwnerDeps,
+    fn: () => void
+): void {
+    deps.runSerializedMutation(fn);
+}
+
 /**
  * Serialized normal mutation path for vehicleOps / mobileBaseOps.
  * v1→v1, v2→v2 with receipts preserved; invalid documents never write or clear cache.
@@ -509,7 +535,7 @@ export function runSerializedVehicleStateDocumentMutationWithDeps(
         commitState: 'not_committed',
     };
     try {
-        deps.runSerializedMutation(() => {
+        runVehicleDocumentSerialized(deps, () => {
             const read = readVehicleStateDocumentFreshWithDeps(deps);
             if (!read.ok) {
                 // Missing / empty fleet: soft no-op (matches prior turn-ops behavior).
@@ -610,4 +636,86 @@ export function runSerializedVehicleStateDocumentMutation(
         mutationName,
         mutateMechanicalState
     );
+}
+
+/**
+ * Perform one complete document replacement under the shared vehicle queue.
+ * The caller receives the fresh parsed document while already serialized and
+ * may return a fully formed v1/v2 document or `undefined` for a factual
+ * no-write result.  This is intentionally not a generic JSON writer.
+ */
+export function runSerializedVehicleStateDocumentReplacementWithDeps(
+    deps: VehicleStateDocumentOwnerDeps,
+    mutationName: string,
+    buildReplacement: (read: Extract<VehicleStateDocumentFreshRead, { ok: true }>) =>
+        VehicleStateDocument | undefined
+): VehicleStateDocumentReplacementResult {
+    const result: VehicleStateDocumentReplacementResult = {
+        ok: true,
+        applied: false,
+        attempted: true,
+        commitState: 'not_committed',
+    };
+    try {
+        runVehicleDocumentSerialized(deps, () => {
+            const read = readVehicleStateDocumentFreshWithDeps(deps);
+            if (!read.ok) {
+                result.ok = false;
+                result.reason = read.reason;
+                return;
+            }
+            let replacementDocument: VehicleStateDocument | undefined;
+            try {
+                replacementDocument = buildReplacement(read);
+            } catch (error) {
+                result.ok = false;
+                result.reason = 'mutation_failed';
+                reportDiagnosticBestEffort(deps, `[vehicleStateDocumentOwner] ${mutationName} build failed`, error);
+                return;
+            }
+            if (!replacementDocument) {
+                result.reason = 'no_change';
+                return;
+            }
+            const replacement = replaceVehicleStateDocumentDurably(
+                deps,
+                read.statePath,
+                replacementDocument
+            );
+            result.commitState = replacement.commitState;
+            result.durabilityWarning = replacement.durabilityWarning;
+            if (!replacement.ok) {
+                result.ok = false;
+                result.reason = replacement.reason;
+                result.reconciliationRequired = replacement.commitState === 'indeterminate';
+                reportDiagnosticBestEffort(
+                    deps,
+                    `[vehicleStateDocumentOwner] ${mutationName} ${replacement.reason}`,
+                    replacement.error
+                );
+                return;
+            }
+            result.applied = true;
+            try {
+                deps.clearVehicleStateCache();
+            } catch (error) {
+                result.refreshWarning = 'cache_clear_failed_after_commit';
+                reportDiagnosticBestEffort(
+                    deps,
+                    `[vehicleStateDocumentOwner] ${mutationName} cache clear failed after commit`,
+                    error
+                );
+            }
+        });
+    } catch (error) {
+        reportDiagnosticBestEffort(deps, `[vehicleStateDocumentOwner] ${mutationName} serialization failed`, error);
+        return {
+            ok: false,
+            applied: false,
+            attempted: true,
+            commitState: 'not_committed',
+            reason: 'serialization_failed',
+        };
+    }
+    return result;
 }

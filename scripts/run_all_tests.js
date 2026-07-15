@@ -87,6 +87,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_world_intent_wi2.js' },
     { category: 'unit', file: 'test_gameplay_spine_vehicle_shadow.js' },
     { category: 'unit', file: 'test_gameplay_spine_vehicle_repair_plan.js' },
+    { category: 'unit', file: 'test_gameplay_spine_vehicle_repair_commit.js' },
     { category: 'unit', file: 'test_vehicle_state_document_v2_core.js' },
     { category: 'unit', file: 'test_vehicle_state_document_owner.js' },
     { category: 'unit', file: 'test_vehicle_state_document_owner_durability.js' },

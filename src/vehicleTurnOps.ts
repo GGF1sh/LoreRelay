@@ -17,6 +17,7 @@ import {
     emitVehicleWorldIntentBridgeDiagnostics,
     getVehicleWorldIntentBridgeMode,
 } from './vehicleWorldIntentBridge';
+import { getVehicleRepairMode } from './vehicleRepairMode';
 
 export type { VehicleTurnOpsDeps } from './vehicleTurnOpsCore';
 export { applyVehicleTurnOpsWithDeps, tryApplyVehicleTurnOpsWithDeps } from './vehicleTurnOpsCore';
@@ -38,6 +39,7 @@ const defaultDeps: VehicleTurnOpsDeps = {
         runSerializedVehicleStateDocumentMutation(mutationName, mutate),
     getVehicleBridgeMode: () => getVehicleWorldIntentBridgeMode(),
     emitVehicleBridgeDiagnostics: (report) => emitVehicleWorldIntentBridgeDiagnostics(report),
+    getVehicleRepairMode: () => getVehicleRepairMode(),
 };
 
 export function applyVehicleTurnOps(

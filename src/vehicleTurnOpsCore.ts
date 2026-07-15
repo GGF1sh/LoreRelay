@@ -8,6 +8,7 @@ import {
     shouldAttemptVehiclePersistCore,
 } from './vehicleOpsCore';
 import type { VehicleWorldIntentBridgeMode } from './worldIntentCore';
+import type { VehicleRepairMode } from './gameplaySpineVehicleRepairCommitHost';
 import {
     buildVehicleBridgeParityErrorReport,
     runVehicleWorldIntentBridgeBatch,
@@ -34,6 +35,8 @@ export interface VehicleTurnOpsDeps {
     ) => VehicleDocumentMutationOutcome;
     getVehicleBridgeMode?: () => VehicleWorldIntentBridgeMode;
     emitVehicleBridgeDiagnostics?: (report: VehicleWorldIntentBridgeBatchReport) => void;
+    /** In authoritative mode untracked legacy repair ops fail closed; other ops retain legacy ownership. */
+    getVehicleRepairMode?: () => VehicleRepairMode;
 }
 
 export interface VehicleTurnOpsResult {
@@ -49,7 +52,14 @@ export function tryApplyVehicleTurnOpsWithDeps(
     if (!deps.isVehicleSystemEnabled()) {
         return { ok: true, applied: false, attempted: false };
     }
-    const ops = parseVehicleOps(turnResult.vehicleOps);
+    const allOps = parseVehicleOps(turnResult.vehicleOps);
+    const repairMode = deps.getVehicleRepairMode?.() ?? 'off';
+    // turn_result.vehicleOps has no durable request identity or confirmed EffectPlan.  It can
+    // never become an untracked authoritative repair fallback.  Mixed batches keep unrelated
+    // legacy operations, while repair entries are suppressed rather than double-applied.
+    const ops = repairMode === 'authoritative'
+        ? allOps.filter((op) => op.type !== 'repair_vehicle')
+        : allOps;
     if (!ops.length) {
         return { ok: true, applied: false, attempted: false };
     }
@@ -68,7 +78,7 @@ export function tryApplyVehicleTurnOpsWithDeps(
                 try {
                     const batchReport = runVehicleWorldIntentBridgeBatch({
                         bridgeMode,
-                        vehicleOps: turnResult.vehicleOps,
+                        vehicleOps: ops,
                         preWriteVehicleState: current,
                         enableVehicleSystem: deps.isVehicleSystemEnabled(),
                         worldTurn,

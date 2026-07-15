@@ -39,7 +39,9 @@ function createPopulatedWorld() {
         simIntervalTurns: 1,
         backgroundSimulation: false,
         autoLorebookGrowth: false,
-        enableVehicleSystem: true
+        enableVehicleSystem: true,
+        enableSettlementMode: true,
+        enableMobileBaseSystem: true
     });
 
     // game_state.json
@@ -62,6 +64,16 @@ function createPopulatedWorld() {
             inventory: ["katana", "travel_rations"],
             skills: ["negotiation"],
             funds: "150 ryo"
+        },
+        world: {
+            currentLocationId: "loc_osaka_port"
+        },
+        commerce: {
+            credits: 150,
+            food: 10,
+            transportId: "wagon_1",
+            playerRole: "merchant",
+            cargo: []
         },
         theme: "fantasy"
     });
@@ -123,7 +135,32 @@ function createPopulatedWorld() {
                 description: "Wealthy traders.",
                 goals: [], enemies: [], allies: []
             }
-        ]
+        ],
+        commerce: {
+            commodities: [
+                { id: "silk", name: "Silk", basePrice: 50, weight: 1, role: "material" },
+                { id: "tea", name: "Tea", basePrice: 20, weight: 1, role: "staple" },
+                { id: "salt", name: "Salt", basePrice: 5, weight: 2, role: "staple" },
+                { id: "fish", name: "Fish", basePrice: 8, weight: 2, role: "staple" }
+            ],
+            markets: [
+                { locationId: "loc_kyoto_market", commodityIds: ["silk", "tea"], targetStock: 100 },
+                { locationId: "loc_osaka_port", commodityIds: ["salt", "fish"], targetStock: 100 }
+            ],
+            transportKinds: [
+                { id: "wagon_1", name: "Wagon", capacity: 50, speed: 1, foodPerDay: 2 }
+            ],
+            resourceFlows: {
+                nodes: [
+                    { locationId: "loc_kyoto_market", production: [{ commodityId: "silk", qtyPerTurn: 5 }, { commodityId: "tea", qtyPerTurn: 10 }] },
+                    { locationId: "loc_osaka_port", production: [{ commodityId: "salt", qtyPerTurn: 20 }, { commodityId: "fish", qtyPerTurn: 15 }] }
+                ],
+                routes: [
+                    { id: "route_kyoto_osaka", sourceLocationId: "loc_osaka_port", targetLocationId: "loc_kyoto_market", commodityId: "salt", capacityPerTurn: 10, priority: 1, active: true },
+                    { id: "route_osaka_kyoto", sourceLocationId: "loc_kyoto_market", targetLocationId: "loc_osaka_port", commodityId: "silk", capacityPerTurn: 5, priority: 1, active: true }
+                ]
+            }
+        }
     });
 
     // world_state.json
@@ -183,8 +220,10 @@ function createPopulatedWorld() {
                 mobility: { speedBand: "slow", rangeBand: "regional", terrainTags: ["water"] },
                 durability: { hp: 100, maxHp: 100, armorBand: "light", condition: "pristine" },
                 mobileBase: {
-                    settlementId: "base_ship",
-                    mode: "docked"
+                    settlementId: "osaka_base_1",
+                    mode: "ship",
+                    layoutProfile: "deck",
+                    interiorAccess: "crew_only"
                 },
                 cargo: [], modules: [], crew: [], notes: [], tags: []
             },
@@ -218,12 +257,10 @@ function createPopulatedWorld() {
 
     // persona.json
     writeJson(dir, 'persona.json', {
-        id: "persona_1",
+        version: 1,
         name: "Kenji",
-        archetype: "Wandering Merchant",
-        background: "Born in Osaka.",
-        goals: "Amass a fortune.",
-        style: "Polite but shrewd."
+        description: "Wandering Merchant. Born in Osaka. Goal: Amass a fortune.",
+        speakingStyle: "Polite but shrewd."
     });
 
     // parlor_session.[id].json
@@ -234,6 +271,28 @@ function createPopulatedWorld() {
         history: [
             { speaker: "Yuki", text: "Ready to depart when you are.", type: "dialogue" }
         ]
+    });
+
+    // settlement_state.json
+    writeJson(dir, 'settlement_state.json', {
+        version: 1,
+        settlementId: "osaka_base_1",
+        name: "Osaka Mobile Base",
+        locationId: "loc_osaka_port",
+        stocks: [
+            { id: "rations", amount: 10 },
+            { id: "wood", amount: 5 }
+        ],
+        structures: [
+            { id: "bridge", name: "Ship Bridge", status: "intact", layerId: "z1" },
+            { id: "hull", name: "Outer Hull", status: "damaged", layerId: "z0" }
+        ],
+        residents: [
+            { npcId: "npc_yuki", role: "captain" }
+        ],
+        visitors: [],
+        merchants: [],
+        incidents: []
     });
 }
 
@@ -481,9 +540,15 @@ const indexContent = `# LoreRelay Showcase Index
 | Layout Stress | 03-layout-stress | Long names, massive lists, layout overflow test. |
 | Vehicle Repair Gate | 04-vehicle-repair-smoke-v1 | Specifically tests the upgrade->repair human play flow. |
 
+## Coverage Details
+- **Start Hub, Character Manager, Parlor, and Persona**: Covered directly via correctly schema-mapped \`characters/*.json\`, \`persona.json\`, and \`parlor_session.*.json\` fixtures.
+- **World View Harness**: The generated \`_harness/worldView.json\` is the actual runtime-captured World View message produced by invoking the compiled \`pushWorldViewToWebview()\` over the 01-populated-world workspace.
+- **World, Commerce, Vehicle, Mobile Base**: These surfaces are populated based on the \`worldView.json\` capture, accurately reflecting current location, markets, active vehicles, and docked mobile bases.
+- **Logistics**: The \`economyLogistics\` property is included in the world view payload, resolving active flows and shortages based on the mocked commerce forge.
+
 ## Omissions
 - **Scenario Packs**: Omitted since there is no stable, widely used sample schema in the baseline that can be mocked out reliably.
-- **Trade Routes and Logistics**: Omitted due to the lack of a formal raw JSON loader contract for routes/logistics (they are derived in economy flows rather than stored natively as static files).
+- **Trade Routes**: Raw trade-route loading is omitted due to the lack of a formal static JSON loader contract (routes are derived via the economy simulation instead).
 - **NPC Registry**: Omitted as the runtime uses Character Manager (\`characters/*.json\`). \`npc_registry.json\` is not generated for character data.
 `;
 writeTxt(targetDir, 'SHOWCASE_INDEX.md', indexContent);

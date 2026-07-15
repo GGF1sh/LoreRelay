@@ -3,6 +3,7 @@
 import { CHARACTER_ID_PATTERN } from './characterId';
 
 export type AiParticipationPolicy = 'always' | 'onDemand' | 'simulationOnly';
+export type MerchantTravelMode = 'instant_free' | 'world_time';
 
 /**
  * Absolute economy scarcity scale (market recovery / shock / resting price).
@@ -48,6 +49,8 @@ export interface GameRules {
     economyResourceModifiers?: Record<string, number>;
     enableCommerce?: boolean;
     enableCommerceUi?: boolean;
+    /** Missing or invalid values preserve legacy zero-time, zero-cost market travel. */
+    merchantTravelMode?: MerchantTravelMode;
     playerRole?: 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
     enableNpcAgency?: boolean;
     enableNpcRelationships?: boolean;
@@ -99,6 +102,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     economyProfile: 'normal',
     enableCommerce: false,
     enableCommerceUi: false,
+    merchantTravelMode: 'instant_free',
     playerRole: 'merchant',
     enableNpcAgency: false,
     enableNpcRelationships: false,
@@ -181,6 +185,14 @@ function normalizeModifierMap(raw: unknown, maxEntries = 100): Record<string, nu
     return Object.keys(out).length > 0 ? out : undefined;
 }
 const VALID_AI_PARTICIPATION_POLICIES = new Set<AiParticipationPolicy>(['always', 'onDemand', 'simulationOnly']);
+const VALID_MERCHANT_TRAVEL_MODES = new Set<MerchantTravelMode>(['instant_free', 'world_time']);
+
+/** Normalize a travel-mode boundary without enabling timed travel implicitly. */
+export function normalizeMerchantTravelMode(raw: unknown): MerchantTravelMode {
+    return VALID_MERCHANT_TRAVEL_MODES.has(raw as MerchantTravelMode)
+        ? raw as MerchantTravelMode
+        : 'instant_free';
+}
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) { return fallback; }
@@ -260,6 +272,12 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         ? aiParticipationPolicyRaw as AiParticipationPolicy
         : base.aiParticipationPolicy;
 
+    // `raw` is also used as a partial save patch. An omitted field preserves an
+    // already-explicit base mode, while absent/invalid loaded files remain legacy.
+    const merchantTravelMode = Object.prototype.hasOwnProperty.call(src, 'merchantTravelMode')
+        ? normalizeMerchantTravelMode(src.merchantTravelMode)
+        : normalizeMerchantTravelMode(base.merchantTravelMode);
+
     let excludedEventIds = base.excludedEventIds;
     if (Array.isArray(src.excludedEventIds)) {
         excludedEventIds = src.excludedEventIds
@@ -290,6 +308,7 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         economyResourceModifiers,
         enableCommerce: asOptionalBool(src.enableCommerce, base.enableCommerce),
         enableCommerceUi: asOptionalBool(src.enableCommerceUi, base.enableCommerceUi),
+        merchantTravelMode,
         playerRole,
         enableNpcAgency: asOptionalBool(src.enableNpcAgency, base.enableNpcAgency),
         enableNpcRelationships: asOptionalBool(src.enableNpcRelationships, base.enableNpcRelationships),

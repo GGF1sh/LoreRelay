@@ -8,6 +8,11 @@ function writeJson(dir, file, obj) {
     fs.writeFileSync(path.join(dir, file), JSON.stringify(obj, null, 2), 'utf8');
 }
 
+function writeTxt(dir, file, text) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, file), text, 'utf8');
+}
+
 // ---------------------------------------------------------
 // 01-populated-world
 // ---------------------------------------------------------
@@ -182,30 +187,37 @@ function createPopulatedWorld() {
                     mode: "docked"
                 },
                 cargo: [], modules: [], crew: [], notes: [], tags: []
-            }
-        ]
-    });
-
-    // npc_registry.json
-    writeJson(dir, 'npc_registry.json', {
-        version: 1,
-        registry: [
+            },
             {
-                id: "npc_yuki",
-                name: "Yuki",
-                role: "Merchant Guard",
-                factionId: "fac_merchants",
+                id: "damaged_cart",
+                name: "Broken Handcart",
+                kind: "cart",
+                owner: { type: "party" },
+                status: "damaged",
                 locationId: "loc_osaka_port",
-                status: "active",
-                notes: "Hired for protection.",
-                introducedAtTurn: 1,
-                lastSeenAtTurn: 10
+                capacity: { crewRequired: 1, crewCapacity: 1, passengerCapacity: 0, cargoCapacity: 5, currentCargoLoad: 0 },
+                access: { sizeClass: "small", accessTags: ["road"] },
+                mobility: { speedBand: "slow", rangeBand: "local", terrainTags: ["road"] },
+                durability: { hp: 5, maxHp: 20, armorBand: "none", condition: "damaged" },
+                cargo: [], modules: [], crew: [], notes: [], tags: []
             }
         ]
     });
 
-    // player_persona.json
-    writeJson(dir, 'player_persona.json', {
+    // characters
+    const charDir = path.join(dir, 'characters');
+    writeJson(charDir, 'npc_yuki.json', {
+        id: "npc_yuki",
+        name: "Yuki",
+        description: "Merchant Guard.",
+        personality: "Protective.",
+        controlledBy: "ai"
+    });
+    writeJson(charDir, 'party.json', ["npc_yuki"]);
+    writeTxt(charDir, 'active_character.txt', "npc_yuki");
+
+    // persona.json
+    writeJson(dir, 'persona.json', {
         id: "persona_1",
         name: "Kenji",
         archetype: "Wandering Merchant",
@@ -214,8 +226,8 @@ function createPopulatedWorld() {
         style: "Polite but shrewd."
     });
 
-    // parlor_session.json
-    writeJson(dir, 'parlor_session.json', {
+    // parlor_session.[id].json
+    writeJson(dir, 'parlor_session.npc_yuki.json', {
         sessionId: "sess_1",
         characterId: "npc_yuki",
         turn: 10,
@@ -223,14 +235,6 @@ function createPopulatedWorld() {
             { speaker: "Yuki", text: "Ready to depart when you are.", type: "dialogue" }
         ]
     });
-
-    // logistics_state.json (optional/custom format based on gameplaySpineMarketTravelAdapterCore.ts)
-    // Actually, gameplaySpineMarketTravelAdapterCore operates on world_state and game_state intents.
-    // Logistics UI reads from game_state intents maybe? No, the user wants "logistics" - wait.
-    // The "logistics" panels probably read `logistics_state.json` or `trade routes` / `logistics` array.
-    // Wait, the prompt says "non-empty logistics". 
-    // In `src/logisticsStateCore.ts` (if exists) or just the standard logistics shape.
-    // Let's create an empty one first, then I'll check its existence in `test_ui_showcase_scenarios.js` to see if it passes parse.
 }
 
 // ---------------------------------------------------------
@@ -239,14 +243,12 @@ function createPopulatedWorld() {
 function createEmptyStates() {
     const dir = path.join(targetDir, '02-empty-states');
     
-    // game_rules.json
     writeJson(dir, 'game_rules.json', {
         enableRpgMechanics: true,
         enableCommerce: true,
         enableVehicleSystem: true
     });
 
-    // game_state.json
     writeJson(dir, 'game_state.json', {
         entries: [],
         status: {
@@ -257,13 +259,11 @@ function createEmptyStates() {
         }
     });
 
-    // vehicle_state.json
     writeJson(dir, 'vehicle_state.json', {
         version: 1,
         vehicles: []
     });
 
-    // world_state.json
     writeJson(dir, 'world_state.json', {
         format: "lorerelay-world-state/1.0",
         worldTurn: 1,
@@ -272,7 +272,6 @@ function createEmptyStates() {
         markets: {}
     });
 
-    // world_forge.json
     writeJson(dir, 'world_forge.json', {
         format: "lorerelay-world-forge/1.0",
         meta: { worldName: "Empty World" },
@@ -280,13 +279,8 @@ function createEmptyStates() {
         factions: []
     });
 
-    // parlor_session.json
-    writeJson(dir, 'parlor_session.json', {
-        sessionId: "sess_empty",
-        characterId: "unknown",
-        turn: 1,
-        history: []
-    });
+    const charDir = path.join(dir, 'characters');
+    writeJson(charDir, 'party.json', []);
 }
 
 // ---------------------------------------------------------
@@ -298,13 +292,11 @@ function createLayoutStress() {
     const longName = "Super Long Name ".repeat(5).trim();
     const jpText = "長いテキスト長いテキスト".repeat(10);
 
-    // game_rules.json
     writeJson(dir, 'game_rules.json', {
         enableCommerce: true,
         enableVehicleSystem: true
     });
 
-    // game_state.json
     writeJson(dir, 'game_state.json', {
         entries: [
             {
@@ -327,7 +319,6 @@ function createLayoutStress() {
         }
     });
 
-    // vehicle_state.json
     writeJson(dir, 'vehicle_state.json', {
         version: 1,
         activeVehicleId: "v_1",
@@ -349,7 +340,6 @@ function createLayoutStress() {
         ]
     });
 
-    // world_state.json
     const markets = {};
     const regions = {};
     for (let i = 0; i < 20; i++) {
@@ -388,7 +378,6 @@ function createVehicleRepairSmoke() {
         }
     });
 
-    // A valid v1 vehicle state (no receipts)
     writeJson(dir, 'vehicle_state.json', {
         version: 1,
         activeVehicleId: "damaged_cart",
@@ -423,7 +412,6 @@ function createVehicleRepairSmoke() {
         ]
     });
     
-    // valid world turn and location required by repair preview
     writeJson(dir, 'world_state.json', {
         format: "lorerelay-world-state/1.0",
         worldTurn: 5,
@@ -442,7 +430,6 @@ createEmptyStates();
 createLayoutStress();
 createVehicleRepairSmoke();
 
-// Create OPEN_SHOWCASE.bat
 const batContent = `@echo off
 echo =========================================
 echo LoreRelay UI Showcase
@@ -457,15 +444,15 @@ echo =========================================
 set /p choice="Select a scenario to open (0-5): "
 
 if "%choice%"=="1" (
-    code "01-populated-world" || echo Path: "%~dp001-populated-world"
+    code "%~dp001-populated-world" || echo Path: "%~dp001-populated-world"
 ) else if "%choice%"=="2" (
-    code "02-empty-states" || echo Path: "%~dp002-empty-states"
+    code "%~dp002-empty-states" || echo Path: "%~dp002-empty-states"
 ) else if "%choice%"=="3" (
-    code "03-layout-stress" || echo Path: "%~dp003-layout-stress"
+    code "%~dp003-layout-stress" || echo Path: "%~dp003-layout-stress"
 ) else if "%choice%"=="4" (
-    code "04-vehicle-repair-smoke-v1" || echo Path: "%~dp004-vehicle-repair-smoke-v1"
+    code "%~dp004-vehicle-repair-smoke-v1" || echo Path: "%~dp004-vehicle-repair-smoke-v1"
 ) else if "%choice%"=="5" (
-    explorer .
+    explorer "%~dp0."
 ) else if "%choice%"=="0" (
     exit /b 0
 ) else (
@@ -473,9 +460,8 @@ if "%choice%"=="1" (
 )
 pause
 `;
-fs.writeFileSync(path.join(targetDir, 'OPEN_SHOWCASE.bat'), batContent, 'utf8');
+writeTxt(targetDir, 'OPEN_SHOWCASE.bat', batContent);
 
-// Create README_FIRST.txt
 const readmeContent = `LoreRelay UI Showcase Suites
 
 These are disposable test workspaces. They do not contain your real campaign data.
@@ -484,9 +470,8 @@ You can safely modify, corrupt, or delete them. They can be regenerated at any t
 - Normal UI Review: Open '01-populated-world'.
 - Vehicle Repair Smoke Test: Open '04-vehicle-repair-smoke-v1'.
 `;
-fs.writeFileSync(path.join(targetDir, 'README_FIRST.txt'), readmeContent, 'utf8');
+writeTxt(targetDir, 'README_FIRST.txt', readmeContent);
 
-// Create SHOWCASE_INDEX.md
 const indexContent = `# LoreRelay Showcase Index
 
 | Subsystem / Screen | Recommended Scenario | Notes |
@@ -497,9 +482,10 @@ const indexContent = `# LoreRelay Showcase Index
 | Vehicle Repair Gate | 04-vehicle-repair-smoke-v1 | Specifically tests the upgrade->repair human play flow. |
 
 ## Omissions
-- **Scenario Packs**: Not included since there is no stable, widely used sample schema in the baseline that we can mock out perfectly without real assets.
-- **Logistics Status**: Basic routes and trade items are present. Deep dynamic logistics events are omitted due to schema complexity and lack of formal parser in our subset test.
+- **Scenario Packs**: Omitted since there is no stable, widely used sample schema in the baseline that can be mocked out reliably.
+- **Trade Routes and Logistics**: Omitted due to the lack of a formal raw JSON loader contract for routes/logistics (they are derived in economy flows rather than stored natively as static files).
+- **NPC Registry**: Omitted as the runtime uses Character Manager (\`characters/*.json\`). \`npc_registry.json\` is not generated for character data.
 `;
-fs.writeFileSync(path.join(targetDir, 'SHOWCASE_INDEX.md'), indexContent, 'utf8');
+writeTxt(targetDir, 'SHOWCASE_INDEX.md', indexContent);
 
 console.log('Showcase scenarios generated in: ' + targetDir);

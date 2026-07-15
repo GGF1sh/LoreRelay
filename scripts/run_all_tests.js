@@ -50,6 +50,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_scenario_director.js' },
     { category: 'unit', file: 'test_party_director.js' },
     { category: 'smoke', file: 'test_sample_scenarios.js' },
+    { category: 'smoke', file: 'test_ui_showcase_scenarios.js' },
     { category: 'unit', file: 'test_scenario_pack_core.js' },
     { category: 'unit', file: 'test_memory_bank.js' },
     { category: 'unit', file: 'test_migrate_game_state.js' },

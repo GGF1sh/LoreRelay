@@ -26,6 +26,7 @@ class FakeClassList {
     constructor(owner) { this.owner = owner; this.values = new Set(); }
     set(value) { this.values = new Set(String(value || '').split(/\s+/).filter(Boolean)); }
     add(...values) { values.forEach((value) => this.values.add(value)); }
+    remove(...values) { values.forEach((value) => this.values.delete(value)); }
     contains(value) { return this.values.has(value); }
     toggle(value, force) {
         const next = force === undefined ? !this.values.has(value) : Boolean(force);
@@ -43,21 +44,36 @@ class FakeElement {
         this.parentNode = null;
         this.attributes = {};
         this.dataset = {};
-        this.style = {};
+        this.style = {
+            props: {},
+            setProperty(name, value) { this.props[name] = String(value); },
+            getPropertyValue(name) { return this.props[name] || ''; },
+        };
         this.listeners = {};
         this.classList = new FakeClassList(this);
         this._text = '';
         this._id = '';
         this.value = '';
         this.disabled = false;
+        this.clientWidth = 0;
     }
-    set className(value) { this.classList.set(value); }
+    set className(value) {
+        this.classList.set(value);
+        if (this.classList.contains('visual-lightbox-body')) {
+            this.clientWidth = this.ownerDocument.defaultLightboxBodyWidth || this.clientWidth;
+        }
+    }
     get className() { return this.classList.toString(); }
     set id(value) { this._id = String(value); if (this._id) { this.ownerDocument.byId.set(this._id, this); } }
     get id() { return this._id; }
     set textContent(value) { this._text = String(value ?? ''); this.children = []; }
     get textContent() { return this._text + this.children.map((child) => child.textContent).join(''); }
-    appendChild(child) { child.parentNode = this; this.children.push(child); return child; }
+    appendChild(child) {
+        child.parentNode = this;
+        if (!child.clientWidth && this.clientWidth) { child.clientWidth = this.clientWidth; }
+        this.children.push(child);
+        return child;
+    }
     replaceChildren(...children) { this._text = ''; this.children = []; children.forEach((child) => this.appendChild(child)); }
     setAttribute(name, value) {
         this.attributes[name] = String(value);
@@ -66,9 +82,12 @@ class FakeElement {
     }
     getAttribute(name) { return this.attributes[name]; }
     addEventListener(type, listener) { (this.listeners[type] ||= []).push(listener); }
+    focus() { this.ownerDocument.activeElement = this; }
+    getBoundingClientRect() { return { width: this.clientWidth || 0, height: 0, top: 0, left: 0, right: this.clientWidth || 0, bottom: 0 }; }
     dispatchEvent(event) {
         event.target = this;
         event.preventDefault ||= () => { event.defaultPrevented = true; };
+        event.stopPropagation ||= () => { event.propagationStopped = true; };
         (this.listeners[event.type] || []).forEach((listener) => listener(event));
         const propertyListener = this[`on${event.type}`];
         if (typeof propertyListener === 'function') { propertyListener(event); }
@@ -76,10 +95,17 @@ class FakeElement {
 }
 
 class FakeDocument {
-    constructor() { this.byId = new Map(); }
+    constructor() {
+        this.byId = new Map();
+        this.listeners = {};
+        this.activeElement = null;
+        this.defaultLightboxBodyWidth = 900;
+        this.body = this.createElement('body');
+    }
     createElement(tag) { return new FakeElement(tag, this); }
     createElementNS(_ns, tag) { return new FakeElement(tag, this); }
     getElementById(id) { return this.byId.get(id) || null; }
+    addEventListener(type, listener) { (this.listeners[type] ||= []).push(listener); }
 }
 
 function descendants(node) {
@@ -90,8 +116,11 @@ function findAll(node, predicate) {
     return descendants(node).filter(predicate);
 }
 
-function createHarness() {
+function createHarness(options = {}) {
     const document = new FakeDocument();
+    document.defaultLightboxBodyWidth = options.lightboxWidth ?? 900;
+    const reducedMotion = Boolean(options.reducedMotion);
+    const storageValue = options.flowAnimation === false ? 'off' : 'on';
     const rootNode = document.createElement('div');
     const sentinel = document.createElement('div');
     sentinel.id = 'unrelated-world-ui';
@@ -102,8 +131,10 @@ function createHarness() {
     section.className = 'hidden';
     const panel = document.createElement('div');
     panel.id = 'world-logistics-panel';
+    panel.clientWidth = options.panelWidth ?? 800;
     section.appendChild(panel);
     rootNode.appendChild(section);
+    document.body.appendChild(rootNode);
     const translations = {
         'webview.world.logisticsNodeRegion': 'Region',
         'webview.world.logisticsNodeFacility': 'Facility',
@@ -127,8 +158,22 @@ function createHarness() {
         String,
         Boolean,
         T: (key) => translations[key] || key,
+        ResizeObserver: class {
+            constructor(callback) { this.callback = callback; }
+            observe(element) { this.callback([{ contentRect: { width: element.clientWidth || 0 } }]); }
+            disconnect() {}
+        },
     };
     context.window = context;
+    context.localStorage = {
+        getItem: () => storageValue,
+        setItem: () => {},
+    };
+    context.matchMedia = () => ({
+        matches: reducedMotion,
+        addEventListener: () => {},
+        addListener: () => {},
+    });
     vm.runInNewContext(source, context, { filename: modulePath });
     return { document, rootNode, section, panel, sentinel, context };
 }
@@ -159,6 +204,28 @@ function payload() {
         processingSites: [{ id: 'site', nodeId: 'facility', recipeId: 'mill', active: true, batches: 1, condition: 1, baseMaxBatches: 1, effectiveMaxBatches: 1, inputs: [], outputs: [] }],
         summary: { activeRoutes: 2, blockedRoutes: 1, raidedRoutes: 1, totalVolume: 6, shortageCount: 1, bottleneckCount: 1 },
     };
+}
+
+function renderHarness(options = {}) {
+    const h = createHarness(options);
+    h.context.renderEconomyLogistics(payload(), true);
+    return h;
+}
+
+function routeNode(root, routeId) {
+    return findAll(root, (node) => node.dataset.routeId === routeId)[0];
+}
+
+function routeLine(route) {
+    return findAll(route, (node) => node.classList.contains('logistics-route-line'))[0];
+}
+
+function flowDots(route) {
+    return findAll(route, (node) => node.classList.contains('logistics-flow-dot'));
+}
+
+function motionFor(dot) {
+    return dot.children.find((child) => child.tagName === 'ANIMATEMOTION');
 }
 
 test('logistics module uses safe text APIs and no innerHTML', () => {
@@ -196,6 +263,86 @@ test('blocked and raided zero/low-flow routes remain visible with distinct class
     const raided = findAll(h.panel, (node) => node.dataset.routeId === 'raided_route')[0];
     assert.ok(blocked.classList.contains('logistics-route-blocked'));
     assert.ok(raided.classList.contains('logistics-route-raided'));
+});
+
+test('positive-volume wide routes create SMIL particles on the route path', () => {
+    const h = renderHarness({ panelWidth: 800 });
+    const grain = routeNode(h.panel, 'grain_route');
+    const raided = routeNode(h.panel, 'raided_route');
+    const grainLine = routeLine(grain);
+    const dots = flowDots(grain);
+    const raidedDots = flowDots(raided);
+    assert.strictEqual(dots.length, 2);
+    assert.strictEqual(raidedDots.length, 1);
+    assert.strictEqual(dots[0].getAttribute('cx'), '0');
+    assert.strictEqual(dots[0].getAttribute('cy'), '0');
+    assert.strictEqual(
+        motionFor(dots[0]).getAttribute('path'),
+        `M ${grainLine.getAttribute('x1')},${grainLine.getAttribute('y1')} L ${grainLine.getAttribute('x2')},${grainLine.getAttribute('y2')}`
+    );
+});
+
+test('particle geometry does not double-apply route start coordinates', () => {
+    const h = renderHarness({ panelWidth: 800 });
+    const grain = routeNode(h.panel, 'grain_route');
+    const dot = flowDots(grain)[0];
+    const line = routeLine(grain);
+    const motionPath = motionFor(dot).getAttribute('path');
+    assert.notStrictEqual(dot.getAttribute('cx'), line.getAttribute('x1'));
+    assert.notStrictEqual(dot.getAttribute('cy'), line.getAttribute('y1'));
+    assert.strictEqual(dot.getAttribute('cx'), '0');
+    assert.strictEqual(dot.getAttribute('cy'), '0');
+    assert.ok(motionPath.startsWith(`M ${line.getAttribute('x1')},${line.getAttribute('y1')}`));
+});
+
+test('zero-volume routes create no SMIL particles', () => {
+    const h = renderHarness({ panelWidth: 800 });
+    const blocked = routeNode(h.panel, 'blocked_route');
+    assert.strictEqual(flowDots(blocked).length, 0);
+    assert.ok(blocked.classList.contains('logistics-route-blocked'));
+});
+
+test('compact mode uses marching classes and creates no SMIL particles', () => {
+    const h = renderHarness({ panelWidth: 360 });
+    const svg = findAll(h.panel, (node) => node.tagName === 'SVG')[0];
+    const grain = routeNode(h.panel, 'grain_route');
+    const blocked = routeNode(h.panel, 'blocked_route');
+    assert.ok(svg.classList.contains('is-compact'));
+    assert.ok(svg.classList.contains('is-animated'));
+    assert.ok(grain.classList.contains('is-flowing'));
+    assert.strictEqual(flowDots(grain).length, 0);
+    assert.ok(blocked.classList.contains('logistics-route-blocked'));
+    assert.strictEqual(flowDots(blocked).length, 0);
+});
+
+test('flow off creates no particles or animated route classes', () => {
+    const h = renderHarness({ panelWidth: 800, flowAnimation: false });
+    const svg = findAll(h.panel, (node) => node.tagName === 'SVG')[0];
+    const grain = routeNode(h.panel, 'grain_route');
+    assert.strictEqual(svg.classList.contains('is-animated'), false);
+    assert.strictEqual(grain.classList.contains('is-flowing'), false);
+    assert.strictEqual(flowDots(grain).length, 0);
+});
+
+test('reduced motion disables flow animation', () => {
+    const h = renderHarness({ panelWidth: 800, reducedMotion: true });
+    const svg = findAll(h.panel, (node) => node.tagName === 'SVG')[0];
+    const grain = routeNode(h.panel, 'grain_route');
+    assert.strictEqual(svg.classList.contains('is-animated'), false);
+    assert.strictEqual(grain.classList.contains('is-flowing'), false);
+    assert.strictEqual(flowDots(grain).length, 0);
+});
+
+test('lightbox rendering uses wide particle mode after width measurement', () => {
+    const h = renderHarness({ panelWidth: 360 });
+    const expand = findAll(h.panel, (node) => node.classList.contains('logistics-expand-btn'))[0];
+    expand.dispatchEvent({ type: 'click' });
+    const lightboxBody = h.context.window.__lrVisualLightbox.body;
+    const svg = findAll(lightboxBody, (node) => node.tagName === 'SVG')[0];
+    const grain = routeNode(lightboxBody, 'grain_route');
+    assert.ok(svg);
+    assert.strictEqual(svg.classList.contains('is-compact'), false);
+    assert.strictEqual(flowDots(grain).length, 2);
 });
 
 test('shortage badge renders only for positive unmet demand', () => {

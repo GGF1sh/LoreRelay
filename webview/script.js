@@ -11675,8 +11675,8 @@ function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
   for (let i = 0; i < dotCount; i++) {
     const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
     dot.setAttribute('r', '2.6');
-    dot.setAttribute('cx', String(x1));
-    dot.setAttribute('cy', String(y1));
+    dot.setAttribute('cx', '0');
+    dot.setAttribute('cy', '0');
     const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
     motion.setAttribute('dur', `${duration.toFixed(2)}s`);
     motion.setAttribute('repeatCount', 'indefinite');

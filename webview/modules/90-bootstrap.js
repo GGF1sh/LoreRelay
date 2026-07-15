@@ -363,6 +363,9 @@ function applyExperienceProfile(profile) {
   document.body.classList.toggle('profile-parlor', experienceProfile === 'parlor');
   document.body.classList.toggle('profile-inworld', experienceProfile === 'inworld');
   document.body.classList.toggle('profile-campaign', experienceProfile === 'campaign');
+  if (typeof window.setParlorSettingsPanelAvailability === 'function') {
+    window.setParlorSettingsPanelAvailability(experienceProfile === 'parlor');
+  }
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
     profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : (experienceProfile === 'inworld' ? '🌐' : '⚔️');

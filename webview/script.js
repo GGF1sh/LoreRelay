@@ -14948,14 +14948,32 @@ window.addEventListener('DOMContentLoaded', () => {
         vscode.postMessage({ type: 'requestParlorSettings' });
         panel.classList.remove('hidden');
         panel.setAttribute('aria-hidden', 'false');
-        if (backdrop) backdrop.classList.remove('hidden');
+        if (backdrop) {
+            backdrop.classList.remove('hidden');
+            backdrop.setAttribute('aria-hidden', 'false');
+        }
+        if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus();
     }
 
-    function closePanel() {
+    function closePanel(options) {
         if (!panel) return;
+        const restoreFocus = !options || options.restoreFocus !== false;
+        const wasOpen = !panel.classList.contains('hidden');
         panel.classList.add('hidden');
         panel.setAttribute('aria-hidden', 'true');
-        if (backdrop) backdrop.classList.add('hidden');
+        if (backdrop) {
+            backdrop.classList.add('hidden');
+            backdrop.setAttribute('aria-hidden', 'true');
+        }
+        if (restoreFocus && wasOpen && settingsBtn && typeof settingsBtn.focus === 'function') {
+            settingsBtn.focus();
+        }
+    }
+
+    // Availability (the launcher is Parlor-only) and open state are separate.
+    // Leaving Parlor closes the surface; entering it never opens the surface.
+    function setPanelAvailability(isParlor) {
+        if (!isParlor) closePanel({ restoreFocus: false });
     }
 
     function showPersonaSaved() {
@@ -15055,6 +15073,12 @@ window.addEventListener('DOMContentLoaded', () => {
     if (settingsBtn) settingsBtn.addEventListener('click', openPanel);
     if (closeBtn) closeBtn.addEventListener('click', closePanel);
     if (backdrop) backdrop.addEventListener('click', closePanel);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && panel && !panel.classList.contains('hidden')) {
+            event.preventDefault();
+            closePanel();
+        }
+    });
 
     if (connSelect) {
         connSelect.addEventListener('change', () => {
@@ -15100,6 +15124,10 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    window.setParlorSettingsPanelAvailability = setPanelAvailability;
+    // A Webview reload must always start with this transient panel closed.
+    closePanel({ restoreFocus: false });
 })();
 
 /* --- 88-world-observatory.js --- */
@@ -16515,6 +16543,9 @@ function applyExperienceProfile(profile) {
   document.body.classList.toggle('profile-parlor', experienceProfile === 'parlor');
   document.body.classList.toggle('profile-inworld', experienceProfile === 'inworld');
   document.body.classList.toggle('profile-campaign', experienceProfile === 'campaign');
+  if (typeof window.setParlorSettingsPanelAvailability === 'function') {
+    window.setParlorSettingsPanelAvailability(experienceProfile === 'parlor');
+  }
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
     profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : (experienceProfile === 'inworld' ? '🌐' : '⚔️');

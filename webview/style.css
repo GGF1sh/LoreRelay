@@ -6532,6 +6532,7 @@ body[data-ui-theme="steampunk"] {
     text-align: left;
     border: 1px solid var(--vscode-panel-border);
     background: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
     border-radius: 4px;
     padding: 0.45rem 0.55rem;
     cursor: pointer;

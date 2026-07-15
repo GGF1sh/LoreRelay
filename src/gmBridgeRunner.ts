@@ -928,6 +928,35 @@ function endParlorLmSpinner(success: boolean): void {
     getPanel()?.webview.postMessage({ type: 'gmEnd', success });
 }
 
+function buildParlorVscodeLmSelector(
+    lmOptions?: VscodeLmProfileOptions
+): vscode.LanguageModelChatSelector {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    const vendor = (lmOptions?.vendor?.trim() || config.get<string>('gmBridge.vscodeLm.vendor', '').trim()) || undefined;
+    const family = (lmOptions?.family?.trim() || config.get<string>('gmBridge.vscodeLm.family', '').trim()) || undefined;
+    const modelId = (lmOptions?.model?.trim() || config.get<string>('gmBridge.vscodeLm.model', '').trim()) || undefined;
+    const selector: vscode.LanguageModelChatSelector = {};
+    if (vendor) { selector.vendor = vendor; }
+    if (family) { selector.family = family; }
+    if (modelId) { selector.id = modelId; }
+    return selector;
+}
+
+/** Count available vscode-lm models for Parlor preflight (no spinner, no request). */
+export async function countParlorVscodeLmModels(
+    lmOptions?: VscodeLmProfileOptions
+): Promise<number> {
+    try {
+        const selector = buildParlorVscodeLmSelector(lmOptions);
+        const models = await vscode.lm.selectChatModels(
+            Object.keys(selector).length ? selector : {}
+        );
+        return Array.isArray(models) ? models.length : 0;
+    } catch {
+        return 0;
+    }
+}
+
 export async function invokeParlorVscodeLm(
     userPrompt: string,
     lmOptions?: VscodeLmProfileOptions
@@ -947,16 +976,7 @@ export async function invokeParlorVscodeLm(
         return { ok: false, text: '' };
     }
 
-    const config = vscode.workspace.getConfiguration('textAdventure');
-    const vendor = (lmOptions?.vendor?.trim() || config.get<string>('gmBridge.vscodeLm.vendor', '').trim()) || undefined;
-    const family = (lmOptions?.family?.trim() || config.get<string>('gmBridge.vscodeLm.family', '').trim()) || undefined;
-    const modelId = (lmOptions?.model?.trim() || config.get<string>('gmBridge.vscodeLm.model', '').trim()) || undefined;
-
-    const selector: vscode.LanguageModelChatSelector = {};
-    if (vendor) { selector.vendor = vendor; }
-    if (family) { selector.family = family; }
-    if (modelId) { selector.id = modelId; }
-
+    const selector = buildParlorVscodeLmSelector(lmOptions);
     const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
     if (!models.length) {
         vscode.window.showErrorMessage(

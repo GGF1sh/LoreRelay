@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getCharactersDir, saveCharacter } from './characterManager';
+import { getCharactersDir, saveCharacter, setActiveCharacter } from './characterManager';
+import { resolveActiveIdAfterImport } from './parlorFirstUseCore';
 import { resolvePortraitPath } from './characterId';
 import type { CharacterProfile, CharacterBook, CharacterBookEntry } from './types/Character';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
@@ -194,6 +195,13 @@ export async function importTavernCard(): Promise<void> {
     }
 
     saveCharacter(profile);
+
+    // First-use path: imported character must become the persisted active selection
+    // so Parlor start / render / message submit all resolve the same id.
+    const activeId = resolveActiveIdAfterImport(profile.id);
+    if (activeId) {
+        setActiveCharacter(activeId);
+    }
 
     // -- character_book: extract embedded lorebook (V2/V3) --
     let lorebookImported = false;

@@ -11599,7 +11599,13 @@ function visibleLogisticsData(payload) {
 function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSpots) {
   const from = positions.get(route.fromNodeId);
   const to = positions.get(route.toNodeId);
-  if (!from || !to) { return; }
+  // Skip the entire route decoration until both endpoints have valid layout
+  // coordinates — never draw lines/markers/particles with missing positions.
+  if (!from || !to
+    || !Number.isFinite(from.x) || !Number.isFinite(from.y)
+    || !Number.isFinite(to.x) || !Number.isFinite(to.y)) {
+    return;
+  }
   const selected = economyLogisticsUiState.selection?.type === 'route' && economyLogisticsUiState.selection.id === route.id;
   const flowing = logisticsFlowMotionActive() && route.volume > 0;
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${flowing ? ' is-flowing' : ''}`);
@@ -11666,23 +11672,37 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
 
 /** Declarative SMIL particles (no rAF loop, no canonical state): 2 steady dots
  *  for open/strained flow, 1 sparse flickering dot for raided routes so a
- *  convoy under threat visibly reads as different from healthy flow. */
+ *  convoy under threat visibly reads as different from healthy flow.
+ *
+ *  Coordinates must be finite before any circle is created — never park a
+ *  particle at the SVG origin (0,0). Stagger uses a *negative* begin so the
+ *  animation is already mid-path on first paint; a positive begin left dots
+ *  sitting at cx/cy until the delay elapsed (visible flash outside nodes). */
 function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
+  if (![x1, y1, x2, y2].every((n) => typeof n === 'number' && Number.isFinite(n))) {
+    return;
+  }
+  if (x1 === x2 && y1 === y2) { return; }
   const duration = logisticsFlowDurationSeconds(route);
+  if (!(duration > 0) || !Number.isFinite(duration)) { return; }
   const pathD = `M ${x1},${y1} L ${x2},${y2}`;
   const dotCount = route.status === 'raided' ? 1 : 2;
   const stagger = logisticsHashUnit(route.id) * duration;
   for (let i = 0; i < dotCount; i++) {
     const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
     dot.setAttribute('r', '2.6');
-    dot.setAttribute('cx', '0');
-    dot.setAttribute('cy', '0');
+    // Fallback geometry at the route start if SMIL has not yet transformed the
+    // node (never use 0,0 — that is the SVG origin, left of the whole graph).
+    dot.setAttribute('cx', String(x1));
+    dot.setAttribute('cy', String(y1));
     const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
     motion.setAttribute('dur', `${duration.toFixed(2)}s`);
     motion.setAttribute('repeatCount', 'indefinite');
     motion.setAttribute('path', pathD);
-    const begin = (stagger + (i * duration) / dotCount) % duration;
-    motion.setAttribute('begin', `${begin.toFixed(2)}s`);
+    const phase = (stagger + (i * duration) / dotCount) % duration;
+    // Negative begin = animation already "running" at t=0 (mid-path), so the
+    // particle never waits at the static cx/cy for a delayed positive begin.
+    motion.setAttribute('begin', `-${phase.toFixed(2)}s`);
     dot.appendChild(motion);
     if (route.status === 'raided') {
       const flicker = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
@@ -11690,6 +11710,8 @@ function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
       flicker.setAttribute('values', '1;0.2;1;0.7;1');
       flicker.setAttribute('dur', `${(duration * 0.7).toFixed(2)}s`);
       flicker.setAttribute('repeatCount', 'indefinite');
+      // Match motion phase so flicker is also active from first paint.
+      flicker.setAttribute('begin', `-${phase.toFixed(2)}s`);
       dot.appendChild(flicker);
     }
     group.appendChild(dot);

@@ -1467,6 +1467,7 @@
   "webview.world.logisticsLightboxClose": "关闭",
   "webview.world.logisticsMissingDefinition": "此世界没有资源流定义。",
   "webview.world.logisticsNoRoutes": "已有资源流定义，但当前没有路线摘要。",
+  "webview.world.logisticsPreviewNote": "基于当前状态的预览；世界尚未推进。",
   "webview.world.logisticsNode": "节点",
   "webview.world.logisticsNodeFacility": "设施",
   "webview.world.logisticsNodeMarket": "市场",

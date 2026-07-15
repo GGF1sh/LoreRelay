@@ -591,6 +591,13 @@ function renderEconomyLogisticsPanel() {
     panel.appendChild(logisticsElement('div', 'logistics-empty', logisticsUnavailableText(payload.unavailableReason)));
     return;
   }
+  if (payload.snapshotSource === 'derived_preview') {
+    panel.appendChild(logisticsElement(
+      'div',
+      'logistics-preview-note',
+      T('webview.world.logisticsPreviewNote')
+    ));
+  }
   renderLogisticsSummary(payload, panel);
   renderLogisticsFilter(payload, panel);
   if (payload.unavailableReason === 'no_route_summaries') {

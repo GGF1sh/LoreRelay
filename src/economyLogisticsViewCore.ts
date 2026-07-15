@@ -16,7 +16,13 @@ export type EconomyLogisticsUnavailableReason =
     | 'commerce_disabled'
     | 'missing_definition'
     | 'snapshot_unavailable'
-    | 'no_route_summaries';
+    | 'no_route_summaries'
+    | 'derive_failed';
+
+/** How the flow payload for this view was obtained. */
+export type EconomyLogisticsSnapshotSource =
+    | 'committed_tick'
+    | 'derived_preview';
 
 export interface EconomyLogisticsCommodityView {
     id: string;
@@ -88,6 +94,8 @@ export interface EconomyLogisticsProcessingSiteView {
 export interface EconomyLogisticsViewModel {
     available: boolean;
     unavailableReason?: EconomyLogisticsUnavailableReason;
+    /** Present when flow data was resolved from a committed tick or cold-start preview. */
+    snapshotSource?: EconomyLogisticsSnapshotSource;
     worldTurn?: number;
     commodities: EconomyLogisticsCommodityView[];
     nodes: EconomyLogisticsNodeView[];
@@ -111,6 +119,7 @@ export interface EconomyLogisticsViewInput {
     definition?: EconomyFlowDefinition | null;
     flow?: EconomyFlowTickResult | null;
     processing?: EconomyProcessingTickResult | null;
+    snapshotSource?: EconomyLogisticsSnapshotSource;
 }
 
 const VALID_NODE_KINDS = new Set<EconomyNodeKind>([
@@ -385,6 +394,7 @@ export function buildEconomyLogisticsViewModel(
     const result: EconomyLogisticsViewModel = {
         available: true,
         ...(routes.length === 0 ? { unavailableReason: 'no_route_summaries' as const } : {}),
+        ...(input.snapshotSource ? { snapshotSource: input.snapshotSource } : {}),
         ...(worldTurn !== undefined ? { worldTurn } : {}),
         commodities,
         nodes: [...nodeById.values()].sort((a, b) => compareId(a.id, b.id)),

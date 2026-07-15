@@ -1467,6 +1467,7 @@
   "webview.world.logisticsLightboxClose": "Close",
   "webview.world.logisticsMissingDefinition": "This world has no resource flow definition.",
   "webview.world.logisticsNoRoutes": "Flow data exists, but there are no current route summaries.",
+  "webview.world.logisticsPreviewNote": "Preview based on current state; the world has not advanced.",
   "webview.world.logisticsNode": "Node",
   "webview.world.logisticsNodeFacility": "Facility",
   "webview.world.logisticsNodeMarket": "Market",

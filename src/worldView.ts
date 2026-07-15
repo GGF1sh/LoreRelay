@@ -53,7 +53,7 @@ import { getCampaignKitPath } from './campaignKit';
 import { livingWorldEnabled } from './livingWorldBridge';
 import { readDomainFromGameState } from './domainTurnOps';
 import { readGuildFromGameState } from './guildTurnOps';
-import { buildMarketPriceTable } from './commerceCore';
+import { buildMarketPriceTable, initializeMarketState } from './commerceCore';
 import {
     resolveCommerceForge,
     ensureLivingWorldMarkets,
@@ -61,7 +61,11 @@ import {
     npcRelationshipsEnabled,
 } from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
-import { buildEconomyLogisticsViewModel } from './economyLogisticsViewCore';
+import {
+    buildEconomyLogisticsViewModel,
+    type EconomyLogisticsSnapshotSource,
+} from './economyLogisticsViewCore';
+import { deriveEconomyLogisticsPreview } from './economyLogisticsPreviewCore';
 import { listNotableRelationships, applyIntroductionTrustBoost } from './npcRelationshipCore';
 import { deepestMilestone } from './npcLifeEventsCore';
 import { listPlayerBondStandings } from './playerBondCore';
@@ -648,13 +652,41 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const economyTickSnapshot = commerceForge?.resourceFlows
         ? getLatestEconomyTickSnapshot(forge.meta.worldName ?? '', commerceForge.resourceFlows)
         : undefined;
+    // Cold-start: committed tick snapshot wins; otherwise pure derive from opening markets.
+    let logisticsFlow = economyTickSnapshot?.economyFlow ?? null;
+    let logisticsProcessing = economyTickSnapshot?.economyProcessing ?? null;
+    let logisticsWorldTurn = economyTickSnapshot?.worldTurn;
+    let logisticsSnapshotSource: EconomyLogisticsSnapshotSource | undefined;
+    if (economyTickSnapshot?.economyFlow) {
+        logisticsSnapshotSource = 'committed_tick';
+    } else if (
+        gameRules.enableCommerce === true
+        && commerceForge?.resourceFlows
+    ) {
+        const openingMarkets: MarketStateMap = worldState
+            ? ensureLivingWorldMarkets(commerceForge, worldState as any)
+            : initializeMarketState(commerceForge);
+        const preview = deriveEconomyLogisticsPreview({
+            forge: commerceForge,
+            definition: commerceForge.resourceFlows,
+            markets: openingMarkets,
+            worldTurn,
+        });
+        if (preview.ok) {
+            logisticsFlow = preview.economyFlow;
+            logisticsProcessing = preview.economyProcessing;
+            logisticsWorldTurn = preview.worldTurn;
+            logisticsSnapshotSource = 'derived_preview';
+        }
+    }
     const economyLogistics = buildEconomyLogisticsViewModel({
         commerceEnabled: gameRules.enableCommerce === true,
-        worldTurn: economyTickSnapshot?.worldTurn,
+        worldTurn: logisticsWorldTurn,
         commodities: commerceForge?.commodities,
         definition: commerceForge?.resourceFlows,
-        flow: economyTickSnapshot?.economyFlow,
-        processing: economyTickSnapshot?.economyProcessing,
+        flow: logisticsFlow,
+        processing: logisticsProcessing,
+        snapshotSource: logisticsSnapshotSource,
     });
 
     // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).

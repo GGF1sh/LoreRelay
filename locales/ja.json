@@ -1467,6 +1467,7 @@
   "webview.world.logisticsLightboxClose": "閉じる",
   "webview.world.logisticsMissingDefinition": "この世界には資源フロー定義がありません。",
   "webview.world.logisticsNoRoutes": "フロー定義はありますが、現在のルート集計はありません。",
+  "webview.world.logisticsPreviewNote": "現在の状態に基づくプレビューです。世界はまだ進んでいません。",
   "webview.world.logisticsNode": "ノード",
   "webview.world.logisticsNodeFacility": "施設",
   "webview.world.logisticsNodeMarket": "市場",

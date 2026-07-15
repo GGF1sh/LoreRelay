@@ -128,6 +128,11 @@ export interface WebviewHandlerDeps {
     sendParlorSettingsToWebview(): void;
     handleSetParlorConnectionProfile(profileId: string): void;
     handleSaveParlorPersona(raw: unknown): void;
+    handleSelectParlorPersonaPreset(id: string | null): void;
+    handleSaveNewParlorPersonaPreset(raw: unknown, meta?: unknown): void;
+    handleUpdateParlorPersonaPreset(id: string, raw: unknown): void;
+    handleCreateParlorPersonaFromCharacter(): Promise<void>;
+    handleImportParlorPersonaJson(): Promise<void>;
     handleSetParlorBackground(backgroundId: string | null): void;
     handlePromoteParlor(intent?: 'auto' | 'resume' | 'fresh'): Promise<void>;
     handlePreviewGmTurnTransactionPlan(): Promise<void>;
@@ -623,6 +628,25 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'saveParlorPersona':
             deps.handleSaveParlorPersona(message.persona);
+            break;
+        case 'selectParlorPersonaPreset':
+            if (message.id === null || typeof message.id === 'string') {
+                deps.handleSelectParlorPersonaPreset(message.id);
+            }
+            break;
+        case 'saveNewParlorPersonaPreset':
+            deps.handleSaveNewParlorPersonaPreset(message.persona, message.meta);
+            break;
+        case 'updateParlorPersonaPreset':
+            if (typeof message.id === 'string') {
+                deps.handleUpdateParlorPersonaPreset(message.id, message.persona);
+            }
+            break;
+        case 'createParlorPersonaFromCharacter':
+            await deps.handleCreateParlorPersonaFromCharacter();
+            break;
+        case 'importParlorPersonaJson':
+            await deps.handleImportParlorPersonaJson();
             break;
         case 'setParlorBackground': {
             const bgId = message.backgroundId;

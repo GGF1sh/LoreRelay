@@ -14988,7 +14988,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const personaName = document.getElementById('parlor-persona-name');
     const personaDesc = document.getElementById('parlor-persona-description');
     const personaStyle = document.getElementById('parlor-persona-style');
-    const personaSaveBtn = document.getElementById('parlor-persona-save-btn');
+    const personaPresetSelect = document.getElementById('parlor-persona-preset-select');
+    const personaFromCharacterBtn = document.getElementById('parlor-persona-from-character-btn');
+    const personaImportJsonBtn = document.getElementById('parlor-persona-import-json-btn');
+    const personaApplyBtn = document.getElementById('parlor-persona-apply-btn');
+    const personaSaveNewBtn = document.getElementById('parlor-persona-save-new-btn');
+    const personaUpdateBtn = document.getElementById('parlor-persona-update-btn');
     const personaSaved = document.getElementById('parlor-persona-saved');
     const bgGallery = document.getElementById('parlor-bg-gallery');
     const bgHint = document.getElementById('parlor-bg-hint');
@@ -15002,6 +15007,8 @@ window.addEventListener('DOMContentLoaded', () => {
     let activeConnectionId = '';
     let activeBackgroundId = null;
     let activeCharacterId = null;
+    let activePersonaId = null;
+    let personaDraftMeta = null;
     let personaSaveTimeout = null;
     let campaignTransition = {
         hasGameState: false,
@@ -15107,6 +15114,35 @@ window.addEventListener('DOMContentLoaded', () => {
         if (personaName) personaName.value = p.name || '';
         if (personaDesc) personaDesc.value = p.description || '';
         if (personaStyle) personaStyle.value = p.speakingStyle || '';
+    }
+
+    function personaDraft() {
+        return {
+            name: personaName ? personaName.value.trim() : '',
+            description: personaDesc ? personaDesc.value.trim() : '',
+            speakingStyle: personaStyle ? personaStyle.value.trim() : '',
+        };
+    }
+
+    function renderPersonaPresets(presets, selectedId) {
+        if (!personaPresetSelect) return;
+        const list = Array.isArray(presets) ? presets : [];
+        activePersonaId = selectedId || null;
+        personaPresetSelect.innerHTML = '';
+        const current = document.createElement('option');
+        current.value = '';
+        current.textContent = typeof T === 'function' ? T('webview.parlor.personaCurrent') : 'Current persona';
+        personaPresetSelect.appendChild(current);
+        for (const preset of list) {
+            const option = document.createElement('option');
+            option.value = preset.id;
+            option.textContent = preset.sourceLabel
+                ? `${preset.displayName || preset.id} — ${preset.sourceLabel}`
+                : (preset.displayName || preset.id);
+            personaPresetSelect.appendChild(option);
+        }
+        personaPresetSelect.value = activePersonaId || '';
+        if (personaUpdateBtn) personaUpdateBtn.disabled = !activePersonaId;
     }
 
     function renderBackgroundGallery(backgrounds, activeId) {
@@ -15220,6 +15256,8 @@ window.addEventListener('DOMContentLoaded', () => {
         renderCharacters(msg.characters, msg.activeCharacterId);
         renderConnectionProfiles(msg.connectionProfiles, msg.activeConnectionId);
         renderPersona(msg.persona);
+        renderPersonaPresets(msg.personaPresets, msg.activePersonaId);
+        personaDraftMeta = null;
         renderBackgroundGallery(msg.backgrounds, msg.activeBackgroundId);
         renderCampaignTransition(msg.campaignTransition);
     }
@@ -15240,6 +15278,43 @@ window.addEventListener('DOMContentLoaded', () => {
             if (id && id !== activeConnectionId) {
                 vscode.postMessage({ type: 'setParlorConnectionProfile', profileId: id });
             }
+        });
+    }
+
+    if (personaPresetSelect) {
+        personaPresetSelect.addEventListener('change', () => {
+            vscode.postMessage({ type: 'selectParlorPersonaPreset', id: personaPresetSelect.value || null });
+        });
+    }
+
+    if (personaFromCharacterBtn) {
+        personaFromCharacterBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'createParlorPersonaFromCharacter' });
+        });
+    }
+
+    if (personaImportJsonBtn) {
+        personaImportJsonBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'importParlorPersonaJson' });
+        });
+    }
+
+    if (personaApplyBtn) {
+        personaApplyBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'saveParlorPersona', persona: personaDraft() });
+        });
+    }
+
+    if (personaSaveNewBtn) {
+        personaSaveNewBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'saveNewParlorPersonaPreset', persona: personaDraft(), meta: personaDraftMeta });
+        });
+    }
+
+    if (personaUpdateBtn) {
+        personaUpdateBtn.addEventListener('click', () => {
+            if (!activePersonaId) return;
+            vscode.postMessage({ type: 'updateParlorPersonaPreset', id: activePersonaId, persona: personaDraft() });
         });
     }
 
@@ -15288,24 +15363,13 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (personaSaveBtn) {
-        personaSaveBtn.addEventListener('click', () => {
-            vscode.postMessage({
-                type: 'saveParlorPersona',
-                persona: {
-                    name: personaName ? personaName.value.trim() : '',
-                    description: personaDesc ? personaDesc.value.trim() : '',
-                    speakingStyle: personaStyle ? personaStyle.value.trim() : '',
-                },
-            });
-            showPersonaSaved();
-        });
-    }
-
     window.addEventListener('message', (event) => {
         const msg = event.data;
         if (msg.type === 'parlorSettings') {
             applyParlorSettings(msg);
+        } else if (msg.type === 'parlorPersonaDraft') {
+            renderPersona(msg.persona);
+            personaDraftMeta = msg.meta || null;
         } else if (msg.type === 'parlorBackground') {
             if (msg.uri) {
                 applyParlorBackground(msg.uri);

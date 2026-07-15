@@ -1002,14 +1002,23 @@
       <select id="parlor-connection-select" class="img-gen-input"></select>
 
       <h4 data-i18n="webview.parlor.personaTitle">Player Persona</h4>
-      <p class="img-gen-hint" data-i18n="webview.parlor.personaHint">Optional roleplay context injected into Parlor prompts. Saved to persona.json.</p>
+      <p class="img-gen-hint" data-i18n="webview.parlor.personaIdentityHint">This is who you roleplay as, not the character you are talking to.</p>
+      <select id="parlor-persona-preset-select" class="img-gen-input"></select>
+      <div class="img-gen-row">
+        <button type="button" id="parlor-persona-from-character-btn" class="glass-btn" data-i18n="webview.parlor.personaFromCharacter">Create from Imported Character…</button>
+        <button type="button" id="parlor-persona-import-json-btn" class="glass-btn" data-i18n="webview.parlor.personaImportJson">Load Persona JSON…</button>
+      </div>
       <label for="parlor-persona-name" data-i18n="webview.parlor.personaName">Name</label>
       <input type="text" id="parlor-persona-name" class="img-gen-input" maxlength="80" data-i18n-placeholder="webview.parlor.personaNamePlaceholder" placeholder="Your character name" />
       <label for="parlor-persona-description" data-i18n="webview.parlor.personaDescription">Description</label>
       <textarea id="parlor-persona-description" class="img-gen-textarea" rows="3" data-i18n-placeholder="webview.parlor.personaDescriptionPlaceholder" placeholder="Appearance, background, traits…"></textarea>
       <label for="parlor-persona-style" data-i18n="webview.parlor.personaStyle">Speaking style</label>
       <textarea id="parlor-persona-style" class="img-gen-textarea" rows="2" data-i18n-placeholder="webview.parlor.personaStylePlaceholder" placeholder="Tone, quirks, speech patterns…"></textarea>
-      <button type="button" id="parlor-persona-save-btn" class="glass-btn" data-i18n="webview.parlor.personaSave">Save persona</button>
+      <div class="img-gen-row">
+        <button type="button" id="parlor-persona-apply-btn" class="glass-btn" data-i18n="webview.parlor.personaApply">Apply Current Persona</button>
+        <button type="button" id="parlor-persona-save-new-btn" class="glass-btn" data-i18n="webview.parlor.personaSaveNew">Save as New Preset</button>
+        <button type="button" id="parlor-persona-update-btn" class="glass-btn" data-i18n="webview.parlor.personaUpdate">Update Selected Preset</button>
+      </div>
       <div id="parlor-persona-saved" class="parlor-persona-saved hidden" data-i18n="webview.parlor.personaSaved">Saved</div>
 
       <h4 data-i18n="webview.parlor.backgroundTitle">Background</h4>

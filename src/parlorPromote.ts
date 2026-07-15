@@ -6,6 +6,7 @@ import type { GameRules } from './gameRules';
 import { getActiveCharacterProfile, getCharacters } from './characterManager';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { loadParlorSession } from './parlorSession';
+import { getCharacterParlorSessionFilename } from './parlorSessionCore';
 import { loadPlayerPersona } from './persona';
 import { runParlorPromoteCore } from './parlorPromoteCore';
 import { loadExperienceConfig, saveExperienceConfig } from './experience';
@@ -167,7 +168,7 @@ export async function promoteParlorToCampaign(): Promise<PromoteParlorResult> {
         campaign: { frozenAt: null },
         lastParlorSnapshot: {
             promotedAt: new Date().toISOString(),
-            parlorSessionPath: 'parlor_session.json',
+            parlorSessionPath: getCharacterParlorSessionFilename(character.id),
             characterId: character.id,
         },
     });

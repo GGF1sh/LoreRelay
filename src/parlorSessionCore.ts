@@ -178,3 +178,24 @@ export function recentParlorMessagesForPrompt(
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .slice(-Math.max(1, maxMessages));
 }
+
+/** Filename for a character-owned Parlor transcript. */
+export function getCharacterParlorSessionFilename(characterId: string): string | undefined {
+    if (!isValidCharacterId(characterId)) {
+        return undefined;
+    }
+    return `parlor_session.${characterId}.json`;
+}
+
+/**
+ * The former shared transcript is only safe to read when it explicitly names
+ * the requested character. Old files with no owner are deliberately ignored:
+ * assigning their history to whichever character was opened last would leak a
+ * different character's conversation.
+ */
+export function legacyParlorSessionBelongsToCharacter(raw: unknown, characterId: string): boolean {
+    if (!isValidCharacterId(characterId) || !raw || typeof raw !== 'object') {
+        return false;
+    }
+    return (raw as Record<string, unknown>).activeCharacterId === characterId;
+}

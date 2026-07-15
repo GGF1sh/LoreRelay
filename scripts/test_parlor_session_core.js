@@ -33,6 +33,8 @@ const {
     parseParlorSession,
     MAX_PARLOR_MESSAGES,
     clampParlorContent,
+    getCharacterParlorSessionFilename,
+    legacyParlorSessionBelongsToCharacter,
 } = core;
 
 let failed = 0;
@@ -72,6 +74,27 @@ function fail(m) { console.error(`FAIL: ${m}`); failed++; }
     const parsed = parseParlorSession({ activeCharacterId: '../evil', messages: [] }, 'elda');
     if (!parsed) { ok('reject bad character id in file'); }
     else { fail('reject bad character id in file'); }
+}
+
+// Cross-character safety: session storage is character-scoped, and the old
+// shared file must not be assigned to a different active character.
+{
+    const aFile = getCharacterParlorSessionFilename('alice');
+    const bFile = getCharacterParlorSessionFilename('bob');
+    const aLegacy = { activeCharacterId: 'alice', messages: [{ role: 'assistant', content: 'A greeting' }] };
+    if (aFile !== 'parlor_session.alice.json' || bFile !== 'parlor_session.bob.json' || aFile === bFile) {
+        fail('character session filenames must be distinct');
+    } else if (!legacyParlorSessionBelongsToCharacter(aLegacy, 'alice')) {
+        fail('legacy session should remain available to its recorded character');
+    } else if (legacyParlorSessionBelongsToCharacter(aLegacy, 'bob')) {
+        fail('A legacy session must not be presented as B');
+    } else if (legacyParlorSessionBelongsToCharacter({ messages: [] }, 'alice')) {
+        fail('ownerless legacy session must not be assigned to active character');
+    } else if (getCharacterParlorSessionFilename('../evil') !== undefined) {
+        fail('unsafe character id must not produce a filename');
+    } else {
+        ok('cross-character Parlor sessions remain isolated');
+    }
 }
 
 if (failed) {

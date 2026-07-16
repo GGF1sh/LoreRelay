@@ -234,8 +234,15 @@ function renderWorldView(msg) {
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
     _settlementWorldMsg = msg;
-    syncSettlementMapModeUi(msg);
     _dioramaWorldMsg = msg;
+    // SETTLEMENT-VIEW-SOURCE-001: normalize fixed vs Mobile Base choice before drawing.
+    if (typeof onSettlementRenderSourceWorldMsg === 'function') {
+        onSettlementRenderSourceWorldMsg(msg);
+    }
+    if (typeof renderSettlementSourceSelector === 'function') {
+        renderSettlementSourceSelector(msg);
+    }
+    syncSettlementMapModeUi(msg);
     syncDioramaMapModeUi(msg);
     syncWorldPinSelectionUi();
 

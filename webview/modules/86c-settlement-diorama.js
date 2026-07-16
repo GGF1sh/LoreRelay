@@ -142,9 +142,9 @@ function getMobileBaseInteriorDiorama(msg) {
 
 function getDioramaSnapshot() {
     const msg = _dioramaWorldMsg;
-    const interior = getMobileBaseInteriorDiorama(msg);
-    if (interior && interior.settlementDiorama) {
-        return interior.settlementDiorama;
+    // SETTLEMENT-VIEW-SOURCE-001: same logical source as 2D settlement view.
+    if (typeof getSelectedSettlementDiorama === 'function') {
+        return getSelectedSettlementDiorama(msg);
     }
     return msg && msg.settlementDiorama ? msg.settlementDiorama : null;
 }
@@ -758,6 +758,9 @@ function renderSettlementDiorama() {
     const msg = _dioramaWorldMsg;
     const snapshot = getDioramaSnapshot();
     const flagOn = Boolean(msg && msg.enableSettlementDiorama === true);
+    if (typeof renderSettlementSourceSelector === 'function') {
+        renderSettlementSourceSelector(msg);
+    }
     if (typeof renderSettlementFocusBanner === 'function') {
         renderSettlementFocusBanner(msg, { prefix: 'diorama' });
     }

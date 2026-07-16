@@ -233,19 +233,19 @@ function getMobileBaseInterior(msg) {
 
 function getSettlementSnapshot() {
     const msg = _settlementWorldMsg;
-    const interior = getMobileBaseInterior(msg);
-    if (interior && interior.settlementView) {
-        return interior.settlementView;
+    // SETTLEMENT-VIEW-SOURCE-001: shared fixed vs Mobile Base selection (never silent MB override).
+    if (typeof getSelectedSettlementView === 'function') {
+        return getSelectedSettlementView(msg);
     }
+    // Fallback if shared helper not loaded (should not happen after build).
     return msg && msg.settlementView ? msg.settlementView : null;
 }
 
-/** M4c: read-only ghost previews computed by the host (applyExpandLayerToLayout). Never written by the Webview. */
+/** M4c: read-only ghost previews — same logical source as settlementView. */
 function getSettlementExpansionPreviews() {
     const msg = _settlementWorldMsg;
-    const interior = getMobileBaseInterior(msg);
-    if (interior && Array.isArray(interior.settlementExpansionPreviews)) {
-        return interior.settlementExpansionPreviews;
+    if (typeof getSelectedSettlementExpansionPreviews === 'function') {
+        return getSelectedSettlementExpansionPreviews(msg);
     }
     return msg && Array.isArray(msg.settlementExpansionPreviews) ? msg.settlementExpansionPreviews : [];
 }
@@ -254,8 +254,13 @@ function renderMobileBaseInteriorBanner(msg, view) {
     const banner = document.getElementById('world-settlement-mobile-base-banner');
     if (!banner) { return; }
     const interior = getMobileBaseInterior(msg);
+    // Banner only while the selected source is Mobile Base and snapshot IDs match.
+    const mbSelected = typeof isMobileBaseRenderSourceSelected === 'function'
+        ? isMobileBaseRenderSourceSelected(msg)
+        : false;
     const show = Boolean(
-        interior
+        mbSelected
+        && interior
         && interior.hasCanvas
         && view
         && view.settlementId === interior.settlementId
@@ -874,6 +879,9 @@ function drawSettlementIsometric() {
 
     const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
+    if (typeof renderSettlementSourceSelector === 'function') {
+        renderSettlementSourceSelector(msg);
+    }
     renderSettlementFocusBanner(msg, { prefix: 'settlement' });
     if (empty) {
         const showEmpty = !view;

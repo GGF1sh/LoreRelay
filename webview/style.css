@@ -6922,21 +6922,26 @@ body.vscode-high-contrast {
 /* =========================================================
    Top Inspector tab strip
    ========================================================= */
+/* Keep one horizontally scrollable row (restores 10-layout-chat nowrap contract).
+ * Fable's 3-row wrap was amplified by missing JA locale keys + wrap:wrap regression. */
 #status-area #status-tabs.tabs-header,
 #status-area #status-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 0;
-  padding: 6px 6px 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0;
+  padding: 4px 6px 0;
   margin: 0;
   background: color-mix(in srgb, var(--vr-ink-surface-chrome) 70%, #000 30%);
   border-bottom: 1px solid var(--vr-ink-border-soft);
-  row-gap: 0;
+  scrollbar-width: thin;
 }
 
 #status-area #status-tabs .tab-btn {
   position: relative;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  flex-shrink: 0;
   min-height: 30px;
   padding: 6px 10px 8px;
   margin: 0 1px;
@@ -6949,6 +6954,7 @@ body.vscode-high-contrast {
   letter-spacing: 0.01em;
   box-shadow: none;
   opacity: 1;
+  white-space: nowrap;
 }
 
 #status-area #status-tabs .tab-btn .tab-icon {
@@ -7167,6 +7173,13 @@ body.vscode-high-contrast {
   margin-bottom: 0;
   color: var(--vscode-foreground);
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  /* Prevent badge/name from painting past the card edge in narrow garage columns */
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  align-items: stretch;
 }
 
 #pane-vehicles .vehicle-list-item:hover {
@@ -7203,6 +7216,23 @@ body.vscode-high-contrast {
   font-weight: 700;
   color: var(--vscode-foreground);
   font-size: 12.5px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* List-item badge is a direct child of the column flex button (e.g. River Barge / モバイルベース) */
+#pane-vehicles .vehicle-list-item > .vehicle-badge {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: flex-start;
 }
 
 #pane-vehicles .vehicle-list-meta {
@@ -7210,10 +7240,28 @@ body.vscode-high-contrast {
   opacity: 1;
   font-weight: 500;
   font-size: 11px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #pane-vehicles .vehicle-list-item.is-here .vehicle-list-meta::after {
   color: var(--vr-ink-accent-success);
+}
+
+/* Garage grid: children must be allowed to shrink inside the 420px inspector */
+#pane-vehicles .vehicle-garage-layout {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-garage-layout > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 #pane-vehicles .vehicle-detail-card,
@@ -7223,6 +7271,10 @@ body.vscode-high-contrast {
   border-radius: 10px;
   padding: 14px;
   box-shadow: none;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 #pane-vehicles .vehicle-detail-card {
@@ -7232,6 +7284,71 @@ body.vscode-high-contrast {
 #pane-vehicles .mobile-base-panel-card {
   border-top: 2px solid color-mix(in srgb, var(--vr-ink-accent-lantern) 55%, transparent);
   margin-top: 12px;
+}
+
+/* Bars / intent rows: keep content inside card padding without clipping focus outlines */
+#pane-vehicles .vehicle-stat-row,
+#pane-vehicles .vehicle-bar-row,
+#pane-vehicles .vehicle-intent-preview,
+#pane-vehicles .vehicle-intent-rows,
+#pane-vehicles .vehicle-detail-header,
+#pane-vehicles .vehicle-detail-sub {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-bar-row {
+  width: 100%;
+  grid-template-columns: minmax(0, 4.5rem) minmax(0, 1fr) auto;
+}
+
+#pane-vehicles .vehicle-bar-track {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-bar-label,
+#pane-vehicles .vehicle-bar-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-stat-row span:last-child {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-intent-row {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+#pane-vehicles .vehicle-intent-action {
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-intent-status-text {
+  min-width: 0;
+  flex: 1 1 8rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-detail-title {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 #pane-vehicles .vehicle-detail-title {

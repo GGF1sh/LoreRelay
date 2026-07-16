@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * SETTLEMENT-2D-FRAMING-001 — pure projected-bounds / fit tests.
+ * SETTLEMENT-2D-FRAMING-001 + CENTERING-002 — projected-bounds / fit / centre tests.
  */
 
 const path = require('path');
@@ -17,11 +17,22 @@ function check(c, m) { if (c) ok(m); else fail(m); }
 const {
     computeSettlementProjectedContentBounds,
     computeSettlementFitTransform,
+    computeSettlementScreenLayout,
     isSettlementTransformMeaningfullyVisible,
+    contentToScreen,
     isoProjectRaw,
     ISO_TILE_W,
     ISO_TILE_H,
 } = geo;
+
+function assertCentred(layout, label, minPad = 18) {
+    check(layout && layout.crossingLeft === 0 && layout.crossingRight === 0
+        && layout.crossingTop === 0 && layout.crossingBottom === 0, `${label} no edge crossing`);
+    check(layout.leftSlack >= minPad && layout.rightSlack >= minPad
+        && layout.topSlack >= minPad && layout.bottomSlack >= minPad, `${label} min pad ${minPad}`);
+    check(Math.abs(layout.leftSlack - layout.rightSlack) <= 3, `${label} L/R symmetric`);
+    check(Math.abs(layout.topSlack - layout.bottomSlack) <= 3, `${label} T/B symmetric`);
+}
 
 function viewFromTiles(tiles, markers = [], over = {}) {
     return {
@@ -253,6 +264,179 @@ const canvas = { width: 266, height: 192 };
     const content = computeSettlementProjectedContentBounds(v);
     const declaredW = (24 + 24) * (ISO_TILE_W / 2);
     check(content.width < declaredW * 0.6, 'diag: content width << declared bounds (DECLARED_BOUNDS_MISMATCH)');
+}
+
+// ---- CENTERING-002 ----
+
+// C1–C4 Port: no clip, symmetric, water-edge inside
+{
+    const tiles = [];
+    for (let x = 0; x <= 7; x++) {
+        for (let y = 0; y <= 7; y++) {
+            if ((x + y) % 2 === 0) tiles.push(tile(x, y, 'market'));
+        }
+    }
+    // water edge along bottom-right of cluster
+    for (let x = 0; x <= 4; x++) tiles.push(tile(x, 7, 'water'));
+    const v = viewFromTiles(tiles, [marker(0, 0)], { settlementId: 'set_sapphire_port', width: 24, height: 24 });
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    assertCentred(layout, 'C1-4 Port');
+    check(layout.centersInside > 0, 'C4 Port water/tiles have centres inside');
+}
+
+// C5 Glass Oasis centre
+{
+    const tiles = [
+        tile(4, 4, 'water'), tile(4, 3, 'market'), tile(5, 4, 'market'), tile(3, 4, 'market'),
+        tile(4, 5, 'market'), tile(4, 1, 'quarters'), tile(7, 4, 'quarters'),
+        tile(4, 7, 'quarters'), tile(1, 4, 'quarters'),
+    ];
+    const v = viewFromTiles(tiles, [marker(4, 4)], { settlementId: 'set_glass_oasis' });
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    assertCentred(layout, 'C5 Glass Oasis');
+    const centre = isoProjectRaw(4, 4, 0);
+    const sc = contentToScreen(centre.sx, centre.sy, fit.pan.x, fit.pan.y, fit.zoom,
+        layout.contentBounds.centerX, layout.contentBounds.centerY);
+    check(sc.x > 40 && sc.x < canvas.width - 40 && sc.y > 40 && sc.y < canvas.height - 40,
+        'C5 Oasis centre well inside viewport');
+}
+
+// C6 Watchkeep wall tops
+{
+    const tiles = [];
+    for (let i = 0; i < 7; i++) {
+        tiles.push(tile(i, 0, 'wall'));
+        tiles.push(tile(0, i, 'wall'));
+        tiles.push(tile(i, 5, 'wall'));
+        tiles.push(tile(6, i, 'wall'));
+    }
+    tiles.push(tile(3, 2, 'barracks'));
+    const v = viewFromTiles(tiles, [marker(3, 1)], { settlementId: 'set_watchkeep' });
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    assertCentred(layout, 'C6 Watchkeep');
+    check(layout.topSlack >= 18, 'C6 wall tops have top pad');
+}
+
+// C7 marker bubble at min X
+{
+    const v = viewFromTiles([tile(0, 3, 'floor'), tile(5, 3, 'floor')], [marker(0, 3)]);
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    check(layout.crossingLeft === 0 && layout.leftSlack >= 18, 'C7 min-X marker bubble not clipped');
+}
+
+// C8 tall wall at min Y
+{
+    const v = viewFromTiles([tile(3, 0, 'wall'), tile(3, 4, 'floor')]);
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    check(layout.crossingTop === 0 && layout.topSlack >= 18, 'C8 tall wall min-Y not clipped');
+}
+
+// C9 negative coords centre
+{
+    const v = viewFromTiles([tile(-4, -2, 'floor'), tile(2, 3, 'market')]);
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    assertCentred(computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom), 'C9 negative coords');
+}
+
+// C10 beyond declared dims centre
+{
+    const v = viewFromTiles([tile(0, 0, 'floor'), tile(20, 18, 'wall')], [], { width: 8, height: 8 });
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    assertCentred(computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom), 'C10 beyond declared');
+}
+
+// C11 sparse Mistgrove centres (not upper-left)
+{
+    const tiles = [
+        tile(0, 0, 'quarters'), tile(7, 1, 'quarters'), tile(1, 7, 'quarters'),
+        tile(4, 4, 'shrine'), tile(6, 6, 'clinic'),
+    ];
+    const v = viewFromTiles(tiles, [marker(3, 3)], { settlementId: 'set_mistgrove' });
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    assertCentred(layout, 'C11 Mistgrove');
+    const cx = (layout.screenBounds.minX + layout.screenBounds.maxX) / 2;
+    const cy = (layout.screenBounds.minY + layout.screenBounds.maxY) / 2;
+    check(Math.abs(cx - canvas.width / 2) <= 3 && Math.abs(cy - canvas.height / 2) <= 3,
+        'C11 Mistgrove content centre near canvas centre');
+}
+
+// C12 compact Ironspire centres
+{
+    const tiles = [tile(2, 2, 'workshop'), tile(3, 2, 'workshop'), tile(4, 2, 'stockpile'), tile(2, 3, 'barracks')];
+    const v = viewFromTiles(tiles, [], { settlementId: 'set_ironspire' });
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const layout = computeSettlementScreenLayout(v, canvas, fit.pan, fit.zoom);
+    assertCentred(layout, 'C12 Ironspire');
+}
+
+// C13–C14 source-independent fits
+{
+    const fixed = viewFromTiles([tile(0, 0, 'market'), tile(4, 4, 'water')], [], { settlementId: 'set_port' });
+    const mb = viewFromTiles([tile(0, 0, 'floor'), tile(1, 1, 'quarters')], [], { settlementId: 'mb_barge' });
+    const fitF = computeSettlementFitTransform(fixed, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const fitM = computeSettlementFitTransform(mb, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    assertCentred(computeSettlementScreenLayout(fixed, canvas, fitF.pan, fitF.zoom), 'C13 fixed');
+    assertCentred(computeSettlementScreenLayout(mb, canvas, fitM.pan, fitM.zoom), 'C14 mobile base');
+}
+
+// C15 layer change centres active layer
+{
+    const z1 = viewFromTiles([tile(1, 1, 'workshop', 1), tile(3, 2, 'quarters', 1)], [], { layerId: 'z1' });
+    const fit = computeSettlementFitTransform(z1, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    assertCentred(computeSettlementScreenLayout(z1, canvas, fit.pan, fit.zoom), 'C15 layer z1');
+}
+
+// C16 valid mild user pan remains ok (min pad 12 for retention)
+{
+    const v = viewFromTiles([tile(1, 1, 'market'), tile(2, 2, 'water'), tile(3, 1, 'workshop')]);
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const userPan = { x: fit.pan.x + 8, y: fit.pan.y - 6 };
+    const vis = isSettlementTransformMeaningfullyVisible(v, canvas, userPan, fit.zoom, { minPadding: 12 });
+    check(vis.ok, 'C16 mild user pan retained');
+}
+
+// C17 old incompatible pan=0 zoom=1 rejected for Port-like declared mismatch
+{
+    const tiles = [];
+    for (let x = 0; x <= 7; x++) for (let y = 0; y <= 7; y++) tiles.push(tile(x, y, 'floor'));
+    const v = viewFromTiles(tiles, [], { width: 24, height: 24 });
+    const legacy = isSettlementTransformMeaningfullyVisible(v, canvas, { x: 0, y: 0 }, 1, { minPadding: 12 });
+    check(!legacy.ok, 'C17 legacy pan0 zoom1 rejected');
+}
+
+// C18 manual Fit same transform (idempotent)
+{
+    const v = viewFromTiles([tile(0, 0, 'barracks'), tile(6, 3, 'gate'), tile(2, 5, 'shrine')]);
+    const a = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const b = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    check(a.zoom === b.zoom && a.pan.x === b.pan.x && a.pan.y === b.pan.y, 'C18 manual Fit deterministic');
+}
+
+// C19 hit-test inversion: content centre maps to canvas centre after fit
+{
+    const v = viewFromTiles([tile(2, 2, 'market'), tile(4, 3, 'floor')]);
+    const fit = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const b = fit.bounds;
+    const sc = contentToScreen(b.centerX, b.centerY, fit.pan.x, fit.pan.y, fit.zoom, b.centerX, b.centerY);
+    check(Math.abs(sc.x - canvas.width / 2) < 0.01 && Math.abs(sc.y - canvas.height / 2) < 0.01,
+        'C19 content centre → canvas centre (hit-test pivot)');
+}
+
+// C20 repeated fit deterministic (already covered) + screen layout stable
+{
+    const v = viewFromTiles([tile(1, 2, 'market'), tile(4, 5, 'wall'), tile(0, 6, 'water')]);
+    const a = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const la = computeSettlementScreenLayout(v, canvas, a.pan, a.zoom);
+    const b = computeSettlementFitTransform(v, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+    const lb = computeSettlementScreenLayout(v, canvas, b.pan, b.zoom);
+    check(Math.abs(la.leftSlack - lb.leftSlack) < 1e-9 && Math.abs(la.topSlack - lb.topSlack) < 1e-9,
+        'C20 repeated fit screen layout identical');
 }
 
 if (failed > 0) {

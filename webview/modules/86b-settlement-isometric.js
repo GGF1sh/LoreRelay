@@ -51,7 +51,9 @@ const SETTLEMENT_ZOOM_MAX = 3;
 const SETTLEMENT_ZOOM_STEP = 0.15;
 const SETTLEMENT_FIT_PADDING = 24;
 const SETTLEMENT_HIT_RADIUS_PX = 12;
-const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.';
+// v2: pan is absolute iso origin under content-centred pivot (CENTERING-002).
+const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.v2.';
+const SETTLEMENT_PREFS_MIN_PAD = 12;
 
 const SETTLEMENT_TILE_COLORS = {
     floor: { top: '#5a6270', left: '#4a5260', right: '#6a7280', glyph: '.' },
@@ -779,6 +781,10 @@ function applySettlementFitTransform(view, canvas) {
     return true;
 }
 
+/**
+ * Strict visibility for retained transforms: no edge clipping + min padding.
+ * Weaker "partially on screen" is NOT enough to skip auto-fit.
+ */
 function settlementTransformIsVisible(view, canvas) {
     if (typeof isSettlementTransformMeaningfullyVisible !== 'function') { return true; }
     const cw = canvas && canvas.clientWidth;
@@ -789,22 +795,31 @@ function settlementTransformIsVisible(view, canvas) {
         { width: cw, height: ch },
         _settlementPan,
         _settlementZoom,
-        { minVisibleRatio: 0.12, minTileCenters: 1 }
+        { minPadding: SETTLEMENT_PREFS_MIN_PAD, requireSymmetric: false }
     );
     return Boolean(result && result.ok);
 }
 
 /**
  * Load stored transform if valid; otherwise auto-fit.
+ * When forceFit is true (new settlement/source/layer), always fit unless a
+ * strictly valid stored transform was already applied.
  * @returns {'loaded'|'fitted'|'pending'|'empty'}
  */
-function ensureSettlementFraming(view, canvas) {
+function ensureSettlementFraming(view, canvas, options) {
+    const forceFit = Boolean(options && options.forceFit);
     if (!view) { return 'empty'; }
     if (!canvas || !canvas.clientWidth) {
         _settlementPendingFit = true;
         return 'pending';
     }
-    if (settlementTransformIsVisible(view, canvas)) {
+    // Keep a valid user/stored transform only when not forcing a fresh layout.
+    if (!forceFit && settlementTransformIsVisible(view, canvas)) {
+        _settlementPendingFit = false;
+        return 'loaded';
+    }
+    // After settlement change we load prefs first; keep them only if well-framed.
+    if (forceFit && settlementTransformIsVisible(view, canvas)) {
         _settlementPendingFit = false;
         return 'loaded';
     }
@@ -1079,10 +1094,12 @@ function drawSettlementIsometric() {
     // (clientHeight may lag one frame; use cssHeight explicitly via style.)
     _settlementLastCssSize = { w: cssWidth, h: cssHeight };
 
-    // SETTLEMENT-2D-FRAMING-001: auto-fit on settlement/source/layer change or
-    // when stored transform leaves content off-canvas.
-    if (_settlementPendingFit || !settlementTransformIsVisible(view, canvas)) {
-        ensureSettlementFraming(view, canvas);
+    // CENTERING-002: force fit after settlement/source/layer change (pendingFit).
+    // Ordinary refresh keeps a strictly valid user transform.
+    if (_settlementPendingFit) {
+        ensureSettlementFraming(view, canvas, { forceFit: true });
+    } else if (!settlementTransformIsVisible(view, canvas)) {
+        ensureSettlementFraming(view, canvas, { forceFit: false });
     }
 
     const ctx = canvas.getContext('2d');

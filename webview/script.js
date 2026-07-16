@@ -13335,14 +13335,25 @@ function isMobileBaseRenderSourceSelected(msg) {
 /* global */
 
 // ---------------------------------------------------------------------------
-// SETTLEMENT-2D-FRAMING-001 — pure projected-bounds / fit helpers (no DOM).
-// Shared constants must match 86b-settlement-isometric.js tile metrics.
+// SETTLEMENT-2D-FRAMING-001 / CENTERING-002 — pure projected-bounds + transform.
+//
+// Unified transform contract (content space → screen space):
+//
+//   content (sx0, sy0)  = iso projection with origin at (0,0)
+//   origin  (originX, originY)  = absolute isometric origin (stored as pan)
+//   pivot   = (originX + contentCenterX, originY + contentCenterY)
+//   draw    = (originX + sx0, originY + sy0)
+//   screen  = pivot + zoom * (draw - pivot)
+//           = pivot + zoom * (sx0 - contentCenter)
+//
+// Automatic Fit sets origin so pivot === canvas centre, and zoom so the
+// content AABB has >= padding slack on every edge (when geometrically possible).
 // ---------------------------------------------------------------------------
 
 const ISO_TILE_W = 32;
 const ISO_TILE_H = 16;
 const ISO_LAYER_HEIGHT = 12;
-const ISO_MARKER_BUBBLE = 14; // approx bubble height above base
+const ISO_MARKER_BUBBLE = 14;
 
 const ISO_TILE_ELEVATION = {
     floor: 2,
@@ -13361,6 +13372,9 @@ const ISO_TILE_ELEVATION = {
     empty: 0,
     unknown: 4,
 };
+
+/** Preference schema version — v1 absolute-origin prefs from FRAMING-001 may be invalid. */
+const SETTLEMENT_TRANSFORM_PREF_VERSION = 2;
 
 function isoProjectRaw(x, y, z) {
     return {
@@ -13393,7 +13407,6 @@ function computeSettlementProjectedContentBounds(view) {
         const { sx, sy } = isoProjectRaw(x, y, z);
         const elev = ISO_TILE_ELEVATION[tile.code] ?? 4;
         const topY = sy - elev;
-        // Base diamond + elevated top diamond extents
         minX = Math.min(minX, sx - hw);
         maxX = Math.max(maxX, sx + hw);
         minY = Math.min(minY, topY - hh, sy - hh);
@@ -13405,7 +13418,6 @@ function computeSettlementProjectedContentBounds(view) {
         const y = Number(marker.y) || 0;
         const z = Number(marker.z) || 0;
         const { sx, sy } = isoProjectRaw(x, y, z);
-        // Marker stem + bubble above base
         minX = Math.min(minX, sx - 10);
         maxX = Math.max(maxX, sx + 10);
         minY = Math.min(minY, sy - ISO_TILE_H - ISO_MARKER_BUBBLE);
@@ -13428,68 +13440,44 @@ function computeSettlementProjectedContentBounds(view) {
 }
 
 /**
- * Fit zoom + pan so projected content fills the canvas with padding.
- * Transform model matches 86b: origin includes pan; zoom pivots on content center.
- *
- * @returns {{ zoom: number, pan: {x:number,y:number}, bounds: object, origin: object, pivot: object } | null}
+ * Map content-space point through the unified transform to screen CSS pixels.
  */
-function computeSettlementFitTransform(view, canvasSize, options) {
-    const pad = (options && options.padding != null) ? options.padding : 24;
-    const zoomMin = (options && options.zoomMin != null) ? options.zoomMin : 0.25;
-    const zoomMax = (options && options.zoomMax != null) ? options.zoomMax : 3;
-    const cw = canvasSize && canvasSize.width;
-    const ch = canvasSize && canvasSize.height;
-    if (!view || !cw || !ch) { return null; }
-
-    const bounds = computeSettlementProjectedContentBounds(view);
-    if (!bounds) { return null; }
-
-    const usableW = Math.max(1, cw - pad * 2);
-    const usableH = Math.max(1, ch - pad * 2);
-    let zoom = Math.min(usableW / bounds.width, usableH / bounds.height);
-    zoom = Math.max(zoomMin, Math.min(zoomMax, zoom));
-
-    // Place content center at canvas center with pan=0:
-    // origin + contentCenter = canvasCenter  (pre-zoom content coords)
-    // pivot = canvas center so zoom keeps content centered
-    const originX = cw / 2 - bounds.centerX;
-    const originY = ch / 2 - bounds.centerY;
-    // In 86b, origin = baseOrigin(without pan) + pan, so pan offsets origin.
-    // We encode the centering into pan relative to a neutral base of 0:
-    //   origin = pan  when base would be 0... Actually 86b:
-    //   originX = cssW/2 - declaredBoundsW/2 + pan.x
-    // We replace that formula entirely with content-based origin.
-    // For compatibility, fit returns pan as the full origin offset from (0,0)
-    // and zoom; computeSettlementOrigin will use content bounds + pan.
-
+function contentToScreen(sx0, sy0, originX, originY, zoom, contentCenterX, contentCenterY) {
+    const pivotX = originX + contentCenterX;
+    const pivotY = originY + contentCenterY;
+    const drawX = originX + sx0;
+    const drawY = originY + sy0;
     return {
-        zoom,
-        pan: { x: originX, y: originY },
-        bounds,
-        origin: { x: originX, y: originY },
-        pivot: { x: cw / 2, y: ch / 2 },
-        padding: pad,
+        x: pivotX + (drawX - pivotX) * zoom,
+        y: pivotY + (drawY - pivotY) * zoom,
     };
 }
 
 /**
- * After applying zoom about content pivot with origin=pan, is a meaningful
- * fraction of content inside the canvas?
- * @returns {{ ok: boolean, visibleRatio: number, centersInside: number, interArea: number, contentArea: number, screenBounds: object }}
+ * Exact screen-space layout of content bounds under the renderer transform.
+ * Returns edge slacks, crossings, and centre counts.
  */
-function isSettlementTransformMeaningfullyVisible(view, canvasSize, pan, zoom, options) {
-    const minRatio = (options && options.minVisibleRatio != null) ? options.minVisibleRatio : 0.12;
-    const minCenters = (options && options.minTileCenters != null) ? options.minTileCenters : 1;
-    const cw = canvasSize && canvasSize.width;
-    const ch = canvasSize && canvasSize.height;
+function computeSettlementScreenLayout(view, canvasSize, pan, zoom) {
     const empty = {
         ok: false,
-        visibleRatio: 0,
+        leftSlack: 0,
+        rightSlack: 0,
+        topSlack: 0,
+        bottomSlack: 0,
+        crossingLeft: 0,
+        crossingRight: 0,
+        crossingTop: 0,
+        crossingBottom: 0,
         centersInside: 0,
-        interArea: 0,
-        contentArea: 0,
+        visibleRatio: 0,
         screenBounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+        contentBounds: null,
+        pivot: { x: 0, y: 0 },
+        origin: { x: 0, y: 0 },
+        zoom: zoom || 1,
     };
+    const cw = canvasSize && canvasSize.width;
+    const ch = canvasSize && canvasSize.height;
     if (!view || !cw || !ch || !zoom || zoom <= 0 || !pan) { return empty; }
 
     const bounds = computeSettlementProjectedContentBounds(view);
@@ -13500,20 +13488,11 @@ function isSettlementTransformMeaningfullyVisible(view, canvasSize, pan, zoom, o
     const pivotX = originX + bounds.centerX;
     const pivotY = originY + bounds.centerY;
 
-    function contentToScreen(sx0, sy0) {
-        const drawX = originX + sx0;
-        const drawY = originY + sy0;
-        return {
-            x: pivotX + (drawX - pivotX) * zoom,
-            y: pivotY + (drawY - pivotY) * zoom,
-        };
-    }
-
     const corners = [
-        contentToScreen(bounds.minX, bounds.minY),
-        contentToScreen(bounds.maxX, bounds.minY),
-        contentToScreen(bounds.minX, bounds.maxY),
-        contentToScreen(bounds.maxX, bounds.maxY),
+        contentToScreen(bounds.minX, bounds.minY, originX, originY, zoom, bounds.centerX, bounds.centerY),
+        contentToScreen(bounds.maxX, bounds.minY, originX, originY, zoom, bounds.centerX, bounds.centerY),
+        contentToScreen(bounds.minX, bounds.maxY, originX, originY, zoom, bounds.centerX, bounds.centerY),
+        contentToScreen(bounds.maxX, bounds.maxY, originX, originY, zoom, bounds.centerX, bounds.centerY),
     ];
     let sMinX = Infinity;
     let sMinY = Infinity;
@@ -13526,43 +13505,156 @@ function isSettlementTransformMeaningfullyVisible(view, canvasSize, pan, zoom, o
         sMaxY = Math.max(sMaxY, c.y);
     }
 
+    const leftSlack = sMinX;
+    const rightSlack = cw - sMaxX;
+    const topSlack = sMinY;
+    const bottomSlack = ch - sMaxY;
+
+    // Crossing counts: corners of content AABB outside edge (strict)
+    let crossingLeft = 0;
+    let crossingRight = 0;
+    let crossingTop = 0;
+    let crossingBottom = 0;
+    if (sMinX < -0.5) { crossingLeft = 1; }
+    if (sMaxX > cw + 0.5) { crossingRight = 1; }
+    if (sMinY < -0.5) { crossingTop = 1; }
+    if (sMaxY > ch + 0.5) { crossingBottom = 1; }
+
+    let centersInside = 0;
+    const tiles = Array.isArray(view.tiles) ? view.tiles : [];
+    for (const tile of tiles) {
+        const p0 = isoProjectRaw(Number(tile.x) || 0, Number(tile.y) || 0, Number(tile.z) || 0);
+        const sc = contentToScreen(p0.sx, p0.sy, originX, originY, zoom, bounds.centerX, bounds.centerY);
+        if (sc.x >= 0 && sc.x <= cw && sc.y >= 0 && sc.y <= ch) {
+            centersInside++;
+        }
+    }
+
     const ix0 = Math.max(0, sMinX);
     const iy0 = Math.max(0, sMinY);
     const ix1 = Math.min(cw, sMaxX);
     const iy1 = Math.min(ch, sMaxY);
     const interArea = Math.max(0, ix1 - ix0) * Math.max(0, iy1 - iy0);
     const contentArea = Math.max(1, (sMaxX - sMinX) * (sMaxY - sMinY));
-    const ratio = interArea / contentArea;
-
-    let centersInside = 0;
-    const tiles = Array.isArray(view.tiles) ? view.tiles : [];
-    for (const tile of tiles) {
-        const p0 = isoProjectRaw(Number(tile.x) || 0, Number(tile.y) || 0, Number(tile.z) || 0);
-        const sc = contentToScreen(p0.sx, p0.sy);
-        if (sc.x >= 0 && sc.x <= cw && sc.y >= 0 && sc.y <= ch) {
-            centersInside++;
-        }
-    }
 
     return {
-        ok: ratio >= minRatio && (centersInside >= minCenters || tiles.length === 0),
-        visibleRatio: ratio,
+        ok: crossingLeft === 0 && crossingRight === 0 && crossingTop === 0 && crossingBottom === 0
+            && centersInside > 0,
+        leftSlack,
+        rightSlack,
+        topSlack,
+        bottomSlack,
+        crossingLeft,
+        crossingRight,
+        crossingTop,
+        crossingBottom,
         centersInside,
-        interArea,
-        contentArea,
+        visibleRatio: interArea / contentArea,
         screenBounds: { minX: sMinX, minY: sMinY, maxX: sMaxX, maxY: sMaxY },
+        contentBounds: bounds,
+        pivot: { x: pivotX, y: pivotY },
+        origin: { x: originX, y: originY },
+        zoom,
     };
 }
 
-// Export for Node tests (vm) and browser globals
+/**
+ * Fit zoom + origin so content is centred with equal slack on opposite sides.
+ *
+ * @returns {{ zoom, pan: {x,y}, origin, pivot, bounds, padding, layout } | null}
+ */
+function computeSettlementFitTransform(view, canvasSize, options) {
+    const pad = (options && options.padding != null) ? options.padding : 24;
+    const minPad = (options && options.minPadding != null) ? options.minPadding : 18;
+    const zoomMin = (options && options.zoomMin != null) ? options.zoomMin : 0.25;
+    const zoomMax = (options && options.zoomMax != null) ? options.zoomMax : 3;
+    const cw = canvasSize && canvasSize.width;
+    const ch = canvasSize && canvasSize.height;
+    if (!view || !cw || !ch) { return null; }
+
+    const bounds = computeSettlementProjectedContentBounds(view);
+    if (!bounds) { return null; }
+
+    // Uniform scale: content must fit inside canvas with target padding on all sides.
+    const usableW = Math.max(1, cw - pad * 2);
+    const usableH = Math.max(1, ch - pad * 2);
+    let zoom = Math.min(usableW / bounds.width, usableH / bounds.height);
+    zoom = Math.max(zoomMin, Math.min(zoomMax, zoom));
+
+    // Pivot at canvas centre; origin so content centre maps to canvas centre.
+    // screen = canvasCentre + zoom * (sx0 - contentCentre)
+    // ⇒ origin + contentCentre = canvasCentre  (for pre-zoom draw position of centre)
+    const originX = cw / 2 - bounds.centerX;
+    const originY = ch / 2 - bounds.centerY;
+    const pan = { x: originX, y: originY };
+    const pivot = { x: cw / 2, y: ch / 2 };
+
+    const layout = computeSettlementScreenLayout(view, canvasSize, pan, zoom);
+
+    // If zoom was clamped by zoomMin and still clips, accept best-effort (caller may still use it).
+    return {
+        zoom,
+        pan,
+        origin: { x: originX, y: originY },
+        pivot,
+        bounds,
+        padding: pad,
+        minPadding: minPad,
+        layout,
+        version: SETTLEMENT_TRANSFORM_PREF_VERSION,
+    };
+}
+
+/**
+ * Whether a stored transform is acceptable to keep (centred enough, no clipping).
+ */
+function isSettlementTransformMeaningfullyVisible(view, canvasSize, pan, zoom, options) {
+    const minPad = (options && options.minPadding != null) ? options.minPadding : 12;
+    const requireSymmetric = options && options.requireSymmetric === true;
+    const maxAsym = (options && options.maxAsymmetry != null) ? options.maxAsymmetry : 24;
+    const layout = computeSettlementScreenLayout(view, canvasSize, pan, zoom);
+    if (!layout || !layout.contentBounds) {
+        return {
+            ok: false,
+            visibleRatio: 0,
+            centersInside: 0,
+            interArea: 0,
+            contentArea: 0,
+            screenBounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+            layout,
+        };
+    }
+
+    const noCross = layout.crossingLeft === 0 && layout.crossingRight === 0
+        && layout.crossingTop === 0 && layout.crossingBottom === 0;
+    const enoughPad = layout.leftSlack >= minPad && layout.rightSlack >= minPad
+        && layout.topSlack >= minPad && layout.bottomSlack >= minPad;
+    const symOk = !requireSymmetric
+        || (Math.abs(layout.leftSlack - layout.rightSlack) <= maxAsym
+            && Math.abs(layout.topSlack - layout.bottomSlack) <= maxAsym);
+
+    return {
+        ok: noCross && enoughPad && layout.centersInside > 0 && symOk,
+        visibleRatio: layout.visibleRatio,
+        centersInside: layout.centersInside,
+        interArea: layout.visibleRatio, // kept for older callers
+        contentArea: 1,
+        screenBounds: layout.screenBounds,
+        layout,
+    };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         ISO_TILE_W,
         ISO_TILE_H,
         ISO_LAYER_HEIGHT,
         ISO_TILE_ELEVATION,
+        SETTLEMENT_TRANSFORM_PREF_VERSION,
         isoProjectRaw,
+        contentToScreen,
         computeSettlementProjectedContentBounds,
+        computeSettlementScreenLayout,
         computeSettlementFitTransform,
         isSettlementTransformMeaningfullyVisible,
     };
@@ -13622,7 +13714,9 @@ const SETTLEMENT_ZOOM_MAX = 3;
 const SETTLEMENT_ZOOM_STEP = 0.15;
 const SETTLEMENT_FIT_PADDING = 24;
 const SETTLEMENT_HIT_RADIUS_PX = 12;
-const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.';
+// v2: pan is absolute iso origin under content-centred pivot (CENTERING-002).
+const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.v2.';
+const SETTLEMENT_PREFS_MIN_PAD = 12;
 
 const SETTLEMENT_TILE_COLORS = {
     floor: { top: '#5a6270', left: '#4a5260', right: '#6a7280', glyph: '.' },
@@ -14350,6 +14444,10 @@ function applySettlementFitTransform(view, canvas) {
     return true;
 }
 
+/**
+ * Strict visibility for retained transforms: no edge clipping + min padding.
+ * Weaker "partially on screen" is NOT enough to skip auto-fit.
+ */
 function settlementTransformIsVisible(view, canvas) {
     if (typeof isSettlementTransformMeaningfullyVisible !== 'function') { return true; }
     const cw = canvas && canvas.clientWidth;
@@ -14360,22 +14458,31 @@ function settlementTransformIsVisible(view, canvas) {
         { width: cw, height: ch },
         _settlementPan,
         _settlementZoom,
-        { minVisibleRatio: 0.12, minTileCenters: 1 }
+        { minPadding: SETTLEMENT_PREFS_MIN_PAD, requireSymmetric: false }
     );
     return Boolean(result && result.ok);
 }
 
 /**
  * Load stored transform if valid; otherwise auto-fit.
+ * When forceFit is true (new settlement/source/layer), always fit unless a
+ * strictly valid stored transform was already applied.
  * @returns {'loaded'|'fitted'|'pending'|'empty'}
  */
-function ensureSettlementFraming(view, canvas) {
+function ensureSettlementFraming(view, canvas, options) {
+    const forceFit = Boolean(options && options.forceFit);
     if (!view) { return 'empty'; }
     if (!canvas || !canvas.clientWidth) {
         _settlementPendingFit = true;
         return 'pending';
     }
-    if (settlementTransformIsVisible(view, canvas)) {
+    // Keep a valid user/stored transform only when not forcing a fresh layout.
+    if (!forceFit && settlementTransformIsVisible(view, canvas)) {
+        _settlementPendingFit = false;
+        return 'loaded';
+    }
+    // After settlement change we load prefs first; keep them only if well-framed.
+    if (forceFit && settlementTransformIsVisible(view, canvas)) {
         _settlementPendingFit = false;
         return 'loaded';
     }
@@ -14650,10 +14757,12 @@ function drawSettlementIsometric() {
     // (clientHeight may lag one frame; use cssHeight explicitly via style.)
     _settlementLastCssSize = { w: cssWidth, h: cssHeight };
 
-    // SETTLEMENT-2D-FRAMING-001: auto-fit on settlement/source/layer change or
-    // when stored transform leaves content off-canvas.
-    if (_settlementPendingFit || !settlementTransformIsVisible(view, canvas)) {
-        ensureSettlementFraming(view, canvas);
+    // CENTERING-002: force fit after settlement/source/layer change (pendingFit).
+    // Ordinary refresh keeps a strictly valid user transform.
+    if (_settlementPendingFit) {
+        ensureSettlementFraming(view, canvas, { forceFit: true });
+    } else if (!settlementTransformIsVisible(view, canvas)) {
+        ensureSettlementFraming(view, canvas, { forceFit: false });
     }
 
     const ctx = canvas.getContext('2d');

@@ -16,7 +16,7 @@ const { installVscodeStub } = require('./test_helpers/vscode_stub');
 const REPO = path.join(__dirname, '..');
 const TARGET = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current\\05-living-trade-world';
 const MSG_DIR = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current\\_harness\\living-trade-settlements';
-const OUT_ROOT = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\review\\settlement-multi-location-showcase-final';
+const OUT_ROOT = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\review\\settlement-multi-location-showcase-centered';
 const HARNESS = path.join(OUT_ROOT, 'harness');
 const PORT = 8788;
 const DEBUG_PORT = 9260;
@@ -420,24 +420,43 @@ async function main() {
           let vendor=null,renderer=null; if(gl){const d=gl.getExtension('WEBGL_debug_renderer_info'); vendor=d?gl.getParameter(d.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR); renderer=d?gl.getParameter(d.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);}
           let framing=null;
           try {
-            if (typeof computeSettlementProjectedContentBounds==='function' && typeof isSettlementTransformMeaningfullyVisible==='function') {
+            if (typeof computeSettlementScreenLayout==='function') {
               const view = typeof getSelectedSettlementView==='function' ? getSelectedSettlementView(msg) : (msg&&msg.settlementView);
               const c = document.getElementById('world-settlement-canvas');
               if (view && c && c.clientWidth) {
-                const pan = (typeof _settlementPan!=='undefined') ? _settlementPan : {x:0,y:0};
+                // Prefer live renderer state when available (same transform as draw).
+                const origin = (typeof computeSettlementOrigin==='function')
+                  ? computeSettlementOrigin(c, view)
+                  : null;
+                const pan = origin
+                  ? { x: origin.originX, y: origin.originY }
+                  : ((typeof _settlementPan!=='undefined') ? _settlementPan : {x:0,y:0});
                 const zoom = (typeof _settlementZoom!=='undefined') ? _settlementZoom : 1;
-                const bounds = computeSettlementProjectedContentBounds(view);
-                const vis = isSettlementTransformMeaningfullyVisible(view, {width:c.clientWidth,height:c.clientHeight}, pan, zoom, {minVisibleRatio:0.12,minTileCenters:1});
+                const layout = computeSettlementScreenLayout(
+                  view,
+                  { width: c.clientWidth, height: c.clientHeight },
+                  pan,
+                  zoom
+                );
                 framing = {
                   settlementId: view.settlementId,
                   viewW: view.width, viewH: view.height,
                   tileCount: (view.tiles||[]).length,
                   markerCount: (view.markers||[]).length,
-                  contentBounds: bounds,
+                  contentBounds: layout.contentBounds,
                   pan, zoom,
-                  centersInside: vis.centersInside,
-                  visibleRatio: vis.visibleRatio,
-                  screenBounds: vis.screenBounds,
+                  pivot: layout.pivot,
+                  centersInside: layout.centersInside,
+                  visibleRatio: layout.visibleRatio,
+                  leftSlack: layout.leftSlack,
+                  rightSlack: layout.rightSlack,
+                  topSlack: layout.topSlack,
+                  bottomSlack: layout.bottomSlack,
+                  crossingLeft: layout.crossingLeft,
+                  crossingRight: layout.crossingRight,
+                  crossingTop: layout.crossingTop,
+                  crossingBottom: layout.crossingBottom,
+                  screenBounds: layout.screenBounds,
                   canvasCss: {w:c.clientWidth,h:c.clientHeight},
                 };
               }
@@ -537,11 +556,23 @@ async function main() {
                 if (probe.mbBanner) fails.push('mb_banner_visible');
                 if (!probe.settlementCanvas || !probe.settlementCanvas.width) fails.push('canvas_zero');
                 if ((probe.settlementCanvas.sampledNonBg || 0) < 200) fails.push('blank_canvas');
-                // Framing diagnostics from harness probe
+                // Framing + centering diagnostics from harness probe
                 if (probe.framing) {
                     entry.framing = probe.framing;
-                    if ((probe.framing.centersInside || 0) < 1) fails.push('no_tile_centers_visible');
-                    if ((probe.framing.visibleRatio || 0) < 0.2) fails.push('low_visible_ratio');
+                    const f = probe.framing;
+                    if ((f.centersInside || 0) < 1) fails.push('no_tile_centers_visible');
+                    if ((f.visibleRatio || 0) < 0.2) fails.push('low_visible_ratio');
+                    if (f.leftSlack != null) {
+                        if (f.leftSlack < 18) fails.push(`leftSlack ${f.leftSlack}`);
+                        if (f.rightSlack < 18) fails.push(`rightSlack ${f.rightSlack}`);
+                        if (f.topSlack < 18) fails.push(`topSlack ${f.topSlack}`);
+                        if (f.bottomSlack < 18) fails.push(`bottomSlack ${f.bottomSlack}`);
+                        if (Math.abs(f.leftSlack - f.rightSlack) > 3) fails.push('lr_asym');
+                        if (Math.abs(f.topSlack - f.bottomSlack) > 3) fails.push('tb_asym');
+                        if (f.crossingLeft || f.crossingRight || f.crossingTop || f.crossingBottom) {
+                            fails.push('edge_crossing');
+                        }
+                    }
                 }
             }
             if (shot.mode === 'diorama' && expectedId) {

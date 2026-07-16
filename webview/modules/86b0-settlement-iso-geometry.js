@@ -120,6 +120,55 @@ function contentToScreen(sx0, sy0, originX, originY, zoom, contentCenterX, conte
 }
 
 /**
+ * Exact inverse of contentToScreen(). Input/output use CSS pixels and raw
+ * projected settlement content coordinates (before the absolute origin).
+ */
+function screenToSettlementContent(screenX, screenY, originX, originY, zoom, contentCenterX, contentCenterY) {
+    if (!Number.isFinite(zoom) || zoom <= 0) {
+        return { x: NaN, y: NaN };
+    }
+    const pivotX = originX + contentCenterX;
+    const pivotY = originY + contentCenterY;
+    const drawX = pivotX + (screenX - pivotX) / zoom;
+    const drawY = pivotY + (screenY - pivotY) / zoom;
+    return {
+        x: drawX - originX,
+        y: drawY - originY,
+    };
+}
+
+/** Stable renderer identity; tile ids are absent in the settlement payload. */
+function settlementHitKey(hit) {
+    if (!hit) { return ''; }
+    if (hit.key) { return String(hit.key); }
+    if (hit.type === 'marker') { return `marker:${hit.id || ''}`; }
+    if (hit.type === 'tile') {
+        return `tile:${Number(hit.x) || 0},${Number(hit.y) || 0},${Number(hit.z) || 0}:${hit.code || 'unknown'}`;
+    }
+    return `${hit.type || 'hit'}:${hit.id || ''}:${hit.contentX || 0},${hit.contentY || 0}`;
+}
+
+/** Hit-test in content space while keeping a constant CSS-pixel radius. */
+function hitTestSettlementContent(hits, contentPoint, screenRadiusPx, zoom) {
+    if (!Array.isArray(hits) || !contentPoint || !Number.isFinite(contentPoint.x)
+        || !Number.isFinite(contentPoint.y) || !Number.isFinite(zoom) || zoom <= 0) {
+        return null;
+    }
+    const radius = Math.max(0, Number(screenRadiusPx) || 0) / zoom;
+    let best = null;
+    let bestDist = radius + Number.EPSILON;
+    for (const hit of hits) {
+        if (!Number.isFinite(hit?.contentX) || !Number.isFinite(hit?.contentY)) { continue; }
+        const dist = Math.hypot(hit.contentX - contentPoint.x, hit.contentY - contentPoint.y);
+        if (dist <= radius && dist < bestDist) {
+            bestDist = dist;
+            best = hit;
+        }
+    }
+    return best;
+}
+
+/**
  * Exact screen-space layout of content bounds under the renderer transform.
  * Returns edge slacks, crossings, and centre counts.
  */
@@ -319,6 +368,9 @@ if (typeof module !== 'undefined' && module.exports) {
         SETTLEMENT_TRANSFORM_PREF_VERSION,
         isoProjectRaw,
         contentToScreen,
+        screenToSettlementContent,
+        settlementHitKey,
+        hitTestSettlementContent,
         computeSettlementProjectedContentBounds,
         computeSettlementScreenLayout,
         computeSettlementFitTransform,

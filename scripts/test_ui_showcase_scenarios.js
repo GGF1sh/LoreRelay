@@ -190,6 +190,14 @@ function runValidation() {
         assert(nodeIds.has(src.nodeId), `production node ${src.nodeId} missing`);
     }
 
+    const liveGame = JSON.parse(fs.readFileSync(path.join(liveDir, 'game_state.json'), 'utf8'));
+    const discoveredRegions = new Set(liveGame.world?.discoveredRegionIds || []);
+    assert(liveGame.world?.currentLocationId === 'loc_sapphire_port', 'showcase current location remains Sapphire Port');
+    assert(discoveredRegions.has('reg_delta'), 'Reed Delta is discovered so Reedmarket is visible/selectable');
+    for (const region of liveForge.geography.regions) {
+        assert(discoveredRegions.has(region.id), `showcase region ${region.id} is discoverable from World Map`);
+    }
+
     const liveWs = tryParseFile(path.join(liveDir, 'world_state.json'), parseWorldState);
     assert(liveWs && Object.keys(liveWs.markets || {}).length >= 6, 'world_state markets >=6');
     // Meaningful price differences (grain cheap at farm, expensive at oasis)

@@ -969,27 +969,29 @@ function renderSettlementMarkerFallback(view) {
 function hitTestSettlement(clientX, clientY, canvas) {
     if (!canvas || !_settlementHits.length) { return null; }
     const rect = canvas.getBoundingClientRect();
-    let x = clientX - rect.left;
-    let y = clientY - rect.top;
-    // Hit positions are stored in pre-zoom content coordinates, but the mouse
-    // arrives in screen coordinates. Invert the draw transform (scale around
-    // the content pivot) so hovering/clicking stays accurate at any zoom.
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
     const view = getSettlementSnapshot();
-    if (view && _settlementZoom !== 1) {
-        const { pivotX, pivotY } = computeSettlementOrigin(canvas, view);
-        x = pivotX + (x - pivotX) / _settlementZoom;
-        y = pivotY + (y - pivotY) / _settlementZoom;
-    }
-    let best = null;
-    let bestDist = SETTLEMENT_HIT_RADIUS_PX + 1;
-    for (const hit of _settlementHits) {
-        const dist = Math.hypot(hit.px - x, hit.py - y);
-        if (dist <= SETTLEMENT_HIT_RADIUS_PX && dist < bestDist) {
-            bestDist = dist;
-            best = hit;
-        }
-    }
-    return best;
+    if (!view || typeof screenToSettlementContent !== 'function'
+        || typeof hitTestSettlementContent !== 'function') { return null; }
+    const origin = computeSettlementOrigin(canvas, view);
+    const bounds = origin.contentBounds;
+    if (!bounds) { return null; }
+    const contentPoint = screenToSettlementContent(
+        screenX,
+        screenY,
+        origin.originX,
+        origin.originY,
+        _settlementZoom,
+        bounds.centerX,
+        bounds.centerY
+    );
+    return hitTestSettlementContent(
+        _settlementHits,
+        contentPoint,
+        SETTLEMENT_HIT_RADIUS_PX,
+        _settlementZoom
+    );
 }
 
 function syncSettlementLayerButtons(view) {
@@ -1134,8 +1136,14 @@ function drawSettlementIsometric() {
         }
         _settlementHits.push({
             type: 'tile',
+            key: settlementHitKey({ type: 'tile', x: tile.x, y: tile.y, z: tile.z || 0, code: tile.code }),
+            x: tile.x,
+            y: tile.y,
+            z: tile.z || 0,
             px: sx,
             py: sy,
+            contentX: sx - originX,
+            contentY: sy - originY - elev,
             elev,
             label: tile.label,
             detail: tile.code,
@@ -1149,10 +1157,13 @@ function drawSettlementIsometric() {
         drawIsoMarker(ctx, sx, sy, marker.kind);
         _settlementHits.push({
             type: 'marker',
+            key: settlementHitKey({ type: 'marker', id: marker.id }),
             id: marker.id,
             kind: marker.kind,
             px: sx,
             py: sy - SETTLEMENT_TILE_H,
+            contentX: sx - originX,
+            contentY: sy - originY - SETTLEMENT_TILE_H,
             elev: 0,
             label: marker.label,
             detail: marker.detail,
@@ -1168,7 +1179,7 @@ function drawSettlementIsometric() {
     const selectedHit = _settlementSelected
         ? _settlementHits.find((h) => (
             h.type === _settlementSelected.type
-            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+            && settlementHitKey(h) === settlementHitKey(_settlementSelected)
         ))
         : null;
     if (selectedHit && selectedHit.type === 'tile') {
@@ -1188,7 +1199,7 @@ function drawSettlementIsometric() {
     if (_settlementSelected) {
         const still = _settlementHits.find((h) => (
             h.type === _settlementSelected.type
-            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+            && settlementHitKey(h) === settlementHitKey(_settlementSelected)
         ));
         if (!still) {
             _settlementSelected = null;
@@ -1303,8 +1314,8 @@ function initSettlementIsometricControls() {
         }
         if (_settlementDrag) { return; }
         const hit = hitTestSettlement(e.clientX, e.clientY, canvas);
-        const hoverKey = hit ? `${hit.type}:${hit.id || ''}:${hit.px},${hit.py}` : null;
-        const prevKey = _settlementHover ? `${_settlementHover.type}:${_settlementHover.id || ''}:${_settlementHover.px},${_settlementHover.py}` : null;
+        const hoverKey = hit ? settlementHitKey(hit) : null;
+        const prevKey = _settlementHover ? settlementHitKey(_settlementHover) : null;
         if (hoverKey !== prevKey) {
             _settlementHover = hit;
             drawSettlementIsometric();

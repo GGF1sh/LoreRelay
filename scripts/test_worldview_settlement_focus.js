@@ -45,10 +45,12 @@ function baseForge() {
             regions: [
                 { id: 'reg_coast', name: 'Coast', type: 'coastal', x: 100, y: 100, connectedTo: ['reg_forest'] },
                 { id: 'reg_forest', name: 'Forest', type: 'forest', x: 200, y: 150, connectedTo: ['reg_coast'] },
+                { id: 'reg_delta', name: 'Reed Delta', type: 'swamp', x: 145, y: 125, connectedTo: ['reg_coast'] },
             ],
             locations: [
                 { id: 'loc_sapphire_port', name: 'Sapphire Port', regionId: 'reg_coast', type: 'settlement' },
                 { id: 'loc_mistgrove', name: 'Mistgrove', regionId: 'reg_forest', type: 'settlement' },
+                { id: 'loc_reedmarket', name: 'Reedmarket', regionId: 'reg_delta', type: 'market' },
                 { id: 'loc_empty', name: 'Empty Reach', regionId: 'reg_forest', type: 'wilderness' },
             ],
         },
@@ -90,7 +92,10 @@ function prepareWorkspace(dir, opts = {}) {
     writeJson(path.join(dir, 'game_rules.json'), opts.rules || baseRules());
     writeJson(path.join(dir, 'world_forge.json'), opts.forge || baseForge());
     writeJson(path.join(dir, 'game_state.json'), {
-        world: { currentLocationId: opts.currentLocationId || 'loc_sapphire_port' },
+        world: {
+            currentLocationId: opts.currentLocationId || 'loc_sapphire_port',
+            ...(opts.world || {}),
+        },
     });
     if (opts.scoped) {
         for (const [locId, docs] of Object.entries(opts.scoped)) {
@@ -196,6 +201,18 @@ const twoCityScoped = {
         layout: layoutDoc({
             settlementId: 'set_grove',
             zones: [{ id: 'z_grove', layerId: 'z0', label: 'Forest Shrine', x: 4, y: 5 }],
+        }),
+    },
+    loc_reedmarket: {
+        state: stateDoc({
+            settlementId: 'set_reedmarket',
+            locationId: 'loc_reedmarket',
+            name: 'Reedmarket',
+            structures: [{ id: 'reed_market', name: 'Open Fish Market', status: 'intact', layerId: 'z0' }],
+        }),
+        layout: layoutDoc({
+            settlementId: 'set_reedmarket',
+            zones: [{ id: 'reed_water', layerId: 'z0', label: 'North Canal Water', x: 1, y: 1 }],
         }),
     },
 };
@@ -398,6 +415,43 @@ const twoCityScoped = {
         focusedLocationId: 'loc_mistgrove',
     });
     check(r.mode === 'preview' && r.displayLocationId === 'loc_mistgrove', 'pure display resolve preview');
+}
+
+// 11. Exact Human Play Gate lifecycle: catalog -> pin -> Reedmarket preview -> clear.
+{
+    const ws = path.join(tmpRoot, 'reedmarket_lifecycle');
+    prepareWorkspace(ws, {
+        scoped: twoCityScoped,
+        currentLocationId: 'loc_sapphire_port',
+        world: {
+            discoveredRegionIds: ['reg_coast', 'reg_delta'],
+            visitedLocationIds: ['loc_sapphire_port'],
+        },
+    });
+    withWorldView(ws, ({ wv, push, lastWorldView }) => {
+        const initial = push('loc_sapphire_port');
+        const reedPin = initial?.locationPinCatalog?.find((pin) => pin.locationId === 'loc_reedmarket');
+        check(Boolean(reedPin), '11a Reedmarket is present in host locationPinCatalog');
+        check(reedPin?.locationName === 'Reedmarket' && reedPin?.fogVisibility === 'discovered', '11b Reedmarket pin is named and selectable');
+        check(Number.isFinite(reedPin?.leftPct) && reedPin.leftPct >= 0 && reedPin.leftPct <= 100
+            && Number.isFinite(reedPin?.topPct) && reedPin.topPct >= 0 && reedPin.topPct <= 100,
+        '11c Reedmarket coordinates are in map bounds');
+        check(initial?.currentLocationId === 'loc_sapphire_port', '11d current starts at Sapphire Port');
+
+        wv.setWorldSettlementFocus('loc_reedmarket');
+        const preview = lastWorldView();
+        check(preview?.currentLocationId === 'loc_sapphire_port', '11e preview keeps current location at Sapphire Port');
+        check(preview?.settlementDisplayContext?.mode === 'preview'
+            && preview?.settlementDisplayContext?.displayLocationId === 'loc_reedmarket', '11f Reedmarket preview context');
+        check(preview?.settlementView?.settlementId === 'set_reedmarket', '11g Settlement uses set_reedmarket');
+        check(preview?.settlementDiorama?.settlementId === 'set_reedmarket', '11h Diorama uses set_reedmarket');
+
+        wv.clearWorldSettlementFocus();
+        const restored = lastWorldView();
+        check(restored?.currentLocationId === 'loc_sapphire_port', '11i clear keeps current at Sapphire Port');
+        check(restored?.settlementDisplayContext?.mode === 'current'
+            && restored?.settlementView?.settlementId === 'set_port', '11j clear restores Sapphire Port settlement');
+    });
 }
 
 try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }

@@ -827,6 +827,7 @@
                 <div id="world-diorama-marker-fallback" class="world-diorama-marker-fallback hidden"></div>
               </div>
             </div>
+            <div id="world-location-navigator" class="world-location-navigator hidden" role="group"></div>
             <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>
             <details id="world-map-items-section" class="world-map-items-section hidden">
               <summary data-i18n="webview.world.mapItemsTitle">Maps &amp; Intel</summary>
@@ -1588,7 +1589,7 @@
   </div>
 
   <script nonce="{{nonce}}">window.__LR_GENESIS_ASSET_BASE_URI__ = '{{genesisAssetBaseUri}}';</script>
-  <script nonce="{{nonce}}">window.__LR_THREE_SCRIPT_URI__ = '{{threeUri}}';</script>
+  <script nonce="{{nonce}}">window.__LR_THREE_SCRIPT_URI__ = '{{threeUri}}'; window.__LR_SCRIPT_NONCE__ = '{{nonce}}';</script>
   <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
   <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>
   <script nonce="{{nonce}}">

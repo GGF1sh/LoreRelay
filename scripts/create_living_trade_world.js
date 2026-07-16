@@ -566,7 +566,16 @@ function createLivingTradeWorld(targetDir) {
             skills: ['negotiation', 'river_navigation'],
             funds: '420 crowns',
         },
-        world: { currentLocationId: 'loc_sapphire_port' },
+        world: {
+            currentLocationId: 'loc_sapphire_port',
+            // This is a visual/play showcase: expose the complete location catalog while
+            // keeping travel/current-location authority at Sapphire Port.
+            discoveredRegionIds: [
+                'reg_coast', 'reg_delta', 'reg_farm', 'reg_forest', 'reg_highland',
+                'reg_steppe', 'reg_snow', 'reg_volcanic', 'reg_isles',
+            ],
+            visitedLocationIds: ['loc_sapphire_port'],
+        },
         commerce: {
             credits: 420,
             food: 18,

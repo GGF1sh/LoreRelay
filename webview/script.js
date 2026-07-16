@@ -6935,6 +6935,7 @@ function renderWorldView(msg) {
     currentWorldLocationId = msg.currentLocationId;
     _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
+    renderWorldLocationNavigator();
     rebuildRegionFeedbackMap(msg);
     maybeFlashHighDangerEntry(msg);
     if (genImageBtn) {
@@ -7695,6 +7696,42 @@ function rebuildWorldPinCatalog(msg) {
     }
 }
 
+function renderWorldLocationNavigator() {
+    const el = document.getElementById('world-location-navigator');
+    if (!el) { return; }
+    const locations = [..._worldPinCatalog.values()].filter((pin) => (
+        pin && pin.locationId && pin.locationName && pin.fogVisibility === 'discovered'
+    ));
+    if (!locations.length) {
+        el.innerHTML = '';
+        el.classList.add('hidden');
+        return;
+    }
+    el.classList.remove('hidden');
+    el.innerHTML = '';
+    const title = document.createElement('span');
+    title.className = 'world-location-navigator-title';
+    title.textContent = T('webview.world.locationNavigator');
+    el.appendChild(title);
+    for (const pin of locations) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'world-location-chip';
+        btn.dataset.locationId = pin.locationId;
+        btn.textContent = `${LOCATION_TYPE_ICON[pin.locationType] || LOCATION_TYPE_ICON.other} ${pin.locationName}`;
+        btn.title = pin.regionName ? `${pin.locationName} · ${pin.regionName}` : pin.locationName;
+        const selected = pin.locationId === _selectedPinId;
+        btn.classList.toggle('is-selected', selected);
+        btn.classList.toggle('is-current', pin.locationId === currentWorldLocationId);
+        btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            selectWorldLocationPin(pin.locationId);
+        });
+        el.appendChild(btn);
+    }
+}
+
 function rebuildRegionFeedbackMap(msg) {
     _regionFeedbackMap = new Map();
     const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
@@ -7919,10 +7956,13 @@ function renderWorldLocationDetailPanel() {
 }
 
 function syncWorldPinSelectionUi() {
-    document.querySelectorAll('.world-map-pin[data-location-id]').forEach((el) => {
+    document.querySelectorAll('.world-map-pin[data-location-id], .world-location-chip[data-location-id]').forEach((el) => {
         const id = el.getAttribute('data-location-id');
         const selected = Boolean(id && id === _selectedPinId);
         el.classList.toggle('is-selected', selected);
+        if (el.classList.contains('world-location-chip')) {
+            el.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        }
         const wrap = el.closest('.world-map-pin-wrap');
         if (wrap) { wrap.classList.toggle('is-selected', selected); }
     });
@@ -13454,6 +13494,55 @@ function contentToScreen(sx0, sy0, originX, originY, zoom, contentCenterX, conte
 }
 
 /**
+ * Exact inverse of contentToScreen(). Input/output use CSS pixels and raw
+ * projected settlement content coordinates (before the absolute origin).
+ */
+function screenToSettlementContent(screenX, screenY, originX, originY, zoom, contentCenterX, contentCenterY) {
+    if (!Number.isFinite(zoom) || zoom <= 0) {
+        return { x: NaN, y: NaN };
+    }
+    const pivotX = originX + contentCenterX;
+    const pivotY = originY + contentCenterY;
+    const drawX = pivotX + (screenX - pivotX) / zoom;
+    const drawY = pivotY + (screenY - pivotY) / zoom;
+    return {
+        x: drawX - originX,
+        y: drawY - originY,
+    };
+}
+
+/** Stable renderer identity; tile ids are absent in the settlement payload. */
+function settlementHitKey(hit) {
+    if (!hit) { return ''; }
+    if (hit.key) { return String(hit.key); }
+    if (hit.type === 'marker') { return `marker:${hit.id || ''}`; }
+    if (hit.type === 'tile') {
+        return `tile:${Number(hit.x) || 0},${Number(hit.y) || 0},${Number(hit.z) || 0}:${hit.code || 'unknown'}`;
+    }
+    return `${hit.type || 'hit'}:${hit.id || ''}:${hit.contentX || 0},${hit.contentY || 0}`;
+}
+
+/** Hit-test in content space while keeping a constant CSS-pixel radius. */
+function hitTestSettlementContent(hits, contentPoint, screenRadiusPx, zoom) {
+    if (!Array.isArray(hits) || !contentPoint || !Number.isFinite(contentPoint.x)
+        || !Number.isFinite(contentPoint.y) || !Number.isFinite(zoom) || zoom <= 0) {
+        return null;
+    }
+    const radius = Math.max(0, Number(screenRadiusPx) || 0) / zoom;
+    let best = null;
+    let bestDist = radius + Number.EPSILON;
+    for (const hit of hits) {
+        if (!Number.isFinite(hit?.contentX) || !Number.isFinite(hit?.contentY)) { continue; }
+        const dist = Math.hypot(hit.contentX - contentPoint.x, hit.contentY - contentPoint.y);
+        if (dist <= radius && dist < bestDist) {
+            bestDist = dist;
+            best = hit;
+        }
+    }
+    return best;
+}
+
+/**
  * Exact screen-space layout of content bounds under the renderer transform.
  * Returns edge slacks, crossings, and centre counts.
  */
@@ -13653,6 +13742,9 @@ if (typeof module !== 'undefined' && module.exports) {
         SETTLEMENT_TRANSFORM_PREF_VERSION,
         isoProjectRaw,
         contentToScreen,
+        screenToSettlementContent,
+        settlementHitKey,
+        hitTestSettlementContent,
         computeSettlementProjectedContentBounds,
         computeSettlementScreenLayout,
         computeSettlementFitTransform,
@@ -14632,27 +14724,29 @@ function renderSettlementMarkerFallback(view) {
 function hitTestSettlement(clientX, clientY, canvas) {
     if (!canvas || !_settlementHits.length) { return null; }
     const rect = canvas.getBoundingClientRect();
-    let x = clientX - rect.left;
-    let y = clientY - rect.top;
-    // Hit positions are stored in pre-zoom content coordinates, but the mouse
-    // arrives in screen coordinates. Invert the draw transform (scale around
-    // the content pivot) so hovering/clicking stays accurate at any zoom.
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
     const view = getSettlementSnapshot();
-    if (view && _settlementZoom !== 1) {
-        const { pivotX, pivotY } = computeSettlementOrigin(canvas, view);
-        x = pivotX + (x - pivotX) / _settlementZoom;
-        y = pivotY + (y - pivotY) / _settlementZoom;
-    }
-    let best = null;
-    let bestDist = SETTLEMENT_HIT_RADIUS_PX + 1;
-    for (const hit of _settlementHits) {
-        const dist = Math.hypot(hit.px - x, hit.py - y);
-        if (dist <= SETTLEMENT_HIT_RADIUS_PX && dist < bestDist) {
-            bestDist = dist;
-            best = hit;
-        }
-    }
-    return best;
+    if (!view || typeof screenToSettlementContent !== 'function'
+        || typeof hitTestSettlementContent !== 'function') { return null; }
+    const origin = computeSettlementOrigin(canvas, view);
+    const bounds = origin.contentBounds;
+    if (!bounds) { return null; }
+    const contentPoint = screenToSettlementContent(
+        screenX,
+        screenY,
+        origin.originX,
+        origin.originY,
+        _settlementZoom,
+        bounds.centerX,
+        bounds.centerY
+    );
+    return hitTestSettlementContent(
+        _settlementHits,
+        contentPoint,
+        SETTLEMENT_HIT_RADIUS_PX,
+        _settlementZoom
+    );
 }
 
 function syncSettlementLayerButtons(view) {
@@ -14797,8 +14891,14 @@ function drawSettlementIsometric() {
         }
         _settlementHits.push({
             type: 'tile',
+            key: settlementHitKey({ type: 'tile', x: tile.x, y: tile.y, z: tile.z || 0, code: tile.code }),
+            x: tile.x,
+            y: tile.y,
+            z: tile.z || 0,
             px: sx,
             py: sy,
+            contentX: sx - originX,
+            contentY: sy - originY - elev,
             elev,
             label: tile.label,
             detail: tile.code,
@@ -14812,10 +14912,13 @@ function drawSettlementIsometric() {
         drawIsoMarker(ctx, sx, sy, marker.kind);
         _settlementHits.push({
             type: 'marker',
+            key: settlementHitKey({ type: 'marker', id: marker.id }),
             id: marker.id,
             kind: marker.kind,
             px: sx,
             py: sy - SETTLEMENT_TILE_H,
+            contentX: sx - originX,
+            contentY: sy - originY - SETTLEMENT_TILE_H,
             elev: 0,
             label: marker.label,
             detail: marker.detail,
@@ -14831,7 +14934,7 @@ function drawSettlementIsometric() {
     const selectedHit = _settlementSelected
         ? _settlementHits.find((h) => (
             h.type === _settlementSelected.type
-            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+            && settlementHitKey(h) === settlementHitKey(_settlementSelected)
         ))
         : null;
     if (selectedHit && selectedHit.type === 'tile') {
@@ -14851,7 +14954,7 @@ function drawSettlementIsometric() {
     if (_settlementSelected) {
         const still = _settlementHits.find((h) => (
             h.type === _settlementSelected.type
-            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+            && settlementHitKey(h) === settlementHitKey(_settlementSelected)
         ));
         if (!still) {
             _settlementSelected = null;
@@ -14966,8 +15069,8 @@ function initSettlementIsometricControls() {
         }
         if (_settlementDrag) { return; }
         const hit = hitTestSettlement(e.clientX, e.clientY, canvas);
-        const hoverKey = hit ? `${hit.type}:${hit.id || ''}:${hit.px},${hit.py}` : null;
-        const prevKey = _settlementHover ? `${_settlementHover.type}:${_settlementHover.id || ''}:${_settlementHover.px},${_settlementHover.py}` : null;
+        const hoverKey = hit ? settlementHitKey(hit) : null;
+        const prevKey = _settlementHover ? settlementHitKey(_settlementHover) : null;
         if (hoverKey !== prevKey) {
             _settlementHover = hit;
             drawSettlementIsometric();
@@ -15100,8 +15203,10 @@ function dioramaPrefersReducedMotion() {
 function detectWebglSupport() {
     try {
         const canvas = document.createElement('canvas');
-        return !!(window.WebGLRenderingContext
-            && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+        const webgl2 = window.WebGL2RenderingContext && canvas.getContext('webgl2');
+        const webgl = window.WebGLRenderingContext
+            && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+        return !!(webgl2 || webgl);
     } catch {
         return false;
     }
@@ -15112,6 +15217,22 @@ function resolveThreeScriptUri() {
         return window.__LR_THREE_SCRIPT_URI__;
     }
     return null;
+}
+
+function resolveWebviewScriptNonce() {
+    if (typeof window !== 'undefined' && window.__LR_SCRIPT_NONCE__) {
+        return window.__LR_SCRIPT_NONCE__;
+    }
+    return null;
+}
+
+function reportDioramaLoaderError(message, detail) {
+    if (typeof console === 'undefined' || typeof console.error !== 'function') { return; }
+    if (detail) {
+        console.error(`[LoreRelay Diorama] ${message}`, detail);
+    } else {
+        console.error(`[LoreRelay Diorama] ${message}`);
+    }
 }
 
 function isThreeAvailable() {
@@ -15125,18 +15246,38 @@ function isThreeAvailable() {
 function loadThreeJsLazy() {
     if (isThreeAvailable()) { return Promise.resolve(true); }
     const uri = resolveThreeScriptUri();
-    if (!uri) { return Promise.resolve(false); }
+    if (!uri) {
+        reportDioramaLoaderError('Packaged Three.js Webview URI is missing.');
+        return Promise.resolve(false);
+    }
     if (_dioramaThreeLoadPromise) { return _dioramaThreeLoadPromise; }
     _dioramaThreeLoadPromise = new Promise((resolve) => {
         const script = document.createElement('script');
+        const nonce = resolveWebviewScriptNonce();
+        if (nonce) { script.nonce = nonce; }
         script.src = uri;
         script.async = true;
         script.onload = () => {
             _dioramaAvailable = null;
-            resolve(isThreeAvailable());
+            const ok = isThreeAvailable();
+            if (!ok) {
+                reportDioramaLoaderError('Packaged Three.js loaded, but THREE/WebGL is unavailable.', {
+                    three: typeof THREE !== 'undefined',
+                    webgl: detectWebglSupport(),
+                });
+            }
+            resolve(ok);
         };
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
+        script.onerror = (error) => {
+            reportDioramaLoaderError('Failed to load packaged Three.js.', error);
+            resolve(false);
+        };
+        try {
+            document.head.appendChild(script);
+        } catch (error) {
+            reportDioramaLoaderError('Failed to append packaged Three.js script.', error);
+            resolve(false);
+        }
     });
     return _dioramaThreeLoadPromise;
 }

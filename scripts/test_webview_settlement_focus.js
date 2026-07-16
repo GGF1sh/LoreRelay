@@ -31,12 +31,14 @@ check(indexHtml.includes('id="world-settlement-focus-banner"'), 'settlement focu
 check(indexHtml.includes('id="world-diorama-focus-banner"'), 'diorama focus banner DOM');
 check(indexHtml.includes('id="world-settlement-focus-return-btn"'), 'settlement return button DOM');
 check(indexHtml.includes('id="world-diorama-focus-return-btn"'), 'diorama return button DOM');
+check(indexHtml.includes('id="world-location-navigator"'), 'generic World location navigator DOM');
 
 // Source contracts
 check(worldMod.includes("type: 'setWorldSettlementFocus'"), 'pin posts setWorldSettlementFocus');
 check(worldMod.includes("type: 'clearWorldSettlementFocus'"), 'clear posts clearWorldSettlementFocus');
 check(worldMod.includes('postWorldSettlementFocus'), 'postWorldSettlementFocus helper');
 check(worldMod.includes('postClearWorldSettlementFocus'), 'postClearWorldSettlementFocus helper');
+check(worldMod.includes('renderWorldLocationNavigator'), 'World pin catalog renders a deterministic location navigator');
 check(isoMod.includes('renderSettlementFocusBanner'), 'iso renders focus banner');
 check(isoMod.includes('settlementEmptyCopyForContext'), 'iso empty copy helper');
 check(dioramaMod.includes('renderSettlementFocusBanner'), 'diorama uses focus banner');
@@ -83,6 +85,7 @@ check(ja['webview.world.settlementFocusReturn'].includes('現在地'), 'ja retur
     }
     makePin('loc_sapphire_port');
     makePin('loc_mistgrove');
+    makePin('loc_reedmarket');
 
     const documentStub = {
         querySelectorAll(sel) {
@@ -102,6 +105,7 @@ check(ja['webview.world.settlementFocusReturn'].includes('現在地'), 'ja retur
         _worldPinCatalog: new Map([
             ['loc_sapphire_port', { locationId: 'loc_sapphire_port', fogVisibility: 'discovered', isCurrent: true, locationName: 'Sapphire Port' }],
             ['loc_mistgrove', { locationId: 'loc_mistgrove', fogVisibility: 'discovered', isCurrent: false, locationName: 'Mistgrove' }],
+            ['loc_reedmarket', { locationId: 'loc_reedmarket', fogVisibility: 'discovered', isCurrent: false, locationName: 'Reedmarket' }],
         ]),
         T(key, vars) {
             let s = en[key] || key;
@@ -174,6 +178,12 @@ check(ja['webview.world.settlementFocusReturn'].includes('現在地'), 'ja retur
         'UI: remote pin posts set focus');
     check(sandbox._selectedPinId === 'loc_mistgrove', 'UI: _selectedPinId highlight mistgrove');
     check(pinEls.get('loc_mistgrove').classList.contains('is-selected'), 'UI: pin is-selected class');
+
+    posted.length = 0;
+    result.selectWorldLocationPin('loc_reedmarket');
+    check(posted.some((m) => m.type === 'setWorldSettlementFocus' && m.locationId === 'loc_reedmarket'),
+        'UI: Reedmarket pin posts set focus');
+    check(sandbox._selectedPinId === 'loc_reedmarket', 'UI: Reedmarket becomes selected preview pin');
 
     posted.length = 0;
     result.selectWorldLocationPin('loc_sapphire_port');

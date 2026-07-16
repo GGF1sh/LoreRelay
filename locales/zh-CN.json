@@ -1574,6 +1574,7 @@
   "webview.world.overlayLegendVehicleParking": "载具停放",
   "webview.world.overlayVehicleList": "地图上的载具",
   "webview.world.overmapEmpty": "尚无区域。生成世界后即可查看图块地图。",
+  "webview.world.locationNavigator": "地点",
   "webview.world.pinAction.examine": "详细调查{name}周边。",
   "webview.world.pinAction.move": "前往{name}。",
   "webview.world.pinAction.stay": "在此地（{name}）观察周围情况。",

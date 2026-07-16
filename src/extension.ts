@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { renderWebviewHtml } from './webviewHtmlCore';
 
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
@@ -419,14 +420,15 @@ export function activate(context: vscode.ExtensionContext) {
         const genesisAssetBaseUri = panel.webview.asWebviewUri(vscode.Uri.file(webviewPath)).toString();
         const nonce = getNonce();
 
-        html = html
-            .replace(/\{\{styleUri\}\}/g, styleUri.toString())
-            .replace(/\{\{scriptUri\}\}/g, scriptUri.toString())
-            .replace(/\{\{mermaidUri\}\}/g, mermaidUri.toString())
-            .replace(/\{\{threeUri\}\}/g, threeUri.toString())
-            .replace(/\{\{genesisAssetBaseUri\}\}/g, genesisAssetBaseUri)
-            .replace(/\{\{cspSource\}\}/g, panel.webview.cspSource)
-            .replace(/\{\{nonce\}\}/g, nonce);
+        html = renderWebviewHtml(html, {
+            styleUri,
+            scriptUri,
+            mermaidUri,
+            threeUri,
+            genesisAssetBaseUri,
+            cspSource: panel.webview.cspSource,
+            nonce,
+        });
 
         panel.webview.html = html;
 

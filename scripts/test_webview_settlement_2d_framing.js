@@ -20,9 +20,13 @@ const {
     computeSettlementScreenLayout,
     isSettlementTransformMeaningfullyVisible,
     contentToScreen,
+    screenToSettlementContent,
+    hitTestSettlementContent,
+    settlementHitKey,
     isoProjectRaw,
     ISO_TILE_W,
     ISO_TILE_H,
+    ISO_TILE_ELEVATION,
 } = geo;
 
 function assertCentred(layout, label, minPad = 18) {
@@ -438,6 +442,117 @@ const canvas = { width: 266, height: 192 };
     check(Math.abs(la.leftSlack - lb.leftSlack) < 1e-9 && Math.abs(la.topSlack - lb.topSlack) < 1e-9,
         'C20 repeated fit screen layout identical');
 }
+
+// ---- HUMAN-PLAY-GATE-BLOCKERS-001: exact screen/content/hit contract ----
+
+function tileHit(t) {
+    const projected = isoProjectRaw(t.x, t.y, t.z || 0);
+    const elev = ISO_TILE_ELEVATION[t.code] ?? 4;
+    return {
+        type: 'tile',
+        key: settlementHitKey({ type: 'tile', x: t.x, y: t.y, z: t.z || 0, code: t.code }),
+        x: t.x,
+        y: t.y,
+        z: t.z || 0,
+        code: t.code,
+        contentX: projected.sx,
+        contentY: projected.sy - elev,
+    };
+}
+
+function markerHit(m) {
+    const projected = isoProjectRaw(m.x, m.y, m.z || 0);
+    return {
+        type: 'marker',
+        key: settlementHitKey({ type: 'marker', id: m.id }),
+        id: m.id,
+        contentX: projected.sx,
+        contentY: projected.sy - ISO_TILE_H,
+    };
+}
+
+function roundTripHit(view, transform, target, label) {
+    const bounds = computeSettlementProjectedContentBounds(view);
+    const screen = contentToScreen(
+        target.contentX,
+        target.contentY,
+        transform.pan.x,
+        transform.pan.y,
+        transform.zoom,
+        bounds.centerX,
+        bounds.centerY
+    );
+    const content = screenToSettlementContent(
+        screen.x,
+        screen.y,
+        transform.pan.x,
+        transform.pan.y,
+        transform.zoom,
+        bounds.centerX,
+        bounds.centerY
+    );
+    const hits = [
+        ...(view.tiles || []).map(tileHit),
+        ...(view.markers || []).map(markerHit),
+    ];
+    const resolved = hitTestSettlementContent(hits, content, 12, transform.zoom);
+    check(
+        Math.abs(content.x - target.contentX) < 1e-9 && Math.abs(content.y - target.contentY) < 1e-9,
+        `${label} content -> screen -> content`
+    );
+    check(resolved?.key === target.key, `${label} resolves intended hit`);
+    return { screen, resolved };
+}
+
+const hitView = viewFromTiles([
+    tile(-4, 1, 'floor'),       // minimum X
+    tile(0, 0, 'market'),       // centre
+    tile(5, 1, 'floor'),        // maximum X
+    tile(1, -3, 'floor'),       // minimum Y
+    tile(1, 6, 'water'),        // maximum Y + water
+    tile(3, 3, 'wall'),         // elevated wall top
+], [marker(2, 2)], { settlementId: 'set_sapphire_port' });
+hitView.markers[0].id = 'npc_quartermaster';
+const hitFit = computeSettlementFitTransform(hitView, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+const hitTargets = [
+    tileHit(hitView.tiles[0]),
+    tileHit(hitView.tiles[1]),
+    tileHit(hitView.tiles[2]),
+    tileHit(hitView.tiles[3]),
+    tileHit(hitView.tiles[4]),
+    tileHit(hitView.tiles[5]),
+    markerHit(hitView.markers[0]),
+];
+const hitLabels = ['minimum-X tile', 'centre tile', 'maximum-X tile', 'minimum-Y tile', 'water/maximum-Y tile', 'elevated wall top', 'marker bubble'];
+for (let i = 0; i < hitTargets.length; i++) {
+    roundTripHit(hitView, hitFit, hitTargets[i], `H${i + 1} ${hitLabels[i]} after automatic Fit`);
+}
+
+// Zoom in, zoom out, and pan use exactly the same inverse contract.
+roundTripHit(hitView, { pan: hitFit.pan, zoom: Math.min(3, hitFit.zoom + 0.6) }, hitTargets[2], 'H8 zoom in');
+roundTripHit(hitView, { pan: hitFit.pan, zoom: Math.max(0.25, hitFit.zoom - 0.35) }, hitTargets[3], 'H9 zoom out');
+roundTripHit(hitView, { pan: { x: hitFit.pan.x + 63, y: hitFit.pan.y - 41 }, zoom: hitFit.zoom }, hitTargets[4], 'H10 pan');
+
+// Resize recovery recomputes a fit but preserves hit inversion.
+const resizedFit = computeSettlementFitTransform(hitView, { width: 520, height: 310 }, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+roundTripHit(hitView, resizedFit, hitTargets[0], 'H11 resize recovery');
+
+// Fixed -> Mobile Base -> fixed and settlement preview changes cannot retain stale hit geometry.
+const mobileView = viewFromTiles([tile(0, 0, 'floor'), tile(2, 0, 'quarters')], [marker(1, 0)], { settlementId: 'mb_barge' });
+mobileView.markers[0].id = 'captain';
+const mobileFit = computeSettlementFitTransform(mobileView, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+roundTripHit(mobileView, mobileFit, tileHit(mobileView.tiles[1]), 'H12 fixed -> Mobile Base');
+roundTripHit(hitView, hitFit, hitTargets[1], 'H13 Mobile Base -> fixed');
+const reedView = viewFromTiles([tile(-2, 0, 'water'), tile(3, 4, 'market')], [], { settlementId: 'set_reedmarket' });
+const reedFit = computeSettlementFitTransform(reedView, canvas, { padding: 24, zoomMin: 0.25, zoomMax: 3 });
+roundTripHit(reedView, reedFit, tileHit(reedView.tiles[1]), 'H14 settlement preview change');
+
+// Outside geometry is a miss and distinct screen points cannot collapse to the first tile.
+const outside = screenToSettlementContent(2, 2, hitFit.pan.x, hitFit.pan.y, hitFit.zoom, hitFit.bounds.centerX, hitFit.bounds.centerY);
+check(hitTestSettlementContent(hitTargets, outside, 12, hitFit.zoom) == null, 'H15 outside geometry returns no tile');
+const distinct = hitTargets.slice(0, 5).map((target, i) => roundTripHit(hitView, hitFit, target, `H16.${i + 1} distinct point`).resolved?.key);
+check(new Set(distinct).size === 5, 'H16 different screen points resolve to different tiles');
+check(hitTargets[0].key !== hitTargets[1].key, 'H17 tile identity never matches on undefined ids');
 
 if (failed > 0) {
     console.error(`\n2d framing: ${failed} failed (${cases} passed)`);

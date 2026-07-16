@@ -3358,6 +3358,48 @@ textarea:focus-visible {
   }
 }
 
+.world-location-navigator {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 7px 0 3px;
+}
+
+.world-location-navigator-title {
+  margin-right: 2px;
+  color: var(--vscode-descriptionForeground, #9aa4b2);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.world-location-chip {
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.16));
+  border-radius: 999px;
+  background: var(--vscode-button-secondaryBackground, rgba(255,255,255,0.06));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #ddd));
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.world-location-chip:hover,
+.world-location-chip:focus-visible {
+  border-color: var(--vscode-focusBorder, #4a90e2);
+}
+
+.world-location-chip.is-current {
+  color: #ffe9a8;
+  border-color: rgba(255, 215, 95, 0.55);
+}
+
+.world-location-chip.is-selected {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+  border-color: var(--vscode-focusBorder, #4a90e2);
+}
+
 /* --- 85b-economy-logistics.css --- */
 /* NOAI-ECON-FLOWS-005 — read-only logistics network. */
 

@@ -1586,6 +1586,7 @@
   "webview.world.overlayLegendVehicleParking": "Vehicle parking",
   "webview.world.overlayVehicleList": "On map",
   "webview.world.overmapEmpty": "No regions yet. Generate a world to see the tile overmap.",
+  "webview.world.locationNavigator": "Locations",
   "webview.world.pinAction.examine": "Examine the area around {name} in detail.",
   "webview.world.pinAction.move": "Head to {name}.",
   "webview.world.pinAction.stay": "Observe the surroundings here ({name}).",

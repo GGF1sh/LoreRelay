@@ -223,6 +223,7 @@ function renderWorldView(msg) {
     currentWorldLocationId = msg.currentLocationId;
     _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
+    renderWorldLocationNavigator();
     rebuildRegionFeedbackMap(msg);
     maybeFlashHighDangerEntry(msg);
     if (genImageBtn) {
@@ -983,6 +984,42 @@ function rebuildWorldPinCatalog(msg) {
     }
 }
 
+function renderWorldLocationNavigator() {
+    const el = document.getElementById('world-location-navigator');
+    if (!el) { return; }
+    const locations = [..._worldPinCatalog.values()].filter((pin) => (
+        pin && pin.locationId && pin.locationName && pin.fogVisibility === 'discovered'
+    ));
+    if (!locations.length) {
+        el.innerHTML = '';
+        el.classList.add('hidden');
+        return;
+    }
+    el.classList.remove('hidden');
+    el.innerHTML = '';
+    const title = document.createElement('span');
+    title.className = 'world-location-navigator-title';
+    title.textContent = T('webview.world.locationNavigator');
+    el.appendChild(title);
+    for (const pin of locations) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'world-location-chip';
+        btn.dataset.locationId = pin.locationId;
+        btn.textContent = `${LOCATION_TYPE_ICON[pin.locationType] || LOCATION_TYPE_ICON.other} ${pin.locationName}`;
+        btn.title = pin.regionName ? `${pin.locationName} · ${pin.regionName}` : pin.locationName;
+        const selected = pin.locationId === _selectedPinId;
+        btn.classList.toggle('is-selected', selected);
+        btn.classList.toggle('is-current', pin.locationId === currentWorldLocationId);
+        btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            selectWorldLocationPin(pin.locationId);
+        });
+        el.appendChild(btn);
+    }
+}
+
 function rebuildRegionFeedbackMap(msg) {
     _regionFeedbackMap = new Map();
     const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
@@ -1207,10 +1244,13 @@ function renderWorldLocationDetailPanel() {
 }
 
 function syncWorldPinSelectionUi() {
-    document.querySelectorAll('.world-map-pin[data-location-id]').forEach((el) => {
+    document.querySelectorAll('.world-map-pin[data-location-id], .world-location-chip[data-location-id]').forEach((el) => {
         const id = el.getAttribute('data-location-id');
         const selected = Boolean(id && id === _selectedPinId);
         el.classList.toggle('is-selected', selected);
+        if (el.classList.contains('world-location-chip')) {
+            el.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        }
         const wrap = el.closest('.world-map-pin-wrap');
         if (wrap) { wrap.classList.toggle('is-selected', selected); }
     });

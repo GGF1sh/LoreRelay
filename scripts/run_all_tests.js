@@ -66,6 +66,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_mod_system_core.js' },
     { category: 'unit', file: 'test_campaign_resources_core.js' },
     { category: 'unit', file: 'test_settlement_core.js' },
+    { category: 'unit', file: 'test_settlement_location_path_core.js' },
     { category: 'unit', file: 'test_settlement_state_entity_dedupe.js' },
     { category: 'unit', file: 'test_settlement_layout_layer_normalization.js' },
     { category: 'unit', file: 'test_settlement_stock_zero_semantics.js' },

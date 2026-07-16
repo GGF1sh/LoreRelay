@@ -328,6 +328,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_antigravity_relay_webview.js' },
     { category: 'unit', file: 'test_relay_banner_recovery.js' },
     { category: 'unit', file: 'test_antigravity_installer.js' },
+    { category: 'unit', file: 'test_install_common_sha256.js' },
     { category: 'unit', file: 'test_antigravity_installer_bootstrap.js' },
     { category: 'unit', file: 'test_antigravity_skill_installer.js' },
     { category: 'unit', file: 'test_antigravity_install_chain.js', timeoutMs: 240000 },

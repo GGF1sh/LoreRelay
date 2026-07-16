@@ -73,6 +73,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_worldview_settlement_focus.js' },
     { category: 'unit', file: 'test_webview_settlement_focus.js' },
     { category: 'unit', file: 'test_webview_settlement_render_source.js' },
+    { category: 'unit', file: 'test_webview_settlement_2d_framing.js' },
     { category: 'unit', file: 'test_living_trade_settlement_showcase.js' },
     { category: 'unit', file: 'test_settlement_state_entity_dedupe.js' },
     { category: 'unit', file: 'test_settlement_layout_layer_normalization.js' },

@@ -16,7 +16,7 @@ const { installVscodeStub } = require('./test_helpers/vscode_stub');
 const REPO = path.join(__dirname, '..');
 const TARGET = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current\\05-living-trade-world';
 const MSG_DIR = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current\\_harness\\living-trade-settlements';
-const OUT_ROOT = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\review\\settlement-multi-location-showcase-recovered';
+const OUT_ROOT = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\review\\settlement-multi-location-showcase-final';
 const HARNESS = path.join(OUT_ROOT, 'harness');
 const PORT = 8788;
 const DEBUG_PORT = 9260;
@@ -418,6 +418,31 @@ async function main() {
           const du=document.getElementById('world-diorama-unavailable');
           const glc=document.createElement('canvas'); let gl=null; try{gl=glc.getContext('webgl')||glc.getContext('experimental-webgl');}catch(e){}
           let vendor=null,renderer=null; if(gl){const d=gl.getExtension('WEBGL_debug_renderer_info'); vendor=d?gl.getParameter(d.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR); renderer=d?gl.getParameter(d.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);}
+          let framing=null;
+          try {
+            if (typeof computeSettlementProjectedContentBounds==='function' && typeof isSettlementTransformMeaningfullyVisible==='function') {
+              const view = typeof getSelectedSettlementView==='function' ? getSelectedSettlementView(msg) : (msg&&msg.settlementView);
+              const c = document.getElementById('world-settlement-canvas');
+              if (view && c && c.clientWidth) {
+                const pan = (typeof _settlementPan!=='undefined') ? _settlementPan : {x:0,y:0};
+                const zoom = (typeof _settlementZoom!=='undefined') ? _settlementZoom : 1;
+                const bounds = computeSettlementProjectedContentBounds(view);
+                const vis = isSettlementTransformMeaningfullyVisible(view, {width:c.clientWidth,height:c.clientHeight}, pan, zoom, {minVisibleRatio:0.12,minTileCenters:1});
+                framing = {
+                  settlementId: view.settlementId,
+                  viewW: view.width, viewH: view.height,
+                  tileCount: (view.tiles||[]).length,
+                  markerCount: (view.markers||[]).length,
+                  contentBounds: bounds,
+                  pan, zoom,
+                  centersInside: vis.centersInside,
+                  visibleRatio: vis.visibleRatio,
+                  screenBounds: vis.screenBounds,
+                  canvasCss: {w:c.clientWidth,h:c.clientHeight},
+                };
+              }
+            }
+          } catch (e) { framing = { error: String(e&&e.message||e) }; }
           return {
             worldMapMode: typeof worldMapMode!=='undefined'?worldMapMode:null,
             currentLocationId: typeof currentWorldLocationId!=='undefined'?currentWorldLocationId:null,
@@ -431,6 +456,7 @@ async function main() {
             webgl: {ok:!!gl, vendor, renderer},
             settlementCanvas: canvasStats('world-settlement-canvas'),
             dioramaCanvas: canvasStats('world-diorama-canvas'),
+            framing,
             bodyBg: getComputedStyle(document.body).backgroundColor,
             harness: window.__LR_HARNESS_PROBE__ ? window.__LR_HARNESS_PROBE__() : null,
           };
@@ -447,6 +473,8 @@ async function main() {
             await cdp.eval(`(async()=>{
               if(document.fonts&&document.fonts.ready) await document.fonts.ready;
               await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+              if(typeof drawSettlementIsometric==='function'){ try{ drawSettlementIsometric(); }catch(e){} }
+              // Force a second pass after layout so auto-fit sees nonzero canvas size.
               if(typeof drawSettlementIsometric==='function'){ try{ drawSettlementIsometric(); }catch(e){} }
               if(${JSON.stringify(shot.mode==='diorama')}){
                 if(typeof renderSettlementDiorama==='function'){ try{ renderSettlementDiorama(); }catch(e){} }
@@ -508,7 +536,13 @@ async function main() {
                 if (probe.selected2d === 'mb_sapphire_barge') fails.push('mb_as_fixed');
                 if (probe.mbBanner) fails.push('mb_banner_visible');
                 if (!probe.settlementCanvas || !probe.settlementCanvas.width) fails.push('canvas_zero');
-                if ((probe.settlementCanvas.sampledNonBg || 0) < 50) fails.push('blank_canvas');
+                if ((probe.settlementCanvas.sampledNonBg || 0) < 200) fails.push('blank_canvas');
+                // Framing diagnostics from harness probe
+                if (probe.framing) {
+                    entry.framing = probe.framing;
+                    if ((probe.framing.centersInside || 0) < 1) fails.push('no_tile_centers_visible');
+                    if ((probe.framing.visibleRatio || 0) < 0.2) fails.push('low_visible_ratio');
+                }
             }
             if (shot.mode === 'diorama' && expectedId) {
                 if (!probe.three) fails.push('three_missing');

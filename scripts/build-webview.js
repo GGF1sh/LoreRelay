@@ -31,6 +31,7 @@ const JS_MODULE_ORDER = [
     '85b-economy-logistics.js',
     '86-tile-overmap.js',
     '86a-settlement-render-source.js',
+    '86b0-settlement-iso-geometry.js',
     '86b-settlement-isometric.js',
     '86c-settlement-diorama.js',
     '87-parlor-settings.js',

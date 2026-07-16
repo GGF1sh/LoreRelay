@@ -13,9 +13,14 @@ let _settlementHits = [];
 let _settlementSelected = null;
 let _lastSettlementId = null;
 let _lastSettlementLayerId = null;
+let _lastSettlementSourceKey = null; // fixed vs mobile_base + settlementId
 let _settlementControlsReady = false;
 let _settlementExpandHoverPreview = null;
 let _lastSettlementExpandLayerId = null;
+let _settlementResizeObserver = null;
+let _settlementLastCssSize = { w: 0, h: 0 };
+let _settlementPendingFit = false;
+let _settlementUserPanActive = false;
 
 const SETTLEMENT_EXPAND_PROFILE_I18N_KEY = {
     cellar: 'webview.world.settlementExpandProfileCellar',
@@ -39,9 +44,12 @@ const SETTLEMENT_EXPAND_PROFILE_FALLBACK = {
 const SETTLEMENT_TILE_W = 32;
 const SETTLEMENT_TILE_H = 16;
 const SETTLEMENT_LAYER_HEIGHT = 12;
-const SETTLEMENT_ZOOM_MIN = 0.5;
+// Min lowered so dense declared-size mismatches can still fit; content-based
+// fit normally lands near 0.6–1.5 for showcase cities.
+const SETTLEMENT_ZOOM_MIN = 0.25;
 const SETTLEMENT_ZOOM_MAX = 3;
 const SETTLEMENT_ZOOM_STEP = 0.15;
+const SETTLEMENT_FIT_PADDING = 24;
 const SETTLEMENT_HIT_RADIUS_PX = 12;
 const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.';
 
@@ -192,23 +200,29 @@ function settlementPrefsKey(settlementId, suffix) {
 }
 
 function loadSettlementViewPrefs(settlementId) {
-    if (!settlementId) { return; }
+    if (!settlementId) { return false; }
+    let loaded = false;
     try {
         const panRaw = localStorage.getItem(settlementPrefsKey(settlementId, 'pan'));
         const zoomRaw = localStorage.getItem(settlementPrefsKey(settlementId, 'zoom'));
         if (panRaw) {
             const pan = JSON.parse(panRaw);
-            if (typeof pan.x === 'number' && typeof pan.y === 'number') {
+            if (typeof pan.x === 'number' && typeof pan.y === 'number'
+                && Number.isFinite(pan.x) && Number.isFinite(pan.y)
+                && Math.abs(pan.x) < 20000 && Math.abs(pan.y) < 20000) {
                 _settlementPan = { x: pan.x, y: pan.y };
+                loaded = true;
             }
         }
         if (zoomRaw) {
             const zoom = Number(zoomRaw);
             if (Number.isFinite(zoom)) {
                 _settlementZoom = Math.max(SETTLEMENT_ZOOM_MIN, Math.min(SETTLEMENT_ZOOM_MAX, zoom));
+                loaded = true;
             }
         }
     } catch { /* ignore */ }
+    return loaded;
 }
 
 function saveSettlementViewPrefs(settlementId) {
@@ -704,27 +718,100 @@ function drawSettlementVignette(ctx, cssWidth, cssHeight, timeOfDay) {
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
+/**
+ * SETTLEMENT-2D-FRAMING-001: origin is the absolute iso origin (stored in pan).
+ * Pivot is the projected content center so zoom scales the settlement in place.
+ */
 function computeSettlementOrigin(canvas, view) {
-    const boundsW = (view.width + view.height) * (SETTLEMENT_TILE_W / 2);
-    const boundsH = (view.width + view.height) * (SETTLEMENT_TILE_H / 2) + SETTLEMENT_LAYER_HEIGHT * 2;
-    const cssWidth = canvas.clientWidth;
-    const cssHeight = canvas.clientHeight;
-    const originX = cssWidth / 2 - boundsW / 2 + _settlementPan.x;
-    const originY = cssHeight / 4 - boundsH / 4 + _settlementPan.y;
-    return { originX, originY, boundsW, boundsH, cssWidth, cssHeight };
+    const cssWidth = canvas.clientWidth || 0;
+    const cssHeight = canvas.clientHeight || 0;
+    const contentBounds = (typeof computeSettlementProjectedContentBounds === 'function')
+        ? computeSettlementProjectedContentBounds(view)
+        : null;
+    const originX = _settlementPan.x;
+    const originY = _settlementPan.y;
+    let boundsW = 1;
+    let boundsH = 1;
+    let pivotX = cssWidth / 2;
+    let pivotY = cssHeight / 2;
+    if (contentBounds) {
+        boundsW = contentBounds.width;
+        boundsH = contentBounds.height;
+        pivotX = originX + contentBounds.centerX;
+        pivotY = originY + contentBounds.centerY;
+    }
+    return {
+        originX,
+        originY,
+        boundsW,
+        boundsH,
+        cssWidth,
+        cssHeight,
+        contentBounds,
+        pivotX,
+        pivotY,
+    };
 }
 
-/** Shared fit-to-bounds math for the manual "Fit" button and the automatic per-layer recenter. */
+/** Shared fit using actual projected tile/marker bounds (not declared width/height). */
 function applySettlementFitTransform(view, canvas) {
-    if (!view || !canvas || !canvas.clientWidth) { return false; }
-    const boundsW = (view.width + view.height) * (SETTLEMENT_TILE_W / 2);
-    const boundsH = (view.width + view.height) * (SETTLEMENT_TILE_H / 2) + SETTLEMENT_LAYER_HEIGHT * 2;
-    const pad = 24;
-    const scaleX = (canvas.clientWidth - pad) / Math.max(1, boundsW);
-    const scaleY = (canvas.clientHeight - pad) / Math.max(1, boundsH);
-    _settlementZoom = Math.max(SETTLEMENT_ZOOM_MIN, Math.min(SETTLEMENT_ZOOM_MAX, Math.min(scaleX, scaleY)));
-    _settlementPan = { x: 0, y: 0 };
+    if (!view || !canvas) { return false; }
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    if (!cw || !ch) {
+        _settlementPendingFit = true;
+        return false;
+    }
+    if (typeof computeSettlementFitTransform !== 'function') { return false; }
+    const fit = computeSettlementFitTransform(
+        view,
+        { width: cw, height: ch },
+        {
+            padding: SETTLEMENT_FIT_PADDING,
+            zoomMin: SETTLEMENT_ZOOM_MIN,
+            zoomMax: SETTLEMENT_ZOOM_MAX,
+        }
+    );
+    if (!fit) { return false; }
+    _settlementZoom = fit.zoom;
+    _settlementPan = { x: fit.pan.x, y: fit.pan.y };
+    _settlementPendingFit = false;
     return true;
+}
+
+function settlementTransformIsVisible(view, canvas) {
+    if (typeof isSettlementTransformMeaningfullyVisible !== 'function') { return true; }
+    const cw = canvas && canvas.clientWidth;
+    const ch = canvas && canvas.clientHeight;
+    if (!cw || !ch) { return false; }
+    const result = isSettlementTransformMeaningfullyVisible(
+        view,
+        { width: cw, height: ch },
+        _settlementPan,
+        _settlementZoom,
+        { minVisibleRatio: 0.12, minTileCenters: 1 }
+    );
+    return Boolean(result && result.ok);
+}
+
+/**
+ * Load stored transform if valid; otherwise auto-fit.
+ * @returns {'loaded'|'fitted'|'pending'|'empty'}
+ */
+function ensureSettlementFraming(view, canvas) {
+    if (!view) { return 'empty'; }
+    if (!canvas || !canvas.clientWidth) {
+        _settlementPendingFit = true;
+        return 'pending';
+    }
+    if (settlementTransformIsVisible(view, canvas)) {
+        _settlementPendingFit = false;
+        return 'loaded';
+    }
+    if (applySettlementFitTransform(view, canvas)) {
+        return 'fitted';
+    }
+    return 'pending';
 }
 
 function fitSettlementViewToCanvas() {
@@ -733,6 +820,45 @@ function fitSettlementViewToCanvas() {
     if (!applySettlementFitTransform(view, canvas)) { return; }
     const settlementId = view.settlementId;
     if (settlementId) { saveSettlementViewPrefs(settlementId); }
+    drawSettlementIsometric();
+}
+
+function settlementSourceKey(msg, view) {
+    const sid = view && view.settlementId ? view.settlementId : '';
+    let source = 'fixed';
+    if (typeof resolveSettlementRenderSource === 'function' && msg) {
+        const r = resolveSettlementRenderSource(msg, { forDiorama: false });
+        if (r && r.source) { source = r.source; }
+    }
+    return `${source}:${sid}`;
+}
+
+function ensureSettlementResizeObserver(stage) {
+    if (!stage || typeof ResizeObserver === 'undefined') { return; }
+    if (_settlementResizeObserver) { return; }
+    _settlementResizeObserver = new ResizeObserver(() => {
+        const canvas = document.getElementById('world-settlement-canvas');
+        const view = getSettlementSnapshot();
+        if (!canvas || !view) { return; }
+        const w = stage.clientWidth;
+        const h = stage.clientHeight || canvas.clientHeight;
+        const prev = _settlementLastCssSize;
+        const grewFromZero = (prev.w === 0 || prev.h === 0) && w > 0 && h > 0;
+        const changed = Math.abs(w - prev.w) > 8 || Math.abs(h - prev.h) > 8;
+        _settlementLastCssSize = { w, h };
+        if (grewFromZero || _settlementPendingFit) {
+            ensureSettlementFraming(view, canvas);
+            drawSettlementIsometric();
+            return;
+        }
+        if (!changed || _settlementUserPanActive) { return; }
+        // Significant resize: recover only when content left the usable area.
+        if (!settlementTransformIsVisible(view, canvas)) {
+            ensureSettlementFraming(view, canvas);
+        }
+        drawSettlementIsometric();
+    });
+    _settlementResizeObserver.observe(stage);
 }
 
 function hideSettlementTooltip() {
@@ -835,9 +961,7 @@ function hitTestSettlement(clientX, clientY, canvas) {
     // the content pivot) so hovering/clicking stays accurate at any zoom.
     const view = getSettlementSnapshot();
     if (view && _settlementZoom !== 1) {
-        const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
-        const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
-        const pivotY = originY + boundsH / 2;
+        const { pivotX, pivotY } = computeSettlementOrigin(canvas, view);
         x = pivotX + (x - pivotX) / _settlementZoom;
         y = pivotY + (y - pivotY) / _settlementZoom;
     }
@@ -906,8 +1030,16 @@ function drawSettlementIsometric() {
         return;
     }
 
-    if (view.settlementId !== _lastSettlementId) {
+    ensureSettlementResizeObserver(stage);
+
+    const sourceKey = settlementSourceKey(msg, view);
+    const settlementChanged = view.settlementId !== _lastSettlementId;
+    const sourceChanged = sourceKey !== _lastSettlementSourceKey;
+    const layerChanged = view.layerId !== _lastSettlementLayerId;
+
+    if (settlementChanged || sourceChanged) {
         _lastSettlementId = view.settlementId;
+        _lastSettlementSourceKey = sourceKey;
         _lastSettlementLayerId = view.layerId;
         resetSettlementViewTransform();
         loadSettlementViewPrefs(view.settlementId);
@@ -916,12 +1048,12 @@ function drawSettlementIsometric() {
         _settlementSelected = null;
         _settlementExpandHoverPreview = null;
         _lastSettlementExpandLayerId = null;
-    } else if (view.layerId !== _lastSettlementLayerId) {
-        // M3b/M4c polish: switching layers keeps a settlement-wide pan/zoom pref,
-        // which can leave a differently-sized layer mostly out of frame. Recenter
-        // transiently (no localStorage write) rather than persisting a surprise view.
+        // Framing applied after canvas size is known (below).
+        _settlementPendingFit = true;
+    } else if (layerChanged) {
+        // Active layer content bounds change — refit to the new layer.
         _lastSettlementLayerId = view.layerId;
-        applySettlementFitTransform(view, canvas);
+        _settlementPendingFit = true;
     }
 
     syncSettlementLayerButtons(view);
@@ -930,7 +1062,10 @@ function drawSettlementIsometric() {
     updateSettlementLayerNote(view);
 
     const panelWidth = stage.clientWidth;
-    if (!panelWidth) { return; }
+    if (!panelWidth) {
+        _settlementPendingFit = true;
+        return;
+    }
 
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = stage.clientWidth;
@@ -940,19 +1075,23 @@ function drawSettlementIsometric() {
     canvas.height = Math.round(cssHeight * dpr);
     canvas.style.width = `${cssWidth}px`;
     canvas.style.height = `${cssHeight}px`;
+    // Match clientHeight to the CSS height we just set so fit math sees nonzero height.
+    // (clientHeight may lag one frame; use cssHeight explicitly via style.)
+    _settlementLastCssSize = { w: cssWidth, h: cssHeight };
+
+    // SETTLEMENT-2D-FRAMING-001: auto-fit on settlement/source/layer change or
+    // when stored transform leaves content off-canvas.
+    if (_settlementPendingFit || !settlementTransformIsVisible(view, canvas)) {
+        ensureSettlementFraming(view, canvas);
+    }
 
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
+    const origin = computeSettlementOrigin(canvas, view);
+    const { originX, originY, pivotX, pivotY } = origin;
     const zoom = _settlementZoom;
-    // Zoom must pivot on the content's own geometric center (not the canvas
-    // center — the isometric origin already places tile (0,0) asymmetrically
-    // within the canvas). Otherwise any zoom != 1 (including "Fit") drifts the
-    // whole layer toward a corner instead of scaling in place.
-    const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
-    const pivotY = originY + boundsH / 2;
 
     drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY, _settlementTimeOfDay);
 

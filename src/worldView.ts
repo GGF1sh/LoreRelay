@@ -31,6 +31,14 @@ import {
     extractActiveMobileBaseSettlementId,
     loadFixedSettlementForWorldView,
 } from './worldViewFixedSettlement';
+import {
+    buildSettlementDisplayContext,
+    mapFixedLoadCodeToAvailability,
+    resolveSettlementDisplayLocationId,
+    retainSettlementFocus,
+    validateSettlementFocusLocationId,
+    type SettlementDisplayContext,
+} from './worldViewSettlementFocusCore';
 
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
@@ -91,8 +99,14 @@ import { loadVehicleState } from './vehicleState';
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 let preferredSettlementLayerId: SettlementLayerId = 'z0';
 
+/** Ephemeral in-memory settlement preview focus (workspace-scoped, never persisted). */
+let settlementFocusWorkspaceRoot: string | undefined;
+let settlementFocusLocationId: string | undefined;
+
 export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | undefined }): void {
     getPanelRef = deps.getPanel;
+    // Panel/workspace re-init must not inherit a prior workspace's focus.
+    clearWorldSettlementFocusState();
 }
 
 export function setPreferredSettlementLayer(layerId: string): SettlementLayerId {
@@ -103,6 +117,61 @@ export function setPreferredSettlementLayer(layerId: string): SettlementLayerId 
 
 export function getPreferredSettlementLayer(): SettlementLayerId {
     return preferredSettlementLayerId;
+}
+
+/** Test/debug helper: current ephemeral focus (undefined when none). */
+export function getWorldSettlementFocusLocationId(): string | undefined {
+    return settlementFocusLocationId;
+}
+
+export function clearWorldSettlementFocusState(): void {
+    settlementFocusWorkspaceRoot = undefined;
+    settlementFocusLocationId = undefined;
+}
+
+/**
+ * Set ephemeral settlement preview focus from an untrusted Webview message.
+ * Does not change the player's current location. Invalid requests fail closed.
+ */
+export function setWorldSettlementFocus(locationId: unknown): void {
+    const wsPath = getWorkspacePath();
+    if (!wsPath || !isWorldForgeEnabled()) {
+        return;
+    }
+    const forge = loadWorldForge();
+    if (!forge) {
+        return;
+    }
+    const catalog = new Set(forge.geography.locations.map((loc) => loc.id));
+    const validated = validateSettlementFocusLocationId(locationId, catalog);
+    if (!validated.ok) {
+        // Fail closed: do not adopt arbitrary focus; keep current-location display.
+        return;
+    }
+    // Selecting the current city pin normalizes to no preview focus.
+    const current = getCurrentLocationIdFromDisk();
+    if (current && validated.locationId === current) {
+        clearWorldSettlementFocusState();
+        pushWorldViewToWebview(current);
+        return;
+    }
+    settlementFocusWorkspaceRoot = wsPath;
+    settlementFocusLocationId = validated.locationId;
+    pushWorldViewToWebview(current);
+}
+
+/** Clear ephemeral settlement preview focus and refresh World View for the real current location. */
+export function clearWorldSettlementFocus(): void {
+    clearWorldSettlementFocusState();
+    pushWorldViewToWebview(getCurrentLocationIdFromDisk());
+}
+
+function getCurrentLocationIdFromDisk(): string | undefined {
+    const snap = loadGameStateSnapshotFromDisk();
+    const id = snap?.world && typeof (snap.world as { currentLocationId?: unknown }).currentLocationId === 'string'
+        ? (snap.world as { currentLocationId: string }).currentLocationId
+        : undefined;
+    return id && id.length > 0 ? id : undefined;
 }
 
 function loadGameStateSnapshotFromDisk(): (Pick<GameState, 'world' | 'commerce'> & { domain?: unknown }) | undefined {
@@ -583,16 +652,48 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
     const activeMobileBaseSettlementId = extractActiveMobileBaseSettlementId(vehicleState);
 
-    // SLICE1: location-scoped fixed settlement for the player's current World location.
-    // Uses PRE2 resolver (parsed docs once). Does not call loadSettlementState/Layout here.
-    // Missing/invalid/other-city/MB-owned results omit fixed payload (no stale cross-location data).
+    // Actual player location (game source of truth). Preview never mutates this.
+    const actualCurrentLocationId = typeof currentLocationId === 'string' && currentLocationId.length > 0
+        ? currentLocationId
+        : undefined;
+
     const forgeLocationIds = new Set(forge.geography.locations.map((loc) => loc.id));
+    const locationNameById = new Map(
+        forge.geography.locations.map((loc) => [loc.id, loc.name || loc.id] as const)
+    );
+
+    // SLICE2: ephemeral focus retained only for this workspace + still-valid catalog id.
+    const retainedFocus = retainSettlementFocus({
+        focusWorkspaceRoot: settlementFocusWorkspaceRoot,
+        focusLocationId: settlementFocusLocationId,
+        activeWorkspaceRoot: wsPath,
+        forgeLocationIds,
+        currentLocationId: actualCurrentLocationId,
+    });
+    if (retainedFocus !== settlementFocusLocationId) {
+        settlementFocusLocationId = retainedFocus;
+        if (!retainedFocus) {
+            settlementFocusWorkspaceRoot = undefined;
+        }
+    }
+
+    const displayResolve = resolveSettlementDisplayLocationId({
+        currentLocationId: actualCurrentLocationId,
+        focusedLocationId: settlementFocusLocationId,
+    });
+    if (displayResolve.normalizeFocusAway && settlementFocusLocationId) {
+        settlementFocusLocationId = undefined;
+        settlementFocusWorkspaceRoot = undefined;
+    }
+    const displaySettlementLocationId = displayResolve.displayLocationId;
+    const settlementDisplayMode = displayResolve.mode;
+
+    // SLICE1+2: resolve fixed settlement for display location only (current or remote preview).
+    // Does not call loadSettlementState/Layout. All fixed-derived fields share this source.
     const fixedLoad = loadFixedSettlementForWorldView({
         enableSettlementMode: gameRules.enableSettlementMode === true,
         workspaceRoot: wsPath,
-        currentLocationId: typeof currentLocationId === 'string' && currentLocationId.length > 0
-            ? currentLocationId
-            : undefined,
+        currentLocationId: displaySettlementLocationId,
         forgeLocationIds,
         activeMobileBaseSettlementId,
     });
@@ -605,9 +706,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             selectedLayerId: preferredSettlementLayerId,
         })
         : undefined;
-    // M4c: read-only ghost previews for layers missing from settlement_layout.json.
-    // Pure in-memory use of applyExpandLayerToLayout — never persisted here.
-    // Must use the same resolved state/layout as settlementView (no mixed root singleton).
+    // M4c: read-only ghost previews — same resolved state/layout as settlementView.
     const settlementExpansionPreviews = settlementState
         ? buildSettlementExpansionPreviews(settlementState, settlementLayout)
         : [];
@@ -617,6 +716,15 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         gameRules,
         { theme: dioramaTheme, includeLabels: true }
     );
+    const settlementDisplayContext: SettlementDisplayContext | null = gameRules.enableSettlementMode === true
+        ? buildSettlementDisplayContext({
+            mode: settlementDisplayMode,
+            currentLocationId: actualCurrentLocationId,
+            displayLocationId: displaySettlementLocationId,
+            locationNameById,
+            availability: mapFixedLoadCodeToAvailability(fixedLoad.code, Boolean(settlementState)),
+        })
+        : null;
     const mapOverlay = buildMapOverlayFromContext({
         forge,
         fog: {
@@ -632,7 +740,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
         knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
         vehicleState,
-        currentLocationId: currentLocationId ?? worldBlock?.currentLocationId,
+        // Map overlay / commerce / vehicles stay on actual current location — never preview focus.
+        currentLocationId: actualCurrentLocationId ?? worldBlock?.currentLocationId,
     });
     const rawForgeDoc = loadWorldForgeDocument();
     const commerceForge = gameRules.enableCommerce === true && rawForgeDoc
@@ -760,6 +869,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableSettlementDiorama: settlementDioramaEnabled(gameRules),
         settlementDiorama: settlementDiorama ?? null,
         settlementExpansionPreviews: sanitizeSettlementExpansionPreviewsForWebview(settlementExpansionPreviews),
+        settlementDisplayContext,
+
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,
@@ -815,9 +926,9 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         chronicle: observatoryChronicle,
         excludedEventIds: gameRules.excludedEventIds ?? [],
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
-        vehicleGarage: buildVehicleGarageWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
+        vehicleGarage: buildVehicleGarageWebviewPayload(actualCurrentLocationId ?? worldBlock?.currentLocationId),
         enableMobileBaseSystem: mobileBaseSystemEnabled(gameRules),
-        mobileBasePanel: buildMobileBasePanelWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
+        mobileBasePanel: buildMobileBasePanelWebviewPayload(actualCurrentLocationId ?? worldBlock?.currentLocationId),
         mobileBaseInterior: buildMobileBaseInteriorWebviewPayload(preferredSettlementLayerId, dioramaTheme) ?? null,
     });
 }

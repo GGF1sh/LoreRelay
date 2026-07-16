@@ -7767,19 +7767,42 @@ function findWorldPinMeta(locationId) {
     return _worldPinCatalog.get(locationId) || null;
 }
 
+function postWorldSettlementFocus(locationId) {
+    if (!locationId || typeof locationId !== 'string') { return; }
+    vscode.postMessage({ type: 'setWorldSettlementFocus', locationId });
+}
+
+function postClearWorldSettlementFocus() {
+    vscode.postMessage({ type: 'clearWorldSettlementFocus' });
+}
+
 function clearWorldPinSelection() {
     _selectedPinId = null;
     syncWorldPinSelectionUi();
     renderWorldLocationDetailPanel();
+    // Dismissing pin selection also clears remote settlement preview focus.
+    postClearWorldSettlementFocus();
 }
 
 function selectWorldLocationPin(locationId) {
     const meta = findWorldPinMeta(locationId);
     if (!meta) { return; }
     if (meta.fogVisibility === 'rumored' || meta.fogVisibility === 'unknown') { return; }
-    _selectedPinId = (_selectedPinId === locationId) ? null : locationId;
+    const next = (_selectedPinId === locationId) ? null : locationId;
+    _selectedPinId = next;
     syncWorldPinSelectionUi();
     renderWorldLocationDetailPanel();
+    // Reuse World-pin selection for settlement diorama preview (does not travel).
+    if (!next) {
+        postClearWorldSettlementFocus();
+        return;
+    }
+    if (next === currentWorldLocationId) {
+        // Selecting current pin normalizes to current-location settlement display.
+        postClearWorldSettlementFocus();
+        return;
+    }
+    postWorldSettlementFocus(next);
 }
 
 function postWorldInsertChatText(text) {
@@ -8038,7 +8061,14 @@ function hasSettlementMapContent(msg) {
     if (msg.enableMobileBaseSystem === true && interior && !interior.interiorBlocked && interior.hasCanvas) {
         return true;
     }
-    return msg.enableSettlementMode === true && Boolean(msg.settlementView);
+    if (msg.enableSettlementMode !== true) {
+        return false;
+    }
+    // Available canvas, or honest empty/invalid display context (SLICE2 preview/current).
+    if (msg.settlementView) {
+        return true;
+    }
+    return Boolean(msg.settlementDisplayContext);
 }
 
 function syncSettlementMapModeUi(msg) {
@@ -13297,6 +13327,77 @@ function renderMobileBaseInteriorBanner(msg, view) {
     banner.classList.remove('hidden');
 }
 
+function tSettlementFocus(key, vars) {
+    if (typeof T === 'function') {
+        const translated = T(key, vars);
+        if (translated && translated !== key) { return translated; }
+    }
+    return key;
+}
+
+function wireSettlementFocusReturnButton(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn || btn.dataset.focusReturnWired === '1') { return; }
+    btn.dataset.focusReturnWired = '1';
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof vscode !== 'undefined' && vscode.postMessage) {
+            vscode.postMessage({ type: 'clearWorldSettlementFocus' });
+        }
+    });
+}
+
+/**
+ * SLICE2: compact preview/current context banner for Settlement and Diorama panels.
+ * Does not imply travel. Empty/invalid copy is localized and bounded.
+ */
+function renderSettlementFocusBanner(msg, options) {
+    const prefix = options && options.prefix === 'diorama' ? 'diorama' : 'settlement';
+    const banner = document.getElementById(`world-${prefix}-focus-banner`);
+    const previewLine = document.getElementById(`world-${prefix}-focus-preview-line`);
+    const currentLine = document.getElementById(`world-${prefix}-focus-current-line`);
+    const returnBtn = document.getElementById(`world-${prefix}-focus-return-btn`);
+    if (!banner || !previewLine || !currentLine) { return; }
+    wireSettlementFocusReturnButton(`world-${prefix}-focus-return-btn`);
+
+    const ctx = msg && msg.settlementDisplayContext;
+    const isPreview = ctx && ctx.mode === 'preview';
+    if (!isPreview) {
+        banner.classList.add('hidden');
+        previewLine.textContent = '';
+        currentLine.textContent = '';
+        return;
+    }
+
+    const displayName = ctx.displayLocationName || ctx.displayLocationId || '';
+    const currentName = ctx.currentLocationName || ctx.currentLocationId || '';
+    previewLine.textContent = tSettlementFocus('webview.world.settlementFocusPreview', { location: displayName });
+    currentLine.textContent = tSettlementFocus('webview.world.settlementFocusCurrent', { location: currentName });
+    if (returnBtn) {
+        returnBtn.textContent = tSettlementFocus('webview.world.settlementFocusReturn');
+    }
+    banner.classList.remove('hidden');
+}
+
+function settlementEmptyCopyForContext(msg) {
+    const ctx = msg && msg.settlementDisplayContext;
+    const name = (ctx && (ctx.displayLocationName || ctx.displayLocationId)) || '';
+    if (ctx && ctx.mode === 'preview') {
+        if (ctx.availability === 'invalid') {
+            return tSettlementFocus('webview.world.settlementFocusInvalidLocation', { location: name });
+        }
+        return tSettlementFocus('webview.world.settlementFocusMissingLocation', { location: name });
+    }
+    if (ctx && ctx.availability === 'invalid' && name) {
+        return tSettlementFocus('webview.world.settlementFocusInvalidLocation', { location: name });
+    }
+    if (name) {
+        return tSettlementFocus('webview.world.settlementFocusMissingLocation', { location: name });
+    }
+    return tSettlementFocus('webview.world.settlementFocusMissingHere');
+}
+
 function settlementExpandProfileLabel(profile) {
     const key = SETTLEMENT_EXPAND_PROFILE_I18N_KEY[profile];
     const translated = key && typeof T === 'function' ? T(key) : '';
@@ -13828,13 +13929,12 @@ function drawSettlementIsometric() {
 
     const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
+    renderSettlementFocusBanner(msg, { prefix: 'settlement' });
     if (empty) {
         const showEmpty = !view;
         empty.classList.toggle('hidden', !showEmpty);
         if (showEmpty) {
-            empty.textContent = typeof T === 'function'
-                ? T('webview.world.settlementEmpty')
-                : 'No settlement view yet. Enable Settlement Mode and add settlement_state.json.';
+            empty.textContent = settlementEmptyCopyForContext(msg);
         }
     }
     stage.classList.toggle('hidden', !view);
@@ -14894,13 +14994,18 @@ function renderSettlementDiorama() {
     const msg = _dioramaWorldMsg;
     const snapshot = getDioramaSnapshot();
     const flagOn = Boolean(msg && msg.enableSettlementDiorama === true);
+    if (typeof renderSettlementFocusBanner === 'function') {
+        renderSettlementFocusBanner(msg, { prefix: 'diorama' });
+    }
 
     if (!flagOn || !snapshot) {
         stage.classList.add('hidden');
         if (unavailable) { unavailable.classList.add('hidden'); }
         if (empty) {
             empty.classList.remove('hidden');
-            empty.textContent = typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.';
+            empty.textContent = typeof settlementEmptyCopyForContext === 'function'
+                ? settlementEmptyCopyForContext(msg)
+                : (typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.');
         }
         disposeSettlementDiorama();
         renderSettlementDioramaMarkerFallback(null);

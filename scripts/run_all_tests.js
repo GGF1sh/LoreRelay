@@ -70,6 +70,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_settlement_location_resolve_core.js' },
     { category: 'unit', file: 'test_settlement_location_resolve_host.js' },
     { category: 'unit', file: 'test_worldview_location_scoped_settlement.js' },
+    { category: 'unit', file: 'test_worldview_settlement_focus.js' },
+    { category: 'unit', file: 'test_webview_settlement_focus.js' },
     { category: 'unit', file: 'test_settlement_state_entity_dedupe.js' },
     { category: 'unit', file: 'test_settlement_layout_layer_normalization.js' },
     { category: 'unit', file: 'test_settlement_stock_zero_semantics.js' },

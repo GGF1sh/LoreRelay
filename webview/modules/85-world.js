@@ -1055,19 +1055,42 @@ function findWorldPinMeta(locationId) {
     return _worldPinCatalog.get(locationId) || null;
 }
 
+function postWorldSettlementFocus(locationId) {
+    if (!locationId || typeof locationId !== 'string') { return; }
+    vscode.postMessage({ type: 'setWorldSettlementFocus', locationId });
+}
+
+function postClearWorldSettlementFocus() {
+    vscode.postMessage({ type: 'clearWorldSettlementFocus' });
+}
+
 function clearWorldPinSelection() {
     _selectedPinId = null;
     syncWorldPinSelectionUi();
     renderWorldLocationDetailPanel();
+    // Dismissing pin selection also clears remote settlement preview focus.
+    postClearWorldSettlementFocus();
 }
 
 function selectWorldLocationPin(locationId) {
     const meta = findWorldPinMeta(locationId);
     if (!meta) { return; }
     if (meta.fogVisibility === 'rumored' || meta.fogVisibility === 'unknown') { return; }
-    _selectedPinId = (_selectedPinId === locationId) ? null : locationId;
+    const next = (_selectedPinId === locationId) ? null : locationId;
+    _selectedPinId = next;
     syncWorldPinSelectionUi();
     renderWorldLocationDetailPanel();
+    // Reuse World-pin selection for settlement diorama preview (does not travel).
+    if (!next) {
+        postClearWorldSettlementFocus();
+        return;
+    }
+    if (next === currentWorldLocationId) {
+        // Selecting current pin normalizes to current-location settlement display.
+        postClearWorldSettlementFocus();
+        return;
+    }
+    postWorldSettlementFocus(next);
 }
 
 function postWorldInsertChatText(text) {
@@ -1326,7 +1349,14 @@ function hasSettlementMapContent(msg) {
     if (msg.enableMobileBaseSystem === true && interior && !interior.interiorBlocked && interior.hasCanvas) {
         return true;
     }
-    return msg.enableSettlementMode === true && Boolean(msg.settlementView);
+    if (msg.enableSettlementMode !== true) {
+        return false;
+    }
+    // Available canvas, or honest empty/invalid display context (SLICE2 preview/current).
+    if (msg.settlementView) {
+        return true;
+    }
+    return Boolean(msg.settlementDisplayContext);
 }
 
 function syncSettlementMapModeUi(msg) {

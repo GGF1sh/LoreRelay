@@ -6071,6 +6071,70 @@ body[data-ui-theme="steampunk"] {
     position: relative;
 }
 
+.world-settlement-focus-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.45rem 0.75rem;
+    margin: 0 0 0.45rem;
+    padding: 0.4rem 0.55rem;
+    border-left: 3px solid var(--vscode-charts-orange, #e2a03f);
+    background: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.12));
+    color: var(--vscode-foreground, #cccccc);
+    font-size: 0.82em;
+    line-height: 1.35;
+}
+
+.world-settlement-focus-banner.hidden {
+    display: none;
+}
+
+.world-settlement-focus-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
+.world-settlement-focus-preview-line,
+.world-settlement-focus-current-line {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.world-settlement-focus-preview-line {
+    font-weight: 600;
+}
+
+.world-settlement-focus-current-line {
+    opacity: 0.85;
+}
+
+.world-settlement-focus-return-btn {
+    flex: 0 0 auto;
+    max-width: 100%;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--vscode-button-border, var(--vscode-button-background, #0e639c));
+    border-radius: 2px;
+    background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.18));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #cccccc));
+    cursor: pointer;
+    font: inherit;
+    white-space: normal;
+    text-align: center;
+}
+
+.world-settlement-focus-return-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.28));
+}
+
+.world-settlement-focus-return-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder, #007fd4);
+    outline-offset: 1px;
+}
+
 .world-settlement-mobile-base-banner {
     font-size: 0.82em;
     opacity: 0.85;

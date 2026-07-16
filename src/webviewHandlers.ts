@@ -85,6 +85,8 @@ export interface WebviewHandlerDeps {
     sendPartyDirector(): void;
     sendWorldView(): void;
     handleSetSettlementViewLayer(layerId: unknown): void;
+    handleSetWorldSettlementFocus(locationId: unknown): void;
+    handleClearWorldSettlementFocus(): void;
     handleObserverWorldTick(mode: 'watch' | 'advance'): void;
     handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
     handleGenerateWorldMapImage(): Promise<void>;
@@ -237,6 +239,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'setSettlementViewLayer':
             deps.handleSetSettlementViewLayer(message.layerId);
+            break;
+        case 'setWorldSettlementFocus':
+            deps.handleSetWorldSettlementFocus(message.locationId);
+            break;
+        case 'clearWorldSettlementFocus':
+            deps.handleClearWorldSettlementFocus();
             break;
         case 'observerWorldTick': {
             const mode = message.mode === 'advance' ? 'advance' : 'watch';

@@ -758,13 +758,18 @@ function renderSettlementDiorama() {
     const msg = _dioramaWorldMsg;
     const snapshot = getDioramaSnapshot();
     const flagOn = Boolean(msg && msg.enableSettlementDiorama === true);
+    if (typeof renderSettlementFocusBanner === 'function') {
+        renderSettlementFocusBanner(msg, { prefix: 'diorama' });
+    }
 
     if (!flagOn || !snapshot) {
         stage.classList.add('hidden');
         if (unavailable) { unavailable.classList.add('hidden'); }
         if (empty) {
             empty.classList.remove('hidden');
-            empty.textContent = typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.';
+            empty.textContent = typeof settlementEmptyCopyForContext === 'function'
+                ? settlementEmptyCopyForContext(msg)
+                : (typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.');
         }
         disposeSettlementDiorama();
         renderSettlementDioramaMarkerFallback(null);

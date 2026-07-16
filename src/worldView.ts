@@ -19,7 +19,6 @@ import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildMapOverlayFromContext } from './mapOverlayBridge';
 import { deriveKnownNpcIds } from './mapOverlayCore';
 import { loadDiscoveryLedger } from './discoveryLedger';
-import { loadSettlementLayout, loadSettlementState } from './settlementState';
 import { buildWorkspaceSettlementDiorama, resolveDioramaThemeFromOvermap, settlementDioramaEnabled } from './settlementDioramaBridge';
 import {
     buildSettlementExpansionPreviews,
@@ -27,7 +26,11 @@ import {
     sanitizeSettlementExpansionPreviewsForWebview,
     sanitizeSettlementViewForWebview,
 } from './settlementViewCore';
-import type { SettlementLayerId } from './settlementCore';
+import type { SettlementLayerId, SettlementLayoutV1, SettlementStateV1 } from './settlementCore';
+import {
+    extractActiveMobileBaseSettlementId,
+    loadFixedSettlementForWorldView,
+} from './worldViewFixedSettlement';
 
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
@@ -575,8 +578,26 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
         enableMobileBaseSystem: gameRules.enableMobileBaseSystem === true,
     });
-    const settlementState = gameRules.enableSettlementMode === true ? loadSettlementState() : undefined;
-    const settlementLayout = settlementState ? loadSettlementLayout() : undefined;
+    // Vehicle first: fixed settlement ownership exclusion needs active Mobile Base settlementId.
+    // Non-World-Forge workspaces return earlier (enabled:false) — singleton path unchanged for them.
+    const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
+    const activeMobileBaseSettlementId = extractActiveMobileBaseSettlementId(vehicleState);
+
+    // SLICE1: location-scoped fixed settlement for the player's current World location.
+    // Uses PRE2 resolver (parsed docs once). Does not call loadSettlementState/Layout here.
+    // Missing/invalid/other-city/MB-owned results omit fixed payload (no stale cross-location data).
+    const forgeLocationIds = new Set(forge.geography.locations.map((loc) => loc.id));
+    const fixedLoad = loadFixedSettlementForWorldView({
+        enableSettlementMode: gameRules.enableSettlementMode === true,
+        workspaceRoot: wsPath,
+        currentLocationId: typeof currentLocationId === 'string' && currentLocationId.length > 0
+            ? currentLocationId
+            : undefined,
+        forgeLocationIds,
+        activeMobileBaseSettlementId,
+    });
+    const settlementState: SettlementStateV1 | undefined = fixedLoad.state;
+    const settlementLayout: SettlementLayoutV1 | undefined = fixedLoad.layout;
     const settlementView = settlementState
         ? buildSettlementViewSnapshot({
             state: settlementState,
@@ -586,6 +607,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         : undefined;
     // M4c: read-only ghost previews for layers missing from settlement_layout.json.
     // Pure in-memory use of applyExpandLayerToLayout — never persisted here.
+    // Must use the same resolved state/layout as settlementView (no mixed root singleton).
     const settlementExpansionPreviews = settlementState
         ? buildSettlementExpansionPreviews(settlementState, settlementLayout)
         : [];
@@ -595,8 +617,6 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         gameRules,
         { theme: dioramaTheme, includeLabels: true }
     );
-
-    const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
     const mapOverlay = buildMapOverlayFromContext({
         forge,
         fog: {

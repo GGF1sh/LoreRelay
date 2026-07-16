@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { createLivingTradeWorld } = require('./create_living_trade_world');
 
 const targetDir = process.argv[2] || 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current';
 
@@ -488,6 +489,7 @@ createPopulatedWorld();
 createEmptyStates();
 createLayoutStress();
 createVehicleRepairSmoke();
+createLivingTradeWorld(targetDir);
 
 const batContent = `@echo off
 echo =========================================
@@ -497,10 +499,11 @@ echo 1. Populated world (01-populated-world)
 echo 2. Empty states (02-empty-states)
 echo 3. Layout stress (03-layout-stress)
 echo 4. Vehicle repair smoke (04-vehicle-repair-smoke-v1)
-echo 5. Open showcase folder
+echo 5. Living Trade World (05-living-trade-world)
+echo 6. Open showcase folder
 echo 0. Exit
 echo =========================================
-set /p choice="Select a scenario to open (0-5): "
+set /p choice="Select a scenario to open (0-6): "
 
 if "%choice%"=="1" (
     code "%~dp001-populated-world" || echo Path: "%~dp001-populated-world"
@@ -511,6 +514,8 @@ if "%choice%"=="1" (
 ) else if "%choice%"=="4" (
     code "%~dp004-vehicle-repair-smoke-v1" || echo Path: "%~dp004-vehicle-repair-smoke-v1"
 ) else if "%choice%"=="5" (
+    code "%~dp005-living-trade-world" || echo Path: "%~dp005-living-trade-world"
+) else if "%choice%"=="6" (
     explorer "%~dp0."
 ) else if "%choice%"=="0" (
     exit /b 0
@@ -521,12 +526,18 @@ pause
 `;
 writeTxt(targetDir, 'OPEN_SHOWCASE.bat', batContent);
 
+writeTxt(targetDir, 'OPEN_LIVING_TRADE_WORLD.bat', `@echo off
+echo Opening Living Trade World (The Sapphire Roads)...
+code "%~dp005-living-trade-world" || echo Path: "%~dp005-living-trade-world"
+`);
+
 const readmeContent = `LoreRelay UI Showcase Suites
 
 These are disposable test workspaces. They do not contain your real campaign data.
 You can safely modify, corrupt, or delete them. They can be regenerated at any time using 'create_ui_showcase_scenarios.bat' from the repository root.
 
 - Normal UI Review: Open '01-populated-world'.
+- Rich trade / logistics / biomes: Open '05-living-trade-world' or OPEN_LIVING_TRADE_WORLD.bat.
 - Vehicle Repair Smoke Test: Open '04-vehicle-repair-smoke-v1'.
 `;
 writeTxt(targetDir, 'README_FIRST.txt', readmeContent);
@@ -539,17 +550,20 @@ const indexContent = `# LoreRelay Showcase Index
 | Empty States | 02-empty-states | To verify copy/UX when collections are empty. |
 | Layout Stress | 03-layout-stress | Long names, massive lists, layout overflow test. |
 | Vehicle Repair Gate | 04-vehicle-repair-smoke-v1 | Specifically tests the upgrade->repair human play flow. |
+| Living Trade World | 05-living-trade-world | Multi-biome Sapphire Roads: markets, logistics flows, vehicles, mobile base. |
 
 ## Coverage Details
-- **Start Hub, Character Manager, Parlor, and Persona**: Covered directly via correctly schema-mapped \`characters/*.json\`, \`persona.json\`, and \`parlor_session.*.json\` fixtures.
-- **World View Harness**: The generated \`_harness/worldView.json\` is the actual runtime-captured World View message produced by invoking the compiled \`pushWorldViewToWebview()\` over the 01-populated-world workspace.
-- **World, Commerce, Vehicle, Mobile Base**: These surfaces are populated based on the \`worldView.json\` capture, accurately reflecting current location, markets, active vehicles, and docked mobile bases.
-- **Logistics**: The \`economyLogistics\` property is included in the world view payload, resolving active flows and shortages based on the mocked commerce forge.
+- **Start Hub, Character Manager, Parlor, and Persona**: Covered via schema-mapped \`characters/*.json\`, \`persona.json\`, and \`parlor_session.*.json\` fixtures.
+- **World View Harness**: Runtime-captured via \`pushWorldViewToWebview()\`. Populated-world → \`_harness/worldView.json\`. Living Trade World → \`_harness/living-trade-worldView.json\`.
+- **World, Commerce, Vehicle, Mobile Base**: Populated from the captured worldView payload.
+- **Logistics**: Living Trade World uses a valid \`commerce.resourceFlows\` definition (\`nodes\`, \`productionSources\`, \`demands\`, \`tradeRoutes\`) so \`economyLogistics.available\` is true at runtime.
+
+## Settlement visual note
+Runtime settlement isometric/diorama loads a single \`settlement_state.json\` + \`settlement_layout.json\` (mobile-base deckhold in 05). Distinct fixed-town silhouettes beyond map location types require a future multi-settlement renderer task. Sidecar layout intents live under \`settlement_layout_samples/\`.
 
 ## Omissions
-- **Scenario Packs**: Omitted since there is no stable, widely used sample schema in the baseline that can be mocked out reliably.
-- **Trade Routes**: Raw trade-route loading is omitted due to the lack of a formal static JSON loader contract (routes are derived via the economy simulation instead).
-- **NPC Registry**: Omitted as the runtime uses Character Manager (\`characters/*.json\`). \`npc_registry.json\` is not generated for character data.
+- **Scenario Packs**: No stable sample pack schema mocked here.
+- **NPC Registry**: Character Manager (\`characters/*.json\`) is used instead of \`npc_registry.json\`.
 `;
 writeTxt(targetDir, 'SHOWCASE_INDEX.md', indexContent);
 

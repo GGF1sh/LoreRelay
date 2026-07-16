@@ -7006,10 +7006,10 @@ body.vscode-dark, body.vscode-high-contrast {
 
 /* Active indicator */
 #pane-vehicles .vehicle-list-item.is-active {
-  border-left: 3px solid var(--vr-ink-accent-green);
+  border-left: 3px solid var(--vr-ink-accent-success);
 }
 #pane-vehicles .vehicle-list-item.is-here .vehicle-list-meta::after {
-  color: var(--vr-ink-accent-green);
+  color: var(--vr-ink-accent-success);
 }
 
 /* Vehicle Detail & Mobile Base text hierarchy */
@@ -7063,7 +7063,7 @@ body.vscode-dark, body.vscode-high-contrast {
   margin-bottom: 4px;
 }
 
-#pane-vehicles .vehicle-intent-row[data-intent-status="allowed"] .vehicle-intent-dot { background: var(--vr-ink-accent-green); }
+#pane-vehicles .vehicle-intent-row[data-intent-status="allowed"] .vehicle-intent-dot { background: var(--vr-ink-accent-success); }
 #pane-vehicles .vehicle-intent-row[data-intent-status="blocked"] .vehicle-intent-dot { background: var(--vr-ink-accent-lantern); }
 
 /* --- 9b-genre-chrome.css --- */

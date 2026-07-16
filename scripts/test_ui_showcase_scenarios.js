@@ -7,6 +7,7 @@ const { parseWorldForge } = require('../out/worldForgeCore');
 const { parseVehicleState } = require('../out/vehicleCore');
 const { parseVehicleStateDocument } = require('../out/vehicleStateDocumentCore');
 const { parseWorldState } = require('../out/worldStateCore');
+const { parseSettlementState, parseSettlementLayout } = require('../out/settlementCore');
 // Character manager and persona parsers are not entirely pure, so we use JSON parse + basic structure checks for them.
 
 const TARGET_DIR = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current';
@@ -210,6 +211,43 @@ function runValidation() {
     assert(fs.existsSync(path.join(liveDir, 'parlor_session.npc_mira.json')), 'parlor session');
     assert(fs.existsSync(path.join(liveDir, 'settlement_state.json')), 'settlement_state');
     assert(fs.existsSync(path.join(liveDir, 'settlement_layout.json')), 'settlement_layout');
+
+    // Fixed multi-location settlements (SHOWCASE six cities)
+    const fixedCities = [
+        'loc_sapphire_port',
+        'loc_reedmarket',
+        'loc_mistgrove',
+        'loc_ironspire',
+        'loc_glass_oasis',
+        'loc_watchkeep',
+    ];
+    const expectedSettlementIds = {
+        loc_sapphire_port: 'set_sapphire_port',
+        loc_reedmarket: 'set_reedmarket',
+        loc_mistgrove: 'set_mistgrove',
+        loc_ironspire: 'set_ironspire',
+        loc_glass_oasis: 'set_glass_oasis',
+        loc_watchkeep: 'set_watchkeep',
+    };
+    for (const locId of fixedCities) {
+        const statePath = path.join(liveDir, 'settlements', locId, 'settlement_state.json');
+        const layoutPath = path.join(liveDir, 'settlements', locId, 'settlement_layout.json');
+        assert(fs.existsSync(statePath), `missing ${locId}/settlement_state.json`);
+        assert(fs.existsSync(layoutPath), `missing ${locId}/settlement_layout.json`);
+        const st = parseSettlementState(JSON.parse(fs.readFileSync(statePath, 'utf8')));
+        const ly = parseSettlementLayout(JSON.parse(fs.readFileSync(layoutPath, 'utf8')));
+        assert(st, `${locId} state must parse`);
+        assert(ly, `${locId} layout must parse`);
+        assert(st.locationId === locId, `${locId} state.locationId`);
+        assert(st.settlementId === expectedSettlementIds[locId], `${locId} settlementId`);
+        assert(ly.settlementId === st.settlementId, `${locId} layout ownership`);
+    }
+    // Root singleton remains Mobile Base (not a fixed city document pair)
+    const rootSett = parseSettlementState(
+        JSON.parse(fs.readFileSync(path.join(liveDir, 'settlement_state.json'), 'utf8'))
+    );
+    assert(rootSett && rootSett.settlementId === 'mb_sapphire_barge', 'root settlement remains Mobile Base');
+    console.log('living-trade six fixed settlements validated.');
 
     const liveHarness = path.join(harnessDir, 'living-trade-worldView.json');
     if (fs.existsSync(liveHarness)) {

@@ -20,15 +20,503 @@ function writeTxt(dir, file, text) {
 /**
  * Coverage matrix (supported contracts only):
  * Feature | Source | Renderer | Usage
- * regions/biomes | world_forge.geography.regions.biome | tile overmap / world map | 8 biomes
+ * regions/biomes | world_forge.geography.regions.biome | tile overmap / world map | 9 biomes
  * locations/routes | geography.locations.connectedTo | world pins / routes | 12 locs, multi-edges
- * commerce goods | commerce.commodities | markets | 12 goods
- * markets | commerce.markets + world_state.markets | market UI | 8 markets, priceIndex skew
+ * commerce goods | commerce.commodities | markets | 14 goods
+ * markets | commerce.markets + world_state.markets | market UI | 9 markets, priceIndex skew
  * logistics | commerce.resourceFlows {nodes,productionSources,demands,tradeRoutes} | economyLogistics | 10+ routes
  * vehicles | vehicle_state.json | vehicle garage | 4 vehicles + mobile base
- * settlement | settlement_state + settlement_layout | settlementView / mobile base | 1 rich layout
+ * settlement | settlements/<locId>/ + root Mobile Base singleton | fixed multi-city + MB deck | 6 fixed + 1 root
  * characters/persona | characters/*, persona.json, parlor_session | character/parlor panes | 3 NPCs
  */
+
+/** Zone labels must include English keyword tokens recognized by settlementViewCore.inferTileCode. */
+function zone(id, layerId, label, x, y) {
+    return { id, layerId, label, x, y };
+}
+
+function marker(id, layerId, label, x, y) {
+    return { id, layerId, label, x, y };
+}
+
+function structure(id, name, status, layerId) {
+    return { id, name, status, layerId };
+}
+
+/**
+ * Six fixed World-location settlements (production multi-location contract).
+ * Root settlement_state/layout remain the Mobile Base singleton and are not replaced.
+ */
+function buildFixedCitySettlements() {
+    return {
+        loc_sapphire_port: {
+            state: {
+                version: 1,
+                settlementId: 'set_sapphire_port',
+                name: 'Sapphire Port',
+                locationId: 'loc_sapphire_port',
+                morale: 68,
+                safety: 52,
+                stocks: [
+                    { id: 'grain', amount: 40 },
+                    { id: 'salt', amount: 22 },
+                    { id: 'rope', amount: 16 },
+                    { id: 'tar', amount: 10 },
+                    { id: 'spices', amount: 8 },
+                ],
+                structures: [
+                    structure('sp_customs', 'Customs Gate House', 'intact', 'z0'),
+                    structure('sp_warehouse_a', 'Harbor Warehouse Stockpile', 'intact', 'z0'),
+                    structure('sp_warehouse_b', 'Bonded Store Warehouse', 'intact', 'z0'),
+                    structure('sp_shipyard', 'Shipyard Workshop', 'intact', 'z0'),
+                    structure('sp_market_row', 'Quayside Market Hall', 'intact', 'z0'),
+                    structure('sp_trade_hall', 'Guild Trade Plaza', 'intact', 'z0'),
+                    structure('sp_cooper', 'Cooper Workshop', 'damaged', 'z0'),
+                    structure('sp_clinic', 'Dockside Clinic', 'intact', 'z0'),
+                    structure('sp_quarters', 'Stevedore Quarters', 'intact', 'z0'),
+                    structure('sp_barracks', 'Harbor Guard Barracks', 'intact', 'z0'),
+                ],
+                residents: [
+                    { npcId: 'npc_mira', role: 'captain' },
+                    { npcId: 'npc_joren', role: 'quartermaster' },
+                    { npcId: 'res_porter_1', role: 'porter' },
+                    { npcId: 'res_clerk_1', role: 'clerk' },
+                ],
+                visitors: [{ npcId: 'vis_sailor_1', purpose: 'shore leave' }],
+                merchants: [
+                    { npcId: 'mer_fish', wares: ['fish', 'salt'] },
+                    { npcId: 'mer_spice', wares: ['spices', 'wine'] },
+                    { npcId: 'mer_parts', wares: ['repair_parts', 'tools'] },
+                ],
+                incidents: [
+                    {
+                        id: 'inc_port_crowd',
+                        worldTurn: 1,
+                        kind: 'crowd',
+                        severity: 'info',
+                        resolved: false,
+                        text: 'Quay market crowded at dawn.',
+                    },
+                ],
+            },
+            layout: {
+                version: 1,
+                settlementId: 'set_sapphire_port',
+                layers: ['z0'],
+                zones: [
+                    // Harbour water edge (south) — placed first so commerce can overwrite interiors
+                    zone('sp_d1', 'z0', 'Harbor Water Docks', 0, 7),
+                    zone('sp_d2', 'z0', 'Quay Water Docks', 1, 7),
+                    zone('sp_d3', 'z0', 'Deep Water Berth', 2, 7),
+                    zone('sp_d4', 'z0', 'River Water Slip', 3, 7),
+                    zone('sp_d5', 'z0', 'Ferry Water Pier', 4, 7),
+                    // Moderate defensive edge (north), not full ring
+                    zone('sp_wall_n1', 'z0', 'Seawall North Wall', 1, 0),
+                    zone('sp_wall_n2', 'z0', 'Curtain Wall', 3, 0),
+                    zone('sp_wall_n3', 'z0', 'Bastion Wall', 5, 0),
+                    zone('sp_gate', 'z0', 'Customs Gate Entrance', 4, 0),
+                    zone('sp_q1', 'z0', 'Stevedore Quarters', 0, 3),
+                    zone('sp_q2', 'z0', 'Clerk Quarters Housing', 0, 4),
+                    zone('sp_clinic', 'z0', 'Dock Clinic', 7, 5),
+                    zone('sp_barracks', 'z0', 'Harbor Guard Barracks', 1, 1),
+                    zone('sp_shrine', 'z0', 'Tide Shrine Altar', 7, 6),
+                    // Dense commercial core last.
+                    // market/workshop expand radius=1 — centers must stay >=3 apart so floors do not erase peers.
+                    zone('sp_s1', 'z0', 'Bonded Warehouse Stockpile', 0, 2),
+                    zone('sp_s2', 'z0', 'Grain Store Warehouse', 7, 3),
+                    zone('sp_s3', 'z0', 'Tar Depot Stockpile', 7, 6),
+                    zone('sp_w1', 'z0', 'Shipyard Workshop', 1, 5),
+                    zone('sp_w2', 'z0', 'Cooper Workshop', 6, 5),
+                    zone('sp_w3', 'z0', 'Sail Craft Workshop', 3, 6),
+                    zone('sp_m1', 'z0', 'Main Market Row', 2, 2),
+                    zone('sp_m2', 'z0', 'Fish Market Hall', 5, 2),
+                    zone('sp_m3', 'z0', 'Trade Plaza Market', 2, 5),
+                    zone('sp_m4', 'z0', 'Spice Market Bazaar', 5, 5),
+                    zone('sp_m5', 'z0', 'Quay Trade Market', 3, 3),
+                ],
+                markers: [
+                    marker('sp_mk_crowd', 'z0', 'Busy quay', 3, 2),
+                    marker('sp_mk_crane', 'z0', 'Loading crane', 2, 6),
+                    marker('sp_mk_customs', 'z0', 'Customs desk', 4, 1),
+                ],
+            },
+        },
+        loc_reedmarket: {
+            state: {
+                version: 1,
+                settlementId: 'set_reedmarket',
+                name: 'Reedmarket',
+                locationId: 'loc_reedmarket',
+                morale: 60,
+                safety: 44,
+                stocks: [
+                    { id: 'fish', amount: 30 },
+                    { id: 'pottery', amount: 14 },
+                    { id: 'wine', amount: 9 },
+                    { id: 'reeds', amount: 18 },
+                ],
+                structures: [
+                    structure('rm_fish_market', 'Open Fish Market', 'intact', 'z0'),
+                    structure('rm_reed_dock', 'Reed Water Docks', 'intact', 'z0'),
+                    structure('rm_ferry', 'Ferry Quarters', 'intact', 'z0'),
+                    structure('rm_pottery', 'Potter Workshop', 'intact', 'z0'),
+                    structure('rm_store', 'Canal Store Stockpile', 'damaged', 'z0'),
+                    structure('rm_shrine', 'River Shrine', 'intact', 'z0'),
+                ],
+                residents: [
+                    { npcId: 'res_ferry_1', role: 'ferryman' },
+                    { npcId: 'res_reed_1', role: 'reedcutter' },
+                ],
+                visitors: [{ npcId: 'vis_barge_1', purpose: 'unload fish' }],
+                merchants: [
+                    { npcId: 'mer_fishmonger', wares: ['fish', 'pottery'] },
+                    { npcId: 'mer_wine', wares: ['wine'] },
+                ],
+                incidents: [
+                    {
+                        id: 'inc_flood_watch',
+                        worldTurn: 1,
+                        kind: 'flood_watch',
+                        severity: 'warning',
+                        resolved: false,
+                        text: 'Canal levels high after rains.',
+                    },
+                ],
+            },
+            layout: {
+                version: 1,
+                settlementId: 'set_reedmarket',
+                layers: ['z0'],
+                zones: [
+                    // Branching water channels separating market clusters
+                    zone('rm_water_a1', 'z0', 'North Canal Water', 1, 1),
+                    zone('rm_water_a2', 'z0', 'North Canal River', 2, 1),
+                    zone('rm_water_b1', 'z0', 'Mid Canal Water', 4, 3),
+                    zone('rm_water_b2', 'z0', 'Mid Canal River', 5, 3),
+                    zone('rm_water_c1', 'z0', 'South Water Docks', 1, 5),
+                    zone('rm_water_c2', 'z0', 'South River Docks', 2, 5),
+                    zone('rm_water_c3', 'z0', 'Ferry Water Slip', 3, 6),
+                    zone('rm_water_d1', 'z0', 'East Canal Water', 7, 2),
+                    zone('rm_water_d2', 'z0', 'East River Arm', 7, 4),
+                    // Separated market islands
+                    zone('rm_m1', 'z0', 'Fish Market Cluster', 1, 3),
+                    zone('rm_m2', 'z0', 'Reed Market Hall', 3, 2),
+                    zone('rm_m3', 'z0', 'East Market Plaza', 6, 1),
+                    zone('rm_w1', 'z0', 'Potter Workshop', 3, 4),
+                    zone('rm_s1', 'z0', 'Canal Store Stockpile', 5, 5),
+                    zone('rm_q1', 'z0', 'Stilt Quarters', 0, 3),
+                    zone('rm_q2', 'z0', 'Ferryman Quarters Housing', 6, 5),
+                    zone('rm_shrine', 'z0', 'River Shrine Altar', 4, 6),
+                    // No continuous wall / gate perimeter
+                    zone('rm_floor_path', 'z0', 'Boardwalk Path', 2, 3),
+                    zone('rm_floor_yard', 'z0', 'Open Yard', 5, 2),
+                ],
+                markers: [
+                    marker('rm_mk_ferry', 'z0', 'Ferry landing', 3, 6),
+                    marker('rm_mk_nets', 'z0', 'Drying nets', 1, 3),
+                ],
+            },
+        },
+        loc_mistgrove: {
+            state: {
+                version: 1,
+                settlementId: 'set_mistgrove',
+                name: 'Mistgrove',
+                locationId: 'loc_mistgrove',
+                morale: 58,
+                safety: 48,
+                stocks: [
+                    { id: 'timber', amount: 20 },
+                    { id: 'herbs', amount: 16 },
+                    { id: 'wool', amount: 8 },
+                ],
+                structures: [
+                    structure('mg_shrine', 'Forest Shrine Altar', 'intact', 'z0'),
+                    structure('mg_herbalist', 'Herbalist Clinic', 'intact', 'z0'),
+                    structure('mg_timber', 'Timber Workshop', 'intact', 'z0'),
+                    structure('mg_cabin_a', 'North Cabin Quarters', 'intact', 'z0'),
+                    structure('mg_cabin_b', 'South Cabin Quarters', 'intact', 'z0'),
+                    structure('mg_store', 'Herb Store Stockpile', 'intact', 'z0'),
+                ],
+                residents: [
+                    { npcId: 'res_herbalist', role: 'herbalist' },
+                    { npcId: 'res_woodcutter', role: 'woodcutter' },
+                ],
+                visitors: [],
+                merchants: [{ npcId: 'mer_herb', wares: ['herbs', 'timber'] }],
+                incidents: [
+                    {
+                        id: 'inc_fog',
+                        worldTurn: 1,
+                        kind: 'fog',
+                        severity: 'info',
+                        resolved: false,
+                        text: 'Morning fog softens trail markers.',
+                    },
+                ],
+            },
+            layout: {
+                version: 1,
+                settlementId: 'set_mistgrove',
+                layers: ['z0'],
+                zones: [
+                    // Widely spaced clusters — no Wall/Gate labels
+                    zone('mg_q1', 'z0', 'North Cabin Quarters', 0, 0),
+                    zone('mg_q2', 'z0', 'East Cabin Quarters Housing', 7, 1),
+                    zone('mg_q3', 'z0', 'South Cabin Quarters', 1, 7),
+                    zone('mg_q4', 'z0', 'West Cabin Home Quarters', 0, 4),
+                    zone('mg_shrine', 'z0', 'Forest Shrine Altar', 4, 4),
+                    zone('mg_clinic', 'z0', 'Herbalist Clinic', 6, 6),
+                    zone('mg_workshop', 'z0', 'Timber Workshop', 2, 2),
+                    zone('mg_stock', 'z0', 'Herb Store Stockpile', 5, 1),
+                    zone('mg_clearing', 'z0', 'Moss Clearing', 3, 5),
+                    zone('mg_yard', 'z0', 'Woodpile Yard', 7, 5),
+                ],
+                markers: [
+                    marker('mg_mk_trail', 'z0', 'Forest trail', 3, 3),
+                    marker('mg_mk_smoke', 'z0', 'Cabin smoke', 0, 0),
+                ],
+            },
+        },
+        loc_ironspire: {
+            state: {
+                version: 1,
+                settlementId: 'set_ironspire',
+                name: 'Ironspire',
+                locationId: 'loc_ironspire',
+                morale: 50,
+                safety: 46,
+                stocks: [
+                    { id: 'iron_ore', amount: 28 },
+                    { id: 'tools', amount: 12 },
+                    { id: 'fuel', amount: 15 },
+                    { id: 'repair_parts', amount: 7 },
+                ],
+                structures: [
+                    structure('is_forge', 'Main Forge Workshop', 'intact', 'z0'),
+                    structure('is_smelter', 'Smelter Workshop', 'damaged', 'z0'),
+                    structure('is_ore', 'Ore Stockpile Store', 'intact', 'z0'),
+                    structure('is_barracks', 'Miner Guard Barracks', 'intact', 'z0'),
+                    structure('is_lift', 'Lift Platform Workshop', 'damaged', 'z1'),
+                    structure('is_quarters', 'Miner Quarters', 'intact', 'z1'),
+                    structure('is_clinic', 'Tunnel Clinic', 'intact', 'z0'),
+                ],
+                residents: [
+                    { npcId: 'res_miner_1', role: 'miner' },
+                    { npcId: 'res_smith_1', role: 'smith' },
+                    { npcId: 'res_guard_1', role: 'guard' },
+                ],
+                visitors: [],
+                merchants: [{ npcId: 'mer_ore', wares: ['iron_ore', 'tools'] }],
+                incidents: [
+                    {
+                        id: 'inc_lift',
+                        worldTurn: 1,
+                        kind: 'equipment',
+                        severity: 'warning',
+                        resolved: false,
+                        text: 'Upper lift needs repair parts.',
+                    },
+                ],
+            },
+            layout: {
+                version: 1,
+                settlementId: 'set_ironspire',
+                layers: ['z0', 'z1'],
+                zones: [
+                    // Compact z0 industrial terrace
+                    zone('is_forge', 'z0', 'Main Forge Workshop', 2, 2),
+                    zone('is_smelter', 'z0', 'Smelter Workshop', 3, 2),
+                    zone('is_ore', 'z0', 'Ore Stockpile Store', 4, 2),
+                    zone('is_parts', 'z0', 'Parts Depot Stockpile', 4, 3),
+                    zone('is_barracks', 'z0', 'Miner Guard Barracks', 1, 2),
+                    zone('is_clinic', 'z0', 'Tunnel Clinic', 1, 3),
+                    zone('is_gate', 'z0', 'Switchback Gate Entrance', 2, 4),
+                    zone('is_wall_a', 'z0', 'Terrace Wall', 1, 1),
+                    zone('is_wall_b', 'z0', 'Cut Wall', 4, 1),
+                    zone('is_yard', 'z0', 'Ore Yard', 3, 3),
+                    // z1 stepped upper tier (asymmetric)
+                    zone('is_lift', 'z1', 'Lift Platform Workshop', 3, 1),
+                    zone('is_upper_q', 'z1', 'Miner Quarters Housing', 2, 1),
+                    zone('is_upper_store', 'z1', 'Upper Store Stockpile', 4, 1),
+                    zone('is_watch', 'z1', 'Lookout Barracks', 3, 0),
+                    zone('is_upper_wall', 'z1', 'Upper Wall', 2, 0),
+                    zone('is_upper_forge', 'z1', 'Finishing Forge Workshop', 4, 2),
+                ],
+                markers: [
+                    marker('is_mk_smoke', 'z0', 'Forge smoke', 2, 2),
+                    marker('is_mk_lift', 'z1', 'Lift cage', 3, 1),
+                    marker('is_mk_ore', 'z0', 'Ore carts', 4, 2),
+                ],
+            },
+        },
+        loc_glass_oasis: {
+            state: {
+                version: 1,
+                settlementId: 'set_glass_oasis',
+                name: 'Glass Oasis',
+                locationId: 'loc_glass_oasis',
+                morale: 64,
+                safety: 50,
+                stocks: [
+                    { id: 'spices', amount: 18 },
+                    { id: 'salt', amount: 14 },
+                    { id: 'textiles', amount: 11 },
+                    { id: 'water_skins', amount: 20 },
+                ],
+                structures: [
+                    structure('go_well', 'Central Well Water', 'intact', 'z0'),
+                    structure('go_market', 'Caravan Market Court', 'intact', 'z0'),
+                    structure('go_stable', 'Caravan Quarters', 'intact', 'z0'),
+                    structure('go_store', 'Spice Store Stockpile', 'intact', 'z0'),
+                    structure('go_workshop', 'Saddle Workshop', 'intact', 'z0'),
+                    structure('go_shrine', 'Oasis Shrine Altar', 'intact', 'z0'),
+                    structure('go_inn', 'Traveller Quarters Housing', 'intact', 'z0'),
+                ],
+                residents: [
+                    { npcId: 'res_innkeep', role: 'innkeeper' },
+                    { npcId: 'res_wellkeep', role: 'wellkeeper' },
+                ],
+                visitors: [
+                    { npcId: 'vis_caravan_1', purpose: 'rest' },
+                    { npcId: 'vis_caravan_2', purpose: 'trade' },
+                ],
+                merchants: [
+                    { npcId: 'npc_sela', wares: ['spices', 'textiles'] },
+                    { npcId: 'mer_salt', wares: ['salt', 'fuel'] },
+                ],
+                incidents: [],
+            },
+            layout: {
+                version: 1,
+                settlementId: 'set_glass_oasis',
+                layers: ['z0'],
+                zones: [
+                    // Ring of facilities (outer first)
+                    zone('go_q_n', 'z0', 'North Traveller Quarters', 4, 0),
+                    zone('go_q_e', 'z0', 'East Caravan Quarters Housing', 8, 4),
+                    zone('go_q_s', 'z0', 'South Inn Quarters', 4, 8),
+                    zone('go_q_w', 'z0', 'West Stable Quarters', 0, 4),
+                    zone('go_store_ne', 'z0', 'Spice Store Stockpile', 7, 1),
+                    zone('go_store_sw', 'z0', 'Salt Depot Stockpile', 1, 7),
+                    zone('go_workshop', 'z0', 'Saddle Workshop', 7, 7),
+                    zone('go_shrine', 'z0', 'Oasis Shrine Altar', 1, 1),
+                    zone('go_clinic', 'z0', 'Wayfarer Clinic', 8, 6),
+                    zone('go_wall_n', 'z0', 'North Court Wall', 3, 0),
+                    zone('go_gate', 'z0', 'Caravan Gate Entrance', 4, 8),
+                    zone('go_wall_s', 'z0', 'South Court Wall', 5, 8),
+                    // Courtyard markets spaced >=3 apart, then central well last
+                    zone('go_market', 'z0', 'Caravan Market Court', 4, 2),
+                    zone('go_market_e', 'z0', 'East Market Plaza', 6, 4),
+                    zone('go_market_w', 'z0', 'West Market Trade', 2, 4),
+                    zone('go_market_s', 'z0', 'South Bazaar Market', 4, 6),
+                    zone('go_well', 'z0', 'Oasis Well Water', 4, 4),
+                ],
+                markers: [
+                    marker('go_mk_well', 'z0', 'Well circle', 4, 4),
+                    marker('go_mk_tents', 'z0', 'Caravan tents', 7, 4),
+                    marker('go_mk_spices', 'z0', 'Spice bales', 6, 2),
+                ],
+            },
+        },
+        loc_watchkeep: {
+            state: {
+                version: 1,
+                settlementId: 'set_watchkeep',
+                name: 'Watchkeep',
+                locationId: 'loc_watchkeep',
+                morale: 55,
+                safety: 72,
+                stocks: [
+                    { id: 'tools', amount: 10 },
+                    { id: 'repair_parts', amount: 8 },
+                    { id: 'grain', amount: 16 },
+                    { id: 'fuel', amount: 6 },
+                    { id: 'arrows', amount: 24 },
+                ],
+                structures: [
+                    structure('wk_gatehouse', 'Main Gate Entrance', 'intact', 'z0'),
+                    structure('wk_barracks', 'Garrison Barracks', 'intact', 'z0'),
+                    structure('wk_armoury', 'Armoury Stockpile Store', 'intact', 'z0'),
+                    structure('wk_clinic', 'Garrison Clinic', 'intact', 'z0'),
+                    structure('wk_shrine', 'Oath Shrine Altar', 'intact', 'z0'),
+                    structure('wk_command', 'Command Quarters', 'intact', 'z0'),
+                    structure('wk_workshop', 'Armour Workshop', 'intact', 'z0'),
+                    structure('wk_tower', 'Watch Barracks', 'intact', 'z0'),
+                ],
+                residents: [
+                    { npcId: 'res_captain', role: 'captain' },
+                    { npcId: 'res_scribe', role: 'scribe' },
+                    { npcId: 'res_guard_a', role: 'guard' },
+                    { npcId: 'res_guard_b', role: 'guard' },
+                ],
+                visitors: [],
+                merchants: [{ npcId: 'mer_quarter', wares: ['tools', 'grain'] }],
+                incidents: [
+                    {
+                        id: 'inc_drill',
+                        worldTurn: 1,
+                        kind: 'drill',
+                        severity: 'info',
+                        resolved: false,
+                        text: 'Morning wall drill underway.',
+                    },
+                ],
+            },
+            layout: {
+                version: 1,
+                settlementId: 'set_watchkeep',
+                layers: ['z0'],
+                zones: [
+                    // Highest wall emphasis — approximate perimeter with many Wall zones
+                    zone('wk_wall_n1', 'z0', 'North Outer Wall', 1, 0),
+                    zone('wk_wall_n2', 'z0', 'North Curtain Wall', 2, 0),
+                    zone('wk_wall_n3', 'z0', 'North Bastion Wall', 3, 0),
+                    zone('wk_wall_n4', 'z0', 'North Keep Wall', 4, 0),
+                    zone('wk_wall_n5', 'z0', 'North East Wall', 5, 0),
+                    zone('wk_wall_e1', 'z0', 'East Outer Wall', 6, 1),
+                    zone('wk_wall_e2', 'z0', 'East Curtain Wall', 6, 2),
+                    zone('wk_wall_e3', 'z0', 'East Bastion Wall', 6, 3),
+                    zone('wk_wall_e4', 'z0', 'East Keep Wall', 6, 4),
+                    zone('wk_wall_s1', 'z0', 'South Outer Wall', 5, 5),
+                    zone('wk_wall_s2', 'z0', 'South Curtain Wall', 4, 5),
+                    zone('wk_wall_s3', 'z0', 'South Bastion Wall', 3, 5),
+                    zone('wk_wall_s4', 'z0', 'South Keep Wall', 2, 5),
+                    zone('wk_wall_w1', 'z0', 'West Outer Wall', 0, 4),
+                    zone('wk_wall_w2', 'z0', 'West Curtain Wall', 0, 3),
+                    zone('wk_wall_w3', 'z0', 'West Bastion Wall', 0, 2),
+                    zone('wk_wall_w4', 'z0', 'West Keep Wall', 0, 1),
+                    zone('wk_gate_n', 'z0', 'Main Gate Entrance', 3, 1),
+                    zone('wk_gate_s', 'z0', 'Postern Gate Entrance', 3, 4),
+                    // Compact defensive core
+                    zone('wk_barracks', 'z0', 'Garrison Barracks', 2, 2),
+                    zone('wk_barracks_2', 'z0', 'Watch Barracks', 4, 2),
+                    zone('wk_armoury', 'z0', 'Armoury Stockpile Store', 3, 2),
+                    zone('wk_clinic', 'z0', 'Garrison Clinic', 2, 3),
+                    zone('wk_shrine', 'z0', 'Oath Shrine Altar', 4, 3),
+                    zone('wk_command', 'z0', 'Command Quarters', 3, 3),
+                    zone('wk_workshop', 'z0', 'Armour Workshop', 5, 2),
+                    zone('wk_yard', 'z0', 'Drill Yard', 5, 3),
+                ],
+                markers: [
+                    marker('wk_mk_banner', 'z0', 'Keep banner', 3, 3),
+                    marker('wk_mk_drill', 'z0', 'Drill line', 5, 3),
+                    marker('wk_mk_gate', 'z0', 'Gate watch', 3, 1),
+                ],
+            },
+        },
+    };
+}
+
+function writeFixedCitySettlements(dir) {
+    const cities = buildFixedCitySettlements();
+    for (const [locationId, docs] of Object.entries(cities)) {
+        const cityDir = path.join(dir, 'settlements', locationId);
+        writeJson(cityDir, 'settlement_state.json', docs.state);
+        writeJson(cityDir, 'settlement_layout.json', docs.layout);
+    }
+    return cities;
+}
 
 function createLivingTradeWorld(targetDir) {
     const dir = path.join(targetDir, '05-living-trade-world');
@@ -485,52 +973,15 @@ function createLivingTradeWorld(targetDir) {
         updatedAt: '2026-07-01T08:01:00.000Z',
     });
 
-    // Optional fixed-settlement layout samples for documentation of structural intent
-    // (runtime loads a single settlement_layout.json; these are sidecar references for review).
-    const layoutsDir = path.join(dir, 'settlement_layout_samples');
-    writeJson(layoutsDir, 'port_walled.json', {
-        version: 1,
-        settlementId: 'sample_port',
-        layers: ['z0'],
-        zones: [
-            { id: 'w1', layerId: 'z0', code: 'wall', label: 'Seawall', x: 0, y: 0 },
-            { id: 'g1', layerId: 'z0', code: 'gate', label: 'Harbor Gate', x: 2, y: 0 },
-            { id: 'd1', layerId: 'z0', code: 'water', label: 'Docks', x: 0, y: 3 },
-            { id: 'm1', layerId: 'z0', code: 'market', label: 'Warehouse row', x: 2, y: 1 },
-            { id: 'q1', layerId: 'z0', code: 'quarters', label: 'Dense housing', x: 3, y: 2 },
-        ],
-        markers: [],
-        _intent: 'Coastal port: continuous walls, docks, dense commerce',
-    });
-    writeJson(layoutsDir, 'forest_open.json', {
-        version: 1,
-        settlementId: 'sample_forest',
-        layers: ['z0'],
-        zones: [
-            { id: 'f1', layerId: 'z0', code: 'floor', label: 'Clearing', x: 1, y: 1 },
-            { id: 'q1', layerId: 'z0', code: 'quarters', label: 'Cabin', x: 0, y: 0 },
-            { id: 'q2', layerId: 'z0', code: 'quarters', label: 'Cabin', x: 3, y: 2 },
-            { id: 'w1', layerId: 'z0', code: 'workshop', label: 'Woodshed', x: 2, y: 0 },
-            { id: 'h1', layerId: 'z0', code: 'shrine', label: 'Herb shrine', x: 1, y: 3 },
-        ],
-        markers: [],
-        _intent: 'Forest village: no continuous wall, sparse buildings',
-    });
-    writeJson(layoutsDir, 'fort_citadel.json', {
-        version: 1,
-        settlementId: 'sample_fort',
-        layers: ['z0', 'z1'],
-        zones: [
-            { id: 'w1', layerId: 'z0', code: 'wall', label: 'Outer wall', x: 0, y: 0 },
-            { id: 'g1', layerId: 'z0', code: 'gate', label: 'Gatehouse', x: 2, y: 0 },
-            { id: 'b1', layerId: 'z0', code: 'barracks', label: 'Barracks', x: 1, y: 1 },
-            { id: 't1', layerId: 'z1', code: 'wall', label: 'Keep tower', x: 2, y: 1 },
-        ],
-        markers: [],
-        _intent: 'Fortified citadel: walls + barracks + elevated keep',
-    });
+    // Location-scoped fixed settlements for the six showcase cities.
+    // Root settlement_state/layout above remain the Mobile Base singleton (not migrated).
+    writeFixedCitySettlements(dir);
 
     return dir;
 }
 
-module.exports = { createLivingTradeWorld };
+module.exports = {
+    createLivingTradeWorld,
+    buildFixedCitySettlements,
+    writeFixedCitySettlements,
+};

@@ -1,184 +1,457 @@
-/* 9a-ink-lantern.css */
-/* Pilot: UI-VISUAL-HIERARCHY-001 (Ink and Lantern) */
+/* 9a-ink-lantern.css
+ * UI-INSPECTOR-REDESIGN-002 — stronger Ink and Lantern hierarchy for the right Inspector.
+ * Scoped under #status-area / pane roots only. Dark + light via body.vscode-*.
+ */
 
 :root {
-  /* Pilot Accents */
   --vr-ink-accent-lantern: var(--vscode-editorWarning-foreground, #cca700);
   --vr-ink-accent-focus: var(--vscode-focusBorder, #007fd4);
   --vr-ink-accent-success: var(--vscode-charts-green, #89d185);
   --vr-ink-accent-danger: var(--vscode-editorError-foreground, #f14c4c);
+  --vr-ink-accent-info: var(--vscode-charts-blue, #3794ff);
+  --vr-ink-rail: 3px;
 }
 
-/* Light theme fallbacks */
+/* Light theme surfaces */
 body.vscode-light {
-  --vr-ink-surface-panel: rgba(0, 0, 0, 0.03);
-  --vr-ink-surface-card: rgba(0, 0, 0, 0.06);
-  --vr-ink-surface-hover: rgba(0, 0, 0, 0.1);
-  --vr-ink-surface-selected: rgba(var(--vr-accent-rgb, 0, 122, 204), 0.12);
-  --vr-ink-surface-inset: rgba(0, 0, 0, 0.05);
-
-  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
-  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
+  --vr-ink-surface-chrome: color-mix(in srgb, var(--vscode-sideBar-background, #f3f3f3) 92%, #000 8%);
+  --vr-ink-surface-panel: rgba(0, 0, 0, 0.035);
+  --vr-ink-surface-card: rgba(0, 0, 0, 0.055);
+  --vr-ink-surface-hover: rgba(0, 0, 0, 0.08);
+  --vr-ink-surface-selected: color-mix(in srgb, var(--vr-ink-accent-focus) 14%, transparent);
+  --vr-ink-surface-inset: rgba(0, 0, 0, 0.06);
+  --vr-ink-surface-resource: color-mix(in srgb, var(--vr-ink-accent-focus) 8%, rgba(0, 0, 0, 0.04));
+  --vr-ink-border-soft: color-mix(in srgb, var(--vscode-panel-border, #ccc) 70%, transparent);
+  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 68%, transparent);
+  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+  --vr-ink-tab-inactive-fg: color-mix(in srgb, var(--vscode-foreground) 62%, transparent);
+  --vr-ink-tab-active-bg: color-mix(in srgb, var(--vr-ink-accent-focus) 10%, #fff);
 }
 
-/* Dark theme / High contrast */
-body.vscode-dark, body.vscode-high-contrast {
-  --vr-ink-surface-panel: rgba(255, 255, 255, 0.03);
-  --vr-ink-surface-card: rgba(255, 255, 255, 0.06);
+/* Dark / high-contrast surfaces */
+body.vscode-dark,
+body.vscode-high-contrast {
+  --vr-ink-surface-chrome: color-mix(in srgb, var(--vscode-sideBar-background, #252526) 88%, #000 12%);
+  --vr-ink-surface-panel: rgba(255, 255, 255, 0.04);
+  --vr-ink-surface-card: rgba(255, 255, 255, 0.065);
   --vr-ink-surface-hover: rgba(255, 255, 255, 0.1);
-  --vr-ink-surface-selected: rgba(var(--vr-accent-rgb, 0, 122, 204), 0.2);
-  --vr-ink-surface-inset: rgba(0, 0, 0, 0.25);
-
-  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 75%, transparent);
-  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 65%, transparent);
+  --vr-ink-surface-selected: color-mix(in srgb, var(--vr-ink-accent-focus) 22%, transparent);
+  --vr-ink-surface-inset: rgba(0, 0, 0, 0.28);
+  --vr-ink-surface-resource: color-mix(in srgb, var(--vr-ink-accent-focus) 12%, rgba(0, 0, 0, 0.22));
+  --vr-ink-border-soft: color-mix(in srgb, var(--vscode-panel-border, #2b2b2b) 80%, transparent);
+  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 72%, transparent);
+  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 58%, transparent);
+  --vr-ink-tab-inactive-fg: color-mix(in srgb, var(--vscode-foreground) 58%, transparent);
+  --vr-ink-tab-active-bg: color-mix(in srgb, var(--vr-ink-accent-focus) 16%, rgba(255, 255, 255, 0.04));
 }
 
 /* =========================================================
-   Scope 1 — Adventure Status
+   Right Inspector chrome (#status-area)
    ========================================================= */
-#pane-status #status-area {
+#status-area {
+  background: var(--vr-ink-surface-chrome);
+  border-left: 1px solid var(--vr-ink-border-soft);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--vr-ink-accent-focus) 18%, transparent);
+}
+
+#status-area .tab-pane {
+  padding-top: 4px;
+}
+
+/* =========================================================
+   Top Inspector tab strip
+   ========================================================= */
+#status-area #status-tabs.tabs-header,
+#status-area #status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  padding: 6px 6px 0;
+  margin: 0;
+  background: color-mix(in srgb, var(--vr-ink-surface-chrome) 70%, #000 30%);
+  border-bottom: 1px solid var(--vr-ink-border-soft);
+  row-gap: 0;
+}
+
+#status-area #status-tabs .tab-btn {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 30px;
+  padding: 6px 10px 8px;
+  margin: 0 1px;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--vr-ink-tab-inactive-fg);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+  opacity: 1;
+}
+
+#status-area #status-tabs .tab-btn .tab-icon {
+  opacity: 0.72;
+}
+
+#status-area #status-tabs .tab-btn:hover {
+  color: var(--vscode-foreground);
+  background: var(--vr-ink-surface-hover);
+}
+
+#status-area #status-tabs .tab-btn:hover .tab-icon {
+  opacity: 0.9;
+}
+
+#status-area #status-tabs .tab-btn.active {
+  color: var(--vscode-foreground);
+  font-weight: 700;
+  background: var(--vr-ink-tab-active-bg);
+  box-shadow: none;
+}
+
+#status-area #status-tabs .tab-btn.active .tab-icon {
+  opacity: 1;
+  color: var(--vr-ink-accent-focus);
+}
+
+#status-area #status-tabs .tab-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--vr-ink-accent-focus);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--vr-ink-accent-focus) 55%, transparent);
+}
+
+#status-area #status-tabs .tab-btn:focus-visible {
+  outline: 1px solid var(--vr-ink-accent-focus);
+  outline-offset: -1px;
+}
+
+/* =========================================================
+   Shared section headers (Inspector + panes)
+   ========================================================= */
+#status-area .inspector-section,
+#status-area .status-block,
+#pane-vehicles .vehicle-detail-card,
+#pane-vehicles .mobile-base-panel-card {
+  position: relative;
+}
+
+#status-area .inspector-section {
+  margin: 14px 0 18px;
+  padding: 0 0 4px;
   background: transparent;
   border: none;
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
+#status-area .inspector-section > h4,
+#status-area .inspector-section > .inspector-section-title,
+#pane-vehicles .vehicle-detail-title,
+#pane-vehicles h3,
+#pane-vehicles h4 {
+  margin: 0 0 10px;
+  padding: 2px 0 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--vr-ink-border-soft);
+  border-left: var(--vr-ink-rail) solid color-mix(in srgb, var(--vr-ink-accent-focus) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+#status-area .inspector-item {
+  background: var(--vr-ink-surface-card);
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+/* =========================================================
+   Adventure Status — compact summary + stronger resources
+   ========================================================= */
 #pane-status #status-content {
   background: var(--vr-ink-surface-panel);
-  border: none;
-  border-radius: 8px;
-  padding: 16px;
+  border: 1px solid var(--vr-ink-border-soft);
+  border-radius: 10px;
+  padding: 12px 12px 14px;
+  margin: 8px 8px 12px;
   box-shadow: none;
 }
 
-#pane-status .status-row,
-#pane-status .status-block {
-  background: var(--vr-ink-surface-card);
+/* Group first three rows (location / time / funds) as one summary band */
+#pane-status #status-content > #status-row-location,
+#pane-status #status-content > #status-row-time,
+#pane-status #status-content > #status-row-funds {
+  background: transparent;
   border: none;
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
+  border-radius: 0;
+  margin: 0;
+  padding: 5px 4px;
 }
 
-#pane-status #dynamic-resources-container {
-  background: var(--vr-ink-surface-inset);
+#pane-status #status-content > #status-row-location {
+  padding-top: 2px;
+}
+
+#pane-status #status-content > #status-row-funds {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vr-ink-border-soft);
+}
+
+/* Generic status rows become lighter than resource regions */
+#pane-status .status-row,
+#pane-status .status-block {
+  background: transparent;
   border: none;
-  border-radius: 4px;
-  padding: 12px;
-  margin-bottom: 12px;
+  border-radius: 0;
+  padding: 6px 4px;
+  margin-bottom: 2px;
 }
 
 #pane-status .status-label {
   color: var(--vr-ink-text-secondary);
-  font-weight: 400;
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.02em;
 }
 
 #pane-status .status-value,
 #pane-status .tag-item {
   color: var(--vscode-foreground);
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
 }
 
 #pane-status #status-funds {
   color: var(--vr-ink-accent-lantern);
+  font-size: 13px;
+}
+
+/* HP / MP / dynamic resources as stronger inset blocks */
+#pane-status #status-row-hp,
+#pane-status #status-row-mp,
+#pane-status #dynamic-resources-container {
+  background: var(--vr-ink-surface-resource);
+  border: 1px solid color-mix(in srgb, var(--vr-ink-accent-focus) 22%, transparent);
+  border-left: var(--vr-ink-rail) solid var(--vr-ink-accent-focus);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+
+#pane-status #status-row-hp .status-value,
+#pane-status #status-row-mp .status-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#pane-status #status-hp {
+  color: var(--vr-ink-accent-success);
+}
+
+#pane-status #status-mp {
+  color: var(--vr-ink-accent-info);
+}
+
+/* Inventory / skills / condition stay lighter */
+#pane-status #status-row-inventory,
+#pane-status #status-row-skills,
+#pane-status #status-row-condition,
+#pane-status #status-tags-row {
+  background: var(--vr-ink-surface-inset);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+}
+
+#pane-status .tag-item {
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--vr-ink-text-secondary);
 }
 
 /* =========================================================
-   Scope 2 — Vehicle Garage
+   Vehicle Garage + Mobile Base
    ========================================================= */
-
-/* Pane layout surface */
-#pane-vehicles #vehicles-list {
-  background: var(--vr-ink-surface-panel);
-  border-radius: 8px;
+#pane-vehicles {
   padding: 8px;
 }
 
-#pane-vehicles .vehicle-detail-card,
-#pane-vehicles .mobile-base-panel-card {
+#pane-vehicles #vehicles-list {
   background: var(--vr-ink-surface-panel);
-  border: none;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: none;
+  border: 1px solid var(--vr-ink-border-soft);
+  border-radius: 10px;
+  padding: 8px;
+  gap: 6px;
 }
 
-/* Vehicle List Item */
 #pane-vehicles .vehicle-list-item {
   background: var(--vr-ink-surface-card);
   border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-bottom: 4px;
-  transition: background 0.15s, border-color 0.15s;
-  color: var(--vscode-foreground); /* MUST PRESERVE FIX */
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 0;
+  color: var(--vscode-foreground);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 #pane-vehicles .vehicle-list-item:hover {
   background: var(--vr-ink-surface-hover);
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--vr-ink-accent-focus) 35%, transparent);
 }
 
 #pane-vehicles .vehicle-list-item:focus-visible {
-  border-color: var(--vr-ink-accent-focus);
   outline: none;
+  border-color: var(--vr-ink-accent-focus);
+  box-shadow: 0 0 0 1px var(--vr-ink-accent-focus);
 }
 
 #pane-vehicles .vehicle-list-item.is-selected {
   background: var(--vr-ink-surface-selected);
   border-color: var(--vr-ink-accent-focus);
-  box-shadow: none; /* remove uniform box shadows */
+  box-shadow:
+    inset 3px 0 0 var(--vr-ink-accent-focus),
+    0 0 0 1px color-mix(in srgb, var(--vr-ink-accent-focus) 35%, transparent);
+}
+
+#pane-vehicles .vehicle-list-item.is-active {
+  border-left: 3px solid var(--vr-ink-accent-success);
+}
+
+#pane-vehicles .vehicle-list-item.is-selected.is-active {
+  border-left-color: var(--vr-ink-accent-success);
+  box-shadow:
+    inset 3px 0 0 var(--vr-ink-accent-success),
+    0 0 0 1px color-mix(in srgb, var(--vr-ink-accent-focus) 40%, transparent);
 }
 
 #pane-vehicles .vehicle-list-name {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--vscode-foreground);
+  font-size: 12.5px;
 }
 
 #pane-vehicles .vehicle-list-meta {
   color: var(--vr-ink-text-secondary);
-  opacity: 1; /* override any default CSS opacity to use explicit color */
-  font-weight: 400;
+  opacity: 1;
+  font-weight: 500;
+  font-size: 11px;
 }
 
-/* Active indicator */
-#pane-vehicles .vehicle-list-item.is-active {
-  border-left: 3px solid var(--vr-ink-accent-success);
-}
 #pane-vehicles .vehicle-list-item.is-here .vehicle-list-meta::after {
   color: var(--vr-ink-accent-success);
 }
 
-/* Vehicle Detail & Mobile Base text hierarchy */
-#pane-vehicles .vehicle-detail-header {
-  margin-bottom: 16px;
+#pane-vehicles .vehicle-detail-card,
+#pane-vehicles .mobile-base-panel-card {
+  background: var(--vr-ink-surface-panel);
+  border: 1px solid var(--vr-ink-border-soft);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: none;
+}
+
+#pane-vehicles .vehicle-detail-card {
+  border-top: 2px solid color-mix(in srgb, var(--vr-ink-accent-focus) 65%, transparent);
+}
+
+#pane-vehicles .mobile-base-panel-card {
+  border-top: 2px solid color-mix(in srgb, var(--vr-ink-accent-lantern) 55%, transparent);
+  margin-top: 12px;
+}
+
+#pane-vehicles .vehicle-detail-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vscode-foreground);
+}
+
+#pane-vehicles .vehicle-detail-sub,
+#pane-vehicles .vehicle-muted {
+  color: var(--vr-ink-text-secondary);
+  opacity: 1;
 }
 
 #pane-vehicles .vehicle-stat-row span:first-child,
 #pane-vehicles .mb-chip-row .label,
 #pane-vehicles .vehicle-bar-row span:first-child {
   color: var(--vr-ink-text-secondary);
-  font-weight: 400;
+  font-weight: 500;
+  font-size: 11px;
 }
 
 #pane-vehicles .vehicle-stat-row span:last-child,
 #pane-vehicles .mb-chip-row .value,
 #pane-vehicles .vehicle-bar-row span:last-child {
   color: var(--vscode-foreground);
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
 }
 
-/* Status colors */
+#pane-vehicles .vehicle-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--vr-ink-border-soft);
+  background: var(--vr-ink-surface-inset);
+  color: var(--vr-ink-text-secondary);
+}
+
+#pane-vehicles .vehicle-badge.active {
+  color: var(--vr-ink-accent-success);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-success) 45%, transparent);
+  background: color-mix(in srgb, var(--vr-ink-accent-success) 12%, transparent);
+}
+
+#pane-vehicles .vehicle-badge.mobile-base {
+  color: var(--vr-ink-accent-lantern);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-lantern) 40%, transparent);
+}
+
+/* Action preview rows: quieter than cards */
+#pane-vehicles .vehicle-intent-row {
+  background: var(--vr-ink-surface-inset);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+}
+
+#pane-vehicles .vehicle-intent-row:hover {
+  background: var(--vr-ink-surface-card);
+}
+
+#pane-vehicles .vehicle-intent-row[data-intent-status="allowed"] .vehicle-intent-dot {
+  background: var(--vr-ink-accent-success);
+}
+#pane-vehicles .vehicle-intent-row[data-intent-status="blocked"] .vehicle-intent-dot {
+  background: var(--vr-ink-accent-lantern);
+}
+
+/* Semantic status chips */
 #pane-vehicles .vehicle-fuel-low .vehicle-stat-row span:last-child,
 #pane-vehicles .mb-stock-low,
 #pane-vehicles .mb-facility-chip.status-damaged,
 #pane-vehicles .mb-facility-chip.status-under_construction,
 #pane-vehicles .vehicle-warning {
   color: var(--vr-ink-accent-lantern);
-  border-color: var(--vr-ink-accent-lantern);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-lantern) 40%, transparent);
 }
 
 #pane-vehicles .vehicle-fuel-empty .vehicle-stat-row span:last-child,
@@ -186,21 +459,28 @@ body.vscode-dark, body.vscode-high-contrast {
   color: var(--vr-ink-accent-danger);
 }
 
-#pane-vehicles .vehicle-muted,
 #pane-vehicles .mb-facility-chip.status-disabled,
 #pane-vehicles .mb-facility-chip.status-ruined {
   color: var(--vr-ink-text-disabled);
-  opacity: 1; /* override original opacity to strictly use token */
+  opacity: 1;
 }
 
-/* Intent Preview */
-#pane-vehicles .vehicle-intent-row {
-  background: var(--vr-ink-surface-card);
-  border: none;
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin-bottom: 4px;
+/* Resource bars use success fill when present */
+#pane-vehicles .vehicle-bar-fill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--vr-ink-accent-success) 80%, transparent),
+    var(--vr-ink-accent-success)
+  );
 }
 
-#pane-vehicles .vehicle-intent-row[data-intent-status="allowed"] .vehicle-intent-dot { background: var(--vr-ink-accent-success); }
-#pane-vehicles .vehicle-intent-row[data-intent-status="blocked"] .vehicle-intent-dot { background: var(--vr-ink-accent-lantern); }
+/* =========================================================
+   World pane inherits shared chrome only (no map redesign)
+   ========================================================= */
+#pane-world .world-section-title,
+#pane-world h4 {
+  margin-top: 12px;
+  padding-left: 10px;
+  border-left: var(--vr-ink-rail) solid color-mix(in srgb, var(--vr-ink-accent-focus) 55%, transparent);
+  font-weight: 700;
+}

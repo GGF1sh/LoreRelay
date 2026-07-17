@@ -37,13 +37,14 @@ persisted layout data.
   invalid, missing, and negative volume use 2 px. `q75` is taken only from the
   current rendered factual route set, so one extreme cannot flatten ordinary
   routes.
-- Relevance is group opacity: matching objects are 1, unrelated objects are
-  0.18, and a selected route, its endpoints, the selected node, and the current
-  location are always 1. Filtering never removes a route or node.
-- Commodity filtering adds one focus-token halo to the exact commodity while
-  retaining the status-coloured main stroke and status dash. Same-family routes
-  may carry a secondary token, but no family colour is painted in the all-
-  commodities overview. Family tokens come only from factual `family`,
+- Relevance is one pure group-opacity result: primary objects are 1, factual
+  same-family objects are 0.55, and unrelated objects are 0.18. A selected
+  route, its endpoints, the selected node, and the current location are always
+  primary. Filtering never removes a route or node.
+- Commodity filtering adds one strong focus-token halo to the exact commodity
+  and a weaker focus-token halo to the same factual family, while retaining the
+  status-coloured main stroke and status dash. No family colour is painted in
+  the all-commodities overview. Family tokens come only from factual `family`,
   `familyKey`, or `category` metadata; absent metadata uses the generic exact-
   commodity treatment and reports `familyMetadataAvailable: false`.
 
@@ -1587,7 +1588,6 @@ IMPLEMENTATION_SEQUENCE
   SLICE 1  Graph viewport and camera            (85b0-logistics-camera.js;   no src/ change)
   SLICE 2  Stable node layout and persistence   (85b1-logistics-layout.js;   worldView.ts scopeKey)
   SLICE 3  Obstacle-aware route geometry        (85b2-logistics-geometry.js; no src/ change)
-  SLICE 4  Commodity/status visual encoding     (economyLogisticsViewCore.ts family)
   SLICE 4  Factual visual encoding              (85b3-logistics-visual-encoding.js; no src/ change)
   SLICE 5  Filtering, minimap, semantic zoom    (85b3-logistics-minimap.js;  no src/ change)
   SLICE 6  Actual VS Code visual verification   (no feature work; full suite)

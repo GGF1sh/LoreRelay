@@ -75,5 +75,20 @@ assert.strictEqual(geometry.get('open').pathD, 'M open', '37 pathD unchanged by 
 assert.strictEqual(geometry.get('open').pathD, 'M open', '38 pathD unchanged by filter');
 assert.ok(style('open', { selectedCommodityId: 'grain' }).dashPattern === '' && style('rumored', { selectedCommodityId: 'grain' }).dashPattern, '39 status survives commodity accent');
 assert.strictEqual(JSON.stringify(encoded().legend.channels.map((item) => item[0])), JSON.stringify(['status', 'throughput', 'relevance', 'direction', 'uncertainty']), '40 legend describes five channels');
+assert.strictEqual(style('impaired', { selectedRouteId: 'open' }).relevance, 0.18, '41 route selection dims remote routes');
+assert.strictEqual(style('impaired', { selectedRouteId: 'open' }).relevanceKind, 'unrelated', '42 remote selection relevance is explicit');
+assert.strictEqual(style('open', { selectedRouteId: 'open' }).relevance, 1, '43 selected route remains primary');
+assert.strictEqual(style('impaired').relevance, 1, '44 clearing route selection restores relevance');
+assert.strictEqual(style('open', { selectedCommodityId: 'grain' }).relevanceKind, 'primary', '45 exact commodity is primary');
+assert.strictEqual(style('rumored', { selectedCommodityId: 'grain' }).relevance, 0.55, '46 factual same family is secondary');
+assert.strictEqual(style('rumored', { selectedCommodityId: 'grain' }).relevanceKind, 'secondary', '47 secondary relevance is explicit');
+assert.strictEqual(style('impaired', { selectedCommodityId: 'grain' }).relevance, 0.18, '48 unrelated family is dimmed');
+assert.strictEqual(style('impaired', { selectedCommodityId: 'grain' }).commodityAccentState, 'none', '49 unrelated family has no accent');
+assert.strictEqual(style('open', { selectedRouteId: 'open', selectedCommodityId: 'iron' }).relevance, 1, '50 selected route overrides an unrelated commodity filter');
+assert.strictEqual(nodeStyle('a', { selectedRouteId: 'open', selectedCommodityId: 'iron' }).relevance, 1, '51 selected route endpoint remains primary');
+assert.strictEqual(nodeStyle('c', { selectedNodeId: 'c', selectedCommodityId: 'grain', currentLocationId: null }).relevance, 1, '52 selected node remains primary');
+assert.strictEqual(nodeStyle('a', { selectedCommodityId: 'iron' }).relevance, 1, '53 current node remains primary');
+assert.strictEqual(style('open', { selectedCommodityId: 'mystery' }).commodityAccentState, 'none', '54 missing family metadata does not create secondary matches');
+assert.strictEqual(JSON.stringify({ routes, nodes, geometry: [...geometry] }), snapshot, '55 relevance encoding does not mutate inputs');
 
-console.log('logistics visual encoding: 40 factual contracts passed.');
+console.log('logistics visual encoding: 55 factual contracts passed.');

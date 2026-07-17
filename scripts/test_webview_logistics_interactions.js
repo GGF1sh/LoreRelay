@@ -864,5 +864,73 @@ test('SLICE4 41-60: factual visual tokens affect only rendering, not geometry or
   assert.strictEqual(findAll(h.panel, (n) => n.dataset.nodeId).length, 2, '60 filtering deletes no nodes');
 });
 
+test('SLICE4 corrections: renderer uses one relevance result and paints a secondary family accent', () => {
+  const h = createHarness();
+  const payload = threeRegionRoutePayload();
+  payload.commodities = [
+    { id: 'grain', name: 'Grain', family: 'food' },
+    { id: 'fruit', name: 'Fruit', family: 'food' },
+    { id: 'iron', name: 'Iron', family: 'metal' },
+  ];
+  payload.routes = [
+    { ...payload.routes[0], id: 'grain', commodityId: 'grain', volume: 12, status: 'open' },
+    { ...payload.routes[1], id: 'fruit', commodityId: 'fruit', volume: 8, status: 'unconfirmed' },
+    { ...payload.routes[1], id: 'iron', commodityId: 'iron', volume: 4, status: 'disrupted' },
+  ];
+  const line = (group) => findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+  const hit = (group) => findAll(group, (n) => n.classList.contains('logistics-route-hit'))[0];
+  h.context.renderEconomyLogistics(payload, true);
+  const before = {
+    d: line(routeOf(h, 'fruit')).getAttribute('d'),
+    hitD: hit(routeOf(h, 'fruit')).getAttribute('d'),
+    id: line(routeOf(h, 'fruit')).getAttribute('id'),
+  };
+  assert.strictEqual(routeOf(h, 'iron').style.opacity, '1', 'all commodities starts fully relevant');
+
+  h.api.economyLogisticsUiState.selection = { type: 'route', id: 'grain' };
+  h.api.economyLogisticsUiState.commodityId = 'all';
+  h.context.renderEconomyLogisticsPanel();
+  const remoteSelected = routeOf(h, 'iron');
+  assert.strictEqual(remoteSelected.dataset.relevance, 'unrelated', 'selected-route remote has authoritative unrelated data');
+  assert.ok(remoteSelected.classList.contains('is-unrelated'), 'selected-route remote has unrelated class');
+  assert.strictEqual(remoteSelected.style.opacity, '0.18', 'selected-route remote inline opacity agrees');
+  assert.strictEqual(routeOf(h, 'grain').style.opacity, '1', 'selected route remains full');
+
+  h.api.economyLogisticsUiState.selection = null;
+  h.api.economyLogisticsUiState.commodityId = 'grain';
+  h.context.renderEconomyLogisticsPanel();
+  const grain = routeOf(h, 'grain');
+  const fruit = routeOf(h, 'fruit');
+  const iron = routeOf(h, 'iron');
+  assert.strictEqual(grain.dataset.relevance, 'primary');
+  assert.strictEqual(grain.style.opacity, '1');
+  assert.ok(grain.classList.contains('is-commodity-primary'), 'exact commodity uses the primary halo');
+  assert.strictEqual(fruit.dataset.relevance, 'secondary', 'same family exposes secondary relevance');
+  assert.strictEqual(fruit.style.opacity, '0.55', 'same family uses secondary opacity');
+  assert.ok(fruit.classList.contains('is-secondary') && fruit.classList.contains('is-commodity-secondary'), 'same family consumes a secondary accent state');
+  assert.ok(fruit.classList.contains('logistics-route-rumored'), 'secondary retains factual status class');
+  assert.ok(line(fruit).style.props['stroke-dasharray'], 'secondary retains factual dash');
+  assert.strictEqual(iron.dataset.relevance, 'unrelated');
+  assert.strictEqual(iron.style.opacity, '0.18');
+  assert.ok(!iron.classList.contains('is-commodity-primary') && !iron.classList.contains('is-commodity-secondary'), 'unrelated route has no commodity halo');
+  assert.strictEqual(line(fruit).getAttribute('d'), before.d, 'commodity relevance leaves visible path d byte-identical');
+  assert.strictEqual(hit(fruit).getAttribute('d'), before.hitD, 'commodity relevance leaves hit path d byte-identical');
+  assert.strictEqual(line(fruit).getAttribute('id'), before.id, 'commodity relevance leaves path id stable');
+  const mpath = findAll(fruit, (n) => n.tagName === 'MPATH')[0];
+  if (mpath) { assert.strictEqual(mpath.getAttribute('href'), `#${before.id}`, 'commodity relevance leaves mpath stable'); }
+  assert.strictEqual(findAll(h.panel, (n) => n.dataset.routeId === 'fruit').length, 1, 'filter leaves one factual route element');
+
+  h.api.economyLogisticsUiState.selection = { type: 'route', id: 'grain' };
+  h.api.economyLogisticsUiState.commodityId = 'iron';
+  h.context.renderEconomyLogisticsPanel();
+  assert.strictEqual(routeOf(h, 'grain').style.opacity, '1', 'selection overrides unrelated commodity dimming');
+  h.api.economyLogisticsUiState.selection = null;
+  h.api.economyLogisticsUiState.commodityId = 'all';
+  h.context.renderEconomyLogisticsPanel();
+  assert.strictEqual(routeOf(h, 'iron').style.opacity, '1', 'clearing all focus restores full relevance');
+  const css = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
+  assert.match(css, /\.logistics-route\.is-commodity-secondary \.logistics-route-line/, 'stylesheet consumes the secondary route state');
+});
+
 if (failed) process.exit(1);
 console.log('webview logistics interactions: all behavioral checks passed.');

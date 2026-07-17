@@ -6,6 +6,7 @@
 const LOGISTICS_VISUAL_MIN_WIDTH = 2;
 const LOGISTICS_VISUAL_MAX_WIDTH = 7;
 const LOGISTICS_VISUAL_DIM_OPACITY = 0.18;
+const LOGISTICS_VISUAL_SECONDARY_OPACITY = 0.55;
 
 function logisticsVisualCompare(a, b) {
   const aa = String(a == null ? '' : a);
@@ -47,6 +48,25 @@ function logisticsVisualNodeMatchesCommodity(node, commodityId, routes, shortage
     || (shortages || []).some((shortage) => shortage?.commodityId === commodityId && shortage.nodeId === node?.id);
 }
 
+function logisticsVisualNodeCommodityIds(node, routes, shortages) {
+  const ids = new Set();
+  const collect = (value) => {
+    if (!Array.isArray(value)) { return; }
+    for (const entry of value) {
+      const id = typeof entry === 'string' ? entry : entry?.commodityId;
+      if (typeof id === 'string' && id) { ids.add(id); }
+    }
+  };
+  collect(node?.commodityIds); collect(node?.production); collect(node?.consumption); collect(node?.storage);
+  for (const route of routes || []) {
+    if (route && (route.fromNodeId === node?.id || route.toNodeId === node?.id) && typeof route.commodityId === 'string') { ids.add(route.commodityId); }
+  }
+  for (const shortage of shortages || []) {
+    if (shortage?.nodeId === node?.id && typeof shortage.commodityId === 'string') { ids.add(shortage.commodityId); }
+  }
+  return ids;
+}
+
 /**
  * Computes stable factual visual tokens.  Family tokens are ordinal tokens,
  * never colours and never derived from commodity identifiers or names.
@@ -77,10 +97,15 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const commodity = commodityById.get(route.commodityId);
     const familyKey = logisticsVisualFamily(commodity);
     const selected = route.id === selectedRouteId;
-    const relevant = selected || !selectedCommodity || route.commodityId === selectedCommodity;
     const accentState = !selectedCommodity ? 'none'
       : route.commodityId === selectedCommodity ? 'primary'
         : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'none';
+    const relevanceKind = selected ? 'primary'
+      : selectedRouteId ? 'unrelated'
+        : !selectedCommodity || route.commodityId === selectedCommodity ? 'primary'
+          : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'unrelated';
+    const relevance = relevanceKind === 'primary' ? 1
+      : relevanceKind === 'secondary' ? LOGISTICS_VISUAL_SECONDARY_OPACITY : LOGISTICS_VISUAL_DIM_OPACITY;
     const status = logisticsVisualStatus(route, geometryByRoute);
     routeStyles.set(route.id, {
       routeId: route.id,
@@ -91,7 +116,8 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
       throughputValue,
       throughputRank: throughputValue > 0 ? sortedVolumes.indexOf(throughputValue) + 1 : 0,
       strokeWidth: Number(widthFor(throughputValue).toFixed(2)),
-      relevance: relevant ? 1 : LOGISTICS_VISUAL_DIM_OPACITY,
+      relevance,
+      relevanceKind,
       commodityFamilyKey: familyKey,
       commodityFamilyToken: familyKey ? (familyTokenByKey.get(familyKey) || 'unclassified') : 'unclassified',
       commodityAccentState: accentState,
@@ -105,14 +131,24 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const endpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
     const current = Boolean(currentLocationId && node.locationId === currentLocationId);
     const selected = node.id === selectedNodeId;
-    const relevant = selected || current || endpoint || !selectedCommodity || logisticsVisualNodeMatchesCommodity(node, selectedCommodity, safeRoutes, shortages);
+    const commodityIds = logisticsVisualNodeCommodityIds(node, safeRoutes, shortages);
+    const exactCommodity = Boolean(selectedCommodity && commodityIds.has(selectedCommodity));
+    const sameFamily = Boolean(selectedCommodity && selectedFamily && [...commodityIds].some((id) => id !== selectedCommodity && logisticsVisualFamily(commodityById.get(id)) === selectedFamily));
+    const relevanceKind = selected || current || endpoint ? 'primary'
+      : selectedRouteId ? 'unrelated'
+        : !selectedCommodity || exactCommodity ? 'primary'
+          : sameFamily ? 'secondary' : 'unrelated';
+    const relevance = relevanceKind === 'primary' ? 1
+      : relevanceKind === 'secondary' ? LOGISTICS_VISUAL_SECONDARY_OPACITY : LOGISTICS_VISUAL_DIM_OPACITY;
     nodeStyles.set(node.id, {
       nodeId: node.id,
-      relevance: relevant ? 1 : LOGISTICS_VISUAL_DIM_OPACITY,
+      relevance,
+      relevanceKind,
       selected,
       current,
       selectedRouteEndpoint: endpoint,
-      commodityAccentState: selectedCommodity && relevant && !selected && !current && !endpoint ? 'primary' : 'none',
+      commodityAccentState: selectedCommodity && relevanceKind === 'primary' && !selected && !current && !endpoint ? 'primary'
+        : selectedCommodity && relevanceKind === 'secondary' ? 'secondary' : 'none',
     });
   }
   return {

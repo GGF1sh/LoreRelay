@@ -3863,11 +3863,19 @@ textarea:focus-visible {
 .logistics-arrow-blocked .logistics-arrow-path,
 .logistics-arrow-conflicted .logistics-arrow-path { fill: var(--vscode-editorError-foreground, var(--vscode-charts-red)); }
 .logistics-route.is-commodity-primary .logistics-route-line {
-  filter: drop-shadow(0 0 2px var(--vscode-focusBorder));
+  filter: drop-shadow(0 0 3px var(--vscode-focusBorder));
+}
+.logistics-route.is-commodity-secondary .logistics-route-line {
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent));
 }
 .logistics-node.is-commodity-primary .logistics-node-accent {
   stroke: var(--vscode-focusBorder);
   stroke-width: 4;
+}
+.logistics-node.is-commodity-secondary .logistics-node-accent {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 3;
+  opacity: 0.55;
 }
 
 .logistics-route-label,

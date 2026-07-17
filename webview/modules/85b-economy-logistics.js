@@ -899,41 +899,38 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
  * re-derives a coordinate. `layerEdges`/`layerEdgesRaised` decide which layer
  * receives the group (Part G) — the group itself never changes route id,
  * path id, or selection/detail state when it moves between them. */
-function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometry, maxVolume, rendered) {
+function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometry, visual, rendered) {
   if (!geometry) { return; }
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selected = selectedRouteId === route.id;
   const unrelated = Boolean(selectedRouteId && !selected);
   const flowing = logisticsFlowMotionActive() && route.volume > 0;
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
+  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none' };
   const movement = route.volume > 0 ? 'active' : 'idle';
   // Selected routes are never dimmed; filterMatch already treats selection as relevant.
-  const filterUnrelated = !selected && route.filterMatch === false;
+  const filterUnrelated = !selected && style.relevance < 1;
   const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
+  if (group.style) { group.style.opacity = String(selected ? 1 : style.relevance); }
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
   }
   group.dataset.routeId = route.id;
-  const disrupted = status === 'blocked' || status === 'raided';
   const pathId = `logistics-route-path-${logisticsDomId(route.id)}`;
   // Invisible wide hit target sharing the exact same `d` as the visible
   // stroke, so the clickable area is not limited to a thin high-volume line.
   const hit = logisticsSvgElement('path', 'logistics-route-hit');
   hit.setAttribute('d', geometry.pathD);
+  hit.setAttribute('stroke-width', '12');
   group.appendChild(hit);
   const line = logisticsSvgElement('path', 'logistics-route-line');
   line.setAttribute('id', pathId);
   line.setAttribute('d', geometry.pathD);
   line.dataset.routePath = geometry.pathD;
-  const flowWidth = 1.5 + Math.sqrt(Math.max(0, route.volume) / Math.max(1, maxVolume)) * 6;
-  // Disrupted routes must stay readable even at zero volume.
-  const width = disrupted ? Math.max(flowWidth, 2.5) : flowWidth;
-  line.setAttribute('stroke-width', width.toFixed(2));
-  line.setAttribute('marker-end', `url(#logistics-arrow-${status})`);
-  line.style.opacity = route.volume > 0
-    ? String(0.55 + Math.min(1, route.utilization) * 0.4)
-    : (disrupted ? '0.8' : '0.4');
+  line.setAttribute('stroke-width', Number(style.strokeWidth).toFixed(2));
+  line.setAttribute('marker-end', `url(#logistics-arrow-${style.statusKey})`);
+  if (style.dashPattern) { line.style.setProperty('stroke-dasharray', style.dashPattern); }
   group.appendChild(line);
   if (flowing && !economyLogisticsUiState.compactAnimation) {
     logisticsRenderFlowParticles(group, route, geometry, pathId);
@@ -1043,14 +1040,15 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
   }
 }
 
-function renderLogisticsNode(svg, payload, node, position, shortages, routes, rendered) {
+function renderLogisticsNode(svg, payload, node, position, shortages, routes, visual, rendered) {
   const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
   const selectedNode = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
   const currentNode = Boolean(typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId);
   const selectedEndpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
-  const unrelated = !selectedNode && !currentNode && !selectedEndpoint && node.filterMatch === false;
+  const style = visual || { relevance: 1, commodityAccentState: 'none' };
+  const unrelated = !selectedNode && !currentNode && !selectedEndpoint && style.relevance < 1;
   const role = logisticsNodeRole(node.kind);
   const scale = position.tier || logisticsNodeScale(node, routes);
   const nodeWidth = Number.isFinite(position.w) ? position.w : 152;
@@ -1063,7 +1061,8 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   const badgeX = nodeWidth - padding - 5;
   const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
     || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${unrelated ? ' is-unrelated' : ' is-related'}`);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''}${unrelated ? ' is-unrelated' : ' is-related'}`);
+  if (group.style) { group.style.opacity = String(selected || currentNode || selectedEndpoint ? 1 : style.relevance); }
   group.dataset.nodeId = node.id;
   group.setAttribute('transform', logisticsNodeTransform(position));
   group.setAttribute('aria-label', node.aggregate ? `${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}` : `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
@@ -1162,6 +1161,7 @@ function renderLogisticsLegend(parent) {
     statusList.appendChild(item);
   }
   legend.appendChild(statusList);
+  legend.appendChild(logisticsElement('p', 'logistics-legend-encoding', T('webview.world.logisticsLegendEncoding')));
   const nodeList = logisticsElement('div', 'logistics-legend-list logistics-legend-node-list');
   nodeList.setAttribute('role', 'list');
   for (const role of ['settlement', 'market', 'facility', 'vehicle', 'caravan', 'envoy', 'mobile_base']) {
@@ -1769,7 +1769,7 @@ function renderLogisticsNetwork(payload, parent) {
   svg.setAttribute('viewBox', `0 0 ${viewportSize.width} ${viewportSize.height}`);
   svg.setAttribute('aria-hidden', 'true');
   const defs = logisticsSvgElement('defs');
-  ['open', 'strained', 'blocked', 'raided', 'rumored'].forEach((status) => {
+  ['open', 'rumored', 'impaired', 'blocked', 'bottleneck', 'conflicted', 'unknown'].forEach((status) => {
     const marker = logisticsSvgElement('marker', `logistics-arrow logistics-arrow-${status}`);
     marker.id = `logistics-arrow-${status}`;
     marker.setAttribute('viewBox', '0 0 10 10');
@@ -1798,21 +1798,31 @@ function renderLogisticsNetwork(payload, parent) {
   svg.appendChild(cameraGroup);
 
   renderLogisticsRegionContainers(layerRegions, payload, layout);
-  const maxVolume = Math.max(1, ...graph.routes.map((route) => route.volume || 0));
   // One shared, obstacle-aware geometry computation for the whole route set;
   // every consumer (stroke, hit path, arrow, particles, label, warning, drag
   // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
   const labelMetrics = logisticsRouteLabelMetrics(graph.routes);
   const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
   const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
+  const selection = economyLogisticsUiState.selection || null;
+  const visualEncoding = computeLogisticsVisualEncoding({
+    routes: graph.routes,
+    nodes: graph.nodes,
+    commodities: payload.commodities || [],
+    selectedCommodityId: data.commodityId,
+    selectedRouteId: selection?.type === 'route' ? selection.id : null,
+    selectedNodeId: selection?.type === 'node' ? selection.id : null,
+    currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null,
+    options: { geometryByRoute: geometryResult.routes, shortages: data.shortages },
+  });
   rendered.geometryRoutes = graph.routes;
   rendered.geometryLabelMetrics = labelMetrics;
   rendered.routeTopologyIndex = routeTopologyIndex;
   rendered.routeGeoms = geometryResult.routes;
-  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), maxVolume, rendered));
+  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
   graph.nodes.forEach((node) => {
     const position = graph.positions.get(node.id);
-    if (position) { renderLogisticsNode(layerNodes, payload, node, position, data.shortages, graph.routes, rendered); }
+    if (position) { renderLogisticsNode(layerNodes, payload, node, position, data.shortages, graph.routes, visualEncoding.nodeStyles.get(node.id), rendered); }
   });
   viewport.appendChild(svg);
 

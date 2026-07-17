@@ -1565,6 +1565,7 @@
   "webview.world.logisticsLegendActive": "运输中",
   "webview.world.logisticsLegendIdle": "闲置／低流量",
   "webview.world.logisticsLegendSelected": "已选择",
+  "webview.world.logisticsLegendEncoding": "颜色：状态 · 宽度：吞吐量 · 透明度：相关性 · 箭头：方向 · 虚线：不确定或受阻 · 商品强调仅在商品筛选时显示",
   "webview.world.logisticsScaleMinor": "小型",
   "webview.world.logisticsScaleStandard": "标准",
   "webview.world.logisticsScaleMajor": "主要",

@@ -12806,6 +12806,141 @@ function computeLogisticsRouteGeometry(input) {
   };
 }
 
+/* --- 85b3-logistics-visual-encoding.js --- */
+// LOGISTICS-GRAPH-CANVAS-SLICE4 -- pure factual visual encoding.
+// This module intentionally knows nothing about SVG, theme colours, storage,
+// camera state, or time.  It only turns factual payload fields into stable
+// visual tokens; the renderer and CSS decide how those tokens are painted.
+
+const LOGISTICS_VISUAL_MIN_WIDTH = 2;
+const LOGISTICS_VISUAL_MAX_WIDTH = 7;
+const LOGISTICS_VISUAL_DIM_OPACITY = 0.18;
+
+function logisticsVisualCompare(a, b) {
+  const aa = String(a == null ? '' : a);
+  const bb = String(b == null ? '' : b);
+  return aa < bb ? -1 : aa > bb ? 1 : 0;
+}
+
+function logisticsVisualFiniteVolume(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function logisticsVisualStatus(route, geometryByRoute) {
+  const geometry = geometryByRoute && typeof geometryByRoute.get === 'function' ? geometryByRoute.get(route.id) : null;
+  if (Boolean(route && (route.geometryConflicted || route.conflicted || route.labelConflicted || geometry?.conflicted))) {
+    return { key: 'conflicted', tone: 'diagnostic', dash: '2 3 8 3', labelKey: 'conflicted' };
+  }
+  const raw = String(route?.status || 'open').toLowerCase();
+  if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored' }; }
+  if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired' }; }
+  if (raw === 'blocked' || raw === 'closed') { return { key: 'blocked', tone: 'danger', dash: '3 5', labelKey: 'blocked' }; }
+  if (raw === 'bottleneck' || route?.bottleneck) { return { key: 'bottleneck', tone: 'bottleneck', dash: '12 3 2 3', labelKey: 'bottleneck' }; }
+  if (raw === 'open' || raw === 'normal' || raw === '') { return { key: 'open', tone: 'normal', dash: '', labelKey: 'open' }; }
+  return { key: 'unknown', tone: 'neutral', dash: '1 4', labelKey: 'unknown' };
+}
+
+function logisticsVisualFamily(commodity) {
+  if (!commodity || typeof commodity !== 'object') { return null; }
+  for (const field of ['family', 'familyKey', 'category']) {
+    if (typeof commodity[field] === 'string' && commodity[field].trim()) { return commodity[field].trim(); }
+  }
+  return null;
+}
+
+function logisticsVisualNodeMatchesCommodity(node, commodityId, routes, shortages) {
+  const has = (value) => Array.isArray(value) && value.some((entry) => (typeof entry === 'string' ? entry : entry?.commodityId) === commodityId);
+  return has(node?.commodityIds) || has(node?.production) || has(node?.consumption) || has(node?.storage)
+    || (routes || []).some((route) => route?.commodityId === commodityId && (route.fromNodeId === node?.id || route.toNodeId === node?.id))
+    || (shortages || []).some((shortage) => shortage?.commodityId === commodityId && shortage.nodeId === node?.id);
+}
+
+/**
+ * Computes stable factual visual tokens.  Family tokens are ordinal tokens,
+ * never colours and never derived from commodity identifiers or names.
+ */
+function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCommodityId, selectedRouteId, selectedNodeId, currentLocationId, options } = {}) {
+  const safeRoutes = Array.isArray(routes) ? routes.slice().filter(Boolean).sort((a, b) => logisticsVisualCompare(a.id, b.id)) : [];
+  const safeNodes = Array.isArray(nodes) ? nodes.slice().filter(Boolean).sort((a, b) => logisticsVisualCompare(a.id, b.id)) : [];
+  const safeCommodities = Array.isArray(commodities) ? commodities.slice().filter(Boolean) : [];
+  const geometryByRoute = options?.geometryByRoute;
+  const shortages = Array.isArray(options?.shortages) ? options.shortages : [];
+  const selectedCommodity = typeof selectedCommodityId === 'string' && selectedCommodityId && selectedCommodityId !== 'all' ? selectedCommodityId : null;
+  const commodityById = new Map(safeCommodities.filter((item) => typeof item.id === 'string').map((item) => [item.id, item]));
+  const selectedFamily = selectedCommodity ? logisticsVisualFamily(commodityById.get(selectedCommodity)) : null;
+  const familyKeys = [...new Set(safeCommodities.map(logisticsVisualFamily).filter(Boolean))].sort(logisticsVisualCompare).slice(0, 6);
+  const familyTokenByKey = new Map(familyKeys.map((key, index) => [key, `family-${index + 1}`]));
+  const volumes = safeRoutes.map((route) => logisticsVisualFiniteVolume(route.volume)).filter((value) => value > 0).sort((a, b) => a - b);
+  // A 75th-percentile reference prevents a single extreme from flattening the
+  // ordinary routes while the clamp retains monotonicity for every value.
+  const reference = volumes.length ? volumes[Math.max(0, Math.ceil(volumes.length * 0.75) - 1)] : 0;
+  const widthFor = (volume) => {
+    if (!(volume > 0) || !(reference > 0)) { return LOGISTICS_VISUAL_MIN_WIDTH; }
+    return LOGISTICS_VISUAL_MIN_WIDTH + (LOGISTICS_VISUAL_MAX_WIDTH - LOGISTICS_VISUAL_MIN_WIDTH) * Math.sqrt(Math.min(volume, reference) / reference);
+  };
+  const sortedVolumes = [...new Set(volumes)];
+  const routeStyles = new Map();
+  for (const route of safeRoutes) {
+    const throughputValue = logisticsVisualFiniteVolume(route.volume);
+    const commodity = commodityById.get(route.commodityId);
+    const familyKey = logisticsVisualFamily(commodity);
+    const selected = route.id === selectedRouteId;
+    const relevant = selected || !selectedCommodity || route.commodityId === selectedCommodity;
+    const accentState = !selectedCommodity ? 'none'
+      : route.commodityId === selectedCommodity ? 'primary'
+        : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'none';
+    const status = logisticsVisualStatus(route, geometryByRoute);
+    routeStyles.set(route.id, {
+      routeId: route.id,
+      statusKey: status.key,
+      statusTone: status.tone,
+      statusLabelKey: status.labelKey,
+      dashPattern: status.dash,
+      throughputValue,
+      throughputRank: throughputValue > 0 ? sortedVolumes.indexOf(throughputValue) + 1 : 0,
+      strokeWidth: Number(widthFor(throughputValue).toFixed(2)),
+      relevance: relevant ? 1 : LOGISTICS_VISUAL_DIM_OPACITY,
+      commodityFamilyKey: familyKey,
+      commodityFamilyToken: familyKey ? (familyTokenByKey.get(familyKey) || 'unclassified') : 'unclassified',
+      commodityAccentState: accentState,
+      selected,
+      conflicted: status.key === 'conflicted',
+    });
+  }
+  const selectedRoute = safeRoutes.find((route) => route.id === selectedRouteId) || null;
+  const nodeStyles = new Map();
+  for (const node of safeNodes) {
+    const endpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
+    const current = Boolean(currentLocationId && node.locationId === currentLocationId);
+    const selected = node.id === selectedNodeId;
+    const relevant = selected || current || endpoint || !selectedCommodity || logisticsVisualNodeMatchesCommodity(node, selectedCommodity, safeRoutes, shortages);
+    nodeStyles.set(node.id, {
+      nodeId: node.id,
+      relevance: relevant ? 1 : LOGISTICS_VISUAL_DIM_OPACITY,
+      selected,
+      current,
+      selectedRouteEndpoint: endpoint,
+      commodityAccentState: selectedCommodity && relevant && !selected && !current && !endpoint ? 'primary' : 'none',
+    });
+  }
+  return {
+    routeStyles,
+    nodeStyles,
+    legend: {
+      channels: [
+        ['status', 'hue'], ['throughput', 'width'], ['relevance', 'opacity'], ['direction', 'arrow'], ['uncertainty', 'dash'],
+      ],
+      commodityAccent: selectedCommodity ? 'selected-commodity-only' : 'none',
+    },
+    diagnostics: {
+      familyMetadataAvailable: Boolean(selectedFamily),
+      familyTokens: [...familyTokenByKey.entries()].map(([key, token]) => ({ key, token })),
+      throughputReference: reference,
+    },
+  };
+}
+
 /* --- 85b-economy-logistics.js --- */
 // NOAI-ECON-FLOWS-005 — read-only deterministic logistics network.
 // NOAI-ECON-FLOWS-005C — optional flow direction animation (particles when the
@@ -13708,41 +13843,38 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
  * re-derives a coordinate. `layerEdges`/`layerEdgesRaised` decide which layer
  * receives the group (Part G) — the group itself never changes route id,
  * path id, or selection/detail state when it moves between them. */
-function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometry, maxVolume, rendered) {
+function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometry, visual, rendered) {
   if (!geometry) { return; }
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selected = selectedRouteId === route.id;
   const unrelated = Boolean(selectedRouteId && !selected);
   const flowing = logisticsFlowMotionActive() && route.volume > 0;
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
+  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none' };
   const movement = route.volume > 0 ? 'active' : 'idle';
   // Selected routes are never dimmed; filterMatch already treats selection as relevant.
-  const filterUnrelated = !selected && route.filterMatch === false;
+  const filterUnrelated = !selected && style.relevance < 1;
   const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
+  if (group.style) { group.style.opacity = String(selected ? 1 : style.relevance); }
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
   }
   group.dataset.routeId = route.id;
-  const disrupted = status === 'blocked' || status === 'raided';
   const pathId = `logistics-route-path-${logisticsDomId(route.id)}`;
   // Invisible wide hit target sharing the exact same `d` as the visible
   // stroke, so the clickable area is not limited to a thin high-volume line.
   const hit = logisticsSvgElement('path', 'logistics-route-hit');
   hit.setAttribute('d', geometry.pathD);
+  hit.setAttribute('stroke-width', '12');
   group.appendChild(hit);
   const line = logisticsSvgElement('path', 'logistics-route-line');
   line.setAttribute('id', pathId);
   line.setAttribute('d', geometry.pathD);
   line.dataset.routePath = geometry.pathD;
-  const flowWidth = 1.5 + Math.sqrt(Math.max(0, route.volume) / Math.max(1, maxVolume)) * 6;
-  // Disrupted routes must stay readable even at zero volume.
-  const width = disrupted ? Math.max(flowWidth, 2.5) : flowWidth;
-  line.setAttribute('stroke-width', width.toFixed(2));
-  line.setAttribute('marker-end', `url(#logistics-arrow-${status})`);
-  line.style.opacity = route.volume > 0
-    ? String(0.55 + Math.min(1, route.utilization) * 0.4)
-    : (disrupted ? '0.8' : '0.4');
+  line.setAttribute('stroke-width', Number(style.strokeWidth).toFixed(2));
+  line.setAttribute('marker-end', `url(#logistics-arrow-${style.statusKey})`);
+  if (style.dashPattern) { line.style.setProperty('stroke-dasharray', style.dashPattern); }
   group.appendChild(line);
   if (flowing && !economyLogisticsUiState.compactAnimation) {
     logisticsRenderFlowParticles(group, route, geometry, pathId);
@@ -13852,14 +13984,15 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
   }
 }
 
-function renderLogisticsNode(svg, payload, node, position, shortages, routes, rendered) {
+function renderLogisticsNode(svg, payload, node, position, shortages, routes, visual, rendered) {
   const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
   const selectedNode = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
   const currentNode = Boolean(typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId);
   const selectedEndpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
-  const unrelated = !selectedNode && !currentNode && !selectedEndpoint && node.filterMatch === false;
+  const style = visual || { relevance: 1, commodityAccentState: 'none' };
+  const unrelated = !selectedNode && !currentNode && !selectedEndpoint && style.relevance < 1;
   const role = logisticsNodeRole(node.kind);
   const scale = position.tier || logisticsNodeScale(node, routes);
   const nodeWidth = Number.isFinite(position.w) ? position.w : 152;
@@ -13872,7 +14005,8 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   const badgeX = nodeWidth - padding - 5;
   const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
     || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${unrelated ? ' is-unrelated' : ' is-related'}`);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''}${unrelated ? ' is-unrelated' : ' is-related'}`);
+  if (group.style) { group.style.opacity = String(selected || currentNode || selectedEndpoint ? 1 : style.relevance); }
   group.dataset.nodeId = node.id;
   group.setAttribute('transform', logisticsNodeTransform(position));
   group.setAttribute('aria-label', node.aggregate ? `${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}` : `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
@@ -13971,6 +14105,7 @@ function renderLogisticsLegend(parent) {
     statusList.appendChild(item);
   }
   legend.appendChild(statusList);
+  legend.appendChild(logisticsElement('p', 'logistics-legend-encoding', T('webview.world.logisticsLegendEncoding')));
   const nodeList = logisticsElement('div', 'logistics-legend-list logistics-legend-node-list');
   nodeList.setAttribute('role', 'list');
   for (const role of ['settlement', 'market', 'facility', 'vehicle', 'caravan', 'envoy', 'mobile_base']) {
@@ -14578,7 +14713,7 @@ function renderLogisticsNetwork(payload, parent) {
   svg.setAttribute('viewBox', `0 0 ${viewportSize.width} ${viewportSize.height}`);
   svg.setAttribute('aria-hidden', 'true');
   const defs = logisticsSvgElement('defs');
-  ['open', 'strained', 'blocked', 'raided', 'rumored'].forEach((status) => {
+  ['open', 'rumored', 'impaired', 'blocked', 'bottleneck', 'conflicted', 'unknown'].forEach((status) => {
     const marker = logisticsSvgElement('marker', `logistics-arrow logistics-arrow-${status}`);
     marker.id = `logistics-arrow-${status}`;
     marker.setAttribute('viewBox', '0 0 10 10');
@@ -14607,21 +14742,31 @@ function renderLogisticsNetwork(payload, parent) {
   svg.appendChild(cameraGroup);
 
   renderLogisticsRegionContainers(layerRegions, payload, layout);
-  const maxVolume = Math.max(1, ...graph.routes.map((route) => route.volume || 0));
   // One shared, obstacle-aware geometry computation for the whole route set;
   // every consumer (stroke, hit path, arrow, particles, label, warning, drag
   // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
   const labelMetrics = logisticsRouteLabelMetrics(graph.routes);
   const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
   const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
+  const selection = economyLogisticsUiState.selection || null;
+  const visualEncoding = computeLogisticsVisualEncoding({
+    routes: graph.routes,
+    nodes: graph.nodes,
+    commodities: payload.commodities || [],
+    selectedCommodityId: data.commodityId,
+    selectedRouteId: selection?.type === 'route' ? selection.id : null,
+    selectedNodeId: selection?.type === 'node' ? selection.id : null,
+    currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null,
+    options: { geometryByRoute: geometryResult.routes, shortages: data.shortages },
+  });
   rendered.geometryRoutes = graph.routes;
   rendered.geometryLabelMetrics = labelMetrics;
   rendered.routeTopologyIndex = routeTopologyIndex;
   rendered.routeGeoms = geometryResult.routes;
-  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), maxVolume, rendered));
+  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
   graph.nodes.forEach((node) => {
     const position = graph.positions.get(node.id);
-    if (position) { renderLogisticsNode(layerNodes, payload, node, position, data.shortages, graph.routes, rendered); }
+    if (position) { renderLogisticsNode(layerNodes, payload, node, position, data.shortages, graph.routes, visualEncoding.nodeStyles.get(node.id), rendered); }
   });
   viewport.appendChild(svg);
 

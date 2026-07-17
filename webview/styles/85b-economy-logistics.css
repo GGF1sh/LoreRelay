@@ -79,6 +79,7 @@
 }
 
 .logistics-legend-title { color: var(--vscode-foreground); }
+.logistics-legend-encoding { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.35; }
 .logistics-legend-list { display: flex; flex-wrap: wrap; gap: 0.3rem 0.65rem; }
 .logistics-legend-item { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--vscode-descriptionForeground); }
 .logistics-legend-swatch {
@@ -324,6 +325,31 @@
 
 .logistics-route.is-unrelated { opacity: 0.18; }
 .logistics-node.is-unrelated { opacity: 0.28; }
+
+/* SLICE4: factual route status owns hue; dash is supplied as an inline
+   presentation token by the pure encoder, so it remains distinct in
+   monochrome.  Theme tokens keep both light and dark themes legible. */
+.logistics-route-status-open { color: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.logistics-route-status-rumored,
+.logistics-route-status-unknown { color: var(--vscode-descriptionForeground); }
+.logistics-route-status-impaired,
+.logistics-route-status-bottleneck { color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)); }
+.logistics-route-status-blocked,
+.logistics-route-status-conflicted { color: var(--vscode-editorError-foreground, var(--vscode-charts-red)); }
+.logistics-arrow-open .logistics-arrow-path { fill: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.logistics-arrow-rumored .logistics-arrow-path,
+.logistics-arrow-unknown .logistics-arrow-path { fill: var(--vscode-descriptionForeground); }
+.logistics-arrow-impaired .logistics-arrow-path,
+.logistics-arrow-bottleneck .logistics-arrow-path { fill: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)); }
+.logistics-arrow-blocked .logistics-arrow-path,
+.logistics-arrow-conflicted .logistics-arrow-path { fill: var(--vscode-editorError-foreground, var(--vscode-charts-red)); }
+.logistics-route.is-commodity-primary .logistics-route-line {
+  filter: drop-shadow(0 0 2px var(--vscode-focusBorder));
+}
+.logistics-node.is-commodity-primary .logistics-node-accent {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 4;
+}
 
 .logistics-route-label,
 .logistics-route-warning {

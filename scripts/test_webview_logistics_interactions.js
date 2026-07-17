@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
-const moduleSource = `${fs.readFileSync(path.join(root, 'webview/modules/85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b2-logistics-route-geometry.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b-economy-logistics.js'), 'utf8')}`;
+const moduleSource = `${fs.readFileSync(path.join(root, 'webview/modules/85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b2-logistics-route-geometry.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b3-logistics-visual-encoding.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b-economy-logistics.js'), 'utf8')}`;
 
 const TEST_API = `
 ;globalThis.__api = {
@@ -804,6 +804,64 @@ test('55: geometry computation never mutates the payload object', () => {
   const before = JSON.parse(JSON.stringify(payload));
   h.context.renderEconomyLogistics(payload, true);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(payload)), before, 'payload object must remain unmodified by rendering');
+});
+
+test('SLICE4 41-60: factual visual tokens affect only rendering, not geometry or interaction', () => {
+  const h = createHarness();
+  h.context.currentWorldLocationId = 'loc-a';
+  const payload = threeRegionRoutePayload();
+  payload.commodities = [
+    { id: 'grain', name: 'Grain', family: 'food' },
+    { id: 'iron', name: 'Iron', family: 'metal' },
+  ];
+  payload.routes = [
+    { ...payload.routes[0], id: 'normal', commodityId: 'grain', volume: 1, status: 'open' },
+    { ...payload.routes[1], id: 'rumored', commodityId: 'grain', volume: 8, status: 'unconfirmed' },
+    { ...payload.routes[1], id: 'impaired', commodityId: 'iron', volume: 32, status: 'disrupted' },
+    { ...payload.routes[1], id: 'blocked', commodityId: 'iron', volume: 64, status: 'blocked' },
+  ];
+  h.context.renderEconomyLogistics(payload, true);
+  const normal = routeOf(h, 'normal');
+  const rumored = routeOf(h, 'rumored');
+  const impaired = routeOf(h, 'impaired');
+  const blocked = routeOf(h, 'blocked');
+  const line = (group) => findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+  const hit = (group) => findAll(group, (n) => n.classList.contains('logistics-route-hit'))[0];
+  assert.ok(normal.classList.contains('logistics-route-status-open'), '41 normal route exposes its status token');
+  assert.ok(Number(line(blocked).getAttribute('stroke-width')) > Number(line(normal).getAttribute('stroke-width')), '42 factual volume controls rendered width');
+  assert.strictEqual(hit(normal).getAttribute('stroke-width'), '12', '43 hit path remains independently interaction-safe');
+  assert.ok(line(rumored).style.props['stroke-dasharray'], '44 unconfirmed route renders a dash');
+  assert.notStrictEqual(line(impaired).style.props['stroke-dasharray'], line(rumored).style.props['stroke-dasharray'], '45 impaired dash differs from unconfirmed');
+  assert.ok(blocked && line(blocked).getAttribute('d'), '46 blocked route remains visible');
+  const normalD = line(normal).getAttribute('d');
+  h.api.economyLogisticsUiState.selection = { type: 'route', id: 'normal' };
+  h.api.economyLogisticsUiState.commodityId = 'iron';
+  h.context.renderEconomyLogisticsPanel();
+  const selected = routeOf(h, 'normal');
+  assert.ok(selected.parentNode.classList.contains('layer-edges-raised'), '47 selected route remains raised');
+  assert.strictEqual(selected.style.opacity, '1', '48 selected route remains undimmed');
+  assert.ok(selected.classList.contains('logistics-route-status-open'), '49 selected route retains factual status');
+  assert.ok(Number(routeOf(h, 'rumored').style.opacity) < 1, '50 unrelated route dims');
+  assert.strictEqual(nodeOf(h, 'a1').style.opacity, '1', '51 current-location node does not dim');
+  h.api.economyLogisticsUiState.selection = { type: 'node', id: 'b1' };
+  h.context.renderEconomyLogisticsPanel();
+  assert.strictEqual(nodeOf(h, 'b1').style.opacity, '1', '52 selected node does not dim');
+  assert.strictEqual(line(routeOf(h, 'normal')).getAttribute('d'), normalD, '53 filter/accent does not alter path d');
+  const changed = JSON.parse(JSON.stringify(payload));
+  changed.routes[0].volume = 999;
+  changed.routes[1].status = 'blocked';
+  h.context.renderEconomyLogistics(changed, true);
+  assert.strictEqual(line(routeOf(h, 'normal')).getAttribute('d'), normalD, '54 volume changes do not alter path d');
+  assert.strictEqual(line(routeOf(h, 'rumored')).getAttribute('d'), line(routeOf(h, 'rumored')).dataset.routePath, '55 status changes retain the computed path');
+  const particle = findAll(routeOf(h, 'normal'), (n) => n.tagName === 'MPATH')[0];
+  if (particle) { assert.strictEqual(particle.getAttribute('href'), `#${line(routeOf(h, 'normal')).getAttribute('id')}`, '56 mpath remains stable'); }
+  routeOf(h, 'normal').dispatchEvent({ type: 'click' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection.id, 'normal', '57 route click remains factual');
+  routeOf(h, 'blocked').dispatchEvent({ type: 'keydown', key: 'Enter' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection.id, 'blocked', '58 route keyboard activation remains factual');
+  assert.ok(h.panel.textContent.includes(h.context.T('webview.world.logisticsLegendEncoding')), '59 localized encoding legend renders');
+  assert.strictEqual(findAll(h.panel, (n) => n.dataset.routeId).length, payload.routes.length, '60 filtering deletes no routes');
+  assert.strictEqual(findAll(h.panel, (n) => n.dataset.nodeId).length, 2, '60 filtering deletes no nodes');
 });
 
 if (failed) process.exit(1);

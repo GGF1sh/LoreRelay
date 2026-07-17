@@ -1565,6 +1565,7 @@
   "webview.world.logisticsLegendActive": "輸送中",
   "webview.world.logisticsLegendIdle": "待機・低流量",
   "webview.world.logisticsLegendSelected": "選択中",
+  "webview.world.logisticsLegendEncoding": "色: 状態 · 線幅: 輸送量 · 不透明度: 関連性 · 矢印: 方向 · 破線: 不確実性または障害 · 商品アクセントは商品フィルター時のみ表示",
   "webview.world.logisticsScaleMinor": "小規模",
   "webview.world.logisticsScaleStandard": "標準",
   "webview.world.logisticsScaleMajor": "主要",

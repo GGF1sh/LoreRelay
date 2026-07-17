@@ -1,0 +1,133 @@
+// LOGISTICS-GRAPH-CANVAS-SLICE4 -- pure factual visual encoding.
+// This module intentionally knows nothing about SVG, theme colours, storage,
+// camera state, or time.  It only turns factual payload fields into stable
+// visual tokens; the renderer and CSS decide how those tokens are painted.
+
+const LOGISTICS_VISUAL_MIN_WIDTH = 2;
+const LOGISTICS_VISUAL_MAX_WIDTH = 7;
+const LOGISTICS_VISUAL_DIM_OPACITY = 0.18;
+
+function logisticsVisualCompare(a, b) {
+  const aa = String(a == null ? '' : a);
+  const bb = String(b == null ? '' : b);
+  return aa < bb ? -1 : aa > bb ? 1 : 0;
+}
+
+function logisticsVisualFiniteVolume(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function logisticsVisualStatus(route, geometryByRoute) {
+  const geometry = geometryByRoute && typeof geometryByRoute.get === 'function' ? geometryByRoute.get(route.id) : null;
+  if (Boolean(route && (route.geometryConflicted || route.conflicted || route.labelConflicted || geometry?.conflicted))) {
+    return { key: 'conflicted', tone: 'diagnostic', dash: '2 3 8 3', labelKey: 'conflicted' };
+  }
+  const raw = String(route?.status || 'open').toLowerCase();
+  if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored' }; }
+  if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired' }; }
+  if (raw === 'blocked' || raw === 'closed') { return { key: 'blocked', tone: 'danger', dash: '3 5', labelKey: 'blocked' }; }
+  if (raw === 'bottleneck' || route?.bottleneck) { return { key: 'bottleneck', tone: 'bottleneck', dash: '12 3 2 3', labelKey: 'bottleneck' }; }
+  if (raw === 'open' || raw === 'normal' || raw === '') { return { key: 'open', tone: 'normal', dash: '', labelKey: 'open' }; }
+  return { key: 'unknown', tone: 'neutral', dash: '1 4', labelKey: 'unknown' };
+}
+
+function logisticsVisualFamily(commodity) {
+  if (!commodity || typeof commodity !== 'object') { return null; }
+  for (const field of ['family', 'familyKey', 'category']) {
+    if (typeof commodity[field] === 'string' && commodity[field].trim()) { return commodity[field].trim(); }
+  }
+  return null;
+}
+
+function logisticsVisualNodeMatchesCommodity(node, commodityId, routes, shortages) {
+  const has = (value) => Array.isArray(value) && value.some((entry) => (typeof entry === 'string' ? entry : entry?.commodityId) === commodityId);
+  return has(node?.commodityIds) || has(node?.production) || has(node?.consumption) || has(node?.storage)
+    || (routes || []).some((route) => route?.commodityId === commodityId && (route.fromNodeId === node?.id || route.toNodeId === node?.id))
+    || (shortages || []).some((shortage) => shortage?.commodityId === commodityId && shortage.nodeId === node?.id);
+}
+
+/**
+ * Computes stable factual visual tokens.  Family tokens are ordinal tokens,
+ * never colours and never derived from commodity identifiers or names.
+ */
+function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCommodityId, selectedRouteId, selectedNodeId, currentLocationId, options } = {}) {
+  const safeRoutes = Array.isArray(routes) ? routes.slice().filter(Boolean).sort((a, b) => logisticsVisualCompare(a.id, b.id)) : [];
+  const safeNodes = Array.isArray(nodes) ? nodes.slice().filter(Boolean).sort((a, b) => logisticsVisualCompare(a.id, b.id)) : [];
+  const safeCommodities = Array.isArray(commodities) ? commodities.slice().filter(Boolean) : [];
+  const geometryByRoute = options?.geometryByRoute;
+  const shortages = Array.isArray(options?.shortages) ? options.shortages : [];
+  const selectedCommodity = typeof selectedCommodityId === 'string' && selectedCommodityId && selectedCommodityId !== 'all' ? selectedCommodityId : null;
+  const commodityById = new Map(safeCommodities.filter((item) => typeof item.id === 'string').map((item) => [item.id, item]));
+  const selectedFamily = selectedCommodity ? logisticsVisualFamily(commodityById.get(selectedCommodity)) : null;
+  const familyKeys = [...new Set(safeCommodities.map(logisticsVisualFamily).filter(Boolean))].sort(logisticsVisualCompare).slice(0, 6);
+  const familyTokenByKey = new Map(familyKeys.map((key, index) => [key, `family-${index + 1}`]));
+  const volumes = safeRoutes.map((route) => logisticsVisualFiniteVolume(route.volume)).filter((value) => value > 0).sort((a, b) => a - b);
+  // A 75th-percentile reference prevents a single extreme from flattening the
+  // ordinary routes while the clamp retains monotonicity for every value.
+  const reference = volumes.length ? volumes[Math.max(0, Math.ceil(volumes.length * 0.75) - 1)] : 0;
+  const widthFor = (volume) => {
+    if (!(volume > 0) || !(reference > 0)) { return LOGISTICS_VISUAL_MIN_WIDTH; }
+    return LOGISTICS_VISUAL_MIN_WIDTH + (LOGISTICS_VISUAL_MAX_WIDTH - LOGISTICS_VISUAL_MIN_WIDTH) * Math.sqrt(Math.min(volume, reference) / reference);
+  };
+  const sortedVolumes = [...new Set(volumes)];
+  const routeStyles = new Map();
+  for (const route of safeRoutes) {
+    const throughputValue = logisticsVisualFiniteVolume(route.volume);
+    const commodity = commodityById.get(route.commodityId);
+    const familyKey = logisticsVisualFamily(commodity);
+    const selected = route.id === selectedRouteId;
+    const relevant = selected || !selectedCommodity || route.commodityId === selectedCommodity;
+    const accentState = !selectedCommodity ? 'none'
+      : route.commodityId === selectedCommodity ? 'primary'
+        : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'none';
+    const status = logisticsVisualStatus(route, geometryByRoute);
+    routeStyles.set(route.id, {
+      routeId: route.id,
+      statusKey: status.key,
+      statusTone: status.tone,
+      statusLabelKey: status.labelKey,
+      dashPattern: status.dash,
+      throughputValue,
+      throughputRank: throughputValue > 0 ? sortedVolumes.indexOf(throughputValue) + 1 : 0,
+      strokeWidth: Number(widthFor(throughputValue).toFixed(2)),
+      relevance: relevant ? 1 : LOGISTICS_VISUAL_DIM_OPACITY,
+      commodityFamilyKey: familyKey,
+      commodityFamilyToken: familyKey ? (familyTokenByKey.get(familyKey) || 'unclassified') : 'unclassified',
+      commodityAccentState: accentState,
+      selected,
+      conflicted: status.key === 'conflicted',
+    });
+  }
+  const selectedRoute = safeRoutes.find((route) => route.id === selectedRouteId) || null;
+  const nodeStyles = new Map();
+  for (const node of safeNodes) {
+    const endpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
+    const current = Boolean(currentLocationId && node.locationId === currentLocationId);
+    const selected = node.id === selectedNodeId;
+    const relevant = selected || current || endpoint || !selectedCommodity || logisticsVisualNodeMatchesCommodity(node, selectedCommodity, safeRoutes, shortages);
+    nodeStyles.set(node.id, {
+      nodeId: node.id,
+      relevance: relevant ? 1 : LOGISTICS_VISUAL_DIM_OPACITY,
+      selected,
+      current,
+      selectedRouteEndpoint: endpoint,
+      commodityAccentState: selectedCommodity && relevant && !selected && !current && !endpoint ? 'primary' : 'none',
+    });
+  }
+  return {
+    routeStyles,
+    nodeStyles,
+    legend: {
+      channels: [
+        ['status', 'hue'], ['throughput', 'width'], ['relevance', 'opacity'], ['direction', 'arrow'], ['uncertainty', 'dash'],
+      ],
+      commodityAccent: selectedCommodity ? 'selected-commodity-only' : 'none',
+    },
+    diagnostics: {
+      familyMetadataAvailable: Boolean(selectedFamily),
+      familyTokens: [...familyTokenByKey.entries()].map(([key, token]) => ({ key, token })),
+      throughputReference: reference,
+    },
+  };
+}

@@ -1577,6 +1577,7 @@
   "webview.world.logisticsLegendActive": "Active movement",
   "webview.world.logisticsLegendIdle": "Idle / low throughput",
   "webview.world.logisticsLegendSelected": "Selected",
+  "webview.world.logisticsLegendEncoding": "Color: status · width: throughput · opacity: relevance · arrow: direction · dash: uncertainty or disruption · commodity accent appears only with a commodity filter",
   "webview.world.logisticsScaleMinor": "Minor",
   "webview.world.logisticsScaleStandard": "Standard",
   "webview.world.logisticsScaleMajor": "Major",

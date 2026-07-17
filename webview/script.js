@@ -12455,6 +12455,15 @@ function logisticsQueueCameraSave(immediate) {
   timers[key] = setTimeout(() => { timers[key] = null; logisticsSaveCameraContext(scopeKey, hostKey, camera); }, 220);
 }
 
+function logisticsCancelCameraSaves(scopeKey) {
+  const prefix = `${scopeKey}:`;
+  for (const [key, timer] of Object.entries(economyLogisticsUiState.cameraSaveTimers)) {
+    if (!key.startsWith(prefix)) { continue; }
+    if (timer) { clearTimeout(timer); }
+    delete economyLogisticsUiState.cameraSaveTimers[key];
+  }
+}
+
 function logisticsLoadPrefs(scopeKey) {
   try {
     const parsed = JSON.parse(logisticsStorageGet(logisticsStorageKey('prefs', scopeKey)) || 'null');
@@ -12673,7 +12682,6 @@ function renderLogisticsFilter(payload, parent) {
   select.value = economyLogisticsUiState.commodityId;
   select.addEventListener('change', () => {
     economyLogisticsUiState.commodityId = select.value || 'all';
-    economyLogisticsUiState.selection = null;
     renderEconomyLogisticsPanel();
   });
   row.appendChild(label);
@@ -12720,8 +12728,33 @@ function logisticsAggregateId(regionId) {
 }
 
 function logisticsCurrentLocationRegionId(payload) {
+  return [...logisticsCurrentLocationRegionIds(payload)][0] || null;
+}
+
+function logisticsCurrentLocationRegionIds(payload) {
   const currentId = typeof currentWorldLocationId === 'string' ? currentWorldLocationId : '';
-  return (payload.nodes || []).find((node) => node.locationId === currentId)?.regionId || null;
+  if (!currentId) { return new Set(); }
+  return new Set((payload.nodes || [])
+    .filter((node) => node.locationId === currentId && logisticsLayoutValidRegionId(node.regionId))
+    .map((node) => node.regionId));
+}
+
+function logisticsNodeIsRelevant(payload, node, commodityId, routes, shortages) {
+  if (commodityId === 'all') { return true; }
+  const selected = economyLogisticsUiState.selection;
+  const selectedRoute = selected?.type === 'route' ? (payload.routes || []).find((route) => route.id === selected.id) : null;
+  const currentId = typeof currentWorldLocationId === 'string' ? currentWorldLocationId : '';
+  const listsCommodity = (node.commodityIds || []).includes(commodityId)
+    || (node.production || []).some((entry) => entry.commodityId === commodityId)
+    || (node.consumption || []).some((entry) => entry.commodityId === commodityId)
+    || (node.storage || []).some((entry) => entry.commodityId === commodityId);
+  const routeEndpoint = routes.some((route) => route.commodityId === commodityId && (route.fromNodeId === node.id || route.toNodeId === node.id));
+  const shortage = shortages.some((item) => item.nodeId === node.id && item.commodityId === commodityId);
+  const processing = (payload.processingSites || []).some((site) => site.nodeId === node.id && (site.commodityId === commodityId || (site.commodityIds || []).includes(commodityId)));
+  return listsCommodity || routeEndpoint || shortage || processing
+    || (selected?.type === 'node' && selected.id === node.id)
+    || Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id))
+    || Boolean(currentId && node.locationId === currentId);
 }
 
 function logisticsBuildRenderedGraph(payload, layout, commodityId) {
@@ -12734,7 +12767,7 @@ function logisticsBuildRenderedGraph(payload, layout, commodityId) {
     if (regionId && collapsed.has(regionId)) {
       aggregateByMember.set(node.id, logisticsAggregateId(regionId));
     } else {
-      nodes.push(node);
+      nodes.push({ ...node, filterMatch: logisticsNodeIsRelevant(payload, node, commodityId, payload.routes || [], payload.shortages || []) });
     }
   }
   for (const regionId of [...collapsed].sort(logisticsLayoutCompareId)) {
@@ -12742,7 +12775,8 @@ function logisticsBuildRenderedGraph(payload, layout, commodityId) {
     if (!region) { continue; }
     const id = logisticsAggregateId(regionId);
     positions.set(id, { x: region.x + region.w / 2, y: region.y + region.h / 2, w: 184, h: 72, tier: 'major', regionId, aggregate: true, manual: false });
-    nodes.push({ id, label: region.label, kind: 'region', scale: 'major', aggregate: true, memberCount: region.memberIds.length, regionId, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [] });
+    const memberNodes = (payload.nodes || []).filter((node) => node.regionId === regionId);
+    nodes.push({ id, label: region.label, kind: 'region', scale: 'major', aggregate: true, memberCount: region.memberIds.length, regionId, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [], filterMatch: memberNodes.some((node) => logisticsNodeIsRelevant(payload, node, commodityId, payload.routes || [], payload.shortages || [])) });
   }
   const routes = [];
   for (const route of payload.routes || []) {
@@ -12803,7 +12837,7 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
   const movement = route.volume > 0 ? 'active' : 'idle';
   const filterUnrelated = route.filterMatch === false;
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ''}${flowing ? ' is-flowing' : ''}`);
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}`);
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
   }
@@ -12941,7 +12975,10 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
-  const unrelated = Boolean(selectedRoute && selectedRoute.fromNodeId !== node.id && selectedRoute.toNodeId !== node.id);
+  const selectedNode = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
+  const currentNode = Boolean(typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId);
+  const selectedEndpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
+  const unrelated = !selectedNode && !currentNode && !selectedEndpoint && node.filterMatch === false;
   const role = logisticsNodeRole(node.kind);
   const scale = position.tier || logisticsNodeScale(node, routes);
   const nodeWidth = Number.isFinite(position.w) ? position.w : 152;
@@ -12954,7 +12991,7 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   const badgeX = nodeWidth - padding - 5;
   const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
     || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${unrelated ? ' is-unrelated' : ''}`);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${unrelated ? ' is-unrelated' : ' is-related'}`);
   group.dataset.nodeId = node.id;
   group.setAttribute('transform', logisticsNodeTransform(position));
   group.setAttribute('aria-label', node.aggregate ? `${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}` : `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
@@ -12962,6 +12999,12 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   shape.setAttribute('d', logisticsNodeShapePath(role));
   shape.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
   group.appendChild(shape);
+  if (node.aggregate) {
+    const outline = logisticsSvgElement('path', 'logistics-node-aggregate-outline');
+    outline.setAttribute('d', logisticsNodeShapePath('envoy'));
+    outline.setAttribute('transform', `translate(4 4) scale(${horizontalScale} ${verticalScale})`);
+    group.appendChild(outline);
+  }
   const accent = logisticsSvgElement('path', 'logistics-node-accent');
   accent.setAttribute('d', 'M 12 5 H 140');
   accent.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
@@ -13003,7 +13046,21 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
     group.appendChild(badge);
   }
   appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}; ${T(`webview.world.logisticsScale${scale.replace(/^./, (c) => c.toUpperCase())}`)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
-  bindLogisticsActivation(group, { type: 'node', id: node.id });
+  if (node.aggregate) {
+    const expand = () => {
+      economyLogisticsUiState.collapsedRegionIds.delete(node.regionId);
+      logisticsSavePrefs();
+      renderEconomyLogisticsPanel();
+    };
+    group.setAttribute('tabindex', '0');
+    group.setAttribute('role', 'button');
+    group.setAttribute('aria-label', `${T('webview.world.logisticsExpandRegion')} ${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}`);
+    appendLogisticsTitle(group, `${T('webview.world.logisticsExpandRegion')} ${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}`);
+    group.addEventListener('click', (event) => { if (event?.stopPropagation) { event.stopPropagation(); } expand(); });
+    group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); expand(); } });
+  } else {
+    bindLogisticsActivation(group, { type: 'node', id: node.id });
+  }
   group._logisticsPosition = position;
   if (rendered) { rendered.nodeElements.set(node.id, group); }
   svg.appendChild(group);
@@ -13134,6 +13191,8 @@ function logisticsIsControlTarget(target, boundary) {
         el.classList.contains('logistics-camera-toolbar')
         || el.classList.contains('logistics-camera-btn')
         || el.classList.contains('logistics-expand-btn')
+        || el.classList.contains('logistics-region-collapse')
+        || el.classList.contains('logistics-region-collapse-hit')
       ) {
         return true;
       }
@@ -13211,6 +13270,14 @@ function logisticsSetupCameraInteractions(ctx) {
     logisticsQueueCameraSave(Boolean(immediateSave));
   }
 
+  function resetCamera() {
+    logisticsStorageRemove(logisticsStorageKey('camera', state.scopeKey));
+    logisticsCancelCameraSaves(state.scopeKey);
+    hostCtx.identity = logisticsDatasetIdentity(state.payload);
+    hostCtx.camera = logisticsFitAllCamera(currentBBox(), vp);
+    applyLogisticsCameraTransform(svg, cameraGroup, hostCtx.camera, toolbarEls);
+  }
+
   function screenPointFromEvent(event) {
     const rect = typeof viewport.getBoundingClientRect === 'function'
       ? viewport.getBoundingClientRect() : { left: 0, top: 0 };
@@ -13262,11 +13329,18 @@ function logisticsSetupCameraInteractions(ctx) {
         position.x = Math.round(position.x); position.y = Math.round(position.y);
         const nodeEl = rendered.nodeElements.get(active.nodeId);
         if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
+        for (const routeEl of rendered.routeElements.values()) {
+          const route = routeEl._logisticsRoute;
+          if (route.fromNodeId === active.nodeId || route.toNodeId === active.nodeId) { logisticsRefreshRouteElement(routeEl, rendered.positions); }
+        }
         economyLogisticsUiState.manualPositions[active.nodeId] = { x: position.x, y: position.y, regionId: position.regionId, ts: Date.now() };
         logisticsSaveLayoutPositions();
       }
     }
-    if (active.moved) { suppressClick = true; }
+    if (active.moved && options.commitNode) {
+      suppressClick = active.type === 'node' ? { nodeId: active.nodeId } : { nodeId: null };
+      if (typeof setTimeout === 'function') { setTimeout(() => { suppressClick = false; }, 0); }
+    }
     releaseStoredCapture();
     if (viewport.classList) { viewport.classList.remove('is-panning', 'is-node-dragging'); }
     if (active.type === 'camera' && active.moved) { logisticsQueueCameraSave(true); }
@@ -13387,6 +13461,9 @@ function logisticsSetupCameraInteractions(ctx) {
   // Suppress the synthesized click that follows a real pan (threshold crossed).
   viewport.addEventListener('click', (event) => {
     if (!suppressClick) { return; }
+    if (logisticsIsControlTarget(event.target, viewport)) { return; }
+    const nodeTarget = logisticsFindNodeTarget(event.target, viewport);
+    if (suppressClick.nodeId && nodeTarget?.dataset?.nodeId !== suppressClick.nodeId) { return; }
     suppressClick = false;
     if (typeof event.preventDefault === 'function') { event.preventDefault(); }
     if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
@@ -13447,7 +13524,7 @@ function logisticsSetupCameraInteractions(ctx) {
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
       const identity = logisticsDatasetIdentity(state.payload);
       logisticsEaseCameraCommand(cameraGroup, () => {
-        if (event.shiftKey) { logisticsStorageRemove(logisticsStorageKey('camera', state.scopeKey)); }
+        if (event.shiftKey) { resetCamera(); return; }
         const next = logisticsFitAllCamera(currentBBox(), vp);
         hostCtx.identity = identity;
         setCamera(next, true);
@@ -13476,7 +13553,7 @@ function logisticsSetupCameraInteractions(ctx) {
           renderEconomyLogisticsPanel();
           return;
         }
-        if (command === 'reset') { logisticsStorageRemove(logisticsStorageKey('camera', state.scopeKey)); }
+        if (command === 'reset') { resetCamera(); return; }
         hostCtx.identity = identity;
         setCamera(logisticsFitAllCamera(currentBBox(), vp), true);
       });
@@ -13485,7 +13562,7 @@ function logisticsSetupCameraInteractions(ctx) {
 }
 
 function renderLogisticsRegionContainers(layer, payload, layout) {
-  const currentRegionId = logisticsCurrentLocationRegionId(payload);
+  const protectedRegionIds = logisticsCurrentLocationRegionIds(payload);
   for (const [regionId, region] of [...layout.regions.entries()].sort((a, b) => logisticsLayoutCompareId(a[0], b[0]))) {
     const group = logisticsSvgElement('g', `logistics-region${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? ' is-collapsed' : ''}`);
     group.dataset.regionId = regionId;
@@ -13494,12 +13571,17 @@ function renderLogisticsRegionContainers(layer, payload, layout) {
     rect.setAttribute('width', String(region.w)); rect.setAttribute('height', String(region.h)); rect.setAttribute('rx', '14');
     group.appendChild(rect);
     const control = logisticsSvgElement('g', 'logistics-region-collapse');
-    const protectedRegion = regionId === currentRegionId;
+    const protectedRegion = protectedRegionIds.has(regionId);
     control.setAttribute('role', 'button');
-    control.setAttribute('tabindex', protectedRegion ? '-1' : '0');
+    control.setAttribute('tabindex', '0');
     control.setAttribute('aria-expanded', economyLogisticsUiState.collapsedRegionIds.has(regionId) ? 'false' : 'true');
     control.setAttribute('aria-label', protectedRegion ? T('webview.world.logisticsCannotCollapseCurrentRegion') : T(economyLogisticsUiState.collapsedRegionIds.has(regionId) ? 'webview.world.logisticsExpandRegion' : 'webview.world.logisticsCollapseRegion'));
     if (protectedRegion) { control.setAttribute('aria-disabled', 'true'); appendLogisticsTitle(control, T('webview.world.logisticsCannotCollapseCurrentRegion')); }
+    const hit = logisticsSvgElement('rect', 'logistics-region-collapse-hit');
+    hit.setAttribute('x', String(region.x + 4)); hit.setAttribute('y', String(region.y + 2));
+    hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260)))); hit.setAttribute('height', '28');
+    hit.setAttribute('rx', '5');
+    control.appendChild(hit);
     const label = logisticsSvgElement('text', 'logistics-region-label');
     label.setAttribute('x', String(region.x + 12)); label.setAttribute('y', String(region.y + 20));
     label.textContent = `${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? '▸' : '▾'} ${region.label} (${region.memberIds.length})`;

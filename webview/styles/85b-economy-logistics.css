@@ -266,7 +266,8 @@
   pointer-events: none;
 }
 
-.logistics-region-collapse { cursor: pointer; }
+.logistics-region-collapse { cursor: pointer; pointer-events: all; }
+.logistics-region-collapse-hit { fill: transparent; pointer-events: all; }
 .logistics-region-collapse[aria-disabled="true"] { cursor: not-allowed; opacity: 0.62; }
 .logistics-region-collapse:focus-visible { outline: none; }
 .logistics-region-collapse:focus-visible .logistics-region-label {
@@ -405,6 +406,7 @@
 .logistics-node-scale-major .logistics-node-label { font-size: 13px; }
 .logistics-node-aggregate .logistics-node-shape { stroke-width: 2.5; stroke-dasharray: none; }
 .logistics-node-aggregate .logistics-node-accent { stroke-width: 4; }
+.logistics-node-aggregate-outline { fill: none; stroke: var(--vscode-focusBorder); stroke-width: 1.4; vector-effect: non-scaling-stroke; opacity: 0.82; pointer-events: none; }
 .logistics-node.is-holding-selection .logistics-node-shape { filter: drop-shadow(0 0 3px var(--vscode-focusBorder)); }
 .logistics-aggregate-badge { fill: var(--vscode-editor-background); font-size: 12px; font-weight: 800; text-anchor: middle; }
 

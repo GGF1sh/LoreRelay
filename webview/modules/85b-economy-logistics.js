@@ -360,6 +360,7 @@ const economyLogisticsUiState = {
   collapsedRegionIds: new Set(),
   layout: null,
   rendered: null,
+  filterCountElement: null,
   storageFallback: new Map(),
   cameraSaveTimers: {},
 };
@@ -730,15 +731,27 @@ function renderLogisticsFilter(payload, parent) {
     logisticsApplyNavigationFilters();
   });
   row.appendChild(clear);
+  const results = logisticsElement('span', 'logistics-filter-results', `${T('webview.world.logisticsFilterResults')}: 0`);
+  results.setAttribute('role', 'status');
+  results.setAttribute('aria-live', 'polite');
+  row.appendChild(results);
+  economyLogisticsUiState.filterCountElement = results;
   renderLogisticsFlowToggle(row);
   parent.appendChild(row);
+}
+
+function logisticsUpdateFilterCount(filterModel) {
+  const element = economyLogisticsUiState.filterCountElement;
+  if (!element) { return; }
+  const count = Number.isFinite(filterModel?.matchCount) ? filterModel.matchCount : 0;
+  element.textContent = `${T('webview.world.logisticsFilterResults')}: ${count}`;
 }
 
 function logisticsApplyNavigationFilters() {
   const payload = economyLogisticsUiState.payload; const rendered = economyLogisticsUiState.rendered;
   if (!payload || !rendered?.graphRoutes || !rendered?.graphNodes) { renderEconomyLogisticsPanel(); return; }
   const selection = economyLogisticsUiState.selection || null;
-  const filterModel = computeLogisticsFilterModel({ nodes: rendered.graphNodes, routes: rendered.graphRoutes, commodities: payload.commodities || [], query: economyLogisticsUiState.searchQuery, commodityId: 'all', statusKeys: [...economyLogisticsUiState.statusKeys], selection });
+  const filterModel = computeLogisticsFilterModel({ nodes: rendered.graphNodes, routes: rendered.graphRoutes, commodities: payload.commodities || [], regions: economyLogisticsUiState.layout?.regions, query: economyLogisticsUiState.searchQuery, commodityId: economyLogisticsUiState.commodityId, statusKeys: [...economyLogisticsUiState.statusKeys] });
   const visual = computeLogisticsVisualEncoding({ routes: rendered.graphRoutes, nodes: rendered.graphNodes, commodities: payload.commodities || [], selectedCommodityId: economyLogisticsUiState.commodityId, selectedRouteId: selection?.type === 'route' ? selection.id : null, selectedNodeId: selection?.type === 'node' ? selection.id : null, currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null, options: { geometryByRoute: rendered.routeGeoms, shortages: payload.shortages || [], filterModel } });
   const apply = (group, style) => {
     if (!group || !style) { return; }
@@ -753,6 +766,7 @@ function logisticsApplyNavigationFilters() {
   for (const route of rendered.graphRoutes) { apply(rendered.routeElements.get(route.id), visual.routeStyles.get(route.id)); }
   for (const node of rendered.graphNodes) { apply(rendered.nodeElements.get(node.id), visual.nodeStyles.get(node.id)); }
   rendered.visualEncoding = visual; rendered.filterModel = filterModel;
+  logisticsUpdateFilterCount(filterModel);
 }
 
 function renderLogisticsFlowToggle(row) {
@@ -1108,7 +1122,7 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, vi
   const badgeX = nodeWidth - padding - 5;
   const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
     || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}`);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${selectedEndpoint ? ' is-route-endpoint' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}`);
   if (group.style) { group.style.opacity = String(style.relevance); }
   group.dataset.nodeId = node.id;
   group.dataset.relevance = relevanceKind;
@@ -1897,7 +1911,7 @@ function renderLogisticsNetwork(payload, parent) {
   const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
   const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
   const selection = economyLogisticsUiState.selection || null;
-  const filterModel = computeLogisticsFilterModel({ nodes: graph.nodes, routes: graph.routes, commodities: payload.commodities || [], query: economyLogisticsUiState.searchQuery, commodityId: 'all', statusKeys: [...economyLogisticsUiState.statusKeys], selection });
+  const filterModel = computeLogisticsFilterModel({ nodes: graph.nodes, routes: graph.routes, commodities: payload.commodities || [], regions: layout.regions, query: economyLogisticsUiState.searchQuery, commodityId: economyLogisticsUiState.commodityId, statusKeys: [...economyLogisticsUiState.statusKeys] });
   const visualEncoding = computeLogisticsVisualEncoding({
     routes: graph.routes,
     nodes: graph.nodes,
@@ -1914,6 +1928,7 @@ function renderLogisticsNetwork(payload, parent) {
   rendered.routeGeoms = geometryResult.routes;
   rendered.visualEncoding = visualEncoding;
   rendered.filterModel = filterModel;
+  logisticsUpdateFilterCount(filterModel);
   graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
   graph.nodes.forEach((node) => {
     const position = graph.positions.get(node.id);

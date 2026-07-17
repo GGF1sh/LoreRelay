@@ -9,6 +9,11 @@ const LOGISTICS_SEMANTIC_DETAIL_EXIT = 1.13;
 function logisticsNavigationCompare(a, b) { return String(a ?? '').localeCompare(String(b ?? '')); }
 function logisticsNavigationFinite(value, fallback = 0) { return Number.isFinite(value) ? value : fallback; }
 function logisticsNavigationNormalize(value) { return String(value ?? '').normalize('NFKC').trim().toLocaleLowerCase(); }
+function logisticsNavigationFamily(commodity) { return typeof commodity?.family === 'string' && commodity.family.trim() ? commodity.family.trim() : null; }
+function logisticsNavigationRegionNames(regions) {
+  const entries = regions instanceof Map ? [...regions.entries()] : Array.isArray(regions) ? regions.map((region) => [region?.id || region?.regionId, region]) : [];
+  return new Map(entries.filter(([id]) => typeof id === 'string' && id).sort((a, b) => logisticsNavigationCompare(a[0], b[0])).map(([id, region]) => [id, String(region?.label ?? region?.name ?? region?.title ?? '')]));
+}
 function logisticsNavigationBounds(bounds) {
   const minX = logisticsNavigationFinite(bounds?.minX); const minY = logisticsNavigationFinite(bounds?.minY);
   const maxX = Math.max(minX + 1, logisticsNavigationFinite(bounds?.maxX, minX + 1));
@@ -53,29 +58,34 @@ function computeLogisticsSemanticZoom({ cameraScale, selection, options } = {}) 
   return { level, selectedProtection: Boolean(selection), hideRouteLabels: level === 'overview', hideMinorDetail: level === 'overview', hideParticles: level === 'overview' };
 }
 
-function computeLogisticsFilterModel({ nodes, routes, commodities, query, commodityId, statusKeys, selection } = {}) {
+function computeLogisticsFilterModel({ nodes, routes, commodities, regions, query, commodityId, statusKeys } = {}) {
   const normalizedQuery = logisticsNavigationNormalize(query);
   const activeStatuses = new Set(Array.isArray(statusKeys) ? statusKeys.map((value) => String(value)) : []);
   const commodityById = new Map((Array.isArray(commodities) ? commodities : []).map((item) => [item.id, item]));
   const nodeById = new Map((Array.isArray(nodes) ? nodes : []).map((item) => [item.id, item]));
-  const active = Boolean(normalizedQuery || activeStatuses.size || (commodityId && commodityId !== 'all'));
+  const regionNameById = logisticsNavigationRegionNames(regions);
+  const selectedCommodityId = typeof commodityId === 'string' && commodityId && commodityId !== 'all' ? commodityId : null;
+  const selectedFamily = logisticsNavigationFamily(commodityById.get(selectedCommodityId));
+  const active = Boolean(normalizedQuery || activeStatuses.size || selectedCommodityId);
   const routeMatchKinds = new Map(); const nodeMatchKinds = new Map();
   const routeList = Array.isArray(routes) ? routes : [];
   for (const route of routeList) {
     const from = nodeById.get(route.fromNodeId); const to = nodeById.get(route.toNodeId); const commodity = commodityById.get(route.commodityId);
-    const text = logisticsNavigationNormalize([route.id, from?.label, to?.label, commodity?.name, route.commodityId].filter(Boolean).join(' '));
+    const text = logisticsNavigationNormalize([route.id, from?.id, to?.id, from?.label, to?.label, from?.regionId, to?.regionId, regionNameById.get(from?.regionId), regionNameById.get(to?.regionId), commodity?.name, route.commodityId].filter(Boolean).join(' '));
     const queryMatch = !normalizedQuery || text.includes(normalizedQuery);
     const statusMatch = !activeStatuses.size || activeStatuses.has(String(route.status || 'open'));
-    const commodityMatch = !commodityId || commodityId === 'all' || route.commodityId === commodityId;
-    const selected = selection?.type === 'route' && selection.id === route.id;
-    routeMatchKinds.set(route.id, selected || (queryMatch && statusMatch && commodityMatch) ? 'primary' : 'unrelated');
+    const family = logisticsNavigationFamily(commodity);
+    const commodityKind = !selectedCommodityId ? 'primary'
+      : route.commodityId === selectedCommodityId ? 'primary'
+        : selectedFamily && family === selectedFamily ? 'secondary' : 'unrelated';
+    routeMatchKinds.set(route.id, queryMatch && statusMatch ? commodityKind : 'unrelated');
   }
   for (const node of Array.isArray(nodes) ? nodes : []) {
-    const text = logisticsNavigationNormalize([node.id, node.label, node.regionId].filter(Boolean).join(' '));
-    const selected = selection?.type === 'node' && selection.id === node.id;
-    const incident = routeList.some((route) => (route.fromNodeId === node.id || route.toNodeId === node.id) && routeMatchKinds.get(route.id) === 'primary');
-    const ownQueryMatch = Boolean(normalizedQuery) && text.includes(normalizedQuery);
-    nodeMatchKinds.set(node.id, selected || !active || ownQueryMatch || incident ? 'primary' : 'unrelated');
+    const text = logisticsNavigationNormalize([node.id, node.label, node.regionId, regionNameById.get(node.regionId)].filter(Boolean).join(' '));
+    const incidentKinds = routeList.filter((route) => route.fromNodeId === node.id || route.toNodeId === node.id).map((route) => routeMatchKinds.get(route.id));
+    const incidentKind = incidentKinds.includes('primary') ? 'primary' : incidentKinds.includes('secondary') ? 'secondary' : 'unrelated';
+    const directQueryMatch = Boolean(normalizedQuery) && text.includes(normalizedQuery) && !activeStatuses.size && !selectedCommodityId;
+    nodeMatchKinds.set(node.id, !active ? 'primary' : incidentKind !== 'unrelated' ? incidentKind : directQueryMatch ? 'primary' : 'unrelated');
   }
-  return { active, query: normalizedQuery, routeMatchKinds, nodeMatchKinds, matchCount: [...routeMatchKinds.values()].filter((value) => value === 'primary').length };
+  return { active, query: normalizedQuery, routeMatchKinds, nodeMatchKinds, matchCount: [...routeMatchKinds.values()].filter((value) => value !== 'unrelated').length, regionNameById };
 }

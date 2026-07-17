@@ -97,14 +97,10 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const commodity = commodityById.get(route.commodityId);
     const familyKey = logisticsVisualFamily(commodity);
     const selected = route.id === selectedRouteId;
-    const accentState = !selectedCommodity ? 'none'
-      : route.commodityId === selectedCommodity ? 'primary'
-        : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'none';
     const navigationKind = options?.filterModel?.routeMatchKinds?.get(route.id);
     const relevanceKind = selected ? 'primary'
       : selectedRouteId ? 'unrelated'
-        : navigationKind === 'unrelated' ? 'unrelated'
-          : navigationKind === 'primary' && options?.filterModel?.active ? 'primary'
+        : options?.filterModel?.active ? (navigationKind || 'unrelated')
         : !selectedCommodity || route.commodityId === selectedCommodity ? 'primary'
           : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'unrelated';
     const relevance = relevanceKind === 'primary' ? 1
@@ -123,7 +119,8 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
       relevanceKind,
       commodityFamilyKey: familyKey,
       commodityFamilyToken: familyKey ? (familyTokenByKey.get(familyKey) || 'unclassified') : 'unclassified',
-      commodityAccentState: accentState,
+      commodityAccentState: relevanceKind === 'secondary' ? 'secondary'
+        : relevanceKind === 'primary' && selectedCommodity && route.commodityId === selectedCommodity ? 'primary' : 'none',
       selected,
       conflicted: status.key === 'conflicted',
     });
@@ -140,8 +137,7 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const navigationKind = options?.filterModel?.nodeMatchKinds?.get(node.id);
     const relevanceKind = selected || current || endpoint ? 'primary'
       : selectedRouteId ? 'unrelated'
-        : navigationKind === 'unrelated' ? 'unrelated'
-          : navigationKind === 'primary' && options?.filterModel?.active ? 'primary'
+        : options?.filterModel?.active ? (navigationKind || 'unrelated')
         : !selectedCommodity || exactCommodity ? 'primary'
           : sameFamily ? 'secondary' : 'unrelated';
     const relevance = relevanceKind === 'primary' ? 1

@@ -12906,14 +12906,10 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const commodity = commodityById.get(route.commodityId);
     const familyKey = logisticsVisualFamily(commodity);
     const selected = route.id === selectedRouteId;
-    const accentState = !selectedCommodity ? 'none'
-      : route.commodityId === selectedCommodity ? 'primary'
-        : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'none';
     const navigationKind = options?.filterModel?.routeMatchKinds?.get(route.id);
     const relevanceKind = selected ? 'primary'
       : selectedRouteId ? 'unrelated'
-        : navigationKind === 'unrelated' ? 'unrelated'
-          : navigationKind === 'primary' && options?.filterModel?.active ? 'primary'
+        : options?.filterModel?.active ? (navigationKind || 'unrelated')
         : !selectedCommodity || route.commodityId === selectedCommodity ? 'primary'
           : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'unrelated';
     const relevance = relevanceKind === 'primary' ? 1
@@ -12932,7 +12928,8 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
       relevanceKind,
       commodityFamilyKey: familyKey,
       commodityFamilyToken: familyKey ? (familyTokenByKey.get(familyKey) || 'unclassified') : 'unclassified',
-      commodityAccentState: accentState,
+      commodityAccentState: relevanceKind === 'secondary' ? 'secondary'
+        : relevanceKind === 'primary' && selectedCommodity && route.commodityId === selectedCommodity ? 'primary' : 'none',
       selected,
       conflicted: status.key === 'conflicted',
     });
@@ -12949,8 +12946,7 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const navigationKind = options?.filterModel?.nodeMatchKinds?.get(node.id);
     const relevanceKind = selected || current || endpoint ? 'primary'
       : selectedRouteId ? 'unrelated'
-        : navigationKind === 'unrelated' ? 'unrelated'
-          : navigationKind === 'primary' && options?.filterModel?.active ? 'primary'
+        : options?.filterModel?.active ? (navigationKind || 'unrelated')
         : !selectedCommodity || exactCommodity ? 'primary'
           : sameFamily ? 'secondary' : 'unrelated';
     const relevance = relevanceKind === 'primary' ? 1
@@ -12995,6 +12991,11 @@ const LOGISTICS_SEMANTIC_DETAIL_EXIT = 1.13;
 function logisticsNavigationCompare(a, b) { return String(a ?? '').localeCompare(String(b ?? '')); }
 function logisticsNavigationFinite(value, fallback = 0) { return Number.isFinite(value) ? value : fallback; }
 function logisticsNavigationNormalize(value) { return String(value ?? '').normalize('NFKC').trim().toLocaleLowerCase(); }
+function logisticsNavigationFamily(commodity) { return typeof commodity?.family === 'string' && commodity.family.trim() ? commodity.family.trim() : null; }
+function logisticsNavigationRegionNames(regions) {
+  const entries = regions instanceof Map ? [...regions.entries()] : Array.isArray(regions) ? regions.map((region) => [region?.id || region?.regionId, region]) : [];
+  return new Map(entries.filter(([id]) => typeof id === 'string' && id).sort((a, b) => logisticsNavigationCompare(a[0], b[0])).map(([id, region]) => [id, String(region?.label ?? region?.name ?? region?.title ?? '')]));
+}
 function logisticsNavigationBounds(bounds) {
   const minX = logisticsNavigationFinite(bounds?.minX); const minY = logisticsNavigationFinite(bounds?.minY);
   const maxX = Math.max(minX + 1, logisticsNavigationFinite(bounds?.maxX, minX + 1));
@@ -13039,31 +13040,36 @@ function computeLogisticsSemanticZoom({ cameraScale, selection, options } = {}) 
   return { level, selectedProtection: Boolean(selection), hideRouteLabels: level === 'overview', hideMinorDetail: level === 'overview', hideParticles: level === 'overview' };
 }
 
-function computeLogisticsFilterModel({ nodes, routes, commodities, query, commodityId, statusKeys, selection } = {}) {
+function computeLogisticsFilterModel({ nodes, routes, commodities, regions, query, commodityId, statusKeys } = {}) {
   const normalizedQuery = logisticsNavigationNormalize(query);
   const activeStatuses = new Set(Array.isArray(statusKeys) ? statusKeys.map((value) => String(value)) : []);
   const commodityById = new Map((Array.isArray(commodities) ? commodities : []).map((item) => [item.id, item]));
   const nodeById = new Map((Array.isArray(nodes) ? nodes : []).map((item) => [item.id, item]));
-  const active = Boolean(normalizedQuery || activeStatuses.size || (commodityId && commodityId !== 'all'));
+  const regionNameById = logisticsNavigationRegionNames(regions);
+  const selectedCommodityId = typeof commodityId === 'string' && commodityId && commodityId !== 'all' ? commodityId : null;
+  const selectedFamily = logisticsNavigationFamily(commodityById.get(selectedCommodityId));
+  const active = Boolean(normalizedQuery || activeStatuses.size || selectedCommodityId);
   const routeMatchKinds = new Map(); const nodeMatchKinds = new Map();
   const routeList = Array.isArray(routes) ? routes : [];
   for (const route of routeList) {
     const from = nodeById.get(route.fromNodeId); const to = nodeById.get(route.toNodeId); const commodity = commodityById.get(route.commodityId);
-    const text = logisticsNavigationNormalize([route.id, from?.label, to?.label, commodity?.name, route.commodityId].filter(Boolean).join(' '));
+    const text = logisticsNavigationNormalize([route.id, from?.id, to?.id, from?.label, to?.label, from?.regionId, to?.regionId, regionNameById.get(from?.regionId), regionNameById.get(to?.regionId), commodity?.name, route.commodityId].filter(Boolean).join(' '));
     const queryMatch = !normalizedQuery || text.includes(normalizedQuery);
     const statusMatch = !activeStatuses.size || activeStatuses.has(String(route.status || 'open'));
-    const commodityMatch = !commodityId || commodityId === 'all' || route.commodityId === commodityId;
-    const selected = selection?.type === 'route' && selection.id === route.id;
-    routeMatchKinds.set(route.id, selected || (queryMatch && statusMatch && commodityMatch) ? 'primary' : 'unrelated');
+    const family = logisticsNavigationFamily(commodity);
+    const commodityKind = !selectedCommodityId ? 'primary'
+      : route.commodityId === selectedCommodityId ? 'primary'
+        : selectedFamily && family === selectedFamily ? 'secondary' : 'unrelated';
+    routeMatchKinds.set(route.id, queryMatch && statusMatch ? commodityKind : 'unrelated');
   }
   for (const node of Array.isArray(nodes) ? nodes : []) {
-    const text = logisticsNavigationNormalize([node.id, node.label, node.regionId].filter(Boolean).join(' '));
-    const selected = selection?.type === 'node' && selection.id === node.id;
-    const incident = routeList.some((route) => (route.fromNodeId === node.id || route.toNodeId === node.id) && routeMatchKinds.get(route.id) === 'primary');
-    const ownQueryMatch = Boolean(normalizedQuery) && text.includes(normalizedQuery);
-    nodeMatchKinds.set(node.id, selected || !active || ownQueryMatch || incident ? 'primary' : 'unrelated');
+    const text = logisticsNavigationNormalize([node.id, node.label, node.regionId, regionNameById.get(node.regionId)].filter(Boolean).join(' '));
+    const incidentKinds = routeList.filter((route) => route.fromNodeId === node.id || route.toNodeId === node.id).map((route) => routeMatchKinds.get(route.id));
+    const incidentKind = incidentKinds.includes('primary') ? 'primary' : incidentKinds.includes('secondary') ? 'secondary' : 'unrelated';
+    const directQueryMatch = Boolean(normalizedQuery) && text.includes(normalizedQuery) && !activeStatuses.size && !selectedCommodityId;
+    nodeMatchKinds.set(node.id, !active ? 'primary' : incidentKind !== 'unrelated' ? incidentKind : directQueryMatch ? 'primary' : 'unrelated');
   }
-  return { active, query: normalizedQuery, routeMatchKinds, nodeMatchKinds, matchCount: [...routeMatchKinds.values()].filter((value) => value === 'primary').length };
+  return { active, query: normalizedQuery, routeMatchKinds, nodeMatchKinds, matchCount: [...routeMatchKinds.values()].filter((value) => value !== 'unrelated').length, regionNameById };
 }
 
 /* --- 85b-economy-logistics.js --- */
@@ -13429,6 +13435,7 @@ const economyLogisticsUiState = {
   collapsedRegionIds: new Set(),
   layout: null,
   rendered: null,
+  filterCountElement: null,
   storageFallback: new Map(),
   cameraSaveTimers: {},
 };
@@ -13799,15 +13806,27 @@ function renderLogisticsFilter(payload, parent) {
     logisticsApplyNavigationFilters();
   });
   row.appendChild(clear);
+  const results = logisticsElement('span', 'logistics-filter-results', `${T('webview.world.logisticsFilterResults')}: 0`);
+  results.setAttribute('role', 'status');
+  results.setAttribute('aria-live', 'polite');
+  row.appendChild(results);
+  economyLogisticsUiState.filterCountElement = results;
   renderLogisticsFlowToggle(row);
   parent.appendChild(row);
+}
+
+function logisticsUpdateFilterCount(filterModel) {
+  const element = economyLogisticsUiState.filterCountElement;
+  if (!element) { return; }
+  const count = Number.isFinite(filterModel?.matchCount) ? filterModel.matchCount : 0;
+  element.textContent = `${T('webview.world.logisticsFilterResults')}: ${count}`;
 }
 
 function logisticsApplyNavigationFilters() {
   const payload = economyLogisticsUiState.payload; const rendered = economyLogisticsUiState.rendered;
   if (!payload || !rendered?.graphRoutes || !rendered?.graphNodes) { renderEconomyLogisticsPanel(); return; }
   const selection = economyLogisticsUiState.selection || null;
-  const filterModel = computeLogisticsFilterModel({ nodes: rendered.graphNodes, routes: rendered.graphRoutes, commodities: payload.commodities || [], query: economyLogisticsUiState.searchQuery, commodityId: 'all', statusKeys: [...economyLogisticsUiState.statusKeys], selection });
+  const filterModel = computeLogisticsFilterModel({ nodes: rendered.graphNodes, routes: rendered.graphRoutes, commodities: payload.commodities || [], regions: economyLogisticsUiState.layout?.regions, query: economyLogisticsUiState.searchQuery, commodityId: economyLogisticsUiState.commodityId, statusKeys: [...economyLogisticsUiState.statusKeys] });
   const visual = computeLogisticsVisualEncoding({ routes: rendered.graphRoutes, nodes: rendered.graphNodes, commodities: payload.commodities || [], selectedCommodityId: economyLogisticsUiState.commodityId, selectedRouteId: selection?.type === 'route' ? selection.id : null, selectedNodeId: selection?.type === 'node' ? selection.id : null, currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null, options: { geometryByRoute: rendered.routeGeoms, shortages: payload.shortages || [], filterModel } });
   const apply = (group, style) => {
     if (!group || !style) { return; }
@@ -13822,6 +13841,7 @@ function logisticsApplyNavigationFilters() {
   for (const route of rendered.graphRoutes) { apply(rendered.routeElements.get(route.id), visual.routeStyles.get(route.id)); }
   for (const node of rendered.graphNodes) { apply(rendered.nodeElements.get(node.id), visual.nodeStyles.get(node.id)); }
   rendered.visualEncoding = visual; rendered.filterModel = filterModel;
+  logisticsUpdateFilterCount(filterModel);
 }
 
 function renderLogisticsFlowToggle(row) {
@@ -14177,7 +14197,7 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, vi
   const badgeX = nodeWidth - padding - 5;
   const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
     || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}`);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${selectedEndpoint ? ' is-route-endpoint' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}`);
   if (group.style) { group.style.opacity = String(style.relevance); }
   group.dataset.nodeId = node.id;
   group.dataset.relevance = relevanceKind;
@@ -14966,7 +14986,7 @@ function renderLogisticsNetwork(payload, parent) {
   const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
   const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
   const selection = economyLogisticsUiState.selection || null;
-  const filterModel = computeLogisticsFilterModel({ nodes: graph.nodes, routes: graph.routes, commodities: payload.commodities || [], query: economyLogisticsUiState.searchQuery, commodityId: 'all', statusKeys: [...economyLogisticsUiState.statusKeys], selection });
+  const filterModel = computeLogisticsFilterModel({ nodes: graph.nodes, routes: graph.routes, commodities: payload.commodities || [], regions: layout.regions, query: economyLogisticsUiState.searchQuery, commodityId: economyLogisticsUiState.commodityId, statusKeys: [...economyLogisticsUiState.statusKeys] });
   const visualEncoding = computeLogisticsVisualEncoding({
     routes: graph.routes,
     nodes: graph.nodes,
@@ -14983,6 +15003,7 @@ function renderLogisticsNetwork(payload, parent) {
   rendered.routeGeoms = geometryResult.routes;
   rendered.visualEncoding = visualEncoding;
   rendered.filterModel = filterModel;
+  logisticsUpdateFilterCount(filterModel);
   graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
   graph.nodes.forEach((node) => {
     const position = graph.positions.get(node.id);

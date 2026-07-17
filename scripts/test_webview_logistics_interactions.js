@@ -604,6 +604,36 @@ function threeRegionRoutePayload() {
   };
 }
 
+function slice5CorrectionsPayload() {
+  const node = (id, label, regionId, scale) => ({ id, label, kind: 'facility', locationId: `loc-${id}`, regionId, scale, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [] });
+  return {
+    available: true, scopeKey: 'slice5-corrections',
+    nodes: [
+      { id: 'reg_harbor', kind: 'region', label: 'Harbor Display' },
+      node('grain_quiet_node', 'Quiet Granary', 'reg_harbor'),
+      node('grain_special_node', 'Special Granary', 'reg_harbor'),
+      node('fruit_special_node', 'Special Orchard', 'reg_harbor'),
+      node('minor_endpoint', 'Minor Endpoint', 'reg_harbor', 'minor'),
+      { id: 'reg_metal', kind: 'region', label: 'Metal Display' },
+      node('iron_special_node', 'Special Forge', 'reg_metal'),
+      node('unrelated_minor', 'Unrelated Minor', 'reg_metal', 'minor'),
+    ],
+    routes: [
+      { id: 'grain_quiet', fromNodeId: 'grain_quiet_node', toNodeId: 'minor_endpoint', commodityId: 'grain', volume: 8, baseCapacity: 10, effectiveCapacity: 8, utilization: 0.8, risk: 0.1, status: 'open', bottleneck: false },
+      { id: 'grain_special', fromNodeId: 'grain_special_node', toNodeId: 'minor_endpoint', commodityId: 'grain', volume: 8, baseCapacity: 10, effectiveCapacity: 8, utilization: 0.8, risk: 0.1, status: 'open', bottleneck: false },
+      { id: 'fruit_special', fromNodeId: 'fruit_special_node', toNodeId: 'minor_endpoint', commodityId: 'fruit', volume: 8, baseCapacity: 10, effectiveCapacity: 8, utilization: 0.8, risk: 0.1, status: 'unconfirmed', bottleneck: false },
+      { id: 'iron_special', fromNodeId: 'iron_special_node', toNodeId: 'unrelated_minor', commodityId: 'iron', volume: 8, baseCapacity: 10, effectiveCapacity: 8, utilization: 0.8, risk: 0.1, status: 'unconfirmed', bottleneck: false },
+    ],
+    commodities: [
+      { id: 'grain', name: 'Grain', family: 'food' },
+      { id: 'fruit', name: 'Fruit', family: 'food' },
+      { id: 'iron', name: 'Iron', family: 'metal' },
+    ],
+    shortages: [], processingSites: [],
+    summary: { activeRoutes: 4, blockedRoutes: 0, raidedRoutes: 0, totalVolume: 32, shortageCount: 0, bottleneckCount: 0 },
+  };
+}
+
 function largeDragPayload() {
   const nodes = [{ id: 'reg_large', kind: 'region', label: 'Large' }];
   for (let i = 0; i < 200; i++) {
@@ -961,6 +991,82 @@ test('SLICE5: search, minimap, and semantic zoom preserve rendered geometry', ()
   for (let i = 0; i < 8; i++) { zoomIn.dispatchEvent({ type: 'click' }); }
   assert.ok(svg.classList.contains('is-zoom-detail'), 'zoom-in reaches the semantic detail level without rerendering');
   assert.strictEqual(grainLine.getAttribute('d'), beforePath, 'semantic zoom leaves route geometry byte-identical');
+});
+
+test('SLICE5 corrections: filters compose, regions search, endpoints persist at overview, and count stays factual', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(slice5CorrectionsPayload(), true);
+  const line = (id) => findAll(routeOf(h, id), (n) => n.classList.contains('logistics-route-line'))[0];
+  const hit = (id) => findAll(routeOf(h, id), (n) => n.classList.contains('logistics-route-hit'))[0];
+  const stable = new Map(['grain_quiet', 'grain_special', 'fruit_special', 'iron_special'].map((id) => [id, {
+    group: routeOf(h, id), d: line(id).getAttribute('d'), hit: hit(id).getAttribute('d'), pathId: line(id).getAttribute('id'), mpath: findAll(routeOf(h, id), (n) => n.tagName === 'MPATH')[0]?.getAttribute('href') || null,
+  }]));
+  const commodity = selectOf(h);
+  const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
+  const status = findAll(h.panel, (n) => n.classList.contains('logistics-status-filter'))[0];
+  const count = () => findAll(h.panel, (n) => n.classList.contains('logistics-filter-results'))[0];
+  const clear = findAll(h.panel, (n) => n.classList.contains('logistics-clear-filters-btn'))[0];
+  assert.strictEqual(count().getAttribute('aria-live'), 'polite', 'match count has restrained live announcement');
+  assert.ok(count().textContent.endsWith(': 4'), 'inactive filters show factual route total');
+
+  commodity.value = 'grain'; commodity.dispatchEvent({ type: 'change' });
+  search.value = 'special'; search.dispatchEvent({ type: 'input' });
+  assert.strictEqual(routeOf(h, 'grain_quiet').dataset.relevance, 'unrelated', 'commodity match cannot bypass query mismatch');
+  assert.strictEqual(routeOf(h, 'iron_special').dataset.relevance, 'unrelated', 'query match cannot bypass commodity mismatch');
+  assert.strictEqual(routeOf(h, 'grain_special').dataset.relevance, 'primary', 'exact commodity plus query is primary');
+  assert.strictEqual(routeOf(h, 'grain_special').style.opacity, '1');
+  assert.ok(routeOf(h, 'grain_special').classList.contains('is-commodity-primary'));
+  assert.strictEqual(routeOf(h, 'fruit_special').dataset.relevance, 'secondary', 'same factual family plus query is secondary');
+  assert.strictEqual(routeOf(h, 'fruit_special').style.opacity, '0.55');
+  assert.ok(routeOf(h, 'fruit_special').classList.contains('is-commodity-secondary'));
+  assert.ok(routeOf(h, 'fruit_special').classList.contains('logistics-route-rumored'), 'factual status class survives combined filtering');
+  assert.ok(line('fruit_special').style.props['stroke-dasharray'], 'factual status dash survives combined filtering');
+  assert.ok(count().textContent.endsWith(': 2'), 'combined exact and same-family factual matches are counted');
+  for (const [id, before] of stable) {
+    assert.strictEqual(routeOf(h, id), before.group, 'filter changes retain route DOM identity');
+    assert.strictEqual(line(id).getAttribute('d'), before.d, 'filter changes retain route path');
+    assert.strictEqual(hit(id).getAttribute('d'), before.hit, 'filter changes retain hit path');
+    assert.strictEqual(line(id).getAttribute('id'), before.pathId, 'filter changes retain path id');
+    const mpath = findAll(routeOf(h, id), (n) => n.tagName === 'MPATH')[0];
+    if (before.mpath) assert.strictEqual(mpath.getAttribute('href'), before.mpath, 'filter changes retain mpath reference');
+  }
+
+  search.value = 'no factual match'; search.dispatchEvent({ type: 'input' });
+  assert.ok(count().textContent.endsWith(': 0'), 'zero factual matches are visible');
+  search.value = ''; search.dispatchEvent({ type: 'input' }); status.value = 'open'; status.dispatchEvent({ type: 'change' });
+  assert.ok(count().textContent.endsWith(': 2'), 'status changes update combined factual count');
+  clear.dispatchEvent({ type: 'click' });
+  assert.ok(count().textContent.endsWith(': 4'), 'clearing filters restores factual route total');
+
+  const beforeRegionCamera = { ...h.api.economyLogisticsUiState.cameraContexts.normal.camera };
+  const beforeRegionPositions = JSON.stringify([...h.api.economyLogisticsUiState.rendered.positions.entries()].map(([id, position]) => [id, position.x, position.y]));
+  search.value = 'Harbor Display'; search.dispatchEvent({ type: 'input' });
+  assert.strictEqual(nodeOf(h, 'grain_quiet_node').dataset.relevance, 'primary', 'visible region label matches its node');
+  assert.strictEqual(routeOf(h, 'grain_quiet').dataset.relevance, 'primary', 'visible region label matches incident route');
+  assert.strictEqual(nodeOf(h, 'iron_special_node').dataset.relevance, 'unrelated', 'other region node dims');
+  assert.strictEqual(routeOf(h, 'iron_special').dataset.relevance, 'unrelated', 'other region route dims');
+  assert.strictEqual(JSON.stringify([...h.api.economyLogisticsUiState.rendered.positions.entries()].map(([id, position]) => [id, position.x, position.y])), beforeRegionPositions, 'region search preserves layout coordinates');
+  const afterRegionCamera = h.api.economyLogisticsUiState.cameraContexts.normal.camera;
+  assert.strictEqual(afterRegionCamera.k, beforeRegionCamera.k, 'region search preserves camera scale');
+  assert.strictEqual(afterRegionCamera.tx, beforeRegionCamera.tx, 'region search preserves camera x');
+  assert.strictEqual(afterRegionCamera.ty, beforeRegionCamera.ty, 'region search preserves camera y');
+  clear.dispatchEvent({ type: 'click' });
+
+  routeOf(h, 'grain_special').dispatchEvent({ type: 'click' });
+  assert.ok(nodeOf(h, 'minor_endpoint').classList.contains('is-route-endpoint'), 'selected route endpoint receives stable semantic class');
+  assert.ok(routeOf(h, 'grain_special').parentNode.classList.contains('layer-edges-raised'), 'selected route remains raised');
+  const svg = findAll(h.panel, (n) => n.classList.contains('logistics-network'))[0];
+  const zoomOut = toolbarBtn(h, 'logistics-camera-zoom-out');
+  for (let i = 0; i < 8; i++) { zoomOut.dispatchEvent({ type: 'click' }); }
+  assert.ok(svg.classList.contains('is-zoom-overview'), 'accepted camera API reaches overview');
+  const css = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
+  assert.match(css, /\.logistics-node\.is-route-endpoint \.logistics-node-label/, 'overview CSS preserves only selected-route endpoint label');
+  assert.ok(nodeOf(h, 'unrelated_minor').classList.contains('logistics-node-scale-minor'), 'fixture contains unrelated minor label candidate');
+  h.panel.dispatchEvent({ type: 'keydown', key: 'Escape' });
+  assert.ok(!nodeOf(h, 'minor_endpoint').classList.contains('is-route-endpoint'), 'clearing route selection removes endpoint protection');
+  const countBeforeCamera = count().textContent;
+  toolbarBtn(h, 'logistics-camera-zoom-in').dispatchEvent({ type: 'click' });
+  assert.strictEqual(count().textContent, countBeforeCamera, 'camera changes do not update or reannounce filter count');
 });
 
 if (failed) process.exit(1);

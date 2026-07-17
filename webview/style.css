@@ -3912,7 +3912,10 @@ textarea:focus-visible {
 .logistics-network.is-zoom-overview .logistics-node-scale-minor .logistics-node-label,
 .logistics-network.is-zoom-overview .logistics-flow-dot { display: none; }
 .logistics-network.is-zoom-overview .logistics-route.is-selected .logistics-route-label,
-.logistics-network.is-zoom-overview .logistics-node.is-selected .logistics-node-label { display: block; }
+.logistics-network.is-zoom-overview .logistics-node.is-selected .logistics-node-label,
+.logistics-network.is-zoom-overview .logistics-node.is-route-endpoint .logistics-node-label { display: block; }
+
+.logistics-filter-results { color: var(--vscode-descriptionForeground); font-size: 0.9em; white-space: nowrap; }
 
 .logistics-route-warning {
   fill: #efc66d;

@@ -228,6 +228,10 @@ function motionFor(dot) {
     return dot.children.find((child) => child.tagName === 'ANIMATEMOTION');
 }
 
+function motionPathFor(dot) {
+    return motionFor(dot).children.find((child) => child.tagName === 'MPATH');
+}
+
 test('logistics module uses safe text APIs and no innerHTML', () => {
     assert.ok(!source.includes('.innerHTML'));
     assert.ok(source.includes('.textContent'));
@@ -274,33 +278,64 @@ test('positive-volume wide routes create SMIL particles on the route path', () =
     const raidedDots = flowDots(raided);
     assert.strictEqual(dots.length, 2);
     assert.strictEqual(raidedDots.length, 1);
-    // Fallback geometry is the route start — never the SVG origin (0,0), which
-    // flashed outside leftmost nodes before animateMotion's delayed begin.
-    assert.strictEqual(dots[0].getAttribute('cx'), grainLine.getAttribute('x1'));
-    assert.strictEqual(dots[0].getAttribute('cy'), grainLine.getAttribute('y1'));
-    assert.strictEqual(
-        motionFor(dots[0]).getAttribute('path'),
-        `M ${grainLine.getAttribute('x1')},${grainLine.getAttribute('y1')} L ${grainLine.getAttribute('x2')},${grainLine.getAttribute('y2')}`
-    );
+    assert.strictEqual(dots[0].getAttribute('cx'), '0');
+    assert.strictEqual(dots[0].getAttribute('cy'), '0');
+    assert.strictEqual(dots[0].getAttribute('visibility'), 'hidden');
+    assert.strictEqual(motionPathFor(dots[0]).getAttribute('href'), `#${grainLine.getAttribute('id')}`);
     // Stagger uses negative begin so particles are mid-path on first paint.
     assert.ok(String(motionFor(dots[0]).getAttribute('begin') || '').startsWith('-'));
 });
 
-test('particle geometry parks at route start, never SVG origin', () => {
+test('particle geometry references the rendered route path without double offset', () => {
     const h = renderHarness({ panelWidth: 800 });
     const grain = routeNode(h.panel, 'grain_route');
     const dots = flowDots(grain);
     const line = routeLine(grain);
     assert.ok(dots.length >= 1);
     for (const dot of dots) {
-        assert.strictEqual(dot.getAttribute('cx'), line.getAttribute('x1'));
-        assert.strictEqual(dot.getAttribute('cy'), line.getAttribute('y1'));
-        assert.notStrictEqual(dot.getAttribute('cx'), '0');
+        assert.strictEqual(dot.getAttribute('cx'), '0');
+        assert.strictEqual(dot.getAttribute('cy'), '0');
+        assert.strictEqual(dot.getAttribute('visibility'), 'hidden');
         assert.ok(String(motionFor(dot).getAttribute('begin') || '').startsWith('-'));
-        assert.ok(motionFor(dot).getAttribute('path').startsWith(
-            `M ${line.getAttribute('x1')},${line.getAttribute('y1')}`
-        ));
+        assert.strictEqual(motionFor(dot).getAttribute('path'), undefined);
+        assert.strictEqual(motionPathFor(dot).getAttribute('href'), `#${line.getAttribute('id')}`);
+        const reveal = dot.children.find((child) => child.tagName === 'SET');
+        assert.strictEqual(reveal.getAttribute('attributeName'), 'visibility');
+        assert.strictEqual(reveal.getAttribute('to'), 'visible');
     }
+});
+
+test('route geometry is deterministic and reverses from source to destination', () => {
+    const h = createHarness();
+    const route = { id: 'deterministic-route' };
+    const from = { x: 100, y: 80 };
+    const to = { x: 500, y: 220 };
+    const first = h.context.logisticsRouteGeometry(route, from, to);
+    const second = h.context.logisticsRouteGeometry(route, from, to);
+    const reverse = h.context.logisticsRouteGeometry(route, to, from);
+    assert.strictEqual(first.d, second.d);
+    assert.deepStrictEqual(first.start, reverse.end);
+    assert.deepStrictEqual(first.end, reverse.start);
+    assert.deepStrictEqual(first.pointAt(0), first.start);
+    assert.deepStrictEqual(first.pointAt(1), first.end);
+});
+
+test('semantic node roles, scale tiers, legend, and metric labels are visible', () => {
+    const h = renderHarness({ panelWidth: 800 });
+    const source = findAll(h.panel, (node) => node.dataset.nodeId === 'source')[0];
+    const market = findAll(h.panel, (node) => node.dataset.nodeId === 'market')[0];
+    assert.ok(source.classList.contains('logistics-node-region'));
+    assert.ok(market.classList.contains('logistics-node-market'));
+    assert.strictEqual(h.context.logisticsNodeRole('city'), 'settlement');
+    assert.strictEqual(h.context.logisticsNodeRole('wagon'), 'vehicle');
+    assert.strictEqual(h.context.logisticsNodeRole('caravan'), 'caravan');
+    assert.strictEqual(h.context.logisticsNodeRole('moving_group'), 'envoy');
+    assert.strictEqual(h.context.logisticsNodeRole('mobile_base'), 'mobile-base');
+    assert.ok([...source.classList.values].some((name) => name.startsWith('logistics-node-scale-')));
+    assert.strictEqual(findAll(h.panel, (node) => node.classList.contains('logistics-legend')).length, 1);
+    const grain = routeNode(h.panel, 'grain_route');
+    const metricLabel = findAll(grain, (node) => node.classList.contains('logistics-route-label'))[0];
+    assert.ok(String(metricLabel.getAttribute('aria-label')).includes('5 / 5'));
 });
 
 test('missing layout coordinates create no route particles or lines', () => {
@@ -314,6 +349,7 @@ test('missing layout coordinates create no route particles or lines', () => {
         node.tagName === 'CIRCLE'
         && node.getAttribute('cx') === '0'
         && node.getAttribute('cy') === '0'
+        && node.getAttribute('visibility') !== 'hidden'
     ));
     assert.strictEqual(stray.length, 0);
 });

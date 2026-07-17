@@ -869,11 +869,16 @@ window.addEventListener('message', (event) => {
   }
 });
 
-// ===== Resizer =====
+// ===== Resizer (wide mode only; clamp shared with LoreRelayResponsive) =====
 function clampStatusPaneWidth(value) {
+  const vw = (typeof window !== 'undefined' && Number.isFinite(window.innerWidth)) ? window.innerWidth : 1200;
+  if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.clampSidebarWidth === 'function') {
+    return window.LoreRelayResponsive.clampSidebarWidth(value, vw);
+  }
   const width = Number(value);
-  if (!Number.isFinite(width)) return 320;
-  return Math.max(60, Math.min(800, Math.round(width)));
+  if (!Number.isFinite(width) || width <= 0) return 320;
+  const max = Math.min(Math.floor(vw * 0.42), 800);
+  return Math.max(280, Math.min(max, Math.round(width)));
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -891,6 +896,11 @@ window.addEventListener('DOMContentLoaded', () => {
   let startWidth = 0;
 
   resizer.addEventListener('mousedown', (e) => {
+    // Drawer modes disable the resizer; do not begin a drag or persist width.
+    if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.isResizerEnabled === 'function'
+      && !window.LoreRelayResponsive.isResizerEnabled()) {
+      return;
+    }
     isResizing = true;
     startX = e.clientX;
     startWidth = statusArea.getBoundingClientRect().width;
@@ -901,10 +911,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('mousemove', (e) => {
     if (isResizing) {
+      if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.isResizerEnabled === 'function'
+        && !window.LoreRelayResponsive.isResizerEnabled()) {
+        return;
+      }
       const diff = startX - e.clientX;
       let newWidth = startWidth + diff;
-      if (newWidth < 60) newWidth = 60;
-      if (newWidth > 800) newWidth = 800;
+      newWidth = clampStatusPaneWidth(newWidth);
       statusArea.style.setProperty('--status-width', `${newWidth}px`);
     }
 
@@ -940,9 +953,15 @@ window.addEventListener('DOMContentLoaded', () => {
       resizer.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      
-      const finalWidth = statusArea.getBoundingClientRect().width;
-      localStorage.setItem('lorerelay.statusWidth', finalWidth);
+      // Only persist while wide mode remains active (drawer drag must not write).
+      if (!window.LoreRelayResponsive || window.LoreRelayResponsive.isResizerEnabled()) {
+        if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.persistWidthFromElement === 'function') {
+          window.LoreRelayResponsive.persistWidthFromElement();
+        } else {
+          const finalWidth = clampStatusPaneWidth(statusArea.getBoundingClientRect().width);
+          localStorage.setItem('lorerelay.statusWidth', finalWidth);
+        }
+      }
     }
 
     if (isResizingBanner) {

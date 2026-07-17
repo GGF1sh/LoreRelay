@@ -1705,8 +1705,8 @@
   "webview.world.tradeSell": "賣出",
   "webview.world.vehicleTileHint": "載具與停車標記僅在瓦片地圖模式下顯示。",
   "webview.world.worldGenBusy": "⏳ 生成中...",
-  "webview.world.worldGenFailed": "❌ 生成失敗 — 重試"
-  ,"extension.info.personaImportIgnored": "已匯入支援的人設欄位。已忽略不支援的欄位：{fields}",
+  "webview.world.worldGenFailed": "❌ 生成失敗 — 重試",
+  "extension.info.personaImportIgnored": "已匯入支援的人設欄位。已忽略不支援的欄位：{fields}",
   "extension.info.personaPickCharacter": "選擇一個已匯入角色，複製為可編輯的玩家人設草稿。",
   "extension.error.personaImportInvalid": "所選檔案不含支援的玩家人設 JSON 物件。",
   "extension.error.personaPresetNotFound": "該玩家人設預設已無法使用。",
@@ -1717,5 +1717,9 @@
   "webview.parlor.personaIdentityHint": "這是你扮演的身分，不是正在交談的角色。",
   "webview.parlor.personaImportJson": "載入人設 JSON…",
   "webview.parlor.personaSaveNew": "另存為新預設",
-  "webview.parlor.personaUpdate": "更新所選預設"
+  "webview.parlor.personaUpdate": "更新所選預設",
+  "webview.responsive.openStatus": "開啟狀態面板",
+  "webview.responsive.closeStatus": "關閉狀態面板",
+  "webview.responsive.statusDrawer": "冒險狀態",
+  "webview.responsive.moreControls": "更多控制項"
 }

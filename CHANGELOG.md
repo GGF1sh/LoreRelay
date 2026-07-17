@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [1.84.9] - 2026-07-17
+
+### Logistics graph canvas — live interaction polish (targeted human-blocker repair)
+
+- Live region-container sync: dragging a node now recomputes and moves only the owning region's dashed container, its heading/count, the header hit-area, and the minimap projection during pointermove — no full panel render or graph relayout. On pointerup the bounds are finalized with the same deterministic formula, so a subsequent full rerender is byte-identical. Unrelated regions are never touched.
+- Minimap rendering: the projected region rectangles, node markers and viewport indicator are HTML elements, so they are now painted with theme-aware `background`/`border` instead of SVG-only `fill`/`stroke` (which left the minimap blank). Selected and current-location markers are distinguishable in both dark and light themes; camera click/drag still preserve scale.
+- Selection clearing: a second click on the selected route (or node), and a click on empty graph background, now return to the neutral state — clicks on a different entity, the toolbar, the minimap, filters, the collapse control or the detail panel never clear accidentally. Escape clearing is preserved. A compact localized hint is shown while a selection is active.
+- `reg_coast`-style current-location regions: the intentional collapse protection is now a visible, accessible locked state (persistent lock glyph, framed header, `aria-disabled` + accessible reason) instead of a bare prohibited cursor; keyboard and pointer agree and no route/node data is deleted.
+- Layout Reset feedback: replaced the webview-unreliable `window.confirm` (a silent no-op) with a direct reset that reports completion through a non-modal polite status; the button is disabled with an explanatory title when there are no manual overrides, and stays distinct from Camera Reset via explicit titles/aria.
+- Light-theme visual quality: region headings now sit on a restrained theme-aware header band (framed, no longer plain unframed black text and readable over blue/red routes), the graph field is visually distinct from the surrounding panel, and the minimap remains visible — all via VS Code theme variables with safe fallbacks; dark theme is preserved.
+
 ## [1.84.8] - 2026-07-17
 
 ### Logistics graph canvas human-blocker repair

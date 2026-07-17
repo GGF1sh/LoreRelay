@@ -70,8 +70,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 |------|-----|
 | PLAYABLE-V0-UI-001 | P2/P3/P4 Player Action Hub integrated; human visual/gameplay smoke required next |
 | NOAI-PLAY-P4 | Deterministic zero-turn market travel integrated with canonical destination authority, request-id replay safety, truthful persistence, correct `旅に出る` UI, seven executable fixtures, and `generic_shared_gate_exclusion` as the exact contention proof scope; combined human smoke waits for UI polish |
-| `package.json` | **1.83.0** |
-| CHANGELOG 先頭 | **[1.83.0]** Per-resource economy difficulty: absolute 5-tier scarcity scale (abundant→barren) with per-category/per-commodity overrides + optional % modifiers; NOAI soak now exercises the full profile and the stale price-ceiling invariant crash is fixed |
+| `package.json` | **1.84.7** |
+| CHANGELOG 先頭 | **[1.84.7]** Logistics graph canvas release gate |
 | HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001 | Candidate only, not integrated to main. Collapsed Relay banner now renders as an always-visible strip with an accessible expand/collapse control (click/Enter/Space/aria-expanded); invalid/legacy persisted heights normalize safely; labels refresh on locale arrival. Detail: `docs/ai-tasks/HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001.md` |
 | Stabilization integration (1.82.4, main) | Current-main UI/i18n behavior preserved; debug fast path integrated; writer-lease and installer fixture repairs integrated as test infrastructure; collapsed Relay-banner recovery now has a candidate (this branch) — live installer refresh and real extension-host human smoke remain pending |
 | Campaign Kit | Phase A–G · 7 genre presets · sell_discovery · services state machine (condition/estValue) · **campaign resources** (campaignResourceOps) · factionId on campaign quests · `scrapbound-settlement` sample |

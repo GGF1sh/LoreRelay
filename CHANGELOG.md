@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.84.7] - 2026-07-17
+
+### Logistics graph canvas release gate
+
+- Promoted the logistics graph canvas after real VS Code Extension Development Host verification of search and commodity filtering, route and node details, semantic zoom, pan and reset controls, minimap behavior, region collapse, node drag geometry, and persisted layout state.
+- Confirmed the focused logistics navigation, camera, interaction, visual encoding, route geometry, layout, persistence, economy view, payload whitelist, and World location navigation checks.
+
 ## [1.83.0] - 2026-07-14
 
 ### Per-resource economy difficulty (absolute 5-tier scale)

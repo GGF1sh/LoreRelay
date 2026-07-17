@@ -6,6 +6,167 @@
 const LOGISTICS_FLOW_ANIM_STORAGE_KEY = 'lorerelay.logisticsFlowAnimation';
 const LOGISTICS_COMPACT_WIDTH_PX = 420;
 
+// LOGISTICS-GRAPH-CANVAS-SLICE1 — pointer-centred camera over a fixed-size
+// viewport. See docs/LOGISTICS_GRAPH_CANVAS_ARCHITECTURE.md §2. Layout,
+// route geometry, and colour are unchanged in this slice; only a camera
+// transform is layered on top of the existing content.
+const LOGISTICS_ZOOM_MIN = 0.25;
+const LOGISTICS_ZOOM_MAX = 3.0;
+const LOGISTICS_ZOOM_STEP = 1.15;
+const LOGISTICS_WHEEL_K = 0.0015;
+const LOGISTICS_FIT_PADDING = 32;
+const LOGISTICS_PAN_STEP = 48;
+const LOGISTICS_PAN_STEP_FAST = LOGISTICS_PAN_STEP * 4;
+const LOGISTICS_DRAG_THRESHOLD_PX = 4;
+// Half-extent of a rendered node box (see renderLogisticsNode's -76/-30
+// translate below) — used only to give a single node a sane fit-all bbox.
+const LOGISTICS_NODE_HALF_W = 76;
+const LOGISTICS_NODE_HALF_H = 30;
+// Viewport CSS size is fixed and independent of graph content (see
+// .logistics-network-viewport). These mirror that CSS so fit-all can be
+// computed without racing DOM layout.
+const LOGISTICS_VIEWPORT_HEIGHT = 420;
+const LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX = 640;
+const LOGISTICS_VIEWPORT_WIDTH_FALLBACK = 760;
+const LOGISTICS_CAMERA_EASE_MS = 200;
+
+function logisticsClampZoom(k) {
+  return Math.max(LOGISTICS_ZOOM_MIN, Math.min(LOGISTICS_ZOOM_MAX, k));
+}
+
+function logisticsIsValidCamera(camera) {
+  return Boolean(camera)
+    && Number.isFinite(camera.k) && Number.isFinite(camera.tx) && Number.isFinite(camera.ty)
+    && camera.k >= LOGISTICS_ZOOM_MIN - 1e-9 && camera.k <= LOGISTICS_ZOOM_MAX + 1e-9;
+}
+
+function logisticsWorldToScreen(camera, point) {
+  return { x: point.x * camera.k + camera.tx, y: point.y * camera.k + camera.ty };
+}
+
+function logisticsScreenToWorld(camera, point) {
+  return { x: (point.x - camera.tx) / camera.k, y: (point.y - camera.ty) / camera.k };
+}
+
+/** Pointer-centred zoom: the world point under `screenPoint` is unchanged. */
+function logisticsZoomAt(camera, screenPoint, nextK) {
+  const k = logisticsClampZoom(nextK);
+  if (k === camera.k) { return camera; }
+  return {
+    k,
+    tx: screenPoint.x - (screenPoint.x - camera.tx) * (k / camera.k),
+    ty: screenPoint.y - (screenPoint.y - camera.ty) * (k / camera.k),
+    userModified: true,
+  };
+}
+
+/** Normalizes wheel deltaMode: 0 = pixel, 1 = line, 2 = page. */
+function logisticsWheelDeltaY(event) {
+  let deltaY = Number(event.deltaY) || 0;
+  const mode = Number(event.deltaMode) || 0;
+  if (mode === 1) { deltaY *= 16; } else if (mode === 2) { deltaY *= 320; }
+  return deltaY;
+}
+
+function logisticsZoomFromWheel(camera, screenPoint, deltaY) {
+  return logisticsZoomAt(camera, screenPoint, camera.k * Math.exp(-deltaY * LOGISTICS_WHEEL_K));
+}
+
+function logisticsZoomByStep(camera, viewportSize, direction) {
+  const center = { x: viewportSize.width / 2, y: viewportSize.height / 2 };
+  return logisticsZoomAt(camera, center, camera.k * Math.pow(LOGISTICS_ZOOM_STEP, direction));
+}
+
+function logisticsPanBy(camera, dx, dy) {
+  return { k: camera.k, tx: camera.tx + dx, ty: camera.ty + dy, userModified: true };
+}
+
+/** bbox of rendered node boxes (world space), or null for an empty graph. */
+function logisticsComputeContentBBox(nodePositions) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let found = false;
+  nodePositions.forEach((pos) => {
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) { return; }
+    found = true;
+    minX = Math.min(minX, pos.x - LOGISTICS_NODE_HALF_W);
+    maxX = Math.max(maxX, pos.x + LOGISTICS_NODE_HALF_W);
+    minY = Math.min(minY, pos.y - LOGISTICS_NODE_HALF_H);
+    maxY = Math.max(maxY, pos.y + LOGISTICS_NODE_HALF_H);
+  });
+  return found ? { minX, minY, maxX, maxY } : null;
+}
+
+function logisticsDefaultCamera(viewportSize) {
+  return { k: 1, tx: (viewportSize.width || 0) / 2, ty: (viewportSize.height || 0) / 2, userModified: false };
+}
+
+/** Fits bbox into viewportSize with symmetric slack and bounded padding. */
+function logisticsFitAllCamera(bbox, viewportSize, padding = LOGISTICS_FIT_PADDING) {
+  if (!bbox) { return logisticsDefaultCamera(viewportSize); }
+  const contentW = Math.max(1, bbox.maxX - bbox.minX);
+  const contentH = Math.max(1, bbox.maxY - bbox.minY);
+  const availW = Math.max(1, viewportSize.width - padding * 2);
+  const availH = Math.max(1, viewportSize.height - padding * 2);
+  const k = logisticsClampZoom(Math.min(availW / contentW, availH / contentH));
+  const centerX = (bbox.minX + bbox.maxX) / 2;
+  const centerY = (bbox.minY + bbox.maxY) / 2;
+  return {
+    k,
+    tx: viewportSize.width / 2 - centerX * k,
+    ty: viewportSize.height / 2 - centerY * k,
+    userModified: false,
+  };
+}
+
+function logisticsBBoxIntersectsViewport(bbox, camera, viewportSize) {
+  if (!bbox) { return true; }
+  const a = logisticsWorldToScreen(camera, { x: bbox.minX, y: bbox.minY });
+  const b = logisticsWorldToScreen(camera, { x: bbox.maxX, y: bbox.maxY });
+  const left = Math.min(a.x, b.x);
+  const right = Math.max(a.x, b.x);
+  const top = Math.min(a.y, b.y);
+  const bottom = Math.max(a.y, b.y);
+  return right >= 0 && left <= viewportSize.width && bottom >= 0 && top <= viewportSize.height;
+}
+
+/** Deterministic identity of a dataset's graph shape, independent of the
+ * active commodity filter and of ordinary per-tick value changes. */
+function logisticsDatasetIdentity(payload) {
+  if (!payload) { return ''; }
+  const nodeIds = (payload.nodes || []).map((item) => item && item.id).filter(Boolean).slice().sort();
+  const routeIds = (payload.routes || []).map((item) => item && item.id).filter(Boolean).slice().sort();
+  return `${nodeIds.join(',')}|${routeIds.join(',')}`;
+}
+
+/** Resolves the camera to use for this render: keep it across ordinary
+ * rerenders and filter/selection changes, and across a dataset-identity
+ * change as long as some of the new content is still on-screen; otherwise
+ * perform one bounded Fit All. Never auto-refits merely because payload
+ * values (not identity) changed, and never touches a user-modified camera
+ * unless the graph is now entirely off-screen. */
+function logisticsResolveCameraForRender(payload, bbox, viewportSize) {
+  const state = economyLogisticsUiState;
+  const identity = logisticsDatasetIdentity(payload);
+  if (!logisticsIsValidCamera(state.camera)) {
+    state.camera = logisticsFitAllCamera(bbox, viewportSize);
+    state.cameraIdentity = identity;
+    return state.camera;
+  }
+  if (state.cameraIdentity === identity) {
+    return state.camera;
+  }
+  if (logisticsBBoxIntersectsViewport(bbox, state.camera, viewportSize)) {
+    state.cameraIdentity = identity;
+    return state.camera;
+  }
+  state.camera = logisticsFitAllCamera(bbox, viewportSize);
+  state.cameraIdentity = identity;
+  return state.camera;
+}
+
 function logisticsPrefersReducedMotion() {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -88,6 +249,13 @@ const economyLogisticsUiState = {
   // Non-null while the panel is rendering inside the "view large" lightbox
   // instead of its normal sidebar location (see ensureVisualLightbox below).
   lightboxHost: null,
+  // In-memory-for-this-session camera ({k,tx,ty,userModified}). See
+  // logisticsResolveCameraForRender. No localStorage persistence in this slice.
+  camera: null,
+  cameraIdentity: null,
+  // True while the Space key is held with focus inside the graph viewport,
+  // enabling background-style pan even when the pointer starts on a node.
+  spaceHeld: false,
 };
 
 function logisticsElement(tag, className, value) {
@@ -604,6 +772,198 @@ function renderLogisticsLegend(parent) {
   parent.appendChild(legend);
 }
 
+/** Camera updates touch only the group transform, the constant-screen-size
+ * CSS var, and toolbar disabled state — never the graph DOM (L15 fix). */
+function applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls) {
+  cameraGroup.setAttribute('transform', `translate(${camera.tx} ${camera.ty}) scale(${camera.k})`);
+  if (svg.style && typeof svg.style.setProperty === 'function') {
+    svg.style.setProperty('--logistics-camera-k', String(camera.k));
+  }
+  if (toolbarEls) {
+    toolbarEls.zoomInBtn.disabled = camera.k >= LOGISTICS_ZOOM_MAX - 1e-6;
+    toolbarEls.zoomOutBtn.disabled = camera.k <= LOGISTICS_ZOOM_MIN + 1e-6;
+  }
+}
+
+/** Discrete camera commands (buttons, 0, Shift+0) may ease briefly; wheel and
+ * direct drag never do (always 1:1 with input). Reduced motion applies the
+ * command immediately, with no transition class added. */
+function logisticsEaseCameraCommand(cameraGroup, run) {
+  const reduced = logisticsPrefersReducedMotion();
+  if (!reduced && cameraGroup.classList && typeof cameraGroup.classList.add === 'function') {
+    cameraGroup.classList.add('is-easing');
+    if (typeof setTimeout === 'function') {
+      setTimeout(() => {
+        if (cameraGroup.classList) { cameraGroup.classList.remove('is-easing'); }
+      }, LOGISTICS_CAMERA_EASE_MS);
+    }
+  }
+  run();
+}
+
+function renderLogisticsCameraToolbar(viewport, onCommand) {
+  const toolbar = logisticsElement('div', 'logistics-camera-toolbar');
+  toolbar.setAttribute('role', 'group');
+  toolbar.setAttribute('aria-label', T('webview.world.logisticsCameraToolbar'));
+
+  function makeButton(className, labelKey, command) {
+    const btn = logisticsElement('button', `logistics-camera-btn ${className}`, T(labelKey));
+    btn.type = 'button';
+    btn.title = T(labelKey);
+    btn.addEventListener('click', () => onCommand(command));
+    toolbar.appendChild(btn);
+    return btn;
+  }
+
+  const zoomOutBtn = makeButton('logistics-camera-zoom-out', 'webview.world.logisticsZoomOut', 'zoomOut');
+  const zoomInBtn = makeButton('logistics-camera-zoom-in', 'webview.world.logisticsZoomIn', 'zoomIn');
+  const fitBtn = makeButton('logistics-camera-fit', 'webview.world.logisticsFitAll', 'fitAll');
+  const resetBtn = makeButton('logistics-camera-reset', 'webview.world.logisticsResetCamera', 'reset');
+
+  viewport.appendChild(toolbar);
+  return { toolbar, zoomOutBtn, zoomInBtn, fitBtn, resetBtn };
+}
+
+function logisticsIsInteractiveTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList && (el.classList.contains('logistics-node') || el.classList.contains('logistics-route'))) {
+      return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+/** Wires wheel/drag/keyboard camera interactions on an already-mounted
+ * viewport. Every handler mutates economyLogisticsUiState.camera and repaints
+ * only via applyLogisticsCameraTransform — never renderEconomyLogisticsPanel. */
+function logisticsSetupCameraInteractions(ctx) {
+  const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox } = ctx;
+  const state = economyLogisticsUiState;
+
+  function setCamera(next) {
+    state.camera = next;
+    applyLogisticsCameraTransform(svg, cameraGroup, next, toolbarEls);
+  }
+
+  function screenPointFromEvent(event) {
+    const rect = typeof viewport.getBoundingClientRect === 'function'
+      ? viewport.getBoundingClientRect() : { left: 0, top: 0 };
+    return { x: (event.clientX || 0) - (rect.left || 0), y: (event.clientY || 0) - (rect.top || 0) };
+  }
+
+  viewport.addEventListener('wheel', (event) => {
+    if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+    const point = screenPointFromEvent(event);
+    setCamera(logisticsZoomFromWheel(state.camera, point, logisticsWheelDeltaY(event)));
+  }, { passive: false });
+
+  let drag = null;
+
+  viewport.addEventListener('pointerdown', (event) => {
+    const interactive = logisticsIsInteractiveTarget(event.target, viewport);
+    const isMiddle = event.button === 1;
+    const isSpace = state.spaceHeld;
+    if (interactive && !isMiddle && !isSpace) { return; }
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX || 0,
+      startY: event.clientY || 0,
+      startCamera: state.camera,
+      moved: false,
+    };
+    if (typeof viewport.setPointerCapture === 'function' && event.pointerId !== undefined) {
+      viewport.setPointerCapture(event.pointerId);
+    }
+    if (viewport.classList) { viewport.classList.add('is-panning'); }
+  });
+
+  function endDrag(event) {
+    if (!drag) { return; }
+    if (typeof viewport.releasePointerCapture === 'function' && event && event.pointerId !== undefined) {
+      viewport.releasePointerCapture(event.pointerId);
+    }
+    if (viewport.classList) { viewport.classList.remove('is-panning'); }
+    drag = null;
+  }
+
+  viewport.addEventListener('pointermove', (event) => {
+    if (!drag) { return; }
+    const dx = (event.clientX || 0) - drag.startX;
+    const dy = (event.clientY || 0) - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < LOGISTICS_DRAG_THRESHOLD_PX) { return; }
+    drag.moved = true;
+    setCamera({ k: drag.startCamera.k, tx: drag.startCamera.tx + dx, ty: drag.startCamera.ty + dy, userModified: true });
+  });
+  viewport.addEventListener('pointerup', endDrag);
+  viewport.addEventListener('pointercancel', endDrag);
+
+  function currentBBox() { return bbox; }
+
+  viewport.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && !event.repeat) { state.spaceHeld = true; }
+    if (event.key === 'Escape' && drag) {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+      setCamera(drag.startCamera);
+      endDrag(event);
+      return;
+    }
+    const arrow = {
+      ArrowUp: { dx: 0, dy: 1 }, ArrowDown: { dx: 0, dy: -1 },
+      ArrowLeft: { dx: 1, dy: 0 }, ArrowRight: { dx: -1, dy: 0 },
+    }[event.key];
+    if (arrow) {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      const step = event.shiftKey ? LOGISTICS_PAN_STEP_FAST : LOGISTICS_PAN_STEP;
+      setCamera(logisticsPanBy(state.camera, arrow.dx * step, arrow.dy * step));
+      return;
+    }
+    if (event.key === '+' || event.key === '=') {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(state.camera, viewportSize, 1)));
+      return;
+    }
+    if (event.key === '-') {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(state.camera, viewportSize, -1)));
+      return;
+    }
+    // Shift+0 often reports key ')' on US layouts; check the physical key
+    // (code) so Reset Camera is reachable regardless of layout. Fit All and
+    // Reset Camera resolve identically in this slice — there is no persisted
+    // camera or manual node layout yet to distinguish them from.
+    if (event.code === 'Digit0' || event.key === '0' || event.key === ')') {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      const identity = logisticsDatasetIdentity(state.payload);
+      logisticsEaseCameraCommand(cameraGroup, () => {
+        const next = logisticsFitAllCamera(currentBBox(), viewportSize);
+        state.cameraIdentity = identity;
+        setCamera(next);
+      });
+    }
+  });
+  viewport.addEventListener('keyup', (event) => {
+    if (event.code === 'Space') { state.spaceHeld = false; }
+  });
+  viewport.addEventListener('blur', () => { state.spaceHeld = false; });
+
+  return {
+    onToolbarCommand(command) {
+      const identity = logisticsDatasetIdentity(state.payload);
+      logisticsEaseCameraCommand(cameraGroup, () => {
+        if (command === 'zoomIn') { setCamera(logisticsZoomByStep(state.camera, viewportSize, 1)); return; }
+        if (command === 'zoomOut') { setCamera(logisticsZoomByStep(state.camera, viewportSize, -1)); return; }
+        // Fit All and Reset Camera are identical in this slice: there is no
+        // persisted camera or manual node layout yet to distinguish them from.
+        state.cameraIdentity = identity;
+        setCamera(logisticsFitAllCamera(currentBBox(), viewportSize));
+      });
+    },
+  };
+}
+
 function renderLogisticsNetwork(payload, parent) {
   const data = visibleLogisticsData(payload);
   renderLogisticsLegend(parent);
@@ -622,7 +982,14 @@ function renderLogisticsNetwork(payload, parent) {
   if (hostWidth > 0) {
     economyLogisticsUiState.compactAnimation = hostWidth < LOGISTICS_COMPACT_WIDTH_PX;
   }
+  const viewportSize = {
+    width: hostWidth > 0 ? hostWidth : LOGISTICS_VIEWPORT_WIDTH_FALLBACK,
+    height: economyLogisticsUiState.lightboxHost ? LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX : LOGISTICS_VIEWPORT_HEIGHT,
+  };
   const viewport = logisticsElement('div', 'logistics-network-viewport');
+  viewport.setAttribute('tabindex', '0');
+  viewport.setAttribute('role', 'group');
+  viewport.setAttribute('aria-label', T('webview.world.logisticsAria'));
   if (!economyLogisticsUiState.lightboxHost) {
     const expandBtn = logisticsElement('button', 'logistics-expand-btn', '⤢');
     expandBtn.type = 'button';
@@ -635,13 +1002,15 @@ function renderLogisticsNetwork(payload, parent) {
     const empty = logisticsElement('p', 'empty-text logistics-filter-empty', T('webview.world.logisticsFilterEmpty'));
     viewport.appendChild(empty);
   }
+  // Content is laid out in stable world-space coordinates (unchanged from
+  // before this slice); a camera transform is layered on top of it rather
+  // than the SVG viewBox growing to fit the whole graph.
   const layout = buildLogisticsLayout(data.nodes);
   const motionActive = logisticsFlowMotionActive();
   const svgClass = `logistics-network${motionActive ? ' is-animated' : ''}${economyLogisticsUiState.compactAnimation ? ' is-compact' : ''}`;
   const svg = logisticsSvgElement('svg', svgClass);
-  svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
-  svg.setAttribute('aria-label', T('webview.world.logisticsAria'));
-  svg.setAttribute('role', 'img');
+  svg.setAttribute('viewBox', `0 0 ${viewportSize.width} ${viewportSize.height}`);
+  svg.setAttribute('aria-hidden', 'true');
   const defs = logisticsSvgElement('defs');
   ['open', 'strained', 'blocked', 'raided', 'rumored'].forEach((status) => {
     const marker = logisticsSvgElement('marker', `logistics-arrow logistics-arrow-${status}`);
@@ -661,14 +1030,31 @@ function renderLogisticsNetwork(payload, parent) {
     defs.appendChild(marker);
   });
   svg.appendChild(defs);
+
+  const cameraGroup = logisticsSvgElement('g', 'logistics-camera');
+  const layerRegions = logisticsSvgElement('g', 'layer-regions');
+  const layerEdges = logisticsSvgElement('g', 'layer-edges');
+  const layerEdgesRaised = logisticsSvgElement('g', 'layer-edges-raised');
+  const layerNodes = logisticsSvgElement('g', 'layer-nodes');
+  const layerLabels = logisticsSvgElement('g', 'layer-labels');
+  [layerRegions, layerEdges, layerEdgesRaised, layerNodes, layerLabels].forEach((layer) => cameraGroup.appendChild(layer));
+  svg.appendChild(cameraGroup);
+
   const maxVolume = Math.max(1, ...data.routes.map((route) => route.volume || 0));
   const labelSpots = [];
-  data.routes.forEach((route) => renderLogisticsRoute(svg, payload, route, layout.positions, maxVolume, labelSpots));
+  data.routes.forEach((route) => renderLogisticsRoute(layerEdges, payload, route, layout.positions, maxVolume, labelSpots));
   data.nodes.forEach((node) => {
     const position = layout.positions.get(node.id);
-    if (position) { renderLogisticsNode(svg, payload, node, position, data.shortages, data.routes); }
+    if (position) { renderLogisticsNode(layerNodes, payload, node, position, data.shortages, data.routes); }
   });
   viewport.appendChild(svg);
+
+  const bbox = logisticsComputeContentBBox(layout.positions);
+  const camera = logisticsResolveCameraForRender(payload, bbox, viewportSize);
+  const toolbarEls = renderLogisticsCameraToolbar(viewport, (command) => interactions.onToolbarCommand(command));
+  applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls);
+  const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox });
+
   parent.appendChild(viewport);
   logisticsObserveNetworkWidth(viewport);
 }
@@ -864,6 +1250,8 @@ function renderEconomyLogistics(payload, commerceEnabled) {
     panel.replaceChildren();
     economyLogisticsUiState.payload = null;
     economyLogisticsUiState.selection = null;
+    economyLogisticsUiState.camera = null;
+    economyLogisticsUiState.cameraIdentity = null;
     return;
   }
   if (economyLogisticsUiState.payload !== payload) {

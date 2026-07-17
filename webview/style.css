@@ -3655,14 +3655,34 @@ textarea:focus-visible {
   cursor: not-allowed;
 }
 
+/* LOGISTICS-GRAPH-CANVAS-SLICE1 — the viewport's CSS size is fixed and
+   independent of graph content (mirrored in JS as LOGISTICS_VIEWPORT_HEIGHT /
+   LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX). The camera pans/zooms content inside
+   it instead of the SVG viewBox growing to fit everything, so this no longer
+   scrolls — overflow is clipped, not exposed via a scrollbar. */
 .logistics-network-viewport {
   position: relative;
-  max-width: 100%;
-  overflow: auto;
+  width: 100%;
+  height: 420px;
+  overflow: hidden;
   border: 1px solid var(--vscode-panel-border);
   border-radius: 9px;
   background: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-focusBorder) 6%);
-  scrollbar-gutter: stable;
+  cursor: grab;
+  touch-action: none;
+}
+
+.logistics-network-viewport.is-panning {
+  cursor: grabbing;
+}
+
+.logistics-network-viewport:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: -2px;
+}
+
+.visual-lightbox-body--logistics .logistics-network-viewport {
+  height: 640px;
 }
 
 .logistics-expand-btn {
@@ -3694,9 +3714,54 @@ textarea:focus-visible {
 .logistics-network {
   display: block;
   width: 100%;
-  min-width: 620px;
-  max-height: 520px;
-  min-height: 260px;
+  height: 100%;
+}
+
+.logistics-camera {
+  transform-origin: 0 0;
+}
+
+.logistics-camera.is-easing {
+  transition: transform 180ms ease;
+}
+
+.logistics-camera-toolbar {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 0.4rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-width: calc(100% - 0.8rem);
+}
+
+.logistics-camera-btn {
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-editor-background) 78%, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.logistics-camera-btn:hover,
+.logistics-camera-btn:focus-visible {
+  color: var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.logistics-camera-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.logistics-camera-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .logistics-route {
@@ -4008,18 +4073,16 @@ textarea:focus-visible {
   overflow: auto;
 }
 
-/* Give the logistics network real room once it is the only thing on screen. */
+/* Give the logistics network real room once it is the only thing on screen
+   (fixed height set on .logistics-network-viewport above). */
 .visual-lightbox-body--logistics .logistics-network-viewport {
   max-width: none;
-}
-
-.visual-lightbox-body--logistics .logistics-network {
-  max-height: min(72vh, 780px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .logistics-route-line { transition: none; animation: none !important; }
   .logistics-flow-dot { display: none !important; }
+  .logistics-camera.is-easing { transition: none; }
 }
 
 /* --- 90-game-rules.css --- */

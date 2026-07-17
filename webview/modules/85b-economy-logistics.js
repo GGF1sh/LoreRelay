@@ -649,14 +649,28 @@ function activateLogisticsSelection(selection) {
   renderEconomyLogisticsPanel();
 }
 
+/** True when the given selection descriptor is the one already active, so a
+ * repeat activation (second click / Enter on the same route or node) is a
+ * request to return to the neutral state rather than reselect. */
+function logisticsSelectionIsActive(selection) {
+  const current = economyLogisticsUiState.selection;
+  return Boolean(selection && current && current.type === selection.type && current.id === selection.id);
+}
+
+/** Second activation of the already-selected entity clears it; activating a
+ * different entity selects it as before. */
+function toggleLogisticsSelection(selection) {
+  activateLogisticsSelection(logisticsSelectionIsActive(selection) ? null : selection);
+}
+
 function bindLogisticsActivation(node, selection) {
   node.setAttribute('tabindex', '0');
   node.setAttribute('role', 'button');
-  node.addEventListener('click', () => activateLogisticsSelection(selection));
+  node.addEventListener('click', () => toggleLogisticsSelection(selection));
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      activateLogisticsSelection(selection);
+      toggleLogisticsSelection(selection);
     }
   });
 }
@@ -1315,7 +1329,7 @@ function renderLogisticsMinimap(viewport, layout, graph, positions, viewportSize
     }
     const box = (element, rect) => { if (element?.style?.setProperty) { element.style.setProperty('left', `${rect.x}px`); element.style.setProperty('top', `${rect.y}px`); element.style.setProperty('width', `${rect.w}px`); element.style.setProperty('height', `${rect.h}px`); } };
     model.regionRects.forEach((region, index) => { box(regionLayer.children[index], region); });
-    model.nodeMarkers.forEach((node, index) => { const dot = nodeLayer.children[index]; box(dot, { x: node.x - (node.selected || node.current ? 2.5 : 1.5), y: node.y - (node.selected || node.current ? 2.5 : 1.5), w: node.selected || node.current ? 5 : 3, h: node.selected || node.current ? 5 : 3 }); });
+    model.nodeMarkers.forEach((node, index) => { const dot = nodeLayer.children[index]; if (dot?.classList) { dot.classList.toggle('is-selected', Boolean(node.selected)); dot.classList.toggle('is-current', Boolean(node.current)); } box(dot, { x: node.x - (node.selected || node.current ? 2.5 : 1.5), y: node.y - (node.selected || node.current ? 2.5 : 1.5), w: node.selected || node.current ? 5 : 3, h: node.selected || node.current ? 5 : 3 }); });
     box(viewportRect, model.viewportRect);
     const nextSemantic = computeLogisticsSemanticZoom({ cameraScale: nextCamera.k, selection: economyLogisticsUiState.selection, options: { previousLevel: semantic } });
     semantic = nextSemantic.level;
@@ -1384,9 +1398,33 @@ function renderLogisticsCameraToolbar(viewport, onCommand) {
   const fitBtn = makeButton('logistics-camera-fit', 'webview.world.logisticsFitAll', 'fitAll');
   const resetBtn = makeButton('logistics-camera-reset', 'webview.world.logisticsResetCamera', 'reset');
   const resetLayoutBtn = makeButton('logistics-layout-reset', 'webview.world.logisticsResetLayout', 'resetLayout');
+  // Camera Reset and Layout Reset are visually adjacent but do different
+  // things; explicit titles/aria keep them distinguishable.
+  resetBtn.title = T('webview.world.logisticsResetCameraTitle');
+  resetBtn.setAttribute('aria-label', T('webview.world.logisticsResetCameraTitle'));
+  resetLayoutBtn.title = T('webview.world.logisticsResetLayoutTitle');
+  resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
 
   viewport.appendChild(toolbar);
-  return { toolbar, zoomOutBtn, zoomInBtn, fitBtn, resetBtn, resetLayoutBtn };
+
+  // Non-modal, polite live region for Layout Reset feedback. It survives a full
+  // panel rerender because the message is stashed on the ui state and replayed
+  // here on the next render.
+  const layoutStatus = logisticsElement('div', 'logistics-layout-status');
+  layoutStatus.setAttribute('role', 'status');
+  layoutStatus.setAttribute('aria-live', 'polite');
+  viewport.appendChild(layoutStatus);
+  const pending = economyLogisticsUiState.layoutStatusMessage;
+  if (pending) {
+    layoutStatus.textContent = pending;
+    layoutStatus.classList.add('is-visible');
+    economyLogisticsUiState.layoutStatusMessage = null;
+    if (typeof setTimeout === 'function') {
+      setTimeout(() => { if (layoutStatus.classList) { layoutStatus.classList.remove('is-visible'); } }, 4000);
+    }
+  }
+
+  return { toolbar, zoomOutBtn, zoomInBtn, fitBtn, resetBtn, resetLayoutBtn, layoutStatus };
 }
 
 function logisticsFindNodeTarget(target, boundary) {
@@ -1436,6 +1474,17 @@ function logisticsIsControlTarget(target, boundary) {
     if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
       return true;
     }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+/** The minimap is inside the viewport; its own pointer handlers drive the
+ * camera, so a click there must never clear the graph selection. */
+function logisticsIsMinimapTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList && el.classList.contains('logistics-minimap')) { return true; }
     el = el.parentNode;
   }
   return false;
@@ -1585,6 +1634,7 @@ function logisticsSetupCameraInteractions(ctx) {
           nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
         }
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
+        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId);
       } else if (active.moved && options.commitNode) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
         position.x = Math.round(position.x); position.y = Math.round(position.y);
@@ -1607,8 +1657,18 @@ function logisticsSetupCameraInteractions(ctx) {
           nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
         }
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
+        // Finalize the owning region's bounds from the rounded/clamped commit
+        // position so a subsequent full rerender is byte-identical.
+        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId);
         economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
+        // A manual override now exists; enable Layout Reset immediately without
+        // waiting for a full panel rerender.
+        if (toolbarEls && toolbarEls.resetLayoutBtn) {
+          toolbarEls.resetLayoutBtn.disabled = false;
+          toolbarEls.resetLayoutBtn.title = T('webview.world.logisticsResetLayoutTitle');
+          toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
+        }
       }
     }
     if (active.moved && options.commitNode) {
@@ -1716,6 +1776,9 @@ function logisticsSetupCameraInteractions(ctx) {
         nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
       }
       logisticsRefreshRoutesAfterMove(rendered, drag.nodeId);
+      // Live-sync only the owning region's dashed container, its label/count and
+      // the minimap projection; never move another region or relayout the graph.
+      logisticsLiveUpdateOwningRegion(rendered, layout, drag.nodeId);
       return;
     }
     const base = drag.startCamera;
@@ -1744,6 +1807,18 @@ function logisticsSetupCameraInteractions(ctx) {
     if (typeof event.preventDefault === 'function') { event.preventDefault(); }
     if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
   }, true);
+
+  // Background click (SVG chrome — not a node, route, control or minimap)
+  // returns the graph to the neutral state: a discoverable pointer alternative
+  // to Escape. Runs in bubble phase, after any node/route activation handler,
+  // so selecting a different entity is never undone. Camera/layout untouched.
+  viewport.addEventListener('click', (event) => {
+    if (!economyLogisticsUiState.selection) { return; }
+    if (logisticsIsGraphContentTarget(event.target, viewport)) { return; }
+    if (logisticsIsControlTarget(event.target, viewport)) { return; }
+    if (logisticsIsMinimapTarget(event.target, viewport)) { return; }
+    activateLogisticsSelection(null);
+  });
 
   function currentBBox() { return bbox; }
 
@@ -1822,12 +1897,19 @@ function logisticsSetupCameraInteractions(ctx) {
         if (command === 'zoomIn') { setCamera(logisticsZoomByStep(hostCtx.camera, vp, 1), true); return; }
         if (command === 'zoomOut') { setCamera(logisticsZoomByStep(hostCtx.camera, vp, -1), true); return; }
         if (command === 'resetLayout') {
-          const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm(T('webview.world.logisticsResetLayoutConfirm')) : false;
-          if (!accepted) { return; }
+          // window.confirm is unreliable inside VS Code webviews (frequently a
+          // silent no-op), which is exactly why the human saw "nothing happens".
+          // Reset directly and report the outcome through the polite live region.
+          const hasOverrides = Object.keys(economyLogisticsUiState.manualPositions || {}).length > 0;
+          if (!hasOverrides) {
+            economyLogisticsUiState.layoutStatusMessage = T('webview.world.logisticsResetLayoutNoneStatus');
+            renderEconomyLogisticsPanel();
+            return;
+          }
           logisticsStorageRemove(logisticsStorageKey('layout', state.scopeKey));
           state.manualPositions = {};
           hostCtx.camera = null;
+          economyLogisticsUiState.layoutStatusMessage = T('webview.world.logisticsResetLayoutDoneStatus');
           renderEconomyLogisticsPanel();
           return;
         }
@@ -1839,8 +1921,9 @@ function logisticsSetupCameraInteractions(ctx) {
   };
 }
 
-function renderLogisticsRegionContainers(layer, layerLabels, payload, layout) {
+function renderLogisticsRegionContainers(layer, layerLabels, payload, layout, rendered) {
   const protectedRegionIds = logisticsCurrentLocationRegionIds(payload);
+  if (rendered && !rendered.regionElements) { rendered.regionElements = new Map(); }
   for (const [regionId, region] of [...layout.regions.entries()].sort((a, b) => logisticsLayoutCompareId(a[0], b[0]))) {
     const group = logisticsSvgElement('g', `logistics-region${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? ' is-collapsed' : ''}`);
     group.dataset.regionId = regionId;
@@ -1860,9 +1943,13 @@ function renderLogisticsRegionContainers(layer, layerLabels, payload, layout) {
     hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260)))); hit.setAttribute('height', '28');
     hit.setAttribute('rx', '5');
     control.appendChild(hit);
-    const label = logisticsSvgElement('text', 'logistics-region-label');
+    const label = logisticsSvgElement('text', `logistics-region-label${protectedRegion ? ' is-protected' : ''}`);
     label.setAttribute('x', String(region.x + 12)); label.setAttribute('y', String(region.y + 20));
-    label.textContent = `${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? '▸' : '▾'} ${region.label} (${region.memberIds.length})`;
+    // Protected (current-location) regions cannot collapse; a persistent lock
+    // glyph makes that intentional state visible instead of relying on a
+    // hover-only tooltip / prohibited cursor.
+    const collapseGlyph = protectedRegion ? '🔒' : (economyLogisticsUiState.collapsedRegionIds.has(regionId) ? '▸' : '▾');
+    label.textContent = `${collapseGlyph} ${region.label} (${region.memberIds.length})`;
     label.setAttribute('pointer-events', 'none');
     const toggle = () => {
       if (protectedRegion) { return; }
@@ -1880,6 +1967,52 @@ function renderLogisticsRegionContainers(layer, layerLabels, payload, layout) {
     group.appendChild(control);
     layer.appendChild(group);
     layerLabels.appendChild(label);
+    if (rendered && rendered.regionElements) {
+      rendered.regionElements.set(regionId, { group, rect, hit, label, region });
+    }
+  }
+}
+
+/** Recompute a single region's dashed-container bounds from the live positions
+ * of its members and push them straight to the already-rendered rect / label /
+ * hit-area, plus the minimap projection — without a full panel render or a
+ * complete graph relayout. The formula is byte-identical to the bounds
+ * finalization in computeLogisticsLayout (85b1), so committing a drag and then
+ * doing a full rerender yields the same region box. Only the owning region is
+ * touched; unrelated regions are never read or written. */
+function logisticsLiveUpdateOwningRegion(rendered, layout, nodeId) {
+  if (!rendered || !layout || !layout.regions) { return; }
+  const position = rendered.positions?.get(nodeId);
+  const regionId = position?.regionId;
+  if (!regionId) { return; }
+  const region = layout.regions.get(regionId);
+  if (!region) { return; }
+  const members = region.memberIds.map((id) => rendered.positions.get(id)).filter(Boolean);
+  if (!members.length) { return; }
+  const minX = Math.min(...members.map((pos) => pos.x - pos.w / 2));
+  const minY = Math.min(...members.map((pos) => pos.y - pos.h / 2));
+  const maxX = Math.max(...members.map((pos) => pos.x + pos.w / 2));
+  const maxY = Math.max(...members.map((pos) => pos.y + pos.h / 2));
+  region.x = minX - LOGISTICS_LAYOUT_REGION_PADDING;
+  region.y = minY - LOGISTICS_LAYOUT_REGION_PADDING - 24;
+  region.w = maxX - minX + LOGISTICS_LAYOUT_REGION_PADDING * 2;
+  region.h = maxY - minY + LOGISTICS_LAYOUT_REGION_PADDING * 2 + 24;
+  const refs = rendered.regionElements?.get(regionId);
+  if (refs) {
+    if (refs.rect) {
+      refs.rect.setAttribute('x', String(region.x)); refs.rect.setAttribute('y', String(region.y));
+      refs.rect.setAttribute('width', String(region.w)); refs.rect.setAttribute('height', String(region.h));
+    }
+    if (refs.label) {
+      refs.label.setAttribute('x', String(region.x + 12)); refs.label.setAttribute('y', String(region.y + 20));
+    }
+    if (refs.hit) {
+      refs.hit.setAttribute('x', String(region.x + 4)); refs.hit.setAttribute('y', String(region.y + 2));
+      refs.hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260))));
+    }
+  }
+  if (rendered.minimap && typeof rendered.minimap.update === 'function') {
+    rendered.minimap.update(logisticsActiveCameraContext().camera);
   }
 }
 
@@ -1972,7 +2105,7 @@ function renderLogisticsNetwork(payload, parent) {
   [layerRegions, layerEdges, layerEdgesRaised, layerNodes, layerLabels].forEach((layer) => cameraGroup.appendChild(layer));
   svg.appendChild(cameraGroup);
 
-  renderLogisticsRegionContainers(layerRegions, layerLabels, payload, layout);
+  renderLogisticsRegionContainers(layerRegions, layerLabels, payload, layout, rendered);
   // One shared, obstacle-aware geometry computation for the whole route set;
   // every consumer (stroke, hit path, arrow, particles, label, warning, drag
   // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
@@ -2008,6 +2141,15 @@ function renderLogisticsNetwork(payload, parent) {
   const bbox = layout.bounds;
   const camera = logisticsResolveCameraForRender(payload, bbox, viewportSize);
   const toolbarEls = renderLogisticsCameraToolbar(viewport, (command) => interactions.onToolbarCommand(command));
+  // Layout Reset is meaningful only when manual node positions exist; otherwise
+  // it is disabled with an explanatory title so it is never a silent dead
+  // control, and stays distinct from the always-available Camera Reset.
+  const hasLayoutOverrides = Object.keys(economyLogisticsUiState.manualPositions || {}).length > 0;
+  toolbarEls.resetLayoutBtn.disabled = !hasLayoutOverrides;
+  if (!hasLayoutOverrides) {
+    toolbarEls.resetLayoutBtn.title = T('webview.world.logisticsResetLayoutNoneTitle');
+    toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutNoneTitle'));
+  }
   applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls);
   let minimap = null;
   const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange: (next) => { if (minimap) { minimap.update(next); } } });
@@ -2035,12 +2177,19 @@ function renderLogisticsDetails(payload, parent) {
   const clear = logisticsElement('button', 'logistics-clear-btn', T('webview.world.logisticsClearSelection'));
   clear.type = 'button';
   clear.disabled = !economyLogisticsUiState.selection;
+  clear.title = T('webview.world.logisticsSelectionClearHint');
+  clear.setAttribute('aria-label', `${T('webview.world.logisticsClearSelection')} — ${T('webview.world.logisticsSelectionClearHint')}`);
   clear.addEventListener('click', () => {
     economyLogisticsUiState.selection = null;
     renderEconomyLogisticsPanel();
   });
   headingRow.appendChild(clear);
   details.appendChild(headingRow);
+  if (economyLogisticsUiState.selection) {
+    // Compact discoverability hint, not a permanent instruction panel: shown
+    // only while something is selected.
+    details.appendChild(logisticsElement('p', 'logistics-selection-hint', T('webview.world.logisticsSelectionClearHint')));
+  }
 
   const selection = economyLogisticsUiState.selection;
   if (!selection) {

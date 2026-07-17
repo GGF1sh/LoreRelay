@@ -1135,5 +1135,251 @@ test('HUMAN-BLOCKERS-A: factual labels are final-layer text and filtered particl
   assert.match(css, /stroke: var\(--vscode-editor-background\)/, 'theme-safe factual text outline supports dark and light themes');
 });
 
+// --- SLICE6 HUMAN-BLOCKERS-B: live region sync, minimap rendering, selection
+//     clearing, reg_coast policy, Layout Reset feedback, light-theme quality ---
+
+function regionRefs(h, regionId) {
+  const rendered = h.api.economyLogisticsUiState.rendered;
+  return rendered && rendered.regionElements ? rendered.regionElements.get(regionId) : null;
+}
+function rectXYWH(rect) {
+  return {
+    x: rect.getAttribute('x'), y: rect.getAttribute('y'),
+    w: rect.getAttribute('width'), h: rect.getAttribute('height'),
+  };
+}
+function minimapNodes(h) { return findAll(h.panel, (n) => n.classList.contains('logistics-minimap-node')); }
+function minimapRegions(h) { return findAll(h.panel, (n) => n.classList.contains('logistics-minimap-region')); }
+function minimapViewportRect(h) { return findAll(h.panel, (n) => n.classList.contains('logistics-minimap-viewport'))[0]; }
+function minimapCanvas(h) { return findAll(h.panel, (n) => n.classList.contains('logistics-minimap-canvas'))[0]; }
+function styleNum(el, prop) { return parseFloat(el.style.getPropertyValue(prop)); }
+function cameraOf(h) { return h.api.economyLogisticsUiState.cameraContexts.normal.camera; }
+function collapseControl(h, regionId) {
+  return findAll(h.panel, (n) => n.classList.contains('logistics-region-collapse') && n.parentNode && n.parentNode.dataset.regionId === regionId)[0];
+}
+function cssBlock(css, selector) {
+  const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = new RegExp(`${esc}\\s*\\{([^}]*)\\}`).exec(css);
+  return m ? m[1] : '';
+}
+const LOGISTICS_CSS = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
+
+test('A: owning region rect + label + hit follow a node pointermove; unrelated region byte-identical', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const viewport = viewportOf(h);
+  const beforeA = regionRefs(h, 'reg_a');
+  const beforeB = regionRefs(h, 'reg_b');
+  assert.ok(beforeA && beforeA.rect && beforeA.label && beforeA.hit, 'reg_a refs captured');
+  assert.ok(beforeB && beforeB.rect, 'reg_b refs captured');
+  const rectA0 = rectXYWH(beforeA.rect);
+  const labelA0 = { x: beforeA.label.getAttribute('x'), y: beforeA.label.getAttribute('y') };
+  const hitA0 = { x: beforeA.hit.getAttribute('x'), w: beforeA.hit.getAttribute('width') };
+  const bytesB0 = elementBytes(beforeB.rect);
+
+  const node = nodeOf(h, 'a1');
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 61 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 46, clientY: 34, pointerId: 61 });
+
+  const rectA1 = rectXYWH(beforeA.rect);
+  assert.notDeepStrictEqual(rectA1, rectA0, 'owning region rect follows the drag during pointermove');
+  assert.notStrictEqual(beforeA.label.getAttribute('x') + ',' + beforeA.label.getAttribute('y'),
+    labelA0.x + ',' + labelA0.y, 'owning region label follows the drag');
+  assert.notStrictEqual(beforeA.hit.getAttribute('x') + ',' + beforeA.hit.getAttribute('width'),
+    hitA0.x + ',' + hitA0.w, 'owning region header hit-area follows the drag');
+  assert.strictEqual(elementBytes(beforeB.rect), bytesB0, 'unrelated region rect stays byte-identical during drag');
+
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 61 });
+});
+
+test('A: pointerup-finalized region bounds equal a full rerender (byte-identical)', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const viewport = viewportOf(h);
+  const node = nodeOf(h, 'a1');
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 62 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 30, clientY: 22, pointerId: 62 });
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 62 });
+  const committed = rectXYWH(regionRefs(h, 'reg_a').rect);
+
+  h.api.renderEconomyLogisticsPanel();
+  const rerendered = rectXYWH(regionRefs(h, 'reg_a').rect);
+  assert.deepStrictEqual(rerendered, committed, 'committed region bounds match a full rerender exactly');
+});
+
+test('B: minimap renders visible region rects, node markers and a finite viewport rect; drag follows', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const regions = minimapRegions(h);
+  const nodes = minimapNodes(h);
+  const vpRect = minimapViewportRect(h);
+  assert.ok(regions.length >= 2, 'minimap has region rectangles');
+  assert.ok(nodes.length >= 4, 'minimap has node markers');
+  assert.ok(vpRect, 'minimap has a viewport rectangle');
+  regions.forEach((r) => { assert.ok(styleNum(r, 'width') > 0 && styleNum(r, 'height') > 0, 'region rect has positive size'); });
+  assert.ok(Number.isFinite(styleNum(vpRect, 'width')) && styleNum(vpRect, 'width') > 0, 'viewport rect width is finite and visible');
+  assert.ok(Number.isFinite(styleNum(vpRect, 'height')) && styleNum(vpRect, 'height') > 0, 'viewport rect height is finite and visible');
+  // selected/current markers distinguishable
+  const current = minimapNodes(h).filter((n) => n.classList.contains('is-current'));
+  assert.strictEqual(current.length, 1, 'exactly one current-location marker is distinguishable');
+
+  // node drag updates the minimap projection for the dragged node
+  const viewport = viewportOf(h);
+  const marker = minimapNodes(h).find((n) => n.dataset.minimapNodeId === 'a1');
+  const left0 = styleNum(marker, 'left');
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 63 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 60, clientY: 0, pointerId: 63 });
+  assert.notStrictEqual(styleNum(marker, 'left'), left0, 'minimap marker follows the node drag');
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 63 });
+});
+
+test('B: minimap paint tokens are non-transparent theme variables (dark and light)', () => {
+  const region = cssBlock(LOGISTICS_CSS, '.logistics-minimap-region');
+  const nodeTok = cssBlock(LOGISTICS_CSS, '.logistics-minimap-node');
+  const vpTok = cssBlock(LOGISTICS_CSS, '.logistics-minimap-viewport');
+  assert.match(region, /background:\s*color-mix\([^;]*--vscode/, 'region rect painted via theme var, not SVG fill');
+  assert.ok(!/^\s*background:\s*transparent\s*;/m.test(region), 'region rect background is not transparent');
+  assert.match(nodeTok, /background:\s*var\(--vscode/, 'node marker painted via theme var');
+  assert.match(vpTok, /border:[^;]*--vscode-focusBorder/, 'viewport rect has a visible themed border');
+  assert.match(vpTok, /background:\s*color-mix\([^;]*--vscode/, 'viewport rect has a visible themed fill');
+  // Same tokens are VS Code theme variables → they resolve in both dark and light.
+  assert.match(LOGISTICS_CSS, /body\.vscode-light\s+\.logistics-minimap\s*\{[^}]*--vscode/, 'light theme keeps minimap themed');
+});
+
+test('B/#11/#12: minimap click and both drags preserve camera scale', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const canvas = minimapCanvas(h);
+  assert.ok(canvas, 'minimap canvas present');
+  const k0 = cameraOf(h).k;
+  canvas.dispatchEvent({ type: 'pointerdown', clientX: 30, clientY: 30, button: 0, pointerId: 71 });
+  canvas.dispatchEvent({ type: 'pointerup', clientX: 30, clientY: 30, pointerId: 71 });
+  assert.strictEqual(cameraOf(h).k, k0, 'minimap click does not change scale');
+  const tx1 = cameraOf(h).tx;
+  canvas.dispatchEvent({ type: 'pointerdown', clientX: 20, clientY: 20, button: 0, pointerId: 72 });
+  canvas.dispatchEvent({ type: 'pointermove', clientX: 64, clientY: 58, pointerId: 72 });
+  canvas.dispatchEvent({ type: 'pointerup', clientX: 64, clientY: 58, pointerId: 72 });
+  assert.strictEqual(cameraOf(h).k, k0, 'first minimap drag preserves scale');
+  const tx2 = cameraOf(h).tx;
+  assert.notStrictEqual(tx2, tx1, 'first minimap drag pans the camera');
+  canvas.dispatchEvent({ type: 'pointerdown', clientX: 90, clientY: 40, button: 0, pointerId: 73 });
+  canvas.dispatchEvent({ type: 'pointermove', clientX: 110, clientY: 55, pointerId: 73 });
+  canvas.dispatchEvent({ type: 'pointerup', clientX: 110, clientY: 55, pointerId: 73 });
+  assert.strictEqual(cameraOf(h).k, k0, 'second minimap drag preserves scale');
+  assert.notStrictEqual(cameraOf(h).tx, tx2, 'second minimap drag works (pans again)');
+});
+
+test('C: second click on selected route clears; background click clears; Escape clears', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const grain = routeOf(h, 'grain_route');
+  grain.dispatchEvent({ type: 'click' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, 'grain_route', 'first click selects');
+  routeOf(h, 'grain_route').dispatchEvent({ type: 'click' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection, null, 'second click on same route clears');
+
+  // background click
+  routeOf(h, 'grain_route').dispatchEvent({ type: 'click' });
+  assert.ok(h.api.economyLogisticsUiState.selection, 're-selected for background test');
+  const svg = findAll(h.panel, (n) => n.classList.contains('logistics-network'))[0];
+  svg.dispatchEvent({ type: 'click', target: svg });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection, null, 'background click clears selection');
+
+  // Escape
+  routeOf(h, 'grain_route').dispatchEvent({ type: 'click' });
+  assert.ok(h.api.economyLogisticsUiState.selection, 're-selected for Escape test');
+  h.panel.dispatchEvent({ type: 'keydown', key: 'Escape' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection, null, 'Escape clears selection');
+});
+
+test('C: clicking a different entity, toolbar, or minimap never clears accidentally', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  routeOf(h, 'grain_route').dispatchEvent({ type: 'click' });
+  // selecting a different route switches selection, never clears
+  routeOf(h, 'iron_route').dispatchEvent({ type: 'click' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, 'iron_route', 'different route selects, not clears');
+  // toolbar click keeps selection
+  const zoomIn = toolbarBtn(h, 'logistics-camera-zoom-in');
+  zoomIn.dispatchEvent({ type: 'click' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, 'iron_route', 'toolbar click does not clear selection');
+  // minimap click keeps selection
+  const canvas = minimapCanvas(h);
+  canvas.dispatchEvent({ type: 'click', target: canvas });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, 'iron_route', 'minimap click does not clear selection');
+  // discoverability hint present while selected
+  const hint = findAll(h.panel, (n) => n.classList.contains('logistics-selection-hint'))[0];
+  assert.ok(hint && hint.textContent, 'compact selection-clear hint is shown while selected');
+});
+
+test('D: reg_coast-style current-location region has a meaningful, accessible locked policy; frees collapse and update minimap', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  // reg_a holds current location loc-a → protected.
+  const protectedCtl = collapseControl(h, 'reg_a');
+  assert.ok(protectedCtl, 'protected region control present');
+  assert.strictEqual(protectedCtl.getAttribute('aria-disabled'), 'true', 'protected region is a deliberate disabled control, not silently active');
+  assert.ok(protectedCtl.getAttribute('aria-label'), 'protected region exposes an accessible label');
+  const title = findAll(protectedCtl, (n) => n.tagName === 'TITLE')[0];
+  assert.ok(title && title.textContent, 'disabled collapse reason is accessible via title');
+  const protectedLabel = regionRefs(h, 'reg_a').label;
+  assert.ok(protectedLabel.classList.contains('is-protected'), 'protected heading is visibly marked');
+  assert.ok(protectedLabel.textContent.startsWith('\u{1F512}'), 'protected heading shows a visible lock, not only a cursor');
+  // pointer and keyboard agree: neither collapses the protected region
+  const hit = findAll(protectedCtl, (n) => n.classList.contains('logistics-region-collapse-hit'))[0];
+  hit.dispatchEvent({ type: 'click' });
+  protectedCtl.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault() {} });
+  assert.ok(!h.api.economyLogisticsUiState.collapsedRegionIds.has('reg_a'), 'protected region does not collapse by pointer or keyboard');
+  // a free region collapses and the minimap reflects the new state
+  const free = collapseControl(h, 'reg_b');
+  const beforeRegions = minimapRegions(h).length;
+  findAll(free, (n) => n.classList.contains('logistics-region-collapse-hit'))[0].dispatchEvent({ type: 'click' });
+  assert.ok(h.api.economyLogisticsUiState.collapsedRegionIds.has('reg_b'), 'free region collapses');
+  assert.ok(minimapRegions(h).length >= 1 && minimapRegions(h).length <= beforeRegions, 'minimap rebuilt after collapse');
+  // no route/node data deleted: routes still resolvable to endpoints/aggregate
+  assert.ok(findAll(h.panel, (n) => n.dataset.routeId).length >= 1, 'routes preserved after collapse');
+});
+
+test('E: Layout Reset disabled with no overrides; enabled after drag; resets position + bounds + reports status', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const resetBtn0 = toolbarBtn(h, 'logistics-layout-reset');
+  assert.strictEqual(resetBtn0.disabled, true, 'Layout Reset is disabled when there are no manual overrides');
+  assert.ok(resetBtn0.getAttribute('aria-label'), 'disabled Layout Reset still explains itself');
+  const cameraReset = toolbarBtn(h, 'logistics-camera-reset');
+  assert.notStrictEqual(cameraReset.getAttribute('aria-label'), resetBtn0.getAttribute('aria-label'), 'Camera Reset and Layout Reset are distinct');
+
+  const viewport = viewportOf(h);
+  const defaultPos = { x: h.api.economyLogisticsUiState.rendered.positions.get('a1').x, y: h.api.economyLogisticsUiState.rendered.positions.get('a1').y };
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 81 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 44, clientY: 30, pointerId: 81 });
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 81 });
+  assert.ok(Object.keys(h.api.economyLogisticsUiState.manualPositions).length > 0, 'drag created a manual override');
+  assert.strictEqual(toolbarBtn(h, 'logistics-layout-reset').disabled, false, 'Layout Reset enabled once an override exists');
+
+  const boundsBefore = rectXYWH(regionRefs(h, 'reg_a').rect);
+  toolbarBtn(h, 'logistics-layout-reset').dispatchEvent({ type: 'click' });
+  assert.strictEqual(Object.keys(h.api.economyLogisticsUiState.manualPositions).length, 0, 'Layout Reset clears manual overrides');
+  const status = findAll(h.panel, (n) => n.classList.contains('logistics-layout-status'))[0];
+  assert.ok(status && status.textContent && status.classList.contains('is-visible'), 'Layout Reset reports a visible completion status');
+  const boundsAfter = rectXYWH(regionRefs(h, 'reg_a').rect);
+  const posAfter = { x: h.api.economyLogisticsUiState.rendered.positions.get('a1').x, y: h.api.economyLogisticsUiState.rendered.positions.get('a1').y };
+  assert.deepStrictEqual(posAfter, defaultPos, 'Layout Reset restores the default node position');
+  assert.ok(minimapNodes(h).length >= 4, 'minimap projection rebuilt after Layout Reset');
+  assert.ok(boundsBefore, 'captured bounds before reset');
+  assert.ok(boundsAfter, 'region bounds recomputed after reset');
+});
+
+test('F: light-theme region heading has a theme-aware backing and readable graph/minimap contracts', () => {
+  const hitBlock = cssBlock(LOGISTICS_CSS, '.logistics-region-collapse-hit');
+  assert.match(hitBlock, /fill:\s*color-mix\([^;]*--vscode/, 'region heading sits on a theme-aware header backing');
+  assert.ok(!/fill:\s*transparent/.test(hitBlock), 'region heading backing is no longer transparent');
+  assert.match(LOGISTICS_CSS, /body\.vscode-light\s+\.logistics-region-collapse-hit\s*\{[^}]*--vscode/, 'light theme firms up the heading backing');
+  assert.match(LOGISTICS_CSS, /body\.vscode-light\s+\.logistics-network-viewport\s*\{[^}]*--vscode-editor-background/, 'light theme graph field distinct from panel via theme var');
+  assert.match(LOGISTICS_CSS, /\.logistics-region-label\b[\s\S]*?paint-order:\s*stroke/, 'region heading keeps a theme-aware outline halo');
+  // no hard-coded dark palette in the new region-heading rules
+  assert.ok(!/#[0-9a-fA-F]{3,6}/.test(hitBlock), 'region heading backing uses theme variables, not hard-coded colors');
+});
+
 if (failed) process.exit(1);
 console.log('webview logistics interactions: all behavioral checks passed.');

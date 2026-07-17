@@ -371,3 +371,24 @@
     outline: 2px solid var(--vscode-focusBorder, #4a90e2);
     outline-offset: 1px;
 }
+
+#world-settlement-stage.is-mobile-base {
+    border: 1px solid rgba(123, 170, 214, 0.24);
+    background:
+        linear-gradient(180deg, rgba(75, 108, 138, 0.08), rgba(6, 10, 18, 0.72));
+}
+
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="ship"],
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="boat"],
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="barge"] {
+    border-color: rgba(110, 177, 220, 0.34);
+}
+
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="wagon"],
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="caravan"] {
+    border-color: rgba(194, 155, 100, 0.34);
+}
+
+.world-settlement-layer-btn[hidden] {
+    display: none !important;
+}

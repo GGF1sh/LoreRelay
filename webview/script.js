@@ -8121,48 +8121,29 @@ function hasSettlementMapContent(msg) {
 function syncSettlementMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-settlement');
     if (!btn) { return; }
-    const show = hasSettlementMapContent(msg);
+    // Mode availability is a campaign capability, not a property of the
+    // currently previewed location. Keep the selected mode visible while an
+    // honest location-specific empty state is rendered inside it.
+    const show = Boolean(msg && (
+        msg.enableSettlementMode === true
+        || msg.enableMobileBaseSystem === true
+        || hasSettlementMapContent(msg)
+    ));
     btn.classList.toggle('hidden', !show);
-    if (!show && worldMapMode === 'settlement') {
-        setWorldMapMode('mermaid', { persist: true });
-    }
 }
 
-/** M5b: Diorama button only appears when the flag is on AND the host sent a non-empty snapshot. */
+/** Diorama is a persistent campaign mode even when the focused location has no snapshot. */
 function syncDioramaMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-diorama');
     if (!btn) { return; }
-    const snapshot = msg.settlementDiorama;
-    const hasContent = Boolean(snapshot && (
-        (Array.isArray(snapshot.blocks) && snapshot.blocks.length > 0)
-        || (Array.isArray(snapshot.markers) && snapshot.markers.length > 0)
-    ));
-    const show = msg.enableSettlementDiorama === true && hasContent;
+    const show = Boolean(msg && msg.enableSettlementDiorama === true);
     btn.classList.toggle('hidden', !show);
-    if (!show && worldMapMode === 'diorama') {
-        setWorldMapMode('mermaid', { persist: true });
-    }
 }
 
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
-    if (mode === 'settlement') {
-        const btn = document.getElementById('world-map-mode-settlement');
-        if (btn?.classList.contains('hidden')) {
-            worldMapMode = 'mermaid';
-        } else {
-            worldMapMode = 'settlement';
-        }
-    } else if (mode === 'diorama') {
-        const btn = document.getElementById('world-map-mode-diorama');
-        if (btn?.classList.contains('hidden')) {
-            worldMapMode = 'mermaid';
-        } else {
-            worldMapMode = 'diorama';
-        }
-    } else {
-        worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
-    }
+    const supported = new Set(['mermaid', 'parchment', 'tile', 'settlement', 'diorama']);
+    worldMapMode = supported.has(mode) ? mode : 'mermaid';
     if (persist) {
         try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
     }
@@ -9066,6 +9047,91 @@ function hubHeldQty(commerce, commodityId) {
     return entry ? (entry.qty ?? 0) : 0;
 }
 
+/** Deterministic, presentation-only projection of a proposed trade.
+ * The host remains authoritative: this helper never mutates state or posts a message. */
+function buildHubTradeProjection(commerce, quote, operation, rawQty) {
+    const qty = Number(rawQty);
+    const op = operation === 'sell' ? 'sell' : 'buy';
+    const unitPrice = Number(quote?.unitPrice) || 0;
+    const unitWeight = Math.max(0, Number(quote?.unitWeight) || 0);
+    const stockBefore = Math.max(0, Number(quote?.stock) || 0);
+    const moneyBefore = Number(commerce?.credits) || 0;
+    const cargoBefore = Math.max(0, Number(commerce?.cargoWeight) || 0);
+    const capacity = Number.isFinite(Number(commerce?.cargoCapacity))
+        ? Math.max(0, Number(commerce.cargoCapacity))
+        : null;
+    const heldBefore = quote ? hubHeldQty(commerce, quote.commodityId) : 0;
+    const qtyValid = Number.isInteger(qty) && qty >= 1 && qty <= 999;
+    const total = qtyValid ? Math.round(unitPrice * qty) : 0;
+    const direction = op === 'buy' ? 1 : -1;
+    const moneyAfter = moneyBefore - (direction * total);
+    const cargoAfter = Math.max(0, cargoBefore + (direction * unitWeight * (qtyValid ? qty : 0)));
+    const stockAfter = Math.max(0, stockBefore - (direction * (qtyValid ? qty : 0)));
+    const heldAfter = Math.max(0, heldBefore + (direction * (qtyValid ? qty : 0)));
+    let reasonKey = null;
+    if (!quote) { reasonKey = 'webview.world.actionHubTradeReasonNoCommodity'; }
+    else if (!qtyValid) { reasonKey = 'webview.world.actionHubTradeReasonQuantity'; }
+    else if (op === 'buy' && stockBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonStock'; }
+    else if (op === 'buy' && moneyBefore < total) { reasonKey = 'webview.world.actionHubTradeReasonCredits'; }
+    else if (op === 'buy' && capacity !== null && cargoAfter > capacity) { reasonKey = 'webview.world.actionHubTradeReasonCapacity'; }
+    else if (op === 'sell' && heldBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonHeld'; }
+    return {
+        valid: !reasonKey,
+        reasonKey,
+        op,
+        qty,
+        unitPrice,
+        total,
+        moneyBefore,
+        moneyAfter,
+        cargoBefore,
+        cargoAfter,
+        capacity,
+        stockBefore,
+        stockAfter,
+        heldBefore,
+        heldAfter,
+    };
+}
+
+function hubTradeProjectionValue(value) {
+    return value === null || value === undefined ? T('webview.world.actionHubTradeUnknown') : formatMarketNumber(value);
+}
+
+function hubRenderTradeProjection() {
+    if (!_playerActionHub || !_hubMarket) { return null; }
+    const commoditySelect = _playerActionHub.querySelector('#shopkeeper-commodity');
+    const qtyInput = _playerActionHub.querySelector('#shopkeeper-qty');
+    const selectedOp = _playerActionHub.querySelector('input[name="shopkeeper-op"]:checked');
+    if (!commoditySelect || !qtyInput || !selectedOp) { return null; }
+    const quote = _hubMarket.quotes.find((candidate) => candidate.commodityId === commoditySelect.value);
+    const commerce = (_worldViewMsg && _worldViewMsg.playerCommerce) || {};
+    const projection = buildHubTradeProjection(commerce, quote, selectedOp.value, Number(qtyInput.value));
+    const values = {
+        unit: projection.unitPrice,
+        total: projection.total,
+        money: projection.moneyAfter,
+        cargo: projection.cargoAfter,
+        capacity: projection.capacity,
+        stock: projection.stockAfter,
+        held: projection.heldAfter,
+    };
+    Object.entries(values).forEach(([name, value]) => {
+        const element = _playerActionHub.querySelector(`[data-trade-value="${name}"]`);
+        if (element) { element.textContent = hubTradeProjectionValue(value); }
+    });
+    const reason = _playerActionHub.querySelector('#shopkeeper-disabled-reason');
+    if (reason) {
+        reason.hidden = projection.valid;
+        reason.textContent = projection.reasonKey ? T(projection.reasonKey) : '';
+    }
+    _playerActionHub.querySelectorAll('.player-action-hub__radio').forEach((label) => {
+        const input = label.querySelector('input[name="shopkeeper-op"]');
+        label.classList.toggle('is-selected', !!input?.checked);
+    });
+    return projection;
+}
+
 function hubCommodityName(commodityId) {
     if (!commodityId) { return '?'; }
     const quotes = _hubMarket && Array.isArray(_hubMarket.quotes) ? _hubMarket.quotes : [];
@@ -9084,10 +9150,11 @@ function renderHubHeader() {
     const msg = _worldViewMsg || {};
     const commerce = msg.playerCommerce || {};
     const rows = [
-        ['現在地', hubLocationName(msg)],
+        [T('webview.world.actionHubCurrentLocation'), hubLocationName(msg)],
         [T('webview.world.commerceCredits'), commerce.credits ?? 0],
         [T('webview.world.commerceFood'), commerce.food ?? 0],
-        [T('webview.world.commerceTransport'), commerce.transportId || 'wagon'],
+        [T('webview.world.commerceTransport'), commerce.transportName || commerce.transportId || 'wagon'],
+        [T('webview.world.actionHubTradeCapacity'), `${hubTradeProjectionValue(commerce.cargoWeight ?? 0)} / ${hubTradeProjectionValue(commerce.cargoCapacity)}`],
         [T('webview.world.commerceCargo'), hubCargoSummary(commerce)],
     ];
     status.innerHTML = rows.map(([label, value]) =>
@@ -9191,26 +9258,40 @@ function hubRenderTradeBody() {
         return;
     }
     body.innerHTML = `
-      <label class="player-action-hub__field">品目
+      <div class="player-action-hub__trade-composer">
+      <label class="player-action-hub__field">${escapeHtml(T('webview.world.actionHubCommodity'))}
         <select id="shopkeeper-commodity" class="player-action-hub__select"></select>
       </label>
       <fieldset class="player-action-hub__field player-action-hub__ops">
-        <legend>操作</legend>
-        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="buy" checked> 購入</label>
-        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="sell"> 売却</label>
+        <legend>${escapeHtml(T('webview.world.actionHubTradeOperation'))}</legend>
+        <label class="player-action-hub__radio is-selected"><input type="radio" name="shopkeeper-op" value="buy" checked> ${escapeHtml(T('webview.world.actionHubTradeBuy'))}</label>
+        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="sell"> ${escapeHtml(T('webview.world.actionHubTradeSell'))}</label>
       </fieldset>
       <div class="player-action-hub__field player-action-hub__qty">
-        <span class="player-action-hub__qty-label" id="shopkeeper-qty-label">数量</span>
+        <span class="player-action-hub__qty-label" id="shopkeeper-qty-label">${escapeHtml(T('webview.world.actionHubTradeQuantity'))}</span>
         <div class="player-action-hub__stepper" role="group" aria-labelledby="shopkeeper-qty-label">
-          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-dec" aria-label="数量を1減らす">−</button>
+          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-dec" aria-label="${escapeHtml(T('webview.world.actionHubTradeDecrease'))}">−</button>
           <input id="shopkeeper-qty" class="player-action-hub__qty-input" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" aria-labelledby="shopkeeper-qty-label">
-          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-inc" aria-label="数量を1増やす">＋</button>
+          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-inc" aria-label="${escapeHtml(T('webview.world.actionHubTradeIncrease'))}">＋</button>
         </div>
       </div>
-      <p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite">確認を押すと、確定前の見積もりを表示します。</p>
+      </div>
+      <section class="player-action-hub__projection" aria-labelledby="shopkeeper-projection-title">
+        <h4 id="shopkeeper-projection-title">${escapeHtml(T('webview.world.actionHubTradeProjection'))}</h4>
+        <dl class="player-action-hub__projection-grid">
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeUnitPrice'))}</dt><dd data-trade-value="unit">—</dd></div>
+          <div class="is-emphasis"><dt>${escapeHtml(T('webview.world.actionHubTradeTotal'))}</dt><dd data-trade-value="total">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeMoneyAfter'))}</dt><dd data-trade-value="money">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeCargoAfter'))}</dt><dd><span data-trade-value="cargo">—</span> / <span data-trade-value="capacity">—</span></dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeStockAfter'))}</dt><dd data-trade-value="stock">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeHeldAfter'))}</dt><dd data-trade-value="held">—</dd></div>
+        </dl>
+        <p class="player-action-hub__disabled-reason" id="shopkeeper-disabled-reason" role="status" aria-live="polite" hidden></p>
+      </section>
+      <p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite">${escapeHtml(T('webview.world.actionHubTradeReviewHint'))}</p>
       <div class="player-action-hub__actions">
-        <button type="button" id="shopkeeper-review-btn" class="player-action-hub__btn">確認</button>
-        <button type="button" id="shopkeeper-confirm-btn" class="player-action-hub__btn player-action-hub__btn--primary" disabled>確定</button>
+        <button type="button" id="shopkeeper-review-btn" class="player-action-hub__btn">${escapeHtml(T('webview.world.actionHubReview'))}</button>
+        <button type="button" id="shopkeeper-confirm-btn" class="player-action-hub__btn player-action-hub__btn--primary" disabled>${escapeHtml(T('webview.world.actionHubConfirm'))}</button>
       </div>`;
     hubRefreshTradeOptions();
     wireHubTradeInputs();
@@ -9247,8 +9328,9 @@ function hubInvalidateTradePreview() {
     const review = _playerActionHub.querySelector('#shopkeeper-review');
     if (review) {
         review.setAttribute('data-state', 'idle');
-        review.textContent = '確認を押すと、確定前の見積もりを表示します。';
+        review.textContent = T('webview.world.actionHubTradeReviewHint');
     }
+    hubRenderTradeProjection();
 }
 
 function wireHubTradeInputs() {
@@ -9278,27 +9360,26 @@ function wireHubTradeInputs() {
         const op = _playerActionHub.querySelector('input[name="shopkeeper-op"]:checked').value;
         const commodityId = commoditySelect.value;
         const qty = Number(qtyInput.value);
-        if (!Number.isInteger(qty) || qty < 1 || qty > 999) {
+        const quote = _hubMarket.quotes.find((q) => q.commodityId === commodityId);
+        const projection = hubRenderTradeProjection();
+        if (!projection || !projection.valid) {
             review.setAttribute('data-state', 'error');
-            review.textContent = '数量は1から999までの整数で入力してください。';
+            review.textContent = projection?.reasonKey ? T(projection.reasonKey) : T('webview.world.actionHubTradeReasonQuantity');
             _shopkeeperPreviewReady = false;
             confirm.disabled = true;
             return;
         }
-        const quote = _hubMarket.quotes.find((q) => q.commodityId === commodityId);
-        const commerce = (_worldViewMsg && _worldViewMsg.playerCommerce) || {};
-        const unit = quote ? quote.unitPrice : 0;
-        const total = Math.round((unit || 0) * qty);
         const name = quote ? (quote.commodityName || quote.commodityId) : commodityId;
-        const stock = quote ? quote.stock : 0;
         review.setAttribute('data-state', 'preview');
         review.textContent = op === 'buy'
-            ? `購入（確定前）: ${name} × ${qty} / 単価 ${formatMarketNumber(unit)} / 合計 ${formatMarketNumber(total)} / 在庫 ${formatMarketNumber(stock)} / 所持 ${formatMarketNumber(commerce.credits ?? 0)}`
-            : `売却（確定前）: ${name} × ${qty} / 単価 ${formatMarketNumber(unit)} / 合計 ${formatMarketNumber(total)} / 在庫 ${formatMarketNumber(stock)} / 保有 ${formatMarketNumber(hubHeldQty(commerce, commodityId))}`;
+            ? `${T('webview.world.actionHubTradeBuy')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`
+            : `${T('webview.world.actionHubTradeSell')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`;
         _shopkeeperPreviewReady = true;
         confirm.disabled = false;
         confirm.focus();
     });
+
+    hubRenderTradeProjection();
 
     confirm.addEventListener('click', () => {
         if (_shopkeeperInFlight || _hubMutationInFlight || !_shopkeeperPreviewReady) { return; }
@@ -9776,7 +9857,10 @@ function refreshPlayerActionHub() {
     if (!_playerActionHub) { return; }
     hubRecomputeMarket();
     renderHubHeader();
-    if (!_shopkeeperInFlight && _hubMutationInFlight !== 'trade') { hubRefreshTradeOptions(); }
+    if (!_shopkeeperInFlight && _hubMutationInFlight !== 'trade') {
+        hubRefreshTradeOptions();
+        hubInvalidateTradePreview();
+    }
 }
 
 function buildDecisionSurfaceLookup(decisionSurface) {
@@ -11642,7 +11726,8 @@ function logisticsRiskLabel(risk) {
 }
 
 function logisticsNodeKindLabel(kind) {
-  return T(`webview.world.logisticsNode${String(kind || 'region').replace(/^./, (c) => c.toUpperCase())}`);
+  const role = logisticsNodeRole(kind).replace('-', '');
+  return T(`webview.world.logisticsNode${role.replace(/^./, (c) => c.toUpperCase())}`);
 }
 
 function logisticsCommodityName(payload, commodityId) {
@@ -11669,6 +11754,52 @@ function logisticsNodeRank(kind) {
   if (kind === 'region') { return 0; }
   if (kind === 'settlement' || kind === 'facility') { return 1; }
   return 2;
+}
+
+/** Stable, CSS-safe fragment id for sharing the rendered route path with
+ * animateMotion. Encoding code points avoids collisions from punctuation. */
+function logisticsDomId(value) {
+  return Array.from(String(value ?? 'route'))
+    .map((character) => character.codePointAt(0).toString(16))
+    .join('-');
+}
+
+function logisticsNodeRole(kind) {
+  const value = String(kind || 'region').toLowerCase();
+  if (value === 'city' || value === 'town' || value === 'village') { return 'settlement'; }
+  if (value === 'vehicle' || value === 'wagon' || value === 'ship') { return 'vehicle'; }
+  if (value === 'caravan') { return 'caravan'; }
+  if (value === 'envoy' || value === 'group' || value === 'moving_group') { return 'envoy'; }
+  if (value === 'mobile_base' || value === 'base') { return 'mobile-base'; }
+  return ['region', 'settlement', 'market', 'facility', 'store'].includes(value) ? value : 'region';
+}
+
+/** Factual scale only: explicit payload tier, otherwise deterministic route degree. */
+function logisticsNodeScale(node, routes) {
+  if (['minor', 'standard', 'major'].includes(node?.scale)) { return node.scale; }
+  const degree = (routes || []).filter((route) => route.fromNodeId === node?.id || route.toNodeId === node?.id).length;
+  if (degree >= 4) { return 'major'; }
+  if (degree === 1) { return 'minor'; }
+  return 'standard';
+}
+
+function logisticsNodeShapePath(role) {
+  const paths = {
+    settlement: 'M 8 0 H 144 L 152 8 V 52 L 144 60 H 8 L 0 52 V 8 Z',
+    market: 'M 18 0 H 134 Q 152 0 152 18 V 42 Q 152 60 134 60 H 18 Q 0 60 0 42 V 18 Q 0 0 18 0 Z',
+    facility: 'M 0 0 H 152 V 60 H 0 Z',
+    vehicle: 'M 16 6 H 136 L 152 30 L 136 54 H 16 L 0 30 Z',
+    caravan: 'M 4 8 H 70 V 52 H 4 Z M 82 8 H 148 V 52 H 82 Z',
+    envoy: 'M 76 0 L 152 30 L 76 60 L 0 30 Z',
+    'mobile-base': 'M 14 0 H 138 L 152 30 L 138 60 H 14 L 0 30 Z',
+    region: 'M 20 0 H 132 Q 152 0 152 20 V 40 Q 152 60 132 60 H 20 Q 0 60 0 40 V 20 Q 0 0 20 0 Z',
+    store: 'M 6 0 H 146 L 152 10 V 60 H 0 V 10 Z',
+  };
+  return paths[role] || paths.region;
+}
+
+function logisticsNodeSymbol(role) {
+  return ({ settlement: '◆', market: 'M', facility: 'F', vehicle: '→', caravan: 'C', envoy: 'E', 'mobile-base': 'B', store: 'S', region: '○' })[role] || '○';
 }
 
 // CJK glyphs are roughly twice as wide as ASCII at the node-label font size, so
@@ -11825,6 +11956,34 @@ function visibleLogisticsData(payload) {
   return { routes, shortages, nodes };
 }
 
+/** One deterministic geometry contract for stroke, arrow, particles and labels. */
+function logisticsRouteGeometry(route, from, to) {
+  if (!from || !to || ![from.x, from.y, to.x, to.y].every(Number.isFinite)) { return null; }
+  const direction = to.x >= from.x ? 1 : -1;
+  const start = { x: from.x + direction * 78, y: from.y };
+  const end = { x: to.x - direction * 78, y: to.y };
+  if (start.x === end.x && start.y === end.y) { return null; }
+  const dx = end.x - start.x;
+  const bend = Math.round((logisticsHashUnit(route?.id) - 0.5) * 44);
+  const c1 = { x: start.x + dx * 0.36, y: start.y + bend };
+  const c2 = { x: end.x - dx * 0.36, y: end.y + bend };
+  const pointAt = (t) => {
+    const u = 1 - t;
+    return {
+      x: u ** 3 * start.x + 3 * u ** 2 * t * c1.x + 3 * u * t ** 2 * c2.x + t ** 3 * end.x,
+      y: u ** 3 * start.y + 3 * u ** 2 * t * c1.y + 3 * u * t ** 2 * c2.y + t ** 3 * end.y,
+    };
+  };
+  return {
+    start,
+    end,
+    c1,
+    c2,
+    d: `M ${start.x},${start.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`,
+    pointAt,
+  };
+}
+
 function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSpots) {
   const from = positions.get(route.fromNodeId);
   const to = positions.get(route.toNodeId);
@@ -11835,33 +11994,36 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
     || !Number.isFinite(to.x) || !Number.isFinite(to.y)) {
     return;
   }
-  const selected = economyLogisticsUiState.selection?.type === 'route' && economyLogisticsUiState.selection.id === route.id;
+  const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
+  const selected = selectedRouteId === route.id;
+  const unrelated = Boolean(selectedRouteId && !selected);
   const flowing = logisticsFlowMotionActive() && route.volume > 0;
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${flowing ? ' is-flowing' : ''}`);
+  const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
+  const movement = route.volume > 0 ? 'active' : 'idle';
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated ? ' is-unrelated' : ''}${flowing ? ' is-flowing' : ''}`);
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
   }
   group.dataset.routeId = route.id;
-  const direction = to.x >= from.x ? 1 : -1;
-  const x1 = from.x + direction * 78;
-  const x2 = to.x - direction * 78;
-  const disrupted = route.status === 'blocked' || route.status === 'raided';
-  const line = logisticsSvgElement('line', 'logistics-route-line');
-  line.setAttribute('x1', String(x1));
-  line.setAttribute('y1', String(from.y));
-  line.setAttribute('x2', String(x2));
-  line.setAttribute('y2', String(to.y));
+  const geometry = logisticsRouteGeometry(route, from, to);
+  if (!geometry) { return; }
+  const disrupted = status === 'blocked' || status === 'raided';
+  const line = logisticsSvgElement('path', 'logistics-route-line');
+  const pathId = `logistics-route-path-${logisticsDomId(route.id)}`;
+  line.setAttribute('id', pathId);
+  line.setAttribute('d', geometry.d);
+  line.dataset.routePath = geometry.d;
   const flowWidth = 1.5 + Math.sqrt(Math.max(0, route.volume) / Math.max(1, maxVolume)) * 6;
   // Disrupted routes must stay readable even at zero volume.
   const width = disrupted ? Math.max(flowWidth, 2.5) : flowWidth;
   line.setAttribute('stroke-width', width.toFixed(2));
-  line.setAttribute('marker-end', `url(#logistics-arrow-${route.status})`);
+  line.setAttribute('marker-end', `url(#logistics-arrow-${status})`);
   line.style.opacity = route.volume > 0
     ? String(0.55 + Math.min(1, route.utilization) * 0.4)
     : (disrupted ? '0.8' : '0.4');
   group.appendChild(line);
   if (flowing && !economyLogisticsUiState.compactAnimation) {
-    logisticsRenderFlowParticles(group, route, x1, from.y, x2, to.y);
+    logisticsRenderFlowParticles(group, route, geometry, pathId);
   }
 
   // Crossing routes share the exact segment midpoint, which stacks their
@@ -11869,27 +12031,31 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
   // label no longer collides with an already placed one.
   let labelT = 0.5;
   for (const t of [0.5, 0.36, 0.64, 0.26, 0.74, 0.16, 0.84]) {
-    const cx = x1 + (x2 - x1) * t;
-    const cy = from.y + (to.y - from.y) * t;
+    const point = geometry.pointAt(t);
+    const cx = point.x;
+    const cy = point.y;
     if (!labelSpots.some((spot) => Math.abs(spot.x - cx) < 42 && Math.abs(spot.y - cy) < 28)) {
       labelT = t;
       break;
     }
   }
-  const labelX = Math.round(x1 + (x2 - x1) * labelT);
-  const labelY = Math.round(from.y + (to.y - from.y) * labelT);
+  const labelPoint = geometry.pointAt(labelT);
+  const labelX = Math.round(labelPoint.x);
+  const labelY = Math.round(labelPoint.y);
   labelSpots.push({ x: labelX, y: labelY });
 
   const label = logisticsSvgElement('text', 'logistics-route-label');
   label.setAttribute('x', String(labelX));
   label.setAttribute('y', String(labelY - 7));
   label.textContent = `${logisticsNumber(route.volume)}/${logisticsNumber(route.effectiveCapacity)}`;
+  label.setAttribute('aria-label', `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
+  appendLogisticsTitle(label, `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
   group.appendChild(label);
-  if (route.status === 'blocked' || route.status === 'raided' || route.bottleneck) {
+  if (status === 'blocked' || status === 'raided' || status === 'rumored' || route.bottleneck) {
     const warning = logisticsSvgElement('text', 'logistics-route-warning');
     warning.setAttribute('x', String(labelX));
     warning.setAttribute('y', String(labelY + 12));
-    warning.textContent = route.bottleneck ? '◆' : route.status === 'blocked' ? '×' : '!';
+    warning.textContent = route.bottleneck ? '◆' : status === 'blocked' ? '×' : status === 'rumored' ? '?' : '!';
     group.appendChild(warning);
   }
   const aria = `${logisticsNodeName(payload, route.fromNodeId)} → ${logisticsNodeName(payload, route.toNodeId)}, ${logisticsCommodityName(payload, route.commodityId)}, ${logisticsStatusLabel(route.status)}`;
@@ -11903,36 +12069,41 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
  *  for open/strained flow, 1 sparse flickering dot for raided routes so a
  *  convoy under threat visibly reads as different from healthy flow.
  *
- *  Coordinates must be finite before any circle is created — never park a
- *  particle at the SVG origin (0,0). Stagger uses a *negative* begin so the
- *  animation is already mid-path on first paint; a positive begin left dots
- *  sitting at cx/cy until the delay elapsed (visible flash outside nodes). */
-function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
-  if (![x1, y1, x2, y2].every((n) => typeof n === 'number' && Number.isFinite(n))) {
-    return;
-  }
-  if (x1 === x2 && y1 === y2) { return; }
+ *  Coordinates must be finite before any circle is created. The particle is
+ *  rooted at local (0,0) and follows the rendered path via <mpath>; assigning
+ *  both absolute cx/cy and an absolute motion path double-applies the source
+ *  offset and visibly throws dots away from their routes. */
+function logisticsRenderFlowParticles(group, route, geometry, pathId) {
+  if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return; }
   const duration = logisticsFlowDurationSeconds(route);
   if (!(duration > 0) || !Number.isFinite(duration)) { return; }
-  const pathD = `M ${x1},${y1} L ${x2},${y2}`;
   const dotCount = route.status === 'raided' ? 1 : 2;
   const stagger = logisticsHashUnit(route.id) * duration;
   for (let i = 0; i < dotCount; i++) {
     const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
     dot.setAttribute('r', '2.6');
-    // Fallback geometry at the route start if SMIL has not yet transformed the
-    // node (never use 0,0 — that is the SVG origin, left of the whole graph).
-    dot.setAttribute('cx', String(x1));
-    dot.setAttribute('cy', String(y1));
+    dot.setAttribute('cx', '0');
+    dot.setAttribute('cy', '0');
+    // An engine without SMIL support must not leave a static dot at the SVG
+    // origin. SMIL-capable engines reveal it as the motion begins.
+    dot.setAttribute('visibility', 'hidden');
     const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
     motion.setAttribute('dur', `${duration.toFixed(2)}s`);
     motion.setAttribute('repeatCount', 'indefinite');
-    motion.setAttribute('path', pathD);
+    const motionPath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+    motionPath.setAttribute('href', `#${pathId}`);
+    motion.appendChild(motionPath);
     const phase = (stagger + (i * duration) / dotCount) % duration;
     // Negative begin = animation already "running" at t=0 (mid-path), so the
     // particle never waits at the static cx/cy for a delayed positive begin.
     motion.setAttribute('begin', `-${phase.toFixed(2)}s`);
     dot.appendChild(motion);
+    const reveal = document.createElementNS('http://www.w3.org/2000/svg', 'set');
+    reveal.setAttribute('attributeName', 'visibility');
+    reveal.setAttribute('to', 'visible');
+    reveal.setAttribute('begin', '-0.01s');
+    reveal.setAttribute('dur', 'indefinite');
+    dot.appendChild(reveal);
     if (route.status === 'raided') {
       const flicker = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
       flicker.setAttribute('attributeName', 'opacity');
@@ -11947,17 +12118,23 @@ function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
   }
 }
 
-function renderLogisticsNode(svg, payload, node, position, shortages) {
+function renderLogisticsNode(svg, payload, node, position, shortages, routes) {
   const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${node.kind}${selected ? ' is-selected' : ''}`);
+  const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
+  const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
+  const unrelated = Boolean(selectedRoute && selectedRoute.fromNodeId !== node.id && selectedRoute.toNodeId !== node.id);
+  const role = logisticsNodeRole(node.kind);
+  const scale = logisticsNodeScale(node, routes);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${selected ? ' is-selected' : ''}${unrelated ? ' is-unrelated' : ''}`);
   group.dataset.nodeId = node.id;
   group.setAttribute('transform', `translate(${position.x - 76} ${position.y - 30})`);
   group.setAttribute('aria-label', `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
-  const shape = logisticsSvgElement('rect', 'logistics-node-shape');
-  shape.setAttribute('width', '152');
-  shape.setAttribute('height', '60');
-  shape.setAttribute('rx', node.kind === 'region' ? '20' : '8');
+  const shape = logisticsSvgElement('path', 'logistics-node-shape');
+  shape.setAttribute('d', logisticsNodeShapePath(role));
   group.appendChild(shape);
+  const accent = logisticsSvgElement('path', 'logistics-node-accent');
+  accent.setAttribute('d', 'M 12 5 H 140');
+  group.appendChild(accent);
   const kind = logisticsSvgElement('text', 'logistics-node-kind');
   kind.setAttribute('x', '12');
   kind.setAttribute('y', '17');
@@ -11968,6 +12145,11 @@ function renderLogisticsNode(svg, payload, node, position, shortages) {
   label.setAttribute('y', '39');
   label.textContent = logisticsTruncateLabel(node.label);
   group.appendChild(label);
+  const symbol = logisticsSvgElement('text', 'logistics-node-symbol');
+  symbol.setAttribute('x', '132');
+  symbol.setAttribute('y', '43');
+  symbol.textContent = logisticsNodeSymbol(role);
+  group.appendChild(symbol);
   const nodeShortages = shortages.filter((item) => item.nodeId === node.id);
   if (nodeShortages.length > 0) {
     const badge = logisticsSvgElement('text', 'logistics-shortage-badge');
@@ -11982,13 +12164,51 @@ function renderLogisticsNode(svg, payload, node, position, shortages) {
     badge.textContent = '⚙';
     group.appendChild(badge);
   }
-  appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
+  appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}; ${T(`webview.world.logisticsScale${scale.replace(/^./, (c) => c.toUpperCase())}`)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
   bindLogisticsActivation(group, { type: 'node', id: node.id });
   svg.appendChild(group);
 }
 
+function renderLogisticsLegend(parent) {
+  const legend = logisticsElement('div', 'logistics-legend');
+  legend.setAttribute('role', 'group');
+  legend.setAttribute('aria-label', T('webview.world.logisticsLegend'));
+  const title = logisticsElement('strong', 'logistics-legend-title', T('webview.world.logisticsLegend'));
+  legend.appendChild(title);
+  const statusList = logisticsElement('div', 'logistics-legend-list logistics-legend-status-list');
+  statusList.setAttribute('role', 'list');
+  const statuses = [
+    ['active', '→', 'webview.world.logisticsLegendActive'],
+    ['idle', '··', 'webview.world.logisticsLegendIdle'],
+    ['blocked', '×', 'webview.world.logisticsStatusBlocked'],
+    ['rumored', '?', 'webview.world.logisticsStatusRumored'],
+    ['selected', '◎', 'webview.world.logisticsLegendSelected'],
+  ];
+  for (const [status, glyph, key] of statuses) {
+    const item = logisticsElement('span', `logistics-legend-item logistics-legend-${status}`);
+    item.setAttribute('role', 'listitem');
+    item.appendChild(logisticsElement('span', 'logistics-legend-swatch', glyph));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', T(key)));
+    statusList.appendChild(item);
+  }
+  legend.appendChild(statusList);
+  const nodeList = logisticsElement('div', 'logistics-legend-list logistics-legend-node-list');
+  nodeList.setAttribute('role', 'list');
+  for (const role of ['settlement', 'market', 'facility', 'vehicle', 'caravan', 'envoy', 'mobile_base']) {
+    const cssRole = role.replace('_', '-');
+    const item = logisticsElement('span', `logistics-legend-item logistics-legend-node logistics-legend-node-${cssRole}`);
+    item.setAttribute('role', 'listitem');
+    item.appendChild(logisticsElement('span', 'logistics-legend-node-symbol', logisticsNodeSymbol(cssRole)));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', logisticsNodeKindLabel(role)));
+    nodeList.appendChild(item);
+  }
+  legend.appendChild(nodeList);
+  parent.appendChild(legend);
+}
+
 function renderLogisticsNetwork(payload, parent) {
   const data = visibleLogisticsData(payload);
+  renderLogisticsLegend(parent);
   // Best-effort synchronous read of the (already laid out) render target so
   // the very first paint already picks the right mode instead of always
   // starting compact and correcting itself once ResizeObserver's async
@@ -12025,7 +12245,7 @@ function renderLogisticsNetwork(payload, parent) {
   svg.setAttribute('aria-label', T('webview.world.logisticsAria'));
   svg.setAttribute('role', 'img');
   const defs = logisticsSvgElement('defs');
-  ['open', 'strained', 'blocked', 'raided'].forEach((status) => {
+  ['open', 'strained', 'blocked', 'raided', 'rumored'].forEach((status) => {
     const marker = logisticsSvgElement('marker', `logistics-arrow logistics-arrow-${status}`);
     marker.id = `logistics-arrow-${status}`;
     marker.setAttribute('viewBox', '0 0 10 10');
@@ -12048,7 +12268,7 @@ function renderLogisticsNetwork(payload, parent) {
   data.routes.forEach((route) => renderLogisticsRoute(svg, payload, route, layout.positions, maxVolume, labelSpots));
   data.nodes.forEach((node) => {
     const position = layout.positions.get(node.id);
-    if (position) { renderLogisticsNode(svg, payload, node, position, data.shortages); }
+    if (position) { renderLogisticsNode(svg, payload, node, position, data.shortages, data.routes); }
   });
   viewport.appendChild(svg);
   parent.appendChild(viewport);
@@ -13828,6 +14048,14 @@ const SETTLEMENT_TILE_COLORS = {
     unknown: { top: '#686878', left: '#505058', right: '#787888', glyph: '?' },
 };
 
+const SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS = {
+    ship: { top: '#596777', left: '#394858', right: '#68798b' },
+    wagon: { top: '#74654f', left: '#514432', right: '#88765b' },
+    caravan: { top: '#6b6051', left: '#4a4034', right: '#7d705d' },
+    camp: { top: '#4f6658', left: '#34483b', right: '#607866' },
+    'mobile-base': { top: '#59616c', left: '#3c444e', right: '#6b7480' },
+};
+
 const SETTLEMENT_MARKER_COLORS = {
     resident: '#6ecf8a',
     visitor: '#9aa8b8',
@@ -14012,6 +14240,158 @@ function getSettlementSnapshot() {
     return msg && msg.settlementView ? msg.settlementView : null;
 }
 
+function isMobileBaseVisualSource(msg, view) {
+    if (!msg || !view) { return false; }
+    const interior = getMobileBaseInterior(msg);
+    if (!interior || view.settlementId !== interior.settlementId) { return false; }
+    if (typeof resolveSettlementRenderSource === 'function') {
+        return resolveSettlementRenderSource(msg, { forDiorama: false })?.source === 'mobile_base';
+    }
+    return false;
+}
+
+function mobileBaseLayerZ(view) {
+    const match = /^z(-?\d+)$/.exec(String(view?.layerId || 'z0'));
+    return match ? Number(match[1]) : 0;
+}
+
+function mobileBaseVisualKind(interior) {
+    const identity = [interior?.vehicleKind, interior?.mode, interior?.layoutProfile]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+    if (/\b(ship|boat|barge|airship)\b/.test(identity)) { return 'ship'; }
+    if (/\b(wagon|landship|crawler)\b/.test(identity)) { return 'wagon'; }
+    if (/\b(caravan|train|mobile_community)\b/.test(identity)) { return 'caravan'; }
+    if (/\b(camp|nomad_camp)\b/.test(identity)) { return 'camp'; }
+    return 'mobile-base';
+}
+
+/**
+ * Display-only structural floor for sparse Mobile Base payloads. It is derived
+ * deterministically from authoritative occupied-tile bounds and never enters
+ * hit testing, messages, persistence, or the settlement data contract.
+ */
+function deriveMobileBaseStructuralFootprint(msg, view) {
+    if (!isMobileBaseVisualSource(msg, view)) { return []; }
+    const interior = getMobileBaseInterior(msg);
+    const tiles = Array.isArray(view?.tiles) ? view.tiles : [];
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    const tilePoints = tiles.filter((item) => Number.isFinite(item?.x) && Number.isFinite(item?.y));
+    const markerPoints = markers.filter((item) => Number.isFinite(item?.x) && Number.isFinite(item?.y));
+    if (tilePoints.length === 0 && markerPoints.length === 0) { return []; }
+    // Settlement state markers can have deterministic fallback coordinates
+    // spread across the generic 16x16 settlement canvas. Those coordinates are
+    // not authored rooms and must not inflate a four-cell deck into a giant
+    // square. Occupied tiles define the body; marker-only payloads use a stable
+    // centroid anchor and are visually associated with that body below.
+    const points = tilePoints.length > 0
+        ? tilePoints
+        : [{
+            x: Math.round(markerPoints.reduce((sum, marker) => sum + marker.x, 0) / markerPoints.length),
+            y: Math.round(markerPoints.reduce((sum, marker) => sum + marker.y, 0) / markerPoints.length),
+        }];
+    const visualKind = mobileBaseVisualKind(interior);
+    const profile = visualKind === 'ship'
+        ? { kind: 'ship', minW: 8, minH: 4, padX: 0, padY: 0 }
+        : visualKind === 'wagon'
+            ? { kind: 'wagon', minW: 6, minH: 3, padX: 0, padY: 0 }
+            : visualKind === 'caravan'
+                ? { kind: 'caravan', minW: 7, minH: 4, padX: 0, padY: 0 }
+                : visualKind === 'camp'
+                    ? { kind: 'camp', minW: 7, minH: 5, padX: 0, padY: 0 }
+                    : { kind: 'mobile-base', minW: 6, minH: 4, padX: 0, padY: 0 };
+    let minX = Math.floor(Math.min(...points.map((p) => p.x))) - profile.padX;
+    let maxX = Math.ceil(Math.max(...points.map((p) => p.x))) + profile.padX;
+    let minY = Math.floor(Math.min(...points.map((p) => p.y))) - profile.padY;
+    let maxY = Math.ceil(Math.max(...points.map((p) => p.y))) + profile.padY;
+    const addX = Math.max(0, profile.minW - (maxX - minX + 1));
+    const addY = Math.max(0, profile.minH - (maxY - minY + 1));
+    minX -= Math.floor(addX / 2);
+    maxX += Math.ceil(addX / 2);
+    minY -= Math.floor(addY / 2);
+    maxY += Math.ceil(addY / 2);
+    // Defensive presentation bound for malformed coordinates. Authoritative
+    // points remain visible through the normal tile/marker renderer.
+    if ((maxX - minX + 1) > 24 || (maxY - minY + 1) > 24) { return []; }
+    const z = mobileBaseLayerZ(view);
+    const occupied = new Set(tiles.map((tile) => `${tile.x}:${tile.y}:${tile.z ?? z}`));
+    const footprint = [];
+    for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+            const taperedShipCorner = profile.kind === 'ship'
+                && (y === minY || y === maxY)
+                && (x === minX || x === maxX);
+            if (taperedShipCorner || occupied.has(`${x}:${y}:${z}`)) { continue; }
+            footprint.push({
+                x,
+                y,
+                z,
+                code: 'floor',
+                label: '',
+                decorative: true,
+                visualKind: profile.kind,
+            });
+        }
+    }
+    return footprint;
+}
+
+/** Mobile-base state markers are often placed by the generic settlement
+ * fallback grid rather than an authored vehicle layout. Associate those visual
+ * markers with the display-only body without mutating the authoritative view.
+ * Their identity, kind, label, detail, and layer remain untouched. */
+function associateMobileBaseMarkersWithFootprint(view, structuralTiles) {
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    if (markers.length === 0 || structuralTiles.length === 0) { return markers; }
+    const minX = Math.min(...structuralTiles.map((tile) => tile.x));
+    const maxX = Math.max(...structuralTiles.map((tile) => tile.x));
+    const minY = Math.min(...structuralTiles.map((tile) => tile.y));
+    const maxY = Math.max(...structuralTiles.map((tile) => tile.y));
+    const innerMinX = minX + (maxX - minX >= 4 ? 1 : 0);
+    const innerMaxX = maxX - (maxX - minX >= 4 ? 1 : 0);
+    const innerMinY = minY + (maxY - minY >= 3 ? 1 : 0);
+    const innerMaxY = maxY - (maxY - minY >= 3 ? 1 : 0);
+    const sourceWidth = Math.max(1, Number(view?.width) - 1 || 1);
+    const sourceHeight = Math.max(1, Number(view?.height) - 1 || 1);
+    return markers.map((marker) => {
+        const unitX = Math.max(0, Math.min(1, Number(marker.x) / sourceWidth));
+        const unitY = Math.max(0, Math.min(1, Number(marker.y) / sourceHeight));
+        return {
+            ...marker,
+            x: Math.round(innerMinX + unitX * Math.max(0, innerMaxX - innerMinX)),
+            y: Math.round(innerMinY + unitY * Math.max(0, innerMaxY - innerMinY)),
+        };
+    });
+}
+
+function buildSettlementVisualView(msg, view) {
+    if (!view) { return null; }
+    const footprint = deriveMobileBaseStructuralFootprint(msg, view);
+    if (footprint.length === 0) { return view; }
+    const authoritativeTiles = Array.isArray(view.tiles) ? view.tiles : [];
+    const structuralTiles = [...footprint, ...authoritativeTiles];
+    return {
+        ...view,
+        tiles: structuralTiles,
+        markers: associateMobileBaseMarkersWithFootprint(view, structuralTiles),
+    };
+}
+
+function mobileBaseLayerSemanticLabel(interior, layerId, known) {
+    const supplied = typeof known?.label === 'string' ? known.label.trim() : '';
+    const genericSettlementLabels = new Set(['Upper deck', 'Ground', 'Cellar', 'Deep ruins']);
+    if (supplied && !/^z[+-]?\d+$/i.test(supplied) && !genericSettlementLabels.has(supplied)) { return supplied; }
+    const visualKind = mobileBaseVisualKind(interior);
+    const labels = visualKind === 'ship'
+        ? { z1: 'Deck', z0: 'Hold', 'z-1': 'Lower hold', 'z-2': 'Bilge' }
+        : visualKind === 'wagon'
+            ? { z1: 'Roof', z0: 'Cabin', 'z-1': 'Storage' }
+            : visualKind === 'camp'
+                ? { z1: 'Lookout', z0: 'Camp', 'z-1': 'Cache' }
+                : { z1: 'Upper level', z0: 'Interior', 'z-1': 'Storage', 'z-2': 'Lower level' };
+    return labels[layerId] || supplied || layerId.toUpperCase();
+}
+
 /** M4c: read-only ghost previews — same logical source as settlementView. */
 function getSettlementExpansionPreviews() {
     const msg = _settlementWorldMsg;
@@ -14041,7 +14421,7 @@ function renderMobileBaseInteriorBanner(msg, view) {
         banner.textContent = '';
         return;
     }
-    const vars = { vehicle: interior.vehicleName, mode: interior.mode };
+    const vars = { vehicle: interior.vehicleName, mode: mobileBaseVisualKind(interior) };
     banner.textContent = typeof T === 'function'
         ? T('webview.mobileBase.interiorBanner', vars)
         : `Mobile base interior — ${interior.vehicleName} (${interior.mode})`;
@@ -14356,6 +14736,15 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev, timeOfDay) {
     }
 }
 
+function drawMobileBaseFootprintCell(ctx, sx, sy, visualKind, timeOfDay) {
+    const colors = SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS[visualKind]
+        || SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS['mobile-base'];
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    drawIsoBlock(ctx, sx, sy, colors, '', 2, timeOfDay);
+    ctx.restore();
+}
+
 /** Water reads better flat and glossy: translucent fill + two ripple highlights. */
 function drawIsoWater(ctx, sx, sy, colors, timeOfDay) {
     const hw = SETTLEMENT_TILE_W / 2;
@@ -14586,8 +14975,9 @@ function ensureSettlementFraming(view, canvas, options) {
 
 function fitSettlementViewToCanvas() {
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
     const canvas = document.getElementById('world-settlement-canvas');
-    if (!applySettlementFitTransform(view, canvas)) { return; }
+    if (!applySettlementFitTransform(visualView, canvas)) { return; }
     const settlementId = view.settlementId;
     if (settlementId) { saveSettlementViewPrefs(settlementId); }
     drawSettlementIsometric();
@@ -14609,6 +14999,7 @@ function ensureSettlementResizeObserver(stage) {
     _settlementResizeObserver = new ResizeObserver(() => {
         const canvas = document.getElementById('world-settlement-canvas');
         const view = getSettlementSnapshot();
+        const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
         if (!canvas || !view) { return; }
         const w = stage.clientWidth;
         const h = stage.clientHeight || canvas.clientHeight;
@@ -14617,14 +15008,14 @@ function ensureSettlementResizeObserver(stage) {
         const changed = Math.abs(w - prev.w) > 8 || Math.abs(h - prev.h) > 8;
         _settlementLastCssSize = { w, h };
         if (grewFromZero || _settlementPendingFit) {
-            ensureSettlementFraming(view, canvas);
+            ensureSettlementFraming(visualView, canvas);
             drawSettlementIsometric();
             return;
         }
         if (!changed || _settlementUserPanActive) { return; }
         // Significant resize: recover only when content left the usable area.
-        if (!settlementTransformIsVisible(view, canvas)) {
-            ensureSettlementFraming(view, canvas);
+        if (!settlementTransformIsVisible(visualView, canvas)) {
+            ensureSettlementFraming(visualView, canvas);
         }
         drawSettlementIsometric();
     });
@@ -14727,9 +15118,10 @@ function hitTestSettlement(clientX, clientY, canvas) {
     const screenX = clientX - rect.left;
     const screenY = clientY - rect.top;
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
     if (!view || typeof screenToSettlementContent !== 'function'
         || typeof hitTestSettlementContent !== 'function') { return null; }
-    const origin = computeSettlementOrigin(canvas, view);
+    const origin = computeSettlementOrigin(canvas, visualView);
     const bounds = origin.contentBounds;
     if (!bounds) { return null; }
     const contentPoint = screenToSettlementContent(
@@ -14753,17 +15145,35 @@ function syncSettlementLayerButtons(view) {
     const layerId = view?.layerId || 'z0';
     const layers = Array.isArray(view?.layers) ? view.layers : [];
     const layerById = new Map(layers.map((l) => [l.id, l]));
+    if (view && !layerById.has(layerId)) { layerById.set(layerId, { id: layerId, label: '' }); }
+    const mobileBase = isMobileBaseVisualSource(_settlementWorldMsg, view);
+    const interior = mobileBase ? getMobileBaseInterior(_settlementWorldMsg) : null;
     const unbuiltTitle = typeof T === 'function'
         ? T('webview.world.settlementLayerUnbuilt')
         : 'Not built yet — select to preview expansion options';
     document.querySelectorAll('[data-settlement-layer]').forEach((btn) => {
         const layer = btn.getAttribute('data-settlement-layer');
+        if (!btn.dataset.defaultLabel) { btn.dataset.defaultLabel = btn.textContent; }
+        const known = layerById.get(layer);
+        if (mobileBase) {
+            btn.hidden = !known;
+            btn.classList.remove('is-missing');
+            if (known) {
+                const semanticLabel = mobileBaseLayerSemanticLabel(interior, layer, known);
+                btn.textContent = semanticLabel;
+                btn.title = semanticLabel;
+            }
+        } else {
+            btn.hidden = false;
+            btn.textContent = btn.dataset.defaultLabel;
+        }
         btn.classList.toggle('is-active', layer === layerId);
         btn.setAttribute('aria-pressed', layer === layerId ? 'true' : 'false');
-        const known = layerById.get(layer);
         const missing = layers.length > 0 && !known;
-        btn.classList.toggle('is-missing', missing);
-        btn.title = missing ? unbuiltTitle : (known?.label || '');
+        if (!mobileBase) {
+            btn.classList.toggle('is-missing', missing);
+            btn.title = missing ? unbuiltTitle : (known?.label || '');
+        }
     });
 }
 
@@ -14775,6 +15185,7 @@ function drawSettlementIsometric() {
 
     const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(msg, view);
     if (typeof renderSettlementSourceSelector === 'function') {
         renderSettlementSourceSelector(msg);
     }
@@ -14787,6 +15198,13 @@ function drawSettlementIsometric() {
         }
     }
     stage.classList.toggle('hidden', !view);
+    const mobileBase = isMobileBaseVisualSource(msg, view);
+    stage.classList.toggle('is-mobile-base', mobileBase);
+    if (mobileBase) {
+        stage.dataset.mobileBaseMode = mobileBaseVisualKind(getMobileBaseInterior(msg));
+    } else {
+        delete stage.dataset.mobileBaseMode;
+    }
     renderMobileBaseInteriorBanner(msg, view);
     if (!view) {
         hideSettlementTooltip();
@@ -14854,16 +15272,16 @@ function drawSettlementIsometric() {
     // CENTERING-002: force fit after settlement/source/layer change (pendingFit).
     // Ordinary refresh keeps a strictly valid user transform.
     if (_settlementPendingFit) {
-        ensureSettlementFraming(view, canvas, { forceFit: true });
-    } else if (!settlementTransformIsVisible(view, canvas)) {
-        ensureSettlementFraming(view, canvas, { forceFit: false });
+        ensureSettlementFraming(visualView, canvas, { forceFit: true });
+    } else if (!settlementTransformIsVisible(visualView, canvas)) {
+        ensureSettlementFraming(visualView, canvas, { forceFit: false });
     }
 
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const origin = computeSettlementOrigin(canvas, view);
+    const origin = computeSettlementOrigin(canvas, visualView);
     const { originX, originY, pivotX, pivotY } = origin;
     const zoom = _settlementZoom;
 
@@ -14875,13 +15293,17 @@ function drawSettlementIsometric() {
     ctx.translate(-pivotX, -pivotY);
 
     _settlementHits = [];
-    const tiles = Array.isArray(view.tiles) ? [...view.tiles] : [];
+    const tiles = Array.isArray(visualView?.tiles) ? [...visualView.tiles] : [];
     // Painter's order for extruded blocks: back-to-front by (x+y), then lower
     // z first so raised sub-layers stack correctly.
     tiles.sort((a, b) => (a.x + a.y) - (b.x + b.y) || (a.z || 0) - (b.z || 0) || a.x - b.x);
 
     for (const tile of tiles) {
         const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
+        if (tile.decorative === true) {
+            drawMobileBaseFootprintCell(ctx, sx, sy, tile.visualKind, _settlementTimeOfDay);
+            continue;
+        }
         const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
         const elev = SETTLEMENT_TILE_ELEVATION[tile.code] ?? 4;
         if (tile.code === 'water') {
@@ -15919,9 +16341,11 @@ function renderSettlementDiorama() {
         if (unavailable) { unavailable.classList.add('hidden'); }
         if (empty) {
             empty.classList.remove('hidden');
-            empty.textContent = typeof settlementEmptyCopyForContext === 'function'
-                ? settlementEmptyCopyForContext(msg)
-                : (typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.');
+            const ctx = msg && msg.settlementDisplayContext;
+            const location = (ctx && (ctx.displayLocationName || ctx.displayLocationId)) || '';
+            empty.textContent = typeof T === 'function'
+                ? T('webview.world.dioramaNoDataLocation', { location })
+                : (location ? `${location} has no Diorama data.` : 'This location has no Diorama data.');
         }
         disposeSettlementDiorama();
         renderSettlementDioramaMarkerFallback(null);

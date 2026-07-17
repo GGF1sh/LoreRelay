@@ -64,7 +64,7 @@ import { getCampaignKitPath } from './campaignKit';
 import { livingWorldEnabled } from './livingWorldBridge';
 import { readDomainFromGameState } from './domainTurnOps';
 import { readGuildFromGameState } from './guildTurnOps';
-import { buildMarketPriceTable, initializeMarketState } from './commerceCore';
+import { buildMarketPriceTable, cargoWeight, initializeMarketState, transportCapacity } from './commerceCore';
 import {
     resolveCommerceForge,
     ensureLivingWorldMarkets,
@@ -191,13 +191,17 @@ function loadWorldBlockFromDisk(): GameStateWorld | undefined {
 
 function buildPlayerCommercePayload(
     commerce: GameState['commerce'] | undefined,
-    commerceEnabled: boolean
+    commerceEnabled: boolean,
+    forge?: CommerceForge
 ): {
     credits: number;
     food: number;
     transportId: string;
     playerRole: string;
     cargo: Array<{ commodityId: string; qty: number }>;
+    transportName: string;
+    cargoWeight: number | null;
+    cargoCapacity: number | null;
 } | null {
     if (!commerceEnabled || !commerce || typeof commerce.credits !== 'number') {
         return null;
@@ -214,12 +218,19 @@ function buildPlayerCommercePayload(
     const role = typeof commerce.playerRole === 'string' && commerce.playerRole
         ? commerce.playerRole
         : 'merchant';
+    const transportId = typeof commerce.transportId === 'string' ? commerce.transportId : 'wagon';
+    const transport = forge?.transportKinds.find((item) => item.id === transportId);
     return {
         credits: Math.max(0, Math.floor(commerce.credits)),
         food: typeof commerce.food === 'number' ? Math.max(0, Math.floor(commerce.food)) : 30,
-        transportId: typeof commerce.transportId === 'string' ? commerce.transportId : 'wagon',
+        transportId,
+        transportName: transport?.name || transportId,
         playerRole: role,
         cargo,
+        cargoWeight: forge ? cargoWeight(forge, cargo) : null,
+        cargoCapacity: forge && transportCapacity(forge, transportId) > 0
+            ? transportCapacity(forge, transportId)
+            : null,
     };
 }
 
@@ -250,6 +261,7 @@ interface WorldViewMarketQuote {
     unitPrice: number;
     stock: number;
     priceIndex: number;
+    unitWeight: number;
 }
 
 interface WorldViewMarketTable {
@@ -288,7 +300,7 @@ function buildLivingWorldMarketPayload(
     if (!commerce || !markets) { return []; }
 
     const locationNames = new Map(forge.geography.locations.map((loc) => [loc.id, loc.name]));
-    const commodityNames = new Map(commerce.commodities.map((commodity) => [commodity.id, commodity.name]));
+    const commodityById = new Map(commerce.commodities.map((commodity) => [commodity.id, commodity]));
 
     return buildMarketPriceTable(commerce, markets)
         .map((market) => ({
@@ -296,10 +308,11 @@ function buildLivingWorldMarketPayload(
             locationName: locationNames.get(market.locationId) ?? market.locationId,
             quotes: market.quotes.map((quote) => ({
                 commodityId: quote.commodityId,
-                commodityName: commodityNames.get(quote.commodityId) ?? quote.commodityId,
+                commodityName: commodityById.get(quote.commodityId)?.name ?? quote.commodityId,
                 unitPrice: quote.unitPrice,
                 stock: quote.stock,
                 priceIndex: quote.priceIndex,
+                unitWeight: commodityById.get(quote.commodityId)?.weight ?? 0,
             })),
         }))
         .filter((market) => market.quotes.length > 0);
@@ -757,7 +770,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const gameSnapshot = loadGameStateSnapshotFromDisk();
     const playerCommerce = buildPlayerCommercePayload(
         gameSnapshot?.commerce,
-        gameRules.enableCommerce === true
+        gameRules.enableCommerce === true,
+        commerceForge
     );
     const livingWorldDecisionSurface: WorldViewCommerceDecisionSurface | null = commerceForge && playerCommerce
         ? {

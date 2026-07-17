@@ -124,7 +124,8 @@ function logisticsRiskLabel(risk) {
 }
 
 function logisticsNodeKindLabel(kind) {
-  return T(`webview.world.logisticsNode${String(kind || 'region').replace(/^./, (c) => c.toUpperCase())}`);
+  const role = logisticsNodeRole(kind).replace('-', '');
+  return T(`webview.world.logisticsNode${role.replace(/^./, (c) => c.toUpperCase())}`);
 }
 
 function logisticsCommodityName(payload, commodityId) {
@@ -151,6 +152,52 @@ function logisticsNodeRank(kind) {
   if (kind === 'region') { return 0; }
   if (kind === 'settlement' || kind === 'facility') { return 1; }
   return 2;
+}
+
+/** Stable, CSS-safe fragment id for sharing the rendered route path with
+ * animateMotion. Encoding code points avoids collisions from punctuation. */
+function logisticsDomId(value) {
+  return Array.from(String(value ?? 'route'))
+    .map((character) => character.codePointAt(0).toString(16))
+    .join('-');
+}
+
+function logisticsNodeRole(kind) {
+  const value = String(kind || 'region').toLowerCase();
+  if (value === 'city' || value === 'town' || value === 'village') { return 'settlement'; }
+  if (value === 'vehicle' || value === 'wagon' || value === 'ship') { return 'vehicle'; }
+  if (value === 'caravan') { return 'caravan'; }
+  if (value === 'envoy' || value === 'group' || value === 'moving_group') { return 'envoy'; }
+  if (value === 'mobile_base' || value === 'base') { return 'mobile-base'; }
+  return ['region', 'settlement', 'market', 'facility', 'store'].includes(value) ? value : 'region';
+}
+
+/** Factual scale only: explicit payload tier, otherwise deterministic route degree. */
+function logisticsNodeScale(node, routes) {
+  if (['minor', 'standard', 'major'].includes(node?.scale)) { return node.scale; }
+  const degree = (routes || []).filter((route) => route.fromNodeId === node?.id || route.toNodeId === node?.id).length;
+  if (degree >= 4) { return 'major'; }
+  if (degree === 1) { return 'minor'; }
+  return 'standard';
+}
+
+function logisticsNodeShapePath(role) {
+  const paths = {
+    settlement: 'M 8 0 H 144 L 152 8 V 52 L 144 60 H 8 L 0 52 V 8 Z',
+    market: 'M 18 0 H 134 Q 152 0 152 18 V 42 Q 152 60 134 60 H 18 Q 0 60 0 42 V 18 Q 0 0 18 0 Z',
+    facility: 'M 0 0 H 152 V 60 H 0 Z',
+    vehicle: 'M 16 6 H 136 L 152 30 L 136 54 H 16 L 0 30 Z',
+    caravan: 'M 4 8 H 70 V 52 H 4 Z M 82 8 H 148 V 52 H 82 Z',
+    envoy: 'M 76 0 L 152 30 L 76 60 L 0 30 Z',
+    'mobile-base': 'M 14 0 H 138 L 152 30 L 138 60 H 14 L 0 30 Z',
+    region: 'M 20 0 H 132 Q 152 0 152 20 V 40 Q 152 60 132 60 H 20 Q 0 60 0 40 V 20 Q 0 0 20 0 Z',
+    store: 'M 6 0 H 146 L 152 10 V 60 H 0 V 10 Z',
+  };
+  return paths[role] || paths.region;
+}
+
+function logisticsNodeSymbol(role) {
+  return ({ settlement: '◆', market: 'M', facility: 'F', vehicle: '→', caravan: 'C', envoy: 'E', 'mobile-base': 'B', store: 'S', region: '○' })[role] || '○';
 }
 
 // CJK glyphs are roughly twice as wide as ASCII at the node-label font size, so
@@ -307,6 +354,34 @@ function visibleLogisticsData(payload) {
   return { routes, shortages, nodes };
 }
 
+/** One deterministic geometry contract for stroke, arrow, particles and labels. */
+function logisticsRouteGeometry(route, from, to) {
+  if (!from || !to || ![from.x, from.y, to.x, to.y].every(Number.isFinite)) { return null; }
+  const direction = to.x >= from.x ? 1 : -1;
+  const start = { x: from.x + direction * 78, y: from.y };
+  const end = { x: to.x - direction * 78, y: to.y };
+  if (start.x === end.x && start.y === end.y) { return null; }
+  const dx = end.x - start.x;
+  const bend = Math.round((logisticsHashUnit(route?.id) - 0.5) * 44);
+  const c1 = { x: start.x + dx * 0.36, y: start.y + bend };
+  const c2 = { x: end.x - dx * 0.36, y: end.y + bend };
+  const pointAt = (t) => {
+    const u = 1 - t;
+    return {
+      x: u ** 3 * start.x + 3 * u ** 2 * t * c1.x + 3 * u * t ** 2 * c2.x + t ** 3 * end.x,
+      y: u ** 3 * start.y + 3 * u ** 2 * t * c1.y + 3 * u * t ** 2 * c2.y + t ** 3 * end.y,
+    };
+  };
+  return {
+    start,
+    end,
+    c1,
+    c2,
+    d: `M ${start.x},${start.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`,
+    pointAt,
+  };
+}
+
 function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSpots) {
   const from = positions.get(route.fromNodeId);
   const to = positions.get(route.toNodeId);
@@ -317,33 +392,36 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
     || !Number.isFinite(to.x) || !Number.isFinite(to.y)) {
     return;
   }
-  const selected = economyLogisticsUiState.selection?.type === 'route' && economyLogisticsUiState.selection.id === route.id;
+  const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
+  const selected = selectedRouteId === route.id;
+  const unrelated = Boolean(selectedRouteId && !selected);
   const flowing = logisticsFlowMotionActive() && route.volume > 0;
-  const group = logisticsSvgElement('g', `logistics-route logistics-route-${route.status}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${flowing ? ' is-flowing' : ''}`);
+  const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
+  const movement = route.volume > 0 ? 'active' : 'idle';
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated ? ' is-unrelated' : ''}${flowing ? ' is-flowing' : ''}`);
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
   }
   group.dataset.routeId = route.id;
-  const direction = to.x >= from.x ? 1 : -1;
-  const x1 = from.x + direction * 78;
-  const x2 = to.x - direction * 78;
-  const disrupted = route.status === 'blocked' || route.status === 'raided';
-  const line = logisticsSvgElement('line', 'logistics-route-line');
-  line.setAttribute('x1', String(x1));
-  line.setAttribute('y1', String(from.y));
-  line.setAttribute('x2', String(x2));
-  line.setAttribute('y2', String(to.y));
+  const geometry = logisticsRouteGeometry(route, from, to);
+  if (!geometry) { return; }
+  const disrupted = status === 'blocked' || status === 'raided';
+  const line = logisticsSvgElement('path', 'logistics-route-line');
+  const pathId = `logistics-route-path-${logisticsDomId(route.id)}`;
+  line.setAttribute('id', pathId);
+  line.setAttribute('d', geometry.d);
+  line.dataset.routePath = geometry.d;
   const flowWidth = 1.5 + Math.sqrt(Math.max(0, route.volume) / Math.max(1, maxVolume)) * 6;
   // Disrupted routes must stay readable even at zero volume.
   const width = disrupted ? Math.max(flowWidth, 2.5) : flowWidth;
   line.setAttribute('stroke-width', width.toFixed(2));
-  line.setAttribute('marker-end', `url(#logistics-arrow-${route.status})`);
+  line.setAttribute('marker-end', `url(#logistics-arrow-${status})`);
   line.style.opacity = route.volume > 0
     ? String(0.55 + Math.min(1, route.utilization) * 0.4)
     : (disrupted ? '0.8' : '0.4');
   group.appendChild(line);
   if (flowing && !economyLogisticsUiState.compactAnimation) {
-    logisticsRenderFlowParticles(group, route, x1, from.y, x2, to.y);
+    logisticsRenderFlowParticles(group, route, geometry, pathId);
   }
 
   // Crossing routes share the exact segment midpoint, which stacks their
@@ -351,27 +429,31 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
   // label no longer collides with an already placed one.
   let labelT = 0.5;
   for (const t of [0.5, 0.36, 0.64, 0.26, 0.74, 0.16, 0.84]) {
-    const cx = x1 + (x2 - x1) * t;
-    const cy = from.y + (to.y - from.y) * t;
+    const point = geometry.pointAt(t);
+    const cx = point.x;
+    const cy = point.y;
     if (!labelSpots.some((spot) => Math.abs(spot.x - cx) < 42 && Math.abs(spot.y - cy) < 28)) {
       labelT = t;
       break;
     }
   }
-  const labelX = Math.round(x1 + (x2 - x1) * labelT);
-  const labelY = Math.round(from.y + (to.y - from.y) * labelT);
+  const labelPoint = geometry.pointAt(labelT);
+  const labelX = Math.round(labelPoint.x);
+  const labelY = Math.round(labelPoint.y);
   labelSpots.push({ x: labelX, y: labelY });
 
   const label = logisticsSvgElement('text', 'logistics-route-label');
   label.setAttribute('x', String(labelX));
   label.setAttribute('y', String(labelY - 7));
   label.textContent = `${logisticsNumber(route.volume)}/${logisticsNumber(route.effectiveCapacity)}`;
+  label.setAttribute('aria-label', `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
+  appendLogisticsTitle(label, `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
   group.appendChild(label);
-  if (route.status === 'blocked' || route.status === 'raided' || route.bottleneck) {
+  if (status === 'blocked' || status === 'raided' || status === 'rumored' || route.bottleneck) {
     const warning = logisticsSvgElement('text', 'logistics-route-warning');
     warning.setAttribute('x', String(labelX));
     warning.setAttribute('y', String(labelY + 12));
-    warning.textContent = route.bottleneck ? '◆' : route.status === 'blocked' ? '×' : '!';
+    warning.textContent = route.bottleneck ? '◆' : status === 'blocked' ? '×' : status === 'rumored' ? '?' : '!';
     group.appendChild(warning);
   }
   const aria = `${logisticsNodeName(payload, route.fromNodeId)} → ${logisticsNodeName(payload, route.toNodeId)}, ${logisticsCommodityName(payload, route.commodityId)}, ${logisticsStatusLabel(route.status)}`;
@@ -385,36 +467,41 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
  *  for open/strained flow, 1 sparse flickering dot for raided routes so a
  *  convoy under threat visibly reads as different from healthy flow.
  *
- *  Coordinates must be finite before any circle is created — never park a
- *  particle at the SVG origin (0,0). Stagger uses a *negative* begin so the
- *  animation is already mid-path on first paint; a positive begin left dots
- *  sitting at cx/cy until the delay elapsed (visible flash outside nodes). */
-function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
-  if (![x1, y1, x2, y2].every((n) => typeof n === 'number' && Number.isFinite(n))) {
-    return;
-  }
-  if (x1 === x2 && y1 === y2) { return; }
+ *  Coordinates must be finite before any circle is created. The particle is
+ *  rooted at local (0,0) and follows the rendered path via <mpath>; assigning
+ *  both absolute cx/cy and an absolute motion path double-applies the source
+ *  offset and visibly throws dots away from their routes. */
+function logisticsRenderFlowParticles(group, route, geometry, pathId) {
+  if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return; }
   const duration = logisticsFlowDurationSeconds(route);
   if (!(duration > 0) || !Number.isFinite(duration)) { return; }
-  const pathD = `M ${x1},${y1} L ${x2},${y2}`;
   const dotCount = route.status === 'raided' ? 1 : 2;
   const stagger = logisticsHashUnit(route.id) * duration;
   for (let i = 0; i < dotCount; i++) {
     const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
     dot.setAttribute('r', '2.6');
-    // Fallback geometry at the route start if SMIL has not yet transformed the
-    // node (never use 0,0 — that is the SVG origin, left of the whole graph).
-    dot.setAttribute('cx', String(x1));
-    dot.setAttribute('cy', String(y1));
+    dot.setAttribute('cx', '0');
+    dot.setAttribute('cy', '0');
+    // An engine without SMIL support must not leave a static dot at the SVG
+    // origin. SMIL-capable engines reveal it as the motion begins.
+    dot.setAttribute('visibility', 'hidden');
     const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
     motion.setAttribute('dur', `${duration.toFixed(2)}s`);
     motion.setAttribute('repeatCount', 'indefinite');
-    motion.setAttribute('path', pathD);
+    const motionPath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+    motionPath.setAttribute('href', `#${pathId}`);
+    motion.appendChild(motionPath);
     const phase = (stagger + (i * duration) / dotCount) % duration;
     // Negative begin = animation already "running" at t=0 (mid-path), so the
     // particle never waits at the static cx/cy for a delayed positive begin.
     motion.setAttribute('begin', `-${phase.toFixed(2)}s`);
     dot.appendChild(motion);
+    const reveal = document.createElementNS('http://www.w3.org/2000/svg', 'set');
+    reveal.setAttribute('attributeName', 'visibility');
+    reveal.setAttribute('to', 'visible');
+    reveal.setAttribute('begin', '-0.01s');
+    reveal.setAttribute('dur', 'indefinite');
+    dot.appendChild(reveal);
     if (route.status === 'raided') {
       const flicker = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
       flicker.setAttribute('attributeName', 'opacity');
@@ -429,17 +516,23 @@ function logisticsRenderFlowParticles(group, route, x1, y1, x2, y2) {
   }
 }
 
-function renderLogisticsNode(svg, payload, node, position, shortages) {
+function renderLogisticsNode(svg, payload, node, position, shortages, routes) {
   const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
-  const group = logisticsSvgElement('g', `logistics-node logistics-node-${node.kind}${selected ? ' is-selected' : ''}`);
+  const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
+  const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
+  const unrelated = Boolean(selectedRoute && selectedRoute.fromNodeId !== node.id && selectedRoute.toNodeId !== node.id);
+  const role = logisticsNodeRole(node.kind);
+  const scale = logisticsNodeScale(node, routes);
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${selected ? ' is-selected' : ''}${unrelated ? ' is-unrelated' : ''}`);
   group.dataset.nodeId = node.id;
   group.setAttribute('transform', `translate(${position.x - 76} ${position.y - 30})`);
   group.setAttribute('aria-label', `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
-  const shape = logisticsSvgElement('rect', 'logistics-node-shape');
-  shape.setAttribute('width', '152');
-  shape.setAttribute('height', '60');
-  shape.setAttribute('rx', node.kind === 'region' ? '20' : '8');
+  const shape = logisticsSvgElement('path', 'logistics-node-shape');
+  shape.setAttribute('d', logisticsNodeShapePath(role));
   group.appendChild(shape);
+  const accent = logisticsSvgElement('path', 'logistics-node-accent');
+  accent.setAttribute('d', 'M 12 5 H 140');
+  group.appendChild(accent);
   const kind = logisticsSvgElement('text', 'logistics-node-kind');
   kind.setAttribute('x', '12');
   kind.setAttribute('y', '17');
@@ -450,6 +543,11 @@ function renderLogisticsNode(svg, payload, node, position, shortages) {
   label.setAttribute('y', '39');
   label.textContent = logisticsTruncateLabel(node.label);
   group.appendChild(label);
+  const symbol = logisticsSvgElement('text', 'logistics-node-symbol');
+  symbol.setAttribute('x', '132');
+  symbol.setAttribute('y', '43');
+  symbol.textContent = logisticsNodeSymbol(role);
+  group.appendChild(symbol);
   const nodeShortages = shortages.filter((item) => item.nodeId === node.id);
   if (nodeShortages.length > 0) {
     const badge = logisticsSvgElement('text', 'logistics-shortage-badge');
@@ -464,13 +562,51 @@ function renderLogisticsNode(svg, payload, node, position, shortages) {
     badge.textContent = '⚙';
     group.appendChild(badge);
   }
-  appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
+  appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}; ${T(`webview.world.logisticsScale${scale.replace(/^./, (c) => c.toUpperCase())}`)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
   bindLogisticsActivation(group, { type: 'node', id: node.id });
   svg.appendChild(group);
 }
 
+function renderLogisticsLegend(parent) {
+  const legend = logisticsElement('div', 'logistics-legend');
+  legend.setAttribute('role', 'group');
+  legend.setAttribute('aria-label', T('webview.world.logisticsLegend'));
+  const title = logisticsElement('strong', 'logistics-legend-title', T('webview.world.logisticsLegend'));
+  legend.appendChild(title);
+  const statusList = logisticsElement('div', 'logistics-legend-list logistics-legend-status-list');
+  statusList.setAttribute('role', 'list');
+  const statuses = [
+    ['active', '→', 'webview.world.logisticsLegendActive'],
+    ['idle', '··', 'webview.world.logisticsLegendIdle'],
+    ['blocked', '×', 'webview.world.logisticsStatusBlocked'],
+    ['rumored', '?', 'webview.world.logisticsStatusRumored'],
+    ['selected', '◎', 'webview.world.logisticsLegendSelected'],
+  ];
+  for (const [status, glyph, key] of statuses) {
+    const item = logisticsElement('span', `logistics-legend-item logistics-legend-${status}`);
+    item.setAttribute('role', 'listitem');
+    item.appendChild(logisticsElement('span', 'logistics-legend-swatch', glyph));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', T(key)));
+    statusList.appendChild(item);
+  }
+  legend.appendChild(statusList);
+  const nodeList = logisticsElement('div', 'logistics-legend-list logistics-legend-node-list');
+  nodeList.setAttribute('role', 'list');
+  for (const role of ['settlement', 'market', 'facility', 'vehicle', 'caravan', 'envoy', 'mobile_base']) {
+    const cssRole = role.replace('_', '-');
+    const item = logisticsElement('span', `logistics-legend-item logistics-legend-node logistics-legend-node-${cssRole}`);
+    item.setAttribute('role', 'listitem');
+    item.appendChild(logisticsElement('span', 'logistics-legend-node-symbol', logisticsNodeSymbol(cssRole)));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', logisticsNodeKindLabel(role)));
+    nodeList.appendChild(item);
+  }
+  legend.appendChild(nodeList);
+  parent.appendChild(legend);
+}
+
 function renderLogisticsNetwork(payload, parent) {
   const data = visibleLogisticsData(payload);
+  renderLogisticsLegend(parent);
   // Best-effort synchronous read of the (already laid out) render target so
   // the very first paint already picks the right mode instead of always
   // starting compact and correcting itself once ResizeObserver's async
@@ -507,7 +643,7 @@ function renderLogisticsNetwork(payload, parent) {
   svg.setAttribute('aria-label', T('webview.world.logisticsAria'));
   svg.setAttribute('role', 'img');
   const defs = logisticsSvgElement('defs');
-  ['open', 'strained', 'blocked', 'raided'].forEach((status) => {
+  ['open', 'strained', 'blocked', 'raided', 'rumored'].forEach((status) => {
     const marker = logisticsSvgElement('marker', `logistics-arrow logistics-arrow-${status}`);
     marker.id = `logistics-arrow-${status}`;
     marker.setAttribute('viewBox', '0 0 10 10');
@@ -530,7 +666,7 @@ function renderLogisticsNetwork(payload, parent) {
   data.routes.forEach((route) => renderLogisticsRoute(svg, payload, route, layout.positions, maxVolume, labelSpots));
   data.nodes.forEach((node) => {
     const position = layout.positions.get(node.id);
-    if (position) { renderLogisticsNode(svg, payload, node, position, data.shortages); }
+    if (position) { renderLogisticsNode(svg, payload, node, position, data.shortages, data.routes); }
   });
   viewport.appendChild(svg);
   parent.appendChild(viewport);

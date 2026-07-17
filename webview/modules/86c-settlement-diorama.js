@@ -808,9 +808,11 @@ function renderSettlementDiorama() {
         if (unavailable) { unavailable.classList.add('hidden'); }
         if (empty) {
             empty.classList.remove('hidden');
-            empty.textContent = typeof settlementEmptyCopyForContext === 'function'
-                ? settlementEmptyCopyForContext(msg)
-                : (typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.');
+            const ctx = msg && msg.settlementDisplayContext;
+            const location = (ctx && (ctx.displayLocationName || ctx.displayLocationId)) || '';
+            empty.textContent = typeof T === 'function'
+                ? T('webview.world.dioramaNoDataLocation', { location })
+                : (location ? `${location} has no Diorama data.` : 'This location has no Diorama data.');
         }
         disposeSettlementDiorama();
         renderSettlementDioramaMarkerFallback(null);

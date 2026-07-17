@@ -27,7 +27,7 @@ export const MOBILE_BASE_INTERIOR_VERSION = 1 as const;
 const BLOCKED_INTERIOR_ACCESS = new Set(['locked', 'damaged', 'unsafe']);
 
 export const MOBILE_BASE_INTERIOR_PAYLOAD_KEYS = [
-    'version', 'vehicleId', 'vehicleName', 'settlementId', 'mode', 'layoutProfile',
+    'version', 'vehicleId', 'vehicleName', 'vehicleKind', 'settlementId', 'mode', 'layoutProfile',
     'interiorAccess', 'interiorBlocked', 'interiorBlockReason', 'hasCanvas', 'hasDiorama',
     'settlementView', 'settlementDiorama', 'settlementExpansionPreviews',
 ] as const;
@@ -36,6 +36,7 @@ export interface MobileBaseInteriorPayload {
     version: typeof MOBILE_BASE_INTERIOR_VERSION;
     vehicleId: string;
     vehicleName: string;
+    vehicleKind: string;
     settlementId: string;
     mode: string;
     layoutProfile: string;
@@ -113,6 +114,7 @@ export function buildMobileBaseInteriorPayload(
         version: MOBILE_BASE_INTERIOR_VERSION,
         vehicleId: vehicle.id,
         vehicleName: clampText(vehicle.name, 80),
+        vehicleKind: clampText(vehicle.kind, 32),
         settlementId: link.settlementId,
         mode: link.mode,
         layoutProfile: link.layoutProfile,

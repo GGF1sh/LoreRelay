@@ -73,6 +73,14 @@ const SETTLEMENT_TILE_COLORS = {
     unknown: { top: '#686878', left: '#505058', right: '#787888', glyph: '?' },
 };
 
+const SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS = {
+    ship: { top: '#596777', left: '#394858', right: '#68798b' },
+    wagon: { top: '#74654f', left: '#514432', right: '#88765b' },
+    caravan: { top: '#6b6051', left: '#4a4034', right: '#7d705d' },
+    camp: { top: '#4f6658', left: '#34483b', right: '#607866' },
+    'mobile-base': { top: '#59616c', left: '#3c444e', right: '#6b7480' },
+};
+
 const SETTLEMENT_MARKER_COLORS = {
     resident: '#6ecf8a',
     visitor: '#9aa8b8',
@@ -257,6 +265,158 @@ function getSettlementSnapshot() {
     return msg && msg.settlementView ? msg.settlementView : null;
 }
 
+function isMobileBaseVisualSource(msg, view) {
+    if (!msg || !view) { return false; }
+    const interior = getMobileBaseInterior(msg);
+    if (!interior || view.settlementId !== interior.settlementId) { return false; }
+    if (typeof resolveSettlementRenderSource === 'function') {
+        return resolveSettlementRenderSource(msg, { forDiorama: false })?.source === 'mobile_base';
+    }
+    return false;
+}
+
+function mobileBaseLayerZ(view) {
+    const match = /^z(-?\d+)$/.exec(String(view?.layerId || 'z0'));
+    return match ? Number(match[1]) : 0;
+}
+
+function mobileBaseVisualKind(interior) {
+    const identity = [interior?.vehicleKind, interior?.mode, interior?.layoutProfile]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+    if (/\b(ship|boat|barge|airship)\b/.test(identity)) { return 'ship'; }
+    if (/\b(wagon|landship|crawler)\b/.test(identity)) { return 'wagon'; }
+    if (/\b(caravan|train|mobile_community)\b/.test(identity)) { return 'caravan'; }
+    if (/\b(camp|nomad_camp)\b/.test(identity)) { return 'camp'; }
+    return 'mobile-base';
+}
+
+/**
+ * Display-only structural floor for sparse Mobile Base payloads. It is derived
+ * deterministically from authoritative occupied-tile bounds and never enters
+ * hit testing, messages, persistence, or the settlement data contract.
+ */
+function deriveMobileBaseStructuralFootprint(msg, view) {
+    if (!isMobileBaseVisualSource(msg, view)) { return []; }
+    const interior = getMobileBaseInterior(msg);
+    const tiles = Array.isArray(view?.tiles) ? view.tiles : [];
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    const tilePoints = tiles.filter((item) => Number.isFinite(item?.x) && Number.isFinite(item?.y));
+    const markerPoints = markers.filter((item) => Number.isFinite(item?.x) && Number.isFinite(item?.y));
+    if (tilePoints.length === 0 && markerPoints.length === 0) { return []; }
+    // Settlement state markers can have deterministic fallback coordinates
+    // spread across the generic 16x16 settlement canvas. Those coordinates are
+    // not authored rooms and must not inflate a four-cell deck into a giant
+    // square. Occupied tiles define the body; marker-only payloads use a stable
+    // centroid anchor and are visually associated with that body below.
+    const points = tilePoints.length > 0
+        ? tilePoints
+        : [{
+            x: Math.round(markerPoints.reduce((sum, marker) => sum + marker.x, 0) / markerPoints.length),
+            y: Math.round(markerPoints.reduce((sum, marker) => sum + marker.y, 0) / markerPoints.length),
+        }];
+    const visualKind = mobileBaseVisualKind(interior);
+    const profile = visualKind === 'ship'
+        ? { kind: 'ship', minW: 8, minH: 4, padX: 0, padY: 0 }
+        : visualKind === 'wagon'
+            ? { kind: 'wagon', minW: 6, minH: 3, padX: 0, padY: 0 }
+            : visualKind === 'caravan'
+                ? { kind: 'caravan', minW: 7, minH: 4, padX: 0, padY: 0 }
+                : visualKind === 'camp'
+                    ? { kind: 'camp', minW: 7, minH: 5, padX: 0, padY: 0 }
+                    : { kind: 'mobile-base', minW: 6, minH: 4, padX: 0, padY: 0 };
+    let minX = Math.floor(Math.min(...points.map((p) => p.x))) - profile.padX;
+    let maxX = Math.ceil(Math.max(...points.map((p) => p.x))) + profile.padX;
+    let minY = Math.floor(Math.min(...points.map((p) => p.y))) - profile.padY;
+    let maxY = Math.ceil(Math.max(...points.map((p) => p.y))) + profile.padY;
+    const addX = Math.max(0, profile.minW - (maxX - minX + 1));
+    const addY = Math.max(0, profile.minH - (maxY - minY + 1));
+    minX -= Math.floor(addX / 2);
+    maxX += Math.ceil(addX / 2);
+    minY -= Math.floor(addY / 2);
+    maxY += Math.ceil(addY / 2);
+    // Defensive presentation bound for malformed coordinates. Authoritative
+    // points remain visible through the normal tile/marker renderer.
+    if ((maxX - minX + 1) > 24 || (maxY - minY + 1) > 24) { return []; }
+    const z = mobileBaseLayerZ(view);
+    const occupied = new Set(tiles.map((tile) => `${tile.x}:${tile.y}:${tile.z ?? z}`));
+    const footprint = [];
+    for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+            const taperedShipCorner = profile.kind === 'ship'
+                && (y === minY || y === maxY)
+                && (x === minX || x === maxX);
+            if (taperedShipCorner || occupied.has(`${x}:${y}:${z}`)) { continue; }
+            footprint.push({
+                x,
+                y,
+                z,
+                code: 'floor',
+                label: '',
+                decorative: true,
+                visualKind: profile.kind,
+            });
+        }
+    }
+    return footprint;
+}
+
+/** Mobile-base state markers are often placed by the generic settlement
+ * fallback grid rather than an authored vehicle layout. Associate those visual
+ * markers with the display-only body without mutating the authoritative view.
+ * Their identity, kind, label, detail, and layer remain untouched. */
+function associateMobileBaseMarkersWithFootprint(view, structuralTiles) {
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    if (markers.length === 0 || structuralTiles.length === 0) { return markers; }
+    const minX = Math.min(...structuralTiles.map((tile) => tile.x));
+    const maxX = Math.max(...structuralTiles.map((tile) => tile.x));
+    const minY = Math.min(...structuralTiles.map((tile) => tile.y));
+    const maxY = Math.max(...structuralTiles.map((tile) => tile.y));
+    const innerMinX = minX + (maxX - minX >= 4 ? 1 : 0);
+    const innerMaxX = maxX - (maxX - minX >= 4 ? 1 : 0);
+    const innerMinY = minY + (maxY - minY >= 3 ? 1 : 0);
+    const innerMaxY = maxY - (maxY - minY >= 3 ? 1 : 0);
+    const sourceWidth = Math.max(1, Number(view?.width) - 1 || 1);
+    const sourceHeight = Math.max(1, Number(view?.height) - 1 || 1);
+    return markers.map((marker) => {
+        const unitX = Math.max(0, Math.min(1, Number(marker.x) / sourceWidth));
+        const unitY = Math.max(0, Math.min(1, Number(marker.y) / sourceHeight));
+        return {
+            ...marker,
+            x: Math.round(innerMinX + unitX * Math.max(0, innerMaxX - innerMinX)),
+            y: Math.round(innerMinY + unitY * Math.max(0, innerMaxY - innerMinY)),
+        };
+    });
+}
+
+function buildSettlementVisualView(msg, view) {
+    if (!view) { return null; }
+    const footprint = deriveMobileBaseStructuralFootprint(msg, view);
+    if (footprint.length === 0) { return view; }
+    const authoritativeTiles = Array.isArray(view.tiles) ? view.tiles : [];
+    const structuralTiles = [...footprint, ...authoritativeTiles];
+    return {
+        ...view,
+        tiles: structuralTiles,
+        markers: associateMobileBaseMarkersWithFootprint(view, structuralTiles),
+    };
+}
+
+function mobileBaseLayerSemanticLabel(interior, layerId, known) {
+    const supplied = typeof known?.label === 'string' ? known.label.trim() : '';
+    const genericSettlementLabels = new Set(['Upper deck', 'Ground', 'Cellar', 'Deep ruins']);
+    if (supplied && !/^z[+-]?\d+$/i.test(supplied) && !genericSettlementLabels.has(supplied)) { return supplied; }
+    const visualKind = mobileBaseVisualKind(interior);
+    const labels = visualKind === 'ship'
+        ? { z1: 'Deck', z0: 'Hold', 'z-1': 'Lower hold', 'z-2': 'Bilge' }
+        : visualKind === 'wagon'
+            ? { z1: 'Roof', z0: 'Cabin', 'z-1': 'Storage' }
+            : visualKind === 'camp'
+                ? { z1: 'Lookout', z0: 'Camp', 'z-1': 'Cache' }
+                : { z1: 'Upper level', z0: 'Interior', 'z-1': 'Storage', 'z-2': 'Lower level' };
+    return labels[layerId] || supplied || layerId.toUpperCase();
+}
+
 /** M4c: read-only ghost previews — same logical source as settlementView. */
 function getSettlementExpansionPreviews() {
     const msg = _settlementWorldMsg;
@@ -286,7 +446,7 @@ function renderMobileBaseInteriorBanner(msg, view) {
         banner.textContent = '';
         return;
     }
-    const vars = { vehicle: interior.vehicleName, mode: interior.mode };
+    const vars = { vehicle: interior.vehicleName, mode: mobileBaseVisualKind(interior) };
     banner.textContent = typeof T === 'function'
         ? T('webview.mobileBase.interiorBanner', vars)
         : `Mobile base interior — ${interior.vehicleName} (${interior.mode})`;
@@ -601,6 +761,15 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev, timeOfDay) {
     }
 }
 
+function drawMobileBaseFootprintCell(ctx, sx, sy, visualKind, timeOfDay) {
+    const colors = SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS[visualKind]
+        || SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS['mobile-base'];
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    drawIsoBlock(ctx, sx, sy, colors, '', 2, timeOfDay);
+    ctx.restore();
+}
+
 /** Water reads better flat and glossy: translucent fill + two ripple highlights. */
 function drawIsoWater(ctx, sx, sy, colors, timeOfDay) {
     const hw = SETTLEMENT_TILE_W / 2;
@@ -831,8 +1000,9 @@ function ensureSettlementFraming(view, canvas, options) {
 
 function fitSettlementViewToCanvas() {
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
     const canvas = document.getElementById('world-settlement-canvas');
-    if (!applySettlementFitTransform(view, canvas)) { return; }
+    if (!applySettlementFitTransform(visualView, canvas)) { return; }
     const settlementId = view.settlementId;
     if (settlementId) { saveSettlementViewPrefs(settlementId); }
     drawSettlementIsometric();
@@ -854,6 +1024,7 @@ function ensureSettlementResizeObserver(stage) {
     _settlementResizeObserver = new ResizeObserver(() => {
         const canvas = document.getElementById('world-settlement-canvas');
         const view = getSettlementSnapshot();
+        const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
         if (!canvas || !view) { return; }
         const w = stage.clientWidth;
         const h = stage.clientHeight || canvas.clientHeight;
@@ -862,14 +1033,14 @@ function ensureSettlementResizeObserver(stage) {
         const changed = Math.abs(w - prev.w) > 8 || Math.abs(h - prev.h) > 8;
         _settlementLastCssSize = { w, h };
         if (grewFromZero || _settlementPendingFit) {
-            ensureSettlementFraming(view, canvas);
+            ensureSettlementFraming(visualView, canvas);
             drawSettlementIsometric();
             return;
         }
         if (!changed || _settlementUserPanActive) { return; }
         // Significant resize: recover only when content left the usable area.
-        if (!settlementTransformIsVisible(view, canvas)) {
-            ensureSettlementFraming(view, canvas);
+        if (!settlementTransformIsVisible(visualView, canvas)) {
+            ensureSettlementFraming(visualView, canvas);
         }
         drawSettlementIsometric();
     });
@@ -972,9 +1143,10 @@ function hitTestSettlement(clientX, clientY, canvas) {
     const screenX = clientX - rect.left;
     const screenY = clientY - rect.top;
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
     if (!view || typeof screenToSettlementContent !== 'function'
         || typeof hitTestSettlementContent !== 'function') { return null; }
-    const origin = computeSettlementOrigin(canvas, view);
+    const origin = computeSettlementOrigin(canvas, visualView);
     const bounds = origin.contentBounds;
     if (!bounds) { return null; }
     const contentPoint = screenToSettlementContent(
@@ -998,17 +1170,35 @@ function syncSettlementLayerButtons(view) {
     const layerId = view?.layerId || 'z0';
     const layers = Array.isArray(view?.layers) ? view.layers : [];
     const layerById = new Map(layers.map((l) => [l.id, l]));
+    if (view && !layerById.has(layerId)) { layerById.set(layerId, { id: layerId, label: '' }); }
+    const mobileBase = isMobileBaseVisualSource(_settlementWorldMsg, view);
+    const interior = mobileBase ? getMobileBaseInterior(_settlementWorldMsg) : null;
     const unbuiltTitle = typeof T === 'function'
         ? T('webview.world.settlementLayerUnbuilt')
         : 'Not built yet — select to preview expansion options';
     document.querySelectorAll('[data-settlement-layer]').forEach((btn) => {
         const layer = btn.getAttribute('data-settlement-layer');
+        if (!btn.dataset.defaultLabel) { btn.dataset.defaultLabel = btn.textContent; }
+        const known = layerById.get(layer);
+        if (mobileBase) {
+            btn.hidden = !known;
+            btn.classList.remove('is-missing');
+            if (known) {
+                const semanticLabel = mobileBaseLayerSemanticLabel(interior, layer, known);
+                btn.textContent = semanticLabel;
+                btn.title = semanticLabel;
+            }
+        } else {
+            btn.hidden = false;
+            btn.textContent = btn.dataset.defaultLabel;
+        }
         btn.classList.toggle('is-active', layer === layerId);
         btn.setAttribute('aria-pressed', layer === layerId ? 'true' : 'false');
-        const known = layerById.get(layer);
         const missing = layers.length > 0 && !known;
-        btn.classList.toggle('is-missing', missing);
-        btn.title = missing ? unbuiltTitle : (known?.label || '');
+        if (!mobileBase) {
+            btn.classList.toggle('is-missing', missing);
+            btn.title = missing ? unbuiltTitle : (known?.label || '');
+        }
     });
 }
 
@@ -1020,6 +1210,7 @@ function drawSettlementIsometric() {
 
     const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(msg, view);
     if (typeof renderSettlementSourceSelector === 'function') {
         renderSettlementSourceSelector(msg);
     }
@@ -1032,6 +1223,13 @@ function drawSettlementIsometric() {
         }
     }
     stage.classList.toggle('hidden', !view);
+    const mobileBase = isMobileBaseVisualSource(msg, view);
+    stage.classList.toggle('is-mobile-base', mobileBase);
+    if (mobileBase) {
+        stage.dataset.mobileBaseMode = mobileBaseVisualKind(getMobileBaseInterior(msg));
+    } else {
+        delete stage.dataset.mobileBaseMode;
+    }
     renderMobileBaseInteriorBanner(msg, view);
     if (!view) {
         hideSettlementTooltip();
@@ -1099,16 +1297,16 @@ function drawSettlementIsometric() {
     // CENTERING-002: force fit after settlement/source/layer change (pendingFit).
     // Ordinary refresh keeps a strictly valid user transform.
     if (_settlementPendingFit) {
-        ensureSettlementFraming(view, canvas, { forceFit: true });
-    } else if (!settlementTransformIsVisible(view, canvas)) {
-        ensureSettlementFraming(view, canvas, { forceFit: false });
+        ensureSettlementFraming(visualView, canvas, { forceFit: true });
+    } else if (!settlementTransformIsVisible(visualView, canvas)) {
+        ensureSettlementFraming(visualView, canvas, { forceFit: false });
     }
 
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const origin = computeSettlementOrigin(canvas, view);
+    const origin = computeSettlementOrigin(canvas, visualView);
     const { originX, originY, pivotX, pivotY } = origin;
     const zoom = _settlementZoom;
 
@@ -1120,13 +1318,17 @@ function drawSettlementIsometric() {
     ctx.translate(-pivotX, -pivotY);
 
     _settlementHits = [];
-    const tiles = Array.isArray(view.tiles) ? [...view.tiles] : [];
+    const tiles = Array.isArray(visualView?.tiles) ? [...visualView.tiles] : [];
     // Painter's order for extruded blocks: back-to-front by (x+y), then lower
     // z first so raised sub-layers stack correctly.
     tiles.sort((a, b) => (a.x + a.y) - (b.x + b.y) || (a.z || 0) - (b.z || 0) || a.x - b.x);
 
     for (const tile of tiles) {
         const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
+        if (tile.decorative === true) {
+            drawMobileBaseFootprintCell(ctx, sx, sy, tile.visualKind, _settlementTimeOfDay);
+            continue;
+        }
         const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
         const elev = SETTLEMENT_TILE_ELEVATION[tile.code] ?? 4;
         if (tile.code === 'water') {

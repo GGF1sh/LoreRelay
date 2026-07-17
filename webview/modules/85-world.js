@@ -1409,48 +1409,29 @@ function hasSettlementMapContent(msg) {
 function syncSettlementMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-settlement');
     if (!btn) { return; }
-    const show = hasSettlementMapContent(msg);
+    // Mode availability is a campaign capability, not a property of the
+    // currently previewed location. Keep the selected mode visible while an
+    // honest location-specific empty state is rendered inside it.
+    const show = Boolean(msg && (
+        msg.enableSettlementMode === true
+        || msg.enableMobileBaseSystem === true
+        || hasSettlementMapContent(msg)
+    ));
     btn.classList.toggle('hidden', !show);
-    if (!show && worldMapMode === 'settlement') {
-        setWorldMapMode('mermaid', { persist: true });
-    }
 }
 
-/** M5b: Diorama button only appears when the flag is on AND the host sent a non-empty snapshot. */
+/** Diorama is a persistent campaign mode even when the focused location has no snapshot. */
 function syncDioramaMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-diorama');
     if (!btn) { return; }
-    const snapshot = msg.settlementDiorama;
-    const hasContent = Boolean(snapshot && (
-        (Array.isArray(snapshot.blocks) && snapshot.blocks.length > 0)
-        || (Array.isArray(snapshot.markers) && snapshot.markers.length > 0)
-    ));
-    const show = msg.enableSettlementDiorama === true && hasContent;
+    const show = Boolean(msg && msg.enableSettlementDiorama === true);
     btn.classList.toggle('hidden', !show);
-    if (!show && worldMapMode === 'diorama') {
-        setWorldMapMode('mermaid', { persist: true });
-    }
 }
 
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
-    if (mode === 'settlement') {
-        const btn = document.getElementById('world-map-mode-settlement');
-        if (btn?.classList.contains('hidden')) {
-            worldMapMode = 'mermaid';
-        } else {
-            worldMapMode = 'settlement';
-        }
-    } else if (mode === 'diorama') {
-        const btn = document.getElementById('world-map-mode-diorama');
-        if (btn?.classList.contains('hidden')) {
-            worldMapMode = 'mermaid';
-        } else {
-            worldMapMode = 'diorama';
-        }
-    } else {
-        worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
-    }
+    const supported = new Set(['mermaid', 'parchment', 'tile', 'settlement', 'diorama']);
+    worldMapMode = supported.has(mode) ? mode : 'mermaid';
     if (persist) {
         try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
     }
@@ -2354,6 +2335,91 @@ function hubHeldQty(commerce, commodityId) {
     return entry ? (entry.qty ?? 0) : 0;
 }
 
+/** Deterministic, presentation-only projection of a proposed trade.
+ * The host remains authoritative: this helper never mutates state or posts a message. */
+function buildHubTradeProjection(commerce, quote, operation, rawQty) {
+    const qty = Number(rawQty);
+    const op = operation === 'sell' ? 'sell' : 'buy';
+    const unitPrice = Number(quote?.unitPrice) || 0;
+    const unitWeight = Math.max(0, Number(quote?.unitWeight) || 0);
+    const stockBefore = Math.max(0, Number(quote?.stock) || 0);
+    const moneyBefore = Number(commerce?.credits) || 0;
+    const cargoBefore = Math.max(0, Number(commerce?.cargoWeight) || 0);
+    const capacity = Number.isFinite(Number(commerce?.cargoCapacity))
+        ? Math.max(0, Number(commerce.cargoCapacity))
+        : null;
+    const heldBefore = quote ? hubHeldQty(commerce, quote.commodityId) : 0;
+    const qtyValid = Number.isInteger(qty) && qty >= 1 && qty <= 999;
+    const total = qtyValid ? Math.round(unitPrice * qty) : 0;
+    const direction = op === 'buy' ? 1 : -1;
+    const moneyAfter = moneyBefore - (direction * total);
+    const cargoAfter = Math.max(0, cargoBefore + (direction * unitWeight * (qtyValid ? qty : 0)));
+    const stockAfter = Math.max(0, stockBefore - (direction * (qtyValid ? qty : 0)));
+    const heldAfter = Math.max(0, heldBefore + (direction * (qtyValid ? qty : 0)));
+    let reasonKey = null;
+    if (!quote) { reasonKey = 'webview.world.actionHubTradeReasonNoCommodity'; }
+    else if (!qtyValid) { reasonKey = 'webview.world.actionHubTradeReasonQuantity'; }
+    else if (op === 'buy' && stockBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonStock'; }
+    else if (op === 'buy' && moneyBefore < total) { reasonKey = 'webview.world.actionHubTradeReasonCredits'; }
+    else if (op === 'buy' && capacity !== null && cargoAfter > capacity) { reasonKey = 'webview.world.actionHubTradeReasonCapacity'; }
+    else if (op === 'sell' && heldBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonHeld'; }
+    return {
+        valid: !reasonKey,
+        reasonKey,
+        op,
+        qty,
+        unitPrice,
+        total,
+        moneyBefore,
+        moneyAfter,
+        cargoBefore,
+        cargoAfter,
+        capacity,
+        stockBefore,
+        stockAfter,
+        heldBefore,
+        heldAfter,
+    };
+}
+
+function hubTradeProjectionValue(value) {
+    return value === null || value === undefined ? T('webview.world.actionHubTradeUnknown') : formatMarketNumber(value);
+}
+
+function hubRenderTradeProjection() {
+    if (!_playerActionHub || !_hubMarket) { return null; }
+    const commoditySelect = _playerActionHub.querySelector('#shopkeeper-commodity');
+    const qtyInput = _playerActionHub.querySelector('#shopkeeper-qty');
+    const selectedOp = _playerActionHub.querySelector('input[name="shopkeeper-op"]:checked');
+    if (!commoditySelect || !qtyInput || !selectedOp) { return null; }
+    const quote = _hubMarket.quotes.find((candidate) => candidate.commodityId === commoditySelect.value);
+    const commerce = (_worldViewMsg && _worldViewMsg.playerCommerce) || {};
+    const projection = buildHubTradeProjection(commerce, quote, selectedOp.value, Number(qtyInput.value));
+    const values = {
+        unit: projection.unitPrice,
+        total: projection.total,
+        money: projection.moneyAfter,
+        cargo: projection.cargoAfter,
+        capacity: projection.capacity,
+        stock: projection.stockAfter,
+        held: projection.heldAfter,
+    };
+    Object.entries(values).forEach(([name, value]) => {
+        const element = _playerActionHub.querySelector(`[data-trade-value="${name}"]`);
+        if (element) { element.textContent = hubTradeProjectionValue(value); }
+    });
+    const reason = _playerActionHub.querySelector('#shopkeeper-disabled-reason');
+    if (reason) {
+        reason.hidden = projection.valid;
+        reason.textContent = projection.reasonKey ? T(projection.reasonKey) : '';
+    }
+    _playerActionHub.querySelectorAll('.player-action-hub__radio').forEach((label) => {
+        const input = label.querySelector('input[name="shopkeeper-op"]');
+        label.classList.toggle('is-selected', !!input?.checked);
+    });
+    return projection;
+}
+
 function hubCommodityName(commodityId) {
     if (!commodityId) { return '?'; }
     const quotes = _hubMarket && Array.isArray(_hubMarket.quotes) ? _hubMarket.quotes : [];
@@ -2372,10 +2438,11 @@ function renderHubHeader() {
     const msg = _worldViewMsg || {};
     const commerce = msg.playerCommerce || {};
     const rows = [
-        ['現在地', hubLocationName(msg)],
+        [T('webview.world.actionHubCurrentLocation'), hubLocationName(msg)],
         [T('webview.world.commerceCredits'), commerce.credits ?? 0],
         [T('webview.world.commerceFood'), commerce.food ?? 0],
-        [T('webview.world.commerceTransport'), commerce.transportId || 'wagon'],
+        [T('webview.world.commerceTransport'), commerce.transportName || commerce.transportId || 'wagon'],
+        [T('webview.world.actionHubTradeCapacity'), `${hubTradeProjectionValue(commerce.cargoWeight ?? 0)} / ${hubTradeProjectionValue(commerce.cargoCapacity)}`],
         [T('webview.world.commerceCargo'), hubCargoSummary(commerce)],
     ];
     status.innerHTML = rows.map(([label, value]) =>
@@ -2479,26 +2546,40 @@ function hubRenderTradeBody() {
         return;
     }
     body.innerHTML = `
-      <label class="player-action-hub__field">品目
+      <div class="player-action-hub__trade-composer">
+      <label class="player-action-hub__field">${escapeHtml(T('webview.world.actionHubCommodity'))}
         <select id="shopkeeper-commodity" class="player-action-hub__select"></select>
       </label>
       <fieldset class="player-action-hub__field player-action-hub__ops">
-        <legend>操作</legend>
-        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="buy" checked> 購入</label>
-        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="sell"> 売却</label>
+        <legend>${escapeHtml(T('webview.world.actionHubTradeOperation'))}</legend>
+        <label class="player-action-hub__radio is-selected"><input type="radio" name="shopkeeper-op" value="buy" checked> ${escapeHtml(T('webview.world.actionHubTradeBuy'))}</label>
+        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="sell"> ${escapeHtml(T('webview.world.actionHubTradeSell'))}</label>
       </fieldset>
       <div class="player-action-hub__field player-action-hub__qty">
-        <span class="player-action-hub__qty-label" id="shopkeeper-qty-label">数量</span>
+        <span class="player-action-hub__qty-label" id="shopkeeper-qty-label">${escapeHtml(T('webview.world.actionHubTradeQuantity'))}</span>
         <div class="player-action-hub__stepper" role="group" aria-labelledby="shopkeeper-qty-label">
-          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-dec" aria-label="数量を1減らす">−</button>
+          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-dec" aria-label="${escapeHtml(T('webview.world.actionHubTradeDecrease'))}">−</button>
           <input id="shopkeeper-qty" class="player-action-hub__qty-input" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" aria-labelledby="shopkeeper-qty-label">
-          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-inc" aria-label="数量を1増やす">＋</button>
+          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-inc" aria-label="${escapeHtml(T('webview.world.actionHubTradeIncrease'))}">＋</button>
         </div>
       </div>
-      <p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite">確認を押すと、確定前の見積もりを表示します。</p>
+      </div>
+      <section class="player-action-hub__projection" aria-labelledby="shopkeeper-projection-title">
+        <h4 id="shopkeeper-projection-title">${escapeHtml(T('webview.world.actionHubTradeProjection'))}</h4>
+        <dl class="player-action-hub__projection-grid">
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeUnitPrice'))}</dt><dd data-trade-value="unit">—</dd></div>
+          <div class="is-emphasis"><dt>${escapeHtml(T('webview.world.actionHubTradeTotal'))}</dt><dd data-trade-value="total">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeMoneyAfter'))}</dt><dd data-trade-value="money">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeCargoAfter'))}</dt><dd><span data-trade-value="cargo">—</span> / <span data-trade-value="capacity">—</span></dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeStockAfter'))}</dt><dd data-trade-value="stock">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeHeldAfter'))}</dt><dd data-trade-value="held">—</dd></div>
+        </dl>
+        <p class="player-action-hub__disabled-reason" id="shopkeeper-disabled-reason" role="status" aria-live="polite" hidden></p>
+      </section>
+      <p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite">${escapeHtml(T('webview.world.actionHubTradeReviewHint'))}</p>
       <div class="player-action-hub__actions">
-        <button type="button" id="shopkeeper-review-btn" class="player-action-hub__btn">確認</button>
-        <button type="button" id="shopkeeper-confirm-btn" class="player-action-hub__btn player-action-hub__btn--primary" disabled>確定</button>
+        <button type="button" id="shopkeeper-review-btn" class="player-action-hub__btn">${escapeHtml(T('webview.world.actionHubReview'))}</button>
+        <button type="button" id="shopkeeper-confirm-btn" class="player-action-hub__btn player-action-hub__btn--primary" disabled>${escapeHtml(T('webview.world.actionHubConfirm'))}</button>
       </div>`;
     hubRefreshTradeOptions();
     wireHubTradeInputs();
@@ -2535,8 +2616,9 @@ function hubInvalidateTradePreview() {
     const review = _playerActionHub.querySelector('#shopkeeper-review');
     if (review) {
         review.setAttribute('data-state', 'idle');
-        review.textContent = '確認を押すと、確定前の見積もりを表示します。';
+        review.textContent = T('webview.world.actionHubTradeReviewHint');
     }
+    hubRenderTradeProjection();
 }
 
 function wireHubTradeInputs() {
@@ -2566,27 +2648,26 @@ function wireHubTradeInputs() {
         const op = _playerActionHub.querySelector('input[name="shopkeeper-op"]:checked').value;
         const commodityId = commoditySelect.value;
         const qty = Number(qtyInput.value);
-        if (!Number.isInteger(qty) || qty < 1 || qty > 999) {
+        const quote = _hubMarket.quotes.find((q) => q.commodityId === commodityId);
+        const projection = hubRenderTradeProjection();
+        if (!projection || !projection.valid) {
             review.setAttribute('data-state', 'error');
-            review.textContent = '数量は1から999までの整数で入力してください。';
+            review.textContent = projection?.reasonKey ? T(projection.reasonKey) : T('webview.world.actionHubTradeReasonQuantity');
             _shopkeeperPreviewReady = false;
             confirm.disabled = true;
             return;
         }
-        const quote = _hubMarket.quotes.find((q) => q.commodityId === commodityId);
-        const commerce = (_worldViewMsg && _worldViewMsg.playerCommerce) || {};
-        const unit = quote ? quote.unitPrice : 0;
-        const total = Math.round((unit || 0) * qty);
         const name = quote ? (quote.commodityName || quote.commodityId) : commodityId;
-        const stock = quote ? quote.stock : 0;
         review.setAttribute('data-state', 'preview');
         review.textContent = op === 'buy'
-            ? `購入（確定前）: ${name} × ${qty} / 単価 ${formatMarketNumber(unit)} / 合計 ${formatMarketNumber(total)} / 在庫 ${formatMarketNumber(stock)} / 所持 ${formatMarketNumber(commerce.credits ?? 0)}`
-            : `売却（確定前）: ${name} × ${qty} / 単価 ${formatMarketNumber(unit)} / 合計 ${formatMarketNumber(total)} / 在庫 ${formatMarketNumber(stock)} / 保有 ${formatMarketNumber(hubHeldQty(commerce, commodityId))}`;
+            ? `${T('webview.world.actionHubTradeBuy')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`
+            : `${T('webview.world.actionHubTradeSell')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`;
         _shopkeeperPreviewReady = true;
         confirm.disabled = false;
         confirm.focus();
     });
+
+    hubRenderTradeProjection();
 
     confirm.addEventListener('click', () => {
         if (_shopkeeperInFlight || _hubMutationInFlight || !_shopkeeperPreviewReady) { return; }
@@ -3064,7 +3145,10 @@ function refreshPlayerActionHub() {
     if (!_playerActionHub) { return; }
     hubRecomputeMarket();
     renderHubHeader();
-    if (!_shopkeeperInFlight && _hubMutationInFlight !== 'trade') { hubRefreshTradeOptions(); }
+    if (!_shopkeeperInFlight && _hubMutationInFlight !== 'trade') {
+        hubRefreshTradeOptions();
+        hubInvalidateTradePreview();
+    }
 }
 
 function buildDecisionSurfaceLookup(decisionSurface) {

@@ -67,6 +67,53 @@
   outline-offset: 2px;
 }
 
+.logistics-legend {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-focusBorder) 8%);
+  font-size: 0.72rem;
+}
+
+.logistics-legend-title { color: var(--vscode-foreground); }
+.logistics-legend-list { display: flex; flex-wrap: wrap; gap: 0.3rem 0.65rem; }
+.logistics-legend-item { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--vscode-descriptionForeground); }
+.logistics-legend-swatch {
+  display: inline-grid;
+  min-width: 1.5rem;
+  height: 1rem;
+  place-items: center;
+  border-bottom: 2px solid currentColor;
+  color: #76b7e5;
+  font-weight: 800;
+  line-height: 1;
+}
+.logistics-legend-idle .logistics-legend-swatch { border-bottom-style: dotted; opacity: 0.65; }
+.logistics-legend-blocked .logistics-legend-swatch { color: #d18a94; border-bottom-style: dashed; }
+.logistics-legend-rumored .logistics-legend-swatch { color: var(--vscode-descriptionForeground); border-bottom-style: dotted; }
+.logistics-legend-selected .logistics-legend-swatch { color: var(--vscode-focusBorder); border-bottom-width: 3px; }
+.logistics-legend-node-symbol {
+  display: inline-grid;
+  width: 1.35rem;
+  height: 1.1rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+.logistics-legend-node-market .logistics-legend-node-symbol { border-radius: 999px; color: #7fc5aa; }
+.logistics-legend-node-facility .logistics-legend-node-symbol { border-radius: 0; color: #d3a768; }
+.logistics-legend-node-settlement .logistics-legend-node-symbol { transform: rotate(45deg); color: #87aee0; }
+.logistics-legend-node-settlement .logistics-legend-node-symbol::first-letter { transform: rotate(-45deg); }
+.logistics-legend-node-vehicle .logistics-legend-node-symbol,
+.logistics-legend-node-caravan .logistics-legend-node-symbol { border-radius: 45%; border-style: dashed; color: #82c5dd; }
+.logistics-legend-node-envoy .logistics-legend-node-symbol { border-radius: 50%; border-style: dotted; color: #c69be1; }
+.logistics-legend-node-mobile-base .logistics-legend-node-symbol { border-width: 2px; color: #efc66d; }
+
 .logistics-flow-toggle-btn {
   flex: 0 0 auto;
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
@@ -152,12 +199,19 @@
 .logistics-route-blocked .logistics-route-line { stroke-dasharray: 3 5; }
 .logistics-route-raided { color: #c69be1; }
 .logistics-route-raided .logistics-route-line { stroke-dasharray: 12 4 2 4; }
+.logistics-route-rumored { color: var(--vscode-descriptionForeground); }
+.logistics-route-rumored .logistics-route-line { stroke-dasharray: 2 7; }
+.logistics-route.is-idle .logistics-route-line { stroke-dasharray: 2 7; opacity: 0.45 !important; }
 .logistics-route.is-bottleneck .logistics-route-line { stroke-dashoffset: 2; }
 
 .logistics-arrow-open .logistics-arrow-path { fill: #76b7e5; }
 .logistics-arrow-strained .logistics-arrow-path { fill: #e5b95f; }
 .logistics-arrow-blocked .logistics-arrow-path { fill: #d18a94; }
 .logistics-arrow-raided .logistics-arrow-path { fill: #c69be1; }
+.logistics-arrow-rumored .logistics-arrow-path { fill: var(--vscode-descriptionForeground); }
+
+.logistics-route.is-unrelated { opacity: 0.18; }
+.logistics-node.is-unrelated { opacity: 0.28; }
 
 .logistics-route-label,
 .logistics-route-warning {
@@ -228,11 +282,33 @@
   vector-effect: non-scaling-stroke;
 }
 
+.logistics-node-accent {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
 .logistics-node-region .logistics-node-shape { stroke-dasharray: 5 3; }
 .logistics-node-settlement .logistics-node-shape { stroke: #87aee0; }
 .logistics-node-facility .logistics-node-shape { stroke: #d3a768; }
 .logistics-node-market .logistics-node-shape { stroke: #7fc5aa; }
 .logistics-node-store .logistics-node-shape { stroke: #ba9bdd; }
+.logistics-node-vehicle .logistics-node-shape,
+.logistics-node-caravan .logistics-node-shape { stroke: #82c5dd; stroke-dasharray: 8 3; }
+.logistics-node-envoy .logistics-node-shape { stroke: #c69be1; stroke-dasharray: 2 3; }
+.logistics-node-mobile-base .logistics-node-shape { stroke: #efc66d; stroke-width: 2.4; }
+.logistics-node-region .logistics-node-accent { stroke-dasharray: 4 4; }
+.logistics-node-settlement .logistics-node-accent { stroke: #87aee0; }
+.logistics-node-market .logistics-node-accent { stroke: #7fc5aa; }
+.logistics-node-facility .logistics-node-accent { stroke: #d3a768; }
+.logistics-node-vehicle .logistics-node-accent,
+.logistics-node-caravan .logistics-node-accent { stroke: #82c5dd; }
+.logistics-node-envoy .logistics-node-accent { stroke: #c69be1; }
+.logistics-node-mobile-base .logistics-node-accent { stroke: #efc66d; }
+.logistics-node-scale-minor { opacity: 0.82; }
+.logistics-node-scale-major .logistics-node-shape { stroke-width: 2.5; }
+.logistics-node-scale-major .logistics-node-label { font-size: 13px; }
 
 .logistics-node:focus-visible {
   outline: none;
@@ -255,6 +331,13 @@
   fill: var(--vscode-foreground);
   font-size: 12px;
   font-weight: 600;
+}
+
+.logistics-node-symbol {
+  fill: currentColor;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
 }
 
 .logistics-shortage-badge,

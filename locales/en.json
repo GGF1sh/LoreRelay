@@ -1124,6 +1124,8 @@
   "webview.world.actionHubTradeReasonStock": "The market does not have enough stock for this purchase.",
   "webview.world.actionHubTradeReasonCredits": "You do not have enough credits for this purchase.",
   "webview.world.actionHubTradeReasonCapacity": "This purchase would exceed cargo capacity.",
+  "webview.world.actionHubTradeReasonCapacityUnknown": "Cargo capacity is unavailable, so this purchase cannot be confirmed.",
+  "webview.world.actionHubTradeReasonCargoUnknown": "Current cargo weight is unavailable, so this trade cannot be confirmed.",
   "webview.world.actionHubTradeReasonHeld": "You do not hold enough of this commodity to sell it.",
   "webview.world.actionHubNoCurrentMarket": "There is no usable market here. Use Travel to move to a market location.",
   "webview.world.actionHubNoDestinations": "No other connected market is currently available.",

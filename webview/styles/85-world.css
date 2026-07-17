@@ -641,6 +641,18 @@
   padding: 7px 0 3px;
 }
 
+/* WORLD-LOCATION-NAV-STABILITY-001: Settlement/Diorama collapse to a short
+ * "no data yet" paragraph while a data-bearing location renders a full
+ * canvas. Without a floor, that height swing propagates to everything below
+ * it. The navigator itself now sits above this viewport (see index.html), so
+ * this floor matches the largest rendered viewport (420px canvas plus
+ * controls/details). It also prevents the outer VS Code scroll container
+ * from clamping its scrollTop when the selected location has no snapshot. */
+#world-settlement,
+#world-diorama {
+  min-height: 620px;
+}
+
 .world-location-navigator-title {
   margin-right: 2px;
   color: var(--vscode-descriptionForeground, #9aa4b2);

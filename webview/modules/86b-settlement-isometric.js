@@ -1353,7 +1353,10 @@ function drawSettlementIsometric() {
         });
     }
 
-    const markers = Array.isArray(view.markers) ? view.markers : [];
+    // Draw and hit-test at the same visual coordinates used for fitting/framing
+    // (visualView.markers). The authoritative view.markers array (read by the
+    // marker-fallback list and layer-empty check above) is never touched.
+    const markers = Array.isArray(visualView?.markers) ? visualView.markers : [];
     for (const marker of markers) {
         const { sx, sy } = isoProject(marker.x, marker.y, marker.z, originX, originY);
         drawIsoMarker(ctx, sx, sy, marker.kind);

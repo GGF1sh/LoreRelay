@@ -1112,6 +1112,8 @@
   "webview.world.actionHubTradeReasonStock": "市场库存不足，无法购买。",
   "webview.world.actionHubTradeReasonCredits": "资金不足，无法购买。",
   "webview.world.actionHubTradeReasonCapacity": "购买后会超过载重上限。",
+  "webview.world.actionHubTradeReasonCapacityUnknown": "载重上限未知，无法确认此次购买。",
+  "webview.world.actionHubTradeReasonCargoUnknown": "当前载重未知，无法确认此次交易。",
   "webview.world.actionHubTradeReasonHeld": "持有数量不足，无法出售。",
   "webview.world.actionHubNoCurrentMarket": "当前位置没有可用市场。请使用“移动”前往市场地点。",
   "webview.world.actionHubNoDestinations": "当前没有其他连通的市场可前往。",

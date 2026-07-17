@@ -741,6 +741,11 @@
               <button type="button" id="world-effects-tier-btn" class="small-btn world-effects-tier-btn" data-i18n-title="webview.world.effectsTierTitle" title="Motion effects">✨ Light</button>
             </div>
             <p id="world-vehicle-tile-hint" class="world-vehicle-tile-hint hidden" data-i18n="webview.world.vehicleTileHint">Vehicles and parking markers appear on the Tile map mode.</p>
+            <!-- WORLD-LOCATION-NAV-STABILITY-001: the navigator sits above the
+                 variable-height map viewport (not below it) so switching
+                 between a data-bearing and a no-data location never moves the
+                 button row — only the viewport below it changes size. -->
+            <div id="world-location-navigator" class="world-location-navigator hidden" role="group"></div>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
               <div id="world-mermaid" class="mermaid world-map-panel"></div>
               <div id="world-cartography" class="world-map-panel hidden">
@@ -827,7 +832,6 @@
                 <div id="world-diorama-marker-fallback" class="world-diorama-marker-fallback hidden"></div>
               </div>
             </div>
-            <div id="world-location-navigator" class="world-location-navigator hidden" role="group"></div>
             <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>
             <details id="world-map-items-section" class="world-map-items-section hidden">
               <summary data-i18n="webview.world.mapItemsTitle">Maps &amp; Intel</summary>

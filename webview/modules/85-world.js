@@ -38,6 +38,8 @@ const WORLD_MAP_MODE_KEY = 'lorerelay.worldMapMode';
 let _worldViewMsg = null;
 let _selectedPinId = null;
 let _worldPinCatalog = new Map();
+let _pendingWorldLocationFocusId = null;
+let _worldLocationFocusClearTimer = null;
 const WORLD_PIN_HIT_RADIUS_PX = 22;
 let _worldPinDismissReady = false;
 let _regionFeedbackMap = new Map();
@@ -984,6 +986,12 @@ function rebuildWorldPinCatalog(msg) {
     }
 }
 
+/** Catalog order and membership never depend on Settlement/Diorama data
+ * availability (only on `fogVisibility === 'discovered'`), so the button row
+ * itself is already stable across location switches. What this function must
+ * still protect is keyboard focus: every call fully rebuilds the DOM nodes,
+ * and a worldView message following a click (near-immediate) used to drop
+ * focus back to <body> the instant the user's own click had set it. */
 function renderWorldLocationNavigator() {
     const el = document.getElementById('world-location-navigator');
     if (!el) { return; }
@@ -995,12 +1003,18 @@ function renderWorldLocationNavigator() {
         el.classList.add('hidden');
         return;
     }
+    const activeElement = (typeof document.activeElement !== 'undefined') ? document.activeElement : null;
+    const focusedLocationId = (activeElement && activeElement.classList
+        && activeElement.classList.contains('world-location-chip'))
+        ? activeElement.dataset.locationId
+        : _pendingWorldLocationFocusId;
     el.classList.remove('hidden');
     el.innerHTML = '';
     const title = document.createElement('span');
     title.className = 'world-location-navigator-title';
     title.textContent = T('webview.world.locationNavigator');
     el.appendChild(title);
+    let focusTarget = null;
     for (const pin of locations) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -1014,9 +1028,33 @@ function renderWorldLocationNavigator() {
         btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
         btn.addEventListener('click', (event) => {
             event.stopPropagation();
+            // Keep the user's chosen focus target across the asynchronous
+            // host round-trip, even if Chromium briefly reports <body> while
+            // the Webview message rebuilds this row.
+            _pendingWorldLocationFocusId = pin.locationId;
+            if (_worldLocationFocusClearTimer && typeof clearTimeout === 'function') {
+                clearTimeout(_worldLocationFocusClearTimer);
+                _worldLocationFocusClearTimer = null;
+            }
             selectWorldLocationPin(pin.locationId);
         });
         el.appendChild(btn);
+        if (pin.locationId === focusedLocationId) { focusTarget = btn; }
+    }
+    if (focusTarget && typeof focusTarget.focus === 'function') {
+        focusTarget.focus({ preventScroll: true });
+        if (typeof setTimeout === 'function') {
+            if (_worldLocationFocusClearTimer && typeof clearTimeout === 'function') {
+                clearTimeout(_worldLocationFocusClearTimer);
+            }
+            _worldLocationFocusClearTimer = setTimeout(() => {
+                const active = document.activeElement;
+                if (active && active.dataset?.locationId === focusedLocationId) {
+                    _pendingWorldLocationFocusId = null;
+                }
+                _worldLocationFocusClearTimer = null;
+            }, 750);
+        }
     }
 }
 
@@ -1406,32 +1444,46 @@ function hasSettlementMapContent(msg) {
     return Boolean(msg.settlementDisplayContext);
 }
 
+/** Mermaid, parchment, and tile are never campaign-gated: this is the one
+ * mode always safe to fall back to when a persisted mode becomes unavailable. */
+const WORLD_MAP_MODE_SAFE_FALLBACK = 'mermaid';
+
+/** A persisted mode (localStorage) that a *previous* campaign supported can
+ * outlive that campaign. This distinguishes the two causes a mode can be
+ * unavailable so only a genuine capability loss forces a fallback:
+ *   - "this location has no data" (location-level) -> keep the mode selected,
+ *     the panel renders its own honest empty state;
+ *   - "this campaign does not have the feature at all" (campaign-level) ->
+ *     the mode cannot be restored from storage and must fall back once. */
 function syncSettlementMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-settlement');
     if (!btn) { return; }
-    // Mode availability is a campaign capability, not a property of the
-    // currently previewed location. Keep the selected mode visible while an
-    // honest location-specific empty state is rendered inside it.
-    const show = Boolean(msg && (
+    const campaignSupportsSettlement = Boolean(msg && (
         msg.enableSettlementMode === true
         || msg.enableMobileBaseSystem === true
         || hasSettlementMapContent(msg)
     ));
-    btn.classList.toggle('hidden', !show);
+    btn.classList.toggle('hidden', !campaignSupportsSettlement);
+    if (!campaignSupportsSettlement && worldMapMode === 'settlement') {
+        setWorldMapMode(WORLD_MAP_MODE_SAFE_FALLBACK, { persist: true });
+    }
 }
 
 /** Diorama is a persistent campaign mode even when the focused location has no snapshot. */
 function syncDioramaMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-diorama');
     if (!btn) { return; }
-    const show = Boolean(msg && msg.enableSettlementDiorama === true);
-    btn.classList.toggle('hidden', !show);
+    const campaignSupportsDiorama = Boolean(msg && msg.enableSettlementDiorama === true);
+    btn.classList.toggle('hidden', !campaignSupportsDiorama);
+    if (!campaignSupportsDiorama && worldMapMode === 'diorama') {
+        setWorldMapMode(WORLD_MAP_MODE_SAFE_FALLBACK, { persist: true });
+    }
 }
 
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
     const supported = new Set(['mermaid', 'parchment', 'tile', 'settlement', 'diorama']);
-    worldMapMode = supported.has(mode) ? mode : 'mermaid';
+    worldMapMode = supported.has(mode) ? mode : WORLD_MAP_MODE_SAFE_FALLBACK;
     if (persist) {
         try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
     }
@@ -2337,6 +2389,15 @@ function hubHeldQty(commerce, commodityId) {
 
 /** Deterministic, presentation-only projection of a proposed trade.
  * The host remains authoritative: this helper never mutates state or posts a message. */
+/** Distinguishes an honest "unknown" (null/undefined/non-numeric) from an
+ * actual numeric zero. `Number(null) === 0` and `Number(undefined) === NaN`
+ * both defeat a naive `Number(x) || 0` fallback: null silently becomes a
+ * real-looking zero. Never use that pattern for capacity/weight fields that
+ * the host may legitimately not know yet. */
+function numberOrNull(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 function buildHubTradeProjection(commerce, quote, operation, rawQty) {
     const qty = Number(rawQty);
     const op = operation === 'sell' ? 'sell' : 'buy';
@@ -2344,25 +2405,34 @@ function buildHubTradeProjection(commerce, quote, operation, rawQty) {
     const unitWeight = Math.max(0, Number(quote?.unitWeight) || 0);
     const stockBefore = Math.max(0, Number(quote?.stock) || 0);
     const moneyBefore = Number(commerce?.credits) || 0;
-    const cargoBefore = Math.max(0, Number(commerce?.cargoWeight) || 0);
-    const capacity = Number.isFinite(Number(commerce?.cargoCapacity))
-        ? Math.max(0, Number(commerce.cargoCapacity))
-        : null;
+    const cargoBeforeKnown = numberOrNull(commerce?.cargoWeight);
+    const cargoWeightUnknown = cargoBeforeKnown === null;
+    const cargoBefore = cargoWeightUnknown ? null : Math.max(0, cargoBeforeKnown);
+    const capacityKnown = numberOrNull(commerce?.cargoCapacity);
+    const capacity = capacityKnown === null ? null : Math.max(0, capacityKnown);
     const heldBefore = quote ? hubHeldQty(commerce, quote.commodityId) : 0;
     const qtyValid = Number.isInteger(qty) && qty >= 1 && qty <= 999;
     const total = qtyValid ? Math.round(unitPrice * qty) : 0;
     const direction = op === 'buy' ? 1 : -1;
     const moneyAfter = moneyBefore - (direction * total);
-    const cargoAfter = Math.max(0, cargoBefore + (direction * unitWeight * (qtyValid ? qty : 0)));
+    const cargoAfter = cargoWeightUnknown
+        ? null
+        : Math.max(0, cargoBefore + (direction * unitWeight * (qtyValid ? qty : 0)));
     const stockAfter = Math.max(0, stockBefore - (direction * (qtyValid ? qty : 0)));
     const heldAfter = Math.max(0, heldBefore + (direction * (qtyValid ? qty : 0)));
     let reasonKey = null;
     if (!quote) { reasonKey = 'webview.world.actionHubTradeReasonNoCommodity'; }
     else if (!qtyValid) { reasonKey = 'webview.world.actionHubTradeReasonQuantity'; }
     else if (op === 'buy' && stockBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonStock'; }
-    else if (op === 'buy' && moneyBefore < total) { reasonKey = 'webview.world.actionHubTradeReasonCredits'; }
-    else if (op === 'buy' && capacity !== null && cargoAfter > capacity) { reasonKey = 'webview.world.actionHubTradeReasonCapacity'; }
     else if (op === 'sell' && heldBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonHeld'; }
+    else if (op === 'buy' && moneyBefore < total) { reasonKey = 'webview.world.actionHubTradeReasonCredits'; }
+    // The projection would otherwise have to invent a "before" figure to show
+    // an "after" figure. An unknown baseline blocks confirmation honestly
+    // rather than silently defaulting cargo weight to zero.
+    else if (cargoWeightUnknown) { reasonKey = 'webview.world.actionHubTradeReasonCargoUnknown'; }
+    // Capacity only gates buying (adding cargo); selling never needs it.
+    else if (op === 'buy' && capacity === null) { reasonKey = 'webview.world.actionHubTradeReasonCapacityUnknown'; }
+    else if (op === 'buy' && capacity !== null && cargoAfter > capacity) { reasonKey = 'webview.world.actionHubTradeReasonCapacity'; }
     return {
         valid: !reasonKey,
         reasonKey,

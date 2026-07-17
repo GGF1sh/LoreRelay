@@ -322,6 +322,18 @@ function disposeSettlementDiorama() {
     disposeSettlementDioramaRenderer();
 }
 
+/** Clear location-specific scene content without losing the canvas WebGL
+ * context. A data -> no-data -> same-data preview cycle reuses this canvas;
+ * forceContextLoss() makes the subsequent renderer permanently blank in the
+ * VS Code Webview. Reset the scene identity so the same snapshot rebuilds. */
+function clearSettlementDioramaScene() {
+    disposeSceneObjects();
+    _lastDioramaSettlementId = null;
+    _lastDioramaLayerId = null;
+    _lastDioramaRevision = null;
+    _dioramaSelected = null;
+}
+
 function rebuildDioramaSceneContent(snapshot) {
     const t = _dioramaThree;
     if (!t) { return null; }
@@ -814,7 +826,7 @@ function renderSettlementDiorama() {
                 ? T('webview.world.dioramaNoDataLocation', { location })
                 : (location ? `${location} has no Diorama data.` : 'This location has no Diorama data.');
         }
-        disposeSettlementDiorama();
+        clearSettlementDioramaScene();
         renderSettlementDioramaMarkerFallback(null);
         renderSettlementDioramaDetailPanel(null);
         return;

@@ -1112,6 +1112,8 @@
   "webview.world.actionHubTradeReasonStock": "市場在庫が不足しているため購入できません。",
   "webview.world.actionHubTradeReasonCredits": "所持金が不足しているため購入できません。",
   "webview.world.actionHubTradeReasonCapacity": "積載上限を超えるため購入できません。",
+  "webview.world.actionHubTradeReasonCapacityUnknown": "積載上限が不明なため、この購入は確定できません。",
+  "webview.world.actionHubTradeReasonCargoUnknown": "現在の積載量が不明なため、この取引は確定できません。",
   "webview.world.actionHubTradeReasonHeld": "保有数が不足しているため売却できません。",
   "webview.world.actionHubNoCurrentMarket": "現在地に取引できる市場がありません。「旅」から市場のある場所へ移動してください。",
   "webview.world.actionHubNoDestinations": "移動できる別の市場がありません。",

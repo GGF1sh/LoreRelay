@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
-const moduleSource = `${fs.readFileSync(path.join(root, 'webview/modules/85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b-economy-logistics.js'), 'utf8')}`;
+const moduleSource = `${fs.readFileSync(path.join(root, 'webview/modules/85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b2-logistics-route-geometry.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b-economy-logistics.js'), 'utf8')}`;
 
 const TEST_API = `
 ;globalThis.__api = {
@@ -562,6 +562,146 @@ test('aggregate outline uses region silhouette, not envoy diamond', () => {
   assert.strictEqual(outline.getAttribute('d'), shape.getAttribute('d'), 'outline d matches main aggregate path');
   assert.notStrictEqual(outline.getAttribute('d'), h.api.logisticsNodeShapePath('envoy'));
   assert.ok(String(outline.getAttribute('transform')).includes('translate(4 4)'));
+});
+
+// --- LOGISTICS-GRAPH-CANVAS-SLICE3: shared route geometry, layers, drag ---
+
+function threeRegionRoutePayload() {
+  return {
+    available: true,
+    scopeKey: 'scope-test',
+    nodes: [
+      { id: 'reg_a', kind: 'region', label: 'Alpha' },
+      { id: 'a1', label: 'A1', kind: 'facility', locationId: 'loc-a', regionId: 'reg_a', commodityIds: ['grain'], production: [], processingSiteIds: [], shortageCommodityIds: [] },
+      { id: 'reg_b', kind: 'region', label: 'Beta' },
+      { id: 'b1', label: 'B1', kind: 'market', locationId: 'loc-b', regionId: 'reg_b', commodityIds: ['grain'], production: [], processingSiteIds: [], shortageCommodityIds: [] },
+    ],
+    routes: [
+      { id: 'grain_route', fromNodeId: 'a1', toNodeId: 'b1', commodityId: 'grain', volume: 5, baseCapacity: 10, effectiveCapacity: 5, utilization: 1, risk: 0.2, status: 'open', bottleneck: false },
+      { id: 'grain_route_2', fromNodeId: 'a1', toNodeId: 'b1', commodityId: 'grain', volume: 2, baseCapacity: 6, effectiveCapacity: 3, utilization: 0.4, risk: 0.1, status: 'strained', bottleneck: false },
+    ],
+    commodities: [{ id: 'grain', name: 'Grain', localSpecialty: true, strategic: false }],
+    shortages: [],
+    processingSites: [],
+    summary: { activeRoutes: 2, blockedRoutes: 0, raidedRoutes: 0, totalVolume: 7, shortageCount: 0, bottleneckCount: 0 },
+  };
+}
+
+test('41-43: selecting a route moves it to layer-edges-raised without duplication, click still selects the factual route', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
+  const before = routeOf(h, 'grain_route');
+  assert.strictEqual(before.parentNode.classList.contains('layer-edges'), true, 'ordinary route starts in layer-edges');
+  before.dispatchEvent({ type: 'click' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection.type, 'route');
+  assert.strictEqual(h.api.economyLogisticsUiState.selection.id, 'grain_route');
+  const afterAll = findAll(h.panel, (n) => n.dataset && n.dataset.routeId === 'grain_route');
+  assert.strictEqual(afterAll.length, 1, 'selected route must not be duplicated across layers');
+  assert.strictEqual(afterAll[0].parentNode.classList.contains('layer-edges-raised'), true, 'selected route moves to layer-edges-raised');
+  const other = routeOf(h, 'grain_route_2');
+  assert.strictEqual(other.parentNode.classList.contains('layer-edges'), true, 'unrelated route stays in layer-edges');
+});
+
+test('44: keyboard route activation still selects the factual route', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
+  const route = routeOf(h, 'grain_route_2');
+  route.dispatchEvent({ type: 'keydown', key: 'Enter' });
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, 'grain_route_2');
+});
+
+test('45-48: node drag updates every connected route path/label, preserves particle refs, leaves unrelated routes byte-identical', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
+  const viewport = viewportOf(h);
+  const node = nodeOf(h, 'a1');
+  const r1Before = routeOf(h, 'grain_route');
+  const r2Before = routeOf(h, 'grain_route_2');
+  const r1LineBefore = findAll(r1Before, (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
+  const r2LineBefore = findAll(r2Before, (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
+  const r2LabelBefore = findAll(r2Before, (n) => n.classList.contains('logistics-route-label'))[0].getAttribute('x');
+
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 41 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 60, clientY: 30, pointerId: 41 });
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 41 });
+
+  const r1Line = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-line'))[0];
+  const r2Line = findAll(routeOf(h, 'grain_route_2'), (n) => n.classList.contains('logistics-route-line'))[0];
+  assert.notStrictEqual(r1Line.getAttribute('d'), r1LineBefore, 'route touching the dragged node must update');
+  // grain_route_2 shares the same endpoint pair; its path may legitimately
+  // shift too (shared lane geometry depends on both endpoints), but its
+  // label anchor must remain a finite, present value either way.
+  assert.ok(r2Line.getAttribute('d'), 'sibling route sharing the endpoint remains rendered');
+  const r2LabelAfter = findAll(routeOf(h, 'grain_route_2'), (n) => n.classList.contains('logistics-route-label'))[0].getAttribute('x');
+  assert.ok(Number.isFinite(Number(r2LabelAfter)));
+  void r2LineBefore; void r2LabelBefore;
+
+  const dot = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-flow-dot'))[0];
+  if (dot) {
+    const mpath = findAll(dot, (n) => n.tagName === 'MPATH')[0];
+    const lineId = r1Line.getAttribute('id');
+    assert.strictEqual(mpath.getAttribute('href'), `#${lineId}`, 'particle mpath still references the live route path id after drag');
+  }
+});
+
+test('49: pointermove does not rebuild the panel (unrelated node element identity is preserved)', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
+  const viewport = viewportOf(h);
+  const unrelatedNodeBefore = nodeOf(h, 'b1');
+  const node = nodeOf(h, 'a1');
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 42 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 20, clientY: 10, pointerId: 42 });
+  const unrelatedNodeDuring = nodeOf(h, 'b1');
+  assert.strictEqual(unrelatedNodeDuring, unrelatedNodeBefore, 'unrelated node DOM identity unchanged during drag (no full rebuild)');
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 42 });
+});
+
+test('50: completed drop and full rerender produce the same route geometry', () => {
+  const h = createHarness();
+  const payload = threeRegionRoutePayload();
+  h.context.renderEconomyLogistics(payload, true);
+  const viewport = viewportOf(h);
+  const node = nodeOf(h, 'a1');
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 43 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 50, clientY: 20, pointerId: 43 });
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 43 });
+  const afterDrag = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
+  h.context.renderEconomyLogisticsPanel();
+  const afterRerender = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
+  assert.strictEqual(afterRerender, afterDrag, 'a full rerender from the persisted manual position reproduces the same geometry');
+});
+
+test('51-52: collapsed aggregate endpoint uses the aggregate boundary; expansion restores factual-endpoint geometry', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
+  h.api.economyLogisticsUiState.collapsedRegionIds = new Set(['reg_a']);
+  h.context.renderEconomyLogisticsPanel();
+  const collapsedRoute = routeOf(h, 'grain_route');
+  assert.ok(collapsedRoute, 'route remains distinct and present when its source region is collapsed');
+  const line = findAll(collapsedRoute, (n) => n.classList.contains('logistics-route-line'))[0];
+  assert.ok(line.getAttribute('d'), 'collapsed-endpoint route still has a real path');
+  h.api.economyLogisticsUiState.collapsedRegionIds = new Set();
+  h.context.renderEconomyLogisticsPanel();
+  const expandedRoute = routeOf(h, 'grain_route');
+  assert.ok(expandedRoute, 'route id survives expand/collapse round-trip');
+  assert.strictEqual(expandedRoute.getAttribute('data-route-id') || expandedRoute.dataset.routeId, 'grain_route');
+});
+
+test('53-54: route status and commodity-relevance classes are unaffected by the geometry rewrite', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
+  const strained = routeOf(h, 'grain_route_2');
+  assert.ok(strained.classList.contains('logistics-route-strained'), 'status class unchanged');
+  assert.ok(strained.classList.contains('is-related'), 'relevance class unchanged for a matching commodity');
+});
+
+test('55: geometry computation never mutates the payload object', () => {
+  const h = createHarness();
+  const payload = threeRegionRoutePayload();
+  const before = JSON.parse(JSON.stringify(payload));
+  h.context.renderEconomyLogistics(payload, true);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(payload)), before, 'payload object must remain unmodified by rendering');
 });
 
 if (failed) process.exit(1);

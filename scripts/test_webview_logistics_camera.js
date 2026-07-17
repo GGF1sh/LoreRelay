@@ -15,8 +15,9 @@ const vm = require('vm');
 
 const root = path.join(__dirname, '..');
 const layoutModulePath = path.join(root, 'webview', 'modules', '85b1-logistics-layout.js');
+const geometryModulePath = path.join(root, 'webview', 'modules', '85b2-logistics-route-geometry.js');
 const modulePath = path.join(root, 'webview', 'modules', '85b-economy-logistics.js');
-const source = `${fs.readFileSync(layoutModulePath, 'utf8')}\n${fs.readFileSync(modulePath, 'utf8')}`;
+const source = `${fs.readFileSync(layoutModulePath, 'utf8')}\n${fs.readFileSync(geometryModulePath, 'utf8')}\n${fs.readFileSync(modulePath, 'utf8')}`;
 let failed = 0;
 
 // Appended only to the evaluation string — never shipped in production code.
@@ -765,18 +766,20 @@ test('deterministic route geometry and regional node layout output are stable', 
   const from = { x: 100, y: 80 };
   const to = { x: 500, y: 220 };
   const geometry = h.context.logisticsRouteGeometry({ id: 'r1' }, from, to);
-  // Endpoints are still fixed ±78 world-space units from the node centres
-  // (unchanged geometry formula); the camera transform sits outside this.
-  // Objects here are constructed inside the vm context (a different realm),
-  // so compare primitive fields rather than assert.deepStrictEqual, which
-  // treats same-shape cross-realm objects as unequal.
-  assert.strictEqual(geometry.start.x, 178);
-  assert.strictEqual(geometry.start.y, 80);
-  assert.strictEqual(geometry.end.x, 422);
-  assert.strictEqual(geometry.end.y, 220);
-  assert.ok(geometry.d.startsWith('M 178,80 C '));
-  assert.ok(geometry.d.endsWith(' 422,220'));
-  assert.strictEqual(geometry.d, h.context.logisticsRouteGeometry({ id: 'r1' }, from, to).d);
+  // LOGISTICS-GRAPH-CANVAS-SLICE3: endpoints now sit on the node's boundary
+  // (a deterministic port), not at a fixed +/-78 centre offset. Default box
+  // size is 152x60 (see logisticsRouteGeometry's adapter). The camera
+  // transform sits outside this either way. Objects here are constructed
+  // inside the vm context (a different realm), so compare primitive fields
+  // rather than assert.deepStrictEqual, which treats same-shape cross-realm
+  // objects as unequal.
+  assert.strictEqual(geometry.start.x, from.x + 76, 'start sits on the source box boundary, not its centre');
+  assert.notStrictEqual(geometry.start.x, from.x);
+  assert.strictEqual(geometry.end.x, to.x - 76, 'end sits on the target box boundary, not its centre');
+  assert.notStrictEqual(geometry.end.x, to.x);
+  assert.ok(geometry.d.startsWith(`M ${geometry.start.x},${geometry.start.y} C `));
+  assert.ok(geometry.d.endsWith(` ${geometry.end.x},${geometry.end.y}`));
+  assert.strictEqual(geometry.d, h.context.logisticsRouteGeometry({ id: 'r1' }, from, to).d, 'same input twice is byte-identical');
   const payload = threeNodePayload();
   const layout = h.context.buildLogisticsLayout(payload.nodes, payload.routes);
   const again = h.context.buildLogisticsLayout(payload.nodes.slice().reverse(), payload.routes.slice().reverse());

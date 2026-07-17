@@ -3806,6 +3806,23 @@ textarea:focus-visible {
   transition: opacity 120ms ease, stroke-width 120ms ease;
 }
 
+/* LOGISTICS-GRAPH-CANVAS-SLICE3: invisible wide hit target sharing the exact
+   visible-stroke `d`, so a thin low-volume line still has a comfortable
+   click/tap target independent of its rendered width. */
+.logistics-route-hit {
+  stroke: transparent;
+  fill: none;
+  stroke-width: 12;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
+/* Honest diagnostics: a bounded detour or an unresolved conflict is a subtle
+   visual signal for development, never a hidden route. */
+.logistics-route.is-detoured .logistics-route-line { stroke-dashoffset: 1; }
+.logistics-route.is-geometry-conflicted .logistics-route-line { outline: none; filter: drop-shadow(0 0 1px #e5b95f); }
+.logistics-route-label.is-label-conflicted { opacity: 0.82; }
+
 .logistics-route-open { color: #76b7e5; }
 .logistics-route-strained { color: #e5b95f; }
 .logistics-route-strained .logistics-route-line { stroke-dasharray: 10 5; }

@@ -7,7 +7,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
-const source = `${fs.readFileSync(path.join(root, 'webview', 'modules', '85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview', 'modules', '85b-economy-logistics.js'), 'utf8')}`;
+const source = `${fs.readFileSync(path.join(root, 'webview', 'modules', '85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview', 'modules', '85b2-logistics-route-geometry.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview', 'modules', '85b-economy-logistics.js'), 'utf8')}`;
 const backing = new Map();
 let rejectStorage = false;
 const timers = [];

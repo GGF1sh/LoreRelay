@@ -12106,12 +12106,10 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
 // label anchor, warning anchor, bounds) comes from the one geometry object
 // this module returns per route.
 //
-// Deliberate simplifications from the SS6 prose, documented instead of
-// silently diverging:
-//   - Candidate policy is bounded to {direct+lane, 3 perpendicular detour
-//     steps, 1 deterministic 2-segment fallback} rather than the full
-//     above/below/left/right/outer-corridor enumeration. Still bounded,
-//     still deterministic, still "never hide the route".
+// Bounded candidate policy: direct/lane, above/below/left/right of the union
+// envelope of direct blockers, one deterministic graph-envelope outer
+// corridor, then a finite honestly-conflicted fallback. Every candidate is
+// checked against every unrelated inflated node box.
 //   - Path bounds are the convex hull of {start, c1, c2, end} per segment,
 //     which contains a cubic Bezier exactly (hull property) rather than a
 //     bound derived only from sampled points.
@@ -12127,6 +12125,8 @@ const LOGISTICS_GEOM_SAMPLE_COUNT = 24;
 const LOGISTICS_GEOM_LABEL_MIN_GAP = 44;
 const LOGISTICS_GEOM_LABEL_NODE_GAP = 12;
 const LOGISTICS_GEOM_LABEL_CANDIDATES = [0.5, 0.35, 0.65, 0.28, 0.72, 0.2, 0.8];
+const LOGISTICS_GEOM_ENVELOPE_CLEARANCE = 28;
+const LOGISTICS_GEOM_PAIR_SEPARATOR = '\u001f';
 
 function logisticsGeomCompareId(a, b) {
   const aa = String(a == null ? '' : a);
@@ -12245,7 +12245,7 @@ function logisticsGeomAssignLanes(routes) {
   const groups = new Map(); // pairKey -> [{routeId, dirRank}]
   for (const route of routes) {
     const ids = [route.fromNodeId, route.toNodeId].sort(logisticsGeomCompareId);
-    const pairKey = ids.join(' ');
+    const pairKey = ids.join('\u001f');
     const dirRank = route.fromNodeId === ids[0] ? 0 : 1;
     if (!groups.has(pairKey)) { groups.set(pairKey, []); }
     groups.get(pairKey).push({ routeId: route.id, dirRank });
@@ -12259,6 +12259,119 @@ function logisticsGeomAssignLanes(routes) {
     });
   }
   return laneOf;
+}
+
+/** Stable topology-only metadata reused by full renders and pointer moves. */
+function buildLogisticsRouteTopologyIndex(routes) {
+  const routesById = new Map();
+  for (const route of Array.isArray(routes) ? routes : []) {
+    if (!route || typeof route.id !== 'string' || typeof route.fromNodeId !== 'string' || typeof route.toNodeId !== 'string'
+      || route.fromNodeId === route.toNodeId || routesById.has(route.id)) { continue; }
+    routesById.set(route.id, { id: route.id, fromNodeId: route.fromNodeId, toNodeId: route.toNodeId });
+  }
+  const sortedRouteIds = [...routesById.keys()].sort(logisticsGeomCompareId);
+  const byNodeId = new Map();
+  const byUnorderedEndpointPair = new Map();
+  const pairKeyByRouteId = new Map();
+  for (const routeId of sortedRouteIds) {
+    const route = routesById.get(routeId);
+    for (const nodeId of [route.fromNodeId, route.toNodeId]) {
+      if (!byNodeId.has(nodeId)) { byNodeId.set(nodeId, []); }
+      byNodeId.get(nodeId).push(routeId);
+    }
+    const endpoints = [route.fromNodeId, route.toNodeId].sort(logisticsGeomCompareId);
+    const pairKey = endpoints.join(LOGISTICS_GEOM_PAIR_SEPARATOR);
+    pairKeyByRouteId.set(routeId, pairKey);
+    if (!byUnorderedEndpointPair.has(pairKey)) { byUnorderedEndpointPair.set(pairKey, []); }
+    byUnorderedEndpointPair.get(pairKey).push(routeId);
+  }
+  for (const ids of byNodeId.values()) { ids.sort(logisticsGeomCompareId); }
+  const laneAllocationMetadata = new Map();
+  for (const [pairKey, ids] of byUnorderedEndpointPair) {
+    const endpoints = pairKey.split(LOGISTICS_GEOM_PAIR_SEPARATOR);
+    ids.sort((a, b) => {
+      const routeA = routesById.get(a); const routeB = routesById.get(b);
+      const dirA = routeA.fromNodeId === endpoints[0] ? 0 : 1;
+      const dirB = routeB.fromNodeId === endpoints[0] ? 0 : 1;
+      return dirA - dirB || logisticsGeomCompareId(a, b);
+    });
+    ids.forEach((routeId, rank) => laneAllocationMetadata.set(routeId, {
+      pairKey, rank, count: ids.length, laneIndex: rank - (ids.length - 1) / 2,
+    }));
+  }
+  return {
+    routesById,
+    byNodeId,
+    byUnorderedEndpointPair,
+    pairKeyByRouteId,
+    sortedRouteIds,
+    portAllocationMetadata: byNodeId,
+    laneAllocationMetadata,
+  };
+}
+
+/** Routes whose endpoint port ordering can change when `nodeId` moves. */
+function logisticsAffectedRouteIdsForNode(nodeId, topologyIndex) {
+  const affected = new Set();
+  const incident = topologyIndex?.byNodeId?.get(nodeId) || [];
+  const neighbors = new Set();
+  for (const routeId of incident) {
+    affected.add(routeId);
+    const route = topologyIndex.routesById.get(routeId);
+    if (route) { neighbors.add(route.fromNodeId === nodeId ? route.toNodeId : route.fromNodeId); }
+    const pairKey = topologyIndex.pairKeyByRouteId.get(routeId);
+    for (const siblingId of topologyIndex.byUnorderedEndpointPair.get(pairKey) || []) { affected.add(siblingId); }
+  }
+  for (const neighborId of [...neighbors].sort(logisticsGeomCompareId)) {
+    for (const routeId of topologyIndex.byNodeId.get(neighborId) || []) { affected.add(routeId); }
+  }
+  return [...affected].sort(logisticsGeomCompareId);
+}
+
+/** Assign ports only for requested routes, while ordering each endpoint against
+ * every incident route from the stable global topology index. */
+function logisticsGeomAssignPortsForRouteIds(topologyIndex, positions, routeIds) {
+  const requested = new Set(routeIds);
+  const relevantNodes = new Set();
+  for (const routeId of routeIds) {
+    const route = topologyIndex.routesById.get(routeId);
+    if (route) { relevantNodes.add(route.fromNodeId); relevantNodes.add(route.toNodeId); }
+  }
+  const endpointPorts = new Map();
+  for (const nodeId of [...relevantNodes].sort(logisticsGeomCompareId)) {
+    const nodeBox = positions.get(nodeId);
+    if (!logisticsGeomFiniteBox(nodeBox)) { continue; }
+    const bySide = new Map([['top', []], ['right', []], ['bottom', []], ['left', []]]);
+    for (const routeId of topologyIndex.byNodeId.get(nodeId) || []) {
+      const route = topologyIndex.routesById.get(routeId);
+      const end = route.fromNodeId === nodeId ? 'from' : 'to';
+      const otherId = end === 'from' ? route.toNodeId : route.fromNodeId;
+      const otherBox = positions.get(otherId);
+      if (!logisticsGeomFiniteBox(otherBox)) { continue; }
+      const side = logisticsGeomExitSide(nodeBox, otherBox.x, otherBox.y);
+      bySide.get(side).push({
+        routeId, end, side,
+        angle: Math.atan2(otherBox.y - nodeBox.y, otherBox.x - nodeBox.x),
+        dirRank: end === 'from' ? 0 : 1,
+      });
+    }
+    const portsBySide = logisticsGeomPortsBySide(nodeBox);
+    for (const [side, entries] of bySide) {
+      entries.sort((a, b) => a.angle - b.angle || a.dirRank - b.dirRank || logisticsGeomCompareId(a.routeId, b.routeId));
+      entries.forEach((entry, index) => {
+        if (!requested.has(entry.routeId)) { return; }
+        const slot = index % 3;
+        endpointPorts.set(`${entry.routeId}:${entry.end}`, { ...portsBySide.get(side)[slot], nodeId });
+      });
+    }
+  }
+  const result = new Map();
+  for (const routeId of routeIds) {
+    const sourcePort = endpointPorts.get(`${routeId}:from`);
+    const targetPort = endpointPorts.get(`${routeId}:to`);
+    if (sourcePort && targetPort) { result.set(routeId, { sourcePort, targetPort }); }
+  }
+  return result;
 }
 
 function logisticsGeomPerpendicularUnit(start, end) {
@@ -12313,6 +12426,66 @@ function logisticsGeomFirstCollision(points, obstacles) {
   return null;
 }
 
+function logisticsGeomCollisionIdsForSegments(segments, obstacles) {
+  const hitIds = [];
+  for (const obstacle of obstacles) {
+    let hit = false;
+    for (const segment of segments) {
+      const points = logisticsGeomSampleCubic(segment.start, segment.c1, segment.c2, segment.end, LOGISTICS_GEOM_SAMPLE_COUNT);
+      if (points.some((point) => logisticsGeomPointInBox(point, obstacle))) { hit = true; break; }
+    }
+    if (hit) { hitIds.push(obstacle.id); }
+  }
+  return hitIds.sort(logisticsGeomCompareId);
+}
+
+function logisticsGeomObstacleEnvelope(obstacles) {
+  if (!obstacles.length) { return null; }
+  let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+  for (const obstacle of obstacles) {
+    minX = Math.min(minX, obstacle.x - obstacle.w / 2);
+    minY = Math.min(minY, obstacle.y - obstacle.h / 2);
+    maxX = Math.max(maxX, obstacle.x + obstacle.w / 2);
+    maxY = Math.max(maxY, obstacle.y + obstacle.h / 2);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function logisticsGeomLinearSegment(start, end) {
+  return {
+    start,
+    c1: { x: start.x + (end.x - start.x) / 3, y: start.y + (end.y - start.y) / 3 },
+    c2: { x: start.x + (end.x - start.x) * 2 / 3, y: start.y + (end.y - start.y) * 2 / 3 },
+    end,
+  };
+}
+
+function logisticsGeomSegmentsThrough(points) {
+  const segments = [];
+  for (let i = 1; i < points.length; i++) {
+    if (points[i - 1].x === points[i].x && points[i - 1].y === points[i].y) { continue; }
+    segments.push(logisticsGeomLinearSegment(points[i - 1], points[i]));
+  }
+  return segments;
+}
+
+function logisticsGeomPortStub(port, distance) {
+  const delta = port.side === 'top' ? { x: 0, y: -distance }
+    : port.side === 'right' ? { x: distance, y: 0 }
+      : port.side === 'bottom' ? { x: 0, y: distance }
+        : { x: -distance, y: 0 };
+  return { x: port.x + delta.x, y: port.y + delta.y };
+}
+
+function logisticsGeomCorridorSegments(start, end, sourcePort, targetPort, side, corridor) {
+  const sourceStub = logisticsGeomPortStub(sourcePort, LOGISTICS_GEOM_ENVELOPE_CLEARANCE);
+  const targetStub = logisticsGeomPortStub(targetPort, LOGISTICS_GEOM_ENVELOPE_CLEARANCE);
+  const middle = side === 'above' || side === 'below'
+    ? [{ x: sourceStub.x, y: corridor }, { x: targetStub.x, y: corridor }]
+    : [{ x: corridor, y: sourceStub.y }, { x: corridor, y: targetStub.y }];
+  return logisticsGeomSegmentsThrough([start, sourceStub, ...middle, targetStub, end]);
+}
+
 function logisticsGeomHullBounds(points) {
   let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
   for (const p of points) {
@@ -12338,9 +12511,8 @@ function logisticsGeomSegmentD(segment, isFirst) {
   return `${move}C ${segment.c1.x},${segment.c1.y} ${segment.c2.x},${segment.c2.y} ${segment.end.x},${segment.end.y}`;
 }
 
-/** One route's full geometry: direct/lane candidate, then bounded perpendicular
- * detour attempts, then a deterministic two-segment fallback. Never hides the
- * route; sets conflicted=true only when even the fallback still collides. */
+/** Legacy private helper, not invoked by the public API; production calls
+ * logisticsGeomComputeEnvelopeRoute below. */
 function logisticsGeomComputeOne(route, sourcePort, targetPort, lane, obstacles) {
   const start = { x: sourcePort.x, y: sourcePort.y };
   const end = { x: targetPort.x, y: targetPort.y };
@@ -12367,17 +12539,17 @@ function logisticsGeomComputeOne(route, sourcePort, targetPort, lane, obstacles)
     const hit = logisticsGeomFirstCollision(points, obstacles);
     if (!hit) { chosen = segments; detourKind = attempt === 0 ? 'direct' : 'detour'; break; }
     obstacleIds.add(hit.id);
-    // Push away from the offending obstacle's centre on subsequent attempts.
+    // Push away from the blocking obstacle's centre on subsequent attempts.
     const cross = (hit.x - start.x) * uy - (hit.y - start.y) * ux;
     pushSign = cross >= 0 ? -1 : 1;
   }
   if (!chosen) {
     // Deterministic 2-segment fallback via the chord midpoint, displaced
-    // perpendicular past the last offending obstacle's bound.
+    // perpendicular past one deterministic blocking obstacle's bound.
     const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-    const lastHitId = [...obstacleIds].sort(logisticsGeomCompareId)[0];
-    const lastHit = obstacles.find((o) => o.id === lastHitId) || obstacles[0] || { w: 0, h: 0 };
-    const clearance = Math.max(lastHit.w, lastHit.h) / 2 + LOGISTICS_GEOM_DETOUR_STEP;
+    const blockingObstacleId = [...obstacleIds].sort(logisticsGeomCompareId)[0];
+    const blockingObstacle = obstacles.find((o) => o.id === blockingObstacleId) || obstacles[0] || { w: 0, h: 0 };
+    const clearance = Math.max(blockingObstacle.w, blockingObstacle.h) / 2 + LOGISTICS_GEOM_DETOUR_STEP;
     const waypoint = { x: mid.x + ux * clearance * pushSign, y: mid.y + uy * clearance * pushSign };
     const seg1 = { start, c1: { x: start.x + (waypoint.x - start.x) * 0.5, y: start.y + (waypoint.y - start.y) * 0.5 }, c2: { x: waypoint.x - (waypoint.x - start.x) * 0.5, y: waypoint.y - (waypoint.y - start.y) * 0.5 }, end: waypoint };
     const seg2 = { start: waypoint, c1: { x: waypoint.x + (end.x - waypoint.x) * 0.5, y: waypoint.y + (end.y - waypoint.y) * 0.5 }, c2: { x: end.x - (end.x - waypoint.x) * 0.5, y: end.y - (end.y - waypoint.y) * 0.5 }, end };
@@ -12432,6 +12604,83 @@ function logisticsGeomComputeOne(route, sourcePort, targetPort, lane, obstacles)
   };
 }
 
+/** Bounded obstacle-envelope route. Accepted routes report no obstacle IDs;
+ * the finite fallback reports every inflated obstacle actually intersected. */
+function logisticsGeomComputeEnvelopeRoute(route, sourcePort, targetPort, laneMetadata, obstacles) {
+  const start = { x: sourcePort.x, y: sourcePort.y };
+  const end = { x: targetPort.x, y: targetPort.y };
+  const dx = end.x - start.x; const dy = end.y - start.y;
+  const perpendicular = logisticsGeomPerpendicularUnit(start, end);
+  const laneIndex = laneMetadata?.laneIndex || 0;
+  const laneOffset = laneIndex * LOGISTICS_GEOM_LANE_GAP;
+  const directSegments = [{
+    start,
+    c1: { x: start.x + dx * 0.36 + perpendicular.x * laneOffset, y: start.y + dy * 0.36 + perpendicular.y * laneOffset },
+    c2: { x: end.x - dx * 0.36 + perpendicular.x * laneOffset, y: end.y - dy * 0.36 + perpendicular.y * laneOffset },
+    end,
+  }];
+  const directBlockingIds = logisticsGeomCollisionIdsForSegments(directSegments, obstacles);
+  let chosen = directBlockingIds.length ? null : directSegments;
+  let detourKind = 'direct';
+  const laneRank = laneMetadata?.rank || 0;
+  if (!chosen) {
+    const blockingObstacles = obstacles.filter((obstacle) => directBlockingIds.includes(obstacle.id));
+    const obstacleEnvelope = logisticsGeomObstacleEnvelope(blockingObstacles);
+    const gap = LOGISTICS_GEOM_ENVELOPE_CLEARANCE + 1 + laneRank * LOGISTICS_GEOM_LANE_GAP;
+    const candidates = [
+      ['above', obstacleEnvelope.minY - gap],
+      ['below', obstacleEnvelope.maxY + gap],
+      ['left', obstacleEnvelope.minX - gap],
+      ['right', obstacleEnvelope.maxX + gap],
+    ];
+    for (const [side, corridor] of candidates) {
+      const segments = logisticsGeomCorridorSegments(start, end, sourcePort, targetPort, side, corridor);
+      if (!logisticsGeomCollisionIdsForSegments(segments, obstacles).length) {
+        chosen = segments; detourKind = side; break;
+      }
+    }
+    if (!chosen && obstacles.length) {
+      const graphEnvelope = logisticsGeomObstacleEnvelope(obstacles);
+      const horizontal = Math.abs(dx) >= Math.abs(dy);
+      const side = horizontal ? 'above' : 'left';
+      const corridor = horizontal
+        ? graphEnvelope.minY - LOGISTICS_GEOM_ENVELOPE_CLEARANCE - 1 - laneRank * LOGISTICS_GEOM_LANE_GAP
+        : graphEnvelope.minX - LOGISTICS_GEOM_ENVELOPE_CLEARANCE - 1 - laneRank * LOGISTICS_GEOM_LANE_GAP;
+      const outerCorridor = logisticsGeomCorridorSegments(start, end, sourcePort, targetPort, side, corridor);
+      if (!logisticsGeomCollisionIdsForSegments(outerCorridor, obstacles).length) {
+        chosen = outerCorridor; detourKind = 'outerCorridor';
+      }
+    }
+  }
+  const conflicted = !chosen;
+  if (!chosen) { chosen = directSegments; detourKind = 'fallback'; }
+  const obstacleIds = conflicted ? logisticsGeomCollisionIdsForSegments(chosen, obstacles) : [];
+  const pathD = chosen.map((segment, index) => logisticsGeomSegmentD(segment, index === 0)).join(' ');
+  let bounds = logisticsGeomHullBounds([chosen[0].start, chosen[0].c1, chosen[0].c2, chosen[0].end]);
+  for (let i = 1; i < chosen.length; i++) {
+    bounds = logisticsGeomMergeBounds(bounds, logisticsGeomHullBounds([chosen[i].start, chosen[i].c1, chosen[i].c2, chosen[i].end]));
+  }
+  function segmentAt(t) {
+    const clamped = Math.max(0, Math.min(1, t));
+    const scaled = clamped * chosen.length;
+    const index = Math.min(chosen.length - 1, Math.floor(scaled));
+    return { segment: chosen[index], localT: scaled - index };
+  }
+  function pointAt(t) {
+    const value = segmentAt(t); const s = value.segment;
+    return logisticsGeomCubicPoint(s.start, s.c1, s.c2, s.end, value.localT);
+  }
+  function tangentAt(t) {
+    const value = segmentAt(t); const s = value.segment;
+    return logisticsGeomCubicTangent(s.start, s.c1, s.c2, s.end, value.localT);
+  }
+  return {
+    routeId: route.id, fromNodeId: route.fromNodeId, toNodeId: route.toNodeId,
+    sourcePort, targetPort, laneIndex, laneOffset, pathD, pathSegments: chosen,
+    bounds, obstacleIds, detourKind, conflicted, start, end, d: pathD, pointAt, tangentAt,
+  };
+}
+
 function logisticsGeomEstimateLabelSize(text) {
   const value = typeof text === 'string' ? text : '';
   let units = 0;
@@ -12452,8 +12701,10 @@ function logisticsGeomBoxesOverlap(a, b) {
  * unrelated node boxes, and already-placed labels. Routes are scored in a
  * stable order (routeId) so placement never depends on render/iteration order.
  */
-function logisticsGeomPlaceLabels(routeGeoms, positions, labelMetrics) {
-  const placed = [];
+function logisticsGeomPlaceLabels(routeGeoms, positions, labelMetrics, fixedLabelBoxes) {
+  const placed = fixedLabelBoxes instanceof Map
+    ? [...fixedLabelBoxes.entries()].sort((a, b) => logisticsGeomCompareId(a[0], b[0])).map(([, box]) => box).filter(logisticsGeomFiniteBox)
+    : [];
   const anchors = new Map();
   const ordered = [...routeGeoms.values()].sort((a, b) => logisticsGeomCompareId(a.routeId, b.routeId));
   const nodeBoxes = [...positions.values()].filter(logisticsGeomFiniteBox);
@@ -12503,6 +12754,9 @@ function logisticsGeomPlaceLabels(routeGeoms, positions, labelMetrics) {
  *   collapsed aggregates are ordinary obstacles by construction.
  * @param {Map} [input.labelMetrics] - Map<routeId, {text}> for conservative
  *   deterministic label-size estimation (CJK-aware).
+ * @param {object} [input.topologyIndex] - topology-only reusable index.
+ * @param {Array|Set} [input.routeIds] - optional bounded subset to compute.
+ * @param {Map} [input.fixedLabelBoxes] - unrelated labels treated as obstacles.
  * @param {object} [input.options]
  * @returns {{routes: Map, diagnostics: object}}
  */
@@ -12510,16 +12764,16 @@ function computeLogisticsRouteGeometry(input) {
   const routesIn = Array.isArray(input && input.routes) ? input.routes : [];
   const positions = input && input.positions instanceof Map ? input.positions : new Map();
   const labelMetrics = input && input.labelMetrics instanceof Map ? input.labelMetrics : null;
-  const safeRoutes = routesIn
-    .filter((route) => route && typeof route.id === 'string' && typeof route.fromNodeId === 'string' && typeof route.toNodeId === 'string')
-    .filter((route) => route.fromNodeId !== route.toNodeId && positions.has(route.fromNodeId) && positions.has(route.toNodeId));
-  const uniqueRoutes = [];
-  const seenIds = new Set();
-  for (const route of safeRoutes) { if (!seenIds.has(route.id)) { seenIds.add(route.id); uniqueRoutes.push(route); } }
-  const orderedForCompute = uniqueRoutes.slice().sort((a, b) => logisticsGeomCompareId(a.id, b.id));
-
-  const ports = logisticsGeomAssignPorts(orderedForCompute, positions);
-  const lanes = logisticsGeomAssignLanes(orderedForCompute);
+  const topologyIndex = input?.topologyIndex || buildLogisticsRouteTopologyIndex(routesIn);
+  const requestedIds = input?.routeIds instanceof Set ? [...input.routeIds]
+    : Array.isArray(input?.routeIds) ? input.routeIds.slice()
+      : topologyIndex.sortedRouteIds.slice();
+  const orderedIds = [...new Set(requestedIds)]
+    .filter((routeId) => topologyIndex.routesById.has(routeId))
+    .sort(logisticsGeomCompareId);
+  const orderedForCompute = orderedIds.map((routeId) => topologyIndex.routesById.get(routeId))
+    .filter((route) => positions.has(route.fromNodeId) && positions.has(route.toNodeId));
+  const ports = logisticsGeomAssignPortsForRouteIds(topologyIndex, positions, orderedForCompute.map((route) => route.id));
   const inflate = LOGISTICS_GEOM_OBSTACLE_INFLATE;
 
   const routeGeoms = new Map();
@@ -12527,28 +12781,27 @@ function computeLogisticsRouteGeometry(input) {
   for (const route of orderedForCompute) {
     const portPair = ports.get(route.id);
     if (!portPair) { continue; }
-    const lane = lanes.get(route.id) || 0;
+    const laneMetadata = topologyIndex.laneAllocationMetadata.get(route.id) || { laneIndex: 0, rank: 0, count: 1 };
     const obstacles = logisticsGeomInflatedObstacles(positions, new Set([route.fromNodeId, route.toNodeId]), inflate);
-    const geom = logisticsGeomComputeOne(route, portPair.sourcePort, portPair.targetPort, lane, obstacles);
+    const geom = logisticsGeomComputeEnvelopeRoute(route, portPair.sourcePort, portPair.targetPort, laneMetadata, obstacles);
     routeGeoms.set(route.id, geom);
     if (geom.conflicted) { conflictedIds.push(route.id); }
   }
-  const labelAnchors = logisticsGeomPlaceLabels(routeGeoms, positions, labelMetrics);
+  const labelAnchors = logisticsGeomPlaceLabels(routeGeoms, positions, labelMetrics, input?.fixedLabelBoxes);
   for (const [routeId, geom] of routeGeoms) {
     const anchor = labelAnchors.get(routeId);
     geom.labelAnchor = anchor ? { x: anchor.x, y: anchor.y, t: anchor.t } : { x: geom.start.x, y: geom.start.y, t: 0 };
     geom.warningAnchor = anchor ? anchor.warningAnchor : { x: geom.start.x, y: geom.start.y + 14 };
     geom.labelConflicted = anchor ? anchor.conflicted : true;
   }
-  // Re-key output in the caller's original route order for convenience;
-  // the Map itself is order-preserving but callers should not rely on it.
   const orderedOutput = new Map();
-  for (const route of uniqueRoutes) { if (routeGeoms.has(route.id)) { orderedOutput.set(route.id, routeGeoms.get(route.id)); } }
+  for (const routeId of orderedIds) { if (routeGeoms.has(routeId)) { orderedOutput.set(routeId, routeGeoms.get(routeId)); } }
   return {
     routes: orderedOutput,
     diagnostics: {
       conflictedIds: conflictedIds.sort(logisticsGeomCompareId),
       routeCount: orderedOutput.size,
+      computedRouteIds: [...orderedOutput.keys()],
     },
   };
 }
@@ -13403,22 +13656,32 @@ function logisticsRouteLabelMetrics(routes) {
   return metrics;
 }
 
-/** Recomputes the full deterministic geometry set (ports/lanes/detours are
- * topology- and position-derived, so a single node move can, in principle,
- * affect a sibling's port slot at a shared node) and refreshes only the DOM
- * for routes whose path or label anchor actually changed — unrelated route
- * DOM stays byte-identical. Never rebuilds the panel. */
-function logisticsRefreshRoutesAfterMove(rendered) {
-  if (!rendered || !rendered.geometryRoutes) { return; }
-  const next = computeLogisticsRouteGeometry({
+/** Recomputes only the topology-bounded route group whose endpoint port order
+ * can change for a moved node. Unrelated labels remain fixed obstacles. */
+function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
+  if (!rendered || !rendered.geometryRoutes || !rendered.routeTopologyIndex) { return; }
+  const affectedRouteIds = logisticsAffectedRouteIdsForNode(nodeId, rendered.routeTopologyIndex);
+  if (!affectedRouteIds.length) { return; }
+  const affectedSet = new Set(affectedRouteIds);
+  const previous = rendered.routeGeoms || new Map();
+  const fixedLabelBoxes = new Map();
+  for (const [routeId, geom] of previous) {
+    if (affectedSet.has(routeId) || !geom?.labelAnchor) { continue; }
+    const size = logisticsGeomEstimateLabelSize(rendered.geometryLabelMetrics.get(routeId)?.text);
+    fixedLabelBoxes.set(routeId, { x: geom.labelAnchor.x, y: geom.labelAnchor.y, w: size.width, h: size.height });
+  }
+  const partial = computeLogisticsRouteGeometry({
     routes: rendered.geometryRoutes,
     positions: rendered.positions,
     labelMetrics: rendered.geometryLabelMetrics,
+    topologyIndex: rendered.routeTopologyIndex,
+    routeIds: affectedRouteIds,
+    fixedLabelBoxes,
   }).routes;
-  const previous = rendered.routeGeoms || new Map();
-  for (const [routeId, geom] of next) {
-    const before = previous.get(routeId);
-    if (before && before.pathD === geom.pathD && before.labelAnchor.x === geom.labelAnchor.x && before.labelAnchor.y === geom.labelAnchor.y) { continue; }
+  const next = new Map(previous);
+  rendered.lastGeometryRouteIds = affectedRouteIds.slice();
+  for (const [routeId, geom] of partial) {
+    next.set(routeId, geom);
     const group = rendered.routeElements.get(routeId);
     if (!group || !group._logisticsParts) { continue; }
     const parts = group._logisticsParts;
@@ -13427,6 +13690,13 @@ function logisticsRefreshRoutesAfterMove(rendered) {
     if (parts.hit) { parts.hit.setAttribute('d', geom.pathD); }
     if (parts.label) { parts.label.setAttribute('x', String(Math.round(geom.labelAnchor.x))); parts.label.setAttribute('y', String(Math.round(geom.labelAnchor.y - 7))); }
     if (parts.warning) { parts.warning.setAttribute('x', String(Math.round(geom.warningAnchor.x))); parts.warning.setAttribute('y', String(Math.round(geom.warningAnchor.y + 5))); }
+    if (parts.label?.classList) {
+      if (geom.labelConflicted) { parts.label.classList.add('is-label-conflicted'); } else { parts.label.classList.remove('is-label-conflicted'); }
+    }
+    if (group.classList) {
+      if (geom.conflicted) { group.classList.add('is-geometry-conflicted'); } else { group.classList.remove('is-geometry-conflicted'); }
+      if (!geom.conflicted && geom.detourKind !== 'direct') { group.classList.add('is-detoured'); } else { group.classList.remove('is-detoured'); }
+    }
     group._logisticsGeometry = geom;
   }
   rendered.routeGeoms = next;
@@ -13448,7 +13718,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
   const movement = route.volume > 0 ? 'active' : 'idle';
   // Selected routes are never dimmed; filterMatch already treats selection as relevant.
   const filterUnrelated = !selected && route.filterMatch === false;
-  const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind === 'detour' || geometry.detourKind === 'fallback' ? ' is-detoured' : '';
+  const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
@@ -13510,9 +13780,8 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
 }
 
 /** Single-route backward-compatible refresh (no sibling/obstacle context).
- * Production node-drag refresh uses logisticsRefreshRoutesAfterMove, which
- * recomputes the full deterministic route set so ports/lanes stay consistent
- * with siblings sharing an endpoint. */
+ * Production node-drag refresh uses logisticsRefreshRoutesAfterMove with the
+ * bounded topology group needed to keep endpoint port/lane siblings stable. */
 function logisticsRefreshRouteElement(group, positions) {
   const route = group?._logisticsRoute;
   const parts = group?._logisticsParts;
@@ -13964,7 +14233,7 @@ function logisticsSetupCameraInteractions(ctx) {
         position.y = active.startNode.y;
         const nodeEl = rendered.nodeElements.get(active.nodeId);
         if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
-        logisticsRefreshRoutesAfterMove(rendered);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
       } else if (active.moved && options.commitNode) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
         position.x = Math.round(position.x); position.y = Math.round(position.y);
@@ -13982,7 +14251,7 @@ function logisticsSetupCameraInteractions(ctx) {
         };
         const nodeEl = rendered.nodeElements.get(active.nodeId);
         if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
-        logisticsRefreshRoutesAfterMove(rendered);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
       }
@@ -14087,7 +14356,7 @@ function logisticsSetupCameraInteractions(ctx) {
       logisticsClampManualAwayFromOtherRegions(position, layout);
       const nodeEl = rendered.nodeElements.get(drag.nodeId);
       if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
-      logisticsRefreshRoutesAfterMove(rendered);
+      logisticsRefreshRoutesAfterMove(rendered, drag.nodeId);
       return;
     }
     const base = drag.startCamera;
@@ -14343,9 +14612,11 @@ function renderLogisticsNetwork(payload, parent) {
   // every consumer (stroke, hit path, arrow, particles, label, warning, drag
   // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
   const labelMetrics = logisticsRouteLabelMetrics(graph.routes);
-  const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics });
+  const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
+  const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
   rendered.geometryRoutes = graph.routes;
   rendered.geometryLabelMetrics = labelMetrics;
+  rendered.routeTopologyIndex = routeTopologyIndex;
   rendered.routeGeoms = geometryResult.routes;
   graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), maxVolume, rendered));
   graph.nodes.forEach((node) => {

@@ -411,7 +411,10 @@ mismatches remain `wrongRegionManualIds` / dropped. Input storage objects are ne
 
 - Drag moves one node. Dropping writes `{x, y}` to the positions store (§10.2), rounded to 1 px.
 - A dragged node does **not** re-run the layout. Nothing else moves. This is the whole point.
-- Routes re-derive geometry for the moved node's edges only.
+- A topology-only index (`byNodeId`, unordered endpoint-pair groups, sorted route IDs, and stable
+  lane metadata) is built during full rendering and reused for pointer moves. A drag recomputes the
+  moved node's incident routes, pair siblings, and routes incident to its immediate neighbours when
+  their port ordering can change. Remote components and their DOM/labels are untouched.
 - Reset layout → clear the positions key → recompute → fit all. Confirmed, because it is the one
   destructive action in the panel.
 - No multi-select drag in this design. It is a plausible follow-up, not a requirement.
@@ -666,25 +669,27 @@ be byte-identical at `k = 0.25` and `k = 3.0`.
 Goal: *no route passes through an unrelated node.* Bounded, deterministic, no router.
 
 ```text
-obstacles = all node boxes, inflated by 8px, minus the route's own two endpoints
+obstacles = all node boxes, inflated by 14px per side, minus the route's own two endpoints
            (and minus the endpoints of a bundle's members)
 
-attempt 0: the Bézier from §6.4
-for attempt in 1..3:
-    sample the curve at 24 evenly spaced t
-    if no sample lies inside an obstacle AABB → accept
-    else: push c1 and c2 further along the perpendicular,
-          away from the offending box's centre,
-          by DETOUR_STEP (28px) × attempt
-after 3 failed attempts:
-    fall back to a 2-segment path via a deterministic waypoint:
-    the chord midpoint, displaced perpendicular past the offending box's bound
-    mark detoured = true
+candidate 0: the direct/lane Bézier from §6.4
+blockingObstacleIds = every inflated obstacle intersected by candidate 0
+obstacleEnvelope = union bounds of blockingObstacleIds
+then, in order:
+    route above obstacleEnvelope using an absolute minY corridor
+    route below obstacleEnvelope using an absolute maxY corridor
+    route left of obstacleEnvelope using an absolute minX corridor
+    route right of obstacleEnvelope using an absolute maxX corridor
+    route through one deterministic outer corridor beyond the complete graph-obstacle envelope
+accept a candidate only when it misses every unrelated inflated obstacle
+if every bounded candidate fails:
+    keep a finite direct/lane path, mark conflicted = true,
+    and report every obstacle ID that the displayed fallback actually intersects
 ```
 
-24 samples × ≤ 4 attempts × E edges is a few thousand AABB tests for a large world — microseconds,
-once per layout, never per frame. It is not a guarantee for pathological worlds; it is a strong
-bound for realistic ones, and `detoured` lets the renderer flag the rare residue in dev.
+Each cubic segment is checked with the existing fixed 24-sample collision test. The concrete column,
+row, staggered, sided, outer-corridor, and impossible fixtures are covered by production tests. Full
+geometry runs once per render; node pointer moves run only the topology-bounded affected route group.
 
 Because edges now avoid unrelated nodes, the layer order can put edges **under** nodes without any
 visual loss — the only overlap left is at the endpoints, where the edge terminates on the boundary
@@ -1491,7 +1496,8 @@ RECOMMENDED_ARCHITECTURE
                  current location's region cannot be collapsed. Selection survives collapse.
   Edges        : cubic Bézier as the single primitive. 12 ports per node, deterministic
                  lane offsets (no hashing), reverse routes structurally opposite, bounded
-                 inflate-and-detour obstacle avoidance (≤3 attempts), intersection-aware
+                 bounded obstacle-envelope avoidance (direct, above/below/left/right,
+                 graph-envelope outer corridor, finite conflicted fallback), intersection-aware
                  label anchors. One geometry contract feeds stroke, arrowhead, particles,
                  hit path, and labels. Geometry never reads the camera.
   Colour       : hue = status (always). width = throughput. opacity = relevance.

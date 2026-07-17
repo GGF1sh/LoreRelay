@@ -847,22 +847,32 @@ function logisticsRouteLabelMetrics(routes) {
   return metrics;
 }
 
-/** Recomputes the full deterministic geometry set (ports/lanes/detours are
- * topology- and position-derived, so a single node move can, in principle,
- * affect a sibling's port slot at a shared node) and refreshes only the DOM
- * for routes whose path or label anchor actually changed — unrelated route
- * DOM stays byte-identical. Never rebuilds the panel. */
-function logisticsRefreshRoutesAfterMove(rendered) {
-  if (!rendered || !rendered.geometryRoutes) { return; }
-  const next = computeLogisticsRouteGeometry({
+/** Recomputes only the topology-bounded route group whose endpoint port order
+ * can change for a moved node. Unrelated labels remain fixed obstacles. */
+function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
+  if (!rendered || !rendered.geometryRoutes || !rendered.routeTopologyIndex) { return; }
+  const affectedRouteIds = logisticsAffectedRouteIdsForNode(nodeId, rendered.routeTopologyIndex);
+  if (!affectedRouteIds.length) { return; }
+  const affectedSet = new Set(affectedRouteIds);
+  const previous = rendered.routeGeoms || new Map();
+  const fixedLabelBoxes = new Map();
+  for (const [routeId, geom] of previous) {
+    if (affectedSet.has(routeId) || !geom?.labelAnchor) { continue; }
+    const size = logisticsGeomEstimateLabelSize(rendered.geometryLabelMetrics.get(routeId)?.text);
+    fixedLabelBoxes.set(routeId, { x: geom.labelAnchor.x, y: geom.labelAnchor.y, w: size.width, h: size.height });
+  }
+  const partial = computeLogisticsRouteGeometry({
     routes: rendered.geometryRoutes,
     positions: rendered.positions,
     labelMetrics: rendered.geometryLabelMetrics,
+    topologyIndex: rendered.routeTopologyIndex,
+    routeIds: affectedRouteIds,
+    fixedLabelBoxes,
   }).routes;
-  const previous = rendered.routeGeoms || new Map();
-  for (const [routeId, geom] of next) {
-    const before = previous.get(routeId);
-    if (before && before.pathD === geom.pathD && before.labelAnchor.x === geom.labelAnchor.x && before.labelAnchor.y === geom.labelAnchor.y) { continue; }
+  const next = new Map(previous);
+  rendered.lastGeometryRouteIds = affectedRouteIds.slice();
+  for (const [routeId, geom] of partial) {
+    next.set(routeId, geom);
     const group = rendered.routeElements.get(routeId);
     if (!group || !group._logisticsParts) { continue; }
     const parts = group._logisticsParts;
@@ -871,6 +881,13 @@ function logisticsRefreshRoutesAfterMove(rendered) {
     if (parts.hit) { parts.hit.setAttribute('d', geom.pathD); }
     if (parts.label) { parts.label.setAttribute('x', String(Math.round(geom.labelAnchor.x))); parts.label.setAttribute('y', String(Math.round(geom.labelAnchor.y - 7))); }
     if (parts.warning) { parts.warning.setAttribute('x', String(Math.round(geom.warningAnchor.x))); parts.warning.setAttribute('y', String(Math.round(geom.warningAnchor.y + 5))); }
+    if (parts.label?.classList) {
+      if (geom.labelConflicted) { parts.label.classList.add('is-label-conflicted'); } else { parts.label.classList.remove('is-label-conflicted'); }
+    }
+    if (group.classList) {
+      if (geom.conflicted) { group.classList.add('is-geometry-conflicted'); } else { group.classList.remove('is-geometry-conflicted'); }
+      if (!geom.conflicted && geom.detourKind !== 'direct') { group.classList.add('is-detoured'); } else { group.classList.remove('is-detoured'); }
+    }
     group._logisticsGeometry = geom;
   }
   rendered.routeGeoms = next;
@@ -892,7 +909,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
   const movement = route.volume > 0 ? 'active' : 'idle';
   // Selected routes are never dimmed; filterMatch already treats selection as relevant.
   const filterUnrelated = !selected && route.filterMatch === false;
-  const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind === 'detour' || geometry.detourKind === 'fallback' ? ' is-detoured' : '';
+  const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
@@ -954,9 +971,8 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
 }
 
 /** Single-route backward-compatible refresh (no sibling/obstacle context).
- * Production node-drag refresh uses logisticsRefreshRoutesAfterMove, which
- * recomputes the full deterministic route set so ports/lanes stay consistent
- * with siblings sharing an endpoint. */
+ * Production node-drag refresh uses logisticsRefreshRoutesAfterMove with the
+ * bounded topology group needed to keep endpoint port/lane siblings stable. */
 function logisticsRefreshRouteElement(group, positions) {
   const route = group?._logisticsRoute;
   const parts = group?._logisticsParts;
@@ -1408,7 +1424,7 @@ function logisticsSetupCameraInteractions(ctx) {
         position.y = active.startNode.y;
         const nodeEl = rendered.nodeElements.get(active.nodeId);
         if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
-        logisticsRefreshRoutesAfterMove(rendered);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
       } else if (active.moved && options.commitNode) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
         position.x = Math.round(position.x); position.y = Math.round(position.y);
@@ -1426,7 +1442,7 @@ function logisticsSetupCameraInteractions(ctx) {
         };
         const nodeEl = rendered.nodeElements.get(active.nodeId);
         if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
-        logisticsRefreshRoutesAfterMove(rendered);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
       }
@@ -1531,7 +1547,7 @@ function logisticsSetupCameraInteractions(ctx) {
       logisticsClampManualAwayFromOtherRegions(position, layout);
       const nodeEl = rendered.nodeElements.get(drag.nodeId);
       if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
-      logisticsRefreshRoutesAfterMove(rendered);
+      logisticsRefreshRoutesAfterMove(rendered, drag.nodeId);
       return;
     }
     const base = drag.startCamera;
@@ -1787,9 +1803,11 @@ function renderLogisticsNetwork(payload, parent) {
   // every consumer (stroke, hit path, arrow, particles, label, warning, drag
   // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
   const labelMetrics = logisticsRouteLabelMetrics(graph.routes);
-  const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics });
+  const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
+  const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
   rendered.geometryRoutes = graph.routes;
   rendered.geometryLabelMetrics = labelMetrics;
+  rendered.routeTopologyIndex = routeTopologyIndex;
   rendered.routeGeoms = geometryResult.routes;
   graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), maxVolume, rendered));
   graph.nodes.forEach((node) => {

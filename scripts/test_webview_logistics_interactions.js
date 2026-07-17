@@ -36,6 +36,9 @@ const TEST_API = `
   renderEconomyLogisticsPanel,
   ensureVisualLightbox,
   computeLogisticsLayout,
+  computeLogisticsRouteGeometry,
+  buildLogisticsRouteTopologyIndex,
+  logisticsAffectedRouteIdsForNode,
 };
 `;
 
@@ -266,6 +269,20 @@ function toolbarBtn(h, cls) { return findAll(h.panel, (n) => n.classList.contain
 function parseTranslate(transform) {
   const m = /translate\(([^ ]+) ([^)]+)\)/.exec(transform || '');
   return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+}
+
+function elementBytes(node) {
+  if (!node) return '';
+  const attributes = Object.entries(node.attributes || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  const dataset = Object.entries(node.dataset || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  return JSON.stringify({
+    tag: node.tagName,
+    className: node.className,
+    attributes,
+    dataset,
+    text: node._text,
+    children: (node.children || []).map(elementBytes),
+  });
 }
 
 let failed = 0;
@@ -587,6 +604,37 @@ function threeRegionRoutePayload() {
   };
 }
 
+function largeDragPayload() {
+  const nodes = [{ id: 'reg_large', kind: 'region', label: 'Large' }];
+  for (let i = 0; i < 200; i++) {
+    nodes.push({
+      id: `n${i}`, label: `N${i}`, kind: i % 7 === 0 ? 'market' : 'facility',
+      locationId: i === 0 ? 'loc-a' : `loc-${i}`, regionId: 'reg_large',
+      commodityIds: ['grain'], production: [], processingSiteIds: [], shortageCommodityIds: [],
+    });
+  }
+  const route = (id, fromNodeId, toNodeId, status = 'open') => ({
+    id, fromNodeId, toNodeId, commodityId: 'grain', volume: 2, baseCapacity: 6,
+    effectiveCapacity: 4, utilization: 0.5, risk: 0.2, status, bottleneck: false,
+  });
+  const routes = [
+    route('local_0', 'n0', 'n1', 'blocked'),
+    route('local_1', 'n1', 'n2'),
+    route('local_2', 'n1', 'n0'),
+  ];
+  for (let i = routes.length; i < 400; i++) {
+    const from = 3 + ((i - 3) % 197);
+    const to = 3 + ((i - 2) % 197);
+    routes.push(route(`remote_${String(i).padStart(4, '0')}`, `n${from}`, `n${to}`));
+  }
+  return {
+    available: true, scopeKey: 'large-drag', nodes, routes,
+    commodities: [{ id: 'grain', name: 'Grain', localSpecialty: true, strategic: false }],
+    shortages: [], processingSites: [],
+    summary: { activeRoutes: 400, blockedRoutes: 1, raidedRoutes: 0, totalVolume: 800, shortageCount: 0, bottleneckCount: 0 },
+  };
+}
+
 test('41-43: selecting a route moves it to layer-edges-raised without duplication, click still selects the factual route', () => {
   const h = createHarness();
   h.context.renderEconomyLogistics(threeRegionRoutePayload(), true);
@@ -670,6 +718,60 @@ test('50: completed drop and full rerender produce the same route geometry', () 
   h.context.renderEconomyLogisticsPanel();
   const afterRerender = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
   assert.strictEqual(afterRerender, afterDrag, 'a full rerender from the persisted manual position reproduces the same geometry');
+});
+
+test('50a: 200-node/400-route low-degree drag computes only its topology group and preserves remote DOM byte-for-byte', () => {
+  const h = createHarness();
+  const payload = largeDragPayload();
+  h.context.renderEconomyLogistics(payload, true);
+  const viewport = viewportOf(h);
+  const node = nodeOf(h, 'n0');
+  const connected = routeOf(h, 'local_0');
+  const remote = routeOf(h, 'remote_0399');
+  const connectedLine = findAll(connected, (n) => n.classList.contains('logistics-route-line'))[0];
+  const connectedHit = findAll(connected, (n) => n.classList.contains('logistics-route-hit'))[0];
+  const connectedLabel = findAll(connected, (n) => n.classList.contains('logistics-route-label'))[0];
+  const connectedWarning = findAll(connected, (n) => n.classList.contains('logistics-route-warning'))[0];
+  const before = {
+    path: connectedLine.getAttribute('d'),
+    label: `${connectedLabel.getAttribute('x')},${connectedLabel.getAttribute('y')}`,
+    warning: `${connectedWarning.getAttribute('x')},${connectedWarning.getAttribute('y')}`,
+  };
+  const remoteBytes = elementBytes(remote);
+  const remoteIdentity = remote;
+
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 90 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 80, clientY: 35, pointerId: 90 });
+
+  const computedIds = Array.from(h.api.economyLogisticsUiState.rendered.lastGeometryRouteIds || []);
+  assert.deepStrictEqual(computedIds, ['local_0', 'local_1', 'local_2']);
+  assert.ok(computedIds.length < payload.routes.length, 'partial geometry call must not receive all 400 routes');
+  assert.strictEqual(computedIds.includes('remote_0399'), false, 'remote component excluded');
+  assert.strictEqual(routeOf(h, 'remote_0399'), remoteIdentity, 'remote route DOM identity unchanged');
+  assert.strictEqual(elementBytes(routeOf(h, 'remote_0399')), remoteBytes, 'remote path and label remain byte-identical');
+  assert.notStrictEqual(connectedLine.getAttribute('d'), before.path, 'connected visible path updates');
+  assert.strictEqual(connectedHit.getAttribute('d'), connectedLine.getAttribute('d'), 'connected hit path shares updated geometry');
+  assert.notStrictEqual(`${connectedLabel.getAttribute('x')},${connectedLabel.getAttribute('y')}`, before.label, 'connected label updates');
+  assert.notStrictEqual(`${connectedWarning.getAttribute('x')},${connectedWarning.getAttribute('y')}`, before.warning, 'connected warning updates');
+  const particlePath = findAll(connected, (n) => n.tagName === 'MPATH')[0];
+  if (particlePath) { assert.strictEqual(particlePath.getAttribute('href'), `#${connectedLine.getAttribute('id')}`, 'particle follows the updated shared path'); }
+
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 90 });
+  const afterDrop = {
+    path: connectedLine.getAttribute('d'),
+    label: `${connectedLabel.getAttribute('x')},${connectedLabel.getAttribute('y')}`,
+    warning: `${connectedWarning.getAttribute('x')},${connectedWarning.getAttribute('y')}`,
+  };
+  h.context.renderEconomyLogisticsPanel();
+  const rerendered = routeOf(h, 'local_0');
+  const rerenderedLine = findAll(rerendered, (n) => n.classList.contains('logistics-route-line'))[0];
+  const rerenderedLabel = findAll(rerendered, (n) => n.classList.contains('logistics-route-label'))[0];
+  const rerenderedWarning = findAll(rerendered, (n) => n.classList.contains('logistics-route-warning'))[0];
+  assert.deepStrictEqual({
+    path: rerenderedLine.getAttribute('d'),
+    label: `${rerenderedLabel.getAttribute('x')},${rerenderedLabel.getAttribute('y')}`,
+    warning: `${rerenderedWarning.getAttribute('x')},${rerenderedWarning.getAttribute('y')}`,
+  }, afterDrop, 'completed drop agrees with ordinary rerender');
 });
 
 test('51-52: collapsed aggregate endpoint uses the aggregate boundary; expansion restores factual-endpoint geometry', () => {

@@ -10,8 +10,9 @@ const root = path.join(__dirname, '..');
 const layoutModulePath = path.join(root, 'webview', 'modules', '85b1-logistics-layout.js');
 const geometryModulePath = path.join(root, 'webview', 'modules', '85b2-logistics-route-geometry.js');
 const visualEncodingModulePath = path.join(root, 'webview', 'modules', '85b3-logistics-visual-encoding.js');
+const navigationModulePath = path.join(root, 'webview', 'modules', '85b4-logistics-navigation.js');
 const modulePath = path.join(root, 'webview', 'modules', '85b-economy-logistics.js');
-const source = `${fs.readFileSync(layoutModulePath, 'utf8')}\n${fs.readFileSync(geometryModulePath, 'utf8')}\n${fs.readFileSync(visualEncodingModulePath, 'utf8')}\n${fs.readFileSync(modulePath, 'utf8')}`;
+const source = `${fs.readFileSync(layoutModulePath, 'utf8')}\n${fs.readFileSync(geometryModulePath, 'utf8')}\n${fs.readFileSync(visualEncodingModulePath, 'utf8')}\n${fs.readFileSync(navigationModulePath, 'utf8')}\n${fs.readFileSync(modulePath, 'utf8')}`;
 let failed = 0;
 
 function test(name, fn) {

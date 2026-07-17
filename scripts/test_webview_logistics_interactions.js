@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
-const moduleSource = `${fs.readFileSync(path.join(root, 'webview/modules/85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b2-logistics-route-geometry.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b3-logistics-visual-encoding.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b-economy-logistics.js'), 'utf8')}`;
+const moduleSource = `${fs.readFileSync(path.join(root, 'webview/modules/85b1-logistics-layout.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b2-logistics-route-geometry.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b3-logistics-visual-encoding.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b4-logistics-navigation.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'webview/modules/85b-economy-logistics.js'), 'utf8')}`;
 
 const TEST_API = `
 ;globalThis.__api = {
@@ -930,6 +930,37 @@ test('SLICE4 corrections: renderer uses one relevance result and paints a second
   assert.strictEqual(routeOf(h, 'iron').style.opacity, '1', 'clearing all focus restores full relevance');
   const css = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
   assert.match(css, /\.logistics-route\.is-commodity-secondary \.logistics-route-line/, 'stylesheet consumes the secondary route state');
+});
+
+test('SLICE5: search, minimap, and semantic zoom preserve rendered geometry', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const grain = routeOf(h, 'grain_route');
+  const grainLine = findAll(grain, (n) => n.classList.contains('logistics-route-line'))[0];
+  const beforePath = grainLine.getAttribute('d');
+  const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
+  assert.ok(search, 'search input is rendered');
+  search.value = 'iron';
+  search.dispatchEvent({ type: 'input' });
+  assert.strictEqual(routeOf(h, 'grain_route'), grain, 'search updates existing route DOM instead of rebuilding it');
+  assert.strictEqual(grainLine.getAttribute('d'), beforePath, 'search leaves route geometry byte-identical');
+  assert.strictEqual(routeOf(h, 'grain_route').dataset.relevance, 'unrelated', 'non-matching route dims');
+  assert.strictEqual(routeOf(h, 'iron_route').dataset.relevance, 'primary', 'matching route remains primary');
+
+  const minimap = findAll(h.panel, (n) => n.classList.contains('logistics-minimap-canvas'))[0];
+  assert.ok(minimap, 'large enough graph has an interactive minimap');
+  const beforeCamera = { ...h.api.economyLogisticsUiState.cameraContexts.normal.camera };
+  minimap.dispatchEvent({ type: 'pointerdown', pointerId: 501, clientX: 110, clientY: 22 });
+  minimap.dispatchEvent({ type: 'pointerup', pointerId: 501, clientX: 110, clientY: 22 });
+  const afterCamera = h.api.economyLogisticsUiState.cameraContexts.normal.camera;
+  assert.strictEqual(afterCamera.k, beforeCamera.k, 'minimap pan retains the active zoom scale');
+  assert.ok(afterCamera.tx !== beforeCamera.tx || afterCamera.ty !== beforeCamera.ty, 'minimap pointer moves the camera viewport');
+
+  const svg = findAll(h.panel, (n) => n.classList.contains('logistics-network'))[0];
+  const zoomIn = toolbarBtn(h, 'logistics-camera-zoom-in');
+  for (let i = 0; i < 8; i++) { zoomIn.dispatchEvent({ type: 'click' }); }
+  assert.ok(svg.classList.contains('is-zoom-detail'), 'zoom-in reaches the semantic detail level without rerendering');
+  assert.strictEqual(grainLine.getAttribute('d'), beforePath, 'semantic zoom leaves route geometry byte-identical');
 });
 
 if (failed) process.exit(1);

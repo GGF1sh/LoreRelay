@@ -100,8 +100,11 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const accentState = !selectedCommodity ? 'none'
       : route.commodityId === selectedCommodity ? 'primary'
         : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'none';
+    const navigationKind = options?.filterModel?.routeMatchKinds?.get(route.id);
     const relevanceKind = selected ? 'primary'
       : selectedRouteId ? 'unrelated'
+        : navigationKind === 'unrelated' ? 'unrelated'
+          : navigationKind === 'primary' && options?.filterModel?.active ? 'primary'
         : !selectedCommodity || route.commodityId === selectedCommodity ? 'primary'
           : selectedFamily && familyKey === selectedFamily ? 'secondary' : 'unrelated';
     const relevance = relevanceKind === 'primary' ? 1
@@ -134,8 +137,11 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const commodityIds = logisticsVisualNodeCommodityIds(node, safeRoutes, shortages);
     const exactCommodity = Boolean(selectedCommodity && commodityIds.has(selectedCommodity));
     const sameFamily = Boolean(selectedCommodity && selectedFamily && [...commodityIds].some((id) => id !== selectedCommodity && logisticsVisualFamily(commodityById.get(id)) === selectedFamily));
+    const navigationKind = options?.filterModel?.nodeMatchKinds?.get(node.id);
     const relevanceKind = selected || current || endpoint ? 'primary'
       : selectedRouteId ? 'unrelated'
+        : navigationKind === 'unrelated' ? 'unrelated'
+          : navigationKind === 'primary' && options?.filterModel?.active ? 'primary'
         : !selectedCommodity || exactCommodity ? 'primary'
           : sameFamily ? 'secondary' : 'unrelated';
     const relevance = relevanceKind === 'primary' ? 1

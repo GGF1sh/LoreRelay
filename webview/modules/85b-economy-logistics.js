@@ -339,6 +339,8 @@ const economyLogisticsUiState = {
   // Conservative default (marching dashes, no particles) until the real
   // container width is measured by ResizeObserver on first paint.
   compactAnimation: true,
+  searchQuery: '',
+  statusKeys: new Set(),
   // Non-null while the panel is rendering inside the "view large" lightbox
   // instead of its normal sidebar location (see ensureVisualLightbox below).
   lightboxHost: null,
@@ -699,12 +701,58 @@ function renderLogisticsFilter(payload, parent) {
   select.value = economyLogisticsUiState.commodityId;
   select.addEventListener('change', () => {
     economyLogisticsUiState.commodityId = select.value || 'all';
-    renderEconomyLogisticsPanel();
+    logisticsApplyNavigationFilters();
   });
   row.appendChild(label);
   row.appendChild(select);
+  const search = logisticsElement('input', 'logistics-search');
+  search.type = 'search'; search.value = economyLogisticsUiState.searchQuery;
+  search.setAttribute('aria-label', T('webview.world.logisticsSearch'));
+  search.placeholder = T('webview.world.logisticsSearch');
+  search.addEventListener('input', () => { economyLogisticsUiState.searchQuery = search.value || ''; logisticsApplyNavigationFilters(); });
+  search.addEventListener('keydown', (event) => { if (event.key === 'Escape') { search.value = ''; economyLogisticsUiState.searchQuery = ''; logisticsApplyNavigationFilters(); } });
+  row.appendChild(search);
+  let statusSelect = null;
+  const statuses = [...new Set((payload.routes || []).map((route) => String(route.status || 'open')))].sort(logisticsLayoutCompareId);
+  if (statuses.length) {
+    const status = logisticsElement('select', 'logistics-status-filter');
+    status.setAttribute('aria-label', T('webview.world.logisticsStatusFilter'));
+    const any = logisticsElement('option', '', T('webview.world.logisticsStatusFilter')); any.value = ''; status.appendChild(any);
+    statuses.forEach((key) => { const option = logisticsElement('option', '', logisticsStatusLabel(key)); option.value = key; status.appendChild(option); });
+    status.addEventListener('change', () => { economyLogisticsUiState.statusKeys = new Set(status.value ? [status.value] : []); logisticsApplyNavigationFilters(); });
+    row.appendChild(status);
+    statusSelect = status;
+  }
+  const clear = logisticsElement('button', 'logistics-clear-filters-btn', T('webview.world.logisticsClearFilters'));
+  clear.type = 'button'; clear.addEventListener('click', () => {
+    economyLogisticsUiState.commodityId = 'all'; economyLogisticsUiState.searchQuery = ''; economyLogisticsUiState.statusKeys = new Set();
+    select.value = 'all'; search.value = ''; if (statusSelect) { statusSelect.value = ''; }
+    logisticsApplyNavigationFilters();
+  });
+  row.appendChild(clear);
   renderLogisticsFlowToggle(row);
   parent.appendChild(row);
+}
+
+function logisticsApplyNavigationFilters() {
+  const payload = economyLogisticsUiState.payload; const rendered = economyLogisticsUiState.rendered;
+  if (!payload || !rendered?.graphRoutes || !rendered?.graphNodes) { renderEconomyLogisticsPanel(); return; }
+  const selection = economyLogisticsUiState.selection || null;
+  const filterModel = computeLogisticsFilterModel({ nodes: rendered.graphNodes, routes: rendered.graphRoutes, commodities: payload.commodities || [], query: economyLogisticsUiState.searchQuery, commodityId: 'all', statusKeys: [...economyLogisticsUiState.statusKeys], selection });
+  const visual = computeLogisticsVisualEncoding({ routes: rendered.graphRoutes, nodes: rendered.graphNodes, commodities: payload.commodities || [], selectedCommodityId: economyLogisticsUiState.commodityId, selectedRouteId: selection?.type === 'route' ? selection.id : null, selectedNodeId: selection?.type === 'node' ? selection.id : null, currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null, options: { geometryByRoute: rendered.routeGeoms, shortages: payload.shortages || [], filterModel } });
+  const apply = (group, style) => {
+    if (!group || !style) { return; }
+    const kind = style.relevanceKind; group.dataset.relevance = kind;
+    if (group.style) { group.style.opacity = String(style.relevance); }
+    if (group.classList) {
+      group.classList.remove('is-unrelated', 'is-secondary', 'is-related', 'is-relevance-primary', 'is-relevance-secondary', 'is-relevance-unrelated', 'is-commodity-primary', 'is-commodity-secondary');
+      group.classList.add(`is-relevance-${kind}`, kind === 'primary' ? 'is-related' : kind === 'secondary' ? 'is-secondary' : 'is-unrelated');
+      if (style.commodityAccentState !== 'none') { group.classList.add(`is-commodity-${style.commodityAccentState}`); }
+    }
+  };
+  for (const route of rendered.graphRoutes) { apply(rendered.routeElements.get(route.id), visual.routeStyles.get(route.id)); }
+  for (const node of rendered.graphNodes) { apply(rendered.nodeElements.get(node.id), visual.nodeStyles.get(node.id)); }
+  rendered.visualEncoding = visual; rendered.filterModel = filterModel;
 }
 
 function renderLogisticsFlowToggle(row) {
@@ -1176,6 +1224,45 @@ function renderLogisticsLegend(parent) {
   parent.appendChild(legend);
 }
 
+function renderLogisticsMinimap(viewport, layout, graph, positions, viewportSize, camera, graphSvg, onCamera) {
+  const nodeCount = graph.nodes.length;
+  const bounds = layout?.bounds;
+  if (!bounds || nodeCount < 3) { return null; }
+  const shell = logisticsElement('div', 'logistics-minimap');
+  shell.setAttribute('role', 'img'); shell.setAttribute('aria-label', T('webview.world.logisticsMinimap'));
+  const mini = logisticsElement('div', 'logistics-minimap-canvas');
+  shell.appendChild(mini); viewport.appendChild(shell);
+  const regionLayer = logisticsElement('div', 'logistics-minimap-regions');
+  const nodeLayer = logisticsElement('div', 'logistics-minimap-nodes');
+  const viewportRect = logisticsElement('div', 'logistics-minimap-viewport');
+  mini.appendChild(regionLayer); mini.appendChild(nodeLayer); mini.appendChild(viewportRect);
+  let model = null; let drag = null; let semantic = null;
+  const nodeInput = () => graph.nodes.map((node) => ({ id: node.id, x: positions.get(node.id)?.x || 0, y: positions.get(node.id)?.y || 0, selected: economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id, current: typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId }));
+  function update(nextCamera) {
+    model = computeLogisticsMinimapModel({ graphBounds: bounds, viewportSize, camera: nextCamera, nodes: nodeInput(), regions: layout.regions });
+    if (!regionLayer._built) {
+      model.regionRects.forEach((region) => { const rect = logisticsElement('span', 'logistics-minimap-region'); rect.dataset.regionId = region.id; regionLayer.appendChild(rect); });
+      model.nodeMarkers.forEach((node) => { const dot = logisticsElement('span', 'logistics-minimap-node'); dot.dataset.minimapNodeId = node.id; nodeLayer.appendChild(dot); });
+      regionLayer._built = true;
+    }
+    const box = (element, rect) => { if (element?.style?.setProperty) { element.style.setProperty('left', `${rect.x}px`); element.style.setProperty('top', `${rect.y}px`); element.style.setProperty('width', `${rect.w}px`); element.style.setProperty('height', `${rect.h}px`); } };
+    model.regionRects.forEach((region, index) => { box(regionLayer.children[index], region); });
+    model.nodeMarkers.forEach((node, index) => { const dot = nodeLayer.children[index]; box(dot, { x: node.x - (node.selected || node.current ? 2.5 : 1.5), y: node.y - (node.selected || node.current ? 2.5 : 1.5), w: node.selected || node.current ? 5 : 3, h: node.selected || node.current ? 5 : 3 }); });
+    box(viewportRect, model.viewportRect);
+    const nextSemantic = computeLogisticsSemanticZoom({ cameraScale: nextCamera.k, selection: economyLogisticsUiState.selection, options: { previousLevel: semantic } });
+    semantic = nextSemantic.level;
+    if (graphSvg?.classList) { graphSvg.classList.remove('is-zoom-overview', 'is-zoom-standard', 'is-zoom-detail'); graphSvg.classList.add(`is-zoom-${semantic}`); }
+  }
+  function point(event) { const rect = mini.getBoundingClientRect ? mini.getBoundingClientRect() : { left: 0, top: 0 }; return { x: (Number(event.clientX) || 0) - (rect.left || 0), y: (Number(event.clientY) || 0) - (rect.top || 0) }; }
+  function move(event, immediate) { if (!model) { return; } onCamera(logisticsMinimapCameraAt(model, point(event), viewportSize, onCamera.current()), immediate); }
+  mini.addEventListener('pointerdown', (event) => { drag = event.pointerId; if (mini.setPointerCapture) { try { mini.setPointerCapture(drag); } catch {} } if (event.preventDefault) { event.preventDefault(); } move(event, false); });
+  mini.addEventListener('pointermove', (event) => { if (drag === event.pointerId) { move(event, false); } });
+  const end = (event) => { if (drag !== null && (event.pointerId === undefined || event.pointerId === drag)) { move(event, true); drag = null; } };
+  mini.addEventListener('pointerup', end); mini.addEventListener('pointercancel', () => { drag = null; }); mini.addEventListener('lostpointercapture', () => { drag = null; });
+  update(camera);
+  return { update };
+}
+
 /** Camera updates touch only the group transform, the constant-screen-size
  * CSS var, and toolbar disabled state — never the graph DOM (L15 fix).
  * Non-finite cameras fall back to identity scale at origin rather than writing
@@ -1355,7 +1442,7 @@ function logisticsClampManualAwayFromOtherRegions(position, layout) {
 }
 
 function logisticsSetupCameraInteractions(ctx) {
-  const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout } = ctx;
+  const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange } = ctx;
   const state = economyLogisticsUiState;
   const hostCtx = logisticsActiveCameraContext();
   const vp = logisticsSanitizeViewportSize(viewportSize);
@@ -1370,6 +1457,7 @@ function logisticsSetupCameraInteractions(ctx) {
     }
     hostCtx.camera = next;
     applyLogisticsCameraTransform(svg, cameraGroup, next, toolbarEls);
+    if (typeof onCameraChange === 'function') { onCameraChange(next); }
     logisticsQueueCameraSave(Boolean(immediateSave));
   }
 
@@ -1646,6 +1734,8 @@ function logisticsSetupCameraInteractions(ctx) {
   viewport.addEventListener('focusout', () => { state.spaceHeld = false; });
 
   return {
+    setCamera,
+    currentCamera() { return hostCtx.camera; },
     onToolbarCommand(command) {
       const identity = logisticsDatasetIdentity(state.payload);
       logisticsEaseCameraCommand(cameraGroup, () => {
@@ -1762,6 +1852,8 @@ function renderLogisticsNetwork(payload, parent) {
   const rendered = { positions: new Map(), nodeElements: new Map(), routeElements: new Map() };
   const graph = logisticsBuildRenderedGraph(payload, layout, data.commodityId);
   rendered.positions = graph.positions;
+  rendered.graphRoutes = graph.routes;
+  rendered.graphNodes = graph.nodes;
   economyLogisticsUiState.rendered = rendered;
   const motionActive = logisticsFlowMotionActive();
   const svgClass = `logistics-network${motionActive ? ' is-animated' : ''}${economyLogisticsUiState.compactAnimation ? ' is-compact' : ''}`;
@@ -1805,6 +1897,7 @@ function renderLogisticsNetwork(payload, parent) {
   const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
   const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
   const selection = economyLogisticsUiState.selection || null;
+  const filterModel = computeLogisticsFilterModel({ nodes: graph.nodes, routes: graph.routes, commodities: payload.commodities || [], query: economyLogisticsUiState.searchQuery, commodityId: 'all', statusKeys: [...economyLogisticsUiState.statusKeys], selection });
   const visualEncoding = computeLogisticsVisualEncoding({
     routes: graph.routes,
     nodes: graph.nodes,
@@ -1813,12 +1906,14 @@ function renderLogisticsNetwork(payload, parent) {
     selectedRouteId: selection?.type === 'route' ? selection.id : null,
     selectedNodeId: selection?.type === 'node' ? selection.id : null,
     currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null,
-    options: { geometryByRoute: geometryResult.routes, shortages: data.shortages },
+    options: { geometryByRoute: geometryResult.routes, shortages: data.shortages, filterModel },
   });
   rendered.geometryRoutes = graph.routes;
   rendered.geometryLabelMetrics = labelMetrics;
   rendered.routeTopologyIndex = routeTopologyIndex;
   rendered.routeGeoms = geometryResult.routes;
+  rendered.visualEncoding = visualEncoding;
+  rendered.filterModel = filterModel;
   graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
   graph.nodes.forEach((node) => {
     const position = graph.positions.get(node.id);
@@ -1830,7 +1925,12 @@ function renderLogisticsNetwork(payload, parent) {
   const camera = logisticsResolveCameraForRender(payload, bbox, viewportSize);
   const toolbarEls = renderLogisticsCameraToolbar(viewport, (command) => interactions.onToolbarCommand(command));
   applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls);
-  const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout });
+  let minimap = null;
+  const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange: (next) => { if (minimap) { minimap.update(next); } } });
+  const minimapCamera = (next, immediate) => interactions.setCamera(next, immediate);
+  minimapCamera.current = () => interactions.currentCamera();
+  minimap = renderLogisticsMinimap(viewport, layout, graph, graph.positions, viewportSize, camera, svg, minimapCamera);
+  rendered.minimap = minimap;
 
   parent.appendChild(viewport);
   logisticsObserveNetworkWidth(viewport);

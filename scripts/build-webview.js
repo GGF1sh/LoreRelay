@@ -31,6 +31,7 @@ const JS_MODULE_ORDER = [
     '85b1-logistics-layout.js',
     '85b2-logistics-route-geometry.js',
     '85b3-logistics-visual-encoding.js',
+    '85b4-logistics-navigation.js',
     '85b-economy-logistics.js',
     '86-tile-overmap.js',
     '86a-settlement-render-source.js',

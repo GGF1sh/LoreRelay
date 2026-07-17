@@ -3742,6 +3742,23 @@ textarea:focus-visible {
   max-width: calc(100% - 0.8rem);
 }
 
+.logistics-minimap {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  width: 132px;
+  height: 132px;
+  z-index: 2;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+  overflow: hidden;
+}
+.logistics-minimap-svg { width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.logistics-minimap-region { fill: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); stroke: var(--vscode-panel-border); stroke-width: 1; }
+.logistics-minimap-node { fill: var(--vscode-descriptionForeground); pointer-events: none; }
+.logistics-minimap-viewport { fill: color-mix(in srgb, var(--vscode-focusBorder) 15%, transparent); stroke: var(--vscode-focusBorder); stroke-width: 1.5; pointer-events: none; }
+
 .logistics-camera-btn {
   color: var(--vscode-foreground);
   background: color-mix(in srgb, var(--vscode-editor-background) 78%, transparent);
@@ -3889,6 +3906,13 @@ textarea:focus-visible {
   stroke-linejoin: round;
   pointer-events: none;
 }
+
+.logistics-network.is-zoom-overview .logistics-route-label,
+.logistics-network.is-zoom-overview .logistics-node-kind,
+.logistics-network.is-zoom-overview .logistics-node-scale-minor .logistics-node-label,
+.logistics-network.is-zoom-overview .logistics-flow-dot { display: none; }
+.logistics-network.is-zoom-overview .logistics-route.is-selected .logistics-route-label,
+.logistics-network.is-zoom-overview .logistics-node.is-selected .logistics-node-label { display: block; }
 
 .logistics-route-warning {
   fill: #efc66d;

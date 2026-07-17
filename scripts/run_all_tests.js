@@ -79,6 +79,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_logistics_layout.js' },
     { category: 'unit', file: 'test_logistics_route_geometry.js' },
     { category: 'unit', file: 'test_logistics_visual_encoding.js' },
+    { category: 'unit', file: 'test_logistics_navigation.js' },
     { category: 'unit', file: 'test_webview_logistics_interactions.js' },
     { category: 'unit', file: 'test_webview_logistics_persistence.js' },
     { category: 'unit', file: 'test_worldview_logistics_scopekey.js' },

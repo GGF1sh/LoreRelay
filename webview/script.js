@@ -13837,6 +13837,17 @@ function logisticsApplyNavigationFilters() {
       group.classList.add(`is-relevance-${kind}`, kind === 'primary' ? 'is-related' : kind === 'secondary' ? 'is-secondary' : 'is-unrelated');
       if (style.commodityAccentState !== 'none') { group.classList.add(`is-commodity-${style.commodityAccentState}`); }
     }
+    const annotations = group._logisticsAnnotations;
+    if (annotations) {
+      annotations.dataset.relevance = kind;
+      if (annotations.style) { annotations.style.opacity = String(style.relevance); }
+      if (annotations.classList) {
+        annotations.classList.remove('is-unrelated', 'is-secondary', 'is-related', 'is-relevance-primary', 'is-relevance-secondary', 'is-relevance-unrelated', 'is-commodity-primary', 'is-commodity-secondary');
+        annotations.classList.add(`is-relevance-${kind}`, kind === 'primary' ? 'is-related' : kind === 'secondary' ? 'is-secondary' : 'is-unrelated');
+        if (style.commodityAccentState !== 'none') { annotations.classList.add(`is-commodity-${style.commodityAccentState}`); }
+      }
+    }
+    logisticsApplyFlowParticleVisibility(group, kind);
   };
   for (const route of rendered.graphRoutes) { apply(rendered.routeElements.get(route.id), visual.routeStyles.get(route.id)); }
   for (const node of rendered.graphNodes) { apply(rendered.nodeElements.get(node.id), visual.nodeStyles.get(node.id)); }
@@ -14036,7 +14047,7 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
  * re-derives a coordinate. `layerEdges`/`layerEdgesRaised` decide which layer
  * receives the group (Part G) — the group itself never changes route id,
  * path id, or selection/detail state when it moves between them. */
-function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometry, visual, rendered) {
+function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload, route, geometry, visual, rendered) {
   if (!geometry) { return; }
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selected = selectedRouteId === route.id;
@@ -14068,9 +14079,8 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
   line.setAttribute('marker-end', `url(#logistics-arrow-${style.statusKey})`);
   if (style.dashPattern) { line.style.setProperty('stroke-dasharray', style.dashPattern); }
   group.appendChild(line);
-  if (flowing && !economyLogisticsUiState.compactAnimation) {
-    logisticsRenderFlowParticles(group, route, geometry, pathId);
-  }
+  const particles = flowing && !economyLogisticsUiState.compactAnimation
+    ? logisticsRenderFlowParticles(group, route, geometry, pathId) : [];
 
   const labelX = Math.round(geometry.labelAnchor.x);
   const labelY = Math.round(geometry.labelAnchor.y);
@@ -14080,7 +14090,10 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
   label.textContent = `${logisticsNumber(route.volume)}/${logisticsNumber(route.effectiveCapacity)}`;
   label.setAttribute('aria-label', `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
   appendLogisticsTitle(label, `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
-  group.appendChild(label);
+  const annotations = logisticsSvgElement('g', `logistics-route-annotations${selected ? ' is-selected' : ''}`);
+  annotations.dataset.relevance = relevanceKind;
+  if (annotations.style) { annotations.style.opacity = String(style.relevance); }
+  annotations.appendChild(label);
   let warning = null;
   if (status === 'blocked' || status === 'raided' || status === 'rumored' || route.bottleneck) {
     const warnY = Math.round(geometry.warningAnchor.y);
@@ -14088,7 +14101,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
     warning.setAttribute('x', String(labelX));
     warning.setAttribute('y', String(warnY + 5));
     warning.textContent = route.bottleneck ? '◆' : status === 'blocked' ? '×' : status === 'rumored' ? '?' : '!';
-    group.appendChild(warning);
+    annotations.appendChild(warning);
   }
   const aria = `${logisticsNodeName(payload, route.fromNodeId)} → ${logisticsNodeName(payload, route.toNodeId)}, ${logisticsCommodityName(payload, route.commodityId)}, ${logisticsStatusLabel(route.status)}`;
   group.setAttribute('aria-label', aria);
@@ -14096,11 +14109,13 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geom
   bindLogisticsActivation(group, { type: 'route', id: route.id });
   group._logisticsRoute = route;
   group._logisticsGeometry = geometry;
-  group._logisticsParts = { line, hit, label, warning };
+  group._logisticsParts = { line, hit, label, warning, particles };
+  group._logisticsAnnotations = annotations;
   if (rendered) { rendered.routeElements.set(route.id, group); }
   // Part G: ordinary route -> layer-edges, selected route -> layer-edges-raised.
   // The group's route id / path id never change when it moves between layers.
   (selected ? layerEdgesRaised : layerEdges).appendChild(group);
+  layerLabels.appendChild(annotations);
 }
 
 /** Single-route backward-compatible refresh (no sibling/obstacle context).
@@ -14132,11 +14147,12 @@ function logisticsRefreshRouteElement(group, positions) {
  *  both absolute cx/cy and an absolute motion path double-applies the source
  *  offset and visibly throws dots away from their routes. */
 function logisticsRenderFlowParticles(group, route, geometry, pathId) {
-  if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return; }
+  if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return []; }
   const duration = logisticsFlowDurationSeconds(route);
-  if (!(duration > 0) || !Number.isFinite(duration)) { return; }
+  if (!(duration > 0) || !Number.isFinite(duration)) { return []; }
   const dotCount = route.status === 'raided' ? 1 : 2;
   const stagger = logisticsHashUnit(route.id) * duration;
+  const particles = [];
   for (let i = 0; i < dotCount; i++) {
     const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
     dot.setAttribute('r', '2.6');
@@ -14173,10 +14189,40 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
       dot.appendChild(flicker);
     }
     group.appendChild(dot);
+    particles.push(dot);
   }
+  return particles;
 }
 
-function renderLogisticsNode(svg, payload, node, position, shortages, routes, visual, rendered) {
+function logisticsApplyFlowParticleVisibility(group, relevanceKind) {
+  const particles = group?._logisticsParts?.particles || [];
+  // Secondary and unrelated routes keep their factual stroke, but no moving
+  // particles: moving marks are reserved for the accepted primary relevance.
+  const display = relevanceKind === 'primary' ? 'inline' : 'none';
+  for (const particle of particles) { particle.setAttribute('display', display); }
+}
+
+function renderLogisticsNode(layerNodes, layerLabels, payload, node, position, shortages, routes, visual, rendered) {
+  // Focused persistence tests and small extension integrations historically
+  // called this internal helper before the final label layer existed. Keep that
+  // narrow calling convention working while production always supplies both
+  // SVG layers.
+  if (!layerLabels || typeof layerLabels.appendChild !== 'function') {
+    const legacyPayload = layerLabels;
+    const legacyNode = payload;
+    const legacyPosition = node;
+    const legacyShortages = position;
+    const legacyRoutes = shortages;
+    const legacyRendered = routes;
+    layerLabels = layerNodes;
+    payload = legacyPayload;
+    node = legacyNode;
+    position = legacyPosition;
+    shortages = legacyShortages;
+    routes = legacyRoutes;
+    visual = undefined;
+    rendered = legacyRendered;
+  }
   const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
@@ -14201,7 +14247,13 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, vi
   if (group.style) { group.style.opacity = String(style.relevance); }
   group.dataset.nodeId = node.id;
   group.dataset.relevance = relevanceKind;
-  group.setAttribute('transform', logisticsNodeTransform(position));
+  const transform = logisticsNodeTransform(position);
+  group.setAttribute('transform', transform);
+  const annotations = logisticsSvgElement('g', `logistics-node-label-overlay logistics-node-scale-${scale}${selected ? ' is-selected' : ''}${selectedEndpoint ? ' is-route-endpoint' : ''} is-relevance-${relevanceKind}`);
+  annotations.dataset.relevance = relevanceKind;
+  annotations.setAttribute('transform', transform);
+  annotations.setAttribute('pointer-events', 'none');
+  if (annotations.style) { annotations.style.opacity = String(style.relevance); }
   group.setAttribute('aria-label', node.aggregate ? `${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}` : `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
   const shape = logisticsSvgElement('path', 'logistics-node-shape');
   shape.setAttribute('d', logisticsNodeShapePath(role));
@@ -14222,23 +14274,23 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, vi
   kind.setAttribute('x', String(padding));
   kind.setAttribute('y', String(kindY));
   kind.textContent = logisticsNodeKindLabel(node.kind);
-  group.appendChild(kind);
+  annotations.appendChild(kind);
   const label = logisticsSvgElement('text', 'logistics-node-label');
   label.setAttribute('x', String(padding));
   label.setAttribute('y', String(labelY));
   label.textContent = logisticsTruncateLabel(node.label);
-  group.appendChild(label);
+  annotations.appendChild(label);
   const symbol = logisticsSvgElement('text', 'logistics-node-symbol');
   symbol.setAttribute('x', String(nodeWidth - padding - 12));
   symbol.setAttribute('y', String(labelY + 4));
   symbol.textContent = logisticsNodeSymbol(role);
-  group.appendChild(symbol);
+  annotations.appendChild(symbol);
   if (node.aggregate) {
     const badge = logisticsSvgElement('text', 'logistics-aggregate-badge');
     badge.setAttribute('x', String(badgeX));
     badge.setAttribute('y', String(kindY + 1));
     badge.textContent = String(node.memberCount || 0);
-    group.appendChild(badge);
+    annotations.appendChild(badge);
   }
   const nodeShortages = shortages.filter((item) => item.nodeId === node.id);
   if (nodeShortages.length > 0) {
@@ -14246,13 +14298,13 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, vi
     badge.setAttribute('x', String(badgeX));
     badge.setAttribute('y', String(kindY + 1));
     badge.textContent = '!';
-    group.appendChild(badge);
+    annotations.appendChild(badge);
   } else if ((node.processingSiteIds || []).length > 0) {
     const badge = logisticsSvgElement('text', 'logistics-processing-badge');
     badge.setAttribute('x', String(badgeX - 3));
     badge.setAttribute('y', String(kindY + 1));
     badge.textContent = '⚙';
-    group.appendChild(badge);
+    annotations.appendChild(badge);
   }
   appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}; ${T(`webview.world.logisticsScale${scale.replace(/^./, (c) => c.toUpperCase())}`)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
   if (node.aggregate) {
@@ -14271,8 +14323,10 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, vi
     bindLogisticsActivation(group, { type: 'node', id: node.id });
   }
   group._logisticsPosition = position;
+  group._logisticsAnnotations = annotations;
   if (rendered) { rendered.nodeElements.set(node.id, group); }
-  svg.appendChild(group);
+  layerNodes.appendChild(group);
+  layerLabels.appendChild(annotations);
 }
 
 function renderLogisticsLegend(parent) {
@@ -14600,7 +14654,11 @@ function logisticsSetupCameraInteractions(ctx) {
         position.x = active.startNode.x;
         position.y = active.startNode.y;
         const nodeEl = rendered.nodeElements.get(active.nodeId);
-        if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
+        if (nodeEl) {
+          const transform = logisticsNodeTransform(position);
+          nodeEl.setAttribute('transform', transform);
+          nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+        }
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
       } else if (active.moved && options.commitNode) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
@@ -14618,7 +14676,11 @@ function logisticsSetupCameraInteractions(ctx) {
           space: 'world',
         };
         const nodeEl = rendered.nodeElements.get(active.nodeId);
-        if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
+        if (nodeEl) {
+          const transform = logisticsNodeTransform(position);
+          nodeEl.setAttribute('transform', transform);
+          nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+        }
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
@@ -14723,7 +14785,11 @@ function logisticsSetupCameraInteractions(ctx) {
       position.y = drag.startNode.y + dy / drag.startCamera.k;
       logisticsClampManualAwayFromOtherRegions(position, layout);
       const nodeEl = rendered.nodeElements.get(drag.nodeId);
-      if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
+      if (nodeEl) {
+        const transform = logisticsNodeTransform(position);
+        nodeEl.setAttribute('transform', transform);
+        nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+      }
       logisticsRefreshRoutesAfterMove(rendered, drag.nodeId);
       return;
     }
@@ -14848,7 +14914,7 @@ function logisticsSetupCameraInteractions(ctx) {
   };
 }
 
-function renderLogisticsRegionContainers(layer, payload, layout) {
+function renderLogisticsRegionContainers(layer, layerLabels, payload, layout) {
   const protectedRegionIds = logisticsCurrentLocationRegionIds(payload);
   for (const [regionId, region] of [...layout.regions.entries()].sort((a, b) => logisticsLayoutCompareId(a[0], b[0]))) {
     const group = logisticsSvgElement('g', `logistics-region${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? ' is-collapsed' : ''}`);
@@ -14872,7 +14938,7 @@ function renderLogisticsRegionContainers(layer, payload, layout) {
     const label = logisticsSvgElement('text', 'logistics-region-label');
     label.setAttribute('x', String(region.x + 12)); label.setAttribute('y', String(region.y + 20));
     label.textContent = `${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? '▸' : '▾'} ${region.label} (${region.memberIds.length})`;
-    control.appendChild(label);
+    label.setAttribute('pointer-events', 'none');
     const toggle = () => {
       if (protectedRegion) { return; }
       if (economyLogisticsUiState.collapsedRegionIds.has(regionId)) { economyLogisticsUiState.collapsedRegionIds.delete(regionId); }
@@ -14884,8 +14950,11 @@ function renderLogisticsRegionContainers(layer, payload, layout) {
     control.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
     });
+    control.addEventListener('focus', () => label.classList.add('is-focus-visible'));
+    control.addEventListener('blur', () => label.classList.remove('is-focus-visible'));
     group.appendChild(control);
     layer.appendChild(group);
+    layerLabels.appendChild(label);
   }
 }
 
@@ -14978,7 +15047,7 @@ function renderLogisticsNetwork(payload, parent) {
   [layerRegions, layerEdges, layerEdgesRaised, layerNodes, layerLabels].forEach((layer) => cameraGroup.appendChild(layer));
   svg.appendChild(cameraGroup);
 
-  renderLogisticsRegionContainers(layerRegions, payload, layout);
+  renderLogisticsRegionContainers(layerRegions, layerLabels, payload, layout);
   // One shared, obstacle-aware geometry computation for the whole route set;
   // every consumer (stroke, hit path, arrow, particles, label, warning, drag
   // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
@@ -15004,10 +15073,10 @@ function renderLogisticsNetwork(payload, parent) {
   rendered.visualEncoding = visualEncoding;
   rendered.filterModel = filterModel;
   logisticsUpdateFilterCount(filterModel);
-  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
+  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
   graph.nodes.forEach((node) => {
     const position = graph.positions.get(node.id);
-    if (position) { renderLogisticsNode(layerNodes, payload, node, position, data.shortages, graph.routes, visualEncoding.nodeStyles.get(node.id), rendered); }
+    if (position) { renderLogisticsNode(layerNodes, layerLabels, payload, node, position, data.shortages, graph.routes, visualEncoding.nodeStyles.get(node.id), rendered); }
   });
   viewport.appendChild(svg);
 

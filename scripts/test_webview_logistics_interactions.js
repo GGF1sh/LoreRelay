@@ -264,6 +264,7 @@ function twoRegionPayload(overrides = {}) {
 function viewportOf(h) { return findAll(h.panel, (n) => n.classList.contains('logistics-network-viewport'))[0]; }
 function nodeOf(h, id) { return findAll(h.panel, (n) => n.dataset.nodeId === id)[0]; }
 function routeOf(h, id) { return findAll(h.panel, (n) => n.dataset.routeId === id)[0]; }
+function routeAnnotation(route, className) { return findAll(route?._logisticsAnnotations, (n) => n.classList.contains(className))[0]; }
 function selectOf(h) { return findAll(h.panel, (n) => n.tagName === 'SELECT')[0]; }
 function toolbarBtn(h, cls) { return findAll(h.panel, (n) => n.classList.contains(cls))[0]; }
 function parseTranslate(transform) {
@@ -446,8 +447,7 @@ test('node drag rounds, stays region-local, suppresses one click, cleanup paths 
   const a2 = h.api.economyLogisticsUiState.rendered.positions.get('a2');
   const expectedGeom = h.api.logisticsRouteGeometry({ id: 'grain_route' }, pos, a2);
   assert.strictEqual(line.getAttribute('d'), expectedGeom.d);
-  const label = findAll(routeEl, (n) => n.classList.contains('logistics-route-label'))[0]
-    || findAll(routeEl, (n) => n.tagName === 'TEXT')[0];
+  const label = routeAnnotation(routeEl, 'logistics-route-label');
   assert.ok(label, 'route label present');
   assert.ok(Number.isFinite(Number(label.getAttribute('x'))));
   assert.ok(Number.isFinite(Number(label.getAttribute('y'))));
@@ -697,7 +697,7 @@ test('45-48: node drag updates every connected route path/label, preserves parti
   const r2Before = routeOf(h, 'grain_route_2');
   const r1LineBefore = findAll(r1Before, (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
   const r2LineBefore = findAll(r2Before, (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
-  const r2LabelBefore = findAll(r2Before, (n) => n.classList.contains('logistics-route-label'))[0].getAttribute('x');
+  const r2LabelBefore = routeAnnotation(r2Before, 'logistics-route-label').getAttribute('x');
 
   node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 41 });
   viewport.dispatchEvent({ type: 'pointermove', clientX: 60, clientY: 30, pointerId: 41 });
@@ -710,7 +710,7 @@ test('45-48: node drag updates every connected route path/label, preserves parti
   // shift too (shared lane geometry depends on both endpoints), but its
   // label anchor must remain a finite, present value either way.
   assert.ok(r2Line.getAttribute('d'), 'sibling route sharing the endpoint remains rendered');
-  const r2LabelAfter = findAll(routeOf(h, 'grain_route_2'), (n) => n.classList.contains('logistics-route-label'))[0].getAttribute('x');
+  const r2LabelAfter = routeAnnotation(routeOf(h, 'grain_route_2'), 'logistics-route-label').getAttribute('x');
   assert.ok(Number.isFinite(Number(r2LabelAfter)));
   void r2LineBefore; void r2LabelBefore;
 
@@ -760,8 +760,8 @@ test('50a: 200-node/400-route low-degree drag computes only its topology group a
   const remote = routeOf(h, 'remote_0399');
   const connectedLine = findAll(connected, (n) => n.classList.contains('logistics-route-line'))[0];
   const connectedHit = findAll(connected, (n) => n.classList.contains('logistics-route-hit'))[0];
-  const connectedLabel = findAll(connected, (n) => n.classList.contains('logistics-route-label'))[0];
-  const connectedWarning = findAll(connected, (n) => n.classList.contains('logistics-route-warning'))[0];
+  const connectedLabel = routeAnnotation(connected, 'logistics-route-label');
+  const connectedWarning = routeAnnotation(connected, 'logistics-route-warning');
   const before = {
     path: connectedLine.getAttribute('d'),
     label: `${connectedLabel.getAttribute('x')},${connectedLabel.getAttribute('y')}`,
@@ -795,8 +795,8 @@ test('50a: 200-node/400-route low-degree drag computes only its topology group a
   h.context.renderEconomyLogisticsPanel();
   const rerendered = routeOf(h, 'local_0');
   const rerenderedLine = findAll(rerendered, (n) => n.classList.contains('logistics-route-line'))[0];
-  const rerenderedLabel = findAll(rerendered, (n) => n.classList.contains('logistics-route-label'))[0];
-  const rerenderedWarning = findAll(rerendered, (n) => n.classList.contains('logistics-route-warning'))[0];
+  const rerenderedLabel = routeAnnotation(rerendered, 'logistics-route-label');
+  const rerenderedWarning = routeAnnotation(rerendered, 'logistics-route-warning');
   assert.deepStrictEqual({
     path: rerenderedLine.getAttribute('d'),
     label: `${rerenderedLabel.getAttribute('x')},${rerenderedLabel.getAttribute('y')}`,
@@ -1060,13 +1060,79 @@ test('SLICE5 corrections: filters compose, regions search, endpoints persist at 
   for (let i = 0; i < 8; i++) { zoomOut.dispatchEvent({ type: 'click' }); }
   assert.ok(svg.classList.contains('is-zoom-overview'), 'accepted camera API reaches overview');
   const css = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
-  assert.match(css, /\.logistics-node\.is-route-endpoint \.logistics-node-label/, 'overview CSS preserves only selected-route endpoint label');
+  assert.match(css, /\.logistics-node-label-overlay\.is-route-endpoint \.logistics-node-label/, 'overview CSS preserves only selected-route endpoint label');
   assert.ok(nodeOf(h, 'unrelated_minor').classList.contains('logistics-node-scale-minor'), 'fixture contains unrelated minor label candidate');
   h.panel.dispatchEvent({ type: 'keydown', key: 'Escape' });
   assert.ok(!nodeOf(h, 'minor_endpoint').classList.contains('is-route-endpoint'), 'clearing route selection removes endpoint protection');
   const countBeforeCamera = count().textContent;
   toolbarBtn(h, 'logistics-camera-zoom-in').dispatchEvent({ type: 'click' });
   assert.strictEqual(count().textContent, countBeforeCamera, 'camera changes do not update or reannounce filter count');
+});
+
+test('HUMAN-BLOCKERS-A: factual labels are final-layer text and filtered particles follow final relevance', () => {
+  const h = createHarness({ panelWidth: 800 });
+  h.context.renderEconomyLogistics(slice5CorrectionsPayload(), true);
+  const svg = findAll(h.panel, (n) => n.classList.contains('logistics-network'))[0];
+  const camera = findAll(svg, (n) => n.classList.contains('logistics-camera'))[0];
+  const layer = (name) => findAll(camera, (n) => n.classList.contains(name))[0];
+  const labels = layer('layer-labels');
+  const ordinary = layer('layer-edges');
+  const raised = layer('layer-edges-raised');
+  const nodes = layer('layer-nodes');
+  const grain = routeOf(h, 'grain_special');
+  const routeLabel = routeAnnotation(grain, 'logistics-route-label');
+  const nodeLabels = nodeOf(h, 'grain_special_node')._logisticsAnnotations;
+  const regionLabel = findAll(labels, (n) => n.classList.contains('logistics-region-label'))[0];
+  assert.strictEqual(routeLabel.parentNode.parentNode, labels, 'route factual label is in the final annotation layer');
+  assert.strictEqual(nodeLabels.parentNode, labels, 'node factual labels are in the final annotation layer');
+  assert.strictEqual(regionLabel.parentNode, labels, 'region factual label is in the final annotation layer');
+  assert.ok(camera.children.indexOf(labels) > camera.children.indexOf(ordinary));
+  assert.ok(camera.children.indexOf(labels) > camera.children.indexOf(raised));
+  assert.ok(camera.children.indexOf(labels) > camera.children.indexOf(nodes));
+  assert.strictEqual(labels.getAttribute('pointer-events'), null, 'layer styling owns non-interactive overlays');
+  assert.strictEqual(nodeLabels.getAttribute('pointer-events'), 'none');
+  const grainLine = findAll(grain, (n) => n.classList.contains('logistics-route-line'))[0];
+  const grainHit = findAll(grain, (n) => n.classList.contains('logistics-route-hit'))[0];
+  const original = { d: grainLine.getAttribute('d'), hit: grainHit.getAttribute('d'), id: grainLine.getAttribute('id'), mpath: findAll(grain, (n) => n.tagName === 'MPATH')[0]?.getAttribute('href') };
+  assert.strictEqual(grainHit.parentNode, grain, 'route hit path remains inside the clickable factual route');
+  grain.dispatchEvent({ type: 'click' });
+  const selected = routeOf(h, 'grain_special');
+  assert.strictEqual(findAll(h.panel, (n) => n.dataset.routeId === 'grain_special').length, 1, 'selection keeps exactly one factual route');
+  assert.ok(selected.parentNode.classList.contains('layer-edges-raised'), 'selected stroke is raised below final labels');
+  assert.ok(camera.children.indexOf(labels) > camera.children.indexOf(selected.parentNode));
+  h.panel.dispatchEvent({ type: 'keydown', key: 'Escape' });
+
+  const visibleDots = (id) => findAll(routeOf(h, id), (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none');
+  let commodity = selectOf(h);
+  commodity.value = 'grain'; commodity.dispatchEvent({ type: 'change' });
+  assert.ok(visibleDots('grain_special').length > 0, 'primary route particles remain visible');
+  assert.strictEqual(visibleDots('fruit_special').length, 0, 'secondary policy hides particles');
+  assert.strictEqual(visibleDots('iron_special').length, 0, 'unrelated commodity particles hide immediately');
+  const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
+  search.value = 'special'; search.dispatchEvent({ type: 'input' });
+  assert.strictEqual(visibleDots('grain_quiet').length, 0, 'search mismatch hides particles immediately');
+  const status = findAll(h.panel, (n) => n.classList.contains('logistics-status-filter'))[0];
+  status.value = 'open'; status.dispatchEvent({ type: 'change' });
+  assert.strictEqual(visibleDots('fruit_special').length, 0, 'status mismatch hides particles under AND filtering');
+  search.value = 'no factual match'; search.dispatchEvent({ type: 'input' });
+  assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none').length, 0, 'zero-result filtering leaves no visible ghost particles');
+  const clear = findAll(h.panel, (n) => n.classList.contains('logistics-clear-filters-btn'))[0];
+  clear.dispatchEvent({ type: 'click' });
+  assert.ok(visibleDots('iron_special').length > 0, 'clearing filters restores eligible particles');
+  assert.strictEqual(findAll(h.panel, (n) => n.dataset.routeId === 'grain_special').length, 1, 'filtering does not duplicate the selected route');
+  const grainAfter = routeOf(h, 'grain_special');
+  const lineAfter = findAll(grainAfter, (n) => n.classList.contains('logistics-route-line'))[0];
+  const hitAfter = findAll(grainAfter, (n) => n.classList.contains('logistics-route-hit'))[0];
+  assert.strictEqual(lineAfter.getAttribute('d'), original.d, 'filtering does not recompute route geometry');
+  assert.strictEqual(hitAfter.getAttribute('d'), original.hit, 'filtering preserves hit-path geometry');
+  assert.strictEqual(lineAfter.getAttribute('id'), original.id, 'filtering preserves route path id');
+  assert.strictEqual(findAll(grainAfter, (n) => n.tagName === 'MPATH')[0]?.getAttribute('href'), original.mpath, 'filtering preserves mpath reference');
+  const flowToggle = findAll(h.panel, (n) => n.classList.contains('logistics-flow-toggle-btn'))[0];
+  flowToggle.dispatchEvent({ type: 'click' });
+  assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot')).length, 0, 'Flow off removes every particle');
+  const css = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
+  assert.match(css, /\.layer-labels[\s\S]*pointer-events: none/, 'label layer is non-interactive');
+  assert.match(css, /stroke: var\(--vscode-editor-background\)/, 'theme-safe factual text outline supports dark and light themes');
 });
 
 if (failed) process.exit(1);

@@ -3800,6 +3800,10 @@ textarea:focus-visible {
   fill: var(--vscode-foreground);
   font-size: calc(12px / var(--logistics-camera-k, 1));
   font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--vscode-editor-background);
+  stroke-width: 3px;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 
@@ -3807,10 +3811,16 @@ textarea:focus-visible {
 .logistics-region-collapse-hit { fill: transparent; pointer-events: all; }
 .logistics-region-collapse[aria-disabled="true"] { cursor: not-allowed; opacity: 0.62; }
 .logistics-region-collapse:focus-visible { outline: none; }
-.logistics-region-collapse:focus-visible .logistics-region-label {
+.logistics-region-label.is-focus-visible {
   fill: var(--vscode-focusBorder);
   text-decoration: underline;
 }
+
+/* The final annotation layer is deliberately last in SVG DOM order. It owns
+   factual text only, so labels cannot intercept route or node hit testing. */
+.layer-labels,
+.logistics-route-annotations,
+.logistics-node-label-overlay { pointer-events: none; }
 
 .logistics-route {
   color: #7ab7e8;
@@ -3911,9 +3921,9 @@ textarea:focus-visible {
 .logistics-network.is-zoom-overview .logistics-node-kind,
 .logistics-network.is-zoom-overview .logistics-node-scale-minor .logistics-node-label,
 .logistics-network.is-zoom-overview .logistics-flow-dot { display: none; }
-.logistics-network.is-zoom-overview .logistics-route.is-selected .logistics-route-label,
-.logistics-network.is-zoom-overview .logistics-node.is-selected .logistics-node-label,
-.logistics-network.is-zoom-overview .logistics-node.is-route-endpoint .logistics-node-label { display: block; }
+.logistics-network.is-zoom-overview .logistics-route-annotations.is-selected .logistics-route-label,
+.logistics-network.is-zoom-overview .logistics-node-label-overlay.is-selected .logistics-node-label,
+.logistics-network.is-zoom-overview .logistics-node-label-overlay.is-route-endpoint .logistics-node-label { display: block; }
 
 .logistics-filter-results { color: var(--vscode-descriptionForeground); font-size: 0.9em; white-space: nowrap; }
 
@@ -4028,6 +4038,14 @@ textarea:focus-visible {
   fill: var(--vscode-foreground);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* Labels are paint-separated from route strokes in both VS Code themes. */
+.logistics-node-label-overlay text {
+  paint-order: stroke;
+  stroke: var(--vscode-editor-background);
+  stroke-width: 2px;
+  stroke-linejoin: round;
 }
 
 .logistics-node-symbol {

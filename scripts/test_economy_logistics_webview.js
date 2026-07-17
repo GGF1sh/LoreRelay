@@ -341,7 +341,7 @@ test('semantic node roles, scale tiers, legend, and metric labels are visible', 
     assert.ok([...source.classList.values].some((name) => name.startsWith('logistics-node-scale-')));
     assert.strictEqual(findAll(h.panel, (node) => node.classList.contains('logistics-legend')).length, 1);
     const grain = routeNode(h.panel, 'grain_route');
-    const metricLabel = findAll(grain, (node) => node.classList.contains('logistics-route-label'))[0];
+    const metricLabel = findAll(h.panel, (node) => node.classList.contains('logistics-route-label'))[0];
     assert.ok(String(metricLabel.getAttribute('aria-label')).includes('5 / 5'));
 });
 
@@ -414,10 +414,9 @@ test('lightbox rendering uses wide particle mode after width measurement', () =>
 test('shortage badge renders only for positive unmet demand', () => {
     const h = createHarness();
     h.context.renderEconomyLogistics(payload(), true);
-    const market = findAll(h.panel, (node) => node.dataset.nodeId === 'market')[0];
-    const facility = findAll(h.panel, (node) => node.dataset.nodeId === 'facility')[0];
-    assert.strictEqual(findAll(market, (node) => node.classList.contains('logistics-shortage-badge')).length, 1);
-    assert.strictEqual(findAll(facility, (node) => node.classList.contains('logistics-shortage-badge')).length, 0);
+    const shortages = findAll(h.panel, (node) => node.classList.contains('logistics-shortage-badge'));
+    assert.strictEqual(shortages.length, 1);
+    assert.strictEqual(shortages[0].textContent, '!');
 });
 
 test('mouse and keyboard selection update details; Escape dismisses selection', () => {

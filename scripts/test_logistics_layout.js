@@ -79,12 +79,43 @@ test('a change confined to region A leaves region B positions byte-identical', (
   for (const id of ['b1', 'b2']) assert.deepStrictEqual(after.nodes.get(id), before.nodes.get(id));
 });
 
+test('flow metrics do not affect regional placement', () => {
+  const before = snapshot(computeLogisticsLayout(nodes, routes));
+  const changedFlow = routes.map((route) => ({ ...route, volume: route.volume * 1000 + 17, effectiveCapacity: 1 }));
+  assert.deepStrictEqual(snapshot(computeLogisticsLayout(nodes, changedFlow)), before);
+});
+
+test('region packing follows measured sizes instead of fixed giant pitches', () => {
+  const layout = computeLogisticsLayout(nodes, routes);
+  const a = layout.regions.get('reg_a');
+  const b = layout.regions.get('reg_b');
+  assert.ok(b.x - (a.x + a.w) >= 120, 'regions retain their measured gap');
+  assert.ok(b.x - a.x < 1500, 'small regions are not separated by a fixed giant pitch');
+});
+
 test('manual positions apply after automatic layout, reject wrong-region entries, and remain obstacles', () => {
   const manual = { a1: { x: 900, y: 900, regionId: 'reg_a', ts: 1 }, b1: { x: 1, y: 1, regionId: 'wrong', ts: 1 } };
   const layout = computeLogisticsLayout(nodes, routes, { manualPositions: manual });
   assert.deepStrictEqual({ x: layout.nodes.get('a1').x, y: layout.nodes.get('a1').y }, { x: 900, y: 900 });
   assert.ok(layout.diagnostics.droppedManualIds.includes('b1'));
+  assert.ok(layout.diagnostics.wrongRegionManualIds.includes('b1'));
   assert.ok(layout.nodes.get('a2').y !== 900 || layout.nodes.get('a2').x !== 900);
+});
+
+test('manual collisions include automatic nodes and final region boxes contain manual overflow', () => {
+  const manual = {
+    a1: { x: 900, y: 900, regionId: 'reg_a', ts: 1 },
+    a2: { x: 900, y: 900, regionId: 'reg_a', ts: 2 },
+  };
+  const layout = computeLogisticsLayout(nodes, routes, { manualPositions: manual });
+  const first = layout.nodes.get('a1');
+  const second = layout.nodes.get('a2');
+  assert.ok(Math.abs(first.x - second.x) * 2 >= first.w + second.w || Math.abs(first.y - second.y) * 2 >= first.h + second.h);
+  const box = layout.regions.get('reg_a');
+  for (const node of [first, second]) {
+    assert.ok(node.x - node.w / 2 >= box.x + 28 && node.y - node.h / 2 >= box.y + 28);
+    assert.ok(node.x + node.w / 2 <= box.x + box.w - 28 && node.y + node.h / 2 <= box.y + box.h - 4);
+  }
 });
 
 test('manual entries can tombstone removed nodes and restore when re-added without input mutation', () => {

@@ -104,11 +104,17 @@ let settlementFocusWorkspaceRoot: string | undefined;
 let settlementFocusLocationId: string | undefined;
 
 /** Short, path-safe identity for Webview-only logistics preferences. */
-export function deriveEconomyLogisticsScopeKey(workspacePath?: string, scenarioId?: string): string {
-    const workspace = typeof workspacePath === 'string' ? workspacePath.trim() : '';
-    if (!workspace) { return 'default'; }
-    const scenario = typeof scenarioId === 'string' ? scenarioId.trim() : '';
-    const source = `${workspace}\u0000${scenario}`;
+export function deriveEconomyLogisticsScopeKey(workspacePath?: string, worldName?: string, worldSeed?: string): string {
+    const rawWorkspace = typeof workspacePath === 'string'
+        ? workspacePath.trim().normalize('NFC').replace(/[\\/]+/g, '\\')
+        : '';
+    const workspace = /^[a-zA-Z]:\\$/.test(rawWorkspace)
+        ? rawWorkspace.toLowerCase()
+        : rawWorkspace.replace(/\\+$/, '').toLowerCase();
+    const name = typeof worldName === 'string' ? worldName.trim().normalize('NFC') : '';
+    const seed = typeof worldSeed === 'string' ? worldSeed.trim().normalize('NFC') : '';
+    if (!workspace && !name && !seed) { return 'default'; }
+    const source = `${workspace}\u0000${name}\u0000${seed}`;
     // FNV-1a is sufficient here: this is a non-secret localStorage namespace,
     // never an authority or security boundary. Keep the emitted key compact.
     let hash = 0x811c9dc5;
@@ -850,8 +856,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         }),
         // Transient Webview metadata only. The hash prevents a workspace path
         // from entering the payload or the localStorage key while still keeping
-        // camera/layout preferences isolated by workspace and authored world seed.
-        scopeKey: deriveEconomyLogisticsScopeKey(wsPath, forge.meta.worldSeed),
+        // camera/layout preferences isolated by normalized workspace and world identity.
+        scopeKey: deriveEconomyLogisticsScopeKey(wsPath, forge.meta.worldName, forge.meta.worldSeed),
     };
 
     // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).

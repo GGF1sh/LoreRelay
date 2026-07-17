@@ -6,9 +6,6 @@ const LOGISTICS_LAYOUT_RANK_GAP_X = 260;
 const LOGISTICS_LAYOUT_NODE_GAP_Y = 36;
 const LOGISTICS_LAYOUT_REGION_PADDING = 28;
 const LOGISTICS_LAYOUT_REGION_GAP = 120;
-// A fixed pitch is intentional: growth inside region A must not move region B.
-const LOGISTICS_LAYOUT_REGION_GRID_PITCH_X = 2400;
-const LOGISTICS_LAYOUT_REGION_GRID_PITCH_Y = 1800;
 
 function logisticsLayoutCompareId(a, b) {
   const aa = String(a || '');
@@ -189,41 +186,39 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
     local.set(regionId, logisticsLayoutRegionLocal(members, safeRoutes));
   }
   const visibleRegionIds = [...local.keys()].filter((id) => id !== '__unassigned').sort(logisticsLayoutCompareId);
-  const pairWeights = new Map();
+  const nodeById = new Map(uniqueNodes.map((node) => [node.id, node]));
+  // Region ordering is topology-only. Flow metrics must never move a graph.
+  const interRegionRouteCount = new Map(visibleRegionIds.map((id) => [id, 0]));
   for (const route of safeRoutes) {
-    const from = uniqueNodes.find((node) => node.id === route.fromNodeId);
-    const to = uniqueNodes.find((node) => node.id === route.toNodeId);
+    const from = nodeById.get(route.fromNodeId);
+    const to = nodeById.get(route.toNodeId);
     const fromRegion = from && from.kind !== 'region' && logisticsLayoutValidRegionId(from.regionId) ? from.regionId : '__unassigned';
     const toRegion = to && to.kind !== 'region' && logisticsLayoutValidRegionId(to.regionId) ? to.regionId : '__unassigned';
     if (fromRegion === toRegion || fromRegion === '__unassigned' || toRegion === '__unassigned') { continue; }
-    const key = `${fromRegion}\u0000${toRegion}`;
-    const value = Math.max(0, logisticsLayoutFinite(route.volume, 0));
-    const capacity = Math.max(0, logisticsLayoutFinite(route.effectiveCapacity, logisticsLayoutFinite(route.capacity, 0)));
-    const old = pairWeights.get(key) || { volume: 0, capacity: 0 };
-    old.volume += value; old.capacity += capacity; pairWeights.set(key, old);
+    interRegionRouteCount.set(fromRegion, (interRegionRouteCount.get(fromRegion) || 0) + 1);
+    interRegionRouteCount.set(toRegion, (interRegionRouteCount.get(toRegion) || 0) + 1);
   }
-  const allVolumesZero = [...pairWeights.values()].every((entry) => entry.volume === 0);
-  const totalWeight = new Map(visibleRegionIds.map((id) => [id, 0]));
-  for (const [key, value] of pairWeights) {
-    const [from, to] = key.split('\u0000');
-    const weight = allVolumesZero ? value.capacity : value.volume;
-    totalWeight.set(from, (totalWeight.get(from) || 0) + weight);
-    totalWeight.set(to, (totalWeight.get(to) || 0) + weight);
-  }
-  const placementOrder = visibleRegionIds.slice().sort((a, b) => (totalWeight.get(b) || 0) - (totalWeight.get(a) || 0) || logisticsLayoutCompareId(a, b));
+  const placementOrder = visibleRegionIds.slice().sort((a, b) => (interRegionRouteCount.get(b) || 0) - (interRegionRouteCount.get(a) || 0)
+    || (buckets.get(b)?.length || 0) - (buckets.get(a)?.length || 0) || logisticsLayoutCompareId(a, b));
   const columns = Math.max(1, Math.ceil(Math.sqrt(placementOrder.length)));
   const regionOffset = new Map();
-  placementOrder.forEach((id, index) => regionOffset.set(id, {
-    x: (index % columns) * (LOGISTICS_LAYOUT_REGION_GRID_PITCH_X + LOGISTICS_LAYOUT_REGION_GAP),
-    y: Math.floor(index / columns) * (LOGISTICS_LAYOUT_REGION_GRID_PITCH_Y + LOGISTICS_LAYOUT_REGION_GAP),
-  }));
+  let cursorX = 0; let cursorY = 0; let rowHeight = 0;
+  placementOrder.forEach((id, index) => {
+    if (index > 0 && index % columns === 0) { cursorX = 0; cursorY += rowHeight + LOGISTICS_LAYOUT_REGION_GAP; rowHeight = 0; }
+    const result = local.get(id);
+    const w = result.width + LOGISTICS_LAYOUT_REGION_PADDING * 2;
+    const h = result.height + LOGISTICS_LAYOUT_REGION_PADDING * 2 + 24;
+    regionOffset.set(id, { x: cursorX, y: cursorY });
+    cursorX += w + LOGISTICS_LAYOUT_REGION_GAP;
+    rowHeight = Math.max(rowHeight, h);
+  });
+  const unassignedOffset = { x: 0, y: cursorY + rowHeight + LOGISTICS_LAYOUT_REGION_GAP };
   const positions = new Map();
   const manualPositions = options.manualPositions || options.positions || null;
   const droppedManualIds = [];
+  const wrongRegionManualIds = [];
   for (const [regionId, result] of local) {
-    const offset = regionOffset.get(regionId) || (regionId === '__unassigned'
-      ? { x: 0, y: Math.max(1, Math.ceil(placementOrder.length / columns)) * (LOGISTICS_LAYOUT_REGION_GRID_PITCH_Y + LOGISTICS_LAYOUT_REGION_GAP) }
-      : { x: 0, y: 0 });
+    const offset = regionOffset.get(regionId) || (regionId === '__unassigned' ? unassignedOffset : { x: 0, y: 0 });
     const members = buckets.get(regionId) || [];
     for (const node of members) {
       const value = result.positions.get(node.id);
@@ -231,7 +226,10 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
       const validStored = stored && Number.isFinite(stored.x) && Number.isFinite(stored.y)
         && Math.abs(stored.x) <= 50000 && Math.abs(stored.y) <= 50000
         && stored.regionId === regionId;
-      if (stored && !validStored) { droppedManualIds.push(node.id); }
+      if (stored && !validStored) {
+        droppedManualIds.push(node.id);
+        if (stored.regionId !== regionId) { wrongRegionManualIds.push(node.id); }
+      }
       positions.set(node.id, {
         ...value,
         x: validStored ? stored.x : value.x + offset.x + (regionId === '__unassigned' ? LOGISTICS_LAYOUT_REGION_PADDING : LOGISTICS_LAYOUT_REGION_PADDING),
@@ -258,10 +256,36 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
   function overlaps(a, b) {
     return Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
   }
-  for (const [, automatic] of automatics) {
-    for (let attempt = 0; attempt < 8 && manuals.some(([, manual]) => overlaps(automatic, manual)); attempt++) {
+  const finalized = [];
+  const overflowPlacedIds = [];
+  for (const [id, automatic] of [...manuals, ...automatics]) {
+    let clear = false;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      if (!finalized.some((other) => overlaps(automatic, other))) { clear = true; break; }
       automatic.y += LOGISTICS_LAYOUT_NODE_GAP_Y;
     }
+    if (!clear && finalized.some((other) => overlaps(automatic, other))) {
+      // Bounded overflow lane: no silent overlap after the eight Y attempts.
+      for (let lane = 1; lane <= 8 && !clear; lane++) {
+        automatic.x += automatic.w + LOGISTICS_LAYOUT_NODE_GAP_Y;
+        if (!finalized.some((other) => overlaps(automatic, other))) { clear = true; }
+      }
+      overflowPlacedIds.push(id);
+    }
+    finalized.push(automatic);
+  }
+  // Final containers are derived from final boxes, including valid manual and
+  // overflow placements, so no rendered member lies outside its region.
+  for (const [regionId, region] of regions) {
+    const members = region.memberIds.map((id) => positions.get(id)).filter(Boolean);
+    const minX = Math.min(...members.map((pos) => pos.x - pos.w / 2));
+    const minY = Math.min(...members.map((pos) => pos.y - pos.h / 2));
+    const maxX = Math.max(...members.map((pos) => pos.x + pos.w / 2));
+    const maxY = Math.max(...members.map((pos) => pos.y + pos.h / 2));
+    region.x = minX - LOGISTICS_LAYOUT_REGION_PADDING;
+    region.y = minY - LOGISTICS_LAYOUT_REGION_PADDING - 24;
+    region.w = maxX - minX + LOGISTICS_LAYOUT_REGION_PADDING * 2;
+    region.h = maxY - minY + LOGISTICS_LAYOUT_REGION_PADDING * 2 + 24;
   }
   let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
   for (const pos of positions.values()) {
@@ -280,6 +304,6 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
     regions,
     bounds: positions.size || regions.size ? { minX, minY, maxX, maxY } : { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     algo: LOGISTICS_LAYOUT_ALGO,
-    diagnostics: { sweeps: 4, droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId), cycleBreaks: [...local.values()].flatMap((item) => item.droppedRouteIds).sort(logisticsLayoutCompareId) },
+    diagnostics: { sweeps: 4, droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId), wrongRegionManualIds: wrongRegionManualIds.sort(logisticsLayoutCompareId), overflowPlacedIds: overflowPlacedIds.sort(logisticsLayoutCompareId), cycleBreaks: [...local.values()].flatMap((item) => item.droppedRouteIds).sort(logisticsLayoutCompareId) },
   };
 }

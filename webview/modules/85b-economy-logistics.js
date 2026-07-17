@@ -372,15 +372,25 @@ function logisticsStorageKey(kind, scopeKey) {
 }
 
 function logisticsStorageGet(key) {
-  try { return window.localStorage.getItem(key); } catch { return economyLogisticsUiState.storageFallback.get(key) || null; }
+  // A failed write can be more recent than the underlying store. Keep an
+  // overlay (including a null tombstone) until a later storage operation
+  // succeeds, rather than allowing stale localStorage data to reappear.
+  if (economyLogisticsUiState.storageFallback.has(key)) { return economyLogisticsUiState.storageFallback.get(key); }
+  try { return window.localStorage.getItem(key); } catch { return null; }
 }
 
 function logisticsStorageSet(key, value) {
-  try { window.localStorage.setItem(key, value); } catch { economyLogisticsUiState.storageFallback.set(key, value); }
+  try {
+    window.localStorage.setItem(key, value);
+    economyLogisticsUiState.storageFallback.delete(key);
+  } catch { economyLogisticsUiState.storageFallback.set(key, value); }
 }
 
 function logisticsStorageRemove(key) {
-  try { window.localStorage.removeItem(key); } catch { economyLogisticsUiState.storageFallback.delete(key); }
+  try {
+    window.localStorage.removeItem(key);
+    economyLogisticsUiState.storageFallback.delete(key);
+  } catch { economyLogisticsUiState.storageFallback.set(key, null); }
 }
 
 function logisticsValidStoredPosition(value) {
@@ -413,6 +423,18 @@ function logisticsSaveLayoutPositions() {
   }));
 }
 
+function logisticsPruneWrongRegionManualPositions(layout) {
+  let removed = false;
+  for (const id of layout?.diagnostics?.wrongRegionManualIds || []) {
+    if (Object.prototype.hasOwnProperty.call(economyLogisticsUiState.manualPositions, id)) {
+      delete economyLogisticsUiState.manualPositions[id];
+      removed = true;
+    }
+  }
+  if (removed) { logisticsSaveLayoutPositions(); }
+  return removed;
+}
+
 function logisticsValidStoredCamera(value) {
   return logisticsIsValidCamera(value) && typeof value.userModified === 'boolean';
 }
@@ -429,21 +451,25 @@ function logisticsLoadCameraContexts(scopeKey) {
   return contexts;
 }
 
-function logisticsSaveCameraContexts() {
-  const contexts = economyLogisticsUiState.cameraContexts;
-  const out = { v: 1 };
-  for (const key of ['normal', 'lightbox']) {
-    if (logisticsValidStoredCamera(contexts[key]?.camera)) { out[key] = contexts[key].camera; }
-  }
-  logisticsStorageSet(logisticsStorageKey('camera', economyLogisticsUiState.scopeKey), JSON.stringify(out));
+function logisticsSaveCameraContext(scopeKey, hostKey, camera) {
+  let out = { v: 1 };
+  try {
+    const parsed = JSON.parse(logisticsStorageGet(logisticsStorageKey('camera', scopeKey)) || 'null');
+    if (parsed && parsed.v === 1) { out = { v: 1 }; for (const key of ['normal', 'lightbox']) { if (logisticsValidStoredCamera(parsed[key])) { out[key] = parsed[key]; } } }
+  } catch { /* write a fresh, valid context below */ }
+  if (logisticsValidStoredCamera(camera)) { out[hostKey] = { ...camera }; }
+  logisticsStorageSet(logisticsStorageKey('camera', scopeKey), JSON.stringify(out));
 }
 
 function logisticsQueueCameraSave(immediate) {
-  const key = logisticsCameraHostKey();
+  const hostKey = logisticsCameraHostKey();
+  const scopeKey = economyLogisticsUiState.scopeKey;
+  const camera = { ...economyLogisticsUiState.cameraContexts[hostKey].camera };
+  const key = `${scopeKey}:${hostKey}`;
   const timers = economyLogisticsUiState.cameraSaveTimers;
   if (timers[key]) { clearTimeout(timers[key]); timers[key] = null; }
-  if (immediate) { logisticsSaveCameraContexts(); return; }
-  timers[key] = setTimeout(() => { timers[key] = null; logisticsSaveCameraContexts(); }, 220);
+  if (immediate) { logisticsSaveCameraContext(scopeKey, hostKey, camera); return; }
+  timers[key] = setTimeout(() => { timers[key] = null; logisticsSaveCameraContext(scopeKey, hostKey, camera); }, 220);
 }
 
 function logisticsLoadPrefs(scopeKey) {
@@ -733,7 +759,7 @@ function logisticsBuildRenderedGraph(payload, layout, commodityId) {
     if (!region) { continue; }
     const id = logisticsAggregateId(regionId);
     positions.set(id, { x: region.x + region.w / 2, y: region.y + region.h / 2, w: 184, h: 72, tier: 'major', regionId, aggregate: true, manual: false });
-    nodes.push({ id, label: region.label, kind: 'region', aggregate: true, memberCount: region.memberIds.length, regionId, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [] });
+    nodes.push({ id, label: region.label, kind: 'region', scale: 'major', aggregate: true, memberCount: region.memberIds.length, regionId, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [] });
   }
   const routes = [];
   for (const route of payload.routes || []) {
@@ -934,7 +960,15 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
   const unrelated = Boolean(selectedRoute && selectedRoute.fromNodeId !== node.id && selectedRoute.toNodeId !== node.id);
   const role = logisticsNodeRole(node.kind);
-  const scale = logisticsNodeScale(node, routes);
+  const scale = position.tier || logisticsNodeScale(node, routes);
+  const nodeWidth = Number.isFinite(position.w) ? position.w : 152;
+  const nodeHeight = Number.isFinite(position.h) ? position.h : 60;
+  const horizontalScale = nodeWidth / 152;
+  const verticalScale = nodeHeight / 60;
+  const padding = Math.max(8, Math.round(nodeWidth * 0.08));
+  const kindY = Math.max(14, Math.round(nodeHeight * 0.29));
+  const labelY = Math.min(nodeHeight - 10, Math.max(kindY + 16, Math.round(nodeHeight * 0.68)));
+  const badgeX = nodeWidth - padding - 5;
   const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
     || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
   const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${holdingSelection ? ' is-holding-selection' : ''}${unrelated ? ' is-unrelated' : ''}`);
@@ -943,43 +977,45 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   group.setAttribute('aria-label', node.aggregate ? `${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}` : `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
   const shape = logisticsSvgElement('path', 'logistics-node-shape');
   shape.setAttribute('d', logisticsNodeShapePath(role));
+  shape.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
   group.appendChild(shape);
   const accent = logisticsSvgElement('path', 'logistics-node-accent');
   accent.setAttribute('d', 'M 12 5 H 140');
+  accent.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
   group.appendChild(accent);
   const kind = logisticsSvgElement('text', 'logistics-node-kind');
-  kind.setAttribute('x', '12');
-  kind.setAttribute('y', '17');
+  kind.setAttribute('x', String(padding));
+  kind.setAttribute('y', String(kindY));
   kind.textContent = logisticsNodeKindLabel(node.kind);
   group.appendChild(kind);
   const label = logisticsSvgElement('text', 'logistics-node-label');
-  label.setAttribute('x', '12');
-  label.setAttribute('y', '39');
+  label.setAttribute('x', String(padding));
+  label.setAttribute('y', String(labelY));
   label.textContent = logisticsTruncateLabel(node.label);
   group.appendChild(label);
   const symbol = logisticsSvgElement('text', 'logistics-node-symbol');
-  symbol.setAttribute('x', '132');
-  symbol.setAttribute('y', '43');
+  symbol.setAttribute('x', String(nodeWidth - padding - 12));
+  symbol.setAttribute('y', String(labelY + 4));
   symbol.textContent = logisticsNodeSymbol(role);
   group.appendChild(symbol);
   if (node.aggregate) {
     const badge = logisticsSvgElement('text', 'logistics-aggregate-badge');
-    badge.setAttribute('x', '135');
-    badge.setAttribute('y', '18');
+    badge.setAttribute('x', String(badgeX));
+    badge.setAttribute('y', String(kindY + 1));
     badge.textContent = String(node.memberCount || 0);
     group.appendChild(badge);
   }
   const nodeShortages = shortages.filter((item) => item.nodeId === node.id);
   if (nodeShortages.length > 0) {
     const badge = logisticsSvgElement('text', 'logistics-shortage-badge');
-    badge.setAttribute('x', '135');
-    badge.setAttribute('y', '18');
+    badge.setAttribute('x', String(badgeX));
+    badge.setAttribute('y', String(kindY + 1));
     badge.textContent = '!';
     group.appendChild(badge);
   } else if ((node.processingSiteIds || []).length > 0) {
     const badge = logisticsSvgElement('text', 'logistics-processing-badge');
-    badge.setAttribute('x', '132');
-    badge.setAttribute('y', '18');
+    badge.setAttribute('x', String(badgeX - 3));
+    badge.setAttribute('y', String(kindY + 1));
     badge.textContent = '⚙';
     group.appendChild(badge);
   }
@@ -1545,6 +1581,10 @@ function renderLogisticsNetwork(payload, parent) {
     manualPositions: economyLogisticsUiState.manualPositions,
     collapsedRegionIds: economyLogisticsUiState.collapsedRegionIds,
   });
+  // A manual coordinate belongs to the region it was dragged in. Once the
+  // payload says otherwise, delete it from this scope so it cannot resurrect
+  // when the node later returns to the old region.
+  logisticsPruneWrongRegionManualPositions(layout);
   economyLogisticsUiState.layout = layout;
   const rendered = { positions: new Map(), nodeElements: new Map(), routeElements: new Map() };
   const graph = logisticsBuildRenderedGraph(payload, layout, data.commodityId);

@@ -394,6 +394,12 @@ bounded overflow lane). If two manuals overlap, keep both exact stored coordinat
 automatic node's start pose and record `unresolvedOverlapIds` — do not claim a successful overflow
 placement.
 
+**Pure-layout cross-region guard.** Independently of the UI drag clamp, `computeLogisticsLayout()`
+must not accept a manual of region A that occupies another populated region's packed container.
+Such positions are projected deterministically into the owner's valid interior and reported in
+`diagnostics.crossRegionManualIds`. Empty free space outside the owner is allowed; wrong-region id
+mismatches remain `wrongRegionManualIds` / dropped. Input storage objects are never mutated.
+
 **Determinism obligations** (each is a test in Slice 2):
 
 - Same input, twice → byte-identical output.

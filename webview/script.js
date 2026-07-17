@@ -11937,7 +11937,57 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
       });
     }
   }
-  // Manual nodes are fixed obstacles: place them exactly at stored coordinates
+  // Pure-layout invariant (independent of the UI drag clamp): a manual node of
+  // region A must never occupy another populated region's packed container.
+  // Empty space outside A is allowed (region A may later expand into free
+  // space); intrusion into B is projected back into A's valid interior.
+  // Input manual objects are never mutated — only layout output coordinates.
+  const crossRegionManualIds = [];
+  function logisticsLayoutNodeIntersectsRegion(pos, region) {
+    if (!pos || !region) { return false; }
+    const left = pos.x - pos.w / 2;
+    const right = pos.x + pos.w / 2;
+    const top = pos.y - pos.h / 2;
+    const bottom = pos.y + pos.h / 2;
+    return right > region.x && left < region.x + region.w
+      && bottom > region.y && top < region.y + region.h;
+  }
+  function logisticsLayoutClampManualToRegionInterior(pos, region) {
+    const pad = LOGISTICS_LAYOUT_REGION_PADDING;
+    const title = 24;
+    const halfW = (Number.isFinite(pos.w) ? pos.w : 152) / 2;
+    const halfH = (Number.isFinite(pos.h) ? pos.h : 60) / 2;
+    const minX = region.x + pad + halfW;
+    const maxX = region.x + region.w - pad - halfW;
+    const minY = region.y + pad + title + halfH;
+    const maxY = region.y + region.h - pad - halfH;
+    pos.x = minX <= maxX
+      ? Math.min(maxX, Math.max(minX, pos.x))
+      : region.x + region.w / 2;
+    pos.y = minY <= maxY
+      ? Math.min(maxY, Math.max(minY, pos.y))
+      : region.y + region.h / 2;
+  }
+  // Deterministic order: id ascending. Only populated-region manuals are checked
+  // against other populated packed boxes (__unassigned is not a container).
+  for (const id of [...positions.keys()].sort(logisticsLayoutCompareId)) {
+    const pos = positions.get(id);
+    if (!pos || !pos.manual || pos.regionId === '__unassigned') { continue; }
+    const own = regions.get(pos.regionId);
+    if (!own) { continue; }
+    let crosses = false;
+    for (const [otherId, other] of regions) {
+      if (otherId === pos.regionId) { continue; }
+      if (logisticsLayoutNodeIntersectsRegion(pos, other)) {
+        crosses = true;
+        break;
+      }
+    }
+    if (!crosses) { continue; }
+    crossRegionManualIds.push(id);
+    logisticsLayoutClampManualToRegionInterior(pos, own);
+  }
+  // Manual nodes are fixed obstacles: place them at (corrected) coordinates
   // first, never mutate them during collision resolution. Collision is strictly
   // region-local so a drag in region A cannot displace region B members.
   const manuals = [...positions.entries()].filter(([, pos]) => pos.manual).sort((a, b) => logisticsLayoutCompareId(a[0], b[0]));
@@ -12033,6 +12083,10 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
       sweeps: 4,
       droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId),
       wrongRegionManualIds: wrongRegionManualIds.sort(logisticsLayoutCompareId),
+      // Manuals whose stored world/local position intersected another populated
+      // region's packed container and were projected back into the owner interior.
+      // Distinct from wrongRegionManualIds (stored.regionId mismatch / dropped).
+      crossRegionManualIds: crossRegionManualIds.sort(logisticsLayoutCompareId),
       overflowPlacedIds: overflowPlacedIds.sort(logisticsLayoutCompareId),
       // Honest residual overlaps after bounded Y/lane attempts (manual-manual
       // or automatic exhaustion). Prefer reporting over silently moving manuals.

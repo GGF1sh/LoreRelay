@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.84.8] - 2026-07-17
+
+### Logistics graph canvas human-blocker repair
+
+- Moved factual region, node, route, and warning text into the final SVG annotation layer so ordinary and selected route strokes, halos, hit paths, and flow particles render behind it.
+- Synchronized flow particles with the final filter relevance: primary routes retain particles; secondary and unrelated routes hide them immediately.
+
 ## [1.84.7] - 2026-07-17
 
 ### Logistics graph canvas release gate

@@ -15,9 +15,14 @@ const LOGISTICS_ZOOM_MAX = 3.0;
 const LOGISTICS_ZOOM_STEP = 1.15;
 const LOGISTICS_WHEEL_K = 0.0015;
 const LOGISTICS_FIT_PADDING = 32;
+const LOGISTICS_FIT_SLACK = 0.92;
 const LOGISTICS_PAN_STEP = 48;
 const LOGISTICS_PAN_STEP_FAST = LOGISTICS_PAN_STEP * 4;
 const LOGISTICS_DRAG_THRESHOLD_PX = 4;
+// Max |normalized CSS-pixel| wheel delta accepted before zoom math runs.
+// Extremely large page/line deltas (or pathological input devices) clamp here
+// so exp() never produces non-finite k/tx/ty.
+const LOGISTICS_WHEEL_DELTA_MAX = 4096;
 // Half-extent of a rendered node box (see renderLogisticsNode's -76/-30
 // translate below) — used only to give a single node a sane fit-all bbox.
 const LOGISTICS_NODE_HALF_W = 76;
@@ -31,13 +36,34 @@ const LOGISTICS_VIEWPORT_WIDTH_FALLBACK = 760;
 const LOGISTICS_CAMERA_EASE_MS = 200;
 
 function logisticsClampZoom(k) {
-  return Math.max(LOGISTICS_ZOOM_MIN, Math.min(LOGISTICS_ZOOM_MAX, k));
+  const n = Number(k);
+  if (!Number.isFinite(n)) { return LOGISTICS_ZOOM_MIN; }
+  return Math.max(LOGISTICS_ZOOM_MIN, Math.min(LOGISTICS_ZOOM_MAX, n));
 }
 
 function logisticsIsValidCamera(camera) {
   return Boolean(camera)
     && Number.isFinite(camera.k) && Number.isFinite(camera.tx) && Number.isFinite(camera.ty)
     && camera.k >= LOGISTICS_ZOOM_MIN - 1e-9 && camera.k <= LOGISTICS_ZOOM_MAX + 1e-9;
+}
+
+/** Rejects NaN/±Infinity/non-object bboxes so Fit All never builds
+ * translate(Infinity) from malformed content bounds. */
+function logisticsIsFiniteBBox(bbox) {
+  return Boolean(bbox)
+    && Number.isFinite(bbox.minX) && Number.isFinite(bbox.minY)
+    && Number.isFinite(bbox.maxX) && Number.isFinite(bbox.maxY)
+    && bbox.maxX >= bbox.minX && bbox.maxY >= bbox.minY;
+}
+
+/** Recovers a positive finite viewport size; used by Fit All and zoom-by-step. */
+function logisticsSanitizeViewportSize(viewportSize) {
+  const width = Number(viewportSize && viewportSize.width);
+  const height = Number(viewportSize && viewportSize.height);
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : LOGISTICS_VIEWPORT_WIDTH_FALLBACK,
+    height: Number.isFinite(height) && height > 0 ? height : LOGISTICS_VIEWPORT_HEIGHT,
+  };
 }
 
 function logisticsWorldToScreen(camera, point) {
@@ -48,37 +74,63 @@ function logisticsScreenToWorld(camera, point) {
   return { x: (point.x - camera.tx) / camera.k, y: (point.y - camera.ty) / camera.k };
 }
 
-/** Pointer-centred zoom: the world point under `screenPoint` is unchanged. */
+/** Pointer-centred zoom: the world point under `screenPoint` is unchanged.
+ * Non-finite inputs retain the previous camera (never emit Infinity into SVG). */
 function logisticsZoomAt(camera, screenPoint, nextK) {
+  if (!logisticsIsValidCamera(camera)) { return camera; }
   const k = logisticsClampZoom(nextK);
   if (k === camera.k) { return camera; }
-  return {
-    k,
-    tx: screenPoint.x - (screenPoint.x - camera.tx) * (k / camera.k),
-    ty: screenPoint.y - (screenPoint.y - camera.ty) * (k / camera.k),
-    userModified: true,
-  };
+  const sx = Number(screenPoint && screenPoint.x);
+  const sy = Number(screenPoint && screenPoint.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) { return camera; }
+  const ratio = k / camera.k;
+  if (!Number.isFinite(ratio)) { return camera; }
+  const tx = sx - (sx - camera.tx) * ratio;
+  const ty = sy - (sy - camera.ty) * ratio;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) { return camera; }
+  return { k, tx, ty, userModified: true };
 }
 
-/** Normalizes wheel deltaMode: 0 = pixel, 1 = line, 2 = page. */
+/** Normalizes wheel deltaMode: 0 = pixel, 1 = line, 2 = page. Result is
+ * always finite and clamped to ±LOGISTICS_WHEEL_DELTA_MAX CSS pixels. */
 function logisticsWheelDeltaY(event) {
-  let deltaY = Number(event.deltaY) || 0;
-  const mode = Number(event.deltaMode) || 0;
+  let deltaY = Number(event && event.deltaY);
+  if (!Number.isFinite(deltaY)) { deltaY = 0; }
+  const mode = Number(event && event.deltaMode) || 0;
   if (mode === 1) { deltaY *= 16; } else if (mode === 2) { deltaY *= 320; }
+  if (!Number.isFinite(deltaY)) { return 0; }
+  if (deltaY > LOGISTICS_WHEEL_DELTA_MAX) { return LOGISTICS_WHEEL_DELTA_MAX; }
+  if (deltaY < -LOGISTICS_WHEEL_DELTA_MAX) { return -LOGISTICS_WHEEL_DELTA_MAX; }
   return deltaY;
 }
 
 function logisticsZoomFromWheel(camera, screenPoint, deltaY) {
-  return logisticsZoomAt(camera, screenPoint, camera.k * Math.exp(-deltaY * LOGISTICS_WHEEL_K));
+  const dy = Number(deltaY);
+  if (!Number.isFinite(dy)) { return camera; }
+  const factor = Math.exp(-dy * LOGISTICS_WHEEL_K);
+  if (!Number.isFinite(factor)) { return camera; }
+  return logisticsZoomAt(camera, screenPoint, camera.k * factor);
 }
 
 function logisticsZoomByStep(camera, viewportSize, direction) {
-  const center = { x: viewportSize.width / 2, y: viewportSize.height / 2 };
-  return logisticsZoomAt(camera, center, camera.k * Math.pow(LOGISTICS_ZOOM_STEP, direction));
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  const center = { x: vp.width / 2, y: vp.height / 2 };
+  const dir = Number(direction);
+  if (!Number.isFinite(dir)) { return camera; }
+  const factor = Math.pow(LOGISTICS_ZOOM_STEP, dir);
+  if (!Number.isFinite(factor)) { return camera; }
+  return logisticsZoomAt(camera, center, camera.k * factor);
 }
 
 function logisticsPanBy(camera, dx, dy) {
-  return { k: camera.k, tx: camera.tx + dx, ty: camera.ty + dy, userModified: true };
+  if (!logisticsIsValidCamera(camera)) { return camera; }
+  const ddx = Number(dx);
+  const ddy = Number(dy);
+  if (!Number.isFinite(ddx) || !Number.isFinite(ddy)) { return camera; }
+  const tx = camera.tx + ddx;
+  const ty = camera.ty + ddy;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) { return camera; }
+  return { k: camera.k, tx, ty, userModified: true };
 }
 
 /** bbox of rendered node boxes (world space), or null for an empty graph. */
@@ -96,40 +148,50 @@ function logisticsComputeContentBBox(nodePositions) {
     minY = Math.min(minY, pos.y - LOGISTICS_NODE_HALF_H);
     maxY = Math.max(maxY, pos.y + LOGISTICS_NODE_HALF_H);
   });
-  return found ? { minX, minY, maxX, maxY } : null;
+  if (!found) { return null; }
+  const bbox = { minX, minY, maxX, maxY };
+  return logisticsIsFiniteBBox(bbox) ? bbox : null;
 }
 
 function logisticsDefaultCamera(viewportSize) {
-  return { k: 1, tx: (viewportSize.width || 0) / 2, ty: (viewportSize.height || 0) / 2, userModified: false };
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  return { k: 1, tx: vp.width / 2, ty: vp.height / 2, userModified: false };
 }
 
-/** Fits bbox into viewportSize with symmetric slack and bounded padding. */
+/** Fits bbox into viewportSize with screen-space padding, then multiplies the
+ * free scale by LOGISTICS_FIT_SLACK (0.92) so decorations keep breathing room.
+ * Symmetric excess slack is preserved by centering on the content midpoint. */
 function logisticsFitAllCamera(bbox, viewportSize, padding = LOGISTICS_FIT_PADDING) {
-  if (!bbox) { return logisticsDefaultCamera(viewportSize); }
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  if (!logisticsIsFiniteBBox(bbox)) { return logisticsDefaultCamera(vp); }
+  const pad = Number.isFinite(padding) && padding >= 0 ? padding : LOGISTICS_FIT_PADDING;
   const contentW = Math.max(1, bbox.maxX - bbox.minX);
   const contentH = Math.max(1, bbox.maxY - bbox.minY);
-  const availW = Math.max(1, viewportSize.width - padding * 2);
-  const availH = Math.max(1, viewportSize.height - padding * 2);
-  const k = logisticsClampZoom(Math.min(availW / contentW, availH / contentH));
+  const availW = Math.max(1, vp.width - pad * 2);
+  const availH = Math.max(1, vp.height - pad * 2);
+  const freeScale = Math.min(availW / contentW, availH / contentH);
+  const k = logisticsClampZoom(freeScale * LOGISTICS_FIT_SLACK);
   const centerX = (bbox.minX + bbox.maxX) / 2;
   const centerY = (bbox.minY + bbox.maxY) / 2;
-  return {
-    k,
-    tx: viewportSize.width / 2 - centerX * k,
-    ty: viewportSize.height / 2 - centerY * k,
-    userModified: false,
-  };
+  const tx = vp.width / 2 - centerX * k;
+  const ty = vp.height / 2 - centerY * k;
+  if (!Number.isFinite(k) || !Number.isFinite(tx) || !Number.isFinite(ty)) {
+    return logisticsDefaultCamera(vp);
+  }
+  return { k, tx, ty, userModified: false };
 }
 
 function logisticsBBoxIntersectsViewport(bbox, camera, viewportSize) {
-  if (!bbox) { return true; }
+  if (!logisticsIsFiniteBBox(bbox) || !logisticsIsValidCamera(camera)) { return true; }
+  const vp = logisticsSanitizeViewportSize(viewportSize);
   const a = logisticsWorldToScreen(camera, { x: bbox.minX, y: bbox.minY });
   const b = logisticsWorldToScreen(camera, { x: bbox.maxX, y: bbox.maxY });
+  if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) { return true; }
   const left = Math.min(a.x, b.x);
   const right = Math.max(a.x, b.x);
   const top = Math.min(a.y, b.y);
   const bottom = Math.max(a.y, b.y);
-  return right >= 0 && left <= viewportSize.width && bottom >= 0 && top <= viewportSize.height;
+  return right >= 0 && left <= vp.width && bottom >= 0 && top <= vp.height;
 }
 
 /** Deterministic identity of a dataset's graph shape, independent of the
@@ -141,30 +203,58 @@ function logisticsDatasetIdentity(payload) {
   return `${nodeIds.join(',')}|${routeIds.join(',')}`;
 }
 
-/** Resolves the camera to use for this render: keep it across ordinary
- * rerenders and filter/selection changes, and across a dataset-identity
- * change as long as some of the new content is still on-screen; otherwise
- * perform one bounded Fit All. Never auto-refits merely because payload
- * values (not identity) changed, and never touches a user-modified camera
- * unless the graph is now entirely off-screen. */
+/** Which host is currently being rendered: independent camera memory per host. */
+function logisticsCameraHostKey() {
+  return economyLogisticsUiState.lightboxHost ? 'lightbox' : 'normal';
+}
+
+function logisticsActiveCameraContext() {
+  const key = logisticsCameraHostKey();
+  const contexts = economyLogisticsUiState.cameraContexts;
+  if (!contexts[key]) {
+    contexts[key] = { camera: null, identity: null };
+  }
+  return contexts[key];
+}
+
+function logisticsEmptyCameraContexts() {
+  return {
+    normal: { camera: null, identity: null },
+    lightbox: { camera: null, identity: null },
+  };
+}
+
+/** Resolves the camera for this host/render.
+ *
+ * same dataset identity → always retain a valid camera
+ * changed identity + userModified → retain exactly, update identity, never Fit All
+ * changed identity + !userModified + content intersects viewport → retain
+ * changed identity + !userModified + all content off-screen → one bounded Fit All
+ */
 function logisticsResolveCameraForRender(payload, bbox, viewportSize) {
-  const state = economyLogisticsUiState;
+  const ctx = logisticsActiveCameraContext();
   const identity = logisticsDatasetIdentity(payload);
-  if (!logisticsIsValidCamera(state.camera)) {
-    state.camera = logisticsFitAllCamera(bbox, viewportSize);
-    state.cameraIdentity = identity;
-    return state.camera;
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  if (!logisticsIsValidCamera(ctx.camera)) {
+    ctx.camera = logisticsFitAllCamera(bbox, vp);
+    ctx.identity = identity;
+    return ctx.camera;
   }
-  if (state.cameraIdentity === identity) {
-    return state.camera;
+  if (ctx.identity === identity) {
+    return ctx.camera;
   }
-  if (logisticsBBoxIntersectsViewport(bbox, state.camera, viewportSize)) {
-    state.cameraIdentity = identity;
-    return state.camera;
+  // Dataset identity changed.
+  if (ctx.camera.userModified === true) {
+    ctx.identity = identity;
+    return ctx.camera;
   }
-  state.camera = logisticsFitAllCamera(bbox, viewportSize);
-  state.cameraIdentity = identity;
-  return state.camera;
+  if (logisticsBBoxIntersectsViewport(bbox, ctx.camera, vp)) {
+    ctx.identity = identity;
+    return ctx.camera;
+  }
+  ctx.camera = logisticsFitAllCamera(bbox, vp);
+  ctx.identity = identity;
+  return ctx.camera;
 }
 
 function logisticsPrefersReducedMotion() {
@@ -249,12 +339,15 @@ const economyLogisticsUiState = {
   // Non-null while the panel is rendering inside the "view large" lightbox
   // instead of its normal sidebar location (see ensureVisualLightbox below).
   lightboxHost: null,
-  // In-memory-for-this-session camera ({k,tx,ty,userModified}). See
-  // logisticsResolveCameraForRender. No localStorage persistence in this slice.
-  camera: null,
-  cameraIdentity: null,
+  // Independent in-memory cameras per host (normal 420px vs lightbox 640px).
+  // Selection/filter remain shared; no localStorage persistence in this slice.
+  cameraContexts: {
+    normal: { camera: null, identity: null },
+    lightbox: { camera: null, identity: null },
+  },
   // True while the Space key is held with focus inside the graph viewport,
   // enabling background-style pan even when the pointer starts on a node.
+  // Cleared on focus loss / window blur so a stale Space cannot sticky-pan.
   spaceHeld: false,
 };
 
@@ -773,15 +866,20 @@ function renderLogisticsLegend(parent) {
 }
 
 /** Camera updates touch only the group transform, the constant-screen-size
- * CSS var, and toolbar disabled state — never the graph DOM (L15 fix). */
+ * CSS var, and toolbar disabled state — never the graph DOM (L15 fix).
+ * Non-finite cameras fall back to identity scale at origin rather than writing
+ * translate(Infinity) into the SVG. */
 function applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls) {
-  cameraGroup.setAttribute('transform', `translate(${camera.tx} ${camera.ty}) scale(${camera.k})`);
+  const safe = logisticsIsValidCamera(camera)
+    ? camera
+    : { k: 1, tx: 0, ty: 0, userModified: false };
+  cameraGroup.setAttribute('transform', `translate(${safe.tx} ${safe.ty}) scale(${safe.k})`);
   if (svg.style && typeof svg.style.setProperty === 'function') {
-    svg.style.setProperty('--logistics-camera-k', String(camera.k));
+    svg.style.setProperty('--logistics-camera-k', String(safe.k));
   }
   if (toolbarEls) {
-    toolbarEls.zoomInBtn.disabled = camera.k >= LOGISTICS_ZOOM_MAX - 1e-6;
-    toolbarEls.zoomOutBtn.disabled = camera.k <= LOGISTICS_ZOOM_MIN + 1e-6;
+    toolbarEls.zoomInBtn.disabled = safe.k >= LOGISTICS_ZOOM_MAX - 1e-6;
+    toolbarEls.zoomOutBtn.disabled = safe.k <= LOGISTICS_ZOOM_MIN + 1e-6;
   }
 }
 
@@ -824,7 +922,8 @@ function renderLogisticsCameraToolbar(viewport, onCommand) {
   return { toolbar, zoomOutBtn, zoomInBtn, fitBtn, resetBtn };
 }
 
-function logisticsIsInteractiveTarget(target, boundary) {
+/** Node or route under the pointer (selection targets; normal left-pan skips). */
+function logisticsIsGraphContentTarget(target, boundary) {
   let el = target;
   while (el && el !== boundary) {
     if (el.classList && (el.classList.contains('logistics-node') || el.classList.contains('logistics-route'))) {
@@ -835,79 +934,242 @@ function logisticsIsInteractiveTarget(target, boundary) {
   return false;
 }
 
+/** Toolbar, expand button, form controls, links — never start a left-button pan. */
+function logisticsIsControlTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList) {
+      if (
+        el.classList.contains('logistics-camera-toolbar')
+        || el.classList.contains('logistics-camera-btn')
+        || el.classList.contains('logistics-expand-btn')
+      ) {
+        return true;
+      }
+    }
+    const tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+    if (
+      tag === 'BUTTON' || tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA'
+      || tag === 'A' || tag === 'OPTION' || tag === 'LABEL'
+    ) {
+      return true;
+    }
+    if (el.isContentEditable) { return true; }
+    if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
+      return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+/** Normal primary-button pan may begin only on SVG background / layer chrome. */
+function logisticsIsBackgroundPanTarget(target, boundary) {
+  if (!target || logisticsIsControlTarget(target, boundary) || logisticsIsGraphContentTarget(target, boundary)) {
+    return false;
+  }
+  let el = target;
+  while (el && el !== boundary) {
+    const tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+    if (tag === 'SVG' || tag === 'svg') { return true; }
+    if (el.classList) {
+      if (
+        el.classList.contains('logistics-network')
+        || el.classList.contains('logistics-camera')
+        || el.classList.contains('layer-regions')
+        || el.classList.contains('layer-edges')
+        || el.classList.contains('layer-edges-raised')
+        || el.classList.contains('layer-nodes')
+        || el.classList.contains('layer-labels')
+      ) {
+        return true;
+      }
+    }
+    el = el.parentNode;
+  }
+  // Direct hit on the viewport chrome (empty padding around the SVG) is also background.
+  return target === boundary;
+}
+
+function logisticsIsFocusedButtonLike(doc) {
+  const active = doc && doc.activeElement;
+  if (!active) { return false; }
+  const tag = active.tagName ? String(active.tagName).toUpperCase() : '';
+  return tag === 'BUTTON' || tag === 'SELECT' || tag === 'INPUT' || tag === 'A' || tag === 'TEXTAREA';
+}
+
 /** Wires wheel/drag/keyboard camera interactions on an already-mounted
- * viewport. Every handler mutates economyLogisticsUiState.camera and repaints
- * only via applyLogisticsCameraTransform — never renderEconomyLogisticsPanel. */
+ * viewport. Mutates the active host's camera context and repaints only via
+ * applyLogisticsCameraTransform — never renderEconomyLogisticsPanel. */
 function logisticsSetupCameraInteractions(ctx) {
   const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox } = ctx;
   const state = economyLogisticsUiState;
+  const hostCtx = logisticsActiveCameraContext();
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  const doc = typeof document !== 'undefined' ? document : null;
+  const win = typeof window !== 'undefined' ? window : null;
 
   function setCamera(next) {
-    state.camera = next;
+    if (!logisticsIsValidCamera(next)) {
+      // Retain last valid camera when an operation cannot produce a transform.
+      if (logisticsIsValidCamera(hostCtx.camera)) { return; }
+      next = logisticsDefaultCamera(vp);
+    }
+    hostCtx.camera = next;
     applyLogisticsCameraTransform(svg, cameraGroup, next, toolbarEls);
   }
 
   function screenPointFromEvent(event) {
     const rect = typeof viewport.getBoundingClientRect === 'function'
       ? viewport.getBoundingClientRect() : { left: 0, top: 0 };
-    return { x: (event.clientX || 0) - (rect.left || 0), y: (event.clientY || 0) - (rect.top || 0) };
+    const x = Number(event && event.clientX);
+    const y = Number(event && event.clientY);
+    return {
+      x: (Number.isFinite(x) ? x : 0) - (rect.left || 0),
+      y: (Number.isFinite(y) ? y : 0) - (rect.top || 0),
+    };
   }
 
   viewport.addEventListener('wheel', (event) => {
     if (typeof event.preventDefault === 'function') { event.preventDefault(); }
     const point = screenPointFromEvent(event);
-    setCamera(logisticsZoomFromWheel(state.camera, point, logisticsWheelDeltaY(event)));
+    setCamera(logisticsZoomFromWheel(hostCtx.camera, point, logisticsWheelDeltaY(event)));
   }, { passive: false });
 
+  // Initiating pointer ID is the drag invariant. Cleanup is idempotent.
   let drag = null;
+  let suppressClick = false;
+  let cleaningUp = false;
+
+  function releaseStoredCapture() {
+    if (!drag || drag.pointerId === undefined || drag.pointerId === null) { return; }
+    if (typeof viewport.releasePointerCapture === 'function') {
+      try { viewport.releasePointerCapture(drag.pointerId); } catch { /* already released */ }
+    }
+  }
+
+  function cleanupDrag(options = {}) {
+    if (!drag || cleaningUp) { return; }
+    cleaningUp = true;
+    const active = drag;
+    if (options.restoreCamera && active.startCamera) {
+      setCamera(active.startCamera);
+    }
+    if (active.moved) { suppressClick = true; }
+    releaseStoredCapture();
+    if (viewport.classList) { viewport.classList.remove('is-panning'); }
+    drag = null;
+    cleaningUp = false;
+  }
 
   viewport.addEventListener('pointerdown', (event) => {
-    const interactive = logisticsIsInteractiveTarget(event.target, viewport);
-    const isMiddle = event.button === 1;
+    // A second pointer cannot hijack an active drag.
+    if (drag) { return; }
+    const button = Number(event.button);
+    const isMiddle = button === 1;
+    const isPrimary = button === 0;
+    if (!isMiddle && !isPrimary) { return; }
+
+    // Middle-button pan must not activate controls / scroll gestures.
+    if (isMiddle && typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
+
+    const onControl = logisticsIsControlTarget(event.target, viewport);
+    const onContent = logisticsIsGraphContentTarget(event.target, viewport);
     const isSpace = state.spaceHeld;
-    if (interactive && !isMiddle && !isSpace) { return; }
+
+    if (isPrimary && !isSpace) {
+      // Normal left-button: background only (SVG / permitted layers).
+      if (onControl || onContent || !logisticsIsBackgroundPanTarget(event.target, viewport)) {
+        return;
+      }
+    } else if (isPrimary && isSpace) {
+      // Space+primary may pan over nodes/routes but never from controls.
+      if (onControl) { return; }
+    } else if (isMiddle) {
+      // Middle may pan over nodes/routes; still skip pure control chrome so
+      // toolbar buttons are not entangled with a pan gesture.
+      if (onControl) { return; }
+    }
+
+    const startX = Number(event.clientX);
+    const startY = Number(event.clientY);
     drag = {
       pointerId: event.pointerId,
-      startX: event.clientX || 0,
-      startY: event.clientY || 0,
-      startCamera: state.camera,
+      startX: Number.isFinite(startX) ? startX : 0,
+      startY: Number.isFinite(startY) ? startY : 0,
+      startCamera: hostCtx.camera,
       moved: false,
     };
     if (typeof viewport.setPointerCapture === 'function' && event.pointerId !== undefined) {
-      viewport.setPointerCapture(event.pointerId);
+      try { viewport.setPointerCapture(event.pointerId); } catch { /* capture unsupported */ }
     }
     if (viewport.classList) { viewport.classList.add('is-panning'); }
   });
 
   function endDrag(event) {
     if (!drag) { return; }
-    if (typeof viewport.releasePointerCapture === 'function' && event && event.pointerId !== undefined) {
-      viewport.releasePointerCapture(event.pointerId);
-    }
-    if (viewport.classList) { viewport.classList.remove('is-panning'); }
-    drag = null;
+    if (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId) { return; }
+    cleanupDrag();
   }
 
   viewport.addEventListener('pointermove', (event) => {
     if (!drag) { return; }
-    const dx = (event.clientX || 0) - drag.startX;
-    const dy = (event.clientY || 0) - drag.startY;
+    if (event.pointerId !== undefined && event.pointerId !== drag.pointerId) { return; }
+    const cx = Number(event.clientX);
+    const cy = Number(event.clientY);
+    const dx = (Number.isFinite(cx) ? cx : 0) - drag.startX;
+    const dy = (Number.isFinite(cy) ? cy : 0) - drag.startY;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) { return; }
     if (!drag.moved && Math.hypot(dx, dy) < LOGISTICS_DRAG_THRESHOLD_PX) { return; }
     drag.moved = true;
-    setCamera({ k: drag.startCamera.k, tx: drag.startCamera.tx + dx, ty: drag.startCamera.ty + dy, userModified: true });
+    const base = drag.startCamera;
+    if (!logisticsIsValidCamera(base)) { return; }
+    const next = { k: base.k, tx: base.tx + dx, ty: base.ty + dy, userModified: true };
+    setCamera(next);
   });
   viewport.addEventListener('pointerup', endDrag);
   viewport.addEventListener('pointercancel', endDrag);
+  viewport.addEventListener('lostpointercapture', (event) => {
+    if (!drag) { return; }
+    if (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId) { return; }
+    cleanupDrag();
+  });
+
+  // Suppress the synthesized click that follows a real pan (threshold crossed).
+  viewport.addEventListener('click', (event) => {
+    if (!suppressClick) { return; }
+    suppressClick = false;
+    if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+    if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+  }, true);
 
   function currentBBox() { return bbox; }
 
+  function onWindowBlur() {
+    cleanupDrag();
+    state.spaceHeld = false;
+  }
+  if (win && typeof win.addEventListener === 'function') {
+    win.addEventListener('blur', onWindowBlur);
+  }
+
   viewport.addEventListener('keydown', (event) => {
-    if (event.code === 'Space' && !event.repeat) { state.spaceHeld = true; }
+    if (event.code === 'Space' && !event.repeat) {
+      // Space on a focused toolbar/control button must keep native activation.
+      // Only when the viewport itself owns focus (or a non-control descendant)
+      // does Space become a pan modifier and prevent page scroll.
+      if (logisticsIsFocusedButtonLike(doc) && logisticsIsControlTarget(doc.activeElement, viewport)) {
+        return;
+      }
+      state.spaceHeld = true;
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+    }
     if (event.key === 'Escape' && drag) {
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
       if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
-      setCamera(drag.startCamera);
-      endDrag(event);
+      cleanupDrag({ restoreCamera: true });
       return;
     }
     const arrow = {
@@ -917,17 +1179,17 @@ function logisticsSetupCameraInteractions(ctx) {
     if (arrow) {
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
       const step = event.shiftKey ? LOGISTICS_PAN_STEP_FAST : LOGISTICS_PAN_STEP;
-      setCamera(logisticsPanBy(state.camera, arrow.dx * step, arrow.dy * step));
+      setCamera(logisticsPanBy(hostCtx.camera, arrow.dx * step, arrow.dy * step));
       return;
     }
     if (event.key === '+' || event.key === '=') {
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
-      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(state.camera, viewportSize, 1)));
+      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(hostCtx.camera, vp, 1)));
       return;
     }
     if (event.key === '-') {
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
-      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(state.camera, viewportSize, -1)));
+      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(hostCtx.camera, vp, -1)));
       return;
     }
     // Shift+0 often reports key ')' on US layouts; check the physical key
@@ -938,8 +1200,8 @@ function logisticsSetupCameraInteractions(ctx) {
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
       const identity = logisticsDatasetIdentity(state.payload);
       logisticsEaseCameraCommand(cameraGroup, () => {
-        const next = logisticsFitAllCamera(currentBBox(), viewportSize);
-        state.cameraIdentity = identity;
+        const next = logisticsFitAllCamera(currentBBox(), vp);
+        hostCtx.identity = identity;
         setCamera(next);
       });
     }
@@ -948,17 +1210,18 @@ function logisticsSetupCameraInteractions(ctx) {
     if (event.code === 'Space') { state.spaceHeld = false; }
   });
   viewport.addEventListener('blur', () => { state.spaceHeld = false; });
+  viewport.addEventListener('focusout', () => { state.spaceHeld = false; });
 
   return {
     onToolbarCommand(command) {
       const identity = logisticsDatasetIdentity(state.payload);
       logisticsEaseCameraCommand(cameraGroup, () => {
-        if (command === 'zoomIn') { setCamera(logisticsZoomByStep(state.camera, viewportSize, 1)); return; }
-        if (command === 'zoomOut') { setCamera(logisticsZoomByStep(state.camera, viewportSize, -1)); return; }
+        if (command === 'zoomIn') { setCamera(logisticsZoomByStep(hostCtx.camera, vp, 1)); return; }
+        if (command === 'zoomOut') { setCamera(logisticsZoomByStep(hostCtx.camera, vp, -1)); return; }
         // Fit All and Reset Camera are identical in this slice: there is no
         // persisted camera or manual node layout yet to distinguish them from.
-        state.cameraIdentity = identity;
-        setCamera(logisticsFitAllCamera(currentBBox(), viewportSize));
+        hostCtx.identity = identity;
+        setCamera(logisticsFitAllCamera(currentBBox(), vp));
       });
     },
   };
@@ -1250,8 +1513,8 @@ function renderEconomyLogistics(payload, commerceEnabled) {
     panel.replaceChildren();
     economyLogisticsUiState.payload = null;
     economyLogisticsUiState.selection = null;
-    economyLogisticsUiState.camera = null;
-    economyLogisticsUiState.cameraIdentity = null;
+    economyLogisticsUiState.cameraContexts = logisticsEmptyCameraContexts();
+    economyLogisticsUiState.spaceHeld = false;
     return;
   }
   if (economyLogisticsUiState.payload !== payload) {

@@ -11902,10 +11902,24 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
         droppedManualIds.push(node.id);
         if (stored.regionId !== regionId) { wrongRegionManualIds.push(node.id); }
       }
+      // Region-local storage (space === 'local'): world = pack offset + local.
+      // Legacy absolute world entries omit space / use space === 'world'.
+      const pad = LOGISTICS_LAYOUT_REGION_PADDING;
+      let worldX = value.x + offset.x + pad;
+      let worldY = value.y + offset.y + pad;
+      if (validStored) {
+        if (stored.space === 'local') {
+          worldX = stored.x + offset.x;
+          worldY = stored.y + offset.y;
+        } else {
+          worldX = stored.x;
+          worldY = stored.y;
+        }
+      }
       positions.set(node.id, {
         ...value,
-        x: validStored ? stored.x : value.x + offset.x + (regionId === '__unassigned' ? LOGISTICS_LAYOUT_REGION_PADDING : LOGISTICS_LAYOUT_REGION_PADDING),
-        y: validStored ? stored.y : value.y + offset.y + LOGISTICS_LAYOUT_REGION_PADDING,
+        x: worldX,
+        y: worldY,
         regionId,
         manual: Boolean(validStored),
       });
@@ -11923,33 +11937,72 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
       });
     }
   }
+  // Manual nodes are fixed obstacles: place them exactly at stored coordinates
+  // first, never mutate them during collision resolution. Collision is strictly
+  // region-local so a drag in region A cannot displace region B members.
   const manuals = [...positions.entries()].filter(([, pos]) => pos.manual).sort((a, b) => logisticsLayoutCompareId(a[0], b[0]));
   const automatics = [...positions.entries()].filter(([, pos]) => !pos.manual).sort((a, b) => logisticsLayoutCompareId(a[0], b[0]));
   function overlaps(a, b) {
     return Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
   }
+  function sameRegion(a, b) {
+    return a.regionId === b.regionId;
+  }
   const finalized = [];
   const overflowPlacedIds = [];
-  for (const [id, automatic] of [...manuals, ...automatics]) {
-    let clear = false;
-    for (let attempt = 0; attempt < 8; attempt++) {
-      if (!finalized.some((other) => overlaps(automatic, other))) { clear = true; break; }
-      automatic.y += LOGISTICS_LAYOUT_NODE_GAP_Y;
+  const unresolvedOverlapIds = [];
+  // 1) Place every valid manual node exactly; overlapping manuals keep both
+  // stored coordinates and surface an honest diagnostic (no silent move).
+  for (const [id, manual] of manuals) {
+    if (finalized.some((other) => sameRegion(manual, other) && overlaps(manual, other))) {
+      unresolvedOverlapIds.push(id);
     }
-    if (!clear && finalized.some((other) => overlaps(automatic, other))) {
-      // Bounded overflow lane: no silent overlap after the eight Y attempts.
-      for (let lane = 1; lane <= 8 && !clear; lane++) {
-        automatic.x += automatic.w + LOGISTICS_LAYOUT_NODE_GAP_Y;
-        if (!finalized.some((other) => overlaps(automatic, other))) { clear = true; }
+    finalized.push(manual);
+  }
+  // 2–3) Resolve automatic nodes around the fixed-obstacle set, per region only.
+  for (const [id, automatic] of automatics) {
+    const startX = automatic.x;
+    const startY = automatic.y;
+    let clear = !finalized.some((other) => sameRegion(automatic, other) && overlaps(automatic, other));
+    if (!clear) {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        automatic.y += LOGISTICS_LAYOUT_NODE_GAP_Y;
+        if (!finalized.some((other) => sameRegion(automatic, other) && overlaps(automatic, other))) {
+          clear = true;
+          break;
+        }
       }
-      overflowPlacedIds.push(id);
+    }
+    if (!clear) {
+      // Bounded overflow lane inside this region only.
+      automatic.x = startX;
+      automatic.y = startY;
+      for (let lane = 1; lane <= 8 && !clear; lane++) {
+        automatic.x = startX + lane * (automatic.w + LOGISTICS_LAYOUT_NODE_GAP_Y);
+        automatic.y = startY;
+        if (!finalized.some((other) => sameRegion(automatic, other) && overlaps(automatic, other))) {
+          clear = true;
+        }
+      }
+      if (clear) {
+        overflowPlacedIds.push(id);
+      } else {
+        // Exhausted bounded attempts: restore start pose, keep deterministic
+        // output, and report unresolved overlap honestly (do not claim success).
+        automatic.x = startX;
+        automatic.y = startY;
+        unresolvedOverlapIds.push(id);
+      }
     }
     finalized.push(automatic);
   }
-  // Final containers are derived from final boxes, including valid manual and
-  // overflow placements, so no rendered member lies outside its region.
+  // Final containers are derived from final member boxes (including manuals).
+  // Expansion may grow a region to contain its members, but region packing
+  // offsets of unrelated regions are never recomputed — only this region's
+  // measured box changes — so other regions remain byte-identical.
   for (const [regionId, region] of regions) {
     const members = region.memberIds.map((id) => positions.get(id)).filter(Boolean);
+    if (!members.length) { continue; }
     const minX = Math.min(...members.map((pos) => pos.x - pos.w / 2));
     const minY = Math.min(...members.map((pos) => pos.y - pos.h / 2));
     const maxX = Math.max(...members.map((pos) => pos.x + pos.w / 2));
@@ -11976,7 +12029,16 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
     regions,
     bounds: positions.size || regions.size ? { minX, minY, maxX, maxY } : { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     algo: LOGISTICS_LAYOUT_ALGO,
-    diagnostics: { sweeps: 4, droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId), wrongRegionManualIds: wrongRegionManualIds.sort(logisticsLayoutCompareId), overflowPlacedIds: overflowPlacedIds.sort(logisticsLayoutCompareId), cycleBreaks: [...local.values()].flatMap((item) => item.droppedRouteIds).sort(logisticsLayoutCompareId) },
+    diagnostics: {
+      sweeps: 4,
+      droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId),
+      wrongRegionManualIds: wrongRegionManualIds.sort(logisticsLayoutCompareId),
+      overflowPlacedIds: overflowPlacedIds.sort(logisticsLayoutCompareId),
+      // Honest residual overlaps after bounded Y/lane attempts (manual-manual
+      // or automatic exhaustion). Prefer reporting over silently moving manuals.
+      unresolvedOverlapIds: unresolvedOverlapIds.sort(logisticsLayoutCompareId),
+      cycleBreaks: [...local.values()].flatMap((item) => item.droppedRouteIds).sort(logisticsLayoutCompareId),
+    },
   };
 }
 
@@ -12779,11 +12841,16 @@ function logisticsBuildRenderedGraph(payload, layout, commodityId) {
     nodes.push({ id, label: region.label, kind: 'region', scale: 'major', aggregate: true, memberCount: region.memberIds.length, regionId, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [], filterMatch: memberNodes.some((node) => logisticsNodeIsRelevant(payload, node, commodityId, payload.routes || [], payload.shortages || [])) });
   }
   const routes = [];
+  const selected = economyLogisticsUiState.selection;
   for (const route of payload.routes || []) {
     const fromNodeId = aggregateByMember.get(route.fromNodeId) || route.fromNodeId;
     const toNodeId = aggregateByMember.get(route.toNodeId) || route.toNodeId;
     if (fromNodeId === toNodeId || !positions.has(fromNodeId) || !positions.has(toNodeId)) { continue; }
-    routes.push({ ...route, fromNodeId, toNodeId, filterMatch: commodityId === 'all' || route.commodityId === commodityId });
+    // Route is relevant when the commodity matches OR the route itself is
+    // selected. Do not treat every route incident to a selected node as selected.
+    const routeSelected = selected?.type === 'route' && selected.id === route.id;
+    const filterMatch = commodityId === 'all' || route.commodityId === commodityId || routeSelected;
+    routes.push({ ...route, fromNodeId, toNodeId, filterMatch });
   }
   return { nodes, routes, positions, collapsed };
 }
@@ -12836,7 +12903,8 @@ function renderLogisticsRoute(svg, payload, route, positions, maxVolume, labelSp
   const flowing = logisticsFlowMotionActive() && route.volume > 0;
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
   const movement = route.volume > 0 ? 'active' : 'idle';
-  const filterUnrelated = route.filterMatch === false;
+  // Selected routes are never dimmed; filterMatch already treats selection as relevant.
+  const filterUnrelated = !selected && route.filterMatch === false;
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${unrelated || filterUnrelated ? ' is-unrelated' : ' is-related'}${flowing ? ' is-flowing' : ''}`);
   if (flowing && typeof group.style.setProperty === 'function') {
     group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
@@ -13000,8 +13068,9 @@ function renderLogisticsNode(svg, payload, node, position, shortages, routes, re
   shape.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
   group.appendChild(shape);
   if (node.aggregate) {
+    // Stacked outline must share the aggregate/region silhouette (not envoy).
     const outline = logisticsSvgElement('path', 'logistics-node-aggregate-outline');
-    outline.setAttribute('d', logisticsNodeShapePath('envoy'));
+    outline.setAttribute('d', logisticsNodeShapePath(role));
     outline.setAttribute('transform', `translate(4 4) scale(${horizontalScale} ${verticalScale})`);
     group.appendChild(outline);
   }
@@ -13251,8 +13320,38 @@ function logisticsIsFocusedButtonLike(doc) {
 /** Wires wheel/drag/keyboard camera interactions on an already-mounted
  * viewport. Mutates the active host's camera context and repaints only via
  * applyLogisticsCameraTransform — never renderEconomyLogisticsPanel. */
+/** Keep a dragged node from sitting inside another region's packed container.
+ * Own region may still expand on the next layout pass; cross-region intrusion
+ * is rejected by clamping the centre to the nearest exterior edge. */
+function logisticsClampManualAwayFromOtherRegions(position, layout) {
+  if (!position || !layout || !layout.regions || !position.regionId) { return; }
+  const halfW = (Number.isFinite(position.w) ? position.w : 152) / 2;
+  const halfH = (Number.isFinite(position.h) ? position.h : 60) / 2;
+  for (const [regionId, region] of layout.regions) {
+    if (regionId === position.regionId || !region) { continue; }
+    const left = region.x;
+    const right = region.x + region.w;
+    const top = region.y;
+    const bottom = region.y + region.h;
+    // Node box intersects another region container.
+    if (position.x + halfW <= left || position.x - halfW >= right
+      || position.y + halfH <= top || position.y - halfH >= bottom) {
+      continue;
+    }
+    const distLeft = Math.abs((position.x + halfW) - left);
+    const distRight = Math.abs((position.x - halfW) - right);
+    const distTop = Math.abs((position.y + halfH) - top);
+    const distBottom = Math.abs((position.y - halfH) - bottom);
+    const min = Math.min(distLeft, distRight, distTop, distBottom);
+    if (min === distLeft) { position.x = left - halfW - 1; }
+    else if (min === distRight) { position.x = right + halfW + 1; }
+    else if (min === distTop) { position.y = top - halfH - 1; }
+    else { position.y = bottom + halfH + 1; }
+  }
+}
+
 function logisticsSetupCameraInteractions(ctx) {
-  const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered } = ctx;
+  const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout } = ctx;
   const state = economyLogisticsUiState;
   const hostCtx = logisticsActiveCameraContext();
   const vp = logisticsSanitizeViewportSize(viewportSize);
@@ -13326,14 +13425,27 @@ function logisticsSetupCameraInteractions(ctx) {
           if (route.fromNodeId === active.nodeId || route.toNodeId === active.nodeId) { logisticsRefreshRouteElement(routeEl, rendered.positions); }
         }
       } else if (active.moved && options.commitNode) {
+        logisticsClampManualAwayFromOtherRegions(position, layout);
         position.x = Math.round(position.x); position.y = Math.round(position.y);
+        // Fixed world coordinates (space: 'world'). Layout applies them as
+        // fixed obstacles and resolves automatics only within the same region,
+        // so a drop in region A cannot move region B members or re-origin them.
+        // Optional space:'local' entries (tests/migrations) are applied as
+        // pack-offset + local inside computeLogisticsLayout.
+        const stored = {
+          x: position.x,
+          y: position.y,
+          regionId: position.regionId,
+          ts: Date.now(),
+          space: 'world',
+        };
         const nodeEl = rendered.nodeElements.get(active.nodeId);
         if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
         for (const routeEl of rendered.routeElements.values()) {
           const route = routeEl._logisticsRoute;
           if (route.fromNodeId === active.nodeId || route.toNodeId === active.nodeId) { logisticsRefreshRouteElement(routeEl, rendered.positions); }
         }
-        economyLogisticsUiState.manualPositions[active.nodeId] = { x: position.x, y: position.y, regionId: position.regionId, ts: Date.now() };
+        economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
       }
     }
@@ -13434,6 +13546,7 @@ function logisticsSetupCameraInteractions(ctx) {
       if (!position || !logisticsIsValidCamera(drag.startCamera)) { return; }
       position.x = drag.startNode.x + dx / drag.startCamera.k;
       position.y = drag.startNode.y + dy / drag.startCamera.k;
+      logisticsClampManualAwayFromOtherRegions(position, layout);
       const nodeEl = rendered.nodeElements.get(drag.nodeId);
       if (nodeEl) { nodeEl.setAttribute('transform', logisticsNodeTransform(position)); }
       for (const routeEl of rendered.routeElements.values()) {
@@ -13906,12 +14019,31 @@ function renderEconomyLogistics(payload, commerceEnabled) {
   }
   if (economyLogisticsUiState.payload !== payload) {
     economyLogisticsUiState.payload = payload;
-    economyLogisticsUiState.selection = null;
+    // Host ticks always allocate a new payload object. Retain a selection only
+    // when the same factual id+type still exists; never key off object identity.
+    economyLogisticsUiState.selection = logisticsRetainValidSelection(
+      economyLogisticsUiState.selection,
+      payload
+    );
   }
   if (!commerceEnabled && payload.available) {
     economyLogisticsUiState.payload = { ...payload, available: false, unavailableReason: 'commerce_disabled' };
   }
   renderEconomyLogisticsPanel();
+}
+
+/** Keep a selection across payload pushes when its factual id remains present. */
+function logisticsRetainValidSelection(selection, payload) {
+  if (!selection || !payload) { return null; }
+  if (selection.type === 'node') {
+    const stillThere = (payload.nodes || []).some((node) => node && node.id === selection.id);
+    return stillThere ? { type: 'node', id: selection.id } : null;
+  }
+  if (selection.type === 'route') {
+    const stillThere = (payload.routes || []).some((route) => route && route.id === selection.id);
+    return stillThere ? { type: 'route', id: selection.id } : null;
+  }
+  return null;
 }
 
 /* --- 86-tile-overmap.js --- */

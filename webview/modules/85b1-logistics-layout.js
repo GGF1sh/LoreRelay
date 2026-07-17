@@ -230,10 +230,24 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
         droppedManualIds.push(node.id);
         if (stored.regionId !== regionId) { wrongRegionManualIds.push(node.id); }
       }
+      // Region-local storage (space === 'local'): world = pack offset + local.
+      // Legacy absolute world entries omit space / use space === 'world'.
+      const pad = LOGISTICS_LAYOUT_REGION_PADDING;
+      let worldX = value.x + offset.x + pad;
+      let worldY = value.y + offset.y + pad;
+      if (validStored) {
+        if (stored.space === 'local') {
+          worldX = stored.x + offset.x;
+          worldY = stored.y + offset.y;
+        } else {
+          worldX = stored.x;
+          worldY = stored.y;
+        }
+      }
       positions.set(node.id, {
         ...value,
-        x: validStored ? stored.x : value.x + offset.x + (regionId === '__unassigned' ? LOGISTICS_LAYOUT_REGION_PADDING : LOGISTICS_LAYOUT_REGION_PADDING),
-        y: validStored ? stored.y : value.y + offset.y + LOGISTICS_LAYOUT_REGION_PADDING,
+        x: worldX,
+        y: worldY,
         regionId,
         manual: Boolean(validStored),
       });
@@ -251,33 +265,72 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
       });
     }
   }
+  // Manual nodes are fixed obstacles: place them exactly at stored coordinates
+  // first, never mutate them during collision resolution. Collision is strictly
+  // region-local so a drag in region A cannot displace region B members.
   const manuals = [...positions.entries()].filter(([, pos]) => pos.manual).sort((a, b) => logisticsLayoutCompareId(a[0], b[0]));
   const automatics = [...positions.entries()].filter(([, pos]) => !pos.manual).sort((a, b) => logisticsLayoutCompareId(a[0], b[0]));
   function overlaps(a, b) {
     return Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
   }
+  function sameRegion(a, b) {
+    return a.regionId === b.regionId;
+  }
   const finalized = [];
   const overflowPlacedIds = [];
-  for (const [id, automatic] of [...manuals, ...automatics]) {
-    let clear = false;
-    for (let attempt = 0; attempt < 8; attempt++) {
-      if (!finalized.some((other) => overlaps(automatic, other))) { clear = true; break; }
-      automatic.y += LOGISTICS_LAYOUT_NODE_GAP_Y;
+  const unresolvedOverlapIds = [];
+  // 1) Place every valid manual node exactly; overlapping manuals keep both
+  // stored coordinates and surface an honest diagnostic (no silent move).
+  for (const [id, manual] of manuals) {
+    if (finalized.some((other) => sameRegion(manual, other) && overlaps(manual, other))) {
+      unresolvedOverlapIds.push(id);
     }
-    if (!clear && finalized.some((other) => overlaps(automatic, other))) {
-      // Bounded overflow lane: no silent overlap after the eight Y attempts.
-      for (let lane = 1; lane <= 8 && !clear; lane++) {
-        automatic.x += automatic.w + LOGISTICS_LAYOUT_NODE_GAP_Y;
-        if (!finalized.some((other) => overlaps(automatic, other))) { clear = true; }
+    finalized.push(manual);
+  }
+  // 2–3) Resolve automatic nodes around the fixed-obstacle set, per region only.
+  for (const [id, automatic] of automatics) {
+    const startX = automatic.x;
+    const startY = automatic.y;
+    let clear = !finalized.some((other) => sameRegion(automatic, other) && overlaps(automatic, other));
+    if (!clear) {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        automatic.y += LOGISTICS_LAYOUT_NODE_GAP_Y;
+        if (!finalized.some((other) => sameRegion(automatic, other) && overlaps(automatic, other))) {
+          clear = true;
+          break;
+        }
       }
-      overflowPlacedIds.push(id);
+    }
+    if (!clear) {
+      // Bounded overflow lane inside this region only.
+      automatic.x = startX;
+      automatic.y = startY;
+      for (let lane = 1; lane <= 8 && !clear; lane++) {
+        automatic.x = startX + lane * (automatic.w + LOGISTICS_LAYOUT_NODE_GAP_Y);
+        automatic.y = startY;
+        if (!finalized.some((other) => sameRegion(automatic, other) && overlaps(automatic, other))) {
+          clear = true;
+        }
+      }
+      if (clear) {
+        overflowPlacedIds.push(id);
+      } else {
+        // Exhausted bounded attempts: restore start pose, keep deterministic
+        // output, and report unresolved overlap honestly (do not claim success).
+        automatic.x = startX;
+        automatic.y = startY;
+        unresolvedOverlapIds.push(id);
+      }
     }
     finalized.push(automatic);
   }
-  // Final containers are derived from final boxes, including valid manual and
-  // overflow placements, so no rendered member lies outside its region.
+  // Final containers are derived from final member boxes (including manuals).
+  // Expansion may grow a region to contain its members, but region packing
+  // offsets of unrelated regions are never recomputed — only this region's
+  // measured box changes — so other regions remain byte-identical.
   for (const [regionId, region] of regions) {
     const members = region.memberIds.map((id) => positions.get(id)).filter(Boolean);
+    if (!members.length) { continue; }
     const minX = Math.min(...members.map((pos) => pos.x - pos.w / 2));
     const minY = Math.min(...members.map((pos) => pos.y - pos.h / 2));
     const maxX = Math.max(...members.map((pos) => pos.x + pos.w / 2));
@@ -304,6 +357,15 @@ function computeLogisticsLayout(nodes, routes, options = {}) {
     regions,
     bounds: positions.size || regions.size ? { minX, minY, maxX, maxY } : { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     algo: LOGISTICS_LAYOUT_ALGO,
-    diagnostics: { sweeps: 4, droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId), wrongRegionManualIds: wrongRegionManualIds.sort(logisticsLayoutCompareId), overflowPlacedIds: overflowPlacedIds.sort(logisticsLayoutCompareId), cycleBreaks: [...local.values()].flatMap((item) => item.droppedRouteIds).sort(logisticsLayoutCompareId) },
+    diagnostics: {
+      sweeps: 4,
+      droppedManualIds: droppedManualIds.sort(logisticsLayoutCompareId),
+      wrongRegionManualIds: wrongRegionManualIds.sort(logisticsLayoutCompareId),
+      overflowPlacedIds: overflowPlacedIds.sort(logisticsLayoutCompareId),
+      // Honest residual overlaps after bounded Y/lane attempts (manual-manual
+      // or automatic exhaustion). Prefer reporting over silently moving manuals.
+      unresolvedOverlapIds: unresolvedOverlapIds.sort(logisticsLayoutCompareId),
+      cycleBreaks: [...local.values()].flatMap((item) => item.droppedRouteIds).sort(logisticsLayoutCompareId),
+    },
   };
 }

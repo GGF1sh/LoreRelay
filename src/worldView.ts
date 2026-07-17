@@ -113,8 +113,21 @@ export function deriveEconomyLogisticsScopeKey(workspacePath?: string, worldName
         : rawWorkspace.replace(/\\+$/, '').toLowerCase();
     const name = typeof worldName === 'string' ? worldName.trim().normalize('NFC') : '';
     const seed = typeof worldSeed === 'string' ? worldSeed.trim().normalize('NFC') : '';
-    if (!workspace && !name && !seed) { return 'default'; }
-    const source = `${workspace}\u0000${name}\u0000${seed}`;
+    // Prefer a seed-stable identity so a user rename of worldName does not
+    // orphan camera/layout localStorage. worldName only participates when no
+    // seed is available.
+    let source = '';
+    if (workspace && seed) {
+        source = `${workspace}\u0000${seed}`;
+    } else if (!seed && name) {
+        source = `${workspace}\u0000${name}`;
+    } else if (!workspace && seed) {
+        source = seed;
+    } else if (workspace) {
+        source = workspace;
+    } else {
+        return 'default';
+    }
     // FNV-1a is sufficient here: this is a non-secret localStorage namespace,
     // never an authority or security boundary. Keep the emitted key compact.
     let hash = 0x811c9dc5;

@@ -376,17 +376,23 @@ x = rankIndex × RANK_GAP_X                       (RANK_GAP_X = 260)
 y = cumulative stack of (tierHeight + NODE_GAP_Y) (NODE_GAP_Y = 36), rank centred
 ```
 
-**Step 5 — Region placement.** Build the region-level graph: one weighted edge per ordered region
-pair, weight = Σ `route.volume` (falling back to Σ `capacity` when all volumes are 0, e.g. a
-`snapshot_unavailable` payload). Order regions by `(−totalWeight, regionId)`. Place row-major into a
-grid whose column count is `ceil(sqrt(regionCount))`, packing each region box at its natural size
-with `REGION_GAP = 120` between boxes and `REGION_PADDING = 28` inside. Heaviest-traffic regions land
-adjacent, which shortens the busiest inter-region edges without any iterative solver.
+**Step 5 — Region placement.** Region ordering is **topology-only**. Count inter-region routes
+(route endpoints in different populated regions) per region; order by
+`(−interRegionRouteCount, −memberCount, regionId)`. **Ordinary simulation metrics never affect layout
+coordinates** — do not weight by `route.volume`, `capacity`, utilisation, or any other live flow
+metric. Place row-major into a grid whose column count is `ceil(sqrt(regionCount))`, packing each
+region box at its natural size with `REGION_GAP = 120` between boxes and `REGION_PADDING = 28`
+inside. Well-connected regions land adjacent via topology, without any iterative solver and without
+flow-weighted reordering.
 
-**Step 6 — Merge manual positions.** For every node with a stored manual position (§10.2), overwrite
-the computed `{x, y}`. Manual nodes are then treated as **fixed obstacles**: any automatic node whose
-box overlaps a manual box is pushed along +y in `NODE_GAP_Y` steps until clear, in `nodeId` order.
-Bounded at 8 steps; after that the overlap is accepted rather than looping.
+**Step 6 — Merge manual positions.** For every node with a stored manual position (§10.2), place it
+exactly at the stored coordinates (region-local or absolute world) and add it to the **fixed
+obstacle** set. Manual coordinates are never mutated by automatic collision resolution. Automatic
+nodes resolve around manuals **within the same region only** (+y in `NODE_GAP_Y` steps, then a
+bounded overflow lane). If two manuals overlap, keep both exact stored coordinates and record
+`unresolvedOverlapIds`. If automatic overflow attempts are exhausted without clearance, restore the
+automatic node's start pose and record `unresolvedOverlapIds` — do not claim a successful overflow
+placement.
 
 **Determinism obligations** (each is a test in Slice 2):
 

@@ -7,8 +7,9 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
+const layoutModulePath = path.join(root, 'webview', 'modules', '85b1-logistics-layout.js');
 const modulePath = path.join(root, 'webview', 'modules', '85b-economy-logistics.js');
-const source = fs.readFileSync(modulePath, 'utf8');
+const source = `${fs.readFileSync(layoutModulePath, 'utf8')}\n${fs.readFileSync(modulePath, 'utf8')}`;
 let failed = 0;
 
 function test(name, fn) {
@@ -246,18 +247,21 @@ test('view renders without throwing and preserves unrelated World UI', () => {
     assert.strictEqual(h.sentinel.textContent, 'keep me');
 });
 
-test('commodity filter hides unrelated routes and shows an empty state', () => {
+test('commodity filter dims unrelated routes without changing complete graph topology', () => {
     const h = createHarness();
     h.context.renderEconomyLogistics(payload(), true);
     let select = h.document.getElementById('world-logistics-commodity-filter');
     select.value = 'grain';
     select.dispatchEvent({ type: 'change' });
     let routes = findAll(h.panel, (node) => node.classList.contains('logistics-route'));
-    assert.deepStrictEqual(routes.map((node) => node.dataset.routeId), ['grain_route']);
+    assert.deepStrictEqual(routes.map((node) => node.dataset.routeId), ['grain_route', 'blocked_route', 'raided_route']);
+    assert.ok(routeNode(h.panel, 'blocked_route').classList.contains('is-unrelated'));
     select = h.document.getElementById('world-logistics-commodity-filter');
     select.value = 'unused';
     select.dispatchEvent({ type: 'change' });
-    assert.ok(h.panel.textContent.includes('No routes for this commodity.'));
+    routes = findAll(h.panel, (node) => node.classList.contains('logistics-route'));
+    assert.strictEqual(routes.length, 3);
+    assert.ok(routes.every((node) => node.classList.contains('is-unrelated')));
 });
 
 test('blocked and raided zero/low-flow routes remain visible with distinct classes', () => {

@@ -14,8 +14,9 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
+const layoutModulePath = path.join(root, 'webview', 'modules', '85b1-logistics-layout.js');
 const modulePath = path.join(root, 'webview', 'modules', '85b-economy-logistics.js');
-const source = fs.readFileSync(modulePath, 'utf8');
+const source = `${fs.readFileSync(layoutModulePath, 'utf8')}\n${fs.readFileSync(modulePath, 'utf8')}`;
 let failed = 0;
 
 // Appended only to the evaluation string — never shipped in production code.
@@ -712,8 +713,8 @@ test('unmodified offscreen camera may fit once on dataset change', () => {
   });
   h.context.renderEconomyLogistics(grown, true);
   assert.strictEqual(fitCalls, 1, `expected exactly one Fit All for unmodified offscreen, got ${fitCalls}`);
-  const layout = h.context.buildLogisticsLayout(grown.nodes);
-  const bbox = h.context.logisticsComputeContentBBox(layout.positions);
+  const layout = h.context.buildLogisticsLayout(grown.nodes, grown.routes);
+  const bbox = layout.bounds;
   const expected = originalFit(bbox, { width: 800, height: api.LOGISTICS_VIEWPORT_HEIGHT });
   const actual = parseTransform(transformOf(h));
   assert.ok(Math.abs(actual.k - expected.k) < 1e-6);
@@ -759,7 +760,7 @@ test('particle flow behavior on a positive-volume route is unchanged', () => {
   assert.strictEqual(motionPath.getAttribute('href'), `#${line.getAttribute('id')}`);
 });
 
-test('deterministic route geometry and node layout output are unchanged', () => {
+test('deterministic route geometry and regional node layout output are stable', () => {
   const h = createHarness();
   const from = { x: 100, y: 80 };
   const to = { x: 500, y: 220 };
@@ -776,13 +777,13 @@ test('deterministic route geometry and node layout output are unchanged', () => 
   assert.ok(geometry.d.startsWith('M 178,80 C '));
   assert.ok(geometry.d.endsWith(' 422,220'));
   assert.strictEqual(geometry.d, h.context.logisticsRouteGeometry({ id: 'r1' }, from, to).d);
-  const layout = h.context.buildLogisticsLayout(threeNodePayload().nodes);
-  const source = layout.positions.get('source');
-  const facility = layout.positions.get('facility');
-  const market = layout.positions.get('market');
-  assert.strictEqual(source.x, 105); assert.strictEqual(source.y, 140);
-  assert.strictEqual(facility.x, 380); assert.strictEqual(facility.y, 140);
-  assert.strictEqual(market.x, 655); assert.strictEqual(market.y, 140);
+  const payload = threeNodePayload();
+  const layout = h.context.buildLogisticsLayout(payload.nodes, payload.routes);
+  const again = h.context.buildLogisticsLayout(payload.nodes.slice().reverse(), payload.routes.slice().reverse());
+  for (const id of ['source', 'facility', 'market']) {
+    assert.ok(layout.positions.get(id));
+    assert.strictEqual(JSON.stringify(layout.positions.get(id)), JSON.stringify(again.positions.get(id)));
+  }
 });
 
 // --- F1–F7 correction cases -----------------------------------------------

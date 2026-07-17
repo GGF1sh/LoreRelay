@@ -103,6 +103,22 @@ let preferredSettlementLayerId: SettlementLayerId = 'z0';
 let settlementFocusWorkspaceRoot: string | undefined;
 let settlementFocusLocationId: string | undefined;
 
+/** Short, path-safe identity for Webview-only logistics preferences. */
+export function deriveEconomyLogisticsScopeKey(workspacePath?: string, scenarioId?: string): string {
+    const workspace = typeof workspacePath === 'string' ? workspacePath.trim() : '';
+    if (!workspace) { return 'default'; }
+    const scenario = typeof scenarioId === 'string' ? scenarioId.trim() : '';
+    const source = `${workspace}\u0000${scenario}`;
+    // FNV-1a is sufficient here: this is a non-secret localStorage namespace,
+    // never an authority or security boundary. Keep the emitted key compact.
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < source.length; index++) {
+        hash ^= source.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return `lr_${hash.toString(36)}`.replace(/[^a-z0-9_-]/g, '') || 'default';
+}
+
 export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | undefined }): void {
     getPanelRef = deps.getPanel;
     // Panel/workspace re-init must not inherit a prior workspace's focus.
@@ -822,7 +838,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             logisticsSnapshotSource = 'derived_preview';
         }
     }
-    const economyLogistics = buildEconomyLogisticsViewModel({
+    const economyLogistics = {
+        ...buildEconomyLogisticsViewModel({
         commerceEnabled: gameRules.enableCommerce === true,
         worldTurn: logisticsWorldTurn,
         commodities: commerceForge?.commodities,
@@ -830,7 +847,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         flow: logisticsFlow,
         processing: logisticsProcessing,
         snapshotSource: logisticsSnapshotSource,
-    });
+        }),
+        // Transient Webview metadata only. The hash prevents a workspace path
+        // from entering the payload or the localStorage key while still keeping
+        // camera/layout preferences isolated by workspace and authored world seed.
+        scopeKey: deriveEconomyLogisticsScopeKey(wsPath, forge.meta.worldSeed),
+    };
 
     // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).
     const domainState = gameRules.enableDomainMode === true && gameSnapshot

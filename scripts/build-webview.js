@@ -28,6 +28,7 @@ const JS_MODULE_ORDER = [
     '84-party.js',
     '84a-webview-anim.js',
     '85-world.js',
+    '85b1-logistics-layout.js',
     '85b-economy-logistics.js',
     '86-tile-overmap.js',
     '86a-settlement-render-source.js',

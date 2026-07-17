@@ -3676,6 +3676,11 @@ textarea:focus-visible {
   cursor: grabbing;
 }
 
+.logistics-network-viewport.is-node-dragging,
+.logistics-network-viewport.is-node-dragging .logistics-node {
+  cursor: grabbing;
+}
+
 .logistics-network-viewport:focus-visible {
   outline: 2px solid var(--vscode-focusBorder);
   outline-offset: -2px;
@@ -3762,6 +3767,30 @@ textarea:focus-visible {
 .logistics-camera-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.logistics-region-box {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-focusBorder) 12%);
+  fill-opacity: 0.38;
+  stroke: var(--vscode-panel-border);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.logistics-region-label {
+  fill: var(--vscode-foreground);
+  font-size: calc(12px / var(--logistics-camera-k, 1));
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.logistics-region-collapse { cursor: pointer; }
+.logistics-region-collapse[aria-disabled="true"] { cursor: not-allowed; opacity: 0.62; }
+.logistics-region-collapse:focus-visible { outline: none; }
+.logistics-region-collapse:focus-visible .logistics-region-label {
+  fill: var(--vscode-focusBorder);
+  text-decoration: underline;
 }
 
 .logistics-route {
@@ -3893,6 +3922,10 @@ textarea:focus-visible {
 .logistics-node-scale-minor { opacity: 0.82; }
 .logistics-node-scale-major .logistics-node-shape { stroke-width: 2.5; }
 .logistics-node-scale-major .logistics-node-label { font-size: 13px; }
+.logistics-node-aggregate .logistics-node-shape { stroke-width: 2.5; stroke-dasharray: none; }
+.logistics-node-aggregate .logistics-node-accent { stroke-width: 4; }
+.logistics-node.is-holding-selection .logistics-node-shape { filter: drop-shadow(0 0 3px var(--vscode-focusBorder)); }
+.logistics-aggregate-badge { fill: var(--vscode-editor-background); font-size: 12px; font-weight: 800; text-anchor: middle; }
 
 .logistics-node:focus-visible {
   outline: none;
@@ -4083,6 +4116,10 @@ textarea:focus-visible {
   .logistics-route-line { transition: none; animation: none !important; }
   .logistics-flow-dot { display: none !important; }
   .logistics-camera.is-easing { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .logistics-region-box { fill: transparent; stroke: CanvasText; }
 }
 
 /* --- 90-game-rules.css --- */

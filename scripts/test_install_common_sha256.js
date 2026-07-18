@@ -5,7 +5,8 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const scriptPath = path.join(__dirname, 'test_install_common_sha256.ps1');
-const result = spawnSync('powershell.exe', [
+const powershell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
+const result = spawnSync(powershell, [
     '-NoProfile',
     '-ExecutionPolicy',
     'Bypass',

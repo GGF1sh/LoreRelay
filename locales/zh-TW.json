@@ -1,4 +1,13 @@
 {
+  "webview.world.settlementFocusPreview": "Preview: {location}",
+  "webview.world.settlementFocusCurrent": "Current location: {location}",
+  "webview.world.settlementFocusMissingHere": "No settlement diorama is available for this location.",
+  "webview.world.settlementFocusMissingLocation": "No settlement diorama is available for {location}.",
+  "webview.world.settlementFocusInvalidLocation": "Settlement data for {location} could not be loaded.",
+  "webview.world.settlementFocusReturn": "Return to current location",
+  "webview.world.settlementSourceFixed": "Settlement",
+  "webview.world.settlementSourceMobileBase": "Mobile Base interior",
+  "webview.world.settlementSourceAria": "Settlement view source",
   "extension.action.applyVehicleMigration": "套用遷移",
   "extension.action.cancel": "取消",
   "extension.action.restoreVehicleMigration": "還原備份",

@@ -52,6 +52,7 @@ const REGISTRY = {
 };
 
 const FORGE = {
+    meta: { worldName: 'NPC relationship test', theme: 'fantasy', worldSeed: 'npc-relationship-test' },
     geography: {
         locations: [
             { id: 'elda_shop', name: 'エルダの店', regionId: 'r_central' },

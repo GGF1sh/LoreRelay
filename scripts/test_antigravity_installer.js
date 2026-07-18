@@ -5,7 +5,8 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const scriptPath = path.join(__dirname, 'test_antigravity_installer.ps1');
-const result = spawnSync('powershell.exe', [
+const powershell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
+const result = spawnSync(powershell, [
     '-NoProfile',
     '-ExecutionPolicy',
     'Bypass',

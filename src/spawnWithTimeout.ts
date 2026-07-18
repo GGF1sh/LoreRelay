@@ -9,15 +9,19 @@ export type SpawnWithTimeoutResult = {
 };
 
 /** Kill a process and its descendants (ComfyUI grandchildren after Python wrapper timeout). */
-export function killProcessTree(pid: number | undefined): void {
+export function killProcessTree(pid: number | undefined, signal: NodeJS.Signals = 'SIGTERM'): void {
     if (pid === undefined || pid <= 0) { return; }
     if (process.platform === 'win32') {
         execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => { /* ignore */ });
         return;
     }
-    execFile('pkill', ['-TERM', '-P', String(pid)], () => {
-        try { process.kill(pid, 'SIGKILL'); } catch { /* ignore */ }
-    });
+    // POSIX children spawned below are process-group leaders.  Signalling the
+    // negative pid reaches nested descendants as well as the direct child.
+    try {
+        process.kill(-pid, signal);
+    } catch {
+        try { process.kill(pid, signal); } catch { /* ignore */ }
+    }
 }
 
 export function spawnWithTimeout(
@@ -27,7 +31,13 @@ export function spawnWithTimeout(
     onData?: { stdout?: (chunk: string) => void; stderr?: (chunk: string) => void }
 ): { child: ChildProcess; result: Promise<SpawnWithTimeoutResult> } {
     const { timeoutMs, ...spawnOpts } = options;
-    const child = spawn(command, [...args], { ...spawnOpts, shell: false });
+    const child = spawn(command, [...args], {
+        ...spawnOpts,
+        shell: false,
+        // A dedicated POSIX process group lets killProcessTree reliably stop
+        // grandchildren after the wrapper process times out.
+        detached: process.platform !== 'win32' || spawnOpts.detached,
+    });
     let finished = false;
     let timedOut = false;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
@@ -49,7 +59,7 @@ export function spawnWithTimeout(
             } catch { /* ignore */ }
             setTimeout(() => {
                 if (!finished) {
-                    killProcessTree(child.pid);
+                    killProcessTree(child.pid, 'SIGKILL');
                     try { child.kill('SIGKILL'); } catch { /* ignore */ }
                 }
             }, 2000);

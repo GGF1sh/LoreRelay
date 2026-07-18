@@ -47,7 +47,7 @@ try {
 }
 
 const fixture = JSON.parse(fs.readFileSync(
-    path.join(root, '..', 'lorerelay-world-kit', 'fixtures', 'trade_routes_forge.json'),
+    path.join(root, 'sample-scenarios', 'trade-routes', 'world_forge.json'),
     'utf-8'
 ));
 const commerce = parseCommerceForge(fixture.commerce);

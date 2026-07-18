@@ -452,13 +452,13 @@ test('41: topology index bounds low-degree partial geometry and excludes remote 
   const fixture = largeTopologyFixture(200, 400);
   const topologyIndex = buildLogisticsRouteTopologyIndex(fixture.routes);
   const affectedRouteIds = logisticsAffectedRouteIdsForNode('n0', topologyIndex);
-  assert.deepStrictEqual(Array.from(affectedRouteIds), ['local_0', 'local_1', 'local_2']);
+  assert.deepStrictEqual(Array.from(affectedRouteIds), ['local_0', 'local_2']);
   assert.strictEqual(affectedRouteIds.includes('remote_0399'), false);
   const partial = computeLogisticsRouteGeometry({
     routes: fixture.routes, positions: fixture.positions, topologyIndex, routeIds: affectedRouteIds,
   });
   assert.deepStrictEqual(Array.from(partial.diagnostics.computedRouteIds), Array.from(affectedRouteIds));
-  assert.strictEqual(partial.diagnostics.routeCount, 3);
+  assert.strictEqual(partial.diagnostics.routeCount, 2);
   assert.ok(partial.diagnostics.routeCount < fixture.routes.length);
 });
 

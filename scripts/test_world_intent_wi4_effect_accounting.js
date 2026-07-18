@@ -226,14 +226,18 @@ function applyRefuel(state, amount, vehicleId = 'rust_wagon') {
     }
 
     let writeCount = 0;
+    let currentState = parseVehicleState(JSON.parse(JSON.stringify(state)));
     const deps = {
         isVehicleSystemEnabled: () => true,
         getVehicleStatePath: () => statePath,
-        readVehicleStateFromDisk: () => parseVehicleState(JSON.parse(JSON.stringify(state))),
         loadWorldTurn: () => 15,
-        writeVehicleStateAtomic: () => { writeCount++; },
-        clearVehicleStateCache: () => {},
-        runSerializedMutation: (fn) => fn(),
+        runSerializedVehicleStateDocumentMutation: (_name, mutate) => {
+            const next = mutate(currentState);
+            if (!next) { return { ok: true, applied: false }; }
+            currentState = next;
+            writeCount++;
+            return { ok: true, applied: true };
+        },
         getVehicleBridgeMode: () => 'compare_only',
         emitVehicleBridgeDiagnostics: () => {},
     };

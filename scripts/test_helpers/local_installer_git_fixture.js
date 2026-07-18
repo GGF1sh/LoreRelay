@@ -55,6 +55,7 @@ function createLocalInstallerGitFixture(testRoot) {
     const candidateSha = git(['-C', testRoot, 'rev-parse', 'HEAD']);
 
     git(['init', '--bare', bareOrigin]);
+    git(['-C', bareOrigin, 'config', 'receive.shallowUpdate', 'true']);
     git(['-C', testRoot, 'push', bareOrigin, `${candidateSha}:refs/heads/main`]);
     git(['-C', bareOrigin, 'symbolic-ref', 'HEAD', 'refs/heads/main']);
 

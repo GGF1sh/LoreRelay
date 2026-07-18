@@ -34,7 +34,7 @@ if (fs.existsSync(lockPath)) {
     }
     const pkgEntry = lock.packages?.[''];
     if (pkgEntry && pkgEntry.version !== version) {
-        fail(`package-lock.json packages[\"\"].version ${pkgEntry.version} !== ${version}`);
+        fail(`package-lock.json packages[""].version ${pkgEntry.version} !== ${version}`);
     } else if (pkgEntry) {
         ok('package-lock.json packages[""] version matches');
     }
@@ -46,16 +46,21 @@ const readmeFiles = [
     'README_zh-CN.md',
     'README_zh-TW.md',
 ];
-const badgePattern = /version-(\d+\.\d+\.\d+)-blue/;
+const staticBadgePattern = /version-(\d+\.\d+\.\d+)-blue/;
+const dynamicBadgePattern = /img\.shields\.io\/github\/package-json\/v\/GGF1sh\/LoreRelay\?label=version(?:&|&amp;)color=blue/;
 for (const file of readmeFiles) {
     const text = fs.readFileSync(path.join(root, file), 'utf-8');
-    const match = text.match(badgePattern);
-    if (!match) {
-        fail(`${file} missing version badge`);
-    } else if (match[1] !== version) {
-        fail(`${file} badge ${match[1]} !== package.json ${version}`);
+    const staticMatch = text.match(staticBadgePattern);
+    if (staticMatch) {
+        if (staticMatch[1] !== version) {
+            fail(`${file} badge ${staticMatch[1]} !== package.json ${version}`);
+        } else {
+            ok(`${file} static badge matches`);
+        }
+    } else if (dynamicBadgePattern.test(text)) {
+        ok(`${file} dynamic package version badge`);
     } else {
-        ok(`${file} badge matches`);
+        fail(`${file} missing supported version badge`);
     }
 }
 

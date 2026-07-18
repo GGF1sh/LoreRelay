@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// UX-RESPONSIVE-NARROW-001 — production behavioral tests for the responsive shell.
+// UX-RESPONSIVE-NARROW-001  Eproduction behavioral tests for the responsive shell.
 // Exercises pure width math and real DOM event wiring (toggle/scrim/Escape/resizer).
 
 const assert = require('assert');
@@ -364,7 +364,7 @@ test('repeated breakpoint transitions remain deterministic', () => {
     h.setWidth(w);
     modes.push(h.api.getMode());
   }
-  // 1400 wide → 900 compact → 640 narrow → 1000 wide → 700 narrow → 1400 wide
+  // 1400 wide ↁE900 compact ↁE640 narrow ↁE1000 wide ↁE700 narrow ↁE1400 wide
   assert.deepStrictEqual(modes, [
     'wide',
     'drawer-compact',
@@ -504,7 +504,7 @@ test('Escape conflicts and disclosure state transitions (MINOR F1/F2/F4)', () =>
   const genesis = h.document.createElement('div');
   genesis.id = 'genesis-guide-modal';
   h.document.body.appendChild(genesis);
-  
+
   let event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
   h.document.body.dispatchEvent(event);
   assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open when Genesis is visible');
@@ -522,11 +522,11 @@ test('Escape conflicts and disclosure state transitions (MINOR F1/F2/F4)', () =>
   const parlor = h.document.createElement('div');
   parlor.id = 'parlor-settings-panel';
   h.document.body.appendChild(parlor);
-  
+
   event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
   h.document.body.dispatchEvent(event);
   assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open when Parlor is visible');
-  
+
   // 3b. Character Creator open
   parlor.classList.add('hidden');
   const charCreator = h.document.createElement('div');
@@ -547,7 +547,7 @@ test('Escape conflicts and disclosure state transitions (MINOR F1/F2/F4)', () =>
   assert.strictEqual(h.api.isDrawerOpen(), false, 'Drawer should close when no modal is active');
   assert.strictEqual(logisticsCleared, false, 'Logistics selection should not be cleared');
   assert.strictEqual(event._stopped, true, 'Shell should stop propagation');
-  
+
   // 5. second Escape
   event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
   h.document.body.dispatchEvent(event);
@@ -565,19 +565,72 @@ test('Escape conflicts and disclosure state transitions (MINOR F1/F2/F4)', () =>
   const headerSecondary = h.document.createElement('details');
   headerSecondary.id = 'header-secondary';
   h.document.body.appendChild(headerSecondary);
-  
+
   h.setWidth(1400);
   assert.strictEqual(h.api.getMode(), 'wide');
   headerSecondary.setAttribute('open', 'open');
-  
+
   h.setWidth(700); // drawer-narrow
   assert.strictEqual(h.api.getMode(), 'drawer-narrow');
   assert.strictEqual(headerSecondary.getAttribute('open'), null, 'Disclosure should close when entering drawer mode');
-  
+
   headerSecondary.setAttribute('open', 'open');
   h.setWidth(800); // drawer-compact
   assert.strictEqual(h.api.getMode(), 'drawer-compact');
   assert.strictEqual(headerSecondary.getAttribute('open'), 'open', 'Disclosure should remain open during compact <-> narrow transition');
+});
+
+test('Player Action Hub Escape ownership (MINOR CORRECTIONS-B)', () => {
+  const h = createShellHarness({ width: 640 });
+  h.setWidth(640);
+  h.api.openDrawer();
+  assert.strictEqual(h.api.isDrawerOpen(), true);
+
+  // Explicit assertion that obsolete ID is not used by responsive module
+  const src = fs.readFileSync(modulePath, 'utf8');
+  assert.strictEqual(src.includes('player-action-hub-overlay'), false, 'Obsolete ID player-action-hub-overlay should not be in responsive-shell');
+  assert.strictEqual(src.includes('player-action-hub'), true, 'Correct ID player-action-hub should be in responsive-shell');
+
+  // Player Action Hub present with id="player-action-hub"
+  const hub = h.document.createElement('div');
+  hub.id = 'player-action-hub';
+  h.document.body.appendChild(hub);
+
+  // Mock the hub's existing handler which closes/removes the Hub
+  let hubHandlerFired = false;
+  h.document.body.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && hub.parentNode && !e._stopped) {
+      hubHandlerFired = true;
+      hub.remove();
+    }
+  });
+
+  // Mock unrelated selection handler
+  let selectionCleared = false;
+  h.document.body.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e._stopped) {
+      selectionCleared = true;
+    }
+  });
+
+  // First Escape
+  let event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+
+  assert.strictEqual(event._stopped, false, 'Shell should not stop propagation when Hub is open');
+  assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open');
+  assert.strictEqual(hubHandlerFired, true, 'Player Action Hub handler should fire');
+  assert.strictEqual(hub.parentNode, null, 'Player Action Hub should be removed');
+
+  selectionCleared = false;
+
+  // Second Escape
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+
+  assert.strictEqual(event._stopped, true, 'Shell should stop propagation on second Escape');
+  assert.strictEqual(h.api.isDrawerOpen(), false, 'Drawer should close on second Escape');
+  assert.strictEqual(selectionCleared, false, 'Unrelated selection handler should not fire on second Escape');
 });
 
 if (failed) process.exit(1);

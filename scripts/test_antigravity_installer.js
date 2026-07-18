@@ -4,9 +4,13 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
+if (process.platform !== 'win32') {
+    console.log('SKIP: Antigravity extension installer test exercises the Windows VSIX installer.');
+    process.exit(0);
+}
+
 const scriptPath = path.join(__dirname, 'test_antigravity_installer.ps1');
-const powershell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
-const result = spawnSync(powershell, [
+const result = spawnSync('powershell.exe', [
     '-NoProfile',
     '-ExecutionPolicy',
     'Bypass',

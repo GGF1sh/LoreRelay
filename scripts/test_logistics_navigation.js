@@ -108,11 +108,9 @@ const mini = api.computeLogisticsMinimapModel({ graphBounds: { minX: -60, minY: 
 check(Number.isFinite(mini.scale) && mini.viewportRect.w > 0, '33 minimap projection remains finite');
 equal(api.computeLogisticsSemanticZoom({ cameraScale: 0.4 }).level, 'overview', '34 overview semantic level remains stable');
 equal(api.computeLogisticsSemanticZoom({ cameraScale: 1.3 }).level, 'detail', '35 detail semantic level remains stable');
-check(api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 1, status: 'open' }), '36 open positive primary route is flow eligible');
-check(api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 1, status: 'strained' }), '37 strained route permits movement');
-check(api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 1, status: 'raided' }), '38 raided route permits movement');
-check(!api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 9, status: 'blocked' }), '39 blocked route cannot animate regardless of positive volume');
-check(!api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 9, status: 'sealed' }), '40 unknown stopped equivalent is denied by allowlist');
-check(!api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'unrelated', volume: 9, status: 'open' }), '41 unrelated route cannot animate');
-check(!api.isLogisticsRouteFlowEligible({ flowEnabled: false, relevanceKind: 'primary', volume: 9, status: 'open' }), '42 disabled flow toggle suppresses animation');
+check(api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 1, operational: true }), '36 operational positive primary route is flow eligible');
+check(!api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'primary', volume: 9, operational: false }), '37 non-operational route cannot animate regardless of positive volume');
+check(!api.isLogisticsRouteFlowEligible({ flowEnabled: true, relevanceKind: 'unrelated', volume: 9, operational: true }), '38 unrelated route cannot animate');
+check(!api.isLogisticsRouteFlowEligible({ flowEnabled: false, relevanceKind: 'primary', volume: 9, operational: true }), '39 disabled flow toggle suppresses animation');
+check(!api.isLogisticsRouteFlowEligible({ flowEnabled: true, reducedMotion: true, relevanceKind: 'primary', volume: 9, operational: true }), '40 reduced motion suppresses animation');
 console.log(`logistics navigation: ${contracts} meaningful contracts passed.`);

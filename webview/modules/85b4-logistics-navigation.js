@@ -8,6 +8,7 @@ const LOGISTICS_SEMANTIC_DETAIL_EXIT = 1.13;
 
 function logisticsNavigationCompare(a, b) { return String(a ?? '').localeCompare(String(b ?? '')); }
 function logisticsNavigationFinite(value, fallback = 0) { return Number.isFinite(value) ? value : fallback; }
+function logisticsNavigationClamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function logisticsNavigationNormalize(value) { return String(value ?? '').normalize('NFKC').trim().toLocaleLowerCase(); }
 function logisticsNavigationFamily(commodity) { return typeof commodity?.family === 'string' && commodity.family.trim() ? commodity.family.trim() : null; }
 function logisticsNavigationRegionNames(regions) {
@@ -37,10 +38,6 @@ function computeLogisticsMinimapProjectionBounds({ graphBounds, viewportSize, ca
   for (const [, region] of regions instanceof Map ? regions.entries() : []) {
     include(region?.x, region?.y, region?.w, region?.h);
   }
-  const safeCamera = { k: Math.max(0.0001, logisticsNavigationFinite(camera?.k, 1)), tx: logisticsNavigationFinite(camera?.tx), ty: logisticsNavigationFinite(camera?.ty) };
-  include(-safeCamera.tx / safeCamera.k, -safeCamera.ty / safeCamera.k,
-    Math.max(0, logisticsNavigationFinite(viewportSize?.width)) / safeCamera.k,
-    Math.max(0, logisticsNavigationFinite(viewportSize?.height)) / safeCamera.k);
   const worldPadding = Math.max(0, logisticsNavigationFinite(options?.worldPadding, 24));
   return logisticsNavigationBounds({ minX: minX - worldPadding, minY: minY - worldPadding, maxX: maxX + worldPadding, maxY: maxY + worldPadding });
 }
@@ -64,28 +61,44 @@ function computeLogisticsMinimapModel({ graphBounds, viewportSize, camera, nodes
   const vpW = Math.max(0, logisticsNavigationFinite(viewportSize?.width)); const vpH = Math.max(0, logisticsNavigationFinite(viewportSize?.height));
   const worldX = -safeCamera.tx / safeCamera.k; const worldY = -safeCamera.ty / safeCamera.k;
   const start = project(worldX, worldY);
+  const contentRect = { x: pad, y: pad, w: worldBounds.w * safeScale, h: worldBounds.h * safeScale };
+  const viewportW = Math.min(contentRect.w, vpW / safeCamera.k * safeScale);
+  const viewportH = Math.min(contentRect.h, vpH / safeCamera.k * safeScale);
+  const viewportRect = {
+    x: logisticsNavigationClamp(start.x, contentRect.x, contentRect.x + contentRect.w - viewportW),
+    y: logisticsNavigationClamp(start.y, contentRect.y, contentRect.y + contentRect.h - viewportH),
+    w: viewportW,
+    h: viewportH,
+  };
   const regionRects = [...(regions instanceof Map ? regions.entries() : [])].sort((a, b) => logisticsNavigationCompare(a[0], b[0])).map(([id, region]) => {
     const p = project(region.x, region.y); return { id, x: p.x, y: p.y, w: Math.max(1, region.w * safeScale), h: Math.max(1, region.h * safeScale) };
   });
   const nodeMarkers = (Array.isArray(nodes) ? nodes : []).slice().sort((a, b) => logisticsNavigationCompare(a.id, b.id)).map((node) => {
     const p = project(node.x, node.y); return { id: node.id, x: p.x, y: p.y, selected: Boolean(node.selected), current: Boolean(node.current) };
   });
-  return { worldBounds, minimapBounds: { width, height, padding: pad }, scale: safeScale, contentRect: { x: pad, y: pad, w: worldBounds.w * safeScale, h: worldBounds.h * safeScale }, viewportRect: { x: start.x, y: start.y, w: vpW / safeCamera.k * safeScale, h: vpH / safeCamera.k * safeScale }, regionRects, nodeMarkers, selectedMarker: nodeMarkers.find((node) => node.selected) || null, currentLocationMarker: nodeMarkers.find((node) => node.current) || null };
+  return { worldBounds, minimapBounds: { width, height, padding: pad }, scale: safeScale, contentRect, viewportRect, regionRects, nodeMarkers, selectedMarker: nodeMarkers.find((node) => node.selected) || null, currentLocationMarker: nodeMarkers.find((node) => node.current) || null };
 }
 
-function isLogisticsRouteFlowEligible({ flowEnabled, reducedMotion, relevanceKind, volume, status } = {}) {
-  const movementStatuses = new Set(['open', 'strained', 'raided']);
+function isLogisticsRouteFlowEligible({ flowEnabled, reducedMotion, relevanceKind, volume, operational } = {}) {
   return flowEnabled === true
     && reducedMotion !== true
     && relevanceKind === 'primary'
     && Number.isFinite(volume) && volume > 0
-    && movementStatuses.has(String(status || 'open'));
+    && operational === true;
 }
 
 function logisticsMinimapCameraAt(model, point, viewportSize, camera) {
   const k = Math.max(0.0001, logisticsNavigationFinite(camera?.k, 1));
-  const worldX = model.worldBounds.minX + (logisticsNavigationFinite(point?.x) - model.minimapBounds.padding) / model.scale;
-  const worldY = model.worldBounds.minY + (logisticsNavigationFinite(point?.y) - model.minimapBounds.padding) / model.scale;
+  let worldX = model.worldBounds.minX + (logisticsNavigationFinite(point?.x) - model.minimapBounds.padding) / model.scale;
+  let worldY = model.worldBounds.minY + (logisticsNavigationFinite(point?.y) - model.minimapBounds.padding) / model.scale;
+  const halfW = Math.max(0, logisticsNavigationFinite(viewportSize?.width)) / (2 * k);
+  const halfH = Math.max(0, logisticsNavigationFinite(viewportSize?.height)) / (2 * k);
+  worldX = model.worldBounds.w <= halfW * 2
+    ? (model.worldBounds.minX + model.worldBounds.maxX) / 2
+    : logisticsNavigationClamp(worldX, model.worldBounds.minX + halfW, model.worldBounds.maxX - halfW);
+  worldY = model.worldBounds.h <= halfH * 2
+    ? (model.worldBounds.minY + model.worldBounds.maxY) / 2
+    : logisticsNavigationClamp(worldY, model.worldBounds.minY + halfH, model.worldBounds.maxY - halfH);
   return { k, tx: logisticsNavigationFinite(viewportSize?.width) / 2 - worldX * k, ty: logisticsNavigationFinite(viewportSize?.height) / 2 - worldY * k, userModified: true };
 }
 

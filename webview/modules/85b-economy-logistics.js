@@ -963,6 +963,11 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
     const group = rendered.routeElements.get(routeId);
     if (!group || !group._logisticsParts) { continue; }
     const parts = group._logisticsParts;
+    if (parts.particles && parts.particles.length) {
+      for (const p of parts.particles) { if (p.parentNode) { p.parentNode.removeChild(p); } }
+      parts.particles = [];
+      if (group.classList) { group.classList.remove('is-flowing'); }
+    }
     parts.line.setAttribute('d', geom.pathD);
     parts.line.dataset.routePath = geom.pathD;
     if (parts.hit) { parts.hit.setAttribute('d', geom.pathD); }
@@ -991,11 +996,11 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selected = selectedRouteId === route.id;
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
-  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none' };
+  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none', operational: false };
   const movement = route.volume > 0 ? 'active' : 'idle';
   const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
   const relevanceKind = style.relevanceKind || (style.relevance < 1 ? 'unrelated' : 'primary');
-  const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, status: route.status };
+  const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, operational: style.operational };
   const flowing = isLogisticsRouteFlowEligible(flowInput);
   const particleCapable = isLogisticsRouteFlowEligible({ ...flowInput, relevanceKind: 'primary' });
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
@@ -1050,6 +1055,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   bindLogisticsActivation(group, { type: 'route', id: route.id });
   group._logisticsRoute = route;
   group._logisticsGeometry = geometry;
+  group._logisticsStyle = style;
   group._logisticsParts = { line, hit, label, warning, particles };
   group._logisticsAnnotations = annotations;
   if (rendered) { rendered.routeElements.set(route.id, group); }
@@ -1138,7 +1144,8 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
 
 function logisticsApplyFlowParticleVisibility(group, route, relevanceKind) {
   const particles = group?._logisticsParts?.particles || [];
-  const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, status: route?.status });
+  const style = group?._logisticsStyle;
+  const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, operational: style?.operational });
   if (group?.classList) { group.classList.toggle('is-flowing', eligible); }
   // Secondary/unrelated routes and non-moving operational statuses keep their
   // factual stroke, but animation is reserved for truthful active movement.
@@ -1696,6 +1703,26 @@ function logisticsSetupCameraInteractions(ctx) {
           toolbarEls.resetLayoutBtn.disabled = false;
           toolbarEls.resetLayoutBtn.title = T('webview.world.logisticsResetLayoutTitle');
           toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
+        }
+      }
+      if (options.restoreNode || (active.moved && options.commitNode)) {
+        const affectedRouteIds = logisticsAffectedRouteIdsForNode(active.nodeId, rendered.routeTopologyIndex);
+        for (const routeId of affectedRouteIds) {
+          const group = rendered.routeElements.get(routeId);
+          if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
+            const route = group._logisticsRoute;
+            const style = group._logisticsStyle;
+            const relevanceKind = group.dataset.relevance || 'unrelated';
+            const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind: 'primary', volume: route.volume, operational: style.operational };
+            if (isLogisticsRouteFlowEligible(flowInput) && !economyLogisticsUiState.compactAnimation) {
+              const parts = group._logisticsParts;
+              if (parts.particles && parts.particles.length) {
+                for (const p of parts.particles) { if (p.parentNode) { p.parentNode.removeChild(p); } }
+              }
+              parts.particles = logisticsRenderFlowParticles(group, route, group._logisticsGeometry, parts.line.getAttribute('id'));
+            }
+            logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
+          }
         }
       }
     }

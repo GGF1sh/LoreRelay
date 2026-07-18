@@ -91,6 +91,12 @@ class FakeElement {
     this.children.push(c);
     return c;
   }
+  removeChild(c) {
+    const index = this.children.indexOf(c);
+    if (index >= 0) this.children.splice(index, 1);
+    c.parentNode = null;
+    return c;
+  }
   replaceChildren(...children) { this._text = ''; this.children = []; children.forEach((c) => this.appendChild(c)); }
   setAttribute(name, value) {
     this.attributes[name] = String(value);
@@ -992,6 +998,7 @@ test('SLICE5: search, minimap, and semantic zoom preserve rendered geometry', ()
 
   const minimap = findAll(h.panel, (n) => n.classList.contains('logistics-minimap-canvas'))[0];
   assert.ok(minimap, 'large enough graph has an interactive minimap');
+  for (let i = 0; i < 4; i++) toolbarBtn(h, 'logistics-camera-zoom-in').dispatchEvent({ type: 'click' });
   const beforeCamera = { ...h.api.economyLogisticsUiState.cameraContexts.normal.camera };
   minimap.dispatchEvent({ type: 'pointerdown', pointerId: 501, clientX: 110, clientY: 22 });
   minimap.dispatchEvent({ type: 'pointerup', pointerId: 501, clientX: 110, clientY: 22 });
@@ -1265,6 +1272,7 @@ test('B/#11/#12: minimap click and both drags preserve camera scale', () => {
   h.context.renderEconomyLogistics(twoRegionPayload(), true);
   const canvas = minimapCanvas(h);
   assert.ok(canvas, 'minimap canvas present');
+  for (let i = 0; i < 4; i++) toolbarBtn(h, 'logistics-camera-zoom-in').dispatchEvent({ type: 'click' });
   const k0 = cameraOf(h).k;
   canvas.dispatchEvent({ type: 'pointerdown', clientX: 30, clientY: 30, button: 0, pointerId: 71 });
   canvas.dispatchEvent({ type: 'pointerup', clientX: 30, clientY: 30, pointerId: 71 });
@@ -1430,7 +1438,7 @@ test('HUMAN-BLOCKERS-C #1-12: minimap projection expands live and canonicalizes 
   assert.ok(Number.isFinite(repeated.scale) && repeatedMarker.x >= repeated.minimapBounds.padding && repeatedMarker.x <= repeated.minimapBounds.width - repeated.minimapBounds.padding, '#7 repeated drag has no stale scale/bounds');
 
   toolbarBtn(h, 'logistics-layout-reset').dispatchEvent({ type: 'click' });
-  assert.ok(Number.isFinite(model().scale) && model().nodeMarkers.every((item) => item.x >= 0 && item.x <= model().minimapBounds.width), '#8 Layout Reset rebuilds a correct projection');
+  assert.ok(Number.isFinite(model().scale) && model().nodeMarkers.every((item) => item.x >= 0 && item.x <= model().minimapBounds.width), 'D #8 Layout Reset restores canonical content bounds');
   const collapse = collapseControl(h, 'reg_b');
   findAll(collapse, (n) => n.classList.contains('logistics-region-collapse-hit'))[0].dispatchEvent({ type: 'click' });
   const collapsedModel = model();
@@ -1444,7 +1452,9 @@ test('HUMAN-BLOCKERS-C #1-12: minimap projection expands live and canonicalizes 
   h.api.economyLogisticsUiState.lightboxHost = null; h.api.renderEconomyLogisticsPanel();
   assert.ok(largeModel !== normalModel && Number.isFinite(largeModel.scale) && Number.isFinite(model().scale), '#10 embedded/large transitions recompute projection');
 
-  const canvas = minimapCanvas(h); const k0 = cameraOf(h).k;
+  const canvas = minimapCanvas(h);
+  for (let i = 0; i < 4; i++) toolbarBtn(h, 'logistics-camera-zoom-in').dispatchEvent({ type: 'click' });
+  const k0 = cameraOf(h).k;
   canvas.dispatchEvent({ type: 'pointerdown', pointerId: 903, clientX: 25, clientY: 35, button: 0 });
   canvas.dispatchEvent({ type: 'pointermove', pointerId: 903, clientX: 70, clientY: 60 });
   canvas.dispatchEvent({ type: 'pointerup', pointerId: 903, clientX: 70, clientY: 60 });
@@ -1457,7 +1467,35 @@ test('HUMAN-BLOCKERS-C #1-12: minimap projection expands live and canonicalizes 
   assert.notStrictEqual(cameraOf(h).tx, tx, '#12 second minimap drag remains active');
 });
 
-test('HUMAN-BLOCKERS-C #13-20: particles represent only relevant operational movement', () => {
+test('HUMAN-BLOCKERS-D #9-11 and #20: node drag preserves route geometry and rebuilds only affected flow particles', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const viewport = viewportOf(h);
+  const affectedBefore = routeOf(h, 'grain_route');
+  const unaffectedBefore = routeOf(h, 'iron_route');
+  const affectedLine = findAll(affectedBefore, (n) => n.classList.contains('logistics-route-line'))[0];
+  const affectedHit = findAll(affectedBefore, (n) => n.classList.contains('logistics-route-hit'))[0];
+  const affectedPathId = affectedLine.getAttribute('id');
+  const affectedPathBefore = affectedLine.getAttribute('d');
+  const affectedDotsBefore = findAll(affectedBefore, (n) => n.classList.contains('logistics-flow-dot'));
+  const unaffectedDotsBefore = findAll(unaffectedBefore, (n) => n.classList.contains('logistics-flow-dot'));
+  assert.ok(affectedDotsBefore.length > 0 && unaffectedDotsBefore.length > 0, 'fixture starts with particles on both operational routes');
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 920 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 140, clientY: 60, pointerId: 920 });
+  assert.strictEqual(findAll(affectedBefore, (n) => n.classList.contains('logistics-flow-dot')).length, 0, 'D #9 affected route particles are removed during drag');
+  assert.strictEqual(findAll(routeOf(h, 'iron_route'), (n) => n.classList.contains('logistics-flow-dot')).length, unaffectedDotsBefore.length, 'D #10 unrelated route particle count is untouched');
+  assert.ok(unaffectedDotsBefore.every((dot, index) => findAll(routeOf(h, 'iron_route'), (n) => n.classList.contains('logistics-flow-dot'))[index] === dot), 'D #10 unrelated particle objects retain identity');
+  assert.strictEqual(findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-line'))[0], affectedLine, 'D #20 drag reuses affected route line');
+  assert.strictEqual(findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-hit'))[0], affectedHit, 'D #20 drag reuses affected route hit target');
+  assert.notStrictEqual(affectedLine.getAttribute('d'), affectedPathBefore, 'D #20 live drag updates the existing geometry');
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 920 });
+  const rebuiltDots = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-flow-dot'));
+  assert.ok(rebuiltDots.length > 0 && routeOf(h, 'grain_route').classList.contains('is-flowing'), 'D #11 pointerup immediately restores affected operational particles');
+  assert.strictEqual(affectedLine.getAttribute('id'), affectedPathId, 'D #20 pointerup preserves the route path ID');
+  assert.ok(rebuiltDots.every((dot) => findAll(dot, (n) => n.tagName === 'MPATH').every((mpath) => mpath.getAttribute('href') === `#${affectedPathId}`)), 'D #20 rebuilt particles reference the preserved path ID');
+});
+
+test('HUMAN-BLOCKERS-D #12-19: particles represent only relevant operational movement', () => {
   const base = twoRegionPayload();
   const routes = [
     base.routes[0],
@@ -1471,6 +1509,9 @@ test('HUMAN-BLOCKERS-C #13-20: particles represent only relevant operational mov
   assert.ok(dots('grain_route', true).length > 0 && routeOf(h, 'grain_route').classList.contains('is-flowing'), '#13 active operational route has particles');
   assert.strictEqual(dots('blocked_positive').length, 0, '#14 blocked positive-volume route creates no particles');
   assert.strictEqual(dots('sealed_equivalent').length, 0, '#14 disabled-equivalent/unknown status creates no particles');
+  assert.ok(routeOf(h, 'blocked_positive').classList.contains('logistics-route-status-blocked'), '#12 blocked route uses explicit stopped encoding');
+  assert.ok(routeOf(h, 'sealed_equivalent').classList.contains('logistics-route-status-blocked'), '#12 sealed equivalent uses explicit stopped encoding');
+  assert.ok(routeOf(h, 'raided_positive').classList.contains('logistics-route-status-impaired') && !routeOf(h, 'raided_positive').classList.contains('logistics-route-status-blocked'), '#16 degraded movement is distinct from stopped movement');
   routeOf(h, 'blocked_positive').dispatchEvent({ type: 'click' });
   assert.strictEqual(dots('blocked_positive').length, 0, '#15 selection cannot force blocked movement');
   h.panel.dispatchEvent({ type: 'keydown', key: 'Escape' });

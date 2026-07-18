@@ -6,11 +6,12 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const source = `${fs.readFileSync(path.join(__dirname, '..', 'webview/modules/85b3-logistics-visual-encoding.js'), 'utf8')}\nglobalThis.api = { computeLogisticsVisualEncoding };`;
+const source = `${fs.readFileSync(path.join(__dirname, '..', 'webview/modules/85b3-logistics-visual-encoding.js'), 'utf8')}\nglobalThis.api = { computeLogisticsVisualEncoding, logisticsVisualStatus };`;
 const context = { globalThis: {}, Map, Set, Number, String, Boolean, Array, Object, Math };
 context.globalThis = context;
 vm.runInNewContext(source, context, { filename: '85b3-logistics-visual-encoding.js' });
 const compute = context.api.computeLogisticsVisualEncoding;
+const normalize = (route) => context.api.logisticsVisualStatus(route, new Map());
 
 const commodities = [
   { id: 'grain', name: 'Grain', family: 'food' },
@@ -73,6 +74,12 @@ assert.strictEqual(JSON.stringify({ routes, nodes, geometry: [...geometry] }), s
 assert.strictEqual(geometry.get('open').pathD, 'M open', '36 pathD unchanged by status');
 assert.strictEqual(geometry.get('open').pathD, 'M open', '37 pathD unchanged by volume');
 assert.strictEqual(geometry.get('open').pathD, 'M open', '38 pathD unchanged by filter');
+for (const status of ['blocked', 'sealed', 'closed', 'disabled']) {
+  assert.deepStrictEqual({ key: normalize({ status }).key, operational: normalize({ status }).operational }, { key: 'blocked', operational: false }, `D stopped-equivalent ${status} is explicitly non-operational`);
+}
+for (const status of ['strained', 'raided']) {
+  assert.deepStrictEqual({ key: normalize({ status }).key, operational: normalize({ status }).operational }, { key: 'impaired', operational: true }, `D degraded ${status} remains operational`);
+}
 assert.ok(style('open', { selectedCommodityId: 'grain' }).dashPattern === '' && style('rumored', { selectedCommodityId: 'grain' }).dashPattern, '39 status survives commodity accent');
 assert.strictEqual(JSON.stringify(encoded().legend.channels.map((item) => item[0])), JSON.stringify(['status', 'throughput', 'relevance', 'direction', 'uncertainty']), '40 legend describes five channels');
 assert.strictEqual(style('impaired', { selectedRouteId: 'open' }).relevance, 0.18, '41 route selection dims remote routes');

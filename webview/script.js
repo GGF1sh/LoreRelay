@@ -12834,12 +12834,12 @@ function logisticsVisualStatus(route, geometryByRoute) {
     return { key: 'conflicted', tone: 'diagnostic', dash: '2 3 8 3', labelKey: 'conflicted' };
   }
   const raw = String(route?.status || 'open').toLowerCase();
-  if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored' }; }
-  if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired' }; }
-  if (raw === 'blocked' || raw === 'closed') { return { key: 'blocked', tone: 'danger', dash: '3 5', labelKey: 'blocked' }; }
-  if (raw === 'bottleneck' || route?.bottleneck) { return { key: 'bottleneck', tone: 'bottleneck', dash: '12 3 2 3', labelKey: 'bottleneck' }; }
-  if (raw === 'open' || raw === 'normal' || raw === '') { return { key: 'open', tone: 'normal', dash: '', labelKey: 'open' }; }
-  return { key: 'unknown', tone: 'neutral', dash: '1 4', labelKey: 'unknown' };
+  if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored', operational: false }; }
+  if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired', operational: true }; }
+  if (raw === 'blocked' || raw === 'sealed' || raw === 'closed' || raw === 'disabled') { return { key: 'blocked', tone: 'danger', dash: '3 5', labelKey: 'blocked', operational: false }; }
+  if (raw === 'bottleneck' || route?.bottleneck) { return { key: 'bottleneck', tone: 'bottleneck', dash: '12 3 2 3', labelKey: 'bottleneck', operational: true }; }
+  if (raw === 'open' || raw === 'normal' || raw === '') { return { key: 'open', tone: 'normal', dash: '', labelKey: 'open', operational: true }; }
+  return { key: 'unknown', tone: 'neutral', dash: '1 4', labelKey: 'unknown', operational: false };
 }
 
 function logisticsVisualFamily(commodity) {
@@ -12932,6 +12932,7 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
         : relevanceKind === 'primary' && selectedCommodity && route.commodityId === selectedCommodity ? 'primary' : 'none',
       selected,
       conflicted: status.key === 'conflicted',
+      operational: status.operational,
     });
   }
   const selectedRoute = safeRoutes.find((route) => route.id === selectedRouteId) || null;
@@ -12990,6 +12991,7 @@ const LOGISTICS_SEMANTIC_DETAIL_EXIT = 1.13;
 
 function logisticsNavigationCompare(a, b) { return String(a ?? '').localeCompare(String(b ?? '')); }
 function logisticsNavigationFinite(value, fallback = 0) { return Number.isFinite(value) ? value : fallback; }
+function logisticsNavigationClamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function logisticsNavigationNormalize(value) { return String(value ?? '').normalize('NFKC').trim().toLocaleLowerCase(); }
 function logisticsNavigationFamily(commodity) { return typeof commodity?.family === 'string' && commodity.family.trim() ? commodity.family.trim() : null; }
 function logisticsNavigationRegionNames(regions) {
@@ -13019,10 +13021,6 @@ function computeLogisticsMinimapProjectionBounds({ graphBounds, viewportSize, ca
   for (const [, region] of regions instanceof Map ? regions.entries() : []) {
     include(region?.x, region?.y, region?.w, region?.h);
   }
-  const safeCamera = { k: Math.max(0.0001, logisticsNavigationFinite(camera?.k, 1)), tx: logisticsNavigationFinite(camera?.tx), ty: logisticsNavigationFinite(camera?.ty) };
-  include(-safeCamera.tx / safeCamera.k, -safeCamera.ty / safeCamera.k,
-    Math.max(0, logisticsNavigationFinite(viewportSize?.width)) / safeCamera.k,
-    Math.max(0, logisticsNavigationFinite(viewportSize?.height)) / safeCamera.k);
   const worldPadding = Math.max(0, logisticsNavigationFinite(options?.worldPadding, 24));
   return logisticsNavigationBounds({ minX: minX - worldPadding, minY: minY - worldPadding, maxX: maxX + worldPadding, maxY: maxY + worldPadding });
 }
@@ -13046,28 +13044,44 @@ function computeLogisticsMinimapModel({ graphBounds, viewportSize, camera, nodes
   const vpW = Math.max(0, logisticsNavigationFinite(viewportSize?.width)); const vpH = Math.max(0, logisticsNavigationFinite(viewportSize?.height));
   const worldX = -safeCamera.tx / safeCamera.k; const worldY = -safeCamera.ty / safeCamera.k;
   const start = project(worldX, worldY);
+  const contentRect = { x: pad, y: pad, w: worldBounds.w * safeScale, h: worldBounds.h * safeScale };
+  const viewportW = Math.min(contentRect.w, vpW / safeCamera.k * safeScale);
+  const viewportH = Math.min(contentRect.h, vpH / safeCamera.k * safeScale);
+  const viewportRect = {
+    x: logisticsNavigationClamp(start.x, contentRect.x, contentRect.x + contentRect.w - viewportW),
+    y: logisticsNavigationClamp(start.y, contentRect.y, contentRect.y + contentRect.h - viewportH),
+    w: viewportW,
+    h: viewportH,
+  };
   const regionRects = [...(regions instanceof Map ? regions.entries() : [])].sort((a, b) => logisticsNavigationCompare(a[0], b[0])).map(([id, region]) => {
     const p = project(region.x, region.y); return { id, x: p.x, y: p.y, w: Math.max(1, region.w * safeScale), h: Math.max(1, region.h * safeScale) };
   });
   const nodeMarkers = (Array.isArray(nodes) ? nodes : []).slice().sort((a, b) => logisticsNavigationCompare(a.id, b.id)).map((node) => {
     const p = project(node.x, node.y); return { id: node.id, x: p.x, y: p.y, selected: Boolean(node.selected), current: Boolean(node.current) };
   });
-  return { worldBounds, minimapBounds: { width, height, padding: pad }, scale: safeScale, contentRect: { x: pad, y: pad, w: worldBounds.w * safeScale, h: worldBounds.h * safeScale }, viewportRect: { x: start.x, y: start.y, w: vpW / safeCamera.k * safeScale, h: vpH / safeCamera.k * safeScale }, regionRects, nodeMarkers, selectedMarker: nodeMarkers.find((node) => node.selected) || null, currentLocationMarker: nodeMarkers.find((node) => node.current) || null };
+  return { worldBounds, minimapBounds: { width, height, padding: pad }, scale: safeScale, contentRect, viewportRect, regionRects, nodeMarkers, selectedMarker: nodeMarkers.find((node) => node.selected) || null, currentLocationMarker: nodeMarkers.find((node) => node.current) || null };
 }
 
-function isLogisticsRouteFlowEligible({ flowEnabled, reducedMotion, relevanceKind, volume, status } = {}) {
-  const movementStatuses = new Set(['open', 'strained', 'raided']);
+function isLogisticsRouteFlowEligible({ flowEnabled, reducedMotion, relevanceKind, volume, operational } = {}) {
   return flowEnabled === true
     && reducedMotion !== true
     && relevanceKind === 'primary'
     && Number.isFinite(volume) && volume > 0
-    && movementStatuses.has(String(status || 'open'));
+    && operational === true;
 }
 
 function logisticsMinimapCameraAt(model, point, viewportSize, camera) {
   const k = Math.max(0.0001, logisticsNavigationFinite(camera?.k, 1));
-  const worldX = model.worldBounds.minX + (logisticsNavigationFinite(point?.x) - model.minimapBounds.padding) / model.scale;
-  const worldY = model.worldBounds.minY + (logisticsNavigationFinite(point?.y) - model.minimapBounds.padding) / model.scale;
+  let worldX = model.worldBounds.minX + (logisticsNavigationFinite(point?.x) - model.minimapBounds.padding) / model.scale;
+  let worldY = model.worldBounds.minY + (logisticsNavigationFinite(point?.y) - model.minimapBounds.padding) / model.scale;
+  const halfW = Math.max(0, logisticsNavigationFinite(viewportSize?.width)) / (2 * k);
+  const halfH = Math.max(0, logisticsNavigationFinite(viewportSize?.height)) / (2 * k);
+  worldX = model.worldBounds.w <= halfW * 2
+    ? (model.worldBounds.minX + model.worldBounds.maxX) / 2
+    : logisticsNavigationClamp(worldX, model.worldBounds.minX + halfW, model.worldBounds.maxX - halfW);
+  worldY = model.worldBounds.h <= halfH * 2
+    ? (model.worldBounds.minY + model.worldBounds.maxY) / 2
+    : logisticsNavigationClamp(worldY, model.worldBounds.minY + halfH, model.worldBounds.maxY - halfH);
   return { k, tx: logisticsNavigationFinite(viewportSize?.width) / 2 - worldX * k, ty: logisticsNavigationFinite(viewportSize?.height) / 2 - worldY * k, userModified: true };
 }
 
@@ -14078,6 +14092,11 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
     const group = rendered.routeElements.get(routeId);
     if (!group || !group._logisticsParts) { continue; }
     const parts = group._logisticsParts;
+    if (parts.particles && parts.particles.length) {
+      for (const p of parts.particles) { if (p.parentNode) { p.parentNode.removeChild(p); } }
+      parts.particles = [];
+      if (group.classList) { group.classList.remove('is-flowing'); }
+    }
     parts.line.setAttribute('d', geom.pathD);
     parts.line.dataset.routePath = geom.pathD;
     if (parts.hit) { parts.hit.setAttribute('d', geom.pathD); }
@@ -14106,11 +14125,11 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selected = selectedRouteId === route.id;
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
-  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none' };
+  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none', operational: false };
   const movement = route.volume > 0 ? 'active' : 'idle';
   const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
   const relevanceKind = style.relevanceKind || (style.relevance < 1 ? 'unrelated' : 'primary');
-  const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, status: route.status };
+  const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, operational: style.operational };
   const flowing = isLogisticsRouteFlowEligible(flowInput);
   const particleCapable = isLogisticsRouteFlowEligible({ ...flowInput, relevanceKind: 'primary' });
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
@@ -14165,6 +14184,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   bindLogisticsActivation(group, { type: 'route', id: route.id });
   group._logisticsRoute = route;
   group._logisticsGeometry = geometry;
+  group._logisticsStyle = style;
   group._logisticsParts = { line, hit, label, warning, particles };
   group._logisticsAnnotations = annotations;
   if (rendered) { rendered.routeElements.set(route.id, group); }
@@ -14253,7 +14273,8 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
 
 function logisticsApplyFlowParticleVisibility(group, route, relevanceKind) {
   const particles = group?._logisticsParts?.particles || [];
-  const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, status: route?.status });
+  const style = group?._logisticsStyle;
+  const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, operational: style?.operational });
   if (group?.classList) { group.classList.toggle('is-flowing', eligible); }
   // Secondary/unrelated routes and non-moving operational statuses keep their
   // factual stroke, but animation is reserved for truthful active movement.
@@ -14811,6 +14832,26 @@ function logisticsSetupCameraInteractions(ctx) {
           toolbarEls.resetLayoutBtn.disabled = false;
           toolbarEls.resetLayoutBtn.title = T('webview.world.logisticsResetLayoutTitle');
           toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
+        }
+      }
+      if (options.restoreNode || (active.moved && options.commitNode)) {
+        const affectedRouteIds = logisticsAffectedRouteIdsForNode(active.nodeId, rendered.routeTopologyIndex);
+        for (const routeId of affectedRouteIds) {
+          const group = rendered.routeElements.get(routeId);
+          if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
+            const route = group._logisticsRoute;
+            const style = group._logisticsStyle;
+            const relevanceKind = group.dataset.relevance || 'unrelated';
+            const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind: 'primary', volume: route.volume, operational: style.operational };
+            if (isLogisticsRouteFlowEligible(flowInput) && !economyLogisticsUiState.compactAnimation) {
+              const parts = group._logisticsParts;
+              if (parts.particles && parts.particles.length) {
+                for (const p of parts.particles) { if (p.parentNode) { p.parentNode.removeChild(p); } }
+              }
+              parts.particles = logisticsRenderFlowParticles(group, route, group._logisticsGeometry, parts.line.getAttribute('id'));
+            }
+            logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
+          }
         }
       }
     }

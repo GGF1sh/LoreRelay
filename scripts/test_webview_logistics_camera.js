@@ -124,6 +124,12 @@ class FakeElement {
     this.children.push(child);
     return child;
   }
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index >= 0) { this.children.splice(index, 1); }
+    child.parentNode = null;
+    return child;
+  }
   replaceChildren(...children) { this._text = ''; this.children = []; children.forEach((child) => this.appendChild(child)); }
   setAttribute(name, value) {
     this.attributes[name] = String(value);

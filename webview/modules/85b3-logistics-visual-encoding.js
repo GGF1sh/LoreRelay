@@ -25,12 +25,12 @@ function logisticsVisualStatus(route, geometryByRoute) {
     return { key: 'conflicted', tone: 'diagnostic', dash: '2 3 8 3', labelKey: 'conflicted' };
   }
   const raw = String(route?.status || 'open').toLowerCase();
-  if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored' }; }
-  if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired' }; }
-  if (raw === 'blocked' || raw === 'closed') { return { key: 'blocked', tone: 'danger', dash: '3 5', labelKey: 'blocked' }; }
-  if (raw === 'bottleneck' || route?.bottleneck) { return { key: 'bottleneck', tone: 'bottleneck', dash: '12 3 2 3', labelKey: 'bottleneck' }; }
-  if (raw === 'open' || raw === 'normal' || raw === '') { return { key: 'open', tone: 'normal', dash: '', labelKey: 'open' }; }
-  return { key: 'unknown', tone: 'neutral', dash: '1 4', labelKey: 'unknown' };
+  if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored', operational: false }; }
+  if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired', operational: true }; }
+  if (raw === 'blocked' || raw === 'sealed' || raw === 'closed' || raw === 'disabled') { return { key: 'blocked', tone: 'danger', dash: '3 5', labelKey: 'blocked', operational: false }; }
+  if (raw === 'bottleneck' || route?.bottleneck) { return { key: 'bottleneck', tone: 'bottleneck', dash: '12 3 2 3', labelKey: 'bottleneck', operational: true }; }
+  if (raw === 'open' || raw === 'normal' || raw === '') { return { key: 'open', tone: 'normal', dash: '', labelKey: 'open', operational: true }; }
+  return { key: 'unknown', tone: 'neutral', dash: '1 4', labelKey: 'unknown', operational: false };
 }
 
 function logisticsVisualFamily(commodity) {
@@ -123,6 +123,7 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
         : relevanceKind === 'primary' && selectedCommodity && route.commodityId === selectedCommodity ? 'primary' : 'none',
       selected,
       conflicted: status.key === 'conflicted',
+      operational: status.operational,
     });
   }
   const selectedRoute = safeRoutes.find((route) => route.id === selectedRouteId) || null;

@@ -95,19 +95,29 @@ Do not perform “verification of the repair verification” or ask a third AI t
 
 - Run the full suite at most once per unchanged executable tree.
 - Never run the full suite for documentation-only commits.
-- Prefer Test Console focused tests during development.
+- Before manually selecting a broad test list, use the Test Console to generate and inspect a plan: `npm run test:plan -- --base origin/main --head HEAD --mode verify`.
+- Treat the Test Console plan as the normal focused-test entrypoint. Add a focused test only when the plan does not cover a changed behavior; do not treat its selection as unquestionable.
+- Run a saved plan with `npm run test:run -- --plan <plan.json>`. Use `npm run test:console:self` when changing or validating the Console itself. `LoreRelay_Test_Console.bat` and `npm run test:console` open the same dashboard.
+- A Human Play Gate already passed on the same tree is evidence, not a reason to retest. Reuse it unless executable code or its concrete risk changed.
+- Documentation-only work needs path/link and UTF-8 checks plus relevant tool self-checks; it does not need compile or a full suite.
 - A rerun requires changed executable code, a new concrete risk, a previous failure, or missing evidence.
 - Different AIs must not repeat the same suite merely to produce independent-looking evidence.
 - Unknown or poorly classified changes may be escalated, but the reason must be stated before broader testing begins.
 
 ## AI and Review Limits
 
-- Use one AI for normal tasks.
-- Use at most two AIs for medium- or high-risk tasks.
+- Use one AI for Low or Medium work.
+- Use at most two AIs for High-risk work unless the risk tier supplies a concrete reason.
 - Do not automatically split implementation, verification, and integration into separate chats.
 - Verify an AI report through the commit, diff, and concise evidence—not by blindly repeating all work.
 - Do not ask a third AI to check a fact already independently verified.
 - Previously verified evidence remains valid until executable code or the relevant risk changes.
+
+## Integration and review handling
+
+- Complete PR creation, minor thread replies, resolve actions, and merge in one task when the change is eligible to merge.
+- `COMMENTED`, P2/P3 findings, and known baselines are not blocking by themselves.
+- Treat only `REQUEST_CHANGES`, merge conflicts, required CI failure, or a dangerous HEAD move as blocking; record other findings without creating a new verification loop.
 
 ## Reporting
 

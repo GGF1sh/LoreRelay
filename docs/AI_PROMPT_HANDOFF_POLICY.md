@@ -16,11 +16,12 @@ Normally include only:
 - AI
 - Model
 - Reasoning
-- Role
-- Repository / branch / commit when needed
-- Exact documents or files to read
-- One concise task instruction
-- Output document path
+- Current JST
+- Task ID
+- Exact base and branch
+- Exact Git documents/files to read
+- One-sentence purpose
+- Risk tier
 - Final verdict format
 
 Do not omit `Model` or `Reasoning` when handing work to another AI.
@@ -45,6 +46,23 @@ When a detailed audit or integrator review has already been written to GitHub, d
 Instead use instructions like:
 
 > Read the listed task/review documents as source of truth. Verify or implement only the remaining recorded blockers. Do not broaden scope.
+
+## Compact operational handoff
+
+Use this form unless the receiving AI cannot access the repository:
+
+```text
+AI / Model / Reasoning:
+Current JST:
+Task ID:
+Base / branch:
+Read: <exact Git documents>
+Purpose: <one sentence>
+Risk tier: <Low | Medium | High>
+Final verdict: <exact string>
+```
+
+The receiver starts at `docs/AI_WORKFLOW.md`; the linked policies carry the detailed rules. Do not reproduce their hundreds of lines in the chat prompt.
 
 ## Exploration budget
 

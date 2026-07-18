@@ -9,6 +9,21 @@
 
 ## [Unreleased]
 
+## [1.84.16] - 2026-07-18
+
+### Added
+- Responsive three-stage Webview shell: wide two-column layout at 960px and above, compact overlay drawer from 720–959px, and narrow drawer below 720px.
+- Focused DOM coverage for breakpoint boundaries, drawer/resizer behavior, modal ownership, and IME-safe Escape handling.
+
+### Fixed
+- Higher-priority modals retain the first Escape, including the Logistics lightbox and the canonical `player-action-hub`; the drawer closes on the following Escape.
+- Drawer and scrim stacking now remain above normal shell chrome but below Parlor, Character Creator, Genesis, Logistics lightbox, and Player Action Hub layers.
+- High-contrast drawer styling now matches the actual `html` / `body.vscode-high-contrast` DOM topology.
+
+### Preserved
+- Accepted Logistics 1.84.15 behavior remains intact: maximize/restore, current-path particle restoration, zero stale white dots, truthful blocked/impaired routes, and scale-stable minimap dragging.
+- Focused automation is complete; final visual and gameplay approval is delegated to the 1.84.16 Human Play Gate.
+
 ## [1.84.15] - 2026-07-18
 
 ### Fixed

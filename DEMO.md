@@ -50,6 +50,7 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | File | Use | Status |
 |------|-----|--------|
 | `docs/assets/hero-ui.jpg` | Main README hero | Real — ComfyUI illustration (IL `waiIllustriousSDXL_v170`), 2026-07-04 |
+| `docs/assets/screenshot-start-hub.png` | Start Hub onboarding: Parlor / In-World / Campaign entry points | Real — current production Webview bundle with Japanese locale and an imported character available, 2026-07-18 |
 | `docs/assets/screenshot-status.png` | Adventure Log chat + status panel | Real — captured from the actual `webview/index.html` + `script.js` + `style.css` build (see below), 2026-07-04 |
 | `docs/assets/screenshot-inspector.png` | Turn Inspector incl. Debug Trace | Real — same capture method, 2026-07-04 |
 | `docs/assets/screenshot-remote-play.png` | LAN remote play panel | Real — same capture method (headless Chrome), 2026-07-06 |
@@ -58,6 +59,7 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | `docs/assets/screenshot-comfyui.png` | ComfyUI scene generation inline in chat | Real — Webview capture; scene image generated via local ComfyUI (IL `waiIllustriousSDXL_v170`), 2026-07-06 |
 | `docs/assets/screenshot-world-map.png` | World tab Parchment map overview | Real — same capture method, uses a dedicated 10-region/14-location showcase `world_forge.json` (`docs/assets/worldmap-showcase-fixture/`) rendered to a ComfyUI parchment background (Illustrious + Canny ControlNet, no LoRA — see fixture folder for generation notes), 2026-07-06 |
 | `docs/assets/screenshot-world-map-detail.png` | World tab Parchment map, selected-location detail card | Real — same capture + fixture, with a high-danger ruin pin selected to show the type/danger/faction detail panel, 2026-07-06 |
+| `docs/assets/screenshot-logistics.png` | Logistics graph canvas (trade network), maximized lightbox view | Real — same capture method, driven by the `scripts/create_ui_showcase_scenarios.js` / `capture_living_trade_worldview.js` `05-living-trade-world` fixture (`economyLogistics` payload), 2026-07-18 |
 | `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
 
 The old wireframe `.svg` placeholders for these five screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
@@ -86,6 +88,7 @@ This reuses the exact production bundle, so screenshots stay authentic and cheap
 no throwaway mockups needed. All five previously-placeholder screenshots (Remote Play, Party
 Director, Lorebook, ComfyUI, World Map) now use this method:
 
+- **Start Hub**: keep `messageHistory` empty, then post `characterList` / `parlorAvailability` with one imported character so **Talk to a character** and **In-World Chat** are both visibly available without triggering a file picker.
 - **Remote Play**: call `updateRemotePlayButton({ running: true, urls: [...], spectatorUrls: [...], clients: [...] })` directly instead of a real `remotePlayStatus` postMessage (no LAN server needed for a screenshot).
 - **Party Director**: post `characterList` (for display names) then `partyDirector` with a `members` map.
 - **Lorebook**: post `lorebookList` with a few `entries` (mix of enabled/disabled/pinned to show the visual states).

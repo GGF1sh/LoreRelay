@@ -1,23 +1,88 @@
-# LoreRelay - Local-first AI Game Master UI 🎲
+<h1 align="center">LoreRelay 🎲</h1>
+<h3 align="center">面向 VS Code 的本地优先 AI 游戏主持人界面</h3>
 
-[English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
+<p align="center"><strong>让 AI 故事成为不会消失的“游戏世界”。</strong><br />
+通过本地 JSON 状态，将聊天、角色、世界地图、记忆、经济与图像生成连接为一个 AI RPG 前端。</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.84.16-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
-[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
+<p align="center"><a href="README_en.md">English</a> · <a href="README.md">日本語</a> · <a href="README_zh-CN.md">简体中文</a> · <a href="README_zh-TW.md">繁體中文</a></p>
 
-**Local-first AI Game Master UI**
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml"><img src="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/releases"><img src="https://img.shields.io/github/package-json/v/GGF1sh/LoreRelay?label=version&amp;color=blue" alt="Version" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay"><img src="https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github" alt="GitHub repository" /></a>
+</p>
 
-**Antigravity (免费) × LoreRelay × ComfyUI —— 由前沿大模型担任 GM 的全自动 RPG 环境，无需 API 密钥，零额外成本。**
+<p align="center"><img src="docs/assets/hero-ui.jpg" alt="LoreRelay — AI 游戏主持人在灯笼点亮的酒馆中主持冒险" width="720" /></p>
 
-这是一个最大化利用您现有 AI 订阅的 VSCode 扩展，它结合了像 SillyTavern 一样的后端自由度，以及像 Saga & Seeker 一样硬核的 CRPG 体验。
-通过手动复制粘贴（或通过本地代理自动执行）传递 JSON，它提供了一个完全开放且可改造的“Hacker Edition” UI 层，让您可以自由地在自己的环境中进行 Hack。
+<p align="center"><sub>可使用本地 AI、现有 AI 订阅或手动复制粘贴开始。ComfyUI、VLM 与 Remote Play 均为可选。</sub></p>
 
-> 💡 **Notice:** 如果您喜欢这个扩展，请考虑[请我喝杯咖啡 ☕](https://ko-fi.com/promptpalette)
+<p align="center">
+  <a href="#onboarding"><strong>从聊天开始</strong></a> ·
+  <a href="#how-to-play"><strong>15 分钟试玩</strong></a> ·
+  <a href="#setup"><strong>安装</strong></a> ·
+  <a href="#screenshots"><strong>查看界面</strong></a> ·
+  <a href="docs/FIRST_SESSION.md"><strong>首次游玩指南</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-status.png" width="820" alt="LoreRelay 冒险日志，在同一界面显示 GM 叙事、选项、HP、MP、好感度、物品与技能" />
+</p>
+
+LoreRelay 本身不是 LLM 服务，而是一个**将您选择的 AI 连接为游戏主持人的本地优先 UI 与状态层**。它不会丢弃每次回复，而会把世界状态、历史、lore 与媒体保存为文件，让长期战役能够跨会话继续。
+
+| 游玩方式 | 可获得的体验 | 最低需求 |
+|:---|:---|:---|
+| 🎭 **Parlor** | SillyTavern 风格的一对一 RP、角色卡与 lorebook | VS Code + AI |
+| 🌐 **In-World Chat** | 以已有世界、领地和当前局势为背景，以居民身份交谈 | 世界数据 + 角色 |
+| ⚔️ **Campaign** | 多角色、骰子、持久世界、任务与经济 | VS Code + Python + AI |
+| 📱 **Remote Play** | 同一局域网内用手机或平板加入、观战 | Campaign 环境 + Remote Play |
+
+> 无需 ComfyUI 即可游玩核心内容。启用图像生成后，可加入场景图、插画世界地图与 Visual Memory。
+
+> 💡 喜欢这个项目？可以[请我喝杯咖啡支持开发 ☕](https://ko-fi.com/promptpalette)
 
 ---
 
-## 🌟 Features
+<a id="onboarding"></a>
+
+## 🪜 先从对话开始，再成长为一个世界
+
+无需先配置庞大的 CRPG 才能享受 LoreRelay。主要的新手路线是：**先与您已有的角色对话，再把这段对话发展为自己的世界**。
+
+```mermaid
+flowchart LR
+    ST["ST 角色卡<br/>World Info / Lorebook"] --> Parlor["🎭 Parlor<br/>一对一聊天"]
+    Parlor -->|携带近期对话升级| Campaign["⚔️ Campaign<br/>持久冒险世界"]
+    Campaign --> Party["👥 Party Director<br/>多个 NPC 互动"]
+    Campaign --> InWorld["🌐 In-World Chat<br/>以居民身份交谈"]
+```
+
+<p align="center">
+  <img src="docs/assets/screenshot-start-hub.png" width="820" alt="LoreRelay Start Hub，可选择创建世界、与角色对话、世界内聊天、引导式演示或商人模拟" />
+</p>
+
+1. **带入主要 SillyTavern 资产** — 可导入角色卡（PNG/JSON）、World Info / Lorebook，以及卡片内的立绘。LoreRelay 并非完全兼容的 ST 客户端，但能复用对话所需的主要资产（[兼容指南](SILLYTAVERN_COMPAT.md)）。
+2. **先进行一对一对话** — 在 Start Hub 选择 **「与角色对话（Parlor）」**，无需骰子或经济管理即可开始轻量 RP。
+3. **把对话升级为冒险** — 在 Parlor 设置中选择 **「与此角色开始冒险」**，创建继承近期对话的场景与游戏状态；之后也可返回 Parlor。
+4. **观看多个角色互动** — 在 Campaign 中将角色加入队伍，再用 Party Director 调整发言量、静音/强制发言与关系。GM 会分别扮演多个 NPC，生成自然的 NPC 间对话。
+5. **在自己创建的世界中交谈** — **In-World Chat** 会把已有世界、领地与当前局势作为只读上下文。可用于酒馆闲聊或向居民打听消息，而不会推进或修改模拟。
+
+> **关于“AI 与 AI 对话”：** 当前是由一个已连接的 GM 模型按照 Party Director 设置扮演多个角色，并非同时运行多个独立 AI 代理。
+
+---
+
+## 🌟 可以做什么
+
+| RPG 前端 | 活着的世界 | 连接您选择的 AI |
+|:---|:---|:---|
+| 聊天、选项、自由输入、HP/MP、物品、技能、骰子与自适应音频 | 持久化地域、势力、NPC、贸易与时间，并逐回合模拟 | 支持本地代理、VS Code LM、手动复制粘贴与 OpenRouter |
+| **记忆与检查** | **图像与地图** | **可自由改造** |
+| Lorebook、Memory、Turn Inspector 与审计日志 | ComfyUI 场景、羊皮纸地图与 VLM Visual Memory | 直接编辑基于 JSON 的场景、规则与状态 |
+
+<details>
+<summary><strong>展开完整功能列表与版本亮点</strong></summary>
+
 
 - 💸 **No Extra API Costs (by default):** 本地 LLM、Grok CLI 或手动复制粘贴操作无需按量计费的 API 密钥。仅在使用 OpenRouter 时需要 API 密钥。
 - 🧩 **Agent Bridge:** 如果使用 Grok Build 等可在本地执行的 AI，您可以直接将 Webview 的选项和自由输入发送给 GM。
@@ -42,7 +107,13 @@
 - 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` 车队管理、车库面板、移动基地（MB1–MB5）与 World Intent 桥接。
 - 🧭 **State Orchestrator (SO1–SO2):** 台账描述符清单与 GM 回合只读 transaction planning gate。
 - 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector 中的 chunk 生命周期追踪（included / truncated / evicted 等）。
-- ✨ **Genesis Guide (Unreleased):** 从 Start Hub 的「开始创建世界」进入的分步向导——只需点选即可决定世界观、玩法、危险度、管理深度、主角创建方式以及是否需要生成图像。实时预览将启用的系统与图像生成提示词，点击「以此设置开始」后安全地写入 `game_rules.json`。根据所选的主角创建方式，可直接跳转到角色创建或 SillyTavern 卡片导入。ComfyUI 不可用时会自然回退为复制提示词。设计文档：[`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- ✨ **Genesis Guide:** 从 Start Hub 的「开始创建世界」进入的分步向导——只需点选即可决定世界观、玩法、危险度、管理深度、主角创建方式以及是否需要生成图像。实时预览将启用的系统与图像生成提示词，点击「以此设置开始」后安全地写入 `game_rules.json`。根据所选的主角创建方式，可直接跳转到角色创建或 SillyTavern 卡片导入。ComfyUI 不可用时会自然回退为复制提示词。设计文档：[`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- 🧰 **Campaign Kit (v1.45+):** 与题材无关的「据点 → 委托/传闻 → 探索地 → 发现物 → 鉴定/服务 → 世界反应」循环。7 种题材预设（王道奇幻公会、末日拾荒者、太空边境、东方幻想、赛博朋克快递员、现代都市怪谈、生存恐怖），内置发现物台账、鉴定状态机与战役资源。
+- 📊 **World Observatory (v1.53+，experimental):** 「守望变化中的世界」观测面板——市场价格历史迷你图、编年史时间线，watch（免费）/ advance（消耗资源）两种模式。
+- 🕸️ **Logistics Graph Canvas (v1.84+):** 以图论视角而非地图可视化贸易网络——节点拖拽、区域折叠、语义缩放、小地图、商品/路线状态过滤，并提供带实时流量的放大视图。
+- 📐 **Responsive Webview Shell (v1.84.16+):** 三段式响应式布局——960px 以上为双栏、720–959px 为覆盖式抽屉、720px 以下为窄屏抽屉，即使在 VSCode 分屏窄视图下聊天区也不会被挤压。
+
+</details>
 
 架构详解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -61,21 +132,28 @@
 
 GM 每回合应写入 **`turn_result.json`**（`statePatch` + `narration` + `gmEntry` + `turnId`）。扩展验证补丁后合并到 **`game_state.json`**，并向 `state_journal.ndjson` 追加审计记录。
 
+```mermaid
+flowchart LR
+    Player["玩家选项 / 自由输入"] --> GM["您选择的 AI / GM"]
+    GM --> Turn["turn_result.json"]
+    Turn --> Gate["验证并应用状态补丁"]
+    Gate --> State["game_state.json"]
+    Gate --> Journal["state_journal.ndjson"]
+    State --> UI["LoreRelay Webview"]
+    UI --> Player
+```
+
 直接覆盖 **`game_state.json`** 为**紧急回退**（手动粘贴或旧版 GM）。此时 `turnResultFallback` 会合成 `turn_result.json`，使检查器、日志与 MediaAgent 走同一路径。
 
 **Cartography 流水线（可选）：** `world_forge.json`（Region 的 `x` / `y` / `biome`）→ 布局 PNG（`world_map.layout.png`）→（可选）ComfyUI ControlNet → `world_map.png` → World 标签页 📍 图钉叠加
 
 ---
 
+<a id="screenshots"></a>
+
 ## 📸 Screenshots & Demo
 
-<p align="center">
-  <img src="docs/assets/hero-ui.jpg" alt="LoreRelay — AI 游戏主持人在灯笼点亮的酒馆中召唤全息屏幕" width="720" />
-</p>
-
-<p align="center">
-  <img src="docs/assets/screenshot-status.png" width="720" alt="冒险日志聊天界面，含GM叙事、HP/MP/好感度条、物品栏与技能标签" />
-</p>
+上方主界面与以下所有图像均截取自真实 Webview。
 
 <p align="center">
   <img src="docs/assets/screenshot-inspector.png" width="260" alt="Turn Inspector with Debug Trace timeline" /><br />
@@ -100,9 +178,18 @@ GM 每回合应写入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 </p>
 <p align="center"><sub>城市、遗迹、地下城、港口、山脉、危险地带、未探索边疆、势力领地与贸易路线，尽在一张地图上。点击图钉即可打开该地点的类型/危险度/所属势力详情卡片与快捷操作。背景由 ComfyUI（Illustrious + ControlNet）生成，图钉、标签、贸易路线与战争迷雾（Fog of War）均由 Webview 依据真实世界数据绘制。</sub></p>
 
-替换为真实截图或 GIF 的步骤见 [`DEMO.md`](DEMO.md)。
+### 🕸️ Logistics — 以图论视角阅读贸易网络
+
+<p align="center">
+  <img src="docs/assets/screenshot-logistics.png" width="700" alt="Logistics graph canvas: an interactive trade network with regions, market/settlement/facility nodes, live flow-rate routes, a legend, and a minimap" />
+</p>
+<p align="center"><sub>据点、市场、设施、移动基地以节点呈现，贸易路线按畅通/紧张/封锁着色为边。可拖拽节点重新排布区域、按商品或路线状态过滤、语义缩放并通过小地图导航——与地图互补，一眼看清货物当下的流向。</sub></p>
+
+所有截图均来自真实 Webview（`webview/index.html` + `script.js` + `style.css`）的实机截图，替换步骤见 [`DEMO.md`](DEMO.md)。
 
 ---
+
+<a id="how-to-play"></a>
 
 ## 🚀 How to Play
 
@@ -134,6 +221,8 @@ GM 每回合应写入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 3. 保存的瞬间，VSCode UI 会自动切换。（图像生成和掷骰子需手动执行，或使用网页版 AI 的功能代替）。
 
 ---
+
+<a id="setup"></a>
 
 ## 🛠️ Setup & Installation
 
@@ -261,9 +350,9 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-> **版本正本：** `package.json`（当前 **1.52.0**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任务看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **版本正本：** `package.json`（见上方徽章）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任务看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)。多 AI 接力开发下版本几乎每天推进，此表为世代摘要，并非逐补丁清单。
 
-**已实现（v1.33.0 摘要）**
+**已实现（摘要）**
 
 | 世代 | 主要内容 |
 |------|----------|
@@ -271,13 +360,22 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 | **v1.10–1.11** | Quest Board（Event-to-Quest）· Agentic GM · Git Timeline · Adaptive TTS |
 | **v1.13–1.18** | Tile Overmap · Cartography C8/C9 · Debug sandbox · 世界时间推进 |
 | **v1.19–1.21** | Chronicle · Pacing Director · 派系声望 · 旅途遭遇 · Replay Export |
-| **v1.23–1.33** | Living World 经济（Commerce / Agency）· Commerce UI · 信任联动位置 · **LW3 羁绊** |
+| **v1.23–1.33** | Living World 经济（Commerce / Agency）· Commerce UI · 信任联动位置 · **LW3 羁绊**（NPC↔NPC / 玩家↔NPC / 贸易联动） |
+| **v1.34** | Parlor Mode（1对1角色扮演）· ST 卡片导入 |
+| **v1.39–1.40** | Domain Mode（D1–D5）· D3 World 标签页 UI · F7 谒见 / F8 邻国 / F9 派遣 / F10 合战 |
+| **v1.41–1.44** | Guild Master G1–G4（每周结算 · 委托板 · 队伍派遣 · 离队漂移） |
+| **v1.45–1.52** | Campaign Kit Phase A–G（7 种题材预设 · 发现物台账 · 鉴定状态机 · 战役资源） |
+| **v1.53** | World Observatory（市场价格历史 · 编年史时间线） |
+| **v1.58+** | Context Engine P0（Prompt Inspector 的 chunk 生命周期追踪） |
+| **v1.69–1.75** | Settlement Mode（等距/立体模型视图）· Vehicle & Mobile Base（车队管理 · 移动基地） |
+| **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 兼容性关卡 · ComfyUI 任务生命周期修复 |
+| **v1.79–1.83** | NOAI Play（确定性旅行/经济处理）· 按资源分级的 5 档经济难度（abundant→barren） |
+| **v1.84** | Logistics Graph Canvas（交易网络交互式可视化）· 响应式三段式 Webview 外壳 |
 
 详见 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) 与 `sample-scenarios/trade-routes`。
 
 **计划中**
 
-- README / DEMO 截图与 GIF 更新
 - Overmap 图像瓦片、hazard 单行 GM 注入
 - Prompt budget 优先级滑动（长会话）
 - Workshop / 市场发布调研

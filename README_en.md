@@ -1,23 +1,88 @@
-# LoreRelay - Local-first AI Game Master UI 🎲
+<h1 align="center">LoreRelay 🎲</h1>
+<h3 align="center">Local-first AI Game Master UI for VS Code</h3>
 
-[English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
+<p align="center"><strong>Turn AI storytelling into a game world that persists.</strong><br />
+LoreRelay connects chat, characters, maps, memory, economy, and image generation through local JSON state.</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.84.16-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
-[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
+<p align="center"><a href="README_en.md">English</a> · <a href="README.md">日本語</a> · <a href="README_zh-CN.md">简体中文</a> · <a href="README_zh-TW.md">繁體中文</a></p>
 
-**Local-first AI Game Master UI**
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml"><img src="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/releases"><img src="https://img.shields.io/github/package-json/v/GGF1sh/LoreRelay?label=version&amp;color=blue" alt="Version" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay"><img src="https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github" alt="GitHub repository" /></a>
+</p>
 
-**Antigravity (Free) × LoreRelay × ComfyUI —— A fully automated RPG environment hosted by frontier models, requiring no API keys or extra costs.**
+<p align="center"><img src="docs/assets/hero-ui.jpg" alt="LoreRelay — an AI Game Master running an adventure in a lantern-lit tavern" width="720" /></p>
 
-A VSCode extension that maximizes your existing AI subscriptions, combining backend freedom like SillyTavern with an authentic CRPG experience like Saga & Seeker.
-By passing JSON via manual copy-paste (or automating via local agents), it provides a completely open and hackable "Hacker Edition" UI layer to build your own adventure environment.
+<p align="center"><sub>Start with a local AI, an existing AI subscription, or manual copy-paste. ComfyUI, VLM, and Remote Play are all optional.</sub></p>
 
-> 💡 **Notice:** If you like this extension, please consider [buying me a coffee ☕](https://ko-fi.com/promptpalette)
+<p align="center">
+  <a href="#onboarding"><strong>Start with chat</strong></a> ·
+  <a href="#how-to-play"><strong>Try it in 15 minutes</strong></a> ·
+  <a href="#setup"><strong>Install</strong></a> ·
+  <a href="#screenshots"><strong>See the UI</strong></a> ·
+  <a href="docs/FIRST_SESSION.md"><strong>First-session guide</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-status.png" width="820" alt="LoreRelay adventure log with GM narration, choices, HP, MP, affinity, inventory, and skills in one screen" />
+</p>
+
+LoreRelay is not an LLM service. It is a **local-first UI and state layer that connects the AI you choose as Game Master**. Instead of throwing each reply away, it persists world state, history, lore, and media to files so long campaigns can continue across sessions.
+
+| Play style | What you get | Minimum setup |
+|:---|:---|:---|
+| 🎭 **Parlor** | SillyTavern-style 1-on-1 RP, character cards, and lorebooks | VS Code + an AI |
+| 🌐 **In-World Chat** | Talk as a resident with an existing world, domains, and current affairs as context | World data + a character |
+| ⚔️ **Campaign** | Multiple characters, dice, a persistent world, quests, and economy | VS Code + Python + an AI |
+| 📱 **Remote Play** | Join or spectate from a phone or tablet on the same LAN | Campaign setup + Remote Play |
+
+> Core play works without ComfyUI. Enable image generation to add scene art, illustrated world maps, and Visual Memory.
+
+> 💡 Like the project? You can [support development with a coffee ☕](https://ko-fi.com/promptpalette)
 
 ---
 
-## 🌟 Features
+<a id="onboarding"></a>
+
+## 🪜 Start with conversation. Grow into a world.
+
+You do not need to configure a giant CRPG before you can enjoy LoreRelay. The main onboarding path is to **start by talking to a character you already have, then grow that conversation into your own world**.
+
+```mermaid
+flowchart LR
+    ST["ST character card<br/>World Info / Lorebook"] --> Parlor["🎭 Parlor<br/>1-on-1 chat"]
+    Parlor -->|Promote with recent chat| Campaign["⚔️ Campaign<br/>Persistent adventure world"]
+    Campaign --> Party["👥 Party Director<br/>Multi-NPC banter"]
+    Campaign --> InWorld["🌐 In-World Chat<br/>Talk as a resident"]
+```
+
+<p align="center">
+  <img src="docs/assets/screenshot-start-hub.png" width="820" alt="LoreRelay Start Hub offering Build a world, Talk to a character, In-World Chat, guided demo, and merchant simulation entry points" />
+</p>
+
+1. **Bring your main SillyTavern assets** — import character cards (PNG/JSON), World Info / Lorebooks, and the portrait embedded in a card. LoreRelay is not a fully compatible ST client, but it reuses the main assets needed for conversation ([compatibility guide](SILLYTAVERN_COMPAT.md)).
+2. **Start with 1-on-1 chat** — choose **Talk to a character (Parlor)** in the Start Hub for lightweight RP without dice or economy bookkeeping.
+3. **Promote the conversation into an adventure** — from Parlor Settings, choose **Start an adventure with this character** to create a scenario and game state that carry recent chat forward. You can switch back to Parlor later.
+4. **Watch multiple characters interact** — add characters to the Campaign party, then use Party Director to control verbosity, mute/force speech, and relationships. The GM plays several NPCs and generates natural NPC-to-NPC banter.
+5. **Talk inside the world you created** — **In-World Chat** injects the existing world, domains, and current affairs as read-only context. Use it for tavern chatter or interviewing residents without advancing or mutating the simulation.
+
+> **About “AI-to-AI conversation”:** today this means one connected GM model role-playing multiple characters under Party Director—not several independent AI agents running simultaneously.
+
+---
+
+## 🌟 What you can do
+
+| RPG front end | Living world | Bring your own AI |
+|:---|:---|:---|
+| Chat, choices, free input, HP/MP, inventory, skills, dice, and adaptive audio | Persist and simulate regions, factions, NPCs, trade, and time turn by turn | Use a local agent, VS Code LM, manual copy-paste, or OpenRouter |
+| **Memory and inspection** | **Images and maps** | **Hackable by design** |
+| Lorebook, Memory, Turn Inspector, and an audit journal | ComfyUI scenes, parchment maps, and VLM Visual Memory | Edit JSON-based scenarios, rules, and state directly |
+
+<details>
+<summary><strong>Open the complete feature list and version highlights</strong></summary>
+
 
 - 💸 **No Extra API Costs (by default):** No pay-as-you-go API keys are needed for local LLMs, Grok CLI, or manual copy-paste operations. An API key is only required if you use OpenRouter.
 - 🧩 **Agent Bridge:** If you use a locally executable AI like Grok Build, you can send Webview choices and free text input directly to the GM.
@@ -44,7 +109,13 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` fleet ops, garage panel, mobile base (MB1–MB5) with World Intent bridge.
 - 🧭 **State Orchestrator (SO1–SO2):** Ledger descriptor inventory and read-only GM-turn transaction planning gate.
 - 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector chunk lifecycle trace (included / truncated / evicted, etc.).
-- ✨ **Genesis Guide (Unreleased):** A staged wizard from the Start Hub's "Start building your world" — pick genre, playstyle, danger level, bookkeeping depth, protagonist creation method, and whether you want generated images, all by clicking chips. Previews the systems it will enable and the image-generation prompt live, then applies a safe patch to `game_rules.json` when you click "Start with this." Jumps straight into character creation or SillyTavern card import based on the protagonist method you picked. Falls back to prompt-copy gracefully if ComfyUI isn't running. Design: [`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- ✨ **Genesis Guide:** A staged wizard from the Start Hub's "Start building your world" — pick genre, playstyle, danger level, bookkeeping depth, protagonist creation method, and whether you want generated images, all by clicking chips. Previews the systems it will enable and the image-generation prompt live, then applies a safe patch to `game_rules.json` when you click "Start with this." Jumps straight into character creation or SillyTavern card import based on the protagonist method you picked. Falls back to prompt-copy gracefully if ComfyUI isn't running. Design: [`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- 🧰 **Campaign Kit (v1.45+):** A genre-agnostic "hub → jobs/rumors → discovery sites → finds → appraisal/services → world reaction" loop. Seven genre presets (classic fantasy guild, post-apoc scavenger, space frontier, eastern fantasy, cyberpunk courier, modern occult, survival horror) with a discovery ledger, appraisal state machine, and campaign resources.
+- 📊 **World Observatory (v1.53+, experimental):** A dashboard for watching the world change — market price history sparklines, a chronicle timeline, and watch (free) / advance (consumes resources) modes.
+- 🕸️ **Logistics Graph Canvas (v1.84+):** Visualizes the trade network as an interactive graph instead of a map — node dragging, region collapse, semantic zoom, minimap, commodity/route-status filters, and a maximized view with live flow rates.
+- 📐 **Responsive Webview Shell (v1.84.16+):** A three-stage layout — two-column at 960px+, an overlay drawer from 720–959px, and a narrow drawer below 720px — so chat no longer gets crushed in a narrow VSCode split-editor pane.
+
+</details>
 
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -63,21 +134,28 @@ Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUA
 
 Each turn, the GM should write **`turn_result.json`** (`statePatch` + `narration` + `gmEntry` + `turnId`). The extension validates the patch, merges into **`game_state.json`**, and appends an audit entry to `state_journal.ndjson`.
 
+```mermaid
+flowchart LR
+    Player["Player choice / free input"] --> GM["Your AI / GM"]
+    GM --> Turn["turn_result.json"]
+    Turn --> Gate["Validate and apply state patch"]
+    Gate --> State["game_state.json"]
+    Gate --> Journal["state_journal.ndjson"]
+    State --> UI["LoreRelay Webview"]
+    UI --> Player
+```
+
 Direct **`game_state.json`** overwrites are an **emergency fallback** (manual paste or legacy GM). `turnResultFallback` then synthesizes `turn_result.json` so Inspector, journal, and MediaAgent stay on the same path.
 
 **Cartography pipeline (optional):** `world_forge.json` (region `x` / `y` / `biome`) → layout PNG (`world_map.layout.png`) → (optional) ComfyUI ControlNet → `world_map.png` → 📍 pin overlay in the World tab
 
 ---
 
+<a id="screenshots"></a>
+
 ## 📸 Screenshots & Demo
 
-<p align="center">
-  <img src="docs/assets/hero-ui.jpg" alt="LoreRelay — an AI Game Master conjuring a holographic screen in a lantern-lit tavern" width="720" />
-</p>
-
-<p align="center">
-  <img src="docs/assets/screenshot-status.png" width="720" alt="Adventure Log chat with GM narration, HP/MP/Affection bars, inventory and skill tags" />
-</p>
+The main screen above and every image below were captured from the actual Webview.
 
 <p align="center">
   <img src="docs/assets/screenshot-inspector.png" width="260" alt="Turn Inspector with Debug Trace timeline" /><br />
@@ -102,9 +180,18 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
 </p>
 <p align="center"><sub>Cities, ruins, dungeons, ports, mountains, danger zones, unexplored frontiers, faction territory, and trade routes on a single map. Click a pin to open its type/danger/faction detail card with quick actions. The background is ComfyUI-generated (Illustrious + ControlNet); pins, labels, trade routes, and Fog of War are all drawn by the Webview from real world data.</sub></p>
 
+### 🕸️ Logistics — read the trade network as a graph
+
+<p align="center">
+  <img src="docs/assets/screenshot-logistics.png" width="700" alt="Logistics graph canvas: an interactive trade network with regions, market/settlement/facility nodes, live flow-rate routes, a legend, and a minimap" />
+</p>
+<p align="center"><sub>Settlements, markets, facilities, and mobile-base hubs as nodes, with trade routes color-coded open/strained/blocked as edges. Drag nodes to rearrange regions, filter by commodity or route status, semantic-zoom, and navigate via the minimap — a companion view to the map for seeing exactly where goods are flowing right now.</sub></p>
+
 All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`). See [`DEMO.md`](DEMO.md) for the capture method.
 
 ---
+
+<a id="how-to-play"></a>
 
 ## 🚀 How to Play
 
@@ -136,6 +223,8 @@ This extension uses a loosely coupled mechanism that watches `turn_result.json` 
 3. The moment you save, the VSCode UI will switch. (Perform image generation and dice rolls manually, or use the browser AI's features as a substitute).
 
 ---
+
+<a id="setup"></a>
 
 ## 🛠️ Setup & Installation
 
@@ -263,7 +352,7 @@ Also under `TextAdventureGMSkill/scenarios/`.
 
 ## 🗺️ Roadmap
 
-> **Source of truth:** `package.json` (currently **1.52.0**) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **Source of truth:** `package.json` (see badge above) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md). With a multi-AI relay workflow the version bumps nearly daily, so this table is a summary of eras, not a patch-by-patch list.
 
 **Shipped (summary)**
 
@@ -277,12 +366,18 @@ Also under `TextAdventureGMSkill/scenarios/`.
 | **v1.34** | Parlor Mode (1-on-1 RP) · ST card import |
 | **v1.39–1.40** | Domain Mode (D1–D5) · D3 World tab UI · F7 audience / F8 rivals / F9 missions / F10 mass battle |
 | **v1.41–1.44** | Guild Master G1–G4 (weekly commit · request board · party dispatch · absence drift) |
+| **v1.45–1.52** | Campaign Kit Phase A–G (7 genre presets · discovery ledger · appraisal state machine · campaign resources) |
+| **v1.53** | World Observatory (market price history · chronicle timeline) |
+| **v1.58+** | Context Engine P0 (Prompt Inspector chunk lifecycle trace) |
+| **v1.69–1.75** | Settlement Mode (isometric/diorama views) · Vehicle & Mobile Base (fleet ops · mobile base) |
+| **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 compatibility gate · ComfyUI job lifecycle repair |
+| **v1.79–1.83** | NOAI Play (deterministic travel/economy) · per-resource 5-tier economy difficulty (abundant→barren) |
+| **v1.84** | Logistics Graph Canvas (interactive trade-network visualization) · responsive 3-stage Webview shell |
 
 See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.
 
 **Planned**
 
-- README / DEMO screenshots and GIFs
 - Overmap image tilesets, hazard one-line GM injection
 - Prompt budget priority sliding (long sessions)
 - Workshop / marketplace publishing

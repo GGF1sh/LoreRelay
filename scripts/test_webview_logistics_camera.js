@@ -765,8 +765,8 @@ test('particle flow behavior on a positive-volume route is unchanged', () => {
   const dots = findAll(route, (n) => n.classList.contains('logistics-flow-dot'));
   assert.strictEqual(dots.length, 2, 'open, positive-volume routes still render 2 SMIL particles');
   const line = findAll(route, (n) => n.classList.contains('logistics-route-line'))[0];
-  const motionPath = findAll(dots[0], (n) => n.tagName === 'MPATH')[0];
-  assert.strictEqual(motionPath.getAttribute('href'), `#${line.getAttribute('id')}`);
+  const motion = findAll(dots[0], (n) => n.tagName === 'ANIMATEMOTION')[0];
+  assert.strictEqual(motion.getAttribute('path'), line.getAttribute('d'));
 });
 
 test('deterministic route geometry and regional node layout output are stable', () => {

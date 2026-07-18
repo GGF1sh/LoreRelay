@@ -404,17 +404,31 @@ function logisticsClearRouteParticles(group) {
   if (group.classList) { group.classList.remove('is-flowing'); }
 }
 
+function logisticsFlowDotRouteGroup(dot) {
+  let candidate = dot?.parentNode || null;
+  while (candidate) {
+    if (candidate.dataset?.routeId) { return candidate; }
+    candidate = candidate.parentNode;
+  }
+  return null;
+}
+
+function logisticsFlowDotMotion(dot) {
+  const motions = typeof dot?.querySelectorAll === 'function'
+    ? dot.querySelectorAll('animateMotion') : [];
+  return motions && motions.length ? motions[0] : null;
+}
+
 /**
- * Active-view particle audit: remove every .logistics-flow-dot in the active
- * SVG whose mpath references an affected (or missing/stale) path ID. This
- * catches orphans outside tracked _logisticsParts arrays (raised layer moves,
- * stale SMIL remounts, wrong render-instance leftovers).
+ * Active-view drag audit. Direct animateMotion paths have no mpath ID to
+ * inspect, so route ancestry is the suppression authority. Missing motion
+ * geometry is also purged, catching raised-layer/orphan remnants.
  */
 function logisticsPurgeSuppressedFlowDots(rendered) {
   const session = economyLogisticsUiState.nodeDragSession;
   if (!session || !session.active) { return; }
-  const pathIds = session.affectedPathIds;
-  const hasPath = (id) => pathIds && (pathIds.has ? pathIds.has(id) : pathIds.includes(id));
+  const routeIds = session.affectedRouteIds;
+  const hasRoute = (id) => routeIds && (routeIds.has ? routeIds.has(id) : routeIds.includes(id));
   const roots = [];
   if (rendered?.svg) { roots.push(rendered.svg); }
   if (rendered?.viewport) { roots.push(rendered.viewport); }
@@ -430,21 +444,10 @@ function logisticsPurgeSuppressedFlowDots(rendered) {
       ? root.querySelectorAll('.logistics-flow-dot')
       : [];
     for (const dot of dots) {
-      let href = '';
-      const mpaths = typeof dot.querySelectorAll === 'function' ? dot.querySelectorAll('mpath') : [];
-      if (mpaths && mpaths.length) {
-        href = mpaths[0].getAttribute('href') || mpaths[0].getAttribute('xlink:href') || '';
-      }
-      const pathId = href.startsWith('#') ? href.slice(1) : href;
-      // Suppress if path is affected, empty, or no longer present in the SVG.
-      let missing = !pathId;
-      if (!missing && rendered?.svg) {
-        const line = typeof document !== 'undefined' && document.getElementById
-          ? document.getElementById(pathId)
-          : null;
-        missing = !line;
-      }
-      if (hasPath(pathId) || missing) {
+      const group = logisticsFlowDotRouteGroup(dot);
+      const routeId = group?.dataset?.routeId || '';
+      const motionPath = logisticsFlowDotMotion(dot)?.getAttribute?.('path') || '';
+      if (hasRoute(routeId) || !routeId || !motionPath) {
         if (dot.parentNode) { dot.parentNode.removeChild(dot); }
       }
     }
@@ -455,6 +458,44 @@ function logisticsPurgeSuppressedFlowDots(rendered) {
       logisticsClearRouteParticles(rendered.routeElements.get(routeId));
     }
   }
+}
+
+/**
+ * Enumerate the current active SVG after restoration and remove any visible
+ * dot whose direct motion geometry is not byte-identical to its live route
+ * line. The rendered route group and line are the sole geometry authority.
+ */
+function logisticsAuditActiveFlowDots(rendered) {
+  const activeContextId = logisticsCameraHostKey();
+  if (!rendered || economyLogisticsUiState.rendered !== rendered
+    || rendered.contextId !== activeContextId || !rendered.svg) {
+    return { visibleCount: 0, staleCount: 0, removedCount: 0, records: [] };
+  }
+  const dots = typeof rendered.svg.querySelectorAll === 'function'
+    ? rendered.svg.querySelectorAll('.logistics-flow-dot') : [];
+  const records = [];
+  let staleCount = 0;
+  let removedCount = 0;
+  for (const dot of dots) {
+    if (dot.getAttribute?.('display') === 'none') { continue; }
+    const group = logisticsFlowDotRouteGroup(dot);
+    const routeId = group?.dataset?.routeId || '';
+    const activeGroup = routeId ? rendered.routeElements?.get(routeId) : null;
+    const line = activeGroup?._logisticsParts?.line || null;
+    const lineD = line?.getAttribute?.('d') || '';
+    const motion = logisticsFlowDotMotion(dot);
+    const motionD = motion?.getAttribute?.('path') || '';
+    const current = Boolean(group && activeGroup === group && lineD && motionD === lineD);
+    records.push({ routeId, lineD, motionD, current });
+    if (!current) {
+      staleCount += 1;
+      if (dot.parentNode) { dot.parentNode.removeChild(dot); removedCount += 1; }
+      if (group?._logisticsParts?.particles) {
+        group._logisticsParts.particles = group._logisticsParts.particles.filter((particle) => particle !== dot);
+      }
+    }
+  }
+  return { visibleCount: records.length - removedCount, staleCount, removedCount, records };
 }
 
 function logisticsBeginNodeDragSession(rendered, nodeId) {
@@ -1083,8 +1124,9 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
     const group = rendered.routeElements.get(routeId);
     if (!group || !group._logisticsParts) { continue; }
     const parts = group._logisticsParts;
-    // Always clear particles for drag-affected routes. SMIL <mpath> can keep
-    // sampling a pre-drag motion path after `d` mutates if dots are left alive.
+    // Always clear particles for drag-affected routes. A direct animateMotion
+    // path is an immutable creation-time geometry snapshot and must not remain
+    // alive while the visible line's d changes.
     logisticsClearRouteParticles(group);
     parts.line.setAttribute('d', geom.pathD);
     parts.line.dataset.routePath = geom.pathD;
@@ -1150,7 +1192,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   // Drag-session gate: never create particles for routes incident to the
   // actively dragged node (raised layer / filter / search re-renders included).
   const particles = particleEligible
-    ? logisticsRenderFlowParticles(group, route, geometry, pathId) : [];
+    ? logisticsRenderFlowParticles(group, route, geometry, line) : [];
 
   const labelX = Math.round(geometry.labelAnchor.x);
   const labelY = Math.round(geometry.labelAnchor.y);
@@ -1215,13 +1257,17 @@ function logisticsRefreshRouteElement(group, positions) {
  *  convoy under threat visibly reads as different from healthy flow.
  *
  *  Coordinates must be finite before any circle is created. The particle is
- *  rooted at local (0,0) and follows the rendered path via <mpath>; assigning
+ *  rooted at local (0,0) and follows a direct animateMotion path; assigning
  *  both absolute cx/cy and an absolute motion path double-applies the source
- *  offset and visibly throws dots away from their routes. */
-function logisticsRenderFlowParticles(group, route, geometry, pathId) {
+ *  offset and visibly throws dots away from their routes. The live visible
+ *  line's current d is read at creation time so Electron cannot reuse a stale
+ *  SMIL mpath cache after node dragging. */
+function logisticsRenderFlowParticles(group, route, geometry, routeLine) {
   // Central gate: creation is forbidden while this route is drag-suppressed.
   if (route && isRouteSuppressedByActiveNodeDrag(route.id)) { return []; }
   if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return []; }
+  const currentPathD = routeLine?.getAttribute?.('d') || '';
+  if (!currentPathD) { return []; }
   const duration = logisticsFlowDurationSeconds(route);
   if (!(duration > 0) || !Number.isFinite(duration)) { return []; }
   const dotCount = route.status === 'raided' ? 1 : 2;
@@ -1238,9 +1284,7 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
     const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
     motion.setAttribute('dur', `${duration.toFixed(2)}s`);
     motion.setAttribute('repeatCount', 'indefinite');
-    const motionPath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
-    motionPath.setAttribute('href', `#${pathId}`);
-    motion.appendChild(motionPath);
+    motion.setAttribute('path', currentPathD);
     const phase = (stagger + (i * duration) / dotCount) % duration;
     // Negative begin = animation already "running" at t=0 (mid-path), so the
     // particle never waits at the static cx/cy for a delayed positive begin.
@@ -1851,10 +1895,10 @@ function logisticsSetupCameraInteractions(ctx) {
     const sessionRouteIds = active.type === 'node'
       ? (logisticsAffectedRouteIdsForNode(active.nodeId, rendered.routeTopologyIndex) || [])
       : [];
+    const sessionContextId = active.type === 'node'
+      ? economyLogisticsUiState.nodeDragSession?.renderedContextId : null;
     if (active.type === 'node') {
       if (options.restoreNode) { cancelPendingNodeDrag(); } else { flushPendingNodeDrag(); }
-      // End suppression after the last paint flush so recreate is allowed.
-      logisticsEndNodeDragSession();
     }
     if (options.restoreCamera && active.startCamera) {
       setCamera(active.startCamera);
@@ -1909,23 +1953,31 @@ function logisticsSetupCameraInteractions(ctx) {
           toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
         }
       }
-      // Session already ended above. Rebuild eligible particles on current path IDs.
-      // (Session begins on pointerdown, so even a no-move click restores dots.)
-      for (const routeId of sessionRouteIds) {
-        const group = rendered.routeElements.get(routeId);
-        if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
-          const route = group._logisticsRoute;
-          const style = group._logisticsStyle;
-          const relevanceKind = group.dataset.relevance || 'unrelated';
-          const pathId = group._logisticsParts.line.getAttribute('id');
-          logisticsClearRouteParticles(group);
-          if (logisticsRouteMayShowFlowParticles(route, 'primary', style)) {
-            group._logisticsParts.particles = logisticsRenderFlowParticles(
-              group, route, group._logisticsGeometry, pathId
-            );
+      // Keep suppression active through the final rounded position, route/line/
+      // annotation and minimap commits. Only the context that owns this drag may
+      // then rebuild particles, each from its live line's current d.
+      const restoreInActiveContext = economyLogisticsUiState.rendered === rendered
+        && rendered.contextId === sessionContextId
+        && logisticsCameraHostKey() === sessionContextId;
+      logisticsEndNodeDragSession();
+      if (restoreInActiveContext) {
+        // Session begins on pointerdown, so even a no-move click restores dots.
+        for (const routeId of sessionRouteIds) {
+          const group = rendered.routeElements.get(routeId);
+          if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
+            const route = group._logisticsRoute;
+            const style = group._logisticsStyle;
+            const relevanceKind = group.dataset.relevance || 'unrelated';
+            logisticsClearRouteParticles(group);
+            if (logisticsRouteMayShowFlowParticles(route, 'primary', style)) {
+              group._logisticsParts.particles = logisticsRenderFlowParticles(
+                group, route, group._logisticsGeometry, group._logisticsParts.line
+              );
+            }
+            logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
           }
-          logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
         }
+        rendered.lastFlowParticleAudit = logisticsAuditActiveFlowDots(rendered);
       }
     }
     if (active.moved && options.commitNode) {

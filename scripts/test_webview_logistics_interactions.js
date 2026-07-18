@@ -44,6 +44,7 @@ const TEST_API = `
   logisticsBeginNodeDragSession,
   logisticsEndNodeDragSession,
   logisticsPurgeSuppressedFlowDots,
+  logisticsAuditActiveFlowDots,
   logisticsClearRouteParticles,
   logisticsRenderFlowParticles,
   isLogisticsRouteFlowEligible,
@@ -124,6 +125,9 @@ class FakeElement {
     }
     if (sel === 'mpath' || sel === 'MPATH') {
       return all.filter((n) => n.tagName === 'MPATH');
+    }
+    if (sel === 'animateMotion' || sel === 'ANIMATEMOTION') {
+      return all.filter((n) => n.tagName === 'ANIMATEMOTION');
     }
     return [];
   }
@@ -538,11 +542,9 @@ test('node drag rounds, stays region-local, suppresses one click, cleanup paths 
   assert.ok(label, 'route label present');
   assert.ok(Number.isFinite(Number(label.getAttribute('x'))));
   assert.ok(Number.isFinite(Number(label.getAttribute('y'))));
-  // Particle path reference if any
-  const mpath = findAll(routeEl, (n) => n.tagName === 'MPATH')[0];
-  if (mpath) {
-    assert.strictEqual(mpath.getAttribute('href'), `#${line.getAttribute('id')}`);
-  }
+  // Particle direct motion geometry if any
+  const motion = findAll(routeEl, (n) => n.tagName === 'ANIMATEMOTION')[0];
+  if (motion) { assert.strictEqual(motion.getAttribute('path'), line.getAttribute('d')); }
 
   // Synthesized click after drag is suppressed once.
   h.api.economyLogisticsUiState.selection = null;
@@ -803,9 +805,7 @@ test('45-48: node drag updates every connected route path/label, preserves parti
 
   const dot = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-flow-dot'))[0];
   if (dot) {
-    const mpath = findAll(dot, (n) => n.tagName === 'MPATH')[0];
-    const lineId = r1Line.getAttribute('id');
-    assert.strictEqual(mpath.getAttribute('href'), `#${lineId}`, 'particle mpath still references the live route path id after drag');
+    assert.strictEqual(directMotionPath(dot), r1Line.getAttribute('d'), 'particle direct motion copies the live route path after drag');
   }
 });
 
@@ -870,8 +870,8 @@ test('50a: 200-node/400-route low-degree drag computes only its topology group a
   assert.strictEqual(connectedHit.getAttribute('d'), connectedLine.getAttribute('d'), 'connected hit path shares updated geometry');
   assert.notStrictEqual(`${connectedLabel.getAttribute('x')},${connectedLabel.getAttribute('y')}`, before.label, 'connected label updates');
   assert.notStrictEqual(`${connectedWarning.getAttribute('x')},${connectedWarning.getAttribute('y')}`, before.warning, 'connected warning updates');
-  const particlePath = findAll(connected, (n) => n.tagName === 'MPATH')[0];
-  if (particlePath) { assert.strictEqual(particlePath.getAttribute('href'), `#${connectedLine.getAttribute('id')}`, 'particle follows the updated shared path'); }
+  const particleMotion = findAll(connected, (n) => n.tagName === 'ANIMATEMOTION')[0];
+  if (particleMotion) { assert.strictEqual(particleMotion.getAttribute('path'), connectedLine.getAttribute('d'), 'particle follows the updated shared path'); }
 
   viewport.dispatchEvent({ type: 'pointerup', pointerId: 90 });
   const afterDrop = {
@@ -970,8 +970,8 @@ test('SLICE4 41-60: factual visual tokens affect only rendering, not geometry or
   h.context.renderEconomyLogistics(changed, true);
   assert.strictEqual(line(routeOf(h, 'normal')).getAttribute('d'), normalD, '54 volume changes do not alter path d');
   assert.strictEqual(line(routeOf(h, 'rumored')).getAttribute('d'), line(routeOf(h, 'rumored')).dataset.routePath, '55 status changes retain the computed path');
-  const particle = findAll(routeOf(h, 'normal'), (n) => n.tagName === 'MPATH')[0];
-  if (particle) { assert.strictEqual(particle.getAttribute('href'), `#${line(routeOf(h, 'normal')).getAttribute('id')}`, '56 mpath remains stable'); }
+  const particle = findAll(routeOf(h, 'normal'), (n) => n.tagName === 'ANIMATEMOTION')[0];
+  if (particle) { assert.strictEqual(particle.getAttribute('path'), line(routeOf(h, 'normal')).getAttribute('d'), '56 direct motion geometry remains current'); }
   routeOf(h, 'normal').dispatchEvent({ type: 'click' });
   assert.strictEqual(h.api.economyLogisticsUiState.selection.id, 'normal', '57 route click remains factual');
   routeOf(h, 'blocked').dispatchEvent({ type: 'keydown', key: 'Enter' });
@@ -1033,8 +1033,8 @@ test('SLICE4 corrections: renderer uses one relevance result and paints a second
   assert.strictEqual(line(fruit).getAttribute('d'), before.d, 'commodity relevance leaves visible path d byte-identical');
   assert.strictEqual(hit(fruit).getAttribute('d'), before.hitD, 'commodity relevance leaves hit path d byte-identical');
   assert.strictEqual(line(fruit).getAttribute('id'), before.id, 'commodity relevance leaves path id stable');
-  const mpath = findAll(fruit, (n) => n.tagName === 'MPATH')[0];
-  if (mpath) { assert.strictEqual(mpath.getAttribute('href'), `#${before.id}`, 'commodity relevance leaves mpath stable'); }
+  const motion = findAll(fruit, (n) => n.tagName === 'ANIMATEMOTION')[0];
+  if (motion) { assert.strictEqual(motion.getAttribute('path'), line(fruit).getAttribute('d'), 'commodity relevance leaves direct motion geometry current'); }
   assert.strictEqual(findAll(h.panel, (n) => n.dataset.routeId === 'fruit').length, 1, 'filter leaves one factual route element');
 
   h.api.economyLogisticsUiState.selection = { type: 'route', id: 'grain' };
@@ -1087,7 +1087,7 @@ test('SLICE5 corrections: filters compose, regions search, endpoints persist at 
   const line = (id) => findAll(routeOf(h, id), (n) => n.classList.contains('logistics-route-line'))[0];
   const hit = (id) => findAll(routeOf(h, id), (n) => n.classList.contains('logistics-route-hit'))[0];
   const stable = new Map(['grain_quiet', 'grain_special', 'fruit_special', 'iron_special'].map((id) => [id, {
-    group: routeOf(h, id), d: line(id).getAttribute('d'), hit: hit(id).getAttribute('d'), pathId: line(id).getAttribute('id'), mpath: findAll(routeOf(h, id), (n) => n.tagName === 'MPATH')[0]?.getAttribute('href') || null,
+    group: routeOf(h, id), d: line(id).getAttribute('d'), hit: hit(id).getAttribute('d'), pathId: line(id).getAttribute('id'), motionPath: findAll(routeOf(h, id), (n) => n.tagName === 'ANIMATEMOTION')[0]?.getAttribute('path') || null,
   }]));
   const commodity = selectOf(h);
   const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
@@ -1115,8 +1115,8 @@ test('SLICE5 corrections: filters compose, regions search, endpoints persist at 
     assert.strictEqual(line(id).getAttribute('d'), before.d, 'filter changes retain route path');
     assert.strictEqual(hit(id).getAttribute('d'), before.hit, 'filter changes retain hit path');
     assert.strictEqual(line(id).getAttribute('id'), before.pathId, 'filter changes retain path id');
-    const mpath = findAll(routeOf(h, id), (n) => n.tagName === 'MPATH')[0];
-    if (before.mpath) assert.strictEqual(mpath.getAttribute('href'), before.mpath, 'filter changes retain mpath reference');
+    const motion = findAll(routeOf(h, id), (n) => n.tagName === 'ANIMATEMOTION')[0];
+    if (before.motionPath) assert.strictEqual(motion.getAttribute('path'), before.motionPath, 'filter changes retain direct motion geometry');
   }
 
   search.value = 'no factual match'; search.dispatchEvent({ type: 'input' });
@@ -1181,7 +1181,7 @@ test('HUMAN-BLOCKERS-A: factual labels are final-layer text and filtered particl
   assert.strictEqual(nodeLabels.getAttribute('pointer-events'), 'none');
   const grainLine = findAll(grain, (n) => n.classList.contains('logistics-route-line'))[0];
   const grainHit = findAll(grain, (n) => n.classList.contains('logistics-route-hit'))[0];
-  const original = { d: grainLine.getAttribute('d'), hit: grainHit.getAttribute('d'), id: grainLine.getAttribute('id'), mpath: findAll(grain, (n) => n.tagName === 'MPATH')[0]?.getAttribute('href') };
+  const original = { d: grainLine.getAttribute('d'), hit: grainHit.getAttribute('d'), id: grainLine.getAttribute('id'), motionPath: findAll(grain, (n) => n.tagName === 'ANIMATEMOTION')[0]?.getAttribute('path') };
   assert.strictEqual(grainHit.parentNode, grain, 'route hit path remains inside the clickable factual route');
   grain.dispatchEvent({ type: 'click' });
   const selected = routeOf(h, 'grain_special');
@@ -1215,7 +1215,7 @@ test('HUMAN-BLOCKERS-A: factual labels are final-layer text and filtered particl
   assert.strictEqual(lineAfter.getAttribute('d'), original.d, 'filtering does not recompute route geometry');
   assert.strictEqual(hitAfter.getAttribute('d'), original.hit, 'filtering preserves hit-path geometry');
   assert.strictEqual(lineAfter.getAttribute('id'), original.id, 'filtering preserves route path id');
-  assert.strictEqual(findAll(grainAfter, (n) => n.tagName === 'MPATH')[0]?.getAttribute('href'), original.mpath, 'filtering preserves mpath reference');
+  assert.strictEqual(findAll(grainAfter, (n) => n.tagName === 'ANIMATEMOTION')[0]?.getAttribute('path'), original.motionPath, 'filtering preserves direct motion geometry');
   const flowToggle = findAll(h.panel, (n) => n.classList.contains('logistics-flow-toggle-btn'))[0];
   flowToggle.dispatchEvent({ type: 'click' });
   assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot')).length, 0, 'Flow off removes every particle');
@@ -1560,7 +1560,7 @@ test('HUMAN-BLOCKERS-D #9-11 and #20: node drag preserves route geometry and reb
   const rebuiltDots = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-flow-dot'));
   assert.ok(rebuiltDots.length > 0 && routeOf(h, 'grain_route').classList.contains('is-flowing'), 'D #11 pointerup immediately restores affected operational particles');
   assert.strictEqual(affectedLine.getAttribute('id'), affectedPathId, 'D #20 pointerup preserves the route path ID');
-  assert.ok(rebuiltDots.every((dot) => findAll(dot, (n) => n.tagName === 'MPATH').every((mpath) => mpath.getAttribute('href') === `#${affectedPathId}`)), 'D #20 rebuilt particles reference the preserved path ID');
+  assert.ok(rebuiltDots.every((dot) => directMotionPath(dot) === affectedLine.getAttribute('d')), 'D #20 rebuilt particles copy the current route geometry');
 });
 
 test('HUMAN-BLOCKERS-D #12-19: particles represent only relevant operational movement', () => {
@@ -1588,7 +1588,7 @@ test('HUMAN-BLOCKERS-D #12-19: particles represent only relevant operational mov
   const operational = routeOf(h, 'raided_positive');
   const line = findAll(operational, (n) => n.classList.contains('logistics-route-line'))[0];
   const hit = findAll(operational, (n) => n.classList.contains('logistics-route-hit'))[0];
-  const geometry = { d: line.getAttribute('d'), hit: hit.getAttribute('d'), id: line.getAttribute('id'), mpath: findAll(operational, (n) => n.tagName === 'MPATH')[0].getAttribute('href') };
+  const geometry = { d: line.getAttribute('d'), hit: hit.getAttribute('d'), id: line.getAttribute('id'), motionPath: findAll(operational, (n) => n.tagName === 'ANIMATEMOTION')[0].getAttribute('path') };
   const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
   search.value = 'no route result'; search.dispatchEvent({ type: 'input' });
   assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none').length, 0, '#17 zero-result search shows no particles');
@@ -1596,7 +1596,7 @@ test('HUMAN-BLOCKERS-D #12-19: particles represent only relevant operational mov
   assert.ok(dots('grain_route', true).length > 0 && dots('raided_positive', true).length > 0, '#18 clear restores operational routes only');
   assert.strictEqual(dots('blocked_positive').length + dots('sealed_equivalent').length, 0, '#18 clear never restores stopped routes');
   const after = routeOf(h, 'raided_positive'); const afterLine = findAll(after, (n) => n.classList.contains('logistics-route-line'))[0]; const afterHit = findAll(after, (n) => n.classList.contains('logistics-route-hit'))[0];
-  assert.deepStrictEqual({ d: afterLine.getAttribute('d'), hit: afterHit.getAttribute('d'), id: afterLine.getAttribute('id'), mpath: findAll(after, (n) => n.tagName === 'MPATH')[0].getAttribute('href') }, geometry, '#19 filters preserve geometry, path IDs, and mpath');
+  assert.deepStrictEqual({ d: afterLine.getAttribute('d'), hit: afterHit.getAttribute('d'), id: afterLine.getAttribute('id'), motionPath: findAll(after, (n) => n.tagName === 'ANIMATEMOTION')[0].getAttribute('path') }, geometry, '#19 filters preserve geometry, path IDs, and direct motion path');
   assert.strictEqual(routeOf(h, 'blocked_positive')._logisticsRoute.status, 'blocked', '#19 rendering does not mutate status');
   findAll(h.panel, (n) => n.classList.contains('logistics-flow-toggle-btn'))[0].dispatchEvent({ type: 'click' });
   assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#20 Flow off creates no particles');
@@ -1720,9 +1720,21 @@ function collectVisibleDots(root) {
   return findAll(root, (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none');
 }
 
-function mpathHref(dot) {
-  const m = findAll(dot, (n) => n.tagName === 'MPATH')[0];
-  return m ? (m.getAttribute('href') || '') : '';
+function directMotionPath(dot) {
+  const motion = findAll(dot, (n) => n.tagName === 'ANIMATEMOTION')[0];
+  return motion ? (motion.getAttribute('path') || '') : '';
+}
+
+function assertActiveDirectGeometry(h, label, root = h.panel) {
+  const dots = collectVisibleDots(root);
+  for (const dot of dots) {
+    const group = dot.parentNode;
+    const line = findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+    assert.ok(group?.dataset?.routeId && line, `${label}: visible dot has a live route group and line`);
+    assert.strictEqual(directMotionPath(dot), line.getAttribute('d'), `${label}: ${group.dataset.routeId} motion path equals current line d`);
+    assert.strictEqual(findAll(dot, (n) => n.tagName === 'MPATH').length, 0, `${label}: direct motion has no mpath dependency`);
+  }
+  return dots;
 }
 
 test('HUMAN-BLOCKERS-F #1-20: drag session suppresses all active-view particles for incident routes', () => {
@@ -1739,7 +1751,9 @@ test('HUMAN-BLOCKERS-F #1-20: drag session suppresses all active-view particles 
     summary: { activeRoutes: 3, blockedRoutes: 1, raidedRoutes: 1, totalVolume: 14, shortageCount: 0, bottleneckCount: 0 },
   }), true);
   h.flushAnimationFrames();
-  const openPathId = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('id');
+  const openLineBefore = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0];
+  const openPathId = openLineBefore.getAttribute('id');
+  const openPathBefore = openLineBefore.getAttribute('d');
   // Select open route first so it sits in the raised layer during the drag (#7).
   routeOf(h, 'tr_grain_to_port').dispatchEvent({ type: 'click' });
   assert.ok(routeOf(h, 'tr_grain_to_port').parentNode.classList.contains('layer-edges-raised'), '#7 pre-selected raised layer');
@@ -1763,9 +1777,8 @@ test('HUMAN-BLOCKERS-F #1-20: drag session suppresses all active-view particles 
   // #12-14 full active-view audit (not only route descendants)
   const allDots = collectVisibleDots(h.panel);
   for (const dot of allDots) {
-    const href = mpathHref(dot);
-    const pathId = href.startsWith('#') ? href.slice(1) : href;
-    assert.ok(!session.affectedPathIds.has(pathId), `#13 no visible dot references affected path ${pathId}`);
+    const group = dot.parentNode;
+    assert.ok(!session.affectedRouteIds.has(group?.dataset?.routeId), `#13 no visible dot belongs to affected route ${group?.dataset?.routeId}`);
   }
   assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#5/#7 raised route has no particles during drag');
   assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_reed'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, 'blocked stays particle free');
@@ -1783,9 +1796,9 @@ test('HUMAN-BLOCKERS-F #1-20: drag session suppresses all active-view particles 
     '#8 central gate denies particle recreation during drag'
   );
 
-  // Continue move + geometry refresh still particle-free
+  // Continue move but deliberately leave its final RAF pending. Pointerup must
+  // flush it before the line and fresh direct motion paths are committed.
   viewport.dispatchEvent({ type: 'pointermove', clientX: 200, clientY: 40, pointerId: 2001 });
-  h.flushAnimationFrames();
   assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#5 geometry refresh keeps particles suppressed');
 
   // #16-19 pointerup restore
@@ -1796,15 +1809,33 @@ test('HUMAN-BLOCKERS-F #1-20: drag session suppresses all active-view particles 
   assert.ok(restoredOpen.length > 0, `#16 open-route particles restore (got ${restoredOpen.length})`);
   assert.ok(restoredImpaired.length > 0, '#17 impaired-route particles restore');
   assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_reed'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#18 blocked never restores');
-  const openLineId = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('id');
-  assert.ok(restoredOpen.every((dot) => mpathHref(dot) === `#${openLineId}`), '#19 restored mpath uses current path ID');
+  const openLineAfter = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0];
+  const openLineId = openLineAfter.getAttribute('id');
+  assert.notStrictEqual(openLineAfter.getAttribute('d'), openPathBefore, '#1 pointerup flushes final pending RAF into route geometry');
+  assert.ok(restoredOpen.every((dot) => directMotionPath(dot) === openLineAfter.getAttribute('d')), '#19 restored open particles copy current line d');
+  const impairedLine = findAll(routeOf(h, 'tr_ore_to_ash'), (n) => n.classList.contains('logistics-route-line'))[0];
+  assert.ok(restoredImpaired.every((dot) => directMotionPath(dot) === impairedLine.getAttribute('d')), '#17 impaired particles copy current line d');
+  for (const routeId of affected) {
+    const group = routeOf(h, routeId);
+    const line = findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+    for (const dot of findAll(group, (n) => n.classList.contains('logistics-flow-dot'))) {
+      assert.strictEqual(directMotionPath(dot), line.getAttribute('d'), `multi-route ${routeId} uses its own current geometry`);
+    }
+  }
+  assert.ok(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.tagName === 'MPATH').length === 0, '#19 direct strategy has no stale/missing mpath reference');
+  assert.strictEqual(h.api.economyLogisticsUiState.rendered.lastFlowParticleAudit.staleCount, 0, '#19 active-view audit finds zero stale dots');
   assert.strictEqual(openLineId, openPathId, '#19 path ID preserved across drag');
 
   // #2 destination drag
   nodeOf(h, 'a2').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 2002 });
   assert.ok(h.api.economyLogisticsUiState.nodeDragSession?.active, '#2 destination drag starts session');
   assert.ok(h.api.economyLogisticsUiState.nodeDragSession.affectedRouteIds.has('tr_grain_to_port'));
+  const destinationBefore = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('d');
+  viewport.dispatchEvent({ type: 'pointermove', clientX: -330, clientY: 90, pointerId: 2002 });
   viewport.dispatchEvent({ type: 'pointerup', pointerId: 2002 });
+  const destinationLine = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0];
+  assert.notStrictEqual(destinationLine.getAttribute('d'), destinationBefore, '#2 destination final RAF changes current geometry');
+  assert.ok(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).every((dot) => directMotionPath(dot) === destinationLine.getAttribute('d')), '#2 destination restore uses current geometry');
 });
 
 test('HUMAN-BLOCKERS-F #21-24: maximize toggles panel size and preserves camera/selection', () => {
@@ -1852,11 +1883,78 @@ test('HUMAN-BLOCKERS-F #6: lightbox/enlarged context drag suppresses particles',
   assert.strictEqual(findAll(route, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#6 enlarged drag suppresses particles');
   const allDots = collectVisibleDots(host);
   for (const dot of allDots) {
-    const pathId = mpathHref(dot).replace(/^#/, '');
-    assert.ok(!h.api.economyLogisticsUiState.nodeDragSession.affectedPathIds.has(pathId), '#6/#12 no visible host dot on affected path');
+    assert.ok(!h.api.economyLogisticsUiState.nodeDragSession.affectedRouteIds.has(dot.parentNode?.dataset?.routeId), '#6/#12 no visible host dot on affected route');
   }
   viewport.dispatchEvent({ type: 'pointerup', pointerId: 3001 });
-  assert.ok(findAll(findAll(host, (n) => n.dataset.routeId === 'grain_route')[0], (n) => n.classList.contains('logistics-flow-dot')).length > 0, '#20 restore without large-view reopen');
+  const restoredRoute = findAll(host, (n) => n.dataset.routeId === 'grain_route')[0];
+  const restoredLine = findAll(restoredRoute, (n) => n.classList.contains('logistics-route-line'))[0];
+  const restoredDots = findAll(restoredRoute, (n) => n.classList.contains('logistics-flow-dot'));
+  assert.ok(restoredDots.length > 0, '#20 active lightbox restores without large-view reopen');
+  assert.ok(restoredDots.every((dot) => directMotionPath(dot) === restoredLine.getAttribute('d')), '#20 active lightbox restoration uses its current geometry');
+});
+
+test('HUMAN-BLOCKERS-G #11-16: selection/filter/search/semantic refresh and active audit reject stale geometry', () => {
+  const h = createHarness({ deferAnimationFrames: true });
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  h.flushAnimationFrames();
+  routeOf(h, 'grain_route').dispatchEvent({ type: 'click' });
+  let viewport = viewportOf(h);
+  const lineBefore = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-line'))[0];
+  const hitBefore = findAll(routeOf(h, 'grain_route'), (n) => n.classList.contains('logistics-route-hit'))[0];
+  const lineId = lineBefore.getAttribute('id');
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 4001 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 360, clientY: 80, pointerId: 4001 });
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 4001 });
+  let grain = routeOf(h, 'grain_route');
+  let grainLine = findAll(grain, (n) => n.classList.contains('logistics-route-line'))[0];
+  assert.ok(grain.parentNode.classList.contains('layer-edges-raised'), '#10 selected route remains raised');
+  assert.strictEqual(grainLine, lineBefore, '#18 visible line identity is stable');
+  assert.strictEqual(findAll(grain, (n) => n.classList.contains('logistics-route-hit'))[0], hitBefore, '#18 hit-path identity is stable');
+  assert.strictEqual(grainLine.getAttribute('id'), lineId, '#18 visible path ID is stable');
+  assertActiveDirectGeometry(h, '#10 selected raised restore');
+
+  const commodity = selectOf(h);
+  commodity.value = 'grain'; commodity.dispatchEvent({ type: 'change' });
+  assertActiveDirectGeometry(h, '#11 filter refresh');
+  const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
+  search.value = 'A1'; search.dispatchEvent({ type: 'input' });
+  assertActiveDirectGeometry(h, '#12 search refresh');
+  const zoomIn = toolbarBtn(h, 'logistics-camera-zoom-in');
+  for (let i = 0; i < 8; i++) { zoomIn.dispatchEvent({ type: 'click' }); }
+  assertActiveDirectGeometry(h, '#13 semantic-zoom refresh');
+
+  const rendered = h.api.economyLogisticsUiState.rendered;
+  const orphan = h.document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  orphan.setAttribute('class', 'logistics-flow-dot logistics-flow-dot-open');
+  const staleMotion = h.document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+  staleMotion.setAttribute('path', 'M 1 1 L 2 2');
+  orphan.appendChild(staleMotion);
+  rendered.svg.appendChild(orphan);
+  const audit = h.api.logisticsAuditActiveFlowDots(rendered);
+  assert.strictEqual(audit.staleCount, 1, '#14 active audit enumerates stale visible geometry');
+  assert.strictEqual(audit.removedCount, 1, '#16 active audit removes an orphan outside a route group');
+  assert.strictEqual(orphan.parentNode, null, '#16 no active-view orphan remains');
+  assert.ok(audit.records.filter((record) => record.current).every((record) => record.motionD === record.lineD), '#14 every retained visible dot proves current direct geometry');
+  assert.ok(collectVisibleDots(h.panel).every((dot) => directMotionPath(dot)), '#15 no retained visible particle has missing motion geometry');
+});
+
+test('HUMAN-BLOCKERS-G #8-9: inactive render context never receives pointerup restoration', () => {
+  const h = createHarness({ deferAnimationFrames: true });
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  h.flushAnimationFrames();
+  const normalRendered = h.api.economyLogisticsUiState.rendered;
+  const normalRoute = routeOf(h, 'grain_route');
+  const viewport = viewportOf(h);
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 5001 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 340, clientY: 30, pointerId: 5001 });
+  assert.strictEqual(findAll(normalRoute, (n) => n.classList.contains('logistics-flow-dot')).length, 0, 'normal context particles suppressed');
+  const inactiveReplacement = { contextId: 'lightbox', routeElements: new Map(), svg: h.document.createElementNS('http://www.w3.org/2000/svg', 'svg') };
+  h.api.economyLogisticsUiState.rendered = inactiveReplacement;
+  h.api.economyLogisticsUiState.lightboxHost = h.document.createElement('div');
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 5001 });
+  assert.strictEqual(findAll(normalRoute, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#9 inactive normal context receives no restored particles');
+  assert.strictEqual(findAll(inactiveReplacement.svg, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#9 active replacement is not polluted by stale drag restoration');
+  assert.strictEqual(normalRendered.lastFlowParticleAudit, undefined, '#8 inactive owner does not run active-view restoration audit');
 });
 
 if (failed) process.exit(1);

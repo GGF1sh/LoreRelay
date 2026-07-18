@@ -170,7 +170,7 @@ function descendants(node) {
 }
 function findAll(node, pred) { return descendants(node).filter(pred); }
 
-function createHarness() {
+function createHarness(options = {}) {
   const document = new FakeDocument();
   const section = document.createElement('details');
   section.id = 'world-logistics-details';
@@ -181,6 +181,8 @@ function createHarness() {
   document.body.appendChild(section);
   const store = new Map();
   const timers = [];
+  const animationFrames = [];
+  let animationFrameRequests = 0;
   const windowListeners = {};
   const context = {
     document,
@@ -205,6 +207,10 @@ function createHarness() {
   };
   context.globalThis = context;
   context.window = context;
+  if (options.deferAnimationFrames) {
+    context.requestAnimationFrame = (fn) => { const id = ++animationFrameRequests; animationFrames.push({ id, fn }); return id; };
+    context.cancelAnimationFrame = (id) => { const index = animationFrames.findIndex((frame) => frame.id === id); if (index >= 0) animationFrames.splice(index, 1); };
+  }
   context.addEventListener = (type, fn) => { (windowListeners[type] ||= []).push(fn); };
   context.removeEventListener = (type, fn) => {
     windowListeners[type] = (windowListeners[type] || []).filter((x) => x !== fn);
@@ -224,6 +230,13 @@ function createHarness() {
   vm.runInNewContext(moduleSource + TEST_API, context, { filename: 'logistics-interactions.js' });
   return {
     document, panel, context, store, timers,
+    get animationFrameRequests() { return animationFrameRequests; },
+    flushAnimationFrames() {
+      while (animationFrames.length) {
+        const frame = animationFrames.shift();
+        if (frame && typeof frame.fn === 'function') frame.fn();
+      }
+    },
     flushTimers() {
       while (timers.length) {
         const next = timers.shift();
@@ -1118,7 +1131,8 @@ test('HUMAN-BLOCKERS-A: factual labels are final-layer text and filtered particl
   assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none').length, 0, 'zero-result filtering leaves no visible ghost particles');
   const clear = findAll(h.panel, (n) => n.classList.contains('logistics-clear-filters-btn'))[0];
   clear.dispatchEvent({ type: 'click' });
-  assert.ok(visibleDots('iron_special').length > 0, 'clearing filters restores eligible particles');
+  assert.ok(visibleDots('grain_quiet').length > 0, 'clearing filters restores operational eligible particles');
+  assert.strictEqual(visibleDots('iron_special').length, 0, 'unknown/non-operational status never gains particles when filters clear');
   assert.strictEqual(findAll(h.panel, (n) => n.dataset.routeId === 'grain_special').length, 1, 'filtering does not duplicate the selected route');
   const grainAfter = routeOf(h, 'grain_special');
   const lineAfter = findAll(grainAfter, (n) => n.classList.contains('logistics-route-line'))[0];
@@ -1379,6 +1393,104 @@ test('F: light-theme region heading has a theme-aware backing and readable graph
   assert.match(LOGISTICS_CSS, /\.logistics-region-label\b[\s\S]*?paint-order:\s*stroke/, 'region heading keeps a theme-aware outline halo');
   // no hard-coded dark palette in the new region-heading rules
   assert.ok(!/#[0-9a-fA-F]{3,6}/.test(hitBlock), 'region heading backing uses theme variables, not hard-coded colors');
+});
+
+test('HUMAN-BLOCKERS-C #1-12: minimap projection expands live and canonicalizes at lifecycle boundaries', () => {
+  const h = createHarness({ deferAnimationFrames: true });
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  const model = () => h.api.economyLogisticsUiState.rendered.minimap.currentModel();
+  const viewport = viewportOf(h);
+  const initial = model();
+  const initialScale = initial.scale;
+  const unrelated = ['b1', 'b2'].map((id) => ({ id, x: h.api.economyLogisticsUiState.rendered.positions.get(id).x, y: h.api.economyLogisticsUiState.rendered.positions.get(id).y }));
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 901 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: -900, clientY: 0, pointerId: 901 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: -980, clientY: 0, pointerId: 901 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: -1040, clientY: 0, pointerId: 901 });
+  assert.strictEqual(h.animationFrameRequests, 1, '#5 repeated pointermove schedules one animation frame');
+  h.flushAnimationFrames();
+  const expanded = model();
+  const movedMarker = expanded.nodeMarkers.find((item) => item.id === 'a1');
+  const owningRegion = expanded.regionRects.find((item) => item.id === 'reg_a');
+  assert.ok(expanded.worldBounds.minX < initial.worldBounds.minX && expanded.scale < initialScale, '#1 moving beyond old bounds expands projection');
+  assert.ok(movedMarker.x >= expanded.minimapBounds.padding && movedMarker.x <= expanded.minimapBounds.width - expanded.minimapBounds.padding, '#2 moved node remains inside minimap');
+  assert.ok(owningRegion.x >= 0 && owningRegion.x + owningRegion.w <= expanded.minimapBounds.width + 0.01, '#3 owning region remains inside minimap');
+  unrelated.forEach((before) => { const after = h.api.economyLogisticsUiState.rendered.positions.get(before.id); assert.deepStrictEqual({ x: after.x, y: after.y }, { x: before.x, y: before.y }, '#4 unrelated region layout is unchanged'); });
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 901 });
+  const canonical = model();
+  const pos = h.api.economyLogisticsUiState.rendered.positions.get('a1');
+  assert.ok(pos.x - pos.w / 2 - canonical.worldBounds.minX >= 23.9, '#6 pointerup canonical projection retains world padding');
+
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 902 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 1700, clientY: 80, pointerId: 902 });
+  h.flushAnimationFrames();
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 902 });
+  const repeated = model();
+  const repeatedMarker = repeated.nodeMarkers.find((item) => item.id === 'a1');
+  assert.ok(Number.isFinite(repeated.scale) && repeatedMarker.x >= repeated.minimapBounds.padding && repeatedMarker.x <= repeated.minimapBounds.width - repeated.minimapBounds.padding, '#7 repeated drag has no stale scale/bounds');
+
+  toolbarBtn(h, 'logistics-layout-reset').dispatchEvent({ type: 'click' });
+  assert.ok(Number.isFinite(model().scale) && model().nodeMarkers.every((item) => item.x >= 0 && item.x <= model().minimapBounds.width), '#8 Layout Reset rebuilds a correct projection');
+  const collapse = collapseControl(h, 'reg_b');
+  findAll(collapse, (n) => n.classList.contains('logistics-region-collapse-hit'))[0].dispatchEvent({ type: 'click' });
+  const collapsedModel = model();
+  findAll(collapseControl(h, 'reg_b'), (n) => n.classList.contains('logistics-region-collapse-hit'))[0].dispatchEvent({ type: 'click' });
+  assert.ok(collapsedModel !== model() && model().regionRects.length >= collapsedModel.regionRects.length, '#9 collapse/expand rebuilds projection from visible graph');
+
+  const normalModel = model();
+  const largeHost = h.document.createElement('div'); largeHost.clientWidth = 900; h.document.body.appendChild(largeHost);
+  h.api.economyLogisticsUiState.lightboxHost = largeHost; h.api.renderEconomyLogisticsPanel();
+  const largeModel = h.api.economyLogisticsUiState.rendered.minimap.currentModel();
+  h.api.economyLogisticsUiState.lightboxHost = null; h.api.renderEconomyLogisticsPanel();
+  assert.ok(largeModel !== normalModel && Number.isFinite(largeModel.scale) && Number.isFinite(model().scale), '#10 embedded/large transitions recompute projection');
+
+  const canvas = minimapCanvas(h); const k0 = cameraOf(h).k;
+  canvas.dispatchEvent({ type: 'pointerdown', pointerId: 903, clientX: 25, clientY: 35, button: 0 });
+  canvas.dispatchEvent({ type: 'pointermove', pointerId: 903, clientX: 70, clientY: 60 });
+  canvas.dispatchEvent({ type: 'pointerup', pointerId: 903, clientX: 70, clientY: 60 });
+  assert.strictEqual(cameraOf(h).k, k0, '#11 first minimap drag preserves scale');
+  const tx = cameraOf(h).tx;
+  canvas.dispatchEvent({ type: 'pointerdown', pointerId: 904, clientX: 80, clientY: 30, button: 0 });
+  canvas.dispatchEvent({ type: 'pointermove', pointerId: 904, clientX: 105, clientY: 50 });
+  canvas.dispatchEvent({ type: 'pointerup', pointerId: 904, clientX: 105, clientY: 50 });
+  assert.strictEqual(cameraOf(h).k, k0, '#12 second minimap drag preserves scale');
+  assert.notStrictEqual(cameraOf(h).tx, tx, '#12 second minimap drag remains active');
+});
+
+test('HUMAN-BLOCKERS-C #13-20: particles represent only relevant operational movement', () => {
+  const base = twoRegionPayload();
+  const routes = [
+    base.routes[0],
+    { ...base.routes[1], id: 'blocked_positive', volume: 4, status: 'blocked' },
+    { ...base.routes[1], id: 'sealed_equivalent', volume: 4, status: 'sealed' },
+    { ...base.routes[1], id: 'raided_positive', volume: 2, status: 'raided' },
+  ];
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload({ routes, summary: { activeRoutes: 2, blockedRoutes: 1, raidedRoutes: 1, totalVolume: 14, shortageCount: 0, bottleneckCount: 0 } }), true);
+  const dots = (id, visibleOnly = false) => findAll(routeOf(h, id), (n) => n.classList.contains('logistics-flow-dot') && (!visibleOnly || n.getAttribute('display') !== 'none'));
+  assert.ok(dots('grain_route', true).length > 0 && routeOf(h, 'grain_route').classList.contains('is-flowing'), '#13 active operational route has particles');
+  assert.strictEqual(dots('blocked_positive').length, 0, '#14 blocked positive-volume route creates no particles');
+  assert.strictEqual(dots('sealed_equivalent').length, 0, '#14 disabled-equivalent/unknown status creates no particles');
+  routeOf(h, 'blocked_positive').dispatchEvent({ type: 'click' });
+  assert.strictEqual(dots('blocked_positive').length, 0, '#15 selection cannot force blocked movement');
+  h.panel.dispatchEvent({ type: 'keydown', key: 'Escape' });
+  const commodity = selectOf(h); commodity.value = 'iron'; commodity.dispatchEvent({ type: 'change' });
+  assert.strictEqual(dots('blocked_positive').length, 0, '#16 commodity relevance cannot force blocked movement');
+  const operational = routeOf(h, 'raided_positive');
+  const line = findAll(operational, (n) => n.classList.contains('logistics-route-line'))[0];
+  const hit = findAll(operational, (n) => n.classList.contains('logistics-route-hit'))[0];
+  const geometry = { d: line.getAttribute('d'), hit: hit.getAttribute('d'), id: line.getAttribute('id'), mpath: findAll(operational, (n) => n.tagName === 'MPATH')[0].getAttribute('href') };
+  const search = findAll(h.panel, (n) => n.classList.contains('logistics-search'))[0];
+  search.value = 'no route result'; search.dispatchEvent({ type: 'input' });
+  assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none').length, 0, '#17 zero-result search shows no particles');
+  findAll(h.panel, (n) => n.classList.contains('logistics-clear-filters-btn'))[0].dispatchEvent({ type: 'click' });
+  assert.ok(dots('grain_route', true).length > 0 && dots('raided_positive', true).length > 0, '#18 clear restores operational routes only');
+  assert.strictEqual(dots('blocked_positive').length + dots('sealed_equivalent').length, 0, '#18 clear never restores stopped routes');
+  const after = routeOf(h, 'raided_positive'); const afterLine = findAll(after, (n) => n.classList.contains('logistics-route-line'))[0]; const afterHit = findAll(after, (n) => n.classList.contains('logistics-route-hit'))[0];
+  assert.deepStrictEqual({ d: afterLine.getAttribute('d'), hit: afterHit.getAttribute('d'), id: afterLine.getAttribute('id'), mpath: findAll(after, (n) => n.tagName === 'MPATH')[0].getAttribute('href') }, geometry, '#19 filters preserve geometry, path IDs, and mpath');
+  assert.strictEqual(routeOf(h, 'blocked_positive')._logisticsRoute.status, 'blocked', '#19 rendering does not mutate status');
+  findAll(h.panel, (n) => n.classList.contains('logistics-flow-toggle-btn'))[0].dispatchEvent({ type: 'click' });
+  assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#20 Flow off creates no particles');
 });
 
 if (failed) process.exit(1);

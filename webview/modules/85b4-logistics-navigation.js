@@ -21,8 +21,39 @@ function logisticsNavigationBounds(bounds) {
   return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
 }
 
+function computeLogisticsMinimapProjectionBounds({ graphBounds, viewportSize, camera, nodes, regions, options } = {}) {
+  const base = logisticsNavigationBounds(graphBounds);
+  let minX = base.minX; let minY = base.minY; let maxX = base.maxX; let maxY = base.maxY;
+  const include = (x, y, w = 0, h = 0) => {
+    const safeX = logisticsNavigationFinite(x); const safeY = logisticsNavigationFinite(y);
+    const safeW = Math.max(0, logisticsNavigationFinite(w)); const safeH = Math.max(0, logisticsNavigationFinite(h));
+    minX = Math.min(minX, safeX); minY = Math.min(minY, safeY);
+    maxX = Math.max(maxX, safeX + safeW); maxY = Math.max(maxY, safeY + safeH);
+  };
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    const w = Math.max(0, logisticsNavigationFinite(node?.w)); const h = Math.max(0, logisticsNavigationFinite(node?.h));
+    include(logisticsNavigationFinite(node?.x) - w / 2, logisticsNavigationFinite(node?.y) - h / 2, w, h);
+  }
+  for (const [, region] of regions instanceof Map ? regions.entries() : []) {
+    include(region?.x, region?.y, region?.w, region?.h);
+  }
+  const safeCamera = { k: Math.max(0.0001, logisticsNavigationFinite(camera?.k, 1)), tx: logisticsNavigationFinite(camera?.tx), ty: logisticsNavigationFinite(camera?.ty) };
+  include(-safeCamera.tx / safeCamera.k, -safeCamera.ty / safeCamera.k,
+    Math.max(0, logisticsNavigationFinite(viewportSize?.width)) / safeCamera.k,
+    Math.max(0, logisticsNavigationFinite(viewportSize?.height)) / safeCamera.k);
+  const worldPadding = Math.max(0, logisticsNavigationFinite(options?.worldPadding, 24));
+  return logisticsNavigationBounds({ minX: minX - worldPadding, minY: minY - worldPadding, maxX: maxX + worldPadding, maxY: maxY + worldPadding });
+}
+
+function expandLogisticsMinimapProjectionBounds(current, candidate) {
+  const a = logisticsNavigationBounds(current); const b = logisticsNavigationBounds(candidate);
+  return logisticsNavigationBounds({ minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) });
+}
+
 function computeLogisticsMinimapModel({ graphBounds, viewportSize, camera, nodes, regions, options } = {}) {
-  const worldBounds = logisticsNavigationBounds(graphBounds);
+  const worldBounds = options?.projectionBounds
+    ? logisticsNavigationBounds(options.projectionBounds)
+    : computeLogisticsMinimapProjectionBounds({ graphBounds, viewportSize, camera, nodes, regions, options });
   const width = Math.max(1, logisticsNavigationFinite(options?.width, LOGISTICS_MINIMAP_SIZE));
   const height = Math.max(1, logisticsNavigationFinite(options?.height, LOGISTICS_MINIMAP_SIZE));
   const pad = Math.max(0, logisticsNavigationFinite(options?.padding, 6));
@@ -40,6 +71,15 @@ function computeLogisticsMinimapModel({ graphBounds, viewportSize, camera, nodes
     const p = project(node.x, node.y); return { id: node.id, x: p.x, y: p.y, selected: Boolean(node.selected), current: Boolean(node.current) };
   });
   return { worldBounds, minimapBounds: { width, height, padding: pad }, scale: safeScale, contentRect: { x: pad, y: pad, w: worldBounds.w * safeScale, h: worldBounds.h * safeScale }, viewportRect: { x: start.x, y: start.y, w: vpW / safeCamera.k * safeScale, h: vpH / safeCamera.k * safeScale }, regionRects, nodeMarkers, selectedMarker: nodeMarkers.find((node) => node.selected) || null, currentLocationMarker: nodeMarkers.find((node) => node.current) || null };
+}
+
+function isLogisticsRouteFlowEligible({ flowEnabled, reducedMotion, relevanceKind, volume, status } = {}) {
+  const movementStatuses = new Set(['open', 'strained', 'raided']);
+  return flowEnabled === true
+    && reducedMotion !== true
+    && relevanceKind === 'primary'
+    && Number.isFinite(volume) && volume > 0
+    && movementStatuses.has(String(status || 'open'));
 }
 
 function logisticsMinimapCameraAt(model, point, viewportSize, camera) {

@@ -13003,8 +13003,39 @@ function logisticsNavigationBounds(bounds) {
   return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
 }
 
+function computeLogisticsMinimapProjectionBounds({ graphBounds, viewportSize, camera, nodes, regions, options } = {}) {
+  const base = logisticsNavigationBounds(graphBounds);
+  let minX = base.minX; let minY = base.minY; let maxX = base.maxX; let maxY = base.maxY;
+  const include = (x, y, w = 0, h = 0) => {
+    const safeX = logisticsNavigationFinite(x); const safeY = logisticsNavigationFinite(y);
+    const safeW = Math.max(0, logisticsNavigationFinite(w)); const safeH = Math.max(0, logisticsNavigationFinite(h));
+    minX = Math.min(minX, safeX); minY = Math.min(minY, safeY);
+    maxX = Math.max(maxX, safeX + safeW); maxY = Math.max(maxY, safeY + safeH);
+  };
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    const w = Math.max(0, logisticsNavigationFinite(node?.w)); const h = Math.max(0, logisticsNavigationFinite(node?.h));
+    include(logisticsNavigationFinite(node?.x) - w / 2, logisticsNavigationFinite(node?.y) - h / 2, w, h);
+  }
+  for (const [, region] of regions instanceof Map ? regions.entries() : []) {
+    include(region?.x, region?.y, region?.w, region?.h);
+  }
+  const safeCamera = { k: Math.max(0.0001, logisticsNavigationFinite(camera?.k, 1)), tx: logisticsNavigationFinite(camera?.tx), ty: logisticsNavigationFinite(camera?.ty) };
+  include(-safeCamera.tx / safeCamera.k, -safeCamera.ty / safeCamera.k,
+    Math.max(0, logisticsNavigationFinite(viewportSize?.width)) / safeCamera.k,
+    Math.max(0, logisticsNavigationFinite(viewportSize?.height)) / safeCamera.k);
+  const worldPadding = Math.max(0, logisticsNavigationFinite(options?.worldPadding, 24));
+  return logisticsNavigationBounds({ minX: minX - worldPadding, minY: minY - worldPadding, maxX: maxX + worldPadding, maxY: maxY + worldPadding });
+}
+
+function expandLogisticsMinimapProjectionBounds(current, candidate) {
+  const a = logisticsNavigationBounds(current); const b = logisticsNavigationBounds(candidate);
+  return logisticsNavigationBounds({ minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) });
+}
+
 function computeLogisticsMinimapModel({ graphBounds, viewportSize, camera, nodes, regions, options } = {}) {
-  const worldBounds = logisticsNavigationBounds(graphBounds);
+  const worldBounds = options?.projectionBounds
+    ? logisticsNavigationBounds(options.projectionBounds)
+    : computeLogisticsMinimapProjectionBounds({ graphBounds, viewportSize, camera, nodes, regions, options });
   const width = Math.max(1, logisticsNavigationFinite(options?.width, LOGISTICS_MINIMAP_SIZE));
   const height = Math.max(1, logisticsNavigationFinite(options?.height, LOGISTICS_MINIMAP_SIZE));
   const pad = Math.max(0, logisticsNavigationFinite(options?.padding, 6));
@@ -13022,6 +13053,15 @@ function computeLogisticsMinimapModel({ graphBounds, viewportSize, camera, nodes
     const p = project(node.x, node.y); return { id: node.id, x: p.x, y: p.y, selected: Boolean(node.selected), current: Boolean(node.current) };
   });
   return { worldBounds, minimapBounds: { width, height, padding: pad }, scale: safeScale, contentRect: { x: pad, y: pad, w: worldBounds.w * safeScale, h: worldBounds.h * safeScale }, viewportRect: { x: start.x, y: start.y, w: vpW / safeCamera.k * safeScale, h: vpH / safeCamera.k * safeScale }, regionRects, nodeMarkers, selectedMarker: nodeMarkers.find((node) => node.selected) || null, currentLocationMarker: nodeMarkers.find((node) => node.current) || null };
+}
+
+function isLogisticsRouteFlowEligible({ flowEnabled, reducedMotion, relevanceKind, volume, status } = {}) {
+  const movementStatuses = new Set(['open', 'strained', 'raided']);
+  return flowEnabled === true
+    && reducedMotion !== true
+    && relevanceKind === 'primary'
+    && Number.isFinite(volume) && volume > 0
+    && movementStatuses.has(String(status || 'open'));
 }
 
 function logisticsMinimapCameraAt(model, point, viewportSize, camera) {
@@ -13861,7 +13901,7 @@ function logisticsApplyNavigationFilters() {
         if (style.commodityAccentState !== 'none') { annotations.classList.add(`is-commodity-${style.commodityAccentState}`); }
       }
     }
-    logisticsApplyFlowParticleVisibility(group, kind);
+    logisticsApplyFlowParticleVisibility(group, group._logisticsRoute, kind);
   };
   for (const route of rendered.graphRoutes) { apply(rendered.routeElements.get(route.id), visual.routeStyles.get(route.id)); }
   for (const node of rendered.graphNodes) { apply(rendered.nodeElements.get(node.id), visual.nodeStyles.get(node.id)); }
@@ -14065,12 +14105,14 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   if (!geometry) { return; }
   const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
   const selected = selectedRouteId === route.id;
-  const flowing = logisticsFlowMotionActive() && route.volume > 0;
   const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
   const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none' };
   const movement = route.volume > 0 ? 'active' : 'idle';
   const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
   const relevanceKind = style.relevanceKind || (style.relevance < 1 ? 'unrelated' : 'primary');
+  const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, status: route.status };
+  const flowing = isLogisticsRouteFlowEligible(flowInput);
+  const particleCapable = isLogisticsRouteFlowEligible({ ...flowInput, relevanceKind: 'primary' });
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
   if (group.style) { group.style.opacity = String(style.relevance); }
   if (flowing && typeof group.style.setProperty === 'function') {
@@ -14093,7 +14135,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   line.setAttribute('marker-end', `url(#logistics-arrow-${style.statusKey})`);
   if (style.dashPattern) { line.style.setProperty('stroke-dasharray', style.dashPattern); }
   group.appendChild(line);
-  const particles = flowing && !economyLogisticsUiState.compactAnimation
+  const particles = particleCapable && !economyLogisticsUiState.compactAnimation
     ? logisticsRenderFlowParticles(group, route, geometry, pathId) : [];
 
   const labelX = Math.round(geometry.labelAnchor.x);
@@ -14130,6 +14172,7 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   // The group's route id / path id never change when it moves between layers.
   (selected ? layerEdgesRaised : layerEdges).appendChild(group);
   layerLabels.appendChild(annotations);
+  logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
 }
 
 /** Single-route backward-compatible refresh (no sibling/obstacle context).
@@ -14208,11 +14251,13 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
   return particles;
 }
 
-function logisticsApplyFlowParticleVisibility(group, relevanceKind) {
+function logisticsApplyFlowParticleVisibility(group, route, relevanceKind) {
   const particles = group?._logisticsParts?.particles || [];
-  // Secondary and unrelated routes keep their factual stroke, but no moving
-  // particles: moving marks are reserved for the accepted primary relevance.
-  const display = relevanceKind === 'primary' ? 'inline' : 'none';
+  const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, status: route?.status });
+  if (group?.classList) { group.classList.toggle('is-flowing', eligible); }
+  // Secondary/unrelated routes and non-moving operational statuses keep their
+  // factual stroke, but animation is reserved for truthful active movement.
+  const display = eligible ? 'inline' : 'none';
   for (const particle of particles) { particle.setAttribute('display', display); }
 }
 
@@ -14393,10 +14438,13 @@ function renderLogisticsMinimap(viewport, layout, graph, positions, viewportSize
   const nodeLayer = logisticsElement('div', 'logistics-minimap-nodes');
   const viewportRect = logisticsElement('div', 'logistics-minimap-viewport');
   mini.appendChild(regionLayer); mini.appendChild(nodeLayer); mini.appendChild(viewportRect);
-  let model = null; let drag = null; let semantic = null;
-  const nodeInput = () => graph.nodes.map((node) => ({ id: node.id, x: positions.get(node.id)?.x || 0, y: positions.get(node.id)?.y || 0, selected: economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id, current: typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId }));
-  function update(nextCamera) {
-    model = computeLogisticsMinimapModel({ graphBounds: bounds, viewportSize, camera: nextCamera, nodes: nodeInput(), regions: layout.regions });
+  let model = null; let drag = null; let semantic = null; let projectionBounds = null; let expansionFrame = null; let pendingCamera = null;
+  const nodeInput = () => graph.nodes.map((node) => { const pos = positions.get(node.id); return { id: node.id, x: pos?.x || 0, y: pos?.y || 0, w: pos?.w || 0, h: pos?.h || 0, selected: economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id, current: typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId }; });
+  function paint(nextCamera, canonical) {
+    const nodes = nodeInput();
+    const candidate = computeLogisticsMinimapProjectionBounds({ graphBounds: bounds, viewportSize, camera: nextCamera, nodes, regions: layout.regions });
+    projectionBounds = canonical || !projectionBounds ? candidate : expandLogisticsMinimapProjectionBounds(projectionBounds, candidate);
+    model = computeLogisticsMinimapModel({ graphBounds: bounds, viewportSize, camera: nextCamera, nodes, regions: layout.regions, options: { projectionBounds } });
     if (!regionLayer._built) {
       model.regionRects.forEach((region) => { const rect = logisticsElement('span', 'logistics-minimap-region'); rect.dataset.regionId = region.id; regionLayer.appendChild(rect); });
       model.nodeMarkers.forEach((node) => { const dot = logisticsElement('span', 'logistics-minimap-node'); dot.dataset.minimapNodeId = node.id; nodeLayer.appendChild(dot); });
@@ -14410,14 +14458,31 @@ function renderLogisticsMinimap(viewport, layout, graph, positions, viewportSize
     semantic = nextSemantic.level;
     if (graphSvg?.classList) { graphSvg.classList.remove('is-zoom-overview', 'is-zoom-standard', 'is-zoom-detail'); graphSvg.classList.add(`is-zoom-${semantic}`); }
   }
+  function update(nextCamera) { paint(nextCamera, false); }
+  function canonical(nextCamera) {
+    pendingCamera = null;
+    if (expansionFrame !== null && typeof window.cancelAnimationFrame === 'function') { window.cancelAnimationFrame(expansionFrame); }
+    expansionFrame = null;
+    paint(nextCamera, true);
+  }
+  function expand(nextCamera) {
+    pendingCamera = nextCamera;
+    if (expansionFrame !== null) { return; }
+    if (typeof window.requestAnimationFrame !== 'function') { const pending = pendingCamera; pendingCamera = null; paint(pending, false); return; }
+    expansionFrame = window.requestAnimationFrame(() => {
+      expansionFrame = null;
+      const pending = pendingCamera; pendingCamera = null;
+      paint(pending, false);
+    });
+  }
   function point(event) { const rect = mini.getBoundingClientRect ? mini.getBoundingClientRect() : { left: 0, top: 0 }; return { x: (Number(event.clientX) || 0) - (rect.left || 0), y: (Number(event.clientY) || 0) - (rect.top || 0) }; }
   function move(event, immediate) { if (!model) { return; } onCamera(logisticsMinimapCameraAt(model, point(event), viewportSize, onCamera.current()), immediate); }
   mini.addEventListener('pointerdown', (event) => { drag = event.pointerId; if (mini.setPointerCapture) { try { mini.setPointerCapture(drag); } catch {} } if (event.preventDefault) { event.preventDefault(); } move(event, false); });
   mini.addEventListener('pointermove', (event) => { if (drag === event.pointerId) { move(event, false); } });
   const end = (event) => { if (drag !== null && (event.pointerId === undefined || event.pointerId === drag)) { move(event, true); drag = null; } };
   mini.addEventListener('pointerup', end); mini.addEventListener('pointercancel', () => { drag = null; }); mini.addEventListener('lostpointercapture', () => { drag = null; });
-  update(camera);
-  return { update };
+  canonical(camera);
+  return { update, expand, canonical, currentModel: () => model };
 }
 
 /** Camera updates touch only the group transform, the constant-screen-size
@@ -14641,7 +14706,7 @@ function logisticsSetupCameraInteractions(ctx) {
   const doc = typeof document !== 'undefined' ? document : null;
   const win = typeof window !== 'undefined' ? window : null;
 
-  function setCamera(next, immediateSave) {
+  function setCamera(next, immediateSave, projectionMode) {
     if (!logisticsIsValidCamera(next)) {
       // Retain last valid camera when an operation cannot produce a transform.
       if (logisticsIsValidCamera(hostCtx.camera)) { return; }
@@ -14649,7 +14714,7 @@ function logisticsSetupCameraInteractions(ctx) {
     }
     hostCtx.camera = next;
     applyLogisticsCameraTransform(svg, cameraGroup, next, toolbarEls);
-    if (typeof onCameraChange === 'function') { onCameraChange(next); }
+    if (typeof onCameraChange === 'function') { onCameraChange(next, projectionMode); }
     logisticsQueueCameraSave(Boolean(immediateSave));
   }
 
@@ -14659,6 +14724,7 @@ function logisticsSetupCameraInteractions(ctx) {
     hostCtx.identity = logisticsDatasetIdentity(state.payload);
     hostCtx.camera = logisticsFitAllCamera(currentBBox(), vp);
     applyLogisticsCameraTransform(svg, cameraGroup, hostCtx.camera, toolbarEls);
+    if (typeof onCameraChange === 'function') { onCameraChange(hostCtx.camera, 'canonical'); }
   }
 
   function screenPointFromEvent(event) {
@@ -14710,6 +14776,7 @@ function logisticsSetupCameraInteractions(ctx) {
         }
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId);
+        rendered.minimap?.canonical?.(hostCtx.camera);
       } else if (active.moved && options.commitNode) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
         position.x = Math.round(position.x); position.y = Math.round(position.y);
@@ -14735,6 +14802,7 @@ function logisticsSetupCameraInteractions(ctx) {
         // Finalize the owning region's bounds from the rounded/clamped commit
         // position so a subsequent full rerender is byte-identical.
         logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId);
+        rendered.minimap?.canonical?.(hostCtx.camera);
         economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
         // A manual override now exists; enable Layout Reset immediately without
@@ -14953,7 +15021,7 @@ function logisticsSetupCameraInteractions(ctx) {
         if (event.shiftKey) { resetCamera(); return; }
         const next = logisticsFitAllCamera(currentBBox(), vp);
         hostCtx.identity = identity;
-        setCamera(next, true);
+        setCamera(next, true, 'canonical');
       });
     }
   });
@@ -14990,7 +15058,7 @@ function logisticsSetupCameraInteractions(ctx) {
         }
         if (command === 'reset') { resetCamera(); return; }
         hostCtx.identity = identity;
-        setCamera(logisticsFitAllCamera(currentBBox(), vp), true);
+        setCamera(logisticsFitAllCamera(currentBBox(), vp), true, 'canonical');
       });
     },
   };
@@ -15086,8 +15154,8 @@ function logisticsLiveUpdateOwningRegion(rendered, layout, nodeId) {
       refs.hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260))));
     }
   }
-  if (rendered.minimap && typeof rendered.minimap.update === 'function') {
-    rendered.minimap.update(logisticsActiveCameraContext().camera);
+  if (rendered.minimap && typeof rendered.minimap.expand === 'function') {
+    rendered.minimap.expand(logisticsActiveCameraContext().camera);
   }
 }
 
@@ -15227,7 +15295,7 @@ function renderLogisticsNetwork(payload, parent) {
   }
   applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls);
   let minimap = null;
-  const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange: (next) => { if (minimap) { minimap.update(next); } } });
+  const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange: (next, mode) => { if (minimap) { if (mode === 'canonical') { minimap.canonical(next); } else { minimap.update(next); } } } });
   const minimapCamera = (next, immediate) => interactions.setCamera(next, immediate);
   minimapCamera.current = () => interactions.currentCamera();
   minimap = renderLogisticsMinimap(viewport, layout, graph, graph.positions, viewportSize, camera, svg, minimapCamera);

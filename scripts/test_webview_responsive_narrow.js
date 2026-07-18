@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// UX-RESPONSIVE-NARROW-001  Eproduction behavioral tests for the responsive shell.
+// UX-RESPONSIVE-NARROW-001 — production behavioral tests for the responsive shell.
 // Exercises pure width math and real DOM event wiring (toggle/scrim/Escape/resizer).
 
 const assert = require('assert');
@@ -78,6 +78,18 @@ class FakeEl {
   setAttribute(n, v) { this.attributes[n] = String(v); if (n === 'class') this.className = v; if (n === 'id') this.id = v; }
   getAttribute(n) { return this.attributes[n] === undefined ? null : this.attributes[n]; }
   removeAttribute(n) { delete this.attributes[n]; }
+  hasAttribute(n) { return Object.prototype.hasOwnProperty.call(this.attributes, n); }
+  remove() {
+    if (this.parentNode) {
+      this.parentNode.children = this.parentNode.children.filter((c) => c !== this);
+      this.parentNode = null;
+    }
+    if (this._id && this.ownerDocument && this.ownerDocument.byId) {
+      if (this.ownerDocument.byId.get(this._id) === this) {
+        this.ownerDocument.byId.delete(this._id);
+      }
+    }
+  }
   appendChild(c) { c.parentNode = this; this.children.push(c); return c; }
   querySelector(sel) {
     if (sel === '.lr-drawer-toggle-label') {
@@ -364,7 +376,7 @@ test('repeated breakpoint transitions remain deterministic', () => {
     h.setWidth(w);
     modes.push(h.api.getMode());
   }
-  // 1400 wide ↁE900 compact ↁE640 narrow ↁE1000 wide ↁE700 narrow ↁE1400 wide
+  // 1400 wide → 900 compact → 640 narrow → 1000 wide → 700 narrow → 1400 wide
   assert.deepStrictEqual(modes, [
     'wide',
     'drawer-compact',

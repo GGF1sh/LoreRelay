@@ -1718,6 +1718,10 @@
   "webview.parlor.personaImportJson": "加载人设 JSON…",
   "webview.parlor.personaSaveNew": "另存为新预设",
   "webview.parlor.personaUpdate": "更新所选预设",
+  "webview.responsive.openStatus": "打开状态面板",
+  "webview.responsive.closeStatus": "关闭状态面板",
+  "webview.responsive.statusDrawer": "冒险状态",
+  "webview.responsive.moreControls": "更多控件",
   "webview.world.logisticsLightboxMaximize": "最大化物流视图",
   "webview.world.logisticsLightboxRestore": "还原物流视图大小"
 }

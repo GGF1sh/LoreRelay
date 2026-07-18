@@ -18,6 +18,7 @@ LoreRelay connects chat, characters, maps, memory, economy, and image generation
 <p align="center"><sub>Start with a local AI, an existing AI subscription, or manual copy-paste. ComfyUI, VLM, and Remote Play are all optional.</sub></p>
 
 <p align="center">
+  <a href="#onboarding"><strong>Start with chat</strong></a> ·
   <a href="#how-to-play"><strong>Try it in 15 minutes</strong></a> ·
   <a href="#setup"><strong>Install</strong></a> ·
   <a href="#screenshots"><strong>See the UI</strong></a> ·
@@ -33,12 +34,41 @@ LoreRelay is not an LLM service. It is a **local-first UI and state layer that c
 | Play style | What you get | Minimum setup |
 |:---|:---|:---|
 | 🎭 **Parlor** | SillyTavern-style 1-on-1 RP, character cards, and lorebooks | VS Code + an AI |
-| ⚔️ **Campaign** | Character sheet, dice, persistent world, quests, and economy | VS Code + Python + an AI |
+| 🌐 **In-World Chat** | Talk as a resident with an existing world, domains, and current affairs as context | World data + a character |
+| ⚔️ **Campaign** | Multiple characters, dice, a persistent world, quests, and economy | VS Code + Python + an AI |
 | 📱 **Remote Play** | Join or spectate from a phone or tablet on the same LAN | Campaign setup + Remote Play |
 
 > Core play works without ComfyUI. Enable image generation to add scene art, illustrated world maps, and Visual Memory.
 
 > 💡 Like the project? You can [support development with a coffee ☕](https://ko-fi.com/promptpalette)
+
+---
+
+<a id="onboarding"></a>
+
+## 🪜 Start with conversation. Grow into a world.
+
+You do not need to configure a giant CRPG before you can enjoy LoreRelay. The main onboarding path is to **start by talking to a character you already have, then grow that conversation into your own world**.
+
+```mermaid
+flowchart LR
+    ST["ST character card<br/>World Info / Lorebook"] --> Parlor["🎭 Parlor<br/>1-on-1 chat"]
+    Parlor -->|Promote with recent chat| Campaign["⚔️ Campaign<br/>Persistent adventure world"]
+    Campaign --> Party["👥 Party Director<br/>Multi-NPC banter"]
+    Campaign --> InWorld["🌐 In-World Chat<br/>Talk as a resident"]
+```
+
+<p align="center">
+  <img src="docs/assets/screenshot-start-hub.png" width="820" alt="LoreRelay Start Hub offering Build a world, Talk to a character, In-World Chat, guided demo, and merchant simulation entry points" />
+</p>
+
+1. **Bring your main SillyTavern assets** — import character cards (PNG/JSON), World Info / Lorebooks, and the portrait embedded in a card. LoreRelay is not a fully compatible ST client, but it reuses the main assets needed for conversation ([compatibility guide](SILLYTAVERN_COMPAT.md)).
+2. **Start with 1-on-1 chat** — choose **Talk to a character (Parlor)** in the Start Hub for lightweight RP without dice or economy bookkeeping.
+3. **Promote the conversation into an adventure** — from Parlor Settings, choose **Start an adventure with this character** to create a scenario and game state that carry recent chat forward. You can switch back to Parlor later.
+4. **Watch multiple characters interact** — add characters to the Campaign party, then use Party Director to control verbosity, mute/force speech, and relationships. The GM plays several NPCs and generates natural NPC-to-NPC banter.
+5. **Talk inside the world you created** — **In-World Chat** injects the existing world, domains, and current affairs as read-only context. Use it for tavern chatter or interviewing residents without advancing or mutating the simulation.
+
+> **About “AI-to-AI conversation”:** today this means one connected GM model role-playing multiple characters under Party Director—not several independent AI agents running simultaneously.
 
 ---
 

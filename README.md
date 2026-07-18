@@ -18,6 +18,7 @@
 <p align="center"><sub>ローカルAI・既存のAIサブスクリプション・手動コピペのどれでも開始可能。ComfyUI、VLM、Remote Play はすべて任意です。</sub></p>
 
 <p align="center">
+  <a href="#onboarding"><strong>会話から始める</strong></a> ·
   <a href="#how-to-play"><strong>15分で試す</strong></a> ·
   <a href="#setup"><strong>インストール</strong></a> ·
   <a href="#screenshots"><strong>画面を見る</strong></a> ·
@@ -33,12 +34,41 @@ LoreRelay はLLMそのものではなく、**好きなAIをゲームマスター
 | 遊び方 | できること | 最初に必要なもの |
 |:---|:---|:---|
 | 🎭 **Parlor** | SillyTavern風の1対1 RP、キャラカード・ロアブック | VS Code + AI |
-| ⚔️ **Campaign** | キャラクターシート、ダイス、永続世界、クエスト、経済 | VS Code + Python + AI |
+| 🌐 **In-World Chat** | 作成済みの世界・領地・情勢を背景に、住人として会話 | 世界データ + キャラクター |
+| ⚔️ **Campaign** | 複数キャラクター、ダイス、永続世界、クエスト、経済 | VS Code + Python + AI |
 | 📱 **Remote Play** | 同一LANのスマホやタブレットから参加・観戦 | Campaign環境 + Remote Play |
 
 > ComfyUIなしでもコア機能は遊べます。画像生成を有効にすると、シーン背景・世界地図・Visual Memory が追加されます。
 
 > 💡 気に入ったら、開発を[コーヒー一杯で応援できます ☕](https://ko-fi.com/promptpalette)
+
+---
+
+<a id="onboarding"></a>
+
+## 🪜 まず会話、あとから世界へ
+
+LoreRelay は、最初から巨大なCRPGを設定しなくても遊べます。**手持ちのキャラクターとの会話から始め、その会話を自分の世界へ育てる**ことが、基本のオンボーディング導線です。
+
+```mermaid
+flowchart LR
+    ST["STキャラカード<br/>World Info / Lorebook"] --> Parlor["🎭 Parlor<br/>1対1チャット"]
+    Parlor -->|最近の会話を引き継いで昇格| Campaign["⚔️ Campaign<br/>永続する冒険世界"]
+    Campaign --> Party["👥 Party Director<br/>複数NPCの掛け合い"]
+    Campaign --> InWorld["🌐 In-World Chat<br/>世界の住人として会話"]
+```
+
+<p align="center">
+  <img src="docs/assets/screenshot-start-hub.png" width="820" alt="LoreRelay Start Hub。世界を作る、キャラと話す、世界内チャット、お試しデモ、商人シミュレーションから開始方法を選べる" />
+</p>
+
+1. **SillyTavernの主要資産を持ち込む** — キャラクターカード（PNG/JSON）、World Info / Lorebook、カードの立ち絵をインポートできます。LoreRelayはST完全互換クライアントではありませんが、会話に必要な主要資産を再利用できます（[互換ガイド](SILLYTAVERN_COMPAT.md)）。
+2. **まずは1対1で話す** — Start Hub の **「キャラと話す（Parlor）」** から、ダイスや経済管理のないシンプルなRPチャットを始めます。
+3. **会話を冒険へ昇格する** — Parlor設定の **「このキャラと冒険を始める」** から、最近の会話を引き継いだシナリオとゲーム状態を作成できます。CampaignからParlorへ戻ることもできます。
+4. **複数キャラクターの掛け合いを見る** — Campaignでキャラをパーティへ追加し、Party Directorで発言量・沈黙・強制発言・関係性を調整します。GMが複数NPCを演じ分け、NPC同士の自然な会話を生成します。
+5. **自作世界の中で話す** — **「世界内チャット」** は、作成済みの世界・領地・現在の情勢を読み取り専用の背景として会話へ注入します。世界を壊さず、酒場の雑談や住人への聞き込みを楽しめます。
+
+> **「AI同士の会話」について:** 現在は複数の独立AIエージェントを同時実行する方式ではなく、接続した1つのGMモデルがParty Directorの設定に従って複数キャラクターを演じ分ける方式です。
 
 ---
 
@@ -92,14 +122,14 @@ LoreRelay はLLMそのものではなく、**好きなAIをゲームマスター
 
 ### 🎭 Parlor モード（SillyTavern 風 1対1 RP）
 
-**シンプルな 1対1 チャット（Parlor）** と **本格 CRPG（Campaign）** をヘッダーの 🎭/⚔️ で切り替えられます。ST キャラカード・ロアブックをそのまま使えます（[完全互換クライアントではありません](docs/PARLOR_MODE_DESIGN.md)）。
+**シンプルな1対1チャット（Parlor）**、**作成済み世界で話す（In-World Chat）**、**本格CRPG（Campaign）** をヘッダーの 🎭/🌐/⚔️ で切り替えられます。ST キャラカード・ロアブックを使えます（[完全互換クライアントではありません](SILLYTAVERN_COMPAT.md)）。
 
 | バックエンド | 用途 |
 |:---|:---|
 | **vscode-lm**（推奨） | Copilot / Claude Code 等の月額 — API キー不要 |
 | **clipboard** | Antigravity Gemini 等 — 手動ペースト |
 
-**3ステップ:** キャラインポート → Start Hub「キャラと話す」→ 必要なら Campaign に昇格（Phase C 予定）。設計: [`docs/PARLOR_MODE_DESIGN.md`](docs/PARLOR_MODE_DESIGN.md)
+**3ステップ:** キャラインポート → Start Hub「キャラと話す」→ Parlor設定から「このキャラと冒険を始める」。最近の会話を引き継いでCampaignへ昇格できます。
 
 **初めての方:** [`docs/LIVING_WORLD_QUICKSTART.md`](docs/LIVING_WORLD_QUICKSTART.md)（5分）· [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)（3分スタート・タブの見方）  
 詳細なアーキテクチャ解説: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)

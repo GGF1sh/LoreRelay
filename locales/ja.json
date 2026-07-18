@@ -1727,6 +1727,10 @@
   "webview.parlor.personaImportJson": "ペルソナ JSON を読み込む…",
   "webview.parlor.personaSaveNew": "新しいプリセットとして保存",
   "webview.parlor.personaUpdate": "選択したプリセットを更新",
+  "webview.responsive.openStatus": "ステータスパネルを開く",
+  "webview.responsive.closeStatus": "ステータスパネルを閉じる",
+  "webview.responsive.statusDrawer": "冒険ステータス",
+  "webview.responsive.moreControls": "その他の操作",
   "webview.world.logisticsLightboxMaximize": "物流ビューを最大化",
   "webview.world.logisticsLightboxRestore": "物流ビューのサイズを戻す"
 }

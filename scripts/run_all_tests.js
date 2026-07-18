@@ -76,6 +76,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_webview_settlement_2d_framing.js' },
     { category: 'unit', file: 'test_webview_world_mode_persistence.js' },
     { category: 'unit', file: 'test_webview_world_location_nav_stability.js' },
+    { category: 'unit', file: 'test_webview_responsive_narrow.js' },
     { category: 'unit', file: 'test_logistics_layout.js' },
     { category: 'unit', file: 'test_logistics_route_geometry.js' },
     { category: 'unit', file: 'test_logistics_visual_encoding.js' },

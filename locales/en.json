@@ -1727,6 +1727,10 @@
   "webview.world.vehicleTileHint": "Vehicle and parking markers appear on the Tile map mode.",
   "webview.world.worldGenBusy": "⏳ Generating...",
   "webview.world.worldGenFailed": "❌ Generate Failed — Retry",
+  "webview.responsive.openStatus": "Open status panel",
+  "webview.responsive.closeStatus": "Close status panel",
+  "webview.responsive.statusDrawer": "Adventure Status",
+  "webview.responsive.moreControls": "More controls",
   "webview.world.logisticsLightboxMaximize": "Maximize logistics view",
   "webview.world.logisticsLightboxRestore": "Restore logistics view size"
 }

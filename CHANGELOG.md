@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.84.14] - 2026-07-18
+
+### Fixed
+- Logistics enlarged-view node drag no longer leaves ghost SMIL particles on stale paths; an authoritative drag-session gate suppresses and audits all incident-route flow dots until pointerup.
+- Logistics large view gains a maximize/restore control so the graph can use nearly the full Webview viewport without Fit All or camera reset.
+
 ## [1.84.13] - 2026-07-18
 
 ### Live logistics endpoint and truthful route-status presentation

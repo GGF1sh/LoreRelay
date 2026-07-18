@@ -1,23 +1,58 @@
-# LoreRelay - Local-first AI Game Master UI 🎲
+<h1 align="center">LoreRelay 🎲</h1>
+<h3 align="center">面向 VS Code 的本機優先 AI 遊戲主持人介面</h3>
 
-[English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
+<p align="center"><strong>讓 AI 故事成為不會消失的「遊戲世界」。</strong><br />
+透過本機 JSON 狀態，將聊天、角色、世界地圖、記憶、經濟與圖像生成連接為一個 AI RPG 前端。</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.84.16-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
-[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
+<p align="center"><a href="README_en.md">English</a> · <a href="README.md">日本語</a> · <a href="README_zh-CN.md">简体中文</a> · <a href="README_zh-TW.md">繁體中文</a></p>
 
-**Local-first AI Game Master UI**
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml"><img src="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/releases"><img src="https://img.shields.io/github/package-json/v/GGF1sh/LoreRelay?label=version&amp;color=blue" alt="Version" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay"><img src="https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github" alt="GitHub repository" /></a>
+</p>
 
-**Antigravity (免費) × LoreRelay × ComfyUI —— 由前沿大模型擔任 GM 的全自動 RPG 環境，無需 API 金鑰，零額外成本。**
+<p align="center"><img src="docs/assets/hero-ui.jpg" alt="LoreRelay — AI 遊戲主持人在燈籠點亮的酒館中主持冒險" width="720" /></p>
 
-這是一個最大化利用您現有 AI 訂閱的 VSCode 擴充套件，它結合了像 SillyTavern 一樣的後端自由度，以及像 Saga & Seeker 一樣硬核的 CRPG 體驗。
-透過手動複製貼上（或透過本地代理自動執行）傳遞 JSON，它提供了一個完全開放且可改造的「Hacker Edition」 UI 層，讓您可以自由地在自己的環境中進行 Hack。
+<p align="center"><sub>可使用本機 AI、現有 AI 訂閱或手動複製貼上開始。ComfyUI、VLM 與 Remote Play 均為選用功能。</sub></p>
 
-> 💡 **Notice:** 如果您喜歡這個擴充套件，請考慮[請我喝杯咖啡 ☕](https://ko-fi.com/promptpalette)
+<p align="center">
+  <a href="#how-to-play"><strong>15 分鐘試玩</strong></a> ·
+  <a href="#setup"><strong>安裝</strong></a> ·
+  <a href="#screenshots"><strong>查看介面</strong></a> ·
+  <a href="docs/FIRST_SESSION.md"><strong>首次遊玩指南</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-status.png" width="820" alt="LoreRelay 冒險日誌，在同一介面顯示 GM 敘事、選項、HP、MP、好感度、物品與技能" />
+</p>
+
+LoreRelay 本身不是 LLM 服務，而是一個**將您選擇的 AI 連接為遊戲主持人的本機優先 UI 與狀態層**。它不會丟棄每次回覆，而會把世界狀態、歷史、lore 與媒體儲存為檔案，讓長期戰役能跨工作階段繼續。
+
+| 遊玩方式 | 可獲得的體驗 | 最低需求 |
+|:---|:---|:---|
+| 🎭 **Parlor** | SillyTavern 風格的一對一 RP、角色卡與 lorebook | VS Code + AI |
+| ⚔️ **Campaign** | 角色面板、骰子、持久世界、任務與經濟 | VS Code + Python + AI |
+| 📱 **Remote Play** | 同一區域網路內用手機或平板加入、觀戰 | Campaign 環境 + Remote Play |
+
+> 無需 ComfyUI 即可遊玩核心內容。啟用圖像生成後，可加入場景圖、插畫世界地圖與 Visual Memory。
+
+> 💡 喜歡這個專案？可以[請我喝杯咖啡支持開發 ☕](https://ko-fi.com/promptpalette)
 
 ---
 
-## 🌟 Features
+## 🌟 可以做什麼
+
+| RPG 前端 | 活著的世界 | 連接您選擇的 AI |
+|:---|:---|:---|
+| 聊天、選項、自由輸入、HP/MP、物品、技能、骰子與自適應音訊 | 持久化地域、勢力、NPC、貿易與時間，並逐回合模擬 | 支援本機代理、VS Code LM、手動複製貼上與 OpenRouter |
+| **記憶與檢查** | **圖像與地圖** | **可自由改造** |
+| Lorebook、Memory、Turn Inspector 與稽核日誌 | ComfyUI 場景、羊皮紙地圖與 VLM Visual Memory | 直接編輯基於 JSON 的場景、規則與狀態 |
+
+<details>
+<summary><strong>展開完整功能列表與版本亮點</strong></summary>
+
 
 - 💸 **No Extra API Costs (by default):** 本機 LLM、Grok CLI 或手動複製貼上操作無需按量計費的 API 金鑰。僅在使用 OpenRouter 時需要 API 金鑰。
 - 🧩 **Agent Bridge:** 如果使用 Grok Build 等可在本機執行的 AI，您可以直接將 Webview 的選項和自由輸入發送給 GM。
@@ -48,6 +83,8 @@
 - 🕸️ **Logistics Graph Canvas (v1.84+):** 以圖論視角而非地圖可視化貿易網路——節點拖曳、區域折疊、語意縮放、小地圖、商品/路線狀態過濾，並提供帶即時流量的放大檢視。
 - 📐 **Responsive Webview Shell (v1.84.16+):** 三段式響應式版面——960px 以上為雙欄、720–959px 為覆蓋式抽屜、720px 以下為窄螢幕抽屜，即使在 VSCode 分割編輯窄視圖下聊天區也不會被擠壓。
 
+</details>
+
 架構詳解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ### 所需環境與可選功能
@@ -65,21 +102,28 @@
 
 GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmEntry` + `turnId`）。擴充套件驗證修補後合併至 **`game_state.json`**，並向 `state_journal.ndjson` 追加稽核紀錄。
 
+```mermaid
+flowchart LR
+    Player["玩家選項 / 自由輸入"] --> GM["您選擇的 AI / GM"]
+    GM --> Turn["turn_result.json"]
+    Turn --> Gate["驗證並套用狀態修補"]
+    Gate --> State["game_state.json"]
+    Gate --> Journal["state_journal.ndjson"]
+    State --> UI["LoreRelay Webview"]
+    UI --> Player
+```
+
 直接覆寫 **`game_state.json`** 為**緊急回退**（手動貼上或舊版 GM）。此時 `turnResultFallback` 會合成 `turn_result.json`，使檢查器、日誌與 MediaAgent 走同一路徑。
 
 **Cartography 管線（可選）：** `world_forge.json`（Region 的 `x` / `y` / `biome`）→ 版面 PNG（`world_map.layout.png`）→（可選）ComfyUI ControlNet → `world_map.png` → World 分頁 📍 圖釘疊加
 
 ---
 
+<a id="screenshots"></a>
+
 ## 📸 Screenshots & Demo
 
-<p align="center">
-  <img src="docs/assets/hero-ui.jpg" alt="LoreRelay — AI 遊戲主持人在燈籠點亮的酒館中召喚全息螢幕" width="720" />
-</p>
-
-<p align="center">
-  <img src="docs/assets/screenshot-status.png" width="720" alt="冒險日誌聊天介面，含GM敘事、HP/MP/好感度條、物品欄與技能標籤" />
-</p>
+上方主介面與以下所有圖像均截取自真實 Webview。
 
 <p align="center">
   <img src="docs/assets/screenshot-inspector.png" width="260" alt="Turn Inspector with Debug Trace timeline" /><br />
@@ -115,6 +159,8 @@ GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 
 ---
 
+<a id="how-to-play"></a>
+
 ## 🚀 How to Play
 
 ### 快速開始（約 3 分鐘）
@@ -145,6 +191,8 @@ GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 3. 儲存的瞬間，VSCode UI 會自動切換。（圖像生成和擲骰子需手動執行，或使用網頁版 AI 的功能代替）。
 
 ---
+
+<a id="setup"></a>
 
 ## 🛠️ Setup & Installation
 

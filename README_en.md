@@ -1,23 +1,58 @@
-# LoreRelay - Local-first AI Game Master UI 🎲
+<h1 align="center">LoreRelay 🎲</h1>
+<h3 align="center">Local-first AI Game Master UI for VS Code</h3>
 
-[English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
+<p align="center"><strong>Turn AI storytelling into a game world that persists.</strong><br />
+LoreRelay connects chat, characters, maps, memory, economy, and image generation through local JSON state.</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.84.16-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
-[![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
+<p align="center"><a href="README_en.md">English</a> · <a href="README.md">日本語</a> · <a href="README_zh-CN.md">简体中文</a> · <a href="README_zh-TW.md">繁體中文</a></p>
 
-**Local-first AI Game Master UI**
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml"><img src="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/releases"><img src="https://img.shields.io/github/package-json/v/GGF1sh/LoreRelay?label=version&amp;color=blue" alt="Version" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay"><img src="https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github" alt="GitHub repository" /></a>
+</p>
 
-**Antigravity (Free) × LoreRelay × ComfyUI —— A fully automated RPG environment hosted by frontier models, requiring no API keys or extra costs.**
+<p align="center"><img src="docs/assets/hero-ui.jpg" alt="LoreRelay — an AI Game Master running an adventure in a lantern-lit tavern" width="720" /></p>
 
-A VSCode extension that maximizes your existing AI subscriptions, combining backend freedom like SillyTavern with an authentic CRPG experience like Saga & Seeker.
-By passing JSON via manual copy-paste (or automating via local agents), it provides a completely open and hackable "Hacker Edition" UI layer to build your own adventure environment.
+<p align="center"><sub>Start with a local AI, an existing AI subscription, or manual copy-paste. ComfyUI, VLM, and Remote Play are all optional.</sub></p>
 
-> 💡 **Notice:** If you like this extension, please consider [buying me a coffee ☕](https://ko-fi.com/promptpalette)
+<p align="center">
+  <a href="#how-to-play"><strong>Try it in 15 minutes</strong></a> ·
+  <a href="#setup"><strong>Install</strong></a> ·
+  <a href="#screenshots"><strong>See the UI</strong></a> ·
+  <a href="docs/FIRST_SESSION.md"><strong>First-session guide</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-status.png" width="820" alt="LoreRelay adventure log with GM narration, choices, HP, MP, affinity, inventory, and skills in one screen" />
+</p>
+
+LoreRelay is not an LLM service. It is a **local-first UI and state layer that connects the AI you choose as Game Master**. Instead of throwing each reply away, it persists world state, history, lore, and media to files so long campaigns can continue across sessions.
+
+| Play style | What you get | Minimum setup |
+|:---|:---|:---|
+| 🎭 **Parlor** | SillyTavern-style 1-on-1 RP, character cards, and lorebooks | VS Code + an AI |
+| ⚔️ **Campaign** | Character sheet, dice, persistent world, quests, and economy | VS Code + Python + an AI |
+| 📱 **Remote Play** | Join or spectate from a phone or tablet on the same LAN | Campaign setup + Remote Play |
+
+> Core play works without ComfyUI. Enable image generation to add scene art, illustrated world maps, and Visual Memory.
+
+> 💡 Like the project? You can [support development with a coffee ☕](https://ko-fi.com/promptpalette)
 
 ---
 
-## 🌟 Features
+## 🌟 What you can do
+
+| RPG front end | Living world | Bring your own AI |
+|:---|:---|:---|
+| Chat, choices, free input, HP/MP, inventory, skills, dice, and adaptive audio | Persist and simulate regions, factions, NPCs, trade, and time turn by turn | Use a local agent, VS Code LM, manual copy-paste, or OpenRouter |
+| **Memory and inspection** | **Images and maps** | **Hackable by design** |
+| Lorebook, Memory, Turn Inspector, and an audit journal | ComfyUI scenes, parchment maps, and VLM Visual Memory | Edit JSON-based scenarios, rules, and state directly |
+
+<details>
+<summary><strong>Open the complete feature list and version highlights</strong></summary>
+
 
 - 💸 **No Extra API Costs (by default):** No pay-as-you-go API keys are needed for local LLMs, Grok CLI, or manual copy-paste operations. An API key is only required if you use OpenRouter.
 - 🧩 **Agent Bridge:** If you use a locally executable AI like Grok Build, you can send Webview choices and free text input directly to the GM.
@@ -50,6 +85,8 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🕸️ **Logistics Graph Canvas (v1.84+):** Visualizes the trade network as an interactive graph instead of a map — node dragging, region collapse, semantic zoom, minimap, commodity/route-status filters, and a maximized view with live flow rates.
 - 📐 **Responsive Webview Shell (v1.84.16+):** A three-stage layout — two-column at 960px+, an overlay drawer from 720–959px, and a narrow drawer below 720px — so chat no longer gets crushed in a narrow VSCode split-editor pane.
 
+</details>
+
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
 ### Requirements at a glance
@@ -67,21 +104,28 @@ Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUA
 
 Each turn, the GM should write **`turn_result.json`** (`statePatch` + `narration` + `gmEntry` + `turnId`). The extension validates the patch, merges into **`game_state.json`**, and appends an audit entry to `state_journal.ndjson`.
 
+```mermaid
+flowchart LR
+    Player["Player choice / free input"] --> GM["Your AI / GM"]
+    GM --> Turn["turn_result.json"]
+    Turn --> Gate["Validate and apply state patch"]
+    Gate --> State["game_state.json"]
+    Gate --> Journal["state_journal.ndjson"]
+    State --> UI["LoreRelay Webview"]
+    UI --> Player
+```
+
 Direct **`game_state.json`** overwrites are an **emergency fallback** (manual paste or legacy GM). `turnResultFallback` then synthesizes `turn_result.json` so Inspector, journal, and MediaAgent stay on the same path.
 
 **Cartography pipeline (optional):** `world_forge.json` (region `x` / `y` / `biome`) → layout PNG (`world_map.layout.png`) → (optional) ComfyUI ControlNet → `world_map.png` → 📍 pin overlay in the World tab
 
 ---
 
+<a id="screenshots"></a>
+
 ## 📸 Screenshots & Demo
 
-<p align="center">
-  <img src="docs/assets/hero-ui.jpg" alt="LoreRelay — an AI Game Master conjuring a holographic screen in a lantern-lit tavern" width="720" />
-</p>
-
-<p align="center">
-  <img src="docs/assets/screenshot-status.png" width="720" alt="Adventure Log chat with GM narration, HP/MP/Affection bars, inventory and skill tags" />
-</p>
+The main screen above and every image below were captured from the actual Webview.
 
 <p align="center">
   <img src="docs/assets/screenshot-inspector.png" width="260" alt="Turn Inspector with Debug Trace timeline" /><br />
@@ -117,6 +161,8 @@ All real screenshots captured from the actual Webview (`webview/index.html` + `s
 
 ---
 
+<a id="how-to-play"></a>
+
 ## 🚀 How to Play
 
 ### Quick start (3 minutes)
@@ -147,6 +193,8 @@ This extension uses a loosely coupled mechanism that watches `turn_result.json` 
 3. The moment you save, the VSCode UI will switch. (Perform image generation and dice rolls manually, or use the browser AI's features as a substitute).
 
 ---
+
+<a id="setup"></a>
 
 ## 🛠️ Setup & Installation
 

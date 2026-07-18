@@ -268,7 +268,7 @@ function lrShellHasHigherPriorityEscapeOwner() {
   if (parlor && !parlor.classList.contains('hidden')) { return true; }
   const charCreator = document.getElementById('char-creator-modal');
   if (charCreator && !charCreator.classList.contains('hidden')) { return true; }
-  if (document.getElementById('player-action-hub-overlay')) { return true; }
+  if (document.getElementById('player-action-hub')) { return true; }
   const lightbox = document.querySelector('.visual-lightbox');
   if (lightbox && !lightbox.classList.contains('hidden')) { return true; }
   return false;

@@ -62,7 +62,7 @@ html[data-lr-shell="drawer-narrow"] #status-area {
   bottom: 0;
   height: 100vh;
   max-height: 100vh;
-  z-index: 1200;
+  z-index: 150;
   margin: 0;
   border-radius: 0;
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
@@ -94,7 +94,7 @@ html[data-lr-shell^="drawer"][data-lr-drawer="open"] #status-area {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 140;
   background: rgba(0, 0, 0, 0.45);
   border: none;
   padding: 0;
@@ -296,7 +296,7 @@ html[data-lr-shell^="drawer"][data-lr-drawer="open"] #status-drawer-scrim {
   background: color-mix(in srgb, var(--vscode-editor-background, #000) 55%, transparent);
 }
 
-body.vscode-high-contrast html[data-lr-shell^="drawer"][data-lr-drawer="open"] #status-area,
+html[data-lr-shell^="drawer"][data-lr-drawer="open"] body.vscode-high-contrast #status-area,
 body.vscode-high-contrast #status-drawer-scrim {
   border-color: var(--vscode-contrastBorder, currentColor);
 }

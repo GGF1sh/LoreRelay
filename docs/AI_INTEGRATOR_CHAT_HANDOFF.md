@@ -5,6 +5,8 @@
 > Purpose: Let a fresh LoreRelay integration chat resume orchestration without depending on a long prior conversation.
 > Update rule: When a durable operating rule, model assignment, review lesson, or major task state changes, update this file.
 
+> **Current entrypoint:** Start with `docs/AI_WORKFLOW.md` and the verification policy. This document is a current-state handoff and historical evidence, not a reason to repeat its old checks or copy it into a prompt. When this file conflicts with the canonical workflow, the canonical workflow and current `main` win.
+
 ---
 
 ## 0. Read this first in a new integration chat
@@ -15,17 +17,10 @@ It is not the default place for long speculative design discussion. Other chats 
 
 At the start of a fresh chat:
 
-1. Get current JST with the user-info tool.
-2. Fetch current `origin/main` state from GitHub.
-3. Read, in this order:
-   - `docs/AI_INTEGRATOR_CHAT_HANDOFF.md`
-   - `docs/AI_REVIEW_BACKLOG.md`
-   - `docs/AI_FINDINGS_INBOX.md`
-   - `docs/AI_PROMPT_HANDOFF_POLICY.md`
-   - `docs/AI_EXPLORATION_BUDGET_POLICY.md`
-   - `docs/AI_EXTERNAL_REVIEW_PACKET_POLICY.md`
-4. Reconcile this snapshot against current GitHub before acting. This file can become stale; current main and tests are authoritative.
-5. If the user explicitly tags Google Drive, search Drive for relevant LoreRelay material and state clearly when nothing relevant exists.
+1. Get current JST and fetch `origin/main`.
+2. Read `docs/AI_WORKFLOW.md`, then this handoff only when current integration state is needed.
+3. Reconcile the needed sections against `docs/AI_REVIEW_BACKLOG.md`, `docs/AI_FINDINGS_INBOX.md`, and current `main`; do not read every archived task document.
+4. If the user explicitly tags Google Drive, search Drive for relevant LoreRelay material and state clearly when nothing relevant exists.
 
 Recommended opening instruction for a new chat:
 

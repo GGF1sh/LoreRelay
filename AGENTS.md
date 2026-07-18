@@ -1,12 +1,16 @@
 # Agent Rules (LoreRelay / overnight work)
 
-## Verification scope
+## AI workflow
 
-Read `docs/DEVELOPMENT_VERIFICATION_POLICY.md` first and size review/testing to the change's
-risk tier (Low/Medium/High) defined there. Most work is Low or Medium: focused tests only, no
-independent review, no full suite, no durable report. Reserve independent verification, repair
-passes, and full-suite runs for genuinely High-risk changes (shell/process execution, deletion,
-installer/updater, save-data migration, auth/networking, concurrent writes, security boundaries).
+Read `docs/AI_WORKFLOW.md` first, then `docs/DEVELOPMENT_VERIFICATION_POLICY.md`; size testing
+to its Low/Medium/High risk tier. Most work is Low or Medium: focused evidence only, no
+independent review or full suite. Documentation-only work does not need compile or a full suite.
+
+- Before adding a shared helper, exported type, public webview function, or reusable constant, run `npm run knowledge -- <name>`.
+- Before changing a host-to-webview or webview-to-host message, look up its message name. Before adding a `textAdventure.*` setting, look up its config key.
+- Before entity/event vocabulary work, consult `docs/TERMINOLOGY_CONTRACT.md` or `docs/EVENT_CLASSIFICATION_GLOSSARY.md` as applicable.
+- Choose focused tests through the Test Console plan first; supplement it only for a missing changed behavior. Full suites and independent review are risk-tier requirements, not defaults.
+- Do not have another AI reconfirm identical evidence on the same tree.
 
 ## Goal
 
@@ -23,7 +27,7 @@ Implement only the task described. Prefer small, reviewable diffs.
 
 ## Build & test
 
-After substantive changes:
+After substantive executable changes when the risk tier requires it:
 
 ```bash
 npm run compile

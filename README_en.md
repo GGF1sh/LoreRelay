@@ -44,7 +44,11 @@ By passing JSON via manual copy-paste (or automating via local agents), it provi
 - 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` fleet ops, garage panel, mobile base (MB1–MB5) with World Intent bridge.
 - 🧭 **State Orchestrator (SO1–SO2):** Ledger descriptor inventory and read-only GM-turn transaction planning gate.
 - 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector chunk lifecycle trace (included / truncated / evicted, etc.).
-- ✨ **Genesis Guide (Unreleased):** A staged wizard from the Start Hub's "Start building your world" — pick genre, playstyle, danger level, bookkeeping depth, protagonist creation method, and whether you want generated images, all by clicking chips. Previews the systems it will enable and the image-generation prompt live, then applies a safe patch to `game_rules.json` when you click "Start with this." Jumps straight into character creation or SillyTavern card import based on the protagonist method you picked. Falls back to prompt-copy gracefully if ComfyUI isn't running. Design: [`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- ✨ **Genesis Guide:** A staged wizard from the Start Hub's "Start building your world" — pick genre, playstyle, danger level, bookkeeping depth, protagonist creation method, and whether you want generated images, all by clicking chips. Previews the systems it will enable and the image-generation prompt live, then applies a safe patch to `game_rules.json` when you click "Start with this." Jumps straight into character creation or SillyTavern card import based on the protagonist method you picked. Falls back to prompt-copy gracefully if ComfyUI isn't running. Design: [`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- 🧰 **Campaign Kit (v1.45+):** A genre-agnostic "hub → jobs/rumors → discovery sites → finds → appraisal/services → world reaction" loop. Seven genre presets (classic fantasy guild, post-apoc scavenger, space frontier, eastern fantasy, cyberpunk courier, modern occult, survival horror) with a discovery ledger, appraisal state machine, and campaign resources.
+- 📊 **World Observatory (v1.53+, experimental):** A dashboard for watching the world change — market price history sparklines, a chronicle timeline, and watch (free) / advance (consumes resources) modes.
+- 🕸️ **Logistics Graph Canvas (v1.84+):** Visualizes the trade network as an interactive graph instead of a map — node dragging, region collapse, semantic zoom, minimap, commodity/route-status filters, and a maximized view with live flow rates.
+- 📐 **Responsive Webview Shell (v1.84.16+):** A three-stage layout — two-column at 960px+, an overlay drawer from 720–959px, and a narrow drawer below 720px — so chat no longer gets crushed in a narrow VSCode split-editor pane.
 
 Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -101,6 +105,13 @@ Direct **`game_state.json`** overwrites are an **emergency fallback** (manual pa
   <img src="docs/assets/screenshot-world-map-detail.png" width="380" alt="World Map detail view: a selected high-danger ruin location card showing its type, danger level, and region, with quick actions to travel there or examine it" />
 </p>
 <p align="center"><sub>Cities, ruins, dungeons, ports, mountains, danger zones, unexplored frontiers, faction territory, and trade routes on a single map. Click a pin to open its type/danger/faction detail card with quick actions. The background is ComfyUI-generated (Illustrious + ControlNet); pins, labels, trade routes, and Fog of War are all drawn by the Webview from real world data.</sub></p>
+
+### 🕸️ Logistics — read the trade network as a graph
+
+<p align="center">
+  <img src="docs/assets/screenshot-logistics.png" width="700" alt="Logistics graph canvas: an interactive trade network with regions, market/settlement/facility nodes, live flow-rate routes, a legend, and a minimap" />
+</p>
+<p align="center"><sub>Settlements, markets, facilities, and mobile-base hubs as nodes, with trade routes color-coded open/strained/blocked as edges. Drag nodes to rearrange regions, filter by commodity or route status, semantic-zoom, and navigate via the minimap — a companion view to the map for seeing exactly where goods are flowing right now.</sub></p>
 
 All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`). See [`DEMO.md`](DEMO.md) for the capture method.
 
@@ -263,7 +274,7 @@ Also under `TextAdventureGMSkill/scenarios/`.
 
 ## 🗺️ Roadmap
 
-> **Source of truth:** `package.json` (currently **1.52.0**) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **Source of truth:** `package.json` (see badge above) · [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · task board: [`AI_ROADMAP.md`](AI_ROADMAP.md). With a multi-AI relay workflow the version bumps nearly daily, so this table is a summary of eras, not a patch-by-patch list.
 
 **Shipped (summary)**
 
@@ -277,12 +288,18 @@ Also under `TextAdventureGMSkill/scenarios/`.
 | **v1.34** | Parlor Mode (1-on-1 RP) · ST card import |
 | **v1.39–1.40** | Domain Mode (D1–D5) · D3 World tab UI · F7 audience / F8 rivals / F9 missions / F10 mass battle |
 | **v1.41–1.44** | Guild Master G1–G4 (weekly commit · request board · party dispatch · absence drift) |
+| **v1.45–1.52** | Campaign Kit Phase A–G (7 genre presets · discovery ledger · appraisal state machine · campaign resources) |
+| **v1.53** | World Observatory (market price history · chronicle timeline) |
+| **v1.58+** | Context Engine P0 (Prompt Inspector chunk lifecycle trace) |
+| **v1.69–1.75** | Settlement Mode (isometric/diorama views) · Vehicle & Mobile Base (fleet ops · mobile base) |
+| **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 compatibility gate · ComfyUI job lifecycle repair |
+| **v1.79–1.83** | NOAI Play (deterministic travel/economy) · per-resource 5-tier economy difficulty (abundant→barren) |
+| **v1.84** | Logistics Graph Canvas (interactive trade-network visualization) · responsive 3-stage Webview shell |
 
 See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.
 
 **Planned**
 
-- README / DEMO screenshots and GIFs
 - Overmap image tilesets, hazard one-line GM injection
 - Prompt budget priority sliding (long sessions)
 - Workshop / marketplace publishing

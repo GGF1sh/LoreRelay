@@ -42,7 +42,11 @@
 - 🚗 **Vehicle & Mobile Base (v1.74–1.75):** `vehicle_state.json` 車隊管理、車庫面板、移動基地（MB1–MB5）與 World Intent 橋接。
 - 🧭 **State Orchestrator (SO1–SO2):** 台帳描述符清單與 GM 回合唯讀 transaction planning gate。
 - 🔎 **Context Engine P0 (v1.58+):** Prompt Inspector 中的 chunk 生命週期追蹤（included / truncated / evicted 等）。
-- ✨ **Genesis Guide (Unreleased):** 從 Start Hub 的「開始建立世界」進入的分步精靈——只需點選即可決定世界觀、玩法、危險度、管理深度、主角建立方式以及是否需要生成圖像。即時預覽將啟用的系統與圖像生成提示詞，點擊「以此設定開始」後會安全地寫入 `game_rules.json`。依所選的主角建立方式，可直接跳轉到角色建立或 SillyTavern 卡片匯入。ComfyUI 無法使用時會自然回退為複製提示詞。設計文件：[`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- ✨ **Genesis Guide:** 從 Start Hub 的「開始建立世界」進入的分步精靈——只需點選即可決定世界觀、玩法、危險度、管理深度、主角建立方式以及是否需要生成圖像。即時預覽將啟用的系統與圖像生成提示詞，點擊「以此設定開始」後會安全地寫入 `game_rules.json`。依所選的主角建立方式，可直接跳轉到角色建立或 SillyTavern 卡片匯入。ComfyUI 無法使用時會自然回退為複製提示詞。設計文件：[`docs/RULES_PROFILE_ONBOARDING_DESIGN.md`](docs/RULES_PROFILE_ONBOARDING_DESIGN.md)
+- 🧰 **Campaign Kit (v1.45+):** 與題材無關的「據點 → 委託/傳聞 → 探索地 → 發現物 → 鑑定/服務 → 世界反應」循環。7 種題材預設（王道奇幻公會、末日拾荒者、太空邊境、東方幻想、賽博龐克快遞員、現代都市怪談、生存恐怖），內建發現物台帳、鑑定狀態機與戰役資源。
+- 📊 **World Observatory (v1.53+，experimental):** 「守望變化中的世界」觀測面板——市場價格歷史迷你圖、編年史時間軸，watch（免費）/ advance（消耗資源）兩種模式。
+- 🕸️ **Logistics Graph Canvas (v1.84+):** 以圖論視角而非地圖可視化貿易網路——節點拖曳、區域折疊、語意縮放、小地圖、商品/路線狀態過濾，並提供帶即時流量的放大檢視。
+- 📐 **Responsive Webview Shell (v1.84.16+):** 三段式響應式版面——960px 以上為雙欄、720–959px 為覆蓋式抽屜、720px 以下為窄螢幕抽屜，即使在 VSCode 分割編輯窄視圖下聊天區也不會被擠壓。
 
 架構詳解：[`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUAL_MEMORY.md)
 
@@ -100,7 +104,14 @@ GM 每回合應寫入 **`turn_result.json`**（`statePatch` + `narration` + `gmE
 </p>
 <p align="center"><sub>城市、遺跡、地下城、港口、山脈、危險地帶、未探索邊疆、勢力領地與貿易路線，盡在一張地圖上。點擊圖釘即可開啟該地點的類型/危險度/所屬勢力詳情卡片與快捷操作。背景由 ComfyUI（Illustrious + ControlNet）生成，圖釘、標籤、貿易路線與戰爭迷霧（Fog of War）皆由 Webview 依據真實世界資料繪製。</sub></p>
 
-替換為真實截圖或 GIF 的步驟見 [`DEMO.md`](DEMO.md)。
+### 🕸️ Logistics — 以圖論視角閱讀貿易網路
+
+<p align="center">
+  <img src="docs/assets/screenshot-logistics.png" width="700" alt="Logistics graph canvas: an interactive trade network with regions, market/settlement/facility nodes, live flow-rate routes, a legend, and a minimap" />
+</p>
+<p align="center"><sub>據點、市場、設施、移動基地以節點呈現，貿易路線依暢通/緊張/封鎖著色為邊。可拖曳節點重新排列區域、依商品或路線狀態過濾、語意縮放並透過小地圖導覽——與地圖互補，一眼看清貨物當下的流向。</sub></p>
+
+所有截圖皆來自真實 Webview（`webview/index.html` + `script.js` + `style.css`）的實機截圖，替換步驟見 [`DEMO.md`](DEMO.md)。
 
 ---
 
@@ -261,9 +272,9 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
 ## 🗺️ Roadmap
 
-> **版本正本：** `package.json`（目前 **1.52.0**）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任務看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)
+> **版本正本：** `package.json`（見上方徽章）· [`CHANGELOG.md`](CHANGELOG.md) · [`docs/VERSION_TRUTH.md`](docs/VERSION_TRUTH.md) · 任務看板 [`AI_ROADMAP.md`](AI_ROADMAP.md)。多 AI 接力開發下版本幾乎每天推進，此表為世代摘要，並非逐補丁清單。
 
-**已實作（v1.33.0 摘要）**
+**已實作（摘要）**
 
 | 世代 | 主要內容 |
 |------|----------|
@@ -271,13 +282,22 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 | **v1.10–1.11** | Quest Board（Event-to-Quest）· Agentic GM · Git Timeline · Adaptive TTS |
 | **v1.13–1.18** | Tile Overmap · Cartography C8/C9 · Debug sandbox · 世界時間推進 |
 | **v1.19–1.21** | Chronicle · Pacing Director · 派系聲望 · 旅途遭遇 · Replay Export |
-| **v1.23–1.33** | Living World 經濟（Commerce / Agency）· Commerce UI · 信任聯動位置 · **LW3 羈絆** |
+| **v1.23–1.33** | Living World 經濟（Commerce / Agency）· Commerce UI · 信任聯動位置 · **LW3 羈絆**（NPC↔NPC / 玩家↔NPC / 貿易聯動） |
+| **v1.34** | Parlor Mode（1對1角色扮演）· ST 卡片匯入 |
+| **v1.39–1.40** | Domain Mode（D1–D5）· D3 World 分頁 UI · F7 謁見 / F8 鄰國 / F9 派遣 / F10 合戰 |
+| **v1.41–1.44** | Guild Master G1–G4（每週結算 · 委託板 · 隊伍派遣 · 離隊漂移） |
+| **v1.45–1.52** | Campaign Kit Phase A–G（7 種題材預設 · 發現物台帳 · 鑑定狀態機 · 戰役資源） |
+| **v1.53** | World Observatory（市場價格歷史 · 編年史時間軸） |
+| **v1.58+** | Context Engine P0（Prompt Inspector 的 chunk 生命週期追蹤） |
+| **v1.69–1.75** | Settlement Mode（等角/立體模型檢視）· Vehicle & Mobile Base（車隊管理 · 移動基地） |
+| **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 相容性關卡 · ComfyUI 任務生命週期修復 |
+| **v1.79–1.83** | NOAI Play（確定性旅行/經濟處理）· 依資源分級的 5 檔經濟難度（abundant→barren） |
+| **v1.84** | Logistics Graph Canvas（交易網路互動式可視化）· 響應式三段式 Webview 外殼 |
 
 詳見 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) 與 `sample-scenarios/trade-routes`。
 
 **計畫中**
 
-- README / DEMO 截圖與 GIF 更新
 - Overmap 圖像圖塊、hazard 單行 GM 注入
 - Prompt budget 優先度滑動（長會話）
 - Workshop / 市集發布調研

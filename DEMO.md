@@ -58,6 +58,7 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | `docs/assets/screenshot-comfyui.png` | ComfyUI scene generation inline in chat | Real — Webview capture; scene image generated via local ComfyUI (IL `waiIllustriousSDXL_v170`), 2026-07-06 |
 | `docs/assets/screenshot-world-map.png` | World tab Parchment map overview | Real — same capture method, uses a dedicated 10-region/14-location showcase `world_forge.json` (`docs/assets/worldmap-showcase-fixture/`) rendered to a ComfyUI parchment background (Illustrious + Canny ControlNet, no LoRA — see fixture folder for generation notes), 2026-07-06 |
 | `docs/assets/screenshot-world-map-detail.png` | World tab Parchment map, selected-location detail card | Real — same capture + fixture, with a high-danger ruin pin selected to show the type/danger/faction detail panel, 2026-07-06 |
+| `docs/assets/screenshot-logistics.png` | Logistics graph canvas (trade network), maximized lightbox view | Real — same capture method, driven by the `scripts/create_ui_showcase_scenarios.js` / `capture_living_trade_worldview.js` `05-living-trade-world` fixture (`economyLogistics` payload), 2026-07-18 |
 | `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
 
 The old wireframe `.svg` placeholders for these five screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.

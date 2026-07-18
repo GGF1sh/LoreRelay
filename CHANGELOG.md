@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.13] - 2026-07-18
+
+### Live logistics endpoint and truthful route-status presentation
+
+- Node dragging now applies the latest pointer sample as one requestAnimationFrame-bounded update: authoritative node coordinates, owning-region bounds, every incident route path and annotation, then the minimap projection.
+- Live route recomputation is restricted to routes whose factual source or destination is the moved node. Existing line, hit-path and path IDs remain stable; unrelated route and particle DOM is untouched.
+- Geometry-conflict diagnostics no longer replace factual route status. Movement-permitted impaired routes retain warning styling and particle eligibility, while blocked equivalents keep the distinct stopped/red contract and never animate.
+- The logistics legend now names open, impaired-moving, and blocked-flow-off states explicitly, backed by 25 focused endpoint, identity, filter, status, particle, reset and minimap contracts.
+
 ## [1.84.12] - 2026-07-18
 
 ### Stable logistics minimap and live flow paths

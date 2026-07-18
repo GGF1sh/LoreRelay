@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.84.15] - 2026-07-18
+
+### Fixed
+- Logistics flow particles rebuilt after node dragging now copy the active route line's current `d` directly into `animateMotion`, avoiding Electron/Chromium's stale SMIL `<mpath>` trajectory cache.
+- Pointerup keeps drag suppression active through the final RAF, rounded node position, route/annotation, and minimap commits, then restores only the active render context and audits every visible particle against live geometry.
+
 ## [1.84.14] - 2026-07-18
 
 ### Fixed

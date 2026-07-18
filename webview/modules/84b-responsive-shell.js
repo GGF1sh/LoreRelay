@@ -209,6 +209,15 @@ function lrShellOnViewportChange(force) {
     } else if (prev === 'wide') {
       // Entering drawer mode: close deterministically.
       lrShellState.drawerOpen = false;
+      const { headerSecondary } = lrShellEls();
+      if (headerSecondary && headerSecondary.hasAttribute('open')) {
+        headerSecondary.removeAttribute('open');
+        if (typeof document !== 'undefined' && document.activeElement && headerSecondary.contains(document.activeElement)) {
+          if (typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+          }
+        }
+      }
     }
     // drawer-compact ↔ drawer-narrow: preserve drawerOpen.
   }
@@ -250,6 +259,21 @@ function lrShellPersistWidthFromElement() {
   lrShellWriteSavedWidth(clamped);
 }
 
+function lrShellHasHigherPriorityEscapeOwner() {
+  if (typeof document === 'undefined') { return false; }
+  if (document.querySelector('.wv-confirm-backdrop')) { return true; }
+  const genesis = document.getElementById('genesis-guide-modal');
+  if (genesis && !genesis.classList.contains('hidden')) { return true; }
+  const parlor = document.getElementById('parlor-settings-panel');
+  if (parlor && !parlor.classList.contains('hidden')) { return true; }
+  const charCreator = document.getElementById('char-creator-modal');
+  if (charCreator && !charCreator.classList.contains('hidden')) { return true; }
+  if (document.getElementById('player-action-hub-overlay')) { return true; }
+  const lightbox = document.querySelector('.visual-lightbox');
+  if (lightbox && !lightbox.classList.contains('hidden')) { return true; }
+  return false;
+}
+
 function lrShellInit() {
   if (lrShellState.initialized) { return; }
   lrShellState.initialized = true;
@@ -281,6 +305,7 @@ function lrShellInit() {
       if (!event || event.key !== 'Escape') { return; }
       if (event.isComposing || event.keyCode === 229) { return; }
       if (lrShellState.mode === 'wide' || !lrShellState.drawerOpen) { return; }
+      if (lrShellHasHigherPriorityEscapeOwner()) { return; }
       if (typeof event.preventDefault === 'function') { event.preventDefault(); }
       if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
       lrShellCloseDrawer();

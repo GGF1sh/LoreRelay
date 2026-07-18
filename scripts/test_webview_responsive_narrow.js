@@ -472,7 +472,7 @@ test('input objects/state are not mutated by pure width calculations', () => {
 
 // Harness-style metrics (structural presence at target widths)
 for (const width of [640, 700, 900, 960, 1400]) {
-  test(`shell metrics stable at ${width}px`, () => {
+  test(`shell DOM structure applied for ${width}px`, () => {
     const h = createShellHarness({ width });
     h.setWidth(width);
     const mode = h.api.getMode();
@@ -481,7 +481,6 @@ for (const width of [640, 700, 900, 960, 1400]) {
     else assert.strictEqual(mode, 'drawer-narrow');
     assert.ok(h.document.getElementById('chat-area'));
     assert.ok(h.document.getElementById('status-area'));
-    assert.ok(h.document.getElementById('send-btn') || true); // send may be outside harness; shell does not remove it
     // document overflow contract is CSS-enforced; assert shell attribute applied
     assert.strictEqual(h.document.documentElement.getAttribute('data-lr-shell'), mode);
   });
@@ -492,6 +491,93 @@ test('bootstrap resizer clamp uses 280 minimum (source contract)', () => {
   assert.ok(boot.includes('LoreRelayResponsive'));
   assert.ok(boot.includes('isResizerEnabled'));
   assert.ok(boot.includes('persistWidthFromElement'));
+});
+
+test('Escape conflicts and disclosure state transitions (MINOR F1/F2/F4)', () => {
+  const h = createShellHarness({ width: 640 });
+  h.setWidth(640);
+  h.api.openDrawer();
+  assert.strictEqual(h.api.getMode(), 'drawer-narrow');
+  assert.strictEqual(h.api.isDrawerOpen(), true);
+
+  // 1. drawer open + Genesis Guide open + Escape
+  const genesis = h.document.createElement('div');
+  genesis.id = 'genesis-guide-modal';
+  h.document.body.appendChild(genesis);
+  
+  let event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open when Genesis is visible');
+  assert.strictEqual(event._stopped, false, 'Shell should not stop propagation');
+
+  // 2. next Escape with no modal
+  genesis.classList.add('hidden');
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), false, 'Drawer should close when no modal is active');
+  assert.strictEqual(event._stopped, true, 'Shell should stop propagation');
+
+  // 3. drawer open + Parlor Settings open
+  h.api.openDrawer();
+  const parlor = h.document.createElement('div');
+  parlor.id = 'parlor-settings-panel';
+  h.document.body.appendChild(parlor);
+  
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open when Parlor is visible');
+  
+  // 3b. Character Creator open
+  parlor.classList.add('hidden');
+  const charCreator = h.document.createElement('div');
+  charCreator.id = 'char-creator-modal';
+  h.document.body.appendChild(charCreator);
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open when Character Creator is visible');
+  charCreator.classList.add('hidden');
+
+  // 4. drawer open + selected logistics route + no modal
+  let logisticsCleared = false;
+  h.document.body.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { logisticsCleared = true; }
+  });
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), false, 'Drawer should close when no modal is active');
+  assert.strictEqual(logisticsCleared, false, 'Logistics selection should not be cleared');
+  assert.strictEqual(event._stopped, true, 'Shell should stop propagation');
+  
+  // 5. second Escape
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(logisticsCleared, true, 'Logistics selection should be cleared on second Escape');
+
+  // 6. IME-composing Escape
+  h.api.openDrawer();
+  logisticsCleared = false;
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, isComposing: true, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open during IME composition');
+  assert.strictEqual(event._stopped, false, 'Shell should not stop propagation during IME');
+
+  // 7. & 8. entering wide and returning to drawer; compact <-> narrow
+  const headerSecondary = h.document.createElement('details');
+  headerSecondary.id = 'header-secondary';
+  h.document.body.appendChild(headerSecondary);
+  
+  h.setWidth(1400);
+  assert.strictEqual(h.api.getMode(), 'wide');
+  headerSecondary.setAttribute('open', 'open');
+  
+  h.setWidth(700); // drawer-narrow
+  assert.strictEqual(h.api.getMode(), 'drawer-narrow');
+  assert.strictEqual(headerSecondary.getAttribute('open'), null, 'Disclosure should close when entering drawer mode');
+  
+  headerSecondary.setAttribute('open', 'open');
+  h.setWidth(800); // drawer-compact
+  assert.strictEqual(h.api.getMode(), 'drawer-compact');
+  assert.strictEqual(headerSecondary.getAttribute('open'), 'open', 'Disclosure should remain open during compact <-> narrow transition');
 });
 
 if (failed) process.exit(1);

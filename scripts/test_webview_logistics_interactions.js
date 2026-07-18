@@ -291,6 +291,37 @@ function parseTranslate(transform) {
   return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
 }
 
+function renderedPathEndpoints(pathD) {
+  const values = String(pathD || '').match(/-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+  assert.ok(values.length >= 4 && values.every(Number.isFinite), `finite SVG path expected, got ${pathD}`);
+  return {
+    source: { x: values[0], y: values[1] },
+    destination: { x: values[values.length - 2], y: values[values.length - 1] },
+  };
+}
+
+function assertPointNear(actual, expected, message, tolerance = 0.05) {
+  assert.ok(Math.hypot(actual.x - expected.x, actual.y - expected.y) <= tolerance,
+    `${message}: (${actual.x}, ${actual.y}) != (${expected.x}, ${expected.y})`);
+}
+
+function assertRenderedEndpointsMatchCurrentAnchors(h, routeId, message) {
+  const group = routeOf(h, routeId);
+  const line = findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+  const endpoints = renderedPathEndpoints(line.getAttribute('d'));
+  assertPointNear(endpoints.source, group._logisticsGeometry.start, `${message} source`);
+  assertPointNear(endpoints.destination, group._logisticsGeometry.end, `${message} destination`);
+  const route = group._logisticsRoute;
+  const positions = h.api.economyLogisticsUiState.rendered.positions;
+  const boundaryDistance = (point, box) => Math.min(
+    Math.abs(Math.abs(point.x - box.x) - box.w / 2),
+    Math.abs(Math.abs(point.y - box.y) - box.h / 2)
+  );
+  assert.ok(boundaryDistance(endpoints.source, positions.get(route.fromNodeId)) <= 0.05, `${message} source lies on current source-node boundary`);
+  assert.ok(boundaryDistance(endpoints.destination, positions.get(route.toNodeId)) <= 0.05, `${message} destination lies on current destination-node boundary`);
+  return endpoints;
+}
+
 function elementBytes(node) {
   if (!node) return '';
   const attributes = Object.entries(node.attributes || {}).sort((a, b) => a[0].localeCompare(b[0]));
@@ -793,7 +824,7 @@ test('50a: 200-node/400-route low-degree drag computes only its topology group a
   viewport.dispatchEvent({ type: 'pointermove', clientX: 80, clientY: 35, pointerId: 90 });
 
   const computedIds = Array.from(h.api.economyLogisticsUiState.rendered.lastGeometryRouteIds || []);
-  assert.deepStrictEqual(computedIds, ['local_0', 'local_1', 'local_2']);
+  assert.deepStrictEqual(computedIds, ['local_0', 'local_2']);
   assert.ok(computedIds.length < payload.routes.length, 'partial geometry call must not receive all 400 routes');
   assert.strictEqual(computedIds.includes('remote_0399'), false, 'remote component excluded');
   assert.strictEqual(routeOf(h, 'remote_0399'), remoteIdentity, 'remote route DOM identity unchanged');
@@ -1532,6 +1563,118 @@ test('HUMAN-BLOCKERS-D #12-19: particles represent only relevant operational mov
   assert.strictEqual(routeOf(h, 'blocked_positive')._logisticsRoute.status, 'blocked', '#19 rendering does not mutate status');
   findAll(h.panel, (n) => n.classList.contains('logistics-flow-toggle-btn'))[0].dispatchEvent({ type: 'click' });
   assert.strictEqual(findAll(h.panel, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#20 Flow off creates no particles');
+});
+
+test('HUMAN-BLOCKERS-E #1-15: RAF live drag keeps both rendered endpoints on current anchors', () => {
+  const base = twoRegionPayload();
+  const routes = [
+    { ...base.routes[0], id: 'tr_grain_to_port', fromNodeId: 'a1', toNodeId: 'a2', status: 'open', volume: 5 },
+    { ...base.routes[0], id: 'tr_grain_to_reed', fromNodeId: 'a1', toNodeId: 'b1', status: 'blocked', volume: 4 },
+    { ...base.routes[1], id: 'tr_ore_to_ash', fromNodeId: 'b2', toNodeId: 'a1', status: 'raided', volume: 3 },
+    { ...base.routes[1], id: 'tr_gate_unrelated', fromNodeId: 'b1', toNodeId: 'b2', status: 'open', volume: 2 },
+  ];
+  const h = createHarness({ deferAnimationFrames: true });
+  h.context.renderEconomyLogistics(twoRegionPayload({ routes, summary: { activeRoutes: 3, blockedRoutes: 1, raidedRoutes: 1, totalVolume: 14, shortageCount: 0, bottleneckCount: 0 } }), true);
+  h.flushAnimationFrames();
+  const statusFilter = findAll(h.panel, (n) => n.classList.contains('logistics-status-filter'))[0];
+  statusFilter.value = 'open'; statusFilter.dispatchEvent({ type: 'change' });
+  routeOf(h, 'tr_grain_to_port').dispatchEvent({ type: 'click' });
+  h.flushAnimationFrames();
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, 'tr_grain_to_port', '#8 selected route fixture is active during drag');
+  assert.strictEqual(h.api.economyLogisticsUiState.statusKeys.has('open'), true, '#9 status filter remains active during drag');
+  const viewport = viewportOf(h);
+  const incidentIds = ['tr_grain_to_port', 'tr_grain_to_reed', 'tr_ore_to_ash'];
+  const refs = new Map(incidentIds.map((id) => {
+    const group = routeOf(h, id);
+    const line = findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+    const hit = findAll(group, (n) => n.classList.contains('logistics-route-hit'))[0];
+    return [id, { line, hit, pathId: line.getAttribute('id'), before: line.getAttribute('d') }];
+  }));
+  const unrelated = routeOf(h, 'tr_gate_unrelated');
+  const unrelatedBytes = elementBytes(unrelated);
+  const unrelatedDots = findAll(unrelated, (n) => n.classList.contains('logistics-flow-dot'));
+
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 1001 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 320, clientY: 70, pointerId: 1001 });
+  assert.ok(h.animationFrameRequests > 0, '#1 live updates are requestAnimationFrame-bounded');
+  h.flushAnimationFrames();
+  for (const id of incidentIds) {
+    const current = routeOf(h, id);
+    const saved = refs.get(id);
+    assert.notStrictEqual(saved.line.getAttribute('d'), saved.before, `#4 multi-route drag updates ${id}`);
+    assert.strictEqual(findAll(current, (n) => n.classList.contains('logistics-route-line'))[0], saved.line, `#6 ${id} line identity stable`);
+    assert.strictEqual(findAll(current, (n) => n.classList.contains('logistics-route-hit'))[0], saved.hit, `#6 ${id} hit identity stable`);
+    assert.strictEqual(saved.line.getAttribute('id'), saved.pathId, `#7 ${id} path ID stable`);
+    assert.strictEqual(saved.hit.getAttribute('d'), saved.line.getAttribute('d'), `#3 ${id} hit path follows visible path`);
+    assertRenderedEndpointsMatchCurrentAnchors(h, id, `#1/#3 live source drag ${id}`);
+    assert.strictEqual(findAll(current, (n) => n.classList.contains('logistics-flow-dot')).length, 0, `#12 ${id} particles suppressed during drag`);
+  }
+  assert.ok(routeOf(h, 'tr_grain_to_port').parentNode.classList.contains('layer-edges-raised'), '#8 selected route updates in its raised layer');
+  assert.strictEqual(routeOf(h, 'tr_grain_to_port').dataset.relevance, 'primary', '#9 filtered primary route updates during drag');
+  assert.strictEqual(routeOf(h, 'tr_gate_unrelated'), unrelated, '#5 unrelated route identity unchanged');
+  assert.strictEqual(elementBytes(unrelated), unrelatedBytes, '#5 unrelated route geometry/DOM byte-identical');
+  assert.ok(unrelatedDots.every((dot, index) => findAll(unrelated, (n) => n.classList.contains('logistics-flow-dot'))[index] === dot), '#5 unrelated particle identity untouched');
+  assert.deepStrictEqual(Array.from(h.api.economyLogisticsUiState.rendered.lastGeometryRouteIds), incidentIds.slice().sort(), '#4 only factual incident routes recomputed');
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 1001 });
+  assertRenderedEndpointsMatchCurrentAnchors(h, 'tr_grain_to_port', '#13 pointerup needs no rerender');
+  assert.ok(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).length > 0, '#13 eligible particles restore immediately');
+  assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_reed'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#10 blocked route stays particle-free after pointerup');
+  assert.ok(findAll(routeOf(h, 'tr_ore_to_ash'), (n) => n.classList.contains('logistics-flow-dot')).length > 0, '#11 impaired route particles restore');
+
+  const sourceNodeBeforeDestinationDrag = { ...h.api.economyLogisticsUiState.rendered.positions.get('a1') };
+  nodeOf(h, 'a2').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 1002 });
+  viewport.dispatchEvent({ type: 'pointermove', clientX: -330, clientY: 90, pointerId: 1002 });
+  h.flushAnimationFrames();
+  assertRenderedEndpointsMatchCurrentAnchors(h, 'tr_grain_to_port', '#2 live destination drag');
+  assert.deepStrictEqual({ x: h.api.economyLogisticsUiState.rendered.positions.get('a1').x, y: h.api.economyLogisticsUiState.rendered.positions.get('a1').y },
+    { x: sourceNodeBeforeDestinationDrag.x, y: sourceNodeBeforeDestinationDrag.y }, '#2 destination drag does not move the source node');
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 1002 });
+  assertRenderedEndpointsMatchCurrentAnchors(h, 'tr_grain_to_port', '#15 no large-view transition required');
+
+  toolbarBtn(h, 'logistics-layout-reset').dispatchEvent({ type: 'click' });
+  assertRenderedEndpointsMatchCurrentAnchors(h, 'tr_grain_to_port', '#14 Layout Reset endpoint repair');
+  assertRenderedEndpointsMatchCurrentAnchors(h, 'tr_grain_to_reed', '#14 Layout Reset updates all affected routes');
+});
+
+test('HUMAN-BLOCKERS-E #16-25: fixture status, filtering and legend remain factually aligned', () => {
+  const base = twoRegionPayload();
+  const routes = [
+    { ...base.routes[0], id: 'tr_grain_to_port', status: 'open', volume: 5 },
+    { ...base.routes[0], id: 'tr_grain_to_reed', status: 'blocked', volume: 4 },
+    { ...base.routes[1], id: 'tr_ore_to_ash', status: 'raided', volume: 3 },
+  ];
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload({ routes, summary: { activeRoutes: 2, blockedRoutes: 1, raidedRoutes: 1, totalVolume: 12, shortageCount: 0, bottleneckCount: 0 } }), true);
+  const blocked = routeOf(h, 'tr_grain_to_reed');
+  const impaired = routeOf(h, 'tr_ore_to_ash');
+  const open = routeOf(h, 'tr_grain_to_port');
+  const routeLine = (group) => findAll(group, (n) => n.classList.contains('logistics-route-line'))[0];
+  const dots = (group) => findAll(group, (n) => n.classList.contains('logistics-flow-dot'));
+
+  assert.strictEqual([open, blocked, impaired].filter((group) => group.classList.contains('logistics-route-status-blocked')).length, 1, '#16/#23 exactly one fixture route renders blocked');
+  assert.ok(blocked.classList.contains('logistics-route-status-blocked') && !blocked._logisticsStyle.operational, '#17 blocked class is non-operational');
+  assert.ok(impaired.classList.contains('logistics-route-status-impaired') && !impaired.classList.contains('logistics-route-status-blocked') && impaired._logisticsStyle.operational, '#18 impaired is operational and not blocked');
+  assert.notStrictEqual(routeLine(impaired).style.props['stroke-dasharray'], routeLine(blocked).style.props['stroke-dasharray'], '#19 impaired and blocked dash patterns differ');
+  assert.match(LOGISTICS_CSS, /\.logistics-route-status-impaired,[\s\S]{0,160}editorWarning|\.logistics-route-status-impaired,[\s\S]{0,160}charts-yellow/, '#19 impaired uses warning treatment');
+  assert.match(LOGISTICS_CSS, /\.logistics-route-status-blocked,[\s\S]{0,160}editorError|\.logistics-route-status-blocked,[\s\S]{0,160}charts-red/, '#19 blocked uses stopped/error treatment');
+  assert.strictEqual(dots(blocked).length, 0, '#20 blocked positive-volume route has zero particles');
+  assert.ok(dots(impaired).length > 0, '#21 impaired movement-permitted route can animate');
+
+  const status = findAll(h.panel, (n) => n.classList.contains('logistics-status-filter'))[0];
+  status.value = 'blocked'; status.dispatchEvent({ type: 'change' });
+  const primary = [open, blocked, impaired].filter((group) => group.dataset.relevance === 'primary');
+  assert.deepStrictEqual(primary.map((group) => group.dataset.routeId), ['tr_grain_to_reed'], '#22 blocked filter yields exactly one primary fixture route');
+  assert.ok(!open.classList.contains('logistics-route-status-blocked') && !impaired.classList.contains('logistics-route-status-blocked'), '#22 non-blocked filtered routes never acquire blocked styling');
+  status.value = ''; status.dispatchEvent({ type: 'change' });
+  assert.strictEqual([open, blocked, impaired].filter((group) => group.classList.contains('logistics-route-status-blocked')).length, 1, '#23 clearing filter leaves blocked styling only on actual blocked route');
+
+  const legend = findAll(h.panel, (n) => n.classList.contains('logistics-legend'))[0];
+  for (const key of ['open', 'impaired', 'blocked']) {
+    assert.ok(findAll(legend, (n) => n.classList.contains(`logistics-legend-${key}`)).length === 1, `#24 legend explicitly distinguishes ${key}`);
+  }
+  assert.ok(findAll(legend, (n) => n.classList.contains('logistics-legend-impaired'))[0].textContent.includes('webview.world.logisticsLegendActive'), '#24 impaired legend states movement continues');
+  assert.ok(findAll(legend, (n) => n.classList.contains('logistics-legend-blocked'))[0].textContent.includes('webview.world.logisticsFlowAnimationOff'), '#24 blocked legend states flow is off');
+  assert.ok(Number.isFinite(h.api.economyLogisticsUiState.rendered.minimap.currentModel().scale), '#25 minimap projection scale remains finite');
 });
 
 if (failed) process.exit(1);

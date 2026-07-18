@@ -12310,22 +12310,13 @@ function buildLogisticsRouteTopologyIndex(routes) {
   };
 }
 
-/** Routes whose endpoint port ordering can change when `nodeId` moves. */
+/** Routes whose factual source or destination is `nodeId`.
+ *
+ * A live drag is deliberately endpoint-bounded: port assignment still orders
+ * each endpoint against the stable global topology, but no route without the
+ * moved node as an endpoint is recomputed or has its DOM/particles touched. */
 function logisticsAffectedRouteIdsForNode(nodeId, topologyIndex) {
-  const affected = new Set();
-  const incident = topologyIndex?.byNodeId?.get(nodeId) || [];
-  const neighbors = new Set();
-  for (const routeId of incident) {
-    affected.add(routeId);
-    const route = topologyIndex.routesById.get(routeId);
-    if (route) { neighbors.add(route.fromNodeId === nodeId ? route.toNodeId : route.fromNodeId); }
-    const pairKey = topologyIndex.pairKeyByRouteId.get(routeId);
-    for (const siblingId of topologyIndex.byUnorderedEndpointPair.get(pairKey) || []) { affected.add(siblingId); }
-  }
-  for (const neighborId of [...neighbors].sort(logisticsGeomCompareId)) {
-    for (const routeId of topologyIndex.byNodeId.get(neighborId) || []) { affected.add(routeId); }
-  }
-  return [...affected].sort(logisticsGeomCompareId);
+  return [...(topologyIndex?.byNodeId?.get(nodeId) || [])].sort(logisticsGeomCompareId);
 }
 
 /** Assign ports only for requested routes, while ordering each endpoint against
@@ -12829,10 +12820,6 @@ function logisticsVisualFiniteVolume(value) {
 }
 
 function logisticsVisualStatus(route, geometryByRoute) {
-  const geometry = geometryByRoute && typeof geometryByRoute.get === 'function' ? geometryByRoute.get(route.id) : null;
-  if (Boolean(route && (route.geometryConflicted || route.conflicted || route.labelConflicted || geometry?.conflicted))) {
-    return { key: 'conflicted', tone: 'diagnostic', dash: '2 3 8 3', labelKey: 'conflicted' };
-  }
   const raw = String(route?.status || 'open').toLowerCase();
   if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored', operational: false }; }
   if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired', operational: true }; }
@@ -12915,6 +12902,8 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const relevance = relevanceKind === 'primary' ? 1
       : relevanceKind === 'secondary' ? LOGISTICS_VISUAL_SECONDARY_OPACITY : LOGISTICS_VISUAL_DIM_OPACITY;
     const status = logisticsVisualStatus(route, geometryByRoute);
+    const geometry = geometryByRoute && typeof geometryByRoute.get === 'function' ? geometryByRoute.get(route.id) : null;
+    const geometryConflicted = Boolean(route.geometryConflicted || route.conflicted || route.labelConflicted || geometry?.conflicted);
     routeStyles.set(route.id, {
       routeId: route.id,
       statusKey: status.key,
@@ -12931,7 +12920,11 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
       commodityAccentState: relevanceKind === 'secondary' ? 'secondary'
         : relevanceKind === 'primary' && selectedCommodity && route.commodityId === selectedCommodity ? 'primary' : 'none',
       selected,
-      conflicted: status.key === 'conflicted',
+      // Geometry diagnostics must never replace the factual movement state.
+      // Renderers may add an independent diagnostic affordance while status
+      // colour, dash and particle eligibility remain truthful.
+      conflicted: geometryConflicted,
+      geometryConflicted,
       operational: status.operational,
     });
   }
@@ -14418,17 +14411,17 @@ function renderLogisticsLegend(parent) {
   const statusList = logisticsElement('div', 'logistics-legend-list logistics-legend-status-list');
   statusList.setAttribute('role', 'list');
   const statuses = [
-    ['active', '→', 'webview.world.logisticsLegendActive'],
-    ['idle', '··', 'webview.world.logisticsLegendIdle'],
-    ['blocked', '×', 'webview.world.logisticsStatusBlocked'],
-    ['rumored', '?', 'webview.world.logisticsStatusRumored'],
-    ['selected', '◎', 'webview.world.logisticsLegendSelected'],
+    ['open', '→', `${T('webview.world.logisticsStatusOpen')} · ${T('webview.world.logisticsLegendActive')}`],
+    ['impaired', '!', `${T('webview.world.logisticsStatusStrained')} · ${T('webview.world.logisticsLegendActive')}`],
+    ['blocked', '×', `${T('webview.world.logisticsStatusBlocked')} · ${T('webview.world.logisticsFlowAnimationOff')}`],
+    ['rumored', '?', T('webview.world.logisticsStatusRumored')],
+    ['selected', '◎', T('webview.world.logisticsLegendSelected')],
   ];
-  for (const [status, glyph, key] of statuses) {
+  for (const [status, glyph, label] of statuses) {
     const item = logisticsElement('span', `logistics-legend-item logistics-legend-${status}`);
     item.setAttribute('role', 'listitem');
     item.appendChild(logisticsElement('span', 'logistics-legend-swatch', glyph));
-    item.appendChild(logisticsElement('span', 'logistics-legend-label', T(key)));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', label));
     statusList.appendChild(item);
   }
   legend.appendChild(statusList);
@@ -14769,6 +14762,62 @@ function logisticsSetupCameraInteractions(ctx) {
   let drag = null;
   let suppressClick = false;
   let cleaningUp = false;
+  let nodeDragFrame = null;
+  let pendingNodeDrag = null;
+
+  /** Paint one coherent live node frame from the latest pointer sample. The
+   * authoritative position is written before any consumer reads it; region,
+   * incident routes and minimap then observe the same coordinates. */
+  function paintNodeDragFrame(update) {
+    if (!update) { return; }
+    const position = rendered.positions.get(update.nodeId);
+    if (!position) { return; }
+    position.x = update.x;
+    position.y = update.y;
+    logisticsClampManualAwayFromOtherRegions(position, layout);
+    const nodeEl = rendered.nodeElements.get(update.nodeId);
+    if (nodeEl) {
+      const transform = logisticsNodeTransform(position);
+      nodeEl.setAttribute('transform', transform);
+      nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+    }
+    logisticsLiveUpdateOwningRegion(rendered, layout, update.nodeId, false);
+    logisticsRefreshRoutesAfterMove(rendered, update.nodeId);
+    rendered.minimap?.expand?.(hostCtx.camera);
+  }
+
+  function flushPendingNodeDrag() {
+    if (nodeDragFrame !== null && typeof win?.cancelAnimationFrame === 'function') {
+      win.cancelAnimationFrame(nodeDragFrame);
+    }
+    nodeDragFrame = null;
+    const update = pendingNodeDrag;
+    pendingNodeDrag = null;
+    paintNodeDragFrame(update);
+  }
+
+  function cancelPendingNodeDrag() {
+    if (nodeDragFrame !== null && typeof win?.cancelAnimationFrame === 'function') {
+      win.cancelAnimationFrame(nodeDragFrame);
+    }
+    nodeDragFrame = null;
+    pendingNodeDrag = null;
+  }
+
+  function scheduleNodeDrag(update) {
+    pendingNodeDrag = update;
+    if (nodeDragFrame !== null) { return; }
+    if (typeof win?.requestAnimationFrame !== 'function') {
+      flushPendingNodeDrag();
+      return;
+    }
+    nodeDragFrame = win.requestAnimationFrame(() => {
+      nodeDragFrame = null;
+      const latest = pendingNodeDrag;
+      pendingNodeDrag = null;
+      paintNodeDragFrame(latest);
+    });
+  }
 
   function releaseStoredCapture() {
     if (!drag || drag.pointerId === undefined || drag.pointerId === null) { return; }
@@ -14781,6 +14830,9 @@ function logisticsSetupCameraInteractions(ctx) {
     if (!drag || cleaningUp) { return; }
     cleaningUp = true;
     const active = drag;
+    if (active.type === 'node') {
+      if (options.restoreNode) { cancelPendingNodeDrag(); } else { flushPendingNodeDrag(); }
+    }
     if (options.restoreCamera && active.startCamera) {
       setCamera(active.startCamera);
     }
@@ -14795,8 +14847,8 @@ function logisticsSetupCameraInteractions(ctx) {
           nodeEl.setAttribute('transform', transform);
           nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
         }
+        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId, false);
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
-        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId);
         rendered.minimap?.canonical?.(hostCtx.camera);
       } else if (active.moved && options.commitNode) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
@@ -14819,10 +14871,10 @@ function logisticsSetupCameraInteractions(ctx) {
           nodeEl.setAttribute('transform', transform);
           nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
         }
-        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         // Finalize the owning region's bounds from the rounded/clamped commit
         // position so a subsequent full rerender is byte-identical.
-        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId);
+        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId, false);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         rendered.minimap?.canonical?.(hostCtx.camera);
         economyLogisticsUiState.manualPositions[active.nodeId] = stored;
         logisticsSaveLayoutPositions();
@@ -14948,21 +15000,12 @@ function logisticsSetupCameraInteractions(ctx) {
     if (!drag.moved && Math.hypot(dx, dy) < LOGISTICS_DRAG_THRESHOLD_PX) { return; }
     drag.moved = true;
     if (drag.type === 'node') {
-      const position = rendered.positions.get(drag.nodeId);
-      if (!position || !logisticsIsValidCamera(drag.startCamera)) { return; }
-      position.x = drag.startNode.x + dx / drag.startCamera.k;
-      position.y = drag.startNode.y + dy / drag.startCamera.k;
-      logisticsClampManualAwayFromOtherRegions(position, layout);
-      const nodeEl = rendered.nodeElements.get(drag.nodeId);
-      if (nodeEl) {
-        const transform = logisticsNodeTransform(position);
-        nodeEl.setAttribute('transform', transform);
-        nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
-      }
-      logisticsRefreshRoutesAfterMove(rendered, drag.nodeId);
-      // Live-sync only the owning region's dashed container, its label/count and
-      // the minimap projection; never move another region or relayout the graph.
-      logisticsLiveUpdateOwningRegion(rendered, layout, drag.nodeId);
+      if (!logisticsIsValidCamera(drag.startCamera)) { return; }
+      scheduleNodeDrag({
+        nodeId: drag.nodeId,
+        x: drag.startNode.x + dx / drag.startCamera.k,
+        y: drag.startNode.y + dy / drag.startCamera.k,
+      });
       return;
     }
     const base = drag.startCamera;
@@ -15164,7 +15207,7 @@ function renderLogisticsRegionContainers(layer, layerLabels, payload, layout, re
  * finalization in computeLogisticsLayout (85b1), so committing a drag and then
  * doing a full rerender yields the same region box. Only the owning region is
  * touched; unrelated regions are never read or written. */
-function logisticsLiveUpdateOwningRegion(rendered, layout, nodeId) {
+function logisticsLiveUpdateOwningRegion(rendered, layout, nodeId, updateMinimap = true) {
   if (!rendered || !layout || !layout.regions) { return; }
   const position = rendered.positions?.get(nodeId);
   const regionId = position?.regionId;
@@ -15195,7 +15238,7 @@ function logisticsLiveUpdateOwningRegion(rendered, layout, nodeId) {
       refs.hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260))));
     }
   }
-  if (rendered.minimap && typeof rendered.minimap.expand === 'function') {
+  if (updateMinimap && rendered.minimap && typeof rendered.minimap.expand === 'function') {
     rendered.minimap.expand(logisticsActiveCameraContext().camera);
   }
 }

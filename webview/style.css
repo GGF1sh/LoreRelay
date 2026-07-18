@@ -3611,8 +3611,9 @@ textarea:focus-visible {
   font-weight: 800;
   line-height: 1;
 }
-.logistics-legend-idle .logistics-legend-swatch { border-bottom-style: dotted; opacity: 0.65; }
-.logistics-legend-blocked .logistics-legend-swatch { color: #d18a94; border-bottom-style: dashed; }
+.logistics-legend-open .logistics-legend-swatch { color: #76b7e5; border-bottom-style: solid; }
+.logistics-legend-impaired .logistics-legend-swatch { color: #d7a94b; border-bottom-style: dashed; }
+.logistics-legend-blocked .logistics-legend-swatch { color: #d18a94; border-bottom-style: dotted; border-bottom-width: 3px; }
 .logistics-legend-rumored .logistics-legend-swatch { color: var(--vscode-descriptionForeground); border-bottom-style: dotted; }
 .logistics-legend-selected .logistics-legend-swatch { color: var(--vscode-focusBorder); border-bottom-width: 3px; }
 .logistics-legend-node-symbol {

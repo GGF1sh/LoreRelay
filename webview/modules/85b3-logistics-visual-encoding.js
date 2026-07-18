@@ -20,10 +20,6 @@ function logisticsVisualFiniteVolume(value) {
 }
 
 function logisticsVisualStatus(route, geometryByRoute) {
-  const geometry = geometryByRoute && typeof geometryByRoute.get === 'function' ? geometryByRoute.get(route.id) : null;
-  if (Boolean(route && (route.geometryConflicted || route.conflicted || route.labelConflicted || geometry?.conflicted))) {
-    return { key: 'conflicted', tone: 'diagnostic', dash: '2 3 8 3', labelKey: 'conflicted' };
-  }
   const raw = String(route?.status || 'open').toLowerCase();
   if (raw === 'rumored' || raw === 'unconfirmed') { return { key: 'rumored', tone: 'neutral', dash: '7 5', labelKey: 'rumored', operational: false }; }
   if (raw === 'disrupted' || raw === 'impaired' || raw === 'strained' || raw === 'raided') { return { key: 'impaired', tone: 'warning', dash: '8 3 2 3', labelKey: 'impaired', operational: true }; }
@@ -106,6 +102,8 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
     const relevance = relevanceKind === 'primary' ? 1
       : relevanceKind === 'secondary' ? LOGISTICS_VISUAL_SECONDARY_OPACITY : LOGISTICS_VISUAL_DIM_OPACITY;
     const status = logisticsVisualStatus(route, geometryByRoute);
+    const geometry = geometryByRoute && typeof geometryByRoute.get === 'function' ? geometryByRoute.get(route.id) : null;
+    const geometryConflicted = Boolean(route.geometryConflicted || route.conflicted || route.labelConflicted || geometry?.conflicted);
     routeStyles.set(route.id, {
       routeId: route.id,
       statusKey: status.key,
@@ -122,7 +120,11 @@ function computeLogisticsVisualEncoding({ routes, nodes, commodities, selectedCo
       commodityAccentState: relevanceKind === 'secondary' ? 'secondary'
         : relevanceKind === 'primary' && selectedCommodity && route.commodityId === selectedCommodity ? 'primary' : 'none',
       selected,
-      conflicted: status.key === 'conflicted',
+      // Geometry diagnostics must never replace the factual movement state.
+      // Renderers may add an independent diagnostic affordance while status
+      // colour, dash and particle eligibility remain truthful.
+      conflicted: geometryConflicted,
+      geometryConflicted,
       operational: status.operational,
     });
   }

@@ -211,22 +211,13 @@ function buildLogisticsRouteTopologyIndex(routes) {
   };
 }
 
-/** Routes whose endpoint port ordering can change when `nodeId` moves. */
+/** Routes whose factual source or destination is `nodeId`.
+ *
+ * A live drag is deliberately endpoint-bounded: port assignment still orders
+ * each endpoint against the stable global topology, but no route without the
+ * moved node as an endpoint is recomputed or has its DOM/particles touched. */
 function logisticsAffectedRouteIdsForNode(nodeId, topologyIndex) {
-  const affected = new Set();
-  const incident = topologyIndex?.byNodeId?.get(nodeId) || [];
-  const neighbors = new Set();
-  for (const routeId of incident) {
-    affected.add(routeId);
-    const route = topologyIndex.routesById.get(routeId);
-    if (route) { neighbors.add(route.fromNodeId === nodeId ? route.toNodeId : route.fromNodeId); }
-    const pairKey = topologyIndex.pairKeyByRouteId.get(routeId);
-    for (const siblingId of topologyIndex.byUnorderedEndpointPair.get(pairKey) || []) { affected.add(siblingId); }
-  }
-  for (const neighborId of [...neighbors].sort(logisticsGeomCompareId)) {
-    for (const routeId of topologyIndex.byNodeId.get(neighborId) || []) { affected.add(routeId); }
-  }
-  return [...affected].sort(logisticsGeomCompareId);
+  return [...(topologyIndex?.byNodeId?.get(nodeId) || [])].sort(logisticsGeomCompareId);
 }
 
 /** Assign ports only for requested routes, while ordering each endpoint against

@@ -79,6 +79,14 @@ class FakeEl {
   getAttribute(n) { return this.attributes[n] === undefined ? null : this.attributes[n]; }
   removeAttribute(n) { delete this.attributes[n]; }
   hasAttribute(n) { return Object.prototype.hasOwnProperty.call(this.attributes, n); }
+  contains(node) {
+    let current = node;
+    while (current) {
+      if (current === this) { return true; }
+      current = current.parentNode;
+    }
+    return false;
+  }
   remove() {
     if (this.parentNode) {
       this.parentNode.children = this.parentNode.children.filter((c) => c !== this);
@@ -143,7 +151,19 @@ class FakeDocument {
     const key = capture ? `${type}__c` : type;
     (this.listeners[key] ||= []).push(fn);
   }
-  querySelector() { return null; }
+  querySelector(selector) {
+    const classMatch = /^\.([A-Za-z0-9_-]+)$/.exec(String(selector || ''));
+    if (!classMatch) { return null; }
+    const visit = (node) => {
+      if (node.classList && node.classList.contains(classMatch[1])) { return node; }
+      for (const child of node.children || []) {
+        const found = visit(child);
+        if (found) { return found; }
+      }
+      return null;
+    };
+    return visit(this.body);
+  }
 }
 
 function createShellHarness(options = {}) {
@@ -455,6 +475,38 @@ test('light/dark/high-contrast tokens remain theme-safe', () => {
   assert.ok(css.includes('high-contrast') || css.includes('contrastBorder') || css.includes('--glass-bg'));
 });
 
+test('drawer stacking stays above shell chrome and below priority modals', () => {
+  const shellCss = fs.readFileSync(path.join(root, 'webview', 'styles', '16-responsive-shell.css'), 'utf8');
+  const imageCss = fs.readFileSync(path.join(root, 'webview', 'styles', '80-image-gen.css'), 'utf8');
+  const logisticsCss = fs.readFileSync(path.join(root, 'webview', 'styles', '85b-economy-logistics.css'), 'utf8');
+  const worldCss = fs.readFileSync(path.join(root, 'webview', 'styles', '85-world.css'), 'utf8');
+  const zIndexFor = (css, selector) => {
+    const start = css.indexOf(selector);
+    assert.ok(start >= 0, `Missing selector ${selector}`);
+    const end = css.indexOf('}', start);
+    const match = css.slice(start, end + 1).match(/z-index:\s*(\d+)/);
+    assert.ok(match, `Missing z-index for ${selector}`);
+    return Number(match[1]);
+  };
+  const drawer = zIndexFor(shellCss, 'html[data-lr-shell="drawer-compact"] #status-area');
+  const scrim = zIndexFor(shellCss, '\n#status-drawer-scrim {');
+  const priorityFloor = zIndexFor(imageCss, '\n.img-gen-backdrop {');
+  const lightbox = zIndexFor(logisticsCss, '\n.visual-lightbox {');
+  const playerHub = zIndexFor(worldCss, '\n.player-action-hub {');
+  assert.ok(scrim > 50, 'Scrim must stay above normal shell chrome');
+  assert.ok(drawer > scrim, 'Drawer must stay above its scrim');
+  assert.ok(drawer < priorityFloor, 'Drawer must stay below the lowest priority modal layer');
+  assert.ok(lightbox > drawer, 'Logistics lightbox must stay above the drawer');
+  assert.ok(playerHub > drawer, 'Player Action Hub must stay above the drawer');
+});
+
+test('high-contrast selector matches the actual html/body topology', () => {
+  const css = fs.readFileSync(path.join(root, 'webview', 'styles', '16-responsive-shell.css'), 'utf8');
+  assert.ok(css.includes('html[data-lr-shell^="drawer"][data-lr-drawer="open"] body.vscode-high-contrast #status-area'));
+  assert.strictEqual(css.includes('body.vscode-high-contrast html[data-lr-shell^="drawer"]'), false);
+  assert.ok(css.includes('body.vscode-high-contrast #status-drawer-scrim'));
+});
+
 test('module is registered in build-webview order before bootstrap', () => {
   const build = fs.readFileSync(path.join(root, 'scripts', 'build-webview.js'), 'utf8');
   assert.ok(build.includes("'84b-responsive-shell.js'"));
@@ -483,7 +535,7 @@ test('input objects/state are not mutated by pure width calculations', () => {
 });
 
 // Harness-style metrics (structural presence at target widths)
-for (const width of [640, 700, 900, 960, 1400]) {
+for (const width of [640, 700, 720, 800, 900, 959, 960, 1400]) {
   test(`shell DOM structure applied for ${width}px`, () => {
     const h = createShellHarness({ width });
     h.setWidth(width);
@@ -643,6 +695,44 @@ test('Player Action Hub Escape ownership (MINOR CORRECTIONS-B)', () => {
   assert.strictEqual(event._stopped, true, 'Shell should stop propagation on second Escape');
   assert.strictEqual(h.api.isDrawerOpen(), false, 'Drawer should close on second Escape');
   assert.strictEqual(selectionCleared, false, 'Unrelated selection handler should not fire on second Escape');
+});
+
+test('Logistics lightbox owns first Escape and drawer owns the second', () => {
+  const h = createShellHarness({ width: 640 });
+  h.setWidth(640);
+  h.api.openDrawer();
+
+  const lightbox = h.document.createElement('div');
+  lightbox.className = 'visual-lightbox';
+  h.document.body.appendChild(lightbox);
+  let lightboxHandlerFired = false;
+  h.document.body.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !event._stopped && !lightbox.classList.contains('hidden')) {
+      lightboxHandlerFired = true;
+      lightbox.classList.add('hidden');
+    }
+  });
+
+  let event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(event._stopped, false, 'Shell must delegate first Escape to the lightbox');
+  assert.strictEqual(lightboxHandlerFired, true, 'Lightbox handler should receive first Escape');
+  assert.strictEqual(h.api.isDrawerOpen(), true, 'Drawer should remain open after lightbox closes');
+
+  event = { type: 'keydown', key: 'Escape', keyCode: 27, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(event._stopped, true, 'Shell should consume second Escape');
+  assert.strictEqual(h.api.isDrawerOpen(), false, 'Drawer should close on second Escape');
+});
+
+test('keyCode 229 Escape does not close the drawer', () => {
+  const h = createShellHarness({ width: 640 });
+  h.setWidth(640);
+  h.api.openDrawer();
+  const event = { type: 'keydown', key: 'Escape', keyCode: 229, isComposing: false, _stopped: false };
+  h.document.body.dispatchEvent(event);
+  assert.strictEqual(h.api.isDrawerOpen(), true);
+  assert.strictEqual(event._stopped, false);
 });
 
 if (failed) process.exit(1);

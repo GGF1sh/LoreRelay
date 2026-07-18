@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.10] - 2026-07-18
+
+### Truthful logistics minimap and flow semantics
+
+- Minimap projection bounds now include visible nodes, region containers, and the main-camera viewport. Node drags expand the projection at most once per animation frame, then pointerup and graph lifecycle transitions rebuild canonical padded bounds without relayout of unrelated regions.
+- Moving flow particles now require current primary relevance, positive operational flow, the display toggle, motion permission, and an actual movement-permitting route status. `blocked` and unknown non-operational equivalents never create particles; the current factual enum continues to permit `open`, `strained`, and `raided` movement.
+- Added production behavioral coverage for repeated node/minimap drags, reset/collapse/large-view transitions, stopped-route selection and filtering, zero-result clearing, and route geometry/path identity preservation.
+
 ## [1.84.9] - 2026-07-17
 
 ### Logistics graph canvas — live interaction polish (targeted human-blocker repair)

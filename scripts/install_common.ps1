@@ -25,11 +25,45 @@ function New-LoreRelayVsixArtifactPath {
 function Get-FileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
 
-    if (-not (Test-Path $Path)) {
+    # Portable SHA-256 (INSTALLER-INTEGRITY-HASH-FALLBACK-001):
+    # Canonical path uses System.Security.Cryptography.SHA256 only.
+    # Avoid cmdlet-based hashing so Windows PowerShell 5.1 -NoProfile always works,
+    # including environments where utility-module autoload fails (e.g. full disk).
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw "File not found for SHA-256: $Path"
+    }
+    if (-not (Test-Path -LiteralPath $Path)) {
         throw "File not found for SHA-256: $Path"
     }
 
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    if ($item.PSIsContainer) {
+        throw "File not found for SHA-256: $Path"
+    }
+
+    $stream = $null
+    $sha = $null
+    try {
+        $stream = [System.IO.File]::Open(
+            $item.FullName,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::Read
+        )
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $sha.ComputeHash($stream)
+        $chars = New-Object char[] ($hashBytes.Length * 2)
+        $hex = '0123456789abcdef'
+        for ($i = 0; $i -lt $hashBytes.Length; $i++) {
+            $b = $hashBytes[$i]
+            $chars[$i * 2] = $hex[($b -shr 4) -band 0xF]
+            $chars[$i * 2 + 1] = $hex[$b -band 0xF]
+        }
+        return [string]::new($chars)
+    } finally {
+        if ($null -ne $sha) { $sha.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
 }
 
 function Get-ExtensionIdentityFromPackage {

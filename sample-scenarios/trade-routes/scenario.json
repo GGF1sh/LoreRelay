@@ -43,6 +43,16 @@
   },
   "opening": {
     "bgm": "town",
+    "commerce": {
+      "credits": 500,
+      "cargo": [],
+      "transportId": "wagon",
+      "food": 30,
+      "playerRole": "merchant"
+    },
+    "world": {
+      "currentLocationId": "elda_shop"
+    },
     "status": {
       "location": "Elda's Shop",
       "time": "Morning / market day",

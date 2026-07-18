@@ -137,6 +137,35 @@ function validateScenarioData(scenario: Record<string, unknown>): string[] {
     return errors;
 }
 
+/** Optional, scenario-authored initial caravan state. This is deliberately
+ * data-only: it does not calculate prices, travel, food, or world time. */
+function normalizeOpeningCommerce(raw: unknown): Record<string, unknown> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const source = raw as Record<string, unknown>;
+    if (typeof source.credits !== 'number' || !Number.isFinite(source.credits)) { return undefined; }
+    const cargo = Array.isArray(source.cargo)
+        ? source.cargo
+            .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object' && !Array.isArray(entry))
+            .filter((entry) => typeof entry.commodityId === 'string' && typeof entry.qty === 'number' && Number.isFinite(entry.qty))
+            .slice(0, 24)
+            .map((entry) => ({ commodityId: entry.commodityId, qty: Math.max(0, Math.floor(entry.qty as number)) }))
+        : [];
+    return {
+        credits: Math.max(0, Math.floor(source.credits)),
+        cargo,
+        transportId: typeof source.transportId === 'string' && source.transportId ? source.transportId : 'wagon',
+        food: typeof source.food === 'number' && Number.isFinite(source.food) ? Math.max(0, Math.floor(source.food)) : 30,
+        playerRole: typeof source.playerRole === 'string' && source.playerRole ? source.playerRole : 'merchant',
+    };
+}
+
+function normalizeOpeningWorld(raw: unknown): Record<string, unknown> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const source = raw as Record<string, unknown>;
+    if (typeof source.currentLocationId !== 'string' || !source.currentLocationId) { return undefined; }
+    return { currentLocationId: source.currentLocationId };
+}
+
 function copyFolderSync(from: string, to: string) {
     if (!fs.existsSync(from)) {
         return;
@@ -219,6 +248,10 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         options: Array.isArray(opening.options) ? opening.options : [],
         theme: setup.theme || 'fantasy'
     };
+    const openingCommerce = normalizeOpeningCommerce(opening.commerce);
+    if (openingCommerce) { state.commerce = openingCommerce; }
+    const openingWorld = normalizeOpeningWorld(opening.world);
+    if (openingWorld) { state.world = openingWorld; }
     if (opening.bgm) { state.bgm = opening.bgm; }
     if (opening.sfx) { state.sfx = opening.sfx; }
 

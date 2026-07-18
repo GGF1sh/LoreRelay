@@ -1,0 +1,2768 @@
+// NOAI-ECON-FLOWS-005 — read-only deterministic logistics network.
+// NOAI-ECON-FLOWS-005C — optional flow direction animation (particles when the
+// panel is wide enough, marching dashes when it is narrow; both purely
+// decorative/informational, never touching simulation state).
+
+const LOGISTICS_FLOW_ANIM_STORAGE_KEY = 'lorerelay.logisticsFlowAnimation';
+const LOGISTICS_COMPACT_WIDTH_PX = 420;
+const LOGISTICS_LAYOUT_STORAGE_SCHEMA = 1;
+const LOGISTICS_LAYOUT_STORAGE_ALGO = 'region-hybrid-1';
+const LOGISTICS_LAYOUT_STORAGE_LIMIT = 500;
+
+// LOGISTICS-GRAPH-CANVAS-SLICE1 — pointer-centred camera over a fixed-size
+// viewport. See docs/LOGISTICS_GRAPH_CANVAS_ARCHITECTURE.md §2. Layout,
+// route geometry, and colour are unchanged in this slice; only a camera
+// transform is layered on top of the existing content.
+const LOGISTICS_ZOOM_MIN = 0.25;
+const LOGISTICS_ZOOM_MAX = 3.0;
+const LOGISTICS_ZOOM_STEP = 1.15;
+const LOGISTICS_WHEEL_K = 0.0015;
+const LOGISTICS_FIT_PADDING = 32;
+const LOGISTICS_FIT_SLACK = 0.92;
+const LOGISTICS_PAN_STEP = 48;
+const LOGISTICS_PAN_STEP_FAST = LOGISTICS_PAN_STEP * 4;
+const LOGISTICS_DRAG_THRESHOLD_PX = 4;
+// Max |normalized CSS-pixel| wheel delta accepted before zoom math runs.
+// Extremely large page/line deltas (or pathological input devices) clamp here
+// so exp() never produces non-finite k/tx/ty.
+const LOGISTICS_WHEEL_DELTA_MAX = 4096;
+// Half-extent of a rendered node box (see renderLogisticsNode's -76/-30
+// translate below) — used only to give a single node a sane fit-all bbox.
+const LOGISTICS_NODE_HALF_W = 76;
+const LOGISTICS_NODE_HALF_H = 30;
+// Viewport CSS size is fixed and independent of graph content (see
+// .logistics-network-viewport). These mirror that CSS so fit-all can be
+// computed without racing DOM layout.
+const LOGISTICS_VIEWPORT_HEIGHT = 420;
+const LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX = 640;
+const LOGISTICS_VIEWPORT_WIDTH_FALLBACK = 760;
+const LOGISTICS_CAMERA_EASE_MS = 200;
+
+function logisticsClampZoom(k) {
+  const n = Number(k);
+  if (!Number.isFinite(n)) { return LOGISTICS_ZOOM_MIN; }
+  return Math.max(LOGISTICS_ZOOM_MIN, Math.min(LOGISTICS_ZOOM_MAX, n));
+}
+
+function logisticsIsValidCamera(camera) {
+  return Boolean(camera)
+    && Number.isFinite(camera.k) && Number.isFinite(camera.tx) && Number.isFinite(camera.ty)
+    && camera.k >= LOGISTICS_ZOOM_MIN - 1e-9 && camera.k <= LOGISTICS_ZOOM_MAX + 1e-9;
+}
+
+/** Rejects NaN/±Infinity/non-object bboxes so Fit All never builds
+ * translate(Infinity) from malformed content bounds. */
+function logisticsIsFiniteBBox(bbox) {
+  return Boolean(bbox)
+    && Number.isFinite(bbox.minX) && Number.isFinite(bbox.minY)
+    && Number.isFinite(bbox.maxX) && Number.isFinite(bbox.maxY)
+    && bbox.maxX >= bbox.minX && bbox.maxY >= bbox.minY;
+}
+
+/** Recovers a positive finite viewport size; used by Fit All and zoom-by-step. */
+function logisticsSanitizeViewportSize(viewportSize) {
+  const width = Number(viewportSize && viewportSize.width);
+  const height = Number(viewportSize && viewportSize.height);
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : LOGISTICS_VIEWPORT_WIDTH_FALLBACK,
+    height: Number.isFinite(height) && height > 0 ? height : LOGISTICS_VIEWPORT_HEIGHT,
+  };
+}
+
+function logisticsWorldToScreen(camera, point) {
+  return { x: point.x * camera.k + camera.tx, y: point.y * camera.k + camera.ty };
+}
+
+function logisticsScreenToWorld(camera, point) {
+  return { x: (point.x - camera.tx) / camera.k, y: (point.y - camera.ty) / camera.k };
+}
+
+/** Pointer-centred zoom: the world point under `screenPoint` is unchanged.
+ * Non-finite inputs retain the previous camera (never emit Infinity into SVG). */
+function logisticsZoomAt(camera, screenPoint, nextK) {
+  if (!logisticsIsValidCamera(camera)) { return camera; }
+  const k = logisticsClampZoom(nextK);
+  if (k === camera.k) { return camera; }
+  const sx = Number(screenPoint && screenPoint.x);
+  const sy = Number(screenPoint && screenPoint.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) { return camera; }
+  const ratio = k / camera.k;
+  if (!Number.isFinite(ratio)) { return camera; }
+  const tx = sx - (sx - camera.tx) * ratio;
+  const ty = sy - (sy - camera.ty) * ratio;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) { return camera; }
+  return { k, tx, ty, userModified: true };
+}
+
+/** Normalizes wheel deltaMode: 0 = pixel, 1 = line, 2 = page. Result is
+ * always finite and clamped to ±LOGISTICS_WHEEL_DELTA_MAX CSS pixels. */
+function logisticsWheelDeltaY(event) {
+  let deltaY = Number(event && event.deltaY);
+  if (!Number.isFinite(deltaY)) { deltaY = 0; }
+  const mode = Number(event && event.deltaMode) || 0;
+  if (mode === 1) { deltaY *= 16; } else if (mode === 2) { deltaY *= 320; }
+  if (!Number.isFinite(deltaY)) { return 0; }
+  if (deltaY > LOGISTICS_WHEEL_DELTA_MAX) { return LOGISTICS_WHEEL_DELTA_MAX; }
+  if (deltaY < -LOGISTICS_WHEEL_DELTA_MAX) { return -LOGISTICS_WHEEL_DELTA_MAX; }
+  return deltaY;
+}
+
+function logisticsZoomFromWheel(camera, screenPoint, deltaY) {
+  const dy = Number(deltaY);
+  if (!Number.isFinite(dy)) { return camera; }
+  const factor = Math.exp(-dy * LOGISTICS_WHEEL_K);
+  if (!Number.isFinite(factor)) { return camera; }
+  return logisticsZoomAt(camera, screenPoint, camera.k * factor);
+}
+
+function logisticsZoomByStep(camera, viewportSize, direction) {
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  const center = { x: vp.width / 2, y: vp.height / 2 };
+  const dir = Number(direction);
+  if (!Number.isFinite(dir)) { return camera; }
+  const factor = Math.pow(LOGISTICS_ZOOM_STEP, dir);
+  if (!Number.isFinite(factor)) { return camera; }
+  return logisticsZoomAt(camera, center, camera.k * factor);
+}
+
+function logisticsPanBy(camera, dx, dy) {
+  if (!logisticsIsValidCamera(camera)) { return camera; }
+  const ddx = Number(dx);
+  const ddy = Number(dy);
+  if (!Number.isFinite(ddx) || !Number.isFinite(ddy)) { return camera; }
+  const tx = camera.tx + ddx;
+  const ty = camera.ty + ddy;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) { return camera; }
+  return { k: camera.k, tx, ty, userModified: true };
+}
+
+/** bbox of rendered node boxes (world space), or null for an empty graph. */
+function logisticsComputeContentBBox(nodePositions) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let found = false;
+  nodePositions.forEach((pos) => {
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) { return; }
+    found = true;
+    minX = Math.min(minX, pos.x - LOGISTICS_NODE_HALF_W);
+    maxX = Math.max(maxX, pos.x + LOGISTICS_NODE_HALF_W);
+    minY = Math.min(minY, pos.y - LOGISTICS_NODE_HALF_H);
+    maxY = Math.max(maxY, pos.y + LOGISTICS_NODE_HALF_H);
+  });
+  if (!found) { return null; }
+  const bbox = { minX, minY, maxX, maxY };
+  return logisticsIsFiniteBBox(bbox) ? bbox : null;
+}
+
+function logisticsDefaultCamera(viewportSize) {
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  return { k: 1, tx: vp.width / 2, ty: vp.height / 2, userModified: false };
+}
+
+/** Fits bbox into viewportSize with screen-space padding, then multiplies the
+ * free scale by LOGISTICS_FIT_SLACK (0.92) so decorations keep breathing room.
+ * Symmetric excess slack is preserved by centering on the content midpoint. */
+function logisticsFitAllCamera(bbox, viewportSize, padding = LOGISTICS_FIT_PADDING) {
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  if (!logisticsIsFiniteBBox(bbox)) { return logisticsDefaultCamera(vp); }
+  const pad = Number.isFinite(padding) && padding >= 0 ? padding : LOGISTICS_FIT_PADDING;
+  const contentW = Math.max(1, bbox.maxX - bbox.minX);
+  const contentH = Math.max(1, bbox.maxY - bbox.minY);
+  const availW = Math.max(1, vp.width - pad * 2);
+  const availH = Math.max(1, vp.height - pad * 2);
+  const freeScale = Math.min(availW / contentW, availH / contentH);
+  const k = logisticsClampZoom(freeScale * LOGISTICS_FIT_SLACK);
+  const centerX = (bbox.minX + bbox.maxX) / 2;
+  const centerY = (bbox.minY + bbox.maxY) / 2;
+  const tx = vp.width / 2 - centerX * k;
+  const ty = vp.height / 2 - centerY * k;
+  if (!Number.isFinite(k) || !Number.isFinite(tx) || !Number.isFinite(ty)) {
+    return logisticsDefaultCamera(vp);
+  }
+  return { k, tx, ty, userModified: false };
+}
+
+function logisticsBBoxIntersectsViewport(bbox, camera, viewportSize) {
+  if (!logisticsIsFiniteBBox(bbox) || !logisticsIsValidCamera(camera)) { return true; }
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  const a = logisticsWorldToScreen(camera, { x: bbox.minX, y: bbox.minY });
+  const b = logisticsWorldToScreen(camera, { x: bbox.maxX, y: bbox.maxY });
+  if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) { return true; }
+  const left = Math.min(a.x, b.x);
+  const right = Math.max(a.x, b.x);
+  const top = Math.min(a.y, b.y);
+  const bottom = Math.max(a.y, b.y);
+  return right >= 0 && left <= vp.width && bottom >= 0 && top <= vp.height;
+}
+
+/** Deterministic identity of a dataset's graph shape, independent of the
+ * active commodity filter and of ordinary per-tick value changes. */
+function logisticsDatasetIdentity(payload) {
+  if (!payload) { return ''; }
+  const nodeIds = (payload.nodes || []).map((item) => item && item.id).filter(Boolean).slice().sort();
+  const routeIds = (payload.routes || []).map((item) => item && item.id).filter(Boolean).slice().sort();
+  return `${nodeIds.join(',')}|${routeIds.join(',')}`;
+}
+
+/** Which host is currently being rendered: independent camera memory per host. */
+function logisticsCameraHostKey() {
+  return economyLogisticsUiState.lightboxHost ? 'lightbox' : 'normal';
+}
+
+function logisticsActiveCameraContext() {
+  const key = logisticsCameraHostKey();
+  const contexts = economyLogisticsUiState.cameraContexts;
+  if (!contexts[key]) {
+    contexts[key] = { camera: null, identity: null };
+  }
+  return contexts[key];
+}
+
+function logisticsEmptyCameraContexts() {
+  return {
+    normal: { camera: null, identity: null },
+    lightbox: { camera: null, identity: null },
+  };
+}
+
+/** Resolves the camera for this host/render.
+ *
+ * same dataset identity → always retain a valid camera
+ * changed identity + userModified → retain exactly, update identity, never Fit All
+ * changed identity + !userModified + content intersects viewport → retain
+ * changed identity + !userModified + all content off-screen → one bounded Fit All
+ */
+function logisticsResolveCameraForRender(payload, bbox, viewportSize) {
+  const ctx = logisticsActiveCameraContext();
+  const identity = logisticsDatasetIdentity(payload);
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  if (!logisticsIsValidCamera(ctx.camera)) {
+    ctx.camera = logisticsFitAllCamera(bbox, vp);
+    ctx.identity = identity;
+    return ctx.camera;
+  }
+  if (ctx.identity === identity) {
+    return ctx.camera;
+  }
+  // Dataset identity changed.
+  if (ctx.camera.userModified === true) {
+    ctx.identity = identity;
+    return ctx.camera;
+  }
+  if (logisticsBBoxIntersectsViewport(bbox, ctx.camera, vp)) {
+    ctx.identity = identity;
+    return ctx.camera;
+  }
+  ctx.camera = logisticsFitAllCamera(bbox, vp);
+  ctx.identity = identity;
+  return ctx.camera;
+}
+
+function logisticsPrefersReducedMotion() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function logisticsLoadFlowAnimationPref() {
+  try {
+    return window.localStorage.getItem(LOGISTICS_FLOW_ANIM_STORAGE_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function logisticsSaveFlowAnimationPref(enabled) {
+  try {
+    window.localStorage.setItem(LOGISTICS_FLOW_ANIM_STORAGE_KEY, enabled ? 'on' : 'off');
+  } catch { /* private browsing / quota — animation choice just won't persist */ }
+}
+
+/** Deterministic pseudo-random unit value from an id, used only to stagger
+ *  particle start times so parallel routes don't all pulse in lockstep. */
+function logisticsHashUnit(id) {
+  let h = 0;
+  const s = String(id || '');
+  for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  return (h % 997) / 997;
+}
+
+function logisticsFlowMotionActive() {
+  return economyLogisticsUiState.flowAnimationEnabled && !logisticsPrefersReducedMotion();
+}
+
+function logisticsFlowDurationSeconds(route) {
+  const util = Math.max(0, Math.min(1, route.utilization || 0));
+  if (route.status === 'raided') { return 2.8 + (1 - util) * 1.6; }
+  if (route.status === 'strained') { return 2.2 + (1 - util) * 1.4; }
+  return 1.6 + (1 - util) * 1.2;
+}
+
+let logisticsNetworkResizeObserver = null;
+
+/** Measures the actual scrollable viewport (not the min-width-forced SVG) so a
+ *  docked, narrow status column reliably falls back to marching dashes even
+ *  when the overall VS Code window is wide. */
+function logisticsObserveNetworkWidth(viewportEl) {
+  if (typeof ResizeObserver !== 'function') { return; }
+  if (!logisticsNetworkResizeObserver) {
+    logisticsNetworkResizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width ?? 0;
+      const compact = width < LOGISTICS_COMPACT_WIDTH_PX;
+      if (compact !== economyLogisticsUiState.compactAnimation) {
+        economyLogisticsUiState.compactAnimation = compact;
+        renderEconomyLogisticsPanel();
+      }
+    });
+  } else {
+    logisticsNetworkResizeObserver.disconnect();
+  }
+  logisticsNetworkResizeObserver.observe(viewportEl);
+}
+
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  const logisticsMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const onLogisticsMotionChange = () => renderEconomyLogisticsPanel();
+  if (typeof logisticsMotionQuery.addEventListener === 'function') {
+    logisticsMotionQuery.addEventListener('change', onLogisticsMotionChange);
+  } else if (typeof logisticsMotionQuery.addListener === 'function') {
+    logisticsMotionQuery.addListener(onLogisticsMotionChange);
+  }
+}
+
+const economyLogisticsUiState = {
+  payload: null,
+  commodityId: 'all',
+  selection: null,
+  flowAnimationEnabled: logisticsLoadFlowAnimationPref(),
+  // Conservative default (marching dashes, no particles) until the real
+  // container width is measured by ResizeObserver on first paint.
+  compactAnimation: true,
+  searchQuery: '',
+  statusKeys: new Set(),
+  // Non-null while the panel is rendering inside the "view large" lightbox
+  // instead of its normal sidebar location (see ensureVisualLightbox below).
+  lightboxHost: null,
+  // Independent in-memory cameras per host (normal 420px vs lightbox 640px).
+  // Selection/filter remain shared; no localStorage persistence in this slice.
+  cameraContexts: {
+    normal: { camera: null, identity: null },
+    lightbox: { camera: null, identity: null },
+  },
+  // True while the Space key is held with focus inside the graph viewport,
+  // enabling background-style pan even when the pointer starts on a node.
+  // Cleared on focus loss / window blur so a stale Space cannot sticky-pan.
+  spaceHeld: false,
+  scopeKey: 'default',
+  persistedScopeKey: null,
+  manualPositions: {},
+  collapsedRegionIds: new Set(),
+  layout: null,
+  rendered: null,
+  filterCountElement: null,
+  storageFallback: new Map(),
+  cameraSaveTimers: {},
+  // Authoritative node-drag particle suppression (HUMAN-BLOCKERS-F).
+  // While active, incident routes of movedNodeId must not create or display
+  // flow particles in ANY render path (initial paint, raised layer, filter/
+  // search/zoom refresh, or geometry refresh). Cleared only on drag cleanup.
+  nodeDragSession: null,
+  lightboxMaximized: false,
+};
+
+/** True when an active drag session forbids particles for this route. */
+function isRouteSuppressedByActiveNodeDrag(routeId) {
+  const session = economyLogisticsUiState.nodeDragSession;
+  return Boolean(session && session.active && routeId && session.affectedRouteIds
+    && (session.affectedRouteIds.has ? session.affectedRouteIds.has(routeId) : session.affectedRouteIds.includes(routeId)));
+}
+
+/** Combined flow gate used by every particle creation / visibility path. */
+function logisticsRouteMayShowFlowParticles(route, relevanceKind, style) {
+  if (!route || isRouteSuppressedByActiveNodeDrag(route.id)) { return false; }
+  if (economyLogisticsUiState.compactAnimation) { return false; }
+  return isLogisticsRouteFlowEligible({
+    flowEnabled: economyLogisticsUiState.flowAnimationEnabled,
+    reducedMotion: logisticsPrefersReducedMotion(),
+    relevanceKind: relevanceKind || 'primary',
+    volume: route.volume,
+    operational: style?.operational,
+  });
+}
+
+/** Strip tracked particles from a route group and drop is-flowing. */
+function logisticsClearRouteParticles(group) {
+  if (!group || !group._logisticsParts) { return; }
+  const parts = group._logisticsParts;
+  if (parts.particles && parts.particles.length) {
+    for (const p of parts.particles) {
+      if (p && p.parentNode) { p.parentNode.removeChild(p); }
+    }
+  }
+  parts.particles = [];
+  if (group.classList) { group.classList.remove('is-flowing'); }
+}
+
+function logisticsFlowDotRouteGroup(dot) {
+  let candidate = dot?.parentNode || null;
+  while (candidate) {
+    if (candidate.dataset?.routeId) { return candidate; }
+    candidate = candidate.parentNode;
+  }
+  return null;
+}
+
+function logisticsFlowDotMotion(dot) {
+  const motions = typeof dot?.querySelectorAll === 'function'
+    ? dot.querySelectorAll('animateMotion') : [];
+  return motions && motions.length ? motions[0] : null;
+}
+
+/**
+ * Active-view drag audit. Direct animateMotion paths have no mpath ID to
+ * inspect, so route ancestry is the suppression authority. Missing motion
+ * geometry is also purged, catching raised-layer/orphan remnants.
+ */
+function logisticsPurgeSuppressedFlowDots(rendered) {
+  const session = economyLogisticsUiState.nodeDragSession;
+  if (!session || !session.active) { return; }
+  const routeIds = session.affectedRouteIds;
+  const hasRoute = (id) => routeIds && (routeIds.has ? routeIds.has(id) : routeIds.includes(id));
+  const roots = [];
+  if (rendered?.svg) { roots.push(rendered.svg); }
+  if (rendered?.viewport) { roots.push(rendered.viewport); }
+  // Always also audit the currently mounted host (lightbox or panel).
+  const host = economyLogisticsUiState.lightboxHost
+    || (typeof document !== 'undefined' ? document.getElementById('world-logistics-panel') : null);
+  if (host) { roots.push(host); }
+  const seen = new Set();
+  for (const root of roots) {
+    if (!root || seen.has(root)) { continue; }
+    seen.add(root);
+    const dots = typeof root.querySelectorAll === 'function'
+      ? root.querySelectorAll('.logistics-flow-dot')
+      : [];
+    for (const dot of dots) {
+      const group = logisticsFlowDotRouteGroup(dot);
+      const routeId = group?.dataset?.routeId || '';
+      const motionPath = logisticsFlowDotMotion(dot)?.getAttribute?.('path') || '';
+      if (hasRoute(routeId) || !routeId || !motionPath) {
+        if (dot.parentNode) { dot.parentNode.removeChild(dot); }
+      }
+    }
+  }
+  // Keep tracked arrays coherent with the purge.
+  if (rendered?.routeElements) {
+    for (const routeId of (session.affectedRouteIds || [])) {
+      logisticsClearRouteParticles(rendered.routeElements.get(routeId));
+    }
+  }
+}
+
+/**
+ * Enumerate the current active SVG after restoration and remove any visible
+ * dot whose direct motion geometry is not byte-identical to its live route
+ * line. The rendered route group and line are the sole geometry authority.
+ */
+function logisticsAuditActiveFlowDots(rendered) {
+  const activeContextId = logisticsCameraHostKey();
+  if (!rendered || economyLogisticsUiState.rendered !== rendered
+    || rendered.contextId !== activeContextId || !rendered.svg) {
+    return { visibleCount: 0, staleCount: 0, removedCount: 0, records: [] };
+  }
+  const dots = typeof rendered.svg.querySelectorAll === 'function'
+    ? rendered.svg.querySelectorAll('.logistics-flow-dot') : [];
+  const records = [];
+  let staleCount = 0;
+  let removedCount = 0;
+  for (const dot of dots) {
+    if (dot.getAttribute?.('display') === 'none') { continue; }
+    const group = logisticsFlowDotRouteGroup(dot);
+    const routeId = group?.dataset?.routeId || '';
+    const activeGroup = routeId ? rendered.routeElements?.get(routeId) : null;
+    const line = activeGroup?._logisticsParts?.line || null;
+    const lineD = line?.getAttribute?.('d') || '';
+    const motion = logisticsFlowDotMotion(dot);
+    const motionD = motion?.getAttribute?.('path') || '';
+    const current = Boolean(group && activeGroup === group && lineD && motionD === lineD);
+    records.push({ routeId, lineD, motionD, current });
+    if (!current) {
+      staleCount += 1;
+      if (dot.parentNode) { dot.parentNode.removeChild(dot); removedCount += 1; }
+      if (group?._logisticsParts?.particles) {
+        group._logisticsParts.particles = group._logisticsParts.particles.filter((particle) => particle !== dot);
+      }
+    }
+  }
+  return { visibleCount: records.length - removedCount, staleCount, removedCount, records };
+}
+
+function logisticsBeginNodeDragSession(rendered, nodeId) {
+  const topology = rendered?.routeTopologyIndex;
+  const affectedRouteIds = logisticsAffectedRouteIdsForNode(nodeId, topology) || [];
+  const affectedPathIds = [];
+  for (const routeId of affectedRouteIds) {
+    const group = rendered?.routeElements?.get(routeId);
+    const pathId = group?._logisticsParts?.line?.getAttribute?.('id')
+      || (group ? `logistics-route-path-${logisticsDomId(routeId)}` : '');
+    if (pathId) { affectedPathIds.push(pathId); }
+  }
+  economyLogisticsUiState.nodeDragSession = {
+    active: true,
+    renderedContextId: economyLogisticsUiState.lightboxHost ? 'lightbox' : 'normal',
+    movedNodeId: nodeId,
+    affectedRouteIds: new Set(affectedRouteIds),
+    affectedPathIds: new Set(affectedPathIds),
+  };
+  // Immediate suppression — do not wait for the first geometry frame.
+  for (const routeId of affectedRouteIds) {
+    logisticsClearRouteParticles(rendered?.routeElements?.get(routeId));
+  }
+  logisticsPurgeSuppressedFlowDots(rendered);
+}
+
+function logisticsEndNodeDragSession() {
+  economyLogisticsUiState.nodeDragSession = null;
+}
+
+function logisticsScopeKey(payload) {
+  const value = String(payload?.scopeKey || 'default').toLowerCase();
+  return /^[a-z0-9_-]{1,32}$/.test(value) ? value : 'default';
+}
+
+function logisticsStorageKey(kind, scopeKey) {
+  return `lorerelay.logistics.${kind}.v1.${scopeKey}`;
+}
+
+function logisticsStorageGet(key) {
+  // A failed write can be more recent than the underlying store. Keep an
+  // overlay (including a null tombstone) until a later storage operation
+  // succeeds, rather than allowing stale localStorage data to reappear.
+  if (economyLogisticsUiState.storageFallback.has(key)) { return economyLogisticsUiState.storageFallback.get(key); }
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+
+function logisticsStorageSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    economyLogisticsUiState.storageFallback.delete(key);
+  } catch { economyLogisticsUiState.storageFallback.set(key, value); }
+}
+
+function logisticsStorageRemove(key) {
+  try {
+    window.localStorage.removeItem(key);
+    economyLogisticsUiState.storageFallback.delete(key);
+  } catch { economyLogisticsUiState.storageFallback.set(key, null); }
+}
+
+function logisticsValidStoredPosition(value) {
+  return Boolean(value) && Number.isFinite(value.x) && Number.isFinite(value.y)
+    && Math.abs(value.x) <= 50000 && Math.abs(value.y) <= 50000
+    && typeof value.regionId === 'string';
+}
+
+function logisticsLoadLayoutPositions(scopeKey) {
+  try {
+    const parsed = JSON.parse(logisticsStorageGet(logisticsStorageKey('layout', scopeKey)) || 'null');
+    if (!parsed || parsed.v !== LOGISTICS_LAYOUT_STORAGE_SCHEMA || parsed.algo !== LOGISTICS_LAYOUT_STORAGE_ALGO
+      || !parsed.positions || typeof parsed.positions !== 'object' || Array.isArray(parsed.positions)) { return {}; }
+    const valid = Object.entries(parsed.positions)
+      .filter(([, value]) => logisticsValidStoredPosition(value))
+      .map(([id, value]) => [id, { x: value.x, y: value.y, regionId: value.regionId, ts: Number.isFinite(value.ts) ? value.ts : 0 }]);
+    valid.sort((a, b) => a[1].ts - b[1].ts || logisticsLayoutCompareId(a[0], b[0]));
+    return Object.fromEntries(valid.slice(Math.max(0, valid.length - LOGISTICS_LAYOUT_STORAGE_LIMIT)));
+  } catch { return {}; }
+}
+
+function logisticsSaveLayoutPositions() {
+  const entries = Object.entries(economyLogisticsUiState.manualPositions).filter(([, value]) => logisticsValidStoredPosition(value));
+  entries.sort((a, b) => a[1].ts - b[1].ts || logisticsLayoutCompareId(a[0], b[0]));
+  economyLogisticsUiState.manualPositions = Object.fromEntries(entries.slice(Math.max(0, entries.length - LOGISTICS_LAYOUT_STORAGE_LIMIT)));
+  logisticsStorageSet(logisticsStorageKey('layout', economyLogisticsUiState.scopeKey), JSON.stringify({
+    v: LOGISTICS_LAYOUT_STORAGE_SCHEMA,
+    algo: LOGISTICS_LAYOUT_STORAGE_ALGO,
+    positions: economyLogisticsUiState.manualPositions,
+  }));
+}
+
+function logisticsPruneWrongRegionManualPositions(layout) {
+  let removed = false;
+  for (const id of layout?.diagnostics?.wrongRegionManualIds || []) {
+    if (Object.prototype.hasOwnProperty.call(economyLogisticsUiState.manualPositions, id)) {
+      delete economyLogisticsUiState.manualPositions[id];
+      removed = true;
+    }
+  }
+  if (removed) { logisticsSaveLayoutPositions(); }
+  return removed;
+}
+
+function logisticsValidStoredCamera(value) {
+  return logisticsIsValidCamera(value) && typeof value.userModified === 'boolean';
+}
+
+function logisticsLoadCameraContexts(scopeKey) {
+  const contexts = logisticsEmptyCameraContexts();
+  try {
+    const parsed = JSON.parse(logisticsStorageGet(logisticsStorageKey('camera', scopeKey)) || 'null');
+    if (!parsed || parsed.v !== 1) { return contexts; }
+    for (const key of ['normal', 'lightbox']) {
+      if (logisticsValidStoredCamera(parsed[key])) { contexts[key].camera = { ...parsed[key] }; }
+    }
+  } catch { /* fresh in-memory cameras are valid fallback */ }
+  return contexts;
+}
+
+function logisticsSaveCameraContext(scopeKey, hostKey, camera) {
+  let out = { v: 1 };
+  try {
+    const parsed = JSON.parse(logisticsStorageGet(logisticsStorageKey('camera', scopeKey)) || 'null');
+    if (parsed && parsed.v === 1) { out = { v: 1 }; for (const key of ['normal', 'lightbox']) { if (logisticsValidStoredCamera(parsed[key])) { out[key] = parsed[key]; } } }
+  } catch { /* write a fresh, valid context below */ }
+  if (logisticsValidStoredCamera(camera)) { out[hostKey] = { ...camera }; }
+  logisticsStorageSet(logisticsStorageKey('camera', scopeKey), JSON.stringify(out));
+}
+
+function logisticsQueueCameraSave(immediate) {
+  const hostKey = logisticsCameraHostKey();
+  const scopeKey = economyLogisticsUiState.scopeKey;
+  const camera = { ...economyLogisticsUiState.cameraContexts[hostKey].camera };
+  const key = `${scopeKey}:${hostKey}`;
+  const timers = economyLogisticsUiState.cameraSaveTimers;
+  if (timers[key]) { clearTimeout(timers[key]); timers[key] = null; }
+  if (immediate) { logisticsSaveCameraContext(scopeKey, hostKey, camera); return; }
+  timers[key] = setTimeout(() => { timers[key] = null; logisticsSaveCameraContext(scopeKey, hostKey, camera); }, 220);
+}
+
+function logisticsCancelCameraSaves(scopeKey) {
+  const prefix = `${scopeKey}:`;
+  for (const [key, timer] of Object.entries(economyLogisticsUiState.cameraSaveTimers)) {
+    if (!key.startsWith(prefix)) { continue; }
+    if (timer) { clearTimeout(timer); }
+    delete economyLogisticsUiState.cameraSaveTimers[key];
+  }
+}
+
+function logisticsLoadPrefs(scopeKey) {
+  try {
+    const parsed = JSON.parse(logisticsStorageGet(logisticsStorageKey('prefs', scopeKey)) || 'null');
+    if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.collapsed)) { return new Set(); }
+    return new Set(parsed.collapsed.filter((id) => typeof id === 'string' && id && id !== '__unassigned'));
+  } catch { return new Set(); }
+}
+
+function logisticsSavePrefs() {
+  logisticsStorageSet(logisticsStorageKey('prefs', economyLogisticsUiState.scopeKey), JSON.stringify({
+    v: 1,
+    collapsed: [...economyLogisticsUiState.collapsedRegionIds].sort(logisticsLayoutCompareId),
+  }));
+}
+
+function logisticsEnsureScope(payload) {
+  const scopeKey = logisticsScopeKey(payload);
+  if (economyLogisticsUiState.persistedScopeKey === scopeKey) { return; }
+  economyLogisticsUiState.scopeKey = scopeKey;
+  economyLogisticsUiState.persistedScopeKey = scopeKey;
+  economyLogisticsUiState.manualPositions = logisticsLoadLayoutPositions(scopeKey);
+  economyLogisticsUiState.collapsedRegionIds = logisticsLoadPrefs(scopeKey);
+  economyLogisticsUiState.cameraContexts = logisticsLoadCameraContexts(scopeKey);
+}
+
+function logisticsElement(tag, className, value) {
+  const node = document.createElement(tag);
+  if (className) { node.className = className; }
+  if (value !== undefined && value !== null) { node.textContent = String(value); }
+  return node;
+}
+
+function logisticsSvgElement(tag, className) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  if (className) { node.setAttribute('class', className); }
+  return node;
+}
+
+function logisticsNumber(value, digits = 1) {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return Number.isInteger(n) ? String(n) : n.toFixed(digits).replace(/\.0+$/, '');
+}
+
+function logisticsPercent(value) {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return `${Math.round(Math.max(0, Math.min(1, n)) * 100)}%`;
+}
+
+function logisticsStatusLabel(status) {
+  return T(`webview.world.logisticsStatus${String(status || 'open').replace(/^./, (c) => c.toUpperCase())}`);
+}
+
+function logisticsRiskLabel(risk) {
+  if (risk >= 0.67) { return T('webview.world.logisticsRiskHigh'); }
+  if (risk >= 0.34) { return T('webview.world.logisticsRiskMedium'); }
+  return T('webview.world.logisticsRiskLow');
+}
+
+function logisticsNodeKindLabel(kind) {
+  const role = logisticsNodeRole(kind).replace('-', '');
+  return T(`webview.world.logisticsNode${role.replace(/^./, (c) => c.toUpperCase())}`);
+}
+
+function logisticsCommodityName(payload, commodityId) {
+  const commodity = (payload?.commodities || []).find((item) => item.id === commodityId);
+  return commodity?.name || commodityId || '?';
+}
+
+function logisticsNodeName(payload, nodeId) {
+  const node = (payload?.nodes || []).find((item) => item.id === nodeId);
+  return node?.label || nodeId || '?';
+}
+
+function logisticsUnavailableText(reason) {
+  const keyByReason = {
+    commerce_disabled: 'webview.world.logisticsCommerceDisabled',
+    missing_definition: 'webview.world.logisticsMissingDefinition',
+    snapshot_unavailable: 'webview.world.logisticsSnapshotUnavailable',
+    no_route_summaries: 'webview.world.logisticsNoRoutes',
+  };
+  return T(keyByReason[reason] || 'webview.world.logisticsUnavailable');
+}
+
+function logisticsNodeRank(kind) {
+  if (kind === 'region') { return 0; }
+  if (kind === 'settlement' || kind === 'facility') { return 1; }
+  return 2;
+}
+
+/** Stable, CSS-safe fragment id for sharing the rendered route path with
+ * animateMotion. Encoding code points avoids collisions from punctuation. */
+function logisticsDomId(value) {
+  return Array.from(String(value ?? 'route'))
+    .map((character) => character.codePointAt(0).toString(16))
+    .join('-');
+}
+
+function logisticsNodeRole(kind) {
+  const value = String(kind || 'region').toLowerCase();
+  if (value === 'city' || value === 'town' || value === 'village') { return 'settlement'; }
+  if (value === 'vehicle' || value === 'wagon' || value === 'ship') { return 'vehicle'; }
+  if (value === 'caravan') { return 'caravan'; }
+  if (value === 'envoy' || value === 'group' || value === 'moving_group') { return 'envoy'; }
+  if (value === 'mobile_base' || value === 'base') { return 'mobile-base'; }
+  return ['region', 'settlement', 'market', 'facility', 'store'].includes(value) ? value : 'region';
+}
+
+/** Factual scale only: explicit payload tier, otherwise deterministic route degree. */
+function logisticsNodeScale(node, routes) {
+  if (['minor', 'standard', 'major'].includes(node?.scale)) { return node.scale; }
+  const degree = (routes || []).filter((route) => route.fromNodeId === node?.id || route.toNodeId === node?.id).length;
+  if (degree >= 4) { return 'major'; }
+  if (degree === 1) { return 'minor'; }
+  return 'standard';
+}
+
+function logisticsNodeShapePath(role) {
+  const paths = {
+    settlement: 'M 8 0 H 144 L 152 8 V 52 L 144 60 H 8 L 0 52 V 8 Z',
+    market: 'M 18 0 H 134 Q 152 0 152 18 V 42 Q 152 60 134 60 H 18 Q 0 60 0 42 V 18 Q 0 0 18 0 Z',
+    facility: 'M 0 0 H 152 V 60 H 0 Z',
+    vehicle: 'M 16 6 H 136 L 152 30 L 136 54 H 16 L 0 30 Z',
+    caravan: 'M 4 8 H 70 V 52 H 4 Z M 82 8 H 148 V 52 H 82 Z',
+    envoy: 'M 76 0 L 152 30 L 76 60 L 0 30 Z',
+    'mobile-base': 'M 14 0 H 138 L 152 30 L 138 60 H 14 L 0 30 Z',
+    region: 'M 20 0 H 132 Q 152 0 152 20 V 40 Q 152 60 132 60 H 20 Q 0 60 0 40 V 20 Q 0 0 20 0 Z',
+    store: 'M 6 0 H 146 L 152 10 V 60 H 0 V 10 Z',
+  };
+  return paths[role] || paths.region;
+}
+
+function logisticsNodeSymbol(role) {
+  return ({ settlement: '◆', market: 'M', facility: 'F', vehicle: '→', caravan: 'C', envoy: 'E', 'mobile-base': 'B', store: 'S', region: '○' })[role] || '○';
+}
+
+// CJK glyphs are roughly twice as wide as ASCII at the node-label font size, so
+// truncate by width units instead of characters to keep labels inside the box.
+function logisticsTruncateLabel(label) {
+  const text = String(label ?? '');
+  const wide = /[ᄀ-ᇿ⺀-鿿　-ヿ㄰-㆏가-힣豈-﫿︰-﹏＀-｠￠-￦]/;
+  let units = 0;
+  let out = '';
+  for (const ch of text) {
+    units += wide.test(ch) ? 2 : 1;
+    if (units > 19) { return `${out}…`; }
+    out += ch;
+  }
+  return text;
+}
+
+function buildLogisticsLayout(nodes, routes, options) {
+  return computeLogisticsLayout(nodes, routes, options);
+}
+
+function appendLogisticsTitle(parent, value) {
+  const title = logisticsSvgElement('title');
+  title.textContent = value;
+  parent.appendChild(title);
+}
+
+function activateLogisticsSelection(selection) {
+  economyLogisticsUiState.selection = selection;
+  renderEconomyLogisticsPanel();
+}
+
+/** True when the given selection descriptor is the one already active, so a
+ * repeat activation (second click / Enter on the same route or node) is a
+ * request to return to the neutral state rather than reselect. */
+function logisticsSelectionIsActive(selection) {
+  const current = economyLogisticsUiState.selection;
+  return Boolean(selection && current && current.type === selection.type && current.id === selection.id);
+}
+
+/** Second activation of the already-selected entity clears it; activating a
+ * different entity selects it as before. */
+function toggleLogisticsSelection(selection) {
+  activateLogisticsSelection(logisticsSelectionIsActive(selection) ? null : selection);
+}
+
+function bindLogisticsActivation(node, selection) {
+  node.setAttribute('tabindex', '0');
+  node.setAttribute('role', 'button');
+  node.addEventListener('click', () => toggleLogisticsSelection(selection));
+  node.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleLogisticsSelection(selection);
+    }
+  });
+}
+
+function renderLogisticsSummary(payload, parent) {
+  const summary = logisticsElement('div', 'logistics-summary');
+  const items = [
+    ['webview.world.logisticsActiveRoutes', payload.summary?.activeRoutes ?? 0],
+    ['webview.world.logisticsDisruptedRoutes', (payload.summary?.blockedRoutes ?? 0) + (payload.summary?.raidedRoutes ?? 0)],
+    ['webview.world.logisticsShortages', payload.summary?.shortageCount ?? 0],
+    ['webview.world.logisticsTotalFlow', logisticsNumber(payload.summary?.totalVolume ?? 0)],
+  ];
+  items.forEach(([key, value]) => {
+    const chip = logisticsElement('div', 'logistics-summary-chip');
+    chip.appendChild(logisticsElement('span', 'logistics-summary-label', T(key)));
+    chip.appendChild(logisticsElement('strong', '', value));
+    summary.appendChild(chip);
+  });
+  parent.appendChild(summary);
+}
+
+function renderLogisticsFilter(payload, parent) {
+  const row = logisticsElement('div', 'logistics-filter-row');
+  const label = logisticsElement('label', '', T('webview.world.logisticsCommodityFilter'));
+  label.setAttribute('for', 'world-logistics-commodity-filter');
+  const select = logisticsElement('select', 'logistics-filter');
+  select.id = 'world-logistics-commodity-filter';
+  const all = logisticsElement('option', '', T('webview.world.logisticsAllCommodities'));
+  all.value = 'all';
+  select.appendChild(all);
+  (payload.commodities || []).forEach((commodity) => {
+    const flags = [
+      commodity.localSpecialty ? T('webview.world.logisticsSpecialtyShort') : '',
+      commodity.strategic ? T('webview.world.logisticsStrategicShort') : '',
+    ].filter(Boolean);
+    const option = logisticsElement('option', '', `${commodity.name}${flags.length ? ` · ${flags.join(' · ')}` : ''}`);
+    option.value = commodity.id;
+    select.appendChild(option);
+  });
+  if (!(payload.commodities || []).some((item) => item.id === economyLogisticsUiState.commodityId)) {
+    economyLogisticsUiState.commodityId = 'all';
+  }
+  select.value = economyLogisticsUiState.commodityId;
+  select.addEventListener('change', () => {
+    economyLogisticsUiState.commodityId = select.value || 'all';
+    logisticsApplyNavigationFilters();
+  });
+  row.appendChild(label);
+  row.appendChild(select);
+  const search = logisticsElement('input', 'logistics-search');
+  search.type = 'search'; search.value = economyLogisticsUiState.searchQuery;
+  search.setAttribute('aria-label', T('webview.world.logisticsSearch'));
+  search.placeholder = T('webview.world.logisticsSearch');
+  search.addEventListener('input', () => { economyLogisticsUiState.searchQuery = search.value || ''; logisticsApplyNavigationFilters(); });
+  search.addEventListener('keydown', (event) => { if (event.key === 'Escape') { search.value = ''; economyLogisticsUiState.searchQuery = ''; logisticsApplyNavigationFilters(); } });
+  row.appendChild(search);
+  let statusSelect = null;
+  const statuses = [...new Set((payload.routes || []).map((route) => String(route.status || 'open')))].sort(logisticsLayoutCompareId);
+  if (statuses.length) {
+    const status = logisticsElement('select', 'logistics-status-filter');
+    status.setAttribute('aria-label', T('webview.world.logisticsStatusFilter'));
+    const any = logisticsElement('option', '', T('webview.world.logisticsStatusFilter')); any.value = ''; status.appendChild(any);
+    statuses.forEach((key) => { const option = logisticsElement('option', '', logisticsStatusLabel(key)); option.value = key; status.appendChild(option); });
+    status.addEventListener('change', () => { economyLogisticsUiState.statusKeys = new Set(status.value ? [status.value] : []); logisticsApplyNavigationFilters(); });
+    row.appendChild(status);
+    statusSelect = status;
+  }
+  const clear = logisticsElement('button', 'logistics-clear-filters-btn', T('webview.world.logisticsClearFilters'));
+  clear.type = 'button'; clear.addEventListener('click', () => {
+    economyLogisticsUiState.commodityId = 'all'; economyLogisticsUiState.searchQuery = ''; economyLogisticsUiState.statusKeys = new Set();
+    select.value = 'all'; search.value = ''; if (statusSelect) { statusSelect.value = ''; }
+    logisticsApplyNavigationFilters();
+  });
+  row.appendChild(clear);
+  const results = logisticsElement('span', 'logistics-filter-results', `${T('webview.world.logisticsFilterResults')}: 0`);
+  results.setAttribute('role', 'status');
+  results.setAttribute('aria-live', 'polite');
+  row.appendChild(results);
+  economyLogisticsUiState.filterCountElement = results;
+  renderLogisticsFlowToggle(row);
+  parent.appendChild(row);
+}
+
+function logisticsUpdateFilterCount(filterModel) {
+  const element = economyLogisticsUiState.filterCountElement;
+  if (!element) { return; }
+  const count = Number.isFinite(filterModel?.matchCount) ? filterModel.matchCount : 0;
+  element.textContent = `${T('webview.world.logisticsFilterResults')}: ${count}`;
+}
+
+function logisticsApplyNavigationFilters() {
+  const payload = economyLogisticsUiState.payload; const rendered = economyLogisticsUiState.rendered;
+  if (!payload || !rendered?.graphRoutes || !rendered?.graphNodes) { renderEconomyLogisticsPanel(); return; }
+  const selection = economyLogisticsUiState.selection || null;
+  const filterModel = computeLogisticsFilterModel({ nodes: rendered.graphNodes, routes: rendered.graphRoutes, commodities: payload.commodities || [], regions: economyLogisticsUiState.layout?.regions, query: economyLogisticsUiState.searchQuery, commodityId: economyLogisticsUiState.commodityId, statusKeys: [...economyLogisticsUiState.statusKeys] });
+  const visual = computeLogisticsVisualEncoding({ routes: rendered.graphRoutes, nodes: rendered.graphNodes, commodities: payload.commodities || [], selectedCommodityId: economyLogisticsUiState.commodityId, selectedRouteId: selection?.type === 'route' ? selection.id : null, selectedNodeId: selection?.type === 'node' ? selection.id : null, currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null, options: { geometryByRoute: rendered.routeGeoms, shortages: payload.shortages || [], filterModel } });
+  const apply = (group, style) => {
+    if (!group || !style) { return; }
+    const kind = style.relevanceKind; group.dataset.relevance = kind;
+    if (group.style) { group.style.opacity = String(style.relevance); }
+    if (group.classList) {
+      group.classList.remove('is-unrelated', 'is-secondary', 'is-related', 'is-relevance-primary', 'is-relevance-secondary', 'is-relevance-unrelated', 'is-commodity-primary', 'is-commodity-secondary');
+      group.classList.add(`is-relevance-${kind}`, kind === 'primary' ? 'is-related' : kind === 'secondary' ? 'is-secondary' : 'is-unrelated');
+      if (style.commodityAccentState !== 'none') { group.classList.add(`is-commodity-${style.commodityAccentState}`); }
+    }
+    const annotations = group._logisticsAnnotations;
+    if (annotations) {
+      annotations.dataset.relevance = kind;
+      if (annotations.style) { annotations.style.opacity = String(style.relevance); }
+      if (annotations.classList) {
+        annotations.classList.remove('is-unrelated', 'is-secondary', 'is-related', 'is-relevance-primary', 'is-relevance-secondary', 'is-relevance-unrelated', 'is-commodity-primary', 'is-commodity-secondary');
+        annotations.classList.add(`is-relevance-${kind}`, kind === 'primary' ? 'is-related' : kind === 'secondary' ? 'is-secondary' : 'is-unrelated');
+        if (style.commodityAccentState !== 'none') { annotations.classList.add(`is-commodity-${style.commodityAccentState}`); }
+      }
+    }
+    logisticsApplyFlowParticleVisibility(group, group._logisticsRoute, kind);
+  };
+  for (const route of rendered.graphRoutes) { apply(rendered.routeElements.get(route.id), visual.routeStyles.get(route.id)); }
+  for (const node of rendered.graphNodes) { apply(rendered.nodeElements.get(node.id), visual.nodeStyles.get(node.id)); }
+  rendered.visualEncoding = visual; rendered.filterModel = filterModel;
+  logisticsUpdateFilterCount(filterModel);
+}
+
+function renderLogisticsFlowToggle(row) {
+  const reduced = logisticsPrefersReducedMotion();
+  const enabled = economyLogisticsUiState.flowAnimationEnabled;
+  const btn = logisticsElement(
+    'button',
+    `logistics-flow-toggle-btn${enabled && !reduced ? ' is-active' : ''}`,
+    T(enabled ? 'webview.world.logisticsFlowAnimationOn' : 'webview.world.logisticsFlowAnimationOff')
+  );
+  btn.type = 'button';
+  btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  btn.title = reduced
+    ? T('webview.world.logisticsFlowAnimationReducedMotionTitle')
+    : T('webview.world.logisticsFlowAnimationTitle');
+  btn.disabled = reduced;
+  btn.addEventListener('click', () => {
+    economyLogisticsUiState.flowAnimationEnabled = !economyLogisticsUiState.flowAnimationEnabled;
+    logisticsSaveFlowAnimationPref(economyLogisticsUiState.flowAnimationEnabled);
+    renderEconomyLogisticsPanel();
+  });
+  row.appendChild(btn);
+}
+
+function visibleLogisticsData(payload) {
+  const commodityId = economyLogisticsUiState.commodityId;
+  // Layout and topology always come from the complete sanitized payload. The
+  // active commodity filter only changes relevance treatment, never positions.
+  const routes = (payload.routes || []).slice();
+  const shortages = (payload.shortages || []).filter((item) => item.unmetDemand > 0 && (commodityId === 'all' || item.commodityId === commodityId));
+  const nodes = (payload.nodes || []).slice();
+  return { routes, shortages, nodes, commodityId };
+}
+
+function logisticsAggregateId(regionId) {
+  // NUL cannot occur in sanitized authored ids, so this cannot collide.
+  return `\u0000lr-region-aggregate:${regionId}`;
+}
+
+function logisticsCurrentLocationRegionId(payload) {
+  return [...logisticsCurrentLocationRegionIds(payload)][0] || null;
+}
+
+function logisticsCurrentLocationRegionIds(payload) {
+  const currentId = typeof currentWorldLocationId === 'string' ? currentWorldLocationId : '';
+  if (!currentId) { return new Set(); }
+  return new Set((payload.nodes || [])
+    .filter((node) => node.locationId === currentId && logisticsLayoutValidRegionId(node.regionId))
+    .map((node) => node.regionId));
+}
+
+function logisticsNodeIsRelevant(payload, node, commodityId, routes, shortages) {
+  if (commodityId === 'all') { return true; }
+  const selected = economyLogisticsUiState.selection;
+  const selectedRoute = selected?.type === 'route' ? (payload.routes || []).find((route) => route.id === selected.id) : null;
+  const currentId = typeof currentWorldLocationId === 'string' ? currentWorldLocationId : '';
+  const listsCommodity = (node.commodityIds || []).includes(commodityId)
+    || (node.production || []).some((entry) => entry.commodityId === commodityId)
+    || (node.consumption || []).some((entry) => entry.commodityId === commodityId)
+    || (node.storage || []).some((entry) => entry.commodityId === commodityId);
+  const routeEndpoint = routes.some((route) => route.commodityId === commodityId && (route.fromNodeId === node.id || route.toNodeId === node.id));
+  const shortage = shortages.some((item) => item.nodeId === node.id && item.commodityId === commodityId);
+  const processing = (payload.processingSites || []).some((site) => site.nodeId === node.id && (site.commodityId === commodityId || (site.commodityIds || []).includes(commodityId)));
+  return listsCommodity || routeEndpoint || shortage || processing
+    || (selected?.type === 'node' && selected.id === node.id)
+    || Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id))
+    || Boolean(currentId && node.locationId === currentId);
+}
+
+function logisticsBuildRenderedGraph(payload, layout, commodityId) {
+  const positions = new Map(layout.nodes);
+  const collapsed = new Set([...economyLogisticsUiState.collapsedRegionIds].filter((id) => layout.regions.has(id)));
+  const aggregateByMember = new Map();
+  const nodes = [];
+  for (const node of payload.nodes || []) {
+    const regionId = layout.nodes.get(node.id)?.regionId;
+    if (regionId && collapsed.has(regionId)) {
+      aggregateByMember.set(node.id, logisticsAggregateId(regionId));
+    } else {
+      nodes.push({ ...node, filterMatch: logisticsNodeIsRelevant(payload, node, commodityId, payload.routes || [], payload.shortages || []) });
+    }
+  }
+  for (const regionId of [...collapsed].sort(logisticsLayoutCompareId)) {
+    const region = layout.regions.get(regionId);
+    if (!region) { continue; }
+    const id = logisticsAggregateId(regionId);
+    positions.set(id, { x: region.x + region.w / 2, y: region.y + region.h / 2, w: 184, h: 72, tier: 'major', regionId, aggregate: true, manual: false });
+    const memberNodes = (payload.nodes || []).filter((node) => node.regionId === regionId);
+    nodes.push({ id, label: region.label, kind: 'region', scale: 'major', aggregate: true, memberCount: region.memberIds.length, regionId, commodityIds: [], production: [], processingSiteIds: [], shortageCommodityIds: [], filterMatch: memberNodes.some((node) => logisticsNodeIsRelevant(payload, node, commodityId, payload.routes || [], payload.shortages || [])) });
+  }
+  const routes = [];
+  const selected = economyLogisticsUiState.selection;
+  for (const route of payload.routes || []) {
+    const fromNodeId = aggregateByMember.get(route.fromNodeId) || route.fromNodeId;
+    const toNodeId = aggregateByMember.get(route.toNodeId) || route.toNodeId;
+    if (fromNodeId === toNodeId || !positions.has(fromNodeId) || !positions.has(toNodeId)) { continue; }
+    // Route is relevant when the commodity matches OR the route itself is
+    // selected. Do not treat every route incident to a selected node as selected.
+    const routeSelected = selected?.type === 'route' && selected.id === route.id;
+    const filterMatch = commodityId === 'all' || route.commodityId === commodityId || routeSelected;
+    routes.push({ ...route, fromNodeId, toNodeId, filterMatch });
+  }
+  return { nodes, routes, positions, collapsed };
+}
+
+function logisticsNodeTransform(position) {
+  return `translate(${position.x - position.w / 2} ${position.y - position.h / 2})`;
+}
+
+/** LOGISTICS-GRAPH-CANVAS-SLICE3 single-route adapter over the shared,
+ * obstacle-aware geometry engine (85b2-logistics-route-geometry.js). Kept
+ * for callers that only have two boxes (no sibling/obstacle context);
+ * production rendering uses computeLogisticsRouteGeometry directly over the
+ * full route set so ports, lanes and detours are computed with full context. */
+function logisticsRouteGeometry(route, from, to) {
+  if (!from || !to || ![from.x, from.y, to.x, to.y].every(Number.isFinite)) { return null; }
+  const fromId = (route && route.fromNodeId) || '__logistics_from';
+  const toId = (route && route.toNodeId) || '__logistics_to';
+  if (fromId === toId) { return null; }
+  // Callers historically supplied bare {x,y} centres (no box size); default to
+  // the standard node tier so port geometry still has a boundary to sit on.
+  const fromBox = { x: from.x, y: from.y, w: Number.isFinite(from.w) ? from.w : 152, h: Number.isFinite(from.h) ? from.h : 60 };
+  const toBox = { x: to.x, y: to.y, w: Number.isFinite(to.w) ? to.w : 152, h: Number.isFinite(to.h) ? to.h : 60 };
+  const positions = new Map([[fromId, fromBox], [toId, toBox]]);
+  const routeId = (route && route.id) || '__logistics_route';
+  const { routes: geoms } = computeLogisticsRouteGeometry({
+    routes: [{ id: routeId, fromNodeId: fromId, toNodeId: toId }],
+    positions,
+  });
+  return geoms.get(routeId) || null;
+}
+
+/** Builds label text metrics for every route, deterministically, from the
+ * same factual volume/capacity numbers the label already displays. */
+function logisticsRouteLabelMetrics(routes) {
+  const metrics = new Map();
+  for (const route of routes) {
+    metrics.set(route.id, { text: `${logisticsNumber(route.volume)}/${logisticsNumber(route.effectiveCapacity)}` });
+  }
+  return metrics;
+}
+
+/** Recomputes only the topology-bounded route group whose endpoint port order
+ * can change for a moved node. Unrelated labels remain fixed obstacles. */
+function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
+  if (!rendered || !rendered.geometryRoutes || !rendered.routeTopologyIndex) { return; }
+  const affectedRouteIds = logisticsAffectedRouteIdsForNode(nodeId, rendered.routeTopologyIndex);
+  if (!affectedRouteIds.length) { return; }
+  const affectedSet = new Set(affectedRouteIds);
+  const previous = rendered.routeGeoms || new Map();
+  const fixedLabelBoxes = new Map();
+  for (const [routeId, geom] of previous) {
+    if (affectedSet.has(routeId) || !geom?.labelAnchor) { continue; }
+    const size = logisticsGeomEstimateLabelSize(rendered.geometryLabelMetrics.get(routeId)?.text);
+    fixedLabelBoxes.set(routeId, { x: geom.labelAnchor.x, y: geom.labelAnchor.y, w: size.width, h: size.height });
+  }
+  const partial = computeLogisticsRouteGeometry({
+    routes: rendered.geometryRoutes,
+    positions: rendered.positions,
+    labelMetrics: rendered.geometryLabelMetrics,
+    topologyIndex: rendered.routeTopologyIndex,
+    routeIds: affectedRouteIds,
+    fixedLabelBoxes,
+  }).routes;
+  const next = new Map(previous);
+  rendered.lastGeometryRouteIds = affectedRouteIds.slice();
+  for (const [routeId, geom] of partial) {
+    next.set(routeId, geom);
+    const group = rendered.routeElements.get(routeId);
+    if (!group || !group._logisticsParts) { continue; }
+    const parts = group._logisticsParts;
+    // Always clear particles for drag-affected routes. A direct animateMotion
+    // path is an immutable creation-time geometry snapshot and must not remain
+    // alive while the visible line's d changes.
+    logisticsClearRouteParticles(group);
+    parts.line.setAttribute('d', geom.pathD);
+    parts.line.dataset.routePath = geom.pathD;
+    if (parts.hit) { parts.hit.setAttribute('d', geom.pathD); }
+    if (parts.label) { parts.label.setAttribute('x', String(Math.round(geom.labelAnchor.x))); parts.label.setAttribute('y', String(Math.round(geom.labelAnchor.y - 7))); }
+    if (parts.warning) { parts.warning.setAttribute('x', String(Math.round(geom.warningAnchor.x))); parts.warning.setAttribute('y', String(Math.round(geom.warningAnchor.y + 5))); }
+    if (parts.label?.classList) {
+      if (geom.labelConflicted) { parts.label.classList.add('is-label-conflicted'); } else { parts.label.classList.remove('is-label-conflicted'); }
+    }
+    if (group.classList) {
+      if (geom.conflicted) { group.classList.add('is-geometry-conflicted'); } else { group.classList.remove('is-geometry-conflicted'); }
+      if (!geom.conflicted && geom.detourKind !== 'direct') { group.classList.add('is-detoured'); } else { group.classList.remove('is-detoured'); }
+    }
+    group._logisticsGeometry = geom;
+  }
+  rendered.routeGeoms = next;
+  // Full active-view audit (not only tracked route descendants).
+  if (economyLogisticsUiState.nodeDragSession?.active) {
+    logisticsPurgeSuppressedFlowDots(rendered);
+  }
+}
+
+/** LOGISTICS-GRAPH-CANVAS-SLICE3: every visual (stroke, hit target, arrow,
+ * particles, label, warning) is driven by the one `geometry` object computed
+ * once for the whole route set by computeLogisticsRouteGeometry. Nothing here
+ * re-derives a coordinate. `layerEdges`/`layerEdgesRaised` decide which layer
+ * receives the group (Part G) — the group itself never changes route id,
+ * path id, or selection/detail state when it moves between them. */
+function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload, route, geometry, visual, rendered) {
+  if (!geometry) { return; }
+  const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
+  const selected = selectedRouteId === route.id;
+  const status = route.status === 'unconfirmed' ? 'rumored' : (route.status || 'open');
+  const style = visual || { statusKey: 'unknown', dashPattern: '1 4', strokeWidth: 2, relevance: 1, commodityAccentState: 'none', operational: false };
+  const movement = route.volume > 0 ? 'active' : 'idle';
+  const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
+  const relevanceKind = style.relevanceKind || (style.relevance < 1 ? 'unrelated' : 'primary');
+  const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, operational: style.operational };
+  const particleEligible = logisticsRouteMayShowFlowParticles(route, 'primary', style);
+  const flowing = logisticsRouteMayShowFlowParticles(route, relevanceKind, style);
+  const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
+  if (group.style) { group.style.opacity = String(style.relevance); }
+  if (flowing && typeof group.style.setProperty === 'function') {
+    group.style.setProperty('--logistics-flow-duration', `${logisticsFlowDurationSeconds(route).toFixed(2)}s`);
+  }
+  group.dataset.routeId = route.id;
+  group.dataset.relevance = relevanceKind;
+  const pathId = `logistics-route-path-${logisticsDomId(route.id)}`;
+  // Invisible wide hit target sharing the exact same `d` as the visible
+  // stroke, so the clickable area is not limited to a thin high-volume line.
+  const hit = logisticsSvgElement('path', 'logistics-route-hit');
+  hit.setAttribute('d', geometry.pathD);
+  hit.setAttribute('stroke-width', '12');
+  group.appendChild(hit);
+  const line = logisticsSvgElement('path', 'logistics-route-line');
+  line.setAttribute('id', pathId);
+  line.setAttribute('d', geometry.pathD);
+  line.dataset.routePath = geometry.pathD;
+  line.setAttribute('stroke-width', Number(style.strokeWidth).toFixed(2));
+  line.setAttribute('marker-end', `url(#logistics-arrow-${style.statusKey})`);
+  if (style.dashPattern) { line.style.setProperty('stroke-dasharray', style.dashPattern); }
+  group.appendChild(line);
+  // Drag-session gate: never create particles for routes incident to the
+  // actively dragged node (raised layer / filter / search re-renders included).
+  const particles = particleEligible
+    ? logisticsRenderFlowParticles(group, route, geometry, line) : [];
+
+  const labelX = Math.round(geometry.labelAnchor.x);
+  const labelY = Math.round(geometry.labelAnchor.y);
+  const label = logisticsSvgElement('text', `logistics-route-label${geometry.labelConflicted ? ' is-label-conflicted' : ''}`);
+  label.setAttribute('x', String(labelX));
+  label.setAttribute('y', String(labelY - 7));
+  label.textContent = `${logisticsNumber(route.volume)}/${logisticsNumber(route.effectiveCapacity)}`;
+  label.setAttribute('aria-label', `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
+  appendLogisticsTitle(label, `${T('webview.world.logisticsVolumeCapacity')}: ${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)}`);
+  const annotations = logisticsSvgElement('g', `logistics-route-annotations${selected ? ' is-selected' : ''}`);
+  annotations.dataset.relevance = relevanceKind;
+  if (annotations.style) { annotations.style.opacity = String(style.relevance); }
+  annotations.appendChild(label);
+  let warning = null;
+  if (status === 'blocked' || status === 'raided' || status === 'rumored' || route.bottleneck) {
+    const warnY = Math.round(geometry.warningAnchor.y);
+    warning = logisticsSvgElement('text', 'logistics-route-warning');
+    warning.setAttribute('x', String(labelX));
+    warning.setAttribute('y', String(warnY + 5));
+    warning.textContent = route.bottleneck ? '◆' : status === 'blocked' ? '×' : status === 'rumored' ? '?' : '!';
+    annotations.appendChild(warning);
+  }
+  const aria = `${logisticsNodeName(payload, route.fromNodeId)} → ${logisticsNodeName(payload, route.toNodeId)}, ${logisticsCommodityName(payload, route.commodityId)}, ${logisticsStatusLabel(route.status)}`;
+  group.setAttribute('aria-label', aria);
+  appendLogisticsTitle(group, `${aria}; ${T('webview.world.logisticsVolume')} ${logisticsNumber(route.volume)}; ${T('webview.world.logisticsRisk')} ${logisticsRiskLabel(route.risk)}`);
+  bindLogisticsActivation(group, { type: 'route', id: route.id });
+  group._logisticsRoute = route;
+  group._logisticsGeometry = geometry;
+  group._logisticsStyle = style;
+  group._logisticsParts = { line, hit, label, warning, particles };
+  group._logisticsAnnotations = annotations;
+  if (rendered) { rendered.routeElements.set(route.id, group); }
+  // Part G: ordinary route -> layer-edges, selected route -> layer-edges-raised.
+  // The group's route id / path id never change when it moves between layers.
+  (selected ? layerEdgesRaised : layerEdges).appendChild(group);
+  layerLabels.appendChild(annotations);
+  logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
+}
+
+/** Single-route backward-compatible refresh (no sibling/obstacle context).
+ * Production node-drag refresh uses logisticsRefreshRoutesAfterMove with the
+ * bounded topology group needed to keep endpoint port/lane siblings stable. */
+function logisticsRefreshRouteElement(group, positions) {
+  const route = group?._logisticsRoute;
+  const parts = group?._logisticsParts;
+  const geometry = route && logisticsRouteGeometry(route, positions.get(route.fromNodeId), positions.get(route.toNodeId));
+  if (!geometry || !parts) { return; }
+  parts.line.setAttribute('d', geometry.pathD || geometry.d);
+  parts.line.dataset.routePath = geometry.pathD || geometry.d;
+  if (parts.hit) { parts.hit.setAttribute('d', geometry.pathD || geometry.d); }
+  const anchor = geometry.labelAnchor || geometry.pointAt(0.5);
+  if (parts.label) { parts.label.setAttribute('x', String(Math.round(anchor.x))); parts.label.setAttribute('y', String(Math.round(anchor.y - 7))); }
+  if (parts.warning) {
+    const warn = geometry.warningAnchor || anchor;
+    parts.warning.setAttribute('x', String(Math.round(warn.x))); parts.warning.setAttribute('y', String(Math.round(warn.y + 5)));
+  }
+  group._logisticsGeometry = geometry;
+}
+
+/** Declarative SMIL particles (no rAF loop, no canonical state): 2 steady dots
+ *  for open/strained flow, 1 sparse flickering dot for raided routes so a
+ *  convoy under threat visibly reads as different from healthy flow.
+ *
+ *  Coordinates must be finite before any circle is created. The particle is
+ *  rooted at local (0,0) and follows a direct animateMotion path; assigning
+ *  both absolute cx/cy and an absolute motion path double-applies the source
+ *  offset and visibly throws dots away from their routes. The live visible
+ *  line's current d is read at creation time so Electron cannot reuse a stale
+ *  SMIL mpath cache after node dragging. */
+function logisticsRenderFlowParticles(group, route, geometry, routeLine) {
+  // Central gate: creation is forbidden while this route is drag-suppressed.
+  if (route && isRouteSuppressedByActiveNodeDrag(route.id)) { return []; }
+  if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return []; }
+  const currentPathD = routeLine?.getAttribute?.('d') || '';
+  if (!currentPathD) { return []; }
+  const duration = logisticsFlowDurationSeconds(route);
+  if (!(duration > 0) || !Number.isFinite(duration)) { return []; }
+  const dotCount = route.status === 'raided' ? 1 : 2;
+  const stagger = logisticsHashUnit(route.id) * duration;
+  const particles = [];
+  for (let i = 0; i < dotCount; i++) {
+    const dot = logisticsSvgElement('circle', `logistics-flow-dot logistics-flow-dot-${route.status}`);
+    dot.setAttribute('r', '2.6');
+    dot.setAttribute('cx', '0');
+    dot.setAttribute('cy', '0');
+    // An engine without SMIL support must not leave a static dot at the SVG
+    // origin. SMIL-capable engines reveal it as the motion begins.
+    dot.setAttribute('visibility', 'hidden');
+    const motion = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+    motion.setAttribute('dur', `${duration.toFixed(2)}s`);
+    motion.setAttribute('repeatCount', 'indefinite');
+    motion.setAttribute('path', currentPathD);
+    const phase = (stagger + (i * duration) / dotCount) % duration;
+    // Negative begin = animation already "running" at t=0 (mid-path), so the
+    // particle never waits at the static cx/cy for a delayed positive begin.
+    motion.setAttribute('begin', `-${phase.toFixed(2)}s`);
+    dot.appendChild(motion);
+    const reveal = document.createElementNS('http://www.w3.org/2000/svg', 'set');
+    reveal.setAttribute('attributeName', 'visibility');
+    reveal.setAttribute('to', 'visible');
+    reveal.setAttribute('begin', '-0.01s');
+    reveal.setAttribute('dur', 'indefinite');
+    dot.appendChild(reveal);
+    if (route.status === 'raided') {
+      const flicker = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+      flicker.setAttribute('attributeName', 'opacity');
+      flicker.setAttribute('values', '1;0.2;1;0.7;1');
+      flicker.setAttribute('dur', `${(duration * 0.7).toFixed(2)}s`);
+      flicker.setAttribute('repeatCount', 'indefinite');
+      // Match motion phase so flicker is also active from first paint.
+      flicker.setAttribute('begin', `-${phase.toFixed(2)}s`);
+      dot.appendChild(flicker);
+    }
+    group.appendChild(dot);
+    particles.push(dot);
+  }
+  return particles;
+}
+
+function logisticsApplyFlowParticleVisibility(group, route, relevanceKind) {
+  const particles = group?._logisticsParts?.particles || [];
+  const style = group?._logisticsStyle;
+  // Drag suppression wins over every other eligibility path.
+  if (route && isRouteSuppressedByActiveNodeDrag(route.id)) {
+    if (group?.classList) { group.classList.toggle('is-flowing', false); }
+    for (const particle of particles) { particle.setAttribute('display', 'none'); }
+    return;
+  }
+  const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, operational: style?.operational });
+  if (group?.classList) { group.classList.toggle('is-flowing', eligible); }
+  // Secondary/unrelated routes and non-moving operational statuses keep their
+  // factual stroke, but animation is reserved for truthful active movement.
+  const display = eligible ? 'inline' : 'none';
+  for (const particle of particles) { particle.setAttribute('display', display); }
+}
+
+function renderLogisticsNode(layerNodes, layerLabels, payload, node, position, shortages, routes, visual, rendered) {
+  // Focused persistence tests and small extension integrations historically
+  // called this internal helper before the final label layer existed. Keep that
+  // narrow calling convention working while production always supplies both
+  // SVG layers.
+  if (!layerLabels || typeof layerLabels.appendChild !== 'function') {
+    const legacyPayload = layerLabels;
+    const legacyNode = payload;
+    const legacyPosition = node;
+    const legacyShortages = position;
+    const legacyRoutes = shortages;
+    const legacyRendered = routes;
+    layerLabels = layerNodes;
+    payload = legacyPayload;
+    node = legacyNode;
+    position = legacyPosition;
+    shortages = legacyShortages;
+    routes = legacyRoutes;
+    visual = undefined;
+    rendered = legacyRendered;
+  }
+  const selected = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
+  const selectedRouteId = economyLogisticsUiState.selection?.type === 'route' ? economyLogisticsUiState.selection.id : null;
+  const selectedRoute = selectedRouteId ? (routes || []).find((route) => route.id === selectedRouteId) : null;
+  const selectedNode = economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id;
+  const currentNode = Boolean(typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId);
+  const selectedEndpoint = Boolean(selectedRoute && (selectedRoute.fromNodeId === node.id || selectedRoute.toNodeId === node.id));
+  const style = visual || { relevance: 1, commodityAccentState: 'none' };
+  const relevanceKind = style.relevanceKind || (style.relevance < 1 ? 'unrelated' : 'primary');
+  const role = logisticsNodeRole(node.kind);
+  const scale = position.tier || logisticsNodeScale(node, routes);
+  const nodeWidth = Number.isFinite(position.w) ? position.w : 152;
+  const nodeHeight = Number.isFinite(position.h) ? position.h : 60;
+  const horizontalScale = nodeWidth / 152;
+  const verticalScale = nodeHeight / 60;
+  const padding = Math.max(8, Math.round(nodeWidth * 0.08));
+  const kindY = Math.max(14, Math.round(nodeHeight * 0.29));
+  const labelY = Math.min(nodeHeight - 10, Math.max(kindY + 16, Math.round(nodeHeight * 0.68)));
+  const badgeX = nodeWidth - padding - 5;
+  const holdingSelection = Boolean(node.aggregate && ((economyLogisticsUiState.selection?.type === 'node' && (payload.nodes || []).find((item) => item.id === economyLogisticsUiState.selection.id)?.regionId === node.regionId)
+    || (economyLogisticsUiState.selection?.type === 'route' && (payload.routes || []).find((item) => item.id === economyLogisticsUiState.selection.id) && [payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).fromNodeId, payload.routes.find((item) => item.id === economyLogisticsUiState.selection.id).toNodeId].some((id) => (payload.nodes || []).find((item) => item.id === id)?.regionId === node.regionId))));
+  const group = logisticsSvgElement('g', `logistics-node logistics-node-${role} logistics-node-scale-${scale}${node.aggregate ? ' logistics-node-aggregate' : ''}${selected ? ' is-selected' : ''}${selectedEndpoint ? ' is-route-endpoint' : ''}${holdingSelection ? ' is-holding-selection' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}`);
+  if (group.style) { group.style.opacity = String(style.relevance); }
+  group.dataset.nodeId = node.id;
+  group.dataset.relevance = relevanceKind;
+  const transform = logisticsNodeTransform(position);
+  group.setAttribute('transform', transform);
+  const annotations = logisticsSvgElement('g', `logistics-node-label-overlay logistics-node-scale-${scale}${selected ? ' is-selected' : ''}${selectedEndpoint ? ' is-route-endpoint' : ''} is-relevance-${relevanceKind}`);
+  annotations.dataset.relevance = relevanceKind;
+  annotations.setAttribute('transform', transform);
+  annotations.setAttribute('pointer-events', 'none');
+  if (annotations.style) { annotations.style.opacity = String(style.relevance); }
+  group.setAttribute('aria-label', node.aggregate ? `${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}` : `${node.label}, ${logisticsNodeKindLabel(node.kind)}`);
+  const shape = logisticsSvgElement('path', 'logistics-node-shape');
+  shape.setAttribute('d', logisticsNodeShapePath(role));
+  shape.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
+  group.appendChild(shape);
+  if (node.aggregate) {
+    // Stacked outline must share the aggregate/region silhouette (not envoy).
+    const outline = logisticsSvgElement('path', 'logistics-node-aggregate-outline');
+    outline.setAttribute('d', logisticsNodeShapePath(role));
+    outline.setAttribute('transform', `translate(4 4) scale(${horizontalScale} ${verticalScale})`);
+    group.appendChild(outline);
+  }
+  const accent = logisticsSvgElement('path', 'logistics-node-accent');
+  accent.setAttribute('d', 'M 12 5 H 140');
+  accent.setAttribute('transform', `scale(${horizontalScale} ${verticalScale})`);
+  group.appendChild(accent);
+  const kind = logisticsSvgElement('text', 'logistics-node-kind');
+  kind.setAttribute('x', String(padding));
+  kind.setAttribute('y', String(kindY));
+  kind.textContent = logisticsNodeKindLabel(node.kind);
+  annotations.appendChild(kind);
+  const label = logisticsSvgElement('text', 'logistics-node-label');
+  label.setAttribute('x', String(padding));
+  label.setAttribute('y', String(labelY));
+  label.textContent = logisticsTruncateLabel(node.label);
+  annotations.appendChild(label);
+  const symbol = logisticsSvgElement('text', 'logistics-node-symbol');
+  symbol.setAttribute('x', String(nodeWidth - padding - 12));
+  symbol.setAttribute('y', String(labelY + 4));
+  symbol.textContent = logisticsNodeSymbol(role);
+  annotations.appendChild(symbol);
+  if (node.aggregate) {
+    const badge = logisticsSvgElement('text', 'logistics-aggregate-badge');
+    badge.setAttribute('x', String(badgeX));
+    badge.setAttribute('y', String(kindY + 1));
+    badge.textContent = String(node.memberCount || 0);
+    annotations.appendChild(badge);
+  }
+  const nodeShortages = shortages.filter((item) => item.nodeId === node.id);
+  if (nodeShortages.length > 0) {
+    const badge = logisticsSvgElement('text', 'logistics-shortage-badge');
+    badge.setAttribute('x', String(badgeX));
+    badge.setAttribute('y', String(kindY + 1));
+    badge.textContent = '!';
+    annotations.appendChild(badge);
+  } else if ((node.processingSiteIds || []).length > 0) {
+    const badge = logisticsSvgElement('text', 'logistics-processing-badge');
+    badge.setAttribute('x', String(badgeX - 3));
+    badge.setAttribute('y', String(kindY + 1));
+    badge.textContent = '⚙';
+    annotations.appendChild(badge);
+  }
+  appendLogisticsTitle(group, `${node.label}; ${logisticsNodeKindLabel(node.kind)}; ${T(`webview.world.logisticsScale${scale.replace(/^./, (c) => c.toUpperCase())}`)}${nodeShortages.length ? `; ${T('webview.world.logisticsShortage')}` : ''}`);
+  if (node.aggregate) {
+    const expand = () => {
+      economyLogisticsUiState.collapsedRegionIds.delete(node.regionId);
+      logisticsSavePrefs();
+      renderEconomyLogisticsPanel();
+    };
+    group.setAttribute('tabindex', '0');
+    group.setAttribute('role', 'button');
+    group.setAttribute('aria-label', `${T('webview.world.logisticsExpandRegion')} ${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}`);
+    appendLogisticsTitle(group, `${T('webview.world.logisticsExpandRegion')} ${node.label}, ${node.memberCount} ${T('webview.world.logisticsRegionMembers')}`);
+    group.addEventListener('click', (event) => { if (event?.stopPropagation) { event.stopPropagation(); } expand(); });
+    group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); expand(); } });
+  } else {
+    bindLogisticsActivation(group, { type: 'node', id: node.id });
+  }
+  group._logisticsPosition = position;
+  group._logisticsAnnotations = annotations;
+  if (rendered) { rendered.nodeElements.set(node.id, group); }
+  layerNodes.appendChild(group);
+  layerLabels.appendChild(annotations);
+}
+
+function renderLogisticsLegend(parent) {
+  const legend = logisticsElement('div', 'logistics-legend');
+  legend.setAttribute('role', 'group');
+  legend.setAttribute('aria-label', T('webview.world.logisticsLegend'));
+  const title = logisticsElement('strong', 'logistics-legend-title', T('webview.world.logisticsLegend'));
+  legend.appendChild(title);
+  const statusList = logisticsElement('div', 'logistics-legend-list logistics-legend-status-list');
+  statusList.setAttribute('role', 'list');
+  const statuses = [
+    ['open', '→', `${T('webview.world.logisticsStatusOpen')} · ${T('webview.world.logisticsLegendActive')}`],
+    ['impaired', '!', `${T('webview.world.logisticsStatusStrained')} · ${T('webview.world.logisticsLegendActive')}`],
+    ['blocked', '×', `${T('webview.world.logisticsStatusBlocked')} · ${T('webview.world.logisticsFlowAnimationOff')}`],
+    ['rumored', '?', T('webview.world.logisticsStatusRumored')],
+    ['selected', '◎', T('webview.world.logisticsLegendSelected')],
+  ];
+  for (const [status, glyph, label] of statuses) {
+    const item = logisticsElement('span', `logistics-legend-item logistics-legend-${status}`);
+    item.setAttribute('role', 'listitem');
+    item.appendChild(logisticsElement('span', 'logistics-legend-swatch', glyph));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', label));
+    statusList.appendChild(item);
+  }
+  legend.appendChild(statusList);
+  legend.appendChild(logisticsElement('p', 'logistics-legend-encoding', T('webview.world.logisticsLegendEncoding')));
+  const nodeList = logisticsElement('div', 'logistics-legend-list logistics-legend-node-list');
+  nodeList.setAttribute('role', 'list');
+  for (const role of ['settlement', 'market', 'facility', 'vehicle', 'caravan', 'envoy', 'mobile_base']) {
+    const cssRole = role.replace('_', '-');
+    const item = logisticsElement('span', `logistics-legend-item logistics-legend-node logistics-legend-node-${cssRole}`);
+    item.setAttribute('role', 'listitem');
+    item.appendChild(logisticsElement('span', 'logistics-legend-node-symbol', logisticsNodeSymbol(cssRole)));
+    item.appendChild(logisticsElement('span', 'logistics-legend-label', logisticsNodeKindLabel(role)));
+    nodeList.appendChild(item);
+  }
+  legend.appendChild(nodeList);
+  parent.appendChild(legend);
+}
+
+function renderLogisticsMinimap(viewport, layout, graph, positions, viewportSize, camera, graphSvg, onCamera) {
+  const nodeCount = graph.nodes.length;
+  const bounds = layout?.bounds;
+  if (!bounds || nodeCount < 3) { return null; }
+  const shell = logisticsElement('div', 'logistics-minimap');
+  shell.setAttribute('role', 'img'); shell.setAttribute('aria-label', T('webview.world.logisticsMinimap'));
+  const mini = logisticsElement('div', 'logistics-minimap-canvas');
+  shell.appendChild(mini); viewport.appendChild(shell);
+  const regionLayer = logisticsElement('div', 'logistics-minimap-regions');
+  const nodeLayer = logisticsElement('div', 'logistics-minimap-nodes');
+  const viewportRect = logisticsElement('div', 'logistics-minimap-viewport');
+  mini.appendChild(regionLayer); mini.appendChild(nodeLayer); mini.appendChild(viewportRect);
+  let model = null; let drag = null; let semantic = null; let projectionBounds = null; let expansionFrame = null; let pendingCamera = null;
+  const nodeInput = () => graph.nodes.map((node) => { const pos = positions.get(node.id); return { id: node.id, x: pos?.x || 0, y: pos?.y || 0, w: pos?.w || 0, h: pos?.h || 0, selected: economyLogisticsUiState.selection?.type === 'node' && economyLogisticsUiState.selection.id === node.id, current: typeof currentWorldLocationId === 'string' && node.locationId === currentWorldLocationId }; });
+  function paint(nextCamera, canonical) {
+    const nodes = nodeInput();
+    const candidate = computeLogisticsMinimapProjectionBounds({ graphBounds: bounds, viewportSize, camera: nextCamera, nodes, regions: layout.regions });
+    projectionBounds = canonical || !projectionBounds ? candidate : expandLogisticsMinimapProjectionBounds(projectionBounds, candidate);
+    model = computeLogisticsMinimapModel({ graphBounds: bounds, viewportSize, camera: nextCamera, nodes, regions: layout.regions, options: { projectionBounds } });
+    if (!regionLayer._built) {
+      model.regionRects.forEach((region) => { const rect = logisticsElement('span', 'logistics-minimap-region'); rect.dataset.regionId = region.id; regionLayer.appendChild(rect); });
+      model.nodeMarkers.forEach((node) => { const dot = logisticsElement('span', 'logistics-minimap-node'); dot.dataset.minimapNodeId = node.id; nodeLayer.appendChild(dot); });
+      regionLayer._built = true;
+    }
+    const box = (element, rect) => { if (element?.style?.setProperty) { element.style.setProperty('left', `${rect.x}px`); element.style.setProperty('top', `${rect.y}px`); element.style.setProperty('width', `${rect.w}px`); element.style.setProperty('height', `${rect.h}px`); } };
+    model.regionRects.forEach((region, index) => { box(regionLayer.children[index], region); });
+    model.nodeMarkers.forEach((node, index) => { const dot = nodeLayer.children[index]; if (dot?.classList) { dot.classList.toggle('is-selected', Boolean(node.selected)); dot.classList.toggle('is-current', Boolean(node.current)); } box(dot, { x: node.x - (node.selected || node.current ? 2.5 : 1.5), y: node.y - (node.selected || node.current ? 2.5 : 1.5), w: node.selected || node.current ? 5 : 3, h: node.selected || node.current ? 5 : 3 }); });
+    box(viewportRect, model.viewportRect);
+    const nextSemantic = computeLogisticsSemanticZoom({ cameraScale: nextCamera.k, selection: economyLogisticsUiState.selection, options: { previousLevel: semantic } });
+    semantic = nextSemantic.level;
+    if (graphSvg?.classList) { graphSvg.classList.remove('is-zoom-overview', 'is-zoom-standard', 'is-zoom-detail'); graphSvg.classList.add(`is-zoom-${semantic}`); }
+  }
+  function update(nextCamera) { paint(nextCamera, false); }
+  function canonical(nextCamera) {
+    pendingCamera = null;
+    if (expansionFrame !== null && typeof window.cancelAnimationFrame === 'function') { window.cancelAnimationFrame(expansionFrame); }
+    expansionFrame = null;
+    paint(nextCamera, true);
+  }
+  function expand(nextCamera) {
+    pendingCamera = nextCamera;
+    if (expansionFrame !== null) { return; }
+    if (typeof window.requestAnimationFrame !== 'function') { const pending = pendingCamera; pendingCamera = null; paint(pending, false); return; }
+    expansionFrame = window.requestAnimationFrame(() => {
+      expansionFrame = null;
+      const pending = pendingCamera; pendingCamera = null;
+      paint(pending, false);
+    });
+  }
+  function point(event) { const rect = mini.getBoundingClientRect ? mini.getBoundingClientRect() : { left: 0, top: 0 }; return { x: (Number(event.clientX) || 0) - (rect.left || 0), y: (Number(event.clientY) || 0) - (rect.top || 0) }; }
+  function move(event, immediate) { if (!model) { return; } onCamera(logisticsMinimapCameraAt(model, point(event), viewportSize, onCamera.current()), immediate); }
+  mini.addEventListener('pointerdown', (event) => { drag = event.pointerId; if (mini.setPointerCapture) { try { mini.setPointerCapture(drag); } catch {} } if (event.preventDefault) { event.preventDefault(); } move(event, false); });
+  mini.addEventListener('pointermove', (event) => { if (drag === event.pointerId) { move(event, false); } });
+  const end = (event) => { if (drag !== null && (event.pointerId === undefined || event.pointerId === drag)) { move(event, true); drag = null; } };
+  mini.addEventListener('pointerup', end); mini.addEventListener('pointercancel', () => { drag = null; }); mini.addEventListener('lostpointercapture', () => { drag = null; });
+  canonical(camera);
+  return { update, expand, canonical, currentModel: () => model };
+}
+
+/** Camera updates touch only the group transform, the constant-screen-size
+ * CSS var, and toolbar disabled state — never the graph DOM (L15 fix).
+ * Non-finite cameras fall back to identity scale at origin rather than writing
+ * translate(Infinity) into the SVG. */
+function applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls) {
+  const safe = logisticsIsValidCamera(camera)
+    ? camera
+    : { k: 1, tx: 0, ty: 0, userModified: false };
+  cameraGroup.setAttribute('transform', `translate(${safe.tx} ${safe.ty}) scale(${safe.k})`);
+  if (svg.style && typeof svg.style.setProperty === 'function') {
+    svg.style.setProperty('--logistics-camera-k', String(safe.k));
+  }
+  if (toolbarEls) {
+    toolbarEls.zoomInBtn.disabled = safe.k >= LOGISTICS_ZOOM_MAX - 1e-6;
+    toolbarEls.zoomOutBtn.disabled = safe.k <= LOGISTICS_ZOOM_MIN + 1e-6;
+  }
+}
+
+/** Discrete camera commands (buttons, 0, Shift+0) may ease briefly; wheel and
+ * direct drag never do (always 1:1 with input). Reduced motion applies the
+ * command immediately, with no transition class added. */
+function logisticsEaseCameraCommand(cameraGroup, run) {
+  const reduced = logisticsPrefersReducedMotion();
+  if (!reduced && cameraGroup.classList && typeof cameraGroup.classList.add === 'function') {
+    cameraGroup.classList.add('is-easing');
+    if (typeof setTimeout === 'function') {
+      setTimeout(() => {
+        if (cameraGroup.classList) { cameraGroup.classList.remove('is-easing'); }
+      }, LOGISTICS_CAMERA_EASE_MS);
+    }
+  }
+  run();
+}
+
+function renderLogisticsCameraToolbar(viewport, onCommand) {
+  const toolbar = logisticsElement('div', 'logistics-camera-toolbar');
+  toolbar.setAttribute('role', 'group');
+  toolbar.setAttribute('aria-label', T('webview.world.logisticsCameraToolbar'));
+
+  function makeButton(className, labelKey, command) {
+    const btn = logisticsElement('button', `logistics-camera-btn ${className}`, T(labelKey));
+    btn.type = 'button';
+    btn.title = T(labelKey);
+    btn.addEventListener('click', () => onCommand(command));
+    toolbar.appendChild(btn);
+    return btn;
+  }
+
+  const zoomOutBtn = makeButton('logistics-camera-zoom-out', 'webview.world.logisticsZoomOut', 'zoomOut');
+  const zoomInBtn = makeButton('logistics-camera-zoom-in', 'webview.world.logisticsZoomIn', 'zoomIn');
+  const fitBtn = makeButton('logistics-camera-fit', 'webview.world.logisticsFitAll', 'fitAll');
+  const resetBtn = makeButton('logistics-camera-reset', 'webview.world.logisticsResetCamera', 'reset');
+  const resetLayoutBtn = makeButton('logistics-layout-reset', 'webview.world.logisticsResetLayout', 'resetLayout');
+  // Camera Reset and Layout Reset are visually adjacent but do different
+  // things; explicit titles/aria keep them distinguishable.
+  resetBtn.title = T('webview.world.logisticsResetCameraTitle');
+  resetBtn.setAttribute('aria-label', T('webview.world.logisticsResetCameraTitle'));
+  resetLayoutBtn.title = T('webview.world.logisticsResetLayoutTitle');
+  resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
+
+  viewport.appendChild(toolbar);
+
+  // Non-modal, polite live region for Layout Reset feedback. It survives a full
+  // panel rerender because the message is stashed on the ui state and replayed
+  // here on the next render.
+  const layoutStatus = logisticsElement('div', 'logistics-layout-status');
+  layoutStatus.setAttribute('role', 'status');
+  layoutStatus.setAttribute('aria-live', 'polite');
+  viewport.appendChild(layoutStatus);
+  const pending = economyLogisticsUiState.layoutStatusMessage;
+  if (pending) {
+    layoutStatus.textContent = pending;
+    layoutStatus.classList.add('is-visible');
+    economyLogisticsUiState.layoutStatusMessage = null;
+    if (typeof setTimeout === 'function') {
+      setTimeout(() => { if (layoutStatus.classList) { layoutStatus.classList.remove('is-visible'); } }, 4000);
+    }
+  }
+
+  return { toolbar, zoomOutBtn, zoomInBtn, fitBtn, resetBtn, resetLayoutBtn, layoutStatus };
+}
+
+function logisticsFindNodeTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList && el.classList.contains('logistics-node')) { return el; }
+    el = el.parentNode;
+  }
+  return null;
+}
+
+/** Node or route under the pointer (selection targets; normal left-pan skips). */
+function logisticsIsGraphContentTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList && (el.classList.contains('logistics-node') || el.classList.contains('logistics-route'))) {
+      return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+/** Toolbar, expand button, form controls, links — never start a left-button pan. */
+function logisticsIsControlTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList) {
+      if (
+        el.classList.contains('logistics-camera-toolbar')
+        || el.classList.contains('logistics-camera-btn')
+        || el.classList.contains('logistics-expand-btn')
+        || el.classList.contains('logistics-region-collapse')
+        || el.classList.contains('logistics-region-collapse-hit')
+      ) {
+        return true;
+      }
+    }
+    const tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+    if (
+      tag === 'BUTTON' || tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA'
+      || tag === 'A' || tag === 'OPTION' || tag === 'LABEL'
+    ) {
+      return true;
+    }
+    if (el.isContentEditable) { return true; }
+    if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true') {
+      return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+/** The minimap is inside the viewport; its own pointer handlers drive the
+ * camera, so a click there must never clear the graph selection. */
+function logisticsIsMinimapTarget(target, boundary) {
+  let el = target;
+  while (el && el !== boundary) {
+    if (el.classList && el.classList.contains('logistics-minimap')) { return true; }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+/** Normal primary-button pan may begin only on SVG background / layer chrome. */
+function logisticsIsBackgroundPanTarget(target, boundary) {
+  if (!target || logisticsIsControlTarget(target, boundary) || logisticsIsGraphContentTarget(target, boundary)) {
+    return false;
+  }
+  let el = target;
+  while (el && el !== boundary) {
+    const tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+    if (tag === 'SVG' || tag === 'svg') { return true; }
+    if (el.classList) {
+      if (
+        el.classList.contains('logistics-network')
+        || el.classList.contains('logistics-camera')
+        || el.classList.contains('layer-regions')
+        || el.classList.contains('layer-edges')
+        || el.classList.contains('layer-edges-raised')
+        || el.classList.contains('layer-nodes')
+        || el.classList.contains('layer-labels')
+      ) {
+        return true;
+      }
+    }
+    el = el.parentNode;
+  }
+  // Direct hit on the viewport chrome (empty padding around the SVG) is also background.
+  return target === boundary;
+}
+
+function logisticsIsFocusedButtonLike(doc) {
+  const active = doc && doc.activeElement;
+  if (!active) { return false; }
+  const tag = active.tagName ? String(active.tagName).toUpperCase() : '';
+  return tag === 'BUTTON' || tag === 'SELECT' || tag === 'INPUT' || tag === 'A' || tag === 'TEXTAREA';
+}
+
+/** Wires wheel/drag/keyboard camera interactions on an already-mounted
+ * viewport. Mutates the active host's camera context and repaints only via
+ * applyLogisticsCameraTransform — never renderEconomyLogisticsPanel. */
+/** Keep a dragged node from sitting inside another region's packed container.
+ * Own region may still expand on the next layout pass; cross-region intrusion
+ * is rejected by clamping the centre to the nearest exterior edge. */
+function logisticsClampManualAwayFromOtherRegions(position, layout) {
+  if (!position || !layout || !layout.regions || !position.regionId) { return; }
+  const halfW = (Number.isFinite(position.w) ? position.w : 152) / 2;
+  const halfH = (Number.isFinite(position.h) ? position.h : 60) / 2;
+  for (const [regionId, region] of layout.regions) {
+    if (regionId === position.regionId || !region) { continue; }
+    const left = region.x;
+    const right = region.x + region.w;
+    const top = region.y;
+    const bottom = region.y + region.h;
+    // Node box intersects another region container.
+    if (position.x + halfW <= left || position.x - halfW >= right
+      || position.y + halfH <= top || position.y - halfH >= bottom) {
+      continue;
+    }
+    const distLeft = Math.abs((position.x + halfW) - left);
+    const distRight = Math.abs((position.x - halfW) - right);
+    const distTop = Math.abs((position.y + halfH) - top);
+    const distBottom = Math.abs((position.y - halfH) - bottom);
+    const min = Math.min(distLeft, distRight, distTop, distBottom);
+    if (min === distLeft) { position.x = left - halfW - 1; }
+    else if (min === distRight) { position.x = right + halfW + 1; }
+    else if (min === distTop) { position.y = top - halfH - 1; }
+    else { position.y = bottom + halfH + 1; }
+  }
+}
+
+function logisticsSetupCameraInteractions(ctx) {
+  const { viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange } = ctx;
+  const state = economyLogisticsUiState;
+  const hostCtx = logisticsActiveCameraContext();
+  const vp = logisticsSanitizeViewportSize(viewportSize);
+  const doc = typeof document !== 'undefined' ? document : null;
+  const win = typeof window !== 'undefined' ? window : null;
+
+  function setCamera(next, immediateSave, projectionMode) {
+    if (!logisticsIsValidCamera(next)) {
+      // Retain last valid camera when an operation cannot produce a transform.
+      if (logisticsIsValidCamera(hostCtx.camera)) { return; }
+      next = logisticsDefaultCamera(vp);
+    }
+    hostCtx.camera = next;
+    applyLogisticsCameraTransform(svg, cameraGroup, next, toolbarEls);
+    if (typeof onCameraChange === 'function') { onCameraChange(next, projectionMode); }
+    logisticsQueueCameraSave(Boolean(immediateSave));
+  }
+
+  function resetCamera() {
+    logisticsStorageRemove(logisticsStorageKey('camera', state.scopeKey));
+    logisticsCancelCameraSaves(state.scopeKey);
+    hostCtx.identity = logisticsDatasetIdentity(state.payload);
+    hostCtx.camera = logisticsFitAllCamera(currentBBox(), vp);
+    applyLogisticsCameraTransform(svg, cameraGroup, hostCtx.camera, toolbarEls);
+    if (typeof onCameraChange === 'function') { onCameraChange(hostCtx.camera, 'canonical'); }
+  }
+
+  function screenPointFromEvent(event) {
+    const rect = typeof viewport.getBoundingClientRect === 'function'
+      ? viewport.getBoundingClientRect() : { left: 0, top: 0 };
+    const x = Number(event && event.clientX);
+    const y = Number(event && event.clientY);
+    return {
+      x: (Number.isFinite(x) ? x : 0) - (rect.left || 0),
+      y: (Number.isFinite(y) ? y : 0) - (rect.top || 0),
+    };
+  }
+
+  viewport.addEventListener('wheel', (event) => {
+    if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+    const point = screenPointFromEvent(event);
+    setCamera(logisticsZoomFromWheel(hostCtx.camera, point, logisticsWheelDeltaY(event)));
+  }, { passive: false });
+
+  // Initiating pointer ID is the drag invariant. Cleanup is idempotent.
+  let drag = null;
+  let suppressClick = false;
+  let cleaningUp = false;
+  let nodeDragFrame = null;
+  let pendingNodeDrag = null;
+
+  /** Paint one coherent live node frame from the latest pointer sample. The
+   * authoritative position is written before any consumer reads it; region,
+   * incident routes and minimap then observe the same coordinates. */
+  function paintNodeDragFrame(update) {
+    if (!update) { return; }
+    const position = rendered.positions.get(update.nodeId);
+    if (!position) { return; }
+    // Ensure drag-session is active for every paint frame (covers restored
+    // session identity if a re-render replaced route groups mid-drag).
+    if (!economyLogisticsUiState.nodeDragSession?.active
+      || economyLogisticsUiState.nodeDragSession.movedNodeId !== update.nodeId) {
+      logisticsBeginNodeDragSession(rendered, update.nodeId);
+    }
+    position.x = update.x;
+    position.y = update.y;
+    logisticsClampManualAwayFromOtherRegions(position, layout);
+    const nodeEl = rendered.nodeElements.get(update.nodeId);
+    if (nodeEl) {
+      const transform = logisticsNodeTransform(position);
+      nodeEl.setAttribute('transform', transform);
+      nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+    }
+    logisticsLiveUpdateOwningRegion(rendered, layout, update.nodeId, false);
+    logisticsRefreshRoutesAfterMove(rendered, update.nodeId);
+    logisticsPurgeSuppressedFlowDots(rendered);
+    rendered.minimap?.expand?.(hostCtx.camera);
+  }
+
+  function flushPendingNodeDrag() {
+    if (nodeDragFrame !== null && typeof win?.cancelAnimationFrame === 'function') {
+      win.cancelAnimationFrame(nodeDragFrame);
+    }
+    nodeDragFrame = null;
+    const update = pendingNodeDrag;
+    pendingNodeDrag = null;
+    paintNodeDragFrame(update);
+  }
+
+  function cancelPendingNodeDrag() {
+    if (nodeDragFrame !== null && typeof win?.cancelAnimationFrame === 'function') {
+      win.cancelAnimationFrame(nodeDragFrame);
+    }
+    nodeDragFrame = null;
+    pendingNodeDrag = null;
+  }
+
+  function scheduleNodeDrag(update) {
+    pendingNodeDrag = update;
+    if (nodeDragFrame !== null) { return; }
+    if (typeof win?.requestAnimationFrame !== 'function') {
+      flushPendingNodeDrag();
+      return;
+    }
+    nodeDragFrame = win.requestAnimationFrame(() => {
+      nodeDragFrame = null;
+      const latest = pendingNodeDrag;
+      pendingNodeDrag = null;
+      paintNodeDragFrame(latest);
+    });
+  }
+
+  function releaseStoredCapture() {
+    if (!drag || drag.pointerId === undefined || drag.pointerId === null) { return; }
+    if (typeof viewport.releasePointerCapture === 'function') {
+      try { viewport.releasePointerCapture(drag.pointerId); } catch { /* already released */ }
+    }
+  }
+
+  function cleanupDrag(options = {}) {
+    if (!drag || cleaningUp) { return; }
+    cleaningUp = true;
+    const active = drag;
+    // Snapshot drag-session membership before any geometry flush can re-arm it.
+    const sessionRouteIds = active.type === 'node'
+      ? (logisticsAffectedRouteIdsForNode(active.nodeId, rendered.routeTopologyIndex) || [])
+      : [];
+    const sessionContextId = active.type === 'node'
+      ? economyLogisticsUiState.nodeDragSession?.renderedContextId : null;
+    if (active.type === 'node') {
+      if (options.restoreNode) { cancelPendingNodeDrag(); } else { flushPendingNodeDrag(); }
+    }
+    if (options.restoreCamera && active.startCamera) {
+      setCamera(active.startCamera);
+    }
+    if (active.type === 'node') {
+      const position = rendered.positions.get(active.nodeId);
+      if (options.restoreNode && position) {
+        position.x = active.startNode.x;
+        position.y = active.startNode.y;
+        const nodeEl = rendered.nodeElements.get(active.nodeId);
+        if (nodeEl) {
+          const transform = logisticsNodeTransform(position);
+          nodeEl.setAttribute('transform', transform);
+          nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+        }
+        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId, false);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
+        rendered.minimap?.canonical?.(hostCtx.camera);
+      } else if (active.moved && options.commitNode && position) {
+        logisticsClampManualAwayFromOtherRegions(position, layout);
+        position.x = Math.round(position.x); position.y = Math.round(position.y);
+        // Fixed world coordinates (space: 'world'). Layout applies them as
+        // fixed obstacles and resolves automatics only within the same region,
+        // so a drop in region A cannot move region B members or re-origin them.
+        // Optional space:'local' entries (tests/migrations) are applied as
+        // pack-offset + local inside computeLogisticsLayout.
+        const stored = {
+          x: position.x,
+          y: position.y,
+          regionId: position.regionId,
+          ts: Date.now(),
+          space: 'world',
+        };
+        const nodeEl = rendered.nodeElements.get(active.nodeId);
+        if (nodeEl) {
+          const transform = logisticsNodeTransform(position);
+          nodeEl.setAttribute('transform', transform);
+          nodeEl._logisticsAnnotations?.setAttribute('transform', transform);
+        }
+        // Finalize the owning region's bounds from the rounded/clamped commit
+        // position so a subsequent full rerender is byte-identical.
+        logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId, false);
+        logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
+        rendered.minimap?.canonical?.(hostCtx.camera);
+        economyLogisticsUiState.manualPositions[active.nodeId] = stored;
+        logisticsSaveLayoutPositions();
+        // A manual override now exists; enable Layout Reset immediately without
+        // waiting for a full panel rerender.
+        if (toolbarEls && toolbarEls.resetLayoutBtn) {
+          toolbarEls.resetLayoutBtn.disabled = false;
+          toolbarEls.resetLayoutBtn.title = T('webview.world.logisticsResetLayoutTitle');
+          toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
+        }
+      }
+      // Keep suppression active through the final rounded position, route/line/
+      // annotation and minimap commits. Only the context that owns this drag may
+      // then rebuild particles, each from its live line's current d.
+      const restoreInActiveContext = economyLogisticsUiState.rendered === rendered
+        && rendered.contextId === sessionContextId
+        && logisticsCameraHostKey() === sessionContextId;
+      logisticsEndNodeDragSession();
+      if (restoreInActiveContext) {
+        // Session begins on pointerdown, so even a no-move click restores dots.
+        for (const routeId of sessionRouteIds) {
+          const group = rendered.routeElements.get(routeId);
+          if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
+            const route = group._logisticsRoute;
+            const style = group._logisticsStyle;
+            const relevanceKind = group.dataset.relevance || 'unrelated';
+            logisticsClearRouteParticles(group);
+            if (logisticsRouteMayShowFlowParticles(route, 'primary', style)) {
+              group._logisticsParts.particles = logisticsRenderFlowParticles(
+                group, route, group._logisticsGeometry, group._logisticsParts.line
+              );
+            }
+            logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
+          }
+        }
+        rendered.lastFlowParticleAudit = logisticsAuditActiveFlowDots(rendered);
+      }
+    }
+    if (active.moved && options.commitNode) {
+      suppressClick = active.type === 'node' ? { nodeId: active.nodeId } : { nodeId: null };
+      if (typeof setTimeout === 'function') { setTimeout(() => { suppressClick = false; }, 0); }
+    }
+    releaseStoredCapture();
+    if (viewport.classList) { viewport.classList.remove('is-panning', 'is-node-dragging'); }
+    if (active.type === 'camera' && active.moved) { logisticsQueueCameraSave(true); }
+    drag = null;
+    cleaningUp = false;
+  }
+
+  viewport.addEventListener('pointerdown', (event) => {
+    // A second pointer cannot hijack an active drag.
+    if (drag) { return; }
+    const button = Number(event.button);
+    const isMiddle = button === 1;
+    const isPrimary = button === 0;
+    if (!isMiddle && !isPrimary) { return; }
+
+    // Middle-button pan must not activate controls / scroll gestures.
+    if (isMiddle && typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
+
+    const onControl = logisticsIsControlTarget(event.target, viewport);
+    const onContent = logisticsIsGraphContentTarget(event.target, viewport);
+    const isSpace = state.spaceHeld;
+
+    const nodeTarget = isPrimary && !isSpace ? logisticsFindNodeTarget(event.target, viewport) : null;
+    const nodeId = nodeTarget?.dataset?.nodeId;
+    const nodePosition = nodeId ? rendered.positions.get(nodeId) : null;
+    if (nodeTarget && nodePosition && !nodePosition.aggregate) {
+      const startX = Number(event.clientX);
+      const startY = Number(event.clientY);
+      drag = {
+        type: 'node', nodeId, pointerId: event.pointerId,
+        startX: Number.isFinite(startX) ? startX : 0, startY: Number.isFinite(startY) ? startY : 0,
+        startCamera: hostCtx.camera, startNode: { x: nodePosition.x, y: nodePosition.y }, moved: false,
+      };
+      // Begin authoritative particle suppression immediately on pointerdown so
+      // no filter/selection/raise refresh can recreate dots before the first move.
+      logisticsBeginNodeDragSession(rendered, nodeId);
+      if (typeof viewport.setPointerCapture === 'function' && event.pointerId !== undefined) {
+        try { viewport.setPointerCapture(event.pointerId); } catch { /* capture unsupported */ }
+      }
+      if (viewport.classList) { viewport.classList.add('is-node-dragging'); }
+      return;
+    }
+
+    if (isPrimary && !isSpace) {
+      // Normal left-button: background only (SVG / permitted layers).
+      if (onControl || onContent || !logisticsIsBackgroundPanTarget(event.target, viewport)) {
+        return;
+      }
+    } else if (isPrimary && isSpace) {
+      // Space+primary may pan over nodes/routes but never from controls.
+      if (onControl) { return; }
+    } else if (isMiddle) {
+      // Middle may pan over nodes/routes; still skip pure control chrome so
+      // toolbar buttons are not entangled with a pan gesture.
+      if (onControl) { return; }
+    }
+
+    const startX = Number(event.clientX);
+    const startY = Number(event.clientY);
+    drag = {
+      type: 'camera',
+      pointerId: event.pointerId,
+      startX: Number.isFinite(startX) ? startX : 0,
+      startY: Number.isFinite(startY) ? startY : 0,
+      startCamera: hostCtx.camera,
+      moved: false,
+    };
+    if (typeof viewport.setPointerCapture === 'function' && event.pointerId !== undefined) {
+      try { viewport.setPointerCapture(event.pointerId); } catch { /* capture unsupported */ }
+    }
+    if (viewport.classList) { viewport.classList.add('is-panning'); }
+  });
+
+  function endDrag(event) {
+    if (!drag) { return; }
+    if (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId) { return; }
+    cleanupDrag({ commitNode: true });
+  }
+
+  viewport.addEventListener('pointermove', (event) => {
+    if (!drag) { return; }
+    if (event.pointerId !== undefined && event.pointerId !== drag.pointerId) { return; }
+    const cx = Number(event.clientX);
+    const cy = Number(event.clientY);
+    const dx = (Number.isFinite(cx) ? cx : 0) - drag.startX;
+    const dy = (Number.isFinite(cy) ? cy : 0) - drag.startY;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) { return; }
+    if (!drag.moved && Math.hypot(dx, dy) < LOGISTICS_DRAG_THRESHOLD_PX) { return; }
+    drag.moved = true;
+    if (drag.type === 'node') {
+      if (!logisticsIsValidCamera(drag.startCamera)) { return; }
+      scheduleNodeDrag({
+        nodeId: drag.nodeId,
+        x: drag.startNode.x + dx / drag.startCamera.k,
+        y: drag.startNode.y + dy / drag.startCamera.k,
+      });
+      return;
+    }
+    const base = drag.startCamera;
+    if (!logisticsIsValidCamera(base)) { return; }
+    const next = { k: base.k, tx: base.tx + dx, ty: base.ty + dy, userModified: true };
+    setCamera(next);
+  });
+  viewport.addEventListener('pointerup', endDrag);
+  viewport.addEventListener('pointercancel', (event) => {
+    if (!drag || (event?.pointerId !== undefined && event.pointerId !== drag.pointerId)) { return; }
+    cleanupDrag({ restoreNode: drag.type === 'node' });
+  });
+  viewport.addEventListener('lostpointercapture', (event) => {
+    if (!drag) { return; }
+    if (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId) { return; }
+    cleanupDrag({ restoreNode: drag.type === 'node' });
+  });
+
+  // Suppress the synthesized click that follows a real pan (threshold crossed).
+  viewport.addEventListener('click', (event) => {
+    if (!suppressClick) { return; }
+    if (logisticsIsControlTarget(event.target, viewport)) { return; }
+    const nodeTarget = logisticsFindNodeTarget(event.target, viewport);
+    if (suppressClick.nodeId && nodeTarget?.dataset?.nodeId !== suppressClick.nodeId) { return; }
+    suppressClick = false;
+    if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+    if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+  }, true);
+
+  // Background click (SVG chrome — not a node, route, control or minimap)
+  // returns the graph to the neutral state: a discoverable pointer alternative
+  // to Escape. Runs in bubble phase, after any node/route activation handler,
+  // so selecting a different entity is never undone. Camera/layout untouched.
+  viewport.addEventListener('click', (event) => {
+    if (!economyLogisticsUiState.selection) { return; }
+    if (logisticsIsGraphContentTarget(event.target, viewport)) { return; }
+    if (logisticsIsControlTarget(event.target, viewport)) { return; }
+    if (logisticsIsMinimapTarget(event.target, viewport)) { return; }
+    activateLogisticsSelection(null);
+  });
+
+  function currentBBox() { return bbox; }
+
+  function onWindowBlur() {
+    cleanupDrag({ restoreNode: drag?.type === 'node' });
+    state.spaceHeld = false;
+  }
+  if (win && typeof win.addEventListener === 'function') {
+    win.addEventListener('blur', onWindowBlur);
+  }
+
+  viewport.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && !event.repeat) {
+      // Space on a focused toolbar/control button must keep native activation.
+      // Only when the viewport itself owns focus (or a non-control descendant)
+      // does Space become a pan modifier and prevent page scroll.
+      if (logisticsIsFocusedButtonLike(doc) && logisticsIsControlTarget(doc.activeElement, viewport)) {
+        return;
+      }
+      state.spaceHeld = true;
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+    }
+    if (event.key === 'Escape' && drag) {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+      cleanupDrag({ restoreCamera: drag.type === 'camera', restoreNode: drag.type === 'node' });
+      return;
+    }
+    const arrow = {
+      ArrowUp: { dx: 0, dy: 1 }, ArrowDown: { dx: 0, dy: -1 },
+      ArrowLeft: { dx: 1, dy: 0 }, ArrowRight: { dx: -1, dy: 0 },
+    }[event.key];
+    if (arrow) {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      const step = event.shiftKey ? LOGISTICS_PAN_STEP_FAST : LOGISTICS_PAN_STEP;
+      setCamera(logisticsPanBy(hostCtx.camera, arrow.dx * step, arrow.dy * step));
+      return;
+    }
+    if (event.key === '+' || event.key === '=') {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(hostCtx.camera, vp, 1)));
+      return;
+    }
+    if (event.key === '-') {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      logisticsEaseCameraCommand(cameraGroup, () => setCamera(logisticsZoomByStep(hostCtx.camera, vp, -1)));
+      return;
+    }
+    // Shift+0 often reports key ')' on US layouts; check the physical key
+    // (code) so Reset Camera is reachable regardless of layout. Fit All and
+    // Reset Camera resolve identically in this slice — there is no persisted
+    // camera or manual node layout yet to distinguish them from.
+    if (event.code === 'Digit0' || event.key === '0' || event.key === ')') {
+      if (typeof event.preventDefault === 'function') { event.preventDefault(); }
+      const identity = logisticsDatasetIdentity(state.payload);
+      logisticsEaseCameraCommand(cameraGroup, () => {
+        if (event.shiftKey) { resetCamera(); return; }
+        const next = logisticsFitAllCamera(currentBBox(), vp);
+        hostCtx.identity = identity;
+        setCamera(next, true, 'canonical');
+      });
+    }
+  });
+  viewport.addEventListener('keyup', (event) => {
+    if (event.code === 'Space') { state.spaceHeld = false; }
+  });
+  viewport.addEventListener('blur', () => { state.spaceHeld = false; });
+  viewport.addEventListener('focusout', () => { state.spaceHeld = false; });
+
+  return {
+    setCamera,
+    currentCamera() { return hostCtx.camera; },
+    onToolbarCommand(command) {
+      const identity = logisticsDatasetIdentity(state.payload);
+      logisticsEaseCameraCommand(cameraGroup, () => {
+        if (command === 'zoomIn') { setCamera(logisticsZoomByStep(hostCtx.camera, vp, 1), true); return; }
+        if (command === 'zoomOut') { setCamera(logisticsZoomByStep(hostCtx.camera, vp, -1), true); return; }
+        if (command === 'resetLayout') {
+          // window.confirm is unreliable inside VS Code webviews (frequently a
+          // silent no-op), which is exactly why the human saw "nothing happens".
+          // Reset directly and report the outcome through the polite live region.
+          const hasOverrides = Object.keys(economyLogisticsUiState.manualPositions || {}).length > 0;
+          if (!hasOverrides) {
+            economyLogisticsUiState.layoutStatusMessage = T('webview.world.logisticsResetLayoutNoneStatus');
+            renderEconomyLogisticsPanel();
+            return;
+          }
+          logisticsStorageRemove(logisticsStorageKey('layout', state.scopeKey));
+          state.manualPositions = {};
+          hostCtx.camera = null;
+          economyLogisticsUiState.layoutStatusMessage = T('webview.world.logisticsResetLayoutDoneStatus');
+          renderEconomyLogisticsPanel();
+          return;
+        }
+        if (command === 'reset') { resetCamera(); return; }
+        hostCtx.identity = identity;
+        setCamera(logisticsFitAllCamera(currentBBox(), vp), true, 'canonical');
+      });
+    },
+  };
+}
+
+function renderLogisticsRegionContainers(layer, layerLabels, payload, layout, rendered) {
+  const protectedRegionIds = logisticsCurrentLocationRegionIds(payload);
+  if (rendered && !rendered.regionElements) { rendered.regionElements = new Map(); }
+  for (const [regionId, region] of [...layout.regions.entries()].sort((a, b) => logisticsLayoutCompareId(a[0], b[0]))) {
+    const group = logisticsSvgElement('g', `logistics-region${economyLogisticsUiState.collapsedRegionIds.has(regionId) ? ' is-collapsed' : ''}`);
+    group.dataset.regionId = regionId;
+    const rect = logisticsSvgElement('rect', 'logistics-region-box');
+    rect.setAttribute('x', String(region.x)); rect.setAttribute('y', String(region.y));
+    rect.setAttribute('width', String(region.w)); rect.setAttribute('height', String(region.h)); rect.setAttribute('rx', '14');
+    group.appendChild(rect);
+    const control = logisticsSvgElement('g', 'logistics-region-collapse');
+    const protectedRegion = protectedRegionIds.has(regionId);
+    control.setAttribute('role', 'button');
+    control.setAttribute('tabindex', '0');
+    control.setAttribute('aria-expanded', economyLogisticsUiState.collapsedRegionIds.has(regionId) ? 'false' : 'true');
+    control.setAttribute('aria-label', protectedRegion ? T('webview.world.logisticsCannotCollapseCurrentRegion') : T(economyLogisticsUiState.collapsedRegionIds.has(regionId) ? 'webview.world.logisticsExpandRegion' : 'webview.world.logisticsCollapseRegion'));
+    if (protectedRegion) { control.setAttribute('aria-disabled', 'true'); appendLogisticsTitle(control, T('webview.world.logisticsCannotCollapseCurrentRegion')); }
+    const hit = logisticsSvgElement('rect', 'logistics-region-collapse-hit');
+    hit.setAttribute('x', String(region.x + 4)); hit.setAttribute('y', String(region.y + 2));
+    hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260)))); hit.setAttribute('height', '28');
+    hit.setAttribute('rx', '5');
+    control.appendChild(hit);
+    const label = logisticsSvgElement('text', `logistics-region-label${protectedRegion ? ' is-protected' : ''}`);
+    label.setAttribute('x', String(region.x + 12)); label.setAttribute('y', String(region.y + 20));
+    // Protected (current-location) regions cannot collapse; a persistent lock
+    // glyph makes that intentional state visible instead of relying on a
+    // hover-only tooltip / prohibited cursor.
+    const collapseGlyph = protectedRegion ? '🔒' : (economyLogisticsUiState.collapsedRegionIds.has(regionId) ? '▸' : '▾');
+    label.textContent = `${collapseGlyph} ${region.label} (${region.memberIds.length})`;
+    label.setAttribute('pointer-events', 'none');
+    const toggle = () => {
+      if (protectedRegion) { return; }
+      if (economyLogisticsUiState.collapsedRegionIds.has(regionId)) { economyLogisticsUiState.collapsedRegionIds.delete(regionId); }
+      else { economyLogisticsUiState.collapsedRegionIds.add(regionId); }
+      logisticsSavePrefs();
+      renderEconomyLogisticsPanel();
+    };
+    control.addEventListener('click', (event) => { if (event?.stopPropagation) { event.stopPropagation(); } toggle(); });
+    control.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+    });
+    control.addEventListener('focus', () => label.classList.add('is-focus-visible'));
+    control.addEventListener('blur', () => label.classList.remove('is-focus-visible'));
+    group.appendChild(control);
+    layer.appendChild(group);
+    layerLabels.appendChild(label);
+    if (rendered && rendered.regionElements) {
+      rendered.regionElements.set(regionId, { group, rect, hit, label, region });
+    }
+  }
+}
+
+/** Recompute a single region's dashed-container bounds from the live positions
+ * of its members and push them straight to the already-rendered rect / label /
+ * hit-area, plus the minimap projection — without a full panel render or a
+ * complete graph relayout. The formula is byte-identical to the bounds
+ * finalization in computeLogisticsLayout (85b1), so committing a drag and then
+ * doing a full rerender yields the same region box. Only the owning region is
+ * touched; unrelated regions are never read or written. */
+function logisticsLiveUpdateOwningRegion(rendered, layout, nodeId, updateMinimap = true) {
+  if (!rendered || !layout || !layout.regions) { return; }
+  const position = rendered.positions?.get(nodeId);
+  const regionId = position?.regionId;
+  if (!regionId) { return; }
+  const region = layout.regions.get(regionId);
+  if (!region) { return; }
+  const members = region.memberIds.map((id) => rendered.positions.get(id)).filter(Boolean);
+  if (!members.length) { return; }
+  const minX = Math.min(...members.map((pos) => pos.x - pos.w / 2));
+  const minY = Math.min(...members.map((pos) => pos.y - pos.h / 2));
+  const maxX = Math.max(...members.map((pos) => pos.x + pos.w / 2));
+  const maxY = Math.max(...members.map((pos) => pos.y + pos.h / 2));
+  region.x = minX - LOGISTICS_LAYOUT_REGION_PADDING;
+  region.y = minY - LOGISTICS_LAYOUT_REGION_PADDING - 24;
+  region.w = maxX - minX + LOGISTICS_LAYOUT_REGION_PADDING * 2;
+  region.h = maxY - minY + LOGISTICS_LAYOUT_REGION_PADDING * 2 + 24;
+  const refs = rendered.regionElements?.get(regionId);
+  if (refs) {
+    if (refs.rect) {
+      refs.rect.setAttribute('x', String(region.x)); refs.rect.setAttribute('y', String(region.y));
+      refs.rect.setAttribute('width', String(region.w)); refs.rect.setAttribute('height', String(region.h));
+    }
+    if (refs.label) {
+      refs.label.setAttribute('x', String(region.x + 12)); refs.label.setAttribute('y', String(region.y + 20));
+    }
+    if (refs.hit) {
+      refs.hit.setAttribute('x', String(region.x + 4)); refs.hit.setAttribute('y', String(region.y + 2));
+      refs.hit.setAttribute('width', String(Math.max(120, Math.min(region.w - 8, 260))));
+    }
+  }
+  if (updateMinimap && rendered.minimap && typeof rendered.minimap.expand === 'function') {
+    rendered.minimap.expand(logisticsActiveCameraContext().camera);
+  }
+}
+
+function renderLogisticsNetwork(payload, parent) {
+  logisticsEnsureScope(payload);
+  const data = visibleLogisticsData(payload);
+  renderLogisticsLegend(parent);
+  // Best-effort synchronous read of the (already laid out) render target so
+  // the very first paint already picks the right mode instead of always
+  // starting compact and correcting itself once ResizeObserver's async
+  // initial callback lands a frame later (visible as a brief flash when the
+  // host — sidebar column or lightbox — is actually wide, e.g. right after
+  // opening the "view large" lightbox).
+  let hostWidth = 0;
+  if (typeof parent.clientWidth === 'number' && parent.clientWidth > 0) {
+    hostWidth = parent.clientWidth;
+  } else if (typeof parent.getBoundingClientRect === 'function') {
+    hostWidth = parent.getBoundingClientRect().width || 0;
+  }
+  if (hostWidth > 0) {
+    economyLogisticsUiState.compactAnimation = hostWidth < LOGISTICS_COMPACT_WIDTH_PX;
+  }
+  let lightboxHeight = LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX;
+  if (economyLogisticsUiState.lightboxHost) {
+    // Maximize: use the full body client area so the SVG fills available space
+    // without Fit All (camera k/tx/ty stay as stored).
+    const bodyH = Number(economyLogisticsUiState.lightboxHost.clientHeight);
+    if (Number.isFinite(bodyH) && bodyH > 0) {
+      lightboxHeight = Math.max(LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX, Math.floor(bodyH - 8));
+    }
+  }
+  const viewportSize = {
+    width: hostWidth > 0 ? hostWidth : LOGISTICS_VIEWPORT_WIDTH_FALLBACK,
+    height: economyLogisticsUiState.lightboxHost ? lightboxHeight : LOGISTICS_VIEWPORT_HEIGHT,
+  };
+  const viewport = logisticsElement('div', 'logistics-network-viewport');
+  viewport.setAttribute('tabindex', '0');
+  viewport.setAttribute('role', 'group');
+  viewport.setAttribute('aria-label', T('webview.world.logisticsAria'));
+  if (economyLogisticsUiState.lightboxHost && economyLogisticsUiState.lightboxMaximized) {
+    viewport.classList.add('is-lightbox-maximized');
+  }
+  if (!economyLogisticsUiState.lightboxHost) {
+    const expandBtn = logisticsElement('button', 'logistics-expand-btn', '⤢');
+    expandBtn.type = 'button';
+    expandBtn.title = T('webview.world.logisticsExpand');
+    expandBtn.setAttribute('aria-label', T('webview.world.logisticsExpand'));
+    expandBtn.addEventListener('click', () => logisticsOpenLightbox(expandBtn));
+    viewport.appendChild(expandBtn);
+  }
+  if (data.routes.length === 0) {
+    const empty = logisticsElement('p', 'empty-text logistics-filter-empty', T('webview.world.logisticsFilterEmpty'));
+    viewport.appendChild(empty);
+  }
+  // Always feed the complete payload into the pure layout; filters only dim.
+  const layout = buildLogisticsLayout(payload.nodes || [], payload.routes || [], {
+    manualPositions: economyLogisticsUiState.manualPositions,
+    collapsedRegionIds: economyLogisticsUiState.collapsedRegionIds,
+  });
+  // A manual coordinate belongs to the region it was dragged in. Once the
+  // payload says otherwise, delete it from this scope so it cannot resurrect
+  // when the node later returns to the old region.
+  logisticsPruneWrongRegionManualPositions(layout);
+  economyLogisticsUiState.layout = layout;
+  const rendered = {
+    positions: new Map(),
+    nodeElements: new Map(),
+    routeElements: new Map(),
+    contextId: economyLogisticsUiState.lightboxHost ? 'lightbox' : 'normal',
+    svg: null,
+    viewport: null,
+  };
+  const graph = logisticsBuildRenderedGraph(payload, layout, data.commodityId);
+  rendered.positions = graph.positions;
+  rendered.graphRoutes = graph.routes;
+  rendered.graphNodes = graph.nodes;
+  economyLogisticsUiState.rendered = rendered;
+  const motionActive = logisticsFlowMotionActive();
+  const svgClass = `logistics-network${motionActive ? ' is-animated' : ''}${economyLogisticsUiState.compactAnimation ? ' is-compact' : ''}`;
+  const svg = logisticsSvgElement('svg', svgClass);
+  svg.setAttribute('viewBox', `0 0 ${viewportSize.width} ${viewportSize.height}`);
+  svg.setAttribute('aria-hidden', 'true');
+  const defs = logisticsSvgElement('defs');
+  ['open', 'rumored', 'impaired', 'blocked', 'bottleneck', 'conflicted', 'unknown'].forEach((status) => {
+    const marker = logisticsSvgElement('marker', `logistics-arrow logistics-arrow-${status}`);
+    marker.id = `logistics-arrow-${status}`;
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', '9');
+    marker.setAttribute('refY', '5');
+    // Fixed-size arrowheads: the default strokeWidth marker units make
+    // high-volume routes grow node-sized triangles.
+    marker.setAttribute('markerUnits', 'userSpaceOnUse');
+    marker.setAttribute('markerWidth', '13');
+    marker.setAttribute('markerHeight', '13');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    const arrow = logisticsSvgElement('path', 'logistics-arrow-path');
+    arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+    marker.appendChild(arrow);
+    defs.appendChild(marker);
+  });
+  svg.appendChild(defs);
+
+  const cameraGroup = logisticsSvgElement('g', 'logistics-camera');
+  const layerRegions = logisticsSvgElement('g', 'layer-regions');
+  const layerEdges = logisticsSvgElement('g', 'layer-edges');
+  const layerEdgesRaised = logisticsSvgElement('g', 'layer-edges-raised');
+  const layerNodes = logisticsSvgElement('g', 'layer-nodes');
+  const layerLabels = logisticsSvgElement('g', 'layer-labels');
+  [layerRegions, layerEdges, layerEdgesRaised, layerNodes, layerLabels].forEach((layer) => cameraGroup.appendChild(layer));
+  svg.appendChild(cameraGroup);
+
+  renderLogisticsRegionContainers(layerRegions, layerLabels, payload, layout, rendered);
+  // One shared, obstacle-aware geometry computation for the whole route set;
+  // every consumer (stroke, hit path, arrow, particles, label, warning, drag
+  // refresh) reads from this single result. See 85b2-logistics-route-geometry.js.
+  const labelMetrics = logisticsRouteLabelMetrics(graph.routes);
+  const routeTopologyIndex = buildLogisticsRouteTopologyIndex(graph.routes);
+  const geometryResult = computeLogisticsRouteGeometry({ routes: graph.routes, positions: graph.positions, labelMetrics, topologyIndex: routeTopologyIndex });
+  const selection = economyLogisticsUiState.selection || null;
+  const filterModel = computeLogisticsFilterModel({ nodes: graph.nodes, routes: graph.routes, commodities: payload.commodities || [], regions: layout.regions, query: economyLogisticsUiState.searchQuery, commodityId: economyLogisticsUiState.commodityId, statusKeys: [...economyLogisticsUiState.statusKeys] });
+  const visualEncoding = computeLogisticsVisualEncoding({
+    routes: graph.routes,
+    nodes: graph.nodes,
+    commodities: payload.commodities || [],
+    selectedCommodityId: data.commodityId,
+    selectedRouteId: selection?.type === 'route' ? selection.id : null,
+    selectedNodeId: selection?.type === 'node' ? selection.id : null,
+    currentLocationId: typeof currentWorldLocationId === 'string' ? currentWorldLocationId : null,
+    options: { geometryByRoute: geometryResult.routes, shortages: data.shortages, filterModel },
+  });
+  rendered.geometryRoutes = graph.routes;
+  rendered.geometryLabelMetrics = labelMetrics;
+  rendered.routeTopologyIndex = routeTopologyIndex;
+  rendered.routeGeoms = geometryResult.routes;
+  rendered.visualEncoding = visualEncoding;
+  rendered.filterModel = filterModel;
+  logisticsUpdateFilterCount(filterModel);
+  graph.routes.forEach((route) => renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload, route, geometryResult.routes.get(route.id), visualEncoding.routeStyles.get(route.id), rendered));
+  graph.nodes.forEach((node) => {
+    const position = graph.positions.get(node.id);
+    if (position) { renderLogisticsNode(layerNodes, layerLabels, payload, node, position, data.shortages, graph.routes, visualEncoding.nodeStyles.get(node.id), rendered); }
+  });
+  viewport.appendChild(svg);
+  rendered.svg = svg;
+  rendered.viewport = viewport;
+  // If a full re-render lands during an active drag (filter/search/selection),
+  // re-apply suppression so newly created route groups stay particle-free.
+  if (economyLogisticsUiState.nodeDragSession?.active) {
+    logisticsPurgeSuppressedFlowDots(rendered);
+  }
+
+  const bbox = layout.bounds;
+  const camera = logisticsResolveCameraForRender(payload, bbox, viewportSize);
+  const toolbarEls = renderLogisticsCameraToolbar(viewport, (command) => interactions.onToolbarCommand(command));
+  // Layout Reset is meaningful only when manual node positions exist; otherwise
+  // it is disabled with an explanatory title so it is never a silent dead
+  // control, and stays distinct from the always-available Camera Reset.
+  const hasLayoutOverrides = Object.keys(economyLogisticsUiState.manualPositions || {}).length > 0;
+  toolbarEls.resetLayoutBtn.disabled = !hasLayoutOverrides;
+  if (!hasLayoutOverrides) {
+    toolbarEls.resetLayoutBtn.title = T('webview.world.logisticsResetLayoutNoneTitle');
+    toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutNoneTitle'));
+  }
+  applyLogisticsCameraTransform(svg, cameraGroup, camera, toolbarEls);
+  let minimap = null;
+  const interactions = logisticsSetupCameraInteractions({ viewport, svg, cameraGroup, toolbarEls, viewportSize, bbox, rendered, layout, onCameraChange: (next, mode) => { if (minimap) { if (mode === 'canonical') { minimap.canonical(next); } else { minimap.update(next); } } } });
+  const minimapCamera = (next, immediate) => interactions.setCamera(next, immediate);
+  minimapCamera.current = () => interactions.currentCamera();
+  minimap = renderLogisticsMinimap(viewport, layout, graph, graph.positions, viewportSize, camera, svg, minimapCamera);
+  rendered.minimap = minimap;
+
+  parent.appendChild(viewport);
+  logisticsObserveNetworkWidth(viewport);
+}
+
+function appendLogisticsDetailRow(parent, label, value) {
+  const row = logisticsElement('div', 'logistics-detail-row');
+  row.appendChild(logisticsElement('span', 'logistics-detail-label', label));
+  row.appendChild(logisticsElement('span', 'logistics-detail-value', value));
+  parent.appendChild(row);
+}
+
+function renderLogisticsDetails(payload, parent) {
+  const details = logisticsElement('div', 'logistics-details');
+  details.setAttribute('aria-live', 'polite');
+  const headingRow = logisticsElement('div', 'logistics-details-heading');
+  headingRow.appendChild(logisticsElement('strong', '', T('webview.world.logisticsDetails')));
+  const clear = logisticsElement('button', 'logistics-clear-btn', T('webview.world.logisticsClearSelection'));
+  clear.type = 'button';
+  clear.disabled = !economyLogisticsUiState.selection;
+  clear.title = T('webview.world.logisticsSelectionClearHint');
+  clear.setAttribute('aria-label', `${T('webview.world.logisticsClearSelection')} — ${T('webview.world.logisticsSelectionClearHint')}`);
+  clear.addEventListener('click', () => {
+    economyLogisticsUiState.selection = null;
+    renderEconomyLogisticsPanel();
+  });
+  headingRow.appendChild(clear);
+  details.appendChild(headingRow);
+  if (economyLogisticsUiState.selection) {
+    // Compact discoverability hint, not a permanent instruction panel: shown
+    // only while something is selected.
+    details.appendChild(logisticsElement('p', 'logistics-selection-hint', T('webview.world.logisticsSelectionClearHint')));
+  }
+
+  const selection = economyLogisticsUiState.selection;
+  if (!selection) {
+    details.appendChild(logisticsElement('p', 'img-gen-hint', T('webview.world.logisticsSelectHint')));
+  } else if (selection.type === 'route') {
+    const route = (payload.routes || []).find((item) => item.id === selection.id);
+    if (route) {
+      appendLogisticsDetailRow(details, T('webview.world.logisticsRoute'), route.id);
+      appendLogisticsDetailRow(details, T('webview.world.logisticsCommodity'), logisticsCommodityName(payload, route.commodityId));
+      appendLogisticsDetailRow(details, T('webview.world.logisticsDirection'), `${logisticsNodeName(payload, route.fromNodeId)} → ${logisticsNodeName(payload, route.toNodeId)}`);
+      appendLogisticsDetailRow(details, T('webview.world.logisticsStatus'), logisticsStatusLabel(route.status));
+      appendLogisticsDetailRow(details, T('webview.world.logisticsVolumeCapacity'), `${logisticsNumber(route.volume)} / ${logisticsNumber(route.effectiveCapacity)} (${T('webview.world.logisticsBase')} ${logisticsNumber(route.baseCapacity)})`);
+      appendLogisticsDetailRow(details, T('webview.world.logisticsUtilization'), logisticsPercent(route.utilization));
+      appendLogisticsDetailRow(details, T('webview.world.logisticsRisk'), `${logisticsRiskLabel(route.risk)} · ${logisticsPercent(route.risk)}`);
+      if (route.bottleneck) { appendLogisticsDetailRow(details, T('webview.world.logisticsBottleneck'), T('webview.world.logisticsBottleneckHint')); }
+    }
+  } else {
+    const node = (payload.nodes || []).find((item) => item.id === selection.id);
+    if (node) {
+      appendLogisticsDetailRow(details, T('webview.world.logisticsNode'), node.label);
+      appendLogisticsDetailRow(details, T('webview.world.logisticsKind'), logisticsNodeKindLabel(node.kind));
+      const production = (node.production || []).map((item) => `${logisticsCommodityName(payload, item.commodityId)} ${logisticsNumber(item.effectiveOutput)} (${Math.round(item.productivePotential * 100)}% · ${Math.round(item.condition * 100)}%)`).join(', ');
+      if (production) { appendLogisticsDetailRow(details, T('webview.world.logisticsProduction'), production); }
+      const nodeShortages = (payload.shortages || []).filter((item) => item.nodeId === node.id && item.unmetDemand > 0);
+      if (nodeShortages.length) {
+        appendLogisticsDetailRow(details, T('webview.world.logisticsShortage'), nodeShortages.map((item) => `${logisticsCommodityName(payload, item.commodityId)} ${logisticsNumber(item.unmetDemand)}`).join(', '));
+      }
+      const sites = (payload.processingSites || []).filter((site) => site.nodeId === node.id);
+      if (sites.length) {
+        appendLogisticsDetailRow(details, T('webview.world.logisticsProcessing'), sites.map((site) => `${site.recipeId}: ${site.active ? T('webview.world.logisticsActive') : T('webview.world.logisticsInactive')} · ${site.batches}/${site.effectiveMaxBatches}`).join(', '));
+      }
+    }
+  }
+  parent.appendChild(details);
+}
+
+function renderEconomyLogisticsPanel() {
+  const panel = economyLogisticsUiState.lightboxHost || document.getElementById('world-logistics-panel');
+  const payload = economyLogisticsUiState.payload;
+  if (!panel || !payload) { return; }
+  panel.replaceChildren();
+  panel.onkeydown = (event) => {
+    if (event.key === 'Escape' && economyLogisticsUiState.selection) {
+      event.preventDefault();
+      // Clearing a selection and closing the expanded view are both bound to
+      // Escape; stop here so one press only ever does the innermost thing.
+      if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+      economyLogisticsUiState.selection = null;
+      renderEconomyLogisticsPanel();
+    }
+  };
+  if (!payload.available) {
+    panel.appendChild(logisticsElement('div', 'logistics-empty', logisticsUnavailableText(payload.unavailableReason)));
+    return;
+  }
+  if (payload.snapshotSource === 'derived_preview') {
+    panel.appendChild(logisticsElement(
+      'div',
+      'logistics-preview-note',
+      T('webview.world.logisticsPreviewNote')
+    ));
+  }
+  renderLogisticsSummary(payload, panel);
+  renderLogisticsFilter(payload, panel);
+  if (payload.unavailableReason === 'no_route_summaries') {
+    panel.appendChild(logisticsElement('div', 'logistics-empty', logisticsUnavailableText(payload.unavailableReason)));
+  } else {
+    renderLogisticsNetwork(payload, panel);
+  }
+  renderLogisticsDetails(payload, panel);
+}
+
+/** Generic "view large" lightbox: a single reusable overlay any read-only
+ *  visual panel can borrow (only the logistics network uses it so far). It
+ *  never owns feature state — callers get a body element to render into and
+ *  an onClose callback to unwind their own state when the user leaves. */
+function ensureVisualLightbox() {
+  if (window.__lrVisualLightbox) { return window.__lrVisualLightbox; }
+  const root = document.createElement('div');
+  root.className = 'visual-lightbox hidden';
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-modal', 'true');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'visual-lightbox-backdrop';
+  const panel = document.createElement('div');
+  panel.className = 'visual-lightbox-panel';
+  const header = document.createElement('div');
+  header.className = 'visual-lightbox-header';
+  const title = document.createElement('span');
+  title.className = 'visual-lightbox-title';
+  const headerActions = document.createElement('div');
+  headerActions.className = 'visual-lightbox-actions';
+  const maximizeBtn = document.createElement('button');
+  maximizeBtn.type = 'button';
+  maximizeBtn.className = 'visual-lightbox-maximize';
+  maximizeBtn.textContent = '⛶';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'visual-lightbox-close';
+  closeBtn.textContent = '✕';
+  headerActions.appendChild(maximizeBtn);
+  headerActions.appendChild(closeBtn);
+  header.appendChild(title);
+  header.appendChild(headerActions);
+  const body = document.createElement('div');
+  body.className = 'visual-lightbox-body';
+  panel.appendChild(header);
+  panel.appendChild(body);
+  root.appendChild(backdrop);
+  root.appendChild(panel);
+  document.body.appendChild(root);
+
+  let onCloseCb = null;
+  let restoreFocusEl = null;
+
+  function syncMaximizeChrome() {
+    const maximized = Boolean(economyLogisticsUiState.lightboxMaximized);
+    panel.classList.toggle('is-maximized', maximized);
+    root.classList.toggle('is-maximized', maximized);
+    const key = maximized ? 'webview.world.logisticsLightboxRestore' : 'webview.world.logisticsLightboxMaximize';
+    const label = typeof T === 'function' ? T(key) : key;
+    maximizeBtn.setAttribute('aria-label', label);
+    maximizeBtn.title = label;
+    maximizeBtn.setAttribute('aria-pressed', maximized ? 'true' : 'false');
+    maximizeBtn.textContent = maximized ? '❐' : '⛶';
+  }
+
+  function toggleMaximize() {
+    economyLogisticsUiState.lightboxMaximized = !economyLogisticsUiState.lightboxMaximized;
+    syncMaximizeChrome();
+    // Re-render into the same lightbox host so the graph SVG/viewBox matches
+    // the new body size. Camera contexts, filters, and selection are preserved
+    // in economyLogisticsUiState — no Fit All.
+    if (typeof renderEconomyLogisticsPanel === 'function') {
+      renderEconomyLogisticsPanel();
+    }
+  }
+
+  function close() {
+    if (root.classList.contains('hidden')) { return; }
+    root.classList.add('hidden');
+    economyLogisticsUiState.lightboxMaximized = false;
+    panel.classList.remove('is-maximized');
+    root.classList.remove('is-maximized');
+    // Restore focus to the trigger before the consumer's onClose callback
+    // runs — that callback typically re-renders its own panel (e.g. the
+    // logistics panel rebuilds and replaces its expand button), which would
+    // detach the very node we're about to focus if we waited until after.
+    if (restoreFocusEl && typeof restoreFocusEl.focus === 'function') { restoreFocusEl.focus(); }
+    restoreFocusEl = null;
+    const cb = onCloseCb;
+    onCloseCb = null;
+    if (typeof cb === 'function') { cb(); }
+  }
+
+  function open(titleText, triggerEl, onClose) {
+    title.textContent = titleText || '';
+    closeBtn.setAttribute('aria-label', T('webview.world.logisticsLightboxClose'));
+    closeBtn.title = T('webview.world.logisticsLightboxClose');
+    onCloseCb = onClose || null;
+    restoreFocusEl = triggerEl || document.activeElement;
+    economyLogisticsUiState.lightboxMaximized = false;
+    syncMaximizeChrome();
+    root.classList.remove('hidden');
+    closeBtn.focus();
+  }
+
+  backdrop.addEventListener('click', close);
+  closeBtn.addEventListener('click', close);
+  maximizeBtn.addEventListener('click', (event) => {
+    if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+    toggleMaximize();
+  });
+  // Double-click title bar toggles maximize when it does not conflict.
+  header.addEventListener('dblclick', (event) => {
+    if (event.target === closeBtn || event.target === maximizeBtn) { return; }
+    toggleMaximize();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !root.classList.contains('hidden')) {
+      event.preventDefault();
+      close();
+    }
+  });
+
+  window.__lrVisualLightbox = { open, close, body, panel, toggleMaximize, syncMaximizeChrome };
+  return window.__lrVisualLightbox;
+}
+
+function logisticsOpenLightbox(triggerEl) {
+  const lightbox = ensureVisualLightbox();
+  lightbox.body.classList.add('visual-lightbox-body--logistics');
+  economyLogisticsUiState.lightboxHost = lightbox.body;
+  lightbox.open(T('webview.world.logisticsTitle'), triggerEl, () => {
+    economyLogisticsUiState.lightboxHost = null;
+    lightbox.body.classList.remove('visual-lightbox-body--logistics');
+    renderEconomyLogisticsPanel();
+  });
+  renderEconomyLogisticsPanel();
+}
+
+function renderEconomyLogistics(payload, commerceEnabled) {
+  const section = document.getElementById('world-logistics-details');
+  const panel = document.getElementById('world-logistics-panel');
+  if (!section || !panel) { return; }
+  const visible = Boolean(payload);
+  section.classList.toggle('hidden', !visible);
+  if (!visible) {
+    if (economyLogisticsUiState.lightboxHost) {
+      economyLogisticsUiState.lightboxHost = null;
+      ensureVisualLightbox().close();
+    }
+    panel.replaceChildren();
+    economyLogisticsUiState.payload = null;
+    economyLogisticsUiState.selection = null;
+    economyLogisticsUiState.cameraContexts = logisticsEmptyCameraContexts();
+    economyLogisticsUiState.spaceHeld = false;
+    return;
+  }
+  if (economyLogisticsUiState.payload !== payload) {
+    economyLogisticsUiState.payload = payload;
+    // Host ticks always allocate a new payload object. Retain a selection only
+    // when the same factual id+type still exists; never key off object identity.
+    economyLogisticsUiState.selection = logisticsRetainValidSelection(
+      economyLogisticsUiState.selection,
+      payload
+    );
+  }
+  if (!commerceEnabled && payload.available) {
+    economyLogisticsUiState.payload = { ...payload, available: false, unavailableReason: 'commerce_disabled' };
+  }
+  renderEconomyLogisticsPanel();
+}
+
+/** Keep a selection across payload pushes when its factual id remains present. */
+function logisticsRetainValidSelection(selection, payload) {
+  if (!selection || !payload) { return null; }
+  if (selection.type === 'node') {
+    const stillThere = (payload.nodes || []).some((node) => node && node.id === selection.id);
+    return stillThere ? { type: 'node', id: selection.id } : null;
+  }
+  if (selection.type === 'route') {
+    const stillThere = (payload.routes || []).some((route) => route && route.id === selection.id);
+    return stillThere ? { type: 'route', id: selection.id } : null;
+  }
+  return null;
+}

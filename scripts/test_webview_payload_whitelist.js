@@ -27,6 +27,7 @@ const {
     sanitizeTurnResultForWebview,
 } = require(sanitizePath);
 const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhereaboutsTrustCore.js'));
+const { buildEconomyLogisticsViewModel } = require(path.join(root, 'out', 'economyLogisticsViewCore.js'));
 
 {
     const raw = {
@@ -189,6 +190,73 @@ const { TRUST_WHEREABOUTS_UNKNOWN_MAX } = require(path.join(root, 'out', 'npcWhe
         fail(`sanitizeTurnResult combines whitelist + trust: ${JSON.stringify(turn)}`);
     } else {
         ok('sanitizeTurnResult whitelist + trust');
+    }
+}
+
+{
+    const logistics = buildEconomyLogisticsViewModel({
+        commerceEnabled: true,
+        worldTurn: 3,
+        commodities: [{ id: 'grain', name: 'Grain', internalPrompt: 'no' }],
+        definition: {
+            nodes: [
+                { id: 'farm', kind: 'region', label: 'Farm', filesystemPath: 'C:\\private' },
+                { id: 'market', kind: 'market', label: 'Market', secretNpcData: [{ id: 'x' }] },
+            ],
+            productionSources: [{ id: 'src', nodeId: 'farm', commodityId: 'grain', baseOutputPerTick: 5 }],
+            demands: [{ id: 'd', nodeId: 'market', commodityId: 'grain', baseDemandPerTick: 5 }],
+            tradeRoutes: [{ id: 'route', fromNodeId: 'farm', toNodeId: 'market', commodityId: 'grain', capacityPerTick: 5 }],
+        },
+        flow: {
+            routes: [{ routeId: 'route', fromNodeId: 'private', toNodeId: 'private', commodityId: 'secret', volume: 5, capacity: 5, baseCapacity: 5, utilization: 1, risk: 0, status: 'open', rawForge: { hidden: true } }],
+            nodes: [{ nodeId: 'market', commodityId: 'grain', fulfilledDemand: 5, unmetDemand: 0, promptData: 'no' }],
+            marketDeltas: [{ nodeId: 'market', marketLocationId: 'secret', commodityId: 'grain', supplied: 5, consumed: 5, delta: 0 }],
+            productionSources: [{ sourceId: 'src', nodeId: 'farm', commodityId: 'grain', baseOutput: 5, productivePotential: 1, condition: 1, effectiveOutput: 5 }],
+            diagnostics: [{ code: 'private', message: 'C:\\secret\\world.json' }],
+        },
+        processing: null,
+    });
+    const serialized = JSON.stringify(logistics);
+    const allowedTop = ['available', 'worldTurn', 'commodities', 'nodes', 'routes', 'shortages', 'processingSites', 'summary'];
+    const unknownTop = Object.keys(logistics).filter((key) => !allowedTop.includes(key));
+    if (unknownTop.length > 0 || serialized.includes('filesystemPath') || serialized.includes('secretNpcData')
+        || serialized.includes('rawForge') || serialized.includes('promptData') || serialized.includes('marketDeltas')
+        || serialized.includes('diagnostics') || serialized.includes('C:\\\\')) {
+        fail(`logistics host payload whitelist: ${serialized}`);
+    } else if (logistics.routes[0]?.fromNodeId !== 'farm' || logistics.routes[0]?.toNodeId !== 'market' || logistics.routes[0]?.commodityId !== 'grain') {
+        fail(`logistics route authority must come from sanitized definition: ${serialized}`);
+    } else {
+        ok('logistics host payload contains only explicit semantic fields');
+    }
+}
+
+{
+    const noSnapshot = buildEconomyLogisticsViewModel({
+        commerceEnabled: true,
+        definition: { nodes: [], productionSources: [], demands: [], tradeRoutes: [] },
+        flow: null,
+    });
+    const disabled = buildEconomyLogisticsViewModel({ commerceEnabled: false });
+    if (noSnapshot.available || noSnapshot.unavailableReason !== 'snapshot_unavailable'
+        || disabled.available || disabled.unavailableReason !== 'commerce_disabled') {
+        fail(`logistics unavailable host states: ${JSON.stringify({ noSnapshot, disabled })}`);
+    } else {
+        ok('logistics host emits safe unavailable states');
+    }
+}
+
+{
+    const worldStateSource = fs.readFileSync(path.join(root, 'src', 'worldStateCore.ts'), 'utf8');
+    const livingTypesSource = fs.readFileSync(path.join(root, 'src', 'livingWorldTypes.ts'), 'utf8');
+    const bridgeSource = fs.readFileSync(path.join(root, 'src', 'livingWorldBridge.ts'), 'utf8');
+    if (/economyLogistics|latestEconomyTickSnapshot/.test(worldStateSource)
+        || /economyLogistics|latestEconomyTickSnapshot/.test(livingTypesSource)
+        || /ext\.(?:economyFlow|economyProcessing|economyLogistics)\s*=/.test(bridgeSource)) {
+        fail('logistics view must not add persisted WorldState or CommerceForge state');
+    } else if (!bridgeSource.includes('Transient, derived snapshot')) {
+        fail('logistics transient snapshot boundary missing');
+    } else {
+        ok('logistics snapshot remains transient; no WorldState migration introduced');
     }
 }
 

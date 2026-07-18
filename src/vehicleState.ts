@@ -1,4 +1,5 @@
 // Vehicle System V2: workspace vehicle_state.json loader + GM prompt context.
+// PRE2: reads v1/v2 documents and projects mechanical VehicleState only.
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -12,10 +13,13 @@ import {
 } from './vehicleIntegrationCore';
 import {
     buildVehiclePromptBlock,
-    parseVehicleState,
     vehicleModeEnabled,
     type VehicleState,
 } from './vehicleCore';
+import {
+    parseVehicleStateDocument,
+    projectVehicleStateDocumentMechanical,
+} from './vehicleStateDocumentCore';
 
 export const VEHICLE_STATE_FILENAME = 'vehicle_state.json';
 
@@ -34,7 +38,21 @@ export function clearVehicleStateCache(): void {
     cachedDoc = undefined;
 }
 
-/** Fresh disk read for serialized mutations (bypasses loader cache). */
+/**
+ * Project mechanical VehicleState from a raw JSON document.
+ * Valid v1/v2 → mechanical only (receipts never leak).
+ * Invalid / unsupported / empty fleet → undefined (fail closed; does not invent empty fleet).
+ */
+export function projectMechanicalVehicleStateFromRaw(raw: unknown): VehicleState | undefined {
+    const parsed = parseVehicleStateDocument(raw);
+    if (parsed.kind !== 'valid_v1' && parsed.kind !== 'valid_v2') {
+        return undefined;
+    }
+    const mechanical = projectVehicleStateDocumentMechanical(parsed.document);
+    return mechanical.vehicles.length ? mechanical : undefined;
+}
+
+/** Fresh disk read for serialized mutations (bypasses loader cache). Mechanical only. */
 export function readVehicleStateFromDisk(statePath?: string): VehicleState | undefined {
     const resolved = statePath ?? getVehicleStatePath();
     if (!resolved || !fs.existsSync(resolved)) {
@@ -42,8 +60,7 @@ export function readVehicleStateFromDisk(statePath?: string): VehicleState | und
     }
     try {
         const raw = JSON.parse(fs.readFileSync(resolved, 'utf-8'));
-        const parsed = parseVehicleState(raw);
-        return parsed.vehicles.length ? parsed : undefined;
+        return projectMechanicalVehicleStateFromRaw(raw);
     } catch {
         return undefined;
     }

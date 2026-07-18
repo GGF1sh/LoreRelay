@@ -13,9 +13,14 @@ let _settlementHits = [];
 let _settlementSelected = null;
 let _lastSettlementId = null;
 let _lastSettlementLayerId = null;
+let _lastSettlementSourceKey = null; // fixed vs mobile_base + settlementId
 let _settlementControlsReady = false;
 let _settlementExpandHoverPreview = null;
 let _lastSettlementExpandLayerId = null;
+let _settlementResizeObserver = null;
+let _settlementLastCssSize = { w: 0, h: 0 };
+let _settlementPendingFit = false;
+let _settlementUserPanActive = false;
 
 const SETTLEMENT_EXPAND_PROFILE_I18N_KEY = {
     cellar: 'webview.world.settlementExpandProfileCellar',
@@ -39,11 +44,16 @@ const SETTLEMENT_EXPAND_PROFILE_FALLBACK = {
 const SETTLEMENT_TILE_W = 32;
 const SETTLEMENT_TILE_H = 16;
 const SETTLEMENT_LAYER_HEIGHT = 12;
-const SETTLEMENT_ZOOM_MIN = 0.5;
+// Min lowered so dense declared-size mismatches can still fit; content-based
+// fit normally lands near 0.6–1.5 for showcase cities.
+const SETTLEMENT_ZOOM_MIN = 0.25;
 const SETTLEMENT_ZOOM_MAX = 3;
 const SETTLEMENT_ZOOM_STEP = 0.15;
+const SETTLEMENT_FIT_PADDING = 24;
 const SETTLEMENT_HIT_RADIUS_PX = 12;
-const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.';
+// v2: pan is absolute iso origin under content-centred pivot (CENTERING-002).
+const SETTLEMENT_PREFS_PREFIX = 'lorerelay.settlementView.v2.';
+const SETTLEMENT_PREFS_MIN_PAD = 12;
 
 const SETTLEMENT_TILE_COLORS = {
     floor: { top: '#5a6270', left: '#4a5260', right: '#6a7280', glyph: '.' },
@@ -61,6 +71,14 @@ const SETTLEMENT_TILE_COLORS = {
     hazard: { top: '#d05050', left: '#b03030', right: '#e06060', glyph: '!' },
     empty: { top: '#404850', left: '#303840', right: '#505860', glyph: ' ' },
     unknown: { top: '#686878', left: '#505058', right: '#787888', glyph: '?' },
+};
+
+const SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS = {
+    ship: { top: '#596777', left: '#394858', right: '#68798b' },
+    wagon: { top: '#74654f', left: '#514432', right: '#88765b' },
+    caravan: { top: '#6b6051', left: '#4a4034', right: '#7d705d' },
+    camp: { top: '#4f6658', left: '#34483b', right: '#607866' },
+    'mobile-base': { top: '#59616c', left: '#3c444e', right: '#6b7480' },
 };
 
 const SETTLEMENT_MARKER_COLORS = {
@@ -192,23 +210,29 @@ function settlementPrefsKey(settlementId, suffix) {
 }
 
 function loadSettlementViewPrefs(settlementId) {
-    if (!settlementId) { return; }
+    if (!settlementId) { return false; }
+    let loaded = false;
     try {
         const panRaw = localStorage.getItem(settlementPrefsKey(settlementId, 'pan'));
         const zoomRaw = localStorage.getItem(settlementPrefsKey(settlementId, 'zoom'));
         if (panRaw) {
             const pan = JSON.parse(panRaw);
-            if (typeof pan.x === 'number' && typeof pan.y === 'number') {
+            if (typeof pan.x === 'number' && typeof pan.y === 'number'
+                && Number.isFinite(pan.x) && Number.isFinite(pan.y)
+                && Math.abs(pan.x) < 20000 && Math.abs(pan.y) < 20000) {
                 _settlementPan = { x: pan.x, y: pan.y };
+                loaded = true;
             }
         }
         if (zoomRaw) {
             const zoom = Number(zoomRaw);
             if (Number.isFinite(zoom)) {
                 _settlementZoom = Math.max(SETTLEMENT_ZOOM_MIN, Math.min(SETTLEMENT_ZOOM_MAX, zoom));
+                loaded = true;
             }
         }
     } catch { /* ignore */ }
+    return loaded;
 }
 
 function saveSettlementViewPrefs(settlementId) {
@@ -233,19 +257,171 @@ function getMobileBaseInterior(msg) {
 
 function getSettlementSnapshot() {
     const msg = _settlementWorldMsg;
-    const interior = getMobileBaseInterior(msg);
-    if (interior && interior.settlementView) {
-        return interior.settlementView;
+    // SETTLEMENT-VIEW-SOURCE-001: shared fixed vs Mobile Base selection (never silent MB override).
+    if (typeof getSelectedSettlementView === 'function') {
+        return getSelectedSettlementView(msg);
     }
+    // Fallback if shared helper not loaded (should not happen after build).
     return msg && msg.settlementView ? msg.settlementView : null;
 }
 
-/** M4c: read-only ghost previews computed by the host (applyExpandLayerToLayout). Never written by the Webview. */
+function isMobileBaseVisualSource(msg, view) {
+    if (!msg || !view) { return false; }
+    const interior = getMobileBaseInterior(msg);
+    if (!interior || view.settlementId !== interior.settlementId) { return false; }
+    if (typeof resolveSettlementRenderSource === 'function') {
+        return resolveSettlementRenderSource(msg, { forDiorama: false })?.source === 'mobile_base';
+    }
+    return false;
+}
+
+function mobileBaseLayerZ(view) {
+    const match = /^z(-?\d+)$/.exec(String(view?.layerId || 'z0'));
+    return match ? Number(match[1]) : 0;
+}
+
+function mobileBaseVisualKind(interior) {
+    const identity = [interior?.vehicleKind, interior?.mode, interior?.layoutProfile]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+    if (/\b(ship|boat|barge|airship)\b/.test(identity)) { return 'ship'; }
+    if (/\b(wagon|landship|crawler)\b/.test(identity)) { return 'wagon'; }
+    if (/\b(caravan|train|mobile_community)\b/.test(identity)) { return 'caravan'; }
+    if (/\b(camp|nomad_camp)\b/.test(identity)) { return 'camp'; }
+    return 'mobile-base';
+}
+
+/**
+ * Display-only structural floor for sparse Mobile Base payloads. It is derived
+ * deterministically from authoritative occupied-tile bounds and never enters
+ * hit testing, messages, persistence, or the settlement data contract.
+ */
+function deriveMobileBaseStructuralFootprint(msg, view) {
+    if (!isMobileBaseVisualSource(msg, view)) { return []; }
+    const interior = getMobileBaseInterior(msg);
+    const tiles = Array.isArray(view?.tiles) ? view.tiles : [];
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    const tilePoints = tiles.filter((item) => Number.isFinite(item?.x) && Number.isFinite(item?.y));
+    const markerPoints = markers.filter((item) => Number.isFinite(item?.x) && Number.isFinite(item?.y));
+    if (tilePoints.length === 0 && markerPoints.length === 0) { return []; }
+    // Settlement state markers can have deterministic fallback coordinates
+    // spread across the generic 16x16 settlement canvas. Those coordinates are
+    // not authored rooms and must not inflate a four-cell deck into a giant
+    // square. Occupied tiles define the body; marker-only payloads use a stable
+    // centroid anchor and are visually associated with that body below.
+    const points = tilePoints.length > 0
+        ? tilePoints
+        : [{
+            x: Math.round(markerPoints.reduce((sum, marker) => sum + marker.x, 0) / markerPoints.length),
+            y: Math.round(markerPoints.reduce((sum, marker) => sum + marker.y, 0) / markerPoints.length),
+        }];
+    const visualKind = mobileBaseVisualKind(interior);
+    const profile = visualKind === 'ship'
+        ? { kind: 'ship', minW: 8, minH: 4, padX: 0, padY: 0 }
+        : visualKind === 'wagon'
+            ? { kind: 'wagon', minW: 6, minH: 3, padX: 0, padY: 0 }
+            : visualKind === 'caravan'
+                ? { kind: 'caravan', minW: 7, minH: 4, padX: 0, padY: 0 }
+                : visualKind === 'camp'
+                    ? { kind: 'camp', minW: 7, minH: 5, padX: 0, padY: 0 }
+                    : { kind: 'mobile-base', minW: 6, minH: 4, padX: 0, padY: 0 };
+    let minX = Math.floor(Math.min(...points.map((p) => p.x))) - profile.padX;
+    let maxX = Math.ceil(Math.max(...points.map((p) => p.x))) + profile.padX;
+    let minY = Math.floor(Math.min(...points.map((p) => p.y))) - profile.padY;
+    let maxY = Math.ceil(Math.max(...points.map((p) => p.y))) + profile.padY;
+    const addX = Math.max(0, profile.minW - (maxX - minX + 1));
+    const addY = Math.max(0, profile.minH - (maxY - minY + 1));
+    minX -= Math.floor(addX / 2);
+    maxX += Math.ceil(addX / 2);
+    minY -= Math.floor(addY / 2);
+    maxY += Math.ceil(addY / 2);
+    // Defensive presentation bound for malformed coordinates. Authoritative
+    // points remain visible through the normal tile/marker renderer.
+    if ((maxX - minX + 1) > 24 || (maxY - minY + 1) > 24) { return []; }
+    const z = mobileBaseLayerZ(view);
+    const occupied = new Set(tiles.map((tile) => `${tile.x}:${tile.y}:${tile.z ?? z}`));
+    const footprint = [];
+    for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+            const taperedShipCorner = profile.kind === 'ship'
+                && (y === minY || y === maxY)
+                && (x === minX || x === maxX);
+            if (taperedShipCorner || occupied.has(`${x}:${y}:${z}`)) { continue; }
+            footprint.push({
+                x,
+                y,
+                z,
+                code: 'floor',
+                label: '',
+                decorative: true,
+                visualKind: profile.kind,
+            });
+        }
+    }
+    return footprint;
+}
+
+/** Mobile-base state markers are often placed by the generic settlement
+ * fallback grid rather than an authored vehicle layout. Associate those visual
+ * markers with the display-only body without mutating the authoritative view.
+ * Their identity, kind, label, detail, and layer remain untouched. */
+function associateMobileBaseMarkersWithFootprint(view, structuralTiles) {
+    const markers = Array.isArray(view?.markers) ? view.markers : [];
+    if (markers.length === 0 || structuralTiles.length === 0) { return markers; }
+    const minX = Math.min(...structuralTiles.map((tile) => tile.x));
+    const maxX = Math.max(...structuralTiles.map((tile) => tile.x));
+    const minY = Math.min(...structuralTiles.map((tile) => tile.y));
+    const maxY = Math.max(...structuralTiles.map((tile) => tile.y));
+    const innerMinX = minX + (maxX - minX >= 4 ? 1 : 0);
+    const innerMaxX = maxX - (maxX - minX >= 4 ? 1 : 0);
+    const innerMinY = minY + (maxY - minY >= 3 ? 1 : 0);
+    const innerMaxY = maxY - (maxY - minY >= 3 ? 1 : 0);
+    const sourceWidth = Math.max(1, Number(view?.width) - 1 || 1);
+    const sourceHeight = Math.max(1, Number(view?.height) - 1 || 1);
+    return markers.map((marker) => {
+        const unitX = Math.max(0, Math.min(1, Number(marker.x) / sourceWidth));
+        const unitY = Math.max(0, Math.min(1, Number(marker.y) / sourceHeight));
+        return {
+            ...marker,
+            x: Math.round(innerMinX + unitX * Math.max(0, innerMaxX - innerMinX)),
+            y: Math.round(innerMinY + unitY * Math.max(0, innerMaxY - innerMinY)),
+        };
+    });
+}
+
+function buildSettlementVisualView(msg, view) {
+    if (!view) { return null; }
+    const footprint = deriveMobileBaseStructuralFootprint(msg, view);
+    if (footprint.length === 0) { return view; }
+    const authoritativeTiles = Array.isArray(view.tiles) ? view.tiles : [];
+    const structuralTiles = [...footprint, ...authoritativeTiles];
+    return {
+        ...view,
+        tiles: structuralTiles,
+        markers: associateMobileBaseMarkersWithFootprint(view, structuralTiles),
+    };
+}
+
+function mobileBaseLayerSemanticLabel(interior, layerId, known) {
+    const supplied = typeof known?.label === 'string' ? known.label.trim() : '';
+    const genericSettlementLabels = new Set(['Upper deck', 'Ground', 'Cellar', 'Deep ruins']);
+    if (supplied && !/^z[+-]?\d+$/i.test(supplied) && !genericSettlementLabels.has(supplied)) { return supplied; }
+    const visualKind = mobileBaseVisualKind(interior);
+    const labels = visualKind === 'ship'
+        ? { z1: 'Deck', z0: 'Hold', 'z-1': 'Lower hold', 'z-2': 'Bilge' }
+        : visualKind === 'wagon'
+            ? { z1: 'Roof', z0: 'Cabin', 'z-1': 'Storage' }
+            : visualKind === 'camp'
+                ? { z1: 'Lookout', z0: 'Camp', 'z-1': 'Cache' }
+                : { z1: 'Upper level', z0: 'Interior', 'z-1': 'Storage', 'z-2': 'Lower level' };
+    return labels[layerId] || supplied || layerId.toUpperCase();
+}
+
+/** M4c: read-only ghost previews — same logical source as settlementView. */
 function getSettlementExpansionPreviews() {
     const msg = _settlementWorldMsg;
-    const interior = getMobileBaseInterior(msg);
-    if (interior && Array.isArray(interior.settlementExpansionPreviews)) {
-        return interior.settlementExpansionPreviews;
+    if (typeof getSelectedSettlementExpansionPreviews === 'function') {
+        return getSelectedSettlementExpansionPreviews(msg);
     }
     return msg && Array.isArray(msg.settlementExpansionPreviews) ? msg.settlementExpansionPreviews : [];
 }
@@ -254,8 +430,13 @@ function renderMobileBaseInteriorBanner(msg, view) {
     const banner = document.getElementById('world-settlement-mobile-base-banner');
     if (!banner) { return; }
     const interior = getMobileBaseInterior(msg);
+    // Banner only while the selected source is Mobile Base and snapshot IDs match.
+    const mbSelected = typeof isMobileBaseRenderSourceSelected === 'function'
+        ? isMobileBaseRenderSourceSelected(msg)
+        : false;
     const show = Boolean(
-        interior
+        mbSelected
+        && interior
         && interior.hasCanvas
         && view
         && view.settlementId === interior.settlementId
@@ -265,11 +446,82 @@ function renderMobileBaseInteriorBanner(msg, view) {
         banner.textContent = '';
         return;
     }
-    const vars = { vehicle: interior.vehicleName, mode: interior.mode };
+    const vars = { vehicle: interior.vehicleName, mode: mobileBaseVisualKind(interior) };
     banner.textContent = typeof T === 'function'
         ? T('webview.mobileBase.interiorBanner', vars)
         : `Mobile base interior — ${interior.vehicleName} (${interior.mode})`;
     banner.classList.remove('hidden');
+}
+
+function tSettlementFocus(key, vars) {
+    if (typeof T === 'function') {
+        const translated = T(key, vars);
+        if (translated && translated !== key) { return translated; }
+    }
+    return key;
+}
+
+function wireSettlementFocusReturnButton(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn || btn.dataset.focusReturnWired === '1') { return; }
+    btn.dataset.focusReturnWired = '1';
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof vscode !== 'undefined' && vscode.postMessage) {
+            vscode.postMessage({ type: 'clearWorldSettlementFocus' });
+        }
+    });
+}
+
+/**
+ * SLICE2: compact preview/current context banner for Settlement and Diorama panels.
+ * Does not imply travel. Empty/invalid copy is localized and bounded.
+ */
+function renderSettlementFocusBanner(msg, options) {
+    const prefix = options && options.prefix === 'diorama' ? 'diorama' : 'settlement';
+    const banner = document.getElementById(`world-${prefix}-focus-banner`);
+    const previewLine = document.getElementById(`world-${prefix}-focus-preview-line`);
+    const currentLine = document.getElementById(`world-${prefix}-focus-current-line`);
+    const returnBtn = document.getElementById(`world-${prefix}-focus-return-btn`);
+    if (!banner || !previewLine || !currentLine) { return; }
+    wireSettlementFocusReturnButton(`world-${prefix}-focus-return-btn`);
+
+    const ctx = msg && msg.settlementDisplayContext;
+    const isPreview = ctx && ctx.mode === 'preview';
+    if (!isPreview) {
+        banner.classList.add('hidden');
+        previewLine.textContent = '';
+        currentLine.textContent = '';
+        return;
+    }
+
+    const displayName = ctx.displayLocationName || ctx.displayLocationId || '';
+    const currentName = ctx.currentLocationName || ctx.currentLocationId || '';
+    previewLine.textContent = tSettlementFocus('webview.world.settlementFocusPreview', { location: displayName });
+    currentLine.textContent = tSettlementFocus('webview.world.settlementFocusCurrent', { location: currentName });
+    if (returnBtn) {
+        returnBtn.textContent = tSettlementFocus('webview.world.settlementFocusReturn');
+    }
+    banner.classList.remove('hidden');
+}
+
+function settlementEmptyCopyForContext(msg) {
+    const ctx = msg && msg.settlementDisplayContext;
+    const name = (ctx && (ctx.displayLocationName || ctx.displayLocationId)) || '';
+    if (ctx && ctx.mode === 'preview') {
+        if (ctx.availability === 'invalid') {
+            return tSettlementFocus('webview.world.settlementFocusInvalidLocation', { location: name });
+        }
+        return tSettlementFocus('webview.world.settlementFocusMissingLocation', { location: name });
+    }
+    if (ctx && ctx.availability === 'invalid' && name) {
+        return tSettlementFocus('webview.world.settlementFocusInvalidLocation', { location: name });
+    }
+    if (name) {
+        return tSettlementFocus('webview.world.settlementFocusMissingLocation', { location: name });
+    }
+    return tSettlementFocus('webview.world.settlementFocusMissingHere');
 }
 
 function settlementExpandProfileLabel(profile) {
@@ -509,6 +761,15 @@ function drawIsoBlock(ctx, sx, sy, colors, glyph, elev, timeOfDay) {
     }
 }
 
+function drawMobileBaseFootprintCell(ctx, sx, sy, visualKind, timeOfDay) {
+    const colors = SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS[visualKind]
+        || SETTLEMENT_MOBILE_BASE_FOOTPRINT_COLORS['mobile-base'];
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    drawIsoBlock(ctx, sx, sy, colors, '', 2, timeOfDay);
+    ctx.restore();
+}
+
 /** Water reads better flat and glossy: translucent fill + two ripple highlights. */
 function drawIsoWater(ctx, sx, sy, colors, timeOfDay) {
     const hw = SETTLEMENT_TILE_W / 2;
@@ -628,35 +889,162 @@ function drawSettlementVignette(ctx, cssWidth, cssHeight, timeOfDay) {
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
+/**
+ * SETTLEMENT-2D-FRAMING-001: origin is the absolute iso origin (stored in pan).
+ * Pivot is the projected content center so zoom scales the settlement in place.
+ */
 function computeSettlementOrigin(canvas, view) {
-    const boundsW = (view.width + view.height) * (SETTLEMENT_TILE_W / 2);
-    const boundsH = (view.width + view.height) * (SETTLEMENT_TILE_H / 2) + SETTLEMENT_LAYER_HEIGHT * 2;
-    const cssWidth = canvas.clientWidth;
-    const cssHeight = canvas.clientHeight;
-    const originX = cssWidth / 2 - boundsW / 2 + _settlementPan.x;
-    const originY = cssHeight / 4 - boundsH / 4 + _settlementPan.y;
-    return { originX, originY, boundsW, boundsH, cssWidth, cssHeight };
+    const cssWidth = canvas.clientWidth || 0;
+    const cssHeight = canvas.clientHeight || 0;
+    const contentBounds = (typeof computeSettlementProjectedContentBounds === 'function')
+        ? computeSettlementProjectedContentBounds(view)
+        : null;
+    const originX = _settlementPan.x;
+    const originY = _settlementPan.y;
+    let boundsW = 1;
+    let boundsH = 1;
+    let pivotX = cssWidth / 2;
+    let pivotY = cssHeight / 2;
+    if (contentBounds) {
+        boundsW = contentBounds.width;
+        boundsH = contentBounds.height;
+        pivotX = originX + contentBounds.centerX;
+        pivotY = originY + contentBounds.centerY;
+    }
+    return {
+        originX,
+        originY,
+        boundsW,
+        boundsH,
+        cssWidth,
+        cssHeight,
+        contentBounds,
+        pivotX,
+        pivotY,
+    };
 }
 
-/** Shared fit-to-bounds math for the manual "Fit" button and the automatic per-layer recenter. */
+/** Shared fit using actual projected tile/marker bounds (not declared width/height). */
 function applySettlementFitTransform(view, canvas) {
-    if (!view || !canvas || !canvas.clientWidth) { return false; }
-    const boundsW = (view.width + view.height) * (SETTLEMENT_TILE_W / 2);
-    const boundsH = (view.width + view.height) * (SETTLEMENT_TILE_H / 2) + SETTLEMENT_LAYER_HEIGHT * 2;
-    const pad = 24;
-    const scaleX = (canvas.clientWidth - pad) / Math.max(1, boundsW);
-    const scaleY = (canvas.clientHeight - pad) / Math.max(1, boundsH);
-    _settlementZoom = Math.max(SETTLEMENT_ZOOM_MIN, Math.min(SETTLEMENT_ZOOM_MAX, Math.min(scaleX, scaleY)));
-    _settlementPan = { x: 0, y: 0 };
+    if (!view || !canvas) { return false; }
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
+    if (!cw || !ch) {
+        _settlementPendingFit = true;
+        return false;
+    }
+    if (typeof computeSettlementFitTransform !== 'function') { return false; }
+    const fit = computeSettlementFitTransform(
+        view,
+        { width: cw, height: ch },
+        {
+            padding: SETTLEMENT_FIT_PADDING,
+            zoomMin: SETTLEMENT_ZOOM_MIN,
+            zoomMax: SETTLEMENT_ZOOM_MAX,
+        }
+    );
+    if (!fit) { return false; }
+    _settlementZoom = fit.zoom;
+    _settlementPan = { x: fit.pan.x, y: fit.pan.y };
+    _settlementPendingFit = false;
     return true;
+}
+
+/**
+ * Strict visibility for retained transforms: no edge clipping + min padding.
+ * Weaker "partially on screen" is NOT enough to skip auto-fit.
+ */
+function settlementTransformIsVisible(view, canvas) {
+    if (typeof isSettlementTransformMeaningfullyVisible !== 'function') { return true; }
+    const cw = canvas && canvas.clientWidth;
+    const ch = canvas && canvas.clientHeight;
+    if (!cw || !ch) { return false; }
+    const result = isSettlementTransformMeaningfullyVisible(
+        view,
+        { width: cw, height: ch },
+        _settlementPan,
+        _settlementZoom,
+        { minPadding: SETTLEMENT_PREFS_MIN_PAD, requireSymmetric: false }
+    );
+    return Boolean(result && result.ok);
+}
+
+/**
+ * Load stored transform if valid; otherwise auto-fit.
+ * When forceFit is true (new settlement/source/layer), always fit unless a
+ * strictly valid stored transform was already applied.
+ * @returns {'loaded'|'fitted'|'pending'|'empty'}
+ */
+function ensureSettlementFraming(view, canvas, options) {
+    const forceFit = Boolean(options && options.forceFit);
+    if (!view) { return 'empty'; }
+    if (!canvas || !canvas.clientWidth) {
+        _settlementPendingFit = true;
+        return 'pending';
+    }
+    // Keep a valid user/stored transform only when not forcing a fresh layout.
+    if (!forceFit && settlementTransformIsVisible(view, canvas)) {
+        _settlementPendingFit = false;
+        return 'loaded';
+    }
+    // After settlement change we load prefs first; keep them only if well-framed.
+    if (forceFit && settlementTransformIsVisible(view, canvas)) {
+        _settlementPendingFit = false;
+        return 'loaded';
+    }
+    if (applySettlementFitTransform(view, canvas)) {
+        return 'fitted';
+    }
+    return 'pending';
 }
 
 function fitSettlementViewToCanvas() {
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
     const canvas = document.getElementById('world-settlement-canvas');
-    if (!applySettlementFitTransform(view, canvas)) { return; }
+    if (!applySettlementFitTransform(visualView, canvas)) { return; }
     const settlementId = view.settlementId;
     if (settlementId) { saveSettlementViewPrefs(settlementId); }
+    drawSettlementIsometric();
+}
+
+function settlementSourceKey(msg, view) {
+    const sid = view && view.settlementId ? view.settlementId : '';
+    let source = 'fixed';
+    if (typeof resolveSettlementRenderSource === 'function' && msg) {
+        const r = resolveSettlementRenderSource(msg, { forDiorama: false });
+        if (r && r.source) { source = r.source; }
+    }
+    return `${source}:${sid}`;
+}
+
+function ensureSettlementResizeObserver(stage) {
+    if (!stage || typeof ResizeObserver === 'undefined') { return; }
+    if (_settlementResizeObserver) { return; }
+    _settlementResizeObserver = new ResizeObserver(() => {
+        const canvas = document.getElementById('world-settlement-canvas');
+        const view = getSettlementSnapshot();
+        const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
+        if (!canvas || !view) { return; }
+        const w = stage.clientWidth;
+        const h = stage.clientHeight || canvas.clientHeight;
+        const prev = _settlementLastCssSize;
+        const grewFromZero = (prev.w === 0 || prev.h === 0) && w > 0 && h > 0;
+        const changed = Math.abs(w - prev.w) > 8 || Math.abs(h - prev.h) > 8;
+        _settlementLastCssSize = { w, h };
+        if (grewFromZero || _settlementPendingFit) {
+            ensureSettlementFraming(visualView, canvas);
+            drawSettlementIsometric();
+            return;
+        }
+        if (!changed || _settlementUserPanActive) { return; }
+        // Significant resize: recover only when content left the usable area.
+        if (!settlementTransformIsVisible(visualView, canvas)) {
+            ensureSettlementFraming(visualView, canvas);
+        }
+        drawSettlementIsometric();
+    });
+    _settlementResizeObserver.observe(stage);
 }
 
 function hideSettlementTooltip() {
@@ -752,46 +1140,65 @@ function renderSettlementMarkerFallback(view) {
 function hitTestSettlement(clientX, clientY, canvas) {
     if (!canvas || !_settlementHits.length) { return null; }
     const rect = canvas.getBoundingClientRect();
-    let x = clientX - rect.left;
-    let y = clientY - rect.top;
-    // Hit positions are stored in pre-zoom content coordinates, but the mouse
-    // arrives in screen coordinates. Invert the draw transform (scale around
-    // the content pivot) so hovering/clicking stays accurate at any zoom.
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
     const view = getSettlementSnapshot();
-    if (view && _settlementZoom !== 1) {
-        const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
-        const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
-        const pivotY = originY + boundsH / 2;
-        x = pivotX + (x - pivotX) / _settlementZoom;
-        y = pivotY + (y - pivotY) / _settlementZoom;
-    }
-    let best = null;
-    let bestDist = SETTLEMENT_HIT_RADIUS_PX + 1;
-    for (const hit of _settlementHits) {
-        const dist = Math.hypot(hit.px - x, hit.py - y);
-        if (dist <= SETTLEMENT_HIT_RADIUS_PX && dist < bestDist) {
-            bestDist = dist;
-            best = hit;
-        }
-    }
-    return best;
+    const visualView = buildSettlementVisualView(_settlementWorldMsg, view);
+    if (!view || typeof screenToSettlementContent !== 'function'
+        || typeof hitTestSettlementContent !== 'function') { return null; }
+    const origin = computeSettlementOrigin(canvas, visualView);
+    const bounds = origin.contentBounds;
+    if (!bounds) { return null; }
+    const contentPoint = screenToSettlementContent(
+        screenX,
+        screenY,
+        origin.originX,
+        origin.originY,
+        _settlementZoom,
+        bounds.centerX,
+        bounds.centerY
+    );
+    return hitTestSettlementContent(
+        _settlementHits,
+        contentPoint,
+        SETTLEMENT_HIT_RADIUS_PX,
+        _settlementZoom
+    );
 }
 
 function syncSettlementLayerButtons(view) {
     const layerId = view?.layerId || 'z0';
     const layers = Array.isArray(view?.layers) ? view.layers : [];
     const layerById = new Map(layers.map((l) => [l.id, l]));
+    if (view && !layerById.has(layerId)) { layerById.set(layerId, { id: layerId, label: '' }); }
+    const mobileBase = isMobileBaseVisualSource(_settlementWorldMsg, view);
+    const interior = mobileBase ? getMobileBaseInterior(_settlementWorldMsg) : null;
     const unbuiltTitle = typeof T === 'function'
         ? T('webview.world.settlementLayerUnbuilt')
         : 'Not built yet — select to preview expansion options';
     document.querySelectorAll('[data-settlement-layer]').forEach((btn) => {
         const layer = btn.getAttribute('data-settlement-layer');
+        if (!btn.dataset.defaultLabel) { btn.dataset.defaultLabel = btn.textContent; }
+        const known = layerById.get(layer);
+        if (mobileBase) {
+            btn.hidden = !known;
+            btn.classList.remove('is-missing');
+            if (known) {
+                const semanticLabel = mobileBaseLayerSemanticLabel(interior, layer, known);
+                btn.textContent = semanticLabel;
+                btn.title = semanticLabel;
+            }
+        } else {
+            btn.hidden = false;
+            btn.textContent = btn.dataset.defaultLabel;
+        }
         btn.classList.toggle('is-active', layer === layerId);
         btn.setAttribute('aria-pressed', layer === layerId ? 'true' : 'false');
-        const known = layerById.get(layer);
         const missing = layers.length > 0 && !known;
-        btn.classList.toggle('is-missing', missing);
-        btn.title = missing ? unbuiltTitle : (known?.label || '');
+        if (!mobileBase) {
+            btn.classList.toggle('is-missing', missing);
+            btn.title = missing ? unbuiltTitle : (known?.label || '');
+        }
     });
 }
 
@@ -803,16 +1210,26 @@ function drawSettlementIsometric() {
 
     const msg = _settlementWorldMsg;
     const view = getSettlementSnapshot();
+    const visualView = buildSettlementVisualView(msg, view);
+    if (typeof renderSettlementSourceSelector === 'function') {
+        renderSettlementSourceSelector(msg);
+    }
+    renderSettlementFocusBanner(msg, { prefix: 'settlement' });
     if (empty) {
         const showEmpty = !view;
         empty.classList.toggle('hidden', !showEmpty);
         if (showEmpty) {
-            empty.textContent = typeof T === 'function'
-                ? T('webview.world.settlementEmpty')
-                : 'No settlement view yet. Enable Settlement Mode and add settlement_state.json.';
+            empty.textContent = settlementEmptyCopyForContext(msg);
         }
     }
     stage.classList.toggle('hidden', !view);
+    const mobileBase = isMobileBaseVisualSource(msg, view);
+    stage.classList.toggle('is-mobile-base', mobileBase);
+    if (mobileBase) {
+        stage.dataset.mobileBaseMode = mobileBaseVisualKind(getMobileBaseInterior(msg));
+    } else {
+        delete stage.dataset.mobileBaseMode;
+    }
     renderMobileBaseInteriorBanner(msg, view);
     if (!view) {
         hideSettlementTooltip();
@@ -828,8 +1245,16 @@ function drawSettlementIsometric() {
         return;
     }
 
-    if (view.settlementId !== _lastSettlementId) {
+    ensureSettlementResizeObserver(stage);
+
+    const sourceKey = settlementSourceKey(msg, view);
+    const settlementChanged = view.settlementId !== _lastSettlementId;
+    const sourceChanged = sourceKey !== _lastSettlementSourceKey;
+    const layerChanged = view.layerId !== _lastSettlementLayerId;
+
+    if (settlementChanged || sourceChanged) {
         _lastSettlementId = view.settlementId;
+        _lastSettlementSourceKey = sourceKey;
         _lastSettlementLayerId = view.layerId;
         resetSettlementViewTransform();
         loadSettlementViewPrefs(view.settlementId);
@@ -838,12 +1263,12 @@ function drawSettlementIsometric() {
         _settlementSelected = null;
         _settlementExpandHoverPreview = null;
         _lastSettlementExpandLayerId = null;
-    } else if (view.layerId !== _lastSettlementLayerId) {
-        // M3b/M4c polish: switching layers keeps a settlement-wide pan/zoom pref,
-        // which can leave a differently-sized layer mostly out of frame. Recenter
-        // transiently (no localStorage write) rather than persisting a surprise view.
+        // Framing applied after canvas size is known (below).
+        _settlementPendingFit = true;
+    } else if (layerChanged) {
+        // Active layer content bounds change — refit to the new layer.
         _lastSettlementLayerId = view.layerId;
-        applySettlementFitTransform(view, canvas);
+        _settlementPendingFit = true;
     }
 
     syncSettlementLayerButtons(view);
@@ -852,7 +1277,10 @@ function drawSettlementIsometric() {
     updateSettlementLayerNote(view);
 
     const panelWidth = stage.clientWidth;
-    if (!panelWidth) { return; }
+    if (!panelWidth) {
+        _settlementPendingFit = true;
+        return;
+    }
 
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = stage.clientWidth;
@@ -862,19 +1290,25 @@ function drawSettlementIsometric() {
     canvas.height = Math.round(cssHeight * dpr);
     canvas.style.width = `${cssWidth}px`;
     canvas.style.height = `${cssHeight}px`;
+    // Match clientHeight to the CSS height we just set so fit math sees nonzero height.
+    // (clientHeight may lag one frame; use cssHeight explicitly via style.)
+    _settlementLastCssSize = { w: cssWidth, h: cssHeight };
+
+    // CENTERING-002: force fit after settlement/source/layer change (pendingFit).
+    // Ordinary refresh keeps a strictly valid user transform.
+    if (_settlementPendingFit) {
+        ensureSettlementFraming(visualView, canvas, { forceFit: true });
+    } else if (!settlementTransformIsVisible(visualView, canvas)) {
+        ensureSettlementFraming(visualView, canvas, { forceFit: false });
+    }
 
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const { originX, originY, boundsH } = computeSettlementOrigin(canvas, view);
+    const origin = computeSettlementOrigin(canvas, visualView);
+    const { originX, originY, pivotX, pivotY } = origin;
     const zoom = _settlementZoom;
-    // Zoom must pivot on the content's own geometric center (not the canvas
-    // center — the isometric origin already places tile (0,0) asymmetrically
-    // within the canvas). Otherwise any zoom != 1 (including "Fit") drifts the
-    // whole layer toward a corner instead of scaling in place.
-    const pivotX = originX + ((view.width - view.height) / 2) * (SETTLEMENT_TILE_W / 2);
-    const pivotY = originY + boundsH / 2;
 
     drawSettlementBackdrop(ctx, cssWidth, cssHeight, pivotX, pivotY, _settlementTimeOfDay);
 
@@ -884,13 +1318,17 @@ function drawSettlementIsometric() {
     ctx.translate(-pivotX, -pivotY);
 
     _settlementHits = [];
-    const tiles = Array.isArray(view.tiles) ? [...view.tiles] : [];
+    const tiles = Array.isArray(visualView?.tiles) ? [...visualView.tiles] : [];
     // Painter's order for extruded blocks: back-to-front by (x+y), then lower
     // z first so raised sub-layers stack correctly.
     tiles.sort((a, b) => (a.x + a.y) - (b.x + b.y) || (a.z || 0) - (b.z || 0) || a.x - b.x);
 
     for (const tile of tiles) {
         const { sx, sy } = isoProject(tile.x, tile.y, tile.z, originX, originY);
+        if (tile.decorative === true) {
+            drawMobileBaseFootprintCell(ctx, sx, sy, tile.visualKind, _settlementTimeOfDay);
+            continue;
+        }
         const colors = SETTLEMENT_TILE_COLORS[tile.code] || SETTLEMENT_TILE_COLORS.unknown;
         const elev = SETTLEMENT_TILE_ELEVATION[tile.code] ?? 4;
         if (tile.code === 'water') {
@@ -900,8 +1338,14 @@ function drawSettlementIsometric() {
         }
         _settlementHits.push({
             type: 'tile',
+            key: settlementHitKey({ type: 'tile', x: tile.x, y: tile.y, z: tile.z || 0, code: tile.code }),
+            x: tile.x,
+            y: tile.y,
+            z: tile.z || 0,
             px: sx,
             py: sy,
+            contentX: sx - originX,
+            contentY: sy - originY - elev,
             elev,
             label: tile.label,
             detail: tile.code,
@@ -909,16 +1353,22 @@ function drawSettlementIsometric() {
         });
     }
 
-    const markers = Array.isArray(view.markers) ? view.markers : [];
+    // Draw and hit-test at the same visual coordinates used for fitting/framing
+    // (visualView.markers). The authoritative view.markers array (read by the
+    // marker-fallback list and layer-empty check above) is never touched.
+    const markers = Array.isArray(visualView?.markers) ? visualView.markers : [];
     for (const marker of markers) {
         const { sx, sy } = isoProject(marker.x, marker.y, marker.z, originX, originY);
         drawIsoMarker(ctx, sx, sy, marker.kind);
         _settlementHits.push({
             type: 'marker',
+            key: settlementHitKey({ type: 'marker', id: marker.id }),
             id: marker.id,
             kind: marker.kind,
             px: sx,
             py: sy - SETTLEMENT_TILE_H,
+            contentX: sx - originX,
+            contentY: sy - originY - SETTLEMENT_TILE_H,
             elev: 0,
             label: marker.label,
             detail: marker.detail,
@@ -934,7 +1384,7 @@ function drawSettlementIsometric() {
     const selectedHit = _settlementSelected
         ? _settlementHits.find((h) => (
             h.type === _settlementSelected.type
-            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+            && settlementHitKey(h) === settlementHitKey(_settlementSelected)
         ))
         : null;
     if (selectedHit && selectedHit.type === 'tile') {
@@ -954,7 +1404,7 @@ function drawSettlementIsometric() {
     if (_settlementSelected) {
         const still = _settlementHits.find((h) => (
             h.type === _settlementSelected.type
-            && (h.id === _settlementSelected.id || h.label === _settlementSelected.label)
+            && settlementHitKey(h) === settlementHitKey(_settlementSelected)
         ));
         if (!still) {
             _settlementSelected = null;
@@ -1069,8 +1519,8 @@ function initSettlementIsometricControls() {
         }
         if (_settlementDrag) { return; }
         const hit = hitTestSettlement(e.clientX, e.clientY, canvas);
-        const hoverKey = hit ? `${hit.type}:${hit.id || ''}:${hit.px},${hit.py}` : null;
-        const prevKey = _settlementHover ? `${_settlementHover.type}:${_settlementHover.id || ''}:${_settlementHover.px},${_settlementHover.py}` : null;
+        const hoverKey = hit ? settlementHitKey(hit) : null;
+        const prevKey = _settlementHover ? settlementHitKey(_settlementHover) : null;
         if (hoverKey !== prevKey) {
             _settlementHover = hit;
             drawSettlementIsometric();

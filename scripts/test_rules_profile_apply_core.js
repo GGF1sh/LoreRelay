@@ -84,6 +84,40 @@ const { DEFAULT_GAME_RULES } = require(gameRulesPath);
     eq(result.mergedRules.unsupportedGenesisKey, undefined, 'merged output drops unsupported input keys');
 }
 
+// GENESIS-CHAT-LIGHTWEIGHT-001: host apply gate matches lightweight chat patch
+{
+    const a = buildRulesProfileApplication(DEFAULT_GAME_RULES, {
+        genre: 'fantasy',
+        playstyle: 'character_chat',
+        pressure: 'standard',
+        bookkeeping: 'detailed',
+    });
+    const b = buildRulesProfileApplication(DEFAULT_GAME_RULES, {
+        genre: 'fantasy',
+        playstyle: 'character_chat',
+        pressure: 'standard',
+        bookkeeping: 'detailed',
+    });
+    eq(JSON.stringify(a.mergedRules), JSON.stringify(b.mergedRules), 'host chat apply is deterministic');
+    eq(a.mergedRules.enableWorldForge, false, 'host chat: forge off');
+    eq(a.mergedRules.enableCampaignKit, false, 'host chat: campaign kit off');
+    eq(a.mergedRules.enableNpcRegistry, false, 'host chat: npc registry off');
+    eq(a.mergedRules.enableCommerce, false, 'host chat: commerce off');
+    eq(a.mergedRules.enableRpgMechanics, false, 'host chat: RPG mechanics off');
+    // Preview/host parity: patch keys that host applies must keep chat systems off.
+    eq(a.profile.rulesPatch.enableWorldForge, false, 'profile patch forge matches host');
+    eq(a.profile.rulesPatch.enableCampaignKit, a.mergedRules.enableCampaignKit, 'preview patch campaign matches merged');
+}
+
+// Manual hp survives; chat-owned keys still forced off
+{
+    const current = { ...DEFAULT_GAME_RULES, defaultMaxHp: 42, enableWorldForge: true, enableCampaignKit: true };
+    const result = buildRulesProfileApplication(current, { playstyle: 'character_chat' });
+    eq(result.mergedRules.defaultMaxHp, 42, 'unrelated manual hp survives chat apply');
+    eq(result.mergedRules.enableWorldForge, false, 'chat owns forge key and turns it off over prior adventure');
+    eq(result.mergedRules.enableCampaignKit, false, 'chat owns campaign kit key');
+}
+
 if (failed > 0) {
     console.error(`rulesProfileApplyCore: ${failed} test(s) failed`);
     process.exit(1);

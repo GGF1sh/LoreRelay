@@ -17,7 +17,7 @@
   "command.generateWorldForge": "LoreRelay: 生成世界設定 (World Forge)",
   "command.generateWorldMapImage": "LoreRelay: 生成世界地圖圖像",
   "command.resetProtagonistBootstrap": "LoreRelay: 重置主人公自動註冊",
-  "command.promoteParlorToCampaign": "LoreRelay: 將 Parlor 升格為 Campaign",
+  "command.promoteParlorToCampaign": "LoreRelay: 與此角色開始冒險",
   "command.runWorkspaceSanityCheck": "LoreRelay: 執行工作區完整性檢查",
   "command.previewGmTurnTransactionPlan": "LoreRelay: 預覽 GM 回合台帳寫入計畫",
   "command.previewWorkspaceMigrations": "LoreRelay: 預覽工作區遷移",

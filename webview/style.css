@@ -201,11 +201,16 @@ body.relay-mode-active {
 
 /* --- 10-layout-chat.css --- */
 /* ========= Parlor profile (hide CRPG chrome) ========= */
-body.profile-parlor #status-area,
 body.profile-parlor #game-rules-wrap,
 body.profile-parlor #remote-play-wrap,
 body.profile-parlor #quickstart-wrap,
 body.profile-parlor #img-gen-wrap {
+  display: none !important;
+}
+
+/* The Parlor pane stays available; only its incompatible tabs are hidden. */
+#status-tabs .tab-btn.profile-parlor-hidden,
+#status-area .tab-pane.profile-parlor-hidden {
   display: none !important;
 }
 
@@ -1570,6 +1575,310 @@ textarea:focus-visible {
   }
 }
 
+/* --- 16-responsive-shell.css --- */
+/* UX-RESPONSIVE-NARROW-001 — responsive shell layout
+ * Modes via html[data-lr-shell]: wide | drawer-compact | drawer-narrow
+ * Drawer via html[data-lr-drawer]: open | closed
+ */
+
+/* Ensure primary flex children can shrink below content intrinsic size */
+#app,
+#chat-area,
+#chat-log,
+#start-hub,
+#status-area {
+  min-width: 0;
+}
+
+#chat-area {
+  flex: 1 1 auto;
+}
+
+/* ----- Wide mode (≥960px): two columns ----- */
+html[data-lr-shell="wide"] #status-area {
+  width: var(--status-width, clamp(280px, 28vw, 360px));
+  flex-shrink: 0;
+  position: relative;
+  transform: none !important;
+  max-width: min(42vw, 800px);
+  z-index: auto;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+html[data-lr-shell="wide"] #resizer {
+  display: block;
+  pointer-events: auto;
+}
+
+html[data-lr-shell="wide"] #status-drawer-scrim,
+html[data-lr-shell="wide"] #status-drawer-toggle {
+  display: none !important;
+}
+
+/* ----- Shared drawer presentation ----- */
+html[data-lr-shell="drawer-compact"] #resizer,
+html[data-lr-shell="drawer-narrow"] #resizer {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+html[data-lr-shell="drawer-compact"] #status-drawer-toggle,
+html[data-lr-shell="drawer-narrow"] #status-drawer-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+html[data-lr-shell="drawer-compact"] #status-area,
+html[data-lr-shell="drawer-narrow"] #status-area {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  height: 100vh;
+  max-height: 100vh;
+  z-index: 150;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+  transition: transform 0.2s ease;
+  will-change: transform;
+}
+
+html[data-lr-shell="drawer-compact"] #status-area {
+  width: min(360px, 88vw);
+  max-width: 88vw;
+}
+
+html[data-lr-shell="drawer-narrow"] #status-area {
+  width: min(340px, 94vw);
+  max-width: 94vw;
+}
+
+html[data-lr-shell^="drawer"][data-lr-drawer="closed"] #status-area {
+  transform: translateX(105%);
+  pointer-events: none;
+}
+
+html[data-lr-shell^="drawer"][data-lr-drawer="open"] #status-area {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+#status-drawer-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+html[data-lr-shell^="drawer"][data-lr-drawer="open"] #status-drawer-scrim {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-lr-shell="drawer-compact"] #status-area,
+  html[data-lr-shell="drawer-narrow"] #status-area {
+    transition: none;
+  }
+}
+
+/* ----- Header: compact secondary disclosure in drawer modes ----- */
+#chat-header {
+  height: auto;
+  min-height: 50px;
+  max-height: none;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+#chat-header .header-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(42vw, 16em);
+}
+
+#header-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#header-secondary > summary {
+  list-style: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#header-secondary > summary::-webkit-details-marker {
+  display: none;
+}
+
+#header-secondary-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Wide: show secondary controls inline (summary hidden) */
+html[data-lr-shell="wide"] #header-secondary > summary {
+  display: none;
+}
+
+html[data-lr-shell="wide"] #header-secondary {
+  display: contents;
+}
+
+html[data-lr-shell="wide"] #header-secondary-body {
+  display: contents;
+}
+
+html[data-lr-shell="wide"] #locale-wrap {
+  margin-left: auto;
+}
+
+/* Drawer: pack secondary into disclosure so header stays one compact row */
+html[data-lr-shell^="drawer"] #chat-header {
+  flex-wrap: nowrap;
+  max-height: 56px;
+  overflow: visible;
+}
+
+html[data-lr-shell^="drawer"] #header-secondary {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+html[data-lr-shell^="drawer"] #header-secondary-body {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 200px;
+  max-width: min(92vw, 360px);
+  padding: 10px;
+  background: var(--glass-bg, rgba(12, 14, 24, 0.96));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+html[data-lr-shell^="drawer"] #header-secondary[open] > #header-secondary-body {
+  display: flex;
+}
+
+html[data-lr-shell^="drawer"] #locale-wrap {
+  margin-left: 0;
+  width: 100%;
+  justify-content: space-between;
+}
+
+html[data-lr-shell^="drawer"] #header-secondary-body .glass-btn,
+html[data-lr-shell^="drawer"] #header-secondary-body #tts-wrap,
+html[data-lr-shell^="drawer"] #header-secondary-body #locale-wrap {
+  width: 100%;
+}
+
+/* ----- Input area: wrap, never clip ----- */
+#input-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+#input-area #free-input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+#input-area #send-btn,
+#input-area #undo-btn,
+#input-area #regen-btn,
+#input-area #img-btn,
+#input-area #mic-btn {
+  flex: 0 0 auto;
+}
+
+/* Quick replies: discoverable horizontal scroll */
+#quick-reply-bar {
+  position: relative;
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent 100%);
+}
+
+#quick-reply-bar::-webkit-scrollbar {
+  display: block;
+  height: 4px;
+}
+
+#quick-reply-bar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+}
+
+.qr-btn:focus-visible {
+  scroll-margin-inline: 24px;
+  outline: 2px solid var(--accent, #4f8ef7);
+  outline-offset: 2px;
+}
+
+/* Optional reading width in wide mode (message body only) */
+html[data-lr-shell="wide"] .msg .msg-body,
+html[data-lr-shell="wide"] .msg > .msg-text,
+html[data-lr-shell="wide"] .msg {
+  max-inline-size: min(88%, 44em);
+}
+
+/* Long unbroken identifiers wrap */
+#chat-log,
+#start-hub,
+#status-area {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Document overflow guard */
+body {
+  overflow-x: hidden;
+}
+
+#app {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* High-contrast / theme safety: use existing tokens only */
+html[data-lr-shell^="drawer"][data-lr-drawer="open"] #status-drawer-scrim {
+  background: color-mix(in srgb, var(--vscode-editor-background, #000) 55%, transparent);
+}
+
+html[data-lr-shell^="drawer"][data-lr-drawer="open"] body.vscode-high-contrast #status-area,
+body.vscode-high-contrast #status-drawer-scrim {
+  border-color: var(--vscode-contrastBorder, currentColor);
+}
+
 /* --- 20-quickreply-messages.css --- */
 /* ===== Quick Reply Bar ===== */
 #quick-reply-bar {
@@ -1752,7 +2061,7 @@ textarea:focus-visible {
 /* --- 30-status-gallery.css --- */
 /* ========= ステータスエリア ========= */
 #status-area {
-  width: var(--status-width, 320px);
+  width: var(--status-width, clamp(280px, 28vw, 360px));
   container-type: inline-size;
   flex-shrink: 0;
   min-height: 0;
@@ -3212,6 +3521,17 @@ textarea:focus-visible {
   font-size: 0.85rem;
 }
 
+.player-action-hub__trade-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.player-action-hub__trade-composer > .player-action-hub__field:first-child {
+  grid-column: 1 / -1;
+}
+
 .player-action-hub__select,
 .player-action-hub__qty-input {
   max-width: 100%;
@@ -3226,7 +3546,7 @@ textarea:focus-visible {
 .player-action-hub__ops {
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   margin: 0;
   padding: 6px 8px;
   border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.14));
@@ -3241,7 +3561,19 @@ textarea:focus-visible {
 .player-action-hub__radio {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 5px;
+  min-width: 5.4rem;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.player-action-hub__radio.is-selected {
+  border-color: var(--vscode-focusBorder, var(--accent, #4f8ef7));
+  background: var(--vscode-button-secondaryBackground, rgba(79, 142, 247, 0.18));
+  font-weight: 700;
 }
 
 .player-action-hub__qty {
@@ -3266,6 +3598,63 @@ textarea:focus-visible {
 .player-action-hub__qty-input {
   width: 5rem;
   text-align: center;
+}
+
+.player-action-hub__projection {
+  padding: 10px;
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.player-action-hub__projection h4 {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__projection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.player-action-hub__projection-grid > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.player-action-hub__projection-grid > div.is-emphasis {
+  border-left: 3px solid var(--vscode-focusBorder, var(--accent, #4f8ef7));
+}
+
+.player-action-hub__projection-grid dt {
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+  font-size: 0.74rem;
+}
+
+.player-action-hub__projection-grid dd {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__disabled-reason {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border-left: 3px solid var(--vscode-errorForeground, #f14c4c);
+  border-radius: 4px;
+  background: rgba(241, 76, 76, 0.1);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.player-action-hub__disabled-reason[hidden] {
+  display: none;
 }
 
 .player-action-hub__review {
@@ -3351,6 +3740,938 @@ textarea:focus-visible {
     transition: none !important;
     animation: none !important;
   }
+}
+
+@media (max-width: 430px) {
+  .player-action-hub__panel {
+    padding: 12px;
+  }
+
+  .player-action-hub__trade-composer,
+  .player-action-hub__projection-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .player-action-hub__trade-composer > .player-action-hub__field:first-child {
+    grid-column: auto;
+  }
+
+  .player-action-hub__ops,
+  .player-action-hub__qty {
+    align-items: stretch;
+  }
+
+  .player-action-hub__radio {
+    flex: 1 1 0;
+  }
+}
+
+.world-location-navigator {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 7px 0 3px;
+}
+
+/* WORLD-LOCATION-NAV-STABILITY-001: Settlement/Diorama collapse to a short
+ * "no data yet" paragraph while a data-bearing location renders a full
+ * canvas. Without a floor, that height swing propagates to everything below
+ * it. The navigator itself now sits above this viewport (see index.html), so
+ * this floor matches the largest rendered viewport (420px canvas plus
+ * controls/details). It also prevents the outer VS Code scroll container
+ * from clamping its scrollTop when the selected location has no snapshot. */
+#world-settlement,
+#world-diorama {
+  min-height: 620px;
+}
+
+.world-location-navigator-title {
+  margin-right: 2px;
+  color: var(--vscode-descriptionForeground, #9aa4b2);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.world-location-chip {
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.16));
+  border-radius: 999px;
+  background: var(--vscode-button-secondaryBackground, rgba(255,255,255,0.06));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #ddd));
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.world-location-chip:hover,
+.world-location-chip:focus-visible {
+  border-color: var(--vscode-focusBorder, #4a90e2);
+}
+
+.world-location-chip.is-current {
+  color: #ffe9a8;
+  border-color: rgba(255, 215, 95, 0.55);
+}
+
+.world-location-chip.is-selected {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+  border-color: var(--vscode-focusBorder, #4a90e2);
+}
+
+/* --- 85b-economy-logistics.css --- */
+/* NOAI-ECON-FLOWS-005 — read-only logistics network. */
+
+#world-logistics-panel {
+  color: var(--text-main, var(--vscode-foreground));
+}
+
+.logistics-summary {
+  display: grid;
+  /* The panel lives in the narrow status column; four columns truncate every
+     label ("稼働ルート" -> "稼働…"), two stay readable. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.logistics-summary-chip {
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 82%, var(--vscode-focusBorder) 18%);
+}
+
+.logistics-summary-chip strong,
+.logistics-summary-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logistics-summary-label {
+  margin-bottom: 0.12rem;
+  color: var(--text-dim, var(--vscode-descriptionForeground));
+  font-size: 0.72rem;
+}
+
+.logistics-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.logistics-filter-row label {
+  flex: 0 0 auto;
+  color: var(--text-dim, var(--vscode-descriptionForeground));
+  font-size: 0.78rem;
+}
+
+.logistics-filter {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 14rem;
+  color: var(--vscode-dropdown-foreground);
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+  border-radius: 5px;
+  padding: 0.3rem 0.45rem;
+}
+
+.logistics-filter:focus-visible,
+.logistics-clear-btn:focus-visible,
+.logistics-flow-toggle-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.logistics-legend {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-focusBorder) 8%);
+  font-size: 0.72rem;
+}
+
+.logistics-legend-title { color: var(--vscode-foreground); }
+.logistics-legend-encoding { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.35; }
+.logistics-legend-list { display: flex; flex-wrap: wrap; gap: 0.3rem 0.65rem; }
+.logistics-legend-item { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--vscode-descriptionForeground); }
+.logistics-legend-swatch {
+  display: inline-grid;
+  min-width: 1.5rem;
+  height: 1rem;
+  place-items: center;
+  border-bottom: 2px solid currentColor;
+  color: #76b7e5;
+  font-weight: 800;
+  line-height: 1;
+}
+.logistics-legend-open .logistics-legend-swatch { color: #76b7e5; border-bottom-style: solid; }
+.logistics-legend-impaired .logistics-legend-swatch { color: #d7a94b; border-bottom-style: dashed; }
+.logistics-legend-blocked .logistics-legend-swatch { color: #d18a94; border-bottom-style: dotted; border-bottom-width: 3px; }
+.logistics-legend-rumored .logistics-legend-swatch { color: var(--vscode-descriptionForeground); border-bottom-style: dotted; }
+.logistics-legend-selected .logistics-legend-swatch { color: var(--vscode-focusBorder); border-bottom-width: 3px; }
+.logistics-legend-node-symbol {
+  display: inline-grid;
+  width: 1.35rem;
+  height: 1.1rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+.logistics-legend-node-market .logistics-legend-node-symbol { border-radius: 999px; color: #7fc5aa; }
+.logistics-legend-node-facility .logistics-legend-node-symbol { border-radius: 0; color: #d3a768; }
+.logistics-legend-node-settlement .logistics-legend-node-symbol { transform: rotate(45deg); color: #87aee0; }
+.logistics-legend-node-settlement .logistics-legend-node-symbol::first-letter { transform: rotate(-45deg); }
+.logistics-legend-node-vehicle .logistics-legend-node-symbol,
+.logistics-legend-node-caravan .logistics-legend-node-symbol { border-radius: 45%; border-style: dashed; color: #82c5dd; }
+.logistics-legend-node-envoy .logistics-legend-node-symbol { border-radius: 50%; border-style: dotted; color: #c69be1; }
+.logistics-legend-node-mobile-base .logistics-legend-node-symbol { border-width: 2px; color: #efc66d; }
+
+.logistics-flow-toggle-btn {
+  flex: 0 0 auto;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.logistics-flow-toggle-btn.is-active {
+  color: var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.logistics-flow-toggle-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* LOGISTICS-GRAPH-CANVAS-SLICE1 — the viewport's CSS size is fixed and
+   independent of graph content (mirrored in JS as LOGISTICS_VIEWPORT_HEIGHT /
+   LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX). The camera pans/zooms content inside
+   it instead of the SVG viewBox growing to fit everything, so this no longer
+   scrolls — overflow is clipped, not exposed via a scrollbar. */
+.logistics-network-viewport {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-focusBorder) 6%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.logistics-network-viewport.is-panning {
+  cursor: grabbing;
+}
+
+.logistics-network-viewport.is-node-dragging,
+.logistics-network-viewport.is-node-dragging .logistics-node {
+  cursor: grabbing;
+}
+
+.logistics-network-viewport:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: -2px;
+}
+
+.visual-lightbox-body--logistics .logistics-network-viewport {
+  height: 640px;
+}
+
+.logistics-expand-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 3;
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-editor-background) 75%, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.logistics-expand-btn:hover,
+.logistics-expand-btn:focus-visible {
+  color: var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.logistics-expand-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.logistics-network {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.logistics-camera {
+  transform-origin: 0 0;
+}
+
+.logistics-camera.is-easing {
+  transition: transform 180ms ease;
+}
+
+.logistics-camera-toolbar {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 0.4rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-width: calc(100% - 0.8rem);
+}
+
+.logistics-minimap {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  width: 132px;
+  height: 132px;
+  z-index: 2;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+  overflow: hidden;
+}
+/* The minimap content is built from HTML div/span elements (not SVG), so it
+   must be painted with background/border, not SVG fill/stroke. The projected
+   region rects, node markers and viewport indicator are absolutely positioned
+   inside the canvas via inline left/top/width/height. */
+.logistics-minimap-canvas { position: relative; width: 100%; height: 100%; touch-action: none; cursor: crosshair; overflow: hidden; }
+.logistics-minimap-regions,
+.logistics-minimap-nodes { position: absolute; inset: 0; pointer-events: none; }
+.logistics-minimap-region {
+  position: absolute;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 85%, transparent);
+  border-radius: 2px;
+}
+.logistics-minimap-node {
+  position: absolute;
+  box-sizing: border-box;
+  background: var(--vscode-descriptionForeground);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.logistics-minimap-node.is-current {
+  background: var(--vscode-charts-green, var(--vscode-testing-iconPassed, #2ea043));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-editor-background) 65%, transparent);
+}
+.logistics-minimap-node.is-selected {
+  background: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-editor-background) 65%, transparent);
+}
+.logistics-minimap-viewport {
+  position: absolute;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+  border: 1.5px solid var(--vscode-focusBorder);
+  pointer-events: none;
+}
+
+.logistics-camera-btn {
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-editor-background) 78%, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.logistics-camera-btn:hover,
+.logistics-camera-btn:focus-visible {
+  color: var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.logistics-camera-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.logistics-camera-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.logistics-region-box {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-focusBorder) 12%);
+  fill-opacity: 0.38;
+  stroke: var(--vscode-panel-border);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.logistics-region-label {
+  fill: var(--vscode-foreground);
+  font-size: calc(12px / var(--logistics-camera-k, 1));
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--vscode-editor-background);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.logistics-region-collapse { cursor: pointer; pointer-events: all; }
+/* Header band behind the region heading: frames the title so it never reads as
+   plain unframed text — especially in light themes and over blue/red routes.
+   Reuses the existing collapse hit target, so it is also the click affordance. */
+.logistics-region-collapse-hit {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-panel-border) 16%);
+  fill-opacity: 0.92;
+  stroke: color-mix(in srgb, var(--vscode-panel-border) 90%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+}
+.logistics-region-collapse:hover .logistics-region-collapse-hit {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 72%, var(--vscode-focusBorder) 28%);
+  stroke: var(--vscode-focusBorder);
+}
+/* Protected (current-location) header stays clearly visible — it is an
+   intentional locked state, not a dimmed dead control. */
+.logistics-region-collapse[aria-disabled="true"] { cursor: not-allowed; opacity: 0.9; }
+.logistics-region-collapse[aria-disabled="true"] .logistics-region-collapse-hit {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 82%, var(--vscode-descriptionForeground) 18%);
+  stroke-dasharray: 3 2;
+}
+.logistics-region-collapse[aria-disabled="true"]:hover .logistics-region-collapse-hit {
+  stroke: var(--vscode-descriptionForeground);
+}
+.logistics-region-collapse:focus-visible { outline: none; }
+.logistics-region-collapse:focus-visible .logistics-region-collapse-hit {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 1.5;
+}
+.logistics-region-label.is-focus-visible {
+  fill: var(--vscode-focusBorder);
+  text-decoration: underline;
+}
+.logistics-region-label.is-protected { fill: var(--vscode-foreground); }
+
+/* Non-modal Layout Reset feedback: a compact pill that fades in on reset and
+   auto-clears, so the action is never silent. */
+.logistics-layout-status {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  max-width: calc(100% - 1rem);
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82em;
+  line-height: 1.3;
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-editor-background) 80%, var(--vscode-focusBorder) 20%);
+  border: 1px solid var(--vscode-focusBorder);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.logistics-layout-status.is-visible { opacity: 1; }
+
+/* Compact, transient discoverability hint (shown only while a selection is
+   active) — not a permanent instruction panel. */
+.logistics-selection-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.82em;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Light-theme hierarchy pass: deepen the graph field vs the surrounding panel,
+   firm up the dashed region containers, and darken the header band so region
+   headings read as framed elements rather than floating black text. Dark theme
+   keeps its existing look. */
+body.vscode-light .logistics-network-viewport {
+  background: color-mix(in srgb, var(--vscode-editor-background) 86%, var(--vscode-focusBorder) 14%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-panel-border) 55%, transparent);
+}
+body.vscode-light .logistics-region-box {
+  stroke: var(--vscode-panel-border);
+  stroke-opacity: 0.9;
+  fill-opacity: 0.5;
+}
+body.vscode-light .logistics-region-collapse-hit {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 76%, var(--vscode-panel-border) 24%);
+  fill-opacity: 0.96;
+}
+body.vscode-light .logistics-minimap {
+  background: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-panel-border) 6%);
+}
+
+/* The final annotation layer is deliberately last in SVG DOM order. It owns
+   factual text only, so labels cannot intercept route or node hit testing. */
+.layer-labels,
+.logistics-route-annotations,
+.logistics-node-label-overlay { pointer-events: none; }
+
+.logistics-route {
+  color: #7ab7e8;
+  cursor: pointer;
+}
+
+.logistics-route-line {
+  stroke: currentColor;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 120ms ease, stroke-width 120ms ease;
+}
+
+/* LOGISTICS-GRAPH-CANVAS-SLICE3: invisible wide hit target sharing the exact
+   visible-stroke `d`, so a thin low-volume line still has a comfortable
+   click/tap target independent of its rendered width. */
+.logistics-route-hit {
+  stroke: transparent;
+  fill: none;
+  stroke-width: 12;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
+/* Honest diagnostics: a bounded detour or an unresolved conflict is a subtle
+   visual signal for development, never a hidden route. */
+.logistics-route.is-detoured .logistics-route-line { stroke-dashoffset: 1; }
+.logistics-route.is-geometry-conflicted .logistics-route-line { outline: none; filter: drop-shadow(0 0 1px #e5b95f); }
+.logistics-route-label.is-label-conflicted { opacity: 0.82; }
+
+.logistics-route-open { color: #76b7e5; }
+.logistics-route-strained { color: #e5b95f; }
+.logistics-route-strained .logistics-route-line { stroke-dasharray: 10 5; }
+.logistics-route-blocked { color: #d18a94; }
+.logistics-route-blocked .logistics-route-line { stroke-dasharray: 3 5; }
+.logistics-route-raided { color: #c69be1; }
+.logistics-route-raided .logistics-route-line { stroke-dasharray: 12 4 2 4; }
+.logistics-route-rumored { color: var(--vscode-descriptionForeground); }
+.logistics-route-rumored .logistics-route-line { stroke-dasharray: 2 7; }
+.logistics-route.is-idle .logistics-route-line { stroke-dasharray: 2 7; opacity: 0.45 !important; }
+.logistics-route.is-bottleneck .logistics-route-line { stroke-dashoffset: 2; }
+
+.logistics-arrow-open .logistics-arrow-path { fill: #76b7e5; }
+.logistics-arrow-strained .logistics-arrow-path { fill: #e5b95f; }
+.logistics-arrow-blocked .logistics-arrow-path { fill: #d18a94; }
+.logistics-arrow-raided .logistics-arrow-path { fill: #c69be1; }
+.logistics-arrow-rumored .logistics-arrow-path { fill: var(--vscode-descriptionForeground); }
+
+.logistics-route.is-unrelated { opacity: 0.18; }
+.logistics-node.is-unrelated { opacity: 0.28; }
+
+/* SLICE4: factual route status owns hue; dash is supplied as an inline
+   presentation token by the pure encoder, so it remains distinct in
+   monochrome.  Theme tokens keep both light and dark themes legible. */
+.logistics-route-status-open { color: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.logistics-route-status-rumored,
+.logistics-route-status-unknown { color: var(--vscode-descriptionForeground); }
+.logistics-route-status-impaired,
+.logistics-route-status-bottleneck { color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)); }
+.logistics-route-status-blocked,
+.logistics-route-status-conflicted { color: var(--vscode-editorError-foreground, var(--vscode-charts-red)); }
+.logistics-arrow-open .logistics-arrow-path { fill: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.logistics-arrow-rumored .logistics-arrow-path,
+.logistics-arrow-unknown .logistics-arrow-path { fill: var(--vscode-descriptionForeground); }
+.logistics-arrow-impaired .logistics-arrow-path,
+.logistics-arrow-bottleneck .logistics-arrow-path { fill: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)); }
+.logistics-arrow-blocked .logistics-arrow-path,
+.logistics-arrow-conflicted .logistics-arrow-path { fill: var(--vscode-editorError-foreground, var(--vscode-charts-red)); }
+.logistics-route.is-commodity-primary .logistics-route-line {
+  filter: drop-shadow(0 0 3px var(--vscode-focusBorder));
+}
+.logistics-route.is-commodity-secondary .logistics-route-line {
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent));
+}
+.logistics-node.is-commodity-primary .logistics-node-accent {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 4;
+}
+.logistics-node.is-commodity-secondary .logistics-node-accent {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 3;
+  opacity: 0.55;
+}
+
+.logistics-route-label,
+.logistics-route-warning {
+  fill: var(--vscode-foreground);
+  font-size: 11px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--vscode-editor-background);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.logistics-network.is-zoom-overview .logistics-route-label,
+.logistics-network.is-zoom-overview .logistics-node-kind,
+.logistics-network.is-zoom-overview .logistics-node-scale-minor .logistics-node-label,
+.logistics-network.is-zoom-overview .logistics-flow-dot { display: none; }
+.logistics-network.is-zoom-overview .logistics-route-annotations.is-selected .logistics-route-label,
+.logistics-network.is-zoom-overview .logistics-node-label-overlay.is-selected .logistics-node-label,
+.logistics-network.is-zoom-overview .logistics-node-label-overlay.is-route-endpoint .logistics-node-label { display: block; }
+
+.logistics-filter-results { color: var(--vscode-descriptionForeground); font-size: 0.9em; white-space: nowrap; }
+
+.logistics-route-warning {
+  fill: #efc66d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.logistics-route:focus-visible {
+  outline: none;
+}
+
+.logistics-route:focus-visible .logistics-route-line,
+.logistics-route:hover .logistics-route-line,
+.logistics-route.is-selected .logistics-route-line {
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 2px var(--vscode-focusBorder));
+}
+
+/* Flow animation: particles at comfortable widths, marching dashes when the
+   panel is too narrow for a moving dot to read clearly (see is-compact,
+   toggled by ResizeObserver in 85b-economy-logistics.js). Both are purely
+   decorative direction/pace cues layered on top of the static line — the
+   static appearance above already fully conveys status without them. */
+.logistics-flow-dot {
+  pointer-events: none;
+}
+
+.logistics-flow-dot-open { fill: #cfe9ff; }
+.logistics-flow-dot-strained { fill: #ffe6b0; }
+.logistics-flow-dot-raided { fill: #f0d4fb; }
+
+@keyframes logistics-flow-march {
+  to { stroke-dashoffset: -24; }
+}
+
+.logistics-network.is-compact.is-animated .logistics-route.is-flowing .logistics-route-line {
+  animation: logistics-flow-march linear infinite;
+  animation-duration: var(--logistics-flow-duration, 2.2s);
+}
+
+/* Open routes are normally solid; give them a dash pattern only in this mode
+   so there is something for the march to move. Strained/raided already carry
+   their own status dash pattern above and just gain motion on top of it. */
+.logistics-network.is-compact.is-animated .logistics-route-open.is-flowing .logistics-route-line {
+  stroke-dasharray: 7 5;
+}
+
+.logistics-node {
+  cursor: pointer;
+}
+
+.logistics-node-shape {
+  fill: color-mix(in srgb, var(--vscode-editor-background) 86%, var(--vscode-focusBorder) 14%);
+  stroke: var(--vscode-panel-border);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.logistics-node-accent {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.logistics-node-region .logistics-node-shape { stroke-dasharray: 5 3; }
+.logistics-node-settlement .logistics-node-shape { stroke: #87aee0; }
+.logistics-node-facility .logistics-node-shape { stroke: #d3a768; }
+.logistics-node-market .logistics-node-shape { stroke: #7fc5aa; }
+.logistics-node-store .logistics-node-shape { stroke: #ba9bdd; }
+.logistics-node-vehicle .logistics-node-shape,
+.logistics-node-caravan .logistics-node-shape { stroke: #82c5dd; stroke-dasharray: 8 3; }
+.logistics-node-envoy .logistics-node-shape { stroke: #c69be1; stroke-dasharray: 2 3; }
+.logistics-node-mobile-base .logistics-node-shape { stroke: #efc66d; stroke-width: 2.4; }
+.logistics-node-region .logistics-node-accent { stroke-dasharray: 4 4; }
+.logistics-node-settlement .logistics-node-accent { stroke: #87aee0; }
+.logistics-node-market .logistics-node-accent { stroke: #7fc5aa; }
+.logistics-node-facility .logistics-node-accent { stroke: #d3a768; }
+.logistics-node-vehicle .logistics-node-accent,
+.logistics-node-caravan .logistics-node-accent { stroke: #82c5dd; }
+.logistics-node-envoy .logistics-node-accent { stroke: #c69be1; }
+.logistics-node-mobile-base .logistics-node-accent { stroke: #efc66d; }
+.logistics-node-scale-minor { opacity: 0.82; }
+.logistics-node-scale-major .logistics-node-shape { stroke-width: 2.5; }
+.logistics-node-scale-major .logistics-node-label { font-size: 13px; }
+.logistics-node-aggregate .logistics-node-shape { stroke-width: 2.5; stroke-dasharray: none; }
+.logistics-node-aggregate .logistics-node-accent { stroke-width: 4; }
+.logistics-node-aggregate-outline { fill: none; stroke: var(--vscode-focusBorder); stroke-width: 1.4; vector-effect: non-scaling-stroke; opacity: 0.82; pointer-events: none; }
+.logistics-node.is-holding-selection .logistics-node-shape { filter: drop-shadow(0 0 3px var(--vscode-focusBorder)); }
+.logistics-aggregate-badge { fill: var(--vscode-editor-background); font-size: 12px; font-weight: 800; text-anchor: middle; }
+
+.logistics-node:focus-visible {
+  outline: none;
+}
+
+.logistics-node:focus-visible .logistics-node-shape,
+.logistics-node:hover .logistics-node-shape,
+.logistics-node.is-selected .logistics-node-shape {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 3;
+}
+
+.logistics-node-kind {
+  fill: var(--text-dim, var(--vscode-descriptionForeground));
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.logistics-node-label {
+  fill: var(--vscode-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Labels are paint-separated from route strokes in both VS Code themes. */
+.logistics-node-label-overlay text {
+  paint-order: stroke;
+  stroke: var(--vscode-editor-background);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+.logistics-node-symbol {
+  fill: currentColor;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.logistics-shortage-badge,
+.logistics-processing-badge {
+  fill: #efc66d;
+  font-size: 15px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.logistics-processing-badge { fill: #82c5dd; }
+
+.logistics-filter-empty {
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto auto 0;
+  margin: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
+}
+
+.logistics-details {
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-left: 3px solid color-mix(in srgb, var(--vscode-focusBorder) 75%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-focusBorder) 10%);
+}
+
+.logistics-details-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.logistics-clear-btn {
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 0.18rem 0.45rem;
+  cursor: pointer;
+}
+
+.logistics-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.logistics-detail-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 0.32fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.18rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
+  font-size: 0.78rem;
+}
+
+.logistics-detail-label { color: var(--text-dim, var(--vscode-descriptionForeground)); }
+.logistics-detail-value { overflow-wrap: anywhere; }
+
+.logistics-empty {
+  padding: 0.9rem;
+  border: 1px dashed var(--vscode-panel-border);
+  border-radius: 8px;
+  color: var(--text-dim, var(--vscode-descriptionForeground));
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .logistics-filter-row { align-items: stretch; flex-direction: column; }
+  .logistics-filter { flex-basis: auto; width: 100%; }
+  .logistics-detail-row { grid-template-columns: 1fr; gap: 0.08rem; }
+}
+
+/* Generic "view large" lightbox chrome. Only the logistics network wires
+   into this today (see ensureVisualLightbox in 85b-economy-logistics.js),
+   but the class names are deliberately feature-neutral so another read-only
+   panel (e.g. the world map) can reuse the same overlay later without new
+   markup — only a `.visual-lightbox-body--<feature>` sizing hook like the
+   one below is feature-specific. */
+.visual-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visual-lightbox.hidden { display: none; }
+
+.visual-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.visual-lightbox-panel {
+  position: relative;
+  width: min(1100px, 94vw);
+  height: min(820px, 90vh);
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Nearly full Webview viewport; small safe inset only. */
+.visual-lightbox-panel.is-maximized {
+  width: calc(100vw - 16px);
+  height: calc(100vh - 16px);
+  max-width: none;
+  max-height: none;
+  border-radius: 6px;
+}
+
+.visual-lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  flex: 0 0 auto;
+}
+
+.visual-lightbox-title {
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: default;
+  user-select: none;
+}
+
+.visual-lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.visual-lightbox-close,
+.visual-lightbox-maximize {
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.visual-lightbox-close:focus-visible,
+.visual-lightbox-maximize:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.visual-lightbox-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.75rem 0.9rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.visual-lightbox-panel.is-maximized .visual-lightbox-body {
+  overflow: hidden;
+  padding: 0.4rem 0.5rem;
+}
+
+/* Give the logistics network real room once it is the only thing on screen
+   (fixed height set on .logistics-network-viewport above). */
+.visual-lightbox-body--logistics .logistics-network-viewport {
+  max-width: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.visual-lightbox-body--logistics .logistics-network-viewport.is-lightbox-maximized,
+.visual-lightbox-panel.is-maximized .visual-lightbox-body--logistics .logistics-network-viewport {
+  height: 100%;
+  min-height: min(70vh, 640px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logistics-route-line { transition: none; animation: none !important; }
+  .logistics-flow-dot { display: none !important; }
+  .logistics-camera.is-easing { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .logistics-region-box { fill: transparent; stroke: CanvasText; }
 }
 
 /* --- 90-game-rules.css --- */
@@ -5643,6 +6964,70 @@ body[data-ui-theme="steampunk"] {
     position: relative;
 }
 
+.world-settlement-focus-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.45rem 0.75rem;
+    margin: 0 0 0.45rem;
+    padding: 0.4rem 0.55rem;
+    border-left: 3px solid var(--vscode-charts-orange, #e2a03f);
+    background: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.12));
+    color: var(--vscode-foreground, #cccccc);
+    font-size: 0.82em;
+    line-height: 1.35;
+}
+
+.world-settlement-focus-banner.hidden {
+    display: none;
+}
+
+.world-settlement-focus-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
+.world-settlement-focus-preview-line,
+.world-settlement-focus-current-line {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.world-settlement-focus-preview-line {
+    font-weight: 600;
+}
+
+.world-settlement-focus-current-line {
+    opacity: 0.85;
+}
+
+.world-settlement-focus-return-btn {
+    flex: 0 0 auto;
+    max-width: 100%;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--vscode-button-border, var(--vscode-button-background, #0e639c));
+    border-radius: 2px;
+    background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.18));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #cccccc));
+    cursor: pointer;
+    font: inherit;
+    white-space: normal;
+    text-align: center;
+}
+
+.world-settlement-focus-return-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.28));
+}
+
+.world-settlement-focus-return-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder, #007fd4);
+    outline-offset: 1px;
+}
+
 .world-settlement-mobile-base-banner {
     font-size: 0.82em;
     opacity: 0.85;
@@ -5654,6 +7039,53 @@ body[data-ui-theme="steampunk"] {
 
 .world-settlement-mobile-base-banner.hidden {
     display: none;
+}
+
+/* SETTLEMENT-VIEW-SOURCE-001: compact fixed vs Mobile Base source selector */
+.world-settlement-source-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+    margin: 0 0 0.4rem;
+    max-width: 100%;
+}
+
+.world-settlement-source-bar.hidden {
+    display: none;
+}
+
+.world-settlement-source-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, #3c3c3c));
+    border-radius: 2px;
+    background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.18));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #cccccc));
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82em;
+    line-height: 1.3;
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.world-settlement-source-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.28));
+}
+
+.world-settlement-source-btn.is-active {
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #ffffff);
+    border-color: var(--vscode-button-background, #0e639c);
+}
+
+.world-settlement-source-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder, #007fd4);
+    outline-offset: 1px;
 }
 
 .world-settlement-toolbar {
@@ -5902,6 +7334,27 @@ body[data-ui-theme="steampunk"] {
     outline-offset: 1px;
 }
 
+#world-settlement-stage.is-mobile-base {
+    border: 1px solid rgba(123, 170, 214, 0.24);
+    background:
+        linear-gradient(180deg, rgba(75, 108, 138, 0.08), rgba(6, 10, 18, 0.72));
+}
+
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="ship"],
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="boat"],
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="barge"] {
+    border-color: rgba(110, 177, 220, 0.34);
+}
+
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="wagon"],
+#world-settlement-stage.is-mobile-base[data-mobile-base-mode*="caravan"] {
+    border-color: rgba(194, 155, 100, 0.34);
+}
+
+.world-settlement-layer-btn[hidden] {
+    display: none !important;
+}
+
 /* --- 99-settlement-diorama.css --- */
 #world-diorama {
     position: relative;
@@ -6104,6 +7557,7 @@ body[data-ui-theme="steampunk"] {
     text-align: left;
     border: 1px solid var(--vscode-panel-border);
     background: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
     border-radius: 4px;
     padding: 0.45rem 0.55rem;
     cursor: pointer;
@@ -6427,6 +7881,611 @@ body[data-ui-theme="steampunk"] {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* --- 9a-ink-lantern.css --- */
+/* 9a-ink-lantern.css
+ * UI-INSPECTOR-REDESIGN-002 — stronger Ink and Lantern hierarchy for the right Inspector.
+ * Scoped under #status-area / pane roots only. Dark + light via body.vscode-*.
+ */
+
+:root {
+  --vr-ink-accent-lantern: var(--vscode-editorWarning-foreground, #cca700);
+  --vr-ink-accent-focus: var(--vscode-focusBorder, #007fd4);
+  --vr-ink-accent-success: var(--vscode-charts-green, #89d185);
+  --vr-ink-accent-danger: var(--vscode-editorError-foreground, #f14c4c);
+  --vr-ink-accent-info: var(--vscode-charts-blue, #3794ff);
+  --vr-ink-rail: 3px;
+}
+
+/* Light theme surfaces */
+body.vscode-light {
+  --vr-ink-surface-chrome: color-mix(in srgb, var(--vscode-sideBar-background, #f3f3f3) 92%, #000 8%);
+  --vr-ink-surface-panel: rgba(0, 0, 0, 0.035);
+  --vr-ink-surface-card: rgba(0, 0, 0, 0.055);
+  --vr-ink-surface-hover: rgba(0, 0, 0, 0.08);
+  --vr-ink-surface-selected: color-mix(in srgb, var(--vr-ink-accent-focus) 14%, transparent);
+  --vr-ink-surface-inset: rgba(0, 0, 0, 0.06);
+  --vr-ink-surface-resource: color-mix(in srgb, var(--vr-ink-accent-focus) 8%, rgba(0, 0, 0, 0.04));
+  --vr-ink-border-soft: color-mix(in srgb, var(--vscode-panel-border, #ccc) 70%, transparent);
+  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 68%, transparent);
+  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+  --vr-ink-tab-inactive-fg: color-mix(in srgb, var(--vscode-foreground) 62%, transparent);
+  --vr-ink-tab-active-bg: color-mix(in srgb, var(--vr-ink-accent-focus) 10%, #fff);
+}
+
+/* Dark / high-contrast surfaces */
+body.vscode-dark,
+body.vscode-high-contrast {
+  --vr-ink-surface-chrome: color-mix(in srgb, var(--vscode-sideBar-background, #252526) 88%, #000 12%);
+  --vr-ink-surface-panel: rgba(255, 255, 255, 0.04);
+  --vr-ink-surface-card: rgba(255, 255, 255, 0.065);
+  --vr-ink-surface-hover: rgba(255, 255, 255, 0.1);
+  --vr-ink-surface-selected: color-mix(in srgb, var(--vr-ink-accent-focus) 22%, transparent);
+  --vr-ink-surface-inset: rgba(0, 0, 0, 0.28);
+  --vr-ink-surface-resource: color-mix(in srgb, var(--vr-ink-accent-focus) 12%, rgba(0, 0, 0, 0.22));
+  --vr-ink-border-soft: color-mix(in srgb, var(--vscode-panel-border, #2b2b2b) 80%, transparent);
+  --vr-ink-text-secondary: color-mix(in srgb, var(--vscode-foreground) 72%, transparent);
+  --vr-ink-text-disabled: color-mix(in srgb, var(--vscode-foreground) 58%, transparent);
+  --vr-ink-tab-inactive-fg: color-mix(in srgb, var(--vscode-foreground) 58%, transparent);
+  --vr-ink-tab-active-bg: color-mix(in srgb, var(--vr-ink-accent-focus) 16%, rgba(255, 255, 255, 0.04));
+}
+
+/* =========================================================
+   Right Inspector chrome (#status-area)
+   ========================================================= */
+#status-area {
+  background: var(--vr-ink-surface-chrome);
+  border-left: 1px solid var(--vr-ink-border-soft);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--vr-ink-accent-focus) 18%, transparent);
+}
+
+#status-area .tab-pane {
+  padding-top: 4px;
+}
+
+/* =========================================================
+   Top Inspector tab strip
+   ========================================================= */
+/* Keep one horizontally scrollable row (restores 10-layout-chat nowrap contract).
+ * Fable's 3-row wrap was amplified by missing JA locale keys + wrap:wrap regression. */
+#status-area #status-tabs.tabs-header,
+#status-area #status-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0;
+  padding: 4px 6px 0;
+  margin: 0;
+  background: color-mix(in srgb, var(--vr-ink-surface-chrome) 70%, #000 30%);
+  border-bottom: 1px solid var(--vr-ink-border-soft);
+  scrollbar-width: thin;
+}
+
+#status-area #status-tabs .tab-btn {
+  position: relative;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 6px 10px 8px;
+  margin: 0 1px;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--vr-ink-tab-inactive-fg);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+  opacity: 1;
+  white-space: nowrap;
+}
+
+#status-area #status-tabs .tab-btn .tab-icon {
+  opacity: 0.72;
+}
+
+#status-area #status-tabs .tab-btn:hover {
+  color: var(--vscode-foreground);
+  background: var(--vr-ink-surface-hover);
+}
+
+#status-area #status-tabs .tab-btn:hover .tab-icon {
+  opacity: 0.9;
+}
+
+#status-area #status-tabs .tab-btn.active {
+  color: var(--vscode-foreground);
+  font-weight: 700;
+  background: var(--vr-ink-tab-active-bg);
+  box-shadow: none;
+}
+
+#status-area #status-tabs .tab-btn.active .tab-icon {
+  opacity: 1;
+  color: var(--vr-ink-accent-focus);
+}
+
+#status-area #status-tabs .tab-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--vr-ink-accent-focus);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--vr-ink-accent-focus) 55%, transparent);
+}
+
+#status-area #status-tabs .tab-btn:focus-visible {
+  outline: 1px solid var(--vr-ink-accent-focus);
+  outline-offset: -1px;
+}
+
+/* =========================================================
+   Shared section headers (Inspector + panes)
+   ========================================================= */
+#status-area .inspector-section,
+#status-area .status-block,
+#pane-vehicles .vehicle-detail-card,
+#pane-vehicles .mobile-base-panel-card {
+  position: relative;
+}
+
+#status-area .inspector-section {
+  margin: 14px 0 18px;
+  padding: 0 0 4px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+#status-area .inspector-section > h4,
+#status-area .inspector-section > .inspector-section-title,
+#pane-vehicles .vehicle-detail-title,
+#pane-vehicles h3,
+#pane-vehicles h4 {
+  margin: 0 0 10px;
+  padding: 2px 0 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--vr-ink-border-soft);
+  border-left: var(--vr-ink-rail) solid color-mix(in srgb, var(--vr-ink-accent-focus) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+#status-area .inspector-item {
+  background: var(--vr-ink-surface-card);
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+/* =========================================================
+   Adventure Status — compact summary + stronger resources
+   ========================================================= */
+#pane-status #status-content {
+  background: var(--vr-ink-surface-panel);
+  border: 1px solid var(--vr-ink-border-soft);
+  border-radius: 10px;
+  padding: 12px 12px 14px;
+  margin: 8px 8px 12px;
+  box-shadow: none;
+}
+
+/* Group first three rows (location / time / funds) as one summary band */
+#pane-status #status-content > #status-row-location,
+#pane-status #status-content > #status-row-time,
+#pane-status #status-content > #status-row-funds {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 5px 4px;
+}
+
+#pane-status #status-content > #status-row-location {
+  padding-top: 2px;
+}
+
+#pane-status #status-content > #status-row-funds {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vr-ink-border-soft);
+}
+
+/* Generic status rows become lighter than resource regions */
+#pane-status .status-row,
+#pane-status .status-block {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 6px 4px;
+  margin-bottom: 2px;
+}
+
+#pane-status .status-label {
+  color: var(--vr-ink-text-secondary);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+#pane-status .status-value,
+#pane-status .tag-item {
+  color: var(--vscode-foreground);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+}
+
+#pane-status #status-funds {
+  color: var(--vr-ink-accent-lantern);
+  font-size: 13px;
+}
+
+/* HP / MP / dynamic resources as stronger inset blocks */
+#pane-status #status-row-hp,
+#pane-status #status-row-mp,
+#pane-status #dynamic-resources-container {
+  background: var(--vr-ink-surface-resource);
+  border: 1px solid color-mix(in srgb, var(--vr-ink-accent-focus) 22%, transparent);
+  border-left: var(--vr-ink-rail) solid var(--vr-ink-accent-focus);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+
+#pane-status #status-row-hp .status-value,
+#pane-status #status-row-mp .status-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#pane-status #status-hp {
+  color: var(--vr-ink-accent-success);
+}
+
+#pane-status #status-mp {
+  color: var(--vr-ink-accent-info);
+}
+
+/* Inventory / skills / condition stay lighter */
+#pane-status #status-row-inventory,
+#pane-status #status-row-skills,
+#pane-status #status-row-condition,
+#pane-status #status-tags-row {
+  background: var(--vr-ink-surface-inset);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+}
+
+#pane-status .tag-item {
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--vr-ink-text-secondary);
+}
+
+/* =========================================================
+   Vehicle Garage + Mobile Base
+   ========================================================= */
+#pane-vehicles {
+  padding: 8px;
+}
+
+#pane-vehicles #vehicles-list {
+  background: var(--vr-ink-surface-panel);
+  border: 1px solid var(--vr-ink-border-soft);
+  border-radius: 10px;
+  padding: 8px;
+  gap: 6px;
+}
+
+#pane-vehicles .vehicle-list-item {
+  background: var(--vr-ink-surface-card);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 0;
+  color: var(--vscode-foreground);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  /* Prevent badge/name from painting past the card edge in narrow garage columns */
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+#pane-vehicles .vehicle-list-item:hover {
+  background: var(--vr-ink-surface-hover);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-focus) 35%, transparent);
+}
+
+#pane-vehicles .vehicle-list-item:focus-visible {
+  outline: none;
+  border-color: var(--vr-ink-accent-focus);
+  box-shadow: 0 0 0 1px var(--vr-ink-accent-focus);
+}
+
+#pane-vehicles .vehicle-list-item.is-selected {
+  background: var(--vr-ink-surface-selected);
+  border-color: var(--vr-ink-accent-focus);
+  box-shadow:
+    inset 3px 0 0 var(--vr-ink-accent-focus),
+    0 0 0 1px color-mix(in srgb, var(--vr-ink-accent-focus) 35%, transparent);
+}
+
+#pane-vehicles .vehicle-list-item.is-active {
+  border-left: 3px solid var(--vr-ink-accent-success);
+}
+
+#pane-vehicles .vehicle-list-item.is-selected.is-active {
+  border-left-color: var(--vr-ink-accent-success);
+  box-shadow:
+    inset 3px 0 0 var(--vr-ink-accent-success),
+    0 0 0 1px color-mix(in srgb, var(--vr-ink-accent-focus) 40%, transparent);
+}
+
+#pane-vehicles .vehicle-list-name {
+  font-weight: 700;
+  color: var(--vscode-foreground);
+  font-size: 12.5px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* List-item badge is a direct child of the column flex button (e.g. River Barge / モバイルベース) */
+#pane-vehicles .vehicle-list-item > .vehicle-badge {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+#pane-vehicles .vehicle-list-meta {
+  color: var(--vr-ink-text-secondary);
+  opacity: 1;
+  font-weight: 500;
+  font-size: 11px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#pane-vehicles .vehicle-list-item.is-here .vehicle-list-meta::after {
+  color: var(--vr-ink-accent-success);
+}
+
+/* Garage grid: children must be allowed to shrink inside the 420px inspector */
+#pane-vehicles .vehicle-garage-layout {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-garage-layout > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#pane-vehicles .vehicle-detail-card,
+#pane-vehicles .mobile-base-panel-card {
+  background: var(--vr-ink-surface-panel);
+  border: 1px solid var(--vr-ink-border-soft);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: none;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-detail-card {
+  border-top: 2px solid color-mix(in srgb, var(--vr-ink-accent-focus) 65%, transparent);
+}
+
+#pane-vehicles .mobile-base-panel-card {
+  border-top: 2px solid color-mix(in srgb, var(--vr-ink-accent-lantern) 55%, transparent);
+  margin-top: 12px;
+}
+
+/* Bars / intent rows: keep content inside card padding without clipping focus outlines */
+#pane-vehicles .vehicle-stat-row,
+#pane-vehicles .vehicle-bar-row,
+#pane-vehicles .vehicle-intent-preview,
+#pane-vehicles .vehicle-intent-rows,
+#pane-vehicles .vehicle-detail-header,
+#pane-vehicles .vehicle-detail-sub {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-bar-row {
+  width: 100%;
+  grid-template-columns: minmax(0, 4.5rem) minmax(0, 1fr) auto;
+}
+
+#pane-vehicles .vehicle-bar-track {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#pane-vehicles .vehicle-bar-label,
+#pane-vehicles .vehicle-bar-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-stat-row span:last-child {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-intent-row {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+#pane-vehicles .vehicle-intent-action {
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-intent-status-text {
+  min-width: 0;
+  flex: 1 1 8rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-detail-title {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+#pane-vehicles .vehicle-detail-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vscode-foreground);
+}
+
+#pane-vehicles .vehicle-detail-sub,
+#pane-vehicles .vehicle-muted {
+  color: var(--vr-ink-text-secondary);
+  opacity: 1;
+}
+
+#pane-vehicles .vehicle-stat-row span:first-child,
+#pane-vehicles .mb-chip-row .label,
+#pane-vehicles .vehicle-bar-row span:first-child {
+  color: var(--vr-ink-text-secondary);
+  font-weight: 500;
+  font-size: 11px;
+}
+
+#pane-vehicles .vehicle-stat-row span:last-child,
+#pane-vehicles .mb-chip-row .value,
+#pane-vehicles .vehicle-bar-row span:last-child {
+  color: var(--vscode-foreground);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+}
+
+#pane-vehicles .vehicle-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--vr-ink-border-soft);
+  background: var(--vr-ink-surface-inset);
+  color: var(--vr-ink-text-secondary);
+}
+
+#pane-vehicles .vehicle-badge.active {
+  color: var(--vr-ink-accent-success);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-success) 45%, transparent);
+  background: color-mix(in srgb, var(--vr-ink-accent-success) 12%, transparent);
+}
+
+#pane-vehicles .vehicle-badge.mobile-base {
+  color: var(--vr-ink-accent-lantern);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-lantern) 40%, transparent);
+}
+
+/* Action preview rows: quieter than cards */
+#pane-vehicles .vehicle-intent-row {
+  background: var(--vr-ink-surface-inset);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+}
+
+#pane-vehicles .vehicle-intent-row:hover {
+  background: var(--vr-ink-surface-card);
+}
+
+#pane-vehicles .vehicle-intent-row[data-intent-status="allowed"] .vehicle-intent-dot {
+  background: var(--vr-ink-accent-success);
+}
+#pane-vehicles .vehicle-intent-row[data-intent-status="blocked"] .vehicle-intent-dot {
+  background: var(--vr-ink-accent-lantern);
+}
+
+/* Semantic status chips */
+#pane-vehicles .vehicle-fuel-low .vehicle-stat-row span:last-child,
+#pane-vehicles .mb-stock-low,
+#pane-vehicles .mb-facility-chip.status-damaged,
+#pane-vehicles .mb-facility-chip.status-under_construction,
+#pane-vehicles .vehicle-warning {
+  color: var(--vr-ink-accent-lantern);
+  border-color: color-mix(in srgb, var(--vr-ink-accent-lantern) 40%, transparent);
+}
+
+#pane-vehicles .vehicle-fuel-empty .vehicle-stat-row span:last-child,
+#pane-vehicles .mb-stock-empty {
+  color: var(--vr-ink-accent-danger);
+}
+
+#pane-vehicles .mb-facility-chip.status-disabled,
+#pane-vehicles .mb-facility-chip.status-ruined {
+  color: var(--vr-ink-text-disabled);
+  opacity: 1;
+}
+
+/* Resource bars use success fill when present */
+#pane-vehicles .vehicle-bar-fill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--vr-ink-accent-success) 80%, transparent),
+    var(--vr-ink-accent-success)
+  );
+}
+
+/* =========================================================
+   World pane inherits shared chrome only (no map redesign)
+   ========================================================= */
+#pane-world .world-section-title,
+#pane-world h4 {
+  margin-top: 12px;
+  padding-left: 10px;
+  border-left: var(--vr-ink-rail) solid color-mix(in srgb, var(--vr-ink-accent-focus) 55%, transparent);
+  font-weight: 700;
 }
 
 /* --- 9b-genre-chrome.css --- */

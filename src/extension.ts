@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { renderWebviewHtml } from './webviewHtmlCore';
 
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
@@ -30,7 +31,13 @@ import {
     pushPartyDirectorToWebview,
     savePartyDirectorFromUi
 } from './partyDirector';
-import { initWorldView, pushWorldViewToWebview, setPreferredSettlementLayer } from './worldView';
+import {
+    clearWorldSettlementFocus,
+    initWorldView,
+    pushWorldViewToWebview,
+    setPreferredSettlementLayer,
+    setWorldSettlementFocus,
+} from './worldView';
 import { initAutoLocationImageRunner } from './autoLocationImageRunner';
 import {
     executeBulkWorldSimulation,
@@ -113,7 +120,14 @@ import {
     sendParlorSettingsToWebview,
     handleSetParlorConnectionProfile,
     handleSaveParlorPersona,
+    handleSelectParlorPersonaPreset,
+    handleSaveNewParlorPersonaPreset,
+    handleUpdateParlorPersonaPreset,
+    handleCreateParlorPersonaFromCharacter,
+    handleImportParlorPersonaJson,
     handleSetParlorBackground,
+    switchParlorCharacter,
+    importParlorCharacter,
 } from './parlorBridge';
 import { promoteParlorToCampaign, demoteCampaignToParlorWithPrompt } from './parlorPromote';
 import {
@@ -241,6 +255,8 @@ import {
 import { runPreviewWorkspaceMigrationsCommand } from './ledgerMigrationRunner';
 import { runApplyVehicleStateMigrationCommand } from './ledgerMigrationWritebackRunner';
 import { runRestoreVehicleStateMigrationBackupCommand } from './ledgerMigrationRestoreRunner';
+import { runUpgradeVehicleStateForGameplaySpineCommand } from './gameplaySpineVehicleStateUpgradeRunner';
+import { runGameplaySpineVehicleRepairCommand } from './gameplaySpineVehicleRepairRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createShopkeeperRequestGate } from './shopkeeperRequestGate';
 import { createEndDayRequestGate } from './endDayRequestGate';
@@ -404,14 +420,15 @@ export function activate(context: vscode.ExtensionContext) {
         const genesisAssetBaseUri = panel.webview.asWebviewUri(vscode.Uri.file(webviewPath)).toString();
         const nonce = getNonce();
 
-        html = html
-            .replace(/\{\{styleUri\}\}/g, styleUri.toString())
-            .replace(/\{\{scriptUri\}\}/g, scriptUri.toString())
-            .replace(/\{\{mermaidUri\}\}/g, mermaidUri.toString())
-            .replace(/\{\{threeUri\}\}/g, threeUri.toString())
-            .replace(/\{\{genesisAssetBaseUri\}\}/g, genesisAssetBaseUri)
-            .replace(/\{\{cspSource\}\}/g, panel.webview.cspSource)
-            .replace(/\{\{nonce\}\}/g, nonce);
+        html = renderWebviewHtml(html, {
+            styleUri,
+            scriptUri,
+            mermaidUri,
+            threeUri,
+            genesisAssetBaseUri,
+            cspSource: panel.webview.cspSource,
+            nonce,
+        });
 
         panel.webview.html = html;
 
@@ -555,6 +572,16 @@ export function activate(context: vscode.ExtensionContext) {
         () => { void runRestoreVehicleStateMigrationBackupCommand(); }
     );
 
+    const upgradeVehicleStateForGameplaySpineCmd = vscode.commands.registerCommand(
+        'textadventure.upgradeVehicleStateForGameplaySpine',
+        () => { void runUpgradeVehicleStateForGameplaySpineCommand(); }
+    );
+
+    const gameplaySpineRepairVehicleCmd = vscode.commands.registerCommand(
+        'textadventure.gameplaySpineRepairVehicle',
+        () => { void runGameplaySpineVehicleRepairCommand(); }
+    );
+
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
@@ -605,7 +632,9 @@ export function activate(context: vscode.ExtensionContext) {
         retryFailedTransactionsCmd,
         previewWorkspaceMigrationsCmd,
         applyVehicleStateMigrationCmd,
-        restoreVehicleStateMigrationBackupCmd
+        restoreVehicleStateMigrationBackupCmd,
+        upgradeVehicleStateForGameplaySpineCmd,
+        gameplaySpineRepairVehicleCmd
     );
 
     context.subscriptions.push(
@@ -1302,6 +1331,14 @@ function handleSetSettlementViewLayer(layerId: unknown): void {
     pushWorldViewToWebview(getCurrentLocationIdForWorldView());
 }
 
+function handleSetWorldSettlementFocus(locationId: unknown): void {
+    setWorldSettlementFocus(locationId);
+}
+
+function handleClearWorldSettlementFocus(): void {
+    clearWorldSettlementFocus();
+}
+
 /** World Observatory: advance the world one tick without a player turn (watch/advance mode). */
 function handleObserverWorldTick(mode: 'watch' | 'advance'): void {
     runObserverWorldTick(mode);
@@ -1751,6 +1788,12 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 pushWorldViewToWebview(getCurrentLocationIdForWorldView());
             }
         },
+        handleSwitchParlorCharacter: async (characterId: string) => {
+            await switchParlorCharacter(characterId);
+        },
+        handleImportParlorCharacter: async () => {
+            await importParlorCharacter(() => importTavernCard({ activate: false }));
+        },
         handleSwitchExperienceProfile: async (profile: unknown) => {
             if (profile === 'campaign') {
                 if (isInWorldMode()) {
@@ -1779,9 +1822,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 }
             }
         },
-        handlePromoteParlor: async () => {
+        handlePromoteParlor: async (intent) => {
             clearRelayRequestForCurrentWorkspace('session-transition');
-            const result = await promoteParlorToCampaign();
+            const result = await promoteParlorToCampaign({ intent: intent || 'auto' });
             if (result.ok) {
                 await sendUiState(0, true);
             }
@@ -1795,6 +1838,11 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendParlorSettingsToWebview,
         handleSetParlorConnectionProfile,
         handleSaveParlorPersona,
+        handleSelectParlorPersonaPreset,
+        handleSaveNewParlorPersonaPreset,
+        handleUpdateParlorPersonaPreset,
+        handleCreateParlorPersonaFromCharacter,
+        handleImportParlorPersonaJson,
         handleSetParlorBackground,
         sendBgmManifest,
         sendSfxManifest,
@@ -1810,6 +1858,8 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendPartyDirector,
         sendWorldView,
         handleSetSettlementViewLayer,
+        handleSetWorldSettlementFocus,
+        handleClearWorldSettlementFocus,
         handleObserverWorldTick,
         handleGenerateWorldForge,
         handleGenerateWorldMapImage,

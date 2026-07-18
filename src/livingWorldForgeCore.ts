@@ -1,16 +1,53 @@
 // Parse optional commerce block from world_forge.json (no vscode).
 
+import type {
+    EconomyFlowDefinition,
+    EconomyNode,
+    EconomyNodeKind,
+    EconomyRouteStatus,
+    ProcessingRecipe,
+    ProcessingSite,
+    ProductionSource,
+    ResourceDemand,
+    TradeRoute,
+} from './economyFlowCore';
+import { isEconomyRouteStatus } from './economyOperationalCore';
 import type { CommerceForge, CommodityDef, CommodityRole, MarketDef, TransportKindDef } from './livingWorldTypes';
 
 const MAX_COMMODITIES = 20;
 const MAX_MARKETS = 30;
 const MAX_TRANSPORT = 10;
+const MAX_FLOW_NODES = 100;
+const MAX_FLOW_SOURCES = 200;
+const MAX_FLOW_DEMANDS = 200;
+const MAX_FLOW_ROUTES = 200;
+const MAX_FLOW_LABEL_LEN = 120;
+const MAX_FLOW_NUMERIC = 1_000_000;
+const MAX_PROCESSING_RECIPES = 100;
+const MAX_PROCESSING_SITES = 100;
+const MAX_RECIPE_COMMODITIES = 20;
+const MAX_BATCHES = 100_000;
 const VALID_COMMODITY_ROLES = new Set<CommodityRole>(['staple', 'material']);
+const VALID_NODE_KINDS = new Set<EconomyNodeKind>([
+    'region',
+    'settlement',
+    'facility',
+    'market',
+    'store',
+]);
 
 function asId(v: unknown): string | undefined {
     if (typeof v !== 'string') { return undefined; }
     const s = v.trim();
     return /^[a-zA-Z0-9_-]{1,64}$/.test(s) ? s : undefined;
+}
+
+/** Finite non-negative number within safety limit; preserves fractions. */
+function asFlowAmount(v: unknown): number | undefined {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > MAX_FLOW_NUMERIC) {
+        return undefined;
+    }
+    return Object.is(v, -0) ? 0 : v;
 }
 
 function parseCommodity(raw: unknown): CommodityDef | undefined {
@@ -67,6 +104,204 @@ function parseTransport(raw: unknown): TransportKindDef | undefined {
     return out;
 }
 
+function parseEconomyNode(raw: unknown): EconomyNode | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    if (!id) { return undefined; }
+    if (typeof r.kind !== 'string' || !VALID_NODE_KINDS.has(r.kind as EconomyNodeKind)) {
+        return undefined;
+    }
+    if (typeof r.label !== 'string') { return undefined; }
+    const label = r.label.trim().slice(0, MAX_FLOW_LABEL_LEN);
+    if (!label) { return undefined; }
+    const node: EconomyNode = { id, kind: r.kind as EconomyNodeKind, label };
+    const locationId = asId(r.locationId);
+    if (locationId) { node.locationId = locationId; }
+    const regionId = asId(r.regionId);
+    if (regionId) { node.regionId = regionId; }
+    const marketLocationId = asId(r.marketLocationId);
+    if (marketLocationId) { node.marketLocationId = marketLocationId; }
+    return node;
+}
+
+/** Optional clamp field; omit when missing or non-finite (do not reject parent). */
+function asOptionalClamped(
+    v: unknown,
+    min: number,
+    max: number
+): number | undefined {
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+        return undefined;
+    }
+    const clamped = Math.max(min, Math.min(max, v));
+    return Object.is(clamped, -0) ? 0 : clamped;
+}
+
+function parseProductionSource(raw: unknown): ProductionSource | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const nodeId = asId(r.nodeId);
+    const commodityId = asId(r.commodityId);
+    const baseOutputPerTick = asFlowAmount(r.baseOutputPerTick);
+    if (!id || !nodeId || !commodityId || baseOutputPerTick === undefined) {
+        return undefined;
+    }
+    const source: ProductionSource = { id, nodeId, commodityId, baseOutputPerTick };
+    const productivePotential = asOptionalClamped(r.productivePotential, 0, 2);
+    if (productivePotential !== undefined) {
+        source.productivePotential = productivePotential;
+    }
+    const condition = asOptionalClamped(r.condition, 0, 1);
+    if (condition !== undefined) {
+        source.condition = condition;
+    }
+    return source;
+}
+
+function parseResourceDemand(raw: unknown): ResourceDemand | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const nodeId = asId(r.nodeId);
+    const commodityId = asId(r.commodityId);
+    const baseDemandPerTick = asFlowAmount(r.baseDemandPerTick);
+    if (!id || !nodeId || !commodityId || baseDemandPerTick === undefined) {
+        return undefined;
+    }
+    return { id, nodeId, commodityId, baseDemandPerTick };
+}
+
+function parseTradeRoute(raw: unknown): TradeRoute | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const fromNodeId = asId(r.fromNodeId);
+    const toNodeId = asId(r.toNodeId);
+    const commodityId = asId(r.commodityId);
+    const capacityPerTick = asFlowAmount(r.capacityPerTick);
+    if (!id || !fromNodeId || !toNodeId || !commodityId || capacityPerTick === undefined) {
+        return undefined;
+    }
+    const route: TradeRoute = { id, fromNodeId, toNodeId, commodityId, capacityPerTick };
+    if (r.baseRisk !== undefined) {
+        if (typeof r.baseRisk === 'number' && Number.isFinite(r.baseRisk)) {
+            const clamped = Math.max(0, Math.min(1, r.baseRisk));
+            route.baseRisk = Object.is(clamped, -0) ? 0 : clamped;
+        }
+        // Non-finite baseRisk is omitted (do not reject the whole route).
+    }
+    if (isEconomyRouteStatus(r.status)) {
+        route.status = r.status as EconomyRouteStatus;
+    }
+    const capacityMultiplier = asOptionalClamped(r.capacityMultiplier, 0, 2);
+    if (capacityMultiplier !== undefined) {
+        route.capacityMultiplier = capacityMultiplier;
+    }
+    const riskDelta = asOptionalClamped(r.riskDelta, -1, 1);
+    if (riskDelta !== undefined) {
+        route.riskDelta = riskDelta;
+    }
+    return route;
+}
+
+/** Positive finite quantity map for recipe inputs/outputs; preserves fractions. */
+function parseQuantityMap(raw: unknown): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return undefined;
+    }
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= MAX_RECIPE_COMMODITIES) { break; }
+        const id = asId(key);
+        if (!id) { continue; }
+        if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > MAX_FLOW_NUMERIC) {
+            continue;
+        }
+        out[id] = Object.is(value, -0) ? 0 : value;
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseProcessingRecipe(raw: unknown): ProcessingRecipe | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    if (!id) { return undefined; }
+    const inputs = parseQuantityMap(r.inputs);
+    const outputs = parseQuantityMap(r.outputs);
+    if (!inputs || !outputs) { return undefined; }
+    return { id, inputs, outputs };
+}
+
+function parseProcessingSite(raw: unknown): ProcessingSite | undefined {
+    if (!raw || typeof raw !== 'object') { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const id = asId(r.id);
+    const nodeId = asId(r.nodeId);
+    const recipeId = asId(r.recipeId);
+    if (!id || !nodeId || !recipeId) { return undefined; }
+    if (typeof r.maxBatchesPerTick !== 'number' || !Number.isFinite(r.maxBatchesPerTick)) {
+        return undefined;
+    }
+    const batches = Math.floor(r.maxBatchesPerTick);
+    if (batches <= 0 || batches > MAX_BATCHES) { return undefined; }
+    const site: ProcessingSite = { id, nodeId, recipeId, maxBatchesPerTick: batches };
+    const condition = asOptionalClamped(r.condition, 0, 1);
+    if (condition !== undefined) {
+        site.condition = condition;
+    }
+    return site;
+}
+
+/**
+ * Parse optional resourceFlows. Returns undefined when missing, malformed,
+ * or empty of usable rows. Does not drop duplicate IDs or bad cross-refs
+ * (Slice 001 diagnostics own those).
+ */
+function parseResourceFlows(raw: unknown): EconomyFlowDefinition | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return undefined;
+    }
+    const r = raw as Record<string, unknown>;
+
+    const nodes = Array.isArray(r.nodes)
+        ? r.nodes.slice(0, MAX_FLOW_NODES).map(parseEconomyNode).filter((x): x is EconomyNode => !!x)
+        : [];
+    const productionSources = Array.isArray(r.productionSources)
+        ? r.productionSources.slice(0, MAX_FLOW_SOURCES).map(parseProductionSource).filter((x): x is ProductionSource => !!x)
+        : [];
+    const demands = Array.isArray(r.demands)
+        ? r.demands.slice(0, MAX_FLOW_DEMANDS).map(parseResourceDemand).filter((x): x is ResourceDemand => !!x)
+        : [];
+    const tradeRoutes = Array.isArray(r.tradeRoutes)
+        ? r.tradeRoutes.slice(0, MAX_FLOW_ROUTES).map(parseTradeRoute).filter((x): x is TradeRoute => !!x)
+        : [];
+    const processingRecipes = Array.isArray(r.processingRecipes)
+        ? r.processingRecipes.slice(0, MAX_PROCESSING_RECIPES).map(parseProcessingRecipe).filter((x): x is ProcessingRecipe => !!x)
+        : [];
+    const processingSites = Array.isArray(r.processingSites)
+        ? r.processingSites.slice(0, MAX_PROCESSING_SITES).map(parseProcessingSite).filter((x): x is ProcessingSite => !!x)
+        : [];
+
+    if (!nodes.length && !productionSources.length && !demands.length && !tradeRoutes.length
+        && !processingRecipes.length && !processingSites.length) {
+        return undefined;
+    }
+
+    const def: EconomyFlowDefinition = { nodes, productionSources, demands, tradeRoutes };
+    if (processingRecipes.length) {
+        def.processingRecipes = processingRecipes;
+    }
+    if (processingSites.length) {
+        def.processingSites = processingSites;
+    }
+    return def;
+}
+
 export function parseCommerceForge(raw: unknown): CommerceForge | undefined {
     if (!raw || typeof raw !== 'object') { return undefined; }
     const r = raw as Record<string, unknown>;
@@ -82,5 +317,11 @@ export function parseCommerceForge(raw: unknown): CommerceForge | undefined {
         : [];
 
     if (!commodities.length || !markets.length) { return undefined; }
-    return { commodities, markets, transportKinds };
+
+    const forge: CommerceForge = { commodities, markets, transportKinds };
+    const resourceFlows = parseResourceFlows(r.resourceFlows);
+    if (resourceFlows) {
+        forge.resourceFlows = resourceFlows;
+    }
+    return forge;
 }

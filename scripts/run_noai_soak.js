@@ -102,6 +102,7 @@ function loadExecutionModules() {
             initializeMarketState: require(path.join(ROOT, 'out', 'commerceCore.js')).initializeMarketState,
             applyTradeOp: require(path.join(ROOT, 'out', 'commerceCore.js')).applyTradeOp,
             tickMarketRecovery: require(path.join(ROOT, 'out', 'worldSimCommerceCore.js')).tickMarketRecovery,
+            resolveEconomyProfileParams: require(path.join(ROOT, 'out', 'worldSimCommerceCore.js')).resolveEconomyProfileParams,
         };
         return executionModules;
     } finally {
@@ -307,6 +308,23 @@ function runScenario(scenario, mode, options) {
     const runId = formatNoaiSoakRunId(startedAt, crypto.randomBytes(3).toString('hex'));
     const plan = planNoaiSoakRunDirectories(ROOT, scenario.id, runId, DEFAULT_NOAI_SOAK_TEMP_ROOT, path.join, path.resolve);
     const report = createEmptyNoaiSoakReport(runId, scenario, mode, startedAt.toISOString());
+    // Resolve the economy pacing profile once. When a scenario omits it, this is
+    // the 'normal' knob set (legacy behavior). Passing the full param object to
+    // the tick lets soak exercise shock magnitudes + price ceiling, not just recovery.
+    const economyParams = mods.resolveEconomyProfileParams(scenario.worldSim.economyProfile);
+    report.economyProfile = scenario.worldSim.economyProfile || 'normal';
+    // Build a per-world difficulty config ONLY when the scenario opts into the
+    // profile system (global tier or per-resource maps). Scenarios that omit all
+    // of these keep economyConfig undefined → legacy single-tier tick path, so
+    // existing regression baselines (merchant_300, market_shock) stay stable.
+    const hasEconomyOptIn = scenario.worldSim.economyProfile !== undefined
+        || scenario.worldSim.economyResourceProfiles !== undefined
+        || scenario.worldSim.economyCommodityProfiles !== undefined;
+    const economyConfig = hasEconomyOptIn ? {
+        globalTier: scenario.worldSim.economyProfile,
+        categoryTiers: scenario.worldSim.economyResourceProfiles,
+        commodityTiers: scenario.worldSim.economyCommodityProfiles,
+    } : undefined;
 
     let keepTemp = options.keepTemp;
     const snapshots = [];
@@ -500,6 +518,8 @@ function runScenario(scenario, mode, options) {
                             const tick = mods.tickMarketRecovery(commerceForge, marketHolder.markets, {
                                 worldTurn: state.worldTurn || 0,
                                 recoveryPerTick: scenario.worldSim.recoveryPerTick,
+                                economyParams,
+                                economyConfig,
                                 stepEvents,
                             });
                             marketHolder.markets = tick.markets;

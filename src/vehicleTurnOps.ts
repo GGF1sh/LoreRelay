@@ -4,14 +4,9 @@ import type { TurnResult } from './types/TurnResult';
 import { loadGameRules } from './gameRules';
 import { vehicleModeEnabled } from './vehicleCore';
 import { loadWorldState } from './worldState';
-import { writeJsonAtomic } from './workspacePaths';
-import { runSerializedVehicleStateMutation } from './workspaceStateQueue';
 import type { TurnLedgerApplyResult } from './turnLedgerPersistCore';
-import {
-    clearVehicleStateCache,
-    getVehicleStatePath,
-    readVehicleStateFromDisk,
-} from './vehicleState';
+import { getVehicleStatePath } from './vehicleState';
+import { runSerializedVehicleStateDocumentMutation } from './vehicleStateDocumentOwner';
 import {
     applyVehicleTurnOpsWithDeps,
     shouldAttemptVehiclePersistCore,
@@ -22,6 +17,7 @@ import {
     emitVehicleWorldIntentBridgeDiagnostics,
     getVehicleWorldIntentBridgeMode,
 } from './vehicleWorldIntentBridge';
+import { getVehicleRepairMode } from './vehicleRepairMode';
 
 export type { VehicleTurnOpsDeps } from './vehicleTurnOpsCore';
 export { applyVehicleTurnOpsWithDeps, tryApplyVehicleTurnOpsWithDeps } from './vehicleTurnOpsCore';
@@ -38,13 +34,12 @@ export function shouldAttemptVehiclePersist(
 const defaultDeps: VehicleTurnOpsDeps = {
     isVehicleSystemEnabled: () => vehicleModeEnabled(loadGameRules()),
     getVehicleStatePath: () => getVehicleStatePath(),
-    readVehicleStateFromDisk: (statePath) => readVehicleStateFromDisk(statePath),
     loadWorldTurn: () => loadWorldState()?.worldTurn,
-    writeVehicleStateAtomic: (statePath, state) => writeJsonAtomic(statePath, state),
-    clearVehicleStateCache: () => clearVehicleStateCache(),
-    runSerializedMutation: (fn) => runSerializedVehicleStateMutation(fn),
+    runSerializedVehicleStateDocumentMutation: (mutationName, mutate) =>
+        runSerializedVehicleStateDocumentMutation(mutationName, mutate),
     getVehicleBridgeMode: () => getVehicleWorldIntentBridgeMode(),
     emitVehicleBridgeDiagnostics: (report) => emitVehicleWorldIntentBridgeDiagnostics(report),
+    getVehicleRepairMode: () => getVehicleRepairMode(),
 };
 
 export function applyVehicleTurnOps(

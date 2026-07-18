@@ -52,7 +52,7 @@ export interface WebviewHandlerDeps {
     generatePortrait(id: string): Promise<void>;
     generateExpression(id: string, expression: string): Promise<void>;
     adaptCharacterToWorld(character: Pick<CharacterProfile, 'name' | 'description' | 'personality' | 'equipment'>): Promise<void>;
-    importTavernCard(): Promise<void>;
+    importTavernCard(): Promise<string | undefined>;
     addToParty(id: string): void;
     removeFromParty(id: string): void;
     summarizeHistory(): Promise<void>;
@@ -85,6 +85,8 @@ export interface WebviewHandlerDeps {
     sendPartyDirector(): void;
     sendWorldView(): void;
     handleSetSettlementViewLayer(layerId: unknown): void;
+    handleSetWorldSettlementFocus(locationId: unknown): void;
+    handleClearWorldSettlementFocus(): void;
     handleObserverWorldTick(mode: 'watch' | 'advance'): void;
     handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
     handleGenerateWorldMapImage(): Promise<void>;
@@ -121,13 +123,20 @@ export interface WebviewHandlerDeps {
     handleEndDayCommit(raw: unknown): Promise<void>;
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
     handleStartParlor(characterId?: string): Promise<void>;
+    handleSwitchParlorCharacter(characterId: string): Promise<void>;
+    handleImportParlorCharacter(): Promise<void>;
     handleStartInWorld(characterId?: string): Promise<void>;
     handleSwitchExperienceProfile(profile: unknown): Promise<void>;
     sendParlorSettingsToWebview(): void;
     handleSetParlorConnectionProfile(profileId: string): void;
     handleSaveParlorPersona(raw: unknown): void;
+    handleSelectParlorPersonaPreset(id: string | null): void;
+    handleSaveNewParlorPersonaPreset(raw: unknown, meta?: unknown): void;
+    handleUpdateParlorPersonaPreset(id: string, raw: unknown): void;
+    handleCreateParlorPersonaFromCharacter(): Promise<void>;
+    handleImportParlorPersonaJson(): Promise<void>;
     handleSetParlorBackground(backgroundId: string | null): void;
-    handlePromoteParlor(): Promise<void>;
+    handlePromoteParlor(intent?: 'auto' | 'resume' | 'fresh'): Promise<void>;
     handlePreviewGmTurnTransactionPlan(): Promise<void>;
     handleRetryFailedTransactions(): Promise<void>;
     handleSetAntigravityRelayMode(enabled: boolean): Promise<void>;
@@ -231,6 +240,12 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'setSettlementViewLayer':
             deps.handleSetSettlementViewLayer(message.layerId);
             break;
+        case 'setWorldSettlementFocus':
+            deps.handleSetWorldSettlementFocus(message.locationId);
+            break;
+        case 'clearWorldSettlementFocus':
+            deps.handleClearWorldSettlementFocus();
+            break;
         case 'observerWorldTick': {
             const mode = message.mode === 'advance' ? 'advance' : 'watch';
             deps.handleObserverWorldTick(mode);
@@ -312,6 +327,13 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'setActiveCharacter':
             if (isValidCharacterId(message.id)) {
                 deps.setActiveCharacter(message.id);
+            } else {
+                vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+            }
+            break;
+        case 'switchParlorCharacter':
+            if (isValidCharacterId(message.id)) {
+                await deps.handleSwitchParlorCharacter(message.id);
             } else {
                 vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
             }
@@ -604,6 +626,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'requestParlorSettings':
             deps.sendParlorSettingsToWebview();
             break;
+        case 'importParlorTavernCard':
+            await deps.handleImportParlorCharacter();
+            break;
         case 'setParlorConnectionProfile':
             if (typeof message.profileId === 'string') {
                 deps.handleSetParlorConnectionProfile(message.profileId);
@@ -611,6 +636,25 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'saveParlorPersona':
             deps.handleSaveParlorPersona(message.persona);
+            break;
+        case 'selectParlorPersonaPreset':
+            if (message.id === null || typeof message.id === 'string') {
+                deps.handleSelectParlorPersonaPreset(message.id);
+            }
+            break;
+        case 'saveNewParlorPersonaPreset':
+            deps.handleSaveNewParlorPersonaPreset(message.persona, message.meta);
+            break;
+        case 'updateParlorPersonaPreset':
+            if (typeof message.id === 'string') {
+                deps.handleUpdateParlorPersonaPreset(message.id, message.persona);
+            }
+            break;
+        case 'createParlorPersonaFromCharacter':
+            await deps.handleCreateParlorPersonaFromCharacter();
+            break;
+        case 'importParlorPersonaJson':
+            await deps.handleImportParlorPersonaJson();
             break;
         case 'setParlorBackground': {
             const bgId = message.backgroundId;
@@ -621,9 +665,14 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         }
-        case 'promoteParlor':
-            await deps.handlePromoteParlor();
+        case 'promoteParlor': {
+            const rawIntent = (message as { intent?: unknown }).intent;
+            const intent = rawIntent === 'resume' || rawIntent === 'fresh' || rawIntent === 'auto'
+                ? rawIntent
+                : 'auto';
+            await deps.handlePromoteParlor(intent);
             break;
+        }
         default:
             break;
     }

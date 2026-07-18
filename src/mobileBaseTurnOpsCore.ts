@@ -1,4 +1,5 @@
 // Mobile Base System MB3: persist turn_result.mobileBaseOps to vehicle_state.json.
+// PRE2: normal writes go through the vehicle state document owner (version-preserving).
 
 import type { MobileBaseRuleFlags } from './mobileBaseCore';
 import { mobileBaseSystemEnabled } from './mobileBaseCore';
@@ -8,17 +9,25 @@ import {
     parseMobileBaseOps,
     shouldAttemptMobileBasePersistCore,
 } from './mobileBaseOpsCore';
-
 export { shouldAttemptMobileBasePersistCore } from './mobileBaseOpsCore';
+
+/** Result shape from vehicleStateDocumentOwner.runSerializedVehicleStateDocumentMutation. */
+export interface MobileBaseDocumentMutationOutcome {
+    ok: boolean;
+    applied: boolean;
+    attempted?: boolean;
+    reason?: string;
+}
 
 export interface MobileBaseTurnOpsDeps {
     loadRuleFlags: () => MobileBaseRuleFlags | undefined;
     getVehicleStatePath: () => string | undefined;
-    readVehicleStateFromDisk: (statePath?: string) => VehicleState | undefined;
     loadWorldTurn: () => number | undefined;
-    writeVehicleStateAtomic: (statePath: string, state: VehicleState) => void;
-    clearVehicleStateCache: () => void;
-    runSerializedMutation: (fn: () => void) => void;
+    /** Document-aware owner path (v1/v2 preserving). Shared queue with vehicleOps. */
+    runSerializedVehicleStateDocumentMutation: (
+        mutationName: string,
+        mutateMechanicalState: (current: VehicleState) => VehicleState | undefined
+    ) => MobileBaseDocumentMutationOutcome;
 }
 
 export interface MobileBaseTurnOpsResult {
@@ -44,31 +53,23 @@ export function tryApplyMobileBaseTurnOpsWithDeps(
         return { ok: true, applied: false, attempted: false };
     }
 
-    const result: MobileBaseTurnOpsResult = { ok: true, applied: false, attempted: true };
-    try {
-        deps.runSerializedMutation(() => {
-            const current = deps.readVehicleStateFromDisk(statePath);
-            if (!current) {
-                return;
-            }
+    const mutation = deps.runSerializedVehicleStateDocumentMutation(
+        'mobileBaseOps',
+        (current) => {
             const worldTurn = deps.loadWorldTurn();
             const next = applyMobileBaseOps(current, ops, { worldTurn });
             if (!next || JSON.stringify(current) === JSON.stringify(next)) {
-                return;
+                return undefined;
             }
-            try {
-                deps.writeVehicleStateAtomic(statePath, next);
-                deps.clearVehicleStateCache();
-                result.applied = true;
-            } catch (e) {
-                result.ok = false;
-                console.warn('[mobileBaseTurnOps] failed to save vehicle_state.json', e);
-            }
-        });
-    } catch {
-        return { ok: false, applied: false, attempted: true };
-    }
-    return result;
+            return next;
+        }
+    );
+
+    return {
+        ok: mutation.ok,
+        applied: mutation.applied,
+        attempted: true,
+    };
 }
 
 export function applyMobileBaseTurnOpsWithDeps(

@@ -55,14 +55,49 @@ function eq(actual, expected, m) {
     eq(n.economyProfile, 'normal', 'default economyProfile');
 }
 
-// economyProfile: valid values, missing, invalid
+// economyProfile: 5-tier scale, legacy aliases, missing, invalid
 {
-    eq(normalizeGameRules({ economyProfile: 'easy' }).economyProfile, 'easy', 'economyProfile easy');
+    eq(normalizeGameRules({ economyProfile: 'abundant' }).economyProfile, 'abundant', 'economyProfile abundant');
+    eq(normalizeGameRules({ economyProfile: 'plentiful' }).economyProfile, 'plentiful', 'economyProfile plentiful');
     eq(normalizeGameRules({ economyProfile: 'normal' }).economyProfile, 'normal', 'economyProfile normal');
-    eq(normalizeGameRules({ economyProfile: 'harsh' }).economyProfile, 'harsh', 'economyProfile harsh');
+    eq(normalizeGameRules({ economyProfile: 'scarce' }).economyProfile, 'scarce', 'economyProfile scarce');
+    eq(normalizeGameRules({ economyProfile: 'barren' }).economyProfile, 'barren', 'economyProfile barren');
+    // legacy aliases canonicalize
+    eq(normalizeGameRules({ economyProfile: 'easy' }).economyProfile, 'plentiful', 'legacy easy → plentiful');
+    eq(normalizeGameRules({ economyProfile: 'harsh' }).economyProfile, 'scarce', 'legacy harsh → scarce');
     eq(normalizeGameRules({}).economyProfile, 'normal', 'missing economyProfile → normal');
     eq(normalizeGameRules({ economyProfile: 'brutal' }).economyProfile, 'normal', 'invalid economyProfile → normal');
     eq(normalizeGameRules({ economyProfile: 3 }).economyProfile, 'normal', 'non-string economyProfile → normal');
+}
+
+// economyResourceProfiles / economyCommodityProfiles / economyResourceModifiers
+{
+    const rp = normalizeGameRules({
+        economyResourceProfiles: { staple: 'barren', material: 'abundant', junk: 'nope' },
+    }).economyResourceProfiles;
+    eq(rp.staple, 'barren', 'category staple tier kept');
+    eq(rp.material, 'abundant', 'category material tier kept');
+    eq(rp.junk, undefined, 'invalid tier value dropped');
+
+    // legacy alias inside the map is canonicalized too
+    const rpAlias = normalizeGameRules({
+        economyCommodityProfiles: { sakuradite: 'abundant', ore: 'harsh' },
+    }).economyCommodityProfiles;
+    eq(rpAlias.sakuradite, 'abundant', 'custom resource tier kept');
+    eq(rpAlias.ore, 'scarce', 'legacy alias inside commodity map canonicalized');
+
+    // modifiers: finite numbers clamped to [0,3], non-numbers dropped
+    const mods = normalizeGameRules({
+        economyResourceModifiers: { fuel: 2, water: 9, bad: 'x', ammo: -1 },
+    }).economyResourceModifiers;
+    eq(mods.fuel, 2, 'modifier kept');
+    eq(mods.water, 3, 'modifier clamped to 3');
+    eq(mods.ammo, 0, 'negative modifier clamped to 0');
+    eq(mods.bad, undefined, 'non-number modifier dropped');
+
+    // absent maps stay undefined (no churn)
+    eq(normalizeGameRules({}).economyResourceProfiles, undefined, 'absent resource profiles → undefined');
+    eq(normalizeGameRules({}).economyResourceModifiers, undefined, 'absent modifiers → undefined');
 }
 
 // load-time clamp: negative maxNamedNpcCount

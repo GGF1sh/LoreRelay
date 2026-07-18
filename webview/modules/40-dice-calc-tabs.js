@@ -204,10 +204,14 @@ function activateStatusPane(targetId) {
   }
 
   document.querySelectorAll('#status-tabs .tab-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.target === targetId);
+    const isActive = b.dataset.target === targetId;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
   document.querySelectorAll('#status-area .tab-pane').forEach((p) => {
-    p.classList.toggle('active', p.id === targetId);
+    const isActive = p.id === targetId;
+    p.classList.toggle('active', isActive);
+    p.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     // display は .tab-pane.active の CSS に任せる（inline style と !important の競合を避ける）
     p.style.removeProperty('display');
   });
@@ -229,6 +233,42 @@ function activateStatusPane(targetId) {
   }
   return true;
 }
+
+const PARLOR_STATUS_PANES = new Set([
+  'pane-character',
+  'pane-lorebook',
+  'pane-memory',
+  'pane-ooc',
+]);
+
+/** Keep Parlor's useful right pane while hiding only CRPG/world-management tabs. */
+function syncStatusTabsForExperienceProfile(profile) {
+  const parlor = profile === 'parlor';
+  const buttons = Array.from(document.querySelectorAll('#status-tabs .tab-btn'));
+  const panes = Array.from(document.querySelectorAll('#status-area .tab-pane'));
+  const statusArea = document.getElementById('status-area');
+  const currentTarget = buttons.find((button) => button.classList.contains('active'))?.dataset.target
+    || statusArea?.dataset.activePane
+    || 'pane-status';
+
+  buttons.forEach((button) => {
+    const allowed = !parlor || PARLOR_STATUS_PANES.has(button.dataset.target);
+    button.classList.toggle('profile-parlor-hidden', !allowed);
+    button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+    button.tabIndex = allowed ? 0 : -1;
+  });
+  panes.forEach((pane) => {
+    const allowed = !parlor || PARLOR_STATUS_PANES.has(pane.id);
+    pane.classList.toggle('profile-parlor-hidden', !allowed);
+  });
+
+  const nextTarget = parlor && !PARLOR_STATUS_PANES.has(currentTarget)
+    ? 'pane-character'
+    : currentTarget;
+  activateStatusPane(nextTarget);
+}
+
+window.syncStatusTabsForExperienceProfile = syncStatusTabsForExperienceProfile;
 
 const statusTabs = document.getElementById('status-tabs');
 if (statusTabs) {

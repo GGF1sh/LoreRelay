@@ -42,8 +42,23 @@ interface ClockRef {
   clock: 'world' | 'gm' | 'domainMonth' | 'guildDrift' | 'simTick';
   value: number;
 }
+
+interface ClockSpan {
+  clock: ClockRef['clock'];
+  amount: number;
+}
 ```
 *Rule:* Always distinguish between `gmTurn` (narrative dialog time) and `worldTurn` (background simulation time).
+
+`ClockRef` identifies a position on one clock. `ClockSpan` identifies a bounded amount proposed
+or applied on one clock; a previewed span is not proof that time advanced.
+
+### Action lifecycle artifacts
+
+`ActionPreview` describes what would happen against specifically witnessed state. `EffectPlan`
+describes the ordered, typed mutations intended after confirmation and witness validation.
+`CommitReceipt` is durable factual evidence of what the canonical ledger owners actually
+committed. An `ActionPreview` or `EffectPlan` must never be described as completed or persisted.
 
 ## 3. Subsystems & Architecture Domains
 

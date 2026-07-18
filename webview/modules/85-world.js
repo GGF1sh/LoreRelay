@@ -38,6 +38,8 @@ const WORLD_MAP_MODE_KEY = 'lorerelay.worldMapMode';
 let _worldViewMsg = null;
 let _selectedPinId = null;
 let _worldPinCatalog = new Map();
+let _pendingWorldLocationFocusId = null;
+let _worldLocationFocusClearTimer = null;
 const WORLD_PIN_HIT_RADIUS_PX = 22;
 let _worldPinDismissReady = false;
 let _regionFeedbackMap = new Map();
@@ -223,6 +225,7 @@ function renderWorldView(msg) {
     currentWorldLocationId = msg.currentLocationId;
     _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
+    renderWorldLocationNavigator();
     rebuildRegionFeedbackMap(msg);
     maybeFlashHighDangerEntry(msg);
     if (genImageBtn) {
@@ -234,8 +237,15 @@ function renderWorldView(msg) {
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
     _settlementWorldMsg = msg;
-    syncSettlementMapModeUi(msg);
     _dioramaWorldMsg = msg;
+    // SETTLEMENT-VIEW-SOURCE-001: normalize fixed vs Mobile Base choice before drawing.
+    if (typeof onSettlementRenderSourceWorldMsg === 'function') {
+        onSettlementRenderSourceWorldMsg(msg);
+    }
+    if (typeof renderSettlementSourceSelector === 'function') {
+        renderSettlementSourceSelector(msg);
+    }
+    syncSettlementMapModeUi(msg);
     syncDioramaMapModeUi(msg);
     syncWorldPinSelectionUi();
 
@@ -284,6 +294,9 @@ function renderWorldView(msg) {
         msg.currentLocationId
     );
 
+    // Read-only economy logistics network (NOAI-ECON-FLOWS-005)
+    renderEconomyLogistics(msg.economyLogistics || null, msg.enableCommerce === true);
+
     // Living World NPC whereabouts
     renderNpcWhereabouts(msg.npcWhereabouts || null);
 
@@ -327,6 +340,7 @@ function ensureCartographyStyles() {
         .world-map-items-section.hidden { display: none !important; }
         #world-commerce-details.hidden { display: none !important; }
         #world-markets-details.hidden { display: none !important; }
+        #world-logistics-details.hidden { display: none !important; }
         #world-npc-whereabouts-details.hidden { display: none !important; }
         .world-commerce-row {
             display: flex;
@@ -972,6 +986,78 @@ function rebuildWorldPinCatalog(msg) {
     }
 }
 
+/** Catalog order and membership never depend on Settlement/Diorama data
+ * availability (only on `fogVisibility === 'discovered'`), so the button row
+ * itself is already stable across location switches. What this function must
+ * still protect is keyboard focus: every call fully rebuilds the DOM nodes,
+ * and a worldView message following a click (near-immediate) used to drop
+ * focus back to <body> the instant the user's own click had set it. */
+function renderWorldLocationNavigator() {
+    const el = document.getElementById('world-location-navigator');
+    if (!el) { return; }
+    const locations = [..._worldPinCatalog.values()].filter((pin) => (
+        pin && pin.locationId && pin.locationName && pin.fogVisibility === 'discovered'
+    ));
+    if (!locations.length) {
+        el.innerHTML = '';
+        el.classList.add('hidden');
+        return;
+    }
+    const activeElement = (typeof document.activeElement !== 'undefined') ? document.activeElement : null;
+    const focusedLocationId = (activeElement && activeElement.classList
+        && activeElement.classList.contains('world-location-chip'))
+        ? activeElement.dataset.locationId
+        : _pendingWorldLocationFocusId;
+    el.classList.remove('hidden');
+    el.innerHTML = '';
+    const title = document.createElement('span');
+    title.className = 'world-location-navigator-title';
+    title.textContent = T('webview.world.locationNavigator');
+    el.appendChild(title);
+    let focusTarget = null;
+    for (const pin of locations) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'world-location-chip';
+        btn.dataset.locationId = pin.locationId;
+        btn.textContent = `${LOCATION_TYPE_ICON[pin.locationType] || LOCATION_TYPE_ICON.other} ${pin.locationName}`;
+        btn.title = pin.regionName ? `${pin.locationName} · ${pin.regionName}` : pin.locationName;
+        const selected = pin.locationId === _selectedPinId;
+        btn.classList.toggle('is-selected', selected);
+        btn.classList.toggle('is-current', pin.locationId === currentWorldLocationId);
+        btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            // Keep the user's chosen focus target across the asynchronous
+            // host round-trip, even if Chromium briefly reports <body> while
+            // the Webview message rebuilds this row.
+            _pendingWorldLocationFocusId = pin.locationId;
+            if (_worldLocationFocusClearTimer && typeof clearTimeout === 'function') {
+                clearTimeout(_worldLocationFocusClearTimer);
+                _worldLocationFocusClearTimer = null;
+            }
+            selectWorldLocationPin(pin.locationId);
+        });
+        el.appendChild(btn);
+        if (pin.locationId === focusedLocationId) { focusTarget = btn; }
+    }
+    if (focusTarget && typeof focusTarget.focus === 'function') {
+        focusTarget.focus({ preventScroll: true });
+        if (typeof setTimeout === 'function') {
+            if (_worldLocationFocusClearTimer && typeof clearTimeout === 'function') {
+                clearTimeout(_worldLocationFocusClearTimer);
+            }
+            _worldLocationFocusClearTimer = setTimeout(() => {
+                const active = document.activeElement;
+                if (active && active.dataset?.locationId === focusedLocationId) {
+                    _pendingWorldLocationFocusId = null;
+                }
+                _worldLocationFocusClearTimer = null;
+            }, 750);
+        }
+    }
+}
+
 function rebuildRegionFeedbackMap(msg) {
     _regionFeedbackMap = new Map();
     const rows = Array.isArray(msg.regionMapFeedback) ? msg.regionMapFeedback : [];
@@ -1051,19 +1137,42 @@ function findWorldPinMeta(locationId) {
     return _worldPinCatalog.get(locationId) || null;
 }
 
+function postWorldSettlementFocus(locationId) {
+    if (!locationId || typeof locationId !== 'string') { return; }
+    vscode.postMessage({ type: 'setWorldSettlementFocus', locationId });
+}
+
+function postClearWorldSettlementFocus() {
+    vscode.postMessage({ type: 'clearWorldSettlementFocus' });
+}
+
 function clearWorldPinSelection() {
     _selectedPinId = null;
     syncWorldPinSelectionUi();
     renderWorldLocationDetailPanel();
+    // Dismissing pin selection also clears remote settlement preview focus.
+    postClearWorldSettlementFocus();
 }
 
 function selectWorldLocationPin(locationId) {
     const meta = findWorldPinMeta(locationId);
     if (!meta) { return; }
     if (meta.fogVisibility === 'rumored' || meta.fogVisibility === 'unknown') { return; }
-    _selectedPinId = (_selectedPinId === locationId) ? null : locationId;
+    const next = (_selectedPinId === locationId) ? null : locationId;
+    _selectedPinId = next;
     syncWorldPinSelectionUi();
     renderWorldLocationDetailPanel();
+    // Reuse World-pin selection for settlement diorama preview (does not travel).
+    if (!next) {
+        postClearWorldSettlementFocus();
+        return;
+    }
+    if (next === currentWorldLocationId) {
+        // Selecting current pin normalizes to current-location settlement display.
+        postClearWorldSettlementFocus();
+        return;
+    }
+    postWorldSettlementFocus(next);
 }
 
 function postWorldInsertChatText(text) {
@@ -1173,10 +1282,13 @@ function renderWorldLocationDetailPanel() {
 }
 
 function syncWorldPinSelectionUi() {
-    document.querySelectorAll('.world-map-pin[data-location-id]').forEach((el) => {
+    document.querySelectorAll('.world-map-pin[data-location-id], .world-location-chip[data-location-id]').forEach((el) => {
         const id = el.getAttribute('data-location-id');
         const selected = Boolean(id && id === _selectedPinId);
         el.classList.toggle('is-selected', selected);
+        if (el.classList.contains('world-location-chip')) {
+            el.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        }
         const wrap = el.closest('.world-map-pin-wrap');
         if (wrap) { wrap.classList.toggle('is-selected', selected); }
     });
@@ -1322,54 +1434,56 @@ function hasSettlementMapContent(msg) {
     if (msg.enableMobileBaseSystem === true && interior && !interior.interiorBlocked && interior.hasCanvas) {
         return true;
     }
-    return msg.enableSettlementMode === true && Boolean(msg.settlementView);
+    if (msg.enableSettlementMode !== true) {
+        return false;
+    }
+    // Available canvas, or honest empty/invalid display context (SLICE2 preview/current).
+    if (msg.settlementView) {
+        return true;
+    }
+    return Boolean(msg.settlementDisplayContext);
 }
 
+/** Mermaid, parchment, and tile are never campaign-gated: this is the one
+ * mode always safe to fall back to when a persisted mode becomes unavailable. */
+const WORLD_MAP_MODE_SAFE_FALLBACK = 'mermaid';
+
+/** A persisted mode (localStorage) that a *previous* campaign supported can
+ * outlive that campaign. This distinguishes the two causes a mode can be
+ * unavailable so only a genuine capability loss forces a fallback:
+ *   - "this location has no data" (location-level) -> keep the mode selected,
+ *     the panel renders its own honest empty state;
+ *   - "this campaign does not have the feature at all" (campaign-level) ->
+ *     the mode cannot be restored from storage and must fall back once. */
 function syncSettlementMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-settlement');
     if (!btn) { return; }
-    const show = hasSettlementMapContent(msg);
-    btn.classList.toggle('hidden', !show);
-    if (!show && worldMapMode === 'settlement') {
-        setWorldMapMode('mermaid', { persist: true });
+    const campaignSupportsSettlement = Boolean(msg && (
+        msg.enableSettlementMode === true
+        || msg.enableMobileBaseSystem === true
+        || hasSettlementMapContent(msg)
+    ));
+    btn.classList.toggle('hidden', !campaignSupportsSettlement);
+    if (!campaignSupportsSettlement && worldMapMode === 'settlement') {
+        setWorldMapMode(WORLD_MAP_MODE_SAFE_FALLBACK, { persist: true });
     }
 }
 
-/** M5b: Diorama button only appears when the flag is on AND the host sent a non-empty snapshot. */
+/** Diorama is a persistent campaign mode even when the focused location has no snapshot. */
 function syncDioramaMapModeUi(msg) {
     const btn = document.getElementById('world-map-mode-diorama');
     if (!btn) { return; }
-    const snapshot = msg.settlementDiorama;
-    const hasContent = Boolean(snapshot && (
-        (Array.isArray(snapshot.blocks) && snapshot.blocks.length > 0)
-        || (Array.isArray(snapshot.markers) && snapshot.markers.length > 0)
-    ));
-    const show = msg.enableSettlementDiorama === true && hasContent;
-    btn.classList.toggle('hidden', !show);
-    if (!show && worldMapMode === 'diorama') {
-        setWorldMapMode('mermaid', { persist: true });
+    const campaignSupportsDiorama = Boolean(msg && msg.enableSettlementDiorama === true);
+    btn.classList.toggle('hidden', !campaignSupportsDiorama);
+    if (!campaignSupportsDiorama && worldMapMode === 'diorama') {
+        setWorldMapMode(WORLD_MAP_MODE_SAFE_FALLBACK, { persist: true });
     }
 }
 
 function setWorldMapMode(mode, options = {}) {
     const persist = options.persist !== false;
-    if (mode === 'settlement') {
-        const btn = document.getElementById('world-map-mode-settlement');
-        if (btn?.classList.contains('hidden')) {
-            worldMapMode = 'mermaid';
-        } else {
-            worldMapMode = 'settlement';
-        }
-    } else if (mode === 'diorama') {
-        const btn = document.getElementById('world-map-mode-diorama');
-        if (btn?.classList.contains('hidden')) {
-            worldMapMode = 'mermaid';
-        } else {
-            worldMapMode = 'diorama';
-        }
-    } else {
-        worldMapMode = (mode === 'parchment' || mode === 'tile') ? mode : 'mermaid';
-    }
+    const supported = new Set(['mermaid', 'parchment', 'tile', 'settlement', 'diorama']);
+    worldMapMode = supported.has(mode) ? mode : WORLD_MAP_MODE_SAFE_FALLBACK;
     if (persist) {
         try { localStorage.setItem(WORLD_MAP_MODE_KEY, worldMapMode); } catch { /* ignore */ }
     }
@@ -2069,6 +2183,7 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
 
     const visible = commerceEnabled && commerce && typeof commerce.credits === 'number';
     section.classList.toggle('hidden', !visible);
+    section.querySelector('.world-simulation-actions')?.remove();
     if (hint) {
         hint.textContent = commerceUiEnabled
             ? T('webview.world.commerceHintInteractive')
@@ -2110,7 +2225,30 @@ function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, play
     if (commerceUiEnabled) {
         const hubOpen = document.getElementById('player-action-hub-open');
         if (hubOpen) {
+            hubOpen.textContent = T('webview.world.actionHubOpen');
+            const hubHint = hubOpen.nextElementSibling;
+            if (hubHint) { hubHint.textContent = T('webview.world.simulationActionsDescription'); }
+            const indicator = document.createElement('div');
+            indicator.className = 'world-simulation-actions img-gen-hint';
+            indicator.setAttribute('role', 'status');
+            indicator.innerHTML = `<strong>${escapeHtml(T('webview.world.simulationActionsTitle'))}</strong>`;
+            const heading = section.querySelector('summary');
+            if (heading) { heading.after(indicator); }
             hubOpen.addEventListener('click', () => openPlayerActionHub(hubOpen));
+            if (cargo.length === 0) {
+                const emptyCargo = document.createElement('div');
+                emptyCargo.className = 'world-commerce-empty-cargo';
+                const guidance = document.createElement('p');
+                guidance.className = 'img-gen-hint';
+                guidance.textContent = T('webview.world.emptyCargoGuidance');
+                const action = document.createElement('button');
+                action.type = 'button';
+                action.className = 'world-market-trade-btn';
+                action.textContent = T('webview.world.emptyCargoAction');
+                action.addEventListener('click', () => openPlayerActionHub(action));
+                emptyCargo.append(guidance, action);
+                hubOpen.after(emptyCargo);
+            }
         }
         const roleSelect = document.getElementById('world-commerce-role-select');
         if (roleSelect) {
@@ -2249,6 +2387,109 @@ function hubHeldQty(commerce, commodityId) {
     return entry ? (entry.qty ?? 0) : 0;
 }
 
+/** Deterministic, presentation-only projection of a proposed trade.
+ * The host remains authoritative: this helper never mutates state or posts a message. */
+/** Distinguishes an honest "unknown" (null/undefined/non-numeric) from an
+ * actual numeric zero. `Number(null) === 0` and `Number(undefined) === NaN`
+ * both defeat a naive `Number(x) || 0` fallback: null silently becomes a
+ * real-looking zero. Never use that pattern for capacity/weight fields that
+ * the host may legitimately not know yet. */
+function numberOrNull(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function buildHubTradeProjection(commerce, quote, operation, rawQty) {
+    const qty = Number(rawQty);
+    const op = operation === 'sell' ? 'sell' : 'buy';
+    const unitPrice = Number(quote?.unitPrice) || 0;
+    const unitWeight = Math.max(0, Number(quote?.unitWeight) || 0);
+    const stockBefore = Math.max(0, Number(quote?.stock) || 0);
+    const moneyBefore = Number(commerce?.credits) || 0;
+    const cargoBeforeKnown = numberOrNull(commerce?.cargoWeight);
+    const cargoWeightUnknown = cargoBeforeKnown === null;
+    const cargoBefore = cargoWeightUnknown ? null : Math.max(0, cargoBeforeKnown);
+    const capacityKnown = numberOrNull(commerce?.cargoCapacity);
+    const capacity = capacityKnown === null ? null : Math.max(0, capacityKnown);
+    const heldBefore = quote ? hubHeldQty(commerce, quote.commodityId) : 0;
+    const qtyValid = Number.isInteger(qty) && qty >= 1 && qty <= 999;
+    const total = qtyValid ? Math.round(unitPrice * qty) : 0;
+    const direction = op === 'buy' ? 1 : -1;
+    const moneyAfter = moneyBefore - (direction * total);
+    const cargoAfter = cargoWeightUnknown
+        ? null
+        : Math.max(0, cargoBefore + (direction * unitWeight * (qtyValid ? qty : 0)));
+    const stockAfter = Math.max(0, stockBefore - (direction * (qtyValid ? qty : 0)));
+    const heldAfter = Math.max(0, heldBefore + (direction * (qtyValid ? qty : 0)));
+    let reasonKey = null;
+    if (!quote) { reasonKey = 'webview.world.actionHubTradeReasonNoCommodity'; }
+    else if (!qtyValid) { reasonKey = 'webview.world.actionHubTradeReasonQuantity'; }
+    else if (op === 'buy' && stockBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonStock'; }
+    else if (op === 'sell' && heldBefore < qty) { reasonKey = 'webview.world.actionHubTradeReasonHeld'; }
+    else if (op === 'buy' && moneyBefore < total) { reasonKey = 'webview.world.actionHubTradeReasonCredits'; }
+    // The projection would otherwise have to invent a "before" figure to show
+    // an "after" figure. An unknown baseline blocks confirmation honestly
+    // rather than silently defaulting cargo weight to zero.
+    else if (cargoWeightUnknown) { reasonKey = 'webview.world.actionHubTradeReasonCargoUnknown'; }
+    // Capacity only gates buying (adding cargo); selling never needs it.
+    else if (op === 'buy' && capacity === null) { reasonKey = 'webview.world.actionHubTradeReasonCapacityUnknown'; }
+    else if (op === 'buy' && capacity !== null && cargoAfter > capacity) { reasonKey = 'webview.world.actionHubTradeReasonCapacity'; }
+    return {
+        valid: !reasonKey,
+        reasonKey,
+        op,
+        qty,
+        unitPrice,
+        total,
+        moneyBefore,
+        moneyAfter,
+        cargoBefore,
+        cargoAfter,
+        capacity,
+        stockBefore,
+        stockAfter,
+        heldBefore,
+        heldAfter,
+    };
+}
+
+function hubTradeProjectionValue(value) {
+    return value === null || value === undefined ? T('webview.world.actionHubTradeUnknown') : formatMarketNumber(value);
+}
+
+function hubRenderTradeProjection() {
+    if (!_playerActionHub || !_hubMarket) { return null; }
+    const commoditySelect = _playerActionHub.querySelector('#shopkeeper-commodity');
+    const qtyInput = _playerActionHub.querySelector('#shopkeeper-qty');
+    const selectedOp = _playerActionHub.querySelector('input[name="shopkeeper-op"]:checked');
+    if (!commoditySelect || !qtyInput || !selectedOp) { return null; }
+    const quote = _hubMarket.quotes.find((candidate) => candidate.commodityId === commoditySelect.value);
+    const commerce = (_worldViewMsg && _worldViewMsg.playerCommerce) || {};
+    const projection = buildHubTradeProjection(commerce, quote, selectedOp.value, Number(qtyInput.value));
+    const values = {
+        unit: projection.unitPrice,
+        total: projection.total,
+        money: projection.moneyAfter,
+        cargo: projection.cargoAfter,
+        capacity: projection.capacity,
+        stock: projection.stockAfter,
+        held: projection.heldAfter,
+    };
+    Object.entries(values).forEach(([name, value]) => {
+        const element = _playerActionHub.querySelector(`[data-trade-value="${name}"]`);
+        if (element) { element.textContent = hubTradeProjectionValue(value); }
+    });
+    const reason = _playerActionHub.querySelector('#shopkeeper-disabled-reason');
+    if (reason) {
+        reason.hidden = projection.valid;
+        reason.textContent = projection.reasonKey ? T(projection.reasonKey) : '';
+    }
+    _playerActionHub.querySelectorAll('.player-action-hub__radio').forEach((label) => {
+        const input = label.querySelector('input[name="shopkeeper-op"]');
+        label.classList.toggle('is-selected', !!input?.checked);
+    });
+    return projection;
+}
+
 function hubCommodityName(commodityId) {
     if (!commodityId) { return '?'; }
     const quotes = _hubMarket && Array.isArray(_hubMarket.quotes) ? _hubMarket.quotes : [];
@@ -2267,10 +2508,11 @@ function renderHubHeader() {
     const msg = _worldViewMsg || {};
     const commerce = msg.playerCommerce || {};
     const rows = [
-        ['現在地', hubLocationName(msg)],
+        [T('webview.world.actionHubCurrentLocation'), hubLocationName(msg)],
         [T('webview.world.commerceCredits'), commerce.credits ?? 0],
         [T('webview.world.commerceFood'), commerce.food ?? 0],
-        [T('webview.world.commerceTransport'), commerce.transportId || 'wagon'],
+        [T('webview.world.commerceTransport'), commerce.transportName || commerce.transportId || 'wagon'],
+        [T('webview.world.actionHubTradeCapacity'), `${hubTradeProjectionValue(commerce.cargoWeight ?? 0)} / ${hubTradeProjectionValue(commerce.cargoCapacity)}`],
         [T('webview.world.commerceCargo'), hubCargoSummary(commerce)],
     ];
     status.innerHTML = rows.map(([label, value]) =>
@@ -2370,32 +2612,48 @@ function hubRenderTradeBody() {
     if (!_hubMarket) {
         body.innerHTML = '<p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite" data-state="empty">現在地に取引できる市場がありません。「旅」から市場のある場所へ移動してください。</p>';
         _shopkeeperPreviewReady = false;
+        localizePlayerActionHub();
         return;
     }
     body.innerHTML = `
-      <label class="player-action-hub__field">品目
+      <div class="player-action-hub__trade-composer">
+      <label class="player-action-hub__field">${escapeHtml(T('webview.world.actionHubCommodity'))}
         <select id="shopkeeper-commodity" class="player-action-hub__select"></select>
       </label>
       <fieldset class="player-action-hub__field player-action-hub__ops">
-        <legend>操作</legend>
-        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="buy" checked> 購入</label>
-        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="sell"> 売却</label>
+        <legend>${escapeHtml(T('webview.world.actionHubTradeOperation'))}</legend>
+        <label class="player-action-hub__radio is-selected"><input type="radio" name="shopkeeper-op" value="buy" checked> ${escapeHtml(T('webview.world.actionHubTradeBuy'))}</label>
+        <label class="player-action-hub__radio"><input type="radio" name="shopkeeper-op" value="sell"> ${escapeHtml(T('webview.world.actionHubTradeSell'))}</label>
       </fieldset>
       <div class="player-action-hub__field player-action-hub__qty">
-        <span class="player-action-hub__qty-label" id="shopkeeper-qty-label">数量</span>
+        <span class="player-action-hub__qty-label" id="shopkeeper-qty-label">${escapeHtml(T('webview.world.actionHubTradeQuantity'))}</span>
         <div class="player-action-hub__stepper" role="group" aria-labelledby="shopkeeper-qty-label">
-          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-dec" aria-label="数量を1減らす">−</button>
+          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-dec" aria-label="${escapeHtml(T('webview.world.actionHubTradeDecrease'))}">−</button>
           <input id="shopkeeper-qty" class="player-action-hub__qty-input" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" aria-labelledby="shopkeeper-qty-label">
-          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-inc" aria-label="数量を1増やす">＋</button>
+          <button type="button" class="player-action-hub__step" id="shopkeeper-qty-inc" aria-label="${escapeHtml(T('webview.world.actionHubTradeIncrease'))}">＋</button>
         </div>
       </div>
-      <p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite">確認を押すと、確定前の見積もりを表示します。</p>
+      </div>
+      <section class="player-action-hub__projection" aria-labelledby="shopkeeper-projection-title">
+        <h4 id="shopkeeper-projection-title">${escapeHtml(T('webview.world.actionHubTradeProjection'))}</h4>
+        <dl class="player-action-hub__projection-grid">
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeUnitPrice'))}</dt><dd data-trade-value="unit">—</dd></div>
+          <div class="is-emphasis"><dt>${escapeHtml(T('webview.world.actionHubTradeTotal'))}</dt><dd data-trade-value="total">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeMoneyAfter'))}</dt><dd data-trade-value="money">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeCargoAfter'))}</dt><dd><span data-trade-value="cargo">—</span> / <span data-trade-value="capacity">—</span></dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeStockAfter'))}</dt><dd data-trade-value="stock">—</dd></div>
+          <div><dt>${escapeHtml(T('webview.world.actionHubTradeHeldAfter'))}</dt><dd data-trade-value="held">—</dd></div>
+        </dl>
+        <p class="player-action-hub__disabled-reason" id="shopkeeper-disabled-reason" role="status" aria-live="polite" hidden></p>
+      </section>
+      <p class="player-action-hub__review" id="shopkeeper-review" role="status" aria-live="polite">${escapeHtml(T('webview.world.actionHubTradeReviewHint'))}</p>
       <div class="player-action-hub__actions">
-        <button type="button" id="shopkeeper-review-btn" class="player-action-hub__btn">確認</button>
-        <button type="button" id="shopkeeper-confirm-btn" class="player-action-hub__btn player-action-hub__btn--primary" disabled>確定</button>
+        <button type="button" id="shopkeeper-review-btn" class="player-action-hub__btn">${escapeHtml(T('webview.world.actionHubReview'))}</button>
+        <button type="button" id="shopkeeper-confirm-btn" class="player-action-hub__btn player-action-hub__btn--primary" disabled>${escapeHtml(T('webview.world.actionHubConfirm'))}</button>
       </div>`;
     hubRefreshTradeOptions();
     wireHubTradeInputs();
+    localizePlayerActionHub();
 }
 
 function hubRefreshTradeOptions() {
@@ -2428,8 +2686,9 @@ function hubInvalidateTradePreview() {
     const review = _playerActionHub.querySelector('#shopkeeper-review');
     if (review) {
         review.setAttribute('data-state', 'idle');
-        review.textContent = '確認を押すと、確定前の見積もりを表示します。';
+        review.textContent = T('webview.world.actionHubTradeReviewHint');
     }
+    hubRenderTradeProjection();
 }
 
 function wireHubTradeInputs() {
@@ -2459,27 +2718,26 @@ function wireHubTradeInputs() {
         const op = _playerActionHub.querySelector('input[name="shopkeeper-op"]:checked').value;
         const commodityId = commoditySelect.value;
         const qty = Number(qtyInput.value);
-        if (!Number.isInteger(qty) || qty < 1 || qty > 999) {
+        const quote = _hubMarket.quotes.find((q) => q.commodityId === commodityId);
+        const projection = hubRenderTradeProjection();
+        if (!projection || !projection.valid) {
             review.setAttribute('data-state', 'error');
-            review.textContent = '数量は1から999までの整数で入力してください。';
+            review.textContent = projection?.reasonKey ? T(projection.reasonKey) : T('webview.world.actionHubTradeReasonQuantity');
             _shopkeeperPreviewReady = false;
             confirm.disabled = true;
             return;
         }
-        const quote = _hubMarket.quotes.find((q) => q.commodityId === commodityId);
-        const commerce = (_worldViewMsg && _worldViewMsg.playerCommerce) || {};
-        const unit = quote ? quote.unitPrice : 0;
-        const total = Math.round((unit || 0) * qty);
         const name = quote ? (quote.commodityName || quote.commodityId) : commodityId;
-        const stock = quote ? quote.stock : 0;
         review.setAttribute('data-state', 'preview');
         review.textContent = op === 'buy'
-            ? `購入（確定前）: ${name} × ${qty} / 単価 ${formatMarketNumber(unit)} / 合計 ${formatMarketNumber(total)} / 在庫 ${formatMarketNumber(stock)} / 所持 ${formatMarketNumber(commerce.credits ?? 0)}`
-            : `売却（確定前）: ${name} × ${qty} / 単価 ${formatMarketNumber(unit)} / 合計 ${formatMarketNumber(total)} / 在庫 ${formatMarketNumber(stock)} / 保有 ${formatMarketNumber(hubHeldQty(commerce, commodityId))}`;
+            ? `${T('webview.world.actionHubTradeBuy')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`
+            : `${T('webview.world.actionHubTradeSell')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`;
         _shopkeeperPreviewReady = true;
         confirm.disabled = false;
         confirm.focus();
     });
+
+    hubRenderTradeProjection();
 
     confirm.addEventListener('click', () => {
         if (_shopkeeperInFlight || _hubMutationInFlight || !_shopkeeperPreviewReady) { return; }
@@ -2643,6 +2901,11 @@ function finishMarketTravelPreview(msg) {
         confirm.disabled = true;
         review.setAttribute('data-state', 'idle');
         review.textContent = options.length ? '移動先を選んで確認してください。' : '移動できる別の市場がありません。';
+        if (!options.length) {
+            const emptyOption = select.querySelector('option');
+            if (emptyOption) { emptyOption.textContent = T('webview.world.actionHubNoDestinations'); }
+            review.textContent = T('webview.world.actionHubNoDestinations');
+        }
         select.disabled = options.length === 0;
         if (options.length > 0 && _playerActionHubSection === 'travel') { select.focus(); }
         return;
@@ -2799,6 +3062,60 @@ function finishEndDay(msg) {
     hubRefreshTradeOptions();
 }
 
+function setHubLeadingLabel(control, text) {
+    const label = control && control.closest('label');
+    if (label && label.firstChild) { label.firstChild.textContent = text; }
+}
+
+/** Keep the deterministic action surface in the normal Webview locale system.
+ * The host contracts and mutation flow are intentionally not part of this UI-only helper. */
+function localizePlayerActionHub() {
+    if (!_playerActionHub) { return; }
+    _playerActionHub.setAttribute('aria-label', T('webview.world.actionHubTitle'));
+    const textBySelector = {
+        '#player-action-hub-title': 'webview.world.actionHubTitle',
+        '#player-action-hub-close': 'webview.world.actionHubClose',
+        '#player-action-hub-tab-trade': 'webview.world.actionHubTrade',
+        '#player-action-hub-tab-travel': 'webview.world.actionHubTravel',
+        '#player-action-hub-tab-endday': 'webview.world.actionHubEndDay',
+        '#shopkeeper-review-btn': 'webview.world.actionHubReview',
+        '#shopkeeper-confirm-btn': 'webview.world.actionHubConfirm',
+        '#market-travel-preview': 'webview.world.actionHubReview',
+        '#market-travel-confirm': 'webview.world.actionHubTravelConfirm',
+        '#end-day-confirm': 'webview.world.actionHubEndDay',
+    };
+    Object.entries(textBySelector).forEach(([selector, key]) => {
+        const element = _playerActionHub.querySelector(selector);
+        if (element) { element.textContent = T(key); }
+    });
+    const close = _playerActionHub.querySelector('#player-action-hub-close');
+    if (close) { close.setAttribute('aria-label', T('webview.world.actionHubClose')); }
+    const status = _playerActionHub.querySelector('#player-action-hub-status');
+    if (status) { status.setAttribute('aria-label', T('webview.world.actionHubStatus')); }
+    const nav = _playerActionHub.querySelector('.player-action-hub__nav');
+    if (nav) { nav.setAttribute('aria-label', T('webview.world.actionHubChooseAction')); }
+    const sectionText = [
+        ['#player-action-hub-panel-trade .player-action-hub__section-title', 'webview.world.actionHubTrade'],
+        ['#player-action-hub-panel-trade .player-action-hub__note', 'webview.world.actionHubTradeDescription'],
+        ['#player-action-hub-panel-travel .player-action-hub__section-title', 'webview.world.actionHubTravel'],
+        ['#player-action-hub-panel-travel .player-action-hub__note', 'webview.world.actionHubTravelDescription'],
+        ['#player-action-hub-panel-endday .player-action-hub__section-title', 'webview.world.actionHubEndDay'],
+        ['#player-action-hub-panel-endday .player-action-hub__note', 'webview.world.actionHubEndDayDescription'],
+    ];
+    sectionText.forEach(([selector, key]) => {
+        const element = _playerActionHub.querySelector(selector);
+        if (element) { element.textContent = T(key); }
+    });
+    setHubLeadingLabel(_playerActionHub.querySelector('#shopkeeper-commodity'), T('webview.world.actionHubCommodity'));
+    setHubLeadingLabel(_playerActionHub.querySelector('#market-travel-destination'), T('webview.world.actionHubDestination'));
+    const tradeEmpty = _playerActionHub.querySelector('#shopkeeper-review[data-state="empty"]');
+    if (tradeEmpty) { tradeEmpty.textContent = T('webview.world.actionHubNoCurrentMarket'); }
+    const travelReview = _playerActionHub.querySelector('#market-travel-review');
+    if (travelReview && travelReview.getAttribute('data-state') === 'idle') {
+        travelReview.textContent = T('webview.world.actionHubTravelLoading');
+    }
+}
+
 /* --- Hub shell open/close/refresh --- */
 function openPlayerActionHub(initiator) {
     closePlayerActionHub();
@@ -2850,6 +3167,7 @@ function openPlayerActionHub(initiator) {
     wireHubTradeSection();
     wireHubTravelSection();
     wireHubEndDaySection();
+    localizePlayerActionHub();
 
     const closeBtn = overlay.querySelector('#player-action-hub-close');
     closeBtn.addEventListener('click', () => {
@@ -2897,7 +3215,10 @@ function refreshPlayerActionHub() {
     if (!_playerActionHub) { return; }
     hubRecomputeMarket();
     renderHubHeader();
-    if (!_shopkeeperInFlight && _hubMutationInFlight !== 'trade') { hubRefreshTradeOptions(); }
+    if (!_shopkeeperInFlight && _hubMutationInFlight !== 'trade') {
+        hubRefreshTradeOptions();
+        hubInvalidateTradePreview();
+    }
 }
 
 function buildDecisionSurfaceLookup(decisionSurface) {

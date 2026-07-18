@@ -6,8 +6,15 @@ import type { GameRules } from './gameRules';
 import { getActiveCharacterProfile, getCharacters } from './characterManager';
 import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { loadParlorSession } from './parlorSession';
+import { getCharacterParlorSessionFilename } from './parlorSessionCore';
 import { loadPlayerPersona } from './persona';
-import { runParlorPromoteCore } from './parlorPromoteCore';
+import {
+    decideParlorPromotePath,
+    resolveParlorCampaignTransition,
+    runParlorPromoteCore,
+    type ParlorCampaignTransitionView,
+    type ParlorPromoteIntent,
+} from './parlorPromoteCore';
 import { loadExperienceConfig, saveExperienceConfig } from './experience';
 import { validateGameState } from './validateGameState';
 import { saveGameRules } from './gameRules';
@@ -20,6 +27,11 @@ import { getGameEntryHistory } from './gameStateSync';
 export interface PromoteParlorResult {
     ok: boolean;
     error?: string;
+}
+
+export interface PromoteParlorOptions {
+    /** Webview/command intent. Default auto preserves QuickPick frozen choice. */
+    intent?: ParlorPromoteIntent;
 }
 
 async function confirmOverwriteCampaign(): Promise<boolean> {
@@ -36,47 +48,110 @@ async function confirmOverwriteCampaign(): Promise<boolean> {
     return choice === t('extension.confirm.overwrite');
 }
 
-export async function promoteParlorToCampaign(): Promise<PromoteParlorResult> {
+function readCampaignTransitionState(characterId?: string): {
+    hasGameState: boolean;
+    hasFrozenCampaign: boolean;
+    parlorMessageCount: number;
+    transition: ParlorCampaignTransitionView;
+} {
+    const experience = loadExperienceConfig();
+    const statePath = getGameStatePath();
+    const hasGameState = Boolean(statePath && fs.existsSync(statePath));
+    const hasFrozenCampaign = Boolean(experience.campaign?.frozenAt && hasGameState);
+    let parlorMessageCount = 0;
+    if (characterId) {
+        const session = loadParlorSession(characterId);
+        parlorMessageCount = session?.messages?.length ?? 0;
+    }
+    const transition = resolveParlorCampaignTransition({
+        hasGameState,
+        hasFrozenCampaign,
+        parlorMessageCount,
+    });
+    return { hasGameState, hasFrozenCampaign, parlorMessageCount, transition };
+}
+
+/** Resume a frozen Campaign without rewriting scenario/game_state/game_rules. */
+export function resumeFrozenCampaign(): PromoteParlorResult {
+    const experience = loadExperienceConfig();
+    const statePath = getGameStatePath();
+    const hasGameState = Boolean(statePath && fs.existsSync(statePath));
+    const hasFrozenCampaign = Boolean(experience.campaign?.frozenAt && hasGameState);
+    if (!hasFrozenCampaign) {
+        return { ok: false, error: 'no_frozen' };
+    }
+    saveExperienceConfig({ profile: 'campaign', campaign: { frozenAt: null } });
+    sendExperienceProfileToWebview();
+    vscode.window.showInformationMessage(t('extension.info.parlorPromoteResumed'));
+    return { ok: true };
+}
+
+export async function promoteParlorToCampaign(
+    options?: PromoteParlorOptions
+): Promise<PromoteParlorResult> {
     const ws = getWorkspacePath();
-    if (!ws) {
+    const character = getActiveCharacterProfile();
+    const { hasGameState, hasFrozenCampaign, parlorMessageCount } = readCampaignTransitionState(
+        character?.id
+    );
+    const decision = decideParlorPromotePath({
+        hasWorkspace: Boolean(ws),
+        hasCharacter: Boolean(character),
+        hasGameState,
+        hasFrozenCampaign,
+        parlorMessageCount,
+        intent: options?.intent,
+    });
+
+    if (decision.action === 'reject_no_workspace') {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return { ok: false, error: 'no_workspace' };
     }
-
-    const character = getActiveCharacterProfile();
-    if (!character) {
+    if (decision.action === 'reject_no_character') {
         vscode.window.showWarningMessage(t('extension.error.parlorNeedsCharacter'));
         return { ok: false, error: 'no_character' };
     }
-
-    const session = loadParlorSession(character.id);
-    if (!session || session.messages.length === 0) {
+    if (decision.action === 'reject_no_frozen') {
+        vscode.window.showWarningMessage(t('extension.error.parlorPromoteNoFrozen'));
+        return { ok: false, error: 'no_frozen' };
+    }
+    if (decision.action === 'reject_empty_session') {
         vscode.window.showWarningMessage(t('extension.error.parlorPromoteEmpty'));
         return { ok: false, error: 'empty_session' };
     }
+    if (decision.action === 'resume') {
+        return resumeFrozenCampaign();
+    }
 
-    const experience = loadExperienceConfig();
-    const statePath = getGameStatePath();
-    const hasFrozenCampaign = Boolean(
-        experience.campaign?.frozenAt && statePath && fs.existsSync(statePath)
-    );
-    if (hasFrozenCampaign) {
-        const resumePick = await vscode.window.showQuickPick(
-            [
-                { label: t('extension.parlorPromote.resumeFrozen'), id: 'resume' as const },
-                { label: t('extension.parlorPromote.freshPromote'), id: 'fresh' as const },
-            ],
-            { title: t('extension.parlorPromote.frozenTitle') }
-        );
+    let proceedFresh = decision.action === 'fresh';
+    if (decision.action === 'offer_frozen_choice') {
+        const picks: Array<{ label: string; id: 'resume' | 'fresh' }> = [
+            { label: t('extension.parlorPromote.resumeFrozen'), id: 'resume' },
+        ];
+        if (decision.allowFresh) {
+            picks.push({ label: t('extension.parlorPromote.freshPromote'), id: 'fresh' });
+        }
+        const resumePick = await vscode.window.showQuickPick(picks, {
+            title: t('extension.parlorPromote.frozenTitle'),
+        });
         if (!resumePick) {
             return { ok: false, error: 'cancelled' };
         }
         if (resumePick.id === 'resume') {
-            saveExperienceConfig({ profile: 'campaign', campaign: { frozenAt: null } });
-            sendExperienceProfileToWebview();
-            vscode.window.showInformationMessage(t('extension.info.parlorPromoteResumed'));
-            return { ok: true };
+            return resumeFrozenCampaign();
         }
+        proceedFresh = true;
+    }
+
+    if (!proceedFresh || !ws || !character) {
+        return { ok: false, error: 'cancelled' };
+    }
+
+    // Fresh creation always re-validates a non-empty session (messages required).
+    const session = loadParlorSession(character.id);
+    if (!session || session.messages.length === 0) {
+        vscode.window.showWarningMessage(t('extension.error.parlorPromoteEmpty'));
+        return { ok: false, error: 'empty_session' };
     }
 
     const defaultTitle = `${character.name} — Campaign`;
@@ -167,7 +242,7 @@ export async function promoteParlorToCampaign(): Promise<PromoteParlorResult> {
         campaign: { frozenAt: null },
         lastParlorSnapshot: {
             promotedAt: new Date().toISOString(),
-            parlorSessionPath: 'parlor_session.json',
+            parlorSessionPath: getCharacterParlorSessionFilename(character.id),
             characterId: character.id,
         },
     });

@@ -74,7 +74,8 @@ function updateCharacterList(characters, activeId, partyIds) {
   });
   
   // 選択状態を復元、または Active キャラクターを選択
-  if (currentSelection !== 'new' && currentCharacters.find(c => c.id === currentSelection)) {
+  const mustFollowActive = experienceProfile === 'parlor';
+  if (!mustFollowActive && currentSelection !== 'new' && currentCharacters.find(c => c.id === currentSelection)) {
     charSelect.value = currentSelection;
   } else if (activeId && currentCharacters.find(c => c.id === activeId)) {
     charSelect.value = activeId;
@@ -133,9 +134,20 @@ function loadSelectedCharacter() {
 }
 
 charSelect.addEventListener('change', () => {
+  const requestedId = charSelect.value;
+  if (experienceProfile === 'parlor' && requestedId !== 'new') {
+    // The host sends characterList only after the canonical transition succeeds.
+    // Restore the persisted selection now when a request is rejected as busy.
+    charSelect.value = activeCharId || 'new';
+    loadSelectedCharacter();
+    if (requestedId !== activeCharId) {
+      vscode.postMessage({ type: 'switchParlorCharacter', id: requestedId });
+    }
+    return;
+  }
   loadSelectedCharacter();
-  if (charSelect.value !== 'new') {
-    vscode.postMessage({ type: 'setActiveCharacter', id: charSelect.value });
+  if (requestedId !== 'new') {
+    vscode.postMessage({ type: 'setActiveCharacter', id: requestedId });
   }
 });
 

@@ -3,7 +3,7 @@
 [English](README_en.md) | [日本語](README.md) | [简体中文](README_zh-CN.md) | [繁體中文](README_zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.82.5-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
+[![Version](https://img.shields.io/badge/version-1.84.16-blue.svg)](https://github.com/GGF1sh/LoreRelay/releases)
 [![GitHub](https://img.shields.io/badge/GitHub-GGF1sh%2FLoreRelay-181717?logo=github)](https://github.com/GGF1sh/LoreRelay)
 
 **Local-first AI Game Master UI**

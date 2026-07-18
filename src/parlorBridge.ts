@@ -1,6 +1,19 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { t, getConfiguredLocale } from './i18n';
-import { getActiveCharacterId, getActiveCharacterProfile, getCharacters } from './characterManager';
+import {
+    getActiveCharacterId,
+    getActiveCharacterProfile,
+    getCharacters,
+    setActiveCharacter,
+} from './characterManager';
+import {
+    evaluateParlorVscodeLmPreflight,
+    resolveParlorActiveCharacterId,
+    shouldInsertParlorFirstGreeting,
+} from './parlorFirstUseCore';
+import { evaluateParlorCharacterSwitch } from './parlorCharacterSwitchCore';
 import { getGameEntryHistory } from './gameStateSync';
 import { isValidCharacterId } from './characterId';
 import { loadExperienceConfig, saveExperienceConfig, isParlorMode, isInWorldMode } from './experience';
@@ -27,6 +40,7 @@ import {
     invokeParlorVscodeLm,
     isParlorBridgeBusy,
     fallbackToClipboardParlor,
+    countParlorVscodeLmModels,
 } from './gmBridgeRunner';
 import {
     getActiveParlorConnectionProfile,
@@ -37,9 +51,25 @@ import type { ConnectionProfile } from './connectionProfileCore';
 import { loadPlayerPersona, savePlayerPersona } from './persona';
 import { parsePlayerPersona } from './personaCore';
 import {
+    createPlayerPersonaPreset,
+    getPlayerPersonaPreset,
+    listPlayerPersonaPresets,
+    removeNewPlayerPersonaPreset,
+    updatePlayerPersonaPreset,
+} from './personaPreset';
+import {
+    mapCharacterToPlayerPersona,
+    parsePersonaJsonImport,
+    parsePersonaPresetMeta,
+    personaFromPreset,
+    type PlayerPersonaPreset,
+} from './personaPresetCore';
+import {
     listWorkspaceParlorBackgrounds,
     toParlorBackgroundWebviewUri,
 } from './parlorBackground';
+import { resolveParlorCampaignTransition } from './parlorPromoteCore';
+import { getGameStatePath } from './workspacePaths';
 
 export interface ParlorBridgeDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -133,18 +163,47 @@ export function sendParlorSettingsToWebview(): void {
     const conn = loadConnectionProfiles();
     const persona = loadPlayerPersona();
     const experience = loadExperienceConfig();
+    const personaPresets = listPlayerPersonaPresets();
+    const configuredPersonaId = experience.parlor?.activePersonaId;
+    const activePersonaId = typeof configuredPersonaId === 'string'
+        && personaPresets.some((preset) => preset.id === configuredPersonaId)
+        ? configuredPersonaId
+        : null;
     const backgrounds = listWorkspaceParlorBackgrounds().map((bg) => ({
         id: bg.id,
         label: bg.label,
         uri: toParlorBackgroundWebviewUri(panel, bg.filename) || '',
     }));
+    const activeCharacterId = getActiveCharacterId() || null;
+    const statePath = getGameStatePath();
+    const hasGameState = Boolean(statePath && fs.existsSync(statePath));
+    const hasFrozenCampaign = Boolean(experience.campaign?.frozenAt && hasGameState);
+    const parlorSession = activeCharacterId ? loadParlorSession(activeCharacterId) : undefined;
+    const campaignTransition = resolveParlorCampaignTransition({
+        hasGameState,
+        hasFrozenCampaign,
+        parlorMessageCount: parlorSession?.messages?.length ?? 0,
+    });
     panel.webview.postMessage({
         type: 'parlorSettings',
         connectionProfiles: conn.profiles.map((p) => ({ id: p.id, label: p.label, provider: p.provider })),
         activeConnectionId: conn.activeId,
         persona,
+        personaPresets: personaPresets.map((preset) => ({
+            id: preset.id,
+            displayName: preset.name || preset.id,
+            ...(preset.meta?.sourceLabel ? { sourceLabel: preset.meta.sourceLabel } : {}),
+        })),
+        activePersonaId,
         activeBackgroundId: experience.parlor?.backgroundId || null,
         backgrounds,
+        characters: getCharacters().map((character) => ({
+            id: character.id,
+            name: character.name,
+            ...(character.portrait ? { portrait: character.portrait } : {}),
+        })),
+        activeCharacterId,
+        campaignTransition,
     });
     applyParlorBackgroundToWebview();
 }
@@ -247,14 +306,19 @@ export async function startParlorMode(
     opts?: { skipProfileSave?: boolean }
 ): Promise<boolean> {
     const chars = getCharacters();
-    let activeId = characterId && isValidCharacterId(characterId) ? characterId : getActiveCharacterId();
-    if (!activeId && chars.length === 1) {
-        activeId = chars[0].id;
-    }
+    const preferred = characterId && isValidCharacterId(characterId) ? characterId : undefined;
+    const activeId = resolveParlorActiveCharacterId({
+        preferredId: preferred,
+        persistedActiveId: getActiveCharacterId(),
+        characterIds: chars.map((c) => c.id),
+    });
     if (!activeId) {
         vscode.window.showWarningMessage(t('extension.error.parlorNeedsCharacter'));
         return false;
     }
+    // Persist active character before session create/render so display + input
+    // paths that read active_character.txt stay consistent.
+    setActiveCharacter(activeId);
     const conn = loadConnectionProfiles();
     if (!opts?.skipProfileSave) {
         const experience = loadExperienceConfig();
@@ -270,10 +334,10 @@ export async function startParlorMode(
     const character = chars.find((c) => c.id === activeId) || getActiveCharacterProfile();
     let session = loadParlorSession(activeId) || getOrCreateParlorSession(activeId);
     const firstMes = character?.stSource?.first_mes?.trim();
-    if (session.messages.length === 0 && firstMes) {
+    if (shouldInsertParlorFirstGreeting(session.messages.length, firstMes)) {
         session = appendAndSaveParlorMessage(session, {
             role: 'assistant',
-            content: firstMes,
+            content: firstMes!,
             characterId: activeId,
         }, character?.name || 'Character', getConfiguredLocale());
     }
@@ -281,6 +345,50 @@ export async function startParlorMode(
     sendParlorSessionToWebview();
     sendParlorSettingsToWebview();
     return true;
+}
+
+/**
+ * The only live Parlor character-selection path. startParlorMode owns the
+ * active-id persistence, per-character session load/create, greeting-once
+ * rule, and Webview refreshes, so a selector can never leave the chat showing
+ * a previous character's transcript.
+ */
+export async function switchParlorCharacter(characterId: string): Promise<boolean> {
+    if (!isParlorMode()) {
+        return false;
+    }
+    const decision = evaluateParlorCharacterSwitch({
+        requestedCharacterId: characterId,
+        characterIds: getCharacters().map((character) => character.id),
+        isBusy: parlorInFlight || isParlorBridgeBusy(),
+    });
+    if (!decision.ok) {
+        if (decision.reason === 'busy') {
+            vscode.window.showWarningMessage(t('extension.error.parlorCharacterSwitchBusy'));
+        } else {
+            vscode.window.showWarningMessage(t('extension.error.invalidCharacterId'));
+        }
+        return false;
+    }
+    return startParlorMode(decision.characterId);
+}
+
+/** Import only after a busy check, then enter the imported character through the same path. */
+export async function importParlorCharacter(
+    importer: () => Promise<string | undefined>
+): Promise<boolean> {
+    if (!isParlorMode()) {
+        return false;
+    }
+    if (parlorInFlight || isParlorBridgeBusy()) {
+        vscode.window.showWarningMessage(t('extension.error.parlorCharacterSwitchBusy'));
+        return false;
+    }
+    const importedCharacterId = await importer();
+    if (!importedCharacterId) {
+        return false;
+    }
+    return switchParlorCharacter(importedCharacterId);
 }
 
 export async function startInWorldMode(
@@ -326,10 +434,127 @@ export function handleSetParlorConnectionProfile(profileId: string): void {
     sendParlorSettingsToWebview();
 }
 
+function applyParlorPersona(persona: unknown, activePersonaId: string | null): void {
+    const next = parsePlayerPersona(persona);
+    const previousPersona = loadPlayerPersona();
+    const previousActivePersonaId = loadExperienceConfig().parlor?.activePersonaId ?? null;
+    savePlayerPersona(next);
+    try {
+        saveExperienceConfig({ parlor: { activePersonaId } });
+    } catch (error) {
+        try {
+            savePlayerPersona(previousPersona);
+            saveExperienceConfig({ parlor: { activePersonaId: previousActivePersonaId } });
+        } catch {
+            // Keep the original write error as the actionable failure.
+        }
+        throw error;
+    }
+}
+
+function showPersonaError(error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(t('extension.error.personaPresetWriteFailed', { detail }));
+}
+
 export function handleSaveParlorPersona(raw: unknown): void {
-    const persona = parsePlayerPersona(raw);
-    savePlayerPersona(persona);
-    sendParlorSettingsToWebview();
+    try {
+        applyParlorPersona(raw, null);
+        sendParlorSettingsToWebview();
+    } catch (error) {
+        showPersonaError(error);
+    }
+}
+
+export function handleSelectParlorPersonaPreset(id: string | null): void {
+    try {
+        if (id === null) {
+            saveExperienceConfig({ parlor: { activePersonaId: null } });
+        } else {
+            const preset = getPlayerPersonaPreset(id);
+            if (!preset) {
+                vscode.window.showWarningMessage(t('extension.error.personaPresetNotFound'));
+                sendParlorSettingsToWebview();
+                return;
+            }
+            applyParlorPersona(personaFromPreset(preset), preset.id);
+        }
+        sendParlorSettingsToWebview();
+    } catch (error) {
+        showPersonaError(error);
+    }
+}
+
+export function handleSaveNewParlorPersonaPreset(raw: unknown, meta?: unknown): void {
+    let preset: PlayerPersonaPreset | undefined;
+    try {
+        preset = createPlayerPersonaPreset(parsePlayerPersona(raw), parsePersonaPresetMeta(meta));
+        applyParlorPersona(personaFromPreset(preset), preset.id);
+        sendParlorSettingsToWebview();
+    } catch (error) {
+        if (preset) removeNewPlayerPersonaPreset(preset.id);
+        showPersonaError(error);
+    }
+}
+
+export function handleUpdateParlorPersonaPreset(id: string, raw: unknown): void {
+    const previous = getPlayerPersonaPreset(id);
+    if (!previous) {
+        vscode.window.showWarningMessage(t('extension.error.personaPresetNotFound'));
+        return;
+    }
+    try {
+        const preset = updatePlayerPersonaPreset(id, parsePlayerPersona(raw));
+        try {
+            applyParlorPersona(personaFromPreset(preset), preset.id);
+        } catch (error) {
+            updatePlayerPersonaPreset(previous.id, personaFromPreset(previous));
+            throw error;
+        }
+        sendParlorSettingsToWebview();
+    } catch (error) {
+        showPersonaError(error);
+    }
+}
+
+function sendParlorPersonaDraft(persona: unknown, meta?: PlayerPersonaPreset['meta']): void {
+    const panel = requirePanel();
+    if (!panel) return;
+    panel.webview.postMessage({ type: 'parlorPersonaDraft', persona: parsePlayerPersona(persona), meta });
+}
+
+export async function handleCreateParlorPersonaFromCharacter(): Promise<void> {
+    const characters = getCharacters();
+    const selected = await vscode.window.showQuickPick(
+        characters.map((character) => ({ label: character.name || character.id, description: character.id, characterId: character.id })),
+        { title: t('extension.info.personaPickCharacter'), placeHolder: t('extension.info.personaPickCharacter') }
+    );
+    if (!selected) return;
+    const character = characters.find((item) => item.id === selected.characterId);
+    if (!character) return;
+    sendParlorPersonaDraft(mapCharacterToPlayerPersona(character), {
+        source: 'character-copy', sourceLabel: character.name || character.id, sourceCharacterId: character.id,
+    });
+}
+
+export async function handleImportParlorPersonaJson(): Promise<void> {
+    const picked = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { 'Persona JSON': ['json'] } });
+    if (!picked || picked.length === 0) return;
+    try {
+        const stat = fs.statSync(picked[0].fsPath);
+        if (stat.size > 256 * 1024) throw new Error('Persona JSON is too large');
+        const parsed = parsePersonaJsonImport(JSON.parse(fs.readFileSync(picked[0].fsPath, 'utf-8')));
+        if (!parsed.persona) {
+            vscode.window.showWarningMessage(t('extension.error.personaImportInvalid'));
+            return;
+        }
+        sendParlorPersonaDraft(parsed.persona, { source: 'persona-json', sourceLabel: path.basename(picked[0].fsPath).slice(0, 120) });
+        if (parsed.ignoredFields.length > 0) {
+            vscode.window.showInformationMessage(t('extension.info.personaImportIgnored', { fields: parsed.ignoredFields.join(', ') }));
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(t('extension.error.personaImportInvalid', { detail: error instanceof Error ? error.message : String(error) }));
+    }
 }
 
 export function handleSetParlorBackground(backgroundId: string | null): void {
@@ -364,6 +589,23 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         return;
     }
 
+    // Preflight before appending user text so a missing model does not leave a
+    // one-sided user bubble in the session transcript.
+    const connProfile = getActiveParlorConnectionProfile();
+    if (connProfile.provider === 'vscode-lm') {
+        const modelCount = await countParlorVscodeLmModels(connProfile.vscodeLm);
+        const preflight = evaluateParlorVscodeLmPreflight({
+            provider: connProfile.provider,
+            availableModelCount: modelCount,
+        });
+        if (!preflight.ok) {
+            vscode.window.showErrorMessage(
+                'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code 等の拡張機能をインストールしてサインインしてください。'
+            );
+            return;
+        }
+    }
+
     parlorInFlight = true;
     try {
         let session = getOrCreateParlorSession(characterId);
@@ -374,7 +616,6 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         sendParlorSessionToWebview();
 
         const prompt = buildParlorUserPrompt(character, session, text);
-        const connProfile = getActiveParlorConnectionProfile();
         const result = await invokeParlorByProfile(prompt, connProfile);
         if (!isParlorMode()) {
             return;

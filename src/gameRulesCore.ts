@@ -3,9 +3,14 @@
 import { CHARACTER_ID_PATTERN } from './characterId';
 
 export type AiParticipationPolicy = 'always' | 'onDemand' | 'simulationOnly';
+export type MerchantTravelMode = 'instant_free' | 'world_time';
 
-/** Economy pacing for market recovery / shock strength. Missing/invalid → normal. */
-export type EconomyProfile = 'easy' | 'normal' | 'harsh';
+/**
+ * Absolute economy scarcity scale (market recovery / shock / resting price).
+ * Missing/invalid → normal. Legacy 'easy'/'harsh' are accepted on input and
+ * canonicalized to 'plentiful'/'scarce'.
+ */
+export type EconomyProfile = 'abundant' | 'plentiful' | 'normal' | 'scarce' | 'barren';
 
 export interface GameRules {
     enableRpgMechanics: boolean;
@@ -22,10 +27,30 @@ export interface GameRules {
     enableFactionReputation?: boolean;
     enableTravelEncounters?: boolean;
     travelEncounterDensity?: 'low' | 'medium' | 'high';
-    /** Market recovery / shock pacing. Default normal preserves legacy numbers. */
+    /** World-wide default economy scarcity tier. Default normal preserves legacy numbers. */
     economyProfile?: EconomyProfile;
+    /**
+     * Per-resource-category (commodity role) tier overrides, e.g.
+     * { "staple": "barren", "material": "abundant" } for a mineral-rich but
+     * food-poor world. Keys are category/role strings; values are tier names.
+     */
+    economyResourceProfiles?: Record<string, EconomyProfile>;
+    /**
+     * Per-commodity-id tier overrides — the hook for custom world resources
+     * (e.g. { "sakuradite": "abundant" }). Most specific; wins over category
+     * and global.
+     */
+    economyCommodityProfiles?: Record<string, EconomyProfile>;
+    /**
+     * Optional fine-tune multipliers keyed by commodity id or category. Scales a
+     * tier's deviation from normal (1 = as-is, >1 = more extreme, 0 = normal).
+     * Clamped to [0, 3].
+     */
+    economyResourceModifiers?: Record<string, number>;
     enableCommerce?: boolean;
     enableCommerceUi?: boolean;
+    /** Missing or invalid values preserve legacy zero-time, zero-cost market travel. */
+    merchantTravelMode?: MerchantTravelMode;
     playerRole?: 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
     enableNpcAgency?: boolean;
     enableNpcRelationships?: boolean;
@@ -77,6 +102,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     economyProfile: 'normal',
     enableCommerce: false,
     enableCommerceUi: false,
+    merchantTravelMode: 'instant_free',
     playerRole: 'merchant',
     enableNpcAgency: false,
     enableNpcRelationships: false,
@@ -111,8 +137,62 @@ export const DEFAULT_GAME_RULES: GameRules = {
 const VALID_DICE = new Set(['Easy', 'Normal', 'Hard']);
 const VALID_ROLES = new Set(['merchant', 'adventurer', 'retainer', 'smith', 'ruler']);
 const VALID_DENSITIES = new Set(['low', 'medium', 'high']);
-const VALID_ECONOMY_PROFILES = new Set<EconomyProfile>(['easy', 'normal', 'harsh']);
+const VALID_ECONOMY_PROFILES = new Set<EconomyProfile>([
+    'abundant', 'plentiful', 'normal', 'scarce', 'barren',
+]);
+/** Legacy pacing names accepted on input, canonicalized onto the 5-tier scale. */
+const LEGACY_ECONOMY_PROFILE_ALIASES: Record<string, EconomyProfile> = {
+    easy: 'plentiful',
+    harsh: 'scarce',
+};
+
+/** Coerce a raw value to a valid tier, or undefined if it isn't one. */
+function coerceEconomyTier(raw: unknown): EconomyProfile | undefined {
+    if (typeof raw !== 'string') { return undefined; }
+    if (VALID_ECONOMY_PROFILES.has(raw as EconomyProfile)) { return raw as EconomyProfile; }
+    return LEGACY_ECONOMY_PROFILE_ALIASES[raw];
+}
+
+/** Normalize a { key: tier } map: drop invalid tiers/keys, cap entry count. */
+function normalizeTierMap(raw: unknown, maxEntries = 100): Record<string, EconomyProfile> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, EconomyProfile> = {};
+    let count = 0;
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= maxEntries) { break; }
+        const k = key.trim();
+        if (!k) { continue; }
+        const tier = coerceEconomyTier(value);
+        if (!tier) { continue; }
+        out[k] = tier;
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Normalize a { key: multiplier } map: keep finite numbers clamped to [0, 3]. */
+function normalizeModifierMap(raw: unknown, maxEntries = 100): Record<string, number> | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const out: Record<string, number> = {};
+    let count = 0;
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (count >= maxEntries) { break; }
+        const k = key.trim();
+        if (!k || typeof value !== 'number' || !Number.isFinite(value)) { continue; }
+        out[k] = Math.max(0, Math.min(3, value));
+        count++;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
 const VALID_AI_PARTICIPATION_POLICIES = new Set<AiParticipationPolicy>(['always', 'onDemand', 'simulationOnly']);
+const VALID_MERCHANT_TRAVEL_MODES = new Set<MerchantTravelMode>(['instant_free', 'world_time']);
+
+/** Normalize a travel-mode boundary without enabling timed travel implicitly. */
+export function normalizeMerchantTravelMode(raw: unknown): MerchantTravelMode {
+    return VALID_MERCHANT_TRAVEL_MODES.has(raw as MerchantTravelMode)
+        ? raw as MerchantTravelMode
+        : 'instant_free';
+}
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) { return fallback; }
@@ -174,10 +254,13 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         ? densityRaw as GameRules['travelEncounterDensity']
         : base.travelEncounterDensity;
 
-    const economyProfileRaw = src.economyProfile;
-    const economyProfile = VALID_ECONOMY_PROFILES.has(economyProfileRaw as EconomyProfile)
-        ? economyProfileRaw as EconomyProfile
-        : base.economyProfile;
+    const economyProfile = coerceEconomyTier(src.economyProfile) ?? base.economyProfile;
+    const economyResourceProfiles = normalizeTierMap(src.economyResourceProfiles)
+        ?? base.economyResourceProfiles;
+    const economyCommodityProfiles = normalizeTierMap(src.economyCommodityProfiles)
+        ?? base.economyCommodityProfiles;
+    const economyResourceModifiers = normalizeModifierMap(src.economyResourceModifiers)
+        ?? base.economyResourceModifiers;
 
     const roleRaw = src.playerRole;
     const playerRole = VALID_ROLES.has(roleRaw as string)
@@ -188,6 +271,12 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
     const aiParticipationPolicy = VALID_AI_PARTICIPATION_POLICIES.has(aiParticipationPolicyRaw as AiParticipationPolicy)
         ? aiParticipationPolicyRaw as AiParticipationPolicy
         : base.aiParticipationPolicy;
+
+    // `raw` is also used as a partial save patch. An omitted field preserves an
+    // already-explicit base mode, while absent/invalid loaded files remain legacy.
+    const merchantTravelMode = Object.prototype.hasOwnProperty.call(src, 'merchantTravelMode')
+        ? normalizeMerchantTravelMode(src.merchantTravelMode)
+        : normalizeMerchantTravelMode(base.merchantTravelMode);
 
     let excludedEventIds = base.excludedEventIds;
     if (Array.isArray(src.excludedEventIds)) {
@@ -214,8 +303,12 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         enableTravelEncounters: asOptionalBool(src.enableTravelEncounters, base.enableTravelEncounters),
         travelEncounterDensity,
         economyProfile,
+        economyResourceProfiles,
+        economyCommodityProfiles,
+        economyResourceModifiers,
         enableCommerce: asOptionalBool(src.enableCommerce, base.enableCommerce),
         enableCommerceUi: asOptionalBool(src.enableCommerceUi, base.enableCommerceUi),
+        merchantTravelMode,
         playerRole,
         enableNpcAgency: asOptionalBool(src.enableNpcAgency, base.enableNpcAgency),
         enableNpcRelationships: asOptionalBool(src.enableNpcRelationships, base.enableNpcRelationships),

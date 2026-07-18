@@ -18,28 +18,66 @@ export const STEEL_IMPROVEMENT_STOCK = 3;
 /** Legacy material positive-event price cut (normal profile). */
 export const STEEL_IMPROVEMENT_PRICE_REDUCTION = 0.1;
 
-/** Economy pacing enum (mirrors GameRules.economyProfile). */
-export type EconomyProfile = 'easy' | 'normal' | 'harsh';
+/**
+ * Absolute economy scarcity scale. Five fixed tiers from resource-rich to
+ * resource-starved. This is the "absolute standard" — no fuzzy interpretation:
+ * each tier is a concrete parameter set (see ECONOMY_TIER_PARAMS). A world can
+ * apply one tier globally, or a different tier per resource category / per
+ * commodity (see EconomyDifficultyConfig), so "minerals abundant but farmland
+ * barren" is expressible.
+ */
+export type EconomyTier = 'abundant' | 'plentiful' | 'normal' | 'scarce' | 'barren';
 
 /**
- * Resolved numeric knobs for one economy profile.
- * `normal` matches the pre-profile constants exactly.
+ * Back-compat alias: the legacy 3-value pacing enum. Retained as an accepted
+ * INPUT vocabulary only (easy → plentiful, harsh → scarce); the canonical scale
+ * is EconomyTier. Kept as a type alias so existing signatures keep compiling.
+ */
+export type EconomyProfile = EconomyTier | 'easy' | 'harsh';
+
+export const ECONOMY_TIERS: readonly EconomyTier[] = [
+    'abundant', 'plentiful', 'normal', 'scarce', 'barren',
+];
+
+/**
+ * Resolved numeric knobs for one economy tier.
+ * `normal` matches the pre-tier constants exactly (back-compat contract).
  */
 export interface EconomyProfileParams {
+    /** Passive per-tick market restock toward targetStock. barren = 0 (no natural replenish). */
     recoveryPerTick: number;
+    /** Price bump applied by a scarcity shock (e.g. food crisis) on this resource. */
     foodCrisisPriceBump: number;
+    /** Stock added by a positive/abundance event (e.g. a smithing surge). */
     positiveMaterialStockGain: number;
+    /** Price cut applied by a positive/abundance event. */
     positiveMaterialPriceReduction: number;
+    /** Hard price ceiling for this resource. */
     maxPriceIndex: number;
+    /**
+     * Resting price when a market is well-supplied. >1 means the resource stays
+     * expensive even when in stock (felt every turn, not only during shocks).
+     * normal = 1.0 (neutral; preserves legacy "drift toward 1.0" behavior).
+     */
+    baselinePriceBias: number;
 }
 
-const ECONOMY_PROFILE_PARAMS: Record<EconomyProfile, EconomyProfileParams> = {
-    easy: {
+const ECONOMY_TIER_PARAMS: Record<EconomyTier, EconomyProfileParams> = {
+    abundant: {
+        recoveryPerTick: 4,
+        foodCrisisPriceBump: 0.15,
+        positiveMaterialStockGain: 5,
+        positiveMaterialPriceReduction: 0.20,
+        maxPriceIndex: 2.0,
+        baselinePriceBias: 0.85,
+    },
+    plentiful: {
         recoveryPerTick: 3,
         foodCrisisPriceBump: 0.25,
         positiveMaterialStockGain: 4,
         positiveMaterialPriceReduction: 0.15,
-        maxPriceIndex: 3.5,
+        maxPriceIndex: 3.0,
+        baselinePriceBias: 0.93,
     },
     normal: {
         recoveryPerTick: DEFAULT_MARKET_RECOVERY_PER_TICK,
@@ -47,28 +85,118 @@ const ECONOMY_PROFILE_PARAMS: Record<EconomyProfile, EconomyProfileParams> = {
         positiveMaterialStockGain: STEEL_IMPROVEMENT_STOCK,
         positiveMaterialPriceReduction: STEEL_IMPROVEMENT_PRICE_REDUCTION,
         maxPriceIndex: MAX_PRICE_INDEX,
+        baselinePriceBias: 1.0,
     },
-    harsh: {
+    scarce: {
         recoveryPerTick: 1,
-        foodCrisisPriceBump: 0.5,
+        foodCrisisPriceBump: 0.50,
         positiveMaterialStockGain: 2,
-        positiveMaterialPriceReduction: 0.05,
-        maxPriceIndex: 5,
+        positiveMaterialPriceReduction: 0.07,
+        maxPriceIndex: 5.5,
+        baselinePriceBias: 1.15,
+    },
+    barren: {
+        recoveryPerTick: 0,
+        foodCrisisPriceBump: 0.70,
+        positiveMaterialStockGain: 1,
+        positiveMaterialPriceReduction: 0.04,
+        maxPriceIndex: 7.0,
+        baselinePriceBias: 1.30,
     },
 };
 
-/** Missing / invalid profile → normal (legacy behavior). */
-export function resolveEconomyProfile(profile?: string | null): EconomyProfile {
-    if (profile === 'easy' || profile === 'normal' || profile === 'harsh') {
-        return profile;
+/** Legacy 3-value pacing names accepted on input, mapped onto the 5-tier scale. */
+const LEGACY_TIER_ALIASES: Record<string, EconomyTier> = {
+    easy: 'plentiful',
+    harsh: 'scarce',
+};
+
+/** Missing / invalid tier → normal. Accepts legacy easy/harsh aliases. */
+export function resolveEconomyProfile(profile?: string | null): EconomyTier {
+    if (profile && (ECONOMY_TIERS as readonly string[]).includes(profile)) {
+        return profile as EconomyTier;
+    }
+    if (profile && LEGACY_TIER_ALIASES[profile]) {
+        return LEGACY_TIER_ALIASES[profile];
     }
     return 'normal';
 }
 
-/** Centralized profile → commerce parameter mapping (do not scatter profile checks). */
+/** Centralized tier → commerce parameter mapping (do not scatter tier checks). */
 export function resolveEconomyProfileParams(profile?: string | null): EconomyProfileParams {
-    return ECONOMY_PROFILE_PARAMS[resolveEconomyProfile(profile)];
+    return ECONOMY_TIER_PARAMS[resolveEconomyProfile(profile)];
 }
+
+/**
+ * Per-world difficulty resolution config. All fields optional; an empty config
+ * resolves every commodity to `normal` (legacy behavior, byte-identical).
+ * Precedence when resolving a commodity: commodity id > category/role > global.
+ */
+export interface EconomyDifficultyConfig {
+    /** World-wide default tier. */
+    globalTier?: string;
+    /** Tier by resource category / commodity role (e.g. { staple: 'barren' }). */
+    categoryTiers?: Record<string, string>;
+    /** Tier by specific commodity id — the hook for custom world resources. */
+    commodityTiers?: Record<string, string>;
+    /**
+     * Optional fine-tune multiplier keyed by commodity id or category. Scales each
+     * knob's DEVIATION from normal: value = normal + (tierValue - normal) * modifier.
+     * 1 = tier as-is, >1 = more extreme, <1 = softer, 0 = normal.
+     */
+    modifiers?: Record<string, number>;
+}
+
+const NORMAL_PARAMS = ECONOMY_TIER_PARAMS.normal;
+
+/** Apply a deviation-from-normal multiplier to every knob of a tier param set. */
+function applyModifier(params: EconomyProfileParams, modifier: number): EconomyProfileParams {
+    if (modifier === 1) { return params; }
+    const scale = (tierValue: number, normalValue: number): number =>
+        normalValue + (tierValue - normalValue) * modifier;
+    return {
+        recoveryPerTick: Math.max(0, scale(params.recoveryPerTick, NORMAL_PARAMS.recoveryPerTick)),
+        foodCrisisPriceBump: scale(params.foodCrisisPriceBump, NORMAL_PARAMS.foodCrisisPriceBump),
+        positiveMaterialStockGain: scale(params.positiveMaterialStockGain, NORMAL_PARAMS.positiveMaterialStockGain),
+        positiveMaterialPriceReduction: scale(params.positiveMaterialPriceReduction, NORMAL_PARAMS.positiveMaterialPriceReduction),
+        // Price ceiling is intentionally NOT scaled by the modifier: it must stay
+        // one of the fixed tier values so range validators can bound it (<= 7.0).
+        maxPriceIndex: params.maxPriceIndex,
+        baselinePriceBias: scale(params.baselinePriceBias, NORMAL_PARAMS.baselinePriceBias),
+    };
+}
+
+/**
+ * Resolve the effective economy params for one commodity under a difficulty
+ * config. Precedence: commodity-id tier > category/role tier > global tier >
+ * normal; then an optional id- or category-keyed % modifier is applied.
+ */
+export function resolveCommodityEconomyParams(
+    config: EconomyDifficultyConfig | undefined,
+    commodityId: string,
+    role?: string | null
+): EconomyProfileParams {
+    if (!config) { return NORMAL_PARAMS; }
+    const tierName =
+        config.commodityTiers?.[commodityId]
+        ?? (role ? config.categoryTiers?.[role] : undefined)
+        ?? config.globalTier;
+    const base = ECONOMY_TIER_PARAMS[resolveEconomyProfile(tierName)];
+    const modifier =
+        config.modifiers?.[commodityId]
+        ?? (role ? config.modifiers?.[role] : undefined);
+    return typeof modifier === 'number' ? applyModifier(base, modifier) : base;
+}
+
+/**
+ * Highest price ceiling any tier (times any sane modifier) can legitimately
+ * produce. Range validators must use THIS, not the fixed normal MAX_PRICE_INDEX,
+ * or a legitimate barren/scarce price is wrongly flagged out-of-range. Includes
+ * headroom for modifiers >1 on the harshest tier.
+ */
+export const MAX_PROFILE_PRICE_INDEX: number = Math.max(
+    ...Object.values(ECONOMY_TIER_PARAMS).map((p) => p.maxPriceIndex)
+);
 
 export interface MarketTickOptions {
     worldTurn: number;
@@ -76,10 +204,17 @@ export interface MarketTickOptions {
     /** この sim tick で新規発生したイベントのみ。市場へのイベント適用に使う。 */
     stepEvents?: WorldChangeEventLike[];
     /**
-     * Resolved economy profile knobs. When omitted, recovery/shocks use legacy
-     * normal defaults. Prefer resolveEconomyProfileParams(profile) at the host.
+     * Resolved economy profile knobs (single tier applied to every commodity).
+     * When omitted, recovery/shocks use legacy normal defaults.
+     * Superseded by economyConfig when that is provided.
      */
     economyParams?: EconomyProfileParams;
+    /**
+     * Per-world difficulty config enabling per-category / per-commodity tiers.
+     * When provided, each commodity resolves its own knobs (recovery, shock,
+     * ceiling, baseline). Empty/undefined → falls back to economyParams/normal.
+     */
+    economyConfig?: EconomyDifficultyConfig;
 }
 
 export interface MarketTickSummary {
@@ -118,6 +253,32 @@ function allMarketLocations(forge: CommerceForge): string[] {
     return forge.markets.map((m) => m.locationId);
 }
 
+/** Map commodity id → role for per-commodity difficulty resolution. */
+function buildCommodityRoleMap(forge: CommerceForge): Record<string, string | undefined> {
+    const map: Record<string, string | undefined> = {};
+    for (const c of forge.commodities ?? []) {
+        map[c.id] = c.role;
+    }
+    return map;
+}
+
+/**
+ * Resolve the economy params for one commodity. Prefers the per-commodity/
+ * per-category config when present; otherwise uses the single tier params
+ * (legacy path). Guarantees a param set is always returned.
+ */
+function commodityParams(
+    commodityId: string,
+    roleMap: Record<string, string | undefined>,
+    economyConfig: EconomyDifficultyConfig | undefined,
+    fallback: EconomyProfileParams
+): EconomyProfileParams {
+    if (economyConfig) {
+        return resolveCommodityEconomyParams(economyConfig, commodityId, roleMap[commodityId]);
+    }
+    return fallback;
+}
+
 /**
  * Which commodities an economy shock lands on, resolved by economic role.
  *
@@ -146,9 +307,11 @@ export function applyWorldEventsToMarkets(
     forge: CommerceForge,
     markets: MarketStateMap,
     events: WorldChangeEventLike[],
-    economyParams?: EconomyProfileParams
+    economyParams?: EconomyProfileParams,
+    economyConfig?: EconomyDifficultyConfig
 ): { markets: MarketStateMap; applied: number } {
-    const params = economyParams ?? resolveEconomyProfileParams('normal');
+    const fallback = economyParams ?? resolveEconomyProfileParams('normal');
+    const roleMap = buildCommodityRoleMap(forge);
     const next = cloneMarkets(markets);
     let applied = 0;
 
@@ -163,10 +326,11 @@ export function applyWorldEventsToMarkets(
                 for (const cid of commodityIds) {
                     const entry = next[loc]?.[cid];
                     if (entry) {
+                        const p = commodityParams(cid, roleMap, economyConfig, fallback);
                         entry.priceIndex = bumpPriceIndex(
                             entry.priceIndex,
-                            params.foodCrisisPriceBump,
-                            params.maxPriceIndex
+                            p.foodCrisisPriceBump,
+                            p.maxPriceIndex
                         );
                         applied++;
                     }
@@ -180,11 +344,12 @@ export function applyWorldEventsToMarkets(
                 for (const cid of commodityIds) {
                     const entry = next[loc]?.[cid];
                     if (entry) {
-                        entry.stock += params.positiveMaterialStockGain;
+                        const p = commodityParams(cid, roleMap, economyConfig, fallback);
+                        entry.stock += p.positiveMaterialStockGain;
                         entry.priceIndex = bumpPriceIndex(
                             entry.priceIndex,
-                            -params.positiveMaterialPriceReduction,
-                            params.maxPriceIndex
+                            -p.positiveMaterialPriceReduction,
+                            p.maxPriceIndex
                         );
                         applied++;
                     }
@@ -205,10 +370,11 @@ export function tickMarketRecovery(
     options: MarketTickOptions
 ): { markets: MarketStateMap; summary: MarketTickSummary } {
     const economyParams = options.economyParams ?? resolveEconomyProfileParams('normal');
-    const recovery = options.recoveryPerTick
+    // Single-tier fallback recovery (legacy path / explicit soak override).
+    const fallbackRecovery = options.recoveryPerTick
         ?? economyParams.recoveryPerTick
         ?? DEFAULT_MARKET_RECOVERY_PER_TICK;
-    const maxPriceIndex = economyParams.maxPriceIndex;
+    const roleMap = buildCommodityRoleMap(forge);
     const next = cloneMarkets(markets);
     let stockRecoveries = 0;
     let priceAdjustments = 0;
@@ -222,18 +388,48 @@ export function tickMarketRecovery(
             const entry = locStocks[commodityId];
             if (!entry) { continue; }
 
+            // Resolve this commodity's knobs. With a per-world config, recovery,
+            // ceiling and resting price can differ per resource; without one,
+            // every commodity shares the single tier (legacy behavior).
+            const p = options.economyConfig
+                ? resolveCommodityEconomyParams(options.economyConfig, commodityId, roleMap[commodityId])
+                : economyParams;
+            const recovery = options.economyConfig ? p.recoveryPerTick : fallbackRecovery;
+            const maxP = p.maxPriceIndex;
+            const restingPrice = p.baselinePriceBias;
+
             if (entry.stock < target) {
                 const before = entry.stock;
                 entry.stock = Math.min(target, entry.stock + recovery);
                 if (entry.stock > before) { stockRecoveries++; }
             }
 
-            if (entry.stock >= target && entry.priceIndex > 1) {
-                entry.priceIndex = bumpPriceIndex(entry.priceIndex, -0.05, maxPriceIndex);
-                priceAdjustments++;
-            } else if (entry.stock < target * 0.3 && entry.priceIndex < maxPriceIndex) {
-                entry.priceIndex = bumpPriceIndex(entry.priceIndex, 0.05, maxPriceIndex);
-                priceAdjustments++;
+            if (options.economyConfig) {
+                // New per-resource path: when well supplied, drift toward this
+                // resource's resting price (may be >1.0), so a scarce/barren
+                // resource stays expensive even in stock — felt every turn, not
+                // only during shocks.
+                if (entry.stock >= target) {
+                    const gap = restingPrice - entry.priceIndex;
+                    if (Math.abs(gap) > 1e-9) {
+                        const step = Math.sign(gap) * Math.min(0.05, Math.abs(gap));
+                        entry.priceIndex = bumpPriceIndex(entry.priceIndex, step, maxP);
+                        priceAdjustments++;
+                    }
+                } else if (entry.stock < target * 0.3 && entry.priceIndex < maxP) {
+                    entry.priceIndex = bumpPriceIndex(entry.priceIndex, 0.05, maxP);
+                    priceAdjustments++;
+                }
+            } else {
+                // Legacy path (no per-world config): byte-identical to pre-tier
+                // behavior — only drift DOWN toward 1.0 when oversupplied.
+                if (entry.stock >= target && entry.priceIndex > 1) {
+                    entry.priceIndex = bumpPriceIndex(entry.priceIndex, -0.05, maxP);
+                    priceAdjustments++;
+                } else if (entry.stock < target * 0.3 && entry.priceIndex < maxP) {
+                    entry.priceIndex = bumpPriceIndex(entry.priceIndex, 0.05, maxP);
+                    priceAdjustments++;
+                }
             }
         }
     }
@@ -242,7 +438,8 @@ export function tickMarketRecovery(
         forge,
         next,
         options.stepEvents ?? [],
-        economyParams
+        economyParams,
+        options.economyConfig
     );
 
     return {

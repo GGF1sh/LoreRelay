@@ -157,9 +157,13 @@ const { TURN_LEDGER_PERSIST_ORDER } = require(turnLedgerPath);
 {
     const coordIssues = checkPhysicalResourceCoordination(LEDGER_DESCRIPTORS);
     if (coordIssues.some((i) => i.code === 'mixed_physical_resource_coordination')) {
-        fail(`migration exempt writers should not trip coordination: ${JSON.stringify(coordIssues)}`);
+        fail(`coordinated migration writers should not trip coordination: ${JSON.stringify(coordIssues)}`);
+    } else if (LEDGER_DESCRIPTORS
+        .filter((d) => d.id === 'migration_vehicle_writeback' || d.id === 'migration_vehicle_restore')
+        .some((d) => d.serializedQueue !== KNOWN_LEDGER_QUEUE_NAMES.vehicle_state || d.coordinationExempt)) {
+        fail('migration vehicle writers must use the shared vehicle queue without exemption');
     } else {
-        ok('migration writers are coordinationExempt for vehicle_state.json');
+        ok('migration writers share the vehicle queue for vehicle_state.json');
     }
 }
 

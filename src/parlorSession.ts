@@ -7,41 +7,73 @@ import {
     ParlorSession,
     appendParlorMessage,
     createEmptyParlorSession,
+    getCharacterParlorSessionFilename,
+    legacyParlorSessionBelongsToCharacter,
     parseParlorSession,
 } from './parlorSessionCore';
 import { compactParlorSessionWithArchive } from './parlorArchive';
 
-function resolveParlorSessionPath(): string | undefined {
+function resolveParlorSessionPath(filename: string): string | undefined {
     const ws = getWorkspacePath();
     if (!ws) {
         return undefined;
     }
     const base = path.resolve(ws);
-    const resolved = path.resolve(base, PARLOR_SESSION_FILENAME);
+    const resolved = path.resolve(base, filename);
     if (!resolved.startsWith(base + path.sep)) {
         return undefined;
     }
     return resolved;
 }
 
-export function loadParlorSession(fallbackCharacterId: string): ParlorSession | undefined {
-    const filePath = resolveParlorSessionPath();
-    if (!filePath || !fs.existsSync(filePath)) {
-        return undefined;
-    }
+function readParlorSession(filePath: string, fallbackCharacterId: string): ParlorSession | undefined {
     try {
         const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         return parseParlorSession(raw, fallbackCharacterId);
     } catch (err) {
-        console.error('[LoreRelay] Failed to load parlor_session.json', err);
+        console.error('[LoreRelay] Failed to load Parlor session', err);
+        return undefined;
+    }
+}
+
+export function loadParlorSession(fallbackCharacterId: string): ParlorSession | undefined {
+    const filename = getCharacterParlorSessionFilename(fallbackCharacterId);
+    if (!filename) {
+        return undefined;
+    }
+
+    const characterPath = resolveParlorSessionPath(filename);
+    if (characterPath && fs.existsSync(characterPath)) {
+        const session = readParlorSession(characterPath, fallbackCharacterId);
+        if (session?.activeCharacterId === fallbackCharacterId) {
+            return session;
+        }
+    }
+
+    // One-time compatibility read for the former shared filename. Never infer
+    // its owner from the requested id; that is the cross-character leak.
+    const legacyPath = resolveParlorSessionPath(PARLOR_SESSION_FILENAME);
+    if (!legacyPath || !fs.existsSync(legacyPath)) {
+        return undefined;
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(legacyPath, 'utf-8'));
+        if (!legacyParlorSessionBelongsToCharacter(raw, fallbackCharacterId)) {
+            return undefined;
+        }
+        const session = parseParlorSession(raw, fallbackCharacterId);
+        return session?.activeCharacterId === fallbackCharacterId ? session : undefined;
+    } catch (err) {
+        console.error('[LoreRelay] Failed to load legacy parlor_session.json', err);
         return undefined;
     }
 }
 
 export function saveParlorSession(session: ParlorSession, characterName = 'Character', locale = 'en'): void {
-    const filePath = resolveParlorSessionPath();
+    const filename = getCharacterParlorSessionFilename(session.activeCharacterId);
+    const filePath = filename ? resolveParlorSessionPath(filename) : undefined;
     if (!filePath) {
-        throw new Error('Workspace required for parlor_session.json');
+        throw new Error('Workspace and valid character required for Parlor session');
     }
     const compacted = compactParlorSessionWithArchive(session, characterName, locale);
     writeJsonAtomic(filePath, compacted);

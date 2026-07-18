@@ -363,6 +363,12 @@ function applyExperienceProfile(profile) {
   document.body.classList.toggle('profile-parlor', experienceProfile === 'parlor');
   document.body.classList.toggle('profile-inworld', experienceProfile === 'inworld');
   document.body.classList.toggle('profile-campaign', experienceProfile === 'campaign');
+  if (typeof window.setParlorSettingsPanelAvailability === 'function') {
+    window.setParlorSettingsPanelAvailability(experienceProfile === 'parlor');
+  }
+  if (typeof window.syncStatusTabsForExperienceProfile === 'function') {
+    window.syncStatusTabsForExperienceProfile(experienceProfile);
+  }
   const profileBtn = document.getElementById('experience-profile-btn');
   if (profileBtn) {
     profileBtn.textContent = experienceProfile === 'parlor' ? '🎭' : (experienceProfile === 'inworld' ? '🌐' : '⚔️');
@@ -393,6 +399,7 @@ function initStartHub() {
   const parlorBtn = document.getElementById('start-hub-parlor-btn');
   const inWorldBtn = document.getElementById('start-hub-inworld-btn');
   const demoBtn = document.getElementById('start-hub-demo-btn');
+  const tradingDemoBtn = document.getElementById('start-hub-trading-demo-btn');
   const mapDemoBtn = document.getElementById('start-hub-map-demo-btn');
   const debugBtn = document.getElementById('start-hub-debug-btn');
   const scavengerDemoBtn = document.getElementById('start-hub-scavenger-demo-btn');
@@ -459,6 +466,12 @@ function initStartHub() {
     demoBtn.addEventListener('click', () => {
       resumeCurrentSession();
       vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'harbor-mist' });
+    });
+  }
+  if (tradingDemoBtn) {
+    tradingDemoBtn.addEventListener('click', () => {
+      resumeCurrentSession();
+      vscode.postMessage({ type: 'loadBundledScenario', sampleId: 'trade-routes' });
     });
   }
   if (mapDemoBtn) {
@@ -856,15 +869,26 @@ window.addEventListener('message', (event) => {
   }
 });
 
-// ===== Resizer =====
+// ===== Resizer (wide mode only; clamp shared with LoreRelayResponsive) =====
+function clampStatusPaneWidth(value) {
+  const vw = (typeof window !== 'undefined' && Number.isFinite(window.innerWidth)) ? window.innerWidth : 1200;
+  if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.clampSidebarWidth === 'function') {
+    return window.LoreRelayResponsive.clampSidebarWidth(value, vw);
+  }
+  const width = Number(value);
+  if (!Number.isFinite(width) || width <= 0) return 320;
+  const max = Math.min(Math.floor(vw * 0.42), 800);
+  return Math.max(280, Math.min(max, Math.round(width)));
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const resizer = document.getElementById('resizer');
   const statusArea = document.getElementById('status-area');
   if (!resizer || !statusArea) return;
 
   const savedWidth = localStorage.getItem('lorerelay.statusWidth');
-  if (savedWidth) {
-    statusArea.style.setProperty('--status-width', `${savedWidth}px`);
+  if (savedWidth !== null) {
+    statusArea.style.setProperty('--status-width', `${clampStatusPaneWidth(savedWidth)}px`);
   }
 
   let isResizing = false;
@@ -872,6 +896,11 @@ window.addEventListener('DOMContentLoaded', () => {
   let startWidth = 0;
 
   resizer.addEventListener('mousedown', (e) => {
+    // Drawer modes disable the resizer; do not begin a drag or persist width.
+    if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.isResizerEnabled === 'function'
+      && !window.LoreRelayResponsive.isResizerEnabled()) {
+      return;
+    }
     isResizing = true;
     startX = e.clientX;
     startWidth = statusArea.getBoundingClientRect().width;
@@ -882,10 +911,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('mousemove', (e) => {
     if (isResizing) {
+      if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.isResizerEnabled === 'function'
+        && !window.LoreRelayResponsive.isResizerEnabled()) {
+        return;
+      }
       const diff = startX - e.clientX;
       let newWidth = startWidth + diff;
-      if (newWidth < 60) newWidth = 60;
-      if (newWidth > 800) newWidth = 800;
+      newWidth = clampStatusPaneWidth(newWidth);
       statusArea.style.setProperty('--status-width', `${newWidth}px`);
     }
 
@@ -921,9 +953,15 @@ window.addEventListener('DOMContentLoaded', () => {
       resizer.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      
-      const finalWidth = statusArea.getBoundingClientRect().width;
-      localStorage.setItem('lorerelay.statusWidth', finalWidth);
+      // Only persist while wide mode remains active (drawer drag must not write).
+      if (!window.LoreRelayResponsive || window.LoreRelayResponsive.isResizerEnabled()) {
+        if (window.LoreRelayResponsive && typeof window.LoreRelayResponsive.persistWidthFromElement === 'function') {
+          window.LoreRelayResponsive.persistWidthFromElement();
+        } else {
+          const finalWidth = clampStatusPaneWidth(statusArea.getBoundingClientRect().width);
+          localStorage.setItem('lorerelay.statusWidth', finalWidth);
+        }
+      }
     }
 
     if (isResizingBanner) {

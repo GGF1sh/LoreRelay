@@ -232,20 +232,44 @@ function clone(obj) {
     const state = makeState();
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
 
+    const {
+        runSerializedVehicleStateDocumentMutationWithDeps,
+    } = require(path.join(root, 'out', 'vehicleStateDocumentOwner.js'));
+    let tempSequence = 0;
+    const ownerDeps = {
+        getVehicleStatePath: () => statePath,
+        fileExists: (p) => fs.existsSync(p),
+        readFileUtf8: (p) => fs.readFileSync(p, 'utf-8'),
+        allocateTempPath: () => path.join(
+            dir,
+            `.lorerelay-vehicle-state-${process.pid}-${Date.now()}-${++tempSequence}.tmp`
+        ),
+        openTempFile: (p) => fs.openSync(p, 'wx', 0o600),
+        writeTempFileUtf8: (fd, payload) => {
+            fs.writeFileSync(fd, payload, { encoding: 'utf-8' });
+        },
+        fsyncTempFile: (fd) => fs.fsyncSync(fd),
+        closeTempFile: (fd) => fs.closeSync(fd),
+        renameFile: (from, to) => fs.renameSync(from, to),
+        waitBeforeRenameRetry: () => {},
+        cleanupTempFile: (p) => {
+            try {
+                if (fs.existsSync(p)) {
+                    fs.unlinkSync(p);
+                }
+            } catch {}
+        },
+        syncDirectoryBestEffort: () => undefined,
+        clearVehicleStateCache: () => {},
+        runSerializedMutation: (fn) => fn(),
+        reportDiagnostic: () => {},
+    };
     const deps = {
         isVehicleSystemEnabled: () => true,
         getVehicleStatePath: () => statePath,
-        readVehicleStateFromDisk: (p) => {
-            const raw = JSON.parse(fs.readFileSync(p ?? statePath, 'utf-8'));
-            const parsed = parseVehicleState(raw);
-            return parsed.vehicles.length ? parsed : undefined;
-        },
         loadWorldTurn: () => 11,
-        writeVehicleStateAtomic: (p, doc) => {
-            fs.writeFileSync(p, JSON.stringify(doc, null, 2), 'utf-8');
-        },
-        clearVehicleStateCache: () => {},
-        runSerializedMutation: (fn) => fn(),
+        runSerializedVehicleStateDocumentMutation: (name, mutate) =>
+            runSerializedVehicleStateDocumentMutationWithDeps(ownerDeps, name, mutate),
     };
 
     const off = tryApplyVehicleTurnOpsWithDeps({

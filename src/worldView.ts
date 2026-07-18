@@ -19,7 +19,6 @@ import { buildTileOvermap, resolveOvermapThemeKey } from './tileOvermapCore';
 import { buildMapOverlayFromContext } from './mapOverlayBridge';
 import { deriveKnownNpcIds } from './mapOverlayCore';
 import { loadDiscoveryLedger } from './discoveryLedger';
-import { loadSettlementLayout, loadSettlementState } from './settlementState';
 import { buildWorkspaceSettlementDiorama, resolveDioramaThemeFromOvermap, settlementDioramaEnabled } from './settlementDioramaBridge';
 import {
     buildSettlementExpansionPreviews,
@@ -27,7 +26,19 @@ import {
     sanitizeSettlementExpansionPreviewsForWebview,
     sanitizeSettlementViewForWebview,
 } from './settlementViewCore';
-import type { SettlementLayerId } from './settlementCore';
+import type { SettlementLayerId, SettlementLayoutV1, SettlementStateV1 } from './settlementCore';
+import {
+    extractActiveMobileBaseSettlementId,
+    loadFixedSettlementForWorldView,
+} from './worldViewFixedSettlement';
+import {
+    buildSettlementDisplayContext,
+    mapFixedLoadCodeToAvailability,
+    resolveSettlementDisplayLocationId,
+    retainSettlementFocus,
+    validateSettlementFocusLocationId,
+    type SettlementDisplayContext,
+} from './worldViewSettlementFocusCore';
 
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
 import { resolveWorldMapImagePath } from './cartographyRunner';
@@ -53,9 +64,19 @@ import { getCampaignKitPath } from './campaignKit';
 import { livingWorldEnabled } from './livingWorldBridge';
 import { readDomainFromGameState } from './domainTurnOps';
 import { readGuildFromGameState } from './guildTurnOps';
-import { buildMarketPriceTable } from './commerceCore';
-import { resolveCommerceForge, ensureLivingWorldMarkets, npcRelationshipsEnabled } from './livingWorldBridge';
+import { buildMarketPriceTable, cargoWeight, initializeMarketState, transportCapacity } from './commerceCore';
+import {
+    resolveCommerceForge,
+    ensureLivingWorldMarkets,
+    getLatestEconomyTickSnapshot,
+    npcRelationshipsEnabled,
+} from './livingWorldBridge';
 import type { CommerceForge, MarketStateMap } from './livingWorldTypes';
+import {
+    buildEconomyLogisticsViewModel,
+    type EconomyLogisticsSnapshotSource,
+} from './economyLogisticsViewCore';
+import { deriveEconomyLogisticsPreview } from './economyLogisticsPreviewCore';
 import { listNotableRelationships, applyIntroductionTrustBoost } from './npcRelationshipCore';
 import { deepestMilestone } from './npcLifeEventsCore';
 import { listPlayerBondStandings } from './playerBondCore';
@@ -78,8 +99,49 @@ import { loadVehicleState } from './vehicleState';
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
 let preferredSettlementLayerId: SettlementLayerId = 'z0';
 
+/** Ephemeral in-memory settlement preview focus (workspace-scoped, never persisted). */
+let settlementFocusWorkspaceRoot: string | undefined;
+let settlementFocusLocationId: string | undefined;
+
+/** Short, path-safe identity for Webview-only logistics preferences. */
+export function deriveEconomyLogisticsScopeKey(workspacePath?: string, worldName?: string, worldSeed?: string): string {
+    const rawWorkspace = typeof workspacePath === 'string'
+        ? workspacePath.trim().normalize('NFC').replace(/[\\/]+/g, '\\')
+        : '';
+    const workspace = /^[a-zA-Z]:\\$/.test(rawWorkspace)
+        ? rawWorkspace.toLowerCase()
+        : rawWorkspace.replace(/\\+$/, '').toLowerCase();
+    const name = typeof worldName === 'string' ? worldName.trim().normalize('NFC') : '';
+    const seed = typeof worldSeed === 'string' ? worldSeed.trim().normalize('NFC') : '';
+    // Prefer a seed-stable identity so a user rename of worldName does not
+    // orphan camera/layout localStorage. worldName only participates when no
+    // seed is available.
+    let source = '';
+    if (workspace && seed) {
+        source = `${workspace}\u0000${seed}`;
+    } else if (!seed && name) {
+        source = `${workspace}\u0000${name}`;
+    } else if (!workspace && seed) {
+        source = seed;
+    } else if (workspace) {
+        source = workspace;
+    } else {
+        return 'default';
+    }
+    // FNV-1a is sufficient here: this is a non-secret localStorage namespace,
+    // never an authority or security boundary. Keep the emitted key compact.
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < source.length; index++) {
+        hash ^= source.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return `lr_${hash.toString(36)}`.replace(/[^a-z0-9_-]/g, '') || 'default';
+}
+
 export function initWorldView(deps: { getPanel: () => vscode.WebviewPanel | undefined }): void {
     getPanelRef = deps.getPanel;
+    // Panel/workspace re-init must not inherit a prior workspace's focus.
+    clearWorldSettlementFocusState();
 }
 
 export function setPreferredSettlementLayer(layerId: string): SettlementLayerId {
@@ -90,6 +152,61 @@ export function setPreferredSettlementLayer(layerId: string): SettlementLayerId 
 
 export function getPreferredSettlementLayer(): SettlementLayerId {
     return preferredSettlementLayerId;
+}
+
+/** Test/debug helper: current ephemeral focus (undefined when none). */
+export function getWorldSettlementFocusLocationId(): string | undefined {
+    return settlementFocusLocationId;
+}
+
+export function clearWorldSettlementFocusState(): void {
+    settlementFocusWorkspaceRoot = undefined;
+    settlementFocusLocationId = undefined;
+}
+
+/**
+ * Set ephemeral settlement preview focus from an untrusted Webview message.
+ * Does not change the player's current location. Invalid requests fail closed.
+ */
+export function setWorldSettlementFocus(locationId: unknown): void {
+    const wsPath = getWorkspacePath();
+    if (!wsPath || !isWorldForgeEnabled()) {
+        return;
+    }
+    const forge = loadWorldForge();
+    if (!forge) {
+        return;
+    }
+    const catalog = new Set(forge.geography.locations.map((loc) => loc.id));
+    const validated = validateSettlementFocusLocationId(locationId, catalog);
+    if (!validated.ok) {
+        // Fail closed: do not adopt arbitrary focus; keep current-location display.
+        return;
+    }
+    // Selecting the current city pin normalizes to no preview focus.
+    const current = getCurrentLocationIdFromDisk();
+    if (current && validated.locationId === current) {
+        clearWorldSettlementFocusState();
+        pushWorldViewToWebview(current);
+        return;
+    }
+    settlementFocusWorkspaceRoot = wsPath;
+    settlementFocusLocationId = validated.locationId;
+    pushWorldViewToWebview(current);
+}
+
+/** Clear ephemeral settlement preview focus and refresh World View for the real current location. */
+export function clearWorldSettlementFocus(): void {
+    clearWorldSettlementFocusState();
+    pushWorldViewToWebview(getCurrentLocationIdFromDisk());
+}
+
+function getCurrentLocationIdFromDisk(): string | undefined {
+    const snap = loadGameStateSnapshotFromDisk();
+    const id = snap?.world && typeof (snap.world as { currentLocationId?: unknown }).currentLocationId === 'string'
+        ? (snap.world as { currentLocationId: string }).currentLocationId
+        : undefined;
+    return id && id.length > 0 ? id : undefined;
 }
 
 function loadGameStateSnapshotFromDisk(): (Pick<GameState, 'world' | 'commerce'> & { domain?: unknown }) | undefined {
@@ -109,13 +226,17 @@ function loadWorldBlockFromDisk(): GameStateWorld | undefined {
 
 function buildPlayerCommercePayload(
     commerce: GameState['commerce'] | undefined,
-    commerceEnabled: boolean
+    commerceEnabled: boolean,
+    forge?: CommerceForge
 ): {
     credits: number;
     food: number;
     transportId: string;
     playerRole: string;
     cargo: Array<{ commodityId: string; qty: number }>;
+    transportName: string;
+    cargoWeight: number | null;
+    cargoCapacity: number | null;
 } | null {
     if (!commerceEnabled || !commerce || typeof commerce.credits !== 'number') {
         return null;
@@ -132,12 +253,19 @@ function buildPlayerCommercePayload(
     const role = typeof commerce.playerRole === 'string' && commerce.playerRole
         ? commerce.playerRole
         : 'merchant';
+    const transportId = typeof commerce.transportId === 'string' ? commerce.transportId : 'wagon';
+    const transport = forge?.transportKinds.find((item) => item.id === transportId);
     return {
         credits: Math.max(0, Math.floor(commerce.credits)),
         food: typeof commerce.food === 'number' ? Math.max(0, Math.floor(commerce.food)) : 30,
-        transportId: typeof commerce.transportId === 'string' ? commerce.transportId : 'wagon',
+        transportId,
+        transportName: transport?.name || transportId,
         playerRole: role,
         cargo,
+        cargoWeight: forge ? cargoWeight(forge, cargo) : null,
+        cargoCapacity: forge && transportCapacity(forge, transportId) > 0
+            ? transportCapacity(forge, transportId)
+            : null,
     };
 }
 
@@ -168,6 +296,7 @@ interface WorldViewMarketQuote {
     unitPrice: number;
     stock: number;
     priceIndex: number;
+    unitWeight: number;
 }
 
 interface WorldViewMarketTable {
@@ -206,7 +335,7 @@ function buildLivingWorldMarketPayload(
     if (!commerce || !markets) { return []; }
 
     const locationNames = new Map(forge.geography.locations.map((loc) => [loc.id, loc.name]));
-    const commodityNames = new Map(commerce.commodities.map((commodity) => [commodity.id, commodity.name]));
+    const commodityById = new Map(commerce.commodities.map((commodity) => [commodity.id, commodity]));
 
     return buildMarketPriceTable(commerce, markets)
         .map((market) => ({
@@ -214,10 +343,11 @@ function buildLivingWorldMarketPayload(
             locationName: locationNames.get(market.locationId) ?? market.locationId,
             quotes: market.quotes.map((quote) => ({
                 commodityId: quote.commodityId,
-                commodityName: commodityNames.get(quote.commodityId) ?? quote.commodityId,
+                commodityName: commodityById.get(quote.commodityId)?.name ?? quote.commodityId,
                 unitPrice: quote.unitPrice,
                 stock: quote.stock,
                 priceIndex: quote.priceIndex,
+                unitWeight: commodityById.get(quote.commodityId)?.weight ?? 0,
             })),
         }))
         .filter((market) => market.quotes.length > 0);
@@ -565,8 +695,58 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
         enableMobileBaseSystem: gameRules.enableMobileBaseSystem === true,
     });
-    const settlementState = gameRules.enableSettlementMode === true ? loadSettlementState() : undefined;
-    const settlementLayout = settlementState ? loadSettlementLayout() : undefined;
+    // Vehicle first: fixed settlement ownership exclusion needs active Mobile Base settlementId.
+    // Non-World-Forge workspaces return earlier (enabled:false) — singleton path unchanged for them.
+    const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
+    const activeMobileBaseSettlementId = extractActiveMobileBaseSettlementId(vehicleState);
+
+    // Actual player location (game source of truth). Preview never mutates this.
+    const actualCurrentLocationId = typeof currentLocationId === 'string' && currentLocationId.length > 0
+        ? currentLocationId
+        : undefined;
+
+    const forgeLocationIds = new Set(forge.geography.locations.map((loc) => loc.id));
+    const locationNameById = new Map(
+        forge.geography.locations.map((loc) => [loc.id, loc.name || loc.id] as const)
+    );
+
+    // SLICE2: ephemeral focus retained only for this workspace + still-valid catalog id.
+    const retainedFocus = retainSettlementFocus({
+        focusWorkspaceRoot: settlementFocusWorkspaceRoot,
+        focusLocationId: settlementFocusLocationId,
+        activeWorkspaceRoot: wsPath,
+        forgeLocationIds,
+        currentLocationId: actualCurrentLocationId,
+    });
+    if (retainedFocus !== settlementFocusLocationId) {
+        settlementFocusLocationId = retainedFocus;
+        if (!retainedFocus) {
+            settlementFocusWorkspaceRoot = undefined;
+        }
+    }
+
+    const displayResolve = resolveSettlementDisplayLocationId({
+        currentLocationId: actualCurrentLocationId,
+        focusedLocationId: settlementFocusLocationId,
+    });
+    if (displayResolve.normalizeFocusAway && settlementFocusLocationId) {
+        settlementFocusLocationId = undefined;
+        settlementFocusWorkspaceRoot = undefined;
+    }
+    const displaySettlementLocationId = displayResolve.displayLocationId;
+    const settlementDisplayMode = displayResolve.mode;
+
+    // SLICE1+2: resolve fixed settlement for display location only (current or remote preview).
+    // Does not call loadSettlementState/Layout. All fixed-derived fields share this source.
+    const fixedLoad = loadFixedSettlementForWorldView({
+        enableSettlementMode: gameRules.enableSettlementMode === true,
+        workspaceRoot: wsPath,
+        currentLocationId: displaySettlementLocationId,
+        forgeLocationIds,
+        activeMobileBaseSettlementId,
+    });
+    const settlementState: SettlementStateV1 | undefined = fixedLoad.state;
+    const settlementLayout: SettlementLayoutV1 | undefined = fixedLoad.layout;
     const settlementView = settlementState
         ? buildSettlementViewSnapshot({
             state: settlementState,
@@ -574,8 +754,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             selectedLayerId: preferredSettlementLayerId,
         })
         : undefined;
-    // M4c: read-only ghost previews for layers missing from settlement_layout.json.
-    // Pure in-memory use of applyExpandLayerToLayout — never persisted here.
+    // M4c: read-only ghost previews — same resolved state/layout as settlementView.
     const settlementExpansionPreviews = settlementState
         ? buildSettlementExpansionPreviews(settlementState, settlementLayout)
         : [];
@@ -585,8 +764,15 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         gameRules,
         { theme: dioramaTheme, includeLabels: true }
     );
-
-    const vehicleState = gameRules.enableVehicleSystem === true ? loadVehicleState() : undefined;
+    const settlementDisplayContext: SettlementDisplayContext | null = gameRules.enableSettlementMode === true
+        ? buildSettlementDisplayContext({
+            mode: settlementDisplayMode,
+            currentLocationId: actualCurrentLocationId,
+            displayLocationId: displaySettlementLocationId,
+            locationNameById,
+            availability: mapFixedLoadCodeToAvailability(fixedLoad.code, Boolean(settlementState)),
+        })
+        : null;
     const mapOverlay = buildMapOverlayFromContext({
         forge,
         fog: {
@@ -602,7 +788,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         discoveryLedger: campaignKitActive ? loadDiscoveryLedger() : undefined,
         knownNpcIds: deriveKnownNpcIds(registry, fog.visitedLocationIds),
         vehicleState,
-        currentLocationId: currentLocationId ?? worldBlock?.currentLocationId,
+        // Map overlay / commerce / vehicles stay on actual current location — never preview focus.
+        currentLocationId: actualCurrentLocationId ?? worldBlock?.currentLocationId,
     });
     const rawForgeDoc = loadWorldForgeDocument();
     const commerceForge = gameRules.enableCommerce === true && rawForgeDoc
@@ -618,7 +805,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     const gameSnapshot = loadGameStateSnapshotFromDisk();
     const playerCommerce = buildPlayerCommercePayload(
         gameSnapshot?.commerce,
-        gameRules.enableCommerce === true
+        gameRules.enableCommerce === true,
+        commerceForge
     );
     const livingWorldDecisionSurface: WorldViewCommerceDecisionSurface | null = commerceForge && playerCommerce
         ? {
@@ -639,6 +827,51 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             }),
         }
         : null;
+    const economyTickSnapshot = commerceForge?.resourceFlows
+        ? getLatestEconomyTickSnapshot(forge.meta.worldName ?? '', commerceForge.resourceFlows)
+        : undefined;
+    // Cold-start: committed tick snapshot wins; otherwise pure derive from opening markets.
+    let logisticsFlow = economyTickSnapshot?.economyFlow ?? null;
+    let logisticsProcessing = economyTickSnapshot?.economyProcessing ?? null;
+    let logisticsWorldTurn = economyTickSnapshot?.worldTurn;
+    let logisticsSnapshotSource: EconomyLogisticsSnapshotSource | undefined;
+    if (economyTickSnapshot?.economyFlow) {
+        logisticsSnapshotSource = 'committed_tick';
+    } else if (
+        gameRules.enableCommerce === true
+        && commerceForge?.resourceFlows
+    ) {
+        const openingMarkets: MarketStateMap = worldState
+            ? ensureLivingWorldMarkets(commerceForge, worldState as any)
+            : initializeMarketState(commerceForge);
+        const preview = deriveEconomyLogisticsPreview({
+            forge: commerceForge,
+            definition: commerceForge.resourceFlows,
+            markets: openingMarkets,
+            worldTurn,
+        });
+        if (preview.ok) {
+            logisticsFlow = preview.economyFlow;
+            logisticsProcessing = preview.economyProcessing;
+            logisticsWorldTurn = preview.worldTurn;
+            logisticsSnapshotSource = 'derived_preview';
+        }
+    }
+    const economyLogistics = {
+        ...buildEconomyLogisticsViewModel({
+        commerceEnabled: gameRules.enableCommerce === true,
+        worldTurn: logisticsWorldTurn,
+        commodities: commerceForge?.commodities,
+        definition: commerceForge?.resourceFlows,
+        flow: logisticsFlow,
+        processing: logisticsProcessing,
+        snapshotSource: logisticsSnapshotSource,
+        }),
+        // Transient Webview metadata only. The hash prevents a workspace path
+        // from entering the payload or the localStorage key while still keeping
+        // camera/layout preferences isolated by normalized workspace and world identity.
+        scopeKey: deriveEconomyLogisticsScopeKey(wsPath, forge.meta.worldName, forge.meta.worldSeed),
+    };
 
     // §D3: Domain Mode panel (F7 Audience / F8 Rivals / F9 Missions / F10 Battle all surface here).
     const domainState = gameRules.enableDomainMode === true && gameSnapshot
@@ -691,6 +924,8 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         enableSettlementDiorama: settlementDioramaEnabled(gameRules),
         settlementDiorama: settlementDiorama ?? null,
         settlementExpansionPreviews: sanitizeSettlementExpansionPreviewsForWebview(settlementExpansionPreviews),
+        settlementDisplayContext,
+
         factions,
         factionStates: factionStates ?? null,
         regionStates: regionStates ?? null,
@@ -699,6 +934,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         questHooks: worldState?.questHooks ?? [],
         livingWorldMarkets,
         livingWorldDecisionSurface,
+        economyLogistics,
         playerCommerce,
         worldTurn: worldTurn ?? null,
         simEnabled,
@@ -745,9 +981,9 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         chronicle: observatoryChronicle,
         excludedEventIds: gameRules.excludedEventIds ?? [],
         enableVehicleSystem: gameRules.enableVehicleSystem === true,
-        vehicleGarage: buildVehicleGarageWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
+        vehicleGarage: buildVehicleGarageWebviewPayload(actualCurrentLocationId ?? worldBlock?.currentLocationId),
         enableMobileBaseSystem: mobileBaseSystemEnabled(gameRules),
-        mobileBasePanel: buildMobileBasePanelWebviewPayload(currentLocationId ?? worldBlock?.currentLocationId),
+        mobileBasePanel: buildMobileBasePanelWebviewPayload(actualCurrentLocationId ?? worldBlock?.currentLocationId),
         mobileBaseInterior: buildMobileBaseInteriorWebviewPayload(preferredSettlementLayerId, dioramaTheme) ?? null,
     });
 }

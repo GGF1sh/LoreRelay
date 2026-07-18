@@ -9,6 +9,131 @@
 
 ## [Unreleased]
 
+## [1.84.16] - 2026-07-18
+
+### Added
+- Responsive three-stage Webview shell: wide two-column layout at 960px and above, compact overlay drawer from 720–959px, and narrow drawer below 720px.
+- Focused DOM coverage for breakpoint boundaries, drawer/resizer behavior, modal ownership, and IME-safe Escape handling.
+
+### Fixed
+- Higher-priority modals retain the first Escape, including the Logistics lightbox and the canonical `player-action-hub`; the drawer closes on the following Escape.
+- Drawer and scrim stacking now remain above normal shell chrome but below Parlor, Character Creator, Genesis, Logistics lightbox, and Player Action Hub layers.
+- High-contrast drawer styling now matches the actual `html` / `body.vscode-high-contrast` DOM topology.
+
+### Preserved
+- Accepted Logistics 1.84.15 behavior remains intact: maximize/restore, current-path particle restoration, zero stale white dots, truthful blocked/impaired routes, and scale-stable minimap dragging.
+- Focused automation is complete; final visual and gameplay approval is delegated to the 1.84.16 Human Play Gate.
+
+## [1.84.15] - 2026-07-18
+
+### Fixed
+- Logistics flow particles rebuilt after node dragging now copy the active route line's current `d` directly into `animateMotion`, avoiding Electron/Chromium's stale SMIL `<mpath>` trajectory cache.
+- Pointerup keeps drag suppression active through the final RAF, rounded node position, route/annotation, and minimap commits, then restores only the active render context and audits every visible particle against live geometry.
+
+## [1.84.14] - 2026-07-18
+
+### Fixed
+- Logistics enlarged-view node drag no longer leaves ghost SMIL particles on stale paths; an authoritative drag-session gate suppresses and audits all incident-route flow dots until pointerup.
+- Logistics large view gains a maximize/restore control so the graph can use nearly the full Webview viewport without Fit All or camera reset.
+
+## [1.84.13] - 2026-07-18
+
+### Live logistics endpoint and truthful route-status presentation
+
+- Node dragging now applies the latest pointer sample as one requestAnimationFrame-bounded update: authoritative node coordinates, owning-region bounds, every incident route path and annotation, then the minimap projection.
+- Live route recomputation is restricted to routes whose factual source or destination is the moved node. Existing line, hit-path and path IDs remain stable; unrelated route and particle DOM is untouched.
+- Geometry-conflict diagnostics no longer replace factual route status. Movement-permitted impaired routes retain warning styling and particle eligibility, while blocked equivalents keep the distinct stopped/red contract and never animate.
+- The logistics legend now names open, impaired-moving, and blocked-flow-off states explicitly, backed by 25 focused endpoint, identity, filter, status, particle, reset and minimap contracts.
+
+## [1.84.12] - 2026-07-18
+
+### Stable logistics minimap and live flow paths
+
+- Minimap projection authority now comes only from visible graph content and fixed padding. Camera movement cannot change the projection scale, the viewport indicator remains inside the minimap, and minimap targeting clamps the camera without changing zoom.
+- Node dragging temporarily removes only affected route particles while reusing the live line and hit geometry, then immediately rebuilds operational particles against the preserved path ID on pointerup. Unrelated route particles remain untouched.
+- Route visual normalization now supplies the same operational fact used by particle eligibility: blocked, sealed, closed, and disabled routes never animate, while movement-permitted degraded states remain visibly impaired and operational.
+- Added focused behavioral regression coverage for the 20 minimap, drag lifecycle, route status, filtering, and path-identity contracts in the recovery gate.
+
+## [1.84.10] - 2026-07-18
+
+### Truthful logistics minimap and flow semantics
+
+- Minimap projection bounds now include visible nodes, region containers, and the main-camera viewport. Node drags expand the projection at most once per animation frame, then pointerup and graph lifecycle transitions rebuild canonical padded bounds without relayout of unrelated regions.
+- Moving flow particles now require current primary relevance, positive operational flow, the display toggle, motion permission, and an actual movement-permitting route status. `blocked` and unknown non-operational equivalents never create particles; the current factual enum continues to permit `open`, `strained`, and `raided` movement.
+- Added production behavioral coverage for repeated node/minimap drags, reset/collapse/large-view transitions, stopped-route selection and filtering, zero-result clearing, and route geometry/path identity preservation.
+
+## [1.84.9] - 2026-07-17
+
+### Logistics graph canvas — live interaction polish (targeted human-blocker repair)
+
+- Live region-container sync: dragging a node now recomputes and moves only the owning region's dashed container, its heading/count, the header hit-area, and the minimap projection during pointermove — no full panel render or graph relayout. On pointerup the bounds are finalized with the same deterministic formula, so a subsequent full rerender is byte-identical. Unrelated regions are never touched.
+- Minimap rendering: the projected region rectangles, node markers and viewport indicator are HTML elements, so they are now painted with theme-aware `background`/`border` instead of SVG-only `fill`/`stroke` (which left the minimap blank). Selected and current-location markers are distinguishable in both dark and light themes; camera click/drag still preserve scale.
+- Selection clearing: a second click on the selected route (or node), and a click on empty graph background, now return to the neutral state — clicks on a different entity, the toolbar, the minimap, filters, the collapse control or the detail panel never clear accidentally. Escape clearing is preserved. A compact localized hint is shown while a selection is active.
+- `reg_coast`-style current-location regions: the intentional collapse protection is now a visible, accessible locked state (persistent lock glyph, framed header, `aria-disabled` + accessible reason) instead of a bare prohibited cursor; keyboard and pointer agree and no route/node data is deleted.
+- Layout Reset feedback: replaced the webview-unreliable `window.confirm` (a silent no-op) with a direct reset that reports completion through a non-modal polite status; the button is disabled with an explanatory title when there are no manual overrides, and stays distinct from Camera Reset via explicit titles/aria.
+- Light-theme visual quality: region headings now sit on a restrained theme-aware header band (framed, no longer plain unframed black text and readable over blue/red routes), the graph field is visually distinct from the surrounding panel, and the minimap remains visible — all via VS Code theme variables with safe fallbacks; dark theme is preserved.
+
+## [1.84.8] - 2026-07-17
+
+### Logistics graph canvas human-blocker repair
+
+- Moved factual region, node, route, and warning text into the final SVG annotation layer so ordinary and selected route strokes, halos, hit paths, and flow particles render behind it.
+- Synchronized flow particles with the final filter relevance: primary routes retain particles; secondary and unrelated routes hide them immediately.
+
+## [1.84.7] - 2026-07-17
+
+### Logistics graph canvas release gate
+
+- Promoted the logistics graph canvas after real VS Code Extension Development Host verification of search and commodity filtering, route and node details, semantic zoom, pan and reset controls, minimap behavior, region collapse, node drag geometry, and persisted layout state.
+- Confirmed the focused logistics navigation, camera, interaction, visual encoding, route geometry, layout, persistence, economy view, payload whitelist, and World location navigation checks.
+
+## [1.83.0] - 2026-07-14
+
+### Per-resource economy difficulty (absolute 5-tier scale)
+
+NOAI-mode economy balance was reworked from a single opaque `economyProfile`
+(`easy`/`normal`/`harsh`) into an **absolute, per-resource scarcity scale** so a
+freely-built world can say "minerals abundant but farmland barren", and even
+custom world resources (e.g. a setting-specific mineral) get their own
+difficulty. No fuzzy AI judgment — the tiers are fixed, testable numbers.
+
+- **5-tier scale** `abundant / plentiful / normal / scarce / barren`
+  (`worldSimCommerceCore.ts`). Each tier is a concrete parameter set (recovery,
+  shock strength, price ceiling, and a **new `baselinePriceBias`** so a scarce
+  resource stays expensive even in stock — felt every turn, not only during
+  shocks). `normal` is byte-identical to the previous constants. Legacy
+  `easy`/`harsh` are accepted on input and canonicalized to `plentiful`/`scarce`.
+- **Per-category and per-commodity overrides** in `game_rules`
+  (`economyResourceProfiles` by commodity role, `economyCommodityProfiles` by
+  commodity id) with resolution precedence **commodity id > category > global >
+  normal**. Custom resources are supported with zero new plumbing — the id is
+  the key.
+- **Optional `% modifiers`** (`economyResourceModifiers`) that scale a tier's
+  deviation from normal (`value = normal + (tier − normal) × modifier`,
+  clamped `[0, 3]`); the price ceiling is intentionally left unscaled so range
+  validators stay bounded. Empty config ⇒ every commodity resolves to `normal`
+  (legacy behavior unchanged).
+- **Market tick is now per-commodity** (`tickMarketRecovery` /
+  `applyWorldEventsToMarkets` accept an `economyConfig`), wired through
+  `worldKitTickCore` and `livingWorldBridge`.
+
+### NOAI soak: economy profile now actually exercised + a real bug fixed
+
+- The soak runner passed only `recoveryPerTick` to the market tick, so **4 of
+  the 5 economy knobs never fired** in any shipped scenario (shock knobs need
+  world-sim `resource` events, which no fixture triggered). The runner now
+  resolves the full profile / per-resource config and passes it through; new
+  `economyProfile` (+ `economyResourceProfiles` / `economyCommodityProfiles`)
+  scenario keys drive it.
+- **Bug fix:** the `market_ranges_valid` soak invariant hard-coded the old
+  `MAX_PRICE_INDEX` (4) as the price upper bound, so a legitimate scarce/harsh
+  price above 4 crashed the run mid-soak. It now uses `MAX_PROFILE_PRICE_INDEX`
+  (the highest tier ceiling, 7).
+- Added comparison scenarios (`noai_econprofile_*`, `noai_famine_*`) and a
+  `market_famine` fixture (factions with depleting food) that actually fires the
+  food-crisis path. Soak confirms resting price and stock floor are **monotonic
+  abundant→barren**, and barren genuinely strangles commerce.
+
 ## [1.82.5] - 2026-07-14
 
 ### Production fixes

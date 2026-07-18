@@ -92,8 +92,10 @@ function dioramaPrefersReducedMotion() {
 function detectWebglSupport() {
     try {
         const canvas = document.createElement('canvas');
-        return !!(window.WebGLRenderingContext
-            && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+        const webgl2 = window.WebGL2RenderingContext && canvas.getContext('webgl2');
+        const webgl = window.WebGLRenderingContext
+            && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+        return !!(webgl2 || webgl);
     } catch {
         return false;
     }
@@ -104,6 +106,22 @@ function resolveThreeScriptUri() {
         return window.__LR_THREE_SCRIPT_URI__;
     }
     return null;
+}
+
+function resolveWebviewScriptNonce() {
+    if (typeof window !== 'undefined' && window.__LR_SCRIPT_NONCE__) {
+        return window.__LR_SCRIPT_NONCE__;
+    }
+    return null;
+}
+
+function reportDioramaLoaderError(message, detail) {
+    if (typeof console === 'undefined' || typeof console.error !== 'function') { return; }
+    if (detail) {
+        console.error(`[LoreRelay Diorama] ${message}`, detail);
+    } else {
+        console.error(`[LoreRelay Diorama] ${message}`);
+    }
 }
 
 function isThreeAvailable() {
@@ -117,18 +135,38 @@ function isThreeAvailable() {
 function loadThreeJsLazy() {
     if (isThreeAvailable()) { return Promise.resolve(true); }
     const uri = resolveThreeScriptUri();
-    if (!uri) { return Promise.resolve(false); }
+    if (!uri) {
+        reportDioramaLoaderError('Packaged Three.js Webview URI is missing.');
+        return Promise.resolve(false);
+    }
     if (_dioramaThreeLoadPromise) { return _dioramaThreeLoadPromise; }
     _dioramaThreeLoadPromise = new Promise((resolve) => {
         const script = document.createElement('script');
+        const nonce = resolveWebviewScriptNonce();
+        if (nonce) { script.nonce = nonce; }
         script.src = uri;
         script.async = true;
         script.onload = () => {
             _dioramaAvailable = null;
-            resolve(isThreeAvailable());
+            const ok = isThreeAvailable();
+            if (!ok) {
+                reportDioramaLoaderError('Packaged Three.js loaded, but THREE/WebGL is unavailable.', {
+                    three: typeof THREE !== 'undefined',
+                    webgl: detectWebglSupport(),
+                });
+            }
+            resolve(ok);
         };
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
+        script.onerror = (error) => {
+            reportDioramaLoaderError('Failed to load packaged Three.js.', error);
+            resolve(false);
+        };
+        try {
+            document.head.appendChild(script);
+        } catch (error) {
+            reportDioramaLoaderError('Failed to append packaged Three.js script.', error);
+            resolve(false);
+        }
     });
     return _dioramaThreeLoadPromise;
 }
@@ -142,9 +180,9 @@ function getMobileBaseInteriorDiorama(msg) {
 
 function getDioramaSnapshot() {
     const msg = _dioramaWorldMsg;
-    const interior = getMobileBaseInteriorDiorama(msg);
-    if (interior && interior.settlementDiorama) {
-        return interior.settlementDiorama;
+    // SETTLEMENT-VIEW-SOURCE-001: same logical source as 2D settlement view.
+    if (typeof getSelectedSettlementDiorama === 'function') {
+        return getSelectedSettlementDiorama(msg);
     }
     return msg && msg.settlementDiorama ? msg.settlementDiorama : null;
 }
@@ -282,6 +320,18 @@ function disposeSettlementDioramaRenderer() {
 
 function disposeSettlementDiorama() {
     disposeSettlementDioramaRenderer();
+}
+
+/** Clear location-specific scene content without losing the canvas WebGL
+ * context. A data -> no-data -> same-data preview cycle reuses this canvas;
+ * forceContextLoss() makes the subsequent renderer permanently blank in the
+ * VS Code Webview. Reset the scene identity so the same snapshot rebuilds. */
+function clearSettlementDioramaScene() {
+    disposeSceneObjects();
+    _lastDioramaSettlementId = null;
+    _lastDioramaLayerId = null;
+    _lastDioramaRevision = null;
+    _dioramaSelected = null;
 }
 
 function rebuildDioramaSceneContent(snapshot) {
@@ -758,15 +808,25 @@ function renderSettlementDiorama() {
     const msg = _dioramaWorldMsg;
     const snapshot = getDioramaSnapshot();
     const flagOn = Boolean(msg && msg.enableSettlementDiorama === true);
+    if (typeof renderSettlementSourceSelector === 'function') {
+        renderSettlementSourceSelector(msg);
+    }
+    if (typeof renderSettlementFocusBanner === 'function') {
+        renderSettlementFocusBanner(msg, { prefix: 'diorama' });
+    }
 
     if (!flagOn || !snapshot) {
         stage.classList.add('hidden');
         if (unavailable) { unavailable.classList.add('hidden'); }
         if (empty) {
             empty.classList.remove('hidden');
-            empty.textContent = typeof T === 'function' ? T('webview.world.dioramaEmpty') : 'No diorama data yet.';
+            const ctx = msg && msg.settlementDisplayContext;
+            const location = (ctx && (ctx.displayLocationName || ctx.displayLocationId)) || '';
+            empty.textContent = typeof T === 'function'
+                ? T('webview.world.dioramaNoDataLocation', { location })
+                : (location ? `${location} has no Diorama data.` : 'This location has no Diorama data.');
         }
-        disposeSettlementDiorama();
+        clearSettlementDioramaScene();
         renderSettlementDioramaMarkerFallback(null);
         renderSettlementDioramaDetailPanel(null);
         return;

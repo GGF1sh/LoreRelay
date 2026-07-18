@@ -7,6 +7,8 @@ export interface ExperienceParlorOptions {
     lorebookEnabled?: boolean;
     /** backgrounds/{filename} selection id */
     backgroundId?: string;
+    /** Selected reusable Player Persona preset; null means the unsaved current persona. */
+    activePersonaId?: string | null;
 }
 
 export interface ExperienceCampaignOptions {
@@ -71,6 +73,11 @@ export function parseExperienceConfig(raw: unknown): ExperienceConfig {
         }
         if (typeof p.backgroundId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(p.backgroundId)) {
             out.parlor.backgroundId = p.backgroundId;
+        }
+        if (p.activePersonaId === null) {
+            out.parlor.activePersonaId = null;
+        } else if (typeof p.activePersonaId === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(p.activePersonaId)) {
+            out.parlor.activePersonaId = p.activePersonaId;
         }
     }
     if (o.campaign && typeof o.campaign === 'object') {

@@ -29,7 +29,7 @@ const {
     recordLocationVisit,
     buildLivingWorldGmLines,
 } = require(path.join(root, 'out', 'livingWorldBridge.js'));
-const fixture = JSON.parse(fs.readFileSync(path.join(root, '..', 'lorerelay-world-kit', 'fixtures', 'trade_routes_forge.json'), 'utf-8'));
+const fixture = JSON.parse(fs.readFileSync(path.join(root, 'sample-scenarios', 'trade-routes', 'world_forge.json'), 'utf-8'));
 
 {
     const commerce = parseCommerceForge(fixture.commerce);

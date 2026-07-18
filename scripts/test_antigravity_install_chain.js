@@ -6,6 +6,11 @@ const fs = require('fs');
 const path = require('path');
 const { createLocalInstallerGitFixture } = require('./test_helpers/local_installer_git_fixture');
 
+if (process.platform !== 'win32') {
+    console.log('SKIP: Antigravity install-chain test exercises install_extension_antigravity.bat.');
+    process.exit(0);
+}
+
 const root = path.resolve(__dirname, '..');
 const fixture = createLocalInstallerGitFixture(root);
 const TEMP_REF = 'refs/lorerelay-test/install-chain';

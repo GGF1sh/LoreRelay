@@ -22,7 +22,8 @@ function check(condition, message) {
 
 // A-E: PowerShell installer gate behavior.
 {
-    const ps = spawnSync('powershell.exe', [
+    const powershell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
+    const ps = spawnSync(powershell, [
         '-NoProfile', '-ExecutionPolicy', 'Bypass',
         '-File', path.join(__dirname, 'test_antigravity_skill_installer.ps1'),
     ], { cwd: root, encoding: 'utf8' });

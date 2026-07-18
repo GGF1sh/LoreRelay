@@ -68,18 +68,20 @@ function makeState(extra = {}) {
 
 function makeDeps(statePath, state, options = {}) {
     let writeCount = 0;
+    let currentState = parseVehicleState(JSON.parse(JSON.stringify(state)));
     const diagnostics = [];
     const deps = {
         isVehicleSystemEnabled: () => options.enableVehicleSystem !== false,
         getVehicleStatePath: () => statePath,
-        readVehicleStateFromDisk: () => parseVehicleState(JSON.parse(JSON.stringify(state))),
         loadWorldTurn: () => options.worldTurn ?? 11,
-        writeVehicleStateAtomic: (p, doc) => {
+        runSerializedVehicleStateDocumentMutation: (_name, mutate) => {
+            const next = mutate(currentState);
+            if (!next) { return { ok: true, applied: false }; }
+            currentState = next;
             writeCount++;
-            fs.writeFileSync(p, JSON.stringify(doc, null, 2), 'utf-8');
+            fs.writeFileSync(statePath, JSON.stringify(currentState, null, 2), 'utf-8');
+            return { ok: true, applied: true };
         },
-        clearVehicleStateCache: () => {},
-        runSerializedMutation: (fn) => fn(),
         getVehicleBridgeMode: () => options.bridgeMode ?? 'off',
         emitVehicleBridgeDiagnostics: (report) => diagnostics.push(report),
     };

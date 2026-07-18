@@ -20,7 +20,7 @@ for (const p of [corePath, forgePath]) {
 const { applyMarketPriceDebugOps } = require(corePath);
 const { parseCommerceForge } = require(forgePath);
 const fixture = JSON.parse(require('fs').readFileSync(
-    path.join(root, '..', 'lorerelay-world-kit', 'fixtures', 'trade_routes_forge.json'),
+    path.join(root, 'sample-scenarios', 'trade-routes', 'world_forge.json'),
     'utf-8'
 ));
 const commerce = parseCommerceForge(fixture.commerce);

@@ -28,7 +28,7 @@ const { initializeMarketState } = require(commercePath);
 const { parseCommerceForge } = require(forgePath);
 
 const fixture = JSON.parse(require('fs').readFileSync(
-    path.join(root, '..', 'lorerelay-world-kit', 'fixtures', 'trade_routes_forge.json'),
+    path.join(root, 'sample-scenarios', 'trade-routes', 'world_forge.json'),
     'utf-8'
 ));
 const forge = parseCommerceForge(fixture.commerce);

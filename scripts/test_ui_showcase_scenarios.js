@@ -10,7 +10,8 @@ const { parseWorldState } = require('../out/worldStateCore');
 const { parseSettlementState, parseSettlementLayout } = require('../out/settlementCore');
 // Character manager and persona parsers are not entirely pure, so we use JSON parse + basic structure checks for them.
 
-const TARGET_DIR = 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current';
+const TARGET_DIR = process.env.LORERELAY_SHOWCASE_DIR
+    || (process.platform === 'win32' ? 'C:\\AI\\artifacts\\LoreRelay\\showcase\\current' : undefined);
 const SCENARIOS = [
     '01-populated-world',
     '02-empty-states',
@@ -36,6 +37,10 @@ function tryParseFile(filePath, parserFn) {
 
 function runValidation() {
     console.log('Testing UI Showcase Scenarios...');
+    if (!TARGET_DIR) {
+        console.log('SKIP: local UI showcase artifacts are only required on Windows or when LORERELAY_SHOWCASE_DIR is set.');
+        return;
+    }
     
     // 1. Verify directories exist
     checkDirectory(TARGET_DIR);

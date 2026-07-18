@@ -288,7 +288,8 @@ test('positive-volume wide routes create SMIL particles on the route path', () =
     assert.strictEqual(dots[0].getAttribute('cx'), '0');
     assert.strictEqual(dots[0].getAttribute('cy'), '0');
     assert.strictEqual(dots[0].getAttribute('visibility'), 'hidden');
-    assert.strictEqual(motionPathFor(dots[0]).getAttribute('href'), `#${grainLine.getAttribute('id')}`);
+    assert.strictEqual(motionFor(dots[0]).getAttribute('path'), grainLine.getAttribute('d'));
+    assert.strictEqual(motionPathFor(dots[0]), undefined);
     // Stagger uses negative begin so particles are mid-path on first paint.
     assert.ok(String(motionFor(dots[0]).getAttribute('begin') || '').startsWith('-'));
 });
@@ -304,8 +305,8 @@ test('particle geometry references the rendered route path without double offset
         assert.strictEqual(dot.getAttribute('cy'), '0');
         assert.strictEqual(dot.getAttribute('visibility'), 'hidden');
         assert.ok(String(motionFor(dot).getAttribute('begin') || '').startsWith('-'));
-        assert.strictEqual(motionFor(dot).getAttribute('path'), undefined);
-        assert.strictEqual(motionPathFor(dot).getAttribute('href'), `#${line.getAttribute('id')}`);
+        assert.strictEqual(motionFor(dot).getAttribute('path'), line.getAttribute('d'));
+        assert.strictEqual(motionPathFor(dot), undefined);
         const reveal = dot.children.find((child) => child.tagName === 'SET');
         assert.strictEqual(reveal.getAttribute('attributeName'), 'visibility');
         assert.strictEqual(reveal.getAttribute('to'), 'visible');

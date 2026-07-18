@@ -246,7 +246,7 @@ const { TURN_LEDGER_PERSIST_ORDER } = require(turnLedgerPath);
 
 {
     const coreSource = fs.readFileSync(coreSourcePath, 'utf-8');
-    if (/\bfs\b/.test(coreSource) || coreSource.includes('vscode') || coreSource.includes('document')) {
+    if (/from ['"](?:fs|vscode)['"]/.test(coreSource) || /\brequire\(['"](?:fs|vscode)['"]\)/.test(coreSource) || /\bdocument\s*\./.test(coreSource)) {
         fail('descriptor core must not import fs, vscode, or DOM');
     } else {
         ok('pure core imports no fs, vscode, or DOM');

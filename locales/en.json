@@ -1726,5 +1726,7 @@
   "webview.world.tradeSell": "Sell",
   "webview.world.vehicleTileHint": "Vehicle and parking markers appear on the Tile map mode.",
   "webview.world.worldGenBusy": "⏳ Generating...",
-  "webview.world.worldGenFailed": "❌ Generate Failed — Retry"
+  "webview.world.worldGenFailed": "❌ Generate Failed — Retry",
+  "webview.world.logisticsLightboxMaximize": "Maximize logistics view",
+  "webview.world.logisticsLightboxRestore": "Restore logistics view size"
 }

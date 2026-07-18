@@ -1714,8 +1714,8 @@
   "webview.world.tradeSell": "売る",
   "webview.world.vehicleTileHint": "乗り物・駐車マーカーはタイル地図モードで表示されます。",
   "webview.world.worldGenBusy": "⏳ 生成中...",
-  "webview.world.worldGenFailed": "❌ 生成失敗 — 再試行"
-  ,"extension.info.personaImportIgnored": "対応フィールドをインポートしました。未対応のフィールドは無視しました: {fields}",
+  "webview.world.worldGenFailed": "❌ 生成失敗 — 再試行",
+  "extension.info.personaImportIgnored": "対応フィールドをインポートしました。未対応のフィールドは無視しました: {fields}",
   "extension.info.personaPickCharacter": "インポート済みキャラクターを選び、編集用のプレイヤーペルソナ下書きへコピーします。",
   "extension.error.personaImportInvalid": "選択したファイルには対応するプレイヤーペルソナ JSON がありません。",
   "extension.error.personaPresetNotFound": "選択したプレイヤーペルソナのプリセットは利用できません。",
@@ -1726,5 +1726,7 @@
   "webview.parlor.personaIdentityHint": "あなたが演じる側の設定です。会話相手ではありません。",
   "webview.parlor.personaImportJson": "ペルソナ JSON を読み込む…",
   "webview.parlor.personaSaveNew": "新しいプリセットとして保存",
-  "webview.parlor.personaUpdate": "選択したプリセットを更新"
+  "webview.parlor.personaUpdate": "選択したプリセットを更新",
+  "webview.world.logisticsLightboxMaximize": "物流ビューを最大化",
+  "webview.world.logisticsLightboxRestore": "物流ビューのサイズを戻す"
 }

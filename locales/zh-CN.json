@@ -1705,8 +1705,8 @@
   "webview.world.tradeSell": "卖出",
   "webview.world.vehicleTileHint": "载具与停车标记仅在瓦片地图模式下显示。",
   "webview.world.worldGenBusy": "⏳ 生成中...",
-  "webview.world.worldGenFailed": "❌ 生成失败 — 重试"
-  ,"extension.info.personaImportIgnored": "已导入受支持的人设字段。已忽略不支持的字段：{fields}",
+  "webview.world.worldGenFailed": "❌ 生成失败 — 重试",
+  "extension.info.personaImportIgnored": "已导入受支持的人设字段。已忽略不支持的字段：{fields}",
   "extension.info.personaPickCharacter": "选择一个已导入角色，复制为可编辑的玩家人设草稿。",
   "extension.error.personaImportInvalid": "所选文件不包含受支持的玩家人设 JSON 对象。",
   "extension.error.personaPresetNotFound": "该玩家人设预设已不可用。",
@@ -1717,5 +1717,7 @@
   "webview.parlor.personaIdentityHint": "这是你扮演的身份，不是正在交谈的角色。",
   "webview.parlor.personaImportJson": "加载人设 JSON…",
   "webview.parlor.personaSaveNew": "另存为新预设",
-  "webview.parlor.personaUpdate": "更新所选预设"
+  "webview.parlor.personaUpdate": "更新所选预设",
+  "webview.world.logisticsLightboxMaximize": "最大化物流视图",
+  "webview.world.logisticsLightboxRestore": "还原物流视图大小"
 }

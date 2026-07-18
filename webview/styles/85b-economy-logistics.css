@@ -760,6 +760,15 @@ body.vscode-light .logistics-minimap {
   overflow: hidden;
 }
 
+/* Nearly full Webview viewport; small safe inset only. */
+.visual-lightbox-panel.is-maximized {
+  width: calc(100vw - 16px);
+  height: calc(100vh - 16px);
+  max-width: none;
+  max-height: none;
+  border-radius: 6px;
+}
+
 .visual-lightbox-header {
   display: flex;
   align-items: center;
@@ -773,9 +782,21 @@ body.vscode-light .logistics-minimap {
 .visual-lightbox-title {
   font-weight: 600;
   color: var(--vscode-foreground);
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: default;
+  user-select: none;
 }
 
-.visual-lightbox-close {
+.visual-lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.visual-lightbox-close,
+.visual-lightbox-maximize {
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   background: var(--vscode-button-secondaryBackground, transparent);
   border: 1px solid var(--vscode-panel-border);
@@ -786,7 +807,8 @@ body.vscode-light .logistics-minimap {
   cursor: pointer;
 }
 
-.visual-lightbox-close:focus-visible {
+.visual-lightbox-close:focus-visible,
+.visual-lightbox-maximize:focus-visible {
   outline: 2px solid var(--vscode-focusBorder);
   outline-offset: 2px;
 }
@@ -796,12 +818,27 @@ body.vscode-light .logistics-minimap {
   min-height: 0;
   padding: 0.75rem 0.9rem;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.visual-lightbox-panel.is-maximized .visual-lightbox-body {
+  overflow: hidden;
+  padding: 0.4rem 0.5rem;
 }
 
 /* Give the logistics network real room once it is the only thing on screen
    (fixed height set on .logistics-network-viewport above). */
 .visual-lightbox-body--logistics .logistics-network-viewport {
   max-width: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.visual-lightbox-body--logistics .logistics-network-viewport.is-lightbox-maximized,
+.visual-lightbox-panel.is-maximized .visual-lightbox-body--logistics .logistics-network-viewport {
+  height: 100%;
+  min-height: min(70vh, 640px);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -39,6 +39,14 @@ const TEST_API = `
   computeLogisticsRouteGeometry,
   buildLogisticsRouteTopologyIndex,
   logisticsAffectedRouteIdsForNode,
+  isRouteSuppressedByActiveNodeDrag,
+  logisticsRouteMayShowFlowParticles,
+  logisticsBeginNodeDragSession,
+  logisticsEndNodeDragSession,
+  logisticsPurgeSuppressedFlowDots,
+  logisticsClearRouteParticles,
+  logisticsRenderFlowParticles,
+  isLogisticsRouteFlowEligible,
 };
 `;
 
@@ -104,6 +112,25 @@ class FakeElement {
     if (name === 'id') this.id = value;
   }
   getAttribute(name) { return this.attributes[name] === undefined ? null : this.attributes[name]; }
+  querySelectorAll(sel) {
+    const all = [];
+    const walk = (node) => {
+      all.push(node);
+      (node.children || []).forEach(walk);
+    };
+    walk(this);
+    if (sel === '.logistics-flow-dot') {
+      return all.filter((n) => n.classList && n.classList.contains('logistics-flow-dot'));
+    }
+    if (sel === 'mpath' || sel === 'MPATH') {
+      return all.filter((n) => n.tagName === 'MPATH');
+    }
+    return [];
+  }
+  querySelector(sel) {
+    const list = this.querySelectorAll(sel);
+    return list[0] || null;
+  }
   addEventListener(type, listener, options) {
     const capture = options === true || (options && options.capture);
     const key = capture ? `${type}__capture` : type;
@@ -206,9 +233,18 @@ function createHarness(options = {}) {
     },
     T: (key) => key,
     ResizeObserver: class {
-      constructor(cb) { this.cb = cb; }
-      observe(el) { this.cb([{ contentRect: { width: el.clientWidth || 0 } }]); }
-      disconnect() {}
+      constructor(cb) { this.cb = cb; this._busy = false; }
+      observe(el) {
+        // Avoid re-entrant observe→render→observe loops in the Fake DOM.
+        if (this._busy) { return; }
+        this._busy = true;
+        try {
+          this.cb([{ contentRect: { width: el.clientWidth || 800 } }]);
+        } finally {
+          this._busy = false;
+        }
+      }
+      disconnect() { this._busy = false; }
     },
   };
   context.globalThis = context;
@@ -286,6 +322,7 @@ function routeOf(h, id) { return findAll(h.panel, (n) => n.dataset.routeId === i
 function routeAnnotation(route, className) { return findAll(route?._logisticsAnnotations, (n) => n.classList.contains(className))[0]; }
 function selectOf(h) { return findAll(h.panel, (n) => n.tagName === 'SELECT')[0]; }
 function toolbarBtn(h, cls) { return findAll(h.panel, (n) => n.classList.contains(cls))[0]; }
+function expandBtnOf(h) { return findAll(h.panel, (n) => n.classList.contains('logistics-expand-btn'))[0]; }
 function parseTranslate(transform) {
   const m = /translate\(([^ ]+) ([^)]+)\)/.exec(transform || '');
   return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
@@ -1675,6 +1712,151 @@ test('HUMAN-BLOCKERS-E #16-25: fixture status, filtering and legend remain factu
   assert.ok(findAll(legend, (n) => n.classList.contains('logistics-legend-impaired'))[0].textContent.includes('webview.world.logisticsLegendActive'), '#24 impaired legend states movement continues');
   assert.ok(findAll(legend, (n) => n.classList.contains('logistics-legend-blocked'))[0].textContent.includes('webview.world.logisticsFlowAnimationOff'), '#24 blocked legend states flow is off');
   assert.ok(Number.isFinite(h.api.economyLogisticsUiState.rendered.minimap.currentModel().scale), '#25 minimap projection scale remains finite');
+});
+
+// --- HUMAN-BLOCKERS-F: authoritative drag-session particle suppression + maximize ---
+
+function collectVisibleDots(root) {
+  return findAll(root, (n) => n.classList.contains('logistics-flow-dot') && n.getAttribute('display') !== 'none');
+}
+
+function mpathHref(dot) {
+  const m = findAll(dot, (n) => n.tagName === 'MPATH')[0];
+  return m ? (m.getAttribute('href') || '') : '';
+}
+
+test('HUMAN-BLOCKERS-F #1-20: drag session suppresses all active-view particles for incident routes', () => {
+  const base = twoRegionPayload();
+  const routes = [
+    { ...base.routes[0], id: 'tr_grain_to_port', fromNodeId: 'a1', toNodeId: 'a2', status: 'open', volume: 5 },
+    { ...base.routes[0], id: 'tr_grain_to_reed', fromNodeId: 'a1', toNodeId: 'b1', status: 'blocked', volume: 4 },
+    { ...base.routes[1], id: 'tr_ore_to_ash', fromNodeId: 'b2', toNodeId: 'a1', status: 'raided', volume: 3 },
+    { ...base.routes[1], id: 'tr_gate_unrelated', fromNodeId: 'b1', toNodeId: 'b2', status: 'open', volume: 2 },
+  ];
+  const h = createHarness({ deferAnimationFrames: true });
+  h.context.renderEconomyLogistics(twoRegionPayload({
+    routes,
+    summary: { activeRoutes: 3, blockedRoutes: 1, raidedRoutes: 1, totalVolume: 14, shortageCount: 0, bottleneckCount: 0 },
+  }), true);
+  h.flushAnimationFrames();
+  const openPathId = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('id');
+  // Select open route first so it sits in the raised layer during the drag (#7).
+  routeOf(h, 'tr_grain_to_port').dispatchEvent({ type: 'click' });
+  assert.ok(routeOf(h, 'tr_grain_to_port').parentNode.classList.contains('layer-edges-raised'), '#7 pre-selected raised layer');
+  // Capture viewport AFTER selection re-render so pointer events hit live handlers.
+  const viewport = viewportOf(h);
+  // Capture unrelated particle identity AFTER selection re-render settles.
+  const unrelatedDots = findAll(routeOf(h, 'tr_gate_unrelated'), (n) => n.classList.contains('logistics-flow-dot'));
+  assert.ok(unrelatedDots.length > 0, 'fixture starts with unrelated operational particles');
+
+  // #1 source-node drag starts session immediately on pointerdown
+  nodeOf(h, 'a1').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 2001 });
+  const session = h.api.economyLogisticsUiState.nodeDragSession;
+  assert.ok(session && session.active, '#1 drag session active after source pointerdown');
+  assert.strictEqual(session.movedNodeId, 'a1');
+  const affected = [...session.affectedRouteIds].sort();
+  assert.deepStrictEqual(affected, ['tr_grain_to_port', 'tr_grain_to_reed', 'tr_ore_to_ash'].sort(), '#3 affected route IDs are exactly incident routes');
+  assert.ok(!session.affectedRouteIds.has('tr_gate_unrelated'), '#4 unrelated route excluded');
+  assert.ok(h.api.isRouteSuppressedByActiveNodeDrag('tr_grain_to_port'), '#5 suppression predicate true for incident');
+  assert.ok(!h.api.isRouteSuppressedByActiveNodeDrag('tr_gate_unrelated'), '#5 suppression predicate false for unrelated');
+
+  // #12-14 full active-view audit (not only route descendants)
+  const allDots = collectVisibleDots(h.panel);
+  for (const dot of allDots) {
+    const href = mpathHref(dot);
+    const pathId = href.startsWith('#') ? href.slice(1) : href;
+    assert.ok(!session.affectedPathIds.has(pathId), `#13 no visible dot references affected path ${pathId}`);
+  }
+  assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#5/#7 raised route has no particles during drag');
+  assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_reed'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, 'blocked stays particle free');
+  assert.ok(unrelatedDots.every((dot, i) => findAll(routeOf(h, 'tr_gate_unrelated'), (n) => n.classList.contains('logistics-flow-dot'))[i] === dot), '#15 unrelated particle DOM identity preserved');
+
+  // #8 central gate / purge
+  h.api.logisticsPurgeSuppressedFlowDots(h.api.economyLogisticsUiState.rendered);
+  assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#8 purge leaves incident routes particle-free');
+  assert.ok(
+    !h.api.logisticsRouteMayShowFlowParticles(
+      routeOf(h, 'tr_grain_to_port')._logisticsRoute,
+      'primary',
+      routeOf(h, 'tr_grain_to_port')._logisticsStyle
+    ),
+    '#8 central gate denies particle recreation during drag'
+  );
+
+  // Continue move + geometry refresh still particle-free
+  viewport.dispatchEvent({ type: 'pointermove', clientX: 200, clientY: 40, pointerId: 2001 });
+  h.flushAnimationFrames();
+  assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#5 geometry refresh keeps particles suppressed');
+
+  // #16-19 pointerup restore
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 2001 });
+  assert.strictEqual(h.api.economyLogisticsUiState.nodeDragSession, null, 'session cleared on pointerup');
+  const restoredOpen = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-flow-dot'));
+  const restoredImpaired = findAll(routeOf(h, 'tr_ore_to_ash'), (n) => n.classList.contains('logistics-flow-dot'));
+  assert.ok(restoredOpen.length > 0, `#16 open-route particles restore (got ${restoredOpen.length})`);
+  assert.ok(restoredImpaired.length > 0, '#17 impaired-route particles restore');
+  assert.strictEqual(findAll(routeOf(h, 'tr_grain_to_reed'), (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#18 blocked never restores');
+  const openLineId = findAll(routeOf(h, 'tr_grain_to_port'), (n) => n.classList.contains('logistics-route-line'))[0].getAttribute('id');
+  assert.ok(restoredOpen.every((dot) => mpathHref(dot) === `#${openLineId}`), '#19 restored mpath uses current path ID');
+  assert.strictEqual(openLineId, openPathId, '#19 path ID preserved across drag');
+
+  // #2 destination drag
+  nodeOf(h, 'a2').dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 2002 });
+  assert.ok(h.api.economyLogisticsUiState.nodeDragSession?.active, '#2 destination drag starts session');
+  assert.ok(h.api.economyLogisticsUiState.nodeDragSession.affectedRouteIds.has('tr_grain_to_port'));
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 2002 });
+});
+
+test('HUMAN-BLOCKERS-F #21-24: maximize toggles panel size and preserves camera/selection', () => {
+  const h = createHarness();
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  expandBtnOf(h).dispatchEvent({ type: 'click' });
+  const lb = h.api.ensureVisualLightbox();
+  assert.ok(h.api.economyLogisticsUiState.lightboxHost, 'lightbox open');
+  const camBefore = {
+    k: h.api.economyLogisticsUiState.cameraContexts.lightbox.camera?.k,
+    tx: h.api.economyLogisticsUiState.cameraContexts.lightbox.camera?.tx,
+    ty: h.api.economyLogisticsUiState.cameraContexts.lightbox.camera?.ty,
+  };
+  // select a route in lightbox body
+  const lbRoute = findAll(lb.body, (n) => n.dataset.routeId === 'grain_route')[0];
+  if (lbRoute) lbRoute.dispatchEvent({ type: 'click' });
+  const selBefore = h.api.economyLogisticsUiState.selection?.id;
+  assert.ok(typeof lb.toggleMaximize === 'function', '#21 maximize control exists');
+  lb.toggleMaximize();
+  assert.strictEqual(h.api.economyLogisticsUiState.lightboxMaximized, true, '#21 maximized state true');
+  assert.ok(lb.panel.classList.contains('is-maximized'), '#21 panel has is-maximized class');
+  assert.strictEqual(h.api.economyLogisticsUiState.cameraContexts.lightbox.camera?.k, camBefore.k, '#22 maximize preserves camera k');
+  assert.strictEqual(h.api.economyLogisticsUiState.cameraContexts.lightbox.camera?.tx, camBefore.tx, '#22 maximize preserves camera tx');
+  assert.strictEqual(h.api.economyLogisticsUiState.selection?.id, selBefore, '#23 selection preserved');
+  lb.toggleMaximize();
+  assert.strictEqual(h.api.economyLogisticsUiState.lightboxMaximized, false, '#24 restore clears maximized');
+  assert.ok(!lb.panel.classList.contains('is-maximized'), '#24 panel restored');
+});
+
+test('HUMAN-BLOCKERS-F #6: lightbox/enlarged context drag suppresses particles', () => {
+  const h = createHarness({ deferAnimationFrames: true });
+  h.context.renderEconomyLogistics(twoRegionPayload(), true);
+  expandBtnOf(h).dispatchEvent({ type: 'click' });
+  const lb = h.api.ensureVisualLightbox();
+  h.flushAnimationFrames();
+  const host = lb.body;
+  const node = findAll(host, (n) => n.dataset.nodeId === 'a1')[0];
+  const viewport = findAll(host, (n) => n.classList.contains('logistics-network-viewport'))[0];
+  const route = findAll(host, (n) => n.dataset.routeId === 'grain_route')[0];
+  assert.ok(node && viewport && route, 'lightbox graph mounted');
+  assert.ok(findAll(route, (n) => n.classList.contains('logistics-flow-dot')).length > 0, 'particles present before drag');
+  node.dispatchEvent({ type: 'pointerdown', clientX: 0, clientY: 0, button: 0, pointerId: 3001 });
+  assert.ok(h.api.economyLogisticsUiState.nodeDragSession?.active, '#6 enlarged-context session active');
+  assert.strictEqual(h.api.economyLogisticsUiState.nodeDragSession.renderedContextId, 'lightbox');
+  assert.strictEqual(findAll(route, (n) => n.classList.contains('logistics-flow-dot')).length, 0, '#6 enlarged drag suppresses particles');
+  const allDots = collectVisibleDots(host);
+  for (const dot of allDots) {
+    const pathId = mpathHref(dot).replace(/^#/, '');
+    assert.ok(!h.api.economyLogisticsUiState.nodeDragSession.affectedPathIds.has(pathId), '#6/#12 no visible host dot on affected path');
+  }
+  viewport.dispatchEvent({ type: 'pointerup', pointerId: 3001 });
+  assert.ok(findAll(findAll(host, (n) => n.dataset.routeId === 'grain_route')[0], (n) => n.classList.contains('logistics-flow-dot')).length > 0, '#20 restore without large-view reopen');
 });
 
 if (failed) process.exit(1);

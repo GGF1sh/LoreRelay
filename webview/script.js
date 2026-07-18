@@ -13485,7 +13485,127 @@ const economyLogisticsUiState = {
   filterCountElement: null,
   storageFallback: new Map(),
   cameraSaveTimers: {},
+  // Authoritative node-drag particle suppression (HUMAN-BLOCKERS-F).
+  // While active, incident routes of movedNodeId must not create or display
+  // flow particles in ANY render path (initial paint, raised layer, filter/
+  // search/zoom refresh, or geometry refresh). Cleared only on drag cleanup.
+  nodeDragSession: null,
+  lightboxMaximized: false,
 };
+
+/** True when an active drag session forbids particles for this route. */
+function isRouteSuppressedByActiveNodeDrag(routeId) {
+  const session = economyLogisticsUiState.nodeDragSession;
+  return Boolean(session && session.active && routeId && session.affectedRouteIds
+    && (session.affectedRouteIds.has ? session.affectedRouteIds.has(routeId) : session.affectedRouteIds.includes(routeId)));
+}
+
+/** Combined flow gate used by every particle creation / visibility path. */
+function logisticsRouteMayShowFlowParticles(route, relevanceKind, style) {
+  if (!route || isRouteSuppressedByActiveNodeDrag(route.id)) { return false; }
+  if (economyLogisticsUiState.compactAnimation) { return false; }
+  return isLogisticsRouteFlowEligible({
+    flowEnabled: economyLogisticsUiState.flowAnimationEnabled,
+    reducedMotion: logisticsPrefersReducedMotion(),
+    relevanceKind: relevanceKind || 'primary',
+    volume: route.volume,
+    operational: style?.operational,
+  });
+}
+
+/** Strip tracked particles from a route group and drop is-flowing. */
+function logisticsClearRouteParticles(group) {
+  if (!group || !group._logisticsParts) { return; }
+  const parts = group._logisticsParts;
+  if (parts.particles && parts.particles.length) {
+    for (const p of parts.particles) {
+      if (p && p.parentNode) { p.parentNode.removeChild(p); }
+    }
+  }
+  parts.particles = [];
+  if (group.classList) { group.classList.remove('is-flowing'); }
+}
+
+/**
+ * Active-view particle audit: remove every .logistics-flow-dot in the active
+ * SVG whose mpath references an affected (or missing/stale) path ID. This
+ * catches orphans outside tracked _logisticsParts arrays (raised layer moves,
+ * stale SMIL remounts, wrong render-instance leftovers).
+ */
+function logisticsPurgeSuppressedFlowDots(rendered) {
+  const session = economyLogisticsUiState.nodeDragSession;
+  if (!session || !session.active) { return; }
+  const pathIds = session.affectedPathIds;
+  const hasPath = (id) => pathIds && (pathIds.has ? pathIds.has(id) : pathIds.includes(id));
+  const roots = [];
+  if (rendered?.svg) { roots.push(rendered.svg); }
+  if (rendered?.viewport) { roots.push(rendered.viewport); }
+  // Always also audit the currently mounted host (lightbox or panel).
+  const host = economyLogisticsUiState.lightboxHost
+    || (typeof document !== 'undefined' ? document.getElementById('world-logistics-panel') : null);
+  if (host) { roots.push(host); }
+  const seen = new Set();
+  for (const root of roots) {
+    if (!root || seen.has(root)) { continue; }
+    seen.add(root);
+    const dots = typeof root.querySelectorAll === 'function'
+      ? root.querySelectorAll('.logistics-flow-dot')
+      : [];
+    for (const dot of dots) {
+      let href = '';
+      const mpaths = typeof dot.querySelectorAll === 'function' ? dot.querySelectorAll('mpath') : [];
+      if (mpaths && mpaths.length) {
+        href = mpaths[0].getAttribute('href') || mpaths[0].getAttribute('xlink:href') || '';
+      }
+      const pathId = href.startsWith('#') ? href.slice(1) : href;
+      // Suppress if path is affected, empty, or no longer present in the SVG.
+      let missing = !pathId;
+      if (!missing && rendered?.svg) {
+        const line = typeof document !== 'undefined' && document.getElementById
+          ? document.getElementById(pathId)
+          : null;
+        missing = !line;
+      }
+      if (hasPath(pathId) || missing) {
+        if (dot.parentNode) { dot.parentNode.removeChild(dot); }
+      }
+    }
+  }
+  // Keep tracked arrays coherent with the purge.
+  if (rendered?.routeElements) {
+    for (const routeId of (session.affectedRouteIds || [])) {
+      logisticsClearRouteParticles(rendered.routeElements.get(routeId));
+    }
+  }
+}
+
+function logisticsBeginNodeDragSession(rendered, nodeId) {
+  const topology = rendered?.routeTopologyIndex;
+  const affectedRouteIds = logisticsAffectedRouteIdsForNode(nodeId, topology) || [];
+  const affectedPathIds = [];
+  for (const routeId of affectedRouteIds) {
+    const group = rendered?.routeElements?.get(routeId);
+    const pathId = group?._logisticsParts?.line?.getAttribute?.('id')
+      || (group ? `logistics-route-path-${logisticsDomId(routeId)}` : '');
+    if (pathId) { affectedPathIds.push(pathId); }
+  }
+  economyLogisticsUiState.nodeDragSession = {
+    active: true,
+    renderedContextId: economyLogisticsUiState.lightboxHost ? 'lightbox' : 'normal',
+    movedNodeId: nodeId,
+    affectedRouteIds: new Set(affectedRouteIds),
+    affectedPathIds: new Set(affectedPathIds),
+  };
+  // Immediate suppression — do not wait for the first geometry frame.
+  for (const routeId of affectedRouteIds) {
+    logisticsClearRouteParticles(rendered?.routeElements?.get(routeId));
+  }
+  logisticsPurgeSuppressedFlowDots(rendered);
+}
+
+function logisticsEndNodeDragSession() {
+  economyLogisticsUiState.nodeDragSession = null;
+}
 
 function logisticsScopeKey(payload) {
   const value = String(payload?.scopeKey || 'default').toLowerCase();
@@ -14085,11 +14205,9 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
     const group = rendered.routeElements.get(routeId);
     if (!group || !group._logisticsParts) { continue; }
     const parts = group._logisticsParts;
-    if (parts.particles && parts.particles.length) {
-      for (const p of parts.particles) { if (p.parentNode) { p.parentNode.removeChild(p); } }
-      parts.particles = [];
-      if (group.classList) { group.classList.remove('is-flowing'); }
-    }
+    // Always clear particles for drag-affected routes. SMIL <mpath> can keep
+    // sampling a pre-drag motion path after `d` mutates if dots are left alive.
+    logisticsClearRouteParticles(group);
     parts.line.setAttribute('d', geom.pathD);
     parts.line.dataset.routePath = geom.pathD;
     if (parts.hit) { parts.hit.setAttribute('d', geom.pathD); }
@@ -14105,6 +14223,10 @@ function logisticsRefreshRoutesAfterMove(rendered, nodeId) {
     group._logisticsGeometry = geom;
   }
   rendered.routeGeoms = next;
+  // Full active-view audit (not only tracked route descendants).
+  if (economyLogisticsUiState.nodeDragSession?.active) {
+    logisticsPurgeSuppressedFlowDots(rendered);
+  }
 }
 
 /** LOGISTICS-GRAPH-CANVAS-SLICE3: every visual (stroke, hit target, arrow,
@@ -14123,8 +14245,8 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   const conflictClass = geometry.conflicted ? ' is-geometry-conflicted' : geometry.detourKind !== 'direct' ? ' is-detoured' : '';
   const relevanceKind = style.relevanceKind || (style.relevance < 1 ? 'unrelated' : 'primary');
   const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route.volume, operational: style.operational };
-  const flowing = isLogisticsRouteFlowEligible(flowInput);
-  const particleCapable = isLogisticsRouteFlowEligible({ ...flowInput, relevanceKind: 'primary' });
+  const particleEligible = logisticsRouteMayShowFlowParticles(route, 'primary', style);
+  const flowing = logisticsRouteMayShowFlowParticles(route, relevanceKind, style);
   const group = logisticsSvgElement('g', `logistics-route logistics-route-${status} logistics-route-status-${style.statusKey} is-${movement}${route.bottleneck ? ' is-bottleneck' : ''}${selected ? ' is-selected' : ''}${style.commodityAccentState !== 'none' ? ` is-commodity-${style.commodityAccentState}` : ''} is-relevance-${relevanceKind}${relevanceKind === 'unrelated' ? ' is-unrelated' : relevanceKind === 'secondary' ? ' is-secondary' : ' is-related'}${flowing ? ' is-flowing' : ''}${conflictClass}`);
   if (group.style) { group.style.opacity = String(style.relevance); }
   if (flowing && typeof group.style.setProperty === 'function') {
@@ -14147,7 +14269,9 @@ function renderLogisticsRoute(layerEdges, layerEdgesRaised, layerLabels, payload
   line.setAttribute('marker-end', `url(#logistics-arrow-${style.statusKey})`);
   if (style.dashPattern) { line.style.setProperty('stroke-dasharray', style.dashPattern); }
   group.appendChild(line);
-  const particles = particleCapable && !economyLogisticsUiState.compactAnimation
+  // Drag-session gate: never create particles for routes incident to the
+  // actively dragged node (raised layer / filter / search re-renders included).
+  const particles = particleEligible
     ? logisticsRenderFlowParticles(group, route, geometry, pathId) : [];
 
   const labelX = Math.round(geometry.labelAnchor.x);
@@ -14217,6 +14341,8 @@ function logisticsRefreshRouteElement(group, positions) {
  *  both absolute cx/cy and an absolute motion path double-applies the source
  *  offset and visibly throws dots away from their routes. */
 function logisticsRenderFlowParticles(group, route, geometry, pathId) {
+  // Central gate: creation is forbidden while this route is drag-suppressed.
+  if (route && isRouteSuppressedByActiveNodeDrag(route.id)) { return []; }
   if (!geometry || !geometry.start || !geometry.end || !geometry.d) { return []; }
   const duration = logisticsFlowDurationSeconds(route);
   if (!(duration > 0) || !Number.isFinite(duration)) { return []; }
@@ -14267,6 +14393,12 @@ function logisticsRenderFlowParticles(group, route, geometry, pathId) {
 function logisticsApplyFlowParticleVisibility(group, route, relevanceKind) {
   const particles = group?._logisticsParts?.particles || [];
   const style = group?._logisticsStyle;
+  // Drag suppression wins over every other eligibility path.
+  if (route && isRouteSuppressedByActiveNodeDrag(route.id)) {
+    if (group?.classList) { group.classList.toggle('is-flowing', false); }
+    for (const particle of particles) { particle.setAttribute('display', 'none'); }
+    return;
+  }
   const eligible = isLogisticsRouteFlowEligible({ flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind, volume: route?.volume, operational: style?.operational });
   if (group?.classList) { group.classList.toggle('is-flowing', eligible); }
   // Secondary/unrelated routes and non-moving operational statuses keep their
@@ -14772,6 +14904,12 @@ function logisticsSetupCameraInteractions(ctx) {
     if (!update) { return; }
     const position = rendered.positions.get(update.nodeId);
     if (!position) { return; }
+    // Ensure drag-session is active for every paint frame (covers restored
+    // session identity if a re-render replaced route groups mid-drag).
+    if (!economyLogisticsUiState.nodeDragSession?.active
+      || economyLogisticsUiState.nodeDragSession.movedNodeId !== update.nodeId) {
+      logisticsBeginNodeDragSession(rendered, update.nodeId);
+    }
     position.x = update.x;
     position.y = update.y;
     logisticsClampManualAwayFromOtherRegions(position, layout);
@@ -14783,6 +14921,7 @@ function logisticsSetupCameraInteractions(ctx) {
     }
     logisticsLiveUpdateOwningRegion(rendered, layout, update.nodeId, false);
     logisticsRefreshRoutesAfterMove(rendered, update.nodeId);
+    logisticsPurgeSuppressedFlowDots(rendered);
     rendered.minimap?.expand?.(hostCtx.camera);
   }
 
@@ -14830,8 +14969,14 @@ function logisticsSetupCameraInteractions(ctx) {
     if (!drag || cleaningUp) { return; }
     cleaningUp = true;
     const active = drag;
+    // Snapshot drag-session membership before any geometry flush can re-arm it.
+    const sessionRouteIds = active.type === 'node'
+      ? (logisticsAffectedRouteIdsForNode(active.nodeId, rendered.routeTopologyIndex) || [])
+      : [];
     if (active.type === 'node') {
       if (options.restoreNode) { cancelPendingNodeDrag(); } else { flushPendingNodeDrag(); }
+      // End suppression after the last paint flush so recreate is allowed.
+      logisticsEndNodeDragSession();
     }
     if (options.restoreCamera && active.startCamera) {
       setCamera(active.startCamera);
@@ -14850,7 +14995,7 @@ function logisticsSetupCameraInteractions(ctx) {
         logisticsLiveUpdateOwningRegion(rendered, layout, active.nodeId, false);
         logisticsRefreshRoutesAfterMove(rendered, active.nodeId);
         rendered.minimap?.canonical?.(hostCtx.camera);
-      } else if (active.moved && options.commitNode) {
+      } else if (active.moved && options.commitNode && position) {
         logisticsClampManualAwayFromOtherRegions(position, layout);
         position.x = Math.round(position.x); position.y = Math.round(position.y);
         // Fixed world coordinates (space: 'world'). Layout applies them as
@@ -14886,24 +15031,22 @@ function logisticsSetupCameraInteractions(ctx) {
           toolbarEls.resetLayoutBtn.setAttribute('aria-label', T('webview.world.logisticsResetLayoutTitle'));
         }
       }
-      if (options.restoreNode || (active.moved && options.commitNode)) {
-        const affectedRouteIds = logisticsAffectedRouteIdsForNode(active.nodeId, rendered.routeTopologyIndex);
-        for (const routeId of affectedRouteIds) {
-          const group = rendered.routeElements.get(routeId);
-          if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
-            const route = group._logisticsRoute;
-            const style = group._logisticsStyle;
-            const relevanceKind = group.dataset.relevance || 'unrelated';
-            const flowInput = { flowEnabled: economyLogisticsUiState.flowAnimationEnabled, reducedMotion: logisticsPrefersReducedMotion(), relevanceKind: 'primary', volume: route.volume, operational: style.operational };
-            if (isLogisticsRouteFlowEligible(flowInput) && !economyLogisticsUiState.compactAnimation) {
-              const parts = group._logisticsParts;
-              if (parts.particles && parts.particles.length) {
-                for (const p of parts.particles) { if (p.parentNode) { p.parentNode.removeChild(p); } }
-              }
-              parts.particles = logisticsRenderFlowParticles(group, route, group._logisticsGeometry, parts.line.getAttribute('id'));
-            }
-            logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
+      // Session already ended above. Rebuild eligible particles on current path IDs.
+      // (Session begins on pointerdown, so even a no-move click restores dots.)
+      for (const routeId of sessionRouteIds) {
+        const group = rendered.routeElements.get(routeId);
+        if (group && group._logisticsRoute && group._logisticsGeometry && group._logisticsStyle && group._logisticsParts) {
+          const route = group._logisticsRoute;
+          const style = group._logisticsStyle;
+          const relevanceKind = group.dataset.relevance || 'unrelated';
+          const pathId = group._logisticsParts.line.getAttribute('id');
+          logisticsClearRouteParticles(group);
+          if (logisticsRouteMayShowFlowParticles(route, 'primary', style)) {
+            group._logisticsParts.particles = logisticsRenderFlowParticles(
+              group, route, group._logisticsGeometry, pathId
+            );
           }
+          logisticsApplyFlowParticleVisibility(group, route, relevanceKind);
         }
       }
     }
@@ -14946,6 +15089,9 @@ function logisticsSetupCameraInteractions(ctx) {
         startX: Number.isFinite(startX) ? startX : 0, startY: Number.isFinite(startY) ? startY : 0,
         startCamera: hostCtx.camera, startNode: { x: nodePosition.x, y: nodePosition.y }, moved: false,
       };
+      // Begin authoritative particle suppression immediately on pointerdown so
+      // no filter/selection/raise refresh can recreate dots before the first move.
+      logisticsBeginNodeDragSession(rendered, nodeId);
       if (typeof viewport.setPointerCapture === 'function' && event.pointerId !== undefined) {
         try { viewport.setPointerCapture(event.pointerId); } catch { /* capture unsupported */ }
       }
@@ -15262,14 +15408,26 @@ function renderLogisticsNetwork(payload, parent) {
   if (hostWidth > 0) {
     economyLogisticsUiState.compactAnimation = hostWidth < LOGISTICS_COMPACT_WIDTH_PX;
   }
+  let lightboxHeight = LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX;
+  if (economyLogisticsUiState.lightboxHost) {
+    // Maximize: use the full body client area so the SVG fills available space
+    // without Fit All (camera k/tx/ty stay as stored).
+    const bodyH = Number(economyLogisticsUiState.lightboxHost.clientHeight);
+    if (Number.isFinite(bodyH) && bodyH > 0) {
+      lightboxHeight = Math.max(LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX, Math.floor(bodyH - 8));
+    }
+  }
   const viewportSize = {
     width: hostWidth > 0 ? hostWidth : LOGISTICS_VIEWPORT_WIDTH_FALLBACK,
-    height: economyLogisticsUiState.lightboxHost ? LOGISTICS_VIEWPORT_HEIGHT_LIGHTBOX : LOGISTICS_VIEWPORT_HEIGHT,
+    height: economyLogisticsUiState.lightboxHost ? lightboxHeight : LOGISTICS_VIEWPORT_HEIGHT,
   };
   const viewport = logisticsElement('div', 'logistics-network-viewport');
   viewport.setAttribute('tabindex', '0');
   viewport.setAttribute('role', 'group');
   viewport.setAttribute('aria-label', T('webview.world.logisticsAria'));
+  if (economyLogisticsUiState.lightboxHost && economyLogisticsUiState.lightboxMaximized) {
+    viewport.classList.add('is-lightbox-maximized');
+  }
   if (!economyLogisticsUiState.lightboxHost) {
     const expandBtn = logisticsElement('button', 'logistics-expand-btn', '⤢');
     expandBtn.type = 'button';
@@ -15292,7 +15450,14 @@ function renderLogisticsNetwork(payload, parent) {
   // when the node later returns to the old region.
   logisticsPruneWrongRegionManualPositions(layout);
   economyLogisticsUiState.layout = layout;
-  const rendered = { positions: new Map(), nodeElements: new Map(), routeElements: new Map() };
+  const rendered = {
+    positions: new Map(),
+    nodeElements: new Map(),
+    routeElements: new Map(),
+    contextId: economyLogisticsUiState.lightboxHost ? 'lightbox' : 'normal',
+    svg: null,
+    viewport: null,
+  };
   const graph = logisticsBuildRenderedGraph(payload, layout, data.commodityId);
   rendered.positions = graph.positions;
   rendered.graphRoutes = graph.routes;
@@ -15364,6 +15529,13 @@ function renderLogisticsNetwork(payload, parent) {
     if (position) { renderLogisticsNode(layerNodes, layerLabels, payload, node, position, data.shortages, graph.routes, visualEncoding.nodeStyles.get(node.id), rendered); }
   });
   viewport.appendChild(svg);
+  rendered.svg = svg;
+  rendered.viewport = viewport;
+  // If a full re-render lands during an active drag (filter/search/selection),
+  // re-apply suppression so newly created route groups stay particle-free.
+  if (economyLogisticsUiState.nodeDragSession?.active) {
+    logisticsPurgeSuppressedFlowDots(rendered);
+  }
 
   const bbox = layout.bounds;
   const camera = logisticsResolveCameraForRender(payload, bbox, viewportSize);
@@ -15507,12 +15679,20 @@ function ensureVisualLightbox() {
   header.className = 'visual-lightbox-header';
   const title = document.createElement('span');
   title.className = 'visual-lightbox-title';
+  const headerActions = document.createElement('div');
+  headerActions.className = 'visual-lightbox-actions';
+  const maximizeBtn = document.createElement('button');
+  maximizeBtn.type = 'button';
+  maximizeBtn.className = 'visual-lightbox-maximize';
+  maximizeBtn.textContent = '⛶';
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'visual-lightbox-close';
   closeBtn.textContent = '✕';
+  headerActions.appendChild(maximizeBtn);
+  headerActions.appendChild(closeBtn);
   header.appendChild(title);
-  header.appendChild(closeBtn);
+  header.appendChild(headerActions);
   const body = document.createElement('div');
   body.className = 'visual-lightbox-body';
   panel.appendChild(header);
@@ -15524,9 +15704,35 @@ function ensureVisualLightbox() {
   let onCloseCb = null;
   let restoreFocusEl = null;
 
+  function syncMaximizeChrome() {
+    const maximized = Boolean(economyLogisticsUiState.lightboxMaximized);
+    panel.classList.toggle('is-maximized', maximized);
+    root.classList.toggle('is-maximized', maximized);
+    const key = maximized ? 'webview.world.logisticsLightboxRestore' : 'webview.world.logisticsLightboxMaximize';
+    const label = typeof T === 'function' ? T(key) : key;
+    maximizeBtn.setAttribute('aria-label', label);
+    maximizeBtn.title = label;
+    maximizeBtn.setAttribute('aria-pressed', maximized ? 'true' : 'false');
+    maximizeBtn.textContent = maximized ? '❐' : '⛶';
+  }
+
+  function toggleMaximize() {
+    economyLogisticsUiState.lightboxMaximized = !economyLogisticsUiState.lightboxMaximized;
+    syncMaximizeChrome();
+    // Re-render into the same lightbox host so the graph SVG/viewBox matches
+    // the new body size. Camera contexts, filters, and selection are preserved
+    // in economyLogisticsUiState — no Fit All.
+    if (typeof renderEconomyLogisticsPanel === 'function') {
+      renderEconomyLogisticsPanel();
+    }
+  }
+
   function close() {
     if (root.classList.contains('hidden')) { return; }
     root.classList.add('hidden');
+    economyLogisticsUiState.lightboxMaximized = false;
+    panel.classList.remove('is-maximized');
+    root.classList.remove('is-maximized');
     // Restore focus to the trigger before the consumer's onClose callback
     // runs — that callback typically re-renders its own panel (e.g. the
     // logistics panel rebuilds and replaces its expand button), which would
@@ -15544,12 +15750,23 @@ function ensureVisualLightbox() {
     closeBtn.title = T('webview.world.logisticsLightboxClose');
     onCloseCb = onClose || null;
     restoreFocusEl = triggerEl || document.activeElement;
+    economyLogisticsUiState.lightboxMaximized = false;
+    syncMaximizeChrome();
     root.classList.remove('hidden');
     closeBtn.focus();
   }
 
   backdrop.addEventListener('click', close);
   closeBtn.addEventListener('click', close);
+  maximizeBtn.addEventListener('click', (event) => {
+    if (typeof event.stopPropagation === 'function') { event.stopPropagation(); }
+    toggleMaximize();
+  });
+  // Double-click title bar toggles maximize when it does not conflict.
+  header.addEventListener('dblclick', (event) => {
+    if (event.target === closeBtn || event.target === maximizeBtn) { return; }
+    toggleMaximize();
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !root.classList.contains('hidden')) {
       event.preventDefault();
@@ -15557,7 +15774,7 @@ function ensureVisualLightbox() {
     }
   });
 
-  window.__lrVisualLightbox = { open, close, body };
+  window.__lrVisualLightbox = { open, close, body, panel, toggleMaximize, syncMaximizeChrome };
   return window.__lrVisualLightbox;
 }
 

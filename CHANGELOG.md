@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.12] - 2026-07-18
+
+### Stable logistics minimap and live flow paths
+
+- Minimap projection authority now comes only from visible graph content and fixed padding. Camera movement cannot change the projection scale, the viewport indicator remains inside the minimap, and minimap targeting clamps the camera without changing zoom.
+- Node dragging temporarily removes only affected route particles while reusing the live line and hit geometry, then immediately rebuilds operational particles against the preserved path ID on pointerup. Unrelated route particles remain untouched.
+- Route visual normalization now supplies the same operational fact used by particle eligibility: blocked, sealed, closed, and disabled routes never animate, while movement-permitted degraded states remain visibly impaired and operational.
+- Added focused behavioral regression coverage for the 20 minimap, drag lifecycle, route status, filtering, and path-identity contracts in the recovery gate.
+
 ## [1.84.10] - 2026-07-18
 
 ### Truthful logistics minimap and flow semantics

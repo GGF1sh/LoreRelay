@@ -26,6 +26,7 @@ import {
     advanceMechanicsState,
     canAct,
     canMove,
+    isAbilityAutoDodgeable,
     isMechanicsTargetLegal,
     MechanicsCombatant,
     MechanicsReceipt,
@@ -559,11 +560,8 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         controller.tick = tick;
         syncDefeated(controller, combatants);
 
-        // 0) Advance shared mechanics timers exactly once per combatant per tick.
-        advanceAllMechanics(combatants, mechanicsDelta, statuses, mechanicsReceipts, tick, controller);
-
-        // 1) Advance expired phases / i-frames *before* inputs so recovery-end
-        //    tick accepts the next attack, and commits fire once.
+        // 1) Controller time boundaries first (action phase / i-frame / chain).
+        //    Status remainingSeconds still reflect the *start* of this tick.
         advanceDodgePhase(controller, tick, dodgeRecoveryTicks);
         advanceActionPhase({
             controller,
@@ -581,7 +579,7 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         // 2) Stamina regen (integer milli only).
         regenerateStamina(controller, regenPerTick, directReceipts);
 
-        // 3) Consume player inputs in seq order.
+        // 3) Current-tick inputs in seq order.
         const events = eventsByTick.get(tick) || [];
         for (const event of events) {
             applyInputEvent({
@@ -623,8 +621,13 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
             maybeInterruptDodgeFromControl(controller, combatants, directReceipts);
         }
 
-        // 5) Movement last; canMove shared with auto path.
+        // 5) Movement / commit side-effects for this tick.
         integrateMovement(controller, combatants, moveSpeed, tickRate, directReceipts);
+        syncControlledPosition(controller, combatants);
+
+        // 6–7) Mechanics status/DoT/doom advance once at tick end for living only.
+        //     Status present at tick start blocked actions; duration drops here.
+        advanceAllMechanics(combatants, mechanicsDelta, statuses, mechanicsReceipts, tick, controller);
         syncControlledPosition(controller, combatants);
     }
 
@@ -1096,8 +1099,8 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
     }
 
     const isControlledTarget = atk.targetId === controller.controlledCombatantId;
-    const dodgeable = spell.delivery?.dodgeable !== false
-        && !['area', 'beam'].includes(spell.delivery?.shape);
+    // Shared with resolveMechanics (dodgeable:false + area/beam).
+    const dodgeable = isAbilityAutoDodgeable(spell);
 
     // Credit / manual i-frame path is direct_action only.
     const useDirectCreditPath = mode === 'direct_action' && isControlledTarget;
@@ -1237,7 +1240,10 @@ function applyMechanicsHit(
     }
 }
 
-/** Exactly one advanceMechanicsState per combatant per tick. */
+/**
+ * Exactly one advanceMechanicsState per *living* combatant per tick (end of tick).
+ * Defeated (hp <= 0) combatants are skipped so regen cannot revive them.
+ */
 function advanceAllMechanics(
     combatants: Record<string, DirectCombatantSnapshot>,
     deltaSeconds: number,
@@ -1249,9 +1255,16 @@ function advanceAllMechanics(
     const defeatedIds = Object.values(combatants)
         .filter(c => c.mechanics.hp <= 0)
         .map(c => c.id);
+    const defeatedSet = new Set(defeatedIds);
     const ids = Object.keys(combatants).sort();
     for (const id of ids) {
         const snap = combatants[id];
+        // Skip already-defeated: no regen revive, no timer progress as living.
+        if (defeatedSet.has(id) || snap.mechanics.hp <= 0) {
+            // Clamp corpse HP and strip positive residual healing edges.
+            if (snap.mechanics.hp < 0) snap.mechanics.hp = 0;
+            continue;
+        }
         const receipts: MechanicsReceipt[] = [];
         snap.mechanics = advanceMechanicsState(snap.mechanics, deltaSeconds, {
             statuses,
@@ -1266,6 +1279,11 @@ function advanceAllMechanics(
                 abilityId: '_tick_advance',
                 receipt: structuredClone(receipt),
             });
+        }
+        // Newly dead this advance → marked defeated for subsequent ticks.
+        if (snap.mechanics.hp <= 0) {
+            snap.mechanics.hp = 0;
+            defeatedSet.add(id);
         }
     }
     syncDefeated(controller, combatants);

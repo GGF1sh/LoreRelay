@@ -169,14 +169,14 @@ describe('PR29-002: auto evasion in command/spectator', () => {
 
 describe('PR29-002: per-tick advanceMechanicsState', () => {
     test('0.1s stun expires then move/attack/dodge become possible', () => {
-        // stun remaining 0.1s at 30 tick → expires within first few ticks
+        // End-of-tick advance: 0.1s stun blocks early ticks, free after ~4 ticks at 30Hz.
         const r = run({
             ally: { statuses: [{ id: 'stun', remainingSeconds: 0.1, intensity: 1 }] },
             events: [
                 { tick: 0, seq: 0, action: 'move', phase: 'press', direction: { x: 1, y: 0 } },
-                { tick: 5, seq: 0, action: 'move', phase: 'press', direction: { x: 1, y: 0 } },
-                { tick: 6, seq: 0, action: 'light_attack', phase: 'press', targetId: 'enemy' },
-                { tick: 20, seq: 0, action: 'dodge', phase: 'press', direction: { x: 1, y: 0 } },
+                { tick: 8, seq: 0, action: 'move', phase: 'press', direction: { x: 1, y: 0 } },
+                { tick: 9, seq: 0, action: 'light_attack', phase: 'press', targetId: 'enemy' },
+                { tick: 25, seq: 0, action: 'dodge', phase: 'press', direction: { x: 1, y: 0 } },
             ],
             ability: {
                 ...slash,
@@ -415,12 +415,12 @@ describe('PR29-002: target legality before credits', () => {
     });
 
     test('after untargetable expires, first legal hit is threat 1', () => {
-        // untargetable ~0.04s: after advance on tick 0 still active (illegal),
-        // tick 1 advance clears it → first legal threat, tick 2 second → credit.
+        // End-of-tick advance: remaining 1/30s is active for tick 0, expires at end,
+        // tick 1 is first legal threat, tick 2 second → credit.
         const r = run({
             ally: {
                 evasion: 50,
-                statuses: [{ id: 'untargetable', remainingSeconds: 0.04, intensity: 1 }],
+                statuses: [{ id: 'untargetable', remainingSeconds: 1 / 30, intensity: 1 }],
             },
             incoming: [
                 { tick: 0, seq: 0, attackerId: 'enemy', targetId: 'ally', abilityId: 'basic_slash' }, // illegal

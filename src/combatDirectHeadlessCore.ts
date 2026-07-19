@@ -33,7 +33,6 @@ import {
     CombatSelectableMode,
     combatModeAllowsDirectControl,
     combatModeAllowsTacticalOrder,
-    combatModeRejectsCombatOps,
 } from './combatModeContract';
 
 // ---------------------------------------------------------------------------
@@ -758,23 +757,37 @@ function applyInputEvent(ctx: ApplyContext): void {
         return;
     }
 
-    if (event.action === 'tactical_order') {
-        if (!combatModeAllowsTacticalOrder(mode)) {
-            reject(ctx, 'mode_forbids_action');
-            return;
-        }
-        // Accepted; no side effects in this task scope.
-        return;
-    }
-    if (event.action === 'mode_switch' || event.action === 'pause' || event.action === 'companion_order') {
-        // Accepted as structured intents; behaviour deferred.
-        return;
-    }
-
-    if (COMBAT_OPS.has(event.action) && combatModeRejectsCombatOps(mode)) {
+    // Spectator authorization is checked *before* any deferred-intent early return
+    // so companion_order / pause / mode_switch cannot slip through.
+    if (mode === 'spectator') {
         reject(ctx, 'mode_forbids_action');
         return;
     }
+
+    // Command: tactical / companion orders only; no avatar combat ops.
+    if (mode === 'command') {
+        if (event.action === 'tactical_order' || event.action === 'companion_order') {
+            // Accepted deferred intents; no side effects in this task scope.
+            return;
+        }
+        reject(ctx, 'mode_forbids_action');
+        return;
+    }
+
+    // direct_action (and any future avatar modes): deferred intents accepted.
+    if (
+        event.action === 'tactical_order'
+        || event.action === 'mode_switch'
+        || event.action === 'pause'
+        || event.action === 'companion_order'
+    ) {
+        if (event.action === 'tactical_order' && !combatModeAllowsTacticalOrder(mode)) {
+            reject(ctx, 'mode_forbids_action');
+            return;
+        }
+        return;
+    }
+
     if (COMBAT_OPS.has(event.action) && !combatModeAllowsDirectControl(mode)) {
         reject(ctx, 'mode_forbids_action');
         return;
@@ -1085,21 +1098,25 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
     }
 
     if (isControlledTarget) {
-        // Advance threat count + maybe grant credit (hold cap 1).
-        controller.dodgeableThreatCount += 1;
+        // Match resolveMechanics: only effEvasion > 0 hits advance the shared
+        // dodgeable threat counter (incomingHitCount equivalent). Zero-evasion
+        // and undodgeable attacks never contribute to the credit budget.
         const eff = effectiveEvasionFor(target.mechanics, attacker.mechanics);
-        if (wouldAutoDodgeOnCount(controller.dodgeableThreatCount, eff)) {
-            if (controller.availableEvasionCredits < 1) {
-                controller.availableEvasionCredits = 1;
-                ctx.directReceipts.push({
-                    tick: controller.tick,
-                    kind: 'evasion_credit_gained',
-                    amount: controller.dodgeableThreatCount,
-                    detail: `interval=${autoDodgeInterval(eff)}`,
-                    attackerId: atk.attackerId,
-                    targetId: atk.targetId,
-                    abilityId: atk.abilityId,
-                });
+        if (eff > 0) {
+            controller.dodgeableThreatCount += 1;
+            if (wouldAutoDodgeOnCount(controller.dodgeableThreatCount, eff)) {
+                if (controller.availableEvasionCredits < 1) {
+                    controller.availableEvasionCredits = 1;
+                    ctx.directReceipts.push({
+                        tick: controller.tick,
+                        kind: 'evasion_credit_gained',
+                        amount: controller.dodgeableThreatCount,
+                        detail: `interval=${autoDodgeInterval(eff)}`,
+                        attackerId: atk.attackerId,
+                        targetId: atk.targetId,
+                        abilityId: atk.abilityId,
+                    });
+                }
             }
         }
 
@@ -1530,17 +1547,26 @@ function buildResult(parts: {
         })),
         directReceipts: parts.directReceipts.map(r => ({ ...r })),
         rejectedInputs: parts.rejectedInputs.map(r => ({ ...r })),
+        // Embedded log must round-trip through normalizeDirectInputLog (tickRate required).
         inputLog: {
             schemaVersion: parts.inputLog.schemaVersion,
+            tickRate: parts.inputLog.tickRate,
             events: parts.inputLog.events.map(e => ({
-                ...e,
-                direction: e.direction ? { ...e.direction } : undefined,
+                tick: e.tick,
+                seq: e.seq,
+                actorId: e.actorId,
+                action: e.action,
+                ...(e.phase !== undefined ? { phase: e.phase } : {}),
+                ...(e.direction !== undefined ? { direction: { x: e.direction.x, y: e.direction.y } } : {}),
+                ...(e.targetId !== undefined ? { targetId: e.targetId } : {}),
+                ...(e.abilityId !== undefined ? { abilityId: e.abilityId } : {}),
+                ...(e.order !== undefined ? { order: e.order } : {}),
+                ...(e.requestedMode !== undefined ? { requestedMode: e.requestedMode } : {}),
             })),
         },
     };
 
-    const stable = JSON.parse(JSON.stringify(payload));
-    const outputBytes = JSON.stringify(stable);
+    const outputBytes = stableDirectOutputBytes(payload);
     const replayHash = createHash('sha256').update(outputBytes).digest('hex');
     const inputLogBytes = serializeDirectInputLog(parts.inputLog);
 
@@ -1556,6 +1582,14 @@ function buildResult(parts: {
         outputBytes,
         replayHash,
     };
+}
+
+/**
+ * Stable JSON bytes for a headless result payload (used for replayHash).
+ * Ensures embedded inputLog retains schemaVersion + tickRate + events.
+ */
+export function stableDirectOutputBytes(payload: unknown): string {
+    return JSON.stringify(JSON.parse(JSON.stringify(payload)));
 }
 
 /**

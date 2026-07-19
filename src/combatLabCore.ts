@@ -1,6 +1,6 @@
 import { AbilityDefinition, StatusDefinition, SubsystemTag, TargetTag, Vector } from './combatAbilityTypes';
 import { CombatMode, CombatExpectedOutput, resolveCombat } from './gambitCombatCore';
-import { MechanicsCombatant, MechanicsReceipt, StatusInstance } from './combatMechanicsResolver';
+import { CombatantRank, MechanicsCombatant, MechanicsReceipt, StatusInstance } from './combatMechanicsResolver';
 
 export type CombatLabTeam = 'allies' | 'enemies';
 export type BarrierType = 'kinetic' | 'energy' | 'arcane' | 'vital' | 'universal';
@@ -12,6 +12,8 @@ export interface CombatLabUnit {
     resistances: Partial<Record<Vector | string, number>>; barrier?: { amount: number; type: BarrierType };
     targetTags: TargetTag[]; subsystemTags: SubsystemTag[]; normalAttackAbilityId?: string; healAbilityId?: string; supportAbilityId?: string;
     statuses: StatusInstance[]; buildup: MechanicsCombatant['buildup']; healBlocked: boolean; position: { x: number; y: number };
+    /** Drives the lethal-timer execution threshold. Defaults to `normal` when omitted. */
+    rank?: CombatantRank;
 }
 
 export interface CombatLabScenario {
@@ -53,7 +55,7 @@ function isValidUnit(value: unknown, team: CombatLabTeam): value is CombatLabUni
 function mechanicsFor(unit: CombatLabUnit): MechanicsCombatant {
     return {
         id: unit.id, hp: unit.hp, maxHp: unit.maxHp, attack: unit.attack, defense: unit.defense + unit.armor,
-        accuracy: unit.accuracy, evasion: unit.evasion, tags: clone(unit.targetTags), resistances: clone(unit.resistances),
+        rank: unit.rank, accuracy: unit.accuracy, evasion: unit.evasion, tags: clone(unit.targetTags), resistances: clone(unit.resistances),
         barrier: unit.barrier ? { amount: unit.barrier.amount, blocksVectors: barrierVectors(unit.barrier.type), blocksStatusApplication: true } : undefined,
         statuses: [...clone(unit.statuses), ...(unit.healBlocked ? [{ id: 'heal_block', remainingSeconds: 3600, intensity: 1 }] : [])],
         buildup: clone(unit.buildup || {}), subsystems: unit.subsystemTags.map(tag => ({ tag, hp: 100, maxHp: 100, disabledSeconds: 0 })),

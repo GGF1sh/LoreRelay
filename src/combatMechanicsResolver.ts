@@ -2,7 +2,8 @@ import { AbilityDefinition, Effect, StatusDefinition, SubsystemTag, TargetTag, V
 
 export type StructureClass = 'flesh' | 'light' | 'armored' | 'structure' | 'capital';
 export interface BarrierState { amount: number; blocksVectors: Vector[]; blocksStatusApplication: boolean; }
-export interface StatusInstance { id: string; remainingSeconds: number; intensity: number; }
+/** `residualMilli` carries sub-1-HP over-time accrual between ticks (integer milli-HP, JSON safe). */
+export interface StatusInstance { id: string; remainingSeconds: number; intensity: number; residualMilli?: number; }
 export interface BuildupState { value: number; procCount: number; idleSeconds: number; }
 export interface SubsystemState { tag: SubsystemTag; hp: number; maxHp: number; disabledSeconds: number; }
 export interface LethalityState { endureCharges: number; undyingSeconds: number; }
@@ -25,6 +26,16 @@ const SCALE: Record<WeaponScale, Record<StructureClass, number>> = {
     siege: { flesh: 1, light: 1, armored: 1, structure: 1.5, capital: .8 },
 };
 const PRIORITY = ['doom', 'petrify', 'silence', 'sleep', 'stun', 'paralysis', 'fear', 'taunt', 'burn', 'poison', 'bleed', 'slow'];
+/** Attacker penetration implied by weapon scale when the combatant carries no explicit value. */
+const SCALE_PENETRATION: Record<WeaponScale, number> = { personal: 0, anti_armor: 10, anti_ship: 25, siege: 20 };
+/** Over-time rates in HP per second. Values are unchanged from V1; only their accumulation is corrected. */
+function statusRatePerSecond(status: StatusInstance): number {
+    if (status.id === 'poison') { return 3 + (status.intensity - 1) * 2; }
+    if (status.id === 'burn') { return 5; }
+    if (status.id === 'bleed') { return 2; }
+    if (status.id === 'regen') { return -2; }
+    return 0;
+}
 const clone = <T>(value: T): T => structuredClone(value);
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 const hasStatus = (target: MechanicsCombatant, id: string) => (target.statuses || []).some(status => status.id === id && status.remainingSeconds > 0);
@@ -36,9 +47,25 @@ function targetMatches(effect: Effect, target: MechanicsCombatant): boolean {
 function penetrationFactor(effect: Effect, target: MechanicsCombatant, receipts: MechanicsReceipt[]): number {
     const barrier = target.barrier;
     if (!barrier || !barrier.blocksVectors.includes(effect.vector)) return 1;
-    if (effect.penetration.barrier === 'blocked') { receipts.push({ stage: 'penetration', kind: 'penetration_blocked', detail: 'barrier' }); return 0; }
     if (effect.penetration.barrier === 'attenuated') { receipts.push({ stage: 'penetration', kind: 'effect_attenuated', amount: .5 }); return .5; }
+    if (effect.penetration.barrier === 'blocked') {
+        // Damage must reach the barrier stage so the pool absorbs it and depletes; returning 0 here
+        // would skip the effect entirely and make any pool an unlimited immunity.
+        if (effect.kind === 'damage') return 1;
+        // Non-damage effects are still held off, but only while the pool actually has charge.
+        if (barrier.amount > 0 && barrier.blocksStatusApplication) { receipts.push({ stage: 'penetration', kind: 'penetration_blocked', detail: 'barrier' }); return 0; }
+    }
     return 1;
+}
+/** Single choke point for reaching 0 HP: undying and endure may hold the target at 1. */
+function resolveLethality(target: MechanicsCombatant, receipts: MechanicsReceipt[], trueDeath: boolean): void {
+    if (target.hp > 0) return;
+    if (!trueDeath) {
+        const lethality = target.lethality;
+        if (lethality && lethality.undyingSeconds > 0) { target.hp = 1; receipts.push({ stage: 'lethality', kind: 'undying' }); return; }
+        if (lethality && lethality.endureCharges > 0) { target.hp = 1; lethality.endureCharges--; receipts.push({ stage: 'lethality', kind: 'endure' }); return; }
+    }
+    receipts.push({ stage: 'lethality', kind: 'death' });
 }
 function applyStatus(target: MechanicsCombatant, status: StatusDefinition, receipts: MechanicsReceipt[]): void {
     const active = target.statuses || (target.statuses = []);
@@ -79,8 +106,15 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
         if (!targetMatches(effect, target)) { receipts.push({ stage: 'targeting', kind: 'effect_target_invalid' }); continue; }
         const factor = penetrationFactor(effect, target, receipts); if (factor === 0) continue;
         if (effect.kind === 'damage') {
-            const scale = SCALE[effect.weaponScale || input.attacker.weaponScale || 'personal'][target.structureClass || 'flesh'];
-            const armored = Math.trunc(Math.trunc(input.attacker.attack * scale) - Math.max(0, (target.defense || 0) - (input.attacker.penetration || 0)));
+            const weaponScale = effect.weaponScale || input.attacker.weaponScale || 'personal';
+            const scale = SCALE[weaponScale][target.structureClass || 'flesh'];
+            const penetration = input.attacker.penetration ?? SCALE_PENETRATION[weaponScale];
+            // `passes` ignores armour outright; `reduced` halves it before penetration; `blocked` leaves it intact.
+            const armorValue = target.defense || 0;
+            const effectiveArmor = effect.penetration.armor === 'passes'
+                ? 0
+                : Math.max(0, (effect.penetration.armor === 'reduced' ? Math.trunc(armorValue / 2) : armorValue) - penetration);
+            const armored = Math.trunc(Math.trunc(input.attacker.attack * scale) - effectiveArmor);
             const resist = clamp(target.resistances?.[effect.vector] || 0, -50, 75);
             let damage = Math.max(1, Math.trunc(armored * (1 - resist / 100)));
             if (hasStatus(target, 'sleep')) { damage = Math.trunc(damage * 1.5); target.statuses = (target.statuses || []).filter(status => status.id !== 'sleep'); receipts.push({ stage: 'status', kind: 'sleep_broken' }); }
@@ -88,12 +122,7 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
             const barrier = target.barrier;
             if (barrier && barrier.blocksVectors.includes(effect.vector) && effect.penetration.barrier !== 'passes' && effect.penetration.barrier !== 'attenuated') { const absorbed = Math.min(barrier.amount, damage); barrier.amount -= absorbed; damage -= absorbed; if (absorbed) receipts.push({ stage: 'barrier', kind: 'barrier_absorbed', amount: absorbed }); }
             const before = target.hp; target.hp = Math.max(0, target.hp - damage);
-            if (target.hp === 0 && damage > 0 && !input.ability.tags.includes('trueDeath')) {
-                const lethality = target.lethality;
-                if (lethality && lethality.undyingSeconds > 0) { target.hp = 1; receipts.push({ stage: 'lethality', kind: 'undying' }); }
-                else if (lethality && lethality.endureCharges > 0) { target.hp = 1; lethality.endureCharges--; receipts.push({ stage: 'lethality', kind: 'endure' }); }
-                else receipts.push({ stage: 'lethality', kind: 'death' });
-            }
+            if (target.hp === 0 && damage > 0) resolveLethality(target, receipts, input.ability.tags.includes('trueDeath'));
             damageDealt += before - target.hp; receipts.push({ stage: 'hp', kind: 'damage', amount: before - target.hp });
         } else if (effect.kind === 'buildup') {
             if (effect.penetration.requiresDamageDealt && damageDealt < 1) { receipts.push({ stage: 'buildup', kind: 'damage_prerequisite_failed', statusId: effect.statusId }); continue; }
@@ -113,14 +142,42 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
     return { target, receipts, damageDealt, dodged, targetLegal };
 }
 
+export interface AdvanceMechanicsOptions {
+    /** Needed to recognise `lethal_timer` statuses on expiry. Without it, timers simply lapse. */
+    statuses?: readonly StatusDefinition[];
+    /** Receipts produced while advancing (lethality outcomes). Appended to, never replaced. */
+    receipts?: MechanicsReceipt[];
+}
+
 /** Advances timers, DoTs, lethality windows, and buildup decay by a supplied deterministic delta. */
-export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: number): MechanicsCombatant {
+export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: number, options: AdvanceMechanicsOptions = {}): MechanicsCombatant {
     const next = clone(state); const delta = Math.max(0, deltaSeconds);
+    const receipts = options.receipts || [];
     for (const item of Object.values(next.buildup || {})) { item.idleSeconds += delta; if (item.idleSeconds > 2) item.value = Math.max(0, item.value - Math.trunc(10 * delta)); }
     for (const subsystem of next.subsystems || []) subsystem.disabledSeconds = Math.max(0, subsystem.disabledSeconds - delta);
     if (next.lethality) next.lethality.undyingSeconds = Math.max(0, next.lethality.undyingSeconds - delta);
-    for (const status of next.statuses || []) { status.remainingSeconds = Math.max(0, status.remainingSeconds - delta); const rate = status.id === 'poison' ? 3 + (status.intensity - 1) * 2 : status.id === 'burn' ? 5 : status.id === 'bleed' ? 2 : status.id === 'regen' ? -2 : 0; if (rate > 0) next.hp = Math.max(0, next.hp - Math.trunc(rate * delta)); else if (rate < 0) next.hp = Math.min(next.maxHp, next.hp - Math.trunc(rate * delta)); }
+
+    let lethalTimerExpired = false;
+    for (const status of next.statuses || []) {
+        const before = status.remainingSeconds;
+        status.remainingSeconds = Math.max(0, before - delta);
+        const rate = statusRatePerSecond(status);
+        if (rate !== 0) {
+            // Accumulate in integer milli-HP: a bare Math.trunc(rate * delta) discards every tick
+            // whose contribution is below 1 HP, which zeroed all over-time effects at fine tick rates.
+            const residual = (status.residualMilli || 0) + Math.round(rate * delta * 1000);
+            const whole = Math.trunc(residual / 1000);
+            status.residualMilli = residual - whole * 1000;
+            if (whole > 0) next.hp = Math.max(0, next.hp - whole);
+            else if (whole < 0) next.hp = Math.min(next.maxHp, next.hp - whole);
+        }
+        if (before > 0 && status.remainingSeconds === 0 && statusDefinition(options.statuses || [], status.id)?.statusClass === 'lethal_timer') lethalTimerExpired = true;
+    }
     next.statuses = (next.statuses || []).filter(status => status.remainingSeconds > 0);
+
+    // A lapsed lethal timer executes through the same gate as lethal damage, so undying/endure still apply.
+    if (lethalTimerExpired && next.hp > 0) { next.hp = 0; receipts.push({ stage: 'lethal_timer', kind: 'lethal_timer_expired' }); }
+    if (next.hp === 0) resolveLethality(next, receipts, false);
     return next;
 }
 

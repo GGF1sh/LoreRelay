@@ -5,7 +5,9 @@ import { advanceMechanicsState, canAct, canMove, MechanicsCombatant, resolveMech
 
 const statuses: StatusDefinition[] = ['poison','burn','bleed','sleep','paralysis','stun','regen','heal_block'].map(id => ({ id, statusClass: id === 'paralysis' || id === 'stun' || id === 'sleep' ? 'hard_control' : id === 'regen' ? 'beneficial' : 'dot', buildupThreshold: 100, durationSeconds: id === 'sleep' ? 6 : 4, stacking: 'refresh', cureChannels: ['cleanse','time'], tags: [] }));
 const ability = (effects: AbilityDefinition['effects'], shape: AbilityDefinition['delivery']['shape'] = 'single_target'): AbilityDefinition => ({ id:'test', name:'Test', tier:'normal', delivery:{shape,range:1,maxTargets:1,falloff:1,dodgeable:true,blockedByCover:false,pierces:false}, effects, auto:{cooldown:1,gambitTags:[]}, scaleBehavior:{individual:'full',huge:'full',squad:'full',fleet:'full'}, counters:['counter'],tags:[] });
-const pen = (body = false, damage = false) => ({ barrier:'passes' as const, armor:'passes' as const, requiresBodyContact:body, requiresDamageDealt:damage });
+// Neutral profile: armour applies normally ('blocked'). 'passes' is the armour-ignoring mode and is
+// asserted separately in combatMechanicsCorrectness.test.ts now that penetration.armor is honoured.
+const pen = (body = false, damage = false) => ({ barrier:'passes' as const, armor:'blocked' as const, requiresBodyContact:body, requiresDamageDealt:damage });
 const actor: MechanicsCombatant = { id:'a',hp:100,maxHp:100,attack:14,defense:0 };
 const target = (): MechanicsCombatant => ({ id:'t',hp:100,maxHp:100,attack:1,defense:5,tags:['living'],statuses:[],buildup:{} });
 

@@ -282,6 +282,26 @@ function clamp(value: number, low: number, high: number): number {
     return Math.max(low, Math.min(high, value));
 }
 
+/** Non-negative integer threat / auto-evasion hit count. */
+export function normalizeIncomingHitCount(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+    return Math.max(0, Math.trunc(value));
+}
+
+/**
+ * Keep controller credit-interval progress and mechanics.incomingHitCount aligned
+ * so direct ⇄ command/spectator / pure auto paths share one counter.
+ */
+function syncThreatCount(
+    controller: DirectControllerState,
+    combatant: DirectCombatantSnapshot | undefined,
+    count: number,
+): void {
+    const n = normalizeIncomingHitCount(count);
+    controller.dodgeableThreatCount = n;
+    if (combatant) combatant.mechanics.incomingHitCount = n;
+}
+
 /**
  * Same effective evasion as resolveMechanics: paralysis zeros it;
  * otherwise clamp(evasion - accuracy, 0, 50).
@@ -509,6 +529,10 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         ? clamp(Math.trunc(input.initialStaminaMilli), 0, STAMINA_MAX_MILLI)
         : STAMINA_MAX_MILLI;
 
+    // Inherit auto evasion interval progress so mode switches do not reset the counter.
+    const inheritedThreatCount = normalizeIncomingHitCount(controlled.mechanics.incomingHitCount);
+    controlled.mechanics.incomingHitCount = inheritedThreatCount;
+
     const controller: DirectControllerState = {
         controlledCombatantId: input.controlledCombatantId,
         tick: 0,
@@ -528,7 +552,7 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         iframeEndTick: 0,
         lastDodgeTick: -1,
         consecutiveDodgeCount: 0,
-        dodgeableThreatCount: 0,
+        dodgeableThreatCount: inheritedThreatCount,
         availableEvasionCredits: 0,
     };
 
@@ -1113,10 +1137,11 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
 
     if (useDirectCreditPath) {
         // Match resolveMechanics: only effEvasion > 0 hits advance the shared
-        // dodgeable threat counter (incomingHitCount equivalent).
+        // dodgeable threat counter (incomingHitCount equivalent). Credit consume
+        // never decrements the count.
         const eff = effectiveEvasionFor(target.mechanics, attacker.mechanics);
         if (eff > 0) {
-            controller.dodgeableThreatCount += 1;
+            syncThreatCount(controller, target, controller.dodgeableThreatCount + 1);
             if (wouldAutoDodgeOnCount(controller.dodgeableThreatCount, eff)) {
                 if (controller.availableEvasionCredits < 1) {
                     controller.availableEvasionCredits = 1;
@@ -1167,7 +1192,7 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
                         detail: 'no_defensive_bonus',
                     });
                 }
-                // Skip resolveMechanics entirely.
+                // Skip resolveMechanics entirely; threat count already synced above.
                 return;
             }
 
@@ -1210,8 +1235,15 @@ function applyMechanicsHit(
     });
     if (suppressAutoEvasion) {
         resolution.target.evasion = target.mechanics.evasion;
-        // Keep incomingHitCount off the credit-gated path (auto counter not used).
-        resolution.target.incomingHitCount = target.mechanics.incomingHitCount;
+        // Credit path owns the interval counter — do not let a zero-evasion
+        // resolve rewrite or desync it. Credit consume never rolls the count back.
+        resolution.target.incomingHitCount = ctx.controller.dodgeableThreatCount;
+    } else if (target.id === ctx.controller.controlledCombatantId) {
+        // command/spectator auto path: inherit resolver-updated count onto controller
+        // so a later direct_action session continues the same interval.
+        const next = normalizeIncomingHitCount(resolution.target.incomingHitCount);
+        resolution.target.incomingHitCount = next;
+        ctx.controller.dodgeableThreatCount = next;
     }
     target.mechanics = resolution.target;
 
@@ -1243,6 +1275,10 @@ function applyMechanicsHit(
 /**
  * Exactly one advanceMechanicsState per *living* combatant per tick (end of tick).
  * Defeated (hp <= 0) combatants are skipped so regen cannot revive them.
+ *
+ * Within the sorted loop, newly dead casters are added to defeatedSet immediately
+ * and later combatants receive a fresh defeatedIds snapshot that includes them,
+ * so same-tick lethal-timer source death lifts timers without a second pass.
  */
 function advanceAllMechanics(
     combatants: Record<string, DirectCombatantSnapshot>,
@@ -1252,19 +1288,22 @@ function advanceAllMechanics(
     tick: number,
     controller: DirectControllerState,
 ): void {
-    const defeatedIds = Object.values(combatants)
-        .filter(c => c.mechanics.hp <= 0)
-        .map(c => c.id);
-    const defeatedSet = new Set(defeatedIds);
+    const defeatedSet = new Set(
+        Object.values(combatants)
+            .filter(c => c.mechanics.hp <= 0)
+            .map(c => c.id),
+    );
     const ids = Object.keys(combatants).sort();
     for (const id of ids) {
         const snap = combatants[id];
         // Skip already-defeated: no regen revive, no timer progress as living.
         if (defeatedSet.has(id) || snap.mechanics.hp <= 0) {
-            // Clamp corpse HP and strip positive residual healing edges.
             if (snap.mechanics.hp < 0) snap.mechanics.hp = 0;
             continue;
         }
+        // Rebuild defeated list each iteration so earlier deaths in this tick
+        // propagate to later targets (deterministic sort order).
+        const defeatedIds = [...defeatedSet].sort();
         const receipts: MechanicsReceipt[] = [];
         snap.mechanics = advanceMechanicsState(snap.mechanics, deltaSeconds, {
             statuses,
@@ -1280,7 +1319,7 @@ function advanceAllMechanics(
                 receipt: structuredClone(receipt),
             });
         }
-        // Newly dead this advance → marked defeated for subsequent ticks.
+        // Newly dead this advance → available to later IDs in the same tick.
         if (snap.mechanics.hp <= 0) {
             snap.mechanics.hp = 0;
             defeatedSet.add(id);

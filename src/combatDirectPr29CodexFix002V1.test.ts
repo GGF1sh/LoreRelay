@@ -128,9 +128,16 @@ describe('PR29-002: auto evasion in command/spectator', () => {
                 incoming: attacks,
                 durationTicks: 10,
             });
+            // No credit economy in non-direct modes.
             assert.equal(r.finalDirectState.availableEvasionCredits, 0, mode);
-            assert.equal(r.finalDirectState.dodgeableThreatCount, 0, mode);
             assert.equal(r.directReceipts.filter(x => x.kind === 'evasion_credit_gained').length, 0, mode);
+            // Interval progress still tracks auto incomingHitCount for continuity.
+            assert.equal(
+                r.finalDirectState.dodgeableThreatCount,
+                r.combatants.ally.mechanics.incomingHitCount,
+                mode,
+            );
+            assert.ok((r.combatants.ally.mechanics.incomingHitCount || 0) > 0, mode);
             // resolver_dodged detail on hits that auto-dodged
             const dodgedHits = r.directReceipts.filter(
                 x => x.kind === 'incoming_hit' && x.detail === 'resolver_dodged',
@@ -141,7 +148,7 @@ describe('PR29-002: auto evasion in command/spectator', () => {
         }
     });
 
-    test('direct_action alone uses credit path; command/spectator do not grow credits', () => {
+    test('direct_action alone uses credit path; command/spectator do not mint credits', () => {
         const attacks: IncomingAttackEvent[] = [];
         for (let i = 0; i < 4; i++) {
             attacks.push({ tick: i, seq: 0, attackerId: 'enemy', targetId: 'ally', abilityId: 'basic_slash' });
@@ -157,8 +164,14 @@ describe('PR29-002: auto evasion in command/spectator', () => {
 
         for (const mode of ['command', 'spectator'] as const) {
             const r = run({ mode, ally: { evasion: 50 }, incoming: attacks, durationTicks: 10 });
-            assert.equal(r.finalDirectState.dodgeableThreatCount, 0, mode);
+            // Auto interval progresses, but credits are never granted outside direct_action.
             assert.equal(r.finalDirectState.availableEvasionCredits, 0, mode);
+            assert.equal(r.directReceipts.filter(x => x.kind === 'evasion_credit_gained').length, 0, mode);
+            assert.equal(
+                r.finalDirectState.dodgeableThreatCount,
+                r.combatants.ally.mechanics.incomingHitCount,
+                mode,
+            );
         }
     });
 });

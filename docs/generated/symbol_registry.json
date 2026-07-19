@@ -24,10 +24,10 @@
     ]
   },
   "counts": {
-    "total": 4805,
+    "total": 4819,
     "byBoundary": {
       "configuration": 89,
-      "host": 799,
+      "host": 813,
       "host-bridge": 61,
       "host-webview": 447,
       "pure-core": 2697,
@@ -66,6 +66,7 @@
       "chronicle-loader": 3,
       "combat-ability-types": 25,
       "combat-ability-validator": 9,
+      "combat-mechanics-resolver": 14,
       "commands": 1,
       "commerce": 22,
       "companion-agent": 1,
@@ -323,10 +324,10 @@
       "configurationKey": 89,
       "constant": 662,
       "enum": 2,
-      "function": 1713,
-      "interface": 835,
+      "function": 1717,
+      "interface": 844,
       "messageType": 447,
-      "type": 377,
+      "type": 378,
       "webviewFunction": 660,
       "windowApi": 20
     }
@@ -4411,7 +4412,7 @@
       "kind": "type",
       "sourcePath": "src/combatAbilityTypes.ts",
       "line": 21,
-      "signature": "export type WeaponScale = 'personal' | 'anti_armor' | 'anti_ship';",
+      "signature": "export type WeaponScale = 'personal' | 'anti_armor' | 'anti_ship' | 'siege';",
       "public": "exported",
       "boundary": "pure-core",
       "category": "combat-ability-types"
@@ -4515,6 +4516,162 @@
       "public": "exported",
       "boundary": "host",
       "category": "combat-ability-validator"
+    },
+    {
+      "id": "host:function:src/combatMechanicsResolver.ts:resolveMechanics",
+      "name": "resolveMechanics",
+      "kind": "function",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 68,
+      "signature": "export function resolveMechanics(input: MechanicsInput): MechanicsResolution",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver",
+      "description": "Resolves one validated ability with no I/O, clock, RNG, callbacks, or mutation of the input objects."
+    },
+    {
+      "id": "host:function:src/combatMechanicsResolver.ts:advanceMechanicsState",
+      "name": "advanceMechanicsState",
+      "kind": "function",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 117,
+      "signature": "export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: number): MechanicsCombatant",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver",
+      "description": "Advances timers, DoTs, lethality windows, and buildup decay by a supplied deterministic delta."
+    },
+    {
+      "id": "host:function:src/combatMechanicsResolver.ts:canMove",
+      "name": "canMove",
+      "kind": "function",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 127,
+      "signature": "export function canMove(state: MechanicsCombatant): boolean",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:function:src/combatMechanicsResolver.ts:canAct",
+      "name": "canAct",
+      "kind": "function",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 128,
+      "signature": "export function canAct(state: MechanicsCombatant): boolean",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:BarrierState",
+      "name": "BarrierState",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 4,
+      "signature": "export interface BarrierState",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:StatusInstance",
+      "name": "StatusInstance",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 5,
+      "signature": "export interface StatusInstance",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:BuildupState",
+      "name": "BuildupState",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 6,
+      "signature": "export interface BuildupState",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:SubsystemState",
+      "name": "SubsystemState",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 7,
+      "signature": "export interface SubsystemState",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:LethalityState",
+      "name": "LethalityState",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 8,
+      "signature": "export interface LethalityState",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:MechanicsCombatant",
+      "name": "MechanicsCombatant",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 9,
+      "signature": "export interface MechanicsCombatant",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:MechanicsReceipt",
+      "name": "MechanicsReceipt",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 17,
+      "signature": "export interface MechanicsReceipt",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:MechanicsResolution",
+      "name": "MechanicsResolution",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 18,
+      "signature": "export interface MechanicsResolution",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:interface:src/combatMechanicsResolver.ts:MechanicsInput",
+      "name": "MechanicsInput",
+      "kind": "interface",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 19,
+      "signature": "export interface MechanicsInput",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
+    },
+    {
+      "id": "host:type:src/combatMechanicsResolver.ts:StructureClass",
+      "name": "StructureClass",
+      "kind": "type",
+      "sourcePath": "src/combatMechanicsResolver.ts",
+      "line": 3,
+      "signature": "export type StructureClass = 'flesh' | 'light' | 'armored' | 'structure' | 'capital';",
+      "public": "exported",
+      "boundary": "host",
+      "category": "combat-mechanics-resolver"
     },
     {
       "id": "host:function:src/extension/commands.ts:registerCoreCommands",

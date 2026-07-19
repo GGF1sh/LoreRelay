@@ -18,7 +18,7 @@ export type StatusStacking = 'refresh' | 'stack_intensity' | 'stack_duration' | 
 export type StatusClass = 'dot' | 'soft_control' | 'hard_control' | 'lethal_timer' | 'beneficial' | 'debuff';
 export type EffectKind = 'damage' | 'buildup' | 'heal' | 'barrier' | 'dispel' | 'cleanse' | 'displace' | 'revive' | 'stat_mod' | 'subsystem_damage' | 'untargetable';
 export type PenetrationMode = 'blocked' | 'passes' | 'consumed' | 'attenuated';
-export type WeaponScale = 'personal' | 'anti_armor' | 'anti_ship';
+export type WeaponScale = 'personal' | 'anti_armor' | 'anti_ship' | 'siege';
 
 export interface Delivery {
     shape: Shape;

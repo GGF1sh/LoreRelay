@@ -149,6 +149,17 @@ export interface WebviewHandlerDeps {
     handleExportCombatAbilityWorkshop(): void;
     handleImportCombatAbilityWorkshop(): Promise<void>;
     handleTestCombatAbilityWorkshopShot(json: unknown): void;
+    sendCombatLab(): void;
+    handleRunCombatLab(scenarioId: unknown, swap?: boolean): void;
+    handleCompareCombatLabRuns(): void;
+    handleApplyCombatLabScenario(json: unknown): void;
+    handleCloneCombatLabScenario(scenarioId: unknown): void;
+    handleSaveCombatLab(): void;
+    handleExportCombatLab(): void;
+    handleImportCombatLab(): Promise<void>;
+    handleAdvanceCombatLabPlayback(ticks: unknown): void;
+    handlePauseCombatLabPlayback(): void;
+    handleSetCombatLabSpeed(speed: unknown): void;
 }
 
 /**
@@ -215,6 +226,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendDebugCapabilities();
             deps.sendRemotePlayStatus();
             deps.sendCombatAbilityWorkshop();
+            deps.sendCombatLab();
             break;
         case 'requestCombatAbilityWorkshop':
             deps.sendCombatAbilityWorkshop();
@@ -243,6 +255,18 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'testCombatAbilityWorkshopShot':
             deps.handleTestCombatAbilityWorkshopShot(message.json);
             break;
+        case 'requestCombatLab': deps.sendCombatLab(); break;
+        case 'runCombatLab': deps.handleRunCombatLab(message.scenarioId); break;
+        case 'swapCombatLabSides': deps.handleRunCombatLab(message.scenarioId, true); break;
+        case 'compareCombatLabRuns': deps.handleCompareCombatLabRuns(); break;
+        case 'applyCombatLabScenario': deps.handleApplyCombatLabScenario(message.json); break;
+        case 'cloneCombatLabScenario': deps.handleCloneCombatLabScenario(message.scenarioId); break;
+        case 'saveCombatLab': deps.handleSaveCombatLab(); break;
+        case 'exportCombatLab': deps.handleExportCombatLab(); break;
+        case 'importCombatLab': await deps.handleImportCombatLab(); break;
+        case 'advanceCombatLabPlayback': deps.handleAdvanceCombatLabPlayback(message.ticks); break;
+        case 'pauseCombatLabPlayback': deps.handlePauseCombatLabPlayback(); break;
+        case 'setCombatLabSpeed': deps.handleSetCombatLabSpeed(message.speed); break;
         case 'loadLorebook':
             deps.sendLorebookList();
             break;

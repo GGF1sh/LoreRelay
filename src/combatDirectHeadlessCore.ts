@@ -1,11 +1,13 @@
 /**
- * Headless direct-control state machine (move + light_attack only).
+ * Headless direct-control state machine.
  *
+ * V1 scope: move, light_attack, dodge (stamina + i-frames + evasion credits).
  * Pure TypeScript: no VS Code API, DOM, wall clock, draw FPS, Math.random(),
  * runtime class instances, or callbacks stored in state. All state is JSON-safe.
  *
  * Active-frame damage always goes through existing resolveMechanics — never a
- * bespoke HP writer. Fan-out / AoE multi-target is intentionally out of scope.
+ * bespoke HP writer. Successful i-frame avoids of dodgeable hits skip the
+ * resolver and consume an evasion credit (shared interval with auto evasion).
  */
 
 import { createHash } from 'node:crypto';
@@ -36,8 +38,26 @@ export const DIRECT_V1_TICK_RATE = 30;
 /** Units of travel per second while a move direction is held. */
 export const DIRECT_V1_MOVE_SPEED = 100;
 
+/** One-shot displacement distance for a successful dodge press (world units). */
+export const DIRECT_V1_DODGE_DISTANCE = 40;
+
 /** Position / facing quantum — same 1/1000 grid as input direction. */
 export const DIRECT_POSITION_QUANTUM = 1000;
+
+/** Stamina is stored as milli-stamina (100_000 = 100.000). */
+export const STAMINA_MAX_MILLI = 100_000;
+export const DODGE_BASE_COST_MILLI = 25_000;
+export const DODGE_CHAIN_PENALTY_MILLI = 10_000;
+export const STAMINA_REGEN_MILLI_PER_SEC = 20_000;
+
+/** Default i-frame / just-window when ability DirectProfile omits them. */
+export const DEFAULT_IFRAME_MS = 300;
+export const DEFAULT_JUST_WINDOW_MS = 120;
+export const DEFAULT_DODGE_RECOVERY_MS = 150;
+
+/** Consecutive-dodge windows in seconds. */
+export const DODGE_CHAIN_WINDOW_SEC = 1;
+export const DODGE_CHAIN_RESET_SEC = 2;
 
 // ---------------------------------------------------------------------------
 // State types (JSON-safe primitives / plain objects only)
@@ -50,6 +70,8 @@ export type DirectActionPhase =
     | 'active'
     | 'recovery'
     | 'defeated';
+
+export type DirectDodgePhase = 'none' | 'iframe' | 'recovery';
 
 export interface QuantizedVec2 {
     x: number;
@@ -70,6 +92,19 @@ export interface DirectControllerState {
     phaseStartedTick: number;
     phaseEndsTick: number;
     attackCommitted: boolean;
+
+    // --- Dodge / stamina / evasion credit (integers only) ---
+    staminaMilli: number;
+    dodgePhase: DirectDodgePhase;
+    dodgeStartedTick: number;
+    iframeStartTick: number;
+    iframeEndTick: number;
+    /** -1 means never dodged. */
+    lastDodgeTick: number;
+    consecutiveDodgeCount: number;
+    dodgeableThreatCount: number;
+    /** Hold cap 1. */
+    availableEvasionCredits: number;
 }
 
 /** Snapshot of one combatant participating in the headless sim. */
@@ -91,7 +126,8 @@ export type DirectInputRejectReason =
     | 'cooldown'
     | 'unsupported_action'
     | 'missing_direction'
-    | 'missing_ability';
+    | 'missing_ability'
+    | 'insufficient_stamina';
 
 export interface DirectRejectedInput {
     tick: number;
@@ -119,10 +155,43 @@ export interface DirectMechanicsReceiptEvent {
     receipt: MechanicsReceipt;
 }
 
+export type DirectSimReceiptKind =
+    | 'dodge_started'
+    | 'dodge_rejected_stamina'
+    | 'dodge_rejected_phase'
+    | 'iframe_avoided'
+    | 'iframe_no_credit'
+    | 'undodgeable_hit'
+    | 'evasion_credit_gained'
+    | 'evasion_credit_consumed'
+    | 'perfect_dodge'
+    | 'dodge_chain_penalty'
+    | 'stamina_regenerated'
+    | 'incoming_hit';
+
+export interface DirectSimReceipt {
+    tick: number;
+    kind: DirectSimReceiptKind;
+    amount?: number;
+    detail?: string;
+    attackerId?: string;
+    targetId?: string;
+    abilityId?: string;
+}
+
 export interface DirectPhaseTicks {
     windupTicks: number;
     activeTicks: number;
     recoveryTicks: number;
+}
+
+/** Deterministic scheduled attack against a combatant (usually the player). */
+export interface IncomingAttackEvent {
+    tick: number;
+    seq: number;
+    attackerId: string;
+    targetId: string;
+    abilityId: string;
 }
 
 export interface DirectHeadlessInput {
@@ -130,12 +199,23 @@ export interface DirectHeadlessInput {
     combatants: readonly DirectCombatantSeed[];
     /** Loadout normal-attack ability. Required for light_attack. */
     normalAttackAbility: AbilityDefinition;
+    /** Ability catalog for incoming attacks (and optional extras). */
+    abilities?: readonly AbilityDefinition[];
     statuses?: readonly StatusDefinition[];
     tickRate?: number;
     /** Inclusive simulation length: ticks 0 .. durationTicks-1 are processed. */
     durationTicks: number;
     directInput?: unknown;
     moveSpeed?: number;
+    /** Deterministic incoming attack schedule, ordered by (tick, seq). */
+    incomingAttacks?: readonly IncomingAttackEvent[];
+    /** Optional override for i-frame ms (tests / profiles without ability.direct). */
+    iframeMs?: number;
+    justWindowMs?: number;
+    dodgeRecoveryMs?: number;
+    dodgeDistance?: number;
+    /** Starting stamina in milli (default full). */
+    initialStaminaMilli?: number;
 }
 
 export interface DirectCombatantSeed {
@@ -152,10 +232,11 @@ export interface DirectHeadlessResult {
     combatants: Record<string, DirectCombatantSnapshot>;
     committedActions: DirectCommittedAction[];
     mechanicsReceipts: DirectMechanicsReceiptEvent[];
+    directReceipts: DirectSimReceipt[];
     rejectedInputs: DirectRejectedInput[];
     inputLog: DirectInputLog;
     inputLogBytes: string;
-    /** Stable full-result JSON (key-ordered) for byte-identical replay checks. */
+    /** Stable full-result JSON for byte-identical replay checks. */
     outputBytes: string;
     /** SHA-256 of outputBytes. */
     replayHash: string;
@@ -164,6 +245,42 @@ export interface DirectHeadlessResult {
 export type DirectHeadlessRunResult =
     | { ok: true; result: DirectHeadlessResult }
     | { ok: false; error: string; detail?: string };
+
+// ---------------------------------------------------------------------------
+// Shared auto-evasion interval (must match resolveMechanics)
+// ---------------------------------------------------------------------------
+
+function clamp(value: number, low: number, high: number): number {
+    return Math.max(low, Math.min(high, value));
+}
+
+/**
+ * Same effective evasion as resolveMechanics: paralysis zeros it;
+ * otherwise clamp(evasion - accuracy, 0, 50).
+ */
+export function effectiveEvasionFor(
+    defender: MechanicsCombatant,
+    attacker?: MechanicsCombatant,
+): number {
+    const paralyzed = (defender.statuses || []).some(
+        s => s.id === 'paralysis' && s.remainingSeconds > 0,
+    );
+    if (paralyzed) return 0;
+    return clamp((defender.evasion || 0) - (attacker?.accuracy || 0), 0, 50);
+}
+
+/** Auto dodge fires every `interval` dodgeable hits; 0 means never. */
+export function autoDodgeInterval(effEvasion: number): number {
+    if (!(effEvasion > 0)) return 0;
+    return Math.ceil(100 / effEvasion);
+}
+
+/** True when the N-th dodgeable threat (1-based count) would auto-dodge. */
+export function wouldAutoDodgeOnCount(threatCount: number, effEvasion: number): boolean {
+    const interval = autoDodgeInterval(effEvasion);
+    if (interval <= 0 || threatCount <= 0) return false;
+    return threatCount % interval === 0;
+}
 
 // ---------------------------------------------------------------------------
 // Frame derivation (§4.2)
@@ -218,6 +335,28 @@ export function abilityCooldownTicks(
     return ceilPositive(cooldown * rate);
 }
 
+export function iframeTicksFor(
+    ability: AbilityDefinition | undefined,
+    tickRate: number,
+    overrideMs?: number,
+): number {
+    const ms = overrideMs
+        ?? ability?.direct?.iframeMs
+        ?? DEFAULT_IFRAME_MS;
+    return Math.max(1, msToTicks(ms, tickRate));
+}
+
+export function justWindowTicksFor(
+    ability: AbilityDefinition | undefined,
+    tickRate: number,
+    overrideMs?: number,
+): number {
+    const ms = overrideMs
+        ?? ability?.direct?.justWindowMs
+        ?? DEFAULT_JUST_WINDOW_MS;
+    return msToTicks(ms, tickRate);
+}
+
 // ---------------------------------------------------------------------------
 // Quantized geometry helpers
 // ---------------------------------------------------------------------------
@@ -250,6 +389,12 @@ function cloneMechanics(m: MechanicsCombatant): MechanicsCombatant {
     return structuredClone(m);
 }
 
+function isIframeActive(controller: DirectControllerState, tick: number): boolean {
+    return controller.dodgePhase === 'iframe'
+        && tick >= controller.iframeStartTick
+        && tick < controller.iframeEndTick;
+}
+
 // ---------------------------------------------------------------------------
 // Simulation
 // ---------------------------------------------------------------------------
@@ -267,10 +412,25 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
 
     const tickRate = input.tickRate && input.tickRate > 0 ? input.tickRate : DIRECT_V1_TICK_RATE;
     const moveSpeed = input.moveSpeed && input.moveSpeed > 0 ? input.moveSpeed : DIRECT_V1_MOVE_SPEED;
+    const dodgeDistance = input.dodgeDistance && input.dodgeDistance > 0
+        ? input.dodgeDistance
+        : DIRECT_V1_DODGE_DISTANCE;
     const statuses = input.statuses || [];
     const ability = input.normalAttackAbility;
     const phaseTicks = deriveDirectPhaseTicks(ability, tickRate);
     const cooldownTicks = abilityCooldownTicks(ability, tickRate);
+    const iframeTicks = iframeTicksFor(ability, tickRate, input.iframeMs);
+    const justWindowTicks = justWindowTicksFor(ability, tickRate, input.justWindowMs);
+    const dodgeRecoveryTicks = Math.max(
+        0,
+        msToTicks(input.dodgeRecoveryMs ?? DEFAULT_DODGE_RECOVERY_MS, tickRate),
+    );
+
+    const abilityById = new Map<string, AbilityDefinition>();
+    abilityById.set(ability.id, ability);
+    for (const extra of input.abilities || []) {
+        if (extra && typeof extra.id === 'string') abilityById.set(extra.id, extra);
+    }
 
     const logResult = normalizeDirectInputLog(
         input.directInput === undefined ? emptyDirectInputLog() : input.directInput,
@@ -279,6 +439,11 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         return { ok: false, error: 'INVALID_DIRECT_INPUT', detail: logResult.error };
     }
     const inputLog = logResult.log;
+
+    const incoming = normalizeIncomingAttacks(input.incomingAttacks || []);
+    if (!incoming.ok) {
+        return { ok: false, error: 'INVALID_INCOMING_ATTACKS', detail: incoming.detail };
+    }
 
     const combatants: Record<string, DirectCombatantSnapshot> = {};
     for (const seed of input.combatants) {
@@ -301,6 +466,10 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         return { ok: false, error: 'CONTROLLED_COMBATANT_NOT_FOUND', detail: input.controlledCombatantId };
     }
 
+    const initialStamina = input.initialStaminaMilli !== undefined
+        ? clamp(Math.trunc(input.initialStaminaMilli), 0, STAMINA_MAX_MILLI)
+        : STAMINA_MAX_MILLI;
+
     const controller: DirectControllerState = {
         controlledCombatantId: input.controlledCombatantId,
         tick: 0,
@@ -313,13 +482,22 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         phaseStartedTick: 0,
         phaseEndsTick: 0,
         attackCommitted: false,
+        staminaMilli: initialStamina,
+        dodgePhase: 'none',
+        dodgeStartedTick: 0,
+        iframeStartTick: 0,
+        iframeEndTick: 0,
+        lastDodgeTick: -1,
+        consecutiveDodgeCount: 0,
+        dodgeableThreatCount: 0,
+        availableEvasionCredits: 0,
     };
 
     const committedActions: DirectCommittedAction[] = [];
     const mechanicsReceipts: DirectMechanicsReceiptEvent[] = [];
+    const directReceipts: DirectSimReceipt[] = [];
     const rejectedInputs: DirectRejectedInput[] = [];
 
-    // Index events by tick for O(1) retrieval (already sorted by normalize).
     const eventsByTick = new Map<number, DirectInputEvent[]>();
     for (const event of inputLog.events) {
         const list = eventsByTick.get(event.tick) || [];
@@ -327,12 +505,29 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         eventsByTick.set(event.tick, list);
     }
 
+    const attacksByTick = new Map<number, IncomingAttackEvent[]>();
+    for (const atk of incoming.events) {
+        const list = attacksByTick.get(atk.tick) || [];
+        list.push(atk);
+        attacksByTick.set(atk.tick, list);
+    }
+
+    const regenPerTick = Math.trunc(STAMINA_REGEN_MILLI_PER_SEC / tickRate);
+    const chainWindowTicks = Math.max(1, Math.ceil(DODGE_CHAIN_WINDOW_SEC * tickRate));
+    const chainResetTicks = Math.max(1, Math.ceil(DODGE_CHAIN_RESET_SEC * tickRate));
+
     const maxTick = input.durationTicks;
     for (let tick = 0; tick < maxTick; tick++) {
         controller.tick = tick;
         syncDefeated(controller, combatants);
 
-        // 1) Consume inputs for this tick in seq order.
+        // 0) Close expired dodge phases before inputs (iframe is [start, end)).
+        advanceDodgePhase(controller, tick, dodgeRecoveryTicks);
+
+        // 1) Stamina regen at tick start (integer milli only).
+        regenerateStamina(controller, regenPerTick, directReceipts);
+
+        // 2) Consume player inputs (seq order).
         const events = eventsByTick.get(tick) || [];
         for (const event of events) {
             applyInputEvent({
@@ -345,11 +540,18 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
                 rejectedInputs,
                 committedActions,
                 mechanicsReceipts,
+                directReceipts,
                 statuses,
+                tickRate,
+                iframeTicks,
+                dodgeRecoveryTicks,
+                dodgeDistance,
+                chainWindowTicks,
+                chainResetTicks,
             });
         }
 
-        // 2) Advance action phases (may commit attack on active entry).
+        // 3) Advance outgoing action phases (may commit light attack).
         advanceActionPhase({
             controller,
             combatants,
@@ -362,25 +564,103 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
             inputSeq: -1,
         });
 
-        // 3) Integrate movement for this tick.
+        // 4) Resolve scheduled incoming attacks after inputs so same-tick
+        //    dodges open i-frames before the hit is evaluated.
+        const attacks = attacksByTick.get(tick) || [];
+        for (const atk of attacks) {
+            resolveIncomingAttack({
+                atk,
+                controller,
+                combatants,
+                abilityById,
+                statuses,
+                mechanicsReceipts,
+                directReceipts,
+                justWindowTicks,
+            });
+        }
+
+        // 5) Integrate held movement (not during attack or dodge phases).
         integrateMovement(controller, combatants, moveSpeed, tickRate);
         syncControlledPosition(controller, combatants);
     }
 
-    // Final tick stamp is durationTicks (post-loop), matching "ended after N ticks".
     controller.tick = maxTick;
     syncDefeated(controller, combatants);
     syncControlledPosition(controller, combatants);
 
-    const result = buildResult({
-        controller,
-        combatants,
-        committedActions,
-        mechanicsReceipts,
-        rejectedInputs,
-        inputLog,
-    });
-    return { ok: true, result };
+    return {
+        ok: true,
+        result: buildResult({
+            controller,
+            combatants,
+            committedActions,
+            mechanicsReceipts,
+            directReceipts,
+            rejectedInputs,
+            inputLog,
+        }),
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Incoming attack normalize
+// ---------------------------------------------------------------------------
+
+function normalizeIncomingAttacks(
+    raw: readonly IncomingAttackEvent[],
+): { ok: true; events: IncomingAttackEvent[] } | { ok: false; detail: string } {
+    const events: IncomingAttackEvent[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < raw.length; i++) {
+        const e = raw[i];
+        if (!e || typeof e !== 'object') return { ok: false, detail: `bad event ${i}` };
+        if (!Number.isInteger(e.tick) || e.tick < 0) return { ok: false, detail: `tick ${i}` };
+        if (!Number.isInteger(e.seq) || e.seq < 0) return { ok: false, detail: `seq ${i}` };
+        if (typeof e.attackerId !== 'string' || typeof e.targetId !== 'string' || typeof e.abilityId !== 'string') {
+            return { ok: false, detail: `ids ${i}` };
+        }
+        const key = `${e.tick}:${e.seq}`;
+        if (seen.has(key)) return { ok: false, detail: `duplicate ${key}` };
+        seen.add(key);
+        events.push({
+            tick: e.tick,
+            seq: e.seq,
+            attackerId: e.attackerId,
+            targetId: e.targetId,
+            abilityId: e.abilityId,
+        });
+    }
+    events.sort((a, b) => (a.tick !== b.tick ? a.tick - b.tick : a.seq - b.seq));
+    return { ok: true, events };
+}
+
+// ---------------------------------------------------------------------------
+// Stamina
+// ---------------------------------------------------------------------------
+
+function regenerateStamina(
+    controller: DirectControllerState,
+    regenPerTick: number,
+    receipts: DirectSimReceipt[],
+): void {
+    if (controller.actionPhase === 'defeated') return;
+    if (regenPerTick <= 0) return;
+    if (controller.staminaMilli >= STAMINA_MAX_MILLI) return;
+    const before = controller.staminaMilli;
+    controller.staminaMilli = Math.min(STAMINA_MAX_MILLI, controller.staminaMilli + regenPerTick);
+    const gained = controller.staminaMilli - before;
+    if (gained > 0) {
+        receipts.push({
+            tick: controller.tick,
+            kind: 'stamina_regenerated',
+            amount: gained,
+        });
+    }
+}
+
+function dodgeCostMilli(consecutiveDodgeCount: number): number {
+    return DODGE_BASE_COST_MILLI + DODGE_CHAIN_PENALTY_MILLI * Math.max(0, consecutiveDodgeCount);
 }
 
 // ---------------------------------------------------------------------------
@@ -397,7 +677,14 @@ interface ApplyContext {
     rejectedInputs: DirectRejectedInput[];
     committedActions: DirectCommittedAction[];
     mechanicsReceipts: DirectMechanicsReceiptEvent[];
+    directReceipts: DirectSimReceipt[];
     statuses: readonly StatusDefinition[];
+    tickRate: number;
+    iframeTicks: number;
+    dodgeRecoveryTicks: number;
+    dodgeDistance: number;
+    chainWindowTicks: number;
+    chainResetTicks: number;
 }
 
 function reject(ctx: ApplyContext, reason: DirectInputRejectReason): void {
@@ -421,7 +708,10 @@ function applyInputEvent(ctx: ApplyContext): void {
         applyLightAttack(ctx, actor);
         return;
     }
-    // All other semantic actions are out of scope for this task.
+    if (event.action === 'dodge') {
+        applyDodge(ctx, actor);
+        return;
+    }
     reject(ctx, 'unsupported_action');
 }
 
@@ -435,13 +725,12 @@ function applyMove(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefined
     const phase = event.phase || 'press';
     if (phase === 'release') {
         controller.heldMoveDirection = null;
-        if (controller.actionPhase === 'moving') {
+        if (controller.actionPhase === 'moving' && controller.dodgePhase === 'none') {
             controller.actionPhase = 'idle';
         }
         return;
     }
 
-    // press
     if (!event.direction) {
         reject(ctx, 'missing_direction');
         return;
@@ -451,21 +740,24 @@ function applyMove(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefined
     if (held.x !== 0 || held.y !== 0) {
         controller.facing = { x: held.x, y: held.y };
     }
-    if (controller.actionPhase === 'idle') {
+    if (controller.actionPhase === 'idle' && controller.dodgePhase === 'none') {
         controller.actionPhase = 'moving';
     }
 }
 
 function applyLightAttack(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefined): void {
-    const { event, controller, ability, phaseTicks, cooldownTicks } = ctx;
+    const { event, controller, ability, phaseTicks } = ctx;
 
-    // light_attack is press-to-start; release is ignored (not a held action).
     if (event.phase === 'release') {
         return;
     }
 
     if (!actor || !isAlive(actor) || controller.actionPhase === 'defeated') {
         reject(ctx, 'actor_defeated');
+        return;
+    }
+    if (controller.dodgePhase !== 'none') {
+        reject(ctx, 'invalid_phase');
         return;
     }
     if (controller.actionPhase !== 'idle' && controller.actionPhase !== 'moving') {
@@ -498,14 +790,12 @@ function applyLightAttack(ctx: ApplyContext, actor: DirectCombatantSnapshot | un
         return;
     }
 
-    // Begin attack state machine.
     controller.currentAbilityId = ability.id;
     controller.currentTargetId = event.targetId;
     controller.attackCommitted = false;
     controller.phaseStartedTick = controller.tick;
 
     if (phaseTicks.windupTicks <= 0) {
-        // Immediate active: commit on this tick.
         enterActivePhase({
             controller: ctx.controller,
             combatants: ctx.combatants,
@@ -523,8 +813,278 @@ function applyLightAttack(ctx: ApplyContext, actor: DirectCombatantSnapshot | un
     }
 }
 
+function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefined): void {
+    const { event, controller, directReceipts } = ctx;
+
+    if (event.phase === 'release') {
+        return;
+    }
+
+    if (!actor || !isAlive(actor) || controller.actionPhase === 'defeated') {
+        reject(ctx, 'actor_defeated');
+        return;
+    }
+
+    // Attack windup/active/recovery, or already dodging → reject.
+    if (
+        controller.actionPhase === 'windup'
+        || controller.actionPhase === 'active'
+        || controller.actionPhase === 'recovery'
+        || controller.dodgePhase !== 'none'
+    ) {
+        directReceipts.push({
+            tick: controller.tick,
+            kind: 'dodge_rejected_phase',
+            detail: controller.actionPhase,
+        });
+        reject(ctx, 'invalid_phase');
+        return;
+    }
+    if (controller.actionPhase !== 'idle' && controller.actionPhase !== 'moving') {
+        directReceipts.push({
+            tick: controller.tick,
+            kind: 'dodge_rejected_phase',
+            detail: controller.actionPhase,
+        });
+        reject(ctx, 'invalid_phase');
+        return;
+    }
+
+    if (!event.direction) {
+        reject(ctx, 'missing_direction');
+        return;
+    }
+
+    // Chain reset after 2 s without dodge.
+    if (
+        controller.lastDodgeTick >= 0
+        && (controller.tick - controller.lastDodgeTick) > ctx.chainResetTicks
+    ) {
+        controller.consecutiveDodgeCount = 0;
+    }
+
+    const cost = dodgeCostMilli(controller.consecutiveDodgeCount);
+    if (controller.staminaMilli < cost) {
+        directReceipts.push({
+            tick: controller.tick,
+            kind: 'dodge_rejected_stamina',
+            amount: cost,
+        });
+        reject(ctx, 'insufficient_stamina');
+        return;
+    }
+
+    // Spend stamina immediately.
+    controller.staminaMilli -= cost;
+
+    // Chain bookkeeping.
+    if (
+        controller.lastDodgeTick >= 0
+        && (controller.tick - controller.lastDodgeTick) <= ctx.chainWindowTicks
+    ) {
+        controller.consecutiveDodgeCount += 1;
+        directReceipts.push({
+            tick: controller.tick,
+            kind: 'dodge_chain_penalty',
+            amount: controller.consecutiveDodgeCount,
+        });
+    } else {
+        controller.consecutiveDodgeCount = 1;
+    }
+    controller.lastDodgeTick = controller.tick;
+
+    // Directional displacement.
+    const dir = normalizeAndQuantizeDirection(event.direction.x, event.direction.y);
+    if (dir.x !== 0 || dir.y !== 0) {
+        const len = Math.hypot(dir.x, dir.y) || 1;
+        const nx = dir.x / len;
+        const ny = dir.y / len;
+        controller.position = quantizePosition(
+            controller.position.x + nx * ctx.dodgeDistance,
+            controller.position.y + ny * ctx.dodgeDistance,
+        );
+        controller.facing = { x: dir.x, y: dir.y };
+        actor.position = { ...controller.position };
+    }
+
+    // Open i-frames.
+    controller.dodgePhase = 'iframe';
+    controller.dodgeStartedTick = controller.tick;
+    controller.iframeStartTick = controller.tick;
+    controller.iframeEndTick = controller.tick + ctx.iframeTicks;
+    // Clear held move so recovery lands cleanly; player must re-press.
+    controller.heldMoveDirection = null;
+    controller.actionPhase = 'idle';
+
+    directReceipts.push({
+        tick: controller.tick,
+        kind: 'dodge_started',
+        amount: cost,
+        detail: `iframe_end=${controller.iframeEndTick}`,
+    });
+}
+
 // ---------------------------------------------------------------------------
-// Phase machine
+// Incoming attacks + evasion credits
+// ---------------------------------------------------------------------------
+
+interface IncomingContext {
+    atk: IncomingAttackEvent;
+    controller: DirectControllerState;
+    combatants: Record<string, DirectCombatantSnapshot>;
+    abilityById: Map<string, AbilityDefinition>;
+    statuses: readonly StatusDefinition[];
+    mechanicsReceipts: DirectMechanicsReceiptEvent[];
+    directReceipts: DirectSimReceipt[];
+    justWindowTicks: number;
+}
+
+function resolveIncomingAttack(ctx: IncomingContext): void {
+    const { atk, controller, combatants, abilityById, statuses } = ctx;
+    const target = combatants[atk.targetId];
+    const attacker = combatants[atk.attackerId];
+    const spell = abilityById.get(atk.abilityId);
+    if (!target || !attacker || !spell) return;
+    if (!isAlive(target) || !isAlive(attacker)) return;
+
+    // Only credit / iframe logic applies when the controlled combatant is hit.
+    const isControlledTarget = atk.targetId === controller.controlledCombatantId;
+    const dodgeable = spell.delivery?.dodgeable !== false
+        && !['area', 'beam'].includes(spell.delivery?.shape);
+
+    // Undodgeable: always resolveMechanics; no credit gen/consume.
+    if (!dodgeable) {
+        applyMechanicsHit(ctx, attacker, target, spell, 'undodgeable_hit');
+        return;
+    }
+
+    if (isControlledTarget) {
+        // Advance threat count + maybe grant credit (hold cap 1).
+        controller.dodgeableThreatCount += 1;
+        const eff = effectiveEvasionFor(target.mechanics, attacker.mechanics);
+        if (wouldAutoDodgeOnCount(controller.dodgeableThreatCount, eff)) {
+            if (controller.availableEvasionCredits < 1) {
+                controller.availableEvasionCredits = 1;
+                ctx.directReceipts.push({
+                    tick: controller.tick,
+                    kind: 'evasion_credit_gained',
+                    amount: controller.dodgeableThreatCount,
+                    detail: `interval=${autoDodgeInterval(eff)}`,
+                    attackerId: atk.attackerId,
+                    targetId: atk.targetId,
+                    abilityId: atk.abilityId,
+                });
+            }
+        }
+
+        // I-frame window active?
+        if (isIframeActive(controller, controller.tick)) {
+            if (controller.availableEvasionCredits >= 1) {
+                controller.availableEvasionCredits -= 1;
+                ctx.directReceipts.push({
+                    tick: controller.tick,
+                    kind: 'evasion_credit_consumed',
+                    amount: 1,
+                    attackerId: atk.attackerId,
+                    targetId: atk.targetId,
+                    abilityId: atk.abilityId,
+                });
+                ctx.directReceipts.push({
+                    tick: controller.tick,
+                    kind: 'iframe_avoided',
+                    attackerId: atk.attackerId,
+                    targetId: atk.targetId,
+                    abilityId: atk.abilityId,
+                });
+
+                // Perfect dodge: dodge start within just window of this active tick.
+                // No stamina refund, no extra i-frames, no extra credit.
+                const justStart = atk.tick - ctx.justWindowTicks;
+                if (
+                    controller.dodgeStartedTick >= justStart
+                    && controller.dodgeStartedTick <= atk.tick
+                ) {
+                    ctx.directReceipts.push({
+                        tick: controller.tick,
+                        kind: 'perfect_dodge',
+                        attackerId: atk.attackerId,
+                        targetId: atk.targetId,
+                        abilityId: atk.abilityId,
+                        detail: 'no_defensive_bonus',
+                    });
+                }
+                // Skip resolveMechanics entirely.
+                return;
+            }
+
+            // I-frames but no credit → normal hit.
+            ctx.directReceipts.push({
+                tick: controller.tick,
+                kind: 'iframe_no_credit',
+                attackerId: atk.attackerId,
+                targetId: atk.targetId,
+                abilityId: atk.abilityId,
+            });
+        }
+    }
+
+    applyMechanicsHit(ctx, attacker, target, spell, 'incoming_hit');
+}
+
+function applyMechanicsHit(
+    ctx: IncomingContext,
+    attacker: DirectCombatantSnapshot,
+    target: DirectCombatantSnapshot,
+    spell: AbilityDefinition,
+    kind: DirectSimReceiptKind,
+): void {
+    // Controlled combatant dodgeable avoids are credit-gated above. When we
+    // reach the resolver for the controlled target, suppress the auto evasion
+    // counter so free avoids cannot exceed the credit ceiling.
+    let defender = target.mechanics;
+    if (target.id === ctx.controller.controlledCombatantId) {
+        defender = cloneMechanics(target.mechanics);
+        defender.evasion = 0;
+    }
+    const resolution = resolveMechanics({
+        ability: spell,
+        attacker: attacker.mechanics,
+        target: defender,
+        statuses: ctx.statuses,
+    });
+    // Preserve the controlled combatant's authored evasion stat after the hit.
+    if (target.id === ctx.controller.controlledCombatantId) {
+        resolution.target.evasion = target.mechanics.evasion;
+    }
+    target.mechanics = resolution.target;
+
+    ctx.directReceipts.push({
+        tick: ctx.controller.tick,
+        kind,
+        amount: resolution.damageDealt,
+        attackerId: ctx.atk.attackerId,
+        targetId: ctx.atk.targetId,
+        abilityId: ctx.atk.abilityId,
+        detail: resolution.dodged ? 'resolver_dodged' : undefined,
+    });
+
+    for (const receipt of resolution.receipts) {
+        ctx.mechanicsReceipts.push({
+            tick: ctx.controller.tick,
+            actorId: attacker.id,
+            targetId: target.id,
+            abilityId: spell.id,
+            receipt: structuredClone(receipt),
+        });
+    }
+
+    if (target.id === ctx.controller.controlledCombatantId && target.mechanics.hp <= 0) {
+        syncDefeated(ctx.controller, ctx.combatants);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Phase machines
 // ---------------------------------------------------------------------------
 
 interface PhaseContext {
@@ -540,12 +1100,15 @@ interface PhaseContext {
 }
 
 function advanceActionPhase(ctx: PhaseContext): void {
-    const { controller, phaseTicks } = ctx;
-    if (controller.actionPhase === 'defeated' || controller.actionPhase === 'idle' || controller.actionPhase === 'moving') {
+    const { controller } = ctx;
+    if (
+        controller.actionPhase === 'defeated'
+        || controller.actionPhase === 'idle'
+        || controller.actionPhase === 'moving'
+    ) {
         return;
     }
 
-    // Stay in phase until phaseEndsTick (exclusive end: transition when tick >= ends).
     if (controller.tick < controller.phaseEndsTick) {
         return;
     }
@@ -591,7 +1154,11 @@ function enterIdleOrMoving(controller: DirectControllerState): void {
     controller.attackCommitted = false;
     controller.phaseStartedTick = controller.tick;
     controller.phaseEndsTick = controller.tick;
-    if (controller.heldMoveDirection && (controller.heldMoveDirection.x !== 0 || controller.heldMoveDirection.y !== 0)) {
+    if (
+        controller.dodgePhase === 'none'
+        && controller.heldMoveDirection
+        && (controller.heldMoveDirection.x !== 0 || controller.heldMoveDirection.y !== 0)
+    ) {
         controller.actionPhase = 'moving';
     } else {
         controller.actionPhase = 'idle';
@@ -606,17 +1173,14 @@ function commitLightAttack(ctx: PhaseContext): void {
     const target = combatants[targetId];
     if (!target || !isAlive(actor) || !isAlive(target)) return;
 
-    // Single primary target only — no fan-out in this task.
     const resolution = resolveMechanics({
         ability,
         attacker: actor.mechanics,
         target: target.mechanics,
         statuses,
-        // single-target delivery defaults (falloff/engagement = 1)
     });
 
     target.mechanics = resolution.target;
-    // Shared cooldown with ability auto.cooldown.
     actor.cooldownReadyTick = controller.tick + cooldownTicks;
 
     ctx.committedActions.push({
@@ -641,6 +1205,30 @@ function commitLightAttack(ctx: PhaseContext): void {
     }
 }
 
+/**
+ * Advance dodge phases at the start of `tick`.
+ * I-frames are active for ticks in [iframeStartTick, iframeEndTick).
+ * After iframe expires, optional recovery reuses iframeEndTick as exclusive end.
+ */
+function advanceDodgePhase(
+    controller: DirectControllerState,
+    tick: number,
+    dodgeRecoveryTicks: number,
+): void {
+    if (controller.dodgePhase === 'iframe' && tick >= controller.iframeEndTick) {
+        if (dodgeRecoveryTicks > 0) {
+            controller.dodgePhase = 'recovery';
+            controller.iframeEndTick = tick + dodgeRecoveryTicks;
+        } else {
+            controller.dodgePhase = 'none';
+        }
+        return;
+    }
+    if (controller.dodgePhase === 'recovery' && tick >= controller.iframeEndTick) {
+        controller.dodgePhase = 'none';
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Movement
 // ---------------------------------------------------------------------------
@@ -652,6 +1240,7 @@ function integrateMovement(
     tickRate: number,
 ): void {
     if (controller.actionPhase === 'defeated') return;
+    if (controller.dodgePhase !== 'none') return;
     if (controller.actionPhase !== 'idle' && controller.actionPhase !== 'moving') return;
 
     const held = controller.heldMoveDirection;
@@ -660,8 +1249,6 @@ function integrateMovement(
         return;
     }
 
-    // Force unit length each tick so diagonal speed never exceeds cardinal.
-    // Held is already quantized; re-normalize in float space for travel only.
     const len = Math.hypot(held.x, held.y);
     if (!(len > 0)) return;
     const step = moveSpeed / tickRate;
@@ -672,7 +1259,6 @@ function integrateMovement(
         controller.position.y + ny * step,
     );
     controller.position = next;
-    // Facing stays on the quantized held vector (no second re-quantize).
     controller.facing = { x: held.x, y: held.y };
     controller.actionPhase = 'moving';
 
@@ -701,6 +1287,7 @@ function syncDefeated(
         controller.currentAbilityId = null;
         controller.currentTargetId = null;
         controller.attackCommitted = false;
+        controller.dodgePhase = 'none';
     }
 }
 
@@ -713,6 +1300,7 @@ function buildResult(parts: {
     combatants: Record<string, DirectCombatantSnapshot>;
     committedActions: DirectCommittedAction[];
     mechanicsReceipts: DirectMechanicsReceiptEvent[];
+    directReceipts: DirectSimReceipt[];
     rejectedInputs: DirectRejectedInput[];
     inputLog: DirectInputLog;
 }): DirectHeadlessResult {
@@ -743,6 +1331,15 @@ function buildResult(parts: {
         phaseStartedTick: parts.controller.phaseStartedTick,
         phaseEndsTick: parts.controller.phaseEndsTick,
         attackCommitted: parts.controller.attackCommitted,
+        staminaMilli: parts.controller.staminaMilli,
+        dodgePhase: parts.controller.dodgePhase,
+        dodgeStartedTick: parts.controller.dodgeStartedTick,
+        iframeStartTick: parts.controller.iframeStartTick,
+        iframeEndTick: parts.controller.iframeEndTick,
+        lastDodgeTick: parts.controller.lastDodgeTick,
+        consecutiveDodgeCount: parts.controller.consecutiveDodgeCount,
+        dodgeableThreatCount: parts.controller.dodgeableThreatCount,
+        availableEvasionCredits: parts.controller.availableEvasionCredits,
     };
 
     const payload = {
@@ -756,15 +1353,17 @@ function buildResult(parts: {
             abilityId: r.abilityId,
             receipt: structuredClone(r.receipt),
         })),
+        directReceipts: parts.directReceipts.map(r => ({ ...r })),
         rejectedInputs: parts.rejectedInputs.map(r => ({ ...r })),
         inputLog: {
             schemaVersion: parts.inputLog.schemaVersion,
-            events: parts.inputLog.events.map(e => ({ ...e, direction: e.direction ? { ...e.direction } : undefined })),
+            events: parts.inputLog.events.map(e => ({
+                ...e,
+                direction: e.direction ? { ...e.direction } : undefined,
+            })),
         },
     };
 
-    // Strip undefined for stable JSON (JSON.stringify drops undefined object values,
-    // but rebuild events without undefined keys for exact byte control).
     const stable = JSON.parse(JSON.stringify(payload));
     const outputBytes = JSON.stringify(stable);
     const replayHash = createHash('sha256').update(outputBytes).digest('hex');
@@ -775,6 +1374,7 @@ function buildResult(parts: {
         combatants: combatantsJson,
         committedActions: payload.committedActions,
         mechanicsReceipts: payload.mechanicsReceipts,
+        directReceipts: payload.directReceipts,
         rejectedInputs: payload.rejectedInputs,
         inputLog: parts.inputLog,
         inputLogBytes,
@@ -785,7 +1385,7 @@ function buildResult(parts: {
 
 /**
  * Empty-log identity: no committed actions, combatant mechanics/positions match
- * a zero-duration-equivalent snapshot of the seeds (no direct mutations).
+ * seeds (no direct mutations). Full stamina start so regen is a no-op.
  */
 export function emptyDirectLogIsIdentity(
     seeds: readonly DirectCombatantSeed[],
@@ -798,11 +1398,13 @@ export function emptyDirectLogIsIdentity(
         normalAttackAbility: ability,
         durationTicks: 30,
         directInput: emptyDirectInputLog(),
+        incomingAttacks: [],
     });
     if (!run.ok) return false;
     if (run.result.committedActions.length !== 0) return false;
     if (run.result.mechanicsReceipts.length !== 0) return false;
     if (run.result.rejectedInputs.length !== 0) return false;
+    // stamina_regenerated may appear only if not full; seeds start full.
 
     for (const seed of seeds) {
         const after = run.result.combatants[seed.id];

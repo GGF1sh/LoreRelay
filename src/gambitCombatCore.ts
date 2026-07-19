@@ -647,9 +647,15 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         }
         if (combatMode === 'mechanics_v1') {
             for (const name of Object.keys(mechanicsStates)) {
-                mechanicsStates[name] = advanceMechanicsState(mechanicsStates[name], delta);
+                if (units[name]._dead) continue;
+                const tickReceipts: MechanicsReceipt[] = [];
+                mechanicsStates[name] = advanceMechanicsState(mechanicsStates[name], delta, { statuses: spec.mechanics?.statuses || [], receipts: tickReceipts });
+                for (const receipt of tickReceipts) mechanicsReceipts.push({ tick: tickCount, unit: name, receipt });
                 units[name].hp = mechanicsStates[name].hp;
-                if (units[name].hp <= 0) { units[name].hp = 0; units[name]._dead = true; }
+                if (units[name].hp <= 0) {
+                    units[name].hp = 0; units[name]._dead = true;
+                    deaths.push({ tick: tickCount, unit: name });
+                }
             }
         }
     }

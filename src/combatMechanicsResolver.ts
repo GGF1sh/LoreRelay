@@ -39,6 +39,8 @@ function statusRatePerSecond(status: StatusInstance): number {
 const clone = <T>(value: T): T => structuredClone(value);
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 const hasStatus = (target: MechanicsCombatant, id: string) => (target.statuses || []).some(status => status.id === id && status.remainingSeconds > 0);
+/** Shared by the direct heal effect and over-time regeneration so heal-block/healReceivedMul is applied exactly once per healing source. */
+const healingMultiplier = (target: MechanicsCombatant): number => hasStatus(target, 'heal_block') ? .25 : (target.healReceivedMul ?? 1);
 const statusDefinition = (statuses: readonly StatusDefinition[], id: string) => statuses.find(status => status.id === id);
 
 function targetMatches(effect: Effect, target: MechanicsCombatant): boolean {
@@ -134,7 +136,7 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
             }
             applyBuildup(effect, target, input.statuses, receipts);
         } else if (effect.kind === 'heal') {
-            const multiplier = hasStatus(target, 'heal_block') ? .25 : (target.healReceivedMul ?? 1); const amount = Math.trunc(effect.magnitude * multiplier); const before = target.hp; target.hp = Math.min(target.maxHp, target.hp + amount); receipts.push({ stage: 'heal', kind: 'healed', amount: target.hp - before });
+            const multiplier = healingMultiplier(target); const amount = Math.trunc(effect.magnitude * multiplier); const before = target.hp; target.hp = Math.min(target.maxHp, target.hp + amount); receipts.push({ stage: 'heal', kind: 'healed', amount: target.hp - before });
         } else if (effect.kind === 'cleanse') {
             target.buildup = {}; const removable = (target.statuses || []).filter(status => status.id !== 'regen').sort((a, b) => PRIORITY.indexOf(a.id) - PRIORITY.indexOf(b.id))[0]; if (removable) target.statuses = (target.statuses || []).filter(status => status !== removable); receipts.push({ stage: 'cleanse', kind: 'cleansed', statusId: removable?.id });
         }
@@ -163,9 +165,13 @@ export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: n
         status.remainingSeconds = Math.max(0, before - delta);
         const rate = statusRatePerSecond(status);
         if (rate !== 0) {
+            // A negative rate is healing (regen); positive is damage (poison/burn/bleed) and must not
+            // be scaled by heal-block/healReceivedMul. Scaling the rate before accumulation keeps the
+            // milli-HP residual math (and therefore tick-width invariance) unchanged for both cases.
+            const effectiveRate = rate < 0 ? rate * healingMultiplier(next) : rate;
             // Accumulate in integer milli-HP: a bare Math.trunc(rate * delta) discards every tick
             // whose contribution is below 1 HP, which zeroed all over-time effects at fine tick rates.
-            const residual = (status.residualMilli || 0) + Math.round(rate * delta * 1000);
+            const residual = (status.residualMilli || 0) + Math.round(effectiveRate * delta * 1000);
             const whole = Math.trunc(residual / 1000);
             status.residualMilli = residual - whole * 1000;
             if (whole > 0) next.hp = Math.max(0, next.hp - whole);

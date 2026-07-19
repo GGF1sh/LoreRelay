@@ -573,3 +573,275 @@ boundary, `guided_shot` dodgeability, weapon-scale/`structureClass` redesign,
 and all balance numbers.
 
 COMBAT_MECHANICS_CORRECTNESS_FIX_LANDED
+
+---
+
+# Post-fix measured results
+
+Task ID: `COMBAT-POST-FIX-BALANCE-PLAYTEST-001`
+Base: `ba78533` (merge of PR #23, `task/COMBAT-MECHANICS-CORRECTNESS-FIX-001`).
+
+Appendix A recorded that the four repairs worked. This chapter asks the next
+question: **now that those mechanics actually run, is the resulting combat
+balanced?** Everything above is retained unchanged.
+
+**168 battle runs** (14 conditions × base + swap + 8 sensitivity + 2 determinism
+replays) plus **26 isolated state-advance measurements**. No code, fixture,
+resource, or scenario was modified. **Determinism: 14/14 conditions reproduce
+byte-identically.**
+
+## P.1 Base measurements
+
+`impact` = damage from attacks. `DoT` = HP change not attributable to impact or
+healing (over-time effects and doom execution). `uptime` = summed applied status
+duration ÷ battle length, capped at 1.
+
+| condition | win | sec | impact | DoT | absorb | depleted | procs | onset | uptime | dodge% | A/E | HP left |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 01 poison | ALLY | 48.3 | 940 | **130** | 0 | – | 5 | 3.13 s | 0.83 | 0 | 1/0 | 130 |
+| 02 burn | ALLY | 33.1 | 804 | **116** | 0 | – | 4 | 3.13 s | 0.73 | 0 | 1/0 | 280 |
+| 03 bleed | ALLY | 51.7 | 1003 | **97** | 0 | – | 6 | 3.13 s | **1.00** | 0 | 1/0 | 100 |
+| 04 regen | ENEMY | 9.33 | 200 | **−18** | 0 | – | 0 | – | – | 0 | 0/1 | 18 |
+| 05 regen + heal-block | ENEMY | 9.33 | 200 | **−18** | 0 | – | 0 | – | – | 0 | 0/1 | 18 |
+| 06 barrier depletion | ALLY | 8.3 | 380 | 0 | **100** | **2.10 s** | 0 | – | – | 0 | 1/0 | 2920 |
+| 07 barrier vs passing vector | ALLY | 5.2 | 340 | 10 | **0** | – | 1 | 3.13 s | 1.00 | 0 | 1/0 | 2950 |
+| 08 normal vs armour 25 | **ENEMY** | **92.0** | 990 | 0 | 0 | – | 0 | – | – | 0 | 0/1 | 310 |
+| 09 AP vs armour 25 | **ALLY** | **37.2** | 760 | 0 | 0 | – | 0 | – | – | 0 | 1/0 | 540 |
+| 10 doom | ALLY | 14.1 | **14** | **900** | 0 | – | 1 | 2.10 s | 0.85 | 1 fired | 1/0 | 886 |
+| 12 two elites vs six mobs | **ENEMY** | 7.27 | 646 | 0 | 0 | – | 0 | – | – | 0 | 0/4 | 354 |
+| 13 evasion ace vs six | **ENEMY** | 7.27 | 500 | 0 | 0 | – | 0 | – | – | 0.161 | 0/4 | 400 |
+| 14 paralysis vs evasion | TIMEOUT | 120.0 | 250 | 0 | 0 | – | 0 | – | – | **0.000** | 1/1 | 5750 |
+| 14b evasion baseline | TIMEOUT | 120.0 | 194 | 0 | 0 | – | 0 | – | – | **0.183** | 1/1 | 5806 |
+
+Conditions 14/14b are deliberately stalemated (attack 6 vs defence 5 → floor
+damage, 3000 HP) to isolate dodge rate over a long sample; the timeout is the
+harness design, not a balance result.
+
+## P.2 Left/right swap
+
+**All 14 conditions produced the mirrored winner on swap** — the same
+composition wins regardless of which side it occupies. No side bias is
+detectable at the composition level. Battle length was identical to the
+centisecond in 13 of 14 (condition 13 varied 7.27 s → 6.40 s, from turn order
+within the mob group).
+
+Surviving HP differed by 0–23 across swaps, consistent with the known
+first-mover advantage of one action, which remains out of scope.
+
+## P.3 ±10% sensitivity
+
+**2 winner flips out of 56 perturbations (3.6%).** Both are conditions 04 and
+05 flipping ENEMY → ALLY at attack +10%, i.e. the attacker crossing the regen
+unit's sustain threshold — precisely the interaction that should be tight.
+
+Everything else held. Conditions 08/09 (armour), 12 (quantity), 13 (evasion)
+never flipped on any parameter, which is the concerning direction: those
+outcomes are structural, not numeric.
+
+## P.4 Did the four repaired mechanics behave?
+
+**Yes, all four, with one gap.**
+
+**Over-time effects** now carry their full designed load at natural duration:
+
+| status | duration | measured total | designed | share of a 100 HP unit |
+| --- | --- | --- | --- | --- |
+| poison | 8 s | **−24** | −24 | 24% |
+| burn | 6 s | **−30** | −30 | 30% |
+| bleed | 10 s | **−20** | −20 | 20% |
+| regen | 10 s | **+20** | +20 | 20% |
+
+All sit inside the V1 ruleset's 15–35% budget. Poison stacking scales correctly
+(intensity 1/2/3 → 3.0 / 5.0 / 6.9 HP per second; the third is 1 HP low over
+ten seconds, a milli-HP rounding artifact, not a design deviation).
+
+In battle, DoT contributed **9–13% of all damage dealt** (130/1070, 116/920,
+97/1100) — present and felt, never dominant.
+
+**Barrier** absorbed exactly its pool (100) and depleted at **2.10 s**, after
+which damage reached the body. A passing vector (`ignite` magical vs `kinetic`)
+still bypasses entirely: **0 absorbed**.
+
+**Armour piercing** is now decisive: against armour 25, a plain attack **loses
+after 92 s**, AP **wins in 37 s**.
+
+**Doom** fires at **12.03 s** after onset and executes, and the lethality gate
+intercepts it correctly:
+
+| protection | fired at | final HP | receipts |
+| --- | --- | --- | --- |
+| none | 12.03 s | **0** | `lethal_timer_expired`, `death` |
+| endure ×1 | 12.03 s | **1** | `lethal_timer_expired`, `endure` |
+| undying 15 s (overlaps timer) | 12.03 s | **1** | `lethal_timer_expired`, `undying` |
+| undying 5 s (expires first) | 12.03 s | 0 | `lethal_timer_expired`, `death` |
+
+The last row is correct behaviour, not a defect — a 5 s window cannot cover a
+12 s timer. An earlier draft of this measurement mis-sized that window and is
+corrected here.
+
+**The gap: heal reduction does not apply to regeneration.**
+
+| channel | unblocked | with heal-block | expected at −75% |
+| --- | --- | --- | --- |
+| direct heal | +18 | **+4** | +4 ✔ |
+| regen over 10 s | +20 | **+20** | +5 ✘ |
+
+`healReceivedMul` is consumed only by the `heal` effect path; the over-time
+tick in `advanceMechanicsState` ignores it. Conditions 04 and 05 are therefore
+byte-identical. **The regeneration archetype's designated counter does not work
+against regeneration.** This is a missing interaction, not a number.
+
+## P.5 Balance findings
+
+### Confirmed healthy
+
+- **Paralysis → evasion** remains the cleanest counter measured: dodge rate
+  **0.183 → 0.000** over an identical 250-attack sample.
+- **AP → armour** is now a real, decisive counter (loss at 92 s → win at 37 s).
+- **Vector choice → barrier** works both ways: blocked vectors deplete a finite
+  pool, passing vectors ignore it.
+- **DoT weight is well tuned.** 9–13% of damage, 20–30% of a healthbar per
+  application, uptime 0.73–0.83 for poison and burn.
+- **No endless battles or one-sided shutouts arose naturally.** The two
+  timeouts were engineered stalemates; the longest natural fight was 92 s, and
+  it had a working counter that resolved it in 37 s.
+
+### Problems
+
+1. **Heal-block does not touch regen** (P.4). Regen's counter is inert.
+2. **Doom is an HP-independent guaranteed kill, and it is cheap.** Condition 10:
+   the attacker dealt **14 impact damage** and won at 14.1 s against a **900 HP**
+   target. Onset was 2.10 s (3 hits at magnitude 40 against threshold 100), then
+   a fixed 12 s to execution. Nothing about the target's durability mattered.
+   This is the "instant-death bias" the playtest was asked to check for, and it
+   is present.
+3. **Quantity beats quality with no counter-path.** Six mobs (100 HP, 15 atk)
+   beat two elites (200 HP, 28 atk) with **four mobs surviving**, and a lone ace
+   (300 HP, 30 atk, evasion 25) lost to six mobs with four surviving. Neither
+   flipped on any ±10% perturbation — the outcome is structural.
+
+Bleed is the only status at **1.00 uptime** (10 s duration, reapplied before
+expiry). Because its rate is the lowest (2/s), the sustained contribution is
+only ~1.9 DPS, so this is noted rather than escalated.
+
+## P.6 Recommended numeric changes (maximum three)
+
+None have been applied.
+
+### N1 — Doom application magnitude 40 → 25
+
+- **Current:** `doom` ability effect magnitude **40**, status threshold 100 →
+  procs on the **3rd** applying hit (measured onset **2.10 s**); 12 s timer.
+- **Recommended:** magnitude **25** → procs on the **4th** hit (~3.13 s, the
+  same cadence every other applicator already uses).
+- **Evidence:** condition 10 — 14 impact damage killed a 900 HP target in
+  14.1 s. Doom is the only effect whose cost is independent of target
+  durability, yet it lands one hit sooner than poison, burn or bleed.
+- **Archetypes affected:** every high-HP defender (armour, barrier, colossal);
+  doom currently bypasses all of them equally.
+- **If unchanged:** the dominant strategy against any durable target is doom
+  rather than damage, and boss HP totals stop meaning anything.
+
+### N2 — Elite profile attack 28 → 40 (or HP 200 → 300)
+
+- **Current:** two elites (200 HP, 28 atk) vs six mobs (100 HP, 15 atk) →
+  **mobs win with 4 of 6 alive** in 7.27 s.
+- **Recommended:** raise elite attack to **40**, or HP to **300**. Measured
+  throughput is 2 × 23 = 46 DPS for elites against 6 × 10 = 60 DPS for mobs,
+  over pools of 400 vs 600 HP — elites are behind on both axes simultaneously.
+- **Evidence:** no flip across any of the eight ±10% perturbations; the result
+  is structural, not marginal.
+- **Archetypes affected:** few-elites and lone-ace builds, which currently have
+  no win path at any tested stat level.
+- **If unchanged:** "bring more bodies" is strictly correct, and the ace /
+  elite fantasy the tactical tier exists to serve cannot be expressed.
+
+### N3 — Bleed duration 10 s → 7 s
+
+- **Current:** 10 s duration, reapplied before expiry → **uptime 1.00**,
+  against poison 0.83 and burn 0.73.
+- **Recommended:** **7 s**, bringing uptime to roughly 0.8 in line with its
+  siblings. Total per application falls 20 → 14 HP.
+- **Evidence:** condition 03 — bleed is the only status that is never off the
+  target once applied, and its 6 procs over 51.7 s never lapsed.
+- **Archetypes affected:** sustained-damage builds; minor, since bleed's 2/s
+  rate makes the practical swing ~1.9 DPS.
+- **If unchanged:** low impact. This is the weakest of the three candidates and
+  should be dropped if only two changes are wanted.
+
+**Not proposed as numeric changes:** the heal-block/regen gap (P.4) needs a
+code path, not a value; the ally first-mover bias, the evasion interval formula
+and its 33% boundary, `guided_shot` dodgeability, and weapon-scale redesign are
+all out of scope for this task.
+
+COMBAT_POST_FIX_BALANCE_PLAYTEST_COMPLETE
+
+---
+
+# Hot-fix: heal-block now applies to regeneration
+
+Task ID: `COMBAT-HOT-HEAL-BLOCK-FIX-001`
+Base: `ba78533` (same merged state as the Post-fix chapter above).
+
+§P.4 identified that `healReceivedMul`/`heal_block` was consumed by the direct
+`heal` effect but ignored by the regeneration tick in `advanceMechanicsState`,
+so conditions 04 and 05 were byte-identical. This is the narrowest possible fix
+for that one gap. No other mechanic, number, or scenario changed.
+
+## Fix
+
+`advanceMechanicsState` now scales a status's over-time rate by the shared
+`healingMultiplier(target)` helper **only when the rate is negative** (i.e. the
+effect heals — currently only `regen`). Positive-rate effects (poison, burn,
+bleed) are untouched. The same helper now backs the direct `heal` effect too,
+so heal-block's `×0.25` is defined in exactly one place and cannot drift between
+the two paths or be applied twice to the same source.
+
+## Focused tests (`combatMechanicsHealBlockRegen.test.ts`, 8/8 pass)
+
+| test | result |
+| --- | --- |
+| regen +20/10s under `heal_block` (×0.25) | **+5** |
+| `healReceivedMul: 1.0` | +20 (unchanged) |
+| `healReceivedMul: 0` | +0 |
+| direct heal not doubly discounted | +5 for a 20-magnitude heal under block (matches pre-fix `Math.trunc(20*0.25)`) |
+| poison/burn/bleed unaffected by heal_block or `healReceivedMul: 0` | 30/50/20, unchanged |
+| tick-width invariance for reduced regen (1/30, 1/10, 1/2, 1 s) | all **+5** |
+| maxHp clamp on unblocked regen | clamps at 200, does not overshoot |
+| identical input reproduces identical output | byte-identical |
+
+## Re-measurement
+
+| condition | before this fix | after this fix |
+| --- | --- | --- |
+| regen isolated, 10 s, no block | +20 | +20 (unchanged) |
+| regen isolated, 10 s, `heal_block` | **+20** | **+5** |
+| direct heal, no block | +18 | +18 (unchanged) |
+| direct heal, `heal_block` | +4 | +4 (unchanged — confirms no double-apply) |
+| condition 04 vs 05 (Combat Lab) | **byte-identical** | **defender HP 18 vs 4 — different** |
+| `healing_vs_block` built-in scenario | ALLY, 9.33 s, 162 healing | ALLY, 9.33 s, 162 healing (unchanged — this scenario uses direct heal, not regen) |
+
+Condition 04/05 are no longer byte-identical, which was the specific expectation
+this task set out to produce. Regen isolated matches the requested +20 → +5
+exactly. The `healing_vs_block` built-in scenario is unaffected because it
+exercises the direct-heal path, which was never broken.
+
+## Verification
+
+| check | result |
+| --- | --- |
+| Compile | clean |
+| New focused tests | **8/8** |
+| Golden Master parity fixtures | **8/8** |
+| Combat suites (resolver, both correctness files, lab, lab store, workshop, workshop store, validator, loadout, integration) | **44/44** |
+| `npm run test:unit` | **288/288** |
+| Symbol Registry | regenerated, up to date |
+| Built-in Combat Lab scenarios still deterministic | **10/10** |
+
+## Scope discipline
+
+Not touched, per the task: doom magnitude, elite HP/attack, bleed duration,
+first-mover bias, any Ability/Status numeric value, UI, or mass-battle design.
+Only `src/combatMechanicsResolver.ts` changed.
+
+COMBAT_HOT_HEAL_BLOCK_FIX_PUSHED

@@ -24,15 +24,15 @@
     ]
   },
   "counts": {
-    "total": 4820,
+    "total": 4835,
     "byBoundary": {
       "configuration": 89,
       "host": 813,
       "host-bridge": 61,
-      "host-webview": 447,
-      "pure-core": 2698,
+      "host-webview": 450,
+      "pure-core": 2708,
       "schema-types": 32,
-      "webview": 680
+      "webview": 682
     },
     "byCategory": {
       "accepted-turn-replay-guard": 60,
@@ -66,6 +66,7 @@
       "chronicle-loader": 3,
       "combat-ability-types": 25,
       "combat-ability-validator": 9,
+      "combat-loadout-ui": 10,
       "combat-mechanics-resolver": 14,
       "commands": 1,
       "commerce": 22,
@@ -145,7 +146,7 @@
       "guild-quest": 21,
       "guild-request": 18,
       "guild-turn-ops": 6,
-      "host-webview-protocol": 447,
+      "host-webview-protocol": 450,
       "i18n": 8,
       "image-gen-circuit": 7,
       "image-gen-config": 9,
@@ -290,7 +291,7 @@
       "vlm-provider": 1,
       "vlm-queue": 11,
       "vscode-lm-turn-result": 9,
-      "webview": 680,
+      "webview": 682,
       "webview-handlers": 19,
       "webview-html": 2,
       "workspace-paths": 7,
@@ -322,14 +323,14 @@
     },
     "byKind": {
       "configurationKey": 89,
-      "constant": 662,
+      "constant": 663,
       "enum": 2,
-      "function": 1717,
-      "interface": 844,
-      "messageType": 447,
+      "function": 1723,
+      "interface": 847,
+      "messageType": 450,
       "type": 379,
-      "webviewFunction": 660,
-      "windowApi": 20
+      "webviewFunction": 661,
+      "windowApi": 21
     }
   },
   "entries": [
@@ -4516,6 +4517,116 @@
       "public": "exported",
       "boundary": "host",
       "category": "combat-ability-validator"
+    },
+    {
+      "id": "pure-core:constant:src/combatLoadoutUiCore.ts:defaultCombatLoadoutState",
+      "name": "defaultCombatLoadoutState",
+      "kind": "constant",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 9,
+      "signature": "export const defaultCombatLoadoutState",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:function:src/combatLoadoutUiCore.ts:normalizeCombatLoadoutState",
+      "name": "normalizeCombatLoadoutState",
+      "kind": "function",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 10,
+      "signature": "export function normalizeCombatLoadoutState(value: unknown): CombatLoadoutState",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:function:src/combatLoadoutUiCore.ts:describeAbility",
+      "name": "describeAbility",
+      "kind": "function",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 15,
+      "signature": "export function describeAbility(ability: AbilityDefinition, validation: AbilityValidationResult): string",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:function:src/combatLoadoutUiCore.ts:buildAbilityOptions",
+      "name": "buildAbilityOptions",
+      "kind": "function",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 21,
+      "signature": "export function buildAbilityOptions(abilities: readonly AbilityDefinition[], statuses: readonly StatusDefinition[]): AbilityOption[]",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:function:src/combatLoadoutUiCore.ts:applyLoadoutsToBattleSpec",
+      "name": "applyLoadoutsToBattleSpec",
+      "kind": "function",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 24,
+      "signature": "export function applyLoadoutsToBattleSpec(spec: BattleSpec, state: CombatLoadoutState, abilities: readonly AbilityDefinition[], statuses: readonly StatusDefinition[]): BattleSpec",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:function:src/combatLoadoutUiCore.ts:formatMechanicsReceipt",
+      "name": "formatMechanicsReceipt",
+      "kind": "function",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 35,
+      "signature": "export function formatMechanicsReceipt(receipt: MechanicsReceipt): string",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:function:src/combatLoadoutUiCore.ts:mechanicsDisplayModel",
+      "name": "mechanicsDisplayModel",
+      "kind": "function",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 44,
+      "signature": "export function mechanicsDisplayModel(state: MechanicsCombatant, receipts: readonly MechanicsReceipt[])",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:interface:src/combatLoadoutUiCore.ts:AbilityLoadout",
+      "name": "AbilityLoadout",
+      "kind": "interface",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 6,
+      "signature": "export interface AbilityLoadout",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:interface:src/combatLoadoutUiCore.ts:CombatLoadoutState",
+      "name": "CombatLoadoutState",
+      "kind": "interface",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 7,
+      "signature": "export interface CombatLoadoutState",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
+    },
+    {
+      "id": "pure-core:interface:src/combatLoadoutUiCore.ts:AbilityOption",
+      "name": "AbilityOption",
+      "kind": "interface",
+      "sourcePath": "src/combatLoadoutUiCore.ts",
+      "line": 8,
+      "signature": "export interface AbilityOption",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-loadout-ui"
     },
     {
       "id": "host:function:src/combatMechanicsResolver.ts:resolveMechanics",
@@ -22101,6 +22212,42 @@
       "sourcePath": "webview/modules/89b-mobile-base-panel.js",
       "line": 227,
       "signature": "type: \"worldView\" (received)",
+      "public": "protocol",
+      "boundary": "host-webview",
+      "category": "host-webview-protocol",
+      "direction": "received"
+    },
+    {
+      "id": "host-webview:messageType:webview-to-host:webview/modules/89d-combat-loadout.js:updateCombatLoadout",
+      "name": "updateCombatLoadout",
+      "kind": "messageType",
+      "sourcePath": "webview/modules/89d-combat-loadout.js",
+      "line": 11,
+      "signature": "type: \"updateCombatLoadout\" (webview-to-host)",
+      "public": "protocol",
+      "boundary": "host-webview",
+      "category": "host-webview-protocol",
+      "direction": "webview-to-host"
+    },
+    {
+      "id": "host-webview:messageType:received:webview/modules/89d-combat-loadout.js:combatLoadoutCatalog",
+      "name": "combatLoadoutCatalog",
+      "kind": "messageType",
+      "sourcePath": "webview/modules/89d-combat-loadout.js",
+      "line": 13,
+      "signature": "type: \"combatLoadoutCatalog\" (received)",
+      "public": "protocol",
+      "boundary": "host-webview",
+      "category": "host-webview-protocol",
+      "direction": "received"
+    },
+    {
+      "id": "host-webview:messageType:received:webview/modules/89d-combat-loadout.js:combatMechanicsDisplay",
+      "name": "combatMechanicsDisplay",
+      "kind": "messageType",
+      "sourcePath": "webview/modules/89d-combat-loadout.js",
+      "line": 13,
+      "signature": "type: \"combatMechanicsDisplay\" (received)",
       "public": "protocol",
       "boundary": "host-webview",
       "category": "host-webview-protocol",
@@ -50188,6 +50335,17 @@
       "category": "webview"
     },
     {
+      "id": "webview:webviewFunction:webview/modules/89d-combat-loadout.js:renderCombatLoadout",
+      "name": "renderCombatLoadout",
+      "kind": "webviewFunction",
+      "sourcePath": "webview/modules/89d-combat-loadout.js",
+      "line": 4,
+      "signature": "function renderCombatLoadout()",
+      "public": "module-top-level",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
       "id": "webview:webviewFunction:webview/modules/90-bootstrap.js:updateRelayToggleButton",
       "name": "updateRelayToggleButton",
       "kind": "webviewFunction",
@@ -50619,6 +50777,17 @@
       "sourcePath": "webview/modules/89c-vehicle-intent-preview.js",
       "line": 63,
       "signature": "window.LR_vehicleIntentPreview",
+      "public": "public",
+      "boundary": "webview",
+      "category": "webview"
+    },
+    {
+      "id": "webview:windowApi:webview/modules/89d-combat-loadout.js:LR_combatLoadout",
+      "name": "LR_combatLoadout",
+      "kind": "windowApi",
+      "sourcePath": "webview/modules/89d-combat-loadout.js",
+      "line": 3,
+      "signature": "window.LR_combatLoadout",
       "public": "public",
       "boundary": "webview",
       "category": "webview"

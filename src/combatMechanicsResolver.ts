@@ -18,9 +18,11 @@ export interface SubsystemState { tag: SubsystemTag; hp: number; maxHp: number; 
 export interface LethalityState { endureCharges: number; undyingSeconds: number; }
 /** Drives the doom execution threshold. `colossal` never dies to a lethal timer. */
 export type CombatantRank = 'normal' | 'elite' | 'boss' | 'colossal';
+/** Physical bulk, used for engagement slots. Deliberately distinct from `structureClass`, which scales damage. */
+export type CombatantSize = 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'colossal';
 export interface MechanicsCombatant {
     id: string; hp: number; maxHp: number; attack: number; defense: number;
-    rank?: CombatantRank;
+    rank?: CombatantRank; sizeClass?: CombatantSize;
     penetration?: number; accuracy?: number; evasion?: number; incomingHitCount?: number;
     structureClass?: StructureClass; weaponScale?: WeaponScale; tags?: TargetTag[];
     resistances?: Partial<Record<Vector | string, number>>; barrier?: BarrierState;
@@ -29,7 +31,20 @@ export interface MechanicsCombatant {
 }
 export interface MechanicsReceipt { stage: string; kind: string; detail?: string; amount?: number; statusId?: string; subsystemTag?: SubsystemTag; }
 export interface MechanicsResolution { target: MechanicsCombatant; receipts: MechanicsReceipt[]; damageDealt: number; dodged: boolean; targetLegal: boolean; }
-export interface MechanicsInput { ability: AbilityDefinition; attacker: MechanicsCombatant; target: MechanicsCombatant; statuses: readonly StatusDefinition[]; }
+export interface MechanicsInput {
+    ability: AbilityDefinition; attacker: MechanicsCombatant; target: MechanicsCombatant; statuses: readonly StatusDefinition[];
+    /**
+     * Geometry- and crowd-derived multipliers supplied by the caller, which owns target selection.
+     * Both default to 1, so a single-target resolve is bit-identical to one with no delivery context.
+     */
+    delivery?: MechanicsDeliveryContext;
+}
+export interface MechanicsDeliveryContext {
+    /** 1 for the primary target, ramping to the ability's `falloff` for the last one. */
+    falloff?: number;
+    /** `0.25` when the attacker is beyond the defender's engagement slots, otherwise 1. */
+    engagement?: number;
+}
 
 const SCALE: Record<WeaponScale, Record<StructureClass, number>> = {
     personal: { flesh: 1, light: .6, armored: .25, structure: .15, capital: .05 },
@@ -48,6 +63,30 @@ export const LETHAL_TIMER_FALLBACK_FRACTION = .2;
 export const LETHAL_TIMER_IMMINENT_SECONDS = 3;
 /** Critical subsystems a lethal timer destroys on a colossal target, highest priority first. */
 export const LETHAL_TIMER_SUBSYSTEM_PRIORITY: readonly SubsystemTag[] = ['power', 'command', 'primary_weapon', 'locomotion', 'sensor'];
+/** How many attackers can meaningfully engage one defender at once, by physical bulk. */
+export const ENGAGEMENT_SLOTS: Record<CombatantSize, number> = { tiny: 2, small: 2, medium: 3, large: 4, huge: 6, colossal: 12 };
+/** Damage multiplier for an attacker beyond the defender's engagement slots. */
+export const ENGAGEMENT_OVERFLOW_MULTIPLIER = .25;
+/** Anti-horde tools hit `swarm`-tagged targets harder. Never applies to boss or colossal targets. */
+export const SWARM_MULTIPLIER = 1.5;
+
+export function engagementSlotsFor(target: MechanicsCombatant): number {
+    return ENGAGEMENT_SLOTS[target.sizeClass || 'medium'];
+}
+/** True when an anti-horde multiplier is legitimate: a swarm-tagged target that is not a boss or colossal. */
+export function isSwarmTarget(target: MechanicsCombatant): boolean {
+    if (!(target.tags || []).includes('swarm')) return false;
+    const rank = target.rank;
+    return rank !== 'boss' && rank !== 'colossal' && !isHuge(target);
+}
+/** Falloff for the k-th target (1-based) of a delivery, ramping linearly from 1 to the ability's falloff. */
+export function falloffAtIndex(index: number, maxTargets: number, falloff: number): number {
+    if (index <= 1 || maxTargets <= 1) return 1;
+    const span = Math.max(1, maxTargets - 1);
+    // Divide before multiplying so the final target lands exactly on the declared falloff rather
+    // than one unit-in-last-place below it, which would silently cost that target a point of damage.
+    return 1 - (1 - falloff) * (Math.min(index - 1, span) / span);
+}
 /** Over-time rates in HP per second. Values are unchanged from V1; only their accumulation is corrected. */
 function statusRatePerSecond(status: StatusInstance): number {
     if (status.id === 'poison') { return 3 + (status.intensity - 1) * 2; }
@@ -120,16 +159,18 @@ function applyStatus(target: MechanicsCombatant, status: StatusDefinition, recei
     }
     receipts.push({ stage: 'buildup', kind: 'status_applied', statusId: status.id });
 }
-function applyBuildup(effect: Effect, target: MechanicsCombatant, statuses: readonly StatusDefinition[], receipts: MechanicsReceipt[], source: StatusSource = {}): void {
+function applyBuildup(effect: Effect, target: MechanicsCombatant, statuses: readonly StatusDefinition[], receipts: MechanicsReceipt[], source: StatusSource = {}, spread = 1): void {
     if (!effect.statusId) return;
     const status = statusDefinition(statuses, effect.statusId);
     if (!status || hasStatus(target, 'petrify')) return;
     const map = target.buildup || (target.buildup = {});
     const item = map[effect.statusId] || (map[effect.statusId] = { value: 0, procCount: 0, idleSeconds: 0 });
-    item.value += Math.trunc(effect.magnitude); item.idleSeconds = 0;
+    // A reached target always accrues at least 1, mirroring the minimum-damage floor.
+    const applied = Math.max(1, Math.trunc(effect.magnitude * spread));
+    item.value += applied; item.idleSeconds = 0;
     const resist = clamp(target.resistances?.[effect.statusId] || 0, 0, 100);
     const threshold = Math.trunc(status.buildupThreshold * (1 + resist / 100) * (1 + .5 * Math.min(item.procCount, 4)));
-    receipts.push({ stage: 'buildup', kind: 'buildup_added', statusId: effect.statusId, amount: Math.trunc(effect.magnitude) });
+    receipts.push({ stage: 'buildup', kind: 'buildup_added', statusId: effect.statusId, amount: applied });
     if (item.value >= threshold) { item.value = 0; item.procCount = Math.min(4, item.procCount + 1); applyStatus(target, status, receipts, source); }
 }
 function isHuge(target: MechanicsCombatant): boolean { return target.structureClass === 'capital' || (target.tags || []).includes('colossal'); }
@@ -177,6 +218,17 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
         if (evasion > 0) { const count = (target.incomingHitCount || 0) + 1; target.incomingHitCount = count; dodged = count % Math.ceil(100 / evasion) === 0; }
         if (dodged) return { target, receipts: [{ stage: 'hit', kind: 'dodged' }], damageDealt, dodged, targetLegal };
     }
+    // Falloff and the anti-horde bonus shape harmful output only. Healing and barriers are deliberately
+    // exempt: an ally at the edge of a support effect should not be worse off for standing there, and the
+    // power budget already prices those kinds by magnitude across every target reached.
+    const deliveryFalloff = clamp(input.delivery?.falloff ?? 1, 0, 1);
+    const engagementMultiplier = clamp(input.delivery?.engagement ?? 1, 0, 1);
+    const isAreaDelivery = input.ability.delivery.shape !== 'single_target' && input.ability.delivery.shape !== 'self';
+    const swarmMultiplier = isAreaDelivery && isSwarmTarget(target) ? SWARM_MULTIPLIER : 1;
+    if (swarmMultiplier !== 1) receipts.push({ stage: 'delivery', kind: 'swarm_bonus', amount: swarmMultiplier });
+    if (engagementMultiplier !== 1) receipts.push({ stage: 'delivery', kind: 'engagement_overflow', amount: engagementMultiplier });
+    if (deliveryFalloff !== 1) receipts.push({ stage: 'delivery', kind: 'falloff_applied', amount: deliveryFalloff });
+
     for (const effect of input.ability.effects) {
         if (!targetMatches(effect, target)) { receipts.push({ stage: 'targeting', kind: 'effect_target_invalid' }); continue; }
         const factor = penetrationFactor(effect, target, receipts); if (factor === 0) continue;
@@ -191,7 +243,11 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
                 : Math.max(0, (effect.penetration.armor === 'reduced' ? Math.trunc(armorValue / 2) : armorValue) - penetration);
             const armored = Math.trunc(Math.trunc(input.attacker.attack * scale) - effectiveArmor);
             const resist = clamp(target.resistances?.[effect.vector] || 0, -50, 75);
-            let damage = Math.max(1, Math.trunc(armored * (1 - resist / 100)));
+            // Delivery falloff, engagement crowding and the anti-horde bonus all land *before* the
+            // minimum-damage floor, so every target an area attack reaches still takes at least 1.
+            // (Barrier attenuation stays after the floor, where being reduced to nothing is meaningful.)
+            const spread = deliveryFalloff * engagementMultiplier * swarmMultiplier;
+            let damage = Math.max(1, Math.trunc(armored * (1 - resist / 100) * spread));
             if (hasStatus(target, 'sleep')) { damage = Math.trunc(damage * 1.5); target.statuses = (target.statuses || []).filter(status => status.id !== 'sleep'); receipts.push({ stage: 'status', kind: 'sleep_broken' }); }
             damage = Math.trunc(damage * factor);
             const barrier = target.barrier;
@@ -209,7 +265,8 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
                 const subsystem = tag && target.subsystems?.find(system => system.tag === tag);
                 if (subsystem) { subsystem.disabledSeconds = Math.max(subsystem.disabledSeconds, statusDefinition(input.statuses, effect.statusId || '')?.durationSeconds || 0); receipts.push({ stage: 'scale', kind: 'subsystem_disabled', subsystemTag: tag, statusId: effect.statusId }); continue; }
             }
-            applyBuildup(effect, target, input.statuses, receipts, { sourceId: input.attacker.id, sourceAbilityId: input.ability.id });
+            // Status pressure attenuates with distance and crowding just like damage does.
+            applyBuildup(effect, target, input.statuses, receipts, { sourceId: input.attacker.id, sourceAbilityId: input.ability.id }, deliveryFalloff * engagementMultiplier);
         } else if (effect.kind === 'heal') {
             const multiplier = healingMultiplier(target); const amount = Math.trunc(effect.magnitude * multiplier); const before = target.hp; target.hp = Math.min(target.maxHp, target.hp + amount); receipts.push({ stage: 'heal', kind: 'healed', amount: target.hp - before });
         } else if (effect.kind === 'cleanse') {

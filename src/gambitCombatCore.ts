@@ -1,3 +1,8 @@
+import { AbilityDefinition, StatusDefinition } from './combatAbilityTypes';
+import { advanceMechanicsState, canAct, canMove, MechanicsCombatant, MechanicsReceipt, resolveMechanics } from './combatMechanicsResolver';
+
+export type CombatMode = 'legacy_gambit' | 'mechanics_v1';
+
 export interface CombatVector2 {
     x: number;
     y: number;
@@ -19,6 +24,9 @@ export interface CombatUnitState {
     pos_x: number;
     pos_y: number;
     gambits?: any[];
+    normalAttackAbility?: AbilityDefinition;
+    healAbility?: AbilityDefinition;
+    mechanics?: MechanicsCombatant;
 
     // internal state
     _cooldown_timer: number;
@@ -37,6 +45,8 @@ export interface BattleSpec {
             enemies: any[];
         };
     };
+    combatMode?: CombatMode;
+    mechanics?: { statuses: StatusDefinition[] };
 }
 
 export interface CombatEvent {
@@ -53,6 +63,7 @@ export interface CombatExpectedOutput {
     heals: CombatEvent[];
     deaths: CombatEvent[];
     focusChanges: CombatEvent[];
+    mechanicsReceipts?: Array<CombatEvent & { receipt: MechanicsReceipt }>;
     finalState: {
         units: { name: string; hp: number; pos_x: number; pos_y: number }[];
     };
@@ -127,6 +138,16 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
     const heals: CombatEvent[] = [];
     const deaths: CombatEvent[] = [];
     const focusChanges: CombatEvent[] = [];
+    const mechanicsReceipts: Array<CombatEvent & { receipt: MechanicsReceipt }> = [];
+    const combatMode: CombatMode = spec.combatMode || 'legacy_gambit';
+    const mechanicsStates: Record<string, MechanicsCombatant> = {};
+
+    if (combatMode === 'mechanics_v1') {
+        for (const name of Object.keys(units)) {
+            const unit = units[name];
+            mechanicsStates[name] = unit.mechanics ? structuredClone(unit.mechanics) : { id: name, hp: unit.hp, maxHp: unit.max_hp, attack: unit.attack, defense: unit.defense };
+        }
+    }
 
     const lastEvals: Record<string, string> = {};
     const focusTarget: Record<number, string> = {};
@@ -336,6 +357,18 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                 if (u._cooldown_timer > 0.0) return;
                 u._cooldown_timer = u.attack_cooldown;
                 const tu = units[targetName];
+                if (combatMode === 'mechanics_v1' && u.normalAttackAbility) {
+                    if (!canAct(mechanicsStates[u.name])) return;
+                    const result = resolveMechanics({ ability: u.normalAttackAbility, attacker: mechanicsStates[u.name], target: mechanicsStates[targetName], statuses: spec.mechanics?.statuses || [] });
+                    mechanicsStates[targetName] = result.target;
+                    tu.hp = result.target.hp;
+                    focusTarget[u.team] = targetName;
+                    focusChanges.push({ tick: tickCount, team: u.team, target: targetName });
+                    attacks.push({ tick: tickCount, unit: u.name, target: targetName, damage: result.damageDealt });
+                    for (const receipt of result.receipts) mechanicsReceipts.push({ tick: tickCount, unit: u.name, target: targetName, receipt });
+                    if (tu.hp <= 0) { tu.hp = 0; tu._dead = true; deaths.push({ tick: tickCount, unit: targetName }); }
+                    return;
+                }
                 const damage = Math.max(1, u.attack - tu.defense);
                 
                 focusTarget[u.team] = targetName;
@@ -354,6 +387,7 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
             const moveToward = (targetName: string) => {
                 const tu = units[targetName];
                 if (!tu) return;
+                if (combatMode === 'mechanics_v1' && !canMove(mechanicsStates[u.name])) return;
                 const dx = f(tu.pos_x - u.pos_x);
                 const dy = f(tu.pos_y - u.pos_y);
                 const d = dist(u, tu);
@@ -529,6 +563,14 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                     setAction("自己回復", u.name);
                     if (u._cooldown_timer <= 0.0) {
                         u._cooldown_timer = u.attack_cooldown;
+                        if (combatMode === 'mechanics_v1' && u.healAbility) {
+                            const result = resolveMechanics({ ability: u.healAbility, attacker: mechanicsStates[u.name], target: mechanicsStates[u.name], statuses: spec.mechanics?.statuses || [] });
+                            mechanicsStates[u.name] = result.target; u.hp = result.target.hp;
+                            const amount = result.receipts.filter(receipt => receipt.kind === 'healed').reduce((sum, receipt) => sum + (receipt.amount || 0), 0);
+                            for (const receipt of result.receipts) mechanicsReceipts.push({ tick: tickCount, unit: u.name, target: u.name, receipt });
+                            if (amount > 0) heals.push({ tick: tickCount, unit: u.name, source: u.name, amount });
+                            return;
+                        }
                         const amount = Math.min(u.max_hp - u.hp, u.heal_power);
                         u.hp += amount;
                         if (amount > 0) {
@@ -543,6 +585,14 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                         setAction("回復", ally);
                         if (u._cooldown_timer <= 0.0) {
                             u._cooldown_timer = u.attack_cooldown;
+                            if (combatMode === 'mechanics_v1' && u.healAbility) {
+                                const result = resolveMechanics({ ability: u.healAbility, attacker: mechanicsStates[u.name], target: mechanicsStates[ally], statuses: spec.mechanics?.statuses || [] });
+                                mechanicsStates[ally] = result.target; au.hp = result.target.hp;
+                                const amount = result.receipts.filter(receipt => receipt.kind === 'healed').reduce((sum, receipt) => sum + (receipt.amount || 0), 0);
+                                for (const receipt of result.receipts) mechanicsReceipts.push({ tick: tickCount, unit: u.name, target: ally, receipt });
+                                if (amount > 0) heals.push({ tick: tickCount, unit: ally, source: u.name, amount });
+                                return;
+                            }
                             const amount = Math.min(au.max_hp - au.hp, u.heal_power);
                             au.hp += amount;
                             if (amount > 0) {
@@ -595,6 +645,13 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                 setAction("待機");
             }
         }
+        if (combatMode === 'mechanics_v1') {
+            for (const name of Object.keys(mechanicsStates)) {
+                mechanicsStates[name] = advanceMechanicsState(mechanicsStates[name], delta);
+                units[name].hp = mechanicsStates[name].hp;
+                if (units[name].hp <= 0) { units[name].hp = 0; units[name]._dead = true; }
+            }
+        }
     }
 
     if (tickCount > timeoutTicks && outcome === "") {
@@ -611,7 +668,7 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         };
     });
 
-    return {
+    const output: CombatExpectedOutput = {
         evaluations,
         decisions,
         attacks,
@@ -621,4 +678,6 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         finalState: { units: finalStateUnits },
         outcome
     };
+    if (combatMode === 'mechanics_v1') output.mechanicsReceipts = mechanicsReceipts;
+    return output;
 }

@@ -23,10 +23,18 @@ import {
     serializeDirectInputLog,
 } from './combatDirectInputCore';
 import {
+    canAct,
+    canMove,
     MechanicsCombatant,
     MechanicsReceipt,
     resolveMechanics,
 } from './combatMechanicsResolver';
+import {
+    CombatSelectableMode,
+    combatModeAllowsDirectControl,
+    combatModeAllowsTacticalOrder,
+    combatModeRejectsCombatOps,
+} from './combatModeContract';
 
 // ---------------------------------------------------------------------------
 // V1 constants (not authored on abilities/resources)
@@ -119,6 +127,7 @@ export interface DirectCombatantSnapshot {
 
 export type DirectInputRejectReason =
     | 'actor_defeated'
+    | 'actor_mismatch'
     | 'invalid_phase'
     | 'missing_target'
     | 'invalid_target'
@@ -127,7 +136,11 @@ export type DirectInputRejectReason =
     | 'unsupported_action'
     | 'missing_direction'
     | 'missing_ability'
-    | 'insufficient_stamina';
+    | 'insufficient_stamina'
+    | 'cannot_move'
+    | 'cannot_act'
+    | 'mode_forbids_action'
+    | 'tick_rate_mismatch';
 
 export interface DirectRejectedInput {
     tick: number;
@@ -159,6 +172,8 @@ export type DirectSimReceiptKind =
     | 'dodge_started'
     | 'dodge_rejected_stamina'
     | 'dodge_rejected_phase'
+    | 'dodge_rejected_control'
+    | 'dodge_interrupted_control'
     | 'iframe_avoided'
     | 'iframe_no_credit'
     | 'undodgeable_hit'
@@ -167,7 +182,9 @@ export type DirectSimReceiptKind =
     | 'perfect_dodge'
     | 'dodge_chain_penalty'
     | 'stamina_regenerated'
-    | 'incoming_hit';
+    | 'incoming_hit'
+    | 'action_interrupted'
+    | 'move_stopped_control';
 
 export interface DirectSimReceipt {
     tick: number;
@@ -202,6 +219,10 @@ export interface DirectHeadlessInput {
     /** Ability catalog for incoming attacks (and optional extras). */
     abilities?: readonly AbilityDefinition[];
     statuses?: readonly StatusDefinition[];
+    /**
+     * Runner tick rate. When provided must match DirectInputLog.tickRate.
+     * When omitted, the log's tickRate is used.
+     */
     tickRate?: number;
     /** Inclusive simulation length: ticks 0 .. durationTicks-1 are processed. */
     durationTicks: number;
@@ -216,6 +237,11 @@ export interface DirectHeadlessInput {
     dodgeDistance?: number;
     /** Starting stamina in milli (default full). */
     initialStaminaMilli?: number;
+    /**
+     * Selectable mode controlling input rights.
+     * Defaults to `direct_action` (full avatar control).
+     */
+    mode?: CombatSelectableMode;
 }
 
 export interface DirectCombatantSeed {
@@ -410,13 +436,38 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         return { ok: false, error: 'MISSING_ABILITY' };
     }
 
-    const tickRate = input.tickRate && input.tickRate > 0 ? input.tickRate : DIRECT_V1_TICK_RATE;
     const moveSpeed = input.moveSpeed && input.moveSpeed > 0 ? input.moveSpeed : DIRECT_V1_MOVE_SPEED;
     const dodgeDistance = input.dodgeDistance && input.dodgeDistance > 0
         ? input.dodgeDistance
         : DIRECT_V1_DODGE_DISTANCE;
     const statuses = input.statuses || [];
     const ability = input.normalAttackAbility;
+    const mode: CombatSelectableMode = input.mode || 'direct_action';
+
+    const abilityById = new Map<string, AbilityDefinition>();
+    abilityById.set(ability.id, ability);
+    for (const extra of input.abilities || []) {
+        if (extra && typeof extra.id === 'string') abilityById.set(extra.id, extra);
+    }
+
+    const defaultTickRate = input.tickRate && input.tickRate > 0 ? input.tickRate : DIRECT_V1_TICK_RATE;
+    const logResult = normalizeDirectInputLog(
+        input.directInput === undefined ? emptyDirectInputLog(defaultTickRate) : input.directInput,
+    );
+    if (!logResult.ok) {
+        return { ok: false, error: 'INVALID_DIRECT_INPUT', detail: logResult.error };
+    }
+    const inputLog = logResult.log;
+
+    // Runner tickRate must match the log when both are explicit.
+    if (input.tickRate !== undefined && input.tickRate !== inputLog.tickRate) {
+        return {
+            ok: false,
+            error: 'TICK_RATE_MISMATCH',
+            detail: `runner=${input.tickRate} log=${inputLog.tickRate}`,
+        };
+    }
+    const tickRate = inputLog.tickRate;
     const phaseTicks = deriveDirectPhaseTicks(ability, tickRate);
     const cooldownTicks = abilityCooldownTicks(ability, tickRate);
     const iframeTicks = iframeTicksFor(ability, tickRate, input.iframeMs);
@@ -425,20 +476,6 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         0,
         msToTicks(input.dodgeRecoveryMs ?? DEFAULT_DODGE_RECOVERY_MS, tickRate),
     );
-
-    const abilityById = new Map<string, AbilityDefinition>();
-    abilityById.set(ability.id, ability);
-    for (const extra of input.abilities || []) {
-        if (extra && typeof extra.id === 'string') abilityById.set(extra.id, extra);
-    }
-
-    const logResult = normalizeDirectInputLog(
-        input.directInput === undefined ? emptyDirectInputLog() : input.directInput,
-    );
-    if (!logResult.ok) {
-        return { ok: false, error: 'INVALID_DIRECT_INPUT', detail: logResult.error };
-    }
-    const inputLog = logResult.log;
 
     const incoming = normalizeIncomingAttacks(input.incomingAttacks || []);
     if (!incoming.ok) {
@@ -521,13 +558,34 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
         controller.tick = tick;
         syncDefeated(controller, combatants);
 
-        // 0) Close expired dodge phases before inputs (iframe is [start, end)).
+        // 1) Advance expired phases / i-frames / chain window *before* inputs so
+        //    recovery-end tick accepts the next attack, and commits fire once.
         advanceDodgePhase(controller, tick, dodgeRecoveryTicks);
+        advanceActionPhase({
+            controller,
+            combatants,
+            ability,
+            phaseTicks,
+            cooldownTicks,
+            committedActions,
+            mechanicsReceipts,
+            directReceipts,
+            statuses,
+            inputSeq: -1,
+        });
+        // Chain consecutive-dodge counter decays after the reset window.
+        if (
+            controller.lastDodgeTick >= 0
+            && (tick - controller.lastDodgeTick) > chainResetTicks
+            && controller.consecutiveDodgeCount !== 0
+        ) {
+            controller.consecutiveDodgeCount = 0;
+        }
 
-        // 1) Stamina regen at tick start (integer milli only).
+        // 2) Stamina regen (integer milli only).
         regenerateStamina(controller, regenPerTick, directReceipts);
 
-        // 2) Consume player inputs (seq order).
+        // 3) Consume player inputs in seq order.
         const events = eventsByTick.get(tick) || [];
         for (const event of events) {
             applyInputEvent({
@@ -548,24 +606,11 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
                 dodgeDistance,
                 chainWindowTicks,
                 chainResetTicks,
+                mode,
             });
         }
 
-        // 3) Advance outgoing action phases (may commit light attack).
-        advanceActionPhase({
-            controller,
-            combatants,
-            ability,
-            phaseTicks,
-            cooldownTicks,
-            committedActions,
-            mechanicsReceipts,
-            statuses,
-            inputSeq: -1,
-        });
-
-        // 4) Resolve scheduled incoming attacks after inputs so same-tick
-        //    dodges open i-frames before the hit is evaluated.
+        // 4) Incoming attacks after inputs so same-tick dodges open i-frames first.
         const attacks = attacksByTick.get(tick) || [];
         for (const atk of attacks) {
             resolveIncomingAttack({
@@ -578,10 +623,12 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
                 directReceipts,
                 justWindowTicks,
             });
+            // Hard control applied mid-dodge cancels remaining i-frames (no credit spend).
+            maybeInterruptDodgeFromControl(controller, combatants, directReceipts);
         }
 
-        // 5) Integrate held movement (not during attack or dodge phases).
-        integrateMovement(controller, combatants, moveSpeed, tickRate);
+        // 5) Movement last; canMove shared with auto path.
+        integrateMovement(controller, combatants, moveSpeed, tickRate, directReceipts);
         syncControlledPosition(controller, combatants);
     }
 
@@ -685,6 +732,7 @@ interface ApplyContext {
     dodgeDistance: number;
     chainWindowTicks: number;
     chainResetTicks: number;
+    mode: CombatSelectableMode;
 }
 
 function reject(ctx: ApplyContext, reason: DirectInputRejectReason): void {
@@ -696,8 +744,42 @@ function reject(ctx: ApplyContext, reason: DirectInputRejectReason): void {
     });
 }
 
+const COMBAT_OPS = new Set([
+    'move', 'light_attack', 'heavy_attack', 'use_ability', 'guard', 'parry', 'dodge',
+    'target_lock', 'target_cycle', 'switch_character',
+]);
+
 function applyInputEvent(ctx: ApplyContext): void {
-    const { event, controller } = ctx;
+    const { event, controller, mode } = ctx;
+
+    // actorId must match the controlled combatant (distinct from incoming IDs).
+    if (event.actorId !== controller.controlledCombatantId) {
+        reject(ctx, 'actor_mismatch');
+        return;
+    }
+
+    if (event.action === 'tactical_order') {
+        if (!combatModeAllowsTacticalOrder(mode)) {
+            reject(ctx, 'mode_forbids_action');
+            return;
+        }
+        // Accepted; no side effects in this task scope.
+        return;
+    }
+    if (event.action === 'mode_switch' || event.action === 'pause' || event.action === 'companion_order') {
+        // Accepted as structured intents; behaviour deferred.
+        return;
+    }
+
+    if (COMBAT_OPS.has(event.action) && combatModeRejectsCombatOps(mode)) {
+        reject(ctx, 'mode_forbids_action');
+        return;
+    }
+    if (COMBAT_OPS.has(event.action) && !combatModeAllowsDirectControl(mode)) {
+        reject(ctx, 'mode_forbids_action');
+        return;
+    }
+
     const actor = ctx.combatants[controller.controlledCombatantId];
 
     if (event.action === 'move') {
@@ -728,6 +810,12 @@ function applyMove(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefined
         if (controller.actionPhase === 'moving' && controller.dodgePhase === 'none') {
             controller.actionPhase = 'idle';
         }
+        return;
+    }
+
+    // Shared with auto path: paralysis / stun / sleep / petrify block move start.
+    if (!canMove(actor.mechanics)) {
+        reject(ctx, 'cannot_move');
         return;
     }
 
@@ -762,6 +850,11 @@ function applyLightAttack(ctx: ApplyContext, actor: DirectCombatantSnapshot | un
     }
     if (controller.actionPhase !== 'idle' && controller.actionPhase !== 'moving') {
         reject(ctx, 'invalid_phase');
+        return;
+    }
+    // Shared with auto path: stun / sleep / petrify block attack start.
+    if (!canAct(actor.mechanics)) {
+        reject(ctx, 'cannot_act');
         return;
     }
     if (!event.targetId) {
@@ -804,6 +897,7 @@ function applyLightAttack(ctx: ApplyContext, actor: DirectCombatantSnapshot | un
             cooldownTicks: ctx.cooldownTicks,
             committedActions: ctx.committedActions,
             mechanicsReceipts: ctx.mechanicsReceipts,
+            directReceipts: ctx.directReceipts,
             statuses: ctx.statuses,
             inputSeq: event.seq,
         });
@@ -822,6 +916,17 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
 
     if (!actor || !isAlive(actor) || controller.actionPhase === 'defeated') {
         reject(ctx, 'actor_defeated');
+        return;
+    }
+
+    // Hard control: reject without spending stamina.
+    if (!canMove(actor.mechanics) || !canAct(actor.mechanics)) {
+        directReceipts.push({
+            tick: controller.tick,
+            kind: 'dodge_rejected_control',
+            detail: 'hard_control',
+        });
+        reject(ctx, 'cannot_act');
         return;
     }
 
@@ -855,7 +960,7 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
         return;
     }
 
-    // Chain reset after 2 s without dodge.
+    // Chain reset after 2 s without dodge (also advanced at tick start).
     if (
         controller.lastDodgeTick >= 0
         && (controller.tick - controller.lastDodgeTick) > ctx.chainResetTicks
@@ -912,7 +1017,6 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
     controller.dodgeStartedTick = controller.tick;
     controller.iframeStartTick = controller.tick;
     controller.iframeEndTick = controller.tick + ctx.iframeTicks;
-    // Clear held move so recovery lands cleanly; player must re-press.
     controller.heldMoveDirection = null;
     controller.actionPhase = 'idle';
 
@@ -921,6 +1025,28 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
         kind: 'dodge_started',
         amount: cost,
         detail: `iframe_end=${controller.iframeEndTick}`,
+    });
+}
+
+/** Cancel remaining i-frames under hard control; does not consume evasion credit. */
+function maybeInterruptDodgeFromControl(
+    controller: DirectControllerState,
+    combatants: Record<string, DirectCombatantSnapshot>,
+    receipts: DirectSimReceipt[],
+): void {
+    if (controller.dodgePhase !== 'iframe' && controller.dodgePhase !== 'recovery') return;
+    const actor = combatants[controller.controlledCombatantId];
+    if (!actor) return;
+    if (canMove(actor.mechanics) && canAct(actor.mechanics)) return;
+
+    controller.heldMoveDirection = null;
+    controller.dodgePhase = 'none';
+    controller.iframeEndTick = controller.tick;
+    if (controller.actionPhase === 'moving') controller.actionPhase = 'idle';
+    receipts.push({
+        tick: controller.tick,
+        kind: 'dodge_interrupted_control',
+        detail: 'no_credit_consumed',
     });
 }
 
@@ -1095,17 +1221,43 @@ interface PhaseContext {
     cooldownTicks: number;
     committedActions: DirectCommittedAction[];
     mechanicsReceipts: DirectMechanicsReceiptEvent[];
+    directReceipts?: DirectSimReceipt[];
     statuses: readonly StatusDefinition[];
     inputSeq: number;
 }
 
-function advanceActionPhase(ctx: PhaseContext): void {
+function interruptAttack(ctx: PhaseContext, detail: string): void {
     const { controller } = ctx;
+    controller.actionPhase = 'idle';
+    controller.currentAbilityId = null;
+    controller.currentTargetId = null;
+    controller.attackCommitted = false;
+    controller.phaseStartedTick = controller.tick;
+    controller.phaseEndsTick = controller.tick;
+    if (ctx.directReceipts) {
+        ctx.directReceipts.push({
+            tick: controller.tick,
+            kind: 'action_interrupted',
+            detail,
+        });
+    }
+    enterIdleOrMoving(controller);
+}
+
+function advanceActionPhase(ctx: PhaseContext): void {
+    const { controller, combatants } = ctx;
     if (
         controller.actionPhase === 'defeated'
         || controller.actionPhase === 'idle'
         || controller.actionPhase === 'moving'
     ) {
+        return;
+    }
+
+    const actor = combatants[controller.controlledCombatantId];
+    // Windup interrupted by hard control — no damage commit.
+    if (controller.actionPhase === 'windup' && actor && !canAct(actor.mechanics)) {
+        interruptAttack(ctx, 'hard_control_windup');
         return;
     }
 
@@ -1127,7 +1279,14 @@ function advanceActionPhase(ctx: PhaseContext): void {
 }
 
 function enterActivePhase(ctx: PhaseContext): void {
-    const { controller, phaseTicks } = ctx;
+    const { controller, phaseTicks, combatants } = ctx;
+    const actor = combatants[controller.controlledCombatantId];
+    // Re-check canAct immediately before commit.
+    if (actor && !canAct(actor.mechanics)) {
+        interruptAttack(ctx, 'hard_control_active');
+        return;
+    }
+
     controller.actionPhase = 'active';
     controller.phaseStartedTick = controller.tick;
     controller.phaseEndsTick = controller.tick + Math.max(1, phaseTicks.activeTicks);
@@ -1238,10 +1397,27 @@ function integrateMovement(
     combatants: Record<string, DirectCombatantSnapshot>,
     moveSpeed: number,
     tickRate: number,
+    directReceipts?: DirectSimReceipt[],
 ): void {
     if (controller.actionPhase === 'defeated') return;
     if (controller.dodgePhase !== 'none') return;
     if (controller.actionPhase !== 'idle' && controller.actionPhase !== 'moving') return;
+
+    const actor = combatants[controller.controlledCombatantId];
+    // Held move stops when the combatant becomes unable to move (shared canMove).
+    if (actor && !canMove(actor.mechanics)) {
+        if (controller.heldMoveDirection) {
+            controller.heldMoveDirection = null;
+            if (controller.actionPhase === 'moving') controller.actionPhase = 'idle';
+            if (directReceipts) {
+                directReceipts.push({
+                    tick: controller.tick,
+                    kind: 'move_stopped_control',
+                });
+            }
+        }
+        return;
+    }
 
     const held = controller.heldMoveDirection;
     if (!held || (held.x === 0 && held.y === 0)) {
@@ -1262,7 +1438,6 @@ function integrateMovement(
     controller.facing = { x: held.x, y: held.y };
     controller.actionPhase = 'moving';
 
-    const actor = combatants[controller.controlledCombatantId];
     if (actor) actor.position = { ...next };
 }
 
@@ -1397,7 +1572,8 @@ export function emptyDirectLogIsIdentity(
         combatants: seeds,
         normalAttackAbility: ability,
         durationTicks: 30,
-        directInput: emptyDirectInputLog(),
+        tickRate: DIRECT_V1_TICK_RATE,
+        directInput: emptyDirectInputLog(DIRECT_V1_TICK_RATE),
         incomingAttacks: [],
     });
     if (!run.ok) return false;

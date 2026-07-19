@@ -69,8 +69,12 @@ function seeds(allyOver: Partial<MechanicsCombatant> = {}): DirectCombatantSeed[
     ];
 }
 
-function log(events: Array<Record<string, unknown>>) {
-    return { schemaVersion: DIRECT_INPUT_SCHEMA_VERSION, events };
+function log(events: Array<Record<string, unknown>>, rate = tickRate) {
+    return {
+        schemaVersion: DIRECT_INPUT_SCHEMA_VERSION,
+        tickRate: rate,
+        events: events.map(e => ({ actorId: e.actorId ?? 'ally', ...e })),
+    };
 }
 
 function run(opts: {
@@ -92,7 +96,8 @@ function run(opts: {
         abilities: opts.abilities || [slash, undodgeable],
         durationTicks: opts.durationTicks ?? 120,
         tickRate,
-        directInput: log(opts.events || []),
+        mode: 'direct_action',
+        directInput: log(opts.events || [], tickRate),
         incomingAttacks: opts.incoming || [],
         iframeMs: opts.iframeMs,
         justWindowMs: opts.justWindowMs,

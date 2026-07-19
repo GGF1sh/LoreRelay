@@ -5,9 +5,6 @@
  * runtime CombatMode in gambitCombatCore (`legacy_gambit` | `mechanics_v1`).
  * That runtime enum is intentionally left unchanged so legacy Golden Master
  * and mechanics_v1 paths keep their existing behaviour.
- *
- * Foundation V1 only resolves modes. It does not implement movement, attacks,
- * dodge, or any other direct-control behaviour.
  */
 
 /** Presentation / selectable combat modes (V1 contract). */
@@ -16,7 +13,8 @@ export const COMBAT_SELECTABLE_MODES = [
     'legacy_gambit',
     'mechanics_gambit',
     'direct_action',
-    'command_spectator',
+    'command',
+    'spectator',
 ] as const;
 
 export type CombatSelectableMode = (typeof COMBAT_SELECTABLE_MODES)[number];
@@ -90,8 +88,8 @@ export function resolveCombatMode(
 /**
  * Map a resolved selectable mode to the existing `resolveCombat` runtime mode.
  * `narrative` has no gambit/mechanics combat path — returns null.
- * `direct_action` / `command_spectator` / `mechanics_gambit` share the
- * mechanics_v1 resolver (direct adds inputs only; foundation leaves that empty).
+ * `direct_action` / `command` / `spectator` / `mechanics_gambit` share the
+ * mechanics_v1 resolver (input rights differ; see permission helpers).
  */
 export function toRuntimeCombatMode(resolvedMode: CombatSelectableMode): CombatRuntimeMode | null {
     switch (resolvedMode) {
@@ -99,7 +97,8 @@ export function toRuntimeCombatMode(resolvedMode: CombatSelectableMode): CombatR
             return 'legacy_gambit';
         case 'mechanics_gambit':
         case 'direct_action':
-        case 'command_spectator':
+        case 'command':
+        case 'spectator':
             return 'mechanics_v1';
         case 'narrative':
             return null;
@@ -108,6 +107,21 @@ export function toRuntimeCombatMode(resolvedMode: CombatSelectableMode): CombatR
             return _exhaustive;
         }
     }
+}
+
+/** Avatar-level combat verbs (move / attack / dodge / …). */
+export function combatModeAllowsDirectControl(mode: CombatSelectableMode): boolean {
+    return mode === 'direct_action';
+}
+
+/** Command mode may issue tactical orders; spectator may not. */
+export function combatModeAllowsTacticalOrder(mode: CombatSelectableMode): boolean {
+    return mode === 'command' || mode === 'direct_action';
+}
+
+/** Spectator: no combat operation inputs. Command: no avatar control. */
+export function combatModeRejectsCombatOps(mode: CombatSelectableMode): boolean {
+    return mode === 'spectator' || mode === 'command';
 }
 
 /** JSON-safe plain object for logging / transport (no class instances, no undefined). */

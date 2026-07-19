@@ -140,6 +140,14 @@ export interface WebviewHandlerDeps {
     handlePreviewGmTurnTransactionPlan(): Promise<void>;
     handleRetryFailedTransactions(): Promise<void>;
     handleSetAntigravityRelayMode(enabled: boolean): Promise<void>;
+    sendCombatAbilityWorkshop(): void;
+    handleValidateCombatAbilityWorkshopDraft(json: unknown): void;
+    handleSaveCombatAbilityWorkshopDraft(json: unknown): void;
+    handleDeleteCombatAbilityWorkshopDraft(json: unknown): void;
+    handleResetCombatAbilityWorkshop(): void;
+    handleExportCombatAbilityWorkshop(): void;
+    handleImportCombatAbilityWorkshop(): Promise<void>;
+    handleTestCombatAbilityWorkshopShot(json: unknown): void;
 }
 
 /**
@@ -205,6 +213,31 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendGameRules();
             deps.sendDebugCapabilities();
             deps.sendRemotePlayStatus();
+            deps.sendCombatAbilityWorkshop();
+            break;
+        case 'requestCombatAbilityWorkshop':
+            deps.sendCombatAbilityWorkshop();
+            break;
+        case 'validateCombatAbilityWorkshopDraft':
+            deps.handleValidateCombatAbilityWorkshopDraft(message.json);
+            break;
+        case 'saveCombatAbilityWorkshopDraft':
+            deps.handleSaveCombatAbilityWorkshopDraft(message.json);
+            break;
+        case 'deleteCombatAbilityWorkshopDraft':
+            deps.handleDeleteCombatAbilityWorkshopDraft(message.json);
+            break;
+        case 'resetCombatAbilityWorkshop':
+            deps.handleResetCombatAbilityWorkshop();
+            break;
+        case 'exportCombatAbilityWorkshop':
+            deps.handleExportCombatAbilityWorkshop();
+            break;
+        case 'importCombatAbilityWorkshop':
+            await deps.handleImportCombatAbilityWorkshop();
+            break;
+        case 'testCombatAbilityWorkshopShot':
+            deps.handleTestCombatAbilityWorkshopShot(message.json);
             break;
         case 'loadLorebook':
             deps.sendLorebookList();

@@ -46,6 +46,7 @@ const JS_MODULE_ORDER = [
     '89-vehicles.js',
     '89b-mobile-base-panel.js',
     '89d-combat-loadout.js',
+    '89e-ability-workshop.js',
     '90-bootstrap.js'
 ];
 

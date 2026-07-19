@@ -1,0 +1,133 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 14,
+				"target": "レイダー",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 1,
+				"unit": "レイダー"
+			}
+		],
+		"decisions": [
+			{
+				"action": "攻撃",
+				"target": "レイダー",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 5,
+					"name": "タロウ(前衛)",
+					"pos_x": 400.0,
+					"pos_y": 360.0
+				},
+				{
+					"hp": 0,
+					"name": "レイダー",
+					"pos_x": 440.0,
+					"pos_y": 360.0
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "レイダー",
+				"team": 0,
+				"tick": 1
+			}
+		],
+		"heals": [],
+		"outcome": "勝利！ 敵を全滅させた"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 14.0,
+					"attack_cooldown": 0.9,
+					"attack_range": 48.0,
+					"color": "#4d8cff",
+					"defense": 2.0,
+					"heal_power": 0.0,
+					"hp": 5.0,
+					"max_hp": 170.0,
+					"move_speed": 72.0,
+					"name": "タロウ(前衛)",
+					"pos_x": 400.0,
+					"pos_y": 360.0,
+					"radius": 18.0,
+					"role": "Frontline"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"hp": 5.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー",
+					"pos_x": 440.0,
+					"pos_y": 360.0,
+					"radius": 16.0,
+					"role": "Raider"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:42:01",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"タロウ(前衛)",
+			"レイダー"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"タロウ(前衛)",
+		"レイダー"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

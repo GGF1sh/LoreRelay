@@ -50,6 +50,8 @@ export enum AbilityValidationErrorCode {
 export const LETHAL_TIMER_MAX_BUILDUP = 25;
 export const LETHAL_TIMER_MIN_COOLDOWN = 8;
 export const LETHAL_TIMER_MIN_COUNTERS = 2;
+/** How much of a fan-out's raw value an author is excused from paying for. Below 1, so area beats crowds. */
+export const CROWD_EFFICIENCY_DISCOUNT = .6;
 
 export enum AbilityValidationWarningCode {
     LOW_COOLDOWN = 'LOW_COOLDOWN',
@@ -150,6 +152,17 @@ function hasRequiredKeys(value: Record<string, unknown>, keys: readonly string[]
     return keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
 }
 
+/**
+ * Expected value delivered across a fan-out: the area under the falloff ramp, discounted so that
+ * hitting a crowd is genuinely better than hitting one target while a duel still favours single
+ * target. `maxTargets` is therefore a commitment an author pays for, not a free ceiling.
+ */
+export function pricedTargetsFor(maxTargets: number, falloff: number): number {
+    const targets = Math.max(1, Math.trunc(maxTargets));
+    const ramp = Math.max(0, Math.min(1, falloff));
+    const targetValue = targets * (1 + ramp) / 2;
+    return 1 + (targetValue - 1) * CROWD_EFFICIENCY_DISCOUNT;
+}
 function budgetFor(ability: AbilityDefinition): PowerBudget {
     const base = ability.effects.reduce((total, effect) => {
         if (effect.kind === 'damage' || effect.kind === 'barrier') return total + effect.magnitude;
@@ -157,7 +170,9 @@ function budgetFor(ability: AbilityDefinition): PowerBudget {
         if (effect.kind === 'heal') return total + effect.magnitude * 1.2;
         return total;
     }, 0);
-    const cost = base * SHAPE_MULTIPLIERS[ability.delivery.shape];
+    // Priced by how many targets the delivery actually reaches now that fan-out is implemented; a
+    // fixed per-shape constant under-priced a twelve-target sweep by roughly five times.
+    const cost = base * pricedTargetsFor(ability.delivery.maxTargets, ability.delivery.falloff);
     const budget = 15 * ability.auto.cooldown * TIER_MULTIPLIERS[ability.tier];
     return { cost, budget, toleratedBudget: budget * 1.1 };
 }

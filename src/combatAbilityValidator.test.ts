@@ -37,11 +37,20 @@ describe('Combat Ability Schema V1', () => {
         assert.equal(get('perfect_dodge').direct?.justWindowMs, 120);
     });
 
-    test('detects the intentional Naval Bombardment budget violation', () => {
+    test('Naval Bombardment is re-priced to fit the target-count budget', () => {
+        // Previously shipped deliberately over budget as a worked example. Now that fan-out makes
+        // maxTargets real, it is priced by expected targets and re-tuned to 4 targets on a 7s cooldown.
         const result = validate(get('naval_bombardment'));
-        assert.equal(result.valid, false);
-        assert.deepEqual(result.powerBudget, { cost: 240, budget: 187.5, toleratedBudget: 206.25000000000003 });
-        assert.ok(result.errors.some(error => error.code === AbilityValidationErrorCode.POWER_BUDGET_EXCEEDED));
+        assert.equal(result.valid, true);
+        assert.ok(result.powerBudget!.cost <= result.powerBudget!.toleratedBudget);
+        assert.ok(!result.errors.some(error => error.code === AbilityValidationErrorCode.POWER_BUDGET_EXCEEDED));
+    });
+
+    test('every shipped ability fits its budget', () => {
+        for (const ability of fixture.abilities) {
+            const result = validate(ability);
+            assert.equal(result.valid, true, `${ability.id} must validate: ${result.errors.map(e => e.code).join(',')}`);
+        }
     });
 
     test('enforces poison, bleed, target tags, hard-control cures, and subsystem conversion', () => {

@@ -1,5 +1,5 @@
 import { AbilityDefinition, StatusDefinition } from './combatAbilityTypes';
-import { advanceMechanicsState, canAct, canMove, MechanicsCombatant, MechanicsReceipt, resolveMechanics } from './combatMechanicsResolver';
+import { advanceMechanicsState, canAct, canMove, ENGAGEMENT_OVERFLOW_MULTIPLIER, engagementSlotsFor, falloffAtIndex, MechanicsCombatant, MechanicsReceipt, resolveMechanics } from './combatMechanicsResolver';
 
 export type CombatMode = 'legacy_gambit' | 'mechanics_v1';
 
@@ -212,6 +212,10 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
 
         tickCount++;
 
+        // Engagement occupancy is scoped to a single tick and filled in participantOrder, so which
+        // attackers hold a defender's slots is deterministic.
+        const engagementCounts: Record<string, number> = {};
+
         // Evaluate gambits
         for (const unitName of participantOrder) {
             const u = units[unitName];
@@ -359,14 +363,32 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                 const tu = units[targetName];
                 if (combatMode === 'mechanics_v1' && u.normalAttackAbility) {
                     if (!canAct(mechanicsStates[u.name])) return;
-                    const result = resolveMechanics({ ability: u.normalAttackAbility, attacker: mechanicsStates[u.name], target: mechanicsStates[targetName], statuses: spec.mechanics?.statuses || [] });
-                    mechanicsStates[targetName] = result.target;
-                    tu.hp = result.target.hp;
+                    const ability = u.normalAttackAbility;
+                    const maxTargets = Math.max(1, Math.trunc(ability.delivery?.maxTargets ?? 1));
+                    const falloff = typeof ability.delivery?.falloff === 'number' ? ability.delivery.falloff : 1;
+                    // Primary target first, then the rest of the hostile line in participantOrder. Selection is
+                    // deterministic and never repeats a combatant, so fan-out is reproducible.
+                    const struck = [targetName, ...getAliveUnits(1 - u.team).filter(name => name !== targetName)].slice(0, maxTargets);
                     focusTarget[u.team] = targetName;
                     focusChanges.push({ tick: tickCount, team: u.team, target: targetName });
-                    attacks.push({ tick: tickCount, unit: u.name, target: targetName, damage: result.damageDealt });
-                    for (const receipt of result.receipts) mechanicsReceipts.push({ tick: tickCount, unit: u.name, target: targetName, receipt });
-                    if (tu.hp <= 0) { tu.hp = 0; tu._dead = true; deaths.push({ tick: tickCount, unit: targetName }); }
+                    for (let index = 0; index < struck.length; index++) {
+                        const name = struck[index];
+                        const victim = units[name];
+                        if (!victim || victim._dead) continue;
+                        // Engagement slots are per defender per tick and are independent of the ability's target cap.
+                        const engaged = (engagementCounts[name] = (engagementCounts[name] || 0) + 1);
+                        const overflow = engaged > engagementSlotsFor(mechanicsStates[name]) ? ENGAGEMENT_OVERFLOW_MULTIPLIER : 1;
+                        const result = resolveMechanics({
+                            ability, attacker: mechanicsStates[u.name], target: mechanicsStates[name],
+                            statuses: spec.mechanics?.statuses || [],
+                            delivery: { falloff: falloffAtIndex(index + 1, maxTargets, falloff), engagement: overflow },
+                        });
+                        mechanicsStates[name] = result.target;
+                        victim.hp = result.target.hp;
+                        attacks.push({ tick: tickCount, unit: u.name, target: name, damage: result.damageDealt });
+                        for (const receipt of result.receipts) mechanicsReceipts.push({ tick: tickCount, unit: u.name, target: name, receipt });
+                        if (victim.hp <= 0) { victim.hp = 0; victim._dead = true; deaths.push({ tick: tickCount, unit: name }); }
+                    }
                     return;
                 }
                 const damage = Math.max(1, u.attack - tu.defense);

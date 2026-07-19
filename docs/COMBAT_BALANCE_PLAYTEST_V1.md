@@ -945,3 +945,150 @@ six AoE abilities, anti-horde abilities, first-mover bias, the evasion formula,
 UI, and rosters — all untouched, per the task.
 
 COMBAT_DOOM_V1_IMPLEMENTATION_PUSHED
+
+---
+
+# AoE and engagement V1 — measured results
+
+Task ID: `COMBAT-AOE-ENGAGEMENT-V1-001`
+Design: `docs/COMBAT_LETHALITY_AND_ANTI_HORDE_DESIGN.md` Part 2.
+
+Connects `maxTargets`, `falloff` and `pierces` — validated but never consumed —
+to real combat, and adds engagement slots, the `swarm` multiplier, and a power
+budget priced by expected target count. Everything above is retained unchanged.
+
+## E.1 Combat Lab scenarios
+
+`volley` is the damage each target of the first fan-out took, in strike order.
+
+| # | Scenario | Winner | Sec | Targets/volley | Volley damage | Falloff | Overflow | Swarm | Survivors A/E |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | single-target elites ×2 vs 6 mobs | **ENEMY** | 11.40 | 1 | 23 | 0 | 12 | 0 | 0/3 |
+| 2 | **AoE** elites ×2 vs 6 mobs | **ALLY** | 5.20 | 4 | 23,19,16,13 | 23 | 4 | 0 | **2/0** |
+| 3 | ace vs 6 mobs, single target | **ENEMY** | 8.30 | 1 | 25 | 0 | 18 | 0 | 0/4 |
+| 4 | ace **with sweep** vs 6 mobs | **ALLY** | 10.37 | 4 | 25,21,18,15 | 22 | 12 | 0 | **1/0** |
+| 5 | 6 mobs vs plain (medium) defender | mobs | 16.57 | 1 | 10 | 0 | **48** | 0 | 6/0 |
+| 6 | 6 mobs vs **large** defender | mobs | 13.47 | 1 | 10 | 0 | **26** | 0 | 6/0 |
+| 7 | **AoE vs a single boss** | **ENEMY** | 14.50 | 1 | 25 | 0 | 0 | 0 | 0/1 |
+| 8 | AoE vs **swarm-tagged** mobs | **ALLY** | 7.27 | 4 | **37,32,27,22** | 16 | 8 | **24** | 1/0 |
+
+Determinism: every scenario reproduced byte-identically; built-in scenarios
+10/10.
+
+The three shapes the design set out to produce all hold:
+
+- **Rows 1 and 3 preserve the original problem as a legitimate outcome.** An
+  elite or ace carrying only single-target tools still loses to six mobs.
+- **Rows 2 and 4 are the same fights won** purely by swapping the loadout. No
+  base HP or attack changed; the differentiator is the ability.
+- **Row 7 is the anti-strict-upgrade property in live combat.** The same sweep
+  that clears six mobs *loses* a duel against one boss, because the budget
+  divides its per-target magnitude by the targets it is priced for.
+
+Rows 5 and 6 show engagement slots behaving correctly in the other direction: a
+`large` defender opens a fourth slot, so overflow events fall 48 → 26 and it
+dies *faster* (13.47 s vs 16.57 s). Bulk buys you the right to be swarmed by
+more attackers at full effect, which is the intended trade.
+
+Row 8 shows the swarm multiplier: the identical sweep goes from 25,21,18,15 to
+**37,32,27,22** — exactly ×1.5 — against `swarm`-tagged mobs.
+
+## E.2 Falloff
+
+Damage ramps linearly from the primary target to the declared `falloff` at the
+last one. Measured with `falloff: 0.6` over four targets: `25, 21, 18, 15`.
+
+Ordering is explicit and tested: **falloff, engagement and swarm all apply
+before the minimum-damage floor**, so any target an area attack reaches still
+takes at least 1. Barrier attenuation deliberately stays *after* the floor,
+where being reduced to nothing is a meaningful outcome.
+
+By effect kind, per the design's rule that support should not punish standing at
+the edge:
+
+| Effect kind | Falloff applied |
+| --- | --- |
+| damage | **yes** |
+| buildup | **yes** (floored at 1) |
+| heal | no |
+| barrier | no |
+
+A rounding fix landed with this change: `falloffAtIndex` divided after
+multiplying, leaving the final target one unit-in-last-place below the declared
+falloff and silently costing it a point of damage (14 instead of 15 at
+`falloff: 0.6`). The edge now lands exactly on the declared value.
+
+## E.3 Engagement slots
+
+| Size | Slots |
+| --- | --- |
+| tiny / small | 2 |
+| **medium (default)** | **3** |
+| large | 4 |
+| huge | 6 |
+| colossal | 12 |
+
+Six attackers on one medium defender resolve as **three at full damage and
+three at ×0.25**, assigned deterministically in `participantOrder` within the
+tick. Slots are per defender per tick and are independent of an ability's target
+cap — a four-target sweep occupies exactly one slot on each of its victims.
+
+## E.4 Power budget re-priced by target count
+
+```
+targetValue   = maxTargets × (1 + falloff) / 2
+pricedTargets = 1 + (targetValue − 1) × 0.6
+cost          = Σ(magnitude × kindWeight) × pricedTargets
+```
+
+`pricedTargetsFor(1, 1) = 1`, so **single-target pricing is unchanged**.
+
+Validating the shipped catalogue exposed that **7 of the 20 abilities were
+already over budget before this task** — a pre-existing condition, since
+single-target pricing is identical under both formulas. Only **3** were newly
+pushed over by the re-pricing. All 20 now pass.
+
+| Ability | Change | Cause |
+| --- | --- | --- |
+| `area_bombardment` | targets 8→6, cd 3→4.5 | re-pricing |
+| `petrify_ray` | targets 4→3, cd 5→5.5 | re-pricing |
+| `fear` | targets 6→4, cd 6→8 | re-pricing |
+| `ignite` | targets 6→3, burn buildup 30→25, cd 2.5→5.5 | pre-existing |
+| `naval_bombardment` | targets 8→4, cd 5→7 | pre-existing |
+| `poison_arrow` | cd 1→3 | pre-existing |
+| `neurotoxin` | cd 2→4.5 | pre-existing |
+| `rend` | cd 1.1→3.5 | pre-existing |
+| `heal` | cd 1.2→1.4 | pre-existing |
+| `barrier` | cd 5→7.5 | pre-existing |
+| `kaiju_sweep` | none — now passes | — |
+
+AoE abilities paid in **target count**, which is their actual cost driver;
+single-target ones paid in **cooldown**. Cooldown-only would have pushed
+`ignite` to 11 s and `naval_bombardment` to 14 s, destroying their identity.
+
+`naval_bombardment` had shipped as a *deliberate* budget violation, documented
+as a worked example in `COMBAT_ABILITY_AUTHORING.md` §10. Since this task
+requires the validator to accept every shipped ability, that premise is
+retired and its test now asserts the re-priced, valid state.
+
+## E.5 Verification
+
+| check | result |
+| --- | --- |
+| New focused tests (`combatAoeEngagementV1.test.ts`) | **22/22** |
+| Golden Master parity fixtures | **8/8** |
+| All combat suites | **107/107** |
+| `npm run test:validate` | **7/7** |
+| `npm run test:unit` | **288/288** |
+| `npm run test:smoke` | **16/16** |
+| Shipped abilities accepted by the validator | **20/20** |
+| Built-in Combat Lab scenarios deterministic | **10/10** |
+| Symbol Registry | regenerated, up to date |
+
+## E.6 Out of scope, unchanged
+
+Cleave, overkill spill, momentum, on-kill cooldown reduction, encirclement,
+guard break, stagger, UI, world-ledger writeback, first-mover bias, and the
+evasion formula — all untouched, per the task.
+
+COMBAT_AOE_ENGAGEMENT_V1_PUSHED

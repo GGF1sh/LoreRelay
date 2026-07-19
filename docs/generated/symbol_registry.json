@@ -24,13 +24,13 @@
     ]
   },
   "counts": {
-    "total": 4835,
+    "total": 4844,
     "byBoundary": {
       "configuration": 89,
       "host": 813,
       "host-bridge": 61,
       "host-webview": 450,
-      "pure-core": 2708,
+      "pure-core": 2717,
       "schema-types": 32,
       "webview": 682
     },
@@ -66,6 +66,7 @@
       "chronicle-loader": 3,
       "combat-ability-types": 25,
       "combat-ability-validator": 9,
+      "combat-ability-workshop": 9,
       "combat-loadout-ui": 10,
       "combat-mechanics-resolver": 14,
       "commands": 1,
@@ -323,10 +324,10 @@
     },
     "byKind": {
       "configurationKey": 89,
-      "constant": 663,
+      "constant": 664,
       "enum": 2,
-      "function": 1723,
-      "interface": 847,
+      "function": 1730,
+      "interface": 848,
       "messageType": 450,
       "type": 379,
       "webviewFunction": 661,
@@ -4517,6 +4518,105 @@
       "public": "exported",
       "boundary": "host",
       "category": "combat-ability-validator"
+    },
+    {
+      "id": "pure-core:constant:src/combatAbilityWorkshopCore.ts:emptyCustomAbilityLibrary",
+      "name": "emptyCustomAbilityLibrary",
+      "kind": "constant",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 6,
+      "signature": "export const emptyCustomAbilityLibrary",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:validateWorkshopAbility",
+      "name": "validateWorkshopAbility",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 7,
+      "signature": "export function validateWorkshopAbility(ability: AbilityDefinition, statuses: readonly StatusDefinition[])",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:saveCustomAbility",
+      "name": "saveCustomAbility",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 8,
+      "signature": "export function saveCustomAbility(library: CustomAbilityLibrary, ability: AbilityDefinition, statuses: readonly StatusDefinition[]): CustomAbilityLibrary",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:duplicateBuiltinAbility",
+      "name": "duplicateBuiltinAbility",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 13,
+      "signature": "export function duplicateBuiltinAbility(ability: AbilityDefinition, id: string): AbilityDefinition",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:importCustomAbilityLibrary",
+      "name": "importCustomAbilityLibrary",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 14,
+      "signature": "export function importCustomAbilityLibrary(json: string, existing: CustomAbilityLibrary, statuses: readonly StatusDefinition[]): { library: CustomAbilityLibrary;",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:exportCustomAbilityLibrary",
+      "name": "exportCustomAbilityLibrary",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 17,
+      "signature": "export function exportCustomAbilityLibrary(library: CustomAbilityLibrary): string",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:workshopShot",
+      "name": "workshopShot",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 18,
+      "signature": "export function workshopShot(ability: AbilityDefinition, attacker: MechanicsCombatant, target: MechanicsCombatant, statuses: readonly StatusDefinition[])",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:function:src/combatAbilityWorkshopCore.ts:splitBuiltinAndCustom",
+      "name": "splitBuiltinAndCustom",
+      "kind": "function",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 19,
+      "signature": "export function splitBuiltinAndCustom(fixture: AbilityFixtureDocument, custom: CustomAbilityLibrary)",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
+    },
+    {
+      "id": "pure-core:interface:src/combatAbilityWorkshopCore.ts:CustomAbilityLibrary",
+      "name": "CustomAbilityLibrary",
+      "kind": "interface",
+      "sourcePath": "src/combatAbilityWorkshopCore.ts",
+      "line": 5,
+      "signature": "export interface CustomAbilityLibrary",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "combat-ability-workshop"
     },
     {
       "id": "pure-core:constant:src/combatLoadoutUiCore.ts:defaultCombatLoadoutState",

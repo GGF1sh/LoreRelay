@@ -142,6 +142,7 @@ export interface WebviewHandlerDeps {
     handleSetAntigravityRelayMode(enabled: boolean): Promise<void>;
     sendCombatAbilityWorkshop(): void;
     handleValidateCombatAbilityWorkshopDraft(json: unknown): void;
+    handleDuplicateCombatAbilityWorkshopBuiltin(json: unknown): void;
     handleSaveCombatAbilityWorkshopDraft(json: unknown): void;
     handleDeleteCombatAbilityWorkshopDraft(json: unknown): void;
     handleResetCombatAbilityWorkshop(): void;
@@ -220,6 +221,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'validateCombatAbilityWorkshopDraft':
             deps.handleValidateCombatAbilityWorkshopDraft(message.json);
+            break;
+        case 'duplicateCombatAbilityWorkshopBuiltin':
+            deps.handleDuplicateCombatAbilityWorkshopBuiltin(message.json);
             break;
         case 'saveCombatAbilityWorkshopDraft':
             deps.handleSaveCombatAbilityWorkshopDraft(message.json);

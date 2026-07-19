@@ -20,8 +20,8 @@ import {
     normalizeLocale
 } from './i18n';
 import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
-import { AbilityDefinition, StatusDefinition } from './combatAbilityTypes';
-import { CustomAbilityLibrary, emptyCustomAbilityLibrary, exportCustomAbilityLibrary, importCustomAbilityLibrary, removeCustomAbility, saveCustomAbility, validateWorkshopAbility, workshopShot } from './combatAbilityWorkshopCore';
+import { AbilityDefinition, AbilityFixtureDocument, StatusDefinition } from './combatAbilityTypes';
+import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrary, exportCustomAbilityLibrary, importCustomAbilityLibrary, removeCustomAbility, saveCustomAbility, validateWorkshopAbility, workshopShot } from './combatAbilityWorkshopCore';
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
@@ -271,8 +271,10 @@ import {
 } from './deterministicWorkspaceMutationGate';
 
 let panel: vscode.WebviewPanel | undefined;
-const combatWorkshopStatuses: StatusDefinition[] = [];
+let combatWorkshopStatuses: StatusDefinition[] = [];
+let combatWorkshopBuiltins: AbilityDefinition[] = [];
 let combatWorkshopLibrary: CustomAbilityLibrary | undefined;
+let extensionInstallationPath = '';
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -301,6 +303,7 @@ function getPanel(): vscode.WebviewPanel | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+    extensionInstallationPath = context.extensionPath;
     extensionContext = context;
     context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
     clearGameRulesCache();
@@ -1776,15 +1779,34 @@ function workshopAbilityFromJson(value: unknown): AbilityDefinition | undefined 
     try { return JSON.parse(value) as AbilityDefinition; } catch { return undefined; }
 }
 
+function ensureCombatWorkshopFixture(): void {
+    if (combatWorkshopBuiltins.length > 0 || !extensionInstallationPath) return;
+    try {
+        const fixturePath = path.join(extensionInstallationPath, 'resources', 'combat-abilities', 'v1-reference-abilities.json');
+        const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as AbilityFixtureDocument;
+        if (fixture.schemaVersion === 'combat-ability-v1' && Array.isArray(fixture.statuses) && Array.isArray(fixture.abilities)) {
+            combatWorkshopStatuses = structuredClone(fixture.statuses);
+            combatWorkshopBuiltins = structuredClone(fixture.abilities);
+        }
+    } catch {
+        // The workshop remains usable for standalone JSON abilities when a
+        // development build has not yet copied its fixture resource.
+    }
+}
+
+function combatWorkshopBuiltinIds(): string[] { return combatWorkshopBuiltins.map(ability => ability.id); }
+
 function currentCombatWorkshopLibrary(): CustomAbilityLibrary {
+    ensureCombatWorkshopFixture();
     if (!combatWorkshopLibrary) combatWorkshopLibrary = loadCustomAbilityLibrary(getWorkspacePath(), combatWorkshopStatuses).library;
     return combatWorkshopLibrary;
 }
 
 function sendCombatAbilityWorkshop(): void {
-    const loaded = loadCustomAbilityLibrary(getWorkspacePath(), combatWorkshopStatuses);
+    ensureCombatWorkshopFixture();
+    const loaded = loadCustomAbilityLibrary(getWorkspacePath(), combatWorkshopStatuses, combatWorkshopBuiltinIds());
     combatWorkshopLibrary = loaded.library;
-    panel?.webview.postMessage({ type: 'combatAbilityWorkshopCatalog', catalog: { builtin: [], custom: combatWorkshopLibrary.abilities, error: loaded.error } });
+    panel?.webview.postMessage({ type: 'combatAbilityWorkshopCatalog', catalog: { builtin: combatWorkshopBuiltins, custom: combatWorkshopLibrary.abilities, error: loaded.error } });
 }
 
 function handleValidateCombatAbilityWorkshopDraft(json: unknown): void {
@@ -1793,10 +1815,24 @@ function handleValidateCombatAbilityWorkshopDraft(json: unknown): void {
     panel?.webview.postMessage({ type: 'combatAbilityWorkshopValidation', validation });
 }
 
+function handleDuplicateCombatAbilityWorkshopBuiltin(json: unknown): void {
+    ensureCombatWorkshopFixture();
+    const selected = workshopAbilityFromJson(json);
+    const builtin = selected && combatWorkshopBuiltins.find(ability => ability.id === selected.id);
+    if (!builtin) { vscode.window.showWarningMessage('Ability Workshop: select a built-in ability to duplicate it.'); return; }
+    const used = new Set([...combatWorkshopBuiltinIds(), ...currentCombatWorkshopLibrary().abilities.map(ability => ability.id)]);
+    let suffix = 1;
+    let id = `${builtin.id}_custom`;
+    while (used.has(id)) id = `${builtin.id}_custom_${suffix++}`;
+    const copy = duplicateBuiltinAbility(builtin, id);
+    panel?.webview.postMessage({ type: 'combatAbilityWorkshopExport', json: JSON.stringify(copy, null, 2) });
+    handleValidateCombatAbilityWorkshopDraft(JSON.stringify(copy));
+}
+
 function writeCombatWorkshopLibrary(library: CustomAbilityLibrary): boolean {
     const workspacePath = getWorkspacePath();
     if (!workspacePath) { vscode.window.showWarningMessage('Ability Workshop: open a workspace before saving custom abilities.'); return false; }
-    try { writeCustomAbilityLibrary(workspacePath, library, combatWorkshopStatuses); combatWorkshopLibrary = library; return true; }
+    try { writeCustomAbilityLibrary(workspacePath, library, combatWorkshopStatuses, combatWorkshopBuiltinIds()); combatWorkshopLibrary = library; return true; }
     catch (error) { vscode.window.showErrorMessage(`Ability Workshop: ${error instanceof Error ? error.message : 'save failed'}`); return false; }
 }
 
@@ -1805,10 +1841,10 @@ function handleSaveCombatAbilityWorkshopDraft(json: unknown): void {
     if (!ability) { handleValidateCombatAbilityWorkshopDraft(json); return; }
     try {
         const current = currentCombatWorkshopLibrary();
-        const validated = saveCustomAbility(emptyCustomAbilityLibrary(), ability, combatWorkshopStatuses).abilities[0];
+        const validated = saveCustomAbility(emptyCustomAbilityLibrary(), ability, combatWorkshopStatuses, combatWorkshopBuiltinIds()).abilities[0];
         const next = current.abilities.some(item => item.id === ability.id)
             ? { ...current, abilities: [...current.abilities.filter(item => item.id !== ability.id), validated] }
-            : saveCustomAbility(current, ability, combatWorkshopStatuses);
+            : saveCustomAbility(current, ability, combatWorkshopStatuses, combatWorkshopBuiltinIds());
         if (writeCombatWorkshopLibrary(next)) sendCombatAbilityWorkshop();
     } catch (error) { vscode.window.showErrorMessage(`Ability Workshop: ${error instanceof Error ? error.message : 'invalid ability'}`); handleValidateCombatAbilityWorkshopDraft(json); }
 }
@@ -1820,7 +1856,7 @@ function handleDeleteCombatAbilityWorkshopDraft(json: unknown): void {
 function handleResetCombatAbilityWorkshop(): void { if (writeCombatWorkshopLibrary(emptyCustomAbilityLibrary())) sendCombatAbilityWorkshop(); }
 function handleExportCombatAbilityWorkshop(): void { const json = exportCustomAbilityLibrary(currentCombatWorkshopLibrary()); void vscode.env.clipboard.writeText(json); panel?.webview.postMessage({ type: 'combatAbilityWorkshopExport', json }); }
 async function handleImportCombatAbilityWorkshop(): Promise<void> {
-    const imported = importCustomAbilityLibrary(await vscode.env.clipboard.readText(), currentCombatWorkshopLibrary(), combatWorkshopStatuses);
+    const imported = importCustomAbilityLibrary(await vscode.env.clipboard.readText(), currentCombatWorkshopLibrary(), combatWorkshopStatuses, combatWorkshopBuiltinIds());
     if (imported.error) { vscode.window.showErrorMessage(`Ability Workshop import: ${imported.error}`); return; }
     if (writeCombatWorkshopLibrary(imported.library)) sendCombatAbilityWorkshop();
 }
@@ -1993,6 +2029,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleSetAntigravityRelayMode,
         sendCombatAbilityWorkshop,
         handleValidateCombatAbilityWorkshopDraft,
+        handleDuplicateCombatAbilityWorkshopBuiltin,
         handleSaveCombatAbilityWorkshopDraft,
         handleDeleteCombatAbilityWorkshopDraft,
         handleResetCombatAbilityWorkshop,

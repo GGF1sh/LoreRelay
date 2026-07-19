@@ -82,6 +82,8 @@ const CSS_MODULE_ORDER = [
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');
+const abilityFixtureSource = path.join(__dirname, '..', 'test', 'fixtures', 'combat-abilities', 'v1-reference-abilities.json');
+const abilityFixtureDestination = path.join(__dirname, '..', 'resources', 'combat-abilities', 'v1-reference-abilities.json');
 const jsModulesDir = path.join(webviewDir, 'modules');
 const cssModulesDir = path.join(webviewDir, 'styles');
 const vendorDir = path.join(webviewDir, 'vendor');
@@ -122,6 +124,13 @@ buildBundle(
     jsHeaderLines,
     'js'
 );
+
+// The workshop's built-in fixtures are authoring data, not test-only input.
+// Copy them into the packaged resources directory as part of the normal build.
+if (fs.existsSync(abilityFixtureSource)) {
+    fs.mkdirSync(path.dirname(abilityFixtureDestination), { recursive: true });
+    fs.copyFileSync(abilityFixtureSource, abilityFixtureDestination);
+}
 
 buildBundle(
     CSS_MODULE_ORDER,

@@ -37,7 +37,19 @@ export enum AbilityValidationErrorCode {
     DAMAGE_PREREQUISITE_REQUIRED = 'DAMAGE_PREREQUISITE_REQUIRED',
     SUBSYSTEM_TAG_REQUIRED = 'SUBSYSTEM_TAG_REQUIRED',
     POWER_BUDGET_EXCEEDED = 'POWER_BUDGET_EXCEEDED',
+    LETHAL_TIMER_TIER_TOO_LOW = 'LETHAL_TIMER_TIER_TOO_LOW',
+    LETHAL_TIMER_BUILDUP_TOO_HIGH = 'LETHAL_TIMER_BUILDUP_TOO_HIGH',
+    LETHAL_TIMER_COOLDOWN_TOO_LOW = 'LETHAL_TIMER_COOLDOWN_TOO_LOW',
+    LETHAL_TIMER_COUNTER_REQUIRED = 'LETHAL_TIMER_COUNTER_REQUIRED',
+    LETHAL_TIMER_MULTI_TARGET = 'LETHAL_TIMER_MULTI_TARGET',
+    LETHAL_TIMER_WITH_HARD_CONTROL = 'LETHAL_TIMER_WITH_HARD_CONTROL',
+    LETHAL_TIMER_IMMEDIATE_ONSET = 'LETHAL_TIMER_IMMEDIATE_ONSET',
+    LETHAL_TIMER_COLOSSAL_DEATH = 'LETHAL_TIMER_COLOSSAL_DEATH',
 }
+/** A lethal timer must never land faster than four applying hits against the standard threshold. */
+export const LETHAL_TIMER_MAX_BUILDUP = 25;
+export const LETHAL_TIMER_MIN_COOLDOWN = 8;
+export const LETHAL_TIMER_MIN_COUNTERS = 2;
 
 export enum AbilityValidationWarningCode {
     LOW_COOLDOWN = 'LOW_COOLDOWN',
@@ -240,6 +252,29 @@ export function validateAbilityDefinition(value: unknown, options: AbilityValida
         if (status.cureChannels.includes('none') && raw.tier !== 'boss' && raw.tier !== 'legendary') error(AbilityValidationErrorCode.STATUS_CURE_REQUIRED, `$.statuses.${status.id}`, 'Uncurable statuses require boss or legendary tier.');
         if (status.statusClass === 'hard_control' && !status.cureChannels.some(channel => channel !== 'time' && channel !== 'none')) error(AbilityValidationErrorCode.HARD_CC_COUNTER_REQUIRED, `$.statuses.${status.id}`, 'Hard control status needs a removal channel or countermeasure.');
         if (status.durationSeconds > 6) warning(AbilityValidationWarningCode.LONG_STATUS_DURATION, `$.statuses.${status.id}.durationSeconds`, 'Status exceeds 30% of a typical 20-second engagement.');
+    }
+
+    // Lethal timers bypass durability entirely, so they carry constraints no other effect needs.
+    const statusById = new Map(options.statuses.map(status => [status.id, status]));
+    const effectList = Array.isArray(raw.effects) ? raw.effects as Record<string, unknown>[] : [];
+    const lethalEffects = effectList.filter(effect => {
+        const definition = typeof effect?.statusId === 'string' ? statusById.get(effect.statusId) : undefined;
+        return definition?.statusClass === 'lethal_timer';
+    });
+    if (lethalEffects.length > 0) {
+        const delivery = isPlainObject(raw.delivery) ? raw.delivery : undefined;
+        if (raw.tier !== 'elite' && raw.tier !== 'boss' && raw.tier !== 'legendary') error(AbilityValidationErrorCode.LETHAL_TIMER_TIER_TOO_LOW, '$.tier', 'A lethal timer requires elite tier or above.');
+        for (const effect of lethalEffects) {
+            const magnitude = typeof effect.magnitude === 'number' ? effect.magnitude : 0;
+            if (magnitude > LETHAL_TIMER_MAX_BUILDUP) error(AbilityValidationErrorCode.LETHAL_TIMER_BUILDUP_TOO_HIGH, '$.effects.magnitude', `Lethal timer buildup may not exceed ${LETHAL_TIMER_MAX_BUILDUP}.`);
+            const definition = statusById.get(effect.statusId as string);
+            if (definition && magnitude >= definition.buildupThreshold) error(AbilityValidationErrorCode.LETHAL_TIMER_IMMEDIATE_ONSET, '$.effects.magnitude', 'A lethal timer may not apply on a single hit.');
+        }
+        if (isPlainObject(raw.auto) && typeof raw.auto.cooldown === 'number' && raw.auto.cooldown < LETHAL_TIMER_MIN_COOLDOWN) error(AbilityValidationErrorCode.LETHAL_TIMER_COOLDOWN_TOO_LOW, '$.auto.cooldown', `A lethal timer requires a cooldown of at least ${LETHAL_TIMER_MIN_COOLDOWN} seconds.`);
+        if (!hasStringArray(raw.counters) || raw.counters.length < LETHAL_TIMER_MIN_COUNTERS) error(AbilityValidationErrorCode.LETHAL_TIMER_COUNTER_REQUIRED, '$.counters', `A lethal timer must declare at least ${LETHAL_TIMER_MIN_COUNTERS} counters.`);
+        if (delivery && (delivery.shape !== 'single_target' || (typeof delivery.maxTargets === 'number' && delivery.maxTargets !== 1))) error(AbilityValidationErrorCode.LETHAL_TIMER_MULTI_TARGET, '$.delivery', 'A lethal timer must be single_target with a target cap of one.');
+        if (effectList.some(effect => statusById.get(effect?.statusId as string)?.statusClass === 'hard_control')) error(AbilityValidationErrorCode.LETHAL_TIMER_WITH_HARD_CONTROL, '$.effects', 'A lethal timer may not be combined with hard control in one ability.');
+        if (isPlainObject(raw.scaleBehavior) && raw.scaleBehavior.huge !== 'convert_subsystem') error(AbilityValidationErrorCode.LETHAL_TIMER_COLOSSAL_DEATH, '$.scaleBehavior.huge', 'A lethal timer must convert to subsystem destruction against colossal targets.');
     }
 
     let powerBudget: PowerBudget | undefined;

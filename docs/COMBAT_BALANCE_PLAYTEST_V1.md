@@ -845,3 +845,103 @@ first-mover bias, any Ability/Status numeric value, UI, or mass-battle design.
 Only `src/combatMechanicsResolver.ts` changed.
 
 COMBAT_HOT_HEAL_BLOCK_FIX_PUSHED
+
+---
+
+# Doom V1 implementation — measured results
+
+Task ID: `COMBAT-DOOM-V1-IMPLEMENTATION-001`
+Base: `a17a9a4`. Design: `docs/COMBAT_LETHALITY_AND_ANTI_HORDE_DESIGN.md` Part 1.
+
+Implements the adopted rule: **an expiring lethal timer executes only a target
+already inside its rank's execution band, otherwise lands as 20% of `maxHp`, and
+never kills a colossal.** Everything above this line is retained unchanged.
+
+## D.1 What changed
+
+| Area | Before | After |
+| --- | --- | --- |
+| Doom buildup magnitude | 40 → applied on hit 3 (**2.10 s**) | **25** → applied on hit 4 (**3.13 s**) |
+| Expiry | Unconditional kill regardless of HP | Threshold-gated (§D.3) |
+| Colossal | Temporary subsystem *disable* at application time; the timer never applied | Timer applies normally; on expiry **permanently destroys** one critical subsystem |
+| Caster link | None — `kill caster` was a declared but impossible counter | `StatusInstance.sourceId` / `sourceAbilityId`; doom lifts when its caster dies |
+| Warning | None | `doom_imminent` announced once, 3 s before resolution |
+| HP writes | Doom wrote `hp = 0` directly | All damage funnels through a shared `applyHpDamage` → lethality gate |
+
+A defect found during re-measurement and fixed in the same change: the
+application-time `convert_subsystem` shortcut intercepted doom before the status
+could ever be applied to a colossal, so the permanent-destruction path was
+unreachable. Lethal timers are now exempt from that shortcut and convert at
+expiry instead.
+
+## D.2 Combat Lab, end to end
+
+| # | Scenario | Applied | Imminent | Resolved | Result | Final HP | Det |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | vs 100 HP normal | 3.13 s | 12.13 s | 15.13 s | fallback damage | 0/100 † | ✔ |
+| 5 | vs colossal | 3.13 s | 12.13 s | 15.13 s | **subsystem destroyed (`power`)** | **900/900** | ✔ |
+| 8 | caster killed mid-timer | 1.63 s | — | — | **source defeated** | 900/900 | ✔ |
+
+† Scenario 1 runs a caster that re-applies doom indefinitely against a passive
+target, so the victim eventually dies to repeated cycles. Single-cycle behaviour
+is isolated at resolver level below.
+
+## D.3 Single doom cycle, HP at expiry controlled
+
+| Case | HP % at expiry | Result | Final HP | Counter |
+| --- | --- | --- | --- | --- |
+| boss, full | 100% | fallback damage | **720/900** | — |
+| boss | **19%** | **executed** | 0/900 | — |
+| boss | **21%** | fallback damage | 9/900 | — |
+| normal | **50%** | **executed** | 0/100 | — |
+| normal | **51%** | fallback damage | 31/100 | — |
+| elite | **35%** | **executed** | 0/100 | — |
+| elite | **36%** | fallback damage | 16/100 | — |
+| colossal, subsystems present | 100% | **subsystem destroyed (`power`)** | 900/900 | — |
+| colossal, no subsystems | 100% | **no-subsystem misfire** | 900/900 | — |
+| endure ×1 | 10% | **prevented** | **1**/100 | endure |
+| undying covering timer | 10% | **prevented** | **1**/100 | undying |
+| source defeated | — | **source defeated** | 10/100 | caster killed |
+| healed out of band | 80% | fallback damage | 60/100 | **healed out** |
+| cleansed | — | **cleansed** | 10/100 | cleanse |
+
+Every rank boundary is exact, and `power` correctly outranks `locomotion` in the
+subsystem priority walk.
+
+## D.4 The original failure case
+
+| | Before | After |
+| --- | --- | --- |
+| 900 HP target at full HP, attacker dealing 14 impact damage | **killed at 14.1 s** | **survives at 720/900** |
+
+Doom is no longer a substitute for damage. Killing a 900 HP boss with it now
+requires bringing the boss to 180 HP first.
+
+## D.5 Verification
+
+| check | result |
+| --- | --- |
+| New focused tests (`combatDoomV1.test.ts`) | **32/32** |
+| Golden Master parity fixtures | **8/8** |
+| Combat suites (resolver, 3 correctness files, lab, lab store, workshop ×2, validator, loadout, integration) | **76/76** |
+| `npm run test:validate` | **7/7** |
+| `npm run test:unit` | **288/288** |
+| `npm run test:smoke` | **16/16** |
+| Built-in Combat Lab scenarios deterministic | **10/10** |
+| JSON round trip mid-timer | identical |
+| Symbol Registry | regenerated, up to date |
+
+## D.6 Validator
+
+Nine lethal-timer rules now reject unfair generated abilities: tier below elite,
+magnitude above 25, cooldown under 8 s, fewer than two counters, multi-target
+shape, pairing with hard control, single-hit onset, and direct death against
+colossal targets. The shipped `doom` ability passes all of them at magnitude 25.
+
+## D.7 Out of scope, unchanged
+
+AoE fan-out, engagement slots, cleave, overkill spill, momentum, re-pricing the
+six AoE abilities, anti-horde abilities, first-mover bias, the evasion formula,
+UI, and rosters — all untouched, per the task.
+
+COMBAT_DOOM_V1_IMPLEMENTATION_PUSHED

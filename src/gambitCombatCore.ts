@@ -646,10 +646,12 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
             }
         }
         if (combatMode === 'mechanics_v1') {
+            // Anyone already dead is a defeated caster, so their lethal timers lift this tick.
+            const defeatedIds = participantOrder.filter(name => units[name] && units[name]._dead);
             for (const name of Object.keys(mechanicsStates)) {
                 if (units[name]._dead) continue;
                 const tickReceipts: MechanicsReceipt[] = [];
-                mechanicsStates[name] = advanceMechanicsState(mechanicsStates[name], delta, { statuses: spec.mechanics?.statuses || [], receipts: tickReceipts });
+                mechanicsStates[name] = advanceMechanicsState(mechanicsStates[name], delta, { statuses: spec.mechanics?.statuses || [], receipts: tickReceipts, defeatedIds });
                 for (const receipt of tickReceipts) mechanicsReceipts.push({ tick: tickCount, unit: name, receipt });
                 units[name].hp = mechanicsStates[name].hp;
                 if (units[name].hp <= 0) {

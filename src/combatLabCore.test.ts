@@ -1,0 +1,12 @@
+import * as assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as path from 'path';
+import { test } from 'node:test';
+import { AbilityFixtureDocument } from './combatAbilityTypes';
+import { compareCombatLabRuns, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, runCombatLab, swapCombatLabSides } from './combatLabCore';
+
+const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../resources/combat-abilities/v1-reference-abilities.json'), 'utf8')) as AbilityFixtureDocument;
+const catalog = { abilities: fixture.abilities, statuses: fixture.statuses };
+test('Combat Lab scenarios are reproducible, runnable, and preserve legacy isolation', () => { const scenarios = initialCombatLabScenarios(); assert.equal(scenarios.length, 10); const legacy = runCombatLab({ ...scenarios[0], mode: 'legacy_gambit' }, catalog); const mechanics = runCombatLab(scenarios[0], catalog); assert.equal(legacy.output.mechanicsReceipts, undefined); assert.equal(mechanics.deterministic, true); assert.equal(initialCombatLabScenarios().every(scenario => runCombatLab(scenario, catalog).deterministic), true); });
+test('Combat Lab documents round-trip, safely recover, swap sides, and compare', () => { const scenario = initialCombatLabScenarios()[0]; const document = { ...emptyCombatLabDocument(), scenarios: [scenario] }; assert.equal(exportCombatLabDocument(importCombatLabDocument(exportCombatLabDocument(document), emptyCombatLabDocument()).document), exportCombatLabDocument(document)); assert.equal(importCombatLabDocument('{', document).document.scenarios.length, 1); const left = runCombatLab(scenario, catalog); const right = runCombatLab(swapCombatLabSides(scenario), catalog); assert.ok(Array.isArray(compareCombatLabRuns(left, right).changedInputs)); });
+test('Combat Lab accepts a validated custom Ability without mutating any external state', () => { const custom = structuredClone(fixture.abilities.find(ability => ability.id === 'basic_slash')!); custom.id = 'custom_lab_slash'; const scenario = structuredClone(initialCombatLabScenarios()[0]); scenario.allies[0].normalAttackAbilityId = custom.id; const before = JSON.stringify(scenario); const run = runCombatLab(scenario, { abilities: [...fixture.abilities, custom], statuses: fixture.statuses }); assert.ok(run.output.attacks.length > 0); assert.equal(JSON.stringify(scenario), before); });

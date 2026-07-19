@@ -23,6 +23,8 @@ import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } fr
 import { AbilityDefinition, AbilityFixtureDocument, StatusDefinition } from './combatAbilityTypes';
 import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrary, exportCustomAbilityLibrary, importCustomAbilityLibrary, removeCustomAbility, saveCustomAbility, validateWorkshopAbility, workshopShot } from './combatAbilityWorkshopCore';
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
+import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, runCombatLab, swapCombatLabSides } from './combatLabCore';
+import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
@@ -275,6 +277,9 @@ let combatWorkshopStatuses: StatusDefinition[] = [];
 let combatWorkshopBuiltins: AbilityDefinition[] = [];
 let combatWorkshopLibrary: CustomAbilityLibrary | undefined;
 let extensionInstallationPath = '';
+let combatLabDocument: CombatLabDocument | undefined;
+let combatLabPlayback: CombatLabPlayback | undefined;
+let combatLabRecentRuns: CombatLabRun[] = [];
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -1867,6 +1872,38 @@ function handleTestCombatAbilityWorkshopShot(json: unknown): void {
     panel?.webview.postMessage({ type: 'combatAbilityWorkshopShot', shot: { ...shot.resolution, deterministic: shot.deterministic } });
 }
 
+function currentCombatLabDocument(): CombatLabDocument {
+    if (!combatLabDocument) {
+        const loaded = loadCombatLabDocument(getWorkspacePath());
+        combatLabDocument = loaded.document.scenarios.length ? loaded.document : { ...loaded.document, scenarios: initialCombatLabScenarios(), selectedScenarioId: 'standard_5v5' };
+    }
+    return combatLabDocument;
+}
+function combatLabCatalog() {
+    ensureCombatWorkshopFixture();
+    return { abilities: [...combatWorkshopBuiltins, ...currentCombatWorkshopLibrary().abilities], statuses: combatWorkshopStatuses };
+}
+function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); }
+function selectedCombatLabScenario(value: unknown) { const document = currentCombatLabDocument(); const id = typeof value === 'string' ? value : document.selectedScenarioId; return document.scenarios.find(scenario => scenario.id === id); }
+function handleRunCombatLab(scenarioId: unknown, swap = false): void {
+    const scenario = selectedCombatLabScenario(scenarioId); if (!scenario) { vscode.window.showWarningMessage('Combat Lab: select a scenario first.'); return; }
+    try { const run = runCombatLab(swap ? swapCombatLabSides(scenario) : scenario, combatLabCatalog()); combatLabPlayback = createCombatLabPlayback(run); combatLabRecentRuns = [...combatLabRecentRuns.slice(-1), run]; panel?.webview.postMessage({ type: 'combatLabResult', run }); sendCombatLab(); }
+    catch (error) { vscode.window.showErrorMessage(`Combat Lab: ${error instanceof Error ? error.message : 'run failed'}`); }
+}
+function handleCompareCombatLabRuns(): void { if (combatLabRecentRuns.length < 2) { vscode.window.showWarningMessage('Combat Lab: run two scenarios to compare them.'); return; } panel?.webview.postMessage({ type: 'combatLabComparison', comparison: compareCombatLabRuns(combatLabRecentRuns[0], combatLabRecentRuns[1]) }); }
+function handleApplyCombatLabScenario(json: unknown): void {
+    if (typeof json !== 'string') return;
+    try { const scenario = JSON.parse(json); if (!isValidScenario(scenario)) throw new Error('INVALID_COMBAT_LAB_SCENARIO'); const document = currentCombatLabDocument(); combatLabDocument = { ...document, scenarios: [...document.scenarios.filter(item => item.id !== scenario.id), scenario], selectedScenarioId: scenario.id }; sendCombatLab(); }
+    catch (error) { vscode.window.showErrorMessage(`Combat Lab: ${error instanceof Error ? error.message : 'invalid scenario'}`); }
+}
+function handleCloneCombatLabScenario(scenarioId: unknown): void { const scenario = selectedCombatLabScenario(scenarioId); if (!scenario) return; const document = currentCombatLabDocument(); let n = 1; let id = `${scenario.id}_custom`; while (document.scenarios.some(item => item.id === id)) id = `${scenario.id}_custom_${n++}`; combatLabDocument = { ...document, scenarios: [...document.scenarios, { ...structuredClone(scenario), id, name: `${scenario.name} Copy` }], selectedScenarioId: id }; sendCombatLab(); }
+function handleSaveCombatLab(): void { const workspace = getWorkspacePath(); if (!workspace) { vscode.window.showWarningMessage('Combat Lab: open a workspace before saving.'); return; } try { writeCombatLabDocument(workspace, currentCombatLabDocument()); vscode.window.setStatusBarMessage('Combat Lab settings saved.', 3000); } catch (error) { vscode.window.showErrorMessage(`Combat Lab: ${error instanceof Error ? error.message : 'save failed'}`); } }
+function handleExportCombatLab(): void { const json = exportCombatLabDocument(currentCombatLabDocument()); void vscode.env.clipboard.writeText(json); panel?.webview.postMessage({ type: 'combatLabExport', json }); }
+async function handleImportCombatLab(): Promise<void> { const imported = importCombatLabDocument(await vscode.env.clipboard.readText(), currentCombatLabDocument()); if (imported.error) { vscode.window.showErrorMessage(`Combat Lab import: ${imported.error}`); return; } combatLabDocument = imported.document; sendCombatLab(); }
+function handleAdvanceCombatLabPlayback(ticks: unknown): void { if (!combatLabPlayback) return; const count = typeof ticks === 'number' ? ticks : Number(ticks); combatLabPlayback = { ...combatLabPlayback, cursor: Math.min(combatLabPlayback.run.timeline.length, combatLabPlayback.cursor + Math.max(0, Math.trunc(count)) * combatLabPlayback.speed), paused: false }; sendCombatLab(); }
+function handlePauseCombatLabPlayback(): void { if (combatLabPlayback) { combatLabPlayback = { ...combatLabPlayback, paused: !combatLabPlayback.paused }; sendCombatLab(); } }
+function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback) return; const value = Number(speed); if (value === 1 || value === 2 || value === 4) { combatLabPlayback = { ...combatLabPlayback, speed: value }; sendCombatLab(); } }
+
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
         handlePlayerInput,
@@ -2036,6 +2073,17 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleExportCombatAbilityWorkshop,
         handleImportCombatAbilityWorkshop,
         handleTestCombatAbilityWorkshopShot,
+        sendCombatLab,
+        handleRunCombatLab,
+        handleCompareCombatLabRuns,
+        handleApplyCombatLabScenario,
+        handleCloneCombatLabScenario,
+        handleSaveCombatLab,
+        handleExportCombatLab,
+        handleImportCombatLab,
+        handleAdvanceCombatLabPlayback,
+        handlePauseCombatLabPlayback,
+        handleSetCombatLabSpeed,
         handleBranchTimeline,
         sendGitTimelineStatus,
         sendChronicle,

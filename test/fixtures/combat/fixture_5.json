@@ -1,0 +1,179 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 12,
+				"target": "味方スカウト",
+				"tick": 701,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "味方スカウト",
+				"tick": 761,
+				"unit": "レイダー"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 761,
+				"unit": "味方スカウト"
+			}
+		],
+		"decisions": [
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 1,
+				"unit": "味方スカウト"
+			},
+			{
+				"action": "接近",
+				"target": "味方スカウト",
+				"tick": 1,
+				"unit": "レイダー"
+			},
+			{
+				"action": "待機(警戒)",
+				"target": "レイダー",
+				"tick": 2,
+				"unit": "味方スカウト"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 616,
+				"unit": "味方スカウト"
+			},
+			{
+				"action": "攻撃",
+				"target": "味方スカウト",
+				"tick": 701,
+				"unit": "レイダー"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "self_hp_below",
+				"rule_action": "retreat_to_safe",
+				"tick": 1,
+				"unit": "味方スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "レイダー"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 701,
+				"unit": "レイダー"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 0,
+					"name": "味方スカウト",
+					"pos_x": -227.0,
+					"pos_y": -177.0
+				},
+				{
+					"hp": 120,
+					"name": "レイダー",
+					"pos_x": -188.922500610352,
+					"pos_y": -148.078491210938
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "味方スカウト",
+				"team": 1,
+				"tick": 701
+			},
+			{
+				"target": "味方スカウト",
+				"team": 1,
+				"tick": 761
+			}
+		],
+		"heals": [],
+		"outcome": "敗北… 味方が全滅した"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 10.0,
+					"attack_cooldown": 0.7,
+					"attack_range": 46.0,
+					"color": "#e6a24d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"hp": 20.0,
+					"max_hp": 70.0,
+					"move_speed": 110.0,
+					"name": "味方スカウト",
+					"pos_x": 400.0,
+					"pos_y": 360.0,
+					"radius": 13.0,
+					"role": "Scout"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー",
+					"pos_x": 480.0,
+					"pos_y": 360.0,
+					"radius": 16.0,
+					"role": "Raider"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:41:52",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"味方スカウト",
+			"レイダー"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"味方スカウト",
+		"レイダー"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

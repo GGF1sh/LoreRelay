@@ -1,0 +1,504 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 30,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 30,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 49,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 84,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 90,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 109,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 138,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 150,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 169,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 192,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 210,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 229,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 246,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 270,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 289,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 300,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 330,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 349,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 354,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 390,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 408,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 409,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 450,
+				"unit": "レイダー1"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー1",
+				"tick": 462,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 469,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 14,
+				"target": "レイダー2",
+				"tick": 516,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 10,
+				"target": "タロウ(前衛)",
+				"tick": 529,
+				"unit": "レイダー2"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 462,
+				"unit": "レイダー1"
+			},
+			{
+				"tick": 529,
+				"unit": "タロウ(前衛)"
+			}
+		],
+		"decisions": [
+			{
+				"action": "接近",
+				"target": "レイダー1",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"action": "接近",
+				"target": "タロウ(前衛)",
+				"tick": 1,
+				"unit": "レイダー1"
+			},
+			{
+				"action": "接近",
+				"target": "タロウ(前衛)",
+				"tick": 1,
+				"unit": "レイダー2"
+			},
+			{
+				"action": "攻撃",
+				"target": "レイダー1",
+				"tick": 30,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"action": "攻撃",
+				"target": "タロウ(前衛)",
+				"tick": 30,
+				"unit": "レイダー1"
+			},
+			{
+				"action": "攻撃",
+				"target": "タロウ(前衛)",
+				"tick": 49,
+				"unit": "レイダー2"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "レイダー1"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "レイダー2"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 30,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 30,
+				"unit": "レイダー1"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 49,
+				"unit": "レイダー2"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 0,
+					"name": "タロウ(前衛)",
+					"pos_x": 429.840759277344,
+					"pos_y": 342.095367431641
+				},
+				{
+					"hp": 0,
+					"name": "レイダー1",
+					"pos_x": 470.159240722656,
+					"pos_y": 317.904632568359
+				},
+				{
+					"hp": 106,
+					"name": "レイダー2",
+					"pos_x": 459.559112548828,
+					"pos_y": 379.611145019531
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 30
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 30
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 49
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 84
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 90
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 109
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 138
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 150
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 169
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 192
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 210
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 229
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 246
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 270
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 289
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 300
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 330
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 349
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 354
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 390
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 408
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 409
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 450
+			},
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 462
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 469
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 516
+			},
+			{
+				"target": "タロウ(前衛)",
+				"team": 1,
+				"tick": 529
+			}
+		],
+		"heals": [],
+		"outcome": "敗北… 味方が全滅した"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 14.0,
+					"attack_cooldown": 0.9,
+					"attack_range": 48.0,
+					"color": "#4d8cff",
+					"defense": 2.0,
+					"heal_power": 0.0,
+					"max_hp": 170.0,
+					"move_speed": 72.0,
+					"name": "タロウ(前衛)",
+					"pos_x": 400.0,
+					"pos_y": 360.0,
+					"radius": 18.0,
+					"role": "Frontline"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー1",
+					"pos_x": 500.0,
+					"pos_y": 300.0,
+					"radius": 16.0,
+					"role": "Raider"
+				},
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー2",
+					"pos_x": 500.0,
+					"pos_y": 420.0,
+					"radius": 16.0,
+					"role": "Raider"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:41:55",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"タロウ(前衛)",
+			"レイダー1",
+			"レイダー2"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"タロウ(前衛)",
+		"レイダー1",
+		"レイダー2"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

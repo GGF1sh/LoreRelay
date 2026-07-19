@@ -24,13 +24,13 @@
     ]
   },
   "counts": {
-    "total": 4765,
+    "total": 4771,
     "byBoundary": {
       "configuration": 89,
       "host": 790,
       "host-bridge": 61,
       "host-webview": 447,
-      "pure-core": 2666,
+      "pure-core": 2672,
       "schema-types": 32,
       "webview": 680
     },
@@ -113,6 +113,7 @@
       "extension": 4,
       "faction-reputation": 16,
       "fog-of-war": 17,
+      "gambit-combat": 6,
       "game": 14,
       "game-qa-runner": 48,
       "game-rules": 17,
@@ -319,8 +320,8 @@
     "byKind": {
       "configurationKey": 89,
       "constant": 660,
-      "function": 1709,
-      "interface": 816,
+      "function": 1710,
+      "interface": 821,
       "messageType": 447,
       "type": 364,
       "webviewFunction": 660,
@@ -11343,6 +11344,72 @@
       "public": "exported",
       "boundary": "pure-core",
       "category": "fog-of-war"
+    },
+    {
+      "id": "pure-core:function:src/gambitCombatCore.ts:resolveCombat",
+      "name": "resolveCombat",
+      "kind": "function",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 107,
+      "signature": "export function resolveCombat(spec: BattleSpec): CombatExpectedOutput",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatVector2",
+      "name": "CombatVector2",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 1,
+      "signature": "export interface CombatVector2",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatUnitState",
+      "name": "CombatUnitState",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 6,
+      "signature": "export interface CombatUnitState",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:BattleSpec",
+      "name": "BattleSpec",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 29,
+      "signature": "export interface BattleSpec",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatEvent",
+      "name": "CombatEvent",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 42,
+      "signature": "export interface CombatEvent",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatExpectedOutput",
+      "name": "CombatExpectedOutput",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 49,
+      "signature": "export interface CombatExpectedOutput",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
     },
     {
       "id": "schema-types:interface:src/types/GameState.ts:ResourceBar",

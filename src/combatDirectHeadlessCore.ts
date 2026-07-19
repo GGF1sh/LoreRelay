@@ -23,8 +23,10 @@ import {
     serializeDirectInputLog,
 } from './combatDirectInputCore';
 import {
+    advanceMechanicsState,
     canAct,
     canMove,
+    isMechanicsTargetLegal,
     MechanicsCombatant,
     MechanicsReceipt,
     resolveMechanics,
@@ -550,15 +552,18 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
 
     const regenPerTick = Math.trunc(STAMINA_REGEN_MILLI_PER_SEC / tickRate);
     const chainWindowTicks = Math.max(1, Math.ceil(DODGE_CHAIN_WINDOW_SEC * tickRate));
-    const chainResetTicks = Math.max(1, Math.ceil(DODGE_CHAIN_RESET_SEC * tickRate));
+    const mechanicsDelta = 1 / tickRate;
 
     const maxTick = input.durationTicks;
     for (let tick = 0; tick < maxTick; tick++) {
         controller.tick = tick;
         syncDefeated(controller, combatants);
 
-        // 1) Advance expired phases / i-frames / chain window *before* inputs so
-        //    recovery-end tick accepts the next attack, and commits fire once.
+        // 0) Advance shared mechanics timers exactly once per combatant per tick.
+        advanceAllMechanics(combatants, mechanicsDelta, statuses, mechanicsReceipts, tick, controller);
+
+        // 1) Advance expired phases / i-frames *before* inputs so recovery-end
+        //    tick accepts the next attack, and commits fire once.
         advanceDodgePhase(controller, tick, dodgeRecoveryTicks);
         advanceActionPhase({
             controller,
@@ -572,14 +577,6 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
             statuses,
             inputSeq: -1,
         });
-        // Chain consecutive-dodge counter decays after the reset window.
-        if (
-            controller.lastDodgeTick >= 0
-            && (tick - controller.lastDodgeTick) > chainResetTicks
-            && controller.consecutiveDodgeCount !== 0
-        ) {
-            controller.consecutiveDodgeCount = 0;
-        }
 
         // 2) Stamina regen (integer milli only).
         regenerateStamina(controller, regenPerTick, directReceipts);
@@ -604,7 +601,6 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
                 dodgeRecoveryTicks,
                 dodgeDistance,
                 chainWindowTicks,
-                chainResetTicks,
                 mode,
             });
         }
@@ -621,6 +617,7 @@ export function runDirectHeadlessMoveAttack(input: DirectHeadlessInput): DirectH
                 mechanicsReceipts,
                 directReceipts,
                 justWindowTicks,
+                mode,
             });
             // Hard control applied mid-dodge cancels remaining i-frames (no credit spend).
             maybeInterruptDodgeFromControl(controller, combatants, directReceipts);
@@ -730,7 +727,6 @@ interface ApplyContext {
     dodgeRecoveryTicks: number;
     dodgeDistance: number;
     chainWindowTicks: number;
-    chainResetTicks: number;
     mode: CombatSelectableMode;
 }
 
@@ -973,10 +969,11 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
         return;
     }
 
-    // Chain reset after 2 s without dodge (also advanced at tick start).
+    // Surcharge window is strictly 1s (chainWindowTicks). Outside it, reset
+    // *before* cost so 1s–2s gaps never pay the +10 chain tax.
     if (
         controller.lastDodgeTick >= 0
-        && (controller.tick - controller.lastDodgeTick) > ctx.chainResetTicks
+        && (controller.tick - controller.lastDodgeTick) > ctx.chainWindowTicks
     ) {
         controller.consecutiveDodgeCount = 0;
     }
@@ -992,24 +989,29 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
         return;
     }
 
-    // Spend stamina immediately.
+    // Spend stamina immediately (amount matches receipt).
     controller.staminaMilli -= cost;
+    const chainSurcharge = cost > DODGE_BASE_COST_MILLI;
 
-    // Chain bookkeeping.
+    // Chain bookkeeping for the *next* dodge.
     if (
         controller.lastDodgeTick >= 0
         && (controller.tick - controller.lastDodgeTick) <= ctx.chainWindowTicks
     ) {
         controller.consecutiveDodgeCount += 1;
-        directReceipts.push({
-            tick: controller.tick,
-            kind: 'dodge_chain_penalty',
-            amount: controller.consecutiveDodgeCount,
-        });
     } else {
         controller.consecutiveDodgeCount = 1;
     }
     controller.lastDodgeTick = controller.tick;
+
+    if (chainSurcharge) {
+        directReceipts.push({
+            tick: controller.tick,
+            kind: 'dodge_chain_penalty',
+            amount: cost,
+            detail: `cost_milli=${cost}`,
+        });
+    }
 
     // Directional displacement.
     const dir = normalizeAndQuantizeDirection(event.direction.x, event.direction.y);
@@ -1037,7 +1039,7 @@ function applyDodge(ctx: ApplyContext, actor: DirectCombatantSnapshot | undefine
         tick: controller.tick,
         kind: 'dodge_started',
         amount: cost,
-        detail: `iframe_end=${controller.iframeEndTick}`,
+        detail: `iframe_end=${controller.iframeEndTick};cost_milli=${cost}`,
     });
 }
 
@@ -1076,20 +1078,29 @@ interface IncomingContext {
     mechanicsReceipts: DirectMechanicsReceiptEvent[];
     directReceipts: DirectSimReceipt[];
     justWindowTicks: number;
+    mode: CombatSelectableMode;
 }
 
 function resolveIncomingAttack(ctx: IncomingContext): void {
-    const { atk, controller, combatants, abilityById, statuses } = ctx;
+    const { atk, controller, combatants, abilityById, mode } = ctx;
     const target = combatants[atk.targetId];
     const attacker = combatants[atk.attackerId];
     const spell = abilityById.get(atk.abilityId);
     if (!target || !attacker || !spell) return;
     if (!isAlive(target) || !isAlive(attacker)) return;
 
-    // Only credit / iframe logic applies when the controlled combatant is hit.
+    // Shared legality gate *before* any credit mutation (same helper as resolver).
+    if (!isMechanicsTargetLegal(target.mechanics, spell)) {
+        applyMechanicsHit(ctx, attacker, target, spell, 'incoming_hit');
+        return;
+    }
+
     const isControlledTarget = atk.targetId === controller.controlledCombatantId;
     const dodgeable = spell.delivery?.dodgeable !== false
         && !['area', 'beam'].includes(spell.delivery?.shape);
+
+    // Credit / manual i-frame path is direct_action only.
+    const useDirectCreditPath = mode === 'direct_action' && isControlledTarget;
 
     // Undodgeable: always resolveMechanics; no credit gen/consume.
     if (!dodgeable) {
@@ -1097,10 +1108,9 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
         return;
     }
 
-    if (isControlledTarget) {
+    if (useDirectCreditPath) {
         // Match resolveMechanics: only effEvasion > 0 hits advance the shared
-        // dodgeable threat counter (incomingHitCount equivalent). Zero-evasion
-        // and undodgeable attacks never contribute to the credit budget.
+        // dodgeable threat counter (incomingHitCount equivalent).
         const eff = effectiveEvasionFor(target.mechanics, attacker.mechanics);
         if (eff > 0) {
             controller.dodgeableThreatCount += 1;
@@ -1140,8 +1150,6 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
                     abilityId: atk.abilityId,
                 });
 
-                // Perfect dodge: dodge start within just window of this active tick.
-                // No stamina refund, no extra i-frames, no extra credit.
                 const justStart = atk.tick - ctx.justWindowTicks;
                 if (
                     controller.dodgeStartedTick >= justStart
@@ -1160,7 +1168,6 @@ function resolveIncomingAttack(ctx: IncomingContext): void {
                 return;
             }
 
-            // I-frames but no credit → normal hit.
             ctx.directReceipts.push({
                 tick: controller.tick,
                 kind: 'iframe_no_credit',
@@ -1181,11 +1188,14 @@ function applyMechanicsHit(
     spell: AbilityDefinition,
     kind: DirectSimReceiptKind,
 ): void {
-    // Controlled combatant dodgeable avoids are credit-gated above. When we
-    // reach the resolver for the controlled target, suppress the auto evasion
-    // counter so free avoids cannot exceed the credit ceiling.
+    // Only direct_action suppresses auto evasion on the controlled combatant
+    // (credit path owns avoids). command/spectator keep normal mechanics_v1
+    // auto evasion — never zero the evasion clone.
     let defender = target.mechanics;
-    if (target.id === ctx.controller.controlledCombatantId) {
+    const suppressAutoEvasion =
+        ctx.mode === 'direct_action'
+        && target.id === ctx.controller.controlledCombatantId;
+    if (suppressAutoEvasion) {
         defender = cloneMechanics(target.mechanics);
         defender.evasion = 0;
     }
@@ -1195,9 +1205,10 @@ function applyMechanicsHit(
         target: defender,
         statuses: ctx.statuses,
     });
-    // Preserve the controlled combatant's authored evasion stat after the hit.
-    if (target.id === ctx.controller.controlledCombatantId) {
+    if (suppressAutoEvasion) {
         resolution.target.evasion = target.mechanics.evasion;
+        // Keep incomingHitCount off the credit-gated path (auto counter not used).
+        resolution.target.incomingHitCount = target.mechanics.incomingHitCount;
     }
     target.mechanics = resolution.target;
 
@@ -1224,6 +1235,40 @@ function applyMechanicsHit(
     if (target.id === ctx.controller.controlledCombatantId && target.mechanics.hp <= 0) {
         syncDefeated(ctx.controller, ctx.combatants);
     }
+}
+
+/** Exactly one advanceMechanicsState per combatant per tick. */
+function advanceAllMechanics(
+    combatants: Record<string, DirectCombatantSnapshot>,
+    deltaSeconds: number,
+    statuses: readonly StatusDefinition[],
+    mechanicsReceipts: DirectMechanicsReceiptEvent[],
+    tick: number,
+    controller: DirectControllerState,
+): void {
+    const defeatedIds = Object.values(combatants)
+        .filter(c => c.mechanics.hp <= 0)
+        .map(c => c.id);
+    const ids = Object.keys(combatants).sort();
+    for (const id of ids) {
+        const snap = combatants[id];
+        const receipts: MechanicsReceipt[] = [];
+        snap.mechanics = advanceMechanicsState(snap.mechanics, deltaSeconds, {
+            statuses,
+            receipts,
+            defeatedIds,
+        });
+        for (const receipt of receipts) {
+            mechanicsReceipts.push({
+                tick,
+                actorId: id,
+                targetId: id,
+                abilityId: '_tick_advance',
+                receipt: structuredClone(receipt),
+            });
+        }
+    }
+    syncDefeated(controller, combatants);
 }
 
 // ---------------------------------------------------------------------------

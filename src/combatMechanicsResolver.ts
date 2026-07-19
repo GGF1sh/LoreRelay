@@ -207,10 +207,22 @@ function resolveLethalTimer(target: MechanicsCombatant, statusId: string, receip
     if (target.hp === 0) receipts.push({ stage: 'lethal_timer', kind: 'doom_executed', statusId, detail: 'fallback_lethal' });
 }
 
+/**
+ * Shared pure target-legality gate used by resolveMechanics and direct credit
+ * accounting. Area/beam may still hit untargetable defenders; everything else
+ * is blocked while the status is active.
+ */
+export function isMechanicsTargetLegal(
+    target: MechanicsCombatant,
+    ability: { delivery: { shape: string } },
+): boolean {
+    return !hasStatus(target, 'untargetable') || ['area', 'beam'].includes(ability.delivery.shape);
+}
+
 /** Resolves one validated ability with no I/O, clock, RNG, callbacks, or mutation of the input objects. */
 export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
     const target = clone(input.target); const receipts: MechanicsReceipt[] = []; let damageDealt = 0; let dodged = false;
-    const targetLegal = !hasStatus(target, 'untargetable') || ['area', 'beam'].includes(input.ability.delivery.shape);
+    const targetLegal = isMechanicsTargetLegal(target, input.ability);
     if (!targetLegal) return { target, receipts: [{ stage: 'targeting', kind: 'target_illegal' }], damageDealt, dodged, targetLegal };
     const cannotDodge = ['area', 'beam'].includes(input.ability.delivery.shape);
     if (!cannotDodge) {

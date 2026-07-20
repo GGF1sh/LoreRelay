@@ -248,6 +248,24 @@ describe('Ability magnitude and cooldown consumption', () => {
         const gap = ticks[1] - ticks[0];
         assert.ok(gap >= 140 && gap <= 160, `expected ~150 tick gap from ability cooldown, saw ${gap}`);
     });
+
+    test('a stunned attacker still commits the ability cooldown on the tick it tried to swing', () => {
+        // The cooldown is charged on the attempt, before the act gate. A unit stunned for 2s with a
+        // 5s ability must fire at ~5s, not the instant the stun lapses at 2s.
+        const slow = { ...structuredClone(fixture.abilities.find(a => a.id === 'basic_slash')!), id: 'slow_slash' };
+        slow.auto = { ...slow.auto, cooldown: 5 };
+        const cat = { abilities: [...fixture.abilities, slow], statuses: fixture.statuses };
+        const stunned = unit('ace', 'allies', {
+            normalAttackAbilityId: 'slow_slash', cooldown: 0.5,
+            statuses: [{ id: 'stun', remainingSeconds: 2, intensity: 1 }],
+        });
+        const run = runCombatLab(scenario('stun_cd', [stunned],
+            [unit('mob', 'enemies', { hp: 500, maxHp: 500, attack: 1, cooldown: 99 })]), cat);
+        const first = run.output.attacks.find(a => a.unit === 'ace');
+        assert.ok(first, 'ace should eventually attack');
+        // deltaSeconds is 1/30: stun lapses near tick 60, the committed cooldown near tick 150.
+        assert.ok(first.tick >= 140, `expected the swing to wait out the committed cooldown, saw tick ${first.tick}`);
+    });
 });
 
 describe('Power budget priced by target count', () => {

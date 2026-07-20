@@ -384,12 +384,14 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                 if (u._cooldown_timer > 0.0) return;
                 const tu = units[targetName];
                 if (combatMode === 'mechanics_v1' && u.normalAttackAbility) {
-                    if (!canAct(mechanicsStates[u.name])) return;
                     const ability = u.normalAttackAbility;
                     // Consume the ability's priced cooldown so AoE loadouts pay their budgeted rate.
+                    // Committed on the attempt tick, before the act gate, so a unit that is stunned
+                    // out of its swing still pays for it and cannot fire the instant control lapses.
                     u._cooldown_timer = typeof ability.auto?.cooldown === 'number' && ability.auto.cooldown > 0
                         ? ability.auto.cooldown
                         : u.attack_cooldown;
+                    if (!canAct(mechanicsStates[u.name])) return;
                     const maxTargets = Math.max(1, Math.trunc(ability.delivery?.maxTargets ?? 1));
                     const falloff = typeof ability.delivery?.falloff === 'number' ? ability.delivery.falloff : 1;
                     // Primary target first, then the rest of the hostile line in participantOrder. Selection is

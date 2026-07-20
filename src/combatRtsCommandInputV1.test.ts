@@ -259,6 +259,56 @@ describe('RTS command input — quantization', () => {
         assert.deepEqual(revived, point, 'a JSON round trip changed the point');
     });
 
+    test('a finite coordinate that overflows to Infinity during quantization is rejected (x)', () => {
+        // 1e306 is a finite double, but 1e306 * DIRECTION_QUANTUM (1000) exceeds
+        // Number.MAX_VALUE and rounds to Infinity inside quantizeScalar. The
+        // pre-quantization finite check alone does not catch this.
+        rejects(log([event({ command: 'move_to', point: { x: 1e306, y: 0 } })]), 'NON_FINITE');
+    });
+
+    test('a finite coordinate that overflows to -Infinity during quantization is rejected (x)', () => {
+        rejects(log([event({ command: 'move_to', point: { x: -1e306, y: 0 } })]), 'NON_FINITE');
+    });
+
+    test('the same overflow is caught on y, and for attack_move as well as move_to', () => {
+        rejects(log([event({ command: 'move_to', point: { x: 0, y: 1e306 } })]), 'NON_FINITE');
+        rejects(log([event({ command: 'move_to', point: { x: 0, y: -1e306 } })]), 'NON_FINITE');
+        rejects(log([event({ command: 'attack_move', point: { x: 1e306, y: 0 } })]), 'NON_FINITE');
+        rejects(log([event({ command: 'attack_move', point: { x: 0, y: -1e306 } })]), 'NON_FINITE');
+    });
+
+    test('a large-but-safe finite coordinate (just under the overflow boundary) normalizes fine', () => {
+        // 1e305 * 1000 = 1e308, still within double range, so this must NOT be rejected.
+        const point = ok(log([event({ command: 'move_to', point: { x: 1e305, y: -1e305 } })]), TICK_RATE).events[0].point!;
+        assert.ok(Number.isFinite(point.x));
+        assert.ok(Number.isFinite(point.y));
+        assert.equal(point.x, 1e305);
+        assert.equal(point.y, -1e305);
+    });
+
+    test('every point in a successfully normalized log is finite', () => {
+        const result = ok(log([
+            validEventFor('move_to', { point: { x: 1e305, y: 2 } }),
+            validEventFor('attack_move', { tick: 1, point: { x: -3, y: 1e305 } }),
+        ]), TICK_RATE);
+        for (const e of result.events) {
+            if (e.point) {
+                assert.ok(Number.isFinite(e.point.x), `point.x not finite: ${e.point.x}`);
+                assert.ok(Number.isFinite(e.point.y), `point.y not finite: ${e.point.y}`);
+            }
+        }
+    });
+
+    test('an overflowing point never reaches JSON.stringify as null', () => {
+        // Guards the exact failure mode Codex flagged: ok:true output whose point
+        // silently becomes { x: null, y: ... } on the wire.
+        const result = normalizeCommandInputLog(log([event({ command: 'move_to', point: { x: 1e306, y: 0 } })]), TICK_RATE);
+        assert.equal(result.ok, false);
+        if (result.ok) return; // unreachable, narrows the type for the line below
+        assert.notEqual(JSON.stringify(result), undefined);
+        assert.ok(!JSON.stringify(result).includes('"point"'), 'a rejected log must not carry a point at all');
+    });
+
     test('already-quantized coordinates are untouched', () => {
         const point = ok(log([event({ command: 'move_to', point: { x: 12.345, y: -6.789 } })]), TICK_RATE).events[0].point!;
         assert.deepEqual(point, { x: 12.345, y: -6.789 });

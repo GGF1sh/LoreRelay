@@ -6498,7 +6498,7 @@
       "name": "normalizeCommandInputLog",
       "kind": "function",
       "sourcePath": "src/combatRtsCommandInputCore.ts",
-      "line": 150,
+      "line": 156,
       "signature": "export function normalizeCommandInputLog( raw: unknown, expectedTickRate?: number, ): CommandInputNormalizeResult",
       "public": "exported",
       "boundary": "pure-core",

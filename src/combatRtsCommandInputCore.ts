@@ -127,6 +127,12 @@ function fail(error: CommandInputNormalizeErrorCode, detail?: string): CommandIn
  * negative zero: a round trip turns it back into 0. Leaving it would give the
  * same battlefield position two in-memory representations, which breaks the
  * uniqueness the canonical form is supposed to guarantee.
+ *
+ * Can return a non-finite value: a finite input near the double range's edge
+ * (e.g. 1e306) overflows to Infinity once multiplied by DIRECTION_QUANTUM inside
+ * quantizeScalar. Callers MUST re-check the result with isFiniteNumber — the
+ * pre-quantization finite check on the raw input is not enough, since the input
+ * being finite does not guarantee the quantized output is.
  */
 function quantizeCoordinate(value: number): number {
     const quantized = quantizeScalar(value);
@@ -227,7 +233,15 @@ export function normalizeCommandInputLog(
             if (!isFiniteNumber(point.x) || !isFiniteNumber(point.y)) {
                 return fail('NON_FINITE', `events[${index}].point=(${String(point.x)}, ${String(point.y)})`);
             }
-            normalized.point = { x: quantizeCoordinate(point.x), y: quantizeCoordinate(point.y) };
+            const quantizedX = quantizeCoordinate(point.x);
+            const quantizedY = quantizeCoordinate(point.y);
+            // The raw values passed the finite check above, but quantization itself
+            // can overflow a large-but-finite coordinate to +/-Infinity. Re-checking
+            // here is what keeps a non-finite value from ever reaching an ok:true log.
+            if (!isFiniteNumber(quantizedX) || !isFiniteNumber(quantizedY)) {
+                return fail('NON_FINITE', `events[${index}].point quantized to (${quantizedX}, ${quantizedY})`);
+            }
+            normalized.point = { x: quantizedX, y: quantizedY };
         }
 
         if (TARGET_COMMANDS.has(command)) {

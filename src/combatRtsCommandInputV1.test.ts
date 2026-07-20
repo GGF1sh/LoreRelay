@@ -549,3 +549,112 @@ describe('RTS command input — unitIds copy safety', () => {
         assert.deepEqual(unitIds, before);
     });
 });
+
+describe('RTS command input — unitIds.length read exactly once', () => {
+    // Codex P2 on PR #33: the old code checked `Array.isArray(unitIds) ||
+    // unitIds.length === 0`, then separately read `unitIds.length` again to
+    // size the copy. A Proxy length trap can answer differently each time it
+    // is invoked, so those two reads did not have to agree.
+
+    test('a Proxy length trap answering 1 then 0 cannot smuggle an empty unitIds past the non-empty check', () => {
+        const target = ['knight'];
+        let lengthReads = 0;
+        const hostileUnitIds = new Proxy(target, {
+            get(obj, prop, receiver) {
+                if (prop === 'length') {
+                    lengthReads++;
+                    // 1st read (the check the old code ran first) sees non-empty;
+                    // a 2nd read (the old code's separate size read) would see 0.
+                    return lengthReads === 1 ? 1 : 0;
+                }
+                return Reflect.get(obj, prop, receiver);
+            },
+        });
+
+        const result = ok(log([event({ unitIds: hostileUnitIds })]), TICK_RATE);
+        assert.equal(lengthReads, 1, 'unitIds.length was read more than once');
+        assert.deepEqual(result.events[0].unitIds, ['knight']);
+    });
+
+    test('a Proxy length trap answering 0 then 1 is rejected, and the trap fires only once', () => {
+        const target: string[] = [];
+        let lengthReads = 0;
+        const hostileUnitIds = new Proxy(target, {
+            get(obj, prop, receiver) {
+                if (prop === 'length') {
+                    lengthReads++;
+                    return lengthReads === 1 ? 0 : 1;
+                }
+                return Reflect.get(obj, prop, receiver);
+            },
+        });
+        rejects(log([event({ unitIds: hostileUnitIds })]), 'INVALID_UNIT_IDS');
+        assert.equal(lengthReads, 1, 'unitIds.length was read more than once');
+    });
+
+    test('the length trap fires exactly once for an ordinary, non-hostile read too', () => {
+        const target = ['a', 'b', 'c'];
+        let lengthReads = 0;
+        const trackedUnitIds = new Proxy(target, {
+            get(obj, prop, receiver) {
+                if (prop === 'length') lengthReads++;
+                return Reflect.get(obj, prop, receiver);
+            },
+        });
+        const result = ok(log([event({ unitIds: trackedUnitIds })]), TICK_RATE);
+        assert.equal(lengthReads, 1);
+        assert.deepEqual(result.events[0].unitIds, ['a', 'b', 'c']);
+    });
+
+    test('an ordinary non-empty array still succeeds, unchanged', () => {
+        const result = ok(log([event({ unitIds: ['knight', 'archer'] })]), TICK_RATE);
+        assert.deepEqual(result.events[0].unitIds, ['knight', 'archer']);
+    });
+
+    test('an ordinary empty array is still INVALID_UNIT_IDS', () => {
+        rejects(log([event({ unitIds: [] })]), 'INVALID_UNIT_IDS');
+    });
+});
+
+describe('RTS command input — other single-read fixes found by the limited audit', () => {
+    // The task asked for a narrow audit of normalizeCommandInputLog for the
+    // same check-once/use-twice shape as the named unitIds.length bug. Two more
+    // instances turned up and were fixed the same way; these tests cover them.
+
+    test('raw.events is read exactly once, even from a getter', () => {
+        const events = [event({ unitIds: ['knight'] })];
+        let eventsReads = 0;
+        const raw = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: TICK_RATE,
+            get events() { eventsReads++; return events; },
+        };
+        const result = ok(raw, TICK_RATE);
+        assert.equal(eventsReads, 1, 'raw.events getter was invoked more than once');
+        assert.equal(result.events.length, 1);
+    });
+
+    test('point.x and point.y are each read exactly once', () => {
+        const seenReads: string[] = [];
+        const hostilePoint = {
+            get x() { seenReads.push('x'); return 12.345; },
+            get y() { seenReads.push('y'); return -6.789; },
+        };
+        const result = ok(log([event({ command: 'move_to', point: hostilePoint })]), TICK_RATE);
+        assert.deepEqual(seenReads, ['x', 'y']);
+        assert.deepEqual(result.events[0].point, { x: 12.345, y: -6.789 });
+    });
+
+    test('a point.x getter is never given a chance to answer a second time with a different value', () => {
+        let reads = 0;
+        const hostilePoint = {
+            // A second read would answer Infinity; if the code only reads once,
+            // that branch can never be taken and normalization must succeed.
+            get x() { reads++; return reads === 1 ? 5 : Infinity; },
+            y: 0,
+        };
+        const result = normalizeCommandInputLog(log([event({ command: 'move_to', point: hostilePoint })]), TICK_RATE);
+        assert.equal(reads, 1, 'point.x was read more than once');
+        assert.equal(result.ok, true);
+    });
+});

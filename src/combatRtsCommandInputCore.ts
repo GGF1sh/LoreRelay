@@ -184,15 +184,21 @@ export function normalizeCommandInputLog(
         return fail('INVALID_TICK_RATE', `expected ${expectedTickRate}, got ${tickRate}`);
     }
 
-    if (!Array.isArray(raw.events)) {
+    // Read `raw.events` exactly once. It can itself be a getter on a hostile
+    // `raw` object, and re-fetching it for the array check, the length, and
+    // each index — as the old code did — would let it hand back a different
+    // value (or a different "array") on each access.
+    const rawEvents = raw.events;
+    if (!Array.isArray(rawEvents)) {
         return fail('INVALID_LOG', 'events must be an array');
     }
+    const eventCount = rawEvents.length;
 
     const events: CommandInputEvent[] = [];
     const seen = new Set<string>();
 
-    for (let index = 0; index < raw.events.length; index++) {
-        const source = raw.events[index];
+    for (let index = 0; index < eventCount; index++) {
+        const source = rawEvents[index];
         if (!isPlainObject(source)) {
             return fail('INVALID_EVENT', `events[${index}] must be an object`);
         }
@@ -216,7 +222,18 @@ export function normalizeCommandInputLog(
             return fail('INVALID_TEAM', `events[${index}].issuerTeam=${String(issuerTeam)}`);
         }
 
-        if (!Array.isArray(unitIds) || unitIds.length === 0) {
+        if (!Array.isArray(unitIds)) {
+            return fail('INVALID_UNIT_IDS', `events[${index}].unitIds must be a non-empty array`);
+        }
+        // `unitIds.length` is read exactly once, into `unitIdCount`, and that
+        // one binding drives the non-empty check, the copy's allocation size,
+        // and the iteration bound below. The old code read `.length` a second
+        // time to size the copy after already reading it once for the
+        // non-empty check — a hostile length getter/Proxy trap can answer 1
+        // the first time (passing "non-empty") and 0 the second, producing an
+        // empty copy that should have been rejected outright.
+        const unitIdCount = unitIds.length;
+        if (unitIdCount === 0) {
             return fail('INVALID_UNIT_IDS', `events[${index}].unitIds must be a non-empty array`);
         }
         // Built by index assignment into a fresh, ordinary array — never
@@ -228,7 +245,6 @@ export function normalizeCommandInputLog(
         // same binding is what gets validated AND what gets copied — a getter
         // that returns something else on a second access never gets a second
         // access to return it from.
-        const unitIdCount = unitIds.length;
         const copiedUnitIds: string[] = new Array(unitIdCount);
         for (let u = 0; u < unitIdCount; u++) {
             const candidate = unitIds[u];
@@ -254,11 +270,18 @@ export function normalizeCommandInputLog(
             if (!isPlainObject(point)) {
                 return fail('INVALID_POINT', `events[${index}]: ${command} requires a point`);
             }
-            if (!isFiniteNumber(point.x) || !isFiniteNumber(point.y)) {
-                return fail('NON_FINITE', `events[${index}].point=(${String(point.x)}, ${String(point.y)})`);
+            // point.x / point.y read exactly once each, into rawX/rawY. The old
+            // code read them once for the finite check and again as the
+            // quantizeCoordinate arguments — two separate property accesses a
+            // getter could answer differently, e.g. a valid finite number for
+            // the check and something else entirely for the value actually used.
+            const rawX = point.x;
+            const rawY = point.y;
+            if (!isFiniteNumber(rawX) || !isFiniteNumber(rawY)) {
+                return fail('NON_FINITE', `events[${index}].point=(${String(rawX)}, ${String(rawY)})`);
             }
-            const quantizedX = quantizeCoordinate(point.x);
-            const quantizedY = quantizeCoordinate(point.y);
+            const quantizedX = quantizeCoordinate(rawX);
+            const quantizedY = quantizeCoordinate(rawY);
             // The raw values passed the finite check above, but quantization itself
             // can overflow a large-but-finite coordinate to +/-Infinity. Re-checking
             // here is what keeps a non-finite value from ever reaching an ok:true log.

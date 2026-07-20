@@ -11,8 +11,9 @@ import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
     COMMAND_INPUT_SCHEMA_VERSION, CommandInputEvent, CommandInputLog, CommandInputNormalizeErrorCode,
-    DEFAULT_COMMAND_TICK_RATE, MAX_COMMAND_INPUT_EVENTS, MAX_COMMAND_UNIT_IDS,
-    MAX_COMMAND_UNIT_REFS_TOTAL, RTS_COMMANDS, RtsCommand,
+    DEFAULT_COMMAND_TICK_RATE, MAX_COMMAND_ID_CHARS, MAX_COMMAND_ID_CHARS_TOTAL,
+    MAX_COMMAND_INPUT_EVENTS, MAX_COMMAND_UNIT_IDS, MAX_COMMAND_UNIT_REFS_TOTAL,
+    RTS_COMMANDS, RtsCommand,
     describeUntrusted, emptyCommandInputLog, normalizeCommandInputLog,
 } from './combatRtsCommandInputCore';
 
@@ -997,6 +998,79 @@ describe('RTS command input — adversarial hardening (throwing / Proxy / length
         assertRejectsWithoutThrow(log(events), 'INVALID_UNIT_IDS');
     });
 
+    test('per-identifier cap: MAX_COMMAND_ID_CHARS is accepted; MAX+1 is rejected', () => {
+        const okId = 'x'.repeat(MAX_COMMAND_ID_CHARS);
+        const badId = 'x'.repeat(MAX_COMMAND_ID_CHARS + 1);
+        assert.equal(ok(log([event({ unitIds: [okId] })]), TICK_RATE).events[0].unitIds[0], okId);
+        assertRejectsWithoutThrow(log([event({ unitIds: [badId] })]), 'INVALID_UNIT_IDS');
+        assert.equal(
+            ok(log([event({ command: 'attack_target', targetId: okId })]), TICK_RATE).events[0].targetId,
+            okId,
+        );
+        assertRejectsWithoutThrow(
+            log([event({ command: 'attack_target', targetId: badId })]),
+            'INVALID_TARGET_ID',
+        );
+    });
+
+    test('a compact Proxy returning a 64 KiB unitId is rejected without expanding the log', () => {
+        const huge = 'H'.repeat(64 * 1024);
+        const unitIds = new Proxy([] as string[], {
+            get(_t, prop) {
+                if (prop === 'length') return 1;
+                if (prop === '0') return huge;
+                return undefined;
+            },
+        });
+        assertRejectsWithoutThrow(log([event({ unitIds })]), 'INVALID_UNIT_IDS');
+    });
+
+    test('log-wide identifier character budget rejects repeated max-length ids', () => {
+        // Each id is MAX_COMMAND_ID_CHARS; after enough slots the char budget fires
+        // even though slot and per-id caps are individually satisfied.
+        const id = 'a'.repeat(MAX_COMMAND_ID_CHARS);
+        const perEvent = 16;
+        const eventsNeeded = Math.floor(MAX_COMMAND_ID_CHARS_TOTAL / (MAX_COMMAND_ID_CHARS * perEvent)) + 1;
+        assert.ok(eventsNeeded >= 2);
+        const events = Array.from({ length: eventsNeeded }, (_, i) =>
+            event({
+                tick: i,
+                seq: 0,
+                unitIds: Array.from({ length: perEvent }, () => id),
+            }),
+        );
+        assertRejectsWithoutThrow(log(events), 'INVALID_UNIT_IDS');
+    });
+
+    test('targetId counts toward the same log-wide identifier character budget', () => {
+        const id = 't'.repeat(MAX_COMMAND_ID_CHARS);
+        // Fill the char budget with max-length unitIds spread across events (respecting
+        // per-event unit cap), then an attack_target whose targetId would overflow.
+        const perEvent = Math.min(16, MAX_COMMAND_UNIT_IDS);
+        const charsPerEvent = perEvent * MAX_COMMAND_ID_CHARS;
+        const fillEvents = Math.floor(MAX_COMMAND_ID_CHARS_TOTAL / charsPerEvent);
+        assert.ok(fillEvents >= 1);
+        const events = Array.from({ length: fillEvents }, (_, i) =>
+            event({
+                tick: i,
+                seq: 0,
+                unitIds: Array.from({ length: perEvent }, () => id),
+            }),
+        );
+        events.push(event({
+            tick: fillEvents,
+            seq: 0,
+            command: 'attack_target',
+            targetId: id,
+            unitIds: ['knight'],
+        }));
+        const result = normalizeCommandInputLog(log(events), TICK_RATE);
+        assert.equal(result.ok, false);
+        assert.ok(
+            result.ok === false
+            && (result.error === 'INVALID_UNIT_IDS' || result.error === 'INVALID_TARGET_ID'),
+        );
+    });
 
     test('ordinary JSON inputs still produce identical canonical bytes', () => {
         const events = [

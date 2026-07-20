@@ -85,6 +85,24 @@ export const MAX_COMMAND_UNIT_IDS = 1_024;
  */
 export const MAX_COMMAND_UNIT_REFS_TOTAL = MAX_COMMAND_UNIT_IDS * 64;
 
+/**
+ * Max UTF-16 code units in one unitId or targetId.
+ *
+ * Real combatant ids are short labels (`knight`, `raider_3`). 128 is far above
+ * any authoritative id scheme in the repo and stops a single 64 KiB string from
+ * being accepted as an identifier.
+ */
+export const MAX_COMMAND_ID_CHARS = 128;
+
+/**
+ * Log-wide budget for the sum of accepted identifier lengths (every unitId and
+ * every targetId). Slot caps alone still allow the same max-length string to be
+ * referenced on every slot (and every attack_target), so later JSON/replay
+ * serialization would expand into multi-GiB output. 256 KiB of id text is far
+ * above any real log and keeps the product bounded.
+ */
+export const MAX_COMMAND_ID_CHARS_TOTAL = 262_144;
+
 /** A destination in battlefield space, quantized to 1/1000. */
 export interface CommandPoint {
     x: number;
@@ -171,6 +189,11 @@ function isNonNegativeInteger(value: unknown): value is number {
 
 function isNonEmptyString(value: unknown): value is string {
     return typeof value === 'string' && value.length > 0;
+}
+
+/** Non-empty identifier within the per-id character cap. */
+function isCommandIdentifier(value: unknown): value is string {
+    return isNonEmptyString(value) && value.length <= MAX_COMMAND_ID_CHARS;
 }
 
 function fail(error: CommandInputNormalizeErrorCode, detail?: string): CommandInputNormalizeResult {
@@ -347,6 +370,8 @@ export function normalizeCommandInputLog(
     const seen = new Set<string>();
     // Running total of unit-id slots accepted so far. Checked before each copy.
     let totalUnitRefs = 0;
+    // Running total of accepted identifier character lengths (unitIds + targetIds).
+    let totalIdChars = 0;
 
     for (let index = 0; index < eventCount; index++) {
         const sourceRead = safeGet(rawEvents, index);
@@ -428,9 +453,16 @@ export function normalizeCommandInputLog(
                 return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}] unreadable`);
             }
             const candidate = candidateRead.value;
-            if (!isNonEmptyString(candidate)) {
+            if (!isCommandIdentifier(candidate)) {
                 return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}]=${describeUntrusted(candidate)}`);
             }
+            if (totalIdChars + candidate.length > MAX_COMMAND_ID_CHARS_TOTAL) {
+                return fail(
+                    'INVALID_UNIT_IDS',
+                    `events[${index}].unitIds[${u}]: identifier bytes exceed log-wide budget of ${MAX_COMMAND_ID_CHARS_TOTAL}`,
+                );
+            }
+            totalIdChars += candidate.length;
             copiedUnitIds[u] = candidate;
         }
 
@@ -491,9 +523,16 @@ export function normalizeCommandInputLog(
                 return fail('INVALID_TARGET_ID', `events[${index}]: ${command} targetId unreadable`);
             }
             const targetId = targetIdRead.value;
-            if (!isNonEmptyString(targetId)) {
+            if (!isCommandIdentifier(targetId)) {
                 return fail('INVALID_TARGET_ID', `events[${index}]: ${command} requires a targetId`);
             }
+            if (totalIdChars + targetId.length > MAX_COMMAND_ID_CHARS_TOTAL) {
+                return fail(
+                    'INVALID_TARGET_ID',
+                    `events[${index}].targetId: identifier bytes exceed log-wide budget of ${MAX_COMMAND_ID_CHARS_TOTAL}`,
+                );
+            }
+            totalIdChars += targetId.length;
             normalized.targetId = targetId;
         }
 

@@ -303,4 +303,129 @@ describe('Doom V1 — validator', () => {
     test('rejects direct death against colossal targets', () => {
         assert.ok(codes(build({ scaleBehavior: { ...DOOM.scaleBehavior, huge: 'full' } })).includes(AbilityValidationErrorCode.LETHAL_TIMER_COLOSSAL_DEATH));
     });
+
+    test('rejects undodgeable lethal timers that also pass barriers', () => {
+        const bad = build({
+            delivery: { ...DOOM.delivery, dodgeable: false },
+            effects: [{ ...structuredClone(DOOM.effects[0]), penetration: { ...DOOM.effects[0].penetration, barrier: 'passes' } }],
+        });
+        assert.ok(codes(bad).includes(AbilityValidationErrorCode.LETHAL_TIMER_NO_INTERCEPTION));
+    });
+
+    test('rejects counters that omit cleanse and dispel', () => {
+        assert.ok(codes(build({ counters: ['armor', 'evasion'] })).includes(AbilityValidationErrorCode.LETHAL_TIMER_COUNTER_REQUIRED));
+    });
+
+    test('rejects split lethal buildup that exceeds the aggregate cap', () => {
+        const half = structuredClone(DOOM.effects[0]);
+        half.magnitude = 20;
+        const bad = build({ effects: [half, structuredClone(half)] });
+        assert.ok(codes(bad).includes(AbilityValidationErrorCode.LETHAL_TIMER_BUILDUP_TOO_HIGH));
+    });
+});
+
+describe('Doom V1 — DoT and lethality gate on the same tick', () => {
+    test('DoT zeroing HP on the same advance as doom expiry still runs the lethality gate', () => {
+        const receipts: MechanicsReceipt[] = [];
+        // Poison deals whole HP this tick and doom expires on the same advance. Undying must still
+        // fire: without routing DoT through applyHpDamage, both paths skip the lethality gate.
+        const state: MechanicsCombatant = {
+            id: 't', hp: 2, maxHp: 100, attack: 0, defense: 0, tags: ['living'], buildup: {},
+            lethality: { endureCharges: 0, undyingSeconds: 5 },
+            statuses: [
+                { id: 'poison', remainingSeconds: 8, intensity: 1, residualMilli: 0 },
+                { id: 'doom', remainingSeconds: 0.02, intensity: 1, sourceId: 'caster' },
+            ],
+        };
+        const after = advanceMechanicsState(state, 1, { statuses: STATUSES, receipts });
+        assert.equal(after.hp, 1);
+        assert.ok(receipts.some(r => r.kind === 'undying'), `expected undying, saw ${receipts.map(r => r.kind).join(',')}`);
+        assert.ok(!receipts.some(r => r.kind === 'death'));
+    });
+});
+
+/**
+ * The lethality gate is shared by every lethal source in one advance — each damaging DoT and each
+ * expiring lethal timer. It must resolve exactly once per tick, or a target burns one endure charge
+ * per poison/burn instance and reports its own death twice.
+ */
+describe('Doom V1 — one lethality gate per advance', () => {
+    const count = (receipts: MechanicsReceipt[], kind: string) => receipts.filter(r => r.kind === kind).length;
+    /** HP low enough that poison alone would zero it, so every DoT trips the gate independently. */
+    const rotting = (over: Partial<MechanicsCombatant> = {}): MechanicsCombatant => target({
+        hp: 2,
+        statuses: [
+            { id: 'poison', remainingSeconds: 8, intensity: 1, residualMilli: 0 },
+            { id: 'burn', remainingSeconds: 6, intensity: 1, residualMilli: 0 },
+        ],
+        ...over,
+    });
+
+    test('two DoTs zeroing HP in one tick spend a single endure charge', () => {
+        const receipts: MechanicsReceipt[] = [];
+        const after = advanceMechanicsState(rotting({ lethality: { endureCharges: 2, undyingSeconds: 0 } }), 1, { statuses: STATUSES, receipts });
+        assert.equal(count(receipts, 'endure'), 1, `expected one endure, saw ${receipts.map(r => r.kind).join(',')}`);
+        assert.equal(after.lethality!.endureCharges, 1);
+        assert.equal(after.hp, 1);
+        assert.equal(count(receipts, 'death'), 0);
+    });
+
+    test('two DoTs killing an unprotected target report death once', () => {
+        const receipts: MechanicsReceipt[] = [];
+        const after = advanceMechanicsState(rotting(), 1, { statuses: STATUSES, receipts });
+        assert.equal(count(receipts, 'death'), 1, `expected one death, saw ${receipts.map(r => r.kind).join(',')}`);
+        assert.equal(after.hp, 0);
+    });
+
+    test('DoT and doom expiring together still spend at most one endure charge', () => {
+        const receipts: MechanicsReceipt[] = [];
+        const state = rotting({ lethality: { endureCharges: 2, undyingSeconds: 0 } });
+        state.statuses!.push({ id: 'doom', remainingSeconds: 0.02, intensity: 1, sourceId: 'caster' });
+        const after = advanceMechanicsState(state, 1, { statuses: STATUSES, receipts });
+        assert.ok(kinds(receipts).includes('lethal_timer_expired'));
+        assert.equal(count(receipts, 'endure'), 1, `expected one endure, saw ${receipts.map(r => r.kind).join(',')}`);
+        assert.equal(after.lethality!.endureCharges, 1);
+        assert.equal(after.hp, 1);
+        assert.equal(count(receipts, 'death'), 0);
+        // The gate held the target, so the timer must not claim an execution it did not get.
+        assert.ok(kinds(receipts).includes('doom_prevented'));
+        assert.ok(!kinds(receipts).includes('doom_executed'));
+    });
+
+    test('DoT and doom expiring together report undying once', () => {
+        const receipts: MechanicsReceipt[] = [];
+        const state = rotting({ lethality: { endureCharges: 0, undyingSeconds: 5 } });
+        state.statuses!.push({ id: 'doom', remainingSeconds: 0.02, intensity: 1, sourceId: 'caster' });
+        const after = advanceMechanicsState(state, 1, { statuses: STATUSES, receipts });
+        assert.equal(count(receipts, 'undying'), 1, `expected one undying, saw ${receipts.map(r => r.kind).join(',')}`);
+        assert.equal(after.hp, 1);
+        assert.equal(count(receipts, 'death'), 0);
+    });
+
+    test('a non-lethal DoT tick produces no lethality receipt at all', () => {
+        const receipts: MechanicsReceipt[] = [];
+        const after = advanceMechanicsState(rotting({ hp: 100, lethality: { endureCharges: 1, undyingSeconds: 0 } }), 1, { statuses: STATUSES, receipts });
+        assert.equal(after.hp, 92);   // poison 3 + burn 5
+        assert.equal(after.lethality!.endureCharges, 1);
+        assert.equal(receipts.filter(r => r.stage === 'lethality').length, 0);
+    });
+
+    test('aggregating DoT damage leaves the 30Hz and 60Hz residual totals untouched', () => {
+        const drain = (tick: number) => {
+            let current = target({
+                hp: 200, maxHp: 200,
+                statuses: [
+                    { id: 'poison', remainingSeconds: 8, intensity: 1, residualMilli: 0 },
+                    { id: 'bleed', remainingSeconds: 10, intensity: 1, residualMilli: 0 },
+                ],
+            });
+            for (let i = 0; i < Math.round(4 / tick); i++) current = advanceMechanicsState(current, tick, { statuses: STATUSES });
+            return current.hp;
+        };
+        // Banking the tick's DoT damage and subtracting it once cannot change the residual maths, so
+        // both figures are the pre-change ones. They differ by 1 HP because `bleed` at 2 HP/s does not
+        // divide evenly into either tick width — that rounding is long-standing and out of scope here.
+        assert.equal(drain(1 / 30), 180);
+        assert.equal(drain(1 / 60), 181);
+    });
 });

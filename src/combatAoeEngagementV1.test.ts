@@ -97,13 +97,14 @@ describe('Delivery falloff', () => {
 
     test('falloff scales damage on the target it is applied to', () => {
         const spell = ability({}, { shape: 'area', maxTargets: 4, falloff: 0.5 });
-        assert.equal(hit(spell, victim()), 40);
-        assert.equal(hit(spell, victim(), { falloff: 0.5 }), 20);
+        // Damage is priced from AbilityDefinition magnitude (20), not attacker.attack.
+        assert.equal(hit(spell, victim()), 20);
+        assert.equal(hit(spell, victim(), { falloff: 0.5 }), 10);
     });
 
     test('falloff lands before the minimum-damage floor, so a reached target always takes at least 1', () => {
         const spell = ability({}, { shape: 'area', maxTargets: 8, falloff: 0.01 });
-        const armoured = victim({ defense: 39 });   // 40 - 39 = 1 before falloff
+        const armoured = victim({ defense: 19 });   // magnitude 20 - 19 = 1 before falloff
         assert.equal(hit(spell, armoured, { falloff: 0.01 }), 1);
     });
 
@@ -138,8 +139,8 @@ describe('Engagement slots', () => {
 
     test('an attacker beyond the slots deals a quarter damage', () => {
         const spell = ability();
-        assert.equal(hit(spell, victim()), 40);
-        assert.equal(hit(spell, victim(), { engagement: ENGAGEMENT_OVERFLOW_MULTIPLIER }), 10);
+        assert.equal(hit(spell, victim()), 20);
+        assert.equal(hit(spell, victim(), { engagement: ENGAGEMENT_OVERFLOW_MULTIPLIER }), 5);
     });
 
     test('six attackers on one medium defender: three at full, three reduced', () => {
@@ -148,8 +149,9 @@ describe('Engagement slots', () => {
         const firstTick = run.output.attacks[0].tick;
         const volley = run.output.attacks.filter(a => a.tick === firstTick && a.target === 'def').map(a => a.damage);
         assert.equal(volley.length, 6);
-        const full = volley.filter(d => d === 10).length;
-        const reduced = volley.filter(d => d < 10).length;
+        // basic_slash magnitude 14 vs defense 5 → 9 full; overflow ×0.25 → 2.
+        const full = volley.filter(d => d === 9).length;
+        const reduced = volley.filter(d => d < 9).length;
         assert.equal(full, 3, `expected 3 full-damage attackers, saw ${volley.join(',')}`);
         assert.equal(reduced, 3);
     });
@@ -157,7 +159,51 @@ describe('Engagement slots', () => {
     test('engagement slots are independent of an ability target cap', () => {
         // One attacker with a 4-target ability occupies exactly one slot on each defender.
         const spell = ability({}, { shape: 'area', maxTargets: 4, falloff: 1 });
-        assert.equal(hit(spell, victim(), { falloff: 1, engagement: 1 }), 40);
+        assert.equal(hit(spell, victim(), { falloff: 1, engagement: 1 }), 20);
+    });
+
+    test('staggered cooldowns still assign overflow by participantOrder among all engagers', () => {
+        // Ability cooldowns (not unit cooldown) gate re-fire. After the opening volley, only short-CD
+        // attackers fire while all six remain in range — slot rank must still follow participantOrder.
+        const base = structuredClone(fixture.abilities.find(a => a.id === 'basic_slash')!);
+        const fast = { ...base, id: 'fast_slash', auto: { ...base.auto, cooldown: 0.5 } };
+        const slow = { ...base, id: 'slow_slash', auto: { ...base.auto, cooldown: 99 } };
+        const cat = { abilities: [...fixture.abilities, fast, slow], statuses: fixture.statuses };
+        const defender = unit('def', 'enemies', { hp: 4000, maxHp: 4000, attack: 1, cooldown: 99 });
+
+        const earlyAllies = Array.from({ length: 6 }, (_, i) => unit(`atk${i}`, 'allies', {
+            position: { x: -50, y: i * 20 },
+            normalAttackAbilityId: i < 2 ? 'fast_slash' : 'slow_slash',
+        }));
+        const early = runCombatLab(scenario('stagger_early', earlyAllies, [defender]), cat);
+        const earlyByTick = new Map<number, typeof early.output.attacks>();
+        for (const attack of early.output.attacks.filter(a => a.target === 'def')) {
+            const list = earlyByTick.get(attack.tick) || [];
+            list.push(attack);
+            earlyByTick.set(attack.tick, list);
+        }
+        const earlyOnly = [...earlyByTick.entries()].find(([, list]) =>
+            list.length === 2 && list.every(a => a.unit === 'atk0' || a.unit === 'atk1'));
+        assert.ok(earlyOnly, 'expected a later tick with only the first two engagers firing');
+        // atk0/atk1 are ranks 1–2 on a medium (3 slots) → full basic_slash damage (14−5=9).
+        assert.ok(earlyOnly[1].every(a => a.damage === 9), `expected full slot damage, saw ${earlyOnly[1].map(a => a.damage).join(',')}`);
+
+        const lateAllies = Array.from({ length: 6 }, (_, i) => unit(`late${i}`, 'allies', {
+            position: { x: -50, y: i * 20 },
+            normalAttackAbilityId: i < 4 ? 'slow_slash' : 'fast_slash',
+        }));
+        const late = runCombatLab(scenario('stagger_late', lateAllies, [structuredClone(defender)]), cat);
+        const lateByTick = new Map<number, typeof late.output.attacks>();
+        for (const attack of late.output.attacks.filter(a => a.target === 'def')) {
+            const list = lateByTick.get(attack.tick) || [];
+            list.push(attack);
+            lateByTick.set(attack.tick, list);
+        }
+        const lateOnly = [...lateByTick.entries()].find(([, list]) =>
+            list.length === 2 && list.every(a => a.unit === 'late4' || a.unit === 'late5'));
+        assert.ok(lateOnly, 'expected a later tick with only the last two engagers firing');
+        // late4/late5 are ranks 5–6 → overflow ×0.25 → trunc(9×0.25)=2.
+        assert.ok(lateOnly[1].every(a => a.damage === 2), `expected overflow damage, saw ${lateOnly[1].map(a => `${a.unit}:${a.damage}`).join(',')}`);
     });
 });
 
@@ -165,20 +211,60 @@ describe('Swarm multiplier', () => {
     const swarm = victim({ tags: ['living', 'swarm'] });
     test('an area ability hits a swarm target harder', () => {
         const area = ability({}, { shape: 'area', maxTargets: 6, falloff: 1 });
-        assert.equal(hit(area, victim()), 40);
-        assert.equal(hit(area, swarm), Math.trunc(40 * SWARM_MULTIPLIER));
+        assert.equal(hit(area, victim()), 20);
+        assert.equal(hit(area, swarm), Math.trunc(20 * SWARM_MULTIPLIER));
     });
 
     test('a single-target ability gets no swarm bonus', () => {
-        assert.equal(hit(ability(), swarm), 40);
+        assert.equal(hit(ability(), swarm), 20);
     });
 
     test('boss and colossal targets never take the swarm bonus', () => {
         const area = ability({}, { shape: 'area', maxTargets: 6, falloff: 1 });
         assert.equal(isSwarmTarget(victim({ tags: ['swarm'], rank: 'boss' })), false);
         assert.equal(isSwarmTarget(victim({ tags: ['swarm', 'colossal'] })), false);
-        assert.equal(hit(area, victim({ tags: ['living', 'swarm'], rank: 'boss' })), 40);
-        assert.equal(hit(area, victim({ tags: ['living', 'swarm', 'colossal'] })), 40);
+        assert.equal(hit(area, victim({ tags: ['living', 'swarm'], rank: 'boss' })), 20);
+        assert.equal(hit(area, victim({ tags: ['living', 'swarm', 'colossal'] })), 20);
+    });
+});
+
+describe('Ability magnitude and cooldown consumption', () => {
+    test('resolveMechanics deals the effect magnitude, not attacker.attack', () => {
+        const spell = ability({ effects: [{ kind: 'damage', vector: 'physical', penetration: { barrier: 'blocked', armor: 'blocked', requiresBodyContact: false, requiresDamageDealt: false }, targetRequirement: [], magnitude: 7 }] });
+        // attacker.attack is 40; priced magnitude is 7.
+        assert.equal(hit(spell, victim()), 7);
+    });
+
+    test('mechanics_v1 attacks consume ability.auto.cooldown rather than unit cooldown', () => {
+        const slow = { ...structuredClone(fixture.abilities.find(a => a.id === 'basic_slash')!), id: 'slow_slash' };
+        slow.auto = { ...slow.auto, cooldown: 5 };
+        slow.effects = [{ ...slow.effects[0], magnitude: 14 }];
+        const run = runCombatLab(scenario('cd', [unit('ace', 'allies', { normalAttackAbilityId: 'slow_slash', cooldown: 0.5, attack: 99 })],
+            [unit('mob', 'enemies', { hp: 500, maxHp: 500, attack: 1, cooldown: 99 })]),
+            { abilities: [...fixture.abilities, slow], statuses: fixture.statuses });
+        const ticks = run.output.attacks.filter(a => a.unit === 'ace').map(a => a.tick);
+        assert.ok(ticks.length >= 2, 'ace should attack at least twice');
+        // deltaSeconds is 1/30; ability cooldown 5s ≈ 150 ticks between attacks, not the unit's 0.5s.
+        const gap = ticks[1] - ticks[0];
+        assert.ok(gap >= 140 && gap <= 160, `expected ~150 tick gap from ability cooldown, saw ${gap}`);
+    });
+
+    test('a stunned attacker still commits the ability cooldown on the tick it tried to swing', () => {
+        // The cooldown is charged on the attempt, before the act gate. A unit stunned for 2s with a
+        // 5s ability must fire at ~5s, not the instant the stun lapses at 2s.
+        const slow = { ...structuredClone(fixture.abilities.find(a => a.id === 'basic_slash')!), id: 'slow_slash' };
+        slow.auto = { ...slow.auto, cooldown: 5 };
+        const cat = { abilities: [...fixture.abilities, slow], statuses: fixture.statuses };
+        const stunned = unit('ace', 'allies', {
+            normalAttackAbilityId: 'slow_slash', cooldown: 0.5,
+            statuses: [{ id: 'stun', remainingSeconds: 2, intensity: 1 }],
+        });
+        const run = runCombatLab(scenario('stun_cd', [stunned],
+            [unit('mob', 'enemies', { hp: 500, maxHp: 500, attack: 1, cooldown: 99 })]), cat);
+        const first = run.output.attacks.find(a => a.unit === 'ace');
+        assert.ok(first, 'ace should eventually attack');
+        // deltaSeconds is 1/30: stun lapses near tick 60, the committed cooldown near tick 150.
+        assert.ok(first.tick >= 140, `expected the swing to wait out the committed cooldown, saw tick ${first.tick}`);
     });
 });
 

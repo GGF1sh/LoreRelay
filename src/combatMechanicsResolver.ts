@@ -123,12 +123,26 @@ function penetrationFactor(effect: Effect, target: MechanicsCombatant, receipts:
  * lethal timers alike — funnels through here so none of them writes HP directly and all of them
  * reach the lethality gate identically. Returns the HP actually removed.
  */
-function applyHpDamage(target: MechanicsCombatant, amount: number, receipts: MechanicsReceipt[], trueDeath = false): number {
+function applyHpDamage(target: MechanicsCombatant, amount: number, receipts: MechanicsReceipt[], trueDeath = false, deferred?: DeferredLethality): number {
     const before = target.hp;
     target.hp = Math.max(0, target.hp - Math.max(0, Math.trunc(amount)));
     const dealt = before - target.hp;
-    if (target.hp === 0 && dealt > 0) resolveLethality(target, receipts, trueDeath);
+    if (target.hp === 0 && dealt > 0) {
+        if (deferred) deferred.pending = true;
+        else resolveLethality(target, receipts, trueDeath);
+    }
     return dealt;
+}
+/**
+ * One advance may contain several lethal sources — aggregated DoT plus every expiring lethal timer.
+ * Collecting them here lets the gate run exactly once per tick, so endure spends at most one charge
+ * and undying/death are reported once, no matter how many statuses zeroed the target.
+ */
+interface DeferredLethality {
+    /** Set when any source drove HP to zero, whether or not the gate later holds the target at 1. */
+    pending: boolean;
+    /** Receipt wording that only becomes knowable once the gate has run. Applied after it does. */
+    fixups: Array<() => void>;
 }
 /** Single choke point for reaching 0 HP: undying and endure may hold the target at 1. */
 function resolveLethality(target: MechanicsCombatant, receipts: MechanicsReceipt[], trueDeath: boolean): void {
@@ -186,7 +200,7 @@ function insideExecuteBand(target: MechanicsCombatant): boolean {
  * never die; everyone else is executed only from inside their execution band, and otherwise takes
  * a flat share of maxHp. Both damage paths go through applyHpDamage so the lethality gate applies.
  */
-function resolveLethalTimer(target: MechanicsCombatant, statusId: string, receipts: MechanicsReceipt[]): void {
+function resolveLethalTimer(target: MechanicsCombatant, statusId: string, receipts: MechanicsReceipt[], deferred?: DeferredLethality): void {
     if (rankOf(target) === 'colossal') {
         const tag = LETHAL_TIMER_SUBSYSTEM_PRIORITY.find(candidate => (target.subsystems || []).some(system => system.tag === candidate && !system.destroyed));
         const subsystem = tag ? (target.subsystems || []).find(system => system.tag === tag && !system.destroyed) : undefined;
@@ -197,14 +211,20 @@ function resolveLethalTimer(target: MechanicsCombatant, statusId: string, receip
     }
     const hpBefore = target.hp;
     if (insideExecuteBand(target)) {
-        applyHpDamage(target, target.hp, receipts);
-        // The gate may have held the target at 1 HP via endure/undying.
-        receipts.push({ stage: 'lethal_timer', kind: target.hp > 0 ? 'doom_prevented' : 'doom_executed', statusId, amount: hpBefore - target.hp });
+        applyHpDamage(target, target.hp, receipts, false, deferred);
+        // The gate may hold the target at 1 HP via endure/undying. When it is deferred to the end of
+        // the advance the outcome is unknown here, so the receipt keeps its slot in order and is
+        // rewritten once the gate has run.
+        const receipt: MechanicsReceipt = { stage: 'lethal_timer', kind: 'doom_executed', statusId, amount: hpBefore - target.hp };
+        receipts.push(receipt);
+        const settle = () => { receipt.kind = target.hp > 0 ? 'doom_prevented' : 'doom_executed'; receipt.amount = hpBefore - target.hp; };
+        if (deferred) deferred.fixups.push(settle); else settle();
         return;
     }
-    const dealt = applyHpDamage(target, Math.trunc(target.maxHp * LETHAL_TIMER_FALLBACK_FRACTION), receipts);
+    const dealt = applyHpDamage(target, Math.trunc(target.maxHp * LETHAL_TIMER_FALLBACK_FRACTION), receipts, false, deferred);
     receipts.push({ stage: 'lethal_timer', kind: 'doom_fallback_damage', statusId, amount: dealt });
-    if (target.hp === 0) receipts.push({ stage: 'lethal_timer', kind: 'doom_executed', statusId, detail: 'fallback_lethal' });
+    const executed = () => { if (target.hp === 0) receipts.push({ stage: 'lethal_timer', kind: 'doom_executed', statusId, detail: 'fallback_lethal' }); };
+    if (deferred) deferred.fixups.push(executed); else executed();
 }
 
 /**
@@ -264,7 +284,10 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
             const effectiveArmor = effect.penetration.armor === 'passes'
                 ? 0
                 : Math.max(0, (effect.penetration.armor === 'reduced' ? Math.trunc(armorValue / 2) : armorValue) - penetration);
-            const armored = Math.trunc(Math.trunc(input.attacker.attack * scale) - effectiveArmor);
+            // AbilityDefinition.magnitude is the priced damage; attacker.attack is only a legacy fallback
+            // when an effect carries no authored magnitude (workshop probes, older fixtures).
+            const baseDamage = effect.magnitude > 0 ? effect.magnitude : input.attacker.attack;
+            const armored = Math.trunc(Math.trunc(baseDamage * scale) - effectiveArmor);
             const resist = clamp(target.resistances?.[effect.vector] || 0, -50, 75);
             // Delivery falloff, engagement crowding and the anti-horde bonus all land *before* the
             // minimum-damage floor, so every target an area attack reaches still takes at least 1.
@@ -327,6 +350,9 @@ export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: n
     }
 
     const expiredLethalTimers: string[] = [];
+    // Positive DoT ticks are summed and applied once below. Applying them per status would let each
+    // poison/burn/bleed instance trip the lethality gate on its own and drain a separate endure charge.
+    let dotDamage = 0;
     for (const status of next.statuses || []) {
         const before = status.remainingSeconds;
         status.remainingSeconds = Math.max(0, before - delta);
@@ -341,7 +367,8 @@ export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: n
             const residual = (status.residualMilli || 0) + Math.round(effectiveRate * delta * 1000);
             const whole = Math.trunc(residual / 1000);
             status.residualMilli = residual - whole * 1000;
-            if (whole > 0) next.hp = Math.max(0, next.hp - whole);
+            // Damage is banked for the shared gate; healing lands immediately, as it always has.
+            if (whole > 0) dotDamage += whole;
             else if (whole < 0) next.hp = Math.min(next.maxHp, next.hp - whole);
         }
         if (statusDefinition(options.statuses || [], status.id)?.statusClass !== 'lethal_timer') continue;
@@ -359,11 +386,16 @@ export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: n
     }
     next.statuses = (next.statuses || []).filter(status => status.remainingSeconds > 0);
 
+    // Every lethal source for this tick lands first, then the gate resolves once. DoT and doom
+    // therefore cannot bypass endure/undying, nor charge them twice for the same tick.
+    const deferred: DeferredLethality = { pending: false, fixups: [] };
+    if (dotDamage > 0) applyHpDamage(next, dotDamage, receipts, false, deferred);
     for (const statusId of expiredLethalTimers) {
         receipts.push({ stage: 'lethal_timer', kind: 'lethal_timer_expired', statusId });
-        resolveLethalTimer(next, statusId, receipts);
+        resolveLethalTimer(next, statusId, receipts, deferred);
     }
-    if (next.hp === 0 && !expiredLethalTimers.length) resolveLethality(next, receipts, false);
+    if (deferred.pending || next.hp === 0) resolveLethality(next, receipts, false);
+    for (const fixup of deferred.fixups) fixup();
     return next;
 }
 

@@ -11,7 +11,8 @@ import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
     COMMAND_INPUT_SCHEMA_VERSION, CommandInputEvent, CommandInputLog, CommandInputNormalizeErrorCode,
-    DEFAULT_COMMAND_TICK_RATE, MAX_COMMAND_INPUT_EVENTS, MAX_COMMAND_UNIT_IDS, RTS_COMMANDS, RtsCommand,
+    DEFAULT_COMMAND_TICK_RATE, MAX_COMMAND_INPUT_EVENTS, MAX_COMMAND_UNIT_IDS,
+    MAX_COMMAND_UNIT_REFS_TOTAL, RTS_COMMANDS, RtsCommand,
     describeUntrusted, emptyCommandInputLog, normalizeCommandInputLog,
 } from './combatRtsCommandInputCore';
 
@@ -911,6 +912,91 @@ describe('RTS command input — adversarial hardening (throwing / Proxy / length
             'INVALID_UNIT_IDS',
         );
     });
+
+    test('combined unit-reference budget rejects MAX_EVENTS × MAX_UNIT_IDS without huge alloc', () => {
+        // Compact Proxy: reports many events, each claiming a full multi-select.
+        // Independent caps would allow ~59M slots; the log-wide budget must stop it
+        // before the overflowing event's copy is allocated.
+        const perEventUnits = MAX_COMMAND_UNIT_IDS;
+        const eventsNeeded = Math.floor(MAX_COMMAND_UNIT_REFS_TOTAL / perEventUnits) + 1;
+        assert.equal(eventsNeeded, 65);
+        assert.ok(eventsNeeded <= MAX_COMMAND_INPUT_EVENTS);
+
+        let indexReads = 0;
+        const unitProxy = new Proxy([] as string[], {
+            get(_t, prop) {
+                if (prop === 'length') return perEventUnits;
+                if (typeof prop === 'string' && /^\d+$/.test(prop)) {
+                    indexReads++;
+                    return `u${prop}`;
+                }
+                return undefined;
+            },
+        });
+        // Unique (tick, seq) per index; shared unitIds Proxy reports a full multi-select.
+        const hostileEvents = new Proxy([] as unknown[], {
+            get(_t, prop) {
+                if (prop === 'length') return eventsNeeded;
+                if (typeof prop === 'string' && /^\d+$/.test(prop)) {
+                    const i = Number(prop);
+                    return {
+                        tick: i,
+                        seq: 0,
+                        issuerTeam: 0,
+                        unitIds: unitProxy,
+                        command: 'stop',
+                    };
+                }
+                return undefined;
+            },
+        });
+        const result = normalizeCommandInputLog(log(hostileEvents), TICK_RATE);
+        assert.equal(result.ok, false);
+        assert.equal(result.ok === false && result.error, 'INVALID_UNIT_IDS');
+        // Must fail on the budget check of the overflowing event — not after
+        // reading tens of millions of indices. At most one full multi-select
+        // worth of index reads past the last accepted event is plausible; the
+        // product attack would be orders of magnitude larger.
+        assert.ok(
+            indexReads <= MAX_COMMAND_UNIT_REFS_TOTAL + perEventUnits,
+            `indexReads=${indexReads} suggests the budget was not enforced before bulk copy`,
+        );
+        assert.ok(indexReads < 200_000, `indexReads=${indexReads} still far too high`);
+    });
+
+    test('log-wide unit budget accepts a fill that lands exactly on the cap', () => {
+        // 64 events × 1024 unitIds = MAX_COMMAND_UNIT_REFS_TOTAL.
+        const per = MAX_COMMAND_UNIT_IDS;
+        const count = MAX_COMMAND_UNIT_REFS_TOTAL / per;
+        assert.equal(count, 64);
+        const events = Array.from({ length: count }, (_, i) =>
+            event({
+                tick: i,
+                seq: 0,
+                unitIds: Array.from({ length: per }, (_, u) => `u${u}`),
+            }),
+        );
+        const result = normalizeCommandInputLog(log(events), TICK_RATE);
+        assert.equal(result.ok, true);
+        if (result.ok) {
+            assert.equal(result.log.events.length, count);
+            assert.equal(result.log.events[0].unitIds.length, per);
+        }
+    });
+
+    test('one more multi-select past the log-wide cap is rejected', () => {
+        const per = MAX_COMMAND_UNIT_IDS;
+        const count = MAX_COMMAND_UNIT_REFS_TOTAL / per;
+        const events = Array.from({ length: count + 1 }, (_, i) =>
+            event({
+                tick: i,
+                seq: 0,
+                unitIds: Array.from({ length: per }, (_, u) => `u${u}`),
+            }),
+        );
+        assertRejectsWithoutThrow(log(events), 'INVALID_UNIT_IDS');
+    });
+
 
     test('ordinary JSON inputs still produce identical canonical bytes', () => {
         const events = [

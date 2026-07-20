@@ -73,6 +73,18 @@ export const MAX_COMMAND_INPUT_EVENTS = COMMAND_TIMEOUT_TICKS_BASIS * 16;
  */
 export const MAX_COMMAND_UNIT_IDS = 1_024;
 
+/**
+ * Log-wide budget for unit-id slots across every event.
+ *
+ * Per-array caps alone still allow `MAX_COMMAND_INPUT_EVENTS × MAX_COMMAND_UNIT_IDS`
+ * (~59M) index reads and fresh array slots from a compact hostile Proxy. This
+ * cumulative budget is checked after each event's length is captured and
+ * *before* that event's copy is allocated. 64 full multi-selects (or many
+ * single-unit commands) is far above any real battle; there is no tighter
+ * authoritative total in the RTS design yet.
+ */
+export const MAX_COMMAND_UNIT_REFS_TOTAL = MAX_COMMAND_UNIT_IDS * 64;
+
 /** A destination in battlefield space, quantized to 1/1000. */
 export interface CommandPoint {
     x: number;
@@ -333,6 +345,8 @@ export function normalizeCommandInputLog(
 
     const events: CommandInputEvent[] = [];
     const seen = new Set<string>();
+    // Running total of unit-id slots accepted so far. Checked before each copy.
+    let totalUnitRefs = 0;
 
     for (let index = 0; index < eventCount; index++) {
         const sourceRead = safeGet(rawEvents, index);
@@ -393,6 +407,15 @@ export function normalizeCommandInputLog(
             return fail('INVALID_UNIT_IDS', `events[${index}].unitIds length is invalid`);
         }
         const unitIdCount = unitIdCountCaptured.length;
+        // Log-wide budget: reject before allocating this event's copy so
+        // MAX_EVENTS × MAX_UNIT_IDS cannot multiply into tens of millions of slots.
+        if (totalUnitRefs + unitIdCount > MAX_COMMAND_UNIT_REFS_TOTAL) {
+            return fail(
+                'INVALID_UNIT_IDS',
+                `events[${index}]: unitIds exceed log-wide budget of ${MAX_COMMAND_UNIT_REFS_TOTAL}`,
+            );
+        }
+        totalUnitRefs += unitIdCount;
 
         // Built by index assignment into a fresh, ordinary array — never
         // `unitIds.slice()`. Each element is read into `candidate` exactly once

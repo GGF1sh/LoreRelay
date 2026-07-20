@@ -348,8 +348,8 @@ describe('Direct headless light_attack', () => {
         });
         assert.equal(armoured.committedActions.length, 1);
         assert.equal(barred.committedActions.length, 1);
-        // Armour reduces damage: attack 20 - defense 10 = 10 (min 1 path in resolver).
-        assert.equal(armoured.committedActions[0].damageDealt, 10);
+        // Armour reduces damage from ability magnitude: 14 - defense 10 = 4.
+        assert.equal(armoured.committedActions[0].damageDealt, 4);
         // Barrier absorbs: receipts include barrier_absorbed and lower (or zero) HP damage.
         assert.ok(barred.mechanicsReceipts.some(e => e.receipt.kind === 'barrier_absorbed'));
         assert.ok(barred.combatants.enemy.mechanics.barrier);

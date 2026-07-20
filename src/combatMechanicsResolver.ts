@@ -264,7 +264,10 @@ export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
             const effectiveArmor = effect.penetration.armor === 'passes'
                 ? 0
                 : Math.max(0, (effect.penetration.armor === 'reduced' ? Math.trunc(armorValue / 2) : armorValue) - penetration);
-            const armored = Math.trunc(Math.trunc(input.attacker.attack * scale) - effectiveArmor);
+            // AbilityDefinition.magnitude is the priced damage; attacker.attack is only a legacy fallback
+            // when an effect carries no authored magnitude (workshop probes, older fixtures).
+            const baseDamage = effect.magnitude > 0 ? effect.magnitude : input.attacker.attack;
+            const armored = Math.trunc(Math.trunc(baseDamage * scale) - effectiveArmor);
             const resist = clamp(target.resistances?.[effect.vector] || 0, -50, 75);
             // Delivery falloff, engagement crowding and the anti-horde bonus all land *before* the
             // minimum-damage floor, so every target an area attack reaches still takes at least 1.
@@ -341,7 +344,9 @@ export function advanceMechanicsState(state: MechanicsCombatant, deltaSeconds: n
             const residual = (status.residualMilli || 0) + Math.round(effectiveRate * delta * 1000);
             const whole = Math.trunc(residual / 1000);
             status.residualMilli = residual - whole * 1000;
-            if (whole > 0) next.hp = Math.max(0, next.hp - whole);
+            // DoT must share the same lethality gate as ability damage and lethal-timer expiry so
+            // endure/undying still fire when poison/burn/bleed zeroes HP on the same tick as doom.
+            if (whole > 0) applyHpDamage(next, whole, receipts);
             else if (whole < 0) next.hp = Math.min(next.maxHp, next.hp - whole);
         }
         if (statusDefinition(options.statuses || [], status.id)?.statusClass !== 'lethal_timer') continue;

@@ -212,9 +212,32 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
 
         tickCount++;
 
-        // Engagement occupancy is scoped to a single tick and filled in participantOrder, so which
-        // attackers hold a defender's slots is deterministic.
-        const engagementCounts: Record<string, number> = {};
+        // Engagement slots are assigned each tick to every living hostile currently engaging a
+        // defender (in range, nearest enemy is that defender), ordered by participantOrder — not
+        // only to attackers who happen to fire this tick. Overflow beyond the size table deals ×0.25.
+        const engagementRankFor = (attackerName: string, defenderName: string): number => {
+            const defender = units[defenderName];
+            if (!defender || defender._dead) return 1;
+            const engagers = participantOrder.filter(name => {
+                const attacker = units[name];
+                if (!attacker || attacker._dead || attacker.team === defender.team) return false;
+                if (dist(attacker, defender) > attacker.attack_range) return false;
+                let nearest: string | null = null;
+                let best = Infinity;
+                for (const other of participantOrder) {
+                    const candidate = units[other];
+                    if (!candidate || candidate._dead || candidate.team === attacker.team) continue;
+                    const d = dist(attacker, candidate);
+                    if (d < best) {
+                        best = d;
+                        nearest = other;
+                    }
+                }
+                return nearest === defenderName;
+            });
+            const rank = engagers.indexOf(attackerName);
+            return rank < 0 ? engagers.length + 1 : rank + 1;
+        };
 
         // Evaluate gambits
         for (const unitName of participantOrder) {
@@ -359,11 +382,14 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
 
             const tryAttack = (targetName: string) => {
                 if (u._cooldown_timer > 0.0) return;
-                u._cooldown_timer = u.attack_cooldown;
                 const tu = units[targetName];
                 if (combatMode === 'mechanics_v1' && u.normalAttackAbility) {
                     if (!canAct(mechanicsStates[u.name])) return;
                     const ability = u.normalAttackAbility;
+                    // Consume the ability's priced cooldown so AoE loadouts pay their budgeted rate.
+                    u._cooldown_timer = typeof ability.auto?.cooldown === 'number' && ability.auto.cooldown > 0
+                        ? ability.auto.cooldown
+                        : u.attack_cooldown;
                     const maxTargets = Math.max(1, Math.trunc(ability.delivery?.maxTargets ?? 1));
                     const falloff = typeof ability.delivery?.falloff === 'number' ? ability.delivery.falloff : 1;
                     // Primary target first, then the rest of the hostile line in participantOrder. Selection is
@@ -375,9 +401,9 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                         const name = struck[index];
                         const victim = units[name];
                         if (!victim || victim._dead) continue;
-                        // Engagement slots are per defender per tick and are independent of the ability's target cap.
-                        const engaged = (engagementCounts[name] = (engagementCounts[name] || 0) + 1);
-                        const overflow = engaged > engagementSlotsFor(mechanicsStates[name]) ? ENGAGEMENT_OVERFLOW_MULTIPLIER : 1;
+                        // Fixed slot rank among all current engagers (participantOrder), independent of who fires this tick.
+                        const rank = engagementRankFor(u.name, name);
+                        const overflow = rank > engagementSlotsFor(mechanicsStates[name]) ? ENGAGEMENT_OVERFLOW_MULTIPLIER : 1;
                         const result = resolveMechanics({
                             ability, attacker: mechanicsStates[u.name], target: mechanicsStates[name],
                             statuses: spec.mechanics?.statuses || [],
@@ -391,6 +417,7 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
                     }
                     return;
                 }
+                u._cooldown_timer = u.attack_cooldown;
                 const damage = Math.max(1, u.attack - tu.defense);
                 
                 focusTarget[u.team] = targetName;

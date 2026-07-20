@@ -303,4 +303,43 @@ describe('Doom V1 — validator', () => {
     test('rejects direct death against colossal targets', () => {
         assert.ok(codes(build({ scaleBehavior: { ...DOOM.scaleBehavior, huge: 'full' } })).includes(AbilityValidationErrorCode.LETHAL_TIMER_COLOSSAL_DEATH));
     });
+
+    test('rejects undodgeable lethal timers that also pass barriers', () => {
+        const bad = build({
+            delivery: { ...DOOM.delivery, dodgeable: false },
+            effects: [{ ...structuredClone(DOOM.effects[0]), penetration: { ...DOOM.effects[0].penetration, barrier: 'passes' } }],
+        });
+        assert.ok(codes(bad).includes(AbilityValidationErrorCode.LETHAL_TIMER_NO_INTERCEPTION));
+    });
+
+    test('rejects counters that omit cleanse and dispel', () => {
+        assert.ok(codes(build({ counters: ['armor', 'evasion'] })).includes(AbilityValidationErrorCode.LETHAL_TIMER_COUNTER_REQUIRED));
+    });
+
+    test('rejects split lethal buildup that exceeds the aggregate cap', () => {
+        const half = structuredClone(DOOM.effects[0]);
+        half.magnitude = 20;
+        const bad = build({ effects: [half, structuredClone(half)] });
+        assert.ok(codes(bad).includes(AbilityValidationErrorCode.LETHAL_TIMER_BUILDUP_TOO_HIGH));
+    });
+});
+
+describe('Doom V1 — DoT and lethality gate on the same tick', () => {
+    test('DoT zeroing HP on the same advance as doom expiry still runs the lethality gate', () => {
+        const receipts: MechanicsReceipt[] = [];
+        // Poison deals whole HP this tick and doom expires on the same advance. Undying must still
+        // fire: without routing DoT through applyHpDamage, both paths skip the lethality gate.
+        const state: MechanicsCombatant = {
+            id: 't', hp: 2, maxHp: 100, attack: 0, defense: 0, tags: ['living'], buildup: {},
+            lethality: { endureCharges: 0, undyingSeconds: 5 },
+            statuses: [
+                { id: 'poison', remainingSeconds: 8, intensity: 1, residualMilli: 0 },
+                { id: 'doom', remainingSeconds: 0.02, intensity: 1, sourceId: 'caster' },
+            ],
+        };
+        const after = advanceMechanicsState(state, 1, { statuses: STATUSES, receipts });
+        assert.equal(after.hp, 1);
+        assert.ok(receipts.some(r => r.kind === 'undying'), `expected undying, saw ${receipts.map(r => r.kind).join(',')}`);
+        assert.ok(!receipts.some(r => r.kind === 'death'));
+    });
 });

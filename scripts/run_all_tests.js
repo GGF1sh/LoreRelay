@@ -21,6 +21,7 @@ const ROOT = path.join(__dirname, '..');
 const SCRIPTS = __dirname;
 const DEFAULT_TIMEOUT_MS = 60000;
 const { SIMULATION_TEST_FILES } = require('./simulation_test_manifest');
+const { COMBAT_TEST_GROUPS } = require('./combat_test_manifest');
 /** Unit scripts owned by run_simulation_tests.js  Eomit from unit category to avoid double runs. */
 const SIMULATION_BATCH_FILES = new Set(SIMULATION_TEST_FILES);
 
@@ -31,12 +32,26 @@ const SIMULATION_BATCH_FILES = new Set(SIMULATION_TEST_FILES);
  * validate.js already runs: test_turn_result_pipeline, test_lorebook_python,
  * test_state_patch, test_lorebook (do not list those separately).
  */
+/**
+ * Compiled `node:test` combat suites, registered as unit entries. Grouped so a
+ * failure names the area (`combat:direct-mode`) and `--list` shows the coverage.
+ */
+const COMBAT_MANIFEST_ENTRIES = COMBAT_TEST_GROUPS.map((group) => ({
+    category: 'unit',
+    runner: 'node-test',
+    file: group.id,
+    files: group.files,
+    description: group.description,
+    timeoutMs: group.timeoutMs,
+}));
+
 const MANIFEST = [
     { category: 'validate', file: 'validate_utf8_docs.js' },
     { category: 'validate', file: 'check_version_consistency.js' },
     { category: 'validate', file: 'check_i18n_keys.js' },
     { category: 'validate', file: 'validate_webview_html_structure.js' },
     { category: 'validate', file: 'validate.js' },
+    { category: 'unit', file: 'test_combat_manifest_coverage.js', description: 'guards the combat gate: every combat suite registered exactly once' },
     { category: 'unit', file: 'test_state_manager.js' },
     { category: 'unit', file: 'test_media_paths.js' },
     { category: 'unit', file: 'test_image_gen_circuit_core.js' },
@@ -354,6 +369,7 @@ const MANIFEST = [
         timeoutMs: 180000,
         description: 'deterministic world-engine regression batch (simulation_test_manifest.js)',
     },
+    ...COMBAT_MANIFEST_ENTRIES,
 ];
 
 for (const entry of MANIFEST) {
@@ -388,7 +404,82 @@ function resolveRunner(entry) {
     return process.execPath;
 }
 
+/**
+ * Totals reported by the compiled `node:test` combat suites, so CI states plainly
+ * how many combat assertions actually ran instead of only whether the step passed.
+ */
+const combatTotals = { groups: 0, tests: 0, pass: 0, fail: 0 };
+
+/**
+ * Reads `tests`/`pass`/`fail` from a `node:test` run summary.
+ *
+ * Both reporters must be handled: local TTY runs use `spec` (`ℹ tests 8`) while
+ * CI is non-TTY, where Node 20 defaults to `tap` (`# tests 8`). Getting this
+ * wrong silently reports zero executed combat tests, which is exactly the blind
+ * spot this gate exists to remove — `test_combat_manifest_coverage.js` pins it.
+ */
+function parseNodeTestTotals(output) {
+    const read = (key) => {
+        const match = String(output).match(new RegExp(`^[#ℹ]\\s*${key}\\s+(\\d+)\\s*$`, 'm'));
+        return match ? Number(match[1]) : 0;
+    };
+    return { tests: read('tests'), pass: read('pass'), fail: read('fail') };
+}
+
+function accumulateNodeTestTotals(output) {
+    const totals = parseNodeTestTotals(output);
+    combatTotals.tests += totals.tests;
+    combatTotals.pass += totals.pass;
+    combatTotals.fail += totals.fail;
+    return totals.tests;
+}
+
+/**
+ * Runs one group of compiled `node:test` suites in a single child process.
+ * Output is streamed through so CI keeps the per-suite detail, and captured so
+ * the run can report combat totals.
+ */
+function runNodeTestGroup(entry) {
+    const files = (entry.files || []).map((file) => path.join('out', file));
+    const missing = files.filter((file) => !fs.existsSync(path.join(ROOT, file)));
+    if (missing.length) {
+        return { ok: false, ms: 0, error: `missing compiled suites (run npm run compile): ${missing.join(', ')}` };
+    }
+
+    const timeoutMs = Number.isFinite(entry.timeoutMs)
+        ? Math.max(1000, Math.floor(entry.timeoutMs))
+        : DEFAULT_TIMEOUT_MS;
+    const started = Date.now();
+    const result = spawnSync(process.execPath, ['--test', ...files], {
+        cwd: ROOT,
+        encoding: 'utf-8',
+        env: process.env,
+        timeout: timeoutMs,
+        maxBuffer: 32 * 1024 * 1024,
+    });
+    const ms = Date.now() - started;
+    const output = `${result.stdout || ''}${result.stderr || ''}`;
+    if (output) { process.stdout.write(output); }
+
+    if (result.error) {
+        if (result.error.code === 'ETIMEDOUT') {
+            return { ok: false, ms, error: `timeout after ${timeoutMs}ms` };
+        }
+        return { ok: false, ms, error: result.error.message };
+    }
+
+    combatTotals.groups++;
+    const tests = accumulateNodeTestTotals(output);
+    console.log(`   ${entry.file}: ${files.length} suite file(s), ${tests} test(s)`);
+
+    const code = result.status ?? 1;
+    return code === 0 ? { ok: true, ms } : { ok: false, ms, error: `exit ${code}` };
+}
+
 function runEntry(entry) {
+    if (entry.runner === 'node-test') {
+        return runNodeTestGroup(entry);
+    }
     const scriptPath = path.join(SCRIPTS, entry.file);
     if (!fs.existsSync(scriptPath)) {
         return { ok: false, ms: 0, error: `missing: ${entry.file}` };
@@ -432,14 +523,17 @@ function printList() {
     for (const cat of ['validate', 'unit', 'smoke', 'simulation']) {
         console.log(`## ${cat} (${counts[cat]})`);
         for (const e of MANIFEST.filter((x) => x.category === cat)) {
-            const runner = e.runner === 'python' ? 'python' : 'node';
+            const runner = e.runner === 'python' ? 'python' : e.runner === 'node-test' ? 'node --test' : 'node';
             const timeout = e.timeoutMs ? ` timeout=${e.timeoutMs}ms` : '';
             const note = e.description ? `  E${e.description}` : '';
-            console.log(`  - [${runner}] ${e.file}${timeout}${note}`);
+            const suites = e.files ? ` (${e.files.length} suite file(s): ${e.files.join(', ')})` : '';
+            console.log(`  - [${runner}] ${e.file}${timeout}${note}${suites}`);
         }
         console.log('');
     }
+    const combatFiles = MANIFEST.filter((e) => e.runner === 'node-test').reduce((sum, e) => sum + e.files.length, 0);
     console.log(`Total entries: ${MANIFEST.length} (+ nested tests inside validate.js)`);
+    console.log(`Combat node:test groups: ${COMBAT_TEST_GROUPS.length} covering ${combatFiles} compiled suite files`);
 }
 
 function main() {
@@ -486,6 +580,9 @@ function main() {
             console.log(`  - [${r.entry.category}] ${r.entry.file}: ${r.error}`);
         }
     }
+    if (combatTotals.groups > 0) {
+        console.log(`Combat suites: ${combatTotals.groups} group(s), ${combatTotals.tests} tests, ${combatTotals.pass} passed, ${combatTotals.fail} failed`);
+    }
     console.log(`Duration: ${(totalMs / 1000).toFixed(1)}s`);
 
     if (failed > 0) {
@@ -502,6 +599,7 @@ module.exports = {
     MANIFEST,
     filterManifest,
     parseMode,
+    parseNodeTestTotals,
     printList,
     resolveRunner,
     runEntry,

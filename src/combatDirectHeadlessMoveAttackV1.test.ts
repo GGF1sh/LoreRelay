@@ -68,8 +68,12 @@ function seeds(allyOver: Partial<MechanicsCombatant> = {}, enemyOver: Partial<Me
     ];
 }
 
-function log(events: Array<Record<string, unknown>>) {
-    return { schemaVersion: DIRECT_INPUT_SCHEMA_VERSION, events };
+function log(events: Array<Record<string, unknown>>, tickRate = DIRECT_V1_TICK_RATE) {
+    return {
+        schemaVersion: DIRECT_INPUT_SCHEMA_VERSION,
+        tickRate,
+        events: events.map(e => ({ actorId: e.actorId ?? 'ally', ...e })),
+    };
 }
 
 function run(opts: {
@@ -80,15 +84,17 @@ function run(opts: {
     tickRate?: number;
     moveSpeed?: number;
 }) {
+    const tickRate = opts.tickRate ?? DIRECT_V1_TICK_RATE;
     const result = runDirectHeadlessMoveAttack({
         controlledCombatantId: 'ally',
         combatants: opts.combatants || seeds(),
         normalAttackAbility: opts.ability || slash,
         statuses,
         durationTicks: opts.durationTicks ?? 60,
-        tickRate: opts.tickRate ?? DIRECT_V1_TICK_RATE,
+        tickRate,
         moveSpeed: opts.moveSpeed ?? DIRECT_V1_MOVE_SPEED,
-        directInput: log(opts.events || []),
+        mode: 'direct_action',
+        directInput: log(opts.events || [], tickRate),
     });
     if (!result.ok) {
         assert.fail(`runDirectHeadlessMoveAttack failed: ${result.error}`);
@@ -443,3 +449,4 @@ describe('Regression: foundation / Golden Master / mechanics untouched', () => {
         assert.equal(legacy.mechanicsReceipts, undefined);
     });
 });
+

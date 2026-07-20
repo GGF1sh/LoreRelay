@@ -105,32 +105,62 @@ companion's gambit list for a stated duration (§5.2).
 
 ## 3. Dodge, stamina, and equivalence with auto evasion
 
+### 3.0 Correction — evasion credits (attack-count ceiling)
+
+**Update for COMBAT-DIRECT-DODGE-EVASION-CREDIT-V1:** time-based stamina alone is
+not a sufficient ceiling. Against sparse, high-power attacks a player with full
+stamina and good timing could land more *successful* i-frame avoids than the
+auto dodge counter would have produced on the same sequence of dodgeable hits.
+
+Therefore i-frame negation of a dodgeable hit additionally requires an
+**evasion credit** derived from the same effective-evasion interval as auto:
+
+```
+effEvasion = clamp(evasion - attacker.accuracy, 0, 50)   // shared with resolveMechanics
+interval   = ceil(100 / effEvasion)                      // effEvasion ≤ 0 → no credits
+```
+
+- Each **dodgeable** incoming attack against the controlled combatant increments
+  `dodgeableThreatCount`. When `count % interval === 0`, grant one credit
+  (`availableEvasionCredits`, hold cap **1**).
+- A successful i-frame avoid of a dodgeable hit **consumes** one credit and does
+  not call `resolveMechanics`. Without a credit the hit resolves normally even
+  inside i-frames (`iframe_no_credit`).
+- `delivery.dodgeable === false` never generates or spends credits and always
+  goes through the existing resolver (`undodgeable_hit`).
+- Skill still chooses *which* credited avoid to spend; total successful avoids
+  cannot exceed the auto counter on the same threat sequence.
+
+Stamina remains the cost of *attempting* a dodge (i-frame window). Credits cap
+*successful* avoids. Both are required for a free avoid.
+
 ### 3.1 The adopted equivalence rule
 
 > **Direct control never grants more total damage avoidance than the same
 > combatant's `evasion` would have produced under automation. It grants control
 > over *when* that avoidance lands.**
 
-Concretely, `evasion` is converted into a **mitigation budget** metered by
-stamina, rather than into a reaction test:
+Concretely, `evasion` is expressed as a **dual budget**: stamina meters how often
+the player may *open* an i-frame window, and attack-count **evasion credits**
+(§3.0) meter how many dodgeable hits may actually be negated:
 
 ```
-staminaMax        = 100                       (fixed)
-staminaRegenPerSec = 10 + evasion × 0.4       (evasion 0 → 10/s, evasion 50 → 30/s)
-dodgeStaminaCost   = 25
+staminaMax         = 100                      (fixed; stored as staminaMilli)
+staminaRegenPerSec = 20                       (V1 fixed rate)
+dodgeStaminaCost   = 25                       (+10 per consecutive dodge within 1 s)
 iframeSeconds      = DirectProfile.iframeMs ?? 300ms
+evasionCredits     = min(1, floor-gated auto interval grants)   // §3.0
 ```
 
-At `evasion 25` a combatant sustains roughly one dodge per 1.25 s, matching the
-25% of incoming attacks the auto counter would have negated over the same
-window. At `evasion 0` the budget is thin but non-zero — a defenceless unit can
-still dodge occasionally, which is a deliberate quality-of-life allowance rather
-than a mitigation gain, because the regen rate caps long-run totals.
+At `evasion 25` the auto interval is 4, so 40 dodgeable threats yield at most
+10 successful avoids — the same ceiling whether the player holds credits for
+dangerous hits or spends them early. At `evasion 0` no credits are ever
+granted, so i-frames never free-avoid dodgeable damage.
 
-**The ceiling is structural:** total i-frame seconds available in a fight of
-length `T` is bounded by `(staminaMax + staminaRegenPerSec × T) / dodgeStaminaCost
-× iframeSeconds`. No sequence of inputs exceeds it. There is no infinite
-invulnerability.
+**The ceiling is structural:** successful i-frame avoids of dodgeable hits are
+hard-capped by the shared auto interval, independent of stamina regen. Stamina
+only limits how many dodge *attempts* can be opened; without credits those
+attempts do not raise total avoidance above auto.
 
 ### 3.2 Where player skill is rewarded
 

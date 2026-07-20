@@ -207,13 +207,36 @@ function resolveLethalTimer(target: MechanicsCombatant, statusId: string, receip
     if (target.hp === 0) receipts.push({ stage: 'lethal_timer', kind: 'doom_executed', statusId, detail: 'fallback_lethal' });
 }
 
+/**
+ * Shared pure target-legality gate used by resolveMechanics and direct credit
+ * accounting. Area/beam may still hit untargetable defenders; everything else
+ * is blocked while the status is active.
+ */
+export function isMechanicsTargetLegal(
+    target: MechanicsCombatant,
+    ability: { delivery: { shape: string } },
+): boolean {
+    return !hasStatus(target, 'untargetable') || ['area', 'beam'].includes(ability.delivery.shape);
+}
+
+/**
+ * Whether this delivery may be auto-evaded / credit-counted as a dodgeable threat.
+ * - `dodgeable === false` is always undodgeable (any shape, including single/cone/line).
+ * - area/beam remain undodgeable even when dodgeable is true (existing rule).
+ */
+export function isAbilityAutoDodgeable(ability: { delivery: { shape: string; dodgeable?: boolean } }): boolean {
+    if (ability.delivery.dodgeable === false) return false;
+    if (ability.delivery.shape === 'area' || ability.delivery.shape === 'beam') return false;
+    return true;
+}
+
 /** Resolves one validated ability with no I/O, clock, RNG, callbacks, or mutation of the input objects. */
 export function resolveMechanics(input: MechanicsInput): MechanicsResolution {
     const target = clone(input.target); const receipts: MechanicsReceipt[] = []; let damageDealt = 0; let dodged = false;
-    const targetLegal = !hasStatus(target, 'untargetable') || ['area', 'beam'].includes(input.ability.delivery.shape);
+    const targetLegal = isMechanicsTargetLegal(target, input.ability);
     if (!targetLegal) return { target, receipts: [{ stage: 'targeting', kind: 'target_illegal' }], damageDealt, dodged, targetLegal };
-    const cannotDodge = ['area', 'beam'].includes(input.ability.delivery.shape);
-    if (!cannotDodge) {
+    // Shared undodgeable gate: explicit dodgeable:false OR area/beam geometry.
+    if (isAbilityAutoDodgeable(input.ability)) {
         const evasion = hasStatus(target, 'paralysis') ? 0 : clamp((target.evasion || 0) - (input.attacker.accuracy || 0), 0, 50);
         if (evasion > 0) { const count = (target.incomingHitCount || 0) + 1; target.incomingHitCount = count; dodged = count % Math.ceil(100 / evasion) === 0; }
         if (dodged) return { target, receipts: [{ stage: 'hit', kind: 'dodged' }], damageDealt, dodged, targetLegal };

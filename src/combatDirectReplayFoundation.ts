@@ -121,7 +121,7 @@ export function runDirectReplayFoundation(input: DirectReplayFoundationInput): D
  */
 export function emptyLogMatchesBareResolve(
     spec: BattleSpec,
-    requestedMode: 'legacy_gambit' | 'mechanics_gambit' | 'direct_action' | 'command_spectator',
+    requestedMode: 'legacy_gambit' | 'mechanics_gambit' | 'direct_action' | 'command' | 'spectator',
     capabilities: CombatModeCapabilities,
 ): boolean {
     const foundation = runDirectReplayFoundation({

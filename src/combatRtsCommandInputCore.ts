@@ -12,11 +12,25 @@
  * instead of silent defaults. A replay is only reproducible if two logs that
  * mean the same thing serialize to the same bytes, so normalization produces a
  * canonical form rather than echoing whatever it was handed.
+ *
+ * Adversarial boundary (COMBAT-RTS-COMMAND-INPUT-ADVERSARIAL-HARDENING-001):
+ * untrusted property reads and length captures are try/catch-isolated so
+ * throwing getters, Proxy traps, and revoked Proxies become explicit
+ * rejections rather than uncaught exceptions. Error details never invoke
+ * caller toString / valueOf / Symbol.toPrimitive / toJSON on untrusted values.
+ * Captured lengths are validated before any `new Array(n)`.
  */
 
 import { quantizeScalar } from './combatDirectInputCore';
 
 export const COMMAND_INPUT_SCHEMA_VERSION = 'combat-command-input-v1';
+
+/**
+ * Basis for the event-count cap. Matches `COMBAT_TIMEOUT_TICKS` in
+ * `gambitCombatCore` (3600). Duplicated here so this pure schema module does
+ * not import the combat runtime.
+ */
+const COMMAND_TIMEOUT_TICKS_BASIS = 3600;
 
 /**
  * The five verbs the RTS spine understands.
@@ -39,6 +53,25 @@ const POINT_COMMANDS: ReadonlySet<string> = new Set(['move_to', 'attack_move']);
 /** Commands that require a target unit. */
 const TARGET_COMMANDS: ReadonlySet<string> = new Set(['attack_target']);
 const COMMAND_SET: ReadonlySet<string> = new Set(RTS_COMMANDS);
+
+/**
+ * Hard cap on events in one command log.
+ *
+ * Derived from `COMMAND_TIMEOUT_TICKS_BASIS` (3600 = combat timeout ticks) × 16
+ * commands/tick — a generous ceiling above any realistic player input rate, but
+ * still finite so a hostile `length` cannot force multi-gigabyte allocations.
+ * There is no tighter authoritative event budget in the RTS design yet.
+ */
+export const MAX_COMMAND_INPUT_EVENTS = COMMAND_TIMEOUT_TICKS_BASIS * 16;
+
+/**
+ * Hard cap on unitIds per command.
+ *
+ * Skirmish rosters and engagement tables are far smaller; 1024 is an explicit
+ * defensive bound so drag-select cannot be used as a length-DoS vector, and so
+ * `new Array(untrustedLength)` is never attempted with hostile values.
+ */
+export const MAX_COMMAND_UNIT_IDS = 1_024;
 
 /** A destination in battlefield space, quantized to 1/1000. */
 export interface CommandPoint {
@@ -100,8 +133,20 @@ export function emptyCommandInputLog(tickRate: number = DEFAULT_COMMAND_TICK_RAT
     return { schemaVersion: COMMAND_INPUT_SCHEMA_VERSION, tickRate, events: [] };
 }
 
+/**
+ * Array.isArray throws on a revoked Proxy. Treat that as "not a usable array"
+ * so the normalizer can reject instead of propagating.
+ */
+function safeIsArray(value: unknown): value is unknown[] {
+    try {
+        return Array.isArray(value);
+    } catch {
+        return false;
+    }
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+    return typeof value === 'object' && value !== null && !safeIsArray(value);
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -118,6 +163,76 @@ function isNonEmptyString(value: unknown): value is string {
 
 function fail(error: CommandInputNormalizeErrorCode, detail?: string): CommandInputNormalizeResult {
     return { ok: false, error, detail };
+}
+
+/**
+ * One property read of untrusted input, isolated so throwing getters / Proxy
+ * traps / revoked Proxies become a soft failure instead of an uncaught throw.
+ * Never used for trusted, internally-built values.
+ */
+function safeGet(target: object, key: PropertyKey): { ok: true; value: unknown } | { ok: false } {
+    try {
+        return { ok: true, value: Reflect.get(target, key) };
+    } catch {
+        return { ok: false };
+    }
+}
+
+/**
+ * Stable, side-effect-free description of an untrusted value for error details.
+ *
+ * Must not invoke caller-controlled `toString` / `valueOf` / `Symbol.toPrimitive`
+ * / `toJSON` / `constructor`. Primitive numbers and short strings are rendered
+ * directly (JSON-compatible input keeps the same detail bytes as before for
+ * plain values); objects and functions collapse to type labels only.
+ */
+export function describeUntrusted(value: unknown): string {
+    if (value === null) return 'null';
+    if (value === undefined) return 'undefined';
+    const kind = typeof value;
+    if (kind === 'string') {
+        // Cap detail size so a multi-megabyte string cannot bloat error paths.
+        // Short strings (schema versions, unit ids) keep their exact text so
+        // existing rejection details stay stable for ordinary JSON inputs.
+        const text = value as string;
+        if (text.length > 64) return `string(len=${text.length})`;
+        return text;
+    }
+    if (kind === 'number') {
+        const n = value as number;
+        if (Number.isNaN(n)) return 'NaN';
+        if (n === Infinity) return 'Infinity';
+        if (n === -Infinity) return '-Infinity';
+        // Template of a finite number never calls user code.
+        return Object.is(n, -0) ? '0' : `${n}`;
+    }
+    if (kind === 'boolean') return value ? 'true' : 'false';
+    if (kind === 'bigint') return 'bigint';
+    if (kind === 'symbol') return 'symbol';
+    if (kind === 'function') return 'function';
+    if (safeIsArray(value)) return 'array';
+    return 'object';
+}
+
+/**
+ * Capture and validate an untrusted array length before any allocation or
+ * iteration. Rejects non-numbers, non-integers, non-finite values, negatives,
+ * and values above `max` (and below `min`).
+ */
+function captureArrayLength(
+    array: object,
+    min: number,
+    max: number,
+): { ok: true; length: number } | { ok: false } {
+    const read = safeGet(array, 'length');
+    if (!read.ok) return { ok: false };
+    const length = read.value;
+    if (typeof length !== 'number' || !Number.isFinite(length) || !Number.isInteger(length)) {
+        return { ok: false };
+    }
+    if (length < min || length > max) return { ok: false };
+    // Fold -0 (=== 0) so length bindings stay ordinary.
+    return { ok: true, length: length === 0 ? 0 : length };
 }
 
 /**
@@ -164,6 +279,11 @@ function quantizeCoordinate(value: number): number {
  * than preserving them is deliberate — it guarantees that two logs expressing
  * the same commands serialize identically, which is what makes replay
  * comparison meaningful. The input is never mutated.
+ *
+ * Untrusted property access is isolated: a throw from a getter or Proxy trap
+ * becomes an explicit `{ ok: false }` at the matching hierarchy, never an
+ * uncaught exception. Internal logic after values are captured is not wrapped
+ * in a blanket catch — implementation bugs must still surface.
  */
 export function normalizeCommandInputLog(
     raw: unknown,
@@ -172,49 +292,75 @@ export function normalizeCommandInputLog(
     if (!isPlainObject(raw)) {
         return fail('INVALID_LOG', 'log must be an object');
     }
-    // Read once. A getter could otherwise answer the comparison with one value
-    // and the failure detail's String() conversion with another — or throw on
-    // the second access — the same check-once/use-twice shape already fixed
-    // elsewhere in this function.
-    const schemaVersion = raw.schemaVersion;
+
+    // ---- top-level fields: one safe read each ----
+    const schemaVersionRead = safeGet(raw, 'schemaVersion');
+    if (!schemaVersionRead.ok) {
+        return fail('INVALID_SCHEMA_VERSION', 'schemaVersion unreadable');
+    }
+    const schemaVersion = schemaVersionRead.value;
     if (schemaVersion !== COMMAND_INPUT_SCHEMA_VERSION) {
-        return fail('INVALID_SCHEMA_VERSION', String(schemaVersion));
+        return fail('INVALID_SCHEMA_VERSION', describeUntrusted(schemaVersion));
     }
 
-    const tickRate = raw.tickRate;
+    const tickRateRead = safeGet(raw, 'tickRate');
+    if (!tickRateRead.ok) {
+        return fail('INVALID_TICK_RATE', 'tickRate unreadable');
+    }
+    const tickRate = tickRateRead.value;
     if (!isFiniteNumber(tickRate) || !Number.isInteger(tickRate) || tickRate <= 0) {
-        return fail('INVALID_TICK_RATE', String(tickRate));
+        return fail('INVALID_TICK_RATE', describeUntrusted(tickRate));
     }
     if (expectedTickRate !== undefined && tickRate !== expectedTickRate) {
+        // expectedTickRate is caller-supplied trusted; tickRate is a validated number.
         return fail('INVALID_TICK_RATE', `expected ${expectedTickRate}, got ${tickRate}`);
     }
 
-    // Read `raw.events` exactly once. It can itself be a getter on a hostile
-    // `raw` object, and re-fetching it for the array check, the length, and
-    // each index — as the old code did — would let it hand back a different
-    // value (or a different "array") on each access.
-    const rawEvents = raw.events;
-    if (!Array.isArray(rawEvents)) {
+    const eventsRead = safeGet(raw, 'events');
+    if (!eventsRead.ok) {
+        return fail('INVALID_LOG', 'events unreadable');
+    }
+    const rawEvents = eventsRead.value;
+    if (!safeIsArray(rawEvents)) {
         return fail('INVALID_LOG', 'events must be an array');
     }
-    const eventCount = rawEvents.length;
+
+    const eventCountCaptured = captureArrayLength(rawEvents, 0, MAX_COMMAND_INPUT_EVENTS);
+    if (!eventCountCaptured.ok) {
+        return fail('INVALID_LOG', 'events length is invalid');
+    }
+    const eventCount = eventCountCaptured.length;
 
     const events: CommandInputEvent[] = [];
     const seen = new Set<string>();
 
     for (let index = 0; index < eventCount; index++) {
-        const source = rawEvents[index];
+        const sourceRead = safeGet(rawEvents, index);
+        if (!sourceRead.ok) {
+            return fail('INVALID_EVENT', `events[${index}] unreadable`);
+        }
+        const source = sourceRead.value;
         if (!isPlainObject(source)) {
             return fail('INVALID_EVENT', `events[${index}] must be an object`);
         }
 
-        const { tick, seq, issuerTeam, unitIds, command, point, targetId } = source;
-
-        if (!isNonNegativeInteger(tick)) {
-            return fail('INVALID_TICK', `events[${index}].tick=${String(tick)}`);
+        // Field reads are individual safe gets — never destructure untrusted objects.
+        const tickRead = safeGet(source, 'tick');
+        if (!tickRead.ok) {
+            return fail('INVALID_TICK', `events[${index}].tick unreadable`);
         }
+        const tick = tickRead.value;
+        if (!isNonNegativeInteger(tick)) {
+            return fail('INVALID_TICK', `events[${index}].tick=${describeUntrusted(tick)}`);
+        }
+
+        const seqRead = safeGet(source, 'seq');
+        if (!seqRead.ok) {
+            return fail('INVALID_SEQ', `events[${index}].seq unreadable`);
+        }
+        const seq = seqRead.value;
         if (!isNonNegativeInteger(seq)) {
-            return fail('INVALID_SEQ', `events[${index}].seq=${String(seq)}`);
+            return fail('INVALID_SEQ', `events[${index}].seq=${describeUntrusted(seq)}`);
         }
 
         const key = `${tick}:${seq}`;
@@ -223,44 +369,55 @@ export function normalizeCommandInputLog(
         }
         seen.add(key);
 
+        const issuerTeamRead = safeGet(source, 'issuerTeam');
+        if (!issuerTeamRead.ok) {
+            return fail('INVALID_TEAM', `events[${index}].issuerTeam unreadable`);
+        }
+        const issuerTeam = issuerTeamRead.value;
         if (issuerTeam !== 0 && issuerTeam !== 1) {
-            return fail('INVALID_TEAM', `events[${index}].issuerTeam=${String(issuerTeam)}`);
+            return fail('INVALID_TEAM', `events[${index}].issuerTeam=${describeUntrusted(issuerTeam)}`);
         }
 
-        if (!Array.isArray(unitIds)) {
+        const unitIdsRead = safeGet(source, 'unitIds');
+        if (!unitIdsRead.ok) {
+            return fail('INVALID_UNIT_IDS', `events[${index}].unitIds unreadable`);
+        }
+        const unitIds = unitIdsRead.value;
+        if (!safeIsArray(unitIds)) {
             return fail('INVALID_UNIT_IDS', `events[${index}].unitIds must be a non-empty array`);
         }
-        // `unitIds.length` is read exactly once, into `unitIdCount`, and that
-        // one binding drives the non-empty check, the copy's allocation size,
-        // and the iteration bound below. The old code read `.length` a second
-        // time to size the copy after already reading it once for the
-        // non-empty check — a hostile length getter/Proxy trap can answer 1
-        // the first time (passing "non-empty") and 0 the second, producing an
-        // empty copy that should have been rejected outright.
-        const unitIdCount = unitIds.length;
-        if (unitIdCount === 0) {
-            return fail('INVALID_UNIT_IDS', `events[${index}].unitIds must be a non-empty array`);
+
+        // Length is captured and validated *before* any allocation or iteration.
+        const unitIdCountCaptured = captureArrayLength(unitIds, 1, MAX_COMMAND_UNIT_IDS);
+        if (!unitIdCountCaptured.ok) {
+            return fail('INVALID_UNIT_IDS', `events[${index}].unitIds length is invalid`);
         }
+        const unitIdCount = unitIdCountCaptured.length;
+
         // Built by index assignment into a fresh, ordinary array — never
-        // `unitIds.slice()`. `.slice()` (or any Array.prototype method) would
-        // read every index a second time and would consult the input's own
-        // `constructor`/`Symbol.species` to decide what to construct; on a
-        // hostile input either of those can differ from what validation just
-        // saw. Each element below is read into `candidate` exactly once, that
-        // same binding is what gets validated AND what gets copied — a getter
-        // that returns something else on a second access never gets a second
-        // access to return it from.
+        // `unitIds.slice()`. Each element is read into `candidate` exactly once
+        // via safeGet so a throwing index trap cannot escape, and a getter that
+        // returns something else on a second access never gets a second access.
         const copiedUnitIds: string[] = new Array(unitIdCount);
         for (let u = 0; u < unitIdCount; u++) {
-            const candidate = unitIds[u];
+            const candidateRead = safeGet(unitIds, u);
+            if (!candidateRead.ok) {
+                return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}] unreadable`);
+            }
+            const candidate = candidateRead.value;
             if (!isNonEmptyString(candidate)) {
-                return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}]=${String(candidate)}`);
+                return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}]=${describeUntrusted(candidate)}`);
             }
             copiedUnitIds[u] = candidate;
         }
 
+        const commandRead = safeGet(source, 'command');
+        if (!commandRead.ok) {
+            return fail('INVALID_COMMAND', `events[${index}].command unreadable`);
+        }
+        const command = commandRead.value;
         if (typeof command !== 'string' || !COMMAND_SET.has(command)) {
-            return fail('INVALID_COMMAND', `events[${index}].command=${String(command)}`);
+            return fail('INVALID_COMMAND', `events[${index}].command=${describeUntrusted(command)}`);
         }
 
         const normalized: CommandInputEvent = {
@@ -272,24 +429,33 @@ export function normalizeCommandInputLog(
         };
 
         if (POINT_COMMANDS.has(command)) {
+            const pointRead = safeGet(source, 'point');
+            if (!pointRead.ok) {
+                return fail('INVALID_POINT', `events[${index}]: ${command} point unreadable`);
+            }
+            const point = pointRead.value;
             if (!isPlainObject(point)) {
                 return fail('INVALID_POINT', `events[${index}]: ${command} requires a point`);
             }
-            // point.x / point.y read exactly once each, into rawX/rawY. The old
-            // code read them once for the finite check and again as the
-            // quantizeCoordinate arguments — two separate property accesses a
-            // getter could answer differently, e.g. a valid finite number for
-            // the check and something else entirely for the value actually used.
-            const rawX = point.x;
-            const rawY = point.y;
+            const rawXRead = safeGet(point, 'x');
+            const rawYRead = safeGet(point, 'y');
+            if (!rawXRead.ok || !rawYRead.ok) {
+                return fail('NON_FINITE', `events[${index}].point unreadable`);
+            }
+            const rawX = rawXRead.value;
+            const rawY = rawYRead.value;
             if (!isFiniteNumber(rawX) || !isFiniteNumber(rawY)) {
-                return fail('NON_FINITE', `events[${index}].point=(${String(rawX)}, ${String(rawY)})`);
+                return fail(
+                    'NON_FINITE',
+                    `events[${index}].point=(${describeUntrusted(rawX)}, ${describeUntrusted(rawY)})`,
+                );
             }
             const quantizedX = quantizeCoordinate(rawX);
             const quantizedY = quantizeCoordinate(rawY);
             // The raw values passed the finite check above, but quantization itself
             // can overflow a large-but-finite coordinate to +/-Infinity. Re-checking
             // here is what keeps a non-finite value from ever reaching an ok:true log.
+            // quantizedX/Y are our own numbers — safe to embed.
             if (!isFiniteNumber(quantizedX) || !isFiniteNumber(quantizedY)) {
                 return fail('NON_FINITE', `events[${index}].point quantized to (${quantizedX}, ${quantizedY})`);
             }
@@ -297,6 +463,11 @@ export function normalizeCommandInputLog(
         }
 
         if (TARGET_COMMANDS.has(command)) {
+            const targetIdRead = safeGet(source, 'targetId');
+            if (!targetIdRead.ok) {
+                return fail('INVALID_TARGET_ID', `events[${index}]: ${command} targetId unreadable`);
+            }
+            const targetId = targetIdRead.value;
             if (!isNonEmptyString(targetId)) {
                 return fail('INVALID_TARGET_ID', `events[${index}]: ${command} requires a targetId`);
             }

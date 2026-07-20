@@ -11,8 +11,8 @@ import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
     COMMAND_INPUT_SCHEMA_VERSION, CommandInputEvent, CommandInputLog, CommandInputNormalizeErrorCode,
-    DEFAULT_COMMAND_TICK_RATE, RTS_COMMANDS, RtsCommand,
-    emptyCommandInputLog, normalizeCommandInputLog,
+    DEFAULT_COMMAND_TICK_RATE, MAX_COMMAND_INPUT_EVENTS, MAX_COMMAND_UNIT_IDS, RTS_COMMANDS, RtsCommand,
+    describeUntrusted, emptyCommandInputLog, normalizeCommandInputLog,
 } from './combatRtsCommandInputCore';
 
 const TICK_RATE = 30;
@@ -698,3 +698,250 @@ describe('RTS command input — other single-read fixes found by the limited aud
         assert.equal(result.ok === false && result.detail, 'v-999');
     });
 });
+
+describe('RTS command input — adversarial hardening (throwing / Proxy / length)', () => {
+    // COMBAT-RTS-COMMAND-INPUT-ADVERSARIAL-HARDENING-001: normalizeCommandInputLog
+    // must never throw on hostile unknown input. Every case asserts doesNotThrow
+    // and an explicit { ok: false, error }.
+
+    function assertRejectsWithoutThrow(raw: unknown, code: CommandInputNormalizeErrorCode): void {
+        let result: ReturnType<typeof normalizeCommandInputLog> | undefined;
+        assert.doesNotThrow(() => { result = normalizeCommandInputLog(raw, TICK_RATE); });
+        assert.ok(result, 'normalize produced no result');
+        assert.equal(result!.ok, false, `expected ${code}, but normalization succeeded`);
+        assert.equal(result!.ok === false && result!.error, code);
+    }
+
+    test('schemaVersion getter throw → INVALID_SCHEMA_VERSION, no throw', () => {
+        const raw = {
+            get schemaVersion() { throw new Error('schemaVersion boom'); },
+            tickRate: TICK_RATE,
+            events: [],
+        };
+        assertRejectsWithoutThrow(raw, 'INVALID_SCHEMA_VERSION');
+    });
+
+    test('tickRate getter throw → INVALID_TICK_RATE, no throw', () => {
+        const raw = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            get tickRate() { throw new Error('tickRate boom'); },
+            events: [],
+        };
+        assertRejectsWithoutThrow(raw, 'INVALID_TICK_RATE');
+    });
+
+    test('events getter throw → INVALID_LOG, no throw', () => {
+        const raw = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: TICK_RATE,
+            get events() { throw new Error('events boom'); },
+        };
+        assertRejectsWithoutThrow(raw, 'INVALID_LOG');
+    });
+
+    test('events.length getter throw → INVALID_LOG, no throw', () => {
+        const events = new Proxy([] as unknown[], {
+            get(target, prop, receiver) {
+                if (prop === 'length') throw new Error('events.length boom');
+                return Reflect.get(target, prop, receiver);
+            },
+        });
+        assertRejectsWithoutThrow(log(events), 'INVALID_LOG');
+    });
+
+    test('events[index] getter throw → INVALID_EVENT, no throw', () => {
+        const events: unknown[] = [event()];
+        Object.defineProperty(events, '0', {
+            get() { throw new Error('events[0] boom'); },
+            configurable: true,
+        });
+        assertRejectsWithoutThrow(log(events), 'INVALID_EVENT');
+    });
+
+    test('event field getters throw → hierarchical codes, no throw', () => {
+        const fields: Array<[string, CommandInputNormalizeErrorCode]> = [
+            ['tick', 'INVALID_TICK'],
+            ['seq', 'INVALID_SEQ'],
+            ['issuerTeam', 'INVALID_TEAM'],
+            ['unitIds', 'INVALID_UNIT_IDS'],
+            ['command', 'INVALID_COMMAND'],
+        ];
+        for (const [field, code] of fields) {
+            const source: Record<string, unknown> = event();
+            Object.defineProperty(source, field, {
+                get() { throw new Error(`${field} boom`); },
+                configurable: true,
+                enumerable: true,
+            });
+            assertRejectsWithoutThrow(log([source]), code);
+        }
+    });
+
+    test('unitIds.length getter throw → INVALID_UNIT_IDS, no throw', () => {
+        const unitIds = new Proxy(['knight'], {
+            get(target, prop, receiver) {
+                if (prop === 'length') throw new Error('unitIds.length boom');
+                return Reflect.get(target, prop, receiver);
+            },
+        });
+        assertRejectsWithoutThrow(log([event({ unitIds })]), 'INVALID_UNIT_IDS');
+    });
+
+    test('unitIds[index] getter throw → INVALID_UNIT_IDS, no throw', () => {
+        const unitIds = ['knight', 'archer'];
+        Object.defineProperty(unitIds, '1', {
+            get() { throw new Error('unitIds[1] boom'); },
+            configurable: true,
+        });
+        assertRejectsWithoutThrow(log([event({ unitIds })]), 'INVALID_UNIT_IDS');
+    });
+
+    test('point.x / point.y getter throw → NON_FINITE, no throw', () => {
+        const throwX = {
+            get x() { throw new Error('point.x boom'); },
+            y: 0,
+        };
+        assertRejectsWithoutThrow(log([event({ command: 'move_to', point: throwX })]), 'NON_FINITE');
+        const throwY = {
+            x: 0,
+            get y() { throw new Error('point.y boom'); },
+        };
+        assertRejectsWithoutThrow(log([event({ command: 'move_to', point: throwY })]), 'NON_FINITE');
+    });
+
+    test('revoked Proxy at log / events / unitIds / point does not throw', () => {
+        const revokedLog = Proxy.revocable({
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: TICK_RATE,
+            events: [],
+        }, {});
+        revokedLog.revoke();
+        assertRejectsWithoutThrow(revokedLog.proxy, 'INVALID_SCHEMA_VERSION');
+
+        const targetEvents: unknown[] = [event()];
+        const revokedEvents = Proxy.revocable(targetEvents, {});
+        revokedEvents.revoke();
+        // Array.isArray still true; length / index access throws → INVALID_LOG.
+        assertRejectsWithoutThrow(log(revokedEvents.proxy as unknown as unknown[]), 'INVALID_LOG');
+
+        const unitTarget = ['knight'];
+        const revokedUnits = Proxy.revocable(unitTarget, {});
+        revokedUnits.revoke();
+        assertRejectsWithoutThrow(log([event({ unitIds: revokedUnits.proxy as unknown as string[] })]), 'INVALID_UNIT_IDS');
+
+        const pointTarget = { x: 1, y: 2 };
+        const revokedPoint = Proxy.revocable(pointTarget, {});
+        revokedPoint.revoke();
+        assertRejectsWithoutThrow(log([event({ command: 'move_to', point: revokedPoint.proxy })]), 'NON_FINITE');
+    });
+
+    test('throwing toString / valueOf / Symbol.toPrimitive never runs via error details', () => {
+        const traps: unknown[] = [
+            {
+                toString() { throw new Error('toString must not run'); },
+                valueOf() { throw new Error('valueOf must not run'); },
+                [Symbol.toPrimitive]() { throw new Error('toPrimitive must not run'); },
+            },
+            {
+                toJSON() { throw new Error('toJSON must not run'); },
+                toString() { throw new Error('toString must not run'); },
+            },
+        ];
+        for (const trap of traps) {
+            assert.doesNotThrow(() => describeUntrusted(trap));
+            assert.equal(describeUntrusted(trap), 'object');
+            assertRejectsWithoutThrow(log([], { schemaVersion: trap }), 'INVALID_SCHEMA_VERSION');
+            assertRejectsWithoutThrow(log([event({ tick: trap })]), 'INVALID_TICK');
+            assertRejectsWithoutThrow(log([event({ command: trap })]), 'INVALID_COMMAND');
+            assertRejectsWithoutThrow(
+                log([event({ command: 'move_to', point: { x: trap, y: 0 } })]),
+                'NON_FINITE',
+            );
+        }
+    });
+
+    test('function and array untrusted values describe as type labels only', () => {
+        assert.equal(describeUntrusted(() => 1), 'function');
+        assert.equal(describeUntrusted([1, 2]), 'array');
+        assert.equal(describeUntrusted({ a: 1 }), 'object');
+        assert.equal(describeUntrusted(null), 'null');
+        assert.equal(describeUntrusted(undefined), 'undefined');
+        assert.equal(describeUntrusted(NaN), 'NaN');
+        assert.equal(describeUntrusted(Infinity), 'Infinity');
+    });
+
+    /** Proxy length trap — Array#length rejects many invalid assignments with RangeError. */
+    function arrayWithLength(bad: unknown, base: unknown[] = []): unknown[] {
+        return new Proxy(base, {
+            get(target, prop, receiver) {
+                if (prop === 'length') return bad;
+                return Reflect.get(target, prop, receiver);
+            },
+        });
+    }
+
+    test('negative / non-integer / non-finite / oversized events.length → INVALID_LOG', () => {
+        for (const bad of [-1, -0.5, 1.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+            assertRejectsWithoutThrow(log(arrayWithLength(bad)), 'INVALID_LOG');
+        }
+        assertRejectsWithoutThrow(log(arrayWithLength(MAX_COMMAND_INPUT_EVENTS + 1)), 'INVALID_LOG');
+    });
+
+    test('negative / non-integer / non-finite / oversized unitIds.length → INVALID_UNIT_IDS', () => {
+        for (const bad of [-1, 0.5, NaN, Infinity, -Infinity, 0, MAX_COMMAND_UNIT_IDS + 1]) {
+            // length 0 / invalid: never reaches new Array(untrusted).
+            assertRejectsWithoutThrow(log([event({ unitIds: arrayWithLength(bad, ['knight']) })]), 'INVALID_UNIT_IDS');
+        }
+    });
+
+    test('MAX_COMMAND_UNIT_IDS is accepted; MAX+1 is rejected', () => {
+        const okIds = Array.from({ length: MAX_COMMAND_UNIT_IDS }, (_, i) => `u${i}`);
+        assert.doesNotThrow(() => {
+            const result = normalizeCommandInputLog(log([event({ unitIds: okIds })]), TICK_RATE);
+            assert.equal(result.ok, true);
+            if (result.ok) assert.equal(result.log.events[0].unitIds.length, MAX_COMMAND_UNIT_IDS);
+        });
+        const tooMany = Array.from({ length: MAX_COMMAND_UNIT_IDS + 1 }, (_, i) => `u${i}`);
+        assertRejectsWithoutThrow(log([event({ unitIds: tooMany })]), 'INVALID_UNIT_IDS');
+    });
+
+    test('hostile length never reaches new Array: oversized length is rejected without allocating', () => {
+        assertRejectsWithoutThrow(
+            log([event({ unitIds: arrayWithLength(2 ** 32 - 1, ['knight']) })]),
+            'INVALID_UNIT_IDS',
+        );
+    });
+
+    test('ordinary JSON inputs still produce identical canonical bytes', () => {
+        const events = [
+            event({ tick: 7, seq: 1, command: 'attack_target', targetId: 'raider' }),
+            event({ tick: 2, seq: 0, command: 'move_to', point: { x: 3.14159, y: -2.71828 } }),
+            event({ tick: 7, seq: 0, command: 'stop', unitIds: ['z', 'a'] }),
+            event({ tick: 0, seq: 0, issuerTeam: 1 }),
+        ];
+        const first = JSON.stringify(ok(log(events), TICK_RATE));
+        const second = JSON.stringify(ok(log(events.slice().reverse()), TICK_RATE));
+        assert.equal(second, first);
+        // Exact known fixture bytes for a minimal stop command.
+        const minimal = ok(log([event()]), TICK_RATE);
+        assert.equal(
+            JSON.stringify(minimal),
+            JSON.stringify({
+                schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+                tickRate: TICK_RATE,
+                events: [{
+                    tick: 0, seq: 0, issuerTeam: 0, unitIds: ['knight'], command: 'stop',
+                }],
+            }),
+        );
+    });
+
+    test('plain schemaVersion rejection detail stays a plain string for JSON inputs', () => {
+        const result = normalizeCommandInputLog(log([], { schemaVersion: 'v-999' }), TICK_RATE);
+        assert.equal(result.ok, false);
+        assert.equal(result.ok === false && result.detail, 'v-999');
+    });
+
+});
+
+

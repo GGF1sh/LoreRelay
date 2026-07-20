@@ -657,4 +657,44 @@ describe('RTS command input — other single-read fixes found by the limited aud
         assert.equal(reads, 1, 'point.x was read more than once');
         assert.equal(result.ok, true);
     });
+
+    // Codex P2 on PR #33: the schemaVersion check read `raw.schemaVersion` once
+    // for the comparison and a second time via String() while building the
+    // failure detail. Confirmed exploitable before fixing it: a getter that
+    // answers a bogus version on the first read and throws on the second turns
+    // an ordinary rejection into an uncaught exception out of
+    // normalizeCommandInputLog itself.
+    test('raw.schemaVersion is read exactly once', () => {
+        let reads = 0;
+        const raw = {
+            get schemaVersion() { reads++; return 'bogus-version'; },
+            tickRate: TICK_RATE,
+            events: [],
+        };
+        const result = normalizeCommandInputLog(raw, TICK_RATE);
+        assert.equal(reads, 1, 'raw.schemaVersion was read more than once');
+        assert.equal(result.ok, false);
+        assert.equal(result.ok === false && result.error, 'INVALID_SCHEMA_VERSION');
+    });
+
+    test('a schemaVersion getter that throws on a second access does not crash normalization', () => {
+        let reads = 0;
+        const raw = {
+            get schemaVersion() {
+                reads++;
+                if (reads === 1) return 'bogus-version';
+                throw new Error('a second read must never happen');
+            },
+            tickRate: TICK_RATE,
+            events: [],
+        };
+        assert.doesNotThrow(() => normalizeCommandInputLog(raw, TICK_RATE));
+        assert.equal(reads, 1);
+    });
+
+    test('the failure detail reflects the single value that was actually checked', () => {
+        const result = normalizeCommandInputLog(log([], { schemaVersion: 'v-999' }), TICK_RATE);
+        assert.equal(result.ok, false);
+        assert.equal(result.ok === false && result.detail, 'v-999');
+    });
 });

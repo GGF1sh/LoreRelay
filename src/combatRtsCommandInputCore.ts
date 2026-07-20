@@ -172,8 +172,13 @@ export function normalizeCommandInputLog(
     if (!isPlainObject(raw)) {
         return fail('INVALID_LOG', 'log must be an object');
     }
-    if (raw.schemaVersion !== COMMAND_INPUT_SCHEMA_VERSION) {
-        return fail('INVALID_SCHEMA_VERSION', String(raw.schemaVersion));
+    // Read once. A getter could otherwise answer the comparison with one value
+    // and the failure detail's String() conversion with another — or throw on
+    // the second access — the same check-once/use-twice shape already fixed
+    // elsewhere in this function.
+    const schemaVersion = raw.schemaVersion;
+    if (schemaVersion !== COMMAND_INPUT_SCHEMA_VERSION) {
+        return fail('INVALID_SCHEMA_VERSION', String(schemaVersion));
     }
 
     const tickRate = raw.tickRate;

@@ -47,6 +47,15 @@ export interface BattleSpec {
     };
     combatMode?: CombatMode;
     mechanics?: { statuses: StatusDefinition[] };
+    /**
+     * Raw RTS command log, pre-normalization — see combatRtsCommandInputCore.
+     *
+     * Declared here so the transport shape is settled, but deliberately NOT read
+     * by resolveCombat or stepCombat yet: command application lands in PR3 of
+     * docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md. Absent or empty means today's
+     * fully automatic behaviour, unchanged.
+     */
+    command?: unknown;
 }
 
 export interface CombatEvent {

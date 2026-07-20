@@ -47,6 +47,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         files: ['combatAoeEngagementV1.test.js'],
     },
     {
+        id: 'combat:rts-command-input',
+        description: 'RTS command input schema and deterministic normalization',
+        files: ['combatRtsCommandInputV1.test.js'],
+    },
+    {
         id: 'combat:ability-validator',
         description: 'Ability definition validator and power budget',
         files: ['combatAbilityValidator.test.js'],

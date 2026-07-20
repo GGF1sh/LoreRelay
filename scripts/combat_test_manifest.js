@@ -23,8 +23,8 @@
 module.exports.COMBAT_TEST_GROUPS = [
     {
         id: 'combat:golden-master',
-        description: 'Gambit resolver parity with the Godot golden master (8 fixtures)',
-        files: ['gambitCombatCore.test.js'],
+        description: 'Gambit resolver parity with the Godot golden master (8 fixtures) and step-loop equivalence',
+        files: ['gambitCombatCore.test.js', 'combatRtsStepExtractV1.test.js'],
     },
     {
         id: 'combat:mechanics-resolver',

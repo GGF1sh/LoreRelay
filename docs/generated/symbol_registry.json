@@ -24,13 +24,13 @@
     ]
   },
   "counts": {
-    "total": 5046,
+    "total": 5054,
     "byBoundary": {
       "configuration": 89,
       "host": 860,
       "host-bridge": 61,
       "host-webview": 509,
-      "pure-core": 2806,
+      "pure-core": 2814,
       "schema-types": 32,
       "webview": 689
     },
@@ -125,7 +125,7 @@
       "extension": 4,
       "faction-reputation": 16,
       "fog-of-war": 17,
-      "gambit-combat": 7,
+      "gambit-combat": 15,
       "game": 14,
       "game-qa-runner": 48,
       "game-rules": 17,
@@ -331,10 +331,10 @@
     },
     "byKind": {
       "configurationKey": 89,
-      "constant": 694,
+      "constant": 695,
       "enum": 2,
-      "function": 1786,
-      "interface": 878,
+      "function": 1790,
+      "interface": 881,
       "messageType": 509,
       "type": 399,
       "webviewFunction": 666,
@@ -13656,11 +13656,68 @@
       "category": "fog-of-war"
     },
     {
+      "id": "pure-core:constant:src/gambitCombatCore.ts:COMBAT_TIMEOUT_TICKS",
+      "name": "COMBAT_TIMEOUT_TICKS",
+      "kind": "constant",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 134,
+      "signature": "export const COMBAT_TIMEOUT_TICKS",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:function:src/gambitCombatCore.ts:createCombatStepContext",
+      "name": "createCombatStepContext",
+      "kind": "function",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 176,
+      "signature": "export function createCombatStepContext(spec: BattleSpec): CombatStepContext",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:function:src/gambitCombatCore.ts:createCombatState",
+      "name": "createCombatState",
+      "kind": "function",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 201,
+      "signature": "export function createCombatState(spec: BattleSpec): CombatState",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:function:src/gambitCombatCore.ts:combatTerminalOutcome",
+      "name": "combatTerminalOutcome",
+      "kind": "function",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 252,
+      "signature": "export function combatTerminalOutcome(state: CombatState, ctx: CombatStepContext): string",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat",
+      "description": "Win/lose check for the state as it stands, evaluated before the tick advances so the ordering of the original top-of-loop check is preserved exactly."
+    },
+    {
+      "id": "pure-core:function:src/gambitCombatCore.ts:stepCombat",
+      "name": "stepCombat",
+      "kind": "function",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 285,
+      "signature": "export function stepCombat(state: CombatState, ctx: CombatStepContext): { state: CombatState;",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat",
+      "description": "Advances the battle by exactly one tick. Pure: the input state is never mutated and the same (state, ctx) always produces the same result."
+    },
+    {
       "id": "pure-core:function:src/gambitCombatCore.ts:resolveCombat",
       "name": "resolveCombat",
       "kind": "function",
       "sourcePath": "src/gambitCombatCore.ts",
-      "line": 118,
+      "line": 832,
       "signature": "export function resolveCombat(spec: BattleSpec): CombatExpectedOutput",
       "public": "exported",
       "boundary": "pure-core",
@@ -13720,6 +13777,42 @@
       "public": "exported",
       "boundary": "pure-core",
       "category": "gambit-combat"
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatStepEvents",
+      "name": "CombatStepEvents",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 137,
+      "signature": "export interface CombatStepEvents",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat",
+      "description": "Events emitted by one tick. Accumulated by the caller; never stored in state."
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatState",
+      "name": "CombatState",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 152,
+      "signature": "export interface CombatState",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat",
+      "description": "Everything that survives a tick boundary. JSON-safe and self-contained, so a battle can be paused, serialized and resumed without re-deriving it from the spec."
+    },
+    {
+      "id": "pure-core:interface:src/gambitCombatCore.ts:CombatStepContext",
+      "name": "CombatStepContext",
+      "kind": "interface",
+      "sourcePath": "src/gambitCombatCore.ts",
+      "line": 166,
+      "signature": "export interface CombatStepContext",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "gambit-combat",
+      "description": "Immutable per-battle configuration derived from the spec. Never mutated."
     },
     {
       "id": "pure-core:type:src/gambitCombatCore.ts:CombatMode",

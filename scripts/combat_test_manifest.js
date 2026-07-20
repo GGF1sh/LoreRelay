@@ -29,7 +29,7 @@ module.exports.COMBAT_TEST_GROUPS = [
     {
         id: 'combat:rts-order-slot',
         description: 'RTS order slot, command application phase, stop/resume_gambit, and the command-receipt skeleton',
-        files: ['combatRtsOrderSlotStopResumeV1.test.js'],
+        files: ['combatRtsOrderSlotStopResumeV1.test.js', 'combatRtsTickRateAndZeroTickV1.test.js'],
     },
     {
         id: 'combat:mechanics-resolver',

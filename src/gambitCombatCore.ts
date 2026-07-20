@@ -42,6 +42,14 @@ export interface CombatUnitState {
 export interface BattleSpec {
     activePreset: string;
     deltaSeconds: number;
+    /**
+     * Overrides deltaSeconds for `delta` when truthy (1/fixedFps). Already read
+     * informally before COMBAT-RTS-TICK-RATE-AND-ZERO-TICK-FIXED-001; declared
+     * formally now so effectiveBattleTickRate can share its exact basis without
+     * a cast. This does not change createCombatStepContext's existing delta
+     * computation, which still keys off truthiness, not integer-ness.
+     */
+    fixedFps?: number;
     viewport: { width: number; height: number };
     participantOrder: string[];
     initialState: {
@@ -262,15 +270,68 @@ export interface CombatStepContext {
     selectableMode: CombatSelectableMode;
 }
 
+function isPositiveIntegerNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value > 0;
+}
+
 /**
- * Normalizes spec.command into a CommandInputLog. Absent input, or input that
- * fails normalizeCommandInputLog, both collapse to an empty log — see
- * BattleSpec.command's doc comment for why that fallback is the only option.
+ * Relative tolerance for reconciling deltaSeconds against its rounded integer
+ * reciprocal. A truncated literal like the golden-master fixtures' 60fps delta
+ * (0.0166666667, not the full repeating decimal) round-trips through
+ * `1 / Math.round(1 / delta)` with a relative error around 2e-9 — comfortably
+ * inside this bound. A genuinely different rate (e.g. NTSC-ish 29.97fps
+ * masquerading near 30) round-trips with a relative error around 1e-3 —
+ * comfortably outside it. There is no authoritative source for this constant
+ * beyond "wide enough for float round-off, narrow enough to reject a real
+ * near-miss rate"; both fixture and adversarial-rate probes are pinned by test.
  */
-function normalizeRtsCommandLogForSpec(raw: unknown): CommandInputLog {
-    if (raw === undefined) return emptyCommandInputLog();
-    const result = normalizeCommandInputLog(raw);
-    return result.ok ? result.log : emptyCommandInputLog();
+const TICK_RATE_MATCH_EPSILON = 1e-6;
+
+/**
+ * Derives the battle's tick rate (ticks per second) from the exact same basis
+ * createCombatStepContext uses for `delta`: a truthy fixedFps takes priority,
+ * otherwise deltaSeconds. Each candidate is independently required to be a
+ * clean positive integer — command log tickRate is a positive integer by
+ * schema (combatRtsCommandInputCore) — so a fixedFps that is truthy but not a
+ * clean integer (e.g. 59.94) does NOT fall through to deltaSeconds: deltaSeconds
+ * is not what ctx.delta would actually be using in that case, and mixing bases
+ * would silently validate a command log against a rate the battle is not
+ * really running at. Returns null when neither source yields a usable rate.
+ */
+function effectiveBattleTickRate(spec: BattleSpec): number | null {
+    if (spec.fixedFps) {
+        return isPositiveIntegerNumber(spec.fixedFps) ? spec.fixedFps : null;
+    }
+    const deltaSeconds = spec.deltaSeconds;
+    if (typeof deltaSeconds !== 'number' || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
+        return null;
+    }
+    const rounded = Math.round(1 / deltaSeconds);
+    if (!isPositiveIntegerNumber(rounded)) return null;
+    // Reconstruct and compare rather than trusting the rounded value blindly —
+    // this is what keeps a genuinely non-integer rate from being forced into a
+    // nearby integer tick rate it does not actually represent.
+    if (Math.abs(1 / rounded - deltaSeconds) > TICK_RATE_MATCH_EPSILON * deltaSeconds) return null;
+    return rounded;
+}
+
+/**
+ * Normalizes spec.command into a CommandInputLog, enforcing that its tickRate
+ * agrees with the battle's own effective tick rate.
+ *
+ * Absent input, input that fails normalizeCommandInputLog (including a
+ * tickRate mismatch), and a battle whose own rate cannot be pinned down as a
+ * positive integer all collapse to an empty log — see BattleSpec.command's
+ * doc comment for why that fallback is the only option. The empty log still
+ * carries the battle's real tickRate as metadata when one is known, rather
+ * than always defaulting to 30 — only a genuinely undeterminable battle rate
+ * falls back to the schema default, since there is no real rate to attach.
+ */
+function normalizeRtsCommandLogForSpec(raw: unknown, expectedTickRate: number | null): CommandInputLog {
+    if (expectedTickRate === null) return emptyCommandInputLog();
+    if (raw === undefined) return emptyCommandInputLog(expectedTickRate);
+    const result = normalizeCommandInputLog(raw, expectedTickRate);
+    return result.ok ? result.log : emptyCommandInputLog(expectedTickRate);
 }
 
 export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
@@ -286,7 +347,9 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
     return {
         spec,
         participantOrder: spec.participantOrder,
-        delta: (spec as any).fixedFps ? (1.0 / (spec as any).fixedFps) : spec.deltaSeconds,
+        // Unchanged: truthiness, not integer-ness — see effectiveBattleTickRate
+        // for why the command-log tick rate check does not use this same test.
+        delta: spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds,
         combatMode: spec.combatMode || 'legacy_gambit',
         battleRect: {
             x: MARGIN,
@@ -295,7 +358,7 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
             h: headless_view_h - LOG_H - MARGIN * 3.0
         },
         timeoutTicks: COMBAT_TIMEOUT_TICKS,
-        commandLog: normalizeRtsCommandLogForSpec(spec.command),
+        commandLog: normalizeRtsCommandLogForSpec(spec.command, effectiveBattleTickRate(spec)),
         selectableMode: isCombatSelectableMode(spec.selectableMode) ? spec.selectableMode : 'command',
     };
 }
@@ -386,6 +449,24 @@ function cloneCombatState(state: CombatState): CombatState {
         orders,
         commandCursor: state.commandCursor,
     };
+}
+
+/**
+ * Maps a normalized command event's declared tick to the simulation tick it is
+ * actually applied on. combatRtsCommandInputCore's schema accepts tick 0 (a
+ * non-negative integer), but stepCombat's first call already advances tickCount
+ * to 1 before the command phase runs — tickCount is never 0. Comparing a raw
+ * `event.tick` of 0 against tickCount would never match on any call, which
+ * would permanently stall commandCursor on that event and silently block every
+ * later command in the log, no matter its own tick. Folding tick 0 into tick 1
+ * here — the earliest tick a command can actually take effect — is what keeps
+ * the cursor advancing. This is deliberately not `event.tick <= tickCount`:
+ * that would apply an arbitrarily-delayed event unconditionally the first time
+ * stepCombat is called for a tick past it, rather than exactly once on the
+ * tick it maps to.
+ */
+function effectiveCommandTick(event: CommandInputEvent): number {
+    return event.tick === 0 ? 1 : event.tick;
 }
 
 /**
@@ -515,11 +596,19 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
     // commands (ctx.commandLog.events is empty) runs this loop zero times,
     // every tick, for its entire duration — the golden master's byte-identity
     // depends on that being a true no-op, not merely a cheap one.
+    //
+    // Compared via effectiveCommandTick, not raw event.tick — see that
+    // function's doc comment for why a raw tick-0 event would otherwise stall
+    // the cursor forever. The events array is still sorted by (tick, seq) —
+    // normalizeCommandInputLog guarantees this on raw tick, and tick 0 always
+    // sorts before tick 1 regardless of seq — so a tick-0 command and a tick-1
+    // command targeting the same unit are still applied in that order, with
+    // tick 1 (correctly) superseding tick 0.
     // ---------------------------------------------------------------------
     {
         const commandEvents = ctx.commandLog.events;
         let cursor = next.commandCursor;
-        while (cursor < commandEvents.length && commandEvents[cursor].tick === tickCount) {
+        while (cursor < commandEvents.length && effectiveCommandTick(commandEvents[cursor]) === tickCount) {
             applyRtsCommandEvent(commandEvents[cursor], tickCount, participantOrder, units, orders, ctx.selectableMode, commandReceipts);
             cursor++;
         }

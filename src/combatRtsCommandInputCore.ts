@@ -121,12 +121,25 @@ function fail(error: CommandInputNormalizeErrorCode, detail?: string): CommandIn
 }
 
 /**
+ * Folds -0 to +0.
+ *
+ * `-0 === 0` is true in JS, so equality checks (`tick === 0`, `issuerTeam !== 1`)
+ * cannot see the sign and happily accept -0 as a valid non-negative integer or
+ * team id. JSON has no negative zero either — `JSON.stringify(-0)` is `"0"` — so
+ * an accepted -0 would sit in memory as one value and come back from a round
+ * trip as another, which is exactly the kind of two-representations-for-one-
+ * value bug a canonical form exists to rule out. Any non-zero value, including
+ * ordinary positive integers, passes through unchanged.
+ */
+function foldNegativeZero(value: number): number {
+    return value === 0 ? 0 : value;
+}
+
+/**
  * Quantizes a coordinate and folds -0 into 0.
  *
- * `Math.round` yields -0 for small negatives (-0.0004 → -0), and JSON has no
- * negative zero: a round trip turns it back into 0. Leaving it would give the
- * same battlefield position two in-memory representations, which breaks the
- * uniqueness the canonical form is supposed to guarantee.
+ * `Math.round` yields -0 for small negatives (-0.0004 → -0); see
+ * `foldNegativeZero` for why that has to be normalized away.
  *
  * Can return a non-finite value: a finite input near the double range's edge
  * (e.g. 1e306) overflows to Infinity once multiplied by DIRECTION_QUANTUM inside
@@ -135,8 +148,7 @@ function fail(error: CommandInputNormalizeErrorCode, detail?: string): CommandIn
  * being finite does not guarantee the quantized output is.
  */
 function quantizeCoordinate(value: number): number {
-    const quantized = quantizeScalar(value);
-    return quantized === 0 ? 0 : quantized;
+    return foldNegativeZero(quantizeScalar(value));
 }
 
 /**
@@ -207,10 +219,23 @@ export function normalizeCommandInputLog(
         if (!Array.isArray(unitIds) || unitIds.length === 0) {
             return fail('INVALID_UNIT_IDS', `events[${index}].unitIds must be a non-empty array`);
         }
-        for (let u = 0; u < unitIds.length; u++) {
-            if (!isNonEmptyString(unitIds[u])) {
-                return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}]=${String(unitIds[u])}`);
+        // Built by index assignment into a fresh, ordinary array — never
+        // `unitIds.slice()`. `.slice()` (or any Array.prototype method) would
+        // read every index a second time and would consult the input's own
+        // `constructor`/`Symbol.species` to decide what to construct; on a
+        // hostile input either of those can differ from what validation just
+        // saw. Each element below is read into `candidate` exactly once, that
+        // same binding is what gets validated AND what gets copied — a getter
+        // that returns something else on a second access never gets a second
+        // access to return it from.
+        const unitIdCount = unitIds.length;
+        const copiedUnitIds: string[] = new Array(unitIdCount);
+        for (let u = 0; u < unitIdCount; u++) {
+            const candidate = unitIds[u];
+            if (!isNonEmptyString(candidate)) {
+                return fail('INVALID_UNIT_IDS', `events[${index}].unitIds[${u}]=${String(candidate)}`);
             }
+            copiedUnitIds[u] = candidate;
         }
 
         if (typeof command !== 'string' || !COMMAND_SET.has(command)) {
@@ -218,11 +243,10 @@ export function normalizeCommandInputLog(
         }
 
         const normalized: CommandInputEvent = {
-            tick,
-            seq,
-            issuerTeam,
-            // Copied, so the caller's array is neither shared nor reordered.
-            unitIds: unitIds.slice(),
+            tick: foldNegativeZero(tick),
+            seq: foldNegativeZero(seq),
+            issuerTeam: foldNegativeZero(issuerTeam),
+            unitIds: copiedUnitIds,
             command: command as RtsCommand,
         };
 

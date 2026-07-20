@@ -393,3 +393,159 @@ describe('RTS command input — purity and reproducibility', () => {
         assert.equal(typeof typed[0].point!.x, 'number');
     });
 });
+
+describe('RTS command input — negative zero canonicalization (tick / seq / issuerTeam)', () => {
+    // `-0 === 0` is true, so `isNonNegativeInteger` and the issuerTeam equality
+    // check both happily accept -0. Left uncanonicalized it would sit in the
+    // output as -0 while an equivalent log with a literal 0 sits as +0 — two
+    // representations of what should be one canonical value.
+
+    test('tick = -0 canonicalizes to 0, and is not -0 by Object.is', () => {
+        const result = ok(log([event({ tick: -0 })]), TICK_RATE);
+        assert.equal(result.events[0].tick, 0);
+        assert.ok(!Object.is(result.events[0].tick, -0), 'tick is still -0');
+    });
+
+    test('seq = -0 canonicalizes to 0, and is not -0 by Object.is', () => {
+        const result = ok(log([event({ seq: -0 })]), TICK_RATE);
+        assert.equal(result.events[0].seq, 0);
+        assert.ok(!Object.is(result.events[0].seq, -0), 'seq is still -0');
+    });
+
+    test('issuerTeam = -0 canonicalizes to 0, and is not -0 by Object.is', () => {
+        const result = ok(log([event({ issuerTeam: -0 })]), TICK_RATE);
+        assert.equal(result.events[0].issuerTeam, 0);
+        assert.ok(!Object.is(result.events[0].issuerTeam, -0), 'issuerTeam is still -0');
+    });
+
+    test('ordinary positive integers pass through unaffected', () => {
+        const result = ok(log([event({ tick: 42, seq: 7, issuerTeam: 1 })]), TICK_RATE);
+        assert.equal(result.events[0].tick, 42);
+        assert.equal(result.events[0].seq, 7);
+        assert.equal(result.events[0].issuerTeam, 1);
+    });
+
+    test('no numeric field anywhere in a normalized log is -0, including point coordinates', () => {
+        const events = [
+            event({ tick: -0, seq: -0, issuerTeam: -0, command: 'move_to', point: { x: -0, y: -0 } }),
+            event({ tick: 3, seq: 1 }),
+        ];
+        const result = ok(log(events), TICK_RATE);
+        for (const e of result.events) {
+            assert.ok(!Object.is(e.tick, -0), `tick is -0`);
+            assert.ok(!Object.is(e.seq, -0), `seq is -0`);
+            assert.ok(!Object.is(e.issuerTeam, -0), `issuerTeam is -0`);
+            if (e.point) {
+                assert.ok(!Object.is(e.point.x, -0), `point.x is -0`);
+                assert.ok(!Object.is(e.point.y, -0), `point.y is -0`);
+            }
+        }
+    });
+
+    test('a JSON round trip of a -0-bearing log is deepEqual to the normalized form', () => {
+        const result = ok(log([event({ tick: -0, seq: -0, issuerTeam: -0 })]), TICK_RATE);
+        const revived = JSON.parse(JSON.stringify(result)) as CommandInputLog;
+        assert.deepEqual(revived, result);
+    });
+});
+
+describe('RTS command input — unitIds copy safety', () => {
+    // These guard against a TOCTOU (time-of-check/time-of-use) class of bug:
+    // validating element N and then copying the array via a second pass (e.g.
+    // `.slice()`) reads every index twice. A hostile array can return a valid
+    // string on the first read and something else on the second, so anything
+    // that re-reads after validation can silently smuggle a different value
+    // into the output than the one that was actually checked.
+
+    test('unitIds.slice is never called, even when overridden', () => {
+        const unitIds = ['knight', 'archer'];
+        let sliceCalled = false;
+        Object.defineProperty(unitIds, 'slice', {
+            value: () => { sliceCalled = true; throw new Error('slice must not be called'); },
+            writable: true,
+            configurable: true,
+        });
+        const result = ok(log([event({ unitIds })]), TICK_RATE);
+        assert.equal(sliceCalled, false, 'unitIds.slice was called');
+        assert.deepEqual(result.events[0].unitIds, ['knight', 'archer']);
+    });
+
+    test('overriding slice to return [Infinity], a BigInt, or a cyclic array does not affect the output', () => {
+        const cyclic: unknown[] = [];
+        cyclic.push(cyclic);
+        const maliciousSliceImpls: Array<() => unknown> = [
+            () => [Infinity],
+            () => [123n],
+            () => cyclic,
+        ];
+        for (const maliciousSlice of maliciousSliceImpls) {
+            const unitIds = ['knight', 'archer'];
+            Object.defineProperty(unitIds, 'slice', { value: maliciousSlice, writable: true, configurable: true });
+            const result = ok(log([event({ unitIds })]), TICK_RATE);
+            assert.deepEqual(result.events[0].unitIds, ['knight', 'archer']);
+        }
+    });
+
+    test("the input array's own constructor / Symbol.species is never consulted", () => {
+        const unitIds = ['knight', 'archer'];
+        let speciesAccessed = false;
+        class SpeciesTrap {
+            static get [Symbol.species](): ArrayConstructor {
+                speciesAccessed = true;
+                return Array;
+            }
+        }
+        Object.defineProperty(unitIds, 'constructor', { value: SpeciesTrap, writable: true, configurable: true });
+        const result = ok(log([event({ unitIds })]), TICK_RATE);
+        assert.equal(speciesAccessed, false, 'Symbol.species was consulted');
+        assert.deepEqual(result.events[0].unitIds, ['knight', 'archer']);
+    });
+
+    test('a hostile index getter is read exactly once — no double-read after validation', () => {
+        const unitIds: string[] = ['knight', 'archer', 'mage'];
+        let readCountForIndex1 = 0;
+        Object.defineProperty(unitIds, '1', {
+            get() {
+                readCountForIndex1++;
+                // A second read (the old .slice() pass) would observe this and
+                // smuggle 'INJECTED' into the output despite validation having
+                // seen 'archer'.
+                return readCountForIndex1 === 1 ? 'archer' : 'INJECTED';
+            },
+            configurable: true,
+        });
+        const result = ok(log([event({ unitIds })]), TICK_RATE);
+        assert.equal(readCountForIndex1, 1, 'index 1 was read more than once');
+        assert.deepEqual(result.events[0].unitIds, ['knight', 'archer', 'mage']);
+    });
+
+    test('a hostile getter that turns invalid after the first read cannot un-invalidate a rejection either', () => {
+        const unitIds: string[] = ['knight', ''];
+        let readCount = 0;
+        Object.defineProperty(unitIds, '1', {
+            get() {
+                readCount++;
+                // Invalid on the read that matters (validation); a later read
+                // turning "valid" must not matter, because there must be no
+                // later read.
+                return readCount === 1 ? '' : 'archer';
+            },
+            configurable: true,
+        });
+        rejects(log([event({ unitIds })]), 'INVALID_UNIT_IDS');
+        assert.equal(readCount, 1, 'index 1 was read more than once');
+    });
+
+    test('unitIds order is preserved through the copy', () => {
+        const unitIds = ['zeta', 'alpha', 'mid'];
+        const result = ok(log([event({ unitIds })]), TICK_RATE);
+        assert.deepEqual(result.events[0].unitIds, unitIds);
+    });
+
+    test('the caller-supplied unitIds array is not mutated', () => {
+        const unitIds = ['knight', 'archer'];
+        const before = unitIds.slice();
+        ok(log([event({ unitIds })]), TICK_RATE);
+        assert.deepEqual(unitIds, before);
+    });
+});

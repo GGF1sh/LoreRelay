@@ -41,7 +41,7 @@ function runByHand(spec: BattleSpec): CombatExpectedOutput {
     const ctx = createCombatStepContext(spec);
     let state = createCombatState(spec);
     const acc: CombatStepEvents = {
-        evaluations: [], decisions: [], attacks: [], heals: [], deaths: [], focusChanges: [], mechanicsReceipts: [],
+        evaluations: [], decisions: [], attacks: [], heals: [], deaths: [], focusChanges: [], mechanicsReceipts: [], commandReceipts: [],
     };
 
     while (state.tick <= ctx.timeoutTicks) {
@@ -69,6 +69,7 @@ function runByHand(spec: BattleSpec): CombatExpectedOutput {
         outcome,
     };
     if (ctx.combatMode === 'mechanics_v1') output.mechanicsReceipts = acc.mechanicsReceipts;
+    if (ctx.commandLog.events.length > 0) output.commandReceipts = acc.commandReceipts;
     return output;
 }
 

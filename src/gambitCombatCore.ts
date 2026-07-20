@@ -1,5 +1,10 @@
 import { AbilityDefinition, StatusDefinition } from './combatAbilityTypes';
 import { advanceMechanicsState, canAct, canMove, ENGAGEMENT_OVERFLOW_MULTIPLIER, engagementSlotsFor, falloffAtIndex, MechanicsCombatant, MechanicsReceipt, resolveMechanics } from './combatMechanicsResolver';
+import { CombatSelectableMode, combatModeAllowsTacticalOrder, isCombatSelectableMode } from './combatModeContract';
+import {
+    CommandInputEvent, CommandInputLog, CommandPoint, RtsCommand,
+    emptyCommandInputLog, normalizeCommandInputLog,
+} from './combatRtsCommandInputCore';
 
 export type CombatMode = 'legacy_gambit' | 'mechanics_v1';
 
@@ -50,12 +55,22 @@ export interface BattleSpec {
     /**
      * Raw RTS command log, pre-normalization — see combatRtsCommandInputCore.
      *
-     * Declared here so the transport shape is settled, but deliberately NOT read
-     * by resolveCombat or stepCombat yet: command application lands in PR3 of
-     * docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md. Absent or empty means today's
-     * fully automatic behaviour, unchanged.
+     * Normalized once by createCombatStepContext (COMBAT-RTS-ORDER-SLOT-STOP-
+     * RESUME-001, PR3 of docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md). Absent, or
+     * present but failing normalizeCommandInputLog, both collapse to an empty
+     * log — resolveCombat's signature has no channel to report a malformed
+     * log, and an absent/empty log must behave exactly like today's fully
+     * automatic battle either way.
      */
     command?: unknown;
+    /**
+     * Gates RTS command acceptance (see combatModeContract). Defaults to
+     * 'command' when absent or unrecognized — existing callers never set this
+     * and never populate `command` either, so the default has no observable
+     * effect on them. `direct_action` (companion-unit commands) and
+     * `spectator` (all commands rejected) are also valid.
+     */
+    selectableMode?: CombatSelectableMode;
 }
 
 export interface CombatEvent {
@@ -73,10 +88,61 @@ export interface CombatExpectedOutput {
     deaths: CombatEvent[];
     focusChanges: CombatEvent[];
     mechanicsReceipts?: Array<CombatEvent & { receipt: MechanicsReceipt }>;
+    /**
+     * Present only when spec.command normalized to a non-empty log — omitted
+     * entirely otherwise, which is what keeps the golden master byte-identical
+     * for every battle that never issues a command.
+     */
+    commandReceipts?: CommandReceipt[];
     finalState: {
         units: { name: string; hp: number; pos_x: number; pos_y: number }[];
     };
     outcome: string;
+}
+
+/**
+ * A unit's currently active RTS order. Null/absent means gambits control the
+ * unit. See docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md §3.
+ *
+ * `move_to` / `attack_target` / `attack_move` are accepted and installed here
+ * exactly like `stop`, which is what suppresses gambit evaluation for that
+ * unit — but their actual movement/attack execution (arrival, engagement,
+ * completion) is not implemented until PR4/PR5. A unit under one of those
+ * three orders simply idles until it is replaced, explicitly resumed, or dies.
+ */
+export interface ActiveOrder {
+    command: RtsCommand;
+    point?: CommandPoint;
+    targetId?: string;
+    /** Tick the order was accepted on. */
+    issuedTick: number;
+    /** attack_move only, wired up in PR5: paused to fight mid-transit. */
+    engaging?: boolean;
+}
+
+export type CommandReceiptKind =
+    | 'order_accepted' | 'order_rejected' | 'order_started'
+    | 'order_completed' | 'order_superseded' | 'order_interrupted' | 'order_timeout';
+
+/**
+ * Only `unit_not_found` / `unit_dead` / `not_your_team` / `mode_forbids_command`
+ * are ever produced in PR3. The rest (`invalid_target`, `target_not_found`,
+ * `target_defeated`, `invalid_point`, `unknown_command`) belong to move_to /
+ * attack_target / attack_move execution semantics landing in PR4/PR5, and are
+ * declared now only so CommandReceipt's shape does not change again then.
+ */
+export type CommandRejectReason =
+    | 'unit_not_found' | 'unit_dead' | 'not_your_team' | 'mode_forbids_command'
+    | 'invalid_target' | 'target_not_found' | 'target_defeated'
+    | 'invalid_point' | 'unknown_command';
+
+export interface CommandReceipt {
+    tick: number;
+    unitId: string;
+    command: RtsCommand;
+    kind: CommandReceiptKind;
+    reason?: CommandRejectReason;
+    detail?: string;
 }
 
 const DEFAULT_GAMBITS: Record<string, any[]> = {
@@ -152,6 +218,8 @@ export interface CombatStepEvents {
     focusChanges: CombatEvent[];
     /** Only populated in `mechanics_v1`, matching the existing output contract. */
     mechanicsReceipts: Array<CombatEvent & { receipt: MechanicsReceipt }>;
+    /** Always present (possibly empty) at the per-tick level; see CombatExpectedOutput.commandReceipts for the omit-when-empty rule at the whole-battle level. */
+    commandReceipts: CommandReceipt[];
 }
 
 /**
@@ -169,6 +237,10 @@ export interface CombatState {
     lastEvals: Record<string, string>;
     /** Current focus target per team. Drives `focusChanges`. */
     focusTarget: Record<number, string>;
+    /** Per-unit active RTS order. Absent or null = gambits control the unit. */
+    orders: Record<string, ActiveOrder | null>;
+    /** Index into ctx.commandLog.events of the next command not yet applied. */
+    commandCursor: number;
 }
 
 /** Immutable per-battle configuration derived from the spec. Never mutated. */
@@ -180,6 +252,25 @@ export interface CombatStepContext {
     combatMode: CombatMode;
     battleRect: { x: number; y: number; w: number; h: number };
     timeoutTicks: number;
+    /**
+     * Normalized once from spec.command (see BattleSpec.command's doc comment
+     * for the absent/invalid → empty fallback). Never mutated; the per-tick
+     * cursor into it lives on CombatState instead, since it changes every step.
+     */
+    commandLog: CommandInputLog;
+    /** Gates RTS command acceptance. Defaults to 'command' — see BattleSpec.selectableMode. */
+    selectableMode: CombatSelectableMode;
+}
+
+/**
+ * Normalizes spec.command into a CommandInputLog. Absent input, or input that
+ * fails normalizeCommandInputLog, both collapse to an empty log — see
+ * BattleSpec.command's doc comment for why that fallback is the only option.
+ */
+function normalizeRtsCommandLogForSpec(raw: unknown): CommandInputLog {
+    if (raw === undefined) return emptyCommandInputLog();
+    const result = normalizeCommandInputLog(raw);
+    return result.ok ? result.log : emptyCommandInputLog();
 }
 
 export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
@@ -204,6 +295,8 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
             h: headless_view_h - LOG_H - MARGIN * 3.0
         },
         timeoutTicks: COMBAT_TIMEOUT_TICKS,
+        commandLog: normalizeRtsCommandLogForSpec(spec.command),
+        selectableMode: isCombatSelectableMode(spec.selectableMode) ? spec.selectableMode : 'command',
     };
 }
 
@@ -227,7 +320,7 @@ export function createCombatState(spec: BattleSpec): CombatState {
         }
     }
 
-    return { tick: 0, outcome: "", units, mechanicsStates, lastEvals: {}, focusTarget: {} };
+    return { tick: 0, outcome: "", units, mechanicsStates, lastEvals: {}, focusTarget: {}, orders: {}, commandCursor: 0 };
 }
 
 /**
@@ -271,12 +364,18 @@ export function combatTerminalOutcome(state: CombatState, ctx: CombatStepContext
 
 /**
  * Per-tick copy. Every unit field mutated during a tick is a scalar, and each
- * mechanics entry is replaced wholesale rather than mutated in place, so copying
- * one level deep is enough to leave the caller's state untouched.
+ * mechanics entry (and each order) is replaced wholesale rather than mutated
+ * in place, so copying one level deep — two for orders, since an ActiveOrder
+ * is itself an object — is enough to leave the caller's state untouched.
  */
 function cloneCombatState(state: CombatState): CombatState {
     const units: Record<string, CombatUnitState> = {};
     for (const name of Object.keys(state.units)) units[name] = { ...state.units[name] };
+    const orders: Record<string, ActiveOrder | null> = {};
+    for (const name of Object.keys(state.orders)) {
+        const order = state.orders[name];
+        orders[name] = order ? { ...order } : null;
+    }
     return {
         tick: state.tick,
         outcome: state.outcome,
@@ -284,7 +383,83 @@ function cloneCombatState(state: CombatState): CombatState {
         mechanicsStates: { ...state.mechanicsStates },
         lastEvals: { ...state.lastEvals },
         focusTarget: { ...state.focusTarget },
+        orders,
+        commandCursor: state.commandCursor,
     };
+}
+
+/**
+ * A unit's dispatch rank for command fan-out. Unknown units (not in
+ * participantOrder) sort to the end, in their original relative order within
+ * the event — `Array.prototype.sort` is spec-guaranteed stable, so ties
+ * (including multiple unknowns, or a duplicated id) never depend on anything
+ * but participantOrder and the event's own original array order.
+ */
+function orderRank(unitId: string, participantOrder: string[]): number {
+    const index = participantOrder.indexOf(unitId);
+    return index === -1 ? Number.POSITIVE_INFINITY : index;
+}
+
+/**
+ * Applies one normalized command event to every unit it targets, in
+ * participantOrder rank — never the event's own unitIds order, which is a UI
+ * accident (drag-select direction, hit-test order), not a simulation input.
+ * See docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md §4.
+ *
+ * A bad unit in the selection is rejected individually; the rest of the
+ * event's fan-out still proceeds — one bad id must not silently drop an
+ * entire multi-unit command.
+ */
+function applyRtsCommandEvent(
+    event: CommandInputEvent,
+    tick: number,
+    participantOrder: string[],
+    units: Record<string, CombatUnitState>,
+    orders: Record<string, ActiveOrder | null>,
+    selectableMode: CombatSelectableMode,
+    receipts: CommandReceipt[],
+): void {
+    const orderedUnitIds = event.unitIds
+        .slice()
+        .sort((a, b) => orderRank(a, participantOrder) - orderRank(b, participantOrder));
+
+    for (const unitId of orderedUnitIds) {
+        if (!combatModeAllowsTacticalOrder(selectableMode)) {
+            receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'mode_forbids_command' });
+            continue;
+        }
+
+        const unit = units[unitId];
+        if (!unit) {
+            receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'unit_not_found' });
+            continue;
+        }
+        if (unit._dead || unit.hp <= 0) {
+            receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'unit_dead' });
+            continue;
+        }
+        if (unit.team !== event.issuerTeam) {
+            receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'not_your_team' });
+            continue;
+        }
+
+        // Accepted. Whatever was previously active for this unit is replaced —
+        // same rule whether the replacement is another concrete order or
+        // resume_gambit clearing the slot back to nothing.
+        const previous = orders[unitId];
+        if (previous) {
+            receipts.push({ tick, unitId, command: previous.command, kind: 'order_superseded' });
+        }
+        receipts.push({ tick, unitId, command: event.command, kind: 'order_accepted' });
+
+        if (event.command === 'resume_gambit') {
+            orders[unitId] = null;
+            continue;
+        }
+
+        orders[unitId] = { command: event.command, point: event.point, targetId: event.targetId, issuedTick: tick };
+        receipts.push({ tick, unitId, command: event.command, kind: 'order_started' });
+    }
 }
 
 /**
@@ -305,6 +480,7 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
     const mechanicsStates = next.mechanicsStates;
     const lastEvals = next.lastEvals;
     const focusTarget = next.focusTarget;
+    const orders = next.orders;
     let tickCount = next.tick;
 
     const evaluations: CombatEvent[] = [];
@@ -314,6 +490,7 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
     const deaths: CombatEvent[] = [];
     const focusChanges: CombatEvent[] = [];
     const mechanicsReceipts: Array<CombatEvent & { receipt: MechanicsReceipt }> = [];
+    const commandReceipts: CommandReceipt[] = [];
 
     const { isAlive, getAliveUnits, isBackline } = combatRosterHelpers(units, participantOrder);
 
@@ -327,9 +504,29 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
         u.pos_y = godotClamp(u.pos_y, battle_rect.y + m, battle_rect.y + battle_rect.h - m);
     }
 
-    // --- extracted tick body: unchanged from the original while-loop ----------
     tickCount++;
 
+    // ---------------------------------------------------------------------
+    // ▸ RTS command application phase (COMBAT-RTS-ORDER-SLOT-STOP-RESUME-001)
+    //
+    // All commands scheduled for this tick land before any unit acts (design
+    // §2/§4): no unit's order can depend on where an earlier-moving ally ended
+    // up this same tick. The cursor only ever advances, so a battle with no
+    // commands (ctx.commandLog.events is empty) runs this loop zero times,
+    // every tick, for its entire duration — the golden master's byte-identity
+    // depends on that being a true no-op, not merely a cheap one.
+    // ---------------------------------------------------------------------
+    {
+        const commandEvents = ctx.commandLog.events;
+        let cursor = next.commandCursor;
+        while (cursor < commandEvents.length && commandEvents[cursor].tick === tickCount) {
+            applyRtsCommandEvent(commandEvents[cursor], tickCount, participantOrder, units, orders, ctx.selectableMode, commandReceipts);
+            cursor++;
+        }
+        next.commandCursor = cursor;
+    }
+
+    // --- extracted tick body: unchanged from the original while-loop ----------
     // Engagement slots are assigned each tick to every living hostile currently engaging a
     // defender (in range, nearest enemy is that defender), ordered by participantOrder — not
     // only to attackers who happen to fire this tick. Overflow beyond the size table deals ×0.25.
@@ -364,6 +561,16 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
 
         if (u._cooldown_timer > 0.0) {
             u._cooldown_timer -= delta;
+        }
+
+        // ▸ RTS order slot: a non-null order suppresses gambit evaluation,
+        // movement, and auto-attack entirely — no blending (design §3). Cooldown
+        // still decays above, same as any idle unit. move_to / attack_target /
+        // attack_move execution is not implemented yet (PR4/PR5), so a unit
+        // under one of those three orders simply idles, same as under `stop`,
+        // until it is replaced, explicitly resumed, or dies.
+        if (orders[unitName]) {
+            continue;
         }
 
         const move_delta = f(delta);
@@ -831,10 +1038,27 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
     }
     // --- end extracted tick body ---------------------------------------------
 
+    // ▸ Unit-death interruption (design §3, "shared interruptions"): any order
+    // still active for a unit that is dead by the end of this tick is cleared
+    // with an order_interrupted receipt. Checked once, here, after all of this
+    // tick's damage and mechanics resolution, so it catches death from any
+    // source (melee tryAttack, resolveMechanics, or the mechanics_v1 lethal-
+    // timer sweep above) uniformly, without threading receipt emission through
+    // every death call site. Iterates participantOrder, never Object.keys(orders),
+    // so this pass's own receipt order never depends on object key insertion order.
+    for (const unitName of participantOrder) {
+        const activeOrder = orders[unitName];
+        if (!activeOrder) continue;
+        const unit = units[unitName];
+        if (unit && !unit._dead && unit.hp > 0) continue;
+        orders[unitName] = null;
+        commandReceipts.push({ tick: tickCount, unitId: unitName, command: activeOrder.command, kind: 'order_interrupted' });
+    }
+
     next.tick = tickCount;
     return {
         state: next,
-        events: { evaluations, decisions, attacks, heals, deaths, focusChanges, mechanicsReceipts },
+        events: { evaluations, decisions, attacks, heals, deaths, focusChanges, mechanicsReceipts, commandReceipts },
     };
 }
 
@@ -849,6 +1073,7 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
     const deaths: CombatEvent[] = [];
     const focusChanges: CombatEvent[] = [];
     const mechanicsReceipts: Array<CombatEvent & { receipt: MechanicsReceipt }> = [];
+    const commandReceipts: CommandReceipt[] = [];
 
     while (state.tick <= ctx.timeoutTicks) {
         const terminal = combatTerminalOutcome(state, ctx);
@@ -865,6 +1090,7 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         deaths.push(...stepped.events.deaths);
         focusChanges.push(...stepped.events.focusChanges);
         mechanicsReceipts.push(...stepped.events.mechanicsReceipts);
+        commandReceipts.push(...stepped.events.commandReceipts);
     }
 
     let outcome = state.outcome;
@@ -893,5 +1119,6 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         outcome
     };
     if (ctx.combatMode === 'mechanics_v1') output.mechanicsReceipts = mechanicsReceipts;
+    if (ctx.commandLog.events.length > 0) output.commandReceipts = commandReceipts;
     return output;
 }

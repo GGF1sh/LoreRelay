@@ -22033,10 +22033,18 @@ window.addEventListener('message', event => {
   if (m.type === 'combatLabComparison') { state.compare = m.comparison; renderCombatLab(); }
   if (m.type === 'combatLabExport') { navigator.clipboard?.writeText(m.json); }
   if (m.type === 'combatCommandPlaytestState') {
+    // Host sends state:null when the Lab document changes (apply/clone/import)
+    // so a running timer cannot keep stepping a discarded battle. Apply/clone/
+    // import always follow with combatLabState, which re-renders; skip render
+    // here so we do not depend on a full DOM during the clear-only message.
+    if (!m.state) {
+      resetCombatCommandPlaytestUi(state, true);
+      return;
+    }
     state.playtest = m.state; state.error = '';
-    const controllable = new Set((m.state?.units || []).filter(unit => unit.team === 0 && !unit.dead).map(unit => unit.id));
+    const controllable = new Set((m.state.units || []).filter(unit => unit.team === 0 && !unit.dead).map(unit => unit.id));
     state.selection = state.selection.filter(id => controllable.has(id));
-    if (m.state?.outcome) state.running = false;
+    if (m.state.outcome) state.running = false;
     renderCombatLab();
   }
   if (m.type === 'combatCommandPlaytestError') { state.error = String(m.error || 'Command rejected'); renderCombatLab(); }

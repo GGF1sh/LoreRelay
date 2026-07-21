@@ -13,28 +13,58 @@ type PointerHelper = (
 type ResetHelper = (state: Record<string, unknown>, clearPlaytest?: boolean) => void;
 type ScenarioHelper = (state: Record<string, unknown>, scenarioId: string) => Record<string, unknown> | null;
 
-function loadWebviewHelpers(): { translate: PointerHelper; reset: ResetHelper; selectScenario: ScenarioHelper; clearedTimers: unknown[] } {
+function loadWebviewHelpers(): {
+    translate: PointerHelper;
+    reset: ResetHelper;
+    selectScenario: ScenarioHelper;
+    clearedTimers: unknown[];
+    dispatchMessage: (data: unknown) => void;
+    state: Record<string, unknown>;
+} {
     const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
     const clearedTimers: unknown[] = [];
+    const messageListeners: Array<(event: { data: unknown }) => void> = [];
     const context: Record<string, unknown> = {
-        window: { addEventListener() { /* registration only */ } },
-        document: { addEventListener() { /* registration only */ } },
+        window: {
+            addEventListener(type: string, fn: (event: { data: unknown }) => void) {
+                if (type === 'message') messageListeners.push(fn);
+            },
+        },
+        document: {
+            addEventListener() { /* registration only */ },
+            createElement() {
+                return {
+                    set textContent(_value: string) { /* escape helper */ },
+                    get innerHTML() { return ''; },
+                };
+            },
+        },
         navigator: {},
         vscode: { postMessage() { /* registration only */ } },
         setInterval() { return 1; },
         clearInterval(value: unknown) { clearedTimers.push(value); },
     };
-    vm.runInNewContext(`${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest };`, context);
+    vm.runInNewContext(
+        `${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest, lab: window.LR_combatLab };`,
+        context,
+    );
     const hooks = context.__combatHooks as {
         combatCommandMessageForPointer: PointerHelper;
         resetCombatCommandPlaytestUi: ResetHelper;
         selectCombatLabScenarioForPlaytest: ScenarioHelper;
+        lab: Record<string, unknown>;
     };
+    // Stub render so message handlers that call renderCombatLab do not need the DOM.
+    vm.runInNewContext('function renderCombatLab() {}', context);
     return {
         translate: hooks.combatCommandMessageForPointer,
         reset: hooks.resetCombatCommandPlaytestUi,
         selectScenario: hooks.selectCombatLabScenarioForPlaytest,
         clearedTimers,
+        dispatchMessage(data: unknown) {
+            for (const listener of messageListeners) listener({ data });
+        },
+        state: hooks.lab,
     };
 }
 
@@ -112,5 +142,25 @@ describe('Combat Lab command pointer translation', () => {
         };
         reset(restartState);
         assert.deepEqual(clearedTimers, [17, 18]);
+    });
+
+    test('host null playtest state (document change) stops the timer and clears the UI battle', () => {
+        const live = loadWebviewHelpers();
+        Object.assign(live.state, {
+            timer: 42,
+            running: true,
+            selection: ['ally_1'],
+            pendingOrder: 'attack_move',
+            playtest: { scenarioId: 'stale' },
+            error: 'previous',
+        });
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null });
+        assert.ok(live.clearedTimers.includes(42), `timer not cleared, saw ${JSON.stringify(live.clearedTimers)}`);
+        assert.equal(live.state.timer, null);
+        assert.equal(live.state.running, false);
+        assert.equal(live.state.playtest, null);
+        assert.equal((live.state.selection as string[]).length, 0);
+        assert.equal(live.state.pendingOrder, null);
+        assert.equal(live.state.error, '');
     });
 });

@@ -114,9 +114,10 @@ export interface CombatExpectedOutput {
  *
  * `move_to` / `attack_target` / `attack_move` are accepted and installed here
  * exactly like `stop`, which is what suppresses gambit evaluation for that
- * unit — but their actual movement/attack execution (arrival, engagement,
- * completion) is not implemented until PR4/PR5. A unit under one of those
- * three orders simply idles until it is replaced, explicitly resumed, or dies.
+ * unit; their movement/attack execution (arrival, engagement, completion) is
+ * implemented in `stepCombat`'s RTS order execution block (PR4 for move_to /
+ * attack_target, PR5 for attack_move). `stop` alone still just idles — it is
+ * the only one of the four with no execution of its own.
  */
 export interface ActiveOrder {
     command: RtsCommand;
@@ -124,7 +125,7 @@ export interface ActiveOrder {
     targetId?: string;
     /** Tick the order was accepted on. */
     issuedTick: number;
-    /** attack_move only, wired up in PR5: paused to fight mid-transit. */
+    /** attack_move only: true while an in-range enemy is selected for combat and movement is paused; false while resuming/moving. */
     engaging?: boolean;
 }
 
@@ -133,11 +134,11 @@ export type CommandReceiptKind =
     | 'order_completed' | 'order_superseded' | 'order_interrupted' | 'order_timeout';
 
 /**
- * Only `unit_not_found` / `unit_dead` / `not_your_team` / `mode_forbids_command`
- * are ever produced in PR3. The rest (`invalid_target`, `target_not_found`,
- * `target_defeated`, `invalid_point`, `unknown_command`) belong to move_to /
- * attack_target / attack_move execution semantics landing in PR4/PR5, and are
- * declared now only so CommandReceipt's shape does not change again then.
+ * `unit_not_found` / `unit_dead` / `not_your_team` / `mode_forbids_command`
+ * come from command acceptance (PR3). `invalid_target` / `target_not_found` /
+ * `target_defeated` come from attack_target execution (PR4). `invalid_point`
+ * and `unknown_command` are declared for schema-level rejection but are not
+ * yet produced by any execution path.
  */
 export type CommandRejectReason =
     | 'unit_not_found' | 'unit_dead' | 'not_your_team' | 'mode_forbids_command'
@@ -703,6 +704,15 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
     const focusChanges: CombatEvent[] = [];
     const mechanicsReceipts: Array<CombatEvent & { receipt: MechanicsReceipt }> = [];
     const commandReceipts: CommandReceipt[] = [];
+    // Populated during the per-unit loop below when an attack_move holder is
+    // within arrivalEpsilon of its destination with no living enemy in range
+    // *at that unit's own turn*. Completion is only finalized by the end-of-
+    // tick attack_move arrival sweep (never inline), which rechecks living
+    // enemies against final positions and also defers to holder-death priority
+    // (attack_target target-death sweep pattern; PR #35 review discussion
+    // r3619920590): a holder that arrives AND dies later this same tick must
+    // still receive order_interrupted, not order_completed.
+    const arrivedThisTick = new Set<string>();
 
     const { isAlive, getAliveUnits, isBackline } = combatRosterHelpers(units, participantOrder);
 
@@ -997,13 +1007,14 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
             }
         };
 
-        // ▸ RTS order execution (COMBAT-RTS-MOVE-ATTACK-TARGET-001, PR4)
+        // ▸ RTS order execution (PR4: COMBAT-RTS-MOVE-ATTACK-TARGET-001,
+        // PR5: COMBAT-RTS-ATTACK-MOVE-001)
         //
         // A non-null order still suppresses gambit evaluation entirely — no
-        // blending (design §3) — but for move_to / attack_target "suppressed"
-        // now means the order's own execution runs in gambits' place, not mere
-        // idling. `stop` and the not-yet-implemented `attack_move` (PR5) still
-        // just idle, exactly as PR3 left them.
+        // blending (design §3) — but for move_to / attack_target /
+        // attack_move "suppressed" now means the order's own execution runs
+        // in gambits' place, not mere idling. `stop` alone still just idles,
+        // exactly as PR3 left it — it has no execution of its own.
         const activeOrder = orders[unitName];
         if (activeOrder) {
             if (activeOrder.command === 'move_to' && activeOrder.point) {
@@ -1078,7 +1089,69 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
                 // comment above.
                 continue;
             }
-            // `stop`, and `attack_move` (PR5, not yet implemented): idle.
+            if (activeOrder.command === 'attack_move' && activeOrder.point) {
+                // Mirrors attack_target's canAct/canMove gate (design §3 /
+                // §5): unlike attack_target's target-alive check, attack_move
+                // has no "already resolved, complete regardless" exception —
+                // a disabled holder retains its order unchanged, with no
+                // completion, full stop, checked before anything else.
+                if (combatMode === 'mechanics_v1' && (!canAct(mechanicsStates[u.name]) || !canMove(mechanicsStates[u.name]))) {
+                    continue;
+                }
+
+                // Reacquired fresh every tick from the unit's current
+                // position — no persistent target slot (design: attack_move
+                // is not a second attack_target). Candidates and the nearest-
+                // distance tie-break both derive from participantOrder, never
+                // Object.keys/Object.values, so selection is deterministic.
+                // Iterating in participantOrder order and only replacing on a
+                // strictly smaller distance means an exact-distance tie keeps
+                // whichever candidate has the lower participantOrder index.
+                let nearestEnemy: string | null = null;
+                let nearestDist = Infinity;
+                for (const candidateName of participantOrder) {
+                    const candidate = units[candidateName];
+                    if (!candidate || candidate._dead || candidate.hp <= 0 || candidate.team === u.team) continue;
+                    const d = dist(u, candidate);
+                    if (d > u.attack_range) continue;
+                    if (d < nearestDist) {
+                        nearestDist = d;
+                        nearestEnemy = candidateName;
+                    }
+                }
+
+                if (nearestEnemy) {
+                    // Stop and fight: no movement call at all this tick,
+                    // regardless of whether tryAttack's own cooldown gate
+                    // actually lets the attack land — "stopped while an
+                    // enemy is in range" does not depend on cooldown state.
+                    // Also skips the arrival check entirely (design §5:
+                    // "enemy at destination -> fight first, complete only
+                    // after no in-range enemy remains").
+                    activeOrder.engaging = true;
+                    tryAttack(nearestEnemy);
+                    continue;
+                }
+                activeOrder.engaging = false;
+
+                // No living enemy in range: resume straight-line movement.
+                // Same arrivalEpsilon / "checked before moving" discipline as
+                // move_to (design §5) — reuses moveTowardPoint verbatim, no
+                // second movement formula.
+                const arrivalEpsilon = f(u.move_speed * move_delta);
+                const remaining = dist(u, { pos_x: activeOrder.point.x, pos_y: activeOrder.point.y } as any);
+                if (remaining <= arrivalEpsilon) {
+                    // Arrival-with-no-enemy-in-range is only recorded here —
+                    // completion is finalized by the end-of-tick attack_move
+                    // arrival sweep below, never inline. See arrivedThisTick's
+                    // declaration comment for why.
+                    arrivedThisTick.add(unitName);
+                } else {
+                    moveTowardPoint(activeOrder.point.x, activeOrder.point.y);
+                }
+                continue;
+            }
+            // `stop`: idle.
             continue;
         }
 
@@ -1377,6 +1450,46 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
         if (target && !target._dead && target.hp > 0) continue;
         orders[unitName] = null;
         commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
+    }
+
+    // ▸ attack_move arrival sweep: mirrors the attack_target target-death
+    // sweep directly above, for the same reason. Arrival eligibility
+    // (arrivalEpsilon reached, no living enemy in range *at the holder's own
+    // turn*) is recorded in arrivedThisTick during the per-unit loop — but
+    // completion is only finalized here, once every unit has acted, so:
+    //   (1) a holder that arrives and is then killed later this same tick
+    //       correctly falls through to the Unit-death interruption pass below
+    //       and receives order_interrupted instead of order_completed;
+    //   (2) a holder that recorded arrival with no enemy in range, then had
+    //       an enemy move into attack_range later in participantOrder this
+    //       same tick, retains the order (rechecked against *final* positions)
+    //       instead of completing and resuming gambits while a fight is now
+    //       available at the destination.
+    // Iterates participantOrder, never arrivedThisTick's own insertion order
+    // (a Set has none to rely on anyway), for the same determinism reason as
+    // every other sweep here.
+    for (const unitName of participantOrder) {
+        if (!arrivedThisTick.has(unitName)) continue;
+        const activeOrder = orders[unitName];
+        if (!activeOrder || activeOrder.command !== 'attack_move') continue;
+        const unit = units[unitName];
+        if (!unit || unit._dead || unit.hp <= 0) continue;
+        // Final-position recheck: any living hostile now inside attack_range
+        // keeps the order live so next tick's attack_move branch can fight.
+        // Same candidate filter as the mid-tick attack_move scan (participantOrder,
+        // living, opposing team, distance ≤ attack_range).
+        let enemyInRange = false;
+        for (const candidateName of participantOrder) {
+            const candidate = units[candidateName];
+            if (!candidate || candidate._dead || candidate.hp <= 0 || candidate.team === unit.team) continue;
+            if (dist(unit, candidate) <= unit.attack_range) {
+                enemyInRange = true;
+                break;
+            }
+        }
+        if (enemyInRange) continue;
+        orders[unitName] = null;
+        commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_move', kind: 'order_completed' });
     }
 
     // ▸ Unit-death interruption (design §3, "shared interruptions"): any order

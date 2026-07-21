@@ -8,10 +8,13 @@
  *
  * move_to and attack_target's own execution (movement, arrival, attack,
  * target-death completion) was implemented in PR4 —
- * COMBAT-RTS-MOVE-ATTACK-TARGET-001, see combatRtsMoveAttackTargetV1.test.ts —
- * and is out of scope here; tests below use points/targets far enough away
- * that neither ever completes within the ticks each test actually inspects.
- * attack_move remains idle-only (PR5).
+ * COMBAT-RTS-MOVE-ATTACK-TARGET-001, see combatRtsMoveAttackTargetV1.test.ts.
+ * attack_move's own execution (engage/disengage, arrival) was implemented in
+ * PR5 — COMBAT-RTS-ATTACK-MOVE-001, see combatRtsAttackMoveV1.test.ts. Tests
+ * below use points/targets far enough away that none of the three ever
+ * completes within the ticks each test actually inspects — this file is only
+ * about the order slot suppressing gambits immediately upon acceptance, not
+ * about execution semantics, which the two files above cover instead.
  */
 
 import * as assert from 'node:assert/strict';
@@ -372,16 +375,18 @@ describe('RTS order slot — unit death interrupts an active order', () => {
 
 describe('RTS order slot — move_to / attack_target / attack_move are accepted', () => {
     // COMBAT-RTS-MOVE-ATTACK-TARGET-001 (PR4) implemented move_to and
-    // attack_target's actual execution; attack_move remains idle-only (PR5).
-    // The points/targets below are chosen so none of the three completes
-    // within this test's 50-tick observation window — this test is only about
-    // the order slot suppressing gambits immediately upon acceptance.
-    // move_to/attack_target's own arrival, completion and target-death
-    // semantics are covered in combatRtsMoveAttackTargetV1.test.ts.
+    // attack_target's actual execution; COMBAT-RTS-ATTACK-MOVE-001 (PR5)
+    // implemented attack_move's. The points/targets below are chosen so none
+    // of the three completes within this test's 50-tick observation window —
+    // this test is only about the order slot suppressing gambits immediately
+    // upon acceptance. move_to/attack_target's own arrival, completion and
+    // target-death semantics are covered in combatRtsMoveAttackTargetV1.test.ts;
+    // attack_move's own engage/disengage and arrival semantics are covered in
+    // combatRtsAttackMoveV1.test.ts.
     for (const [command, extra] of [
         ['move_to', { point: { x: 10000, y: 0 } }],
         ['attack_target', { targetId: 'enemy_a' }],
-        ['attack_move', { point: { x: 30, y: 0 } }],
+        ['attack_move', { point: { x: 10000, y: 0 } }],
     ] as const) {
         test(`${command} is accepted, installed in the order slot, and also suppresses gambits`, () => {
             // An enemy far enough away still eventually closes the distance —

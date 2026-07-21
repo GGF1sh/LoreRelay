@@ -21850,7 +21850,7 @@ document.addEventListener('DOMContentLoaded', () => { renderAbilityWorkshop(); v
 window.LR_combatLab = window.LR_combatLab || {
   document: { scenarios: [] }, selected: '', result: null, compare: null,
   playtest: null, playtestMode: 'command', selection: [], pendingOrder: null,
-  running: false, timer: null, error: '',
+  running: false, timer: null, error: '', pendingStart: false,
 };
 
 function labEsc(value) { const n = document.createElement('span'); n.textContent = String(value || ''); return n.innerHTML; }
@@ -21882,13 +21882,17 @@ function sendSelectedCombatCommand(command) {
 }
 function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
   if (state.timer) clearInterval(state.timer);
-  state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = '';
+  state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = ''; state.pendingStart = false;
   if (clearPlaytest) state.playtest = null;
 }
 function selectCombatLabScenarioForPlaytest(state, scenarioId) {
-  const restart = Boolean(state.playtest); state.selected = scenarioId;
+  const restart = Boolean(state.playtest || state.pendingStart); state.selected = scenarioId;
   resetCombatCommandPlaytestUi(state);
-  return restart ? { type: 'startCombatCommandPlaytest', scenarioId, mode: state.playtestMode } : null;
+  if (restart) {
+    state.pendingStart = true;
+    return { type: 'startCombatCommandPlaytest', scenarioId, mode: state.playtestMode };
+  }
+  return null;
 }
 function syncCombatPlaytestTimer() {
   const state = window.LR_combatLab;
@@ -21937,12 +21941,12 @@ function bindCombatCommandPlaytest(root) {
   root.querySelector('[data-lab="playtest-mode"]').onchange = event => { state.playtestMode = event.target.value; };
   root.querySelector('[data-lab="playtest-start"]').onclick = () => {
     const scenarioId = state.selected; const mode = state.playtestMode;
-    resetCombatCommandPlaytestUi(state); renderCombatLab();
+    resetCombatCommandPlaytestUi(state); state.pendingStart = true; renderCombatLab();
     vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode });
   };
   root.querySelector('[data-lab="playtest-run"]').onclick = () => {
     if (!state.playtest) {
-      state.running = true;
+      state.running = true; state.pendingStart = true;
       vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode });
       return;
     }
@@ -22045,6 +22049,10 @@ window.addEventListener('message', event => {
       resetCombatCommandPlaytestUi(state, true);
       return;
     }
+    if (m.state.scenarioId && m.state.scenarioId !== state.selected) {
+      return;
+    }
+    state.pendingStart = false;
     state.playtest = m.state; state.error = '';
     const controllable = new Set((m.state.units || []).filter(unit => unit.team === 0 && !unit.dead).map(unit => unit.id));
     state.selection = state.selection.filter(id => controllable.has(id));

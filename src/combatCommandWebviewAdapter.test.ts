@@ -127,6 +127,7 @@ describe('Combat Lab command pointer translation', () => {
             selection: [],
             pendingOrder: null,
             error: '',
+            pendingStart: true,
             playtest: null,
             playtestMode: 'command',
             selected: 'new',
@@ -188,5 +189,34 @@ describe('Combat Lab command pointer translation', () => {
         elements['[data-lab="playtest-run"]'].onclick?.();
 
         assert.equal(live.state.running, true, 'state.running should be true on first Run click');
+    });
+
+    test('scenario change during pending start request re-issues start and ignores stale host response', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = null;
+        live.state.pendingStart = true;
+
+        const startMsg = live.selectScenario(live.state, 'scenarioB');
+        assert.deepEqual(transportValue(startMsg), {
+            type: 'startCombatCommandPlaytest',
+            scenarioId: 'scenarioB',
+            mode: 'command',
+        });
+        assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.selected, 'scenarioB');
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [] },
+        });
+        assert.equal(live.state.playtest, null);
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioB', tick: 0, units: [] },
+        });
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 0, units: [] });
+        assert.equal(live.state.pendingStart, false);
     });
 });

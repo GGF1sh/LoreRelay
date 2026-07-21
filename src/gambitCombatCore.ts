@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AbilityDefinition, StatusDefinition } from './combatAbilityTypes';
 import { advanceMechanicsState, canAct, canMove, ENGAGEMENT_OVERFLOW_MULTIPLIER, engagementSlotsFor, falloffAtIndex, MechanicsCombatant, MechanicsReceipt, resolveMechanics } from './combatMechanicsResolver';
 import { CombatSelectableMode, combatModeAllowsTacticalOrder, isCombatSelectableMode } from './combatModeContract';
@@ -106,6 +107,44 @@ export interface CombatExpectedOutput {
         units: { name: string; hp: number; pos_x: number; pos_y: number }[];
     };
     outcome: string;
+    /**
+     * Stable JSON bytes of this result (every field above, exactly as
+     * returned — never including outputBytes/replayHash themselves) — see
+     * stableCombatOutputBytes. Present under the same condition as
+     * replayHash; see that field's doc comment.
+     */
+    outputBytes?: string;
+    /**
+     * SHA-256 hex digest of outputBytes (COMBAT-RTS-REPLAY-HASH-
+     * DETERMINISM-001, PR7 of docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md §6).
+     * Mirrors the existing direct-mode contract (combatDirectHeadlessCore.ts's
+     * own replayHash: same algorithm, same "hash of stably serialized output"
+     * shape) rather than inventing a second convention.
+     *
+     * Present if and only if `ctx.commandLog.events.length > 0` — the exact
+     * same condition already gating commandReceipts's presence, reused
+     * verbatim rather than derived in parallel. This means: with spec.command
+     * absent, an explicit empty log, or a log that fails normalization (all
+     * three already collapse to an empty ctx.commandLog), replayHash and
+     * outputBytes are both omitted entirely — the result has exactly the
+     * same key set it had before this field existed, preserving Golden
+     * Master byte-identity and the absent/empty compatibility contract (§8)
+     * with no special-casing beyond reusing the existing gate.
+     */
+    replayHash?: string;
+}
+
+/**
+ * Stable JSON bytes for a CombatExpectedOutput-shaped payload (used for
+ * replayHash). Every field of CombatExpectedOutput is an array or a
+ * primitive — never a Record whose key set/order could vary by insertion —
+ * so a plain double JSON round-trip (drops `undefined`, normalizes primitive
+ * representation) is already independent of object insertion order, exactly
+ * like combatDirectHeadlessCore.ts's stableDirectOutputBytes, which this
+ * mirrors rather than replaces or competes with.
+ */
+export function stableCombatOutputBytes(payload: unknown): string {
+    return JSON.stringify(JSON.parse(JSON.stringify(payload)));
 }
 
 /**
@@ -1573,6 +1612,16 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         outcome
     };
     if (ctx.combatMode === 'mechanics_v1') output.mechanicsReceipts = mechanicsReceipts;
-    if (ctx.commandLog.events.length > 0) output.commandReceipts = commandReceipts;
+    if (ctx.commandLog.events.length > 0) {
+        output.commandReceipts = commandReceipts;
+        // Payload is `output` exactly as built above — every field the
+        // caller will actually receive, and nothing else — captured before
+        // outputBytes/replayHash themselves exist on it, so the hash can
+        // never include itself. See CombatExpectedOutput.replayHash's doc
+        // comment for the full contract (algorithm, payload, presence rule).
+        const outputBytes = stableCombatOutputBytes(output);
+        output.outputBytes = outputBytes;
+        output.replayHash = createHash('sha256').update(outputBytes).digest('hex');
+    }
     return output;
 }

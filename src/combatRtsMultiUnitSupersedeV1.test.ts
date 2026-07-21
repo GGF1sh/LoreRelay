@@ -246,36 +246,53 @@ describe('RTS multi-unit command supersede semantics', () => {
             { tick: 1, seq: 1, issuerTeam: 0, unitIds: ['ally_b'], command: 'attack_target', targetId: 'enemy_a' }
         ];
         
-        // enemy_a HP set to 10
         const spec = skirmishSpec({
             command: commandLog(events),
             initialState: {
                 units: {
                     allies: [
-                        unit({ name: 'ally_a', team: 0 }),
-                        unit({ name: 'ally_b', team: 0, pos_y: 40 }),
-                        unit({ name: 'ally_c', team: 0, pos_y: 80 })
+                        unit({ name: 'ally_a', team: 0, pos_x: 0, pos_y: 0 }),
+                        unit({ name: 'ally_b', team: 0, pos_x: 0, pos_y: 10 }),
+                        unit({ name: 'ally_c', team: 0, pos_x: 0, pos_y: 80 })
                     ],
-                    enemies: [unit({ name: 'enemy_a', team: 1, hp: 10, max_hp: 10 })],
+                    // enemy_a must be within ally_a's attack_range (40), so x=20 is perfect.
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, hp: 10, max_hp: 10 })],
                 }
             }
         });
         
-        const out = resolveCombat(spec);
+        const ctx = createCombatStepContext(spec);
+        let state = createCombatState(spec);
         
-        // Assert for ally_b
-        const receiptsB = out.commandReceipts!.filter(r => r.unitId === 'ally_b').map(r => [r.command, r.kind, r.reason]);
+        // Advance exactly one tick.
+        const stepped = stepCombat(state, ctx);
+        state = stepped.state;
+        const tickEvents = stepped.events as any;
+        
+        // 1. ally_a emitted an attack against enemy_a on that tick.
+        const attacks = tickEvents.attacks.filter((e: any) => e.unit === 'ally_a' && e.target === 'enemy_a');
+        assert.equal(attacks.length, 1, 'ally_a should emit an attack hit against enemy_a on tick 1');
+        
+        // 2. enemy_a died on that tick.
+        assert.equal(state.units['enemy_a']!.hp, 0, 'enemy_a should have 0 hp');
+        const deaths = tickEvents.deaths.filter((e: any) => e.unit === 'enemy_a');
+        assert.equal(deaths.length, 1, 'enemy_a should emit a defeated event on tick 1');
+        
+        // 3. ally_b received: order_accepted, order_started, order_completed with reason target_defeated
+        const receiptsB = tickEvents.commandReceipts.filter((r: any) => r.unitId === 'ally_b').map((r: any) => [r.command, r.kind, r.reason]);
         assert.deepEqual(receiptsB, [
             ['attack_target', 'order_accepted', undefined],
             ['attack_target', 'order_started', undefined],
             ['attack_target', 'order_completed', 'target_defeated']
         ]);
         
-        // Ensure NO order_rejected due to target_defeated exists for ally_b.
-        // If commands were applied just-in-time per participant, ally_a would kill enemy_a, 
-        // and then ally_b's command would be rejected (invalid_target or target_defeated).
-        const rejected = out.commandReceipts!.filter(r => r.unitId === 'ally_b' && r.kind === 'order_rejected');
+        // 4. ally_b received no order_rejected receipt.
+        const rejected = tickEvents.commandReceipts.filter((r: any) => r.unitId === 'ally_b' && r.kind === 'order_rejected');
         assert.equal(rejected.length, 0);
+        
+        // 5. The receipt sequence demonstrates that ally_b's command was installed before ally_a's lethal action.
+        // The test would fail under a per-participant just-before-action command application,
+        // because ally_a would kill enemy_a first, and ally_b's later-applied command would be rejected.
     });
 });
 

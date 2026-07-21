@@ -276,16 +276,31 @@ function isPositiveIntegerNumber(value: unknown): value is number {
 
 /**
  * Relative tolerance for reconciling deltaSeconds against its rounded integer
- * reciprocal. A truncated literal like the golden-master fixtures' 60fps delta
+ * reciprocal.
+ *
+ * A truncated literal like the golden-master fixtures' 60fps delta
  * (0.0166666667, not the full repeating decimal) round-trips through
  * `1 / Math.round(1 / delta)` with a relative error around 2e-9 — comfortably
- * inside this bound. A genuinely different rate (e.g. NTSC-ish 29.97fps
- * masquerading near 30) round-trips with a relative error around 1e-3 —
- * comfortably outside it. There is no authoritative source for this constant
- * beyond "wide enough for float round-off, narrow enough to reject a real
- * near-miss rate"; both fixture and adversarial-rate probes are pinned by test.
+ * inside this bound.
+ *
+ * Tightened from an earlier 1e-6 after review: a deliberately different rate
+ * that happens to land close to an integer — e.g. 1/60.00005 (relative error
+ * from exact 1/60 is ~8.33e-7) — passed a 1e-6 check, so a battle whose real
+ * rate was 60.00005fps could still match a command log declaring tickRate 60.
+ * 1e-7 keeps the fixture literal's ~2e-9 error comfortably inside (50x margin)
+ * while rejecting that specific near-miss (~8x margin) and anything looser.
+ *
+ * This bound alone cannot perfectly distinguish "a truncated literal of
+ * exactly N" from "a deliberately different rate that happens to be numerically
+ * close to N" — no finite epsilon can, since both are just numbers near
+ * 1/N. What makes a false-positive match harmless is that
+ * createCombatStepContext canonicalizes `delta` to `1/N` whenever
+ * effectiveBattleTickRate resolves to N, rather than leaving the caller's own
+ * (possibly slightly different) deltaSeconds in place — so an accepted match
+ * can no longer diverge from the timebase it was matched against, whatever the
+ * caller's original literal actually was.
  */
-const TICK_RATE_MATCH_EPSILON = 1e-6;
+const TICK_RATE_MATCH_EPSILON = 1e-7;
 
 /**
  * Derives the battle's tick rate (ticks per second) from the exact same basis
@@ -297,6 +312,10 @@ const TICK_RATE_MATCH_EPSILON = 1e-6;
  * is not what ctx.delta would actually be using in that case, and mixing bases
  * would silently validate a command log against a rate the battle is not
  * really running at. Returns null when neither source yields a usable rate.
+ *
+ * createCombatStepContext calls this exactly once per battle and reuses the
+ * single result for both `delta` and the command log's tick-rate check, so the
+ * two can never be computed from different values by construction.
  */
 function effectiveBattleTickRate(spec: BattleSpec): number | null {
     if (spec.fixedFps) {
@@ -344,12 +363,29 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
     const headless_view_w = 64.0;
     const headless_view_h = 64.0;
 
+    // Computed once and shared by `delta` and the command log's tick-rate
+    // check below — the two can never be derived from different values by
+    // construction, which is what closes the gap a review found: without this,
+    // a command log could pass its tick-rate match while `delta` kept running
+    // on a slightly different value than the rate it was just matched against.
+    const tickRate = effectiveBattleTickRate(spec);
+
     return {
         spec,
         participantOrder: spec.participantOrder,
-        // Unchanged: truthiness, not integer-ness — see effectiveBattleTickRate
-        // for why the command-log tick rate check does not use this same test.
-        delta: spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds,
+        // Canonicalized to 1/tickRate whenever a clean rate is determinable —
+        // bit-identical to the previous fixedFps-or-deltaSeconds computation
+        // for every existing caller (all golden-master fixtures set fixedFps to
+        // an already-integer value; Combat Lab's duel() computes deltaSeconds
+        // as the exact expression 1/30 — both round-trip through
+        // effectiveBattleTickRate to the identical double). Only a spec whose
+        // deltaSeconds is a non-exact literal approximating an integer rate
+        // (no current caller does this) would see delta shift, by construction
+        // toward the rate its own command log would be validated against. Falls
+        // back to the original truthy-fixedFps-or-deltaSeconds computation only
+        // when no clean integer rate exists at all (e.g. a genuinely fractional
+        // fps like 59.94), where that fallback is unchanged from before.
+        delta: tickRate !== null ? (1.0 / tickRate) : (spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds),
         combatMode: spec.combatMode || 'legacy_gambit',
         battleRect: {
             x: MARGIN,
@@ -358,7 +394,7 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
             h: headless_view_h - LOG_H - MARGIN * 3.0
         },
         timeoutTicks: COMBAT_TIMEOUT_TICKS,
-        commandLog: normalizeRtsCommandLogForSpec(spec.command, effectiveBattleTickRate(spec)),
+        commandLog: normalizeRtsCommandLogForSpec(spec.command, tickRate),
         selectableMode: isCombatSelectableMode(spec.selectableMode) ? spec.selectableMode : 'command',
     };
 }

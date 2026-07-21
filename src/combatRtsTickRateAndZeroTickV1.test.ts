@@ -19,7 +19,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
 import { describe, test } from 'node:test';
-import { BattleSpec, CombatExpectedOutput, resolveCombat } from './gambitCombatCore';
+import { BattleSpec, CombatExpectedOutput, createCombatStepContext, resolveCombat } from './gambitCombatCore';
 import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION } from './combatRtsCommandInputCore';
 
 const fixturesDir = path.join(__dirname, '../test/fixtures/combat');
@@ -160,6 +160,55 @@ describe('RTS tick rate — no runtime path bypasses tick-rate enforcement', () 
         assert.equal('commandReceipts' in output, false);
         // The battle must not crash or hang — it still resolves to some outcome.
         assert.equal(typeof output.outcome, 'string');
+    });
+});
+
+describe('RTS tick rate — near-miss rates are rejected, and delta is canonicalized on a match', () => {
+    // Follow-up to a review finding on the tightened-epsilon version of this
+    // fix: a rate close enough to an integer to pass a loose tolerance check
+    // could previously be accepted for command matching while ctx.delta kept
+    // running on the caller's own, slightly different, uncanonicalized value —
+    // so a log could pass normalization yet still run on a different timebase.
+
+    test('1/60.00005 (the specific near-miss example from review) is rejected, not treated as 60Hz', () => {
+        // relative error from exact 1/60 is ~8.33e-7, which passed the original
+        // 1e-6 tolerance but must not pass the tightened one.
+        const spec = skirmishSpec({ deltaSeconds: 1 / 60.00005, command: commandLog([stopEvent()], 60) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+    });
+
+    test('a fixedFps=60 battle canonicalizes delta to exactly 1/60', () => {
+        const spec = skirmishSpec({ fixedFps: 60 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 60);
+    });
+
+    test('a deltaSeconds=1/30 battle (no fixedFps, matching how Combat Lab builds specs) canonicalizes delta to the identical bit pattern', () => {
+        const spec = skirmishSpec({ deltaSeconds: 1 / 30 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 30);
+    });
+
+    test('an accepted truncated-literal match canonicalizes delta to the exact rate, not the caller\'s imprecise literal', () => {
+        // This is the concrete fix: previously, accepting this log as "60Hz" left
+        // ctx.delta at the caller's own 0.0166666667, distinct from exact 1/60.
+        const spec = skirmishSpec({ deltaSeconds: 0.0166666667 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 60);
+        assert.notEqual(ctx.delta, 0.0166666667, 'delta must not be left at the caller\'s raw imprecise literal once matched');
+    });
+
+    test('when no clean integer rate is determinable, delta is left exactly as before (no canonicalization to fall back to)', () => {
+        const spec = skirmishSpec({ fixedFps: 59.94, deltaSeconds: 1 / 30 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 59.94, 'must use the original truthy-fixedFps computation unchanged');
+    });
+
+    test('golden master fixtures still canonicalize to bit-identical delta (spot check via context, not just output bytes)', () => {
+        const spec = fixtureSpec(fixtureFiles[0]);
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 60);
     });
 });
 

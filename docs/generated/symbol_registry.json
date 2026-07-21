@@ -13915,7 +13915,7 @@
       "name": "resolveCombat",
       "kind": "function",
       "sourcePath": "src/gambitCombatCore.ts",
-      "line": 1499,
+      "line": 1519,
       "signature": "export function resolveCombat(spec: BattleSpec): CombatExpectedOutput",
       "public": "exported",
       "boundary": "pure-core",

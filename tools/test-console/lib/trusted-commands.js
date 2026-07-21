@@ -98,6 +98,7 @@ function baseDefinitionForId(id) {
             command: commandDisplay('node', ['scripts/run_all_tests.js']),
             timeoutMs: 60 * 60 * 1000,
             exclusiveGroup: 'full-suite',
+            consumesCompiledOutput: true,
         };
     }
 
@@ -105,7 +106,13 @@ function baseDefinitionForId(id) {
     if (manifestFile) {
         const entry = MANIFEST_BY_FILE.get(manifestFile);
         if (!entry) return null;
-        const consumesCompiledOutput = Boolean(entry.runner === 'node-test' || entry.file === 'test_combat_manifest_coverage.js');
+        let consumesCompiledOutput = Boolean(entry.runner === 'node-test');
+        if (!consumesCompiledOutput) {
+            try {
+                const content = fs.readFileSync(path.join(ROOT, 'scripts', entry.file), 'utf8');
+                consumesCompiledOutput = content.includes('out/');
+            } catch (_) {}
+        }
         return {
             ...manifestExecutableDefinition(entry),
             exclusiveGroup: defaultExclusiveGroup(entry.file),

@@ -632,6 +632,29 @@ function applyRtsCommandEvent(
             continue;
         }
 
+        // attack_target: the target is validated once, here, at acceptance —
+        // not re-validated on every subsequent execution tick. A rejection here
+        // `continue`s before the order slot is ever touched below, so it never
+        // replaces whatever order this unit already had active (COMBAT-RTS-
+        // MOVE-ATTACK-TARGET-001), and the fan-out loop still proceeds to the
+        // next selected unit exactly like every other per-unit rejection.
+        if (event.command === 'attack_target') {
+            const targetId = event.targetId;
+            const target = targetId ? units[targetId] : undefined;
+            if (!targetId || !target) {
+                receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'target_not_found' });
+                continue;
+            }
+            if (target._dead || target.hp <= 0) {
+                receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'target_defeated' });
+                continue;
+            }
+            if (target.team === unit.team) {
+                receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'invalid_target' });
+                continue;
+            }
+        }
+
         // Accepted. Whatever was previously active for this unit is replaced —
         // same rule whether the replacement is another concrete order or
         // resume_gambit clearing the slot back to nothing.
@@ -760,19 +783,7 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
             u._cooldown_timer -= delta;
         }
 
-        // ▸ RTS order slot: a non-null order suppresses gambit evaluation,
-        // movement, and auto-attack entirely — no blending (design §3). Cooldown
-        // still decays above, same as any idle unit. move_to / attack_target /
-        // attack_move execution is not implemented yet (PR4/PR5), so a unit
-        // under one of those three orders simply idles, same as under `stop`,
-        // until it is replaced, explicitly resumed, or dies.
-        if (orders[unitName]) {
-            continue;
-        }
-
         const move_delta = f(delta);
-        const gambits = (u.gambits && u.gambits.length > 0) ? u.gambits : getGambits(u.role);
-        let ruleMatched = false;
 
         const allyTeam = u.team;
         const enemyTeam = 1 - u.team;
@@ -969,6 +980,82 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
                     u.pos_y = f(u.pos_y + (dy / d) * u.move_speed * move_delta);
             }
         };
+
+        // Same math as moveToward, generalized to a raw point instead of a
+        // named unit — move_to's order carries a destination, not a target id.
+        // No parallel movement formula: this is moveToward's own body with
+        // `tu.pos_x/pos_y` replaced by the point's coordinates.
+        const moveTowardPoint = (targetX: number, targetY: number) => {
+            if (combatMode === 'mechanics_v1' && !canMove(mechanicsStates[u.name])) return;
+            const target = { pos_x: targetX, pos_y: targetY } as any;
+            const dx = f(targetX - u.pos_x);
+            const dy = f(targetY - u.pos_y);
+            const d = dist(u, target);
+            if (d > 0) {
+                u.pos_x = f(u.pos_x + (dx / d) * u.move_speed * move_delta);
+                u.pos_y = f(u.pos_y + (dy / d) * u.move_speed * move_delta);
+            }
+        };
+
+        // ▸ RTS order execution (COMBAT-RTS-MOVE-ATTACK-TARGET-001, PR4)
+        //
+        // A non-null order still suppresses gambit evaluation entirely — no
+        // blending (design §3) — but for move_to / attack_target "suppressed"
+        // now means the order's own execution runs in gambits' place, not mere
+        // idling. `stop` and the not-yet-implemented `attack_move` (PR5) still
+        // just idle, exactly as PR3 left them.
+        const activeOrder = orders[unitName];
+        if (activeOrder) {
+            if (activeOrder.command === 'move_to' && activeOrder.point) {
+                // Arrival is checked BEFORE moving, using this tick's starting
+                // position — arrivalEpsilon is one tick of travel (design §5),
+                // so a unit already within that distance is done, not moved
+                // one more (overshooting) step past its destination.
+                const arrivalEpsilon = f(u.move_speed * move_delta);
+                const remaining = dist(u, { pos_x: activeOrder.point.x, pos_y: activeOrder.point.y } as any);
+                if (remaining <= arrivalEpsilon) {
+                    orders[unitName] = null;
+                    commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'move_to', kind: 'order_completed' });
+                } else {
+                    // Ignores any enemy in range — move_to is a movement order,
+                    // not an engage order (design §5). No attack call here, ever.
+                    moveTowardPoint(activeOrder.point.x, activeOrder.point.y);
+                }
+                continue;
+            }
+            if (activeOrder.command === 'attack_target' && activeOrder.targetId) {
+                const targetId = activeOrder.targetId;
+                const targetAlive = () => {
+                    const t = units[targetId];
+                    return !!t && !t._dead && t.hp > 0;
+                };
+                // Checked before acting, in case the target died from any other
+                // source since this order was accepted or last executed.
+                if (!targetAlive()) {
+                    orders[unitName] = null;
+                    commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
+                    continue;
+                }
+                if (dist(u, units[targetId]) <= u.attack_range) {
+                    tryAttack(targetId);
+                } else {
+                    moveToward(targetId);
+                }
+                // Checked again after acting, so a target this unit's own
+                // attack just defeated completes the order the same tick,
+                // rather than lagging one tick behind.
+                if (!targetAlive()) {
+                    orders[unitName] = null;
+                    commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
+                }
+                continue;
+            }
+            // `stop`, and `attack_move` (PR5, not yet implemented): idle.
+            continue;
+        }
+
+        const gambits = (u.gambits && u.gambits.length > 0) ? u.gambits : getGambits(u.role);
+        let ruleMatched = false;
 
         const runAction = (rule: any) => {
             const action = rule.action;

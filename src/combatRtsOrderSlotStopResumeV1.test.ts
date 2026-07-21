@@ -4,8 +4,14 @@
  * PR3 of docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md: the order slot, the command
  * application phase, `stop` / `resume_gambit`, and the command-receipt
  * skeleton. move_to / attack_target / attack_move are accepted and installed
- * in the order slot (which suppresses gambits, same as `stop`) but their
- * movement/attack execution is not implemented here — that is PR4/PR5.
+ * in the order slot (which suppresses gambits, same as `stop`).
+ *
+ * move_to and attack_target's own execution (movement, arrival, attack,
+ * target-death completion) was implemented in PR4 —
+ * COMBAT-RTS-MOVE-ATTACK-TARGET-001, see combatRtsMoveAttackTargetV1.test.ts —
+ * and is out of scope here; tests below use points/targets far enough away
+ * that neither ever completes within the ticks each test actually inspects.
+ * attack_move remains idle-only (PR5).
  */
 
 import * as assert from 'node:assert/strict';
@@ -212,10 +218,13 @@ describe('RTS order slot — supersede semantics', () => {
     });
 
     test('a later tick can also supersede an order accepted on an earlier tick', () => {
+        // point is far enough that move_to cannot arrive within this test's
+        // observation window (COMBAT-RTS-MOVE-ATTACK-TARGET-001 made move_to
+        // actually execute) — this test is only about supersede semantics.
         const spec = skirmishSpec({
             command: commandLog([
                 stopEvent({ tick: 1 }),
-                { tick: 4, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'move_to', point: { x: 1, y: 1 } },
+                { tick: 4, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'move_to', point: { x: 10000, y: 0 } },
             ]),
         });
         const output = resolveCombat(spec);
@@ -361,19 +370,23 @@ describe('RTS order slot — unit death interrupts an active order', () => {
     });
 });
 
-describe('RTS order slot — move_to / attack_target / attack_move are accepted (execution deferred)', () => {
+describe('RTS order slot — move_to / attack_target / attack_move are accepted', () => {
+    // COMBAT-RTS-MOVE-ATTACK-TARGET-001 (PR4) implemented move_to and
+    // attack_target's actual execution; attack_move remains idle-only (PR5).
+    // The points/targets below are chosen so none of the three completes
+    // within this test's 50-tick observation window — this test is only about
+    // the order slot suppressing gambits immediately upon acceptance.
+    // move_to/attack_target's own arrival, completion and target-death
+    // semantics are covered in combatRtsMoveAttackTargetV1.test.ts.
     for (const [command, extra] of [
-        ['move_to', { point: { x: 30, y: 0 } }],
+        ['move_to', { point: { x: 10000, y: 0 } }],
         ['attack_target', { targetId: 'enemy_a' }],
         ['attack_move', { point: { x: 30, y: 0 } }],
     ] as const) {
         test(`${command} is accepted, installed in the order slot, and also suppresses gambits`, () => {
-            // Execution (movement/arrival/attack) is not implemented for these three
-            // commands yet, so a unit under one idles indefinitely — an enemy far
-            // enough away still eventually closes the distance and kills it well
-            // before COMBAT_TIMEOUT_TICKS, which is a correct (if unglamorous)
-            // consequence of PR3's scope, not a bug. The assertions below only cover
-            // the ticks before that contact is possible.
+            // An enemy far enough away still eventually closes the distance —
+            // the assertions below only cover the ticks before that contact
+            // (or, for move_to, arrival) is possible.
             const spec = skirmishSpec({
                 participantOrder: ['ally_a', 'enemy_a'],
                 initialState: { units: { allies: [unit({ name: 'ally_a', team: 0 })], enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 400 })] } },

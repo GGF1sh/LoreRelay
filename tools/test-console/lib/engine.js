@@ -60,7 +60,7 @@ function resumePasses(root, value) {
         for (const command of prior.commands || []) {
             if (command.status === 'PASS' || command.status === 'REUSED_PASS') {
                 const def = lookupTrustedDefinition(command.id);
-                if (!def || !def.workspaceWriter) {
+                if (!def || (!def.workspaceWriter && !def.consumesCompiledOutput)) {
                     passes.add(command.id);
                 }
             }

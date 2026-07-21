@@ -21941,7 +21941,11 @@ function bindCombatCommandPlaytest(root) {
     vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode });
   };
   root.querySelector('[data-lab="playtest-run"]').onclick = () => {
-    if (!state.playtest) { vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode }); return; }
+    if (!state.playtest) {
+      state.running = true;
+      vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode });
+      return;
+    }
     state.running = !state.running; renderCombatLab();
   };
   root.querySelector('[data-lab="playtest-step"]').onclick = () => vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks: 1 });

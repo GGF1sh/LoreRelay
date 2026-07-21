@@ -13,10 +13,13 @@ type PointerHelper = (
 type ResetHelper = (state: Record<string, unknown>, clearPlaytest?: boolean) => void;
 type ScenarioHelper = (state: Record<string, unknown>, scenarioId: string) => Record<string, unknown> | null;
 
+type BindHelper = (root: { querySelector: (sel: string) => { onclick?: () => void; onchange?: (e: unknown) => void } | null; querySelectorAll: (sel: string) => Array<unknown> }) => void;
+
 function loadWebviewHelpers(): {
     translate: PointerHelper;
     reset: ResetHelper;
     selectScenario: ScenarioHelper;
+    bind: BindHelper;
     clearedTimers: unknown[];
     dispatchMessage: (data: unknown) => void;
     state: Record<string, unknown>;
@@ -45,13 +48,14 @@ function loadWebviewHelpers(): {
         clearInterval(value: unknown) { clearedTimers.push(value); },
     };
     vm.runInNewContext(
-        `${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest, lab: window.LR_combatLab };`,
+        `${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest, bindCombatCommandPlaytest, lab: window.LR_combatLab };`,
         context,
     );
     const hooks = context.__combatHooks as {
         combatCommandMessageForPointer: PointerHelper;
         resetCombatCommandPlaytestUi: ResetHelper;
         selectCombatLabScenarioForPlaytest: ScenarioHelper;
+        bindCombatCommandPlaytest: BindHelper;
         lab: Record<string, unknown>;
     };
     // Stub render so message handlers that call renderCombatLab do not need the DOM.
@@ -60,6 +64,7 @@ function loadWebviewHelpers(): {
         translate: hooks.combatCommandMessageForPointer,
         reset: hooks.resetCombatCommandPlaytestUi,
         selectScenario: hooks.selectCombatLabScenarioForPlaytest,
+        bind: hooks.bindCombatCommandPlaytest,
         clearedTimers,
         dispatchMessage(data: unknown) {
             for (const listener of messageListeners) listener({ data });
@@ -162,5 +167,26 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal((live.state.selection as string[]).length, 0);
         assert.equal(live.state.pendingOrder, null);
         assert.equal(live.state.error, '');
+    });
+
+    test('first Run click sets running to true when no playtest exists', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = null;
+        live.state.running = false;
+
+        const elements: Record<string, { onclick?: () => void; onchange?: (e: unknown) => void }> = {};
+        const mockRoot = {
+            querySelector(sel: string) {
+                if (!elements[sel]) elements[sel] = {};
+                return elements[sel];
+            },
+            querySelectorAll() { return []; },
+        };
+
+        live.bind(mockRoot);
+        assert.equal(typeof elements['[data-lab="playtest-run"]']?.onclick, 'function');
+        elements['[data-lab="playtest-run"]'].onclick?.();
+
+        assert.equal(live.state.running, true, 'state.running should be true on first Run click');
     });
 });

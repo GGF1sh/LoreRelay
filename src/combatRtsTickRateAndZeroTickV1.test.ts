@@ -21,6 +21,7 @@ import * as path from 'path';
 import { describe, test } from 'node:test';
 import { BattleSpec, CombatExpectedOutput, createCombatStepContext, resolveCombat } from './gambitCombatCore';
 import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION } from './combatRtsCommandInputCore';
+import { battleSpecForCombatLab, initialCombatLabScenarios, isValidScenario } from './combatLabCore';
 
 const fixturesDir = path.join(__dirname, '../test/fixtures/combat');
 const fixtureFiles = fs.readdirSync(fixturesDir).filter(f => f.startsWith('fixture_') && f.endsWith('.json')).sort();
@@ -190,13 +191,30 @@ describe('RTS tick rate — near-miss rates are rejected, and delta is canonical
         assert.equal(ctx.delta, 1 / 30);
     });
 
-    test('an accepted truncated-literal match canonicalizes delta to the exact rate, not the caller\'s imprecise literal', () => {
-        // This is the concrete fix: previously, accepting this log as "60Hz" left
-        // ctx.delta at the caller's own 0.0166666667, distinct from exact 1/60.
+    test('a truncated literal with NO command log is left exactly as the caller wrote it — canonicalization needs an accepted command', () => {
+        // Second review round: canonicalizing purely because a clean tick rate
+        // is determinable reached callers with no command log at all — Combat
+        // Lab's battleSpecForCombatLab never sets spec.command, and its scenario
+        // validator only requires deltaSeconds > 0, so an imported or hand-edited
+        // scenario can legitimately carry an imprecise literal like this one.
+        // There is no command log for canonicalization to keep consistent with,
+        // so delta must stay exactly as supplied — this is command-free
+        // combat's timing, unaffected by the RTS command spine's existence.
         const spec = skirmishSpec({ deltaSeconds: 0.0166666667 });
         const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 0.0166666667, 'delta must be left untouched when no command log was accepted');
+    });
+
+    test('the same truncated literal DOES canonicalize once a matching command log is actually accepted', () => {
+        // The fix is scoped precisely to the case that needs it: delta and the
+        // command log must agree, which only matters once there is a real log.
+        const spec = skirmishSpec({ deltaSeconds: 0.0166666667, command: commandLog([stopEvent()], 60) });
+        const ctx = createCombatStepContext(spec);
         assert.equal(ctx.delta, 1 / 60);
-        assert.notEqual(ctx.delta, 0.0166666667, 'delta must not be left at the caller\'s raw imprecise literal once matched');
+        assert.notEqual(ctx.delta, 0.0166666667, 'once a command log is accepted, delta must not diverge from the rate it was matched against');
+        // And the log really was accepted, not silently dropped.
+        const output = resolveCombat(spec);
+        assert.deepEqual(output.commandReceipts!.map(r => r.kind), ['order_accepted', 'order_started']);
     });
 
     test('when no clean integer rate is determinable, delta is left exactly as before (no canonicalization to fall back to)', () => {
@@ -205,10 +223,49 @@ describe('RTS tick rate — near-miss rates are rejected, and delta is canonical
         assert.equal(ctx.delta, 1 / 59.94, 'must use the original truthy-fixedFps computation unchanged');
     });
 
-    test('golden master fixtures still canonicalize to bit-identical delta (spot check via context, not just output bytes)', () => {
+    test('golden master fixtures (no command log) still compute delta as exactly 1/60 (spot check via context, not just output bytes)', () => {
+        // fixedFps: 60 is already an integer, so this passes via the original
+        // fallback branch (1.0/60), not via canonicalization — no fixture ever
+        // supplies a command log. Included as a direct-context spot check
+        // alongside the byte-identity assertions elsewhere in this file.
         const spec = fixtureSpec(fixtureFiles[0]);
         const ctx = createCombatStepContext(spec);
         assert.equal(ctx.delta, 1 / 60);
+    });
+});
+
+describe('RTS tick rate — the real Combat Lab integration path is unaffected', () => {
+    // Exercises the actual product code (battleSpecForCombatLab /
+    // isValidScenario), not a hand-rolled stand-in, to prove the scoping fix
+    // holds at the real integration point the review flagged.
+
+    const catalog = { abilities: [], statuses: [] };
+
+    test('battleSpecForCombatLab never sets spec.command', () => {
+        const scenario = initialCombatLabScenarios()[0];
+        const spec = battleSpecForCombatLab(scenario, catalog) as BattleSpec;
+        assert.equal('command' in spec, false);
+    });
+
+    test('isValidScenario accepts an imprecise deltaSeconds literal — no precision requirement, just > 0', () => {
+        const scenario = { ...initialCombatLabScenarios()[0], deltaSeconds: 0.033333333 };
+        assert.equal(isValidScenario(scenario), true);
+    });
+
+    test('a scenario with an imprecise near-1/30 deltaSeconds literal keeps that exact delta through the real Combat Lab path', () => {
+        const scenario = { ...initialCombatLabScenarios()[0], deltaSeconds: 0.033333333 };
+        const spec = battleSpecForCombatLab(scenario, catalog) as BattleSpec;
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 0.033333333, 'Combat Lab delta must not be silently canonicalized to 1/30');
+    });
+
+    test('every stock Combat Lab scenario computes delta identical to before this fix, via the real builder', () => {
+        for (const scenario of initialCombatLabScenarios()) {
+            const spec = battleSpecForCombatLab(scenario, catalog) as BattleSpec;
+            const ctx = createCombatStepContext(spec);
+            const expected = spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds;
+            assert.equal(ctx.delta, expected, `${scenario.id}: delta diverged from the pre-fix computation`);
+        }
     });
 });
 

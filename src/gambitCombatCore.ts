@@ -334,8 +334,22 @@ function effectiveBattleTickRate(spec: BattleSpec): number | null {
     return rounded;
 }
 
+interface RtsCommandLogResolution {
+    log: CommandInputLog;
+    /**
+     * True only when `raw` was actually supplied (not undefined) and
+     * successfully validated against expectedTickRate. False for an absent
+     * command, an invalid one, a tickRate mismatch, or an undeterminable
+     * battle rate — i.e. every case that falls back to an empty log. This is
+     * what createCombatStepContext uses to decide whether delta canonicalization
+     * is even relevant: a battle with no accepted command log has nothing for
+     * canonicalization to protect (see delta's doc comment below).
+     */
+    accepted: boolean;
+}
+
 /**
- * Normalizes spec.command into a CommandInputLog, enforcing that its tickRate
+ * Resolves spec.command into a CommandInputLog, enforcing that its tickRate
  * agrees with the battle's own effective tick rate.
  *
  * Absent input, input that fails normalizeCommandInputLog (including a
@@ -346,11 +360,12 @@ function effectiveBattleTickRate(spec: BattleSpec): number | null {
  * than always defaulting to 30 — only a genuinely undeterminable battle rate
  * falls back to the schema default, since there is no real rate to attach.
  */
-function normalizeRtsCommandLogForSpec(raw: unknown, expectedTickRate: number | null): CommandInputLog {
-    if (expectedTickRate === null) return emptyCommandInputLog();
-    if (raw === undefined) return emptyCommandInputLog(expectedTickRate);
+function resolveRtsCommandLogForSpec(raw: unknown, expectedTickRate: number | null): RtsCommandLogResolution {
+    if (expectedTickRate === null) return { log: emptyCommandInputLog(), accepted: false };
+    if (raw === undefined) return { log: emptyCommandInputLog(expectedTickRate), accepted: false };
     const result = normalizeCommandInputLog(raw, expectedTickRate);
-    return result.ok ? result.log : emptyCommandInputLog(expectedTickRate);
+    if (!result.ok) return { log: emptyCommandInputLog(expectedTickRate), accepted: false };
+    return { log: result.log, accepted: true };
 }
 
 export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
@@ -364,28 +379,46 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
     const headless_view_h = 64.0;
 
     // Computed once and shared by `delta` and the command log's tick-rate
-    // check below — the two can never be derived from different values by
-    // construction, which is what closes the gap a review found: without this,
-    // a command log could pass its tick-rate match while `delta` kept running
-    // on a slightly different value than the rate it was just matched against.
+    // check below, so the two can never be derived from different values by
+    // construction — this is what closes the gap an earlier review found:
+    // without it, a command log could pass its tick-rate match while `delta`
+    // kept running on a slightly different value than the rate it was just
+    // matched against.
     const tickRate = effectiveBattleTickRate(spec);
+    const commandResolution = resolveRtsCommandLogForSpec(spec.command, tickRate);
 
     return {
         spec,
         participantOrder: spec.participantOrder,
-        // Canonicalized to 1/tickRate whenever a clean rate is determinable —
-        // bit-identical to the previous fixedFps-or-deltaSeconds computation
-        // for every existing caller (all golden-master fixtures set fixedFps to
-        // an already-integer value; Combat Lab's duel() computes deltaSeconds
-        // as the exact expression 1/30 — both round-trip through
-        // effectiveBattleTickRate to the identical double). Only a spec whose
-        // deltaSeconds is a non-exact literal approximating an integer rate
-        // (no current caller does this) would see delta shift, by construction
-        // toward the rate its own command log would be validated against. Falls
-        // back to the original truthy-fixedFps-or-deltaSeconds computation only
-        // when no clean integer rate exists at all (e.g. a genuinely fractional
-        // fps like 59.94), where that fallback is unchanged from before.
-        delta: tickRate !== null ? (1.0 / tickRate) : (spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds),
+        // Canonicalized to 1/tickRate ONLY when a command log was actually
+        // accepted (raw supplied and validated) — never merely because a clean
+        // tick rate happens to be determinable.
+        //
+        // A second review round found the earlier, broader "canonicalize
+        // whenever determinable" rule reached callers with no command log at
+        // all: Combat Lab's battleSpecForCombatLab never sets spec.command, and
+        // isValidScenario only requires deltaSeconds > 0 — no precision
+        // requirement — so an imported or hand-edited scenario can carry an
+        // imprecise literal like 0.033333333 that would have been silently
+        // canonicalized to exactly 1/30, changing established command-free
+        // combat timing for no reason (there was no command log to protect
+        // consistency for), and leaving runCombatLab's own
+        // `durationSeconds: ticks * scenario.deltaSeconds` display
+        // disagreeing with the timebase the simulation had actually used.
+        //
+        // Scoped this way, canonicalization is bit-identical to the original
+        // fixedFps-or-deltaSeconds computation for every existing caller:
+        // Combat Lab never supplies a command log, so commandResolution.accepted
+        // is always false for it and delta is untouched, regardless of how
+        // deltaSeconds is spelled. The golden-master fixtures likewise never
+        // supply a command by default. Canonicalization only ever fires for a
+        // spec that both determines a clean tick rate AND has a real, matching
+        // command log — precisely the case that needs delta and the log to
+        // agree, and the only case introduced by this feature in the first
+        // place.
+        delta: (commandResolution.accepted && tickRate !== null)
+            ? (1.0 / tickRate)
+            : (spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds),
         combatMode: spec.combatMode || 'legacy_gambit',
         battleRect: {
             x: MARGIN,
@@ -394,7 +427,7 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
             h: headless_view_h - LOG_H - MARGIN * 3.0
         },
         timeoutTicks: COMBAT_TIMEOUT_TICKS,
-        commandLog: normalizeRtsCommandLogForSpec(spec.command, tickRate),
+        commandLog: commandResolution.log,
         selectableMode: isCombatSelectableMode(spec.selectableMode) ? spec.selectableMode : 'command',
     };
 }

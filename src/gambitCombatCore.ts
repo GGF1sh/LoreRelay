@@ -337,13 +337,22 @@ function effectiveBattleTickRate(spec: BattleSpec): number | null {
 interface RtsCommandLogResolution {
     log: CommandInputLog;
     /**
-     * True only when `raw` was actually supplied (not undefined) and
-     * successfully validated against expectedTickRate. False for an absent
-     * command, an invalid one, a tickRate mismatch, or an undeterminable
-     * battle rate — i.e. every case that falls back to an empty log. This is
-     * what createCombatStepContext uses to decide whether delta canonicalization
-     * is even relevant: a battle with no accepted command log has nothing for
-     * canonicalization to protect (see delta's doc comment below).
+     * True only when `raw` was actually supplied, successfully validated
+     * against expectedTickRate, AND the resulting log has at least one event.
+     *
+     * A validated-but-empty log (e.g. the caller explicitly serializes
+     * emptyCommandInputLog(30) rather than omitting `command`) is deliberately
+     * NOT "accepted" here, even though normalizeCommandInputLog itself would
+     * report ok:true for it. BattleSpec.command's doc comment promises that an
+     * absent command and an empty one behave identically — an empty log can
+     * never run a single command regardless of its own declared tickRate, so
+     * there is nothing for delta canonicalization to keep consistent with, and
+     * canonicalizing only the explicit-empty-log case would make it diverge
+     * from the absent case, which is exactly the divergence that contract
+     * exists to rule out. False for an absent command, an invalid one, a
+     * tickRate mismatch, an undeterminable battle rate, or a validated-but-
+     * empty log — every case createCombatStepContext must treat identically
+     * for delta.
      */
     accepted: boolean;
 }
@@ -365,7 +374,9 @@ function resolveRtsCommandLogForSpec(raw: unknown, expectedTickRate: number | nu
     if (raw === undefined) return { log: emptyCommandInputLog(expectedTickRate), accepted: false };
     const result = normalizeCommandInputLog(raw, expectedTickRate);
     if (!result.ok) return { log: emptyCommandInputLog(expectedTickRate), accepted: false };
-    return { log: result.log, accepted: true };
+    // Validated but empty still counts as unaccepted for canonicalization
+    // purposes — see RtsCommandLogResolution.accepted's doc comment.
+    return { log: result.log, accepted: result.log.events.length > 0 };
 }
 
 export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
@@ -391,8 +402,8 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
         spec,
         participantOrder: spec.participantOrder,
         // Canonicalized to 1/tickRate ONLY when a command log was actually
-        // accepted (raw supplied and validated) — never merely because a clean
-        // tick rate happens to be determinable.
+        // accepted (raw supplied, validated, AND non-empty) — never merely
+        // because a clean tick rate happens to be determinable.
         //
         // A second review round found the earlier, broader "canonicalize
         // whenever determinable" rule reached callers with no command log at
@@ -406,16 +417,27 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
         // `durationSeconds: ticks * scenario.deltaSeconds` display
         // disagreeing with the timebase the simulation had actually used.
         //
+        // A third review round found that "accepted" alone was still too
+        // broad: a caller supplying an explicit but EMPTY log — e.g.
+        // emptyCommandInputLog(30), which validates fine against a matching
+        // tick rate — was still marked accepted, so an imprecise deltaSeconds
+        // canonicalized for that battle but not for the behaviorally-identical
+        // command-absent battle, even though an empty log can never run a
+        // single command either way. BattleSpec.command's own doc comment
+        // promises absent and empty behave the same; RtsCommandLogResolution
+        // now requires at least one event for `accepted`, so both cases take
+        // the same, uncanonicalized path.
+        //
         // Scoped this way, canonicalization is bit-identical to the original
         // fixedFps-or-deltaSeconds computation for every existing caller:
         // Combat Lab never supplies a command log, so commandResolution.accepted
         // is always false for it and delta is untouched, regardless of how
         // deltaSeconds is spelled. The golden-master fixtures likewise never
         // supply a command by default. Canonicalization only ever fires for a
-        // spec that both determines a clean tick rate AND has a real, matching
-        // command log — precisely the case that needs delta and the log to
-        // agree, and the only case introduced by this feature in the first
-        // place.
+        // spec that both determines a clean tick rate AND has a real, matching,
+        // non-empty command log — precisely the case that needs delta and the
+        // log to agree, and the only case introduced by this feature in the
+        // first place.
         delta: (commandResolution.accepted && tickRate !== null)
             ? (1.0 / tickRate)
             : (spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds),

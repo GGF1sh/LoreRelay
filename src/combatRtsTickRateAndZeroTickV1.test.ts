@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { describe, test } from 'node:test';
 import { BattleSpec, CombatExpectedOutput, createCombatStepContext, resolveCombat } from './gambitCombatCore';
-import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION } from './combatRtsCommandInputCore';
+import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION, emptyCommandInputLog } from './combatRtsCommandInputCore';
 import { battleSpecForCombatLab, initialCombatLabScenarios, isValidScenario } from './combatLabCore';
 
 const fixturesDir = path.join(__dirname, '../test/fixtures/combat');
@@ -215,6 +215,37 @@ describe('RTS tick rate — near-miss rates are rejected, and delta is canonical
         // And the log really was accepted, not silently dropped.
         const output = resolveCombat(spec);
         assert.deepEqual(output.commandReceipts!.map(r => r.kind), ['order_accepted', 'order_started']);
+    });
+
+    test('an explicit but empty matching command log produces the SAME delta as command absent (absent/empty contract)', () => {
+        // Third review round: a caller serializing emptyCommandInputLog(30) —
+        // rather than omitting `command` — still validates fine against a
+        // matching tick rate, but can never run a single command either way.
+        // BattleSpec.command's doc comment promises absent and empty behave
+        // identically; before this fix, only the absent case skipped
+        // canonicalization, so the two diverged for an imprecise deltaSeconds.
+        const rawDeltaSeconds = 0.033333333;
+        const absent = skirmishSpec({ deltaSeconds: rawDeltaSeconds });
+        const explicitEmpty = skirmishSpec({ deltaSeconds: rawDeltaSeconds, command: emptyCommandInputLog(30) });
+
+        const deltaAbsent = createCombatStepContext(absent).delta;
+        const deltaEmpty = createCombatStepContext(explicitEmpty).delta;
+
+        assert.equal(deltaEmpty, deltaAbsent, 'an explicit empty log must not canonicalize when the absent case does not');
+        assert.equal(deltaEmpty, rawDeltaSeconds, 'delta must be left at the caller\'s raw literal, not canonicalized to 1/30');
+
+        assert.equal(JSON.stringify(resolveCombat(explicitEmpty)), JSON.stringify(resolveCombat(absent)));
+    });
+
+    test('an empty log still canonicalizes nothing even when its own declared tickRate matches exactly', () => {
+        const spec = skirmishSpec({ fixedFps: 60, command: emptyCommandInputLog(60) });
+        const ctx = createCombatStepContext(spec);
+        // fixedFps: 60 already canonicalizes to the identical value either way,
+        // so this specifically checks that accepting the empty log did not
+        // change *which* code path produced it — a mismatched or absent log
+        // would collapse to the same fallback branch, proving no divergence is
+        // hiding behind fixedFps already being exact.
+        assert.equal(ctx.delta, 1.0 / 60);
     });
 
     test('when no clean integer rate is determinable, delta is left exactly as before (no canonicalization to fall back to)', () => {

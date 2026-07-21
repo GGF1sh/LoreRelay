@@ -1029,11 +1029,26 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
                     const t = units[targetId];
                     return !!t && !t._dead && t.hp > 0;
                 };
-                // Checked before acting, in case the target died from any other
-                // source since this order was accepted or last executed.
+                // Completion (order_completed / target_defeated) is never
+                // finalized inline here — only by the end-of-tick attack_target
+                // target-death sweep below. Deferring it lets that sweep check
+                // THIS unit's own end-of-tick survival before completing, so a
+                // holder that also dies this same tick (to a hostile acting
+                // later in participantOrder) correctly falls through to the
+                // Unit-death interruption pass and receives order_interrupted
+                // — holder-death priority (design §3) — instead of
+                // order_completed, even though its target (whether already
+                // dead before this unit's turn, or killed by this unit's own
+                // attack below) died first. Completing inline here would clear
+                // orders[unitName] before that later death is known, which is
+                // exactly the bug Codex flagged on PR #35
+                // (review discussion r3619920590): the sweep would then skip a
+                // unit already reported dead, but the interruption pass would
+                // find no active order left to interrupt either.
                 if (!targetAlive()) {
-                    orders[unitName] = null;
-                    commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
+                    // Target already gone (from any source, this tick or a
+                    // prior one) — do not move or attack. The order is left
+                    // exactly as-is for the end-of-tick sweep to resolve.
                     continue;
                 }
                 // Mirrors design §3's "canAct/canMove false -> retain the order
@@ -1056,13 +1071,11 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
                 } else {
                     moveToward(targetId);
                 }
-                // Checked again after acting, so a target this unit's own
-                // attack just defeated completes the order the same tick,
-                // rather than lagging one tick behind.
-                if (!targetAlive()) {
-                    orders[unitName] = null;
-                    commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
-                }
+                // No inline re-check after acting: a target this unit's own
+                // attack just defeated still completes the same tick, because
+                // the end-of-tick sweep runs after every unit has acted and
+                // stamps completions with this same tickCount — see the
+                // comment above.
                 continue;
             }
             // `stop`, and `attack_move` (PR5, not yet implemented): idle.

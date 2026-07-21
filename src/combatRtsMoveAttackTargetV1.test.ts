@@ -511,6 +511,47 @@ describe('RTS attack_target — execution', () => {
         assert.equal(bReceipts[2].tick, 1, 'both complete on the same tick the target actually died');
     });
 
+    test('a holder that kills its own target and is then killed itself, same tick, receives order_interrupted, not order_completed (Codex review on PR #35, discussion r3619920590)', () => {
+        // participantOrder: ally_a acts first and one-shots its attack_target
+        // (enemy_a). enemy_b, hostile to ally_a and processed later this same
+        // tick, one-shots ally_a back via its own default gambits (no order
+        // needed — the same mechanism ally_b used unordered in the test
+        // above). Holder-death priority (design §3) means a holder that dies
+        // this same tick must be reported as order_interrupted, even though
+        // its own target died first, earlier in this same tick's per-unit
+        // loop. Completing inline (the pre-fix behavior) would clear
+        // orders['ally_a'] and emit order_completed before ally_a's own
+        // death was known, leaving the end-of-tick sweeps unable to correct
+        // it: the target-death sweep would already see no active order, and
+        // the interruption sweep would find nothing left to interrupt.
+        const spec = skirmishSpec({
+            participantOrder: ['ally_a', 'enemy_b', 'enemy_a'],
+            initialState: {
+                units: {
+                    allies: [unit({ name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40, attack: 999, hp: 10, max_hp: 10 })],
+                    enemies: [
+                        unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, max_hp: 10, hp: 10, attack: 0 }),
+                        unit({ name: 'enemy_b', team: 1, pos_x: 0, pos_y: 0, attack_range: 40, attack: 999 }),
+                    ],
+                },
+            },
+            command: commandLog([attackTarget('ally_a', 'enemy_a')]),
+        });
+        const output = resolveCombat(spec);
+
+        const aReceipts = receiptsFor(output, 'ally_a');
+        assert.deepEqual(aReceipts.map(r => [r.kind, r.reason]), [
+            ['order_accepted', undefined],
+            ['order_started', undefined],
+            ['order_interrupted', undefined],
+        ], 'holder-death priority: the holder must be interrupted, not completed, when it also dies this same tick');
+        assert.equal(aReceipts[2].tick, 1);
+        assert.ok(!aReceipts.some(r => r.kind === 'order_completed'), 'must never also emit order_completed for the same order');
+
+        const finalEnemyA = output.finalState.units.find(u => u.name === 'enemy_a');
+        assert.ok(!finalEnemyA || finalEnemyA.hp <= 0, 'enemy_a still actually died from ally_a\'s attack this tick');
+    });
+
     test('temporarily disabled action (mechanics_v1, canAct false) retains the order and idles without attacking', () => {
         // canAct is only checked inside tryAttack's mechanics_v1-ability branch
         // (gated behind normalAttackAbility being set) — without an ability, a

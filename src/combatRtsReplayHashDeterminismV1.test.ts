@@ -25,7 +25,7 @@ import * as path from 'path';
 import { describe, test } from 'node:test';
 import {
     BattleSpec, CombatStepEvents, CombatUnitState,
-    createCombatState, createCombatStepContext, resolveCombat, stepCombat,
+    createCombatState, createCombatStepContext, resolveCombat, stepCombat, stableCombatOutputBytes,
 } from './gambitCombatCore';
 import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION } from './combatRtsCommandInputCore';
 
@@ -339,5 +339,57 @@ describe('replayHash — no caller-owned mutation', () => {
         assert.equal(JSON.stringify(state), stateSnapshot, 'input state must not be mutated');
         assert.equal(JSON.stringify(ctx), ctxSnapshot, 'input ctx must not be mutated');
         assert.ok(result.events.evaluations.length >= 0);
+    });
+});
+
+describe('replayHash — Codex review regressions (PR #38)', () => {
+    test('stableCombatOutputBytes canonicalizes object key order, not merely insertion order (P2: "Canonicalize object keys before hashing")', () => {
+        // A plain double-JSON-round-trip preserves whatever key order the
+        // payload happens to have; it does not canonicalize it. Two
+        // semantically identical objects built with different key insertion
+        // order (as an independent runtime reconstructing the same payload
+        // might) must still produce identical bytes.
+        const a = { x: 1, y: { p: 1, q: 2 }, z: [1, 2, 3] };
+        const b = { z: [1, 2, 3], y: { q: 2, p: 1 }, x: 1 };
+        assert.equal(stableCombatOutputBytes(a), stableCombatOutputBytes(b));
+    });
+
+    test('reversed unrecognized unitIds produce the same hash and the same receipt order (P2: "Canonicalize unknown unit IDs before hashing")', () => {
+        // Every id in this event is absent from participantOrder, so all of
+        // them shared the same orderRank (Infinity) before the fix — ties
+        // fell back to Array.prototype.sort's stability, i.e. the event's
+        // own unitIds order, which the replayHash contract says must never
+        // matter for equivalent normalized commands.
+        const fwd = skirmishSpec({
+            command: commandLog([{ tick: 1, seq: 0, issuerTeam: 0, unitIds: ['missing_a', 'missing_b', 'missing_c'], command: 'stop' } as CommandInputEvent]),
+        });
+        const rev = skirmishSpec({
+            command: commandLog([{ tick: 1, seq: 0, issuerTeam: 0, unitIds: ['missing_c', 'missing_b', 'missing_a'], command: 'stop' } as CommandInputEvent]),
+        });
+        const outFwd = resolveCombat(fwd);
+        const outRev = resolveCombat(rev);
+        assert.deepEqual(
+            outFwd.commandReceipts!.map(r => r.unitId),
+            outRev.commandReceipts!.map(r => r.unitId),
+            'rejection receipt order must not depend on the input unitIds order',
+        );
+        assert.equal(outFwd.replayHash, outRev.replayHash);
+        assert.equal(outFwd.outputBytes, outRev.outputBytes);
+    });
+
+    test('a mix of recognized and unrecognized unitIds: recognized ids keep participantOrder rank, unrecognized ids tie-break by id string', () => {
+        const events = (unitIds: string[]): CommandInputEvent[] => [
+            { tick: 1, seq: 0, issuerTeam: 0, unitIds, command: 'stop' } as CommandInputEvent,
+        ];
+        const fwd = skirmishSpec({ command: commandLog(events(['zzz_missing', 'ally_a', 'aaa_missing', 'ally_b'])) });
+        const rev = skirmishSpec({ command: commandLog(events(['ally_b', 'aaa_missing', 'ally_a', 'zzz_missing'])) });
+        const outFwd = resolveCombat(fwd);
+        const outRev = resolveCombat(rev);
+        const order = outFwd.commandReceipts!.filter(r => r.kind === 'order_accepted' || r.kind === 'order_rejected').map(r => r.unitId);
+        // ally_a, ally_b (participantOrder rank) before the two unrecognized
+        // ids, which themselves sort lexicographically: aaa_missing < zzz_missing.
+        assert.deepEqual(order, ['ally_a', 'ally_b', 'aaa_missing', 'zzz_missing']);
+        assert.equal(outFwd.replayHash, outRev.replayHash);
+        assert.equal(outFwd.outputBytes, outRev.outputBytes);
     });
 });

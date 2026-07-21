@@ -281,15 +281,17 @@ Precise enough for another runtime to reproduce byte-for-byte:
   it — `evaluations`, `decisions`, `attacks`, `heals`, `deaths`, `focusChanges`, `finalState`,
   `outcome`, plus `mechanicsReceipts` / `commandReceipts` when present — captured **before**
   `outputBytes` / `replayHash` themselves are attached, so the hash never includes itself.
-  No key-sorting canonicalizer is used or needed: every field of `CombatExpectedOutput` is an
-  array or a primitive, never a `Record<string, …>` whose key order could vary by insertion —
-  `finalState.units` is built via `participantOrder.map(...)`, every receipt/event array is
-  populated by `.push()` in `participantOrder`-derived order. A plain double JSON round-trip
-  (`stableCombatOutputBytes`, exported from `gambitCombatCore.ts`) is therefore already
-  independent of object insertion order:
+  Serialized via `stableSerialize` (`determinismSpineCore.ts`) — a recursive, key-sorted
+  structural serializer, reused rather than duplicated — so the result is independent of object
+  key insertion order in the strong sense the "another runtime can reproduce it" promise actually
+  requires: a differently-ordered but semantically identical reconstruction of the same payload
+  still hashes identically. (An earlier revision of this contract used a plain double JSON
+  round-trip and argued insertion-order-independence followed from `CombatExpectedOutput` never
+  containing an order-sensitive `Record` — true for *this* runtime's own construction, but not a
+  guarantee that holds for an independent reconstruction; Codex review on PR #38 caught this.)
   ```ts
   export function stableCombatOutputBytes(payload: unknown): string {
-      return JSON.stringify(JSON.parse(JSON.stringify(payload)));
+      return stableSerialize(payload);
   }
   const outputBytes = stableCombatOutputBytes(output); // output has no outputBytes/replayHash yet
   const replayHash = createHash('sha256').update(outputBytes).digest('hex');
@@ -308,7 +310,9 @@ Precise enough for another runtime to reproduce byte-for-byte:
   selection order), and `resolveCombat`'s own output never retains it either — `commandReceipts`
   record one `unitId` per receipt, not the original array. Two logs differing only in `unitIds`
   order for equivalent events therefore already produce byte-identical output, and hence identical
-  hashes, with no extra normalization step.
+  hashes, with no extra normalization step — including when the tied ids are unrecognized
+  (`applyRtsCommandEvent`'s sort breaks ties among ids absent from `participantOrder` by the id
+  string itself, not by falling back to the event's own array order; also Codex review on PR #38).
 
 ---
 

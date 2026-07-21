@@ -632,6 +632,29 @@ function applyRtsCommandEvent(
             continue;
         }
 
+        // attack_target: the target is validated once, here, at acceptance —
+        // not re-validated on every subsequent execution tick. A rejection here
+        // `continue`s before the order slot is ever touched below, so it never
+        // replaces whatever order this unit already had active (COMBAT-RTS-
+        // MOVE-ATTACK-TARGET-001), and the fan-out loop still proceeds to the
+        // next selected unit exactly like every other per-unit rejection.
+        if (event.command === 'attack_target') {
+            const targetId = event.targetId;
+            const target = targetId ? units[targetId] : undefined;
+            if (!targetId || !target) {
+                receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'target_not_found' });
+                continue;
+            }
+            if (target._dead || target.hp <= 0) {
+                receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'target_defeated' });
+                continue;
+            }
+            if (target.team === unit.team) {
+                receipts.push({ tick, unitId, command: event.command, kind: 'order_rejected', reason: 'invalid_target' });
+                continue;
+            }
+        }
+
         // Accepted. Whatever was previously active for this unit is replaced —
         // same rule whether the replacement is another concrete order or
         // resume_gambit clearing the slot back to nothing.
@@ -760,19 +783,7 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
             u._cooldown_timer -= delta;
         }
 
-        // ▸ RTS order slot: a non-null order suppresses gambit evaluation,
-        // movement, and auto-attack entirely — no blending (design §3). Cooldown
-        // still decays above, same as any idle unit. move_to / attack_target /
-        // attack_move execution is not implemented yet (PR4/PR5), so a unit
-        // under one of those three orders simply idles, same as under `stop`,
-        // until it is replaced, explicitly resumed, or dies.
-        if (orders[unitName]) {
-            continue;
-        }
-
         const move_delta = f(delta);
-        const gambits = (u.gambits && u.gambits.length > 0) ? u.gambits : getGambits(u.role);
-        let ruleMatched = false;
 
         const allyTeam = u.team;
         const enemyTeam = 1 - u.team;
@@ -969,6 +980,110 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
                     u.pos_y = f(u.pos_y + (dy / d) * u.move_speed * move_delta);
             }
         };
+
+        // Same math as moveToward, generalized to a raw point instead of a
+        // named unit — move_to's order carries a destination, not a target id.
+        // No parallel movement formula: this is moveToward's own body with
+        // `tu.pos_x/pos_y` replaced by the point's coordinates.
+        const moveTowardPoint = (targetX: number, targetY: number) => {
+            if (combatMode === 'mechanics_v1' && !canMove(mechanicsStates[u.name])) return;
+            const target = { pos_x: targetX, pos_y: targetY } as any;
+            const dx = f(targetX - u.pos_x);
+            const dy = f(targetY - u.pos_y);
+            const d = dist(u, target);
+            if (d > 0) {
+                u.pos_x = f(u.pos_x + (dx / d) * u.move_speed * move_delta);
+                u.pos_y = f(u.pos_y + (dy / d) * u.move_speed * move_delta);
+            }
+        };
+
+        // ▸ RTS order execution (COMBAT-RTS-MOVE-ATTACK-TARGET-001, PR4)
+        //
+        // A non-null order still suppresses gambit evaluation entirely — no
+        // blending (design §3) — but for move_to / attack_target "suppressed"
+        // now means the order's own execution runs in gambits' place, not mere
+        // idling. `stop` and the not-yet-implemented `attack_move` (PR5) still
+        // just idle, exactly as PR3 left them.
+        const activeOrder = orders[unitName];
+        if (activeOrder) {
+            if (activeOrder.command === 'move_to' && activeOrder.point) {
+                // Arrival is checked BEFORE moving, using this tick's starting
+                // position — arrivalEpsilon is one tick of travel (design §5),
+                // so a unit already within that distance is done, not moved
+                // one more (overshooting) step past its destination.
+                const arrivalEpsilon = f(u.move_speed * move_delta);
+                const remaining = dist(u, { pos_x: activeOrder.point.x, pos_y: activeOrder.point.y } as any);
+                if (remaining <= arrivalEpsilon) {
+                    orders[unitName] = null;
+                    commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'move_to', kind: 'order_completed' });
+                } else {
+                    // Ignores any enemy in range — move_to is a movement order,
+                    // not an engage order (design §5). No attack call here, ever.
+                    moveTowardPoint(activeOrder.point.x, activeOrder.point.y);
+                }
+                continue;
+            }
+            if (activeOrder.command === 'attack_target' && activeOrder.targetId) {
+                const targetId = activeOrder.targetId;
+                const targetAlive = () => {
+                    const t = units[targetId];
+                    return !!t && !t._dead && t.hp > 0;
+                };
+                // Completion (order_completed / target_defeated) is never
+                // finalized inline here — only by the end-of-tick attack_target
+                // target-death sweep below. Deferring it lets that sweep check
+                // THIS unit's own end-of-tick survival before completing, so a
+                // holder that also dies this same tick (to a hostile acting
+                // later in participantOrder) correctly falls through to the
+                // Unit-death interruption pass and receives order_interrupted
+                // — holder-death priority (design §3) — instead of
+                // order_completed, even though its target (whether already
+                // dead before this unit's turn, or killed by this unit's own
+                // attack below) died first. Completing inline here would clear
+                // orders[unitName] before that later death is known, which is
+                // exactly the bug Codex flagged on PR #35
+                // (review discussion r3619920590): the sweep would then skip a
+                // unit already reported dead, but the interruption pass would
+                // find no active order left to interrupt either.
+                if (!targetAlive()) {
+                    // Target already gone (from any source, this tick or a
+                    // prior one) — do not move or attack. The order is left
+                    // exactly as-is for the end-of-tick sweep to resolve.
+                    continue;
+                }
+                // Mirrors design §3's "canAct/canMove false -> retain the order
+                // and idle" — already true of move_to via moveToward's own
+                // internal canMove check, but attack_target has both a move
+                // phase and an attack phase, so both gates are checked together
+                // here, before either. tryAttack's own canAct check only runs
+                // inside its mechanics_v1-ability branch (a mechanics_v1 unit
+                // with no normalAttackAbility falls through to the plain damage
+                // formula, which never checks canAct at all) — this check does
+                // not depend on that branch and applies uniformly regardless of
+                // whether the unit has an ability. Neither the order nor the
+                // target-liveness state is touched: the order is retained
+                // exactly as-is and re-evaluated next tick.
+                if (combatMode === 'mechanics_v1' && (!canAct(mechanicsStates[u.name]) || !canMove(mechanicsStates[u.name]))) {
+                    continue;
+                }
+                if (dist(u, units[targetId]) <= u.attack_range) {
+                    tryAttack(targetId);
+                } else {
+                    moveToward(targetId);
+                }
+                // No inline re-check after acting: a target this unit's own
+                // attack just defeated still completes the same tick, because
+                // the end-of-tick sweep runs after every unit has acted and
+                // stamps completions with this same tickCount — see the
+                // comment above.
+                continue;
+            }
+            // `stop`, and `attack_move` (PR5, not yet implemented): idle.
+            continue;
+        }
+
+        const gambits = (u.gambits && u.gambits.length > 0) ? u.gambits : getGambits(u.role);
+        let ruleMatched = false;
 
         const runAction = (rule: any) => {
             const action = rule.action;
@@ -1234,6 +1349,35 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
         }
     }
     // --- end extracted tick body ---------------------------------------------
+
+    // ▸ attack_target target-death sweep (Codex review on PR #35): when
+    // multiple units hold attack_target on the same enemy, a unit later in
+    // participantOrder can land the killing blow (or the mechanics_v1
+    // lethal-timer sweep can) AFTER an earlier unit's own per-tick liveness
+    // check already passed this same tick — that earlier unit's order would
+    // otherwise stay active with no order_completed receipt, and if the
+    // defeated unit was the battle's last opponent the omission becomes
+    // permanent: combatTerminalOutcome ends the battle before another tick
+    // ever runs to notice. Swept once, here, after every unit has acted and
+    // mechanics_v1 has resolved, for any attack_target order whose target is
+    // no longer alive — including a target that died while its attacker was
+    // disabled (canAct/canMove false) and never got to act at all this tick.
+    // Skips a unit whose own HOLDER already died this tick; that case is
+    // covered by the unit-death interruption pass below instead, with
+    // order_interrupted rather than order_completed — the two sweeps never
+    // touch the same order, so there is no priority ambiguity between them.
+    // Iterates participantOrder, never Object.keys(orders), for the same
+    // determinism reason as the sweep below.
+    for (const unitName of participantOrder) {
+        const activeOrder = orders[unitName];
+        if (!activeOrder || activeOrder.command !== 'attack_target' || !activeOrder.targetId) continue;
+        const unit = units[unitName];
+        if (!unit || unit._dead || unit.hp <= 0) continue;
+        const target = units[activeOrder.targetId];
+        if (target && !target._dead && target.hp > 0) continue;
+        orders[unitName] = null;
+        commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
+    }
 
     // ▸ Unit-death interruption (design §3, "shared interruptions"): any order
     // still active for a unit that is dead by the end of this tick is cleared

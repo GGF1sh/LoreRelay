@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { describe, test } from 'node:test';
 import {
-    BattleSpec, CombatUnitState, resolveCombat,
+    BattleSpec, CombatUnitState, resolveCombat, createCombatState, createCombatStepContext, stepCombat
 } from './gambitCombatCore';
 import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION } from './combatRtsCommandInputCore';
 
@@ -139,9 +139,14 @@ describe('RTS multi-unit command supersede semantics', () => {
             { tick: 1, seq: 1, issuerTeam: 0, unitIds: ['ally_a'], command: 'attack_target', targetId: 'ally_b' } // rejected: ally
         ];
         const spec = skirmishSpec({ command: commandLog(events) });
-        const out = resolveCombat(spec);
+        const ctx = createCombatStepContext(spec);
+        let state = createCombatState(spec);
         
-        const receipts = out.commandReceipts!
+        const stepped = stepCombat(state, ctx); // tick 1
+        state = stepped.state;
+        const eventsRet = stepped.events;
+        
+        const receipts = eventsRet.commandReceipts!
             .filter(r => ['order_accepted', 'order_started', 'order_superseded', 'order_rejected'].includes(r.kind))
             .map(r => [r.command, r.kind, r.reason]);
         assert.deepEqual(receipts, [
@@ -149,8 +154,17 @@ describe('RTS multi-unit command supersede semantics', () => {
             ['stop', 'order_started', undefined],
             ['attack_target', 'order_rejected', 'invalid_target'],
         ]);
+        
         // No superseded event. Stop is still active.
-        assert.equal(out.commandReceipts!.some(r => r.kind === 'order_superseded'), false);
+        assert.equal(eventsRet.commandReceipts!.some(r => r.kind === 'order_superseded'), false);
+        
+        // Direct state assertions
+        const order = state.orders['ally_a'];
+        assert.ok(order, 'ally_a should have an active order');
+        assert.equal(order!.command, 'stop');
+        
+        // Ensure unit did not move or attack
+        assert.equal(state.units['ally_a']!.pos_x, 0);
     });
 
     test('stop -> move_to overlap cases', () => {
@@ -224,18 +238,44 @@ describe('RTS multi-unit command supersede semantics', () => {
         ]);
     });
 
-    test('all same-tick commands are applied before any unit acts', () => {
-        // We can verify this by placing two conflicting commands on a single unit on tick 1.
-        // The fact that only the second order manifests in execution proves it was applied
-        // before the unit had a chance to act on the first.
+    test('all same-tick commands are applied globally before any participant acts', () => {
+        // participantOrder is: ally_a, ally_b, ally_c, enemy_a
+        // enemy_a has 10 HP, so ally_a (10 attack) will kill it in one hit.
         const events: CommandInputEvent[] = [
-            { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'move_to', point: { x: 200, y: 0 } },
-            { tick: 1, seq: 1, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop' }
+            { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'attack_target', targetId: 'enemy_a' },
+            { tick: 1, seq: 1, issuerTeam: 0, unitIds: ['ally_b'], command: 'attack_target', targetId: 'enemy_a' }
         ];
-        const out = resolveCombat(skirmishSpec({ command: commandLog(events) }));
-        // Ensure unit is at x=0 (never moved towards 200 because stop superseded it immediately)
-        const unitFinal = out.finalState.units.find(u => u.name === 'ally_a');
-        assert.equal(unitFinal!.pos_x, 0);
+        
+        // enemy_a HP set to 10
+        const spec = skirmishSpec({
+            command: commandLog(events),
+            initialState: {
+                units: {
+                    allies: [
+                        unit({ name: 'ally_a', team: 0 }),
+                        unit({ name: 'ally_b', team: 0, pos_y: 40 }),
+                        unit({ name: 'ally_c', team: 0, pos_y: 80 })
+                    ],
+                    enemies: [unit({ name: 'enemy_a', team: 1, hp: 10, max_hp: 10 })],
+                }
+            }
+        });
+        
+        const out = resolveCombat(spec);
+        
+        // Assert for ally_b
+        const receiptsB = out.commandReceipts!.filter(r => r.unitId === 'ally_b').map(r => [r.command, r.kind, r.reason]);
+        assert.deepEqual(receiptsB, [
+            ['attack_target', 'order_accepted', undefined],
+            ['attack_target', 'order_started', undefined],
+            ['attack_target', 'order_completed', 'target_defeated']
+        ]);
+        
+        // Ensure NO order_rejected due to target_defeated exists for ally_b.
+        // If commands were applied just-in-time per participant, ally_a would kill enemy_a, 
+        // and then ally_b's command would be rejected (invalid_target or target_defeated).
+        const rejected = out.commandReceipts!.filter(r => r.unitId === 'ally_b' && r.kind === 'order_rejected');
+        assert.equal(rejected.length, 0);
     });
 });
 

@@ -202,6 +202,9 @@ window.addEventListener('message', event => {
       resetCombatCommandPlaytestUi(state, true);
       return;
     }
+    if (!state.playtest && !state.pendingStart && m.state.scenarioId) {
+      state.selected = m.state.scenarioId;
+    }
     if (m.state.scenarioId && m.state.scenarioId !== state.selected) {
       return;
     }

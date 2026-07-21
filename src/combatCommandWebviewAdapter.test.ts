@@ -312,4 +312,19 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.pendingStart, false);
         assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [] });
     });
+
+    test('re-opened webview restores scenario selection from host active playtest state', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = null;
+        live.state.pendingStart = false;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioB', tick: 12, units: [] },
+        });
+
+        assert.equal(live.state.selected, 'scenarioB', 'selected scenario should restore to host session scenarioId');
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 12, units: [] });
+    });
 });

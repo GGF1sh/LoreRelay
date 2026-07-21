@@ -1923,9 +1923,7 @@ function handleIssueCombatCommand(raw: unknown): void {
     if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED'); return; }
     const issued = issueCombatCommand(combatCommandPlaytestSession, raw);
     if (!issued.ok) { sendCombatCommandPlaytestError(issued.error, issued.detail); return; }
-    const stepped = advanceCombatCommandPlaytest(issued.value, 1);
-    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail); return; }
-    combatCommandPlaytestSession = stepped.value;
+    combatCommandPlaytestSession = issued.value;
     sendCombatCommandPlaytest();
 }
 function handleStepCombatCommandPlaytest(ticks: unknown): void {

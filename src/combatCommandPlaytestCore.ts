@@ -61,15 +61,14 @@ export type CombatCommandPlaytestResult<T> =
     | { ok: true; value: T }
     | { ok: false; error: string; detail?: string };
 
-function playtestBounds(scenario: CombatLabScenario): CombatCommandPlaytestBounds {
-    const positions = [...scenario.allies, ...scenario.enemies].map(unit => unit.position);
-    const xs = positions.map(point => point.x);
-    const ys = positions.map(point => point.y);
-    const centerX = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : 0;
-    const centerY = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0;
-    const halfWidth = Math.max(200, xs.length ? (Math.max(...xs) - Math.min(...xs)) / 2 + 160 : 200);
-    const halfHeight = Math.max(150, ys.length ? (Math.max(...ys) - Math.min(...ys)) / 2 + 100 : 150);
-    return { minX: centerX - halfWidth, maxX: centerX + halfWidth, minY: centerY - halfHeight, maxY: centerY + halfHeight };
+function playtestBounds(state: CombatState, context: ReturnType<typeof createCombatStepContext>): CombatCommandPlaytestBounds {
+    const largestMargin = Math.max(0, ...context.participantOrder.map(id => state.units[id].radius + 2));
+    return {
+        minX: context.battleRect.x + largestMargin,
+        maxX: context.battleRect.x + context.battleRect.w - largestMargin,
+        minY: context.battleRect.y + largestMargin,
+        maxY: context.battleRect.y + context.battleRect.h - largestMargin,
+    };
 }
 
 export function createCombatCommandPlaytest(
@@ -86,24 +85,34 @@ export function createCombatCommandPlaytest(
         return { ok: false, error: 'INVALID_PLAYTEST_MODE' };
     }
 
-    const spec = { ...battleSpecForCombatLab(scenario, catalog), selectableMode: mode };
-    const baseContext = createCombatStepContext(spec);
+    let spec: BattleSpec;
+    try {
+        spec = { ...battleSpecForCombatLab(scenario, catalog), selectableMode: mode };
+    } catch (error) {
+        return {
+            ok: false,
+            error: 'INVALID_COMBAT_BATTLE_SPEC',
+            detail: error instanceof Error ? error.message : String(error),
+        };
+    }
+    const baseContext = createCombatStepContext(spec, spec.viewport);
     const tickRate = 1 / baseContext.delta;
     if (!Number.isInteger(tickRate) || tickRate <= 0) {
         return { ok: false, error: 'UNSUPPORTED_COMBAT_TICK_RATE' };
     }
     const commandLog = emptyCommandInputLog(tickRate);
+    const state = createCombatState(spec);
     return {
         ok: true,
         value: {
             scenarioId: scenario.id,
             mode,
             spec,
-            state: createCombatState(spec),
+            state,
             commandLog,
             nextSeq: 0,
             feedback: [],
-            bounds: playtestBounds(scenario),
+            bounds: playtestBounds(state, baseContext),
         },
     };
 }
@@ -179,7 +188,7 @@ export function advanceCombatCommandPlaytest(
     let state = session.state;
     const feedback: CommandReceipt[] = [];
     const spec = { ...session.spec, command: session.commandLog, selectableMode: session.mode };
-    const context = createCombatStepContext(spec);
+    const context = createCombatStepContext(spec, spec.viewport);
     for (let index = 0; index < rawTicks && !state.outcome; index++) {
         if (state.tick > context.timeoutTicks) {
             state = { ...state, outcome: 'Timeout' };

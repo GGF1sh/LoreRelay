@@ -10,18 +10,32 @@ type PointerHelper = (
     point: { x: number; y: number },
 ) => Record<string, unknown> | null;
 
-function loadPointerHelper(): PointerHelper {
+type ResetHelper = (state: Record<string, unknown>, clearPlaytest?: boolean) => void;
+type ScenarioHelper = (state: Record<string, unknown>, scenarioId: string) => Record<string, unknown> | null;
+
+function loadWebviewHelpers(): { translate: PointerHelper; reset: ResetHelper; selectScenario: ScenarioHelper; clearedTimers: unknown[] } {
     const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
+    const clearedTimers: unknown[] = [];
     const context: Record<string, unknown> = {
         window: { addEventListener() { /* registration only */ } },
         document: { addEventListener() { /* registration only */ } },
         navigator: {},
         vscode: { postMessage() { /* registration only */ } },
         setInterval() { return 1; },
-        clearInterval() { /* no-op */ },
+        clearInterval(value: unknown) { clearedTimers.push(value); },
     };
-    vm.runInNewContext(`${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer };`, context);
-    return (context.__combatHooks as { combatCommandMessageForPointer: PointerHelper }).combatCommandMessageForPointer;
+    vm.runInNewContext(`${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest };`, context);
+    const hooks = context.__combatHooks as {
+        combatCommandMessageForPointer: PointerHelper;
+        resetCombatCommandPlaytestUi: ResetHelper;
+        selectCombatLabScenarioForPlaytest: ScenarioHelper;
+    };
+    return {
+        translate: hooks.combatCommandMessageForPointer,
+        reset: hooks.resetCombatCommandPlaytestUi,
+        selectScenario: hooks.selectCombatLabScenarioForPlaytest,
+        clearedTimers,
+    };
 }
 
 function transportValue(value: Record<string, unknown> | null): Record<string, unknown> | null {
@@ -29,7 +43,7 @@ function transportValue(value: Record<string, unknown> | null): Record<string, u
 }
 
 describe('Combat Lab command pointer translation', () => {
-    const translate = loadPointerHelper();
+    const { translate, reset, selectScenario, clearedTimers } = loadWebviewHelpers();
 
     test('ground right-click translates to move_to for the current selection', () => {
         const message = translate({ selection: ['ally_2', 'ally_1'], pendingOrder: null }, null, { x: 12.5, y: -8 });
@@ -58,5 +72,45 @@ describe('Combat Lab command pointer translation', () => {
         assert.deepEqual(transportValue(message), {
             type: 'issueCombatCommand', unitIds: ['ally_3', 'ally_1'], command: 'attack_move', point: { x: 100, y: 50 },
         });
+    });
+
+    test('restart and scenario invalidation synchronously stop the old timer and clear transient UI state', () => {
+        const state: Record<string, unknown> = {
+            timer: 17,
+            running: true,
+            selection: ['ally_1'],
+            pendingOrder: 'attack_move',
+            error: 'old error',
+            playtest: { scenarioId: 'old' },
+            playtestMode: 'command',
+        };
+        const restartMessage = selectScenario(state, 'new');
+        assert.deepEqual(clearedTimers, [17]);
+        assert.deepEqual(JSON.parse(JSON.stringify(state)), {
+            timer: null,
+            running: false,
+            selection: [],
+            pendingOrder: null,
+            error: '',
+            playtest: null,
+            playtestMode: 'command',
+            selected: 'new',
+        });
+        assert.deepEqual(transportValue(restartMessage), {
+            type: 'startCombatCommandPlaytest',
+            scenarioId: 'new',
+            mode: 'command',
+        });
+
+        const restartState: Record<string, unknown> = {
+            timer: 18,
+            running: true,
+            selection: ['ally_2'],
+            pendingOrder: null,
+            error: '',
+            playtest: { scenarioId: 'new' },
+        };
+        reset(restartState);
+        assert.deepEqual(clearedTimers, [17, 18]);
     });
 });

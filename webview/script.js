@@ -21880,6 +21880,16 @@ function sendSelectedCombatCommand(command) {
   if (!state.selection.length) { state.error = 'Select one or more allied units first.'; renderCombatLab(); return; }
   vscode.postMessage({ type: 'issueCombatCommand', unitIds: [...state.selection], command });
 }
+function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
+  if (state.timer) clearInterval(state.timer);
+  state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = '';
+  if (clearPlaytest) state.playtest = null;
+}
+function selectCombatLabScenarioForPlaytest(state, scenarioId) {
+  const restart = Boolean(state.playtest); state.selected = scenarioId;
+  resetCombatCommandPlaytestUi(state);
+  return restart ? { type: 'startCombatCommandPlaytest', scenarioId, mode: state.playtestMode } : null;
+}
 function syncCombatPlaytestTimer() {
   const state = window.LR_combatLab;
   if (state.running && state.playtest && !state.playtest.outcome && !state.timer) {
@@ -21904,6 +21914,9 @@ function renderCombatCommandPlaytest(state) {
       style="position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;border:${outline};background:${color};color:white;font-size:10px;opacity:${unit.dead ? '.35' : '1'}">${labEsc(unit.id.replace(/^ally_|^enemy_/, ''))}</button>`;
   }).join('');
   const feedback = (playtest?.feedback || []).map(receipt => `${receipt.unitId}: ${receipt.command} ${receipt.kind}${receipt.reason ? ` (${receipt.reason})` : ''}`);
+  const queued = playtest?.lastIssued
+    ? `Queued tick ${playtest.lastIssued.tick} seq ${playtest.lastIssued.seq}: ${playtest.lastIssued.command} (${playtest.lastIssued.unitIds.join(', ')})`
+    : '';
   return `<hr><h4>Command Playtest</h4>
     <div class="inline-help">Real CombatState via stepCombat. Command is the default; spectator keeps the same simulation but rejects player orders.</div>
     <p><label>Mode <select data-lab="playtest-mode"><option value="command" ${state.playtestMode === 'command' ? 'selected' : ''}>Command</option><option value="spectator" ${state.playtestMode === 'spectator' ? 'selected' : ''}>Spectator</option></select></label>
@@ -21916,15 +21929,16 @@ function renderCombatCommandPlaytest(state) {
     <div data-lab="battlefield" tabindex="0" aria-label="Combat command battlefield"
       style="position:relative;height:340px;margin:.5rem 0;border:1px solid var(--vscode-panel-border,#666);background:rgba(0,0,0,.18);overflow:hidden;touch-action:none;user-select:none">${markers}<div data-lab="selection-box" style="display:none;position:absolute;border:1px dashed #ffd866;background:rgba(255,216,102,.12);pointer-events:none"></div></div>
     <div class="inline-help">Click allies to select (Shift toggles). Drag empty ground for box selection. Right-click ground to move; right-click an enemy to attack.</div>
-    <div role="status">${state.error ? labEsc(state.error) : feedback.map(labEsc).join(' · ')}</div>`;
+    <div role="status">${state.error ? labEsc(state.error) : [queued, ...feedback].filter(Boolean).map(labEsc).join(' · ')}</div>`;
 }
 function bindCombatCommandPlaytest(root) {
   const state = window.LR_combatLab;
   const field = root.querySelector('[data-lab="battlefield"]');
   root.querySelector('[data-lab="playtest-mode"]').onchange = event => { state.playtestMode = event.target.value; };
   root.querySelector('[data-lab="playtest-start"]').onclick = () => {
-    state.selection = []; state.pendingOrder = null; state.running = false; state.error = '';
-    vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode });
+    const scenarioId = state.selected; const mode = state.playtestMode;
+    resetCombatCommandPlaytestUi(state); renderCombatLab();
+    vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode });
   };
   root.querySelector('[data-lab="playtest-run"]').onclick = () => {
     if (!state.playtest) { vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode }); return; }
@@ -21997,7 +22011,10 @@ function renderCombatLab() {
     <div>${state.compare ? `Comparison: winner ${state.compare.winnerChanged ? 'changed' : 'same'}, duration Δ ${state.compare.durationDelta.toFixed(2)}, damage Δ ${state.compare.damageDelta}, changed inputs ${state.compare.changedInputs.length}.` : ''}</div>
     <details><summary>Combat timeline (${timeline.length})</summary><ol>${timeline.slice(0, 250).map(line => `<li>${labEsc(line)}</li>`).join('')}</ol></details>${renderCombatCommandPlaytest(state)}`;
   const json = () => root.querySelector('[data-lab="json"]').value;
-  root.querySelector('[data-lab="scenario"]').onchange = event => { state.selected = event.target.value; renderCombatLab(); };
+  root.querySelector('[data-lab="scenario"]').onchange = event => {
+    const restartMessage = selectCombatLabScenarioForPlaytest(state, event.target.value);
+    renderCombatLab(); if (restartMessage) vscode.postMessage(restartMessage);
+  };
   root.querySelector('[data-lab="run"]').onclick = () => vscode.postMessage({ type: 'runCombatLab', scenarioId: state.selected });
   root.querySelector('[data-lab="repeat"]').onclick = () => vscode.postMessage({ type: 'runCombatLab', scenarioId: state.selected });
   root.querySelector('[data-lab="swap"]').onclick = () => vscode.postMessage({ type: 'swapCombatLabSides', scenarioId: state.selected });

@@ -431,15 +431,21 @@ function resolveRtsCommandLogForSpec(raw: unknown, expectedTickRate: number | nu
     return { log: result.log, accepted: result.log.events.length > 0 };
 }
 
-export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
+export function createCombatStepContext(
+    spec: BattleSpec,
+    // The 64x64 default preserves the historical headless golden contract.
+    // Interactive adapters may explicitly supply their rendered viewport so
+    // pointer destinations and the rectangle enforced by stepCombat coincide.
+    battleViewport: { width: number; height: number } = { width: 64.0, height: 64.0 },
+): CombatStepContext {
     const MARGIN = 8.0;
     const PANEL_W = 260.0;
     const LOG_H = 210.0;
 
     // In Godot 4, headless mode sets the visible rect size to the minimum window size (64x64)
     // This results in negative battle_rect sizes, and Godot's clamp() behaves differently than Math.min/max
-    const headless_view_w = 64.0;
-    const headless_view_h = 64.0;
+    const battle_view_w = battleViewport.width;
+    const battle_view_h = battleViewport.height;
 
     // Snapshotted BEFORE spec.command is touched at all, in this order:
     // legacyDelta, then tickRate, then rawCommand. A fourth review round found
@@ -514,8 +520,8 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
         battleRect: {
             x: MARGIN,
             y: MARGIN,
-            w: headless_view_w - PANEL_W - MARGIN * 3.0,
-            h: headless_view_h - LOG_H - MARGIN * 3.0
+            w: battle_view_w - PANEL_W - MARGIN * 3.0,
+            h: battle_view_h - LOG_H - MARGIN * 3.0
         },
         timeoutTicks: COMBAT_TIMEOUT_TICKS,
         commandLog: commandResolution.log,

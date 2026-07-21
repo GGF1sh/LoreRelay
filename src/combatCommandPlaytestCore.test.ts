@@ -1,6 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { initialCombatLabScenarios } from './combatLabCore';
+import { createCombatStepContext } from './gambitCombatCore';
 import {
     CombatCommandPlaytestSession,
     advanceCombatCommandPlaytest,
@@ -37,6 +38,35 @@ describe('Combat Lab command playtest adapter', () => {
         assert.equal(snapshot.tick, 0);
         assert.deepEqual(snapshot.units.map(unit => unit.id), session.spec.participantOrder);
         assert.equal(snapshot.units.length, 10);
+        const context = createCombatStepContext(session.spec, session.spec.viewport);
+        assert.deepEqual(snapshot.bounds, {
+            minX: context.battleRect.x + 12,
+            maxX: context.battleRect.x + context.battleRect.w - 12,
+            minY: context.battleRect.y + 12,
+            maxY: context.battleRect.y + context.battleRect.h - 12,
+        });
+    });
+
+    test('queues multiple commands for the same next tick without advancing state', () => {
+        const original = start();
+        const first = issue(original, { unitIds: ['ally_1'], command: 'move_to', point: { x: 100, y: 100 } });
+        const second = issue(first, { unitIds: ['ally_1'], command: 'stop' });
+        assert.equal(second.state.tick, 0);
+        assert.deepEqual(second.commandLog.events.map(event => [event.tick, event.seq, event.command]), [
+            [1, 0, 'move_to'],
+            [1, 1, 'stop'],
+        ]);
+        assert.deepEqual(combatCommandPlaytestSnapshot(second).lastIssued, second.commandLog.events[1]);
+        const advanced = step(second);
+        assert.equal(advanced.state.tick, 1);
+        assert.equal(advanced.state.orders.ally_1?.command, 'stop');
+        assert.deepEqual(advanced.feedback.map(receipt => receipt.kind), [
+            'order_accepted',
+            'order_started',
+            'order_superseded',
+            'order_accepted',
+            'order_started',
+        ]);
     });
 
     test('validated move_to, attack_target, and attack_move messages become existing schema events and active orders', () => {
@@ -121,5 +151,16 @@ describe('Combat Lab command playtest adapter', () => {
         const advanced = step(nearTimeout);
         assert.equal(advanced.state.tick, 3601);
         assert.equal(advanced.state.outcome, 'Timeout');
+    });
+
+    test('battle-spec construction failures are returned instead of thrown', () => {
+        const scenario = structuredClone(initialCombatLabScenarios()[0]);
+        scenario.enemies[0].id = scenario.allies[0].id;
+        const result = createCombatCommandPlaytest(scenario, catalog);
+        assert.deepEqual(result, {
+            ok: false,
+            error: 'INVALID_COMBAT_BATTLE_SPEC',
+            detail: 'DUPLICATE_COMBAT_LAB_UNIT_ID',
+        });
     });
 });

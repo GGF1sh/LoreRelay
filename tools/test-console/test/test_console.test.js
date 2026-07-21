@@ -640,6 +640,16 @@ test('plan tamper rejection: changed dirty diff hash', () => {
     assertPlanTamperRejected(root, plan, (p) => { p.dirtyDiffHash = 'f'.repeat(64); }, /Working tree changed after planning/);
 });
 
+test('full-suite triggers compile prereq on docs-only integration plan', () => {
+    const root = fixtureWithDirtyDocsChange();
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'integration' });
+    assert.strictEqual(plan.requiresFullSuite, true);
+    const compile = plan.selectedCommands.filter((c) => c.id === 'boundary:compile');
+    assert.strictEqual(compile.length, 1);
+    assert.strictEqual(compile[0].phase, 'prereq');
+    assert.ok(plan.selectedCommands.find((c) => c.id === 'full-suite'));
+});
+
 (async () => {
     for (const item of tests) {
         try { await item.fn(); passed++; console.log(`PASS ${item.name}`); }

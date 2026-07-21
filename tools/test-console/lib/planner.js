@@ -296,6 +296,16 @@ function makePlan(options = {}) {
         }
     }
 
+    const unknownFiles = changedFiles.filter((file) => !matchedFiles.has(file));
+    if (unknownFiles.length) requiresFullSuite = true;
+    if (mode === 'integration' || mode === 'release') requiresFullSuite = true;
+    if (requiresFullSuite) {
+        const reasonText = unknownFiles.length
+            ? `Fail-closed full suite for unknown files: ${unknownFiles.join(', ')}`
+            : `${mode} mode requires a final full-manifest gate.`;
+        addCommand(selected, declareCommand('full-suite', 'integration', reasonText, 'full-suite'));
+    }
+
     let needsCompile = false;
     for (const cmd of selected.values()) {
         if (cmd.consumesCompiledOutput) {
@@ -315,16 +325,6 @@ function makePlan(options = {}) {
                 addCommand(selected, declareCommand(definition.id, definition.category || 'validate', reasonText, 'prereq'));
             }
         }
-    }
-
-    const unknownFiles = changedFiles.filter((file) => !matchedFiles.has(file));
-    if (unknownFiles.length) requiresFullSuite = true;
-    if (mode === 'integration' || mode === 'release') requiresFullSuite = true;
-    if (requiresFullSuite) {
-        const reasonText = unknownFiles.length
-            ? `Fail-closed full suite for unknown files: ${unknownFiles.join(', ')}`
-            : `${mode} mode requires a final full-manifest gate.`;
-        addCommand(selected, declareCommand('full-suite', 'integration', reasonText, 'full-suite'));
     }
 
     const manifestIndex = new Map(MANIFEST.map((entry, index) => [`test:${entry.file}`, index]));

@@ -17,7 +17,7 @@ Implementation progress:
 | PR4 | `move_to` + `attack_target` | **done** |
 | PR5 | `attack_move` | **done** |
 | PR6 | Multi-unit application order, supersede semantics | **done** |
-| PR7 | Replay hash + determinism tests | not started |
+| PR7 | Replay hash + determinism tests | **done** |
 
 ---
 
@@ -269,6 +269,50 @@ that is what keeps the golden master untouched.
 
 Replay: `(BattleSpec + CommandInputLog)` is the complete input. A `replayHash` over stably
 serialized output pins "same spec + same log → identical bytes", mirroring the direct-mode contract.
+
+### 6.1 `replayHash` contract *(implemented in PR7, COMBAT-RTS-REPLAY-HASH-DETERMINISM-001)*
+
+Precise enough for another runtime to reproduce byte-for-byte:
+
+- **Algorithm.** SHA-256, hex digest. Mirrors the existing direct-mode contract
+  (`combatDirectHeadlessCore.ts`'s own `replayHash`) exactly — same algorithm, same
+  "hash of stably serialized output" shape — rather than introducing a second convention.
+- **Canonical payload.** The `CombatExpectedOutput` object exactly as `resolveCombat` builds
+  it — `evaluations`, `decisions`, `attacks`, `heals`, `deaths`, `focusChanges`, `finalState`,
+  `outcome`, plus `mechanicsReceipts` / `commandReceipts` when present — captured **before**
+  `outputBytes` / `replayHash` themselves are attached, so the hash never includes itself.
+  Serialized via `stableSerialize` (`determinismSpineCore.ts`) — a recursive, key-sorted
+  structural serializer, reused rather than duplicated — so the result is independent of object
+  key insertion order in the strong sense the "another runtime can reproduce it" promise actually
+  requires: a differently-ordered but semantically identical reconstruction of the same payload
+  still hashes identically. (An earlier revision of this contract used a plain double JSON
+  round-trip and argued insertion-order-independence followed from `CombatExpectedOutput` never
+  containing an order-sensitive `Record` — true for *this* runtime's own construction, but not a
+  guarantee that holds for an independent reconstruction; Codex review on PR #38 caught this.)
+  ```ts
+  export function stableCombatOutputBytes(payload: unknown): string {
+      return stableSerialize(payload);
+  }
+  const outputBytes = stableCombatOutputBytes(output); // output has no outputBytes/replayHash yet
+  const replayHash = createHash('sha256').update(outputBytes).digest('hex');
+  ```
+- **Output location.** Two new optional fields on `CombatExpectedOutput`: `outputBytes?: string`
+  and `replayHash?: string`.
+- **Presence / compatibility.** Present if and only if `ctx.commandLog.events.length > 0` — the
+  exact same condition already gating `commandReceipts`'s presence, reused verbatim rather than
+  derived in parallel. Consequently: `spec.command` absent, an explicit empty log, and any log
+  that fails normalization (all three already collapse to an empty `ctx.commandLog`) all omit
+  `outputBytes`/`replayHash` entirely — zero new keys, so the Golden Master 8/8 byte-identity
+  promise (§8) and the absent/empty compatibility contract hold with no special-casing.
+- **What the hash does *not* need to embed.** The raw pre-normalization `CommandInputLog` (in
+  particular `unitIds` array order) is never embedded in the payload. `unitIds`' order is already
+  irrelevant to the actual simulation (§4: application order is `participantOrder.indexOf()`, not
+  selection order), and `resolveCombat`'s own output never retains it either — `commandReceipts`
+  record one `unitId` per receipt, not the original array. Two logs differing only in `unitIds`
+  order for equivalent events therefore already produce byte-identical output, and hence identical
+  hashes, with no extra normalization step — including when the tied ids are unrecognized
+  (`applyRtsCommandEvent`'s sort breaks ties among ids absent from `participantOrder` by the id
+  string itself, not by falling back to the event's own array order; also Codex review on PR #38).
 
 ---
 

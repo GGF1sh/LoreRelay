@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import { AbilityDefinition, StatusDefinition } from './combatAbilityTypes';
 import { advanceMechanicsState, canAct, canMove, ENGAGEMENT_OVERFLOW_MULTIPLIER, engagementSlotsFor, falloffAtIndex, MechanicsCombatant, MechanicsReceipt, resolveMechanics } from './combatMechanicsResolver';
 import { CombatSelectableMode, combatModeAllowsTacticalOrder, isCombatSelectableMode } from './combatModeContract';
+import { stableSerialize } from './determinismSpineCore';
 import {
     CommandInputEvent, CommandInputLog, CommandPoint, RtsCommand,
     emptyCommandInputLog, normalizeCommandInputLog,
@@ -106,6 +108,55 @@ export interface CombatExpectedOutput {
         units: { name: string; hp: number; pos_x: number; pos_y: number }[];
     };
     outcome: string;
+    /**
+     * Stable JSON bytes of this result (every field above, exactly as
+     * returned — never including outputBytes/replayHash themselves) — see
+     * stableCombatOutputBytes. Present under the same condition as
+     * replayHash; see that field's doc comment.
+     */
+    outputBytes?: string;
+    /**
+     * SHA-256 hex digest of outputBytes (COMBAT-RTS-REPLAY-HASH-
+     * DETERMINISM-001, PR7 of docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md §6).
+     * Mirrors the existing direct-mode contract (combatDirectHeadlessCore.ts's
+     * own replayHash: same algorithm, same "hash of stably serialized output"
+     * shape) rather than inventing a second convention.
+     *
+     * Present if and only if `ctx.commandLog.events.length > 0` — the exact
+     * same condition already gating commandReceipts's presence, reused
+     * verbatim rather than derived in parallel. This means: with spec.command
+     * absent, an explicit empty log, or a log that fails normalization (all
+     * three already collapse to an empty ctx.commandLog), replayHash and
+     * outputBytes are both omitted entirely — the result has exactly the
+     * same key set it had before this field existed, preserving Golden
+     * Master byte-identity and the absent/empty compatibility contract (§8)
+     * with no special-casing beyond reusing the existing gate.
+     */
+    replayHash?: string;
+}
+
+/**
+ * Stable JSON bytes for a CombatExpectedOutput-shaped payload (used for
+ * replayHash). Delegates to determinismSpineCore's stableSerialize — a
+ * recursive, key-sorted structural serializer — rather than a plain JSON
+ * round-trip.
+ *
+ * A plain `JSON.stringify(JSON.parse(JSON.stringify(payload)))` (this
+ * function's original implementation) preserves whatever key insertion
+ * order the payload happens to have; it does not canonicalize it. That is
+ * harmless for THIS runtime's own output, since every CombatExpectedOutput
+ * field is built the same way on every call — but it does not hold as a
+ * general guarantee, and this contract is documented as reproducible by
+ * another runtime (design §6.1): a differently-ordered but semantically
+ * identical reconstruction of the same payload must still hash identically
+ * (Codex review on PR #38). stableSerialize sorts every object's keys
+ * recursively before serializing, so the result is independent of
+ * insertion order in the strong, cross-runtime sense the contract actually
+ * requires, not merely "happens to be stable for this codebase's own
+ * construction order."
+ */
+export function stableCombatOutputBytes(payload: unknown): string {
+    return stableSerialize(payload);
 }
 
 /**
@@ -580,10 +631,17 @@ function effectiveCommandTick(event: CommandInputEvent): number {
 
 /**
  * A unit's dispatch rank for command fan-out. Unknown units (not in
- * participantOrder) sort to the end, in their original relative order within
- * the event — `Array.prototype.sort` is spec-guaranteed stable, so ties
- * (including multiple unknowns, or a duplicated id) never depend on anything
- * but participantOrder and the event's own original array order.
+ * participantOrder) sort to the end, all at the same rank.
+ *
+ * Ties at this rank (multiple unknown ids in one event) are NOT broken here
+ * — every unknown id shares Number.POSITIVE_INFINITY, so `orderRank` alone
+ * cannot distinguish them. The caller (applyRtsCommandEvent) adds a
+ * secondary tie-break by the id string itself, specifically so that ties
+ * among unknown ids do not fall back to the event's own unitIds array order
+ * (Codex review on PR #38, COMBAT-RTS-REPLAY-HASH-DETERMINISM-001): the
+ * replayHash contract requires unitIds order to never affect output for
+ * equivalent normalized commands, including when every id in the tie is
+ * unrecognized.
  */
 function orderRank(unitId: string, participantOrder: string[]): number {
     const index = participantOrder.indexOf(unitId);
@@ -599,6 +657,15 @@ function orderRank(unitId: string, participantOrder: string[]): number {
  * A bad unit in the selection is rejected individually; the rest of the
  * event's fan-out still proceeds — one bad id must not silently drop an
  * entire multi-unit command.
+ *
+ * Sort is two-level: primary key is orderRank (participantOrder index, or
+ * Infinity for an unrecognized id); ties — which can only happen among
+ * unrecognized ids, since participantOrder itself has no duplicates — are
+ * broken by the id string itself, never by comparing `Infinity - Infinity`
+ * (`NaN`, which Array.prototype.sort treats as "no information" and would
+ * silently fall back to unitIds' own array order). This keeps the whole
+ * ordering, including this edge case, independent of the event's own
+ * unitIds order (Codex review on PR #38).
  */
 function applyRtsCommandEvent(
     event: CommandInputEvent,
@@ -611,7 +678,12 @@ function applyRtsCommandEvent(
 ): void {
     const orderedUnitIds = event.unitIds
         .slice()
-        .sort((a, b) => orderRank(a, participantOrder) - orderRank(b, participantOrder));
+        .sort((a, b) => {
+            const rankA = orderRank(a, participantOrder);
+            const rankB = orderRank(b, participantOrder);
+            if (rankA !== rankB) return rankA - rankB;
+            return a < b ? -1 : a > b ? 1 : 0;
+        });
 
     for (const unitId of orderedUnitIds) {
         if (!combatModeAllowsTacticalOrder(selectableMode)) {
@@ -1573,6 +1645,16 @@ export function resolveCombat(spec: BattleSpec): CombatExpectedOutput {
         outcome
     };
     if (ctx.combatMode === 'mechanics_v1') output.mechanicsReceipts = mechanicsReceipts;
-    if (ctx.commandLog.events.length > 0) output.commandReceipts = commandReceipts;
+    if (ctx.commandLog.events.length > 0) {
+        output.commandReceipts = commandReceipts;
+        // Payload is `output` exactly as built above — every field the
+        // caller will actually receive, and nothing else — captured before
+        // outputBytes/replayHash themselves exist on it, so the hash can
+        // never include itself. See CombatExpectedOutput.replayHash's doc
+        // comment for the full contract (algorithm, payload, presence rule).
+        const outputBytes = stableCombatOutputBytes(output);
+        output.outputBytes = outputBytes;
+        output.replayHash = createHash('sha256').update(outputBytes).digest('hex');
+    }
     return output;
 }

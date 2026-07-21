@@ -47,6 +47,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         files: ['combatRtsAttackMoveV1.test.js'],
     },
     {
+        id: 'combat:rts-replay-hash',
+        description: 'RTS replayHash contract: SHA-256 over stable output bytes, presence rule, cross-run determinism',
+        files: ['combatRtsReplayHashDeterminismV1.test.js'],
+    },
+    {
         id: 'combat:mechanics-resolver',
         description: 'Mechanics resolver: damage, statuses, heal block, regen, correctness',
         files: [

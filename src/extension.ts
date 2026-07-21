@@ -25,6 +25,7 @@ import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrar
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
 import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, runCombatLab, swapCombatLabSides } from './combatLabCore';
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
+import { CombatCommandPlaytestSession, advanceCombatCommandPlaytest, combatCommandPlaytestSnapshot, createCombatCommandPlaytest, issueCombatCommand } from './combatCommandPlaytestCore';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
@@ -280,6 +281,7 @@ let extensionInstallationPath = '';
 let combatLabDocument: CombatLabDocument | undefined;
 let combatLabPlayback: CombatLabPlayback | undefined;
 let combatLabRecentRuns: CombatLabRun[] = [];
+let combatCommandPlaytestSession: CombatCommandPlaytestSession | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -1883,7 +1885,7 @@ function combatLabCatalog() {
     ensureCombatWorkshopFixture();
     return { abilities: [...combatWorkshopBuiltins, ...currentCombatWorkshopLibrary().abilities], statuses: combatWorkshopStatuses };
 }
-function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); }
+function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); sendCombatCommandPlaytest(); }
 function selectedCombatLabScenario(value: unknown) { const document = currentCombatLabDocument(); const id = typeof value === 'string' ? value : document.selectedScenarioId; return document.scenarios.find(scenario => scenario.id === id); }
 function handleRunCombatLab(scenarioId: unknown, swap = false): void {
     const scenario = selectedCombatLabScenario(scenarioId); if (!scenario) { vscode.window.showWarningMessage('Combat Lab: select a scenario first.'); return; }
@@ -1903,6 +1905,36 @@ async function handleImportCombatLab(): Promise<void> { const imported = importC
 function handleAdvanceCombatLabPlayback(ticks: unknown): void { if (!combatLabPlayback) return; const count = typeof ticks === 'number' ? ticks : Number(ticks); combatLabPlayback = { ...combatLabPlayback, cursor: Math.min(combatLabPlayback.run.timeline.length, combatLabPlayback.cursor + Math.max(0, Math.trunc(count)) * combatLabPlayback.speed), paused: false }; sendCombatLab(); }
 function handlePauseCombatLabPlayback(): void { if (combatLabPlayback) { combatLabPlayback = { ...combatLabPlayback, paused: !combatLabPlayback.paused }; sendCombatLab(); } }
 function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback) return; const value = Number(speed); if (value === 1 || value === 2 || value === 4) { combatLabPlayback = { ...combatLabPlayback, speed: value }; sendCombatLab(); } }
+function sendCombatCommandPlaytest(): void {
+    if (combatCommandPlaytestSession) panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: combatCommandPlaytestSnapshot(combatCommandPlaytestSession) });
+}
+function sendCombatCommandPlaytestError(error: string, detail?: string): void {
+    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail });
+}
+function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown): void {
+    const scenario = selectedCombatLabScenario(scenarioId);
+    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO'); return; }
+    const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode);
+    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail); return; }
+    combatCommandPlaytestSession = created.value;
+    sendCombatCommandPlaytest();
+}
+function handleIssueCombatCommand(raw: unknown): void {
+    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED'); return; }
+    const issued = issueCombatCommand(combatCommandPlaytestSession, raw);
+    if (!issued.ok) { sendCombatCommandPlaytestError(issued.error, issued.detail); return; }
+    const stepped = advanceCombatCommandPlaytest(issued.value, 1);
+    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail); return; }
+    combatCommandPlaytestSession = stepped.value;
+    sendCombatCommandPlaytest();
+}
+function handleStepCombatCommandPlaytest(ticks: unknown): void {
+    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED'); return; }
+    const stepped = advanceCombatCommandPlaytest(combatCommandPlaytestSession, ticks);
+    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail); return; }
+    combatCommandPlaytestSession = stepped.value;
+    sendCombatCommandPlaytest();
+}
 
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
@@ -2084,6 +2116,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleAdvanceCombatLabPlayback,
         handlePauseCombatLabPlayback,
         handleSetCombatLabSpeed,
+        handleStartCombatCommandPlaytest,
+        handleIssueCombatCommand,
+        handleStepCombatCommandPlaytest,
         handleBranchTimeline,
         sendGitTimelineStatus,
         sendChronicle,

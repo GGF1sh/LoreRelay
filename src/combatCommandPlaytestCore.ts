@@ -71,6 +71,67 @@ function playtestBounds(state: CombatState, context: ReturnType<typeof createCom
     };
 }
 
+function clampScalar(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Combat Lab scenarios are authored around the origin (allies at x≈−80,
+ * enemies at x≈+80), while the interactive playtest viewport's battle
+ * rectangle lives entirely in positive coordinates (~20..992, ~20..478 for
+ * 1280×720). Without a translation, createCombatState preserves the lab
+ * coordinates, the webview clamps markers to the left/bottom edges, and
+ * ordered combat still walks those out-of-bounds positions.
+ *
+ * Centers the formation's bounding box on the playable rectangle, then clamps
+ * each unit into the same bounds used by the pointer adapter. Relative layout
+ * is preserved whenever the formation already fits.
+ */
+export function mapUnitsIntoPlaytestBounds(
+    state: CombatState,
+    bounds: CombatCommandPlaytestBounds,
+    participantOrder: readonly string[],
+): void {
+    const living = participantOrder.filter(id => state.units[id]);
+    if (living.length === 0) return;
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const id of living) {
+        const unit = state.units[id];
+        minX = Math.min(minX, unit.pos_x);
+        maxX = Math.max(maxX, unit.pos_x);
+        minY = Math.min(minY, unit.pos_y);
+        maxY = Math.max(maxY, unit.pos_y);
+    }
+
+    const formationCx = (minX + maxX) / 2;
+    const formationCy = (minY + maxY) / 2;
+    const boundsCx = (bounds.minX + bounds.maxX) / 2;
+    const boundsCy = (bounds.minY + bounds.maxY) / 2;
+    const dx = boundsCx - formationCx;
+    const dy = boundsCy - formationCy;
+
+    for (const id of living) {
+        const unit = state.units[id];
+        unit.pos_x = clampScalar(unit.pos_x + dx, bounds.minX, bounds.maxX);
+        unit.pos_y = clampScalar(unit.pos_y + dy, bounds.minY, bounds.maxY);
+    }
+}
+
+/** Clamps a command destination into the playtest rectangle (pointer adapter bounds). */
+export function clampPlaytestPoint(
+    point: { x: number; y: number },
+    bounds: CombatCommandPlaytestBounds,
+): { x: number; y: number } {
+    return {
+        x: clampScalar(point.x, bounds.minX, bounds.maxX),
+        y: clampScalar(point.y, bounds.minY, bounds.maxY),
+    };
+}
+
 export function createCombatCommandPlaytest(
     scenario: CombatLabScenario,
     catalog: CombatLabCatalog,
@@ -102,6 +163,8 @@ export function createCombatCommandPlaytest(
     }
     const commandLog = emptyCommandInputLog(tickRate);
     const state = createCombatState(spec);
+    const bounds = playtestBounds(state, baseContext);
+    mapUnitsIntoPlaytestBounds(state, bounds, baseContext.participantOrder);
     return {
         ok: true,
         value: {
@@ -112,7 +175,7 @@ export function createCombatCommandPlaytest(
             commandLog,
             nextSeq: 0,
             feedback: [],
-            bounds: playtestBounds(state, baseContext),
+            bounds,
         },
     };
 }
@@ -164,12 +227,24 @@ export function issueCombatCommand(
     }, session.commandLog.tickRate);
     if (!normalized.ok) return { ok: false, error: normalized.error, detail: normalized.detail };
 
-    const lastIssued = normalized.log.events[normalized.log.events.length - 1];
+    // normalizeCommandInputLog only quantizes coordinates; forged/direct webview
+    // messages can still carry destinations outside session.bounds. move_to /
+    // attack_move execution does not call clampToBattlefield on the destination,
+    // so without this clamp a point like (-1000,-1000) walks units out of the
+    // rendered rectangle indefinitely. Match the pointer adapter's bounds.
+    const events = normalized.log.events.map(entry => {
+        if (!entry.point) return entry;
+        const clamped = clampPlaytestPoint(entry.point, session.bounds);
+        if (clamped.x === entry.point.x && clamped.y === entry.point.y) return entry;
+        return { ...entry, point: clamped };
+    });
+    const commandLog: CommandInputLog = { ...normalized.log, events };
+    const lastIssued = events[events.length - 1];
     return {
         ok: true,
         value: {
             ...session,
-            commandLog: normalized.log,
+            commandLog,
             nextSeq: session.nextSeq + 1,
             lastIssued,
             feedback: [],

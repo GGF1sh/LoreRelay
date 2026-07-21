@@ -1912,6 +1912,11 @@ function sendCombatCommandPlaytestError(error: string, detail?: string): void {
     panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail });
 }
 function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown): void {
+    // Always drop the previous host session first. The webview clears its
+    // playtest UI synchronously on restart, but its Step control can still
+    // post stepCombatCommandPlaytest; if battle-spec construction then fails
+    // (e.g. duplicate unit IDs) we must not leave the old scenario advanceable.
+    combatCommandPlaytestSession = undefined;
     const scenario = selectedCombatLabScenario(scenarioId);
     if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO'); return; }
     const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode);

@@ -47,6 +47,21 @@ describe('Combat Lab command playtest adapter', () => {
         });
     });
 
+    test('initial unit positions are mapped into the interactive playtest bounds', () => {
+        const session = start();
+        const snapshot = combatCommandPlaytestSnapshot(session);
+        const { minX, maxX, minY, maxY } = snapshot.bounds;
+        assert.ok(minX > 0 && minY > 0, 'playtest bounds live in positive interactive space');
+        for (const unit of snapshot.units) {
+            assert.ok(unit.x >= minX && unit.x <= maxX, `${unit.id} x=${unit.x} outside [${minX},${maxX}]`);
+            assert.ok(unit.y >= minY && unit.y <= maxY, `${unit.id} y=${unit.y} outside [${minY},${maxY}]`);
+        }
+        // Lab authored allies left / enemies right; relative facing must survive the map.
+        const allyX = snapshot.units.find(unit => unit.id === 'ally_1')!.x;
+        const enemyX = snapshot.units.find(unit => unit.id === 'enemy_1')!.x;
+        assert.ok(allyX < enemyX, 'allies should still face left of enemies after mapping');
+    });
+
     test('queues multiple commands for the same next tick without advancing state', () => {
         const original = start();
         const first = issue(original, { unitIds: ['ally_1'], command: 'move_to', point: { x: 100, y: 100 } });
@@ -71,8 +86,14 @@ describe('Combat Lab command playtest adapter', () => {
 
     test('validated move_to, attack_target, and attack_move messages become existing schema events and active orders', () => {
         let session = start();
-        session = issue(session, { unitIds: ['ally_1'], command: 'move_to', point: { x: 0.0004, y: 10 } });
-        assert.deepEqual(session.lastIssued, { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_1'], command: 'move_to', point: { x: 0, y: 10 } });
+        const inside = {
+            x: (session.bounds.minX + session.bounds.maxX) / 2,
+            y: (session.bounds.minY + session.bounds.maxY) / 2,
+        };
+        session = issue(session, { unitIds: ['ally_1'], command: 'move_to', point: { x: inside.x + 0.0004, y: inside.y } });
+        assert.equal(session.lastIssued?.command, 'move_to');
+        assert.equal(session.lastIssued?.point?.x, Math.round(inside.x * 1000) / 1000);
+        assert.equal(session.lastIssued?.point?.y, Math.round(inside.y * 1000) / 1000);
         session = step(session);
         assert.equal(session.state.orders.ally_1?.command, 'move_to');
 
@@ -82,10 +103,19 @@ describe('Combat Lab command playtest adapter', () => {
         session = step(session);
         assert.equal(session.state.orders.ally_1?.command, 'attack_target');
 
-        session = issue(session, { unitIds: ['ally_1'], command: 'attack_move', point: { x: 120, y: 40 } });
+        session = issue(session, { unitIds: ['ally_1'], command: 'attack_move', point: { x: inside.x + 20, y: inside.y + 10 } });
         assert.equal(session.lastIssued?.command, 'attack_move');
         session = step(session);
         assert.equal(session.state.orders.ally_1?.command, 'attack_move');
+    });
+
+    test('move_to and attack_move destinations are clamped to session.bounds', () => {
+        const session = start();
+        const { minX, maxX, minY, maxY } = session.bounds;
+        const move = issue(session, { unitIds: ['ally_1'], command: 'move_to', point: { x: -1000, y: -1000 } });
+        assert.deepEqual(move.lastIssued?.point, { x: minX, y: minY });
+        const attackMove = issue(session, { unitIds: ['ally_1'], command: 'attack_move', point: { x: 1e6, y: 1e6 } });
+        assert.deepEqual(attackMove.lastIssued?.point, { x: maxX, y: maxY });
     });
 
     test('multi-unit fan-out follows participantOrder rather than selection order', () => {
@@ -135,7 +165,14 @@ describe('Combat Lab command playtest adapter', () => {
     test('issuing and stepping return new state without direct mutation by the UI adapter', () => {
         const original = start();
         const originalState = JSON.stringify(original.state);
-        const issued = issue(original, { unitIds: ['ally_1'], command: 'move_to', point: { x: 0, y: 0 } });
+        const issued = issue(original, {
+            unitIds: ['ally_1'],
+            command: 'move_to',
+            point: {
+                x: (original.bounds.minX + original.bounds.maxX) / 2,
+                y: (original.bounds.minY + original.bounds.maxY) / 2,
+            },
+        });
         assert.equal(JSON.stringify(original.state), originalState);
         assert.equal(issued.state, original.state);
         const issuedState = JSON.stringify(issued.state);

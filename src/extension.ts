@@ -1940,8 +1940,8 @@ function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback)
 function sendCombatCommandPlaytest(): void {
     if (combatCommandPlaytestSession) panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: combatCommandPlaytestSnapshot(combatCommandPlaytestSession) });
 }
-function sendCombatCommandPlaytestError(error: string, detail?: string): void {
-    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail });
+function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string): void {
+    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId });
 }
 function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown): void {
     // Always drop the previous host session first. The webview clears its
@@ -1949,24 +1949,25 @@ function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown): v
     // post stepCombatCommandPlaytest; if battle-spec construction then fails
     // (e.g. duplicate unit IDs) we must not leave the old scenario advanceable.
     combatCommandPlaytestSession = undefined;
+    const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;
     const scenario = selectedCombatLabScenario(scenarioId);
-    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO'); return; }
+    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId); return; }
     const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode);
-    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail); return; }
+    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail, 'start', targetScenarioId); return; }
     combatCommandPlaytestSession = created.value;
     sendCombatCommandPlaytest();
 }
 function handleIssueCombatCommand(raw: unknown): void {
-    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED'); return; }
+    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED', undefined, 'issue'); return; }
     const issued = issueCombatCommand(combatCommandPlaytestSession, raw);
-    if (!issued.ok) { sendCombatCommandPlaytestError(issued.error, issued.detail); return; }
+    if (!issued.ok) { sendCombatCommandPlaytestError(issued.error, issued.detail, 'issue'); return; }
     combatCommandPlaytestSession = issued.value;
     sendCombatCommandPlaytest();
 }
 function handleStepCombatCommandPlaytest(ticks: unknown): void {
-    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED'); return; }
+    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED', undefined, 'step'); return; }
     const stepped = advanceCombatCommandPlaytest(combatCommandPlaytestSession, ticks);
-    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail); return; }
+    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail, 'step'); return; }
     combatCommandPlaytestSession = stepped.value;
     sendCombatCommandPlaytest();
 }

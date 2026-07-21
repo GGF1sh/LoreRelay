@@ -22059,7 +22059,19 @@ window.addEventListener('message', event => {
     if (m.state.outcome) state.running = false;
     renderCombatLab();
   }
-  if (m.type === 'combatCommandPlaytestError') { state.error = String(m.error || 'Command rejected'); renderCombatLab(); }
+  if (m.type === 'combatCommandPlaytestError') {
+    if (m.operation === 'start') {
+      if (m.scenarioId && m.scenarioId !== state.selected) {
+        return;
+      }
+      state.pendingStart = false;
+      if (!state.playtest) {
+        state.running = false;
+      }
+    }
+    state.error = String(m.error || 'Command rejected');
+    renderCombatLab();
+  }
 });
 document.addEventListener('DOMContentLoaded', () => { renderCombatLab(); vscode.postMessage({ type: 'requestCombatLab' }); });
 

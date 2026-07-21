@@ -219,4 +219,97 @@ describe('Combat Lab command pointer translation', () => {
         assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 0, units: [] });
         assert.equal(live.state.pendingStart, false);
     });
+
+    test('failed initial Run clears pendingStart and running', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = null;
+        live.state.running = true;
+        live.state.pendingStart = true;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+        });
+
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.running, false);
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
+    });
+
+    test('failed Start/restart returns to a clean paused/no-session state', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = null;
+        live.state.running = false;
+        live.state.pendingStart = true;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+        });
+
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.running, false);
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
+    });
+
+    test('stale start error for the old scenario is ignored', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.pendingStart = true;
+
+        live.selectScenario(live.state, 'scenarioB');
+        assert.equal(live.state.selected, 'scenarioB');
+        assert.equal(live.state.pendingStart, true);
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+        });
+
+        assert.equal(live.state.selected, 'scenarioB');
+        assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.error, '');
+    });
+
+    test('issue/step errors do not stop a valid live session', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 10, units: [] };
+        live.state.running = true;
+        live.state.pendingStart = false;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_UNIT_SELECTION',
+            operation: 'issue',
+        });
+
+        assert.equal(live.state.running, true);
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 10, units: [] });
+        assert.equal(live.state.error, 'INVALID_UNIT_SELECTION');
+    });
+
+    test('successful matching state still clears pendingStart normally', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.pendingStart = true;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [] },
+        });
+
+        assert.equal(live.state.pendingStart, false);
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [] });
+    });
 });

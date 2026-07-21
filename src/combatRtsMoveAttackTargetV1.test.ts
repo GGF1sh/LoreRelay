@@ -471,6 +471,46 @@ describe('RTS attack_target — execution', () => {
         assert.ok(activity.evaluations.some(e => e.tick === completed!.tick + 1), 'gambits resume exactly the following tick');
     });
 
+    test('two units both attack_target the same enemy: the earlier-processed unit still completes when the later one lands the kill (Codex review on PR #35)', () => {
+        // participantOrder puts ally_a before ally_b. ally_a's own per-tick
+        // "target still alive?" check runs and passes BEFORE ally_b's turn,
+        // in the same tick, deals the killing blow. Without the end-of-tick
+        // sweep, ally_a's order would never receive order_completed — and
+        // since enemy_a is the only enemy, the battle ends in victory this
+        // exact tick, so there is no later tick for ally_a to notice on its own.
+        const spec = skirmishSpec({
+            participantOrder: ['ally_a', 'ally_b', 'enemy_a'],
+            initialState: {
+                units: {
+                    allies: [
+                        unit({ name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40, attack: 1 }),
+                        unit({ name: 'ally_b', team: 0, pos_x: 0, pos_y: 0, attack_range: 40, attack: 999 }),
+                    ],
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, max_hp: 10, hp: 10 })],
+                },
+            },
+            command: commandLog([
+                { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_a', 'ally_b'], command: 'attack_target', targetId: 'enemy_a' } as CommandInputEvent,
+            ]),
+        });
+        const output = resolveCombat(spec);
+
+        const aReceipts = receiptsFor(output, 'ally_a');
+        const bReceipts = receiptsFor(output, 'ally_b');
+        assert.deepEqual(aReceipts.map(r => [r.kind, r.reason]), [
+            ['order_accepted', undefined],
+            ['order_started', undefined],
+            ['order_completed', 'target_defeated'],
+        ], 'the earlier-processed unit must still receive its completion receipt');
+        assert.deepEqual(bReceipts.map(r => [r.kind, r.reason]), [
+            ['order_accepted', undefined],
+            ['order_started', undefined],
+            ['order_completed', 'target_defeated'],
+        ]);
+        assert.equal(aReceipts[2].tick, 1);
+        assert.equal(bReceipts[2].tick, 1, 'both complete on the same tick the target actually died');
+    });
+
     test('temporarily disabled action (mechanics_v1, canAct false) retains the order and idles without attacking', () => {
         // canAct is only checked inside tryAttack's mechanics_v1-ability branch
         // (gated behind normalAttackAbility being set) — without an ability, a
@@ -498,6 +538,131 @@ describe('RTS attack_target — execution', () => {
         assert.equal(activity.attacks.length, 0, 'a stunned unit must never land an attack');
         const receipts = receiptsFor(output, 'ally_a');
         assert.deepEqual(receipts.map(r => r.kind), ['order_accepted', 'order_started'], 'the order must persist while canAct stays false');
+    });
+
+    test('temporarily disabled action WITHOUT a normalAttackAbility still retains the order and idles (the exact gap review found)', () => {
+        // The regression this exists to pin: tryAttack's canAct check only runs
+        // inside its mechanics_v1-ability branch. Without normalAttackAbility, a
+        // mechanics_v1 unit fell through to the plain damage formula, which
+        // never checks canAct at all — a stunned unit with no ability could
+        // still attack through an active attack_target order. This is the exact
+        // state the previous test avoided by always equipping TEST_SLASH.
+        const spec = skirmishSpec({
+            combatMode: 'mechanics_v1',
+            participantOrder: ['ally_a', 'enemy_a'],
+            initialState: {
+                units: {
+                    allies: [stunnedMechanicsUnit({ name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40 })], // no normalAttackAbility
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, attack: 0, max_hp: 100, hp: 100 })],
+                },
+            },
+            command: commandLog([attackTarget('ally_a', 'enemy_a')]),
+        });
+        const output = resolveCombat(spec);
+        const activity = activityFor(output, 'ally_a');
+        assert.equal(activity.attacks.length, 0, 'a stunned unit with no ability must still never land an attack');
+        const finalEnemy = output.finalState.units.find(u => u.name === 'enemy_a')!;
+        assert.equal(finalEnemy.hp, 100, 'the target must take no damage at all');
+        const receipts = receiptsFor(output, 'ally_a');
+        assert.deepEqual(receipts.map(r => r.kind), ['order_accepted', 'order_started'], 'the order must persist and never complete while disabled');
+        assert.equal(output.outcome, 'Timeout', 'neither side can ever act, so the battle must simply time out');
+    });
+
+    test('a unit disabled by canMove=false (paralysis; canAct still true) also does not approach an out-of-range target', () => {
+        // paralysis blocks canMove but NOT canAct (combatMechanicsResolver.ts).
+        // Per the task's exact contract, BOTH gates are checked together before
+        // either movement or attack — a unit that could technically still act
+        // must not move toward an out-of-range target while paralyzed.
+        const spec = skirmishSpec({
+            combatMode: 'mechanics_v1',
+            participantOrder: ['ally_a', 'enemy_a'],
+            initialState: {
+                units: {
+                    allies: [unit({
+                        name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40,
+                        mechanics: { id: 'ally_a', hp: 100, maxHp: 100, attack: 20, defense: 0, statuses: [{ id: 'paralysis', remainingSeconds: 3600, intensity: 1 }] },
+                    } as any)],
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 200, pos_y: 0, attack: 0 })], // out of range
+                },
+            },
+            command: commandLog([attackTarget('ally_a', 'enemy_a')]),
+        });
+        const state = runTicks(spec, 10);
+        assert.equal(state.units['ally_a'].pos_x, 0, 'a paralyzed unit must not approach, even though it could technically still act');
+        assert.notEqual(state.orders['ally_a'], null, 'the order must still be retained');
+    });
+
+    test('after the disabling status expires, the retained order resumes and attacks normally', () => {
+        const spec = skirmishSpec({
+            combatMode: 'mechanics_v1',
+            participantOrder: ['ally_a', 'enemy_a'],
+            initialState: {
+                units: {
+                    allies: [unit({
+                        name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40,
+                        // Expires after 2 ticks at delta = 1/30 (remainingSeconds
+                        // decays by `delta` each tick, clamped at 0).
+                        mechanics: { id: 'ally_a', hp: 100, maxHp: 100, attack: 20, defense: 0, statuses: [{ id: 'stun', remainingSeconds: 2 / 30, intensity: 1 }] },
+                    } as any)],
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, attack: 0, max_hp: 1000, hp: 1000 })],
+                },
+            },
+            command: commandLog([attackTarget('ally_a', 'enemy_a')]),
+        });
+        const output = resolveCombat(spec);
+        const activity = activityFor(output, 'ally_a');
+        assert.equal(activity.attacks.filter(a => a.tick <= 2).length, 0, 'no attack while still stunned');
+        assert.ok(activity.attacks.some(a => a.tick > 2), 'the SAME order must resume attacking once the stun lifts, without needing a new command');
+        const receipts = receiptsFor(output, 'ally_a');
+        assert.equal(receipts.filter(r => r.kind === 'order_accepted').length, 1, 'only ever accepted once — no new command was issued');
+    });
+
+    test('a target that dies while the acting unit is disabled still completes with target_defeated, not left stale', () => {
+        // ally_b (unordered, normal gambits, in range) kills enemy_a while
+        // ally_a (holding attack_target on the same enemy) is stunned and never
+        // gets to act at all — the end-of-tick sweep must still complete
+        // ally_a's order, since it does not depend on ally_a having acted.
+        const spec = skirmishSpec({
+            combatMode: 'mechanics_v1',
+            participantOrder: ['ally_a', 'ally_b', 'enemy_a', 'harmless_enemy'],
+            initialState: {
+                units: {
+                    allies: [
+                        stunnedMechanicsUnit({ name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40 }),
+                        unit({ name: 'ally_b', team: 0, pos_x: 20, pos_y: 0, attack: 999, attack_range: 40 }),
+                    ],
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, max_hp: 10, hp: 10 }), harmlessDistantEnemy()],
+                },
+            },
+            command: commandLog([attackTarget('ally_a', 'enemy_a')]),
+        });
+        const output = resolveCombat(spec);
+        const activity = activityFor(output, 'ally_a');
+        assert.equal(activity.attacks.length, 0, 'ally_a itself, stunned, never attacks');
+        const receipts = receiptsFor(output, 'ally_a');
+        assert.deepEqual(receipts.map(r => [r.kind, r.reason]), [
+            ['order_accepted', undefined],
+            ['order_started', undefined],
+            ['order_completed', 'target_defeated'],
+        ]);
+        assert.equal(receipts[2].tick, 1, 'ally_b kills enemy_a on tick 1; the sweep must complete ally_a the same tick');
+    });
+
+    test('repeated runs of the disabled-unit attack_target scenario remain deterministic', () => {
+        const spec = skirmishSpec({
+            combatMode: 'mechanics_v1',
+            participantOrder: ['ally_a', 'enemy_a'],
+            initialState: {
+                units: {
+                    allies: [stunnedMechanicsUnit({ name: 'ally_a', team: 0, pos_x: 0, pos_y: 0, attack_range: 40 })],
+                    enemies: [unit({ name: 'enemy_a', team: 1, pos_x: 20, pos_y: 0, attack: 0 })],
+                },
+            },
+            command: commandLog([attackTarget('ally_a', 'enemy_a')]),
+        });
+        const a = resolveCombat(structuredClone(spec));
+        const b = resolveCombat(structuredClone(spec));
+        assert.equal(JSON.stringify(a), JSON.stringify(b));
     });
 
     test('legacy_gambit: attack_target deals damage through the plain damage formula path', () => {

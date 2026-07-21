@@ -1036,6 +1036,21 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
                     commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
                     continue;
                 }
+                // Mirrors design §3's "canAct/canMove false -> retain the order
+                // and idle" — already true of move_to via moveToward's own
+                // internal canMove check, but attack_target has both a move
+                // phase and an attack phase, so both gates are checked together
+                // here, before either. tryAttack's own canAct check only runs
+                // inside its mechanics_v1-ability branch (a mechanics_v1 unit
+                // with no normalAttackAbility falls through to the plain damage
+                // formula, which never checks canAct at all) — this check does
+                // not depend on that branch and applies uniformly regardless of
+                // whether the unit has an ability. Neither the order nor the
+                // target-liveness state is touched: the order is retained
+                // exactly as-is and re-evaluated next tick.
+                if (combatMode === 'mechanics_v1' && (!canAct(mechanicsStates[u.name]) || !canMove(mechanicsStates[u.name]))) {
+                    continue;
+                }
                 if (dist(u, units[targetId]) <= u.attack_range) {
                     tryAttack(targetId);
                 } else {
@@ -1321,6 +1336,35 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
         }
     }
     // --- end extracted tick body ---------------------------------------------
+
+    // ▸ attack_target target-death sweep (Codex review on PR #35): when
+    // multiple units hold attack_target on the same enemy, a unit later in
+    // participantOrder can land the killing blow (or the mechanics_v1
+    // lethal-timer sweep can) AFTER an earlier unit's own per-tick liveness
+    // check already passed this same tick — that earlier unit's order would
+    // otherwise stay active with no order_completed receipt, and if the
+    // defeated unit was the battle's last opponent the omission becomes
+    // permanent: combatTerminalOutcome ends the battle before another tick
+    // ever runs to notice. Swept once, here, after every unit has acted and
+    // mechanics_v1 has resolved, for any attack_target order whose target is
+    // no longer alive — including a target that died while its attacker was
+    // disabled (canAct/canMove false) and never got to act at all this tick.
+    // Skips a unit whose own HOLDER already died this tick; that case is
+    // covered by the unit-death interruption pass below instead, with
+    // order_interrupted rather than order_completed — the two sweeps never
+    // touch the same order, so there is no priority ambiguity between them.
+    // Iterates participantOrder, never Object.keys(orders), for the same
+    // determinism reason as the sweep below.
+    for (const unitName of participantOrder) {
+        const activeOrder = orders[unitName];
+        if (!activeOrder || activeOrder.command !== 'attack_target' || !activeOrder.targetId) continue;
+        const unit = units[unitName];
+        if (!unit || unit._dead || unit.hp <= 0) continue;
+        const target = units[activeOrder.targetId];
+        if (target && !target._dead && target.hp > 0) continue;
+        orders[unitName] = null;
+        commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_target', kind: 'order_completed', reason: 'target_defeated' });
+    }
 
     // ▸ Unit-death interruption (design §3, "shared interruptions"): any order
     // still active for a unit that is dead by the end of this tick is cleared

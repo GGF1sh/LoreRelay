@@ -37,6 +37,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         files: ['combatRtsMoveAttackTargetV1.test.js'],
     },
     {
+        id: 'combat:rts-attack-move',
+        description: 'RTS attack_move execution: engage/disengage on in-range enemies, participantOrder tie-break, arrival completion',
+        files: ['combatRtsAttackMoveV1.test.js'],
+    },
+    {
         id: 'combat:mechanics-resolver',
         description: 'Mechanics resolver: damage, statuses, heal block, regen, correctness',
         files: [

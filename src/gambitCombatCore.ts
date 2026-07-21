@@ -389,14 +389,25 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
     const headless_view_w = 64.0;
     const headless_view_h = 64.0;
 
-    // Computed once and shared by `delta` and the command log's tick-rate
-    // check below, so the two can never be derived from different values by
-    // construction — this is what closes the gap an earlier review found:
-    // without it, a command log could pass its tick-rate match while `delta`
-    // kept running on a slightly different value than the rate it was just
-    // matched against.
+    // Snapshotted BEFORE spec.command is touched at all, in this order:
+    // legacyDelta, then tickRate, then rawCommand. A fourth review round found
+    // that combatRtsCommandInputCore's own adversarial-input contract (PR2:
+    // property reads on `command` are getter/Proxy-safe by design, so they may
+    // run arbitrary code) cuts both ways — a getter on an explicit EMPTY log's
+    // `events` can mutate the very `spec` object closed over by this function
+    // (`spec.deltaSeconds = 999`, say) as a side effect of being read, not just
+    // return a value. The previous code recomputed the fallback delta from
+    // spec.fixedFps/spec.deltaSeconds AFTER normalizing spec.command, so that
+    // recomputation observed the mutation — an explicit-but-empty log with a
+    // hostile getter could silently corrupt delta even though the command
+    // itself is accepted:false and has no other effect. legacyDelta below is
+    // computed from the exact previous truthy-fixedFps rule, captured before
+    // spec.command is dereferenced by anything, so no later mutation of
+    // spec.fixedFps/spec.deltaSeconds — however it happens — can reach it.
+    const legacyDelta = spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds;
     const tickRate = effectiveBattleTickRate(spec);
-    const commandResolution = resolveRtsCommandLogForSpec(spec.command, tickRate);
+    const rawCommand = spec.command;
+    const commandResolution = resolveRtsCommandLogForSpec(rawCommand, tickRate);
 
     return {
         spec,
@@ -438,9 +449,15 @@ export function createCombatStepContext(spec: BattleSpec): CombatStepContext {
         // non-empty command log — precisely the case that needs delta and the
         // log to agree, and the only case introduced by this feature in the
         // first place.
-        delta: (commandResolution.accepted && tickRate !== null)
-            ? (1.0 / tickRate)
-            : (spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds),
+        //
+        // The fallback branch reads legacyDelta — the snapshot taken above,
+        // before spec.command was ever touched — never spec.fixedFps /
+        // spec.deltaSeconds directly. Re-reading those fields here (as the
+        // previous version did) is exactly what a fourth review round found
+        // exploitable: normalizing spec.command runs arbitrary getter code by
+        // contract, and that code can mutate spec itself before this line
+        // would have re-read it.
+        delta: (commandResolution.accepted && tickRate !== null) ? (1.0 / tickRate) : legacyDelta,
         combatMode: spec.combatMode || 'legacy_gambit',
         battleRect: {
             x: MARGIN,

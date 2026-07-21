@@ -265,6 +265,100 @@ describe('RTS tick rate — near-miss rates are rejected, and delta is canonical
     });
 });
 
+describe('RTS tick rate — a command getter cannot corrupt the legacy delta fallback', () => {
+    // Fourth review round: combatRtsCommandInputCore's own adversarial-input
+    // contract (PR2) means spec.command's own properties may be getters that
+    // run arbitrary code — including mutating the surrounding `spec` object,
+    // not merely returning a value. The previous fix recomputed the fallback
+    // delta from spec.fixedFps/spec.deltaSeconds AFTER normalizing
+    // spec.command, so a hostile getter on an explicit empty log could mutate
+    // either field and have that mutation observed by the recomputation.
+
+    test('a getter mutating spec.deltaSeconds does not affect the resulting delta', () => {
+        const rawDeltaSeconds = 0.033333333;
+        const absent = skirmishSpec({ deltaSeconds: rawDeltaSeconds });
+
+        const hostile = skirmishSpec({ deltaSeconds: rawDeltaSeconds });
+        let getterCalled = false;
+        hostile.command = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: 30,
+            get events() { getterCalled = true; hostile.deltaSeconds = 999; return []; },
+        };
+
+        const ctxAbsent = createCombatStepContext(absent);
+        const ctxHostile = createCombatStepContext(hostile);
+
+        assert.equal(getterCalled, true, 'the test must actually exercise the hostile getter path');
+        assert.equal(ctxHostile.delta, ctxAbsent.delta, 'a command getter must not be able to change delta');
+        assert.equal(ctxHostile.delta, rawDeltaSeconds, 'delta must be the original, unmutated value');
+    });
+
+    test('a getter mutating spec.fixedFps does not affect the resulting delta', () => {
+        const absent = skirmishSpec({ fixedFps: 60 });
+
+        const hostile = skirmishSpec({ fixedFps: 60 });
+        let getterCalled = false;
+        hostile.command = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            // Must match the battle's effective tick rate (fixedFps: 60), or
+            // normalizeCommandInputLog rejects on the tickRate mismatch before
+            // ever reading `events` — which would never exercise the getter.
+            tickRate: 60,
+            get events() { getterCalled = true; hostile.fixedFps = 999; return []; },
+        };
+
+        const ctxAbsent = createCombatStepContext(absent);
+        const ctxHostile = createCombatStepContext(hostile);
+
+        assert.equal(getterCalled, true, 'the test must actually exercise the hostile getter path');
+        assert.equal(ctxHostile.delta, ctxAbsent.delta, 'a command getter must not be able to change delta');
+        assert.equal(ctxHostile.delta, 1.0 / 60, 'delta must be derived from the original, unmutated fixedFps');
+    });
+
+    test('the mutation attempt still leaves the command itself correctly rejected as empty/unaccepted', () => {
+        const hostile = skirmishSpec({ deltaSeconds: 1 / 30 });
+        hostile.command = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: 30,
+            get events() { hostile.deltaSeconds = 999; return []; },
+        };
+        const output = resolveCombat(hostile);
+        assert.equal('commandReceipts' in output, false, 'an empty log (hostile or not) must still produce no commandReceipts field');
+    });
+
+    test('a valid non-empty matching log still canonicalizes correctly even when read after the snapshot', () => {
+        const spec = skirmishSpec({ deltaSeconds: 0.033333333, command: commandLog([stopEvent()], 30) });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 30);
+    });
+
+    test('invalid and mismatched logs still preserve the captured legacy delta, getter or not', () => {
+        const rawDeltaSeconds = 0.033333333;
+
+        const invalid = skirmishSpec({ deltaSeconds: rawDeltaSeconds, command: 'not-a-log' });
+        assert.equal(createCombatStepContext(invalid).delta, rawDeltaSeconds);
+
+        const mismatched = skirmishSpec({ deltaSeconds: rawDeltaSeconds, command: commandLog([stopEvent()], 999) });
+        assert.equal(createCombatStepContext(mismatched).delta, rawDeltaSeconds);
+    });
+
+    test('repeated runs of a hostile-getter spec are still fully deterministic', () => {
+        const buildHostileSpec = () => {
+            const spec = skirmishSpec({ deltaSeconds: 0.033333333 });
+            spec.command = {
+                schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+                tickRate: 30,
+                get events() { spec.deltaSeconds = Math.random() * 1000; return []; },
+            };
+            return spec;
+        };
+        const a = resolveCombat(buildHostileSpec());
+        const b = resolveCombat(buildHostileSpec());
+        assert.equal(JSON.stringify(a), JSON.stringify(b), 'delta must be pinned before the mutating getter can ever run, regardless of what it does');
+    });
+});
+
 describe('RTS tick rate — the real Combat Lab integration path is unaffected', () => {
     // Exercises the actual product code (battleSpecForCombatLab /
     // isValidScenario), not a hand-rolled stand-in, to prove the scoping fix

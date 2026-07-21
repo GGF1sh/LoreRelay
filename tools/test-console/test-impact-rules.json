@@ -50,6 +50,25 @@
       "reason": "Packaged TypeScript source changed; compile and contract validation are required."
     },
     {
+      "id": "combat-runtime",
+      "patterns": ["src/gambitCombatCore.ts", "src/combat*.ts", "src/combat*.test.ts", "src/*Combat*.test.ts"],
+      "boundaries": ["compile", "symbol-registry", "combat-manifest-coverage"],
+      "reason": "Combat subsystem source or test changed; focused Combat groups (selected by combat-group inference), manifest coverage, and Symbol Registry are required."
+    },
+    {
+      "id": "combat-manifest",
+      "patterns": ["scripts/combat_test_manifest.js"],
+      "tests": ["test_combat_manifest_coverage.js"],
+      "boundaries": ["compile"],
+      "reason": "Combat test group registration changed; the manifest coverage guard must run directly, against freshly compiled output."
+    },
+    {
+      "id": "combat-docs",
+      "patterns": ["docs/COMBAT_*.md"],
+      "boundaries": ["utf8-docs"],
+      "reason": "Combat design documentation changed."
+    },
+    {
       "id": "test-script",
       "patterns": ["scripts/test_*.js", "scripts/test_*.py", "scripts/validate_*.js", "scripts/check_*.js"],
       "testsFromChangedFiles": true,
@@ -65,7 +84,7 @@
     },
     {
       "id": "symbol-registry",
-      "patterns": ["docs/generated/symbol-registry.json", "scripts/generate_symbol_registry.js", "symbol-registry.json"],
+      "patterns": ["docs/generated/symbol_registry.json", "docs/generated/SYMBOL_REGISTRY.md", "docs/generated/symbol-registry.json", "scripts/generate_symbol_registry.js", "symbol-registry.json"],
       "tests": ["test_symbol_registry.js"],
       "boundaries": ["symbol-registry"],
       "reason": "Generated symbol registry or its generator changed."
@@ -118,6 +137,7 @@
       "id": "boundary:symbol-registry",
       "category": "validate"
     },
+    "combat-manifest-coverage": { "test": "test_combat_manifest_coverage.js" },
     "i18n": { "test": "check_i18n_keys.js" },
     "version-consistency": { "test": "check_version_consistency.js" },
     "utf8-docs": { "test": "validate_utf8_docs.js" }

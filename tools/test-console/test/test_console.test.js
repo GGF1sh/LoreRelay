@@ -160,6 +160,236 @@ test('unknown production file fails closed', () => {
     assert(plan.selectedCommands.some((item) => item.id === 'full-suite'));
 });
 
+// TEST-IMPACT-COMBAT-SELECTION-001: a PR7-like Combat diff must plan complete,
+// stay focused (no full-suite), select the relevant Combat group(s) plus the
+// required boundaries, and select nothing from an unrelated test domain.
+test('a PR7-like Combat diff plans complete, focused, and free of unrelated domains', () => {
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'verify',
+        changedFiles: [
+            'src/gambitCombatCore.ts',
+            'src/combatRtsReplayHashDeterminismV1.test.ts',
+            'scripts/combat_test_manifest.js',
+            'docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md',
+            'docs/generated/SYMBOL_REGISTRY.md',
+            'docs/generated/symbol_registry.json',
+        ],
+    });
+    assert.strictEqual(plan.complete, true);
+    assert.deepStrictEqual(plan.unknownFiles, []);
+    assert.strictEqual(plan.requiresFullSuite, false);
+
+    const ids = plan.selectedCommands.map((item) => item.id);
+    assert(ids.includes('test:combat:rts-replay-hash'), 'the changed Combat test file must select its owning Combat group');
+    assert(ids.includes('boundary:compile'), 'compile boundary must be selected');
+    assert(ids.includes('boundary:symbol-registry'), 'Symbol Registry boundary must be selected (generated Registry files changed)');
+    assert(ids.includes('test:test_symbol_registry.js'), 'the Symbol Registry rule must recognize the real docs/generated/*symbol_registry* filenames');
+    assert(ids.includes('test:test_combat_manifest_coverage.js'), 'Combat manifest coverage guard must be selected (manifest file changed)');
+    assert(ids.includes('test:validate_utf8_docs.js'), 'UTF-8 documentation validation must be selected (Combat docs changed)');
+
+    // No unrelated test domain: nothing installer/webview/economy/simulation/full-suite-flavored.
+    assert(!ids.includes('full-suite'));
+    for (const id of ids) {
+        assert(!/installer|install_chain|webview|simulation|noai_soak/i.test(id), `unexpected unrelated command selected: ${id}`);
+    }
+});
+
+test('a changed focused Combat test maps to its owning COMBAT_TEST_GROUPS group, not every group', () => {
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'focused',
+        changedFiles: ['src/combatRtsAttackMoveV1.test.ts'],
+    });
+    const combatIds = plan.selectedCommands.map((item) => item.id).filter((id) => id.startsWith('test:combat:'));
+    assert.deepStrictEqual(combatIds, ['test:combat:rts-attack-move']);
+});
+
+test('Combat group inference resolves a shared runtime file via its test sources’ own imports', () => {
+    // Uses the real repository root (not the isolated fixture) so reference
+    // inference reads real src/*.ts test sources on disk — this is the one
+    // test in this file that intentionally exercises that live-repo path,
+    // proving the mechanism functions end-to-end and not merely in theory.
+    const plan = makePlan({
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'focused',
+        changedFiles: ['src/gambitCombatCore.ts'],
+    });
+    const combatIds = plan.selectedCommands.map((item) => item.id).filter((id) => id.startsWith('test:combat:'));
+    // gambitCombatCore.ts is imported by many Combat test sources across
+    // several distinct groups (golden-master, rts-* groups, mechanics-
+    // resolver, direct-mode, pr-regressions) — assert a defensible, non-
+    // trivial subset without hard-coding the exact count, which would go
+    // stale as new Combat groups are added.
+    assert(combatIds.includes('test:combat:golden-master'));
+    assert(combatIds.includes('test:combat:rts-replay-hash'));
+    assert(combatIds.length >= 5, `expected several affected Combat groups, got: ${combatIds.join(', ')}`);
+    // Never the whole manifest — combat:ability-validator's own test source
+    // does not import gambitCombatCore, so it must not be swept in.
+    assert(!combatIds.includes('test:combat:ability-validator'));
+});
+
+test('a Combat manifest change selects the manifest coverage guard directly, without forcing full-suite', () => {
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'verify',
+        changedFiles: ['scripts/combat_test_manifest.js'],
+    });
+    assert.strictEqual(plan.complete, true);
+    assert.strictEqual(plan.requiresFullSuite, false);
+    assert(plan.selectedCommands.some((item) => item.id === 'test:test_combat_manifest_coverage.js'));
+    assert(!plan.selectedCommands.some((item) => item.id === 'full-suite'));
+});
+
+test('a genuinely unknown Combat-adjacent file still fails closed to full-suite', () => {
+    // Not a .ts/.test.ts file, so none of the new combat-runtime patterns
+    // match it — proves the broadened Combat rules did not widen the
+    // fail-closed safety net. Deliberately outside src/** (already covered
+    // by the pre-existing typescript-source rule for any extension) and
+    // outside every other rule's patterns.
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'focused',
+        changedFiles: ['extension/combat_mystery.bin'],
+    });
+    assert.strictEqual(plan.complete, false);
+    assert.strictEqual(plan.requiresFullSuite, true);
+    assert.deepStrictEqual(plan.unknownFiles, ['extension/combat_mystery.bin']);
+    assert(plan.selectedCommands.some((item) => item.id === 'full-suite'));
+});
+
+test('dirty and untracked Combat files are collected and classified as known', () => {
+    const root = fixture();
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'combatFixtureRuntime.ts'), 'export const combatFixtureRuntime = true;\n');
+    const files = collectChangedFiles(root, 'HEAD', 'HEAD');
+    assert(files.includes('src/combatFixtureRuntime.ts'), 'untracked Combat source must be part of changed-file analysis');
+
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'focused' });
+    assert.deepStrictEqual(plan.unknownFiles, []);
+    assert.strictEqual(plan.requiresFullSuite, false);
+    assert(plan.changedFiles.includes('src/combatFixtureRuntime.ts'));
+});
+
+// TEST-IMPACT-COMBAT-SELECTION-001 follow-up (PR #39 Codex review): compile
+// must execute in an earlier `prereq` phase, strictly before any `focused`
+// command that consumes compiled out/ output (inferred Combat node:test
+// groups, test_combat_manifest_coverage.js). These four tests exercise the
+// real ExecutionEngine's phase ordering directly — not just the planner's
+// selectedCommands array order — using fake trusted stand-in commands (the
+// same nodeCommand()/commandPlan() pattern already used elsewhere in this
+// file) so they run in milliseconds without touching the real out/ directory.
+
+test('prereq phase (compile) executes before the focused phase in the real ExecutionEngine', async () => {
+    const root = fixture();
+    const orderLog = path.join(root, 'order.log');
+    const compileCmd = { ...nodeCommand('boundary:compile', `require('fs').appendFileSync(${JSON.stringify(orderLog)}, 'compile\\n')`), phase: 'prereq' };
+    const combatCmd = { ...nodeCommand('test:combat:fake-group', `require('fs').appendFileSync(${JSON.stringify(orderLog)}, 'combat\\n')`), phase: 'focused' };
+    // Selected out of order on purpose (combat before compile) - only phase
+    // decides execution order, never array position.
+    const plan = commandPlan(root, [combatCmd, compileCmd]);
+    const engine = new ExecutionEngine(plan, fakePreflight(), { runDirectory: path.join(root, '.test-runs', 'order'), skipIdentityCheck: true });
+    const record = await engine.run();
+    assert.strictEqual(record.commands.find((c) => c.id === 'boundary:compile').status, 'PASS');
+    assert.strictEqual(record.commands.find((c) => c.id === 'test:combat:fake-group').status, 'PASS');
+    assert.deepStrictEqual(fs.readFileSync(orderLog, 'utf8').trim().split('\n'), ['compile', 'combat']);
+});
+
+test('clean checkout: the focused Combat step only succeeds once the prereq compile step creates the compiled artifact', async () => {
+    const root = fixture();
+    const artifact = path.join(root, 'out-marker.txt');
+    assert.strictEqual(fs.existsSync(artifact), false, 'fixture starts with no compiled artifact, like a clean checkout with no out/');
+    const compileCmd = { ...nodeCommand('boundary:compile', `require('fs').writeFileSync(${JSON.stringify(artifact)}, 'built')`), phase: 'prereq' };
+    const combatCmd = { ...nodeCommand('test:combat:fake-group', `if (!require('fs').existsSync(${JSON.stringify(artifact)})) process.exit(1)`), phase: 'focused' };
+    const plan = commandPlan(root, [combatCmd, compileCmd]);
+    const engine = new ExecutionEngine(plan, fakePreflight(), { runDirectory: path.join(root, '.test-runs', 'clean'), skipIdentityCheck: true });
+    const record = await engine.run();
+    assert.strictEqual(record.commands.find((c) => c.id === 'boundary:compile').status, 'PASS');
+    assert.strictEqual(record.commands.find((c) => c.id === 'test:combat:fake-group').status, 'PASS');
+});
+
+test('stale worktree: the focused Combat step observes the freshly compiled artifact, never the stale one', async () => {
+    const root = fixture();
+    const artifact = path.join(root, 'out-marker.txt');
+    fs.writeFileSync(artifact, 'stale');
+    const compileCmd = { ...nodeCommand('boundary:compile', `require('fs').writeFileSync(${JSON.stringify(artifact)}, 'fresh')`), phase: 'prereq' };
+    const observed = path.join(root, 'observed.txt');
+    const combatCmd = { ...nodeCommand('test:combat:fake-group', `
+        const fs = require('fs');
+        const content = fs.readFileSync(${JSON.stringify(artifact)}, 'utf8');
+        fs.writeFileSync(${JSON.stringify(observed)}, content);
+        if (content !== 'fresh') process.exit(1);
+    `), phase: 'focused' };
+    const plan = commandPlan(root, [combatCmd, compileCmd]);
+    const engine = new ExecutionEngine(plan, fakePreflight(), { runDirectory: path.join(root, '.test-runs', 'stale'), skipIdentityCheck: true });
+    const record = await engine.run();
+    assert.strictEqual(record.commands.find((c) => c.id === 'test:combat:fake-group').status, 'PASS');
+    assert.strictEqual(fs.readFileSync(observed, 'utf8'), 'fresh', 'must observe the artifact compile just wrote, never the pre-existing stale one');
+});
+
+test('a failing prereq compile step prevents dependent focused Combat commands from running at all', async () => {
+    const root = fixture();
+    const combatRan = path.join(root, 'combat-ran.txt');
+    const compileCmd = { ...nodeCommand('boundary:compile', 'process.exit(1)'), phase: 'prereq' };
+    const combatCmd = { ...nodeCommand('test:combat:fake-group', `require('fs').writeFileSync(${JSON.stringify(combatRan)}, 'ran')`), phase: 'focused' };
+    const plan = commandPlan(root, [combatCmd, compileCmd]);
+    const engine = new ExecutionEngine(plan, fakePreflight(), { runDirectory: path.join(root, '.test-runs', 'fail'), skipIdentityCheck: true });
+    const record = await engine.run();
+    assert.strictEqual(record.commands.find((c) => c.id === 'boundary:compile').status, 'FAIL');
+    assert.strictEqual(record.commands.find((c) => c.id === 'test:combat:fake-group').status, 'SKIPPED');
+    assert.strictEqual(fs.existsSync(combatRan), false, 'the dependent Combat command must never have actually run');
+});
+
+test('a Combat manifest change selects compile (prereq) ahead of the manifest coverage guard (focused), with no full-suite', () => {
+    const plan = makePlan({ root: fixture(), base: 'HEAD', head: 'HEAD', mode: 'verify', changedFiles: ['scripts/combat_test_manifest.js'] });
+    assert.strictEqual(plan.requiresFullSuite, false);
+    const compile = plan.selectedCommands.find((c) => c.id === 'boundary:compile');
+    const coverage = plan.selectedCommands.find((c) => c.id === 'test:test_combat_manifest_coverage.js');
+    assert.ok(compile, 'compile must be selected for a manifest-only change (the coverage guard reads compiled out/ files)');
+    assert.ok(coverage, 'the coverage guard must be selected');
+    assert.strictEqual(compile.phase, 'prereq');
+    assert.strictEqual(coverage.phase, 'focused');
+});
+
+test('a multi-runtime Combat diff selects every genuinely affected group, deduplicated, with none lost to the old raw-match cap', () => {
+    // Real repository root (not the isolated fixture) so reference inference
+    // reads real src/*.ts test sources. This exact 9-file combination
+    // reproduces the drop Codex found: under the pre-fix design (one raw
+    // match pushed per (changed file, group) pair, sliced to the first 24
+    // BEFORE addCommand's own id-based dedup), combat:rts-replay-hash's
+    // first raw occurrence fell at index 24 - one past the cap - and was
+    // silently discarded while the plan still reported complete: true.
+    const changedFiles = [
+        'src/combatAbilityValidator.ts',
+        'src/combatAbilityWorkshopCore.ts',
+        'src/combatDirectHeadlessCore.ts',
+        'src/combatDirectInputCore.ts',
+        'src/combatLabCore.ts',
+        'src/combatLoadoutUiCore.ts',
+        'src/combatMechanicsResolver.ts',
+        'src/combatModeContract.ts',
+        'src/gambitCombatCore.ts',
+    ];
+    const plan = makePlan({ base: 'HEAD', head: 'HEAD', mode: 'verify', changedFiles });
+    const combatIds = plan.selectedCommands.map((item) => item.id).filter((id) => id.startsWith('test:combat:'));
+    assert.strictEqual(new Set(combatIds).size, combatIds.length, 'no duplicate Combat group commands');
+    for (const required of ['test:combat:golden-master', 'test:combat:rts-multi-unit-supersede', 'test:combat:rts-replay-hash']) {
+        assert(combatIds.includes(required), `expected ${required} to be selected; got: ${combatIds.join(', ')}`);
+    }
+    assert.strictEqual(plan.complete, true, 'complete must only be true when no affected group was actually omitted');
+    const again = makePlan({ base: 'HEAD', head: 'HEAD', mode: 'verify', changedFiles });
+    assert.deepStrictEqual(again.selectedCommands.map((c) => c.id), plan.selectedCommands.map((c) => c.id), 'selection order must be deterministic across repeated runs');
+});
+
 test('exact fingerprint resumes recorded passes', () => {
     const root = fixture();
     const plan = commandPlan(root, [nodeCommand('one', 'process.exit(0)')]);
@@ -410,6 +640,16 @@ test('plan tamper rejection: changed dirty diff hash', () => {
     assertPlanTamperRejected(root, plan, (p) => { p.dirtyDiffHash = 'f'.repeat(64); }, /Working tree changed after planning/);
 });
 
+test('full-suite triggers compile prereq on docs-only integration plan', () => {
+    const root = fixtureWithDirtyDocsChange();
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'integration' });
+    assert.strictEqual(plan.requiresFullSuite, true);
+    const compile = plan.selectedCommands.filter((c) => c.id === 'boundary:compile');
+    assert.strictEqual(compile.length, 1);
+    assert.strictEqual(compile[0].phase, 'prereq');
+    assert.ok(plan.selectedCommands.find((c) => c.id === 'full-suite'));
+});
+
 (async () => {
     for (const item of tests) {
         try { await item.fn(); passed++; console.log(`PASS ${item.name}`); }
@@ -419,3 +659,69 @@ test('plan tamper rejection: changed dirty diff hash', () => {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
     if (passed !== tests.length) process.exitCode = 1;
 })().catch((error) => { console.error(error); process.exitCode = 1; });
+
+test('focused Combat source plan injects compile prereq exactly once', () => {
+    const root = fixture();
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'combatRtsAttackMoveV1.test.ts'), '// changed');
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'focused', changedFiles: ['src/combatRtsAttackMoveV1.test.ts'] });
+    assert.strictEqual(plan.requiresFullSuite, false);
+    const compile = plan.selectedCommands.filter((c) => c.id === 'boundary:compile');
+    assert.strictEqual(compile.length, 1);
+    assert.strictEqual(compile[0].phase, 'prereq');
+    const focused = plan.selectedCommands.filter((c) => c.id.startsWith('test:combat:'));
+    assert(focused.length > 0);
+    assert.strictEqual(focused[0].phase, 'focused');
+    const otherBoundaries = plan.selectedCommands.filter((c) => c.phase === 'boundary');
+    assert.strictEqual(otherBoundaries.length, 0);
+});
+
+test('focused manifest-only plan injects compile exactly once without full-suite', () => {
+    const root = fixture();
+    fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'scripts', 'combat_test_manifest.js'), '// changed');
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'focused', changedFiles: ['scripts/combat_test_manifest.js'] });
+    assert.strictEqual(plan.requiresFullSuite, false);
+    const compile = plan.selectedCommands.filter((c) => c.id === 'boundary:compile');
+    assert.strictEqual(compile.length, 1);
+    assert.strictEqual(compile[0].phase, 'prereq');
+    const coverage = plan.selectedCommands.find((c) => c.id === 'test:test_combat_manifest_coverage.js');
+    assert.ok(coverage);
+    assert.strictEqual(coverage.phase, 'focused');
+});
+
+test('resume/reuse regression and mixed reuse: compile is never REUSED_PASS, safe read-only is reused', async () => {
+    const root = fixture();
+    const artifact = path.join(root, 'out-marker.txt');
+    const safeCmd = { ...nodeCommand('safe', 'process.exit(0)'), workspaceWriter: false };
+    const compileCmd = { ...nodeCommand('boundary:compile', `require('fs').writeFileSync(${JSON.stringify(artifact)}, 'fresh')`), workspaceWriter: true, phase: 'prereq' };
+    const observed = path.join(root, 'observed.txt');
+    const combatCmd = { ...nodeCommand('test:combat:rts-attack-move', `
+        const fs = require('fs');
+        const content = fs.readFileSync(${JSON.stringify(artifact)}, 'utf8');
+        fs.writeFileSync(${JSON.stringify(observed)}, content);
+        if (content !== 'fresh') process.exit(1);
+    `), phase: 'focused' };
+    
+    const plan = commandPlan(root, [safeCmd, compileCmd, combatCmd]);
+    const preflight = fakePreflight();
+    
+    // First run
+    const engine1 = new ExecutionEngine(plan, preflight, { runDirectory: path.join(root, '.test-runs', 'prior'), skipIdentityCheck: true });
+    const record1 = await engine1.run();
+    assert.strictEqual(record1.commands.find((c) => c.id === 'safe').status, 'PASS');
+    assert.strictEqual(record1.commands.find((c) => c.id === 'boundary:compile').status, 'PASS');
+    assert.strictEqual(record1.commands.find((c) => c.id === 'test:combat:rts-attack-move').status, 'PASS');
+    
+    // Mutate ignored out/ marker without changing repository fingerprint
+    fs.writeFileSync(artifact, 'stale');
+    
+    // Resumed exact-fingerprint run
+    const engine2 = new ExecutionEngine(plan, preflight, { runDirectory: path.join(root, '.test-runs', 'next'), skipIdentityCheck: true });
+    const record2 = await engine2.run();
+    
+    assert.strictEqual(record2.commands.find((c) => c.id === 'safe').status, 'REUSED_PASS', 'safe read-only command is reused');
+    assert.strictEqual(record2.commands.find((c) => c.id === 'boundary:compile').status, 'PASS', 'workspaceWriter is executed again, not REUSED_PASS');
+    assert.strictEqual(record2.commands.find((c) => c.id === 'test:combat:rts-attack-move').status, 'PASS', 'focused command sees fresh output and passes');
+    assert.strictEqual(fs.readFileSync(observed, 'utf8'), 'fresh', 'focused command observed the new fresh output, not the stale one');
+});

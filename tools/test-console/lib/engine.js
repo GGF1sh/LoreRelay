@@ -5,7 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { fingerprint, writeArtifacts } = require('./report');
 const { assertPlanCurrent } = require('./planner');
-const { TRUSTED_MARKER } = require('./trusted-commands');
+const { TRUSTED_MARKER, lookupTrustedDefinition } = require('./trusted-commands');
 
 function assertTrustedExecutable(command) {
     if (command[TRUSTED_MARKER] !== true) {
@@ -58,7 +58,12 @@ function resumePasses(root, value) {
     const passes = new Set();
     for (const prior of readRuns(root).filter((run) => run.fingerprint === value)) {
         for (const command of prior.commands || []) {
-            if (command.status === 'PASS' || command.status === 'REUSED_PASS') passes.add(command.id);
+            if (command.status === 'PASS' || command.status === 'REUSED_PASS') {
+                const def = lookupTrustedDefinition(command.id);
+                if (!def || (!def.workspaceWriter && !def.consumesCompiledOutput)) {
+                    passes.add(command.id);
+                }
+            }
         }
     }
     return passes;
@@ -207,7 +212,7 @@ class ExecutionEngine {
         }
         const results = [];
         const startedAt = new Date().toISOString();
-        for (const phase of ['focused', 'boundary', 'full-suite']) {
+        for (const phase of ['prereq', 'focused', 'boundary', 'full-suite']) {
             if (this.cancelled) break;
             await this.runPhase(this.plan.selectedCommands.filter((command) => command.phase === phase), reused, results);
             if (results.some((item) => ['FAIL', 'TIMEOUT', 'CANCELLED'].includes(item.status))) break;

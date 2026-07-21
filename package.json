@@ -765,7 +765,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "build:webview": "node scripts/build-webview.js",
-    "compile": "npm run build:webview && node scripts/sync_cartography_theme_styles.js && tsc -p ./",
+    "compile": "node -e \"fs.rmSync('out',{recursive:true,force:true})\" && npm run build:webview && node scripts/sync_cartography_theme_styles.js && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test": "node scripts/run_all_tests.js",
     "test:validate": "node scripts/run_all_tests.js --validate",

@@ -106,17 +106,10 @@ function baseDefinitionForId(id) {
     if (manifestFile) {
         const entry = MANIFEST_BY_FILE.get(manifestFile);
         if (!entry) return null;
-        let consumesCompiledOutput = Boolean(entry.runner === 'node-test');
-        if (!consumesCompiledOutput) {
-            try {
-                const content = fs.readFileSync(path.join(ROOT, 'scripts', entry.file), 'utf8');
-                consumesCompiledOutput = content.includes('out/');
-            } catch (_) {}
-        }
         return {
             ...manifestExecutableDefinition(entry),
             exclusiveGroup: defaultExclusiveGroup(entry.file),
-            consumesCompiledOutput,
+            consumesCompiledOutput: Boolean(entry.consumesCompiledOutput),
         };
     }
 

@@ -100,6 +100,7 @@ function declareCommand(id, category, reason, phase = 'focused', exclusiveGroupO
         category,
         exclusiveGroup: exclusiveGroupOverride || definition.exclusiveGroup || null,
         workspaceWriter: Boolean(definition.workspaceWriter),
+        consumesCompiledOutput: Boolean(definition.consumesCompiledOutput),
         phase,
         reasons: [reason],
     };
@@ -291,6 +292,27 @@ function makePlan(options = {}) {
                 if (entry) addCommand(selected, manifestCommand(entry, reasonText, phase, definition.exclusiveGroup || null));
             } else if (definition.id) {
                 addCommand(selected, declareCommand(definition.id, definition.category || 'validate', reasonText, phase));
+            }
+        }
+    }
+
+    let needsCompile = false;
+    for (const cmd of selected.values()) {
+        if (cmd.consumesCompiledOutput) {
+            needsCompile = true;
+            break;
+        }
+    }
+
+    if (needsCompile) {
+        const definition = config.boundaries['compile'];
+        if (definition) {
+            const reasonText = `Compile is required by selected commands consuming out/ artifacts.`;
+            if (definition.test) {
+                const entry = manifestByFile.get(definition.test);
+                if (entry) addCommand(selected, manifestCommand(entry, reasonText, 'prereq', definition.exclusiveGroup || null));
+            } else if (definition.id) {
+                addCommand(selected, declareCommand(definition.id, definition.category || 'validate', reasonText, 'prereq'));
             }
         }
     }

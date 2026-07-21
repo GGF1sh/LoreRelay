@@ -105,9 +105,11 @@ function baseDefinitionForId(id) {
     if (manifestFile) {
         const entry = MANIFEST_BY_FILE.get(manifestFile);
         if (!entry) return null;
+        const consumesCompiledOutput = Boolean(entry.runner === 'node-test' || entry.file === 'test_combat_manifest_coverage.js');
         return {
             ...manifestExecutableDefinition(entry),
             exclusiveGroup: defaultExclusiveGroup(entry.file),
+            consumesCompiledOutput,
         };
     }
 

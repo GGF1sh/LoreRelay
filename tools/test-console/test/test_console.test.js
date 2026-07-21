@@ -649,3 +649,69 @@ test('plan tamper rejection: changed dirty diff hash', () => {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
     if (passed !== tests.length) process.exitCode = 1;
 })().catch((error) => { console.error(error); process.exitCode = 1; });
+
+test('focused Combat source plan injects compile prereq exactly once', () => {
+    const root = fixture();
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'combatRtsAttackMoveV1.test.ts'), '// changed');
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'focused', changedFiles: ['src/combatRtsAttackMoveV1.test.ts'] });
+    assert.strictEqual(plan.requiresFullSuite, false);
+    const compile = plan.selectedCommands.filter((c) => c.id === 'boundary:compile');
+    assert.strictEqual(compile.length, 1);
+    assert.strictEqual(compile[0].phase, 'prereq');
+    const focused = plan.selectedCommands.filter((c) => c.id.startsWith('test:combat:'));
+    assert(focused.length > 0);
+    assert.strictEqual(focused[0].phase, 'focused');
+    const otherBoundaries = plan.selectedCommands.filter((c) => c.phase === 'boundary');
+    assert.strictEqual(otherBoundaries.length, 0);
+});
+
+test('focused manifest-only plan injects compile exactly once without full-suite', () => {
+    const root = fixture();
+    fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'scripts', 'combat_test_manifest.js'), '// changed');
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'focused', changedFiles: ['scripts/combat_test_manifest.js'] });
+    assert.strictEqual(plan.requiresFullSuite, false);
+    const compile = plan.selectedCommands.filter((c) => c.id === 'boundary:compile');
+    assert.strictEqual(compile.length, 1);
+    assert.strictEqual(compile[0].phase, 'prereq');
+    const coverage = plan.selectedCommands.find((c) => c.id === 'test:test_combat_manifest_coverage.js');
+    assert.ok(coverage);
+    assert.strictEqual(coverage.phase, 'focused');
+});
+
+test('resume/reuse regression and mixed reuse: compile is never REUSED_PASS, safe read-only is reused', async () => {
+    const root = fixture();
+    const artifact = path.join(root, 'out-marker.txt');
+    const safeCmd = { ...nodeCommand('safe', 'process.exit(0)'), workspaceWriter: false };
+    const compileCmd = { ...nodeCommand('boundary:compile', `require('fs').writeFileSync(${JSON.stringify(artifact)}, 'fresh')`), workspaceWriter: true, phase: 'prereq' };
+    const observed = path.join(root, 'observed.txt');
+    const combatCmd = { ...nodeCommand('test:combat:rts-attack-move', `
+        const fs = require('fs');
+        const content = fs.readFileSync(${JSON.stringify(artifact)}, 'utf8');
+        fs.writeFileSync(${JSON.stringify(observed)}, content);
+        if (content !== 'fresh') process.exit(1);
+    `), phase: 'focused' };
+    
+    const plan = commandPlan(root, [safeCmd, compileCmd, combatCmd]);
+    const preflight = fakePreflight();
+    
+    // First run
+    const engine1 = new ExecutionEngine(plan, preflight, { runDirectory: path.join(root, '.test-runs', 'prior'), skipIdentityCheck: true });
+    const record1 = await engine1.run();
+    assert.strictEqual(record1.commands.find((c) => c.id === 'safe').status, 'PASS');
+    assert.strictEqual(record1.commands.find((c) => c.id === 'boundary:compile').status, 'PASS');
+    assert.strictEqual(record1.commands.find((c) => c.id === 'test:combat:rts-attack-move').status, 'PASS');
+    
+    // Mutate ignored out/ marker without changing repository fingerprint
+    fs.writeFileSync(artifact, 'stale');
+    
+    // Resumed exact-fingerprint run
+    const engine2 = new ExecutionEngine(plan, preflight, { runDirectory: path.join(root, '.test-runs', 'next'), skipIdentityCheck: true });
+    const record2 = await engine2.run();
+    
+    assert.strictEqual(record2.commands.find((c) => c.id === 'safe').status, 'REUSED_PASS', 'safe read-only command is reused');
+    assert.strictEqual(record2.commands.find((c) => c.id === 'boundary:compile').status, 'PASS', 'workspaceWriter is executed again, not REUSED_PASS');
+    assert.strictEqual(record2.commands.find((c) => c.id === 'test:combat:rts-attack-move').status, 'PASS', 'focused command sees fresh output and passes');
+    assert.strictEqual(fs.readFileSync(observed, 'utf8'), 'fresh', 'focused command observed the new fresh output, not the stale one');
+});

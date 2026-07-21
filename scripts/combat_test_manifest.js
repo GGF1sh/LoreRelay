@@ -32,6 +32,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         files: ['combatRtsOrderSlotStopResumeV1.test.js', 'combatRtsTickRateAndZeroTickV1.test.js'],
     },
     {
+        id: 'combat:rts-multi-unit-supersede',
+        description: 'RTS multi-unit command expansion order and supersede semantics',
+        files: ['combatRtsMultiUnitSupersedeV1.test.js'],
+    },
+    {
         id: 'combat:rts-move-attack-target',
         description: 'RTS move_to and attack_target execution: arrival, approach, tryAttack reuse, target-death completion',
         files: ['combatRtsMoveAttackTargetV1.test.js'],

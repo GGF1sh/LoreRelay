@@ -16,7 +16,7 @@ Implementation progress:
 | PR3 | Order slot, priority/return, receipts; `stop` / `resume_gambit` | **done** |
 | PR4 | `move_to` + `attack_target` | **done** |
 | PR5 | `attack_move` | **done** |
-| PR6 | Multi-unit application order, supersede semantics | not started |
+| PR6 | Multi-unit application order, supersede semantics | **done** |
 | PR7 | Replay hash + determinism tests | not started |
 
 ---

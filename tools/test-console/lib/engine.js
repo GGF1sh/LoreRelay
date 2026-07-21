@@ -207,7 +207,7 @@ class ExecutionEngine {
         }
         const results = [];
         const startedAt = new Date().toISOString();
-        for (const phase of ['focused', 'boundary', 'full-suite']) {
+        for (const phase of ['prereq', 'focused', 'boundary', 'full-suite']) {
             if (this.cancelled) break;
             await this.runPhase(this.plan.selectedCommands.filter((command) => command.phase === phase), reused, results);
             if (results.some((item) => ['FAIL', 'TIMEOUT', 'CANCELLED'].includes(item.status))) break;

@@ -11,7 +11,14 @@ const { lookupTrustedDefinition } = require('./trusted-commands');
 const ROOT = path.resolve(__dirname, '../../..');
 const RULES_PATH = path.join(ROOT, 'tools', 'test-console', 'test-impact-rules.json');
 const PLAN_SCHEMA_VERSION = 2;
-const PHASES = { focused: 0, boundary: 1, 'full-suite': 2 };
+// `prereq` runs before `focused`: anything that WRITES compiled `out/` output
+// (currently just the compile boundary) must finish, and pass, before any
+// command that READS out/ - including inferred Combat node:test groups and
+// test_combat_manifest_coverage.js - is allowed to start. ExecutionEngine.run()
+// iterates phases in this numeric order and stops advancing after any failure
+// in the current phase, so a failed prereq already skips every later phase
+// with no extra engine changes needed (Codex review on PR #39).
+const PHASES = { prereq: 0, focused: 1, boundary: 2, 'full-suite': 3 };
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
@@ -157,11 +164,32 @@ function inferSourceTests(root, changedFiles) {
  * reference to the changed file's stem; if those sources are not present on
  * disk (e.g. an isolated test fixture) it silently finds nothing for that
  * file, exactly like inferSourceTests' own reference-inference does today.
+ *
+ * Deduplicates by Combat group id (`entry.file`) BEFORE returning, not
+ * after: a multi-file diff can match the same group from several different
+ * changed files (or several referencing source files within one group), and
+ * an earlier revision pushed one raw match per (changed file, group) pair
+ * and only capped the list to 24 afterward — with enough changed runtime
+ * files, later-discovered groups (by MANIFEST order) fell past that raw cap
+ * and were silently dropped, while the plan still reported complete: true
+ * (Codex review on PR #39). There is no cap here at all: the result is
+ * already bounded by combatGroups.length (the fixed, small number of
+ * registered Combat groups — currently well under 24), so a separate limit
+ * only recreated the exact bug it was meant to guard against. Iterates
+ * combatGroups (MANIFEST's own fixed declaration order) for the final
+ * result, not insertion order, so selection is deterministic regardless of
+ * which changed file happened to discover a group first.
  */
 function inferCombatTests(root, changedFiles) {
-    const selected = [];
     const combatGroups = MANIFEST.filter((entry) => entry.runner === 'node-test');
-    if (!combatGroups.length) return selected;
+    if (!combatGroups.length) return [];
+
+    const reasonsByGroup = new Map();
+    const addMatch = (entry, reason) => {
+        const existing = reasonsByGroup.get(entry.file);
+        if (existing) { existing.add(reason); return; }
+        reasonsByGroup.set(entry.file, new Set([reason]));
+    };
 
     for (const file of changedFiles.filter((name) => name.startsWith('src/'))) {
         const basename = path.basename(file);
@@ -171,7 +199,7 @@ function inferCombatTests(root, changedFiles) {
             const sourceFiles = (entry.files || []).map((compiled) => compiled.replace(/\.js$/, '.ts'));
 
             if (sourceFiles.includes(basename)) {
-                selected.push({ entry, reason: `Filename inference: ${file} is a test source in Combat group ${entry.file}.` });
+                addMatch(entry, `Filename inference: ${file} is a test source in Combat group ${entry.file}.`);
                 continue;
             }
 
@@ -179,13 +207,16 @@ function inferCombatTests(root, changedFiles) {
                 let content = '';
                 try { content = fs.readFileSync(path.join(root, 'src', sourceFile), 'utf8'); } catch (_) { continue; }
                 if (content.includes(`'./${stem}'`) || content.includes(`"./${stem}"`)) {
-                    selected.push({ entry, reason: `Reference inference: Combat group ${entry.file} (via ${sourceFile}) references ${file}.` });
+                    addMatch(entry, `Reference inference: Combat group ${entry.file} (via ${sourceFile}) references ${file}.`);
                     break;
                 }
             }
         }
     }
-    return selected.slice(0, 24);
+
+    return combatGroups
+        .filter((entry) => reasonsByGroup.has(entry.file))
+        .map((entry) => ({ entry, reason: [...reasonsByGroup.get(entry.file)].sort().join(' ') }));
 }
 
 function loadRules(rulesPath = RULES_PATH) {
@@ -249,11 +280,17 @@ function makePlan(options = {}) {
             const definition = config.boundaries[boundary];
             if (!definition) continue;
             const reasonText = `Verify boundary ${boundary}: ${reasons.join(' ')}`;
+            // compile is the one boundary every out/-consuming command depends
+            // on (Combat node:test groups, test_combat_manifest_coverage.js) -
+            // it alone runs in the earlier `prereq` phase so it is guaranteed
+            // to finish, and pass, before any of them start (Codex review on
+            // PR #39). Every other boundary keeps its existing `boundary` phase.
+            const phase = boundary === 'compile' ? 'prereq' : 'boundary';
             if (definition.test) {
                 const entry = manifestByFile.get(definition.test);
-                if (entry) addCommand(selected, manifestCommand(entry, reasonText, 'boundary', definition.exclusiveGroup || null));
+                if (entry) addCommand(selected, manifestCommand(entry, reasonText, phase, definition.exclusiveGroup || null));
             } else if (definition.id) {
-                addCommand(selected, declareCommand(definition.id, definition.category || 'validate', reasonText, 'boundary'));
+                addCommand(selected, declareCommand(definition.id, definition.category || 'validate', reasonText, phase));
             }
         }
     }

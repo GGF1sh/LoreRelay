@@ -59,7 +59,8 @@
       "id": "combat-manifest",
       "patterns": ["scripts/combat_test_manifest.js"],
       "tests": ["test_combat_manifest_coverage.js"],
-      "reason": "Combat test group registration changed; the manifest coverage guard must run directly."
+      "boundaries": ["compile"],
+      "reason": "Combat test group registration changed; the manifest coverage guard must run directly, against freshly compiled output."
     },
     {
       "id": "combat-docs",

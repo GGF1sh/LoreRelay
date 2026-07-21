@@ -66,6 +66,22 @@ function manifestExecutableDefinition(entry) {
             timeoutMs: entry.timeoutMs || DEFAULT_TIMEOUT_MS,
         };
     }
+    if (entry.runner === 'node-test') {
+        // Combat groups (COMBAT_TEST_GROUPS, merged into MANIFEST by
+        // scripts/run_all_tests.js as COMBAT_MANIFEST_ENTRIES): `entry.file`
+        // is the group id (e.g. "combat:rts-replay-hash"), not a real path
+        // under scripts/ — there is no scripts/<group id> to spawn. The real
+        // invocation, mirrored exactly from run_all_tests.js's own
+        // runNodeTestGroup, is `node --test out/<compiled file>...` over
+        // every compiled suite in entry.files.
+        const relativeFiles = (entry.files || []).map((file) => path.join('out', file));
+        return {
+            executable: process.execPath,
+            args: ['--test', ...relativeFiles.map((file) => path.join(ROOT, file))],
+            command: commandDisplay('node', ['--test', ...relativeFiles]),
+            timeoutMs: entry.timeoutMs || DEFAULT_TIMEOUT_MS,
+        };
+    }
     return {
         executable: process.execPath,
         args: [path.join(ROOT, 'scripts', entry.file)],

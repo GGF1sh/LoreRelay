@@ -160,6 +160,126 @@ test('unknown production file fails closed', () => {
     assert(plan.selectedCommands.some((item) => item.id === 'full-suite'));
 });
 
+// TEST-IMPACT-COMBAT-SELECTION-001: a PR7-like Combat diff must plan complete,
+// stay focused (no full-suite), select the relevant Combat group(s) plus the
+// required boundaries, and select nothing from an unrelated test domain.
+test('a PR7-like Combat diff plans complete, focused, and free of unrelated domains', () => {
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'verify',
+        changedFiles: [
+            'src/gambitCombatCore.ts',
+            'src/combatRtsReplayHashDeterminismV1.test.ts',
+            'scripts/combat_test_manifest.js',
+            'docs/COMBAT_RTS_COMMAND_SPINE_DESIGN.md',
+            'docs/generated/SYMBOL_REGISTRY.md',
+            'docs/generated/symbol_registry.json',
+        ],
+    });
+    assert.strictEqual(plan.complete, true);
+    assert.deepStrictEqual(plan.unknownFiles, []);
+    assert.strictEqual(plan.requiresFullSuite, false);
+
+    const ids = plan.selectedCommands.map((item) => item.id);
+    assert(ids.includes('test:combat:rts-replay-hash'), 'the changed Combat test file must select its owning Combat group');
+    assert(ids.includes('boundary:compile'), 'compile boundary must be selected');
+    assert(ids.includes('boundary:symbol-registry'), 'Symbol Registry boundary must be selected (generated Registry files changed)');
+    assert(ids.includes('test:test_symbol_registry.js'), 'the Symbol Registry rule must recognize the real docs/generated/*symbol_registry* filenames');
+    assert(ids.includes('test:test_combat_manifest_coverage.js'), 'Combat manifest coverage guard must be selected (manifest file changed)');
+    assert(ids.includes('test:validate_utf8_docs.js'), 'UTF-8 documentation validation must be selected (Combat docs changed)');
+
+    // No unrelated test domain: nothing installer/webview/economy/simulation/full-suite-flavored.
+    assert(!ids.includes('full-suite'));
+    for (const id of ids) {
+        assert(!/installer|install_chain|webview|simulation|noai_soak/i.test(id), `unexpected unrelated command selected: ${id}`);
+    }
+});
+
+test('a changed focused Combat test maps to its owning COMBAT_TEST_GROUPS group, not every group', () => {
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'focused',
+        changedFiles: ['src/combatRtsAttackMoveV1.test.ts'],
+    });
+    const combatIds = plan.selectedCommands.map((item) => item.id).filter((id) => id.startsWith('test:combat:'));
+    assert.deepStrictEqual(combatIds, ['test:combat:rts-attack-move']);
+});
+
+test('Combat group inference resolves a shared runtime file via its test sources’ own imports', () => {
+    // Uses the real repository root (not the isolated fixture) so reference
+    // inference reads real src/*.ts test sources on disk — this is the one
+    // test in this file that intentionally exercises that live-repo path,
+    // proving the mechanism functions end-to-end and not merely in theory.
+    const plan = makePlan({
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'focused',
+        changedFiles: ['src/gambitCombatCore.ts'],
+    });
+    const combatIds = plan.selectedCommands.map((item) => item.id).filter((id) => id.startsWith('test:combat:'));
+    // gambitCombatCore.ts is imported by many Combat test sources across
+    // several distinct groups (golden-master, rts-* groups, mechanics-
+    // resolver, direct-mode, pr-regressions) — assert a defensible, non-
+    // trivial subset without hard-coding the exact count, which would go
+    // stale as new Combat groups are added.
+    assert(combatIds.includes('test:combat:golden-master'));
+    assert(combatIds.includes('test:combat:rts-replay-hash'));
+    assert(combatIds.length >= 5, `expected several affected Combat groups, got: ${combatIds.join(', ')}`);
+    // Never the whole manifest — combat:ability-validator's own test source
+    // does not import gambitCombatCore, so it must not be swept in.
+    assert(!combatIds.includes('test:combat:ability-validator'));
+});
+
+test('a Combat manifest change selects the manifest coverage guard directly, without forcing full-suite', () => {
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'verify',
+        changedFiles: ['scripts/combat_test_manifest.js'],
+    });
+    assert.strictEqual(plan.complete, true);
+    assert.strictEqual(plan.requiresFullSuite, false);
+    assert(plan.selectedCommands.some((item) => item.id === 'test:test_combat_manifest_coverage.js'));
+    assert(!plan.selectedCommands.some((item) => item.id === 'full-suite'));
+});
+
+test('a genuinely unknown Combat-adjacent file still fails closed to full-suite', () => {
+    // Not a .ts/.test.ts file, so none of the new combat-runtime patterns
+    // match it — proves the broadened Combat rules did not widen the
+    // fail-closed safety net. Deliberately outside src/** (already covered
+    // by the pre-existing typescript-source rule for any extension) and
+    // outside every other rule's patterns.
+    const plan = makePlan({
+        root: fixture(),
+        base: 'HEAD',
+        head: 'HEAD',
+        mode: 'focused',
+        changedFiles: ['extension/combat_mystery.bin'],
+    });
+    assert.strictEqual(plan.complete, false);
+    assert.strictEqual(plan.requiresFullSuite, true);
+    assert.deepStrictEqual(plan.unknownFiles, ['extension/combat_mystery.bin']);
+    assert(plan.selectedCommands.some((item) => item.id === 'full-suite'));
+});
+
+test('dirty and untracked Combat files are collected and classified as known', () => {
+    const root = fixture();
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'combatFixtureRuntime.ts'), 'export const combatFixtureRuntime = true;\n');
+    const files = collectChangedFiles(root, 'HEAD', 'HEAD');
+    assert(files.includes('src/combatFixtureRuntime.ts'), 'untracked Combat source must be part of changed-file analysis');
+
+    const plan = makePlan({ root, base: 'HEAD', head: 'HEAD', mode: 'focused' });
+    assert.deepStrictEqual(plan.unknownFiles, []);
+    assert.strictEqual(plan.requiresFullSuite, false);
+    assert(plan.changedFiles.includes('src/combatFixtureRuntime.ts'));
+});
+
 test('exact fingerprint resumes recorded passes', () => {
     const root = fixture();
     const plan = commandPlan(root, [nodeCommand('one', 'process.exit(0)')]);

@@ -137,6 +137,57 @@ function inferSourceTests(root, changedFiles) {
     return selected.slice(0, 24);
 }
 
+/**
+ * Maps a changed `src/*` file to the COMBAT_TEST_GROUPS entry(ies) it
+ * belongs to or affects — the grouped Combat manifest entries whose `file`
+ * is a group id (e.g. "combat:rts-replay-hash"), not an individual compiled
+ * `*.test.js` filename (COMBAT_MANIFEST_ENTRIES in scripts/run_all_tests.js).
+ * A static rule pattern cannot express "which one specific group" the way
+ * inferSourceTests' filename inference does for flat scripts/test_*.js
+ * files, so this mirrors that same two-tier approach for combat groups
+ * instead: exact filename match first, then a content-reference fallback
+ * for shared runtime files (e.g. src/gambitCombatCore.ts) that many test
+ * sources import but which is not itself a test file in any group.
+ *
+ * Exact match needs no file I/O (pure string comparison against the
+ * already-known compiled filenames each group owns), so it works
+ * unconditionally — including against a bare fixture root that has no real
+ * src/ files on disk. Reference match reads each candidate group's own
+ * `.ts` test source(s) under `<root>/src/` and looks for a relative-import
+ * reference to the changed file's stem; if those sources are not present on
+ * disk (e.g. an isolated test fixture) it silently finds nothing for that
+ * file, exactly like inferSourceTests' own reference-inference does today.
+ */
+function inferCombatTests(root, changedFiles) {
+    const selected = [];
+    const combatGroups = MANIFEST.filter((entry) => entry.runner === 'node-test');
+    if (!combatGroups.length) return selected;
+
+    for (const file of changedFiles.filter((name) => name.startsWith('src/'))) {
+        const basename = path.basename(file);
+        const stem = path.basename(file, path.extname(file));
+
+        for (const entry of combatGroups) {
+            const sourceFiles = (entry.files || []).map((compiled) => compiled.replace(/\.js$/, '.ts'));
+
+            if (sourceFiles.includes(basename)) {
+                selected.push({ entry, reason: `Filename inference: ${file} is a test source in Combat group ${entry.file}.` });
+                continue;
+            }
+
+            for (const sourceFile of sourceFiles) {
+                let content = '';
+                try { content = fs.readFileSync(path.join(root, 'src', sourceFile), 'utf8'); } catch (_) { continue; }
+                if (content.includes(`'./${stem}'`) || content.includes(`"./${stem}"`)) {
+                    selected.push({ entry, reason: `Reference inference: Combat group ${entry.file} (via ${sourceFile}) references ${file}.` });
+                    break;
+                }
+            }
+        }
+    }
+    return selected.slice(0, 24);
+}
+
 function loadRules(rulesPath = RULES_PATH) {
     return JSON.parse(fs.readFileSync(rulesPath, 'utf8'));
 }
@@ -186,6 +237,10 @@ function makePlan(options = {}) {
     }
 
     for (const inferred of inferSourceTests(root, changedFiles)) {
+        addCommand(selected, manifestCommand(inferred.entry, inferred.reason));
+    }
+
+    for (const inferred of inferCombatTests(root, changedFiles)) {
         addCommand(selected, manifestCommand(inferred.entry, inferred.reason));
     }
 

@@ -27,6 +27,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         files: ['gambitCombatCore.test.js', 'combatRtsStepExtractV1.test.js'],
     },
     {
+        id: 'combat:rts-order-slot',
+        description: 'RTS order slot, command application phase, stop/resume_gambit, and the command-receipt skeleton',
+        files: ['combatRtsOrderSlotStopResumeV1.test.js', 'combatRtsTickRateAndZeroTickV1.test.js'],
+    },
+    {
         id: 'combat:mechanics-resolver',
         description: 'Mechanics resolver: damage, statuses, heal block, regen, correctness',
         files: [

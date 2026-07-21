@@ -706,9 +706,10 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
     const commandReceipts: CommandReceipt[] = [];
     // Populated during the per-unit loop below when an attack_move holder is
     // within arrivalEpsilon of its destination with no living enemy in range
-    // — completion is only finalized by the end-of-tick attack_move arrival
-    // sweep, never inline, for the same holder-death-priority reason as the
-    // attack_target target-death sweep (PR #35 review discussion
+    // *at that unit's own turn*. Completion is only finalized by the end-of-
+    // tick attack_move arrival sweep (never inline), which rechecks living
+    // enemies against final positions and also defers to holder-death priority
+    // (attack_target target-death sweep pattern; PR #35 review discussion
     // r3619920590): a holder that arrives AND dies later this same tick must
     // still receive order_interrupted, not order_completed.
     const arrivedThisTick = new Set<string>();
@@ -1453,21 +1454,40 @@ export function stepCombat(state: CombatState, ctx: CombatStepContext): { state:
 
     // ▸ attack_move arrival sweep: mirrors the attack_target target-death
     // sweep directly above, for the same reason. Arrival eligibility
-    // (arrivalEpsilon reached, no living enemy in range) is decided during
-    // this unit's own per-unit turn, above, and recorded in arrivedThisTick
-    // — but completion (order_completed) is only finalized here, once every
-    // unit has acted and mechanics_v1 has resolved, so a holder that arrives
-    // and is then killed later this same tick correctly falls through to the
-    // Unit-death interruption pass below and receives order_interrupted
-    // instead of order_completed. Iterates participantOrder, never
-    // arrivedThisTick's own insertion order (a Set has none to rely on
-    // anyway), for the same determinism reason as every other sweep here.
+    // (arrivalEpsilon reached, no living enemy in range *at the holder's own
+    // turn*) is recorded in arrivedThisTick during the per-unit loop — but
+    // completion is only finalized here, once every unit has acted, so:
+    //   (1) a holder that arrives and is then killed later this same tick
+    //       correctly falls through to the Unit-death interruption pass below
+    //       and receives order_interrupted instead of order_completed;
+    //   (2) a holder that recorded arrival with no enemy in range, then had
+    //       an enemy move into attack_range later in participantOrder this
+    //       same tick, retains the order (rechecked against *final* positions)
+    //       instead of completing and resuming gambits while a fight is now
+    //       available at the destination.
+    // Iterates participantOrder, never arrivedThisTick's own insertion order
+    // (a Set has none to rely on anyway), for the same determinism reason as
+    // every other sweep here.
     for (const unitName of participantOrder) {
         if (!arrivedThisTick.has(unitName)) continue;
         const activeOrder = orders[unitName];
         if (!activeOrder || activeOrder.command !== 'attack_move') continue;
         const unit = units[unitName];
         if (!unit || unit._dead || unit.hp <= 0) continue;
+        // Final-position recheck: any living hostile now inside attack_range
+        // keeps the order live so next tick's attack_move branch can fight.
+        // Same candidate filter as the mid-tick attack_move scan (participantOrder,
+        // living, opposing team, distance ≤ attack_range).
+        let enemyInRange = false;
+        for (const candidateName of participantOrder) {
+            const candidate = units[candidateName];
+            if (!candidate || candidate._dead || candidate.hp <= 0 || candidate.team === unit.team) continue;
+            if (dist(unit, candidate) <= unit.attack_range) {
+                enemyInRange = true;
+                break;
+            }
+        }
+        if (enemyInRange) continue;
         orders[unitName] = null;
         commandReceipts.push({ tick: tickCount, unitId: unitName, command: 'attack_move', kind: 'order_completed' });
     }

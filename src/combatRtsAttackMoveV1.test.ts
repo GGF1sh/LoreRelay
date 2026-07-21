@@ -348,6 +348,48 @@ describe('RTS attack_move — execution', () => {
         assert.equal(tick2.orders['ally_a'], null, 'once no enemy remains in range, arrival is (re)checked and the order completes');
     });
 
+    test('end-of-tick arrival rechecks final positions: enemy that walks into range later same tick retains attack_move', () => {
+        // ally_a is first in participantOrder and already at its destination with
+        // no enemy currently in range, so mid-tick it records arrival eligibility.
+        // enemy_mover is just outside attack_range and acts later; its gambit
+        // moves it into range before the tick ends. Without a final-position
+        // recheck the arrival sweep would complete the order and drop the
+        // holder back to gambits instead of fighting the enemy now present.
+        const spec = skirmishSpec({
+            participantOrder: ['ally_a', 'enemy_mover', 'harmless_enemy'],
+            initialState: {
+                units: {
+                    allies: [unit({
+                        name: 'ally_a', team: 0, pos_x: 0, pos_y: 0,
+                        attack_range: 40, move_speed: 100, attack: 0,
+                    })],
+                    enemies: [
+                        unit({
+                            name: 'enemy_mover', team: 1, pos_x: 41, pos_y: 0,
+                            // One tick of travel (move_speed * delta ≈ 100/30) closes
+                            // the 1-unit gap and ends inside ally_a's attack_range.
+                            move_speed: 100, attack_range: 40, attack: 0,
+                        }),
+                        harmlessDistantEnemy(),
+                    ],
+                },
+            },
+            command: commandLog([attackMove('ally_a', { x: 0, y: 0 })]),
+        });
+        const { state, events } = runTicksCollecting(spec, 1);
+        assert.notEqual(state.orders['ally_a'], null, 'must retain attack_move when an enemy is in range at final positions');
+        assert.equal(state.orders['ally_a']!.command, 'attack_move');
+        assert.ok(
+            state.units['enemy_mover'].pos_x <= 40,
+            `enemy_mover should have walked into range, pos_x=${state.units['enemy_mover'].pos_x}`,
+        );
+        const completed = events[0].commandReceipts.filter(
+            r => r.unitId === 'ally_a' && r.kind === 'order_completed',
+        );
+        assert.equal(completed.length, 0, 'must not emit order_completed while a living enemy ends the tick in range');
+    });
+
+
     test('canAct=false (mechanics_v1, stunned) retains the order and idles: no move, no attack, no completion', () => {
         const spec = skirmishSpec({
             combatMode: 'mechanics_v1',

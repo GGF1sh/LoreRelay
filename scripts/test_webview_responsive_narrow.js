@@ -12,6 +12,7 @@ const vm = require('vm');
 const root = path.join(__dirname, '..');
 const modulePath = path.join(root, 'webview', 'modules', '84b-responsive-shell.js');
 const source = fs.readFileSync(modulePath, 'utf8');
+const styleSource = fs.readFileSync(path.join(root, 'webview', 'styles', '16-responsive-shell.css'), 'utf8');
 const locales = {
   en: JSON.parse(fs.readFileSync(path.join(root, 'locales', 'en.json'), 'utf8')),
   ja: JSON.parse(fs.readFileSync(path.join(root, 'locales', 'ja.json'), 'utf8')),
@@ -174,11 +175,14 @@ function createShellHarness(options = {}) {
   const toggle = document.createElement('button'); toggle.id = 'status-drawer-toggle';
   const label = document.createElement('span'); label.className = 'lr-drawer-toggle-label';
   toggle.appendChild(label);
+  const headerSecondary = options.includeHeaderSecondary ? document.createElement('details') : null;
+  if (headerSecondary) headerSecondary.id = 'header-secondary';
   const status = document.createElement('div'); status.id = 'status-area'; status._width = 320;
   const resizer = document.createElement('div'); resizer.id = 'resizer';
   const scrim = document.createElement('button'); scrim.id = 'status-drawer-scrim';
   const freeInput = document.createElement('textarea'); freeInput.id = 'free-input'; freeInput.value = options.draft || '';
   header.appendChild(toggle);
+  if (headerSecondary) header.appendChild(headerSecondary);
   chat.appendChild(header);
   chat.appendChild(freeInput);
   app.appendChild(chat);
@@ -223,7 +227,7 @@ function createShellHarness(options = {}) {
   }
   return {
     document, context, store, rafQueue,
-    els: { app, chat, status, resizer, scrim, toggle, freeInput },
+    els: { app, chat, status, resizer, scrim, toggle, freeInput, headerSecondary },
     setWidth(w) {
       innerWidth = w;
       context.LoreRelayResponsive.scheduleViewportCheck();
@@ -240,6 +244,29 @@ test('1400px resolves to wide mode', () => {
   const h = createShellHarness({ width: 1400 });
   assert.strictEqual(h.api.resolveMode(1400), 'wide');
   assert.strictEqual(h.api.getMode(), 'wide');
+});
+
+test('wide mode keeps the secondary header disclosure open', () => {
+  const h = createShellHarness({ width: 1400, includeHeaderSecondary: true });
+  assert.strictEqual(h.api.getMode(), 'wide');
+  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), '', 'Wide mode must expose the non-summary toolbar contents');
+
+  h.setWidth(900);
+  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), null, 'Entering drawer mode must close the disclosure');
+
+  h.setWidth(1400);
+  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), '', 'Returning to wide mode must restore the toolbar contents');
+});
+
+test('wide header keeps secondary controls in flex layout', () => {
+  const wideDetails = styleSource.match(/html\[data-lr-shell="wide"\] #header-secondary\s*\{([^}]*)\}/);
+  const wideBody = styleSource.match(/html\[data-lr-shell="wide"\] #header-secondary-body\s*\{([^}]*)\}/);
+  assert.ok(wideDetails, 'Wide details CSS rule should exist');
+  assert.ok(wideBody, 'Wide details body CSS rule should exist');
+  assert.match(wideDetails[1], /display:\s*flex/);
+  assert.match(wideDetails[1], /flex:\s*1 1 auto/);
+  assert.match(wideBody[1], /display:\s*flex/);
+  assert.match(wideBody[1], /flex:\s*1 1 auto/);
 });
 
 test('960px resolves to wide mode', () => {

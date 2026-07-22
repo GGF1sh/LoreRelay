@@ -49,7 +49,7 @@ function combatBattlefieldPoint(field, clientX, clientY, bounds) {
 function combatUnitPercent(value, min, max) { return max === min ? 50 : labClamp(((value - min) / (max - min)) * 100, 0, 100); }
 function sendSelectedCombatCommand(command) {
   const state = window.LR_combatLab;
-  if (!state.selection.length) { state.error = 'Select one or more allied units first.'; renderCombatLab(); return; }
+  if (!state.selection.length) { state.error = 'Select one or more allied units first.'; refreshCombatCommandPlaytestView(); return; }
   const message = { type: 'issueCombatCommand', unitIds: [...state.selection], command };
   if (state.activeStartId) message.startId = state.activeStartId;
   vscode.postMessage(message);
@@ -84,38 +84,161 @@ function syncCombatPlaytestTimer() {
     state.timer = null;
   }
 }
+function combatUnitMarkerModel(unit, bounds, selected) {
+  const left = combatUnitPercent(unit.x, bounds.minX, bounds.maxX);
+  const top = combatUnitPercent(unit.y, bounds.minY, bounds.maxY);
+  const color = unit.team === 0 ? '#4aa3ff' : '#e66a6a';
+  const outline = selected ? '3px solid #ffd866' : '1px solid rgba(255,255,255,.65)';
+  const maxHp = typeof unit.maxHp === 'number' && unit.maxHp > 0 ? unit.maxHp : 1;
+  const rawHp = unit.dead ? 0 : (typeof unit.hp === 'number' ? unit.hp : 0);
+  const displayHp = Math.max(0, Math.min(rawHp, maxHp));
+  const hpPercent = Math.max(0, Math.min(100, Math.round((displayHp / maxHp) * 100)));
+  const shortId = unit.id.replace(/^ally_|^enemy_/, '');
+  const deadStyle = unit.dead
+    ? 'background:#333;opacity:.35;filter:grayscale(100%);text-decoration:line-through;'
+    : `background:${color};opacity:1;`;
+  return {
+    left, top, color, outline, maxHp, displayHp, hpPercent, shortId, deadStyle,
+    title: `${unit.id} HP ${displayHp}/${maxHp}${unit.order ? ` order ${unit.order}` : ''}`,
+    disabled: Boolean(unit.dead),
+  };
+}
+function combatPlaytestStatusText(state) {
+  const playtest = state.playtest;
+  return `Selected: ${state.selection.length ? state.selection.map(String).join(', ') : 'none'}${playtest ? ` · tick ${playtest.tick} · ${playtest.mode || ''}` : ''}${playtest?.outcome ? ` · ${playtest.outcome}` : ''}`;
+}
+function combatPlaytestFeedbackText(state) {
+  if (state.error) return String(state.error);
+  const playtest = state.playtest;
+  const feedback = (playtest?.feedback || []).map(receipt => `${receipt.unitId}: ${receipt.command} ${receipt.kind}${receipt.reason ? ` (${receipt.reason})` : ''}`);
+  const queued = playtest?.lastIssued
+    ? `Queued tick ${playtest.lastIssued.tick} seq ${playtest.lastIssued.seq}: ${playtest.lastIssued.command} (${playtest.lastIssued.unitIds.join(', ')})`
+    : '';
+  return [queued, ...feedback].filter(Boolean).join(' · ');
+}
+function createCombatUnitMarkerElement(unit, bounds, selected) {
+  const model = combatUnitMarkerModel(unit, bounds, selected);
+  const marker = document.createElement('button');
+  marker.dataset.unitId = unit.id;
+  marker.dataset.unitTeam = String(unit.team);
+  marker.type = 'button';
+  applyCombatUnitMarkerElement(marker, unit, bounds, selected, model);
+  return marker;
+}
+function applyCombatUnitMarkerElement(marker, unit, bounds, selected, model = combatUnitMarkerModel(unit, bounds, selected)) {
+  marker.dataset.unitId = unit.id;
+  marker.dataset.unitTeam = String(unit.team);
+  marker.disabled = model.disabled;
+  marker.title = model.title;
+  marker.style.cssText = `position:absolute;left:${model.left}%;top:${model.top}%;transform:translate(-50%,-50%);width:46px;padding:3px 2px;border-radius:6px;border:${model.outline};${model.deadStyle}color:white;font-size:9px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;overflow:hidden`;
+  let label = marker.querySelector('[data-lab="unit-label"]');
+  let hp = marker.querySelector('[data-lab="unit-hp"]');
+  let barBg = marker.querySelector('[data-lab="hp-bar-bg"]');
+  let barFill = marker.querySelector('[data-lab="hp-bar-fill"]');
+  if (!label || !hp || !barBg || !barFill) {
+    marker.textContent = '';
+    label = document.createElement('span');
+    label.dataset.lab = 'unit-label';
+    label.style.cssText = 'font-weight:bold;font-size:10px;pointer-events:none';
+    hp = document.createElement('span');
+    hp.dataset.lab = 'unit-hp';
+    hp.style.cssText = 'font-size:9px;margin-top:1px;pointer-events:none';
+    barBg = document.createElement('div');
+    barBg.dataset.lab = 'hp-bar-bg';
+    barBg.style.cssText = 'width:100%;height:3px;background:rgba(0,0,0,.4);border-radius:1px;margin-top:2px;overflow:hidden;pointer-events:none';
+    barFill = document.createElement('div');
+    barFill.dataset.lab = 'hp-bar-fill';
+    barFill.style.cssText = 'height:100%;pointer-events:none';
+    barBg.appendChild(barFill);
+    marker.append(label, hp, barBg);
+  }
+  label.textContent = model.shortId;
+  hp.textContent = `${model.displayHp}/${model.maxHp}`;
+  barFill.style.width = `${model.hpPercent}%`;
+  barFill.style.background = unit.dead ? '#666' : '#51cf66';
+}
+/**
+ * Keep Command Playtest controls and battlefield nodes mounted across host
+ * snapshots. Full panel replacement during automatic playback breaks pointer
+ * interactions (mousedown on one button instance, mouseup/click on a replacement).
+ */
+function canUpdateCombatCommandPlaytestInPlace() {
+  const root = typeof document.getElementById === 'function' ? document.getElementById('combat-lab-panel') : null;
+  if (!root || typeof root.querySelector !== 'function') return false;
+  return Boolean(root.querySelector('[data-lab="battlefield"]') && root.querySelector('[data-lab="playtest-run"]'));
+}
+function syncCombatCommandPlaytestMarkers(field, state) {
+  const playtest = state.playtest;
+  const units = playtest?.units || [];
+  const bounds = playtest?.bounds || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
+  const selected = new Set(state.selection || []);
+  const existing = new Map();
+  field.querySelectorAll('[data-unit-id]').forEach(marker => {
+    existing.set(marker.dataset.unitId, marker);
+  });
+  const seen = new Set();
+  for (const unit of units) {
+    seen.add(unit.id);
+    let marker = existing.get(unit.id);
+    if (!marker) {
+      marker = createCombatUnitMarkerElement(unit, bounds, selected.has(unit.id));
+      field.appendChild(marker);
+    } else {
+      applyCombatUnitMarkerElement(marker, unit, bounds, selected.has(unit.id));
+    }
+  }
+  for (const [id, marker] of existing) {
+    if (!seen.has(id)) marker.remove();
+  }
+}
+function updateCombatCommandPlaytestView(state = window.LR_combatLab) {
+  const root = typeof document.getElementById === 'function' ? document.getElementById('combat-lab-panel') : null;
+  if (!root || !canUpdateCombatCommandPlaytestInPlace()) {
+    renderCombatLab();
+    return false;
+  }
+  const playtest = state.playtest;
+  const runBtn = root.querySelector('[data-lab="playtest-run"]');
+  if (runBtn) runBtn.textContent = state.running ? 'Pause' : 'Run';
+  const stepBtn = root.querySelector('[data-lab="playtest-step"]');
+  if (stepBtn) stepBtn.disabled = !playtest;
+  const attackBtn = root.querySelector('[data-lab="attack-move"]');
+  if (attackBtn) {
+    attackBtn.setAttribute('aria-pressed', state.pendingOrder === 'attack_move' ? 'true' : 'false');
+    attackBtn.textContent = state.pendingOrder === 'attack_move' ? 'Attack-move (choose ground)' : 'Attack-move';
+  }
+  const modeSelect = root.querySelector('[data-lab="playtest-mode"]');
+  if (modeSelect && typeof state.playtestMode === 'string') modeSelect.value = state.playtestMode;
+  const status = root.querySelector('[data-lab="playtest-status"]');
+  if (status) status.textContent = combatPlaytestStatusText(state);
+  const feedback = root.querySelector('[data-lab="playtest-feedback"]');
+  if (feedback) feedback.textContent = combatPlaytestFeedbackText(state);
+  const field = root.querySelector('[data-lab="battlefield"]');
+  if (field) syncCombatCommandPlaytestMarkers(field, state);
+  return true;
+}
+function refreshCombatCommandPlaytestView() {
+  if (canUpdateCombatCommandPlaytestInPlace()) updateCombatCommandPlaytestView();
+  else renderCombatLab();
+}
 function renderCombatCommandPlaytest(state) {
   const playtest = state.playtest;
   const units = playtest?.units || [];
   const bounds = playtest?.bounds || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
   const selected = new Set(state.selection || []);
   const markers = units.map(unit => {
-    const left = combatUnitPercent(unit.x, bounds.minX, bounds.maxX);
-    const top = combatUnitPercent(unit.y, bounds.minY, bounds.maxY);
-    const color = unit.team === 0 ? '#4aa3ff' : '#e66a6a';
-    const outline = selected.has(unit.id) ? '3px solid #ffd866' : '1px solid rgba(255,255,255,.65)';
-    const maxHp = typeof unit.maxHp === 'number' && unit.maxHp > 0 ? unit.maxHp : 1;
-    const rawHp = unit.dead ? 0 : (typeof unit.hp === 'number' ? unit.hp : 0);
-    const displayHp = Math.max(0, Math.min(rawHp, maxHp));
-    const hpPercent = Math.max(0, Math.min(100, Math.round((displayHp / maxHp) * 100)));
-    const shortId = labEsc(unit.id.replace(/^ally_|^enemy_/, ''));
-    const deadStyle = unit.dead
-      ? 'background:#333;opacity:.35;filter:grayscale(100%);text-decoration:line-through;'
-      : `background:${color};opacity:1;`;
-    return `<button data-unit-id="${labEsc(unit.id)}" data-unit-team="${unit.team}" ${unit.dead ? 'disabled' : ''}
-      title="${labEsc(unit.id)} HP ${displayHp}/${maxHp}${unit.order ? ` order ${labEsc(unit.order)}` : ''}"
-      style="position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:46px;padding:3px 2px;border-radius:6px;border:${outline};${deadStyle}color:white;font-size:9px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;overflow:hidden">
+    const model = combatUnitMarkerModel(unit, bounds, selected.has(unit.id));
+    const shortId = labEsc(model.shortId);
+    return `<button type="button" data-unit-id="${labEsc(unit.id)}" data-unit-team="${unit.team}" ${model.disabled ? 'disabled' : ''}
+      title="${labEsc(model.title)}"
+      style="position:absolute;left:${model.left}%;top:${model.top}%;transform:translate(-50%,-50%);width:46px;padding:3px 2px;border-radius:6px;border:${model.outline};${model.deadStyle}color:white;font-size:9px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;overflow:hidden">
       <span data-lab="unit-label" style="font-weight:bold;font-size:10px;pointer-events:none">${shortId}</span>
-      <span data-lab="unit-hp" style="font-size:9px;margin-top:1px;pointer-events:none">${displayHp}/${maxHp}</span>
+      <span data-lab="unit-hp" style="font-size:9px;margin-top:1px;pointer-events:none">${model.displayHp}/${model.maxHp}</span>
       <div data-lab="hp-bar-bg" style="width:100%;height:3px;background:rgba(0,0,0,.4);border-radius:1px;margin-top:2px;overflow:hidden;pointer-events:none">
-        <div data-lab="hp-bar-fill" style="width:${hpPercent}%;height:100%;background:${unit.dead ? '#666' : '#51cf66'};pointer-events:none"></div>
+        <div data-lab="hp-bar-fill" style="width:${model.hpPercent}%;height:100%;background:${unit.dead ? '#666' : '#51cf66'};pointer-events:none"></div>
       </div>
     </button>`;
   }).join('');
-  const feedback = (playtest?.feedback || []).map(receipt => `${receipt.unitId}: ${receipt.command} ${receipt.kind}${receipt.reason ? ` (${receipt.reason})` : ''}`);
-  const queued = playtest?.lastIssued
-    ? `Queued tick ${playtest.lastIssued.tick} seq ${playtest.lastIssued.seq}: ${playtest.lastIssued.command} (${playtest.lastIssued.unitIds.join(', ')})`
-    : '';
   return `<hr><h4>Command Playtest</h4>
     <div class="inline-help">Real CombatState via stepCombat. Command is the default; spectator keeps the same simulation but rejects player orders.</div>
     <p><label>Mode <select data-lab="playtest-mode"><option value="command" ${state.playtestMode === 'command' ? 'selected' : ''}>Command</option><option value="spectator" ${state.playtestMode === 'spectator' ? 'selected' : ''}>Spectator</option></select></label>
@@ -124,11 +247,11 @@ function renderCombatCommandPlaytest(state) {
       <button data-lab="playtest-step" ${!playtest ? 'disabled' : ''}>1 tick</button></p>
     <p><button data-lab="attack-move" aria-pressed="${state.pendingOrder === 'attack_move'}">Attack-move${state.pendingOrder === 'attack_move' ? ' (choose ground)' : ''}</button>
       <button data-lab="stop">Stop</button> <button data-lab="resume">Resume Gambit</button></p>
-    <div class="inline-help">Selected: ${state.selection.length ? state.selection.map(labEsc).join(', ') : 'none'}${playtest ? ` · tick ${playtest.tick} · ${labEsc(playtest.mode)}` : ''}${playtest?.outcome ? ` · ${labEsc(playtest.outcome)}` : ''}</div>
+    <div class="inline-help" data-lab="playtest-status">${labEsc(combatPlaytestStatusText(state))}</div>
     <div data-lab="battlefield" tabindex="0" aria-label="Combat command battlefield"
       style="position:relative;height:340px;margin:.5rem 0;border:1px solid var(--vscode-panel-border,#666);background:rgba(0,0,0,.18);overflow:hidden;touch-action:none;user-select:none">${markers}<div data-lab="selection-box" style="display:none;position:absolute;border:1px dashed #ffd866;background:rgba(255,216,102,.12);pointer-events:none"></div></div>
     <div class="inline-help">Click allies to select (Shift toggles). Drag empty ground for box selection. Right-click ground to move; right-click an enemy to attack.</div>
-    <div role="status">${state.error ? labEsc(state.error) : [queued, ...feedback].filter(Boolean).map(labEsc).join(' · ')}</div>`;
+    <div role="status" data-lab="playtest-feedback">${labEsc(combatPlaytestFeedbackText(state))}</div>`;
 }
 function bindCombatCommandPlaytest(root) {
   const state = window.LR_combatLab;
@@ -155,7 +278,7 @@ function bindCombatCommandPlaytest(root) {
     }
     const nextRunning = !state.running;
     state.running = nextRunning;
-    renderCombatLab();
+    refreshCombatCommandPlaytestView();
     const payload = { type: 'setCombatCommandPlaytestRunning', running: nextRunning };
     if (state.activeStartId) payload.startId = state.activeStartId;
     vscode.postMessage(payload);
@@ -166,34 +289,47 @@ function bindCombatCommandPlaytest(root) {
     if (state.activeStartId) payload.startId = state.activeStartId;
     vscode.postMessage(payload);
   };
-  root.querySelector('[data-lab="attack-move"]').onclick = () => { state.pendingOrder = state.pendingOrder === 'attack_move' ? null : 'attack_move'; renderCombatLab(); };
+  root.querySelector('[data-lab="attack-move"]').onclick = () => {
+    state.pendingOrder = state.pendingOrder === 'attack_move' ? null : 'attack_move';
+    refreshCombatCommandPlaytestView();
+  };
   root.querySelector('[data-lab="stop"]').onclick = () => sendSelectedCombatCommand('stop');
   root.querySelector('[data-lab="resume"]').onclick = () => sendSelectedCombatCommand('resume_gambit');
 
-  const playtest = state.playtest;
-  root.querySelectorAll('[data-unit-id]').forEach(marker => {
-    marker.onclick = event => {
-      const unit = playtest?.units.find(entry => entry.id === marker.dataset.unitId);
-      if (!unit || unit.team !== 0 || unit.dead) return;
-      const selection = new Set(state.selection);
-      if (event.shiftKey) { selection.has(unit.id) ? selection.delete(unit.id) : selection.add(unit.id); }
-      else { selection.clear(); selection.add(unit.id); }
-      state.selection = [...selection]; state.error = ''; renderCombatLab();
-    };
-    marker.onmouseenter = () => { marker.style.filter = 'brightness(1.35)'; };
-    marker.onmouseleave = () => { marker.style.filter = ''; };
-  });
+  // Delegated marker handlers so incremental snapshot updates never re-bind controls.
+  field.onclick = event => {
+    const marker = event.target.closest?.('[data-unit-id]');
+    if (!marker || !field.contains(marker)) return;
+    const playtest = state.playtest;
+    const unit = playtest?.units.find(entry => entry.id === marker.dataset.unitId);
+    if (!unit || unit.team !== 0 || unit.dead) return;
+    const selection = new Set(state.selection);
+    if (event.shiftKey) { selection.has(unit.id) ? selection.delete(unit.id) : selection.add(unit.id); }
+    else { selection.clear(); selection.add(unit.id); }
+    state.selection = [...selection]; state.error = '';
+    refreshCombatCommandPlaytestView();
+  };
+  field.onmouseover = event => {
+    const marker = event.target.closest?.('[data-unit-id]');
+    if (marker && field.contains(marker)) marker.style.filter = 'brightness(1.35)';
+  };
+  field.onmouseout = event => {
+    const marker = event.target.closest?.('[data-unit-id]');
+    if (marker && field.contains(marker)) marker.style.filter = '';
+  };
   field.oncontextmenu = event => {
     event.preventDefault();
-    if (!playtest) { state.error = 'Start the command playtest first.'; renderCombatLab(); return; }
+    const playtest = state.playtest;
+    if (!playtest) { state.error = 'Start the command playtest first.'; refreshCombatCommandPlaytestView(); return; }
     const targetMarker = event.target.closest?.('[data-unit-id]');
     const targetUnit = targetMarker ? playtest.units.find(unit => unit.id === targetMarker.dataset.unitId) : null;
     const point = combatBattlefieldPoint(field, event.clientX, event.clientY, playtest.bounds);
     const message = combatCommandMessageForPointer(state, targetUnit, point);
-    if (!message) { state.error = 'Select one or more allied units first.'; renderCombatLab(); return; }
+    if (!message) { state.error = 'Select one or more allied units first.'; refreshCombatCommandPlaytestView(); return; }
     if (message.command === 'attack_move') state.pendingOrder = null;
     if (state.activeStartId) message.startId = state.activeStartId;
     state.error = ''; vscode.postMessage(message);
+    if (message.command === 'attack_move') refreshCombatCommandPlaytestView();
   };
   field.onpointerdown = event => {
     if (event.button !== 0 || event.target.closest?.('[data-unit-id]')) return;
@@ -216,7 +352,8 @@ function bindCombatCommandPlaytest(root) {
       const rect = marker.getBoundingClientRect(); const x = (rect.left + rect.right) / 2 - fieldRect.left; const y = (rect.top + rect.bottom) / 2 - fieldRect.top;
       if (x >= left && x <= right && y >= top && y <= bottom) selected.push(marker.dataset.unitId);
     });
-    state.drag = null; state.selection = selected; state.error = ''; field.releasePointerCapture?.(event.pointerId); renderCombatLab();
+    state.drag = null; state.selection = selected; state.error = ''; field.releasePointerCapture?.(event.pointerId);
+    refreshCombatCommandPlaytestView();
   };
 }
 function renderCombatLab() {
@@ -302,7 +439,9 @@ window.addEventListener('message', event => {
     // Restore host-owned running/paused state so a reopened subscriber matches the session.
     if (m.state.outcome) state.running = false;
     else if (typeof m.state.running === 'boolean') state.running = m.state.running;
-    renderCombatLab();
+    // Normal host snapshots must not rebuild interactive controls. Structural
+    // events (null clear, lab document replace, start failure) still full-render.
+    refreshCombatCommandPlaytestView();
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {
@@ -329,7 +468,9 @@ window.addEventListener('message', event => {
       }
     }
     state.error = String(m.error || 'Command rejected');
-    renderCombatLab();
+    // Start failures and non-initiator clears rebuild; issue/step errors keep shell.
+    if (m.operation === 'start' || !canUpdateCombatCommandPlaytestInPlace()) renderCombatLab();
+    else updateCombatCommandPlaytestView(state);
   }
 });
 document.addEventListener('DOMContentLoaded', () => { renderCombatLab(); vscode.postMessage({ type: 'requestCombatLab' }); });

@@ -24,12 +24,12 @@
     ]
   },
   "counts": {
-    "total": 5131,
+    "total": 5132,
     "byBoundary": {
       "configuration": 89,
       "host": 870,
       "host-bridge": 61,
-      "host-webview": 522,
+      "host-webview": 523,
       "pure-core": 2847,
       "schema-types": 32,
       "webview": 710
@@ -157,7 +157,7 @@
       "guild-quest": 21,
       "guild-request": 18,
       "guild-turn-ops": 6,
-      "host-webview-protocol": 522,
+      "host-webview-protocol": 523,
       "i18n": 8,
       "image-gen-circuit": 7,
       "image-gen-config": 9,
@@ -339,7 +339,7 @@
       "enum": 2,
       "function": 1801,
       "interface": 894,
-      "messageType": 522,
+      "messageType": 523,
       "type": 407,
       "webviewFunction": 687,
       "windowApi": 23
@@ -19848,6 +19848,18 @@
       "boundary": "host-webview",
       "category": "host-webview-protocol",
       "direction": "host-to-webview"
+    },
+    {
+      "id": "host-webview:messageType:received:src/combatBattleViewAdapter.test.ts:startCombatCommandPlaytest",
+      "name": "startCombatCommandPlaytest",
+      "kind": "messageType",
+      "sourcePath": "src/combatBattleViewAdapter.test.ts",
+      "line": 269,
+      "signature": "type: \"startCombatCommandPlaytest\" (received)",
+      "public": "protocol",
+      "boundary": "host-webview",
+      "category": "host-webview-protocol",
+      "direction": "received"
     },
     {
       "id": "host-webview:messageType:received:src/combatCommandPlaytestHost.test.ts:combatCommandPlaytestState",

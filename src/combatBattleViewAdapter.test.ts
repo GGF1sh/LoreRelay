@@ -22,10 +22,19 @@ interface BattleViewHooks {
     bvScreenToWorld: (rect: any, x: number, y: number, bounds: any) => { x: number; y: number };
     bvComputeFitScale: (vw: number, vh: number, ww: number, wh: number) => number;
     bvOnMessage: (event: { data: unknown }) => void;
+    bvScenarioChange: (state: any, scenarioId: string) => void;
+    bvModeChange: (state: any, mode: string) => void;
+    bvHasSession: (state: any) => boolean;
+    bvObserveViewport: () => void;
     posted: unknown[];
 }
 
-function loadBattleView(): BattleViewHooks {
+interface LoadOptions {
+    document?: any;
+    ResizeObserver?: any;
+}
+
+function loadBattleView(opts: LoadOptions = {}): BattleViewHooks {
     const source = fs.readFileSync(path.join(__dirname, '../webview/battle-view/battle-view.js'), 'utf8');
     const posted: unknown[] = [];
     const context: Record<string, unknown> = {
@@ -34,14 +43,15 @@ function loadBattleView(): BattleViewHooks {
             BV_I18N: {},
             addEventListener() { /* message + resize registration only */ },
         },
-        document: {
+        document: opts.document ?? {
             getElementById() { return null; },
             addEventListener() { /* DOMContentLoaded not fired in the harness */ },
         },
         console,
     };
+    if (opts.ResizeObserver) context.ResizeObserver = opts.ResizeObserver;
     vm.runInNewContext(
-        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvOnMessage };`,
+        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport };`,
         context,
     );
     const hooks = (context as any).__bv as Omit<BattleViewHooks, 'posted'>;
@@ -238,5 +248,164 @@ describe('Battle View peer adoption / shared session', () => {
         assert.equal(bv.BV.running, false);
         assert.deepEqual([...bv.BV.selection], []); // dead ally dropped from selection
         assert.equal(bv.BV.playtest.outcome, 'Team 1 wins');
+    });
+});
+
+function snapshot(overrides: Record<string, unknown>) {
+    return {
+        data: {
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 's1', startId: 'ns:1', mode: 'command', tick: 3, outcome: '',
+                bounds: BOUNDS, running: true,
+                units: [{ id: 'ally_0', team: 0, hp: 10, maxHp: 10, x: 0, y: 0, dead: false, order: null }],
+                feedback: [],
+                ...overrides,
+            },
+        },
+    };
+}
+function startsIn(posted: unknown[]) {
+    return posted.filter((m: any) => m && m.type === 'startCombatCommandPlaytest');
+}
+
+describe('Battle View repair: mid-session scenario change', () => {
+    test('replacement-starts exactly once with a fresh startId and preserves the mode', () => {
+        const bv = loadBattleView();
+        bv.bvOnMessage(snapshot({}));               // adopt s1 / ns:1
+        assert.equal(bv.BV.activeStartId, 'ns:1');
+        bv.posted.length = 0;
+        bv.bvScenarioChange(bv.BV, 's2');
+        const starts = startsIn(bv.posted) as any[];
+        assert.equal(starts.length, 1);             // exactly one host start
+        assert.equal(starts[0].scenarioId, 's2');
+        assert.equal(starts[0].mode, 'command');    // mode preserved
+        assert.notEqual(starts[0].startId, 'ns:1'); // fresh startId
+        assert.equal(bv.BV.pendingStart, true);
+        assert.equal(bv.BV.pendingStartId, starts[0].startId);
+    });
+
+    test('old-startId snapshots are rejected, the replacement is adopted, and playback keeps flowing', () => {
+        const bv = loadBattleView();
+        bv.bvOnMessage(snapshot({}));
+        bv.posted.length = 0;
+        bv.bvScenarioChange(bv.BV, 's2');
+        const startId = (startsIn(bv.posted)[0] as any).startId;
+        // A trailing snapshot from the retired scenario must not resurrect it.
+        bv.bvOnMessage(snapshot({ scenarioId: 's1', startId: 'ns:1', tick: 99 }));
+        assert.notEqual(bv.BV.selected, 's1');
+        // The replacement snapshot is adopted, and later ticks are not stalled.
+        bv.bvOnMessage(snapshot({ scenarioId: 's2', startId, tick: 1 }));
+        assert.equal(bv.BV.activeStartId, startId);
+        assert.equal(bv.BV.playtest.tick, 1);
+        bv.bvOnMessage(snapshot({ scenarioId: 's2', startId, tick: 2 }));
+        assert.equal(bv.BV.playtest.tick, 2);
+    });
+
+    test('changing scenario with no active session does not start a battle', () => {
+        const bv = loadBattleView();
+        assert.equal(bv.bvHasSession(bv.BV), false);
+        bv.posted.length = 0;
+        bv.bvScenarioChange(bv.BV, 's5');
+        assert.equal(startsIn(bv.posted).length, 0);
+        assert.equal(bv.BV.selected, 's5');
+    });
+});
+
+describe('Battle View repair: mid-session mode change', () => {
+    test('replacement-starts once with the new mode and keeps the scenario', () => {
+        const bv = loadBattleView();
+        bv.bvOnMessage(snapshot({}));
+        bv.posted.length = 0;
+        bv.bvModeChange(bv.BV, 'spectator');
+        const starts = startsIn(bv.posted) as any[];
+        assert.equal(starts.length, 1);
+        assert.equal(starts[0].mode, 'spectator');
+        assert.equal(starts[0].scenarioId, 's1');
+        // Adopting the replacement keeps the authoritative mode and startId aligned.
+        bv.bvOnMessage(snapshot({ scenarioId: 's1', startId: starts[0].startId, mode: 'spectator' }));
+        assert.equal(bv.BV.playtestMode, 'spectator');
+        assert.equal(bv.BV.activeStartId, starts[0].startId);
+    });
+
+    test('changing mode with no active session is display-only (no host start)', () => {
+        const bv = loadBattleView();
+        assert.equal(bv.bvHasSession(bv.BV), false);
+        bv.posted.length = 0;
+        bv.bvModeChange(bv.BV, 'spectator');
+        assert.equal(startsIn(bv.posted).length, 0);
+        assert.equal(bv.BV.playtestMode, 'spectator');
+    });
+});
+
+describe('Battle View repair: ResizeObserver lifecycle', () => {
+    function fakeEl() {
+        return {
+            style: {} as Record<string, string>, textContent: '', clientWidth: 0, clientHeight: 0,
+            getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }),
+        };
+    }
+    function viewportOf(w: number, h: number) { const e = fakeEl(); e.clientWidth = w; e.clientHeight = h; return e; }
+
+    function harness() {
+        let viewport = viewportOf(800, 600);
+        const stage = fakeEl();
+        const readout = fakeEl();
+        const root = {
+            className: '',
+            querySelector(sel: string) {
+                if (sel === '[data-bv="viewport"]') return viewport;
+                if (sel === '[data-bv="stage"]') return stage;
+                if (sel === '[data-bv="zoom-readout"]') return readout;
+                return null;
+            },
+        };
+        const observed: any[] = [];
+        let disconnects = 0;
+        let cb: () => void = () => {};
+        class FakeResizeObserver {
+            constructor(fn: () => void) { cb = fn; }
+            observe(target: any) { observed.push(target); }
+            disconnect() { disconnects += 1; }
+        }
+        const doc = { getElementById: (id: string) => (id === 'bv-root' ? root : null), addEventListener() {} };
+        const bv = loadBattleView({ document: doc, ResizeObserver: FakeResizeObserver });
+        return {
+            bv, observed,
+            get disconnects() { return disconnects; },
+            fireResize: () => cb(),
+            swapViewport: () => { viewport = viewportOf(400, 300); return viewport; },
+            get currentViewport() { return viewport; },
+        };
+    }
+
+    test('re-observes the fresh viewport after a structural rerender', () => {
+        const h = harness();
+        h.bv.bvObserveViewport();
+        assert.equal(h.observed[h.observed.length - 1], h.currentViewport);
+        const before = h.disconnects;
+        const next = h.swapViewport();
+        h.bv.bvObserveViewport();
+        assert.ok(h.disconnects > before);                    // old target released
+        assert.equal(h.observed[h.observed.length - 1], next); // new viewport observed
+    });
+
+    test('a resize never sends a host command', () => {
+        const h = harness();
+        h.bv.bvObserveViewport();
+        h.bv.BV.view.mode = 'fit';
+        h.bv.posted.length = 0;
+        h.fireResize();
+        assert.equal(h.bv.posted.length, 0);
+    });
+
+    test('manual zoom is not reset to Fit by an ordinary resize', () => {
+        const h = harness();
+        h.bv.bvObserveViewport();
+        h.bv.BV.view.mode = 'manual';
+        h.bv.BV.view.scale = 3;
+        h.fireResize();
+        assert.equal(h.bv.BV.view.scale, 3); // untouched
+        assert.equal(h.bv.BV.view.mode, 'manual');
     });
 });

@@ -161,6 +161,47 @@ function bvResetUi(state, clearPlaytest = true) {
     state.drag = null;
     if (clearPlaytest) { state.playtest = null; state.activeStartId = null; state.prevHp = {}; }
 }
+/** True when a host session exists or is being started for this peer. */
+function bvHasSession(state) {
+    return Boolean(state.playtest || state.pendingStart || state.activeStartId);
+}
+/**
+ * Issue exactly one authoritative start with a fresh startId — the same
+ * replacement-start contract Combat Lab uses. The host retires any prior
+ * session and every subscriber adopts this scenario/startId; old-startId
+ * snapshots are rejected while pendingStart is armed.
+ */
+function bvStartRequest(state, scenarioId, mode, autoRun) {
+    state.eligibleForHostRestore = false;
+    bvResetUi(state, true);
+    state.selected = scenarioId;
+    state.playtestMode = mode;
+    state.running = Boolean(autoRun);
+    const startId = bvNextStartId(state);
+    state.pendingStart = true;
+    state.pendingStartId = startId;
+    bvVscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode, startId, autoRun: Boolean(autoRun) });
+    renderBattleView();
+}
+/** Scenario change: replacement start while a session is live, else just re-select. */
+function bvScenarioChange(state, scenarioId) {
+    if (bvHasSession(state)) {
+        bvStartRequest(state, scenarioId, state.playtestMode, false);
+    } else {
+        state.selected = scenarioId;
+        state.eligibleForHostRestore = false;
+        bvRefresh();
+    }
+}
+/** Mode change: replacement start while a session is live (keeps host authority aligned), else display-only. */
+function bvModeChange(state, mode) {
+    if (bvHasSession(state)) {
+        bvStartRequest(state, state.selected, mode, false);
+    } else {
+        state.playtestMode = mode;
+        bvRefresh();
+    }
+}
 
 /* ---------------- view transform ---------------- */
 function bvCurrentScale(viewport, worldW, worldH) {
@@ -282,6 +323,24 @@ function renderBattleView() {
     bindBattleView(root);
     bvApplyViewTransform();
     bvUpdateInPlace();
+    bvObserveViewport();
+}
+/**
+ * Track the *current* viewport. renderBattleView replaces the arena DOM
+ * (combatLabState, session adoption, scenario/mode replacement), so the
+ * observer must be re-pointed at the fresh viewport each structural render.
+ * Fit mode reflows to the new panel size; manual zoom is left untouched.
+ */
+let bvResizeObserver = null;
+function bvObserveViewport() {
+    if (typeof ResizeObserver !== 'function') return;
+    if (!bvResizeObserver) {
+        bvResizeObserver = new ResizeObserver(() => { if (BV.view.mode === 'fit') bvApplyViewTransform(); });
+    }
+    bvResizeObserver.disconnect();
+    const root = bvRoot();
+    const viewport = root && root.querySelector('[data-bv="viewport"]');
+    if (viewport) bvResizeObserver.observe(viewport);
 }
 function bvOrderBadgeHtml(model) {
     if (!model.order.label) return '';
@@ -406,32 +465,12 @@ function bindBattleView(root) {
     const viewport = root.querySelector('[data-bv="viewport"]');
     const stage = root.querySelector('[data-bv="stage"]');
 
-    root.querySelector('[data-bv="scenario"]').onchange = event => {
-        state.selected = event.target.value;
-        state.eligibleForHostRestore = false;
-    };
-    root.querySelector('[data-bv="mode"]').onchange = event => {
-        state.playtestMode = event.target.value;
-        bvRefresh();
-    };
-    root.querySelector('[data-bv="start"]').onclick = () => {
-        state.eligibleForHostRestore = false;
-        bvResetUi(state);
-        const startId = bvNextStartId(state);
-        state.pendingStart = true; state.pendingStartId = startId;
-        bvVscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode, startId, autoRun: false });
-        renderBattleView();
-    };
+    root.querySelector('[data-bv="scenario"]').onchange = event => bvScenarioChange(state, event.target.value);
+    root.querySelector('[data-bv="mode"]').onchange = event => bvModeChange(state, event.target.value);
+    root.querySelector('[data-bv="start"]').onclick = () => bvStartRequest(state, state.selected, state.playtestMode, false);
     root.querySelector('[data-bv="run"]').onclick = () => {
+        if (!state.playtest) { bvStartRequest(state, state.selected, state.playtestMode, true); return; }
         state.eligibleForHostRestore = false;
-        if (!state.playtest) {
-            state.running = true;
-            const startId = bvNextStartId(state);
-            state.pendingStart = true; state.pendingStartId = startId;
-            bvVscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode, startId, autoRun: true });
-            renderBattleView();
-            return;
-        }
         state.running = !state.running;
         bvRefresh();
         const payload = { type: 'setCombatCommandPlaytestRunning', running: state.running };
@@ -621,13 +660,8 @@ function bvOnMessage(event) {
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('message', bvOnMessage);
-    if (typeof ResizeObserver === 'function') {
-        const ro = new ResizeObserver(() => { if (BV.view.mode === 'fit') bvApplyViewTransform(); });
-        window.addEventListener('DOMContentLoaded', () => {
-            const vp = bvRoot() && bvRoot().querySelector('[data-bv="viewport"]');
-            if (vp) ro.observe(vp);
-        });
-    }
+    // The ResizeObserver is (re)attached to the current viewport inside
+    // renderBattleView via bvObserveViewport, so it survives structural rerenders.
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
     document.addEventListener('DOMContentLoaded', () => {

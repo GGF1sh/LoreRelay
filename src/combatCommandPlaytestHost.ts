@@ -175,10 +175,15 @@ export class CombatCommandPlaytestHost {
      * Replace the host session exactly once. Stops any prior scheduler so a
      * restart cannot double-advance.
      *
-     * A valid restart always retires the previous session. If replacement
-     * creation fails, every subscriber receives state:null so no observer can
-     * keep displaying the retired battle; the caller then fans out the
-     * structured start error via {@link notifyError}.
+     * A restart with a prior session first broadcasts state:null with
+     * sessionEvent:'replaced' so every peer retires the old battle and may
+     * adopt the following authoritative replacement snapshot (or start error).
+     * Document clear uses a bare null without that event and must not prime
+     * peers to adopt an unrelated later snapshot.
+     *
+     * If replacement creation fails after a prior session was retired, peers
+     * already received the replaced-null; the caller fans out the structured
+     * start error via {@link notifyError}.
      */
     start(
         scenario: CombatLabScenario,
@@ -187,16 +192,25 @@ export class CombatCommandPlaytestHost {
         startId: string,
         options?: { autoRun?: boolean },
     ): CombatCommandPlaytestResult<CombatCommandPlaytestSnapshot> {
+        const hadPriorSession = this.session !== undefined;
         this.stopScheduler();
         this.session = undefined;
         this.running = false;
         this.carryMs = 0;
         this.lastPulseAtMs = undefined;
 
+        if (hadPriorSession) {
+            // Peers must drop old activeStartId before the replacement snapshot.
+            this.broadcastState(null, { sessionEvent: 'replaced' });
+        }
+
         const created = createCombatCommandPlaytest(scenario, catalog, mode, startId);
         if (!created.ok) {
-            // Retire the old session for all subscribers; do not leave a stale snapshot.
-            this.broadcastState(null);
+            // Retire residual display when there was no prior session to replace.
+            // When hadPriorSession, the replaced-null already cleared peers.
+            if (!hadPriorSession) {
+                this.broadcastState(null);
+            }
             return created;
         }
         this.session = created.value;
@@ -422,8 +436,16 @@ export class CombatCommandPlaytestHost {
         this.timerHandle = undefined;
     }
 
-    private broadcastState(state: CombatCommandPlaytestSnapshot | null): void {
-        const message = { type: 'combatCommandPlaytestState', state };
+    private broadcastState(
+        state: CombatCommandPlaytestSnapshot | null,
+        extras?: { sessionEvent?: 'replaced' | 'cleared' },
+    ): void {
+        const message: {
+            type: 'combatCommandPlaytestState';
+            state: CombatCommandPlaytestSnapshot | null;
+            sessionEvent?: 'replaced' | 'cleared';
+        } = { type: 'combatCommandPlaytestState', state };
+        if (extras?.sessionEvent) message.sessionEvent = extras.sessionEvent;
         for (const post of this.subscribers.values()) {
             try {
                 post(message);

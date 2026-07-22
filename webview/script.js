@@ -21876,6 +21876,9 @@ window.LR_combatLab = window.LR_combatLab || {
   running: false, timer: null, error: '', pendingStart: false, pendingStartId: null, activeStartId: null, startEpoch: 0,
   instanceId: createWebviewStartNamespace(),
   eligibleForHostRestore: true,
+  // Set when host retires a session with sessionEvent:'replaced' so this peer
+  // adopts the next authoritative replacement snapshot (scenarioId + startId).
+  pendingPeerAdopt: false,
 };
 
 function labEsc(value) { const n = document.createElement('span'); n.textContent = String(value || ''); return n.innerHTML; }
@@ -21911,6 +21914,7 @@ function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
   // Defensive: clear any legacy webview timer. Automatic playback is host-owned.
   if (state.timer) clearInterval(state.timer);
   state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = ''; state.pendingStart = false; state.pendingStartId = null;
+  state.pendingPeerAdopt = false;
   if (clearPlaytest) { state.playtest = null; state.activeStartId = null; }
 }
 function selectCombatLabScenarioForPlaytest(state, scenarioId) {
@@ -22253,32 +22257,58 @@ window.addEventListener('message', event => {
       // Host may broadcast state:null after a failed restart so every subscriber
       // drops the retired battle. Preserve pendingStart/pendingStartId so the
       // following structured start error can still match the initiating request.
-      // Always re-render: non-initiators have no follow-up start-error match path
-      // that would clear the old battle DOM by itself.
+      // sessionEvent:'replaced' primes peers to adopt the next host snapshot
+      // (same or different scenario). Bare null (document clear) does not.
       state.eligibleForHostRestore = false;
       const keepPending = Boolean(state.pendingStart && state.pendingStartId);
       const pendingStartId = state.pendingStartId;
+      const peerAdopt = m.sessionEvent === 'replaced';
       resetCombatCommandPlaytestUi(state, true);
       if (keepPending) {
         state.pendingStart = true;
         state.pendingStartId = pendingStartId;
       }
+      if (peerAdopt) state.pendingPeerAdopt = true;
       renderCombatLab();
       return;
     }
+    let forceStructuralRender = false;
     if (state.pendingStart) {
       if (m.state.scenarioId !== state.selected) return;
       if (!m.state.startId || m.state.startId !== state.pendingStartId) return;
       state.pendingStart = false;
       state.pendingStartId = null;
       state.activeStartId = m.state.startId;
+      state.pendingPeerAdopt = false;
       state.eligibleForHostRestore = false;
+    } else if (state.pendingPeerAdopt) {
+      // Peer replacement adoption: host already retired the old session. Accept
+      // the authoritative replacement scenarioId + startId even when this
+      // subscriber still had the previous scenario selected.
+      if (!m.state.startId) return;
+      const previousSelected = state.selected;
+      if (m.state.scenarioId) state.selected = m.state.scenarioId;
+      state.activeStartId = m.state.startId;
+      // Keep mode UI and next Start/Run payload aligned with the host session.
+      if (m.state.mode === 'command' || m.state.mode === 'spectator') {
+        state.playtestMode = m.state.mode;
+      }
+      state.pendingPeerAdopt = false;
+      state.eligibleForHostRestore = false;
+      // Different-scenario replacement is structural: scenario selector + JSON
+      // live outside the Command Playtest incremental shell.
+      if (m.state.scenarioId && m.state.scenarioId !== previousSelected) {
+        forceStructuralRender = true;
+      }
     } else if (state.eligibleForHostRestore) {
       state.eligibleForHostRestore = false;
       if (!state.playtest && m.state.scenarioId) {
         state.selected = m.state.scenarioId;
         state.activeStartId = m.state.startId || null;
       }
+    } else if (!state.activeStartId) {
+      // Document clear / no primed adopt path: ignore opportunistic snapshots.
+      return;
     }
     if (m.state.scenarioId && m.state.scenarioId !== state.selected) {
       return;
@@ -22293,8 +22323,10 @@ window.addEventListener('message', event => {
     if (m.state.outcome) state.running = false;
     else if (typeof m.state.running === 'boolean') state.running = m.state.running;
     // Normal host snapshots must not rebuild interactive controls. Structural
-    // events (null clear, lab document replace, start failure) still full-render.
-    refreshCombatCommandPlaytestView();
+    // events (null clear, lab document replace, start failure, different-scenario
+    // peer adoption) still full-render.
+    if (forceStructuralRender) renderCombatLab();
+    else refreshCombatCommandPlaytestView();
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {
@@ -22308,6 +22340,7 @@ window.addEventListener('message', event => {
         }
         state.pendingStart = false;
         state.pendingStartId = null;
+        state.pendingPeerAdopt = false;
         if (!state.playtest) {
           state.running = false;
         }
@@ -22318,6 +22351,7 @@ window.addEventListener('message', event => {
         // Non-initiator after state:null (or no session): accept fan-out start error
         // so the ghost battle DOM is replaced with the error display.
         state.running = false;
+        state.pendingPeerAdopt = false;
       }
     }
     state.error = String(m.error || 'Command rejected');

@@ -22272,6 +22272,7 @@ window.addEventListener('message', event => {
       renderCombatLab();
       return;
     }
+    let forceStructuralRender = false;
     if (state.pendingStart) {
       if (m.state.scenarioId !== state.selected) return;
       if (!m.state.startId || m.state.startId !== state.pendingStartId) return;
@@ -22285,10 +22286,20 @@ window.addEventListener('message', event => {
       // the authoritative replacement scenarioId + startId even when this
       // subscriber still had the previous scenario selected.
       if (!m.state.startId) return;
+      const previousSelected = state.selected;
       if (m.state.scenarioId) state.selected = m.state.scenarioId;
       state.activeStartId = m.state.startId;
+      // Keep mode UI and next Start/Run payload aligned with the host session.
+      if (m.state.mode === 'command' || m.state.mode === 'spectator') {
+        state.playtestMode = m.state.mode;
+      }
       state.pendingPeerAdopt = false;
       state.eligibleForHostRestore = false;
+      // Different-scenario replacement is structural: scenario selector + JSON
+      // live outside the Command Playtest incremental shell.
+      if (m.state.scenarioId && m.state.scenarioId !== previousSelected) {
+        forceStructuralRender = true;
+      }
     } else if (state.eligibleForHostRestore) {
       state.eligibleForHostRestore = false;
       if (!state.playtest && m.state.scenarioId) {
@@ -22312,8 +22323,10 @@ window.addEventListener('message', event => {
     if (m.state.outcome) state.running = false;
     else if (typeof m.state.running === 'boolean') state.running = m.state.running;
     // Normal host snapshots must not rebuild interactive controls. Structural
-    // events (null clear, lab document replace, start failure) still full-render.
-    refreshCombatCommandPlaytestView();
+    // events (null clear, lab document replace, start failure, different-scenario
+    // peer adoption) still full-render.
+    if (forceStructuralRender) renderCombatLab();
+    else refreshCombatCommandPlaytestView();
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {

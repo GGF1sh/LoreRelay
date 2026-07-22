@@ -1607,4 +1607,125 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.activeStartId, null);
         assert.equal(live.state.selected, 'scenarioA');
     });
+
+    test('peer adopts playtestMode from Command→Spectator replacement and restart posts spectator', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtestMode = 'command';
+        live.state.activeStartId = 'old';
+        live.state.playtest = {
+            scenarioId: 'scenarioA', mode: 'command', tick: 2, units: [], startId: 'old',
+        };
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = false;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioA',
+                mode: 'spectator',
+                tick: 0,
+                running: false,
+                units: [],
+                startId: 'new-spec',
+            },
+        });
+        assert.equal(live.state.playtestMode, 'spectator', 'peer mode UI state follows host replacement mode');
+        assert.equal(live.state.activeStartId, 'new-spec');
+
+        const elements: Record<string, { onclick?: () => void }> = {};
+        live.bind({
+            querySelector(sel: string) {
+                if (!elements[sel]) elements[sel] = {};
+                return elements[sel];
+            },
+            querySelectorAll() { return []; },
+        });
+        const postedBefore = live.posted.length;
+        elements['[data-lab="playtest-start"]'].onclick?.();
+        const startMsgs = live.posted.slice(postedBefore).filter(
+            message => !!message && typeof message === 'object'
+                && (message as { type?: string }).type === 'startCombatCommandPlaytest',
+        ) as Array<Record<string, unknown>>;
+        assert.equal(startMsgs.length, 1);
+        assert.equal(startMsgs[0].mode, 'spectator', 'restart after peer mode adoption must send spectator');
+        assert.equal(startMsgs[0].scenarioId, 'scenarioA');
+    });
+
+    test('different-scenario peer adoption structurally syncs scenario selector and JSON', () => {
+        const live = loadWebviewLiveDom();
+        const documentState = {
+            scenarios: [
+                { id: 'scenarioA', name: 'Alpha', mode: 'mechanics_v1', allies: [], enemies: [], deltaSeconds: 1 / 30 },
+                { id: 'scenarioB', name: 'Bravo', mode: 'mechanics_v1', allies: [], enemies: [], deltaSeconds: 1 / 30 },
+            ],
+        };
+        live.dispatchMessage({
+            type: 'combatLabState',
+            state: {
+                document: documentState,
+                selected: 'scenarioA',
+            },
+        });
+        live.state.activeStartId = 'old';
+        live.state.playtest = { scenarioId: 'scenarioA', mode: 'command', tick: 1, units: [], startId: 'old' };
+        live.state.playtestMode = 'command';
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = false;
+        live.state.pendingPeerAdopt = false;
+
+        assert.ok(live.query('[data-lab="scenario"]'), 'scenario selector present after lab state');
+        assert.ok(live.query('[data-lab="json"]'), 'JSON textarea present after lab state');
+        const rendersBeforeReplace = live.renderCount;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioB',
+                mode: 'command',
+                tick: 0,
+                running: false,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'new-b',
+            },
+        });
+
+        assert.equal(live.state.selected, 'scenarioB');
+        assert.equal(live.state.activeStartId, 'new-b');
+        assert.ok(live.renderCount > rendersBeforeReplace, 'different-scenario peer adopt full-renders once');
+
+        const scenarioSelect = live.query('[data-lab="scenario"]');
+        const json = live.query('[data-lab="json"]');
+        assert.ok(scenarioSelect && json);
+        const jsonText = String(json.textContent || (json as { value?: string }).value || '');
+        assert.ok(
+            jsonText.includes('scenarioB') || jsonText.includes('Bravo'),
+            `JSON should show scenario B after structural adopt, got: ${jsonText.slice(0, 160)}`,
+        );
+        // Selected option for B is marked during full renderCombatLab().
+        const panelHtml = String((live.getPanel() as { _html?: string; innerHTML?: string } | null)?.innerHTML || '');
+        assert.ok(
+            panelHtml.includes('value="scenarioB" selected')
+                || panelHtml.includes("value=\"scenarioB\" selected")
+                || (scenarioSelect as { value?: string }).value === 'scenarioB',
+            'scenario selector must mark scenarioB as selected after structural adopt',
+        );
+
+        const rendersAfterAdopt = live.renderCount;
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioB',
+                mode: 'command',
+                tick: 2,
+                running: true,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'new-b',
+            },
+        });
+        assert.equal(live.renderCount, rendersAfterAdopt, 'later same-session snapshots stay incremental');
+        assert.equal((live.state.playtest as { tick?: number }).tick, 2);
+    });
 });

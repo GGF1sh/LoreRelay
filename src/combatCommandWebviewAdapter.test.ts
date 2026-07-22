@@ -504,4 +504,17 @@ describe('Combat Lab command pointer translation', () => {
         });
         assert.equal((live.state.playtest as Record<string, unknown>).tick, 10);
     });
+
+    test('step click is ignored when playtest is null', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = null;
+        live.state.eligibleForHostRestore = true;
+
+        const elements: Record<string, { onclick?: () => void }> = {};
+        live.bind({ querySelector(sel: string) { if (!elements[sel]) elements[sel] = {}; return elements[sel]; }, querySelectorAll() { return []; } });
+
+        assert.equal(typeof elements['[data-lab="playtest-step"]']?.onclick, 'function');
+        elements['[data-lab="playtest-step"]'].onclick?.();
+        assert.equal(live.state.playtest, null);
+    });
 });

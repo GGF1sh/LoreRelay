@@ -21948,7 +21948,7 @@ function renderCombatCommandPlaytest(state) {
     <p><label>Mode <select data-lab="playtest-mode"><option value="command" ${state.playtestMode === 'command' ? 'selected' : ''}>Command</option><option value="spectator" ${state.playtestMode === 'spectator' ? 'selected' : ''}>Spectator</option></select></label>
       <button data-lab="playtest-start">Start / restart</button>
       <button data-lab="playtest-run">${state.running ? 'Pause' : 'Run'}</button>
-      <button data-lab="playtest-step">1 tick</button></p>
+      <button data-lab="playtest-step" ${!playtest ? 'disabled' : ''}>1 tick</button></p>
     <p><button data-lab="attack-move" aria-pressed="${state.pendingOrder === 'attack_move'}">Attack-move${state.pendingOrder === 'attack_move' ? ' (choose ground)' : ''}</button>
       <button data-lab="stop">Stop</button> <button data-lab="resume">Resume Gambit</button></p>
     <div class="inline-help">Selected: ${state.selection.length ? state.selection.map(labEsc).join(', ') : 'none'}${playtest ? ` · tick ${playtest.tick} · ${labEsc(playtest.mode)}` : ''}${playtest?.outcome ? ` · ${labEsc(playtest.outcome)}` : ''}</div>
@@ -21980,7 +21980,10 @@ function bindCombatCommandPlaytest(root) {
     }
     state.running = !state.running; renderCombatLab();
   };
-  root.querySelector('[data-lab="playtest-step"]').onclick = () => vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks: 1 });
+  root.querySelector('[data-lab="playtest-step"]').onclick = () => {
+    if (!state.playtest) return;
+    vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks: 1 });
+  };
   root.querySelector('[data-lab="attack-move"]').onclick = () => { state.pendingOrder = state.pendingOrder === 'attack_move' ? null : 'attack_move'; renderCombatLab(); };
   root.querySelector('[data-lab="stop"]').onclick = () => sendSelectedCombatCommand('stop');
   root.querySelector('[data-lab="resume"]').onclick = () => sendSelectedCombatCommand('resume_gambit');

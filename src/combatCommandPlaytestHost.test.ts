@@ -183,6 +183,71 @@ describe('CombatCommandPlaytestHost session, scheduler, and subscribers', () => 
         host.dispose();
     });
 
+    test('A: successful replacement broadcasts replaced-null before the new snapshot once', () => {
+        const clock = fakeClock();
+        const host = new CombatCommandPlaytestHost({ clock });
+        const peerMsgs: unknown[] = [];
+        host.subscribe('peer', msg => peerMsgs.push(msg));
+        host.start(scenarioAtRate(30), catalog, 'command', 'old', { autoRun: true });
+        host.step(5, 'old');
+        assert.equal(clock.timers.length, 1);
+
+        peerMsgs.length = 0;
+        host.start(scenarioAtRate(24), catalog, 'command', 'new', { autoRun: true });
+        assert.equal(host.currentSession!.startId, 'new');
+        assert.equal(clock.timers.length, 1, 'restart must not stack timers');
+
+        assert.equal(peerMsgs.length, 2);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        const replacement = peerMsgs[1] as { type: string; state: { startId: string; scenarioId: string } };
+        assert.equal(replacement.type, 'combatCommandPlaytestState');
+        assert.equal(replacement.state.startId, 'new');
+        assert.ok(replacement.state.scenarioId);
+        host.dispose();
+    });
+
+    test('failed replacement after prior session sends replaced-null then leaves no session', () => {
+        const clock = fakeClock();
+        const host = new CombatCommandPlaytestHost({ clock });
+        const peerMsgs: unknown[] = [];
+        host.subscribe('peer', msg => peerMsgs.push(msg));
+        host.start(scenarioAtRate(30), catalog, 'command', 'old');
+        peerMsgs.length = 0;
+
+        const bad = scenarioAtRate(30);
+        // Missing finite coordinates fail createCombatCommandPlaytest validation.
+        (bad.allies[0] as { position: unknown }).position = {};
+        const result = host.start(bad, catalog, 'command', 'new');
+        assert.equal(result.ok, false);
+        assert.equal(host.hasSession, false);
+        assert.equal(peerMsgs.length, 1);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        host.dispose();
+    });
+
+    test('document clear uses bare null without sessionEvent replaced', () => {
+        const host = new CombatCommandPlaytestHost({ clock: fakeClock() });
+        const messages: unknown[] = [];
+        host.subscribe('a', message => messages.push(message));
+        host.start(scenarioAtRate(30), catalog, 'command', 's1');
+        host.clear();
+        const last = messages[messages.length - 1] as { type: string; state: null; sessionEvent?: string };
+        assert.deepEqual(
+            { type: last.type, state: last.state },
+            { type: 'combatCommandPlaytestState', state: null },
+        );
+        assert.equal(last.sessionEvent, undefined, 'clear must not prime peer adoption');
+        host.dispose();
+    });
+
     test('stale messages cannot mutate the replacement session', () => {
         const host = new CombatCommandPlaytestHost({ clock: fakeClock() });
         host.start(scenarioAtRate(30), catalog, 'command', 'new');
@@ -296,7 +361,7 @@ describe('CombatCommandPlaytestHost session, scheduler, and subscribers', () => 
         assert.equal(host.isRunning, false);
         assert.equal(clock.timers.length, 0);
 
-        const nullMsg = { type: 'combatCommandPlaytestState', state: null };
+        const nullMsg = { type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' };
         assert.deepEqual(a, [nullMsg]);
         assert.deepEqual(b, [nullMsg]);
 

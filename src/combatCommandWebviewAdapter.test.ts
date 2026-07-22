@@ -529,6 +529,7 @@ describe('Combat Lab command pointer translation', () => {
             error: '',
             pendingStart: true,
             pendingStartId: 'ns_test:1',
+            pendingPeerAdopt: false,
             activeStartId: null,
             startEpoch: 1,
             instanceId: 'ns_test',
@@ -1355,5 +1356,255 @@ describe('Combat Lab command pointer translation', () => {
         });
         assert.equal(live.state.error, '', 'delayed stale start error ignored while a session is displayed');
         assert.equal((live.state.playtest as { startId?: string }).startId, 'ns_live:9');
+    });
+
+    test('B: same-scenario peer replacement adopts new startId and posts controls with it', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'old';
+        live.state.playtest = {
+            scenarioId: 'scenarioA', mode: 'command', tick: 5, units: [{ id: 'ally_1', team: 0, dead: false }], startId: 'old',
+        };
+        live.state.running = true;
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = false;
+        live.state.selection = ['ally_1'];
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.activeStartId, null);
+        assert.equal(live.state.pendingPeerAdopt, true);
+        assert.equal(live.state.selected, 'scenarioA');
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioA',
+                mode: 'command',
+                tick: 0,
+                running: true,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'new',
+            },
+        });
+        assert.equal(live.state.pendingPeerAdopt, false);
+        assert.equal(live.state.activeStartId, 'new');
+        assert.equal((live.state.playtest as { startId?: string } | null)?.startId, 'new');
+        assert.equal(live.state.running, true);
+
+        const elements: Record<string, { onclick?: () => void }> = {};
+        live.bind({
+            querySelector(sel: string) {
+                if (!elements[sel]) elements[sel] = {};
+                return elements[sel];
+            },
+            querySelectorAll() { return []; },
+        });
+        live.state.selection = ['ally_1'];
+        const postedBefore = live.posted.length;
+
+        elements['[data-lab="playtest-run"]'].onclick?.();
+        elements['[data-lab="playtest-step"]'].onclick?.();
+        // stop uses sendSelectedCombatCommand
+        elements['[data-lab="stop"]'].onclick?.();
+
+        const newMsgs = live.posted.slice(postedBefore) as Array<Record<string, unknown>>;
+        const runMsgs = newMsgs.filter(m => m.type === 'setCombatCommandPlaytestRunning');
+        const stepMsgs = newMsgs.filter(m => m.type === 'stepCombatCommandPlaytest');
+        const stopMsgs = newMsgs.filter(m => m.type === 'issueCombatCommand' && m.command === 'stop');
+        assert.equal(runMsgs.length, 1);
+        assert.deepEqual(transportValue(runMsgs[0]), {
+            type: 'setCombatCommandPlaytestRunning', running: false, startId: 'new',
+        });
+        assert.equal(stepMsgs.length, 1);
+        assert.deepEqual(transportValue(stepMsgs[0]), {
+            type: 'stepCombatCommandPlaytest', ticks: 1, startId: 'new',
+        });
+        assert.equal(stopMsgs.length, 1);
+        assert.deepEqual(transportValue(stopMsgs[0]), {
+            type: 'issueCombatCommand', unitIds: ['ally_1'], command: 'stop', startId: 'new',
+        });
+    });
+
+    test('C: different-scenario peer replacement updates selected and displays the new session', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'old';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 9, units: [], startId: 'old' };
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = false;
+        live.state.running = true;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        assert.equal(live.state.pendingPeerAdopt, true);
+        assert.equal(live.state.selected, 'scenarioA', 'selected unchanged until replacement snapshot');
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioB',
+                mode: 'command',
+                tick: 0,
+                running: false,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'new',
+            },
+        });
+        assert.equal(live.state.selected, 'scenarioB');
+        assert.equal(live.state.activeStartId, 'new');
+        assert.equal((live.state.playtest as { scenarioId?: string; startId?: string }).scenarioId, 'scenarioB');
+        assert.equal((live.state.playtest as { startId?: string }).startId, 'new');
+        assert.equal(live.state.running, false);
+
+        // Later new snapshots continue updating.
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioB',
+                mode: 'command',
+                tick: 3,
+                running: true,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'new',
+            },
+        });
+        assert.equal((live.state.playtest as { tick?: number }).tick, 3);
+        assert.equal(live.state.running, true);
+        assert.equal(live.state.activeStartId, 'new');
+    });
+
+    test('D: after peer adopts new startId, delayed old snapshots are ignored', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'old';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 2, units: [], startId: 'old' };
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = false;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'new', running: true },
+        });
+        assert.equal(live.state.activeStartId, 'new');
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 99, units: [], startId: 'old', running: true },
+        });
+        assert.equal(live.state.activeStartId, 'new');
+        assert.equal((live.state.playtest as { tick?: number; startId?: string }).tick, 0);
+        assert.equal((live.state.playtest as { startId?: string }).startId, 'new');
+    });
+
+    test('E: failed replacement clears peer and shows structured error without adopting a session', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'old';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 4, units: [{ id: 'ally_1' }], startId: 'old' };
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = false;
+        live.state.running = true;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.activeStartId, null);
+        assert.equal(live.state.pendingPeerAdopt, true);
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            operation: 'start',
+            scenarioId: 'scenarioB',
+            startId: 'new',
+        });
+        assert.equal(live.state.pendingPeerAdopt, false);
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.activeStartId, null);
+        assert.equal(live.state.running, false);
+        assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
+    });
+
+    test('F: initiator pendingStart still matches; mismatched pendingStart is rejected', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns:2';
+        live.state.eligibleForHostRestore = false;
+        live.state.playtest = null;
+        live.state.activeStartId = null;
+
+        // Replaced-null preserves initiator pendingStart.
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.pendingStartId, 'ns:2');
+        assert.equal(live.state.pendingPeerAdopt, true);
+
+        // Mismatched startId rejected; pending remains.
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'ns:1' },
+        });
+        assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.playtest, null);
+
+        // Matching startId adopts.
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'ns:2', running: false },
+        });
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.pendingPeerAdopt, false);
+        assert.equal(live.state.activeStartId, 'ns:2');
+        assert.deepEqual(live.state.playtest, {
+            scenarioId: 'scenarioA', tick: 0, units: [], startId: 'ns:2', running: false,
+        });
+
+        // Failed-start matching still works for a later pending request.
+        live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns:3';
+        live.state.playtest = null;
+        live.state.activeStartId = null;
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+            startId: 'ns:3',
+        });
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
+    });
+
+    test('G: bare document clear does not prime peer adoption of a later stale snapshot', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'old';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 7, units: [], startId: 'old' };
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = true;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null });
+        assert.equal(live.state.eligibleForHostRestore, false);
+        assert.equal(live.state.pendingPeerAdopt, false);
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.activeStartId, null);
+
+        // Opportunistic same-scenario snapshot must not rehydrate after clear.
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'stale', running: true },
+        });
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.activeStartId, null);
+        assert.equal(live.state.selected, 'scenarioA');
     });
 });

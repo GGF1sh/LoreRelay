@@ -214,4 +214,15 @@ describe('Combat Lab command playtest adapter', () => {
             detail: 'startId must be a non-empty string <= 128 chars',
         });
     });
+
+    test('rejects scenarios with invalid non-numeric starting coordinates', () => {
+        const scenario = structuredClone(initialCombatLabScenarios()[0]);
+        (scenario.allies[0] as unknown as Record<string, unknown>).position = {};
+        const result = createCombatCommandPlaytest(scenario, catalog);
+        assert.equal(result.ok, false);
+        if (!result.ok) {
+            assert.equal(result.error, 'INVALID_COMBAT_LAB_SCENARIO');
+            assert.ok(result.detail?.includes('invalid non-numeric starting position'));
+        }
+    });
 });

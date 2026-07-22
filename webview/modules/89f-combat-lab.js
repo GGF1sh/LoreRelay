@@ -72,7 +72,9 @@ function selectCombatLabScenarioForPlaytest(state, scenarioId) {
 function syncCombatPlaytestTimer() {
   const state = window.LR_combatLab;
   if (state.running && state.playtest && !state.playtest.outcome && !state.timer) {
-    state.timer = setInterval(() => vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks: 3 }), 100);
+    const rate = typeof state.playtest.tickRate === 'number' && state.playtest.tickRate > 0 ? state.playtest.tickRate : 30;
+    const ticks = Math.max(1, Math.round(rate / 10));
+    state.timer = setInterval(() => vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks }), 100);
   }
   if ((!state.running || !state.playtest || state.playtest.outcome) && state.timer) {
     clearInterval(state.timer); state.timer = null;

@@ -43,6 +43,7 @@ export interface CombatCommandPlaytestSnapshot {
     mode: CombatCommandPlaytestMode;
     startId?: string;
     tick: number;
+    tickRate?: number;
     outcome: string;
     bounds: CombatCommandPlaytestBounds;
     units: Array<{
@@ -103,6 +104,9 @@ export function mapUnitsIntoPlaytestBounds(
     let maxY = -Infinity;
     for (const id of living) {
         const unit = state.units[id];
+        if (typeof unit.pos_x !== 'number' || !Number.isFinite(unit.pos_x) || typeof unit.pos_y !== 'number' || !Number.isFinite(unit.pos_y)) {
+            throw new Error(`Unit ${id} has invalid non-numeric starting position (${unit.pos_x}, ${unit.pos_y})`);
+        }
         minX = Math.min(minX, unit.pos_x);
         maxX = Math.max(maxX, unit.pos_x);
         minY = Math.min(minY, unit.pos_y);
@@ -170,7 +174,15 @@ export function createCombatCommandPlaytest(
     const commandLog = emptyCommandInputLog(tickRate);
     const state = createCombatState(spec);
     const bounds = playtestBounds(state, baseContext);
-    mapUnitsIntoPlaytestBounds(state, bounds, baseContext.participantOrder);
+    try {
+        mapUnitsIntoPlaytestBounds(state, bounds, baseContext.participantOrder);
+    } catch (error) {
+        return {
+            ok: false,
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            detail: error instanceof Error ? error.message : String(error),
+        };
+    }
     return {
         ok: true,
         value: {
@@ -298,6 +310,7 @@ export function combatCommandPlaytestSnapshot(session: CombatCommandPlaytestSess
         mode: session.mode,
         startId: session.startId,
         tick: session.state.tick,
+        tickRate: session.commandLog.tickRate,
         outcome: session.state.outcome,
         bounds: { ...session.bounds },
         units: session.spec.participantOrder.map(id => {

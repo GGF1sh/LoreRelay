@@ -574,4 +574,26 @@ describe('Combat Lab command pointer translation', () => {
         assert.ok(html.includes('data-unit-id="ally_1"'), 'data-unit-id attribute intact');
         assert.ok(html.includes('data-unit-team="0"'), 'data-unit-team attribute intact');
     });
+
+    test('derives Run timer ticks from playtest.tickRate in snapshot', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = {
+            scenarioId: 'test',
+            mode: 'command',
+            tick: 0,
+            tickRate: 60,
+            units: [],
+            bounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 },
+        };
+        live.state.running = true;
+
+        const messages: unknown[] = [];
+        const origPost = live.state;
+        (live as unknown as { dispatchMessage: (d: unknown) => void }).dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: live.state.playtest,
+        });
+
+        assert.equal((live.state.playtest as Record<string, unknown>).tickRate, 60);
+    });
 });

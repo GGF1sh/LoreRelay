@@ -1940,20 +1940,21 @@ function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback)
 function sendCombatCommandPlaytest(): void {
     if (combatCommandPlaytestSession) panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: combatCommandPlaytestSnapshot(combatCommandPlaytestSession) });
 }
-function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string): void {
-    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId });
+function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string, startId?: string): void {
+    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId, startId });
 }
-function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown): void {
+function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown): void {
     // Always drop the previous host session first. The webview clears its
     // playtest UI synchronously on restart, but its Step control can still
     // post stepCombatCommandPlaytest; if battle-spec construction then fails
     // (e.g. duplicate unit IDs) we must not leave the old scenario advanceable.
     combatCommandPlaytestSession = undefined;
     const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;
+    const targetStartId = typeof startId === 'string' ? startId : undefined;
     const scenario = selectedCombatLabScenario(scenarioId);
-    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId); return; }
-    const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode);
-    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail, 'start', targetScenarioId); return; }
+    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId, targetStartId); return; }
+    const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode, targetStartId);
+    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail, 'start', targetScenarioId, targetStartId); return; }
     combatCommandPlaytestSession = created.value;
     sendCombatCommandPlaytest();
 }

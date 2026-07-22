@@ -21850,7 +21850,7 @@ document.addEventListener('DOMContentLoaded', () => { renderAbilityWorkshop(); v
 window.LR_combatLab = window.LR_combatLab || {
   document: { scenarios: [] }, selected: '', result: null, compare: null,
   playtest: null, playtestMode: 'command', selection: [], pendingOrder: null,
-  running: false, timer: null, error: '', pendingStart: false,
+  running: false, timer: null, error: '', pendingStart: false, pendingStartId: null, activeStartId: null, startEpoch: 0,
   eligibleForHostRestore: true,
 };
 
@@ -21883,16 +21883,17 @@ function sendSelectedCombatCommand(command) {
 }
 function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
   if (state.timer) clearInterval(state.timer);
-  state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = ''; state.pendingStart = false;
-  if (clearPlaytest) state.playtest = null;
+  state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = ''; state.pendingStart = false; state.pendingStartId = null;
+  if (clearPlaytest) { state.playtest = null; state.activeStartId = null; }
 }
 function selectCombatLabScenarioForPlaytest(state, scenarioId) {
   state.eligibleForHostRestore = false;
   const restart = Boolean(state.playtest || state.pendingStart); state.selected = scenarioId;
   resetCombatCommandPlaytestUi(state);
   if (restart) {
-    state.pendingStart = true;
-    return { type: 'startCombatCommandPlaytest', scenarioId, mode: state.playtestMode };
+    state.startEpoch = (state.startEpoch || 0) + 1; const startId = 'start_' + state.startEpoch;
+    state.pendingStart = true; state.pendingStartId = startId;
+    return { type: 'startCombatCommandPlaytest', scenarioId, mode: state.playtestMode, startId };
   }
   return null;
 }
@@ -21944,14 +21945,18 @@ function bindCombatCommandPlaytest(root) {
   root.querySelector('[data-lab="playtest-start"]').onclick = () => {
     state.eligibleForHostRestore = false;
     const scenarioId = state.selected; const mode = state.playtestMode;
-    resetCombatCommandPlaytestUi(state); state.pendingStart = true; renderCombatLab();
-    vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode });
+    resetCombatCommandPlaytestUi(state);
+    state.startEpoch = (state.startEpoch || 0) + 1; const startId = 'start_' + state.startEpoch;
+    state.pendingStart = true; state.pendingStartId = startId; renderCombatLab();
+    vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode, startId });
   };
   root.querySelector('[data-lab="playtest-run"]').onclick = () => {
     state.eligibleForHostRestore = false;
     if (!state.playtest) {
-      state.running = true; state.pendingStart = true;
-      vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode });
+      state.running = true;
+      state.startEpoch = (state.startEpoch || 0) + 1; const startId = 'start_' + state.startEpoch;
+      state.pendingStart = true; state.pendingStartId = startId;
+      vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode, startId });
       return;
     }
     state.running = !state.running; renderCombatLab();
@@ -22054,16 +22059,26 @@ window.addEventListener('message', event => {
       resetCombatCommandPlaytestUi(state, true);
       return;
     }
-    if (state.eligibleForHostRestore) {
+    if (state.pendingStart) {
+      if (m.state.scenarioId !== state.selected) return;
+      if (state.pendingStartId && m.state.startId && m.state.startId !== state.pendingStartId) return;
+      state.pendingStart = false;
+      state.pendingStartId = null;
+      state.activeStartId = m.state.startId || null;
       state.eligibleForHostRestore = false;
-      if (!state.playtest && !state.pendingStart && m.state.scenarioId) {
+    } else if (state.eligibleForHostRestore) {
+      state.eligibleForHostRestore = false;
+      if (!state.playtest && m.state.scenarioId) {
         state.selected = m.state.scenarioId;
+        state.activeStartId = m.state.startId || null;
       }
     }
     if (m.state.scenarioId && m.state.scenarioId !== state.selected) {
       return;
     }
-    state.pendingStart = false;
+    if (state.activeStartId && m.state.startId && m.state.startId !== state.activeStartId) {
+      return;
+    }
     state.playtest = m.state; state.error = '';
     const controllable = new Set((m.state.units || []).filter(unit => unit.team === 0 && !unit.dead).map(unit => unit.id));
     state.selection = state.selection.filter(id => controllable.has(id));
@@ -22072,10 +22087,14 @@ window.addEventListener('message', event => {
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {
+      if (m.startId && state.pendingStartId && m.startId !== state.pendingStartId) {
+        return;
+      }
       if (m.scenarioId && m.scenarioId !== state.selected) {
         return;
       }
       state.pendingStart = false;
+      state.pendingStartId = null;
       if (!state.playtest) {
         state.running = false;
       }

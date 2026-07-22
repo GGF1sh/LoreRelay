@@ -128,6 +128,9 @@ describe('Combat Lab command pointer translation', () => {
             pendingOrder: null,
             error: '',
             pendingStart: true,
+            pendingStartId: 'start_1',
+            activeStartId: null,
+            startEpoch: 1,
             playtest: null,
             playtestMode: 'command',
             selected: 'new',
@@ -137,6 +140,7 @@ describe('Combat Lab command pointer translation', () => {
             type: 'startCombatCommandPlaytest',
             scenarioId: 'new',
             mode: 'command',
+            startId: 'start_1',
         });
 
         const restartState: Record<string, unknown> = {
@@ -203,21 +207,22 @@ describe('Combat Lab command pointer translation', () => {
             type: 'startCombatCommandPlaytest',
             scenarioId: 'scenarioB',
             mode: 'command',
+            startId: 'start_1',
         });
         assert.equal(live.state.pendingStart, true);
         assert.equal(live.state.selected, 'scenarioB');
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioA', tick: 0, units: [] },
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'start_0' },
         });
         assert.equal(live.state.playtest, null);
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioB', tick: 0, units: [] },
+            state: { scenarioId: 'scenarioB', tick: 0, units: [], startId: 'start_1' },
         });
-        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 0, units: [] });
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 0, units: [], startId: 'start_1' });
         assert.equal(live.state.pendingStart, false);
     });
 
@@ -403,5 +408,42 @@ describe('Combat Lab command pointer translation', () => {
 
         assert.equal(live.state.selected, 'scenarioA', 'later host snapshot cannot restore');
         assert.equal(live.state.playtest, null, 'mismatched snapshot is ignored');
+    });
+
+    test('same-scenario pre-request host snapshot is rejected while pendingStart is active for a new startId request', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.eligibleForHostRestore = true;
+
+        const elements: Record<string, { onclick?: () => void; onchange?: (e: unknown) => void }> = {};
+        live.bind({ querySelector(sel: string) { if (!elements[sel]) elements[sel] = {}; return elements[sel]; }, querySelectorAll() { return []; } });
+
+        // User clicks Run on scenarioA (no active playtest), creating pendingStart with startId 'start_1'
+        elements['[data-lab="playtest-run"]'].onclick?.();
+        assert.equal(live.state.running, true);
+        assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.pendingStartId, 'start_1');
+
+        // An old snapshot for scenarioA (from prior host session or initial request, e.g. outcome: 'Victory', startId: 'start_0' or missing) arrives
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 50, outcome: 'Victory', units: [], startId: 'start_0' },
+        });
+
+        // The pre-request snapshot must be rejected: pendingStart remains true, running remains true, playtest remains null
+        assert.equal(live.state.pendingStart, true, 'pendingStart should remain true after pre-request snapshot');
+        assert.equal(live.state.running, true, 'running should stay true when pre-request snapshot is ignored');
+        assert.equal(live.state.playtest, null, 'old playtest snapshot must not be stored');
+
+        // Now the matching snapshot for start_1 arrives from the host
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'start_1' },
+        });
+
+        // Matching snapshot is accepted
+        assert.equal(live.state.pendingStart, false, 'pendingStart should clear on matching snapshot');
+        assert.equal(live.state.running, true, 'running should remain true for the new session');
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'start_1' });
     });
 });

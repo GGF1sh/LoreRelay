@@ -21,6 +21,7 @@ export type CombatCommandPlaytestMode = Extract<CombatSelectableMode, 'command' 
 export interface CombatCommandPlaytestSession {
     scenarioId: string;
     mode: CombatCommandPlaytestMode;
+    startId?: string;
     spec: BattleSpec;
     state: CombatState;
     commandLog: CommandInputLog;
@@ -40,6 +41,7 @@ export interface CombatCommandPlaytestBounds {
 export interface CombatCommandPlaytestSnapshot {
     scenarioId: string;
     mode: CombatCommandPlaytestMode;
+    startId?: string;
     tick: number;
     outcome: string;
     bounds: CombatCommandPlaytestBounds;
@@ -136,6 +138,7 @@ export function createCombatCommandPlaytest(
     scenario: CombatLabScenario,
     catalog: CombatLabCatalog,
     requestedMode: unknown = 'command',
+    startId?: string,
 ): CombatCommandPlaytestResult<CombatCommandPlaytestSession> {
     const mode: CombatCommandPlaytestMode = requestedMode === undefined || requestedMode === 'command'
         ? 'command'
@@ -170,6 +173,7 @@ export function createCombatCommandPlaytest(
         value: {
             scenarioId: scenario.id,
             mode,
+            startId,
             spec,
             state,
             commandLog,
@@ -289,6 +293,7 @@ export function combatCommandPlaytestSnapshot(session: CombatCommandPlaytestSess
     return {
         scenarioId: session.scenarioId,
         mode: session.mode,
+        startId: session.startId,
         tick: session.state.tick,
         outcome: session.state.outcome,
         bounds: { ...session.bounds },

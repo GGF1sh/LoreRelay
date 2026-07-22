@@ -22116,6 +22116,8 @@ window.addEventListener('message', event => {
       // Host may broadcast state:null after a failed restart so every subscriber
       // drops the retired battle. Preserve pendingStart/pendingStartId so the
       // following structured start error can still match the initiating request.
+      // Always re-render: non-initiators have no follow-up start-error match path
+      // that would clear the old battle DOM by itself.
       state.eligibleForHostRestore = false;
       const keepPending = Boolean(state.pendingStart && state.pendingStartId);
       const pendingStartId = state.pendingStartId;
@@ -22124,6 +22126,7 @@ window.addEventListener('message', event => {
         state.pendingStart = true;
         state.pendingStartId = pendingStartId;
       }
+      renderCombatLab();
       return;
     }
     if (state.pendingStart) {
@@ -22156,15 +22159,25 @@ window.addEventListener('message', event => {
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {
-      if (!state.pendingStart || !m.startId || !state.pendingStartId || m.startId !== state.pendingStartId) {
+      if (state.pendingStart) {
+        // Initiator: only the matching pending startId may clear the request.
+        if (!m.startId || !state.pendingStartId || m.startId !== state.pendingStartId) {
+          return;
+        }
+        if (m.scenarioId && m.scenarioId !== state.selected) {
+          return;
+        }
+        state.pendingStart = false;
+        state.pendingStartId = null;
+        if (!state.playtest) {
+          state.running = false;
+        }
+      } else if (state.playtest) {
+        // A live session is already displayed — ignore delayed stale start errors.
         return;
-      }
-      if (m.scenarioId && m.scenarioId !== state.selected) {
-        return;
-      }
-      state.pendingStart = false;
-      state.pendingStartId = null;
-      if (!state.playtest) {
+      } else {
+        // Non-initiator after state:null (or no session): accept fan-out start error
+        // so the ghost battle DOM is replaced with the error display.
         state.running = false;
       }
     }

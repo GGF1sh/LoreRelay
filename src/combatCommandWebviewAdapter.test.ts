@@ -24,6 +24,7 @@ function loadWebviewHelpers(): {
     clearedTimers: unknown[];
     posted: unknown[];
     intervalCreates: number;
+    renderCount: number;
     dispatchMessage: (data: unknown) => void;
     state: Record<string, unknown>;
 } {
@@ -31,6 +32,7 @@ function loadWebviewHelpers(): {
     const clearedTimers: unknown[] = [];
     const posted: unknown[] = [];
     let intervalCreates = 0;
+    let renderCount = 0;
     const messageListeners: Array<(event: { data: unknown }) => void> = [];
     const context: Record<string, unknown> = {
         window: {
@@ -59,6 +61,9 @@ function loadWebviewHelpers(): {
             return 1;
         },
         clearInterval(value: unknown) { clearedTimers.push(value); },
+        __onRenderCombatLab() {
+            renderCount += 1;
+        },
     };
     vm.runInNewContext(
         `${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest, bindCombatCommandPlaytest, renderCombatCommandPlaytest, lab: window.LR_combatLab };`,
@@ -73,7 +78,8 @@ function loadWebviewHelpers(): {
         lab: Record<string, unknown>;
     };
     // Stub render so message handlers that call renderCombatLab do not need the DOM.
-    vm.runInNewContext('function renderCombatLab() {}', context);
+    // Count calls so multi-subscriber DOM refresh can be asserted without a real panel.
+    vm.runInNewContext('function renderCombatLab() { if (typeof __onRenderCombatLab === "function") __onRenderCombatLab(); }', context);
     return {
         translate: hooks.combatCommandMessageForPointer,
         reset: hooks.resetCombatCommandPlaytestUi,
@@ -83,6 +89,7 @@ function loadWebviewHelpers(): {
         clearedTimers,
         posted,
         get intervalCreates() { return intervalCreates; },
+        get renderCount() { return renderCount; },
         dispatchMessage(data: unknown) {
             for (const listener of messageListeners) listener({ data });
         },
@@ -208,6 +215,7 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.running, false);
         assert.equal(live.state.pendingStart, true, 'pending start preserved for error match');
         assert.equal(live.state.pendingStartId, 'ns_test:2');
+        assert.ok(live.renderCount >= 1, 'null path re-renders so initiator DOM drops the battle');
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestError',
@@ -222,6 +230,60 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
         assert.equal(live.state.playtest, null);
         assert.equal(live.state.running, false);
+    });
+
+    test('non-initiator failed restart null then start error clears ghost battle and shows error', () => {
+        const live = loadWebviewHelpers();
+        // Spectator / other subscriber: showing an old battle, not the initiator.
+        live.state.selected = 'scenarioA';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 42, units: [{ id: 'ally_1' }], startId: 'ns_old:1' };
+        live.state.activeStartId = 'ns_old:1';
+        live.state.pendingStart = false;
+        live.state.pendingStartId = null;
+        live.state.running = true;
+        live.state.error = '';
+        const rendersBefore = live.renderCount;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null });
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.running, false);
+        assert.ok(live.renderCount > rendersBefore, 'non-initiator re-renders on null to drop old battle DOM');
+        const rendersAfterNull = live.renderCount;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            detail: 'scenario failed Combat Lab validation',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+            startId: 'ns_other:9',
+        });
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
+        assert.equal(live.state.running, false);
+        assert.ok(live.renderCount > rendersAfterNull, 'start error re-renders error display for non-initiator');
+    });
+
+    test('delayed stale start error is ignored when a newer session is already displayed', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 3, units: [], startId: 'ns_new:1' };
+        live.state.activeStartId = 'ns_new:1';
+        live.state.pendingStart = false;
+        live.state.error = '';
+        const rendersBefore = live.renderCount;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+            startId: 'ns_old:1',
+        });
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 3, units: [], startId: 'ns_new:1' });
+        assert.equal(live.state.error, '', 'stale start error must not clobber a live session');
+        assert.equal(live.renderCount, rendersBefore, 'stale start error must not re-render');
     });
 
     test('Run/Pause posts host-owned setCombatCommandPlaytestRunning and never schedules webview step timers', () => {

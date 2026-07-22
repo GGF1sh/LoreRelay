@@ -348,14 +348,21 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.eligibleForHostRestore, false, 'eligibility is consumed by a successful restore');
     });
 
-    test('user changes the dropdown before the host snapshot; selection is preserved and the mismatched snapshot is ignored', () => {
+    test('user changes the dropdown before the host snapshot; selection is preserved, new start message is sent, and mismatched snapshot is ignored', () => {
         const live = loadWebviewHelpers();
         live.state.selected = 'scenarioA';
         live.state.eligibleForHostRestore = true;
 
-        live.selectScenario(live.state, 'scenarioC');
+        const restartMsg = live.selectScenario(live.state, 'scenarioC');
         assert.equal(live.state.eligibleForHostRestore, false, 'user action clears eligibility');
         assert.equal(live.state.selected, 'scenarioC');
+        assert.equal(live.state.pendingStart, true);
+        assert.deepEqual(transportValue(restartMsg), {
+            type: 'startCombatCommandPlaytest',
+            scenarioId: 'scenarioC',
+            mode: 'command',
+            startId: live.state.pendingStartId,
+        });
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',

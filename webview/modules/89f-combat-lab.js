@@ -58,8 +58,9 @@ function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
   if (clearPlaytest) { state.playtest = null; state.activeStartId = null; }
 }
 function selectCombatLabScenarioForPlaytest(state, scenarioId) {
+  const restart = Boolean(state.playtest || state.pendingStart || state.activeStartId || state.eligibleForHostRestore);
   state.eligibleForHostRestore = false;
-  const restart = Boolean(state.playtest || state.pendingStart); state.selected = scenarioId;
+  state.selected = scenarioId;
   resetCombatCommandPlaytestUi(state);
   if (restart) {
     const startId = nextCombatPlaytestStartId(state);

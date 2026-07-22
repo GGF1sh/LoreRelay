@@ -163,11 +163,15 @@ html[data-lr-shell="wide"] #header-secondary > summary {
 }
 
 html[data-lr-shell="wide"] #header-secondary {
-  display: contents;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 html[data-lr-shell="wide"] #header-secondary-body {
-  display: contents;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 html[data-lr-shell="wide"] #locale-wrap {

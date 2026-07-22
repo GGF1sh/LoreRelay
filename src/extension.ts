@@ -25,6 +25,7 @@ import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrar
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
 import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, runCombatLab, swapCombatLabSides } from './combatLabCore';
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
+import { CombatCommandPlaytestSession, advanceCombatCommandPlaytest, combatCommandPlaytestSnapshot, createCombatCommandPlaytest, issueCombatCommand } from './combatCommandPlaytestCore';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
@@ -280,6 +281,7 @@ let extensionInstallationPath = '';
 let combatLabDocument: CombatLabDocument | undefined;
 let combatLabPlayback: CombatLabPlayback | undefined;
 let combatLabRecentRuns: CombatLabRun[] = [];
+let combatCommandPlaytestSession: CombatCommandPlaytestSession | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -1883,7 +1885,16 @@ function combatLabCatalog() {
     ensureCombatWorkshopFixture();
     return { abilities: [...combatWorkshopBuiltins, ...currentCombatWorkshopLibrary().abilities], statuses: combatWorkshopStatuses };
 }
-function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); }
+function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); sendCombatCommandPlaytest(); }
+/**
+ * Drop the host playtest session and tell the webview to reset its UI/timer.
+ * Used when the Combat Lab document changes (apply/clone/import) so a running
+ * Step/Run timer cannot keep advancing a battle built from the previous scenario.
+ */
+function clearCombatCommandPlaytestSession(): void {
+    combatCommandPlaytestSession = undefined;
+    panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: null });
+}
 function selectedCombatLabScenario(value: unknown) { const document = currentCombatLabDocument(); const id = typeof value === 'string' ? value : document.selectedScenarioId; return document.scenarios.find(scenario => scenario.id === id); }
 function handleRunCombatLab(scenarioId: unknown, swap = false): void {
     const scenario = selectedCombatLabScenario(scenarioId); if (!scenario) { vscode.window.showWarningMessage('Combat Lab: select a scenario first.'); return; }
@@ -1893,16 +1904,79 @@ function handleRunCombatLab(scenarioId: unknown, swap = false): void {
 function handleCompareCombatLabRuns(): void { if (combatLabRecentRuns.length < 2) { vscode.window.showWarningMessage('Combat Lab: run two scenarios to compare them.'); return; } panel?.webview.postMessage({ type: 'combatLabComparison', comparison: compareCombatLabRuns(combatLabRecentRuns[0], combatLabRecentRuns[1]) }); }
 function handleApplyCombatLabScenario(json: unknown): void {
     if (typeof json !== 'string') return;
-    try { const scenario = JSON.parse(json); if (!isValidScenario(scenario)) throw new Error('INVALID_COMBAT_LAB_SCENARIO'); const document = currentCombatLabDocument(); combatLabDocument = { ...document, scenarios: [...document.scenarios.filter(item => item.id !== scenario.id), scenario], selectedScenarioId: scenario.id }; sendCombatLab(); }
+    try {
+        const scenario = JSON.parse(json);
+        if (!isValidScenario(scenario)) throw new Error('INVALID_COMBAT_LAB_SCENARIO');
+        const document = currentCombatLabDocument();
+        combatLabDocument = { ...document, scenarios: [...document.scenarios.filter(item => item.id !== scenario.id), scenario], selectedScenarioId: scenario.id };
+        clearCombatCommandPlaytestSession();
+        sendCombatLab();
+    }
     catch (error) { vscode.window.showErrorMessage(`Combat Lab: ${error instanceof Error ? error.message : 'invalid scenario'}`); }
 }
-function handleCloneCombatLabScenario(scenarioId: unknown): void { const scenario = selectedCombatLabScenario(scenarioId); if (!scenario) return; const document = currentCombatLabDocument(); let n = 1; let id = `${scenario.id}_custom`; while (document.scenarios.some(item => item.id === id)) id = `${scenario.id}_custom_${n++}`; combatLabDocument = { ...document, scenarios: [...document.scenarios, { ...structuredClone(scenario), id, name: `${scenario.name} Copy` }], selectedScenarioId: id }; sendCombatLab(); }
+function handleCloneCombatLabScenario(scenarioId: unknown): void {
+    const scenario = selectedCombatLabScenario(scenarioId);
+    if (!scenario) return;
+    const document = currentCombatLabDocument();
+    let n = 1;
+    let id = `${scenario.id}_custom`;
+    while (document.scenarios.some(item => item.id === id)) id = `${scenario.id}_custom_${n++}`;
+    combatLabDocument = { ...document, scenarios: [...document.scenarios, { ...structuredClone(scenario), id, name: `${scenario.name} Copy` }], selectedScenarioId: id };
+    clearCombatCommandPlaytestSession();
+    sendCombatLab();
+}
 function handleSaveCombatLab(): void { const workspace = getWorkspacePath(); if (!workspace) { vscode.window.showWarningMessage('Combat Lab: open a workspace before saving.'); return; } try { writeCombatLabDocument(workspace, currentCombatLabDocument()); vscode.window.setStatusBarMessage('Combat Lab settings saved.', 3000); } catch (error) { vscode.window.showErrorMessage(`Combat Lab: ${error instanceof Error ? error.message : 'save failed'}`); } }
 function handleExportCombatLab(): void { const json = exportCombatLabDocument(currentCombatLabDocument()); void vscode.env.clipboard.writeText(json); panel?.webview.postMessage({ type: 'combatLabExport', json }); }
-async function handleImportCombatLab(): Promise<void> { const imported = importCombatLabDocument(await vscode.env.clipboard.readText(), currentCombatLabDocument()); if (imported.error) { vscode.window.showErrorMessage(`Combat Lab import: ${imported.error}`); return; } combatLabDocument = imported.document; sendCombatLab(); }
+async function handleImportCombatLab(): Promise<void> {
+    const imported = importCombatLabDocument(await vscode.env.clipboard.readText(), currentCombatLabDocument());
+    if (imported.error) { vscode.window.showErrorMessage(`Combat Lab import: ${imported.error}`); return; }
+    combatLabDocument = imported.document;
+    clearCombatCommandPlaytestSession();
+    sendCombatLab();
+}
 function handleAdvanceCombatLabPlayback(ticks: unknown): void { if (!combatLabPlayback) return; const count = typeof ticks === 'number' ? ticks : Number(ticks); combatLabPlayback = { ...combatLabPlayback, cursor: Math.min(combatLabPlayback.run.timeline.length, combatLabPlayback.cursor + Math.max(0, Math.trunc(count)) * combatLabPlayback.speed), paused: false }; sendCombatLab(); }
 function handlePauseCombatLabPlayback(): void { if (combatLabPlayback) { combatLabPlayback = { ...combatLabPlayback, paused: !combatLabPlayback.paused }; sendCombatLab(); } }
 function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback) return; const value = Number(speed); if (value === 1 || value === 2 || value === 4) { combatLabPlayback = { ...combatLabPlayback, speed: value }; sendCombatLab(); } }
+function sendCombatCommandPlaytest(): void {
+    if (combatCommandPlaytestSession) panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: combatCommandPlaytestSnapshot(combatCommandPlaytestSession) });
+}
+function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string, startId?: string): void {
+    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId, startId });
+}
+function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown): void {
+    const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;
+    const targetStartId = typeof startId === 'string' && startId.trim().length > 0 && startId.length <= 128 ? startId.trim() : undefined;
+    if (!targetStartId) {
+        sendCombatCommandPlaytestError('INVALID_START_ID', 'startId must be a non-empty string <= 128 chars', 'start', targetScenarioId, targetStartId);
+        return;
+    }
+    // Always drop the previous host session first on a valid restart request.
+    // The webview clears its playtest UI synchronously on restart, but its Step
+    // control can still post stepCombatCommandPlaytest; if scenario lookup or
+    // battle-spec construction then fails (e.g. duplicate unit IDs) we must not
+    // leave the old scenario advanceable.
+    combatCommandPlaytestSession = undefined;
+    const scenario = selectedCombatLabScenario(scenarioId);
+    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId, targetStartId); return; }
+    const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode, targetStartId);
+    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail, 'start', targetScenarioId, targetStartId); return; }
+    combatCommandPlaytestSession = created.value;
+    sendCombatCommandPlaytest();
+}
+function handleIssueCombatCommand(raw: unknown): void {
+    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED', undefined, 'issue'); return; }
+    const issued = issueCombatCommand(combatCommandPlaytestSession, raw);
+    if (!issued.ok) { sendCombatCommandPlaytestError(issued.error, issued.detail, 'issue'); return; }
+    combatCommandPlaytestSession = issued.value;
+    sendCombatCommandPlaytest();
+}
+function handleStepCombatCommandPlaytest(ticks: unknown): void {
+    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED', undefined, 'step'); return; }
+    const stepped = advanceCombatCommandPlaytest(combatCommandPlaytestSession, ticks);
+    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail, 'step'); return; }
+    combatCommandPlaytestSession = stepped.value;
+    sendCombatCommandPlaytest();
+}
 
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
@@ -2084,6 +2158,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleAdvanceCombatLabPlayback,
         handlePauseCombatLabPlayback,
         handleSetCombatLabSpeed,
+        handleStartCombatCommandPlaytest,
+        handleIssueCombatCommand,
+        handleStepCombatCommandPlaytest,
         handleBranchTimeline,
         sendGitTimelineStatus,
         sendChronicle,

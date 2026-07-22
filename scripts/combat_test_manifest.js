@@ -52,6 +52,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         files: ['combatRtsReplayHashDeterminismV1.test.js'],
     },
     {
+        id: 'combat:command-playtest',
+        description: 'Combat Lab RTS command UI translation, untrusted-message validation, and real stepCombat state updates',
+        files: ['combatCommandPlaytestCore.test.js', 'combatCommandWebviewAdapter.test.js'],
+    },
+    {
         id: 'combat:mechanics-resolver',
         description: 'Mechanics resolver: damage, statuses, heal block, regen, correctness',
         files: [

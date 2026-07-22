@@ -199,18 +199,10 @@ export class CombatCommandPlaytestHost {
         this.carryMs = 0;
         this.lastPulseAtMs = undefined;
 
-        if (hadPriorSession) {
-            // Peers must drop old activeStartId before the replacement snapshot.
-            this.broadcastState(null, { sessionEvent: 'replaced' });
-        }
-
         const created = createCombatCommandPlaytest(scenario, catalog, mode, startId);
         if (!created.ok) {
-            // Retire residual display when there was no prior session to replace.
-            // When hadPriorSession, the replaced-null already cleared peers.
-            if (!hadPriorSession) {
-                this.broadcastState(null);
-            }
+            // Retire the old session for all subscribers; include replaced if retiring a prior session.
+            this.broadcastState(null, hadPriorSession ? { sessionEvent: 'replaced' } : undefined);
             return created;
         }
         this.session = created.value;
@@ -220,6 +212,7 @@ export class CombatCommandPlaytestHost {
             this.ensureScheduler();
         }
         const snapshot = this.requireSnapshot();
+        this.broadcastState(null, { sessionEvent: 'replaced' });
         this.broadcastState(snapshot);
         return { ok: true, value: snapshot };
     }

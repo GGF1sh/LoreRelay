@@ -200,4 +200,18 @@ describe('Combat Lab command playtest adapter', () => {
             detail: 'DUPLICATE_COMBAT_LAB_UNIT_ID',
         });
     });
+
+    test('invalid startId parameter returns INVALID_START_ID error', () => {
+        const scenario = initialCombatLabScenarios()[0];
+        assert.deepEqual(createCombatCommandPlaytest(scenario, catalog, 'command', ''), {
+            ok: false,
+            error: 'INVALID_START_ID',
+            detail: 'startId must be a non-empty string <= 128 chars',
+        });
+        assert.deepEqual(createCombatCommandPlaytest(scenario, catalog, 'command', 'a'.repeat(129)), {
+            ok: false,
+            error: 'INVALID_START_ID',
+            detail: 'startId must be a non-empty string <= 128 chars',
+        });
+    });
 });

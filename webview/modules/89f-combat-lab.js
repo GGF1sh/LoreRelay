@@ -1,9 +1,27 @@
 // Combat Lab is an opt-in, workspace-local simulator. The host owns all
 // validation and execution; this module owns only transient UI interaction state.
+function createWebviewStartNamespace() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return 'ns_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+function nextCombatPlaytestStartId(state) {
+  if (!state.instanceId) state.instanceId = createWebviewStartNamespace();
+  state.startEpoch = (state.startEpoch || 0) + 1;
+  return `${state.instanceId}:${state.startEpoch}`;
+}
+
 window.LR_combatLab = window.LR_combatLab || {
   document: { scenarios: [] }, selected: '', result: null, compare: null,
   playtest: null, playtestMode: 'command', selection: [], pendingOrder: null,
   running: false, timer: null, error: '', pendingStart: false, pendingStartId: null, activeStartId: null, startEpoch: 0,
+  instanceId: createWebviewStartNamespace(),
   eligibleForHostRestore: true,
 };
 
@@ -44,7 +62,7 @@ function selectCombatLabScenarioForPlaytest(state, scenarioId) {
   const restart = Boolean(state.playtest || state.pendingStart); state.selected = scenarioId;
   resetCombatCommandPlaytestUi(state);
   if (restart) {
-    state.startEpoch = (state.startEpoch || 0) + 1; const startId = 'start_' + state.startEpoch;
+    const startId = nextCombatPlaytestStartId(state);
     state.pendingStart = true; state.pendingStartId = startId;
     return { type: 'startCombatCommandPlaytest', scenarioId, mode: state.playtestMode, startId };
   }
@@ -99,7 +117,7 @@ function bindCombatCommandPlaytest(root) {
     state.eligibleForHostRestore = false;
     const scenarioId = state.selected; const mode = state.playtestMode;
     resetCombatCommandPlaytestUi(state);
-    state.startEpoch = (state.startEpoch || 0) + 1; const startId = 'start_' + state.startEpoch;
+    const startId = nextCombatPlaytestStartId(state);
     state.pendingStart = true; state.pendingStartId = startId; renderCombatLab();
     vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode, startId });
   };
@@ -107,7 +125,7 @@ function bindCombatCommandPlaytest(root) {
     state.eligibleForHostRestore = false;
     if (!state.playtest) {
       state.running = true;
-      state.startEpoch = (state.startEpoch || 0) + 1; const startId = 'start_' + state.startEpoch;
+      const startId = nextCombatPlaytestStartId(state);
       state.pendingStart = true; state.pendingStartId = startId;
       vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode, startId });
       return;
@@ -214,10 +232,10 @@ window.addEventListener('message', event => {
     }
     if (state.pendingStart) {
       if (m.state.scenarioId !== state.selected) return;
-      if (state.pendingStartId && m.state.startId && m.state.startId !== state.pendingStartId) return;
+      if (!m.state.startId || m.state.startId !== state.pendingStartId) return;
       state.pendingStart = false;
       state.pendingStartId = null;
-      state.activeStartId = m.state.startId || null;
+      state.activeStartId = m.state.startId;
       state.eligibleForHostRestore = false;
     } else if (state.eligibleForHostRestore) {
       state.eligibleForHostRestore = false;
@@ -229,7 +247,7 @@ window.addEventListener('message', event => {
     if (m.state.scenarioId && m.state.scenarioId !== state.selected) {
       return;
     }
-    if (state.activeStartId && m.state.startId && m.state.startId !== state.activeStartId) {
+    if (state.activeStartId && m.state.startId !== state.activeStartId) {
       return;
     }
     state.playtest = m.state; state.error = '';
@@ -240,7 +258,7 @@ window.addEventListener('message', event => {
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {
-      if (m.startId && state.pendingStartId && m.startId !== state.pendingStartId) {
+      if (!state.pendingStart || !m.startId || !state.pendingStartId || m.startId !== state.pendingStartId) {
         return;
       }
       if (m.scenarioId && m.scenarioId !== state.selected) {

@@ -119,6 +119,7 @@ describe('Combat Lab command pointer translation', () => {
             playtest: { scenarioId: 'old' },
             playtestMode: 'command',
         };
+        state.instanceId = 'ns_test';
         const restartMessage = selectScenario(state, 'new');
         assert.deepEqual(clearedTimers, [17]);
         assert.deepEqual(JSON.parse(JSON.stringify(state)), {
@@ -128,9 +129,10 @@ describe('Combat Lab command pointer translation', () => {
             pendingOrder: null,
             error: '',
             pendingStart: true,
-            pendingStartId: 'start_1',
+            pendingStartId: 'ns_test:1',
             activeStartId: null,
             startEpoch: 1,
+            instanceId: 'ns_test',
             playtest: null,
             playtestMode: 'command',
             selected: 'new',
@@ -140,7 +142,7 @@ describe('Combat Lab command pointer translation', () => {
             type: 'startCombatCommandPlaytest',
             scenarioId: 'new',
             mode: 'command',
-            startId: 'start_1',
+            startId: 'ns_test:1',
         });
 
         const restartState: Record<string, unknown> = {
@@ -198,6 +200,7 @@ describe('Combat Lab command pointer translation', () => {
 
     test('scenario change during pending start request re-issues start and ignores stale host response', () => {
         const live = loadWebviewHelpers();
+        live.state.instanceId = 'ns_test';
         live.state.selected = 'scenarioA';
         live.state.playtest = null;
         live.state.pendingStart = true;
@@ -207,37 +210,39 @@ describe('Combat Lab command pointer translation', () => {
             type: 'startCombatCommandPlaytest',
             scenarioId: 'scenarioB',
             mode: 'command',
-            startId: 'start_1',
+            startId: 'ns_test:1',
         });
         assert.equal(live.state.pendingStart, true);
         assert.equal(live.state.selected, 'scenarioB');
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'start_0' },
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'ns_test:0' },
         });
         assert.equal(live.state.playtest, null);
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioB', tick: 0, units: [], startId: 'start_1' },
+            state: { scenarioId: 'scenarioB', tick: 0, units: [], startId: 'ns_test:1' },
         });
-        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 0, units: [], startId: 'start_1' });
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 0, units: [], startId: 'ns_test:1' });
         assert.equal(live.state.pendingStart, false);
     });
 
-    test('failed initial Run clears pendingStart and running', () => {
+    test('failed initial Run clears pendingStart and running when startId matches', () => {
         const live = loadWebviewHelpers();
         live.state.selected = 'scenarioA';
         live.state.playtest = null;
         live.state.running = true;
         live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns_test:1';
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestError',
             error: 'INVALID_COMBAT_LAB_SCENARIO',
             operation: 'start',
             scenarioId: 'scenarioA',
+            startId: 'ns_test:1',
         });
 
         assert.equal(live.state.pendingStart, false);
@@ -252,12 +257,14 @@ describe('Combat Lab command pointer translation', () => {
         live.state.playtest = null;
         live.state.running = false;
         live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns_test:1';
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestError',
             error: 'INVALID_COMBAT_LAB_SCENARIO',
             operation: 'start',
             scenarioId: 'scenarioA',
+            startId: 'ns_test:1',
         });
 
         assert.equal(live.state.pendingStart, false);
@@ -268,18 +275,21 @@ describe('Combat Lab command pointer translation', () => {
 
     test('stale start error for the old scenario is ignored', () => {
         const live = loadWebviewHelpers();
+        live.state.instanceId = 'ns_test';
         live.state.selected = 'scenarioA';
         live.state.pendingStart = true;
 
         live.selectScenario(live.state, 'scenarioB');
         assert.equal(live.state.selected, 'scenarioB');
         assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.pendingStartId, 'ns_test:1');
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestError',
             error: 'INVALID_COMBAT_LAB_SCENARIO',
             operation: 'start',
             scenarioId: 'scenarioA',
+            startId: 'ns_test:0',
         });
 
         assert.equal(live.state.selected, 'scenarioB');
@@ -309,14 +319,15 @@ describe('Combat Lab command pointer translation', () => {
         const live = loadWebviewHelpers();
         live.state.selected = 'scenarioA';
         live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns_test:1';
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioA', tick: 0, units: [] },
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'ns_test:1' },
         });
 
         assert.equal(live.state.pendingStart, false);
-        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [] });
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'ns_test:1' });
     });
 
     test('re-opened webview restores scenario selection from host active playtest state and consumes eligibility', () => {
@@ -328,11 +339,12 @@ describe('Combat Lab command pointer translation', () => {
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioB', tick: 12, units: [] },
+            state: { scenarioId: 'scenarioB', tick: 12, units: [], startId: 'old-ns:5' },
         });
 
         assert.equal(live.state.selected, 'scenarioB', 'selected scenario should restore to host session scenarioId');
-        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 12, units: [] });
+        assert.equal(live.state.activeStartId, 'old-ns:5', 'activeStartId should restore from host snapshot');
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 12, units: [], startId: 'old-ns:5' });
         assert.equal(live.state.eligibleForHostRestore, false, 'eligibility is consumed by a successful restore');
     });
 
@@ -361,7 +373,7 @@ describe('Combat Lab command pointer translation', () => {
 
         const elements: Record<string, { onclick?: () => void; onchange?: (e: unknown) => void }> = {};
         live.bind({ querySelector(sel: string) { if (!elements[sel]) elements[sel] = {}; return elements[sel]; }, querySelectorAll() { return []; } });
-        
+
         elements['[data-lab="playtest-start"]'].onclick?.();
         assert.equal(live.state.eligibleForHostRestore, false, 'user action clears eligibility');
         assert.equal(live.state.pendingStart, true);
@@ -410,40 +422,79 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.playtest, null, 'mismatched snapshot is ignored');
     });
 
-    test('same-scenario pre-request host snapshot is rejected while pendingStart is active for a new startId request', () => {
+    test('new webview request uses collision-resistant startId namespace, rejecting snapshot from old webview namespace', () => {
         const live = loadWebviewHelpers();
+        live.state.instanceId = 'namespace-new';
         live.state.selected = 'scenarioA';
         live.state.eligibleForHostRestore = true;
 
         const elements: Record<string, { onclick?: () => void; onchange?: (e: unknown) => void }> = {};
         live.bind({ querySelector(sel: string) { if (!elements[sel]) elements[sel] = {}; return elements[sel]; }, querySelectorAll() { return []; } });
 
-        // User clicks Run on scenarioA (no active playtest), creating pendingStart with startId 'start_1'
         elements['[data-lab="playtest-run"]'].onclick?.();
-        assert.equal(live.state.running, true);
+        assert.equal(live.state.pendingStartId, 'namespace-new:1');
+
+        // Old host session snapshot from previous panel namespace-old:1 arrives
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 50, outcome: 'Victory', units: [], startId: 'namespace-old:1' },
+        });
+
         assert.equal(live.state.pendingStart, true);
-        assert.equal(live.state.pendingStartId, 'start_1');
+        assert.equal(live.state.playtest, null);
 
-        // An old snapshot for scenarioA (from prior host session or initial request, e.g. outcome: 'Victory', startId: 'start_0' or missing) arrives
+        // Matching snapshot for namespace-new:1 arrives
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioA', tick: 50, outcome: 'Victory', units: [], startId: 'start_0' },
+            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'namespace-new:1' },
         });
 
-        // The pre-request snapshot must be rejected: pendingStart remains true, running remains true, playtest remains null
-        assert.equal(live.state.pendingStart, true, 'pendingStart should remain true after pre-request snapshot');
-        assert.equal(live.state.running, true, 'running should stay true when pre-request snapshot is ignored');
-        assert.equal(live.state.playtest, null, 'old playtest snapshot must not be stored');
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.activeStartId, 'namespace-new:1');
+        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'namespace-new:1' });
+    });
 
-        // Now the matching snapshot for start_1 arrives from the host
+    test('pending start request rejects a snapshot with missing startId', () => {
+        const live = loadWebviewHelpers();
+        live.state.instanceId = 'ns1';
+        live.state.selected = 'scenarioA';
+        live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns1:1';
+
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
-            state: { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'start_1' },
+            state: { scenarioId: 'scenarioA', tick: 10, units: [] }, // missing startId
         });
 
-        // Matching snapshot is accepted
-        assert.equal(live.state.pendingStart, false, 'pendingStart should clear on matching snapshot');
-        assert.equal(live.state.running, true, 'running should remain true for the new session');
-        assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [], startId: 'start_1' });
+        assert.equal(live.state.pendingStart, true);
+        assert.equal(live.state.playtest, null);
+    });
+
+    test('active session rejects later missing or mismatched startId snapshot', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'ns1:1';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 5, units: [], startId: 'ns1:1' };
+
+        // Missing startId snapshot rejected
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 10, units: [] },
+        });
+        assert.equal((live.state.playtest as Record<string, unknown>).tick, 5);
+
+        // Mismatched startId snapshot rejected
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 10, units: [], startId: 'ns2:1' },
+        });
+        assert.equal((live.state.playtest as Record<string, unknown>).tick, 5);
+
+        // Matching startId snapshot accepted
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioA', tick: 10, units: [], startId: 'ns1:1' },
+        });
+        assert.equal((live.state.playtest as Record<string, unknown>).tick, 10);
     });
 });

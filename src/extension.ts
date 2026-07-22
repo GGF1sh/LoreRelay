@@ -1950,7 +1950,11 @@ function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, st
     // (e.g. duplicate unit IDs) we must not leave the old scenario advanceable.
     combatCommandPlaytestSession = undefined;
     const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;
-    const targetStartId = typeof startId === 'string' ? startId : undefined;
+    const targetStartId = typeof startId === 'string' && startId.trim().length > 0 && startId.length <= 128 ? startId.trim() : undefined;
+    if (!targetStartId) {
+        sendCombatCommandPlaytestError('INVALID_START_ID', 'startId must be a non-empty string <= 128 chars', 'start', targetScenarioId, targetStartId);
+        return;
+    }
     const scenario = selectedCombatLabScenario(scenarioId);
     if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId, targetStartId); return; }
     const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode, targetStartId);

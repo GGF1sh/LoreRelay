@@ -140,6 +140,9 @@ export function createCombatCommandPlaytest(
     requestedMode: unknown = 'command',
     startId?: string,
 ): CombatCommandPlaytestResult<CombatCommandPlaytestSession> {
+    if (startId !== undefined && (typeof startId !== 'string' || startId.trim().length === 0 || startId.length > 128)) {
+        return { ok: false, error: 'INVALID_START_ID', detail: 'startId must be a non-empty string <= 128 chars' };
+    }
     const mode: CombatCommandPlaytestMode = requestedMode === undefined || requestedMode === 'command'
         ? 'command'
         : requestedMode === 'spectator'

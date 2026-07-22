@@ -1728,4 +1728,85 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.renderCount, rendersAfterAdopt, 'later same-session snapshots stay incremental');
         assert.equal((live.state.playtest as { tick?: number }).tick, 2);
     });
+
+    test('C: Production Webview adoption after clear', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.activeStartId = 'old-start-1';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 10, units: [], startId: 'old-start-1' };
+
+        // 1. Process bare document-clear null
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null });
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.activeStartId, null);
+        assert.equal((live.state as unknown as { pendingPeerAdopt?: boolean }).pendingPeerAdopt, false, 'pendingPeerAdopt remains false on bare clear');
+
+        // 2. Process Host new replaced-null
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        assert.equal((live.state as unknown as { pendingPeerAdopt?: boolean }).pendingPeerAdopt, true, 'pendingPeerAdopt becomes true on replaced-null');
+
+        // 3. Process following snapshot
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioB',
+                mode: 'spectator',
+                tick: 0,
+                running: true,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'new-after-clear',
+            },
+        });
+
+        // 4. Verify peer adopts scenarioId, activeStartId, mode, running state
+        assert.equal(live.state.selected, 'scenarioB');
+        assert.equal(live.state.activeStartId, 'new-after-clear');
+        assert.equal(live.state.playtestMode, 'spectator');
+        assert.equal(live.state.running, true);
+        assert.equal((live.state.playtest as { scenarioId?: string } | null)?.scenarioId, 'scenarioB');
+
+        // 5. Verify Pause posts exactly one message with new startId
+        const elements: Record<string, { onclick?: () => void }> = {};
+        live.bind({ querySelector(sel: string) { if (!elements[sel]) elements[sel] = {}; return elements[sel]; }, querySelectorAll() { return []; } });
+        const postedBefore = live.posted.length;
+        elements['[data-lab="playtest-run"]']?.onclick?.();
+
+        const pausePosts = live.posted.slice(postedBefore).filter(
+            message => typeof message === 'object'
+                && message !== null
+                && (message as { type?: string }).type === 'setCombatCommandPlaytestRunning',
+        ) as Array<{ type: string; running: boolean; startId: string }>;
+        assert.equal(pausePosts.length, 1);
+        assert.equal(pausePosts[0].running, false);
+        assert.equal(pausePosts[0].startId, 'new-after-clear');
+    });
+
+    test('D: Webview adoption after initial failed start', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+
+        // 1. Initial failed start sends bare null
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null });
+        assert.equal(live.state.playtest, null);
+        assert.equal((live.state as unknown as { pendingPeerAdopt?: boolean }).pendingPeerAdopt, false);
+
+        // 2. Later successful start sends replaced-null then snapshot
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null, sessionEvent: 'replaced' });
+        assert.equal((live.state as unknown as { pendingPeerAdopt?: boolean }).pendingPeerAdopt, true);
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioA',
+                mode: 'command',
+                tick: 0,
+                running: false,
+                units: [{ id: 'ally_1', team: 0, dead: false }],
+                startId: 'first-valid-start',
+            },
+        });
+
+        assert.equal(live.state.activeStartId, 'first-valid-start');
+        assert.ok(live.state.playtest);
+    });
 });

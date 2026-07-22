@@ -233,18 +233,87 @@ describe('CombatCommandPlaytestHost session, scheduler, and subscribers', () => 
         host.dispose();
     });
 
-    test('document clear uses bare null without sessionEvent replaced', () => {
-        const host = new CombatCommandPlaytestHost({ clock: fakeClock() });
-        const messages: unknown[] = [];
-        host.subscribe('a', message => messages.push(message));
-        host.start(scenarioAtRate(30), catalog, 'command', 's1');
+    test('A: first successful start with no prior session emits replaced-null before snapshot once', () => {
+        const clock = fakeClock();
+        const host = new CombatCommandPlaytestHost({ clock });
+        const peerMsgs: unknown[] = [];
+        host.subscribe('peer', msg => peerMsgs.push(msg));
+
+        const started = host.start(scenarioAtRate(30), catalog, 'command', 'first_start', { autoRun: true });
+        assert.equal(started.ok, true);
+
+        // Sequence must be: exactly 1) replaced-null then 2) authoritative snapshot
+        assert.equal(peerMsgs.length, 2);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        const snapshot = peerMsgs[1] as { type: string; state: { startId: string } };
+        assert.equal(snapshot.type, 'combatCommandPlaytestState');
+        assert.equal(snapshot.state.startId, 'first_start');
+        host.dispose();
+    });
+
+    test('B: clear emits bare null without sessionEvent, then subsequent start emits replaced-null and snapshot', () => {
+        const clock = fakeClock();
+        const host = new CombatCommandPlaytestHost({ clock });
+        const peerMsgs: unknown[] = [];
+        host.subscribe('peer', msg => peerMsgs.push(msg));
+
+        host.start(scenarioAtRate(30), catalog, 'command', 'session_1');
+        peerMsgs.length = 0;
+
+        // Clear must emit bare state:null without sessionEvent
         host.clear();
-        const last = messages[messages.length - 1] as { type: string; state: null; sessionEvent?: string };
-        assert.deepEqual(
-            { type: last.type, state: last.state },
-            { type: 'combatCommandPlaytestState', state: null },
-        );
-        assert.equal(last.sessionEvent, undefined, 'clear must not prime peer adoption');
+        assert.equal(peerMsgs.length, 1);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+        });
+        assert.equal((peerMsgs[0] as { sessionEvent?: string }).sessionEvent, undefined);
+
+        peerMsgs.length = 0;
+        // Subsequent start after clear
+        const next = host.start(scenarioAtRate(30), catalog, 'command', 'session_2');
+        assert.equal(next.ok, true);
+        assert.equal(peerMsgs.length, 2);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        assert.equal(((peerMsgs[1] as { state: { startId: string } }).state).startId, 'session_2');
+        host.dispose();
+    });
+
+    test('D: initial failed start emits bare null, and subsequent start emits replaced-null then snapshot', () => {
+        const clock = fakeClock();
+        const host = new CombatCommandPlaytestHost({ clock });
+        const peerMsgs: unknown[] = [];
+        host.subscribe('peer', msg => peerMsgs.push(msg));
+
+        const bad = scenarioAtRate(30);
+        (bad.allies[0] as { position: unknown }).position = {};
+        const failed = host.start(bad, catalog, 'command', 'fail_1');
+        assert.equal(failed.ok, false);
+        assert.equal(peerMsgs.length, 1);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+        });
+        assert.equal((peerMsgs[0] as { sessionEvent?: string }).sessionEvent, undefined);
+
+        peerMsgs.length = 0;
+        const valid = host.start(scenarioAtRate(30), catalog, 'command', 'valid_1');
+        assert.equal(valid.ok, true);
+        assert.equal(peerMsgs.length, 2);
+        assert.deepEqual(peerMsgs[0], {
+            type: 'combatCommandPlaytestState',
+            state: null,
+            sessionEvent: 'replaced',
+        });
+        assert.equal(((peerMsgs[1] as { state: { startId: string } }).state).startId, 'valid_1');
         host.dispose();
     });
 

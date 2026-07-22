@@ -220,6 +220,9 @@ export class CombatCommandPlaytestHost {
             this.ensureScheduler();
         }
         const snapshot = this.requireSnapshot();
+        if (!hadPriorSession) {
+            this.broadcastState(null, { sessionEvent: 'replaced' });
+        }
         this.broadcastState(snapshot);
         return { ok: true, value: snapshot };
     }

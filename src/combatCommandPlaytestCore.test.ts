@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { initialCombatLabScenarios } from './combatLabCore';
+import { importCombatLabDocument, initialCombatLabScenarios, isValidScenario, normalizeCombatLabDocument } from './combatLabCore';
 import { createCombatStepContext } from './gambitCombatCore';
 import {
     CombatCommandPlaytestSession,
@@ -213,5 +213,70 @@ describe('Combat Lab command playtest adapter', () => {
             error: 'INVALID_START_ID',
             detail: 'startId must be a non-empty string <= 128 chars',
         });
+    });
+
+    test('rejects invalid starting coordinates without throwing', () => {
+        const base = structuredClone(initialCombatLabScenarios()[0]);
+        const cases: Array<{ label: string; position: unknown }> = [
+            { label: 'empty object', position: {} },
+            { label: 'string x', position: { x: '1', y: 0 } },
+            { label: 'string y', position: { x: 0, y: '1' } },
+            { label: 'NaN', position: { x: Number.NaN, y: 0 } },
+            { label: '+Infinity', position: { x: Number.POSITIVE_INFINITY, y: 0 } },
+            { label: '-Infinity', position: { x: 0, y: Number.NEGATIVE_INFINITY } },
+        ];
+        for (const entry of cases) {
+            const scenario = structuredClone(base);
+            (scenario.allies[0] as { position: unknown }).position = entry.position;
+            // Direct playtest creation must fail structured, not throw.
+            const result = createCombatCommandPlaytest(scenario, catalog);
+            assert.equal(result.ok, false, entry.label);
+            if (!result.ok) {
+                assert.equal(result.error, 'INVALID_COMBAT_LAB_SCENARIO', entry.label);
+            }
+        }
+    });
+
+    test('accepts valid zero coordinates', () => {
+        const scenario = structuredClone(initialCombatLabScenarios()[0]);
+        scenario.allies[0].position = { x: 0, y: 0 };
+        scenario.enemies[0].position = { x: 0, y: 0 };
+        assert.equal(isValidScenario(scenario), true);
+        const result = createCombatCommandPlaytest(scenario, catalog);
+        assert.equal(result.ok, true);
+        if (result.ok) {
+            const ally = combatCommandPlaytestSnapshot(result.value).units.find(unit => unit.id === scenario.allies[0].id);
+            assert.ok(ally);
+            assert.equal(Number.isFinite(ally!.x), true);
+            assert.equal(Number.isFinite(ally!.y), true);
+        }
+    });
+
+    test('normalization and import reject non-finite unit coordinates', () => {
+        const scenario = structuredClone(initialCombatLabScenarios()[0]);
+        (scenario.allies[0] as { position: unknown }).position = {};
+        const document = {
+            schemaVersion: 'combat-lab-v1' as const,
+            scenarios: [scenario],
+        };
+        const normalized = normalizeCombatLabDocument(document);
+        assert.equal(normalized.error, 'INVALID_COMBAT_LAB_DOCUMENT');
+        assert.equal(normalized.document.scenarios.length, 0);
+        assert.equal(isValidScenario(scenario), false);
+
+        const imported = importCombatLabDocument(JSON.stringify(document), {
+            schemaVersion: 'combat-lab-v1',
+            scenarios: [initialCombatLabScenarios()[0]],
+        });
+        assert.equal(imported.error, 'INVALID_COMBAT_LAB_DOCUMENT');
+        assert.equal(imported.document.scenarios.length, 1);
+        assert.equal(imported.document.scenarios[0].id, initialCombatLabScenarios()[0].id);
+    });
+
+    test('snapshot exposes tickRate for host-owned playback', () => {
+        const session = start();
+        const snapshot = combatCommandPlaytestSnapshot(session, { running: true });
+        assert.equal(snapshot.tickRate, 30);
+        assert.equal(snapshot.running, true);
     });
 });

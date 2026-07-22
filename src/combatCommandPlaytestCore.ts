@@ -1,4 +1,4 @@
-import { CombatLabCatalog, CombatLabScenario, battleSpecForCombatLab } from './combatLabCore';
+import { CombatLabCatalog, CombatLabScenario, battleSpecForCombatLab, isValidScenario } from './combatLabCore';
 import { CombatSelectableMode } from './combatModeContract';
 import {
     BattleSpec,
@@ -43,6 +43,10 @@ export interface CombatCommandPlaytestSnapshot {
     mode: CombatCommandPlaytestMode;
     startId?: string;
     tick: number;
+    /** Canonical positive-integer simulation rate (Hz) for the host-owned session. */
+    tickRate?: number;
+    /** Host-owned automatic playback state. Subscribers restore UI from this flag. */
+    running?: boolean;
     outcome: string;
     bounds: CombatCommandPlaytestBounds;
     units: Array<{
@@ -103,6 +107,15 @@ export function mapUnitsIntoPlaytestBounds(
     let maxY = -Infinity;
     for (const id of living) {
         const unit = state.units[id];
+        // Defensive guard for direct/malformed input that bypassed Combat Lab validation.
+        if (
+            typeof unit.pos_x !== 'number'
+            || !Number.isFinite(unit.pos_x)
+            || typeof unit.pos_y !== 'number'
+            || !Number.isFinite(unit.pos_y)
+        ) {
+            throw new Error(`Unit ${id} has invalid non-numeric starting position (${unit.pos_x}, ${unit.pos_y})`);
+        }
         minX = Math.min(minX, unit.pos_x);
         maxX = Math.max(maxX, unit.pos_x);
         minY = Math.min(minY, unit.pos_y);
@@ -151,6 +164,15 @@ export function createCombatCommandPlaytest(
     if (requestedMode !== undefined && requestedMode !== 'command' && requestedMode !== 'spectator') {
         return { ok: false, error: 'INVALID_PLAYTEST_MODE' };
     }
+    // Reject invalid coordinates / scenario shape with the Combat Lab contract before
+    // battle-spec construction. apply/import/normalize share isValidScenario.
+    if (!isValidScenario(scenario)) {
+        return {
+            ok: false,
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            detail: 'scenario failed Combat Lab validation (including unit position.x/position.y finite numbers)',
+        };
+    }
 
     let spec: BattleSpec;
     try {
@@ -170,7 +192,16 @@ export function createCombatCommandPlaytest(
     const commandLog = emptyCommandInputLog(tickRate);
     const state = createCombatState(spec);
     const bounds = playtestBounds(state, baseContext);
-    mapUnitsIntoPlaytestBounds(state, bounds, baseContext.participantOrder);
+    try {
+        mapUnitsIntoPlaytestBounds(state, bounds, baseContext.participantOrder);
+    } catch (error) {
+        // Structured failure: never throw into host message handlers, never seed NaN positions.
+        return {
+            ok: false,
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            detail: error instanceof Error ? error.message : String(error),
+        };
+    }
     return {
         ok: true,
         value: {
@@ -292,12 +323,17 @@ export function advanceCombatCommandPlaytest(
     return { ok: true, value: { ...session, spec, state, feedback: feedback.slice(-40) } };
 }
 
-export function combatCommandPlaytestSnapshot(session: CombatCommandPlaytestSession): CombatCommandPlaytestSnapshot {
+export function combatCommandPlaytestSnapshot(
+    session: CombatCommandPlaytestSession,
+    options?: { running?: boolean },
+): CombatCommandPlaytestSnapshot {
     return {
         scenarioId: session.scenarioId,
         mode: session.mode,
         startId: session.startId,
         tick: session.state.tick,
+        tickRate: session.commandLog.tickRate,
+        running: options?.running,
         outcome: session.state.outcome,
         bounds: { ...session.bounds },
         units: session.spec.participantOrder.map(id => {

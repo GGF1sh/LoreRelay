@@ -22,11 +22,15 @@ function loadWebviewHelpers(): {
     bind: BindHelper;
     renderPlaytest: (state: Record<string, unknown>) => string;
     clearedTimers: unknown[];
+    posted: unknown[];
+    intervalCreates: number;
     dispatchMessage: (data: unknown) => void;
     state: Record<string, unknown>;
 } {
     const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
     const clearedTimers: unknown[] = [];
+    const posted: unknown[] = [];
+    let intervalCreates = 0;
     const messageListeners: Array<(event: { data: unknown }) => void> = [];
     const context: Record<string, unknown> = {
         window: {
@@ -45,8 +49,15 @@ function loadWebviewHelpers(): {
             },
         },
         navigator: {},
-        vscode: { postMessage() { /* registration only */ } },
-        setInterval() { return 1; },
+        vscode: {
+            postMessage(message: unknown) {
+                posted.push(message);
+            },
+        },
+        setInterval() {
+            intervalCreates += 1;
+            return 1;
+        },
         clearInterval(value: unknown) { clearedTimers.push(value); },
     };
     vm.runInNewContext(
@@ -70,6 +81,8 @@ function loadWebviewHelpers(): {
         bind: hooks.bindCombatCommandPlaytest,
         renderPlaytest: hooks.renderCombatCommandPlaytest,
         clearedTimers,
+        posted,
+        get intervalCreates() { return intervalCreates; },
         dispatchMessage(data: unknown) {
             for (const listener of messageListeners) listener({ data });
         },
@@ -179,6 +192,63 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal((live.state.selection as string[]).length, 0);
         assert.equal(live.state.pendingOrder, null);
         assert.equal(live.state.error, '');
+    });
+
+    test('Run/Pause posts host-owned setCombatCommandPlaytestRunning and never schedules webview step timers', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = {
+            scenarioId: 'scenarioA',
+            mode: 'command',
+            tick: 3,
+            running: false,
+            units: [],
+            startId: 'ns_test:9',
+        };
+        live.state.activeStartId = 'ns_test:9';
+        live.state.running = false;
+        live.state.selection = [];
+        const elements: Record<string, { onclick?: () => void }> = {};
+        live.bind({
+            querySelector(sel: string) {
+                if (!elements[sel]) elements[sel] = {};
+                return elements[sel];
+            },
+            querySelectorAll() { return []; },
+        });
+        elements['[data-lab="playtest-run"]'].onclick?.();
+        assert.equal(live.state.running, true);
+        assert.deepEqual(
+            transportValue(live.posted[live.posted.length - 1] as Record<string, unknown>),
+            {
+                type: 'setCombatCommandPlaytestRunning',
+                running: true,
+                startId: 'ns_test:9',
+            },
+        );
+        assert.equal(live.state.timer, null);
+        assert.equal(live.intervalCreates, 0);
+        assert.ok(!live.posted.some(message =>
+            !!message && typeof message === 'object' && (message as { type?: string }).type === 'stepCombatCommandPlaytest'));
+    });
+
+    test('host snapshot running flag restores reopened subscriber UI state', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = null;
+        live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = true;
+        live.state.running = false;
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: {
+                scenarioId: 'scenarioB',
+                tick: 12,
+                running: true,
+                units: [],
+                startId: 'old-ns:5',
+            },
+        });
+        assert.equal(live.state.running, true);
+        assert.equal((live.state.playtest as { tick: number }).tick, 12);
     });
 
     test('first Run click sets running to true when no playtest exists', () => {

@@ -53,8 +53,12 @@ module.exports.COMBAT_TEST_GROUPS = [
     },
     {
         id: 'combat:command-playtest',
-        description: 'Combat Lab RTS command UI translation, untrusted-message validation, and real stepCombat state updates',
-        files: ['combatCommandPlaytestCore.test.js', 'combatCommandWebviewAdapter.test.js'],
+        description: 'Combat Lab RTS command UI translation, untrusted-message validation, host-owned playback/subscribers, and real stepCombat state updates',
+        files: [
+            'combatCommandPlaytestCore.test.js',
+            'combatCommandPlaytestHost.test.js',
+            'combatCommandWebviewAdapter.test.js',
+        ],
     },
     {
         id: 'combat:mechanics-resolver',

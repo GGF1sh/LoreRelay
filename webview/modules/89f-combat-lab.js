@@ -50,9 +50,12 @@ function combatUnitPercent(value, min, max) { return max === min ? 50 : labClamp
 function sendSelectedCombatCommand(command) {
   const state = window.LR_combatLab;
   if (!state.selection.length) { state.error = 'Select one or more allied units first.'; renderCombatLab(); return; }
-  vscode.postMessage({ type: 'issueCombatCommand', unitIds: [...state.selection], command });
+  const message = { type: 'issueCombatCommand', unitIds: [...state.selection], command };
+  if (state.activeStartId) message.startId = state.activeStartId;
+  vscode.postMessage(message);
 }
 function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
+  // Defensive: clear any legacy webview timer. Automatic playback is host-owned.
   if (state.timer) clearInterval(state.timer);
   state.timer = null; state.running = false; state.selection = []; state.pendingOrder = null; state.error = ''; state.pendingStart = false; state.pendingStartId = null;
   if (clearPlaytest) { state.playtest = null; state.activeStartId = null; }
@@ -69,13 +72,16 @@ function selectCombatLabScenarioForPlaytest(state, scenarioId) {
   }
   return null;
 }
+/**
+ * Automatic playback authority lives in the Extension Host.
+ * Webviews must not own setInterval/setTimeout that advances combat.
+ * This helper only clears legacy timers if any remain after older bundles.
+ */
 function syncCombatPlaytestTimer() {
   const state = window.LR_combatLab;
-  if (state.running && state.playtest && !state.playtest.outcome && !state.timer) {
-    state.timer = setInterval(() => vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks: 3 }), 100);
-  }
-  if ((!state.running || !state.playtest || state.playtest.outcome) && state.timer) {
-    clearInterval(state.timer); state.timer = null;
+  if (state.timer) {
+    clearInterval(state.timer);
+    state.timer = null;
   }
 }
 function renderCombatCommandPlaytest(state) {
@@ -134,22 +140,31 @@ function bindCombatCommandPlaytest(root) {
     resetCombatCommandPlaytestUi(state);
     const startId = nextCombatPlaytestStartId(state);
     state.pendingStart = true; state.pendingStartId = startId; renderCombatLab();
-    vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode, startId });
+    vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode, startId, autoRun: false });
   };
   root.querySelector('[data-lab="playtest-run"]').onclick = () => {
     state.eligibleForHostRestore = false;
     if (!state.playtest) {
+      // Start a new host session and request automatic playback in one round-trip.
       state.running = true;
       const startId = nextCombatPlaytestStartId(state);
       state.pendingStart = true; state.pendingStartId = startId;
-      vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode, startId });
+      vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode, startId, autoRun: true });
+      renderCombatLab();
       return;
     }
-    state.running = !state.running; renderCombatLab();
+    const nextRunning = !state.running;
+    state.running = nextRunning;
+    renderCombatLab();
+    const payload = { type: 'setCombatCommandPlaytestRunning', running: nextRunning };
+    if (state.activeStartId) payload.startId = state.activeStartId;
+    vscode.postMessage(payload);
   };
   root.querySelector('[data-lab="playtest-step"]').onclick = () => {
     if (!state.playtest) return;
-    vscode.postMessage({ type: 'stepCombatCommandPlaytest', ticks: 1 });
+    const payload = { type: 'stepCombatCommandPlaytest', ticks: 1 };
+    if (state.activeStartId) payload.startId = state.activeStartId;
+    vscode.postMessage(payload);
   };
   root.querySelector('[data-lab="attack-move"]').onclick = () => { state.pendingOrder = state.pendingOrder === 'attack_move' ? null : 'attack_move'; renderCombatLab(); };
   root.querySelector('[data-lab="stop"]').onclick = () => sendSelectedCombatCommand('stop');
@@ -177,6 +192,7 @@ function bindCombatCommandPlaytest(root) {
     const message = combatCommandMessageForPointer(state, targetUnit, point);
     if (!message) { state.error = 'Select one or more allied units first.'; renderCombatLab(); return; }
     if (message.command === 'attack_move') state.pendingOrder = null;
+    if (state.activeStartId) message.startId = state.activeStartId;
     state.error = ''; vscode.postMessage(message);
   };
   field.onpointerdown = event => {
@@ -271,7 +287,9 @@ window.addEventListener('message', event => {
     state.playtest = m.state; state.error = '';
     const controllable = new Set((m.state.units || []).filter(unit => unit.team === 0 && !unit.dead).map(unit => unit.id));
     state.selection = state.selection.filter(id => controllable.has(id));
+    // Restore host-owned running/paused state so a reopened subscriber matches the session.
     if (m.state.outcome) state.running = false;
+    else if (typeof m.state.running === 'boolean') state.running = m.state.running;
     renderCombatLab();
   }
   if (m.type === 'combatCommandPlaytestError') {

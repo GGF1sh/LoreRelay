@@ -1,5 +1,6 @@
 {
   "command.openGame": "LoreRelay: ゲームUIを開く",
+  "command.openBattleView": "LoreRelay: バトルビューを開く",
   "command.listImageModels": "LoreRelay: 画像生成モデル一覧を取得",
   "command.scanLocalModels": "LoreRelay: ローカルモデルファイルをスキャン",
   "command.loadScenario": "LoreRelay: シナリオパックをロード",

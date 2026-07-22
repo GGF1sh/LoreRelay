@@ -1,5 +1,6 @@
 {
   "command.openGame": "LoreRelay: Open Game UI",
+  "command.openBattleView": "LoreRelay: Open Battle View",
   "command.listImageModels": "LoreRelay: List Image Models",
   "command.scanLocalModels": "LoreRelay: Scan Local Model Files",
   "command.loadScenario": "LoreRelay: Load Scenario Pack",

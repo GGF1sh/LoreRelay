@@ -250,7 +250,8 @@ function renderCombatCommandPlaytest(state) {
       <button data-lab="playtest-run">${state.running ? 'Pause' : 'Run'}</button>
       <button data-lab="playtest-step" ${!playtest ? 'disabled' : ''}>1 tick</button></p>
     <p><button data-lab="attack-move" aria-pressed="${state.pendingOrder === 'attack_move'}">Attack-move${state.pendingOrder === 'attack_move' ? ' (choose ground)' : ''}</button>
-      <button data-lab="stop">Stop</button> <button data-lab="resume">Resume Gambit</button></p>
+      <button data-lab="stop">Stop</button> <button data-lab="resume">Resume Gambit</button>
+      <button data-lab="open-battle-view" title="Open the dedicated resizable Battle View sharing this session">⚔️ Open Battle View</button></p>
     <div class="inline-help" data-lab="playtest-status">${labEsc(combatPlaytestStatusText(state))}</div>
     <div data-lab="battlefield" tabindex="0" aria-label="Combat command battlefield"
       style="position:relative;height:340px;margin:.5rem 0;border:1px solid var(--vscode-panel-border,#666);background:rgba(0,0,0,.18);overflow:hidden;touch-action:none;user-select:none">${markers}<div data-lab="selection-box" style="display:none;position:absolute;border:1px dashed #ffd866;background:rgba(255,216,102,.12);pointer-events:none"></div></div>
@@ -299,6 +300,8 @@ function bindCombatCommandPlaytest(root) {
   };
   root.querySelector('[data-lab="stop"]').onclick = () => sendSelectedCombatCommand('stop');
   root.querySelector('[data-lab="resume"]').onclick = () => sendSelectedCombatCommand('resume_gambit');
+  const openBattleViewBtn = root.querySelector('[data-lab="open-battle-view"]');
+  if (openBattleViewBtn) openBattleViewBtn.onclick = () => vscode.postMessage({ type: 'openBattleView' });
 
   // Delegated marker handlers so incremental snapshot updates never re-bind controls.
   field.onclick = event => {

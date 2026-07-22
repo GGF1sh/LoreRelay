@@ -164,6 +164,7 @@ export interface WebviewHandlerDeps {
     handleIssueCombatCommand(raw: unknown): void;
     handleStepCombatCommandPlaytest(ticks: unknown, startId?: unknown): void;
     handleSetCombatCommandPlaytestRunning(running: unknown, startId?: unknown): void;
+    handleOpenBattleView(): void;
 }
 
 /**
@@ -275,6 +276,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'issueCombatCommand': deps.handleIssueCombatCommand(message); break;
         case 'stepCombatCommandPlaytest': deps.handleStepCombatCommandPlaytest(message.ticks, message.startId); break;
         case 'setCombatCommandPlaytestRunning': deps.handleSetCombatCommandPlaytestRunning(message.running, message.startId); break;
+        case 'openBattleView': deps.handleOpenBattleView(); break;
         case 'loadLorebook':
             deps.sendLorebookList();
             break;

@@ -131,6 +131,7 @@ describe('Combat Lab command pointer translation', () => {
             playtest: null,
             playtestMode: 'command',
             selected: 'new',
+            eligibleForHostRestore: false,
         });
         assert.deepEqual(transportValue(restartMessage), {
             type: 'startCombatCommandPlaytest',
@@ -313,11 +314,12 @@ describe('Combat Lab command pointer translation', () => {
         assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioA', tick: 0, units: [] });
     });
 
-    test('re-opened webview restores scenario selection from host active playtest state', () => {
+    test('re-opened webview restores scenario selection from host active playtest state and consumes eligibility', () => {
         const live = loadWebviewHelpers();
         live.state.selected = 'scenarioA';
         live.state.playtest = null;
         live.state.pendingStart = false;
+        live.state.eligibleForHostRestore = true;
 
         live.dispatchMessage({
             type: 'combatCommandPlaytestState',
@@ -326,5 +328,80 @@ describe('Combat Lab command pointer translation', () => {
 
         assert.equal(live.state.selected, 'scenarioB', 'selected scenario should restore to host session scenarioId');
         assert.deepEqual(live.state.playtest, { scenarioId: 'scenarioB', tick: 12, units: [] });
+        assert.equal(live.state.eligibleForHostRestore, false, 'eligibility is consumed by a successful restore');
+    });
+
+    test('user changes the dropdown before the host snapshot; selection is preserved and the mismatched snapshot is ignored', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.eligibleForHostRestore = true;
+
+        live.selectScenario(live.state, 'scenarioC');
+        assert.equal(live.state.eligibleForHostRestore, false, 'user action clears eligibility');
+        assert.equal(live.state.selected, 'scenarioC');
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioB', tick: 12, units: [] },
+        });
+
+        assert.equal(live.state.selected, 'scenarioC', 'user intentional selection is preserved');
+        assert.equal(live.state.playtest, null, 'mismatched snapshot is ignored');
+    });
+
+    test('user presses Start or Run before an old host snapshot; it cannot override the new request', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.eligibleForHostRestore = true;
+
+        const elements: Record<string, { onclick?: () => void; onchange?: (e: unknown) => void }> = {};
+        live.bind({ querySelector(sel: string) { if (!elements[sel]) elements[sel] = {}; return elements[sel]; }, querySelectorAll() { return []; } });
+        
+        elements['[data-lab="playtest-start"]'].onclick?.();
+        assert.equal(live.state.eligibleForHostRestore, false, 'user action clears eligibility');
+        assert.equal(live.state.pendingStart, true);
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioB', tick: 12, units: [] },
+        });
+
+        assert.equal(live.state.selected, 'scenarioA', 'new request scenario is preserved');
+        assert.equal(live.state.playtest, null, 'mismatched snapshot is ignored');
+    });
+
+    test('state:null consumes the one-time restore opportunity', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.eligibleForHostRestore = true;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: null,
+        });
+
+        assert.equal(live.state.eligibleForHostRestore, false);
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioB', tick: 12, units: [] },
+        });
+
+        assert.equal(live.state.selected, 'scenarioA', 'later host snapshot cannot restore');
+        assert.equal(live.state.playtest, null, 'mismatched snapshot is ignored');
+    });
+
+    test('later unrelated host snapshots cannot restore after eligibility is cleared', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.eligibleForHostRestore = false;
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestState',
+            state: { scenarioId: 'scenarioB', tick: 12, units: [] },
+        });
+
+        assert.equal(live.state.selected, 'scenarioA', 'later host snapshot cannot restore');
+        assert.equal(live.state.playtest, null, 'mismatched snapshot is ignored');
     });
 });

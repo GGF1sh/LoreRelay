@@ -21851,6 +21851,7 @@ window.LR_combatLab = window.LR_combatLab || {
   document: { scenarios: [] }, selected: '', result: null, compare: null,
   playtest: null, playtestMode: 'command', selection: [], pendingOrder: null,
   running: false, timer: null, error: '', pendingStart: false,
+  eligibleForHostRestore: true,
 };
 
 function labEsc(value) { const n = document.createElement('span'); n.textContent = String(value || ''); return n.innerHTML; }
@@ -21886,6 +21887,7 @@ function resetCombatCommandPlaytestUi(state, clearPlaytest = true) {
   if (clearPlaytest) state.playtest = null;
 }
 function selectCombatLabScenarioForPlaytest(state, scenarioId) {
+  state.eligibleForHostRestore = false;
   const restart = Boolean(state.playtest || state.pendingStart); state.selected = scenarioId;
   resetCombatCommandPlaytestUi(state);
   if (restart) {
@@ -21940,11 +21942,13 @@ function bindCombatCommandPlaytest(root) {
   const field = root.querySelector('[data-lab="battlefield"]');
   root.querySelector('[data-lab="playtest-mode"]').onchange = event => { state.playtestMode = event.target.value; };
   root.querySelector('[data-lab="playtest-start"]').onclick = () => {
+    state.eligibleForHostRestore = false;
     const scenarioId = state.selected; const mode = state.playtestMode;
     resetCombatCommandPlaytestUi(state); state.pendingStart = true; renderCombatLab();
     vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId, mode });
   };
   root.querySelector('[data-lab="playtest-run"]').onclick = () => {
+    state.eligibleForHostRestore = false;
     if (!state.playtest) {
       state.running = true; state.pendingStart = true;
       vscode.postMessage({ type: 'startCombatCommandPlaytest', scenarioId: state.selected, mode: state.playtestMode });
@@ -22046,11 +22050,15 @@ window.addEventListener('message', event => {
     // import always follow with combatLabState, which re-renders; skip render
     // here so we do not depend on a full DOM during the clear-only message.
     if (!m.state) {
+      state.eligibleForHostRestore = false;
       resetCombatCommandPlaytestUi(state, true);
       return;
     }
-    if (!state.playtest && !state.pendingStart && m.state.scenarioId) {
-      state.selected = m.state.scenarioId;
+    if (state.eligibleForHostRestore) {
+      state.eligibleForHostRestore = false;
+      if (!state.playtest && !state.pendingStart && m.state.scenarioId) {
+        state.selected = m.state.scenarioId;
+      }
     }
     if (m.state.scenarioId && m.state.scenarioId !== state.selected) {
       return;

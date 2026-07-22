@@ -1944,17 +1944,18 @@ function sendCombatCommandPlaytestError(error: string, detail?: string, operatio
     panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId, startId });
 }
 function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown): void {
-    // Always drop the previous host session first. The webview clears its
-    // playtest UI synchronously on restart, but its Step control can still
-    // post stepCombatCommandPlaytest; if battle-spec construction then fails
-    // (e.g. duplicate unit IDs) we must not leave the old scenario advanceable.
-    combatCommandPlaytestSession = undefined;
     const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;
     const targetStartId = typeof startId === 'string' && startId.trim().length > 0 && startId.length <= 128 ? startId.trim() : undefined;
     if (!targetStartId) {
         sendCombatCommandPlaytestError('INVALID_START_ID', 'startId must be a non-empty string <= 128 chars', 'start', targetScenarioId, targetStartId);
         return;
     }
+    // Always drop the previous host session first on a valid restart request.
+    // The webview clears its playtest UI synchronously on restart, but its Step
+    // control can still post stepCombatCommandPlaytest; if scenario lookup or
+    // battle-spec construction then fails (e.g. duplicate unit IDs) we must not
+    // leave the old scenario advanceable.
+    combatCommandPlaytestSession = undefined;
     const scenario = selectedCombatLabScenario(scenarioId);
     if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId, targetStartId); return; }
     const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode, targetStartId);

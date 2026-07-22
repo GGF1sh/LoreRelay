@@ -88,9 +88,23 @@ function renderCombatCommandPlaytest(state) {
     const top = combatUnitPercent(unit.y, bounds.minY, bounds.maxY);
     const color = unit.team === 0 ? '#4aa3ff' : '#e66a6a';
     const outline = selected.has(unit.id) ? '3px solid #ffd866' : '1px solid rgba(255,255,255,.65)';
+    const maxHp = typeof unit.maxHp === 'number' && unit.maxHp > 0 ? unit.maxHp : 1;
+    const rawHp = unit.dead ? 0 : (typeof unit.hp === 'number' ? unit.hp : 0);
+    const displayHp = Math.max(0, Math.min(rawHp, maxHp));
+    const hpPercent = Math.max(0, Math.min(100, Math.round((displayHp / maxHp) * 100)));
+    const shortId = labEsc(unit.id.replace(/^ally_|^enemy_/, ''));
+    const deadStyle = unit.dead
+      ? 'background:#333;opacity:.35;filter:grayscale(100%);text-decoration:line-through;'
+      : `background:${color};opacity:1;`;
     return `<button data-unit-id="${labEsc(unit.id)}" data-unit-team="${unit.team}" ${unit.dead ? 'disabled' : ''}
-      title="${labEsc(unit.id)} HP ${unit.hp}/${unit.maxHp}${unit.order ? ` order ${labEsc(unit.order)}` : ''}"
-      style="position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;border:${outline};background:${color};color:white;font-size:10px;opacity:${unit.dead ? '.35' : '1'}">${labEsc(unit.id.replace(/^ally_|^enemy_/, ''))}</button>`;
+      title="${labEsc(unit.id)} HP ${displayHp}/${maxHp}${unit.order ? ` order ${labEsc(unit.order)}` : ''}"
+      style="position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:46px;padding:3px 2px;border-radius:6px;border:${outline};${deadStyle}color:white;font-size:9px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;overflow:hidden">
+      <span data-lab="unit-label" style="font-weight:bold;font-size:10px;pointer-events:none">${shortId}</span>
+      <span data-lab="unit-hp" style="font-size:9px;margin-top:1px;pointer-events:none">${displayHp}/${maxHp}</span>
+      <div data-lab="hp-bar-bg" style="width:100%;height:3px;background:rgba(0,0,0,.4);border-radius:1px;margin-top:2px;overflow:hidden;pointer-events:none">
+        <div data-lab="hp-bar-fill" style="width:${hpPercent}%;height:100%;background:${unit.dead ? '#666' : '#51cf66'};pointer-events:none"></div>
+      </div>
+    </button>`;
   }).join('');
   const feedback = (playtest?.feedback || []).map(receipt => `${receipt.unitId}: ${receipt.command} ${receipt.kind}${receipt.reason ? ` (${receipt.reason})` : ''}`);
   const queued = playtest?.lastIssued

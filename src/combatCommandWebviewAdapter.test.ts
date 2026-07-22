@@ -20,6 +20,7 @@ function loadWebviewHelpers(): {
     reset: ResetHelper;
     selectScenario: ScenarioHelper;
     bind: BindHelper;
+    renderPlaytest: (state: Record<string, unknown>) => string;
     clearedTimers: unknown[];
     dispatchMessage: (data: unknown) => void;
     state: Record<string, unknown>;
@@ -36,9 +37,10 @@ function loadWebviewHelpers(): {
         document: {
             addEventListener() { /* registration only */ },
             createElement() {
+                let content = '';
                 return {
-                    set textContent(_value: string) { /* escape helper */ },
-                    get innerHTML() { return ''; },
+                    set textContent(value: string) { content = value; },
+                    get innerHTML() { return content; },
                 };
             },
         },
@@ -48,7 +50,7 @@ function loadWebviewHelpers(): {
         clearInterval(value: unknown) { clearedTimers.push(value); },
     };
     vm.runInNewContext(
-        `${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest, bindCombatCommandPlaytest, lab: window.LR_combatLab };`,
+        `${source}\nglobalThis.__combatHooks = { combatCommandMessageForPointer, resetCombatCommandPlaytestUi, selectCombatLabScenarioForPlaytest, bindCombatCommandPlaytest, renderCombatCommandPlaytest, lab: window.LR_combatLab };`,
         context,
     );
     const hooks = context.__combatHooks as {
@@ -56,6 +58,7 @@ function loadWebviewHelpers(): {
         resetCombatCommandPlaytestUi: ResetHelper;
         selectCombatLabScenarioForPlaytest: ScenarioHelper;
         bindCombatCommandPlaytest: BindHelper;
+        renderCombatCommandPlaytest: (state: Record<string, unknown>) => string;
         lab: Record<string, unknown>;
     };
     // Stub render so message handlers that call renderCombatLab do not need the DOM.
@@ -65,6 +68,7 @@ function loadWebviewHelpers(): {
         reset: hooks.resetCombatCommandPlaytestUi,
         selectScenario: hooks.selectCombatLabScenarioForPlaytest,
         bind: hooks.bindCombatCommandPlaytest,
+        renderPlaytest: hooks.renderCombatCommandPlaytest,
         clearedTimers,
         dispatchMessage(data: unknown) {
             for (const listener of messageListeners) listener({ data });
@@ -516,5 +520,58 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(typeof elements['[data-lab="playtest-step"]']?.onclick, 'function');
         elements['[data-lab="playtest-step"]'].onclick?.();
         assert.equal(live.state.playtest, null);
+    });
+
+    test('renders always-visible numeric hp/maxHp and HP bar width for units', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = {
+            units: [
+                { id: 'ally_1', team: 0, x: 0, y: 0, hp: 80, maxHp: 100, dead: false },
+                { id: 'enemy_1', team: 1, x: 50, y: 50, hp: 20, maxHp: 50, dead: false },
+            ],
+            bounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 },
+        };
+
+        const html = live.renderPlaytest(live.state);
+        assert.ok(html.includes('data-lab="unit-hp"'), 'contains unit-hp element');
+        assert.ok(html.includes('80/100'), 'renders 80/100 for ally_1');
+        assert.ok(html.includes('20/50'), 'renders 20/50 for enemy_1');
+        assert.ok(html.includes('width:80%'), 'renders 80% bar fill for ally_1');
+        assert.ok(html.includes('width:40%'), 'renders 40% bar fill for enemy_1');
+    });
+
+    test('clamps HP percentage safely between 0% and 100%', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = {
+            units: [
+                { id: 'ally_1', team: 0, x: 0, y: 0, hp: 150, maxHp: 100, dead: false },
+                { id: 'enemy_1', team: 1, x: 50, y: 50, hp: -20, maxHp: 50, dead: false },
+            ],
+            bounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 },
+        };
+
+        const html = live.renderPlaytest(live.state);
+        assert.ok(html.includes('100/100'), 'clamps upper hp to maxHp');
+        assert.ok(html.includes('0/50'), 'clamps negative hp to 0');
+        assert.ok(html.includes('width:100%'), 'clamps upper percentage to 100%');
+        assert.ok(html.includes('width:0%'), 'clamps negative percentage to 0%');
+    });
+
+    test('dead units visibly render as dead with 0 HP and disabled attribute', () => {
+        const live = loadWebviewHelpers();
+        live.state.playtest = {
+            units: [
+                { id: 'ally_1', team: 0, x: 10, y: 20, hp: 0, maxHp: 100, dead: true },
+            ],
+            bounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 },
+        };
+
+        const html = live.renderPlaytest(live.state);
+        assert.ok(html.includes('disabled'), 'dead unit button is disabled');
+        assert.ok(html.includes('0/100'), 'dead unit displays 0/maxHp');
+        assert.ok(html.includes('width:0%'), 'dead unit HP bar width is 0%');
+        assert.ok(html.includes('grayscale(100%)'), 'dead unit has grayscale dead visual styling');
+        assert.ok(html.includes('data-unit-id="ally_1"'), 'data-unit-id attribute intact');
+        assert.ok(html.includes('data-unit-team="0"'), 'data-unit-team attribute intact');
     });
 });

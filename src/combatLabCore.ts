@@ -52,7 +52,29 @@ export function isValidScenario(value: unknown): value is CombatLabScenario {
     const scenario = value as Partial<CombatLabScenario>;
     return typeof scenario.id === 'string' && typeof scenario.name === 'string' && (scenario.mode === 'legacy_gambit' || scenario.mode === 'mechanics_v1') && numeric(scenario.deltaSeconds) > 0 && Array.isArray(scenario.allies) && Array.isArray(scenario.enemies) && scenario.allies.length <= 10 && scenario.enemies.length <= 10 && scenario.allies.every(unit => isValidUnit(unit, 'allies')) && scenario.enemies.every(unit => isValidUnit(unit, 'enemies'));
 }
-function isValidUnit(value: unknown, team: CombatLabTeam): value is CombatLabUnit { const unit = value as Partial<CombatLabUnit>; return !!unit && typeof unit.id === 'string' && typeof unit.name === 'string' && unit.team === team && numeric(unit.hp) >= 0 && numeric(unit.maxHp) > 0 && numeric(unit.attack) >= 0 && numeric(unit.defense) >= 0 && numeric(unit.cooldown) > 0 && !!unit.position; }
+function isFiniteCoordinate(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isValidUnitPosition(value: unknown): value is { x: number; y: number } {
+    if (!value || typeof value !== 'object') return false;
+    const position = value as { x?: unknown; y?: unknown };
+    return isFiniteCoordinate(position.x) && isFiniteCoordinate(position.y);
+}
+
+function isValidUnit(value: unknown, team: CombatLabTeam): value is CombatLabUnit {
+    const unit = value as Partial<CombatLabUnit>;
+    return !!unit
+        && typeof unit.id === 'string'
+        && typeof unit.name === 'string'
+        && unit.team === team
+        && numeric(unit.hp) >= 0
+        && numeric(unit.maxHp) > 0
+        && numeric(unit.attack) >= 0
+        && numeric(unit.defense) >= 0
+        && numeric(unit.cooldown) > 0
+        && isValidUnitPosition(unit.position);
+}
 
 function mechanicsFor(unit: CombatLabUnit): MechanicsCombatant {
     return {

@@ -160,9 +160,10 @@ export interface WebviewHandlerDeps {
     handleAdvanceCombatLabPlayback(ticks: unknown): void;
     handlePauseCombatLabPlayback(): void;
     handleSetCombatLabSpeed(speed: unknown): void;
-    handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown): void;
+    handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown, autoRun?: unknown): void;
     handleIssueCombatCommand(raw: unknown): void;
-    handleStepCombatCommandPlaytest(ticks: unknown): void;
+    handleStepCombatCommandPlaytest(ticks: unknown, startId?: unknown): void;
+    handleSetCombatCommandPlaytestRunning(running: unknown, startId?: unknown): void;
 }
 
 /**
@@ -270,9 +271,10 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'advanceCombatLabPlayback': deps.handleAdvanceCombatLabPlayback(message.ticks); break;
         case 'pauseCombatLabPlayback': deps.handlePauseCombatLabPlayback(); break;
         case 'setCombatLabSpeed': deps.handleSetCombatLabSpeed(message.speed); break;
-        case 'startCombatCommandPlaytest': deps.handleStartCombatCommandPlaytest(message.scenarioId, message.mode, message.startId); break;
+        case 'startCombatCommandPlaytest': deps.handleStartCombatCommandPlaytest(message.scenarioId, message.mode, message.startId, message.autoRun); break;
         case 'issueCombatCommand': deps.handleIssueCombatCommand(message); break;
-        case 'stepCombatCommandPlaytest': deps.handleStepCombatCommandPlaytest(message.ticks); break;
+        case 'stepCombatCommandPlaytest': deps.handleStepCombatCommandPlaytest(message.ticks, message.startId); break;
+        case 'setCombatCommandPlaytestRunning': deps.handleSetCombatCommandPlaytestRunning(message.running, message.startId); break;
         case 'loadLorebook':
             deps.sendLorebookList();
             break;

@@ -25,7 +25,7 @@ import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrar
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
 import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, runCombatLab, swapCombatLabSides } from './combatLabCore';
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
-import { CombatCommandPlaytestSession, advanceCombatCommandPlaytest, combatCommandPlaytestSnapshot, createCombatCommandPlaytest, issueCombatCommand } from './combatCommandPlaytestCore';
+import { CombatCommandPlaytestHost } from './combatCommandPlaytestHost';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
@@ -281,7 +281,9 @@ let extensionInstallationPath = '';
 let combatLabDocument: CombatLabDocument | undefined;
 let combatLabPlayback: CombatLabPlayback | undefined;
 let combatLabRecentRuns: CombatLabRun[] = [];
-let combatCommandPlaytestSession: CombatCommandPlaytestSession | undefined;
+/** Single host-owned Combat Command Playtest session + scheduler + multi-subscriber fan-out. */
+const combatCommandPlaytestHost = new CombatCommandPlaytestHost();
+const COMBAT_COMMAND_PLAYTEST_MAIN_SUBSCRIBER = 'main-webview';
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -447,6 +449,11 @@ export function activate(context: vscode.ExtensionContext) {
 
         panel.webview.html = html;
 
+        // Host-owned playtest: re-subscribe on every panel open/restore without restarting the battle.
+        combatCommandPlaytestHost.subscribe(COMBAT_COMMAND_PLAYTEST_MAIN_SUBSCRIBER, message => {
+            panel?.webview.postMessage(message);
+        });
+
         setDebugTraceHostUpdateListener(() => sendDebugTraceUpdate());
         startWatchingGameState();
         sendLocaleBundle();
@@ -461,6 +468,8 @@ export function activate(context: vscode.ExtensionContext) {
         );
 
         panel.onDidDispose(() => {
+            // Closing one subscriber must not destroy the host session.
+            combatCommandPlaytestHost.unsubscribe(COMBAT_COMMAND_PLAYTEST_MAIN_SUBSCRIBER);
             setDebugTraceHostUpdateListener(undefined);
             panel = undefined;
             shopkeeperRequestGate.dispose();
@@ -1887,13 +1896,12 @@ function combatLabCatalog() {
 }
 function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); sendCombatCommandPlaytest(); }
 /**
- * Drop the host playtest session and tell the webview to reset its UI/timer.
- * Used when the Combat Lab document changes (apply/clone/import) so a running
- * Step/Run timer cannot keep advancing a battle built from the previous scenario.
+ * Drop the host playtest session and stop its scheduler.
+ * Used when the Combat Lab document changes (apply/clone/import) so automatic
+ * playback cannot keep advancing a battle built from the previous scenario.
  */
 function clearCombatCommandPlaytestSession(): void {
-    combatCommandPlaytestSession = undefined;
-    panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: null });
+    combatCommandPlaytestHost.clear();
 }
 function selectedCombatLabScenario(value: unknown) { const document = currentCombatLabDocument(); const id = typeof value === 'string' ? value : document.selectedScenarioId; return document.scenarios.find(scenario => scenario.id === id); }
 function handleRunCombatLab(scenarioId: unknown, swap = false): void {
@@ -1938,44 +1946,78 @@ function handleAdvanceCombatLabPlayback(ticks: unknown): void { if (!combatLabPl
 function handlePauseCombatLabPlayback(): void { if (combatLabPlayback) { combatLabPlayback = { ...combatLabPlayback, paused: !combatLabPlayback.paused }; sendCombatLab(); } }
 function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback) return; const value = Number(speed); if (value === 1 || value === 2 || value === 4) { combatLabPlayback = { ...combatLabPlayback, speed: value }; sendCombatLab(); } }
 function sendCombatCommandPlaytest(): void {
-    if (combatCommandPlaytestSession) panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: combatCommandPlaytestSnapshot(combatCommandPlaytestSession) });
+    const snapshot = combatCommandPlaytestHost.snapshot();
+    if (snapshot) {
+        // Fan-out goes through host subscribers; also push to the live panel if present.
+        panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: snapshot });
+    }
 }
 function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string, startId?: string): void {
-    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId, startId });
+    // Route through the host subscriber map so every observer gets the same error.
+    // The main panel is already a subscriber — do not also postMessage here (no doubles).
+    combatCommandPlaytestHost.notifyError(error, detail, operation, scenarioId, startId);
 }
-function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown): void {
+function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown, autoRun?: unknown): void {
     const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;
     const targetStartId = typeof startId === 'string' && startId.trim().length > 0 && startId.length <= 128 ? startId.trim() : undefined;
     if (!targetStartId) {
+        // Invalid start envelope must not clear an active session (forged/empty startId).
         sendCombatCommandPlaytestError('INVALID_START_ID', 'startId must be a non-empty string <= 128 chars', 'start', targetScenarioId, targetStartId);
         return;
     }
-    // Always drop the previous host session first on a valid restart request.
-    // The webview clears its playtest UI synchronously on restart, but its Step
-    // control can still post stepCombatCommandPlaytest; if scenario lookup or
-    // battle-spec construction then fails (e.g. duplicate unit IDs) we must not
-    // leave the old scenario advanceable.
-    combatCommandPlaytestSession = undefined;
     const scenario = selectedCombatLabScenario(scenarioId);
-    if (!scenario) { sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId, targetStartId); return; }
-    const created = createCombatCommandPlaytest(scenario, combatLabCatalog(), mode, targetStartId);
-    if (!created.ok) { sendCombatCommandPlaytestError(created.error, created.detail, 'start', targetScenarioId, targetStartId); return; }
-    combatCommandPlaytestSession = created.value;
-    sendCombatCommandPlaytest();
+    if (!scenario) {
+        combatCommandPlaytestHost.clear();
+        sendCombatCommandPlaytestError('INVALID_COMBAT_LAB_SCENARIO', undefined, 'start', targetScenarioId, targetStartId);
+        return;
+    }
+    const created = combatCommandPlaytestHost.start(
+        scenario,
+        combatLabCatalog(),
+        mode,
+        targetStartId,
+        { autoRun: autoRun === true },
+    );
+    if (!created.ok) {
+        sendCombatCommandPlaytestError(created.error, created.detail, 'start', targetScenarioId, targetStartId);
+    }
 }
 function handleIssueCombatCommand(raw: unknown): void {
-    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED', undefined, 'issue'); return; }
-    const issued = issueCombatCommand(combatCommandPlaytestSession, raw);
-    if (!issued.ok) { sendCombatCommandPlaytestError(issued.error, issued.detail, 'issue'); return; }
-    combatCommandPlaytestSession = issued.value;
-    sendCombatCommandPlaytest();
+    const startId = raw && typeof raw === 'object' ? (raw as { startId?: unknown }).startId : undefined;
+    const issued = combatCommandPlaytestHost.issue(raw, startId);
+    if (!issued.ok) {
+        sendCombatCommandPlaytestError(
+            issued.error,
+            issued.detail,
+            'issue',
+            combatCommandPlaytestHost.currentSession?.scenarioId,
+            typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
+        );
+    }
 }
-function handleStepCombatCommandPlaytest(ticks: unknown): void {
-    if (!combatCommandPlaytestSession) { sendCombatCommandPlaytestError('COMBAT_PLAYTEST_NOT_STARTED', undefined, 'step'); return; }
-    const stepped = advanceCombatCommandPlaytest(combatCommandPlaytestSession, ticks);
-    if (!stepped.ok) { sendCombatCommandPlaytestError(stepped.error, stepped.detail, 'step'); return; }
-    combatCommandPlaytestSession = stepped.value;
-    sendCombatCommandPlaytest();
+function handleStepCombatCommandPlaytest(ticks: unknown, startId?: unknown): void {
+    const stepped = combatCommandPlaytestHost.step(ticks, startId);
+    if (!stepped.ok) {
+        sendCombatCommandPlaytestError(
+            stepped.error,
+            stepped.detail,
+            'step',
+            combatCommandPlaytestHost.currentSession?.scenarioId,
+            typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
+        );
+    }
+}
+function handleSetCombatCommandPlaytestRunning(running: unknown, startId?: unknown): void {
+    const result = combatCommandPlaytestHost.setRunning(running, startId);
+    if (!result.ok) {
+        sendCombatCommandPlaytestError(
+            result.error,
+            result.detail,
+            'run',
+            combatCommandPlaytestHost.currentSession?.scenarioId,
+            typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
+        );
+    }
 }
 
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
@@ -2161,6 +2203,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleStartCombatCommandPlaytest,
         handleIssueCombatCommand,
         handleStepCombatCommandPlaytest,
+        handleSetCombatCommandPlaytestRunning,
         handleBranchTimeline,
         sendGitTimelineStatus,
         sendChronicle,
@@ -2638,6 +2681,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
 }
 
 export function deactivate() {
+    combatCommandPlaytestHost.dispose();
     panel = undefined;
     flushScheduledCommercePersist();
     disposeGameStateWatcher();

@@ -170,16 +170,25 @@ describe('CombatCommandPlaytestHost session, scheduler, and subscribers', () => 
     test('restart replaces the scheduler/session exactly once', () => {
         const clock = fakeClock();
         const host = new CombatCommandPlaytestHost({ clock });
+        const peerMsgs: unknown[] = [];
+        host.subscribe('peer', msg => peerMsgs.push(msg));
         host.start(scenarioAtRate(30), catalog, 'command', 'old', { autoRun: true });
         host.step(5, 'old');
         assert.equal(host.currentSession!.state.tick, 5);
         const timersBeforeRestart = clock.timers.length;
         assert.ok(timersBeforeRestart === 1, 'exactly one automatic timer while running');
+
+        peerMsgs.length = 0;
         host.start(scenarioAtRate(24), catalog, 'command', 'new', { autoRun: true });
         assert.equal(host.currentSession!.startId, 'new');
         assert.equal(host.currentSession!.state.tick, 0);
         assert.equal(host.currentSession!.commandLog.tickRate, 24);
         assert.equal(clock.timers.length, 1, 'restart must not stack timers');
+
+        // Peer subscriber must receive state:null first to retire old session, then replacement snapshot
+        assert.equal(peerMsgs.length, 2);
+        assert.deepEqual(peerMsgs[0], { type: 'combatCommandPlaytestState', state: null });
+        assert.equal(((peerMsgs[1] as { state: { startId: string } }).state).startId, 'new');
         host.dispose();
     });
 

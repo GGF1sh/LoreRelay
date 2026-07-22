@@ -187,16 +187,23 @@ export class CombatCommandPlaytestHost {
         startId: string,
         options?: { autoRun?: boolean },
     ): CombatCommandPlaytestResult<CombatCommandPlaytestSnapshot> {
+        const hadPriorSession = this.session !== undefined;
         this.stopScheduler();
         this.session = undefined;
         this.running = false;
         this.carryMs = 0;
         this.lastPulseAtMs = undefined;
 
+        if (hadPriorSession) {
+            this.broadcastState(null);
+        }
+
         const created = createCombatCommandPlaytest(scenario, catalog, mode, startId);
         if (!created.ok) {
             // Retire the old session for all subscribers; do not leave a stale snapshot.
-            this.broadcastState(null);
+            if (!hadPriorSession) {
+                this.broadcastState(null);
+            }
             return created;
         }
         this.session = created.value;

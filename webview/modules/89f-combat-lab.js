@@ -260,8 +260,17 @@ window.addEventListener('message', event => {
     // import always follow with combatLabState, which re-renders; skip render
     // here so we do not depend on a full DOM during the clear-only message.
     if (!m.state) {
+      // Host may broadcast state:null after a failed restart so every subscriber
+      // drops the retired battle. Preserve pendingStart/pendingStartId so the
+      // following structured start error can still match the initiating request.
       state.eligibleForHostRestore = false;
+      const keepPending = Boolean(state.pendingStart && state.pendingStartId);
+      const pendingStartId = state.pendingStartId;
       resetCombatCommandPlaytestUi(state, true);
+      if (keepPending) {
+        state.pendingStart = true;
+        state.pendingStartId = pendingStartId;
+      }
       return;
     }
     if (state.pendingStart) {

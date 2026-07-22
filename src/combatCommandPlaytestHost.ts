@@ -174,6 +174,11 @@ export class CombatCommandPlaytestHost {
     /**
      * Replace the host session exactly once. Stops any prior scheduler so a
      * restart cannot double-advance.
+     *
+     * A valid restart always retires the previous session. If replacement
+     * creation fails, every subscriber receives state:null so no observer can
+     * keep displaying the retired battle; the caller then fans out the
+     * structured start error via {@link notifyError}.
      */
     start(
         scenario: CombatLabScenario,
@@ -182,10 +187,6 @@ export class CombatCommandPlaytestHost {
         startId: string,
         options?: { autoRun?: boolean },
     ): CombatCommandPlaytestResult<CombatCommandPlaytestSnapshot> {
-        // Replace the previous session/scheduler exactly once. Do not broadcast
-        // state:null here — restart UI already cleared locally, and a failed
-        // create must surface only as combatCommandPlaytestError so pendingStart
-        // matching still works. Document replacement uses clear() for null state.
         this.stopScheduler();
         this.session = undefined;
         this.running = false;
@@ -194,6 +195,8 @@ export class CombatCommandPlaytestHost {
 
         const created = createCombatCommandPlaytest(scenario, catalog, mode, startId);
         if (!created.ok) {
+            // Retire the old session for all subscribers; do not leave a stale snapshot.
+            this.broadcastState(null);
             return created;
         }
         this.session = created.value;
@@ -205,6 +208,27 @@ export class CombatCommandPlaytestHost {
         const snapshot = this.requireSnapshot();
         this.broadcastState(snapshot);
         return { ok: true, value: snapshot };
+    }
+
+    /**
+     * Fan-out a structured Combat Command Playtest error to every valid subscriber.
+     * Extension handlers must use this instead of posting only to the main panel.
+     */
+    notifyError(
+        error: string,
+        detail?: string,
+        operation?: string,
+        scenarioId?: string,
+        startId?: string,
+    ): void {
+        this.broadcastError({
+            type: 'combatCommandPlaytestError',
+            error,
+            detail,
+            operation,
+            scenarioId,
+            startId,
+        });
     }
 
     setRunning(running: unknown, startId?: unknown): CombatCommandPlaytestResult<CombatCommandPlaytestSnapshot> {

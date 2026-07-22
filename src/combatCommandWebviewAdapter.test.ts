@@ -194,6 +194,36 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.error, '');
     });
 
+    test('failed restart null preserves pendingStart so the structured start error still matches', () => {
+        const live = loadWebviewHelpers();
+        live.state.selected = 'scenarioA';
+        live.state.playtest = { scenarioId: 'scenarioA', tick: 9, units: [], startId: 'ns_test:1' };
+        live.state.activeStartId = 'ns_test:1';
+        live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns_test:2';
+        live.state.running = true;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: null });
+        assert.equal(live.state.playtest, null, 'retired battle cleared');
+        assert.equal(live.state.running, false);
+        assert.equal(live.state.pendingStart, true, 'pending start preserved for error match');
+        assert.equal(live.state.pendingStartId, 'ns_test:2');
+
+        live.dispatchMessage({
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            detail: 'scenario failed Combat Lab validation',
+            operation: 'start',
+            scenarioId: 'scenarioA',
+            startId: 'ns_test:2',
+        });
+        assert.equal(live.state.pendingStart, false);
+        assert.equal(live.state.pendingStartId, null);
+        assert.equal(live.state.error, 'INVALID_COMBAT_LAB_SCENARIO');
+        assert.equal(live.state.playtest, null);
+        assert.equal(live.state.running, false);
+    });
+
     test('Run/Pause posts host-owned setCombatCommandPlaytestRunning and never schedules webview step timers', () => {
         const live = loadWebviewHelpers();
         live.state.playtest = {

@@ -1953,7 +1953,9 @@ function sendCombatCommandPlaytest(): void {
     }
 }
 function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string, startId?: string): void {
-    panel?.webview.postMessage({ type: 'combatCommandPlaytestError', error, detail, operation, scenarioId, startId });
+    // Route through the host subscriber map so every observer gets the same error.
+    // The main panel is already a subscriber — do not also postMessage here (no doubles).
+    combatCommandPlaytestHost.notifyError(error, detail, operation, scenarioId, startId);
 }
 function handleStartCombatCommandPlaytest(scenarioId: unknown, mode: unknown, startId?: unknown, autoRun?: unknown): void {
     const targetScenarioId = typeof scenarioId === 'string' ? scenarioId : undefined;

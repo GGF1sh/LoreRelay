@@ -270,4 +270,142 @@ describe('CombatCommandPlaytestHost session, scheduler, and subscribers', () => 
         assert.equal(clock.timers.length, 1);
         host.dispose();
     });
+
+    test('failed restart broadcasts state:null to all subscribers and leaves no session/timer', () => {
+        const clock = fakeClock();
+        const host = new CombatCommandPlaytestHost({ clock });
+        const a: unknown[] = [];
+        const b: unknown[] = [];
+        host.subscribe('a', message => a.push(message));
+        host.subscribe('b', message => b.push(message));
+
+        const started = host.start(scenarioAtRate(30), catalog, 'command', 'old', { autoRun: true });
+        assert.equal(started.ok, true);
+        assert.equal(clock.timers.length, 1);
+        a.length = 0;
+        b.length = 0;
+
+        const invalid = scenarioAtRate(30);
+        (invalid.allies[0] as { position: unknown }).position = {};
+        const failed = host.start(invalid, catalog, 'command', 'new-fail');
+        assert.equal(failed.ok, false);
+        if (!failed.ok) {
+            assert.equal(failed.error, 'INVALID_COMBAT_LAB_SCENARIO');
+        }
+        assert.equal(host.hasSession, false);
+        assert.equal(host.isRunning, false);
+        assert.equal(clock.timers.length, 0);
+
+        const nullMsg = { type: 'combatCommandPlaytestState', state: null };
+        assert.deepEqual(a, [nullMsg]);
+        assert.deepEqual(b, [nullMsg]);
+
+        // Production path: extension fans structured start error through host notifyError.
+        host.notifyError(
+            failed.ok ? 'UNEXPECTED' : failed.error,
+            failed.ok ? undefined : failed.detail,
+            'start',
+            invalid.id,
+            'new-fail',
+        );
+        const errorMsg = {
+            type: 'combatCommandPlaytestError',
+            error: 'INVALID_COMBAT_LAB_SCENARIO',
+            detail: failed.ok ? undefined : failed.detail,
+            operation: 'start',
+            scenarioId: invalid.id,
+            startId: 'new-fail',
+        };
+        assert.deepEqual(a[1], errorMsg);
+        assert.deepEqual(b[1], errorMsg);
+        assert.equal(a.length, 2);
+        assert.equal(b.length, 2);
+
+        // Neither subscriber receives a stale snapshot of the retired battle afterward.
+        host.pulse(clock.nowMs + 1000);
+        assert.equal(a.length, 2);
+        assert.equal(b.length, 2);
+        host.dispose();
+    });
+
+    test('operation errors fan out to every subscriber with stable fields', () => {
+        const host = new CombatCommandPlaytestHost({ clock: fakeClock() });
+        const a: unknown[] = [];
+        const b: unknown[] = [];
+        host.subscribe('a', message => a.push(message));
+        host.subscribe('b', message => b.push(message));
+        host.start(scenarioAtRate(30), catalog, 'command', 'live');
+        a.length = 0;
+        b.length = 0;
+
+        const cases: Array<{
+            result: { ok: false; error: string; detail?: string };
+            operation: string;
+            startId: string;
+        }> = [
+            {
+                result: host.setRunning(true, 'stale') as { ok: false; error: string; detail?: string },
+                operation: 'run',
+                startId: 'stale',
+            },
+            {
+                result: host.step(1, 'stale') as { ok: false; error: string; detail?: string },
+                operation: 'step',
+                startId: 'stale',
+            },
+            {
+                result: host.issue({ unitIds: ['ally_1'], command: 'stop' }, 'stale') as {
+                    ok: false; error: string; detail?: string;
+                },
+                operation: 'issue',
+                startId: 'stale',
+            },
+        ];
+
+        for (const entry of cases) {
+            assert.equal(entry.result.ok, false);
+            assert.equal(entry.result.error, 'INVALID_START_ID');
+            a.length = 0;
+            b.length = 0;
+            host.notifyError(
+                entry.result.error,
+                entry.result.detail,
+                entry.operation,
+                host.currentSession?.scenarioId,
+                entry.startId,
+            );
+            const expected = {
+                type: 'combatCommandPlaytestError',
+                error: 'INVALID_START_ID',
+                detail: entry.result.detail,
+                operation: entry.operation,
+                scenarioId: host.currentSession?.scenarioId,
+                startId: entry.startId,
+            };
+            assert.deepEqual(a, [expected], entry.operation);
+            assert.deepEqual(b, [expected], entry.operation);
+            assert.equal(a.length, 1, `${entry.operation} must not double-send`);
+        }
+
+        // COMBAT_PLAYTEST_NOT_STARTED when no session.
+        host.clear();
+        a.length = 0;
+        b.length = 0;
+        const missing = host.step(1, 'live');
+        assert.equal(missing.ok, false);
+        if (!missing.ok) {
+            assert.equal(missing.error, 'COMBAT_PLAYTEST_NOT_STARTED');
+            host.notifyError(missing.error, missing.detail, 'step', undefined, 'live');
+        }
+        assert.deepEqual(a, [{
+            type: 'combatCommandPlaytestError',
+            error: 'COMBAT_PLAYTEST_NOT_STARTED',
+            detail: undefined,
+            operation: 'step',
+            scenarioId: undefined,
+            startId: 'live',
+        }]);
+        assert.deepEqual(b, a);
+        host.dispose();
+    });
 });

@@ -103,6 +103,11 @@ function renderChronicle(chapters) {
     if (items.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty-text';
+        // Tagged so applyI18n() re-localizes it: this node is built imperatively
+        // and can render before localeBundle arrives, in which case T() returns
+        // the raw key. The chronicle then stays empty, so nothing would ever
+        // re-render it and the key stayed visible on screen.
+        empty.dataset.i18n = 'webview.inspector.chronicleEmpty';
         empty.textContent = typeof T === 'function'
             ? T('webview.inspector.chronicleEmpty')
             : 'No chronicle entries yet. Complete GM turns to build the journal.';

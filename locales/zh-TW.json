@@ -735,7 +735,7 @@
   "webview.inspector.bulkSimRunning": "Running…",
   "webview.inspector.bulkSimSteps": "步數",
   "webview.inspector.bulkSimTitle": "Debug: Advance World Simulation",
-  "webview.inspector.chronicleEmpty": "No chronicle entries yet. Complete GM turns to build the journal.",
+  "webview.inspector.chronicleEmpty": "尚無編年史記錄。完成 GM 回合後將會產生記錄。",
   "webview.inspector.chronicleEventCount": "{count} events",
   "webview.inspector.chronicleHint": "基於狀態日誌生成的確定性時間軸（唯讀）。",
   "webview.inspector.chronicleRefresh": "Refresh",

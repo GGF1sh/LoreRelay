@@ -20,22 +20,27 @@ import { MechanicsReceipt } from './combatMechanicsResolver';
 /** Hard cap on the live feed carried by every snapshot broadcast. */
 export const COMBAT_ANALYTICS_RECENT_EVENT_LIMIT = 24;
 
-export type CombatPlaytestLogEntryKind = 'attack' | 'heal' | 'death';
+export type CombatPlaytestLogEntryKind = 'attack' | 'heal' | 'death' | 'status';
+
+export type CombatPlaytestStatusAction = 'applied' | 'removed' | 'expired';
 
 /** One normalized line of the in-battle feed. */
 export interface CombatPlaytestLogEntry {
     tick: number;
     kind: CombatPlaytestLogEntryKind;
-    /** Attacker or healer. Absent for `death`, which has no attributed source here. */
+    /** Attacker, healer, or status caster. Absent for `death` and ambient `status` expiry. */
     sourceId?: string;
-    /** Victim, healed ally, or the unit that died. */
+    /** Victim, healed ally, unit that died, or unit the status belongs to. */
     targetId: string;
-    /** Damage or healing. Absent for `death`. */
+    /** Damage or healing. Absent for `death` and `status`. */
     amount?: number;
     /** True when the attack resolved as a full evade (mechanics `dodged` receipt). */
     dodged?: boolean;
     /** True when this attack reduced the target to 0 HP on the same tick. */
     lethal?: boolean;
+    /** `mechanics_v1` status id (e.g. `burn`, `stun`); present only for `kind: 'status'`. */
+    statusId?: string;
+    statusAction?: CombatPlaytestStatusAction;
 }
 
 /** Per-unit accumulated contribution. All fields are monotonic except the `last*` pair. */
@@ -147,6 +152,18 @@ function pushRecent(analytics: CombatPlaytestAnalytics, entry: CombatPlaytestLog
     }
 }
 
+/**
+ * `mechanics_v1` receipt kinds that represent a status being gained or lost,
+ * mapped to the log action they read as. Every other receipt kind (damage,
+ * barrier, targeting, delivery math, ...) is not a status-lifecycle event and
+ * is left out of the feed on purpose.
+ */
+const STATUS_RECEIPT_ACTIONS: Partial<Record<string, CombatPlaytestStatusAction>> = {
+    status_applied: 'applied',
+    cleansed: 'removed',
+    lethal_timer_expired: 'expired',
+};
+
 /** `tick|attacker|victim` keys for attacks the resolver reported as fully evaded. */
 function dodgedAttackKeys(receipts: ReadonlyArray<CombatEvent & { receipt: MechanicsReceipt }>): Set<string> {
     const keys = new Set<string>();
@@ -254,6 +271,26 @@ export function foldCombatStepEvents(
             }
         }
         pushRecent(analytics, { tick: event.tick, kind: 'death', targetId: deadId });
+    }
+
+    for (const event of events.mechanicsReceipts || []) {
+        const action = STATUS_RECEIPT_ACTIONS[event.receipt?.kind];
+        const statusId = event.receipt?.statusId;
+        if (!action || !statusId) continue;
+        // status_applied/cleansed are on-hit receipts carrying the recipient as
+        // `target`; lethal_timer_expired is an ambient per-tick receipt with only
+        // the status owner as `unit` — there is no separate caster to report.
+        const ownerId = action === 'expired' ? readString(event, 'unit') : readString(event, 'target');
+        if (!ownerId) continue;
+        const sourceId = action !== 'expired' ? readString(event, 'unit') : null;
+        pushRecent(analytics, {
+            tick: event.tick,
+            kind: 'status',
+            targetId: ownerId,
+            statusId,
+            statusAction: action,
+            ...(sourceId ? { sourceId } : {}),
+        });
     }
 
     return analytics;

@@ -243,6 +243,82 @@ describe('combat playtest analytics fold', () => {
         assert.equal(analytics.units.b.damageTaken, 6);
     });
 
+    test('a status_applied receipt logs the caster and the recipient', () => {
+        const analytics = foldCombatStepEvents(
+            createCombatPlaytestAnalytics(['caster', 'victim']),
+            events({
+                mechanicsReceipts: [
+                    { tick: 8, unit: 'caster', target: 'victim', receipt: { stage: 'buildup', kind: 'status_applied', statusId: 'burn' } },
+                ],
+            }),
+        );
+        assert.equal(analytics.recentEvents.length, 1);
+        const entry = analytics.recentEvents[0];
+        assert.equal(entry.kind, 'status');
+        assert.equal(entry.statusAction, 'applied');
+        assert.equal(entry.statusId, 'burn');
+        assert.equal(entry.targetId, 'victim');
+        assert.equal(entry.sourceId, 'caster');
+    });
+
+    test('a cleansed receipt logs a removal on the recipient', () => {
+        const analytics = foldCombatStepEvents(
+            createCombatPlaytestAnalytics(['medic', 'patient']),
+            events({
+                mechanicsReceipts: [
+                    { tick: 4, unit: 'medic', target: 'patient', receipt: { stage: 'cleanse', kind: 'cleansed', statusId: 'poison' } },
+                ],
+            }),
+        );
+        const entry = analytics.recentEvents[0];
+        assert.equal(entry.statusAction, 'removed');
+        assert.equal(entry.statusId, 'poison');
+        assert.equal(entry.targetId, 'patient');
+        assert.equal(entry.sourceId, 'medic');
+    });
+
+    test('a lethal_timer_expired receipt is ambient: owner from `unit`, no source', () => {
+        const analytics = foldCombatStepEvents(
+            createCombatPlaytestAnalytics(['a']),
+            events({
+                mechanicsReceipts: [
+                    { tick: 20, unit: 'a', receipt: { stage: 'lethal_timer', kind: 'lethal_timer_expired', statusId: 'doom' } },
+                ],
+            }),
+        );
+        const entry = analytics.recentEvents[0];
+        assert.equal(entry.kind, 'status');
+        assert.equal(entry.statusAction, 'expired');
+        assert.equal(entry.targetId, 'a');
+        assert.equal(entry.sourceId, undefined);
+    });
+
+    test('non-status mechanics receipts (damage, barrier, targeting) never enter the feed', () => {
+        const analytics = foldCombatStepEvents(
+            createCombatPlaytestAnalytics(['a', 'b']),
+            events({
+                mechanicsReceipts: [
+                    { tick: 1, unit: 'a', target: 'b', receipt: { stage: 'hp', kind: 'damage', amount: 9 } },
+                    { tick: 1, unit: 'a', target: 'b', receipt: { stage: 'barrier', kind: 'barrier_absorbed', amount: 3 } },
+                    { tick: 1, unit: 'a', target: 'b', receipt: { stage: 'targeting', kind: 'target_illegal' } },
+                ],
+            }),
+        );
+        assert.equal(analytics.recentEvents.length, 0);
+    });
+
+    test('a status receipt with no resolvable owner is dropped, not thrown', () => {
+        const analytics = foldCombatStepEvents(
+            createCombatPlaytestAnalytics([]),
+            events({
+                mechanicsReceipts: [
+                    { tick: 1, unit: 'a', receipt: { stage: 'buildup', kind: 'status_applied', statusId: 'burn' } },
+                ],
+            }),
+        );
+        assert.equal(analytics.recentEvents.length, 0);
+    });
+
     test('topDamageTargetId picks the highest total and breaks ties on participant order', () => {
         const analytics = foldCombatStepEvents(
             createCombatPlaytestAnalytics(['a', 'x', 'y']),

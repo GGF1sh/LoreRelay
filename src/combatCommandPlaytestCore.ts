@@ -76,6 +76,20 @@ export interface CombatCommandPlaytestSnapshot {
         targetTick: number | null;
         /** Accumulated contribution for the result table. */
         stats: CombatPlaytestUnitStats;
+        /** Engagement radius from combat-core; always present regardless of ability mode. */
+        attackRange: number;
+        /**
+         * Present only when the unit carries an explicit `mechanics_v1` attack
+         * ability (`normalAttackAbility`); a plain-formula unit has none of these,
+         * and the UI is expected to fall back to `attackRange` alone rather than
+         * guess melee/ranged/magic from a distance threshold.
+         */
+        attackAbilityId?: string;
+        attackAbilityName?: string;
+        attackDeliveryShape?: string;
+        attackTags?: string[];
+        /** Live `mechanics_v1` status effects on this unit; empty when not tracked. */
+        statuses: Array<{ id: string; remainingSeconds: number; intensity: number; sourceId?: string }>;
     }>;
     /** Bounded live feed, oldest first. See COMBAT_ANALYTICS_RECENT_EVENT_LIMIT. */
     recentEvents: CombatPlaytestLogEntry[];
@@ -363,6 +377,8 @@ export function combatCommandPlaytestSnapshot(
         units: session.spec.participantOrder.map(id => {
             const unit = session.state.units[id];
             const analytics = session.analytics.units[id];
+            const ability = unit.normalAttackAbility;
+            const statuses = session.state.mechanicsStates[id]?.statuses;
             return {
                 id,
                 team: unit.team as 0 | 1,
@@ -379,6 +395,21 @@ export function combatCommandPlaytestSnapshot(
                     analytics ?? createCombatPlaytestAnalytics([id]).units[id],
                     session.spec.participantOrder,
                 ),
+                attackRange: unit.attack_range,
+                ...(ability
+                    ? {
+                        attackAbilityId: ability.id,
+                        attackAbilityName: ability.name,
+                        attackDeliveryShape: ability.delivery.shape,
+                        attackTags: [...ability.tags],
+                    }
+                    : {}),
+                statuses: (statuses ?? []).map(status => ({
+                    id: status.id,
+                    remainingSeconds: status.remainingSeconds,
+                    intensity: status.intensity,
+                    ...(status.sourceId ? { sourceId: status.sourceId } : {}),
+                })),
             };
         }),
         recentEvents: session.analytics.recentEvents.map(entry => ({ ...entry })),

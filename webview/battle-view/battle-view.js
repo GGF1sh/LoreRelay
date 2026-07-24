@@ -29,6 +29,9 @@ const BV = {
     drag: null,
     view: { scale: 1, mode: 'fit' },
     prevHp: {},
+    dockVisible: true,
+    outcomeDismissed: false,
+    feedPinned: true,
 };
 
 /* ---------------- pure helpers (unit-testable) ---------------- */
@@ -93,7 +96,88 @@ function bvMarkerModel(unit, bounds, selected) {
         hpColor: bvHpColor(hpPercent),
         shortId,
         order: bvOrderView(unit.order, Boolean(unit.dead)),
-        title: `${unit.id} · ${bvT('battleView.hp', 'HP')} ${displayHp}/${maxHp}${unit.order ? ` · ${unit.order}` : ''}`,
+        title: `${unit.id} · ${bvT('battleView.hp', 'HP')} ${displayHp}/${maxHp}`
+            + `${unit.action ? ` · ${unit.action}` : ''}${unit.targetId ? ` → ${bvShortUnitId(unit.targetId)}` : ''}${unit.order ? ` · ${unit.order}` : ''}`,
+    };
+}
+function bvShortUnitId(id) { return String(id).replace(/^ally_|^enemy_/, ''); }
+/** Ticks after which a unit's last-seen target line fades, then disappears. */
+const BV_TARGET_STALE_TICKS = 90;
+const BV_TARGET_HIDE_TICKS = 300;
+/**
+ * World-space line from a living unit to its last engaged target.
+ * Null when there is nothing meaningful to draw: no target yet, either end
+ * dead (corpses keep their position — an arrow into one reads as a bug), the
+ * target missing from the roster, or the sighting is too old to matter.
+ */
+function bvTargetLineModel(unit, unitsById, bounds, tick) {
+    if (!unit || unit.dead || !unit.targetId) return null;
+    const target = unitsById[unit.targetId];
+    if (!target || target.dead || target.id === unit.id) return null;
+    const age = typeof unit.targetTick === 'number' ? Math.max(0, (tick || 0) - unit.targetTick) : 0;
+    if (age > BV_TARGET_HIDE_TICKS) return null;
+    return {
+        x1: unit.x - bounds.minX,
+        y1: unit.y - bounds.minY,
+        x2: target.x - bounds.minX,
+        y2: target.y - bounds.minY,
+        team: unit.team,
+        stale: age > BV_TARGET_STALE_TICKS,
+    };
+}
+/** One roster row: HP + current action + target, readable without looking at the field. */
+function bvRosterRowModel(unit, selected) {
+    const maxHp = typeof unit.maxHp === 'number' && unit.maxHp > 0 ? unit.maxHp : 1;
+    const rawHp = unit.dead ? 0 : (typeof unit.hp === 'number' ? unit.hp : 0);
+    const displayHp = Math.round(Math.max(0, Math.min(rawHp, maxHp)));
+    const hpPercent = Math.max(0, Math.min(100, Math.round((displayHp / maxHp) * 100)));
+    return {
+        id: unit.id,
+        shortId: bvShortUnitId(unit.id),
+        team: unit.team,
+        dead: Boolean(unit.dead),
+        selected: Boolean(selected),
+        displayHp,
+        maxHp: Math.round(maxHp),
+        hpPercent,
+        hpColor: bvHpColor(hpPercent),
+        action: unit.dead ? '' : (unit.action || ''),
+        targetShort: !unit.dead && unit.targetId ? bvShortUnitId(unit.targetId) : '',
+    };
+}
+/** One result-table row from the snapshot's accumulated stats. Display-rounded. */
+function bvResultRowModel(unit) {
+    const stats = unit.stats || {};
+    const round = value => Math.round(typeof value === 'number' && isFinite(value) ? value : 0);
+    return {
+        id: unit.id,
+        shortId: bvShortUnitId(unit.id),
+        team: unit.team,
+        dead: Boolean(unit.dead),
+        damageDealt: round(stats.damageDealt),
+        damageTaken: round(stats.damageTaken),
+        healingGiven: round(stats.healingGiven),
+        kills: round(stats.kills),
+        topTargetShort: stats.topTargetId ? bvShortUnitId(stats.topTargetId) : '',
+    };
+}
+/** One battle-log line. Team colors come from the live roster, not id prefixes. */
+function bvFeedEntryModel(entry, unitsById) {
+    const teamOf = id => {
+        const unit = id ? unitsById[id] : undefined;
+        return unit ? unit.team : (String(id || '').startsWith('enemy_') ? 1 : 0);
+    };
+    const amount = Math.round(typeof entry.amount === 'number' && isFinite(entry.amount) ? entry.amount : 0);
+    return {
+        kind: entry.kind,
+        tick: entry.tick,
+        sourceShort: entry.sourceId ? bvShortUnitId(entry.sourceId) : '',
+        sourceTeam: entry.sourceId ? teamOf(entry.sourceId) : null,
+        targetShort: bvShortUnitId(entry.targetId),
+        targetTeam: teamOf(entry.targetId),
+        amountText: entry.kind === 'heal' ? `+${amount}` : (entry.dodged ? '' : `−${amount}`),
+        dodged: Boolean(entry.dodged),
+        lethal: Boolean(entry.lethal),
     };
 }
 function bvCommandMessageForPointer(ui, targetUnit, point) {
@@ -159,7 +243,10 @@ function bvResetUi(state, clearPlaytest = true) {
     state.pendingStartId = null;
     state.pendingPeerAdopt = false;
     state.drag = null;
-    if (clearPlaytest) { state.playtest = null; state.activeStartId = null; state.prevHp = {}; }
+    if (clearPlaytest) {
+        state.playtest = null; state.activeStartId = null; state.prevHp = {};
+        state.outcomeDismissed = false; state.feedPinned = true;
+    }
 }
 /** True when a host session exists or is being started for this peer. */
 function bvHasSession(state) {
@@ -260,7 +347,7 @@ function renderBattleView() {
     if (!root) return;
     const state = BV;
     const spectator = state.playtestMode === 'spectator';
-    root.className = `bv-root${spectator ? ' bv-spectator' : ''}`;
+    root.className = `bv-root${spectator ? ' bv-spectator' : ''}${state.dockVisible ? '' : ' bv-no-dock'}`;
     const hasSession = Boolean(state.playtest);
     root.innerHTML = `
     <div class="bv-chrome">
@@ -299,22 +386,36 @@ function renderBattleView() {
             <span class="bv-zoom-readout" data-bv="zoom-readout">100%</span>
             <button class="bv-btn bv-btn-secondary" data-bv="zoom-in" title="${bvEsc(bvT('battleView.zoomIn', 'Zoom in'))}">+</button>
             <button class="bv-btn bv-btn-secondary" data-bv="zoom-reset">${bvEsc(bvT('battleView.zoomReset', '100%'))}</button>
+            <button class="bv-btn bv-btn-secondary${state.dockVisible ? ' bv-active' : ''}" data-bv="dock-toggle">${bvEsc(bvT('battleView.dock', 'Info'))}</button>
           </div>
         </div>
       </div>
       <div class="bv-status" data-bv="status"></div>
     </div>
-    <div class="bv-arena">
-      <div class="bv-spectator-ribbon">${bvEsc(bvT('battleView.modeSpectator', 'Spectator'))}</div>
-      <div class="bv-viewport" data-bv="viewport" tabindex="0" aria-label="Battle View battlefield">
-        <div class="bv-stage" data-bv="stage"></div>
-        <div class="bv-selbox" data-bv="selbox"></div>
+    <div class="bv-main">
+      <div class="bv-arena">
+        <div class="bv-spectator-ribbon">${bvEsc(bvT('battleView.modeSpectator', 'Spectator'))}</div>
+        <div class="bv-viewport" data-bv="viewport" tabindex="0" aria-label="Battle View battlefield">
+          <div class="bv-stage" data-bv="stage"></div>
+          <div class="bv-selbox" data-bv="selbox"></div>
+        </div>
+        <div class="bv-empty" data-bv="empty" style="display:${hasSession ? 'none' : 'flex'}">${bvEsc(bvT('battleView.empty', 'No active battle. Choose a scenario and press Start.'))}</div>
+        <div class="bv-outcome-banner" data-bv="outcome">
+          <span class="bv-outcome-key">${bvEsc(bvT('battleView.outcome', 'Outcome'))}</span>
+          <span class="bv-outcome-value" data-bv="outcome-value"></span>
+          <button class="bv-outcome-close" data-bv="outcome-close" title="${bvEsc(bvT('battleView.close', 'Close'))}">✕</button>
+        </div>
       </div>
-      <div class="bv-empty" data-bv="empty" style="display:${hasSession ? 'none' : 'flex'}">${bvEsc(bvT('battleView.empty', 'No active battle. Choose a scenario and press Start.'))}</div>
-      <div class="bv-outcome" data-bv="outcome"><div class="bv-outcome-card">
-        <div class="bv-outcome-title">${bvEsc(bvT('battleView.outcome', 'Outcome'))}</div>
-        <div class="bv-outcome-value" data-bv="outcome-value"></div>
-      </div></div>
+      <div class="bv-dock" data-bv="dock">
+        <div class="bv-dock-section bv-dock-roster">
+          <div class="bv-dock-title" data-bv="roster-title">${bvEsc(bvT('battleView.allies', 'Allies'))}</div>
+          <div class="bv-roster" data-bv="roster"></div>
+        </div>
+        <div class="bv-dock-section bv-dock-feed">
+          <div class="bv-dock-title">${bvEsc(bvT('battleView.feed', 'Battle Log'))}</div>
+          <div class="bv-feed" data-bv="feed"></div>
+        </div>
+      </div>
     </div>
     <div class="bv-foot">
       <div class="bv-feedback" data-bv="feedback"></div>
@@ -400,12 +501,124 @@ function bvSyncMarkers(stage, state) {
     for (const [id, node] of existing) { if (!seen.has(id)) node.remove(); }
     state.prevHp = nextHp;
 }
+/**
+ * Target lines live in one SVG kept as the stage's first child, under the unit
+ * markers. The stage is world-sized in px, so world coordinates map 1:1 and the
+ * existing translate/scale transform applies to lines and markers alike;
+ * non-scaling-stroke keeps line weight constant at every zoom.
+ */
+function bvSyncTargetLines(stage, state) {
+    let svg = stage.querySelector('[data-bv="lines"]');
+    const playtest = state.playtest;
+    const units = (playtest && playtest.units) || [];
+    const bounds = (playtest && playtest.bounds) || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
+    const { w: worldW, h: worldH } = bvWorldSize(bounds);
+    if (!svg) {
+        stage.insertAdjacentHTML('afterbegin',
+            `<svg data-bv="lines" class="bv-lines" viewBox="0 0 ${worldW} ${worldH}" preserveAspectRatio="none"></svg>`);
+        svg = stage.querySelector('[data-bv="lines"]');
+        if (!svg) return;
+    } else {
+        svg.setAttribute('viewBox', `0 0 ${worldW} ${worldH}`);
+    }
+    const unitsById = {};
+    for (const unit of units) unitsById[unit.id] = unit;
+    const selected = new Set(state.selection || []);
+    const tick = playtest ? playtest.tick : 0;
+    const parts = [];
+    for (const unit of units) {
+        const line = bvTargetLineModel(unit, unitsById, bounds, tick);
+        if (!line) continue;
+        const cls = `bv-line ${line.team === 0 ? 'bv-line-ally' : 'bv-line-enemy'}` +
+            `${line.stale ? ' bv-line-stale' : ''}${selected.has(unit.id) ? ' bv-line-selected' : ''}`;
+        parts.push(`<line class="${cls}" x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" vector-effect="non-scaling-stroke"></line>` +
+            `<circle class="${cls}" cx="${line.x2}" cy="${line.y2}" r="4" vector-effect="non-scaling-stroke"></circle>`);
+    }
+    svg.innerHTML = parts.join('');
+}
+function bvRosterRowHtml(model) {
+    return `<button class="bv-roster-row${model.selected ? ' bv-selected' : ''}${model.dead ? ' bv-dead' : ''}"
+        data-roster-id="${bvEsc(model.id)}" data-roster-team="${model.team}">
+        <span class="bv-roster-dot bv-team-${model.team}"></span>
+        <span class="bv-roster-id">${bvEsc(model.shortId)}</span>
+        <span class="bv-roster-hp"><span class="bv-roster-hpbar"><span class="bv-roster-hpfill" style="width:${model.hpPercent}%;background:${model.hpColor}"></span></span>
+        <span class="bv-roster-hpnum">${model.displayHp}/${model.maxHp}</span></span>
+        <span class="bv-roster-act">${model.dead ? '✕' : bvEsc(model.action || '—')}${model.targetShort ? `<span class="bv-roster-target">→ ${bvEsc(model.targetShort)}</span>` : ''}</span>
+      </button>`;
+}
+function bvResultHeaderHtml() {
+    return `<div class="bv-result-row bv-result-head">
+        <span class="bv-roster-dot"></span>
+        <span class="bv-roster-id"></span>
+        <span class="bv-result-num">${bvEsc(bvT('battleView.col.dmg', 'DMG'))}</span>
+        <span class="bv-result-num">${bvEsc(bvT('battleView.col.taken', 'TKN'))}</span>
+        <span class="bv-result-num">${bvEsc(bvT('battleView.col.heal', 'HEAL'))}</span>
+        <span class="bv-result-num">${bvEsc(bvT('battleView.col.kills', 'KO'))}</span>
+      </div>`;
+}
+function bvResultRowHtml(model) {
+    return `<div class="bv-result-row${model.dead ? ' bv-dead' : ''}">
+        <span class="bv-roster-dot bv-team-${model.team}"></span>
+        <span class="bv-roster-id">${model.dead ? '✕ ' : ''}${bvEsc(model.shortId)}</span>
+        <span class="bv-result-num">${model.damageDealt}</span>
+        <span class="bv-result-num">${model.damageTaken}</span>
+        <span class="bv-result-num">${model.healingGiven}</span>
+        <span class="bv-result-num">${model.kills}</span>
+      </div>`;
+}
+/** Roster while fighting; per-unit results (both teams) once the battle ends. */
+function bvSyncRoster(root, state) {
+    const container = root.querySelector('[data-bv="roster"]');
+    const title = root.querySelector('[data-bv="roster-title"]');
+    if (!container) return;
+    const playtest = state.playtest;
+    const units = (playtest && playtest.units) || [];
+    const resultMode = Boolean(playtest && playtest.outcome);
+    if (title) title.textContent = resultMode ? bvT('battleView.result', 'Results') : bvT('battleView.allies', 'Allies');
+    if (!playtest) { container.innerHTML = ''; return; }
+    if (resultMode) {
+        const allies = units.filter(u => u.team === 0).map(bvResultRowModel);
+        const enemies = units.filter(u => u.team === 1).map(bvResultRowModel);
+        container.innerHTML =
+            bvResultHeaderHtml() + allies.map(bvResultRowHtml).join('') +
+            (enemies.length ? `<div class="bv-result-sep">${bvEsc(bvT('battleView.enemies', 'Enemies'))}</div>` + enemies.map(bvResultRowHtml).join('') : '');
+        return;
+    }
+    const selected = new Set(state.selection || []);
+    container.innerHTML = units.filter(u => u.team === 0)
+        .map(unit => bvRosterRowHtml(bvRosterRowModel(unit, selected.has(unit.id)))).join('');
+}
+function bvFeedRowHtml(model) {
+    const src = model.sourceShort
+        ? `<span class="bv-feed-name bv-team-${model.sourceTeam}">${bvEsc(model.sourceShort)}</span>` : '';
+    const tgt = `<span class="bv-feed-name bv-team-${model.targetTeam}">${bvEsc(model.targetShort)}</span>`;
+    if (model.kind === 'death') {
+        return `<div class="bv-feed-row bv-feed-death">💀 ${tgt} <span class="bv-feed-note">${bvEsc(bvT('battleView.down', 'down'))}</span></div>`;
+    }
+    if (model.kind === 'heal') {
+        return `<div class="bv-feed-row bv-feed-heal">${src} ✚ ${tgt} <span class="bv-feed-amt">${bvEsc(model.amountText)}</span></div>`;
+    }
+    const amt = model.dodged
+        ? `<span class="bv-feed-note">${bvEsc(bvT('battleView.dodge', 'dodge'))}</span>`
+        : `<span class="bv-feed-amt">${bvEsc(model.amountText)}</span>`;
+    return `<div class="bv-feed-row${model.lethal ? ' bv-feed-lethal' : ''}">${src} ⚔ ${tgt} ${amt}${model.lethal ? ' 💀' : ''}</div>`;
+}
+function bvSyncFeed(root, state) {
+    const feed = root.querySelector('[data-bv="feed"]');
+    if (!feed) return;
+    const playtest = state.playtest;
+    const events = (playtest && playtest.recentEvents) || [];
+    const unitsById = {};
+    for (const unit of (playtest && playtest.units) || []) unitsById[unit.id] = unit;
+    feed.innerHTML = events.map(entry => bvFeedRowHtml(bvFeedEntryModel(entry, unitsById))).join('');
+    if (state.feedPinned) feed.scrollTop = feed.scrollHeight;
+}
 function bvUpdateInPlace() {
     const root = bvRoot();
     if (!root || !bvCanUpdateInPlace()) { renderBattleView(); return; }
     const state = BV;
     const spectator = state.playtestMode === 'spectator';
-    root.className = `bv-root${spectator ? ' bv-spectator' : ''}`;
+    root.className = `bv-root${spectator ? ' bv-spectator' : ''}${state.dockVisible ? '' : ' bv-no-dock'}`;
     const playtest = state.playtest;
 
     const runBtn = root.querySelector('[data-bv="run"]');
@@ -444,13 +657,26 @@ function bvUpdateInPlace() {
     if (empty) empty.style.display = playtest ? 'none' : 'flex';
 
     const stage = root.querySelector('[data-bv="stage"]');
-    if (stage) bvSyncMarkers(stage, state);
+    if (stage) {
+        bvSyncTargetLines(stage, state);
+        bvSyncMarkers(stage, state);
+    }
+    bvSyncRoster(root, state);
+    bvSyncFeed(root, state);
+
+    const dockToggle = root.querySelector('[data-bv="dock-toggle"]');
+    if (dockToggle) dockToggle.classList.toggle('bv-active', state.dockVisible);
 
     const outcome = root.querySelector('[data-bv="outcome"]');
     const outcomeValue = root.querySelector('[data-bv="outcome-value"]');
     if (outcome && outcomeValue) {
-        if (playtest && playtest.outcome) { outcome.classList.add('bv-show'); outcomeValue.textContent = playtest.outcome; }
-        else { outcome.classList.remove('bv-show'); outcomeValue.textContent = ''; }
+        if (playtest && playtest.outcome && !state.outcomeDismissed) {
+            outcome.classList.add('bv-show');
+            outcomeValue.textContent = playtest.outcome;
+        } else {
+            outcome.classList.remove('bv-show');
+            outcomeValue.textContent = '';
+        }
     }
     const feedback = root.querySelector('[data-bv="feedback"]');
     if (feedback) {
@@ -495,6 +721,33 @@ function bindBattleView(root) {
     root.querySelector('[data-bv="zoom-in"]').onclick = () => bvSetZoom(state.view.scale * 1.25);
     root.querySelector('[data-bv="zoom-out"]').onclick = () => bvSetZoom(state.view.scale * 0.8);
     root.querySelector('[data-bv="zoom-reset"]').onclick = () => bvSetZoom(1);
+    const dockToggle = root.querySelector('[data-bv="dock-toggle"]');
+    if (dockToggle) dockToggle.onclick = () => {
+        state.dockVisible = !state.dockVisible;
+        bvRefresh();
+        // The arena just gained/lost the dock's width; refit so nothing crops.
+        if (state.view.mode === 'fit') bvApplyViewTransform();
+    };
+    const outcomeClose = root.querySelector('[data-bv="outcome-close"]');
+    if (outcomeClose) outcomeClose.onclick = () => { state.outcomeDismissed = true; bvRefresh(); };
+    const roster = root.querySelector('[data-bv="roster"]');
+    if (roster) roster.onclick = event => {
+        const row = event.target.closest && event.target.closest('[data-roster-id]');
+        if (!row || !roster.contains(row)) return;
+        const playtest = state.playtest;
+        const unit = playtest && playtest.units.find(u => u.id === row.dataset.rosterId);
+        // Same selection contract as battlefield markers: living allies only.
+        if (!unit || unit.team !== 0 || unit.dead) return;
+        const selection = new Set(state.selection);
+        if (event.shiftKey) { selection.has(unit.id) ? selection.delete(unit.id) : selection.add(unit.id); }
+        else { selection.clear(); selection.add(unit.id); }
+        state.selection = [...selection]; state.error = '';
+        bvRefresh();
+    };
+    const feed = root.querySelector('[data-bv="feed"]');
+    if (feed) feed.onscroll = () => {
+        state.feedPinned = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 6;
+    };
 
     if (!viewport || !stage) return;
     stage.onclick = event => {
@@ -616,6 +869,10 @@ function bvHandleStateMessage(m) {
     }
     if (m.state.scenarioId && m.state.scenarioId !== state.selected) return;
     if (state.activeStartId && m.state.startId !== state.activeStartId) return;
+    // A freshly decided battle must always surface its banner, even if a
+    // previous battle's banner was dismissed.
+    const hadOutcome = Boolean(state.playtest && state.playtest.outcome);
+    if (!hadOutcome && m.state.outcome) state.outcomeDismissed = false;
     state.playtest = m.state; state.error = '';
     const controllable = new Set((m.state.units || []).filter(u => u.team === 0 && !u.dead).map(u => u.id));
     state.selection = state.selection.filter(id => controllable.has(id));

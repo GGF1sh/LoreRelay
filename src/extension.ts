@@ -2048,6 +2048,9 @@ const BATTLE_VIEW_I18N_KEYS = [
     'battleView.tick', 'battleView.mode', 'battleView.outcome', 'battleView.queued',
     'battleView.hintSelect', 'battleView.errSelectAllies', 'battleView.errStartFirst',
     'battleView.spectatorNote', 'battleView.empty', 'battleView.hp', 'battleView.order',
+    'battleView.allies', 'battleView.enemies', 'battleView.result', 'battleView.feed',
+    'battleView.col.dmg', 'battleView.col.taken', 'battleView.col.heal', 'battleView.col.kills',
+    'battleView.close', 'battleView.dock', 'battleView.dodge', 'battleView.down',
 ] as const;
 function battleViewI18nBundle(): Record<string, string> {
     const bundle: Record<string, string> = {};

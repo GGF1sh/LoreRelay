@@ -138,10 +138,20 @@ body {
     font-weight: 600;
 }
 
+/* ---- Main row: battlefield + info dock ---- */
+.bv-main {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+}
+.bv-root.bv-no-dock .bv-dock { display: none; }
+
 /* ---- Battlefield (dominant) ---- */
 .bv-arena {
     position: relative;
     flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     background:
@@ -295,38 +305,239 @@ body {
     z-index: 5;
 }
 
-/* ---- Outcome overlay ---- */
-.bv-outcome {
+/* ---- Outcome banner: never covers surviving units, dismissible ---- */
+.bv-outcome-banner {
     position: absolute;
-    inset: 0;
-    display: none;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-6px);
+    display: flex;
     align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, .45);
-    z-index: 10;
-    pointer-events: none;
-}
-.bv-outcome.bv-show { display: flex; }
-.bv-outcome-card {
-    text-align: center;
-    padding: 18px 30px;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--bv-panel) 80%, #000 20%);
+    gap: 10px;
+    padding: 7px 10px 7px 16px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bv-panel) 78%, #000 22%);
     border: 1px solid var(--bv-select);
-    box-shadow: 0 8px 40px rgba(0, 0, 0, .6);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, .55), 0 0 18px rgba(255, 216, 102, .18);
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
 }
-.bv-outcome-title {
-    font-size: 11px;
-    letter-spacing: .18em;
+.bv-outcome-banner.bv-show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+.bv-outcome-key {
+    font-size: 10px;
+    letter-spacing: .16em;
     text-transform: uppercase;
     color: var(--bv-muted);
+    white-space: nowrap;
 }
 .bv-outcome-value {
-    font-size: 26px;
+    font-size: 15px;
     font-weight: 800;
-    margin-top: 4px;
     color: var(--bv-select);
+    white-space: nowrap;
 }
+.bv-outcome-close {
+    font: inherit;
+    font-size: 12px;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--bv-border);
+    background: rgba(255, 255, 255, .06);
+    color: var(--bv-muted);
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+.bv-outcome-close:hover { color: var(--bv-text); background: rgba(255, 255, 255, .14); }
+
+/* ---- Target lines (under unit markers) ---- */
+.bv-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+line.bv-line { stroke-width: 1.4px; }
+circle.bv-line { fill: none; stroke-width: 1.4px; }
+.bv-line-ally { stroke: var(--bv-ally); opacity: .8; }
+.bv-line-enemy { stroke: var(--bv-enemy); opacity: .45; }
+.bv-line-stale { opacity: .18; stroke-dasharray: 4 5; }
+line.bv-line-selected { stroke: var(--bv-select); stroke-width: 2.2px; opacity: 1; }
+circle.bv-line-selected { stroke: var(--bv-select); opacity: 1; }
+
+/* ---- Info dock: roster / results + battle log ---- */
+.bv-dock {
+    flex: 0 0 252px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-left: 1px solid var(--bv-border);
+    background: var(--bv-chrome);
+}
+.bv-dock-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 8px 8px 6px;
+}
+.bv-dock-roster { flex: 1 1 55%; }
+.bv-dock-feed { flex: 1 1 45%; border-top: 1px solid var(--bv-border); }
+.bv-dock-title {
+    flex: 0 0 auto;
+    font-size: 9px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--bv-muted);
+    padding: 0 2px 5px;
+}
+.bv-roster {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.bv-roster-row {
+    font: inherit;
+    display: grid;
+    grid-template-columns: 8px 22px 1fr minmax(0, 44%);
+    gap: 6px;
+    align-items: center;
+    text-align: left;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .03);
+    color: var(--bv-text);
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+.bv-roster-row:hover:not(.bv-dead) { background: rgba(255, 255, 255, .08); }
+.bv-roster-row.bv-selected {
+    border-color: var(--bv-select);
+    background: color-mix(in srgb, var(--bv-select) 12%, transparent);
+}
+.bv-roster-row.bv-dead { opacity: .45; cursor: default; }
+.bv-roster-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+.bv-team-0 { background: var(--bv-ally); }
+.bv-team-1 { background: var(--bv-enemy); }
+.bv-roster-id {
+    font-size: 11px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bv-roster-hp {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.bv-roster-hpbar {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, .5);
+    overflow: hidden;
+}
+.bv-roster-hpfill { display: block; height: 100%; transition: width .18s ease-out, background .18s ease; }
+.bv-roster-hpnum {
+    font-size: 9px;
+    color: var(--bv-muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.bv-roster-act {
+    font-size: 10px;
+    color: var(--bv-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+.bv-roster-target { color: var(--bv-enemy); margin-left: 4px; font-weight: 600; }
+
+/* ---- Result table (dock, outcome reached) ---- */
+.bv-result-row {
+    display: grid;
+    grid-template-columns: 8px 1fr repeat(4, 34px);
+    gap: 5px;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-size: 10px;
+}
+.bv-result-row:nth-child(even) { background: rgba(255, 255, 255, .03); }
+.bv-result-row.bv-dead { opacity: .5; }
+.bv-result-head {
+    color: var(--bv-muted);
+    font-size: 8px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    background: var(--bv-chrome);
+    z-index: 1;
+}
+.bv-result-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.bv-result-sep {
+    font-size: 9px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--bv-muted);
+    padding: 7px 2px 3px;
+    border-bottom: 1px solid var(--bv-border);
+    margin-bottom: 3px;
+}
+
+/* ---- Battle log feed ---- */
+.bv-feed {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+.bv-feed-row {
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--bv-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 0 auto;
+}
+.bv-feed-row:nth-child(even) { background: rgba(255, 255, 255, .025); }
+.bv-feed-name { font-weight: 700; }
+.bv-feed-name.bv-team-0 { color: var(--bv-ally); background: none; }
+.bv-feed-name.bv-team-1 { color: var(--bv-enemy); background: none; }
+.bv-feed-amt { color: var(--bv-text); font-weight: 600; }
+.bv-feed-heal .bv-feed-amt { color: var(--bv-hp-hi); }
+.bv-feed-note { color: var(--bv-muted); font-style: italic; }
+.bv-feed-death { color: var(--bv-text); }
+.bv-feed-lethal { color: var(--bv-text); background: rgba(255, 106, 106, .08); }
 
 /* ---- Empty state ---- */
 .bv-empty {

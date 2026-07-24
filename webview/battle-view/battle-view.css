@@ -166,6 +166,13 @@ body {
     user-select: none;
     outline: none;
 }
+/**
+ * The stage is world-sized in px, so these layers are painted in battle space:
+ * the side tints line up with where each team actually deploys (allies low x,
+ * enemies high x), which is what makes an abstract grid read as two forces
+ * facing off rather than a debug canvas. Layer order: fine grid, coarse grid,
+ * team tints, base.
+ */
 .bv-stage {
     position: absolute;
     top: 0;
@@ -173,12 +180,35 @@ body {
     transform-origin: 0 0;
     border: 1px solid var(--bv-border);
     border-radius: 4px;
-    background-color: rgba(0, 0, 0, .22);
+    background-color: #0d1016;
     background-image:
-        linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
-    background-size: 48px 48px;
-    box-shadow: inset 0 0 60px rgba(0, 0, 0, .45);
+        linear-gradient(rgba(255, 255, 255, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .04) 1px, transparent 1px),
+        linear-gradient(rgba(255, 255, 255, .022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .022) 1px, transparent 1px),
+        linear-gradient(90deg,
+            rgba(74, 163, 255, .13) 0%,
+            rgba(74, 163, 255, .04) 26%,
+            transparent 44%,
+            transparent 56%,
+            rgba(255, 106, 106, .04) 74%,
+            rgba(255, 106, 106, .13) 100%),
+        radial-gradient(ellipse 70% 60% at 50% 50%, rgba(120, 150, 190, .10), transparent 70%);
+    background-size: 192px 192px, 192px 192px, 48px 48px, 48px 48px, 100% 100%, 100% 100%;
+    box-shadow:
+        inset 0 0 90px rgba(0, 0, 0, .6),
+        inset 0 0 0 1px rgba(255, 255, 255, .03);
+}
+/* Centre line: the notional front, drawn over the tints but under every unit. */
+.bv-stage::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .09) 15%, rgba(255, 255, 255, .09) 85%, transparent);
+    pointer-events: none;
 }
 
 /* ---- Unit tokens ---- */

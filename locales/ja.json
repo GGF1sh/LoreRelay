@@ -726,7 +726,7 @@
   "webview.inspector.bulkSimRunning": "Running…",
   "webview.inspector.bulkSimSteps": "ステップ数",
   "webview.inspector.bulkSimTitle": "Debug: Advance World Simulation",
-  "webview.inspector.chronicleEmpty": "No chronicle entries yet. Complete GM turns to build the journal.",
+  "webview.inspector.chronicleEmpty": "まだ年代記はありません。GMのターンを進めると記録が作られます。",
   "webview.inspector.chronicleEventCount": "{count} events",
   "webview.inspector.chronicleHint": "ステートジャーナルから生成される確定的なタイムライン（読み取り専用）。",
   "webview.inspector.chronicleRefresh": "Refresh",

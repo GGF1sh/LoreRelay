@@ -22,8 +22,10 @@ test('Mixed Arms & Status Showcase exercises melee, both projectile flavors, AoE
     assert.ok(attacksBy('gunner').length > 0, 'anti-armor projectile (ap_round) never attacked');
     assert.ok(attacksBy('mage').length > 0, 'AoE magic DoT (ignite) never attacked');
 
-    // sentinel (0 evasion, low attack, 400 HP) exists specifically so poison
-    // and/or burn reliably cross their buildupThreshold before the fight ends.
+    // sentinel (0 evasion, 500 HP; `attack` is not overridden since mechanics_v1
+    // ability damage ignores it entirely — see the scenario comment in
+    // combatLabCore.ts) exists specifically so poison and/or burn reliably cross
+    // their buildupThreshold before the fight ends.
     assert.ok(run.summary.statusApplications > 0, 'no status crossed its buildup threshold — rebalance sentinel or the DoT sources');
     const sentinelStatuses = run.output.mechanicsReceipts?.filter(
         event => event.target === 'sentinel' && event.receipt.kind === 'status_applied',
@@ -33,7 +35,8 @@ test('Mixed Arms & Status Showcase exercises melee, both projectile flavors, AoE
     // The medic's heal_lowest_hp_ally gambit should fire in a real 5v5 fight.
     assert.ok(run.output.heals.some(event => event.unit === 'medic' || event.source === 'medic'), 'medic never healed');
 
-    // dodger (30 evasion) exists so a dodge is observable; not asserted as a
+    // dodger (50 evasion, paired with gunner's single-target lock-on so it
+    // actually gets hit) exists so a dodge is observable; not asserted as a
     // hard requirement since which unit reaches it first is not pinned down,
     // but the run must at least record some dodge somewhere in a 5v5 fight.
     assert.ok(run.summary.dodges > 0, 'no dodge occurred anywhere in the fight');

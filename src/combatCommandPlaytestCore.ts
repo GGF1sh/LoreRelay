@@ -87,6 +87,8 @@ export interface CombatCommandPlaytestSnapshot {
         attackAbilityId?: string;
         attackAbilityName?: string;
         attackDeliveryShape?: string;
+        /** The ability's own reach (`delivery.range`) — the weapon's true range, vs. `attackRange` which is the engagement radius. */
+        attackDeliveryRange?: number;
         attackTags?: string[];
         /** Live `mechanics_v1` status effects on this unit; empty when not tracked. */
         statuses: Array<{ id: string; remainingSeconds: number; intensity: number; sourceId?: string }>;
@@ -401,6 +403,7 @@ export function combatCommandPlaytestSnapshot(
                         attackAbilityId: ability.id,
                         attackAbilityName: ability.name,
                         attackDeliveryShape: ability.delivery.shape,
+                        attackDeliveryRange: ability.delivery.range,
                         attackTags: [...ability.tags],
                     }
                     : {}),

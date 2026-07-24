@@ -2051,6 +2051,7 @@ const BATTLE_VIEW_I18N_KEYS = [
     'battleView.allies', 'battleView.enemies', 'battleView.result', 'battleView.feed',
     'battleView.col.dmg', 'battleView.col.taken', 'battleView.col.heal', 'battleView.col.kills',
     'battleView.close', 'battleView.dock', 'battleView.dodge', 'battleView.down',
+    'battleView.range', 'battleView.statusApplied', 'battleView.statusRemoved', 'battleView.statusExpired',
 ] as const;
 function battleViewI18nBundle(): Record<string, string> {
     const bundle: Record<string, string> = {};

@@ -295,6 +295,92 @@ body {
 }
 .bv-unit.bv-hit .bv-token { animation: bv-hit .45s ease-out; }
 
+/* ---- Unit status icons ---- */
+.bv-unit-statuses {
+    min-height: 0;
+    line-height: 1;
+}
+.bv-status-strip {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    font-size: 9px;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .9);
+    vertical-align: middle;
+}
+.bv-status-icon.bv-status-good { filter: drop-shadow(0 0 2px rgba(120, 255, 140, .8)); }
+.bv-status-more {
+    font-size: 8px;
+    color: var(--bv-muted);
+    font-variant-numeric: tabular-nums;
+}
+.bv-roster-act .bv-status-strip { margin-right: 4px; font-size: 10px; }
+
+/* ---- Engagement range ring (selected allies) ---- */
+.bv-range-ring {
+    fill: rgba(74, 163, 255, .05);
+    stroke: var(--bv-ally);
+    stroke-width: 1px;
+    stroke-dasharray: 6 6;
+    opacity: .55;
+}
+
+/* ---- Transient combat effects (world-space, above markers) ---- */
+.bv-fx {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+}
+.bv-fx > * { position: absolute; will-change: transform, opacity; }
+.bv-fx-pop {
+    transform: translate(-50%, -50%);
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .95), 0 0 8px rgba(0, 0, 0, .6);
+}
+.bv-fx-dmg { color: #ffde6a; }
+.bv-fx-lethal { color: #ff6a6a; font-size: 16px; }
+.bv-fx-healpop { color: #6ee56e; }
+.bv-fx-dodge { color: #cfd6dd; font-size: 11px; font-weight: 600; font-style: italic; }
+.bv-fx-status { color: #d9b8ff; font-size: 10px; font-weight: 700; }
+.bv-fx-status-off { color: var(--bv-muted); }
+.bv-fx-shot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+.bv-fx-slash {
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-right-color: currentColor;
+}
+.bv-vec-physical { color: #e8e8e8; background: radial-gradient(circle, #fff, #cfcfcf); box-shadow: 0 0 6px rgba(255, 255, 255, .8); }
+.bv-vec-magical { color: #c39bff; background: radial-gradient(circle, #e7d6ff, #9a5cff); box-shadow: 0 0 8px rgba(154, 92, 255, .9); }
+.bv-vec-technological { color: #5fd4ff; background: radial-gradient(circle, #d2f3ff, #1fb6ff); box-shadow: 0 0 8px rgba(31, 182, 255, .9); }
+.bv-vec-biological { color: #7be07b; background: radial-gradient(circle, #d8ffd8, #3fbf3f); box-shadow: 0 0 8px rgba(63, 191, 63, .9); }
+.bv-vec-mental { color: #ff9ad5; background: radial-gradient(circle, #ffe0f1, #ff5cb0); box-shadow: 0 0 8px rgba(255, 92, 176, .9); }
+.bv-fx-slash.bv-vec-physical,
+.bv-fx-slash.bv-vec-magical,
+.bv-fx-slash.bv-vec-technological,
+.bv-fx-slash.bv-vec-biological,
+.bv-fx-slash.bv-vec-mental { background: none; box-shadow: none; }
+.bv-fx-ring {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid #ff6a6a;
+    box-shadow: 0 0 12px rgba(255, 106, 106, .7);
+    transform: translate(-50%, -50%);
+}
+
 /* ---- Box selection ---- */
 .bv-selbox {
     position: absolute;
@@ -538,6 +624,7 @@ circle.bv-line-selected { stroke: var(--bv-select); opacity: 1; }
 .bv-feed-note { color: var(--bv-muted); font-style: italic; }
 .bv-feed-death { color: var(--bv-text); }
 .bv-feed-lethal { color: var(--bv-text); background: rgba(255, 106, 106, .08); }
+.bv-feed-status { color: #c8a8ee; }
 
 /* ---- Empty state ---- */
 .bv-empty {

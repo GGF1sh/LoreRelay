@@ -13,6 +13,12 @@ type PointerHelper = (
 type ResetHelper = (state: Record<string, unknown>, clearPlaytest?: boolean) => void;
 type ScenarioHelper = (state: Record<string, unknown>, scenarioId: string) => Record<string, unknown> | null;
 
+// Real T() (00-core.js) resolves keys against the loaded locale bundle; this module
+// is evaluated standalone in these tests, so back it with the actual en.json strings
+// (rather than an identity stub) so assertions can keep checking real button text.
+const enLocale = JSON.parse(fs.readFileSync(path.join(__dirname, '../locales/en.json'), 'utf8')) as Record<string, string>;
+const testT = (key: string): string => enLocale[key] ?? key;
+
 type BindHelper = (root: { querySelector: (sel: string) => { onclick?: () => void; onchange?: (e: unknown) => void } | null; querySelectorAll: (sel: string) => Array<unknown> }) => void;
 
 type DomNode = {
@@ -50,10 +56,12 @@ type DomNode = {
     getBoundingClientRect: () => { left: number; top: number; right: number; bottom: number; width: number; height: number };
     setPointerCapture?: (id: number) => void;
     releasePointerCapture?: (id: number) => void;
+    scrollIntoView?: (options?: unknown) => void;
 };
 
 function createMinimalDom() {
     const nodesById = new Map<string, DomNode>();
+    const scrollIntoViewCalls: DomNode[] = [];
 
     function matches(node: DomNode, sel: string): boolean {
         if (sel.startsWith('[data-lab="') && sel.endsWith('"]')) {
@@ -153,6 +161,7 @@ function createMinimalDom() {
             },
             setPointerCapture() { /* no-op */ },
             releasePointerCapture() { /* no-op */ },
+            scrollIntoView() { scrollIntoViewCalls.push(node as DomNode); },
         } as DomNode;
         let currentId = '';
         Object.defineProperty(node, 'id', {
@@ -299,7 +308,7 @@ function createMinimalDom() {
         },
     };
 
-    return { document, nodesById, createNode, pane };
+    return { document, nodesById, createNode, pane, scrollIntoViewCalls };
 }
 
 function loadWebviewHelpers(): {
@@ -346,6 +355,9 @@ function loadWebviewHelpers(): {
                 posted.push(message);
             },
         },
+        // Real T() (00-core.js) resolves i18n keys against the loaded locale bundle;
+        // this module is evaluated in isolation, so stub it as an identity passthrough.
+        T: testT,
         setInterval() {
             intervalCreates += 1;
             return 1;
@@ -400,12 +412,13 @@ function loadWebviewLiveDom(): {
     getPanel: () => DomNode | null;
     query: (sel: string) => DomNode | null;
     queryAll: (sel: string) => DomNode[];
+    scrollIntoViewCalls: DomNode[];
 } {
     const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
     const posted: unknown[] = [];
     let renderCount = 0;
     const messageListeners: Array<(event: { data: unknown }) => void> = [];
-    const { document } = createMinimalDom();
+    const { document, scrollIntoViewCalls } = createMinimalDom();
     const context: Record<string, unknown> = {
         window: {
             addEventListener(type: string, fn: (event: { data: unknown }) => void) {
@@ -419,6 +432,10 @@ function loadWebviewLiveDom(): {
                 posted.push(message);
             },
         },
+        // Real T() (00-core.js) resolves i18n keys against the loaded locale bundle;
+        // this module is evaluated in isolation, so back it with the real en.json
+        // strings (see testT above) rather than an identity stub.
+        T: testT,
         setInterval() { return 1; },
         clearInterval() { /* no-op */ },
     };
@@ -453,6 +470,7 @@ function loadWebviewLiveDom(): {
         queryAll(sel: string) {
             return getPanel()?.querySelectorAll(sel) ?? [];
         },
+        scrollIntoViewCalls,
     };
 }
 
@@ -1312,6 +1330,27 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal(live.state.running, false);
         assert.equal(runBtn?.textContent, 'Run');
         assert.ok(status?.textContent.includes('Victory'));
+    });
+
+    test('E2: a successful Start scrolls the battlefield into view exactly once, not on every later snapshot', () => {
+        // Regression guard: the battlefield sits below Ability Workshop / Combat Lab
+        // JSON in the sidebar and units render mid-box, not at its top edge. A GUI
+        // smoke pass once mistook this for "Start produced zero units" purely because
+        // a short viewport left the populated battlefield scrolled out of view.
+        const live = loadWebviewLiveDom();
+        live.state.selected = 'scenarioA';
+        live.state.pendingStart = true;
+        live.state.pendingStartId = 'ns_live:1';
+        live.state.eligibleForHostRestore = false;
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: runningSnapshot({ tick: 0 }) });
+        assert.ok(live.state.playtest, 'the matching start snapshot was accepted');
+        assert.equal(live.scrollIntoViewCalls.length, 1, 'battlefield scrolls into view once on a successful start');
+        assert.equal(live.scrollIntoViewCalls[0], live.query('[data-lab="battlefield"]'));
+
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: runningSnapshot({ tick: 1 }) });
+        live.dispatchMessage({ type: 'combatCommandPlaytestState', state: runningSnapshot({ tick: 2 }) });
+        assert.equal(live.scrollIntoViewCalls.length, 1, 'ordinary tick snapshots do not re-scroll on every update');
     });
 
     test('F: structural clears and stale-start guards still work with the live DOM path', () => {

@@ -284,6 +284,9 @@ let combatLabRecentRuns: CombatLabRun[] = [];
 /** Single host-owned Combat Command Playtest session + scheduler + multi-subscriber fan-out. */
 const combatCommandPlaytestHost = new CombatCommandPlaytestHost();
 const COMBAT_COMMAND_PLAYTEST_MAIN_SUBSCRIBER = 'main-webview';
+/** Dedicated, independently resizable Battle View panel — a second subscriber to the same host session. */
+let battleViewPanel: vscode.WebviewPanel | undefined;
+const COMBAT_COMMAND_PLAYTEST_BATTLE_VIEW_SUBSCRIBER = 'battle-view';
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -635,8 +638,13 @@ export function activate(context: vscode.ExtensionContext) {
         );
     });
 
+    const openBattleViewCmd = vscode.commands.registerCommand('textadventure.openBattleView', () => {
+        openBattleView(context);
+    });
+
     context.subscriptions.push(
         openGameCmd,
+        openBattleViewCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
         setTtsApiKeyCmd,
@@ -1894,7 +1902,16 @@ function combatLabCatalog() {
     ensureCombatWorkshopFixture();
     return { abilities: [...combatWorkshopBuiltins, ...currentCombatWorkshopLibrary().abilities], statuses: combatWorkshopStatuses };
 }
-function sendCombatLab(): void { panel?.webview.postMessage({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); sendCombatCommandPlaytest(); }
+/**
+ * Fan a Combat-related message out to every open Combat surface (main panel and
+ * the dedicated Battle View). When Battle View is closed this is behaviorally
+ * identical to the old single-panel post — posting to `undefined` is a no-op.
+ */
+function postToCombatPanels(message: unknown): void {
+    panel?.webview.postMessage(message);
+    battleViewPanel?.webview.postMessage(message);
+}
+function sendCombatLab(): void { postToCombatPanels({ type: 'combatLabState', state: { document: currentCombatLabDocument(), playback: combatLabPlayback ? { cursor: combatLabPlayback.cursor, speed: combatLabPlayback.speed, paused: combatLabPlayback.paused } : undefined } }); sendCombatCommandPlaytest(); }
 /**
  * Drop the host playtest session and stop its scheduler.
  * Used when the Combat Lab document changes (apply/clone/import) so automatic
@@ -1948,8 +1965,8 @@ function handleSetCombatLabSpeed(speed: unknown): void { if (!combatLabPlayback)
 function sendCombatCommandPlaytest(): void {
     const snapshot = combatCommandPlaytestHost.snapshot();
     if (snapshot) {
-        // Fan-out goes through host subscribers; also push to the live panel if present.
-        panel?.webview.postMessage({ type: 'combatCommandPlaytestState', state: snapshot });
+        // Fan-out goes through host subscribers; also push to every live Combat panel.
+        postToCombatPanels({ type: 'combatCommandPlaytestState', state: snapshot });
     }
 }
 function sendCombatCommandPlaytestError(error: string, detail?: string, operation?: string, scenarioId?: string, startId?: string): void {
@@ -2018,6 +2035,102 @@ function handleSetCombatCommandPlaytestRunning(running: unknown, startId?: unkno
             typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
         );
     }
+}
+
+/** Static UI strings the Battle View webview renders. Localized host-side, injected once at panel creation. */
+const BATTLE_VIEW_I18N_KEYS = [
+    'battleView.panel.title', 'battleView.group.session', 'battleView.group.orders',
+    'battleView.group.mode', 'battleView.group.view', 'battleView.scenario',
+    'battleView.start', 'battleView.run', 'battleView.pause', 'battleView.step',
+    'battleView.attackMove', 'battleView.attackMoveActive', 'battleView.stop', 'battleView.resume',
+    'battleView.modeCommand', 'battleView.modeSpectator', 'battleView.fit', 'battleView.zoomIn',
+    'battleView.zoomOut', 'battleView.zoomReset', 'battleView.selected', 'battleView.none',
+    'battleView.tick', 'battleView.mode', 'battleView.outcome', 'battleView.queued',
+    'battleView.hintSelect', 'battleView.errSelectAllies', 'battleView.errStartFirst',
+    'battleView.spectatorNote', 'battleView.empty', 'battleView.hp', 'battleView.order',
+] as const;
+function battleViewI18nBundle(): Record<string, string> {
+    const bundle: Record<string, string> = {};
+    for (const key of BATTLE_VIEW_I18N_KEYS) {
+        bundle[key] = t(key);
+    }
+    return bundle;
+}
+function handleOpenBattleView(): void {
+    if (extensionContext) {
+        openBattleView(extensionContext);
+    }
+}
+/**
+ * Open (or reveal) the dedicated Battle View panel. It subscribes to the single
+ * CombatCommandPlaytestHost as a distinct peer, adopts whatever session already
+ * exists, and never starts or clears a session merely by opening or closing.
+ */
+function openBattleView(context: vscode.ExtensionContext): void {
+    if (battleViewPanel) {
+        battleViewPanel.reveal();
+        return;
+    }
+    const webviewPath = path.join(context.extensionPath, 'webview');
+    const battleViewDir = path.join(webviewPath, 'battle-view');
+
+    battleViewPanel = vscode.window.createWebviewPanel(
+        'loreRelayBattleView',
+        t('battleView.panel.title'),
+        vscode.ViewColumn.Beside,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.file(webviewPath)],
+        }
+    );
+
+    const assetUri = (fileName: string): string => {
+        const filePath = path.join(battleViewDir, fileName);
+        const assetVersion = (() => {
+            try {
+                return Math.floor(fs.statSync(filePath).mtimeMs).toString(36);
+            } catch {
+                return Date.now().toString(36);
+            }
+        })();
+        return battleViewPanel!.webview.asWebviewUri(
+            vscode.Uri.file(filePath).with({ query: `v=${assetVersion}` })
+        ).toString();
+    };
+
+    const template = fs.readFileSync(path.join(battleViewDir, 'index.html'), 'utf-8');
+    const nonce = getNonce();
+    const replacements: Array<[string, string]> = [
+        ['{{title}}', t('battleView.panel.title')],
+        ['{{styleUri}}', assetUri('battle-view.css')],
+        ['{{scriptUri}}', assetUri('battle-view.js')],
+        ['{{cspSource}}', battleViewPanel.webview.cspSource],
+        ['{{nonce}}', nonce],
+        ['{{i18nJson}}', JSON.stringify(battleViewI18nBundle())],
+    ];
+    let html = template;
+    for (const [placeholder, value] of replacements) {
+        html = html.split(placeholder).join(value);
+    }
+    battleViewPanel.webview.html = html;
+
+    // Peer subscriber: adopt the current session without restarting it.
+    combatCommandPlaytestHost.subscribe(COMBAT_COMMAND_PLAYTEST_BATTLE_VIEW_SUBSCRIBER, message => {
+        battleViewPanel?.webview.postMessage(message);
+    });
+
+    battleViewPanel.webview.onDidReceiveMessage(
+        (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
+        undefined,
+        context.subscriptions
+    );
+
+    battleViewPanel.onDidDispose(() => {
+        // Closing Battle View must not end the host session — just drop this subscriber.
+        combatCommandPlaytestHost.unsubscribe(COMBAT_COMMAND_PLAYTEST_BATTLE_VIEW_SUBSCRIBER);
+        battleViewPanel = undefined;
+    });
 }
 
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
@@ -2204,6 +2317,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleIssueCombatCommand,
         handleStepCombatCommandPlaytest,
         handleSetCombatCommandPlaytestRunning,
+        handleOpenBattleView,
         handleBranchTimeline,
         sendGitTimelineStatus,
         sendChronicle,
@@ -2683,6 +2797,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
 export function deactivate() {
     combatCommandPlaytestHost.dispose();
     panel = undefined;
+    battleViewPanel = undefined;
     flushScheduledCommercePersist();
     disposeGameStateWatcher();
     if (bgmWatcher) {

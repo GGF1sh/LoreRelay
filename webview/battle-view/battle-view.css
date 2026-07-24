@@ -1,0 +1,392 @@
+/* LoreRelay Battle View — dedicated RTS command surface.
+   Presentation-only: all authority lives in CombatCommandPlaytestHost. */
+:root {
+    --bv-ally: #4aa3ff;
+    --bv-ally-glow: rgba(74, 163, 255, .55);
+    --bv-enemy: #ff6a6a;
+    --bv-enemy-glow: rgba(255, 106, 106, .5);
+    --bv-select: #ffd866;
+    --bv-hp-hi: #51cf66;
+    --bv-hp-mid: #ffd43b;
+    --bv-hp-lo: #ff6b6b;
+    --bv-panel: var(--vscode-editor-background, #1e1e1e);
+    --bv-chrome: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 82%, #000 18%);
+    --bv-border: var(--vscode-panel-border, #3a3a3a);
+    --bv-text: var(--vscode-foreground, #ddd);
+    --bv-muted: var(--vscode-descriptionForeground, #9aa0a6);
+    --bv-accent: var(--vscode-focusBorder, #4aa3ff);
+}
+
+* { box-sizing: border-box; }
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+body {
+    font-family: var(--vscode-font-family, system-ui, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+    color: var(--bv-text);
+    background: var(--bv-panel);
+}
+.bv-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-width: 0;
+}
+
+/* ---- Top chrome: toolbar + status ---- */
+.bv-chrome {
+    flex: 0 0 auto;
+    background: var(--bv-chrome);
+    border-bottom: 1px solid var(--bv-border);
+    padding: 8px 10px 6px;
+}
+.bv-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: flex-end;
+}
+.bv-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.bv-group-label {
+    font-size: 9px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--bv-muted);
+    padding-left: 2px;
+}
+.bv-group-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+.bv-btn {
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.1;
+    color: var(--vscode-button-foreground, #fff);
+    background: var(--vscode-button-background, #0e639c);
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: filter .12s ease, background .12s ease, opacity .12s ease;
+}
+.bv-btn:hover:not(:disabled) { filter: brightness(1.15); }
+.bv-btn:disabled { opacity: .4; cursor: not-allowed; }
+.bv-btn.bv-btn-secondary {
+    background: var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-button-secondaryForeground, #fff);
+}
+.bv-btn.bv-active {
+    background: var(--bv-select);
+    color: #241c00;
+    box-shadow: 0 0 0 2px rgba(255, 216, 102, .35);
+}
+.bv-select-input {
+    font: inherit;
+    font-size: 12px;
+    color: var(--vscode-input-foreground, #ddd);
+    background: var(--vscode-input-background, #2a2a2a);
+    border: 1px solid var(--bv-border);
+    border-radius: 5px;
+    padding: 4px 6px;
+    max-width: 190px;
+}
+.bv-zoom-readout {
+    min-width: 42px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--bv-muted);
+    font-size: 11px;
+}
+
+/* ---- Status strip ---- */
+.bv-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    align-items: center;
+    margin-top: 7px;
+    min-height: 20px;
+}
+.bv-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid var(--bv-border);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    color: var(--bv-text);
+}
+.bv-chip b { font-weight: 600; }
+.bv-chip-key { color: var(--bv-muted); font-size: 10px; letter-spacing: .04em; }
+.bv-chip-ally { border-color: var(--bv-ally-glow); }
+.bv-chip-outcome {
+    background: color-mix(in srgb, var(--bv-select) 22%, transparent);
+    border-color: var(--bv-select);
+    color: var(--bv-select);
+    font-weight: 600;
+}
+
+/* ---- Battlefield (dominant) ---- */
+.bv-arena {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    background:
+        radial-gradient(120% 120% at 50% 40%, rgba(90, 120, 160, .10), transparent 60%),
+        var(--bv-panel);
+}
+.bv-viewport {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    outline: none;
+}
+.bv-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    border: 1px solid var(--bv-border);
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, .22);
+    background-image:
+        linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
+    background-size: 48px 48px;
+    box-shadow: inset 0 0 60px rgba(0, 0, 0, .45);
+}
+
+/* ---- Unit tokens ---- */
+.bv-unit {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
+    color: var(--bv-text);
+    pointer-events: auto;
+}
+.bv-unit[data-unit-team="0"] { cursor: pointer; }
+.bv-order-badge {
+    font-size: 8px;
+    letter-spacing: .04em;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .55);
+    color: #e6e6e6;
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: .9;
+}
+.bv-order-attack { background: rgba(255, 106, 106, .85); color: #1a0000; }
+.bv-order-move { background: rgba(74, 163, 255, .85); color: #001225; }
+.bv-order-hold { background: rgba(200, 200, 200, .85); color: #111; }
+.bv-order-gambit { background: rgba(120, 90, 200, .7); color: #fff; }
+.bv-token {
+    position: relative;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, .7);
+    transition: box-shadow .12s ease, filter .12s ease;
+}
+.bv-unit[data-unit-team="0"] .bv-token {
+    background: radial-gradient(circle at 35% 30%, #7bc0ff, var(--bv-ally));
+    box-shadow: 0 0 8px var(--bv-ally-glow);
+}
+.bv-unit[data-unit-team="1"] .bv-token {
+    background: radial-gradient(circle at 35% 30%, #ff9a9a, var(--bv-enemy));
+    box-shadow: 0 0 8px var(--bv-enemy-glow);
+}
+.bv-unit.bv-selected .bv-token {
+    border-color: var(--bv-select);
+    box-shadow: 0 0 0 3px rgba(255, 216, 102, .85), 0 0 12px rgba(255, 216, 102, .6);
+}
+.bv-unit.bv-hovered .bv-token { filter: brightness(1.3); }
+.bv-unit.bv-dead .bv-token {
+    background: #3a3a3a !important;
+    border-color: #555;
+    box-shadow: none;
+    filter: grayscale(100%);
+    color: #888;
+}
+.bv-unit.bv-dead .bv-token::after {
+    content: "✕";
+    position: absolute;
+    font-size: 15px;
+    color: #ff5a5a;
+    font-weight: 900;
+}
+.bv-unit.bv-dead .bv-label,
+.bv-unit.bv-dead .bv-order-badge { opacity: .4; text-decoration: line-through; }
+.bv-unit.bv-dead .bv-hpbar { opacity: .3; }
+.bv-label {
+    font-size: 9px;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .9);
+    max-width: 44px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bv-hpbar {
+    width: 34px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, .55);
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, .5);
+}
+.bv-hpfill {
+    height: 100%;
+    transition: width .18s ease-out, background .18s ease;
+}
+.bv-hpnum {
+    font-size: 8px;
+    line-height: 1;
+    color: var(--bv-muted);
+    font-variant-numeric: tabular-nums;
+}
+.bv-unit.bv-selected .bv-hpnum,
+.bv-unit.bv-hovered .bv-hpnum { color: var(--bv-text); }
+
+/* HP flash when a unit loses health */
+@keyframes bv-hit {
+    0% { box-shadow: 0 0 0 6px rgba(255, 80, 80, .6); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 80, 80, 0); }
+}
+.bv-unit.bv-hit .bv-token { animation: bv-hit .45s ease-out; }
+
+/* ---- Box selection ---- */
+.bv-selbox {
+    position: absolute;
+    display: none;
+    border: 1px dashed var(--bv-select);
+    background: rgba(255, 216, 102, .12);
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* ---- Outcome overlay ---- */
+.bv-outcome {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .45);
+    z-index: 10;
+    pointer-events: none;
+}
+.bv-outcome.bv-show { display: flex; }
+.bv-outcome-card {
+    text-align: center;
+    padding: 18px 30px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bv-panel) 80%, #000 20%);
+    border: 1px solid var(--bv-select);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, .6);
+}
+.bv-outcome-title {
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--bv-muted);
+}
+.bv-outcome-value {
+    font-size: 26px;
+    font-weight: 800;
+    margin-top: 4px;
+    color: var(--bv-select);
+}
+
+/* ---- Empty state ---- */
+.bv-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--bv-muted);
+    padding: 24px;
+    font-size: 13px;
+    pointer-events: none;
+}
+
+/* ---- Footer feedback ---- */
+.bv-foot {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--bv-border);
+    background: var(--bv-chrome);
+    padding: 5px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 20px;
+}
+.bv-hint { font-size: 10px; color: var(--bv-muted); }
+.bv-feedback {
+    font-size: 11px;
+    color: var(--bv-text);
+    min-height: 14px;
+    font-variant-numeric: tabular-nums;
+}
+.bv-feedback.bv-error { color: var(--bv-enemy); }
+
+/* ---- Spectator mode: unmistakably different ---- */
+.bv-root.bv-spectator .bv-arena { filter: saturate(.7) brightness(.94); }
+.bv-root.bv-spectator .bv-arena::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 3px rgba(255, 176, 32, .5);
+    z-index: 8;
+}
+.bv-spectator-ribbon {
+    display: none;
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9;
+    background: rgba(255, 176, 32, .92);
+    color: #241800;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 999px;
+    pointer-events: none;
+}
+.bv-root.bv-spectator .bv-spectator-ribbon { display: block; }

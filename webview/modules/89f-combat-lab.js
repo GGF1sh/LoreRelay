@@ -52,7 +52,7 @@ function combatBattlefieldPoint(field, clientX, clientY, bounds) {
 function combatUnitPercent(value, min, max) { return max === min ? 50 : labClamp(((value - min) / (max - min)) * 100, 0, 100); }
 function sendSelectedCombatCommand(command) {
   const state = window.LR_combatLab;
-  if (!state.selection.length) { state.error = 'Select one or more allied units first.'; refreshCombatCommandPlaytestView(); return; }
+  if (!state.selection.length) { state.error = T('webview.combatLab.playtest.errorSelectUnits'); refreshCombatCommandPlaytestView(); return; }
   const message = { type: 'issueCombatCommand', unitIds: [...state.selection], command };
   if (state.activeStartId) message.startId = state.activeStartId;
   vscode.postMessage(message);
@@ -109,7 +109,7 @@ function combatUnitMarkerModel(unit, bounds, selected) {
 }
 function combatPlaytestStatusText(state) {
   const playtest = state.playtest;
-  return `Selected: ${state.selection.length ? state.selection.map(String).join(', ') : 'none'}${playtest ? ` · tick ${playtest.tick} · ${playtest.mode || ''}` : ''}${playtest?.outcome ? ` · ${playtest.outcome}` : ''}`;
+  return `${T('webview.combatLab.playtest.selectedPrefix')}: ${state.selection.length ? state.selection.map(String).join(', ') : T('webview.combatLab.playtest.none')}${playtest ? ` · tick ${playtest.tick} · ${playtest.mode || ''}` : ''}${playtest?.outcome ? ` · ${playtest.outcome}` : ''}`;
 }
 function combatPlaytestFeedbackText(state) {
   if (state.error) return String(state.error);
@@ -203,13 +203,13 @@ function updateCombatCommandPlaytestView(state = window.LR_combatLab) {
   }
   const playtest = state.playtest;
   const runBtn = root.querySelector('[data-lab="playtest-run"]');
-  if (runBtn) runBtn.textContent = state.running ? 'Pause' : 'Run';
+  if (runBtn) runBtn.textContent = state.running ? T('webview.combatLab.playtest.pause') : T('webview.combatLab.playtest.run');
   const stepBtn = root.querySelector('[data-lab="playtest-step"]');
   if (stepBtn) stepBtn.disabled = !playtest;
   const attackBtn = root.querySelector('[data-lab="attack-move"]');
   if (attackBtn) {
     attackBtn.setAttribute('aria-pressed', state.pendingOrder === 'attack_move' ? 'true' : 'false');
-    attackBtn.textContent = state.pendingOrder === 'attack_move' ? 'Attack-move (choose ground)' : 'Attack-move';
+    attackBtn.textContent = state.pendingOrder === 'attack_move' ? T('webview.combatLab.playtest.attackMoveActive') : T('webview.combatLab.playtest.attackMove');
   }
   const modeSelect = root.querySelector('[data-lab="playtest-mode"]');
   if (modeSelect && typeof state.playtestMode === 'string') modeSelect.value = state.playtestMode;
@@ -224,6 +224,13 @@ function updateCombatCommandPlaytestView(state = window.LR_combatLab) {
 function refreshCombatCommandPlaytestView() {
   if (canUpdateCombatCommandPlaytestInPlace()) updateCombatCommandPlaytestView();
   else renderCombatLab();
+}
+function scrollCombatCommandPlaytestBattlefieldIntoView() {
+  const root = typeof document.getElementById === 'function' ? document.getElementById('combat-lab-panel') : null;
+  const field = root && typeof root.querySelector === 'function' ? root.querySelector('[data-lab="battlefield"]') : null;
+  if (field && typeof field.scrollIntoView === 'function') {
+    field.scrollIntoView({ block: 'nearest' });
+  }
 }
 function renderCombatCommandPlaytest(state) {
   const playtest = state.playtest;
@@ -243,18 +250,19 @@ function renderCombatCommandPlaytest(state) {
       </div>
     </button>`;
   }).join('');
-  return `<hr><h4>Command Playtest</h4>
-    <div class="inline-help">Real CombatState via stepCombat. Command is the default; spectator keeps the same simulation but rejects player orders.</div>
-    <p><label>Mode <select data-lab="playtest-mode"><option value="command" ${state.playtestMode === 'command' ? 'selected' : ''}>Command</option><option value="spectator" ${state.playtestMode === 'spectator' ? 'selected' : ''}>Spectator</option></select></label>
-      <button data-lab="playtest-start">Start / restart</button>
-      <button data-lab="playtest-run">${state.running ? 'Pause' : 'Run'}</button>
-      <button data-lab="playtest-step" ${!playtest ? 'disabled' : ''}>1 tick</button></p>
-    <p><button data-lab="attack-move" aria-pressed="${state.pendingOrder === 'attack_move'}">Attack-move${state.pendingOrder === 'attack_move' ? ' (choose ground)' : ''}</button>
-      <button data-lab="stop">Stop</button> <button data-lab="resume">Resume Gambit</button></p>
+  return `<hr><h4>${labEsc(T('webview.combatLab.playtest.title'))}</h4>
+    <div class="inline-help">${labEsc(T('webview.combatLab.playtest.help'))}</div>
+    <p><label>${labEsc(T('webview.combatLab.playtest.mode'))} <select data-lab="playtest-mode"><option value="command" ${state.playtestMode === 'command' ? 'selected' : ''}>${labEsc(T('webview.combatLab.playtest.modeCommand'))}</option><option value="spectator" ${state.playtestMode === 'spectator' ? 'selected' : ''}>${labEsc(T('webview.combatLab.playtest.modeSpectator'))}</option></select></label>
+      <button data-lab="playtest-start">${labEsc(T('webview.combatLab.playtest.start'))}</button>
+      <button data-lab="playtest-run">${state.running ? labEsc(T('webview.combatLab.playtest.pause')) : labEsc(T('webview.combatLab.playtest.run'))}</button>
+      <button data-lab="playtest-step" ${!playtest ? 'disabled' : ''}>${labEsc(T('webview.combatLab.playtest.tick'))}</button></p>
+    <p><button data-lab="attack-move" aria-pressed="${state.pendingOrder === 'attack_move'}">${state.pendingOrder === 'attack_move' ? labEsc(T('webview.combatLab.playtest.attackMoveActive')) : labEsc(T('webview.combatLab.playtest.attackMove'))}</button>
+      <button data-lab="stop">${labEsc(T('webview.combatLab.playtest.stop'))}</button> <button data-lab="resume">${labEsc(T('webview.combatLab.playtest.resumeGambit'))}</button>
+      <button data-lab="open-battle-view" title="${labEsc(T('webview.combatLab.playtest.openBattleViewTitle'))}">${labEsc(T('webview.combatLab.playtest.openBattleView'))}</button></p>
     <div class="inline-help" data-lab="playtest-status">${labEsc(combatPlaytestStatusText(state))}</div>
-    <div data-lab="battlefield" tabindex="0" aria-label="Combat command battlefield"
+    <div data-lab="battlefield" tabindex="0" aria-label="${labEsc(T('webview.combatLab.playtest.battlefieldAriaLabel'))}"
       style="position:relative;height:340px;margin:.5rem 0;border:1px solid var(--vscode-panel-border,#666);background:rgba(0,0,0,.18);overflow:hidden;touch-action:none;user-select:none">${markers}<div data-lab="selection-box" style="display:none;position:absolute;border:1px dashed #ffd866;background:rgba(255,216,102,.12);pointer-events:none"></div></div>
-    <div class="inline-help">Click allies to select (Shift toggles). Drag empty ground for box selection. Right-click ground to move; right-click an enemy to attack.</div>
+    <div class="inline-help">${labEsc(T('webview.combatLab.playtest.instructions'))}</div>
     <div role="status" data-lab="playtest-feedback">${labEsc(combatPlaytestFeedbackText(state))}</div>`;
 }
 function bindCombatCommandPlaytest(root) {
@@ -299,6 +307,8 @@ function bindCombatCommandPlaytest(root) {
   };
   root.querySelector('[data-lab="stop"]').onclick = () => sendSelectedCombatCommand('stop');
   root.querySelector('[data-lab="resume"]').onclick = () => sendSelectedCombatCommand('resume_gambit');
+  const openBattleViewBtn = root.querySelector('[data-lab="open-battle-view"]');
+  if (openBattleViewBtn) openBattleViewBtn.onclick = () => vscode.postMessage({ type: 'openBattleView' });
 
   // Delegated marker handlers so incremental snapshot updates never re-bind controls.
   field.onclick = event => {
@@ -324,12 +334,12 @@ function bindCombatCommandPlaytest(root) {
   field.oncontextmenu = event => {
     event.preventDefault();
     const playtest = state.playtest;
-    if (!playtest) { state.error = 'Start the command playtest first.'; refreshCombatCommandPlaytestView(); return; }
+    if (!playtest) { state.error = T('webview.combatLab.playtest.errorStartFirst'); refreshCombatCommandPlaytestView(); return; }
     const targetMarker = event.target.closest?.('[data-unit-id]');
     const targetUnit = targetMarker ? playtest.units.find(unit => unit.id === targetMarker.dataset.unitId) : null;
     const point = combatBattlefieldPoint(field, event.clientX, event.clientY, playtest.bounds);
     const message = combatCommandMessageForPointer(state, targetUnit, point);
-    if (!message) { state.error = 'Select one or more allied units first.'; refreshCombatCommandPlaytestView(); return; }
+    if (!message) { state.error = T('webview.combatLab.playtest.errorSelectUnits'); refreshCombatCommandPlaytestView(); return; }
     if (message.command === 'attack_move') state.pendingOrder = null;
     if (state.activeStartId) message.startId = state.activeStartId;
     state.error = ''; vscode.postMessage(message);
@@ -420,6 +430,7 @@ window.addEventListener('message', event => {
       return;
     }
     let forceStructuralRender = false;
+    const wasAwaitingStart = state.pendingStart;
     if (state.pendingStart) {
       if (m.state.scenarioId !== state.selected) return;
       if (!m.state.startId || m.state.startId !== state.pendingStartId) return;
@@ -474,6 +485,10 @@ window.addEventListener('message', event => {
     // peer adoption) still full-render.
     if (forceStructuralRender) renderCombatLab();
     else refreshCombatCommandPlaytestView();
+    // The battlefield sits below Ability Workshop / Combat Lab JSON in the sidebar
+    // and units render mid-box, not at its top edge — without this a successful
+    // start with a short viewport looks indistinguishable from an empty battle.
+    if (wasAwaitingStart) scrollCombatCommandPlaytestBattlefieldIntoView();
   }
   if (m.type === 'combatCommandPlaytestError') {
     if (m.operation === 'start') {
@@ -501,7 +516,7 @@ window.addEventListener('message', event => {
         state.pendingPeerAdopt = false;
       }
     }
-    state.error = String(m.error || 'Command rejected');
+    state.error = String(m.error || T('webview.combatLab.playtest.errorCommandRejected'));
     // Start failures and non-initiator clears rebuild; issue/step errors keep shell.
     if (m.operation === 'start' || !canUpdateCombatCommandPlaytestInPlace()) renderCombatLab();
     else updateCombatCommandPlaytestView(state);

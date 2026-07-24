@@ -58,6 +58,7 @@ module.exports.COMBAT_TEST_GROUPS = [
             'combatCommandPlaytestCore.test.js',
             'combatCommandPlaytestHost.test.js',
             'combatCommandWebviewAdapter.test.js',
+            'combatBattleViewAdapter.test.js',
         ],
     },
     {

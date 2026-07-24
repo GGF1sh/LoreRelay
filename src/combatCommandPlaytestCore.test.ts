@@ -1,5 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { importCombatLabDocument, initialCombatLabScenarios, isValidScenario, normalizeCombatLabDocument } from './combatLabCore';
 import { createCombatStepContext } from './gambitCombatCore';
 import {
@@ -278,5 +280,71 @@ describe('Combat Lab command playtest adapter', () => {
         const snapshot = combatCommandPlaytestSnapshot(session, { running: true });
         assert.equal(snapshot.tickRate, 30);
         assert.equal(snapshot.running, true);
+    });
+
+    test('attackRange is always present; ability fields are absent without a catalog', () => {
+        // This suite's `catalog` has no abilities, so normalAttackAbility never
+        // resolves — attackRange (a plain unit field) must still come through.
+        const snapshot = combatCommandPlaytestSnapshot(start());
+        for (const unit of snapshot.units) {
+            assert.equal(typeof unit.attackRange, 'number');
+            assert.ok(unit.attackRange > 0);
+            assert.equal(unit.attackAbilityId, undefined);
+            assert.equal(unit.attackDeliveryShape, undefined);
+            assert.deepEqual(unit.statuses, []);
+        }
+    });
+});
+
+describe('Combat Lab command playtest adapter — real ability catalog', () => {
+    const realCatalog = JSON.parse(
+        fs.readFileSync(path.join(__dirname, '..', 'resources', 'combat-abilities', 'v1-reference-abilities.json'), 'utf8'),
+    ) as Parameters<typeof createCombatCommandPlaytest>[1];
+
+    function startWithAbilities(): CombatCommandPlaytestSession {
+        const result = createCombatCommandPlaytest(initialCombatLabScenarios()[0], realCatalog, 'command');
+        assert.equal(result.ok, true);
+        return (result as { ok: true; value: CombatCommandPlaytestSession }).value;
+    }
+
+    test('a unit with a resolved normalAttackAbility exposes its delivery shape and tags', () => {
+        const snapshot = combatCommandPlaytestSnapshot(startWithAbilities());
+        // standard_5v5 assigns every unit `basic_slash` by default (combatLabCore's `unit()` helper).
+        const ally = snapshot.units.find(u => u.id === 'ally_1')!;
+        assert.equal(ally.attackAbilityId, 'basic_slash');
+        assert.equal(ally.attackAbilityName, 'Basic Slash');
+        assert.equal(ally.attackDeliveryShape, 'single_target');
+        assert.deepEqual(ally.attackTags, ['physical']);
+        assert.equal(ally.attackRange, 120);
+    });
+
+    test('a status applied mid-battle appears on the unit and in the feed, then clears on expiry or death', () => {
+        const started = createCombatCommandPlaytest(
+            {
+                id: 'poison-duel', name: 'poison duel', mode: 'mechanics_v1', deltaSeconds: 1 / 30,
+                allies: [{ id: 'archer', name: 'archer', role: 'Frontline', team: 'allies', hp: 100, maxHp: 100, attack: 15, defense: 5, armor: 0, moveSpeed: 150, attackRange: 220, cooldown: 1, accuracy: 0, evasion: 0, resistances: {}, targetTags: ['living'], subsystemTags: [], normalAttackAbilityId: 'poison_arrow', statuses: [], buildup: {}, healBlocked: false, position: { x: -50, y: 0 } }],
+                enemies: [{ id: 'target', name: 'target', role: 'Frontline', team: 'enemies', hp: 300, maxHp: 300, attack: 1, defense: 5, armor: 0, moveSpeed: 0, attackRange: 10, cooldown: 5, accuracy: 0, evasion: 0, resistances: {}, targetTags: ['living'], subsystemTags: [], statuses: [], buildup: {}, healBlocked: false, position: { x: 50, y: 0 } }],
+            } as Parameters<typeof createCombatCommandPlaytest>[0],
+            realCatalog,
+            'command',
+        );
+        assert.equal(started.ok, true);
+        let session = (started as { ok: true; value: CombatCommandPlaytestSession }).value;
+
+        let poisonSeen = false;
+        for (let i = 0; i < 300 && !session.state.outcome; i++) {
+            const result = advanceCombatCommandPlaytest(session, 10);
+            assert.equal(result.ok, true);
+            session = (result as { ok: true; value: CombatCommandPlaytestSession }).value;
+            const snapshot = combatCommandPlaytestSnapshot(session);
+            const targetUnit = snapshot.units.find(u => u.id === 'target')!;
+            if (targetUnit.statuses.some(s => s.id === 'poison')) poisonSeen = true;
+        }
+        assert.ok(poisonSeen, 'poison_arrow should apply a visible poison status to the target at some point');
+        const finalSnapshot = combatCommandPlaytestSnapshot(session);
+        assert.ok(
+            finalSnapshot.recentEvents.some(e => e.kind === 'status' && e.statusId === 'poison' && e.statusAction === 'applied'),
+            'a status_applied receipt for poison should have reached the feed',
+        );
     });
 });

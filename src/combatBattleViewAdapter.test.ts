@@ -26,6 +26,13 @@ interface BattleViewHooks {
     bvModeChange: (state: any, mode: string) => void;
     bvHasSession: (state: any) => boolean;
     bvObserveViewport: () => void;
+    bvRosterRowModel: (unit: any, selected: boolean) => any;
+    bvTargetLineModel: (unit: any, unitsById: Record<string, any>, bounds: any, tick: number) => any;
+    bvResultRowModel: (unit: any) => any;
+    bvFeedEntryModel: (entry: any, unitsById: Record<string, any>) => any;
+    bvNewFeedEntries: (prev: any[] | null, next: any[]) => any[];
+    bvAttackStyleForUnit: (unit: any) => { kind: string; vector: string };
+    bvUnitStatusesModel: (unit: any, max?: number) => any;
     posted: unknown[];
 }
 
@@ -51,7 +58,7 @@ function loadBattleView(opts: LoadOptions = {}): BattleViewHooks {
     };
     if (opts.ResizeObserver) context.ResizeObserver = opts.ResizeObserver;
     vm.runInNewContext(
-        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport };`,
+        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport, bvRosterRowModel, bvTargetLineModel, bvResultRowModel, bvFeedEntryModel, bvNewFeedEntries, bvAttackStyleForUnit, bvUnitStatusesModel };`,
         context,
     );
     const hooks = (context as any).__bv as Omit<BattleViewHooks, 'posted'>;
@@ -407,5 +414,324 @@ describe('Battle View repair: ResizeObserver lifecycle', () => {
         h.fireResize();
         assert.equal(h.bv.BV.view.scale, 3); // untouched
         assert.equal(h.bv.BV.view.mode, 'manual');
+    });
+});
+
+describe('Battle View roster rows', () => {
+    test('a living ally row carries HP, action and target readouts', () => {
+        const bv = loadBattleView();
+        const model = bv.bvRosterRowModel(
+            { id: 'ally_1', team: 0, hp: 42.6, maxHp: 100, dead: false, action: '攻撃', targetId: 'enemy_3' },
+            true,
+        );
+        assert.equal(model.shortId, '1');
+        assert.equal(model.displayHp, 43); // display-rounded
+        assert.equal(model.hpPercent, 43);
+        assert.equal(model.selected, true);
+        assert.equal(model.action, '攻撃');
+        assert.equal(model.targetShort, '3');
+    });
+
+    test('a dead row shows no action or target', () => {
+        const bv = loadBattleView();
+        const model = bv.bvRosterRowModel(
+            { id: 'ally_2', team: 0, hp: 0, maxHp: 100, dead: true, action: '攻撃', targetId: 'enemy_1' },
+            false,
+        );
+        assert.equal(model.dead, true);
+        assert.equal(model.displayHp, 0);
+        assert.equal(model.action, '');
+        assert.equal(model.targetShort, '');
+    });
+});
+
+describe('Battle View target lines', () => {
+    const bounds = { minX: 20, maxX: 220, minY: 10, maxY: 160 };
+    const alive = (id: string, team: 0 | 1, x: number, y: number, targetId: string | null = null, targetTick: number | null = null) =>
+        ({ id, team, x, y, dead: false, targetId, targetTick });
+
+    test('a fresh engagement draws a world-space line to the target', () => {
+        const bv = loadBattleView();
+        const attacker = alive('ally_1', 0, 60, 40, 'enemy_1', 95);
+        const target = alive('enemy_1', 1, 180, 120);
+        const line = bv.bvTargetLineModel(attacker, { ally_1: attacker, enemy_1: target }, bounds, 100);
+        // Field-by-field: vm-context objects fail deepEqual on prototype identity.
+        assert.equal(line.x1, 40);
+        assert.equal(line.y1, 30);
+        assert.equal(line.x2, 160);
+        assert.equal(line.y2, 110);
+        assert.equal(line.team, 0);
+        assert.equal(line.stale, false);
+    });
+
+    test('an old sighting fades, and a very old one disappears', () => {
+        const bv = loadBattleView();
+        const attacker = alive('ally_1', 0, 60, 40, 'enemy_1', 0);
+        const target = alive('enemy_1', 1, 180, 120);
+        const units = { ally_1: attacker, enemy_1: target };
+        assert.equal(bv.bvTargetLineModel(attacker, units, bounds, 91).stale, true);
+        assert.equal(bv.bvTargetLineModel(attacker, units, bounds, 301), null);
+    });
+
+    test('no line for dead attackers, dead targets, or missing targets', () => {
+        const bv = loadBattleView();
+        const target = alive('enemy_1', 1, 180, 120);
+        const deadAttacker = { ...alive('ally_1', 0, 60, 40, 'enemy_1', 95), dead: true };
+        assert.equal(bv.bvTargetLineModel(deadAttacker, { enemy_1: target }, bounds, 100), null);
+        const attacker = alive('ally_1', 0, 60, 40, 'enemy_1', 95);
+        const deadTarget = { ...target, dead: true };
+        assert.equal(bv.bvTargetLineModel(attacker, { ally_1: attacker, enemy_1: deadTarget }, bounds, 100), null);
+        assert.equal(bv.bvTargetLineModel(attacker, { ally_1: attacker }, bounds, 100), null);
+        assert.equal(bv.bvTargetLineModel(alive('ally_2', 0, 0, 0), {}, bounds, 100), null);
+    });
+});
+
+describe('Battle View result rows', () => {
+    test('stats are display-rounded and the top target is shortened', () => {
+        const bv = loadBattleView();
+        const model = bv.bvResultRowModel({
+            id: 'ally_5', team: 0, dead: false,
+            stats: { damageDealt: 184.66, damageTaken: 123.2, healingGiven: 196.4, kills: 2, topTargetId: 'enemy_2' },
+        });
+        assert.equal(model.damageDealt, 185);
+        assert.equal(model.damageTaken, 123);
+        assert.equal(model.healingGiven, 196);
+        assert.equal(model.kills, 2);
+        assert.equal(model.topTargetShort, '2');
+    });
+
+    test('missing stats degrade to zeros instead of NaN', () => {
+        const bv = loadBattleView();
+        const model = bv.bvResultRowModel({ id: 'enemy_1', team: 1, dead: true });
+        assert.equal(model.damageDealt, 0);
+        assert.equal(model.kills, 0);
+        assert.equal(model.topTargetShort, '');
+    });
+});
+
+describe('Battle View feed entries', () => {
+    const roster = {
+        ally_1: { id: 'ally_1', team: 0 },
+        enemy_2: { id: 'enemy_2', team: 1 },
+    };
+
+    test('an attack line names both sides with roster-derived teams', () => {
+        const bv = loadBattleView();
+        const model = bv.bvFeedEntryModel(
+            { tick: 12, kind: 'attack', sourceId: 'ally_1', targetId: 'enemy_2', amount: 17.6 },
+            roster,
+        );
+        assert.equal(model.sourceShort, '1');
+        assert.equal(model.sourceTeam, 0);
+        assert.equal(model.targetShort, '2');
+        assert.equal(model.targetTeam, 1);
+        assert.equal(model.amountText, '−18');
+        assert.equal(model.lethal, false);
+    });
+
+    test('a dodged attack suppresses the amount, a lethal one is flagged', () => {
+        const bv = loadBattleView();
+        const dodged = bv.bvFeedEntryModel(
+            { tick: 3, kind: 'attack', sourceId: 'ally_1', targetId: 'enemy_2', amount: 0, dodged: true }, roster);
+        assert.equal(dodged.dodged, true);
+        assert.equal(dodged.amountText, '');
+        const lethal = bv.bvFeedEntryModel(
+            { tick: 9, kind: 'attack', sourceId: 'ally_1', targetId: 'enemy_2', amount: 30, lethal: true }, roster);
+        assert.equal(lethal.lethal, true);
+    });
+
+    test('heals read as positive amounts, deaths have no source', () => {
+        const bv = loadBattleView();
+        const heal = bv.bvFeedEntryModel(
+            { tick: 5, kind: 'heal', sourceId: 'ally_1', targetId: 'ally_1', amount: 23.5 }, roster);
+        assert.equal(heal.amountText, '+24');
+        const death = bv.bvFeedEntryModel({ tick: 6, kind: 'death', targetId: 'enemy_2' }, roster);
+        assert.equal(death.sourceShort, '');
+        assert.equal(death.targetTeam, 1);
+    });
+
+    test('units already gone from the roster fall back to id-prefix teams', () => {
+        const bv = loadBattleView();
+        const model = bv.bvFeedEntryModel(
+            { tick: 30, kind: 'death', targetId: 'enemy_9' }, roster);
+        assert.equal(model.targetTeam, 1);
+    });
+});
+
+describe('Battle View feed diffing for effects', () => {
+    const entry = (tick: number, extra: Record<string, unknown> = {}) =>
+        ({ tick, kind: 'attack', sourceId: 'a', targetId: 'b', amount: 5, ...extra });
+
+    // vm-realm arrays fail deepStrictEqual on prototype identity, so results
+    // are re-materialized host-side via Array.from before comparison.
+    const ticks = (list: any[]) => Array.from(list, (e: any) => e.tick);
+
+    test('appended entries are detected as new', () => {
+        const bv = loadBattleView();
+        const prev = [entry(1), entry(2)];
+        const next = [entry(1), entry(2), entry(3), entry(4)];
+        assert.deepEqual(ticks(bv.bvNewFeedEntries(prev, next)), [3, 4]);
+    });
+
+    test('a capped (shifted) feed still yields only the tail after the old last entry', () => {
+        const bv = loadBattleView();
+        const prev = [entry(10), entry(11), entry(12)];
+        const next = [entry(11), entry(12), entry(13)]; // 10 fell off the cap
+        assert.deepEqual(ticks(bv.bvNewFeedEntries(prev, next)), [13]);
+    });
+
+    test('an unrelated feed (restart) counts everything as new', () => {
+        const bv = loadBattleView();
+        assert.deepEqual(ticks(bv.bvNewFeedEntries([entry(500)], [entry(1), entry(2)])), [1, 2]);
+    });
+
+    test('an empty previous list treats the whole feed as new', () => {
+        const bv = loadBattleView();
+        assert.deepEqual(ticks(bv.bvNewFeedEntries([], [entry(1)])), [1]);
+        assert.deepEqual(ticks(bv.bvNewFeedEntries(null, [entry(1)])), [1]);
+    });
+
+    test('identical snapshots produce no new entries', () => {
+        const bv = loadBattleView();
+        const list = [entry(1), entry(2)];
+        assert.equal(bv.bvNewFeedEntries(list, list).length, 0);
+    });
+});
+
+describe('Battle View attack style classification', () => {
+    test('delivery shape and tags win over range', () => {
+        const bv = loadBattleView();
+        const style = bv.bvAttackStyleForUnit({
+            attackRange: 48, attackDeliveryShape: 'cone', attackTags: ['magical'],
+        });
+        assert.equal(style.kind, 'projectile'); // non-single-target is never a melee lunge
+        assert.equal(style.vector, 'magical');
+    });
+
+    test('a short-range single-target attack reads as melee', () => {
+        const bv = loadBattleView();
+        const style = bv.bvAttackStyleForUnit({
+            attackRange: 48, attackDeliveryShape: 'single_target', attackTags: ['physical'],
+        });
+        assert.equal(style.kind, 'melee');
+        assert.equal(style.vector, 'physical');
+    });
+
+    test('the weapon\'s own delivery range outranks the engagement radius', () => {
+        const bv = loadBattleView();
+        // basic_slash: a 48-reach sword on a unit with a 120 engagement radius is still melee.
+        const sword = bv.bvAttackStyleForUnit({
+            attackRange: 120, attackDeliveryRange: 48, attackDeliveryShape: 'single_target', attackTags: ['physical'],
+        });
+        assert.equal(sword.kind, 'melee');
+        const bow = bv.bvAttackStyleForUnit({
+            attackRange: 120, attackDeliveryRange: 220, attackDeliveryShape: 'single_target', attackTags: ['biological'],
+        });
+        assert.equal(bow.kind, 'projectile');
+        assert.equal(bow.vector, 'biological');
+    });
+
+    test('without ability data the engagement range decides, defaulting to physical', () => {
+        const bv = loadBattleView();
+        assert.equal(bv.bvAttackStyleForUnit({ attackRange: 60 }).kind, 'melee');
+        assert.equal(bv.bvAttackStyleForUnit({ attackRange: 200 }).kind, 'projectile');
+        assert.equal(bv.bvAttackStyleForUnit({ attackRange: 200 }).vector, 'physical');
+    });
+
+    test('non-vector tags (support, mobility) fall back to physical', () => {
+        const bv = loadBattleView();
+        const style = bv.bvAttackStyleForUnit({
+            attackRange: 95, attackDeliveryShape: 'single_target', attackTags: ['support'],
+        });
+        assert.equal(style.vector, 'physical');
+    });
+});
+
+describe('Battle View unit status strip', () => {
+    test('shows up to three icons with an overflow count and a duration title', () => {
+        const bv = loadBattleView();
+        const model = bv.bvUnitStatusesModel({
+            statuses: [
+                { id: 'poison', remainingSeconds: 4.2, intensity: 1 },
+                { id: 'burn', remainingSeconds: 2.9, intensity: 1 },
+                { id: 'stun', remainingSeconds: 0.8, intensity: 1 },
+                { id: 'slow', remainingSeconds: 5, intensity: 1 },
+                { id: 'fear', remainingSeconds: 1, intensity: 1 },
+            ],
+        });
+        assert.equal(model.shown.length, 3);
+        assert.equal(model.shown[0].icon, '☠');
+        assert.equal(model.overflow, 2);
+        assert.ok(model.title.includes('poison 5s')); // ceil(4.2)
+        assert.ok(model.title.includes('burn 3s'));
+    });
+
+    test('regen is flagged beneficial; unknown ids get the fallback glyph', () => {
+        const bv = loadBattleView();
+        const model = bv.bvUnitStatusesModel({
+            statuses: [
+                { id: 'regen', remainingSeconds: 3, intensity: 1 },
+                { id: 'custom_curse', remainingSeconds: 9, intensity: 1 },
+            ],
+        });
+        assert.equal(model.shown[0].beneficial, true);
+        assert.equal(model.shown[1].icon, '◈');
+        assert.equal(model.overflow, 0);
+    });
+
+    test('a unit without statuses renders nothing', () => {
+        const bv = loadBattleView();
+        const model = bv.bvUnitStatusesModel({ statuses: [] });
+        assert.equal(model.shown.length, 0);
+        assert.equal(model.overflow, 0);
+        assert.equal(model.title, '');
+    });
+});
+
+describe('Battle View status feed entries', () => {
+    test('a status entry carries id and action with no amount text', () => {
+        const bv = loadBattleView();
+        const model = bv.bvFeedEntryModel(
+            { tick: 7, kind: 'status', sourceId: 'ally_1', targetId: 'enemy_2', statusId: 'poison', statusAction: 'applied' },
+            { ally_1: { id: 'ally_1', team: 0 }, enemy_2: { id: 'enemy_2', team: 1 } },
+        );
+        assert.equal(model.kind, 'status');
+        assert.equal(model.statusId, 'poison');
+        assert.equal(model.statusAction, 'applied');
+        assert.equal(model.amountText, '');
+        assert.equal(model.targetTeam, 1);
+    });
+});
+
+describe('Battle View outcome banner state', () => {
+    test('a new outcome clears a previous battle dismissal', () => {
+        const bv = loadBattleView();
+        bv.BV.selected = 'sc';
+        bv.BV.activeStartId = 's1';
+        bv.BV.playtest = { scenarioId: 'sc', startId: 's1', tick: 5, outcome: '', units: [], recentEvents: [], feedback: [] };
+        bv.BV.outcomeDismissed = true; // left over from an earlier battle
+        bv.bvOnMessage({
+            data: {
+                type: 'combatCommandPlaytestState',
+                state: { scenarioId: 'sc', startId: 's1', tick: 6, outcome: 'Victory', units: [], recentEvents: [], feedback: [] },
+            },
+        });
+        assert.equal(bv.BV.outcomeDismissed, false);
+        assert.equal(bv.BV.playtest.outcome, 'Victory');
+    });
+
+    test('a dismissal survives later snapshots of the same decided battle', () => {
+        const bv = loadBattleView();
+        bv.BV.selected = 'sc';
+        bv.BV.activeStartId = 's1';
+        bv.BV.playtest = { scenarioId: 'sc', startId: 's1', tick: 6, outcome: 'Victory', units: [], recentEvents: [], feedback: [] };
+        bv.BV.outcomeDismissed = true;
+        bv.bvOnMessage({
+            data: {
+                type: 'combatCommandPlaytestState',
+                state: { scenarioId: 'sc', startId: 's1', tick: 6, outcome: 'Victory', units: [], recentEvents: [], feedback: [] },
+            },
+        });
+        assert.equal(bv.BV.outcomeDismissed, true);
     });
 });

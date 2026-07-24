@@ -140,5 +140,54 @@ export function initialCombatLabScenarios(): CombatLabScenario[] {
         duel('sleep_break', 'Sleep and damage break', [unit('sleeper', 'allies', { statuses: [{ id: 'sleep', remainingSeconds: 5, intensity: 1 }] })], [unit('waker', 'enemies')]),
         duel('petrify_colossal', 'Petrify vs colossal target', [unit('petrifier', 'allies', { normalAttackAbilityId: 'petrify_ray' })], [unit('colossal', 'enemies', { targetTags: ['colossal', 'structure'], subsystemTags: ['locomotion', 'command'], hp: 500, maxHp: 500 })]),
         duel('infantry_vs_battleship', 'Infantry vs battleship-class target', Array.from({ length: 5 }, (_, i) => unit(`infantry_${i}`, 'allies')), [unit('battleship', 'enemies', { targetTags: ['colossal', 'vehicle'], subsystemTags: ['primary_weapon', 'power'], hp: 1000, maxHp: 1000, armor: 35, defense: 30 })]),
+        // Every other scenario above is a single archetype (or a 1-vs-1 mechanic
+        // probe). This one exists purely as a Battle View / human-smoke fixture:
+        // one of every attack flavor (melee, physical projectile, DoT projectile,
+        // AoE magic DoT, support) on both sides at once, so melee-vs-ranged VFX,
+        // status icons, and a dodge can all be observed in a single real battle
+        // instead of only in a static harness.
+        //
+        // Two things had to be tuned empirically against the real resolver
+        // (see the "Mixed Arms & Status Showcase" test in combatLabCore.test.ts):
+        // (1) `mechanics_v1` ability damage comes entirely from the ability's own
+        //     `effects[].magnitude` — a unit's `attack` stat is never read once it
+        //     has a `normalAttackAbility`. So `basic_slash` (14 dmg/0.9s) hits
+        //     exactly as hard whichever unit swings it; the only real levers here
+        //     are HP, evasion, and positioning/targeting.
+        // (2) Frontline's gambit targets the nearest enemy, recomputed whenever
+        //     the current target dies or leaves range. Mirroring `standard_5v5`'s
+        //     pattern (ally index i paired with enemy index i at the same y) is
+        //     what makes `ranger`'s nearest enemy reliably resolve to `sentinel`
+        //     from the opening tick, so poison_arrow gets repeated, uninterrupted
+        //     hits on one living target instead of splitting buildup across
+        //     whichever enemy happens to be nearest after each death.
+        // `sentinel` is HP-heavy and non-evasive so it survives long enough for
+        // poison/burn to actually cross their buildupThreshold (100, in ~25-per-
+        // hit steps) instead of the target dying to raw damage first. Ally HP is
+        // raised across the board because every enemy (including `sentinel`)
+        // still swings a full-strength `basic_slash`; without the buffer the
+        // slower-cadence ranged/support kit (3s/1.2s/5.5s cooldowns vs. melee's
+        // 0.9s) loses the 5v5 damage race before any of this is observable.
+        duel('mixed_arms_showcase', 'Mixed Arms & Status Showcase', [
+            unit('vanguard', 'allies', { hp: 180, maxHp: 180, position: { x: -80, y: -48 } }),
+            unit('ranger', 'allies', { hp: 160, maxHp: 160, normalAttackAbilityId: 'poison_arrow', attackRange: 220, position: { x: -80, y: -24 } }),
+            unit('gunner', 'allies', { hp: 160, maxHp: 160, normalAttackAbilityId: 'ap_round', attackRange: 240, position: { x: -80, y: 0 } }),
+            unit('mage', 'allies', { hp: 160, maxHp: 160, normalAttackAbilityId: 'ignite', attackRange: 120, position: { x: -80, y: 24 } }),
+            unit('medic', 'allies', { hp: 160, maxHp: 160, role: 'Medic', healAbilityId: 'heal', position: { x: -80, y: 48 } }),
+        ], [
+            unit('brawler', 'enemies', { hp: 140, maxHp: 140, position: { x: 80, y: -48 } }),
+            unit('sentinel', 'enemies', { hp: 500, maxHp: 500, evasion: 0, position: { x: 80, y: -24 } }),
+            // Paired (by y) with `gunner`, whose single-target ap_round locks onto
+            // its nearest enemy the same reliable way ranger locks onto sentinel —
+            // `ignite`'s multi-target sweep (primary + next living enemies in
+            // roster order, not true cone geometry) otherwise never reaches
+            // whichever enemy sits 4th/5th here, so a dedicated single-target
+            // attacker is what actually guarantees dodger gets hit at all.
+            // evasion 50 -> ceil(100/50)=2, so a dodge is guaranteed by its
+            // second incoming dodgeable hit rather than needing it to survive four.
+            unit('dodger', 'enemies', { hp: 90, maxHp: 90, evasion: 50, position: { x: 80, y: 0 } }),
+            unit('juggernaut', 'enemies', { hp: 140, maxHp: 140, position: { x: 80, y: 24 } }),
+            unit('grunt', 'enemies', { hp: 140, maxHp: 140, position: { x: 80, y: 48 } }),
+        ]),
     ];
 }

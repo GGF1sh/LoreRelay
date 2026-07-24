@@ -62,6 +62,11 @@ module.exports.COMBAT_TEST_GROUPS = [
         ],
     },
     {
+        id: 'combat:playtest-analytics',
+        description: 'Per-unit damage/heal/kill aggregation and bounded live-feed folding from stepCombat events, plus snapshot exposure',
+        files: ['combatPlaytestAnalyticsCore.test.js'],
+    },
+    {
         id: 'combat:mechanics-resolver',
         description: 'Mechanics resolver: damage, statuses, heal block, regen, correctness',
         files: [

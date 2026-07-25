@@ -987,7 +987,7 @@
   "battleView.mode": "モード",
   "battleView.outcome": "決着",
   "battleView.queued": "受付",
-  "battleView.hintSelect": "味方をクリックで選択・Shiftで追加/解除・空き地をドラッグで範囲選択・右クリックで移動、敵を右クリックで攻撃。",
+  "battleView.hintSelect": "味方をクリックで選択・Shiftで追加/解除・空き地ドラッグで範囲選択（拡大時はShift+ドラッグ）・拡大時はドラッグ/中ボタン/Altでパン・右クリックで移動/攻撃。",
   "battleView.errSelectAllies": "まず味方ユニットを1体以上選択してください。",
   "battleView.errStartFirst": "先に戦闘を開始してください。",
   "battleView.spectatorNote": "観戦モード — コマンドは無効です。",

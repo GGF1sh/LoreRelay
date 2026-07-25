@@ -996,7 +996,7 @@
   "battleView.mode": "模式",
   "battleView.outcome": "結果",
   "battleView.queued": "已受理",
-  "battleView.hintSelect": "點擊友軍選擇 · Shift 切換 · 拖曳空地框選 · 右鍵地面移動、右鍵敵人攻擊。",
+  "battleView.hintSelect": "點擊友軍選擇 · Shift 切換 · 空地拖曳框選（放大時用 Shift+拖曳）· 放大後拖曳/中鍵/Alt 平移 · 右鍵移動/攻擊。",
   "battleView.errSelectAllies": "請先選擇一個或多個友軍單位。",
   "battleView.errStartFirst": "請先開始戰鬥。",
   "battleView.spectatorNote": "觀戰模式 — 命令已停用。",

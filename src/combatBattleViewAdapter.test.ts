@@ -23,6 +23,7 @@ interface BattleViewHooks {
     bvComputeFitScale: (vw: number, vh: number, ww: number, wh: number, pad?: number) => number;
     bvContentBounds: (playtest: any, padFraction?: number) => { minX: number; maxX: number; minY: number; maxY: number };
     bvResolveCameraOnPlaytest: (view: any, opts: any) => any;
+    bvPanBy: (view: any, dx: number, dy: number) => any;
     bvOnMessage: (event: { data: unknown }) => void;
     bvScenarioChange: (state: any, scenarioId: string) => void;
     bvModeChange: (state: any, mode: string) => void;
@@ -60,7 +61,7 @@ function loadBattleView(opts: LoadOptions = {}): BattleViewHooks {
     };
     if (opts.ResizeObserver) context.ResizeObserver = opts.ResizeObserver;
     vm.runInNewContext(
-        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvContentBounds, bvResolveCameraOnPlaytest, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport, bvRosterRowModel, bvTargetLineModel, bvResultRowModel, bvFeedEntryModel, bvNewFeedEntries, bvAttackStyleForUnit, bvUnitStatusesModel };`,
+        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvContentBounds, bvResolveCameraOnPlaytest, bvPanBy, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport, bvRosterRowModel, bvTargetLineModel, bvResultRowModel, bvFeedEntryModel, bvNewFeedEntries, bvAttackStyleForUnit, bvUnitStatusesModel };`,
         context,
     );
     const hooks = (context as any).__bv as Omit<BattleViewHooks, 'posted'>;
@@ -270,6 +271,39 @@ describe('Battle View sticky content framing', () => {
         assert.equal(refit.mode, 'fit');
         assert.notEqual(refit.scale, 2.5);
         assert.equal(refit.fitLocked, true);
+    });
+
+    test('pan shifts panX/panY, forces Manual, and survives a later step snapshot', () => {
+        const bv = loadBattleView();
+        const playtest = {
+            bounds: BOUNDS,
+            startId: 'ns:3',
+            units: [
+                { id: 'ally_0', team: 0, x: -10, y: 0, dead: false },
+                { id: 'enemy_0', team: 1, x: 10, y: 0, dead: false },
+            ],
+        };
+        const fitted = bv.bvResolveCameraOnPlaytest(
+            { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null },
+            { playtest, viewportW: 800, viewportH: 600, sessionId: 'ns:3', newSession: true },
+        );
+        const panned = bv.bvPanBy(fitted, 40, -25);
+        assert.equal(panned.mode, 'manual');
+        assert.equal(panned.fitLocked, true);
+        assert.equal(panned.scale, fitted.scale);
+        assert.equal(panned.panX, (fitted.panX || 0) + 40);
+        assert.equal(panned.panY, (fitted.panY || 0) - 25);
+
+        const afterStep = bv.bvResolveCameraOnPlaytest(panned, {
+            playtest,
+            viewportW: 800,
+            viewportH: 600,
+            sessionId: 'ns:3',
+        });
+        assert.equal(afterStep.mode, 'manual');
+        assert.equal(afterStep.scale, panned.scale);
+        assert.equal(afterStep.panX, panned.panX);
+        assert.equal(afterStep.panY, panned.panY);
     });
 });
 

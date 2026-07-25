@@ -531,6 +531,27 @@ function bvSetZoom(nextScale) {
     BV.view.fitLocked = true;
     bvApplyViewTransform();
 }
+/**
+ * Pure pan update: shift screen-space translate and force Manual so the next
+ * step snapshot does not snap the camera back to Fit.
+ */
+function bvPanBy(view, dx, dy) {
+    const current = view || { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null };
+    const nextDx = typeof dx === 'number' && Number.isFinite(dx) ? dx : 0;
+    const nextDy = typeof dy === 'number' && Number.isFinite(dy) ? dy : 0;
+    return {
+        ...current,
+        mode: 'manual',
+        fitLocked: true,
+        panX: (typeof current.panX === 'number' ? current.panX : 0) + nextDx,
+        panY: (typeof current.panY === 'number' ? current.panY : 0) + nextDy,
+        scale: typeof current.scale === 'number' && current.scale > 0 ? current.scale : 1,
+    };
+}
+function bvApplyPanDelta(dx, dy) {
+    BV.view = bvPanBy(BV.view, dx, dy);
+    bvApplyViewTransform();
+}
 
 /* ---------------- DOM helpers ---------------- */
 function bvRoot() {
@@ -630,7 +651,7 @@ function renderBattleView() {
     </div>
     <div class="bv-foot">
       <div class="bv-feedback" data-bv="feedback"></div>
-      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select.'))}</div>
+      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select. Drag empty ground to box-select (Shift+drag when zoomed). Drag map / middle / Alt to pan when zoomed. Right-click to move/attack.'))}</div>
     </div>`;
     bindBattleView(root);
     if (BV.playtest && (!BV.view.fitLocked || !BV.view.fitSessionId)) {
@@ -1170,16 +1191,60 @@ function bindBattleView(root) {
         state.error = ''; bvVscode.postMessage(message);
         if (message.command === 'attack_move') bvRefresh();
     };
+    // Camera pan vs marquee on empty ground:
+    // - Middle-button drag, Alt+left drag → always pan
+    // - When the stage is larger than the viewport (zoomed in), left-drag pans;
+    //   hold Shift to marquee-select instead
+    // - When fully fitted (stage fits), left-drag keeps marquee selection
     viewport.onpointerdown = event => {
-        if (event.button !== 0 || (event.target.closest && event.target.closest('[data-unit-id]'))) return;
+        const onUnit = event.target.closest && event.target.closest('[data-unit-id]');
+        const bounds = (state.playtest && state.playtest.bounds) || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
+        const world = bvWorldSize(bounds);
+        const scale = bvCurrentScale();
+        const vpW = viewport.clientWidth || 0;
+        const vpH = viewport.clientHeight || 0;
+        const oversized = (world.w * scale) > vpW + 2 || (world.h * scale) > vpH + 2;
+        const wantPan = !onUnit && (
+            event.button === 1
+            || (event.button === 0 && event.altKey)
+            || (event.button === 0 && oversized && !event.shiftKey)
+        );
+        if (wantPan) {
+            event.preventDefault();
+            state.drag = {
+                kind: 'pan',
+                lastX: event.clientX,
+                lastY: event.clientY,
+                pointerId: event.pointerId,
+            };
+            viewport.classList && viewport.classList.add('bv-panning');
+            viewport.setPointerCapture && viewport.setPointerCapture(event.pointerId);
+            return;
+        }
+        if (event.button !== 0 || onUnit) return;
         const rect = viewport.getBoundingClientRect();
-        state.drag = { x: event.clientX - rect.left, y: event.clientY - rect.top, currentX: event.clientX - rect.left, currentY: event.clientY - rect.top };
+        state.drag = {
+            kind: 'select',
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+            currentX: event.clientX - rect.left,
+            currentY: event.clientY - rect.top,
+        };
         viewport.setPointerCapture && viewport.setPointerCapture(event.pointerId);
     };
     viewport.onpointermove = event => {
         if (!state.drag) return;
+        if (state.drag.kind === 'pan') {
+            const dx = event.clientX - state.drag.lastX;
+            const dy = event.clientY - state.drag.lastY;
+            state.drag.lastX = event.clientX;
+            state.drag.lastY = event.clientY;
+            if (dx || dy) bvApplyPanDelta(dx, dy);
+            return;
+        }
         const rect = viewport.getBoundingClientRect();
         const box = root.querySelector('[data-bv="selbox"]');
+        if (!box) return;
         state.drag.currentX = bvClamp(event.clientX - rect.left, 0, rect.width);
         state.drag.currentY = bvClamp(event.clientY - rect.top, 0, rect.height);
         const left = Math.min(state.drag.x, state.drag.currentX);
@@ -1191,6 +1256,12 @@ function bindBattleView(root) {
     };
     viewport.onpointerup = event => {
         if (!state.drag) return;
+        if (state.drag.kind === 'pan') {
+            viewport.classList && viewport.classList.remove('bv-panning');
+            state.drag = null;
+            viewport.releasePointerCapture && viewport.releasePointerCapture(event.pointerId);
+            return;
+        }
         const vpRect = viewport.getBoundingClientRect();
         const left = Math.min(state.drag.x, state.drag.currentX);
         const right = Math.max(state.drag.x, state.drag.currentX);
@@ -1209,6 +1280,17 @@ function bindBattleView(root) {
         state.drag = null; state.selection = selected; state.error = '';
         viewport.releasePointerCapture && viewport.releasePointerCapture(event.pointerId);
         bvRefresh();
+    };
+    viewport.onpointercancel = event => {
+        if (!state.drag) return;
+        if (state.drag.kind === 'pan') {
+            viewport.classList && viewport.classList.remove('bv-panning');
+        } else {
+            const box = root.querySelector('[data-bv="selbox"]');
+            if (box) box.style.display = 'none';
+        }
+        state.drag = null;
+        try { viewport.releasePointerCapture && viewport.releasePointerCapture(event.pointerId); } catch (_) { /* ignore */ }
     };
 }
 

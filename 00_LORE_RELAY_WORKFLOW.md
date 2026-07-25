@@ -17,7 +17,8 @@ This root file is the stable first stop for LoreRelay repository work. It intent
 - Keep one implementation lane by default and obey the verification tier.
 - Do not broaden a narrow task or repeat already valid evidence without a concrete new risk.
 - Do not modify protected dirty checkouts or unrelated worktrees.
-- Do not merge, mark ready, resolve review threads, force-push, reset, or delete worktrees unless the user has explicitly authorized that action.
+- **Merge authorization (aligned with Standard close):** For eligible narrow work, a task that requests implementation already authorizes the [Standard close](docs/AI_WORKFLOW.md#standard-close): commit, push, open the PR, and—when the verification policy permits—merge, mark ready, and resolve non-blocking review threads in the same task. No separate “please merge” line is required. Do **not** merge when the change is not eligible (for example High-risk work still blocked, `REQUEST_CHANGES`, merge conflicts, required CI failure, or a dangerous HEAD move), or when the user/task explicitly forbids merge.
+- **Destructive git actions still need explicit user authorization:** force-push, hard reset, deleting or pruning worktrees, and rewriting shared history—unless the user has clearly authorized that action for this task.
 - Long-term product direction may be informed by the Google Drive command memo, but GitHub code, tests, and accepted repository contracts remain the technical source of truth.
 
 When this file conflicts with the canonical documents above or current `main`, the canonical documents and current `main` win.

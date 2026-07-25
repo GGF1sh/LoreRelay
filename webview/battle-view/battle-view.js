@@ -532,6 +532,50 @@ function bvSetZoom(nextScale) {
     bvApplyViewTransform();
 }
 /**
+ * Pure zoom-at-anchor: scale multiplies, pan is adjusted so the viewport
+ * point (anchorX, anchorY) stays over the same world point (map-style wheel).
+ */
+function bvZoomAt(view, factor, anchorX, anchorY) {
+    const current = view || { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null };
+    const prevScale = typeof current.scale === 'number' && current.scale > 0 ? current.scale : 1;
+    const mult = typeof factor === 'number' && Number.isFinite(factor) && factor > 0 ? factor : 1;
+    const nextScale = bvClamp(prevScale * mult, 0.1, 6);
+    if (nextScale === prevScale) {
+        return { ...current, mode: 'manual', fitLocked: true, scale: nextScale };
+    }
+    const panX = typeof current.panX === 'number' ? current.panX : 0;
+    const panY = typeof current.panY === 'number' ? current.panY : 0;
+    const ax = typeof anchorX === 'number' && Number.isFinite(anchorX) ? anchorX : 0;
+    const ay = typeof anchorY === 'number' && Number.isFinite(anchorY) ? anchorY : 0;
+    const worldX = (ax - panX) / prevScale;
+    const worldY = (ay - panY) / prevScale;
+    return {
+        ...current,
+        mode: 'manual',
+        fitLocked: true,
+        scale: nextScale,
+        panX: ax - worldX * nextScale,
+        panY: ay - worldY * nextScale,
+    };
+}
+function bvApplyWheelZoom(deltaY, clientX, clientY) {
+    const root = bvRoot();
+    const viewport = root && root.querySelector('[data-bv="viewport"]');
+    if (!viewport) {
+        const factor = deltaY < 0 ? 1.12 : 1 / 1.12;
+        BV.view = bvZoomAt(BV.view, factor, 0, 0);
+        bvApplyViewTransform();
+        return;
+    }
+    const rect = viewport.getBoundingClientRect();
+    const ax = (typeof clientX === 'number' ? clientX : rect.left + rect.width / 2) - rect.left;
+    const ay = (typeof clientY === 'number' ? clientY : rect.top + rect.height / 2) - rect.top;
+    // Wheel up (negative deltaY) → zoom in. Soft steps so many notches feel smooth.
+    const factor = deltaY < 0 ? 1.12 : 1 / 1.12;
+    BV.view = bvZoomAt(BV.view, factor, ax, ay);
+    bvApplyViewTransform();
+}
+/**
  * Pure pan update: shift screen-space translate and force Manual so the next
  * step snapshot does not snap the camera back to Fit.
  */
@@ -651,7 +695,7 @@ function renderBattleView() {
     </div>
     <div class="bv-foot">
       <div class="bv-feedback" data-bv="feedback"></div>
-      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select. Drag empty ground to box-select (Shift+drag when zoomed). Drag map / middle / Alt to pan when zoomed. Right-click to move/attack.'))}</div>
+      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select. Wheel to zoom. Drag / middle / Alt to pan when zoomed. Shift+drag to box-select when zoomed. Right-click to move/attack.'))}</div>
     </div>`;
     bindBattleView(root);
     if (BV.playtest && (!BV.view.fitLocked || !BV.view.fitSessionId)) {
@@ -1190,6 +1234,13 @@ function bindBattleView(root) {
         if (state.activeStartId) message.startId = state.activeStartId;
         state.error = ''; bvVscode.postMessage(message);
         if (message.command === 'attack_move') bvRefresh();
+    };
+    // Mouse wheel / trackpad pinch-as-wheel → zoom toward cursor (Manual).
+    viewport.onwheel = event => {
+        event.preventDefault();
+        const delta = typeof event.deltaY === 'number' ? event.deltaY : 0;
+        if (!delta) return;
+        bvApplyWheelZoom(delta, event.clientX, event.clientY);
     };
     // Camera pan vs marquee on empty ground:
     // - Middle-button drag, Alt+left drag → always pan

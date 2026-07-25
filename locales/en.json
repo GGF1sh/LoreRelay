@@ -992,7 +992,7 @@
   "battleView.mode": "Mode",
   "battleView.outcome": "Outcome",
   "battleView.queued": "Queued",
-  "battleView.hintSelect": "Click allies to select · Shift toggles · drag empty ground to box-select (Shift+drag when zoomed) · drag map / middle / Alt to pan when zoomed · right-click to move/attack.",
+  "battleView.hintSelect": "Click allies to select · wheel to zoom · drag / middle / Alt to pan when zoomed · Shift+drag to box-select when zoomed · right-click to move/attack.",
   "battleView.errSelectAllies": "Select one or more allied units first.",
   "battleView.errStartFirst": "Start the battle first.",
   "battleView.spectatorNote": "Spectator mode — commands are disabled.",

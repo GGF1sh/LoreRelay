@@ -24,6 +24,7 @@ interface BattleViewHooks {
     bvContentBounds: (playtest: any, padFraction?: number) => { minX: number; maxX: number; minY: number; maxY: number };
     bvResolveCameraOnPlaytest: (view: any, opts: any) => any;
     bvPanBy: (view: any, dx: number, dy: number) => any;
+    bvZoomAt: (view: any, factor: number, anchorX: number, anchorY: number) => any;
     bvOnMessage: (event: { data: unknown }) => void;
     bvScenarioChange: (state: any, scenarioId: string) => void;
     bvModeChange: (state: any, mode: string) => void;
@@ -61,7 +62,7 @@ function loadBattleView(opts: LoadOptions = {}): BattleViewHooks {
     };
     if (opts.ResizeObserver) context.ResizeObserver = opts.ResizeObserver;
     vm.runInNewContext(
-        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvContentBounds, bvResolveCameraOnPlaytest, bvPanBy, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport, bvRosterRowModel, bvTargetLineModel, bvResultRowModel, bvFeedEntryModel, bvNewFeedEntries, bvAttackStyleForUnit, bvUnitStatusesModel };`,
+        `${source}\nglobalThis.__bv = { BV, bvMarkerModel, bvCommandMessageForPointer, bvCommandControlsDisabled, bvScreenToWorld, bvComputeFitScale, bvContentBounds, bvResolveCameraOnPlaytest, bvPanBy, bvZoomAt, bvOnMessage, bvScenarioChange, bvModeChange, bvHasSession, bvObserveViewport, bvRosterRowModel, bvTargetLineModel, bvResultRowModel, bvFeedEntryModel, bvNewFeedEntries, bvAttackStyleForUnit, bvUnitStatusesModel };`,
         context,
     );
     const hooks = (context as any).__bv as Omit<BattleViewHooks, 'posted'>;
@@ -304,6 +305,33 @@ describe('Battle View sticky content framing', () => {
         assert.equal(afterStep.scale, panned.scale);
         assert.equal(afterStep.panX, panned.panX);
         assert.equal(afterStep.panY, panned.panY);
+    });
+
+    test('wheel zoom-at-anchor keeps the anchor world point fixed and forces Manual', () => {
+        const bv = loadBattleView();
+        const start = { scale: 1, mode: 'fit', panX: 100, panY: 50, fitLocked: true, fitSessionId: 'ns:4' };
+        const ax = 200;
+        const ay = 150;
+        const worldX = (ax - start.panX) / start.scale;
+        const worldY = (ay - start.panY) / start.scale;
+        const zoomed = bv.bvZoomAt(start, 1.12, ax, ay);
+        assert.equal(zoomed.mode, 'manual');
+        assert.equal(zoomed.fitLocked, true);
+        assert.ok(Math.abs(zoomed.scale - 1.12) < 1e-9);
+        const worldX2 = (ax - zoomed.panX) / zoomed.scale;
+        const worldY2 = (ay - zoomed.panY) / zoomed.scale;
+        assert.ok(Math.abs(worldX2 - worldX) < 1e-9);
+        assert.ok(Math.abs(worldY2 - worldY) < 1e-9);
+
+        const afterStep = bv.bvResolveCameraOnPlaytest(zoomed, {
+            playtest: { bounds: BOUNDS, startId: 'ns:4', units: [] },
+            viewportW: 800,
+            viewportH: 600,
+            sessionId: 'ns:4',
+        });
+        assert.equal(afterStep.scale, zoomed.scale);
+        assert.equal(afterStep.panX, zoomed.panX);
+        assert.equal(afterStep.mode, 'manual');
     });
 });
 

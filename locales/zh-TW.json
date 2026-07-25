@@ -996,7 +996,7 @@
   "battleView.mode": "模式",
   "battleView.outcome": "結果",
   "battleView.queued": "已受理",
-  "battleView.hintSelect": "點擊友軍選擇 · 滾輪縮放 · 放大後拖曳/中鍵/Alt 平移 · 放大時 Shift+拖曳框選 · 右鍵移動/攻擊。",
+  "battleView.hintSelect": "點擊友軍選擇 · 空地拖曳框選 · 滾輪縮放 · 中鍵拖曳或 Alt+拖曳平移 · 右鍵移動/攻擊。",
   "battleView.errSelectAllies": "請先選擇一個或多個友軍單位。",
   "battleView.errStartFirst": "請先開始戰鬥。",
   "battleView.spectatorNote": "觀戰模式 — 命令已停用。",

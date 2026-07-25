@@ -695,7 +695,7 @@ function renderBattleView() {
     </div>
     <div class="bv-foot">
       <div class="bv-feedback" data-bv="feedback"></div>
-      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select. Wheel to zoom. Drag / middle / Alt to pan when zoomed. Shift+drag to box-select when zoomed. Right-click to move/attack.'))}</div>
+      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select. Drag empty ground to box-select. Wheel to zoom. Middle-drag or Alt+drag to pan. Right-click to move/attack.'))}</div>
     </div>`;
     bindBattleView(root);
     if (BV.playtest && (!BV.view.fitLocked || !BV.view.fitSessionId)) {
@@ -1243,22 +1243,14 @@ function bindBattleView(root) {
         bvApplyWheelZoom(delta, event.clientX, event.clientY);
     };
     // Camera pan vs marquee on empty ground:
-    // - Middle-button drag, Alt+left drag → always pan
-    // - When the stage is larger than the viewport (zoomed in), left-drag pans;
-    //   hold Shift to marquee-select instead
-    // - When fully fitted (stage fits), left-drag keeps marquee selection
+    // - Middle-button drag, or Alt+left drag → pan (map navigation)
+    // - Left-drag empty ground → marquee unit select (always; including when zoomed)
+    //   (Middle-drag is enough for pan; do not steal left-drag from selection.)
     viewport.onpointerdown = event => {
         const onUnit = event.target.closest && event.target.closest('[data-unit-id]');
-        const bounds = (state.playtest && state.playtest.bounds) || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
-        const world = bvWorldSize(bounds);
-        const scale = bvCurrentScale();
-        const vpW = viewport.clientWidth || 0;
-        const vpH = viewport.clientHeight || 0;
-        const oversized = (world.w * scale) > vpW + 2 || (world.h * scale) > vpH + 2;
         const wantPan = !onUnit && (
             event.button === 1
             || (event.button === 0 && event.altKey)
-            || (event.button === 0 && oversized && !event.shiftKey)
         );
         if (wantPan) {
             event.preventDefault();

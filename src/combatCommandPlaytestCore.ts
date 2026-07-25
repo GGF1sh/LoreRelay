@@ -117,6 +117,21 @@ function clampScalar(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
 
+function unitHpSnapshot(state: CombatState): Record<string, number> {
+    const hp: Record<string, number> = {};
+    for (const id of Object.keys(state.units)) hp[id] = state.units[id].hp;
+    return hp;
+}
+
+function statusesSnapshot(state: CombatState): Record<string, ReadonlyArray<{ id: string; sourceId?: string }>> {
+    const statuses: Record<string, ReadonlyArray<{ id: string; sourceId?: string }>> = {};
+    for (const id of Object.keys(state.mechanicsStates)) {
+        const list = state.mechanicsStates[id]?.statuses;
+        if (list && list.length) statuses[id] = list;
+    }
+    return statuses;
+}
+
 /**
  * Combat Lab scenarios are authored around the origin (allies at x≈−80,
  * enemies at x≈+80), while the interactive playtest viewport's battle
@@ -350,11 +365,18 @@ export function advanceCombatCommandPlaytest(
             state = { ...state, outcome: before };
             break;
         }
+        const hpBefore = unitHpSnapshot(state);
         const stepped = stepCombat(state, context);
         state = stepped.state;
         feedback.push(...stepped.events.commandReceipts);
         // Same events the receipts come from; previously discarded entirely.
-        analytics = foldCombatStepEvents(analytics, stepped.events);
+        // hpBefore/hpAfter let the fold recover ambient DoT/lethal-timer damage,
+        // which never appears in `events.attacks` — see CombatStepTickContext.
+        analytics = foldCombatStepEvents(analytics, stepped.events, {
+            hpBefore,
+            hpAfter: unitHpSnapshot(state),
+            statusesAfter: statusesSnapshot(state),
+        });
         const after = combatTerminalOutcome(state, context);
         if (after) state = { ...state, outcome: after };
         else if (state.tick > context.timeoutTicks) state = { ...state, outcome: 'Timeout' };

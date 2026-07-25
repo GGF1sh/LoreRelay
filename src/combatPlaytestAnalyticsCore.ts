@@ -13,9 +13,36 @@
  * Everything is sized so it can ride along on the host's per-pulse snapshot
  * broadcast: per-unit totals are a fixed number of scalars, and the live feed
  * is a hard-capped ring of the most recent entries.
+ *
+ * One category of damage never shows up in `events.attacks` at all: a
+ * `mechanics_v1` poison/burn/bleed tick reduces HP straight inside
+ * `advanceMechanicsState`'s end-of-tick sweep, with no accompanying event.
+ * Folding only `events` would silently under-count both `damageDealt` (the
+ * DoT's caster) and `damageTaken` (its victim) for exactly the status-heavy
+ * fights this module exists to summarize. The caller already holds a unit's
+ * HP immediately before and after each `stepCombat` call, so
+ * {@link foldCombatStepEvents} takes that as a third argument and derives the
+ * untracked remainder — still without reading combat-core internals, only
+ * comparing state the caller already has on hand.
  */
 import { CombatEvent, CombatStepEvents } from './gambitCombatCore';
 import { MechanicsReceipt } from './combatMechanicsResolver';
+
+/** Per-unit HP immediately before/after one `stepCombat` call, and any status
+ * list snapshot the caller wants consulted for ambient-damage attribution. */
+export interface CombatStepTickContext {
+    hpBefore: Readonly<Record<string, number>>;
+    hpAfter: Readonly<Record<string, number>>;
+    /**
+     * End-of-tick active status ids per unit. When a unit's ambient HP loss
+     * this tick is unexplained by `events`, and exactly one caster is on
+     * record (via `status_applied` receipts, see
+     * {@link CombatPlaytestAnalytics.statusSourceByVictim}) for the statuses
+     * listed here, that source is credited. Omitted or ambiguous (0 or 2+
+     * distinct sources) attribution is left blank rather than guessed.
+     */
+    statusesAfter?: Readonly<Record<string, ReadonlyArray<{ id: string }>>>;
+}
 
 /** Hard cap on the live feed carried by every snapshot broadcast. */
 export const COMBAT_ANALYTICS_RECENT_EVENT_LIMIT = 24;
@@ -71,6 +98,18 @@ export interface CombatPlaytestAnalytics {
     units: Record<string, CombatPlaytestUnitAnalytics>;
     /** Oldest first, capped at {@link COMBAT_ANALYTICS_RECENT_EVENT_LIMIT}. */
     recentEvents: CombatPlaytestLogEntry[];
+    /**
+     * `"${victimId}|${statusId}" -> casterId`, learned from `status_applied`
+     * receipts and cleared on `cleansed`. This exists because the engine only
+     * records a status instance's own caster (`StatusInstance.sourceId`) for
+     * `lethal_timer`-class statuses — "only lethal timers need a caster link"
+     * per combatMechanicsResolver.ts's `applyStatus` — so poison/burn/bleed
+     * ticks have no caster to read off the status itself. Naturally-expiring
+     * DoTs are not pruned here (no receipt marks that moment for non-lethal-
+     * timer statuses); a stale entry is harmless since it is only ever
+     * consulted for a status id still present in that tick's active list.
+     */
+    statusSourceByVictim: Record<string, string>;
 }
 
 /** Broadcast-safe projection of one unit's totals. Excludes the per-victim tally. */
@@ -108,7 +147,7 @@ function emptyUnitAnalytics(): CombatPlaytestUnitAnalytics {
 export function createCombatPlaytestAnalytics(unitIds: readonly string[]): CombatPlaytestAnalytics {
     const units: Record<string, CombatPlaytestUnitAnalytics> = {};
     for (const id of unitIds) units[id] = emptyUnitAnalytics();
-    return { units, recentEvents: [] };
+    return { units, recentEvents: [], statusSourceByVictim: {} };
 }
 
 function cloneUnitAnalytics(source: CombatPlaytestUnitAnalytics): CombatPlaytestUnitAnalytics {
@@ -123,7 +162,11 @@ function cloneUnitAnalytics(source: CombatPlaytestUnitAnalytics): CombatPlaytest
 function cloneAnalytics(source: CombatPlaytestAnalytics): CombatPlaytestAnalytics {
     const units: Record<string, CombatPlaytestUnitAnalytics> = {};
     for (const id of Object.keys(source.units)) units[id] = cloneUnitAnalytics(source.units[id]);
-    return { units, recentEvents: source.recentEvents.map(entry => ({ ...entry })) };
+    return {
+        units,
+        recentEvents: source.recentEvents.map(entry => ({ ...entry })),
+        statusSourceByVictim: { ...source.statusSourceByVictim },
+    };
 }
 
 function ensureUnit(analytics: CombatPlaytestAnalytics, id: string): CombatPlaytestUnitAnalytics {
@@ -164,6 +207,28 @@ const STATUS_RECEIPT_ACTIONS: Partial<Record<string, CombatPlaytestStatusAction>
     lethal_timer_expired: 'expired',
 };
 
+/**
+ * The one unambiguous caster among a unit's currently active statuses, looked
+ * up via `statusSourceByVictim` (populated from `status_applied` receipts —
+ * see that field's doc comment for why the status instances themselves cannot
+ * be trusted). Null when zero or two-or-more distinct sources are found;
+ * attribution is skipped rather than guessed in the ambiguous case (e.g.
+ * simultaneous poison from one caster and burn from another).
+ */
+function soleActiveStatusSource(
+    analytics: CombatPlaytestAnalytics,
+    unitId: string,
+    activeStatuses: ReadonlyArray<{ id: string }> | undefined,
+): string | null {
+    if (!activeStatuses || activeStatuses.length === 0) return null;
+    const sources = new Set(
+        activeStatuses
+            .map(status => analytics.statusSourceByVictim[`${unitId}|${status.id}`])
+            .filter((id): id is string => Boolean(id)),
+    );
+    return sources.size === 1 ? [...sources][0] : null;
+}
+
 /** `tick|attacker|victim` keys for attacks the resolver reported as fully evaded. */
 function dodgedAttackKeys(receipts: ReadonlyArray<CombatEvent & { receipt: MechanicsReceipt }>): Set<string> {
     const keys = new Set<string>();
@@ -181,19 +246,29 @@ function dodgedAttackKeys(receipts: ReadonlyArray<CombatEvent & { receipt: Mecha
  * Fold one tick's events into a new analytics value.
  *
  * Kill credit goes to the attacker of the last attack recorded against the dead
- * unit on the same tick. Combat-core pushes the death immediately after the
- * attack that caused it, so within a tick that attacker is the killing blow.
- * A unit that dies with no attack against it that tick (e.g. a future
- * damage-over-time source) simply credits nobody rather than guessing.
+ * unit on the same tick — UNLESS that attack alone would not have been lethal
+ * (checked against `tick.hpBefore`/`hpAfter`), in which case a same-tick DoT or
+ * lethal timer actually finished the unit off; credit moves to that status's
+ * source when it is unambiguous (see {@link CombatStepTickContext}), otherwise
+ * to nobody, rather than misattributing the earlier non-lethal hit.
  */
 export function foldCombatStepEvents(
     previous: CombatPlaytestAnalytics,
     events: CombatStepEvents,
+    // Defaults to an empty before/after pair, under which the ambient-damage
+    // pass below finds nothing and behaves exactly as it did before this
+    // parameter existed — callers that only care about event-level folding
+    // (most of this file's own tests) are not required to supply real state.
+    tick: CombatStepTickContext = { hpBefore: {}, hpAfter: {} },
 ): CombatPlaytestAnalytics {
     const analytics = cloneAnalytics(previous);
     const dodged = dodgedAttackKeys(events.mechanicsReceipts || []);
     /** Last attacker seen against a victim on this tick — the killing-blow candidate. */
     const lastAttackerFor = new Map<string, string>();
+    /** Per-victim sum of `events.attacks` damage this tick, to isolate the ambient remainder. */
+    const attackDamageForVictim = new Map<string, number>();
+    /** Per-healed-unit sum of `events.heals` amount this tick, for the same reason. */
+    const healAmountForUnit = new Map<string, number>();
 
     for (const event of events.decisions || []) {
         const unitId = readString(event, 'unit');
@@ -226,6 +301,7 @@ export function foldCombatStepEvents(
         if (wasDodged) victim.dodges += 1;
 
         lastAttackerFor.set(victimId, attackerId);
+        attackDamageForVictim.set(victimId, (attackDamageForVictim.get(victimId) || 0) + damage);
         pushRecent(analytics, {
             tick: event.tick,
             kind: 'attack',
@@ -245,6 +321,7 @@ export function foldCombatStepEvents(
 
         ensureUnit(analytics, healerId).healingGiven += amount;
         ensureUnit(analytics, healedId).healingReceived += amount;
+        healAmountForUnit.set(healedId, (healAmountForUnit.get(healedId) || 0) + amount);
         pushRecent(analytics, {
             tick: event.tick,
             kind: 'heal',
@@ -254,25 +331,10 @@ export function foldCombatStepEvents(
         });
     }
 
-    for (const event of events.deaths || []) {
-        const deadId = readString(event, 'unit');
-        if (!deadId) continue;
-        const dead = ensureUnit(analytics, deadId);
-        if (dead.diedAtTick === null) dead.diedAtTick = event.tick;
-        const killerId = lastAttackerFor.get(deadId);
-        if (killerId && killerId !== deadId) ensureUnit(analytics, killerId).kills += 1;
-        // Mark the lethal blow in the feed so a kill reads as one line, not two.
-        for (let index = analytics.recentEvents.length - 1; index >= 0; index--) {
-            const entry = analytics.recentEvents[index];
-            if (entry.tick !== event.tick) break;
-            if (entry.kind === 'attack' && entry.targetId === deadId) {
-                entry.lethal = true;
-                break;
-            }
-        }
-        pushRecent(analytics, { tick: event.tick, kind: 'death', targetId: deadId });
-    }
-
+    // Status lifecycle (feed lines + statusSourceByVictim bookkeeping) runs
+    // before the ambient-damage pass below so a status applied earlier this
+    // very tick already has a known caster by the time that status's first
+    // DoT tick (in the same tick's end-of-tick mechanics sweep) is folded.
     for (const event of events.mechanicsReceipts || []) {
         const action = STATUS_RECEIPT_ACTIONS[event.receipt?.kind];
         const statusId = event.receipt?.statusId;
@@ -283,6 +345,9 @@ export function foldCombatStepEvents(
         const ownerId = action === 'expired' ? readString(event, 'unit') : readString(event, 'target');
         if (!ownerId) continue;
         const sourceId = action !== 'expired' ? readString(event, 'unit') : null;
+        const key = `${ownerId}|${statusId}`;
+        if (action === 'applied' && sourceId) analytics.statusSourceByVictim[key] = sourceId;
+        else if (action === 'removed') delete analytics.statusSourceByVictim[key];
         pushRecent(analytics, {
             tick: event.tick,
             kind: 'status',
@@ -291,6 +356,64 @@ export function foldCombatStepEvents(
             statusAction: action,
             ...(sourceId ? { sourceId } : {}),
         });
+    }
+
+    // Ambient damage: whatever HP a unit lost this tick that `attacks` does not
+    // explain (a poison/burn/bleed tick or a lethal-timer execution, none of
+    // which push an attacks event). `after = before - attackDamage -
+    // ambientDamage + healAmount`, rearranged below. Only credited when
+    // positive — a unit that gained HP from untracked regen is not this
+    // module's concern, and floating residue from an exact-lethal hit must not
+    // read as a second source of damage.
+    // Only units the caller supplied hp for get the ambient-vs-attack distinction;
+    // a unit absent from hpBefore falls back to the pre-existing "trust the last
+    // same-tick attacker" behavior below, unchanged for callers (mostly this
+    // file's own tests) that fold events without tracking state at all.
+    const attackAloneLethalFor = new Map<string, boolean>();
+    for (const unitId of Object.keys(tick.hpBefore)) {
+        const before = tick.hpBefore[unitId];
+        const after = tick.hpAfter[unitId];
+        if (typeof before !== 'number' || typeof after !== 'number') continue;
+        const attackDamage = attackDamageForVictim.get(unitId) || 0;
+        const healAmount = healAmountForUnit.get(unitId) || 0;
+        const ambient = before - after - attackDamage + healAmount;
+        if (ambient > 0) {
+            ensureUnit(analytics, unitId).damageTaken += ambient;
+            const source = soleActiveStatusSource(analytics, unitId, tick.statusesAfter?.[unitId]);
+            if (source) {
+                const dealer = ensureUnit(analytics, source);
+                dealer.damageDealt += ambient;
+                dealer.damageByTarget[unitId] = (dealer.damageByTarget[unitId] || 0) + ambient;
+            }
+        }
+        attackAloneLethalFor.set(unitId, before - attackDamage <= 0);
+    }
+
+    for (const event of events.deaths || []) {
+        const deadId = readString(event, 'unit');
+        if (!deadId) continue;
+        const dead = ensureUnit(analytics, deadId);
+        if (dead.diedAtTick === null) dead.diedAtTick = event.tick;
+
+        const attackAloneLethal = attackAloneLethalFor.get(deadId) ?? true;
+        const killerId = attackAloneLethal
+            ? lastAttackerFor.get(deadId)
+            : soleActiveStatusSource(analytics, deadId, tick.statusesAfter?.[deadId]);
+        if (killerId && killerId !== deadId) ensureUnit(analytics, killerId).kills += 1;
+        // Mark the lethal blow in the feed so a kill reads as one line, not two
+        // — only when an attack was actually the killing blow; an ambient death
+        // has no attack entry to mark.
+        if (attackAloneLethal) {
+            for (let index = analytics.recentEvents.length - 1; index >= 0; index--) {
+                const entry = analytics.recentEvents[index];
+                if (entry.tick !== event.tick) break;
+                if (entry.kind === 'attack' && entry.targetId === deadId) {
+                    entry.lethal = true;
+                    break;
+                }
+            }
+        }
+        pushRecent(analytics, { tick: event.tick, kind: 'death', targetId: deadId });
     }
 
     return analytics;

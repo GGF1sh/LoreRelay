@@ -133,6 +133,45 @@ test('webview rules select parity tests with reasons', () => {
     assert(plan.selectedCommands.every((item) => item.reasons.length > 0));
 });
 
+// TEST-CONSOLE-CLASSIFICATION-GAP-001: dedicated Battle View assets under
+// webview/battle-view/** used to fall through as unknown and force full-suite
+// even though combat:command-playtest owns combatBattleViewAdapter coverage.
+test('webview/battle-view assets plan complete and focused (no full-suite)', () => {
+    for (const file of ['webview/battle-view/battle-view.js', 'webview/battle-view/battle-view.css']) {
+        const plan = makePlan({
+            root: fixture(),
+            base: 'HEAD',
+            head: 'HEAD',
+            mode: 'verify',
+            changedFiles: [file],
+        });
+        assert.strictEqual(plan.complete, true, `${file} must be classified`);
+        assert.deepStrictEqual(plan.unknownFiles, [], `${file} must not be unknown`);
+        assert.strictEqual(plan.requiresFullSuite, false, `${file} must not force full suite`);
+        const ids = plan.selectedCommands.map((item) => item.id);
+        assert(ids.includes('test:combat:command-playtest'), `${file} must select combat:command-playtest`);
+        assert(ids.includes('test:test_webview_bundle.js'), `${file} must select webview bundle parity`);
+        assert(!ids.includes('full-suite'), `${file} must not select full-suite`);
+    }
+});
+
+test('other known webview shell/asset paths stay focused without full-suite', () => {
+    for (const file of ['webview/script.js', 'webview/style.css', 'webview/assets/icon.png']) {
+        const plan = makePlan({
+            root: fixture(),
+            base: 'HEAD',
+            head: 'HEAD',
+            mode: 'verify',
+            changedFiles: [file],
+        });
+        assert.strictEqual(plan.complete, true, `${file} must be classified`);
+        assert.deepStrictEqual(plan.unknownFiles, []);
+        assert.strictEqual(plan.requiresFullSuite, false, `${file} must not force full suite`);
+        assert(!plan.selectedCommands.some((item) => item.id === 'full-suite'));
+        assert(plan.selectedCommands.some((item) => item.id === 'test:test_webview_bundle.js'));
+    }
+});
+
 test('locale rules select i18n validation', () => {
     const plan = makePlan({ root: fixture(), base: 'HEAD', head: 'HEAD', mode: 'verify', changedFiles: ['locales/ja.json'] });
     assert(plan.selectedCommands.some((item) => item.id === 'test:check_i18n_keys.js'));

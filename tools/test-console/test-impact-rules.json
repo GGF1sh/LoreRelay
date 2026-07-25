@@ -29,6 +29,27 @@
       "reason": "Webview styling requires generated bundle and layout parity checks."
     },
     {
+      "id": "webview-battle-view",
+      "patterns": ["webview/battle-view/**"],
+      "tests": ["combat:command-playtest", "test_webview_bundle.js"],
+      "boundaries": ["compile", "webview-parity"],
+      "reason": "Dedicated Battle View assets require command-playtest adapter coverage and packaging parity, not a full suite."
+    },
+    {
+      "id": "webview-shell",
+      "patterns": ["webview/script.js", "webview/style.css", "webview/app.js"],
+      "tests": ["test_webview_bundle.js", "test_webview_handlers_core.js"],
+      "boundaries": ["compile", "webview-parity", "i18n"],
+      "reason": "Top-level webview shell scripts and styles require bundle and host-contract coverage."
+    },
+    {
+      "id": "webview-assets",
+      "patterns": ["webview/assets/**"],
+      "tests": ["test_webview_bundle.js"],
+      "boundaries": ["webview-parity"],
+      "reason": "Static webview assets require packaging parity checks."
+    },
+    {
       "id": "webview-index",
       "patterns": ["webview/index.html"],
       "tests": ["test_webview_bundle.js", "validate_webview_html_structure.js"],

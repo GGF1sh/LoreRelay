@@ -19994,7 +19994,7 @@
       "name": "startCombatCommandPlaytest",
       "kind": "messageType",
       "sourcePath": "src/combatBattleViewAdapter.test.ts",
-      "line": 378,
+      "line": 412,
       "signature": "type: \"startCombatCommandPlaytest\" (received)",
       "public": "protocol",
       "boundary": "host-webview",

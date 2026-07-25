@@ -985,6 +985,8 @@
   "battleView.modeCommand": "指揮",
   "battleView.modeSpectator": "觀戰",
   "battleView.fit": "適應",
+  "battleView.cameraFit": "適應",
+  "battleView.cameraManual": "手動",
   "battleView.zoomIn": "放大",
   "battleView.zoomOut": "縮小",
   "battleView.zoomReset": "100%",

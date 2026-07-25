@@ -976,6 +976,8 @@
   "battleView.modeCommand": "コマンド",
   "battleView.modeSpectator": "観戦",
   "battleView.fit": "全体表示",
+  "battleView.cameraFit": "Fit",
+  "battleView.cameraManual": "手動",
   "battleView.zoomIn": "拡大",
   "battleView.zoomOut": "縮小",
   "battleView.zoomReset": "100%",

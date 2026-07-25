@@ -981,6 +981,8 @@
   "battleView.modeCommand": "Command",
   "battleView.modeSpectator": "Spectator",
   "battleView.fit": "Fit",
+  "battleView.cameraFit": "Fit",
+  "battleView.cameraManual": "Manual",
   "battleView.zoomIn": "Zoom in",
   "battleView.zoomOut": "Zoom out",
   "battleView.zoomReset": "100%",

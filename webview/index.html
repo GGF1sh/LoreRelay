@@ -283,9 +283,21 @@
         <div id="checkpoint-empty" class="checkpoint-empty" data-i18n="webview.checkpoint.empty">No saved checkpoints yet.</div>
       </div>
 
-      <div id="dice-header">
+      <div id="summary-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">📜 Story Summary</label>
+            <div style="display: flex; gap: 6px;">
+              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">♻️ Generate Summary</button>
+              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 Archive Chapter</button>
+            </div>
+          </div>
+          <textarea id="story-summary" rows="4" data-i18n-placeholder="webview.summary.placeholder" placeholder="Story synopsis appears here. You can edit it manually." style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: var(--text); padding: 8px; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+
+      <details class="status-tool-section">
+      <summary id="dice-header">
         <span data-i18n="webview.dice.header">🎲 Dice Roller</span>
-      </div>
+      </summary>
       <div id="dice-area">
         <div id="dice-presets">
           <button class="dice-btn" data-sides="4">d4</button>
@@ -307,9 +319,11 @@
         <div id="dice-log"></div>
       </div>
 
-      <div id="calc-header">
+      </details>
+      <details class="status-tool-section">
+      <summary id="calc-header">
         <span data-i18n="webview.calc.header">🔢 Calculator</span>
-      </div>
+      </summary>
       <div id="calc-area">
         <input type="text" id="calc-input" data-i18n-placeholder="webview.calc.placeholder" placeholder="e.g. 15 * 3 + 8" />
         <button id="calc-btn" data-i18n="webview.calc.button">Calc</button>
@@ -317,10 +331,12 @@
         <div id="calc-history"></div>
       </div>
 
-      <div id="bgm-header">
+      </details>
+      <details class="status-tool-section">
+      <summary id="bgm-header">
         <span data-i18n="webview.bgm.header">🎵 BGM &amp; SE</span>
         <span id="bgm-mode" data-i18n-title="webview.bgm.autoTitle" title="GM switches BGM automatically">AUTO</span>
-      </div>
+      </summary>
       <div id="bgm-area">
         <div id="bgm-now">♪ ---</div>
         <div id="bgm-controls">
@@ -337,14 +353,19 @@
         </div>
       </div>
 
-      <div id="gallery-header">
+      </details>
+      <details class="status-tool-section">
+      <summary id="gallery-header">
         <span data-i18n="webview.gallery.header">🖼️ Scene Gallery</span>
-      </div>
+      </summary>
       <div id="gallery"></div>
 
-      <div id="theme-header">
+      </details>
+      <details class="status-tool-section">
+      <summary id="theme-header">
         <span data-i18n="webview.theme.header">🌍 World Theme</span>
-        <div class="theme-selector">
+      </summary>
+      <div class="theme-selector">
           <label data-i18n="webview.status.theme">Theme:</label>
           <button class="theme-btn active" data-theme="fantasy" data-i18n="webview.theme.fantasy">Fantasy</button>
           <button class="theme-btn" data-theme="cyberpunk" data-i18n="webview.theme.cyberpunk">Cyberpunk</button>
@@ -355,7 +376,6 @@
           <button class="theme-btn" data-theme="horror" data-i18n="webview.theme.horror">Horror</button>
           <button class="theme-btn" data-theme="steampunk" data-i18n="webview.theme.steampunk">Steampunk</button>
         </div>
-      </div>
 
         <!-- アーカイブ促しバナー（履歴が閾値を超えた時） -->
         <div id="archive-suggest-banner" class="archive-suggest-banner" style="display: none;">
@@ -365,17 +385,7 @@
         </div>
 
         <!-- あらすじ (Summary) -->
-        <div id="summary-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
-            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">📜 Story Summary</label>
-            <div style="display: flex; gap: 6px;">
-              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">♻️ Generate Summary</button>
-              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 Archive Chapter</button>
-            </div>
-          </div>
-          <textarea id="story-summary" rows="4" data-i18n-placeholder="webview.summary.placeholder" placeholder="Story synopsis appears here. You can edit it manually." style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: var(--text); padding: 8px; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
-        </div>
-
+        </details>
       </div> <!-- /pane-status -->
 
       <!-- ページ 2: Character Profile -->

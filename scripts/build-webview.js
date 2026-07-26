@@ -79,6 +79,7 @@ const CSS_MODULE_ORDER = [
     '99-settlement-diorama.css',
     '89-vehicles.css',
     '9a-ink-lantern.css',
+    '9c-ux-playable-pass.css',
     '9b-genre-chrome.css'
 ];
 

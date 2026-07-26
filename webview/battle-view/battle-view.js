@@ -27,7 +27,10 @@ const BV = {
     eligibleForHostRestore: true,
     pendingPeerAdopt: false,
     drag: null,
-    view: { scale: 1, mode: 'fit' },
+    // Camera: scale/pan are sticky after the session's one-shot content fit.
+    // mode 'fit' = last framing was Fit (scale locked until Fit / resize / new session).
+    // mode 'manual' = user zoom/100%; steps never auto-refit either mode.
+    view: { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null },
     prevHp: {},
     dockVisible: true,
     outcomeDismissed: false,
@@ -265,9 +268,106 @@ function bvScreenToWorld(stageRect, clientX, clientY, bounds) {
         y: bounds.minY + yRatio * (bounds.maxY - bounds.minY),
     };
 }
-function bvComputeFitScale(viewportW, viewportH, worldW, worldH) {
+/** Fit margin: ~12% padding (0.88). Optional pad overrides for tests. */
+function bvComputeFitScale(viewportW, viewportH, worldW, worldH, pad = 0.88) {
     if (!viewportW || !viewportH || !worldW || !worldH) return 1;
-    return Math.max(0.05, Math.min(viewportW / worldW, viewportH / worldH) * 0.94);
+    const margin = typeof pad === 'number' && pad > 0 && pad <= 1 ? pad : 0.88;
+    return Math.max(0.05, Math.min(6, Math.min(viewportW / worldW, viewportH / worldH) * margin));
+}
+/**
+ * World-space AABB for camera framing. Prefers living units so empty arena
+ * edges do not shrink tokens; falls back to playtest.bounds / default world.
+ * Pure: no DOM. Padding is applied as a fraction of the content span (min floor).
+ */
+function bvContentBounds(playtest, padFraction = 0.12) {
+    const fallback = (playtest && playtest.bounds) || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
+    const units = (playtest && playtest.units) || [];
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let count = 0;
+    for (const unit of units) {
+        if (!unit || unit.dead) continue;
+        if (typeof unit.x !== 'number' || typeof unit.y !== 'number') continue;
+        if (!Number.isFinite(unit.x) || !Number.isFinite(unit.y)) continue;
+        minX = Math.min(minX, unit.x);
+        maxX = Math.max(maxX, unit.x);
+        minY = Math.min(minY, unit.y);
+        maxY = Math.max(maxY, unit.y);
+        count += 1;
+    }
+    if (!count) return { ...fallback };
+    const spanX = Math.max(maxX - minX, 40);
+    const spanY = Math.max(maxY - minY, 40);
+    const pad = typeof padFraction === 'number' && padFraction >= 0 ? padFraction : 0.12;
+    const padX = Math.max(spanX * pad, 16);
+    const padY = Math.max(spanY * pad, 16);
+    let out = {
+        minX: minX - padX,
+        maxX: maxX + padX,
+        minY: minY - padY,
+        maxY: maxY + padY,
+    };
+    // Keep framing inside the declared world when available (preserve melee/ranged space).
+    if (playtest && playtest.bounds) {
+        const b = playtest.bounds;
+        out = {
+            minX: Math.max(b.minX, out.minX),
+            maxX: Math.min(b.maxX, out.maxX),
+            minY: Math.max(b.minY, out.minY),
+            maxY: Math.min(b.maxY, out.maxY),
+        };
+        if (out.minX >= out.maxX || out.minY >= out.maxY) return { ...b };
+    }
+    return out;
+}
+/**
+ * Pure camera policy for a playtest update.
+ * - newSession: recompute content Fit and lock scale/pan
+ * - otherwise: preserve mode/scale/pan (steps must not rezoom)
+ */
+function bvResolveCameraOnPlaytest(view, opts) {
+    const current = view || { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null };
+    const viewportW = (opts && opts.viewportW) || 0;
+    const viewportH = (opts && opts.viewportH) || 0;
+    const playtest = opts && opts.playtest;
+    const sessionId = (opts && opts.sessionId) || null;
+    const forceRefit = Boolean(opts && opts.forceRefit);
+    const newSession = Boolean(opts && opts.newSession)
+        || (sessionId && current.fitSessionId && sessionId !== current.fitSessionId)
+        || !current.fitLocked;
+    if (!forceRefit && !newSession && current.fitLocked) {
+        return {
+            scale: current.scale,
+            mode: current.mode,
+            panX: current.panX || 0,
+            panY: current.panY || 0,
+            fitLocked: true,
+            fitSessionId: current.fitSessionId || sessionId,
+        };
+    }
+    const world = bvWorldSize((playtest && playtest.bounds) || { minX: -200, maxX: 200, minY: -150, maxY: 150 });
+    const content = bvContentBounds(playtest);
+    const { w: cw, h: ch } = bvWorldSize(content);
+    // Cap auto-Fit so melee/ranged spacing stays readable (manual ± may go higher).
+    const scale = Math.min(2.75, bvComputeFitScale(viewportW || world.w, viewportH || world.h, cw, ch, 0.88));
+    // Pan so the content centre lands at the viewport centre (stage is still full world).
+    const bounds = (playtest && playtest.bounds) || { minX: -200, maxX: 200, minY: -150, maxY: 150 };
+    const contentCx = (content.minX + content.maxX) / 2;
+    const contentCy = (content.minY + content.maxY) / 2;
+    const stageX = contentCx - bounds.minX;
+    const stageY = contentCy - bounds.minY;
+    const vw = viewportW || world.w;
+    const vh = viewportH || world.h;
+    return {
+        scale,
+        mode: 'fit',
+        panX: vw / 2 - stageX * scale,
+        panY: vh / 2 - stageY * scale,
+        fitLocked: true,
+        fitSessionId: sessionId || current.fitSessionId || null,
+    };
 }
 /** Order controls are unavailable without a session or in spectator mode. */
 function bvCommandControlsDisabled(state) {
@@ -313,6 +413,8 @@ function bvResetUi(state, clearPlaytest = true) {
         state.playtest = null; state.activeStartId = null; state.prevHp = {};
         state.outcomeDismissed = false; state.feedPinned = true;
         state.fxPrev = null;
+        // Next battle gets a fresh one-shot content Fit.
+        state.view = { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null };
     }
 }
 /** True when a host session exists or is being started for this peer. */
@@ -358,11 +460,43 @@ function bvModeChange(state, mode) {
 }
 
 /* ---------------- view transform ---------------- */
-function bvCurrentScale(viewport, worldW, worldH) {
-    if (BV.view.mode === 'fit') {
-        return bvComputeFitScale(viewport.clientWidth, viewport.clientHeight, worldW, worldH);
-    }
-    return BV.view.scale;
+function bvCurrentScale() {
+    return typeof BV.view.scale === 'number' && BV.view.scale > 0 ? BV.view.scale : 1;
+}
+function bvUpdateZoomReadout() {
+    const root = bvRoot();
+    if (!root) return;
+    const readout = root.querySelector('[data-bv="zoom-readout"]');
+    if (!readout) return;
+    const scale = bvCurrentScale();
+    const modeLabel = BV.view.mode === 'manual'
+        ? bvT('battleView.cameraManual', 'Manual')
+        : bvT('battleView.cameraFit', 'Fit');
+    readout.textContent = `${modeLabel} · ${Math.round(scale * 100)}%`;
+    readout.title = modeLabel;
+}
+/**
+ * One-shot (or explicit) content Fit. Locks scale/pan so step updates never rezoom.
+ * force=true for Fit button and viewport resize while in fit mode.
+ */
+function bvRefitCamera(opts) {
+    const root = bvRoot();
+    const viewport = root && root.querySelector('[data-bv="viewport"]');
+    const vw = viewport ? viewport.clientWidth : 0;
+    const vh = viewport ? viewport.clientHeight : 0;
+    const sessionId = (opts && opts.sessionId)
+        || BV.activeStartId
+        || (BV.playtest && BV.playtest.startId)
+        || null;
+    BV.view = bvResolveCameraOnPlaytest(BV.view, {
+        playtest: BV.playtest,
+        viewportW: vw,
+        viewportH: vh,
+        sessionId,
+        newSession: Boolean(opts && opts.newSession),
+        forceRefit: Boolean(opts && opts.forceRefit),
+    });
+    bvApplyViewTransform();
 }
 function bvApplyViewTransform() {
     const root = bvRoot();
@@ -374,17 +508,92 @@ function bvApplyViewTransform() {
     const { w: worldW, h: worldH } = bvWorldSize(bounds);
     stage.style.width = `${worldW}px`;
     stage.style.height = `${worldH}px`;
-    const scale = bvCurrentScale(viewport, worldW, worldH);
+    const scale = bvCurrentScale();
     BV.view.scale = scale;
-    const offX = Math.max(0, (viewport.clientWidth - worldW * scale) / 2);
-    const offY = Math.max(0, (viewport.clientHeight - worldH * scale) / 2);
+    let offX = typeof BV.view.panX === 'number' ? BV.view.panX : (viewport.clientWidth - worldW * scale) / 2;
+    let offY = typeof BV.view.panY === 'number' ? BV.view.panY : (viewport.clientHeight - worldH * scale) / 2;
+    // Manual 100%/± without a prior content pan: keep world centred.
+    if (BV.view.mode === 'manual' && !BV.view.fitLocked) {
+        offX = (viewport.clientWidth - worldW * scale) / 2;
+        offY = (viewport.clientHeight - worldH * scale) / 2;
+        BV.view.panX = offX;
+        BV.view.panY = offY;
+    }
     stage.style.transform = `translate(${offX}px, ${offY}px) scale(${scale})`;
-    const readout = root.querySelector('[data-bv="zoom-readout"]');
-    if (readout) readout.textContent = `${Math.round(scale * 100)}%`;
+    bvUpdateZoomReadout();
 }
 function bvSetZoom(nextScale) {
     BV.view.mode = 'manual';
     BV.view.scale = bvClamp(nextScale, 0.1, 6);
+    // Keep existing pan so zooming does not jump the focal point.
+    if (typeof BV.view.panX !== 'number') BV.view.panX = 0;
+    if (typeof BV.view.panY !== 'number') BV.view.panY = 0;
+    BV.view.fitLocked = true;
+    bvApplyViewTransform();
+}
+/**
+ * Pure zoom-at-anchor: scale multiplies, pan is adjusted so the viewport
+ * point (anchorX, anchorY) stays over the same world point (map-style wheel).
+ */
+function bvZoomAt(view, factor, anchorX, anchorY) {
+    const current = view || { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null };
+    const prevScale = typeof current.scale === 'number' && current.scale > 0 ? current.scale : 1;
+    const mult = typeof factor === 'number' && Number.isFinite(factor) && factor > 0 ? factor : 1;
+    const nextScale = bvClamp(prevScale * mult, 0.1, 6);
+    if (nextScale === prevScale) {
+        return { ...current, mode: 'manual', fitLocked: true, scale: nextScale };
+    }
+    const panX = typeof current.panX === 'number' ? current.panX : 0;
+    const panY = typeof current.panY === 'number' ? current.panY : 0;
+    const ax = typeof anchorX === 'number' && Number.isFinite(anchorX) ? anchorX : 0;
+    const ay = typeof anchorY === 'number' && Number.isFinite(anchorY) ? anchorY : 0;
+    const worldX = (ax - panX) / prevScale;
+    const worldY = (ay - panY) / prevScale;
+    return {
+        ...current,
+        mode: 'manual',
+        fitLocked: true,
+        scale: nextScale,
+        panX: ax - worldX * nextScale,
+        panY: ay - worldY * nextScale,
+    };
+}
+function bvApplyWheelZoom(deltaY, clientX, clientY) {
+    const root = bvRoot();
+    const viewport = root && root.querySelector('[data-bv="viewport"]');
+    if (!viewport) {
+        const factor = deltaY < 0 ? 1.12 : 1 / 1.12;
+        BV.view = bvZoomAt(BV.view, factor, 0, 0);
+        bvApplyViewTransform();
+        return;
+    }
+    const rect = viewport.getBoundingClientRect();
+    const ax = (typeof clientX === 'number' ? clientX : rect.left + rect.width / 2) - rect.left;
+    const ay = (typeof clientY === 'number' ? clientY : rect.top + rect.height / 2) - rect.top;
+    // Wheel up (negative deltaY) → zoom in. Soft steps so many notches feel smooth.
+    const factor = deltaY < 0 ? 1.12 : 1 / 1.12;
+    BV.view = bvZoomAt(BV.view, factor, ax, ay);
+    bvApplyViewTransform();
+}
+/**
+ * Pure pan update: shift screen-space translate and force Manual so the next
+ * step snapshot does not snap the camera back to Fit.
+ */
+function bvPanBy(view, dx, dy) {
+    const current = view || { scale: 1, mode: 'fit', panX: 0, panY: 0, fitLocked: false, fitSessionId: null };
+    const nextDx = typeof dx === 'number' && Number.isFinite(dx) ? dx : 0;
+    const nextDy = typeof dy === 'number' && Number.isFinite(dy) ? dy : 0;
+    return {
+        ...current,
+        mode: 'manual',
+        fitLocked: true,
+        panX: (typeof current.panX === 'number' ? current.panX : 0) + nextDx,
+        panY: (typeof current.panY === 'number' ? current.panY : 0) + nextDy,
+        scale: typeof current.scale === 'number' && current.scale > 0 ? current.scale : 1,
+    };
+}
+function bvApplyPanDelta(dx, dy) {
+    BV.view = bvPanBy(BV.view, dx, dy);
     bvApplyViewTransform();
 }
 
@@ -486,10 +695,14 @@ function renderBattleView() {
     </div>
     <div class="bv-foot">
       <div class="bv-feedback" data-bv="feedback"></div>
-      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select.'))}</div>
+      <div class="bv-hint">${bvEsc(bvT('battleView.hintSelect', 'Click allies to select. Drag empty ground to box-select. Wheel to zoom. Middle-drag or Alt+drag to pan. Right-click to move/attack.'))}</div>
     </div>`;
     bindBattleView(root);
-    bvApplyViewTransform();
+    if (BV.playtest && (!BV.view.fitLocked || !BV.view.fitSessionId)) {
+        bvRefitCamera({ newSession: true, forceRefit: true });
+    } else {
+        bvApplyViewTransform();
+    }
     bvUpdateInPlace();
     bvObserveViewport();
 }
@@ -497,13 +710,17 @@ function renderBattleView() {
  * Track the *current* viewport. renderBattleView replaces the arena DOM
  * (combatLabState, session adoption, scenario/mode replacement), so the
  * observer must be re-pointed at the fresh viewport each structural render.
- * Fit mode reflows to the new panel size; manual zoom is left untouched.
+ * Fit mode reflows content framing to the new panel size; manual zoom is left
+ * untouched (scale/pan stick across steps).
  */
 let bvResizeObserver = null;
 function bvObserveViewport() {
     if (typeof ResizeObserver !== 'function') return;
     if (!bvResizeObserver) {
-        bvResizeObserver = new ResizeObserver(() => { if (BV.view.mode === 'fit') bvApplyViewTransform(); });
+        bvResizeObserver = new ResizeObserver(() => {
+            if (BV.view.mode === 'fit') bvRefitCamera({ forceRefit: true });
+            else bvApplyViewTransform();
+        });
     }
     bvResizeObserver.disconnect();
     const root = bvRoot();
@@ -949,7 +1166,7 @@ function bindBattleView(root) {
     root.querySelector('[data-bv="stop"]').onclick = () => bvSendSelectedCommand('stop');
     root.querySelector('[data-bv="resume"]').onclick = () => bvSendSelectedCommand('resume_gambit');
 
-    root.querySelector('[data-bv="fit"]').onclick = () => { state.view.mode = 'fit'; bvApplyViewTransform(); };
+    root.querySelector('[data-bv="fit"]').onclick = () => { bvRefitCamera({ forceRefit: true }); };
     root.querySelector('[data-bv="zoom-in"]').onclick = () => bvSetZoom(state.view.scale * 1.25);
     root.querySelector('[data-bv="zoom-out"]').onclick = () => bvSetZoom(state.view.scale * 0.8);
     root.querySelector('[data-bv="zoom-reset"]').onclick = () => bvSetZoom(1);
@@ -957,8 +1174,9 @@ function bindBattleView(root) {
     if (dockToggle) dockToggle.onclick = () => {
         state.dockVisible = !state.dockVisible;
         bvRefresh();
-        // The arena just gained/lost the dock's width; refit so nothing crops.
-        if (state.view.mode === 'fit') bvApplyViewTransform();
+        // Arena width changed: refit only while still in Fit mode.
+        if (state.view.mode === 'fit') bvRefitCamera({ forceRefit: true });
+        else bvApplyViewTransform();
     };
     const outcomeClose = root.querySelector('[data-bv="outcome-close"]');
     if (outcomeClose) outcomeClose.onclick = () => { state.outcomeDismissed = true; bvRefresh(); };
@@ -1017,16 +1235,59 @@ function bindBattleView(root) {
         state.error = ''; bvVscode.postMessage(message);
         if (message.command === 'attack_move') bvRefresh();
     };
+    // Mouse wheel / trackpad pinch-as-wheel → zoom toward cursor (Manual).
+    viewport.onwheel = event => {
+        event.preventDefault();
+        const delta = typeof event.deltaY === 'number' ? event.deltaY : 0;
+        if (!delta) return;
+        bvApplyWheelZoom(delta, event.clientX, event.clientY);
+    };
+    // Camera pan vs marquee on empty ground:
+    // - Middle-button drag, or Alt+left drag → pan (map navigation)
+    // - Left-drag empty ground → marquee unit select (always; including when zoomed)
+    //   (Middle-drag is enough for pan; do not steal left-drag from selection.)
     viewport.onpointerdown = event => {
-        if (event.button !== 0 || (event.target.closest && event.target.closest('[data-unit-id]'))) return;
+        const onUnit = event.target.closest && event.target.closest('[data-unit-id]');
+        const wantPan = !onUnit && (
+            event.button === 1
+            || (event.button === 0 && event.altKey)
+        );
+        if (wantPan) {
+            event.preventDefault();
+            state.drag = {
+                kind: 'pan',
+                lastX: event.clientX,
+                lastY: event.clientY,
+                pointerId: event.pointerId,
+            };
+            viewport.classList && viewport.classList.add('bv-panning');
+            viewport.setPointerCapture && viewport.setPointerCapture(event.pointerId);
+            return;
+        }
+        if (event.button !== 0 || onUnit) return;
         const rect = viewport.getBoundingClientRect();
-        state.drag = { x: event.clientX - rect.left, y: event.clientY - rect.top, currentX: event.clientX - rect.left, currentY: event.clientY - rect.top };
+        state.drag = {
+            kind: 'select',
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+            currentX: event.clientX - rect.left,
+            currentY: event.clientY - rect.top,
+        };
         viewport.setPointerCapture && viewport.setPointerCapture(event.pointerId);
     };
     viewport.onpointermove = event => {
         if (!state.drag) return;
+        if (state.drag.kind === 'pan') {
+            const dx = event.clientX - state.drag.lastX;
+            const dy = event.clientY - state.drag.lastY;
+            state.drag.lastX = event.clientX;
+            state.drag.lastY = event.clientY;
+            if (dx || dy) bvApplyPanDelta(dx, dy);
+            return;
+        }
         const rect = viewport.getBoundingClientRect();
         const box = root.querySelector('[data-bv="selbox"]');
+        if (!box) return;
         state.drag.currentX = bvClamp(event.clientX - rect.left, 0, rect.width);
         state.drag.currentY = bvClamp(event.clientY - rect.top, 0, rect.height);
         const left = Math.min(state.drag.x, state.drag.currentX);
@@ -1038,6 +1299,12 @@ function bindBattleView(root) {
     };
     viewport.onpointerup = event => {
         if (!state.drag) return;
+        if (state.drag.kind === 'pan') {
+            viewport.classList && viewport.classList.remove('bv-panning');
+            state.drag = null;
+            viewport.releasePointerCapture && viewport.releasePointerCapture(event.pointerId);
+            return;
+        }
         const vpRect = viewport.getBoundingClientRect();
         const left = Math.min(state.drag.x, state.drag.currentX);
         const right = Math.max(state.drag.x, state.drag.currentX);
@@ -1056,6 +1323,17 @@ function bindBattleView(root) {
         state.drag = null; state.selection = selected; state.error = '';
         viewport.releasePointerCapture && viewport.releasePointerCapture(event.pointerId);
         bvRefresh();
+    };
+    viewport.onpointercancel = event => {
+        if (!state.drag) return;
+        if (state.drag.kind === 'pan') {
+            viewport.classList && viewport.classList.remove('bv-panning');
+        } else {
+            const box = root.querySelector('[data-bv="selbox"]');
+            if (box) box.style.display = 'none';
+        }
+        state.drag = null;
+        try { viewport.releasePointerCapture && viewport.releasePointerCapture(event.pointerId); } catch (_) { /* ignore */ }
     };
 }
 
@@ -1110,8 +1388,19 @@ function bvHandleStateMessage(m) {
     state.selection = state.selection.filter(id => controllable.has(id));
     if (m.state.outcome) state.running = false;
     else if (typeof m.state.running === 'boolean') state.running = m.state.running;
-    if (forceStructural) renderBattleView();
-    else bvRefresh();
+    // One-shot content Fit on new session only. Ordinary step snapshots must
+    // not change scale/mode (prevents zoom-on-move motion sickness).
+    const sessionId = m.state.startId || state.activeStartId || null;
+    const needsSessionFit = forceStructural
+        || !state.view.fitLocked
+        || (sessionId && state.view.fitSessionId && sessionId !== state.view.fitSessionId);
+    if (forceStructural) {
+        renderBattleView();
+        if (state.playtest && needsSessionFit) bvRefitCamera({ newSession: true, forceRefit: true, sessionId });
+    } else {
+        bvRefresh();
+        // Preserve camera: do not refit on step / in-place updates.
+    }
 }
 function bvHandleErrorMessage(m) {
     const state = BV;

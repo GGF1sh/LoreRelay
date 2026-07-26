@@ -196,7 +196,23 @@ const storySummaryIndex = indexHtml.indexOf('id="story-summary"');
 assert(storySummaryIndex > paneStatusIndex && storySummaryIndex < paneCharIndex, 'story-summary must occur strictly between pane-status and pane-character');
 const themeHeaderIndex = indexHtml.indexOf('id="theme-header"');
 assert(themeHeaderIndex > -1, 'id="theme-header" must exist');
-assert(summaryContainerIndex > themeHeaderIndex && storySummaryIndex > themeHeaderIndex, 'Story summary must occur after the World Theme section');
+// UX-PLAYABLE-STATUS-DECLUTTER-001: Story Summary sits after Checkpoints and
+// before collapsible utility tools (Dice/Calc/BGM/Gallery/Theme). Theme is no
+// longer required to appear before the summary.
+const checkpointHeaderIndex = indexHtml.indexOf('id="checkpoint-header"');
+assert(checkpointHeaderIndex > -1, 'id="checkpoint-header" must exist');
+assert(
+  summaryContainerIndex > checkpointHeaderIndex &&
+    storySummaryIndex > checkpointHeaderIndex &&
+    summaryContainerIndex < themeHeaderIndex &&
+    storySummaryIndex < themeHeaderIndex,
+  'Story summary must occur after Checkpoints and before the World Theme section'
+);
+assert(
+  indexHtml.includes('status-tool-section') &&
+    indexHtml.includes('<details class="status-tool-section">'),
+  'utility tools in Adventure Status must use status-tool-section details'
+);
 console.log('ok: Story Summary containment assertions passed');
 
 // --- 4. Theme switching scope ---

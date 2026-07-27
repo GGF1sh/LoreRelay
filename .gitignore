@@ -18,6 +18,8 @@ bgm.json
 
 # Player workspace data (ST compat, saga, memory)
 characters/
+!sample-scenarios/**/characters/
+!sample-scenarios/**/characters/**
 party.json
 lorebook.json
 lorebook.imported.json

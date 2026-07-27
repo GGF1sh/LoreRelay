@@ -32,6 +32,7 @@ import {
     protagonistDraftToProfile,
     resolveUniqueCharacterId,
 } from './protagonistBootstrapCore';
+import { parseStCardData, stCardDataToProfile } from './tavernCardImporterCore';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
 
@@ -103,6 +104,63 @@ function ensureScenarioStarterProtagonist(scenario: Record<string, unknown>): vo
     saveCharacter(profile);
     setActiveCharacter(id);
     addToParty(id);
+}
+
+const MAX_PACK_CHARACTER_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Loads optional starter character cards bundled at `<pack>/characters/*.json`
+ * (ST Character Card v1/v2/v3 JSON, same shape accepted by `LoreRelay: Import
+ * SillyTavern Character`). These are offered as ready-made quick-start options
+ * alongside Character Creator — none are auto-activated, so the player still
+ * chooses (or ignores them and builds their own from scratch).
+ * Skips a card if a character with the same name already exists, so reloading
+ * the same pack does not create duplicates.
+ */
+function ensureScenarioStarterCharacters(dir: string): void {
+    const charactersDir = path.join(dir, 'characters');
+    if (!fs.existsSync(charactersDir)) {
+        return;
+    }
+
+    let fileNames: string[];
+    try {
+        fileNames = fs.readdirSync(charactersDir).filter((f) => f.toLowerCase().endsWith('.json'));
+    } catch {
+        return;
+    }
+
+    const existing = getCharacters();
+    const existingNames = new Set(
+        existing.map((c) => (typeof c.name === 'string' ? c.name.trim().toLowerCase() : ''))
+    );
+    const takenIds = existing.map((c) => c.id);
+
+    for (const fileName of fileNames) {
+        const filePath = path.join(charactersDir, fileName);
+        try {
+            const stat = fs.statSync(filePath);
+            if (!stat.isFile() || stat.size > MAX_PACK_CHARACTER_BYTES) {
+                continue;
+            }
+            const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            const parsed = parseStCardData(raw);
+            if (!parsed) {
+                continue;
+            }
+            const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : '';
+            if (!name || existingNames.has(name.toLowerCase())) {
+                continue;
+            }
+            const id = resolveUniqueCharacterId(name, takenIds);
+            const profile = stCardDataToProfile(parsed.data, parsed.specVersion, id);
+            saveCharacter(profile);
+            takenIds.push(id);
+            existingNames.add(name.toLowerCase());
+        } catch (e) {
+            console.error(`[ScenarioPack] Failed to load starter character ${fileName}:`, e);
+        }
+    }
 }
 
 function resolvePackageScenarioScript(): string | undefined {
@@ -283,6 +341,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     try {
         commitGameState(state, { mergeProfile: 'replace' });
         ensureScenarioStarterProtagonist(localizedScenario);
+        ensureScenarioStarterCharacters(dir);
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
             // Keep the workspace-local scenario copy aligned with the active locale,

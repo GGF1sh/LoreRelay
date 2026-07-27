@@ -5,7 +5,7 @@
  * No vscode dependency — uses compiled out/ files directly.
  */
 
-const { extractJsonFromPng, normalizeCharacterBook, MAX_LOREBOOK_ENTRIES, MAX_LOREBOOK_CONTENT_LEN, MAX_LOREBOOK_KEY_LEN, MAX_KEYS_PER_ENTRY } = require('../out/tavernCardImporterCore');
+const { extractJsonFromPng, normalizeCharacterBook, parseStCardData, stCardDataToProfile, MAX_LOREBOOK_ENTRIES, MAX_LOREBOOK_CONTENT_LEN, MAX_LOREBOOK_KEY_LEN, MAX_KEYS_PER_ENTRY } = require('../out/tavernCardImporterCore');
 const { matchEntriesAgainstText } = require('../out/lorebookMatcher');
 const { isValidCharacterId, resolveCharacterJsonPath } = require('../out/characterId');
 const path = require('path');
@@ -196,6 +196,101 @@ function buildPngWithChunk(keyword, value, chunkType) {
         fail(`insertion_order default should be 100, got ${result[0]?.insertion_order}`);
     } else {
         ok('normalizeCharacterBook: insertion_order defaults to 100');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// parseStCardData — spec detection / envelope unwrapping
+// ---------------------------------------------------------------------------
+
+{
+    const result = parseStCardData({ spec: 'chara_card_v2', data: { name: 'Alice' } });
+    if (!result || result.specVersion !== 'v2' || result.data.name !== 'Alice') {
+        fail(`parseStCardData: v2 envelope should unwrap data (got ${JSON.stringify(result)})`);
+    } else {
+        ok('parseStCardData: v2 envelope unwraps data');
+    }
+}
+
+{
+    const result = parseStCardData({ spec: 'chara_card_v3', data: { name: 'Bob' } });
+    if (!result || result.specVersion !== 'v3' || result.data.name !== 'Bob') {
+        fail(`parseStCardData: v3 envelope should unwrap data (got ${JSON.stringify(result)})`);
+    } else {
+        ok('parseStCardData: v3 envelope unwraps data');
+    }
+}
+
+{
+    // No spec field — v1 cards store fields at the root
+    const result = parseStCardData({ name: 'Carol', description: 'A rogue' });
+    if (!result || result.specVersion !== 'v1' || result.data.name !== 'Carol') {
+        fail(`parseStCardData: v1 root fields (got ${JSON.stringify(result)})`);
+    } else {
+        ok('parseStCardData: v1 (no spec) reads root-level fields');
+    }
+}
+
+{
+    const invalids = [null, undefined, 42, 'string', ['array']];
+    for (const v of invalids) {
+        const result = parseStCardData(v);
+        if (result !== null) {
+            fail(`parseStCardData: non-object input should return null (got ${JSON.stringify(result)} for ${JSON.stringify(v)})`);
+        } else {
+            ok(`parseStCardData: rejects non-object input ${JSON.stringify(v)}`);
+        }
+    }
+}
+
+{
+    // spec says v2 but data is missing/malformed — falls back to v1 root-field read
+    const result = parseStCardData({ spec: 'chara_card_v2', name: 'Dana' });
+    if (!result || result.specVersion !== 'v1' || result.data.name !== 'Dana') {
+        fail(`parseStCardData: malformed v2 envelope should fall back to v1 (got ${JSON.stringify(result)})`);
+    } else {
+        ok('parseStCardData: malformed v2 envelope (no data object) falls back to v1 root read');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// stCardDataToProfile — CharacterProfile construction
+// ---------------------------------------------------------------------------
+
+{
+    const profile = stCardDataToProfile(
+        { name: 'Elena', description: 'A healer', personality: 'Kind', first_mes: 'Hello.', tags: ['npc'] },
+        'v2',
+        'elena'
+    );
+    if (profile.id !== 'elena' || profile.name !== 'Elena' || profile.description !== 'A healer' || profile.personality !== 'Kind') {
+        fail(`stCardDataToProfile: core fields (got ${JSON.stringify(profile)})`);
+    } else if (profile.stSource?.first_mes !== 'Hello.' || profile.stSource?.spec_version !== 'v2') {
+        fail(`stCardDataToProfile: stSource should preserve first_mes and spec_version (got ${JSON.stringify(profile.stSource)})`);
+    } else if (!Array.isArray(profile.stSource?.tags) || profile.stSource.tags[0] !== 'npc') {
+        fail('stCardDataToProfile: stSource should preserve arbitrary original fields (tags)');
+    } else {
+        ok('stCardDataToProfile: builds profile with full stSource passthrough');
+    }
+}
+
+{
+    // firstMesOverride takes precedence over data.first_mes (alternate-greeting selection path)
+    const profile = stCardDataToProfile({ name: 'Finn', first_mes: 'Default greeting' }, 'v2', 'finn', 'Chosen greeting');
+    if (profile.stSource?.first_mes !== 'Chosen greeting') {
+        fail(`stCardDataToProfile: firstMesOverride should win (got ${profile.stSource?.first_mes})`);
+    } else {
+        ok('stCardDataToProfile: firstMesOverride takes precedence over data.first_mes');
+    }
+}
+
+{
+    // missing name falls back to 'Unknown Character'; missing description/personality become ''
+    const profile = stCardDataToProfile({}, 'v1', 'char_x');
+    if (profile.name !== 'Unknown Character' || profile.description !== '' || profile.personality !== '') {
+        fail(`stCardDataToProfile: defaults for missing fields (got ${JSON.stringify(profile)})`);
+    } else {
+        ok('stCardDataToProfile: defaults name/description/personality when absent');
     }
 }
 

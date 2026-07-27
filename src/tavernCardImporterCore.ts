@@ -1,7 +1,7 @@
 // Pure tavern card parsing utilities — no vscode or fs imports; Node-testable.
 
 export type { CharacterBookEntry } from './types/Character';
-import type { CharacterBook, CharacterBookEntry } from './types/Character';
+import type { CharacterBook, CharacterBookEntry, CharacterProfile } from './types/Character';
 
 // ---------------------------------------------------------------------------
 // PNG tEXt/iTEXt extraction
@@ -91,6 +91,52 @@ export const MAX_KEYS_PER_ENTRY = 20;
  * ST stores entries as either an array or an object keyed by numeric string.
  * Caps at MAX_LOREBOOK_ENTRIES; truncates oversized content/keys.
  */
+// ---------------------------------------------------------------------------
+// ST card spec detection / conversion (shared by interactive import and
+// headless scenario-pack bootstrap)
+// ---------------------------------------------------------------------------
+
+export interface StCardParseResult {
+    data: Record<string, unknown>;
+    specVersion: 'v1' | 'v2' | 'v3';
+}
+
+/** Detects chara_card_v2/v3 envelopes and unwraps `data`; falls back to v1 (root-level fields). */
+export function parseStCardData(cardData: unknown): StCardParseResult | null {
+    if (typeof cardData !== 'object' || cardData === null || Array.isArray(cardData)) {
+        return null;
+    }
+    const card = cardData as Record<string, unknown>;
+    if (card.spec === 'chara_card_v2' && typeof card.data === 'object' && card.data !== null) {
+        return { data: card.data as Record<string, unknown>, specVersion: 'v2' };
+    }
+    if (card.spec === 'chara_card_v3' && typeof card.data === 'object' && card.data !== null) {
+        return { data: card.data as Record<string, unknown>, specVersion: 'v3' };
+    }
+    return { data: card, specVersion: 'v1' };
+}
+
+/** Converts already-unwrapped ST card `data` into a LoreRelay CharacterProfile, preserving all original fields in stSource. */
+export function stCardDataToProfile(
+    data: Record<string, unknown>,
+    specVersion: string,
+    id: string,
+    firstMesOverride?: string
+): CharacterProfile {
+    const name = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : 'Unknown Character';
+    return {
+        id,
+        name,
+        description: typeof data.description === 'string' ? data.description : '',
+        personality: typeof data.personality === 'string' ? data.personality : '',
+        stSource: {
+            ...data,
+            spec_version: specVersion,
+            first_mes: firstMesOverride ?? (typeof data.first_mes === 'string' ? data.first_mes : undefined),
+        },
+    };
+}
+
 export function normalizeCharacterBook(book: CharacterBook): CharacterBookEntry[] {
     const raw = Array.isArray(book.entries)
         ? book.entries

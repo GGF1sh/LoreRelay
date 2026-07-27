@@ -10,6 +10,8 @@ import { t } from './i18n';
 import {
     extractJsonFromPng as _extractJsonFromPng,
     normalizeCharacterBook,
+    parseStCardData,
+    stCardDataToProfile,
 } from './tavernCardImporterCore';
 
 // Re-export for tests and extension commands
@@ -112,21 +114,9 @@ export async function importTavernCard(options?: { activate?: boolean }): Promis
         return;
     }
 
-    const card = cardData as Record<string, unknown>;
-
     // -- Spec detection and data root extraction --
-    let data: Record<string, unknown>;
-    let specVersion: string;
-    if (card.spec === 'chara_card_v2' && typeof card.data === 'object' && card.data !== null) {
-        data = card.data as Record<string, unknown>;
-        specVersion = 'v2';
-    } else if (card.spec === 'chara_card_v3' && typeof card.data === 'object' && card.data !== null) {
-        data = card.data as Record<string, unknown>;
-        specVersion = 'v3';
-    } else {
-        data = card;
-        specVersion = 'v1';
-    }
+    // cardData was already confirmed to be a plain object above, so this cannot return null.
+    const { data, specVersion } = parseStCardData(cardData)!;
 
     const name = typeof data.name === 'string' && data.name.trim()
         ? data.name.trim()
@@ -168,18 +158,7 @@ export async function importTavernCard(options?: { activate?: boolean }): Promis
     }
 
     // -- Build profile: preserve ALL original fields in stSource --
-    const profile: CharacterProfile = {
-        id,
-        name,
-        description: typeof data.description === 'string' ? data.description : '',
-        personality: typeof data.personality === 'string' ? data.personality : '',
-        stSource: {
-            ...(data as Record<string, unknown>),
-            spec_version: specVersion,
-            // Use selected greeting (may differ from original first_mes)
-            first_mes: selectedFirstMes || undefined,
-        }
-    };
+    const profile: CharacterProfile = stCardDataToProfile(data, specVersion, id, selectedFirstMes || undefined);
 
     // Copy portrait for PNG cards
     if (isPng) {

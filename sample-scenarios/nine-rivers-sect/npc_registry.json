@@ -1,0 +1,61 @@
+{
+  "format": "lorerelay-npc-registry/1.0",
+  "npcs": {
+    "npc_liu_qingluan": {
+      "name": "柳青鸞",
+      "locationId": "training_ground",
+      "factionId": "faction_nine_rivers_sect",
+      "disposition": {
+        "playerTrust": 20,
+        "playerRomance": 0,
+        "playerFear": 0,
+        "mood": "neutral",
+        "lastInteractionTurn": 0
+      },
+      "needs": [
+        {
+          "id": "liu_hide_injury",
+          "type": "emotional",
+          "description": "右腕に生じ始めた震えを、門派の誰にも知られないよう隠している。",
+          "urgency": 60,
+          "relatedEventId": null
+        }
+      ],
+      "memories": [],
+      "personalityTraits": ["stern", "exacting", "self-sacrificing", "hides-weakness", "senior-disciple"],
+      "dialogueHints": {
+        "highTrust": "Drops the clipped instructor tone; admits she is carrying the sect's survival alone and, if pressed gently, lets the tremor in her right arm show.",
+        "lowTrust": "Stays purely instructional and curt; redirects any personal question straight back to training drills.",
+        "highFear": "Would rather be seen as harsh than seen as weak — never asks for help even when clearly hurting."
+      }
+    },
+    "npc_chen_aqi": {
+      "name": "陳 阿七",
+      "locationId": "kitchen",
+      "factionId": "faction_nine_rivers_sect",
+      "disposition": {
+        "playerTrust": 40,
+        "playerRomance": 0,
+        "playerFear": 0,
+        "mood": "neutral",
+        "lastInteractionTurn": 0
+      },
+      "needs": [
+        {
+          "id": "chen_nightly_offering",
+          "type": "emotional",
+          "description": "毎晩、裏山の墓所へ酒を一杯供えている。二十年間欠かしたことがない。誰にも見られていないと思っている。",
+          "urgency": 40,
+          "relatedEventId": null
+        }
+      ],
+      "memories": [],
+      "personalityTraits": ["evasive", "warm-hearted", "secretive", "moirjiang-survivor", "deflects-with-humor"],
+      "dialogueHints": {
+        "highTrust": "Softens with enough wine and patience; lets slip fragments about the Moirjiang Incident and the missing Duanshui Manual.",
+        "lowTrust": "Waves off every question about martial arts or the past with a joke about the rice being late.",
+        "highUrgency": "If pushed directly about the sect's history without any trust built, goes quiet and finds an excuse to leave."
+      }
+    }
+  }
+}

@@ -88,6 +88,11 @@ implemented by this stabilization integration.
 
 ## テストプレイ用シナリオ（Start Hub経由、`sampleId`対応表）
 
+> **注意（2026-07-27）**: 以下の一覧は2026-07-14時点のhistorical snapshotであり、
+> 現行手順の正本ではない。現行の正式なテストプレイ手順は
+> [`docs/HUMAN_PLAYTEST_SCENARIOS.md`](../HUMAN_PLAYTEST_SCENARIOS.md) を参照すること。
+> 古い本文は履歴として以下に残す。
+
 `sample-scenarios/` 配下は全6本あるが、Start Hubのボタンに配線されているのは4本のみ
 （`webview/modules/90-bootstrap.js` の `loadBundledScenario` 呼び出しで確認済み）。
 

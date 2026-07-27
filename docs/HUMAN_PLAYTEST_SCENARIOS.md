@@ -35,12 +35,19 @@ repeat them from scratch every session:
 |---|---|
 | Combat Lab determinism (`combatLabCore.ts` self-verifies via repeated resolve on each run; `combat_test_manifest.js` CI suite) | Whether combat feels readable/enjoyable to watch (VFX, pacing, clarity) |
 | i18n key completeness across locales (`check_i18n_keys.js`) | Whether a key actually renders correctly on screen in context |
-| Checkpoint/save data-shape correctness (`checkpointHandlers.ts` unit tests) | Whether the *displayed* state after restore matches what the player expects |
 | Start Hub button wiring (can be pre-checked with the static webview harness) | Whether the layout/labels look right and nothing is visually broken |
+| — | Checkpoint/save data-shape correctness — see note below |
 
-Because determinism and data-shape correctness are already machine-verified, **do not**
-ask a human to repeat a Run twice to "prove" determinism (see section C) or to
-re-derive checkpoint internals. The human's job is to judge the player-visible result.
+Because determinism is already machine-verified, **do not** ask a human to repeat a Run
+twice to "prove" determinism (see section C). The human's job is to judge the
+player-visible result.
+
+**Checkpoint/save is not machine-verified end to end.** The repository has no unit
+test that exercises the checkpoint save/restore round trip; the only test reference to
+`checkpointHandlers.ts` is a textual assertion in
+`scripts/test_runtime_accepted_replay_guard.js` that the source contains certain
+`runTimelineRestore(...)` call strings, not a behavioral test. Treat section D below as
+the real coverage for this path, not a repeat of something already proven.
 
 ---
 
@@ -137,11 +144,14 @@ otherwise only reachable by opening it directly.
 **Steps:**
 1. In the scenario dropdown, select `mixed_arms_showcase`.
 2. Run it once and check the result table and combat log.
-3. Start a Command Playtest of the same scenario.
-4. Select an allied unit and issue `attack_move`.
-5. Open Battle View.
-6. Try Fit, Zoom, and Pan.
-7. Check the result table/outcome banner.
+3. Start a Command Playtest of the same scenario (this begins **paused** — Start does
+   not auto-run).
+4. Select an allied unit and issue `attack_move`. This only queues the order.
+5. Click **Run** (or **Step** to advance one tick at a time) so the queued order is
+   actually executed.
+6. Open Battle View.
+7. Try Fit, Zoom, and Pan.
+8. Check the result table/outcome banner.
 
 **What to observe:**
 - Unit selection, attack-target lines, ranged/melee visual distinction, status-effect
@@ -271,8 +281,8 @@ imported result.
 ## Optional: neon-rain manual load smoke
 
 > Not part of the normal rotation. `neon-rain` is **not wired to the Start Hub** — it
-> is only reachable via the `LoreRelay: Load Scenario Pack` command with a manual
-> scenario ID.
+> is only reachable via the `LoreRelay: Load Scenario Pack` command, which opens a
+> folder picker (it does not accept a typed scenario ID).
 
 **Purpose:** A lightweight check that the manual-load path for an unwired scenario
 still works, nothing more.
@@ -282,11 +292,12 @@ still works, nothing more.
 **Preconditions:** None beyond the extension being installed.
 
 **Steps:**
-1. Run `LoreRelay: Load Scenario Pack` and specify `neon-rain`.
-2. Confirm it loads and the opening narration/status renders.
+1. Run `LoreRelay: Load Scenario Pack`.
+2. In the folder picker, select the `sample-scenarios/neon-rain` directory.
+3. Confirm it loads and the opening narration/status renders.
 
-**What to observe:** Whether the manual-load command still resolves the scenario ID
-and the scenario opens without error.
+**What to observe:** Whether selecting the `neon-rain` directory through the folder
+picker resolves and loads the scenario without error.
 
 **Pass criteria:** Scenario loads and opening content renders without error.
 

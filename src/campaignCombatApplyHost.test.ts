@@ -3,12 +3,17 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { test } from 'node:test';
-import { applyCombatOutcomeReceiptOnce, applyAllPendingCombatOutcomes } from './campaignCombatApplyHost';
+import {
+    applyCombatOutcomeReceiptOnce,
+    applyAllPendingCombatOutcomes,
+    sortPendingCombatReceiptsForApply,
+} from './campaignCombatApplyHost';
 import { COMBAT_BATTLE_HISTORY_KEY } from './campaignCombatApplyCore';
 import { writePendingCombatOutcomeReceipt, readAppliedCombatOutcomeMarker } from './campaignCombatPendingStore';
 import { CombatOutcomeReceipt, sha256Stable } from './campaignCombatReceiptCore';
+import { readStateRevision } from './workspaceStateQueueCore';
 
-function makeReceipt(sessionId: string, finalHp: number): CombatOutcomeReceipt {
+function makeReceipt(sessionId: string, finalHp: number, revision = 0): CombatOutcomeReceipt {
     const body: Omit<CombatOutcomeReceipt, 'receiptHash'> = {
         schemaVersion: 'combat-outcome-receipt-v1',
         applyEligible: true,
@@ -17,7 +22,7 @@ function makeReceipt(sessionId: string, finalHp: number): CombatOutcomeReceipt {
         requestId: 'req',
         campaignInstanceId: 'camp',
         timelineEpochId: 'epoch',
-        sourceCampaignRevision: 0,
+        sourceCampaignRevision: revision,
         requestedMode: 'command',
         effectiveMode: 'command',
         terminalOutcomeCode: 'ALLY_WIN',
@@ -91,4 +96,54 @@ test('applyAllPending processes queue; crash repair via history receiptHash', ()
     if (!results[0].ok) return;
     assert.equal(results[0].status, 'already_applied');
     assert.ok(readAppliedCombatOutcomeMarker(root, 'sess-b'));
+});
+
+test('apply bumps stateRevision for concurrent turn detection', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-rev-'));
+    const statePath = path.join(root, 'game_state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+        status: { hp: { current: 18, max: 20 } },
+        stateRevision: 3,
+    }, null, 2));
+    const receipt = makeReceipt('sess-rev', 10);
+    writePendingCombatOutcomeReceipt(root, receipt);
+    const r = applyCombatOutcomeReceiptOnce(root, receipt);
+    assert.equal(r.ok, true);
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(readStateRevision(state), 4);
+    assert.equal(state.status.hp.current, 10);
+});
+
+test('sortPendingCombatReceiptsForApply orders by campaign revision', () => {
+    const a = makeReceipt('sess-z', 1, 2);
+    const b = makeReceipt('sess-a', 1, 0);
+    const c = makeReceipt('sess-m', 1, 1);
+    const sorted = sortPendingCombatReceiptsForApply([a, b, c]);
+    assert.deepEqual(sorted.map(r => r.sourceCampaignRevision), [0, 1, 2]);
+});
+
+test('applyAllPending stops after APPLIED marker write failure', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-stop-'));
+    const statePath = path.join(root, 'game_state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+        status: { hp: { current: 18, max: 20 } },
+        stateRevision: 1,
+    }, null, 2));
+    const first = makeReceipt('sess-first', 9, 0);
+    const second = makeReceipt('sess-second', 5, 1);
+    writePendingCombatOutcomeReceipt(root, first);
+    writePendingCombatOutcomeReceipt(root, second);
+
+    // Force applied/ directory to be a file so marker write fails after state write.
+    const appliedDir = path.join(root, '.text-adventure', 'combat', 'applied');
+    fs.mkdirSync(path.dirname(appliedDir), { recursive: true });
+    fs.writeFileSync(appliedDir, 'not-a-directory');
+
+    const results = applyAllPendingCombatOutcomes(root);
+    assert.equal(results.length, 1, 'batch must stop after first marker failure');
+    assert.equal(results[0].ok, false);
+    if (results[0].ok) return;
+    assert.equal(results[0].reason, 'APPLIED_MARKER_WRITE_FAILED');
+    // Second receipt still pending
+    assert.ok(fs.existsSync(path.join(root, '.text-adventure', 'combat', 'pending', 'sess-second.json')));
 });

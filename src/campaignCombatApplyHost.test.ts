@@ -148,6 +148,33 @@ test('applyAllPending stops after APPLIED marker write failure', () => {
     assert.ok(fs.existsSync(path.join(root, '.text-adventure', 'combat', 'pending', 'sess-second.json')));
 });
 
+test('applyAllPending fail-closes on corrupt pending JSON without applying newer HP', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-corrupt-barrier-'));
+    const statePath = path.join(root, 'game_state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+        status: { hp: { current: 18, max: 20 } },
+        stateRevision: 1,
+    }, null, 2));
+    const newer = makeReceipt('sess-newer-valid', 5, 1);
+    writePendingCombatOutcomeReceipt(root, newer);
+    const pendingDir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.writeFileSync(path.join(pendingDir, 'older-corrupt.json'), '{broken', 'utf8');
+
+    const results = applyAllPendingCombatOutcomes(root);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].ok, false);
+    if (results[0].ok) return;
+    assert.equal(results[0].reason, 'INVALID_PENDING_RECEIPT');
+    assert.equal(fs.existsSync(path.join(pendingDir, 'sess-newer-valid.json')), true);
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(state.status.hp.current, 18);
+    assert.equal(state.stateRevision, 1);
+    assert.equal(
+        fs.existsSync(path.join(root, '.text-adventure', 'combat', 'applied', 'sess-newer-valid.json')),
+        false,
+    );
+});
+
 test('applyAllPending stops on any failure so newer absolute HP cannot leapfrog', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-stop-hash-'));
     const statePath = path.join(root, 'game_state.json');

@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import {
     listPendingApplyEligibleReceipts,
     readCompiledSessionSnapshot,
+    scanPendingDirectoryForApply,
     writeCampaignCombatSessionArtifacts,
     writeCombatSessionClosure,
     writePendingCombatOutcomeReceipt,
@@ -47,6 +48,83 @@ test('PENDING round-trip and closures excluded from apply list', () => {
     assert.equal(list.length, 1);
     assert.equal(list[0].combatSessionId, 'sess-1');
     assert.equal(list[0].applyEligible, true);
+});
+
+test('scanPendingDirectoryForApply fail-closes on malformed JSON', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-pending-malformed-'));
+    const dir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'broken.json'), '{not-json', 'utf8');
+    // Also place a valid-looking newer receipt that must not be returned as ok list
+    writePendingCombatOutcomeReceipt(root, {
+        schemaVersion: 'combat-outcome-receipt-v1',
+        applyEligible: true,
+        combatSessionId: 'sess-valid',
+        encounterId: 'enc',
+        requestId: 'r',
+        campaignInstanceId: 'c',
+        timelineEpochId: 'e',
+        sourceCampaignRevision: 1,
+        requestedMode: 'command',
+        effectiveMode: 'command',
+        terminalOutcomeCode: 'ALLY_WIN',
+        finalTick: 1,
+        participants: [],
+        objective: { type: 'annihilate', result: 'success' },
+        simulationResultHash: 'sim',
+        receiptHash: 'h',
+    });
+    const scan = scanPendingDirectoryForApply(root);
+    assert.equal(scan.ok, false);
+    if (scan.ok) return;
+    assert.equal(scan.reason, 'INVALID_PENDING_RECEIPT');
+    assert.equal(scan.fileName, 'broken.json');
+});
+
+test('scanPendingDirectoryForApply fail-closes on wrong schema / not apply-eligible', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-pending-schema-'));
+    const dir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'closure-shaped.json'), JSON.stringify({
+        schemaVersion: 'combat-session-closure-v1',
+        applyEligible: false,
+        combatSessionId: 'sess-x',
+    }), 'utf8');
+    const scan = scanPendingDirectoryForApply(root);
+    assert.equal(scan.ok, false);
+    if (scan.ok) return;
+    assert.equal(scan.reason, 'INVALID_PENDING_RECEIPT');
+    assert.equal(scan.fileName, 'closure-shaped.json');
+});
+
+test('scanPendingDirectoryForApply ignores non-json files', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-pending-nonjson-'));
+    const dir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'readme.txt'), 'ignore me', 'utf8');
+    writePendingCombatOutcomeReceipt(root, {
+        schemaVersion: 'combat-outcome-receipt-v1',
+        applyEligible: true,
+        combatSessionId: 'sess-ok',
+        encounterId: 'enc',
+        requestId: 'r',
+        campaignInstanceId: 'c',
+        timelineEpochId: 'e',
+        sourceCampaignRevision: 0,
+        requestedMode: 'command',
+        effectiveMode: 'command',
+        terminalOutcomeCode: 'ALLY_WIN',
+        finalTick: 1,
+        participants: [],
+        objective: { type: 'annihilate', result: 'success' },
+        simulationResultHash: 'sim',
+        receiptHash: 'h2',
+    });
+    const scan = scanPendingDirectoryForApply(root);
+    assert.equal(scan.ok, true);
+    if (!scan.ok) return;
+    assert.equal(scan.receipts.length, 1);
+    assert.equal(scan.receipts[0].combatSessionId, 'sess-ok');
 });
 
 test('session artifacts persist compiled battle-spec and roster hash', () => {

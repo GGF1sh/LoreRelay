@@ -2,7 +2,7 @@
 
 ## Status
 
-READY_TO_IMPLEMENT
+IMPLEMENTED — fail-closed `scanPendingDirectoryForApply` + apply batch gate
 
 ## Base
 

@@ -6,9 +6,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
     appliedReceiptPath,
-    listPendingApplyEligibleReceipts,
     pendingReceiptPath,
     readAppliedCombatOutcomeMarker,
+    scanPendingDirectoryForApply,
     writeAppliedCombatOutcomeMarker,
 } from './campaignCombatPendingStore';
 import { CombatOutcomeReceipt } from './campaignCombatReceiptCore';
@@ -213,14 +213,25 @@ export function applyCombatOutcomeReceiptOnce(
 
 /**
  * Scan pending/ and apply each apply-eligible receipt once, in campaign order.
- * Stops on **any** unsuccessful result so a newer absolute-HP apply cannot leapfrog an
- * older receipt that later retries successfully (would reverse campaign order).
+ *
+ * Fail-closed: if any pending/*.json is malformed or not apply-eligible schema,
+ * return INVALID_PENDING_RECEIPT and apply **nothing** (even valid newer receipts).
+ *
+ * Stops on **any** unsuccessful apply result so a newer absolute-HP apply cannot leapfrog
+ * an older receipt that later retries successfully (would reverse campaign order).
  * Successful statuses (`applied` / `already_applied`) continue the batch.
  */
 export function applyAllPendingCombatOutcomes(workspacePath: string): CombatApplyResult[] {
-    const pending = sortPendingCombatReceiptsForApply(
-        listPendingApplyEligibleReceipts(workspacePath),
-    );
+    const scan = scanPendingDirectoryForApply(workspacePath);
+    if (!scan.ok) {
+        return [{
+            ok: false,
+            status: 'blocked',
+            reason: scan.reason,
+            detail: scan.detail,
+        }];
+    }
+    const pending = sortPendingCombatReceiptsForApply(scan.receipts);
     const results: CombatApplyResult[] = [];
     for (const receipt of pending) {
         const result = applyCombatOutcomeReceiptOnce(workspacePath, receipt);

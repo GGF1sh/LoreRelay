@@ -32,7 +32,19 @@ export interface WorldChangeSummaryAckToken {
     sourceDigest: string;
 }
 
-export type PromptConsumableAckToken = ChronicleAckToken | WorldChangeSummaryAckToken;
+/** Bridge V1-C: one-shot combat consequence prompt inject, ACK after Accepted. */
+export interface CombatConsequenceAckToken {
+    tokenId: string;
+    chunkId: 'combatConsequence';
+    combatSessionId: string;
+    receiptHash: string;
+    sourceDigest: string;
+}
+
+export type PromptConsumableAckToken =
+    | ChronicleAckToken
+    | WorldChangeSummaryAckToken
+    | CombatConsequenceAckToken;
 
 /**
  * Explicit three-way outcome for a single bounded ACK application, used instead of a bare
@@ -99,6 +111,15 @@ export function createPromptAssemblyDigest(input: {
                     sourceTurn: token.sourceTurn,
                     sourceDigest: token.sourceDigest,
                     pendingGeneration: token.pendingGeneration,
+                };
+            }
+            if (token.chunkId === 'combatConsequence') {
+                return {
+                    tokenId: token.tokenId,
+                    chunkId: token.chunkId,
+                    combatSessionId: token.combatSessionId,
+                    receiptHash: token.receiptHash,
+                    sourceDigest: token.sourceDigest,
                 };
             }
             return {

@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.24] - 2026-07-29
+
+### Added
+- Bridge V1-C: deterministic combat consequence fact from APPLIED + combatBattleHistory; dedicated GM prompt chunk `combatConsequence`; Accepted-correlated inject ACK under `.text-adventure/combat/injected/<receiptHash>.json`. AI narrates facts only; no chat GameEntry injection and no HP/outcome re-apply.
+
+### Changed
+- パッケージ版を 1.84.24 へ更新。
+- combatBattleHistory entries may store optional combat-end player HP snapshot fields for V1-C (backward compatible).
+
 ## [1.84.23] - 2026-07-29
 
 ### Added

@@ -31,6 +31,95 @@ export function appliedReceiptPath(workspacePath: string, combatSessionId: strin
     return path.join(combatRootDir(workspacePath), 'applied', `${combatSessionId}.json`);
 }
 
+/** V1-C: durable prompt inject ACK keyed by receiptHash (not session id). */
+export function injectedConsequencePath(workspacePath: string, receiptHash: string): string {
+    const safe = String(receiptHash || '').replace(/[^a-fA-F0-9]/g, '').slice(0, 128) || 'invalid';
+    return path.join(combatRootDir(workspacePath), 'injected', `${safe}.json`);
+}
+
+export function writeCombatConsequenceInjectedMarker(
+    workspacePath: string,
+    marker: {
+        schemaVersion: 'combat-consequence-injected-v1';
+        combatSessionId: string;
+        receiptHash: string;
+        sourceDigest: string;
+    },
+): string {
+    const filePath = injectedConsequencePath(workspacePath, marker.receiptHash);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    writeJsonAtomic(filePath, marker);
+    return filePath;
+}
+
+export function readCombatConsequenceInjectedMarker(
+    workspacePath: string,
+    receiptHash: string,
+): {
+    schemaVersion: 'combat-consequence-injected-v1';
+    combatSessionId: string;
+    receiptHash: string;
+    sourceDigest: string;
+} | undefined {
+    const filePath = injectedConsequencePath(workspacePath, receiptHash);
+    if (!fs.existsSync(filePath)) return undefined;
+    try {
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (
+            raw?.schemaVersion === 'combat-consequence-injected-v1'
+            && typeof raw.receiptHash === 'string'
+            && typeof raw.sourceDigest === 'string'
+            && typeof raw.combatSessionId === 'string'
+        ) {
+            return raw;
+        }
+    } catch {
+        return undefined;
+    }
+    return undefined;
+}
+
+/**
+ * ACK contract for combatConsequence tokens after Accepted correlation.
+ * alreadySatisfied only when exact receiptHash+sourceDigest marker exists.
+ */
+export function ackCombatConsequenceInjectedMarker(
+    workspacePath: string,
+    token: {
+        combatSessionId: string;
+        receiptHash: string;
+        sourceDigest: string;
+    },
+): 'applied' | 'alreadySatisfied' | 'failed' {
+    if (!token.receiptHash || !token.sourceDigest || !token.combatSessionId) {
+        return 'failed';
+    }
+    const existing = readCombatConsequenceInjectedMarker(workspacePath, token.receiptHash);
+    if (
+        existing
+        && existing.receiptHash === token.receiptHash
+        && existing.sourceDigest === token.sourceDigest
+        && existing.combatSessionId === token.combatSessionId
+    ) {
+        return 'alreadySatisfied';
+    }
+    if (existing && existing.receiptHash === token.receiptHash) {
+        // Different digest or session for same receiptHash — authority conflict
+        return 'failed';
+    }
+    try {
+        writeCombatConsequenceInjectedMarker(workspacePath, {
+            schemaVersion: 'combat-consequence-injected-v1',
+            combatSessionId: token.combatSessionId,
+            receiptHash: token.receiptHash,
+            sourceDigest: token.sourceDigest,
+        });
+        return 'applied';
+    } catch {
+        return 'failed';
+    }
+}
+
 export function writeAppliedCombatOutcomeMarker(
     workspacePath: string,
     marker: {

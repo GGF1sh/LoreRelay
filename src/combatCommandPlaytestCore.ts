@@ -270,6 +270,68 @@ export function createCombatCommandPlaytest(
     };
 }
 
+/**
+ * Campaign / non-Lab entry: start from an already-compiled BattleSpec.
+ * Does not accept CombatLabScenario as a campaign schema.
+ */
+export function createCombatCommandPlaytestFromBattleSpec(input: {
+    battleSpec: BattleSpec;
+    mode?: unknown;
+    startId?: string;
+    sessionLabel?: string;
+}): CombatCommandPlaytestResult<CombatCommandPlaytestSession> {
+    const { battleSpec, startId, sessionLabel } = input;
+    if (startId !== undefined && (typeof startId !== 'string' || startId.trim().length === 0 || startId.length > 128)) {
+        return { ok: false, error: 'INVALID_START_ID', detail: 'startId must be a non-empty string <= 128 chars' };
+    }
+    const requestedMode = input.mode;
+    const mode: CombatCommandPlaytestMode = requestedMode === undefined || requestedMode === 'command'
+        ? 'command'
+        : requestedMode === 'spectator'
+            ? 'spectator'
+            : 'command';
+    if (requestedMode !== undefined && requestedMode !== 'command' && requestedMode !== 'spectator') {
+        return { ok: false, error: 'INVALID_PLAYTEST_MODE' };
+    }
+    if (!battleSpec || typeof battleSpec !== 'object' || !Array.isArray(battleSpec.participantOrder)) {
+        return { ok: false, error: 'INVALID_COMBAT_BATTLE_SPEC', detail: 'battleSpec.participantOrder required' };
+    }
+
+    const spec: BattleSpec = { ...battleSpec, selectableMode: mode };
+    try {
+        const baseContext = createCombatStepContext(spec, spec.viewport);
+        const tickRate = 1 / baseContext.delta;
+        if (!Number.isInteger(tickRate) || tickRate <= 0) {
+            return { ok: false, error: 'UNSUPPORTED_COMBAT_TICK_RATE' };
+        }
+        const commandLog = emptyCommandInputLog(tickRate);
+        const state = createCombatState(spec);
+        const bounds = playtestBounds(state, baseContext);
+        mapUnitsIntoPlaytestBounds(state, bounds, baseContext.participantOrder);
+        return {
+            ok: true,
+            value: {
+                scenarioId: sessionLabel || battleSpec.activePreset || 'campaign-combat',
+                mode,
+                startId,
+                spec,
+                state,
+                commandLog,
+                nextSeq: 0,
+                feedback: [],
+                bounds,
+                analytics: createCombatPlaytestAnalytics(spec.participantOrder),
+            },
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error: 'INVALID_COMBAT_BATTLE_SPEC',
+            detail: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
 function safeRead(value: object, key: PropertyKey): { ok: true; value: unknown } | { ok: false } {
     try {
         return { ok: true, value: Reflect.get(value, key) };

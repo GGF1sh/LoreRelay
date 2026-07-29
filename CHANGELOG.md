@@ -9,6 +9,22 @@
 
 ## [Unreleased]
 
+## [1.84.22] - 2026-07-29
+
+### Fixed
+- Bridge V1-A: PENDING 書き込み成功後の meta 更新失敗で abort closure と PENDING が共存し得る問題を修正（PENDING を durable 権威とし、abort は PENDING 存在時に拒否）。
+
+### Changed
+- パッケージ版を 1.84.22 へ更新。
+## [1.84.21] - 2026-07-29
+
+### Fixed
+- Bridge V1-A: PENDING 書き込み失敗時に lifecycle が terminal で固まり再試行不能になる問題を修正（durable 成功まで retry）。
+- Bridge V1-A: 検証時の compiled BattleSpec / roster snapshot と hash を sessions に永続化。
+
+### Changed
+- パッケージ版を 1.84.21 へ更新（main 1.84.20 の上）。
+
 ## [1.84.20] - 2026-07-29
 
 ### Fixed

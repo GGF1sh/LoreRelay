@@ -60,15 +60,16 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 - **人間スモーク対象の候補ビルド**が main に統合される場合、直前に出荷/テスト済みだった候補より **新しいバージョン識別子**を必ず持つこと（同一版で異なる中身の VSIX が生まれるのを防ぐ）。
 - **docs-only のコミット**（レビュー記録・ハンドオフドキュメントなど、`src/` やパッケージ内容に影響しないもの）ではバージョンを上げない。
 
-## 現行（手動更新: 2026-07-29, COMBAT-LAB-STACKED-SPAWN-CORRECTIONS-001）
+## 現行（手動更新: 2026-07-29, COMBAT-STORY-SESSION-BRIDGE-V1-A-001）
 
-> タスクブランチ `task/COMBAT-LAB-STACKED-SPAWN-CORRECTIONS-001`。
+> タスクブランチ `task/COMBAT-STORY-SESSION-BRIDGE-V1-A-001`（PR #57）。
 
 | 項目 | 値 |
 |------|-----|
+| COMBAT-STORY-SESSION-BRIDGE-V1-A | PENDING write retry + compiled BattleSpec/roster snapshot persist |
+| `package.json` | **1.84.21** |
+| CHANGELOG 先頭 | **[1.84.21]** |
 | COMBAT-LAB-STACKED-SPAWN-CORRECTIONS | lineFormation x=±50; refresh built-ins on load |
-| `package.json` | **1.84.20** |
-| CHANGELOG 先頭 | **[1.84.20]** |
 | COMBAT-LAB-STACKED-SPAWN | multi-unit Lab fixtures use distinct spawn coords (`lineFormation`) |
 | PLAYABLE-BUILD-ARTIFACT-SYNC | Webview `build-webview` 出力を LF 正規化; Windows compile 後の CRLF-only dirty を防止 |
 | PLAYABLE-V0-UI-001 | P2/P3/P4 Player Action Hub integrated; human visual/gameplay smoke required next |

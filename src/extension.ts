@@ -26,6 +26,7 @@ import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbi
 import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, refreshBuiltInCombatLabScenarios, runCombatLab, swapCombatLabSides } from './combatLabCore';
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
 import { CombatCommandPlaytestHost } from './combatCommandPlaytestHost';
+import { CampaignCombatSessionCoordinator } from './campaignCombatSessionCoordinator';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
@@ -287,6 +288,8 @@ const COMBAT_COMMAND_PLAYTEST_MAIN_SUBSCRIBER = 'main-webview';
 /** Dedicated, independently resizable Battle View panel — a second subscriber to the same host session. */
 let battleViewPanel: vscode.WebviewPanel | undefined;
 const COMBAT_COMMAND_PLAYTEST_BATTLE_VIEW_SUBSCRIBER = 'battle-view';
+/** Campaign combat coordinator (Architecture B). Created on activate. */
+let campaignCombatCoordinator: CampaignCombatSessionCoordinator | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -642,9 +645,49 @@ export function activate(context: vscode.ExtensionContext) {
         openBattleView(context);
     });
 
+    campaignCombatCoordinator = new CampaignCombatSessionCoordinator(
+        combatCommandPlaytestHost,
+        () => getWorkspacePath(),
+        context.extensionPath,
+        () => openBattleView(context),
+    );
+    combatCommandPlaytestHost.setSessionObserver(() => {
+        campaignCombatCoordinator?.observeHostSession();
+    });
+
+    const startCampaignCombatDebugCmd = vscode.commands.registerCommand(
+        'textadventure.startCampaignCombatDebug',
+        () => {
+            const result = campaignCombatCoordinator?.startDebug({ mode: 'command', autoRun: true });
+            if (!result?.ok) {
+                void vscode.window.showErrorMessage(
+                    `Campaign combat failed: ${result?.error || 'UNKNOWN'}${result?.detail ? ` (${result.detail})` : ''}`,
+                );
+                return;
+            }
+            void vscode.window.showInformationMessage(
+                `Campaign combat started (${result.combatSessionId?.slice(0, 8)}…). Outcome writes PENDING only — no game_state change.`,
+            );
+        },
+    );
+
+    const abortCampaignCombatCmd = vscode.commands.registerCommand(
+        'textadventure.abortCampaignCombat',
+        () => {
+            const result = campaignCombatCoordinator?.abort('user_abort');
+            if (!result?.ok) {
+                void vscode.window.showWarningMessage(`Abort: ${result?.error || 'failed'}`);
+                return;
+            }
+            void vscode.window.showInformationMessage('Campaign combat aborted (non-apply closure).');
+        },
+    );
+
     context.subscriptions.push(
         openGameCmd,
         openBattleViewCmd,
+        startCampaignCombatDebugCmd,
+        abortCampaignCombatCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
         setTtsApiKeyCmd,
@@ -2016,6 +2059,7 @@ function handleIssueCombatCommand(raw: unknown): void {
             typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
         );
     }
+    campaignCombatCoordinator?.observeHostSession();
 }
 function handleStepCombatCommandPlaytest(ticks: unknown, startId?: unknown): void {
     const stepped = combatCommandPlaytestHost.step(ticks, startId);
@@ -2028,6 +2072,7 @@ function handleStepCombatCommandPlaytest(ticks: unknown, startId?: unknown): voi
             typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
         );
     }
+    campaignCombatCoordinator?.observeHostSession();
 }
 function handleSetCombatCommandPlaytestRunning(running: unknown, startId?: unknown): void {
     const result = combatCommandPlaytestHost.setRunning(running, startId);
@@ -2040,6 +2085,7 @@ function handleSetCombatCommandPlaytestRunning(running: unknown, startId?: unkno
             typeof startId === 'string' ? startId : combatCommandPlaytestHost.currentSession?.startId,
         );
     }
+    campaignCombatCoordinator?.observeHostSession();
 }
 
 /** Static UI strings the Battle View webview renders. Localized host-side, injected once at panel creation. */

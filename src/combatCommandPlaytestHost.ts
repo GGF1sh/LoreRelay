@@ -15,8 +15,10 @@ import {
     advanceCombatCommandPlaytest,
     combatCommandPlaytestSnapshot,
     createCombatCommandPlaytest,
+    createCombatCommandPlaytestFromBattleSpec,
     issueCombatCommand,
 } from './combatCommandPlaytestCore';
+import { BattleSpec } from './gambitCombatCore';
 
 /** Default ceiling for catch-up work after a long stall (pathological pause). */
 export const DEFAULT_MAX_PLAYBACK_TICKS_PER_PULSE = 120;
@@ -124,6 +126,8 @@ export class CombatCommandPlaytestHost {
     private readonly clock: CombatCommandPlaytestHostClock;
     private readonly pulseIntervalMs: number;
     private readonly maxTicksPerPulse: number;
+    /** Optional observer (e.g. campaign coordinator) after session mutations. */
+    private sessionObserver: (() => void) | undefined;
 
     constructor(options: CombatCommandPlaytestHostOptions = {}) {
         this.clock = options.clock ?? defaultClock;
@@ -132,6 +136,18 @@ export class CombatCommandPlaytestHost {
             1,
             Math.trunc(options.maxTicksPerPulse ?? DEFAULT_MAX_PLAYBACK_TICKS_PER_PULSE),
         );
+    }
+
+    setSessionObserver(observer: (() => void) | undefined): void {
+        this.sessionObserver = observer;
+    }
+
+    private notifySessionObserver(): void {
+        try {
+            this.sessionObserver?.();
+        } catch {
+            // observer must not break host
+        }
     }
 
     get hasSession(): boolean {
@@ -208,6 +224,52 @@ export class CombatCommandPlaytestHost {
         if (!created.ok) {
             // Retire residual display when there was no prior session to replace.
             // When hadPriorSession, the replaced-null already cleared peers.
+            if (!hadPriorSession) {
+                this.broadcastState(null);
+            }
+            return created;
+        }
+        this.session = created.value;
+        if (options?.autoRun && !this.session.state.outcome) {
+            this.running = true;
+            this.lastPulseAtMs = this.clock.now();
+            this.ensureScheduler();
+        }
+        const snapshot = this.requireSnapshot();
+        if (!hadPriorSession) {
+            this.broadcastState(null, { sessionEvent: 'replaced' });
+        }
+        this.broadcastState(snapshot);
+        return { ok: true, value: snapshot };
+    }
+
+    /**
+     * Campaign entry: start from compiled BattleSpec (not CombatLabScenario schema).
+     */
+    startFromBattleSpec(
+        battleSpec: BattleSpec,
+        mode: unknown,
+        startId: string,
+        options?: { autoRun?: boolean; sessionLabel?: string },
+    ): CombatCommandPlaytestResult<CombatCommandPlaytestSnapshot> {
+        const hadPriorSession = this.session !== undefined;
+        this.stopScheduler();
+        this.session = undefined;
+        this.running = false;
+        this.carryMs = 0;
+        this.lastPulseAtMs = undefined;
+
+        if (hadPriorSession) {
+            this.broadcastState(null, { sessionEvent: 'replaced' });
+        }
+
+        const created = createCombatCommandPlaytestFromBattleSpec({
+            battleSpec,
+            mode,
+            startId,
+            sessionLabel: options?.sessionLabel,
+        });
+        if (!created.ok) {
             if (!hadPriorSession) {
                 this.broadcastState(null);
             }
@@ -317,6 +379,7 @@ export class CombatCommandPlaytestHost {
         }
         const snapshot = this.requireSnapshot();
         this.broadcastState(snapshot);
+        this.notifySessionObserver();
         return { ok: true, value: snapshot };
     }
 
@@ -366,6 +429,7 @@ export class CombatCommandPlaytestHost {
             this.lastPulseAtMs = undefined;
         }
         this.broadcastState(this.snapshot());
+        this.notifySessionObserver();
     }
 
     /** Document replacement / explicit clear: drop session and stop scheduler. */

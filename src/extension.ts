@@ -27,6 +27,7 @@ import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRun
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
 import { CombatCommandPlaytestHost } from './combatCommandPlaytestHost';
 import { CampaignCombatSessionCoordinator } from './campaignCombatSessionCoordinator';
+import { applyAllPendingCombatOutcomes } from './campaignCombatApplyHost';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
 import { importTavernCard } from './tavernCardImporter';
@@ -653,6 +654,18 @@ export function activate(context: vscode.ExtensionContext) {
     );
     combatCommandPlaytestHost.setSessionObserver(() => {
         campaignCombatCoordinator?.observeHostSession();
+        // V1-B: exactly-once apply when a campaign session reaches durable PENDING
+        const st = campaignCombatCoordinator?.getState();
+        if (st?.lifecycle === 'receipt_pending') {
+            const ws = getWorkspacePath();
+            if (ws) {
+                try {
+                    applyAllPendingCombatOutcomes(ws);
+                } catch (e) {
+                    console.error('[campaignCombat] apply pending failed', e);
+                }
+            }
+        }
     });
 
     const startCampaignCombatDebugCmd = vscode.commands.registerCommand(
@@ -683,11 +696,30 @@ export function activate(context: vscode.ExtensionContext) {
         },
     );
 
+    const applyPendingCombatOutcomesCmd = vscode.commands.registerCommand(
+        'textadventure.applyPendingCombatOutcomes',
+        () => {
+            const ws = getWorkspacePath();
+            if (!ws) {
+                void vscode.window.showWarningMessage('Open a workspace to apply combat outcomes.');
+                return;
+            }
+            const results = applyAllPendingCombatOutcomes(ws);
+            const applied = results.filter(r => r.ok && r.status === 'applied').length;
+            const already = results.filter(r => r.ok && r.status === 'already_applied').length;
+            const failed = results.filter(r => !r.ok).length;
+            void vscode.window.showInformationMessage(
+                `Combat outcomes: applied=${applied}, already=${already}, failed=${failed}`,
+            );
+        },
+    );
+
     context.subscriptions.push(
         openGameCmd,
         openBattleViewCmd,
         startCampaignCombatDebugCmd,
         abortCampaignCombatCmd,
+        applyPendingCombatOutcomesCmd,
         setOpenRouterKeyCmd,
         clearOpenRouterKeyCmd,
         setTtsApiKeyCmd,

@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.23] - 2026-07-29
+
+### Added
+- Bridge V1-B: PENDING combat receipts apply exactly once to game_state (bounded combatBattleHistory + optional player HP for ally_1/player) and durable APPLIED markers under .text-adventure/combat/applied/.
+- Command: `textadventure.applyPendingCombatOutcomes`; auto-apply after campaign combat reaches receipt_pending.
+
+### Changed
+- パッケージ版を 1.84.23 へ更新。
 ## [1.84.22] - 2026-07-29
 
 ### Fixed

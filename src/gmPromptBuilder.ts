@@ -166,7 +166,18 @@ import {
     type PromptReceiptAckOutcome,
     type ChronicleAckToken,
     type WorldChangeSummaryAckToken,
+    type CombatConsequenceAckToken,
 } from './promptReceiptCore';
+import {
+    combatConsequenceTokenId,
+    formatCombatConsequencePromptBlock,
+    selectOldestUninjectedCombatConsequenceFact,
+} from './campaignCombatConsequenceCore';
+import {
+    ackCombatConsequenceInjectedMarker,
+    readAppliedCombatOutcomeMarker,
+    readCombatConsequenceInjectedMarker,
+} from './campaignCombatPendingStore';
 import type { TurnResult } from './types/TurnResult';
 
 interface PromptContextCandidateSpec extends PromptContextChunkSpec {
@@ -261,6 +272,7 @@ const CATEGORY_BUDGET_SHADOW_CATEGORY_BY_CHUNK_ID: Readonly<Record<string, Conte
     livingWorldTravel: 'current_scene',
     summary: 'relevant_memories',
     chronicle: 'recent_events',
+    combatConsequence: 'recent_events',
     saga: 'relevant_memories',
     memory: 'relevant_memories',
     lorebook: 'relevant_memories',
@@ -1351,6 +1363,84 @@ function peekWorldChangeSummaryContext(): string {
     return buildWorldChangeSummaryCandidateFromWorldState(worldState)?.text ?? '';
 }
 
+function readGameStateRecordForPrompt(): Record<string, unknown> | undefined {
+    const cached = getCachedGameState();
+    if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
+        return cached as Record<string, unknown>;
+    }
+    const statePath = getGameStatePath();
+    if (!statePath || !fs.existsSync(statePath)) {
+        return undefined;
+    }
+    try {
+        const raw = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+            return raw as Record<string, unknown>;
+        }
+    } catch {
+        return undefined;
+    }
+    return undefined;
+}
+
+/**
+ * Pure peek: never writes injected markers. Inspector/Preview and production candidates share this.
+ */
+function buildCombatConsequenceCandidate():
+    | { text: string; ackToken: CombatConsequenceAckToken }
+    | undefined {
+    const ws = getWorkspacePath();
+    if (!ws) {
+        return undefined;
+    }
+    const state = readGameStateRecordForPrompt();
+    if (!state) {
+        return undefined;
+    }
+    const fact = selectOldestUninjectedCombatConsequenceFact(
+        state,
+        (combatSessionId) => {
+            const applied = readAppliedCombatOutcomeMarker(ws, combatSessionId);
+            if (!applied) return undefined;
+            return {
+                combatSessionId: applied.combatSessionId,
+                receiptHash: applied.receiptHash,
+            };
+        },
+        (receiptHash) => Boolean(readCombatConsequenceInjectedMarker(ws, receiptHash)),
+    );
+    if (!fact) {
+        return undefined;
+    }
+    const text = formatCombatConsequencePromptBlock(fact);
+    if (!text.trim()) {
+        return undefined;
+    }
+    const sourceDigest = hashPromptReceiptText(text);
+    return {
+        text,
+        ackToken: {
+            tokenId: combatConsequenceTokenId(fact.receiptHash),
+            chunkId: 'combatConsequence',
+            combatSessionId: fact.combatSessionId,
+            receiptHash: fact.receiptHash,
+            sourceDigest,
+        },
+    };
+}
+
+function applyCombatConsequenceAckToken(token: CombatConsequenceAckToken): PromptReceiptAckOutcome {
+    const ws = getWorkspacePath();
+    if (!ws) {
+        return 'failed';
+    }
+    return ackCombatConsequenceInjectedMarker(ws, {
+        combatSessionId: token.combatSessionId,
+        receiptHash: token.receiptHash,
+        sourceDigest: token.sourceDigest,
+    });
+}
+
 /**
  * Inject once per simulation worldTurn — marks consumed after building so later GM turns
  * do not repeat the same "[Since Last Visit]" block until the next sim tick.
@@ -1584,6 +1674,10 @@ function buildInspectorPromptAssembly(
     considerInspectorChunk('chronicle', 'Chronicle Recap', () =>
         buildChronicleRecapContextWithWorldState(false, policy, inspectorWorldState)
     );
+    // Peek-only: Inspector must never ACK combat consequence inject markers.
+    considerInspectorChunk('combatConsequence', 'Combat Consequence', () =>
+        buildCombatConsequenceCandidate()?.text ?? ''
+    );
     considerInspectorChunk('summary', 'Story Synopsis', () => {
         const summary = loadStorySummary();
         return summary ? `[Story Synopsis]\n${clampTextForPrompt(summary, policy.summaryChars)}` : '';
@@ -1756,6 +1850,8 @@ function considerPromptChunk(
 interface GmPromptConsumableBuilders {
     chronicle: (policy: PromptBudgetPolicy) => string | { text: string; ackToken?: PromptConsumableAckToken } | undefined;
     worldChangeSummary: () => string | { text: string; ackToken?: PromptConsumableAckToken } | undefined;
+    /** Always peek-only + optional token; never pre-consumes inject markers (ACK after Accepted only). */
+    combatConsequence: () => string | { text: string; ackToken?: PromptConsumableAckToken } | undefined;
 }
 
 /**
@@ -1766,6 +1862,7 @@ interface GmPromptConsumableBuilders {
 const PURE_CANDIDATE_CONSUMABLE_BUILDERS: GmPromptConsumableBuilders = {
     chronicle: (policy) => buildChronicleRecapCandidate(policy),
     worldChangeSummary: () => buildWorldChangeSummaryCandidateFromWorldState(loadWorldState()),
+    combatConsequence: () => buildCombatConsequenceCandidate(),
 };
 
 /**
@@ -1773,10 +1870,12 @@ const PURE_CANDIDATE_CONSUMABLE_BUILDERS: GmPromptConsumableBuilders = {
  * Only this builder set may advance durable ACK markers / clear session pending.
  * Used by production prompt assembly only. PROMPT-001C owns switching production
  * off this legacy authority.
+ * combatConsequence is never legacy-consumed: inject ACK stays Accepted-only.
  */
 const LEGACY_PRODUCTION_CONSUMABLE_BUILDERS: GmPromptConsumableBuilders = {
     chronicle: (policy) => consumeChronicleRecapContext(policy),
     worldChangeSummary: () => consumeWorldChangeSummaryContext(),
+    combatConsequence: () => buildCombatConsequenceCandidate(),
 };
 
 function buildGmPromptChunkSpecsWithMeta(
@@ -1811,6 +1910,7 @@ function buildGmPromptChunkSpecsWithMeta(
     );
     considerPromptChunk(meta, 'director', activation, buildScenarioDirectorPromptContext);
     considerPromptChunk(meta, 'chronicle', activation, () => consumableBuilders.chronicle(policy));
+    considerPromptChunk(meta, 'combatConsequence', activation, () => consumableBuilders.combatConsequence());
 
     if (loadStorySummary()) {
         considerPromptChunk(meta, 'summary', activation, () => {
@@ -2261,6 +2361,7 @@ export function acknowledgePromptReceiptAfterAccepted(
     options: {
         applyChronicleToken?: (token: ChronicleAckToken) => PromptReceiptAckOutcome;
         applyWorldChangeSummaryToken?: (token: WorldChangeSummaryAckToken) => PromptReceiptAckOutcome;
+        applyCombatConsequenceToken?: (token: CombatConsequenceAckToken) => PromptReceiptAckOutcome;
     } = {}
 ): PromptReceiptAckResult {
     if (!turnResultMatchesPromptReceipt(acceptedTurn, receipt)) {
@@ -2276,6 +2377,7 @@ export function acknowledgePromptReceiptAfterAccepted(
     const ackWorkItem = createPromptReceiptAckWorkItem(receipt);
     const applyChronicle = options.applyChronicleToken ?? applyChronicleAckToken;
     const applyWorldChangeSummary = options.applyWorldChangeSummaryToken ?? applyWorldChangeSummaryAckToken;
+    const applyCombatConsequence = options.applyCombatConsequenceToken ?? applyCombatConsequenceAckToken;
     const attemptedTokenIds: string[] = [];
     const succeededTokenIds: string[] = [];
     const alreadySatisfiedTokenIds: string[] = [];
@@ -2288,9 +2390,14 @@ export function acknowledgePromptReceiptAfterAccepted(
             // truthful non-failures (an exact-duplicate no-op must never enter the compensation
             // queue), while only 'failed' is a genuine compensation-queue failure. Each token is
             // still independent — one token's outcome never blocks the other's attempt.
-            const outcome = token.chunkId === 'chronicle'
-                ? applyChronicle(token)
-                : applyWorldChangeSummary(token);
+            let outcome: PromptReceiptAckOutcome;
+            if (token.chunkId === 'chronicle') {
+                outcome = applyChronicle(token);
+            } else if (token.chunkId === 'combatConsequence') {
+                outcome = applyCombatConsequence(token);
+            } else {
+                outcome = applyWorldChangeSummary(token);
+            }
             if (outcome === 'failed') {
                 recordPromptAckFailure({
                     receiptId: ackWorkItem.receiptId,

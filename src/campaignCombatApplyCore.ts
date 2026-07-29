@@ -26,6 +26,11 @@ export interface CombatBattleHistoryEntry {
     simulationResultHash: string;
     compiledSnapshotHash?: string;
     sourceCampaignRevision: number;
+    /** Combat-end snapshot at apply time only (V1-C). Optional for pre-V1-C history. */
+    playerHpBefore?: number;
+    playerHpAfter?: number;
+    playerMaxHp?: number;
+    playerIncapacitated?: boolean;
 }
 
 export interface CombatApplyPlan {
@@ -84,50 +89,44 @@ export function buildCombatConsequencePlan(
         };
     }
 
-    const historyEntry: CombatBattleHistoryEntry = {
-        combatSessionId: receipt.combatSessionId,
-        encounterId: receipt.encounterId,
-        requestId: receipt.requestId,
-        terminalOutcomeCode: receipt.terminalOutcomeCode,
-        finalTick: receipt.finalTick,
-        receiptHash: receipt.receiptHash,
-        simulationResultHash: receipt.simulationResultHash,
-        ...(receipt.compiledSnapshotHash ? { compiledSnapshotHash: receipt.compiledSnapshotHash } : {}),
-        sourceCampaignRevision: receipt.sourceCampaignRevision,
-    };
-
-    const prevHistory = listBattleHistory(state);
-    const nextHistory = [...prevHistory, historyEntry].slice(-COMBAT_BATTLE_HISTORY_LIMIT);
-
-    const next: Record<string, unknown> = {
-        ...state,
-        [COMBAT_BATTLE_HISTORY_KEY]: nextHistory,
-    };
-
     let playerHpUpdated = false;
     let playerHpBefore: number | undefined;
     let playerHpAfter: number | undefined;
+    let playerMaxHp: number | undefined;
+    let playerIncapacitated: boolean | undefined;
+
+    const next: Record<string, unknown> = { ...state };
 
     const playerParticipant = receipt.participants.find(p =>
         p.team === 0 && (p.entityId === 'player' || p.entityId === 'protagonist' || p.entityId === 'ally_1'));
 
     if (playerParticipant) {
+        // Snapshot combat-end facts for V1-C prompt injection (never re-read live HP later as combat-end).
         const status = next.status;
+        let max = typeof playerParticipant.maxHp === 'number' && Number.isFinite(playerParticipant.maxHp)
+            ? playerParticipant.maxHp
+            : undefined;
+        let before: number | undefined;
         if (status && typeof status === 'object' && !Array.isArray(status)) {
             const s = { ...(status as Record<string, unknown>) };
             const hp = s.hp;
             if (hp && typeof hp === 'object' && !Array.isArray(hp)) {
                 const h = { ...(hp as Record<string, unknown>) };
-                const max = typeof h.max === 'number' && Number.isFinite(h.max) ? h.max : playerParticipant.maxHp;
-                const before = typeof h.current === 'number' && Number.isFinite(h.current) ? h.current : undefined;
-                const clamped = Math.max(0, Math.min(max, Math.floor(playerParticipant.finalHp)));
+                if (typeof h.max === 'number' && Number.isFinite(h.max)) {
+                    max = h.max;
+                }
+                before = typeof h.current === 'number' && Number.isFinite(h.current) ? h.current : undefined;
+                const maxForClamp = max ?? Math.max(0, Math.floor(playerParticipant.finalHp));
+                const clamped = Math.max(0, Math.min(maxForClamp, Math.floor(playerParticipant.finalHp)));
+                playerHpBefore = before;
+                playerHpAfter = clamped;
+                playerMaxHp = maxForClamp;
+                playerIncapacitated = playerParticipant.dead === true;
                 if (before !== clamped) {
                     h.current = clamped;
                     s.hp = h;
                     next.status = s;
                     playerHpUpdated = true;
-                    playerHpBefore = before;
-                    playerHpAfter = clamped;
                 }
                 // Soft dead/incap marker via existing condition array only
                 if (playerParticipant.dead && Array.isArray(s.condition)) {
@@ -138,9 +137,37 @@ export function buildCombatConsequencePlan(
                         next.status = s;
                     }
                 }
+            } else {
+                playerHpAfter = Math.max(0, Math.floor(playerParticipant.finalHp));
+                playerMaxHp = max;
+                playerIncapacitated = playerParticipant.dead === true;
             }
+        } else {
+            playerHpAfter = Math.max(0, Math.floor(playerParticipant.finalHp));
+            playerMaxHp = max;
+            playerIncapacitated = playerParticipant.dead === true;
         }
     }
+
+    const historyEntry: CombatBattleHistoryEntry = {
+        combatSessionId: receipt.combatSessionId,
+        encounterId: receipt.encounterId,
+        requestId: receipt.requestId,
+        terminalOutcomeCode: receipt.terminalOutcomeCode,
+        finalTick: receipt.finalTick,
+        receiptHash: receipt.receiptHash,
+        simulationResultHash: receipt.simulationResultHash,
+        ...(receipt.compiledSnapshotHash ? { compiledSnapshotHash: receipt.compiledSnapshotHash } : {}),
+        sourceCampaignRevision: receipt.sourceCampaignRevision,
+        ...(playerHpBefore !== undefined ? { playerHpBefore } : {}),
+        ...(playerHpAfter !== undefined ? { playerHpAfter } : {}),
+        ...(playerMaxHp !== undefined ? { playerMaxHp } : {}),
+        ...(playerIncapacitated !== undefined ? { playerIncapacitated } : {}),
+    };
+
+    const prevHistory = listBattleHistory(state);
+    const nextHistory = [...prevHistory, historyEntry].slice(-COMBAT_BATTLE_HISTORY_LIMIT);
+    next[COMBAT_BATTLE_HISTORY_KEY] = nextHistory;
 
     return {
         nextState: next,

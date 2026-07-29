@@ -459,6 +459,7 @@ export const PROMPT_CHUNK_PRIORITIES: Record<string, number> = {
     guild: 66,
     director: 95,
     chronicle: 90,
+    combatConsequence: 88,
     summary: 85,
     party: 80,
     partyDirector: 75,

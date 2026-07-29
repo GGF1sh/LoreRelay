@@ -23,7 +23,7 @@ import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } fr
 import { AbilityDefinition, AbilityFixtureDocument, StatusDefinition } from './combatAbilityTypes';
 import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrary, exportCustomAbilityLibrary, importCustomAbilityLibrary, removeCustomAbility, saveCustomAbility, validateWorkshopAbility, workshopShot } from './combatAbilityWorkshopCore';
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
-import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, runCombatLab, swapCombatLabSides } from './combatLabCore';
+import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRuns, createCombatLabPlayback, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, isValidScenario, refreshBuiltInCombatLabScenarios, runCombatLab, swapCombatLabSides } from './combatLabCore';
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
 import { CombatCommandPlaytestHost } from './combatCommandPlaytestHost';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
@@ -1894,7 +1894,12 @@ function handleTestCombatAbilityWorkshopShot(json: unknown): void {
 function currentCombatLabDocument(): CombatLabDocument {
     if (!combatLabDocument) {
         const loaded = loadCombatLabDocument(getWorkspacePath());
-        combatLabDocument = loaded.document.scenarios.length ? loaded.document : { ...loaded.document, scenarios: initialCombatLabScenarios(), selectedScenarioId: 'standard_5v5' };
+        // Always refresh built-in ids so de-stack / balance-preserving layout
+        // repairs apply even when combat-lab.v1.json was saved under an older build.
+        const base = loaded.document.scenarios.length
+            ? loaded.document
+            : { ...loaded.document, scenarios: initialCombatLabScenarios(), selectedScenarioId: 'standard_5v5' };
+        combatLabDocument = refreshBuiltInCombatLabScenarios(base);
     }
     return combatLabDocument;
 }

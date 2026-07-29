@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { test } from 'node:test';
 import { AbilityFixtureDocument } from './combatAbilityTypes';
-import { compareCombatLabRuns, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, runCombatLab, swapCombatLabSides } from './combatLabCore';
+import { CombatLabDocument, compareCombatLabRuns, emptyCombatLabDocument, exportCombatLabDocument, importCombatLabDocument, initialCombatLabScenarios, refreshBuiltInCombatLabScenarios, runCombatLab, swapCombatLabSides } from './combatLabCore';
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../resources/combat-abilities/v1-reference-abilities.json'), 'utf8')) as AbilityFixtureDocument;
 const catalog = { abilities: fixture.abilities, statuses: fixture.statuses };
@@ -30,6 +30,46 @@ test('Combat Lab multi-unit scenarios never stack two units on the same spawn co
     assert.equal(evasion.enemies.length, 5);
     const ys = evasion.enemies.map(e => e.position.y).sort((a, b) => a - b);
     assert.deepEqual(ys, [0, 24, 48, 72, 96]);
+    // Keep legacy engagement gap (±50), not ±80.
+    assert.ok(evasion.enemies.every(e => e.position.x === 50));
+    assert.equal(evasion.allies[0].position.x, -50);
+});
+
+test('refreshBuiltInCombatLabScenarios replaces stacked saved built-ins and keeps custom ids', () => {
+    const stacked = {
+        schemaVersion: 'combat-lab-v1' as const,
+        selectedScenarioId: 'evasion_ace',
+        scenarios: [
+            {
+                id: 'evasion_ace',
+                name: 'Evasion ace vs many',
+                mode: 'mechanics_v1' as const,
+                deltaSeconds: 1 / 30,
+                allies: [{ id: 'ace', name: 'ace', role: 'Frontline' as const, team: 'allies' as const, hp: 220, maxHp: 220, attack: 15, defense: 5, armor: 0, moveSpeed: 150, attackRange: 120, cooldown: 1, accuracy: 0, evasion: 25, resistances: {}, targetTags: ['living'], subsystemTags: [], normalAttackAbilityId: 'basic_slash', statuses: [], buildup: {}, healBlocked: false, position: { x: -50, y: 0 } }],
+                enemies: Array.from({ length: 5 }, (_, i) => ({
+                    id: `mob_${i}`, name: `mob ${i}`, role: 'Frontline' as const, team: 'enemies' as const,
+                    hp: 100, maxHp: 100, attack: 15, defense: 5, armor: 0, moveSpeed: 150, attackRange: 120, cooldown: 1,
+                    accuracy: 0, evasion: 0, resistances: {}, targetTags: ['living'], subsystemTags: [],
+                    normalAttackAbilityId: 'basic_slash', statuses: [], buildup: {}, healBlocked: false,
+                    position: { x: 50, y: 0 },
+                })),
+            },
+            {
+                id: 'user_custom_skirmish',
+                name: 'User custom',
+                mode: 'mechanics_v1' as const,
+                deltaSeconds: 1 / 30,
+                allies: [{ id: 'a', name: 'a', role: 'Frontline' as const, team: 'allies' as const, hp: 100, maxHp: 100, attack: 15, defense: 5, armor: 0, moveSpeed: 150, attackRange: 120, cooldown: 1, accuracy: 0, evasion: 0, resistances: {}, targetTags: ['living'], subsystemTags: [], normalAttackAbilityId: 'basic_slash', statuses: [], buildup: {}, healBlocked: false, position: { x: -50, y: 0 } }],
+                enemies: [{ id: 'e', name: 'e', role: 'Frontline' as const, team: 'enemies' as const, hp: 100, maxHp: 100, attack: 15, defense: 5, armor: 0, moveSpeed: 150, attackRange: 120, cooldown: 1, accuracy: 0, evasion: 0, resistances: {}, targetTags: ['living'], subsystemTags: [], normalAttackAbilityId: 'basic_slash', statuses: [], buildup: {}, healBlocked: false, position: { x: 50, y: 0 } }],
+            },
+        ],
+    };
+    const next = refreshBuiltInCombatLabScenarios(stacked as unknown as CombatLabDocument);
+    const evasion = next.scenarios.find(s => s.id === 'evasion_ace')!;
+    const keys = new Set(evasion.enemies.map(e => `${e.position.x},${e.position.y}`));
+    assert.equal(keys.size, 5);
+    assert.ok(next.scenarios.some(s => s.id === 'user_custom_skirmish'));
+    assert.equal(next.selectedScenarioId, 'evasion_ace');
 });
 
 test('Mixed Arms & Status Showcase exercises melee, both projectile flavors, AoE-DoT, healing, and a status crossing its buildup threshold', () => {

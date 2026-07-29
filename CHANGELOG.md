@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.20] - 2026-07-29
+
+### Fixed
+- Combat Lab `lineFormation` の既定 x を `unit()` と同じ ±50 に戻し、マーカーばらしのために engagement 距離（±80）が変わらないようにしました。
+- 保存済み `combat-lab.v1.json` でも組み込みシナリオ id を現行 initializer で差し替え、de-stack 修正が既存ワークスペースに届くようにしました。
+
+### Changed
+- パッケージ版を 1.84.20 へ更新しました。
+
 ## [1.84.18] - 2026-07-29
 
 ### Fixed

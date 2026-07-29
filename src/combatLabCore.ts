@@ -130,6 +130,9 @@ function unit(id: string, team: CombatLabTeam, overrides: Partial<CombatLabUnit>
  * Vertical line on one side of the field. Default `unit()` places every unit of a
  * team at the same (x, y); multi-unit scenarios must use this (or explicit
  * positions) so Battle View / playtest do not stack markers on one coordinate.
+ *
+ * Default baseX matches `unit()` (±50) so engagement range / gambit distance
+ * stays the same as the pre-de-stack fixtures; only y is spread.
  */
 function lineFormation(
     team: CombatLabTeam,
@@ -142,7 +145,7 @@ function lineFormation(
         overrides?: (index: number) => Partial<CombatLabUnit>;
     } = {},
 ): CombatLabUnit[] {
-    const baseX = options.baseX ?? (team === 'allies' ? -80 : 80);
+    const baseX = options.baseX ?? (team === 'allies' ? -50 : 50);
     const spacingY = options.spacingY ?? 24;
     const startY = options.startY ?? 0;
     return Array.from({ length: count }, (_, index) => unit(`${idPrefix}${index}`, team, {
@@ -160,7 +163,7 @@ export function initialCombatLabScenarios(): CombatLabScenario[] {
         duel(
             'evasion_ace',
             'Evasion ace vs many',
-            [unit('ace', 'allies', { evasion: 25, hp: 220, maxHp: 220, position: { x: -80, y: 48 } })],
+            [unit('ace', 'allies', { evasion: 25, hp: 220, maxHp: 220, position: { x: -50, y: 48 } })],
             lineFormation('enemies', 5, 'mob_'),
         ),
         duel('armor_vs_normal', 'Heavy armor vs normal attacks', [unit('normal', 'allies')], [unit('heavy', 'enemies', { armor: 30, defense: 20 })]),
@@ -171,10 +174,10 @@ export function initialCombatLabScenarios(): CombatLabScenario[] {
             'healing_vs_block',
             'Healing squad vs heal block',
             [
-                unit('medic', 'allies', { role: 'Medic', healAbilityId: 'heal', hp: 60, position: { x: -80, y: 0 } }),
-                unit('guard', 'allies', { hp: 50, position: { x: -80, y: 24 } }),
+                unit('medic', 'allies', { role: 'Medic', healAbilityId: 'heal', hp: 60, position: { x: -50, y: 0 } }),
+                unit('guard', 'allies', { hp: 50, position: { x: -50, y: 24 } }),
             ],
-            [unit('blocker', 'enemies', { attack: 20, position: { x: 80, y: 12 } })],
+            [unit('blocker', 'enemies', { attack: 20, position: { x: 50, y: 12 } })],
         ),
         duel('sleep_break', 'Sleep and damage break', [unit('sleeper', 'allies', { statuses: [{ id: 'sleep', remainingSeconds: 5, intensity: 1 }] })], [unit('waker', 'enemies')]),
         duel('petrify_colossal', 'Petrify vs colossal target', [unit('petrifier', 'allies', { normalAttackAbilityId: 'petrify_ray' })], [unit('colossal', 'enemies', { targetTags: ['colossal', 'structure'], subsystemTags: ['locomotion', 'command'], hp: 500, maxHp: 500 })]),
@@ -182,7 +185,7 @@ export function initialCombatLabScenarios(): CombatLabScenario[] {
             'infantry_vs_battleship',
             'Infantry vs battleship-class target',
             lineFormation('allies', 5, 'infantry_'),
-            [unit('battleship', 'enemies', { targetTags: ['colossal', 'vehicle'], subsystemTags: ['primary_weapon', 'power'], hp: 1000, maxHp: 1000, armor: 35, defense: 30, position: { x: 80, y: 48 } })],
+            [unit('battleship', 'enemies', { targetTags: ['colossal', 'vehicle'], subsystemTags: ['primary_weapon', 'power'], hp: 1000, maxHp: 1000, armor: 35, defense: 30, position: { x: 50, y: 48 } })],
         ),
         // Every other scenario above is a single archetype (or a 1-vs-1 mechanic
         // probe). This one exists purely as a Battle View / human-smoke fixture:
@@ -234,4 +237,25 @@ export function initialCombatLabScenarios(): CombatLabScenario[] {
             unit('grunt', 'enemies', { hp: 140, maxHp: 140, position: { x: 80, y: 48 } }),
         ]),
     ];
+}
+
+/**
+ * Replace known built-in scenarios with the current initializer so upgrades
+ * (e.g. de-stacked spawns) reach workspaces that already saved combat-lab.v1.json.
+ * User-authored scenarios (ids not in the built-in set) are preserved.
+ */
+export function refreshBuiltInCombatLabScenarios(document: CombatLabDocument): CombatLabDocument {
+    const builtins = initialCombatLabScenarios();
+    const builtinIds = new Set(builtins.map(scenario => scenario.id));
+    const userScenarios = (document.scenarios || []).filter(scenario => !builtinIds.has(scenario.id));
+    const scenarios = [...builtins.map(scenario => clone(scenario)), ...userScenarios];
+    const ids = new Set(scenarios.map(scenario => scenario.id));
+    const selectedScenarioId = document.selectedScenarioId && ids.has(document.selectedScenarioId)
+        ? document.selectedScenarioId
+        : scenarios[0]?.id;
+    return {
+        ...document,
+        scenarios,
+        ...(selectedScenarioId ? { selectedScenarioId } : {}),
+    };
 }

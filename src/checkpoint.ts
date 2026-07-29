@@ -2,6 +2,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { writeJsonAtomic } from './workspacePaths';
 import type { GameEntry } from './types/GameState';
+import type { CombatBattleHistoryEntry } from './campaignCombatApplyCore';
+import {
+    attachCombatBattleHistoryToSnapshot,
+    extractCombatBattleHistoryForCheckpoint,
+} from './checkpointCombatCore';
+
+export type { CombatBattleHistoryEntry };
+export {
+    attachCombatBattleHistoryToSnapshot,
+    extractCombatBattleHistoryForCheckpoint,
+} from './checkpointCombatCore';
 
 export interface CheckpointMeta {
     id: string;
@@ -12,9 +23,15 @@ export interface CheckpointMeta {
 }
 
 export interface CheckpointFile {
-    format: 'text-adventure-checkpoint/1.0';
+    /** 1.0: history only. 1.1: optional combatBattleHistory for V1-C consequence restore. */
+    format: 'text-adventure-checkpoint/1.0' | 'text-adventure-checkpoint/1.1';
     meta: CheckpointMeta;
     history: GameEntry[];
+    /**
+     * Snapshot of combatBattleHistory at save time (Bridge V1-C).
+     * Required so restore/rebuild does not drop un-ACKed combat consequence facts.
+     */
+    combatBattleHistory?: CombatBattleHistoryEntry[];
 }
 
 export interface GmSnapshot {
@@ -30,6 +47,7 @@ export interface GmSnapshot {
     sprite?: unknown;
     summary?: string;
     gameOver?: unknown;
+    combatBattleHistory?: CombatBattleHistoryEntry[];
 }
 
 export function getCheckpointsDir(ws: string): string {
@@ -138,7 +156,12 @@ export function listCheckpointMetas(ws: string): CheckpointMeta[] {
 export function saveCheckpointFile(
     ws: string,
     history: GameEntry[],
-    label?: string
+    label?: string,
+    options?: {
+        /** Explicit combat history; if omitted, read from game_state.json when present. */
+        combatBattleHistory?: CombatBattleHistoryEntry[];
+        gameState?: Record<string, unknown>;
+    },
 ): CheckpointMeta | undefined {
     const gm = findLastGmEntry(history);
     if (!gm?.id) {
@@ -153,10 +176,32 @@ export function saveCheckpointFile(
         turnId: gm.id,
         turnLabel: gm.content.slice(0, 60).replace(/\s+/g, ' ').trim()
     };
+
+    let combatBattleHistory = options?.combatBattleHistory
+        ? options.combatBattleHistory.map((e) => ({ ...e }))
+        : extractCombatBattleHistoryForCheckpoint(options?.gameState);
+    if (combatBattleHistory === undefined) {
+        // Best-effort read of live game_state so post-combat / pre-turn saves keep V1-C facts.
+        try {
+            const statePath = path.join(ws, 'game_state.json');
+            if (fs.existsSync(statePath)) {
+                const raw = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+                combatBattleHistory = extractCombatBattleHistoryForCheckpoint(raw);
+            }
+        } catch {
+            combatBattleHistory = undefined;
+        }
+    }
+
     const payload: CheckpointFile = {
-        format: 'text-adventure-checkpoint/1.0',
+        format: combatBattleHistory && combatBattleHistory.length > 0
+            ? 'text-adventure-checkpoint/1.1'
+            : 'text-adventure-checkpoint/1.0',
         meta,
-        history: JSON.parse(JSON.stringify(history))
+        history: JSON.parse(JSON.stringify(history)),
+        ...(combatBattleHistory && combatBattleHistory.length > 0
+            ? { combatBattleHistory: JSON.parse(JSON.stringify(combatBattleHistory)) }
+            : {}),
     };
     const dir = getCheckpointsDir(ws);
     fs.mkdirSync(dir, { recursive: true });

@@ -186,6 +186,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_prompt_budget_shadow_integration.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_prompt_receipt_accepted_consumption.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_combat_consequence_prompt_v1c.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_combat_consequence_budget_atomic.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_prompt_inspector_readonly.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_prompt_chunk_activation.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_webview_handlers_core.js', consumesCompiledOutput: true },

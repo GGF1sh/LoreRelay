@@ -67,8 +67,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | 項目 | 値 |
 |------|-----|
 | COMBAT-STORY-SESSION-BRIDGE-V1-A | PENDING write retry + compiled BattleSpec/roster snapshot persist |
-| `package.json` | **1.84.25** |
-| CHANGELOG 先頭 | **[1.84.25]** |
+| `package.json` | **1.84.26** |
+| CHANGELOG 先頭 | **[1.84.26]** |
 | COMBAT-LAB-STACKED-SPAWN-CORRECTIONS | lineFormation x=±50; refresh built-ins on load |
 | COMBAT-LAB-STACKED-SPAWN | multi-unit Lab fixtures use distinct spawn coords (`lineFormation`) |
 | PLAYABLE-BUILD-ARTIFACT-SYNC | Webview `build-webview` 出力を LF 正規化; Windows compile 後の CRLF-only dirty を防止 |

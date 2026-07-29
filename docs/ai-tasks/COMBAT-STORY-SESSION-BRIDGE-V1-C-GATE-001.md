@@ -96,7 +96,10 @@ Prompt integration:
 - category: `recent_events`;
 - priority: `88` (below Chronicle `90`, above Summary `85`);
 - pure Inspector/Preview path may display the candidate but must never ACK it;
-- production path attaches one consumable token.
+- production path attaches one consumable token;
+- **budget atomicity (Codex P2):** under global prompt budget, `combatConsequence` is
+  all-or-nothing — if the block would be truncated or dropped, omit the entire chunk
+  **and** its ACK token (never durable-ACK a partial fact block).
 
 ## Durable inject-once ACK
 
@@ -138,6 +141,21 @@ ACK result contract:
 - mismatch or write failure → `failed` and retain compensation truth.
 
 A crash before Accepted ACK may repeat the fact later; it must never mark an undelivered fact as injected.
+
+## Checkpoint / rewind preservation (Codex P2)
+
+Checkpoint files historically stored only `GameEntry[]`. Restoring via `buildStateFromGmEntry`
+would drop `combatBattleHistory`, so an un-ACKed combat consequence could never be re-selected.
+
+**Required:**
+
+- On save checkpoint: snapshot `combatBattleHistory` from current `game_state.json` into the
+  checkpoint payload (`text-adventure-checkpoint/1.1` when present).
+- On restore checkpoint: re-attach that history onto the rebuilt game state so V1-C fact
+  selection can resume.
+- APPLIED / injected side files under `.text-adventure/combat/` remain workspace-scoped
+  (not embedded in chat history). Injected markers still prevent re-ACK after a successful
+  Accepted delivery; history restore without inject marker correctly re-offers narration.
 
 ## Required implementation touch set
 

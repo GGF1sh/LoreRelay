@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.26] - 2026-07-29
+
+### Fixed
+- Bridge V1-C Codex P2: checkpoint save/restore preserves `combatBattleHistory` so un-ACKed combat consequences remain selectable after restore; `combatConsequence` prompt chunk is all-or-nothing under budget (no truncated block + ACK).
+
+### Changed
+- パッケージ版を 1.84.26 へ更新。
+
 ## [1.84.25] - 2026-07-29
 
 ### Fixed

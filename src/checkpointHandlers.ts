@@ -12,6 +12,8 @@ import {
     truncateHistoryOneTurn,
     truncateHistoryToGmEntry
 } from './checkpoint';
+import { attachCombatBattleHistoryToSnapshot } from './checkpointCombatCore';
+import type { CombatBattleHistoryEntry } from './campaignCombatApplyCore';
 import { t } from './i18n';
 import { getArchiveRemindStep, getArchiveThreshold } from './archivePrompt';
 import { isValidEntryId } from './entryId';
@@ -223,18 +225,22 @@ export async function summarizeHistory(): Promise<void> {
 
 async function writeRestoredGameState(
     prevGmEntry: (GameEntry & Record<string, unknown>) | undefined,
-    successMessage: string
+    successMessage: string,
+    options?: {
+        combatBattleHistory?: CombatBattleHistoryEntry[];
+    },
 ): Promise<boolean> {
     const statePath = getGameStatePath();
     if (!statePath) {
         return false;
     }
-    const newState = prevGmEntry ? buildStateFromGmEntry(prevGmEntry) : {
+    const base = prevGmEntry ? buildStateFromGmEntry(prevGmEntry) : {
         entries: [],
         status: {},
         options: [],
         theme: 'fantasy'
     };
+    const newState = attachCombatBattleHistoryToSnapshot(base, options?.combatBattleHistory);
     try {
         writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>, true);
         replaceHistoryFromDisk();
@@ -340,7 +346,11 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         saveHistoryToDisk();
         resetGmBridgeSessions();
         const gm = findLastGmEntry(getGameEntryHistory());
-        return writeRestoredGameState(gm, t('extension.info.checkpointRestored', { label: cp.meta.label }));
+        return writeRestoredGameState(
+            gm,
+            t('extension.info.checkpointRestored', { label: cp.meta.label }),
+            { combatBattleHistory: cp.combatBattleHistory },
+        );
     });
 }
 

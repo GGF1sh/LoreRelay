@@ -125,21 +125,65 @@ export function createCombatLabPlayback(run: CombatLabRun): CombatLabPlayback { 
 export function advanceCombatLabPlayback(playback: CombatLabPlayback, ticks = 1): CombatLabPlayback { return { ...playback, cursor: Math.min(playback.run.timeline.length, playback.cursor + Math.max(0, Math.trunc(ticks * playback.speed))) }; }
 
 function unit(id: string, team: CombatLabTeam, overrides: Partial<CombatLabUnit> = {}): CombatLabUnit { return { id, name: id.replaceAll('_', ' '), role: 'Frontline', team, hp: 100, maxHp: 100, attack: 15, defense: 5, armor: 0, moveSpeed: 150, attackRange: 120, cooldown: 1, accuracy: 0, evasion: 0, resistances: {}, targetTags: ['living'], subsystemTags: [], normalAttackAbilityId: 'basic_slash', statuses: [], buildup: {}, healBlocked: false, position: { x: team === 'allies' ? -50 : 50, y: 0 }, ...overrides }; }
+
+/**
+ * Vertical line on one side of the field. Default `unit()` places every unit of a
+ * team at the same (x, y); multi-unit scenarios must use this (or explicit
+ * positions) so Battle View / playtest do not stack markers on one coordinate.
+ */
+function lineFormation(
+    team: CombatLabTeam,
+    count: number,
+    idPrefix: string,
+    options: {
+        baseX?: number;
+        spacingY?: number;
+        startY?: number;
+        overrides?: (index: number) => Partial<CombatLabUnit>;
+    } = {},
+): CombatLabUnit[] {
+    const baseX = options.baseX ?? (team === 'allies' ? -80 : 80);
+    const spacingY = options.spacingY ?? 24;
+    const startY = options.startY ?? 0;
+    return Array.from({ length: count }, (_, index) => unit(`${idPrefix}${index}`, team, {
+        position: { x: baseX, y: startY + index * spacingY },
+        ...(options.overrides?.(index) ?? {}),
+    }));
+}
+
 const duel = (id: string, name: string, allies: CombatLabUnit[], enemies: CombatLabUnit[], mode: CombatMode = 'mechanics_v1'): CombatLabScenario => ({ id, name, mode, deltaSeconds: 1 / 30, allies, enemies });
 export function initialCombatLabScenarios(): CombatLabScenario[] {
     const standardAllies = Array.from({ length: 5 }, (_, index) => unit(`ally_${index + 1}`, 'allies', { position: { x: -80, y: index * 24 }, role: index === 4 ? 'Medic' : 'Frontline', healAbilityId: index === 4 ? 'heal' : undefined }));
     const standardEnemies = Array.from({ length: 5 }, (_, index) => unit(`enemy_${index + 1}`, 'enemies', { position: { x: 80, y: index * 24 } }));
     return [
         duel('standard_5v5', 'Standard 5 vs 5', standardAllies, standardEnemies),
-        duel('evasion_ace', 'Evasion ace vs many', [unit('ace', 'allies', { evasion: 25, hp: 220, maxHp: 220 })], Array.from({ length: 5 }, (_, i) => unit(`mob_${i}`, 'enemies'))),
+        duel(
+            'evasion_ace',
+            'Evasion ace vs many',
+            [unit('ace', 'allies', { evasion: 25, hp: 220, maxHp: 220, position: { x: -80, y: 48 } })],
+            lineFormation('enemies', 5, 'mob_'),
+        ),
         duel('armor_vs_normal', 'Heavy armor vs normal attacks', [unit('normal', 'allies')], [unit('heavy', 'enemies', { armor: 30, defense: 20 })]),
         duel('armor_vs_ap', 'Heavy armor vs armor-piercing attack', [unit('ap', 'allies', { normalAttackAbilityId: 'ap_round' })], [unit('heavy_ap', 'enemies', { armor: 30, defense: 20 })]),
         duel('barrier_vs_burst', 'Barrier vs burst', [unit('burst', 'allies', { normalAttackAbilityId: 'area_bombardment', attack: 30 })], [unit('barrier', 'enemies', { barrier: { amount: 100, type: 'kinetic' } })]),
         duel('barrier_vs_dot', 'Barrier vs penetrating DoT', [unit('dot', 'allies', { normalAttackAbilityId: 'ignite' })], [unit('barrier_dot', 'enemies', { barrier: { amount: 100, type: 'kinetic' } })]),
-        duel('healing_vs_block', 'Healing squad vs heal block', [unit('medic', 'allies', { role: 'Medic', healAbilityId: 'heal', hp: 60 }), unit('guard', 'allies', { hp: 50 })], [unit('blocker', 'enemies', { attack: 20 })]),
+        duel(
+            'healing_vs_block',
+            'Healing squad vs heal block',
+            [
+                unit('medic', 'allies', { role: 'Medic', healAbilityId: 'heal', hp: 60, position: { x: -80, y: 0 } }),
+                unit('guard', 'allies', { hp: 50, position: { x: -80, y: 24 } }),
+            ],
+            [unit('blocker', 'enemies', { attack: 20, position: { x: 80, y: 12 } })],
+        ),
         duel('sleep_break', 'Sleep and damage break', [unit('sleeper', 'allies', { statuses: [{ id: 'sleep', remainingSeconds: 5, intensity: 1 }] })], [unit('waker', 'enemies')]),
         duel('petrify_colossal', 'Petrify vs colossal target', [unit('petrifier', 'allies', { normalAttackAbilityId: 'petrify_ray' })], [unit('colossal', 'enemies', { targetTags: ['colossal', 'structure'], subsystemTags: ['locomotion', 'command'], hp: 500, maxHp: 500 })]),
-        duel('infantry_vs_battleship', 'Infantry vs battleship-class target', Array.from({ length: 5 }, (_, i) => unit(`infantry_${i}`, 'allies')), [unit('battleship', 'enemies', { targetTags: ['colossal', 'vehicle'], subsystemTags: ['primary_weapon', 'power'], hp: 1000, maxHp: 1000, armor: 35, defense: 30 })]),
+        duel(
+            'infantry_vs_battleship',
+            'Infantry vs battleship-class target',
+            lineFormation('allies', 5, 'infantry_'),
+            [unit('battleship', 'enemies', { targetTags: ['colossal', 'vehicle'], subsystemTags: ['primary_weapon', 'power'], hp: 1000, maxHp: 1000, armor: 35, defense: 30, position: { x: 80, y: 48 } })],
+        ),
         // Every other scenario above is a single archetype (or a 1-vs-1 mechanic
         // probe). This one exists purely as a Battle View / human-smoke fixture:
         // one of every attack flavor (melee, physical projectile, DoT projectile,

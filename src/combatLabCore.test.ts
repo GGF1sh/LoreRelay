@@ -9,6 +9,29 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../resources/co
 const catalog = { abilities: fixture.abilities, statuses: fixture.statuses };
 test('Combat Lab scenarios are reproducible, runnable, and preserve legacy isolation', () => { const scenarios = initialCombatLabScenarios(); assert.equal(scenarios.length, 11); const legacy = runCombatLab({ ...scenarios[0], mode: 'legacy_gambit' }, catalog); const mechanics = runCombatLab(scenarios[0], catalog); assert.equal(legacy.output.mechanicsReceipts, undefined); assert.equal(mechanics.deterministic, true); assert.equal(initialCombatLabScenarios().every(scenario => runCombatLab(scenario, catalog).deterministic), true); });
 
+test('Combat Lab multi-unit scenarios never stack two units on the same spawn coordinate', () => {
+    const key = (p: { x: number; y: number }) => `${p.x},${p.y}`;
+    for (const scenario of initialCombatLabScenarios()) {
+        const units = [...scenario.allies, ...scenario.enemies];
+        const seen = new Map<string, string>();
+        for (const u of units) {
+            const k = key(u.position);
+            const prior = seen.get(k);
+            assert.equal(
+                prior,
+                undefined,
+                `${scenario.id}: unit ${u.id} stacks on ${k} with ${prior}`,
+            );
+            seen.set(k, u.id);
+        }
+    }
+    // Human-play regression: evasion_ace used bare unit() for five mobs at (50,0).
+    const evasion = initialCombatLabScenarios().find(s => s.id === 'evasion_ace')!;
+    assert.equal(evasion.enemies.length, 5);
+    const ys = evasion.enemies.map(e => e.position.y).sort((a, b) => a - b);
+    assert.deepEqual(ys, [0, 24, 48, 72, 96]);
+});
+
 test('Mixed Arms & Status Showcase exercises melee, both projectile flavors, AoE-DoT, healing, and a status crossing its buildup threshold', () => {
     const scenario = initialCombatLabScenarios().find(s => s.id === 'mixed_arms_showcase')!;
     const run = runCombatLab(scenario, catalog);

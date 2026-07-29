@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.18] - 2026-07-29
+
+### Fixed
+- Combat Lab 組み込みシナリオで複数ユニットが同一座標に重なる問題を修正しました（`evasion_ace` の mob 列、`infantry_vs_battleship`、`healing_vs_block` など）。
+- `lineFormation` ヘルパーで縦一列の初期配置を共有し、Battle View で体数と HP が読めるようにしました。
+
+### Changed
+- パッケージ版を 1.84.18 へ更新しました。
+
 ## [1.84.17] - 2026-07-29
 
 ### Fixed

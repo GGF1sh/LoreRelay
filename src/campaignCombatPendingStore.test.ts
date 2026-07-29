@@ -97,6 +97,24 @@ test('scanPendingDirectoryForApply fail-closes on wrong schema / not apply-eligi
     assert.equal(scan.fileName, 'closure-shaped.json');
 });
 
+test('scan fail-closes on incomplete receipt missing receiptHash/participants', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-pending-incomplete-'));
+    const dir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.mkdirSync(dir, { recursive: true });
+    // Discriminators only — would have passed the old weak scan
+    fs.writeFileSync(path.join(dir, 'partial.json'), JSON.stringify({
+        schemaVersion: 'combat-outcome-receipt-v1',
+        applyEligible: true,
+        combatSessionId: 'sess-partial',
+        // missing receiptHash, participants, encounterId, etc.
+    }), 'utf8');
+    const scan = scanPendingDirectoryForApply(root);
+    assert.equal(scan.ok, false);
+    if (scan.ok) return;
+    assert.equal(scan.reason, 'INVALID_PENDING_RECEIPT');
+    assert.equal(scan.fileName, 'partial.json');
+});
+
 test('scanPendingDirectoryForApply ignores non-json files', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-pending-nonjson-'));
     const dir = path.join(root, '.text-adventure', 'combat', 'pending');

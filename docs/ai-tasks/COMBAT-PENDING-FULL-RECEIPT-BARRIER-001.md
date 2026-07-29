@@ -2,7 +2,7 @@
 
 ## Status
 
-READY_TO_IMPLEMENT — exact-head post-merge P1 from PR #65
+IMPLEMENTED — scan uses shared isApplyEligibleReceipt complete predicate
 
 ## Base
 

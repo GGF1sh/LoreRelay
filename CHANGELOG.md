@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.29] - 2026-07-29
+
+### Fixed
+- Bridge pending scan: require full apply-eligible receipt predicate (`isApplyEligibleReceipt`) before any batch apply, so incomplete receipts cannot let a valid earlier receipt mutate HP first.
+
+### Changed
+- パッケージ版を 1.84.29 へ更新。
+
 ## [1.84.28] - 2026-07-29
 
 ### Fixed

@@ -10,6 +10,7 @@ import {
     CombatSessionClosureRecord,
 } from './campaignCombatReceiptCore';
 import { CampaignCombatRequest } from './campaignCombatRequestCore';
+import { isApplyEligibleReceipt } from './campaignCombatApplyCore';
 
 export function combatRootDir(workspacePath: string): string {
     return path.join(workspacePath, '.text-adventure', 'combat');
@@ -278,8 +279,10 @@ export type PendingDirectoryScanResult =
 
 /**
  * Scan pending/*.json fail-closed.
- * Any unreadable JSON or non apply-eligible receipt schema blocks the whole directory
- * so a newer absolute-HP receipt cannot leapfrog a corrupt older file.
+ * Every JSON must parse and pass the **same** complete apply-eligible predicate used by
+ * `applyCombatOutcomeReceiptOnce` (`isApplyEligibleReceipt`). Incomplete receipts
+ * (missing receiptHash / participants / etc.) block the whole directory so a valid
+ * lower-revision receipt cannot mutate HP before an incomplete later entry fails.
  * Non-.json names are ignored. Does not delete or quarantine.
  */
 export function scanPendingDirectoryForApply(workspacePath: string): PendingDirectoryScanResult {
@@ -302,21 +305,15 @@ export function scanPendingDirectoryForApply(workspacePath: string): PendingDire
                 detail: `malformed JSON in pending/${name}: ${e instanceof Error ? e.message : String(e)}`,
             };
         }
-        if (
-            !raw
-            || typeof raw !== 'object'
-            || Array.isArray(raw)
-            || (raw as CombatOutcomeReceipt).schemaVersion !== 'combat-outcome-receipt-v1'
-            || (raw as CombatOutcomeReceipt).applyEligible !== true
-        ) {
+        if (!isApplyEligibleReceipt(raw)) {
             return {
                 ok: false,
                 reason: 'INVALID_PENDING_RECEIPT',
                 fileName: name,
-                detail: `pending/${name} is not an apply-eligible combat-outcome-receipt-v1`,
+                detail: `pending/${name} failed complete apply-eligible receipt predicate`,
             };
         }
-        receipts.push(raw as CombatOutcomeReceipt);
+        receipts.push(raw);
     }
     return { ok: true, receipts };
 }

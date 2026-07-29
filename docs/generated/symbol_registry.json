@@ -24,10 +24,10 @@
     ]
   },
   "counts": {
-    "total": 5221,
+    "total": 5223,
     "byBoundary": {
       "configuration": 89,
-      "host": 895,
+      "host": 897,
       "host-bridge": 61,
       "host-webview": 524,
       "pure-core": 2909,
@@ -48,7 +48,7 @@
       "campaign-combat-atomic-write": 1,
       "campaign-combat-compile": 5,
       "campaign-combat-consequence": 10,
-      "campaign-combat-pending-store": 17,
+      "campaign-combat-pending-store": 19,
       "campaign-combat-receipt": 9,
       "campaign-combat-request": 7,
       "campaign-combat-session-coordinator": 3,
@@ -348,10 +348,10 @@
       "configurationKey": 89,
       "constant": 712,
       "enum": 2,
-      "function": 1850,
+      "function": 1851,
       "interface": 915,
       "messageType": 524,
-      "type": 416,
+      "type": 417,
       "webviewFunction": 688,
       "windowApi": 23
     }
@@ -1883,12 +1883,12 @@
       "name": "applyAllPendingCombatOutcomes",
       "kind": "function",
       "sourcePath": "src/campaignCombatApplyHost.ts",
-      "line": 220,
+      "line": 224,
       "signature": "export function applyAllPendingCombatOutcomes(workspacePath: string): CombatApplyResult[]",
       "public": "exported",
       "boundary": "host",
       "category": "campaign-combat-apply-host",
-      "description": "Scan pending/ and apply each apply-eligible receipt once, in campaign order. Stops on **any** unsuccessful result so a newer absolute-HP apply cannot leapfrog an older receipt that later retries successfully (would reverse campaign order). Successful statuses (`applied` / `already_applied`) continue the batch."
+      "description": "Scan pending/ and apply each apply-eligible receipt once, in campaign order. Fail-closed: if any pending/*.json is malformed or not apply-eligible schema, return INVALID_PENDING_RECEIPT and apply **nothing** (even valid newer receipts). Stops on **any** unsuccessful apply result so a newer absolute-HP apply cannot leapfrog an older receipt that later retrie…"
     },
     {
       "id": "host:type:src/campaignCombatApplyHost.ts:CombatApplyResult",
@@ -2261,16 +2261,39 @@
       "category": "campaign-combat-pending-store"
     },
     {
+      "id": "host:function:src/campaignCombatPendingStore.ts:scanPendingDirectoryForApply",
+      "name": "scanPendingDirectoryForApply",
+      "kind": "function",
+      "sourcePath": "src/campaignCombatPendingStore.ts",
+      "line": 285,
+      "signature": "export function scanPendingDirectoryForApply(workspacePath: string): PendingDirectoryScanResult",
+      "public": "exported",
+      "boundary": "host",
+      "category": "campaign-combat-pending-store",
+      "description": "Scan pending/*.json fail-closed. Any unreadable JSON or non apply-eligible receipt schema blocks the whole directory so a newer absolute-HP receipt cannot leapfrog a corrupt older file. Non-.json names are ignored. Does not delete or quarantine."
+    },
+    {
       "id": "host:function:src/campaignCombatPendingStore.ts:listPendingApplyEligibleReceipts",
       "name": "listPendingApplyEligibleReceipts",
       "kind": "function",
       "sourcePath": "src/campaignCombatPendingStore.ts",
-      "line": 271,
+      "line": 329,
       "signature": "export function listPendingApplyEligibleReceipts(workspacePath: string): CombatOutcomeReceipt[]",
       "public": "exported",
       "boundary": "host",
       "category": "campaign-combat-pending-store",
-      "description": "Apply candidates only — closures never listed."
+      "description": "Apply candidates only — closures never listed. Prefer `scanPendingDirectoryForApply` for apply batches (fail-closed on corrupt files). This helper returns only structurally valid receipts; it does not report invalid files."
+    },
+    {
+      "id": "host:type:src/campaignCombatPendingStore.ts:PendingDirectoryScanResult",
+      "name": "PendingDirectoryScanResult",
+      "kind": "type",
+      "sourcePath": "src/campaignCombatPendingStore.ts",
+      "line": 270,
+      "signature": "export type PendingDirectoryScanResult = | { ok: true;",
+      "public": "exported",
+      "boundary": "host",
+      "category": "campaign-combat-pending-store"
     },
     {
       "id": "pure-core:function:src/campaignCombatReceiptCore.ts:mapCombatTerminalLabel",

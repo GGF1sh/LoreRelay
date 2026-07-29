@@ -267,21 +267,66 @@ export function readPendingCombatOutcomeReceipt(
     return undefined;
 }
 
-/** Apply candidates only — closures never listed. */
-export function listPendingApplyEligibleReceipts(workspacePath: string): CombatOutcomeReceipt[] {
+export type PendingDirectoryScanResult =
+    | { ok: true; receipts: CombatOutcomeReceipt[] }
+    | {
+        ok: false;
+        reason: 'INVALID_PENDING_RECEIPT';
+        detail: string;
+        fileName: string;
+    };
+
+/**
+ * Scan pending/*.json fail-closed.
+ * Any unreadable JSON or non apply-eligible receipt schema blocks the whole directory
+ * so a newer absolute-HP receipt cannot leapfrog a corrupt older file.
+ * Non-.json names are ignored. Does not delete or quarantine.
+ */
+export function scanPendingDirectoryForApply(workspacePath: string): PendingDirectoryScanResult {
     const dir = path.join(combatRootDir(workspacePath), 'pending');
-    if (!fs.existsSync(dir)) return [];
-    const out: CombatOutcomeReceipt[] = [];
+    if (!fs.existsSync(dir)) {
+        return { ok: true, receipts: [] };
+    }
+    const receipts: CombatOutcomeReceipt[] = [];
     for (const name of fs.readdirSync(dir)) {
         if (!name.endsWith('.json')) continue;
+        const filePath = path.join(dir, name);
+        let raw: unknown;
         try {
-            const raw = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as CombatOutcomeReceipt;
-            if (raw?.applyEligible === true && raw.schemaVersion === 'combat-outcome-receipt-v1') {
-                out.push(raw);
-            }
-        } catch {
-            // skip corrupt
+            raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (e) {
+            return {
+                ok: false,
+                reason: 'INVALID_PENDING_RECEIPT',
+                fileName: name,
+                detail: `malformed JSON in pending/${name}: ${e instanceof Error ? e.message : String(e)}`,
+            };
         }
+        if (
+            !raw
+            || typeof raw !== 'object'
+            || Array.isArray(raw)
+            || (raw as CombatOutcomeReceipt).schemaVersion !== 'combat-outcome-receipt-v1'
+            || (raw as CombatOutcomeReceipt).applyEligible !== true
+        ) {
+            return {
+                ok: false,
+                reason: 'INVALID_PENDING_RECEIPT',
+                fileName: name,
+                detail: `pending/${name} is not an apply-eligible combat-outcome-receipt-v1`,
+            };
+        }
+        receipts.push(raw as CombatOutcomeReceipt);
     }
-    return out;
+    return { ok: true, receipts };
+}
+
+/**
+ * Apply candidates only — closures never listed.
+ * Prefer `scanPendingDirectoryForApply` for apply batches (fail-closed on corrupt files).
+ * This helper returns only structurally valid receipts; it does not report invalid files.
+ */
+export function listPendingApplyEligibleReceipts(workspacePath: string): CombatOutcomeReceipt[] {
+    const scan = scanPendingDirectoryForApply(workspacePath);
+    return scan.ok ? scan.receipts : [];
 }

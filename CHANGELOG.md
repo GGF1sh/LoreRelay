@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.28] - 2026-07-29
+
+### Fixed
+- Bridge apply: fail-closed when any `pending/*.json` is malformed or not apply-eligible schema (`INVALID_PENDING_RECEIPT`); do not apply newer absolute HP until the directory is structurally clean.
+
+### Changed
+- パッケージ版を 1.84.28 へ更新。
+
 ## [1.84.27] - 2026-07-29
 
 ### Fixed

@@ -27,6 +27,57 @@ export function closureRecordPath(workspacePath: string, combatSessionId: string
     return path.join(combatRootDir(workspacePath), 'closures', `${combatSessionId}.json`);
 }
 
+export function appliedReceiptPath(workspacePath: string, combatSessionId: string): string {
+    return path.join(combatRootDir(workspacePath), 'applied', `${combatSessionId}.json`);
+}
+
+export function writeAppliedCombatOutcomeMarker(
+    workspacePath: string,
+    marker: {
+        schemaVersion: 'combat-outcome-applied-v1';
+        combatSessionId: string;
+        receiptHash: string;
+        simulationResultHash: string;
+        campaignInstanceId: string;
+        timelineEpochId: string;
+        compiledSnapshotHash?: string;
+        historyAppended: boolean;
+        playerHpUpdated: boolean;
+    },
+): string {
+    const filePath = appliedReceiptPath(workspacePath, marker.combatSessionId);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    writeJsonAtomic(filePath, marker);
+    return filePath;
+}
+
+export function readAppliedCombatOutcomeMarker(
+    workspacePath: string,
+    combatSessionId: string,
+): {
+    schemaVersion: 'combat-outcome-applied-v1';
+    combatSessionId: string;
+    receiptHash: string;
+    simulationResultHash: string;
+    campaignInstanceId: string;
+    timelineEpochId: string;
+    compiledSnapshotHash?: string;
+    historyAppended: boolean;
+    playerHpUpdated: boolean;
+} | undefined {
+    const filePath = appliedReceiptPath(workspacePath, combatSessionId);
+    if (!fs.existsSync(filePath)) return undefined;
+    try {
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (raw?.schemaVersion === 'combat-outcome-applied-v1' && typeof raw.receiptHash === 'string') {
+            return raw;
+        }
+    } catch {
+        return undefined;
+    }
+    return undefined;
+}
+
 export function writeCampaignCombatSessionArtifacts(
     workspacePath: string,
     combatSessionId: string,

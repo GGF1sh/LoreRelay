@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
-  "version": "1.84.22",
+  "version": "1.84.23",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -75,6 +75,10 @@
       {
         "command": "textadventure.abortCampaignCombat",
         "title": "%command.abortCampaignCombat%"
+      },
+      {
+        "command": "textadventure.applyPendingCombatOutcomes",
+        "title": "%command.applyPendingCombatOutcomes%"
       },
       {
         "command": "textadventure.listImageModels",

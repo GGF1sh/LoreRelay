@@ -3,6 +3,7 @@
   "command.openBattleView": "LoreRelay: バトルビューを開く",
   "command.startCampaignCombatDebug": "LoreRelay: キャンペーン戦闘を開始（デバッグ）",
   "command.abortCampaignCombat": "LoreRelay: キャンペーン戦闘を中止",
+  "command.applyPendingCombatOutcomes": "LoreRelay: 保留中の戦闘結果を反映",
   "command.listImageModels": "LoreRelay: 画像生成モデル一覧を取得",
   "command.scanLocalModels": "LoreRelay: ローカルモデルファイルをスキャン",
   "command.loadScenario": "LoreRelay: シナリオパックをロード",

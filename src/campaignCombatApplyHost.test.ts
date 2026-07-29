@@ -147,3 +147,27 @@ test('applyAllPending stops after APPLIED marker write failure', () => {
     // Second receipt still pending
     assert.ok(fs.existsSync(path.join(root, '.text-adventure', 'combat', 'pending', 'sess-second.json')));
 });
+
+test('applyAllPending stops on any failure so newer absolute HP cannot leapfrog', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-stop-hash-'));
+    const statePath = path.join(root, 'game_state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+        status: { hp: { current: 18, max: 20 } },
+        stateRevision: 1,
+    }, null, 2));
+    const goodNewer = makeReceipt('sess-newer', 5, 1);
+    const badOlder = makeReceipt('sess-older', 9, 0);
+    // Corrupt older receipt hash after writing a valid-looking pending file
+    writePendingCombatOutcomeReceipt(root, { ...badOlder, receiptHash: 'deadbeef'.repeat(8) });
+    writePendingCombatOutcomeReceipt(root, goodNewer);
+
+    const results = applyAllPendingCombatOutcomes(root);
+    assert.equal(results.length, 1, 'must stop after older failure');
+    assert.equal(results[0].ok, false);
+    if (results[0].ok) return;
+    assert.equal(results[0].reason, 'RECEIPT_HASH_MISMATCH');
+    // Newer must not have been applied
+    assert.equal(fs.existsSync(path.join(root, '.text-adventure', 'combat', 'pending', 'sess-newer.json')), true);
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(state.status.hp.current, 18, 'HP must stay pre-combat until older succeeds');
+});

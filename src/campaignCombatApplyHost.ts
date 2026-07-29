@@ -213,7 +213,9 @@ export function applyCombatOutcomeReceiptOnce(
 
 /**
  * Scan pending/ and apply each apply-eligible receipt once, in campaign order.
- * Stops after APPLIED_MARKER_WRITE_FAILED so later applies cannot evict unrecovered history hashes.
+ * Stops on **any** unsuccessful result so a newer absolute-HP apply cannot leapfrog an
+ * older receipt that later retries successfully (would reverse campaign order).
+ * Successful statuses (`applied` / `already_applied`) continue the batch.
  */
 export function applyAllPendingCombatOutcomes(workspacePath: string): CombatApplyResult[] {
     const pending = sortPendingCombatReceiptsForApply(
@@ -223,7 +225,7 @@ export function applyAllPendingCombatOutcomes(workspacePath: string): CombatAppl
     for (const receipt of pending) {
         const result = applyCombatOutcomeReceiptOnce(workspacePath, receipt);
         results.push(result);
-        if (!result.ok && result.reason === 'APPLIED_MARKER_WRITE_FAILED') {
+        if (!result.ok) {
             break;
         }
     }

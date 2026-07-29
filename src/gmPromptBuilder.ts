@@ -1987,8 +1987,9 @@ function buildLegacyProductionSpecs(playerAction: string, policy: PromptBudgetPo
 }
 
 /**
- * Consumable chunks that must not be partially delivered with an ACK token.
- * Truncation under budget would otherwise durable-ACK an incomplete fact block.
+ * Bridge V1-C only: all-or-nothing under budget.
+ * Truncation would otherwise durable-ACK an incomplete fact block.
+ * Chronicle / worldChangeSummary keep established semantics (token may still ACK on truncated text).
  */
 const ATOMIC_ACK_CHUNK_IDS = new Set<string>(['combatConsequence']);
 
@@ -2006,16 +2007,14 @@ function buildSelectedPromptSpecs(
             }
             const originalText = String(spec.text ?? '').trim();
             const truncated = finalText !== originalText;
-            // All-or-nothing: never deliver a partial combatConsequence block (or its token).
+            // combatConsequence only: drop entire chunk if budget changed its text.
             if (ATOMIC_ACK_CHUNK_IDS.has(spec.id) && truncated) {
                 return undefined;
             }
-            // Safety for other consumables: keep truncated text only without ACK authority.
-            const ackToken = spec.ackToken && !truncated ? spec.ackToken : undefined;
+            // Preserve ACK tokens for non-atomic consumables (chronicle / worldChangeSummary).
             return {
                 ...spec,
                 text: finalText,
-                ...(ackToken ? { ackToken } : { ackToken: undefined }),
             };
         })
         .filter((spec): spec is PromptContextCandidateSpec => Boolean(spec));

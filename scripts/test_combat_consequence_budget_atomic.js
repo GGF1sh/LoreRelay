@@ -126,6 +126,33 @@ const token = {
     }
 }
 
+// Non-atomic consumables: truncated text may still keep ACK token (established semantics).
+{
+    const longChronicle = 'Chronicle line. '.repeat(40).trim();
+    const chronicleToken = {
+        tokenId: 'chronicle:1:digest:1',
+        chunkId: 'chronicle',
+        sourceTurn: 1,
+        sourceDigest: 'digest',
+        pendingGeneration: 1,
+    };
+    const selected = buildSelectedPromptSpecsForTests([
+        { id: 'lorebook', text: 'L'.repeat(400), priority: 40 },
+        { id: 'chronicle', text: longChronicle, priority: 90, ackToken: chronicleToken },
+    ], longChronicle.length - 30);
+    const chron = selected.find((s) => s.id === 'chronicle');
+    if (!chron) {
+        // Evicted entirely is fine
+        ok('chronicle may be fully dropped under budget');
+    } else if (chron.text !== longChronicle && !chron.ackToken) {
+        fail('truncated chronicle must preserve ACK token (non-atomic consumable)');
+    } else if (chron.text !== longChronicle && chron.ackToken) {
+        ok('truncated chronicle retains ACK token (scope limited to combatConsequence)');
+    } else {
+        ok('chronicle kept full text under budget');
+    }
+}
+
 Module._load = originalLoad;
 if (failed > 0) {
     console.error(`\n${failed} failure(s)`);

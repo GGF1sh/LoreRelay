@@ -6,18 +6,22 @@
 
 1. Fetch `origin/main`, use its current tip as the base, and confirm any required ancestor.
 2. Read this file, then [development verification policy](DEVELOPMENT_VERIFICATION_POLICY.md).
-3. Read only the task-specific documents named by the task or current state below. Do not bulk-read `docs/ai-tasks`.
+3. Before assigning an AI/model, read [AI Model Assignment Policy](AI_MODEL_ASSIGNMENT_POLICY.md).
+4. Read only the task-specific documents named by the task or current state below. Do not bulk-read `docs/ai-tasks`.
 
 ## Route the task
 
 | Need | Source of truth / action |
 | --- | --- |
 | Risk tier and verification scope | [Development Verification Policy](DEVELOPMENT_VERIFICATION_POLICY.md) |
+| Model assignment and retired models | [AI Model Assignment Policy](AI_MODEL_ASSIGNMENT_POLICY.md) |
 | Exploration limit | [AI Exploration Budget Policy](AI_EXPLORATION_BUDGET_POLICY.md) |
 | Compact handoff | [AI Prompt Handoff Policy](AI_PROMPT_HANDOFF_POLICY.md) |
 | Current integration state | [AI Integrator Chat Handoff](AI_INTEGRATOR_CHAT_HANDOFF.md), reconciled with current `main` |
 | Active backlog and new findings | [AI Review Backlog](AI_REVIEW_BACKLOG.md) and [AI Findings Inbox](AI_FINDINGS_INBOX.md) |
 | Task history and archive rules | [AI task index](ai-tasks/README.md) |
+
+The model assignment policy overrides retired-model names in historical chats, task packets, PR comments, Drive notes, and older sections of the integrator handoff. Do not route new LoreRelay work to a retired model merely because an old record names it.
 
 ## Before changing shared vocabulary or protocol
 

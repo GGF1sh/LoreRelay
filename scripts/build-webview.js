@@ -91,6 +91,8 @@ const cssModulesDir = path.join(webviewDir, 'styles');
 const vendorDir = path.join(webviewDir, 'vendor');
 
 function buildBundle(moduleOrder, modulesDir, outPath, headerLines, ext) {
+    // Always emit LF-only text so Windows compile does not dirty tracked bundles
+    // with CRLF-only diffs against the committed LF blobs (Current Lane allowDirty=false).
     let out = headerLines.join('\n') + '\n';
     for (const file of moduleOrder) {
         const p = path.join(modulesDir, file);
@@ -98,9 +100,11 @@ function buildBundle(moduleOrder, modulesDir, outPath, headerLines, ext) {
             console.error(`Missing ${ext} module:`, p);
             process.exit(1);
         }
+        const body = fs.readFileSync(p, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trimEnd();
         out += `\n/* --- ${file} --- */\n`;
-        out += fs.readFileSync(p, 'utf-8').trimEnd() + '\n';
+        out += body + '\n';
     }
+    out = out.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     fs.writeFileSync(outPath, out, 'utf-8');
     console.log(`Built ${path.basename(outPath)} (${out.split('\n').length} lines) from ${moduleOrder.length} modules`);
 }

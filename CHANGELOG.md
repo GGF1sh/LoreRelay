@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.17] - 2026-07-29
+
+### Fixed
+- Windowsで`npm run compile`を実行した際、生成済みWebview bundleがCRLFのみの差分でdirtyになる問題を修正しました。
+- Webview bundle生成時に入力モジュールと出力をLFへ正規化し、cleanなCurrent Laneがビルド後に起動拒否されないようにしました。
+
+### Changed
+- Human Play対象の修正版を識別できるよう、パッケージ版を1.84.17へ更新しました。
+
 ## [1.84.16] - 2026-07-18
 
 ### Added

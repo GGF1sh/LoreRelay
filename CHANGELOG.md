@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.27] - 2026-07-29
+
+### Fixed
+- Bridge apply batch: stop on **any** failed receipt (not only APPLIED marker failure) so newer absolute HP cannot leapfrog an older retry.
+- Prompt budget: all-or-nothing ACK removal limited to `combatConsequence`; chronicle/worldChangeSummary keep established truncated-ACK semantics.
+
+### Changed
+- パッケージ版を 1.84.27 へ更新。
+
 ## [1.84.26] - 2026-07-29
 
 ### Fixed

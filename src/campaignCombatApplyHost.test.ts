@@ -148,6 +148,41 @@ test('applyAllPending stops after APPLIED marker write failure', () => {
     assert.ok(fs.existsSync(path.join(root, '.text-adventure', 'combat', 'pending', 'sess-second.json')));
 });
 
+test('applyAllPending fail-closes when incomplete receipt would sort after a valid one', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-incomplete-barrier-'));
+    const statePath = path.join(root, 'game_state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+        status: { hp: { current: 18, max: 20 } },
+        stateRevision: 2,
+    }, null, 2));
+    // Valid lower revision — would apply first if scan only checked discriminators
+    const validLower = makeReceipt('sess-valid-low', 11, 0);
+    writePendingCombatOutcomeReceipt(root, validLower);
+    // Incomplete higher revision: schema + applyEligible only
+    const pendingDir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.writeFileSync(path.join(pendingDir, 'incomplete-high.json'), JSON.stringify({
+        schemaVersion: 'combat-outcome-receipt-v1',
+        applyEligible: true,
+        combatSessionId: 'sess-incomplete-high',
+        sourceCampaignRevision: 9,
+        // no receiptHash / participants / etc.
+    }), 'utf8');
+
+    const results = applyAllPendingCombatOutcomes(root);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].ok, false);
+    if (results[0].ok) return;
+    assert.equal(results[0].reason, 'INVALID_PENDING_RECEIPT');
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(state.status.hp.current, 18, 'valid lower must not apply before barrier');
+    assert.equal(state.stateRevision, 2);
+    assert.equal(
+        fs.existsSync(path.join(root, '.text-adventure', 'combat', 'applied', 'sess-valid-low.json')),
+        false,
+    );
+    assert.equal(fs.existsSync(path.join(pendingDir, 'sess-valid-low.json')), true);
+});
+
 test('applyAllPending fail-closes on corrupt pending JSON without applying newer HP', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-corrupt-barrier-'));
     const statePath = path.join(root, 'game_state.json');

@@ -5908,7 +5908,7 @@
       "name": "initialCombatLabScenarios",
       "kind": "function",
       "sourcePath": "src/combatLabCore.ts",
-      "line": 129,
+      "line": 155,
       "signature": "export function initialCombatLabScenarios(): CombatLabScenario[]",
       "public": "exported",
       "boundary": "pure-core",

@@ -60,17 +60,17 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 - **人間スモーク対象の候補ビルド**が main に統合される場合、直前に出荷/テスト済みだった候補より **新しいバージョン識別子**を必ず持つこと（同一版で異なる中身の VSIX が生まれるのを防ぐ）。
 - **docs-only のコミット**（レビュー記録・ハンドオフドキュメントなど、`src/` やパッケージ内容に影響しないもの）ではバージョンを上げない。
 
-## 現行（手動更新: 2026-07-29, PLAYABLE-BUILD-ARTIFACT-SYNC-AND-VERSION-001 / PR #55）
+## 現行（手動更新: 2026-07-29, COMBAT-LAB-STACKED-SPAWN-COORDS-001）
 
-> タスクブランチ `task/PLAYABLE-BUILD-ARTIFACT-SYNC-AND-VERSION-001`（PR #55）。
-> main 未マージのあいだ、`origin/main` の `package.json` はまだ 1.84.16 のことがある。
-> 統合後は `git fetch origin && git log origin/main -1` で確認すること。
+> タスクブランチ `task/COMBAT-LAB-STACKED-SPAWN-COORDS-001`。main 未マージ時は
+> `origin/main` の版が先行コミットのままのことがある。
 
 | 項目 | 値 |
 |------|-----|
+| COMBAT-LAB-STACKED-SPAWN | multi-unit Lab fixtures use distinct spawn coords (`lineFormation`) |
+| `package.json` | **1.84.18** |
+| CHANGELOG 先頭 | **[1.84.18]** |
 | PLAYABLE-BUILD-ARTIFACT-SYNC | Webview `build-webview` 出力を LF 正規化; Windows compile 後の CRLF-only dirty を防止 |
-| `package.json` | **1.84.17** |
-| CHANGELOG 先頭 | **[1.84.17]** |
 | PLAYABLE-V0-UI-001 | P2/P3/P4 Player Action Hub integrated; human visual/gameplay smoke required next |
 | NOAI-PLAY-P4 | Deterministic zero-turn market travel integrated with canonical destination authority, request-id replay safety, truthful persistence, correct `旅に出る` UI, seven executable fixtures, and `generic_shared_gate_exclusion` as the exact contention proof scope; combined human smoke waits for UI polish |
 | HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001 | Candidate only, not integrated to main. Collapsed Relay banner now renders as an always-visible strip with an accessible expand/collapse control (click/Enter/Space/aria-expanded); invalid/legacy persisted heights normalize safely; labels refresh on locale arrival. Detail: `docs/ai-tasks/HUMAN-SMOKE-RELAY-BANNER-RECOVERY-001.md` |

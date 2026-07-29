@@ -84,6 +84,28 @@ export class CampaignCombatSessionCoordinator {
         };
     }
 
+    /**
+     * Non-finalized terminal (PENDING write pending/failed) and live running sessions
+     * block a new start so unwritten outcomes are not discarded.
+     */
+    private isStartBlocked(): { blocked: true; error: string } | { blocked: false } {
+        if (this.lifecycle === 'running') {
+            return { blocked: true, error: 'COMBAT_ALREADY_ACTIVE' };
+        }
+        if (this.lifecycle === 'terminal' && !this.durableFinalized) {
+            return { blocked: true, error: 'TERMINAL_AWAITING_PENDING' };
+        }
+        if (this.lifecycle === 'receipt_pending' && !this.durableFinalized) {
+            // Should not happen (receipt_pending implies durable), but refuse to clobber.
+            return { blocked: true, error: 'COMBAT_ALREADY_ACTIVE' };
+        }
+        return { blocked: false };
+    }
+
+    private expectedHostStartId(): string | undefined {
+        return this.combatSessionId ? `campaign:${this.combatSessionId}` : undefined;
+    }
+
     startDebug(options?: { mode?: 'command' | 'spectator'; autoRun?: boolean }): {
         ok: boolean;
         error?: string;
@@ -91,8 +113,14 @@ export class CampaignCombatSessionCoordinator {
         combatSessionId?: string;
         lifecycle?: CampaignCombatLifecycleState;
     } {
-        if (this.lifecycle === 'running') {
-            return { ok: false, error: 'COMBAT_ALREADY_ACTIVE' };
+        const block = this.isStartBlocked();
+        if (block.blocked) {
+            return {
+                ok: false,
+                error: block.error,
+                combatSessionId: this.combatSessionId,
+                lifecycle: this.lifecycle,
+            };
         }
 
         const raw = buildDebugCampaignCombatRequest({ mode: options?.mode });
@@ -109,6 +137,16 @@ export class CampaignCombatSessionCoordinator {
         combatSessionId?: string;
         lifecycle?: CampaignCombatLifecycleState;
     } {
+        const block = this.isStartBlocked();
+        if (block.blocked) {
+            return {
+                ok: false,
+                error: block.error,
+                combatSessionId: this.combatSessionId,
+                lifecycle: this.lifecycle,
+            };
+        }
+
         this.lifecycle = 'requested';
         this.durableFinalized = false;
         this.pendingPath = undefined;
@@ -219,18 +257,27 @@ export class CampaignCombatSessionCoordinator {
                 return { ok: false, error: 'PENDING_ALREADY_EXISTS' };
             }
         }
+        if (!ws) {
+            // Do not clear host or mark finalized without a durable closure record.
+            this.lastError = 'NO_WORKSPACE';
+            return { ok: false, error: 'NO_WORKSPACE' };
+        }
         const closure = buildCombatSessionClosure({
             combatSessionId: this.combatSessionId,
             request: this.request,
             reasonCode: 'ABORT',
             detail,
         });
-        if (ws) {
+        try {
             this.closurePath = writeCombatSessionClosure(ws, closure);
+        } catch (e) {
+            this.lastError = e instanceof Error ? e.message : String(e);
+            return { ok: false, error: 'CLOSURE_WRITE_FAILED' };
         }
         this.host.clear();
         this.lifecycle = 'aborted';
         this.durableFinalized = true;
+        this.lastError = undefined;
         return { ok: true };
     }
 
@@ -246,6 +293,19 @@ export class CampaignCombatSessionCoordinator {
 
         const session = this.host.currentSession;
         if (!session) return;
+
+        // Lab or another start can replace the shared host session. Never mint a campaign
+        // PENDING receipt from a foreign startId (corrupted authority).
+        const expectedStartId = this.expectedHostStartId();
+        if (!expectedStartId || session.startId !== expectedStartId) {
+            this.lastError = 'HOST_SESSION_MISMATCH';
+            // Stay terminal/running as appropriate without writing a receipt from wrong battle.
+            if (this.lifecycle === 'running') {
+                this.lifecycle = 'terminal';
+            }
+            return;
+        }
+
         const outcome = session.state.outcome;
         if (!outcome) return;
 
@@ -265,19 +325,24 @@ export class CampaignCombatSessionCoordinator {
 
         if ('ok' in receipt && receipt.ok === false) {
             try {
+                const ws = this.getWorkspacePath();
+                if (!ws) {
+                    this.lastError = 'NO_WORKSPACE';
+                    this.lifecycle = 'terminal';
+                    return;
+                }
                 const closure = buildCombatSessionClosure({
                     combatSessionId: this.combatSessionId,
                     request: this.request,
                     reasonCode: 'ERROR',
                     detail: receipt.error,
                 });
-                const ws = this.getWorkspacePath();
-                if (ws) this.closurePath = writeCombatSessionClosure(ws, closure);
+                this.closurePath = writeCombatSessionClosure(ws, closure);
                 this.lifecycle = 'failed';
                 this.durableFinalized = true;
             } catch (e) {
                 this.lastError = e instanceof Error ? e.message : String(e);
-                // stay terminal for retry of closure? non-apply path — leave failed attempt visible
+                // stay terminal for retry of closure — do not mark finalized without disk truth
                 this.lifecycle = 'terminal';
             }
             return;

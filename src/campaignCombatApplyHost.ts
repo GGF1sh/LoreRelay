@@ -21,6 +21,10 @@ import {
     CombatApplyBlockedReason,
 } from './campaignCombatApplyCore';
 import { writeJsonAtomicNoVscode } from './campaignCombatAtomicWriteCore';
+import {
+    mergeGameStateForPersist,
+    readStateRevision,
+} from './workspaceStateQueueCore';
 
 export type CombatApplyResult =
     | {
@@ -56,8 +60,27 @@ function gameStatePath(workspacePath: string): string {
 }
 
 /**
+ * Campaign-order sort: lower sourceCampaignRevision first, then session id for stability.
+ * Absolute HP outcomes depend on applying older battles before newer ones.
+ */
+export function sortPendingCombatReceiptsForApply(
+    receipts: CombatOutcomeReceipt[],
+): CombatOutcomeReceipt[] {
+    return [...receipts].sort((a, b) => {
+        const ra = typeof a.sourceCampaignRevision === 'number' && Number.isFinite(a.sourceCampaignRevision)
+            ? a.sourceCampaignRevision
+            : 0;
+        const rb = typeof b.sourceCampaignRevision === 'number' && Number.isFinite(b.sourceCampaignRevision)
+            ? b.sourceCampaignRevision
+            : 0;
+        if (ra !== rb) return ra - rb;
+        return String(a.combatSessionId).localeCompare(String(b.combatSessionId));
+    });
+}
+
+/**
  * Apply one receipt exactly once.
- * Order: APPLIED check → validate → history/HP plan → write game_state → write APPLIED → remove PENDING.
+ * Order: APPLIED check → validate → history/HP plan → revisioned game_state write → APPLIED → remove PENDING.
  * If game_state already contains receiptHash, only repair APPLIED marker.
  */
 export function applyCombatOutcomeReceiptOnce(
@@ -110,7 +133,17 @@ export function applyCombatOutcomeReceiptOnce(
     if (stateHasReceiptApplied(state, receipt.receiptHash)) {
         const plan = buildCombatConsequencePlan(state, receipt);
         const marker = buildAppliedMarker(receipt, { ...plan, alreadyPresent: true, historyAppended: true });
-        writeAppliedCombatOutcomeMarker(workspacePath, marker);
+        try {
+            writeAppliedCombatOutcomeMarker(workspacePath, marker);
+        } catch (e) {
+            return {
+                ok: false,
+                status: 'error',
+                reason: 'APPLIED_MARKER_WRITE_FAILED',
+                detail: e instanceof Error ? e.message : String(e),
+                combatSessionId: receipt.combatSessionId,
+            };
+        }
         try {
             const p = pendingReceiptPath(workspacePath, receipt.combatSessionId);
             if (fs.existsSync(p)) fs.unlinkSync(p);
@@ -127,8 +160,14 @@ export function applyCombatOutcomeReceiptOnce(
     }
 
     const plan = buildCombatConsequencePlan(state, receipt);
+    const baseRevision = readStateRevision(state);
+    // Revisioned persist so concurrent GM turn commits observe combat mutation (stateRevision bump).
+    const payload = mergeGameStateForPersist(state, plan.nextState, {
+        baseRevision,
+        profile: 'default',
+    });
     try {
-        writeJsonAtomicNoVscode(statePath, plan.nextState);
+        writeJsonAtomicNoVscode(statePath, payload);
     } catch (e) {
         return {
             ok: false,
@@ -143,7 +182,8 @@ export function applyCombatOutcomeReceiptOnce(
     try {
         writeAppliedCombatOutcomeMarker(workspacePath, marker);
     } catch (e) {
-        // State may already include history — next call repairs APPLIED via stateHasReceiptApplied
+        // State may already include history — next call repairs APPLIED via stateHasReceiptApplied.
+        // Callers of applyAllPending must STOP the batch after this failure (history eviction risk).
         return {
             ok: false,
             status: 'error',
@@ -171,8 +211,21 @@ export function applyCombatOutcomeReceiptOnce(
     };
 }
 
-/** Scan pending/ and apply each apply-eligible receipt once. */
+/**
+ * Scan pending/ and apply each apply-eligible receipt once, in campaign order.
+ * Stops after APPLIED_MARKER_WRITE_FAILED so later applies cannot evict unrecovered history hashes.
+ */
 export function applyAllPendingCombatOutcomes(workspacePath: string): CombatApplyResult[] {
-    const pending = listPendingApplyEligibleReceipts(workspacePath);
-    return pending.map(receipt => applyCombatOutcomeReceiptOnce(workspacePath, receipt));
+    const pending = sortPendingCombatReceiptsForApply(
+        listPendingApplyEligibleReceipts(workspacePath),
+    );
+    const results: CombatApplyResult[] = [];
+    for (const receipt of pending) {
+        const result = applyCombatOutcomeReceiptOnce(workspacePath, receipt);
+        results.push(result);
+        if (!result.ok && result.reason === 'APPLIED_MARKER_WRITE_FAILED') {
+            break;
+        }
+    }
+    return results;
 }

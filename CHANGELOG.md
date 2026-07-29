@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.25] - 2026-07-29
+
+### Fixed
+- Bridge hardening (Codex P1): verify host `startId` before PENDING; block restart while terminal awaits durable PENDING; abort requires workspace + durable closure; apply bumps `stateRevision`; batch apply ordered by campaign revision and stops after APPLIED marker failure; debug start message mentions auto-apply to game_state.
+
+### Changed
+- パッケージ版を 1.84.25 へ更新。
+
 ## [1.84.24] - 2026-07-29
 
 ### Added

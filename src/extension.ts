@@ -679,7 +679,9 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
             void vscode.window.showInformationMessage(
-                `Campaign combat started (${result.combatSessionId?.slice(0, 8)}…). Outcome writes PENDING only — no game_state change.`,
+                `Campaign combat started (${result.combatSessionId?.slice(0, 8)}…). ` +
+                `Terminal outcome writes PENDING then auto-applies once to game_state ` +
+                `(combatBattleHistory + optional player HP) with an APPLIED marker.`,
             );
         },
     );

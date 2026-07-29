@@ -22,10 +22,13 @@ import {
     CombatSessionClosureRecord,
 } from './campaignCombatReceiptCore';
 import {
+    pendingReceiptPath,
+    readPendingCombatOutcomeReceipt,
     writeCampaignCombatSessionArtifacts,
     writeCombatSessionClosure,
     writePendingCombatOutcomeReceipt,
 } from './campaignCombatPendingStore';
+
 
 export type CampaignCombatLifecycleState =
     | 'idle'
@@ -65,6 +68,8 @@ export class CampaignCombatSessionCoordinator {
         private readonly openBattleView?: () => void,
         /** Test seam: override PENDING writer (defaults to durable store). */
         private readonly writePending?: (workspacePath: string, receipt: CombatOutcomeReceipt) => string,
+        /** Test seam: override session artifact writer after PENDING. */
+        private readonly writeSessionArtifacts?: typeof writeCampaignCombatSessionArtifacts,
     ) {}
 
     getState(): CampaignCombatCoordinatorState {
@@ -202,13 +207,24 @@ export class CampaignCombatSessionCoordinator {
         if (this.lifecycle === 'receipt_pending' || this.durableFinalized) {
             return { ok: false, error: 'ALREADY_FINALIZED' };
         }
+        // If an apply-eligible PENDING already exists on disk, never write a closure
+        // that would coexist with it (meta-update failure after PENDING success).
+        const ws = this.getWorkspacePath();
+        if (ws) {
+            const existing = readPendingCombatOutcomeReceipt(ws, this.combatSessionId);
+            if (existing) {
+                this.pendingPath = pendingReceiptPath(ws, this.combatSessionId);
+                this.lifecycle = 'receipt_pending';
+                this.durableFinalized = true;
+                return { ok: false, error: 'PENDING_ALREADY_EXISTS' };
+            }
+        }
         const closure = buildCombatSessionClosure({
             combatSessionId: this.combatSessionId,
             request: this.request,
             reasonCode: 'ABORT',
             detail,
         });
-        const ws = this.getWorkspacePath();
         if (ws) {
             this.closurePath = writeCombatSessionClosure(ws, closure);
         }
@@ -275,10 +291,25 @@ export class CampaignCombatSessionCoordinator {
             return;
         }
 
+        // PENDING is the durable apply-eligible authority. Mark finalized as soon as
+        // that file is on disk; meta/session artifact updates are best-effort after.
         try {
             const writePending = this.writePending || writePendingCombatOutcomeReceipt;
             this.pendingPath = writePending(ws, applyReceipt);
-            writeCampaignCombatSessionArtifacts(
+        } catch (e) {
+            // Do NOT mark durableFinalized — remain terminal and retry on next observe.
+            this.lastError = e instanceof Error ? e.message : String(e);
+            this.lifecycle = 'terminal';
+            return;
+        }
+
+        this.lifecycle = 'receipt_pending';
+        this.durableFinalized = true;
+        this.lastError = undefined;
+
+        try {
+            const writeArtifacts = this.writeSessionArtifacts || writeCampaignCombatSessionArtifacts;
+            writeArtifacts(
                 ws,
                 this.combatSessionId,
                 this.request,
@@ -298,13 +329,9 @@ export class CampaignCombatSessionCoordinator {
                     fixtureId: this.compiled.fixtureId,
                 },
             );
-            this.lifecycle = 'receipt_pending';
-            this.durableFinalized = true;
-            this.lastError = undefined;
         } catch (e) {
-            // Do NOT mark durableFinalized — remain terminal and retry on next observe.
+            // PENDING already durable — do not reopen abort/closure path.
             this.lastError = e instanceof Error ? e.message : String(e);
-            this.lifecycle = 'terminal';
         }
     }
 }

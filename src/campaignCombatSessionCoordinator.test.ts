@@ -118,3 +118,38 @@ test('PENDING write failure stays retryable until durable success', () => {
     assert.equal(coordinator.getState().lifecycle, 'receipt_pending');
     assert.equal(listPendingApplyEligibleReceipts(root).length, 1);
 });
+
+test('meta write failure after PENDING does not allow abort closure to coexist', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-campaign-meta-fail-'));
+    const host = new CombatCommandPlaytestHost({
+        clock: { now: () => 0, setTimer: () => 1, clearTimer: () => undefined },
+    });
+    const coordinator = new CampaignCombatSessionCoordinator(
+        host,
+        () => root,
+        path.join(__dirname, '..'),
+        undefined,
+        writePendingCombatOutcomeReceipt,
+        () => {
+            throw new Error('simulated meta/session artifact failure');
+        },
+    );
+
+    assert.equal(coordinator.startDebug({ autoRun: false }).ok, true);
+    for (let i = 0; i < 4000 && host.currentSession && !host.currentSession.state.outcome; i++) {
+        host.step(1, host.currentSession.startId);
+        coordinator.observeHostSession();
+    }
+    assert.ok(host.currentSession?.state.outcome);
+    coordinator.observeHostSession();
+    assert.equal(coordinator.getState().lifecycle, 'receipt_pending');
+    assert.ok(coordinator.getState().lastError);
+    assert.equal(listPendingApplyEligibleReceipts(root).length, 1);
+
+    const abort = coordinator.abort('user');
+    assert.equal(abort.ok, false);
+    assert.ok(abort.error === 'ALREADY_FINALIZED' || abort.error === 'PENDING_ALREADY_EXISTS');
+    const closuresDir = path.join(root, '.text-adventure', 'combat', 'closures');
+    assert.equal(fs.existsSync(closuresDir) ? fs.readdirSync(closuresDir).length : 0, 0);
+    assert.equal(listPendingApplyEligibleReceipts(root).length, 1);
+});

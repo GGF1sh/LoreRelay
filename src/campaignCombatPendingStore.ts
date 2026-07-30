@@ -258,8 +258,8 @@ export function readPendingCombatOutcomeReceipt(
     const filePath = pendingReceiptPath(workspacePath, combatSessionId);
     if (!fs.existsSync(filePath)) return undefined;
     try {
-        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as CombatOutcomeReceipt;
-        if (raw?.applyEligible === true && raw.schemaVersion === 'combat-outcome-receipt-v1') {
+        const raw: unknown = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (isApplyEligibleReceipt(raw)) {
             return raw;
         }
     } catch {

@@ -44,15 +44,67 @@ export interface CombatApplyPlan {
 
 export function isApplyEligibleReceipt(raw: unknown): raw is CombatOutcomeReceipt {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
-    const r = raw as Partial<CombatOutcomeReceipt>;
-    return r.schemaVersion === 'combat-outcome-receipt-v1'
-        && r.applyEligible === true
-        && typeof r.combatSessionId === 'string'
-        && typeof r.receiptHash === 'string'
-        && typeof r.simulationResultHash === 'string'
-        && typeof r.encounterId === 'string'
-        && typeof r.terminalOutcomeCode === 'string'
-        && Array.isArray(r.participants);
+    const r = raw as Record<string, unknown>;
+    if (
+        r.schemaVersion !== 'combat-outcome-receipt-v1'
+        || r.applyEligible !== true
+        || typeof r.combatSessionId !== 'string'
+        || typeof r.encounterId !== 'string'
+        || typeof r.requestId !== 'string'
+        || typeof r.campaignInstanceId !== 'string'
+        || typeof r.timelineEpochId !== 'string'
+        || typeof r.sourceCampaignRevision !== 'number'
+        || !Number.isFinite(r.sourceCampaignRevision)
+        || (r.sourceAcceptedTurnId !== undefined && typeof r.sourceAcceptedTurnId !== 'string')
+        || (r.requestedMode !== 'command' && r.requestedMode !== 'spectator')
+        || (r.effectiveMode !== 'command' && r.effectiveMode !== 'spectator')
+        || (
+            r.terminalOutcomeCode !== 'ALLY_WIN'
+            && r.terminalOutcomeCode !== 'ENEMY_WIN'
+            && r.terminalOutcomeCode !== 'TIMEOUT'
+        )
+        || (r.terminalOutcomeLabel !== undefined && typeof r.terminalOutcomeLabel !== 'string')
+        || typeof r.finalTick !== 'number'
+        || !Number.isFinite(r.finalTick)
+        || !Array.isArray(r.participants)
+        || typeof r.simulationResultHash !== 'string'
+        || (r.compiledSnapshotHash !== undefined && typeof r.compiledSnapshotHash !== 'string')
+        || (r.commandReplayHash !== undefined && typeof r.commandReplayHash !== 'string')
+        || typeof r.receiptHash !== 'string'
+    ) {
+        return false;
+    }
+
+    if (!r.objective || typeof r.objective !== 'object' || Array.isArray(r.objective)) {
+        return false;
+    }
+    const objective = r.objective as Record<string, unknown>;
+    if (
+        objective['type'] !== 'annihilate'
+        || (
+            objective['result'] !== 'success'
+            && objective['result'] !== 'failure'
+            && objective['result'] !== 'timeout'
+        )
+    ) {
+        return false;
+    }
+
+    return r.participants.every(participant => {
+        if (!participant || typeof participant !== 'object' || Array.isArray(participant)) {
+            return false;
+        }
+        const p = participant as Record<string, unknown>;
+        return typeof p.entityId === 'string'
+            && typeof p.unitId === 'string'
+            && (p.team === 0 || p.team === 1)
+            && typeof p.finalHp === 'number'
+            && Number.isFinite(p.finalHp)
+            && typeof p.maxHp === 'number'
+            && Number.isFinite(p.maxHp)
+            && typeof p.alive === 'boolean'
+            && typeof p.dead === 'boolean';
+    });
 }
 
 /** Recompute integrity hash over body without receiptHash. */

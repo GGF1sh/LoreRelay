@@ -8,8 +8,12 @@ import {
     applyAllPendingCombatOutcomes,
     sortPendingCombatReceiptsForApply,
 } from './campaignCombatApplyHost';
-import { COMBAT_BATTLE_HISTORY_KEY } from './campaignCombatApplyCore';
-import { writePendingCombatOutcomeReceipt, readAppliedCombatOutcomeMarker } from './campaignCombatPendingStore';
+import { COMBAT_BATTLE_HISTORY_KEY, isApplyEligibleReceipt } from './campaignCombatApplyCore';
+import {
+    readAppliedCombatOutcomeMarker,
+    scanPendingDirectoryForApply,
+    writePendingCombatOutcomeReceipt,
+} from './campaignCombatPendingStore';
 import { CombatOutcomeReceipt, sha256Stable } from './campaignCombatReceiptCore';
 import { readStateRevision } from './workspaceStateQueueCore';
 
@@ -35,6 +39,63 @@ function makeReceipt(sessionId: string, finalHp: number, revision = 0): CombatOu
         simulationResultHash: 'sim',
     };
     return { ...body, receiptHash: sha256Stable(body) };
+}
+
+function makeStructurallyMalformedReceipt(
+    sessionId: string,
+    revision: number,
+    mutate: (body: Record<string, unknown>) => void,
+): Record<string, unknown> {
+    const { receiptHash: _ignored, ...validBody } = makeReceipt(sessionId, 3, revision);
+    const body = { ...validBody } as Record<string, unknown>;
+    mutate(body);
+    return { ...body, receiptHash: sha256Stable(body) };
+}
+
+function writeRawPending(root: string, fileName: string, raw: unknown): string {
+    const pendingDir = path.join(root, '.text-adventure', 'combat', 'pending');
+    fs.mkdirSync(pendingDir, { recursive: true });
+    const filePath = path.join(pendingDir, fileName);
+    fs.writeFileSync(filePath, JSON.stringify(raw, null, 2), 'utf8');
+    return filePath;
+}
+
+function assertDeepMalformedBatchFailClosed(
+    malformed: Record<string, unknown>,
+    fileName: string,
+): void {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-deep-barrier-'));
+    const statePath = path.join(root, 'game_state.json');
+    const originalState = {
+        status: { hp: { current: 18, max: 20 }, condition: ['healthy'] },
+        stateRevision: 7,
+        [COMBAT_BATTLE_HISTORY_KEY]: [{
+            combatSessionId: 'prior-session',
+            receiptHash: 'prior-receipt',
+        }],
+    };
+    fs.writeFileSync(statePath, JSON.stringify(originalState, null, 2), 'utf8');
+
+    const validLower = makeReceipt('sess-valid-lower', 11, 0);
+    writePendingCombatOutcomeReceipt(root, validLower);
+    const invalidPath = writeRawPending(root, fileName, malformed);
+
+    const results = applyAllPendingCombatOutcomes(root);
+    assert.equal(results.length, 1);
+    assert.equal(results.filter(result => result.ok).length, 0, 'apply count must be zero');
+    assert.equal(results[0].ok, false);
+    if (results[0].ok) return;
+    assert.equal(results[0].reason, 'INVALID_PENDING_RECEIPT');
+
+    const stateAfter = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.deepEqual(stateAfter, originalState, 'HP, revision, and history must remain unchanged');
+    assert.equal(readAppliedCombatOutcomeMarker(root, validLower.combatSessionId), undefined);
+    assert.equal(
+        fs.existsSync(path.join(root, '.text-adventure', 'combat', 'pending', `${validLower.combatSessionId}.json`)),
+        true,
+        'valid pending receipt must remain',
+    );
+    assert.equal(fs.existsSync(invalidPath), true, 'invalid pending receipt must not be deleted or moved');
 }
 
 test('apply once writes history+HP, APPLIED marker, removes PENDING; second apply is no-op', () => {
@@ -122,6 +183,36 @@ test('sortPendingCombatReceiptsForApply orders by campaign revision', () => {
     assert.deepEqual(sorted.map(r => r.sourceCampaignRevision), [0, 1, 2]);
 });
 
+test('applyAllPending applies a fully valid directory in campaign revision order', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-valid-ordered-'));
+    const statePath = path.join(root, 'game_state.json');
+    fs.writeFileSync(statePath, JSON.stringify({
+        status: { hp: { current: 18, max: 20 } },
+        stateRevision: 4,
+    }, null, 2));
+    const newer = makeReceipt('sess-newer-valid-order', 5, 2);
+    const older = makeReceipt('sess-older-valid-order', 12, 1);
+    writePendingCombatOutcomeReceipt(root, newer);
+    writePendingCombatOutcomeReceipt(root, older);
+
+    const results = applyAllPendingCombatOutcomes(root);
+    assert.equal(results.length, 2);
+    assert.deepEqual(results.map(result => result.ok), [true, true]);
+    assert.deepEqual(
+        results.map(result => result.combatSessionId),
+        ['sess-older-valid-order', 'sess-newer-valid-order'],
+    );
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(state.status.hp.current, 5);
+    assert.equal(state.stateRevision, 6);
+    assert.deepEqual(
+        state[COMBAT_BATTLE_HISTORY_KEY].map((entry: { combatSessionId: string }) => entry.combatSessionId),
+        ['sess-older-valid-order', 'sess-newer-valid-order'],
+    );
+    assert.ok(readAppliedCombatOutcomeMarker(root, older.combatSessionId));
+    assert.ok(readAppliedCombatOutcomeMarker(root, newer.combatSessionId));
+});
+
 test('applyAllPending stops after APPLIED marker write failure', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-stop-'));
     const statePath = path.join(root, 'game_state.json');
@@ -181,6 +272,56 @@ test('applyAllPending fail-closes when incomplete receipt would sort after a val
         false,
     );
     assert.equal(fs.existsSync(path.join(pendingDir, 'sess-valid-low.json')), true);
+});
+
+test('participants containing null fail-close the whole batch before a valid lower revision applies', () => {
+    const malformed = makeStructurallyMalformedReceipt('sess-null-participant-high', 9, body => {
+        body.participants = [null];
+    });
+    assertDeepMalformedBatchFailClosed(malformed, 'null-participant-high.json');
+});
+
+test('participant missing a required field fail-closes the whole batch before any mutation', () => {
+    const malformed = makeStructurallyMalformedReceipt('sess-missing-unit-high', 10, body => {
+        const participants = body.participants as Record<string, unknown>[];
+        const member = { ...participants[0] };
+        delete member.unitId;
+        body.participants = [member];
+    });
+    assertDeepMalformedBatchFailClosed(malformed, 'missing-unit-high.json');
+});
+
+test('pending scan and single apply share the complete deep receipt validator', () => {
+    const malformedCases = [
+        makeStructurallyMalformedReceipt('sess-drift-null', 1, body => {
+            body.participants = [null];
+        }),
+        makeStructurallyMalformedReceipt('sess-drift-objective', 1, body => {
+            body.objective = { type: 'annihilate' };
+        }),
+    ];
+
+    for (const [index, raw] of malformedCases.entries()) {
+        assert.equal(isApplyEligibleReceipt(raw), false);
+        const directRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-apply-validator-drift-'));
+        fs.writeFileSync(path.join(directRoot, 'game_state.json'), JSON.stringify({
+            status: { hp: { current: 18, max: 20 } },
+            stateRevision: 1,
+        }), 'utf8');
+        const direct = applyCombatOutcomeReceiptOnce(directRoot, raw as unknown as CombatOutcomeReceipt);
+        assert.equal(direct.ok, false);
+        if (!direct.ok) {
+            assert.equal(direct.reason, 'NOT_APPLY_ELIGIBLE');
+        }
+
+        const scanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-scan-validator-drift-'));
+        writeRawPending(scanRoot, `malformed-${index}.json`, raw);
+        const scan = scanPendingDirectoryForApply(scanRoot);
+        assert.equal(scan.ok, false);
+        if (!scan.ok) {
+            assert.equal(scan.reason, 'INVALID_PENDING_RECEIPT');
+        }
+    }
 });
 
 test('applyAllPending fail-closes on corrupt pending JSON without applying newer HP', () => {

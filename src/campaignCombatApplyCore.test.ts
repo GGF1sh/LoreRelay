@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
     buildCombatConsequencePlan,
     COMBAT_BATTLE_HISTORY_KEY,
+    isApplyEligibleReceipt,
     stateHasReceiptApplied,
     verifyReceiptHash,
 } from './campaignCombatApplyCore';
@@ -44,6 +45,107 @@ function makeReceipt(overrides: Partial<CombatOutcomeReceipt> = {}): CombatOutco
     const receiptHash = sha256Stable(body);
     return { ...body, receiptHash };
 }
+
+test('isApplyEligibleReceipt validates the complete receipt and participant shape', () => {
+    const valid = makeReceipt({
+        sourceAcceptedTurnId: 'turn-1',
+        requestedMode: 'spectator',
+        effectiveMode: 'spectator',
+        terminalOutcomeLabel: 'Ally Win',
+        compiledSnapshotHash: 'compiled',
+        commandReplayHash: 'replay',
+    });
+    assert.equal(isApplyEligibleReceipt(valid), true);
+
+    const requiredTopLevelFields: (keyof CombatOutcomeReceipt)[] = [
+        'schemaVersion',
+        'applyEligible',
+        'combatSessionId',
+        'encounterId',
+        'requestId',
+        'campaignInstanceId',
+        'timelineEpochId',
+        'sourceCampaignRevision',
+        'requestedMode',
+        'effectiveMode',
+        'terminalOutcomeCode',
+        'finalTick',
+        'participants',
+        'objective',
+        'simulationResultHash',
+        'receiptHash',
+    ];
+    for (const field of requiredTopLevelFields) {
+        const raw = { ...valid } as Record<string, unknown>;
+        delete raw[field];
+        assert.equal(isApplyEligibleReceipt(raw), false, `missing ${field} must be rejected`);
+    }
+
+    const invalidTopLevel: [string, unknown][] = [
+        ['sourceCampaignRevision', Number.NaN],
+        ['sourceCampaignRevision', Number.POSITIVE_INFINITY],
+        ['requestedMode', 'direct'],
+        ['effectiveMode', 'direct'],
+        ['terminalOutcomeCode', 'DRAW'],
+        ['finalTick', Number.NEGATIVE_INFINITY],
+        ['objective', null],
+        ['objective', { type: 'capture', result: 'success' }],
+        ['objective', { type: 'annihilate', result: 'draw' }],
+        ['participants', [null]],
+    ];
+    for (const [field, value] of invalidTopLevel) {
+        assert.equal(
+            isApplyEligibleReceipt({ ...valid, [field]: value }),
+            false,
+            `invalid ${field} must be rejected`,
+        );
+    }
+
+    for (const field of [
+        'sourceAcceptedTurnId',
+        'terminalOutcomeLabel',
+        'compiledSnapshotHash',
+        'commandReplayHash',
+    ] as const) {
+        assert.equal(
+            isApplyEligibleReceipt({ ...valid, [field]: 123 }),
+            false,
+            `invalid optional ${field} must be rejected`,
+        );
+    }
+
+    for (const field of [
+        'entityId',
+        'unitId',
+        'team',
+        'finalHp',
+        'maxHp',
+        'alive',
+        'dead',
+    ] as const) {
+        const participant = { ...valid.participants[0] } as Record<string, unknown>;
+        delete participant[field];
+        assert.equal(
+            isApplyEligibleReceipt({ ...valid, participants: [participant] }),
+            false,
+            `participant missing ${field} must be rejected`,
+        );
+    }
+    assert.equal(
+        isApplyEligibleReceipt({
+            ...valid,
+            participants: [{ ...valid.participants[0], team: 2 }],
+        }),
+        false,
+    );
+    assert.equal(
+        isApplyEligibleReceipt({
+            ...valid,
+            participants: [{ ...valid.participants[0], finalHp: Number.NaN }],
+        }),
+        false,
+    );
+});
 
 test('buildCombatConsequencePlan appends history and updates player HP for ally_1', () => {
     const receipt = makeReceipt();

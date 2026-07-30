@@ -22,8 +22,8 @@ import {
     CombatSessionClosureRecord,
 } from './campaignCombatReceiptCore';
 import {
+    hasPendingCombatOutcomeReceipt,
     pendingReceiptPath,
-    readPendingCombatOutcomeReceipt,
     writeCampaignCombatSessionArtifacts,
     writeCombatSessionClosure,
     writePendingCombatOutcomeReceipt,
@@ -245,12 +245,12 @@ export class CampaignCombatSessionCoordinator {
         if (this.lifecycle === 'receipt_pending' || this.durableFinalized) {
             return { ok: false, error: 'ALREADY_FINALIZED' };
         }
-        // If an apply-eligible PENDING already exists on disk, never write a closure
-        // that would coexist with it (meta-update failure after PENDING success).
+        // If a discriminator-valid PENDING already exists on disk, never write a
+        // closure that would coexist with it. Deep apply validation is intentionally
+        // separate: malformed nested receipt data remains authoritative for exclusion.
         const ws = this.getWorkspacePath();
         if (ws) {
-            const existing = readPendingCombatOutcomeReceipt(ws, this.combatSessionId);
-            if (existing) {
+            if (hasPendingCombatOutcomeReceipt(ws, this.combatSessionId)) {
                 this.pendingPath = pendingReceiptPath(ws, this.combatSessionId);
                 this.lifecycle = 'receipt_pending';
                 this.durableFinalized = true;

@@ -251,21 +251,31 @@ export function writeCombatSessionClosure(
     return filePath;
 }
 
-export function readPendingCombatOutcomeReceipt(
+/**
+ * Abort/closure exclusion check only.
+ *
+ * This deliberately checks only the durable PENDING discriminator. A deeply
+ * malformed receipt must still prevent an abort closure from coexisting with
+ * the PENDING file. Apply and directory-scan paths must instead use the shared
+ * complete `isApplyEligibleReceipt` validator.
+ */
+export function hasPendingCombatOutcomeReceipt(
     workspacePath: string,
     combatSessionId: string,
-): CombatOutcomeReceipt | undefined {
+): boolean {
     const filePath = pendingReceiptPath(workspacePath, combatSessionId);
-    if (!fs.existsSync(filePath)) return undefined;
+    if (!fs.existsSync(filePath)) return false;
     try {
         const raw: unknown = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        if (isApplyEligibleReceipt(raw)) {
-            return raw;
-        }
+        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return false;
+        const record = raw as Record<string, unknown>;
+        return (
+            record['applyEligible'] === true
+            && record['schemaVersion'] === 'combat-outcome-receipt-v1'
+        );
     } catch {
-        return undefined;
+        return false;
     }
-    return undefined;
 }
 
 export type PendingDirectoryScanResult =

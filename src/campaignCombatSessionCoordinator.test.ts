@@ -5,7 +5,12 @@ import * as path from 'path';
 import { test } from 'node:test';
 import { CampaignCombatSessionCoordinator } from './campaignCombatSessionCoordinator';
 import { CombatCommandPlaytestHost } from './combatCommandPlaytestHost';
-import { listPendingApplyEligibleReceipts, writePendingCombatOutcomeReceipt } from './campaignCombatPendingStore';
+import {
+    closureRecordPath,
+    listPendingApplyEligibleReceipts,
+    pendingReceiptPath,
+    writePendingCombatOutcomeReceipt,
+} from './campaignCombatPendingStore';
 
 test('coordinator debug start runs to terminal PENDING without game_state', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-campaign-combat-'));
@@ -226,4 +231,42 @@ test('meta write failure after PENDING does not allow abort closure to coexist',
     const closuresDir = path.join(root, '.text-adventure', 'combat', 'closures');
     assert.equal(fs.existsSync(closuresDir) ? fs.readdirSync(closuresDir).length : 0, 0);
     assert.equal(listPendingApplyEligibleReceipts(root).length, 1);
+});
+
+test('deep-malformed durable PENDING still blocks abort closure coexistence', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-campaign-malformed-pending-abort-'));
+    const host = new CombatCommandPlaytestHost({
+        clock: { now: () => 0, setTimer: () => 1, clearTimer: () => undefined },
+    });
+    const coordinator = new CampaignCombatSessionCoordinator(
+        host,
+        () => root,
+        path.join(__dirname, '..'),
+    );
+
+    const started = coordinator.startDebug({ autoRun: false });
+    assert.equal(started.ok, true);
+    const combatSessionId = started.combatSessionId;
+    assert.ok(combatSessionId);
+
+    const pendingPath = pendingReceiptPath(root, combatSessionId);
+    fs.mkdirSync(path.dirname(pendingPath), { recursive: true });
+    fs.writeFileSync(
+        pendingPath,
+        JSON.stringify({
+            schemaVersion: 'combat-outcome-receipt-v1',
+            applyEligible: true,
+            combatSessionId,
+            participants: [null],
+        }),
+        'utf8',
+    );
+
+    const abort = coordinator.abort('user');
+    assert.equal(abort.ok, false);
+    assert.equal(abort.error, 'PENDING_ALREADY_EXISTS');
+    assert.equal(coordinator.getState().lifecycle, 'receipt_pending');
+    assert.equal(fs.existsSync(pendingPath), true);
+    assert.equal(fs.existsSync(closureRecordPath(root, combatSessionId)), false);
+    assert.equal(listPendingApplyEligibleReceipts(root).length, 0);
 });

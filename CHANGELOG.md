@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.30] - 2026-07-31
+
+### Fixed
+- Combat pending preflight now validates every required `CombatOutcomeReceipt` field, objective shape, enum/literal, finite number, optional field type, and participant member before any batch apply.
+- Deep-malformed receipts such as `participants: [null]` or members missing required fields now return `INVALID_PENDING_RECEIPT` without changing HP, revision, history, APPLIED, or PENDING.
+
+### Changed
+- パッケージ版を 1.84.30 へ更新。
+
 ## [1.84.29] - 2026-07-29
 
 ### Fixed

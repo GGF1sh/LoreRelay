@@ -1,7 +1,7 @@
 # GENRE-WORLD-PRESET-001 — Genre World Preset Design Gate
 
 > Task ID: GENRE-WORLD-PRESET-001
-> Revision: 2 (Integrator gate on PR #72 applied — see [Revision History](#revision-history))
+> Revision: 3 (Integrator gate on PR #72 applied — see [Revision History](#revision-history))
 > Status: Design confirmed — implementation gated, see verdict
 > Base: `0bbce28f2bb1ac72af75374871a427562d2d83f2` (main, version 1.84.30)
 > Branch: `docs/GENRE-WORLD-PRESET-001-GATE`
@@ -17,6 +17,7 @@
 | --- | --- |
 | 1 | Initial design gate |
 | 2 | Integrator gate applied: substrate dependency removed from Slice 1; full-file byte identity replaced with canonical-content parity; `guarantee` allocator split into two explicit paths preserving RNG consumption order; reveal-mode production wiring moved out of Slice 1; `habitat` colony preset demoted to a registry example |
+| 3 | Doc fix: `canonicalContentOf()` corrected to the real `WorldForge` shape and redefined by exclusion rather than enumeration; provenance fixed as nested `meta.generationProvenance` with no `worldSeed` / `generatedAt` duplication |
 
 ---
 
@@ -401,18 +402,35 @@ this example. It stays documentation until both land.
 
 ## Provenance and Reproducibility
 
-Written into `WorldForgeMeta` at generation. Additive and optional, exactly like the
-substrate fields.
+Written into `meta.generationProvenance` at generation. One additive, optional field on
+`WorldForgeMeta`.
+
+Stored **nested** under `meta.generationProvenance`, so it is one addition to `WorldForgeMeta`
+rather than five, and so the parity projection can drop it with a single destructured name.
 
 ```ts
 interface WorldGenProvenance {
     presetId: string;
     presetVersion: number;
-    worldSeed: string;                 // already exists as meta.worldSeed
     resolvedFrom: 'explicit' | 'genre' | 'theme-keyword' | 'default';
-    generatedAt: string;               // already exists
+    regionCount: number;
+    factionCount: number;
+    npcCount: number;
+}
+
+interface WorldForgeMeta {
+    worldName: string;
+    worldSeed?: string;
+    theme?: string;
+    generatedAt?: string;
+    generationMethod?: GenerationMethod;
+    generationProvenance?: WorldGenProvenance;   // new, optional
 }
 ```
+
+`worldSeed` and `generatedAt` are **not** duplicated inside the provenance block — they
+already exist on `meta` and are already part of the reproduction key. Copying them would
+create two places that can disagree.
 
 `resolvedFrom` is not decoration: it records whether the preset was chosen deliberately or
 inferred from free text, which is exactly the information needed to decide whether a legacy
@@ -432,8 +450,8 @@ world can be trusted to re-roll consistently.
   that quietly changed.
 
 The counts (`regionCount`, `factionCount`, `npcCount`) are part of the reproduction key and
-must be recorded with the provenance, otherwise the guarantee is false. They are currently
-clamped in `extension.ts:1471-1473` and not persisted anywhere.
+are therefore carried in the provenance block above — without them the guarantee is false.
+They are currently clamped in `extension.ts:1471-1473` and not persisted anywhere.
 
 ### Canonical content parity — the comparison rule
 
@@ -447,23 +465,37 @@ the requirement is withdrawn**, for two independent reasons:
 
 Comparison is therefore defined over a projection, not the file:
 
+The projection is defined by **exclusion, not enumeration**. Listing the fields to keep is
+fragile: it silently drops any top-level field the author forgot, and any field added later.
+
 ```ts
-/** The generated world, excluding non-reproducible and bookkeeping metadata. */
-canonicalContentOf(forge) = {
-    geography: forge.geography,   // regions, connections, locations
-    factions:  forge.factions,
-    npcs:      forge.npcs,
-    lore:      forge.lore,
-    meta: { worldName, worldSeed, theme, generationMethod },   // note: no generatedAt
+/** The generated world, excluding volatile and bookkeeping metadata. */
+function canonicalContentOf(forge: WorldForge) {
+    const {
+        generatedAt,
+        generationProvenance,
+        ...stableMeta
+    } = forge.meta;
+
+    return {
+        ...forge,
+        meta: stableMeta,
+    };
 }
 ```
 
+This preserves every canonical top-level field of `WorldForge`
+(`src/worldForgeCore.ts:101-110`) — `format`, `geography`, `factions`, `loreHistory`,
+`initialNpcs`, optional `mapItems` — **and any canonical field added in future**, while
+removing only the two metadata fields explicitly named as volatile.
+
 | Field | Comparison rule |
 | --- | --- |
-| `geography`, `factions`, `npcs`, `lore` | **Must match exactly.** This is the reproduction guarantee |
-| `meta.worldName / worldSeed / theme / generationMethod` | Must match exactly |
+| `format`, `geography`, `factions`, `loreHistory`, `initialNpcs`, `mapItems` | **Must match exactly.** This is the reproduction guarantee |
+| `meta.worldName / worldSeed / theme / generationMethod` | Must match exactly (retained by the rest spread) |
 | `meta.generatedAt` | **Excluded.** Non-deterministic by construction |
-| Provenance fields | **Excluded from parity, asserted separately.** A migration test compares canonical content across the change *and* asserts provenance equals the expected preset/version/counts |
+| `meta.generationProvenance` | **Excluded from parity, asserted separately.** A migration test compares canonical content across the change *and* asserts provenance equals the expected preset/version/counts |
+| Any future top-level `WorldForge` field | Included by default. Excluding one is a deliberate edit to this function, not an omission |
 | Key order, whitespace, trailing newline | Not part of the comparison; compare parsed structures, not text |
 
 Making `generatedAt` deterministic was considered and rejected: it is a genuine wall-clock
@@ -631,8 +663,8 @@ Slice 1 has **no dependency on the geographic substrate** and can start immediat
    per existing theme key. Behaviour-preserving. No migrated preset declares `guarantee`.
 3. `RegionCompositionRule.guarantee` + quota allocator as a **second, opt-in path**. The legacy
    `pickWeighted()` loop is left untouched and remains the path for every shipped preset.
-4. Provenance (`presetId`, `presetVersion`, `resolvedFrom`, counts) written into
-   `WorldForgeMeta` at generation.
+4. Provenance (`presetId`, `presetVersion`, `resolvedFrom`, three counts) written into
+   `meta.generationProvenance` at generation — one new optional field on `WorldForgeMeta`.
 5. `canonicalContentOf()` projection + the seed-fixed parity test that guards items 2–4.
 6. Preset validation: `guarantee` sum capped at 3; `status: 'example'` entries rejected for
    generation; `districtProfileId` validated as a string but not interpreted.
@@ -700,8 +732,11 @@ by the lane that implements it).
 
 1. `presetId` is a distinct vocabulary from `GENESIS_GENRES`, `OvermapThemeKey`, and the
    generator theme keys, and the mapping from each into `presetId` is documented.
-2. *(machine)* `canonicalContentOf()` is implemented as specified, excluding `generatedAt` and
-   provenance, and comparing parsed structures rather than file text.
+2. *(machine)* `canonicalContentOf()` is implemented by **exclusion** — a rest spread over
+   `WorldForge` and `meta` that removes only `generatedAt` and `generationProvenance`. Adding a
+   new top-level `WorldForge` field requires no change to it, and a test asserts the projection
+   still carries `format`, `geography`, `factions`, `loreHistory`, `initialNpcs` and `mapItems`.
+   Comparison is over parsed structures, not file text.
 3. *(machine)* For every existing generator theme key, generating with a fixed seed and fixed
    counts produces **canonical content** equal to the pre-change output on `0bbce28`.
 4. *(machine)* The same run asserts provenance separately: `presetId`, `presetVersion`,

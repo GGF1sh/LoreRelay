@@ -1,7 +1,7 @@
 # GENRE-WORLD-PRESET-001 — Genre World Preset Design Gate
 
 > Task ID: GENRE-WORLD-PRESET-001
-> Revision: 3 (Integrator gate on PR #72 applied — see [Revision History](#revision-history))
+> Revision: 4 (Slice 1 repair: exact legacy theme keys + theme in reproduction key — see [Revision History](#revision-history))
 > Status: Design confirmed — implementation gated, see verdict
 > Base: `0bbce28f2bb1ac72af75374871a427562d2d83f2` (main, version 1.84.30)
 > Branch: `docs/GENRE-WORLD-PRESET-001-GATE`
@@ -18,6 +18,7 @@
 | 1 | Initial design gate |
 | 2 | Integrator gate applied: substrate dependency removed from Slice 1; full-file byte identity replaced with canonical-content parity; `guarantee` allocator split into two explicit paths preserving RNG consumption order; reveal-mode production wiring moved out of Slice 1; `habitat` colony preset demoted to a registry example |
 | 3 | Doc fix: `canonicalContentOf()` corrected to the real `WorldForge` shape and redefined by exclusion rather than enumeration; provenance fixed as nested `meta.generationProvenance` with no `worldSeed` / `generatedAt` duplication |
+| 4 | Slice 1 repair (PR #73): generation theme resolution is exact legacy `TABLE[theme]` keys only (no substring/normalize); complete reproduction key is `presetId + presetVersion + worldSeed + counts + theme` (`theme` stays on `meta.theme`, not duplicated in provenance) |
 
 ---
 
@@ -69,7 +70,7 @@ was used**. The real gaps in the existing ratio mechanism are covered in
 
 1. Make a genre preset a declared, versioned, addressable artifact.
 2. Resolve genre identity **once**, at generation time, and record the result.
-3. Make `presetId + presetVersion + worldSeed` sufficient to reproduce a world.
+3. Make `presetId + presetVersion + worldSeed + counts + theme` sufficient to reproduce a world.
 4. Make re-roll (same preset, new seed) and reproduction (same everything) both expressible.
 5. Separate what the player is *shown* at start from what is *generated*.
 6. Fix the multi-vocabulary drift by removing the need for repeated resolution — design only.
@@ -428,9 +429,9 @@ interface WorldForgeMeta {
 }
 ```
 
-`worldSeed` and `generatedAt` are **not** duplicated inside the provenance block — they
-already exist on `meta` and are already part of the reproduction key. Copying them would
-create two places that can disagree.
+`worldSeed`, `theme`, and `generatedAt` are **not** duplicated inside the provenance block —
+`worldSeed` and `theme` already exist on `meta` and are already part of the reproduction
+key; `generatedAt` is wall-clock only. Copying them would create two places that can disagree.
 
 `resolvedFrom` is not decoration: it records whether the preset was chosen deliberately or
 inferred from free text, which is exactly the information needed to decide whether a legacy
@@ -440,8 +441,14 @@ world can be trusted to re-roll consistently.
 
 - Preset definitions are **frozen per version**. A published `(presetId, presetVersion)` pair
   is immutable. Changing tendencies means publishing a new version.
-- Identical `presetId + presetVersion + worldSeed + counts` ⇒ identical **canonical content**
-  (defined below). Not identical bytes.
+- Identical `presetId + presetVersion + worldSeed + regionCount + factionCount + npcCount + theme`
+  ⇒ identical **canonical content** (defined below). Not identical bytes.
+- `theme` remains free text on `meta.theme`. The generator still seeds RNG with
+  `` `${worldSeed}:${theme}` `` and still keys faction/NPC/lore tables by exact `theme`.
+  Therefore `theme` is a required reproduction input in Slice 1; it is **not** optional
+  flavour once a world has been generated.
+- Same preset/version/seed/counts with a **different** `theme` is a **different**
+  reproduction key and may produce different canonical content.
 - If the recorded version is not present in the registry, the build **must not silently
   substitute another version**. It degrades to *reproduction unavailable*.
 - Degraded state is non-blocking: the existing world remains fully playable and its
@@ -452,6 +459,8 @@ world can be trusted to re-roll consistently.
 The counts (`regionCount`, `factionCount`, `npcCount`) are part of the reproduction key and
 are therefore carried in the provenance block above — without them the guarantee is false.
 They are currently clamped in `extension.ts:1471-1473` and not persisted anywhere.
+`theme` is carried on `meta.theme` (not in `generationProvenance`) for the same reason
+`worldSeed` is not duplicated.
 
 ### Canonical content parity — the comparison rule
 
@@ -511,8 +520,8 @@ Two distinct operations that must not be conflated in the eventual UI:
 
 | Operation | Inputs | Result |
 | --- | --- | --- |
-| **Reproduce** | same preset + version + seed + counts | identical canonical content (`generatedAt` will differ) |
-| **Re-roll** | same preset + version, **new seed** | different world, same tendencies |
+| **Reproduce** | same preset + version + seed + counts + **theme** | identical canonical content (`generatedAt` will differ) |
+| **Re-roll** | same preset + version + theme, **new seed** | different world, same tendencies |
 
 Both are generation-input changes. Neither needs a schema beyond provenance.
 
@@ -592,7 +601,7 @@ New pure module `src/genreWorldPresetCore.ts` (no vscode, no fs, no webview — 
 | Own the preset registry | Frozen per `(presetId, presetVersion)` |
 | `resolvePresetId(input)` | Returns `{ presetId, presetVersion, resolvedFrom }` |
 | `getPreset(presetId, presetVersion)` | Returns the frozen definition or `undefined` (never a substitute) |
-| Own the legacy keyword table | The **only** place free text is interpreted |
+| Own the legacy exact theme-key map | Exact `TABLE[theme]` keys only at generation (no substring/normalize) |
 | Own `presetId → presentation key` maps | For overmap theme, cartography style, campaign kit |
 
 What it must **not** own: rules patching (`rulesProfileCore`), map projection
@@ -602,9 +611,13 @@ What it must **not** own: rules patching (`rulesProfileCore`), map projection
 
 1. **Explicit `presetId`** (machine id, from the setup flow or a scenario pack) — always wins.
 2. **`GenesisGenre` → default `presetId`** mapping, when the setup wizard supplied a genre.
-3. **`meta.theme` free-text keyword match** — legacy path only.
-4. **Built-in default preset** — and this case is *recorded* as `resolvedFrom: 'default'`
-   rather than silently applied, which is the current behaviour's main defect.
+3. **`meta.theme` exact legacy table key** — only the nine historical generator keys
+   (`dungeon-crawler`, `dark-fantasy`, `cyberpunk`, `post-apocalyptic`, `zombie-apocalypse`,
+   `scifi`, `steampunk`, `cosmic-horror`, `oriental-fantasy`). No trim, lowercase, space/
+   underscore normalization, substring match, or aliases. Recorded as `resolvedFrom: 'theme-keyword'`.
+4. **Built-in default preset** — anything else (including free-text that merely *contains* a
+   keyword) — and this case is *recorded* as `resolvedFrom: 'default'` rather than applied
+   silently, which is the current behaviour's main defect.
 
 ### Migration procedure
 
@@ -749,8 +762,9 @@ by the lane that implements it).
    count (3); the guarantee sum is rejected if it exceeds 3.
 8. *(machine)* A published `(presetId, presetVersion)` pair is immutable: registry entries are
    frozen and a mutation attempt fails at build or load.
-9. *(machine)* Identical `presetId + presetVersion + worldSeed + counts` produces identical
-   canonical content.
+9. *(machine)* Identical `presetId + presetVersion + worldSeed + counts + theme` produces
+   identical canonical content; the same preset/version/seed/counts with a different `theme`
+   is not the same reproduction key.
 10. *(machine)* A world whose recorded `presetVersion` is absent from the registry loads and
     plays normally, reports reproduction as unavailable, and is **never** regenerated against a
     different version.

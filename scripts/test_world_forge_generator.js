@@ -493,7 +493,7 @@ check('canonicalContentOf excludes only generatedAt and generationProvenance', (
     assert.deepStrictEqual(canonical.futureCanonicalField, { retained: true });
 });
 
-check('identical reproduction inputs have identical canonical content', () => {
+check('identical full reproduction key including theme has identical canonical content', () => {
     const input = {
         worldSeed: 'preset-reproduction',
         theme: 'cyberpunk',
@@ -507,6 +507,22 @@ check('identical reproduction inputs have identical canonical content', () => {
         canonicalContentOf(generateWorldForge(input).forge),
         canonicalContentOf(generateWorldForge(input).forge)
     );
+});
+
+check('same preset/version/seed/counts with a different theme may produce different canonical content', () => {
+    const shared = {
+        worldSeed: 'preset-reproduction',
+        presetId: 'cyberpunk-sprawl',
+        presetVersion: 1,
+        regionCount: 7,
+        factionCount: 4,
+        npcCount: 8,
+    };
+    const a = canonicalContentOf(generateWorldForge({ ...shared, theme: 'cyberpunk' }).forge);
+    const b = canonicalContentOf(generateWorldForge({ ...shared, theme: 'unrelated-flavor-text' }).forge);
+    assert.notDeepStrictEqual(a, b);
+    assert.strictEqual(a.meta.theme, 'cyberpunk');
+    assert.strictEqual(b.meta.theme, 'unrelated-flavor-text');
 });
 
 check('shipped registry has no guarantee and has total presentation maps', () => {
@@ -570,7 +586,7 @@ check('example preset and invalid districtProfileId are rejected for generation'
     }), { valid: true });
 });
 
-check('resolution priority records explicit, genre, keyword, and default sources', () => {
+check('resolution priority records explicit, genre, exact legacy theme, and default sources', () => {
     assert.deepStrictEqual(resolvePresetId({
         presetId: 'cyberpunk-sprawl',
         presetVersion: 1,
@@ -582,11 +598,100 @@ check('resolution priority records explicit, genre, keyword, and default sources
         theme: 'dark-fantasy',
     }), { presetId: 'postapoc-wasteland', presetVersion: 1, resolvedFrom: 'genre' });
     assert.deepStrictEqual(resolvePresetId({
-        theme: 'a cosmic horror coast',
+        theme: 'cosmic-horror',
     }), { presetId: 'horror-cosmic', presetVersion: 1, resolvedFrom: 'theme-keyword' });
     assert.deepStrictEqual(resolvePresetId({
         theme: 'default',
     }), { presetId: 'fantasy-temperate', presetVersion: 1, resolvedFrom: 'default' });
+});
+
+check('exact legacy theme keys resolve to their expected presets', () => {
+    for (const [theme, presetId] of Object.entries(EXPECTED_PRESET_BY_THEME)) {
+        if (theme === 'default') {
+            assert.deepStrictEqual(resolvePresetId({ theme }), {
+                presetId: 'fantasy-temperate',
+                presetVersion: 1,
+                resolvedFrom: 'default',
+            });
+            continue;
+        }
+        assert.deepStrictEqual(resolvePresetId({ theme }), {
+            presetId,
+            presetVersion: 1,
+            resolvedFrom: 'theme-keyword',
+        });
+    }
+});
+
+check('non-exact free-text themes resolve to the default preset only', () => {
+    const freeTextThemes = [
+        'neon cyberpunk noir',
+        'a cosmic horror coast',
+        'lovecraft',
+        'wasteland',
+        'clockwork',
+        'sci-fi',
+        'Cyberpunk',
+        ' cyberpunk ',
+    ];
+    for (const theme of freeTextThemes) {
+        assert.deepStrictEqual(resolvePresetId({ theme }), {
+            presetId: 'fantasy-temperate',
+            presetVersion: 1,
+            resolvedFrom: 'default',
+        }, `expected default for theme=${JSON.stringify(theme)}`);
+    }
+});
+
+check('free-text generation matches explicit fantasy-temperate@1 with the same theme/seed/counts', () => {
+    const freeTextThemes = [
+        'neon cyberpunk noir',
+        'a cosmic horror coast',
+        'lovecraft',
+        'wasteland',
+        'clockwork',
+        'sci-fi',
+        'Cyberpunk',
+        ' cyberpunk ',
+    ];
+    const shared = {
+        worldSeed: 'free-text-default-parity',
+        regionCount: 5,
+        factionCount: 3,
+        npcCount: 6,
+    };
+    for (const theme of freeTextThemes) {
+        const freeText = generateWorldForge({ ...shared, theme });
+        const explicit = generateWorldForge({
+            ...shared,
+            theme,
+            presetId: 'fantasy-temperate',
+            presetVersion: 1,
+        });
+        assert.deepStrictEqual(
+            canonicalContentOf(freeText.forge),
+            canonicalContentOf(explicit.forge),
+            `free-text canonical mismatch for theme=${JSON.stringify(theme)}`
+        );
+        assert.strictEqual(freeText.forge.meta.theme, theme);
+        assert.strictEqual(explicit.forge.meta.theme, theme);
+        assert.deepStrictEqual(freeText.forge.meta.generationProvenance, {
+            presetId: 'fantasy-temperate',
+            presetVersion: 1,
+            resolvedFrom: 'default',
+            regionCount: 5,
+            factionCount: 3,
+            npcCount: 6,
+        });
+        assert.deepStrictEqual(explicit.forge.meta.generationProvenance, {
+            presetId: 'fantasy-temperate',
+            presetVersion: 1,
+            resolvedFrom: 'explicit',
+            regionCount: 5,
+            factionCount: 3,
+            npcCount: 6,
+        });
+    }
 });
 
 check('unavailable recorded preset version stays playable but reproduction is unavailable', () => {

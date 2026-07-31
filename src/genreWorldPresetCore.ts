@@ -346,27 +346,26 @@ export function getPreset(presetId: string, presetVersion: number): GenreWorldPr
     return GENRE_WORLD_PRESET_REGISTRY[presetId]?.[presetVersion];
 }
 
-const LEGACY_THEME_KEYWORD_RULES: Array<{ presetId: string; keywords: string[] }> = [
-    { presetId: 'fantasy-dungeon', keywords: ['dungeon-crawler', 'dungeon crawler'] },
-    { presetId: 'fantasy-dark', keywords: ['dark-fantasy', 'dark fantasy'] },
-    { presetId: 'cyberpunk-sprawl', keywords: ['cyberpunk', 'cyber punk'] },
-    { presetId: 'zombie-suburban', keywords: ['zombie-apocalypse', 'zombie apocalypse'] },
-    { presetId: 'postapoc-wasteland', keywords: ['post-apocalyptic', 'post apocalyptic', 'postapoc', 'wasteland'] },
-    { presetId: 'scifi-frontier', keywords: ['scifi', 'sci-fi', 'sci fi', 'space frontier'] },
-    { presetId: 'steampunk-industrial', keywords: ['steampunk', 'clockwork'] },
-    { presetId: 'horror-cosmic', keywords: ['cosmic-horror', 'cosmic horror', 'lovecraft', 'eldritch'] },
-    { presetId: 'fantasy-oriental', keywords: ['oriental-fantasy', 'oriental fantasy', 'wuxia', 'xianxia'] },
-];
+/**
+ * Exact legacy generator theme keys only — same semantics as the old
+ * `TABLE[theme] ?? TABLE.default` lookups. No trim, lowercase, normalization,
+ * substring matching, or aliases in Slice 1.
+ */
+const LEGACY_THEME_TO_PRESET_ID: Readonly<Record<string, string>> = Object.freeze({
+    'dungeon-crawler': 'fantasy-dungeon',
+    'dark-fantasy': 'fantasy-dark',
+    cyberpunk: 'cyberpunk-sprawl',
+    'post-apocalyptic': 'postapoc-wasteland',
+    'zombie-apocalypse': 'zombie-suburban',
+    scifi: 'scifi-frontier',
+    steampunk: 'steampunk-industrial',
+    'cosmic-horror': 'horror-cosmic',
+    'oriental-fantasy': 'fantasy-oriental',
+});
 
 function resolveLegacyThemePresetId(theme?: string): string | undefined {
-    const normalized = (theme ?? '').trim().toLowerCase().replace(/[_\s]+/g, '-');
-    if (!normalized || normalized === 'default') { return undefined; }
-    for (const rule of LEGACY_THEME_KEYWORD_RULES) {
-        if (rule.keywords.some((keyword) => normalized.includes(keyword.replace(/[_\s]+/g, '-')))) {
-            return rule.presetId;
-        }
-    }
-    return undefined;
+    if (theme === undefined) { return undefined; }
+    return LEGACY_THEME_TO_PRESET_ID[theme];
 }
 
 /**

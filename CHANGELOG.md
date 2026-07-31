@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.84.31] - 2026-07-31
+
+### Added
+- Added the frozen, versioned genre-world preset registry, generation provenance, exact-version reproduction availability checks, exclusion-based canonical-content projection, and an opt-in guaranteed region allocator.
+
+### Changed
+- Moved the existing theme-keyed region weights, biome overrides, hazard rules, and region name parts into presets without changing shipped generation behavior.
+- Updated the package version to 1.84.31.
+
 ## [1.84.30] - 2026-07-31
 
 ### Fixed

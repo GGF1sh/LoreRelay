@@ -9,12 +9,22 @@ export type RegionHazard = 'radiation' | 'toxic' | 'infested' | 'quarantine' | '
 export type LocationType = 'settlement' | 'dungeon' | 'landmark' | 'ruins' | 'wilderness' | 'other';
 export type FactionType = 'hostile' | 'neutral' | 'friendly' | 'player-faction';
 
+export interface WorldGenProvenance {
+    presetId: string;
+    presetVersion: number;
+    resolvedFrom: 'explicit' | 'genre' | 'theme-keyword' | 'default';
+    regionCount: number;
+    factionCount: number;
+    npcCount: number;
+}
+
 export interface WorldForgeMeta {
     worldName: string;
     worldSeed?: string;
     theme?: string;
     generatedAt?: string;
     generationMethod?: GenerationMethod;
+    generationProvenance?: WorldGenProvenance;
 }
 
 export interface Region {
@@ -127,6 +137,36 @@ function asNumber(v: unknown): number | undefined {
 function asMapCoord(v: unknown): number | undefined {
     if (typeof v !== 'number' || !Number.isFinite(v)) { return undefined; }
     return Math.max(0, Math.min(1000, Math.round(v)));
+}
+
+function parseWorldGenProvenance(raw: unknown): WorldGenProvenance | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const r = raw as Record<string, unknown>;
+    const presetId = asId(r.presetId);
+    const presetVersion = asNumber(r.presetVersion);
+    const regionCount = asNumber(r.regionCount);
+    const factionCount = asNumber(r.factionCount);
+    const npcCount = asNumber(r.npcCount);
+    const resolvedFrom = r.resolvedFrom;
+    if (!presetId
+        || !Number.isInteger(presetVersion) || presetVersion! < 1
+        || !Number.isInteger(regionCount) || regionCount! < 3 || regionCount! > 12
+        || !Number.isInteger(factionCount) || factionCount! < 2 || factionCount! > 6
+        || !Number.isInteger(npcCount) || npcCount! < 2 || npcCount! > 20
+        || (resolvedFrom !== 'explicit'
+            && resolvedFrom !== 'genre'
+            && resolvedFrom !== 'theme-keyword'
+            && resolvedFrom !== 'default')) {
+        return undefined;
+    }
+    return {
+        presetId,
+        presetVersion: presetVersion!,
+        resolvedFrom,
+        regionCount: regionCount!,
+        factionCount: factionCount!,
+        npcCount: npcCount!,
+    };
 }
 
 function asStringArray(v: unknown): string[] {
@@ -327,6 +367,8 @@ export function parseWorldForge(raw: unknown): WorldForge | undefined {
         if (metaRaw.generationMethod === 'manual' || metaRaw.generationMethod === 'ai-generated') {
             meta.generationMethod = metaRaw.generationMethod;
         }
+        const generationProvenance = parseWorldGenProvenance(metaRaw.generationProvenance);
+        if (generationProvenance) { meta.generationProvenance = generationProvenance; }
     }
 
     const geoRaw = doc.geography as Record<string, unknown> | undefined;

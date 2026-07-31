@@ -4,6 +4,24 @@
  * No vscode dependency — requires: npm run compile.
  */
 const { generateWorldForge } = require('../out/worldForgeGeneratorCore');
+const {
+    GENRE_WORLD_PRESET_REGISTRY,
+    PRESET_ID_TO_CAMPAIGN_KIT_ID,
+    PRESET_ID_TO_CARTOGRAPHY_THEME_KEY,
+    PRESET_ID_TO_OVERMAP_THEME_KEY,
+    allocateGuaranteedRegionTypes,
+    canonicalContentOf,
+    getPreset,
+    reproductionAvailabilityOf,
+    resolvePresetId,
+    validatePresetForGeneration,
+} = require('../out/genreWorldPresetCore');
+const { parseWorldForge } = require('../out/worldForgeCore');
+const { buildInitialWorldState } = require('../out/worldStateCore');
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const baselineSnapshots = require('./test_genre_world_preset_slice1_baseline');
 
 let failed = 0;
 
@@ -14,6 +32,15 @@ function fail(msg) {
 
 function ok(msg) {
     console.log(`OK: ${msg}`);
+}
+
+function check(msg, fn) {
+    try {
+        fn();
+        ok(msg);
+    } catch (err) {
+        fail(`${msg}: ${err instanceof Error ? err.message : String(err)}`);
+    }
 }
 
 const VALID_BIOMES = new Set([
@@ -409,6 +436,208 @@ const VALID_HAZARDS = new Set([
     const hb = b.forge.geography.regions.map((r) => r.hazard ?? null).join(',');
     if (ha !== hb) { fail('hazard assignment not deterministic'); } else { ok('hazard assignment deterministic'); }
 }
+
+// ---------------------------------------------------------------------------
+// GENRE-WORLD-PRESET-001 Slice 1
+// ---------------------------------------------------------------------------
+
+const EXPECTED_PRESET_BY_THEME = {
+    'dungeon-crawler': 'fantasy-dungeon',
+    'dark-fantasy': 'fantasy-dark',
+    cyberpunk: 'cyberpunk-sprawl',
+    'post-apocalyptic': 'postapoc-wasteland',
+    'zombie-apocalypse': 'zombie-suburban',
+    scifi: 'scifi-frontier',
+    steampunk: 'steampunk-industrial',
+    'cosmic-horror': 'horror-cosmic',
+    'oriental-fantasy': 'fantasy-oriental',
+    default: 'fantasy-temperate',
+};
+
+check('all existing theme keys retain exact-base canonical parsed content', () => {
+    for (const [theme, expected] of Object.entries(baselineSnapshots)) {
+        const { forge } = generateWorldForge({
+            worldSeed: 'genre-preset-slice1-parity',
+            theme,
+            regionCount: 5,
+            factionCount: 3,
+            npcCount: 6,
+        });
+        assert.deepStrictEqual(canonicalContentOf(forge), expected, `canonical parity failed for ${theme}`);
+        assert.deepStrictEqual(forge.meta.generationProvenance, {
+            presetId: EXPECTED_PRESET_BY_THEME[theme],
+            presetVersion: 1,
+            resolvedFrom: theme === 'default' ? 'default' : 'theme-keyword',
+            regionCount: 5,
+            factionCount: 3,
+            npcCount: 6,
+        });
+    }
+});
+
+check('canonicalContentOf excludes only generatedAt and generationProvenance', () => {
+    const { forge } = generate();
+    forge.mapItems = [{
+        id: 'map_1',
+        name: 'Complete Map',
+        kind: 'map',
+        revealsRegionIds: forge.geography.regions.map((region) => region.id),
+    }];
+    forge.futureCanonicalField = { retained: true };
+    const canonical = canonicalContentOf(forge);
+    assert.strictEqual('generatedAt' in canonical.meta, false);
+    assert.strictEqual('generationProvenance' in canonical.meta, false);
+    for (const key of ['format', 'geography', 'factions', 'loreHistory', 'initialNpcs', 'mapItems', 'futureCanonicalField']) {
+        assert.strictEqual(key in canonical, true, `${key} should be retained`);
+    }
+    assert.deepStrictEqual(canonical.futureCanonicalField, { retained: true });
+});
+
+check('identical reproduction inputs have identical canonical content', () => {
+    const input = {
+        worldSeed: 'preset-reproduction',
+        theme: 'cyberpunk',
+        presetId: 'cyberpunk-sprawl',
+        presetVersion: 1,
+        regionCount: 7,
+        factionCount: 4,
+        npcCount: 8,
+    };
+    assert.deepStrictEqual(
+        canonicalContentOf(generateWorldForge(input).forge),
+        canonicalContentOf(generateWorldForge(input).forge)
+    );
+});
+
+check('shipped registry has no guarantee and has total presentation maps', () => {
+    for (const versions of Object.values(GENRE_WORLD_PRESET_REGISTRY)) {
+        for (const preset of Object.values(versions)) {
+            assert.strictEqual(preset.regionComposition.guarantee, undefined, `${preset.presetId} must use legacy RNG`);
+            assert.ok(PRESET_ID_TO_OVERMAP_THEME_KEY[preset.presetId]);
+            assert.ok(PRESET_ID_TO_CARTOGRAPHY_THEME_KEY[preset.presetId]);
+            assert.ok(PRESET_ID_TO_CAMPAIGN_KIT_ID[preset.presetId]);
+        }
+    }
+});
+
+check('registry, versions, definitions, and nested tables are frozen', () => {
+    const preset = getPreset('cyberpunk-sprawl', 1);
+    assert.ok(preset);
+    assert.ok(Object.isFrozen(GENRE_WORLD_PRESET_REGISTRY));
+    assert.ok(Object.isFrozen(GENRE_WORLD_PRESET_REGISTRY['cyberpunk-sprawl']));
+    assert.ok(Object.isFrozen(preset));
+    assert.ok(Object.isFrozen(preset.regionComposition.weights));
+    assert.strictEqual(Reflect.set(preset, 'label', 'Mutated'), false);
+    assert.strictEqual(preset.label, 'Cyberpunk Sprawl');
+    assert.strictEqual(getPreset('cyberpunk-sprawl', 999), undefined);
+});
+
+check('guaranteed allocation honours declaration order and weighted remainder at regionCount 3', () => {
+    const allocated = allocateGuaranteedRegionTypes({
+        weights: [['urban', 5], ['ruins', 3], ['wilderness', 2]],
+        guarantee: [['urban', 1], ['ruins', 1]],
+    }, 3);
+    assert.deepStrictEqual(allocated.slice(0, 2), ['urban', 'ruins']);
+    assert.deepStrictEqual(allocated, ['urban', 'ruins', 'urban']);
+});
+
+check('guarantee totals above the minimum supported regionCount are rejected', () => {
+    assert.throws(() => allocateGuaranteedRegionTypes({
+        weights: [['urban', 1]],
+        guarantee: [['urban', 4]],
+    }, 5), /guarantee total must be <= 3/);
+});
+
+check('example preset and invalid districtProfileId are rejected for generation', () => {
+    const basePreset = {
+        presetId: 'example-only',
+        presetVersion: 1,
+        label: 'Example only',
+        status: 'example',
+        regionComposition: { weights: [['other', 1]] },
+        terrainTendency: 'flat',
+    };
+    assert.strictEqual(validatePresetForGeneration(basePreset).valid, false);
+    assert.strictEqual(validatePresetForGeneration({
+        ...basePreset,
+        status: 'published',
+        districtProfileId: '',
+    }).valid, false);
+    assert.deepStrictEqual(validatePresetForGeneration({
+        ...basePreset,
+        status: 'published',
+        districtProfileId: 'cyberpunk-districts',
+    }), { valid: true });
+});
+
+check('resolution priority records explicit, genre, keyword, and default sources', () => {
+    assert.deepStrictEqual(resolvePresetId({
+        presetId: 'cyberpunk-sprawl',
+        presetVersion: 1,
+        genre: 'fantasy',
+        theme: 'dark-fantasy',
+    }), { presetId: 'cyberpunk-sprawl', presetVersion: 1, resolvedFrom: 'explicit' });
+    assert.deepStrictEqual(resolvePresetId({
+        genre: 'post_apocalypse',
+        theme: 'dark-fantasy',
+    }), { presetId: 'postapoc-wasteland', presetVersion: 1, resolvedFrom: 'genre' });
+    assert.deepStrictEqual(resolvePresetId({
+        theme: 'a cosmic horror coast',
+    }), { presetId: 'horror-cosmic', presetVersion: 1, resolvedFrom: 'theme-keyword' });
+    assert.deepStrictEqual(resolvePresetId({
+        theme: 'default',
+    }), { presetId: 'fantasy-temperate', presetVersion: 1, resolvedFrom: 'default' });
+});
+
+check('unavailable recorded preset version stays playable but reproduction is unavailable', () => {
+    const raw = JSON.parse(JSON.stringify(generate().forge));
+    raw.meta.generationProvenance.presetVersion = 999;
+    const parsed = parseWorldForge(raw);
+    assert.ok(parsed);
+    assert.strictEqual(parsed.geography.regions.length, raw.geography.regions.length);
+    assert.deepStrictEqual(reproductionAvailabilityOf(parsed), {
+        available: false,
+        reason: 'preset-version-unavailable',
+    });
+    assert.throws(() => generateWorldForge({
+        worldSeed: 'must-not-substitute',
+        theme: 'cyberpunk',
+        presetId: 'cyberpunk-sprawl',
+        presetVersion: 999,
+        regionCount: 5,
+        factionCount: 3,
+        npcCount: 6,
+    }), /cyberpunk-sprawl@999 is unavailable/);
+});
+
+check('legacy world without provenance parses unchanged and reports unavailable reproduction', () => {
+    const raw = JSON.parse(JSON.stringify(baselineSnapshots['dark-fantasy']));
+    const parsed = parseWorldForge(raw);
+    assert.ok(parsed);
+    assert.deepStrictEqual(parsed, raw);
+    assert.deepStrictEqual(reproductionAvailabilityOf(parsed), {
+        available: false,
+        reason: 'missing-provenance',
+    });
+});
+
+check('overwrite/re-roll keeps the existing reset path and rebuilds state from only the new forge', () => {
+    const extensionSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'extension.ts'), 'utf8');
+    const worldStateSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'worldState.ts'), 'utf8');
+    assert.match(extensionSource, /resetWorldStateFromForge\(forge,\s*isOverwrite\)/);
+    assert.match(worldStateSource, /const initial = buildInitialWorldState\(forge\)/);
+    const { forge: rerolledForge } = generateWorldForge({
+        worldSeed: 'rerolled-world',
+        theme: 'post-apocalyptic',
+        regionCount: 5,
+        factionCount: 3,
+        npcCount: 6,
+    });
+    const resetState = buildInitialWorldState(rerolledForge);
+    const newRegionIds = new Set(rerolledForge.geography.regions.map((region) => region.id));
+    assert.deepStrictEqual(Object.keys(resetState.regions).sort(), [...newRegionIds].sort());
+    assert.strictEqual('previous_world_region' in resetState.regions, false);
+});
 
 if (failed > 0) {
     process.exit(1);

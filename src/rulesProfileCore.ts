@@ -14,6 +14,17 @@ export const GENESIS_GENRES = [
 ] as const;
 export type GenesisGenre = (typeof GENESIS_GENRES)[number];
 
+/** Generation defaults only; rules-profile resolution does not consult this map. */
+export const GENESIS_GENRE_DEFAULT_WORLD_PRESET_ID: Readonly<Record<GenesisGenre, string>> = Object.freeze({
+    fantasy: 'fantasy-temperate',
+    post_apocalypse: 'postapoc-wasteland',
+    cyberpunk: 'cyberpunk-sprawl',
+    sci_fi: 'scifi-frontier',
+    eastern: 'fantasy-oriental',
+    horror: 'horror-cosmic',
+    modern: 'fantasy-temperate',
+});
+
 export const GENESIS_PLAYSTYLES = [
     'adventure',
     'settlement',

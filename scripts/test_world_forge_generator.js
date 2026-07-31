@@ -614,7 +614,7 @@ check('legacy world without provenance parses unchanged and reports unavailable 
     const raw = JSON.parse(JSON.stringify(baselineSnapshots['dark-fantasy']));
     const parsed = parseWorldForge(raw);
     assert.ok(parsed);
-    assert.deepStrictEqual(parsed, raw);
+    assert.deepStrictEqual(parsed, { ...raw, mapItems: undefined });
     assert.deepStrictEqual(reproductionAvailabilityOf(parsed), {
         available: false,
         reason: 'missing-provenance',

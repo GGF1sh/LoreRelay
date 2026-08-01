@@ -47,6 +47,7 @@ export interface GenreWorldPresetResolution {
 
 export type WorldReproductionUnavailableReason =
     | 'missing-provenance'
+    | 'missing-reproduction-input'
     | 'preset-version-unavailable'
     | 'preset-not-published';
 
@@ -496,6 +497,9 @@ export function reproductionAvailabilityOf(forge: WorldForge): WorldReproduction
     }
     if (preset.status !== 'published') {
         return { available: false, reason: 'preset-not-published' };
+    }
+    if (!forge.meta.worldSeed?.trim() || !forge.meta.theme?.trim()) {
+        return { available: false, reason: 'missing-reproduction-input' };
     }
     return { available: true, preset, provenance };
 }

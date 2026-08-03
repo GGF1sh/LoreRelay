@@ -26,6 +26,7 @@ import {
     type WorldChangeCategory,
     type WorldChangeEvent,
 } from './worldEventLogCore';
+import { createHash } from 'crypto';
 import { stableSerialize } from './determinismSpineCore';
 import { isSafeQaTempDeletionTarget, resolveRepoFixturePath } from './gameQaRunnerCore';
 import type {
@@ -67,6 +68,9 @@ export const NOAI_SOAK_INVARIANTS = [
     'no_duplicate_event_ids',
     'no_duplicate_one_shot_events',
     'output_files_bounded',
+    'no_action_lock',
+    'no_state_stall',
+    'save_reload_digest_parity',
 ] as const;
 export type NoaiSoakInvariantId = (typeof NOAI_SOAK_INVARIANTS)[number];
 
@@ -127,6 +131,10 @@ export interface NoaiSoakLimits {
     maxRecentChanges: number;
     /** Generous wall-clock budget for benchmark termination proof. */
     performanceBudgetMs?: number;
+    /** Optional opt-in cap for repeated identical player actions. */
+    maxIdenticalActionStreak?: number;
+    /** Optional opt-in cap for cadence chunks that leave canonical state unchanged. */
+    maxZeroChangeStreak?: number;
 }
 
 export interface NoaiSoakTelemetryConfig {
@@ -348,6 +356,16 @@ export function parseNoaiSoakScenarioDocument(raw: unknown): ParseNoaiSoakScenar
                     limits.performanceBudgetMs = Math.floor(lim.performanceBudgetMs);
                 }
             }
+            for (const key of ['maxIdenticalActionStreak', 'maxZeroChangeStreak'] as const) {
+                if (lim[key] === undefined) {
+                    continue;
+                }
+                if (typeof lim[key] !== 'number' || !Number.isInteger(lim[key]) || lim[key] < 0) {
+                    errors.push(`limits.${key} must be a non-negative integer`);
+                } else {
+                    limits[key] = lim[key];
+                }
+            }
         }
     }
 
@@ -425,6 +443,12 @@ export function parseNoaiSoakScenarioDocument(raw: unknown): ParseNoaiSoakScenar
             }
         }
         invariants = collected;
+        if (collected.includes('no_action_lock') && limits && limits.maxIdenticalActionStreak === undefined) {
+            errors.push('limits.maxIdenticalActionStreak is required when selecting no_action_lock');
+        }
+        if (collected.includes('no_state_stall') && limits && limits.maxZeroChangeStreak === undefined) {
+            errors.push('limits.maxZeroChangeStreak is required when selecting no_state_stall');
+        }
     }
 
     // telemetry
@@ -1113,6 +1137,41 @@ export interface NoaiSoakTelemetrySummary {
     anomalyWindows: NoaiSoakAnomalyWindow[];
 }
 
+function orderedCounterMap(map: Record<string, number>): Record<string, number> {
+    return Object.fromEntries(Object.keys(map).sort().map((key) => [key, map[key]]));
+}
+
+/** Stable SHA-256 over the explicitly allowlisted, order-preserving telemetry projection. */
+export function buildNoaiSoakAggregateDigest(telemetry: NoaiSoakTelemetry | NoaiSoakTelemetrySummary): string {
+    const projection = {
+        turnsCompleted: telemetry.turnsCompleted,
+        startWorldTurn: telemetry.startWorldTurn,
+        finalWorldTurn: telemetry.finalWorldTurn,
+        actionCounts: {
+            observe: telemetry.actionCounts.observe || 0,
+            buy: telemetry.actionCounts.buy || 0,
+            sell: telemetry.actionCounts.sell || 0,
+        },
+        acceptedActions: telemetry.acceptedActions,
+        rejectedActions: telemetry.rejectedActions,
+        rejectCounts: orderedCounterMap(telemetry.rejectCounts),
+        eventCategoryCounts: orderedCounterMap(telemetry.eventCategoryCounts),
+        eventSeverityCounts: orderedCounterMap(telemetry.eventSeverityCounts),
+        eventSourceCounts: orderedCounterMap(telemetry.eventSourceCounts),
+        duplicateEventIdCount: telemetry.duplicateEventIdCount,
+        playerEventsEmitted: telemetry.playerEventsEmitted,
+        simEventsEmitted: telemetry.simEventsEmitted,
+        money: telemetry.money,
+        cargoUnits: telemetry.cargoUnits,
+        marketStock: telemetry.marketStock,
+        marketPriceIndex: telemetry.marketPriceIndex,
+        longestIdenticalActionStreak: telemetry.longestIdenticalActionStreak,
+        longestZeroEventStreak: telemetry.longestZeroEventStreak,
+        longestZeroChangeStreak: telemetry.longestZeroChangeStreak,
+    };
+    return createHash('sha256').update(stableSerialize(projection), 'utf8').digest('hex');
+}
+
 export function finalizeTelemetry(acc: NoaiSoakTelemetry): NoaiSoakTelemetrySummary {
     return {
         turnsCompleted: acc.turnsCompleted,
@@ -1237,6 +1296,7 @@ export interface InvariantContext {
     telemetry: NoaiSoakTelemetry;
     limits: NoaiSoakLimits;
     fileBytes: Record<string, number>;
+    saveReloadParity?: { ok: boolean; firstMismatchPath?: string; detail?: string };
 }
 
 export interface InvariantResult {
@@ -1336,6 +1396,25 @@ function evaluateSingleInvariant(id: NoaiSoakInvariantId, ctx: InvariantContext)
                 }
             }
             return { id, ok: over.length === 0, detail: over.length ? `${over.length} file(s) over limit` : undefined, refs: over };
+        }
+        case 'no_action_lock': {
+            const limit = ctx.limits.maxIdenticalActionStreak;
+            const ok = limit !== undefined && ctx.telemetry.longestIdenticalActionStreak <= limit;
+            return { id, ok, detail: ok ? undefined : `identical action streak ${ctx.telemetry.longestIdenticalActionStreak} > limit ${limit}` };
+        }
+        case 'no_state_stall': {
+            const limit = ctx.limits.maxZeroChangeStreak;
+            const ok = limit !== undefined && ctx.telemetry.longestZeroChangeStreak <= limit;
+            return { id, ok, detail: ok ? undefined : `zero-change streak ${ctx.telemetry.longestZeroChangeStreak} > limit ${limit}` };
+        }
+        case 'save_reload_digest_parity': {
+            const parity = ctx.saveReloadParity;
+            return {
+                id,
+                ok: !parity || parity.ok,
+                detail: parity && !parity.ok ? parity.detail || 'save/reload digest mismatch' : undefined,
+                refs: parity && parity.firstMismatchPath ? [parity.firstMismatchPath] : undefined,
+            };
         }
         default:
             return { id, ok: false, detail: `unknown invariant ${id}` };
@@ -1474,6 +1553,10 @@ export interface NoaiSoakReport {
     turnsCompleted: number;
     initialCanonicalHash?: string;
     finalCanonicalHash?: string;
+    identity?: { commit: string; version: string; node: string };
+    aggregateDigest?: string;
+    degradedToObserveOnly?: boolean;
+    saveReloadParity?: { ok: boolean; digestBefore: string; digestAfter: string; firstMismatchPath?: string; detail?: string };
     runtimeMs: number;
     turnsPerSecond: number;
     telemetry?: NoaiSoakTelemetrySummary;

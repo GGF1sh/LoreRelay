@@ -15,7 +15,9 @@
     "maxStepsPerChunk": 5,
     "maxOpsPerTurn": 2,
     "maxFileBytes": 1000000,
-    "maxRecentChanges": 20
+    "maxRecentChanges": 20,
+    "maxIdenticalActionStreak": 8,
+    "maxZeroChangeStreak": 4
   },
   "invariants": [
     "no_nan_or_infinity",
@@ -26,7 +28,10 @@
     "caps_bounded",
     "no_duplicate_event_ids",
     "no_duplicate_one_shot_events",
-    "output_files_bounded"
+    "output_files_bounded",
+    "no_action_lock",
+    "no_state_stall",
+    "save_reload_digest_parity"
   ],
   "telemetry": { "sampleEveryTurns": 10, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 },
   "determinism": { "enabled": true, "compareRuns": 2, "failOnDrift": true, "snapshotEveryTurns": 10 }

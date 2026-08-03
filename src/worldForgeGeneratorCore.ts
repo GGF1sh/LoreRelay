@@ -1,4 +1,12 @@
 import { inferRegionBiomeFromType } from './worldForgeCore';
+import {
+    allocateGuaranteedRegionTypes,
+    getPreset,
+    resolvePresetId,
+    validatePresetForGeneration,
+} from './genreWorldPresetCore';
+import type { GenreWorldPreset } from './genreWorldPresetCore';
+import type { GenesisGenre } from './rulesProfileCore';
 import type {
     WorldForge,
     Region,
@@ -20,6 +28,9 @@ import type {
 export interface WorldForgeGeneratorInput {
     worldSeed: string;
     theme: string;
+    presetId?: string;
+    presetVersion?: number;
+    genesisGenre?: GenesisGenre;
     regionCount: number;   // 3–12
     factionCount: number;  // 2–6
     npcCount: number;      // 2–20
@@ -82,53 +93,6 @@ function shuffle<T>(rng: () => number, arr: T[]): T[] {
     }
     return out;
 }
-
-// ---------------------------------------------------------------------------
-// Name tables keyed by theme
-// ---------------------------------------------------------------------------
-
-const REGION_NAME_PARTS: Record<string, [string[], string[]]> = {
-    'dungeon-crawler': [
-        ['Upper', 'Lower', 'Deep', 'Dark', 'Sunken', 'Forsaken', 'Ancient', 'Crumbled'],
-        ['Catacombs', 'Vault', 'Passage', 'Halls', 'Depths', 'Chamber', 'Labyrinth', 'Warren'],
-    ],
-    'dark-fantasy': [
-        ['Ashwood', 'Ironveil', 'Blighted', 'Shadowed', 'Cursed', 'Hollow', 'Grim', 'Withered'],
-        ['Moor', 'Vale', 'Forest', 'Reaches', 'Wastes', 'Highlands', 'Marshes', 'Crossing'],
-    ],
-    cyberpunk: [
-        ['Sector', 'Grid', 'Sub', 'Neo', 'Core', 'Outer', 'Deep', 'High'],
-        ['Zero', 'Block', 'District', 'Hub', 'Zone', 'Network', 'Junction', 'Spire'],
-    ],
-    'post-apocalyptic': [
-        ['Rusted', 'Cratered', 'Ashen', 'Glassed', 'Broken', 'Silent', 'Scorched', 'Buried'],
-        ['Expanse', 'Flats', 'Ruins', 'Corridor', 'Basin', 'Outskirts', 'Exclusion Zone', 'Barrens'],
-    ],
-    'zombie-apocalypse': [
-        ['Overrun', 'Quarantined', 'Abandoned', 'Barricaded', 'Silent', 'Burning', 'Walled', 'Lost'],
-        ['District', 'Suburbs', 'Downtown', 'Outskirts', 'Highway', 'Mall', 'Harbor', 'Refuge'],
-    ],
-    scifi: [
-        ['Kepler', 'Helios', 'Outer', 'Inner', 'Terra', 'Nova', 'Cryo', 'Zenith'],
-        ['Colony', 'Crater', 'Plateau', 'Rift', 'Dome', 'Fields', 'Sector', 'Landing'],
-    ],
-    steampunk: [
-        ['Brass', 'Cog', 'Soot', 'Iron', 'Steam', 'Gaslight', 'Copper', 'Clockwork'],
-        ['Quarter', 'Works', 'Yards', 'Terrace', 'Docks', 'Foundry', 'Sprawl', 'Heights'],
-    ],
-    'cosmic-horror': [
-        ['Drowned', 'Nameless', 'Whispering', 'Sunken', 'Pallid', 'Cyclopean', 'Forgotten', 'Mist-veiled'],
-        ['Shore', 'Hamlet', 'Moor', 'Depths', 'Hollow', 'Reef', 'Marsh', 'Vale'],
-    ],
-    'oriental-fantasy': [
-        ['Jade', 'Crane', 'Lotus', 'Bamboo', 'Moonlit', 'Azure', 'Thunder', 'Plum Blossom'],
-        ['Valley', 'Province', 'Peaks', 'Terraces', 'Coast', 'Forest', 'Pass', 'Marsh'],
-    ],
-    default: [
-        ['North', 'South', 'East', 'West', 'High', 'Low', 'Old', 'New'],
-        ['Lands', 'Plains', 'Hills', 'Shore', 'Reaches', 'Wilds', 'Keep', 'Domain'],
-    ],
-};
 
 const FACTION_NAME_PARTS: Record<string, [string[], string[]]> = {
     'dungeon-crawler': [
@@ -258,19 +222,8 @@ function clampMapCoord(v: number): number {
     return Math.max(0, Math.min(1000, Math.round(v)));
 }
 
-const GENERATED_BIOME_OVERRIDES: Record<string, Partial<Record<RegionType, RegionBiome>>> = {
-    'dungeon-crawler': { dungeon: 'underground', wilderness: 'wasteland' },
-    cyberpunk: { urban: 'city', other: 'wasteland' },
-    'post-apocalyptic': { urban: 'city', wilderness: 'wasteland', other: 'desert' },
-    'zombie-apocalypse': { urban: 'city', wilderness: 'plains', other: 'wasteland' },
-    scifi: { wilderness: 'plains', other: 'wasteland' },
-    steampunk: { urban: 'city', other: 'wasteland' },
-    'cosmic-horror': { wilderness: 'swamp', other: 'coast' },
-    'oriental-fantasy': { wilderness: 'plains' },
-};
-
-function inferGeneratedBiome(theme: string, type: RegionType): RegionBiome {
-    const override = GENERATED_BIOME_OVERRIDES[theme]?.[type];
+function inferGeneratedBiome(preset: GenreWorldPreset, type: RegionType): RegionBiome {
+    const override = preset.biomeOverrides?.[type];
     return override ?? inferRegionBiomeFromType(type);
 }
 
@@ -279,50 +232,12 @@ function inferGeneratedBiome(theme: string, type: RegionType): RegionBiome {
  * world_forge.json — cheap for the GM to read, and the tile overmap renders
  * it as a scattered marker overlay.
  */
-const HAZARD_RULES_BY_THEME: Record<string, Array<{ hazard: RegionHazard; biomes: RegionBiome[]; chance: number }>> = {
-    'post-apocalyptic': [
-        { hazard: 'radiation', biomes: ['wasteland', 'ruins', 'city', 'desert'], chance: 0.35 },
-        { hazard: 'toxic', biomes: ['swamp', 'wasteland'], chance: 0.25 },
-    ],
-    'zombie-apocalypse': [
-        { hazard: 'infested', biomes: ['city', 'ruins'], chance: 0.5 },
-        { hazard: 'quarantine', biomes: ['city', 'plains', 'wasteland'], chance: 0.2 },
-    ],
-    cyberpunk: [
-        { hazard: 'toxic', biomes: ['wasteland'], chance: 0.35 },
-        { hazard: 'quarantine', biomes: ['city'], chance: 0.15 },
-    ],
-    'dark-fantasy': [
-        { hazard: 'haunted', biomes: ['ruins', 'swamp', 'forest'], chance: 0.25 },
-        { hazard: 'corrupted', biomes: ['forest', 'plains'], chance: 0.15 },
-    ],
-    'dungeon-crawler': [
-        { hazard: 'haunted', biomes: ['underground', 'ruins', 'dungeon'], chance: 0.25 },
-        { hazard: 'corrupted', biomes: ['wasteland'], chance: 0.2 },
-    ],
-    scifi: [
-        { hazard: 'anomaly', biomes: ['wasteland', 'mountain', 'plains'], chance: 0.2 },
-        { hazard: 'radiation', biomes: ['wasteland', 'ruins'], chance: 0.2 },
-        { hazard: 'storm', biomes: ['plains', 'desert', 'mountain'], chance: 0.15 },
-    ],
-    steampunk: [
-        { hazard: 'toxic', biomes: ['city', 'wasteland'], chance: 0.3 },
-    ],
-    'cosmic-horror': [
-        { hazard: 'anomaly', biomes: ['coast', 'sea', 'swamp'], chance: 0.3 },
-        { hazard: 'haunted', biomes: ['ruins', 'forest', 'swamp', 'city'], chance: 0.25 },
-    ],
-    'oriental-fantasy': [
-        { hazard: 'haunted', biomes: ['forest', 'ruins'], chance: 0.15 },
-        { hazard: 'storm', biomes: ['coast', 'sea', 'mountain'], chance: 0.2 },
-    ],
-    default: [
-        { hazard: 'haunted', biomes: ['ruins'], chance: 0.1 },
-    ],
-};
-
-function assignGeneratedHazard(rng: () => number, theme: string, biome: RegionBiome): RegionHazard | undefined {
-    const rules = HAZARD_RULES_BY_THEME[theme] ?? HAZARD_RULES_BY_THEME.default;
+function assignGeneratedHazard(
+    rng: () => number,
+    preset: GenreWorldPreset,
+    biome: RegionBiome
+): RegionHazard | undefined {
+    const rules = preset.hazardRules ?? [];
     for (const rule of rules) {
         if (rule.biomes.includes(biome) && rng() < rule.chance) { return rule.hazard; }
     }
@@ -358,23 +273,19 @@ function placeRegionOnMap(
 // Step 1: Region graph (ring + chords)
 // ---------------------------------------------------------------------------
 
-function generateRegions(rng: () => number, theme: string, count: number): Region[] {
-    const parts = REGION_NAME_PARTS[theme] ?? REGION_NAME_PARTS.default;
+function generateRegions(
+    rng: () => number,
+    theme: string,
+    count: number,
+    preset: GenreWorldPreset
+): Region[] {
+    const parts = preset.nameParts ?? getPreset('fantasy-temperate', 1)!.nameParts!;
     const prefixes = shuffle(rng, [...parts[0]]);
     const suffixes = shuffle(rng, [...parts[1]]);
-
-    const REGION_TYPE_WEIGHTS_BY_THEME: Record<string, Array<[RegionType, number]>> = {
-        'dungeon-crawler': [['dungeon', 5], ['ruins', 3], ['wilderness', 1], ['other', 1]],
-        cyberpunk: [['urban', 5], ['other', 3], ['wilderness', 1], ['ruins', 1]],
-        'post-apocalyptic': [['ruins', 4], ['wilderness', 3], ['urban', 2], ['other', 1]],
-        'zombie-apocalypse': [['urban', 4], ['ruins', 3], ['wilderness', 2], ['other', 1]],
-        scifi: [['other', 3], ['wilderness', 3], ['urban', 2], ['mountains', 1], ['ruins', 1]],
-        steampunk: [['urban', 4], ['wilderness', 2], ['mountains', 2], ['ruins', 1], ['other', 1]],
-        'cosmic-horror': [['wilderness', 3], ['ocean', 2], ['ruins', 2], ['urban', 2], ['forest', 1]],
-        'oriental-fantasy': [['wilderness', 3], ['forest', 2], ['mountains', 3], ['urban', 2], ['ruins', 1]],
-        default: [['wilderness', 3], ['forest', 2], ['mountains', 2], ['dungeon', 1], ['urban', 1], ['ruins', 1]],
-    };
-    const REGION_TYPE_WEIGHTS = REGION_TYPE_WEIGHTS_BY_THEME[theme] ?? REGION_TYPE_WEIGHTS_BY_THEME.default;
+    const regionTypeWeights = preset.regionComposition.weights;
+    const guaranteedTypes = preset.regionComposition.guarantee
+        ? allocateGuaranteedRegionTypes(preset.regionComposition, count)
+        : undefined;
 
     const regions: Region[] = [];
     for (let i = 0; i < count; i++) {
@@ -382,8 +293,10 @@ function generateRegions(rng: () => number, theme: string, count: number): Regio
         const suffix = suffixes[i % suffixes.length];
         const name = `${prefix} ${suffix}`;
         const id = makeId(name, i + 1);
-        const type = pickWeighted(rng, REGION_TYPE_WEIGHTS);
-        const biome = inferGeneratedBiome(theme, type);
+        const type = guaranteedTypes
+            ? guaranteedTypes[i]
+            : pickWeighted(rng, regionTypeWeights);
+        const biome = inferGeneratedBiome(preset, type);
         const pos = placeRegionOnMap(rng, i, count, biome);
         const region: Region = {
             id,
@@ -396,7 +309,7 @@ function generateRegions(rng: () => number, theme: string, count: number): Regio
             connectedTo: [],
             imagePromptHint: `A landscape view of ${name}, ${type} environment, ${theme} artstyle`,
         };
-        const hazard = assignGeneratedHazard(rng, theme, biome);
+        const hazard = assignGeneratedHazard(rng, preset, biome);
         if (hazard) {
             region.hazard = hazard;
             region.dangerLevel = Math.max(region.dangerLevel ?? 0, randInt(rng, 5, 9));
@@ -708,10 +621,27 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
     const npcCount = Math.max(2, Math.min(20, Math.floor(input.npcCount)));
     const theme = input.theme || 'default';
     const seed = input.worldSeed;
+    const resolution = resolvePresetId({
+        presetId: input.presetId,
+        presetVersion: input.presetVersion,
+        genre: input.genesisGenre,
+        theme,
+    });
+    if (!resolution) {
+        throw new Error('Requested genre world preset could not be resolved.');
+    }
+    const preset = getPreset(resolution.presetId, resolution.presetVersion);
+    if (!preset) {
+        throw new Error(`Genre world preset ${resolution.presetId}@${resolution.presetVersion} is unavailable.`);
+    }
+    const presetValidation = validatePresetForGeneration(preset);
+    if (!presetValidation.valid) {
+        throw new Error(`Genre world preset is unavailable for generation: ${presetValidation.errors.join('; ')}`);
+    }
 
     const rng = makePrng(`${seed}:${theme}`);
 
-    const regions = generateRegions(rng, theme, regionCount);
+    const regions = generateRegions(rng, theme, regionCount, preset);
     const locations = generateLocations(rng, regions);
     const factions = generateFactions(rng, theme, factionCount);
     buildFactionRelations(rng, factions);
@@ -733,6 +663,12 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
             theme,
             generatedAt: new Date().toISOString(),
             generationMethod: 'ai-generated',
+            generationProvenance: {
+                ...resolution,
+                regionCount,
+                factionCount,
+                npcCount,
+            },
         },
         geography: { regions, locations },
         factions,

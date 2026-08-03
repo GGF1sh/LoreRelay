@@ -800,6 +800,7 @@
     "qa:noai:list": "node scripts/run_noai_soak.js --list",
     "qa:noai:quick": "node scripts/run_noai_soak.js --mode quick",
     "qa:noai:full": "node scripts/run_noai_soak.js --mode full",
+    "qa:noai:gate": "node scripts/run_noai_soak.js --scenario noai_determinism_100 --gate",
     "qa:noai:benchmark": "node scripts/run_noai_soak.js --mode benchmark --keep-temp",
     "check:terminology": "node scripts/check_terminology_contract.js",
     "test:list": "node scripts/run_all_tests.js --list",

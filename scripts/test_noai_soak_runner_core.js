@@ -115,6 +115,12 @@ check('parser rejects a non-allowlisted invariant', () => {
     const parsed = core.parseNoaiSoakScenarioDocument(baseScenario({ invariants: ['no_nan_or_infinity', 'delete_everything'] }));
     assert.ok(!parsed.ok && parsed.errors.some((e) => e.includes('invariant')), 'expected invariant rejection');
 });
+check('parser rejects streak invariants without their matching limit', () => {
+    const actionLock = core.parseNoaiSoakScenarioDocument(baseScenario({ invariants: ['no_action_lock'] }));
+    assert.ok(!actionLock.ok && actionLock.errors.some((e) => e.includes('maxIdenticalActionStreak')), 'no_action_lock must require its limit');
+    const stateStall = core.parseNoaiSoakScenarioDocument(baseScenario({ invariants: ['no_state_stall'] }));
+    assert.ok(!stateStall.ok && stateStall.errors.some((e) => e.includes('maxZeroChangeStreak')), 'no_state_stall must require its limit');
+});
 
 // ---------------------------------------------------------------------------
 // 2. Same seed / policy produces the same actions
@@ -266,6 +272,50 @@ check('nonnegative_resources detects synthetic negatives', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 11. Opt-in streak and save/reload invariants fail only on their evidence
+// ---------------------------------------------------------------------------
+check('no_action_lock and no_state_stall pass and fail at their configured limits', () => {
+    const acc = core.createTelemetryAccumulator({ sampleEveryTurns: 1, maxSamples: 1, recentWindow: 4, maxAnomalyWindows: 1 }, 0);
+    core.recordAction(acc, { turn: 1, worldTurn: 0, type: 'observe', accepted: true });
+    core.recordAction(acc, { turn: 2, worldTurn: 0, type: 'observe', accepted: true });
+    core.recordCadenceChunk(acc, 0, false);
+    core.recordCadenceChunk(acc, 0, false);
+    const ctx = makeInvariantCtx({});
+    ctx.telemetry = acc;
+    ctx.limits = { ...ctx.limits, maxIdenticalActionStreak: 2, maxZeroChangeStreak: 2 };
+    assert.ok(core.evaluateInvariants(['no_action_lock', 'no_state_stall'], ctx).every((r) => r.ok), 'limits at observed streak must pass');
+    ctx.limits.maxIdenticalActionStreak = 1;
+    ctx.limits.maxZeroChangeStreak = 1;
+    const failed = core.evaluateInvariants(['no_action_lock', 'no_state_stall'], ctx);
+    assert.ok(failed.every((r) => !r.ok), `expected both streak invariants to fail: ${JSON.stringify(failed)}`);
+    ctx.limits.maxZeroChangeStreak = 0;
+    const zeroThreshold = core.evaluateInvariants(['no_state_stall'], ctx)[0];
+    assert.ok(!zeroThreshold.ok && zeroThreshold.id === 'no_state_stall', 'zero threshold must fail no_state_stall when any zero-change streak occurred');
+});
+check('save_reload_digest_parity reports pass and mismatch evidence', () => {
+    const ctx = makeInvariantCtx({});
+    ctx.saveReloadParity = { ok: true };
+    assert.ok(core.evaluateInvariants(['save_reload_digest_parity'], ctx)[0].ok, 'matching parity must pass');
+    ctx.saveReloadParity = { ok: false, firstMismatchPath: 'world_state.json', detail: 'mismatch' };
+    const failed = core.evaluateInvariants(['save_reload_digest_parity'], ctx)[0];
+    assert.ok(!failed.ok && failed.refs.includes('world_state.json'), 'mismatch must expose first path');
+});
+check('aggregate digest is stable for equivalent telemetry and sensitive to allowlisted changes', () => {
+    const makeTelemetry = () => {
+        const acc = core.createTelemetryAccumulator({ sampleEveryTurns: 1, maxSamples: 1, recentWindow: 2, maxAnomalyWindows: 1 }, 0);
+        core.recordAction(acc, { turn: 1, worldTurn: 0, type: 'buy', accepted: true, eventId: 'e1' });
+        core.recordSimEvents(acc, [{ id: 's1', timestamp: 1, category: 'world', severity: 'info', source: 'system', message: 'x' }]);
+        core.observeTurnState(acc, { turn: 1, worldTurn: 1, credits: 10, cargoUnits: 2, markets: {}, recentChangesLen: 1 });
+        return core.finalizeTelemetry(acc);
+    };
+    const a = makeTelemetry();
+    const b = makeTelemetry();
+    assert.strictEqual(core.buildNoaiSoakAggregateDigest(a), core.buildNoaiSoakAggregateDigest(b), 'equivalent telemetry digest must be stable');
+    b.acceptedActions++;
+    assert.notStrictEqual(core.buildNoaiSoakAggregateDigest(a), core.buildNoaiSoakAggregateDigest(b), 'allowlisted telemetry change must affect digest');
+});
+
+// ---------------------------------------------------------------------------
 // 11. Determinism drift produces a useful first-difference report
 // ---------------------------------------------------------------------------
 check('determinism drift yields a first-difference report (canonical + action stream)', () => {
@@ -308,10 +358,15 @@ function makeInvariantCtx(canonicalDocs) {
 const tempScenarioDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noai-soak-unit-'));
 const tempRoots = [];
 try {
-    const passScenario = baseScenario({ id: 'noai_unit_pass', horizon: { turns: 3 }, invariants: ['no_nan_or_infinity', 'json_parseable', 'world_turn_monotonic', 'output_files_bounded'] });
+    for (const id of ['noai_unit_pass', 'noai_unit_fail', 'noai_unit_parity_fail']) {
+        fs.rmSync(path.join(root, '.tmp', 'noai_soak', id), { recursive: true, force: true });
+    }
+    const passScenario = baseScenario({ id: 'noai_unit_pass', horizon: { turns: 3 }, invariants: ['no_nan_or_infinity', 'json_parseable', 'world_turn_monotonic', 'output_files_bounded', 'save_reload_digest_parity'] });
     const failScenario = baseScenario({ id: 'noai_unit_fail', horizon: { turns: 3 }, invariants: ['output_files_bounded'], limits: { maxTurns: 10, maxStepsPerChunk: 5, maxOpsPerTurn: 2, maxFileBytes: 1, maxRecentChanges: 20 } });
+    const parityFailScenario = baseScenario({ id: 'noai_unit_parity_fail', horizon: { turns: 3 }, invariants: ['save_reload_digest_parity'] });
     fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_pass.json'), JSON.stringify(passScenario));
     fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_fail.json'), JSON.stringify(failScenario));
+    fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_parity_fail.json'), JSON.stringify(parityFailScenario));
 
     const runRunner = (scenarioId) => spawnSync(process.execPath, [path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', scenarioId], {
         cwd: root,
@@ -340,6 +395,20 @@ try {
         const runDir = path.join(scenarioTemp, runDirs[0]);
         assert.ok(fs.existsSync(path.join(runDir, 'report.json')), 'failed run must retain report.json');
         assert.ok(fs.existsSync(path.join(runDir, 'workspace')), 'failed run must retain workspace');
+    });
+    check('corrupted post-run canonical file fails save/reload parity with its path', () => {
+        const res = spawnSync(process.execPath, [path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', 'noai_unit_parity_fail'], {
+            cwd: root,
+            env: { ...process.env, NOAI_SOAK_SCENARIO_DIR: tempScenarioDir, NOAI_SOAK_TEST_CORRUPT_PARITY_PATH: 'world_state.json' },
+            encoding: 'utf-8',
+        });
+        assert.strictEqual(res.status, 1, `corrupt parity scenario should fail:\n${res.stdout}\n${res.stderr}`);
+        const scenarioTemp = path.join(root, '.tmp', 'noai_soak', 'noai_unit_parity_fail');
+        tempRoots.push(scenarioTemp);
+        const runDir = path.join(scenarioTemp, fs.readdirSync(scenarioTemp)[0]);
+        const report = JSON.parse(fs.readFileSync(path.join(runDir, 'report.json'), 'utf-8'));
+        assert.strictEqual(report.firstFailure.invariantId, 'save_reload_digest_parity', 'parity must own the failure');
+        assert.strictEqual(report.saveReloadParity.firstMismatchPath, 'world_state.json', 'parity must name the corrupted file');
     });
 } finally {
     fs.rmSync(tempScenarioDir, { recursive: true, force: true });

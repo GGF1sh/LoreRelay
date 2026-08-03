@@ -42,6 +42,7 @@ const {
     DEFAULT_NOAI_SOAK_TEMP_ROOT,
     NOAI_SOAK_RUN_MODES,
     buildPlayerTradeEvent,
+    buildNoaiSoakAggregateDigest,
     createEmptyNoaiSoakReport,
     createSoakRng,
     createTelemetryAccumulator,
@@ -115,7 +116,7 @@ function loadExecutionModules() {
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-    const args = { list: false, mode: DEFAULT_MODE, scenarioId: undefined, keepTemp: false, noKeepFailed: false };
+    const args = { list: false, mode: DEFAULT_MODE, scenarioId: undefined, keepTemp: false, noKeepFailed: false, gate: false, jsonOut: undefined };
     for (let i = 2; i < argv.length; i++) {
         const token = argv[i];
         if (token === '--list') {
@@ -135,6 +136,14 @@ function parseArgs(argv) {
             if (!args.scenarioId) {
                 throw new Error('--scenario requires an id');
             }
+        } else if (token === '--gate') {
+            args.gate = true;
+        } else if (token === '--json-out') {
+            const value = argv[++i];
+            if (!value) {
+                throw new Error('--json-out requires a path');
+            }
+            args.jsonOut = path.resolve(value);
         } else {
             throw new Error(`unknown argument: ${token}`);
         }
@@ -298,6 +307,127 @@ function writeReports(plan, report) {
     fs.writeFileSync(plan.reportMdPath, `${formatNoaiSoakReportMarkdown(report)}\n`, 'utf-8');
 }
 
+function readRepositoryCommit() {
+    const injected = process.env.NOAI_SOAK_COMMIT || process.env.GITHUB_SHA;
+    if (typeof injected === 'string' && /^[0-9a-f]{7,64}$/i.test(injected.trim())) {
+        return injected.trim();
+    }
+    try {
+        const dotGit = path.join(ROOT, '.git');
+        const stat = fs.statSync(dotGit);
+        const gitDir = stat.isDirectory()
+            ? dotGit
+            : path.resolve(ROOT, fs.readFileSync(dotGit, 'utf8').trim().replace(/^gitdir:\s*/i, ''));
+        const head = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim();
+        if (/^[0-9a-f]{40}$/i.test(head)) {
+            return head;
+        }
+        const refMatch = /^ref:\s+(.+)$/.exec(head);
+        if (!refMatch) {
+            return 'unknown';
+        }
+        const commonDirPath = path.join(gitDir, 'commondir');
+        const metadataDirs = [gitDir];
+        if (fs.existsSync(commonDirPath)) {
+            metadataDirs.push(path.resolve(gitDir, fs.readFileSync(commonDirPath, 'utf8').trim()));
+        }
+        for (const metadataDir of metadataDirs) {
+            const refPath = path.join(metadataDir, refMatch[1]);
+            if (fs.existsSync(refPath)) {
+                const ref = fs.readFileSync(refPath, 'utf8').trim();
+                if (/^[0-9a-f]{40}$/i.test(ref)) {
+                    return ref;
+                }
+            }
+            const packedRefs = path.join(metadataDir, 'packed-refs');
+            if (fs.existsSync(packedRefs)) {
+                const match = fs.readFileSync(packedRefs, 'utf8').match(new RegExp(`^([0-9a-f]{40}) ${refMatch[1].replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'm'));
+                if (match) {
+                    return match[1];
+                }
+            }
+        }
+    } catch {
+        // Identity is diagnostic only; an injected CI value remains preferred.
+    }
+    return 'unknown';
+}
+
+function buildReportIdentity() {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    return { commit: readRepositoryCommit(), version: String(pkg.version || 'unknown'), node: process.version };
+}
+
+function verifySaveReloadParity(workspaceDir, plan, mods) {
+    const before = captureSnapshot(workspaceDir, 'save_reload_before', 0);
+    const corruptionPath = process.env.NOAI_SOAK_TEST_CORRUPT_PARITY_PATH;
+    if (corruptionPath) {
+        if (!DETERMINISM_CANONICAL_FILES.includes(corruptionPath)) {
+            throw new Error('NOAI_SOAK_TEST_CORRUPT_PARITY_PATH must name a canonical file');
+        }
+        const raw = readJsonRaw(path.join(workspaceDir, corruptionPath));
+        if (!raw.exists || raw.parseError || !raw.data || typeof raw.data !== 'object' || Array.isArray(raw.data)) {
+            throw new Error(`cannot corrupt parity fixture: ${corruptionPath}`);
+        }
+        raw.data.__noaiParityTestCorruption = true;
+        writeJson(path.join(workspaceDir, corruptionPath), raw.data);
+    }
+    const reloadedDir = path.join(plan.runDir, 'save_reload');
+    copyDirectoryRecursive(workspaceDir, reloadedDir);
+    for (const name of DETERMINISM_CANONICAL_FILES) {
+        const filePath = path.join(reloadedDir, name);
+        const raw = readJsonRaw(filePath);
+        if (!raw.exists) {
+            continue;
+        }
+        if (raw.parseError) {
+            return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `cannot parse ${name}` };
+        }
+        if (name === 'world_state.json') {
+            const parsed = mods.parseWorldStateWithWarnings(raw.data);
+            if (!parsed.state) {
+                return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production parser rejected ${name}` };
+            }
+            writeJson(filePath, raw.data);
+        } else if (name === 'world_forge.json') {
+            const parsed = mods.parseWorldForge(raw.data);
+            if (!parsed) {
+                return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production parser rejected ${name}` };
+            }
+            writeJson(filePath, raw.data);
+        } else if (name === 'game_rules.json') {
+            // Parse through the production normalizer, but preserve the authored canonical
+            // document so optional default fields do not create a false round-trip delta.
+            mods.normalizeGameRules(raw.data);
+            writeJson(filePath, raw.data);
+        } else if (name === 'game_state.json') {
+            const errors = mods.validateGameState(raw.data);
+            if (errors.length > 0) {
+                return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production validator rejected ${name}: ${errors[0]}` };
+            }
+            writeJson(filePath, raw.data);
+        } else if (name === 'npc_registry.json') {
+            const parsed = mods.parseNpcRegistry(raw.data);
+            if (!parsed) {
+                return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production parser rejected ${name}` };
+            }
+            writeJson(filePath, raw.data);
+        } else {
+            writeJson(filePath, raw.data);
+        }
+    }
+    const after = captureSnapshot(reloadedDir, 'save_reload_after', 0);
+    const comparison = compareDeterminismSnapshotStreams([before], [after]);
+    const firstMismatchPath = comparison.fileDiffs && comparison.fileDiffs[0] ? comparison.fileDiffs[0].path : undefined;
+    return {
+        ok: comparison.ok,
+        digestBefore: before.aggregateHash.value,
+        digestAfter: after.aggregateHash.value,
+        ...(firstMismatchPath ? { firstMismatchPath } : {}),
+        ...(!comparison.ok ? { detail: 'save/reload canonical digest mismatch' } : {}),
+    };
+}
+
 // ---------------------------------------------------------------------------
 // Scenario execution
 // ---------------------------------------------------------------------------
@@ -308,6 +438,7 @@ function runScenario(scenario, mode, options) {
     const runId = formatNoaiSoakRunId(startedAt, crypto.randomBytes(3).toString('hex'));
     const plan = planNoaiSoakRunDirectories(ROOT, scenario.id, runId, DEFAULT_NOAI_SOAK_TEMP_ROOT, path.join, path.resolve);
     const report = createEmptyNoaiSoakReport(runId, scenario, mode, startedAt.toISOString());
+    report.identity = buildReportIdentity();
     // Resolve the economy pacing profile once. When a scenario omits it, this is
     // the 'normal' knob set (legacy behavior). Passing the full param object to
     // the tick lets soak exercise shock magnitudes + price ceiling, not just recovery.
@@ -372,6 +503,10 @@ function runScenario(scenario, mode, options) {
         // Commerce forge (pure adapter) + market holder (managed outside the sim).
         const commerceForge = mods.resolveCommerceForge(forge, forgeRead.data);
         const commerceActive = scenario.policyId !== 'observe_only' && rules.enableCommerce === true && !!commerceForge;
+        report.degradedToObserveOnly = scenario.policyId !== 'observe_only' && !commerceActive;
+        if (report.degradedToObserveOnly) {
+            report.warnings.push('requested commerce policy degraded to observe_only because commerce is inactive');
+        }
         const marketHolder = {
             markets: (worldState.markets && Object.keys(worldState.markets).length)
                 ? worldState.markets
@@ -580,7 +715,8 @@ function runScenario(scenario, mode, options) {
         }
         report.finalCanonicalHash = finalSnap.aggregateHash.value;
 
-        const finalInvCtx = buildInvariantContext(scenario, ws, worldState, marketHolder.markets, gameStateDoc, forgeRead.data, rulesRead, worldState.worldTurn || 0, 0, acc);
+        report.saveReloadParity = verifySaveReloadParity(ws, plan, mods);
+        const finalInvCtx = buildInvariantContext(scenario, ws, worldState, marketHolder.markets, gameStateDoc, forgeRead.data, rulesRead, worldState.worldTurn || 0, 0, acc, report.saveReloadParity);
         const finalInv = evaluateInvariants(scenario.invariants, finalInvCtx);
         // Merge: keep the cadence failure if present, otherwise use the final evaluation.
         report.invariantResults = firstFailure && firstFailure.invariantId ? lastInvariantResults : finalInv;
@@ -595,6 +731,7 @@ function runScenario(scenario, mode, options) {
         }
 
         report.telemetry = finalizeTelemetry(acc);
+        report.aggregateDigest = buildNoaiSoakAggregateDigest(report.telemetry);
         report.fileBytes = collectFileByteMetrics(ws);
         if (firstFailure) {
             report.firstFailure = firstFailure;
@@ -620,7 +757,7 @@ function runScenario(scenario, mode, options) {
     return { report, plan, keepTemp: keepTemp || !report.ok, snapshots, actionStreamHash: actionHasher.digest('hex') };
 }
 
-function buildInvariantContext(scenario, ws, worldState, markets, gameStateDoc, forgeRawDoc, rulesRead, previousWorldTurn, expectedDelta, acc) {
+function buildInvariantContext(scenario, ws, worldState, markets, gameStateDoc, forgeRawDoc, rulesRead, previousWorldTurn, expectedDelta, acc, saveReloadParity) {
     const canonicalDocs = {};
     if (gameStateDoc) {
         canonicalDocs['game_state.json'] = gameStateDoc;
@@ -642,6 +779,7 @@ function buildInvariantContext(scenario, ws, worldState, markets, gameStateDoc, 
         telemetry: acc,
         limits: scenario.limits,
         fileBytes: collectFileByteMetrics(ws),
+        saveReloadParity,
     };
 }
 
@@ -691,6 +829,8 @@ function applyDeterminismComparison(baseline, repeat, scenario) {
     const canonical = compareDeterminismSnapshotStreams(baseline.snapshots, repeat.snapshots);
     const canonicalMatch = canonical.ok;
     const actionStreamMatch = baseline.actionStreamHash === repeat.actionStreamHash;
+    const aggregateMatch = Boolean(baseline.report.aggregateDigest)
+        && baseline.report.aggregateDigest === repeat.report.aggregateDigest;
 
     const det = {
         enabled: true,
@@ -698,6 +838,7 @@ function applyDeterminismComparison(baseline, repeat, scenario) {
         baselineRunId: baseline.report.runId,
         canonicalMatch,
         actionStreamMatch,
+        aggregateMatch,
         snapshotCount: repeat.snapshots.length,
     };
     if (!canonicalMatch) {
@@ -712,10 +853,15 @@ function applyDeterminismComparison(baseline, repeat, scenario) {
             kind: 'action_stream',
             detail: `action-stream hash mismatch: ${baseline.actionStreamHash.slice(0, 12)} vs ${repeat.actionStreamHash.slice(0, 12)}`,
         };
+    } else if (!aggregateMatch) {
+        det.firstDifference = {
+            kind: 'aggregate_digest',
+            detail: `aggregate digest mismatch: ${(baseline.report.aggregateDigest || '').slice(0, 12)} vs ${(repeat.report.aggregateDigest || '').slice(0, 12)}`,
+        };
     }
 
     repeat.report.determinism = det;
-    if ((!canonicalMatch || !actionStreamMatch) && scenario.determinism.failOnDrift) {
+    if ((!canonicalMatch || !actionStreamMatch || !aggregateMatch) && scenario.determinism.failOnDrift) {
         repeat.report.ok = false;
         repeat.report.failureClass = 'determinism_drift';
         repeat.keepTemp = true;
@@ -747,7 +893,7 @@ function printScenarioSummary(result) {
         }
     }
     if (r.determinism && r.determinism.enabled) {
-        console.log(`   determinism: canonical=${r.determinism.canonicalMatch} actionStream=${r.determinism.actionStreamMatch}`);
+        console.log(`   determinism: canonical=${r.determinism.canonicalMatch} actionStream=${r.determinism.actionStreamMatch} aggregate=${r.determinism.aggregateMatch}`);
         if (r.determinism.firstDifference) {
             console.log(`   first difference (${r.determinism.firstDifference.kind}): ${r.determinism.firstDifference.detail}`);
         }
@@ -758,6 +904,30 @@ function printScenarioSummary(result) {
     }
 }
 
+function buildGateSummary(result) {
+    const report = result.report;
+    return {
+        schemaVersion: 1,
+        gate: 'NOAI-PLAYTEST-001',
+        ok: report.ok,
+        identity: report.identity,
+        scenarioId: report.scenarioId,
+        seed: report.seed,
+        policyId: report.policyId,
+        turnsRequested: report.turnsRequested,
+        turnsCompleted: report.turnsCompleted,
+        ...(report.failureClass ? { failureClass: report.failureClass } : {}),
+        ...(report.firstFailure ? { firstFailure: report.firstFailure } : {}),
+        determinism: report.determinism ? {
+            canonicalMatch: report.determinism.canonicalMatch,
+            actionStreamMatch: report.determinism.actionStreamMatch,
+            aggregateMatch: report.determinism.aggregateMatch,
+        } : undefined,
+        saveReloadParity: report.saveReloadParity,
+        ...(result.keepTemp ? { runDir: result.plan.runDir } : {}),
+    };
+}
+
 function main() {
     let args;
     try {
@@ -765,6 +935,13 @@ function main() {
     } catch (err) {
         console.error(`FAIL: ${err.message}`);
         process.exit(1);
+    }
+    if (args.gate) {
+        if (args.scenarioId && args.scenarioId !== 'noai_determinism_100') {
+            console.error('FAIL: --gate only supports noai_determinism_100');
+            process.exit(1);
+        }
+        args.scenarioId = 'noai_determinism_100';
     }
 
     const loaded = loadAllScenarios();
@@ -835,6 +1012,21 @@ function main() {
     const failed = results.length - passed;
     console.log('\n=== NOAI Soak Summary ===');
     console.log(`Passed: ${passed}/${results.length}`);
+    if (args.gate || args.jsonOut) {
+        if (results.length !== 1) {
+            console.error('FAIL: --gate/--json-out requires exactly one scenario');
+            process.exit(1);
+        }
+        const summary = buildGateSummary(results[0]);
+        const json = `${JSON.stringify(summary, null, 2)}\n`;
+        if (args.jsonOut) {
+            fs.mkdirSync(path.dirname(args.jsonOut), { recursive: true });
+            fs.writeFileSync(args.jsonOut, json, 'utf8');
+        }
+        if (args.gate) {
+            console.log(json.trim());
+        }
+    }
     if (failed > 0) {
         console.log('Failed:');
         for (const r of results.filter((x) => !x.report.ok)) {

@@ -1,6 +1,6 @@
 # NOAI-PLAYTEST-001 — 100-turn deterministic soak, implementation gate
 
-Status: **READY_TO_IMPLEMENT (scope corrected)**
+Status: **IMPLEMENTED — PR #70 draft**
 Base investigated: `fdca78ecfc1d7735f31833e5d462fc8ad3278a3d` (`1.84.30`)
 Design lane only. No production code, no version bump, no Current Lane change in this document's commit.
 Source idea: [`docs/ideas/NOAI-LONG-HORIZON-PLAYTEST-AND-AI-ANALYST.md`](../ideas/NOAI-LONG-HORIZON-PLAYTEST-AND-AI-ANALYST.md) (Phase B)
@@ -500,8 +500,23 @@ this gate must start from the existing runner.
 
 ## Final Verdict
 
+## Implementation evidence — 2026-08-03 JST
+
+- Implementation code HEAD: `d39faf04684d1ea7f4e1cd13a1ffd644b1df9413`.
+- Baseline observation on merged `origin/main` (`e6ec3dfe05a479984004b0af2506f0e46791017e`):
+  `longestIdenticalActionStreak=4`, `longestZeroChangeStreak=0`, and no observe-only degradation.
+- Chosen finite limits: `maxIdenticalActionStreak=8` (four-turn margin) and
+  `maxZeroChangeStreak=4` (four-turn margin).
+- PASS evidence: `npm run compile`; `node scripts/test_noai_soak_runner_core.js`;
+  `npm run qa:noai:quick`; and `npm run qa:noai:gate -- --json-out C:\tmp\noai-playtest-001-gate-summary.json`.
+  The gate completed `100/100` turns with world-turn delta `100`, canonical/action/aggregate
+  determinism all true, save/reload parity true, and a non-empty identity.
+- The focused tests prove zero `maxZeroChangeStreak` fails `no_state_stall`, and that a deliberately
+  corrupted post-run `world_state.json` fails save/reload parity with `firstMismatchPath` populated.
+- `npm run check:symbol-registry` passed after the required generated registry refresh.
+
 ```text
-NOAI_PLAYTEST_001_READY_TO_IMPLEMENT
+NOAI_PLAYTEST_001_IMPLEMENTED_DRAFT_READY_FOR_INTEGRATOR
 ```
 
 with the mandatory correction that the runner is not to be written — it is to be extended.

@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.84.32] - 2026-08-02
+
+### Fixed
+- Reproduction availability now requires non-empty world seed and theme inputs in addition to valid published preset provenance.
+
+### Changed
+- Updated the package version to 1.84.32.
+
 ## [1.84.31] - 2026-07-31
 
 ### Added

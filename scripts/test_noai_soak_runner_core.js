@@ -358,15 +358,17 @@ function makeInvariantCtx(canonicalDocs) {
 const tempScenarioDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noai-soak-unit-'));
 const tempRoots = [];
 try {
-    for (const id of ['noai_unit_pass', 'noai_unit_fail', 'noai_unit_parity_fail']) {
+    for (const id of ['noai_unit_pass', 'noai_unit_fail', 'noai_unit_parity_fail', 'noai_unit_parity_normalize_fail']) {
         fs.rmSync(path.join(root, '.tmp', 'noai_soak', id), { recursive: true, force: true });
     }
     const passScenario = baseScenario({ id: 'noai_unit_pass', horizon: { turns: 3 }, invariants: ['no_nan_or_infinity', 'json_parseable', 'world_turn_monotonic', 'output_files_bounded', 'save_reload_digest_parity'] });
     const failScenario = baseScenario({ id: 'noai_unit_fail', horizon: { turns: 3 }, invariants: ['output_files_bounded'], limits: { maxTurns: 10, maxStepsPerChunk: 5, maxOpsPerTurn: 2, maxFileBytes: 1, maxRecentChanges: 20 } });
     const parityFailScenario = baseScenario({ id: 'noai_unit_parity_fail', horizon: { turns: 3 }, invariants: ['save_reload_digest_parity'] });
+    const parityNormalizeFailScenario = baseScenario({ id: 'noai_unit_parity_normalize_fail', horizon: { turns: 3 }, invariants: ['save_reload_digest_parity'] });
     fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_pass.json'), JSON.stringify(passScenario));
     fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_fail.json'), JSON.stringify(failScenario));
     fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_parity_fail.json'), JSON.stringify(parityFailScenario));
+    fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_parity_normalize_fail.json'), JSON.stringify(parityNormalizeFailScenario));
 
     const runRunner = (scenarioId) => spawnSync(process.execPath, [path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', scenarioId], {
         cwd: root,
@@ -409,6 +411,20 @@ try {
         const report = JSON.parse(fs.readFileSync(path.join(runDir, 'report.json'), 'utf-8'));
         assert.strictEqual(report.firstFailure.invariantId, 'save_reload_digest_parity', 'parity must own the failure');
         assert.strictEqual(report.saveReloadParity.firstMismatchPath, 'world_state.json', 'parity must name the corrupted file');
+    });
+    check('production rule normalizer output participates in save/reload parity', () => {
+        const res = spawnSync(process.execPath, [path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', 'noai_unit_parity_normalize_fail'], {
+            cwd: root,
+            env: { ...process.env, NOAI_SOAK_SCENARIO_DIR: tempScenarioDir, NOAI_SOAK_TEST_NORMALIZE_RULES: '1' },
+            encoding: 'utf-8',
+        });
+        assert.strictEqual(res.status, 1, `normalized parity scenario should fail:\n${res.stdout}\n${res.stderr}`);
+        const scenarioTemp = path.join(root, '.tmp', 'noai_soak', 'noai_unit_parity_normalize_fail');
+        tempRoots.push(scenarioTemp);
+        const runDir = path.join(scenarioTemp, fs.readdirSync(scenarioTemp)[0]);
+        const report = JSON.parse(fs.readFileSync(path.join(runDir, 'report.json'), 'utf-8'));
+        assert.strictEqual(report.firstFailure.invariantId, 'save_reload_digest_parity', 'normalizer mismatch must own the failure');
+        assert.strictEqual(report.saveReloadParity.firstMismatchPath, 'game_rules.json', 'normalizer mismatch must name game_rules.json');
     });
 } finally {
     fs.rmSync(tempScenarioDir, { recursive: true, force: true });

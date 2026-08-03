@@ -361,6 +361,7 @@ function buildReportIdentity() {
 function verifySaveReloadParity(workspaceDir, plan, mods) {
     const before = captureSnapshot(workspaceDir, 'save_reload_before', 0);
     const corruptionPath = process.env.NOAI_SOAK_TEST_CORRUPT_PARITY_PATH;
+    const normalizeRulesForParityTest = process.env.NOAI_SOAK_TEST_NORMALIZE_RULES === '1';
     if (corruptionPath) {
         if (!DETERMINISM_CANONICAL_FILES.includes(corruptionPath)) {
             throw new Error('NOAI_SOAK_TEST_CORRUPT_PARITY_PATH must name a canonical file');
@@ -369,8 +370,22 @@ function verifySaveReloadParity(workspaceDir, plan, mods) {
         if (!raw.exists || raw.parseError || !raw.data || typeof raw.data !== 'object' || Array.isArray(raw.data)) {
             throw new Error(`cannot corrupt parity fixture: ${corruptionPath}`);
         }
-        raw.data.__noaiParityTestCorruption = true;
+        if (corruptionPath === 'world_state.json') {
+            raw.data.worldTurn = Number(raw.data.worldTurn || 0) + 1;
+        } else {
+            raw.data.__noaiParityTestCorruption = true;
+        }
         writeJson(path.join(workspaceDir, corruptionPath), raw.data);
+    }
+    if (normalizeRulesForParityTest) {
+        const rulesPath = path.join(workspaceDir, 'game_rules.json');
+        const raw = readJsonRaw(rulesPath);
+        if (!raw.exists || raw.parseError || !raw.data || typeof raw.data !== 'object' || Array.isArray(raw.data)) {
+            throw new Error('cannot normalize parity fixture: game_rules.json');
+        }
+        // Production normalizeGameRules clamps this accepted numeric raw field to 50.
+        raw.data.simIntervalTurns = 999;
+        writeJson(rulesPath, raw.data);
     }
     const reloadedDir = path.join(plan.runDir, 'save_reload');
     copyDirectoryRecursive(workspaceDir, reloadedDir);
@@ -388,18 +403,19 @@ function verifySaveReloadParity(workspaceDir, plan, mods) {
             if (!parsed.state) {
                 return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production parser rejected ${name}` };
             }
-            writeJson(filePath, raw.data);
+            writeJson(filePath, parsed.state);
         } else if (name === 'world_forge.json') {
             const parsed = mods.parseWorldForge(raw.data);
             if (!parsed) {
                 return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production parser rejected ${name}` };
             }
+            // parseWorldForge is a simulation projection, not a save document: it
+            // intentionally excludes the raw document's optional commerce block.
+            // No production serializer accepts that projection, so retain raw and
+            // do not claim parser-round-trip coverage for this file.
             writeJson(filePath, raw.data);
         } else if (name === 'game_rules.json') {
-            // Parse through the production normalizer, but preserve the authored canonical
-            // document so optional default fields do not create a false round-trip delta.
-            mods.normalizeGameRules(raw.data);
-            writeJson(filePath, raw.data);
+            writeJson(filePath, mods.normalizeGameRules(raw.data));
         } else if (name === 'game_state.json') {
             const errors = mods.validateGameState(raw.data);
             if (errors.length > 0) {
@@ -411,8 +427,11 @@ function verifySaveReloadParity(workspaceDir, plan, mods) {
             if (!parsed) {
                 return { ok: false, digestBefore: before.aggregateHash.value, digestAfter: '', firstMismatchPath: name, detail: `production parser rejected ${name}` };
             }
-            writeJson(filePath, raw.data);
+            writeJson(filePath, parsed);
         } else {
+            // These files are canonical raw documents in this runner. They have no
+            // production parser + serializer seam, so parity covers JSON persistence
+            // but deliberately makes no parser-round-trip claim for them.
             writeJson(filePath, raw.data);
         }
     }
@@ -534,6 +553,9 @@ function runScenario(scenario, mode, options) {
         const acc = createTelemetryAccumulator(scenario.telemetry, startWorldTurn);
 
         const persistState = () => {
+            // Match production saveGameRules(): persist normalized rules in this
+            // runner's temp-only workspace before deriving canonical snapshots.
+            writeJson(path.join(ws, 'game_rules.json'), rules);
             if (gameStateDoc) {
                 if (commerce) {
                     gameStateDoc.commerce = {

@@ -502,7 +502,8 @@ this gate must start from the existing runner.
 
 ## Implementation evidence — 2026-08-03 JST
 
-- Implementation code HEAD: `d39faf04684d1ea7f4e1cd13a1ffd644b1df9413`.
+- Initial implementation code HEAD: `d39faf04684d1ea7f4e1cd13a1ffd644b1df9413`.
+- P2 parity repair code HEAD: `e9f688f3181d33c51dcf70863988d23f7de25ba2`.
 - Baseline observation on merged `origin/main` (`e6ec3dfe05a479984004b0af2506f0e46791017e`):
   `longestIdenticalActionStreak=4`, `longestZeroChangeStreak=0`, and no observe-only degradation.
 - Chosen finite limits: `maxIdenticalActionStreak=8` (four-turn margin) and
@@ -514,6 +515,17 @@ this gate must start from the existing runner.
 - The focused tests prove zero `maxZeroChangeStreak` fails `no_state_stall`, and that a deliberately
   corrupted post-run `world_state.json` fails save/reload parity with `firstMismatchPath` populated.
 - `npm run check:symbol-registry` passed after the required generated registry refresh.
+- P2 repair: sibling `save_reload` now persists `parseWorldStateWithWarnings(...).state`,
+  `normalizeGameRules(...)`, and `parseNpcRegistry(...)` outputs. The runner also normalizes
+  `game_rules.json` at its temp-only initial persistence boundary, matching `saveGameRules`.
+  Focused coverage proves a raw `simIntervalTurns: 999` is normalized by production code and
+  produces a `game_rules.json` parity mismatch, while a post-run `worldTurn` corruption produces
+  a `world_state.json` mismatch.
+- Coverage boundary: `world_forge.json` remains raw because `parseWorldForge` is a simulation
+  projection that intentionally omits the raw document's commerce block and has no production
+  serializer for that projection. `game_state.json` and the other canonical files likewise have
+  no parser+serializer seam in this runner; parity covers their JSON persistence only, not a
+  parser-round-trip claim.
 
 ```text
 NOAI_PLAYTEST_001_IMPLEMENTED_DRAFT_READY_FOR_INTEGRATOR

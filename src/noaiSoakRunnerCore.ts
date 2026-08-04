@@ -1521,8 +1521,9 @@ export interface NoaiSoakDeterminismReport {
     baselineRunId?: string;
     canonicalMatch?: boolean;
     actionStreamMatch?: boolean;
+    aggregateMatch?: boolean;
     firstDifference?: {
-        kind: 'canonical' | 'action_stream';
+        kind: 'canonical' | 'action_stream' | 'aggregate_digest';
         detail: string;
     };
     snapshotCount?: number;

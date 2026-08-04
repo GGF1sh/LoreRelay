@@ -920,10 +920,14 @@ function printScenarioSummary(result) {
             console.log(`   first difference (${r.determinism.firstDifference.kind}): ${r.determinism.firstDifference.detail}`);
         }
     }
-    if (result.keepTemp && fs.existsSync(result.plan.runDir)) {
+    if (hasRetainedDiagnosticWorkspace(result)) {
         console.log(`   kept temp: ${result.plan.runDir}`);
         console.log(`   report: ${result.plan.reportJsonPath}`);
     }
+}
+
+function hasRetainedDiagnosticWorkspace(result) {
+    return fs.existsSync(result.plan.workspaceDir);
 }
 
 function buildGateSummary(result) {
@@ -946,7 +950,7 @@ function buildGateSummary(result) {
             aggregateMatch: report.determinism.aggregateMatch,
         } : undefined,
         saveReloadParity: report.saveReloadParity,
-        ...(result.keepTemp ? { runDir: result.plan.runDir } : {}),
+        ...(hasRetainedDiagnosticWorkspace(result) ? { runDir: result.plan.runDir } : {}),
     };
 }
 

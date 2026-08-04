@@ -398,6 +398,29 @@ try {
         assert.ok(fs.existsSync(path.join(runDir, 'report.json')), 'failed run must retain report.json');
         assert.ok(fs.existsSync(path.join(runDir, 'workspace')), 'failed run must retain workspace');
     });
+    check('json summary omits runDir when --no-keep-failed removes diagnostic workspace', () => {
+        const scenarioTemp = path.join(root, '.tmp', 'noai_soak', 'noai_unit_fail');
+        fs.rmSync(scenarioTemp, { recursive: true, force: true });
+        const jsonOut = path.join(os.tmpdir(), `noai-soak-summary-${process.pid}.json`);
+        try {
+            const res = spawnSync(process.execPath, [
+                path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', 'noai_unit_fail',
+                '--no-keep-failed', '--json-out', jsonOut,
+            ], {
+                cwd: root,
+                env: { ...process.env, NOAI_SOAK_SCENARIO_DIR: tempScenarioDir },
+                encoding: 'utf-8',
+            });
+            assert.strictEqual(res.status, 1, `no-keep failure should exit 1:\n${res.stdout}\n${res.stderr}`);
+            const summary = JSON.parse(fs.readFileSync(jsonOut, 'utf-8'));
+            assert.ok(!Object.prototype.hasOwnProperty.call(summary, 'runDir'), 'summary must not advertise deleted diagnostic workspace');
+            const retainedWorkspace = fs.existsSync(scenarioTemp)
+                && fs.readdirSync(scenarioTemp).some((runId) => fs.existsSync(path.join(scenarioTemp, runId, 'workspace')));
+            assert.ok(!retainedWorkspace, 'no-keep failure workspace must be deleted');
+        } finally {
+            fs.rmSync(jsonOut, { force: true });
+        }
+    });
     check('corrupted post-run canonical file fails save/reload parity with its path', () => {
         const res = spawnSync(process.execPath, [path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', 'noai_unit_parity_fail'], {
             cwd: root,

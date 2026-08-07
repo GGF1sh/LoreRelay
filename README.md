@@ -117,6 +117,8 @@ flowchart LR
 - 📊 **World Observatory(v1.53+、experimental):** 「変わりゆく世界を見守る」観測ダッシュボード。市場価格履歴スパークライン・年代記タイムライン、watch（無コスト）/ advance（資源消費）2モード。
 - 🕸️ **Logistics Graph Canvas(v1.84+):** 交易ネットワークを地図でなくグラフとして可視化。ノードドラッグ・地域折りたたみ・セマンティックズーム・ミニマップ・商品/ルート状態フィルタ、稼働ルート/流量をリアルタイム表示する拡大ビュー対応。
 - 📐 **Responsive Webview Shell(v1.84.16+):** 960px以上=2カラム、720〜959px=オーバーレイドロワー、720px未満=ナロードロワーの3段階レイアウトで、VSCode分割エディタの狭幅表示でもチャットが圧殺されない。
+- ⚔️ **Tactical Combat / Battle View(v1.84.17+、experimental):** ガンビット（自動行動ルール）で戦うユニットに、RTS定石の命令（移動・攻撃・アタックムーブ・停止・ガンビット再開）を割り込ませられる決定論シミュレーター。専用パネル **Battle View**（`LoreRelay: Open Battle View`）で戦況・HP・与被ダメージ・回避・撃破を実データで可視化。結果は**レシート**として `game_state.json` に一度だけ反映され、次のGMターンに `combatConsequence` ブロックとして渡されます（AIは戦闘結果を書き換えられず、起きた事実を物語として描写するだけ）。詳細は[下記](#combat)。
+- 🌱 **Genre World Presets(v1.84.31+):** ジャンル別の世界生成プリセットを**凍結・バージョン管理されたレジストリ**として正本化（`fantasy-dungeon` / `fantasy-dark` / `fantasy-oriental` / `cyberpunk-sprawl` / `scifi-frontier` / `postapoc-wasteland` / `steampunk-industrial` / `horror-cosmic` / `zombie-suburban` ほか）。地域構成・biome・ハザード・地名パーツをプリセット化し、**同じシード＋同じプリセット版なら同じ世界を再現**できる provenance 付き。既存の生成挙動は変えていません。
 
 </details>
 
@@ -202,7 +204,32 @@ flowchart LR
 </p>
 <p align="center"><sub>拠点・市場・施設・車両拠点をノード、交易路を稼働/逼迫/封鎖で色分けしたエッジとして可視化。ノードドラッグでの地域再配置、商品/ルート状態フィルタ、セマンティックズーム、ミニマップ操作に対応。地図とは別に「今どこで何がどれだけ流れているか」を一目で把握できます。</sub></p>
 
-すべて実機の Webview（`webview/index.html` + `script.js` + `style.css`）から撮影した実スクリーンショットです。差し替え手順は [`DEMO.md`](DEMO.md) を参照してください。
+<a id="combat"></a>
+
+### ⚔️ Battle View — 戦闘は「真実のエンジン」（experimental）
+
+<p align="center">
+  <img src="docs/assets/screenshot-battle-view.png" width="820" alt="Battle View: 味方・敵ユニットのマーカーとHPバー、ガンビット(GMBT)とアタックムーブ(A-MV)の命令バッジ、味方部隊の行動一覧、与ダメージ/回復の戦闘ログ、命令の受付レシート" />
+</p>
+<p align="center"><sub>紫の <code>GMBT</code> はガンビット（自動行動）、赤の <code>A-MV</code> はプレイヤーが割り込ませたアタックムーブ命令。右に味方部隊の判断とHP、下に与ダメージ・回復・撃破の戦闘ログと、発行した命令の受付レシートが並びます。</sub></p>
+
+設計上の大前提は「**プレイヤーは戦闘を、動く点の画面ではなくGMの文章として体験する**」ことです（[`docs/COMBAT_SYSTEM_DESIGN.md`](docs/COMBAT_SYSTEM_DESIGN.md)）。シミュレーターは勝敗を演出するためではなく、GMが脚色するための**決定論的な事実**を出すために存在します。
+
+```mermaid
+flowchart LR
+    Story["物語（GMのターン）"] --> Start["戦闘セッション開始"]
+    Start --> Sim["決定論シミュレーション<br/>ガンビット + プレイヤー命令"]
+    Sim --> Receipt["戦闘結果レシート<br/>（PENDING）"]
+    Receipt --> Apply["game_state へ一度だけ反映<br/>HP / combatBattleHistory"]
+    Apply --> Fact["combatConsequence<br/>GMプロンプトブロック"]
+    Fact --> Story
+```
+
+- **命令はRTSの定石** — 左クリックで選択、ドラッグで範囲選択、右クリックで移動／攻撃。命令を出していないユニットはガンビットのまま自動で戦い、`ガンビット再開` でいつでも自動制御へ戻せます。
+- **結果は改竄できない** — レシートは検証を通ってから一度だけ `game_state.json` に適用され、適用済みマーカーで二重適用を防ぎます。AIは勝敗・HP・終了コードを書き換えられず、確定した事実を描写するだけです。
+- **今できること／まだできないこと** — 現在の入口はコマンド（`Open Battle View` / `Start Campaign Combat (Debug)`）です。**GMが物語の流れで自動的に戦闘を始める導線はまだありません**。単体アバターの直接操作（回避・スタミナ等）はロジックのみでUI未実装です。
+
+すべて実機の Webview（`webview/index.html` + `script.js` + `style.css`、Battle View は `webview/battle-view/`）から撮影した実スクリーンショットです。差し替え手順は [`DEMO.md`](DEMO.md) を参照してください。
 
 ---
 
@@ -332,13 +359,23 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 | `LoreRelay: Load Scenario Pack` | `scenario.json` を含むフォルダを読み込み |
 | `LoreRelay: Generate World Forge` | `world_forge.json` を procedural 生成 |
 | `LoreRelay: Generate World Map Image` | 羊皮紙地図を ComfyUI で生成（任意） |
+| `LoreRelay: Open Battle View` | 戦闘パネルを開く（進行中セッションがあれば引き継ぐ） |
+| `LoreRelay: Start Campaign Combat (Debug)` | キャンペーンから戦闘セッションを開始（現状の入口） |
+| `LoreRelay: Apply Pending Combat Outcomes` | 保留中の戦闘レシートを `game_state.json` へ反映 |
+| `LoreRelay: Abort Campaign Combat` | 進行中のキャンペーン戦闘を中止 |
+| `LoreRelay: Start an adventure with this character` | Parlor の会話を引き継いで Campaign へ昇格 |
 | `LoreRelay: Start Remote Play (LAN)` | LAN 参加用 URL を発行 |
+| `LoreRelay: Export Replay (Markdown/HTML)` | 冒険ログを読み物として書き出し |
+| `LoreRelay: Run Workspace Sanity Check` | ワークスペースの状態ファイルを点検 |
+| `LoreRelay: Check for Updates` | 新しい VSIX リリースを確認 |
 | `LoreRelay: List Image Models` | ComfyUI の checkpoint 一覧 |
 | `LoreRelay: Scan Local Model Files` | `modelScan.roots` 配下の `.safetensors` / `.gguf` / `.ckpt` 等を一覧 |
 | `LoreRelay: Import SillyTavern Character Card` | ST キャラカード取り込み |
 | `LoreRelay: Import SillyTavern Lorebook` | ST ロアブック取り込み |
 | `LoreRelay: Export Scenario Pack (Workshop ZIP)` | 配布用 ZIP を書き出し |
 | `LoreRelay: Validate Scenario Pack` | パック構造の検証 |
+
+全34コマンドはコマンドパレットで `LoreRelay:` と入力すると一覧できます。
 
 ### 6. ワークスペースの主要ファイル
 
@@ -353,17 +390,21 @@ VSCodeの設定画面（Settings）から `textAdventure.skillPath` を検索し
 | `game_history.json` | 冒険ログ（再起動後も復元） |
 | `world_map.layout.png` / `world_map.png` | Cartography レイアウト / 羊皮紙画像 |
 | `npc_registry.json` | NPC 認識・関係性 |
+| `.text-adventure/combat/` | 戦闘レシート（`pending/` 未反映 · `applied/` 反映済みマーカー · `injected/` GMへ渡した記録）|
 
 ### 7. Scenario Packs
 コマンドパレットから `LoreRelay: Load Scenario Pack` を実行し、`scenario.json` を含むフォルダを選択すると、開始状態・テーマ・専用BGM/SEを読み込めます。
 
-**同梱サンプル（3本）** — 拡張リポジトリの `sample-scenarios/`:
+**同梱サンプル（6本）** — 拡張リポジトリの `sample-scenarios/`:
 
 | フォルダ | ジャンル | テーマ | 備考 |
 |---------|---------|--------|------|
-| `lost-catacombs` | 王道ダンジョン探索 | fantasy | **Cartography デモ**（`world_forge.json` + `world_map.layout.png`） |
-| `neon-rain` | サイバーパンク・ノワール | cyberpunk | |
-| `harbor-mist` | 港町ミステリー | modern | |
+| `harbor-mist` | 港町ミステリー | modern | Start Hub の **🎮 お試しデモ**。設定不要・約15分 |
+| `lost-catacombs` | 王道ダンジョン探索 | fantasy | Start Hub の **🗺️ 地図デモ**。**Cartography デモ**（`world_forge.json` + `world_map.layout.png`） |
+| `scrapbound-settlement` | 終末スカベンジャー | postapoc | Start Hub の **🧰 スカベンジャーデモ**。Campaign Kit + Commerce の本命ループ |
+| `debug-sandbox` | 開発者向け | — | Start Hub の **🔧 デバッグサンドボックス**。好感度・霧・世界ターンを自然言語で即操作（GM不要） |
+| `neon-rain` | サイバーパンク・ノワール | cyberpunk | 手動読み込み |
+| `trade-routes` | 交易・Living World 実演 | fantasy | 手動読み込み。Commerce / NPC Agency のデモ用 |
 
 GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scenarios/`。
 
@@ -414,12 +455,17 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 | **v1.69–1.75** | Settlement Mode（等角/ジオラマ表示）· Vehicle & Mobile Base（フリート管理・移動拠点） |
 | **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 互換ゲート · ComfyUI ジョブ寿命管理 |
 | **v1.79–1.83** | NOAI Play（決定論的な旅・経済処理）· 資源別5ティア経済難易度（abundant→barren） |
-| **v1.84** | Logistics Graph Canvas（交易ネットワークのインタラクティブ可視化）· Responsive 3段階 Webview シェル |
+| **v1.84.0–1.84.16** | Logistics Graph Canvas（交易ネットワークのインタラクティブ可視化）· Responsive 3段階 Webview シェル |
+| **v1.84.17–1.84.30** | **Tactical Combat** — Battle View · ガンビット + RTS命令スパイン（移動 / 攻撃 / アタックムーブ / 停止 / 再開）· 決定論リプレイハッシュ · 戦闘アナリティクス · Story⇄Combat Bridge V1-A/B/C（レシート → `game_state` → `combatConsequence` プロンプト） |
+| **v1.84.31–1.84.32** | Genre World Presets（凍結・版管理されたジャンル別世界生成プリセット、provenance 付き再現性チェック） |
 
 体験の入口: [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)（stable / experimental）· `sample-scenarios/trade-routes`
 
 **今後の候補**
 
+- 戦闘: 物語の中でGMが戦闘を起動する導線（現状はコマンド起動のみ）
+- 戦闘: 単体アバターの直接操作UI（ロジックは実装済み・UI未着手）
+- 世界: biome / 水系マップ基盤（設計ゲート済み・実装はこれから）
 - Overmap の画像タイルセット、 hazard 1 行 GM 注入
 - Prompt budget の優先度スライディング（長セッション向け）
 - Workshop / マーケットプレイス公開の検討

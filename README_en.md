@@ -114,6 +114,8 @@ flowchart LR
 - 📊 **World Observatory (v1.53+, experimental):** A dashboard for watching the world change — market price history sparklines, a chronicle timeline, and watch (free) / advance (consumes resources) modes.
 - 🕸️ **Logistics Graph Canvas (v1.84+):** Visualizes the trade network as an interactive graph instead of a map — node dragging, region collapse, semantic zoom, minimap, commodity/route-status filters, and a maximized view with live flow rates.
 - 📐 **Responsive Webview Shell (v1.84.16+):** A three-stage layout — two-column at 960px+, an overlay drawer from 720–959px, and a narrow drawer below 720px — so chat no longer gets crushed in a narrow VSCode split-editor pane.
+- ⚔️ **Tactical Combat / Battle View (v1.84.17+, experimental):** A deterministic simulator where units fight on gambits (automatic behaviour rules) and you can cut in with standard RTS orders — move, attack, attack-move, stop, resume gambit. A dedicated **Battle View** panel (`LoreRelay: Open Battle View`) shows positions, HP, damage dealt/taken, dodges and kills from real data. The result becomes a **receipt** applied exactly once to `game_state.json`, then handed to the next GM turn as a `combatConsequence` block — the AI narrates what happened but cannot rewrite the outcome. [More below](#combat).
+- 🌱 **Genre World Presets (v1.84.31+):** Genre world-generation presets are now a **frozen, versioned registry** (`fantasy-dungeon`, `fantasy-dark`, `fantasy-oriental`, `cyberpunk-sprawl`, `scifi-frontier`, `postapoc-wasteland`, `steampunk-industrial`, `horror-cosmic`, `zombie-suburban`, …). Region composition, biomes, hazard rules and place-name parts moved into presets with generation provenance, so **the same seed plus the same preset version reproduces the same world**. Shipped generation behaviour is unchanged.
 
 </details>
 
@@ -187,7 +189,32 @@ The main screen above and every image below were captured from the actual Webvie
 </p>
 <p align="center"><sub>Settlements, markets, facilities, and mobile-base hubs as nodes, with trade routes color-coded open/strained/blocked as edges. Drag nodes to rearrange regions, filter by commodity or route status, semantic-zoom, and navigate via the minimap — a companion view to the map for seeing exactly where goods are flowing right now.</sub></p>
 
-All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`). See [`DEMO.md`](DEMO.md) for the capture method.
+<a id="combat"></a>
+
+### ⚔️ Battle View — combat as a truth engine (experimental)
+
+<p align="center">
+  <img src="docs/assets/screenshot-battle-view.png" width="820" alt="Battle View: ally and enemy unit markers with HP bars, gambit (GMBT) and attack-move (A-MV) order badges, an ally roster with current decisions, a combat log of damage and healing, and order receipts" />
+</p>
+<p align="center"><sub>Purple <code>GMBT</code> badges are gambit control (the unit is fighting on its own rules); red <code>A-MV</code> badges are an attack-move order the player cut in with. The roster on the right shows each ally's current decision and HP; below it, a combat log of damage, healing and kills, plus receipts for the orders you issued.</sub></p>
+
+The governing design constraint is that **the player experiences combat as GM prose, never as a screen of moving dots** ([`docs/COMBAT_SYSTEM_DESIGN.md`](docs/COMBAT_SYSTEM_DESIGN.md)). The simulator does not exist to be watched — it exists to emit deterministic facts for the GM to novelize.
+
+```mermaid
+flowchart LR
+    Story["Story (GM turn)"] --> Start["Combat session starts"]
+    Start --> Sim["Deterministic simulation<br/>gambits + player orders"]
+    Sim --> Receipt["Combat outcome receipt<br/>(PENDING)"]
+    Receipt --> Apply["Applied exactly once<br/>HP / combatBattleHistory"]
+    Apply --> Fact["combatConsequence<br/>GM prompt block"]
+    Fact --> Story
+```
+
+- **Orders are standard RTS** — left-click to select, drag to box-select, right-click to move or attack. Units without an order keep fighting on their gambits, and `resume gambit` hands control back at any time.
+- **The result cannot be rewritten** — receipts are validated and applied exactly once to `game_state.json`, with durable applied-markers preventing double application. The AI may dramatize the facts but cannot change the winner, HP, or terminal code.
+- **What works today, what doesn't** — the entry points are commands (`Open Battle View`, `Start Campaign Combat (Debug)`). **A GM cannot yet start a fight from the flow of the story.** Single-avatar direct control (dodge/stamina) exists as tested logic with no UI.
+
+All real screenshots captured from the actual Webview (`webview/index.html` + `script.js` + `style.css`; Battle View lives in `webview/battle-view/`). See [`DEMO.md`](DEMO.md) for the capture method.
 
 ---
 
@@ -291,12 +318,22 @@ Main settings:
 | `LoreRelay: Load Scenario Pack` | Load a folder containing `scenario.json` |
 | `LoreRelay: Generate World Forge` | Procedurally generate `world_forge.json` |
 | `LoreRelay: Generate World Map Image` | Parchment map via ComfyUI (optional) |
+| `LoreRelay: Open Battle View` | Open the combat panel (adopts a running session) |
+| `LoreRelay: Start Campaign Combat (Debug)` | Start a combat session from the campaign (today's entry point) |
+| `LoreRelay: Apply Pending Combat Outcomes` | Apply pending combat receipts to `game_state.json` |
+| `LoreRelay: Abort Campaign Combat` | Abort the running campaign combat |
+| `LoreRelay: Start an adventure with this character` | Promote a Parlor chat into a Campaign |
 | `LoreRelay: Start Remote Play (LAN)` | Issue a LAN join URL |
+| `LoreRelay: Export Replay (Markdown/HTML)` | Export the adventure log as a readable document |
+| `LoreRelay: Run Workspace Sanity Check` | Inspect workspace state files |
+| `LoreRelay: Check for Updates` | Check for a newer VSIX release |
 | `LoreRelay: List Image Models` | List ComfyUI checkpoints |
 | `LoreRelay: Import SillyTavern Character Card` | Import ST character card |
 | `LoreRelay: Import SillyTavern Lorebook` | Import ST lorebook |
 | `LoreRelay: Export Scenario Pack (Workshop ZIP)` | Export a distribution ZIP |
 | `LoreRelay: Validate Scenario Pack` | Validate pack structure |
+
+Type `LoreRelay:` in the Command Palette to see all 34 commands.
 
 ### 6. Key workspace files
 
@@ -311,17 +348,21 @@ Main settings:
 | `game_history.json` | Adventure log (restored after restart) |
 | `world_map.layout.png` / `world_map.png` | Cartography layout / parchment image |
 | `npc_registry.json` | NPC awareness and relationships |
+| `.text-adventure/combat/` | Combat receipts (`pending/` unapplied · `applied/` durable markers · `injected/` GM prompt ACKs) |
 
 ### 7. Scenario Packs
 Run `LoreRelay: Load Scenario Pack` from the Command Palette and select a folder containing `scenario.json`.
 
-**Bundled samples (3)** in `sample-scenarios/`:
+**Bundled samples (6)** in `sample-scenarios/`:
 
 | Folder | Genre | Theme | Notes |
 |--------|-------|-------|-------|
-| `lost-catacombs` | Classic dungeon crawl | fantasy | **Cartography demo** (`world_forge.json` + `world_map.layout.png`) |
-| `neon-rain` | Cyberpunk noir | cyberpunk | |
-| `harbor-mist` | Cozy harbor mystery | modern | |
+| `harbor-mist` | Cozy harbor mystery | modern | Start Hub **🎮 Try the demo** — no setup, ~15 minutes |
+| `lost-catacombs` | Classic dungeon crawl | fantasy | Start Hub **🗺️ Map demo** — **Cartography demo** (`world_forge.json` + `world_map.layout.png`) |
+| `scrapbound-settlement` | Post-apoc scavenger | postapoc | Start Hub **🧰 Scavenger demo** — the main Campaign Kit + Commerce loop |
+| `debug-sandbox` | Developer tool | — | Start Hub **🔧 Debug sandbox** — drive affinity, fog and world turns in plain language (no GM needed) |
+| `neon-rain` | Cyberpunk noir | cyberpunk | Load manually |
+| `trade-routes` | Living World trade demo | fantasy | Load manually — Commerce / NPC Agency showcase |
 
 Also under `TextAdventureGMSkill/scenarios/`.
 
@@ -372,12 +413,17 @@ Also under `TextAdventureGMSkill/scenarios/`.
 | **v1.69–1.75** | Settlement Mode (isometric/diorama views) · Vehicle & Mobile Base (fleet ops · mobile base) |
 | **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 compatibility gate · ComfyUI job lifecycle repair |
 | **v1.79–1.83** | NOAI Play (deterministic travel/economy) · per-resource 5-tier economy difficulty (abundant→barren) |
-| **v1.84** | Logistics Graph Canvas (interactive trade-network visualization) · responsive 3-stage Webview shell |
+| **v1.84.0–1.84.16** | Logistics Graph Canvas (interactive trade-network visualization) · responsive 3-stage Webview shell |
+| **v1.84.17–1.84.30** | **Tactical Combat** — Battle View · gambit + RTS order spine (move / attack / attack-move / stop / resume) · deterministic replay hash · battle analytics · Story⇄Combat Bridge V1-A/B/C (receipt → `game_state` → `combatConsequence` prompt) |
+| **v1.84.31–1.84.32** | Genre World Presets (frozen, versioned genre world-generation registry with provenance-checked reproduction) |
 
 See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.
 
 **Planned**
 
+- Combat: a way for the GM to start a fight from the flow of the story (today it is command-launched)
+- Combat: single-avatar direct-control UI (logic shipped, UI not started)
+- World: biome / hydrology map substrate (design gate done, implementation pending)
 - Overmap image tilesets, hazard one-line GM injection
 - Prompt budget priority sliding (long sessions)
 - Workshop / marketplace publishing

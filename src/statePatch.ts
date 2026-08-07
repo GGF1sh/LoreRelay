@@ -56,6 +56,16 @@ import {
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { tryApplyDiscoveryTurnOps } from './discoveryTurnOps';
 import { tryApplyEncounterTurnOps } from './combatEncounterTurnOps';
+import { getPartyMemberIds } from './characterManager';
+
+/** A missing or unreadable party file must not block a declared encounter. */
+function safePartyMemberIds(): string[] {
+    try {
+        return getPartyMemberIds();
+    } catch {
+        return [];
+    }
+}
 import { tryApplyCampaignResourceTurnOps } from './campaignResourceTurnOps';
 import {
     shouldAttemptSettlementLayoutPersist,
@@ -861,7 +871,12 @@ export function processTurnResult(
                     sourceCampaignRevision: Math.max(0, baseRevision),
                 }
                 : undefined;
-            tryApplyEncounterTurnOps(turnResult, loadGameRules().enableStoryCombat === true, identity);
+            tryApplyEncounterTurnOps(
+                turnResult,
+                loadGameRules().enableStoryCombat === true,
+                identity,
+                safePartyMemberIds(),
+            );
         }
 
         const appliedAt = new Date().toISOString();

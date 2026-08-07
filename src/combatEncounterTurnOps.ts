@@ -20,6 +20,8 @@ export interface EncounterTurnOpsDeps {
     storyCombatEnabled: () => boolean;
     /** Real identity of the Accepted turn that declared the encounter. */
     identity: () => EncounterCampaignIdentity | undefined;
+    /** Real party character ids; empty falls back to the fixture's own roster. */
+    partyEntityIds?: () => readonly string[];
     /** Coordinator entry. Already validates and compiles the request. */
     startFromRequest: (request: unknown) => { ok: boolean; error?: string; detail?: string; combatSessionId?: string };
     warn?: (message: string, detail?: unknown) => void;
@@ -75,10 +77,19 @@ export function applyEncounterTurnOps(
     }
 
     const op = parsed.ops[0];
+    let party: readonly string[] | undefined;
+    try {
+        party = deps.partyEntityIds?.();
+    } catch {
+        // A missing or malformed party file must not block the encounter; the
+        // builder falls back to the fixture's own roster.
+        party = undefined;
+    }
     const built = buildCampaignCombatRequestFromEncounterOp(
         op,
         identity,
         encounterRequestId(identity.acceptedTurnId, op.encounterId),
+        party,
     );
     if (!built.ok) {
         deps.warn?.('[encounterOps] could not build combat request', { error: built.error, detail: built.detail });
@@ -117,6 +128,8 @@ export function tryApplyEncounterTurnOps(
     turnResult: Pick<TurnResult, 'encounterOps'>,
     storyCombatEnabled: boolean,
     identity: EncounterCampaignIdentity | undefined,
+    /** Supplied by the caller so this module stays free of vscode-bound imports. */
+    partyEntityIds?: readonly string[],
 ): EncounterTurnOpsOutcome {
     try {
         if (!registeredStarter) {
@@ -125,6 +138,7 @@ export function tryApplyEncounterTurnOps(
         return applyEncounterTurnOps(turnResult, {
             storyCombatEnabled: () => storyCombatEnabled,
             identity: () => identity,
+            partyEntityIds: () => partyEntityIds ?? [],
             startFromRequest: registeredStarter,
             warn: (message, detail) => console.warn(message, detail),
         });

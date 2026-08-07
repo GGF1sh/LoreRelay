@@ -43,9 +43,9 @@ export type EncounterFixtureId = (typeof ALLOWED_ENCOUNTER_FIXTURE_IDS)[number];
 export const DEFAULT_ENCOUNTER_FIXTURE_ID: EncounterFixtureId = 'standard_5v5';
 
 /**
- * Ally entity ids per fixture, mirroring `initialCombatLabScenarios()`.
- * The request contract requires a non-empty ally list, and the compile step
- * builds the actual BattleSpec from the fixture, so these must agree with it.
+ * Ally slots per fixture, mirroring `initialCombatLabScenarios()`. These are the
+ * fallback roster when the campaign has no party file, and they also define how
+ * many real party members a fixture can seat.
  * `test_combat_encounter_turn_ops.js` pins them against the real scenarios.
  */
 const FIXTURE_ALLY_ENTITY_IDS: Record<EncounterFixtureId, readonly string[]> = {
@@ -53,6 +53,47 @@ const FIXTURE_ALLY_ENTITY_IDS: Record<EncounterFixtureId, readonly string[]> = {
     armor_vs_normal: ['normal'],
     armor_vs_ap: ['ap'],
 };
+
+/** How many ally units a fixture actually fields. */
+export function fixtureAllySlotCount(fixtureId: EncounterFixtureId): number {
+    return FIXTURE_ALLY_ENTITY_IDS[fixtureId].length;
+}
+
+/**
+ * Seat the real party in the fixture's ally slots.
+ *
+ * `compileCampaignCombatRequest` binds `request.allies[i]` positionally onto
+ * `battleSpec.initialState.units.allies[i]`, so passing real character ids makes
+ * the compiled roster snapshot correlate the battle back to actual party
+ * members instead of anonymous `ally_N` placeholders.
+ *
+ * Extra party members beyond the fixture's slots are dropped rather than
+ * silently expanding the battle: the fixture defines the encounter's shape.
+ * An empty party falls back to the fixture's own ids, so a solo campaign still
+ * produces a valid request.
+ */
+export function resolveEncounterAllyEntityIds(
+    fixtureId: EncounterFixtureId,
+    partyEntityIds?: readonly string[],
+): string[] {
+    const slots = FIXTURE_ALLY_ENTITY_IDS[fixtureId];
+    const seen = new Set<string>();
+    const party: string[] = [];
+    for (const raw of partyEntityIds ?? []) {
+        if (!isBoundedString(raw)) continue;
+        const id = raw.trim();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        party.push(id);
+        if (party.length >= slots.length) break;
+    }
+    if (party.length === 0) {
+        return [...slots];
+    }
+    // Any slot the party does not fill keeps the fixture's own unit so the
+    // encounter still fields the roster the fixture was balanced around.
+    return [...party, ...slots.slice(party.length)];
+}
 
 /**
  * Fields that would let prose decide the battle. Mirrors the request contract's
@@ -182,6 +223,8 @@ export function buildCampaignCombatRequestFromEncounterOp(
     op: EncounterTurnOp,
     identity: EncounterCampaignIdentity,
     requestId: string,
+    /** Real party character ids; omitted or empty falls back to the fixture roster. */
+    partyEntityIds?: readonly string[],
 ): BuildEncounterRequestResult {
     if (!isBoundedString(identity.campaignInstanceId) || !isBoundedString(identity.timelineEpochId)) {
         return { ok: false, error: 'INVALID_CAMPAIGN_IDENTITY' };
@@ -207,9 +250,8 @@ export function buildCampaignCombatRequestFromEncounterOp(
             sourceAcceptedTurnId: identity.acceptedTurnId,
             requestedMode: op.mode,
             debugFixtureId: op.fixtureId,
-            // V1 keeps the player party as the fixture's own ally side; a roster
-            // built from real party entities is the next slice, not this one.
-            allies: FIXTURE_ALLY_ENTITY_IDS[op.fixtureId].map(entityId => ({ entityId, team: 0 as const })),
+            allies: resolveEncounterAllyEntityIds(op.fixtureId, partyEntityIds)
+                .map(entityId => ({ entityId, team: 0 as const })),
             enemies: { kind: 'fixture', fixtureId: op.fixtureId },
             presentation: { openBattleView: true },
             objective: { type: 'annihilate' },
@@ -220,4 +262,26 @@ export function buildCampaignCombatRequestFromEncounterOp(
 /** Deterministic request id: same accepted turn + encounter always yields the same id. */
 export function encounterRequestId(acceptedTurnId: string, encounterId: string): string {
     return `enc_${acceptedTurnId}_${encounterId}`.slice(0, 128);
+}
+
+/**
+ * GM instruction for story-declared combat.
+ *
+ * Derived from the same allowlists the parser enforces, so the prompt can never
+ * advertise a fixture or field that would be rejected at apply time. Kept to a
+ * few lines because it is injected on every turn while the rule is on.
+ */
+export function buildStoryCombatPromptInstruction(): string {
+    return [
+        'STORY COMBAT ENABLED: When the narrative reaches a fight that should actually be played out,',
+        'emit `encounterOps` (at most ONE per turn) to hand the battle to the combat engine:',
+        '  encounterOps: [{ "op": "start_combat", "encounterId": "<short_snake_case_id>",',
+        `    "fixtureId": "<${ALLOWED_ENCOUNTER_FIXTURE_IDS.join(' | ')}>", "reason": "<one short clause>" }]`,
+        'You declare only that a fight BEGINS. You must NEVER describe or decide its result:',
+        'do not narrate who wins, who dies, damage numbers, HP left, or loot in the same turn.',
+        `The following keys are rejected outright: ${FORBIDDEN_OUTCOME_KEYS.join(', ')}.`,
+        'End the narrative at the moment combat is joined; the engine resolves it and the',
+        'confirmed outcome is given back to you on a later turn. Omit encounterOps entirely',
+        'for scuffles that are better handled as prose.',
+    ].join('\n');
 }

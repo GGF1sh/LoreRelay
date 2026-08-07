@@ -117,6 +117,103 @@ check('every allowed fixture builds a request that compiles', () => {
     }
 });
 
+// ---------------------------------------------------------------------------
+// Party roster: real characters take the fixture's ally slots
+// ---------------------------------------------------------------------------
+check('the real party takes the fixture ally slots, in order', () => {
+    const op = core.parseEncounterTurnOps([startOp]).ops[0];
+    const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', ['elda', 'garrick']);
+    assert.ok(built.ok);
+    const ids = built.request.allies.map(a => a.entityId);
+    assert.strictEqual(ids[0], 'elda');
+    assert.strictEqual(ids[1], 'garrick');
+    assert.strictEqual(ids.length, core.fixtureAllySlotCount('standard_5v5'), 'slot count must not change');
+    assert.deepStrictEqual(ids.slice(2), ['ally_3', 'ally_4', 'ally_5'], 'unfilled slots keep the fixture unit');
+});
+
+check('an empty or absent party falls back to the fixture roster', () => {
+    const op = core.parseEncounterTurnOps([startOp]).ops[0];
+    for (const party of [undefined, [], ['', '   ']]) {
+        const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', party);
+        assert.ok(built.ok, JSON.stringify(built));
+        assert.deepStrictEqual(
+            built.request.allies.map(a => a.entityId),
+            ['ally_1', 'ally_2', 'ally_3', 'ally_4', 'ally_5'],
+        );
+    }
+});
+
+check('a party larger than the fixture is truncated, never expanded', () => {
+    const op = core.parseEncounterTurnOps([{ ...startOp, fixtureId: 'armor_vs_normal' }]).ops[0];
+    const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', ['a', 'b', 'c', 'd']);
+    assert.ok(built.ok);
+    assert.deepStrictEqual(built.request.allies.map(a => a.entityId), ['a']);
+});
+
+check('duplicate party ids are collapsed', () => {
+    const op = core.parseEncounterTurnOps([startOp]).ops[0];
+    const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', ['elda', 'elda', 'garrick']);
+    const ids = built.request.allies.map(a => a.entityId);
+    assert.deepStrictEqual(ids.slice(0, 2), ['elda', 'garrick']);
+    assert.strictEqual(new Set(ids).size, ids.length, 'no duplicate entity ids may reach the request');
+});
+
+check('a party-seated request still validates and compiles, and the roster names the party', () => {
+    const op = core.parseEncounterTurnOps([startOp]).ops[0];
+    const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', ['elda', 'garrick']);
+    assert.ok(validateCampaignCombatRequest(built.request).ok, 'party roster must satisfy the request contract');
+    const catalog = JSON.parse(fs.readFileSync(
+        path.join(root, 'resources', 'combat-abilities', 'v1-reference-abilities.json'), 'utf8',
+    ));
+    const compiled = compileCampaignCombatRequest(
+        built.request,
+        { abilities: catalog.abilities, statuses: catalog.statuses },
+        initialCombatLabScenarios(),
+    );
+    assert.ok(compiled.ok, `compile failed: ${JSON.stringify(compiled)}`);
+    // The compiler binds request allies positionally onto fixture units, so the
+    // roster snapshot must carry the real character ids back out.
+    assert.strictEqual(compiled.compiled.entityToUnitId.elda, 'ally_1');
+    assert.strictEqual(compiled.compiled.entityToUnitId.garrick, 'ally_2');
+    const rosterEntities = compiled.compiled.rosterSnapshot.map(r => r.entityId);
+    assert.ok(rosterEntities.includes('elda'), 'roster snapshot must name the party member');
+});
+
+// ---------------------------------------------------------------------------
+// Prompt instruction stays in sync with what the parser accepts
+// ---------------------------------------------------------------------------
+check('the prompt instruction advertises only fixtures the parser accepts', () => {
+    const text = core.buildStoryCombatPromptInstruction();
+    for (const fixtureId of core.ALLOWED_ENCOUNTER_FIXTURE_IDS) {
+        assert.ok(text.includes(fixtureId), `instruction must list ${fixtureId}`);
+    }
+    assert.ok(text.includes('encounterOps'), 'instruction must name the field');
+    assert.ok(text.includes('start_combat'), 'instruction must name the op');
+    assert.ok(/at most ONE/i.test(text), 'instruction must state the one-per-turn cap');
+});
+
+check('the prompt instruction forbids exactly what the parser rejects', () => {
+    const text = core.buildStoryCombatPromptInstruction();
+    // Every key the parser refuses must be named, or the GM is set up to fail.
+    for (const key of ['winner', 'outcome', 'finalHp', 'damage', 'loot', 'receiptHash']) {
+        assert.ok(text.includes(key), `instruction must warn about ${key}`);
+        assert.strictEqual(
+            core.parseEncounterTurnOps([{ ...startOp, [key]: 'x' }]).error,
+            'FORBIDDEN_OUTCOME_FIELD',
+            `${key} is advertised as forbidden but not actually rejected`,
+        );
+    }
+});
+
+check('the prompt instruction is only injected while the rule is on', () => {
+    const builder = fs.readFileSync(path.join(root, 'src', 'gmPromptBuilder.ts'), 'utf8');
+    assert.match(
+        builder,
+        /if \(rules\.enableStoryCombat\)\s*\{\s*lines\.push\(buildStoryCombatPromptInstruction\(\)\);/,
+        'story combat instruction must be gated on enableStoryCombat',
+    );
+});
+
 check('request ids are deterministic for the same turn and encounter', () => {
     const a = core.encounterRequestId('turn-42', 'ambush');
     const b = core.encounterRequestId('turn-42', 'ambush');

@@ -125,7 +125,7 @@ Architecture deep dive: [`docs/WORLD_AND_VISUAL_MEMORY.md`](docs/WORLD_AND_VISUA
 
 | Tier | What you need |
 |------|---------------|
-| **Required (core play)** | VSCode 1.85+, Python, `TextAdventureGMSkill` (`SKILL.md`) |
+| **Required (core play)** | VS Code 1.93+, Python, `TextAdventureGMSkill` (`SKILL.md`) |
 | **Recommended** | GM Bridge (Grok / Ollama / clipboard, etc.) or manual copy-paste |
 | **Optional — images** | ComfyUI (API mode) for scene backgrounds and parchment maps |
 | **Optional — vision** | VLM (Ollama `llava` or OpenRouter multimodal) for Soulgaze |
@@ -256,7 +256,7 @@ This extension uses a loosely coupled mechanism that watches `turn_result.json` 
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+) — required
+- **VS Code** (v1.93+) — required
 - **Python** — required (dice, layout maps, GM bridge scripts)
 - **TextAdventureGMSkill** — required (`SKILL.md` and `scripts/`; place next to this repo)
 - **ComfyUI** — *optional* (scene images and parchment maps only; start in API mode)

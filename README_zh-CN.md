@@ -123,7 +123,7 @@ flowchart LR
 
 | 层级 | 内容 |
 |------|------|
-| **必需（核心游玩）** | VSCode 1.85+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
+| **必需（核心游玩）** | VS Code 1.93+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
 | **推荐** | GM Bridge（Grok / Ollama / 剪贴板等）或手动复制粘贴 |
 | **可选 — 图像** | ComfyUI（API 模式）— 场景背景与羊皮纸地图 |
 | **可选 — 视觉记忆** | VLM（Ollama `llava` 或 OpenRouter 多模态）— Soulgaze |
@@ -254,7 +254,7 @@ flowchart LR
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+) — 必需
+- **VS Code** (v1.93+) — 必需
 - **Python** — 必需（掷骰、布局地图、GM 桥接脚本）
 - **TextAdventureGMSkill** — 必需（`SKILL.md` 与 `scripts/`，放在本仓库旁）
 - **ComfyUI** — *可选*（仅场景图与羊皮纸地图；需 API 模式启动）

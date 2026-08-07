@@ -55,6 +55,7 @@ import {
 } from './guildHallDriftCore';
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { tryApplyDiscoveryTurnOps } from './discoveryTurnOps';
+import { tryApplyEncounterTurnOps } from './combatEncounterTurnOps';
 import { tryApplyCampaignResourceTurnOps } from './campaignResourceTurnOps';
 import {
     shouldAttemptSettlementLayoutPersist,
@@ -845,6 +846,22 @@ export function processTurnResult(
                 'game_state retained per compensation policy.',
                 e
             );
+        }
+
+        // Story-declared combat dispatches here, at the Accepted correlation
+        // boundary after the commit. Starting earlier would let the AI's
+        // returned `status` -- owned by the 'turn' merge profile -- revert
+        // combat-driven state. Never throws: the turn is already durable.
+        if (Array.isArray(turnResult.encounterOps) && turnResult.encounterOps.length > 0) {
+            const identity = acceptedTurnContext
+                ? {
+                    campaignInstanceId: acceptedTurnContext.identity.campaignInstanceId,
+                    timelineEpochId: acceptedTurnContext.identity.timelineEpochId,
+                    acceptedTurnId: acceptedTurnContext.identity.turnId,
+                    sourceCampaignRevision: Math.max(0, baseRevision),
+                }
+                : undefined;
+            tryApplyEncounterTurnOps(turnResult, loadGameRules().enableStoryCombat === true, identity);
         }
 
         const appliedAt = new Date().toISOString();

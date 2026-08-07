@@ -147,6 +147,21 @@ export interface TurnResult {
         /** §F10 battle_round: the player's tactic for the current round of an active battle. */
         tactic?: 'assault' | 'hold' | 'stratagem';
     };
+    /**
+     * Story-declared combat (encounterOps, max 1). The GM may declare that a
+     * fight begins; it may never declare how the fight ends. Outcome fields are
+     * rejected outright by `parseEncounterTurnOps`, and the battle is resolved
+     * by the deterministic combat core, not by prose.
+     * Requires `enableStoryCombat`; ignored entirely when the rule is off.
+     */
+    encounterOps?: Array<{
+        op: 'start_combat';
+        encounterId: string;
+        /** Enemy roster: a bundled combat fixture id. */
+        fixtureId?: string;
+        mode?: 'command' | 'spectator';
+        reason?: string;
+    }>;
     /** Campaign Kit: expedition findings ledger updates (discoveryOps, max 8). */
     discoveryOps?: Array<{
         op: 'add' | 'update' | 'remove';

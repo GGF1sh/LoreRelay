@@ -758,6 +758,11 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 sendRelayModeStatus();
             }
+            if (e.affectsConfiguration('textAdventure.debug.combatDevTools')) {
+                // Re-broadcast so the QA lane shows/hides the authoring tools
+                // immediately instead of waiting for the panel to be reopened.
+                sendDebugCapabilities();
+            }
         })
     );
 
@@ -1659,6 +1664,16 @@ function isDebugTraceVisible(): boolean {
     return isBulkWorldSimDebugEnabled() || debugScenarioActive;
 }
 
+/**
+ * Combat authoring tools (Combat Lab, Ability Workshop, Combat Loadout) are
+ * developer sandboxes, not gameplay. They stay out of the player's Adventure
+ * Status pane unless explicitly opted in, and are independent of the debug
+ * trace/scenario visibility above.
+ */
+function isCombatDevToolsEnabled(): boolean {
+    return vscode.workspace.getConfiguration('textAdventure.debug').get<boolean>('combatDevTools') === true;
+}
+
 function sendDebugTraceUpdate(): void {
     if (!panel || !isDebugTraceVisible()) {
         return;
@@ -1702,6 +1717,7 @@ function sendDebugCapabilities(): void {
         bulkWorldSimMaxSteps: getBulkWorldSimMaxSteps(),
         debugScenarioActive,
         showDebugConsole,
+        combatDevTools: isCombatDevToolsEnabled(),
         enableCommerce: rules.enableCommerce === true,
         livingWorldMarketDebug: showDebugConsole && rules.enableCommerce === true && marketLocations.length > 0,
         marketLocations,

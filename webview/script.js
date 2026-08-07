@@ -21786,21 +21786,92 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 })();
 
+/* --- 89c1-combat-dev-tools-gate.js --- */
+// Shared gate for the combat authoring sandboxes (Combat Lab, Ability Workshop,
+// Combat Loadout). These are developer tools, so they stay out of the player's
+// Adventure Status pane entirely and mount into the Inspector QA lane only when
+// the host reports textAdventure.debug.combatDevTools.
+//
+// Host truth arrives on the existing `debugCapabilities` message; until it does
+// the tools stay hidden, so a player who never opts in never sees them render.
+window.LR_combatDevTools = window.LR_combatDevTools || { enabled: false, ready: false, renderers: [] };
+
+/** Where every combat authoring panel mounts. Never `#pane-status`. */
+function combatDevToolsHost() {
+  return document.getElementById('combat-dev-tools');
+}
+
+function combatDevToolsEnabled() {
+  return window.LR_combatDevTools.enabled === true;
+}
+
+/**
+ * Resolve a panel's root element, creating it under the QA-lane host on first
+ * use. Returns null while the tools are disabled (and removes an existing panel
+ * so toggling the setting off cleans up), which every caller treats as
+ * "render nothing".
+ */
+function mountCombatDevToolPanel(panelId) {
+  const existing = document.getElementById(panelId);
+  if (!combatDevToolsEnabled()) {
+    existing?.remove();
+    return null;
+  }
+  const host = combatDevToolsHost();
+  if (!host) return null;
+  if (existing) {
+    // Older builds appended these panels to #pane-status. Re-parent rather than
+    // recreate so a live session does not lose panel state on the first toggle.
+    if (existing.parentElement !== host) host.append(existing);
+    return existing;
+  }
+  const root = document.createElement('section');
+  root.id = panelId;
+  root.className = 'card';
+  host.append(root);
+  return root;
+}
+
+/** Panels register their renderer so the gate can redraw them when it flips. */
+function registerCombatDevToolRenderer(render) {
+  if (typeof render === 'function') window.LR_combatDevTools.renderers.push(render);
+}
+
+function applyCombatDevToolsVisibility() {
+  const section = document.getElementById('combat-dev-tools-section');
+  section?.classList.toggle('hidden', !combatDevToolsEnabled());
+  for (const render of window.LR_combatDevTools.renderers) {
+    try { render(); } catch { /* one broken panel must not block the others */ }
+  }
+}
+
+window.addEventListener('message', event => {
+  const message = event.data || {};
+  if (message.type !== 'debugCapabilities') return;
+  const next = message.combatDevTools === true;
+  const changed = next !== window.LR_combatDevTools.enabled || !window.LR_combatDevTools.ready;
+  window.LR_combatDevTools.enabled = next;
+  window.LR_combatDevTools.ready = true;
+  if (changed) applyCombatDevToolsVisibility();
+});
+
 /* --- 89d-combat-loadout.js --- */
 // Opt-in combat loadout panel. Host sends combatLoadoutCatalog/State messages;
 // state is retained locally so redraws do not discard a pre-battle selection.
+// Mounts into the Inspector QA lane behind the combat dev-tools gate.
 window.LR_combatLoadout = window.LR_combatLoadout || { mode: 'legacy_gambit', loadouts: {}, abilities: [] };
+function loadoutEsc(value) { const node = document.createElement('span'); node.textContent = String(value || ''); return node.innerHTML; }
 function renderCombatLoadout() {
   const state = window.LR_combatLoadout;
-  let root = document.getElementById('combat-loadout-panel');
-  if (!root) { root = document.createElement('section'); root.id = 'combat-loadout-panel'; root.className = 'card'; document.querySelector('#pane-status')?.append(root); }
+  const root = mountCombatDevToolPanel('combat-loadout-panel');
+  if (!root) return;
   const enabled = state.mode === 'mechanics_v1';
-  root.innerHTML = `<h4>Combat mode</h4><label><input type="radio" name="combat-mode" value="legacy_gambit" ${enabled ? '' : 'checked'}> Legacy combat</label><label><input type="radio" name="combat-mode" value="mechanics_v1" ${enabled ? 'checked' : ''}> Extended combat</label><div class="inline-help">${enabled ? 'Abilities, statuses, barriers, and subsystems are enabled.' : 'Ability loadouts are disabled; legacy combat receives no mechanics data.'}</div><div id="combat-loadout-abilities"></div>`;
-  const list = root.querySelector('#combat-loadout-abilities'); if (enabled && list) list.innerHTML = state.abilities.map(a => `<article class="combat-ability ${a.selectable ? '' : 'disabled'}"><b>${a.name}</b> · ${a.shape} · ${a.vector} · cd ${a.cooldown}s<br>${a.effect} · ${a.target}<br>${a.counters}<br>${a.selectable ? 'Budget valid' : 'Unavailable: ' + a.reason}</article>`).join('') || 'No validated abilities available.';
+  root.innerHTML = `<h4>${loadoutEsc(T('webview.combatLoadout.title'))}</h4><label><input type="radio" name="combat-mode" value="legacy_gambit" ${enabled ? '' : 'checked'}> ${loadoutEsc(T('webview.combatLoadout.modeLegacy'))}</label><label><input type="radio" name="combat-mode" value="mechanics_v1" ${enabled ? 'checked' : ''}> ${loadoutEsc(T('webview.combatLoadout.modeExtended'))}</label><div class="inline-help">${loadoutEsc(enabled ? T('webview.combatLoadout.helpExtended') : T('webview.combatLoadout.helpLegacy'))}</div><div id="combat-loadout-abilities"></div>`;
+  const list = root.querySelector('#combat-loadout-abilities'); if (enabled && list) list.innerHTML = state.abilities.map(a => `<article class="combat-ability ${a.selectable ? '' : 'disabled'}"><b>${a.name}</b> · ${a.shape} · ${a.vector} · cd ${a.cooldown}s<br>${a.effect} · ${a.target}<br>${a.counters}<br>${a.selectable ? loadoutEsc(T('webview.combatLoadout.budgetValid')) : loadoutEsc(T('webview.combatLoadout.unavailable')) + ': ' + a.reason}</article>`).join('') || loadoutEsc(T('webview.combatLoadout.noAbilities'));
   root.querySelectorAll('input[name="combat-mode"]').forEach(input => input.onchange = () => { state.mode = input.value; vscode.postMessage({ type: 'updateCombatLoadout', state }); renderCombatLoadout(); });
 }
 window.addEventListener('message', event => { const message = event.data || {}; if (message.type === 'combatLoadoutCatalog') { Object.assign(window.LR_combatLoadout, message.state || {}, { abilities: message.abilities || [] }); renderCombatLoadout(); } if (message.type === 'combatMechanicsDisplay') { window.LR_combatLoadout.display = message.display; renderCombatLoadout(); } });
-document.addEventListener('DOMContentLoaded', renderCombatLoadout);
+registerCombatDevToolRenderer(renderCombatLoadout);
 
 /* --- 89e-ability-workshop.js --- */
 // Opt-in Ability Workshop. The authoritative validation and shot are performed
@@ -21814,21 +21885,23 @@ function workshopDefaultDraft() {
 }
 function renderAbilityWorkshop() {
   const state = window.LR_abilityWorkshop;
-  let root = document.getElementById('ability-workshop-panel');
-  if (!root) { root = document.createElement('section'); root.id = 'ability-workshop-panel'; root.className = 'card'; document.querySelector('#pane-status')?.append(root); }
+  const root = mountCombatDevToolPanel('ability-workshop-panel');
+  if (!root) return;
   const validation = state.validation;
   const issues = validation ? [...(validation.errors || []), ...(validation.warnings || [])] : [];
   const budget = validation?.powerBudget;
-  const status = validation ? (validation.valid ? 'Valid' : 'Invalid') : 'Edit an ability to validate it.';
-  root.innerHTML = `<h4>Ability Workshop V1</h4>
-    <div class="inline-help">Built-in abilities are read-only. Duplicate one before editing. Invalid abilities cannot be saved or added to a loadout.</div>
-    <p><button data-aw="new">New</button> <button data-aw="duplicate">Duplicate selected built-in</button> <button data-aw="save" ${validation && !validation.valid ? 'disabled' : ''}>Save custom</button> <button data-aw="delete">Delete custom</button> <button data-aw="loadout" ${validation && !validation.valid ? 'disabled' : ''}>Add to loadout</button></p>
-    <textarea data-aw="draft" aria-label="Ability definition JSON" rows="18" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)">${workshopEscape(state.draft || workshopDefaultDraft())}</textarea>
-    <p><button data-aw="import">Import JSON</button> <button data-aw="export">Export JSON</button> <button data-aw="reset">Reset custom abilities</button> <button data-aw="shot">Test shot</button></p>
-    <div class="inline-help"><b>${status}</b>${budget ? ` · power ${budget.cost}/${budget.budget} (tolerance ${budget.toleratedBudget})` : ''}</div>
+  const status = validation
+    ? (validation.valid ? T('webview.abilityWorkshop.statusValid') : T('webview.abilityWorkshop.statusInvalid'))
+    : T('webview.abilityWorkshop.statusIdle');
+  root.innerHTML = `<h4>${workshopEscape(T('webview.abilityWorkshop.title'))}</h4>
+    <div class="inline-help">${workshopEscape(T('webview.abilityWorkshop.help'))}</div>
+    <p><button data-aw="new">${workshopEscape(T('webview.abilityWorkshop.new'))}</button> <button data-aw="duplicate">${workshopEscape(T('webview.abilityWorkshop.duplicate'))}</button> <button data-aw="save" ${validation && !validation.valid ? 'disabled' : ''}>${workshopEscape(T('webview.abilityWorkshop.save'))}</button> <button data-aw="delete">${workshopEscape(T('webview.abilityWorkshop.delete'))}</button> <button data-aw="loadout" ${validation && !validation.valid ? 'disabled' : ''}>${workshopEscape(T('webview.abilityWorkshop.addToLoadout'))}</button></p>
+    <textarea data-aw="draft" aria-label="${workshopEscape(T('webview.abilityWorkshop.draftAriaLabel'))}" rows="18" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)">${workshopEscape(state.draft || workshopDefaultDraft())}</textarea>
+    <p><button data-aw="import">${workshopEscape(T('webview.abilityWorkshop.import'))}</button> <button data-aw="export">${workshopEscape(T('webview.abilityWorkshop.export'))}</button> <button data-aw="reset">${workshopEscape(T('webview.abilityWorkshop.reset'))}</button> <button data-aw="shot">${workshopEscape(T('webview.abilityWorkshop.testShot'))}</button></p>
+    <div class="inline-help"><b>${workshopEscape(status)}</b>${budget ? ` · ${workshopEscape(T('webview.abilityWorkshop.power'))} ${budget.cost}/${budget.budget} (${workshopEscape(T('webview.abilityWorkshop.tolerance'))} ${budget.toleratedBudget})` : ''}</div>
     <ul>${issues.map(issue => `<li>${workshopEscape(issue.code)}: ${workshopEscape(issue.message)}</li>`).join('')}</ul>
-    <div data-aw="shot-result">${state.shot ? `Damage ${state.shot.damageDealt || 0}; Heal ${state.shot.healingDone || 0}; Barrier Δ ${state.shot.barrierChange || 0}; ${state.shot.deterministic ? 'deterministic match' : 'determinism mismatch'}` : 'Test shot uses the configured attacker/target defaults in the host.'}</div>
-    <details><summary>Built-in (${state.builtin.length}) / custom (${state.custom.length})</summary>${[...state.builtin, ...state.custom].map(ability => `<button data-aw-select="${workshopEscape(ability.id)}">${workshopEscape(ability.name)} (${state.builtin.some(item => item.id === ability.id) ? 'built-in' : 'custom'})</button>`).join(' ') || 'No abilities loaded.'}</details>`;
+    <div data-aw="shot-result">${state.shot ? `${workshopEscape(T('webview.abilityWorkshop.shotDamage'))} ${state.shot.damageDealt || 0}; ${workshopEscape(T('webview.abilityWorkshop.shotHeal'))} ${state.shot.healingDone || 0}; ${workshopEscape(T('webview.abilityWorkshop.shotBarrier'))} ${state.shot.barrierChange || 0}; ${workshopEscape(state.shot.deterministic ? T('webview.abilityWorkshop.shotDeterministic') : T('webview.abilityWorkshop.shotNonDeterministic'))}` : workshopEscape(T('webview.abilityWorkshop.shotIdle'))}</div>
+    <details><summary>${workshopEscape(T('webview.abilityWorkshop.catalogSummary', { builtin: state.builtin.length, custom: state.custom.length }))}</summary>${[...state.builtin, ...state.custom].map(ability => `<button data-aw-select="${workshopEscape(ability.id)}">${workshopEscape(ability.name)} (${workshopEscape(state.builtin.some(item => item.id === ability.id) ? T('webview.abilityWorkshop.kindBuiltin') : T('webview.abilityWorkshop.kindCustom'))})</button>`).join(' ') || workshopEscape(T('webview.abilityWorkshop.noAbilities'))}</details>`;
   const readDraft = () => { state.draft = root.querySelector('[data-aw="draft"]').value; return state.draft; };
   const sendValidation = () => vscode.postMessage({ type: 'validateCombatAbilityWorkshopDraft', json: readDraft() });
   root.querySelector('[data-aw="draft"]').addEventListener('input', sendValidation);
@@ -21853,7 +21926,16 @@ window.addEventListener('message', event => {
   if (message.type === 'combatAbilityWorkshopShot') { state.shot = message.shot || null; renderAbilityWorkshop(); }
   if (message.type === 'combatAbilityWorkshopExport' && typeof message.json === 'string') { state.draft = message.json; renderAbilityWorkshop(); }
 });
-document.addEventListener('DOMContentLoaded', () => { renderAbilityWorkshop(); vscode.postMessage({ type: 'requestCombatAbilityWorkshop' }); });
+let abilityWorkshopRequested = false;
+registerCombatDevToolRenderer(() => {
+  renderAbilityWorkshop();
+  // Only ask the host for the catalog once the tools are actually visible, so a
+  // player who never opts in never triggers workshop work in the extension.
+  if (!abilityWorkshopRequested && combatDevToolsEnabled()) {
+    abilityWorkshopRequested = true;
+    vscode.postMessage({ type: 'requestCombatAbilityWorkshop' });
+  }
+});
 
 /* --- 89f-combat-lab.js --- */
 // Combat Lab is an opt-in, workspace-local simulator. The host owns all
@@ -22229,18 +22311,19 @@ function bindCombatCommandPlaytest(root) {
   };
 }
 function renderCombatLab() {
-  const state = window.LR_combatLab; let root = document.getElementById('combat-lab-panel');
-  if (!root) { root = document.createElement('section'); root.id = 'combat-lab-panel'; root.className = 'card'; document.querySelector('#pane-status')?.append(root); }
+  const state = window.LR_combatLab;
+  const root = mountCombatDevToolPanel('combat-lab-panel');
+  if (!root) return;
   const scenarios = state.document?.scenarios || []; const selected = scenarios.find(s => s.id === state.selected) || scenarios[0]; if (selected && !state.selected) state.selected = selected.id;
   const result = state.result?.summary; const timeline = state.result?.timeline || [];
-  root.innerHTML = `<h4>Combat Lab V1</h4><div class="inline-help">Workspace-only deterministic sandbox. It never writes battle outcomes to the world or characters.</div>
-    <p><select data-lab="scenario">${scenarios.map(s => `<option value="${labEsc(s.id)}" ${s.id === state.selected ? 'selected' : ''}>${labEsc(s.name)} (${s.mode})</option>`).join('')}</select> <button data-lab="run">Run</button> <button data-lab="repeat">Repeat</button> <button data-lab="swap">Swap sides & run</button> <button data-lab="compare">Compare last two</button></p>
-    <p><button data-lab="tick">1 tick</button> <button data-lab="pause">Pause</button> <button data-lab="speed" data-speed="1">1×</button> <button data-lab="speed" data-speed="2">2×</button> <button data-lab="speed" data-speed="4">4×</button> <button data-lab="export">Export</button> <button data-lab="import">Import clipboard</button> <button data-lab="save">Save settings</button></p>
-    <textarea data-lab="json" rows="12" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)" aria-label="Combat Lab scenario JSON">${labEsc(selected ? JSON.stringify(selected, null, 2) : '')}</textarea>
-    <p><button data-lab="apply">Apply scenario JSON</button> <button data-lab="clone">Clone scenario</button></p>
-    <div class="inline-help">${result ? `<b>${labEsc(result.outcome)}</b> · ${result.ticks} ticks · ${result.durationSeconds.toFixed(2)}s · damage ${result.totalDamage} · heal ${result.totalHealing} · barrier ${result.barrierAbsorbed} · status ${result.statusApplications}` : 'Choose a reference scenario or provide valid JSON.'}</div>
-    <div>${state.compare ? `Comparison: winner ${state.compare.winnerChanged ? 'changed' : 'same'}, duration Δ ${state.compare.durationDelta.toFixed(2)}, damage Δ ${state.compare.damageDelta}, changed inputs ${state.compare.changedInputs.length}.` : ''}</div>
-    <details><summary>Combat timeline (${timeline.length})</summary><ol>${timeline.slice(0, 250).map(line => `<li>${labEsc(line)}</li>`).join('')}</ol></details>${renderCombatCommandPlaytest(state)}`;
+  root.innerHTML = `<h4>${labEsc(T('webview.combatLab.title'))}</h4><div class="inline-help">${labEsc(T('webview.combatLab.help'))}</div>
+    <p><select data-lab="scenario">${scenarios.map(s => `<option value="${labEsc(s.id)}" ${s.id === state.selected ? 'selected' : ''}>${labEsc(s.name)} (${s.mode})</option>`).join('')}</select> <button data-lab="run">${labEsc(T('webview.combatLab.run'))}</button> <button data-lab="repeat">${labEsc(T('webview.combatLab.repeat'))}</button> <button data-lab="swap">${labEsc(T('webview.combatLab.swapSides'))}</button> <button data-lab="compare">${labEsc(T('webview.combatLab.compare'))}</button></p>
+    <p><button data-lab="tick">${labEsc(T('webview.combatLab.oneTick'))}</button> <button data-lab="pause">${labEsc(T('webview.combatLab.pause'))}</button> <button data-lab="speed" data-speed="1">1×</button> <button data-lab="speed" data-speed="2">2×</button> <button data-lab="speed" data-speed="4">4×</button> <button data-lab="export">${labEsc(T('webview.combatLab.export'))}</button> <button data-lab="import">${labEsc(T('webview.combatLab.importClipboard'))}</button> <button data-lab="save">${labEsc(T('webview.combatLab.saveSettings'))}</button></p>
+    <textarea data-lab="json" rows="12" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)" aria-label="${labEsc(T('webview.combatLab.jsonAriaLabel'))}">${labEsc(selected ? JSON.stringify(selected, null, 2) : '')}</textarea>
+    <p><button data-lab="apply">${labEsc(T('webview.combatLab.applyJson'))}</button> <button data-lab="clone">${labEsc(T('webview.combatLab.cloneScenario'))}</button></p>
+    <div class="inline-help">${result ? `<b>${labEsc(result.outcome)}</b> · ${labEsc(T('webview.combatLab.summary', { ticks: result.ticks, seconds: result.durationSeconds.toFixed(2), damage: result.totalDamage, heal: result.totalHealing, barrier: result.barrierAbsorbed, status: result.statusApplications }))}` : labEsc(T('webview.combatLab.chooseScenario'))}</div>
+    <div>${state.compare ? labEsc(T('webview.combatLab.comparison', { winner: state.compare.winnerChanged ? T('webview.combatLab.winnerChanged') : T('webview.combatLab.winnerSame'), duration: state.compare.durationDelta.toFixed(2), damage: state.compare.damageDelta, inputs: state.compare.changedInputs.length })) : ''}</div>
+    <details><summary>${labEsc(T('webview.combatLab.timeline', { count: timeline.length }))}</summary><ol>${timeline.slice(0, 250).map(line => `<li>${labEsc(line)}</li>`).join('')}</ol></details>${renderCombatCommandPlaytest(state)}`;
   const json = () => root.querySelector('[data-lab="json"]').value;
   root.querySelector('[data-lab="scenario"]').onchange = event => {
     const restartMessage = selectCombatLabScenarioForPlaytest(state, event.target.value);
@@ -22380,7 +22463,16 @@ window.addEventListener('message', event => {
     else updateCombatCommandPlaytestView(state);
   }
 });
-document.addEventListener('DOMContentLoaded', () => { renderCombatLab(); vscode.postMessage({ type: 'requestCombatLab' }); });
+let combatLabRequested = false;
+registerCombatDevToolRenderer(() => {
+  renderCombatLab();
+  // Only ask the host for the Lab document once the tools are actually visible,
+  // so a player who never opts in never triggers Lab work in the extension.
+  if (!combatLabRequested && combatDevToolsEnabled()) {
+    combatLabRequested = true;
+    vscode.postMessage({ type: 'requestCombatLab' });
+  }
+});
 
 /* --- 90-bootstrap.js --- */
 // ===== Initialization =====

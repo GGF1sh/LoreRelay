@@ -55,6 +55,7 @@
   "config.textAdventure.reputation.inPrompt.description": "enableFactionReputation ON 時に GM [World State] へ [Player Reputation] 1 行を追加。既定はオフ。",
   "config.textAdventure.debug.bulkWorldSim.description": "Inspector に世界シミュ N ステップ進行のデバッグ操作を表示（world_state.json を更新。GM ターン数は不変）。Emergent Simulation 要。既定オフ。",
   "config.textAdventure.debug.bulkWorldSimMaxSteps.description": "一括進行の最大ステップ数（1〜100）。既定 50。",
+  "config.textAdventure.debug.combatDevTools.description": "戦闘オーサリングツール（Combat Lab／Ability Workshop／Combat Loadout）を Inspector の QA レーンに表示。ゲームプレイ機能ではなく開発用サンドボックスです。既定オフ。",
   "config.textAdventure.modelScan.roots.description": "モデルファイル（.safetensors、.gguf、.ckpt、.pt、.bin）を探すローカルフォルダ。Stability Matrix の Packages フォルダ、ComfyUI フォルダ、ComfyUI/models、またはモデルフォルダを指定できます。",
   "config.textAdventure.vlm.provider.description": "Soulgaze 用の VLM プロバイダー。Ollama はローカル、OpenRouter はクラウドのマルチモーダルモデル（OpenAI/Gemini/Anthropic は OpenRouter API 経由）。",
   "config.textAdventure.vlm.model.description": "VLM モデル名（例: Ollama は 'llava'、OpenRouter は 'google/gemini-2.0-flash'）。",

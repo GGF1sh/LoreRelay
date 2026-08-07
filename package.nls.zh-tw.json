@@ -51,6 +51,7 @@
   "config.textAdventure.reputation.inPrompt.description": "啟用派系聲望時，向 GM [World State] 追加一行 [Player Reputation]。預設關閉。",
   "config.textAdventure.debug.bulkWorldSim.description": "在 Inspector 顯示將 Emergent Simulation 推進 N 步的除錯控制（更新 world_state.json，GM 回合數不變）。需啟用 Emergent Simulation。預設關閉。",
   "config.textAdventure.debug.bulkWorldSimMaxSteps.description": "單次批次推進的最大步數（1–100）。預設 50。",
+  "config.textAdventure.debug.combatDevTools.description": "在 Inspector 的 QA 泳道顯示戰鬥編寫工具（Combat Lab、Ability Workshop、Combat Loadout）。這些是開發用沙箱，並非遊戲玩法功能。預設關閉。",
   "config.textAdventure.modelScan.roots.description": "要掃描模型檔案（.safetensors、.gguf、.ckpt、.pt、.bin）的本機資料夾。可指向 Stability Matrix 的 Packages 資料夾、ComfyUI 資料夾、ComfyUI/models 或具體模型資料夾。",
   "config.textAdventure.vlm.provider.description": "Soulgaze 圖像分析的 VLM 提供商。Ollama 為本機模型；OpenRouter 為雲端多模態（OpenAI/Gemini/Anthropic 均經 OpenRouter API）。",
   "config.textAdventure.vlm.model.description": "VLM 模型名稱（例如 Ollama 用 'llava'，OpenRouter 用 'google/gemini-2.0-flash'）。",

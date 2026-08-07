@@ -45,6 +45,7 @@ const JS_MODULE_ORDER = [
     '89c-vehicle-intent-preview.js',
     '89-vehicles.js',
     '89b-mobile-base-panel.js',
+    '89c1-combat-dev-tools-gate.js',
     '89d-combat-loadout.js',
     '89e-ability-workshop.js',
     '89f-combat-lab.js',

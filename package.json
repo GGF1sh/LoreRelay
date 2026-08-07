@@ -372,6 +372,11 @@
           "maximum": 100,
           "description": "%config.textAdventure.debug.bulkWorldSimMaxSteps.description%"
         },
+        "textAdventure.debug.combatDevTools": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.debug.combatDevTools.description%"
+        },
         "textAdventure.modelScan.roots": {
           "type": "array",
           "items": {

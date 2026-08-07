@@ -58,6 +58,7 @@
   "config.textAdventure.reputation.inPrompt.description": "Append a one-line [Player Reputation] summary to the GM World State prompt when enableFactionReputation is on. Default off.",
   "config.textAdventure.debug.bulkWorldSim.description": "Show Inspector debug control to advance emergent world simulation by N steps (updates world_state.json; GM turn count unchanged). Requires Emergent Simulation enabled. Default off.",
   "config.textAdventure.debug.bulkWorldSimMaxSteps.description": "Maximum world simulation steps per bulk advance (1–100). Default 50.",
+  "config.textAdventure.debug.combatDevTools.description": "Show the combat authoring tools (Combat Lab, Ability Workshop, Combat Loadout) in the Inspector QA lane. These are developer sandboxes, not gameplay. Default off.",
   "config.textAdventure.modelScan.roots.description": "Local folders to scan for model files (.safetensors, .gguf, .ckpt, .pt, .bin). Point this at your Stability Matrix Packages folder, ComfyUI folder, ComfyUI/models folder, or a direct model folder.",
   "config.textAdventure.vlm.provider.description": "VLM provider for Soulgaze image analysis. Use Ollama for local models, or OpenRouter for cloud multimodal models (OpenAI/Gemini/Anthropic routes via OpenRouter API).",
   "config.textAdventure.vlm.model.description": "VLM model name (e.g. 'llava' for Ollama, 'google/gemini-2.0-flash' for OpenRouter).",

@@ -74,7 +74,7 @@ function createMinimalDom() {
         if (sel === '[data-unit-id][data-unit-team="0"]:not(:disabled)') {
             return node.dataset.unitId != null && node.dataset.unitTeam === '0' && !node.disabled;
         }
-        if (sel === '#pane-status') return node.id === 'pane-status';
+        if (sel === '#combat-dev-tools') return node.id === 'combat-dev-tools';
         if (sel === '#combat-lab-panel') return node.id === 'combat-lab-panel';
         if (sel.startsWith('#')) return node.id === sel.slice(1);
         return false;
@@ -251,10 +251,16 @@ function createMinimalDom() {
     }
 
     const documentElement = createNode('document');
+    // Combat authoring panels mount into the Inspector QA lane, never the
+    // player's Adventure Status pane. Mirror that host container here.
+    const section = createNode('div');
+    section.id = 'combat-dev-tools-section';
+    nodesById.set('combat-dev-tools-section', section);
     const pane = createNode('div');
-    pane.id = 'pane-status';
-    nodesById.set('pane-status', pane);
-    documentElement.appendChild(pane);
+    pane.id = 'combat-dev-tools';
+    nodesById.set('combat-dev-tools', pane);
+    section.appendChild(pane);
+    documentElement.appendChild(section);
 
     const document = {
         addEventListener() { /* registration only */ },
@@ -326,7 +332,10 @@ function loadWebviewHelpers(): {
     dispatchMessage: (data: unknown) => void;
     state: Record<string, unknown>;
 } {
-    const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
+    // The Lab module mounts through the shared combat dev-tools gate, so the
+    // gate module is part of the unit under test rather than a stub.
+    const gateSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89c1-combat-dev-tools-gate.js'), 'utf8');
+    const source = `${gateSource}\n${fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8')}`;
     const clearedTimers: unknown[] = [];
     const posted: unknown[] = [];
     let intervalCreates = 0;
@@ -337,6 +346,9 @@ function loadWebviewHelpers(): {
             addEventListener(type: string, fn: (event: { data: unknown }) => void) {
                 if (type === 'message') messageListeners.push(fn);
             },
+            // Pre-seed the gate as opted in; these hooks are exercised without a
+            // real panel, and the gate's own on/off behaviour is covered separately.
+            LR_combatDevTools: { enabled: true, ready: true, renderers: [] },
         },
         document: {
             addEventListener() { /* registration only */ },
@@ -414,7 +426,10 @@ function loadWebviewLiveDom(): {
     queryAll: (sel: string) => DomNode[];
     scrollIntoViewCalls: DomNode[];
 } {
-    const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
+    // The Lab module mounts through the shared combat dev-tools gate, so the
+    // gate module is part of the unit under test rather than a stub.
+    const gateSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89c1-combat-dev-tools-gate.js'), 'utf8');
+    const source = `${gateSource}\n${fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8')}`;
     const posted: unknown[] = [];
     let renderCount = 0;
     const messageListeners: Array<(event: { data: unknown }) => void> = [];
@@ -424,6 +439,8 @@ function loadWebviewLiveDom(): {
             addEventListener(type: string, fn: (event: { data: unknown }) => void) {
                 if (type === 'message') messageListeners.push(fn);
             },
+            // Opted in, so the Lab mounts into the QA-lane host below.
+            LR_combatDevTools: { enabled: true, ready: true, renderers: [] },
         },
         document,
         navigator: {},
